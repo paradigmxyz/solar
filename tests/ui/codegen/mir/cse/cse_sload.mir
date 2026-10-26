@@ -1,7 +1,8 @@
 //@compile-flags: -Zmir-pipeline=cse
 //@filecheck:
 // Two SLOADs from the same slot within a block (no intervening SSTORE)
-// should be CSE'd. But after an SSTORE, the cache is invalidated.
+// should be CSE'd. An SSTORE to a possibly aliasing slot invalidates the cache, and an SSTORE
+// to the same slot forwards its value to the next SLOAD.
 @module CseSload
 // CHECK-LABEL: {{^[ +].*}}fn @sload_cse{{[( ]}}
 // CHECK: - {{v[0-9]+}} = sload arg0
@@ -16,7 +17,8 @@ fn @sload_cse(arg0: i256) -> i256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @sload_after_sstore{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = sload arg0
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload arg0
+// CHECK: - {{v[0-9]+}} = sload arg0
+// CHECK: + {{v[0-9]+}} = add {{v[0-9]+}}, arg1
 fn @sload_after_sstore(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = sload arg0
@@ -24,6 +26,18 @@ fn @sload_after_sstore(arg0: i256, arg1: i256) -> i256 {
     v4 = sload arg0
     v5 = add v2, v4
     ret v5
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @sload_after_aliasing_sstore{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload arg0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload arg0
+fn @sload_after_aliasing_sstore(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v3 = sload arg0
+    sstore arg1, arg2
+    v5 = sload arg0
+    v6 = add v3, v5
+    ret v6
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @sload_inside_gas_interval{{[( ]}}

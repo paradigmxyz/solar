@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/discarded_ternary_calldata_conversion.sol:DiscardedTernaryCalldataConversion ===
 @module DiscardedTernaryCalldataConversion
-fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_params=[bool, array<_, array<_, u256>>], abi_returns=[], abi_return_params=[]] {
+fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_params=[bool, array<_, array<_, uint256>>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc zeroed checked 32
     mstore v0, 0
@@ -98,14 +98,14 @@ fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_para
     v68 = extract_value slice<calldata>, v65, 1
     calldatacopy v66, v67, v68
     v69 = ptrtoint ptr<memory> v63 to i256
-    v70 = shl 5, v30
+    v70 = shl v30, 5
     v71 = ptradd v29, v70
     v72 = ptradd v71, 32
     mstore v72, v69
     v73 = add v30, 1
     jump bb7
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96
@@ -137,43 +137,31 @@ fn @test(arg0: i1, arg1: i1) -> i1 [selector=0x7442b287, abi_params=[bool, bool]
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = ptradd v0, 32
-    v17 = mload v16
-    v18 = inttoptr i256 v17 to ptr<memory>
-    v19 = eq v17, 0
-    jumpi v19, bb4, bb5
-  bb4:
-    v20 = alloc 32
-    mstore v20, 0
-    v21 = ptradd v0, 32
-    v22 = ptrtoint ptr<memory> v20 to i256
-    mstore v21, v22
-    jump bb5
+    v17 = mload v16, ptr<memory>
+    v18 = mload v17
+    v19 = lt 0, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = ptradd v17, 32
+    mstore v21, 7
+    v22 = zext i1 arg0 to i256
+    v23 = abi_encode [word<bool>, memory_array<memory_array<word>>], object, selector 0xfbc4674700000000000000000000000000000000000000000000000000000000, args v22, v0
+    jumpi arg1, bb4, bb5
   bb5:
-    v23 = phi [bb3: v18], [bb4: v20]
-    v24 = mload v23
-    v25 = lt 0, v24
-    v26 = eq v25, false
-    icall panic_if<0x32>, v26
-    v27 = ptradd v23, 32
-    mstore v27, 7
-    v28 = zext i1 arg0 to i256
-    v29 = abi_encode [word<bool>, memory_array<memory_array<word>>], object, selector 0xfbc4674700000000000000000000000000000000000000000000000000000000, args v28, v0
-    jumpi arg1, bb6, bb7
-  bb7:
-    jump bb8
+    jump bb6
+  bb4:
+    v24 = not 0
+    v25 = ptrtoint ptr<memory> v23 to i256
+    v26 = add v25, 132
+    mstore v26, v24
+    jump bb6
   bb6:
-    v30 = not 0
-    v31 = ptrtoint ptr<memory> v29 to i256
-    v32 = add v31, 132
-    mstore v32, v30
-    jump bb8
-  bb8:
-    v33 = address
-    v34 = gas
-    v35 = address_call v33, v29, gas v34
-    ret v35
+    v27 = address
+    v28 = gas
+    v29 = address_call v27, v23, gas v28
+    ret v29
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96

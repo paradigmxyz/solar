@@ -46,6 +46,12 @@ all = "warn"
 debug = "line-tables-only"
 split-debuginfo = "unpacked"
 
+# Cargo strips debuginfo from proc macros and build scripts unless they are also built as a target
+# unit. A workspace `cargo build` builds `solar-macros` as one; `cargo r` and `cargo build -p` do not,
+# so they would rebuild every crate that depends on it. Keep this in sync with `[profile.dev] debug`.
+[profile.dev.build-override]
+debug = "line-tables-only"
+
 [profile.dev.package]
 solar-tester.opt-level = 3
 console.opt-level = 3
@@ -167,7 +173,7 @@ toml_edit = "0.25"
 flate2 = "1.1"
 
 # codegen
-cranelift-isle = "=0.136.2"
+cranelift-isle = "=0.136.3"
 
 # macros
 proc-macro2 = "1.0"
@@ -227,11 +233,11 @@ rustc-hash = "2.0"
 scoped-tls = "1.0"
 semver = "1.0"
 smallvec = { version = "1", features = ["const_generics", "union"] }
+smolgen = { version = "0.1.1", features = ["gitcl"] }
 thread_local = "1.1"
 tokio = { version = "1.47", default-features = false }
 tokio-util = { version = "0.7", default-features = false }
 unicode-width = "0.2"
-vergen = { package = "vergen-gitcl", version = "10" }
 
 ## Pinned dependencies. Enabled for the workspace in crates/solar.
 

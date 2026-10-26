@@ -1,0 +1,35 @@
+- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/preserved_literal_read.mir (before lower-abi-encode) ===
++ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/preserved_literal_read.mir (after lower-abi-encode) ===
+  @module PreservedLiteralRead
+  fn @read_after_encode() -> i256 {
+    bb0:
+      v0 = alloc 64 !metadata(preserves_fmp)
+      mstore v0, 4
+      v1 = ptradd v0, 32
+      mstore v1, 0x150b7a0200000000000000000000000000000000000000000000000000000000
+-     v2 = abi_encode [memory_bytes], scratch, args v0
++     v4 = fmp
++     v5 = ptrtoint ptr<memory> v4 to i256
++     v6 = add v5, 32
++     v7 = ptrtoint ptr<memory> v4 to i256
++     v8 = sub v6, v7
++     mstore v4, v8
++     v9 = mload v0
++     v10 = not 31
++     v11 = add v9, 31
++     v12 = and v11, v10
++     v13 = add v6, 32
++     v14 = add v6, v12
++     mstore v14, 0
++     mstore v6, v9
++     v15 = ptradd v0, 32
++     v16 = add v13, v12
++     mcopy v13, v15, v9 !metadata(memory=heap, disjoint)
++     v17 = ptrtoint ptr<memory> v4 to i256
++     v18 = sub v16, v17
++     v19 = add v18, 0
++     v20 = make_memory_slice v4, v19
+      v3 = mload v0
+      ret v3
+  }
+  

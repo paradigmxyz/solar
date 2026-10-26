@@ -24,7 +24,7 @@ bb4 [cold]:
   push 0
   revert
 bb5:
-  push 160
+  push 128
   push 64
   mstore
   push 100
@@ -44,28 +44,19 @@ bb15:
   push 4
   dup 2
   add
-  push 32
-  dup 2
-  add
-  swap 2
-  push 0
-  not
-  push 192
-  shr
-  lt
-  calldatasize
-  dup 4
-  gt
-  or
-  dup 2
-  calldataload
   swap 1
-  swap 3
+  push 36
   calldatasize
   sub
   lt
-  swap 1
-  swap 2
+  dup 2
+  calldataload
+  push 32
+  dup 4
+  add
+  calldatasize
+  sub
+  lt
   or
   push bb4
   jumpi
@@ -98,13 +89,13 @@ bb7 [continuation]:
   dup 3
   calldatacopy
   keccak256
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb10:
-  push 160
+  push 128
   push 64
   mstore
   push 68
@@ -160,8 +151,8 @@ bb12 [continuation]:
   swap 1
   swap 2
   keccak256
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

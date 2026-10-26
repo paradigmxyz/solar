@@ -92,8 +92,8 @@ contract CheckedBitSearch {
     // OPT-LABEL: fn @fls{{[.0-9]*}}(arg0: i256)
     // OPT: jumpi {{v[0-9]+}}, {{bb[0-9]+}}, [[SEARCH:bb[0-9]+]]
     // OPT: [[SEARCH]]:
-    // OPT: [[SCALED:v[0-9]+]] = shl 7, {{v[0-9]+}}
-    // OPT-NEXT: {{v[0-9]+}} = shr [[SCALED]], arg0
+    // OPT: [[SCALED:v[0-9]+]] = shl {{v[0-9]+}}, 7
+    // OPT-NEXT: {{v[0-9]+}} = shr arg0, [[SCALED]]
     // OPT-NOT: jumpi
     // OPT: ret {{v[0-9]+}}
     function fls(uint256 x) external pure returns (uint256) {

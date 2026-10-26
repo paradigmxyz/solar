@@ -2,7 +2,7 @@
 //@ filecheck:
 @module LowerImmutables
 @immutables
-  first: u8
+  first: uint8
   second: bool
 
 // CHECK-LABEL: @constructor

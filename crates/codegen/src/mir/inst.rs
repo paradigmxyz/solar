@@ -1,6 +1,6 @@
 //! MIR instructions.
 
-use super::{Function, InstKind, MirType, PtrLocation, Value, ValueId};
+use super::{Function, InstKind, MirPhase, MirType, PhaseCategory, PtrLocation, Value, ValueId};
 use crate::mir::{Builtin, Callee};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -231,6 +231,18 @@ impl InstructionMetadata {
         self.flags.set_preserves_fmp(value);
     }
 
+    /// Returns whether this sum is an allocator bump that does not wrap.
+    #[must_use]
+    pub(crate) fn alloc_ptr(&self) -> bool {
+        self.flags.alloc_ptr()
+    }
+
+    /// Marks the sum of an allocation's pointer and size, which cannot wrap in a program that
+    /// completes, so the sum is not below the pointer.
+    pub(crate) fn set_alloc_ptr(&mut self, value: bool) {
+        self.flags.set_alloc_ptr(value);
+    }
+
     /// Returns whether this copy's source and destination ranges never overlap.
     #[must_use]
     pub(crate) fn disjoint(&self) -> bool {
@@ -257,6 +269,7 @@ impl MetadataFlags {
     const PRESERVES_FMP: u16 = 0b100_0000_0000;
     const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
     const DEBUG_INFO_HANDLED: u16 = 0b1_0000_0000_0000;
+    const ALLOC_PTR: u16 = 0b10_0000_0000_0000;
 
     fn memory_region(self) -> Option<MemoryRegion> {
         match self.0 & Self::MEMORY_MASK {
@@ -327,6 +340,18 @@ impl MetadataFlags {
             self.0 |= Self::PRESERVES_FMP;
         } else {
             self.0 &= !Self::PRESERVES_FMP;
+        }
+    }
+
+    fn alloc_ptr(self) -> bool {
+        self.0 & Self::ALLOC_PTR != 0
+    }
+
+    fn set_alloc_ptr(&mut self, value: bool) {
+        if value {
+            self.0 |= Self::ALLOC_PTR;
+        } else {
+            self.0 &= !Self::ALLOC_PTR;
         }
     }
 
@@ -576,6 +601,26 @@ impl EffectKind {
             Self::ImmutableWrite => "immutable_write",
         }
     }
+
+    /// Whether this is pure computation or a read of memory, storage, transient storage or the
+    /// environment.
+    #[must_use]
+    pub(crate) const fn is_read_only(self) -> bool {
+        matches!(
+            self,
+            Self::Pure
+                | Self::MemoryRead
+                | Self::StorageRead
+                | Self::TransientRead
+                | Self::EnvironmentRead
+        )
+    }
+
+    /// Whether this reads or writes memory.
+    #[must_use]
+    pub(crate) const fn is_memory(self) -> bool {
+        matches!(self, Self::MemoryRead | Self::MemoryWrite)
+    }
 }
 
 /// Initialization performed for a newly reserved range.
@@ -663,147 +708,17 @@ pub(crate) struct Instruction {
 }
 
 impl Instruction {
-    /// Returns whether an unused instruction must retain its execution.
-    pub(crate) fn must_execute(&self, observes_msize: bool) -> bool {
-        self.kind.effects().must_execute(observes_msize)
-    }
-
     /// Returns the semantic operation that still needs representation lowering.
-    pub(crate) fn unlowered_reason(&self, func: &Function) -> Option<&'static str> {
+    pub(crate) fn unlowered_reason(&self, func: &Function) -> Option<PhaseCategory> {
         if self.result_ty == Some(MirType::I1)
             && self.kind.op_def().result == super::ResultKind::Integer
             && !matches!(self.kind, InstKind::And(..) | InstKind::Or(..) | InstKind::Xor(..))
             || matches!(self.kind, InstKind::SLt(a, _) | InstKind::SGt(a, _)
                 if func.value_ty(a) == Some(MirType::I1))
         {
-            return Some("narrow integer arithmetic");
+            return Some(PhaseCategory::NarrowIntegerArithmetic);
         }
-        match &self.kind {
-            InstKind::MakeSlice { .. } | InstKind::ExtractValue { ty: MirType::Slice(_), .. } => {
-                Some("slice")
-            }
-            InstKind::InsertValue { .. } | InstKind::ExtractValue { .. } => Some("struct value"),
-            InstKind::Fmp | InstKind::SetFmp(..) => Some("abstract allocation"),
-            InstKind::MemoryZero(..) => Some("memory zero"),
-            InstKind::CheckedBinary { .. } => Some("checked arithmetic"),
-            InstKind::ValidateStorageBytes(..)
-            | InstKind::StorageBytesLoad(..)
-            | InstKind::StorageArrayLoad { .. }
-            | InstKind::StorageBytesStore(..)
-            | InstKind::StorageBytesStoreLiteral { .. }
-            | InstKind::StorageClearWords(..)
-            | InstKind::AbiEncodePacked { .. }
-            | InstKind::AddressCall { .. } => Some("builtin"),
-            InstKind::ValidateAbi(..) => Some("ABI validation"),
-            InstKind::ICall { function: Callee::Builtin(builtin), .. } => Some(match builtin {
-                Builtin::Check { .. } | Builtin::Require(_) => "conditional check",
-                Builtin::Erc7201
-                | Builtin::CheckedAddMod
-                | Builtin::CheckedMulMod
-                | Builtin::Sha256
-                | Builtin::Ripemd160
-                | Builtin::EcRecover
-                | Builtin::Send
-                | Builtin::Transfer
-                | Builtin::ReturndataBytes => "builtin",
-            }),
-            InstKind::AbiEncode { .. } => Some("ABI encoding"),
-            InstKind::AbiDecode { .. } => Some("ABI decoding"),
-            InstKind::StorageToMemory { .. }
-            | InstKind::MemoryToStorage { .. }
-            | InstKind::ClearStorage { .. } => Some("aggregate"),
-            InstKind::MappingSlot(..)
-            | InstKind::MappingSlotBytes(..)
-            | InstKind::StorageArrayDataSlot(..)
-            | InstKind::StorageArrayElementSlot { .. } => Some("storage slot"),
-            InstKind::StoreImmutable(..) => Some("immutable assignment"),
-            InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => Some("frame slot"),
-            InstKind::PtrAdd(..) => Some("pointer arithmetic"),
-            InstKind::Alloc { semantics, .. } => (!self.metadata.deferred_alloc()
-                || *semantics != AllocationSemantics::INTERNAL)
-                .then_some("abstract allocation"),
-            InstKind::Trunc(..) | InstKind::Sext(..) => Some("integer conversion"),
-            InstKind::PtrToInt(_, bits) if *bits < 256 => Some("integer conversion"),
-            InstKind::Zext(..)
-            | InstKind::PtrToInt(..)
-            | InstKind::IntToPtr(..)
-            | InstKind::Add(..)
-            | InstKind::Sub(..)
-            | InstKind::Mul(..)
-            | InstKind::Div(..)
-            | InstKind::SDiv(..)
-            | InstKind::Mod(..)
-            | InstKind::SMod(..)
-            | InstKind::Exp(..)
-            | InstKind::AddMod(..)
-            | InstKind::MulMod(..)
-            | InstKind::And(..)
-            | InstKind::Or(..)
-            | InstKind::Xor(..)
-            | InstKind::Not(..)
-            | InstKind::Clz(..)
-            | InstKind::Shl(..)
-            | InstKind::Shr(..)
-            | InstKind::Sar(..)
-            | InstKind::Byte(..)
-            | InstKind::Lt(..)
-            | InstKind::Gt(..)
-            | InstKind::SLt(..)
-            | InstKind::SGt(..)
-            | InstKind::Eq(..)
-            | InstKind::Ne(..)
-            | InstKind::Load(..)
-            | InstKind::Store(..)
-            | InstKind::Store8(..)
-            | InstKind::MSize
-            | InstKind::Copy(..)
-            | InstKind::CalldataSize
-            | InstKind::InternalFrameAddr(..)
-            | InstKind::ConstructorArgsBase
-            | InstKind::ConstructorArgsEnd
-            | InstKind::HeapFloor
-            | InstKind::DataCopy(..)
-            | InstKind::CodeSize
-            | InstKind::CodeCopy(..)
-            | InstKind::ExtCodeSize(..)
-            | InstKind::ExtCodeCopy(..)
-            | InstKind::ExtCodeHash(..)
-            | InstKind::LibraryAddress(..)
-            | InstKind::DataSize(..)
-            | InstKind::LoadImmutable(..)
-            | InstKind::ReturnDataSize
-            | InstKind::Caller
-            | InstKind::CallValue
-            | InstKind::Origin
-            | InstKind::GasPrice
-            | InstKind::BlockHash(..)
-            | InstKind::Coinbase
-            | InstKind::Timestamp
-            | InstKind::BlockNumber
-            | InstKind::PrevRandao
-            | InstKind::GasLimit
-            | InstKind::SlotNum
-            | InstKind::ChainId
-            | InstKind::Address
-            | InstKind::Balance(..)
-            | InstKind::SelfBalance
-            | InstKind::Gas
-            | InstKind::BaseFee
-            | InstKind::BlobBaseFee
-            | InstKind::BlobHash(..)
-            | InstKind::Keccak256(..)
-            | InstKind::Call { .. }
-            | InstKind::CallCode { .. }
-            | InstKind::StaticCall { .. }
-            | InstKind::DelegateCall { .. }
-            | InstKind::ICall { function: Callee::Function(_), .. }
-            | InstKind::Create(..)
-            | InstKind::Create2(..)
-            | InstKind::Log { .. }
-            | InstKind::Phi(..)
-            | InstKind::Select(..)
-            | InstKind::SignExtend(..) => None,
-        }
+        self.kind.phase_violation(MirPhase::Lowered, &self.metadata)
     }
 
     /// Creates a new instruction.
@@ -859,6 +774,7 @@ impl Instruction {
         // %result = old(operands) -> %result = equivalent(new_operands)
         self.kind = kind;
         self.invalidate_operand_metadata();
+        self.metadata.set_alloc_ptr(false);
         if !matches!(self.kind, InstKind::Alloc { .. }) {
             self.metadata.clear_deferred_alloc();
             self.metadata.set_preserves_fmp(false);
@@ -1004,6 +920,15 @@ impl InstKind {
         }
     }
 
+    /// Returns the tested operand of a canonical inequality with zero.
+    pub(crate) fn nonzero_test_operand(&self, func: &super::Function) -> Option<ValueId> {
+        match *self {
+            Self::Ne(a, b) if func.value_u256(b).is_some_and(|v| v.is_zero()) => Some(a),
+            Self::Ne(a, b) if func.value_u256(a).is_some_and(|v| v.is_zero()) => Some(b),
+            _ => None,
+        }
+    }
+
     /// Clones the instruction with zeroed value operands to compare its remaining fields.
     pub(crate) fn clone_without_operands(&self) -> Self {
         let mut kind = self.clone();
@@ -1082,7 +1007,7 @@ impl InstKind {
     /// Returns whether the instruction has required effects, including control effects.
     #[must_use]
     pub(crate) const fn has_side_effects(&self) -> bool {
-        self.effects().must_execute(false)
+        self.effects().must_execute()
     }
 
     /// Returns a conservative effect classification for this instruction.
@@ -1123,6 +1048,19 @@ impl InstKind {
             }
             _ => None,
         }
+    }
+
+    /// Returns whether this is a `shl`, `shr`, or `sar`.
+    #[must_use]
+    pub(crate) const fn is_shift(&self) -> bool {
+        matches!(self, Self::Shl(..) | Self::Shr(..) | Self::Sar(..))
+    }
+
+    /// Returns whether the textual form lists the stored operands in reverse: shifts are stored
+    /// in EVM stack order but read as `value, shift`.
+    #[must_use]
+    pub(crate) const fn reverses_text_operands(&self) -> bool {
+        self.is_shift()
     }
 }
 

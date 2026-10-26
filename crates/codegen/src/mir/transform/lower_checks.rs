@@ -10,14 +10,26 @@
 //! fail after memory writes emit their payload in place, exposing those writes to dead-store
 //! elimination. Other failures retain shared helpers. Instructions after an unconditional
 //! failure move to an unreachable continuation.
+//!
+//! Revert payloads are never read after the revert, so none of them reserves memory. Panics,
+//! short constant error strings, and custom errors of at most `MAX_SCRATCH_ERROR_WORDS` words
+//! stage in the reserved low memory through `FunctionBuilder::revert_scratch`. Constant strings
+//! longer than a word write the whole `Error(string)` payload from constants, as stores or a data
+//! copy by the target cost model. Other custom errors and error strings encode at the
+//! free-memory pointer. None of these advance it.
 
 use crate::mir::{
     AbiLayout, AbiType, Builtin, Callee, ERROR_SELECTOR, EffectKind, Function, FunctionBuilder,
-    FunctionId, InstKind, InstructionMetadata, MirType, Module, PtrLocation, RequireKind,
-    RevertKind, RevertPayload, pass::MirPass, transform::utils::redirect_successor_predecessors,
+    FunctionId, InstKind, InstructionMetadata, MAX_SCRATCH_ERROR_WORDS, MirType, Module,
+    PhaseCategory, PtrLocation, RequireKind, RevertKind, RevertPayload,
+    lower::{DataDest, copy_data_to_memory},
+    pass::MirPass,
+    transform::utils::expand_block,
 };
+use alloy_primitives::U256;
 use solar_config::{OptimizationMode, RevertStrings};
 use solar_interface::{Ident, sym};
+use solar_sema::Gcx;
 use std::sync::Arc;
 
 pub(crate) struct LowerChecks;
@@ -33,7 +45,7 @@ impl MirPass for LowerChecks {
 
     fn run_pass(
         &self,
-        gcx: solar_sema::Gcx<'_>,
+        gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
@@ -56,19 +68,26 @@ impl MirPass for LowerChecks {
         }
         let helper = needs_helper.then(|| create_short_string_helper(module, &helper_context));
         let mut changed = false;
-        for function in &mut module.functions {
+        // Long strings intern their data in the module while a function is rewritten.
+        let mut functions = std::mem::take(&mut module.functions);
+        for function in &mut functions {
             changed |= lower_function(
+                gcx,
+                module,
                 function,
                 helper,
                 gcx.sess.opts.revert_strings,
                 !matches!(gcx.sess.opts.optimization, OptimizationMode::None),
             );
         }
+        module.functions = functions;
         changed
     }
 }
 
 fn lower_function(
+    gcx: Gcx<'_>,
+    module: &mut Module,
     func: &mut Function,
     helper: Option<FunctionId>,
     revert_strings: RevertStrings,
@@ -87,15 +106,9 @@ fn lower_function(
         {
             continue;
         }
-        let instructions = std::mem::take(&mut builder.func_mut().blocks[block].instructions);
-        let (terminator, metadata) = builder.func_mut().blocks[block].take_terminator();
-        builder.switch_to_block(block);
-        for id in instructions {
+        expand_block(&mut builder, block, |builder, id| {
             if !is_check(&builder.func().inst(id).kind) {
-                // continuation: original instruction
-                let current = builder.current_block();
-                builder.func_mut().blocks[current].instructions.push(id);
-                continue;
+                return false;
             }
             let inst = builder.func().inst(id).clone();
             builder.set_debug_context(&inst.metadata);
@@ -139,33 +152,24 @@ fn lower_function(
                     let continuation = builder.create_block();
                     builder.branch(condition, continuation, failure);
                     builder.switch_to_block(failure);
-                    emit_payload(&mut builder, payload, helper);
+                    emit_payload(gcx, module, builder, payload, helper);
                     builder.switch_to_block(continuation);
                 }
                 _ => unreachable!(),
             }
-        }
-        // continuation: original terminator
-        let end = builder.current_block();
-        if let Some(terminator) = terminator {
-            builder.func_mut().blocks[end].set_terminator(terminator, metadata);
-        }
-        if end != block {
-            redirect_successor_predecessors(builder.func_mut(), block, end);
-        }
+            true
+        });
     }
     true
 }
 
 fn is_check(kind: &InstKind) -> bool {
-    matches!(
-        kind,
-        InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. }
-            | InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. }
-    )
+    kind.op_def().phase_category == Some(PhaseCategory::ConditionalCheck)
 }
 
 fn emit_payload(
+    gcx: Gcx<'_>,
+    module: &mut Module,
     builder: &mut FunctionBuilder<'_>,
     payload: RevertPayload,
     helper: Option<FunctionId>,
@@ -176,36 +180,61 @@ fn emit_payload(
             builder.icall_void(helper.expect("short string helper"), vec![length, data]);
             builder.invalid();
         }
+        RevertPayload::LongString(symbol) => {
+            let bytes = symbol.as_byte_str();
+            // pointer = fmp
+            // write message at pointer + 68: stores, a splat, or a data copy by cost
+            // mstore pointer + 36, length
+            // mstore pointer, Error.selector
+            // mstore pointer + 4, 32
+            // revert(pointer, 68 + padded length)
+            let padded = bytes.len().next_multiple_of(32);
+            let pointer = builder.fmp();
+            let dest = DataDest { base: pointer, offset: 68 };
+            copy_data_to_memory(gcx, module, builder, dest, bytes, padded, None);
+            // NOTE: the selector word zeroes bytes 4..32, so the offset store follows it, and the
+            // message-independent stores come last so that tail merging shares them.
+            for (offset, word) in
+                [(36, U256::from(bytes.len())), (0, ERROR_SELECTOR), (4, U256::from(32))]
+            {
+                let address = builder.address_value(pointer, offset);
+                let word = builder.imm(word);
+                builder.store(address, word);
+            }
+            let size = builder.imm(68 + padded as u64);
+            builder.revert(pointer, size);
+        }
         RevertPayload::EmptyString => {
-            // mstore(0, Error.selector); mstore(4, 32); mstore(36, 0); revert(0, 68)
-            let selector = builder.imm(ERROR_SELECTOR);
-            let zero = builder.imm(0);
-            builder.store(zero, selector);
-            let offset = builder.imm(4);
+            // revert_scratch(Error.selector, [32, 0])
             let tuple_offset = builder.imm(32);
-            builder.store(offset, tuple_offset);
-            let length = builder.imm(36);
-            builder.store(length, zero);
-            let size = builder.imm(68);
-            builder.revert(zero, size);
+            let length = builder.imm(0);
+            builder.revert_scratch(ERROR_SELECTOR, &[tuple_offset, length]);
         }
         RevertPayload::ErrorString(value) => {
-            // payload = abi_encode(Error.selector, value)
+            // payload = abi_encode_scratch(Error.selector, value)
             // revert(payload.ptr, payload.len)
             let selector = builder.imm(ERROR_SELECTOR);
             let layout = Arc::new(AbiLayout::new(
                 vec![AbiType::Bytes(PtrLocation::Memory)].into_boxed_slice(),
             ));
             let encoded =
-                builder.abi_encode(layout, Some(selector), vec![value].into_boxed_slice());
+                builder.abi_encode_scratch(layout, Some(selector), vec![value].into_boxed_slice());
             let pointer = builder.slice_ptr(encoded);
             let length = builder.slice_len(encoded);
             builder.revert(pointer, length);
         }
         RevertPayload::CustomError { selector, layout, values } => {
-            // payload = abi_encode(selector, values)
+            if let Some(selector) = builder.func().value_u256(selector)
+                && values.len() <= MAX_SCRATCH_ERROR_WORDS
+                && layout.types.iter().all(|ty| matches!(ty, AbiType::Word(_)))
+            {
+                // revert_scratch(selector, values)
+                builder.revert_scratch(selector, &values);
+                return;
+            }
+            // payload = abi_encode_scratch(selector, values)
             // revert(payload.ptr, payload.len)
-            let encoded = builder.abi_encode(layout, Some(selector), values);
+            let encoded = builder.abi_encode_scratch(layout, Some(selector), values);
             let pointer = builder.slice_ptr(encoded);
             let length = builder.slice_len(encoded);
             builder.revert(pointer, length);
@@ -217,21 +246,10 @@ fn create_short_string_helper(module: &mut Module, context: &InstructionMetadata
     let mut function = Function::new(Ident::with_dummy_span(sym::revert_error));
     let mut builder = FunctionBuilder::new(&mut function);
     builder.set_debug_context(context);
-    // mstore(0, Error.selector); mstore(4, 32)
-    // mstore(36, length); mstore(68, data); revert(0, 100)
+    // revert_scratch(Error.selector, [32, length, data])
     let length = builder.add_param(MirType::I256);
     let value = builder.add_param(MirType::I256);
-    let selector = builder.imm(ERROR_SELECTOR);
-    let zero = builder.imm(0);
-    builder.store(zero, selector);
-    let offset = builder.imm(4);
     let tuple_offset = builder.imm(32);
-    builder.store(offset, tuple_offset);
-    let length_offset = builder.imm(36);
-    builder.store(length_offset, length);
-    let data_offset = builder.imm(68);
-    builder.store(data_offset, value);
-    let size = builder.imm(100);
-    builder.revert(zero, size);
+    builder.revert_scratch(ERROR_SELECTOR, &[tuple_offset, length, value]);
     module.add_function(function)
 }

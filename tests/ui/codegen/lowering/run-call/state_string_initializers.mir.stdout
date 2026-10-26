@@ -12,7 +12,7 @@ fn @symbol() -> ptr<memory> [selector=0x95d89b41, view, abi_params=[], abi_retur
     ret v0
 }
 
-fn @decimals() -> i8 [selector=0x313ce567, view, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @decimals() -> i8 [selector=0x313ce567, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = trunc i256 v0 to i8
@@ -62,90 +62,72 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
 
 fn @deploys() -> i1 [selector=0x225b4d71, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize StateStringInitializers_creation_code_0
-    v2 = datasize StateStringInitializers_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy StateStringInitializers_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize StateStringInitializers_creation_code_0
+    v1 = fmp
+    datacopy StateStringInitializers_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = zext i160 v7 to i256
-    v10 = extcodesize v9
-    v11 = ne v10, 0
-    ret v11
+    v4 = zext i160 v2 to i256
+    v5 = extcodesize v4
+    v6 = ne v5, 0
+    ret v6
 }
 
-fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory_bytes, memory_bytes, word<u8>], abi_return_params=[bytes, bytes, u8]] {
+fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory_bytes, memory_bytes, word<uint8>], abi_return_params=[bytes, bytes, uint8]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize StateStringInitializers_creation_code_0
-    v2 = datasize StateStringInitializers_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy StateStringInitializers_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize StateStringInitializers_creation_code_0
+    v1 = fmp
+    datacopy StateStringInitializers_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = gas
-    v10 = abi_encode [], selector 0x6fdde0300000000000000000000000000000000000000000000000000000000
-    v11 = extract_value slice<memory>, v10, 0
-    v12 = extract_value slice<memory>, v10, 1
-    v13 = zext i160 v7 to i256
-    v14 = staticcall v9, v13, v11, v12, 0, 0
-    jumpi v14, bb4, bb3
+    v4 = gas
+    mstore 0, 0x6fdde03 !metadata(memory=scratch)
+    v5 = zext i160 v2 to i256
+    v6 = staticcall v4, v5, 28, 4, 0, 0
+    jumpi v6, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v15 = icall returndata_bytes<>
-    v16 = abi_decode [bytes], v15
-    v17 = gas
-    v18 = abi_encode [], selector 0x95d89b4100000000000000000000000000000000000000000000000000000000
-    v19 = extract_value slice<memory>, v18, 0
-    v20 = extract_value slice<memory>, v18, 1
-    v21 = zext i160 v7 to i256
-    v22 = staticcall v17, v21, v19, v20, 0, 0
-    jumpi v22, bb6, bb5
+    v7 = icall returndata_bytes<>
+    v8 = abi_decode [bytes], v7
+    v9 = gas
+    mstore 0, 0x95d89b41 !metadata(memory=scratch)
+    v10 = zext i160 v2 to i256
+    v11 = staticcall v9, v10, 28, 4, 0, 0
+    jumpi v11, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v23 = icall returndata_bytes<>
-    v24 = abi_decode [bytes], v23
-    v25 = gas
-    v26 = abi_encode [], selector 0x313ce56700000000000000000000000000000000000000000000000000000000
-    v27 = extract_value slice<memory>, v26, 0
-    v28 = extract_value slice<memory>, v26, 1
-    v29 = zext i160 v7 to i256
-    v30 = staticcall v25, v29, v27, v28, 0, 32
-    jumpi v30, bb8, bb7
+    v12 = icall returndata_bytes<>
+    v13 = abi_decode [bytes], v12
+    v14 = gas
+    mstore 0, 0x313ce567 !metadata(memory=scratch)
+    v15 = zext i160 v2 to i256
+    v16 = staticcall v14, v15, 28, 4, 0, 32
+    jumpi v16, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v31 = returndatasize
-    v32 = lt v31, 32
-    icall revert_if<tuple_data_too_short>, v32
-    v33 = add 0, 0
-    v34 = mload v33
-    v35 = shr 8, v34
-    v36 = eq v35, 0
-    v37 = eq v36, false
-    icall revert_if<empty>, v37
-    v38 = trunc i256 v34 to i8
-    v39 = insert_value struct0, undef struct0, 0, v16
-    v40 = insert_value struct0, v39, 1, v24
-    v41 = insert_value struct0, v40, 2, v38
-    ret v41
+    v17 = returndatasize
+    v18 = lt v17, 32
+    icall revert_if<tuple_data_too_short>, v18
+    v19 = add 0, 0
+    v20 = mload v19
+    v21 = shr v20, 8
+    v22 = eq v21, 0
+    v23 = eq v22, false
+    icall revert_if<empty>, v23
+    v24 = trunc i256 v20 to i8
+    v25 = insert_value struct0, undef struct0, 0, v8
+    v26 = insert_value struct0, v25, 1, v13
+    v27 = insert_value struct0, v26, 2, v24
+    ret v27
 }

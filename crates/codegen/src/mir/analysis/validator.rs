@@ -49,6 +49,7 @@ use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
+    sync,
 };
 use solar_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
@@ -693,10 +694,10 @@ impl<'a> Validator<'a> {
 
     /// Validates every function in a module.
     fn validate_module(mut self, module: &Module) {
-        self.validate_module_at_phase(module, module.phase());
+        self.validate_module_at_phase(module, module.phase(), false);
     }
 
-    fn validate_module_at_phase(&mut self, module: &Module, phase: MirPhase) {
+    fn validate_module_at_phase(&mut self, module: &Module, phase: MirPhase, parallel: bool) {
         self.returning_functions = Some(module.returning_functions());
         self.prepare_return_abi_validation(module);
         for (id, ty) in module.struct_types.iter_enumerated() {
@@ -714,11 +715,33 @@ impl<'a> Validator<'a> {
         }
         self.validate_module_phase(module, phase);
         self.validate_immutable_declarations(module);
+        if parallel && self.functions_are_valid(module, phase) {
+            return;
+        }
         for (id, func) in module.iter_functions() {
             self.function = Some(id);
             self.validate_function(module, func, phase);
         }
         self.function = None;
+    }
+
+    /// Checks the functions in parallel with their diagnostics discarded.
+    ///
+    /// A module with a finding is checked again in function order, so diagnostics keep their
+    /// serial order.
+    fn functions_are_valid(&self, module: &Module, phase: MirPhase) -> bool {
+        let returning_functions = &self.returning_functions;
+        let return_field_counts = &self.return_field_counts;
+        sync::par_try_map(true, module.functions.indices().collect(), |id| {
+            let dcx = DiagCtxt::with_silent_emitter(None);
+            let mut validator = Validator::new(&dcx);
+            validator.returning_functions = returning_functions.clone();
+            validator.return_field_counts = return_field_counts.clone();
+            validator.function = Some(id);
+            validator.validate_function(module, &module.functions[id], phase);
+            validator.error.map_or(Ok(()), |_| Err(()))
+        })
+        .is_ok()
     }
 
     fn prepare_return_abi_validation(&mut self, module: &Module) {
@@ -1081,6 +1104,9 @@ impl<'a> Validator<'a> {
                                 .get(1)
                                 .and_then(|&value| func.value_u64(value))
                                 .is_some_and(|length| (1..=32).contains(&length)),
+                            Builtin::Require(RequireKind::LongString(bytes)) => {
+                                bytes.as_byte_str().len() > 32
+                            }
                             _ => true,
                         };
                         metadata_valid
@@ -1359,6 +1385,16 @@ impl<'a> Validator<'a> {
         }
     }
 
+    /// Checks only what the phase promises, without the SSA, CFG, and type invariants.
+    fn validate_phase_contract(&mut self, module: &Module, phase: MirPhase) {
+        self.validate_module_phase(module, phase);
+        for (id, func) in module.iter_functions() {
+            self.function = Some(id);
+            self.validate_function_phase(phase, func);
+        }
+        self.function = None;
+    }
+
     fn validate_function_phase(&mut self, phase: MirPhase, func: &Function) {
         if phase == MirPhase::Lowered && func.is_external_entry() && !func.attributes.is_abi_wrapper
         {
@@ -1408,11 +1444,7 @@ impl<'a> Validator<'a> {
                             inst_id,
                         );
                     }
-                    let semantic_op = func
-                        .inst(inst_id)
-                        .unlowered_reason(func)
-                        .or_else(|| kind.phase_violation(phase, &func.inst(inst_id).metadata));
-                    if let Some(semantic_op) = semantic_op {
+                    if let Some(semantic_op) = func.inst(inst_id).unlowered_reason(func) {
                         self.emit_at_inst(
                             format_args!(
                                 "{semantic_op} instruction `{}` survives the `{}` phase boundary",
@@ -1433,14 +1465,53 @@ pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
     Validator::new(dcx).validate_module(module);
 }
 
-/// Checks all SSA, type, and representation invariants against the requested phase.
+/// Checks the module against the requested phase.
+///
+/// With `full`, checks all SSA, type, and representation invariants. Otherwise checks only the
+/// phase contract: the routing entry, ABI wrappers, word types, and instructions that must be
+/// lowered by the phase boundary.
 pub(crate) fn validate_phase(
     dcx: &DiagCtxt,
     module: &Module,
     phase: MirPhase,
+    parallel: bool,
+    full: bool,
 ) -> solar_interface::Result<()> {
     let mut validator = Validator::new(dcx);
-    validator.validate_module_at_phase(module, phase);
+    if full {
+        validator.validate_module_at_phase(module, phase, parallel);
+    } else {
+        validator.validate_phase_contract(module, phase);
+    }
+    validator.error.map_or(Ok(()), Err)
+}
+
+/// Rejects shifts in a module that targets an EVM version without shift opcodes.
+///
+/// `lower-shifts` removes them, so one left after lowering means that pass did not run.
+pub(crate) fn validate_legal_shifts(
+    dcx: &DiagCtxt,
+    module: &Module,
+) -> solar_interface::Result<()> {
+    let mut validator = Validator::new(dcx);
+    for (id, func) in module.functions.iter_enumerated() {
+        validator.function = Some(id);
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                let kind = &func.inst(inst_id).kind;
+                if kind.is_shift() {
+                    validator.emit_at_inst(
+                        format_args!(
+                            "`{}` instruction survives lowering for an EVM version without shifts",
+                            kind.mnemonic()
+                        ),
+                        block_id,
+                        inst_id,
+                    );
+                }
+            }
+        }
+    }
     validator.error.map_or(Ok(()), Err)
 }
 

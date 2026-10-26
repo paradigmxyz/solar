@@ -8,7 +8,7 @@ use eyre::{Result, eyre};
 use regex::bytes::Regex;
 use std::{
     ffi::{OsStr, OsString},
-    io::{self, Write},
+    io::{self, IsTerminal, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::OnceLock,
@@ -16,8 +16,8 @@ use std::{
 use ui_test::{
     CommentParser, Errored, Revisioned,
     build_manager::BuildManager,
-    color_eyre::eyre,
     custom_flags::Flag,
+    eyre,
     per_test_config::TestConfig,
     spanned::{Span, Spanned},
 };
@@ -27,8 +27,8 @@ const RUN_CALL_DUMP_STDOUT_FILTER_PATTERN: &str = r#"(?m)(?:^\n)?^\{"contracts".
 
 mod codegen_matrix;
 mod errors;
-#[cfg(test)]
-mod foundry;
+pub mod foundry;
+mod quiet;
 mod run_call;
 mod solc;
 mod standard_json;
@@ -38,8 +38,6 @@ mod utils;
 ///
 /// `cmd` is the path to the `solar` binary used by all modes.
 pub fn run_tests(cmd: &'static Path) -> Result<()> {
-    ui_test::color_eyre::install()?;
-
     let mut args = ui_test::Args::test()?;
 
     // Fast path for `--list`, invoked by `cargo-nextest`.
@@ -52,8 +50,8 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
     }
 
     // Condense output if not explicitly requested.
-    let requested_pretty = || std::env::args().any(|x| x.contains("--format"));
-    if matches!(args.format, ui_test::Format::Pretty) && !requested_pretty() {
+    let requested_format = std::env::args().any(|x| x.contains("--format"));
+    if matches!(args.format, ui_test::Format::Pretty) && !requested_format {
         args.format = ui_test::Format::Terse;
     }
 
@@ -63,7 +61,7 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
 
     // TESTER_MODE can be a single mode or a comma-separated list.
     // The "ui" alias also implicitly runs the "mir" mode, since they share the
-    // same `tests/ui/` tree and users typically want `cargo uitest` to cover
+    // same `tests/ui/` tree and users typically want `cargo tq ui` to cover
     // both.
     if let Ok(mode_str) = std::env::var("TESTER_MODE") {
         let mut requested = Vec::new();
@@ -84,7 +82,14 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
     let tmp_dir = &*Box::leak(tmp_dir.path().to_path_buf().into_boxed_path());
     let configs = modes.iter().copied().map(|mode| config(cmd, &args, mode)).collect();
 
-    let text_emitter: Box<dyn ui_test::status_emitter::StatusEmitter> = args.format.into();
+    // Without a terminal there is no progress bar, only one `ok` line per test: print just the
+    // failures and the summary instead.
+    let text_emitter: Box<dyn ui_test::status_emitter::StatusEmitter> =
+        if !requested_format && !io::stdout().is_terminal() {
+            Box::new(quiet::Quiet::new())
+        } else {
+            args.format.into()
+        };
     let gha_name = if modes.len() == 1 { modes[0].to_string() } else { "ui-tests".to_string() };
     let gha_emitter = ui_test::status_emitter::Gha { name: gha_name, group: true };
     let status_emitter = (text_emitter, gha_emitter);
@@ -158,7 +163,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
             cfg_flag: None,
         },
         output_conflict_handling: ui_test::error_on_output_conflict,
-        bless_command: Some("cargo uibless".into()),
+        bless_command: Some("cargo bless".into()),
         out_dir: root.join("target/ui"),
         comment_start: "//",
         diagnostic_extractor: ui_test::diagnostics::rustc::rustc_diagnostics_extractor,
@@ -371,6 +376,12 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
             && (line.contains("-j") || line.contains("--threads"))
     }) {
         config.program.args.retain(|arg| arg != "-j1");
+    }
+    if src.lines().any(|line| {
+        let line = line.trim_start();
+        line.starts_with("//@") && line.contains("compile-flags") && line.contains("-Zvalidate-ir")
+    }) {
+        config.program.args.retain(|arg| arg != "-Zvalidate-ir=true");
     }
 }
 

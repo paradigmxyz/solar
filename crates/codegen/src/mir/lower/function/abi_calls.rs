@@ -7,46 +7,46 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty.encodes_as_slot()
     }
 
-    pub(super) fn needs_calldata_materialization(&self, value: ValueId, ty: &AbiType) -> bool {
-        if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata) {
-            return false;
-        }
-        match ty {
-            AbiType::FixedArray { .. } | AbiType::Tuple(_) => ty.is_dynamic(),
-            AbiType::DynamicArray { element, .. } => !matches!(
-                element.as_ref(),
-                AbiType::Word(_) | AbiType::Function | AbiType::Bytes(_)
-            ),
-            _ => false,
-        }
+    /// Whether `abi_type` is a calldata array of words, which an encoding copies from where it
+    /// lies once [`Self::validate_calldata_word_array`] validated its elements.
+    pub(super) fn is_calldata_word_array(abi_type: &AbiType) -> bool {
+        matches!(
+            abi_type,
+            AbiType::DynamicArray { element, location: PtrLocation::Calldata }
+                if matches!(element.as_ref(), AbiType::Word(_))
+        )
     }
 
-    fn can_defer_calldata_validation(&self, value: ValueId, abi_type: &AbiType) -> bool {
-        self.is_external_abi_argument(value)
-            && matches!(
-                abi_type,
-                AbiType::DynamicArray {
-                    element,
-                    location: PtrLocation::Calldata,
-                } if matches!(element.as_ref(), AbiType::Word(_) | AbiType::Bytes(_))
-            )
+    /// Validates the elements of the calldata array of words `value` where they lie, before an
+    /// encoding copies them: solc's IR pipeline validates each element it encodes, reading past
+    /// the end of the calldata as zeros, and never checks the array's range.
+    pub(super) fn validate_calldata_word_array(&mut self, value: ValueId, ty: Ty<'gcx>) {
+        let Some(element) = self.array_element_type(ty) else { return };
+        // for index in 0..slice_len(value):
+        //   validate(element, slice_ptr(value) + index * 32)
+        let length = self.builder.slice_len(value);
+        let base = self.builder.slice_ptr(value);
+        let stride = self.builder.imm(32);
+        self.counted_loop(length, |this, index| {
+            let offset = this.builder.mul(index, stride);
+            let position = this.builder.add(base, offset);
+            this.validate_calldata_static_value(element, position);
+        });
     }
 
+    /// Whether the calldata aggregate `value` has words to validate before an encoding reads
+    /// them. Assembly can set a calldata variable to any range, whose words are validated as
+    /// they are read like any others.
     pub(super) fn needs_calldata_aggregate_validation(&self, value: ValueId, ty: Ty<'gcx>) -> bool {
         self.builder.func().value_slice_location(value) == Some(PtrLocation::Calldata)
-            && !self.dirty_values.contains(&value)
             && self.calldata_aggregate_requires_validation(ty)
     }
 
     /// Validates a static calldata aggregate in place so ABI encoding can read
     /// its words directly without copying the aggregate to memory.
-    pub(super) fn validate_calldata_static_argument(
-        &mut self,
-        value: ValueId,
-        ty: Ty<'gcx>,
-    ) -> bool {
+    pub(super) fn validate_calldata_static_argument(&mut self, value: ValueId, ty: Ty<'gcx>) {
         let needs_validation = self.needs_calldata_aggregate_validation(value, ty);
-        self.validate_calldata_static_argument_inner(value, ty, needs_validation)
+        self.validate_calldata_static_argument_inner(value, ty, needs_validation);
     }
 
     fn validate_calldata_static_argument_inner(
@@ -56,10 +56,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         needs_validation: bool,
     ) -> bool {
         // base = extract_value value, 0
-        // head = abi_head(ty)
-        // check_range(base, head)
         // validate_static(ty, base)
-        if self.is_external_abi_argument(value) || !needs_validation {
+        if self.is_decoded_external_argument(value) || !needs_validation {
             return false;
         }
         let Some(abi_type) = self.types.abi_type(ty) else { return false };
@@ -68,13 +66,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         let base = self.builder.slice_ptr(value);
-        let size = self.builder.imm(abi_type.head_size());
-        self.check_calldata_range(base, size);
         self.validate_calldata_static_value(ty, base);
         true
     }
 
-    fn validate_calldata_static_value(&mut self, ty: Ty<'gcx>, base: ValueId) {
+    /// Validates static calldata words in place, retaining zero-padding beyond the input.
+    pub(super) fn validate_calldata_static_value(&mut self, ty: Ty<'gcx>, base: ValueId) {
         // validate_static(ty, base)
         let ty = ty.peel_refs();
         if let TyKind::Udvt(inner, _) = ty.kind {
@@ -132,34 +129,43 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn validate_calldata_array_head(
+    /// Panics when the element bytes of the calldata array `value` do not fit in a word, before an
+    /// encoding copies them from where they lie. Only an array whose length assembly set can get
+    /// there; its range is not otherwise checked against the calldata, as solc does not check it.
+    pub(super) fn check_calldata_array_size(
         &mut self,
         value: ValueId,
         ty: Ty<'gcx>,
         abi_type: &AbiType,
     ) {
-        // bytes = length * element_head_size
-        // check_range(data, bytes)
-        if self.is_external_abi_argument(value) {
+        if self.is_decoded_external_argument(value) {
             return;
         }
-        if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata)
-            || !matches!(ty.peel_refs().kind, TyKind::DynArray(_))
-        {
+        if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata) {
             return;
         }
         let AbiType::DynamicArray { element, location: PtrLocation::Calldata } = abi_type else {
             return;
         };
+        // A slice of words is not checked: its copy reads from where it lies. A slice of
+        // composite elements is encoded one element at a time, from a byte count that must not
+        // wrap.
+        let checked = match ty.peel_refs().kind {
+            TyKind::DynArray(_) => true,
+            TyKind::Slice(_) => !matches!(element.as_ref(), AbiType::Word(_)),
+            _ => false,
+        };
+        if !checked {
+            return;
+        }
+        // bytes = checked(length * element_head_size)
         let word = self.builder.imm(element.head_size());
         let length = self.builder.slice_len(value);
-        let data = self.builder.slice_ptr(value);
-        let byte_length = self.builder.checked_mul(length, word);
-        self.check_calldata_range(data, byte_length);
+        self.builder.checked_mul(length, word);
     }
 
     pub(super) fn validate_calldata_bytes_argument(&mut self, value: ValueId, abi_type: &AbiType) {
-        if self.is_external_abi_argument(value) {
+        if self.is_decoded_external_argument(value) {
             return;
         }
         if self.builder.func().value_slice_location(value) == Some(PtrLocation::Calldata)
@@ -170,8 +176,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn is_external_abi_argument(&self, value: ValueId) -> bool {
-        self.builder.func().selector.is_some()
+        (self.builder.func().selector.is_some() || self.builder.func().attributes.is_fallback)
             && matches!(self.builder.func().value(value), Value::Arg(_))
+    }
+
+    /// Whether `value` is an external argument checked by ABI decoding, or the complete calldata
+    /// passed to a fallback. A public function also takes its arguments from internal calls,
+    /// which can pass a calldata slice that assembly set.
+    pub(super) fn is_decoded_external_argument(&self, value: ValueId) -> bool {
+        self.is_external_abi_argument(value)
+            && self.builder.func().attributes.visibility == solar_ast::Visibility::External
     }
 
     pub(super) fn calldata_aggregate_requires_validation(&self, ty: Ty<'gcx>) -> bool {
@@ -287,7 +301,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.abi_type_for_value(value, abi_type)
         };
-        self.validate_calldata_bytes_argument(value, &abi_type);
         self.prepare_abi_argument(argument, parameter_ty, value, abi_type)
     }
 
@@ -299,8 +312,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         abi_type: AbiType,
     ) -> Option<(ValueId, AbiType)> {
         let abi_type = self.abi_type_for_value(value, abi_type);
-        self.validate_calldata_bytes_argument(value, &abi_type);
-        self.validate_calldata_array_head(value, ty, &abi_type);
         self.prepare_abi_argument(argument, ty, value, abi_type)
     }
 
@@ -311,11 +322,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut value: ValueId,
         mut abi_type: AbiType,
     ) -> Option<(ValueId, AbiType)> {
+        self.check_calldata_array_size(value, ty, &abi_type);
         let needs_validation = self.needs_calldata_aggregate_validation(value, ty);
         let validated_static =
             self.validate_calldata_static_argument_inner(value, ty, needs_validation);
-        let needs_materialization = self.needs_calldata_materialization(value, &abi_type)
-            || (needs_validation && !self.can_defer_calldata_validation(value, &abi_type));
+        let word_array = needs_validation && Self::is_calldata_word_array(&abi_type);
+        // The dispatcher validates the elements of an argument that only ABI decoding passes
+        // when an encoding takes it.
+        if word_array && !self.is_decoded_external_argument(value) {
+            self.validate_calldata_word_array(value, ty);
+        }
+        // The encoder validates a dynamic calldata aggregate while it encodes it from where it
+        // lies.
+        let needs_materialization = needs_validation && !word_array && !abi_type.is_dynamic();
         if needs_materialization && !validated_static {
             value = self.materialize_calldata_argument(ty, value, argument.span)?;
             abi_type = Self::memory_abi_type(abi_type);
@@ -347,39 +366,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn memory_abi_type(ty: AbiType) -> AbiType {
-        Self::abi_type_at_location(ty, PtrLocation::Memory)
-    }
-
-    fn abi_type_at_location(ty: AbiType, location: PtrLocation) -> AbiType {
-        match ty {
-            AbiType::Word(cleanup) => AbiType::Word(cleanup),
-            AbiType::Function => AbiType::Function,
-            AbiType::Bytes(_) => AbiType::Bytes(location),
-            AbiType::DynamicArray { element, .. } => AbiType::DynamicArray {
-                element: Box::new(Self::abi_type_at_location(*element, location)),
-                location,
-            },
-            AbiType::FixedArray { element, len } => AbiType::FixedArray {
-                element: Box::new(Self::abi_type_at_location(*element, location)),
-                len,
-            },
-            AbiType::Tuple(fields) => AbiType::Tuple(
-                fields
-                    .into_vec()
-                    .into_iter()
-                    .map(|field| Self::abi_type_at_location(field, location))
-                    .collect(),
-            ),
-        }
+        ty.at_location(PtrLocation::Memory)
     }
 
     pub(super) fn abi_type_for_value(&self, value: ValueId, ty: AbiType) -> AbiType {
         if let Some(location) = self.builder.func().value_slice_location(value) {
             match ty {
-                AbiType::Bytes(_) => AbiType::Bytes(location),
-                AbiType::DynamicArray { element, .. } => {
-                    AbiType::DynamicArray { element, location }
-                }
+                AbiType::Bytes(_) | AbiType::DynamicArray { .. } => ty.at_location(location),
                 ty => ty,
             }
         } else if matches!(
@@ -416,6 +409,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let object =
                         self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
                     self.validate_calldata_bytes_slice(value);
+                    self.builder.memory_copy_from_slice(object, value);
+                    Some(object)
+                } else if self.is_decoded_external_argument(value) {
+                    // ABI decoding already checked the range, and a length within
+                    // calldata cannot overflow its padded allocation size.
+                    // object = bytes(data.len) !unchecked size
+                    // copy(data, object.data)
+                    let length = self.builder.slice_len(value);
+                    let object = self
+                        .builder
+                        .alloc_bounded_bytes_object(length, AllocationSemantics::INTERNAL);
                     self.builder.memory_copy_from_slice(object, value);
                     Some(object)
                 } else {
@@ -752,14 +756,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         };
         // if !valid(value) { revert(0, 0) }
-        let shifts = self.cx.gcx.sess.opts.evm_version.has_bitwise_shifting();
-        let valid = validator.condition(&mut self.builder, value, shifts);
+        let valid = validator.condition(&mut self.builder, value);
         let invalid = self.builder.eq_zero(valid);
         self.builder.revert_if(invalid, RevertReason::Empty);
         if is_external_function {
             // value = value >> 64
             let shift = self.builder.imm(64);
-            self.builder.shr(shift, value)
+            self.builder.shr(value, shift)
         } else {
             value
         }
@@ -781,6 +784,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn validate_calldata_bytes_slice(&mut self, slice: ValueId) {
+        // ABI decoding already checked an external argument's range.
+        if self.is_decoded_external_argument(slice) {
+            return;
+        }
         // calldata_tail_data(pointer, length, 1)
         let pointer = self.builder.slice_ptr(slice);
         let length = self.builder.slice_len(slice);
@@ -883,6 +890,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.memory_store_field(object, index as u64, value);
             offset = offset.checked_add(self.types.abi_type(field)?.head_size())?;
         }
+        Some(object)
+    }
+
+    /// Copies bytes for consumers that use zero-padded calldata reads rather than source-range
+    /// validation. Ordinary calldata-to-memory conversions retain their checked path.
+    pub(super) fn copy_calldata_bytes_unchecked(&mut self, value: ValueId) -> Option<ValueId> {
+        if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata) {
+            return Some(value);
+        }
+        // length = slice_len(value)
+        // source = slice_ptr(value)
+        // object = alloc_bytes(length)
+        // copy(memory_data(object), source, length, calldata)
+        let length = self.builder.slice_len(value);
+        let source = self.builder.slice_ptr(value);
+        let object = self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
+        let dest = self.builder.memory_data(object);
+        self.builder.copy_heap(dest, source, length, PtrLocation::Calldata);
         Some(object)
     }
 }

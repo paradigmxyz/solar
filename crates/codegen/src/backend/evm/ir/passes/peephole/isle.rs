@@ -5,10 +5,13 @@
 //! the opcode table into `isle/evm-ir/prelude.isle`. This module implements the
 //! window extractors, instruction facets, and opcode classes the rules call.
 
-use super::{Edit, is_block_push, materialization_cost, raw_opcode};
+use super::{
+    super::utils::{SymbolicStackOp, symbolic_stack_op},
+    Edit, is_block_push,
+};
 use crate::{
     backend::evm::{
-        ir::{ImmediateMaterialization, Instruction},
+        ir::{ImmediateMaterialization, Instruction, immediate_materialization_cost},
         op,
         op::*,
     },
@@ -17,7 +20,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_config::{EvmVersion, OptimizationMode};
+use solar_config::EvmVersion;
 
 /// How far back a rule may simulate the block's stack.
 const MAX_STACK_WINDOW: usize = 24;
@@ -55,7 +58,7 @@ pub(crate) fn invert_comparison(
                 && ImmediateMaterialization::new(evm_version, bound).stack_peak()
                     <= ImmediateMaterialization::new(evm_version, value).stack_peak()
                 && op::push_len(evm_version, bound)
-                    <= super::immediate_materialization_cost(evm_version, value).0 + 1
+                    <= immediate_materialization_cost(evm_version, value).0 + 1
             {
                 return Some((start, bound, opposite));
             }
@@ -110,6 +113,8 @@ pub(super) struct Rewrite {
     unused_variables
 )]
 mod generated {
+    use crate::isle_log as log;
+
     include!(concat!(env!("OUT_DIR"), "/peephole.isle.rs"));
 }
 
@@ -118,21 +123,6 @@ mod generated {
 enum KnownStackWord {
     Other,
     Zero,
-}
-
-/// A stack operation as the symbolic simulation sees it. A removable push is a
-/// stack operation for this purpose: deleting it deletes the word it pushes.
-#[derive(Clone, Copy)]
-enum SymbolicStackOp {
-    Push,
-    Physical(StackOp),
-}
-
-fn symbolic_stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {
-    if inst.is_encoded_push() {
-        return Some(SymbolicStackOp::Push);
-    }
-    inst.as_stack_op().map(SymbolicStackOp::Physical)
 }
 
 /// Returns whether the sequence leaves the stack exactly as it found it.
@@ -196,7 +186,7 @@ fn protected_word_depth(instructions: &[Instruction]) -> Option<usize> {
                     above -= 1;
                 }
             }
-        } else if let Some(opcode) = raw_opcode(inst)
+        } else if let Some(opcode) = inst.as_evm_opcode()
             && op::is_unaffected_by_preceding_push(opcode)
             && let Some((inputs, outputs)) = op::stack_io(opcode)
         {
@@ -228,13 +218,13 @@ impl TailClass {
 /// Context the rules run against: the instructions of one block so far.
 pub(super) struct PeepContext<'a> {
     instructions: &'a [Instruction],
-    evm_version: EvmVersion,
+    target: Target,
     final_cleanup: bool,
 }
 
 impl<'a> PeepContext<'a> {
-    pub(super) fn new(instructions: &'a [Instruction], evm_version: EvmVersion) -> Self {
-        Self { instructions, evm_version, final_cleanup: false }
+    pub(super) fn new(instructions: &'a [Instruction], target: Target) -> Self {
+        Self { instructions, target, final_cleanup: false }
     }
 
     pub(super) fn with_final_cleanup(mut self, final_cleanup: bool) -> Self {
@@ -318,7 +308,7 @@ impl<'a> PeepContext<'a> {
         if !late {
             return self.final_rewrite().or_else(|| self.select_by_tail());
         }
-        if self.instructions.len() < 5 || raw_opcode(self.instructions.last()?) != Some(SUB) {
+        if self.instructions.len() < 5 || self.instructions.last()?.as_evm_opcode() != Some(SUB) {
             return None;
         }
         let first = self.instructions.len().saturating_sub(MAX_STACK_WINDOW);
@@ -354,14 +344,10 @@ impl generated::Context for PeepContext<'_> {
     }
 
     fn low_mask_profitable(&mut self) -> bool {
-        let target = Target::with(
-            self.evm_version,
-            OptimizationMode::Gas,
-            Target::DEFAULT_EXPECTED_EXECUTIONS,
-        );
+        let target = self.target;
         let before = target.push(U256::ONE) + target.dup() + target.opcode(SUB);
         let after = target.push(U256::ZERO) + target.opcode(NOT) + target.opcode(NOT);
-        after.dominates(before)
+        target.dominates(after, before)
     }
 
     fn closed_count(&mut self, start: LateWindow) -> bool {
@@ -387,7 +373,7 @@ impl generated::Context for PeepContext<'_> {
                     return false;
                 }
                 depth = depth.checked_add_signed(op.net_growth()).expect("sufficient stack");
-            } else if let Some(opcode) = raw_opcode(inst)
+            } else if let Some(opcode) = inst.as_evm_opcode()
                 && op::is_unaffected_by_preceding_push(opcode)
                 && let Some((inputs, outputs)) = op::stack_io(opcode)
             {
@@ -408,17 +394,13 @@ impl generated::Context for PeepContext<'_> {
     }
 
     fn protected_mask_profitable(&mut self) -> bool {
-        let target = Target::with(
-            self.evm_version,
-            OptimizationMode::Gas,
-            Target::DEFAULT_EXPECTED_EXECUTIONS,
-        );
+        let target = self.target;
         let before = target.push(U256::ONE)
             + target.push(U256::ONE)
             + target.opcode(SWAP1)
             + target.opcode(SUB);
         let after = target.push(U256::ZERO) + target.opcode(NOT) + target.opcode(NOT);
-        after.dominates(before)
+        target.dominates(after, before)
     }
 
     fn protected_count(&mut self, start: LateWindow) -> bool {
@@ -471,7 +453,7 @@ impl generated::Context for PeepContext<'_> {
         let middle_pops = instructions[..end - 2]
             .iter()
             .rev()
-            .take(self.evm_version.reachable_stack_depth() - 1)
+            .take(self.target.evm_version().reachable_stack_depth() - 1)
             .take_while(|inst| inst.as_stack_op() == Some(StackOp::Pop))
             .count();
         let StackOp::Swap(depth) = (end - 2 - middle_pops)
@@ -485,7 +467,7 @@ impl generated::Context for PeepContext<'_> {
         }
         // The merged swap must still be expressible on this target.
         let merged = depth.checked_add(1)?;
-        StackOp::Swap(merged).metrics(self.evm_version)?;
+        StackOp::Swap(merged).metrics(self.target.evm_version())?;
         u8::try_from(middle_pops).ok()
     }
 
@@ -497,7 +479,7 @@ impl generated::Context for PeepContext<'_> {
         let pops = instructions
             .iter()
             .rev()
-            .take(self.evm_version.reachable_stack_depth() + 1)
+            .take(self.target.evm_version().reachable_stack_depth() + 1)
             .take_while(|inst| inst.as_stack_op() == Some(StackOp::Pop))
             .count();
         let StackOp::Swap(depth) = (instructions.len() - pops)
@@ -515,7 +497,7 @@ impl generated::Context for PeepContext<'_> {
     /// The simulation follows only pushes and stack operations, starting after the last other
     /// operation, and keeps only "is this word a known zero".
     fn duplicates_known_zero(&mut self, _: Window) -> Option<()> {
-        if !self.evm_version.has_push0() {
+        if !self.target.evm_version().has_push0() {
             return None;
         }
         let instructions = self.instructions;
@@ -569,51 +551,28 @@ impl generated::Context for PeepContext<'_> {
         let [.., lhs, rhs, instruction] = self.instructions else { return None };
         let lhs_value = lhs.concrete_immediate()?;
         let rhs_value = rhs.concrete_immediate()?;
-        let opcode = raw_opcode(instruction)?;
+        let opcode = instruction.as_evm_opcode()?;
         let result = eval::eval_opcode(opcode, &[rhs_value, lhs_value])?;
-        let (lhs_size, lhs_gas) = materialization_cost(self.evm_version, lhs_value);
-        let (rhs_size, rhs_gas) = materialization_cost(self.evm_version, rhs_value);
-        let (result_size, result_gas) = materialization_cost(self.evm_version, result);
-        let input_size = lhs_size + rhs_size + 1;
-        let target = Target::with(
-            self.evm_version,
-            OptimizationMode::Gas,
-            Target::DEFAULT_EXPECTED_EXECUTIONS,
-        );
+        let target = self.target;
         // PUSH lhs; PUSH rhs; opcode => materialize evaluated word
         // Price the operation too: compact wide constants may need several
         // instructions yet cost less than the operation they replace.
-        let input_gas = lhs_gas
-            + rhs_gas
-            + target.opcode_with_immediates(opcode, &[Some(rhs_value), Some(lhs_value)]).gas
-                as usize;
-        (result_size <= input_size
-            && result_gas <= input_gas
-            && (result_size < input_size || result_gas < input_gas))
-            .then_some(result)
+        let input = target.push(lhs_value)
+            + target.push(rhs_value)
+            + target.opcode_with_immediates(opcode, &[Some(rhs_value), Some(lhs_value)]);
+        target.dominates(target.push(result), input).then_some(result)
     }
 
     /// Folds a literal unary expression only when its materialization is Pareto better.
     fn fold_unary_constant(&mut self, _: Window) -> Option<U256> {
         let [value, instruction] = self.unprotected_tail()?;
         let value = self.instructions[value].concrete_immediate()?;
-        let opcode = raw_opcode(&self.instructions[instruction])?;
+        let opcode = self.instructions[instruction].as_evm_opcode()?;
         let result = eval::eval_opcode(opcode, &[value])?;
-        let target = Target::with(
-            self.evm_version,
-            OptimizationMode::Gas,
-            Target::DEFAULT_EXPECTED_EXECUTIONS,
-        );
-        let (input_size, input_gas) = materialization_cost(self.evm_version, value);
-        let (result_size, result_gas) = materialization_cost(self.evm_version, result);
-        let input_size = input_size + 1;
-        let input_gas =
-            input_gas + target.opcode_with_immediates(opcode, &[Some(value)]).gas as usize;
+        let target = self.target;
         // PUSH value; unary_opcode => materialize evaluated word
-        (result_size <= input_size
-            && result_gas <= input_gas
-            && (result_size < input_size || result_gas < input_gas))
-            .then_some(result)
+        let input = target.push(value) + target.opcode_with_immediates(opcode, &[Some(value)]);
+        target.dominates(target.push(result), input).then_some(result)
     }
 
     /// Removes a closed conditional jump whose literal condition is false.
@@ -621,7 +580,7 @@ impl generated::Context for PeepContext<'_> {
         let [condition, destination, instruction] = self.unprotected_tail()?;
         (self.instructions[condition].concrete_immediate()?.is_zero()
             && is_block_push(&self.instructions[destination])
-            && raw_opcode(&self.instructions[instruction]) == Some(JUMPI))
+            && self.instructions[instruction].as_evm_opcode() == Some(JUMPI))
         .then_some(())
     }
 
@@ -705,28 +664,12 @@ impl generated::Context for PeepContext<'_> {
     }
 
     fn is_noncommutative_binop(&mut self, opcode: u8) -> bool {
-        matches!(
-            opcode,
-            SUB | DIV
-                | SDIV
-                | MOD
-                | SMOD
-                | EXP
-                | SIGNEXTEND
-                | LT
-                | GT
-                | SLT
-                | SGT
-                | BYTE
-                | SHL
-                | SHR
-                | SAR
-                | KECCAK256
-        )
+        op::stack_io(opcode) == Some((2, 1)) && !op::is_commutative(opcode)
     }
 
     fn is_sink(&mut self, opcode: u8) -> bool {
-        matches!(opcode, MSTORE | MSTORE8 | SSTORE | TSTORE | LOG0)
+        // A taken `JUMPI` leaves the stack to its target, which may read the word below.
+        op::stack_io(opcode) == Some((2, 0)) && !op::is_terminal(opcode) && opcode != JUMPI
     }
 
     fn u8_add(&mut self, a: u8, b: u8) -> u8 {
@@ -750,7 +693,7 @@ impl generated::Context for PeepContext<'_> {
         if iszero.as_evm_opcode() != Some(ISZERO) || iszero.keeps_with_next() {
             return None;
         }
-        let (start, bound, opposite) = invert_comparison(comparison, self.evm_version)?;
+        let (start, bound, opposite) = invert_comparison(comparison, self.target.evm_version())?;
         Some(((self.instructions.len() - start) as u8, bound, opposite))
     }
 

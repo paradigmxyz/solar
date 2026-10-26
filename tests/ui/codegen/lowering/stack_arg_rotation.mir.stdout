@@ -1,22 +1,22 @@
 // === ROOT/tests/ui/codegen/lowering/stack_arg_rotation.sol:StackArgRotation ===
 @module StackArgRotation
-fn @sink() -> i256 [selector=0xc74e820e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @sink() -> i256 [selector=0xc74e820e, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_add u256, arg0, 1
+    v0 = checked_add uint256, arg0, 1
     v1 = xor arg0, 7
     v2 = icall @mix, v0, v1
     v3 = icall @mix, arg0, 1
-    v4 = checked_add u256, v2, v3
+    v4 = checked_add uint256, v2, v3
     v5 = icall @mix, arg0, 2
-    v6 = checked_add u256, v4, v5
+    v6 = checked_add uint256, v4, v5
     v7 = icall @mix, arg0, 3
-    v8 = checked_add u256, v6, v7
+    v8 = checked_add uint256, v6, v7
     ret v8
 }
 

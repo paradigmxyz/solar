@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/address_code.sol:AddressCode ===
 @module AddressCode
-fn @codeLength(arg0: i160) -> i256 [selector=0xbd3736e3, view, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
+fn @codeLength(arg0: i160) -> i256 [selector=0xbd3736e3, view, abi_params=[address], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = zext i160 arg0 to i256
     v1 = extcodesize v0
@@ -31,15 +31,15 @@ fn @code(arg0: i160) -> ptr<memory> [selector=0x5b90b752, view, abi_params=[addr
     ret v6
 }
 
-fn @addressFromBytes20(arg0: i256) -> i160 [selector=0x247e14fa, pure, abi_params=[bytes20], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @addressFromBytes20(arg0: i256) -> i160 [selector=0x247e14fa, pure, abi_params=[bytes20], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v1 = shr 96, v0
+    v1 = shr v0, 96
     v2 = trunc i256 v1 to i160
     ret v2
 }
 
-fn @callerCodeLength() -> i256 [selector=0xfb7e2a0a, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @callerCodeLength() -> i256 [selector=0xfb7e2a0a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = caller
     v1 = zext i160 v0 to i256

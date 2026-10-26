@@ -3,17 +3,17 @@
   @module LowerAbiDecodeSlice
   fn @inline(arg0: slice<memory>) -> i256 {
     bb0:
-      v0 = abi_decode [u256], arg0
+      v0 = abi_decode [uint256], arg0
       ret v0
   }
   
   fn @shared(arg0: ptr<memory>, arg1: ptr<memory>) -> i256 {
     bb0:
       v0 = make_memory_slice arg0, 64
-      v1 = abi_decode [tuple<u256, u256>], v0
+      v1 = abi_decode [tuple<uint256, uint256>], v0
       v2 = ptrtoint ptr<memory> arg1 to i256
       v3 = make_memory_slice arg1, v2
-      v4 = abi_decode [tuple<u256, u256>], v3
+      v4 = abi_decode [tuple<uint256, uint256>], v3
       v5 = mload v1
       v6 = ptradd v4, 32
       v7 = mload v6

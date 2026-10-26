@@ -13,12 +13,11 @@ mod block_layout;
 mod cfg_simplify;
 mod coalesce_copies;
 pub(crate) mod compact_pushes;
-mod constant_data;
 pub(super) mod data;
 mod dce;
 mod inline_returns;
 mod late_structural;
-mod legalize_shifts;
+mod legalize_revert;
 mod loop_layout;
 mod outline;
 mod peephole;
@@ -26,13 +25,16 @@ mod reorder_pushes;
 mod share_reverts;
 mod stack_normalize;
 mod stack_reschedule;
+mod tail_dup;
+mod tail_duplicate;
 mod tail_merge;
 mod terminal_dedup;
 mod terminal_layout;
 pub(super) mod utils;
 
-pub(in crate::backend) use legalize_shifts::legalize_shifts;
+pub(in crate::backend) use legalize_revert::legalize_revert;
 pub(super) use peephole::CleanBlocks;
+pub(in crate::backend::evm) use stack_reschedule::SharedSchedules;
 
 use super::Module;
 use crate::{
@@ -101,17 +103,18 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &stack_normalize::StackNormalize::FINAL,
     &stack_reschedule::StackReschedule,
     &compact_pushes::CompactPushes,
-    &constant_data::ConstantData,
     &coalesce_copies::CoalesceCopies,
     &data::PackData,
-    &legalize_shifts::LegalizeShifts,
+    &legalize_revert::LegalizeRevert,
     &cfg_simplify::CfgSimplify::FINAL,
     &outline::Outline,
     &terminal_dedup::TerminalDedup,
     &tail_merge::TailMerge,
+    &tail_dup::TailDup,
     &block_layout::BlockLayout,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,
+    &tail_duplicate::TailDuplicate,
 ];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
@@ -163,15 +166,14 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &cfg_simplify::CfgSimplify::EARLY,
     &reorder_pushes::FINAL_REORDER_PUSHES,
     &peephole::Peephole::EARLY,
-    &peephole::Cleanup(block_cse::BlockCse),
     &peephole::Cleanup(dce::Dce),
     &peephole::Cleanup(stack_normalize::StackNormalize::EARLY),
     &block_layout::BlockLayout,
     &share_reverts::ShareReverts,
     &cfg_simplify::CfgSimplify::FINAL,
     &block_layout::BlockLayout,
-    // Materialize constants and pack the referenced data pool before final sharing and cleanup.
-    &constant_data::ConstantData,
+    // Materialize literal-store runs and pack the referenced data pool before final sharing and
+    // cleanup.
     &data::PackData,
     // Data packing can add compactable immediates and local stack shuffles.
     &compact_pushes::CompactPushes,
@@ -182,7 +184,9 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Cleanup(dce::Dce),
     &late_structural::LateStructural,
     &peephole::Peephole::FINAL,
-    &inline_returns::InlineReturns,
+    &peephole::Cleanup(inline_returns::InlineReturns),
+    // Copy loop joins only after the last tail merge, which would share the copies again.
+    &peephole::Cleanup(tail_dup::TailDup),
     &cfg_simplify::CfgSimplify::FINAL,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,
@@ -190,6 +194,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::LateWord,
     // Introduce `EXCHANGE` only after every peephole has seen the plain swaps.
     &stack_normalize::StackNormalize::FINAL,
+    &tail_duplicate::TailDuplicate,
 ];
 
 /// Finds an EVM IR pass by command-line name.

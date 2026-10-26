@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_offset_field.sol:CalldataStructOffsetField ===
 @module CalldataStructOffsetField
-fn @sum(arg0: slice<calldata>) -> i256 [selector=0x06889ec9, pure, abi_params=[tuple<array<_, u256>, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @sum(arg0: slice<calldata>) -> i256 [selector=0x06889ec9, pure, abi_params=[tuple<array<_, uint256>, array<_, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -67,7 +67,7 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x06889ec9, pure, abi_params=[t
     v53 = ptrtoint ptr<calldata> v52 to i256
     v54 = add v53, 0
     v55 = calldataload v54
-    v56 = checked_add u256, v24, v55
+    v56 = checked_add uint256, v24, v55
     v57 = extract_value slice<calldata>, arg0, 0
     v58 = ptrtoint ptr<calldata> v57 to i256
     v59 = add v58, 32
@@ -97,7 +97,7 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x06889ec9, pure, abi_params=[t
     v79 = inttoptr i256 v76 to ptr<calldata>
     v80 = make_calldata_slice v79, v72
     v81 = extract_value slice<calldata>, v80, 1
-    v82 = checked_add u256, v56, v81
+    v82 = checked_add uint256, v56, v81
     v83 = extract_value slice<calldata>, arg0, 0
     v84 = ptrtoint ptr<calldata> v83 to i256
     v85 = add v84, 0
@@ -204,15 +204,15 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x06889ec9, pure, abi_params=[t
     v168 = ptrtoint ptr<calldata> v167 to i256
     v169 = add v168, 0
     v170 = calldataload v169
-    v171 = checked_sub u256, v139, v170
-    v172 = checked_add u256, v82, v171
+    v171 = checked_sub uint256, v139, v170
+    v172 = checked_add uint256, v82, v171
     jump bb3
   bb3:
     v173 = phi [bb1: v172], [bb2: v82]
     ret v173
 }
 
-fn @first(arg0: slice<calldata>) -> i256 [selector=0x0e2e2b05, pure, abi_params=[tuple<array<_, u256>, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @first(arg0: slice<calldata>) -> i256 [selector=0x0e2e2b05, pure, abi_params=[tuple<array<_, uint256>, array<_, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -248,7 +248,7 @@ fn @first(arg0: slice<calldata>) -> i256 [selector=0x0e2e2b05, pure, abi_params=
     ret v26
 }
 
-fn @word(arg0: slice<calldata>) -> i256 [selector=0xf128a547, pure, abi_params=[tuple<u256, tuple<array<_, u256>, array<_, u256>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @word(arg0: slice<calldata>) -> i256 [selector=0xf128a547, pure, abi_params=[tuple<uint256, tuple<array<_, uint256>, array<_, uint256>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -257,7 +257,7 @@ fn @word(arg0: slice<calldata>) -> i256 [selector=0xf128a547, pure, abi_params=[
     ret v3
 }
 
-fn @nested(arg0: slice<calldata>) -> i256 [selector=0x1637766b, pure, abi_params=[tuple<u256, tuple<array<_, u256>, array<_, u256>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @nested(arg0: slice<calldata>) -> i256 [selector=0x1637766b, pure, abi_params=[tuple<uint256, tuple<array<_, uint256>, array<_, uint256>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -369,34 +369,34 @@ fn @nested(arg0: slice<calldata>) -> i256 [selector=0x1637766b, pure, abi_params
     v93 = ptrtoint ptr<calldata> v92 to i256
     v94 = add v93, 0
     v95 = calldataload v94
-    v96 = checked_add u256, v47, v95
+    v96 = checked_add uint256, v47, v95
     ret v96
 }
 
-fn @total(arg0: slice<calldata>) -> i256 [selector=0x5188d7c7, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @total(arg0: slice<calldata>) -> i256 [selector=0x5188d7c7, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v20]
+    v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v19]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = extract_value slice<calldata>, v2, 1
-    v4 = lt v0, v3
+    v2 = phi [bb0: 0], [bb3: v20]
+    v3 = extract_value slice<calldata>, v0, 1
+    v4 = lt v2, v3
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret v1
   bb4:
-    v5 = extract_value slice<calldata>, v2, 1
-    v6 = lt v0, v5
+    v5 = extract_value slice<calldata>, v0, 1
+    v6 = lt v2, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    v8 = extract_value slice<calldata>, v2, 0
-    v9 = mul v0, 32
+    v8 = extract_value slice<calldata>, v0, 0
+    v9 = mul v2, 32
     v10 = eq 32, 0
     v11 = div v9, 32
-    v12 = eq v11, v0
+    v12 = eq v11, v2
     v13 = or v10, v12
     v14 = zext i1 v13 to i256
     v15 = eq v14, 0
@@ -404,11 +404,11 @@ fn @total(arg0: slice<calldata>) -> i256 [selector=0x5188d7c7, pure, abi_params=
     v16 = ptrtoint ptr<calldata> v8 to i256
     v17 = add v16, v9
     v18 = calldataload v17
-    v19 = checked_add u256, v1, v18
+    v19 = checked_add uint256, v1, v18
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v20 = checked_add u256, v0, 1
+    v20 = checked_add uint256, v2, 1
     jump bb1
 }

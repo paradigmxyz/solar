@@ -6,19 +6,6 @@ struct Market {
     uint128 fee;
 }
 
-// The array data slot stays on the stack across the length checks. A frame
-// spill would pay for a store, the copy that feeds it, and a later reload, so
-// the layout keeps the word resident and the slot feeds `sload` directly.
-// CHECK: push 11
-// CHECK: keccak256
-// CHECK-NEXT: swap 1
-// CHECK-NEXT: push 3
-// CHECK-NEXT: sub
-// CHECK-NEXT: push bb{{[0-9]+}}
-// CHECK-NEXT: jumpi
-// CHECK-NEXT: dup 1
-// CHECK-NEXT: sload
-// CHECK-NEXT: push 0x900000000000000000000000000000007
 contract SpillCost {
     uint128 public a;
     bool public c;
@@ -37,7 +24,6 @@ contract SpillCost {
 
     function checkDynArray() external returns (uint256) { //~ WARN: unnamed return variable can remain unassigned
         arr.push(11);
-        // A constant slot would fold the hash, so read the slot at runtime.
         uint256 slot;
         assembly {
             slot := arr.slot
@@ -53,5 +39,25 @@ contract SpillCost {
 
     function checkSignedArray() external view returns (uint256) { //~ WARN: unnamed return variable can remain unassigned
         require(signedArr[0] == -5 && signedArr[1] == 6, "signed reads");
+    }
+
+    // The dynamic data slot stays on the stack across the length check rather
+    // than paying for a frame store and reload. The constant-slot case above
+    // can fold its hash before stack scheduling.
+    // CHECK: push 0x4ebcfdd1
+    // CHECK-NEXT: eq
+    // CHECK-NEXT: push [[BODY:bb[0-9]+]]
+    // CHECK: [[BODY]]:
+    // CHECK: push 32
+    // CHECK-NEXT: push 0
+    // CHECK-NEXT: keccak256
+    // CHECK-NOT: mstore
+    // CHECK: dup 1
+    // CHECK-NEXT: sload
+    function checkDynamicSlot(uint256 slot) external view returns (uint256) {
+        uint256 data = uint256(keccak256(abi.encode(slot)));
+        require(raw(4) == 3, "len");
+        require(raw(data) == 7 | (uint256(9) << 128), "data0");
+        return raw(data + 1);
     }
 }

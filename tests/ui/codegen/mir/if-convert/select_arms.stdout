@@ -6,12 +6,12 @@
   
   fn @search_step(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = shr 128, arg0
+      v0 = shr arg0, 128
       v1 = eq v0, 0
       v2 = eq v1, false
 -     jumpi v2, bb1, bb2
 -   bb1:
-      v3 = shr 128, arg0
+      v3 = shr arg0, 128
       v4 = or arg1, 128
 -     jump bb2
 -   bb2:
@@ -20,7 +20,7 @@
 -     v7 = add v5, v6
 +     v8 = zext i1 v2 to i256
 +     v9 = mul v8, 128
-+     v10 = shr v9, arg0
++     v10 = shr arg0, v9
 +     v11 = zext i1 v2 to i256
 +     v12 = mul v11, 128
 +     v13 = or arg1, v12
@@ -30,7 +30,7 @@
   
   fn @cheap_diamond(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = ne arg0, 0
+      v0 = lt arg0, 10
 -     jumpi v0, bb1, bb2
 -   bb2:
 -     v2 = xor arg1, 7
@@ -47,6 +47,37 @@
 +     v6 = mul v5, v4
 +     v7 = add v2, v6
 +     ret v7
+  }
+  
+  fn @nonzero_diamond(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      v2 = xor arg1, 7
+      jump bb3
+    bb1:
+      v1 = mul arg1, 3
+      jump bb3
+    bb3:
+      v3 = phi [bb1: v1], [bb2: v2]
+      ret v3
+  }
+  
+  fn @divisible_step(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = mod arg0, 0xf4240
+      v1 = eq v0, 0
+      jumpi v1, bb1, bb2
+    bb1:
+      v2 = div arg0, 0xf4240
+      v3 = add arg1, 6
+      jump bb2
+    bb2:
+      v4 = phi [bb0: arg0], [bb1: v2]
+      v5 = phi [bb0: arg1], [bb1: v3]
+      v6 = xor v4, v5
+      ret v6
   }
   
   fn @diamond(arg0: i256, arg1: i256) -> i256 {

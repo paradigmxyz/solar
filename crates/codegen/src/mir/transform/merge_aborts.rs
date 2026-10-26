@@ -16,16 +16,14 @@
 //! Two tests that continue on their true edges combine with `and` instead. A
 //! test that aborts on its false edge while the other aborts on its true edge
 //! turns around when it compares a word with a literal: `x < k` fails exactly
-//! when `x > k - 1`, and that complement replaces it where it was. In loops of
-//! gas builds any other such test turns into its negation, `eq c, false`, as a
-//! checked product of two words does, which aborts unless one factor is zero or
-//! the quotient gives back the other. In builds that copy loops, a branch on
-//! `eq c, false` for a boolean `c` is a test of `c` with its edges swapped and
-//! merges as `c`, as a checked product by a word does: it aborts unless the
-//! factor's comparison with the hoisted limit, `gt x, limit`, fails, and that
-//! comparison joins the additions' checks with no `iszero`. Merges repeat along
-//! a chain, so a run of checks, such as the overflow checks of an unrolled
-//! loop's copies, branches once.
+//! when `x > k - 1`, and that complement replaces it where it was. In loops any other such test
+//! turns into its negation, `eq c, false`, as a checked product of two words does, which aborts
+//! unless one factor is zero or the quotient gives back the other. In builds that copy loops, a
+//! branch on `eq c, false` for a boolean `c` is a test of `c` with its edges swapped and merges as
+//! `c`, as a checked product by a word does: it aborts unless the factor's comparison with the
+//! hoisted limit, `gt x, limit`, fails, and that comparison joins the additions' checks with no
+//! `iszero`. Merges repeat along a chain, so a run of checks, such as the overflow checks of an
+//! unrolled loop's copies, branches once.
 //!
 //! Two tests that an addition wrapped, `s1 < s0` for `s1 = s0 + a1` and then
 //! `s2 < s1` for `s2 = s1 + a2`, combine into `s2 < s0` instead when `a1 + a2`
@@ -48,14 +46,18 @@
 //! unrolled loop's copies clone do; the merged test enters the second one.
 //!
 //! Profitability: every merge saves a conditional jump and its pushed label for
-//! an `and` or `or`, priced by the target. Zero tests of words stay apart: a
-//! branch reads the word for free, and a loop's latch also takes its back edge
-//! on it, as an increment's overflow check `eq (add i, 1), 0` does, while the
-//! merged test would pay an `iszero` for the word, another to turn the latch
-//! around, and the shuffles that keep the first condition next to it. A negated
-//! test pays its `iszero` only in loops of gas builds, where the saved jump
-//! repeats; in size builds the extra live condition kept words the stack
-//! scheduler had rebuilt, and the code grew and ran slower. A boolean's negation
+//! an `and` or `or`, priced by the target. A zero test of a word that aborts
+//! when the word is nonzero, as a non-payable entry's `ne callvalue, 0` or an
+//! address check's `ne (shr 160, x), 0` does, joins outside loops as the word
+//! itself: `c = ne (or w, zext c2), 0`, which a branch reads for free as it read
+//! `w`, so the entry's value check and calldata size check branch once. Other
+//! zero tests of words stay apart: a branch reads the word for free, and a
+//! loop's latch also takes its back edge on it, as an increment's overflow
+//! check `eq (add i, 1), 0` does, while the merged test would pay an `iszero`
+//! for the word, another to turn the latch around, and the shuffles that keep
+//! the first condition next to it. A negated
+//! test pays its `iszero` only in loops, where the saved jump repeats, in size builds too. A
+//! boolean's negation
 //! merges as the boolean only in builds that copy loops, where every copy of a
 //! body repeats the saving: in a single body the condition stays live across
 //! the next check, and the scheduler answered with more shuffles than the saved
@@ -91,9 +93,10 @@ impl MirPass for MergeAborts {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let target = Target::new(gcx);
         let cold = cold_functions(module);
-        run_function_pass(module, analyses, |func, _| merge_function(func, &cold, target))
+        run_function_pass(module, analyses, |func, analyses| {
+            merge_function(func, &cold, &analyses.target(gcx))
+        })
     }
 }
 
@@ -132,9 +135,11 @@ struct Test {
     abort: BlockId,
     next: BlockId,
     aborts_when_true: bool,
+    /// Whether `condition` is a word that aborts when nonzero, rather than a boolean.
+    word: bool,
 }
 
-fn merge_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: Target) -> bool {
+fn merge_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: &Target) -> bool {
     rebuild_predecessors(func);
     let mut changed = false;
     let mut wraps = FxHashMap::default();
@@ -179,28 +184,38 @@ fn test(
         Some(inner) if copies => (inner, else_block, then_block),
         _ => (condition, then_block, else_block),
     };
-    // A branch tests a word against zero for free.
-    if let Value::Inst(inst) = func.value(condition)
-        && let InstKind::Eq(a, b) | InstKind::Ne(a, b) = func.inst(*inst).kind
-        && [a, b].into_iter().any(|operand| func.value_u256(operand).is_some_and(|v| v.is_zero()))
-    {
-        return None;
-    }
-    let shared = |block: BlockId| {
-        aborts(func, block, cold)
-            && !func.blocks[block]
-                .instructions
-                .iter()
-                .any(|&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)))
+    let shared = |block: BlockId| aborts(func, block, cold) && !func.block_has_phi(block);
+    let (abort, next, aborts_when_true) = match (shared(then_block), shared(else_block)) {
+        (true, false) => (then_block, else_block, true),
+        (false, true) => (else_block, then_block, false),
+        _ => return None,
     };
-    match (shared(then_block), shared(else_block)) {
-        (true, false) => {
-            Some(Test { condition, abort: then_block, next: else_block, aborts_when_true: true })
+    // A branch tests a word against zero for free, so a zero test stays apart unless it aborts
+    // when the word is nonzero: `or` then joins the word itself, and the merged branch tests the
+    // combined word for free too.
+    if let Some((word, nonzero)) = zero_test(func, condition) {
+        if func.value_ty(word) != Some(MirType::I256) || nonzero != aborts_when_true {
+            return None;
         }
-        (false, true) => {
-            Some(Test { condition, abort: else_block, next: then_block, aborts_when_true: false })
-        }
-        _ => None,
+        return Some(Test { condition: word, abort, next, aborts_when_true: true, word: true });
+    }
+    Some(Test { condition, abort, next, aborts_when_true, word: false })
+}
+
+/// The word a condition compares with zero, and whether the condition holds when it is nonzero.
+fn zero_test(func: &Function, condition: ValueId) -> Option<(ValueId, bool)> {
+    let (a, b, nonzero) = match *inst_kind(func, condition)? {
+        InstKind::Eq(a, b) => (a, b, false),
+        InstKind::Ne(a, b) => (a, b, true),
+        _ => return None,
+    };
+    let zero = |value| func.value_u256(value).is_some_and(|v| v.is_zero());
+    if zero(b) {
+        Some((a, nonzero))
+    } else if zero(a) {
+        Some((b, nonzero))
+    } else {
+        None
     }
 }
 
@@ -242,10 +257,10 @@ fn same_abort(func: &Function, a: BlockId, b: BlockId, cold: &DenseBitSet<Functi
 }
 
 /// Whether an instruction may run before deciding an abort.
-fn speculatable(kind: &InstKind, target: Target) -> bool {
+fn speculatable(kind: &InstKind, target: &Target) -> bool {
     !kind.has_side_effects()
         && !target.op_has_variable_gas(&kind.op())
-        && match kind.op_def().effect {
+        && match kind.effect_kind() {
             EffectKind::Pure => !matches!(kind, InstKind::Phi(_)),
             EffectKind::EnvironmentRead => true,
             _ => false,
@@ -259,7 +274,7 @@ fn mergeable(
     block: BlockId,
     cold: &DenseBitSet<FunctionId>,
     cyclic: &DenseBitSet<BlockId>,
-    target: Target,
+    target: &Target,
 ) -> Option<(Test, Test, Option<Flip>)> {
     let first = test(func, block, cold, target.copies_loops())?;
     // Another edge into the continuation may leave only the first test's own aborting block,
@@ -283,37 +298,37 @@ fn mergeable(
     {
         return None;
     }
+    // A word joins only another test that aborts when it holds, with no flip, and only outside
+    // loops: a latch's word test also takes the back edge, which the merge would turn around.
+    if (first.word || second.word) && (cyclic.contains(block) || !second.aborts_when_true) {
+        return None;
+    }
     // A comparison with a literal turns around for free, unlike a test that would pay an
     // `iszero`. Only loops repeat the saving; a flipped test that runs once, as an ABI word's
     // range check next to the calldata size check, measured no gain and moved the stack
     // scheduler to rebuild calldata words where it had kept them. A negation pays the `iszero`
-    // only in loops of gas builds: in size builds the extra live condition kept words the
-    // scheduler had rebuilt and measured larger and slower.
-    let gas_loop = target.optimization().is_gas() && cyclic.contains(block);
+    // in loops of every build: in size builds it measured 4,461 runtime bytes smaller over the
+    // benchmark corpus, and the profitability check below prices the `iszero`.
     let flip = match (first.aborts_when_true, second.aborts_when_true) {
         (true, true) | (false, false) => None,
         _ if !cyclic.contains(block) => return None,
-        (false, true) => Some(match complement(func, first.condition) {
-            Some(compare) => Flip::First(compare),
-            None if gas_loop => Flip::NegateFirst,
-            None => return None,
-        }),
-        (true, false) => Some(match complement(func, second.condition) {
-            Some(compare) => Flip::Second(compare),
-            None if gas_loop => Flip::NegateSecond,
-            None => return None,
-        }),
+        (false, true) => {
+            Some(complement(func, first.condition).map_or(Flip::NegateFirst, Flip::First))
+        }
+        (true, false) => {
+            Some(complement(func, second.condition).map_or(Flip::NegateSecond, Flip::Second))
+        }
     };
     let added = if matches!(flip, Some(Flip::NegateFirst | Flip::NegateSecond)) {
         target.opcode(op::OR) + target.opcode(op::ISZERO)
     } else {
         target.opcode(op::OR)
     };
-    let saved = target.opcode(op::PUSH2) + target.opcode(op::JUMPI);
+    let saved = target.label_push() + target.opcode(op::JUMPI);
     target
         .improves(
-            i128::from(saved.gas) - i128::from(added.gas),
-            i128::from(saved.bytes) - i128::from(added.bytes),
+            i64::from(target.runtime_gas(saved)) - i64::from(target.runtime_gas(added)),
+            i64::from(saved.bytes) - i64::from(added.bytes),
         )
         .then_some((first, second, flip))
 }
@@ -340,8 +355,13 @@ fn complement(func: &Function, condition: ValueId) -> Option<Compare> {
 
 /// Appends a compiler-generated instruction to a block and returns its result.
 fn append(func: &mut Function, block: BlockId, kind: InstKind) -> ValueId {
+    append_typed(func, block, kind, MirType::I1)
+}
+
+/// Appends a compiler-generated instruction with a result of type `ty` to a block.
+fn append_typed(func: &mut Function, block: BlockId, kind: InstKind, ty: MirType) -> ValueId {
     let (inst, value) =
-        func.alloc_value_inst(Instruction::new(kind, Some(MirType::I1)).with_debug_info_dropped());
+        func.alloc_value_inst(Instruction::new(kind, Some(ty)).with_debug_info_dropped());
     func.blocks[block].instructions.push(inst);
     value
 }
@@ -381,7 +401,24 @@ fn merge(
         }
         None => {}
     }
-    let combined = if second.aborts_when_true
+    let combined = if first.word || second.word {
+        // w1 = zext i1 c1 to i256 (unless c1 is already a word)
+        // w2 = zext i1 c2 to i256 (unless c2 is already a word)
+        // w = or w1, w2
+        // c = ne w, 0
+        // jumpi c, abort, b3
+        let mut widen = |test: &Test| {
+            if test.word {
+                test.condition
+            } else {
+                append_typed(func, block, InstKind::Zext(test.condition), MirType::I256)
+            }
+        };
+        let (a, b) = (widen(&first), widen(&second));
+        let word = append_typed(func, block, InstKind::Or(a, b), MirType::I256);
+        let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
+        append(func, block, InstKind::Ne(word, zero))
+    } else if second.aborts_when_true
         && let Some(wrap) = fused_wrap(func, first.condition, second.condition, wraps)
     {
         // s1 = add s0, a1; c1 = lt s1, s0

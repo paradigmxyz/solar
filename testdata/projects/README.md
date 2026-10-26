@@ -19,8 +19,33 @@ ZKsync paths. The focused runtime suites compile only the selected test or produ
 and its imports.
 
 The test-bearing archives are Forge Std, Morpho Blue, OpenZeppelin, PRBMath, Seaport, Solady,
-Solarray, Solmate, and v4-core. The runtime suite currently exercises OpenZeppelin and Solady test
-entrypoints; the other test trees remain whole-project inputs in the `projects` suite.
+Solarray, Solmate, Tempo Zones, and v4-core. The runtime suite currently exercises OpenZeppelin
+and Solady test entrypoints; the other test trees remain whole-project inputs in the `projects` suite.
 
 Runtime workload definitions and upstream revisions are documented in
 [`../../benches/runtime/README.md`](../../benches/runtime/README.md).
+
+## Tempo Zones
+
+`tempo-zones.json.gz` captures `forge test --list`'s compiler input from
+[`tempoxyz/zones`](https://github.com/tempoxyz/zones/tree/700069eb8a40fce7e1f7a4bf0fc5703bcc692c43)
+under `crates/contracts/`: 67 sources, including 21 test files. It preserves the upstream
+via-IR pipeline, 200 optimizer runs, Osaka EVM target, and Foundry output selection, including
+storage layout. Sources are inline, so the archive needs neither network access nor submodules.
+No Solidity tests were executed to produce it.
+
+The input was captured at the compiler handoff with Forge `1.6.0-v1.7.0`
+(`f83bad912a9dba7bf0371def1e70bb1896048356`) and solc `0.8.35`.
+`FOUNDRY_HARDFORK=cancun` lets that Forge parse the newer upstream `tempo:T8` setting;
+the Standard JSON EVM target remains `osaka`. Initialize the pinned submodules before regenerating:
+`tempo-std` at `96f882963ce3b0e0abc7ec2b41d03d42457877bb` and `forge-std` at
+`bf647bd6046f2f7da30d0c2bf435e5c76a780c1b`. Every embedded source was checked against these
+public repositories' pinned Git objects.
+
+Run the compile-only comparison with:
+
+```sh
+uv run --project tools/compiler-diff compiler-diff runtime -- \
+  --solar /absolute/path/to/solar --solc /absolute/path/to/solc \
+  --mode compile-time --projects tempo-zones --compile-repeats 3
+```

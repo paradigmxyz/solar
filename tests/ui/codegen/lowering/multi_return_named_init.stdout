@@ -8,49 +8,49 @@ fn @readU64(arg0: slice<calldata>, arg1: i256) -> struct0 [pure] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb3: v22]
-    v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v23]
-    v3 = phi [bb0: 0], [bb3: v24]
-    v4 = phi [bb0: arg1], [bb3: v4]
-    v5 = lt v2, 8
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v24]
+    v3 = phi [bb0: arg1], [bb3: v22]
+    v4 = phi [bb0: 0], [bb3: v23]
+    v5 = lt v4, 8
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v25 = trunc i256 v3 to i64
+    v25 = trunc i256 v2 to i64
     v26 = insert_value struct0, undef struct0, 0, v25
-    v27 = insert_value struct0, v26, 1, v0
+    v27 = insert_value struct0, v26, 1, v3
     ret v27
   bb4:
-    v6 = trunc i256 v3 to i64
-    v7 = shl i64 8, v6
-    v8 = extract_value slice<calldata>, v1, 1
-    v9 = lt v0, v8
+    v6 = trunc i256 v2 to i64
+    v7 = shl v6, i64 8
+    v8 = extract_value slice<calldata>, v0, 1
+    v9 = lt v3, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = extract_value slice<calldata>, v1, 0
-    v12 = extract_value slice<calldata>, v1, 0
+    v11 = extract_value slice<calldata>, v0, 0
+    v12 = extract_value slice<calldata>, v0, 0
     v13 = ptrtoint ptr<calldata> v12 to i256
-    v14 = add v13, v0
+    v14 = add v13, v3
     v15 = calldataload v14
     v16 = byte 0, v15
-    v17 = shl 248, v16
-    v18 = shr 248, v17
+    v17 = shl v16, 248
+    v18 = shr v17, 248
     v19 = trunc i256 v18 to i8
     v20 = zext i8 v19 to i64
     v21 = or v7, v20
-    v22 = checked_add u256, v0, 1
+    v22 = checked_add uint256, v3, 1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v23 = checked_add u256, v2, 1
+    v23 = checked_add uint256, v4, 1
     v24 = zext i64 v21 to i256
     jump bb1
 }
 
-fn @readTwice(arg0: slice<calldata>) -> struct1 [selector=0xc62a8eb2, pure, abi_params=[bytes], abi_returns=[word<u64>, word<u64>], abi_return_params=[u64, u64]] {
+fn @readTwice(arg0: slice<calldata>) -> struct1 [selector=0xc62a8eb2, pure, abi_params=[bytes], abi_returns=[word<uint64>, word<uint64>], abi_return_params=[uint64, uint64]] {
   bb0:
     v0 = icall @readU64, arg0, 0
     v1 = extract_value struct0, v0, 0

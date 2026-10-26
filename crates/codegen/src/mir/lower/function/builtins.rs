@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::link::CodeKind;
+use solar_interface::error_code;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_builtin_call(
@@ -50,6 +51,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .map(|()| CallResult::Void);
             }
             Builtin::AbiDecode => return self.lower_abi_decode(args),
+            Builtin::YulMsize
+                if self.cx.gcx.sess.opts.optimization.is_gas()
+                    || self.cx.gcx.sess.opts.optimization.is_size() =>
+            {
+                self.cx
+                    .gcx
+                    .dcx()
+                    .warn("`msize` is not exact when optimizing")
+                    // solc assigns codes from 1000 to 9999, so a code below 1000 cannot collide.
+                    .code(error_code!(67))
+                    .span(callee.span)
+                    .note("the optimizer does not preserve the exact value")
+                    .emit();
+            }
             _ => {}
         }
 
@@ -138,6 +153,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ) {
             // An empty input is only read, so it needs no allocation.
             self.zero_slot()
+        } else if is_calldata_bytes(data_ty) {
+            // solc copies calldata `bytes` input past the free memory pointer, which the call
+            // reads at once, so it stays unreserved, and without checking that it lies within
+            // the calldata, so the copy reads zeros past its end.
+            // input = memory_slice(fmp, data.len); calldatacopy(fmp, data.offset, data.len)
+            let slice = self.lower_expr(data)?;
+            let length = self.builder.slice_len(slice);
+            let source = self.builder.slice_ptr(slice);
+            let base = self.builder.fmp();
+            self.builder.copy_heap(base, source, length, PtrLocation::Calldata);
+            self.builder.make_slice(base, length, PtrLocation::Memory)
         } else {
             // input = materialize_memory(arg)
             let data = self.lower_typed_expr(data, memory_ty)?;
@@ -333,7 +359,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             let mask = self.builder.imm(u32::MAX);
                             let selector = self.builder.and(value, mask);
                             let shift = self.builder.imm(224);
-                            Some(self.builder.shl(shift, selector))
+                            Some(self.builder.shl(selector, shift))
                         }
                         false => self.cx.report_unsupported(expr.span, "function selector"),
                     },
@@ -487,7 +513,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn external_function_address(&mut self, value: ValueId) -> ValueId {
         let shift = self.builder.imm(32);
-        let address = self.builder.shr(shift, value);
+        let address = self.builder.shr(value, shift);
         let mask = self.builder.imm(U256::MAX >> 96);
         self.builder.and(address, mask)
     }
@@ -593,6 +619,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && self.cx.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncode)
                 {
                     let exprs = self.variadic_builtin_args(Builtin::AbiEncode, encode_args)?;
+                    if let Some(hash) = self.lower_keccak_abi_encode_words(exprs) {
+                        return Some(hash);
+                    }
                     let encoded = self.lower_abi_encode_scratch(exprs, None)?;
                     let pointer = self.builder.slice_ptr(encoded);
                     let length = self.builder.slice_len(encoded);
@@ -777,6 +806,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.builder.load(offset, $location))
             }};
         }
+        macro_rules! shift {
+            ($method:ident) => {{
+                // Yul takes the shift amount first; the builder takes the shifted value first.
+                let [shift, value] = self.lower_builtin_args(builtin, &args)?;
+                let value = self.builder.$method(value, shift);
+                Some(self.builder.cast(value, MirType::I256))
+            }};
+        }
         match builtin {
             Builtin::YulAdd => lower!(add(lhs, rhs)),
             Builtin::YulSub => lower!(sub(lhs, rhs)),
@@ -797,9 +834,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::YulXor => lower!(xor(lhs, rhs)),
             Builtin::YulNot => lower!(not(value)),
             Builtin::YulByte => lower!(byte(index, value)),
-            Builtin::YulShl => lower!(shl(shift, value)),
-            Builtin::YulShr => lower!(shr(shift, value)),
-            Builtin::YulSar => lower!(sar(shift, value)),
+            Builtin::YulShl => shift!(shl),
+            Builtin::YulShr => shift!(shr),
+            Builtin::YulSar => shift!(sar),
             Builtin::YulIszero => lower!(eq_zero(value)),
             Builtin::YulAddmod => lower!(addmod(a, b, modulus)),
             Builtin::YulMulmod => lower!(mulmod(a, b, modulus)),
@@ -1022,4 +1059,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .emit();
         None
     }
+}
+
+/// Whether `ty` is `bytes` in calldata, as a reference or a slice.
+fn is_calldata_bytes(ty: Ty<'_>) -> bool {
+    let ty = match ty.kind {
+        TyKind::Slice(inner) => inner,
+        _ => ty,
+    };
+    ty.is_ref_at(DataLocation::Calldata)
+        && matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::Bytes))
 }

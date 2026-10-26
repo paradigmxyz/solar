@@ -1,17 +1,17 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Impl ===
 @module Impl
-fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @setBig(arg0: i256, arg1: i256, arg2: i256, arg3: slice<calldata>) [selector=0xe6a9b505, abi_params=[u256, u256, u256, bytes], abi_returns=[], abi_return_params=[]] {
+fn @setBig(arg0: i256, arg1: i256, arg2: i256, arg3: slice<calldata>) [selector=0xe6a9b505, abi_params=[uint256, uint256, uint256, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = checked_add u256, arg0, arg1
-    v1 = checked_add u256, v0, arg2
+    v0 = checked_add uint256, arg0, arg1
+    v1 = checked_add uint256, v0, arg2
     v2 = extract_value slice<calldata>, arg3, 1
-    v3 = checked_add u256, v1, v2
+    v3 = checked_add uint256, v1, v2
     sstore 0, v3 !metadata(storage=slot(0))
     ret
 }
@@ -24,7 +24,7 @@ fn @setBig(arg0: i256, arg1: i256, arg2: i256, arg3: slice<calldata>) [selector=
 fn @constructor(arg0: i160) [constructor, abi_params=[address]] {
   bb0:
     v0 = zext i160 arg0 to i256
-    v1 = shl 0, v0
+    v1 = shl v0, 0
     storeimmutable _defaultImplementation, v1
     ret
 }
@@ -78,74 +78,65 @@ fn @fallback() [fallback, payable] {
   Impl_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Impl"
   Proxy_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Proxy"
 
-fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize Impl_creation_code_0
-    v2 = datasize Impl_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy Impl_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize Impl_creation_code_0
+    v1 = fmp
+    datacopy Impl_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = zext i160 v7 to i256
-    v10 = abi_encode [word<u160>], args v9
-    v11 = datasize Proxy_creation_code_1
-    v12 = datasize Proxy_creation_code_1, 32
-    v13 = datasize Proxy_creation_code_1, 63, aligned
-    v14 = alloc v13
-    datacopy Proxy_creation_code_1, v14, v11
-    v15 = extract_value slice<memory>, v10, 0
-    v16 = ptrtoint ptr<memory> v14 to i256
-    v17 = add v16, v11
-    mcopy v17, v15, 32 !metadata(memory=heap)
-    v18 = create 0, v14, v12
-    v19 = ne v18, i160 0
-    jumpi v19, bb4, bb3
+    v4 = zext i160 v2 to i256
+    v5 = abi_encode [word<uint160>], args v4
+    v6 = datasize Proxy_creation_code_1
+    v7 = datasize Proxy_creation_code_1, 32
+    v8 = fmp
+    datacopy Proxy_creation_code_1, v8, v6
+    v9 = extract_value slice<memory>, v5, 0
+    v10 = ptrtoint ptr<memory> v8 to i256
+    v11 = add v10, v6
+    mcopy v11, v9, 32 !metadata(memory=heap)
+    v12 = create 0, v8, v7
+    v13 = ne v12, i160 0
+    jumpi v13, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v20 = gas
-    v21 = alloc 64 !metadata(preserves_fmp)
-    mstore v21, 16
-    v22 = ptradd v21, 32
-    mstore v22, 0xdeadbeefdeadbeefdeadbeefdeadbeef00000000000000000000000000000000
-    v23 = abi_encode [word, word, word, memory_bytes], selector 0xe6a9b50500000000000000000000000000000000000000000000000000000000, args 10, 20, 30, v21
-    v24 = extract_value slice<memory>, v23, 0
-    v25 = extract_value slice<memory>, v23, 1
-    v26 = zext i160 v18 to i256
-    v27 = extcodesize v26
-    v28 = eq v27, 0
-    icall revert_if<target_contract_has_no_code>, v28
-    v29 = zext i160 v18 to i256
-    v30 = call v20, v29, 0, v24, v25, 0, 0
-    jumpi v30, bb6, bb5
+    v14 = gas
+    v15 = alloc 64 !metadata(preserves_fmp)
+    mstore v15, 16
+    v16 = ptradd v15, 32
+    mstore v16, 0xdeadbeefdeadbeefdeadbeefdeadbeef00000000000000000000000000000000
+    v17 = abi_encode [word, word, word, memory_bytes], selector 0xe6a9b50500000000000000000000000000000000000000000000000000000000, args 10, 20, 30, v15
+    v18 = extract_value slice<memory>, v17, 0
+    v19 = extract_value slice<memory>, v17, 1
+    v20 = zext i160 v12 to i256
+    v21 = extcodesize v20
+    v22 = eq v21, 0
+    icall revert_if<target_contract_has_no_code>, v22
+    v23 = zext i160 v12 to i256
+    v24 = call v14, v23, 0, v18, v19, 0, 0
+    jumpi v24, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v31 = gas
-    v32 = abi_encode [], selector 0x7c2efcba00000000000000000000000000000000000000000000000000000000
-    v33 = extract_value slice<memory>, v32, 0
-    v34 = extract_value slice<memory>, v32, 1
-    v35 = zext i160 v18 to i256
-    v36 = staticcall v31, v35, v33, v34, 0, 32
-    jumpi v36, bb8, bb7
+    v25 = gas
+    mstore 0, 0x7c2efcba !metadata(memory=scratch)
+    v26 = zext i160 v12 to i256
+    v27 = staticcall v25, v26, 28, 4, 0, 32
+    jumpi v27, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v37 = returndatasize
-    v38 = lt v37, 32
-    icall revert_if<tuple_data_too_short>, v38
-    v39 = add 0, 0
-    v40 = mload v39
-    v41 = eq v40, 76
-    icall require<short_string>, v41, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
+    v28 = returndatasize
+    v29 = lt v28, 32
+    icall revert_if<tuple_data_too_short>, v29
+    v30 = add 0, 0
+    v31 = mload v30
+    v32 = eq v31, 76
+    icall require<short_string>, v32, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     ret 1
 }

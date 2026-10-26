@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mapping_key_cleanup.sol:C ===
 @module C
-fn @signedUserKey() -> i256 [selector=0x27072c8b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @signedUserKey() -> i256 [selector=0x27072c8b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sext i16 0xffff to i256
     v1 = mapping_slot v0, 2
@@ -13,7 +13,7 @@ fn @signedUserKey() -> i256 [selector=0x27072c8b, abi_params=[], abi_returns=[wo
     ret v4
 }
 
-fn @signedKey() -> i256 [selector=0xa0b120fe, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @signedKey() -> i256 [selector=0xa0b120fe, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sext i8 255 to i256
     v1 = mapping_slot v0, 1

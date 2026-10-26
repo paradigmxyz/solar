@@ -34,7 +34,7 @@ bb4 [cold]:
   push 0
   revert
 bb5:
-  push 160
+  push 128
   push 64
   mstore
   push 36
@@ -51,20 +51,17 @@ bb6:
   jumpi
   jump bb7
 bb7:
-  push 128
+  push 0
   mstore
+  push 0
   push 32
-  push 128
-  add
-  push 128
-  swap 1
   sub
-  push 128
+  push 0
   return
 bb8:
   jump bb13
 bb9:
-  push 160
+  push 128
   push 64
   mstore
   push 36
@@ -82,15 +79,12 @@ bb10:
   jumpi
   jump bb11
 bb11:
-  push 128
+  push 0
   mstore
+  push 0
   push 32
-  push 128
-  add
-  push 128
-  swap 1
   sub
-  push 128
+  push 0
   return
 bb12:
   jump bb13
@@ -158,16 +152,16 @@ bb26:
 bb27 [cold]:
   invalid
 bb28:
-  push 0x8c379a000000000000000000000000000000000000000000000000000000000
-  push 0
-  mstore
   push 32
-  push 4
+  push 32
   mstore
-  push 36
+  push 64
   mstore
-  push 68
+  push 96
+  mstore
+  push 0x8c379a0
+  push 0
   mstore
   push 100
-  push 0
+  push 28
   revert

@@ -5,7 +5,10 @@
 //! edges are rewritten. Before pruning, direct callers reuse an argument or constant when every
 //! explicit return in the callee returns that same value. Calls remain in place, including their
 //! effects and failure paths. Tail calls, mixed return values, and baked signature-frame addresses
-//! prevent forwarding; no recursive summary or control-flow fixed point is needed.
+//! prevent forwarding. In `-Osize`, a tail call to a function that never returns, such as a revert
+//! helper from `outline-reverts`, returns nothing. In `-Ogas` such forwarding grew measured code:
+//! once the callee's result is pruned, every caller pushes the constant where the result used to
+//! arrive on the stack. No recursive summary or control-flow fixed point is needed.
 //!
 //! Constants must reach a pure instruction or a non-return terminator. Direct stores and returns
 //! alone do not justify discarding the call result and pushing the same constant again.
@@ -23,6 +26,7 @@
 use crate::mir::{
     ArgIdx, Callee, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
     StorageAlias, Terminator, Value, ValueId,
+    analysis::{cold_functions, direct_callees},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
 };
@@ -40,10 +44,8 @@ type ArgDependents = IndexVec<FunctionId, IndexVec<ArgIdx, Vec<(FunctionId, ArgI
 /// dead argument can strand the call whose result kept another function's result live, so the two
 /// analyses are iterated to a joint fixed point.
 ///
-/// Result pruning removes a complete SSA result, including a struct, and runs only under `-Osize`.
+/// Result pruning removes a complete SSA result, including a struct.
 /// It leaves legacy multi-result signatures intact because their extra results use a shared buffer.
-/// Under other objectives argument liveness is already an internal fixed point, so a single pass
-/// suffices with no outer iteration.
 pub(crate) struct DeadArgElim;
 
 impl MirPass for DeadArgElim {
@@ -57,13 +59,12 @@ impl MirPass for DeadArgElim {
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
-        let forwarded = forward_returned_values(module);
-        if !gcx.sess.opts.optimization.is_size() {
-            return prune_unused_args(module) != 0 || forwarded != 0;
-        }
+        let forwarded = forward_returned_values(module, gcx.sess.opts.optimization.is_size());
         let mut changed = forwarded != 0;
+        // Pruning keeps every `ret` and tail call, so the returning set holds for the loop.
+        let returning = module.returning_functions();
         loop {
-            let pruned = prune_unused_args(module) + prune_unused_returns(module);
+            let pruned = prune_unused_args(module) + prune_unused_returns(module, &returning);
             if pruned == 0 {
                 break;
             }
@@ -73,12 +74,14 @@ impl MirPass for DeadArgElim {
     }
 }
 
-fn forward_returned_values(module: &mut Module) -> usize {
+fn forward_returned_values(module: &mut Module, size: bool) -> usize {
+    let cold =
+        if size { cold_functions(module) } else { DenseBitSet::new_empty(module.functions.len()) };
     let returned = module
         .functions
         .iter_enumerated()
         .filter_map(|(id, func)| {
-            let value = returned_value(func)?;
+            let value = returned_value(func, &cold)?;
             (is_internal_body(module, id, func) && frame_offsets_are_local(func))
                 .then_some((id, value))
         })
@@ -158,7 +161,9 @@ enum ReturnedValue {
     Constant(Immediate),
 }
 
-fn returned_value(func: &Function) -> Option<ReturnedValue> {
+/// The argument or constant every return of `func` returns. A tail call to a function that
+/// never returns, such as a shared revert helper, returns nothing.
+fn returned_value(func: &Function, cold: &DenseBitSet<FunctionId>) -> Option<ReturnedValue> {
     if func.return_components().len() != 1 {
         return None;
     }
@@ -177,7 +182,9 @@ fn returned_value(func: &Function) -> Option<ReturnedValue> {
                 }
                 returned = Some(value);
             }
-            Some(Terminator::TailCall { .. }) => return None,
+            Some(Terminator::TailCall { function, .. }) if !cold.contains(*function) => {
+                return None;
+            }
             _ => {}
         }
     }
@@ -503,20 +510,11 @@ fn record_arg_dependencies(
 /// Scalar and struct results both have one SSA value. Legacy multi-result signatures still carry
 /// extra results through a shared buffer and remain unchanged. Preserve the memory-return flag
 /// before erasing the signature, including when a nested struct field refers to memory.
-fn prune_unused_returns(module: &mut Module) -> usize {
+fn prune_unused_returns(module: &mut Module, returning: &DenseBitSet<FunctionId>) -> usize {
     let mut called = DenseBitSet::new_empty(module.functions.len());
     for func in &module.functions {
-        for inst_id in func.instructions() {
-            if let InstKind::ICall { function: Callee::Function(function), .. } =
-                func.inst(inst_id).kind
-            {
-                called.insert(function);
-            }
-        }
-        for block in &func.blocks {
-            if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
-                called.insert(*function);
-            }
+        for callee in direct_callees(func) {
+            called.insert(callee);
         }
     }
 
@@ -561,7 +559,12 @@ fn prune_unused_returns(module: &mut Module) -> usize {
                 }
             }
             for block in &caller.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+                // A tail call to a function that reaches no `ret` delivers no result, so the
+                // validator checks no result arity for it. A cold callee that still reaches a
+                // `ret`, such as one that calls an aborting helper first, keeps the contract.
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator
+                    && returning.contains(*function)
+                {
                     if candidates.contains(*function)
                         && !live.contains(*function)
                         && live.contains(caller_id)
@@ -641,7 +644,7 @@ fn prune_unused_returns(module: &mut Module) -> usize {
 /// Returns whether discarding `value` can expose only pure instructions to later DCE.
 ///
 /// Reads are deliberately retained even when their loaded value is otherwise unused: memory reads
-/// can expand memory as observed by `msize`, state reads affect warm/cold access costs, and
+/// can expand memory, state reads affect warm/cold access costs, and
 /// environment reads such as `gas` are directly observable. Argument leaves are safe here because
 /// argument pruning applies this same proof to every concrete call operand and propagates caller
 /// argument dependencies to a fixed point.

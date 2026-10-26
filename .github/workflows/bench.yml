@@ -20,15 +20,15 @@ on:
       solc_version:
         description: solc release used by the codegen runtime benchmark
         required: true
-        default: 0.8.37
+        default: 0.8.38
         type: string
 
 env:
   CARGO_TERM_COLOR: always
   RUSTC_WRAPPER: "sccache"
-  SOLC_VERSION: ${{ inputs.solc_version || '0.8.37' }}
+  SOLC_VERSION: ${{ inputs.solc_version || '0.8.38' }}
   SOLX_VERSION: '0.1.8'
-  OKSOLC_REVISION: d5ff7399356b1ad238c839278a334e13e0e2dc81
+  OKSOLC_REVISION: c465a262edc835afff32951ee2d64e827bc16c3d
 
 jobs:
   codegen-runtime:
@@ -98,15 +98,16 @@ jobs:
           chmod +x "$RUNNER_TEMP/solx/solx"
           "$RUNNER_TEMP/solx/solx" --version
 
-      - name: Restore oksolc build
+      - name: Restore oksolc build (main only)
         id: oksolc-cache
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: target/oksolc/zig-out/bin/oksolc
-          key: oksolc-cli-v2-${{ runner.os }}-${{ runner.arch }}-zig-0.16.0-ReleaseFast-baseline-${{ env.OKSOLC_REVISION }}
+          key: oksolc-cli-v2-${{ runner.os }}-${{ runner.arch }}-zig-0.17.0-ReleaseFast-baseline-${{ env.OKSOLC_REVISION }}
 
-      - name: Checkout oksolc
-        if: steps.oksolc-cache.outputs.cache-hit != 'true'
+      - name: Checkout oksolc (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.oksolc-cache.outputs.cache-hit != 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: okcontract/oksolc
@@ -115,20 +116,21 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Install Zig
-        if: steps.oksolc-cache.outputs.cache-hit != 'true'
+      - name: Install Zig (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.oksolc-cache.outputs.cache-hit != 'true'
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
-          version: 0.16.0
+          version: 0.17.0
 
-      - name: Build oksolc
-        if: steps.oksolc-cache.outputs.cache-hit != 'true'
+      - name: Build oksolc (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.oksolc-cache.outputs.cache-hit != 'true'
         working-directory: target/oksolc
         run: |
           set -euo pipefail
           zig build build-cli -Doptimize=ReleaseFast -Dcpu=baseline -j4
 
-      - name: Check oksolc
+      - name: Check oksolc (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: target/oksolc/zig-out/bin/oksolc --version
 
       - name: Build Solar
@@ -250,6 +252,7 @@ jobs:
             --compile-repeats 5 \
             --gas \
             --gas-profile hot \
+            --gas-kinds \
             --start-anvil \
             --allow-failures \
             --artifacts target/codegen-bench/baseline/artifacts \
@@ -265,12 +268,12 @@ jobs:
           args=(
             --verbose
             --solar target/release/solar-head
-            --oksolc target/oksolc/zig-out/bin/oksolc
             --mode runtime compile-time
             --suite all
             --compile-repeats 5
             --gas
             --gas-profile hot
+            --gas-kinds
             --start-anvil
             --allow-failures
             --artifacts target/codegen-bench/artifacts
@@ -286,6 +289,7 @@ jobs:
           fi
           if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/main" ]]; then
             args+=(--solx "$RUNNER_TEMP/solx/solx")
+            args+=(--oksolc target/oksolc/zig-out/bin/oksolc)
           fi
           if ! python3 benches/runtime/benchmark.py "${args[@]}"; then
             echo "::warning::Codegen benchmark failed to complete"
@@ -338,7 +342,7 @@ jobs:
 
       - name: Upload results as artifact
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: codegen-runtime-results
           path: target/codegen-bench/
@@ -347,7 +351,7 @@ jobs:
 
       - name: Save baseline (main only)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: codegen-runtime-baseline
           path: target/codegen-bench/results.json
@@ -382,7 +386,7 @@ jobs:
           cache-targets: false
       - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
       - name: Install cargo-codspeed
-        uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+        uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: cargo-codspeed
       - name: Build the benchmark targets
@@ -392,7 +396,7 @@ jobs:
           --bench criterion --bench lsp --bench lsp_diagnostic
           --features solar-lsp/bench
       - name: Run the benchmarks
-        uses: CodSpeedHQ/action@c4fd08a3a159bd0cc208da1e0edf32b8c47d75e5 # v5.4.0
+        uses: CodSpeedHQ/action@821a40cd6c80e3cfe387caf55668287addd808da # v5.5.0
         with:
           run: >-
             cargo codspeed run -m simulation

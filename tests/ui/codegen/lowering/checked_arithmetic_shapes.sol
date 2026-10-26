@@ -10,17 +10,18 @@
 // - unsigned mul: `or(iszero(rhs), eq(div(p, rhs), lhs))` (sub-word <= 128
 //   bits: `gt` max only).
 // - signed add/sub: `xor` of two `slt`/`sgt` comparisons, no constants.
-// - signed mul: division-inverse check plus `and(eq(lhs, MIN), slt(rhs, 0))`.
+// - signed mul: division-inverse check plus `and(eq(lhs, MIN), slt(rhs, 0))`
+//   (sub-word: range check instead of the `MIN` test; <= 128 bits: range only).
 // - div/mod: branch directly on the divisor, no `iszero`/`eq` flag.
 // - sub-word left shifts: mask unsigned results and sign-extend signed results.
 // SEM-LABEL: fn @sadd
-// SEM: checked_add i256, arg0, arg1
+// SEM: checked_add int256, arg0, arg1
 // SEM-LABEL: fn @ssub
-// SEM: checked_sub i256, arg0, arg1
+// SEM: checked_sub int256, arg0, arg1
 // SEM-LABEL: fn @smul
-// SEM: checked_mul i256, arg0, arg1
+// SEM: checked_mul int256, arg0, arg1
 // SEM-LABEL: fn @sdiv
-// SEM: checked_div i256, arg0, arg1
+// SEM: checked_div int256, arg0, arg1
 contract CheckedArithmeticShapes {
     // CHECK-LABEL: fn @sadd{{[( ]}}
     // CHECK: [[SUM:v[0-9]+]] = add arg0, arg1
@@ -111,7 +112,7 @@ contract CheckedArithmeticShapes {
     // CHECK: [[LHS:v[0-9]+]] = zext i128 arg0 to i256
     // CHECK: [[RHS:v[0-9]+]] = zext i128 arg1 to i256
     // CHECK: [[RESULT:v[0-9]+]] = mul [[LHS]], [[RHS]]
-    // CHECK: div [[RESULT]], [[RHS]]
+    // CHECK-NOT: div
     // CHECK: gt [[RESULT]], 0xffffffffffffffffffffffffffffffff
     // CHECK: mstore 32, 17
     function umul128(uint128 a, uint128 b) public pure returns (uint128) {
@@ -122,11 +123,25 @@ contract CheckedArithmeticShapes {
     // CHECK: [[LHS:v[0-9]+]] = sext i128 arg0 to i256
     // CHECK: [[RHS:v[0-9]+]] = sext i128 arg1 to i256
     // CHECK: [[RESULT:v[0-9]+]] = mul [[LHS]], [[RHS]]
-    // CHECK: sdiv [[RESULT]], [[RHS]]
+    // CHECK-NOT: sdiv
     // CHECK: slt [[RESULT]], 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
     // CHECK: sgt [[RESULT]], 0x7fffffffffffffffffffffffffffffff
+    // CHECK-NOT: eq
     // CHECK: mstore 32, 17
     function smul128(int128 a, int128 b) public pure returns (int128) {
+        return a * b;
+    }
+
+    // CHECK-LABEL: fn @smul192{{[( ]}}
+    // CHECK: [[LHS:v[0-9]+]] = sext i192 arg0 to i256
+    // CHECK: [[RHS:v[0-9]+]] = sext i192 arg1 to i256
+    // CHECK: [[RESULT:v[0-9]+]] = mul [[LHS]], [[RHS]]
+    // CHECK: sdiv [[RESULT]], [[RHS]]
+    // CHECK: slt [[RESULT]], 0xffffffffffffffff800000000000000000000000000000000000000000000000
+    // CHECK: sgt [[RESULT]], 0x7fffffffffffffffffffffffffffffffffffffffffffffff
+    // CHECK-NOT: eq [[LHS]],
+    // CHECK: mstore 32, 17
+    function smul192(int192 a, int192 b) public pure returns (int192) {
         return a * b;
     }
 
@@ -142,7 +157,7 @@ contract CheckedArithmeticShapes {
     }
 
     // CHECK-LABEL: fn @leftU8(arg0: i8, arg1: i8) -> i8
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg1, arg0
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg0, arg1
     // CHECK-NEXT: ret [[SHIFTED]]
     function leftU8(uint8 value, uint8 bits) external pure returns (uint8) {
         return value << bits;
@@ -150,14 +165,14 @@ contract CheckedArithmeticShapes {
 
     // CHECK-LABEL: fn @leftU16(arg0: i16, arg1: i8) -> i16
     // CHECK: [[BITS:v[0-9]+]] = zext i8 arg1 to i16
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl [[BITS]], arg0
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg0, [[BITS]]
     // CHECK-NEXT: ret [[SHIFTED]]
     function leftU16(uint16 value, uint8 bits) external pure returns (uint16) {
         return value << bits;
     }
 
     // CHECK-LABEL: fn @leftI8(arg0: i8, arg1: i8) -> i8
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg1, arg0
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg0, arg1
     // CHECK-NEXT: ret [[SHIFTED]]
     function leftI8(int8 value, uint8 bits) external pure returns (int8) {
         return value << bits;
@@ -165,7 +180,7 @@ contract CheckedArithmeticShapes {
 
     // CHECK-LABEL: fn @leftI16(arg0: i16, arg1: i8) -> i16
     // CHECK: [[BITS:v[0-9]+]] = zext i8 arg1 to i16
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl [[BITS]], arg0
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg0, [[BITS]]
     // CHECK-NEXT: ret [[SHIFTED]]
     function leftI16(int16 value, uint8 bits) external pure returns (int16) {
         return value << bits;
@@ -173,21 +188,21 @@ contract CheckedArithmeticShapes {
 
     // Full-width and right shifts already have native EVM word semantics.
     // CHECK-LABEL: fn @leftU256{{[( ]}}
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg1, arg0
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg0, arg1
     // CHECK-NEXT: ret [[SHIFTED]]
     function leftU256(uint256 value, uint256 bits) external pure returns (uint256) {
         return value << bits;
     }
 
     // CHECK-LABEL: fn @rightU8(arg0: i8, arg1: i8) -> i8
-    // CHECK: [[SHIFTED:v[0-9]+]] = shr arg1, arg0
+    // CHECK: [[SHIFTED:v[0-9]+]] = shr arg0, arg1
     // CHECK-NEXT: ret [[SHIFTED]]
     function rightU8(uint8 value, uint8 bits) external pure returns (uint8) {
         return value >> bits;
     }
 
     // CHECK-LABEL: fn @rightI8(arg0: i8, arg1: i8) -> i8
-    // CHECK: [[SHIFTED:v[0-9]+]] = sar arg1, arg0
+    // CHECK: [[SHIFTED:v[0-9]+]] = sar arg0, arg1
     // CHECK-NEXT: ret [[SHIFTED]]
     function rightI8(int8 value, uint8 bits) external pure returns (int8) {
         return value >> bits;

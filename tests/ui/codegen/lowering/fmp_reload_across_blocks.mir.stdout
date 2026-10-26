@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/fmp_reload_across_blocks.sol:ExcessReturnDataRecipient ===
 @module ExcessReturnDataRecipient
-fn @setRevertDataSize(arg0: i256) [selector=0xe998da54, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @setRevertDataSize(arg0: i256) [selector=0xe998da54, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     ret
@@ -71,10 +71,10 @@ fn @sqrt(arg0: i256) -> i256 [pure] {
     v3 = div v2, 2
     jump bb4
   bb4:
-    v4 = phi [bb2: v3], [bb8: v12]
-    v5 = phi [bb2: arg0], [bb8: v5]
-    v6 = phi [bb2: arg0], [bb8: v4]
-    v7 = lt v4, v6
+    v4 = phi [bb2: arg0], [bb8: v4]
+    v5 = phi [bb2: arg0], [bb8: v6]
+    v6 = phi [bb2: v3], [bb8: v12]
+    v7 = lt v6, v5
     v8 = zext i1 v7 to i256
     v9 = ne v8, 0
     jumpi v9, bb6, bb7
@@ -83,19 +83,19 @@ fn @sqrt(arg0: i256) -> i256 [pure] {
   bb5:
     jump bb1
   bb6:
-    v10 = div v5, v4
-    v11 = add v10, v4
+    v10 = div v4, v6
+    v11 = add v10, v6
     v12 = div v11, 2
     jump bb8
   bb8:
     jump bb4
   bb1:
-    v13 = phi [bb0: arg0], [bb5: v5], [bb3: arg0]
-    v14 = phi [bb0: 0], [bb5: v6], [bb3: 1]
+    v13 = phi [bb0: arg0], [bb5: v4], [bb3: arg0]
+    v14 = phi [bb0: 0], [bb5: v5], [bb3: 1]
     ret v14
 }
 
-fn @onERC1155Received(arg0: i160, arg1: i160, arg2: i256, arg3: i256, arg4: slice<calldata>) -> i256 [selector=0xf23a6e61, view, abi_params=[address, address, u256, u256, bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+fn @onERC1155Received(arg0: i160, arg1: i160, arg2: i256, arg3: i256, arg4: slice<calldata>) -> i256 [selector=0xf23a6e61, view, abi_params=[address, address, uint256, uint256, bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0
@@ -107,15 +107,15 @@ fn @onERC1155Received(arg0: i160, arg1: i160, arg2: i256, arg3: i256, arg4: slic
   bb1:
     v2 = gas
     v3 = icall @ln, v2
-    v4 = checked_mul u256, 54, v3
-    v5 = checked_add u256, v4, 0x4b0
+    v4 = checked_mul uint256, 54, v3
+    v5 = checked_add uint256, v4, 0x4b0
     v6 = gas
-    v7 = checked_sub u256, v6, v5
-    v8 = checked_mul u256, 0x800, v7
-    v9 = checked_add u256, v8, 0x8fe800
+    v7 = checked_sub uint256, v6, v5
+    v8 = checked_mul uint256, 0x800, v7
+    v9 = checked_add uint256, v8, 0x8fe800
     v10 = icall @sqrt, v9
-    v11 = checked_sub u256, v10, 0xc00
-    v12 = checked_div u256, v11, 4
+    v11 = checked_sub uint256, v10, 0xc00
+    v12 = checked_div uint256, v11, 4
     v13 = mul v12, 32
     v14 = mul v12, 32
     calldatacopy 0, 0, v14 !metadata(memory=scratch)

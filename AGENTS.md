@@ -15,16 +15,15 @@ cargo build                            # Build
 cargo t                                # Run all tests with nextest (preferred)
 cargo nextest run --workspace          # Run tests
 cargo llvm-cov nextest --workspace     # Test coverage
-cargo uitest                           # Run UI tests
-cargo uibless                          # Update UI test expectations
+cargo bless                            # Update all test expectations
 cargo fmt --all                        # Format
 cargo cl                               # Lint
 cargo run -- file.sol                  # Run compiler
 cargo run -- -Zhelp                    # Unstable flags help
 ```
 
-Filter UI tests with `cargo uitest <path-substring>` or
-`cargo tq <mode> <path-substring>`, and Rust tests with
+Filter tests with `cargo tq <mode> <path-substring>` (bless with
+`cargo bless <mode> <path-substring>`), and Rust tests with
 `cargo nextest run -p <crate> <test-name>`. Run focused tests while iterating and broader checks once the change settles.
 For documentation-only changes, check prose, examples, and spelling; do not
 build or run tests. Avoid plain `cargo test`.
@@ -325,6 +324,9 @@ self.dcx()
   keep value and type; bool-to-word needs `zext i1 v to i256`.
 - `ptr<memory>` is not an integer; pointer casts do not establish validity,
   provenance, ownership, or non-wrapping arithmetic.
+- Memory pointers are never null: store the zero slot or a default object as a
+  default memory value, never 0, and read pointers without zero guards. See
+  [docs/MIR.md](docs/MIR.md#value-types-and-conversions).
 - Keep raw Solidity bool and address bits as `i256` where assembly can see them;
   convert to `i1` for logic and branches.
 - Put an IR or pseudo-IR comment, in emitted order and one instruction per line

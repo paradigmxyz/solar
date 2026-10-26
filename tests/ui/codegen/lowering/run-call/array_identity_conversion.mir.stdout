@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/array_identity_conversion.sol:ArrayIdentityConversion ===
 @module ArrayIdentityConversion
-fn @fresh() -> i256 [selector=0xb466b76f, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fresh() -> i256 [selector=0xb466b76f, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
@@ -15,54 +15,26 @@ fn @fresh() -> i256 [selector=0xb466b76f, pure, abi_params=[], abi_returns=[word
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = ptradd v0, 32
-    v14 = mload v13
-    v15 = inttoptr i256 v14 to ptr<memory>
-    v16 = eq v14, 0
-    jumpi v16, bb4, bb5
-  bb4:
-    v17 = alloc 64
-    mstore v17, 0
-    v18 = ptradd v17, 32
-    mstore v18, 0
+    v14 = mload v13, ptr<memory>
+    mstore v14, 7
+    v15 = mload v0
+    v16 = mload v0
+    v17 = lt 0, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
     v19 = ptradd v0, 32
-    v20 = ptrtoint ptr<memory> v17 to i256
-    mstore v19, v20
-    jump bb5
-  bb5:
-    v21 = phi [bb3: v15], [bb4: v17]
-    mstore v21, 7
-    v22 = mload v0
-    v23 = mload v0
-    v24 = lt 0, v23
-    v25 = eq v24, false
-    icall panic_if<0x32>, v25
-    v26 = ptradd v0, 32
-    v27 = mload v26
-    v28 = inttoptr i256 v27 to ptr<memory>
-    v29 = eq v27, 0
-    jumpi v29, bb6, bb7
-  bb6:
-    v30 = alloc 64
-    mstore v30, 0
-    v31 = ptradd v30, 32
-    mstore v31, 0
-    v32 = ptradd v0, 32
-    v33 = ptrtoint ptr<memory> v30 to i256
-    mstore v32, v33
-    jump bb7
-  bb7:
-    v34 = phi [bb5: v28], [bb6: v30]
-    v35 = mload v34
-    v36 = trunc i256 v35 to i32
-    v37 = zext i32 v36 to i256
-    v38 = checked_add u256, v22, v37
-    ret v38
+    v20 = mload v19, ptr<memory>
+    v21 = mload v20
+    v22 = trunc i256 v21 to i32
+    v23 = zext i32 v22 to i256
+    v24 = checked_add uint256, v15, v23
+    ret v24
   bb2:
     v3 = alloc 64 !metadata(preserves_fmp)
     mstore v3, 0
     v4 = ptradd v3, 32
     mstore v4, 0
-    v5 = shl 5, v1
+    v5 = shl v1, 5
     v6 = ptradd v0, v5
     v7 = ptradd v6, 32
     v8 = ptrtoint ptr<memory> v3 to i256
@@ -71,7 +43,7 @@ fn @fresh() -> i256 [selector=0xb466b76f, pure, abi_params=[], abi_returns=[word
     jump bb1
 }
 
-fn @aliased() -> i256 [selector=0x1d15e393, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @aliased() -> i256 [selector=0x1d15e393, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
@@ -86,52 +58,24 @@ fn @aliased() -> i256 [selector=0x1d15e393, pure, abi_params=[], abi_returns=[wo
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = ptradd v0, 32
-    v14 = mload v13
-    v15 = inttoptr i256 v14 to ptr<memory>
-    v16 = eq v14, 0
-    jumpi v16, bb4, bb5
-  bb4:
-    v17 = alloc 64
-    mstore v17, 0
-    v18 = ptradd v17, 32
-    mstore v18, 0
-    v19 = ptradd v0, 32
-    v20 = ptrtoint ptr<memory> v17 to i256
-    mstore v19, v20
-    jump bb5
-  bb5:
-    v21 = phi [bb3: v15], [bb4: v17]
-    mstore v21, 5
-    v22 = mload v0
-    v23 = lt 0, v22
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = ptradd v0, 32
-    v26 = mload v25
-    v27 = inttoptr i256 v26 to ptr<memory>
-    v28 = eq v26, 0
-    jumpi v28, bb6, bb7
-  bb6:
-    v29 = alloc 64
-    mstore v29, 0
-    v30 = ptradd v29, 32
-    mstore v30, 0
-    v31 = ptradd v0, 32
-    v32 = ptrtoint ptr<memory> v29 to i256
-    mstore v31, v32
-    jump bb7
-  bb7:
-    v33 = phi [bb5: v27], [bb6: v29]
-    v34 = mload v33
-    v35 = trunc i256 v34 to i32
-    v36 = zext i32 v35 to i256
-    ret v36
+    v14 = mload v13, ptr<memory>
+    mstore v14, 5
+    v15 = mload v0
+    v16 = lt 0, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = ptradd v0, 32
+    v19 = mload v18, ptr<memory>
+    v20 = mload v19
+    v21 = trunc i256 v20 to i32
+    v22 = zext i32 v21 to i256
+    ret v22
   bb2:
     v3 = alloc 64 !metadata(preserves_fmp)
     mstore v3, 0
     v4 = ptradd v3, 32
     mstore v4, 0
-    v5 = shl 5, v1
+    v5 = shl v1, 5
     v6 = ptradd v0, v5
     v7 = ptradd v6, 32
     v8 = ptrtoint ptr<memory> v3 to i256
@@ -140,7 +84,7 @@ fn @aliased() -> i256 [selector=0x1d15e393, pure, abi_params=[], abi_returns=[wo
     jump bb1
 }
 
-fn @fixedSize() -> i256 [selector=0x736172d3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fixedSize() -> i256 [selector=0x736172d3, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     jump bb1
@@ -153,51 +97,23 @@ fn @fixedSize() -> i256 [selector=0x736172d3, pure, abi_params=[], abi_returns=[
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = ptradd v0, 32
-    v12 = mload v11
-    v13 = inttoptr i256 v12 to ptr<memory>
-    v14 = eq v12, 0
-    jumpi v14, bb4, bb5
-  bb4:
-    v15 = alloc 64
-    mstore v15, 0
-    v16 = ptradd v15, 32
-    mstore v16, 0
-    v17 = ptradd v0, 32
-    v18 = ptrtoint ptr<memory> v15 to i256
-    mstore v17, v18
-    jump bb5
-  bb5:
-    v19 = phi [bb3: v13], [bb4: v15]
-    mstore v19, 9
-    v20 = lt 1, 2
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = ptradd v0, 32
-    v23 = mload v22
-    v24 = inttoptr i256 v23 to ptr<memory>
-    v25 = eq v23, 0
-    jumpi v25, bb6, bb7
-  bb6:
-    v26 = alloc 64
-    mstore v26, 0
-    v27 = ptradd v26, 32
-    mstore v27, 0
-    v28 = ptradd v0, 32
-    v29 = ptrtoint ptr<memory> v26 to i256
-    mstore v28, v29
-    jump bb7
-  bb7:
-    v30 = phi [bb5: v24], [bb6: v26]
-    v31 = mload v30
-    v32 = trunc i256 v31 to i32
-    v33 = zext i32 v32 to i256
-    ret v33
+    v12 = mload v11, ptr<memory>
+    mstore v12, 9
+    v13 = lt 1, 2
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = ptradd v0, 32
+    v16 = mload v15, ptr<memory>
+    v17 = mload v16
+    v18 = trunc i256 v17 to i32
+    v19 = zext i32 v18 to i256
+    ret v19
   bb2:
     v3 = alloc 64 !metadata(preserves_fmp)
     mstore v3, 0
     v4 = ptradd v3, 32
     mstore v4, 0
-    v5 = shl 5, v1
+    v5 = shl v1, 5
     v6 = ptradd v0, v5
     v7 = ptrtoint ptr<memory> v3 to i256
     mstore v6, v7
@@ -205,7 +121,7 @@ fn @fixedSize() -> i256 [selector=0x736172d3, pure, abi_params=[], abi_returns=[
     jump bb1
 }
 
-fn @calldataLength(arg0: slice<calldata>) -> i256 [selector=0x52782626, pure, abi_params=[array<_, tuple<u32, i128>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @calldataLength(arg0: slice<calldata>) -> i256 [selector=0x52782626, pure, abi_params=[array<_, tuple<uint32, int128>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     ret v0

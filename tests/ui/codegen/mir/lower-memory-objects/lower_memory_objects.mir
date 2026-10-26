@@ -35,11 +35,11 @@ fn @objects(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>, arg3: ptr<m
     mstore8 v6, v5
     v11 = ptradd arg2, 32
     mstore v11, v5
-    v115 = shl 5, v5
+    v115 = shl v5, 5
     v12 = ptradd arg1, 32
     v17 = ptradd v12, v115
     mstore v17, v5
-    v116 = shl 5, v5
+    v116 = shl v5, 5
     v13 = ptradd arg3, v116
     mstore v13, v5
     stop
@@ -123,4 +123,22 @@ fn @merged_allocations() -> ptr<memory> {
     v3 = ptrtoint ptr<memory> v1 to i256
     mstore v3, 0
     ret v1
+}
+
+// A pointer cast of a narrower integer keeps its casts: folding them would return or merge the
+// `i1` where the word belongs.
+// CHECK-LABEL: {{^[ +].*}}fn @narrow_word{{[( ]}}
+// CHECK: [[POINTER:v[0-9]+]] = inttoptr i1 arg0 to ptr<memory>
+// CHECK-NEXT: [[WORD:v[0-9]+]] = ptrtoint ptr<memory> [[POINTER]] to i256
+// CHECK: phi [bb0: [[WORD]]], [bb1: arg1]
+fn @narrow_word(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    v0 = inttoptr i1 arg0 to ptr<memory>
+    v1 = ptrtoint ptr<memory> v0 to i256
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb2
+  bb2:
+    v2 = phi [bb0: v1], [bb1: arg1]
+    ret v2
 }

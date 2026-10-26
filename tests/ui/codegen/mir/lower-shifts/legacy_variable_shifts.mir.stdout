@@ -1,0 +1,19 @@
+// === ROOT/tests/ui/codegen/mir/lower-shifts/legacy_variable_shifts.sol:LegacyVariableShifts ===
+@module LegacyVariableShifts
+fn @shl(arg0: i256, arg1: i256) -> i256 [selector=0x9da760ef, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = shl arg0, arg1
+    ret v0
+}
+
+fn @shr(arg0: i256, arg1: i256) -> i256 [selector=0x75f4479a, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = shr arg0, arg1
+    ret v0
+}
+
+fn @sar(arg0: i256, arg1: i256) -> i256 [selector=0xa3c4aeeb, pure, abi_params=[int256, uint256], abi_returns=[word], abi_return_params=[int256]] {
+  bb0:
+    v0 = sar arg0, arg1
+    ret v0
+}

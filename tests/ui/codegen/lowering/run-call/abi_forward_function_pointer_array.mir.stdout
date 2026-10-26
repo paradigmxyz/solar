@@ -4,76 +4,25 @@ fn @forward(arg0: slice<calldata>) -> i1 [selector=0xf848716a, view, abi_params=
   bb0:
     v0 = address
     v1 = gas
-    v2 = extract_value slice<calldata>, arg0, 1
-    v3 = extract_value slice<calldata>, arg0, 0
-    v4 = mul v2, 32
-    v5 = eq 32, 0
-    v6 = div v4, 32
-    v7 = eq v6, v2
-    v8 = or v5, v7
-    v9 = zext i1 v8 to i256
-    v10 = eq v9, 0
-    icall panic_if<0x41>, v10
-    v11 = calldatasize
-    v12 = ptrtoint ptr<calldata> v3 to i256
-    v13 = sub v11, v12
-    v14 = slt v13, v4
-    icall revert_if<calldata_tail_too_short>, v14
-    v15 = mul v2, 32
-    v16 = eq 32, 0
-    v17 = div v15, 32
-    v18 = eq v17, v2
-    v19 = or v16, v18
-    v20 = zext i1 v19 to i256
-    v21 = eq v20, 0
-    icall panic_if<0x41>, v21
-    v22 = add 32, v15
-    v23 = lt v22, 32
-    icall panic_if<0x41>, v23
-    v24 = alloc v22
-    mstore v24, v2
-    jump bb1
+    v2 = abi_encode [calldata_array<function>], selector 0x5010464900000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
+    v5 = zext i160 v0 to i256
+    v6 = staticcall v1, v5, v3, v4, 0, 32
+    jumpi v6, bb2, bb1
   bb1:
-    v25 = phi [bb0: 0], [bb2: v39]
-    v26 = lt v25, v2
-    jumpi v26, bb2, bb3
-  bb3:
-    v40 = abi_encode [memory_array<function>], selector 0x5010464900000000000000000000000000000000000000000000000000000000, args v24
-    v41 = extract_value slice<memory>, v40, 0
-    v42 = extract_value slice<memory>, v40, 1
-    v43 = zext i160 v0 to i256
-    v44 = staticcall v1, v43, v41, v42, 0, 32
-    jumpi v44, bb5, bb4
-  bb4:
     revert_returndata
-  bb5:
-    v45 = returndatasize
-    v46 = lt v45, 32
-    icall revert_if<tuple_data_too_short>, v46
-    v47 = add 0, 0
-    v48 = mload v47
-    v49 = lt v48, 2
-    v50 = eq v49, false
-    icall revert_if<empty>, v50
-    v51 = ne v48, 0
-    ret v51
   bb2:
-    v27 = mul v25, 32
-    v28 = ptrtoint ptr<calldata> v3 to i256
-    v29 = add v28, v27
-    v30 = calldataload v29
-    v31 = shl 192, v30
-    v32 = eq v31, 0
-    v33 = eq v32, false
-    icall revert_if<empty>, v33
-    v34 = shr 64, v30
-    v35 = shl 64, v34
-    v36 = shl 5, v25
-    v37 = ptradd v24, v36
-    v38 = ptradd v37, 32
-    mstore v38, v35
-    v39 = add v25, 1
-    jump bb1
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = lt v10, 2
+    v12 = eq v11, false
+    icall revert_if<empty>, v12
+    v13 = ne v10, 0
+    ret v13
 }
 
 fn @accept(arg0: slice<calldata>) -> i1 [selector=0x50104649, pure, abi_params=[array<_, function>], abi_returns=[word<bool>], abi_return_params=[bool]] {

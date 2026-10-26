@@ -24,10 +24,10 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @compound() -> struct0 [selector=0xf69e2046, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @compound() -> struct0 [selector=0xf69e2046, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 1, v1 !metadata(storage=slot(1))
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = lt v0, v2
@@ -36,7 +36,7 @@ fn @compound() -> struct0 [selector=0xf69e2046, abi_params=[], abi_returns=[word
     v5 = storage_array_data_slot 0
     v6 = add v5, v0
     v7 = sload v6 !metadata(storage=symbolic(v6))
-    v8 = checked_add u256, v7, 7
+    v8 = checked_add uint256, v7, 7
     sstore v6, v8 !metadata(storage=symbolic(v6))
     v9 = sload 1 !metadata(storage=slot(1))
     v10 = sload 0 !metadata(storage=slot(0))
@@ -59,10 +59,10 @@ fn @compound() -> struct0 [selector=0xf69e2046, abi_params=[], abi_returns=[word
     ret v24
 }
 
-fn @postIncrement() -> struct0 [selector=0x016e4842, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @postIncrement() -> struct0 [selector=0x016e4842, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 1, v1 !metadata(storage=slot(1))
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = lt v0, v2
@@ -71,7 +71,7 @@ fn @postIncrement() -> struct0 [selector=0x016e4842, abi_params=[], abi_returns=
     v5 = storage_array_data_slot 0
     v6 = add v5, v0
     v7 = sload v6 !metadata(storage=symbolic(v6))
-    v8 = checked_add u256, v7, 1
+    v8 = checked_add uint256, v7, 1
     sstore v6, v8 !metadata(storage=symbolic(v6))
     v9 = sload 1 !metadata(storage=slot(1))
     v10 = sload 0 !metadata(storage=slot(0))
@@ -94,7 +94,7 @@ fn @postIncrement() -> struct0 [selector=0x016e4842, abi_params=[], abi_returns=
     ret v24
 }
 
-fn @value() -> i256 [selector=0x3fa4f245, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = gt v0, 0xffffffffffffffff
@@ -107,49 +107,47 @@ fn @value() -> i256 [selector=0x3fa4f245, abi_params=[], abi_returns=[word], abi
     ret 7
 }
 
-fn @pushSideEffect() -> struct0 [selector=0x0753e3a7, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @pushSideEffect() -> struct0 [selector=0x0753e3a7, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    v5 = zext i160 v0 to i256
-    v6 = call v1, v5, 0, v3, v4, 0, 32
-    jumpi v6, bb2, bb1
+    mstore 0, 0x3fa4f245 !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = call v1, v2, 0, 28, 4, 0, 32
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    v11 = sload 2 !metadata(storage=slot(2))
-    v12 = gt v11, 0xffffffffffffffff
-    icall panic_if<0x41>, v12
-    v13 = add v11, 1
-    v14 = storage_array_data_slot 2
-    v15 = add v14, v11
-    sstore v15, v10 !metadata(storage=symbolic(v15))
-    sstore 2, v13 !metadata(storage=slot(2))
-    v16 = sload 2 !metadata(storage=slot(2))
-    v17 = sload 2 !metadata(storage=slot(2))
-    v18 = lt 0, v17
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = storage_array_data_slot 2
-    v21 = add v20, 0
-    v22 = sload v21 !metadata(storage=symbolic(v20))
-    v23 = sload 2 !metadata(storage=slot(2))
-    v24 = lt 1, v23
-    v25 = eq v24, false
-    icall panic_if<0x32>, v25
-    v26 = storage_array_data_slot 2
-    v27 = add v26, 1
-    v28 = sload v27 !metadata(storage=offset(v26, 1))
-    v29 = insert_value struct0, undef struct0, 0, v16
-    v30 = insert_value struct0, v29, 1, v22
-    v31 = insert_value struct0, v30, 2, v28
-    ret v31
+    v4 = returndatasize
+    v5 = lt v4, 32
+    icall revert_if<tuple_data_too_short>, v5
+    v6 = add 0, 0
+    v7 = mload v6
+    v8 = sload 2 !metadata(storage=slot(2))
+    v9 = gt v8, 0xffffffffffffffff
+    icall panic_if<0x41>, v9
+    v10 = add v8, 1
+    v11 = storage_array_data_slot 2
+    v12 = add v11, v8
+    sstore v12, v7 !metadata(storage=symbolic(v12))
+    sstore 2, v10 !metadata(storage=slot(2))
+    v13 = sload 2 !metadata(storage=slot(2))
+    v14 = sload 2 !metadata(storage=slot(2))
+    v15 = lt 0, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = storage_array_data_slot 2
+    v18 = add v17, 0
+    v19 = sload v18 !metadata(storage=symbolic(v17))
+    v20 = sload 2 !metadata(storage=slot(2))
+    v21 = lt 1, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = storage_array_data_slot 2
+    v24 = add v23, 1
+    v25 = sload v24 !metadata(storage=offset(v23, 1))
+    v26 = insert_value struct0, undef struct0, 0, v13
+    v27 = insert_value struct0, v26, 1, v19
+    v28 = insert_value struct0, v27, 2, v25
+    ret v28
 }

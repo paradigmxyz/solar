@@ -1,0 +1,58 @@
+// === ROOT/tests/ui/codegen/mir/if-convert/wrapping_steps.sol:WrappingSteps ===
+@module WrappingSteps
+fn @increment(arg0: i256) -> i256 [selector=0x7cf5dab0, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v0, bb1, bb2
+  bb2:
+    v1 = checked_add uint256, arg0, 1
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v2 = phi [bb1: 0], [bb2: v1]
+    ret v2
+}
+
+fn @decrement(arg0: i256) -> i256 [selector=0x3a9ebefd, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    v1 = checked_sub uint256, arg0, 1
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v2 = phi [bb1: 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff], [bb2: v1]
+    ret v2
+}
+
+fn @disagreeing(arg0: i256) -> i256 [selector=0x94c955c5, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v0, bb1, bb2
+  bb2:
+    v1 = checked_add uint256, arg0, 1
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v2 = phi [bb1: 1], [bb2: v1]
+    ret v2
+}
+
+fn @plus256(arg0: i256) -> i256 [selector=0xdbda7db6, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = gt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeff
+    jumpi v0, bb1, bb2
+  bb2:
+    v2 = checked_add uint256, arg0, 256
+    jump bb3
+  bb1:
+    v1 = checked_sub uint256, arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v1], [bb2: v2]
+    ret v3
+}

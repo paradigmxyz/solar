@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/join_carry_remat_condition.sol:JoinCarryRematCondition ===
 @module JoinCarryRematCondition
-fn @pick(arg0: i256) -> i256 [selector=0x7701ea4a, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @pick(arg0: i256) -> i256 [selector=0x7701ea4a, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = eq v0, 0
@@ -8,7 +8,7 @@ fn @pick(arg0: i256) -> i256 [selector=0x7701ea4a, abi_params=[u256], abi_return
   bb2:
     jump bb3
   bb1:
-    v2 = checked_add u256, arg0, 1
+    v2 = checked_add uint256, arg0, 1
     v3 = calldatasize
     v4 = make_calldata_slice ptr<calldata> 0, v3
     v5 = extract_value slice<calldata>, v4, 1
@@ -23,6 +23,6 @@ fn @pick(arg0: i256) -> i256 [selector=0x7701ea4a, abi_params=[u256], abi_return
     jump bb3
   bb3:
     v7 = phi [bb6: v2], [bb2: v0]
-    v8 = checked_mul u256, v7, 2
+    v8 = checked_mul uint256, v7, 2
     ret v8
 }

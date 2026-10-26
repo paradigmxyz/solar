@@ -987,20 +987,6 @@ class RunComparisonTests(unittest.TestCase):
             12,
         )
         self.assertEqual(
-            benchmark.gas_exclusion_report([after], [before]),
-            [
-                "",
-                "### Gas excluded from comparison",
-                "",
-                "Calls still execute; raw gas and failures remain in the results. Totals below contain measured gas only.",
-                "",
-                "| Case | Calls | Baseline raw gas | Candidate raw gas | Reason |",
-                "| --- | ---: | ---: | ---: | --- |",
-                "| test | 1 | 20 | 2,000 | code-dependent workload |",
-                "",
-            ],
-        )
-        self.assertEqual(
             benchmark.benchmark_rows([after], benchmark.by_test_id([before])),
             ["| test | 12 (❌ +20.00%) | n/a (n/a) | 100B (~0%) | n/a (n/a) |"],
         )
@@ -1241,6 +1227,122 @@ class RunComparisonTests(unittest.TestCase):
             benchmark.comparison_has_changes(
                 benchmark.compare_runs([after], [before]), True
             )
+        )
+
+    def traced_fixture(self, test_id="test"):
+        row = self.fixture(test_id)
+        calls = row["compilers"]["solar"]["gas_results"]
+        calls[0].update(
+            execution_gas=100,
+            gas_kinds={"push": 60, "stack": 40},
+            calldata_floor=False,
+        )
+        calls[1].update(
+            execution_gas=300,
+            gas_kinds={"push": 100, "stack": 100, "storage": 100},
+            calldata_floor=True,
+        )
+        return row
+
+    def test_execution_gas_deltas_see_calldata_floor_calls(self):
+        before = self.traced_fixture()
+        after = copy.deepcopy(before)
+        calls = after["compilers"]["solar"]["gas_results"]
+        calls[1].update(
+            execution_gas=290, gas_kinds={"push": 100, "stack": 90, "storage": 100}
+        )
+        comparison = benchmark.compare_runs([after], [before])
+        row = comparison["rows"][0]
+        self.assertEqual(row["metrics"]["total_gas"]["delta"], 0)
+        self.assertEqual(
+            (
+                row["metrics"]["execution_gas"]["before"],
+                row["metrics"]["execution_gas"]["delta"],
+            ),
+            (400, -10),
+        )
+        self.assertEqual(
+            [call["execution_gas"]["delta"] for call in row["gas_calls"]], [0, -10]
+        )
+        self.assertEqual(
+            {kind: value["delta"] for kind, value in row["gas_kinds"].items()},
+            {"push": 0, "stack": -10, "storage": 0},
+        )
+        self.assertTrue(benchmark.comparison_has_changes(comparison, True))
+        comparison["baseline"] = "before"
+        markdown = benchmark.comparison_report(comparison)
+        self.assertIn(
+            "| test | second | 20† | 20† | 0 | ~0% | 300 | 290 | -10 | ✅ -3.33% |",
+            markdown,
+        )
+        self.assertIn("† Receipt gas is the EIP-7623 calldata floor", markdown)
+        self.assertIn("| execution gas | ✅ -2.50% |", markdown)
+        self.assertIn(
+            "| all compared cases | stack | 140 | 130 | -10 | ✅ -7.14% |", markdown
+        )
+        self.assertIn("| test | stack | 140 | 130 | -10 | ✅ -7.14% |", markdown)
+        self.assertNotIn("| test | push |", markdown)
+        self.assertIn(
+            "| execution gas |", benchmark.pr_comment(comparison, True, False, "main")
+        )
+
+    def test_execution_gas_follows_gas_comparison_eligibility(self):
+        before = self.traced_fixture()
+        after = copy.deepcopy(before)
+        excluded = after["compilers"]["solar"]["gas_results"][1]
+        excluded.update(execution_gas=5000, comparison_exclusion_reason="gas-dependent")
+        row = benchmark.compare_runs([after], [before])["rows"][0]
+        self.assertEqual(
+            (
+                row["metrics"]["execution_gas"]["before"],
+                row["metrics"]["execution_gas"]["after"],
+            ),
+            (100, 100),
+        )
+        self.assertEqual(row["gas_kinds"]["push"]["before"], 60)
+        self.assertIsNone(row["gas_calls"][1]["execution_gas"]["delta"])
+
+    def test_untraced_runs_keep_the_gas_only_reports(self):
+        traced = self.traced_fixture()
+        untraced = self.fixture()
+        for before, after in ((untraced, traced), (traced, untraced)):
+            comparison = benchmark.compare_runs([after], [before])
+            comparison["baseline"] = "before"
+            row = comparison["rows"][0]
+            self.assertIsNone(row["metrics"]["execution_gas"]["delta"])
+            self.assertEqual(row["gas_kinds"], {})
+            self.assertEqual(comparison["summary"]["execution_gas"]["paired"], 0)
+            markdown = benchmark.comparison_report(comparison)
+            self.assertNotIn("execution gas", markdown)
+            self.assertNotIn("Exec baseline", markdown)
+            self.assertNotIn("opcode kind", markdown)
+            self.assertNotIn(
+                "Execution gas", benchmark.pr_comment(comparison, True, False, "main")
+            )
+        self.assertNotIn("execution gas", benchmark.codegen_report([untraced], []))
+
+    def test_failed_gas_trace_is_an_incomplete_comparison(self):
+        before = self.traced_fixture()
+        after = copy.deepcopy(before)
+        after["compilers"]["solar"]["gas_kinds_status"] = "failed"
+        row = benchmark.compare_runs([after], [before])["rows"][0]
+        self.assertEqual(row["issues"], ["candidate gas trace failed"])
+
+    def test_report_shows_execution_gas_beside_receipt_gas(self):
+        row = self.traced_fixture()
+        row["compilers"]["solc"] = copy.deepcopy(row["compilers"]["solar"])
+        row["compilers"]["solc"]["gas_results"][0]["execution_gas"] = 150
+        row["compilers"]["solc"]["gas_results"][1]["execution_gas"] = 450
+        row["compilers"]["solc"]["total_gas"] = 30
+        with patch.dict(os.environ, {}, clear=True):
+            report = benchmark.codegen_report([row], [], "main")
+        self.assertIn(
+            "| bench | gas (vs main) | solc | execution gas (vs main) | solc | size (vs main) | solc |",
+            report,
+        )
+        self.assertIn(
+            "| test | 30 (n/a) | 30 (~0%) | 400 (n/a) | 600 (✅ +50.00%) | 100B (n/a) | 100B (~0%) |",
+            report,
         )
 
     def test_report_tables_use_comparison_eligibility(self):

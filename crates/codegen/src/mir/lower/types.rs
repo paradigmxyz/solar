@@ -71,14 +71,6 @@ impl<'gcx> TypeLowerer<'gcx> {
         }
     }
 
-    /// Preserves raw scalar bits in immutables for inline assembly reads.
-    pub(super) fn immutable_layout(ty: Ty<'_>) -> ValueLayout {
-        match Self::value_layout(ty) {
-            ValueLayout::Bool | ValueLayout::Address => ValueLayout::uint256(),
-            layout => layout,
-        }
-    }
-
     /// Builds the ABI input shape for a function parameter.
     pub(super) fn abi_param_type(&mut self, ty: Ty<'gcx>) -> Option<AbiParamType> {
         self.seen_structs.clear();
@@ -121,6 +113,16 @@ impl<'gcx> TypeLowerer<'gcx> {
     pub(super) fn abi_return_shapes(&mut self, ty: Ty<'gcx>) -> Option<(AbiType, AbiParamType)> {
         self.seen_structs.clear();
         self.abi_return_shapes_inner(Self::return_encoding_ty(self.gcx, ty), DataLocation::Memory)
+    }
+
+    /// Whether solc copies a calldata array of `element`s as one block: it does so for `uint256`
+    /// and `bytes32`, and reads every other element type one word at a time.
+    fn copies_as_block(element: Ty<'gcx>) -> bool {
+        match element.peel_refs().kind {
+            TyKind::Elementary(ElementaryType::UInt(size)) => size.bits() == 256,
+            TyKind::Elementary(ElementaryType::FixedBytes(size)) => size.bytes() == 32,
+            _ => false,
+        }
     }
 
     /// Returns the semantic object layout for a memory-backed aggregate.
@@ -284,6 +286,7 @@ impl<'gcx> TypeLowerer<'gcx> {
                     AbiType::FixedArray {
                         element: Box::new(abi_element),
                         len: u64::try_from(len).ok()?,
+                        block_copy: Self::copies_as_block(element),
                     },
                     AbiParamType::FixedArray {
                         element: Box::new(param_element),
@@ -351,6 +354,7 @@ impl<'gcx> TypeLowerer<'gcx> {
                     self.abi_type_inner(element.with_loc_if_ref(self.gcx, location), location)?,
                 ),
                 len: u64::try_from(len).ok()?,
+                block_copy: Self::copies_as_block(element),
             },
             TyKind::Struct(id) => {
                 if !self.seen_structs.insert(id) {
