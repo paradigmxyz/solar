@@ -225,8 +225,7 @@ pub fn generate_contract_bytecodes(
             jobs.spawn_worker(&scope);
         }
     });
-    // The plans are most of the codegen state and only code generation reads them, so free
-    // them before the output phase builds on top of them.
+    // Only code generation reads the plans; free them before the output phase.
     gcx.codegen_state::<CodegenState>().clear_plans();
     let artifacts = jobs.artifacts;
     gcx.dcx().has_errors()?;

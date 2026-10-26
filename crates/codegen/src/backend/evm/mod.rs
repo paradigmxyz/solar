@@ -37,7 +37,7 @@ pub(crate) struct CodegenState {
 }
 
 impl CodegenState {
-    /// Frees the stored plans, which only code generation reads. A later contract plans again.
+    /// Frees the stored plans.
     pub(crate) fn clear_plans(&self) {
         self.plans.clear();
     }
