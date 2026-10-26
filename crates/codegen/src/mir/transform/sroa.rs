@@ -13,16 +13,32 @@
 //! stays in place. Full-width pointer casts retain the same object identity;
 //! escapes, narrowing casts, dynamic indices and partial/unknown accesses reject promotion.
 //! Run before memory-object lowering, while `ptradd` keeps object offsets explicit.
+//!
+//! One walk over the function serves every candidate: it maps each cast or constant `ptradd` to
+//! its root object and offset, collects each object's accesses in layout order, and records the
+//! first use that rules the object out. A second walk, made when a candidate first needs it,
+//! files the memory effects of every other instruction by the allocation they touch, so an
+//! object only looks at its own entries. Promotion rewrites uses across the function, so the
+//! first one discards the walks and the next candidate starts afresh; failed candidates leave
+//! the function as it was and share the walks. The decisions equal those of checking each object
+//! against the whole function in turn.
 
 use crate::mir::{
-    BlockId, Function, Immediate, InstKind, Module, PtrLocation, Value, ValueId,
-    analysis::{AliasAnalysis, CfgInfo, Location, LocationSize},
+    BlockId, Function, Immediate, InstId, InstKind, Module, PtrLocation, Value, ValueId,
+    analysis::{
+        Access, AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, MemoryBase,
+        MemoryLocation, ModRef,
+    },
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias},
     transform::frame_promotion::{SlotAccessInfo, promote_object_slots},
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use smallvec::SmallVec;
+use solar_data_structures::{
+    bit_set::GrowableBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 
 /// Scalar-replacement-of-aggregates pass for memory objects.
 pub(crate) struct Sroa;
@@ -50,9 +66,16 @@ struct SroaCx {
     eliminated: usize,
 }
 
+/// A constant-size allocation that may be dissolved.
+struct Candidate {
+    object: ValueId,
+    inst: InstId,
+    size: u64,
+}
+
 impl SroaCx {
     fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
-        let mut allocs = Vec::new();
+        let mut candidates = Vec::new();
         for block_id in func.blocks.indices() {
             for &inst_id in &func.blocks[block_id].instructions {
                 if let InstKind::Alloc { size, .. } = func.inst(inst_id).kind
@@ -60,20 +83,27 @@ impl SroaCx {
                     && EvmMemoryLayout::word_slot(size).is_some()
                     && let Some(object) = func.inst_result_value(inst_id)
                 {
-                    allocs.push((object, size));
+                    candidates.push(Candidate { object, inst: inst_id, size });
                 }
             }
         }
-        if allocs.is_empty() {
+        if candidates.is_empty() {
             return false;
         }
 
         // Promotion adds phis but no blocks, so one block order serves every allocation.
         let order = CfgInfo::new(func).rpo().to_vec();
+        let mut scan = None::<Scan>;
         let mut changed = false;
-        for (object, size) in allocs {
-            if self.try_promote(func, alias, &order, object, size).unwrap_or(false) {
+        for (index, candidate) in candidates.iter().enumerate() {
+            if alias.value_escapes(func, candidate.object) {
+                continue;
+            }
+            let current =
+                scan.get_or_insert_with(|| Scan::new(func, alias, &order, &candidates, index));
+            if self.try_promote(func, alias, current, index, candidate).unwrap_or(false) {
                 alias.clear_cached_addresses();
+                scan = None;
                 self.eliminated += 1;
                 changed = true;
             }
@@ -86,114 +116,30 @@ impl SroaCx {
         &self,
         func: &mut Function,
         alias: &AliasAnalysis,
-        order: &[BlockId],
-        object: ValueId,
-        zero_size: u64,
+        scan: &mut Scan,
+        index: usize,
+        candidate: &Candidate,
     ) -> Option<bool> {
-        if alias.value_escapes(func, object) {
+        let &Candidate { object, inst: alloc, size: zero_size } = candidate;
+        let scanned = &scan.objects[index - scan.first];
+        if scanned.rejected {
             return None;
         }
 
-        let words = zero_size / EvmMemoryLayout::WORD_SIZE;
-
-        // Pointer casts and constant `ptradd`s of the object address its words; record each
-        // derived address with its byte offset. A derivation is no phi, so its operand comes
-        // first in reverse postorder.
-        let mut addresses = FxHashMap::from_iter([(object, 0_u64)]);
-        let mut address_insts = FxHashSet::default();
-        for &block in order {
-            for &id in &func.blocks[block].instructions {
-                let derived = match func.inst(id).kind {
-                    InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) => {
-                        addresses.get(&base).copied()
-                    }
-                    InstKind::PtrAdd(base, offset) => addresses
-                        .get(&base)
-                        .and_then(|&base| base.checked_add(func.value_u64(offset)?)),
-                    _ => None,
-                };
-                if let Some(offset) = derived
-                    && let Some(result) = func.inst_result_value(id)
-                {
-                    addresses.insert(result, offset);
-                    address_insts.insert(id);
-                }
-            }
+        let location = alias.bare_memory_location(func, object, LocationSize::Const(zero_size))?;
+        let effects = scan.effects.get_or_insert_default();
+        if effects.touches(func, alias, location, zero_size, alloc, scanned) {
+            return None;
         }
 
-        // Derived addresses may only feed full-object zero fills and word accesses inside the
-        // object; a store must not leak one.
-        let mut slot_of = FxHashMap::default();
-        for inst_id in func.instructions() {
-            if address_insts.contains(&inst_id) {
-                continue;
-            }
-            let kind = &func.inst(inst_id).kind;
-            let address = match *kind {
-                InstKind::MemoryZero(base, size) if addresses.get(&base) == Some(&0) => {
-                    if func.value_u64(size) != Some(zero_size) {
-                        return None;
-                    }
-                    continue;
-                }
-                InstKind::Load(address, PtrLocation::Memory) => address,
-                InstKind::Store(address, value, PtrLocation::Memory)
-                    if !addresses.contains_key(&value) =>
-                {
-                    address
-                }
-                _ => {
-                    // Any other use of the object (a store of the pointer, a raw address) blocks
-                    // scalarization.
-                    if kind.any_operand(|value| addresses.contains_key(&value)) {
-                        return None;
-                    }
-                    continue;
-                }
-            };
-            let Some(&offset) = addresses.get(&address) else { continue };
-            let slot = EvmMemoryLayout::word_slot(offset).filter(|&slot| slot < words)?;
-            slot_of.insert(inst_id, slot);
-        }
-
-        // Non-capturing terminators can still read the object's memory.
-        if func.blocks.iter().any(|block| {
-            block.terminator.as_ref().is_some_and(|terminator| {
-                terminator.any_operand(|value| addresses.contains_key(&value))
+        let mut fields: Vec<_> = scanned
+            .accesses
+            .iter()
+            .filter_map(|access| match *access {
+                ObjectAccess::Load { slot, .. } | ObjectAccess::Store { slot, .. } => Some(slot),
+                ObjectAccess::Reset { .. } | ObjectAccess::Zero { .. } => None,
             })
-        }) {
-            return None;
-        }
-
-        let location = Location::Memory(alias.bare_memory_location(
-            func,
-            object,
-            LocationSize::Const(zero_size),
-        )?);
-        for inst in func.instructions() {
-            let kind = &func.inst(inst).kind;
-            if func.inst_result_value(inst) == Some(object)
-                || address_insts.contains(&inst)
-                || slot_of.contains_key(&inst)
-                || matches!(*kind, InstKind::MemoryZero(base, _) if addresses.contains_key(&base))
-            {
-                continue;
-            }
-            let effects = alias.instruction_mod_ref(func, inst);
-            if effects.may_read(alias, location) || effects.may_write(alias, location) {
-                return None;
-            }
-        }
-        for block in &func.blocks {
-            if let Some(term) = &block.terminator {
-                let effects = alias.terminator_mod_ref(func, term);
-                if effects.may_read(alias, location) || effects.may_write(alias, location) {
-                    return None;
-                }
-            }
-        }
-
-        let mut fields: Vec<_> = slot_of.values().copied().collect();
+            .collect();
         fields.sort_unstable();
         fields.dedup();
         if fields.is_empty() {
@@ -205,31 +151,26 @@ impl SroaCx {
             .map(|&slot| SlotAccessInfo::object(object, slot, func.blocks.len()))
             .collect();
         let mut zeros = FxHashSet::default();
-        for (block, data) in func.blocks.iter_enumerated() {
-            for &inst in &data.instructions {
-                if func.inst_result_value(inst) == Some(object) {
+        for &access in &scanned.accesses {
+            match access {
+                ObjectAccess::Reset { block, inst } => {
                     for slot in &mut slots {
                         slot.note_reset(block, inst);
                     }
                 }
-                match func.inst(inst).kind {
-                    InstKind::Store(_, value, PtrLocation::Memory)
-                        if slot_of.contains_key(&inst) =>
-                    {
-                        let index = fields.binary_search(&slot_of[&inst]).ok()?;
-                        slots[index].note_store(block, inst, value);
+                ObjectAccess::Store { block, inst, slot, value } => {
+                    let field = fields.binary_search(&slot).ok()?;
+                    slots[field].note_store(block, inst, value);
+                }
+                ObjectAccess::Load { block, inst, slot } => {
+                    let field = fields.binary_search(&slot).ok()?;
+                    slots[field].note_load(block, inst);
+                }
+                ObjectAccess::Zero { block, inst } => {
+                    zeros.insert(inst);
+                    for slot in &mut slots {
+                        slot.note_store(block, inst, zero);
                     }
-                    InstKind::Load(..) if slot_of.contains_key(&inst) => {
-                        let index = fields.binary_search(&slot_of[&inst]).ok()?;
-                        slots[index].note_load(block, inst);
-                    }
-                    InstKind::MemoryZero(base, _) if addresses.contains_key(&base) => {
-                        zeros.insert(inst);
-                        for slot in &mut slots {
-                            slot.note_store(block, inst, zero);
-                        }
-                    }
-                    _ => {}
                 }
             }
         }
@@ -238,11 +179,328 @@ impl SroaCx {
         }
         // preserving_cast object; ptradd object, offset; memory_zero object, size
         // => SSA field values
+        let addresses = FxHashSet::from_iter(scanned.addresses.iter().copied());
         for block in &mut func.blocks {
-            block
-                .instructions
-                .retain(|inst| !address_insts.contains(inst) && !zeros.contains(inst));
+            block.instructions.retain(|inst| !addresses.contains(inst) && !zeros.contains(inst));
         }
         Some(true)
+    }
+}
+
+/// What one walk of the function says about each candidate from `first` on, and, once a
+/// candidate asks, about the memory effects of the whole function.
+struct Scan {
+    first: usize,
+    objects: Vec<ObjectScan>,
+    effects: Option<Effects>,
+}
+
+/// The accesses to one object's address words, or the first use that rules it out.
+#[derive(Default)]
+struct ObjectScan {
+    /// Pointer casts and constant `ptradd`s of the object, each addressing one of its words.
+    addresses: Vec<InstId>,
+    /// Resets, word accesses, and zero fills in layout order.
+    accesses: Vec<ObjectAccess>,
+    /// A derived address feeds an instruction other than a word access or full zero fill.
+    rejected: bool,
+}
+
+#[derive(Clone, Copy)]
+enum ObjectAccess {
+    Reset { block: BlockId, inst: InstId },
+    Load { block: BlockId, inst: InstId, slot: u64 },
+    Store { block: BlockId, inst: InstId, slot: u64, value: ValueId },
+    Zero { block: BlockId, inst: InstId },
+}
+
+/// How an instruction uses the addresses of one object.
+enum Use {
+    Ignored,
+    Access(ObjectAccess),
+    Rejected,
+}
+
+impl ObjectScan {
+    /// Rules the object out. Returns whether it was still a candidate.
+    fn reject(&mut self) -> bool {
+        !std::mem::replace(&mut self.rejected, true)
+    }
+}
+
+impl ObjectAccess {
+    fn inst(self) -> InstId {
+        match self {
+            Self::Reset { inst, .. }
+            | Self::Load { inst, .. }
+            | Self::Store { inst, .. }
+            | Self::Zero { inst, .. } => inst,
+        }
+    }
+}
+
+impl Scan {
+    fn new(
+        func: &Function,
+        alias: &AliasAnalysis,
+        order: &[BlockId],
+        candidates: &[Candidate],
+        first: usize,
+    ) -> Self {
+        let candidates = &candidates[first..];
+
+        // Pointer casts and constant `ptradd`s of an object address its words; map each derived
+        // address to its object and byte offset. A derivation is no phi, so its operand comes
+        // first in reverse postorder.
+        let mut roots = FxHashMap::default();
+        for (index, candidate) in candidates.iter().enumerate() {
+            if !alias.value_escapes(func, candidate.object) {
+                roots.insert(candidate.object, (index, 0_u64));
+            }
+        }
+        let mut live = roots.len();
+        let mut objects = candidates.iter().map(|_| ObjectScan::default()).collect::<Vec<_>>();
+        let mut address_insts = GrowableBitSet::new_empty();
+        for &block in order {
+            for &id in &func.blocks[block].instructions {
+                let derived = match func.inst(id).kind {
+                    InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) => {
+                        roots.get(&base).copied()
+                    }
+                    InstKind::PtrAdd(base, offset) => {
+                        roots.get(&base).and_then(|&(index, base)| {
+                            Some((index, base.checked_add(func.value_u64(offset)?)?))
+                        })
+                    }
+                    _ => None,
+                };
+                if let Some(derived) = derived
+                    && let Some(result) = func.inst_result_value(id)
+                {
+                    roots.insert(result, derived);
+                    objects[derived.0].addresses.push(id);
+                    address_insts.insert(id);
+                }
+            }
+        }
+
+        // Derived addresses may only feed full-object zero fills and word accesses inside the
+        // object; a store must not leak one.
+        let mut touched = SmallVec::<[usize; 2]>::new();
+        'blocks: for (block, data) in func.blocks.iter_enumerated() {
+            for &inst in &data.instructions {
+                if live == 0 {
+                    break 'blocks;
+                }
+                if address_insts.contains(inst) {
+                    continue;
+                }
+                let kind = &func.inst(inst).kind;
+                if matches!(kind, InstKind::Alloc { .. })
+                    && let Some(result) = func.inst_result_value(inst)
+                    && let Some(&(index, _)) = roots.get(&result)
+                {
+                    objects[index].accesses.push(ObjectAccess::Reset { block, inst });
+                }
+                touched.clear();
+                kind.visit_operands(|value| {
+                    if let Some(&(index, _)) = roots.get(&value)
+                        && !touched.contains(&index)
+                    {
+                        touched.push(index);
+                    }
+                });
+                for &index in &touched {
+                    let object = &mut objects[index];
+                    match Self::classify(func, &roots, index, candidates[index].size, block, inst) {
+                        Use::Access(access) => object.accesses.push(access),
+                        Use::Ignored => {}
+                        Use::Rejected => live -= usize::from(object.reject()),
+                    }
+                }
+            }
+        }
+
+        // Non-capturing terminators can still read the object's memory.
+        for data in &func.blocks {
+            if let Some(terminator) = &data.terminator
+                && live != 0
+            {
+                terminator.visit_operands(|value| {
+                    if let Some(&(index, _)) = roots.get(&value) {
+                        live -= usize::from(objects[index].reject());
+                    }
+                });
+            }
+        }
+        Self { first, objects, effects: None }
+    }
+
+    /// Classifies how `inst` uses the addresses of object `index`.
+    fn classify(
+        func: &Function,
+        roots: &FxHashMap<ValueId, (usize, u64)>,
+        index: usize,
+        zero_size: u64,
+        block: BlockId,
+        inst: InstId,
+    ) -> Use {
+        let offset = |value| roots.get(&value).filter(|root| root.0 == index).map(|root| root.1);
+        // The word an address inside the object accesses, or the use that is no access.
+        let word = |address| {
+            let Some(offset) = offset(address) else { return Err(Use::Ignored) };
+            let words = zero_size / EvmMemoryLayout::WORD_SIZE;
+            EvmMemoryLayout::word_slot(offset).filter(|&slot| slot < words).ok_or(Use::Rejected)
+        };
+        let kind = &func.inst(inst).kind;
+        match *kind {
+            InstKind::MemoryZero(base, size) if offset(base) == Some(0) => {
+                if func.value_u64(size) == Some(zero_size) {
+                    Use::Access(ObjectAccess::Zero { block, inst })
+                } else {
+                    Use::Rejected
+                }
+            }
+            InstKind::Load(address, PtrLocation::Memory) => match word(address) {
+                Ok(slot) => Use::Access(ObjectAccess::Load { block, inst, slot }),
+                Err(other) => other,
+            },
+            InstKind::Store(address, value, PtrLocation::Memory) if offset(value).is_none() => {
+                match word(address) {
+                    Ok(slot) => Use::Access(ObjectAccess::Store { block, inst, slot, value }),
+                    Err(other) => other,
+                }
+            }
+            // Any other use of the object (a store of the pointer, a raw address) blocks
+            // scalarization.
+            _ if kind.any_operand(|value| offset(value).is_some()) => Use::Rejected,
+            _ => Use::Ignored,
+        }
+    }
+}
+
+/// The memory effects of the instructions and terminators scanned so far, filed by what they
+/// may touch. Instructions come in layout order, then terminators; a candidate scans only as far
+/// as it needs to find something that touches its object, and later candidates resume there.
+#[derive(Default)]
+struct Effects {
+    /// The instruction (`None` for a terminator) of each access that may overlap any object.
+    blockers: Vec<Option<InstId>>,
+    /// Accesses to each allocation site, with the instruction making them (`None` for a
+    /// terminator).
+    touched: FxHashMap<InstId, Vec<(Option<InstId>, MemoryLocation)>>,
+    /// The instructions of the candidate being checked.
+    own: GrowableBitSet<InstId>,
+    block: usize,
+    index: usize,
+    terminators: usize,
+}
+
+impl Effects {
+    /// Returns whether an instruction or terminator outside the object's own accesses may read
+    /// or write `location`, the memory of the object allocated at `alloc`.
+    fn touches(
+        &mut self,
+        func: &Function,
+        alias: &AliasAnalysis,
+        location: MemoryLocation,
+        zero_size: u64,
+        alloc: InstId,
+        object: &ObjectScan,
+    ) -> bool {
+        let own = || {
+            object
+                .addresses
+                .iter()
+                .copied()
+                .chain(object.accesses.iter().map(|access| access.inst()))
+                .chain([alloc])
+        };
+        for inst in own() {
+            self.own.insert(inst);
+        }
+        let touches = self.scan(func, alias, location, zero_size, alloc);
+        for inst in own() {
+            self.own.remove(inst);
+        }
+        touches
+    }
+
+    fn scan(
+        &mut self,
+        func: &Function,
+        alias: &AliasAnalysis,
+        location: MemoryLocation,
+        zero_size: u64,
+        alloc: InstId,
+    ) -> bool {
+        let is_other = |owner: Option<InstId>, own: &GrowableBitSet<InstId>| {
+            owner.is_none_or(|inst| !own.contains(inst))
+        };
+        let (mut blockers, mut touched) = (0, 0);
+        loop {
+            // A base other than an allocation site may overlap any object.
+            while blockers < self.blockers.len() {
+                blockers += 1;
+                if zero_size != 0 && is_other(self.blockers[blockers - 1], &self.own) {
+                    return true;
+                }
+            }
+            let accesses = self.touched.get(&alloc).map_or(&[][..], Vec::as_slice);
+            while touched < accesses.len() {
+                touched += 1;
+                let (owner, other) = accesses[touched - 1];
+                if is_other(owner, &self.own) && alias.memory_alias(other, location).may_alias() {
+                    return true;
+                }
+            }
+            if !self.advance(func, alias) {
+                return false;
+            }
+        }
+    }
+
+    /// Records the effects of the next instruction or terminator. Returns `false` at the end.
+    fn advance(&mut self, func: &Function, alias: &AliasAnalysis) -> bool {
+        while self.block < func.blocks.len() {
+            let block = BlockId::from_usize(self.block);
+            if let Some(&inst) = func.blocks[block].instructions.get(self.index) {
+                self.index += 1;
+                self.record(Some(inst), &alias.instruction_mod_ref(func, inst));
+                return true;
+            }
+            self.block += 1;
+            self.index = 0;
+        }
+        while self.terminators < func.blocks.len() {
+            let block = BlockId::from_usize(self.terminators);
+            self.terminators += 1;
+            if let Some(terminator) = &func.blocks[block].terminator {
+                self.record(None, &alias.terminator_mod_ref(func, terminator));
+                return true;
+            }
+        }
+        false
+    }
+
+    fn record(&mut self, owner: Option<InstId>, effects: &ModRef) {
+        let mut blocks = false;
+        for &access in effects.reads().iter().chain(effects.writes()) {
+            match access {
+                Access::Any(AddressSpace::Memory) => blocks = true,
+                Access::Location(Location::Memory(location)) => match location.address.base {
+                    MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) => {
+                        self.touched.entry(site).or_default().push((owner, location));
+                    }
+                    MemoryBase::Absolute | MemoryBase::InternalFrame | MemoryBase::Value(_) => {
+                        blocks |= location.size != LocationSize::Const(0);
+                    }
+                },
+                Access::Any(_) | Access::Location(_) => {}
+            }
+        }
+        if blocks {
+            self.blockers.push(owner);
+        }
     }
 }
