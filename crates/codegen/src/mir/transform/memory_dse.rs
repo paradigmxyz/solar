@@ -111,6 +111,7 @@ use solar_data_structures::{
 };
 use std::{
     collections::{BTreeMap, VecDeque},
+    mem,
     rc::Rc,
 };
 
@@ -177,6 +178,9 @@ struct MemoryStoreEliminator {
     /// Memory live at the entry of each block as of the start of the round, built when the first
     /// fold candidate needs it. Rewrites of the round only remove reads, so it stays conservative.
     live_in: Option<IndexVec<BlockId, MemLive>>,
+    /// Operand uses of every value, built when a fold candidate needs them and dropped when a
+    /// rewrite may add uses.
+    uses: Option<IndexVec<ValueId, u32>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -474,6 +478,12 @@ struct BlockScratch {
     stored_words: SlotMap<U256>,
     replacements: FxHashMap<ValueId, ValueId>,
     dead: DenseBitSet<InstId>,
+    /// Stores that the hashes folded so far in the block leave dead, and, while pricing a
+    /// candidate, those they leave dead with it.
+    fold_dead: DenseBitSet<InstId>,
+    fold_dead_with_candidate: DenseBitSet<InstId>,
+    /// Whether `fold_dead` describes the block being folded.
+    fold_dead_ready: bool,
     /// Word stores of the current block that the backward scan narrows: store, address, and byte.
     narrowed: Vec<(InstId, ValueId, TopByte)>,
 }
@@ -495,6 +505,9 @@ impl BlockScratch {
             stored_words: SlotMap::default(),
             replacements: FxHashMap::default(),
             dead: DenseBitSet::new_empty(func.num_insts()),
+            fold_dead: DenseBitSet::new_empty(func.num_insts()),
+            fold_dead_with_candidate: DenseBitSet::new_empty(func.num_insts()),
+            fold_dead_ready: false,
             narrowed: Vec::new(),
         }
     }
@@ -508,12 +521,13 @@ impl BlockScratch {
 impl MemoryStoreEliminator {
     /// Creates a new memory optimization pass.
     fn new(alias: Rc<AliasAnalysis>, cfg: Rc<CfgInfo>, target: Target) -> Self {
-        Self { cfg, eliminated_count: 0, alias, target, live_in: None }
+        Self { cfg, eliminated_count: 0, alias, target, live_in: None, uses: None }
     }
 
     fn run_with_scratch(&mut self, func: &mut Function, scratch: &mut BlockScratch) -> usize {
         self.eliminated_count = 0;
         self.live_in = None;
+        self.uses = None;
 
         // Every rewrite needs a store or an immutable copy to act on; functions without one skip
         // the whole scan and never build the alias snapshot.
@@ -1380,6 +1394,7 @@ impl MemoryStoreEliminator {
         scratch.stored_words.clear();
         scratch.replacements.clear();
         scratch.dead.clear();
+        scratch.fold_dead_ready = false;
 
         for index in 0..func.blocks[block_id].instructions.len() {
             let inst_id = func.blocks[block_id].instructions[index];
@@ -1411,8 +1426,7 @@ impl MemoryStoreEliminator {
                         continue;
                     };
                     let hash = U256::from_be_bytes(keccak256(&bytes).0);
-                    if !self.folds_keccak(func, block_id, inst_id, result, hash, &mut scratch.dead)
-                    {
+                    if !self.folds_keccak(func, block_id, inst_id, result, hash, scratch) {
                         continue;
                     }
                     let replacement = func.alloc_value(Value::Immediate(Immediate::I256(hash)));
@@ -1437,7 +1451,8 @@ impl MemoryStoreEliminator {
 
     /// Whether the hash `keccak` computes, which equals the constant `hash`, is cheaper as an
     /// immediate. The stores it leaves dead are credited: the stores that no longer have a reader
-    /// once `keccak` and the hashes already `folded` in the block go.
+    /// once `keccak` and the hashes already folded in the block go. The stores the folded hashes
+    /// leave dead are scanned once per block and again with each candidate.
     fn folds_keccak(
         &mut self,
         func: &Function,
@@ -1445,26 +1460,36 @@ impl MemoryStoreEliminator {
         keccak: InstId,
         result: ValueId,
         hash: U256,
-        folded: &mut DenseBitSet<InstId>,
+        scratch: &mut BlockScratch,
     ) -> bool {
         let live_in = self.live_in.take().unwrap_or_else(|| self.memory_live_in(func));
         let out = Self::live_out(func, block, &live_in);
         self.live_in = Some(live_in);
-        let mut dead_before = DenseBitSet::new_empty(func.num_insts());
-        self.transfer_block(func, block, out.clone(), &mut Some(&mut dead_before), Some(folded));
-        folded.insert(keccak);
-        let mut dead_after = DenseBitSet::new_empty(func.num_insts());
-        self.transfer_block(func, block, out, &mut Some(&mut dead_after), Some(folded));
-        folded.remove(keccak);
-        let stores = dead_after
+        if !scratch.fold_dead_ready {
+            scratch.fold_dead.clear();
+            let dead = &mut Some(&mut scratch.fold_dead);
+            self.transfer_block(func, block, out.clone(), dead, Some(&scratch.dead));
+            scratch.fold_dead_ready = true;
+        }
+        scratch.dead.insert(keccak);
+        scratch.fold_dead_with_candidate.clear();
+        let dead = &mut Some(&mut scratch.fold_dead_with_candidate);
+        self.transfer_block(func, block, out, dead, Some(&scratch.dead));
+        scratch.dead.remove(keccak);
+        let stores = scratch
+            .fold_dead_with_candidate
             .iter()
-            .filter(|&store| !dead_before.contains(store))
+            .filter(|&store| !scratch.fold_dead.contains(store))
             .map(|store| self.target.instruction_estimate(func, store))
             .sum();
         let keccak_cost = self.target.instruction_estimate(func, keccak);
-        let uses = super::egraph::use_counts(func)[result];
+        let uses = self.uses.get_or_insert_with(|| super::egraph::use_counts(func))[result];
         let in_loop = self.cfg.cyclic_blocks().contains(block);
-        self.target.folds_constant_keccak(hash, keccak_cost, stores, uses, in_loop)
+        let folds = self.target.folds_constant_keccak(hash, keccak_cost, stores, uses, in_loop);
+        if folds {
+            mem::swap(&mut scratch.fold_dead, &mut scratch.fold_dead_with_candidate);
+        }
+        folds
     }
 
     fn remove_equal_stores(
@@ -1623,6 +1648,7 @@ impl MemoryStoreEliminator {
         }
 
         scratch.replace_uses(func);
+        self.uses = None;
         self.eliminated_count += scratch.dead.count();
         func.blocks[block_id].instructions.retain(|&id| !scratch.dead.contains(id));
     }
