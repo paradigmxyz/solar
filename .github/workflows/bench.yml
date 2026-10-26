@@ -262,8 +262,10 @@ jobs:
             echo "::warning::Exact-base codegen benchmark failed to complete"
           fi
           # The perf site imports these results for the base only when they name its commit.
+          # A PR that changes the harness measured the base with its own, so leave them unnamed.
           results=target/codegen-bench/baseline/results.json
-          if [[ -f "$results" ]]; then
+          if [[ -f "$results" ]] &&
+            git diff --quiet "$BASE_SHA" "$GITHUB_SHA" -- benches/runtime .github/workflows/bench.yml; then
             jq --arg commit "$BASE_SHA" '.commit = $commit' "$results" > "$results.tmp"
             mv "$results.tmp" "$results"
           fi
