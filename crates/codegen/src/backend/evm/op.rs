@@ -540,6 +540,17 @@ impl OpDef {
     pub(crate) const fn observes_gas(self) -> bool {
         self.traits.contains(OpcodeTraits::OBSERVES_GAS)
     }
+
+    /// Returns whether this operation behaves the same wherever it runs: it has a fixed stack
+    /// effect and neither transfers control nor observes its code position or the gas left. Code
+    /// may move such an operation to another position, such as a shared body or a copied tail.
+    #[must_use]
+    pub(crate) const fn is_position_independent(self) -> bool {
+        self.stack_io.is_some()
+            && !self.is_terminal()
+            && !self.observes_gas()
+            && !matches!(self.opcode, JUMPI | JUMPDEST | PC)
+    }
 }
 
 /// Returns the ISLE declarations of the opcode vocabulary: the primitive
@@ -897,43 +908,21 @@ pub(crate) const fn is_context_read(op: u8) -> bool {
 
 /// Returns whether inserting a push immediately before this opcode preserves its behavior.
 ///
-/// This includes opcodes that expand memory or warm an account or storage slot because the push
-/// does not affect those changes. Position and gas observations are excluded.
+/// This holds for position-independent operations that produce one word without writing state.
+/// It includes opcodes that expand memory or warm an account or storage slot because the push does
+/// not affect those changes.
 #[must_use]
 pub(crate) const fn is_unaffected_by_preceding_push(op: u8) -> bool {
-    is_pure(op)
-        || matches!(
-            op,
-            KECCAK256
-                | ADDRESS
-                | BALANCE
-                | ORIGIN
-                | CALLER
-                | CALLVALUE
-                | CALLDATALOAD
-                | CALLDATASIZE
-                | CODESIZE
-                | GASPRICE
-                | EXTCODESIZE
-                | RETURNDATASIZE
-                | EXTCODEHASH
-                | BLOCKHASH
-                | COINBASE
-                | TIMESTAMP
-                | NUMBER
-                | PREVRANDAO
-                | GASLIMIT
-                | CHAINID
-                | SELFBALANCE
-                | BASEFEE
-                | BLOBHASH
-                | BLOBBASEFEE
-                | MLOAD
-                | SLOAD
-                | MSIZE
-                | TLOAD
-                | PUSH0
-        )
+    match definition(op) {
+        Some(definition) => {
+            definition.is_position_independent()
+                && matches!(definition.stack_io, Some((_, 1)))
+                && !definition.writes_memory()
+                && !definition.writes_storage()
+                && !matches!(op, PUSH1..=PUSH32)
+        }
+        None => false,
+    }
 }
 
 /// Returns whether an opcode may write to memory, invalidating cached memory reads.

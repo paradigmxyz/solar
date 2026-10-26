@@ -1,0 +1,38 @@
+//@ compile-flags: -Osize --evm-version paris -Zmir-pipeline=lower-mcopy
+//@ filecheck:
+@module CopySharedShapes
+
+// The whole-word copy calls the helper of the partial-word copies instead of expanding its own
+// loop.
+
+// CHECK-LABEL: fn @partial_a
+// CHECK: + icall @mcopy_words, {{v[0-9]+}}, {{v[0-9]+}}, 40
+fn @partial_a() {
+  bb0:
+    v0 = alloc 64
+    v1 = alloc 64
+    mcopy v1, v0, 40
+    ret
+}
+
+// CHECK-LABEL: fn @partial_b
+// CHECK: + icall @mcopy_words, {{v[0-9]+}}, {{v[0-9]+}}, 40
+fn @partial_b() {
+  bb0:
+    v0 = alloc 64
+    v1 = alloc 64
+    mcopy v1, v0, 40
+    ret
+}
+
+// CHECK-LABEL: fn @whole
+// CHECK: + icall @mcopy_words, {{v[0-9]+}}, {{v[0-9]+}}, 64
+// CHECK: + fn @mcopy_words
+// CHECK-NOT: fn @mcopy_words
+fn @whole() {
+  bb0:
+    v0 = alloc 64
+    v1 = alloc 64
+    mcopy v1, v0, 64
+    ret
+}

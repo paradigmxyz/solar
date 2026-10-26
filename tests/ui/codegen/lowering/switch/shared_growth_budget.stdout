@@ -1,14 +1,14 @@
 // === ROOT/tests/ui/codegen/lowering/switch/shared_growth_budget.sol:SwitchSharedGrowthBudget (creation) ===
 @module SwitchSharedGrowthBudget_deployment
 @data
-  SwitchSharedGrowthBudget_runtime_code_0: hex"346038575f3560e01c8063839a19d9036038576024361060385760043580600f166010016f4e4e3c5c4e4e4e6e804e4e924ea44eb6901a565b5f5ffd5b80633b88f6c203604e57506101326053565b506103e75b60805260206080f35b8063920f5c7303604e575061012e6053565b8063905f7d6703604e57506101316053565b8063cbf99d3803604e575061012c6053565b806387d912cb03604e575061012d6053565b806341052a0d03604e575061012f6053565b80637238232f03604e5750610130605356"
+  SwitchSharedGrowthBudget_runtime_code_0: hex"346038575f3560e01c8063839a19d9036038576024361060385760043580600f166010016f4e4e3c5a4e4e4e6c7e4e4e904ea24eb4901a565b5f5ffd5b80633b88f6c203604e57506101326053565b506103e75b5f5260205ff35b8063920f5c7303604e575061012e6053565b8063905f7d6703604e57506101316053565b8063cbf99d3803604e575061012c6053565b806387d912cb03604e575061012d6053565b806341052a0d03604e575061012f6053565b80637238232f03604e5750610130605356"
 
 bb0:
-  push_data SwitchSharedGrowthBudget_runtime_code_0+200
+  push_data SwitchSharedGrowthBudget_runtime_code_0+198
   codesize
   sub
   dup 1
-  push_data SwitchSharedGrowthBudget_runtime_code_0+200
+  push_data SwitchSharedGrowthBudget_runtime_code_0+198
   push 192
   codecopy
   push 192
@@ -22,7 +22,7 @@ bb0:
   mstore
   push 192
   dup 1
-  push_data SwitchSharedGrowthBudget_runtime_code_0+200
+  push_data SwitchSharedGrowthBudget_runtime_code_0+198
   codesize
   sub
   add
@@ -32,27 +32,32 @@ bb0:
   gt
   callvalue
   or
-  push bb18
+  push bb19
   jumpi
   push 192
   mload
   dup 1
   push 0x87d912cb
   gt
-  push bb6
+  push bb7
   jumpi
   dup 1
-  push 0x87d912cb
+  push 0x920f5c73
+  gt
+  push bb4
+  jumpi
+  dup 1
+  push 0x920f5c73
   sub
   push bb2
   jumpi
   pop
-  push 301
+  push 302
   push 0
   sstore
-  jump bb19
-bb19:
-  push 200
+  jump bb20
+bb20:
+  push 198
   dup 1
   push_data SwitchSharedGrowthBudget_runtime_code_0
   push 0
@@ -61,71 +66,71 @@ bb19:
   return
 bb2:
   dup 1
-  push 0x905f7d67
-  sub
-  push bb3
-  jumpi
-  pop
-  push 305
-  push 0
-  sstore
-  jump bb19
-bb3:
-  dup 1
-  push 0x920f5c73
-  sub
-  push bb4
-  jumpi
-  pop
-  push 302
-  push 0
-  sstore
-  jump bb19
-bb4:
-  dup 1
   push 0xcbf99d38
   sub
-  push bb19
+  push bb20
   jumpi
   pop
   push 300
   push 0
   sstore
-  jump bb19
-bb6:
+  jump bb20
+bb4:
+  dup 1
+  push 0x87d912cb
+  sub
+  push bb5
+  jumpi
+  pop
+  push 301
+  push 0
+  sstore
+  jump bb20
+bb5:
+  dup 1
+  push 0x905f7d67
+  sub
+  push bb20
+  jumpi
+  pop
+  push 305
+  push 0
+  sstore
+  jump bb20
+bb7:
   dup 1
   push 0x3b88f6c2
   sub
-  push bb7
+  push bb8
   jumpi
   pop
   push 306
   push 0
   sstore
-  jump bb19
-bb7:
+  jump bb20
+bb8:
   dup 1
   push 0x41052a0d
   sub
-  push bb8
+  push bb9
   jumpi
   pop
   push 303
   push 0
   sstore
-  jump bb19
-bb8:
+  jump bb20
+bb9:
   dup 1
   push 0x7238232f
   sub
-  push bb19
+  push bb20
   jumpi
   pop
   push 304
   push 0
   sstore
-  jump bb19
-bb18 [cold]:
+  jump bb20
+bb19 [cold]:
   push 0
   push 0
   revert
@@ -173,10 +178,10 @@ bb13:
   push 999
   jump bb21
 bb21:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb7:
   dup 1

@@ -14,16 +14,11 @@
 // picks for each case set.
 
 contract SmallDense {
-    // Four adjacent keys use a packed dense table in both modes. Byzantium
-    // has no shifts to unpack it.
+    // The planner prices the stride table, which is dearer than testing four
+    // keys one by one.
     // CHECK-LABEL: @module SmallDense_runtime
-    // GAS: push 4{{$}}
-    // GAS-NEXT: gt
-    // GAS: indexed_jump {{(bb[0-9]+, ){3}bb[0-9]+$}}
-    // SIZE: push 4{{$}}
-    // SIZE-NEXT: gt
-    // SIZE: indexed_jump {{(bb[0-9]+, ){3}bb[0-9]+$}}
-    // BYZ-NOT: indexed_jump
+    // CHECK: push 3{{$}}
+    // CHECK-NOT: indexed_jump
     fallback() external {
         assembly {
             switch calldataload(0)
@@ -37,12 +32,12 @@ contract SmallDense {
 }
 
 contract Conservative {
-    // Gas mode selects eight buckets; size mode keeps the linear scan. Byzantium's
-    // different immediate costs still favor a dense table over 0..19.
+    // Gas mode pays for a table over 0..19. Size mode keeps the linear scan
+    // because table entries need full-width labels before layout.
     // CHECK-LABEL: @module Conservative_runtime
-    // GAS: push 7{{$}}
-    // GAS-NEXT: and
-    // GAS: indexed_jump {{(bb[0-9]+, ){7}bb[0-9]+$}}
+    // GAS: push 20{{$}}
+    // GAS-NEXT: gt
+    // GAS: indexed_jump {{(bb[0-9]+, ){19}bb[0-9]+$}}
     // SIZE-NOT: indexed_jump
     // BYZ: push 20{{$}}
     // BYZ-NEXT: gt
@@ -64,15 +59,10 @@ contract Conservative {
 }
 
 contract Affine5 {
-    // An odd stride maps to a packed table by multiplying with its inverse.
+    // An odd stride could map to a table by multiplying with its inverse, but
+    // a five-entry stride table is dearer than a linear scan.
     // CHECK-LABEL: @module Affine5_runtime
-    // GAS: mul
-    // GAS-NEXT: dup 1
-    // GAS-NEXT: push 5{{$}}
-    // GAS-NEXT: gt
-    // GAS: indexed_jump {{(bb[0-9]+, ){4}bb[0-9]+$}}
-    // SIZE-NOT: indexed_jump
-    // BYZ-NOT: indexed_jump
+    // CHECK-NOT: indexed_jump
     fallback() external {
         assembly {
             switch calldataload(0)
@@ -210,12 +200,12 @@ contract BitSlice7 {
 }
 
 contract Coalesced16 {
-    // Merged case guards make a 16-slot bit-slice table fit its growth cap.
-    // Byzantium cannot shift, so it uses eight masked buckets with one shared miss.
+    // Eight masked buckets with one shared miss beat a 16-slot bit-slice table
+    // in gas mode, and are all Byzantium can use because it cannot shift.
     // CHECK-LABEL: @module Coalesced16_runtime
-    // GAS: push 15{{$}}
+    // GAS: push 7{{$}}
     // GAS-NEXT: and
-    // GAS-NEXT: indexed_jump {{(bb[0-9]+, ){15}bb[0-9]+$}}
+    // GAS-NEXT: indexed_jump {{(bb[0-9]+, ){7}bb[0-9]+$}}
     // SIZE-NOT: indexed_jump
     // BYZ: push 7{{$}}
     // BYZ-NEXT: and
@@ -246,11 +236,11 @@ contract Coalesced16 {
 }
 
 contract Binary32 {
-    // Sixteen short buckets fit the growth limit in gas mode; Byzantium selects eight.
+    // Eight short buckets fit the growth limit in gas and Byzantium builds.
     // CHECK-LABEL: @module Binary32_runtime
-    // GAS: push 15{{$}}
+    // GAS: push 7{{$}}
     // GAS-NEXT: and
-    // GAS-NEXT: indexed_jump {{(bb[0-9]+, ){15}bb[0-9]+$}}
+    // GAS-NEXT: indexed_jump {{(bb[0-9]+, ){7}bb[0-9]+$}}
     // SIZE-NOT: indexed_jump
     // BYZ: push 7{{$}}
     // BYZ-NEXT: and

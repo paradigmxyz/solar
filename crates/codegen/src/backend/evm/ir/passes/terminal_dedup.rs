@@ -111,6 +111,7 @@ fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
                 module.blocks[target].metadata.hotness = Hotness::Hot;
             }
             module.blocks[target].metadata.in_loop |= module.blocks[block].metadata.in_loop;
+            module.blocks[target].metadata.repeats |= module.blocks[block].metadata.repeats;
             // duplicate terminal body -> jump canonical body
             module.blocks[block].instructions.clear();
             let mut terminator = Terminator::new(TerminatorKind::Jump(target));

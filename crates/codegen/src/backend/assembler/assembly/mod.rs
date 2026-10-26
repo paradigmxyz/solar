@@ -17,7 +17,7 @@ mod inst;
 mod lower;
 
 pub(in crate::backend) use indexed_jump::{
-    estimated_indexed_jump_code_size, estimated_indexed_jump_terminator_size,
+    TablePacking, estimated_indexed_jump_code_size, estimated_indexed_jump_terminator_size,
     indexed_jump_target_width_bound, packs_indexed_jump,
 };
 pub(in crate::backend) use inst::{

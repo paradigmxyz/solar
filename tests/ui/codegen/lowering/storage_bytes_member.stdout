@@ -73,7 +73,7 @@ bb14 [cold]:
   push 0
   push 0
   revert
-bb15:
+bb15 [loop]:
   push 68
   calldatasize
   lt
@@ -105,8 +105,6 @@ bb15:
   push 1
   add
   push 0
-  jump bb17
-bb17 [loop]:
   dup 3
   dup 2
   lt
@@ -180,11 +178,14 @@ bb19 [loop]:
   or
   dup 3
   sstore
-  jump bb28
-bb28 [loop]:
   push 1
   add
-  jump bb17
+  dup 3
+  dup 2
+  lt
+  push bb19
+  jumpi
+  stop
 bb26 [loop]:
   pop
   dup 4
@@ -204,7 +205,14 @@ bb26 [loop]:
   push 65
   dup 3
   sstore
-  jump bb28
+  push 1
+  add
+  dup 3
+  dup 2
+  lt
+  push bb19
+  jumpi
+  stop
 bb27 [loop]:
   swap 1
   push 2
@@ -245,7 +253,14 @@ bb27 [loop]:
   or
   swap 1
   sstore
-  jump bb28
+  push 1
+  add
+  dup 3
+  dup 2
+  lt
+  push bb19
+  jumpi
+  stop
 bb30:
   caller
   push 0
@@ -410,10 +425,10 @@ bb40:
   eq
   push bb72
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb43:
   push 36
@@ -494,10 +509,10 @@ bb49:
   shr
   push 248
   shl
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb52:
   push 36
@@ -714,7 +729,7 @@ bb67:
   add
   swap 1
   return
-bb65:
+bb65 [loop]:
   swap 3
   push 0
   mstore
@@ -729,7 +744,13 @@ bb65:
   add
   swap 3
   pop
-  jump bb66
+  dup 3
+  dup 2
+  sub
+  push bb68
+  jumpi
+  swap 3
+  jump bb67
 bb68 [loop]:
   dup 1
   sload
@@ -740,8 +761,6 @@ bb68 [loop]:
   mstore
   push 1
   add
-  jump bb66
-bb66 [loop]:
   dup 3
   dup 2
   sub

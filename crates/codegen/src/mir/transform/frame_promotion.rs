@@ -13,8 +13,8 @@
 //! - preserve SSA values across control flow with explicit phi insertion
 
 use crate::mir::{
-    BlockId, Callee, Function, InstId, InstKind, Instruction, MirType, Module, PtrLocation,
-    Terminator, ValueId,
+    BlockId, Callee, FrameMode, Function, InstId, InstKind, Instruction, MirType, Module,
+    PtrLocation, Terminator, ValueId,
     analysis::{AliasAnalysis, CfgInfo, LocationSize, MemoryAddress, MemoryLocation},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
@@ -263,21 +263,14 @@ impl FrameSlotPromoter {
     }
 
     /// Only internal-frame slots and the external entry's locals promote, and both need a
-    /// frame. `msize` observes the memory extent, which removing local-slot traffic changes, so
-    /// it stays a barrier. `gas()` is deliberately NOT one: exact gas is never a semantic
-    /// guarantee, and barring it blocked promotion in every forwarding proxy, whose
-    /// `delegatecall(gas(), ...)` is exactly the construct that scribbles compiler locals and
-    /// needs them off memory.
+    /// frame. `gas()` is deliberately not a barrier: exact gas is never a semantic guarantee, and
+    /// barring it blocked promotion in every forwarding proxy, whose `delegatecall(gas(), ...)` is
+    /// exactly the construct that scribbles compiler locals and needs them off memory.
     fn may_promote(func: &Function) -> bool {
-        let mut has_frame = func.internal_frame_size != 0;
-        for inst_id in func.instructions() {
-            match func.inst(inst_id).kind {
-                InstKind::MSize => return false,
-                InstKind::InternalFrameAddr(_) => has_frame = true,
-                _ => {}
-            }
-        }
-        has_frame
+        func.internal_frame_size != 0
+            || func
+                .instructions()
+                .any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::InternalFrameAddr(_)))
     }
 
     fn collect_promotable_slots(
@@ -436,6 +429,24 @@ impl FrameSlotPromoter {
     ) -> bool {
         match *kind {
             InstKind::PtrToInt(_, 256) | InstKind::IntToPtr(_) => false,
+            // A logical frame slot in the same internal frame. A stored slot address escapes.
+            InstKind::FrameLoad { offset, mode: FrameMode::Internal, kind: slot_kind }
+            | InstKind::FrameStore { offset, mode: FrameMode::Internal, kind: slot_kind, .. } => {
+                let escapes = matches!(*kind, InstKind::FrameStore { value, .. }
+                    if Self::internal_frame_offset(func, aa, value) == Some(slot_offset));
+                escapes
+                    || AliasAnalysis::frame_location(func, offset, FrameMode::Internal, slot_kind)
+                        .is_none_or(|location| {
+                            aa.memory_alias(
+                                location,
+                                MemoryLocation::new(
+                                    MemoryAddress::internal_frame(slot_offset),
+                                    LocationSize::Const(32),
+                                ),
+                            )
+                            .may_alias()
+                        })
+            }
             InstKind::Load(addr, PtrLocation::Memory) => {
                 !Self::is_exact_internal_slot_access(func, aa, addr, slot_offset)
                     && Self::internal_frame_range_may_overlap(func, aa, addr, Some(32), slot_offset)
@@ -544,6 +555,22 @@ impl FrameSlotPromoter {
         slot_addr: u64,
     ) -> bool {
         match *kind {
+            // A logical frame slot at an absolute address in the local region.
+            InstKind::FrameLoad { offset, mode, kind }
+            | InstKind::FrameStore { offset, mode, kind, .. }
+                if mode != FrameMode::Internal =>
+            {
+                AliasAnalysis::frame_location(func, offset, mode, kind).is_none_or(|location| {
+                    aa.memory_alias(
+                        location,
+                        MemoryLocation::new(
+                            MemoryAddress::absolute(slot_addr),
+                            LocationSize::Const(32),
+                        ),
+                    )
+                    .may_alias()
+                })
+            }
             InstKind::Load(addr, PtrLocation::Memory)
             | InstKind::Store(addr, _, PtrLocation::Memory) => {
                 !Self::is_exact_external_slot_access(func, aa, addr, slot_addr)
@@ -596,7 +623,7 @@ impl FrameSlotPromoter {
             InstKind::MappingSlotBytes(key, _) if func.value_ty(key) == Some(MirType::MEMPTR) => {
                 true
             }
-            InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } | InstKind::MSize => true,
+            InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => true,
             _ => false,
         }
     }

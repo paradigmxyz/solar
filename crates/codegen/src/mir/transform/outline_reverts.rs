@@ -44,14 +44,14 @@ impl MirPass for OutlineReverts {
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        outline_reverts(module, Target::new(gcx))
+        outline_reverts(module, &Target::new(gcx))
     }
 }
 
 /// A constant revert block: `mstore(offset, value)*` then `revert(offset, size)`.
 type RevertShape = (SmallVec<[(U256, U256); 2]>, U256, U256);
 
-fn outline_reverts(module: &mut Module, target: Target) -> bool {
+fn outline_reverts(module: &mut Module, target: &Target) -> bool {
     // Collect every constant revert block, keyed by shape.
     let mut shapes = FxHashMap::<RevertShape, Vec<(FunctionId, BlockId)>>::default();
     for (func_id, func) in module.functions.iter_enumerated() {
@@ -124,7 +124,7 @@ fn constant_revert_shape(func: &Function, block: BlockId) -> Option<RevertShape>
 }
 
 /// Whether sharing one copy of a shape among its `sites` pays under the target model.
-fn saves_bytes(target: Target, (stores, offset, size): &RevertShape, sites: usize) -> bool {
+fn saves_bytes(target: &Target, (stores, offset, size): &RevertShape, sites: usize) -> bool {
     let copy = stores
         .iter()
         .map(|&(offset, value)| {

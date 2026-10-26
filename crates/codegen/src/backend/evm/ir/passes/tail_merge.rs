@@ -13,7 +13,7 @@
 //! there are no nested shared tails. Nested tails keep their placement
 //! to preserve fallthrough paths. Other address-taken entries keep their jump stubs.
 //! Gas mode indexes non-loop tails first, so loop paths can reuse them regardless of block order.
-//! Loop-only paths do not create sharing groups.
+//! In gas mode, loop-only paths do not create sharing groups.
 //! Replacement jumps retain the suffix's entry location before its origins are merged, so
 //! single-origin source maps do not lose both callers' locations on a shared body.
 //! In gas mode, hot sharing must repay its transfer over the optimizer run count.
@@ -36,8 +36,18 @@
 //! the continuing path avoids an extra jump, while the exiting path may still share the terminal
 //! suffix. This bounded frequency heuristic is independent of optional loop markers. Simpler
 //! layouts, larger loops, stack-only latches and memory/call bodies retain the existing sharing
-//! policy; broadly preventing their tail merges increased corpus bytecode size. Size mode may
-//! share across the branch as before.
+//! policy; broadly preventing their tail merges increased corpus bytecode size.
+//!
+//! Size mode keeps the branch of every block marked `in_loop` in its original block. A loop
+//! header stays `cond; push body; jumpi; jump exit_tail` and is never `cond; push body; push
+//! shared; jump` into a shared `jumpi`. evm2's JIT turns that shared block into one switch on a
+//! jump target it reloads from the in-memory EVM stack. LLVM cannot remove that store and load, so
+//! every loop that uses the block goes through the switch and keeps its 256-bit values in memory.
+//! On evm2 against the better of solc 0.8.38 via-IR and legacy at one optimizer run, the
+//! seeded-words and verified-words benchmark cases were +51% and +54% in the JIT with the shared
+//! block and are -6% and -5% without it. The interpreter gains too, from -14% and -31% to -22% and
+//! -38%. The benchmark's runtime bytes grow by 0.08% and its execution gas falls by 0.15%. Exit
+//! tails after the branch are still shared, and blocks outside loops share across their branches.
 
 use super::{
     EvmPass,
@@ -47,12 +57,9 @@ use super::{
         is_terminal_boundary,
     },
 };
-use crate::{
-    backend::evm::{
-        ir::{Block, BlockId, Hotness, Instruction, Metadata, Module, Terminator, TerminatorKind},
-        op::{self, StackOp, push_len},
-    },
-    target::Target,
+use crate::backend::evm::{
+    ir::{Block, BlockId, Hotness, Instruction, Metadata, Module, Terminator, TerminatorKind},
+    op::{self, StackOp, push_len},
 };
 use solar_data_structures::{
     index::IndexVec,
@@ -145,18 +152,25 @@ impl RunState {
             }
             // Do not use loop bodies to seed sharing groups. They may reuse a tail
             // from a non-loop path to preserve common loop entries.
-            let keep_branches =
-                gcx.sess.opts.optimization.is_gas() && has_short_word_backedge(module, block_id);
+            let keep_branches = if gcx.sess.opts.optimization.is_gas() {
+                has_short_word_backedge(module, block_id)
+            } else {
+                block.metadata.in_loop
+            };
             let matched = self.longest_common_tail(module, block, keep_branches);
             let in_gas_loop = gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop;
 
-            let target = Target::new(gcx);
+            // A share also runs the representative's code more than once when it may.
+            let creation = module.code_follows
+                && matched
+                    .is_none_or(|(representative, _)| module.blocks[representative].runs_once());
+            let target = block.target(gcx, creation);
             let transfer_bytes = (target.opcode(op::PUSH2).bytes
                 + target.opcode(op::JUMP).bytes
                 + target.opcode(op::JUMPDEST).bytes) as usize;
-            let transfer_gas = target.opcode_gas(op::PUSH2)
-                + target.opcode_gas(op::JUMP)
-                + target.opcode_gas(op::JUMPDEST);
+            let transfer_gas = target.runtime_gas(
+                target.opcode(op::PUSH2) + target.opcode(op::JUMP) + target.opcode(op::JUMPDEST),
+            );
             if let Some((representative, common)) = matched
                 && common > 0
                 && {
@@ -167,11 +181,8 @@ impl RunState {
                     suffix_size > transfer_bytes
                         && (!gcx.sess.opts.optimization.is_gas()
                             || !hot
-                            || tail_merge_improves_lifetime(
-                                saved_bytes,
-                                transfer_gas,
-                                target.expected_executions(),
-                            ))
+                            || target
+                                .deposit_repays_gas(saved_bytes as u64, u64::from(transfer_gas)))
                 }
             {
                 self.merges.push(Merge { representative, block: block_id, common });
@@ -379,6 +390,10 @@ impl RunState {
                     || group.sites.iter().any(|&(site, site_common)| {
                         site_common >= common && module.blocks[site].metadata.in_loop
                     });
+                tail.metadata.repeats = metadata.repeats
+                    || group.sites.iter().any(|&(site, site_common)| {
+                        site_common >= common && module.blocks[site].metadata.repeats
+                    });
                 if !metadata.hotness.is_cold()
                     || max_hot_common.is_some_and(|hot_common| common <= hot_common)
                 {
@@ -478,16 +493,6 @@ impl RunState {
         debug_assert!(labels.next().is_none());
         true
     }
-}
-
-/// Whether one hot transfer into a shared tail repays its deposited-byte saving.
-const fn tail_merge_improves_lifetime(
-    saved_bytes: usize,
-    transfer_gas: u32,
-    expected_executions: u64,
-) -> bool {
-    saved_bytes as u128 * Target::CODE_DEPOSIT_GAS_PER_BYTE as u128
-        > transfer_gas as u128 * expected_executions as u128
 }
 
 /// Preserve an address's control-only identity when its consumer moves into a shared tail.

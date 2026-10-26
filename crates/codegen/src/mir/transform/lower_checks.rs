@@ -12,17 +12,24 @@
 //! failure move to an unreachable continuation.
 //!
 //! Revert payloads are never read after the revert, so none of them reserves memory. Panics,
-//! constant and short error strings, and custom errors of at most `MAX_SCRATCH_ERROR_WORDS` words
-//! stage in the reserved low memory through `FunctionBuilder::revert_scratch`. Other custom errors
-//! and error strings encode at the free-memory pointer without advancing it.
+//! short constant error strings, and custom errors of at most `MAX_SCRATCH_ERROR_WORDS` words
+//! stage in the reserved low memory through `FunctionBuilder::revert_scratch`. Constant strings
+//! longer than a word write the whole `Error(string)` payload from constants, as stores or a data
+//! copy by the target cost model. Other custom errors and error strings encode at the
+//! free-memory pointer. None of these advance it.
 
 use crate::mir::{
     AbiLayout, AbiType, Builtin, Callee, ERROR_SELECTOR, EffectKind, Function, FunctionBuilder,
     FunctionId, InstKind, InstructionMetadata, MirType, Module, PhaseCategory, PtrLocation,
-    RequireKind, RevertKind, RevertPayload, pass::MirPass, transform::utils::expand_block,
+    RequireKind, RevertKind, RevertPayload,
+    lower::{DataDest, copy_data_to_memory},
+    pass::MirPass,
+    transform::utils::expand_block,
 };
+use alloy_primitives::U256;
 use solar_config::{OptimizationMode, RevertStrings};
 use solar_interface::{Ident, sym};
+use solar_sema::Gcx;
 use std::sync::Arc;
 
 /// Word arguments of a custom error staged in scratch memory. The payload spans
@@ -43,7 +50,7 @@ impl MirPass for LowerChecks {
 
     fn run_pass(
         &self,
-        gcx: solar_sema::Gcx<'_>,
+        gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
@@ -66,19 +73,26 @@ impl MirPass for LowerChecks {
         }
         let helper = needs_helper.then(|| create_short_string_helper(module, &helper_context));
         let mut changed = false;
-        for function in &mut module.functions {
+        // Long strings intern their data in the module while a function is rewritten.
+        let mut functions = std::mem::take(&mut module.functions);
+        for function in &mut functions {
             changed |= lower_function(
+                gcx,
+                module,
                 function,
                 helper,
                 gcx.sess.opts.revert_strings,
                 !matches!(gcx.sess.opts.optimization, OptimizationMode::None),
             );
         }
+        module.functions = functions;
         changed
     }
 }
 
 fn lower_function(
+    gcx: Gcx<'_>,
+    module: &mut Module,
     func: &mut Function,
     helper: Option<FunctionId>,
     revert_strings: RevertStrings,
@@ -143,7 +157,7 @@ fn lower_function(
                     let continuation = builder.create_block();
                     builder.branch(condition, continuation, failure);
                     builder.switch_to_block(failure);
-                    emit_payload(builder, payload, helper);
+                    emit_payload(gcx, module, builder, payload, helper);
                     builder.switch_to_block(continuation);
                 }
                 _ => unreachable!(),
@@ -159,6 +173,8 @@ fn is_check(kind: &InstKind) -> bool {
 }
 
 fn emit_payload(
+    gcx: Gcx<'_>,
+    module: &mut Module,
     builder: &mut FunctionBuilder<'_>,
     payload: RevertPayload,
     helper: Option<FunctionId>,
@@ -168,6 +184,30 @@ fn emit_payload(
             // icall revert_error(length, data); unreachable
             builder.icall_void(helper.expect("short string helper"), vec![length, data]);
             builder.invalid();
+        }
+        RevertPayload::LongString(symbol) => {
+            let bytes = symbol.as_byte_str();
+            // pointer = fmp
+            // write message at pointer + 68: stores, a splat, or a data copy by cost
+            // mstore pointer + 36, length
+            // mstore pointer, Error.selector
+            // mstore pointer + 4, 32
+            // revert(pointer, 68 + padded length)
+            let padded = bytes.len().next_multiple_of(32);
+            let pointer = builder.fmp();
+            let dest = DataDest { base: pointer, offset: 68 };
+            copy_data_to_memory(gcx, module, builder, dest, bytes, padded, None);
+            // NOTE: the selector word zeroes bytes 4..32, so the offset store follows it, and the
+            // message-independent stores come last so that tail merging shares them.
+            for (offset, word) in
+                [(36, U256::from(bytes.len())), (0, ERROR_SELECTOR), (4, U256::from(32))]
+            {
+                let address = builder.address_value(pointer, offset);
+                let word = builder.imm(word);
+                builder.store(address, word);
+            }
+            let size = builder.imm(68 + padded as u64);
+            builder.revert(pointer, size);
         }
         RevertPayload::EmptyString => {
             // revert_scratch(Error.selector, [32, 0])

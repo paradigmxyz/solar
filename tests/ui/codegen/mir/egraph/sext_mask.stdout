@@ -1,0 +1,51 @@
+- // === ROOT/tests/ui/codegen/mir/egraph/sext_mask.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/sext_mask.mir (after egraph) ===
+  @module SextMask
+  @types
+    struct0: {i256, i256, i256, i256}
+    struct1: {i256, i256}
+  
+  fn @drops_wide_masks(arg0: i256) -> struct0 [return_abi=[i256, i256, i256, i256]] {
+    bb0:
+      v0 = and arg0, 255
+-     v1 = signextend 0, v0
++     v1 = signextend 0, arg0
+      v2 = and arg0, 0xffffff
+-     v3 = signextend 2, v2
++     v3 = signextend 2, arg0
+      v4 = and arg0, 0xffffffffffffffffffffffffffffffff
+-     v5 = signextend 15, v4
++     v5 = signextend 15, arg0
+      v6 = and arg0, 0xffffffff
+-     v7 = signextend 2, v6
+-     ret v1, v3, v5, v7
++     ret v1, v3, v5, v3
+  }
+  
+  fn @byte_30_width(arg0: i256) -> struct1 [return_abi=[i256, i256]] {
+    bb0:
+      v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     v1 = signextend 30, v0
++     v1 = signextend 30, arg0
+      v2 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     v3 = signextend 30, v2
+-     ret v1, v3
++     ret v1, v2
+  }
+  
+  fn @keeps_holed_masks(arg0: i256) -> struct1 [return_abi=[i256, i256]] {
+    bb0:
+      v0 = and arg0, 0xff00ff
+      v1 = signextend 2, v0
+      v2 = and arg0, 0xffff00
+      v3 = signextend 2, v2
+      ret v1, v3
+  }
+  
+  fn @keeps_shared_mask(arg0: i256) -> struct1 [return_abi=[i256, i256]] {
+    bb0:
+      v0 = and arg0, 0xffffff
+      v1 = signextend 2, v0
+      ret v0, v1
+  }
+  

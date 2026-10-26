@@ -215,6 +215,31 @@
 ;; _ * 0 => 0.
 (rule 2 (simplify (Op.Mul _ (and b (zero)))) b)
 
+;; zext(y != 0) * (x / y) => x / y.
+;; Division by zero is zero, so the factor only repeats the quotient's own zero test.
+(rule 1 (simplify (Op.Mul (zext (ne y (zero))) (and q (div _ y)))) q)
+
+;; (x / y) * zext(y != 0) => x / y.
+(rule 1 (simplify (Op.Mul (and q (div _ y)) (zext (ne y (zero))))) q)
+
+;; zext(y != 0) * (x % y) => x % y.
+(rule 1 (simplify (Op.Mul (zext (ne y (zero))) (and r (mod _ y)))) r)
+
+;; (x % y) * zext(y != 0) => x % y.
+(rule 1 (simplify (Op.Mul (and r (mod _ y)) (zext (ne y (zero))))) r)
+
+;; zext(y != 0) * sdiv(x, y) => sdiv(x, y).
+(rule 1 (simplify (Op.Mul (zext (ne y (zero))) (and q (sdiv _ y)))) q)
+
+;; sdiv(x, y) * zext(y != 0) => sdiv(x, y).
+(rule 1 (simplify (Op.Mul (and q (sdiv _ y)) (zext (ne y (zero))))) q)
+
+;; zext(y != 0) * smod(x, y) => smod(x, y).
+(rule 1 (simplify (Op.Mul (zext (ne y (zero))) (and r (smod _ y)))) r)
+
+;; smod(x, y) * zext(y != 0) => smod(x, y).
+(rule 1 (simplify (Op.Mul (and r (smod _ y)) (zext (ne y (zero))))) r)
+
 ;; a / d => 0.
 ;; Requires: d is constant, a is known to be < d.
 (rule 5 (simplify (Op.Div a (iconst d))) (if-let true (below_const a d)) (imm (u256 0)))

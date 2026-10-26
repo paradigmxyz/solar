@@ -47,11 +47,12 @@ use super::{
     block_layout::triangle_arm,
     terminal_dedup::{absorb_terminal_copy, equal_terminal_bodies},
     utils::{
-        FreshLabels, instruction_size_lower_bound, is_split_point, remap_block_order, retain_blocks,
+        FreshLabels, count_block_references, instruction_size_lower_bound, is_split_point,
+        remap_block_order, retain_blocks,
     },
 };
 use crate::backend::evm::{
-    ir::{Block, BlockId, Metadata, Module, PushValue, Terminator, TerminatorKind},
+    ir::{Block, BlockId, Instruction, Metadata, Module, PushValue, Terminator, TerminatorKind},
     op,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -154,20 +155,7 @@ fn rotate_loop_exits(module: &mut Module, references: &mut IndexVec<BlockId, usi
     }
     // Most CFG cleanups have no candidate. Count references and reserve labels
     // only after the bounded instruction scan finds a possible rotation.
-    references.resize(module.blocks.len(), 0);
-    if let Some(entry) = references.first_mut() {
-        *entry = 1;
-    }
-    for block in &module.blocks {
-        for inst in &block.instructions {
-            if let Some(target) = inst.pushed_block() {
-                references[target] += 1;
-            }
-        }
-        if let Some(term) = &block.terminator {
-            term.kind.visit_targets(|target| references[target] += 1);
-        }
-    }
+    count_block_references(module, references);
     candidates.retain(|&(_, body, _)| references[body] == 1);
     candidates.dedup_by_key(|candidate| candidate.0);
     if candidates.is_empty() {
@@ -181,6 +169,7 @@ fn rotate_loop_exits(module: &mut Module, references: &mut IndexVec<BlockId, usi
         let block = &mut module.blocks[header];
         let mut exit = Block::new(label);
         exit.metadata.hotness = block.metadata.hotness;
+        exit.metadata.repeats = block.metadata.repeats;
         exit.instructions = block.instructions.split_off(index + 3);
         exit.terminator = block.terminator.take();
         let removed = block.instructions.remove(index);
@@ -432,7 +421,7 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
         {
             let target = *then_block;
             let metadata = metadata.clone();
-            let mut pop = crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop);
+            let mut pop = Instruction::stack_op(op::StackOp::Pop);
             pop.metadata.copy_source_debug_from(&metadata);
             block.instructions.push(pop);
             let mut terminator = Terminator::new(TerminatorKind::Jump(target));
@@ -451,7 +440,7 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
         {
             let metadata = jumpi.metadata.clone();
             block.instructions.truncate(block.instructions.len() - 2);
-            let mut pop = crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop);
+            let mut pop = Instruction::stack_op(op::StackOp::Pop);
             pop.metadata.copy_source_debug_from(&metadata);
             block.instructions.push(pop);
             changed = true;
@@ -602,7 +591,7 @@ pub(super) fn is_direct_jump_label(block: &Block, at: usize) -> bool {
             && block
                 .terminator
                 .as_ref()
-                .is_some_and(|term| matches!(term.kind, TerminatorKind::Op(op::JUMP | op::JUMPI))))
+                .is_some_and(|term| term.kind == TerminatorKind::Op(op::JUMP)))
 }
 
 // PUSH target; jump head; head: JUMPI -> a direct use of target
@@ -614,7 +603,7 @@ fn is_direct_jump_label_through_head(
     block.instructions.get(at + 1).is_some_and(|inst| matches!(inst.opcode, op::JUMP | op::JUMPI))
         || (at + 1 == block.instructions.len()
             && block.terminator.as_ref().is_some_and(|term| match term.kind {
-                TerminatorKind::Op(op::JUMP | op::JUMPI) => true,
+                TerminatorKind::Op(op::JUMP) => true,
                 TerminatorKind::Jump(target) => jump_heads.contains(target),
                 _ => false,
             }))
@@ -709,6 +698,7 @@ fn coalesce_blocks(
                 }
             }
             module.blocks[predecessor].metadata.in_loop |= module.blocks[target].metadata.in_loop;
+            module.blocks[predecessor].metadata.repeats |= module.blocks[target].metadata.repeats;
             module.blocks[predecessor].instructions.append(&mut instructions);
             module.blocks[predecessor].terminator = terminator;
             retained.remove(target);

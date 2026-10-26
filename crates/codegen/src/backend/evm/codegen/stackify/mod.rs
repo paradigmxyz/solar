@@ -58,9 +58,12 @@
 //! becomes one `EXCHANGE a, b` per inner swap when that is cheaper. Commutative and mirrored
 //! comparisons try both operand orders. Two short trials refine these local choices: before a chain
 //! of single-use instructions that feeds a consumer, the consumer's deeper operands may be copied
-//! first, and after an instruction, its result may be swapped into the slot of a word that dies
-//! within the next few instructions. Each is kept only when planning the affected instructions gets
-//! cheaper.
+//! first, or a deeper operand that single-use instructions compute may be computed after the pushes
+//! below it, as WebAssembly's register stackifier moves a single-use definition next to its use and
+//! solc's stack layout pass generates literals where an operation needs them; the plan that copies
+//! the operand wins ties. After an instruction, its result may be swapped into the slot of a word
+//! that dies within the next few instructions. Each is kept only when planning the affected
+//! instructions gets cheaper.
 //!
 //! Loop headers are first laid out by their preheader. Later planning rounds lay each header
 //! out by the order of last use in the loop, and then in the order the best plan's latches
@@ -76,6 +79,11 @@
 //! cannot fund more setup. Size mode reserves a jump's bytes as a margin: small local savings can
 //! disrupt later outlining. Within the defining block, materialization waits until the first use,
 //! or the terminator if only successors need it. Call-chain overflow retries omit this word.
+//!
+//! `-O none` takes the first plan: it plans each function once, with preheader loop layouts and
+//! without the operand copy trials, the result swap or constant retention, so the code may use
+//! more gas and bytes. Spilling and restarts still run, because they keep every value within
+//! reach.
 //!
 //! When a needed word lies beyond the target's reach, the value is spilled: it is stored once
 //! when defined, reloaded at every use, and planning restarts. After many restarts, every other
@@ -99,6 +107,9 @@
 //! not, the callers on that chain plan again with every value live across a call spilled, and
 //! then with their return addresses in memory too, until it fits.
 //!
+//! A function whose body, module facts, and cost model equal those of a function planned before in
+//! the compilation takes that plan instead of planning again; see `cache`.
+//!
 //! The plan of a function is complete before any code is emitted, so a failure leaves no partial
 //! output. Emission follows the block order of `function`. Blocks that only jump on are
 //! skipped, and a branch whose successors both need a jump falls through into a trampoline.
@@ -109,12 +120,17 @@ use super::{
     StackOp, Terminator, Value, ValueId, index_vec, select::rematerializable_nullary_value,
 };
 use crate::{
+    backend::evm::CodegenState,
     mir::{ArgIdx, Callee, analysis::LoopInfo},
     target::{Cost, Target},
 };
+use cache::PlanKey;
 use plan::{Planned, Planner};
 use smallvec::SmallVec;
+use solar_data_structures::sync;
 
+mod cache;
+pub(in crate::backend::evm) use cache::PlanCache;
 mod emit;
 mod plan;
 mod shuffle;
@@ -285,6 +301,8 @@ struct ModuleInfo {
     returns: IndexVec<FunctionId, usize>,
     /// Parameters of each function.
     params: IndexVec<FunctionId, usize>,
+    /// Functions of creation code that run more than once because a loop or recursion calls them.
+    repeated: DenseBitSet<FunctionId>,
     entry: FunctionId,
     /// Whether `entry` is the runtime dispatch entry, whose switch leaves its selector on the
     /// stack.
@@ -312,7 +330,7 @@ struct Analysis {
 
 /// What a function moves to memory to shorten the stack it keeps below its calls, raised for
 /// the callers on a call chain deeper than the EVM stack.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum CallSpill {
     None,
     /// Every value live across an internal call.
@@ -331,6 +349,11 @@ enum Decline {
 
 /// Planning restarts that spill one value each before spills come in batches.
 const SINGLE_SPILL_RESTARTS: u32 = 64;
+
+/// Fewest instructions in a contract's bodies for which planning uses idle workers. Planning
+/// costs about three microseconds per instruction in a release build, so smaller contracts finish
+/// before helpers start.
+const PARALLEL_PLAN_INSTS: usize = 4096;
 
 /// Maximum number of planning rounds that refine loop header layouts.
 const LAYOUT_ROUNDS: usize = 4;
@@ -378,6 +401,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             Ok((info, plans)) => self.emit_constructor_stackified(module, call_graph, &info, plans),
             Err(decline) => self.report_decline(module, decline),
         }
+    }
+
+    /// The cost model of a function being planned: creation code inside the constructor, unless
+    /// a loop or recursion calls the function. The planner weighs each block by its loop depth,
+    /// so loops inside the function stay priced as creation code, though the choices inside one
+    /// block compare unweighted costs.
+    fn target(&self, info: &ModuleInfo, func_id: FunctionId) -> Target {
+        Target::new(self.gcx).priced_for(self.in_constructor && !info.repeated.contains(func_id))
     }
 
     fn report_decline(&self, module: &Module, decline: Decline) {
@@ -481,7 +512,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
+        let repeated = if self.in_constructor {
+            let mut domain = DenseBitSet::new_empty(functions);
+            for &func_id in &bodies {
+                domain.insert(func_id);
+            }
+            module.repeated_functions(&domain)
+        } else {
+            DenseBitSet::new_empty(functions)
+        };
         let info = ModuleInfo {
+            repeated,
             internal,
             returning,
             components,
@@ -539,25 +580,33 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
+        // Planning one body reads only the shared facts above, so the bodies plan in parallel.
+        // Results come back in body order, so the first decline is the serial loop's.
+        let parallel = self.gcx.sess.is_parallel_codegen()
+            && bodies.iter().map(|&func_id| module.functions[func_id].num_insts()).sum::<usize>()
+                >= PARALLEL_PLAN_INSTS;
         let mut analyses =
             (0..functions).map(|_| None).collect::<IndexVec<FunctionId, Option<Analysis>>>();
         let mut plans =
             (0..functions).map(|_| None).collect::<IndexVec<FunctionId, Option<FunctionPlan>>>();
-        for &func_id in &bodies {
-            let analysis = analyses[func_id].insert(self.analyze(
+        let cache = &self.gcx.codegen_state::<CodegenState>().plans;
+        let planned = sync::par_try_map(parallel, bodies, |func_id| {
+            let mut analysis = None;
+            let plan = self.plan_cached(
+                cache,
                 module,
                 &info,
                 func_id,
                 &hazards[func_id],
                 &writers,
-            ));
-            plans[func_id] = Some(self.plan_function_stackified(
-                module,
-                &info,
-                func_id,
-                analysis,
+                &mut analysis,
                 CallSpill::None,
-            )?);
+            )?;
+            Ok((func_id, analysis, plan))
+        })?;
+        for (func_id, analysis, plan) in planned {
+            analyses[func_id] = analysis;
+            plans[func_id] = Some(plan);
         }
 
         // A call chain deeper than the EVM stack: its callers move words to memory, values
@@ -578,14 +627,30 @@ impl<'gcx> EvmCodegen<'gcx> {
                 ?next,
                 "call chain deeper than the EVM stack"
             );
+            // Each replan owns its analysis, so analyses need not be shared between threads.
+            let mut respilled = Vec::new();
             for &func_id in &chain {
                 if call_spills[func_id] == level {
                     call_spills[func_id] = next;
-                    let analysis = analyses[func_id].as_ref().expect("planned body");
-                    plans[func_id] = Some(
-                        self.plan_function_stackified(module, &info, func_id, analysis, next)?,
-                    );
+                    respilled.push((func_id, analyses[func_id].take()));
                 }
+            }
+            let replanned = sync::par_try_map(parallel, respilled, |(func_id, mut analysis)| {
+                let plan = self.plan_cached(
+                    cache,
+                    module,
+                    &info,
+                    func_id,
+                    &hazards[func_id],
+                    &writers,
+                    &mut analysis,
+                    next,
+                )?;
+                Ok((func_id, analysis, plan))
+            })?;
+            for (func_id, analysis, plan) in replanned {
+                analyses[func_id] = analysis;
+                plans[func_id] = Some(plan);
             }
         }
         Ok((info, plans))
@@ -628,9 +693,40 @@ impl<'gcx> EvmCodegen<'gcx> {
         let recomputable = if pinned.is_empty() {
             FxHashMap::default()
         } else {
-            plan::recomputable(func, &cfg, info.internal.contains(func_id), Target::new(self.gcx))
+            plan::recomputable(
+                func,
+                &cfg,
+                info.internal.contains(func_id),
+                &self.target(info, func_id),
+            )
         };
         Analysis { liveness, cfg, loops, saved, pinned, recomputable }
+    }
+
+    /// Plans a function, or takes the plan of an identical function planned before from `cache`.
+    /// The function's analysis is computed only when planning needs it, and left in `analysis`.
+    #[allow(clippy::too_many_arguments)]
+    fn plan_cached(
+        &self,
+        cache: &PlanCache,
+        module: &Module,
+        info: &ModuleInfo,
+        func_id: FunctionId,
+        hazards: &FxHashSet<InstId>,
+        writers: &DenseBitSet<FunctionId>,
+        analysis: &mut Option<Analysis>,
+        call_spill: CallSpill,
+    ) -> Result<FunctionPlan, Decline> {
+        let target = self.target(info, func_id);
+        let key = PlanKey::new(module, info, func_id, hazards, writers, &target, call_spill);
+        if let Some(plan) = cache.get(&key) {
+            return Ok(plan);
+        }
+        let analysis =
+            analysis.get_or_insert_with(|| self.analyze(module, info, func_id, hazards, writers));
+        let plan = self.plan_function_stackified(module, info, func_id, analysis, call_spill)?;
+        cache.insert(key, &plan);
+        Ok(plan)
     }
 
     fn plan_function_stackified(
@@ -643,7 +739,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> Result<FunctionPlan, Decline> {
         let func = &module.functions[func_id];
         let internal = info.internal.contains(func_id);
-        let target = Target::new(self.gcx);
+        let target = self.target(info, func_id);
         let mut spilled = DenseBitSet::new_empty(func.num_values());
         if call_spill >= CallSpill::Values {
             // The stack keeps spilled words across a call that overwrites their slots anyway.
@@ -688,7 +784,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     info,
                     func_id,
                     analysis,
-                    target,
+                    &target,
                     &spilled,
                     ret_spilled,
                     restarts >= single_spills,
@@ -698,7 +794,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if round == 1
                     && restarts == 0
                     && call_spill == CallSpill::None
-                    && (target.optimization().is_gas() || target.optimization().is_size())
+                    && target.optimizes_stack_plans()
                 {
                     constant = planner.constant_to_retain();
                 }
@@ -728,7 +824,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             };
             if round == 1 {
-                if natural.is_empty() {
+                if natural.is_empty() || !target.optimizes_stack_plans() {
                     best = Some(plan);
                     break;
                 }
@@ -753,15 +849,18 @@ impl<'gcx> EvmCodegen<'gcx> {
                 info,
                 func_id,
                 analysis,
-                target,
+                &target,
                 &spilled,
                 ret_spilled,
                 restarts >= single_spills,
                 &hints,
             )
             && let Ok(candidate) = planner.retain_constant(constant).plan()
-            && candidate.plan.cost.dominates(best.cost)
-            && candidate.plan.non_loop_gas <= best.non_loop_gas
+            // Creation code pays for every byte it leaves out, so a constant kept on the stack
+            // may cost gas, as long as the deployment gets cheaper.
+            && (target.is_creation()
+                || (target.dominates(candidate.plan.cost, best.cost)
+                    && candidate.plan.non_loop_gas <= best.non_loop_gas))
             && target.cmp_lifetime(candidate.plan.cost, best.cost).is_lt()
             && (!target.optimization().is_size()
                 || candidate.plan.cost.bytes.saturating_add(target.jump().bytes) < best.cost.bytes)

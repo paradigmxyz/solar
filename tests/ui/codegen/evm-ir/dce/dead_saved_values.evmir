@@ -1,8 +1,7 @@
 //@ revisions: gas size
 //@[gas] compile-flags: --evm-version amsterdam -Ogas -Zevm-ir-pipeline=dce
-//@[gas] filecheck: --check-prefixes=COMMON,GAS
 //@[size] compile-flags: --evm-version amsterdam -Osize -Zevm-ir-pipeline=dce
-//@[size] filecheck: --check-prefixes=COMMON,SIZE
+//@ filecheck: --check-prefix=COMMON
 @module module
 
 // A trailing memory load keeps terminal-tail cleanup out of copy-elimination cases.
@@ -61,14 +60,10 @@ bb2:
   stop
 
 // Retarget a read of the omitted original to its remaining alias.
-// GAS-LABEL: {{^[ +].*}}bb3:
-// GAS: {{^[ +].*}}dup 1
-// GAS-NEXT: -   dup 2
-// GAS: -   swap 1
-// SIZE-LABEL: {{^[ +].*}}bb3:
-// SIZE: {{^[ +].*}}dup 1
-// SIZE-NEXT: {{^[ +].*}}dup 2
-// SIZE: {{^[ +].*}}swap 1
+// COMMON-LABEL: {{^[ +].*}}bb3:
+// COMMON: {{^[ +].*}}dup 1
+// COMMON-NEXT: -   dup 2
+// COMMON: -   swap 1
 bb3:
   push 1
   push 2
@@ -186,13 +181,10 @@ bb10:
   stop
 
 // Adjust a deeper read across the omitted original.
-// GAS-LABEL: {{^[ +].*}}bb11:
-// GAS: -   dup 1
-// GAS: -   dup 3
-// GAS: +   dup 2
-// SIZE-LABEL: {{^[ +].*}}bb11:
-// SIZE: {{^[ +].*}}dup 1
-// SIZE: {{^[ +].*}}dup 3
+// COMMON-LABEL: {{^[ +].*}}bb11:
+// COMMON: -   dup 1
+// COMMON: -   dup 3
+// COMMON: +   dup 2
 bb11:
   push 7
   dup 1

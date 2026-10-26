@@ -96,16 +96,16 @@ bb5:
   push 128
   return
 bb6:
+  push 128
+  push 64
+  mstore
   push_immutable 7, 32
   push 0xffffffffffffffffffffffffffffffffffffffff
   and
-  push 128
+  push 0
   mstore
+  push 0
   push 32
-  push 128
-  add
-  push 128
-  swap 1
   sub
-  push 128
+  push 0
   return

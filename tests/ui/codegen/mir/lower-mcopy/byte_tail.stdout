@@ -120,15 +120,13 @@
 +     v13 = shl v12, 3
 +     v14 = add arg1, v2
 +     v15 = mload v14
-+     v16 = shr v15, v13
-+     v17 = shl v16, v13
-+     v18 = add arg0, v2
-+     v19 = mload v18
-+     v20 = shl 1, v13
-+     v21 = sub v20, 1
-+     v22 = and v19, v21
-+     v23 = or v17, v22
-+     mstore v18, v23
++     v16 = add arg0, v2
++     v17 = mload v16
++     v18 = xor v15, v17
++     v19 = shr v18, v13
++     v20 = shl v19, v13
++     v21 = xor v17, v20
++     mstore v16, v21
 +     jump bb1
 +   bb6:
 +     v6 = add arg1, v4
@@ -138,36 +136,34 @@
 +     v9 = add v4, 32
 +     jump bb5
 +   bb4:
-+     v24 = lt v2, 34
-+     jumpi v24, bb12, bb11
++     v22 = lt v2, 34
++     jumpi v22, bb12, bb11
 +   bb11:
 +     jump bb9
 +   bb12:
-+     v25 = and 34, 31
-+     v26 = sub 32, v25
-+     v27 = shl v26, 3
-+     v28 = add arg1, v2
++     v23 = and 34, 31
++     v24 = sub 32, v23
++     v25 = shl v24, 3
++     v26 = add arg1, v2
++     v27 = mload v26
++     v28 = add arg0, v2
 +     v29 = mload v28
-+     v30 = shr v29, v27
-+     v31 = shl v30, v27
-+     v32 = add arg0, v2
-+     v33 = mload v32
-+     v34 = shl 1, v27
-+     v35 = sub v34, 1
-+     v36 = and v33, v35
-+     v37 = or v31, v36
-+     mstore v32, v37
++     v30 = xor v27, v29
++     v31 = shr v30, v25
++     v32 = shl v31, v25
++     v33 = xor v29, v32
++     mstore v28, v33
 +     jump bb9
 +   bb9:
-+     v38 = phi [bb11: v2], [bb12: v2], [bb10: v40]
-+     v39 = eq v38, 0
-+     jumpi v39, bb1, bb10
++     v34 = phi [bb11: v2], [bb12: v2], [bb10: v36]
++     v35 = eq v34, 0
++     jumpi v35, bb1, bb10
 +   bb10:
-+     v40 = sub v38, 32
-+     v41 = add arg1, v40
-+     v42 = mload v41
-+     v43 = add arg0, v40
-+     mstore v43, v42
++     v36 = sub v34, 32
++     v37 = add arg1, v36
++     v38 = mload v37
++     v39 = add arg0, v36
++     mstore v39, v38
 +     jump bb9
 +   bb1:
       ret

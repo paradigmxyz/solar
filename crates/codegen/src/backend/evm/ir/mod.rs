@@ -19,11 +19,13 @@ use crate::{
     backend::assembler::{self, assembly},
     link::{EmbeddedBytecodes, LibraryId, LibraryTable, RelocatableBytecode},
     mir::{ImmutableId, TypeSize},
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_data_structures::{index::IndexVec, newtype_index};
 use solar_interface::{Span, Symbol};
+use solar_sema::Gcx;
 use std::fmt;
 
 pub(crate) use crate::link::{Data, DataBytes, DataId, DataRef, DataSize};
@@ -32,6 +34,7 @@ pub(in crate::backend) mod builder;
 mod display;
 mod parse;
 mod passes;
+pub(in crate::backend::evm) use passes::SharedSchedules;
 pub(crate) use passes::compact_pushes;
 pub(in crate::backend) mod verify;
 
@@ -45,7 +48,7 @@ pub(in crate::backend) use passes::{
         ImmediateMaterialization, ImmediateMaterializationOp, immediate_materialization_len,
     },
     data::pack_linked_data,
-    legalize_shifts,
+    legalize_revert,
 };
 
 /// Validates the target-independent invariants of an EVM IR module.
@@ -84,6 +87,12 @@ pub struct Module {
 }
 
 impl Module {
+    /// The cost model of this module's code: the creation model for creation code, which the
+    /// runtime artifact follows.
+    pub(crate) fn target(&self, gcx: Gcx<'_>) -> Target {
+        Target::new(gcx).priced_for(self.code_follows)
+    }
+
     /// Links embedded contract bytecode into deferred data, interning the bytecode's libraries
     /// into `libraries`.
     ///
@@ -238,6 +247,17 @@ impl Block {
             terminator: None,
         }
     }
+
+    /// Whether the block runs at most once per call of its code, outside every loop.
+    pub(crate) fn runs_once(&self) -> bool {
+        !self.metadata.in_loop && !self.metadata.repeats
+    }
+
+    /// The cost model of this block: the creation model for creation code, which the runtime
+    /// artifact follows (`code_follows`), unless the block may run more than once.
+    pub(crate) fn target(&self, gcx: Gcx<'_>, code_follows: bool) -> Target {
+        Target::new(gcx).priced_for(code_follows && self.runs_once())
+    }
 }
 
 /// Block-level metadata.
@@ -247,6 +267,10 @@ pub(crate) struct BlockMetadata {
     pub(crate) hotness: Hotness,
     /// Whether the block contains code from a known natural loop.
     pub(crate) in_loop: bool,
+    /// Whether the block may run more than once per deployment although it is not in a loop of
+    /// its own function: it belongs to creation code that a loop or recursion calls. Pricing
+    /// treats such blocks as runtime code.
+    pub(crate) repeats: bool,
     /// This label's address is used only for control transfer, never as an observable word.
     /// Hidden return targets and branches separated from their pushed labels by sharing carry
     /// this property. References may be redirected to an

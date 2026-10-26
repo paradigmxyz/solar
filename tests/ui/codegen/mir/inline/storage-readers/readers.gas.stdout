@@ -1,0 +1,183 @@
+- // === ROOT/tests/ui/codegen/mir/inline/storage-readers/readers.mir (before inline) ===
++ // === ROOT/tests/ui/codegen/mir/inline/storage-readers/readers.mir (after inline) ===
+  @module StorageReaders
+  @types
+    struct0: {i256, i256}
+  
+  fn @after(arg0: i256) -> i256 [selector=0x00000001] {
+    bb0:
+-     v0 = icall @reader, arg0
++     jump bb2
++   bb2:
++     v3 = sload 3
++     v4 = add v3, arg0
++     jump bb4
++   bb4:
++     v7 = mul v4, 7
++     jump bb3
++   bb3:
++     v8 = phi [bb4: v7]
++     jump bb1
++   bb1:
++     v6 = phi [bb3: v8]
+      v1 = sload 3
+-     v2 = add v0, v1
++     v2 = add v6, v1
+      ret v2
+  }
+  
+  fn @before(arg0: i256) -> i256 [selector=0x00000002] {
+    bb0:
+      v0 = sload 3
+-     v1 = icall @reader, arg0
+-     v2 = add v0, v1
++     jump bb2
++   bb2:
++     v3 = sload 3
++     v4 = add v3, arg0
++     jump bb4
++   bb4:
++     v7 = mul v4, 7
++     jump bb3
++   bb3:
++     v8 = phi [bb4: v7]
++     jump bb1
++   bb1:
++     v6 = phi [bb3: v8]
++     v2 = add v0, v6
+      ret v2
+  }
+  
+  fn @reader(arg0: i256) -> i256 {
+    bb0:
+      v0 = sload 3
+      v1 = add v0, arg0
+-     v2 = icall @scale, v1
+-     ret v2
++     jump bb2
++   bb2:
++     v3 = mul v1, 7
++     jump bb1
++   bb1:
++     v4 = phi [bb2: v3]
++     ret v4
+  }
+  
+- fn @scale(arg0: i256) -> i256 {
+-   bb0:
+-     v0 = mul arg0, 7
+-     ret v0
+- }
+- 
+  fn @different_slot(arg0: i256) -> i256 [selector=0x00000003] {
+    bb0:
+      v0 = icall @reader, arg0
+      v1 = sload 4
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @writing_call(arg0: i256) -> i256 [selector=0x00000004] {
+    bb0:
+      v0 = sload 3
+      v1 = icall @writer, arg0
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @writer(arg0: i256) -> i256 {
+    bb0:
+-     icall @store, arg0
++     jump bb2
++   bb2:
++     sstore 3, arg0
++     jump bb1
++   bb1:
+      v0 = sload 3
+      ret v0
+  }
+  
+- fn @store(arg0: i256) {
+-   bb0:
+-     sstore 3, arg0
+-     ret
+- }
+- 
+  fn @gas_call() -> i256 [selector=0x00000005] {
+    bb0:
+-     v0 = icall @observer
++     jump bb2
++   bb2:
++     v3 = gas
++     v4 = sload 3
++     v5 = add v3, v4
++     jump bb1
++   bb1:
++     v6 = phi [bb2: v5]
+      v1 = sload 3
+-     v2 = add v0, v1
++     v2 = add v6, v1
+      ret v2
+  }
+  
+- fn @observer() -> i256 {
+-   bb0:
+-     v0 = gas
+-     v1 = sload 3
+-     v2 = add v0, v1
+-     ret v2
+- }
+- 
+  fn @indirect_reader(arg0: i256) -> i256 [selector=0x00000006] {
+    bb0:
+      v0 = sload 3
+-     v1 = icall @wrapper, arg0
+-     v2 = add v0, v1
++     jump bb2
++   bb2:
++     v3 = icall @reader, arg0
++     jump bb1
++   bb1:
++     v4 = phi [bb2: v3]
++     v2 = add v0, v4
+      ret v2
+  }
+  
+- fn @wrapper(arg0: i256) -> i256 {
+-   bb0:
+-     v0 = icall @reader, arg0
+-     ret v0
+- }
+- 
+  fn @multiple_returns(arg0: i256) -> i256 [selector=0x00000007] {
+    bb0:
+      v0 = sload 3
+-     v1 = icall @pair, arg0
+-     v2 = add v0, v1
++     jump bb2
++   bb2:
++     v3 = sload 3
++     jump bb1
++   bb1:
++     v4 = phi [bb2: v3]
++     v5 = phi [bb2: arg0]
++     mstore 160, v5
++     frame_store multi_return, word, 0, 128 !metadata(memory=scratch)
++     v2 = add v0, v4
+      ret v2
+- }
+- 
+- fn @pair(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
+-   bb0:
+-     v0 = sload 3
+-     ret v0, arg0
+  }
+  
+  fn @writing_again(arg0: i256) -> i256 [selector=0x00000008] {
+    bb0:
+      v0 = sload 3
+      v1 = icall @writer, arg0
+      v2 = add v0, v1
+      ret v2
+  }
+  

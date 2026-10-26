@@ -101,8 +101,8 @@ impl<'a> Verifier<'a> {
 
     /// Checks structural invariants and target support after an EVM IR pass.
     ///
-    /// Shifts and pre-Byzantium reverts remain temporarily legal because the
-    /// final legalization step expands them after the optimization pipeline.
+    /// Pre-Byzantium reverts remain temporarily legal because the final legalization
+    /// step replaces them after the optimization pipeline.
     pub(super) fn verify_between_passes(&self, module: &Module, before: &TargetSupportSnapshot) {
         if self.verify_module_shape(module) {
             self.verify_new_target_requirements(module, before);
@@ -131,7 +131,7 @@ impl<'a> Verifier<'a> {
     ///
     /// This is the only stack-operation check that reports in release builds, so it runs for
     /// every EVM version: which module the check sees must not depend on whether legalization
-    /// had shifts to rewrite.
+    /// had a revert to rewrite.
     pub(in crate::backend) fn verify_after_legalization(&self, module: &Module) {
         self.verify_module(module);
         self.verify_target_support(module);
@@ -649,8 +649,7 @@ impl<'a> Verifier<'a> {
     }
 
     fn opcode_awaits_legalization(&self, opcode: u8) -> bool {
-        (!self.evm_version.has_bitwise_shifting() && matches!(opcode, op::SHL | op::SHR | op::SAR))
-            || (!self.evm_version.supports_returndata() && opcode == op::REVERT)
+        !self.evm_version.supports_returndata() && opcode == op::REVERT
     }
 
     fn unsupported_instruction(&self, inst: &Instruction) -> Option<TargetRequirement> {

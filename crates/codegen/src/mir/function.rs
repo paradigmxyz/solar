@@ -3,7 +3,7 @@
 use super::{
     AbiLayoutRef, AbiParamLayout, AbiParamLocation, ArgIdx, BasicBlock, BlockId, Immediate, InstId,
     InstKind, Instruction, MangledSymbol, MirType, PtrLocation, StorageAlias, Value, ValueId,
-    utils,
+    memory::EvmMemoryLayout, utils,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -364,6 +364,22 @@ impl Function {
         self.value_u256(id).and_then(super::utils::u256_to_u64)
     }
 
+    /// Returns whether the instruction stores a full word to the free-memory-pointer slot.
+    #[must_use]
+    pub(crate) fn is_fmp_slot_store(&self, id: InstId) -> bool {
+        matches!(
+            self.inst(id).kind,
+            InstKind::Store(ptr, _, PtrLocation::Memory)
+                if self.value_u64(ptr) == Some(EvmMemoryLayout::FMP_SLOT)
+        )
+    }
+
+    /// Returns whether the block stores a full word to the free-memory-pointer slot.
+    #[must_use]
+    pub(crate) fn block_stores_fmp_slot(&self, block: &BasicBlock) -> bool {
+        block.instructions.iter().any(|&id| self.is_fmp_slot_store(id))
+    }
+
     /// Returns a possibly replaced immediate value as U256.
     #[must_use]
     pub(crate) fn value_u256_after_replacements(
@@ -523,19 +539,6 @@ impl Function {
             .expect("value-producing instruction must have an allocated result");
         self.values[result] = Value::Undef(ty);
         Some(result)
-    }
-
-    /// Returns a map from each instruction to the block containing it.
-    #[must_use]
-    pub(crate) fn inst_blocks(&self) -> FxHashMap<InstId, BlockId> {
-        let mut inst_blocks =
-            FxHashMap::with_capacity_and_hasher(self.instructions.len(), Default::default());
-        for (block_id, block) in self.blocks.iter_enumerated() {
-            for &inst_id in &block.instructions {
-                inst_blocks.insert(inst_id, block_id);
-            }
-        }
-        inst_blocks
     }
 
     /// Returns the block containing each placed instruction, indexed by instruction.

@@ -13,8 +13,7 @@
 //! value-local analysis cannot. Every read additionally needs an execution guarantee: its block
 //! dominates every live exit, or the loop runs a verified first iteration that reaches it, and
 //! no semantic check or call that may exit without a CFG edge runs before it in the loop.
-//! Memory reads and hashes expand memory, so they never move in a function that may observe
-//! `msize`. A semantic length read of an existing heap object (a fresh allocation or an object
+//! A semantic length read of an existing heap object (a fresh allocation or an object
 //! argument) reads allocated memory and needs no execution guarantee. Fixed-width slot hashes
 //! move with their scratch writes only when nothing else in the function touches scratch.
 //! Environment reads that calls or creates change (balances, code size and hash, return data
@@ -32,42 +31,60 @@
 //! hoisted base costs more in reloads of the words it displaces than its in-loop recomputation
 //! saved. At most a fixed number of instructions leave one loop.
 //!
-//! The pass runs once on the semantic MIR and once more in gas mode after memory lowering,
+//! The pass runs once on the semantic MIR and once more after memory lowering,
 //! which materializes each element access as `add base, 32` plus an index term inside the
 //! loop that reads it; the late run hoists that base so a hot loop carries one word instead
-//! of reloading its argument and re-adding the header on every iteration.
+//! of reloading its argument and re-adding the header on every iteration. An access at an index
+//! the frontend spells first, `(base + index term) + 32`, is reassociated in gas mode into
+//! `(base + 32) + index term`, with `base + 32` computed once in the preheader of the outermost
+//! loop `base` is fixed in, together with every such sum that preheader dominates, when those
+//! sums are the base's last readers: the new word then replaces the base among those the loops
+//! carry. A heap's sift, a sort's partition scan, or a hash table's probe, whose index no affine
+//! recurrence of the loop describes, saves one addition per access; an affine index stays for
+//! `indvar-simplify`, which steps a pointer instead.
 //!
-//! In gas mode, an unsigned checked product inside a loop whose factor `y` is defined before
+//! An unsigned checked product inside a loop whose factor `y` is defined before
 //! the loop, lowered as `y == 0 || (x * y) / y == x` or, with `y` first, as a check that
 //! divides by `x`, becomes `x <= MAX / y - (y == 0)`, with the bound computed once in the
 //! preheader. A nonzero `y` keeps the product below `2^256`
 //! exactly when `x <= MAX / y`. A zero `y` turns the bound into `0 - 1 = MAX`, which every
-//! `x` meets. Each iteration then compares instead of dividing. The check keeps its branch,
-//! which panics when the comparison fails: flipping the branch so the check could merge with
-//! the add overflow check after it made the loop carry more words, and it measured slower.
-//! The rewrite is skipped in loops that check the gas left, since the bound runs first.
+//! `x` meets. Each iteration then compares instead of dividing. The rewrite is skipped in loops
+//! that check the gas left, since the bound runs first.
+//!
+//! In gas mode the check keeps its branch, which panics when the comparison fails: flipping the
+//! branch so the check could merge with the add overflow check after it made the loop carry more
+//! words, and it measured slower. In size mode the comparison is the branch condition itself,
+//! with the edges swapped, so no `iszero` follows it and `merge-aborts` can join it with a
+//! following abort test. The bound is one more word the loop carries, and its saving depends on
+//! the stack schedule, not on the opcodes: a loop carrying seven words grew by two bytes, while
+//! loops carrying two and four shrank by one and four. Size mode therefore rewrites a factor's
+//! checks only while every loop around them stays within [`LOOP_CARRY_BUDGET`] with the bound.
 
 use crate::mir::{
     BlockId, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId, InstKind,
     Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Terminator, Value, ValueId,
     analysis::{
-        AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, Location, LocationSize,
-        Loop, LoopAnalyzer, MemoryAddress, MemoryLocation, ModRef, ScalarEvolution,
+        AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, DominatorTree, Location,
+        LocationSize, Loop, LoopAnalyzer, MemoryAddress, MemoryLocation, ModRef, ScalarEvolution,
     },
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
 };
 use alloy_primitives::U256;
 use arrayvec::ArrayVec;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 use std::rc::Rc;
 
-/// Most words a loop may carry after a below-threshold hoist. The count is the header's phis
-/// plus the values defined outside the loop that its body reads, which the backend keeps on
-/// the stack through the loop when they fit. Past this many, its layouts spill loop values to
-/// frame slots, and a hoisted base then costs more in reloads of the words it displaced than
-/// its in-loop recomputation saved: the hash-probe loop of `hasDuplicate` lost 2.4% carrying
-/// eight, while `reverse` with four gained 8%.
+/// Most words a loop may carry after a below-threshold hoist or, in size mode, a product check's
+/// hoisted bound. The count is the header's phis plus the values defined outside the loop that
+/// its body reads, which the backend keeps on the stack through the loop when they fit. Past this
+/// many, its layouts spill loop values to frame slots, and a hoisted base then costs more in
+/// reloads of the words it displaced than its in-loop recomputation saved: the hash-probe loop of
+/// `hasDuplicate` lost 2.4% carrying eight, while `reverse` with four gained 8%.
 const LOOP_CARRY_BUDGET: usize = 5;
 
 /// Function pass for loop-invariant code motion.
@@ -165,20 +182,18 @@ impl LoopOptimizer {
             func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
 
         let mut analyzer = LoopAnalyzer::new();
-        let loop_info = analyzer.analyze_with_cfg(func, cfg);
+        let loop_info = analyzer.analyze_with_cfg(func, Rc::clone(&cfg));
 
         if loop_info.loops.is_empty() {
             return 0;
         }
 
         let loops = loop_info.loops.values().cloned().collect::<Vec<_>>();
-        if self.hoist_cheap {
-            for loop_data in &loops {
-                // The product's limit runs before the loop, so whatever in the loop checks the gas
-                // left would see what the limit cost before the first check paid for it.
-                if !self.loop_checks_gas_left(func, loop_data) {
-                    self.hoisted += reduce_product_checks(func, loop_data);
-                }
+        for loop_data in &loops {
+            // The product's limit runs before the loop, so whatever in the loop checks the gas
+            // left would see what the limit cost before the first check paid for it.
+            if !self.loop_checks_gas_left(func, loop_data) {
+                self.hoisted += reduce_product_checks(func, loop_data, &loops, self.hoist_cheap);
             }
         }
         let inst_blocks = func.inst_block_table();
@@ -186,6 +201,16 @@ impl LoopOptimizer {
             .iter()
             .map(|loop_data| (loop_data.header, Self::carried_words(func, loop_data, &inst_blocks)))
             .collect::<FxHashMap<_, _>>();
+        if self.hoist_cheap {
+            // Outer loops first, so a sum an inner loop shares with its outer loop is rewritten
+            // with the outer loop's view of the index.
+            let mut nest = loops.iter().collect::<Vec<_>>();
+            nest.sort_by_key(|loop_data| std::cmp::Reverse(loop_data.blocks.count()));
+            for loop_data in nest {
+                self.hoisted +=
+                    reassociate_invariant_offsets(func, loop_data, &loops, cfg.dominators());
+            }
+        }
         for loop_data in &loops {
             self.apply_licm(func, loop_data, &analyzer, &loops, &mut carried);
         }
@@ -445,28 +470,26 @@ impl LoopOptimizer {
             return self.slot_hash_scratch_is_private(func, inst_id)
                 && self.hoist_execution_guaranteed(func, inst_id, ctx);
         }
-        if inst.must_execute(false) {
+        if inst.kind.has_side_effects() {
             return false;
         }
         if matches!(inst.kind, InstKind::Phi(_)) {
             return false;
         }
         match inst.kind {
-            // Hoisting memory reads expands memory earlier (and unconditionally), which any
-            // MSIZE in the function could observe; on top of the dependence checks they must
-            // also be guaranteed to execute so a zero-trip loop cannot start trapping (OOG
-            // from speculated memory expansion) or paying for work it never did.
+            // Hoisting memory reads expands memory earlier (and unconditionally); on top of the
+            // dependence checks they must also be guaranteed to execute so a zero-trip loop
+            // cannot start trapping (OOG from speculated memory expansion) or paying for work
+            // it never did.
             InstKind::Load(addr, PtrLocation::Memory) => {
-                return !self.function_observes_msize(func)
-                    && self.hoist_execution_guaranteed(func, inst_id, ctx)
+                return self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_mutate_memory_range(func, ctx, addr, Some(32));
             }
             // A frame slot's address is implicit until frame lowering. Keep the load in place so a
             // store in the loop cannot be missed by the dependence check above.
             InstKind::FrameLoad { .. } => return false,
             InstKind::Keccak256(offset, size) => {
-                return !self.function_observes_msize(func)
-                    && self.hoist_execution_guaranteed(func, inst_id, ctx)
+                return self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_mutate_memory_range(func, ctx, offset, func.value_u64(size));
             }
             InstKind::Load(slot, location @ (PtrLocation::Storage | PtrLocation::Transient)) => {
@@ -585,10 +608,6 @@ impl LoopOptimizer {
             }
         }
         exiting
-    }
-
-    fn function_observes_msize(&self, func: &Function) -> bool {
-        self.alias().may_observe_msize(func)
     }
 
     fn loop_contains(
@@ -1059,7 +1078,6 @@ impl LoopOptimizer {
         ));
         let private = |effects: ModRef| {
             !effects.observes_gas()
-                && !effects.observes_memory_size()
                 && !effects.may_read(aa, scratch)
                 && !effects.may_write(aa, scratch)
         };
@@ -1077,7 +1095,12 @@ impl LoopOptimizer {
 /// Rewrites each check of a product `x * y` with a factor `y` defined before the loop, lowered as
 /// `d == 0 || (x * y) / d == q` for either order of the factors, into `x <= MAX / y - (y == 0)`,
 /// computing the bound once in the preheader. Returns the number of checks rewritten.
-fn reduce_product_checks(func: &mut Function, loop_data: &Loop) -> usize {
+fn reduce_product_checks(
+    func: &mut Function,
+    loop_data: &Loop,
+    loops: &[Loop],
+    gas: bool,
+) -> usize {
     let Some(preheader) = loop_data.preheader else { return 0 };
     let inst_blocks = func.inst_block_table();
     let outside = |func: &Function, value: ValueId| match *func.value(value) {
@@ -1104,6 +1127,35 @@ fn reduce_product_checks(func: &mut Function, loop_data: &Loop) -> usize {
             }
         }
     }
+    if !gas && !checks.is_empty() {
+        // The bound is carried through every loop from this one down to each of its checks.
+        let mut worst = FxHashMap::<ValueId, usize>::default();
+        for &(block, _, _, y, _) in &checks {
+            let carried = loops
+                .iter()
+                .filter(|inner| {
+                    loop_data.blocks.contains(inner.header) && inner.blocks.contains(block)
+                })
+                .map(|inner| LoopOptimizer::carried_words(func, inner, &inst_blocks))
+                .max()
+                .unwrap_or_default();
+            let worst = worst.entry(y).or_default();
+            *worst = (*worst).max(carried);
+        }
+        let mut bounds = 0;
+        let mut admitted = FxHashMap::default();
+        checks.retain(|&(.., y, _)| {
+            *admitted.entry(y).or_insert_with(|| {
+                let fits = worst[&y] + bounds < LOOP_CARRY_BUDGET;
+                bounds += usize::from(fits);
+                fits
+            })
+        });
+    }
+    if checks.is_empty() {
+        return 0;
+    }
+    let uses = (!gas).then(|| super::egraph::use_counts(func));
     let mut limits = FxHashMap::default();
     for &(block, inst, x, y, zero) in &checks {
         let context = func.inst(inst).metadata.debug_context();
@@ -1122,6 +1174,12 @@ fn reduce_product_checks(func: &mut Function, loop_data: &Loop) -> usize {
             let wide = builder.cast(zero, MirType::I256);
             builder.sub(quotient, wide)
         });
+        if uses.as_ref().is_some_and(|uses| flip_check(func, block, inst, uses)) {
+            // overflows = gt x, limit
+            // jumpi overflows, abort, next
+            func.inst_mut(inst).kind = InstKind::Gt(x, limit);
+            continue;
+        }
         // overflows = gt x, limit
         let mut overflows = Instruction::new(InstKind::Gt(x, limit), Some(MirType::I1));
         overflows.metadata.copy_debug_context(&func.inst(inst).metadata);
@@ -1134,6 +1192,30 @@ fn reduce_product_checks(func: &mut Function, loop_data: &Loop) -> usize {
         func.inst_mut(inst).kind = InstKind::Eq(overflows, zero);
     }
     checks.len()
+}
+
+/// Swaps the edges of the branch that tests only `inst`, so the check's result becomes the
+/// condition that aborts.
+fn flip_check(
+    func: &mut Function,
+    block: BlockId,
+    inst: InstId,
+    uses: &IndexVec<ValueId, u32>,
+) -> bool {
+    let Some(check) = func.inst_result_value(inst) else { return false };
+    if uses[check] != 1 {
+        return false;
+    }
+    let Some(Terminator::Branch { condition, then_block, else_block }) =
+        &mut func.blocks[block].terminator
+    else {
+        return false;
+    };
+    if *condition != check {
+        return false;
+    }
+    std::mem::swap(then_block, else_block);
+    true
 }
 
 /// Matches `d == 0` and `(x * y) / d == q`, where `d` and `q` are the factors `x` and `y` in
@@ -1161,4 +1243,157 @@ fn product_check(
         let words = [divisor, other].iter().all(|&v| func.value_ty(v) == Some(MirType::I256));
         (by == divisor && factors && words).then_some((divisor, other, zero_test))
     })
+}
+
+/// Rewrites `(x + y) + c` in a loop, with `x` from outside the loop, `y` from inside, and `c` a
+/// constant, as `t + y` with `t = x + c` computed once before the loop. Memory lowering spells an
+/// element address `(base + (index << 5)) + 32`, so a loop whose index no affine recurrence
+/// describes, as a heap's sift or a sort's partition scan, rebuilt both sums on every access. An
+/// affine `y` stays: `indvar-simplify` steps a pointer for it, and prices that by the sums it
+/// removes. Word addition wraps, so any association computes the same word.
+///
+/// `t` goes to the preheader of the outermost loop `x` is fixed in, so a nested loop does not
+/// rebuild it on every outer iteration, and replaces `x` there: every sum with the same `x + c`
+/// that preheader dominates is rewritten, each inner sum must have no other reader, and nothing
+/// else the preheader dominates may read `x`. A word kept for other readers would make the loops
+/// carry one more, which costs more than the sums save when a loop runs once or twice, as a heap
+/// push's sift or a hash table's probe does.
+fn reassociate_invariant_offsets(
+    func: &mut Function,
+    loop_data: &Loop,
+    loops: &[Loop],
+    dominators: &DominatorTree,
+) -> usize {
+    let inst_blocks = func.inst_block_table();
+    let block_of = |value: ValueId| match *func.value(value) {
+        Value::Inst(inst) => inst_blocks.get(inst).copied().flatten(),
+        _ => None,
+    };
+    // An affine index is `indvar-simplify`'s, which steps a pointer instead.
+    let scev = ScalarEvolution::analyze(func, loop_data);
+    let mut readers = FxHashMap::<ValueId, usize>::default();
+    for block in &func.blocks {
+        for &inst in &block.instructions {
+            func.inst(inst)
+                .kind
+                .visit_operands(&mut |value| *readers.entry(value).or_default() += 1);
+        }
+        if let Some(term) = &block.terminator {
+            term.visit_operands(&mut |value| *readers.entry(value).or_default() += 1);
+        }
+    }
+    // The sum `outer = (x + y) + c` with its single-reader inner sum, as `(x, c, outer, inner, y)`.
+    let split = |outer: InstId| {
+        let InstKind::Add(first, second) = func.inst(outer).kind else { return None };
+        let (sum, c) = [(first, second), (second, first)]
+            .into_iter()
+            .find(|&(sum, c)| func.value_u256(c).is_some() && func.value_u256(sum).is_none())?;
+        let Value::Inst(inner) = *func.value(sum) else { return None };
+        let InstKind::Add(a, b) = func.inst(inner).kind else { return None };
+        (readers.get(&sum).copied() == Some(1)
+            && func.value_ty(sum) == Some(MirType::I256)
+            && func.inst(outer).result_ty == Some(MirType::I256))
+        .then_some((a, b, c, inner))
+    };
+    // Each `x + c` with an in-loop site whose `y` changes in the loop but not affinely.
+    let mut keys = Vec::<(ValueId, U256, ValueId)>::new();
+    for block in loop_data.blocks.iter() {
+        for &outer in &func.blocks[block].instructions {
+            let Some((a, b, c, _)) = split(outer) else { continue };
+            for (x, y) in [(a, b), (b, a)] {
+                if func.value_u256(x).is_none()
+                    && block_of(x).is_none_or(|def| !loop_data.blocks.contains(def))
+                    && block_of(y).is_some_and(|def| loop_data.blocks.contains(def))
+                    && scev.get(y).is_none()
+                {
+                    let constant = func.value_u256(c).expect("the offset is a constant");
+                    if !keys.iter().any(|&(kx, kc, _)| kx == x && kc == constant) {
+                        keys.push((x, constant, c));
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    // Plan every rewrite before changing the function.
+    let mut plans = Vec::new();
+    let mut claimed = FxHashSet::default();
+    for (x, constant, c) in keys {
+        // The outermost loop around this one that `x` is fixed in.
+        let Some(target) = loops
+            .iter()
+            .filter(|outer| {
+                outer.blocks.superset(&loop_data.blocks)
+                    && block_of(x).is_none_or(|def| !outer.blocks.contains(def))
+            })
+            .max_by_key(|outer| outer.blocks.count())
+        else {
+            continue;
+        };
+        let Some(preheader) = target.preheader else { continue };
+        if block_of(x).is_some_and(|def| def != preheader && !dominators.dominates(def, preheader))
+        {
+            continue;
+        }
+        // Every `x + c` sum the preheader dominates, and whether anything else there reads `x`.
+        let mut sites = Vec::new();
+        let mut read_elsewhere = false;
+        for block in func.blocks.indices() {
+            if block == preheader || !dominators.dominates(preheader, block) {
+                continue;
+            }
+            for &inst in &func.blocks[block].instructions {
+                if let Some((a, b, sum_c, inner)) = split(inst)
+                    && func.value_u256(sum_c) == Some(constant)
+                    && let Some(y) = if a == x {
+                        Some(b)
+                    } else if b == x {
+                        Some(a)
+                    } else {
+                        None
+                    }
+                    && func.value_u256(y).is_none()
+                {
+                    sites.push((inst, inner, y));
+                }
+            }
+            let block = &func.blocks[block];
+            if block.terminator.as_ref().is_some_and(|term| term.reads(x)) {
+                read_elsewhere = true;
+            }
+        }
+        let inners = sites.iter().map(|&(_, inner, _)| inner).collect::<Vec<_>>();
+        read_elsewhere |= func.blocks.indices().any(|block| {
+            block != preheader
+                && dominators.dominates(preheader, block)
+                && func.blocks[block]
+                    .instructions
+                    .iter()
+                    .any(|&inst| !inners.contains(&inst) && func.inst(inst).kind.reads(x))
+        });
+        if read_elsewhere
+            || sites.is_empty()
+            || sites.iter().any(|&(outer, _, _)| claimed.contains(&outer))
+        {
+            continue;
+        }
+        claimed.extend(sites.iter().map(|&(outer, _, _)| outer));
+        plans.push((preheader, x, c, sites));
+    }
+    let mut rewritten = 0;
+    for (preheader, x, c, sites) in plans {
+        // preheader: t = add x, c
+        let mut sum = Instruction::new(InstKind::Add(x, c), Some(MirType::I256));
+        sum.metadata.copy_debug_context(&func.inst(sites[0].0).metadata);
+        let (sum_inst, t) = func.alloc_value_inst(sum);
+        func.blocks[preheader].instructions.push(sum_inst);
+        for (outer, inner, y) in sites {
+            // outer = add t, y
+            func.inst_mut(outer).kind = InstKind::Add(t, y);
+            let block = inst_blocks[inner].expect("the inner sum is in a block");
+            func.blocks[block].instructions.retain(|&inst| inst != inner);
+            rewritten += 1;
+        }
+    }
+    rewritten
 }

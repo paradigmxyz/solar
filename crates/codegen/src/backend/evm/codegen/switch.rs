@@ -23,7 +23,7 @@ use crate::{
     backend::{
         assembler::{
             Label,
-            assembly::{estimated_indexed_jump_code_size, packs_indexed_jump},
+            assembly::{TablePacking, estimated_indexed_jump_code_size, packs_indexed_jump},
         },
         evm::{
             ir::immediate_materialization_cost,
@@ -130,6 +130,9 @@ pub(super) struct SwitchPlanOptions {
     /// Conservative bound from the assembler's artifact context. Final EVM
     /// IR lowering chooses the exact width for each table.
     pub(super) table_target_width: usize,
+    /// Whether table entries wider than one byte may be packed into words
+    /// (`-Zpack-wide-jump-tables`).
+    pub(super) pack_wide_jump_tables: bool,
     pub(super) max_gas_code_growth: usize,
     pub(super) max_bit_slice_gas_code_growth: usize,
     pub(super) forced: SwitchLowering,
@@ -234,6 +237,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         expected_executions,
         default,
         table_target_width,
+        pack_wide_jump_tables,
         max_gas_code_growth,
         max_bit_slice_gas_code_growth,
         forced,
@@ -323,6 +327,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                                 evm_version,
                                 explicit_default,
                                 table_target_width,
+                                pack_wide_jump_tables,
                             ),
                             SwitchPlan::Buckets { bucket_count },
                         )
@@ -335,6 +340,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 default,
                 table_target_width,
                 layout.shared_case_continuation,
+                pack_wide_jump_tables,
             )
             .map(|(low, range, cost)| (cost, SwitchPlan::Dense { low, range })),
             SwitchLowering::Perfect => perfect_hash_candidates_with_tests(
@@ -343,6 +349,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 evm_version,
                 default,
                 table_target_width,
+                pack_wide_jump_tables,
             )
             .into_iter()
             .min_by_key(|&(cost, _)| plan_cost_key(cost, optimization)),
@@ -424,6 +431,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 evm_version,
                 explicit_default,
                 table_target_width,
+                pack_wide_jump_tables,
             );
             if gas_candidate_is_better(
                 cost,
@@ -442,6 +450,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         default,
         table_target_width,
         layout.shared_case_continuation,
+        pack_wide_jump_tables,
     ) {
         let better = match optimization {
             OptimizationMode::Gas => gas_candidate_is_better(
@@ -472,6 +481,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         evm_version,
         default,
         table_target_width,
+        pack_wide_jump_tables,
     ) {
         let better = match optimization {
             OptimizationMode::Gas => {
@@ -885,6 +895,7 @@ fn bucket_lowering_cost_with_tests(
     evm_version: EvmVersion,
     default: SwitchDefault,
     table_target_width: usize,
+    pack_wide_jump_tables: bool,
 ) -> LoweringCost {
     debug_assert!(!default.can_fallthrough());
     debug_assert_eq!(values.len(), equality_costs.len());
@@ -900,6 +911,7 @@ fn bucket_lowering_cost_with_tests(
         (hash_len, hash_gas),
         evm_version,
         table_target_width,
+        pack_wide_jump_tables,
     );
 
     let mut bucket_path_gas = vec![0; bucket_count];
@@ -933,10 +945,12 @@ fn indexed_jump_dispatch_cost(
     hash: (usize, usize),
     evm_version: EvmVersion,
     table_target_width: usize,
+    pack_wide_jump_tables: bool,
 ) -> (LoweringCost, usize) {
     let (hash_len, hash_gas) = hash;
     let indexed_jump_gas =
-        indexed_jump_gas(table_len, table_target_width, evm_version) + JUMPDEST_GAS;
+        indexed_jump_gas(table_len, table_target_width, evm_version, pack_wide_jump_tables)
+            + JUMPDEST_GAS;
     let dispatch_gas = hash_gas + indexed_jump_gas;
     let cost = LoweringCost {
         code_size: hash_len
@@ -945,7 +959,7 @@ fn indexed_jump_dispatch_cost(
                 table_target_width,
                 1,
                 evm_version,
-                table_target_width == 1,
+                TablePacking { two_words: table_target_width == 1, wide: pack_wide_jump_tables },
             ),
         max_code_size: hash_len
             + estimated_indexed_jump_code_size(
@@ -953,7 +967,7 @@ fn indexed_jump_dispatch_cost(
                 table_target_width,
                 table_target_width,
                 evm_version,
-                false,
+                TablePacking { two_words: false, wide: pack_wide_jump_tables },
             ),
         hit_gas_sum: dispatch_gas * case_count,
         miss_gas: dispatch_gas,
@@ -961,6 +975,7 @@ fn indexed_jump_dispatch_cost(
     (cost, dispatch_gas)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn bounded_indexed_jump_cost(
     values: &[U256],
     range: usize,
@@ -969,13 +984,15 @@ fn bounded_indexed_jump_cost(
     default: SwitchDefault,
     table_target_width: usize,
     shared_case_continuation: bool,
+    pack_wide_jump_tables: bool,
 ) -> LoweringCost {
     let (hash_len, hash_gas) = hash;
     let bounds_prefix_len = 1 + push_len(evm_version, U256::from(range)) + 1;
     let bounds_len = bounds_prefix_len + MIN_LABEL_PUSH_LEN + 1;
     let max_bounds_len = bounds_prefix_len + max_label_push_len(table_target_width) + 1;
     let bounds_gas = VERY_LOW_GAS * 4 + JUMPI_GAS;
-    let indexed_jump_gas = indexed_jump_gas(range, table_target_width, evm_version);
+    let indexed_jump_gas =
+        indexed_jump_gas(range, table_target_width, evm_version, pack_wide_jump_tables);
     let continuation_gas = usize::from(shared_case_continuation) * DEFAULT_JUMP_GAS;
     let hit_gas = hash_gas + bounds_gas + JUMPDEST_GAS + indexed_jump_gas + continuation_gas;
     let default_body_gas =
@@ -997,7 +1014,7 @@ fn bounded_indexed_jump_cost(
                 table_target_width,
                 1,
                 evm_version,
-                table_target_width == 1,
+                TablePacking { two_words: table_target_width == 1, wide: pack_wide_jump_tables },
             )
             + usize::from(shared_case_continuation) * MIN_DEFAULT_JUMP_LEN,
         max_code_size: hash_len
@@ -1010,7 +1027,7 @@ fn bounded_indexed_jump_cost(
                 table_target_width,
                 table_target_width,
                 evm_version,
-                false,
+                TablePacking { two_words: false, wide: pack_wide_jump_tables },
             ),
         hit_gas_sum: hit_gas * values.len(),
         miss_gas,
@@ -1023,6 +1040,7 @@ fn dense_lowering_cost(
     default: SwitchDefault,
     table_target_width: usize,
     shared_case_continuation: bool,
+    pack_wide_jump_tables: bool,
 ) -> Option<(U256, usize, LoweringCost)> {
     let low = *values.first()?;
     let high = *values.last()?;
@@ -1045,6 +1063,7 @@ fn dense_lowering_cost(
             default,
             table_target_width,
             shared_case_continuation,
+            pack_wide_jump_tables,
         ),
     ))
 }
@@ -1055,12 +1074,20 @@ fn perfect_hash_candidates_with_tests(
     evm_version: EvmVersion,
     default: SwitchDefault,
     table_target_width: usize,
+    pack_wide_jump_tables: bool,
 ) -> Vec<(LoweringCost, SwitchPlan)> {
     debug_assert_eq!(values.len(), equality_costs.len());
     let mut candidates = Vec::with_capacity(4);
     if let Some(hash @ PerfectHash::Affine { .. }) = affine_hash(values, evm_version) {
         candidates.push((
-            affine_lowering_cost(values, hash, evm_version, default, table_target_width),
+            affine_lowering_cost(
+                values,
+                hash,
+                evm_version,
+                default,
+                table_target_width,
+                pack_wide_jump_tables,
+            ),
             SwitchPlan::Perfect { hash },
         ));
     }
@@ -1101,6 +1128,7 @@ fn perfect_hash_candidates_with_tests(
                             evm_version,
                             default.without_fallthrough(),
                             table_target_width,
+                            pack_wide_jump_tables,
                         ),
                         SwitchPlan::Perfect { hash },
                     ));
@@ -1121,6 +1149,7 @@ fn bit_slice_lowering_cost_with_tests(
     evm_version: EvmVersion,
     default: SwitchDefault,
     table_target_width: usize,
+    pack_wide_jump_tables: bool,
 ) -> LoweringCost {
     let PerfectHash::BitSlice { shift, mask } = hash else { unreachable!() };
     debug_assert!(!default.can_fallthrough());
@@ -1138,6 +1167,7 @@ fn bit_slice_lowering_cost_with_tests(
         (hash_len, hash_gas),
         evm_version,
         table_target_width,
+        pack_wide_jump_tables,
     );
 
     debug_assert_eq!(values.len(), equality_costs.len());
@@ -1213,6 +1243,7 @@ fn affine_lowering_cost(
     evm_version: EvmVersion,
     default: SwitchDefault,
     table_target_width: usize,
+    pack_wide_jump_tables: bool,
 ) -> LoweringCost {
     let PerfectHash::Affine { low, multiplier, rotate, range } = hash else { unreachable!() };
     let (low_len, low_gas) = immediate_materialization_cost(evm_version, low);
@@ -1232,6 +1263,7 @@ fn affine_lowering_cost(
         default,
         table_target_width,
         false,
+        pack_wide_jump_tables,
     )
 }
 
@@ -1284,8 +1316,13 @@ pub(super) fn affine_index(value: U256, low: U256, multiplier: U256, rotate: usi
     usize::try_from(hashed).expect("affine switch hash must fit usize")
 }
 
-fn indexed_jump_gas(table_size: usize, target_width: usize, evm_version: EvmVersion) -> usize {
-    if packs_indexed_jump(table_size, target_width, evm_version) {
+fn indexed_jump_gas(
+    table_size: usize,
+    target_width: usize,
+    evm_version: EvmVersion,
+    pack_wide_jump_tables: bool,
+) -> usize {
+    if packs_indexed_jump(table_size, target_width, evm_version, pack_wide_jump_tables) {
         let scale = target_width * 8;
         VERY_LOW_GAS * 6 + if scale.is_power_of_two() { VERY_LOW_GAS } else { MUL_GAS } + JUMP_GAS
     } else {
@@ -1832,6 +1869,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                             .then(|| Target::new(self.gcx).expected_executions()),
                         default,
                         table_target_width: self.asm.indexed_jump_target_width_bound(),
+                        pack_wide_jump_tables: self.gcx.sess.opts.unstable.pack_wide_jump_tables,
                         max_gas_code_growth: if lifetime_priced {
                             usize::MAX
                         } else {

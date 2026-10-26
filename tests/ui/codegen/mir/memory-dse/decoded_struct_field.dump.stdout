@@ -7,23 +7,22 @@ fn @tokenId() [selector=0x8f25c453, abi_wrapper, pure] {
     v24 = lt v23, 36
     v25 = calldataload 4
     v26 = add v25, 4
-    v27 = add v26, 32
-    v28 = gt v25, 0xffffffffffffffff
-    v29 = gt v27, v23
-    v30 = or v28, v29
-    v32 = calldataload v26
-    v34 = sub v23, v27
-    v35 = gt v32, v34
-    v38 = or v30, v35
-    v44 = or v24, v38
-    v6 = slt v32, 128
-    v45 = or v44, v6
-    jumpi v45, bb1, bb2
+    v28 = sub v23, 36
+    v29 = gt v25, v28
+    v30 = calldataload v26
+    v31 = add v26, 32
+    v32 = sub v23, v31
+    v33 = gt v30, v32
+    v34 = or v29, v33
+    v40 = or v24, v34
+    v6 = slt v30, 128
+    v41 = or v40, v6
+    jumpi v41, bb1, bb2
   bb2:
     v7 = alloc 128 !metadata(deferred_alloc)
-    v8 = calldataload v27
-    mstore 128, v8
-    returndata 128, 32
+    v8 = calldataload v31
+    mstore 0, v8
+    returndata 0, 32
   bb1:
     revert 0, 0
 }

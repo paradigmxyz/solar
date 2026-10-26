@@ -25,10 +25,11 @@
 //! `PUSH target; JUMPI` of an overflow check or a guard: the pair takes only its condition, so it
 //! joins the run as one more ordered operation. Work may move below it, as only the path that
 //! continues needs it, but never above it, so the aborting path spends no more gas than before
-//! and still reaches its revert. Such a block reaches its `REVERT` or `INVALID` without a jump
-//! and without an operation that depends on the gas left, such as a `GAS` reading in its
-//! payload, which could tell where the work ran. A block that returns or stops is a normal exit
-//! and ends the run. Spanning the checks gives the search more freedom, but a longer run can
+//! and still reaches its revert. Such a block reaches its `REVERT` or `INVALID` without a branch,
+//! within at most [`MAX_ABORT_JUMPS`] blocks linked by direct jumps, as tail merging shares the
+//! ends of reverts, and without an operation that depends on the gas left, such as a `GAS` reading
+//! in its payload, which could tell where the work ran. A block that returns or stops is a normal
+//! exit and ends the run. Spanning the checks gives the search more freedom, but a longer run can
 //! exhaust its budget where the runs between its checks would not, so those are scheduled
 //! separately as well, split after each operation that depends on the gas left too, and the
 //! cheaper result is kept. A run with more operations than one search takes is cut into windows
@@ -66,7 +67,11 @@
 //! objective's first part is not searched, as only the second part could improve, and one at most a
 //! swap above it gets its budget's smaller near limits. Equal runs share their result, as unrolled
 //! copies and repeated checks repeat them, and so do runs that push other immediates of the same
-//! widths: a schedule depends only on which pushes repeat a value and how wide each is.
+//! widths: a schedule depends only on which pushes repeat a value and how wide each is. Programs
+//! and contracts repeat each other's runs too, as tests embed the same library and helper code,
+//! so a search that this program's cache misses and that would expand states is looked up in a
+//! cache shared by every program of the compilation, kept on its global context, keyed by
+//! everything the search reads of the run and its target prices.
 //!
 //! Safety: the replacement performs exactly the original operations on the same operand words,
 //! keeps memory and storage accesses in order, and leaves the same words in the same stack
@@ -91,16 +96,24 @@
 use super::{EvmPass, utils::is_split_point};
 use crate::{
     backend::evm::{
-        ir::{Block, BlockId, Instruction, Module, TerminatorKind},
+        CodegenState,
+        ir::{BlockId, Instruction, Module, TerminatorKind},
         op::{self, StackOp},
     },
     target::{Cost, Target},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxBuildHasher, FxHashMap},
+    sync::RwLock,
+};
 use solar_sema::Gcx;
-use std::collections::{BinaryHeap, hash_map::Entry};
+use std::{
+    collections::{BinaryHeap, hash_map::Entry},
+    hash::BuildHasher,
+};
 
 /// Words the search may grow the stack by above the run's entry and exit heights.
 const STACK_SLACK: usize = 3;
@@ -150,6 +163,12 @@ const REACH: usize = 16;
 const WORD_BITS: u32 = 6;
 /// Words a packed stack holds.
 const MAX_HEIGHT: usize = 21;
+/// Blocks an abort may span through direct jumps.
+const MAX_ABORT_JUMPS: usize = 4;
+/// Bits of a key's hash that pick its shard of the cache shared by all programs.
+const SHARED_SHARD_BITS: u32 = 6;
+/// Shards of the cache shared by all programs.
+const SHARED_SHARDS: usize = 1 << SHARED_SHARD_BITS;
 
 pub(super) struct StackReschedule;
 
@@ -159,16 +178,17 @@ impl EvmPass for StackReschedule {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let target = Target::new(gcx);
+        let code_follows = module.code_follows;
         let mut halts = DenseBitSet::new_empty(module.blocks.len());
-        for (id, block) in module.blocks.iter_enumerated() {
-            if aborts_without_stack(block) {
+        for id in module.blocks.indices() {
+            if aborts_without_stack(module, id) {
                 halts.insert(id);
             }
         }
-        let mut scratch = Scratch::default();
+        let mut scratch = Scratch::new(gcx);
         let mut changed = false;
         for block in &mut module.blocks {
+            let target = &block.target(gcx, code_follows);
             let hot_loop = target.optimization().is_gas()
                 && block.metadata.in_loop
                 && !block.metadata.hotness.is_cold();
@@ -282,10 +302,10 @@ impl State {
 
 fn reschedule_block(
     instructions: &mut Vec<Instruction>,
-    target: Target,
+    target: &Target,
     budget: Budget,
     halts: &DenseBitSet<BlockId>,
-    scratch: &mut Scratch,
+    scratch: &mut Scratch<'_>,
 ) -> bool {
     let mut replacements = Vec::new();
     let mut operations_before = Vec::new();
@@ -380,11 +400,39 @@ fn reschedule_block(
 /// The schedules found for runs, by their instructions and search budget.
 type Schedules = FxHashMap<(SmallVec<[RunKey; 24]>, Budget), Option<Vec<Move>>>;
 
-/// What the pass keeps across runs: the schedules found and the search's buffers.
+/// The results of every search of a compilation, kept on its [`Gcx`]. A search is a function of
+/// its key, so threads may race to fill an entry and every program may read any entry.
+pub(in crate::backend::evm) struct SharedSchedules([SharedShard; SHARED_SHARDS]);
+
+impl Default for SharedSchedules {
+    fn default() -> Self {
+        Self(std::array::from_fn(|_| SharedShard::default()))
+    }
+}
+
+/// One shard of the shared schedules: moves by [`search_key`]. Each shard has cache lines of its
+/// own, so threads on different shards do not contend.
 #[derive(Default)]
-struct Scratch {
+#[repr(align(128))]
+struct SharedShard(RwLock<SharedMoves>);
+
+type SharedMoves = FxHashMap<Box<[u8]>, Option<Box<[Move]>>>;
+
+/// What the pass keeps across runs: the schedules found and the search's buffers.
+struct Scratch<'gcx> {
     schedules: Schedules,
     buffers: Buffers,
+    shared: &'gcx SharedSchedules,
+}
+
+impl<'gcx> Scratch<'gcx> {
+    fn new(gcx: Gcx<'gcx>) -> Self {
+        Self {
+            schedules: Schedules::default(),
+            buffers: Buffers::default(),
+            shared: &gcx.codegen_state::<CodegenState>().schedules,
+        }
+    }
 }
 
 /// The search's state storage, cleared and reused for every run.
@@ -521,7 +569,7 @@ fn constant(inst: &Instruction) -> Option<Constant> {
 }
 
 /// Price of a push as assembly encodes it: the narrowest `PUSH` of its value.
-fn push_cost(inst: &Instruction, target: Target) -> Cost {
+fn push_cost(inst: &Instruction, target: &Target) -> Cost {
     match inst.concrete_immediate() {
         Some(value) if value.is_zero() && target.evm_version().has_push0() => {
             target.opcode(op::PUSH0)
@@ -532,7 +580,7 @@ fn push_cost(inst: &Instruction, target: Target) -> Cost {
 }
 
 /// Price of an instruction a run holds.
-fn instruction_cost(inst: &Instruction, target: Target) -> Cost {
+fn instruction_cost(inst: &Instruction, target: &Target) -> Cost {
     if let Some(stack_op) = inst.as_stack_op() {
         target.opcode(stack_op.single_byte_evm_opcode().expect("runs hold one-byte stack ops"))
     } else if inst.is_encoded_push() {
@@ -555,7 +603,7 @@ fn apply(stack: &mut SmallVec<[Word; 24]>, stack_op: StackOp) {
 }
 
 /// Orders costs under the objective as one number: gas first, then bytes.
-fn scalar(cost: Cost, target: Target) -> u64 {
+fn scalar(cost: Cost, target: &Target) -> u64 {
     let [first, second] = target.objective_key(cost);
     (u64::from(first) << 32) | u64::from(second)
 }
@@ -563,7 +611,7 @@ fn scalar(cost: Cost, target: Target) -> u64 {
 /// Executes a run symbolically.
 fn summarize(
     run: &[Instruction],
-    target: Target,
+    target: &Target,
     max_operations: usize,
     halts: &DenseBitSet<BlockId>,
 ) -> Option<Run> {
@@ -676,8 +724,15 @@ impl Words {
 }
 
 /// Searches for the cheapest schedule of a run's operations that leaves its stack, when one
-/// beats the run's own stack operations.
-fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> Option<Vec<Move>> {
+/// beats the run's own stack operations. A run that needs a search is looked up in the schedules
+/// shared by all programs before it, and stored there after it.
+fn search(
+    run: &Run,
+    target: &Target,
+    limits: Budget,
+    buffers: &mut Buffers,
+    shared: &SharedSchedules,
+) -> Option<Vec<Move>> {
     let operation_count = run.operations.len();
     let words = Words { entry: run.entry, operations: operation_count };
     let word_count = run.entry + operation_count + run.pushes.len();
@@ -777,6 +832,14 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
     let gap = (budget >> 32).saturating_sub(estimate(start) >> 32);
     if gap == 0 {
         return None;
+    }
+    // Runs the search would take up are looked up, and stored after it, in the shared schedules.
+    let key = search_key(run, [dup, swap, pop, budget], limits);
+    // The shard takes the hash's high bits, as its table indexes by the low ones.
+    let shard =
+        &shared.0[(FxBuildHasher.hash_one(&key[..]) >> (u64::BITS - SHARED_SHARD_BITS)) as usize];
+    if let Some(moves) = shard.0.read().get(&key[..]) {
+        return moves.as_deref().map(<[Move]>::to_vec);
     }
     let limits = if gap <= swap >> 32 { limits.near } else { limits.states };
 
@@ -1088,14 +1151,17 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
             open.push(next_cost + BOUND_WEIGHT * remaining, next_cost, id);
         }
     }
-    let mut cursor = found?;
-    let mut moves = Vec::new();
-    while let Some(step) = arena[cursor as usize].step {
-        moves.push(step);
-        cursor = arena[cursor as usize].parent;
-    }
-    moves.reverse();
-    Some(moves)
+    let moves = found.map(|mut cursor| {
+        let mut moves = Vec::new();
+        while let Some(step) = arena[cursor as usize].step {
+            moves.push(step);
+            cursor = arena[cursor as usize].parent;
+        }
+        moves.reverse();
+        moves
+    });
+    shard.0.write().insert(key.as_slice().into(), moves.as_deref().map(Box::from));
+    moves
 }
 
 /// Builds the instructions of a schedule, after replaying it against the run's summary.
@@ -1204,32 +1270,39 @@ fn is_branch_pair(
 }
 
 /// Whether a block aborts without reading a word that was on the stack when it was entered, and
-/// without anything that tells how much work ran before the branch into it.
+/// without anything that tells how much work ran before the branch into it. The abort may end in
+/// a block that a few direct jumps reach.
 ///
 /// A run may move work below a branch to such a block: the work then runs only on the path that
 /// continues, which is the one that needs it. A block that returns or stops is a normal exit, and
-/// so is one that jumps elsewhere before its end. A `GAS` reading, a call or an `SSTORE` would see
-/// how much gas the path spent, so a block with one keeps its branch out of runs.
-fn aborts_without_stack(block: &Block) -> bool {
+/// so is one that may branch elsewhere before its end. A `GAS` reading, a call or an `SSTORE` would
+/// see how much gas the path spent, so a block with one keeps its branch out of runs.
+fn aborts_without_stack(module: &Module, mut id: BlockId) -> bool {
     let mut depth = 0usize;
-    for inst in &block.instructions {
-        if inst.opcode == op::JUMPI
-            || inst
-                .definition()
-                .is_some_and(|definition| definition.is_terminal() || definition.observes_gas())
-        {
-            return false;
+    // Shared tails move the end of an abort into another block, so follow a few direct jumps.
+    for _ in 0..MAX_ABORT_JUMPS {
+        let block = &module.blocks[id];
+        for inst in &block.instructions {
+            if inst.opcode == op::JUMPI
+                || inst
+                    .definition()
+                    .is_some_and(|definition| definition.is_terminal() || definition.observes_gas())
+            {
+                return false;
+            }
+            let effect = inst.stack_effect();
+            let Some(rest) = depth.checked_sub(usize::from(effect.inputs)) else { return false };
+            depth = rest + usize::from(effect.outputs);
         }
-        let effect = inst.stack_effect();
-        let Some(rest) = depth.checked_sub(usize::from(effect.inputs)) else { return false };
-        depth = rest + usize::from(effect.outputs);
-    }
-    match block.terminator.as_ref().map(|terminator| &terminator.kind) {
-        Some(kind @ TerminatorKind::Op(op::REVERT | op::INVALID)) => {
-            kind.stack_io().is_some_and(|(inputs, _)| usize::from(inputs) <= depth)
+        match block.terminator.as_ref().map(|terminator| &terminator.kind) {
+            Some(kind @ TerminatorKind::Op(op::REVERT | op::INVALID)) => {
+                return kind.stack_io().is_some_and(|(inputs, _)| usize::from(inputs) <= depth);
+            }
+            Some(&TerminatorKind::Jump(target)) => id = target,
+            _ => return false,
         }
-        _ => false,
     }
+    false
 }
 
 /// Whether an instruction of a run is an operation: a branch pair's push is part of its `JUMPI`.
@@ -1240,10 +1313,10 @@ fn is_operation(inst: &Instruction) -> bool {
 /// The cheapest schedule the search finds for a run, if it beats the run's own.
 fn schedule(
     run: &[Instruction],
-    target: Target,
+    target: &Target,
     budget: Budget,
     halts: &DenseBitSet<BlockId>,
-    scratch: &mut Scratch,
+    scratch: &mut Scratch<'_>,
 ) -> Option<Vec<Instruction>> {
     // A run that ends in a label push, the target of the jump after it, keeps the push last so
     // the jump's edge stays visible.
@@ -1263,9 +1336,50 @@ fn schedule(
         run.iter().map(|inst| run_key(inst, &mut immediates)).collect::<SmallVec<[RunKey; 24]>>(),
         budget,
     );
-    let Scratch { schedules, buffers } = scratch;
-    let moves = schedules.entry(key).or_insert_with(|| search(&summary, target, budget, buffers));
+    let Scratch { schedules, buffers, shared } = scratch;
+    let moves =
+        schedules.entry(key).or_insert_with(|| search(&summary, target, budget, buffers, shared));
     emit(run, &summary, moves.as_ref()?)
+}
+
+/// Everything [`search`] reads of a run, its budget and its target, as bytes: the operands,
+/// ordering and exit words, the prices of moves, the run and its constants, and the budget's
+/// limits. It leaves out which opcodes and immediates the run holds, which a schedule does not
+/// depend on.
+fn search_key(run: &Run, prices: [u64; 4], budget: Budget) -> SmallVec<[u8; 192]> {
+    let mut key = SmallVec::new();
+    let word = |key: &mut SmallVec<[u8; 192]>, word: Word| match word {
+        Word::Entry(index) => key.extend([0, index]),
+        Word::Result(index) => key.extend([1, index]),
+        Word::Constant(index) => key.extend([2, index]),
+    };
+    key.extend(
+        [run.entry, run.peak, run.pushes.len(), run.exit.len(), run.operations.len()]
+            .map(|len| len as u8),
+    );
+    for operation in &run.operations {
+        key.extend([
+            u8::from(operation.produces) | u8::from(operation.swapped.is_some()) << 1,
+            operation.after.unwrap_or(u8::MAX),
+            operation.operands.len() as u8,
+        ]);
+        for &operand in &operation.operands {
+            word(&mut key, operand);
+        }
+    }
+    for &exit in &run.exit {
+        word(&mut key, exit);
+    }
+    let Budget { operations, states, near } = budget;
+    for limit in
+        [operations, states.first, states.refine, states.stall, near.first, near.refine, near.stall]
+    {
+        key.extend((limit as u32).to_le_bytes());
+    }
+    for price in prices.into_iter().chain(run.constant_costs.iter().copied()) {
+        key.extend(price.to_le_bytes());
+    }
+    key
 }
 
 /// Schedules the runs between a window's checks and gas-dependent accesses separately, keeping
@@ -1275,10 +1389,10 @@ fn schedule(
 /// schedule costs no more gas, as nothing of the original ran after the access.
 fn split_schedule(
     window: &[Instruction],
-    target: Target,
+    target: &Target,
     budget: Budget,
     halts: &DenseBitSet<BlockId>,
-    scratch: &mut Scratch,
+    scratch: &mut Scratch<'_>,
 ) -> Option<Vec<Instruction>> {
     let mut rebuilt = Vec::with_capacity(window.len());
     let mut improved = false;
@@ -1326,10 +1440,10 @@ fn split_schedule(
 fn extend_scheduled(
     rebuilt: &mut Vec<Instruction>,
     run: &[Instruction],
-    target: Target,
+    target: &Target,
     budget: Budget,
     halts: &DenseBitSet<BlockId>,
-    scratch: &mut Scratch,
+    scratch: &mut Scratch<'_>,
 ) -> bool {
     match schedule(run, target, budget, halts, scratch) {
         Some(replacement) => {
@@ -1344,7 +1458,7 @@ fn extend_scheduled(
 }
 
 /// The price of a sequence's stack operations and pushes, which is all a schedule changes.
-fn price(instructions: &[Instruction], target: Target) -> u64 {
+fn price(instructions: &[Instruction], target: &Target) -> u64 {
     let cost = instructions
         .iter()
         .filter(|inst| !is_operation(inst))
@@ -1366,7 +1480,7 @@ fn observes_gas(inst: &Instruction) -> bool {
 fn spends_no_more_before_observations(
     original: &[Instruction],
     schedule: &[Instruction],
-    target: Target,
+    target: &Target,
 ) -> bool {
     let spent_before = |instructions: &[Instruction]| {
         let mut spent = 0u64;

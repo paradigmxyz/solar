@@ -74,25 +74,24 @@ fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
     v9 = lt v8, 36
     v10 = calldataload 4
     v11 = add v10, 4
-    v12 = add v11, 32
-    v13 = gt v10, 0xffffffffffffffff
-    v14 = gt v12, v8
-    v15 = or v13, v14
-    v17 = calldataload v11
-    v19 = sub v8, v12
-    v20 = gt v17, v19
-    v23 = or v15, v20
-    v46 = or v9, v23
-    jumpi v46, bb1, bb2
+    v13 = sub v8, 36
+    v14 = gt v10, v13
+    v15 = calldataload v11
+    v16 = add v11, 32
+    v17 = sub v8, v16
+    v18 = gt v15, v17
+    v19 = or v14, v18
+    v42 = or v9, v19
+    jumpi v42, bb1, bb2
   bb2:
-    v31 = icall @u32, v12, v17
-    v39 = mload 32 !metadata(memory=scratch)
-    v33 = add v39, 32
-    v34 = mload v33
-    v35 = icall @u16, v12, v17, v34
-    mstore 128, v31
-    mstore 160, v35
-    returndata 128, 64
+    v27 = icall @u32, v16, v15
+    v35 = mload 32 !metadata(memory=scratch)
+    v29 = add v35, 32
+    v30 = mload v29
+    v31 = icall @u16, v16, v15, v30
+    mstore 0, v27
+    mstore 32, v31
+    returndata 0, 64
   bb1:
     revert 0, 0
 }
@@ -103,23 +102,23 @@ fn @sum4() [selector=0x0540a714, abi_wrapper, pure] {
     v23 = lt v22, 132
     jumpi v23, bb2, bb3
   bb3:
-    v32 = calldataload 4
-    v33 = add 0, v32
-    v41 = calldataload 36
-    v42 = add v33, v41
-    v43 = lt v42, v33
-    v50 = calldataload 68
-    v51 = add v42, v50
-    v52 = lt v51, v42
-    v63 = or v43, v52
-    v59 = calldataload 100
-    v60 = add v51, v59
-    v61 = lt v60, v51
-    v64 = or v63, v61
-    jumpi v64, bb1, bb4
+    v31 = calldataload 4
+    v32 = add 0, v31
+    v40 = calldataload 36
+    v41 = add v32, v40
+    v42 = lt v41, v32
+    v49 = calldataload 68
+    v50 = add v41, v49
+    v51 = lt v50, v41
+    v62 = or v42, v51
+    v58 = calldataload 100
+    v59 = add v50, v58
+    v60 = lt v59, v50
+    v63 = or v62, v60
+    jumpi v63, bb1, bb4
   bb4:
-    mstore 128, v60
-    returndata 128, 32
+    mstore 0, v59
+    returndata 0, 32
   bb1:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

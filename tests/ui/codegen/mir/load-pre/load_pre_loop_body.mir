@@ -68,12 +68,12 @@ fn @rewrites_length(arg0: i256) -> ptr<memory> {
     ret v3
 }
 
-// `msize` observes memory growth, so a body that reads it before the reload
-// keeps the reload.
+// `msize` is not a store, so a body that reads it before the reload still
+// forwards the length around the backedge.
 // CHECK-LABEL: {{^[ +].*}}fn @reads_msize{{[( ]}}
-// CHECK-NOT: phi [bb0: arg0]
+// CHECK: + [[LENGTH:v[0-9]+]] = phi [bb0: arg0], [bb3: [[LENGTH]]]
+// CHECK-NOT: {{^[ +].*}} = mload
 // CHECK: {{^[ +].*}} = msize
-// CHECK: {{^[ +].*}} = mload
 fn @reads_msize(arg0: i256) -> i256 {
   bb0:
     v1 = add arg0, 1
@@ -89,7 +89,10 @@ fn @reads_msize(arg0: i256) -> i256 {
     v10 = msize
     v6 = mload v3
     v7 = add v6, v10
-    mstore 0, v7
+    v11 = shl v4, 5
+    v12 = ptradd v3, v11
+    v13 = ptradd v12, 32
+    mstore v13, v7
     jump bb3
   bb3:
     v9 = add v4, 1

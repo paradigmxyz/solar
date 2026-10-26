@@ -63,6 +63,11 @@ fn main() {
         ..Default::default()
     };
     for (name, files) in RULE_SETS {
+        // `select` runs per candidate inside the cost model and the inliner, so it stays silent.
+        let options = cranelift_isle::codegen::CodegenOptions {
+            emit_logging: *name != "select",
+            ..options.clone()
+        };
         let inputs: Vec<PathBuf> = files.iter().map(|file| isle_dir.join(file)).collect();
         for input in &inputs {
             println!("cargo:rerun-if-changed={}", input.display());

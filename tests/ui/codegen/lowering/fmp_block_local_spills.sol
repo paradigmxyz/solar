@@ -10,9 +10,9 @@
 //@ run-call: hashBranch true, 1, 2 => 0xe90b7bceb6e7df5418fb78d8ee546e97c83a08bbccc01a0644d599ccd2a7c2e0
 
 // The free-memory pointer read in each switch arm stays on the stack, so no
-// level reserves a spill slot for it and the frame floor stays at 160.
+// level reserves a spill slot for it and the frame floor stays at 128.
 // NONE-LABEL: @module FmpBlockLocalSpills_runtime
-// NONE: push 160
+// NONE: push 128
 // NONE-NEXT: push 64
 // NONE-NEXT: mstore
 // NONE: push 64
@@ -24,7 +24,7 @@
 // NONE-NEXT: push 64
 //
 // GAS-LABEL: @module FmpBlockLocalSpills_runtime
-// GAS: push 160
+// GAS: push 128
 // GAS-NEXT: push 64
 // GAS-NEXT: mstore
 // GAS: mload
@@ -33,7 +33,7 @@
 // GAS-NEXT: push 64
 //
 // SIZE-LABEL: @module FmpBlockLocalSpills_runtime
-// SIZE: push 160
+// SIZE: push 128
 // SIZE-NEXT: push 64
 // SIZE-NEXT: mstore
 // SIZE: mload

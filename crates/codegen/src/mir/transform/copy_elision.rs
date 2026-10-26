@@ -11,14 +11,20 @@
 //! Ordinary dead-store elimination keeps such copies because they write
 //! memory; proving the destination allocation is unread lets them go. The pass
 //! is conservative: any read of the allocation (`mload`, `keccak256`, a copy
-//! that reads it, or an escape into a call/return) keeps every write. Writes must fit a known
+//! that reads it, or an escape into a call/return) keeps every write, and a write that can fail
+//! on its own, such as `returndatacopy`, always stays. Writes must fit a known
 //! allocation extent; writes outside it can affect other objects, even when this object is unread.
 //! Indexed element stores also qualify when their sole incoming edge proves an unsigned index
 //! bound whose final word fits the allocation. Other dynamic addresses remain conservative.
+//! An allocation that runs once reads the free-memory pointer before its object exists, so that
+//! read does not count; an allocation in a loop reads it again after the previous instance's
+//! writes and keeps them. Every other read of the pointer's slot still counts. Callers' later
+//! reads of the slot cannot see the removed writes: allocations start at or above the heap floor
+//! (see `heap-floor`), above the slot.
 
 use crate::mir::{
     BlockId, Function, InstId, InstKind, MirType, Module, PtrLocation, Terminator, Value, ValueId,
-    analysis::{Access, AddressSpace, AliasAnalysis, Location, MemoryLocation},
+    analysis::{Access, AddressSpace, AliasAnalysis, Location, MemoryBase, MemoryLocation},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias},
 };
@@ -58,9 +64,6 @@ struct CopyElisionCx {
 
 impl CopyElisionCx {
     fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
-        if func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::MSize)) {
-            return false;
-        }
         let allocs: Vec<ValueId> = func
             .instructions()
             .filter_map(|inst_id| {
@@ -170,15 +173,18 @@ impl CopyElisionCx {
         alias: &AliasAnalysis,
         object: ValueId,
     ) -> bool {
-        let allocation = if let Value::Inst(inst) = func.value(object)
+        let (allocation, alloc_inst) = if let Value::Inst(inst) = func.value(object)
             && let InstKind::Alloc { size, .. } = func.inst(*inst).kind
             && let Some(address) = alias.memory_address(func, object)
         {
             // The allocation's own extent is in bounds, including when its size is dynamic.
-            MemoryLocation::new(address, alias.location_size(func, size))
+            (MemoryLocation::new(address, alias.location_size(func, size)), *inst)
         } else {
             return true;
         };
+        // An allocation that runs once reads the free-memory pointer before its object exists.
+        // A loop allocation's next run may read a previous instance, so it keeps the read.
+        let own_fmp_read = allocation.address.base == MemoryBase::Allocation(alloc_inst);
         let reads_allocation = |access: Access| match access {
             Access::Any(AddressSpace::Memory) => true,
             Access::Location(Location::Memory(location)) => {
@@ -187,7 +193,13 @@ impl CopyElisionCx {
             _ => false,
         };
         func.instructions().any(|inst| {
-            alias.instruction_mod_ref(func, inst).reads().iter().copied().any(reads_allocation)
+            !(own_fmp_read && inst == alloc_inst)
+                && alias
+                    .instruction_mod_ref(func, inst)
+                    .reads()
+                    .iter()
+                    .copied()
+                    .any(reads_allocation)
         }) || func.blocks.iter().filter_map(|block| block.terminator.as_ref()).any(|terminator| {
             alias.terminator_mod_ref(func, terminator).reads().iter().copied().any(reads_allocation)
         })
@@ -351,6 +363,9 @@ impl CopyElisionCx {
             return None;
         }
 
+        // A write that can fail on its own, such as `returndatacopy` past the end of the return
+        // data, stays even though its destination is unread.
+        writes.retain(|&inst_id| !func.inst(inst_id).kind.effects().control.any());
         (!writes.is_empty()).then_some(writes)
     }
 }

@@ -1,0 +1,99 @@
+// === ROOT/tests/ui/codegen/mir/storage-dse/noop_stores.sol:NoopStores ===
+@module NoopStores
+fn @constructor() [constructor] {
+  bb0:
+    v0 = mapping_slot 1, 0
+    sstore v0, 5 !metadata(storage=symbolic(v0))
+    ret
+}
+
+fn @touch(arg0: i256, arg1: i256) [selector=0x7cb6ded3, abi_params=[uint256, uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = xor v1, arg1
+    v3 = and v2, 0
+    v4 = xor v1, v3
+    v5 = mapping_slot arg0, 0
+    sstore v5, v4 !metadata(storage=symbolic(v5))
+    ret
+}
+
+fn @masked(arg0: i256, arg1: i256) -> i256 [selector=0x966953d1, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = xor v1, arg1
+    v3 = and v2, 0
+    v4 = xor v1, v3
+    v5 = mapping_slot arg0, 0
+    sstore v5, v4 !metadata(storage=symbolic(v5))
+    v6 = mapping_slot arg0, 0
+    v7 = sload v6 !metadata(storage=symbolic(v6))
+    ret v7
+}
+
+fn @branch(arg0: i256, arg1: i1) -> i256 [selector=0xc86d784b, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    jumpi arg1, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v2 = mapping_slot arg0, 0
+    sstore v2, v1 !metadata(storage=symbolic(v2))
+    jump bb3
+  bb3:
+    v3 = mapping_slot arg0, 0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v4
+}
+
+fn @checked(arg0: i256, arg1: i256) -> i256 [selector=0xb437bc14, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = checked_add uint256, arg1, 1
+    v3 = xor v1, v2
+    v4 = and v3, 0
+    v5 = xor v1, v4
+    v6 = mapping_slot arg0, 0
+    sstore v6, v5 !metadata(storage=symbolic(v6))
+    v7 = mapping_slot arg0, 0
+    v8 = sload v7 !metadata(storage=symbolic(v7))
+    ret v8
+}
+
+fn @write(arg0: i256, arg1: i256) -> i256 [selector=0x9c0e3f7a, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = xor v1, arg1
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v4 = xor v1, v3
+    v5 = mapping_slot arg0, 0
+    sstore v5, v4 !metadata(storage=symbolic(v5))
+    v6 = mapping_slot arg0, 0
+    v7 = sload v6 !metadata(storage=symbolic(v6))
+    ret v7
+}
+
+fn @measured() -> i256 [selector=0x6724f0a2, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = gas
+    v1 = sload 1 !metadata(storage=slot(1))
+    sstore 1, v1 !metadata(storage=slot(1))
+    v2 = gas
+    v3 = checked_sub uint256, v0, v2
+    ret v3
+}
+
+fn @staticTouch() -> i1 [selector=0x7a96c521, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [word, word], object, selector 0x7cb6ded300000000000000000000000000000000000000000000000000000000, args 1, 9
+    v3 = address_staticcall v0, v2, gas v1
+    ret v3
+}

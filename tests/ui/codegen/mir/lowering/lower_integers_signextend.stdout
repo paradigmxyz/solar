@@ -1,0 +1,43 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_integers_signextend.mir (before lower-integers) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_integers_signextend.mir (after lower-integers) ===
+  @module IntegerSignExtend
+  fn @trunc_sext(arg0: i256) -> i256 {
+    bb0:
+-     v0 = trunc i256 arg0 to i24
+-     v1 = sext i24 v0 to i256
+-     ret v1
++     v2 = and arg0, 0xffffff
++     v3 = signextend 2, arg0
++     ret v3
+  }
+  
+- fn @narrow_result_sext(arg0: i8, arg1: i8) -> i256 {
++ fn @narrow_result_sext(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = mul arg0, arg1
+-     v1 = sext i8 v0 to i256
+-     ret v1
++     v2 = mul arg0, arg1
++     v3 = and v2, 255
++     v4 = signextend 0, v2
++     ret v4
+  }
+  
+- fn @cross_block(arg0: i8, arg1: i8, arg2: i1) -> i1 {
++ fn @cross_block(arg0: i256, arg1: i256, arg2: i1) -> i1 {
+    bb0:
+-     v0 = mul arg0, arg1
++     v2 = mul arg0, arg1
++     v3 = and v2, 255
+      jumpi arg2, bb1, bb2
+    bb2:
+      ret arg2
+    bb1:
+-     v1 = slt v0, arg1
+-     ret v1
++     v4 = signextend 0, v2
++     v5 = signextend 0, arg1
++     v6 = slt v4, v5
++     ret v6
+  }
+  

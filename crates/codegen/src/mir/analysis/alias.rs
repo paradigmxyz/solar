@@ -246,7 +246,6 @@ impl Access {
 pub(crate) struct ModRef {
     reads: SmallVec<[Access; 4]>,
     writes: SmallVec<[Access; 4]>,
-    observes_memory_size: bool,
     observes_gas: bool,
 }
 
@@ -261,12 +260,6 @@ impl ModRef {
     #[must_use]
     pub(crate) fn writes(&self) -> &[Access] {
         &self.writes
-    }
-
-    /// Returns whether the operation observes the active memory size.
-    #[must_use]
-    pub(crate) const fn observes_memory_size(&self) -> bool {
-        self.observes_memory_size
     }
 
     /// Returns whether the operation observes remaining gas.
@@ -519,11 +512,6 @@ impl AliasAnalysis {
         summaries: Arc<MemoryCallSummaries>,
     ) -> Self {
         Self::with_optional_summaries(func, Some(summaries))
-    }
-
-    /// Includes memory-size observations in callees and tail calls.
-    pub(crate) fn may_observe_msize(&self, func: &Function) -> bool {
-        super::may_observe_msize(func, self.call_summaries.as_deref())
     }
 
     /// Returns whether a fresh snapshot of one function holds the same memoized facts as this
@@ -1213,7 +1201,7 @@ impl AliasAnalysis {
                 effects.read(Access::Location(Location::Memory(Self::fmp_location())));
                 effects.write_any(AddressSpace::Memory);
             }
-            InstKind::MSize => effects.observes_memory_size = true,
+            InstKind::MSize => effects.read_any(AddressSpace::Memory),
             InstKind::Load(slot, PtrLocation::Storage) => {
                 effects.read(Access::Location(Location::Storage(
                     self.storage_alias_after_replacements(func, inst_id, slot, replacements),
@@ -1289,13 +1277,11 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
-                    effects.observes_memory_size = summary.may_observe_msize();
                     effects.observes_gas = summary.may_observe_gas();
                     let args =
                         kind.operands().into_iter().map(resolve).collect::<SmallVec<[_; 8]>>();
                     effects.merge_call_summary(summary, func, self, &args);
                 } else {
-                    effects.observes_memory_size = true;
                     effects.observes_gas = true;
                     effects.read_any(AddressSpace::Memory);
                     effects.write_any(AddressSpace::Memory);
@@ -1349,11 +1335,9 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
-                    effects.observes_memory_size = summary.may_observe_msize();
                     effects.observes_gas = summary.may_observe_gas();
                     effects.merge_call_summary(summary, func, self, &terminator.operands());
                 } else {
-                    effects.observes_memory_size = true;
                     effects.observes_gas = true;
                     effects.read_any(AddressSpace::Memory);
                     effects.write_any(AddressSpace::Memory);
@@ -1392,7 +1376,7 @@ impl AliasAnalysis {
 
     /// Returns the physical memory range occupied by a logical frame slot.
     #[must_use]
-    fn frame_location(
+    pub(crate) fn frame_location(
         func: &Function,
         offset: u64,
         mode: FrameMode,

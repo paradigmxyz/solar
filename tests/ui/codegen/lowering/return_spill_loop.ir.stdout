@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/return_spill_loop.sol:ReturnCopy (runtime) ===
 @module ReturnCopy_runtime
+@data
+  literal_0: hex"2233"
+
 bb0:
   callvalue
   push bb6
@@ -46,7 +49,7 @@ bb48 [cold]:
   push 28
   revert
 bb7:
-  push 224
+  push 128
   push 64
   mstore
   push 36
@@ -94,16 +97,12 @@ bb9 [continuation]:
   dup 3
   add
   mstore8
-  push 34
+  push 2
+  push_data literal_0
   push 33
-  dup 3
+  dup 4
   add
-  mstore8
-  push 51
-  push 34
-  dup 3
-  add
-  mstore8
+  codecopy
   push 34
   swap 1
   push bb10
@@ -190,17 +189,17 @@ bb10 [continuation]:
   push 0
   byte
   swap 2
-  push 128
+  push 0
   mstore
-  push 160
+  push 32
   mstore
-  push 192
+  push 64
   mstore
   push 96
-  push 128
+  push 0
   return
 bb16:
-  push 160
+  push 128
   dup 1
   push 64
   mstore
@@ -240,10 +239,10 @@ bb18 [continuation]:
   mload
   push 0
   byte
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb21:
   push 128
@@ -260,30 +259,26 @@ bb21:
   jump bb40
 bb40:
   push 4
+  calldatasize
+  push 36
+  dup 3
   calldataload
-  push 4
+  swap 2
+  sub
   dup 2
+  gt
+  push bb6
+  jumpi
   add
   push 32
   dup 2
-  add
-  swap 2
-  push 0
-  not
-  push 192
-  shr
-  lt
-  calldatasize
-  dup 4
-  gt
-  or
-  push bb6
-  jumpi
   calldataload
-  push 63
-  dup 2
+  swap 2
   add
   dup 2
+  push 63
+  add
+  dup 3
   dup 2
   lt
   push bb45
@@ -400,13 +395,13 @@ bb38:
   pop
   jump bb37
 bb43 [continuation]:
-  dup 2
+  dup 3
   dup 2
   mstore
-  dup 3
+  dup 2
   calldatasize
   sub
-  dup 3
+  dup 4
   gt
   push bb6
   jumpi
@@ -414,6 +409,7 @@ bb43 [continuation]:
   dup 2
   add
   swap 3
+  swap 2
   swap 1
   swap 3
   calldatacopy

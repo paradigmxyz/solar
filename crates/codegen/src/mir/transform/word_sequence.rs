@@ -61,8 +61,8 @@ impl MirPass for WordSequence {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
-            run(func, Target::new(gcx), matches!(self, Self::Late))
+        run_function_pass(module, analyses, |func, analyses| {
+            run(func, &analyses.target(gcx), matches!(self, Self::Late))
         })
     }
 }
@@ -80,7 +80,7 @@ struct Recipe {
     temporaries: FxHashMap<ValueId, Temporary>,
 }
 
-fn legal(op: &Op, target: Target) -> bool {
+fn legal(op: &Op, target: &Target) -> bool {
     if matches!(op, Op::Select { .. } | Op::Zext { .. } | Op::Sext { .. } | Op::Trunc { .. }) {
         return true;
     }
@@ -100,7 +100,7 @@ fn legal(op: &Op, target: Target) -> bool {
     }) && op.into_kind().is_some_and(|kind| kind.effect_kind() == EffectKind::Pure)
 }
 
-fn removable(func: &Function, inst: &Instruction, target: Target) -> bool {
+fn removable(func: &Function, inst: &Instruction, target: &Target) -> bool {
     // Selects and legal operations are pure, so other instructions need no view.
     if inst.kind.effect_kind() != EffectKind::Pure
         || inst.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure)
@@ -121,7 +121,7 @@ fn removable(func: &Function, inst: &Instruction, target: Target) -> bool {
 fn operation_cost(
     func: &Function,
     op: &Op,
-    target: Target,
+    target: &Target,
     constants: &FxHashMap<ValueId, Temporary>,
 ) -> Cost {
     let immediate = |value| match constants.get(&value) {
@@ -152,7 +152,7 @@ fn operation_cost(
 fn root_cost(
     func: &Function,
     op: &Op,
-    target: Target,
+    target: &Target,
     constants: &FxHashMap<ValueId, Temporary>,
     branch_only: bool,
 ) -> Cost {
@@ -197,7 +197,7 @@ impl Recipe {
     fn cost_and_leaves(
         &self,
         func: &Function,
-        target: Target,
+        target: &Target,
         branch_only: bool,
     ) -> Option<(Cost, FxHashSet<ValueId>)> {
         let mut nodes = Vec::new();
@@ -314,7 +314,7 @@ fn recipe_type(func: &Function, kind: &InstKind, scalar_ty: MirType) -> MirType 
     }
 }
 
-fn run(func: &mut Function, target: Target, late: bool) -> bool {
+fn run(func: &mut Function, target: &Target, late: bool) -> bool {
     let branch_only = branch_only_conditions(func);
     let mut uses = None;
     let mut changed = false;
@@ -342,7 +342,7 @@ fn run(func: &mut Function, target: Target, late: bool) -> bool {
             let is_branch_only =
                 func.inst_result_value(inst).is_some_and(|value| branch_only.contains(&value));
             let mut best = None;
-            for recipe in isle::alternatives(func, &seen, &op, target, late) {
+            for recipe in isle::alternatives(func, &original, &seen, &op, target, late) {
                 if let Some((after, leaves)) = recipe.cost_and_leaves(func, target, is_branch_only)
                 {
                     // Nothing changed before the first count; this block is detached.
@@ -411,7 +411,7 @@ fn collect_dead(
     uses: &IndexVec<ValueId, u32>,
     seen: &FxHashSet<InstId>,
     leaves: &FxHashSet<ValueId>,
-    target: Target,
+    target: &Target,
     dead: &mut FxHashSet<InstId>,
 ) {
     let _ = node.map_values(|value| {

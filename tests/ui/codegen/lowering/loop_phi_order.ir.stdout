@@ -51,19 +51,42 @@ bb17 [loop]:
   lt
   push bb19
   jumpi
-  push 128
+  push 0
   mstore
-  push 160
+  push 32
   mstore
-  push 192
+  push 64
   mstore
   push 96
-  push 128
+  push 0
   return
 bb20 [cold]:
   push 0
   push 0
   revert
+bb9 [loop]:
+  dup 2
+  dup 1
+  add
+  dup 4
+  push 1
+  add
+  swap 4
+  add
+  swap 2
+  push 11
+  byte
+  add
+  dup 4
+  dup 4
+  lt
+  push bb9
+  jumpi
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb2:
   dup 1
   push 0x82829e9f
@@ -97,12 +120,12 @@ bb12 [loop]:
   lt
   push bb14
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
-bb3:
+bb3 [loop]:
   push 0xaf080e88
   sub
   push bb20
@@ -118,29 +141,13 @@ bb3:
   push 0
   swap 1
   push 0
-  jump bb7
-bb9 [loop]:
-  dup 2
-  dup 1
-  add
-  dup 4
-  push 1
-  add
-  swap 4
-  add
-  swap 2
-  push 11
-  byte
-  add
-  jump bb7
-bb7 [loop]:
   dup 4
   dup 4
   lt
   push bb9
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

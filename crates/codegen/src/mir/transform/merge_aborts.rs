@@ -16,16 +16,14 @@
 //! Two tests that continue on their true edges combine with `and` instead. A
 //! test that aborts on its false edge while the other aborts on its true edge
 //! turns around when it compares a word with a literal: `x < k` fails exactly
-//! when `x > k - 1`, and that complement replaces it where it was. In loops of
-//! gas builds any other such test turns into its negation, `eq c, false`, as a
-//! checked product of two words does, which aborts unless one factor is zero or
-//! the quotient gives back the other. In builds that copy loops, a branch on
-//! `eq c, false` for a boolean `c` is a test of `c` with its edges swapped and
-//! merges as `c`, as a checked product by a word does: it aborts unless the
-//! factor's comparison with the hoisted limit, `gt x, limit`, fails, and that
-//! comparison joins the additions' checks with no `iszero`. Merges repeat along
-//! a chain, so a run of checks, such as the overflow checks of an unrolled
-//! loop's copies, branches once.
+//! when `x > k - 1`, and that complement replaces it where it was. In loops any other such test
+//! turns into its negation, `eq c, false`, as a checked product of two words does, which aborts
+//! unless one factor is zero or the quotient gives back the other. In builds that copy loops, a
+//! branch on `eq c, false` for a boolean `c` is a test of `c` with its edges swapped and merges as
+//! `c`, as a checked product by a word does: it aborts unless the factor's comparison with the
+//! hoisted limit, `gt x, limit`, fails, and that comparison joins the additions' checks with no
+//! `iszero`. Merges repeat along a chain, so a run of checks, such as the overflow checks of an
+//! unrolled loop's copies, branches once.
 //!
 //! Two tests that an addition wrapped, `s1 < s0` for `s1 = s0 + a1` and then
 //! `s2 < s1` for `s2 = s1 + a2`, combine into `s2 < s0` instead when `a1 + a2`
@@ -58,9 +56,8 @@
 //! check `eq (add i, 1), 0` does, while the merged test would pay an `iszero`
 //! for the word, another to turn the latch around, and the shuffles that keep
 //! the first condition next to it. A negated
-//! test pays its `iszero` only in loops of gas builds, where the saved jump
-//! repeats; in size builds the extra live condition kept words the stack
-//! scheduler had rebuilt, and the code grew and ran slower. A boolean's negation
+//! test pays its `iszero` only in loops, where the saved jump repeats, in size builds too. A
+//! boolean's negation
 //! merges as the boolean only in builds that copy loops, where every copy of a
 //! body repeats the saving: in a single body the condition stays live across
 //! the next check, and the scheduler answered with more shuffles than the saved
@@ -96,9 +93,10 @@ impl MirPass for MergeAborts {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let target = Target::new(gcx);
         let cold = cold_functions(module);
-        run_function_pass(module, analyses, |func, _| merge_function(func, &cold, target))
+        run_function_pass(module, analyses, |func, analyses| {
+            merge_function(func, &cold, &analyses.target(gcx))
+        })
     }
 }
 
@@ -141,7 +139,7 @@ struct Test {
     word: bool,
 }
 
-fn merge_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: Target) -> bool {
+fn merge_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: &Target) -> bool {
     rebuild_predecessors(func);
     let mut changed = false;
     let mut wraps = FxHashMap::default();
@@ -259,7 +257,7 @@ fn same_abort(func: &Function, a: BlockId, b: BlockId, cold: &DenseBitSet<Functi
 }
 
 /// Whether an instruction may run before deciding an abort.
-fn speculatable(kind: &InstKind, target: Target) -> bool {
+fn speculatable(kind: &InstKind, target: &Target) -> bool {
     !kind.has_side_effects()
         && !target.op_has_variable_gas(&kind.op())
         && match kind.effect_kind() {
@@ -276,7 +274,7 @@ fn mergeable(
     block: BlockId,
     cold: &DenseBitSet<FunctionId>,
     cyclic: &DenseBitSet<BlockId>,
-    target: Target,
+    target: &Target,
 ) -> Option<(Test, Test, Option<Flip>)> {
     let first = test(func, block, cold, target.copies_loops())?;
     // Another edge into the continuation may leave only the first test's own aborting block,
@@ -309,22 +307,17 @@ fn mergeable(
     // `iszero`. Only loops repeat the saving; a flipped test that runs once, as an ABI word's
     // range check next to the calldata size check, measured no gain and moved the stack
     // scheduler to rebuild calldata words where it had kept them. A negation pays the `iszero`
-    // only in loops of gas builds: in size builds the extra live condition kept words the
-    // scheduler had rebuilt and measured larger and slower.
-    let gas_loop = target.optimization().is_gas() && cyclic.contains(block);
+    // in loops of every build: in size builds it measured 4,461 runtime bytes smaller over the
+    // benchmark corpus, and the profitability check below prices the `iszero`.
     let flip = match (first.aborts_when_true, second.aborts_when_true) {
         (true, true) | (false, false) => None,
         _ if !cyclic.contains(block) => return None,
-        (false, true) => Some(match complement(func, first.condition) {
-            Some(compare) => Flip::First(compare),
-            None if gas_loop => Flip::NegateFirst,
-            None => return None,
-        }),
-        (true, false) => Some(match complement(func, second.condition) {
-            Some(compare) => Flip::Second(compare),
-            None if gas_loop => Flip::NegateSecond,
-            None => return None,
-        }),
+        (false, true) => {
+            Some(complement(func, first.condition).map_or(Flip::NegateFirst, Flip::First))
+        }
+        (true, false) => {
+            Some(complement(func, second.condition).map_or(Flip::NegateSecond, Flip::Second))
+        }
     };
     let added = if matches!(flip, Some(Flip::NegateFirst | Flip::NegateSecond)) {
         target.opcode(op::OR) + target.opcode(op::ISZERO)
@@ -334,8 +327,8 @@ fn mergeable(
     let saved = target.label_push() + target.opcode(op::JUMPI);
     target
         .improves(
-            i128::from(saved.gas) - i128::from(added.gas),
-            i128::from(saved.bytes) - i128::from(added.bytes),
+            i64::from(target.runtime_gas(saved)) - i64::from(target.runtime_gas(added)),
+            i64::from(saved.bytes) - i64::from(added.bytes),
         )
         .then_some((first, second, flip))
 }

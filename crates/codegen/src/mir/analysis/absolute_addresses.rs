@@ -38,6 +38,8 @@ pub(crate) fn absolute_address_inputs(func: &Function) -> IndexVec<ValueId, Addr
                 InstKind::Add(lhs, rhs)
                 | InstKind::Sub(lhs, rhs)
                 | InstKind::Mul(lhs, rhs)
+                | InstKind::Div(lhs, rhs)
+                | InstKind::Exp(lhs, rhs)
                 | InstKind::Shl(lhs, rhs)
                 | InstKind::Shr(lhs, rhs)
                 | InstKind::And(lhs, rhs)
