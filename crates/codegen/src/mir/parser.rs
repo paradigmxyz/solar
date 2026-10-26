@@ -1436,6 +1436,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 sym::preserves_fmp => {
                     metadata.set_preserves_fmp(true);
                 }
+                sym::alloc_ptr => {
+                    metadata.set_alloc_ptr(true);
+                }
                 sym::disjoint => {
                     metadata.set_disjoint(true);
                 }
