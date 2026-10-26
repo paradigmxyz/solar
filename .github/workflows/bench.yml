@@ -266,7 +266,7 @@ jobs:
           # A PR that changes the harness or inputs measured the base with its own, so skip it.
           results=target/codegen-bench/baseline/results.json
           if [[ -f "$results" ]] &&
-            git diff --quiet "$BASE_SHA" "$GITHUB_SHA" -- benches testdata .github/workflows/bench.yml; then
+            git diff --quiet "$BASE_SHA" "$GITHUB_SHA" -- benches/runtime testdata .github/workflows/bench.yml; then
             jq --arg commit "$BASE_SHA" '.commit = $commit' "$results" > "$results.tmp"
             mv "$results.tmp" "$results"
             echo "named=true" >> "$GITHUB_OUTPUT"
