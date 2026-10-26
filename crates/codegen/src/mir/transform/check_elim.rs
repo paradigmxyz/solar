@@ -409,7 +409,8 @@ pub(crate) fn argument_facts(module: &Module) -> FxHashMap<FunctionId, ParamFact
             && !tail_called_elsewhere.contains(callee)
     };
     let has_floor = |callee: &FunctionId| {
-        !tail_called_elsewhere.contains(callee)
+        Some(*callee) != dispatch
+            && !tail_called_elsewhere.contains(callee)
             && !module.functions[*callee].attributes.is_constructor
             && (entered_by_dispatch.contains(callee) || !outside.contains(callee))
     };
