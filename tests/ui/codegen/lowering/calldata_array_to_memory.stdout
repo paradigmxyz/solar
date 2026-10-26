@@ -219,6 +219,9 @@ bb18:
   jumpi
   push 64
   mload
+  dup 4
+  dup 2
+  mstore
   push 32
   add
   swap 1
