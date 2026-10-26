@@ -1,0 +1,522 @@
+//@compile-flags: -Zmir-pipeline=memory-dse
+//@filecheck:
+@module DeadAllocationStores
+
+// A `bytes` object whose length reads are forwarded: the call reads only the data after the
+// length word, so the length store goes.
+// CHECK-LABEL: {{^[ +].*}}fn @call_input{{[( ]}}
+// CHECK: alloc
+// CHECK-NEXT: {{^-}} mstore v1, arg0
+// CHECK: delegatecall
+fn @call_input(arg0: i256, arg1: i256, arg2: i256) {
+  bb0:
+    v0 = add arg0, 32
+    v1 = alloc v0
+    mstore v1, arg0
+    v2 = ptradd v1, 32
+    calldatacopy v2, 0, arg0
+    v3 = delegatecall arg1, arg2, v2, arg0, 0, 0
+    stop
+}
+
+// A revert range over the data keeps the returndata copy and drops the length store.
+// CHECK-LABEL: {{^[ +].*}}fn @revert_data{{[( ]}}
+// CHECK: {{^-}} mstore v1, arg0
+// CHECK: returndatacopy
+// CHECK: revert
+fn @revert_data(arg0: i256) {
+  bb0:
+    v0 = add arg0, 32
+    v1 = alloc v0
+    mstore v1, arg0
+    v2 = ptradd v1, 32
+    returndatacopy v2, 0, arg0
+    v3 = ptrtoint ptr<memory> v2 to i256
+    revert v3, arg0
+}
+
+// A constant-size encoding temp: only the length word is outside the call input.
+// CHECK-LABEL: {{^[ +].*}}fn @encode_call{{[( ]}}
+// CHECK: alloc 100
+// CHECK-NEXT: {{^-}} mstore v0, 68
+// CHECK: {{^ +}}mstore v1, 0x1234
+// CHECK: {{^ +}}mstore v2, arg2
+// CHECK: call
+fn @encode_call(arg0: i256, arg1: i256, arg2: i256) {
+  bb0:
+    v0 = alloc 100
+    mstore v0, 68
+    v1 = ptradd v0, 32
+    mstore v1, 0x1234567800000000000000000000000000000000000000000000000000000000
+    v2 = ptradd v1, 4
+    mstore v2, arg2
+    v3 = call arg0, arg1, 0, v1, 68, 0, 0
+    stop
+}
+
+// A read of another allocation never covers the object.
+// CHECK-LABEL: {{^[ +].*}}fn @other_allocation{{[( ]}}
+// CHECK: {{^-}} mstore v0, arg0
+fn @other_allocation(arg0: i256) {
+  bb0:
+    v0 = alloc 32
+    mstore v0, arg0
+    v1 = alloc 32
+    v2 = mload v1
+    mstore 0, v2
+    returndata 0, 32
+}
+
+// A read through a runtime index may wrap around to the length word.
+// CHECK-LABEL: {{^[ +].*}}fn @indexed_data{{[( ]}}
+// CHECK: {{^ +}}mstore v0, arg0
+fn @indexed_data(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    v1 = ptradd v0, 32
+    v2 = ptradd v1, arg1
+    v3 = mload v2
+    mstore 0, v3
+    returndata 0, 32
+}
+
+// Assembly `mload(add(p, i))` may reach the length word.
+// CHECK-LABEL: {{^[ +].*}}fn @assembly_offset{{[( ]}}
+// CHECK: {{^ +}}mstore v0, arg0
+fn @assembly_offset(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, arg1
+    v3 = mload v2
+    mstore 0, v3
+    returndata 0, 32
+}
+
+// A revert range that starts at the length word reads it.
+// CHECK-LABEL: {{^[ +].*}}fn @revert_from_length{{[( ]}}
+// CHECK: {{^ +}}mstore v0, arg0
+fn @revert_from_length(arg0: i256) {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    v1 = ptrtoint ptr<memory> v0 to i256
+    revert v1, arg0
+}
+
+// A range read covers the bytes after its start, but not the ones before.
+// CHECK-LABEL: {{^[ +].*}}fn @partial_overlap{{[( ]}}
+// CHECK: {{^ +}}mstore v0, arg0
+fn @partial_overlap(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    v1 = ptradd v0, 16
+    v2 = ptrtoint ptr<memory> v1 to i256
+    v3 = keccak256 v2, arg1
+    mstore 0, v3
+    returndata 0, 32
+}
+
+// A read on one path keeps the store.
+// CHECK-LABEL: {{^[ +].*}}fn @read_on_one_path{{[( ]}}
+// CHECK: {{^ +}}mstore v0, arg0
+fn @read_on_one_path(arg0: i256, arg1: i1) {
+  bb0:
+    v0 = alloc 32
+    mstore v0, arg0
+    jumpi arg1, bb1, bb2
+  bb1:
+    v1 = mload v0
+    mstore 0, v1
+    returndata 0, 32
+  bb2:
+    stop
+}
+
+// A pointer returned to the caller escapes.
+// CHECK-LABEL: {{^[ +].*}}fn @returned{{[( ]}}
+// CHECK: {{^ +}}mstore v0, arg0
+fn @returned(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    ret v0
+}
+
+// A pointer stored into another object escapes.
+// CHECK-LABEL: {{^[ +].*}}fn @stored_pointer{{[( ]}}
+// CHECK: {{^ +}}mstore v0, arg0
+fn @stored_pointer(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore arg1, v1
+    stop
+}
+
+// A pointer passed to an internal call escapes.
+// CHECK-LABEL: {{^[ +].*}}fn @internal_call{{[( ]}}
+// CHECK: {{^ +}}mstore v0, arg0
+fn @internal_call(arg0: i256) {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    icall @callee, v0
+    stop
+}
+
+fn @callee(arg0: ptr<memory>) {
+  bb0:
+    stop
+}
+
+// A heap allocation counts in `msize`.
+// CHECK-LABEL: {{^[ +].*}}fn @observes_msize{{[( ]}}
+// CHECK: {{^ +}}mstore v0, arg0
+fn @observes_msize(arg0: i256) {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    v1 = msize
+    mstore 0, v1
+    returndata 0, 32
+}
+
+// A function observing gas keeps the stores, since they pay for memory expansion.
+// CHECK-LABEL: {{^[ +].*}}fn @observes_gas{{[( ]}}
+// CHECK: {{^ +}}mstore v0, arg0
+fn @observes_gas(arg0: i256) {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    v1 = gas
+    mstore 0, v1
+    returndata 0, 32
+}
+
+// An unrelated pointer may be rebuilt from the free-memory pointer, so its read keeps the store.
+// CHECK-LABEL: {{^[ +].*}}fn @unrelated_read{{[( ]}}
+// CHECK: {{^ +}}mstore v0, arg0
+fn @unrelated_read(arg0: i256, arg1: ptr<memory>) {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    v1 = mload arg1
+    mstore 0, v1
+    returndata 0, 32
+}
+
+// A fixed heap address may be where the allocation lies.
+// CHECK-LABEL: {{^[ +].*}}fn @heap_address_read{{[( ]}}
+// CHECK: {{^ +}}mstore v0, arg0
+fn @heap_address_read(arg0: i256) {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    v1 = mload 128
+    mstore 0, v1
+    returndata 0, 32
+}
+
+// A `ret` reads no object whose pointer it does not return.
+// CHECK-LABEL: {{^[ +].*}}fn @returns_to_caller{{[( ]}}
+// CHECK: {{^-}} mstore v0, arg0
+fn @returns_to_caller(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    ret 0
+}
+
+// A read past the end of an earlier allocation reaches the objects above it.
+// CHECK-LABEL: {{^[ +].*}}fn @neighbour_read{{[( ]}}
+// CHECK: {{^ +}}mstore v1, arg0
+fn @neighbour_read(arg0: i256) {
+  bb0:
+    v0 = alloc 32
+    v1 = alloc 32
+    mstore v1, arg0
+    v2 = ptrtoint ptr<memory> v0 to i256
+    v3 = add v2, 32
+    v4 = mload v3
+    mstore 0, v4
+    returndata 0, 32
+}
+
+// The same through an allocation of runtime size.
+// CHECK-LABEL: {{^[ +].*}}fn @neighbour_read_dynamic{{[( ]}}
+// CHECK: {{^ +}}mstore v1, arg0
+fn @neighbour_read_dynamic(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = alloc arg1
+    v1 = alloc 64
+    mstore v1, arg0
+    v2 = ptrtoint ptr<memory> v0 to i256
+    v3 = add v2, 64
+    v4 = mload v3
+    mstore 0, v4
+    returndata 0, 32
+}
+
+// A read past the end of a later allocation never reaches an earlier one.
+// CHECK-LABEL: {{^[ +].*}}fn @read_from_later{{[( ]}}
+// CHECK: {{^-}} mstore v0, arg0
+fn @read_from_later(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    v1 = alloc arg1
+    v2 = ptrtoint ptr<memory> v1 to i256
+    v3 = add v2, 64
+    v4 = mload v3
+    mstore 0, v4
+    returndata 0, 32
+}
+
+// After a free-memory-pointer reset an object may lie over an earlier one.
+// CHECK-LABEL: {{^[ +].*}}fn @after_reset{{[( ]}}
+// CHECK: {{^ +}}mstore v1, arg0
+fn @after_reset(arg0: i256) {
+  bb0:
+    v0 = alloc 64
+    set_fmp v0 !metadata(preserves_fmp, effect=memory_write)
+    v1 = alloc 64
+    mstore v1, arg0
+    v2 = mload v0
+    mstore 0, v2
+    returndata 0, 32
+}
+
+// The same when only one path resets.
+// CHECK-LABEL: {{^[ +].*}}fn @reset_on_one_path{{[( ]}}
+// CHECK: {{^ +}}mstore v1, arg0
+fn @reset_on_one_path(arg0: i256, arg1: i1) {
+  bb0:
+    v0 = alloc 64
+    jumpi arg1, bb1, bb2
+  bb1:
+    set_fmp v0 !metadata(preserves_fmp, effect=memory_write)
+    jump bb2
+  bb2:
+    v1 = alloc 64
+    mstore v1, arg0
+    v2 = mload v0
+    mstore 0, v2
+    returndata 0, 32
+}
+
+// A store past the length word of a runtime-sized object may write over the next object.
+// CHECK-LABEL: {{^[ +].*}}fn @store_past_dynamic_end{{[( ]}}
+// CHECK: {{^ +}}mstore v2, arg0
+fn @store_past_dynamic_end(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = alloc arg1
+    v1 = alloc 32
+    mstore v1, 7
+    v2 = ptradd v0, 32
+    mstore v2, arg0
+    v3 = mload v1
+    mstore 0, v3
+    returndata 0, 32
+}
+
+// Nothing bounds the size of a plain runtime-sized object, so even its first word may be
+// another object's.
+// CHECK-LABEL: {{^[ +].*}}fn @unbounded_size{{[( ]}}
+// CHECK: {{^ +}}mstore v0, arg0
+fn @unbounded_size(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = alloc arg1
+    mstore v0, arg0
+    stop
+}
+
+// A checked allocation proves nothing about its size arithmetic either.
+// CHECK-LABEL: {{^[ +].*}}fn @checked_size{{[( ]}}
+// CHECK: {{^ +}}mstore v1, arg0
+fn @checked_size(arg0: i256) {
+  bb0:
+    v0 = add arg0, 32
+    v1 = alloc checked v0
+    mstore v1, arg0
+    stop
+}
+
+// A constant addend that wraps is a subtraction, so the size is not the sum of its bounds.
+// CHECK-LABEL: {{^[ +].*}}fn @wrapped_size{{[( ]}}
+// CHECK: {{^ +}}mstore v1, arg0
+fn @wrapped_size(arg0: i256) {
+  bb0:
+    v0 = add arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v1 = alloc v0
+    mstore v1, arg0
+    stop
+}
+
+// A runtime index of another allocation wraps and may land in this one.
+// CHECK-LABEL: {{^[ +].*}}fn @indexed_other{{[( ]}}
+// CHECK: {{^ +}}mstore v0, arg0
+fn @indexed_other(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    v1 = alloc 64
+    v2 = ptradd v1, arg1
+    v3 = mload v2
+    mstore 0, v3
+    returndata 0, 32
+}
+
+// A revert range based on the frame may run on into the heap.
+// CHECK-LABEL: {{^[ +].*}}fn @frame_range{{[( ]}}
+// CHECK: {{^ +}}mstore v0, arg0
+fn @frame_range(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    v1 = internal_frame_addr 0
+    revert v1, arg1
+}
+
+// A tail call reads no object whose pointer it does not pass.
+// CHECK-LABEL: {{^[ +].*}}fn @tail_calls{{[( ]}}
+// CHECK: {{^-}} mstore v0, arg0
+fn @tail_calls(arg0: i256) {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    tail_call @tail_target
+}
+
+fn @tail_target() {
+  bb0:
+    stop
+}
+
+// A pointer passed in a tail call escapes.
+// CHECK-LABEL: {{^[ +].*}}fn @tail_calls_pointer{{[( ]}}
+// CHECK: {{^ +}}mstore v0, arg0
+fn @tail_calls_pointer(arg0: i256) {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    tail_call @tail_pointer, v0
+}
+
+fn @tail_pointer(arg0: ptr<memory>) {
+  bb0:
+    stop
+}
+
+// A write through a runtime index wraps, may rewind the free-memory pointer, and so may put the
+// next object over an earlier one.
+// CHECK-LABEL: {{^[ +].*}}fn @indexed_write_before{{[( ]}}
+// CHECK: {{^ +}}mstore v2, arg0
+fn @indexed_write_before(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = alloc 64
+    v1 = ptradd v0, arg1
+    mstore v1, 1
+    v2 = alloc 64
+    mstore v2, arg0
+    v3 = mload v0
+    mstore 0, v3
+    returndata 0, 32
+}
+
+// A callee that writes through a runtime index may wrap and rewind the free-memory pointer.
+// CHECK-LABEL: {{^[ +].*}}fn @indexed_write_in_callee{{[( ]}}
+// CHECK: {{^ +}}mstore v1, arg0
+fn @indexed_write_in_callee(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = alloc 64
+    icall @indexed_writer, arg1
+    v2 = alloc 64
+    mstore v2, arg0
+    v3 = mload v0
+    mstore 0, v3
+    returndata 0, 32
+}
+
+fn @indexed_writer(arg0: i256) {
+  bb0:
+    v0 = alloc 64
+    v1 = ptradd v0, arg0
+    mstore v1, 1
+    ret
+}
+
+// A deferred object that is also read is placed by the free-memory pointer, so a read through
+// an unrelated pointer keeps its stores.
+// CHECK-LABEL: {{^[ +].*}}fn @deferred_read_exposed{{[( ]}}
+// CHECK: {{^ +}}mstore v0, arg0
+fn @deferred_read_exposed(arg0: i256, arg1: ptr<memory>) {
+  bb0:
+    v0 = alloc 64 !metadata(deferred_alloc)
+    mstore v0, arg0
+    v1 = ptradd v0, 32
+    mstore v1, arg0
+    v2 = keccak256 v1, 32
+    v3 = mload arg1
+    mstore 0, v3
+    mstore 32, v2
+    returndata 0, 64
+}
+
+// A wrapping write after the store may put a later object over this one.
+// CHECK-LABEL: {{^[ +].*}}fn @indexed_write_after{{[( ]}}
+// CHECK: {{^ +}}mstore v1, arg0
+fn @indexed_write_after(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = alloc 64
+    v1 = alloc 64
+    mstore v1, arg0
+    v2 = ptradd v0, arg1
+    mstore v2, 1
+    v3 = alloc 64
+    v4 = mload v3
+    mstore 0, v4
+    returndata 0, 32
+}
+
+// A runtime index reached through a select wraps just the same.
+// CHECK-LABEL: {{^[ +].*}}fn @indexed_through_select{{[( ]}}
+// CHECK: {{^ +}}mstore v1, arg0
+fn @indexed_through_select(arg0: i256, arg1: i256, arg2: i1) {
+  bb0:
+    v0 = alloc 64
+    v1 = alloc 64
+    mstore v1, arg0
+    v2 = ptradd v0, arg1
+    v3 = select arg2, v2, v0
+    mstore v3, 1
+    v4 = alloc 64
+    v5 = mload v4
+    mstore 0, v5
+    returndata 0, 32
+}
+
+// A constant subtraction behind a select does not hide the runtime index.
+// CHECK-LABEL: {{^[ +].*}}fn @indexed_through_sub{{[( ]}}
+// CHECK: {{^ +}}mstore v1, arg0
+fn @indexed_through_sub(arg0: i256, arg1: i256, arg2: i1) {
+  bb0:
+    v0 = alloc 64
+    v1 = alloc 64
+    mstore v1, arg0
+    v2 = ptradd v0, arg1
+    v3 = ptradd v2, 64
+    v4 = ptrtoint ptr<memory> v3 to i256
+    v5 = sub v4, 32
+    v6 = inttoptr i256 v5 to ptr<memory>
+    v7 = select arg2, v6, v0
+    mstore v7, 1
+    v8 = alloc 64
+    v9 = mload v8
+    mstore 0, v9
+    returndata 0, 32
+}

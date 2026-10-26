@@ -40,10 +40,10 @@
 //!   pure key, so a def in a predecessor or any of its dominators is available at the predecessor's
 //!   end, with no dataflow. The join's phi operands translate through each incoming edge before the
 //!   lookup, so `add(phi(a, b), 1)` is available where `add(a, 1)` is.
-//! - `(Storage, alias)`: genned by `sload` (load result) and `sstore` (forwarded stored value);
-//!   killed by may-aliasing `sstore` and by calls and creates. `STATICCALL` cannot mutate storage
-//!   or transient storage and does not kill them.
-//! - `(Transient, alias)`: same with `tload`/`tstore`.
+//! - `(slot)`, a storage or transient-storage slot: genned by `sload`/`tload` (load result) and
+//!   `sstore`/`tstore` (forwarded stored value); killed by may-aliasing stores to the same space
+//!   and by calls and creates. `STATICCALL` cannot mutate storage or transient storage and does not
+//!   kill them.
 //! - `(Memory, canonical address, width 32)`: genned by `mload` and by `mstore` at the same
 //!   canonical address (forwarded stored value); killed by overlapping `mstore`/`mstore8`, by
 //!   copies with an overlapping or unknown destination range, and by every call (including
@@ -129,7 +129,7 @@ use crate::{
         pass::{MirPass, run_function_pass_with_alias_and_cfg, run_function_pass_with_cfg},
         utils as mir_utils,
     },
-    target::{Cost, Target, Warmth},
+    target::{Cost, Target},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -223,8 +223,8 @@ struct ReadAnalyses {
 /// A normalized key for a state-dependent read.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum LoadKey {
-    Storage(StorageAlias),
-    Transient(StorageAlias),
+    /// A storage or transient-storage slot.
+    Slot(Location),
     /// A 32-byte memory read at a canonical address.
     Memory(MemoryAddress),
     Keccak(MemoryAddress, KeccakSize),
@@ -352,9 +352,10 @@ impl PreCostModel<'_> {
     fn read_cost(&self, key: LoadKey) -> i64 {
         match key {
             // A repeated storage read is warm, whatever the first access cost.
-            LoadKey::Storage(_) => self.target.opcode_gas_at(op::SLOAD, Warmth::Warm) as i64,
-            LoadKey::Transient(_) => self.target.opcode_gas(op::TLOAD) as i64,
-            LoadKey::Memory(_) => self.target.opcode_gas(op::MLOAD) as i64,
+            LoadKey::Slot(location) => {
+                self.target.repeated_read_gas(location.address_space()) as i64
+            }
+            LoadKey::Memory(_) => self.target.repeated_read_gas(AddressSpace::Memory) as i64,
             LoadKey::Keccak(_, size) => {
                 // A dynamic size is priced as a two-word mapping key.
                 let size = match size {
@@ -417,10 +418,8 @@ struct Availability {
 
 #[derive(Default)]
 struct KillIndex {
-    storage: Vec<usize>,
-    transient: Vec<usize>,
-    storage_aliases: StorageKillIndex,
-    transient_aliases: StorageKillIndex,
+    /// The slot keys of each space in [`AddressSpace::SLOTS`].
+    slots: [StorageKillIndex; AddressSpace::SLOTS.len()],
     memory: Vec<usize>,
     memory_words: FxHashMap<MemoryAddress, BTreeMap<u64, usize>>,
     keccak: Vec<usize>,
@@ -428,12 +427,15 @@ struct KillIndex {
 
 #[derive(Default)]
 struct StorageKillIndex {
+    /// Every key of the space.
+    all: Vec<usize>,
     slots: FxHashMap<U256, usize>,
     symbolic: FxHashMap<ValueId, FxHashMap<U256, usize>>,
 }
 
 impl StorageKillIndex {
     fn insert(&mut self, alias: StorageAlias, idx: usize) {
+        self.all.push(idx);
         match alias {
             StorageAlias::Slot(slot) => {
                 self.slots.insert(slot, idx);
@@ -491,13 +493,9 @@ impl KillIndex {
         let mut this = Self::default();
         for (idx, &key) in keys.iter().enumerate() {
             match key {
-                LoadKey::Storage(alias) => {
-                    this.storage.push(idx);
-                    this.storage_aliases.insert(alias, idx);
-                }
-                LoadKey::Transient(alias) => {
-                    this.transient.push(idx);
-                    this.transient_aliases.insert(alias, idx);
+                LoadKey::Slot(location) => {
+                    let alias = location.slot_alias().expect("a slot key names a slot");
+                    this.slots_mut(location.address_space()).insert(alias, idx);
                 }
                 LoadKey::Memory(mut address) => {
                     this.memory.push(idx);
@@ -516,11 +514,18 @@ impl KillIndex {
 
     fn space(&self, space: AddressSpace) -> &[usize] {
         match space {
-            AddressSpace::Storage => &self.storage,
-            AddressSpace::Transient => &self.transient,
+            AddressSpace::Storage | AddressSpace::Transient => &self.slots(space).all,
             AddressSpace::Memory => &self.memory,
             AddressSpace::Immutable => &[],
         }
+    }
+
+    fn slots(&self, space: AddressSpace) -> &StorageKillIndex {
+        &self.slots[space.slot_index().expect("a slot space")]
+    }
+
+    fn slots_mut(&mut self, space: AddressSpace) -> &mut StorageKillIndex {
+        &mut self.slots[space.slot_index().expect("a slot space")]
     }
 }
 
@@ -1408,22 +1413,16 @@ impl<'a> Eliminator<'a> {
     fn gen_key_value(&self, func: &Function, inst_id: InstId) -> Option<(LoadKey, GenSource)> {
         let aa = self.alias();
         match func.inst(inst_id).kind {
-            InstKind::Load(slot, PtrLocation::Storage) => Some((
-                LoadKey::Storage(aa.storage_alias(func, inst_id, slot)),
-                GenSource::LoadResult,
-            )),
-            InstKind::Store(slot, value, PtrLocation::Storage) => Some((
-                LoadKey::Storage(aa.storage_alias(func, inst_id, slot)),
-                GenSource::Stored(value),
-            )),
-            InstKind::Load(slot, PtrLocation::Transient) => Some((
-                LoadKey::Transient(aa.storage_alias(func, inst_id, slot)),
-                GenSource::LoadResult,
-            )),
-            InstKind::Store(slot, value, PtrLocation::Transient) => Some((
-                LoadKey::Transient(aa.storage_alias(func, inst_id, slot)),
-                GenSource::Stored(value),
-            )),
+            InstKind::Load(slot, location @ (PtrLocation::Storage | PtrLocation::Transient)) => {
+                Location::slot(location, aa.storage_alias(func, inst_id, slot))
+                    .map(|slot| (LoadKey::Slot(slot), GenSource::LoadResult))
+            }
+            InstKind::Store(
+                slot,
+                value,
+                location @ (PtrLocation::Storage | PtrLocation::Transient),
+            ) => Location::slot(location, aa.storage_alias(func, inst_id, slot))
+                .map(|slot| (LoadKey::Slot(slot), GenSource::Stored(value))),
             // Stored words are integers, so a pointer load keeps its own type.
             InstKind::Load(addr, PtrLocation::Memory)
                 if func.inst(inst_id).result_ty == Some(MirType::I256) =>
@@ -1461,8 +1460,7 @@ impl<'a> Eliminator<'a> {
         }
         let aa = self.alias();
         match key {
-            LoadKey::Storage(alias) => effects.may_write(aa, Location::Storage(alias)),
-            LoadKey::Transient(alias) => effects.may_write(aa, Location::Transient(alias)),
+            LoadKey::Slot(location) => effects.may_write(aa, location),
             LoadKey::Memory(address) => effects.may_write(
                 aa,
                 Location::Memory(MemoryLocation::new(address, LocationSize::Const(32))),
@@ -1491,11 +1489,10 @@ impl<'a> Eliminator<'a> {
                         kill(idx);
                     }
                 }
-                Access::Location(Location::Storage(written)) => {
-                    index.storage_aliases.for_each_alias(written, &mut kill);
-                }
-                Access::Location(Location::Transient(written)) => {
-                    index.transient_aliases.for_each_alias(written, &mut kill);
+                Access::Location(
+                    location @ (Location::Storage(written) | Location::Transient(written)),
+                ) => {
+                    index.slots(location.address_space()).for_each_alias(written, &mut kill);
                 }
                 Access::Location(Location::Memory(written)) => {
                     self.for_each_killed_memory_key(written, keys, index, &mut kill);

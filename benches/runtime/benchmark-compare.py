@@ -17,6 +17,7 @@ import platform
 import subprocess
 import sys
 import uuid
+from collections import Counter
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, cast
@@ -28,6 +29,7 @@ PERF_SITE_URL = "https://www.getfoundry.sh/perf/solar/"
 
 METRICS = {
     "total_gas": "runtime gas",
+    "execution_gas": "execution gas",
     "runtime_size": "runtime bytes",
     "deploy_gas": "creation gas",
     "bytecode_size": "creation bytes",
@@ -86,6 +88,42 @@ def comparable_gas(
         return None
     eligible = [call["gas"] for call in calls if gas_call_key(call) not in exclusions]
     return sum(eligible) if eligible else None
+
+
+def traced_calls(
+    data: dict[str, Any], other: dict[str, Any] | None = None
+) -> list[dict[str, Any]] | None:
+    """The gas calls both runs compare, or None unless all of them were measured."""
+    if data.get("gas_status") != "ok":
+        return None
+    exclusions = gas_exclusions(data, other or {})
+    calls = [
+        call
+        for call in data.get("gas_results") or []
+        if gas_call_key(call) not in exclusions
+    ]
+    return calls or None
+
+
+def comparable_execution_gas(
+    data: dict[str, Any], other: dict[str, Any] | None = None
+) -> int | None:
+    calls = traced_calls(data, other)
+    if not calls or not all(numeric(call.get("execution_gas")) for call in calls):
+        return None
+    return sum(call["execution_gas"] for call in calls)
+
+
+def comparable_gas_kinds(
+    data: dict[str, Any], other: dict[str, Any] | None = None
+) -> dict[str, int] | None:
+    calls = traced_calls(data, other)
+    if not calls or not all(isinstance(call.get("gas_kinds"), dict) for call in calls):
+        return None
+    kinds = Counter[str]()
+    for call in calls:
+        kinds.update(call["gas_kinds"])
+    return kinds
 
 
 def compare_runs(
@@ -162,6 +200,8 @@ def compare_runs(
                 issues.append(f"{label} runtime checks failed")
             if data.get("gas_status") == "failed":
                 issues.append(f"{label} gas run failed")
+            if data.get("gas_kinds_status") == "failed":
+                issues.append(f"{label} gas trace failed")
         for label, case in (("baseline", before), ("candidate", after)):
             if case.get("benchmark_error"):
                 issues.append(f"{label}: {case['benchmark_error']}")
@@ -171,7 +211,7 @@ def compare_runs(
         measurements = {}
         for metric_name in METRICS:
             reason = input_reason
-            if metric_name in ("total_gas", "deploy_gas"):
+            if metric_name in ("total_gas", "execution_gas", "deploy_gas"):
                 reason = gas_reason
             elif (
                 metric_name in ("compile_time_seconds", "peak_rss_bytes")
@@ -193,6 +233,11 @@ def compare_runs(
                     and (old_value is None or new_value is None)
                 ):
                     reason = "no comparable gas calls"
+            elif metric_name == "execution_gas":
+                old_value, new_value = (
+                    comparable_execution_gas(old, new),
+                    comparable_execution_gas(new, old),
+                )
             measurements[metric_name] = delta(old_value, new_value, reason)
 
         calls = []
@@ -211,8 +256,25 @@ def compare_runs(
                             new_call.get("gas"),
                             exclusions.get(gas_call_key(new_call)),
                         ),
+                        "execution_gas": delta(
+                            old_call.get("execution_gas"),
+                            new_call.get("execution_gas"),
+                            exclusions.get(gas_call_key(new_call)),
+                        ),
+                        "calldata_floor_before": old_call.get("calldata_floor"),
+                        "calldata_floor_after": new_call.get("calldata_floor"),
                     }
                 )
+        old_kinds = comparable_gas_kinds(old, new)
+        new_kinds = comparable_gas_kinds(new, old)
+        gas_kinds = (
+            {
+                kind: delta(old_kinds.get(kind, 0), new_kinds.get(kind, 0))
+                for kind in sorted(old_kinds.keys() | new_kinds.keys())
+            }
+            if gas_reason is None and old_kinds is not None and new_kinds is not None
+            else {}
+        )
         old_output = old.get("output_fingerprint")
         new_output = new.get("output_fingerprint")
         rows.append(
@@ -232,6 +294,7 @@ def compare_runs(
                 "issues": issues,
                 "metrics": measurements,
                 "gas_calls": calls,
+                "gas_kinds": gas_kinds,
                 "runtime_changes": runtime_changes,
                 "compile_samples_before": old.get("compile_time_samples", []),
                 "compile_samples_after": new.get("compile_time_samples", []),
@@ -387,6 +450,8 @@ def comparison_report(comparison: dict[str, Any]) -> str:
         "| --- | ---: |",
     ]
     for name, values in comparison["summary"].items():
+        if name == "execution_gas" and not values["paired"]:
+            continue
         change = (
             fmt_pct(values["percent"], positive_is_good=False)
             if values["percent"] is not None
@@ -434,28 +499,8 @@ def comparison_report(comparison: dict[str, Any]) -> str:
                 "</details>",
             ]
         )
-    calls = [
-        f"| {markdown_cell(row['test_id'])} | {markdown_cell(call['label'])} | {comparison_cells(call)} |"
-        for row in rows
-        for call in sorted(
-            row["gas_calls"], key=lambda call: call["percent"] or 0, reverse=True
-        )
-        if call["delta"] not in (None, 0)
-    ]
-    if calls:
-        lines.extend(
-            [
-                "",
-                "<details>",
-                "<summary>Per-call gas changes</summary>",
-                "",
-                "| Case | Call | Baseline | Candidate | Delta | Change |",
-                "| --- | --- | ---: | ---: | ---: | ---: |",
-                *calls,
-                "",
-                "</details>",
-            ]
-        )
+    lines.extend(per_call_gas_report(rows))
+    lines.extend(gas_kinds_report(rows))
     artifacts = []
     for row in rows:
         files = row.get("artifacts", [])
@@ -502,7 +547,120 @@ def comparison_report(comparison: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def per_call_gas_report(rows: list[dict[str, Any]]) -> list[str]:
+    changed = [
+        (row, call)
+        for row in rows
+        for call in row["gas_calls"]
+        if call["delta"] not in (None, 0)
+        or call["execution_gas"]["delta"] not in (None, 0)
+    ]
+    if not changed:
+        return []
+    traced = any(
+        numeric(call["execution_gas"][side])
+        for _, call in changed
+        for side in ("before", "after")
+    )
+
+    def change(call: dict[str, Any]) -> float:
+        return max(
+            (
+                value["percent"]
+                for value in (call, call["execution_gas"])
+                if value["percent"] is not None
+            ),
+            default=0,
+        )
+
+    cells = []
+    for row, call in sorted(changed, key=lambda item: change(item[1]), reverse=True):
+        before, after, *rest = comparison_cell_list(call)
+        before += "†" if call["calldata_floor_before"] else ""
+        after += "†" if call["calldata_floor_after"] else ""
+        values = [markdown_cell(row["test_id"]), markdown_cell(call["label"])]
+        values += [before, after, *rest]
+        if traced:
+            values += comparison_cell_list(call["execution_gas"])
+        cells.append("| " + " | ".join(values) + " |")
+    header = "| Case | Call | Baseline | Candidate | Delta | Change |"
+    separator = "| --- | --- | ---: | ---: | ---: | ---: |"
+    if traced:
+        header += " Exec baseline | Exec candidate | Exec delta | Exec change |"
+        separator += " ---: | ---: | ---: | ---: |"
+    floor = any(
+        call["calldata_floor_before"] or call["calldata_floor_after"]
+        for _, call in changed
+    )
+    return [
+        "",
+        "<details>",
+        "<summary>Per-call gas changes</summary>",
+        "",
+        header,
+        separator,
+        *cells,
+        *(
+            [
+                "",
+                "† Receipt gas is the EIP-7623 calldata floor, which does not follow execution gas.",
+            ]
+            if floor
+            else []
+        ),
+        "",
+        "</details>",
+    ]
+
+
+def gas_kinds_report(rows: list[dict[str, Any]]) -> list[str]:
+    traced = [row for row in rows if row["gas_kinds"]]
+    if not any(value["delta"] for row in traced for value in row["gas_kinds"].values()):
+        return []
+    before, after = Counter[str](), Counter[str]()
+    for row in traced:
+        for kind, values in row["gas_kinds"].items():
+            before[kind] += values["before"]
+            after[kind] += values["after"]
+    groups = [
+        (
+            "all compared cases",
+            {kind: delta(before[kind], after[kind]) for kind in before | after},
+        )
+    ]
+    groups += [
+        (markdown_cell(row["test_id"]), row["gas_kinds"])
+        for row in traced
+        if any(value["delta"] for value in row["gas_kinds"].values())
+    ]
+    cells = [
+        f"| {name} | {kind} | {comparison_cells(values)} |"
+        for name, kinds in groups
+        for kind, values in sorted(
+            kinds.items(), key=lambda item: item[1]["delta"], reverse=True
+        )
+        if values["delta"]
+    ]
+    return [
+        "",
+        "<details>",
+        "<summary>Execution gas by opcode kind</summary>",
+        "",
+        "| Case | Kind | Baseline | Candidate | Delta | Change |",
+        "| --- | --- | ---: | ---: | ---: | ---: |",
+        *cells,
+        "",
+        "</details>",
+    ]
+
+
 def comparison_cells(values: dict[str, Any], metric_name: str | None = None) -> str:
+    return " | ".join(comparison_cell_list(values, metric_name))
+
+
+def comparison_cell_list(
+    values: dict[str, Any], metric_name: str | None = None
+) -> list[str]:
     def fmt(value: Any) -> str:
         if numeric(value) and metric_name == "peak_rss_bytes":
             return ("-" if value < 0 else "") + fmt_bytes(abs(value))
@@ -517,9 +675,7 @@ def comparison_cells(values: dict[str, Any], metric_name: str | None = None) -> 
         if values["percent"] is not None
         else "n/a"
     )
-    return " | ".join(
-        (fmt(values["before"]), fmt(values["after"]), fmt(values["delta"]), change)
-    )
+    return [fmt(values["before"]), fmt(values["after"]), fmt(values["delta"]), change]
 
 
 def normalize_timings(timings: Any) -> dict[str, int | float]:
@@ -1069,12 +1225,29 @@ def fmt_value_with_delta_vs_current(
     return f"{fmt_int(value, suffix)} ({fmt_pct_vs_current(current, comparison)})"
 
 
+def has_execution_gas(results: list[dict[str, Any]]) -> bool:
+    return any(
+        numeric(call.get("execution_gas"))
+        for result in results
+        for data in (result.get("compilers") or {}).values()
+        if isinstance(data, dict)
+        for call in data.get("gas_results") or []
+    )
+
+
 def benchmark_rows(
     results: list[dict[str, Any]],
     baseline: dict[tuple[str, str], dict[str, Any]],
     compared: dict | None = None,
 ) -> list[str]:
-    return metric_rows(results, baseline, "total_gas", "runtime_size", compared)
+    return metric_rows(
+        results,
+        baseline,
+        "total_gas",
+        "runtime_size",
+        compared,
+        has_execution_gas(results),
+    )
 
 
 def deployment_rows(
@@ -1107,12 +1280,14 @@ def comparison_has_changes(
                 row["metrics"][metric]["delta"] not in (None, 0)
                 for metric in (
                     "total_gas",
+                    "execution_gas",
                     "runtime_size",
                     "deploy_gas",
                     "bytecode_size",
                 )
             )
             or any(call["delta"] not in (None, 0) for call in row["gas_calls"])
+            or any(kind["delta"] not in (None, 0) for kind in row["gas_kinds"].values())
             or (
                 row.get("artifacts_available", {}).get("before")
                 and row.get("artifacts_available", {}).get("after")
@@ -1151,6 +1326,7 @@ def metric_rows(
     gas_metric: str,
     size_metric: str,
     compared: dict | None = None,
+    execution: bool = False,
 ) -> list[str]:
     rows = []
     for result in results:
@@ -1174,6 +1350,32 @@ def metric_rows(
             ]
             if compared is None:
                 base_solar_gas = comparable_gas(base_data, current_data)
+        execution_cells = []
+        if execution:
+            solar_execution = comparable_execution_gas(
+                compiler_data(result, "solar"), compiler_data(base, "solar")
+            )
+            base_solar_execution = (
+                compared_baseline(result, base, "execution_gas", compared)
+                if compared is not None
+                else comparable_execution_gas(
+                    compiler_data(base, "solar"), compiler_data(result, "solar")
+                )
+            )
+            execution_cells = [
+                fmt_value_with_lower_is_better_delta(
+                    solar_execution, solar_execution, base_solar_execution
+                ),
+                *(
+                    fmt_value_with_delta_vs_current(value, solar_execution, value)
+                    for value in (
+                        comparable_execution_gas(
+                            compiler_data(result, name), compiler_data(result, "solar")
+                        )
+                        for name in reference_compiler_ids(results)
+                    )
+                ),
+            ]
         solar_size = compiler_metric(result, "solar", size_metric)
         reference_size = [
             compiler_metric(result, name, size_metric)
@@ -1199,6 +1401,7 @@ def metric_rows(
                         fmt_value_with_delta_vs_current(value, solar_gas, value)
                         for value in reference_gas
                     ),
+                    *execution_cells,
                     fmt_value_with_lower_is_better_delta(
                         solar_size, solar_size, base_solar_size, "B"
                     ),
@@ -1412,20 +1615,26 @@ def report_section(
     lines.extend(compilation_failure_report(results, baseline_results, baseline_ref))
     references = reference_compiler_ids(results)
     reference_headers = " | ".join(references)
-    metric_header = f"| bench | gas (vs {baseline_label}) | {reference_headers} | size (vs {baseline_label}) | {reference_headers} |"
-    metric_separator = (
-        "| ----- | ------------- |"
-        + " ---- |" * len(references)
-        + " -------------- |"
-        + " ---- |" * len(references)
-    )
+
+    def metric_table(execution: bool) -> tuple[str, str]:
+        titles = f"| bench | gas (vs {baseline_label}) | {reference_headers} |"
+        dashes = "| ----- | ------------- |" + " ---- |" * len(references)
+        if execution:
+            titles += f" execution gas (vs {baseline_label}) | {reference_headers} |"
+            dashes += " ------------------------ |" + " ---- |" * len(references)
+        titles += f" size (vs {baseline_label}) | {reference_headers} |"
+        dashes += " -------------- |" + " ---- |" * len(references)
+        return titles, dashes
+
+    metric_header, metric_separator = metric_table(False)
+    runtime_header, runtime_separator = metric_table(has_execution_gas(results))
 
     rows = benchmark_rows(results, baseline, compared)
     if rows:
         lines.extend(
             [
-                metric_header,
-                metric_separator,
+                runtime_header,
+                runtime_separator,
                 *rows,
                 "",
             ]
@@ -1538,7 +1747,17 @@ def pr_comment(
             else f"No significant benchmark changes against `{base_ref}`."
         )
         lines.extend(["", "### Overview", "", "| Metric | Change |", "| --- | ---: |"])
-        metrics = ("total_gas", "runtime_size", "deploy_gas", "bytecode_size")
+        metrics = [
+            "total_gas",
+            *(
+                ["execution_gas"]
+                if comparison["summary"]["execution_gas"]["paired"]
+                else []
+            ),
+            "runtime_size",
+            "deploy_gas",
+            "bytecode_size",
+        ]
         for name in metrics:
             values = comparison["summary"][name]
             change = (
@@ -1566,8 +1785,10 @@ def pr_comment(
                     "",
                     f"### Changed benchmarks vs `{base_ref}`",
                     "",
-                    "| Benchmark | Runtime gas | Runtime bytes | Creation gas | Creation bytes |",
-                    "| --- | ---: | ---: | ---: | ---: |",
+                    "| Benchmark | "
+                    + " | ".join(METRICS[name].capitalize() for name in metrics)
+                    + " |",
+                    "| --- |" + " ---: |" * len(metrics),
                     *changed,
                 ]
             )
@@ -1853,7 +2074,13 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(str(error))
     emit_warnings(results, [])
     for row in comparison["rows"]:
-        for name in ("total_gas", "runtime_size", "deploy_gas", "bytecode_size"):
+        for name in (
+            "total_gas",
+            "execution_gas",
+            "runtime_size",
+            "deploy_gas",
+            "bytecode_size",
+        ):
             values = row["metrics"][name]
             if values["delta"] is not None and values["delta"] > 0:
                 warning(

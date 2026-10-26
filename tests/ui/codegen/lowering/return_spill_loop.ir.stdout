@@ -69,10 +69,7 @@ bb47:
   dup 3
   dup 2
   lt
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   dup 3
   gt
   or
@@ -122,15 +119,14 @@ bb32:
   sub
   dup 2
   swap 6
+  swap 3
+  swap 5
   swap 2
   swap 4
   swap 6
-  swap 5
-  swap 3
-  swap 5
   jump bb33
 bb33 [loop]:
-  dup 4
+  dup 3
   dup 2
   lt
   iszero
@@ -141,7 +137,7 @@ bb33 [loop]:
   dup 1
   push 0
   byte
-  dup 5
+  dup 6
   eq
   push bb36
   jumpi
@@ -358,7 +354,7 @@ bb36 [loop]:
   mstore
   push 1
   add
-  dup 4
+  dup 3
   dup 2
   lt
   push bb33

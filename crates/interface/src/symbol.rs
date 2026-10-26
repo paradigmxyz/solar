@@ -1023,6 +1023,7 @@ symbols! {
         address_staticcall,
         aligned,
         alloc,
+        alloc_ptr,
         args,
         array,
         asm,
