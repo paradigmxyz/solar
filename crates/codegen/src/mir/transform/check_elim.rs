@@ -597,7 +597,7 @@ type DifferenceIndex = FxHashMap<ValueId, SmallVec<[(ValueId, ValueId); 2]>>;
 ///
 /// `Lt(a, b)` means `a < b` and `Le(a, b)` means `a <= b`, both unsigned.
 /// `Eq` and `Ne` are stored with operands ordered by index.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Relation {
     Lt(ValueId, ValueId),
     Le(ValueId, ValueId),
@@ -1304,7 +1304,7 @@ impl<'a> CheckEliminator<'a> {
         relevant: &DenseBitSet<ValueId>,
     ) -> IndexVec<BlockId, Facts> {
         const MAX_ROUNDS: usize = 8;
-        // Join phi relations tried at one join.
+        // Join phi relations tried at one join, the first in relation order.
         const MAX_PHI_CANDIDATES: usize = 8;
         let definitions = func.inst_block_table();
         // A predicate consumed only by this branch cannot be queried after the edge.
@@ -1408,11 +1408,7 @@ impl<'a> CheckEliminator<'a> {
                                     _ => continue,
                                 };
                                 let (_, bound) = candidate.operands();
-                                if bound != phi
-                                    && available(bound)
-                                    && phi_candidates.len() < MAX_PHI_CANDIDATES
-                                    && !phi_candidates.contains(&candidate)
-                                {
+                                if bound != phi && available(bound) {
                                     phi_candidates.push(candidate);
                                 }
                             }
@@ -1445,6 +1441,11 @@ impl<'a> CheckEliminator<'a> {
                         }
                     }
                 }
+                // The relations of an edge come in hash order. A join with more candidates than it
+                // tries keeps the first in relation order, which does not depend on the hasher.
+                phi_candidates.sort_unstable();
+                phi_candidates.dedup();
+                phi_candidates.truncate(MAX_PHI_CANDIDATES);
                 if !phi_candidates.is_empty() {
                     for &pred in &func.blocks[block].predecessors {
                         cx.enter_edge(func, block, pred, &exits[pred]);
