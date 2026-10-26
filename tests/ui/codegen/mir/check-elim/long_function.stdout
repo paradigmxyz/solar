@@ -1,0 +1,361 @@
+// === ROOT/tests/ui/codegen/mir/check-elim/long_function.sol:LongFunction ===
+@module LongFunction
+@phase lowered
+fn @chained() [selector=0xd2fe3d6a, abi_wrapper, pure] {
+  bb0:
+    v0 = lt arg0, arg1
+    v2 = lt arg1, arg2
+    v82 = and v0, v2
+    jumpi v82, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v5 = eq arg2, 2
+    jumpi v5, bb5, bb1
+  bb1:
+    v6 = eq arg2, 3
+    v7 = eq arg2, 4
+    v83 = or v6, v7
+    v8 = eq arg2, 5
+    v84 = or v83, v8
+    v9 = eq arg2, 6
+    v85 = or v84, v9
+    v10 = eq arg2, 7
+    v86 = or v85, v10
+    v11 = eq arg2, 8
+    v87 = or v86, v11
+    v12 = eq arg2, 9
+    v88 = or v87, v12
+    v13 = eq arg2, 10
+    v89 = or v88, v13
+    v14 = eq arg2, 11
+    v90 = or v89, v14
+    v15 = eq arg2, 12
+    v91 = or v90, v15
+    v16 = eq arg2, 13
+    v92 = or v91, v16
+    v17 = eq arg2, 14
+    v93 = or v92, v17
+    v18 = eq arg2, 15
+    v94 = or v93, v18
+    v19 = eq arg2, 16
+    v95 = or v94, v19
+    v20 = eq arg2, 17
+    v96 = or v95, v20
+    v21 = eq arg2, 18
+    v97 = or v96, v21
+    v22 = eq arg2, 19
+    v98 = or v97, v22
+    v23 = eq arg2, 20
+    v99 = or v98, v23
+    v24 = eq arg2, 21
+    v100 = or v99, v24
+    v25 = eq arg2, 22
+    v101 = or v100, v25
+    v26 = eq arg2, 23
+    v102 = or v101, v26
+    v27 = eq arg2, 24
+    v103 = or v102, v27
+    v28 = eq arg2, 25
+    v104 = or v103, v28
+    v29 = eq arg2, 26
+    v105 = or v104, v29
+    v30 = eq arg2, 27
+    v106 = or v105, v30
+    v31 = eq arg2, 28
+    v107 = or v106, v31
+    v32 = eq arg2, 29
+    v108 = or v107, v32
+    v33 = eq arg2, 30
+    v109 = or v108, v33
+    v34 = eq arg2, 31
+    v110 = or v109, v34
+    v35 = eq arg2, 32
+    v111 = or v110, v35
+    v36 = eq arg2, 33
+    v112 = or v111, v36
+    v37 = eq arg2, 34
+    v113 = or v112, v37
+    v38 = eq arg2, 35
+    v114 = or v113, v38
+    v39 = eq arg2, 36
+    v115 = or v114, v39
+    v40 = eq arg2, 37
+    v116 = or v115, v40
+    v41 = eq arg2, 38
+    v117 = or v116, v41
+    v42 = eq arg2, 39
+    v118 = or v117, v42
+    v43 = eq arg2, 40
+    v119 = or v118, v43
+    v44 = eq arg2, 41
+    v120 = or v119, v44
+    v45 = eq arg2, 42
+    v121 = or v120, v45
+    v46 = eq arg2, 43
+    v122 = or v121, v46
+    v47 = eq arg2, 44
+    v123 = or v122, v47
+    v48 = eq arg2, 45
+    v124 = or v123, v48
+    v49 = eq arg2, 46
+    v125 = or v124, v49
+    v50 = eq arg2, 47
+    v126 = or v125, v50
+    v51 = eq arg2, 48
+    v127 = or v126, v51
+    v52 = eq arg2, 49
+    v128 = or v127, v52
+    v53 = eq arg2, 50
+    v129 = or v128, v53
+    v54 = eq arg2, 51
+    v130 = or v129, v54
+    v55 = eq arg2, 52
+    v131 = or v130, v55
+    v56 = eq arg2, 53
+    v132 = or v131, v56
+    v57 = eq arg2, 54
+    v133 = or v132, v57
+    v58 = eq arg2, 55
+    v134 = or v133, v58
+    v59 = eq arg2, 56
+    v135 = or v134, v59
+    v60 = eq arg2, 57
+    v136 = or v135, v60
+    v61 = eq arg2, 58
+    v137 = or v136, v61
+    v62 = eq arg2, 59
+    v138 = or v137, v62
+    v63 = eq arg2, 60
+    v139 = or v138, v63
+    v64 = eq arg2, 61
+    v140 = or v139, v64
+    v65 = eq arg2, 62
+    v141 = or v140, v65
+    v66 = eq arg2, 63
+    v142 = or v141, v66
+    v67 = eq arg2, 64
+    v143 = or v142, v67
+    v68 = eq arg2, 65
+    v144 = or v143, v68
+    v69 = eq arg2, 66
+    v145 = or v144, v69
+    v70 = eq arg2, 67
+    v146 = or v145, v70
+    v71 = eq arg2, 68
+    v147 = or v146, v71
+    v72 = eq arg2, 69
+    v148 = or v147, v72
+    v73 = eq arg2, 70
+    v149 = or v148, v73
+    jumpi v149, bb5, bb2
+  bb2:
+    v74 = sub arg2, arg1
+    v75 = sub arg2, arg0
+    v77 = add v74, v75
+    v78 = lt v77, v74
+    jumpi v78, bb6, bb7
+  bb7:
+    mstore 0, v77 !metadata(memory=scratch)
+    returndata 0, 32
+  bb6:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb5:
+    tail_call @revert_stub
+}
+
+fn @unchained() [selector=0xaeb2e72f, abi_wrapper, pure] {
+  bb0:
+    v0 = lt arg0, arg1
+    jumpi v0, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v2 = eq arg2, 1
+    jumpi v2, bb5, bb1
+  bb1:
+    v3 = eq arg2, 2
+    v4 = eq arg2, 3
+    v84 = or v3, v4
+    v5 = eq arg2, 4
+    v85 = or v84, v5
+    v6 = eq arg2, 5
+    v86 = or v85, v6
+    v7 = eq arg2, 6
+    v87 = or v86, v7
+    v8 = eq arg2, 7
+    v88 = or v87, v8
+    v9 = eq arg2, 8
+    v89 = or v88, v9
+    v10 = eq arg2, 9
+    v90 = or v89, v10
+    v11 = eq arg2, 10
+    v91 = or v90, v11
+    v12 = eq arg2, 11
+    v92 = or v91, v12
+    v13 = eq arg2, 12
+    v93 = or v92, v13
+    v14 = eq arg2, 13
+    v94 = or v93, v14
+    v15 = eq arg2, 14
+    v95 = or v94, v15
+    v16 = eq arg2, 15
+    v96 = or v95, v16
+    v17 = eq arg2, 16
+    v97 = or v96, v17
+    v18 = eq arg2, 17
+    v98 = or v97, v18
+    v19 = eq arg2, 18
+    v99 = or v98, v19
+    v20 = eq arg2, 19
+    v100 = or v99, v20
+    v21 = eq arg2, 20
+    v101 = or v100, v21
+    v22 = eq arg2, 21
+    v102 = or v101, v22
+    v23 = eq arg2, 22
+    v103 = or v102, v23
+    v24 = eq arg2, 23
+    v104 = or v103, v24
+    v25 = eq arg2, 24
+    v105 = or v104, v25
+    v26 = eq arg2, 25
+    v106 = or v105, v26
+    v27 = eq arg2, 26
+    v107 = or v106, v27
+    v28 = eq arg2, 27
+    v108 = or v107, v28
+    v29 = eq arg2, 28
+    v109 = or v108, v29
+    v30 = eq arg2, 29
+    v110 = or v109, v30
+    v31 = eq arg2, 30
+    v111 = or v110, v31
+    v32 = eq arg2, 31
+    v112 = or v111, v32
+    v33 = eq arg2, 32
+    v113 = or v112, v33
+    v34 = eq arg2, 33
+    v114 = or v113, v34
+    v35 = eq arg2, 34
+    v115 = or v114, v35
+    v36 = eq arg2, 35
+    v116 = or v115, v36
+    v37 = eq arg2, 36
+    v117 = or v116, v37
+    v38 = eq arg2, 37
+    v118 = or v117, v38
+    v39 = eq arg2, 38
+    v119 = or v118, v39
+    v40 = eq arg2, 39
+    v120 = or v119, v40
+    v41 = eq arg2, 40
+    v121 = or v120, v41
+    v42 = eq arg2, 41
+    v122 = or v121, v42
+    v43 = eq arg2, 42
+    v123 = or v122, v43
+    v44 = eq arg2, 43
+    v124 = or v123, v44
+    v45 = eq arg2, 44
+    v125 = or v124, v45
+    v46 = eq arg2, 45
+    v126 = or v125, v46
+    v47 = eq arg2, 46
+    v127 = or v126, v47
+    v48 = eq arg2, 47
+    v128 = or v127, v48
+    v49 = eq arg2, 48
+    v129 = or v128, v49
+    v50 = eq arg2, 49
+    v130 = or v129, v50
+    v51 = eq arg2, 50
+    v131 = or v130, v51
+    v52 = eq arg2, 51
+    v132 = or v131, v52
+    v53 = eq arg2, 52
+    v133 = or v132, v53
+    v54 = eq arg2, 53
+    v134 = or v133, v54
+    v55 = eq arg2, 54
+    v135 = or v134, v55
+    v56 = eq arg2, 55
+    v136 = or v135, v56
+    v57 = eq arg2, 56
+    v137 = or v136, v57
+    v58 = eq arg2, 57
+    v138 = or v137, v58
+    v59 = eq arg2, 58
+    v139 = or v138, v59
+    v60 = eq arg2, 59
+    v140 = or v139, v60
+    v61 = eq arg2, 60
+    v141 = or v140, v61
+    v62 = eq arg2, 61
+    v142 = or v141, v62
+    v63 = eq arg2, 62
+    v143 = or v142, v63
+    v64 = eq arg2, 63
+    v144 = or v143, v64
+    v65 = eq arg2, 64
+    v145 = or v144, v65
+    v66 = eq arg2, 65
+    v146 = or v145, v66
+    v67 = eq arg2, 66
+    v147 = or v146, v67
+    v68 = eq arg2, 67
+    v148 = or v147, v68
+    v69 = eq arg2, 68
+    v149 = or v148, v69
+    v70 = eq arg2, 69
+    v150 = or v149, v70
+    v71 = eq arg2, 70
+    v151 = or v150, v71
+    jumpi v151, bb5, bb2
+  bb2:
+    v75 = sub arg2, arg1
+    v76 = lt arg2, arg1
+    v77 = sub arg2, arg0
+    v79 = add v75, v77
+    v80 = lt v79, v75
+    v152 = or v76, v80
+    jumpi v152, bb6, bb7
+  bb7:
+    mstore 0, v79 !metadata(memory=scratch)
+    returndata 0, 32
+  bb6:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb5:
+    tail_call @revert_stub
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 0, 0xaf7cfeb1 !metadata(memory=scratch)
+    revert 28, 4
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 100
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0xaeb2e72f => bb3, 0xd2fe3d6a => bb4]
+  bb4:
+    tail_call @chained
+  bb3:
+    tail_call @unchained
+  bb1:
+    revert 0, 0
+}

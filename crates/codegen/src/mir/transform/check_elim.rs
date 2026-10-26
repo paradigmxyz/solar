@@ -80,6 +80,15 @@
 //! Fact copies clone the tables, which costs less than inserting each entry again but keeps the
 //! source's spare capacity.
 //!
+//! Long functions compare a few values, such as constants, in every check, so those values start
+//! a candidate relation per check while the scope of a query states few of them. From
+//! `MIN_BLOCKS_FOR_ACTIVE_RELATIONS` blocks on, the dominator walk keeps the candidates its
+//! scope states listed per value as it adds and rolls back facts: a transitive search leaves a
+//! value by those alone, taking them one at a time, and the offset and strict-edge queries read
+//! the same lists instead of scanning the scope after every change. A search then costs at most
+//! its state budget, however many checks precede it, and visits states in the order the full
+//! candidate list would.
+//!
 //! Loop header phis of the form `p = phi [pre: init], [latch: p - c]` with a
 //! constant nonzero step are monotone when the update provably cannot wrap at
 //! its definition: `p <= init` then holds on every iteration, and `p >= init`
@@ -534,6 +543,13 @@ fn runtime_immutable_bounds(
 /// Maximum recursion depth when evaluating value ranges and conditions.
 const MAX_DEPTH: usize = 12;
 
+/// Maximum number of states a transitive relation search visits.
+const MAX_RELATION_STATES: usize = 128;
+
+/// Functions with this many blocks list the relations their scope states during the dominator
+/// walk. Smaller ones have too few candidates per value to repay the lists.
+const MIN_BLOCKS_FOR_ACTIVE_RELATIONS: usize = 128;
+
 /// Statistics from check elimination.
 #[derive(Debug, Default, Clone)]
 struct CheckElimStats {
@@ -617,6 +633,172 @@ impl Relation {
 struct Facts {
     ranges: FxHashMap<ValueId, Range>,
     relations: FxHashSet<Relation>,
+}
+
+/// The relations of the current scope that searches walk, kept in step with `relations` by the
+/// dominator walk.
+///
+/// A constant compared by every check of a long function is one endpoint of a candidate relation
+/// per check, but a query's scope states few of them. Listing only those spares a search a
+/// membership test of every candidate, and keeps the order the relation index lists them in.
+/// The same lists answer the two queries that would otherwise scan the scope again after every
+/// change to it: the offsets a bound holds for, and the values above a strict edge, which only
+/// grow as relations join the scope and roll back with them.
+struct ActiveRelations {
+    /// Positions of a relation in the index lists of its left and right operand.
+    slots: FxHashMap<Relation, [u32; 2]>,
+    /// Positions in each value's index list of its relations in scope, ascending.
+    in_scope: FxHashMap<ValueId, SmallVec<[u32; 4]>>,
+    /// Constants `c` such that `base + c < bound` is in scope, by `(bound, base)`.
+    offset_bounds: FxHashMap<(ValueId, ValueId), SmallVec<[U256; 2]>>,
+    /// Values above a strict edge, through the relations in scope.
+    nonzero: GrowableBitSet<ValueId>,
+    /// The values added to `nonzero`, in order.
+    nonzero_trail: Vec<ValueId>,
+    /// The length of `nonzero_trail` before each relation added to the scope.
+    marks: Vec<usize>,
+}
+
+impl ActiveRelations {
+    const ABSENT: u32 = u32::MAX;
+
+    fn new(func: &Function, index: &FxHashMap<ValueId, SmallVec<[Relation; 2]>>) -> Self {
+        let mut slots = FxHashMap::<Relation, [u32; 2]>::default();
+        for (&value, relations) in index {
+            for (position, &relation) in relations.iter().enumerate() {
+                let slot = slots.entry(relation).or_insert([Self::ABSENT; 2]);
+                slot[usize::from(relation.operands().0 != value)] = position as u32;
+            }
+        }
+        Self {
+            slots,
+            in_scope: FxHashMap::default(),
+            offset_bounds: FxHashMap::default(),
+            nonzero: GrowableBitSet::with_capacity(func.num_values()),
+            nonzero_trail: Vec::new(),
+            marks: Vec::new(),
+        }
+    }
+
+    /// Lists `relation` for searches, and for the offset queries when it is strict, unless the
+    /// index lacks it or it is already listed.
+    fn link(&mut self, func: &Function, relation: Relation) {
+        let Some(&slot) = self.slots.get(&relation) else { return };
+        let (a, b) = relation.operands();
+        let mut added = false;
+        for (value, position) in [(a, slot[0]), (b, slot[1])] {
+            if position == Self::ABSENT {
+                continue;
+            }
+            let positions = self.in_scope.entry(value).or_default();
+            if let Err(at) = positions.binary_search(&position) {
+                positions.insert(at, position);
+                added = true;
+            }
+        }
+        if added && matches!(relation, Relation::Lt(..)) {
+            for (base, amount) in offsets_of(func, a) {
+                self.offset_bounds.entry((b, base)).or_default().push(amount);
+            }
+        }
+    }
+
+    fn unlink(&mut self, func: &Function, relation: Relation) {
+        let Some(&slot) = self.slots.get(&relation) else { return };
+        let (a, b) = relation.operands();
+        let mut removed = false;
+        for (value, position) in [(a, slot[0]), (b, slot[1])] {
+            if position != Self::ABSENT
+                && let Some(positions) = self.in_scope.get_mut(&value)
+                && let Ok(at) = positions.binary_search(&position)
+            {
+                positions.remove(at);
+                removed = true;
+            }
+        }
+        if removed && matches!(relation, Relation::Lt(..)) {
+            for (base, amount) in offsets_of(func, a) {
+                if let Some(amounts) = self.offset_bounds.get_mut(&(b, base))
+                    && let Some(at) = amounts.iter().rposition(|&other| other == amount)
+                {
+                    amounts.swap_remove(at);
+                }
+            }
+        }
+    }
+
+    /// Adds `relation` to the scope.
+    fn add(
+        &mut self,
+        func: &Function,
+        index: &FxHashMap<ValueId, SmallVec<[Relation; 2]>>,
+        relation: Relation,
+    ) {
+        self.marks.push(self.nonzero_trail.len());
+        let linked = self.slots.contains_key(&relation);
+        self.link(func, relation);
+        let mut pending = SmallVec::<[ValueId; 8]>::new();
+        // A strict edge makes its upper endpoint nonzero, and an edge carries nonzero upward.
+        if let Relation::Lt(_, bound) = relation {
+            self.reach(&mut pending, bound);
+        }
+        if linked {
+            match relation {
+                Relation::Lt(a, b) | Relation::Le(a, b) if self.nonzero.contains(a) => {
+                    self.reach(&mut pending, b);
+                }
+                Relation::Eq(a, b) if self.nonzero.contains(a) => self.reach(&mut pending, b),
+                Relation::Eq(a, b) if self.nonzero.contains(b) => self.reach(&mut pending, a),
+                _ => {}
+            }
+        }
+        while let Some(current) = pending.pop() {
+            let Some(positions) = self.in_scope.get(&current) else { continue };
+            let list = &index[&current];
+            let next = positions
+                .iter()
+                .filter_map(|&position| match list[position as usize] {
+                    Relation::Lt(a, b) | Relation::Le(a, b) if a == current => Some(b),
+                    Relation::Eq(a, b) => Some(if a == current { b } else { a }),
+                    _ => None,
+                })
+                .collect::<SmallVec<[_; 4]>>();
+            for value in next {
+                self.reach(&mut pending, value);
+            }
+        }
+    }
+
+    fn reach(&mut self, pending: &mut SmallVec<[ValueId; 8]>, value: ValueId) {
+        if self.nonzero.insert(value) {
+            self.nonzero_trail.push(value);
+            pending.push(value);
+        }
+    }
+
+    /// Removes the relation most recently added to the scope, which leaves unless `permanent`.
+    fn undo(&mut self, func: &Function, relation: Relation, permanent: bool) {
+        if let Some(mark) = self.marks.pop() {
+            while self.nonzero_trail.len() > mark {
+                let value = self.nonzero_trail.pop().expect("checked len");
+                self.nonzero.remove(value);
+            }
+        }
+        if !permanent {
+            self.unlink(func, relation);
+        }
+    }
+}
+
+/// The bases and constants `value` adds: `x + c` and `c + x` for a constant `c`.
+fn offsets_of(func: &Function, value: ValueId) -> SmallVec<[(ValueId, U256); 2]> {
+    let Some(&InstKind::Add(first, second)) = inst_kind(func, value) else {
+        return SmallVec::new();
+    };
+    [(first, second), (second, first)]
+        .into_iter()
+        .filter_map(|(base, constant)| Some((base, const_of(func, constant)?)))
+        .collect()
 }
 
 fn ordered(a: ValueId, b: ValueId) -> (ValueId, ValueId) {
@@ -752,6 +934,12 @@ struct CheckEliminator<'a> {
     relations: FxHashSet<Relation>,
     /// Possible outgoing facts; each candidate still requires a scoped membership check.
     relation_index: Option<FxHashMap<ValueId, SmallVec<[Relation; 2]>>>,
+    /// Whether the dominator walk is running, which keeps `active_relations` in step with
+    /// `relations`.
+    scoped: bool,
+    /// The indexed candidates in scope, built on the first search of a walk. Boxed: most
+    /// functions never build it, and inline it would widen every access to the fields around it.
+    active_relations: Option<Box<ActiveRelations>>,
     /// Proven header phi invariants, indexed alongside the branch-derived candidates.
     monotone_relations: Vec<Relation>,
     /// Relations of join phis that every incoming value satisfies, indexed the same way.
@@ -966,6 +1154,8 @@ impl<'a> CheckEliminator<'a> {
         self.readers = None;
         let mut stack = Vec::new();
         stack.push(Walk::Enter(BlockId::ENTRY));
+        self.scoped = func.blocks.len() >= MIN_BLOCKS_FOR_ACTIVE_RELATIONS;
+        self.active_relations = None;
         while let Some(item) = stack.pop() {
             match item {
                 Walk::Exit { range_mark, relation_mark, equality_mark } => {
@@ -986,6 +1176,10 @@ impl<'a> CheckEliminator<'a> {
                     while self.relation_undo.len() > relation_mark {
                         let relation = self.relation_undo.pop().expect("checked len");
                         self.relations.remove(&relation);
+                        if let Some(active) = &mut self.active_relations {
+                            let permanent = self.universal_relations.contains(&relation);
+                            active.undo(func, relation, permanent);
+                        }
                     }
                 }
                 Walk::Enter(block) => {
@@ -1000,7 +1194,7 @@ impl<'a> CheckEliminator<'a> {
                         self.narrow(value, range);
                     }
                     for &relation in &facts[block].relations {
-                        self.add_relation(relation);
+                        self.add_relation(func, relation);
                     }
                     if let Some((condition, is_true)) = dominating_edge_fact(func, block) {
                         self.assume(func, condition, is_true, MAX_DEPTH);
@@ -1049,7 +1243,7 @@ impl<'a> CheckEliminator<'a> {
                             && let Some(value) = func.inst_result_value(id)
                             && self.range_of(func, divisor, MAX_DEPTH).lo > U256::ZERO
                         {
-                            self.add_relation(Relation::Lt(value, divisor));
+                            self.add_relation(func, Relation::Lt(value, divisor));
                         }
                         // x - k < x wherever the definition's scope proves x >= k > 0
                         if let InstKind::Sub(x, k) = func.inst(id).kind
@@ -1058,7 +1252,7 @@ impl<'a> CheckEliminator<'a> {
                             && !k.is_zero()
                             && self.range_of(func, x, MAX_DEPTH).lo >= k
                         {
-                            self.add_relation(Relation::Lt(value, x));
+                            self.add_relation(func, Relation::Lt(value, x));
                         }
                         let fact = match &func.inst(id).kind {
                             InstKind::ICall {
@@ -1125,6 +1319,8 @@ impl<'a> CheckEliminator<'a> {
                 }
             }
         }
+        self.scoped = false;
+        self.active_relations = None;
         (folds, checks, reductions)
     }
 
@@ -1595,7 +1791,7 @@ impl<'a> CheckEliminator<'a> {
     /// Records the consequences of `(a < b) == truth` (unsigned).
     fn assume_lt(&mut self, func: &Function, a: ValueId, b: ValueId, truth: bool, depth: usize) {
         if truth {
-            self.add_relation(Relation::Lt(a, b));
+            self.add_relation(func, Relation::Lt(a, b));
             // a < b <= hi(b)  =>  a <= hi(b) - 1
             let hi_b = self.range_of(func, b, depth).hi;
             if hi_b > U256::ZERO {
@@ -1608,7 +1804,7 @@ impl<'a> CheckEliminator<'a> {
             }
         } else {
             // !(a < b)  =>  b <= a
-            self.add_relation(Relation::Le(b, a));
+            self.add_relation(func, Relation::Le(b, a));
             let lo_b = self.range_of(func, b, depth).lo;
             self.narrow(a, Range::new(lo_b, U256::MAX));
             let hi_a = self.range_of(func, a, depth).hi;
@@ -1657,7 +1853,7 @@ impl<'a> CheckEliminator<'a> {
         }
         let (x, y) = ordered(a, b);
         if truth {
-            self.add_relation(Relation::Eq(x, y));
+            self.add_relation(func, Relation::Eq(x, y));
             self.record_equality(func, a, b);
             self.record_equality(func, b, a);
             let range = self.range_of(func, a, depth);
@@ -1667,7 +1863,7 @@ impl<'a> CheckEliminator<'a> {
             self.narrow_summand(func, a, depth);
             self.narrow_summand(func, b, depth);
         } else {
-            self.add_relation(Relation::Ne(x, y));
+            self.add_relation(func, Relation::Ne(x, y));
             self.exclude_boundary(func, a, b, depth);
             self.exclude_boundary(func, b, a, depth);
         }
@@ -1821,11 +2017,34 @@ impl<'a> CheckEliminator<'a> {
         self.ranges.insert(value, new);
     }
 
-    fn add_relation(&mut self, relation: Relation) {
+    fn add_relation(&mut self, func: &Function, relation: Relation) {
         if self.relations.insert(relation) {
             self.strict_lower_bounds = None;
             self.relation_undo.push(relation);
+            if let (Some(active), Some(index)) = (&mut self.active_relations, &self.relation_index)
+            {
+                active.add(func, index, relation);
+            }
         }
+    }
+
+    /// Lists the indexed relations in scope for a dominator walk that keeps them. Builds the
+    /// relation index first if needed.
+    fn ensure_active_relations(&mut self, func: &Function) {
+        if self.active_relations.is_some() {
+            return;
+        }
+        self.ensure_relation_index(func);
+        let index = self.relation_index.as_ref().expect("relation index was just built");
+        let mut active = ActiveRelations::new(func, index);
+        for &relation in &self.universal_relations {
+            active.link(func, relation);
+        }
+        // The undo log holds every relation of the scope, in the order the walk added them.
+        for &relation in &self.relation_undo {
+            active.add(func, index, relation);
+        }
+        self.active_relations = Some(Box::new(active));
     }
 
     /// Builds the forward relation index on first use.
@@ -1934,25 +2153,33 @@ impl<'a> CheckEliminator<'a> {
         bound: ValueId,
         depth: usize,
     ) -> bool {
-        self.ensure_reverse_index(func);
-        let reverse = self.reverse_index.as_ref().expect("relation index was just built");
         let mut amounts = SmallVec::<[U256; 4]>::new();
-        for &fact in reverse.get(&bound).into_iter().flatten() {
-            let Relation::Lt(index, limit) = fact else { continue };
-            if limit != bound
-                || !(self.relations.contains(&fact) || self.universal_relations.contains(&fact))
-            {
-                continue;
-            }
-            let amount = match inst_kind(func, index) {
-                Some(&InstKind::Add(x, c)) if x == base => const_of(func, c),
-                Some(&InstKind::Add(c, x)) if x == base => const_of(func, c),
-                _ => None,
-            };
-            if let Some(amount) = amount
-                && amount >= offset
-            {
-                amounts.push(amount);
+        if self.scoped {
+            self.ensure_active_relations(func);
+            let active = self.active_relations.as_ref().expect("active relations were just built");
+            let bounds = active.offset_bounds.get(&(bound, base));
+            amounts
+                .extend(bounds.into_iter().flatten().copied().filter(|&amount| amount >= offset));
+        } else {
+            self.ensure_reverse_index(func);
+            let reverse = self.reverse_index.as_ref().expect("relation index was just built");
+            for &fact in reverse.get(&bound).into_iter().flatten() {
+                let Relation::Lt(index, limit) = fact else { continue };
+                if limit != bound
+                    || !(self.relations.contains(&fact) || self.universal_relations.contains(&fact))
+                {
+                    continue;
+                }
+                let amount = match inst_kind(func, index) {
+                    Some(&InstKind::Add(x, c)) if x == base => const_of(func, c),
+                    Some(&InstKind::Add(c, x)) if x == base => const_of(func, c),
+                    _ => None,
+                };
+                if let Some(amount) = amount
+                    && amount >= offset
+                {
+                    amounts.push(amount);
+                }
             }
         }
         if amounts.is_empty() {
@@ -1967,6 +2194,17 @@ impl<'a> CheckEliminator<'a> {
     /// Whether some value is provably below `value` in the current scope,
     /// which puts `value` at one or more: every word is at least zero.
     fn has_strict_lower_bound(&mut self, func: &Function, value: ValueId) -> bool {
+        if self.scoped {
+            // Without relations in scope no value is above a strict edge.
+            if self.relation_undo.is_empty() {
+                return false;
+            }
+            self.ensure_active_relations(func);
+            return self
+                .active_relations
+                .as_ref()
+                .is_some_and(|active| active.nonzero.contains(value));
+        }
         if self.strict_lower_bounds.is_none() {
             let mut nonzero = GrowableBitSet::with_capacity(func.num_values());
             let mut pending = Vec::new();
@@ -2035,6 +2273,9 @@ impl<'a> CheckEliminator<'a> {
             });
         }
         self.ensure_relation_index(func);
+        if self.scoped {
+            self.ensure_active_relations(func);
+        }
         let index = self.relation_index.as_ref().expect("relation index was just built");
         if !index.contains_key(&start) {
             return false;
@@ -2072,37 +2313,73 @@ impl<'a> CheckEliminator<'a> {
         equality_only: bool,
         seen: &mut FxHashSet<(ValueId, bool)>,
     ) -> Option<bool> {
-        const MAX_RELATION_STATES: usize = 128;
         let index = self.relation_index.as_ref().expect("relation index was just built");
-        let mut pending = SmallVec::<[_; 8]>::new();
-        pending.push((start, false));
-        while let Some((value, strict)) = pending.pop() {
-            if value == end && (!needs_strict || strict) {
-                return Some(true);
-            }
-            if !seen.insert((value, strict)) {
-                continue;
-            }
-            if seen.len() >= MAX_RELATION_STATES {
-                return Some(false);
-            }
-            for &fact in index.get(&value).into_iter().flatten() {
-                if !self.relations.contains(&fact) && !self.universal_relations.contains(&fact) {
+        if self.active_relations.is_none() {
+            let mut pending = SmallVec::<[_; 8]>::new();
+            pending.push((start, false));
+            while let Some((value, strict)) = pending.pop() {
+                if value == end && (!needs_strict || strict) {
+                    return Some(true);
+                }
+                if !seen.insert((value, strict)) {
                     continue;
                 }
-                let next = match fact {
-                    Relation::Eq(a, b) if a == value => Some((b, strict)),
-                    Relation::Eq(a, b) if b == value => Some((a, strict)),
-                    Relation::Le(a, b) if a == value && !equality_only => Some((b, strict)),
-                    Relation::Lt(a, b) if a == value && !equality_only => Some((b, true)),
-                    _ => None,
-                };
-                if let Some(next) = next {
-                    pending.push(next);
+                if seen.len() >= MAX_RELATION_STATES {
+                    return Some(false);
+                }
+                for &fact in index.get(&value).into_iter().flatten() {
+                    if !self.relations.contains(&fact) && !self.universal_relations.contains(&fact)
+                    {
+                        continue;
+                    }
+                    let next = match fact {
+                        Relation::Eq(a, b) if a == value => Some((b, strict)),
+                        Relation::Eq(a, b) if b == value => Some((a, strict)),
+                        Relation::Le(a, b) if a == value && !equality_only => Some((b, strict)),
+                        Relation::Lt(a, b) if a == value && !equality_only => Some((b, true)),
+                        _ => None,
+                    };
+                    if let Some(next) = next {
+                        pending.push(next);
+                    }
                 }
             }
+            return None;
         }
-        None
+        // Depth-first, taking a state's relations last to first and only as the search reaches
+        // them, which visits the states in the order of a stack holding every successor. Each
+        // frame holds the candidates of its value and the positions of those in scope it has left.
+        let active = self.active_relations.as_ref().expect("active relations are built");
+        let mut frames = SmallVec::<[_; 8]>::new();
+        let mut next = Some((start, false));
+        loop {
+            if let Some((value, strict)) = next.take() {
+                if value == end && (!needs_strict || strict) {
+                    return Some(true);
+                }
+                if seen.insert((value, strict)) {
+                    if seen.len() >= MAX_RELATION_STATES {
+                        return Some(false);
+                    }
+                    let candidates = index.get(&value).map_or(&[][..], |list| list.as_slice());
+                    let positions = active.in_scope.get(&value).map_or(&[][..], |p| p.as_slice());
+                    frames.push((value, strict, candidates, positions));
+                }
+            }
+            let (value, strict, candidates, positions) = frames.last_mut()?;
+            let Some((&position, rest)) = positions.split_last() else {
+                frames.pop();
+                continue;
+            };
+            *positions = rest;
+            next = match candidates[position as usize] {
+                Relation::Eq(a, b) if a == *value => Some((b, *strict)),
+                Relation::Eq(a, b) if b == *value => Some((a, *strict)),
+                Relation::Le(a, b) if a == *value && !equality_only => Some((b, *strict)),
+                Relation::Lt(a, b) if a == *value && !equality_only => Some((b, true)),
+                _ => None,
+            };
+        }
     }
 
     // === Evaluation ===
