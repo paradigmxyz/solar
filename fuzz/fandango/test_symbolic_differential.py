@@ -1080,9 +1080,16 @@ class CommandTests(unittest.TestCase):
             for directory in (args.solc_attempt, args.solar_attempt):
                 (directory / "input.json").write_text(json.dumps(standard_input))
                 (directory / "stdout.txt").write_text(json.dumps(output))
-            output["contracts"]["Probe.sol"]["Probe"]["evm"]["deployedBytecode"].pop(
-                "immutableReferences"
-            )
+            deployed = output["contracts"]["Probe.sol"]["Probe"]["evm"][
+                "deployedBytecode"
+            ]
+            # LOG0 and CALL: a log may come from a frame that later reverts.
+            deployed["object"] = "a0f1"
+            (args.solar_attempt / "stdout.txt").write_text(json.dumps(output))
+            logging_result = symbolic.run(args, root / "logging-out")
+            self.assertEqual(logging_result["status"], "incomplete")
+            self.assertIn("reverted inner frames", logging_result["reason"])
+            deployed.pop("immutableReferences")
             (args.solar_attempt / "stdout.txt").write_text(json.dumps(output))
             with self.assertRaisesRegex(ValueError, "immutableReferences"):
                 symbolic.run(args, root / "saved-out")
