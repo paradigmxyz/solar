@@ -225,9 +225,6 @@ bb18:
   add
   push 64
   mstore
-  dup 4
-  dup 2
-  mstore
   push 32
   add
   swap 1
