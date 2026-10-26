@@ -1470,7 +1470,11 @@ impl AliasAnalysis {
                 }
             }
             InstKind::AbiEncode { .. } => {
-                let InstKind::AbiEncode { args, layout, .. } = kind else { unreachable!() };
+                let InstKind::AbiEncode { args, layout, mode, .. } = kind else { unreachable!() };
+                // An encoding into memory allocates at the free memory pointer.
+                if *mode != crate::mir::AbiEncodeMode::Scratch {
+                    effects.read(Access::Location(Location::Memory(Self::fmp_location())));
+                }
                 for (&arg, ty) in args.iter().zip(layout.types.iter()) {
                     if Self::abi_type_reads_memory(ty) {
                         read_memory(&mut effects, arg, SizeOperand::Unknown);
@@ -1479,6 +1483,8 @@ impl AliasAnalysis {
                 effects.write_any(AddressSpace::Memory);
             }
             InstKind::AbiDecode { data, .. } => {
+                // A decoding allocates its memory values at the free memory pointer.
+                effects.read(Access::Location(Location::Memory(Self::fmp_location())));
                 if func.value_slice_location(data).is_some() {
                     read_memory_slice(&mut effects, data);
                 } else {
@@ -2453,15 +2459,18 @@ impl AliasAnalysis {
     /// frame or a read of the free memory pointer, reaches it through constant additions alone.
     /// Unlike [`Self::pointer_lower_bound`], which bounds where a write may land, it trusts no
     /// runtime offset: assembly that forges a length can index an object's element around to
-    /// low memory, and a read there must see what was stored. `call` bounds the pointer an
-    /// internal call returns.
+    /// low memory, and a read there must see what was stored. A decoded value that is no memory
+    /// object is no pointer either. A word loaded from the free memory pointer's slot counts only
+    /// when `free_pointer` says nothing in the module can leave a word below the heap there, as
+    /// a copy into the slot can. `call` bounds the pointer an internal call returns.
     #[must_use]
     pub(crate) fn read_lower_bound(
         func: &Function,
         value: ValueId,
         call: &dyn Fn(FunctionId) -> Option<u64>,
+        free_pointer: bool,
     ) -> Option<u64> {
-        Self::constant_offset_lower_bound(func, value, call, 0)
+        Self::constant_offset_lower_bound(func, value, call, free_pointer, 0)
     }
 
     /// Returns the least address a word at `offset` of the current internal-call frame can
@@ -2477,6 +2486,7 @@ impl AliasAnalysis {
         func: &Function,
         value: ValueId,
         call: &dyn Fn(FunctionId) -> Option<u64>,
+        free_pointer: bool,
         depth: usize,
     ) -> Option<u64> {
         if depth > 8 {
@@ -2486,14 +2496,17 @@ impl AliasAnalysis {
             return Some(value);
         }
         let Value::Inst(inst) = func.value(value) else { return None };
-        let bound = |value| Self::constant_offset_lower_bound(func, value, call, depth + 1);
+        let bound =
+            |value| Self::constant_offset_lower_bound(func, value, call, free_pointer, depth + 1);
         match &func.inst(*inst).kind {
-            InstKind::Fmp
-            | InstKind::Alloc { .. }
-            | InstKind::AbiEncode { .. }
-            | InstKind::AbiDecode { .. } => Some(EvmMemoryLayout::HEAP_START),
+            InstKind::Fmp | InstKind::Alloc { .. } | InstKind::AbiEncode { .. } => {
+                Some(EvmMemoryLayout::HEAP_START)
+            }
+            InstKind::AbiDecode { .. } if func.value_ty(value) == Some(MirType::MEMPTR) => {
+                Some(EvmMemoryLayout::HEAP_START)
+            }
             InstKind::Load(address, PtrLocation::Memory)
-                if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+                if free_pointer && func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
             {
                 Some(EvmMemoryLayout::HEAP_START)
             }

@@ -71,9 +71,12 @@
 //!   the free memory pointer bounds that address from below through constant offsets, as the heap
 //!   and the frames lie above the scratch space and the free memory pointer, and all memory
 //!   otherwise: a runtime index past a length that assembly forged can wrap a read around to low
-//!   memory. The pointer an internal call returns is bounded the same way when every return of the
-//!   callee is. An internal call keeps what its callee's memory summary may read, and a call or
-//!   tail call to a function that never returns and calls nothing, as a shared revert helper is,
+//!   memory. A word loaded from the free memory pointer's slot bounds a read only when nothing in
+//!   the module can leave a word below the heap there, as a copy into the slot can, and a decoded
+//!   value only when it is a memory object; an encoding or decoding that allocates reads the free
+//!   memory pointer. The pointer an internal call returns is bounded the same way when every return
+//!   of the callee is. An internal call keeps what its callee's memory summary may read, and a call
+//!   or tail call to a function that never returns and calls nothing, as a shared revert helper is,
 //!   keeps what that function reads before writing. A return keeps what the callers may read right
 //!   after their calls when the module shows every call site, joined over them to a fixpoint, so a
 //!   helper that returns a fresh string to a wrapper that only encodes it loses its scratch stores
@@ -155,9 +158,10 @@ impl MirPass for MemoryDse {
                 selected.insert(func_id);
             }
         }
-        let terminal = Arc::new(terminal_liveness(module));
+        let free_pointer = free_pointer_trusted(module);
+        let terminal = Arc::new(terminal_liveness(module, free_pointer));
         let summaries = analyses.call_summaries(module);
-        let returns = Arc::new(return_facts(module, &summaries, &terminal));
+        let returns = Arc::new(return_facts(module, &summaries, &terminal, free_pointer));
         run_selected_function_pass_with_alias_and_cfg(
             module,
             analyses,
@@ -169,6 +173,7 @@ impl MirPass for MemoryDse {
                     analyses.target(gcx),
                     unread_allocations,
                 )
+                .with_free_pointer(free_pointer)
                 .with_terminal(Arc::clone(&terminal))
                 .with_returns(Arc::clone(&returns))
                 .run_to_fixpoint(func)
@@ -181,7 +186,7 @@ impl MirPass for MemoryDse {
 /// The memory each function that never returns and calls nothing reads before writing it, as a
 /// shared revert helper reads only the payload it stores first. A call or tail call to such a
 /// function keeps no other word live.
-fn terminal_liveness(module: &Module) -> FxHashMap<FunctionId, MemLive> {
+fn terminal_liveness(module: &Module, free_pointer: bool) -> FxHashMap<FunctionId, MemLive> {
     let mut terminal = FxHashMap::default();
     for (id, func) in module.functions.iter_enumerated() {
         let returns = |block: &BasicBlock| {
@@ -203,7 +208,8 @@ fn terminal_liveness(module: &Module) -> FxHashMap<FunctionId, MemLive> {
             Rc::new(AliasAnalysis::new(func)),
             Rc::new(CfgInfo::new(func)),
             false,
-        );
+        )
+        .with_free_pointer(free_pointer);
         let entry = eliminator.liveness(func).swap_remove(BlockId::ENTRY);
         if !entry.is_all() {
             terminal.insert(id, entry);
@@ -243,6 +249,7 @@ fn return_facts(
     module: &Module,
     summaries: &Arc<MemoryCallSummaries>,
     terminal: &Arc<FxHashMap<FunctionId, MemLive>>,
+    free_pointer: bool,
 ) -> ReturnFacts {
     let mut facts = ReturnFacts::default();
     // A tail call to a function that never returns hands back no result.
@@ -260,9 +267,9 @@ fn return_facts(
             let mut returns = false;
             for block in &func.blocks {
                 let returned = match &block.terminator {
-                    Some(Terminator::Return { values }) => values
-                        .first()
-                        .and_then(|&value| AliasAnalysis::read_lower_bound(func, value, &call)),
+                    Some(Terminator::Return { values }) => values.first().and_then(|&value| {
+                        AliasAnalysis::read_lower_bound(func, value, &call, free_pointer)
+                    }),
                     Some(Terminator::TailCall { function, .. })
                         if returning.contains(*function) =>
                     {
@@ -345,6 +352,7 @@ fn return_facts(
                 Rc::new(CfgInfo::new(func)),
                 false,
             )
+            .with_free_pointer(free_pointer)
             .with_terminal(Arc::clone(terminal))
             .with_returns(Arc::clone(&snapshot));
             let live_in = eliminator.liveness(func);
@@ -387,6 +395,71 @@ fn has_memory_writes(func: &Function) -> bool {
     })
 }
 
+/// Whether nothing in the module can leave a word below the heap in the free memory pointer's
+/// slot, so that a word loaded from it bounds the reads through it; see
+/// [`AliasAnalysis::read_lower_bound`]. A whole-word store keeps a pointer there: heap-floor raises
+/// the ones that would lower it, and a valid program stores no other word that it then uses as
+/// the pointer. The compiler's own updates keep one too, and so do stores that reach only the
+/// slot's high bytes, where no pointer below 2^64 has bits, as Solady writes call data across
+/// them. A copy, a byte store, or a store across the low bytes, as assembly may write, can leave
+/// any word there, unless its block halts the call with no memory read after it, as a revert's
+/// scratch payload does.
+fn free_pointer_trusted(module: &Module) -> bool {
+    module.functions.iter().all(|func| {
+        let alias = AliasAnalysis::new(func);
+        func.blocks.iter().all(|block| {
+            let halts = matches!(
+                block.terminator,
+                Some(
+                    Terminator::Revert { .. }
+                        | Terminator::RevertReturndata
+                        | Terminator::ReturnData { .. }
+                        | Terminator::Stop
+                        | Terminator::SelfDestruct { .. }
+                        | Terminator::Invalid
+                )
+            );
+            block.instructions.iter().enumerate().all(|(index, &inst)| {
+                !forges_free_pointer(func, &alias, inst)
+                    || halts
+                        && block.instructions[index + 1..]
+                            .iter()
+                            .all(|&later| alias.instruction_mod_ref(func, later).reads().is_empty())
+            })
+        })
+    })
+}
+
+/// Whether `inst` may write the low bytes of the free memory pointer's slot, other than with a
+/// whole-word store or one of the compiler's own updates; see [`free_pointer_trusted`].
+fn forges_free_pointer(func: &Function, alias: &AliasAnalysis, inst: InstId) -> bool {
+    match func.inst(inst).kind {
+        InstKind::Store(address, _, PtrLocation::Memory)
+            if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+        {
+            return false;
+        }
+        InstKind::SetFmp(_) | InstKind::Alloc { .. } => return false,
+        _ => {}
+    }
+    // The last eight bytes of the slot hold every pointer below 2^64.
+    let low = EvmMemoryLayout::FMP_SLOT + EvmMemoryLayout::WORD_SIZE - 8;
+    let slot_end = EvmMemoryLayout::FMP_SLOT + EvmMemoryLayout::WORD_SIZE;
+    alias.instruction_mod_ref(func, inst).writes().iter().any(|access| match access {
+        Access::Location(Location::Memory(location))
+            if matches!(location.address.base, MemoryBase::Absolute) =>
+        {
+            let start = location.address.offset;
+            let end = match location.size {
+                LocationSize::Const(size) => start.saturating_add(size),
+                LocationSize::Dynamic(_) | LocationSize::Unknown => u64::MAX,
+            };
+            start < slot_end && end > low
+        }
+        _ => false,
+    })
+}
+
 /// Local dead memory optimization.
 struct MemoryStoreEliminator {
     /// Shared CFG snapshot for memory liveness and immutable-copy reuse.
@@ -407,6 +480,9 @@ struct MemoryStoreEliminator {
     terminal: Arc<FxHashMap<FunctionId, MemLive>>,
     /// What callers read once calls return; see [`return_facts`].
     returns: Arc<ReturnFacts>,
+    /// Whether a word loaded from the free memory pointer's slot bounds reads through it; see
+    /// [`free_pointer_trusted`].
+    free_pointer: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -769,7 +845,15 @@ impl MemoryStoreEliminator {
             unread_allocations,
             terminal: Arc::default(),
             returns: Arc::default(),
+            free_pointer: false,
         }
+    }
+
+    /// Trusts a word loaded from the free memory pointer's slot as a heap pointer at reads
+    /// through it when `trusted`.
+    fn with_free_pointer(mut self, trusted: bool) -> Self {
+        self.free_pointer = trusted;
+        self
     }
 
     /// Uses the memory functions that never return read first at calls to them.
@@ -1049,9 +1133,12 @@ impl MemoryStoreEliminator {
     /// The least address a read through `value` can reach; see
     /// [`AliasAnalysis::read_lower_bound`].
     fn read_bound(&self, func: &Function, value: ValueId) -> Option<u64> {
-        AliasAnalysis::read_lower_bound(func, value, &|function| {
-            self.returns.bounds.get(&function).copied()
-        })
+        AliasAnalysis::read_lower_bound(
+            func,
+            value,
+            &|function| self.returns.bounds.get(&function).copied(),
+            self.free_pointer,
+        )
     }
 
     /// Marks the memory an instruction may read live: a constant range word by word, and any
