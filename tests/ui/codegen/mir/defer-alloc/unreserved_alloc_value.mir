@@ -1,0 +1,17 @@
+//@compile-flags: -Zmir-pipeline=defer-alloc
+//@filecheck:
+@module DeferAllocUnreservedAllocValue
+
+// The address of an allocation read as an integer observes the bumps before it: removing the
+// temporary's bump would move it. So every bump stays.
+// CHECK:   fn @helper{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @helper(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = alloc 32
+    v2 = ptrtoint ptr<memory> v1 to i256
+    sstore 0, v2
+    ret
+}

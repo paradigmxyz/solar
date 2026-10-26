@@ -81,13 +81,12 @@ fn @alloc_after_use(arg0: i256) {
 fn @pure_callee() {
   bb0:
     v0 = alloc 64
-    v1 = ptrtoint ptr<memory> v0 to i256
-    mstore v1, 7
-    icall @writes, v1
+    mstore v0, 7
+    icall @writes, v0
     ret
 }
 
-fn @writes(arg0: i256) {
+fn @writes(arg0: ptr<memory>) {
   bb0:
     mstore 0, 7
     ret

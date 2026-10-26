@@ -55,11 +55,11 @@
 //! in any function of the module, keeps every bump. A read counts unless its address is at or above
 //! the heap start by `AliasAnalysis`'s heap-pointer assumption, so a variable address or size
 //! counts too. The exception is the bubbled revert data of a failed call, which a copy has just
-//! overwritten. An `fmp` whose result is used as anything but a memory address counts too, since
-//! a removed bump changes it. A write that may reach the slot counts as well, since a partial one
-//! keeps the old pointer's other bytes, unless it ends the execution. Allocations marked as
-//! source-visible FMP advances and those that static placement takes are left alone. `msize` is
-//! not tracked.
+//! overwritten. A `ptrtoint` of a memory pointer whose result is used as anything but a memory
+//! address counts too, since a removed bump changes it. A write that may reach the slot counts as
+//! well, since a partial one keeps the old pointer's other bytes, unless it ends the execution.
+//! Allocations marked as source-visible FMP advances and those that static placement takes are left
+//! alone. `msize` is not tracked.
 
 use crate::mir::{
     AllocationFailure, AllocationInitialization, AllocationSemantics, ArgIdx, BlockId, Callee,
@@ -297,13 +297,14 @@ impl ValueUses {
 
 /// Collects the in-bounds address derivations from `root`, with each one's constant offset, to a
 /// fixpoint so definition order does not matter. `None` means a derivation that cannot be bounded
-/// by a constant: a non-constant `add`, or a derivation past `bound` bytes. Without a `bound`,
-/// `ptradd` takes a runtime offset, and the offsets in the map mean nothing.
+/// by a constant: a non-constant `add` unless `runtime_add`, or a derivation past `bound` bytes.
+/// Without a `bound`, `ptradd` takes a runtime offset, and the offsets in the map mean nothing.
 fn derive_pointers(
     func: &Function,
     root: ValueId,
     uses: &ValueUses,
     bound: Option<u64>,
+    runtime_add: bool,
 ) -> Option<FxHashMap<ValueId, u64>> {
     let mut derived: FxHashMap<ValueId, u64> = FxHashMap::default();
     derived.insert(root, 0);
@@ -322,12 +323,16 @@ fn derive_pointers(
                 }
                 InstKind::Add(a, b) => {
                     let (base, offset) = if derived.contains_key(&a) { (a, b) } else { (b, a) };
-                    let (Some(base_offset), Some(offset)) =
-                        (derived.get(&base).copied(), func.value_u64(offset))
-                    else {
-                        return None;
-                    };
-                    base_offset.checked_add(offset)
+                    let base_offset = derived.get(&base).copied();
+                    match (base_offset, func.value_u64(offset)) {
+                        (Some(base_offset), Some(offset)) => base_offset.checked_add(offset),
+                        (Some(base_offset), None)
+                            if runtime_add && !derived.contains_key(&offset) =>
+                        {
+                            Some(base_offset)
+                        }
+                        _ => return None,
+                    }
                 }
                 InstKind::PtrAdd(base, offset) => {
                     let base_offset = derived.get(&base).copied();
@@ -399,7 +404,7 @@ fn candidate_uses_are_safe(
     calls: &CallGraphInfo,
     summaries: &MemoryCallSummaries,
 ) -> bool {
-    let Some(derived) = derive_pointers(func, cand.ptr, uses, Some(cand.size)) else {
+    let Some(derived) = derive_pointers(func, cand.ptr, uses, Some(cand.size), false) else {
         return false;
     };
 
@@ -565,7 +570,9 @@ impl UnreservedAnalysis<'_> {
     fn is_unreserved(&self, Placement { alloc, block: alloc_block, position }: Placement) -> bool {
         let func = self.func;
         let ptr = func.inst_result_value(alloc).expect("allocation must produce a value");
-        let Some(derived) = derive_pointers(func, ptr, &self.uses, None) else { return false };
+        let Some(derived) = derive_pointers(func, ptr, &self.uses, None, false) else {
+            return false;
+        };
         let Some(use_ends) = self.pointer_uses(alloc, &derived) else { return false };
 
         // Blocks that still reach a use. A path back into the allocation's block runs the
@@ -813,16 +820,18 @@ fn accesses_fmp_slot(func: &Function) -> bool {
     }) || fmp_value_escapes(func)
 }
 
-/// Whether the function reads the free-memory pointer into anything but memory addresses, such as
-/// an integer that a later `fmp` can be subtracted from. A removed bump changes that value.
+/// Whether the function turns a memory pointer into an integer that is used as anything but a
+/// memory address, such as one that a later address can be subtracted from. A removed bump changes
+/// that value. A pointer becomes an integer only through `ptrtoint`.
 fn fmp_value_escapes(func: &Function) -> bool {
     let uses = ValueUses::new(func);
     func.instructions().any(|inst| {
-        if !matches!(func.inst(inst).kind, InstKind::Fmp) {
+        let InstKind::PtrToInt(base, _) = func.inst(inst).kind else { return false };
+        if func.value_ty(base) != Some(MirType::MEMPTR) {
             return false;
         }
-        let ptr = func.inst_result_value(inst).expect("fmp must produce a value");
-        let Some(derived) = derive_pointers(func, ptr, &uses, None) else { return true };
+        let ptr = func.inst_result_value(inst).expect("ptrtoint must produce a value");
+        let Some(derived) = derive_pointers(func, ptr, &uses, None, true) else { return true };
         derived.keys().any(|&operand| {
             uses.instructions[operand].iter().any(|&user| {
                 let kind = &func.inst(user).kind;
