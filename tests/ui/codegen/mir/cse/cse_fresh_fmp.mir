@@ -216,6 +216,50 @@ fn @reset_after_read(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     ret v7
 }
 
+// A write through a runtime index wraps onto the pointer when the program forged the length that
+// bounds it, so the reads after it are not fresh.
+// CHECK-LABEL: @wrapped_write_before_read
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK:       {{v[0-9]+}} = mload [[ADDR]]
+fn @wrapped_write_before_read(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    v13 = alloc 32
+    v12 = ptradd v13, arg2
+    v4 = ptrtoint ptr<memory> v12 to i256
+    mstore v4, 5
+    mstore v2, arg0
+    v11 = fmp
+    v3 = ptrtoint ptr<memory> v11 to i256
+    mstore v3, arg1
+    v7 = mload v2
+    ret v7
+}
+
+// A wrapped write after the read leaves the read, and the allocation before it, fresh.
+// CHECK-LABEL: @wrapped_write_after_read
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
+// CHECK: +     ret arg0
+fn @wrapped_write_after_read(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    mstore v2, arg0
+    v11 = fmp
+    v3 = ptrtoint ptr<memory> v11 to i256
+    mstore v3, arg1
+    v7 = mload v2
+    v13 = alloc 32
+    v12 = ptradd v13, arg2
+    v4 = ptrtoint ptr<memory> v12 to i256
+    mstore v4, 5
+    ret v7
+}
+
 // A callee that may reset the pointer, between the allocation and the read, ends freshness.
 // CHECK-LABEL: @call_may_reset
 // CHECK:       mstore [[ADDR:v[0-9]+]], arg0

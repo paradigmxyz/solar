@@ -475,6 +475,7 @@ impl PointerProvenance {
         func: &Function,
         call_summaries: Option<&MemoryCallSummaries>,
         may_reset_fmp: impl Fn(&Function, InstId, Option<&MemoryCallSummaries>) -> bool,
+        may_wrap_write: impl Fn(&Function, InstId, Option<&MemoryCallSummaries>) -> bool,
     ) -> Self {
         if func.blocks.is_empty() {
             return Self::default();
@@ -509,23 +510,46 @@ impl PointerProvenance {
 
         // `poisoned[block]` means at least one path into the block may have
         // recycled the FMP. The monotone OR lattice handles joins and loops.
-        let mut reachable = DenseBitSet::new_empty(func.blocks.len());
-        let mut poisoned = DenseBitSet::new_empty(func.blocks.len());
-        let mut worklist = VecDeque::from([BlockId::ENTRY]);
-        reachable.insert(BlockId::ENTRY);
-        while let Some(block) = worklist.pop_front() {
-            let out = poisoned.contains(block) || first_resets[block].is_some();
-            let Some(terminator) = &func.blocks[block].terminator else { continue };
-            for successor in terminator.successors() {
-                let mut changed = reachable.insert(successor);
-                if out {
-                    changed |= poisoned.insert(successor);
-                }
-                if changed {
-                    worklist.push_back(successor);
+        let poison = |first_resets: &IndexVec<BlockId, Option<usize>>| {
+            let mut reachable = DenseBitSet::new_empty(func.blocks.len());
+            let mut poisoned = DenseBitSet::new_empty(func.blocks.len());
+            let mut worklist = VecDeque::from([BlockId::ENTRY]);
+            reachable.insert(BlockId::ENTRY);
+            while let Some(block) = worklist.pop_front() {
+                let out = poisoned.contains(block) || first_resets[block].is_some();
+                let Some(terminator) = &func.blocks[block].terminator else { continue };
+                for successor in terminator.successors() {
+                    let mut changed = reachable.insert(successor);
+                    if out {
+                        changed |= poisoned.insert(successor);
+                    }
+                    if changed {
+                        worklist.push_back(successor);
+                    }
                 }
             }
-        }
+            (reachable, poisoned)
+        };
+        let (reachable, poisoned) = poison(&first_resets);
+        // A write through a wrapped runtime index may land on the FMP word, so it ends the
+        // freshness of the reads after it, though it keeps the allocations before it unique.
+        let first_rewinds = func
+            .blocks
+            .iter()
+            .zip(&first_resets)
+            .map(|(block, &reset)| {
+                let wrap = block
+                    .instructions
+                    .iter()
+                    .position(|&inst| may_wrap_write(func, inst, call_summaries));
+                reset.into_iter().chain(wrap).min()
+            })
+            .collect::<IndexVec<BlockId, _>>();
+        let read_poisoned = if first_rewinds.iter().any(Option::is_some) {
+            poison(&first_rewinds).1
+        } else {
+            poisoned.clone()
+        };
 
         let mut allocations = FxHashMap::default();
         // The unique `alloc`s and the free-memory-pointer reads that no reset precedes.
@@ -547,8 +571,9 @@ impl PointerProvenance {
                         has_alloc = true;
                     }
                 } else if matches!(func.inst(inst_id).kind, InstKind::Fmp)
-                    && entry_fresh
-                    && first_resets[block_id].is_none_or(|first| index < first)
+                    && reachable.contains(block_id)
+                    && !read_poisoned.contains(block_id)
+                    && first_rewinds[block_id].is_none_or(|first| index < first)
                 {
                     positions.insert(inst_id, (block_id, index));
                     has_read = true;
@@ -661,6 +686,7 @@ impl AliasAnalysis {
                 func,
                 self.call_summaries.as_deref(),
                 Self::instruction_may_reset_fmp_with_summaries,
+                Self::instruction_may_wrap_write_with_summaries,
             )
         })
     }
@@ -1941,16 +1967,11 @@ impl AliasAnalysis {
         }
     }
 
-    /// Returns whether an instruction itself writes memory at an address computed with a runtime
-    /// index, directly or through a select or phi, or with a write of unknown extent.
-    #[must_use]
-    pub(crate) fn instruction_writes_through_runtime_index(
-        &self,
-        func: &Function,
-        inst: InstId,
-    ) -> bool {
+    /// Returns whether an instruction writes memory at an address computed with a runtime index,
+    /// which wraps around when the program forged the length that bounds the index.
+    fn address_indexed_write(func: &Function, inst: InstId) -> bool {
         let indexed = |address| Self::address_has_runtime_index(func, address, 8);
-        let address_indexed = match func.inst(inst).kind {
+        match func.inst(inst).kind {
             InstKind::Store(address, _, PtrLocation::Memory)
             | InstKind::Store8(address, _)
             | InstKind::MemoryZero(address, _)
@@ -1963,8 +1984,34 @@ impl AliasAnalysis {
             | InstKind::StaticCall { ret_offset: address, .. }
             | InstKind::DelegateCall { ret_offset: address, .. } => indexed(address),
             _ => false,
-        };
-        address_indexed || {
+        }
+    }
+
+    /// Like [`Self::instruction_may_wrap_write`], without the writes of unknown extent, which
+    /// need the provenance this feeds. Such a write starts at its address and cannot wrap
+    /// around without a length no gas can pay for.
+    fn instruction_may_wrap_write_with_summaries(
+        func: &Function,
+        inst: InstId,
+        call_summaries: Option<&MemoryCallSummaries>,
+    ) -> bool {
+        match func.inst(inst).kind {
+            InstKind::ICall { function: Callee::Function(function), .. } => call_summaries
+                .and_then(|summaries| summaries.get(function))
+                .is_none_or(|summary| summary.may_wrap_write()),
+            _ => Self::address_indexed_write(func, inst),
+        }
+    }
+
+    /// Returns whether an instruction itself writes memory at an address computed with a runtime
+    /// index, directly or through a select or phi, or with a write of unknown extent.
+    #[must_use]
+    pub(crate) fn instruction_writes_through_runtime_index(
+        &self,
+        func: &Function,
+        inst: InstId,
+    ) -> bool {
+        Self::address_indexed_write(func, inst) || {
             self.instruction_mod_ref(func, inst).writes().iter().any(|access| {
                 matches!(
                     access,
