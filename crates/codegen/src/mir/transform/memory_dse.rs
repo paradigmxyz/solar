@@ -791,10 +791,9 @@ impl MemoryStoreEliminator {
             *live = MemLive::All;
             return;
         }
-        let mut word = first;
-        while word < end {
+        // `step_by` stops at the end of the address space, where `word += 32` would wrap.
+        for word in (first..end).step_by(32) {
             live.add_addr(word);
-            word += 32;
         }
     }
 
