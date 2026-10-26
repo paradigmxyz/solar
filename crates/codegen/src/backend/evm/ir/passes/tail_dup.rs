@@ -26,7 +26,16 @@
 //! sizes, block labels, stack operations, conditional jumps to a label pushed right before them,
 //! and opcodes that observe neither their position nor the gas left. A label keeps naming the
 //! same block, and the copy takes whole blocks, so `keep_with_next` boundaries stay intact.
-//! Immutable and library placeholders, which the assembler patches by site, stay where they are.
+//! Immutable and library placeholders, which the assembler patches by site, stay where they are,
+//! and so do opcodes the target lacks, whose new uses the checks between passes reject.
+//!
+//! A copy never takes the stack higher than the path it replaces. That path pushed the label of
+//! its jump into the block one word over the block's entry stack, ran the block's code, and went
+//! on into the next block's. A copy of a block that falls through ends with a jump whose label
+//! goes on the stack the block leaves, so such a block qualifies only when the path reaches that
+//! height anyway: in the block's own code, or in the next block's before it can branch away, as
+//! a callee entered right after its return address does. Otherwise the copy could exceed the
+//! 1024-word limit where the path stays within it.
 //!
 //! # Profitability
 //!
@@ -64,6 +73,7 @@ use crate::{
 };
 use solar_data_structures::index::IndexVec;
 use solar_sema::Gcx;
+use std::cmp::Ordering;
 
 pub(super) struct TailDup;
 
@@ -93,11 +103,7 @@ impl EvmPass for TailDup {
                 })
                 .collect::<Vec<_>>();
             // The budget takes the copies that save the most gas per added byte first.
-            candidates.sort_by(|a, b| {
-                (u128::from(b.3) * u128::from(a.2))
-                    .cmp(&(u128::from(a.3) * u128::from(b.2)))
-                    .then(a.0.cmp(&b.0))
-            });
+            candidates.sort_by(|a, b| by_gas_per_byte((a.2, a.3), (b.2, b.3)).then(a.0.cmp(&b.0)));
             // Every copy of a round takes its block as the round found it, so a block grown by
             // one copy still qualifies for the others.
             let copies = candidates
@@ -179,8 +185,10 @@ fn candidate(
     // The copy's own transfer must not cost more on each iteration than the tail's does.
     let ending = match tail.terminator.as_ref()?.kind {
         TerminatorKind::Jump(next) if Some(next) == module.next_block(callee) => {
-            // The copy jumps where the tail falls through, which must leave the loop.
-            if module.blocks[next].metadata.in_loop {
+            // The copy jumps where the tail falls through, which must leave the loop, and must
+            // push that jump's label no higher than the path through the tail already reaches.
+            let next = &module.blocks[next];
+            if next.metadata.in_loop || !label_fits_path(tail, next) {
                 return None;
             }
             target.label_push() + target.opcode(op::JUMP)
@@ -240,6 +248,9 @@ fn instruction_cost(target: Target, before: &[Instruction], inst: &Instruction) 
     if let Some(stack_op) = inst.as_stack_op() {
         return target.stack_op(stack_op);
     }
+    if !op::is_available(inst.opcode, target.evm_version()) {
+        return None;
+    }
     let definition = op::definition(inst.opcode)?;
     // A conditional jump to the label pushed right before it goes to the same block from a copy.
     let direct_jumpi = inst.opcode == op::JUMPI
@@ -282,4 +293,70 @@ fn instruction_bytes(target: Target, inst: &Instruction) -> u32 {
     inst.as_stack_op()
         .and_then(|stack_op| target.stack_op(stack_op))
         .map_or_else(|| target.opcode(inst.opcode).bytes, |cost| cost.bytes)
+}
+
+/// Whether the label a copy of `block` pushes to jump to `next`, where the block falls through,
+/// stays within the highest stack of the path the copy replaces: the label of the jump into the
+/// block, one word over its entry stack, the block's own peak, or the first word the code of
+/// `next` pushes over the stack the block leaves, before `next` can branch away.
+fn label_fits_path(block: &Block, next: &Block) -> bool {
+    let (mut height, mut peak) = (0i64, 1i64);
+    for inst in &block.instructions {
+        height += stack_growth(inst);
+        peak = peak.max(height);
+    }
+    if height < peak {
+        return true;
+    }
+    let mut rise = 0i64;
+    for inst in &next.instructions {
+        rise += stack_growth(inst);
+        if rise > 0 {
+            return true;
+        }
+        if inst.as_evm_opcode() == Some(op::JUMPI) {
+            return false;
+        }
+    }
+    false
+}
+
+/// The words `inst` adds to the stack, negative when it removes some.
+fn stack_growth(inst: &Instruction) -> i64 {
+    let effect = inst.stack_effect();
+    i64::from(effect.outputs) - i64::from(effect.inputs)
+}
+
+/// Orders copies that add `added` bytes and save `saved` gas by the gas they save per added byte,
+/// highest first. Copies that add no bytes come first: compared by cross-multiplication, one that
+/// also saves no gas would tie with every other copy, which orders nothing consistently.
+fn by_gas_per_byte((added_a, saved_a): (u64, u64), (added_b, saved_b): (u64, u64)) -> Ordering {
+    (added_a != 0).cmp(&(added_b != 0)).then_with(|| {
+        (u128::from(saved_b) * u128::from(added_a))
+            .cmp(&(u128::from(saved_a) * u128::from(added_b)))
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gas_per_byte_orders_totally() {
+        // (added, saved), with copies that add no bytes, save no gas, or both.
+        let copies = [(10, 10), (0, 0), (4, 8), (0, 12), (1, 120), (3, 0), (2, 4), (6, 0)];
+        for a in copies {
+            for b in copies {
+                assert_eq!(by_gas_per_byte(a, b), by_gas_per_byte(b, a).reverse(), "{a:?} {b:?}");
+                for c in copies {
+                    if by_gas_per_byte(a, b).is_le() && by_gas_per_byte(b, c).is_le() {
+                        assert!(by_gas_per_byte(a, c).is_le(), "{a:?} <= {b:?} <= {c:?}");
+                    }
+                }
+            }
+        }
+        let mut sorted = copies;
+        sorted.sort_by(|&a, &b| by_gas_per_byte(a, b));
+        assert_eq!(sorted, [(0, 0), (0, 12), (1, 120), (4, 8), (2, 4), (10, 10), (3, 0), (6, 0)]);
+    }
 }
