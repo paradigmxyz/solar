@@ -45,6 +45,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &call_cleanup::CallCleanup,
     &outline_reverts::OutlineReverts,
     &cfg_simplify::FunctionDce,
+    &cfg_simplify::NoreturnCalls,
     &cfg_simplify::SimplifyTrivialPhis,
     &sccp::Sccp,
     &pure_eval::PureEval,
@@ -179,6 +180,9 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // pass forwards the stored value to the pointer's loads.
     &heap_floor::HeapFloor,
     &cfg_simplify::FunctionDce,
+    // A failure path through a revert helper ends at the call, so the code after it keeps the
+    // facts the failing branch states.
+    &cfg_simplify::NoreturnCalls,
     // HIR lowering leaves trivial phis for locals that loops never reassign.
     // They hide one object behind several SSA names, which alias analysis
     // joins to distinct symbolic pointers, so remove them before the loop and
@@ -196,6 +200,10 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // compare against one bound.
     &cse::Cse::All,
     &pre::Pre::Reads,
+    // Forwarded loads fold the checks of a helper that only fails, such as
+    // `new uint256[](0)[0]`; end them, and the calls to it, before element
+    // cleanup bounds the values that reach stores.
+    &cfg_simplify::NoreturnCalls,
     // Element reads of arrays that only ever hold canonical words drop their
     // type masks while the accesses are still semantic and calls explicit.
     &element_cleanup::ElementCleanup,
@@ -283,6 +291,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // corpus's bytecode.
     &GasOnly::new(check_elim::CheckElim),
     &dce::Dce,
+    // Forwarding has replaced the reads of allocation headers, which leaves their stores dead
+    // while the allocations are still atomic.
+    &memory_dse::MemoryDse,
     &lower_dispatch::LowerDispatch,
     &lower_structs::LowerStructs,
     // Hoisted ABI guards leave empty wrapper entries and unreachable reverts.

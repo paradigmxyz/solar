@@ -113,6 +113,14 @@
 ;; Requires: c0 is constant, c0 == (2 ** 248) - 1.
 (rule (sequence_rewrite (Op.Gt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 18446744073709551615 18446744073709551615 18446744073709551615 72057594037927935))) (if-let r0 (imm (u256 248))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Ne r1 zero)))
 
+;; (x >> c0) != 0 => x > (1 << c0) - 1.
+;; Requires: c0 is constant.
+;; The inverse of the rules above: a test that a branch reads costs nothing, but a
+;; zero-or-one word needs two `ISZERO`s, which one comparison saves.
+(rule (sequence_rewrite (Op.Ne (shr (iconst c0) x) (zero)))
+      (if-let mask (imm (u256_sub (u256_shl c0 (u256 1)) (u256 1))))
+      (sequence (Op.Gt x mask)))
+
 ;; smod(x, m) == 0 => (x & (m - 1)) == 0.
 ;; Requires: m is constant, m == 2 ** shift and 1 <= shift <= (W - 1), shift < (W - 1).
 (rule (sequence_rewrite (Op.Eq (smod x (iconst m)) (zero)))

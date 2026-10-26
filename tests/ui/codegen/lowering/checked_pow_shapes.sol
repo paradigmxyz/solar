@@ -6,6 +6,8 @@
 //   contribute to the result;
 // - signed and sub-word products use their type bounds, and products of at most
 //   128-bit operands only those;
+// - a constant nonnegative base is one `EXP` after a bound on the exponent, the
+//   largest whose power fits the type, while a negative one keeps the loop;
 // - unchecked paths keep native `EXP` and truncate narrow results.
 contract CheckedPowShapes {
     // CHECK-LABEL: fn @upow{{[( ]}}
@@ -51,18 +53,49 @@ contract CheckedPowShapes {
     }
 
     // CHECK-LABEL: fn @const2{{[( ]}}
-    // CHECK: phi [bb0: 1]
-    // CHECK: phi [bb0: 2]
+    // CHECK-NOT: phi
+    // CHECK: [[OVER:v[0-9]+]] = gt arg0, 255
+    // CHECK: jumpi [[OVER]]
+    // CHECK: exp 2, arg0
     // CHECK: mstore 32, 17
     function const2(uint256 b) public pure returns (uint256) {
         return 2 ** b;
     }
 
     // CHECK-LABEL: fn @const10{{[( ]}}
-    // CHECK: phi [bb0: 10]
+    // CHECK-NOT: phi
+    // CHECK: gt arg0, 77
+    // CHECK: exp 10, arg0
     // CHECK: mstore 32, 17
     function const10(uint256 b) public pure returns (uint256) {
         return 10 ** b;
+    }
+
+    // CHECK-LABEL: fn @const10_8{{[( ]}}
+    // CHECK-NOT: phi
+    // CHECK: gt {{v[0-9]+}}, 2
+    // CHECK: exp 10, {{v[0-9]+}}
+    // CHECK: mstore 32, 17
+    function const10_8(uint8 b) public pure returns (uint8) {
+        return uint8(10) ** b;
+    }
+
+    // CHECK-LABEL: fn @const3_signed{{[( ]}}
+    // CHECK-NOT: phi
+    // CHECK: gt arg0, 160
+    // CHECK: exp 3, arg0
+    // CHECK: mstore 32, 17
+    function const3_signed(uint256 b) public pure returns (int256) {
+        return int256(3) ** b;
+    }
+
+    // CHECK-LABEL: fn @const1{{[( ]}}
+    // CHECK-NOT: phi
+    // CHECK-NOT: gt
+    // CHECK: exp 1, arg0
+    // CHECK-NOT: mstore 32, 17
+    function const1(uint256 b) public pure returns (uint256) {
+        return 1 ** b;
     }
 
     // CHECK-LABEL: fn @const_neg2{{[( ]}}

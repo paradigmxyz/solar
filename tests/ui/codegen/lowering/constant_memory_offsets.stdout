@@ -73,9 +73,6 @@ bb6:
   calldatasize
   dup 3
   calldatacopy
-  push 3
-  dup 2
-  mstore
   push 7
   push 96
   dup 3
