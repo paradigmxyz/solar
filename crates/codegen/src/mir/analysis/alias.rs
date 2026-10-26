@@ -1450,6 +1450,11 @@ impl AliasAnalysis {
         // non-allocation base is likewise `MayAlias`.
         let first_alloc = Self::allocation_base(first.address.base);
         let second_alloc = Self::allocation_base(second.address.base);
+        if Self::absolute_below_allocation(first, second)
+            || Self::absolute_below_allocation(second, first)
+        {
+            return AliasResult::NoAlias;
+        }
         match (first_alloc, second_alloc) {
             (Some((a, a_dynamic)), Some((b, b_dynamic))) => {
                 if a != b {
@@ -1477,6 +1482,26 @@ impl AliasAnalysis {
             return AliasResult::MayAlias;
         }
         Self::compare_offsets(first, second)
+    }
+
+    /// Whether `absolute` is a heap-start-or-higher absolute range that ends at or below the
+    /// lowest address `allocation` can start at: every allocation lies at or above the heap
+    /// start, as [`Self::pointer_lower_bound`] trusts. Reserved low memory stays `MayAlias`,
+    /// since the free-memory-pointer slot there reflects allocations.
+    fn absolute_below_allocation(absolute: MemoryLocation, allocation: MemoryLocation) -> bool {
+        let (MemoryBase::Absolute, Some(_), LocationSize::Const(size)) =
+            (absolute.address.base, Self::allocation_base(allocation.address.base), absolute.size)
+        else {
+            return false;
+        };
+        let start = EvmMemoryLayout::HEAP_START.checked_add(allocation.address.offset);
+        absolute.address.offset >= EvmMemoryLayout::HEAP_START
+            && absolute
+                .address
+                .offset
+                .checked_add(size)
+                .zip(start)
+                .is_some_and(|(end, start)| end <= start)
     }
 
     /// Compares two ranges that share a base, by offset and width.
@@ -1805,6 +1830,86 @@ impl AliasAnalysis {
     #[must_use]
     pub(crate) fn instruction_may_reset_fmp(&self, func: &Function, inst: InstId) -> bool {
         Self::instruction_may_reset_fmp_with_summaries(func, inst, self.call_summaries.as_deref())
+    }
+
+    /// Returns whether an instruction may write memory through a runtime index, which wraps and
+    /// so may land on the free-memory pointer.
+    #[must_use]
+    pub(crate) fn instruction_may_wrap_write(&self, func: &Function, inst: InstId) -> bool {
+        match func.inst(inst).kind {
+            InstKind::ICall { function: Callee::Function(function), .. } => self
+                .call_summaries
+                .as_deref()
+                .and_then(|summaries| summaries.get(function))
+                .is_none_or(|summary| summary.may_wrap_write()),
+            _ => self.instruction_writes_through_runtime_index(func, inst),
+        }
+    }
+
+    /// Returns whether an instruction itself writes memory at an address computed with a runtime
+    /// index, directly or through a select or phi, or with a write of unknown extent.
+    #[must_use]
+    pub(crate) fn instruction_writes_through_runtime_index(
+        &self,
+        func: &Function,
+        inst: InstId,
+    ) -> bool {
+        let indexed = |address| Self::address_has_runtime_index(func, address, 8);
+        let address_indexed = match func.inst(inst).kind {
+            InstKind::Store(address, _, PtrLocation::Memory)
+            | InstKind::Store8(address, _)
+            | InstKind::MemoryZero(address, _)
+            | InstKind::Copy(address, ..)
+            | InstKind::DataCopy(_, address, _)
+            | InstKind::CodeCopy(address, ..)
+            | InstKind::ExtCodeCopy(_, address, ..) => indexed(address),
+            InstKind::Call { ret_offset: address, .. }
+            | InstKind::CallCode { ret_offset: address, .. }
+            | InstKind::StaticCall { ret_offset: address, .. }
+            | InstKind::DelegateCall { ret_offset: address, .. } => indexed(address),
+            _ => false,
+        };
+        address_indexed || {
+            self.instruction_mod_ref(func, inst).writes().iter().any(|access| {
+                matches!(
+                    access,
+                    Access::Location(Location::Memory(location))
+                        if location.size == LocationSize::Unknown
+                )
+            })
+        }
+    }
+
+    /// Returns whether an address is computed with a runtime value, on any path of a select or
+    /// phi: added to a pointer, or through any arithmetic this does not follow. Pointers that
+    /// come from an allocation, a load, a call, or an argument, and constant offsets from them,
+    /// are not. A chain too deep to follow counts as indexed.
+    fn address_has_runtime_index(func: &Function, address: ValueId, depth: u32) -> bool {
+        let Some(depth) = depth.checked_sub(1) else { return true };
+        let Value::Inst(inst) = func.value(address) else { return false };
+        let indexed = |value| Self::address_has_runtime_index(func, value, depth);
+        match &func.inst(*inst).kind {
+            InstKind::Alloc { .. }
+            | InstKind::Fmp
+            | InstKind::Load(..)
+            | InstKind::ICall { .. }
+            | InstKind::InternalFrameAddr(_)
+            | InstKind::FrameLoad { .. } => false,
+            InstKind::PtrAdd(base, offset) => func.value_u64(*offset).is_none() || indexed(*base),
+            InstKind::Add(first, second) => match (func.value_u64(*first), func.value_u64(*second))
+            {
+                (_, Some(_)) => indexed(*first),
+                (Some(_), None) => indexed(*second),
+                (None, None) => true,
+            },
+            InstKind::Sub(base, offset) => func.value_u64(*offset).is_none() || indexed(*base),
+            InstKind::Select(_, first, second) => indexed(*first) || indexed(*second),
+            InstKind::Phi(incoming) => incoming.iter().any(|&(_, value)| indexed(value)),
+            InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => indexed(*value),
+            InstKind::MakeSlice { ptr, .. } => indexed(*ptr),
+            InstKind::ExtractValue { aggregate, .. } => indexed(*aggregate),
+            _ => true,
+        }
     }
 
     /// Returns whether an instruction may terminate the current EVM call successfully.
