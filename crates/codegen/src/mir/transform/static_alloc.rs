@@ -55,8 +55,9 @@
 //! in any function of the module, keeps every bump. A read counts unless its address is at or above
 //! the heap start by `AliasAnalysis`'s heap-pointer assumption, so a variable address or size
 //! counts too. The exception is the bubbled revert data of a failed call, which a copy has just
-//! overwritten. A write that may reach the slot counts as well, since a partial one keeps the old
-//! pointer's other bytes, unless it ends the execution. Allocations marked as
+//! overwritten. An `fmp` whose result is used as anything but a memory address counts too, since
+//! a removed bump changes it. A write that may reach the slot counts as well, since a partial one
+//! keeps the old pointer's other bytes, unless it ends the execution. Allocations marked as
 //! source-visible FMP advances and those that static placement takes are left alone. `msize` is
 //! not tracked.
 
@@ -809,6 +810,34 @@ fn accesses_fmp_slot(func: &Function) -> bool {
                 if AliasAnalysis::range_may_overlap_fmp(func, offset, func.value_u64(size))
                     && !reads_copied_returndata(func, &block.instructions, offset, size)
         )
+    }) || fmp_value_escapes(func)
+}
+
+/// Whether the function reads the free-memory pointer into anything but memory addresses, such as
+/// an integer that a later `fmp` can be subtracted from. A removed bump changes that value.
+fn fmp_value_escapes(func: &Function) -> bool {
+    let uses = ValueUses::new(func);
+    func.instructions().any(|inst| {
+        if !matches!(func.inst(inst).kind, InstKind::Fmp) {
+            return false;
+        }
+        let ptr = func.inst_result_value(inst).expect("fmp must produce a value");
+        let Some(derived) = derive_pointers(func, ptr, &uses, None) else { return true };
+        derived.keys().any(|&operand| {
+            uses.instructions[operand].iter().any(|&user| {
+                let kind = &func.inst(user).kind;
+                match derivation_is_tracked(func, user, kind, &derived) {
+                    Some(tracked) => !tracked,
+                    None => !is_address_only_use(kind, operand),
+                }
+            }) || uses.terminators[operand].iter().any(|&block| {
+                !matches!(
+                    func.blocks[block].terminator,
+                    Some(Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size })
+                        if operand == offset && operand != size
+                )
+            })
+        })
     })
 }
 

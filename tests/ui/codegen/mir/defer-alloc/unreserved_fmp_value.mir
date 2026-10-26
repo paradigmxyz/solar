@@ -1,0 +1,19 @@
+//@compile-flags: -Zmir-pipeline=defer-alloc
+//@filecheck:
+@module DeferAllocUnreservedFmpValue
+
+// A free-memory pointer read as an integer observes every bump: here the helper returns the
+// allocation's size. Removing the bump would return 0, so every bump stays.
+// CHECK:   fn @helper{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @helper(arg0: i256) -> i256 {
+  bb0:
+    v0 = fmp
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = alloc arg0
+    mstore v2, 1
+    v3 = fmp
+    v4 = ptrtoint ptr<memory> v3 to i256
+    v5 = sub v4, v1
+    ret v5
+}
