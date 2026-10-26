@@ -363,3 +363,80 @@ fn @wrappedWord(arg0: slice<calldata>) -> i256 [selector=0xc280cc68, pure, abi_p
     v21 = checked_add uint256, v6, 1
     jump bb1
 }
+
+fn @wrappedArray(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> ptr<memory> [selector=0x20a8a4e4, pure, abi_params=[array<_, uint256>, uint256, uint256, uint256], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = inttoptr i256 arg1 to ptr<calldata>
+    v2 = make_calldata_slice v1, v0
+    v3 = not 0
+    v4 = extract_value slice<calldata>, v2, 0
+    v5 = make_calldata_slice v4, v3
+    v6 = mul arg3, 1
+    v7 = eq 1, 0
+    v8 = div v6, 1
+    v9 = eq v8, arg3
+    v10 = or v7, v9
+    v11 = zext i1 v10 to i256
+    v12 = eq v11, 0
+    icall panic_if<0x41>, v12
+    v13 = add v6, 1
+    v14 = lt v13, v6
+    icall panic_if<0x41>, v14
+    v15 = mul v13, 32
+    v16 = eq 32, 0
+    v17 = div v15, 32
+    v18 = eq v17, v13
+    v19 = or v16, v18
+    v20 = zext i1 v19 to i256
+    v21 = eq v20, 0
+    icall panic_if<0x41>, v21
+    v22 = alloc zeroed checked v15
+    mstore v22, arg3
+    jump bb1
+  bb1:
+    v23 = phi [bb0: v5], [bb3: v23]
+    v24 = phi [bb0: arg1], [bb3: v24]
+    v25 = phi [bb0: arg2], [bb3: v25]
+    v26 = phi [bb0: arg3], [bb3: v26]
+    v27 = phi [bb0: v22], [bb3: v27]
+    v28 = phi [bb0: 0], [bb3: v51]
+    v29 = lt v28, v26
+    jumpi v29, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v27
+  bb4:
+    v30 = checked_add uint256, v25, v28
+    v31 = extract_value slice<calldata>, v23, 1
+    v32 = lt v30, v31
+    v33 = eq v32, false
+    icall panic_if<0x32>, v33
+    v34 = extract_value slice<calldata>, v23, 0
+    v35 = mul v30, 32
+    v36 = eq 32, 0
+    v37 = div v35, 32
+    v38 = eq v37, v30
+    v39 = or v36, v38
+    v40 = zext i1 v39 to i256
+    v41 = eq v40, 0
+    icall panic_if<0x41>, v41
+    v42 = ptrtoint ptr<calldata> v34 to i256
+    v43 = add v42, v35
+    v44 = calldataload v43
+    v45 = mload v27
+    v46 = lt v28, v45
+    v47 = eq v46, false
+    icall panic_if<0x32>, v47
+    v48 = shl v28, 5
+    v49 = ptradd v27, v48
+    v50 = ptradd v49, 32
+    mstore v50, v44
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v51 = checked_add uint256, v28, 1
+    jump bb1
+}

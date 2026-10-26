@@ -41,7 +41,7 @@ fn @fromCalldata() [selector=0xffc7a8b3, abi_wrapper, pure] {
   bb5:
     tail_call @revert_stub.3
   bb1:
-    v83 = mload 64 !metadata(memory=scratch)
+    v83 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v58 = add v83, 64
     mstore v83, 64
     v61 = mload v82
@@ -107,7 +107,7 @@ fn @fromFresh() [selector=0x1f6686bd, abi_wrapper, pure] {
   bb8:
     tail_call @revert_stub.3
   bb4:
-    v98 = mload 64 !metadata(memory=scratch)
+    v98 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v65 = add v98, 64
     mstore v98, 64
     v68 = mload v96
@@ -169,8 +169,8 @@ fn @entry() [entry] {
 
 fn @alloc(arg0: i256) -> i256 {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v2 = add v0, arg0
+    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v2 = add v0, arg0 !metadata(alloc_ptr)
     v3 = lt v2, v0
     v4 = gt v2, 0xffffffffffffffff
     v5 = or v3, v4

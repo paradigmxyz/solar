@@ -16,6 +16,12 @@
 //@ run-call-fail: destinationFirst 0x01, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: wrappedCopy 0x, 4 => 0x00bd307f
 //@ run-call: wrappedWord 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x00c280cc68000000000000000000000000000000000000000000000000000000
+//@ run-call-fail: wrappedArray [], 0, 0x0800000000000000000000000000000000000000000000000000000000000000, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@ run-call-fail: wrappedArray [], 32, 0x07ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@ run-call-fail: wrappedArray [], 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: wrappedArray [], 0, 0x07ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1 => [0]
+//@ run-call: wrappedArray [], 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0 => []
+//@ run-call: wrappedArray [], 0, 6, 1 => [0]
 
 // A downward copy's first iteration indexes `offset + count - 1`. A checked addition that wraps
 // panics there with `Panic(0x11)`. An unchecked one wraps silently, and the falling index then
@@ -141,6 +147,32 @@ contract Test {
         }
         for (uint256 k; k < 32; ++k) {
             result |= bytes32(data[k]) >> (8 * k);
+        }
+    }
+
+    // Scaling an index to bytes must preserve the loop's 0x41 check even when assembly forges
+    // a slice length large enough to admit that index. Crossing the index limit can also lose
+    // bits when the resulting byte address itself does not wrap.
+    // CHECK-LABEL: fn @wrappedArray(
+    // CHECK: [[INDEX_END:v[0-9]+]] = add arg2, arg3
+    // CHECK-NEXT: [[INDEX_WRAPS:v[0-9]+]] = lt [[INDEX_END]], arg2
+    // CHECK-NEXT: [[SCALE_WRAPS:v[0-9]+]] = gt [[INDEX_END]], 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    // CHECK-NEXT: [[INDEX_FAILS:v[0-9]+]] = or [[INDEX_WRAPS]], [[SCALE_WRAPS]]
+    // CHECK-NEXT: [[FALLBACK:v[0-9]+]] = or {{v[0-9]+}}, [[INDEX_FAILS]]
+    // CHECK-NEXT: jumpi [[FALLBACK]]
+    // CHECK: calldatacopy
+    // CHECK: phi
+    // CHECK: calldataload
+    function wrappedArray(uint256[] calldata source, uint256 at, uint256 offset, uint256 count)
+        external pure returns (uint256[] memory out)
+    {
+        assembly {
+            source.offset := at
+            source.length := not(0)
+        }
+        out = new uint256[](count);
+        for (uint256 k; k < count; ++k) {
+            out[k] = source[offset + k];
         }
     }
 }

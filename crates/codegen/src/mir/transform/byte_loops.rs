@@ -50,19 +50,20 @@
 //!
 //! # Safety
 //!
-//! Every check a matched loop runs raises `Panic(0x32)`, and the loop fails exactly when some
-//! `k < bound` has an index at or past its buffer's length, or `k` at or past the width of a
-//! scattered value. Within an iteration an index `offset + k` is computed with a checked
-//! addition before its bounds check, but that addition can only overflow at a `k` beyond
+//! A matched loop's bounds checks raise `Panic(0x32)` when some `k < bound` has an index at or
+//! past its buffer's length, or `k` at or past the width of a scattered value. Within an
+//! iteration an index `offset + k` is computed with a checked addition before its bounds
+//! check, but that addition can only overflow at a `k` beyond
 //! `length - offset`, where an earlier iteration's bounds check already failed: a length is
 //! below `2^256`. A gather's shift `8 * k` can only overflow after `2^253` iterations, which the
-//! bounds check or gas ends first, and a calldata word's shift `index << 5` only at an index of
-//! `2^251` or more, past the length of every calldata slice, which its decoding or slicing kept
-//! below `2^64`. So the first failure is always `Panic(0x32)`, and the
-//! replacement raises it exactly when the bound is not zero and the bound exceeds the length or
-//! the offset exceeds the length minus the bound, for every buffer, or a scatter's bound
-//! exceeds its value's width. A length the checks read from before the loop is the value the
-//! replacement compares with, so the two fail on the same inputs whatever that value is. A panic
+//! bounds check or gas ends first. A calldata word's shift `index << 5` fails at an index of
+//! `2^251` or more, past a decoded slice's length. Assembly can forge a longer slice, so a
+//! guarded word copy keeps its loop if scaling its index range could overflow, preserving the
+//! original `Panic(0x41)` and its order relative to other checks. Otherwise the first failure is
+//! `Panic(0x32)`, and the replacement raises it exactly when the bound is not zero and the bound
+//! exceeds the length or the offset exceeds the length minus the bound, for every buffer, or a
+//! scatter's bound exceeds its value's width. The replacement compares against the length read
+//! before the loop, so the two fail on the same inputs whatever that value is. A panic
 //! reverts the call frame, so the bytes a failing loop wrote before it panicked were never
 //! observable.
 //!
@@ -71,8 +72,8 @@
 //! though, and then touches no memory at all, so a gather or scatter of such a count over memory
 //! runs behind a test that skips it for a count of zero: the buffer may then lie anywhere, even
 //! where one word would expand memory until the call runs out of gas. A loop over a calldata slice
-//! adds each index to the slice's offset unchecked, so past `2^256` it reads the start of calldata,
-//! where `calldataload` and `calldatacopy` read zeros. Only a slice whose offset inline assembly
+//! adds each index to the slice's offset unchecked, so past `2^256` it reads the start of calldata
+//! while a bulk copy continues reading zeros. Only a slice whose offset inline assembly
 //! set wraps, never an external function's decoded argument; a gather or copy of any other slice
 //! tests for it at run time and keeps the loop then, joining the loop's result with the gathered
 //! word after it for a gather. A scatter below 32 bytes reads and rewrites the bytes after the ones
@@ -1015,9 +1016,9 @@ fn word_address(
 /// the shift keeps `idx`. Returns the slice and the index value, and adds the address and check
 /// instructions to `used`.
 ///
-/// NOTE: The shift check fails only for an index of `2^251` or more, which the access's bounds
-/// check against the slice's length rules out first: a calldata slice is shorter than `2^64`
-/// elements, as its decoding or slicing checked.
+/// NOTE: A decoded slice's bounds rule out indices of `2^251` or more. For an assembly-forged
+/// slice, the replacement's guard keeps the loop when scaling the index range could overflow,
+/// so this check still raises `Panic(0x41)` in the original order.
 fn calldata_word_address(
     func: &Function,
     lp: &Counted,
@@ -2033,10 +2034,11 @@ fn skip_when_empty(builder: &mut FunctionBuilder<'_>, lp: &Counted) {
     builder.switch_to_block(setup);
 }
 
-/// Emits whether the addresses of `count` elements of a calldata access wrap past `2^256`. The
-/// loop adds each index to the slice's offset unchecked, so past the wrap it reads the start of
-/// calldata, where `calldataload` and `calldatacopy` read zeros. Only a slice whose offset inline
-/// assembly set can wrap: one from decoding or slicing ends inside calldata.
+/// Emits whether a calldata access needs its original loop: its addresses wrap past `2^256`,
+/// or scaling its word indices could overflow. The loop adds each byte offset to the slice's
+/// offset unchecked, but checks the index shift first. A slice forged by assembly can exercise
+/// either case. Testing the exclusive index end conservatively keeps the loop when its final
+/// index is exactly the largest scalable word index too.
 fn calldata_wraps(builder: &mut FunctionBuilder<'_>, access: &Access, count: ValueId) -> ValueId {
     let Buffer::Calldata(slice) = access.buffer else { unreachable!("a calldata access") };
     // start = ptrtoint slice.ptr + (offset << shift); end = add start, (count << shift)
@@ -2045,7 +2047,22 @@ fn calldata_wraps(builder: &mut FunctionBuilder<'_>, access: &Access, count: Val
     let start = calldata_data_address(builder, slice, offset);
     let size = scaled(builder, count, access.shift);
     let end = builder.add(start, size);
-    builder.lt(end, start)
+    let mut wraps = builder.lt(end, start);
+    if access.shift != 0 {
+        // index_end = add offset, count
+        // index_wraps = lt index_end, offset
+        // scale_wraps = ne (shr index_end, 256 - shift), 0
+        // wraps = or wraps, (or index_wraps, scale_wraps)
+        let index_start = access.offset.unwrap_or_else(|| builder.imm(0));
+        let index_end = builder.add(index_start, count);
+        let index_wraps = builder.lt(index_end, index_start);
+        let bits = builder.imm(256 - u32::from(access.shift));
+        let high = builder.shr(index_end, bits);
+        let scale_wraps = builder.ne_zero(high);
+        let index_fails = builder.or(index_wraps, scale_wraps);
+        wraps = builder.or(wraps, index_fails);
+    }
+    wraps
 }
 
 /// Whether `slice` is an argument of an external function, which ABI decoding checked to end

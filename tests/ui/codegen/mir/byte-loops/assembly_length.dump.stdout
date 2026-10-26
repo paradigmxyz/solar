@@ -94,7 +94,7 @@ fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
     jump bb1
   bb2:
     v33 = icall @_tail, v133
-    v135 = mload 64 !metadata(memory=scratch)
+    v135 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v94 = add v135, 64
     mstore v135, 64
     v97 = mload v133
@@ -155,7 +155,7 @@ fn @word() [selector=0x73d8cb1e, abi_wrapper, pure] {
     v64 = add v70, 40
     mstore v64, arg0
     v26 = icall @_tail, v70
-    v71 = mload 64 !metadata(memory=scratch)
+    v71 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v45 = add v71, 64
     mstore v71, 64
     v48 = mload v70
@@ -211,7 +211,7 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
     v52 = add v56, 32
     mstore v52, 0x6161616161616161616161616161616161616161616161616161616161616161
     v20 = icall @_tail, v56
-    v57 = mload 64 !metadata(memory=scratch)
+    v57 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v34 = add v57, 64
     mstore v57, 64
     v37 = mload v56
@@ -380,8 +380,8 @@ fn @entry() [entry] {
 
 fn @alloc(arg0: i256) -> i256 {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v2 = add v0, arg0
+    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v2 = add v0, arg0 !metadata(alloc_ptr)
     v3 = lt v2, v0
     v4 = gt v2, 0xffffffffffffffff
     v5 = or v3, v4

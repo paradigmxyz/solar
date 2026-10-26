@@ -33,7 +33,7 @@ fn @uncheckedDown() [selector=0x0a3fd26a, abi_wrapper, pure] {
     calldatacopy v68, v42, arg2
     jump bb1
   bb5:
-    tail_call @revert_stub.8
+    tail_call @revert_stub.9
   bb1:
     v64 = add v71, 32
     v55 = add arg2, 31
@@ -47,7 +47,7 @@ fn @uncheckedDown() [selector=0x0a3fd26a, abi_wrapper, pure] {
     v61 = add v57, 64
     returndata v71, v61
   bb3:
-    tail_call @revert_stub.7
+    tail_call @revert_stub.8
   bb7:
     revert 0, 0
 }
@@ -85,7 +85,7 @@ fn @checkedDown() [selector=0xc6510b18, abi_wrapper, pure] {
     calldatacopy v66, v40, arg2
     jump bb1
   bb7:
-    tail_call @revert_stub.8
+    tail_call @revert_stub.9
   bb5:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -103,7 +103,7 @@ fn @checkedDown() [selector=0xc6510b18, abi_wrapper, pure] {
     v59 = add v55, 64
     returndata v69, v59
   bb3:
-    tail_call @revert_stub.7
+    tail_call @revert_stub.8
   bb9:
     revert 0, 0
 }
@@ -152,7 +152,7 @@ fn @mixedDown() [selector=0xcbd040ed, abi_wrapper, pure] {
     v14 = lt v31, v36
     jumpi v14, bb7, bb6
   bb6:
-    tail_call @revert_stub.8
+    tail_call @revert_stub.9
   bb7:
     v19 = add v37, v31
     v20 = calldataload v19
@@ -167,17 +167,86 @@ fn @mixedDown() [selector=0xcbd040ed, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb4:
-    tail_call @revert_stub.7
+    tail_call @revert_stub.8
   bb10:
     revert 0, 0
 }
 
 fn @sourceFirst() [selector=0x032c601e, abi_wrapper, pure] {
   bb0:
+    v35 = calldatasize
+    v36 = lt v35, 132
+    jumpi v36, bb11, bb12
+  bb12:
+    v37 = icall @decode_calldata_slice
+    v38 = calldataload v37
+    v39 = add v37, 32
+    v0 = add arg3, 63
+    v1 = lt v0, arg3
+    jumpi v1, bb4, bb5
+  bb5:
+    v3 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v64 = icall @alloc, v3
+    v66 = calldatasize
+    calldatacopy v64, v66, v3
+    mstore v64, arg3
+    jump bb1
+  bb1:
+    v10 = phi [bb5: arg3], [bb8: v32]
+    v11 = gt v10, 0
+    jumpi v11, bb3, bb2
+  bb2:
+    v56 = add v64, 32
+    v47 = add arg3, 31
+    v49 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v51 = add v56, v49
+    mstore v51, 0
+    v58 = add v64, 64
+    mcopy v58, v56, arg3
+    mstore v64, 32
+    mstore v56, arg3
+    v53 = add v49, 64
+    returndata v64, v53
+  bb3:
+    v12 = add arg1, v10
+    v13 = sub v12, 1
+    v15 = lt v13, v38
+    jumpi v15, bb7, bb6
+  bb7:
+    v20 = add v39, v13
+    v21 = calldataload v20
+    v22 = byte 0, v21
+    v33 = add arg2, v10
+    v34 = lt v33, arg2
+    jumpi v34, bb9, bb10
+  bb10:
+    v25 = sub v33, 1
+    v27 = lt v25, arg3
+    jumpi v27, bb8, bb6
+  bb6:
+    tail_call @revert_stub.9
+  bb8:
+    v60 = add v64, v25
+    v61 = add v60, 32
+    mstore8 v61, v22
+    v32 = sub v10, 1
+    jump bb1
+  bb9:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb4:
+    tail_call @revert_stub.8
+  bb11:
+    revert 0, 0
+}
+
+fn @destinationFirst() [selector=0x5072325f, abi_wrapper, pure] {
+  bb0:
     v37 = calldatasize
     v38 = lt v37, 132
-    jumpi v38, bb12, bb13
-  bb13:
+    jumpi v38, bb10, bb11
+  bb11:
     v39 = icall @decode_calldata_slice
     v40 = calldataload v39
     v41 = add v39, 32
@@ -192,7 +261,7 @@ fn @sourceFirst() [selector=0x032c601e, abi_wrapper, pure] {
     mstore v66, arg3
     jump bb1
   bb1:
-    v10 = phi [bb5: arg3], [bb8: v32]
+    v10 = phi [bb5: arg3], [bb7: v32]
     v11 = gt v10, 0
     jumpi v11, bb3, bb2
   bb2:
@@ -208,107 +277,28 @@ fn @sourceFirst() [selector=0x032c601e, abi_wrapper, pure] {
     v55 = add v51, 64
     returndata v66, v55
   bb3:
-    v12 = add arg1, v10
-    v13 = sub v12, 1
-    v15 = lt v13, v40
-    jumpi v15, bb7, bb6
-  bb7:
-    v20 = add v41, v13
-    v21 = calldataload v20
-    v22 = byte 0, v21
     v33 = add arg2, v10
     v34 = lt v33, arg2
-    jumpi v34, bb9, bb10
-  bb10:
-    v35 = sub v33, 1
-    v36 = eq v33, 0
-    jumpi v36, bb9, bb11
-  bb11:
-    v27 = lt v35, arg3
-    jumpi v27, bb8, bb6
-  bb6:
-    tail_call @revert_stub.8
-  bb8:
-    v62 = add v66, v35
-    v63 = add v62, 32
-    mstore8 v63, v22
-    v32 = sub v10, 1
-    jump bb1
+    v13 = sub v33, 1
+    v35 = add arg1, v10
+    v36 = lt v35, arg1
+    v69 = or v34, v36
+    jumpi v69, bb8, bb9
   bb9:
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-  bb4:
-    tail_call @revert_stub.7
-  bb12:
-    revert 0, 0
-}
-
-fn @destinationFirst() [selector=0x5072325f, abi_wrapper, pure] {
-  bb0:
-    v41 = calldatasize
-    v42 = lt v41, 132
-    jumpi v42, bb13, bb14
-  bb14:
-    v43 = icall @decode_calldata_slice
-    v44 = calldataload v43
-    v45 = add v43, 32
-    v0 = add arg3, 63
-    v1 = lt v0, arg3
-    jumpi v1, bb4, bb5
-  bb5:
-    v3 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v70 = icall @alloc, v3
-    v72 = calldatasize
-    calldatacopy v70, v72, v3
-    mstore v70, arg3
-    jump bb1
-  bb1:
-    v10 = phi [bb5: arg3], [bb7: v32]
-    v11 = gt v10, 0
-    jumpi v11, bb3, bb2
-  bb2:
-    v62 = add v70, 32
-    v53 = add arg3, 31
-    v55 = and v53, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v57 = add v62, v55
-    mstore v57, 0
-    v64 = add v70, 64
-    mcopy v64, v62, arg3
-    mstore v70, 32
-    mstore v62, arg3
-    v59 = add v55, 64
-    returndata v70, v59
-  bb3:
-    v33 = add arg2, v10
-    v34 = lt v33, arg2
-    jumpi v34, bb8, bb9
-  bb9:
-    v35 = sub v33, 1
-    v36 = eq v33, 0
-    jumpi v36, bb8, bb10
-  bb10:
-    v37 = add arg1, v10
-    v38 = lt v37, arg1
-    jumpi v38, bb8, bb11
-  bb11:
-    v39 = sub v37, 1
-    v40 = eq v37, 0
-    jumpi v40, bb8, bb12
-  bb12:
-    v17 = lt v39, v44
-    v22 = add v45, v39
+    v15 = sub v35, 1
+    v17 = lt v15, v40
+    v22 = add v41, v15
     v23 = calldataload v22
     v24 = byte 0, v23
-    v27 = lt v35, arg3
-    v73 = and v17, v27
-    jumpi v73, bb7, bb6
+    v27 = lt v13, arg3
+    v70 = and v17, v27
+    jumpi v70, bb7, bb6
   bb6:
-    tail_call @revert_stub.8
+    tail_call @revert_stub.9
   bb7:
-    v66 = add v70, v35
-    v67 = add v66, 32
-    mstore8 v67, v24
+    v62 = add v66, v13
+    v63 = add v62, 32
+    mstore8 v63, v24
     v32 = sub v10, 1
     jump bb1
   bb8:
@@ -316,8 +306,8 @@ fn @destinationFirst() [selector=0x5072325f, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb4:
-    tail_call @revert_stub.7
-  bb13:
+    tail_call @revert_stub.8
+  bb10:
     revert 0, 0
 }
 
@@ -367,7 +357,7 @@ fn @wrappedCopy() [selector=0xbd307fab, abi_wrapper, pure] {
     v64 = add v60, 64
     returndata v75, v64
   bb5:
-    tail_call @revert_stub.7
+    tail_call @revert_stub.8
   bb7:
     revert 0, 0
 }
@@ -393,7 +383,7 @@ fn @wrappedWord() [selector=0xc280cc68, abi_wrapper, pure] {
     v9 = lt v6, v35
     jumpi v9, bb5, bb4
   bb4:
-    tail_call @revert_stub.8
+    tail_call @revert_stub.9
   bb5:
     v14 = add v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v15 = calldataload v14
@@ -408,14 +398,108 @@ fn @wrappedWord() [selector=0xc280cc68, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @revert_stub.7() {
+fn @wrappedArray() [selector=0x20a8a4e4, abi_wrapper, pure] {
+  bb0:
+    v88 = calldatasize
+    v89 = lt v88, 132
+    v90 = calldataload 4
+    v91 = add v90, 4
+    v93 = sub v88, 36
+    v94 = gt v90, v93
+    v125 = or v89, v94
+    v95 = calldataload v91
+    v96 = add v91, 32
+    v97 = sub v88, v96
+    v98 = shr v97, 5
+    v99 = gt v95, v98
+    v126 = or v125, v99
+    jumpi v126, bb14, bb15
+  bb15:
+    v13 = add arg3, 1
+    v14 = eq v13, 0
+    jumpi v14, bb6, bb7
+  bb7:
+    v15 = shl v13, 5
+    v17 = shr v15, 5
+    v21 = ne v17, v13
+    jumpi v21, bb6, bb8
+  bb8:
+    v122 = icall @alloc, v15
+    v124 = calldatasize
+    calldatacopy v122, v124, v15
+    mstore v122, arg3
+    v52 = eq arg3, 0
+    jumpi v52, bb2, bb4
+  bb4:
+    v53 = shl arg3, 5
+    v54 = shl arg2, 5
+    v57 = add arg1, v54
+    v59 = add v57, v53
+    v60 = lt v59, v57
+    v61 = add arg2, arg3
+    v62 = lt v61, arg2
+    v64 = gt v61, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v65 = or v62, v64
+    v69 = or v60, v65
+    jumpi v69, bb1, bb5
+  bb5:
+    v116 = add v122, 32
+    calldatacopy v116, v57, v53
+    jump bb2
+  bb1:
+    v28 = phi [bb4: 0], [bb11: v51]
+    v29 = lt v28, arg3
+    jumpi v29, bb3, bb2
+  bb3:
+    v85 = add arg2, v28
+    v86 = lt v85, arg2
+    jumpi v86, bb12, bb13
+  bb13:
+    v32 = lt v85, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v32, bb10, bb9
+  bb9:
+    tail_call @revert_stub.9
+  bb10:
+    v35 = shl v85, 5
+    v37 = shr v35, 5
+    v41 = ne v37, v85
+    jumpi v41, bb6, bb11
+  bb11:
+    v43 = add arg1, v35
+    v44 = calldataload v43
+    v48 = shl v28, 5
+    v118 = add v122, v48
+    v119 = add v118, 32
+    mstore v119, v44
+    v51 = add v28, 1
+    jump bb1
+  bb12:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb2:
+    v112 = add v122, 32
+    v107 = shl arg3, 5
+    v114 = add v122, 64
+    mcopy v114, v112, v107
+    mstore v122, 32
+    mstore v112, arg3
+    v109 = add v107, 64
+    returndata v122, v109
+  bb6:
+    tail_call @revert_stub.8
+  bb14:
+    revert 0, 0
+}
+
+fn @revert_stub.8() {
   bb0:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub.8() {
+fn @revert_stub.9() {
   bb0:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -445,33 +529,35 @@ fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
-    jumpi v1, bb9, bb1
+    jumpi v1, bb10, bb1
   bb1:
     v2 = calldataload 0
     v3 = shr v2, 224
-    switch v3, default bb9, [0x32c601e => bb2, 0xa3fd26a => bb3, 0x5072325f => bb4, 0xbd307fab => bb5, 0xc280cc68 => bb6, 0xc6510b18 => bb7, 0xcbd040ed => bb8]
-  bb8:
+    switch v3, default bb10, [0x32c601e => bb2, 0xa3fd26a => bb3, 0x20a8a4e4 => bb4, 0x5072325f => bb5, 0xbd307fab => bb6, 0xc280cc68 => bb7, 0xc6510b18 => bb8, 0xcbd040ed => bb9]
+  bb9:
     tail_call @mixedDown
-  bb7:
+  bb8:
     tail_call @checkedDown
-  bb6:
+  bb7:
     tail_call @wrappedWord
-  bb5:
+  bb6:
     tail_call @wrappedCopy
-  bb4:
+  bb5:
     tail_call @destinationFirst
+  bb4:
+    tail_call @wrappedArray
   bb3:
     tail_call @uncheckedDown
   bb2:
     tail_call @sourceFirst
-  bb9:
+  bb10:
     revert 0, 0
 }
 
 fn @alloc(arg0: i256) -> i256 {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v2 = add v0, arg0
+    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v2 = add v0, arg0 !metadata(alloc_ptr)
     v3 = lt v2, v0
     v4 = gt v2, 0xffffffffffffffff
     v5 = or v3, v4

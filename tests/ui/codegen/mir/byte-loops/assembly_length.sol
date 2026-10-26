@@ -1,5 +1,6 @@
-//@ compile-flags: -Ogas -Zdump=mir
-//@ filecheck:
+//@ codegen-matrix: standard dump
+//@[dump] compile-flags: -Ogas -Zdump=mir
+//@[dump] filecheck:
 //@ run-call: copy 0x0102030405, 1 => 0x02030405, 0
 //@ run-call: copy 0x, 0 => 0x, 0
 //@ run-call: copy 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021, 0 => 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021, 0
