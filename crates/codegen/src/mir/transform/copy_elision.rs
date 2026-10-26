@@ -38,8 +38,8 @@
 //! changes with every call.
 
 use crate::mir::{
-    BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, PtrLocation,
-    RawMemoryAccess, Terminator, Value, ValueId,
+    BlockId, Function, Immediate, InstId, InstKind, MirType, Module, PtrLocation, RawMemoryAccess,
+    Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, MemoryAddress,
         MemoryBase, MemoryLocation,
@@ -129,8 +129,6 @@ struct MemoryCopy {
     site: InstId,
     offset: u64,
     size: ValueId,
-    /// The size when it is a known constant.
-    constant: Option<u64>,
 }
 
 impl CopyElisionCx {
@@ -196,17 +194,23 @@ impl CopyElisionCx {
         for (index, member) in members.iter().enumerate() {
             owners.extend(member.derived.iter().map(|&value| (value, index)));
         }
-        // Drop members whose pointer is stored outside the set until none changes.
+        // A member whose pointer is stored outside the set goes, and so does every member whose
+        // pointer is stored into one that goes.
+        let mut contained_in = FxHashMap::<usize, Vec<usize>>::default();
+        let mut worklist = Vec::new();
+        for (index, member) in members.iter().enumerate() {
+            for address in &member.stored_at {
+                match owners.get(address) {
+                    Some(&owner) => contained_in.entry(owner).or_default().push(index),
+                    None => worklist.push(index),
+                }
+            }
+        }
         let mut dropped = FxHashSet::default();
-        while let Some(member) = members.iter().find(|member| {
-            !dropped.contains(&member.object)
-                && member.stored_at.iter().any(|address| {
-                    owners
-                        .get(address)
-                        .is_none_or(|&owner| dropped.contains(&members[owner].object))
-                })
-        }) {
-            dropped.insert(member.object);
+        while let Some(index) = worklist.pop() {
+            if dropped.insert(members[index].object) {
+                worklist.extend(contained_in.get(&index).into_iter().flatten().copied());
+            }
         }
         let mut dead = FxHashSet::default();
         for member in members.iter().filter(|member| !dropped.contains(&member.object)) {
@@ -232,17 +236,16 @@ impl CopyElisionCx {
             && let Some(address) = alias.memory_address(func, object)
             && let Some(end) = address.offset.checked_add(size)
         {
-            // A write of unknown extent names the allocation's pointer as a fresh base; with a
-            // constant width its range starts at the same offset.
-            let is_unbounded_view = |base| base == MemoryBase::FreeMemory(*alloc);
             writes.iter().all(|&inst| {
                 if self.guarded_element_end(func, object, inst).is_some_and(|end| end <= size) {
                     return true;
                 }
                 alias.instruction_mod_ref(func, inst).writes().iter().all(|access| {
                     if let Access::Location(Location::Memory(location)) = access
+                        // A write of unknown extent names the allocation's pointer as a fresh base;
+                        // with a constant width its range starts at the same offset.
                         && (location.address.base == address.base
-                            || is_unbounded_view(location.address.base))
+                            || location.address.base == MemoryBase::FreeMemory(*alloc))
                         && location.address.offset >= address.offset
                         && let Some(size) = self.constant_size(func, cfg, inst, location.size)
                         && let Some(write_end) = location.address.offset.checked_add(size)
@@ -618,7 +621,6 @@ impl CopyElisionCx {
                             ..
                         }) = alias.memory_address(func, source)
                         {
-                            let constant = Self::known_constant(func, cfg, block_id, size);
                             copies.push(MemoryCopy {
                                 inst,
                                 block: block_id,
@@ -626,7 +628,6 @@ impl CopyElisionCx {
                                 site,
                                 offset,
                                 size,
-                                constant,
                             });
                         }
                     }
@@ -650,28 +651,17 @@ impl CopyElisionCx {
                     && Self::dominates(cfg, fill.block, fill.index, copy.block, copy.index)
                     && !Self::written_between(func, alias, cfg, fill, copy, read)
             });
-            if let Some(fill) = fill {
-                rewrites.push((copy.inst, copy.block, fill.source, copy.offset - fill.offset));
+            if let Some(fill) = fill
+                && let Some(source) =
+                    Self::shifted_source(func, fill.source, copy.offset - fill.offset)
+            {
+                rewrites.push((copy.inst, source));
             }
         }
 
         let changed = !rewrites.is_empty();
-        for (inst, block, source, shift) in rewrites {
+        for (inst, source) in rewrites {
             let InstKind::Copy(dest, _, size, _) = func.inst(inst).kind else { continue };
-            let source = if shift == 0 {
-                source
-            } else {
-                let offset = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(shift))));
-                // add src, shift
-                let (add, source) = func.alloc_value_inst(
-                    Instruction::new(InstKind::Add(source, offset), Some(MirType::I256))
-                        .with_debug_info_dropped(),
-                );
-                let position = func.blocks[block].instructions.iter().position(|&id| id == inst);
-                let Some(position) = position else { continue };
-                func.blocks[block].instructions.insert(position, add);
-                source
-            };
             // calldatacopy dest, source, size
             let instruction = func.inst_mut(inst);
             instruction.kind = InstKind::Copy(dest, source, size, PtrLocation::Calldata);
@@ -681,11 +671,23 @@ impl CopyElisionCx {
         changed
     }
 
+    /// Returns the calldata offset `shift` bytes into a fill from `source`. A nonzero shift needs
+    /// a constant source: a runtime offset near the top of the word reads zeros, and adding to
+    /// it would wrap onto real calldata.
+    fn shifted_source(func: &mut Function, source: ValueId, shift: u64) -> Option<ValueId> {
+        if shift == 0 {
+            return Some(source);
+        }
+        let shifted = func.value_u256(source)?.checked_add(U256::from(shift))?;
+        Some(func.alloc_value(Value::Immediate(Immediate::I256(shifted))))
+    }
+
     /// Returns whether the copied range lies inside the filled one: both sizes are constants, the
     /// fill's perhaps proven at the copy, and the range ends in the fill; or the copy starts where
     /// the fill does and takes the fill's size value.
     fn fits_fill(func: &Function, cfg: &CfgInfo, fill: &CalldataFill, copy: &MemoryCopy) -> bool {
-        match (copy.constant, Self::known_constant(func, cfg, copy.block, fill.size)) {
+        let known = |size| Self::known_constant(func, cfg, copy.block, size);
+        match (known(copy.size), known(fill.size)) {
             (Some(copy_size), Some(fill_size)) => (copy.offset - fill.offset)
                 .checked_add(copy_size)
                 .is_some_and(|end| end <= fill_size),
@@ -721,13 +723,16 @@ impl CopyElisionCx {
         read: MemoryLocation,
     ) -> bool {
         let writes = |inst| {
-            alias.instruction_mod_ref(func, inst).writes().iter().any(|&access| match access {
-                Access::Any(AddressSpace::Memory) => true,
-                Access::Location(Location::Memory(write)) => {
-                    alias.memory_alias(read, write).may_alias()
-                }
-                _ => false,
-            })
+            // A write through a runtime index wraps and may land anywhere.
+            alias.instruction_may_wrap_write(func, inst)
+                || alias.instruction_mod_ref(func, inst).writes().iter().any(|&access| match access
+                {
+                    Access::Any(AddressSpace::Memory) => true,
+                    Access::Location(Location::Memory(write)) => {
+                        alias.memory_alias(read, write).may_alias()
+                    }
+                    _ => false,
+                })
         };
         let instructions = |block: BlockId| func.blocks[block].instructions.iter().copied();
         if fill.block == copy.block {
@@ -742,7 +747,7 @@ impl CopyElisionCx {
             return true;
         }
         if cfg.cyclic_blocks().contains(copy.block)
-            && instructions(copy.block).skip(copy.index + 1).any(writes)
+            && instructions(copy.block).skip(copy.index).any(writes)
         {
             return true;
         }

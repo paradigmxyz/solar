@@ -1849,7 +1849,7 @@ impl AliasAnalysis {
             return self.memory_address_with_depth(func, value, depth + 1);
         }
         self.memory_address_with_depth(func, base, depth + 1)?
-            .checked_add(Self::constant_offset(func, offset, 0)?)
+            .checked_add(Self::constant_offset(func, offset)?)
     }
 
     fn address_sub(
@@ -1860,14 +1860,14 @@ impl AliasAnalysis {
         depth: usize,
     ) -> Option<MemoryAddress> {
         let mut address = self.memory_address_with_depth(func, base, depth + 1)?;
-        address.offset = address.offset.checked_sub(Self::constant_offset(func, offset, 0)?)?;
+        address.offset = address.offset.checked_sub(Self::constant_offset(func, offset)?)?;
         Some(address)
     }
 
     /// Evaluates an offset built from immediates only, such as a length rounded up to a word
     /// after forwarding made the length constant but before folding ran.
-    fn constant_offset(func: &Function, value: ValueId, depth: usize) -> Option<u64> {
-        u64::try_from(Self::constant_word(func, value, depth)?).ok()
+    fn constant_offset(func: &Function, value: ValueId) -> Option<u64> {
+        u64::try_from(Self::constant_word(func, value, 0)?).ok()
     }
 
     fn constant_word(func: &Function, value: ValueId, depth: usize) -> Option<U256> {
@@ -2224,11 +2224,10 @@ impl AliasAnalysis {
                     || super::integers::arithmetic_no_wrap(func, value)) =>
             {
                 Self::pointer_lower_bound(func, *first, depth + 1)
-                    .and_then(|base| base.checked_add(Self::constant_offset(func, *second, 0)?))
+                    .and_then(|base| base.checked_add(Self::constant_offset(func, *second)?))
                     .or_else(|| {
-                        Self::pointer_lower_bound(func, *second, depth + 1).and_then(|base| {
-                            base.checked_add(Self::constant_offset(func, *first, 0)?)
-                        })
+                        Self::pointer_lower_bound(func, *second, depth + 1)
+                            .and_then(|base| base.checked_add(Self::constant_offset(func, *first)?))
                     })
             }
             InstKind::Sub(base, offset)
@@ -2236,11 +2235,11 @@ impl AliasAnalysis {
                     || super::integers::arithmetic_no_wrap(func, value)) =>
             {
                 Self::pointer_lower_bound(func, *base, depth + 1)
-                    .and_then(|base| base.checked_sub(Self::constant_offset(func, *offset, 0)?))
+                    .and_then(|base| base.checked_sub(Self::constant_offset(func, *offset)?))
             }
             // `ptradd` does not wrap, so a runtime offset only moves the pointer up.
             InstKind::PtrAdd(base, offset) => Self::pointer_lower_bound(func, *base, depth + 1)?
-                .checked_add(Self::constant_offset(func, *offset, 0).unwrap_or(0)),
+                .checked_add(Self::constant_offset(func, *offset).unwrap_or(0)),
             InstKind::ExtractValue {
                 ty: MirType::Slice(_),
                 aggregate: slice,
