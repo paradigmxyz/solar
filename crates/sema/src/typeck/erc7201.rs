@@ -253,7 +253,7 @@ fn struct_name(gcx: Gcx<'_>, id: hir::StructId) -> String {
 /// outside the integer evaluator, which deliberately does not fold their width-dependent
 /// conversions and shifts.
 fn namespace_location(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> Option<U256> {
-    if let Ok(value) = gcx.try_eval_const(expr) {
+    if let Ok(value) = gcx.const_eval().eval_int(expr) {
         return value.as_evm_word();
     }
     let ExprKind::Ident(res) = expr.peel_parens().kind else { return None };
@@ -273,7 +273,7 @@ fn namespace_location(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> Option<U256> {
                     matches!(ty.kind, TyKind::IntLiteral(_, _, Some(size)) if size.bits() == 256)
                 }) =>
         {
-            gcx.try_eval_const(initializer).ok()?.as_u256()
+            gcx.const_eval().eval_int(initializer).ok()?.as_u256()
         }
         LitKind::Str(StrKind::Hex, bytes, _) if bytes.as_byte_str().len() == 32 => {
             Some(U256::from_be_slice(bytes.as_byte_str()))

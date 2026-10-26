@@ -1,6 +1,6 @@
 //! MIR instructions.
 
-use super::{Function, InstKind, MemoryObjectLayout, MirType, SliceLocation, Value, ValueId};
+use super::{Function, InstKind, MirPhase, MirType, PhaseCategory, PtrLocation, Value, ValueId};
 use crate::mir::{Builtin, Callee};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -231,6 +231,18 @@ impl InstructionMetadata {
         self.flags.set_preserves_fmp(value);
     }
 
+    /// Returns whether this sum is an allocator bump that does not wrap.
+    #[must_use]
+    pub(crate) fn alloc_ptr(&self) -> bool {
+        self.flags.alloc_ptr()
+    }
+
+    /// Marks the sum of an allocation's pointer and size, which cannot wrap in a program that
+    /// completes, so the sum is not below the pointer.
+    pub(crate) fn set_alloc_ptr(&mut self, value: bool) {
+        self.flags.set_alloc_ptr(value);
+    }
+
     /// Returns whether this copy's source and destination ranges never overlap.
     #[must_use]
     pub(crate) fn disjoint(&self) -> bool {
@@ -257,6 +269,7 @@ impl MetadataFlags {
     const PRESERVES_FMP: u16 = 0b100_0000_0000;
     const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
     const DEBUG_INFO_HANDLED: u16 = 0b1_0000_0000_0000;
+    const ALLOC_PTR: u16 = 0b10_0000_0000_0000;
 
     fn memory_region(self) -> Option<MemoryRegion> {
         match self.0 & Self::MEMORY_MASK {
@@ -327,6 +340,18 @@ impl MetadataFlags {
             self.0 |= Self::PRESERVES_FMP;
         } else {
             self.0 &= !Self::PRESERVES_FMP;
+        }
+    }
+
+    fn alloc_ptr(self) -> bool {
+        self.0 & Self::ALLOC_PTR != 0
+    }
+
+    fn set_alloc_ptr(&mut self, value: bool) {
+        if value {
+            self.0 |= Self::ALLOC_PTR;
+        } else {
+            self.0 &= !Self::ALLOC_PTR;
         }
     }
 
@@ -576,15 +601,26 @@ impl EffectKind {
             Self::ImmutableWrite => "immutable_write",
         }
     }
-}
 
-/// Alignment applied to an abstract heap allocation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum AllocationAlignment {
-    /// Reserve exactly the requested byte count.
-    Exact,
-    /// Round the reservation up to an EVM word.
-    Word,
+    /// Whether this is pure computation or a read of memory, storage, transient storage or the
+    /// environment.
+    #[must_use]
+    pub(crate) const fn is_read_only(self) -> bool {
+        matches!(
+            self,
+            Self::Pure
+                | Self::MemoryRead
+                | Self::StorageRead
+                | Self::TransientRead
+                | Self::EnvironmentRead
+        )
+    }
+
+    /// Whether this reads or writes memory.
+    #[must_use]
+    pub(crate) const fn is_memory(self) -> bool {
+        matches!(self, Self::MemoryRead | Self::MemoryWrite)
+    }
 }
 
 /// Initialization performed for a newly reserved range.
@@ -602,16 +638,7 @@ pub(crate) enum AllocationFailure {
     /// The producer has already proved the bump valid.
     Infallible,
     /// Revert with the memory-allocation panic when the bump overflows.
-    Panic,
-}
-
-/// Semantic shape produced by an allocation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum AllocationKind {
-    /// Untyped compiler scratch or ABI staging memory.
-    Raw,
-    /// A Solidity memory object whose layout is owned by the memory model.
-    Object(MemoryObjectLayout),
+    Checked,
 }
 
 /// Storage policy for an ABI-encoded result.
@@ -630,18 +657,8 @@ impl AbiEncodeMode {
     #[must_use]
     pub(crate) const fn result_type(self) -> MirType {
         match self {
-            Self::Slice | Self::Scratch => MirType::Slice(SliceLocation::Memory),
-            Self::Bytes => MirType::MemPtr,
-        }
-    }
-}
-
-impl AllocationKind {
-    /// Returns the MIR result type of this allocation.
-    #[must_use]
-    pub(crate) const fn result_type(self) -> MirType {
-        match self {
-            Self::Raw | Self::Object(_) => MirType::MemPtr,
+            Self::Slice | Self::Scratch => MirType::Slice(PtrLocation::Memory),
+            Self::Bytes => MirType::MEMPTR,
         }
     }
 }
@@ -649,8 +666,6 @@ impl AllocationKind {
 /// Semantic allocation policy carried by [`InstKind::Alloc`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct AllocationSemantics {
-    /// Requested alignment.
-    pub alignment: AllocationAlignment,
     /// Requested initialization.
     pub initialization: AllocationInitialization,
     /// Requested failure behavior.
@@ -658,29 +673,24 @@ pub(crate) struct AllocationSemantics {
 }
 
 impl AllocationSemantics {
-    /// Exact-size, uninitialized allocation whose validity is already proven.
+    /// Uninitialized allocation whose validity is already proven.
     pub(crate) const INTERNAL: Self = Self {
-        alignment: AllocationAlignment::Exact,
         initialization: AllocationInitialization::Uninitialized,
         failure: AllocationFailure::Infallible,
     };
 
-    /// Checked and zero-initialized Solidity object allocation.
-    ///
-    /// Object lowering includes the header and padding in `size`, so the
-    /// allocation must preserve that already-aligned extent exactly.
+    /// Checked and zero-initialized Solidity object allocation. Object lowering includes the
+    /// header and padding in `size`.
     pub(crate) const SOLIDITY_ZEROED: Self = Self {
-        alignment: AllocationAlignment::Exact,
         initialization: AllocationInitialization::Zeroed,
-        failure: AllocationFailure::Panic,
+        failure: AllocationFailure::Checked,
     };
 
-    /// Checked, exact-size allocation for objects initialized by their
+    /// Checked allocation for objects initialized by their
     /// producer rather than by the allocator.
     pub(crate) const SOLIDITY_UNINITIALIZED: Self = Self {
-        alignment: AllocationAlignment::Exact,
         initialization: AllocationInitialization::Uninitialized,
-        failure: AllocationFailure::Panic,
+        failure: AllocationFailure::Checked,
     };
 }
 
@@ -698,178 +708,17 @@ pub(crate) struct Instruction {
 }
 
 impl Instruction {
-    /// Returns whether an unused instruction must retain its execution.
-    pub(crate) fn must_execute(&self, observes_msize: bool) -> bool {
-        self.kind.effects().must_execute(observes_msize)
-    }
-
     /// Returns the semantic operation that still needs representation lowering.
-    pub(crate) fn unlowered_reason(&self, func: &Function) -> Option<&'static str> {
+    pub(crate) fn unlowered_reason(&self, func: &Function) -> Option<PhaseCategory> {
         if self.result_ty == Some(MirType::I1)
             && self.kind.op_def().result == super::ResultKind::Integer
             && !matches!(self.kind, InstKind::And(..) | InstKind::Or(..) | InstKind::Xor(..))
             || matches!(self.kind, InstKind::SLt(a, _) | InstKind::SGt(a, _)
                 if func.value_ty(a) == Some(MirType::I1))
         {
-            return Some("narrow integer arithmetic");
+            return Some(PhaseCategory::NarrowIntegerArithmetic);
         }
-        match &self.kind {
-            InstKind::InsertValue { .. } | InstKind::ExtractValue { .. } => Some("struct value"),
-            InstKind::MakeSlice { .. } | InstKind::SlicePtr(..) | InstKind::SliceLen(..) => {
-                Some("slice")
-            }
-            InstKind::Fmp | InstKind::SetFmp(..) => Some("abstract allocation"),
-            InstKind::MemoryZero(..) => Some("memory zero"),
-            InstKind::CheckedBinary { .. } => Some("checked arithmetic"),
-            InstKind::ValidateStorageBytes(..)
-            | InstKind::StorageBytesLoad(..)
-            | InstKind::StorageArrayLoad { .. }
-            | InstKind::StorageBytesStore(..)
-            | InstKind::StorageBytesStoreLiteral { .. }
-            | InstKind::StorageClearWords(..)
-            | InstKind::AbiEncodePacked { .. }
-            | InstKind::AddressCall { .. } => Some("builtin"),
-            InstKind::ValidateAbi(..) => Some("ABI validation"),
-            InstKind::ICall { function: Callee::Builtin(builtin), .. } => Some(match builtin {
-                Builtin::Check { .. } | Builtin::Require(_) => "conditional check",
-                Builtin::Concat(_)
-                | Builtin::Erc7201
-                | Builtin::CheckedAddMod
-                | Builtin::CheckedMulMod
-                | Builtin::Sha256
-                | Builtin::Ripemd160
-                | Builtin::EcRecover
-                | Builtin::Send
-                | Builtin::Transfer
-                | Builtin::ReturndataBytes => "builtin",
-            }),
-            InstKind::AbiEncode { .. } => Some("ABI encoding"),
-            InstKind::AbiDecode { .. } => Some("ABI decoding"),
-            InstKind::StorageToMemory { .. }
-            | InstKind::MemoryToStorage { .. }
-            | InstKind::ClearStorage { .. } => Some("aggregate"),
-            InstKind::MappingSlot(..)
-            | InstKind::MappingSlotMemory(..)
-            | InstKind::MappingSlotCalldata(..)
-            | InstKind::StorageArrayDataSlot(..)
-            | InstKind::StorageArrayElementSlot { .. } => Some("storage slot"),
-            InstKind::StoreImmutable(..) => Some("immutable assignment"),
-            InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => Some("frame slot"),
-            InstKind::MemoryObjectLen(..)
-            | InstKind::SetMemoryObjectLen(..)
-            | InstKind::MemoryObjectData(..)
-            | InstKind::MemoryObjectFieldAddr { .. }
-            | InstKind::MemoryObjectElementAddr { .. }
-            | InstKind::MemoryObjectLoadField { .. }
-            | InstKind::MemoryObjectStoreField { .. }
-            | InstKind::MemoryObjectLoadElement { .. }
-            | InstKind::MemoryObjectLoadByte { .. }
-            | InstKind::MemoryObjectStoreElement { .. }
-            | InstKind::MemoryObjectStoreByte { .. }
-            | InstKind::MemoryObjectStoreWord { .. }
-            | InstKind::MemorySliceLoadWord { .. }
-            | InstKind::CalldataSliceLoadWord { .. }
-            | InstKind::MemoryObjectCopyFromSlice { .. }
-            | InstKind::MemoryObjectCopyFromSliceAt { .. }
-            | InstKind::MemoryObjectCopy { .. }
-            | InstKind::Keccak256Bytes(..) => Some("memory-object"),
-            InstKind::Alloc { kind, semantics, .. } => (!self.metadata.deferred_alloc()
-                || !matches!(kind, AllocationKind::Raw)
-                || *semantics != AllocationSemantics::INTERNAL)
-                .then_some("abstract allocation"),
-            InstKind::Trunc(..) | InstKind::Sext(..) => Some("integer conversion"),
-            InstKind::PtrToInt(_, bits) if *bits < 256 => Some("integer conversion"),
-            InstKind::Zext(..)
-            | InstKind::PtrToInt(..)
-            | InstKind::IntToPtr(..)
-            | InstKind::Add(..)
-            | InstKind::Sub(..)
-            | InstKind::Mul(..)
-            | InstKind::Div(..)
-            | InstKind::SDiv(..)
-            | InstKind::Mod(..)
-            | InstKind::SMod(..)
-            | InstKind::Exp(..)
-            | InstKind::AddMod(..)
-            | InstKind::MulMod(..)
-            | InstKind::And(..)
-            | InstKind::Or(..)
-            | InstKind::Xor(..)
-            | InstKind::Not(..)
-            | InstKind::Clz(..)
-            | InstKind::Shl(..)
-            | InstKind::Shr(..)
-            | InstKind::Sar(..)
-            | InstKind::Byte(..)
-            | InstKind::Lt(..)
-            | InstKind::Gt(..)
-            | InstKind::SLt(..)
-            | InstKind::SGt(..)
-            | InstKind::Eq(..)
-            | InstKind::Ne(..)
-            | InstKind::MLoad(..)
-            | InstKind::MStore(..)
-            | InstKind::MStore8(..)
-            | InstKind::MSize
-            | InstKind::MCopy(..)
-            | InstKind::SLoad(..)
-            | InstKind::SStore(..)
-            | InstKind::TLoad(..)
-            | InstKind::TStore(..)
-            | InstKind::CalldataLoad(..)
-            | InstKind::CalldataCopy(..)
-            | InstKind::CalldataSize
-            | InstKind::InternalFrameAddr(..)
-            | InstKind::ConstructorArgsBase
-            | InstKind::ConstructorArgsEnd
-            | InstKind::HeapFloor
-            | InstKind::DataCopy(..)
-            | InstKind::CodeSize
-            | InstKind::CodeCopy(..)
-            | InstKind::ExtCodeSize(..)
-            | InstKind::ExtCodeCopy(..)
-            | InstKind::ExtCodeHash(..)
-            | InstKind::LibraryAddress(..)
-            | InstKind::DataSize(..)
-            | InstKind::LoadImmutable(..)
-            | InstKind::ReturnDataSize
-            | InstKind::ReturnDataCopy(..)
-            | InstKind::Caller
-            | InstKind::CallValue
-            | InstKind::Origin
-            | InstKind::GasPrice
-            | InstKind::BlockHash(..)
-            | InstKind::Coinbase
-            | InstKind::Timestamp
-            | InstKind::BlockNumber
-            | InstKind::PrevRandao
-            | InstKind::GasLimit
-            | InstKind::SlotNum
-            | InstKind::ChainId
-            | InstKind::Address
-            | InstKind::Balance(..)
-            | InstKind::SelfBalance
-            | InstKind::Gas
-            | InstKind::BaseFee
-            | InstKind::BlobBaseFee
-            | InstKind::BlobHash(..)
-            | InstKind::Keccak256(..)
-            | InstKind::Call { .. }
-            | InstKind::CallCode { .. }
-            | InstKind::StaticCall { .. }
-            | InstKind::DelegateCall { .. }
-            | InstKind::ICall { function: Callee::Function(_), .. }
-            | InstKind::Create(..)
-            | InstKind::Create2(..)
-            | InstKind::Log0(..)
-            | InstKind::Log1(..)
-            | InstKind::Log2(..)
-            | InstKind::Log3(..)
-            | InstKind::Log4(..)
-            | InstKind::Phi(..)
-            | InstKind::Select(..)
-            | InstKind::SignExtend(..) => None,
-        }
+        self.kind.phase_violation(MirPhase::Lowered, &self.metadata)
     }
 
     /// Creates a new instruction.
@@ -925,6 +774,7 @@ impl Instruction {
         // %result = old(operands) -> %result = equivalent(new_operands)
         self.kind = kind;
         self.invalidate_operand_metadata();
+        self.metadata.set_alloc_ptr(false);
         if !matches!(self.kind, InstKind::Alloc { .. }) {
             self.metadata.clear_deferred_alloc();
             self.metadata.set_preserves_fmp(false);
@@ -967,6 +817,8 @@ impl InstKind {
     pub(crate) fn inferred_result_type(&self, func: &Function) -> Option<MirType> {
         if let Self::CheckedBinary { arithmetic, .. } = self {
             Some(arithmetic.ty().mir_type())
+        } else if self.op_def().result == super::ResultKind::Pointer {
+            self.op().first_operand().map(|value| super::typing::pointer(func, value))
         } else if self.op_def().result == super::ResultKind::Integer {
             self.op().first_operand().map(|value| super::typing::integer_type(func, value))
         } else {
@@ -1019,7 +871,6 @@ impl InstKind {
                     && result.is_some_and(MirType::is_pointer)
             }
             Self::CheckedBinary { arithmetic, .. } => result == Some(arithmetic.ty().mir_type()),
-            Self::Alloc { kind, .. } => result == Some(kind.result_type()),
             Self::MakeSlice { location, .. } => result == Some(MirType::Slice(location)),
             Self::FrameLoad { kind, .. } => result == Some(kind.result_type()),
             Self::AbiEncode { mode, .. } => result == Some(mode.result_type()),
@@ -1042,7 +893,11 @@ impl InstKind {
             | Self::LoadImmutable(..) => result.is_some(),
             // Module and builtin signatures are checked by the validator.
             Self::ICall { .. } => true,
-            _ if self.op_def().result == super::ResultKind::Integer => {
+            _ if matches!(
+                self.op_def().result,
+                super::ResultKind::Integer | super::ResultKind::Pointer
+            ) =>
+            {
                 self.inferred_result_type(func) == result
                     && result.is_some_and(|ty| self.admits_result_type(ty))
             }
@@ -1061,6 +916,15 @@ impl InstKind {
         match *self {
             Self::Eq(a, b) if func.value_u256(b).is_some_and(|v| v.is_zero()) => Some(a),
             Self::Eq(a, b) if func.value_u256(a).is_some_and(|v| v.is_zero()) => Some(b),
+            _ => None,
+        }
+    }
+
+    /// Returns the tested operand of a canonical inequality with zero.
+    pub(crate) fn nonzero_test_operand(&self, func: &super::Function) -> Option<ValueId> {
+        match *self {
+            Self::Ne(a, b) if func.value_u256(b).is_some_and(|v| v.is_zero()) => Some(a),
+            Self::Ne(a, b) if func.value_u256(a).is_some_and(|v| v.is_zero()) => Some(b),
             _ => None,
         }
     }
@@ -1143,34 +1007,7 @@ impl InstKind {
     /// Returns whether the instruction has required effects, including control effects.
     #[must_use]
     pub(crate) const fn has_side_effects(&self) -> bool {
-        self.effects().must_execute(false)
-    }
-
-    /// Returns whether this instruction still carries a semantic memory-object operation.
-    #[must_use]
-    pub(crate) const fn is_memory_object_op(&self) -> bool {
-        matches!(
-            self,
-            Self::Alloc { kind: AllocationKind::Object(_), .. }
-                | Self::MemoryObjectLen(_, _)
-                | Self::SetMemoryObjectLen(_, _, _)
-                | Self::MemoryObjectData(_, _)
-                | Self::MemoryObjectFieldAddr { .. }
-                | Self::MemoryObjectElementAddr { .. }
-                | Self::MemoryObjectLoadField { .. }
-                | Self::MemoryObjectStoreField { .. }
-                | Self::MemoryObjectLoadElement { .. }
-                | Self::MemoryObjectLoadByte { .. }
-                | Self::MemoryObjectStoreElement { .. }
-                | Self::MemoryObjectStoreByte { .. }
-                | Self::MemoryObjectStoreWord { .. }
-                | Self::MemorySliceLoadWord { .. }
-                | Self::CalldataSliceLoadWord { .. }
-                | Self::MemoryObjectCopyFromSlice { .. }
-                | Self::MemoryObjectCopyFromSliceAt { .. }
-                | Self::MemoryObjectCopy { .. }
-                | Self::Keccak256Bytes(_)
-        )
+        self.effects().must_execute()
     }
 
     /// Returns a conservative effect classification for this instruction.
@@ -1181,9 +1018,7 @@ impl InstKind {
                 Builtin::CheckedAddMod | Builtin::CheckedMulMod | Builtin::Check { .. } => {
                     EffectKind::Pure
                 }
-                Builtin::Erc7201 | Builtin::Concat(_) | Builtin::ReturndataBytes => {
-                    EffectKind::MemoryWrite
-                }
+                Builtin::Erc7201 | Builtin::ReturndataBytes => EffectKind::MemoryWrite,
                 Builtin::Require(_) => EffectKind::MemoryRead,
                 Builtin::Sha256
                 | Builtin::Ripemd160
@@ -1194,33 +1029,43 @@ impl InstKind {
             _ => self.op_def().effect,
         }
     }
+
+    /// Projects field `index` of `slice`, with the field's type in the slice's location.
+    #[must_use]
+    pub(crate) fn slice_field(func: &Function, slice: ValueId, index: u32) -> (Self, MirType) {
+        let ty = super::typing::slice_type(func, slice);
+        let MirType::Slice(location) = ty else { unreachable!("slice_type returns a slice") };
+        let field = MirType::slice_fields(location)[index as usize];
+        (Self::ExtractValue { ty, aggregate: slice, index }, field)
+    }
+
+    /// Returns the slice and field index this instruction projects, if it projects a slice.
+    #[must_use]
+    pub(crate) const fn slice_projection(&self) -> Option<(ValueId, u32)> {
+        match *self {
+            Self::ExtractValue { ty: MirType::Slice(_), aggregate, index } => {
+                Some((aggregate, index))
+            }
+            _ => None,
+        }
+    }
+
+    /// Returns whether this is a `shl`, `shr`, or `sar`.
+    #[must_use]
+    pub(crate) const fn is_shift(&self) -> bool {
+        matches!(self, Self::Shl(..) | Self::Shr(..) | Self::Sar(..))
+    }
+
+    /// Returns whether the textual form lists the stored operands in reverse: shifts are stored
+    /// in EVM stack order but read as `value, shift`.
+    #[must_use]
+    pub(crate) const fn reverses_text_operands(&self) -> bool {
+        self.is_shift()
+    }
 }
 
 impl fmt::Display for InstKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.mnemonic())
-    }
-}
-
-/// One ordered input to byte concatenation, without allocating buffers for fixed literals.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum ConcatPart {
-    Bytes(ValueId),
-    /// The bytes of a slice in memory or calldata, such as a `@custom:solar-view`.
-    Slice {
-        value: ValueId,
-        location: SliceLocation,
-    },
-    Fixed {
-        value: ValueId,
-        size: super::TypeSize,
-    },
-}
-
-impl ConcatPart {
-    pub(crate) fn value(&self) -> ValueId {
-        match *self {
-            Self::Bytes(value) | Self::Slice { value, .. } | Self::Fixed { value, .. } => value,
-        }
     }
 }

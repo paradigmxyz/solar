@@ -28,8 +28,7 @@ contract BytesWriteAlias {
     // reloaded length. Recovering it is `dani/fix-safe-solady-regressions`, which runs an
     // early `object-length-cse` for exactly this.
     // CHECK-LABEL: fn @_doubled
-    // CHECK: [[INPUT:v[0-9]+]] = ptrtoint memptr arg0 to i256
-    // CHECK: mload [[INPUT]]
+    // CHECK: mload arg0
     function _doubled(bytes memory a) private pure returns (bytes memory out) {
         out = new bytes(a.length);
         uint256 i;

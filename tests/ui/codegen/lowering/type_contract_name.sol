@@ -30,17 +30,17 @@ contract ContractNames {
     string private constant NAME = type(ConcreteTarget).name;
 
     // SEMANTIC-LABEL: fn @concrete()
-    // SEMANTIC: [[DATA_PTR:v[0-9]+]] = memory_object_data memorybytes,
-    // SEMANTIC: [[DATA:v[0-9]+]] = ptrtoint memptr [[DATA_PTR]] to i256
-    // SEMANTIC-NEXT: mstore [[DATA]], 0x436f6e6372657465546172676574000000000000000000000000000000000000
+    // SEMANTIC: [[BUF:v[0-9]+]] = alloc 64
+    // SEMANTIC: [[NAME:v[0-9]+]] = ptradd [[BUF]], 32
+    // SEMANTIC-NEXT: mstore [[NAME]], 0x436f6e6372657465546172676574000000000000000000000000000000000000
     // CHECK-LABEL: @module ContractNames
-    // CHECK: mstore 160, 36
-    // CHECK-NEXT: mstore 192, 0x436f6e74726163744e616d654c6f6e6765725468616e54686972747954776f42
-    // CHECK-NEXT: mstore 224, 0x7974657300000000000000000000000000000000000000000000000000000000
-    // CHECK-NEXT: returndata 128, 128
-        // CHECK: mstore 160, 14
-    // CHECK-NEXT: mstore 192, 0x436f6e6372657465546172676574000000000000000000000000000000000000
-    // CHECK-NEXT: returndata 128, 96
+    // CHECK: mstore 32, 36
+    // CHECK-NEXT: mstore 64, 0x436f6e74726163744e616d654c6f6e6765725468616e54686972747954776f42
+    // CHECK-NEXT: mstore 96, 0x7974657300000000000000000000000000000000000000000000000000000000
+    // CHECK-NEXT: returndata 0, 128
+        // CHECK: mstore 32, 14
+    // CHECK-NEXT: mstore 64, 0x436f6e6372657465546172676574000000000000000000000000000000000000
+    // CHECK-NEXT: returndata 0, 96
     function concrete() external pure returns (string memory) {
         return type(ConcreteTarget).name;
     }

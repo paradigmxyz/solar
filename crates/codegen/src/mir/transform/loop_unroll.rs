@@ -33,7 +33,7 @@
 //! ```text
 //! check:
 //!   state = phi [preheader: start]
-//!   jumpi (ne (and (shr t, (sub n, i)), 1), 0), body_a, enter
+//!   jumpi (ne (and (shr (sub n, i), t), 1), 0), body_a, enter
 //! body_a: peeled copy; jump enter
 //! enter: state_0 = phi [check: state], [latch_a: next_a]; jump header
 //! header: state = phi [enter: state_0], [latch_b: next_b]
@@ -170,20 +170,26 @@
 //! test per entry. The new code holds `k` more copies of the body and one of
 //! the header, and the pass takes the factor that saves the most. Literal
 //! bounds give the trip count, and other loops are assumed to run the target's
-//! estimate for uncounted loops. A peeled copy of the header and the body pays
-//! when the conditional jumps that the iterations after the first skip save
-//! more. A `<=` loop stepping by one unrolls by four only from a literal start,
-//! as its main test then adds the offset. Runs after the late loop passes have
-//! fixed the loop's physical shape, and before the final CFG cleanup and
-//! dead-code elimination remove the cloned tests the copies no longer read.
+//! estimate for uncounted loops, or fewer when the bound's largest value, as a
+//! phi of constants or a call whose returns have a proven maximum gives it,
+//! cannot reach that far, so a loop bounded by three never unrolls by four. A
+//! peeled copy of the header and the body pays when the conditional jumps that
+//! the iterations after the first skip save more. A `<=` loop stepping by one
+//! unrolls by four only from a literal start, as its main test then adds the
+//! offset. Runs after the late loop passes have fixed the loop's physical
+//! shape, and before the final CFG cleanup and dead-code elimination remove the
+//! cloned tests the copies no longer read.
 
-use super::loop_split::retarget;
+use super::loop_split::{LoopCopy, add_exit_inputs, clone_loop, retarget, side_exits};
 use crate::{
     backend::evm::op,
     mir::{
         BlockId, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, Instruction,
-        MirType, Module, OpTraits, Terminator, Value, ValueId,
-        analysis::{Loop, LoopAnalyzer, LoopInfo, aborts, cold_functions},
+        MirType, Module, OpTraits, PtrLocation, Terminator, Value, ValueId,
+        analysis::{
+            Loop, LoopAnalyzer, LoopInfo, aborts, cold_functions,
+            integers::{return_bounds, unsigned_bounds_with_returns},
+        },
         pass::{MirPass, run_function_pass},
         utils::rebuild_predecessors,
     },
@@ -209,9 +215,11 @@ impl MirPass for LoopUnroll {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let target = Target::new(gcx);
         let cold = cold_functions(module);
-        run_function_pass(module, analyses, |func, _| unroll_function(func, &cold, target))
+        let returns = return_bounds(module);
+        run_function_pass(module, analyses, |func, analyses| {
+            unroll_function(func, &cold, &returns, &analyses.loop_aware_target(gcx))
+        })
     }
 }
 
@@ -312,14 +320,20 @@ struct Full {
     trips: u32,
 }
 
+/// Whether the build trades code size for runtime gas by copying loop bodies.
+fn copies_loops(target: &Target) -> bool {
+    target.optimization().is_gas() && target.copies_loops()
+}
+
 /// The most iterations a loop may run to be unrolled completely, whatever its pricing.
 const MAX_COMPLETE_TRIPS: u64 = 16;
 
-/// The most bytes the copies of a completely unrolled loop's body may take, whatever its
-/// pricing, so that a contract near the code size limit cannot grow past it.
-const MAX_COMPLETE_BYTES: u32 = 256;
-
-fn unroll_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: Target) -> bool {
+fn unroll_function(
+    func: &mut Function,
+    cold: &DenseBitSet<FunctionId>,
+    returns: &FxHashMap<FunctionId, U256>,
+    target: &Target,
+) -> bool {
     let mut changed = false;
     let mut done = FxHashSet::default();
     let mut peeled = FxHashSet::default();
@@ -341,7 +355,9 @@ fn unroll_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: 
     let loops = LoopAnalyzer::new().analyze_structure(func);
     let reversals: Vec<_> = loops
         .all_loops()
-        .filter(|l| plan(func, &loops, l, cold, target).is_none_or(|unroll| unroll.factor != 4))
+        .filter(|l| {
+            plan(func, &loops, l, cold, returns, target).is_none_or(|unroll| unroll.factor != 4)
+        })
         .filter_map(|l| plan_reverse(func, l))
         .collect();
     changed |= !reversals.is_empty();
@@ -364,7 +380,7 @@ fn unroll_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: 
         let Some(unroll) = loops
             .all_loops()
             .filter(|l| !done.contains(&l.header))
-            .find_map(|l| plan(func, &loops, l, cold, target))
+            .find_map(|l| plan(func, &loops, l, cold, returns, target))
         else {
             break;
         };
@@ -406,7 +422,7 @@ fn rebuilt_at_use(func: &Function, value: ValueId) -> bool {
     let Some(kind) = inst_kind(func, value) else { return true };
     match kind {
         InstKind::Zext(inner) => rebuilt_at_use(func, *inner),
-        InstKind::CalldataLoad(offset) => func.value_u256(*offset).is_some(),
+        InstKind::Load(offset, PtrLocation::Calldata) => func.value_u256(*offset).is_some(),
         _ => {
             let def = kind.op_def();
             def.traits.contains(OpTraits::REMATERIALIZABLE) && def.effect != EffectKind::Pure
@@ -607,9 +623,10 @@ fn plan(
     loops: &LoopInfo,
     l: &Loop,
     cold: &DenseBitSet<FunctionId>,
-    target: Target,
+    returns: &FxHashMap<FunctionId, U256>,
+    target: &Target,
 ) -> Option<Unroll> {
-    if !target.copies_loops() {
+    if !copies_loops(target) {
         return None;
     }
     let shape = shape(func, loops, l, cold)?;
@@ -645,7 +662,15 @@ fn plan(
     }
     let Counter { test, word, bound, start, step, trips } = counter(func, l, &shape)?;
     let literal_start = func.value_u256(start);
-    let trips = trips.unwrap_or(Target::UNCOUNTED_LOOP_ITERATIONS);
+    // A loop without literal trips runs the target's estimate for uncounted loops, or fewer when
+    // its bound cannot reach that far: unrolling by more than the loop can ever run only adds
+    // the main loop's declined test to every entry.
+    let trips = trips.unwrap_or_else(|| {
+        max_trips(func, test, start, bound, step, returns)
+            .map_or(Target::UNCOUNTED_LOOP_ITERATIONS, |max| {
+                max.min(Target::UNCOUNTED_LOOP_ITERATIONS)
+            })
+    });
     // The counter travels at most `step << MAX_TRIP_COUNT_BITS` from a literal start, so
     // `word + (factor - 1) * step` never wraps.
     let ahead = |factor: u32| {
@@ -736,6 +761,10 @@ fn counter(func: &Function, l: &Loop, shape: &Shape) -> Option<Counter> {
         Some(&InstKind::PtrToInt(pointer, _)) => pointer,
         _ => word,
     };
+    // The copies step and test the counter as a word.
+    if func.value_ty(word) != Some(MirType::I256) {
+        return None;
+    }
     let Value::Inst(phi) = func.value(counter) else { return None };
     if !func.blocks[l.header].instructions.contains(phi) {
         return None;
@@ -807,6 +836,28 @@ fn counter(func: &Function, l: &Loop, shape: &Shape) -> Option<Counter> {
     Some(Counter { test, word, bound, start, step, trips })
 }
 
+/// The most iterations a `<` or `<=` loop from a literal start can run, from the largest value its
+/// bound can take, including the results of calls to functions in `returns`.
+fn max_trips(
+    func: &Function,
+    test: Test,
+    start: ValueId,
+    bound: ValueId,
+    step: U256,
+    returns: &FxHashMap<FunctionId, U256>,
+) -> Option<u64> {
+    let start = func.value_u256(start)?;
+    let (_, limit) = unsigned_bounds_with_returns(func, bound, returns);
+    let trips = match test {
+        Test::Below => limit.saturating_sub(start).div_ceil(step),
+        Test::AtMost | Test::UpTo => limit
+            .checked_sub(start)
+            .map_or(U256::ZERO, |left| (left / step).saturating_add(U256::from(1))),
+        Test::Reaches => return None,
+    };
+    Some(u64::try_from(trips).unwrap_or(u64::MAX))
+}
+
 /// How much lifetime gas the tests and jumps the main loop skips save over the deposit of its
 /// code; positive when unrolling pays.
 fn lifetime_saving(
@@ -816,7 +867,7 @@ fn lifetime_saving(
     factor: u32,
     trips: u64,
     step: U256,
-    target: Target,
+    target: &Target,
 ) -> i128 {
     let compare = match main_test {
         MainTest::AheadBelow(_) => op::LT,
@@ -827,8 +878,7 @@ fn lifetime_saving(
         + target.dup().times(2)
         + target.opcode(op::PUSH2)
         + target.opcode(op::JUMPI);
-    let back_edge =
-        target.opcode(op::PUSH2) + target.opcode(op::JUMP) + target.opcode(op::JUMPDEST);
+    let back_edge = target.jump();
     let skip = tested + back_edge;
     let groups = u32::try_from(trips / u64::from(factor)).unwrap_or(u32::MAX);
     let saving = match main_test {
@@ -838,9 +888,11 @@ fn lifetime_saving(
         MainTest::AheadBelow(offset) | MainTest::AheadBeyond(offset) => {
             let advance = target.opcode(op::ADD) + target.push(offset);
             let skipped = skip.times(groups.saturating_mul(factor - 1).saturating_sub(1));
-            skipped.gas.saturating_sub(advance.times(groups.saturating_add(1)).gas)
+            target
+                .runtime_gas(skipped)
+                .saturating_sub(target.runtime_gas(advance.times(groups.saturating_add(1))))
         }
-        MainTest::Below => skip.times(groups.saturating_sub(1)).gas,
+        MainTest::Below => target.runtime_gas(skip.times(groups.saturating_sub(1))),
         // Every pair skips a test and a back edge, and entering the loop tests the parity of
         // the remaining count once.
         MainTest::Parity => {
@@ -849,7 +901,7 @@ fn lifetime_saving(
             if zeros != 0 {
                 parity += target.opcode(op::SHR) + target.push(U256::from(zeros));
             }
-            skip.times(groups).gas.saturating_sub(parity.gas)
+            target.runtime_gas(skip.times(groups)).saturating_sub(target.runtime_gas(parity))
         }
     };
     // The new code holds `factor` copies of the body and one of the header.
@@ -883,6 +935,10 @@ fn plan_reverse(func: &Function, l: &Loop) -> Option<Reverse> {
         InstKind::Lt(counter, bound) | InstKind::Gt(bound, counter) => (counter, bound),
         _ => return None,
     };
+    // The reversed counter starts at the word `0 - n`.
+    if func.value_ty(counter) != Some(MirType::I256) {
+        return None;
+    }
     let Value::Inst(phi) = *func.value(counter) else { return None };
     if !func.blocks[l.header].instructions.contains(&phi) {
         return None;
@@ -935,9 +991,9 @@ fn plan_peel(
     loops: &LoopInfo,
     l: &Loop,
     cold: &DenseBitSet<FunctionId>,
-    target: Target,
+    target: &Target,
 ) -> Option<Peel> {
-    if !target.copies_loops() {
+    if !copies_loops(target) {
         return None;
     }
     let shape = shape(func, loops, l, cold)?;
@@ -974,7 +1030,7 @@ fn plan_peel(
     let test = target.opcode(op::JUMPI) + target.opcode(op::PUSH2) + target.dup();
     let skipped = test.times(u32::try_from(tests.len()).unwrap_or(u32::MAX));
     let iterations = u32::try_from(Target::UNCOUNTED_LOOP_ITERATIONS - 1).unwrap_or(u32::MAX);
-    let saving = skipped.times(iterations).gas;
+    let saving = target.runtime_gas(skipped.times(iterations));
     let growth: Cost = l.blocks.iter().map(|block| target.block_code_estimate(func, block)).sum();
     (target.lifetime_gas(Cost::new(saving, 0)) > target.lifetime_gas(Cost::new(0, growth.bytes)))
         .then(|| Peel {
@@ -994,9 +1050,9 @@ fn plan_full(
     loops: &LoopInfo,
     l: &Loop,
     cold: &DenseBitSet<FunctionId>,
-    target: Target,
+    target: &Target,
 ) -> Option<Full> {
-    if !target.copies_loops() {
+    if !copies_loops(target) {
         return None;
     }
     let shape = shape(func, loops, l, cold)?;
@@ -1017,8 +1073,7 @@ fn plan_full(
         + target.dup().times(2)
         + target.opcode(op::PUSH2)
         + target.opcode(op::JUMPI);
-    let back_edge =
-        target.opcode(op::PUSH2) + target.opcode(op::JUMP) + target.opcode(op::JUMPDEST);
+    let back_edge = target.jump();
     let trips = u32::try_from(trips).ok()?;
     let saving = (tested + back_edge).times(trips) + tested;
     let body: Cost = l
@@ -1027,86 +1082,36 @@ fn plan_full(
         .filter(|&block| block != l.header)
         .map(|block| target.block_code_estimate(func, block))
         .sum();
-    if body.times(trips).bytes > MAX_COMPLETE_BYTES {
+    if body.times(trips).bytes > Target::MAX_LOOP_COPY_BYTES {
         return None;
     }
     let header = target.block_code_estimate(func, l.header);
     let growth = body.times(trips - 1).bytes.saturating_sub(header.bytes);
-    (target.lifetime_gas(Cost::new(saving.gas, 0)) > target.lifetime_gas(Cost::new(0, growth)))
-        .then(|| Full {
-            header: l.header,
-            preheader: shape.preheader,
-            latch: shape.latch,
-            body: shape.body,
-            exit: shape.exit,
-            blocks: l.blocks.clone(),
-            trips,
+    (target.lifetime_gas(Cost::new(target.runtime_gas(saving), 0))
+        > target.lifetime_gas(Cost::new(0, growth)))
+    .then(|| Full {
+        header: l.header,
+        preheader: shape.preheader,
+        latch: shape.latch,
+        body: shape.body,
+        exit: shape.exit,
+        blocks: l.blocks.clone(),
+        trips,
+    })
+}
+
+/// Each header phi with the value it takes from `latch`.
+fn header_phis(func: &Function, header: BlockId, latch: BlockId) -> Vec<(ValueId, ValueId)> {
+    func.blocks[header]
+        .instructions
+        .iter()
+        .filter_map(|&inst| {
+            let InstKind::Phi(incoming) = &func.inst(inst).kind else { return None };
+            let latch_value =
+                incoming.iter().find_map(|&(from, value)| (from == latch).then_some(value))?;
+            Some((func.inst_result_value(inst)?, latch_value))
         })
-}
-
-/// A copy of the loop: each original block's clone and each original value's clone.
-struct Copy {
-    blocks: FxHashMap<BlockId, BlockId>,
-    values: FxHashMap<ValueId, ValueId>,
-}
-
-impl Copy {
-    fn value(&self, value: ValueId) -> ValueId {
-        self.values.get(&value).copied().unwrap_or(value)
-    }
-}
-
-/// Clones every loop block with its instructions, keeping edges that leave the loop.
-fn clone_loop(func: &mut Function, blocks: &[BlockId]) -> Copy {
-    let mut copy = Copy { blocks: FxHashMap::default(), values: FxHashMap::default() };
-    for &block in blocks {
-        copy.blocks.insert(block, func.alloc_block());
-    }
-    for &block in blocks {
-        let originals = func.blocks[block].instructions.clone();
-        let mut instructions = Vec::with_capacity(originals.len());
-        for inst in originals {
-            let original = func.inst(inst);
-            let mut instruction = Instruction::new(original.kind.clone(), original.result_ty);
-            instruction.metadata.copy_debug_context(&original.metadata);
-            let cloned = if let Some(result) = func.inst_result_value(inst) {
-                let (cloned, cloned_result) = func.alloc_value_inst(instruction);
-                copy.values.insert(result, cloned_result);
-                cloned
-            } else {
-                func.alloc_inst(instruction)
-            };
-            instructions.push(cloned);
-        }
-        func.blocks[copy.blocks[&block]].instructions = instructions;
-    }
-    for &block in blocks {
-        let clone = copy.blocks[&block];
-        for inst in func.blocks[clone].instructions.clone() {
-            let kind = &mut func.inst_mut(inst).kind;
-            if let InstKind::Phi(incoming) = kind {
-                for (from, _) in incoming.iter_mut() {
-                    if let Some(&clone_from) = copy.blocks.get(from) {
-                        *from = clone_from;
-                    }
-                }
-            }
-            kind.visit_operands_mut(|value| *value = copy.value(*value));
-        }
-        let (mut terminator, metadata) = {
-            let body = &func.blocks[block];
-            (
-                body.terminator.clone().expect("loop blocks are terminated"),
-                body.terminator_metadata.clone(),
-            )
-        };
-        terminator.visit_operands_mut(|value| *value = copy.value(*value));
-        retarget(&mut terminator, |successor| {
-            copy.blocks.get(&successor).copied().unwrap_or(successor)
-        });
-        func.blocks[clone].set_terminator(terminator, metadata);
-    }
-    copy
+        .collect()
 }
 
 /// Appends a compiler-generated instruction to a block and returns its result.
@@ -1157,7 +1162,7 @@ fn addend(func: &Function, sum: ValueId, start: ValueId) -> Option<ValueId> {
     }
 }
 
-/// `m` when `value` is `shl bits, m`.
+/// `m` when `value` is `shl m, bits`.
 fn shifted_left(func: &Function, value: ValueId, bits: usize) -> Option<ValueId> {
     let &InstKind::Shl(count, shifted) = inst_kind(func, value)? else { return None };
     (func.value_u256(count) == Some(U256::from(bits))).then_some(shifted)
@@ -1254,30 +1259,9 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
     add_exit_phis(func, &unroll.exit_phis);
     let blocks: Vec<BlockId> = unroll.blocks.iter().collect();
     // Edges that leave the loop from its body, before any terminator changes.
-    let side_exits: Vec<_> = blocks
-        .iter()
-        .filter(|&&block| block != unroll.header)
-        .flat_map(|&block| {
-            let terminator = func.blocks[block].terminator.as_ref().expect("terminated");
-            terminator
-                .successors()
-                .into_iter()
-                .filter(|&successor| !unroll.blocks.contains(successor))
-                .map(move |successor| (block, successor))
-        })
-        .collect();
-    let copies: Vec<Copy> = (0..unroll.factor).map(|_| clone_loop(func, &blocks)).collect();
-    let header_phis: Vec<_> = func.blocks[unroll.header]
-        .instructions
-        .iter()
-        .filter_map(|&inst| {
-            let InstKind::Phi(incoming) = &func.inst(inst).kind else { return None };
-            let latch_value = incoming
-                .iter()
-                .find_map(|&(from, value)| (from == unroll.latch).then_some(value))?;
-            Some((func.inst_result_value(inst)?, latch_value))
-        })
-        .collect();
+    let side_exits = side_exits(func, &blocks, &unroll.blocks, unroll.header);
+    let copies: Vec<LoopCopy> = (0..unroll.factor).map(|_| clone_loop(func, &blocks)).collect();
+    let header_phis = header_phis(func, unroll.header, unroll.latch);
     let first = &copies[0];
     let first_latch = first.blocks[&unroll.latch];
     let last = &copies[copies.len() - 1];
@@ -1287,8 +1271,8 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
     let (entry, main_header) = if let MainTest::Parity = unroll.main_test {
         // check: state' = phi [preheader: start]
         //        left = sub bound, word' | word' when bound = 0 | d when bound = add start, d
-        //        jumpi (ne (and (shr zeros(step), left), 1), 0), body', header
-        //        jumpi (ne (and m, 1), 0), body', header   when left = shl zeros(step), m
+        //        jumpi (ne (and (shr left, zeros(step)), 1), 0), body', header
+        //        jumpi (ne (and m, 1), 0), body', header   when left = shl m, zeros(step)
         let check = first.blocks[&unroll.header];
         let word = first.value(unroll.word);
         // Against a zero bound, `0 - i` and `i` agree at bit `t` whenever `i` is a multiple of
@@ -1463,21 +1447,7 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
     );
     func.blocks[unroll.preheader].set_terminator(terminator, metadata);
 
-    // exit: v = phi [block: x], ..., [block': x'], [block'': x'']
-    for (block, successor) in side_exits {
-        for inst in func.blocks[successor].instructions.clone() {
-            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
-                let cloned: Vec<_> = incoming
-                    .iter()
-                    .filter(|&&(from, _)| from == block)
-                    .flat_map(|&(_, value)| {
-                        copies.iter().map(move |copy| (copy.blocks[&block], copy.value(value)))
-                    })
-                    .collect();
-                incoming.extend(cloned);
-            }
-        }
-    }
+    add_exit_inputs(func, &side_exits, &copies);
 
     // A copied header's phi can map to another copied header's phi when the latch passes one
     // header phi to another, as a swap does (`a = phi [latch: b]`, `b = phi [latch: a]`): with
@@ -1497,29 +1467,9 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
 fn peel(func: &mut Function, peel: &Peel) {
     let blocks: Vec<BlockId> = peel.blocks.iter().collect();
     // Edges that leave the loop from its body, before any terminator changes.
-    let side_exits: Vec<_> = blocks
-        .iter()
-        .filter(|&&block| block != peel.header)
-        .flat_map(|&block| {
-            let terminator = func.blocks[block].terminator.as_ref().expect("terminated");
-            terminator
-                .successors()
-                .into_iter()
-                .filter(|&successor| !peel.blocks.contains(successor))
-                .map(move |successor| (block, successor))
-        })
-        .collect();
+    let side_exits = side_exits(func, &blocks, &peel.blocks, peel.header);
     let copy = clone_loop(func, &blocks);
-    let header_phis: Vec<_> = func.blocks[peel.header]
-        .instructions
-        .iter()
-        .filter_map(|&inst| {
-            let InstKind::Phi(incoming) = &func.inst(inst).kind else { return None };
-            let latch_value =
-                incoming.iter().find_map(|&(from, value)| (from == peel.latch).then_some(value))?;
-            Some((func.inst_result_value(inst)?, latch_value))
-        })
-        .collect();
+    let header_phis = header_phis(func, peel.header, peel.latch);
     let first_header = copy.blocks[&peel.header];
     let first_latch = copy.blocks[&peel.latch];
 
@@ -1566,19 +1516,7 @@ fn peel(func: &mut Function, peel: &Peel) {
         });
     }
 
-    // exit: v = phi [block: x], [block': x']
-    for (block, successor) in side_exits {
-        for inst in func.blocks[successor].instructions.clone() {
-            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
-                let cloned: Vec<_> = incoming
-                    .iter()
-                    .filter(|&&(from, _)| from == block)
-                    .map(|&(_, value)| (copy.blocks[&block], copy.value(value)))
-                    .collect();
-                incoming.extend(cloned);
-            }
-        }
-    }
+    add_exit_inputs(func, &side_exits, std::slice::from_ref(&copy));
 
     // The loop runs only after the copy's tests held, and they test the same words.
     // block: jumpi condition, keep, abort => jump keep
@@ -1593,29 +1531,9 @@ fn peel(func: &mut Function, peel: &Peel) {
 fn unroll_fully(func: &mut Function, full: &Full) {
     let blocks: Vec<BlockId> = full.blocks.iter().collect();
     // Edges that leave the loop from its body, before any terminator changes.
-    let side_exits: Vec<_> = blocks
-        .iter()
-        .filter(|&&block| block != full.header)
-        .flat_map(|&block| {
-            let terminator = func.blocks[block].terminator.as_ref().expect("terminated");
-            terminator
-                .successors()
-                .into_iter()
-                .filter(|&successor| !full.blocks.contains(successor))
-                .map(move |successor| (block, successor))
-        })
-        .collect();
-    let header_phis: Vec<_> = func.blocks[full.header]
-        .instructions
-        .iter()
-        .filter_map(|&inst| {
-            let InstKind::Phi(incoming) = &func.inst(inst).kind else { return None };
-            let latch_value =
-                incoming.iter().find_map(|&(from, value)| (from == full.latch).then_some(value))?;
-            Some((func.inst_result_value(inst)?, latch_value))
-        })
-        .collect();
-    let copies: Vec<Copy> = (0..full.trips).map(|_| clone_loop(func, &blocks)).collect();
+    let side_exits = side_exits(func, &blocks, &full.blocks, full.header);
+    let header_phis = header_phis(func, full.header, full.latch);
+    let copies: Vec<LoopCopy> = (0..full.trips).map(|_| clone_loop(func, &blocks)).collect();
 
     // preheader: ... jump header_1
     redirect(func, full.preheader, full.header, copies[0].blocks[&full.header]);
@@ -1658,24 +1576,7 @@ fn unroll_fully(func: &mut Function, full: &Full) {
     let (_, metadata) = func.blocks[full.header].take_terminator();
     func.blocks[full.header].set_terminator(Terminator::Jump(full.exit), metadata);
 
-    // exit: v = phi [block: x], [block_1: x_1], ..., [block_n: x_n]
-    for (block, successor) in side_exits {
-        for inst in func.blocks[successor].instructions.clone() {
-            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
-                let cloned: Vec<_> = copies
-                    .iter()
-                    .flat_map(|copy| {
-                        incoming
-                            .iter()
-                            .filter(|&&(from, _)| from == block)
-                            .map(|&(_, value)| (copy.blocks[&block], copy.value(value)))
-                            .collect::<Vec<_>>()
-                    })
-                    .collect();
-                incoming.extend(cloned);
-            }
-        }
-    }
+    add_exit_inputs(func, &side_exits, &copies);
     rebuild_predecessors(func);
 }
 

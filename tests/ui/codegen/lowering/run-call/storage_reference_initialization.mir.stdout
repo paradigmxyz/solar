@@ -4,10 +4,10 @@
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
-fn @yulBind(arg0: i256) -> struct0 [selector=0xd5bd9082, inline_assembly, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @yulBind(arg0: i256) -> struct0 [selector=0xd5bd9082, inline_assembly, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     sstore 42, arg0 !metadata(storage=slot(42))
-    v0 = checked_add u256, arg0, 1
+    v0 = checked_add uint256, arg0, 1
     v1 = add 42, 1
     sstore v1, v0 !metadata(storage=slot(43))
     v2 = sload 42 !metadata(storage=slot(42))
@@ -17,7 +17,7 @@ fn @yulBind(arg0: i256) -> struct0 [selector=0xd5bd9082, inline_assembly, abi_pa
     ret v5
 }
 
-fn @branchBind(arg0: i1, arg1: i256) -> struct1 [selector=0x3ccc3db5, abi_params=[bool, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @branchBind(arg0: i1, arg1: i256) -> struct1 [selector=0x3ccc3db5, abi_params=[bool, uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -29,7 +29,7 @@ fn @branchBind(arg0: i1, arg1: i256) -> struct1 [selector=0x3ccc3db5, abi_params
   bb3:
     v2 = phi [bb1: v0], [bb2: v1]
     sstore v2, arg1 !metadata(storage=symbolic(v2))
-    v3 = checked_add u256, arg1, 1
+    v3 = checked_add uint256, arg1, 1
     v4 = add v2, 1
     sstore v4, v3 !metadata(storage=offset(v2, 1))
     v5 = mapping_slot 1, 0
@@ -43,14 +43,14 @@ fn @branchBind(arg0: i1, arg1: i256) -> struct1 [selector=0x3ccc3db5, abi_params
     ret v12
 }
 
-fn @branchBindReturn(arg0: i1, arg1: i256) -> i256 [selector=0x69456020, abi_params=[bool, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @branchBindReturn(arg0: i1, arg1: i256) -> i256 [selector=0x69456020, abi_params=[bool, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
     v0 = mapping_slot 2, 0
     jump bb3
   bb3:
-    v1 = checked_add u256, arg1, 1
+    v1 = checked_add uint256, arg1, 1
     v2 = add v0, 1
     sstore v2, v1 !metadata(storage=offset(v0, 1))
     v3 = icall @readB, v0
@@ -59,7 +59,7 @@ fn @branchBindReturn(arg0: i1, arg1: i256) -> i256 [selector=0x69456020, abi_par
     ret 0
 }
 
-fn @switchBind(arg0: i256, arg1: i256) -> i256 [selector=0x68f229f2, inline_assembly, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @switchBind(arg0: i256, arg1: i256) -> i256 [selector=0x68f229f2, inline_assembly, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     switch arg0, default bb5, [0 => bb2, 1 => bb3, 3 => bb4]
   bb4:
@@ -78,7 +78,7 @@ fn @switchBind(arg0: i256, arg1: i256) -> i256 [selector=0x68f229f2, inline_asse
     ret v2
 }
 
-fn @doWhileBind(arg0: i256) -> i256 [selector=0xe97129c1, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @doWhileBind(arg0: i256) -> i256 [selector=0xe97129c1, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -110,38 +110,37 @@ fn @mayFail(arg0: i1) [selector=0x8aef7752, pure, abi_params=[bool], abi_returns
     ret
 }
 
-fn @tryBind(arg0: i1, arg1: i256) -> i256 [selector=0x9a0c8f93, abi_params=[bool, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @tryBind(arg0: i1, arg1: i256) -> i256 [selector=0x9a0c8f93, abi_params=[bool, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas
+    mstore 0, 0x8aef7752 !metadata(memory=scratch)
     v2 = zext i1 arg0 to i256
-    v3 = abi_encode [word<bool>], selector 0x8aef775200000000000000000000000000000000000000000000000000000000, args v2
-    v4 = slice_ptr v3
-    v5 = slice_len v3
+    mstore 32, v2 !metadata(memory=scratch)
+    v3 = zext i160 v0 to i256
+    v4 = extcodesize v3
+    v5 = eq v4, 0
+    icall revert_if<target_contract_has_no_code>, v5
     v6 = zext i160 v0 to i256
-    v7 = extcodesize v6
-    v8 = eq v7, 0
-    icall revert_if<target_contract_has_no_code>, v8
-    v9 = zext i160 v0 to i256
-    v10 = staticcall v1, v9, v4, v5, 0, 0
-    jumpi v10, bb1, bb2
+    v7 = staticcall v1, v6, 28, 36, 0, 0
+    jumpi v7, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
     icall revert_if<empty>, true
     invalid
   bb4:
-    v12 = mapping_slot 2, 0
+    v9 = mapping_slot 2, 0
     jump bb3
   bb1:
-    v11 = mapping_slot 1, 0
+    v8 = mapping_slot 1, 0
     jump bb3
   bb3:
-    v13 = phi [bb1: v11], [bb4: v12]
-    v14 = add v13, 1
-    sstore v14, arg1 !metadata(storage=offset(v13, 1))
-    v15 = icall @readB, v13
-    ret v15
+    v10 = phi [bb1: v8], [bb4: v9]
+    v11 = add v10, 1
+    sstore v11, arg1 !metadata(storage=offset(v10, 1))
+    v12 = icall @readB, v10
+    ret v12
 }
 
 fn @readB(arg0: i256) -> i256 [view] {

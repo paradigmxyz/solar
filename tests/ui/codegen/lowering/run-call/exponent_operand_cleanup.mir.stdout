@@ -3,18 +3,18 @@
 @types
   struct0: {i256, i256}
 
-fn @checkedDirtyOperands() -> struct0 [selector=0xfef4b418, inline_assembly, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[i256, i256]] {
+fn @checkedDirtyOperands() -> struct0 [selector=0xfef4b418, inline_assembly, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[int256, int256]] {
   bb0:
-    v0 = checked_pow i32, i32 0xfffffffd, 2
+    v0 = checked_pow int32, i32 0xfffffffd, 2
     v1 = sext i32 v0 to i256
-    v2 = checked_pow i32, i32 0xfffffffd, 3
+    v2 = checked_pow int32, i32 0xfffffffd, 3
     v3 = sext i32 v2 to i256
     v4 = insert_value struct0, undef struct0, 0, v1
     v5 = insert_value struct0, v4, 1, v3
     ret v5
 }
 
-fn @uncheckedDirtyOperands() -> i256 [selector=0x84faa534, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @uncheckedDirtyOperands() -> i256 [selector=0x84faa534, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = exp 0xfffffffe, 2
     v1 = trunc i256 v0 to i32
@@ -22,13 +22,13 @@ fn @uncheckedDirtyOperands() -> i256 [selector=0x84faa534, inline_assembly, pure
     ret v2
 }
 
-fn @copiedDirtyOperand() -> i256 [selector=0x2f5133b3, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @copiedDirtyOperand() -> i256 [selector=0x2f5133b3, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_pow u256, 3, 2
+    v0 = checked_pow uint256, 3, 2
     ret v0
 }
 
-fn @branchedDirtyOperand(arg0: i1) -> i256 [selector=0x3d6d96b7, inline_assembly, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[i256]] {
+fn @branchedDirtyOperand(arg0: i1) -> i256 [selector=0x3d6d96b7, inline_assembly, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -39,30 +39,30 @@ fn @branchedDirtyOperand(arg0: i1) -> i256 [selector=0x3d6d96b7, inline_assembly
     v0 = phi [bb1: 259], [bb2: 2]
     v1 = trunc i256 v0 to i8
     v2 = zext i8 v1 to i256
-    v3 = checked_pow i256, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd, v2
+    v3 = checked_pow int256, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd, v2
     ret v3
 }
 
-fn @fullWidthOperands() -> i256 [selector=0xd0e127e5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fullWidthOperands() -> i256 [selector=0xd0e127e5, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 16
 }
 
-fn @signedProduct(arg0: i256, arg1: i256) -> i256 [selector=0x1224b6ec, pure, abi_params=[i256, i256], abi_returns=[word], abi_return_params=[i256]] {
+fn @signedProduct(arg0: i256, arg1: i256) -> i256 [selector=0x1224b6ec, pure, abi_params=[int256, int256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
-    v0 = checked_mul i256, arg0, arg1
+    v0 = checked_mul int256, arg0, arg1
     ret v0
 }
 
-fn @signedPower(arg0: i256, arg1: i256) -> i256 [selector=0xf418e101, pure, abi_params=[i256, u256], abi_returns=[word], abi_return_params=[i256]] {
+fn @signedPower(arg0: i256, arg1: i256) -> i256 [selector=0xf418e101, pure, abi_params=[int256, uint256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
-    v0 = checked_pow i256, arg0, arg1
+    v0 = checked_pow int256, arg0, arg1
     ret v0
 }
 
-fn @narrowSignedPower(arg0: i8, arg1: i8) -> i8 [selector=0x6e1f2e38, pure, abi_params=[i8, u8], abi_returns=[word<i8>], abi_return_params=[i8]] {
+fn @narrowSignedPower(arg0: i8, arg1: i8) -> i8 [selector=0x6e1f2e38, pure, abi_params=[int8, uint8], abi_returns=[word<int8>], abi_return_params=[int8]] {
   bb0:
     v0 = zext i8 arg1 to i256
-    v1 = checked_pow i8, arg0, v0
+    v1 = checked_pow int8, arg0, v0
     ret v1
 }

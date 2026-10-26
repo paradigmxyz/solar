@@ -4,7 +4,9 @@ bb0:
   callvalue
   push bb3
   jumpi
-  push 0x100000000000000000000000000000000000000000000000000000000
+  push 224
+  push 2
+  exp
   push 0
   calldataload
   div
@@ -14,14 +16,14 @@ bb0:
   push bb3
   jumpi
   push 42
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0
-  push 0
+  dup 1
   invalid
 // === ROOT/tests/ui/codegen/lowering/call_reserve_block.sol:ReserveBlock (runtime) ===
 @module ReserveBlock_runtime
@@ -29,7 +31,9 @@ bb0:
   callvalue
   push bb4
   jumpi
-  push 0x100000000000000000000000000000000000000000000000000000000
+  push 224
+  push 2
+  exp
   push 0
   calldataload
   div
@@ -43,7 +47,7 @@ bb0:
   sub
   push bb4
   jumpi
-  push 160
+  push 128
   push 64
   mstore
   push 0
@@ -52,11 +56,6 @@ bb0:
   and
   push 64
   mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
   push 0x3fa4f24500000000000000000000000000000000000000000000000000000000
   dup 2
   mstore
@@ -77,17 +76,17 @@ bb0:
   push bb4
   jumpi
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb4 [cold]:
   push 0
-  push 0
+  dup 1
   invalid
 bb9:
-  push 160
+  push 128
   push 64
   mstore
   push 0
@@ -98,11 +97,6 @@ bb9:
   gas
   push 64
   mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
   push 0x3fa4f24500000000000000000000000000000000000000000000000000000000
   dup 2
   mstore
@@ -124,8 +118,8 @@ bb9:
   jumpi
   pop
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

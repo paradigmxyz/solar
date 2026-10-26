@@ -2,20 +2,23 @@
 @module InternalFunctionPointerAssemblyCast
 fn @compareBytes32(arg0: i256, arg1: i256) -> i1 [selector=0x824a2a4e, inline_assembly, pure, abi_params=[bytes32, bytes32], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_u256_u256_r_bool, 2, arg0, arg1
-    ret v0
+    v0 = icall @internal_dispatcher_p_uint256_uint256_r_bool, 2, arg0, arg1
+    v1 = ne v0, 0
+    ret v1
 }
 
-fn @compareAddress(arg0: i256, arg1: i256) -> i1 [selector=0xf627b917, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @compareAddress(arg0: i256, arg1: i256) -> i1 [selector=0xf627b917, inline_assembly, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_u256_u256_r_bool, 4, arg0, arg1
-    ret v0
+    v0 = icall @internal_dispatcher_p_uint256_uint256_r_bool, 4, arg0, arg1
+    v1 = ne v0, 0
+    ret v1
 }
 
-fn @compareInt256(arg0: i256, arg1: i256) -> i1 [selector=0x28717b2d, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @compareInt256(arg0: i256, arg1: i256) -> i1 [selector=0x28717b2d, inline_assembly, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_u256_u256_r_bool, 6, arg0, arg1
-    ret v0
+    v0 = icall @internal_dispatcher_p_uint256_uint256_r_bool, 6, arg0, arg1
+    v1 = ne v0, 0
+    ret v1
 }
 
 fn @_bytes32Greater(arg0: i256, arg1: i256) -> i1 [pure] {
@@ -36,30 +39,33 @@ fn @_int256Less(arg0: i256, arg1: i256) -> i1 [pure] {
     ret v0
 }
 
-fn @internal_dispatcher_p_u256_u256_r_bool(arg0: i256, arg1: i256, arg2: i256) -> i1 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_uint256_uint256_r_bool(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2
   bb2:
-    v2 = eq arg0, 4
-    jumpi v2, bb3, bb4
+    v3 = eq arg0, 4
+    jumpi v3, bb3, bb4
   bb4:
-    v8 = eq arg0, 6
-    jumpi v8, bb5, bb6
+    v10 = eq arg0, 6
+    jumpi v10, bb5, bb6
   bb6:
     icall panic_if<0x51>, true
     invalid
   bb5:
-    v9 = icall @_int256Less, arg1, arg2
-    ret v9
+    v11 = icall @_int256Less, arg1, arg2
+    v12 = zext i1 v11 to i256
+    ret v12
   bb3:
-    v3 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
-    v4 = trunc i256 v3 to i160
-    v5 = and arg2, 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = trunc i256 v5 to i160
-    v7 = icall @_addressGreater, v4, v6
-    ret v7
+    v4 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = trunc i256 v4 to i160
+    v6 = and arg2, 0xffffffffffffffffffffffffffffffffffffffff
+    v7 = trunc i256 v6 to i160
+    v8 = icall @_addressGreater, v5, v7
+    v9 = zext i1 v8 to i256
+    ret v9
   bb1:
     v1 = icall @_bytes32Greater, arg1, arg2
-    ret v1
+    v2 = zext i1 v1 to i256
+    ret v2
 }

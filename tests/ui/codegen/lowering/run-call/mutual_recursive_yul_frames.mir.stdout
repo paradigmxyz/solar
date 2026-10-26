@@ -4,7 +4,7 @@
   struct0: {i256, i256, i256}
   struct1: {i256, i256}
 
-fn @encode(arg0: i256) -> struct0 [selector=0xdeb21fa2, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, bytes32]] {
+fn @encode(arg0: i256) -> struct0 [selector=0xdeb21fa2, inline_assembly, pure, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, bytes32]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = icall @walk, arg0, v0

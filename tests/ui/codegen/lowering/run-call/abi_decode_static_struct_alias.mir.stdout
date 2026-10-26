@@ -1,54 +1,57 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_static_struct_alias.sol:AbiDecodeStaticStructAlias ===
 @module AbiDecodeStaticStructAlias
-fn @mutateFirst(arg0: memptr) -> i256 [selector=0x781f0687, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @mutateFirst(arg0: ptr<memory>) -> i256 [selector=0x781f0687, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_decode [tuple<u256>], arg0
-    v1 = memory_object_len memorybytes, arg0
+    v0 = abi_decode [tuple<uint256>], arg0
+    v1 = mload arg0
     v2 = lt 31, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = byte 0, 0x200000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_byte memorybytes, arg0, 31, v4
-    v5 = memory_object_load_field memorystruct<1>, v0, 0
-    ret v5
+    v5 = ptradd arg0, 63
+    mstore8 v5, v4
+    v6 = mload v0
+    ret v6
 }
 
-fn @mutateSecond(arg0: memptr) -> i256 [selector=0xe7eeece1, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @mutateSecond(arg0: ptr<memory>) -> i256 [selector=0xe7eeece1, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_decode [tuple<u256>], arg0
-    v1 = memory_object_len memorybytes, arg0
+    v0 = abi_decode [tuple<uint256>], arg0
+    v1 = mload arg0
     v2 = lt 31, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = byte 0, 0x300000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_byte memorybytes, arg0, 31, v4
-    v5 = memory_object_load_field memorystruct<1>, v0, 0
-    ret v5
+    v5 = ptradd arg0, 63
+    mstore8 v5, v4
+    v6 = mload v0
+    ret v6
 }
 
-fn @mutateAlias(arg0: memptr) -> i256 [selector=0x60c81d20, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @mutateAlias(arg0: ptr<memory>) -> i256 [selector=0x60c81d20, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @mutateAliasInner, arg0, arg0
     ret v0
 }
 
-fn @mutateAliasInner(arg0: memptr, arg1: memptr) -> i256 [pure] {
+fn @mutateAliasInner(arg0: ptr<memory>, arg1: ptr<memory>) -> i256 [pure] {
   bb0:
-    v0 = abi_decode [tuple<u256>], arg0
-    v1 = memory_object_len memorybytes, arg1
+    v0 = abi_decode [tuple<uint256>], arg0
+    v1 = mload arg1
     v2 = eq v1, 0
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v3 = memory_object_len memorybytes, arg1
+    v3 = mload arg1
     v4 = lt 31, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = byte 0, 0x400000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_byte memorybytes, arg1, 31, v6
-    v7 = memory_object_load_field memorystruct<1>, v0, 0
-    ret v7
+    v7 = ptradd arg1, 63
+    mstore8 v7, v6
+    v8 = mload v0
+    ret v8
   bb1:
     ret 0
 }

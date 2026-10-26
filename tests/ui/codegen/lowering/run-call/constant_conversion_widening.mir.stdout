@@ -1,0 +1,12 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constant_conversion_widening.sol:ConstantConversionWidening ===
+@module ConstantConversionWidening
+@types
+  struct0: {i16, i256, i16}
+
+fn @widened() -> struct0 [selector=0xd3eaa7aa, pure, abi_params=[], abi_returns=[word<int16>, word, word<uint16>], abi_return_params=[int16, int256, uint16]] {
+  bb0:
+    v0 = insert_value struct0, undef struct0, 0, i16 0xffa6
+    v1 = insert_value struct0, v0, 1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffa6
+    v2 = insert_value struct0, v1, 2, i16 160
+    ret v2
+}

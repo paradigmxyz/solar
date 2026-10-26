@@ -10,6 +10,13 @@
 //! turns around, since a turned test that keeps its jump to the header would pay that jump on
 //! every iteration.
 //!
+//! Size mode skips the pass. A move trades the latch's jump for the preheader's, which is
+//! byte-neutral, except that a turned test drops its `iszero`. Moving latches in size mode
+//! measured 113 runtime bytes larger across the benchmark corpus, and moving only turned latches
+//! 54 bytes larger. Running only the layout step shrank runtime code by 4,902 bytes but grew 19
+//! contracts by 1,244 bytes in total, as the second layout moved small traces below the `PUSH1`
+//! limit and pushed other labels past it; that needs a fix in block layout, not a price here.
+//!
 //! When the current fallthrough also comes from the loop, a bounded flow estimate distinguishes
 //! the common iteration from rarer paths. A branch into a cold block, such as an overflow panic,
 //! is never taken. When the header dominates the latch, a branch in the natural loop of their
@@ -53,7 +60,7 @@ impl EvmPass for LoopLayout {
         if !gcx.sess.opts.optimization.is_gas() {
             return false;
         }
-        BlockLayout.run_pass(gcx, module) | place_loop_latches(gcx, module)
+        BlockLayout.run_pass(gcx, module) | place_loop_latches(module)
     }
 }
 
@@ -146,7 +153,7 @@ fn backedge_weights(
 /// Gives a loop's latch the fallthrough currently owned by its one-time preheader.
 /// An adjacent header/latch pair also qualifies when the header's physical
 /// terminator leaves no fallthrough into the latch.
-fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
+fn place_loop_latches(module: &mut Module) -> bool {
     let mut order = module.blocks.indices().collect::<Vec<_>>();
     // Position of each block in `order`.
     let mut positions = (0..order.len()).collect::<IndexVec<BlockId, _>>();
@@ -214,8 +221,7 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 let weights = backedge_weights(module, &mut branches, header, &body);
                 let before = weights.get(&preheader).copied().unwrap_or(0);
                 let after = weights.get(&latch).copied().unwrap_or(0);
-                let price = u128::from(Target::new(gcx).opcode(op::JUMP).gas);
-                after != 0 && u128::from(after) * price > u128::from(before) * price * 2
+                after != 0 && u128::from(after) > u128::from(before) * 2
             } else {
                 true
             };

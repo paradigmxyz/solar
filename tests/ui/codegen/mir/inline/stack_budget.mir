@@ -1,4 +1,4 @@
-//@ compile-flags: -Ogas -Zmir-pipeline=inline-single-use
+//@ compile-flags: -Ogas -Zmir-pipeline=inline
 //@ filecheck:
 @module StackBudget
 

@@ -3,7 +3,7 @@
 use crate::{
     ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, HumanEmitterKind,
     ImportRemapping, Language, LibraryAddress, OptimizationMode, RevertStrings, SwitchLowering,
-    Threads,
+    Threads, Tune,
 };
 use std::{num::NonZeroUsize, path::PathBuf};
 
@@ -447,15 +447,35 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub switch_max_bit_slice_gas_code_growth: Option<usize>,
 
+    /// Tune generated code for an execution engine (default: `none`; values: `none`,
+    /// `interpreter`).
+    #[cfg_attr(
+        feature = "clap",
+        arg(
+            long,
+            value_enum,
+            default_value_t,
+            hide_default_value = true,
+            hide_possible_values = true
+        )
+    )]
+    pub tune: Tune,
+
+    /// Pack indexed jump table entries wider than one byte into words and pick them with a shift
+    /// and a mask. Off by default: jump analysis in bytecode JITs cannot resolve the pick.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub pack_wide_jump_tables: bool,
+
     /// Assert instead of logging when a value is live across a planned stack edge into an
     /// already-emitted block without a spill home.
     #[cfg_attr(feature = "clap", arg(long))]
     pub assert_planned_edge_spill_home: bool,
 
-    /// Drop the compiler context after compilation.
-    /// Library callers can enable this to reclaim memory between compilations.
+    /// Leak the compiler context instead of dropping it after compilation.
+    /// The `solar` binary sets this to skip teardown before exiting; library callers should leave
+    /// it unset so that each compilation frees its arenas and thread pool.
     #[cfg_attr(feature = "clap", arg(skip))]
-    pub drop_gcx: bool,
+    pub forget_gcx: bool,
 
     // ----------------------------------------
     // Please add new options above this point!

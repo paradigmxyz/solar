@@ -84,7 +84,7 @@ fn @even_scale(arg0: i256, arg1: i256) -> i1 {
 
 fn @dynamic_power_divisor(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v0 = shl arg1, 1
+    v0 = shl 1, arg1
     v1 = div arg0, v0
     ret v1
 }
@@ -154,7 +154,7 @@ fn @wrapping_product(arg0: i256) -> i256 {
 
 fn @exact_signed(arg0: i256) -> i256 {
   bb0:
-    v0 = shl 3, arg0
+    v0 = shl arg0, 3
     v1 = sdiv v0, 8
     ret v1
 }
@@ -174,13 +174,13 @@ fn @overflowing_divisors(arg0: i256) -> i256 {
 
 fn @empty_log(arg0: i256) {
   bb0:
-    log1 arg0, 0, 17
+    log arg0, 0, 17
     ret
 }
 
 fn @nonempty_log(arg0: i256) {
   bb0:
-    log1 arg0, 1, 17
+    log arg0, 1, 17
     ret
 }
 
@@ -226,7 +226,7 @@ fn @compact_inclusive_bound(arg0: i256) -> i1 {
 fn @shifted_inclusive_bound(arg0: i256) -> i1 {
   bb0:
     v0 = and arg0, 255
-    v1 = shl 248, v0
+    v1 = shl v0, 248
     v2 = lt v1, 21711016731996786641919559689128982722488122124807605757398297001483711807488
     v3 = eq v2, false
     ret v3

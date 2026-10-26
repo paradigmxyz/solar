@@ -72,75 +72,50 @@ bb7:
   push 128
   swap 2
   calldatacopy
-  push 256
   push 1
-  dup 3
+  dup 2
   add
   dup 1
   iszero
   push bb10
   jumpi
   push 2
-  dup 4
+  dup 3
   add
-  dup 4
+  dup 3
   dup 2
   lt
   push 3
-  dup 6
+  dup 5
   add
   swap 1
-  dup 6
+  dup 5
   dup 3
   lt
   or
   push 4
-  dup 7
+  dup 6
   add
-  swap 6
-  dup 7
+  swap 5
+  dup 6
   lt
   or
   push bb10
   jumpi
-  dup 3
-  dup 5
-  mstore
-  push 32
-  dup 5
-  add
   swap 2
-  dup 3
-  mstore
-  push 64
-  dup 5
-  add
-  swap 1
-  dup 2
-  mstore
-  swap 3
-  push 96
-  add
-  swap 4
-  dup 5
-  mstore
-  swap 1
   push 128
   mstore
-  mload
   push 160
   mstore
-  mload
   push 192
   mstore
-  mload
   push 224
   mstore
   push 128
   dup 1
   return
 bb11:
-  push 160
+  push 128
   push 64
   mstore
   push_immutable 0, 20
@@ -165,12 +140,11 @@ bb11:
   push 64
   dup 2
   add
-  dup 1
-  swap 3
-  push 128
-  swap 3
-  push 36
   swap 2
+  push 36
+  dup 3
+  dup 5
+  swap 3
   gas
   staticcall
   iszero
@@ -186,50 +160,49 @@ bb11:
 bb34:
   push 64
   mload
-  dup 1
   push 128
-  dup 3
+  dup 2
   add
   push 64
   mstore
-  dup 4
-  mload
   dup 3
-  mstore
-  push 32
-  dup 5
-  add
   mload
+  dup 2
+  mstore
   push 32
   dup 4
   add
-  mstore
-  push 64
-  dup 5
-  add
   mload
+  push 32
+  dup 3
+  add
+  mstore
   push 64
   dup 4
   add
+  mload
+  push 64
+  dup 3
+  add
   mstore
-  swap 3
+  swap 2
   push 96
   add
   mload
-  swap 1
   push 96
+  dup 4
   add
   mstore
   jump
 bb14 [continuation]:
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb17:
-  push 160
+  push 128
   push 64
   mstore
   push_immutable 0, 20
@@ -254,12 +227,11 @@ bb17:
   push 64
   dup 2
   add
-  dup 1
-  swap 3
-  push 128
-  swap 3
-  push 36
   swap 2
+  push 36
+  dup 3
+  dup 5
+  swap 3
   gas
   staticcall
   iszero
@@ -293,13 +265,13 @@ bb20 [continuation]:
   iszero
   push bb10
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb26:
-  push 160
+  push 128
   push 64
   mstore
   push_immutable 0, 20
@@ -324,12 +296,11 @@ bb26:
   push 64
   dup 2
   add
-  dup 1
-  swap 3
-  push 128
-  swap 3
-  push 36
   swap 2
+  push 36
+  dup 3
+  dup 5
+  swap 3
   gas
   staticcall
   iszero
@@ -358,8 +329,8 @@ bb29 [continuation]:
   lt
   push bb10
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

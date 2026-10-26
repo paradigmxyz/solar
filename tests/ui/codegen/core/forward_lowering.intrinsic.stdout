@@ -11,7 +11,7 @@ fn @entry() [entry] {
 @module Test
 @phase lowered
 @immutables
-  implementation: u160
+  implementation: uint160
 
 fn @fallback() [abi_wrapper, fallback, payable] {
   bb0:

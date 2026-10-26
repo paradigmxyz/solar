@@ -7,15 +7,15 @@
 //! inside each basic block immediately before EVM codegen.
 //!
 //! The pass deliberately moves only computations and reads. Memory and state writes, calls,
-//! creation, logs, control effects, `gas`, `msize`, and phis are barriers, so the pass cannot move
-//! work across an observable mutation, gas observation, call-gas boundary, or phi definition.
-//! Within each barrier-delimited segment, a deterministic dependency-first traversal emits operand
-//! producers in EVM push order and places values consumed by the following barrier or terminator
-//! last. Shared-result producers stay at their original positions because moving one use changes
-//! which physical copy should survive for later consumers. Single-use islands between those pinned
-//! producers are still scheduled independently; references left in the arena by eliminated
-//! instructions do not count as sharing. The pass also preserves the producer order of binary
-//! operations whose lowering already costs both equivalent operand orientations.
+//! creation, logs, control effects, `gas` and other opaque observations, and phis are barriers, so
+//! the pass cannot move work across an observable mutation, gas observation, call-gas boundary, or
+//! phi definition. Within each barrier-delimited segment, a deterministic dependency-first
+//! traversal emits operand producers in EVM push order and places values consumed by the following
+//! barrier or terminator last. Shared-result producers stay at their original positions because
+//! moving one use changes which physical copy should survive for later consumers. Single-use
+//! islands between those pinned producers are still scheduled independently; references left in the
+//! arena by eliminated instructions do not count as sharing. The pass also preserves the producer
+//! order of binary operations whose lowering already costs both equivalent operand orientations.
 //! Instruction and value identities do not change; codegen recomputes liveness from the resulting
 //! order before stack scheduling.
 //!
@@ -78,7 +78,7 @@ impl EvmInstSchedule {
         let shared_results = Self::shared_results(func);
         let mut scratch = ScheduleScratch::new(func.num_insts());
         let liveness = Liveness::compute_live_sets(func);
-        let users = Self::user_counts(func);
+        let users = super::egraph::use_counts(func);
 
         for block_id in block_ids {
             changed |= Self::sink_past_barriers(func, block_id, &liveness, &users);
@@ -264,45 +264,19 @@ impl EvmInstSchedule {
     /// observe neither the gas left nor the words a pure instruction computes.
     fn is_crossable(inst: &Instruction) -> bool {
         let crossable = |effect| matches!(effect, EffectKind::MemoryWrite | EffectKind::Log);
-        !matches!(inst.kind, InstKind::Gas | InstKind::MSize | InstKind::Phi(_))
-            && !inst.kind.effects().control.any()
+        !inst.kind.effects().control.any()
             && crossable(inst.kind.effect_kind())
             && inst.metadata.effect().is_none_or(crossable)
     }
 
-    fn user_counts(func: &Function) -> IndexVec<ValueId, u32> {
-        let mut counts = index_vec![0u32; func.num_values()];
-        for block in &func.blocks {
-            for &inst_id in &block.instructions {
-                func.inst(inst_id).kind.visit_operands(|operand| counts[operand] += 1);
-            }
-            if let Some(terminator) = &block.terminator {
-                terminator.operands().into_iter().for_each(|operand| counts[operand] += 1);
-            }
-        }
-        counts
-    }
-
     /// Whether an instruction may move among other read-only instructions in the same segment.
     fn is_movable(inst: &Instruction) -> bool {
-        if matches!(inst.kind, InstKind::Phi(_) | InstKind::Gas | InstKind::MSize) {
-            return false;
-        }
-
-        !inst.kind.effects().control.any()
-            && Self::is_movable_effect(inst.kind.effect_kind())
-            && inst.metadata.effect().is_none_or(Self::is_movable_effect)
-    }
-
-    fn is_movable_effect(effect: crate::mir::EffectKind) -> bool {
-        matches!(
-            effect,
-            crate::mir::EffectKind::Pure
-                | crate::mir::EffectKind::MemoryRead
-                | crate::mir::EffectKind::StorageRead
-                | crate::mir::EffectKind::TransientRead
-                | crate::mir::EffectKind::EnvironmentRead
-        )
+        let effects = inst.kind.effects();
+        !matches!(inst.kind, InstKind::Phi(_))
+            && !effects.observes_execution()
+            && !effects.control.any()
+            && inst.kind.effect_kind().is_read_only()
+            && inst.metadata.effect().is_none_or(EffectKind::is_read_only)
     }
 
     /// Returns operands in the order their producers should run for EVM emission: deepest stack

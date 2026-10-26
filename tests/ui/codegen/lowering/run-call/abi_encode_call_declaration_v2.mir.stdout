@@ -1,26 +1,26 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_declaration_v2.sol:AbiEncodeCallDeclarationTarget ===
 @module AbiEncodeCallDeclarationTarget
-fn @a(arg0: i256) [selector=0xf0fdf834, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @a(arg0: i256) [selector=0xf0fdf834, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @b(arg0: i256) [selector=0xcd580ff3, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @b(arg0: i256) [selector=0xcd580ff3, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_declaration_v2.sol:AbiEncodeCallDeclarationBase ===
 @module AbiEncodeCallDeclarationBase
-fn @a(arg0: i256) -> i256 [selector=0xf0fdf834, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @a(arg0: i256) -> i256 [selector=0xf0fdf834, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_add u256, arg0, 1
+    v0 = checked_add uint256, arg0, 1
     ret v0
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_declaration_v2.sol:AbiEncodeCallDeclaration ===
 @module AbiEncodeCallDeclaration
-fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -31,15 +31,15 @@ fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
   bb2:
     jump bb3
   bb1:
-    v5 = memory_object_len memorybytes, v4
+    v5 = mload v4
     v6 = eq v5, 32
     jump bb3
   bb3:
     v7 = phi [bb1: v6], [bb2: false]
     v8 = eq v7, false
     icall revert_if<empty>, v8
-    v9 = abi_decode [u256], v4
-    v10 = checked_add u256, 0, v9
+    v9 = abi_decode [uint256], v4
+    v10 = checked_add uint256, 0, v9
     v11 = eq v10, 2
     v12 = eq v11, false
     icall revert_if<empty>, v12
@@ -52,15 +52,15 @@ fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
   bb5:
     jump bb6
   bb4:
-    v18 = memory_object_len memorybytes, v17
+    v18 = mload v17
     v19 = eq v18, 32
     jump bb6
   bb6:
     v20 = phi [bb4: v19], [bb5: false]
     v21 = eq v20, false
     icall revert_if<empty>, v21
-    v22 = abi_decode [u256], v17
-    v23 = checked_add u256, v10, v22
+    v22 = abi_decode [uint256], v17
+    v23 = checked_add uint256, v10, v22
     v24 = eq v23, 13
     v25 = eq v24, false
     icall revert_if<empty>, v25
@@ -73,15 +73,15 @@ fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
   bb8:
     jump bb9
   bb7:
-    v31 = memory_object_len memorybytes, v30
+    v31 = mload v30
     v32 = eq v31, 32
     jump bb9
   bb9:
     v33 = phi [bb7: v32], [bb8: false]
     v34 = eq v33, false
     icall revert_if<empty>, v34
-    v35 = abi_decode [u256], v30
-    v36 = checked_add u256, v23, v35
+    v35 = abi_decode [uint256], v30
+    v36 = checked_add uint256, v23, v35
     v37 = eq v36, 114
     v38 = eq v37, false
     icall revert_if<empty>, v38
@@ -94,15 +94,15 @@ fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
   bb11:
     jump bb12
   bb10:
-    v44 = memory_object_len memorybytes, v43
+    v44 = mload v43
     v45 = eq v44, 32
     jump bb12
   bb12:
     v46 = phi [bb10: v45], [bb11: false]
     v47 = eq v46, false
     icall revert_if<empty>, v47
-    v48 = abi_decode [u256], v43
-    v49 = checked_add u256, v36, v48
+    v48 = abi_decode [uint256], v43
+    v49 = checked_add uint256, v36, v48
     v50 = eq v49, 0x45b
     v51 = eq v50, false
     icall revert_if<empty>, v51
@@ -115,45 +115,44 @@ fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
   bb14:
     jump bb15
   bb13:
-    v57 = memory_object_len memorybytes, v56
+    v57 = mload v56
     v58 = eq v57, 32
     jump bb15
   bb15:
     v59 = phi [bb13: v58], [bb14: false]
     v60 = eq v59, false
     icall revert_if<empty>, v60
-    v61 = abi_decode [u256], v56
-    v62 = checked_add u256, v49, v61
+    v61 = abi_decode [uint256], v56
+    v62 = checked_add uint256, v49, v61
     v63 = eq v62, 0x2b6c
     v64 = eq v63, false
     icall revert_if<empty>, v64
     ret v62
 }
 
-fn @b(arg0: i256) -> i256 [selector=0xcd580ff3, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @b(arg0: i256) -> i256 [selector=0xcd580ff3, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [word], selector 0xf0fdf83400000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = slice_ptr v2
-    v4 = slice_len v2
-    v5 = zext i160 v0 to i256
-    v6 = staticcall v1, v5, v3, v4, 0, 32
-    jumpi v6, bb2, bb1
+    mstore 0, 0xf0fdf834 !metadata(memory=scratch)
+    mstore 32, arg0 !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = staticcall v1, v2, 28, 36, 0, 32
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    ret v10
+    v4 = returndatasize
+    v5 = lt v4, 32
+    icall revert_if<tuple_data_too_short>, v5
+    v6 = add 0, 0
+    v7 = mload v6
+    ret v7
 }
 
-fn @a(arg0: i256) -> i256 [selector=0xf0fdf834, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @a(arg0: i256) -> i256 [selector=0xf0fdf834, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_add u256, arg0, 1
+    v0 = checked_add uint256, arg0, 1
     ret v0
 }
 

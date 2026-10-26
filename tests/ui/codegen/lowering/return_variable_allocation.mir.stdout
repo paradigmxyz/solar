@@ -9,7 +9,7 @@ fn @memorySize() -> i256 [inline_assembly, pure] {
     ret v0
 }
 
-fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = icall @memorySize
     v1 = icall @g
@@ -18,38 +18,34 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v4 = icall @memorySize
     v5 = icall @i
     v6 = icall @memorySize
-    v7 = checked_sub u256, v2, v0
-    v8 = checked_sub u256, v4, v2
-    v9 = checked_sub u256, v6, v4
+    v7 = checked_sub uint256, v2, v0
+    v8 = checked_sub uint256, v4, v2
+    v9 = checked_sub uint256, v6, v4
     v10 = insert_value struct0, undef struct0, 0, v7
     v11 = insert_value struct0, v10, 1, v8
     v12 = insert_value struct0, v11, 2, v9
     ret v12
 }
 
-fn @g() -> memptr {
+fn @g() -> ptr<memory> {
   bb0:
-    v0 = alloc memoryfixedarray<40, 1>, exact, uninitialized, infallible, 0x500 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
-    memory_zero v1, 0x500
+    v0 = alloc 0x500 !metadata(preserves_fmp)
+    memory_zero v0, 0x500
     ret v0
 }
 
-fn @h() -> memptr {
+fn @h() -> ptr<memory> {
   bb0:
-    v0 = alloc memoryfixedarray<40, 1>, exact, uninitialized, infallible, 0x500 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
-    memory_zero v1, 0x500
+    v0 = alloc 0x500 !metadata(preserves_fmp)
+    memory_zero v0, 0x500
     ret v0
 }
 
-fn @i() -> memptr {
+fn @i() -> ptr<memory> {
   bb0:
-    v0 = alloc memoryfixedarray<40, 1>, exact, uninitialized, infallible, 0x500 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
+    v0 = alloc 0x500 !metadata(preserves_fmp)
+    memory_zero v0, 0x500
+    v1 = alloc 0x500 !metadata(preserves_fmp)
     memory_zero v1, 0x500
-    v2 = alloc memoryfixedarray<40, 1>, exact, uninitialized, infallible, 0x500 !metadata(preserves_fmp)
-    v3 = ptrtoint memptr v2 to i256
-    memory_zero v3, 0x500
     ret v0
 }

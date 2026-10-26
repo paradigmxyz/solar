@@ -2,8 +2,8 @@
 
 use super::{
     AbiLayoutRef, AbiParamLayout, AbiParamLocation, ArgIdx, BasicBlock, BlockId, Immediate, InstId,
-    InstKind, Instruction, MangledSymbol, MirType, SliceLocation, StorageAlias, Value, ValueId,
-    utils,
+    InstKind, Instruction, MangledSymbol, MirType, PtrLocation, StorageAlias, Value, ValueId,
+    memory::EvmMemoryLayout, utils,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -184,10 +184,135 @@ impl Function {
 
     /// Returns the slice location of a value, if it is slice-typed.
     #[must_use]
-    pub(crate) fn value_slice_location(&self, id: ValueId) -> Option<SliceLocation> {
+    pub(crate) fn value_slice_location(&self, id: ValueId) -> Option<PtrLocation> {
         match self.value_ty(id) {
             Some(MirType::Slice(location)) => Some(location),
             _ => None,
+        }
+    }
+
+    /// Whether `value` is a word loaded from a memory object, which may hold a memory reference.
+    #[must_use]
+    pub(crate) fn memory_object_load(&self, value: ValueId) -> bool {
+        matches!(self.value(value), Value::Inst(inst) if matches!(
+            self.inst(*inst).kind,
+            InstKind::Load(address, PtrLocation::Memory)
+                if self.object_address(address).is_some_and(|(object, _)| {
+                    self.value_ty(object) == Some(MirType::MEMPTR)
+                })
+        ))
+    }
+
+    /// Returns the element index of a word offset `shl index, 5`.
+    #[must_use]
+    pub(crate) fn word_index(&self, offset: ValueId) -> Option<ValueId> {
+        let Value::Inst(inst) = self.value(offset) else { return None };
+        match self.inst(*inst).kind {
+            InstKind::Shl(shift, index)
+                if self.value_u64(shift)
+                    == Some(u64::from(
+                        super::memory::EvmMemoryLayout::WORD_SIZE.trailing_zeros(),
+                    )) =>
+            {
+                Some(index)
+            }
+            _ => None,
+        }
+    }
+
+    /// Returns the object and length of a store to an object's length word:
+    /// `mstore object, len`, also through a pointer cast.
+    #[must_use]
+    pub(crate) fn memory_length_store(&self, inst: InstId) -> Option<(ValueId, ValueId)> {
+        let InstKind::Store(address, len, PtrLocation::Memory) = self.inst(inst).kind else {
+            return None;
+        };
+        match self.object_address(address) {
+            Some((object, 0)) if self.value_ty(object) == Some(MirType::MEMPTR) => {
+                Some((object, len))
+            }
+            _ => None,
+        }
+    }
+
+    /// Resolves an address to the object it points into and its byte offset from the object
+    /// start, through pointer casts, constant additions, and memory slices of the object.
+    #[must_use]
+    pub(crate) fn object_address(&self, mut value: ValueId) -> Option<(ValueId, u64)> {
+        let mut offset = 0_u64;
+        for _ in 0..self.num_values() {
+            let Value::Inst(inst) = self.value(value) else { break };
+            value = match self.inst(*inst).kind {
+                InstKind::PtrToInt(base, 256)
+                | InstKind::IntToPtr(base)
+                | InstKind::ExtractValue {
+                    ty: MirType::Slice(_),
+                    aggregate: base,
+                    index: MirType::SLICE_PTR_FIELD,
+                }
+                | InstKind::MakeSlice { ptr: base, location: PtrLocation::Memory, .. } => base,
+                InstKind::Add(base, delta) | InstKind::PtrAdd(base, delta)
+                    if let Some(delta) = self.value_u64(delta) =>
+                {
+                    offset = offset.checked_add(delta)?;
+                    base
+                }
+                _ => break,
+            };
+        }
+        Some((value, offset))
+    }
+
+    /// Returns the constant byte size of the allocation that defines `value`.
+    #[must_use]
+    pub(crate) fn alloc_size(&self, value: ValueId) -> Option<u64> {
+        let Value::Inst(inst) = self.value(value) else { return None };
+        let InstKind::Alloc { size, .. } = self.inst(*inst).kind else { return None };
+        self.value_u64(size)
+    }
+
+    /// Resolves the address of a runtime-indexed word, `ptradd base, shl index, 5` with constant
+    /// offsets around it, to the object it points into, the byte offset of word zero from the
+    /// object start, and the index.
+    #[must_use]
+    pub(crate) fn element_address(&self, address: ValueId) -> Option<(ValueId, u64, ValueId)> {
+        let (address, outer) = self.object_address(address)?;
+        let Value::Inst(inst) = self.value(address) else { return None };
+        let InstKind::PtrAdd(base, offset) = self.inst(*inst).kind else { return None };
+        let index = self.word_index(offset)?;
+        let (object, offset) = self.object_address(base)?;
+        Some((object, offset.checked_add(outer)?, index))
+    }
+
+    /// Resolves the address of a word access to the object it reaches, the word-aligned byte offset
+    /// of the word (of word zero for a runtime index), and the index, if any.
+    #[must_use]
+    pub(crate) fn word_access(&self, address: ValueId) -> Option<(ValueId, u64, Option<ValueId>)> {
+        let (object, offset, index) = match self.element_address(address) {
+            Some((object, offset, index)) => (object, offset, Some(index)),
+            None => {
+                let (object, offset) = self.object_address(address)?;
+                (object, offset, None)
+            }
+        };
+        super::memory::EvmMemoryLayout::word_slot(offset).map(|_| (object, offset, index))
+    }
+
+    /// Returns whether an instruction only derives an address from another one, as
+    /// [`Self::object_address`] follows.
+    #[must_use]
+    pub(crate) fn is_object_derivation(&self, inst: InstId) -> bool {
+        match self.inst(inst).kind {
+            InstKind::PtrToInt(_, 256)
+            | InstKind::IntToPtr(_)
+            | InstKind::ExtractValue {
+                ty: MirType::Slice(_),
+                index: MirType::SLICE_PTR_FIELD,
+                ..
+            }
+            | InstKind::MakeSlice { location: PtrLocation::Memory, .. } => true,
+            InstKind::Add(_, delta) | InstKind::PtrAdd(_, delta) => self.value_u64(delta).is_some(),
+            _ => false,
         }
     }
 
@@ -237,6 +362,22 @@ impl Function {
     #[must_use]
     pub(crate) fn value_u64(&self, id: ValueId) -> Option<u64> {
         self.value_u256(id).and_then(super::utils::u256_to_u64)
+    }
+
+    /// Returns whether the instruction stores a full word to the free-memory-pointer slot.
+    #[must_use]
+    pub(crate) fn is_fmp_slot_store(&self, id: InstId) -> bool {
+        matches!(
+            self.inst(id).kind,
+            InstKind::Store(ptr, _, PtrLocation::Memory)
+                if self.value_u64(ptr) == Some(EvmMemoryLayout::FMP_SLOT)
+        )
+    }
+
+    /// Returns whether the block stores a full word to the free-memory-pointer slot.
+    #[must_use]
+    pub(crate) fn block_stores_fmp_slot(&self, block: &BasicBlock) -> bool {
+        block.instructions.iter().any(|&id| self.is_fmp_slot_store(id))
     }
 
     /// Returns a possibly replaced immediate value as U256.
@@ -398,19 +539,6 @@ impl Function {
             .expect("value-producing instruction must have an allocated result");
         self.values[result] = Value::Undef(ty);
         Some(result)
-    }
-
-    /// Returns a map from each instruction to the block containing it.
-    #[must_use]
-    pub(crate) fn inst_blocks(&self) -> FxHashMap<InstId, BlockId> {
-        let mut inst_blocks =
-            FxHashMap::with_capacity_and_hasher(self.instructions.len(), Default::default());
-        for (block_id, block) in self.blocks.iter_enumerated() {
-            for &inst_id in &block.instructions {
-                inst_blocks.insert(inst_id, block_id);
-            }
-        }
-        inst_blocks
     }
 
     /// Returns the block containing each placed instruction, indexed by instruction.
@@ -594,8 +722,10 @@ impl Function {
         let mut changed = false;
         for inst_id in inst_ids {
             let slot = match self.inst(inst_id).kind {
-                InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(slot),
-                InstKind::TLoad(slot) | InstKind::TStore(slot, _)
+                InstKind::Load(slot, PtrLocation::Storage)
+                | InstKind::Store(slot, _, PtrLocation::Storage) => Some(slot),
+                InstKind::Load(slot, PtrLocation::Transient)
+                | InstKind::Store(slot, _, PtrLocation::Transient)
                     if scope == super::utils::StorageAliasScope::StorageAndTransient =>
                 {
                     Some(slot)

@@ -15,18 +15,20 @@
 // payload either way.
 // Only the output buffer moves the free memory pointer before a staged call.
 // CHECK-LABEL: fn @staged()
-// CHECK: mstore 64,
+// CHECK: icall @alloc
+// CHECK-NOT: icall @alloc
 // CHECK-NOT: mstore 64,
 // CHECK: = call {{v[0-9]+}}, 4, 0, {{v[0-9]+}}, 36,
 // CHECK-LABEL: fn @stagedStatic()
-// CHECK: mstore 64,
+// CHECK: icall @alloc
+// CHECK-NOT: icall @alloc
 // CHECK-NOT: mstore 64,
 // CHECK: = staticcall {{v[0-9]+}}, 4, {{v[0-9]+}}, 64,
 // CHECK-LABEL: fn @allocated()
+// CHECK: icall @alloc
+// CHECK: icall @alloc
 // CHECK: mstore 64,
-// CHECK: mstore 64,
-// CHECK: mstore 64,
-// CHECK: = call {{v[0-9]+}}, 4, 0, {{v[0-9]+}}, {{v[0-9]+}},
+// CHECK: = call {{v[0-9]+}}, 4, 0, {{v[0-9]+}}, {{[v0-9]+}},
 import {Calls} from "solar:core/Calls.sol";
 
 contract CallsPayloadStaging {

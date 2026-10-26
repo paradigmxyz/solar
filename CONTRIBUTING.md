@@ -129,8 +129,8 @@ cargo check --workspace
 cargo cl            # clippy on all targets and features
 cargo fmt --all     # needs nightly rustfmt; see below
 cargo t             # all tests with nextest
-cargo uitest        # UI tests only
-cargo uibless       # update UI test expectations
+cargo tq ui         # UI tests only; filter with a path substring
+cargo bless         # update all test expectations
 ```
 
 `rustfmt.toml` uses nightly-only options, so format with a nightly toolchain
@@ -195,8 +195,8 @@ SNAPSHOTS=overwrite cargo nextest run -p solar-ast
 
 Integration tests live in `tests/` and use the [`ui_test`][ui_test] harness,
 inspired by rustc's [`compiletest`][compiletest]; see both for details. They run
-by default with `cargo t`; `cargo uitest` runs only
-them. A UI test (`tests/ui/`) looks like this:
+by default with `cargo t`; `cargo tq ui` runs only
+the UI suite. A UI test (`tests/ui/`) looks like this:
 
 ```rust
 // Directives
@@ -234,7 +234,7 @@ wrong, never to ordinary tests:
 - `//@ check-fail`: status 1.
 - `//@ failure-status: N`: status `N`.
 
-Run `cargo uibless` after adding a test or when expected output changes.
+Run `cargo bless` after adding a test or when expected output changes.
 
 [unit-tests]: https://doc.rust-lang.org/rust-by-example/testing/unit_testing.html
 [documentation-tests]: https://doc.rust-lang.org/rust-by-example/testing/doc_testing.html
@@ -269,8 +269,10 @@ parser, lexer, analysis, `liblangutil/EVMVersion.*`, and changed tests).
 
 Update `testdata/solidity` to the new tag, bump every local Solc version pin,
 such as `SOLC_VERSION` in workflows and the fallback in `crates/config/build.rs`,
-and add new EVM versions to `crates/config/src/lib.rs`. If upstream changes the
-default EVM version, change ours and bless the affected CLI snapshots.
+and add new EVM versions to `crates/config/src/lib.rs`. Leave the
+`blob/vX.Y.Z` permalinks in code comments alone, since tags are immutable. If
+upstream changes the default EVM version, change ours and bless the affected CLI
+snapshots.
 
 Always run the complete `cargo tq solc-solidity` and `cargo tq solc-yul` suites,
 without path filters. Change the ignore lists in

@@ -46,13 +46,13 @@ struct Exposure<'gcx> {
     pointer_edges: FxHashMap<VariableId, Vec<VariableId>>,
     /// Each internal function with a binding its pointer flows into.
     pointer_values: Vec<(hir::FunctionId, VariableId)>,
-    pointer_calls: Vec<PointerCall>,
+    pointer_calls: Vec<PointerCall<'gcx>>,
     returns: &'gcx [VariableId],
     assembly: bool,
 }
 
 /// An internal function pointer call with the pointers it reads.
-struct PointerCall {
+struct PointerCall<'gcx> {
     call: hir::ExprId,
     /// Bindings the callee may read.
     callee: SmallVec<[VariableId; 4]>,
@@ -60,6 +60,8 @@ struct PointerCall {
     arguments: SmallVec<[VariableId; 4]>,
     /// Functions whose pointers the arguments take.
     functions: SmallVec<[hir::FunctionId; 1]>,
+    /// The parameter and return types of the pointer.
+    types: SmallVec<[Ty<'gcx>; 4]>,
 }
 
 impl<'gcx> Exposure<'gcx> {
@@ -113,6 +115,15 @@ impl<'gcx> Exposure<'gcx> {
             ExprKind::Ternary(_, yes, no) => {
                 self.sources(yes, out);
                 self.sources(no, out);
+            }
+            // An assignment's value is its target.
+            ExprKind::Assign(lhs, None, _) => self.sources(lhs, out),
+            // `connect` only links bindings of equal types, so a conversion between them copies.
+            ExprKind::Call(callee, args)
+                if let hir::CallArgsKind::Unnamed([argument]) = args.kind
+                    && expressions::is_type_conversion(self.gcx, callee) =>
+            {
+                self.sources(argument, out);
             }
             ExprKind::Call(callee, _) => {
                 for id in self.callees(callee) {
@@ -276,11 +287,18 @@ impl<'gcx> Exposure<'gcx> {
         for argument in args.exprs() {
             self.pointer_sources(argument, &mut arguments, &mut functions);
         }
+        let types = match self.gcx.type_of_expr(callee.id).map(|ty| ty.kind) {
+            Some(TyKind::Fn(function)) => {
+                function.parameters.iter().chain(function.returns).copied().collect()
+            }
+            _ => SmallVec::new(),
+        };
         self.pointer_calls.push(PointerCall {
             call: call.id,
             callee: bindings,
             arguments,
             functions,
+            types,
         });
     }
 }
@@ -458,10 +476,16 @@ impl LoweringState {
                 let _ = exposure.visit_nested_function(id);
             }
             for id in base.variables() {
-                if gcx.hir.variable(id).is_state_variable()
-                    && let Some(initializer) = gcx.hir.variable(id).initializer
+                let variable = gcx.hir.variable(id);
+                if variable.is_state_variable()
+                    && let Some(initializer) = variable.initializer
                 {
-                    exposure.connect_pointers(&[id], initializer);
+                    // An immutable stores the raw bits of its initializer.
+                    if variable.is_immutable() {
+                        exposure.connect(&[id], initializer);
+                    } else {
+                        exposure.connect_pointers(&[id], initializer);
+                    }
                 }
             }
         }
@@ -532,10 +556,20 @@ impl LoweringState {
         self.pointer_registry.assembly_exposed = exposed;
         self.pointer_registry.assembly_calls = calls;
 
+        // Assembly can pass a retyped call any word, and the callee's word comes back unchanged,
+        // so its dispatcher must not truncate the narrow types of the call.
         self.raw_pointer_types = exposure
             .raw
             .iter()
-            .map(|&id| types::TypeLowerer::mir_type(gcx.type_of_item(id.into())))
+            .map(|&id| gcx.type_of_item(id.into()))
+            .chain(
+                exposure
+                    .pointer_calls
+                    .iter()
+                    .filter(|call| self.pointer_registry.assembly_calls.contains(&call.call))
+                    .flat_map(|call| call.types.iter().copied()),
+            )
+            .map(types::TypeLowerer::mir_type)
             .filter(|ty| ty.integer_bits().is_some())
             .collect();
         self.raw_scalars = exposure.raw;
@@ -551,6 +585,23 @@ impl LoweringState {
             MirType::I256
         } else {
             ty
+        }
+    }
+
+    /// Returns an immutable's source layout, or a full word for a `bool` or `address` that
+    /// can carry raw bits between inline assembly blocks.
+    pub(in crate::mir::lower) fn immutable_layout(
+        &self,
+        gcx: Gcx<'_>,
+        id: VariableId,
+    ) -> crate::mir::ValueLayout {
+        match types::TypeLowerer::value_layout(gcx.type_of_item(id.into())) {
+            crate::mir::ValueLayout::Bool | crate::mir::ValueLayout::Address
+                if self.raw_scalars.contains(&id) =>
+            {
+                crate::mir::ValueLayout::uint256()
+            }
+            layout => layout,
         }
     }
 }

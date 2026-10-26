@@ -102,7 +102,7 @@
       revert 0, 32
   }
   
-  fn @keep_distinct_memory_fields(arg0: i256, arg1: i256, arg2: memptr) {
+  fn @keep_distinct_memory_fields(arg0: i256, arg1: i256, arg2: ptr<memory>) {
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
@@ -112,11 +112,12 @@
     bb4:
       stop
     bb3:
-      v3 = memory_object_load_field memorystruct<2>, arg2, 1
-      mstore 0, v3
+      v3 = ptradd arg2, 32
+      v4 = mload v3
+      mstore 0, v4
       revert 0, 32
     bb1:
-      v1 = memory_object_load_field memorystruct<2>, arg2, 0
+      v1 = mload arg2
       mstore 0, v1
       revert 0, 32
   }
@@ -132,7 +133,7 @@
       ret v0
   }
   
-  fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) -> memptr {
+  fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) -> ptr<memory> {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -173,6 +174,17 @@
       ret v1
     bb1:
       v0 = library_address L_0
+      ret v0
+  }
+  
+  fn @merge_equal_allocations(arg0: i1) -> ptr<memory> {
+    bb0:
+-     jumpi arg0, bb1, bb2
+-   bb2:
+-     v1 = alloc zeroed checked 64
+-     ret v1
+-   bb1:
+      v0 = alloc zeroed checked 64
       ret v0
   }
   

@@ -11,7 +11,7 @@ fn @entry() [entry] {
 @module Test
 @phase lowered
 @immutables
-  implementation: u160
+  implementation: uint160
 
 fn @fallback() [abi_wrapper, fallback, payable] {
   bb0:
@@ -24,17 +24,17 @@ fn @forwardDelegate(arg0: i256, arg1: i256, arg2: i256) [inline_assembly] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     calldatacopy v0, arg1, arg2
-    v4 = gas
-    v5 = delegatecall v4, arg0, v0, arg2, 0, 0
-    v7 = returndatasize
-    returndatacopy v0, 0, v7
-    jumpi v5, bb2, bb1
+    v5 = gas
+    v6 = delegatecall v5, arg0, v0, arg2, 0, 0
+    v8 = returndatasize
+    returndatacopy v0, 0, v8
+    jumpi v6, bb2, bb1
   bb1:
-    v11 = returndatasize
-    revert v0, v11
-  bb2:
     v12 = returndatasize
-    returndata v0, v12
+    revert v0, v12
+  bb2:
+    v13 = returndatasize
+    returndata v0, v13
 }
 
 fn @constructor() [abi_wrapper, constructor] {

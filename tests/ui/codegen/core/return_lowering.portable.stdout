@@ -16,36 +16,34 @@ fn @echo() [selector=0xf15da729, abi_wrapper, pure] {
     v1 = lt v0, 36
     v2 = calldataload 4
     v3 = add v2, 4
-    v4 = add v3, 32
-    v5 = gt v2, 0xffffffffffffffff
-    v6 = gt v4, v0
-    v7 = or v5, v6
-    v65 = or v1, v7
-    jumpi v65, bb1, bb2
+    v5 = sub v0, 36
+    v6 = gt v2, v5
+    v31 = or v1, v6
+    jumpi v31, bb1, bb2
   bb2:
-    v9 = calldataload v3
-    v11 = add v9, 63
-    v12 = lt v11, v9
-    jumpi v12, bb3, bb4
+    v7 = calldataload v3
+    v8 = add v3, 32
+    v9 = add v7, 63
+    v10 = lt v9, v7
+    jumpi v10, bb3, bb4
   bb4:
-    v14 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v56 = mload 64 !metadata(memory=scratch)
-    v15 = inttoptr i256 v56 to memptr !metadata(memory=scratch)
-    v57 = add v56, v14
-    v58 = lt v57, v56
-    v59 = gt v57, 0xffffffffffffffff
-    v60 = or v58, v59
-    jumpi v60, bb3, bb6
+    v12 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v25 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v26 = add v25, v12 !metadata(alloc_ptr)
+    v27 = lt v26, v25
+    v28 = gt v26, 0xffffffffffffffff
+    v29 = or v27, v28
+    jumpi v29, bb3, bb6
   bb6:
-    mstore 64, v57 !metadata(memory=scratch)
-    mstore v56, v9
-    v16 = sub v0, v4
-    v17 = gt v9, v16
-    jumpi v17, bb1, bb5
+    mstore 64, v26 !metadata(memory=scratch)
+    mstore v25, v7
+    v14 = sub v0, v8
+    v15 = gt v7, v14
+    jumpi v15, bb1, bb5
   bb5:
-    v51 = add v56, 32
-    calldatacopy v51, v4, v9
-    tail_call @abiEncoded.3, v15
+    v22 = add v25, 32
+    calldatacopy v22, v8, v7
+    tail_call @abiEncoded.3, v25
   bb3:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -68,59 +66,42 @@ fn @word() [selector=0xa77f389c, abi_wrapper, pure] {
 fn @fallback() [abi_wrapper, fallback] {
   bb0:
     v0 = calldatasize
-    v4 = gt v0, 0xffffffffffffffff
-    v5 = calldatasize
-    v6 = sub v5, v0
-    v7 = slt v6, 0
-    v21 = or v4, v7
-    jumpi v21, bb1, bb2
-  bb2:
-    v9 = add v0, 63
-    v12 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = mload 64 !metadata(memory=scratch)
-    v13 = inttoptr i256 v19 to memptr !metadata(memory=scratch)
-    v20 = add v19, v12
-    mstore 64, v20 !metadata(memory=scratch)
-    mstore v19, v0
-    v15 = add v19, 32
-    calldatacopy v15, 0, v0
-    tail_call @raw, v13
-  bb1:
-    revert 0, 0
+    v10 = add v0, 63
+    v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v24 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v25 = add v24, v13 !metadata(alloc_ptr)
+    mstore 64, v25 !metadata(memory=scratch)
+    mstore v24, v0
+    v21 = add v24, 32
+    calldatacopy v21, 0, v0
+    tail_call @raw, v24
 }
 
-fn @abiEncoded.3(arg0: memptr) [may_return_memory, inline_assembly, pure] {
+fn @abiEncoded.3(arg0: i256) [may_return_memory, inline_assembly, pure] {
   bb0:
-    v35 = mload 64 !metadata(memory=scratch)
-    v7 = add v35, 32
+    v29 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v7 = add v29, 32
     v8 = add v7, 32
     mstore v7, 32
-    v31 = ptrtoint memptr arg0 to i256
-    v13 = ne v31, 0
-    v14 = zext i1 v13 to i256
-    v10 = mload v31
-    v15 = mul v10, v14
-    v17 = add v15, 31
-    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = add v8, 32
-    v20 = add v8, v18
-    mstore v20, 0
-    mstore v8, v15
-    v22 = add v19, v18
-    v33 = add v31, 32
-    mcopy v19, v33, v15 !metadata(disjoint)
-    v24 = sub v22, v7
-    v26 = add v24, 63
-    v27 = lt v26, v24
-    jumpi v27, bb1, bb2
+    v10 = mload arg0
+    v12 = add v10, 31
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v14 = add v8, 32
+    v15 = add v8, v13
+    mstore v15, 0
+    mstore v8, v10
+    v17 = add v14, v13
+    v26 = add arg0, 32
+    mcopy v14, v26, v10 !metadata(memory=heap, disjoint)
+    v18 = sub v17, v7
+    v20 = add v18, 63
+    v21 = lt v20, v18
+    jumpi v21, bb1, bb2
   bb2:
-    v29 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v36 = mload 64 !metadata(memory=scratch)
-    v37 = add v36, v29
-    mstore 64, v37 !metadata(memory=scratch)
-    mstore v36, v24
-    v4 = add v36, 32
-    returndata v4, v24
+    v30 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    mstore v30, v18
+    v4 = add v30, 32
+    returndata v4, v18
   bb1:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -129,20 +110,16 @@ fn @abiEncoded.3(arg0: memptr) [may_return_memory, inline_assembly, pure] {
 
 fn @abiEncoded.4(arg0: i256) [inline_assembly, pure] {
   bb0:
-    v11 = mload 64 !metadata(memory=scratch)
-    v12 = add v11, 64
-    mstore 64, v12 !metadata(memory=scratch)
-    mstore v11, 32
-    v10 = add v11, 32
-    mstore v10, arg0
-    returndata v10, 32
+    v9 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v8 = add v9, 32
+    mstore v8, arg0
+    returndata v8, 32
 }
 
-fn @raw(arg0: memptr) [may_return_memory, inline_assembly, pure] {
+fn @raw(arg0: i256) [may_return_memory, inline_assembly, pure] {
   bb0:
-    v0 = ptrtoint memptr arg0 to i256
-    v1 = mload v0
-    v3 = add v0, 32
+    v1 = mload arg0
+    v3 = add arg0, 32
     returndata v3, v1
 }
 
@@ -153,7 +130,7 @@ fn @entry() [entry] {
     jumpi v1, bb5, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     switch v3, default bb4, [0xa77f389c => bb2, 0xf15da729 => bb3]
   bb3:
     tail_call @echo

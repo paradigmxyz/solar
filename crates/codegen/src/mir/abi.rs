@@ -1,6 +1,6 @@
 //! Semantic ABI layout descriptors used by MIR encoding operations.
 
-use super::{FunctionBuilder, SliceLocation, ValueId, ValueLayout};
+use super::{FunctionBuilder, PtrLocation, ValueId, ValueLayout};
 use alloy_primitives::U256;
 use std::{fmt, sync::Arc};
 
@@ -152,7 +152,7 @@ impl AbiParamType {
             Self::Scalar(ty) => ty.mir_type(),
             Self::Enum { ty, .. } => ty.mir_type(),
             Self::Bytes | Self::DynamicArray(_) | Self::FixedArray { .. } | Self::Tuple(_) => {
-                super::MirType::MemPtr
+                super::MirType::MEMPTR
             }
         }
     }
@@ -226,6 +226,19 @@ impl AbiParamType {
             _ => Some(32),
         }
     }
+
+    /// Returns the calldata element size of a dynamically sized value: one byte for `bytes`, the
+    /// element head size for arrays, and `None` for every other shape.
+    #[must_use]
+    pub(crate) fn calldata_stride(&self) -> Option<u64> {
+        match self {
+            Self::Bytes => Some(1),
+            Self::DynamicArray(element) => {
+                Some(element.checked_head_size().expect("ABI head size exceeds u64 range"))
+            }
+            _ => None,
+        }
+    }
 }
 
 /// The ABI-relevant shape and source representation of one value.
@@ -233,18 +246,18 @@ impl AbiParamType {
 pub(crate) enum AbiType {
     /// A scalar encoded as one word, with the cleanup its type requires when the word is read
     /// from memory: narrow integers are masked or sign-extended, booleans canonicalized, and
-    /// enums range-checked during encoding, like solc. `None` is a full word.
+    /// enums range-checked during encoding. `None` is a full word.
     Word(Option<AbiWordValidator>),
     /// An external function pointer encoded as a left-aligned `bytes24` word.
     Function,
     /// A dynamic byte string represented in the given address space.
-    Bytes(SliceLocation),
+    Bytes(PtrLocation),
     /// A dynamic array represented in the given address space.
     DynamicArray {
         /// Array element layout.
         element: Box<Self>,
         /// Address space containing the array.
-        location: SliceLocation,
+        location: PtrLocation,
     },
     /// A fixed-size array represented by a memory pointer.
     FixedArray {
@@ -252,12 +265,36 @@ pub(crate) enum AbiType {
         element: Box<Self>,
         /// Number of elements.
         len: u64,
+        /// Whether solc copies the array from calldata as one block, because its elements are
+        /// `uint256` or `bytes32`. It reads every other element type one word at a time, which
+        /// differs when the array lies across 2^256.
+        block_copy: bool,
     },
     /// A struct or tuple represented by a memory pointer.
     Tuple(Box<[Self]>),
 }
 
 impl AbiType {
+    /// Returns the layout with every byte string and dynamic array placed in `location`.
+    #[must_use]
+    pub(crate) fn at_location(self, location: PtrLocation) -> Self {
+        match self {
+            Self::Word(_) | Self::Function => self,
+            Self::Bytes(_) => Self::Bytes(location),
+            Self::DynamicArray { element, .. } => {
+                Self::DynamicArray { element: Box::new(element.at_location(location)), location }
+            }
+            Self::FixedArray { element, len, block_copy } => Self::FixedArray {
+                element: Box::new(element.at_location(location)),
+                len,
+                block_copy,
+            },
+            Self::Tuple(fields) => Self::Tuple(
+                fields.into_vec().into_iter().map(|f| f.at_location(location)).collect(),
+            ),
+        }
+    }
+
     /// Returns whether the ABI value occupies an offset in its containing head.
     #[must_use]
     pub(crate) fn is_dynamic(&self) -> bool {
@@ -280,12 +317,14 @@ impl AbiType {
 
     /// Returns the size of the value's own encoding where a tail offset points: the length
     /// word of a dynamically sized value, or the whole head area of a statically sized one.
-    /// This is solc's `calldataEncodedTailSize`, the length its calldata tail access requires.
+    /// This is the length a calldata tail access requires.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.h#L263>
     #[must_use]
     pub(crate) fn tail_size(&self) -> u64 {
         match self {
             Self::Word(_) | Self::Function | Self::Bytes(_) | Self::DynamicArray { .. } => 32,
-            Self::FixedArray { element, len } => element.head_size() * len,
+            Self::FixedArray { element, len, .. } => element.head_size() * len,
             Self::Tuple(fields) => fields.iter().map(Self::head_size).sum(),
         }
     }
@@ -314,7 +353,11 @@ impl fmt::Display for AbiType {
             // location's own `Display` yields the `memory`/`calldata` prefix.
             Self::Bytes(location) => write!(f, "{location}_bytes"),
             Self::DynamicArray { element, location } => write!(f, "{location}_array<{element}>"),
-            Self::FixedArray { element, len } => write!(f, "array<{len}, {element}>"),
+            // A word array that solc does not copy as a block carries `wordwise`.
+            Self::FixedArray { element, len, block_copy } => {
+                let wordwise = !block_copy && matches!(element.as_ref(), Self::Word(None));
+                write!(f, "array<{len}, {element}{}>", if wordwise { ", wordwise" } else { "" })
+            }
             Self::Tuple(fields) => {
                 write!(f, "tuple<")?;
                 for (index, ty) in fields.iter().enumerate() {
@@ -351,9 +394,9 @@ pub(crate) enum AbiWordValidator {
 impl fmt::Display for AbiWordValidator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Unsigned(bits) => write!(f, "u{bits}"),
+            Self::Unsigned(bits) => write!(f, "uint{bits}"),
             Self::LeftAligned(bits) => write!(f, "bytes{}", bits / 8),
-            Self::SignExtend(byte_index) => write!(f, "i{}", (byte_index + 1) * 8),
+            Self::SignExtend(byte_index) => write!(f, "int{}", (byte_index + 1) * 8),
             Self::Bool => write!(f, "bool"),
             Self::EnumRange(variants) => write!(f, "enum {variants}"),
         }
@@ -414,28 +457,18 @@ impl AbiWordValidator {
     }
 
     /// Builds the condition that is true when `word` is canonical.
-    pub(crate) fn condition(
-        self,
-        builder: &mut FunctionBuilder<'_>,
-        word: ValueId,
-        has_bitwise_shifting: bool,
-    ) -> ValueId {
+    pub(crate) fn condition(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
         match self {
             Self::Unsigned(bits) | Self::LeftAligned(bits) => {
-                if has_bitwise_shifting {
-                    let shift = builder.imm(u64::from(bits));
-                    let shifted = if matches!(self, Self::Unsigned(_)) {
-                        builder.shr(shift, word)
-                    } else {
-                        builder.shl(shift, word)
-                    };
-                    builder.eq_zero(shifted)
+                // shifted = word >> bits (or word << bits)
+                // valid = shifted == 0
+                let shift = builder.imm(u64::from(bits));
+                let shifted = if matches!(self, Self::Unsigned(_)) {
+                    builder.shr(word, shift)
                 } else {
-                    let mask = self.canonical_mask().expect("masked validator has a mask");
-                    let mask = builder.imm(mask);
-                    let canonical = builder.and(word, mask);
-                    builder.eq(word, canonical)
-                }
+                    builder.shl(word, shift)
+                };
+                builder.eq_zero(shifted)
             }
             Self::SignExtend(byte_index) => {
                 let byte_index = builder.imm(byte_index);
@@ -443,14 +476,8 @@ impl AbiWordValidator {
                 builder.eq(word, canonical)
             }
             Self::Bool => {
-                if has_bitwise_shifting {
-                    let two = builder.imm(2);
-                    builder.lt(word, two)
-                } else {
-                    let zero = builder.eq_zero(word);
-                    let canonical = builder.eq_zero(zero);
-                    builder.eq(word, canonical)
-                }
+                let two = builder.imm(2);
+                builder.lt(word, two)
             }
             Self::EnumRange(variants) => {
                 let variants = builder.imm(variants);
@@ -471,10 +498,7 @@ impl AbiWordValidator {
                 let byte_index = builder.imm(byte_index);
                 builder.signextend(byte_index, word)
             }
-            Self::Bool => {
-                let zero = builder.eq_zero(word);
-                builder.eq_zero(zero)
-            }
+            Self::Bool => builder.ne_zero(word),
             Self::EnumRange(_) => word,
         }
     }

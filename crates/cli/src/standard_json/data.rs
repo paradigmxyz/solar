@@ -6,11 +6,12 @@ use crate::{
 };
 use alloy_primitives::Address;
 use indexmap::IndexMap;
+use rayon::prelude::*;
 use serde::{
     Deserialize, Serialize,
     de::{self, SeqAccess, Visitor},
 };
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, value::RawValue};
 use solar_config::RevertStrings;
 use solar_data_structures::map::FxBuildHasher;
 use solar_interface::diagnostics::SolcDiagnostic;
@@ -114,7 +115,7 @@ pub(super) struct DebugSettings {
     /// Debug info components to include in IR output.
     ///
     /// We do not emit Yul IR, so only the selection rules are enforced: `snippet` requires
-    /// `location`, and an explicit selection must include `ethdebug` to request ethdebug output.
+    /// `location`, and `ethdebug` requires `ast-id`.
     #[serde(default, deserialize_with = "deserialize_present")]
     pub(super) debug_info: Option<Vec<DebugInfoComponent>>,
 }
@@ -248,16 +249,53 @@ impl Libraries<'_> {
     }
 }
 
-#[derive(Debug, Default, Serialize)]
-pub(super) struct CompilerOutput<'gcx> {
+/// The solc Standard JSON output. `C` is the serialized form of a contract: [`ContractOutput`], or
+/// its pre-serialized JSON when contracts are serialized in parallel.
+#[derive(Debug, Serialize)]
+pub(super) struct CompilerOutput<'gcx, C = ContractOutput<'gcx>> {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(super) errors: Vec<SolcDiagnostic<'gcx>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) sources: Option<FxIndexMap<String, SourceOutput>>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub(super) contracts: FxIndexMap<String, FxIndexMap<String, ContractOutput<'gcx>>>,
+    pub(super) contracts: FxIndexMap<String, FxIndexMap<String, C>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) ethdebug: Option<EthdebugOutput>,
+}
+
+impl<C> Default for CompilerOutput<'_, C> {
+    fn default() -> Self {
+        Self { errors: Vec::new(), sources: None, contracts: FxIndexMap::default(), ethdebug: None }
+    }
+}
+
+impl<'gcx> CompilerOutput<'gcx> {
+    /// Serializes each contract to compact JSON in parallel, dropping it once serialized.
+    pub(super) fn serialize_contracts(
+        self,
+    ) -> serde_json::Result<CompilerOutput<'gcx, Box<RawValue>>> {
+        let Self { errors, sources, contracts, ethdebug } = self;
+        let (names, outputs) = contracts
+            .into_iter()
+            .map(|(source, contracts)| {
+                let (names, outputs) = contracts.into_iter().unzip::<_, _, Vec<_>, Vec<_>>();
+                ((source, names), outputs)
+            })
+            .unzip::<_, _, Vec<_>, Vec<_>>();
+        let mut raw = outputs
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .into_par_iter()
+            .map(|contract| serde_json::value::to_raw_value(&contract))
+            .collect::<serde_json::Result<Vec<_>>>()?
+            .into_iter();
+        let contracts = names
+            .into_iter()
+            .map(|(source, names)| (source, names.into_iter().zip(&mut raw).collect()))
+            .collect();
+        Ok(CompilerOutput { errors, sources, contracts, ethdebug })
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -302,8 +340,6 @@ pub(super) struct ContractOutput<'gcx> {
     // ir_optimized: Option<CowValue<'a>>,
     // #[serde(skip_serializing_if = "Option::is_none")]
     // ir_optimized_ast: Option<CowValue<'a>>,
-    // #[serde(rename = "yulCFGJson", skip_serializing_if = "Option::is_none")]
-    // yul_cfg_json: Option<CowValue<'a>>,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -373,14 +409,6 @@ impl<'a> OutputSelection<'a> {
         self.source("*")
     }
 
-    /// Returns every flag selected for any source or contract, including the wildcards.
-    pub(super) fn union(&self) -> OutputSelectionFlags {
-        self.0
-            .values()
-            .flat_map(FxIndexMap::values)
-            .fold(OutputSelectionFlags::empty(), |acc, &f| acc | f)
-    }
-
     pub(super) fn global(&self) -> OutputSelectionFlags {
         self.0.get("*").and_then(|contracts| contracts.get("*")).copied().unwrap_or_default()
             & OutputSelectionFlags::GLOBAL
@@ -439,37 +467,35 @@ bitflags::bitflags! {
         const IR_AST = 1 << 8;
         const IR_OPTIMIZED = 1 << 9;
         const IR_OPTIMIZED_AST = 1 << 10;
-        const YUL_CFG_JSON = 1 << 11;
-        const ASSEMBLY = 1 << 12;
-        const LEGACY_ASSEMBLY = 1 << 13;
-        const METHOD_IDENTIFIERS = 1 << 14;
-        const GAS_ESTIMATES = 1 << 15;
-        const BYTECODE_OBJECT = 1 << 16;
-        const BYTECODE_OPCODES = 1 << 17;
-        const BYTECODE_SOURCE_MAP = 1 << 18;
-        const BYTECODE_FUNCTION_DEBUG_DATA = 1 << 19;
-        const BYTECODE_GENERATED_SOURCES = 1 << 20;
-        const BYTECODE_LINK_REFERENCES = 1 << 21;
-        const BYTECODE_ETHDEBUG = 1 << 22;
-        const DEPLOYED_BYTECODE_OBJECT = 1 << 23;
-        const DEPLOYED_BYTECODE_OPCODES = 1 << 24;
-        const DEPLOYED_BYTECODE_SOURCE_MAP = 1 << 25;
-        const DEPLOYED_BYTECODE_FUNCTION_DEBUG_DATA = 1 << 26;
-        const DEPLOYED_BYTECODE_GENERATED_SOURCES = 1 << 27;
-        const DEPLOYED_BYTECODE_LINK_REFERENCES = 1 << 28;
-        const DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES = 1 << 29;
-        const DEPLOYED_BYTECODE_ETHDEBUG = 1 << 30;
-        const ETHDEBUG_RESOURCES = 1 << 31;
-        const ETHDEBUG_COMPILATION = 1 << 32;
+        const ASSEMBLY = 1 << 11;
+        const LEGACY_ASSEMBLY = 1 << 12;
+        const METHOD_IDENTIFIERS = 1 << 13;
+        const GAS_ESTIMATES = 1 << 14;
+        const BYTECODE_OBJECT = 1 << 15;
+        const BYTECODE_OPCODES = 1 << 16;
+        const BYTECODE_SOURCE_MAP = 1 << 17;
+        const BYTECODE_FUNCTION_DEBUG_DATA = 1 << 18;
+        const BYTECODE_GENERATED_SOURCES = 1 << 19;
+        const BYTECODE_LINK_REFERENCES = 1 << 20;
+        const BYTECODE_ETHDEBUG = 1 << 21;
+        const DEPLOYED_BYTECODE_OBJECT = 1 << 22;
+        const DEPLOYED_BYTECODE_OPCODES = 1 << 23;
+        const DEPLOYED_BYTECODE_SOURCE_MAP = 1 << 24;
+        const DEPLOYED_BYTECODE_FUNCTION_DEBUG_DATA = 1 << 25;
+        const DEPLOYED_BYTECODE_GENERATED_SOURCES = 1 << 26;
+        const DEPLOYED_BYTECODE_LINK_REFERENCES = 1 << 27;
+        const DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES = 1 << 28;
+        const DEPLOYED_BYTECODE_ETHDEBUG = 1 << 29;
+        const ETHDEBUG_RESOURCES = 1 << 30;
+        const ETHDEBUG_COMPILATION = 1 << 31;
         /// This compiler's `solarSafety`, which only its exact key selects.
-        const SOLAR_SAFETY = 1 << 33;
-        const SOLAR_BUILD = 1 << 34;
+        const SOLAR_SAFETY = 1 << 32;
+        const SOLAR_BUILD = 1 << 33;
 
         const YUL = Self::IR.bits()
             | Self::IR_AST.bits()
             | Self::IR_OPTIMIZED.bits()
-            | Self::IR_OPTIMIZED_AST.bits()
-            | Self::YUL_CFG_JSON.bits();
+            | Self::IR_OPTIMIZED_AST.bits();
         const BYTECODE = Self::BYTECODE_OBJECT.bits()
             | Self::BYTECODE_OPCODES.bits()
             | Self::BYTECODE_SOURCE_MAP.bits()
@@ -540,7 +566,6 @@ impl OutputSelectionFlags {
             "irAst" => Self::IR_AST,
             "irOptimized" => Self::IR_OPTIMIZED,
             "irOptimizedAst" => Self::IR_OPTIMIZED_AST,
-            "yulCFGJson" => Self::YUL_CFG_JSON,
             "evm" => Self::EVM,
             "evm.assembly" => Self::ASSEMBLY,
             "evm.legacyAssembly" => Self::LEGACY_ASSEMBLY,
@@ -1005,7 +1030,6 @@ mod tests {
                 "irAst",
                 "irOptimized",
                 "irOptimizedAst",
-                "yulCFGJson",
                 "evm.assembly",
                 "evm.legacyAssembly",
                 "evm.methodIdentifiers",

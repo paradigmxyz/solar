@@ -1,6 +1,6 @@
 //! EVM word-level evaluation used by MIR folding passes.
 //!
-//! These helpers intentionally do not reuse `Gcx::eval_const`:
+//! These helpers intentionally do not reuse `Gcx::const_eval`:
 //! sema evaluates Solidity source constants and reports semantic errors, while
 //! MIR folding must match 256-bit EVM wrapping and zero-divisor semantics.
 

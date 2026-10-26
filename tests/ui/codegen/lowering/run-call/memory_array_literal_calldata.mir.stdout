@@ -1,56 +1,45 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_array_literal_calldata.sol:MemoryArrayLiteralCalldata ===
 @module MemoryArrayLiteralCalldata
-fn @collect(arg0: calldataslice, arg1: calldataslice) -> memptr [selector=0xcc62604c, pure, abi_params=[bytes, bytes], abi_returns=[array<2, memory_bytes>], abi_return_params=[array<2, bytes>]] {
+fn @collect(arg0: slice<calldata>, arg1: slice<calldata>) -> ptr<memory> [selector=0xcc62604c, pure, abi_params=[bytes, bytes], abi_returns=[array<2, memory_bytes>], abi_return_params=[array<2, bytes>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v3]
+    v1 = phi [bb0: 0], [bb2: v5]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v5 = slice_ptr arg0
-    v6 = slice_len arg0
-    v7 = gt v6, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v7
-    v8 = calldatasize
-    v9 = sub v8, v6
-    v10 = sgt v5, v9
-    icall revert_if<calldata_tail_too_short>, v10
-    v11 = slice_len arg0
-    v12 = add v11, 63
-    v13 = lt v12, v11
-    icall panic_if<0x41>, v13
-    v14 = not 31
-    v15 = and v12, v14
-    v16 = alloc memorybytes, exact, uninitialized, infallible, v15
-    set_memory_object_len memorybytes, v16, v11
-    memory_object_copy_from_slice memorybytes, v16, arg0
-    v17 = ptrtoint memptr v16 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, v4, 0, v17
-    v18 = slice_ptr arg1
-    v19 = slice_len arg1
-    v20 = gt v19, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v20
-    v21 = calldatasize
-    v22 = sub v21, v19
-    v23 = sgt v18, v22
-    icall revert_if<calldata_tail_too_short>, v23
-    v24 = slice_len arg1
-    v25 = add v24, 63
-    v26 = lt v25, v24
-    icall panic_if<0x41>, v26
-    v27 = not 31
-    v28 = and v25, v27
-    v29 = alloc memorybytes, exact, uninitialized, infallible, v28
-    set_memory_object_len memorybytes, v29, v24
-    memory_object_copy_from_slice memorybytes, v29, arg1
-    v30 = ptrtoint memptr v29 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, v4, 1, v30
-    ret v4
+    v6 = alloc 64
+    v7 = extract_value slice<calldata>, arg0, 1
+    v8 = add v7, 63
+    v9 = not 31
+    v10 = and v8, v9
+    v11 = alloc v10
+    mstore v11, v7
+    v12 = ptradd v11, 32
+    v13 = extract_value slice<calldata>, arg0, 0
+    v14 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v12, v13, v14
+    v15 = ptrtoint ptr<memory> v11 to i256
+    mstore v6, v15
+    v16 = extract_value slice<calldata>, arg1, 1
+    v17 = add v16, 63
+    v18 = not 31
+    v19 = and v17, v18
+    v20 = alloc v19
+    mstore v20, v16
+    v21 = ptradd v20, 32
+    v22 = extract_value slice<calldata>, arg1, 0
+    v23 = extract_value slice<calldata>, arg1, 1
+    calldatacopy v21, v22, v23
+    v24 = ptrtoint ptr<memory> v20 to i256
+    v25 = ptradd v6, 32
+    mstore v25, v24
+    ret v6
   bb2:
-    memory_object_store_element memoryfixedarray<2, 1>, v0, v1, 96
-    v3 = add v1, 1
+    v3 = shl v1, 5
+    v4 = ptradd v0, v3
+    mstore v4, 96
+    v5 = add v1, 1
     jump bb1
 }

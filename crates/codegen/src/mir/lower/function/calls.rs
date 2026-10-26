@@ -17,6 +17,17 @@ pub(super) struct ExternalReturnPlan {
     decode_returndata: bool,
 }
 
+/// Where an external call's input is encoded.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CallInputStaging {
+    /// A fresh allocation.
+    Reserved,
+    /// The free memory pointer, without a bump.
+    Unreserved,
+    /// The scratch words at address 0.
+    Scratch,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum ExternalReturnMode {
     First,
@@ -48,8 +59,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// `this` is no exception, because the executing code and `address(this)` come apart under
     /// `DELEGATECALL`, where the account may well have no code of its own.
     ///
-    /// With `--revert-strings debug` the check is always emitted, as in solc, so a code-less
-    /// target reports "Target contract does not contain code" instead of a decoding failure.
+    /// With `--revert-strings debug` the check is always emitted, so a code-less target reports
+    /// "Target contract does not contain code" instead of a decoding failure.
     pub(super) fn needs_code_check(&self, returns: usize) -> bool {
         let opts = &self.cx.gcx.sess.opts;
         returns == 0 || !opts.evm_version.supports_returndata() || opts.revert_strings.is_debug()
@@ -117,21 +128,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // result = lower_struct_ctor(callee, args)
             return self.lower_struct_constructor(expr, struct_id, args).map(CallResult::Value);
         }
-        let is_type_conversion = matches!(callee.kind, ExprKind::TypeCall(_) | ExprKind::Type(_))
-            || self.cx.gcx.resolved_expr(callee).is_some_and(|res| {
-                matches!(
-                    res,
-                    hir::Res::Item(
-                        hir::ItemId::Contract(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_)
-                    )
-                )
-            })
-            || self
-                .cx
-                .gcx
-                .type_of_expr(callee.id)
-                .is_some_and(|ty| matches!(ty.kind, TyKind::Type(_)));
-        if is_type_conversion {
+        if expressions::is_type_conversion(self.cx.gcx, callee) {
             // result = convert(callee, args)
             if args.len() != 1 {
                 return self.cx.report_unsupported(expr.span, "type conversion");
@@ -160,26 +157,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if let Some(value) = self.lower_fixed_bytes_literal(target_ty, arg) {
                 return Some(CallResult::Value(value));
             }
-            let value = if source_ty.is_ref_at(DataLocation::Storage)
-                && matches!(
-                    source_ty.peel_refs().kind,
-                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
-                )
-                && matches!(
-                    target_ty.peel_refs().kind,
-                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
-                ) {
+            if target_ty.is_ref_at(DataLocation::Storage) {
+                // A storage reference conversion is an identity: the result is the argument's
+                // slot, so writes through it reach storage.
+                // result = slot(arg)
                 let Some(access) = self.storage_access(arg) else {
                     return self.cx.report_unsupported(arg.span, "storage access");
                 };
-                self.load_storage_bytes(access.slot)
-            } else if target_ty.is_ref_at(DataLocation::Storage) {
-                // NOTE: The result still refers to storage, so lowering the argument as a
-                // memory copy would redirect writes through it.
-                return self.cx.report_unsupported(arg.span, "storage reference conversion");
-            } else {
-                self.lower_expr(arg)?
-            };
+                return self.load_storage_access(expr, access).map(CallResult::Value);
+            }
+            if source_ty.is_ref_at(DataLocation::Storage)
+                && let Some(size) = fixed_bytes_size(target_ty)
+            {
+                // `lower_expr` yields a slot for most storage `bytes` arguments but copies a
+                // storage state variable to memory, so read the first data word from the slot.
+                // word, length = storage_bytes_first_word(slot(arg))
+                // result = word & mask(min(length, width))
+                let Some(access) = self.storage_access(arg) else {
+                    return self.cx.report_unsupported(arg.span, "storage access");
+                };
+                let (word, length) = self.storage_bytes_first_word(access.slot);
+                return Some(CallResult::Value(self.bytes_prefix(word, length, size)));
+            }
+            let value = self.lower_expr(arg)?;
             return Some(CallResult::Value(self.coerce_value(value, source_ty, target_ty)));
         }
         if let ExprKind::New(ty) = &callee.kind {
@@ -212,16 +212,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             // result = alloc(size, zeroed)
             // result.length = length
-            let object =
-                self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
-            self.builder.set_memory_object_len(object, len, layout.kind());
+            let object = self.builder.alloc(size, AllocationSemantics::SOLIDITY_ZEROED);
+            self.builder.set_memory_len(object, len);
             if let TyKind::DynArray(element) = ty.peel_refs().kind
                 && self.types.memory_layout(element).is_some()
             {
                 // for i in 0..length { object[i] = default(element) }
                 self.counted_loop(len, |this, index| {
                     let value = this.default_binding_value(element);
-                    this.builder.memory_object_store_element(object, layout, index, value);
+                    this.builder.memory_store_element(object, layout, index, value);
                     Some(())
                 })?;
             }
@@ -263,7 +262,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
         let created = self.lower_create_contract(ty, contract_id, args, call_opts)?;
-        self.revert_external_call(created);
+        self.builder.revert_returndata_unless(created);
         Some(created)
     }
 
@@ -274,7 +273,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
-        let bytecode = self.contract_code(ty.span, contract_id, CodeKind::Creation)?;
+        let bytecode = self.contract_code(ty.span, contract_id, CodeKind::Creation).ok()?;
 
         let mut call_value = self.builder.imm(U256::ZERO);
         let mut salt = None;
@@ -335,46 +334,41 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             },
         )?;
         let (values, types): (Vec<_>, Vec<_>) = arguments.into_iter().unzip();
-        // arguments = abi_encode(constructor_args)
+        // arguments = abi_encode(constructor_args) if constructor_args
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-        let encoded = self.builder.abi_encode(Arc::clone(&layout), None, values.into_boxed_slice());
+        let encoded = (!layout.types.is_empty())
+            .then(|| self.builder.abi_encode(Arc::clone(&layout), None, values.into_boxed_slice()));
         let static_len = (!layout.types.iter().any(AbiType::is_dynamic))
             .then(|| layout.head_size())
             .filter(|&len| EvmMemoryLayout::align_word(len).is_some());
         let encoded_len = match static_len {
             Some(len) => self.builder.imm(len),
-            None => self.builder.slice_len(encoded),
+            None => {
+                self.builder.slice_len(encoded.expect("dynamic constructor arguments are encoded"))
+            }
         };
 
         // len = datasize initcode(C)
         let bytecode_len_value = self.builder.data_size(bytecode, 0, false);
-        // CREATE consumes a raw byte range, so do not reserve a semantic bytes
-        // header that no later operation can observe.
-        let (total_len, allocation_size) = if let Some(len) = static_len {
+        let total_len = if let Some(len) = static_len {
             // total_len = datasize initcode(C), len
-            // allocation_size = datasize initcode(C), len + 31, aligned
-            let total_len = if len == 0 {
-                bytecode_len_value
-            } else {
-                self.builder.data_size(bytecode, len, false)
-            };
-            (total_len, self.builder.data_size(bytecode, len + 31, true))
+            if len == 0 { bytecode_len_value } else { self.builder.data_size(bytecode, len, false) }
         } else {
             // total_len = checked_add len, encoded_len
-            // allocation_size = checked_add(total_len, 31) & ~31
-            let total_len = self.builder.checked_add(bytecode_len_value, encoded_len);
-            let padding = self.builder.imm(31);
-            let rounded_len = self.builder.checked_add(total_len, padding);
-            (total_len, self.builder.mask_padded_size(rounded_len))
+            self.builder.checked_add(bytecode_len_value, encoded_len)
         };
-        let data = self.builder.alloc_raw(allocation_size, AllocationSemantics::INTERNAL);
+        // CREATE consumes a raw byte range that nothing reads afterwards, so stage it at the free
+        // memory pointer without reserving it, as solc does.
+        let data = self.builder.fmp();
 
         // datacopy initcode(C), data, len
         self.builder.data_copy(DataRef::new(bytecode, 0), data, bytecode_len_value);
-        let encoded_ptr = self.builder.slice_ptr(encoded);
-        let copy_dest = self.builder.add(data, bytecode_len_value);
-        // init = creation_bytecode ++ arguments
-        self.builder.copy_slice_data(SliceLocation::Memory, copy_dest, encoded_ptr, encoded_len);
+        if let Some(encoded) = encoded {
+            let encoded_ptr = self.builder.slice_ptr(encoded);
+            let copy_dest = self.builder.add(data, bytecode_len_value);
+            // init = creation_bytecode ++ arguments
+            self.builder.copy_heap(copy_dest, encoded_ptr, encoded_len, PtrLocation::Memory);
+        }
         // address = create|create2(value, init, init.length[, salt])
         let created = if let Some(salt) = salt {
             self.builder.create2(call_value, data, total_len, salt)
@@ -431,7 +425,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(options),
         );
         // if !ok { revert(0, returndatasize()) }
-        self.revert_external_call(success);
+        self.builder.revert_returndata_unless(success);
         // results = decode_buffer | decode_returndata | load_words(ret_offset)
         self.finish_external_call(
             return_plan,
@@ -449,9 +443,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let selector_mask = self.builder.imm(u32::MAX);
         let selector = self.builder.and(function_value, selector_mask);
         let selector_shift = self.builder.imm(224);
-        let selector = self.builder.shl(selector_shift, selector);
+        let selector = self.builder.shl(selector, selector_shift);
         let address_shift = self.builder.imm(32);
-        let address = self.builder.shr(address_shift, function_value);
+        let address = self.builder.shr(function_value, address_shift);
         (address, selector)
     }
 
@@ -484,10 +478,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let parameter = function.parameters[index];
                 let value = if Self::is_storage_parameter(parameter) {
                     // argument = slot of the storage argument
-                    let Some(access) = this.storage_access(argument) else {
-                        return this.cx.report_unsupported(argument.span, "storage access");
-                    };
-                    access.slot
+                    this.require_storage_access(argument)?.slot
                 } else {
                     let value = this.lower_typed_expr(argument, parameter)?;
                     if !parameter.is_value_type() {
@@ -638,40 +629,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             let zero = self.builder.imm(0);
             let word_and_length = match self.builder.func().value_ty(value) {
-                Some(MirType::MemPtr) => {
-                    let word = self.builder.memory_object_load_element(
-                        value,
-                        MemoryObjectLayout::Bytes,
-                        zero,
-                    );
-                    let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
-                    Some((word, length))
-                }
-                Some(MirType::Slice(SliceLocation::Calldata)) => {
-                    let word = self.builder.calldata_slice_load_word(value, zero);
-                    let length = self.builder.slice_len(value);
-                    Some((word, length))
-                }
-                Some(MirType::Slice(SliceLocation::Memory)) => {
-                    let word = self.builder.memory_slice_load_word(value, zero);
-                    let length = self.builder.slice_len(value);
+                Some(
+                    MirType::MEMPTR | MirType::Slice(PtrLocation::Calldata | PtrLocation::Memory),
+                ) => {
+                    let word = self.builder.slice_load_word(value, zero);
+                    let length = self.builder.memory_len(value);
                     Some((word, length))
                 }
                 _ => None,
             };
             if let Some((word, length)) = word_and_length {
-                // value = word & mask(min(length, fixed_width))
-                let width = u64::from(size.bytes());
-                let fixed_mask =
-                    self.builder.imm(U256::MAX << (256 - usize::from(size.bytes()) * 8));
-                let width_value = self.builder.imm(width);
-                let short = self.builder.lt(length, width_value);
-                let missing = self.builder.sub(width_value, length);
-                let bits_per_byte = self.builder.imm(8);
-                let shift = self.builder.mul(bits_per_byte, missing);
-                let short_mask = self.builder.shl(shift, fixed_mask);
-                let mask = self.builder.select(short, short_mask, fixed_mask);
-                return self.builder.and(word, mask);
+                return self.bytes_prefix(word, length, size);
             }
         }
         if destination_size.is_some()
@@ -686,7 +654,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && u64::from(32 - size.bytes()) * 8 != 0
         {
             let shift = self.builder.imm(u64::from(32 - size.bytes()) * 8);
-            self.builder.shr(shift, value)
+            self.builder.shr(value, shift)
         } else {
             value
         };
@@ -699,12 +667,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let byte_value = match from.peel_refs().kind {
             TyKind::StringLiteral(..) => match self.builder.func().value_ty(value) {
-                Some(MirType::MemPtr) => Some(value),
+                Some(MirType::MEMPTR) => Some(value),
                 _ => return value,
             },
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 match self.builder.func().value_ty(value) {
-                    Some(MirType::MemPtr) => Some(value),
+                    Some(MirType::MEMPTR) => Some(value),
                     Some(MirType::Slice(_)) => Some(self.materialize_memory_slice(value)),
                     _ => return value,
                 }
@@ -714,7 +682,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(value) = byte_value {
             // value = mload(bytes.data)
             let zero = self.builder.imm(U256::ZERO);
-            return self.builder.memory_object_load_element(value, MemoryObjectLayout::Bytes, zero);
+            return self.builder.slice_load_word(value, zero);
         }
         if let Some(source_size) = source_size {
             if source_size.bytes() > size.bytes() {
@@ -725,7 +693,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         // value = value << (32 - to.width) * 8
         let shift = self.builder.imm(u64::from(32 - size.bytes()) * 8);
-        self.builder.shl(shift, value)
+        self.builder.shl(value, shift)
+    }
+
+    /// Converts the first data word of a dynamic `bytes` value of `length` bytes to a
+    /// fixed-bytes value of `size`, zeroing the bytes past `min(length, size)`.
+    fn bytes_prefix(&mut self, word: ValueId, length: ValueId, size: TypeSize) -> ValueId {
+        // value = word & mask(min(length, fixed_width))
+        let width = u64::from(size.bytes());
+        let fixed_mask = self.builder.imm(U256::MAX << (256 - usize::from(size.bytes()) * 8));
+        let width_value = self.builder.imm(width);
+        let short = self.builder.lt(length, width_value);
+        let missing = self.builder.sub(width_value, length);
+        let bits_per_byte = self.builder.imm(8);
+        let shift = self.builder.mul(bits_per_byte, missing);
+        let short_mask = self.builder.shl(fixed_mask, shift);
+        let mask = self.builder.select(short, short_mask, fixed_mask);
+        self.builder.and(word, mask)
     }
 
     pub(super) fn normalize_abi_scalar(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
@@ -735,11 +719,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 value
             }
             TyKind::Fn(_) => value,
-            TyKind::Elementary(ElementaryType::Bool) => {
-                let zero = self.builder.imm(U256::ZERO);
-                let is_zero = self.builder.eq(value, zero);
-                self.builder.eq_zero(is_zero)
-            }
+            TyKind::Elementary(ElementaryType::Bool) => self.builder.ne_zero(value),
             _ if matches!(
                 types::TypeLowerer::value_layout(ty),
                 crate::mir::ValueLayout::Int(_)
@@ -763,13 +743,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     // External functions are low-aligned as scalar MIR values, but Solidity memory stores their
     // 24-byte representation left-aligned. Keep the conversion at typed memory boundaries.
-    // A word read from memory is cleaned like solc cleans it: inline assembly
-    // may have stored a dirty word, so a value that reaches an expression or a
-    // variable is masked to its type.
+    // A word read from memory is cleaned: inline assembly may have stored a dirty word, so a
+    // value that reaches an expression or a variable is masked to its type.
     pub(super) fn normalize_memory_scalar(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
         if matches!(ty.peel_refs().kind, TyKind::Fn(function) if function.is_external()) {
             let shift = self.builder.imm(64);
-            return self.builder.shr(shift, value);
+            return self.builder.shr(value, shift);
         }
         self.normalize_abi_scalar(value, ty)
     }
@@ -779,22 +758,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && function.is_external()
         {
             let shift = self.builder.imm(64);
-            return self.builder.shr(shift, value);
+            return self.builder.shr(value, shift);
         }
         value
     }
 
-    // A scalar reaching a memory store is canonical unless inline assembly
-    // produced it: arithmetic truncates, conversions clean, and loads from
-    // calldata, storage, and memory yield clean words. Cleaning only the
-    // assembly-dirtied values keeps memory canonical without masking every
-    // element copy, which is also solc's behavior.
+    // A scalar reaching a memory store is canonical unless inline assembly produced it:
+    // arithmetic truncates, conversions clean, and loads from calldata, storage, and memory yield
+    // clean words. Cleaning only the assembly-dirtied values keeps memory canonical without
+    // masking every element copy.
     pub(super) fn encode_memory_scalar(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
         if let TyKind::Fn(function) = ty.peel_refs().kind
             && function.is_external()
         {
             let shift = self.builder.imm(64);
-            return self.builder.shl(shift, value);
+            return self.builder.shl(value, shift);
         }
         let value = self.normalize_dirty_scalar(value, ty);
         raw_scalars::cast_carrier(
@@ -881,10 +859,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.lower_view_argument(receiver, parameter_ty)?
             } else {
                 let value = if Self::is_storage_parameter(parameter_ty) {
-                    let Some(access) = self.storage_access(receiver) else {
-                        return self.cx.report_unsupported(receiver.span, "storage access");
-                    };
-                    access.slot
+                    self.require_storage_access(receiver)?.slot
                 } else {
                     self.lower_typed_expr(receiver, parameter_ty)?
                 };
@@ -909,10 +884,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return this.lower_view_argument(argument, parameter_ty);
                 }
                 let value = if Self::is_storage_parameter(parameter_ty) {
-                    let Some(access) = this.storage_access(argument) else {
-                        return this.cx.report_unsupported(argument.span, "storage access");
-                    };
-                    access.slot
+                    this.require_storage_access(argument)?.slot
                 } else {
                     this.lower_typed_expr(argument, parameter_ty)?
                 };
@@ -1040,7 +1012,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(options),
         );
         // if !ok { revert(0, returndatasize()) }
-        self.revert_external_call(success);
+        self.builder.revert_returndata_unless(success);
         // result = decode_buffer | decode_returndata | load_words(ret_offset)
         let values = self.finish_external_call(
             return_plan,
@@ -1073,11 +1045,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             error,
             |this, index, argument| {
                 let parameter_ty = parameter_types[index];
-                if storage_parameters && Self::is_storage_parameter(parameter_ty) {
-                    let Some(access) = this.storage_access(argument) else {
-                        return this.cx.report_unsupported(argument.span, "storage access");
-                    };
-                    Some((access.slot, AbiType::Word(None)))
+                if storage_parameters {
+                    this.lower_abi_receiver(argument, parameter_ty)
                 } else {
                     this.lower_abi_call_argument(argument, parameter_ty)
                 }
@@ -1186,7 +1155,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             None,
         );
         // if !ok { revert(0, returndatasize()) }
-        self.revert_external_call(success);
+        self.builder.revert_returndata_unless(success);
         if return_types.is_empty() {
             return Some(CallResult::Void);
         }
@@ -1207,10 +1176,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         parameter_ty: Ty<'gcx>,
     ) -> Option<(ValueId, AbiType)> {
         if Self::is_storage_parameter(parameter_ty) {
-            let Some(access) = self.storage_access(receiver) else {
-                return self.cx.report_unsupported(receiver.span, "storage access");
-            };
-            Some((access.slot, AbiType::Word(None)))
+            Some((self.require_storage_access(receiver)?.slot, AbiType::Word(None)))
         } else {
             self.lower_abi_call_argument(receiver, parameter_ty)
         }
@@ -1234,7 +1200,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// inaccessible dynamic type whose decoding type is `uint256`
     /// (`FunctionType::returnParameterTypesWithoutDynamicTypes`): the call reserves a word for it
     /// in its output area and nothing decodes it, because the type checker rejects every use of
-    /// the value. The remaining return values stay accessible, as in solc.
+    /// the value. The remaining return values stay accessible.
     pub(super) fn external_return_types(&mut self, return_tys: &[Ty<'gcx>]) -> Vec<Ty<'gcx>> {
         if self.cx.gcx.sess.opts.evm_version.supports_returndata() {
             return return_tys.to_vec();
@@ -1329,9 +1295,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// The size in bytes of the output area a pre-Byzantium call declares, which overlays the
     /// call's input area.
     ///
-    /// This is solc's `ReturnInfo::estimatedReturnSize`: the head size of the static return
-    /// values, and nothing for a dynamically encoded one, which `finish_external_call` reports as
-    /// unsupported before Byzantium.
+    /// This is the head size of the static return values, and nothing for a dynamically encoded
+    /// one, which `finish_external_call` reports as unsupported before Byzantium.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/ReturnInfo.cpp#L43-L55>
     fn pre_byzantium_output_size(
         &mut self,
         return_tys: &[Ty<'gcx>],
@@ -1388,7 +1355,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let size = self.builder.imm(size_bytes);
         let above = self.builder.add(area, size);
         let zero = self.builder.imm(U256::ZERO);
-        self.builder.mstore(above, zero);
+        self.builder.store(above, zero);
     }
 
     /// Emits an external call of `selector` on `address` with the ABI-encoded `values`, and
@@ -1411,11 +1378,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // mstore(add(fmp(), ret_size), 0)
         let gas = options.and_then(|options| options.gas);
         self.touch_call_output_area(gas, return_tys, overlay_buffer.is_some());
-        // input = abi_encode(selector, args)
-        let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-        let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
-        let input = self.builder.slice_ptr(encoded);
-        let input_size = self.builder.slice_len(encoded);
+        let (input, input_size) = match self.call_input_staging(&types, return_tys) {
+            CallInputStaging::Scratch => {
+                self.encode_call_input_in_scratch(selector, &values, &types)
+            }
+            staging => {
+                // input = abi_encode[, scratch](selector, args)
+                let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
+                let values = values.into_boxed_slice();
+                let encoded = if staging == CallInputStaging::Unreserved {
+                    self.builder.abi_encode_scratch(layout, Some(selector), values)
+                } else {
+                    self.builder.abi_encode(layout, Some(selector), values)
+                };
+                (self.builder.slice_ptr(encoded), self.builder.slice_len(encoded))
+            }
+        };
         // zero = 0
         // gas = gas() if can_overcharge_gas_for_call
         let options = options.unwrap_or_else(|| self.default_call_options());
@@ -1450,6 +1428,72 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         (success, plan)
     }
 
+    /// Encodes a call input of a selector and at most one stack scalar in the scratch words,
+    /// right-aligning the selector so that the input starts at address 28, and returns its
+    /// address and size.
+    fn encode_call_input_in_scratch(
+        &mut self,
+        selector: ValueId,
+        values: &[ValueId],
+        types: &[AbiType],
+    ) -> (ValueId, ValueId) {
+        // mstore(0, selector >> 224)
+        let selector = match self.builder.func().value_u256(selector) {
+            Some(selector) => self.builder.imm(selector >> 224),
+            None => {
+                let shift = self.builder.imm(224);
+                self.builder.shr(selector, shift)
+            }
+        };
+        let slot = self.builder.imm(EvmMemoryLayout::SCRATCH_SLOT);
+        self.builder.store(slot, selector);
+        if let (&[value], [ty]) = (values, types) {
+            // mstore(32, arg)
+            let value = if matches!(ty, AbiType::Function) {
+                let shift = self.builder.imm(64);
+                self.builder.shl(value, shift)
+            } else {
+                value
+            };
+            let address = self.builder.imm(EvmMemoryLayout::WORD_SIZE);
+            self.builder.store(address, value);
+        }
+        // input = 28, size = 4 + 32 * args
+        let input = self.builder.imm(EvmMemoryLayout::WORD_SIZE - 4);
+        let size = self.builder.imm(4 + EvmMemoryLayout::WORD_SIZE * values.len() as u64);
+        (input, size)
+    }
+
+    /// Where a call's input is encoded.
+    ///
+    /// Nothing keeps the input after the call, so the reservation is only needed while the return
+    /// plan overlays it: before Byzantium the output area always does, a multi-word return that
+    /// is not decoded reads from the input's address, and a static aggregate return buffer is
+    /// allocated at the unbumped pointer. A dynamic layout keeps the reservation because encoding
+    /// it in place costs more code than the bump saves.
+    ///
+    /// An input of a selector and at most one stack scalar goes to the scratch words instead. The
+    /// call reads its input before it writes its output, so a word returned to scratch can
+    /// overlay it.
+    fn call_input_staging(
+        &mut self,
+        types: &[AbiType],
+        return_tys: &[Ty<'gcx>],
+    ) -> CallInputStaging {
+        if !self.cx.gcx.sess.opts.evm_version.supports_returndata()
+            || return_tys.len() > 1
+            || types.iter().any(AbiType::is_dynamic)
+            || self.static_aggregate_return_layout(return_tys.iter().copied()).is_some()
+        {
+            return CallInputStaging::Reserved;
+        }
+        if matches!(types, [] | [AbiType::Word(_) | AbiType::Function]) {
+            CallInputStaging::Scratch
+        } else {
+            CallInputStaging::Unreserved
+        }
+    }
+
     pub(super) fn finish_external_call(
         &mut self,
         plan: ExternalReturnPlan,
@@ -1469,10 +1513,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // The output area overlays the arguments, so the values move out of it before the
                 // decoding allocates over them.
                 // mcopy(data, ret_offset, ret_size)
-                self.builder.mcopy(data, offset, size);
+                self.builder.copy(data, offset, size, PtrLocation::Memory);
             }
             // source = make_slice(data, size)
-            Some(self.builder.make_slice(data, size, SliceLocation::Memory))
+            Some(self.builder.make_slice(data, size, PtrLocation::Memory))
         } else if decode_returndata {
             if !self.cx.gcx.sess.opts.evm_version.supports_returndata() {
                 return report_error(self.cx.gcx, span, unsupported_returndata);
@@ -1523,9 +1567,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         layout: &AbiParamLayout,
     ) -> Option<(ValueId, ValueId)> {
         // size = head_size(layout)
-        // data = raw(size)
+        // data = alloc size
         let size = self.builder.imm(layout.checked_head_size()?);
-        let data = self.builder.alloc_raw(size, AllocationSemantics::INTERNAL);
+        let data = self.builder.alloc(size, AllocationSemantics::INTERNAL);
         Some((data, size))
     }
 
@@ -1564,7 +1608,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|(index, &ty)| {
                 let value = self.load_static_abi_return_value(offset, index, returns.len());
                 self.validate_external_return_value(ty, value);
-                if matches!(types::TypeLowerer::mir_type(ty), MirType::MemPtr) {
+                if matches!(types::TypeLowerer::mir_type(ty), MirType::MEMPTR) {
                     self.load_static_abi_return_value_as(offset, index, returns.len(), ty)
                 } else {
                     value
@@ -1582,8 +1626,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => AbiWordValidator::from_return_layout(types::TypeLowerer::value_layout(ty)),
         };
         let Some(validator) = validator else { return };
-        let shifts = self.cx.gcx.sess.opts.evm_version.has_bitwise_shifting();
-        let valid = validator.condition(&mut self.builder, value, shifts);
+        let valid = validator.condition(&mut self.builder, value);
 
         let invalid = self.builder.eq_zero(valid);
         self.builder.revert_if(invalid, RevertReason::Empty);

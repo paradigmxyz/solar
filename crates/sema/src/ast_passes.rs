@@ -2,7 +2,10 @@
 
 use solar_ast::{self as ast, visit::Visit};
 use solar_data_structures::Never;
-use solar_interface::{Ident, Session, Span, diagnostics::DiagCtxt, error_code, sym};
+use solar_interface::{
+    Ident, Session, Span, config::version::solc_semver_version, diagnostics::DiagCtxt, error_code,
+    sym,
+};
 use std::ops::ControlFlow;
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
@@ -63,11 +66,9 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
     }
 
     fn check_underscores_in_number_literals(&self, lit: &ast::Lit<'_>) {
-        let (ast::LitKind::Number(_) | ast::LitKind::Rational(_) | ast::LitKind::Address(_)) =
-            lit.kind
-        else {
+        if !lit.kind.is_number() && !matches!(lit.kind, ast::LitKind::Address(_)) {
             return;
-        };
+        }
         for help in number_literal_underscore_errors(lit.symbol.as_str()) {
             let _ = self
                 .dcx()
@@ -87,9 +88,7 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
             return;
         };
 
-        let (ast::LitKind::Number(_) | ast::LitKind::Rational(_)) = lit.kind else {
-            panic!("non-number literal with denomination {:?}", lit.kind)
-        };
+        assert!(lit.kind.is_number(), "non-number literal with denomination {:?}", lit.kind);
 
         if lit.symbol.as_str().starts_with("0x") {
             self.dcx()
@@ -245,10 +244,19 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         pragma: &'ast ast::PragmaDirective<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
         match &pragma.tokens {
-            ast::PragmaTokens::Version(name, _version) => {
+            ast::PragmaTokens::Version(name, req) => {
                 if name.name != sym::solidity {
                     let msg = "only `solidity` is supported as a version pragma";
                     self.dcx().emit_err(name.span, msg);
+                } else if !req.dis.is_empty()
+                    && let version = solc_semver_version()
+                    && !req.matches(&version.into())
+                {
+                    let msg = format!(
+                        "source file requires different compiler version \
+                         (current compiler is {version})"
+                    );
+                    self.dcx().warn(msg).code(error_code!(5333)).span(self.item_span).emit();
                 }
             }
             ast::PragmaTokens::Custom(name, value) => {
@@ -604,11 +612,13 @@ pub(crate) fn number_literal_underscore_errors(value: &str) -> Vec<&'static str>
     if value.contains("._") || value.contains("_.") {
         errors.push("remove underscores in front of the fraction part");
     }
-    // Like solc, accept underscores next to an uppercase `E` exponent.
+    // Accept underscores next to an uppercase `E` exponent.
+    // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/SyntaxChecker.cpp#L349-L353>
     if value.contains("_e") {
         errors.push("remove underscores at the end of the mantissa");
     }
-    if value.contains("e_") {
+    // Also reject underscores after the sign of either exponent, as in `1E-_2`.
+    if value.contains("e_") || value.contains("e-_") || value.contains("E-_") {
         errors.push("remove underscores in front of the exponent");
     }
     errors

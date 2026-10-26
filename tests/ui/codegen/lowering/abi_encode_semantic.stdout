@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_semantic.sol:AbiEncodeSemantic ===
 @module AbiEncodeSemantic
-fn @forward(arg0: i160, arg1: i256, arg2: calldataslice) [selector=0xd7f31eb9, abi_params=[address, u256, bytes], abi_returns=[], abi_return_params=[]] {
+fn @forward(arg0: i160, arg1: i256, arg2: slice<calldata>) [selector=0xd7f31eb9, abi_params=[address, uint256, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = gas
     v1 = abi_encode [word, calldata_bytes], selector 0x37650e7800000000000000000000000000000000000000000000000000000000, args arg1, arg2
-    v2 = slice_ptr v1
-    v3 = slice_len v1
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
     v4 = zext i160 arg0 to i256
     v5 = extcodesize v4
     v6 = eq v5, 0
@@ -19,12 +19,12 @@ fn @forward(arg0: i160, arg1: i256, arg2: calldataslice) [selector=0xd7f31eb9, a
     ret
 }
 
-fn @forwardNarrow(arg0: i160, arg1: calldataslice) [selector=0x251c2c33, abi_params=[address, array<_, u8>], abi_returns=[], abi_return_params=[]] {
+fn @forwardNarrow(arg0: i160, arg1: slice<calldata>) [selector=0x251c2c33, abi_params=[address, array<_, uint8>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = gas
-    v1 = abi_encode [calldata_array<word<u8>>], selector 0xd55990ff00000000000000000000000000000000000000000000000000000000, args arg1
-    v2 = slice_ptr v1
-    v3 = slice_len v1
+    v1 = abi_encode [calldata_array<word<uint8>>], selector 0xd55990ff00000000000000000000000000000000000000000000000000000000, args arg1
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
     v4 = zext i160 arg0 to i256
     v5 = extcodesize v4
     v6 = eq v5, 0

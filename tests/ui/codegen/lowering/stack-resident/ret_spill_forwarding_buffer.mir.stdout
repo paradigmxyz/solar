@@ -40,16 +40,16 @@ fn @h(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, ar
     ret v33
 }
 
-fn @g(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256, arg13: i256, arg14: i256, arg15: i256, arg16: i256) -> i256 [selector=0x15e4a00c, pure, abi_params=[u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @g(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256, arg13: i256, arg14: i256, arg15: i256, arg16: i256) -> i256 [selector=0x15e4a00c, pure, abi_params=[uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @h, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     ret v1
 }
 
-fn @g2(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256, arg13: i256, arg14: i256, arg15: i256, arg16: i256) -> i256 [selector=0x9397d4fb, pure, abi_params=[u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @g2(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256, arg13: i256, arg14: i256, arg15: i256, arg16: i256) -> i256 [selector=0x9397d4fb, pure, abi_params=[uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @h, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16
-    v1 = checked_add u256, v0, 2
+    v1 = checked_add uint256, v0, 2
     ret v1
 }

@@ -5,13 +5,13 @@
   struct1: {i256, i256, i256}
   struct2: {i256, i256}
 
-fn @temporary() -> i256 [selector=0x52099d8b, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @temporary() -> i256 [selector=0x52099d8b, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = tload 0
     ret v0
 }
 
-fn @separateSpaces(arg0: i256, arg1: i256) -> struct0 [selector=0x9ef32708, inline_assembly, abi_params=[u256, u256], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
+fn @separateSpaces(arg0: i256, arg1: i256) -> struct0 [selector=0x9ef32708, inline_assembly, abi_params=[uint256, uint256], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     tstore 0, arg1
@@ -28,7 +28,7 @@ fn @separateSpaces(arg0: i256, arg1: i256) -> struct0 [selector=0x9ef32708, inli
     ret v9
 }
 
-fn @packed() -> struct1 [selector=0x8f23d5f6, inline_assembly, abi_params=[], abi_returns=[word<u16>, word<u16>, word], abi_return_params=[u16, u16, u256]] {
+fn @packed() -> struct1 [selector=0x8f23d5f6, inline_assembly, abi_params=[], abi_returns=[word<uint16>, word<uint16>, word], abi_return_params=[uint16, uint16, uint256]] {
   bb0:
     v0 = tload 1
     v1 = not 0xffff
@@ -36,19 +36,19 @@ fn @packed() -> struct1 [selector=0x8f23d5f6, inline_assembly, abi_params=[], ab
     v3 = and 0x1122, 0xffff
     v4 = or v2, v3
     tstore 1, v4
-    v5 = shl 16, 0xffff
+    v5 = shl 0xffff, 16
     v6 = tload 1
     v7 = not v5
     v8 = and v6, v7
     v9 = and 0x3344, 0xffff
-    v10 = shl 16, v9
+    v10 = shl v9, 16
     v11 = or v8, v10
     tstore 1, v11
     v12 = tload 1
     v13 = tload 1
     v14 = trunc i256 v13 to i16
     v15 = tload 1
-    v16 = shr 16, v15
+    v16 = shr v15, 16
     v17 = trunc i256 v16 to i16
     v18 = zext i16 v14 to i256
     v19 = zext i16 v17 to i256
@@ -58,24 +58,24 @@ fn @packed() -> struct1 [selector=0x8f23d5f6, inline_assembly, abi_params=[], ab
     ret v22
 }
 
-fn @signed() -> i16 [selector=0x232a6b9d, abi_params=[], abi_returns=[word<i16>], abi_return_params=[i16]] {
+fn @signed() -> i16 [selector=0x232a6b9d, abi_params=[], abi_returns=[word<int16>], abi_return_params=[int16]] {
   bb0:
-    v0 = shl 32, 0xffff
+    v0 = shl 0xffff, 32
     v1 = tload 1
     v2 = not v0
     v3 = and v1, v2
     v4 = and 0xfffe, 0xffff
-    v5 = shl 32, v4
+    v5 = shl v4, 32
     v6 = or v3, v5
     tstore 1, v6
     v7 = tload 1
-    v8 = shr 32, v7
+    v8 = shr v7, 32
     v9 = signextend 1, v8
     v10 = trunc i256 v9 to i16
     ret v10
 }
 
-fn @clear() -> struct2 [selector=0x52efea6e, inline_assembly, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @clear() -> struct2 [selector=0x52efea6e, inline_assembly, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     tstore 0, 42
     tstore 0, 0
@@ -86,37 +86,35 @@ fn @clear() -> struct2 [selector=0x52efea6e, inline_assembly, abi_params=[], abi
     ret v3
 }
 
-fn @getter() -> i256 [selector=0x993a04b7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @getter() -> i256 [selector=0x993a04b7, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     tstore 0, 77
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x52099d8b00000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
-    v5 = zext i160 v0 to i256
-    v6 = staticcall v1, v5, v3, v4, 0, 32
-    jumpi v6, bb2, bb1
+    mstore 0, 0x52099d8b !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = staticcall v1, v2, 28, 4, 0, 32
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    ret v10
+    v4 = returndatasize
+    v5 = lt v4, 32
+    icall revert_if<tuple_data_too_short>, v5
+    v6 = add 0, 0
+    v7 = mload v6
+    ret v7
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientModifier ===
 @module TransientModifier
-fn @run() -> i16 [selector=0xc0406226, abi_params=[], abi_returns=[word<u16>], abi_return_params=[u16]] {
+fn @run() -> i16 [selector=0xc0406226, abi_params=[], abi_returns=[word<uint16>], abi_return_params=[uint16]] {
   bb0:
     v0 = tload 0
     v1 = trunc i256 v0 to i16
     v2 = tload 0
     v3 = trunc i256 v2 to i16
-    v4 = checked_add u16, v3, i16 10
+    v4 = checked_add uint16, v3, i16 10
     v5 = tload 0
     v6 = not 0xffff
     v7 = and v5, v6
@@ -126,7 +124,7 @@ fn @run() -> i16 [selector=0xc0406226, abi_params=[], abi_returns=[word<u16>], a
     tstore 0, v10
     v11 = tload 0
     v12 = trunc i256 v11 to i16
-    v13 = checked_mul u16, v12, i16 10
+    v13 = checked_mul uint16, v12, i16 10
     v14 = tload 0
     v15 = not 0xffff
     v16 = and v14, v15

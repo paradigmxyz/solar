@@ -1,0 +1,25 @@
+// === ROOT/tests/ui/codegen/mir/copy-elision/returndata_trap.sol:ReturndataTrap ===
+@module ReturndataTrap
+fn @fail() -> i256 [selector=0xa9cc4718, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = not 31
+    v1 = and 95, v0
+    v2 = alloc zeroed checked v1
+    mstore v2, 32
+    v3 = ptrtoint ptr<memory> v2 to i256
+    v4 = add v3, 32
+    returndatacopy v4, 0, 32
+    ret 7
+}
+
+fn @pass() -> i256 [selector=0xa7a1ed72, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = not 31
+    v1 = and 95, v0
+    v2 = alloc zeroed checked v1
+    mstore v2, 32
+    v3 = ptrtoint ptr<memory> v2 to i256
+    v4 = add v3, 32
+    returndatacopy v4, 0, 0
+    ret 7
+}

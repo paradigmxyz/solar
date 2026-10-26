@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any, TextIO, TypeGuard
 
 DEFAULT_PIN = "01209d2b8ac81645b92e3ef801b5bcdfd61bfd69"
-DEFAULT_SOLC_VERSION = "0.8.37"
+DEFAULT_SOLC_VERSION = "0.8.38"
 DEFAULT_METHODS = ("auto", "linear", "binary", "buckets", "dense", "perfect")
 SYNTHETIC_FIXTURE_VERSION = 6
 ANVIL_HARDFORK = "osaka"
@@ -837,7 +837,6 @@ def start_anvil() -> tuple[subprocess.Popen[bytes], str]:
                 str(port),
                 "--hardfork",
                 ANVIL_HARDFORK,
-                "--steps-tracing",
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

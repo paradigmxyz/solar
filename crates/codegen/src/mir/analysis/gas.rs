@@ -72,7 +72,7 @@ impl GasObservations {
     }
 
     /// Finds `gas` values used exclusively as the gas operand of legacy calls.
-    fn classify_forwarded_call_gas(func: &Function) -> DenseBitSet<InstId> {
+    pub(crate) fn classify_forwarded_call_gas(func: &Function) -> DenseBitSet<InstId> {
         let mut gas_values = FxHashMap::default();
         for inst_id in func.instructions() {
             if matches!(func.inst(inst_id).kind, InstKind::Gas)

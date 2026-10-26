@@ -1,0 +1,44 @@
+error[6161]: the value of the constant `R0` has a cyclic dependency via `V`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/shared_first_dependency.sol:LL:CC
+   │
+LL │     uint constant R0 = V + 1;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[6161]: the value of the constant `R1` has a cyclic dependency via `V`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/shared_first_dependency.sol:LL:CC
+   │
+LL │     uint constant R1 = V;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━
+
+error[6161]: the value of the constant `R2` has a cyclic dependency via `W`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/shared_first_dependency.sol:LL:CC
+   │
+LL │     uint constant R2 = V + W;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[6161]: the value of the constant `R3` has a cyclic dependency via `V`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/shared_first_dependency.sol:LL:CC
+   │
+LL │     uint constant R3 = V * 2;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[6161]: the value of the constant `W` has a cyclic dependency via `R1`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/shared_first_dependency.sol:LL:CC
+   │
+LL │     uint constant W = R1;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━
+
+error[6161]: the value of the constant `V` has a cyclic dependency via `Z`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/shared_first_dependency.sol:LL:CC
+   │
+LL │     uint constant V = Z + 1;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[6161]: the value of the constant `Z` has a cyclic dependency via `Z`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/shared_first_dependency.sol:LL:CC
+   │
+LL │     uint constant Z = Z;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 7 previous errors
+

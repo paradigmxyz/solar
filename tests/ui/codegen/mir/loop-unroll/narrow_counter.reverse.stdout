@@ -1,0 +1,19 @@
+- // === ROOT/tests/ui/codegen/mir/loop-unroll/narrow_counter.mir (before loop-unroll) ===
++ // === ROOT/tests/ui/codegen/mir/loop-unroll/narrow_counter.mir (after loop-unroll) ===
+  @module NarrowCounter
+  fn @narrow(arg0: i160) -> i256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: i160 0], [bb2: v4]
+      v1 = phi [bb0: 0], [bb2: v3]
+      v2 = lt v0, arg0
+      jumpi v2, bb2, bb3
+    bb3:
+      ret v1
+    bb2:
+      v3 = add v1, 5
+      v4 = add v0, i160 1
+      jump bb1
+  }
+  

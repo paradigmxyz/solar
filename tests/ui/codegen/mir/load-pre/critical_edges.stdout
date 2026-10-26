@@ -78,3 +78,38 @@
       ret v1
   }
   
+  fn @split_then_call(arg0: i1, arg1: i1) -> i256 {
+    bb0:
+-     jumpi arg0, bb1, bb2
++     jumpi arg0, bb1, bb6
++   bb6:
++     v6 = sload 0
++     jump bb2
+    bb1:
+      v0 = sload 0
+      jump bb2
+    bb2:
+-     v1 = sload 0
++     v7 = phi [bb1: v0], [bb6: v6]
+      jumpi arg1, bb3, bb4
+    bb4:
+      v3 = sload 1
+      jump bb5
+    bb3:
+      v2 = sload 1
+      icall @storage_free
+      jump bb5
+    bb5:
+-     v4 = sload 1
+-     v5 = add v1, v4
+-     ret v4
++     v8 = phi [bb3: v2], [bb4: v3]
++     v5 = add v7, v8
++     ret v8
+  }
+  
+  fn @storage_free() {
+    bb0:
+      ret
+  }
+  

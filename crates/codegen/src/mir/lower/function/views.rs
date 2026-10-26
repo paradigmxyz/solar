@@ -96,7 +96,6 @@ use crate::mir::{
         Access, AddressSpace, AliasAnalysis, AliasResult, CfgInfo, LocalSummaryCache, Location,
         LocationSize, MemoryAddress, MemoryBase, MemoryCallSummaries, MemoryLocation,
     },
-    memory::MemoryLayoutPolicy,
 };
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -220,7 +219,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if data_ty.is_ref_at(DataLocation::Calldata) {
                     let value = self.lower_expr(data_expr)?;
                     if self.builder.func().value_slice_location(value)
-                        != Some(SliceLocation::Calldata)
+                        != Some(PtrLocation::Calldata)
                     {
                         return self.cx.report_unsupported(data_expr.span, "view decode data");
                     }
@@ -235,8 +234,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         };
         let location = match self.builder.func().value_slice_location(data) {
-            Some(SliceLocation::Calldata) => SliceLocation::Calldata,
-            _ => SliceLocation::Memory,
+            Some(PtrLocation::Calldata) => PtrLocation::Calldata,
+            _ => PtrLocation::Memory,
         };
         let layout = self.abi_decode_layout(&decoded, call.span)?;
         let fields = decoded
@@ -391,7 +390,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let AbiType::Tuple(abi_fields) = self.types.abi_type(ty)? else {
                     return self.cx.report_unsupported(span, "view copy");
                 };
-                let (object, layout) = self
+                let object = self
                     .builder
                     .alloc_word_struct(fields.len() as u64, AllocationSemantics::INTERNAL);
                 let mut offset = 0;
@@ -404,7 +403,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let head = self.builder.imm(offset);
                     let value = self.view_item(view, head, field_ty, span)?;
                     let value = self.materialize_view_value(field_ty, value, span)?;
-                    self.builder.memory_object_store_field(object, layout, index as u64, value);
+                    self.builder.memory_store_field(object, index as u64, value);
                     offset += abi.head_size();
                 }
                 Some(object)
@@ -462,7 +461,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let head = this.builder.mul(index, size);
             let value = this.view_item(view, head, element, span)?;
             let value = this.materialize_view_value(element, value, span)?;
-            this.builder.memory_object_store_element(object, layout, index, value);
+            this.builder.memory_store_element(object, layout, index, value);
             Some(())
         })
     }
@@ -525,7 +524,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .or_else(|| self.cx.report_unsupported(expr.span, "view member"))?;
                 let view = self.lower_view_expr(receiver)?;
                 if self.builder.func().value_slice_location(view).is_none() {
-                    return self.object_view_field(expr, receiver, view, field);
+                    return self.object_view_field(expr, view, field);
                 }
                 let AbiType::Tuple(fields) =
                     self.types.abi_type(self.cx.gcx.type_of_expr(receiver.id)?)?
@@ -570,10 +569,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // bounds_check(index, object.length)
         // value = load_element(object, index)
         self.builder.bounds_check(index, length);
-        let value = self.builder.memory_object_load_element(object, layout, index);
         if self.types.memory_layout(element).is_some() {
-            return self.materialize_array_element(object, layout, index, element, value);
+            return Some(self.builder.memory_load_element_as(
+                object,
+                layout,
+                index,
+                MirType::MEMPTR,
+            ));
         }
+        let value = self.builder.memory_load_element(object, layout, index);
         Some(self.normalize_memory_scalar(element, value))
     }
 
@@ -583,28 +587,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn object_view_field(
         &mut self,
         expr: &hir::Expr<'_>,
-        receiver: &hir::Expr<'_>,
         object: ValueId,
         field: usize,
     ) -> Option<ValueId> {
-        let receiver_ty = self
-            .cx
-            .gcx
-            .type_of_expr(receiver.id)?
-            .with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-        let layout = self.types.memory_layout(receiver_ty)?;
         let field_ty =
             self.cx.gcx.type_of_expr(expr.id)?.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
         // value = load_field(object, field)
-        if types::TypeLowerer::mir_type(field_ty) == MirType::MemPtr {
-            return Some(self.builder.memory_object_load_field_as(
-                object,
-                layout,
-                field as u64,
-                MirType::MemPtr,
-            ));
+        if types::TypeLowerer::mir_type(field_ty) == MirType::MEMPTR {
+            return Some(self.builder.memory_load_field_as(object, field as u64, MirType::MEMPTR));
         }
-        let value = self.builder.memory_object_load_field(object, layout, field as u64);
+        let value = self.builder.memory_load_field(object, field as u64);
         Some(self.normalize_memory_scalar(field_ty, value))
     }
 
@@ -630,7 +622,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         span: Span,
     ) -> Option<ValueId> {
-        let Some(location @ (SliceLocation::Memory | SliceLocation::Calldata)) =
+        let Some(location @ (PtrLocation::Memory | PtrLocation::Calldata)) =
             self.builder.func().value_slice_location(view)
         else {
             return self.cx.report_unsupported(span, "view item");
@@ -672,15 +664,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// Loads the word at byte `offset` of `view`, which lies in `location`.
-    fn load_view_word(
-        &mut self,
-        view: ValueId,
-        location: SliceLocation,
-        offset: ValueId,
-    ) -> ValueId {
+    fn load_view_word(&mut self, view: ValueId, location: PtrLocation, offset: ValueId) -> ValueId {
         match location {
-            SliceLocation::Calldata => self.builder.calldata_slice_load_word(view, offset),
-            _ => self.builder.memory_slice_load_word(view, offset),
+            PtrLocation::Calldata => self.builder.slice_load_word(view, offset),
+            _ => self.builder.slice_load_word(view, offset),
         }
     }
 
@@ -692,7 +679,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Fn(function) if function.is_external() => {
                 // function = word >> 64
                 let shift = self.builder.imm(64);
-                self.builder.shr(shift, word)
+                self.builder.shr(word, shift)
             }
             // value = cast word to the type's representation
             _ => self.builder.cast(word, types::TypeLowerer::mir_type(ty)),
@@ -705,7 +692,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// no borrow. A memory parameter is its own root, which the views decoded from it borrow.
     pub(super) fn bind_view_parameter(&mut self, id: VariableId, value: ValueId) {
         self.views.insert(id, value);
-        let memory = self.builder.func().value_slice_location(value) == Some(SliceLocation::Memory);
+        let memory = self.builder.func().value_slice_location(value) == Some(PtrLocation::Memory);
         self.view_roots.insert(value, memory.then_some(value));
         if memory {
             self.push_view_borrow(id, value, value);
@@ -739,10 +726,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return value;
         }
         // slice = make_memory_slice(object.data, object.len)
-        let data = self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
+        let data = self.builder.memory_data(value);
         let data = self.builder.cast(data, MirType::I256);
-        let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
-        self.builder.make_slice(data, length, SliceLocation::Memory)
+        let length = self.builder.memory_len(value);
+        self.builder.make_slice(data, length, PtrLocation::Memory)
     }
 
     /// The function a call reaches that passes `values` to the function `id`, lowered as
@@ -764,8 +751,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 let ty = self.cx.gcx.type_of_item(parameters[index].into());
                 match self.builder.func().value_slice_location(value) {
-                    Some(SliceLocation::Calldata) => ViewPass::Calldata,
-                    Some(SliceLocation::Memory) if !is_bytes_view(ty) => ViewPass::Memory,
+                    Some(PtrLocation::Calldata) => ViewPass::Calldata,
+                    Some(PtrLocation::Memory) if !is_bytes_view(ty) => ViewPass::Memory,
                     _ => ViewPass::Own,
                 }
             })
@@ -868,9 +855,9 @@ pub(in crate::mir::lower) fn parameter_type(
         return carrier;
     }
     match passes.get(index).copied().unwrap_or_default() {
-        ViewPass::Calldata => MirType::Slice(SliceLocation::Calldata),
-        ViewPass::Memory => MirType::Slice(SliceLocation::Memory),
-        ViewPass::Own if is_bytes_view(ty) => MirType::Slice(SliceLocation::Memory),
+        ViewPass::Calldata => MirType::Slice(PtrLocation::Calldata),
+        ViewPass::Memory => MirType::Slice(PtrLocation::Memory),
+        ViewPass::Own if is_bytes_view(ty) => MirType::Slice(PtrLocation::Memory),
         ViewPass::Own => carrier,
     }
 }
@@ -999,10 +986,12 @@ impl EntryWrites {
             };
             match location.address.base {
                 MemoryBase::Absolute => writes.other |= !below_heap(location),
-                // Frames and fresh allocations belong to this call.
+                // Frames and fresh allocations belong to this call, and past the free memory
+                // pointer lies only memory allocated after it.
                 MemoryBase::InternalFrame
                 | MemoryBase::Allocation(_)
-                | MemoryBase::DynamicAllocation(_) => {}
+                | MemoryBase::DynamicAllocation(_)
+                | MemoryBase::FreeMemory(_) => {}
                 MemoryBase::Value(value) => match *func.value(value) {
                     Value::Arg(index) => {
                         if !writes.params.contains(&index) {
@@ -1064,8 +1053,9 @@ fn write_targets(
                 };
                 // The callee may write anywhere in the object it is passed, and perhaps past its
                 // end: for a fresh allocation, into the memory allocated after it.
-                if let MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) =
-                    address.base
+                if let MemoryBase::Allocation(site)
+                | MemoryBase::DynamicAllocation(site)
+                | MemoryBase::FreeMemory(site) = address.base
                     && let Some(result) = func.inst_result_value(site)
                 {
                     address.base = MemoryBase::Value(result);
@@ -1082,24 +1072,21 @@ fn write_targets(
         | InstKind::StorageBytesLoad(..)
         | InstKind::StorageArrayLoad { .. }
         | InstKind::ICall {
-            function:
-                Callee::Builtin(crate::mir::Builtin::Concat(_) | crate::mir::Builtin::ReturndataBytes),
-            ..
+            function: Callee::Builtin(crate::mir::Builtin::ReturndataBytes), ..
         } => {}
         kind => {
-            // Lowering emits a semantic object store only inside the object's allocation, after
-            // any bounds check it needs; a raw store may run past the object it starts in.
-            let contained = matches!(
-                kind,
-                InstKind::Alloc { .. }
-                    | InstKind::SetMemoryObjectLen(..)
-                    | InstKind::MemoryObjectStoreField { .. }
-                    | InstKind::MemoryObjectStoreElement { .. }
-                    | InstKind::MemoryObjectStoreByte { .. }
-                    | InstKind::MemoryObjectStoreWord { .. }
-                    | InstKind::MemoryObjectCopyFromSlice { .. }
-                    | InstKind::MemoryObjectCopyFromSliceAt { .. }
-            );
+            // Lowering emits a store through a pointer only inside the object's allocation, after
+            // any bounds check it needs; a store at a raw word may run past the object it
+            // starts in.
+            let contained = match kind {
+                InstKind::Alloc { .. } => true,
+                InstKind::Store(address, ..)
+                | InstKind::Store8(address, _)
+                | InstKind::Copy(address, ..) => {
+                    func.value_ty(*address).is_some_and(MirType::is_pointer)
+                }
+                _ => false,
+            };
             for &access in aa.instruction_mod_ref(func, inst).writes() {
                 match access {
                     Access::Any(AddressSpace::Memory) => targets.push(Target::Anything),
@@ -1197,9 +1184,7 @@ impl FunctionFacts {
                 let source = self.function.resolve(borrow.source);
                 let Some(start) =
                     self.function.aa.memory_address(func, source).and_then(|address| {
-                        address.checked_add(EvmMemoryLayout::object_data_offset(
-                            MemoryObjectKind::Bytes,
-                        ))
+                        address.checked_add(EvmMemoryLayout::DYNAMIC_HEADER_SIZE)
                     })
                 else {
                     return;
@@ -1307,7 +1292,14 @@ impl FunctionFacts {
                     User::Inst(inst) => {
                         let kind = &func.inst(inst).kind;
                         if kind.effect_kind() == EffectKind::Pure
-                            && !matches!(kind, InstKind::SliceLen(_))
+                            && !matches!(
+                                kind,
+                                InstKind::ExtractValue {
+                                    ty: MirType::Slice(_),
+                                    index: MirType::SLICE_LEN_FIELD,
+                                    ..
+                                }
+                            )
                         {
                             if let Some(result) = func.inst_result_value(inst)
                                 && derived.insert(result)
@@ -1359,12 +1351,19 @@ impl FunctionFacts {
             MemoryBase::Value(value) => match self.function.fresh_start(value) {
                 // Past a fresh allocation or the free memory pointer lies only memory allocated
                 // after it.
-                Some(site) => match origin {
-                    Origin::Entry => false,
-                    Origin::Site(_) | Origin::Unknown => !self.strictly_dominates(def, site),
-                },
+                Some(site) => self.after_site(origin, def, site),
                 None => true,
             },
+            MemoryBase::FreeMemory(site) => self.after_site(origin, def, site),
+        }
+    }
+
+    /// Whether a write past the free memory pointer or fresh allocation `site` may change a
+    /// payload from `origin` borrowed at `def`.
+    fn after_site(&self, origin: Origin, def: Option<InstId>, site: InstId) -> bool {
+        match origin {
+            Origin::Entry => false,
+            Origin::Site(_) | Origin::Unknown => !self.strictly_dominates(def, site),
         }
     }
 

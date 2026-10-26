@@ -45,8 +45,8 @@ contract Test {
     // The count is lowered in place: a lead's top six bits select a nibble of
     // one constant table of lengths, so nothing is written to memory.
     // CHECK-LABEL: fn @count{{[( ]}}
-    // CHECK-NOT: icall
-    // CHECK: shr 250,
+    // CHECK-NOT: icall @runeCount
+    // CHECK: shr {{[^ ,]+}}, 250
     function count(bytes memory s) public pure returns (uint256) {
         return Strings.runeCount(string(s));
     }

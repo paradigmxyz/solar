@@ -377,7 +377,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     }
 
     /// Rejects unbalanced Unicode directional embeddings and overrides (U+202A..=U+202E) in a
-    /// comment or unicode string literal, like solc, to defend against "Trojan Source" attacks.
+    /// comment or unicode string literal to defend against "Trojan Source" attacks.
     ///
     /// Unlike solc, doc comments are checked too. The isolates (U+2066..=U+2069) are not checked,
     /// matching solc.

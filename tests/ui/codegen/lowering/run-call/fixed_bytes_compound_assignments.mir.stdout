@@ -24,10 +24,10 @@ fn @bitwise(arg0: i256) -> struct0 [selector=0xbe8f3303, pure, abi_params=[bytes
 fn @shifts(arg0: i256) -> struct1 [selector=0x96fca76a, pure, abi_params=[bytes1], abi_returns=[word<bytes1>, word<bytes1>], abi_return_params=[bytes1, bytes1]] {
   bb0:
     v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = shl 1, v0
+    v1 = shl v0, 1
     v2 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
     v3 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v4 = shr 1, v3
+    v4 = shr v3, 1
     v5 = and v4, 0xff00000000000000000000000000000000000000000000000000000000000000
     v6 = insert_value struct1, undef struct1, 0, v2
     v7 = insert_value struct1, v6, 1, v5
@@ -46,8 +46,8 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
   bb0:
     v0 = not 31
     v1 = and 98, v0
-    v2 = alloc memorybytes, exact, zeroed, panic, v1
-    set_memory_object_len memorybytes, v2, 35
+    v2 = alloc zeroed checked v1
+    mstore v2, 35
     icall @store_storage_bytes, 0, v2
     v3 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v3
@@ -55,7 +55,7 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     v5 = eq v4, 1
     v6 = sub 0, v4
     v7 = or 127, v6
-    v8 = shr 1, v3
+    v8 = shr v3, 1
     v9 = and v8, v7
     v10 = lt 31, v9
     v11 = eq v10, false
@@ -65,7 +65,7 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     jump bb3
   bb1:
     v12 = storage_array_data_slot 0
-    v13 = shr 5, 31
+    v13 = shr 31, 5
     v14 = add v12, v13
     jump bb3
   bb3:
@@ -73,13 +73,13 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     v16 = and 31, 31
     v17 = sub 31, v16
     v18 = mul v17, 8
-    v19 = shl v18, 255
+    v19 = shl 255, v18
     v20 = sload v15 !metadata(storage=symbolic(v15))
     v21 = not v19
     v22 = and v20, v21
-    v23 = shr 248, 0x100000000000000000000000000000000000000000000000000000000000000
+    v23 = shr 0x100000000000000000000000000000000000000000000000000000000000000, 248
     v24 = and v23, 255
-    v25 = shl v18, v24
+    v25 = shl v24, v18
     v26 = or v22, v25
     sstore v15, v26 !metadata(storage=symbolic(v15))
     v27 = sload 0 !metadata(storage=slot(0))
@@ -88,7 +88,7 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     v29 = eq v28, 1
     v30 = sub 0, v28
     v31 = or 127, v30
-    v32 = shr 1, v27
+    v32 = shr v27, 1
     v33 = and v32, v31
     v34 = lt 31, v33
     v35 = eq v34, false
@@ -98,7 +98,7 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     jump bb6
   bb4:
     v36 = storage_array_data_slot 0
-    v37 = shr 5, 31
+    v37 = shr 31, 5
     v38 = add v36, v37
     jump bb6
   bb6:
@@ -107,18 +107,18 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     v41 = sub 31, v40
     v42 = sload v39 !metadata(storage=symbolic(v39))
     v43 = mul v41, 8
-    v44 = shr v43, v42
-    v45 = shl 248, v44
+    v44 = shr v42, v43
+    v45 = shl v44, 248
     v46 = or v45, 0x800000000000000000000000000000000000000000000000000000000000000
     v47 = and v46, 0xff00000000000000000000000000000000000000000000000000000000000000
     v48 = mul v41, 8
-    v49 = shl v48, 255
+    v49 = shl 255, v48
     v50 = sload v39 !metadata(storage=symbolic(v39))
     v51 = not v49
     v52 = and v50, v51
-    v53 = shr 248, v47
+    v53 = shr v47, 248
     v54 = and v53, 255
-    v55 = shl v48, v54
+    v55 = shl v54, v48
     v56 = or v52, v55
     sstore v39, v56 !metadata(storage=symbolic(v39))
     v57 = sload 0 !metadata(storage=slot(0))
@@ -127,7 +127,7 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     v59 = eq v58, 1
     v60 = sub 0, v58
     v61 = or 127, v60
-    v62 = shr 1, v57
+    v62 = shr v57, 1
     v63 = and v62, v61
     v64 = lt 31, v63
     v65 = eq v64, false
@@ -137,7 +137,7 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     jump bb9
   bb7:
     v66 = storage_array_data_slot 0
-    v67 = shr 5, 31
+    v67 = shr 31, 5
     v68 = add v66, v67
     jump bb9
   bb9:
@@ -146,12 +146,12 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     v71 = sub 31, v70
     v72 = sload v69 !metadata(storage=symbolic(v69))
     v73 = mul v71, 8
-    v74 = shr v73, v72
-    v75 = shl 248, v74
+    v74 = shr v72, v73
+    v75 = shl v74, 248
     ret v75
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

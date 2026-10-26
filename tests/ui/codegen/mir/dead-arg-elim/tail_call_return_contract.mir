@@ -43,3 +43,34 @@ fn @entry() [selector=0x01020304] {
     v1 = icall fn2
     ret
 }
+
+// `@cold` never returns, since it calls an aborting helper first, but it still
+// reaches a `ret`, so the same contract holds for tail calls to it.
+fn @abort() {
+  bb0:
+    revert 0, 0
+}
+
+fn @cold() -> i256 {
+  bb0:
+    icall @abort
+    ret 7
+}
+
+// CHECK-LABEL: fn @forward_cold()
+// CHECK: tail_call @cold
+fn @forward_cold() -> i256 {
+  bb0:
+    tail_call @cold
+}
+
+// CHECK-LABEL: fn @entry_cold()
+// CHECK: v0 = icall @forward_cold
+// CHECK: v1 = icall @cold
+fn @entry_cold() [selector=0x05060708] {
+  bb0:
+    v0 = icall @forward_cold
+    v1 = icall @cold
+    mstore 0, v1
+    ret
+}

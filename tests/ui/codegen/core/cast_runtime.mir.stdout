@@ -4,43 +4,43 @@
 
 // === ROOT/tests/ui/codegen/core/cast_runtime.sol:Test ===
 @module Test
-fn @u8(arg0: i256) -> i8 [selector=0x9cac9f98, pure, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @u8(arg0: i256) -> i8 [selector=0x9cac9f98, pure, abi_params=[uint256], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = icall @toUint8, arg0
     ret v0
 }
 
-fn @u40(arg0: i256) -> i40 [selector=0x3a605894, pure, abi_params=[u256], abi_returns=[word<u40>], abi_return_params=[u40]] {
+fn @u40(arg0: i256) -> i40 [selector=0x3a605894, pure, abi_params=[uint256], abi_returns=[word<uint40>], abi_return_params=[uint40]] {
   bb0:
     v0 = icall @toUint40, arg0
     ret v0
 }
 
-fn @u248(arg0: i256) -> i248 [selector=0x6f8e19bc, pure, abi_params=[u256], abi_returns=[word<u248>], abi_return_params=[u248]] {
+fn @u248(arg0: i256) -> i248 [selector=0x6f8e19bc, pure, abi_params=[uint256], abi_returns=[word<uint248>], abi_return_params=[uint248]] {
   bb0:
     v0 = icall @toUint248, arg0
     ret v0
 }
 
-fn @i8(arg0: i256) -> i8 [selector=0x600de753, pure, abi_params=[i256], abi_returns=[word<i8>], abi_return_params=[i8]] {
+fn @i8(arg0: i256) -> i8 [selector=0x600de753, pure, abi_params=[int256], abi_returns=[word<int8>], abi_return_params=[int8]] {
   bb0:
     v0 = icall @toInt8, arg0
     ret v0
 }
 
-fn @i128(arg0: i256) -> i128 [selector=0x5c565493, pure, abi_params=[i256], abi_returns=[word<i128>], abi_return_params=[i128]] {
+fn @i128(arg0: i256) -> i128 [selector=0x5c565493, pure, abi_params=[int256], abi_returns=[word<int128>], abi_return_params=[int128]] {
   bb0:
     v0 = icall @toInt128, arg0
     ret v0
 }
 
-fn @signed(arg0: i256) -> i256 [selector=0x735957f8, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
+fn @signed(arg0: i256) -> i256 [selector=0x735957f8, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = icall @toInt256, arg0
     ret v0
 }
 
-fn @unsigned(arg0: i256) -> i256 [selector=0xf6786747, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[u256]] {
+fn @unsigned(arg0: i256) -> i256 [selector=0xf6786747, pure, abi_params=[int256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @toUint256, arg0
     ret v0
@@ -164,6 +164,6 @@ fn @toUint256(arg0: i256) -> i256 [pure] {
 
 fn @_overflow() [pure] {
   bb0:
-    v0 = checked_add u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    v0 = checked_add uint256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
     ret
 }

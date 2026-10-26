@@ -26,7 +26,7 @@ fn @builtin() -> i256 [selector=0x44d2c8a8, inline_assembly, pure, abi_params=[]
     ret v0
 }
 
-fn @loop() -> i256 [selector=0xa92100cb, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @loop() -> i256 [selector=0xa92100cb, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ne 0, 0
     jumpi v0, bb1, bb2

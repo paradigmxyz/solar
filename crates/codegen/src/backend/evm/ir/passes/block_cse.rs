@@ -27,6 +27,7 @@ use crate::backend::evm::{
     op,
 };
 use smallvec::SmallVec;
+use solar_config::EvmVersion;
 use solar_data_structures::map::{FxHashMap, FxHasher};
 use solar_sema::Gcx;
 use std::hash::{Hash, Hasher};
@@ -40,9 +41,8 @@ impl EvmPass for BlockCse {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let mut changed = false;
-        let stack_access_limit = gcx.sess.opts.evm_version.reachable_stack_depth();
         for block in &mut module.blocks {
-            changed |= regenerate_block(&mut block.instructions, stack_access_limit);
+            changed |= regenerate_block(&mut block.instructions, gcx.sess.opts.evm_version);
         }
         changed
     }
@@ -72,9 +72,10 @@ struct FingerprintValue {
     address: Option<u64>,
 }
 
-fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usize) -> bool {
+fn regenerate_block(instructions: &mut Vec<Instruction>, evm_version: EvmVersion) -> bool {
+    let stack_access_limit = evm_version.reachable_stack_depth();
     let track_memory = has_repeated_const_memory_addr(instructions);
-    if !may_regenerate(instructions, stack_access_limit, track_memory) {
+    if !may_regenerate(instructions, evm_version, track_memory) {
         return false;
     }
 
@@ -110,7 +111,7 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
             {
                 const_exprs.insert(expr, address);
             }
-            if inst.is_duplicable_push()
+            if inst.is_duplicable_push(evm_version)
                 && let Some(depth) = stack.iter().rev().position(|value| value.expr == expr)
                 && depth < stack_access_limit
             {
@@ -325,13 +326,14 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
 /// store or load that the rebuild could forward. Until then, the rebuild sees the same state.
 fn may_regenerate(
     instructions: &[Instruction],
-    stack_access_limit: usize,
+    evm_version: EvmVersion,
     track_memory: bool,
 ) -> bool {
-    if !track_memory && !has_repeated_candidate_opcode(instructions) {
+    if !track_memory && !has_repeated_candidate_opcode(instructions, evm_version) {
         return false;
     }
 
+    let stack_access_limit = evm_version.reachable_stack_depth();
     let mut stack = Vec::<FingerprintValue>::new();
     let mut next_fresh = 0usize;
     let mut memory_epoch = 0u64;
@@ -349,7 +351,7 @@ fn may_regenerate(
                 continue;
             };
             let expr = push_fingerprint(inst.opcode, inst.encoding, value);
-            if inst.is_duplicable_push()
+            if inst.is_duplicable_push(evm_version)
                 && stack.iter().rev().take(stack_access_limit).any(|existing| existing.expr == expr)
             {
                 return true;
@@ -473,12 +475,12 @@ fn may_regenerate(
 /// Returns whether two instructions could possibly intern to the same expression. Equal
 /// expressions necessarily have the same opcode, so this allocation-free screen rejects most
 /// already-optimized blocks before symbolic execution.
-fn has_repeated_candidate_opcode(instructions: &[Instruction]) -> bool {
+fn has_repeated_candidate_opcode(instructions: &[Instruction], evm_version: EvmVersion) -> bool {
     // An inline 256-bit set over the opcode domain, keeping the screen allocation-free.
     let mut seen = [0u64; 4];
     for inst in instructions {
         let candidate = if inst.is_encoded_push() {
-            inst.is_duplicable_push()
+            inst.is_duplicable_push(evm_version)
         } else {
             expression_inputs(inst.opcode, 0, 0).is_some()
         };

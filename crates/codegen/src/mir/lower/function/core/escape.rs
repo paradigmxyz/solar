@@ -81,7 +81,7 @@ impl FunctionLowerer<'_, '_> {
         });
         let quotable = quotes.is_some();
         let name = if quotable { sym::core_string_escape_json_quotable } else { escape.helper() };
-        let bytes = MirType::MemPtr;
+        let bytes = MirType::MEMPTR;
         let helper = self.lazy_helper(name, |this, function| {
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
             let subject = lowerer.builder.add_param(bytes);
@@ -105,9 +105,8 @@ impl FunctionLowerer<'_, '_> {
         quotes: Option<ValueId>,
         escape: Escape,
     ) -> ValueId {
-        let kind = MemoryObjectKind::Bytes;
-        let length = self.builder.memory_object_len(subject, kind);
-        let source = self.builder.memory_object_data(subject, kind);
+        let length = self.builder.memory_len(subject);
+        let source = self.builder.memory_data(subject);
         let end = self.builder.add(source, length);
         let base = self.builder.fmp();
         let header = self.builder.imm(32);
@@ -122,7 +121,7 @@ impl FunctionLowerer<'_, '_> {
         });
         let start = match quoted {
             Some(quoted) => {
-                self.builder.mstore8(destination, quote);
+                self.builder.store8(destination, quote);
                 self.builder.add(destination, quoted)
             }
             None => destination,
@@ -154,12 +153,12 @@ impl FunctionLowerer<'_, '_> {
             // A word without a byte to escape is copied with one store.
             // mstore(o, w); p = next; o += 32
             self.builder.switch_to_block(load);
-            let text = self.builder.mload(cursor);
+            let text = self.builder.load(cursor, PtrLocation::Memory);
             let marked = self.escape_marks(escape, text);
             let clean = self.builder.eq_zero(marked);
             self.builder.branch(clean, plain, word_bytes);
             self.builder.switch_to_block(plain);
-            self.builder.mstore(output, text);
+            self.builder.store(output, text);
             let plain_output = self.builder.add(output, header);
             self.builder.jump(words);
             self.builder.add_phi_incoming(cursor, plain, next);
@@ -186,26 +185,22 @@ impl FunctionLowerer<'_, '_> {
         self.builder.switch_to_block(finish);
         let finished = match quoted {
             Some(quoted) => {
-                self.builder.mstore8(output, quote);
+                self.builder.store8(output, quote);
                 self.builder.add(output, quoted)
             }
             None => output,
         };
         let output_length = self.builder.sub(finished, destination);
         let zero = self.builder.imm(0);
-        self.builder.mstore(finished, zero);
+        self.builder.store(finished, zero);
         // The output was written up to `finished`, so its padded size cannot wrap.
         let size = self.builder.padded_size(output_length);
-        let out = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::INTERNAL,
-        );
+        let out = self.builder.alloc(size, AllocationSemantics::INTERNAL);
         let Value::Inst(allocation) = *self.builder.func().value(out) else {
             unreachable!("allocation result must reference its instruction")
         };
         self.builder.func_mut().inst_mut(allocation).metadata.set_preserves_fmp(true);
-        self.builder.set_memory_object_len(out, output_length, kind);
+        self.builder.set_memory_len(out, output_length);
         out
     }
 
@@ -223,7 +218,7 @@ impl FunctionLowerer<'_, '_> {
                 ] {
                     let address = self.builder.imm(address);
                     let word = self.builder.imm(word);
-                    self.builder.mstore(address, word);
+                    self.builder.store(address, word);
                 }
             }
             // "\u0000" at 0x19, the digits "0123456789abcdef" at 0x1f and the
@@ -231,13 +226,13 @@ impl FunctionLowerer<'_, '_> {
             Escape::Json => {
                 let address = self.builder.imm(0x15);
                 let word = self.builder.imm(U256::from_be_slice(b"\\u00000123456789abcdefbtn\0fr"));
-                self.builder.mstore(address, word);
+                self.builder.store(address, word);
             }
             // "0123456789ABCDEF" at 0x1f.
             Escape::Uri => {
                 let address = self.builder.imm(0x0f);
                 let word = self.builder.imm(U256::from_be_slice(b"0123456789ABCDEF"));
-                self.builder.mstore(address, word);
+                self.builder.store(address, word);
             }
         }
     }
@@ -316,10 +311,10 @@ impl FunctionLowerer<'_, '_> {
         let cursor = self.builder.phi(vec![(entry, start)]);
         let written = self.builder.phi(vec![(entry, output)]);
         let zero = self.builder.imm(0);
-        let text = self.builder.mload(cursor);
+        let text = self.builder.load(cursor, PtrLocation::Memory);
         let byte = self.builder.byte(zero, text);
         let special = self.builder.imm(escape.special());
-        let selected = self.builder.shr(byte, special);
+        let selected = self.builder.shr(special, byte);
         let one = self.builder.imm(1);
         let selected = self.builder.and(selected, one);
         let replaced = self.builder.ne(selected, zero);
@@ -327,7 +322,7 @@ impl FunctionLowerer<'_, '_> {
 
         // mstore8(o, c); o += 1
         self.builder.switch_to_block(copy);
-        self.builder.mstore8(written, byte);
+        self.builder.store8(written, byte);
         let copied = self.builder.add(written, one);
         self.builder.jump(join);
 
@@ -360,14 +355,14 @@ impl FunctionLowerer<'_, '_> {
         match escape {
             // t = byte(0, mload(c)); mstore(o, mload(t & 31)); o += t >> 5
             Escape::Html => {
-                let packed = self.builder.mload(byte);
+                let packed = self.builder.load(byte, PtrLocation::Memory);
                 let packed = self.builder.byte(zero, packed);
                 let thirty_one = self.builder.imm(31);
                 let offset = self.builder.and(packed, thirty_one);
-                let entity = self.builder.mload(offset);
-                self.builder.mstore(output, entity);
+                let entity = self.builder.load(offset, PtrLocation::Memory);
+                self.builder.store(output, entity);
                 let five = self.builder.imm(5);
-                let stride = self.builder.shr(five, packed);
+                let stride = self.builder.shr(packed, five);
                 let after = self.builder.add(output, stride);
                 let block = self.builder.current_block();
                 self.builder.jump(join);
@@ -387,28 +382,28 @@ impl FunctionLowerer<'_, '_> {
 
                 // mstore8(o, '\'); mstore8(o + 1, c); o += 2
                 self.builder.switch_to_block(quoted);
-                self.builder.mstore8(output, backslash);
+                self.builder.store8(output, backslash);
                 let second = self.builder.add(output, one);
-                self.builder.mstore8(second, byte);
+                self.builder.store8(second, byte);
                 let after_quoted = self.builder.add(output, two);
                 self.builder.jump(join);
 
                 // `\b`, `\t`, `\n`, `\f` and `\r` have short forms.
                 self.builder.switch_to_block(control);
                 let short_forms = self.builder.imm(0x3700);
-                let has_short = self.builder.shr(byte, short_forms);
+                let has_short = self.builder.shr(short_forms, byte);
                 let has_short = self.builder.and(has_short, one);
                 let has_short = self.builder.ne(has_short, zero);
                 self.builder.branch(has_short, short, long);
 
                 // mstore8(o, '\'); mstore8(o + 1, mload(c + 8)); o += 2
                 self.builder.switch_to_block(short);
-                self.builder.mstore8(output, backslash);
+                self.builder.store8(output, backslash);
                 let eight = self.builder.imm(8);
                 let letter = self.builder.add(byte, eight);
-                let letter = self.builder.mload(letter);
+                let letter = self.builder.load(letter, PtrLocation::Memory);
                 let second = self.builder.add(output, one);
-                self.builder.mstore8(second, letter);
+                self.builder.store8(second, letter);
                 let after_short = self.builder.add(output, two);
                 self.builder.jump(join);
 
@@ -416,18 +411,18 @@ impl FunctionLowerer<'_, '_> {
                 // mstore(o, mload(0x19)); o += 6
                 self.builder.switch_to_block(long);
                 let four = self.builder.imm(4);
-                let high = self.builder.shr(four, byte);
-                let high = self.builder.mload(high);
+                let high = self.builder.shr(byte, four);
+                let high = self.builder.load(high, PtrLocation::Memory);
                 let high_at = self.builder.imm(0x1d);
-                self.builder.mstore8(high_at, high);
+                self.builder.store8(high_at, high);
                 let fifteen = self.builder.imm(15);
                 let low = self.builder.and(byte, fifteen);
-                let low = self.builder.mload(low);
+                let low = self.builder.load(low, PtrLocation::Memory);
                 let low_at = self.builder.imm(0x1e);
-                self.builder.mstore8(low_at, low);
+                self.builder.store8(low_at, low);
                 let template = self.builder.imm(0x19);
-                let template = self.builder.mload(template);
-                self.builder.mstore(output, template);
+                let template = self.builder.load(template, PtrLocation::Memory);
+                self.builder.store(output, template);
                 let six = self.builder.imm(6);
                 let after_long = self.builder.add(output, six);
                 self.builder.jump(join);
@@ -437,19 +432,19 @@ impl FunctionLowerer<'_, '_> {
             // mstore8(o, '%'); mstore8(o + 1, mload(c >> 4)); mstore8(o + 2, mload(c & 15)); o += 3
             Escape::Uri => {
                 let percent = self.builder.imm(0x25);
-                self.builder.mstore8(output, percent);
+                self.builder.store8(output, percent);
                 let four = self.builder.imm(4);
-                let high = self.builder.shr(four, byte);
-                let high = self.builder.mload(high);
+                let high = self.builder.shr(byte, four);
+                let high = self.builder.load(high, PtrLocation::Memory);
                 let one = self.builder.imm(1);
                 let second = self.builder.add(output, one);
-                self.builder.mstore8(second, high);
+                self.builder.store8(second, high);
                 let fifteen = self.builder.imm(15);
                 let low = self.builder.and(byte, fifteen);
-                let low = self.builder.mload(low);
+                let low = self.builder.load(low, PtrLocation::Memory);
                 let two = self.builder.imm(2);
                 let third = self.builder.add(output, two);
-                self.builder.mstore8(third, low);
+                self.builder.store8(third, low);
                 let three = self.builder.imm(3);
                 let after = self.builder.add(output, three);
                 let block = self.builder.current_block();

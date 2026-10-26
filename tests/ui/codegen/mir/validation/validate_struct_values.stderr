@@ -1,4 +1,4 @@
-error: [fn0] [bb0, inst0] aggregate operand does not match its declared struct type
+error: [fn0] [bb0, inst0] aggregate operand does not match its declared type
 
 error: [fn1] [bb0, inst0] inserted value must have type `i1`
 
@@ -32,9 +32,9 @@ error: [fn16] [bb0, inst0] `zext` has incompatible scalar types; use an explicit
 
 error: [fn17] [bb0, inst0] `ptrtoint` has incompatible scalar types; use an explicit cast
 
-error: [fn18] [bb0, inst0] `memory_object_load_element` has incompatible scalar types; use an explicit cast
+error: [fn18] [bb0, inst0] `ptradd` has incompatible scalar types; use an explicit cast
 
-error: [fn19] [bb0, inst0] `memory_object_store_word` has incompatible scalar types; use an explicit cast
+error: [fn19] [bb0, inst0] `mstore` has incompatible scalar types; use an explicit cast
 
 error: [fn20] [bb0, inst0] `set_fmp` has incompatible scalar types; use an explicit cast
 
@@ -42,17 +42,19 @@ error: [fn21] [bb0, inst0] `icall` has incompatible scalar types; use an explici
 
 error: [fn22] [bb0, inst0] `abi_encode` has incompatible scalar types; use an explicit cast
 
-error: [fn23] [bb0] raw return and revert operands must have type `i256`; use an explicit cast
+error: [fn23] [bb0] raw return and revert operands must be a memory address and an `i256` size
 
-error: [fn26] [bb0, inst0] `memory_object_data` has incompatible scalar types; use an explicit cast
+error: [fn24] [bb0, inst0] ABI input location does not support its layout
 
-error: [fn27] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
+error: [fn25] [bb0, inst0] `mload` has incompatible scalar types; use an explicit cast
 
-error: [fn28] [bb0, inst0] `eq` has incompatible scalar types; use an explicit cast
+error: [fn26] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
 
-error: [fn29] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
+error: [fn27] [bb0, inst0] `eq` has incompatible scalar types; use an explicit cast
 
-error: [fn30] [bb0, inst0] ABI input location does not support its layout
+error: [fn28] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
 
-error: aborting due to 28 previous errors
+error: [fn31] [bb0, inst0] ABI input location does not support its layout
+
+error: aborting due to 29 previous errors
 

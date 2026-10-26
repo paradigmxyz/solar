@@ -7,11 +7,8 @@
 //! - `Assembler`: Final relocation and byte encoding
 //! - `codegen::stackify`: MIR-to-EVM stack scheduling for DUP/SWAP generation
 
-use crate::target::Target;
-use alloy_primitives::U256;
-use solar_config::{EvmVersion, OptimizationMode};
-
 mod codegen;
+use codegen::PlanCache;
 pub(crate) use codegen::select;
 pub use codegen::{EvmArtifact, EvmCodegen};
 
@@ -31,23 +28,10 @@ mod layout;
 
 pub mod op;
 
-/// Returns the encoded size and runtime gas of one program-data copy site.
-pub(crate) fn data_copy_cost(evm_version: EvmVersion, size: usize) -> (usize, usize) {
-    (op::push_len(evm_version, U256::from(size)) + 6, data_copy_gas(evm_version, size))
-}
-
-/// Returns the runtime gas of one program-data copy site.
-pub(crate) fn data_copy_gas(evm_version: EvmVersion, size: usize) -> usize {
-    Target::with(evm_version, OptimizationMode::Gas, Target::DEFAULT_EXPECTED_EXECUTIONS)
-        .data_copy_gas(size) as usize
-}
-
-/// Returns whether a program-data copy improves the selected objective.
-pub(crate) fn data_copy_is_profitable(
-    optimization: OptimizationMode,
-    runtime_gas_saving: i128,
-    byte_saving: i128,
-) -> bool {
-    Target::with(EvmVersion::default(), optimization, Target::DEFAULT_EXPECTED_EXECUTIONS)
-        .improves(runtime_gas_saving, byte_saving)
+/// What code generation keeps for a whole compilation, on its [`Gcx`](solar_sema::Gcx): the
+/// results of its searches and its plans, which every contract may read and fill.
+#[derive(Default)]
+pub(crate) struct CodegenState {
+    schedules: ir::SharedSchedules,
+    plans: PlanCache,
 }

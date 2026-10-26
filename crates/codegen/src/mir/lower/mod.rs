@@ -9,11 +9,11 @@ mod function;
 mod storage;
 mod types;
 
+pub(crate) use data::{DataDest, copy_data_to_memory};
+
 use solar_sema::{Gcx, hir::ContractId};
 
 use crate::mir::Module;
-
-pub(crate) use data::data_copy_cost;
 
 /// Lowers a contract from HIR to MIR.
 ///

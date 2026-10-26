@@ -13,7 +13,7 @@ pub(crate) use alias::{
 };
 
 mod memory_summary;
-pub(crate) use memory_summary::{LocalSummaryCache, MemoryCallSummaries, may_observe_msize};
+pub(crate) use memory_summary::{LocalSummaryCache, MemoryCallSummaries, returning_blocks};
 
 mod memory_restoration;
 
@@ -24,7 +24,7 @@ mod gas;
 pub(crate) use gas::GasObservations;
 
 mod call_graph;
-pub(crate) use call_graph::CallGraphInfo;
+pub(crate) use call_graph::{CallGraphInfo, direct_callees};
 
 mod cold;
 pub(crate) use cold::{aborts, cold_functions};
@@ -39,7 +39,7 @@ mod scalar_evolution;
 pub(crate) use scalar_evolution::{AffineExpr, AffineTerm, ScalarEvolution};
 
 mod validator;
-pub(crate) use validator::{validate, validate_phase};
+pub(crate) use validator::{validate, validate_legal_shifts, validate_phase};
 
 mod absolute_addresses;
 pub(crate) use absolute_addresses::{AddressInput, absolute_address_inputs};

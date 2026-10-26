@@ -76,14 +76,14 @@ impl FunctionLowerer<'_, '_> {
                     let value = lowerer.builder.add_param(MirType::I256);
                     let byte_count = lowerer.builder.add_param(MirType::I256);
                     let prefix_length = lowerer.builder.add_param(MirType::I256);
-                    let bytes = MirType::MemPtr;
+                    let bytes = MirType::MEMPTR;
                     lowerer.builder.set_return_type(bytes);
                     let out =
                         lowerer.lower_core_fixed_hex_compact(value, byte_count, prefix_length);
                     lowerer.builder.ret([out]);
                     Some(())
                 })?;
-                let bytes = MirType::MemPtr;
+                let bytes = MirType::MEMPTR;
                 Some(self.builder.icall(helper, vec![value, byte_count, prefix_length], bytes))
             }
             _ => None,
@@ -104,7 +104,7 @@ impl FunctionLowerer<'_, '_> {
             let value = lowerer.builder.add_param(MirType::I256);
             let prefix_length = lowerer.builder.add_param(MirType::I256);
             let minimal = lowerer.builder.add_param(MirType::I256);
-            let bytes = MirType::MemPtr;
+            let bytes = MirType::MEMPTR;
             lowerer.builder.set_return_type(bytes);
             let out = lowerer.lower_core_string_minimal_hex(
                 value,
@@ -114,7 +114,7 @@ impl FunctionLowerer<'_, '_> {
             lowerer.builder.ret([out]);
             Some(())
         })?;
-        let bytes = MirType::MemPtr;
+        let bytes = MirType::MEMPTR;
         Some(self.builder.icall(helper, vec![value, prefix_length, minimal], bytes))
     }
 
@@ -132,7 +132,7 @@ impl FunctionLowerer<'_, '_> {
         }
         let helper = self.lazy_helper(sym::core_hex_encode, |this, function| {
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-            let bytes = MirType::MemPtr;
+            let bytes = MirType::MEMPTR;
             let data = lowerer.builder.add_param(bytes);
             let prefix_length = lowerer.builder.add_param(MirType::I256);
             lowerer.builder.set_return_type(bytes);
@@ -141,7 +141,7 @@ impl FunctionLowerer<'_, '_> {
             Some(())
         })?;
         let prefix_length = self.builder.imm(if prefixed { 2 } else { 0 });
-        let bytes = MirType::MemPtr;
+        let bytes = MirType::MEMPTR;
         Some(self.builder.icall(helper, vec![data, prefix_length], bytes))
     }
 
@@ -164,11 +164,11 @@ impl FunctionLowerer<'_, '_> {
         // out = alloc(header + align32(digits + prefix + 32))
         // out.length = digits + prefix
         let top = self.builder.imm(255);
-        let high = self.builder.shr(top, count);
+        let high = self.builder.shr(count, top);
         let overflow = self.builder.ne_zero(high);
         self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
         let one = self.builder.imm(1);
-        let digits = self.builder.shl(one, count);
+        let digits = self.builder.shl(count, one);
         let length = if checked_prefix {
             let length = self.builder.add(digits, prefix);
             let overflow = self.builder.lt(length, digits);
@@ -185,13 +185,9 @@ impl FunctionLowerer<'_, '_> {
         let size = self.builder.add(length, slack);
         let mask = self.builder.imm(U256::MAX << 5);
         let size = self.builder.and(size, mask);
-        let out = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::SOLIDITY_UNINITIALIZED,
-        );
-        self.builder.set_memory_object_len(out, length, MemoryObjectKind::Bytes);
-        let data = self.builder.memory_object_data(out, MemoryObjectKind::Bytes);
+        let out = self.builder.alloc(size, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        self.builder.set_memory_len(out, length);
+        let data = self.builder.memory_data(out);
         let start = self.builder.add(data, prefix);
         (out, length, start, digits)
     }
@@ -200,13 +196,13 @@ impl FunctionLowerer<'_, '_> {
     /// word's low 30 bytes one word later.
     fn store_core_hex_prefix(&mut self, out: ValueId, length: ValueId) {
         // mstore(out + 2, length << 16 | "0x")
-        let base = self.builder.cast(out, MirType::MemPtr);
+        let base = self.builder.cast(out, MirType::MEMPTR);
         let address = self.builder.add_u64_offset(base, 2);
         let sixteen = self.builder.imm(16);
-        let shifted = self.builder.shl(sixteen, length);
+        let shifted = self.builder.shl(length, sixteen);
         let prefix = self.builder.imm(0x3078);
         let word = self.builder.or(shifted, prefix);
-        self.builder.mstore(address, word);
+        self.builder.store(address, word);
     }
 
     /// Writes `0x` into the first two data bytes of `out` and clears the rest
@@ -214,9 +210,9 @@ impl FunctionLowerer<'_, '_> {
     /// with its digits and the zeroed word after them.
     fn store_core_hex_prefix_first(&mut self, out: ValueId) {
         // mstore(data(out), "0x")
-        let data = self.builder.memory_object_data(out, MemoryObjectKind::Bytes);
+        let data = self.builder.memory_data(out);
         let prefix = self.builder.imm(U256::from(0x3078) << 240);
-        self.builder.mstore(data, prefix);
+        self.builder.store(data, prefix);
     }
 
     /// The low `byteCount` bytes of `value`, two digits each.
@@ -269,8 +265,8 @@ impl FunctionLowerer<'_, '_> {
     fn revert_if_core_hex_width_short(&mut self, value: ValueId, byte_count: ValueId) {
         // revert HexLengthInsufficient() if value >> 8 * byteCount != 0
         let three = self.builder.imm(3);
-        let bits = self.builder.shl(three, byte_count);
-        let lost = self.builder.shr(bits, value);
+        let bits = self.builder.shl(byte_count, three);
+        let lost = self.builder.shr(value, bits);
         let insufficient = self.builder.ne_zero(lost);
         revert_with_selector(&mut self.builder, insufficient, HEX_LENGTH_INSUFFICIENT);
     }
@@ -289,29 +285,25 @@ impl FunctionLowerer<'_, '_> {
         // text = chars << 256 - 8 * digits, then "0x" << 240 | text >> 16 when prefixed
         // out = alloc(64); out.length = digits + prefix; out[0..32] = text
         let one = self.builder.imm(1);
-        let digits = self.builder.shl(one, byte_count);
+        let digits = self.builder.shl(byte_count, one);
         let three = self.builder.imm(3);
-        let digit_bits = self.builder.shl(three, digits);
+        let digit_bits = self.builder.shl(digits, three);
         let word_bits = self.builder.imm(256);
         let unused_bits = self.builder.sub(word_bits, digit_bits);
-        let mut text = self.builder.shl(unused_bits, chars);
+        let mut text = self.builder.shl(chars, unused_bits);
         if prefixed {
             let sixteen = self.builder.imm(16);
-            let shifted = self.builder.shr(sixteen, text);
+            let shifted = self.builder.shr(text, sixteen);
             let prefix = self.builder.imm(U256::from(0x3078) << 240);
             text = self.builder.or(shifted, prefix);
         }
         let size = self.builder.imm(64);
-        let out = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::INTERNAL,
-        );
+        let out = self.builder.alloc(size, AllocationSemantics::INTERNAL);
         let prefix = self.builder.imm(if prefixed { 2 } else { 0 });
         let length = self.builder.add(digits, prefix);
-        self.builder.set_memory_object_len(out, length, MemoryObjectKind::Bytes);
+        self.builder.set_memory_len(out, length);
         let zero = self.builder.imm(0);
-        self.builder.memory_object_store_word(out, zero, text);
+        self.builder.memory_store_word(out, zero, text);
         out
     }
 
@@ -330,8 +322,8 @@ impl FunctionLowerer<'_, '_> {
         // is below 2**63 here, so the shift amount cannot wrap.
         // revert HexLengthInsufficient() if value >> 8 * byteCount != 0
         let three = self.builder.imm(3);
-        let bits = self.builder.shl(three, byte_count);
-        let lost = self.builder.shr(bits, value);
+        let bits = self.builder.shl(byte_count, three);
+        let lost = self.builder.shr(value, bits);
         let insufficient = self.builder.ne_zero(lost);
         revert_with_selector(&mut self.builder, insufficient, HEX_LENGTH_INSUFFICIENT);
 
@@ -346,10 +338,10 @@ impl FunctionLowerer<'_, '_> {
         self.builder.switch_to_block(one_word);
         let word = hex_word(&mut self.builder, value);
         let word_bits = self.builder.imm(256);
-        let digit_bits = self.builder.shl(three, digits);
+        let digit_bits = self.builder.shl(digits, three);
         let shift = self.builder.sub(word_bits, digit_bits);
-        let word = self.builder.shl(shift, word);
-        self.builder.mstore(start, word);
+        let word = self.builder.shl(word, shift);
+        self.builder.store(start, word);
         self.builder.jump(done);
 
         // lead = max(digits - 64, 0) '0' digits, then the high and low halves
@@ -366,31 +358,31 @@ impl FunctionLowerer<'_, '_> {
         let thirty_one = self.builder.imm(31);
         let lead_words = self.builder.add(lead, thirty_one);
         let five = self.builder.imm(5);
-        let lead_words = self.builder.shr(five, lead_words);
+        let lead_words = self.builder.shr(lead_words, five);
         let zeros = self.builder.imm(ASCII_ZEROS);
         self.builder.counted_loop(lead_words, |builder, index| {
             let five = builder.imm(5);
-            let offset = builder.shl(five, index);
+            let offset = builder.shl(index, five);
             let address = builder.add(start, offset);
-            builder.mstore(address, zeros);
+            builder.store(address, zeros);
         });
         let high_start = self.builder.add(start, lead);
         let one_twenty_eight = self.builder.imm(128);
-        let high = self.builder.shr(one_twenty_eight, value);
+        let high = self.builder.shr(value, one_twenty_eight);
         let high = hex_word(&mut self.builder, high);
         let short_of = self.builder.sub(sixty_four, digits);
         let high_bytes = self.builder.select(wide, zero, short_of);
-        let high_shift = self.builder.shl(three, high_bytes);
-        let high = self.builder.shl(high_shift, high);
-        self.builder.mstore(high_start, high);
+        let high_shift = self.builder.shl(high_bytes, three);
+        let high = self.builder.shl(high, high_shift);
+        self.builder.store(high_start, high);
         let low_mask = self.builder.imm(U256::MAX >> 128);
         let low = self.builder.and(value, low_mask);
         let low = hex_word(&mut self.builder, low);
         let end = self.builder.add(start, digits);
         let thirty_two = self.builder.imm(32);
         let low_start = self.builder.sub(end, thirty_two);
-        self.builder.mstore(low_start, low);
-        self.builder.mstore(end, zero);
+        self.builder.store(low_start, low);
+        self.builder.store(end, zero);
         self.builder.jump(done);
 
         self.builder.switch_to_block(done);
@@ -412,8 +404,8 @@ impl FunctionLowerer<'_, '_> {
         let (out, _, start, digits) = self.alloc_core_hex_output(byte_count, prefix_length, false);
         // revert HexLengthInsufficient() if value >> 8 * byteCount != 0
         let three = self.builder.imm(3);
-        let bits = self.builder.shl(three, byte_count);
-        let lost = self.builder.shr(bits, value);
+        let bits = self.builder.shl(byte_count, three);
+        let lost = self.builder.shr(value, bits);
         let insufficient = self.builder.ne_zero(lost);
         revert_with_selector(&mut self.builder, insufficient, HEX_LENGTH_INSUFFICIENT);
         // for i in 0..byteCount: spell (value >> 8i) & 0xff before end - 2i
@@ -422,16 +414,16 @@ impl FunctionLowerer<'_, '_> {
         store_core_hex_digit_table(&mut self.builder);
         self.builder.counted_loop(byte_count, |builder, index| {
             let three = builder.imm(3);
-            let bits = builder.shl(three, index);
-            let byte = builder.shr(bits, value);
+            let bits = builder.shl(index, three);
+            let byte = builder.shr(value, bits);
             let one = builder.imm(1);
-            let offset = builder.shl(one, index);
+            let offset = builder.shl(index, one);
             let after = builder.sub(end, offset);
             spell_core_hex_byte(builder, byte, after);
         });
         // mstore(end, 0)
         let zero = self.builder.imm(0);
-        self.builder.mstore(end, zero);
+        self.builder.store(end, zero);
         out
     }
 
@@ -439,19 +431,19 @@ impl FunctionLowerer<'_, '_> {
     /// through the scratch digit table: the smallest shape, for builds that do
     /// not optimize for gas.
     fn lower_core_hex_encode_compact(&mut self, data: ValueId, prefix_length: ValueId) -> ValueId {
-        let n = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
+        let n = self.builder.memory_len(data);
         let (out, _, start, digits) = self.alloc_core_hex_output(n, prefix_length, true);
         // for i in 0..n: spell byte(0, mload(data + i)) at start + 2i
-        let source = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
+        let source = self.builder.memory_data(data);
         self.store_core_hex_prefix_first(out);
         store_core_hex_digit_table(&mut self.builder);
         self.builder.counted_loop(n, |builder, index| {
             let address = builder.add(source, index);
-            let word = builder.mload(address);
+            let word = builder.load(address, PtrLocation::Memory);
             let zero = builder.imm(0);
             let byte = builder.byte(zero, word);
             let one = builder.imm(1);
-            let offset = builder.shl(one, index);
+            let offset = builder.shl(index, one);
             let at = builder.add(start, offset);
             let two = builder.imm(2);
             let after = builder.add(at, two);
@@ -460,7 +452,7 @@ impl FunctionLowerer<'_, '_> {
         // mstore(start + digits, 0)
         let end = self.builder.add(start, digits);
         let zero = self.builder.imm(0);
-        self.builder.mstore(end, zero);
+        self.builder.store(end, zero);
         out
     }
 
@@ -468,7 +460,7 @@ impl FunctionLowerer<'_, '_> {
     /// through a four-lane spread, up to sixteen bytes in one word without a
     /// loop, and longer inputs sixteen bytes per word.
     fn lower_core_hex_encode(&mut self, data: ValueId, prefixed: bool) -> ValueId {
-        let n = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
+        let n = self.builder.memory_len(data);
         let empty = self.builder.create_block();
         let nonempty = self.builder.create_block();
         let tiny = self.builder.create_block();
@@ -482,17 +474,13 @@ impl FunctionLowerer<'_, '_> {
         // out = alloc(header + prefix word); out.length = prefix; out[0..2] = prefix
         self.builder.switch_to_block(empty);
         let size = self.builder.imm(if prefixed { 64 } else { 32 });
-        let empty_out = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::INTERNAL,
-        );
+        let empty_out = self.builder.alloc(size, AllocationSemantics::INTERNAL);
         let length = self.builder.imm(if prefixed { 2 } else { 0 });
-        self.builder.set_memory_object_len(empty_out, length, MemoryObjectKind::Bytes);
+        self.builder.set_memory_len(empty_out, length);
         if prefixed {
             let prefix = self.builder.imm(U256::from(0x3078) << 240);
             let zero = self.builder.imm(0);
-            self.builder.memory_object_store_word(empty_out, zero, prefix);
+            self.builder.memory_store_word(empty_out, zero, prefix);
         }
         self.builder.jump(done);
 
@@ -536,39 +524,35 @@ impl FunctionLowerer<'_, '_> {
         // out = alloc(64)
         // out.length = 2n + prefix
         let size = self.builder.imm(64);
-        let out = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::INTERNAL,
-        );
+        let out = self.builder.alloc(size, AllocationSemantics::INTERNAL);
         let one = self.builder.imm(1);
-        let digits = self.builder.shl(one, n);
+        let digits = self.builder.shl(n, one);
         let prefix = self.builder.imm(if prefixed { 2 } else { 0 });
         let length = self.builder.add(digits, prefix);
-        self.builder.set_memory_object_len(out, length, MemoryObjectKind::Bytes);
+        self.builder.set_memory_len(out, length);
 
         // x = (mload(data + n) & (2**(8n) - 1)) << 8 * (2 - n)
-        let source = self.builder.cast(data, MirType::MemPtr);
+        let source = self.builder.cast(data, MirType::MEMPTR);
         let end = self.builder.add(source, n);
-        let word = self.builder.mload(end);
+        let word = self.builder.load(end, PtrLocation::Memory);
         let three = self.builder.imm(3);
-        let bits = self.builder.shl(three, n);
+        let bits = self.builder.shl(n, three);
         let all = self.builder.imm(U256::MAX);
-        let high = self.builder.shl(bits, all);
+        let high = self.builder.shl(all, bits);
         let keep = self.builder.not(high);
         let word = self.builder.and(word, keep);
         let two = self.builder.imm(2);
         let missing = self.builder.sub(two, n);
-        let missing_bits = self.builder.shl(three, missing);
-        let x = self.builder.shl(missing_bits, word);
+        let missing_bits = self.builder.shl(missing, three);
+        let x = self.builder.shl(word, missing_bits);
 
         let chars = hex_lane(&mut self.builder, x);
 
         // word = (prefix ? "0x" << 240 : 0) | chars << (224 - 8 prefix), first 2n digits kept
         let shift = self.builder.imm(if prefixed { 208 } else { 224 });
-        let chars = self.builder.shl(shift, chars);
-        let length_bits = self.builder.shl(three, length);
-        let dropped = self.builder.shr(length_bits, all);
+        let chars = self.builder.shl(chars, shift);
+        let length_bits = self.builder.shl(length, three);
+        let dropped = self.builder.shr(all, length_bits);
         let kept = self.builder.not(dropped);
         let mut word = self.builder.and(chars, kept);
         if prefixed {
@@ -576,7 +560,7 @@ impl FunctionLowerer<'_, '_> {
             word = self.builder.or(word, prefix);
         }
         let zero = self.builder.imm(0);
-        self.builder.memory_object_store_word(out, zero, word);
+        self.builder.memory_store_word(out, zero, word);
         out
     }
 
@@ -591,38 +575,34 @@ impl FunctionLowerer<'_, '_> {
         // out = alloc(96)
         // out.length = 2n + prefix
         let size = self.builder.imm(96);
-        let out = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::INTERNAL,
-        );
+        let out = self.builder.alloc(size, AllocationSemantics::INTERNAL);
         let one = self.builder.imm(1);
-        let digits = self.builder.shl(one, n);
+        let digits = self.builder.shl(n, one);
         let prefix = self.builder.imm(if prefixed { 2 } else { 0 });
         let length = self.builder.add(digits, prefix);
-        self.builder.set_memory_object_len(out, length, MemoryObjectKind::Bytes);
-        let destination = self.builder.memory_object_data(out, MemoryObjectKind::Bytes);
+        self.builder.set_memory_len(out, length);
+        let destination = self.builder.memory_data(out);
         let start = self.builder.add(destination, prefix);
 
         // x = (mload(data + n) & (2**(8n) - 1)) << 8 * (16 - n)
         // word = hex_word(x) & ~(MAX >> 16n)
-        let source = self.builder.cast(data, MirType::MemPtr);
+        let source = self.builder.cast(data, MirType::MEMPTR);
         let end = self.builder.add(source, n);
-        let word = self.builder.mload(end);
+        let word = self.builder.load(end, PtrLocation::Memory);
         let three = self.builder.imm(3);
-        let bits = self.builder.shl(three, n);
+        let bits = self.builder.shl(n, three);
         let all = self.builder.imm(U256::MAX);
-        let high = self.builder.shl(bits, all);
+        let high = self.builder.shl(all, bits);
         let keep = self.builder.not(high);
         let word = self.builder.and(word, keep);
         let sixteen = self.builder.imm(16);
         let missing = self.builder.sub(sixteen, n);
-        let missing_bits = self.builder.shl(three, missing);
-        let word = self.builder.shl(missing_bits, word);
+        let missing_bits = self.builder.shl(missing, three);
+        let word = self.builder.shl(word, missing_bits);
         let word = hex_word(&mut self.builder, word);
         let four = self.builder.imm(4);
-        let digit_bits = self.builder.shl(four, n);
-        let dropped = self.builder.shr(digit_bits, all);
+        let digit_bits = self.builder.shl(n, four);
+        let dropped = self.builder.shr(all, digit_bits);
         let kept = self.builder.not(dropped);
         let word = self.builder.and(word, kept);
 
@@ -633,9 +613,9 @@ impl FunctionLowerer<'_, '_> {
         if prefixed {
             let second = self.builder.add_u64_offset(destination, 32);
             let zero = self.builder.imm(0);
-            self.builder.mstore(second, zero);
+            self.builder.store(second, zero);
         }
-        self.builder.mstore(start, word);
+        self.builder.store(start, word);
         if prefixed {
             self.store_core_hex_prefix(out, length);
         }
@@ -647,7 +627,7 @@ impl FunctionLowerer<'_, '_> {
         // The prefixed body allocates `n * 2 + 2` bytes at once.
         let prefix = self.builder.imm(if prefixed { 2 } else { 0 });
         let (out, length, start, digits) = self.alloc_core_hex_output(n, prefix, true);
-        let source = self.builder.cast(data, MirType::MemPtr);
+        let source = self.builder.cast(data, MirType::MEMPTR);
         let sixteen = self.builder.imm(16);
         let thirty_two = self.builder.imm(32);
         let low_mask = self.builder.imm(U256::MAX >> 128);
@@ -672,10 +652,10 @@ impl FunctionLowerer<'_, '_> {
         self.builder.branch(finished, after, body);
 
         self.builder.switch_to_block(body);
-        let word = self.builder.mload(cursor);
+        let word = self.builder.load(cursor, PtrLocation::Memory);
         let word = self.builder.and(word, low_mask);
         let word = hex_word(&mut self.builder, word);
-        self.builder.mstore(output, word);
+        self.builder.store(output, word);
         let next_cursor = self.builder.add(cursor, sixteen);
         let next_output = self.builder.add(output, thirty_two);
         self.builder.jump(header);
@@ -695,18 +675,18 @@ impl FunctionLowerer<'_, '_> {
 
         self.builder.switch_to_block(partial);
         let end = self.builder.add(source, n);
-        let word = self.builder.mload(end);
+        let word = self.builder.load(end, PtrLocation::Memory);
         let three = self.builder.imm(3);
-        let rest_bits = self.builder.shl(three, rest);
+        let rest_bits = self.builder.shl(rest, three);
         let all = self.builder.imm(U256::MAX);
-        let high = self.builder.shl(rest_bits, all);
+        let high = self.builder.shl(all, rest_bits);
         let keep = self.builder.not(high);
         let word = self.builder.and(word, keep);
         let missing = self.builder.sub(sixteen, rest);
-        let missing_bits = self.builder.shl(three, missing);
-        let word = self.builder.shl(missing_bits, word);
+        let missing_bits = self.builder.shl(missing, three);
+        let word = self.builder.shl(word, missing_bits);
         let word = hex_word(&mut self.builder, word);
-        self.builder.mstore(output, word);
+        self.builder.store(output, word);
         self.builder.jump(finish);
 
         // Clear the partial chunk's artificial digits and the ABI padding.
@@ -714,7 +694,7 @@ impl FunctionLowerer<'_, '_> {
         self.builder.switch_to_block(finish);
         let end = self.builder.add(start, digits);
         let zero = self.builder.imm(0);
-        self.builder.mstore(end, zero);
+        self.builder.store(end, zero);
         if prefixed {
             self.store_core_hex_prefix(out, length);
         }
@@ -730,7 +710,7 @@ pub(super) fn hex_lane(builder: &mut FunctionBuilder<'_>, x: ValueId) -> ValueId
     let mut x = x;
     for (shift, mask) in [(8u64, 0x00ff_00ff_u64), (4, 0x0f0f_0f0f)] {
         let shift = builder.imm(shift);
-        let shifted = builder.shl(shift, x);
+        let shifted = builder.shl(x, shift);
         let combined = builder.or(x, shifted);
         let mask = builder.imm(mask);
         x = builder.and(combined, mask);
@@ -738,7 +718,7 @@ pub(super) fn hex_lane(builder: &mut FunctionBuilder<'_>, x: ValueId) -> ValueId
     let six = builder.imm(0x0606_0606_u64);
     let marked = builder.add(x, six);
     let four = builder.imm(4);
-    let marked = builder.shr(four, marked);
+    let marked = builder.shr(marked, four);
     let spread = builder.imm(0x0101_0101_u64);
     let letters = builder.and(marked, spread);
     let ascii = builder.imm(0x3030_3030_u64);
@@ -762,7 +742,7 @@ pub(super) fn hex_word(builder: &mut FunctionBuilder<'_>, x: ValueId) -> ValueId
         (4, "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f"),
     ] {
         let shift = builder.imm(shift);
-        let shifted = builder.shl(shift, x);
+        let shifted = builder.shl(x, shift);
         let combined = builder.or(x, shifted);
         let mask = builder.imm(U256::from_str_radix(mask, 16).unwrap());
         x = builder.and(combined, mask);
@@ -775,7 +755,7 @@ pub(super) fn hex_word(builder: &mut FunctionBuilder<'_>, x: ValueId) -> ValueId
     let six = builder.imm(ones * U256::from(6));
     let marked = builder.add(x, six);
     let four = builder.imm(4);
-    let marked = builder.shr(four, marked);
+    let marked = builder.shr(marked, four);
     let spread = builder.imm(ones);
     let letters = builder.and(marked, spread);
     let ascii = builder.imm(ones * U256::from(b'0'));
@@ -791,7 +771,7 @@ fn store_core_hex_digit_table(builder: &mut FunctionBuilder<'_>) {
     // mstore(15, "0123456789abcdef")
     let address = builder.imm(15);
     let table = builder.imm(U256::from_be_slice(b"0123456789abcdef"));
-    builder.mstore(address, table);
+    builder.store(address, table);
 }
 
 /// Writes the two digits of the low byte of `x` just before `after`.
@@ -800,17 +780,17 @@ fn spell_core_hex_byte(builder: &mut FunctionBuilder<'_>, x: ValueId, after: Val
     // mstore8(after - 2, mload((x >> 4) & 15))
     let fifteen = builder.imm(15);
     let low = builder.and(x, fifteen);
-    let low = builder.mload(low);
+    let low = builder.load(low, PtrLocation::Memory);
     let one = builder.imm(1);
     let last = builder.sub(after, one);
-    builder.mstore8(last, low);
+    builder.store8(last, low);
     let four = builder.imm(4);
-    let high = builder.shr(four, x);
+    let high = builder.shr(x, four);
     let high = builder.and(high, fifteen);
-    let high = builder.mload(high);
+    let high = builder.load(high, PtrLocation::Memory);
     let two = builder.imm(2);
     let first = builder.sub(after, two);
-    builder.mstore8(first, high);
+    builder.store8(first, high);
 }
 
 /// Reverts with the four-byte custom error `selector` when `condition` holds.
@@ -821,7 +801,7 @@ fn revert_with_selector(builder: &mut FunctionBuilder<'_>, condition: ValueId, s
     builder.switch_to_block(fail);
     let selector = builder.imm(selector);
     let zero = builder.imm(0);
-    builder.mstore(zero, selector);
+    builder.store(zero, selector);
     let offset = builder.imm(28);
     let length = builder.imm(4);
     builder.revert(offset, length);

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/call_result_repeated_args.sol:CallResultRepeatedArgs ===
 @module CallResultRepeatedArgs
-fn @run() -> i256 [selector=0xc0406226, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @run() -> i256 [selector=0xc0406226, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @store, 1, 2
     icall @store, 3, 4

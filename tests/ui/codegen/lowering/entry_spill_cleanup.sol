@@ -9,18 +9,29 @@
 
 // The shared helper keeps its free-memory pointer, result, and loop end on the
 // stack across its loop: the loop test copies the end and the cursor without a load.
+// The test, which returns once the loop ends, runs at the end of the helper's entry
+// and of the loop body.
 // Reduced from Solady v0.1.26 LibString.toHexStringNoPrefix (MIT).
 //
 // CHECK: [[RETURN:bb[0-9]+]] [continuation]:
 // CHECK-NEXT: push {{bb[0-9]+}}
 // CHECK-NEXT: jump [[HELPER:bb[0-9]+]]
-// CHECK-NEXT: [[HELPER]]:
-// CHECK: jump [[HEADER:bb[0-9]+]]
-// CHECK: [[HEADER]] [loop]:
+// CHECK-NEXT: [[HELPER]]{{( \[loop\])?}}:
+// CHECK: swap 4
 // CHECK-NEXT: dup 5
-// CHECK-NEXT: dup 3
+// CHECK-NEXT: dup 2
 // CHECK-NEXT: sub
-// CHECK-NEXT: push {{bb[0-9]+}}
+// CHECK-NEXT: push [[BODY:bb[0-9]+]]
+// CHECK-NEXT: jumpi
+// CHECK: [[BODY]] [loop]:
+// CHECK: push 2
+// CHECK-NEXT: add
+// CHECK-NEXT: swap 4
+// CHECK-NEXT: mstore8
+// CHECK-NEXT: dup 5
+// CHECK-NEXT: dup 2
+// CHECK-NEXT: sub
+// CHECK-NEXT: push [[BODY]]
 // CHECK-NEXT: jumpi
 contract EntrySpillCleanup {
     function prefixed(bytes memory raw) external pure returns (string memory result) {

@@ -3,7 +3,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/qualified_storage_access.sol:QualifiedStorage ===
 @module QualifiedStorage
-fn @signers(arg0: i160) -> memptr [selector=0x736c0d5b, abi_params=[address], abi_returns=[memory_array<word<u160>>], abi_return_params=[array<_, address>]] {
+fn @signers(arg0: i160) -> ptr<memory> [selector=0x736c0d5b, abi_params=[address], abi_returns=[memory_array<word<uint160>>], abi_return_params=[array<_, address>]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
@@ -15,13 +15,13 @@ fn @signers(arg0: i160) -> memptr [selector=0x736c0d5b, abi_params=[address], ab
     v6 = mod v0, 1
     v7 = mul v6, 20
     v8 = mul v7, 8
-    v9 = shl v8, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = shl 0xffffffffffffffffffffffffffffffffffffffff, v8
     v10 = sload v5 !metadata(storage=symbolic(v5))
     v11 = not v9
     v12 = and v10, v11
     v13 = zext i160 arg0 to i256
     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
-    v15 = shl v8, v14
+    v15 = shl v14, v8
     v16 = or v12, v15
     sstore v5, v16 !metadata(storage=symbolic(v5))
     sstore 1, v2 !metadata(storage=slot(1))
@@ -29,9 +29,9 @@ fn @signers(arg0: i160) -> memptr [selector=0x736c0d5b, abi_params=[address], ab
     ret v17
 }
 
-fn @load_storage_packed_array_20_0(arg0: i256) -> memptr {
+fn @load_storage_packed_array_20_0(arg0: i256) -> ptr<memory> {
   bb0:
-    v0 = load_storage_array u160, arg0
+    v0 = load_storage_array uint160, arg0
     ret v0
 }
 

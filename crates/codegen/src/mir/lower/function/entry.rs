@@ -74,10 +74,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let source_ty = self.cx.gcx.type_of_expr(initializer.id)?;
             let value = self.lower_typed_expr(initializer, ty)?;
             if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
-                // value = cast to the immutable value type
-                let ty = self.cx.module.immutable_type(immutable_id).mir_type();
-                let value = self.builder.cast(value, ty);
-                self.builder.store_immutable(immutable_id, value);
+                self.store_immutable_value(id, immutable_id, value);
             } else {
                 self.store_state_variable(id, value, source_ty, initializer.span)?;
             }
@@ -150,10 +147,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     // A storage-reference argument passes the referenced slot,
                     // like a storage parameter of an internal call.
                     if Self::is_storage_parameter(parameter_ty) {
-                        let Some(access) = this.storage_access(argument) else {
-                            return this.cx.report_unsupported(argument.span, "storage access");
-                        };
-                        return Some(access.slot);
+                        return Some(this.require_storage_access(argument)?.slot);
                     }
                     this.lower_typed_expr(argument, parameter_ty)
                 },

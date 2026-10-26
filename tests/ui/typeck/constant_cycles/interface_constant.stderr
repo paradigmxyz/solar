@@ -1,0 +1,14 @@
+error[8274]: variables cannot be declared in interfaces
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/interface_constant.sol:LL:CC
+   │
+LL │     uint constant X = X;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━
+
+error[6161]: the value of the constant `X` has a cyclic dependency via `X`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/interface_constant.sol:LL:CC
+   │
+LL │     uint constant X = X;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

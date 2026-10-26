@@ -5,7 +5,7 @@
 // trip count, so range reasoning must not prove the mload disjoint.
 @module LicmWrapAddDescending
 // CHECK-LABEL: {{^[ +].*}}fn @wrap_add_descending{{[( ]}}
-// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +](.*[^a-z_])?}}mstore
 // CHECK: {{^[ +].*}}mload 0
 fn @wrap_add_descending() -> i256 {
   bb0:

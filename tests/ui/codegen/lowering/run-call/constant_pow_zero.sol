@@ -29,13 +29,13 @@ contract ConstantPowZero {
     }
 
     // CHECK-LABEL: fn @at(
-    // CHECK-SAME: abi_params=[array<2, u256>, u256]
+    // CHECK-SAME: abi_params=[array<2, uint256>, uint256]
     function at(uint256[(0 ** 0) + 1] calldata input, uint256 index) external pure returns (uint256) {
         return input[index];
     }
 
     // CHECK-LABEL: fn @memoryLayout(
-    // CHECK: alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    // CHECK: alloc 64
     function memoryLayout() external pure returns (uint256, uint256, uint256) {
         uint256[(0 ** 0) + 1] memory input;
         input[0] = 11;

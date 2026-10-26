@@ -91,8 +91,18 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     fn parse_yul_lit(&mut self) -> PResult<'sess, Lit<'ast>> {
-        let (lit, subdenomination) = self.parse_lit(false)?;
+        let (mut lit, subdenomination) = self.parse_lit(false)?;
         assert!(subdenomination.is_none());
+        // Yul numbers are integers; see PARSE-005.
+        if let LitKind::Rational(..) = lit.kind {
+            let guar = self
+                .dcx()
+                .err("invalid number literal")
+                .code(error_code!(4828))
+                .span(lit.span)
+                .emit();
+            lit.kind = LitKind::Err(guar);
+        }
         Ok(lit)
     }
 

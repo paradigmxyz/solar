@@ -35,11 +35,11 @@
 +     ret 42
   }
   
-  fn @pointer_constant() -> memptr {
+  fn @pointer_constant() -> ptr<memory> {
     bb0:
--     v0 = inttoptr i256 7 to memptr
+-     v0 = inttoptr i256 7 to ptr<memory>
 -     ret v0
-+     ret memptr 7
++     ret ptr<memory> 7
   }
   
   fn @low_bit_constant() -> i1 {
@@ -88,9 +88,9 @@
       ret 42
   }
   
-  fn @pointer_constant() -> memptr {
+  fn @pointer_constant() -> ptr<memory> {
     bb0:
-      ret memptr 7
+      ret ptr<memory> 7
   }
   
   fn @low_bit_constant() -> i1 {
@@ -132,9 +132,9 @@
       ret 42
   }
   
-  fn @pointer_constant() -> memptr {
+  fn @pointer_constant() -> ptr<memory> {
     bb0:
-      ret memptr 7
+      ret ptr<memory> 7
   }
   
   fn @low_bit_constant() -> i1 {

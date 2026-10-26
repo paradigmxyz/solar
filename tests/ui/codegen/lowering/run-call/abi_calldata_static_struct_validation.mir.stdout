@@ -3,14 +3,14 @@
 @types
   struct0: {i256, i256, i256}
 
-fn @f(arg0: memptr) -> struct0 [selector=0x9a869a74, inline_assembly, pure, abi_params=[tuple<i16, u8, bytes2>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @f(arg0: ptr<memory>) -> struct0 [selector=0x9a869a74, inline_assembly, pure, abi_params=[tuple<int16, uint8, bytes2>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
-    v0 = ptrtoint memptr arg0 to i256
-    v1 = mload v0
-    v2 = ptrtoint memptr arg0 to i256
+    v0 = ptrtoint ptr<memory> arg0 to i256
+    v1 = mload arg0
+    v2 = ptrtoint ptr<memory> arg0 to i256
     v3 = add v2, 32
     v4 = mload v3
-    v5 = ptrtoint memptr arg0 to i256
+    v5 = ptrtoint ptr<memory> arg0 to i256
     v6 = add v5, 64
     v7 = mload v6
     v8 = insert_value struct0, undef struct0, 0, v1
@@ -19,15 +19,28 @@ fn @f(arg0: memptr) -> struct0 [selector=0x9a869a74, inline_assembly, pure, abi_
     ret v10
 }
 
-fn @encodeStruct() -> memptr [selector=0x01e941a3, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeStruct() -> ptr<memory> [selector=0x01e941a3, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @makeStruct
-    v1 = abi_encode [tuple<word<u8>, word<u8>>], object, args v0
-    ret v1
+    v1 = extract_value slice<calldata>, v0, 0
+    v2 = calldataload v1
+    v3 = shr v2, 8
+    v4 = eq v3, 0
+    v5 = eq v4, false
+    icall revert_if<empty>, v5
+    v6 = ptrtoint ptr<calldata> v1 to i256
+    v7 = add v6, 32
+    v8 = calldataload v7
+    v9 = shr v8, 8
+    v10 = eq v9, 0
+    v11 = eq v10, false
+    icall revert_if<empty>, v11
+    v12 = abi_encode [tuple<word<uint8>, word<uint8>>], object, args v0
+    ret v12
 }
 
-fn @makeStruct() -> calldataslice [inline_assembly, pure] {
+fn @makeStruct() -> slice<calldata> [inline_assembly, pure] {
   bb0:
-    v0 = make_calldata_slice 4, 0
+    v0 = make_calldata_slice ptr<calldata> 4, 0
     ret v0
 }

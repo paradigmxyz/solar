@@ -1,0 +1,75 @@
+// === ROOT/tests/ui/codegen/mir/memory-dse/dead_allocation_length.sol:DeadAllocationLength ===
+@module DeadAllocationLength
+fn @echo(arg0: slice<calldata>) -> ptr<memory> [selector=0x624fbfdc, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = add v0, 63
+    v2 = not 31
+    v3 = and v1, v2
+    v4 = alloc v3
+    mstore v4, v0
+    v5 = ptradd v4, 32
+    v6 = extract_value slice<calldata>, arg0, 0
+    v7 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v5, v6, v7
+    ret v4
+}
+
+fn @fail(arg0: i256) [selector=0x132e4f3c, inline_assembly, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    revert 0, 32
+}
+
+fn @halt() [selector=0x5ed7ca5b, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    icall revert_if<empty>, true
+    invalid
+}
+
+fn @relay(arg0: slice<calldata>) -> ptr<memory> [selector=0x8f0d6f17, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [calldata_bytes], object, selector 0x624fbfdc00000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = address_call v0, v2, gas v1
+    v4 = icall returndata_bytes<>
+    v5 = eq v3, false
+    icall revert_if<empty>, v5
+    ret v4
+}
+
+fn @fallback(arg0: slice<calldata>) -> ptr<memory> [inline_assembly, fallback] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = extract_value slice<calldata>, arg0, 0
+    v3 = extract_value slice<calldata>, arg0, 1
+    v4 = gt v3, v3
+    v5 = lt v3, 4
+    v6 = or v4, v5
+    v7 = zext i1 v6 to i256
+    icall revert_if<empty>, v6
+    v8 = sub v3, 4
+    v9 = ptradd v2, 4
+    v10 = make_calldata_slice v9, v8
+    v11 = extract_value slice<calldata>, v10, 1
+    v12 = extract_value slice<calldata>, v10, 0
+    v13 = fmp
+    calldatacopy v13, v12, v11 !metadata(memory=heap)
+    v14 = make_memory_slice v13, v11
+    v15 = address_delegatecall v0, v14, gas v1
+    v16 = icall returndata_bytes<>
+    v17 = eq v15, false
+    jumpi v17, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret v16
+  bb1:
+    v18 = ptrtoint ptr<memory> v16 to i256
+    v19 = mload v16
+    v20 = ptrtoint ptr<memory> v16 to i256
+    v21 = add v20, 32
+    revert v21, v19
+}

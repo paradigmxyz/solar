@@ -23,7 +23,7 @@ fn compile(dir: &Path, args: &[&str]) -> Output {
 }
 
 /// Inputs are relative to the current directory, and files are named relative to the base path
-/// or the include path that contains them, like solc does.
+/// or the include path that contains them.
 #[test]
 fn base_and_include_paths_name_sources() {
     let dir = project(&[
@@ -98,8 +98,8 @@ fn include_paths_without_base_path() {
     assert_eq!(names, ["lib/dep/C.sol:C", "src/A.sol:A"]);
 }
 
-/// Like solc, an import resolves to an input file with its source unit name before searching the
-/// base path and include paths.
+/// An import resolves to an input file with its source unit name before searching the base path
+/// and include paths.
 #[test]
 fn imports_prefer_input_files() {
     let dir = project(&[

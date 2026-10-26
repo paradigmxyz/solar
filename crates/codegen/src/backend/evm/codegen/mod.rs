@@ -12,7 +12,7 @@
 //! `frames`; the private `stack` subtree holds the symbolic stack and the
 //! stack-operation run solver that EVM IR passes use.
 
-use self::switch::MAX_GAS_CODE_GROWTH;
+use self::{frames::HeapPrefixOffsets, switch::MAX_GAS_CODE_GROWTH};
 use super::{
     DebugFunction, DebugFunctionExit, DebugInfo, ir,
     layout::{RelayoutAddress, preserves_push_width},
@@ -58,6 +58,7 @@ mod function;
 mod runtime;
 pub(crate) mod select;
 mod stackify;
+pub(in crate::backend::evm) use stackify::PlanCache;
 mod terminator;
 mod values;
 
@@ -125,6 +126,9 @@ pub struct EvmCodegen<'gcx> {
     heap_pointer_return_functions: DenseBitSet<FunctionId>,
     /// Memory-reference arguments that every internal call site passes a heap pointer.
     heap_pointer_args: IndexVec<FunctionId, DenseBitSet<ArgIdx>>,
+    /// Heap offsets that the runtime and the constructor of the current module may address
+    /// before an object.
+    heap_prefix: HeapPrefixOffsets,
     /// Runtime code of a scheduled module, waiting for embedded bytecode to be linked in.
     pending_runtime: Option<PendingRuntime>,
     /// Backend encodings derived from the current module's immutable declarations.
@@ -186,6 +190,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             body: Body::External,
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
             heap_pointer_args: IndexVec::new(),
+            heap_prefix: HeapPrefixOffsets::default(),
             pending_runtime: None,
             immutable_encodings: IndexVec::new(),
             immutable_staging_base: EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT
@@ -280,7 +285,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             for inst_id in func.instructions() {
                 let inst = func.inst(inst_id);
                 let message = match inst.kind {
-                    InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => {
+                    InstKind::MakeSlice { .. }
+                    | InstKind::ExtractValue { ty: MirType::Slice(_), .. } => {
                         "codegen does not support this calldata-slice usage yet"
                     }
                     InstKind::StoreImmutable(..) => {

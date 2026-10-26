@@ -98,7 +98,7 @@ contract Test {
     // CHECK-LABEL: fn @decode.
     // CHECK: icall @core_base64_decode,
     // CHECK-LABEL: fn @core_base64_decode(
-    // CHECK: memory_object_len memorybytes
+    // CHECK: mload arg0
     // CHECK: byte 0,
     // CHECK: select
     // CHECK-NOT: datacopy

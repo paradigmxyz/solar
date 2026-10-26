@@ -1,0 +1,36 @@
+// === ROOT/tests/ui/codegen/mir/lower-mcopy/byte_tail.sol:ByteTail ===
+@module ByteTail
+fn @single(arg0: ptr<memory>, arg1: i8) -> ptr<memory> [selector=0x1f48d2ce, pure, abi_params=[bytes, uint8], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = not 31
+    v1 = and 64, v0
+    v2 = alloc zeroed checked v1
+    mstore v2, 1
+    v3 = zext i8 arg1 to i256
+    v4 = shl v3, 248
+    v5 = mload v2
+    v6 = lt 0, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = byte 0, v4
+    v9 = ptradd v2, 32
+    mstore8 v9, v8
+    v10 = abi_encode_packed (bytes arg0, bytes v2)
+    ret v10
+}
+
+fn @wordAndByte(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x28e22812, inline_assembly, pure, abi_params=[bytes, bytes32, uint8], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = not 31
+    v1 = and 96, v0
+    v2 = alloc zeroed checked v1
+    mstore v2, 33
+    v3 = ptrtoint ptr<memory> v2 to i256
+    v4 = add v3, 32
+    mstore v4, arg1
+    v5 = ptrtoint ptr<memory> v2 to i256
+    v6 = add v5, 64
+    mstore8 v6, arg2
+    v7 = abi_encode_packed (bytes arg0, bytes v2)
+    ret v7
+}

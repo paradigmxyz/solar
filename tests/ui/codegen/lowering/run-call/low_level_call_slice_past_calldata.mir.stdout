@@ -1,0 +1,48 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/low_level_call_slice_past_calldata.sol:LowLevelCallSlicePastCalldata ===
+@module LowLevelCallSlicePastCalldata
+fn @echoPast(arg0: i256) -> ptr<memory> [selector=0x1b260bcb, view, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = gas
+    v1 = calldatasize
+    v2 = make_calldata_slice ptr<calldata> 0, v1
+    v3 = extract_value slice<calldata>, v2, 1
+    v4 = checked_sub uint256, v3, 4
+    v5 = checked_add uint256, 4, arg0
+    v6 = icall @_slice, v4, v5
+    v7 = extract_value slice<calldata>, v6, 1
+    v8 = extract_value slice<calldata>, v6, 0
+    v9 = fmp
+    calldatacopy v9, v8, v7 !metadata(memory=heap)
+    v10 = make_memory_slice v9, v7
+    v11 = address_staticcall i160 4, v10, gas v0
+    v12 = icall returndata_bytes<>
+    v13 = eq v11, false
+    icall revert_if<empty>, v13
+    ret v12
+}
+
+fn @echo(arg0: slice<calldata>) -> ptr<memory> [selector=0x624fbfdc, view, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = gas
+    v1 = extract_value slice<calldata>, arg0, 1
+    v2 = extract_value slice<calldata>, arg0, 0
+    v3 = fmp
+    calldatacopy v3, v2, v1 !metadata(memory=heap)
+    v4 = make_memory_slice v3, v1
+    v5 = address_staticcall i160 4, v4, gas v0
+    v6 = icall returndata_bytes<>
+    v7 = eq v5, false
+    icall revert_if<empty>, v7
+    ret v6
+}
+
+fn @_slice(arg0: i256, arg1: i256) -> slice<calldata> [inline_assembly, pure] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = inttoptr i256 arg0 to ptr<calldata>
+    v3 = make_calldata_slice v2, v1
+    v4 = extract_value slice<calldata>, v3, 0
+    v5 = make_calldata_slice v4, arg1
+    ret v5
+}

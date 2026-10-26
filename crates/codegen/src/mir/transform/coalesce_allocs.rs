@@ -19,9 +19,9 @@
 //! free-memory-pointer word alone is therefore never the safety argument.
 
 use crate::mir::{
-    AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationKind,
-    AllocationSemantics, BlockId, EffectKind, Function, FunctionBuilder, InstId, InstKind, Module,
-    ValueId, analysis::AliasAnalysis, memory::EvmMemoryLayout, pass::MirPass,
+    AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, EffectKind,
+    Function, FunctionBuilder, InstId, InstKind, Module, ValueId, analysis::AliasAnalysis,
+    pass::MirPass,
 };
 use solar_sema::Gcx;
 
@@ -53,7 +53,7 @@ impl MirPass for CoalesceAllocs {
     }
 }
 
-/// One fusable allocation: its instruction, result, and word-exact size.
+/// One fusable allocation: its instruction, result, and constant size.
 struct Member {
     inst: InstId,
     result: ValueId,
@@ -97,7 +97,7 @@ fn coalesce_function(func: &mut Function) -> bool {
 /// Returns the group member for a fusable constant-size heap allocation.
 fn fusable_alloc(func: &Function, inst_id: InstId) -> Option<Member> {
     let inst = func.inst(inst_id);
-    let InstKind::Alloc { size, kind: AllocationKind::Raw, semantics } = &inst.kind else {
+    let InstKind::Alloc { size, semantics } = &inst.kind else {
         return None;
     };
     let semantics = *semantics;
@@ -106,10 +106,6 @@ fn fusable_alloc(func: &Function, inst_id: InstId) -> Option<Member> {
     }
     let result = func.inst_result_value(inst_id)?;
     let size = func.value_u64(*size)?;
-    let size = match semantics.alignment {
-        AllocationAlignment::Exact => size,
-        AllocationAlignment::Word => EvmMemoryLayout::align_word(size)?,
-    };
     (size < MAX_MEMBER_SIZE).then_some(Member { inst: inst_id, result, size, semantics })
 }
 
@@ -134,36 +130,17 @@ fn preserves_group(func: &Function, inst_id: InstId) -> bool {
         // Lowering places constructor homes outside the FMP word.
         | EffectKind::ImmutableRead
         | EffectKind::ImmutableWrite => true,
-        EffectKind::MemoryRead => match &inst.kind {
-            InstKind::MLoad(addr) => {
-                range_avoids_fmp(func, *addr, Some(EvmMemoryLayout::WORD_SIZE))
-            }
-            InstKind::Keccak256(addr, len) => range_avoids_fmp(func, *addr, func.value_u64(*len)),
-            // `Fmp` and `MSize` observe the allocation frontier; the object
-            // and mapping forms are gone by this point in the pipeline.
-            _ => false,
-        },
-        EffectKind::MemoryWrite => match &inst.kind {
-            InstKind::MStore(addr, _) => {
-                range_avoids_fmp(func, *addr, Some(EvmMemoryLayout::WORD_SIZE))
-            }
-            InstKind::MStore8(addr, _) => range_avoids_fmp(func, *addr, Some(1)),
-            InstKind::MemoryZero(addr, len)
-            | InstKind::CalldataCopy(addr, _, len)
-            | InstKind::DataCopy(_, addr, len)
-            | InstKind::CodeCopy(addr, _, len)
-            | InstKind::ReturnDataCopy(addr, _, len)
-            | InstKind::ExtCodeCopy(_, addr, _, len) => {
-                range_avoids_fmp(func, *addr, func.value_u64(*len))
-            }
-            InstKind::MCopy(dest, src, len) => {
-                let len = func.value_u64(*len);
-                range_avoids_fmp(func, *dest, len) && range_avoids_fmp(func, *src, len)
-            }
-            // `SetFmp` moves the frontier; non-member `Alloc` shapes and the
-            // remaining aggregate writes stay conservative barriers.
-            _ => false,
-        },
+        // `Fmp`, `SetFmp`, non-member `Alloc` shapes, and the remaining aggregate accesses have no
+        // raw memory range and stay conservative barriers. The object and mapping forms are gone
+        // by this point in the pipeline.
+        EffectKind::MemoryRead | EffectKind::MemoryWrite => {
+            let mut avoids_fmp = None;
+            inst.kind.visit_raw_memory(|_, addr, size| {
+                *avoids_fmp.get_or_insert(true) &=
+                    range_avoids_fmp(func, addr, size.constant(func));
+            });
+            avoids_fmp.unwrap_or(false)
+        }
         EffectKind::ExternalCall
         | EffectKind::ICall
         | EffectKind::Create
@@ -222,23 +199,12 @@ fn flush_group(func: &mut Function, block: BlockId, group: &mut Vec<Member>) -> 
         (total_size, offsets, zero_insts)
     };
 
-    // Member sizes are already component-aligned, so the fused reservation is
-    // exact and the final frontier matches the member-by-member bumps.
-    // base = alloc raw, exact, initialization, infallible, total_size
+    // The fused size sums the member sizes, so the final frontier matches the
+    // member-by-member bumps.
+    // base = alloc total_size
     let instruction = func.inst_mut(members[0].inst);
-    instruction.kind = InstKind::Alloc {
-        size: total_size,
-        kind: AllocationKind::Raw,
-        semantics: AllocationSemantics {
-            alignment: AllocationAlignment::Exact,
-            initialization: if zeroed {
-                AllocationInitialization::Uninitialized
-            } else {
-                initialization
-            },
-            failure: AllocationFailure::Infallible,
-        },
-    };
+    instruction.kind =
+        InstKind::Alloc { size: total_size, semantics: AllocationSemantics::INTERNAL };
     instruction.metadata.set_preserves_fmp(preserves_fmp);
 
     // member = add base, offset

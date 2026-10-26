@@ -13,8 +13,8 @@ fn @entry() [entry] {
 fn @leading() [selector=0x3ce23483, abi_wrapper, pure] {
   bb0:
     v0 = clz arg0
-    mstore 128, v0
-    returndata 128, 32
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @highest() [selector=0xe076913c, abi_wrapper, pure] {
@@ -25,8 +25,8 @@ fn @highest() [selector=0xe076913c, abi_wrapper, pure] {
     v3 = zext i1 v2 to i256
     v4 = mul v3, 255
     v5 = xor v1, v4
-    mstore 128, v5
-    returndata 128, 32
+    mstore 0, v5 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @trailing() [selector=0x5b348c5a, abi_wrapper, pure] {
@@ -39,29 +39,29 @@ fn @trailing() [selector=0x5b348c5a, abi_wrapper, pure] {
     v5 = zext i1 v4 to i256
     v6 = mul v5, 255
     v7 = xor v3, v6
-    mstore 128, v7
-    returndata 128, 32
+    mstore 0, v7 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @ones() [selector=0xb2f925a4, abi_wrapper, pure] {
   bb0:
     v1 = and arg0, 1
-    v2 = shr 1, arg0
-    v3 = shr 1, v2
+    v2 = shr arg0, 1
+    v3 = shr v2, 1
     v4 = and v3, 0x5555555555555555555555555555555555555555555555555555555555555555
     v5 = sub v2, v4
-    v7 = shr 2, v5
+    v7 = shr v5, 2
     v8 = and v7, 0x3333333333333333333333333333333333333333333333333333333333333333
     v6 = and v5, 0x3333333333333333333333333333333333333333333333333333333333333333
     v9 = add v6, v8
-    v10 = shr 4, v9
+    v10 = shr v9, 4
     v11 = add v9, v10
     v12 = and v11, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
     v13 = mul v12, 0x101010101010101010101010101010101010101010101010101010101010101
-    v14 = shr 248, v13
+    v14 = shr v13, 248
     v15 = add v14, v1
-    mstore 128, v15
-    returndata 128, 32
+    mstore 0, v15 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @entry() [entry] {
@@ -75,7 +75,7 @@ fn @entry() [entry] {
     jumpi v5, bb1, bb2
   bb2:
     v6 = calldataload 0
-    v7 = shr 224, v6
+    v7 = shr v6, 224
     switch v7, default bb1, [0x3ce23483 => bb3, 0x5b348c5a => bb4, 0xb2f925a4 => bb5, 0xe076913c => bb6]
   bb6:
     tail_call @highest

@@ -8,59 +8,59 @@
   
   fn @shift_chains(arg0: i256) -> struct0 [return_abi=[i256, i256, i256]] {
     bb0:
-      v0 = shl 8, arg0
--     v1 = shl 16, v0
-+     v1 = shl 24, arg0
-      v2 = shr 8, arg0
--     v3 = shr 16, v2
-+     v3 = shr 24, arg0
-      v4 = sar 8, arg0
--     v5 = sar 16, v4
-+     v5 = sar 24, arg0
+      v0 = shl arg0, 8
+-     v1 = shl v0, 16
++     v1 = shl arg0, 24
+      v2 = shr arg0, 8
+-     v3 = shr v2, 16
++     v3 = shr arg0, 24
+      v4 = sar arg0, 8
+-     v5 = sar v4, 16
++     v5 = sar arg0, 24
       ret v1, v3, v5
   }
   
   fn @shift_overflow(arg0: i256) -> struct0 [return_abi=[i256, i256, i256]] {
     bb0:
--     v0 = shl 1, arg0
--     v1 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v0
+-     v0 = shl arg0, 1
+-     v1 = shl v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     v0 = add arg0, arg0
-      v2 = shr 255, arg0
--     v3 = shr 1, v2
-      v4 = sar 1, arg0
--     v5 = sar 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v4
+      v2 = shr arg0, 255
+-     v3 = shr v2, 1
+      v4 = sar arg0, 1
+-     v5 = sar v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -     ret v1, v3, v5
-+     v5 = sar 255, arg0
++     v5 = sar arg0, 255
 +     ret 0, 0, v5
   }
   
   fn @low_byte(arg0: i256) -> i256 {
     bb0:
-      v0 = shl 248, arg0
--     v1 = shr 248, v0
+      v0 = shl arg0, 248
+-     v1 = shr v0, 248
 +     v1 = and arg0, 255
       ret v1
   }
   
   fn @high_bits(arg0: i256) -> i256 {
     bb0:
-      v0 = shr 8, arg0
-      v1 = shl 8, v0
+      v0 = shr arg0, 8
+      v1 = shl v0, 8
       ret v1
   }
   
   fn @signed_byte(arg0: i256) -> i256 {
     bb0:
-      v0 = shl 248, arg0
--     v1 = sar 248, v0
+      v0 = shl arg0, 248
+-     v1 = sar v0, 248
 +     v1 = signextend 0, arg0
       ret v1
   }
   
   fn @unaligned_signed_bits(arg0: i256) -> i256 {
     bb0:
-      v0 = shl 249, arg0
-      v1 = sar 249, v0
+      v0 = shl arg0, 249
+      v1 = sar v0, 249
       ret v1
   }
   
@@ -85,15 +85,15 @@
   
   fn @dynamic_shifts(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = shl arg1, arg0
-      v1 = shl arg1, v0
+      v0 = shl arg0, arg1
+      v1 = shl v0, arg1
       ret v1
   }
   
   fn @unequal_shifts(arg0: i256) -> i256 {
     bb0:
-      v0 = shl 248, arg0
-      v1 = shr 249, v0
+      v0 = shl arg0, 248
+      v1 = shr v0, 249
       ret v1
   }
   
@@ -107,17 +107,17 @@
   
   fn @constant_left_shift_masks(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct2 [return_abi=[i256, i256, i256, i256]] {
     bb0:
-      v0 = shl 8, arg0
+      v0 = shl arg0, 8
       v1 = or v0, 3
 -     v2 = and v1, 255
-      v3 = shl 8, arg1
+      v3 = shl arg1, 8
 -     v4 = or 3, v3
 -     v5 = and v4, 255
 +     v4 = or v3, 3
-      v6 = shl 8, arg2
+      v6 = shl arg2, 8
       v7 = or v6, 3
 -     v8 = and 255, v7
-      v9 = shl 8, arg3
+      v9 = shl arg3, 8
 -     v10 = or 3, v9
 -     v11 = and 255, v10
 -     ret v2, v5, v8, v11
@@ -127,17 +127,17 @@
   
   fn @constant_right_shift_masks(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct2 [return_abi=[i256, i256, i256, i256]] {
     bb0:
-      v0 = shr 248, arg0
+      v0 = shr arg0, 248
       v1 = or v0, 256
 -     v2 = and v1, 0xff00
-      v3 = shr 248, arg1
+      v3 = shr arg1, 248
 -     v4 = or 256, v3
 -     v5 = and v4, 0xff00
 +     v4 = or v3, 256
-      v6 = shr 248, arg2
+      v6 = shr arg2, 248
       v7 = or v6, 256
 -     v8 = and 0xff00, v7
-      v9 = shr 248, arg3
+      v9 = shr arg3, 248
 -     v10 = or 256, v9
 -     v11 = and 0xff00, v10
 -     ret v2, v5, v8, v11
@@ -155,49 +155,49 @@
   
   fn @shift_chains(arg0: i256) -> struct0 [return_abi=[i256, i256, i256]] {
     bb0:
--     v0 = shl 8, arg0
-      v1 = shl 24, arg0
--     v2 = shr 8, arg0
-      v3 = shr 24, arg0
--     v4 = sar 8, arg0
-      v5 = sar 24, arg0
+-     v0 = shl arg0, 8
+      v1 = shl arg0, 24
+-     v2 = shr arg0, 8
+      v3 = shr arg0, 24
+-     v4 = sar arg0, 8
+      v5 = sar arg0, 24
       ret v1, v3, v5
   }
   
   fn @shift_overflow(arg0: i256) -> struct0 [return_abi=[i256, i256, i256]] {
     bb0:
 -     v0 = add arg0, arg0
--     v2 = shr 255, arg0
--     v4 = sar 1, arg0
-      v5 = sar 255, arg0
+-     v2 = shr arg0, 255
+-     v4 = sar arg0, 1
+      v5 = sar arg0, 255
       ret 0, 0, v5
   }
   
   fn @low_byte(arg0: i256) -> i256 {
     bb0:
--     v0 = shl 248, arg0
+-     v0 = shl arg0, 248
       v1 = and arg0, 255
       ret v1
   }
   
   fn @high_bits(arg0: i256) -> i256 {
     bb0:
-      v0 = shr 8, arg0
-      v1 = shl 8, v0
+      v0 = shr arg0, 8
+      v1 = shl v0, 8
       ret v1
   }
   
   fn @signed_byte(arg0: i256) -> i256 {
     bb0:
--     v0 = shl 248, arg0
+-     v0 = shl arg0, 248
       v1 = signextend 0, arg0
       ret v1
   }
   
   fn @unaligned_signed_bits(arg0: i256) -> i256 {
     bb0:
-      v0 = shl 249, arg0
-      v1 = sar 249, v0
+      v0 = shl arg0, 249
+      v1 = sar v0, 249
       ret v1
   }
   
@@ -216,15 +216,15 @@
   
   fn @dynamic_shifts(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = shl arg1, arg0
-      v1 = shl arg1, v0
+      v0 = shl arg0, arg1
+      v1 = shl v0, arg1
       ret v1
   }
   
   fn @unequal_shifts(arg0: i256) -> i256 {
     bb0:
-      v0 = shl 248, arg0
-      v1 = shr 249, v0
+      v0 = shl arg0, 248
+      v1 = shr v0, 249
       ret v1
   }
   
@@ -236,26 +236,26 @@
   
   fn @constant_left_shift_masks(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct2 [return_abi=[i256, i256, i256, i256]] {
     bb0:
--     v0 = shl 8, arg0
+-     v0 = shl arg0, 8
 -     v1 = or v0, 3
--     v3 = shl 8, arg1
+-     v3 = shl arg1, 8
 -     v4 = or v3, 3
--     v6 = shl 8, arg2
+-     v6 = shl arg2, 8
 -     v7 = or v6, 3
--     v9 = shl 8, arg3
+-     v9 = shl arg3, 8
 -     v10 = or v9, 3
       ret 3, 3, 3, 3
   }
   
   fn @constant_right_shift_masks(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct2 [return_abi=[i256, i256, i256, i256]] {
     bb0:
--     v0 = shr 248, arg0
+-     v0 = shr arg0, 248
 -     v1 = or v0, 256
--     v3 = shr 248, arg1
+-     v3 = shr arg1, 248
 -     v4 = or v3, 256
--     v6 = shr 248, arg2
+-     v6 = shr arg2, 248
 -     v7 = or v6, 256
--     v9 = shr 248, arg3
+-     v9 = shr arg3, 248
 -     v10 = or v9, 256
       ret 256, 256, 256, 256
   }

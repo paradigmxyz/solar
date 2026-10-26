@@ -1,0 +1,14 @@
+error[5604]: array component cannot be empty
+   ╭▸ ROOT/tests/ui/typeck/empty_tuple_lvalue_array.sol:LL:CC
+   │
+LL │         (x, y) = [f(), f()];
+   ╰╴                  ━━━
+
+error[5604]: array component cannot be empty
+   ╭▸ ROOT/tests/ui/typeck/empty_tuple_lvalue_array.sol:LL:CC
+   │
+LL │         (x, y) = [f(), f()];
+   ╰╴                       ━━━
+
+error: aborting due to 2 previous errors
+

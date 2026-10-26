@@ -13,84 +13,73 @@ fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[], abi_return
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize TryErrorTarget_creation_code_0
-    v2 = datasize TryErrorTarget_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    datacopy TryErrorTarget_creation_code_0, v4, v1
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
+    v0 = datasize TryErrorTarget_creation_code_0
+    v1 = fmp
+    datacopy TryErrorTarget_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = sload 0 !metadata(storage=slot(0))
-    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v13 = and v11, v12
-    v14 = zext i160 v9 to i256
-    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
-    v16 = or v13, v15
-    sstore 0, v16 !metadata(storage=slot(0))
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = and v4, v5
+    v7 = zext i160 v2 to i256
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = or v6, v8
+    sstore 0, v9 !metadata(storage=slot(0))
     ret
 }
 
-fn @reasonLength() -> i256 [selector=0xa4bc2ef1, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @reasonLength() -> i256 [selector=0xa4bc2ef1, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
     v2 = gas
-    v3 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
-    v4 = slice_ptr v3
-    v5 = slice_len v3
+    mstore 0, 0xa9cc4718 !metadata(memory=scratch)
+    v3 = zext i160 v1 to i256
+    v4 = extcodesize v3
+    v5 = eq v4, 0
+    icall revert_if<target_contract_has_no_code>, v5
     v6 = zext i160 v1 to i256
-    v7 = extcodesize v6
-    v8 = eq v7, 0
-    icall revert_if<target_contract_has_no_code>, v8
-    v9 = zext i160 v1 to i256
-    v10 = staticcall v2, v9, v4, v5, 0, 0
-    jumpi v10, bb1, bb2
+    v7 = staticcall v2, v6, 28, 4, 0, 0
+    jumpi v7, bb1, bb2
   bb2:
-    v11 = icall returndata_bytes<>
-    v12 = memory_object_data memorybytes, v11
-    v13 = memory_object_len memorybytes, v11
-    v14 = ptrtoint memptr v12 to i256
-    v15 = make_memory_slice v14, v13
-    v16 = memory_slice_load_word memory, v15, 0
-    v17 = shr 224, v16
-    v18 = eq v17, 0x8c379a0
-    jumpi v18, bb4, bb5
+    v8 = icall returndata_bytes<>
+    v9 = ptradd v8, 32
+    v10 = mload v8
+    v11 = make_memory_slice v9, v10
+    v12 = extract_value slice<memory>, v11, 0
+    v13 = extract_value slice<memory>, v11, 1
+    v14 = extract_value slice<memory>, v11, 0
+    v15 = mload v14
+    v16 = shr v15, 224
+    v17 = eq v16, 0x8c379a0
+    jumpi v17, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v19 = ptrtoint memptr v12 to i256
-    v20 = icall @try_decode_error_message, v19, v13
+    v18 = ptrtoint ptr<memory> v12 to i256
+    v19 = icall @try_decode_error_message, v18, v13
     jump bb6
   bb6:
-    v21 = phi [bb4: v20], [bb5: false]
-    jumpi v21, bb7, bb8
+    v20 = phi [bb4: v19], [bb5: false]
+    jumpi v20, bb7, bb8
   bb8:
     jumpi true, bb9, bb10
   bb10:
-    v30 = ptrtoint memptr v12 to i256
-    revert v30, v13
+    revert v12, v13
   bb9:
     ret 0
   bb7:
-    v22 = memory_object_data memorybytes, v11
-    v23 = memory_object_len memorybytes, v11
-    v24 = ptrtoint memptr v22 to i256
-    v25 = add v24, 4
-    v26 = sub v23, 4
-    v27 = make_memory_slice v25, v26
-    v28 = abi_decode [bytes], v27
-    v29 = memory_object_len memorybytes, v28
-    ret v29
+    v21 = mload v8
+    v22 = ptradd v8, 36
+    v23 = sub v21, 4
+    v24 = make_memory_slice v22, v23
+    v25 = abi_decode [bytes], v24
+    v26 = mload v25
+    ret v26
   bb1:
     ret 0
   bb3:
@@ -105,22 +94,20 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
   bb1:
     v2 = add arg0, 4
     v3 = mload v2
-    v4 = gt v3, 0xffffffffffffffff
-    v5 = add v3, 36
-    v6 = gt v5, arg1
-    v7 = or v4, v6
-    v8 = zext i1 v7 to i256
-    jumpi v7, bb3, bb2
+    v4 = sub arg1, 36
+    v5 = gt v3, v4
+    jumpi v5, bb3, bb2
   bb2:
-    v9 = add v2, v3
-    v10 = mload v9
-    v11 = gt v10, 0xffffffffffffffff
-    v12 = sub arg1, v5
-    v13 = gt v10, v12
-    v14 = or v11, v13
-    v15 = zext i1 v14 to i256
-    v16 = eq v15, 0
-    ret v16
+    v6 = add v2, v3
+    v7 = mload v6
+    v8 = add v3, 36
+    v9 = gt v7, 0xffffffffffffffff
+    v10 = sub arg1, v8
+    v11 = gt v7, v10
+    v12 = or v9, v11
+    v13 = zext i1 v12 to i256
+    v14 = eq v13, 0
+    ret v14
   bb3:
     ret false
 }

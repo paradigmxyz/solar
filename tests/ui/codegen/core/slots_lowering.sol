@@ -6,26 +6,27 @@
 
 // `Slots.load` and `Slots.store` hash the root's slot in scratch memory, test
 // the index against 2**64 and add it, where a dynamic array at that slot keeps
-// its elements. The hash comes first, so a loop over one region can hoist it.
-// The shipped bodies do the same in assembly and stay calls.
+// its elements. The hash comes first, so a loop over one region can hoist it,
+// and the hash of a constant root folds to a constant. The shipped bodies do
+// the same in assembly, and inline.
 // INTRINSIC-LABEL: fn @get
-// INTRINSIC: keccak256 0, 32
-// INTRINSIC: shr 64,
+// INTRINSIC-NOT: keccak256
+// INTRINSIC: shr arg0, 64
 // INTRINSIC: sload
 // INTRINSIC-NOT: icall @load
 // INTRINSIC-LABEL: fn @set
-// INTRINSIC: keccak256 0, 32
+// INTRINSIC-NOT: keccak256
 // INTRINSIC: sstore
 // PORTABLE-LABEL: fn @get
-// PORTABLE: icall @load
+// PORTABLE: shr arg0, 64
+// PORTABLE: sload
 
 // `Slots.storeBytes` stores each whole word from a source cursor to a slot
 // stepping from the hash of the root's slot, without a check of its own; the
 // range and the count are checked up front. The hash starts the slot, and the
 // rest of the range goes to the slot where the loop stops.
 // INTRINSIC-LABEL: fn @put
-// INTRINSIC: [[HASH:v[0-9]+]] = keccak256 0, 32
-// INTRINSIC: [[SLOT:v[0-9]+]] = phi [{{bb[0-9]+}}: [[HASH]]]
+// INTRINSIC: [[SLOT:v[0-9]+]] = phi [{{bb[0-9]+}}: 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563]
 // INTRINSIC: sstore [[SLOT]], {{v[0-9]+}}
 // INTRINSIC: stop
 // INTRINSIC: sstore [[SLOT]], {{v[0-9]+}}

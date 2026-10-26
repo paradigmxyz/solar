@@ -32,7 +32,7 @@
 // CHECK-LABEL: fn @echo()
 // CHECK-NOT: mstore 64,
 // CHECK: = call {{v[0-9]+}}, 4, 0, {{v[0-9]+}}, 36, 0, 0
-// CHECK: mstore 64,
+// CHECK: mload 64
 // CHECK: returndatacopy
 // CHECK-LABEL: fn @nothing()
 // CHECK-NOT: mstore 64,
@@ -41,7 +41,7 @@
 // CHECK-LABEL: fn @echoStatic()
 // CHECK-NOT: mstore 64,
 // CHECK: = staticcall {{v[0-9]+}}, 4, {{v[0-9]+}}, 64, 0, 0
-// CHECK: mstore 64,
+// CHECK: mload 64
 // CHECK: returndatacopy
 import {Calls} from "solar:core/Calls.sol";
 import {Create} from "solar:core/Create.sol";

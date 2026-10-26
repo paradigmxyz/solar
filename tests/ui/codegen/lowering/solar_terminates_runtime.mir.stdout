@@ -32,14 +32,14 @@ fn @failWith(arg0: i256) -> i256 [pure] {
     invalid
 }
 
-fn @finish(arg0: memptr) [pure] {
+fn @finish(arg0: ptr<memory>) [pure] {
   bb0:
-    v0 = ptrtoint memptr arg0 to i256
+    v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = sub v0, 32
     mstore v1, 32
-    v2 = memory_object_len memorybytes, arg0
-    v3 = memory_object_data memorybytes, arg0
-    v4 = ptrtoint memptr v3 to i256
+    v2 = mload arg0
+    v3 = ptradd arg0, 32
+    v4 = ptrtoint ptr<memory> v3 to i256
     v5 = add v4, v2
     mstore v5, 0
     v6 = add v2, 31
@@ -48,7 +48,7 @@ fn @finish(arg0: memptr) [pure] {
     returndata v1, v8
 }
 
-fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gt arg0, 10
     jumpi v0, bb1, bb2
@@ -58,40 +58,38 @@ fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[u256], abi
     icall @fail, arg0
     jump bb3
   bb3:
-    v1 = checked_add u256, arg0, 1
+    v1 = checked_add uint256, arg0, 1
     ret v1
 }
 
-fn @early(arg0: i1) -> memptr [selector=0x0e87c305, pure, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @early(arg0: i1) -> ptr<memory> [selector=0x0e87c305, pure, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 5
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x6561726c79000000000000000000000000000000000000000000000000000000
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 5
+    v1 = ptradd v0, 32
+    mstore v1, 0x6561726c79000000000000000000000000000000000000000000000000000000
     icall @finish, v0
     jump bb3
   bb3:
-    v3 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v3, 4
-    v4 = memory_object_data memorybytes, v3
-    v5 = ptrtoint memptr v4 to i256
-    mstore v5, 0x6c61746500000000000000000000000000000000000000000000000000000000
-    ret v3
+    v2 = alloc 64 !metadata(preserves_fmp)
+    mstore v2, 4
+    v3 = ptradd v2, 32
+    mstore v3, 0x6c61746500000000000000000000000000000000000000000000000000000000
+    ret v2
 }
 
-fn @pick(arg0: i256) -> i256 [selector=0x7701ea4a, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @pick(arg0: i256) -> i256 [selector=0x7701ea4a, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @failWith, arg0
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     ret v1
 }
 
-fn @guarded(arg0: i256) -> i256 [selector=0x5e284975, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @guarded(arg0: i256) -> i256 [selector=0x5e284975, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     v0 = gt arg0, 5
@@ -103,7 +101,7 @@ fn @guarded(arg0: i256) -> i256 [selector=0x5e284975, abi_params=[u256], abi_ret
     jump bb5
   bb5:
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = checked_add u256, arg0, v1
+    v2 = checked_add uint256, arg0, v1
     jump bb2
   bb2:
     sstore 0, 0 !metadata(storage=slot(0))
@@ -112,12 +110,12 @@ fn @guarded(arg0: i256) -> i256 [selector=0x5e284975, abi_params=[u256], abi_ret
     ret v2
 }
 
-fn @abiEncoded(arg0: memptr) [inline_assembly, pure] {
+fn @abiEncoded(arg0: ptr<memory>) [inline_assembly, pure] {
   bb0:
     v0 = abi_encode [memory_bytes], object, args arg0
-    v1 = ptrtoint memptr v0 to i256
-    v2 = mload v1
-    v3 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = mload v0
+    v3 = ptrtoint ptr<memory> v0 to i256
     v4 = add v3, 32
     returndata v4, v2
 }

@@ -184,7 +184,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // An empty input reads no memory, so an empty literal needs no buffer.
                 // input = memory_slice(0, 0)
                 let zero = self.builder.imm(U256::ZERO);
-                self.builder.make_slice(zero, zero, SliceLocation::Memory)
+                self.builder.make_slice(zero, zero, PtrLocation::Memory)
             } else if matches!(
                 intrinsic,
                 CoreIntrinsic::WriteEncoding | CoreIntrinsic::TryWriteEncoding
@@ -324,8 +324,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::ReturnRaw => {
                 let [data] = *operands.as_slice() else { return None };
                 // returndata data(object), len(object)
-                let length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
-                let pointer = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
+                let length = self.builder.memory_len(data);
+                let pointer = self.builder.memory_data(data);
                 self.builder.ret_data(pointer, length);
                 Some(self.builder.imm(U256::ZERO))
             }
@@ -429,9 +429,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         );
         let product = self.builder.mul(bit, spread);
         let top_six = self.builder.imm(250);
-        let slot = self.builder.shr(top_six, product);
+        let slot = self.builder.shr(product, top_six);
         let two = self.builder.imm(2);
-        let slot_bits = self.builder.shl(two, slot);
+        let slot_bits = self.builder.shl(slot, two);
         let nibbles = self.builder.imm(
             U256::from_str_radix(
                 "8040405543005266443200005020610674053026020000107506200176117077",
@@ -439,12 +439,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             )
             .unwrap(),
         );
-        let selected = self.builder.shl(slot_bits, nibbles);
+        let selected = self.builder.shl(nibbles, slot_bits);
         let top_nibble = self.builder.imm(252);
-        let high = self.builder.shr(top_nibble, selected);
+        let high = self.builder.shr(selected, top_nibble);
         let five = self.builder.imm(5);
-        let high = self.builder.shl(five, high);
-        let window = self.builder.shr(high, bit);
+        let high = self.builder.shl(high, five);
+        let window = self.builder.shr(bit, high);
         let de_bruijn = self.builder.imm(0xd764_53e0_u64);
         let quotient = self.builder.div(de_bruijn, window);
         let thirty_one = self.builder.imm(31);
@@ -494,7 +494,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             function.attributes.no_inline = true;
             function.attributes.cleans_address_elements = addresses;
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-            let ty = MirType::MemPtr;
+            let ty = MirType::MEMPTR;
             let input = lowerer.builder.add_param(ty);
             lowerer.builder.set_return_type(MirType::I1);
             lowerer.lower_core_array_has_duplicate(input, addresses);
@@ -512,7 +512,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// a table, and nothing is allocated.
     fn lower_core_array_has_duplicate(&mut self, input: ValueId, addresses: bool) {
         let two = self.builder.imm(2);
-        let length = self.builder.memory_object_len(input, MemoryObjectKind::DynamicArray);
+        let length = self.builder.memory_len(input);
         let small = self.builder.lt(length, two);
         let no_duplicate = self.builder.create_block();
         let sized = self.builder.create_block();
@@ -544,19 +544,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut mask = self.builder.checked_mul(length, forty_eight);
         for shift in [1, 2, 4, 8, 16, 32, 64, 128] {
             let shift = self.builder.imm(shift);
-            let high = self.builder.shr(shift, mask);
+            let high = self.builder.shr(mask, shift);
             mask = self.builder.or(mask, high);
         }
         let word_mask = self.builder.imm(U256::MAX << 5);
         mask = self.builder.and(mask, word_mask);
         let word_size = self.builder.imm(32);
         let table_size = self.builder.checked_add(mask, word_size);
-        let table = self.builder.alloc_raw(table_size, AllocationSemantics::SOLIDITY_ZEROED);
+        let table = self.builder.alloc(table_size, AllocationSemantics::SOLIDITY_ZEROED);
         let table = self.builder.cast(table, MirType::I256);
-        let data = self.builder.memory_object_data(input, MemoryObjectKind::DynamicArray);
+        let data = self.builder.memory_data(input);
         let data = self.builder.cast(data, MirType::I256);
         let five = self.builder.imm(5);
-        let byte_length = self.builder.shl(five, length);
+        let byte_length = self.builder.shl(length, five);
         let end = self.builder.add(data, byte_length);
         let outer_header = self.builder.create_block();
         let outer_body = self.builder.create_block();
@@ -591,12 +591,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(probe_header);
         let slot = self.builder.phi(vec![(outer_body, initial_slot)]);
         let table_address = self.builder.add(table, slot);
-        let previous_address = self.builder.mload(table_address);
+        let previous_address = self.builder.load(table_address, PtrLocation::Memory);
         let empty = self.builder.eq_zero(previous_address);
         self.builder.branch(empty, insert, compare);
 
         self.builder.switch_to_block(insert);
-        self.builder.mstore(table_address, element_address);
+        self.builder.store(table_address, element_address);
         self.builder.jump(outer_header);
         self.builder.add_phi_incoming(cursor, insert, element_address);
 
@@ -629,10 +629,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // data = array data
         // end = data + (length << 5)
         // last = end - 32
-        let data = self.builder.memory_object_data(input, MemoryObjectKind::DynamicArray);
+        let data = self.builder.memory_data(input);
         let data = self.builder.cast(data, MirType::I256);
         let five = self.builder.imm(5);
-        let byte_length = self.builder.shl(five, length);
+        let byte_length = self.builder.shl(length, five);
         let end = self.builder.add(data, byte_length);
         let word_size = self.builder.imm(32);
         let last = self.builder.sub(end, word_size);
@@ -708,7 +708,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             function.attributes.preserves_array_elements = true;
             function.attributes.cleans_address_elements = addresses;
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-            let input = lowerer.builder.add_param(MirType::MemPtr);
+            let input = lowerer.builder.add_param(MirType::MEMPTR);
             lowerer.lower_core_array_uniquify_sorted(input, addresses);
             Some(())
         })?;
@@ -724,8 +724,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// overwrites that uncommitted slot. This removes the inner branch without
     /// changing which elements survive.
     fn lower_core_array_uniquify_sorted(&mut self, input: ValueId, addresses: bool) {
-        let kind = MemoryObjectKind::DynamicArray;
-        let length = self.builder.memory_object_len(input, kind);
+        let length = self.builder.memory_len(input);
         let two = self.builder.imm(2);
         let small = self.builder.lt(length, two);
         let done = self.builder.create_block();
@@ -736,13 +735,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.ret([]);
 
         self.builder.switch_to_block(setup);
-        let data = self.builder.memory_object_data(input, kind);
+        let data = self.builder.memory_data(input);
         let data = self.builder.cast(data, MirType::I256);
         let word = self.builder.imm(32);
         let first = self.builder.add(data, word);
         let previous = self.core_array_word(data, addresses);
         let five = self.builder.imm(5);
-        let byte_length = self.builder.shl(five, length);
+        let byte_length = self.builder.shl(length, five);
         let end = self.builder.add(data, byte_length);
         let header = self.builder.create_block();
         let body = self.builder.create_block();
@@ -760,8 +759,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let value = self.core_array_word(read, addresses);
         let distinct = self.builder.ne(value, previous);
         let distinct = self.builder.cast_word(distinct);
-        self.builder.mstore(write, value);
-        let advance = self.builder.shl(five, distinct);
+        self.builder.store(write, value);
+        let advance = self.builder.shl(distinct, five);
         let next_write = self.builder.add(write, advance);
         let next_read = self.builder.add(read, word);
         self.builder.jump(header);
@@ -771,8 +770,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.builder.switch_to_block(finish);
         let compacted_bytes = self.builder.sub(write, data);
-        let compacted_length = self.builder.shr(five, compacted_bytes);
-        self.builder.set_memory_object_len(input, compacted_length, kind);
+        let compacted_length = self.builder.shr(compacted_bytes, five);
+        self.builder.set_memory_len(input, compacted_length);
         self.builder.ret([]);
     }
 
@@ -807,7 +806,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (SetOperation::Difference, false, true) => sym::core_array_set_difference_address,
             (SetOperation::Difference, false, false) => sym::core_array_set_difference,
         };
-        let array = MirType::MemPtr;
+        let array = MirType::MEMPTR;
         let helper = self.lazy_helper(name, |this, function| {
             function.attributes.no_inline = true;
             function.attributes.preserves_array_elements = true;
@@ -850,7 +849,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (SetOperation::Difference, false) => sym::core_array_set_difference,
             (SetOperation::Difference, true) => sym::core_array_set_difference_address,
         };
-        let array = MirType::MemPtr;
+        let array = MirType::MEMPTR;
         let helper = self.lazy_helper(name, |this, function| {
             function.attributes.no_inline = true;
             function.attributes.preserves_array_elements = true;
@@ -884,7 +883,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // Other builds than gas share the word helper with addresses too.
         let address = addresses && self.cx.gcx.sess.opts.optimization.is_gas();
         let name = if address { sym::core_array_copy_address } else { sym::core_array_copy };
-        let array = MirType::MemPtr;
+        let array = MirType::MEMPTR;
         let helper = self.lazy_helper(name, |this, function| {
             function.attributes.no_inline = true;
             function.attributes.preserves_array_elements = true;
@@ -912,22 +911,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // size = (length + 1) << 5
         // c = alloc size, uninitialized
         // mcopy(c, a, size)
-        let length = self.builder.memory_object_len(a, MemoryObjectKind::DynamicArray);
+        let length = self.builder.memory_len(a);
         let shifting = self.cx.gcx.sess.opts.evm_version.has_bitwise_shifting();
         let too_long = self.builder.exceeds_bits(length, 64, shifting);
         self.builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
         let one = self.builder.imm(1);
         let words = self.builder.add(length, one);
         let five = self.builder.imm(5);
-        let size = self.builder.shl(five, words);
-        let copy = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::WORD_ARRAY,
-            AllocationSemantics::SOLIDITY_UNINITIALIZED,
-        );
+        let size = self.builder.shl(words, five);
+        let copy = self.builder.alloc(size, AllocationSemantics::SOLIDITY_UNINITIALIZED);
         let destination = self.builder.cast_word(copy);
         let source = self.builder.cast_word(a);
-        self.builder.mcopy_heap(destination, source, size);
+        self.builder.copy_heap(destination, source, size, PtrLocation::Memory);
         copy
     }
 
@@ -961,9 +956,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         a: ValueId,
         b: ValueId,
     ) {
-        let kind = MemoryObjectKind::DynamicArray;
-        let a_length = self.builder.memory_object_len(a, kind);
-        let b_length = self.builder.memory_object_len(b, kind);
+        let a_length = self.builder.memory_len(a);
+        let b_length = self.builder.memory_len(b);
         // capacity = union: a.length + b.length (panic 0x11 on overflow)
         //            intersection: min(a.length, b.length)
         //            difference: a.length
@@ -987,11 +981,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let words = self.builder.checked_add(capacity, one);
         let word = self.builder.imm(32);
         let size = self.builder.checked_mul(words, word);
-        let output = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::WORD_ARRAY,
-            AllocationSemantics::SOLIDITY_UNINITIALIZED,
-        );
+        let output = self.builder.alloc(size, AllocationSemantics::SOLIDITY_UNINITIALIZED);
 
         // An output with no capacity is empty, so it needs no merge.
         // branch capacity == 0, empty, merge
@@ -1002,7 +992,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(no_capacity, empty, merge);
         self.builder.switch_to_block(empty);
         let zero = self.builder.imm(0);
-        self.builder.set_memory_object_len(output, zero, kind);
+        self.builder.set_memory_len(output, zero);
         self.builder.ret([output]);
         self.builder.switch_to_block(merge);
 
@@ -1010,15 +1000,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // b_cursor = data(b); b_end = b_cursor + 32 * b.length
         // out_start = data(c)
         let five = self.builder.imm(5);
-        let a_start = self.builder.memory_object_data(a, kind);
+        let a_start = self.builder.memory_data(a);
         let a_start = self.builder.cast_word(a_start);
-        let a_bytes = self.builder.shl(five, a_length);
+        let a_bytes = self.builder.shl(a_length, five);
         let a_end = self.builder.add(a_start, a_bytes);
-        let b_start = self.builder.memory_object_data(b, kind);
+        let b_start = self.builder.memory_data(b);
         let b_start = self.builder.cast_word(b_start);
-        let b_bytes = self.builder.shl(five, b_length);
+        let b_bytes = self.builder.shl(b_length, five);
         let b_end = self.builder.add(b_start, b_bytes);
-        let out_start = self.builder.memory_object_data(output, kind);
+        let out_start = self.builder.memory_data(output);
         let out_start = self.builder.cast_word(out_start);
         let entry = self.builder.current_block();
         let body = self.builder.create_block();
@@ -1067,7 +1057,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let equal_out = if matches!(operation, SetOperation::Difference) {
             out_cursor
         } else {
-            self.builder.mstore(out_cursor, u);
+            self.builder.store(out_cursor, u);
             self.builder.add_u64_offset(out_cursor, 32)
         };
         let equal_a = self.builder.add_u64_offset(a_cursor, 32);
@@ -1085,7 +1075,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let a_out = if matches!(operation, SetOperation::Intersection) {
             out_cursor
         } else {
-            self.builder.mstore(out_cursor, u);
+            self.builder.store(out_cursor, u);
             self.builder.add_u64_offset(out_cursor, 32)
         };
         let a_next = self.builder.add_u64_offset(a_cursor, 32);
@@ -1095,7 +1085,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         //        b += 32
         self.builder.switch_to_block(b_arm);
         let b_out = if matches!(operation, SetOperation::Union) {
-            self.builder.mstore(out_cursor, v);
+            self.builder.store(out_cursor, v);
             self.builder.add_u64_offset(out_cursor, 32)
         } else {
             out_cursor
@@ -1136,15 +1126,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         for (cursor, end) in tails {
             let rest = self.builder.sub(end, cursor);
-            self.builder.mcopy_heap(out_end, cursor, rest);
+            self.builder.copy_heap(out_end, cursor, rest, PtrLocation::Memory);
             out_end = self.builder.add(out_end, rest);
         }
         let base = self.builder.cast_word(output);
         let out_bytes = self.builder.sub(out_end, base);
-        let words = self.builder.shr(five, out_bytes);
+        let words = self.builder.shr(out_bytes, five);
         let one = self.builder.imm(1);
         let length = self.builder.sub(words, one);
-        self.builder.set_memory_object_len(output, length, kind);
+        self.builder.set_memory_len(output, length);
         self.builder.ret([output]);
     }
 
@@ -1193,7 +1183,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // words per function, not per array.
             function.attributes.cleans_address_elements = addresses;
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-            let ty = MirType::MemPtr;
+            let ty = MirType::MEMPTR;
             let keys = lowerer.builder.add_param(ty);
             let values = lowerer.builder.add_param(ty);
             lowerer.lower_core_array_group_sum(sort, keys, values, shared, addresses);
@@ -1295,10 +1285,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         shared: bool,
         addresses: bool,
     ) {
-        let kind = MemoryObjectKind::DynamicArray;
         // panic(0x32) if len(keys) != len(values)
-        let length = self.builder.memory_object_len(keys, kind);
-        let value_length = self.builder.memory_object_len(values, kind);
+        let length = self.builder.memory_len(keys);
+        let value_length = self.builder.memory_len(values);
         let differs = self.builder.ne(length, value_length);
         self.builder.panic_if(differs, PanicCode::ArrayOutOfBounds);
         let two = self.builder.imm(2);
@@ -1309,13 +1298,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         // low = data(keys); pair = data(values) - low; high = low + 32 * length
         self.builder.switch_to_block(start);
-        let low = self.builder.memory_object_data(keys, kind);
+        let low = self.builder.memory_data(keys);
         let low = self.builder.cast(low, MirType::I256);
-        let value_low = self.builder.memory_object_data(values, kind);
+        let value_low = self.builder.memory_data(values);
         let value_low = self.builder.cast(value_low, MirType::I256);
         let pair = self.builder.sub(value_low, low);
         let five = self.builder.imm(5);
-        let bytes = self.builder.shl(five, length);
+        let bytes = self.builder.shl(length, five);
         let high = self.builder.add(low, bytes);
         let mut args = vec![low, high, pair];
         if shared {
@@ -1326,7 +1315,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // first run: write = low, sum = mload(low + pair)
         let word = self.builder.imm(32);
         let first = self.builder.add(low, word);
-        let first_sum = self.builder.mload(value_low);
+        let first_sum = self.builder.load(value_low, PtrLocation::Memory);
         let scan = self.builder.current_block();
         let header = self.builder.create_block();
         let body = self.builder.create_block();
@@ -1349,7 +1338,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let key = self.core_array_word(read, addresses);
         let kept = self.core_array_word(write, addresses);
         let value_address = self.builder.add(read, pair);
-        let value = self.builder.mload(value_address);
+        let value = self.builder.load(value_address, PtrLocation::Memory);
         let same = self.builder.eq(key, kept);
         self.builder.branch(same, accumulate, new_run);
 
@@ -1364,9 +1353,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // mstore(write + pair, sum); write' = write + 32; mstore(write', key)
         self.builder.switch_to_block(new_run);
         let sum_address = self.builder.add(write, pair);
-        self.builder.mstore(sum_address, sum);
+        self.builder.store(sum_address, sum);
         let next_write = self.builder.add(write, word);
-        self.builder.mstore(next_write, key);
+        self.builder.store(next_write, key);
         self.builder.jump(latch);
 
         self.builder.switch_to_block(latch);
@@ -1382,13 +1371,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // set_len(keys, count); set_len(values, count)
         self.builder.switch_to_block(finish);
         let sum_address = self.builder.add(write, pair);
-        self.builder.mstore(sum_address, sum);
+        self.builder.store(sum_address, sum);
         let kept_bytes = self.builder.sub(write, low);
-        let kept_words = self.builder.shr(five, kept_bytes);
+        let kept_words = self.builder.shr(kept_bytes, five);
         let one = self.builder.imm(1);
         let count = self.builder.add(kept_words, one);
-        self.builder.set_memory_object_len(keys, count, kind);
-        self.builder.set_memory_object_len(values, count, kind);
+        self.builder.set_memory_len(keys, count);
+        self.builder.set_memory_len(values, count);
         self.builder.jump(done);
 
         self.builder.switch_to_block(done);
@@ -1447,8 +1436,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             })?
         };
 
-        let kind = MemoryObjectKind::DynamicArray;
-        let length = self.builder.memory_object_len(*input, kind);
+        let length = self.builder.memory_len(*input);
         let two = self.builder.imm(2);
         let small = self.builder.lt(length, two);
         let sort = self.builder.create_block();
@@ -1456,10 +1444,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(small, done, sort);
 
         self.builder.switch_to_block(sort);
-        let low = self.builder.memory_object_data(*input, kind);
+        let low = self.builder.memory_data(*input);
         let low = self.builder.cast(low, MirType::I256);
         let five = self.builder.imm(5);
-        let bytes = self.builder.shl(five, length);
+        let bytes = self.builder.shl(length, five);
         let high = self.builder.add(low, bytes);
         let mut args = vec![low, high];
         if shared {
@@ -1587,17 +1575,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // icall inner(low, high [, pair] [, flip]); mstore(low - 32, length)
         let word = self.builder.imm(32);
         let header = self.builder.sub(low, word);
-        let length = self.builder.mload(header);
+        let length = self.builder.load(header, PtrLocation::Memory);
         // The smallest word in the order: zero, `2**255` when signed, or the flip.
         let sentinel = match order {
             WordOrder::Unsigned | WordOrder::Address => self.builder.imm(U256::ZERO),
             WordOrder::Signed => self.builder.imm(U256::ONE << 255),
             WordOrder::Flipped(flip) | WordOrder::FlippedAddress(flip) => flip,
         };
-        self.builder.mstore(header, sentinel);
+        self.builder.store(header, sentinel);
         let flip = order.flip();
         self.builder.icall_void(inner, [low, high].into_iter().chain(pair).chain(flip).collect());
-        self.builder.mstore(header, length);
+        self.builder.store(header, length);
     }
 
     /// Exchanges the keys at `left` and `right`, and with `pair` their values.
@@ -1616,14 +1604,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // mstore(left + pair, right_value); mstore(right + pair, left_value)
             let left = self.builder.add(left, pair);
             let right = self.builder.add(right, pair);
-            let left_value = self.builder.mload(left);
-            let right_value = self.builder.mload(right);
-            self.builder.mstore(left, right_value);
-            self.builder.mstore(right, left_value);
+            let left_value = self.builder.load(left, PtrLocation::Memory);
+            let right_value = self.builder.load(right, PtrLocation::Memory);
+            self.builder.store(left, right_value);
+            self.builder.store(right, left_value);
         }
         // mstore(left, right_key); mstore(right, left_key)
-        self.builder.mstore(left, right_key);
-        self.builder.mstore(right, left_key);
+        self.builder.store(left, right_key);
+        self.builder.store(right, left_key);
     }
 
     /// Emits median-of-three Hoare quicksort with insertion-sort leaves.
@@ -1660,16 +1648,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(partition);
         let word = self.builder.imm(32);
         let six = self.builder.imm(6);
-        let middle_words = self.builder.shr(six, extent);
+        let middle_words = self.builder.shr(extent, six);
         let five = self.builder.imm(5);
-        let middle_offset = self.builder.shl(five, middle_words);
+        let middle_offset = self.builder.shl(middle_words, five);
         let middle = self.builder.add(low, middle_offset);
         let last = self.builder.sub(high, word);
         // The paired values of the three sampled keys follow the same selects.
         let mut paired = pair.map(|pair| {
             let [first, middle, last] = [low, middle, last].map(|key| {
                 let address = self.builder.add(key, pair);
-                (address, self.builder.mload(address))
+                (address, self.builder.load(address, PtrLocation::Memory))
             });
             [first, middle, last]
         });
@@ -1694,11 +1682,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         first_value = new_first;
         middle_value = new_middle;
         self.core_sort_select_pair(&mut paired, swap, 0, 1);
-        self.builder.mstore(low, first_value);
-        self.builder.mstore(middle, middle_value);
-        self.builder.mstore(last, last_value);
+        self.builder.store(low, first_value);
+        self.builder.store(middle, middle_value);
+        self.builder.store(last, last_value);
         for (address, value) in paired.into_iter().flatten() {
-            self.builder.mstore(address, value);
+            self.builder.store(address, value);
         }
         let initial_left = self.builder.add(low, word);
         let initial_right = self.builder.sub(last, word);
@@ -1785,11 +1773,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let one = self.builder.imm(1);
         let remaining = self.builder.sub(pending, one);
         let six = self.builder.imm(6);
-        let offset = self.builder.shl(six, remaining);
+        let offset = self.builder.shl(remaining, six);
         let slot = self.builder.add(base, offset);
-        let popped_low = self.builder.mload(slot);
+        let popped_low = self.builder.load(slot, PtrLocation::Memory);
         let upper = self.builder.add(slot, word);
-        let popped_high = self.builder.mload(upper);
+        let popped_high = self.builder.load(upper, PtrLocation::Memory);
         self.builder.jump(partition_header);
         self.builder.add_phi_incoming(low, pop, popped_low);
         self.builder.add_phi_incoming(high, pop, popped_high);
@@ -1810,12 +1798,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> ValueId {
         // slot = base + (pending << 6); mstore(slot, low); mstore(slot + 32, high)
         let six = self.builder.imm(6);
-        let offset = self.builder.shl(six, pending);
+        let offset = self.builder.shl(pending, six);
         let slot = self.builder.add(base, offset);
-        self.builder.mstore(slot, low);
+        self.builder.store(slot, low);
         let word = self.builder.imm(32);
         let upper = self.builder.add(slot, word);
-        self.builder.mstore(upper, high);
+        self.builder.store(upper, high);
         let one = self.builder.imm(1);
         self.builder.add(pending, one)
     }
@@ -1865,7 +1853,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let key = self.core_sort_key(cursor, order);
         let key_value = pair.map(|pair| {
             let address = self.builder.add(cursor, pair);
-            self.builder.mload(address)
+            self.builder.load(address, PtrLocation::Memory)
         });
         self.builder.jump(shift_header);
 
@@ -1877,23 +1865,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(out_of_order, shift, place);
 
         self.builder.switch_to_block(shift);
-        self.builder.mstore(slot, previous_value);
+        self.builder.store(slot, previous_value);
         if let Some(pair) = pair {
             // mstore(slot + pair, mload(previous + pair))
             let from = self.builder.add(previous, pair);
-            let value = self.builder.mload(from);
+            let value = self.builder.load(from, PtrLocation::Memory);
             let to = self.builder.add(slot, pair);
-            self.builder.mstore(to, value);
+            self.builder.store(to, value);
         }
         self.builder.jump(shift_header);
         self.builder.add_phi_incoming(slot, shift, previous);
 
         self.builder.switch_to_block(place);
-        self.builder.mstore(slot, key);
+        self.builder.store(slot, key);
         if let (Some(pair), Some(key_value)) = (pair, key_value) {
             // mstore(slot + pair, key_value)
             let to = self.builder.add(slot, pair);
-            self.builder.mstore(to, key_value);
+            self.builder.store(to, key_value);
         }
         let next = self.builder.add(cursor, word);
         self.builder.jump(outer_header);
@@ -1912,7 +1900,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn core_array_word(&mut self, address: ValueId, addresses: bool) -> ValueId {
         // word = mload address
         // addresses: word = and word, 2**160 - 1
-        let word = self.builder.mload(address);
+        let word = self.builder.load(address, PtrLocation::Memory);
         if !addresses {
             return word;
         }
@@ -1944,7 +1932,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             function.attributes.cleans_address_elements = true;
             function.attributes.only_cleans_address_elements = true;
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-            let array = lowerer.builder.add_param(MirType::MemPtr);
+            let array = lowerer.builder.add_param(MirType::MEMPTR);
             lowerer.lower_core_array_clean_address(array);
             Some(())
         })?;
@@ -1959,12 +1947,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // body: mstore cursor, and(mload cursor, 2**160 - 1); next = cursor + 32
         // done: ret
         let entry = self.builder.current_block();
-        let length = self.builder.memory_object_len(array, MemoryObjectKind::DynamicArray);
+        let length = self.builder.memory_len(array);
         let word_size = self.builder.imm(32);
         let base = self.builder.cast_word(array);
         let start = self.builder.add(base, word_size);
         let five = self.builder.imm(5);
-        let bytes = self.builder.shl(five, length);
+        let bytes = self.builder.shl(length, five);
         let end = self.builder.add(start, bytes);
         let header = self.builder.create_block();
         let body = self.builder.create_block();
@@ -1978,7 +1966,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.builder.switch_to_block(body);
         let address = self.core_array_word(cursor, true);
-        self.builder.mstore(cursor, address);
+        self.builder.store(cursor, address);
         let next = self.builder.add(cursor, word_size);
         self.builder.jump(header);
         self.builder.add_phi_incoming(cursor, body, next);
@@ -2040,8 +2028,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // The payload is a buffer, or an encoding staged past the free memory pointer.
         let input_size = self.core_bytes_len(payload);
         let input = self.core_bytes_data(payload);
-        let capacity = self.builder.memory_object_len(output, MemoryObjectKind::Bytes);
-        let destination = self.builder.memory_object_data(output, MemoryObjectKind::Bytes);
+        let capacity = self.builder.memory_len(output);
+        let destination = self.builder.memory_data(output);
         // success = call|staticcall|delegatecall(gas, target[, value], input, input_size,
         //                                        destination, capacity)
         let success = match (intrinsic, value) {
@@ -2097,7 +2085,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // Nothing is copied, so the output is the empty bytes, which needs no buffer.
             // output = ZERO_SLOT
             let output = crate::mir::Immediate::for_type(
-                Some(MirType::MemPtr),
+                Some(MirType::MEMPTR),
                 U256::from(EvmMemoryLayout::ZERO_SLOT),
             );
             let output = self.builder.func_mut().alloc_value(Value::Immediate(output));
@@ -2106,8 +2094,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let shorter = self.builder.lt(total, max_copy);
         let copied = self.builder.select(shorter, total, max_copy);
         let output = self.builder.alloc_bytes_object(copied, AllocationSemantics::INTERNAL);
-        let data = self.builder.memory_object_data(output, MemoryObjectKind::Bytes);
-        self.builder.returndatacopy_heap(data, zero, copied);
+        let data = self.builder.memory_data(output);
+        self.builder.copy_heap(data, zero, copied, PtrLocation::Returndata);
         Some(self.core_results(function_id, vec![success, output, total]))
     }
 
@@ -2190,8 +2178,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lower_core_revert_raw(&mut self, operands: &[ValueId]) -> Option<ValueId> {
         let [data] = *operands else { return None };
         // revert(data(object), len(object))
-        let length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
-        let pointer = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
+        let length = self.builder.memory_len(data);
+        let pointer = self.builder.memory_data(data);
         self.builder.revert(pointer, length);
         Some(self.builder.imm(U256::ZERO))
     }
@@ -2215,12 +2203,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let clean = self.encode_memory_scalar(*ty, s);
             let zero = self.builder.imm(U256::ZERO);
             let word = self.builder.cast_word(clean);
-            self.builder.mstore(zero, word);
+            self.builder.store(zero, word);
             let size = self.builder.imm(32);
             self.builder.ret_data(zero, size);
             return Some(self.builder.imm(U256::ZERO));
         }
-        let kind = MemoryObjectKind::Bytes;
         // head = s - 32
         // mstore(head, 32)
         // mstore(data(s) + len(s), 0)
@@ -2228,13 +2215,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let object = self.builder.cast_word(s);
         let word = self.builder.imm(32);
         let head = self.builder.sub(object, word);
-        self.builder.mstore(head, word);
-        let length = self.builder.memory_object_len(s, kind);
-        let data = self.builder.memory_object_data(s, kind);
+        self.builder.store(head, word);
+        let length = self.builder.memory_len(s);
+        let data = self.builder.memory_data(s);
         let data = self.builder.cast_word(data);
         let end = self.builder.add(data, length);
         let zero = self.builder.imm(0);
-        self.builder.mstore(end, zero);
+        self.builder.store(end, zero);
         let rounded = self.builder.add_u64_offset(length, 31);
         let mask = self.builder.imm(U256::MAX << 5);
         let padded = self.builder.and(rounded, mask);
@@ -2272,9 +2259,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         // object = alloc(size, uninitialized)
         // object.length = length
-        let object =
-            self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        self.builder.set_memory_object_len(object, length, layout.kind());
+        let object = self.builder.alloc(size, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        self.builder.set_memory_len(object, length);
         Some(object)
     }
 
@@ -2299,7 +2285,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let length = self.builder.slice_len(data);
         let source = self.builder.slice_ptr(data);
         let zero = self.builder.imm(U256::ZERO);
-        self.builder.calldatacopy(zero, source, length);
+        self.builder.copy(zero, source, length, PtrLocation::Calldata);
         let gas = self.builder.gas();
         let success = match value {
             Some(value) => self.builder.call(gas, target, value, zero, length, zero, zero),
@@ -2395,8 +2381,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let (cursor, slot) =
             self.core_slots_word_loop(source, end, data, |builder, cursor, slot| {
                 // sstore(slot, load(cursor))
-                let word =
-                    if calldata { builder.calldataload(cursor) } else { builder.mload(cursor) };
+                let word = if calldata {
+                    builder.load(cursor, PtrLocation::Calldata)
+                } else {
+                    builder.load(cursor, PtrLocation::Memory)
+                };
                 builder.sstore(slot, word);
             });
         // if rest != 0: sstore(slot, load(cursor) & ~(MAX >> (rest << 3)))
@@ -2405,12 +2394,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let done = self.builder.create_block();
         self.builder.branch(partial, tail, done);
         self.builder.switch_to_block(tail);
-        let word =
-            if calldata { self.builder.calldataload(cursor) } else { self.builder.mload(cursor) };
+        let word = if calldata {
+            self.builder.load(cursor, PtrLocation::Calldata)
+        } else {
+            self.builder.load(cursor, PtrLocation::Memory)
+        };
         let three = self.builder.imm(3);
-        let bits = self.builder.shl(three, rest);
+        let bits = self.builder.shl(rest, three);
         let all = self.builder.imm(U256::MAX);
-        let past = self.builder.shr(bits, all);
+        let past = self.builder.shr(all, bits);
         let kept = self.builder.not(past);
         let word = self.builder.and(word, kept);
         self.builder.sstore(slot, word);
@@ -2436,7 +2428,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let (at, slot) = self.core_slots_word_loop(offset, end, data, |builder, at, slot| {
             // buffer[at..] = sload(slot)
             let word = builder.sload(slot);
-            builder.memory_object_store_word(buffer, at, word);
+            builder.memory_store_word(buffer, at, word);
         });
         // if rest != 0:
         //   keep = MAX >> (rest << 3)
@@ -2448,18 +2440,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(tail);
         let word = self.builder.sload(slot);
         let three = self.builder.imm(3);
-        let bits = self.builder.shl(three, rest);
+        let bits = self.builder.shl(rest, three);
         let all = self.builder.imm(U256::MAX);
-        let keep = self.builder.shr(bits, all);
+        let keep = self.builder.shr(all, bits);
         let taken_mask = self.builder.not(keep);
         let taken = self.builder.and(word, taken_mask);
-        let pointer = self.builder.memory_object_data(buffer, MemoryObjectKind::Bytes);
+        let pointer = self.builder.memory_data(buffer);
         let pointer = self.builder.cast_word(pointer);
         let address = self.builder.add(pointer, at);
-        let old = self.builder.mload(address);
+        let old = self.builder.load(address, PtrLocation::Memory);
         let kept = self.builder.and(old, keep);
         let merged = self.builder.or(taken, kept);
-        self.builder.memory_object_store_word(buffer, at, merged);
+        self.builder.memory_store_word(buffer, at, merged);
         self.builder.jump(done);
         self.builder.switch_to_block(done);
         Some(self.builder.imm(U256::ZERO))
@@ -2522,12 +2514,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         start: ValueId,
         count: ValueId,
     ) -> ValueId {
-        if self.builder.func().value_slice_location(object) == Some(SliceLocation::Calldata) {
+        if self.builder.func().value_slice_location(object) == Some(PtrLocation::Calldata) {
             // scratch = fmp
             // calldatacopy(scratch, start, count)
             // hash = keccak256(scratch, count)
             let scratch = self.builder.fmp();
-            self.builder.calldatacopy_heap(scratch, start, count);
+            self.builder.copy_heap(scratch, start, count, PtrLocation::Calldata);
             return self.builder.keccak256(scratch, count);
         }
         // hash = keccak256(start, count)
@@ -2536,8 +2528,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// The `create` or `create2` both deployment families share.
     fn core_create(&mut self, initcode: ValueId, salt: Option<ValueId>, value: ValueId) -> ValueId {
-        let length = self.builder.memory_object_len(initcode, MemoryObjectKind::Bytes);
-        let pointer = self.builder.memory_object_data(initcode, MemoryObjectKind::Bytes);
+        let length = self.builder.memory_len(initcode);
+        let pointer = self.builder.memory_data(initcode);
         // deployed = create|create2(value, data, len[, salt])
         match salt {
             Some(salt) => self.builder.create2(value, pointer, length, salt),
@@ -2573,8 +2565,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         operands: &[ValueId],
     ) -> Option<ValueId> {
         let [initcode, value, diagnostics] = *operands else { return None };
-        let capacity = self.builder.memory_object_len(diagnostics, MemoryObjectKind::Bytes);
-        let destination = self.builder.memory_object_data(diagnostics, MemoryObjectKind::Bytes);
+        let capacity = self.builder.memory_len(diagnostics);
+        let destination = self.builder.memory_data(diagnostics);
         let deployed = self.core_create(initcode, None, value);
         // total = returndatasize()
         // copied = total < capacity ? total : capacity
@@ -2583,7 +2575,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let shorter = self.builder.lt(total, capacity);
         let copied = self.builder.select(shorter, total, capacity);
         let zero = self.builder.imm(U256::ZERO);
-        self.builder.returndatacopy_heap(destination, zero, copied);
+        self.builder.copy_heap(destination, zero, copied, PtrLocation::Returndata);
         // success = deployed != 0
         let success = self.builder.ne_zero(deployed);
         Some(self.core_results(function_id, vec![success, deployed, copied, total]))
@@ -2609,7 +2601,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(failure);
         let zero = self.builder.imm(U256::ZERO);
         let selector = self.builder.imm(DEPLOYMENT_FAILED_SELECTOR << 224);
-        self.builder.mstore(zero, selector);
+        self.builder.store(zero, selector);
         let four = self.builder.imm(4);
         self.builder.revert(zero, four);
         self.builder.switch_to_block(success);
@@ -2649,12 +2641,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // mstore(out.data + count, 0)
         // The word after the bytes is zero, so the rest of their last word is, as in the buffer
         // `new bytes(count)` makes. It can reach one word past the buffer, into free memory.
-        let data = self.builder.memory_object_data(out, MemoryObjectKind::Bytes);
+        let data = self.builder.memory_data(out);
         self.builder.extcodecopy_heap(target, data, start, count);
         let data = self.builder.cast_word(data);
         let end = self.builder.add(data, count);
         let zero = self.builder.imm(U256::ZERO);
-        self.builder.mstore(end, zero);
+        self.builder.store(end, zero);
         Some(out)
     }
 
@@ -2665,10 +2657,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // count = view & (2**48 - 1)
         let mask = self.builder.imm((U256::from(1) << 48) - U256::from(1));
         let high = self.builder.imm(96);
-        let shifted = self.builder.shr(high, view);
+        let shifted = self.builder.shr(view, high);
         let target = self.builder.cast(shifted, MirType::I160);
         let middle = self.builder.imm(48);
-        let shifted = self.builder.shr(middle, view);
+        let shifted = self.builder.shr(view, middle);
         let start = self.builder.and(shifted, mask);
         let count = self.builder.and(view, mask);
         (target, start, count)
@@ -2730,7 +2722,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.core_checked_calldata_range(slice, offset, Width::Const(u64::from(width)));
         // word = calldataload(ptr(slice) + offset)
         // result = width < 32 ? word & leading(width) : word
-        let word = self.builder.calldataload(address);
+        let word = self.builder.load(address, PtrLocation::Calldata);
         Some(match leading_mask(width) {
             Some(mask) => {
                 let mask = self.builder.imm(mask);
@@ -2760,7 +2752,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let aimed = self.builder.select(ok, offset, zero);
         let base = self.builder.slice_ptr(slice);
         let address = self.builder.add(base, aimed);
-        let word = self.builder.calldataload(address);
+        let word = self.builder.load(address, PtrLocation::Calldata);
         let gated = self.builder.select(ok, word, zero);
         let value = match leading_mask(width) {
             Some(mask) => {
@@ -2778,7 +2770,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let destination = self.core_checked_range(dst, dst_offset, Width::Dynamic(count));
         let source = self.core_checked_calldata_range(src, src_offset, Width::Dynamic(count));
         // calldatacopy(destination, source, count)
-        self.builder.calldatacopy_heap(destination, source, count);
+        self.builder.copy_heap(destination, source, count, PtrLocation::Calldata);
         Some(self.builder.imm(U256::ZERO))
     }
 
@@ -2813,14 +2805,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(mask) => {
                 let tail = self.builder.imm(!mask);
                 let mask = self.builder.imm(mask);
-                let old = self.builder.mload(data);
+                let old = self.builder.load(data, PtrLocation::Memory);
                 let kept = self.builder.and(old, tail);
                 let taken = self.builder.and(value, mask);
                 let stored = self.builder.or(kept, taken);
-                self.builder.memory_object_store_word(object, offset, stored);
+                self.builder.memory_store_word(object, offset, stored);
             }
             // A whole word replaces everything at the offset.
-            None => self.builder.memory_object_store_word(object, offset, value),
+            None => self.builder.memory_store_word(object, offset, value),
         }
         Some(self.builder.imm(U256::ZERO))
     }
@@ -2883,12 +2875,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         source: ValueId,
         count: ValueId,
     ) {
-        if self.builder.func().value_slice_location(src) == Some(SliceLocation::Calldata) {
+        if self.builder.func().value_slice_location(src) == Some(PtrLocation::Calldata) {
             // calldatacopy(destination, source, count)
-            self.builder.calldatacopy_heap(destination, source, count);
+            self.builder.copy_heap(destination, source, count, PtrLocation::Calldata);
         } else {
             // mcopy(destination, source, count)
-            self.builder.mcopy_heap(destination, source, count);
+            self.builder.copy_heap(destination, source, count, PtrLocation::Memory);
         }
     }
 
@@ -2908,17 +2900,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let base = self.builder.add(data, offset);
         // pattern = byte(0, value) * 0x0101..01
         let top = self.builder.imm(248);
-        let byte = self.builder.shr(top, value);
+        let byte = self.builder.shr(value, top);
         let ones = self.builder.imm(U256::MAX / U256::from(255));
         let pattern = self.builder.mul(byte, ones);
         // for word in 0..count / 32 { mstore(base + word * 32, pattern) }
         let five = self.builder.imm(5);
-        let words = self.builder.shr(five, count);
+        let words = self.builder.shr(count, five);
         self.builder.counted_loop(words, |builder, word| {
             let five = builder.imm(5);
-            let stride = builder.shl(five, word);
+            let stride = builder.shl(word, five);
             let address = builder.add(base, stride);
-            builder.mstore(address, pattern);
+            builder.store(address, pattern);
         });
         // rest = count & 31
         // if rest != 0 {
@@ -2933,18 +2925,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(rest, partial, done);
         self.builder.switch_to_block(partial);
         let three = self.builder.imm(3);
-        let bits = self.builder.shl(three, rest);
+        let bits = self.builder.shl(rest, three);
         let all = self.builder.imm(U256::MAX);
-        let keep = self.builder.shr(bits, all);
+        let keep = self.builder.shr(all, bits);
         let five = self.builder.imm(5);
-        let stride = self.builder.shl(five, words);
+        let stride = self.builder.shl(words, five);
         let tail = self.builder.add(base, stride);
-        let old = self.builder.mload(tail);
+        let old = self.builder.load(tail, PtrLocation::Memory);
         let kept = self.builder.and(old, keep);
         let drop = self.builder.not(keep);
         let taken = self.builder.and(pattern, drop);
         let stored = self.builder.or(kept, taken);
-        self.builder.mstore(tail, stored);
+        self.builder.store(tail, stored);
         self.builder.jump(done);
         self.builder.switch_to_block(done);
         Some(self.builder.imm(U256::ZERO))
@@ -3054,9 +3046,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let right_end = self.core_load_word(b, right_end);
         let different = self.builder.xor(left_end, right_end);
         let three = self.builder.imm(3);
-        let bits = self.builder.shl(three, rest);
+        let bits = self.builder.shl(rest, three);
         let one = self.builder.imm(1);
-        let bit = self.builder.shl(bits, one);
+        let bit = self.builder.shl(one, bits);
         let rest_mask = self.builder.sub(bit, one);
         let different = self.builder.and(different, rest_mask);
         let total = self.builder.or(diff, different);
@@ -3074,8 +3066,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // range = make_slice(start, count) in the location of b
         let start = self.core_checked_range(bytes, offset, Width::Dynamic(count));
         let location = match self.builder.func().value_slice_location(bytes) {
-            Some(SliceLocation::Calldata) => SliceLocation::Calldata,
-            _ => SliceLocation::Memory,
+            Some(PtrLocation::Calldata) => PtrLocation::Calldata,
+            _ => PtrLocation::Memory,
         };
         let range = self.builder.make_slice(start, count, location);
         if let Some((call, id)) = self.forming_view
@@ -3087,7 +3079,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // result = new bytes(count)
         // copy(range, data(result))
         let result = self.builder.alloc_bytes_object(count, AllocationSemantics::SOLIDITY_ZEROED);
-        self.builder.memory_object_copy_from_slice(result, MemoryObjectKind::Bytes, range);
+        self.builder.memory_copy_from_slice(result, range);
         Some(result)
     }
 
@@ -3118,16 +3110,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         parameter_tys: &[Ty<'gcx>],
     ) -> Option<ValueId> {
         let ([object, new_len], [array_ty, _]) = (operands, parameter_tys) else { return None };
-        let Some(layout) = self.types.memory_layout(*array_ty) else {
+        if self.types.memory_layout(*array_ty).is_none() {
             return self.cx.report_unsupported(expr.span, "truncated array type");
-        };
-        let kind = layout.kind();
+        }
         // panic(0x32) if new_len > len(a)
         // set_len(a, new_len)
-        let length = self.builder.memory_object_len(*object, kind);
+        let length = self.builder.memory_len(*object);
         let grows = self.builder.gt(*new_len, length);
         self.builder.panic_if(grows, PanicCode::ArrayOutOfBounds);
-        self.builder.set_memory_object_len(*object, *new_len, kind);
+        self.builder.set_memory_len(*object, *new_len);
         Some(self.builder.imm(U256::ZERO))
     }
 
@@ -3154,7 +3145,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.slice_len(bytes)
         } else {
             // length = object.len
-            self.builder.memory_object_len(bytes, MemoryObjectKind::Bytes)
+            self.builder.memory_len(bytes)
         }
     }
 
@@ -3162,26 +3153,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// offset for the calldata slice of a view.
     fn core_bytes_data(&mut self, bytes: ValueId) -> ValueId {
         match self.builder.func().value_slice_location(bytes) {
-            Some(SliceLocation::Memory) => {
+            Some(PtrLocation::Memory) => {
                 // data = inttoptr slice.ptr
                 let pointer = self.builder.slice_ptr(bytes);
-                self.builder.cast(pointer, MirType::MemPtr)
+                self.builder.cast(pointer, MirType::MEMPTR)
             }
             // data = slice.ptr
             Some(_) => self.builder.slice_ptr(bytes),
             // data = object.data
-            None => self.builder.memory_object_data(bytes, MemoryObjectKind::Bytes),
+            None => self.builder.memory_data(bytes),
         }
     }
 
     /// Loads the word at `address` in the location of the `bytes` operand `bytes`.
     fn core_load_word(&mut self, bytes: ValueId, address: ValueId) -> ValueId {
-        if self.builder.func().value_slice_location(bytes) == Some(SliceLocation::Calldata) {
+        if self.builder.func().value_slice_location(bytes) == Some(PtrLocation::Calldata) {
             // word = calldataload(address)
-            self.builder.calldataload(address)
+            self.builder.load(address, PtrLocation::Calldata)
         } else {
             // word = mload(address)
-            self.builder.mload(address)
+            self.builder.load(address, PtrLocation::Memory)
         }
     }
 

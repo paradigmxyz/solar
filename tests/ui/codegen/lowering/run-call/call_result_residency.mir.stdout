@@ -24,7 +24,7 @@ fn @helper() -> i256 [view] {
     ret v0
 }
 
-fn @read() -> i256 [selector=0x57de26a4, inline_assembly, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @read() -> i256 [selector=0x57de26a4, inline_assembly, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = sload 1 !metadata(storage=slot(1))

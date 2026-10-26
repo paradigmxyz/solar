@@ -38,7 +38,7 @@ fn base_path_keeps_source_keys() {
 }
 
 /// Files loaded through the read callback are named by the source unit name the callback receives,
-/// as in solc, not by a path joined with the current directory.
+/// not by a path joined with the current directory.
 #[test]
 fn callback_imports_keep_source_unit_names() {
     struct Callback;
@@ -136,8 +136,7 @@ fn leading_parent_segments_keep_source_unit_names() {
     );
 }
 
-/// The read callback receives a path in the base path, and the file keeps its source unit name, as
-/// with solc's file reader.
+/// The read callback receives a path in the base path, and the file keeps its source unit name.
 #[test]
 fn callback_imports_with_base_path() {
     struct Callback;
@@ -159,6 +158,43 @@ fn callback_imports_with_base_path() {
     compile_standard_json(&input.to_string(), opts, Some(Arc::new(Callback)), &mut output).unwrap();
     let output = serde_json::from_slice::<Value>(&output).unwrap();
     assert_eq!(output, json!({"sources": {"A.sol": {"id": 1}, "X.sol": {"id": 0}}}));
+}
+
+/// The read callback gets a `file://` import with the prefix when there is no base path or include
+/// path, like libsolc, and without it otherwise, like solc's file reader. The name keeps it.
+#[test]
+fn callback_imports_file_urls() {
+    struct Callback(&'static str);
+
+    impl StandardJsonReadCallback for Callback {
+        fn read(&self, kind: &str, data: &str) -> ReadCallbackResult {
+            assert_eq!(kind, "source");
+            if data == self.0 {
+                ReadCallbackResult::Success("contract X {}".to_string())
+            } else {
+                ReadCallbackResult::Error(format!("`{data}` not found"))
+            }
+        }
+    }
+
+    for (import, base_path, include_paths, data) in [
+        ("file://X.sol", None, vec![], "file://X.sol"),
+        ("file://X.sol", Some("lib".into()), vec![], "lib/X.sol"),
+        ("file://X.sol", None, vec!["inc".into()], "inc/X.sol"),
+        ("file:///abs/X.sol", None, vec!["inc".into()], "/abs/X.sol"),
+    ] {
+        let input = json!({
+            "language": "Solidity",
+            "sources": {"A.sol": {"content": format!("import \"{import}\"; contract A {{}}")}},
+            "settings": {"outputSelection": {}}
+        });
+        let opts = CompileOpts { base_path, include_paths, ..Default::default() };
+        let mut output = Vec::new();
+        let callback = Arc::new(Callback(data));
+        compile_standard_json(&input.to_string(), opts, Some(callback), &mut output).unwrap();
+        let output = serde_json::from_slice::<Value>(&output).unwrap();
+        assert_eq!(output, json!({"sources": {"A.sol": {"id": 1}, import: {"id": 0}}}), "{import}");
+    }
 }
 
 /// The read callback is asked for every root: a file that only an include path serves resolves,
@@ -309,5 +345,30 @@ fn relative_imports_with_base_path() {
     assert_eq!(
         output,
         json!({"sources": {"/project/A.sol": {"id": 1}, "/project/B.sol": {"id": 0}}})
+    );
+}
+
+/// Compact output serializes contracts in parallel; it must keep the source and contract order of
+/// the output.
+#[test]
+fn compact_output_keeps_contract_order() {
+    let input = json!({
+        "language": "Solidity",
+        "sources": {
+            "B.sol": {"content": "contract Z { function z() external {} } contract A { function a() external {} }"},
+            "A.sol": {"content": "contract M { function m() external {} }"}
+        },
+        "settings": {"outputSelection": {"*": {"*": ["abi"]}}}
+    });
+    let mut output = Vec::new();
+    compile_standard_json(&input.to_string(), CompileOpts::default(), None, &mut output).unwrap();
+    assert_eq!(
+        String::from_utf8(output).unwrap(),
+        concat!(
+            r#"{"sources":{"A.sol":{"id":0},"B.sol":{"id":1}},"contracts":{"#,
+            r#""A.sol":{"M":{"abi":[{"type":"function","name":"m","inputs":[],"outputs":[],"stateMutability":"nonpayable"}]}},"#,
+            r#""B.sol":{"Z":{"abi":[{"type":"function","name":"z","inputs":[],"outputs":[],"stateMutability":"nonpayable"}]},"#,
+            r#""A":{"abi":[{"type":"function","name":"a","inputs":[],"outputs":[],"stateMutability":"nonpayable"}]}}}}"#,
+        )
     );
 }

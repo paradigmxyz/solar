@@ -4,67 +4,67 @@
   fn @nested(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = internal_frame_addr 128
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
 -     mstore v1, 0
       v2 = internal_frame_addr 160
-      v3 = ptrtoint memptr v2 to i256
+      v3 = ptrtoint ptr<memory> v2 to i256
 -     mstore v3, 0
       jump bb1
     bb1:
 +     v35 = phi [bb0: 0], [bb5: v36]
 +     v37 = phi [bb0: 0], [bb5: v29]
       v4 = internal_frame_addr 160
-      v5 = ptrtoint memptr v4 to i256
+      v5 = ptrtoint ptr<memory> v4 to i256
 -     v6 = mload v5
 -     v7 = lt v6, arg0
 +     v7 = lt v37, arg0
       jumpi v7, bb2, bb6
     bb6:
       v32 = internal_frame_addr 128
-      v33 = ptrtoint memptr v32 to i256
+      v33 = ptrtoint ptr<memory> v32 to i256
 -     v34 = mload v33
 -     ret v34
 +     ret v35
     bb2:
       v8 = internal_frame_addr 192
-      v9 = ptrtoint memptr v8 to i256
+      v9 = ptrtoint ptr<memory> v8 to i256
 -     mstore v9, 0
       jump bb3
     bb3:
 +     v36 = phi [bb2: v35], [bb4: v17]
 +     v38 = phi [bb2: 0], [bb4: v23]
       v10 = internal_frame_addr 192
-      v11 = ptrtoint memptr v10 to i256
+      v11 = ptrtoint ptr<memory> v10 to i256
 -     v12 = mload v11
 -     v13 = lt v12, arg1
 +     v13 = lt v38, arg1
       jumpi v13, bb4, bb5
     bb5:
       v26 = internal_frame_addr 160
-      v27 = ptrtoint memptr v26 to i256
+      v27 = ptrtoint ptr<memory> v26 to i256
 -     v28 = mload v27
 -     v29 = add v28, 1
 +     v29 = add v37, 1
       v30 = internal_frame_addr 160
-      v31 = ptrtoint memptr v30 to i256
+      v31 = ptrtoint ptr<memory> v30 to i256
 -     mstore v31, v29
       jump bb1
     bb4:
       v14 = internal_frame_addr 128
-      v15 = ptrtoint memptr v14 to i256
+      v15 = ptrtoint ptr<memory> v14 to i256
 -     v16 = mload v15
 -     v17 = add v16, 1
 +     v17 = add v36, 1
       v18 = internal_frame_addr 128
-      v19 = ptrtoint memptr v18 to i256
+      v19 = ptrtoint ptr<memory> v18 to i256
 -     mstore v19, v17
       v20 = internal_frame_addr 192
-      v21 = ptrtoint memptr v20 to i256
+      v21 = ptrtoint ptr<memory> v20 to i256
 -     v22 = mload v21
 -     v23 = add v22, 1
 +     v23 = add v38, 1
       v24 = internal_frame_addr 192
-      v25 = ptrtoint memptr v24 to i256
+      v25 = ptrtoint ptr<memory> v24 to i256
 -     mstore v25, v23
       jump bb3
   }
@@ -75,50 +75,50 @@
   fn @nested(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = internal_frame_addr 128
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       v2 = internal_frame_addr 160
-      v3 = ptrtoint memptr v2 to i256
+      v3 = ptrtoint ptr<memory> v2 to i256
       jump bb1
     bb1:
       v35 = phi [bb0: 0], [bb5: v36]
       v37 = phi [bb0: 0], [bb5: v29]
       v4 = internal_frame_addr 160
-      v5 = ptrtoint memptr v4 to i256
+      v5 = ptrtoint ptr<memory> v4 to i256
       v7 = lt v37, arg0
       jumpi v7, bb2, bb6
     bb6:
       v32 = internal_frame_addr 128
-      v33 = ptrtoint memptr v32 to i256
+      v33 = ptrtoint ptr<memory> v32 to i256
       ret v35
     bb2:
       v8 = internal_frame_addr 192
-      v9 = ptrtoint memptr v8 to i256
+      v9 = ptrtoint ptr<memory> v8 to i256
       jump bb3
     bb3:
       v36 = phi [bb2: v35], [bb4: v17]
       v38 = phi [bb2: 0], [bb4: v23]
       v10 = internal_frame_addr 192
-      v11 = ptrtoint memptr v10 to i256
+      v11 = ptrtoint ptr<memory> v10 to i256
       v13 = lt v38, arg1
       jumpi v13, bb4, bb5
     bb5:
       v26 = internal_frame_addr 160
-      v27 = ptrtoint memptr v26 to i256
+      v27 = ptrtoint ptr<memory> v26 to i256
       v29 = add v37, 1
       v30 = internal_frame_addr 160
-      v31 = ptrtoint memptr v30 to i256
+      v31 = ptrtoint ptr<memory> v30 to i256
       jump bb1
     bb4:
       v14 = internal_frame_addr 128
-      v15 = ptrtoint memptr v14 to i256
+      v15 = ptrtoint ptr<memory> v14 to i256
       v17 = add v36, 1
       v18 = internal_frame_addr 128
-      v19 = ptrtoint memptr v18 to i256
+      v19 = ptrtoint ptr<memory> v18 to i256
       v20 = internal_frame_addr 192
-      v21 = ptrtoint memptr v20 to i256
+      v21 = ptrtoint ptr<memory> v20 to i256
       v23 = add v38, 1
       v24 = internal_frame_addr 192
-      v25 = ptrtoint memptr v24 to i256
+      v25 = ptrtoint ptr<memory> v24 to i256
       jump bb3
   }
   
@@ -128,50 +128,50 @@
   fn @nested(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = internal_frame_addr 128
--     v1 = ptrtoint memptr v0 to i256
+-     v1 = ptrtoint ptr<memory> v0 to i256
 -     v2 = internal_frame_addr 160
--     v3 = ptrtoint memptr v2 to i256
+-     v3 = ptrtoint ptr<memory> v2 to i256
       jump bb1
     bb1:
       v35 = phi [bb0: 0], [bb5: v36]
       v37 = phi [bb0: 0], [bb5: v29]
 -     v4 = internal_frame_addr 160
--     v5 = ptrtoint memptr v4 to i256
+-     v5 = ptrtoint ptr<memory> v4 to i256
       v7 = lt v37, arg0
       jumpi v7, bb2, bb6
     bb6:
 -     v32 = internal_frame_addr 128
--     v33 = ptrtoint memptr v32 to i256
+-     v33 = ptrtoint ptr<memory> v32 to i256
       ret v35
     bb2:
 -     v8 = internal_frame_addr 192
--     v9 = ptrtoint memptr v8 to i256
+-     v9 = ptrtoint ptr<memory> v8 to i256
       jump bb3
     bb3:
       v36 = phi [bb2: v35], [bb4: v17]
       v38 = phi [bb2: 0], [bb4: v23]
 -     v10 = internal_frame_addr 192
--     v11 = ptrtoint memptr v10 to i256
+-     v11 = ptrtoint ptr<memory> v10 to i256
       v13 = lt v38, arg1
       jumpi v13, bb4, bb5
     bb5:
 -     v26 = internal_frame_addr 160
--     v27 = ptrtoint memptr v26 to i256
+-     v27 = ptrtoint ptr<memory> v26 to i256
       v29 = add v37, 1
 -     v30 = internal_frame_addr 160
--     v31 = ptrtoint memptr v30 to i256
+-     v31 = ptrtoint ptr<memory> v30 to i256
       jump bb1
     bb4:
 -     v14 = internal_frame_addr 128
--     v15 = ptrtoint memptr v14 to i256
+-     v15 = ptrtoint ptr<memory> v14 to i256
       v17 = add v36, 1
 -     v18 = internal_frame_addr 128
--     v19 = ptrtoint memptr v18 to i256
+-     v19 = ptrtoint ptr<memory> v18 to i256
 -     v20 = internal_frame_addr 192
--     v21 = ptrtoint memptr v20 to i256
+-     v21 = ptrtoint ptr<memory> v20 to i256
       v23 = add v38, 1
 -     v24 = internal_frame_addr 192
--     v25 = ptrtoint memptr v24 to i256
+-     v25 = ptrtoint ptr<memory> v24 to i256
       jump bb3
   }
   

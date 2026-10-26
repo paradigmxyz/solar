@@ -1,3 +1,9 @@
+error: cannot apply unary operator `-` to `uint256`
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_negative.sol:LL:CC
+   │
+LL │ contract NegativeUnsignedConstant layout at -U {}
+   ╰╴                                            ━━
+
 error[6753]: base slot of storage layout evaluates to a value outside the range of type `uint256`
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_negative.sol:LL:CC
    │
@@ -21,12 +27,6 @@ error[6753]: base slot of storage layout evaluates to a value outside the range 
    │
 LL │ contract NegativeSignedConstant layout at -I {}
    ╰╴                                          ━━
-
-error: cannot apply unary operator `-` to `uint256`
-   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_negative.sol:LL:CC
-   │
-LL │ contract NegativeUnsignedConstant layout at -U {}
-   ╰╴                                            ━━
 
 error: aborting due to 5 previous errors
 

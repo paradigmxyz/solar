@@ -12,7 +12,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @getM(arg0: i256, arg1: i256) -> i256 [selector=0x1136c6ce, view, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @getM(arg0: i256, arg1: i256) -> i256 [selector=0x1136c6ce, view, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = mapping_slot arg1, v0
@@ -22,7 +22,7 @@ fn @getM(arg0: i256, arg1: i256) -> i256 [selector=0x1136c6ce, view, abi_params=
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_storage_argument.sol:MappingArrayParam ===
 @module MappingArrayParam
-fn @m(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2def5e24, view, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @m(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2def5e24, view, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -62,7 +62,7 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_storage_argument.sol:ArrayParam ===
 @module ArrayParam
-fn @values(arg0: i256) -> i256 [selector=0x5e383d21, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @values(arg0: i256) -> i256 [selector=0x5e383d21, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = lt arg0, v0
@@ -98,7 +98,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -114,7 +114,7 @@ fn @constructor() [constructor] {
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
     v8 = eq v7, false
@@ -128,11 +128,11 @@ fn @constructor() [constructor] {
     v31 = add v0, 2
     v32 = sub 31, v6
     v33 = mul v32, 8
-    v34 = shl v33, 255
+    v34 = shl 255, v33
     v35 = not v34
     v36 = and v31, v35
     v37 = byte 0, 0x6100000000000000000000000000000000000000000000000000000000000000
-    v38 = shl v33, v37
+    v38 = shl v37, v33
     v39 = or v36, v38
     sstore 0, v39 !metadata(storage=slot(0))
     jump bb6
@@ -149,18 +149,18 @@ fn @constructor() [constructor] {
     v10 = add v0, 2
     sstore 0, v10 !metadata(storage=slot(0))
     v11 = storage_array_data_slot 0
-    v12 = shr 5, v6
+    v12 = shr v6, 5
     v13 = add v11, v12
     v14 = and v6, 31
     v15 = sub 31, v14
     v16 = mul v15, 8
-    v17 = shl v16, 255
+    v17 = shl 255, v16
     v18 = sload v13 !metadata(storage=symbolic(v13))
     v19 = not v17
     v20 = and v18, v19
-    v21 = shr 248, 0x6100000000000000000000000000000000000000000000000000000000000000
+    v21 = shr 0x6100000000000000000000000000000000000000000000000000000000000000, 248
     v22 = and v21, 255
-    v23 = shl v16, v22
+    v23 = shl v22, v16
     v24 = or v20, v23
     sstore v13, v24 !metadata(storage=symbolic(v13))
     jump bb6
@@ -171,7 +171,7 @@ fn @constructor() [constructor] {
     v42 = eq v41, 1
     v43 = sub 0, v41
     v44 = or 127, v43
-    v45 = shr 1, v40
+    v45 = shr v40, 1
     v46 = and v45, v44
     v47 = lt v46, 0x10000000000000000
     v48 = eq v47, false
@@ -185,11 +185,11 @@ fn @constructor() [constructor] {
     v71 = add v40, 2
     v72 = sub 31, v46
     v73 = mul v72, 8
-    v74 = shl v73, 255
+    v74 = shl 255, v73
     v75 = not v74
     v76 = and v71, v75
     v77 = byte 0, 0x6200000000000000000000000000000000000000000000000000000000000000
-    v78 = shl v73, v77
+    v78 = shl v77, v73
     v79 = or v76, v78
     sstore 0, v79 !metadata(storage=slot(0))
     jump bb11
@@ -206,18 +206,18 @@ fn @constructor() [constructor] {
     v50 = add v40, 2
     sstore 0, v50 !metadata(storage=slot(0))
     v51 = storage_array_data_slot 0
-    v52 = shr 5, v46
+    v52 = shr v46, 5
     v53 = add v51, v52
     v54 = and v46, 31
     v55 = sub 31, v54
     v56 = mul v55, 8
-    v57 = shl v56, 255
+    v57 = shl 255, v56
     v58 = sload v53 !metadata(storage=symbolic(v53))
     v59 = not v57
     v60 = and v58, v59
-    v61 = shr 248, 0x6200000000000000000000000000000000000000000000000000000000000000
+    v61 = shr 0x6200000000000000000000000000000000000000000000000000000000000000, 248
     v62 = and v61, 255
-    v63 = shl v56, v62
+    v63 = shl v62, v56
     v64 = or v60, v63
     sstore v53, v64 !metadata(storage=symbolic(v53))
     jump bb11
@@ -229,7 +229,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v0
@@ -237,12 +237,12 @@ fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word],
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     ret v6
 }
 
-fn @at(arg0: i256) -> i8 [selector=0xe0886f90, view, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @at(arg0: i256) -> i8 [selector=0xe0886f90, view, abi_params=[uint256], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v0
@@ -250,7 +250,7 @@ fn @at(arg0: i256) -> i8 [selector=0xe0886f90, view, abi_params=[u256], abi_retu
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt arg0, v6
     v8 = eq v7, false
@@ -260,7 +260,7 @@ fn @at(arg0: i256) -> i8 [selector=0xe0886f90, view, abi_params=[u256], abi_retu
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = shr 5, arg0
+    v10 = shr arg0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -269,9 +269,9 @@ fn @at(arg0: i256) -> i8 [selector=0xe0886f90, view, abi_params=[u256], abi_retu
     v14 = sub 31, v13
     v15 = sload v12 !metadata(storage=symbolic(v12))
     v16 = mul v14, 8
-    v17 = shr v16, v15
-    v18 = shl 248, v17
-    v19 = shr 248, v18
+    v17 = shr v15, v16
+    v18 = shl v17, 248
+    v19 = shr v18, 248
     v20 = trunc i256 v19 to i8
     ret v20
 }
@@ -296,7 +296,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @getM(arg0: i256, arg1: i256) -> i256 [selector=0x1136c6ce, view, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @getM(arg0: i256, arg1: i256) -> i256 [selector=0x1136c6ce, view, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = mapping_slot arg1, v0
@@ -326,7 +326,7 @@ fn @constructor(arg0: i1) [constructor, abi_params=[bool]] {
     ret
 }
 
-fn @getM(arg0: i256, arg1: i256) -> i256 [selector=0x1136c6ce, view, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @getM(arg0: i256, arg1: i256) -> i256 [selector=0x1136c6ce, view, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = mapping_slot arg1, v0

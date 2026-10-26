@@ -13,8 +13,8 @@ contract CustomErrorPayloads {
     }
 
     // CHECK-LABEL: fn @revert_args{{[( ]}}
-    // CHECK: [[MESSAGE:v[0-9]+]] = alloc memorybytes
-    // CHECK: set_memory_object_len memorybytes, [[MESSAGE]], 6
+    // CHECK: [[MESSAGE:v[0-9]+]] = alloc
+    // CHECK: mstore [[MESSAGE]], 6
     // CHECK: icall require<custom_error [word, memory_bytes]>, false, 0x{{[0-9a-f]+}}, 7, [[MESSAGE]]
     // CHECK: invalid
     function revert_args() public pure {
@@ -28,7 +28,7 @@ contract CustomErrorPayloads {
     }
 
     // CHECK-LABEL: fn @require_named{{[( ]}}
-    // CHECK: [[MESSAGE:v[0-9]+]] = alloc memorybytes
+    // CHECK: [[MESSAGE:v[0-9]+]] = alloc
     // CHECK: icall require<custom_error [word, memory_bytes]>, arg0, 0x{{[0-9a-f]+}}, 7, [[MESSAGE]]
     function require_named(bool ok) public pure {
         require(ok, MyError({message: "failed", code: 7}));

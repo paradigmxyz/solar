@@ -1,0 +1,86 @@
+- // === ROOT/tests/ui/codegen/mir/loop-unroll/bounded_loops.mir (before loop-unroll) ===
++ // === ROOT/tests/ui/codegen/mir/loop-unroll/bounded_loops.mir (after loop-unroll) ===
+  @module BoundedLoops
+  fn @three(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 3
+      ret v0
+  }
+  
+  fn @wide(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 0xffff
+      ret v0
+  }
+  
+  fn @bounded(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @three, arg0
+      jump bb1
+    bb1:
+      v1 = phi [bb0: 0], [bb2: v6]
+      v2 = phi [bb0: 0], [bb2: v5]
+      v3 = lt v1, v0
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v2
+    bb2:
+      v4 = mul v1, 3
+      v5 = add v2, v4
+      v6 = add v1, 1
+      jump bb1
+  }
+  
+  fn @unbounded(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @wide, arg0
+-     jump bb1
++     jump bb4
++   bb4:
++     v7 = phi [bb0: 0], [bb11: v30]
++     v8 = phi [bb0: 0], [bb11: v29]
++     v31 = add v7, 3
++     v32 = lt v31, v0
++     jumpi v32, bb5, bb1
+    bb1:
+-     v1 = phi [bb0: 0], [bb2: v6]
+-     v2 = phi [bb0: 0], [bb2: v5]
++     v1 = phi [bb4: v7], [bb2: v6]
++     v2 = phi [bb4: v8], [bb2: v5]
+      v3 = lt v1, v0
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v2
+    bb2:
+      v4 = mul v1, 3
+      v5 = add v2, v4
+      v6 = add v1, 1
+      jump bb1
++   bb5:
++     v10 = mul v7, 3
++     v11 = add v8, v10
++     v12 = add v7, 1
++     jump bb6
++   bb6:
++     jump bb7
++   bb7:
++     v16 = mul v12, 3
++     v17 = add v11, v16
++     v18 = add v12, 1
++     jump bb8
++   bb8:
++     jump bb9
++   bb9:
++     v22 = mul v18, 3
++     v23 = add v17, v22
++     v24 = add v18, 1
++     jump bb10
++   bb10:
++     jump bb11
++   bb11:
++     v28 = mul v24, 3
++     v29 = add v23, v28
++     v30 = add v24, 1
++     jump bb4
+  }
+  

@@ -5,7 +5,7 @@
   struct1: {i256, i256, i256, i256}
   struct2: {i256, i256}
 
-fn @stored(arg0: i256) -> i256 [selector=0x8c396222, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @stored(arg0: i256) -> i256 [selector=0x8c396222, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -19,8 +19,8 @@ fn @triple(arg0: i256) -> struct0 [pure] {
   bb2:
     jump bb3
   bb3:
-    v4 = checked_add u256, arg0, 1
-    v5 = checked_add u256, arg0, 2
+    v4 = checked_add uint256, arg0, 1
+    v5 = checked_add uint256, arg0, 2
     v6 = insert_value struct0, undef struct0, 0, arg0
     v7 = insert_value struct0, v6, 1, v4
     v8 = insert_value struct0, v7, 2, v5
@@ -32,7 +32,7 @@ fn @triple(arg0: i256) -> struct0 [pure] {
     ret v3
 }
 
-fn @assign(arg0: i256, arg1: i256) -> struct1 [selector=0xf09915d4, inline_assembly, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @assign(arg0: i256, arg1: i256) -> struct1 [selector=0xf09915d4, inline_assembly, abi_params=[uint256, uint256], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = icall @triple, arg1
@@ -49,15 +49,15 @@ fn @assign(arg0: i256, arg1: i256) -> struct1 [selector=0xf09915d4, inline_assem
     ret v10
 }
 
-fn @ternary(arg0: i1, arg1: i256) -> struct2 [selector=0x09a143f6, pure, abi_params=[bool, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @ternary(arg0: i1, arg1: i256) -> struct2 [selector=0x09a143f6, pure, abi_params=[bool, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
-    v1 = checked_add u256, arg1, 2
-    v2 = checked_add u256, arg1, 3
+    v1 = checked_add uint256, arg1, 2
+    v2 = checked_add uint256, arg1, 3
     jump bb3
   bb1:
-    v0 = checked_add u256, arg1, 1
+    v0 = checked_add uint256, arg1, 1
     jump bb3
   bb3:
     v3 = phi [bb1: arg1], [bb2: v1]

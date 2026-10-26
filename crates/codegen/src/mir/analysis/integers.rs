@@ -6,8 +6,11 @@
 //! back to the type range. A shared query budget bounds work across phi inputs. Address and affine
 //! analyses use the same no-wrap proof before treating modular arithmetic as an ordinary offset.
 
-use crate::mir::{Function, InstKind, MirType, Value, ValueId};
+use crate::mir::{
+    Callee, Function, FunctionId, InstKind, MirType, Module, Terminator, Value, ValueId,
+};
 use alloy_primitives::U256;
+use solar_data_structures::map::FxHashMap;
 
 #[inline]
 pub(crate) fn integer_bits(func: &Function, value: ValueId) -> u32 {
@@ -132,4 +135,62 @@ fn arithmetic_bounds(
         _ => return None,
     };
     (range.1 <= max).then_some(range)
+}
+
+/// Like [`unsigned_bounds`], bounding call results by `returns`, as [`return_bounds`] computes.
+pub(crate) fn unsigned_bounds_with_returns(
+    func: &Function,
+    value: ValueId,
+    returns: &FxHashMap<FunctionId, U256>,
+) -> (U256, U256) {
+    let known = |value| {
+        let Value::Inst(inst) = func.value(value) else { return None };
+        let InstKind::ICall { function: Callee::Function(callee), .. } = func.inst(*inst).kind
+        else {
+            return None;
+        };
+        returns.get(&callee).map(|&max| (U256::ZERO, max))
+    };
+    bounds_with(func, value, 8, &mut 64, &known)
+}
+
+/// The largest word each function can return, for functions that return one word on every
+/// path and whose returned values have a proven bound below their type's maximum.
+///
+/// A call to a function in the map yields at most its bound. Bounds only depend on functions
+/// already in the map, so a recursive call contributes its type's full range and the result is
+/// sound without assuming anything about the function being bounded.
+pub(crate) fn return_bounds(module: &Module) -> FxHashMap<FunctionId, U256> {
+    let mut bounds = FxHashMap::default();
+    // Each round can bound the callers of the functions bounded by the one before; a few rounds
+    // reach the short call chains of value helpers.
+    for _ in 0..4 {
+        let mut changed = false;
+        for (id, func) in module.functions.iter_enumerated() {
+            if bounds.contains_key(&id) || func.return_components() != [MirType::I256] {
+                continue;
+            }
+            let mut widest = Some(U256::ZERO);
+            for block in &func.blocks {
+                widest = match &block.terminator {
+                    Some(Terminator::Return { values }) => match values.as_slice() {
+                        &[value] => widest.map(|widest| {
+                            widest.max(unsigned_bounds_with_returns(func, value, &bounds).1)
+                        }),
+                        _ => None,
+                    },
+                    Some(Terminator::TailCall { .. }) => None,
+                    _ => widest,
+                };
+            }
+            if let Some(widest) = widest.filter(|&widest| widest < U256::MAX) {
+                bounds.insert(id, widest);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    bounds
 }

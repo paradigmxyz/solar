@@ -34,10 +34,13 @@ bumpalo.workspace = true
 either.workspace = true
 indexmap = { workspace = true, features = ["serde"] }
 num-bigint.workspace = true
+num-rational.workspace = true
 num-traits.workspace = true
 once_map.workspace = true
 rayon.workspace = true
+ripemd.workspace = true
 serde = { workspace = true, features = ["derive"] }
+sha2.workspace = true
 thread_local.workspace = true
 tracing.workspace = true
 

@@ -185,6 +185,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     fn parse_stmt_assembly(&mut self) -> PResult<'sess, StmtAssembly<'ast>> {
         let dialect = self.parse_str_lit_opt();
         if let Some(dialect) = &dialect
+            && self.validate_str_lit(dialect)
             && dialect.value != sym::evmasm
         {
             self.dcx()
@@ -194,7 +195,11 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 .emit();
         }
         let flags = if self.check(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-            self.parse_paren_comma_seq(false, Self::parse_str_lit)?
+            self.parse_paren_comma_seq(false, |this| {
+                let flag = this.parse_str_lit()?;
+                this.validate_str_lit(&flag);
+                Ok(flag)
+            })?
         } else {
             Default::default()
         };
@@ -252,12 +257,12 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 variables.extend(none_elements.into_iter().map(SpannedOption::None));
                 let ty = iap.into_ty(self);
                 variables.push(SpannedOption::Some(
-                    self.parse_variable_definition_with(VarFlags::FUNCTION, ty)?,
+                    self.parse_variable_definition_with(VarFlags::VAR_TUPLE, ty)?,
                 ));
                 self.parse_optional_items_seq_required(
                     Delimiter::Parenthesis,
                     &mut variables,
-                    |this| this.parse_variable_definition(VarFlags::FUNCTION),
+                    |this| this.parse_variable_definition(VarFlags::VAR_TUPLE),
                 )?;
                 self.expect(TokenKind::Eq)?;
                 let expr = self.parse_expr()?;

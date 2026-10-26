@@ -51,17 +51,17 @@ contract TryBareCatch {
     // is.
     // HOMESTEAD-LABEL: fn @live
     // HOMESTEAD: create
-    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: extcodesize
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
     // HOMESTEAD: [[OK:v[0-9]+]] = call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 32
     // HOMESTEAD: jumpi [[OK]]
     // OSAKA-LABEL: fn @live
-    // OSAKA: [[OK:v[0-9]+]] = call {{v[0-9]+}}, {{v[0-9]+}}, 0, {{v[0-9]+}}, {{v[0-9]+}}, 0, 32
+    // OSAKA: [[OK:v[0-9]+]] = call {{v[0-9]+}}, {{v[0-9]+}}, 0, 28, 4, 0, 32
     // OSAKA: jumpi [[OK]]
     // OSAKA-NOT: returndata_bytes
-    // OSAKA: mload
+    // OSAKA: {{(^|[^a-z_])}}mload
     function live() external returns (uint256 r) {
         try TryTarget(address(new TryCallee())).value() returns (uint256 v) {
             r = v;
@@ -75,10 +75,10 @@ contract TryBareCatch {
     // HOMESTEAD-LABEL: fn @liveTwo
     // HOMESTEAD: create
     // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
-    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
+    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint ptr<memory> [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
     // HOMESTEAD: mstore [[ABOVE]], 0
-    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
     // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64
@@ -165,7 +165,7 @@ contract TryBareCatch {
     // HOMESTEAD: extcodesize
     // OSAKA-LABEL: fn @noCodeNoReturn
     // OSAKA-NOT: extcodesize
-    // OSAKA: abi_encode
+    // OSAKA: mstore 0, {{.*}}
     // OSAKA: extcodesize
     function noCodeNoReturn() external returns (uint256 r) {
         try TryTarget(address(0)).noop() {

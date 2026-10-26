@@ -22,11 +22,10 @@ contract Test {
         hash = keccak256(payload);
     }
 
-    // Without the tag, the decode copies the calldata to memory first.
+    // Without the tag, the decode copies the payload into a new object.
     // CHECK-LABEL: fn @copied(
-    // CHECK: mstore 64
+    // CHECK: icall @alloc
     // CHECK: calldatacopy
-    // CHECK: icall @decode_aggregate
     function copied(bytes calldata data) external pure returns (uint256 id, bytes32 hash) {
         (uint256 n, bytes memory payload) = abi.decode(data, (uint256, bytes));
         id = n;
@@ -36,7 +35,7 @@ contract Test {
     // A view of memory hashes the decoded bytes where they are.
     // CHECK-LABEL: fn @viewedMemory(
     // CHECK-NOT: mstore 64
-    // CHECK-NOT: icall @decode_aggregate
+    // CHECK-NOT: icall @alloc
     // CHECK: keccak256
     // CHECK: returndata
     function viewedMemory(bytes memory data) public pure returns (uint256 id, bytes32 hash) {
@@ -50,7 +49,7 @@ contract Test {
     // nothing is allocated or copied.
     // CHECK-LABEL: fn @nestedViewed(
     // CHECK-NOT: mstore 64
-    // CHECK-NOT: icall @decode_aggregate
+    // CHECK-NOT: icall @alloc
     // CHECK-NOT: calldatacopy
     // CHECK: returndata
     function nestedViewed(bytes calldata data) external pure returns (uint256 total) {
@@ -63,7 +62,8 @@ contract Test {
     }
 
     // CHECK-LABEL: fn @copiedMemory(
-    // CHECK: icall @decode_aggregate
+    // CHECK: icall @alloc
+    // CHECK: mcopy
     function copiedMemory(bytes memory data) public pure returns (uint256 id, bytes32 hash) {
         (uint256 n, bytes memory payload) = abi.decode(data, (uint256, bytes));
         id = n;

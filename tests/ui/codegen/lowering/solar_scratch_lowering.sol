@@ -6,7 +6,6 @@
 // the one before, instead of growing memory with every iteration.
 // CHECK-LABEL: fn @digests
 // CHECK: [[START:v[0-9]+]] = mload 64
-// CHECK: mstore 64, {{v[0-9]+}}
 // CHECK: keccak256
 // CHECK: mstore 64, [[START]]
 // CHECK-LABEL: fn @plain

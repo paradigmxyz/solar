@@ -8,14 +8,51 @@ is a late lowering decision.
 
 ## Value types and conversions
 
-SSA values use integers (`iN`), opaque memory pointers (`memptr`), structs, or
-slices. A `memptr` carries a 256-bit memory address without implying validity,
-heap provenance, or non-wrapping pointer arithmetic. Memory objects are `memptr`
-values too: an access such as `memory_object_load_field memorystruct<3>, v0, 2`
-names the object layout itself, as LLVM loads name their type.
+SSA values use integers (`iN`), opaque pointers, structs, or slices. A pointer
+names the location it points into: `ptr<memory>`, `ptr<calldata>`, or
+`ptr<returndata>`. It carries a 256-bit address without implying validity or
+heap provenance.
+Memory objects are `ptr<memory>` values too, accessed with ordinary instructions:
+every word access is a load, a store, or `mstore8`, and every bulk copy into
+memory is a copy. One load, one store, and one copy instruction cover every
+location, storage and transient storage included, and each prints as the opcode
+its location selects: `mload`, `calldataload`, `returndataload`, `sload`, or
+`tload`; `mstore`, `sstore`, or `tstore`; and `mcopy`, `calldatacopy`, or
+`returndatacopy`. Storage and transient accesses take a slot word. Like an LLVM
+load from `ptr`, an access takes a pointer into the location it reads or a raw
+`i256` address, and so does every memory range operand of `keccak256`, `log`,
+the calls, `create`, and raw `return` and `revert`. `lower-evm-shaped` erases
+pointer types: every pointer becomes the word it holds, and the casts between
+the two disappear. A field or element access is a `ptradd` and an access at the
+result; analyses decompose an address through its `ptradd` chain.
+
+`ptradd p, n` addresses `n` bytes into the object `p` points into and keeps
+its type. Like an LLVM `getelementptr inbounds nuw`, it does not wrap: semantic
+lowering emits it only for addresses inside the object, so alias analysis
+places an access at a runtime offset at or after `p`, and assembly's raw
+arithmetic uses `add` on words instead. A fixed array or struct has no length
+word, so field or element `i` is the word at `ptradd v0, 32 * i`, and at
+`ptradd v0, shl i, 5` for a runtime index. A dynamic memory object (`bytes`,
+`string`, `T[] memory`) is a `ptr<memory>` to its length word, which assembly can
+read and rewrite: `mload v0` reads the length, the payload starts at `ptradd v0, 32`, and
+element `i` of a word array is the word 32 bytes past `ptradd v0, shl i, 5`.
+Where a slice value is needed, `make_memory_slice` pairs the payload pointer
+with the length; `extract_value` projects its pointer (field 0) and length
+(field 1) as it projects struct fields, and calldata and returndata slices work
+the same way, with a `ptr<calldata>` or `ptr<returndata>` pointer. At the
+calling convention a slice's pointer travels as a word.
 An `i256` carries 256 bits and does not imply heap provenance or non-wrapping
 address arithmetic. Signedness and ABI encoding rules belong to operation and
 layout metadata. `void` denotes no function result.
+
+Memory pointers are never null. Every `ptr<memory>` that the compiler creates or
+stores in a memory object addresses a real object: an allocation, or the zero slot at
+`0x60`, which holds the empty `bytes`, `string`, and `T[] memory`. A default
+value is the zero slot or a default object, never a zero word, so defaults, `new`,
+`delete`, ABI decoding, and copies from storage or calldata fill every reference
+field and element, and code that reads a pointer follows it without a zero test.
+Assembly that stores any other word in a pointer slot leaves the memory model, and
+the compiler follows that word as `solc` does.
 
 Integer types are `i1` and byte widths `i8`, `i16`, …, `i256`. Solidity
 `uintN` and `intN` both become `iN`; signedness belongs to the operation.
@@ -33,7 +70,10 @@ the branch condition type.
 Source bindings exposed to inline assembly use explicit `i256` carriers where
 raw upper bits must survive copies and internal calls. Typed Solidity uses
 convert these carriers to their native types. ABI and memory layout metadata
-retain signedness and storage widths independently of SSA types.
+retain signedness and storage widths independently of SSA types. Layout
+metadata spells scalars with Solidity names, `uintN`, `intN`, `bool`, `address`,
+`bytesN`, and `function`, as in `checked_add int64`, `abi_params=[uint8]`, or
+an `@immutables` entry `owner: address`; only SSA types use `iN`.
 
 Every `i1` is zero or one. Branches and select conditions require `i1`;
 compare a word with zero using `eq value, 0` or `ne value, 0` before branching.
@@ -45,8 +85,8 @@ and use `opcode source-type value to destination-type`:
 - `trunc i256 value to i160` keeps the low 160 bits.
 - `zext i160 value to i256` widens with zero bits.
 - `sext i160 value to i256` widens by copying the sign bit.
-- `ptrtoint memptr value to i256` exposes a pointer's bits; narrower results truncate.
-- `inttoptr i256 value to memptr` interprets integer bits as a pointer.
+- `ptrtoint ptr<memory> value to i256` exposes a pointer's bits; narrower results truncate.
+- `inttoptr i256 value to ptr<memory>` interprets integer bits as a pointer.
 
 `trunc i256 value to i1` keeps only the low bit. Use `ne value, 0` for
 nonzero truth conversion. Pointer casts establish no validity or ownership. Phi
@@ -67,15 +107,15 @@ This includes loop phis.
 Mixed narrow-integer/`i256` joins widen the narrow input without normalizing the word.
 Logical operations convert those words to
 canonical booleans. This keeps the MIR invariant without changing the bits
-that source assembly can observe. Immutable encodings may shrink only when
-every assignment proves that all stored bits fit the shorter encoding.
+that source assembly can observe. Other immutables keep their source layout,
+so an `address` immutable loads as `i160`. Immutable encodings may shrink only
+when every assignment proves that all stored bits fit the shorter encoding.
 
 ## Phase model
 
 The two representation phases and checked backend boundary are implemented.
 Shared instruction effects, checked arithmetic, conditional checks, revert payloads,
-precompiles, and concatenation
-now use the phase boundary. The remaining builtin families are described below.
+and precompiles now use the phase boundary. The remaining builtin families are described below.
 The CFG and aggregate contracts below also describe implemented behavior.
 
 Use two stable MIR representations, `semantic` and `lowered`, followed by the
@@ -86,7 +126,7 @@ or types a module may contain.
 | Representation | Contract | Main work |
 | --- | --- | --- |
 | Semantic MIR | Typed SSA, structs, slices, object references, semantic builtins, ordinary function calls; ABI and storage layouts remain explicit data. | Inline and specialize small functions, propagate constants, promote frame slots, simplify aggregates, remove redundant checks and memory/storage work. |
-| Lowered MIR | `i256`, `i1`, and `memptr` SSA, explicit routing and ABI code, physical memory accesses, lowered call signatures, backend-supported operations. No semantic builtin or unresolved layout remains. | Simplify exposed scalar code, remove redundant loads/stores, optimize generated loops where profitable, prepare scheduling. |
+| Lowered MIR | `i256` and `i1` SSA (pointers become the words they hold), explicit routing and ABI code, physical memory accesses, lowered call signatures, backend-supported operations. No semantic builtin or unresolved layout remains. | Simplify exposed scalar code, remove redundant loads/stores, optimize generated loops where profitable, prepare scheduling. |
 | EVM IR | Scheduled blocks with physical stack operations and explicit control transfers. | Target peepholes, sharing, outlining, layout, then assembly. |
 
 `lowered` does not mean scheduled: SSA values, phis, functions, and calls survive
@@ -112,12 +152,15 @@ HIR -> semantic MIR
 These are responsibilities and dependency constraints, not a benchmarked new
 pass ordering. The conversion may contain several named passes and local
 cleanup steps without introducing another stable phase. The gas pipeline runs
-CSE, storage PRE, and range-check elimination after aggregate expansion.
-First eliminate repeated dominated loads, then replace join loads with phis and
-fold checks that forwarding exposes. Storage PRE leaves memory reads alone to
-avoid extending pointer lifetimes. After allocation expansion, gas mode forwards
-free-memory-pointer loads within each block, discarding the cached word at other
-side effects. ABI expansion can create object operations
+CSE and range-check elimination after aggregate expansion. Repeated dominated
+loads go first; the check elimination folds checks that forwarding exposes.
+Before storage DSE, a storage-only CSE mode
+forwards each exact `sstore` and `tstore` word to later reads of that slot in
+both optimization modes, so packed read-modify-write stores reach DSE as word
+expressions. A read stays when the earlier read of its slot has no later use,
+so forwarding never extends a loaded word's lifetime. Storage DSE also removes
+overwritten `tstore`s: a revert discards transient writes, while a return, stop,
+or call leaves them readable by a re-entrant `tload`. ABI expansion can create object operations
 and aggregate results; flatten structs before lowering memory objects, and keep
 allocation identity until placement has finished. Any newly introduced helper must pass through the remaining required
 lowerings too. Expansion must not leave a high-level operation behind merely
@@ -136,25 +179,26 @@ HIR lowering should evaluate operands, resolve types and layouts, and emit a
 semantic operation for each runtime builtin. Builtins can stay opaque to
 passes that do not understand their internals while still exposing signatures,
 effects, and constant-folding rules. `ICall` targets distinguish function definitions
-from typed builtins. Concat, require, conditional checks, hashing precompiles,
+from typed builtins. Require, conditional checks, hashing precompiles,
 checked modular arithmetic, ERC-7201, send/transfer, and returndata capture pass
 evaluated values in the ordinary argument list. The builtin identity carries
 only static specialization data; runtime values never live in the callee.
 Specializations print in angle brackets, including empty `<>` for fixed targets.
 Return signatures come from the callee. Expansion adds no runtime call overhead.
 
-ABI encoding/decoding, aggregate copies, memory-object accesses, abstract
-allocations, checked arithmetic, packed encoding, concatenation, and precompiles follow this
-approach. `lower-arithmetic` expands checked word operations and exponentiation
-loops. Loop analysis recognizes checked unsigned word recurrences and affine
+ABI encoding/decoding, memory-object accesses, abstract allocations, checked
+arithmetic, packed encoding, and precompiles follow this approach.
+`lower-arithmetic` expands checked word operations and exponentiation loops.
+Loop analysis recognizes checked unsigned word recurrences and affine
 expressions without removing their checks. When a checked update must stay live,
 strength reduction adds at most one scaled address counter; extra plain-add or
 per-field counters can cost more than the arithmetic they replace. LICM also checks
 for exits hidden in semantic instructions before using a trip bound to move a load.
 Signed and narrow recurrences remain conservative.
-`lower-builtins` expands precompile buffers/calls, concatenation copies, and packed
-encoding. Packed arguments retain scalar widths and owned array layouts; length
-reads and packing loops run after argument evaluation. Packing checks each array
+`lower-builtins` expands precompile buffers/calls and packed encoding, which also
+implements `bytes.concat` and `string.concat`. Packed arguments retain scalar
+widths and owned array layouts; length reads and packing loops run after
+argument evaluation. Packing checks each array
 extent before entering its loop; the loop bound then proves that element offsets
 need no further overflow checks. Both bytes results and
 scratch hashes share the encoder. Solidity `addmod` and `mulmod` retain their
@@ -280,16 +324,15 @@ unsupported cases before editing where practical. Otherwise discard the failed
 compilation's module; do not publish a partially lowered module as successful
 or clone every module just to provide rollback.
 
-Run a cheap representation check at each stable boundary in all builds. Check
-terminator targets, predecessor back-links, and call targets and arities there,
-including return contracts through tail calls, even when `-Zvalidate-ir=false`,
-so the backend can trust the maintained CFG and function signatures. Keep
-full SSA, dominance, and type verification after each changed pass in debug
-builds and with `-Zvalidate-ir`; validate untrusted textual MIR fully at ingress.
-The backend should receive a verified immutable view after the last MIR pass,
-so a phase label cannot bypass checking and later mutation cannot silently
-invalidate the checked view. Keep full validation costs out of every release
-pass invocation.
+Check the phase contract at each stable boundary in all builds: the routing
+entry, ABI wrappers, word types, and instructions that must be lowered by then.
+A skipped lowering stops the pipeline in every build. Keep full SSA, dominance,
+CFG, call, and type verification after each changed pass and at phase
+transitions in debug builds and with `-Zvalidate-ir`; validate untrusted
+textual MIR fully at ingress. The backend should receive a verified immutable
+view after the last MIR pass, so a phase label cannot bypass checking and later
+mutation cannot silently invalidate the checked view. Keep full validation
+costs out of every release pass invocation.
 
 Optimization passes preserve the current representation. Required lowering
 passes declare their input requirements and fail clearly when a custom pipeline
@@ -319,7 +362,9 @@ object identity and field/element accesses where proven; raw pointer or assembly
 accesses must conservatively alias unless a disjointness proof exists. Allocation
 provenance uses shared CFG cycle facts to distinguish joins from loops. Data
 pointers retain a proven lower bound from their object, so writes to allocation
-contents do not appear to reset the free-memory pointer. Raw pointer conversions
+contents do not appear to reset the free-memory pointer. The sum of an allocation's
+pointer and size, marked `alloc_ptr`, keeps the bound of the pointer, since a wrapped
+sum is checked or unreachable. Raw pointer conversions
 still need a proof that they avoid reserved memory. An access beyond a proven
 fresh allocation can overlap other heap objects while retaining its heap region;
 loop allocations lose their distinct site identities after a possible pointer
@@ -341,13 +386,13 @@ properties. Internal-call summaries include failure, divergence, and external
 termination. Compute them only for called functions, including tail-call targets;
 uncalled bodies need no interprocedural summary. DCE removes unused calls only
 when these summaries prove normal termination and no observable effects. Recursive calls and possible CFG cycles
-remain conservative. DCE and ADCE preserve memory expansion when `msize` in the
-function or a callee can observe it.
+remain conservative. `msize` is an opaque memory read: it is never commoned or moved, DSE keeps the
+writes it may see, and it promises no exact value.
 As in solc, unused storage/account reads and normally returning calls containing
 only those reads may disappear, including their implicit access-list warming.
 Optimization preserves required effects rather than exact gas consumption.
 
-Track changing observations such as `gasleft`, returndata, balances, `msize`,
+Track changing observations such as `gasleft`, returndata, balances,
 and the free-memory pointer separately from stable inputs such as calldata.
 An EVM memory read can expand memory. A mathematical operation can be too costly
 to hoist onto a path that never executed it. Keep semantic safety and gas/size
@@ -456,7 +501,7 @@ Use operations with narrow, explicit contracts:
 - A redirect that introduces a predecessor must explicitly supply or construct
   each new phi value. Neither a generic setter nor a repair scan can infer it.
 
-SCCP, check elimination, DCE, ADCE, CFG simplification, and jump threading use
+SCCP, check elimination, DCE, CFG simplification, and jump threading use
 these operations. Loop preheader creation prepares its phis before redirecting
 edges. PRE uses `split_edge`; ABI continuation splitting transfers successor
 links and phi inputs with the terminator. Replacing a body with a helper call
@@ -502,14 +547,14 @@ transforms justify their cost.
 
 `insert_value` and `extract_value` construct and project fixed SSA structs.
 They do not allocate storage, copy bytes, or imply an address. A slice field
-carries its pointer and length; a memory-object field carries a `memptr`, not a
+carries its pointer and length; a memory-object field carries a `ptr<memory>`, not a
 copy of the referenced object.
 
 A raw `i256` field can carry all bits of a pointer. Keep the conversion
 explicit: `ptrtoint` exposes pointer bits as an integer; `inttoptr` turns an
-integer into a `memptr` without proving validity or ownership. Neither operation
+integer into a `ptr<memory>` without proving validity or ownership. Neither operation
 allocates or copies memory. Field and element loads of a pointer produce a
-`memptr` directly, and later simplification removes redundant word casts. Alias
+`ptr<memory>` directly, and later simplification removes redundant word casts. Alias
 analysis follows their unchanged addresses.
 
 The verifier checks that semantic accesses receive pointers; the access itself
@@ -521,7 +566,10 @@ returnability analysis follows tail-call chains, including cycles, so forwarding
 cannot hide an incompatible return signature. Proven nonreturning chains stay
 exempt. Call-to-tail-call conversion uses the same returnability facts, so it
 cannot discard a continuation after a returning tail-call chain. Calls to proven
-nonreturning bodies lose their dead continuation even when they produce a result.
+nonreturning bodies lose their dead continuation even when they produce a result:
+`noreturn-calls` cuts it at the start of the semantic pipeline, so the passes after
+it see a failing branch through a revert helper leave, and `lower-evm-shaped` cuts
+again on the final call graph.
 When frame rules prevent a tail jump, the call remains an ordinary `icall` followed
 by `invalid`. The function keeps its declared result type: it describes a normal return, not a promise to
 return. Slices as well as structs must be gone at the EVM-shaped boundary.
@@ -654,7 +702,8 @@ It moves the whole fallthrough trace, so moving a shared exit does not insert
 jumps between its predecessor blocks. Multi-block traces must end at an exit
 with at least four references beyond the low-address range; the stricter limit
 avoids moving hot code for weak size gains. Packing reserves space for one-byte
-indexed jump tables, since wider entries add shifts and masking to each lookup.
+indexed jump tables, since wider entries use a larger stride table, or shifts and masking
+with `-Zpack-wide-jump-tables`.
 
 Packed ABI encoding skips allocation rounding when every component occupies
 whole words, while retaining overflow checks. Storage-byte pushes place the
@@ -691,7 +740,7 @@ that the original range is already expanded. The proof stops at inline jump
 destinations. This keeps memory-limit halts and reduces pushes after tail sharing
 has settled. Reads do not establish this proof because later dead-code cleanup
 may remove them. A different return range or an intervening instruction keeps
-the original address, including an `MSIZE` that observes the store.
+the original address.
 
 Final store cleanup consumes a stack word directly when a duplicate is stored
 and its original is discarded immediately afterward. It preserves the order of

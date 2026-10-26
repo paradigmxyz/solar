@@ -189,7 +189,9 @@ fn check_region(
     // Whether `pointer` lies in memory the block allocated, rather than only maybe referring to it.
     let allocated = |pointer: ValueId| {
         function.aa.memory_address(func, pointer).is_some_and(|address| match address.base {
-            MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) => inside(site),
+            MemoryBase::Allocation(site)
+            | MemoryBase::DynamicAllocation(site)
+            | MemoryBase::FreeMemory(site) => inside(site),
             MemoryBase::Value(value) => match *func.value(value) {
                 Value::Inst(inst) => inside(inst) && allocates_new(func, inst),
                 _ => false,
@@ -215,7 +217,6 @@ fn check_region(
             let derived = if kind.effect_kind() == EffectKind::Pure {
                 // A length, a comparison, or a scalar field of a reference is a value.
                 match kind {
-                    InstKind::SliceLen(_) => false,
                     InstKind::ExtractValue { .. } => {
                         result.is_some_and(|result| is_pointer(func.value_ty(result)))
                     }
@@ -310,14 +311,12 @@ fn allocates(func: &Function, inst: InstId) -> bool {
         InstKind::Alloc { .. }
         | InstKind::Fmp
         | InstKind::AbiEncode { .. }
-        | InstKind::AbiEncodePacked { .. }
+        | InstKind::AbiEncodePacked { hash: false, .. }
         | InstKind::AbiDecode { .. }
         | InstKind::StorageBytesLoad(..)
         | InstKind::StorageArrayLoad { .. }
         | InstKind::ICall {
-            function:
-                Callee::Builtin(crate::mir::Builtin::Concat(_) | crate::mir::Builtin::ReturndataBytes),
-            ..
+            function: Callee::Builtin(crate::mir::Builtin::ReturndataBytes), ..
         } => true,
         // A callee's result may be memory it allocated in the block. Without inline assembly,
         // which rejects the call anyway, a callee cannot turn a pointer into a word.
@@ -339,39 +338,29 @@ fn allocates_new(func: &Function, inst: InstId) -> bool {
 /// hold one, or a raw word, which a pointer cast produces.
 fn may_hold_pointer(ty: Option<MirType>) -> bool {
     match ty {
-        Some(MirType::I256 | MirType::MemPtr | MirType::Struct(_)) => true,
-        Some(MirType::Slice(location)) => location == SliceLocation::Memory,
+        Some(MirType::I256 | MirType::MEMPTR | MirType::Struct(_)) => true,
+        Some(MirType::Slice(location)) => location == PtrLocation::Memory,
         _ => false,
     }
 }
 
 /// Whether `ty` is a typed memory reference, rather than a word that may only be data.
 fn is_pointer(ty: Option<MirType>) -> bool {
-    matches!(ty, Some(MirType::MemPtr | MirType::Struct(_) | MirType::Slice(SliceLocation::Memory)))
+    matches!(ty, Some(MirType::MEMPTR | MirType::Struct(_) | MirType::Slice(PtrLocation::Memory)))
 }
 
 fn is_load(kind: &InstKind) -> bool {
-    matches!(
-        kind,
-        InstKind::MLoad(_)
-            | InstKind::MemoryObjectLoadField { .. }
-            | InstKind::MemoryObjectLoadElement { .. }
-    )
+    matches!(kind, InstKind::Load(_, PtrLocation::Memory))
 }
 
 /// The destination and stored value of a store: the memory address or object written, or `None`
 /// for storage and immutables, which outlive the call.
 fn store_operands(kind: &InstKind) -> Option<(Option<ValueId>, ValueId)> {
     match *kind {
-        InstKind::MStore(address, value) | InstKind::MStore8(address, value) => {
+        InstKind::Store(address, value, PtrLocation::Memory) | InstKind::Store8(address, value) => {
             Some((Some(address), value))
         }
-        InstKind::MemoryObjectStoreField { object, value, .. }
-        | InstKind::MemoryObjectStoreElement { object, value, .. }
-        | InstKind::MemoryObjectStoreByte { object, value, .. }
-        | InstKind::MemoryObjectStoreWord { object, value, .. } => Some((Some(object), value)),
-        InstKind::SStore(_, value)
-        | InstKind::TStore(_, value)
+        InstKind::Store(_, value, PtrLocation::Storage | PtrLocation::Transient)
         | InstKind::StoreImmutable(_, value) => Some((None, value)),
         _ => None,
     }
@@ -478,7 +467,8 @@ impl PointerWrites {
             match address.base {
                 MemoryBase::InternalFrame
                 | MemoryBase::Allocation(_)
-                | MemoryBase::DynamicAllocation(_) => {}
+                | MemoryBase::DynamicAllocation(_)
+                | MemoryBase::FreeMemory(_) => {}
                 MemoryBase::Absolute => {
                     if address.offset >= EvmMemoryLayout::HEAP_START {
                         writes.other.add(stored);
@@ -503,7 +493,6 @@ impl PointerWrites {
                 if kind.effect_kind() == EffectKind::Pure
                     && let Some(result) = func.inst_result_value(inst)
                     && match kind {
-                        InstKind::SliceLen(_) => false,
                         InstKind::ExtractValue { .. } => is_pointer(func.value_ty(result)),
                         _ => may_hold_pointer(func.value_ty(result)),
                     }

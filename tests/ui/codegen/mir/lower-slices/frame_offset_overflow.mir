@@ -3,12 +3,12 @@
 
 @module FrameOffsetOverflow
 
-// CHECK-LABEL: fn @overflow(arg0: memoryslice)
+// CHECK-LABEL: fn @overflow(arg0: slice<memory>)
 // CHECK: v0 = internal_frame_addr 18446744073709551615
 // CHECK: stop
-fn @overflow(arg0: memoryslice) {
+fn @overflow(arg0: slice<memory>) {
   bb0:
     v1 = internal_frame_addr 18446744073709551615
-    v0 = ptrtoint memptr v1 to i256
+    v0 = ptrtoint ptr<memory> v1 to i256
     stop
 }

@@ -2712,7 +2712,9 @@ mod tests {
         let pid_file = directory.path().join("descendant.pid");
         let mut command = Command::new("sh");
         command
-            .args(["-c", "sleep 30 & echo $! > \"$1\"", "lsp-bench"])
+            // The redirection creates the file before `echo` writes it, so rename a complete file
+            // into place for the poll below.
+            .args(["-c", "sleep 30 & echo $! > \"$1.tmp\" && mv \"$1.tmp\" \"$1\"", "lsp-bench"])
             .arg(&pid_file)
             .stdin(Stdio::null())
             .stdout(Stdio::null())

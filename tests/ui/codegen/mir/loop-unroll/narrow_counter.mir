@@ -1,0 +1,22 @@
+//@ revisions: reverse unroll
+//@[reverse] compile-flags: -Ogas -Zmir-pipeline=loop-unroll
+//@[unroll] compile-flags: -Ogas --optimize-runs 10000 -Zmir-pipeline=loop-unroll
+@module NarrowCounter
+
+// The pass steps, tests, and reverses counters as words, so it leaves an `i160` counter alone
+// instead of mixing it with `i256` arithmetic.
+fn @narrow(arg0: i160) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: i160 0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v1, 5
+    v4 = add v0, i160 1
+    jump bb1
+  bb3:
+    ret v1
+}

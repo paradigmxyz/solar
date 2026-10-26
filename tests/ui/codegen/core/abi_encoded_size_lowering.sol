@@ -8,7 +8,8 @@
 // strings and arrays of values arithmetic on their lengths: nothing is
 // encoded or allocated. An array of byte strings is encoded past the free
 // memory pointer, without moving it, and measured. The shipped body allocates
-// the encoding and reads its length.
+// the encoding and reads its length, which the optimizer folds to the same
+// constant for values.
 // INTRINSIC-LABEL: fn @fixedSize
 // INTRINSIC-NOT: mload 64
 // INTRINSIC: mstore {{[0-9]+}}, 96
@@ -21,7 +22,8 @@
 // INTRINSIC-NOT: mstore 64
 // INTRINSIC: returndata {{[0-9]+}}, 32
 // PORTABLE-LABEL: fn @fixedSize
-// PORTABLE: mstore 64
+// PORTABLE-NOT: mstore 64
+// PORTABLE: mstore {{[0-9]+}}, 96
 import {Abi} from "solar:core/Abi.sol";
 
 contract Test {

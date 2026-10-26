@@ -21,131 +21,135 @@ fn @entry() [entry] {
 @phase lowered
 fn @fixedSize() [selector=0x77e15753, abi_wrapper, pure] {
   bb0:
-    v2 = calldatasize
-    v3 = lt v2, 68
-    jumpi v3, bb1, bb2
+    v3 = calldataload 36
+    v4 = shr v3, 160
+    v1 = calldatasize
+    v2 = lt v1, 68
+    v7 = zext i1 v2 to i256
+    v8 = or v7, v4
+    v9 = ne v8, 0
+    jumpi v9, bb1, bb2
   bb2:
-    v4 = calldataload 36
-    v5 = shr 160, v4
-    v6 = eq v5, 0
-    jumpi v6, bb3, bb1
-  bb3:
-    mstore 128, 96
-    returndata 128, 32
+    mstore 0, 96 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
 
 fn @dynamicSize() [selector=0x509079b7, abi_wrapper, pure] {
   bb0:
-    v12 = calldatasize
-    v13 = lt v12, 68
-    v14 = calldataload 4
-    v15 = add v14, 4
-    v16 = add v15, 32
-    v17 = gt v14, 0xffffffffffffffff
-    v18 = gt v16, v12
-    v19 = or v17, v18
-    v21 = calldataload v15
-    v23 = sub v12, v16
-    v24 = gt v21, v23
-    v27 = or v19, v24
-    v44 = or v13, v27
-    v29 = calldataload 36
-    v30 = add v29, 4
-    v31 = add v30, 32
-    v32 = gt v29, 0xffffffffffffffff
-    v33 = gt v31, v12
-    v34 = or v32, v33
-    v45 = or v44, v34
-    v36 = calldataload v30
-    v38 = sub v12, v31
-    v39 = shr 5, v38
-    v40 = gt v36, v39
-    v46 = or v45, v40
-    jumpi v46, bb1, bb2
+    v20 = calldatasize
+    v21 = lt v20, 68
+    v22 = calldataload 4
+    v23 = add v22, 4
+    v25 = sub v20, 36
+    v26 = gt v22, v25
+    v27 = calldataload v23
+    v28 = add v23, 32
+    v29 = sub v20, v28
+    v30 = gt v27, v29
+    v31 = or v26, v30
+    v48 = or v21, v31
+    v35 = calldataload 36
+    v36 = add v35, 4
+    v39 = gt v35, v25
+    v49 = or v48, v39
+    v40 = calldataload v36
+    v41 = add v36, 32
+    v42 = sub v20, v41
+    v43 = shr v42, 5
+    v44 = gt v40, v43
+    v50 = or v49, v44
+    jumpi v50, bb1, bb2
   bb2:
-    v2 = add v21, 31
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v7 = shl 5, v36
-    v10 = add v3, v7
-    v9 = add v10, 132
-    mstore 128, v9
-    returndata 128, 32
+    v2 = shl v40, 5
+    v10 = add v27, 31
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v18 = add v11, v2
+    v17 = add v18, 132
+    mstore 0, v17 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
 
 fn @staged() [selector=0xb73ce65c, abi_wrapper, pure] {
   bb0:
-    v2 = calldatasize
-    v3 = lt v2, 36
-    v4 = calldataload 4
-    v5 = add v4, 4
-    v6 = add v5, 32
-    v7 = gt v4, 0xffffffffffffffff
-    v8 = gt v6, v2
-    v9 = or v7, v8
-    v66 = or v3, v9
-    v11 = calldataload v5
-    v13 = sub v2, v6
-    v14 = shr 5, v13
-    v15 = gt v11, v14
-    v67 = or v66, v15
-    jumpi v67, bb1, bb2
+    v10 = calldatasize
+    v11 = lt v10, 36
+    v12 = calldataload 4
+    v13 = add v12, 4
+    v15 = sub v10, 36
+    v16 = gt v12, v15
+    v79 = or v11, v16
+    v17 = calldataload v13
+    v18 = add v13, 32
+    v19 = sub v10, v18
+    v20 = shr v19, 5
+    v21 = gt v17, v20
+    v80 = or v79, v21
+    jumpi v80, bb1, bb2
   bb2:
-    v65 = mload 64 !metadata(memory=scratch)
-    v21 = add v65, 32
-    mstore v65, 32
-    mstore v21, v11
-    v26 = add v21, 32
-    v27 = shl 5, v11
-    v28 = add v26, v27
+    v78 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v27 = add v78, 32
+    mstore v78, 32
+    mstore v27, v17
+    v31 = add v27, 32
+    v33 = shl v17, 5
+    v34 = add v31, v33
     jump bb3
   bb3:
-    v30 = phi [bb2: v11], [bb6: v57]
-    v31 = phi [bb2: v28], [bb6: v56]
-    v32 = phi [bb2: v26], [bb6: v59]
-    v33 = phi [bb2: v6], [bb6: v58]
-    v34 = gt v30, 0
-    jumpi v34, bb4, bb5
+    v35 = phi [bb2: v17], [bb8: v65]
+    v36 = phi [bb2: v34], [bb8: v64]
+    v37 = phi [bb2: v31], [bb8: v68]
+    v38 = phi [bb2: v18], [bb8: v67]
+    v39 = gt v35, 0
+    jumpi v39, bb4, bb5
   bb5:
-    v61 = sub v31, v65
-    mstore 128, v61
-    returndata 128, 32
+    v71 = sub v36, v78
+    mstore 0, v71
+    returndata 0, 32
   bb4:
-    v35 = calldataload v33
-    v36 = calldatasize
-    v37 = sub v36, v6
-    v38 = sub v37, 31
-    v39 = slt v35, v38
-    v68 = eq v39, false
-    v41 = add v6, v35
-    v42 = calldataload v41
-    v43 = gt v42, 0xffffffffffffffff
-    v69 = or v68, v43
-    v44 = add v41, 32
-    v45 = sub v36, v42
-    v46 = sgt v44, v45
-    v70 = or v69, v46
-    jumpi v70, bb1, bb6
+    v40 = calldataload v38
+    v41 = calldatasize
+    v44 = sub v19, 31
+    v45 = slt v40, v44
+    jumpi v45, bb6, bb1
   bb6:
-    v48 = sub v31, v26
-    mstore v32, v48
-    v51 = add v42, 31
-    v52 = and v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v53 = add v31, 32
-    v54 = add v31, v52
-    mstore v54, 0
-    mstore v31, v42
-    v56 = add v53, v52
-    calldatacopy v53, v44, v42
-    v57 = sub v30, 1
-    v58 = add v33, 32
-    v59 = add v32, 32
+    v48 = add v18, v40
+    v49 = calldataload v48
+    v74 = shr v49, 64
+    v50 = ne v74, 0
+    jumpi v50, bb1, bb7
+  bb7:
+    v51 = add v48, 32
+    v52 = sub v41, v49
+    v53 = sgt v51, v52
+    jumpi v53, bb1, bb8
+  bb8:
+    v56 = sub v36, v31
+    mstore v37, v56
+    v59 = add v49, 31
+    v60 = and v59, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v61 = add v36, 32
+    v62 = add v36, v60
+    mstore v62, 0
+    mstore v36, v49
+    v64 = add v61, v60
+    calldatacopy v61, v51, v49
+    v65 = sub v35, 1
+    v67 = add v38, 32
+    v68 = add v37, 32
     jump bb3
   bb1:
     revert 0, 0
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @entry() [entry] {
@@ -155,7 +159,7 @@ fn @entry() [entry] {
     jumpi v1, bb5, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     switch v3, default bb5, [0x509079b7 => bb2, 0x77e15753 => bb3, 0xb73ce65c => bb4]
   bb4:
     tail_call @staged

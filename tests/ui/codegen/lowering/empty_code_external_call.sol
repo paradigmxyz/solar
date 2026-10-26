@@ -27,7 +27,7 @@ library EmptyCodeLibrary {
 contract EmptyCodeCalls {
     // CHECK-LABEL: fn @direct(
     // CHECK-NOT: extcodesize
-    // CHECK: abi_encode []
+    // CHECK: mstore 0, {{.*}}
     // CHECK: extcodesize
     // CHECK: icall revert_if<target_contract_has_no_code>, {{.*}}
     function direct() external {
@@ -36,7 +36,7 @@ contract EmptyCodeCalls {
 
     // CHECK-LABEL: fn @pointer(
     // CHECK-NOT: extcodesize
-    // CHECK: abi_encode []
+    // CHECK: mstore 0, {{.*}}
     // CHECK: extcodesize
     // CHECK: icall revert_if<target_contract_has_no_code>, {{.*}}
     function pointer() external {
@@ -46,7 +46,7 @@ contract EmptyCodeCalls {
 
     // CHECK-LABEL: fn @libraryCall(
     // CHECK-NOT: extcodesize
-    // CHECK: abi_encode []
+    // CHECK: mstore 0, {{.*}}
     // CHECK: extcodesize
     // CHECK: icall revert_if<target_contract_has_no_code>, {{.*}}
     function libraryCall() external {
@@ -55,7 +55,7 @@ contract EmptyCodeCalls {
 
     // CHECK-LABEL: fn @tryDirect(
     // CHECK-NOT: extcodesize
-    // CHECK: abi_encode []
+    // CHECK: mstore 0, {{.*}}
     // CHECK: extcodesize
     // CHECK: icall revert_if<target_contract_has_no_code>, {{.*}}
     function tryDirect() external {
@@ -64,7 +64,7 @@ contract EmptyCodeCalls {
 
     // CHECK-LABEL: fn @tryPointer(
     // CHECK-NOT: extcodesize
-    // CHECK: abi_encode []
+    // CHECK: mstore 0, {{.*}}
     // CHECK: extcodesize
     // CHECK: icall revert_if<target_contract_has_no_code>, {{.*}}
     function tryPointer() external {
@@ -74,7 +74,7 @@ contract EmptyCodeCalls {
 
     // CHECK-LABEL: fn @tryStatic(
     // CHECK-NOT: extcodesize
-    // CHECK: abi_encode []
+    // CHECK: mstore 0, {{.*}}
     // CHECK: extcodesize
     // CHECK: icall revert_if<target_contract_has_no_code>, {{.*}}
     function tryStatic() external view {
@@ -83,7 +83,7 @@ contract EmptyCodeCalls {
 
     // CHECK-LABEL: fn @trySelf(
     // CHECK-NOT: extcodesize
-    // CHECK: abi_encode []
+    // CHECK: mstore 0, {{.*}}
     // CHECK: extcodesize
     // CHECK: icall revert_if<target_contract_has_no_code>, {{.*}}
     function trySelf() external returns (bool) {
@@ -100,7 +100,7 @@ contract EmptyCodeCalls {
 
     // CHECK-LABEL: fn @selfCall(
     // CHECK-NOT: extcodesize
-    // CHECK: abi_encode []
+    // CHECK: mstore 0, {{.*}}
     // CHECK: extcodesize
     // CHECK: icall revert_if<target_contract_has_no_code>, {{.*}}
     function selfCall() external returns (bool) {
@@ -121,7 +121,7 @@ contract EmptyCodeTryConstructor {
     // CHECK-LABEL: @module EmptyCodeTryConstructor
     // CHECK-LABEL: fn @constructor(
     // CHECK-NOT: extcodesize
-    // CHECK: abi_encode []
+    // CHECK: mstore 0, {{.*}}
     // CHECK: extcodesize
     // CHECK: icall revert_if<target_contract_has_no_code>, {{.*}}
     constructor() {

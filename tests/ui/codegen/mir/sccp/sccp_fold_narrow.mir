@@ -81,7 +81,7 @@ fn @sgt_negative() -> i1 {
 // CHECK: + ret i8 0
 fn @shl_by_width() -> i8 {
   bb0:
-    v0 = shl i8 8, i8 255
+    v0 = shl i8 255, i8 8
     ret v0
 }
 
@@ -90,7 +90,7 @@ fn @shl_by_width() -> i8 {
 // CHECK: + ret i8 255
 fn @sar_by_width() -> i8 {
   bb0:
-    v0 = sar i8 8, i8 128
+    v0 = sar i8 128, i8 8
     ret v0
 }
 
@@ -116,7 +116,7 @@ fn @clz_one() -> i8 {
 // CHECK: + ret i160 0xffffffffffffffffffffffffffffffffffffffff
 fn @ptrtoint_masks() -> i160 {
   bb0:
-    v0 = inttoptr i256 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff to memptr
-    v1 = ptrtoint memptr v0 to i160
+    v0 = inttoptr i256 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff to ptr<memory>
+    v1 = ptrtoint ptr<memory> v0 to i160
     ret v1
 }

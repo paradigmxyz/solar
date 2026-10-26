@@ -3,31 +3,37 @@
 //@[expanded] compile-flags: -Zmir-pipeline=lower-builtins
 @module StorageArrays
 
-fn @words(arg0: i256) -> memptr {
+fn @words(arg0: i256) -> ptr<memory> {
   bb0:
-    v0 = load_storage_array u256, arg0
+    v0 = load_storage_array uint256, arg0
     ret v0
 }
 
-fn @signed(arg0: i256) -> memptr {
+fn @small(arg0: i256) -> ptr<memory> {
   bb0:
-    v0 = load_storage_array i24, arg0
+    v0 = load_storage_array uint8, arg0
     ret v0
 }
 
-fn @fixed(arg0: i256) -> memptr {
+fn @signed(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = load_storage_array int24, arg0
+    ret v0
+}
+
+fn @fixed(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_array bytes9, arg0
     ret v0
 }
 
-fn @enums(arg0: i256) -> memptr {
+fn @enums(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_array enum<3>, arg0
     ret v0
 }
 
-fn @bytes(arg0: i1, arg1: i256, arg2: memptr) -> memptr {
+fn @bytes(arg0: i1, arg1: i256, arg2: ptr<memory>) -> ptr<memory> {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

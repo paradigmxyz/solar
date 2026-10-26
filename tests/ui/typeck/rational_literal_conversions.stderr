@@ -1,0 +1,104 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_conversions.sol:LL:CC
+   │
+LL │         bytes32 c = 3.2; c;
+   ╰╴                    ━━━ expected `bytes32`, found `rational_literal`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_conversions.sol:LL:CC
+   │
+LL │         a[.5];
+   ╰╴          ━━ expected `uint256`, found `rational_literal`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_conversions.sol:LL:CC
+   │
+LL │         uint a = 1/3;
+   ╰╴                 ━━━ expected `uint256`, found `rational_literal`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_conversions.sol:LL:CC
+   │
+LL │         Test(-1);
+   ╰╴        ━━━━━━━━ cannot convert `int_literal[1]` to `enum EnumConversion.Test`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_conversions.sol:LL:CC
+   │
+LL │         Test(2);
+   ╰╴        ━━━━━━━ cannot convert `int_literal[2]` to `enum EnumConversion.Test`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_conversions.sol:LL:CC
+   │
+LL │         Test(13);
+   ╰╴        ━━━━━━━━ cannot convert `int_literal[4]` to `enum EnumConversion.Test`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_conversions.sol:LL:CC
+   │
+LL │         Test(5/3);
+   ╰╴        ━━━━━━━━━ cannot convert `rational_literal` to `enum EnumConversion.Test`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_conversions.sol:LL:CC
+   │
+LL │         Test(0.5);
+   ╰╴        ━━━━━━━━━ cannot convert `rational_literal` to `enum EnumConversion.Test`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_conversions.sol:LL:CC
+   │
+LL │     uint constant a = addmod(3, 4, 0.1);
+   ╰╴                                   ━━━ expected `uint256`, found `rational_literal`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_conversions.sol:LL:CC
+   │
+LL │     uint constant b = mulmod(3, 4, 0.1);
+   ╰╴                                   ━━━ expected `uint256`, found `rational_literal`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_conversions.sol:LL:CC
+   │
+LL │         uint(0.5);
+   ╰╴        ━━━━━━━━━ cannot convert `rational_literal` to `uint256`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_conversions.sol:LL:CC
+   │
+LL │         int(-0.5);
+   ╰╴        ━━━━━━━━━ cannot convert `rational_literal` to `int256`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_conversions.sol:LL:CC
+   │
+LL │         uint8(1 / 3);
+   ╰╴        ━━━━━━━━━━━━ cannot convert `rational_literal` to `uint8`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_conversions.sol:LL:CC
+   │
+LL │         address(0.5);
+   ╰╴        ━━━━━━━━━━━━ cannot convert `rational_literal` to `address`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_conversions.sol:LL:CC
+   │
+LL │         bytes1(0.5);
+   ╰╴        ━━━━━━━━━━━ cannot convert `rational_literal` to `bytes1`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_conversions.sol:LL:CC
+   │
+LL │         E(0.5);
+   ╰╴        ━━━━━━ cannot convert `rational_literal` to `enum ExplicitConversions.E`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_conversions.sol:LL:CC
+   │
+LL │         uint8 i = 0.5 + 0.5 + 255;
+   ╰╴                  ━━━━━━━━━━━━━━━ expected `uint8`, found `int_literal[9]`
+
+error: aborting due to 17 previous errors
+

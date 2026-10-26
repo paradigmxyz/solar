@@ -1,0 +1,108 @@
+// === ROOT/tests/ui/codegen/mir/memory-dse/narrow_overwritten_store.sol:NarrowOverwrittenStore ===
+@module NarrowOverwrittenStore
+@phase lowered
+@types
+  struct0: {i256, i256}
+
+fn @hashU8() [selector=0xe99643f7, abi_wrapper, pure] {
+  bb0:
+    v6 = calldataload 4
+    v7 = shr v6, 8
+    v4 = calldatasize
+    v5 = lt v4, 68
+    v10 = zext i1 v5 to i256
+    v11 = or v10, v7
+    v12 = ne v11, 0
+    jumpi v12, bb1, bb2
+  bb2:
+    mstore8 0, arg0
+    mstore 1, arg1
+    v3 = keccak256 0, 33 !metadata(memory=scratch)
+    mstore 0, v3 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @hashWide() [selector=0xcdd7e94c, abi_wrapper, inline_assembly, pure] {
+  bb0:
+    v2 = calldatasize
+    v3 = lt v2, 68
+    jumpi v3, bb1, bb2
+  bb2:
+    mstore8 128, arg0
+    mstore 129, arg1
+    v1 = keccak256 128, 33
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @hashConst() [selector=0x227e2968, abi_wrapper, inline_assembly, pure] {
+  bb0:
+    v2 = calldatasize
+    v3 = lt v2, 36
+    jumpi v3, bb1, bb2
+  bb2:
+    mstore8 128, 97
+    mstore 129, arg0
+    v1 = keccak256 128, 33
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @tailRead() [selector=0x8c0dcc20, abi_wrapper, inline_assembly, pure] {
+  bb0:
+    v4 = calldatasize
+    v5 = lt v4, 68
+    jumpi v5, bb1, bb2
+  bb2:
+    mstore 160, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = shl arg0, 248
+    mstore 128, v2
+    v3 = mload 129
+    mstore 192, v3
+    mstore 129, arg1
+    returndata 192, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @literal() [selector=0x41d012fd, abi_wrapper, inline_assembly, pure] {
+  bb0:
+    v0 = calldatasize
+    v1 = lt v0, 36
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, 0x6100000000000000000000000000000000000000000000000000000000000000
+    mstore 160, arg0
+    returndata 128, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb7, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb7, [0x227e2968 => bb2, 0x41d012fd => bb3, 0x8c0dcc20 => bb4, 0xcdd7e94c => bb5, 0xe99643f7 => bb6]
+  bb6:
+    tail_call @hashU8
+  bb5:
+    tail_call @hashWide
+  bb4:
+    tail_call @tailRead
+  bb3:
+    tail_call @literal
+  bb2:
+    tail_call @hashConst
+  bb7:
+    revert 0, 0
+}

@@ -39,7 +39,7 @@ impl FunctionLowerer<'_, '_> {
         let helper = self.lazy_helper(sym::core_string_replace, |this, function| {
             function.attributes.no_inline = true;
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-            let ty = MirType::MemPtr;
+            let ty = MirType::MEMPTR;
             let subject = lowerer.builder.add_param(ty);
             let needle = lowerer.builder.add_param(ty);
             let replacement = lowerer.builder.add_param(ty);
@@ -47,7 +47,7 @@ impl FunctionLowerer<'_, '_> {
             lowerer.lower_core_string_replace(subject, needle, replacement);
             Some(())
         })?;
-        Some(self.builder.icall(helper, vec![subject, needle, replacement], MirType::MemPtr))
+        Some(self.builder.icall(helper, vec![subject, needle, replacement], MirType::MEMPTR))
     }
 
     /// Lower both minimal-hex spellings directly into the caller in gas
@@ -81,16 +81,16 @@ impl FunctionLowerer<'_, '_> {
         // The returned bytes header may start inside the region; the allocation
         // still owns every possible header, payload, and trailing padding word.
         let allocation_size = self.builder.imm(160);
-        let allocation = self.builder.alloc_raw(allocation_size, AllocationSemantics::INTERNAL);
+        let allocation = self.builder.alloc(allocation_size, AllocationSemantics::INTERNAL);
         let end_offset = self.builder.imm(128);
         let end = self.builder.add(allocation, end_offset);
         let zero = self.builder.imm(0);
-        self.builder.mstore(end, zero);
+        self.builder.store(end, zero);
 
         if !self.cx.gcx.sess.opts.optimization.is_gas() {
             let cursor = self.lower_core_hex_bytes(value, end);
             let result = self.lower_core_hex_header(cursor, end, prefix_length, leading);
-            return self.builder.cast(result, MirType::MemPtr);
+            return self.builder.cast(result, MirType::MEMPTR);
         }
 
         // The lowest byte is spelled first, which finishes one-byte values at
@@ -105,7 +105,7 @@ impl FunctionLowerer<'_, '_> {
         //     : header(spell_words(value))
         let table_address = self.builder.imm(15);
         let table = self.builder.imm(U256::from_be_slice(b"0123456789abcdef"));
-        self.builder.mstore(table_address, table);
+        self.builder.store(table_address, table);
         let one_byte = self.builder.create_block();
         let wider = self.builder.create_block();
         let two_bytes = self.builder.create_block();
@@ -143,7 +143,7 @@ impl FunctionLowerer<'_, '_> {
             (two_exit, two_result),
             (words_exit, words_result),
         ]);
-        self.builder.cast(result, MirType::MemPtr)
+        self.builder.cast(result, MirType::MEMPTR)
     }
 
     /// Spells the fewest whole bytes of `value` two digits at a time through
@@ -154,7 +154,7 @@ impl FunctionLowerer<'_, '_> {
         // selected ASCII digit as its low byte.
         let table_address = self.builder.imm(15);
         let table = self.builder.imm(U256::from_be_slice(b"0123456789abcdef"));
-        self.builder.mstore(table_address, table);
+        self.builder.store(table_address, table);
 
         // do { x, output = spell(x, output) } while (x != 0)
         let entry = self.builder.current_block();
@@ -193,7 +193,7 @@ impl FunctionLowerer<'_, '_> {
         let leading_zero = match leading {
             HexLeadingZero::Keep => zero,
             HexLeadingZero::Drop | HexLeadingZero::DropIf(_) => {
-                let first_word = self.builder.mload(cursor);
+                let first_word = self.builder.load(cursor, PtrLocation::Memory);
                 let first = self.builder.byte(zero, first_word);
                 let ascii_zero = self.builder.imm(48);
                 let leading_zero = self.builder.eq(first, ascii_zero);
@@ -209,13 +209,13 @@ impl FunctionLowerer<'_, '_> {
         let result = self.builder.sub(cursor, header_size);
         let common_header = self.builder.add(result, leading_zero);
         let prefix_word = self.builder.imm(0x3078);
-        self.builder.mstore(common_header, prefix_word);
+        self.builder.store(common_header, prefix_word);
         let result = self.builder.sub(common_header, prefix_length);
         let pair_digits = self.builder.sub(end, cursor);
         let digits = self.builder.sub(pair_digits, leading_zero);
         let length = self.builder.add(digits, prefix_length);
-        self.builder.mstore(result, length);
-        self.builder.cast(result, MirType::MemPtr)
+        self.builder.store(result, length);
+        self.builder.cast(result, MirType::MEMPTR)
     }
 
     /// Spells the low byte of `x` as the two digits before `output` through
@@ -230,17 +230,17 @@ impl FunctionLowerer<'_, '_> {
         let next_output = self.builder.sub(output, two);
         let fifteen = self.builder.imm(15);
         let low_nibble = self.builder.and(x, fifteen);
-        let low_digit = self.builder.mload(low_nibble);
+        let low_digit = self.builder.load(low_nibble, PtrLocation::Memory);
         let one = self.builder.imm(1);
         let low_output = self.builder.add(next_output, one);
-        self.builder.mstore8(low_output, low_digit);
+        self.builder.store8(low_output, low_digit);
         let four = self.builder.imm(4);
-        let high_nibble = self.builder.shr(four, x);
+        let high_nibble = self.builder.shr(x, four);
         let high_nibble = self.builder.and(high_nibble, fifteen);
-        let high_digit = self.builder.mload(high_nibble);
-        self.builder.mstore8(next_output, high_digit);
+        let high_digit = self.builder.load(high_nibble, PtrLocation::Memory);
+        self.builder.store8(next_output, high_digit);
         let eight = self.builder.imm(8);
-        let next_x = self.builder.shr(eight, x);
+        let next_x = self.builder.shr(x, eight);
         (next_x, next_output)
     }
 
@@ -273,10 +273,10 @@ impl FunctionLowerer<'_, '_> {
         };
         // region = alloc(160); end = region + 128; mstore(end, 0)
         let allocation_size = self.builder.imm(160);
-        let allocation = self.builder.alloc_raw(allocation_size, AllocationSemantics::INTERNAL);
+        let allocation = self.builder.alloc(allocation_size, AllocationSemantics::INTERNAL);
         let end_offset = self.builder.imm(128);
         let end = self.builder.add(allocation, end_offset);
-        self.builder.mstore(end, zero);
+        self.builder.store(end, zero);
 
         // do { output -= 1; mstore8(output, 48 + x % 10); x /= 10 } while (x != 0)
         let entry = self.builder.current_block();
@@ -293,7 +293,7 @@ impl FunctionLowerer<'_, '_> {
         let digit = self.builder.mod_(x, ten);
         let ascii_zero = self.builder.imm(48);
         let character = self.builder.add(digit, ascii_zero);
-        self.builder.mstore8(next_output, character);
+        self.builder.store8(next_output, character);
         let next_x = self.builder.div(x, ten);
         let finished = self.builder.eq_zero(next_x);
         self.builder.branch(finished, done, body);
@@ -307,7 +307,7 @@ impl FunctionLowerer<'_, '_> {
             Some(negative) => {
                 let sign_address = self.builder.sub(next_output, one);
                 let minus = self.builder.imm(b'-');
-                self.builder.mstore8(sign_address, minus);
+                self.builder.store8(sign_address, minus);
                 let negative = self.builder.cast_word(negative);
                 self.builder.sub(next_output, negative)
             }
@@ -317,8 +317,8 @@ impl FunctionLowerer<'_, '_> {
         let length = self.builder.sub(end, start);
         let header_size = self.builder.imm(32);
         let result = self.builder.sub(start, header_size);
-        self.builder.mstore(result, length);
-        self.builder.cast(result, MirType::MemPtr)
+        self.builder.store(result, length);
+        self.builder.cast(result, MirType::MEMPTR)
     }
 
     /// Packs one short string with word operations instead of a byte loop.
@@ -327,10 +327,9 @@ impl FunctionLowerer<'_, '_> {
         operands: &[ValueId],
     ) -> Option<ValueId> {
         let [input] = *operands else { return None };
-        let bytes = MemoryObjectKind::Bytes;
-        let length = self.builder.memory_object_len(input, bytes);
-        let data = self.builder.memory_object_data(input, bytes);
-        let word = self.builder.mload(data);
+        let length = self.builder.memory_len(input);
+        let data = self.builder.memory_data(input);
+        let word = self.builder.load(data, PtrLocation::Memory);
         let thirty_two = self.builder.imm(32);
         let nonempty = self.builder.ne_zero(length);
         let fits = self.builder.lt(length, thirty_two);
@@ -339,16 +338,16 @@ impl FunctionLowerer<'_, '_> {
         // Move the input down by one byte and clear everything after the
         // logical payload, since bytes padding is not part of the value.
         let eight = self.builder.imm(8);
-        let payload = self.builder.shr(eight, word);
+        let payload = self.builder.shr(word, eight);
         let thirty_one = self.builder.imm(31);
         let padding = self.builder.sub(thirty_one, length);
         let three = self.builder.imm(3);
-        let padding_bits = self.builder.shl(three, padding);
+        let padding_bits = self.builder.shl(padding, three);
         let all = self.builder.imm(U256::MAX);
-        let mask = self.builder.shl(padding_bits, all);
+        let mask = self.builder.shl(all, padding_bits);
         let payload = self.builder.and(payload, mask);
         let top_byte = self.builder.imm(248);
-        let length_tag = self.builder.shl(top_byte, length);
+        let length_tag = self.builder.shl(length, top_byte);
         let packed = self.builder.or(length_tag, payload);
         let zero = self.builder.imm(0);
         Some(self.builder.select(valid, packed, zero))
@@ -367,12 +366,12 @@ impl FunctionLowerer<'_, '_> {
         let length = self.builder.select(too_long, thirty_one, raw_length);
         let out =
             self.builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        let data = self.builder.memory_object_data(out, MemoryObjectKind::Bytes);
+        let data = self.builder.memory_data(out);
         // mstore(data, leading(packed << 8, length))
         let eight = self.builder.imm(8);
-        let contents = self.builder.shl(eight, packed);
+        let contents = self.builder.shl(packed, eight);
         let contents = self.keep_leading_bytes(contents, length);
-        self.builder.mstore(data, contents);
+        self.builder.store(data, contents);
         Some(out)
     }
 
@@ -383,9 +382,8 @@ impl FunctionLowerer<'_, '_> {
         operands: &[ValueId],
     ) -> Option<ValueId> {
         let [a, b] = *operands else { return None };
-        let bytes = MemoryObjectKind::Bytes;
-        let a_length = self.builder.memory_object_len(a, bytes);
-        let b_length = self.builder.memory_object_len(b, bytes);
+        let a_length = self.builder.memory_len(a);
+        let b_length = self.builder.memory_len(b);
         // valid = a.length + b.length - 1 < 30, which is 1..=30 combined
         let total = self.builder.add(a_length, b_length);
         let one = self.builder.imm(1);
@@ -399,12 +397,12 @@ impl FunctionLowerer<'_, '_> {
         // a_part = mload(a + a.length) << 8 * (31 - a.length)
         let a_base = self.builder.cast_word(a);
         let a_address = self.builder.add(a_base, a_length);
-        let a_word = self.builder.mload(a_address);
+        let a_word = self.builder.load(a_address, PtrLocation::Memory);
         let thirty_one = self.builder.imm(31);
         let a_shift_bytes = self.builder.sub(thirty_one, a_length);
         let three = self.builder.imm(3);
-        let a_shift = self.builder.shl(three, a_shift_bytes);
-        let a_part = self.builder.shl(a_shift, a_word);
+        let a_shift = self.builder.shl(a_shift_bytes, three);
+        let a_part = self.builder.shl(a_word, a_shift);
 
         // The word 30 - a.length bytes into b's length word holds zeros for
         // a's bytes, b's length byte right after them, then b's payload.
@@ -418,12 +416,12 @@ impl FunctionLowerer<'_, '_> {
         let b_base = self.builder.cast_word(b);
         let b_end = self.builder.add(b_base, thirty);
         let b_address = self.builder.sub(b_end, offset);
-        let b_part = self.builder.mload(b_address);
+        let b_part = self.builder.load(b_address, PtrLocation::Memory);
         let packed = self.builder.or(a_part, b_part);
         let padding = self.builder.sub(thirty, total);
-        let padding_bits = self.builder.shl(three, padding);
+        let padding_bits = self.builder.shl(padding, three);
         let all = self.builder.imm(U256::MAX);
-        let mask = self.builder.shl(padding_bits, all);
+        let mask = self.builder.shl(all, padding_bits);
         let packed = self.builder.and(packed, mask);
         let zero = self.builder.imm(0);
         Some(self.builder.select(valid, packed, zero))
@@ -442,13 +440,13 @@ impl FunctionLowerer<'_, '_> {
         let a_length = self.builder.select(a_too_long, thirty, raw_a_length);
         let a =
             self.builder.alloc_bytes_object(a_length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        let a_data = self.builder.memory_object_data(a, MemoryObjectKind::Bytes);
+        let a_data = self.builder.memory_data(a);
         // Each payload word holds the payload and zeros, as the body's `new bytes` leaves it.
         // mstore(data(a), leading(packed << 8, a_length))
         let eight = self.builder.imm(8);
-        let a_contents = self.builder.shl(eight, packed);
+        let a_contents = self.builder.shl(packed, eight);
         let a_contents = self.keep_leading_bytes(a_contents, a_length);
-        self.builder.mstore(a_data, a_contents);
+        self.builder.store(a_data, a_contents);
 
         // b's length byte follows a's payload.
         // b_length = min(byte(a_length + 1, packed), 30 - a_length)
@@ -460,15 +458,15 @@ impl FunctionLowerer<'_, '_> {
         let b_length = self.builder.select(b_too_long, remaining, raw_b_length);
         let b =
             self.builder.alloc_bytes_object(b_length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        let b_data = self.builder.memory_object_data(b, MemoryObjectKind::Bytes);
+        let b_data = self.builder.memory_data(b);
         // mstore(data(b), leading(packed << 8 * (a_length + 2), b_length))
         let two = self.builder.imm(2);
         let b_byte_offset = self.builder.add(a_length, two);
         let three = self.builder.imm(3);
-        let b_bit_offset = self.builder.shl(three, b_byte_offset);
-        let b_contents = self.builder.shl(b_bit_offset, packed);
+        let b_bit_offset = self.builder.shl(b_byte_offset, three);
+        let b_contents = self.builder.shl(packed, b_bit_offset);
         let b_contents = self.keep_leading_bytes(b_contents, b_length);
-        self.builder.mstore(b_data, b_contents);
+        self.builder.store(b_data, b_contents);
         Some(vec![a, b])
     }
 
@@ -480,7 +478,7 @@ impl FunctionLowerer<'_, '_> {
         let [subject, needle] = *operands else { return None };
         let helper = self.ensure_core_string_indices_helper()?;
         let split_mode = self.builder.imm(0);
-        Some(self.builder.icall(helper, vec![subject, needle, split_mode], MirType::MemPtr))
+        Some(self.builder.icall(helper, vec![subject, needle, split_mode], MirType::MEMPTR))
     }
 
     /// Count runes directly in the caller: the result is one word and the body
@@ -507,11 +505,10 @@ impl FunctionLowerer<'_, '_> {
     /// each later move doubles the filled prefix, capped at the total, so
     /// `times` copies take a logarithmic number of moves.
     fn lower_core_string_repeat(&mut self, subject: ValueId, times: ValueId) -> ValueId {
-        let kind = MemoryObjectKind::Bytes;
         let semantics = AllocationSemantics::SOLIDITY_UNINITIALIZED;
         // length = len(subject)
         // branch times == 0 | length == 0, empty, fill
-        let length = self.builder.memory_object_len(subject, kind);
+        let length = self.builder.memory_len(subject);
         let no_times = self.builder.eq_zero(times);
         let no_length = self.builder.eq_zero(length);
         let empty = self.builder.or(no_times, no_length);
@@ -541,9 +538,9 @@ impl FunctionLowerer<'_, '_> {
         let overflow = self.builder.ne(quotient, length);
         self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
         let out = self.builder.alloc_bytes_object(total, semantics);
-        let data = self.builder.memory_object_data(out, kind);
+        let data = self.builder.memory_data(out);
         let data = self.builder.cast_word(data);
-        let source = self.builder.memory_object_data(subject, kind);
+        let source = self.builder.memory_data(subject);
         let source = self.builder.cast_word(source);
         let last_word = self.builder.add_u64_offset(total, 31);
         let mask = self.builder.imm(U256::MAX << 5);
@@ -551,8 +548,8 @@ impl FunctionLowerer<'_, '_> {
         let last_word = self.builder.add(data, last_word);
         let word = self.builder.imm(32);
         let last_word = self.builder.sub(last_word, word);
-        self.builder.mstore(last_word, zero);
-        self.builder.mcopy_heap(data, source, length);
+        self.builder.store(last_word, zero);
+        self.builder.copy_heap(data, source, length, PtrLocation::Memory);
         let fill_end = self.builder.current_block();
         self.builder.jump(header);
 
@@ -570,7 +567,7 @@ impl FunctionLowerer<'_, '_> {
         let shorter = self.builder.lt(filled, rest);
         let step = self.builder.select(shorter, filled, rest);
         let destination = self.builder.add(data, filled);
-        self.builder.mcopy_heap(destination, data, step);
+        self.builder.copy_heap(destination, data, step, PtrLocation::Memory);
         let next = self.builder.add(filled, step);
         let step_end = self.builder.current_block();
         self.builder.jump(header);
@@ -607,9 +604,8 @@ impl FunctionLowerer<'_, '_> {
         if !self.cx.gcx.sess.opts.optimization.is_gas() {
             return self.lower_core_string_rune_count_compact(subject);
         }
-        let bytes = MemoryObjectKind::Bytes;
-        let length = self.builder.memory_object_len(subject, bytes);
-        let data = self.builder.memory_object_data(subject, bytes);
+        let length = self.builder.memory_len(subject);
+        let data = self.builder.memory_data(subject);
         let end = self.builder.add(data, length);
         let zero = self.builder.imm(0);
         let word = self.builder.imm(32);
@@ -644,9 +640,9 @@ impl FunctionLowerer<'_, '_> {
         // at once when all of its bytes are below 0x80.
         // high = mload(data) & ~(MAX >> 8 * length) & 0x8080..80
         self.builder.switch_to_block(short);
-        let text = self.builder.mload(data);
-        let length_bits = self.builder.shl(three, length);
-        let beyond = self.builder.shr(length_bits, all);
+        let text = self.builder.load(data, PtrLocation::Memory);
+        let length_bits = self.builder.shl(length, three);
+        let beyond = self.builder.shr(all, length_bits);
         let within = self.builder.not(beyond);
         let short_text = self.builder.and(text, within);
         let short_high = self.builder.and(short_text, high_bits);
@@ -664,7 +660,7 @@ impl FunctionLowerer<'_, '_> {
 
         // high = mload(p) & 0x8080..80; a word below 0x80 is 32 runes
         self.builder.switch_to_block(load);
-        let text = self.builder.mload(cursor);
+        let text = self.builder.load(cursor, PtrLocation::Memory);
         let high = self.builder.and(text, high_bits);
         let all_ascii = self.builder.eq_zero(high);
         self.builder.branch(all_ascii, ascii, classify);
@@ -703,10 +699,10 @@ impl FunctionLowerer<'_, '_> {
         let more = self.builder.lt(cursor, end);
         self.builder.branch(more, tail_probe, done);
         self.builder.switch_to_block(tail_probe);
-        let text = self.builder.mload(cursor);
+        let text = self.builder.load(cursor, PtrLocation::Memory);
         let rest = self.builder.sub(end, cursor);
-        let rest_bits = self.builder.shl(three, rest);
-        let beyond = self.builder.shr(rest_bits, all);
+        let rest_bits = self.builder.shl(rest, three);
+        let beyond = self.builder.shr(all, rest_bits);
         let within = self.builder.not(beyond);
         let tail_text = self.builder.and(text, within);
         let tail_high = self.builder.and(tail_text, high_bits);
@@ -732,9 +728,8 @@ impl FunctionLowerer<'_, '_> {
     /// Counts the runes of `subject` one at a time from its first byte: the
     /// smallest shape, for builds that do not optimize for gas.
     fn lower_core_string_rune_count_compact(&mut self, subject: ValueId) -> ValueId {
-        let bytes = MemoryObjectKind::Bytes;
-        let length = self.builder.memory_object_len(subject, bytes);
-        let data = self.builder.memory_object_data(subject, bytes);
+        let length = self.builder.memory_len(subject);
+        let data = self.builder.memory_data(subject);
         let end = self.builder.add(data, length);
         let zero = self.builder.imm(0);
         let entry = self.builder.current_block();
@@ -759,25 +754,25 @@ impl FunctionLowerer<'_, '_> {
         // declared = lead >> 8 | lead3 >> 16 | lead4 >> 24
         // well_formed = (lead4 & (w << 4)) | (declared ^ cont) == 0
         let one = self.builder.imm(1);
-        let shifted = self.builder.shl(one, text);
+        let shifted = self.builder.shl(text, one);
         let lead = self.builder.and(high, shifted);
         let cont = self.builder.xor(high, lead);
         let two = self.builder.imm(2);
-        let shifted = self.builder.shl(two, text);
+        let shifted = self.builder.shl(text, two);
         let lead3 = self.builder.and(lead, shifted);
         let three = self.builder.imm(3);
-        let shifted = self.builder.shl(three, text);
+        let shifted = self.builder.shl(text, three);
         let lead4 = self.builder.and(lead3, shifted);
         let four = self.builder.imm(4);
-        let shifted = self.builder.shl(four, text);
+        let shifted = self.builder.shl(text, four);
         let long_lead = self.builder.and(lead4, shifted);
         let eight = self.builder.imm(8);
         let sixteen = self.builder.imm(16);
         let twenty_four = self.builder.imm(24);
-        let declared = self.builder.shr(eight, lead);
-        let second = self.builder.shr(sixteen, lead3);
+        let declared = self.builder.shr(lead, eight);
+        let second = self.builder.shr(lead3, sixteen);
         let declared = self.builder.or(declared, second);
-        let third = self.builder.shr(twenty_four, lead4);
+        let third = self.builder.shr(lead4, twenty_four);
         let declared = self.builder.or(declared, third);
         let undeclared = self.builder.xor(declared, cont);
         let malformed = self.builder.or(undeclared, long_lead);
@@ -793,16 +788,16 @@ impl FunctionLowerer<'_, '_> {
         let seven = self.builder.imm(7);
         let top = self.builder.imm(248);
         let ones = self.builder.imm(U256::MAX / U256::from(255));
-        let cont = self.builder.shr(seven, marks.cont);
+        let cont = self.builder.shr(marks.cont, seven);
         let cont = self.builder.mul(cont, ones);
-        let conts = self.builder.shr(top, cont);
-        let spans = self.builder.shr(seven, marks.lead);
-        let second = self.builder.shr(seven, marks.lead3);
+        let conts = self.builder.shr(cont, top);
+        let spans = self.builder.shr(marks.lead, seven);
+        let second = self.builder.shr(marks.lead3, seven);
         let spans = self.builder.add(spans, second);
-        let third = self.builder.shr(seven, marks.lead4);
+        let third = self.builder.shr(marks.lead4, seven);
         let spans = self.builder.add(spans, third);
         let spans = self.builder.mul(spans, ones);
-        let spans = self.builder.shr(top, spans);
+        let spans = self.builder.shr(spans, top);
         (conts, spans)
     }
 
@@ -843,11 +838,11 @@ impl FunctionLowerer<'_, '_> {
             self.builder.phi(entries.iter().map(|&(block, _, count)| (block, count)).collect());
         let rune =
             self.builder.phi(entries.iter().map(|&(block, start, _)| (block, start)).collect());
-        let lead_word = self.builder.mload(rune);
+        let lead_word = self.builder.load(rune, PtrLocation::Memory);
         let lead_shift = self.builder.imm(250);
-        let class = self.builder.shr(lead_shift, lead_word);
-        let nibble = self.builder.shl(two, class);
-        let shifted = self.builder.shr(nibble, lengths);
+        let class = self.builder.shr(lead_word, lead_shift);
+        let nibble = self.builder.shl(class, two);
+        let shifted = self.builder.shr(lengths, nibble);
         let rune_length = self.builder.and(shifted, fifteen);
         let next_rune = self.builder.add(rune, rune_length);
         let one = self.builder.imm(1);
@@ -870,7 +865,7 @@ impl FunctionLowerer<'_, '_> {
         let name = if reverse { sym::core_string_last_index_of } else { sym::core_string_index_of };
         let helper = self.lazy_helper(name, |this, function| {
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-            let bytes = MirType::MemPtr;
+            let bytes = MirType::MEMPTR;
             let subject = lowerer.builder.add_param(bytes);
             let needle = lowerer.builder.add_param(bytes);
             let from = lowerer.builder.add_param(MirType::I256);
@@ -897,9 +892,8 @@ impl FunctionLowerer<'_, '_> {
         from: ValueId,
         reverse: bool,
     ) -> ValueId {
-        let bytes = MemoryObjectKind::Bytes;
-        let length = self.builder.memory_object_len(subject, bytes);
-        let needle_length = self.builder.memory_object_len(needle, bytes);
+        let length = self.builder.memory_len(subject);
+        let needle_length = self.builder.memory_len(needle);
         let not_found = self.builder.imm(U256::MAX);
         let done = self.builder.create_block();
         let missing = self.builder.create_block();
@@ -935,14 +929,14 @@ impl FunctionLowerer<'_, '_> {
         // A shift of a word or more clears every bit, so a needle of at least a
         // word compares its whole first word.
         // mask = ~(MAX >> 8 * needle_length)
-        let source = self.builder.memory_object_data(subject, bytes);
-        let needle_data = self.builder.memory_object_data(needle, bytes);
-        let needle_word = self.builder.mload(needle_data);
+        let source = self.builder.memory_data(subject);
+        let needle_data = self.builder.memory_data(needle);
+        let needle_word = self.builder.load(needle_data, PtrLocation::Memory);
         let word = self.builder.imm(32);
         let three = self.builder.imm(3);
-        let needle_bits = self.builder.shl(three, needle_length);
+        let needle_bits = self.builder.shl(needle_length, three);
         let all = self.builder.imm(U256::MAX);
-        let beyond_needle = self.builder.shr(needle_bits, all);
+        let beyond_needle = self.builder.shr(all, needle_bits);
         let mask = self.builder.not(beyond_needle);
         let long = self.builder.gt(needle_length, word);
         let first = self.builder.add(source, start);
@@ -961,7 +955,7 @@ impl FunctionLowerer<'_, '_> {
         // candidate: (mload(cursor) ^ needle_word) & mask == 0
         self.builder.switch_to_block(header);
         let cursor = self.builder.phi(vec![(entry, first)]);
-        let candidate = self.builder.mload(cursor);
+        let candidate = self.builder.load(cursor, PtrLocation::Memory);
         let different = self.builder.xor(candidate, needle_word);
         let different = self.builder.and(different, mask);
         let prefix_equal = self.builder.eq_zero(different);
@@ -974,9 +968,9 @@ impl FunctionLowerer<'_, '_> {
         self.builder.switch_to_block(verify_tail);
         let tail = self.builder.sub(needle_length, word);
         let candidate_tail = self.builder.add(cursor, tail);
-        let candidate_tail = self.builder.mload(candidate_tail);
+        let candidate_tail = self.builder.load(candidate_tail, PtrLocation::Memory);
         let needle_tail = self.builder.add(needle_data, tail);
-        let needle_tail = self.builder.mload(needle_tail);
+        let needle_tail = self.builder.load(needle_tail, PtrLocation::Memory);
         let tail_equal = self.builder.eq(candidate_tail, needle_tail);
         self.builder.branch(tail_equal, verify_middle, advance);
 
@@ -987,9 +981,9 @@ impl FunctionLowerer<'_, '_> {
         self.builder.switch_to_block(middle);
         let offset = self.builder.phi(vec![(verify_middle, word)]);
         let candidate_word = self.builder.add(cursor, offset);
-        let candidate_word = self.builder.mload(candidate_word);
+        let candidate_word = self.builder.load(candidate_word, PtrLocation::Memory);
         let needle_middle = self.builder.add(needle_data, offset);
-        let needle_middle = self.builder.mload(needle_middle);
+        let needle_middle = self.builder.load(needle_middle, PtrLocation::Memory);
         let word_equal = self.builder.eq(candidate_word, needle_middle);
         self.builder.branch(word_equal, middle_step, advance);
         self.builder.switch_to_block(middle_step);
@@ -1031,11 +1025,11 @@ impl FunctionLowerer<'_, '_> {
     fn ensure_core_string_indices_helper(&mut self) -> Option<FunctionId> {
         self.lazy_helper(sym::core_string_search, |this, function| {
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-            let bytes = MirType::MemPtr;
+            let bytes = MirType::MEMPTR;
             let subject = lowerer.builder.add_param(bytes);
             let needle = lowerer.builder.add_param(bytes);
             let split_mode = lowerer.builder.add_param(MirType::I256);
-            let result = MirType::MemPtr;
+            let result = MirType::MEMPTR;
             lowerer.builder.set_return_type(result);
             lowerer.lower_core_string_indices_of(subject, needle, split_mode);
             Some(())
@@ -1047,7 +1041,7 @@ impl FunctionLowerer<'_, '_> {
         let [subject, delimiter] = *operands else { return None };
         let helper = self.ensure_core_string_indices_helper()?;
         let split_mode = self.builder.imm(1);
-        Some(self.builder.icall(helper, vec![subject, delimiter, split_mode], MirType::MemPtr))
+        Some(self.builder.icall(helper, vec![subject, delimiter, split_mode], MirType::MEMPTR))
     }
 
     fn alloc_core_word_array(&mut self, length: ValueId, extra_capacity: ValueId) -> ValueId {
@@ -1056,12 +1050,8 @@ impl FunctionLowerer<'_, '_> {
         let words = self.builder.checked_add(words, extra_capacity);
         let word_size = self.builder.imm(32);
         let size = self.builder.checked_mul(words, word_size);
-        let out = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::WORD_ARRAY,
-            AllocationSemantics::SOLIDITY_UNINITIALIZED,
-        );
-        self.builder.set_memory_object_len(out, length, MemoryObjectKind::DynamicArray);
+        let out = self.builder.alloc(size, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        self.builder.set_memory_len(out, length);
         out
     }
 
@@ -1071,19 +1061,15 @@ impl FunctionLowerer<'_, '_> {
         let mask = self.builder.imm(U256::MAX << 5);
         let size = self.builder.add(length, padding);
         let size = self.builder.and(size, mask);
-        let out = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::INTERNAL,
-        );
-        self.builder.set_memory_object_len(out, length, MemoryObjectKind::Bytes);
+        let out = self.builder.alloc(size, AllocationSemantics::INTERNAL);
+        self.builder.set_memory_len(out, length);
         // The word after the data zeroes its padding, as `new bytes` does; past the allocation it
         // is free memory.
         // mstore data(out) + length, 0
-        let data = self.builder.memory_object_data(out, MemoryObjectKind::Bytes);
+        let data = self.builder.memory_data(out);
         let end = self.builder.add(data, length);
         let zero = self.builder.imm(0);
-        self.builder.mstore(end, zero);
+        self.builder.store(end, zero);
         out
     }
 
@@ -1096,9 +1082,8 @@ impl FunctionLowerer<'_, '_> {
         if !self.cx.gcx.sess.opts.optimization.is_gas() {
             return self.lower_core_string_indices_of_compact(subject, needle, split_mode);
         }
-        let bytes = MemoryObjectKind::Bytes;
-        let length = self.builder.memory_object_len(subject, bytes);
-        let needle_length = self.builder.memory_object_len(needle, bytes);
+        let length = self.builder.memory_len(subject);
+        let needle_length = self.builder.memory_len(needle);
         let empty_result = self.builder.create_block();
         let fits = self.builder.create_block();
         let complete = self.builder.create_block();
@@ -1131,8 +1116,8 @@ impl FunctionLowerer<'_, '_> {
         let every_out = self.alloc_core_word_array(count, split_mode);
         self.builder.counted_loop(count, |builder, index| {
             let five = builder.imm(5);
-            let offset = builder.shl(five, index);
-            builder.memory_object_store_word(every_out, offset, index);
+            let offset = builder.shl(index, five);
+            builder.memory_store_word(every_out, offset, index);
         });
         let every_complete = self.builder.current_block();
         self.builder.jump(complete);
@@ -1147,12 +1132,12 @@ impl FunctionLowerer<'_, '_> {
         let allocation_base = self.builder.fmp();
         let header_size = self.builder.imm(32);
         let destination = self.builder.add(allocation_base, header_size);
-        let source = self.builder.memory_object_data(subject, bytes);
+        let source = self.builder.memory_data(subject);
         let source = self.builder.cast_word(source);
         let search_end = self.builder.sub(length, needle_length);
         let last = self.builder.add(source, search_end);
-        let needle_data = self.builder.memory_object_data(needle, bytes);
-        let needle_word = self.builder.mload(needle_data);
+        let needle_data = self.builder.memory_data(needle);
+        let needle_word = self.builder.load(needle_data, PtrLocation::Memory);
         let low_five = self.builder.imm(31);
         let remainder = self.builder.and(needle_length, low_five);
         let word = self.builder.imm(32);
@@ -1160,7 +1145,7 @@ impl FunctionLowerer<'_, '_> {
         let eight = self.builder.imm(8);
         let masked_bits = self.builder.mul(missing, eight);
         let all = self.builder.imm(U256::MAX);
-        let prefix_mask = self.builder.shl(masked_bits, all);
+        let prefix_mask = self.builder.shl(all, masked_bits);
         let short_scan = self.builder.create_block();
         let long_hash = self.builder.create_block();
         let finish = self.builder.create_block();
@@ -1225,23 +1210,22 @@ impl FunctionLowerer<'_, '_> {
         // needle_hash = keccak256(data(needle), needle_length)
         // step = needle_length + (needle_length == 0)
         // jumpi needle_length > length, finish, fits
-        let bytes = MemoryObjectKind::Bytes;
-        let length = self.builder.memory_object_len(subject, bytes);
-        let needle_length = self.builder.memory_object_len(needle, bytes);
+        let length = self.builder.memory_len(subject);
+        let needle_length = self.builder.memory_len(needle);
         let allocation_base = self.builder.fmp();
         let word = self.builder.imm(32);
         let destination = self.builder.add(allocation_base, word);
-        let source = self.builder.memory_object_data(subject, bytes);
+        let source = self.builder.memory_data(subject);
         let source = self.builder.cast_word(source);
-        let needle_data = self.builder.memory_object_data(needle, bytes);
-        let needle_word = self.builder.mload(needle_data);
+        let needle_data = self.builder.memory_data(needle);
+        let needle_word = self.builder.load(needle_data, PtrLocation::Memory);
         let low_five = self.builder.imm(31);
         let remainder = self.builder.and(needle_length, low_five);
         let missing = self.builder.sub(word, remainder);
         let eight = self.builder.imm(8);
         let masked_bits = self.builder.mul(missing, eight);
         let all = self.builder.imm(U256::MAX);
-        let prefix_mask = self.builder.shl(masked_bits, all);
+        let prefix_mask = self.builder.shl(all, masked_bits);
         let needle_hash = self.builder.keccak256(needle_data, needle_length);
         let needle_empty = self.builder.eq_zero(needle_length);
         let empty_step = self.builder.cast_word(needle_empty);
@@ -1281,21 +1265,17 @@ impl FunctionLowerer<'_, '_> {
         let one = self.builder.imm(1);
         let output_bytes = self.builder.sub(output, destination);
         let five = self.builder.imm(5);
-        let count = self.builder.shr(five, output_bytes);
+        let count = self.builder.shr(output_bytes, five);
         let words = self.builder.checked_add(count, one);
         let words = self.builder.checked_add(words, split_mode);
         let word = self.builder.imm(32);
         let allocation_size = self.builder.checked_mul(words, word);
-        let out = self.builder.alloc_object(
-            allocation_size,
-            MemoryObjectLayout::WORD_ARRAY,
-            AllocationSemantics::INTERNAL,
-        );
+        let out = self.builder.alloc(allocation_size, AllocationSemantics::INTERNAL);
         let Value::Inst(allocation) = *self.builder.func().value(out) else {
             unreachable!("allocation result must reference its instruction")
         };
         self.builder.func_mut().inst_mut(allocation).metadata.set_preserves_fmp(true);
-        self.builder.set_memory_object_len(out, count, MemoryObjectKind::DynamicArray);
+        self.builder.set_memory_len(out, count);
         out
     }
 
@@ -1327,7 +1307,7 @@ impl FunctionLowerer<'_, '_> {
 
         // jumpi (mload(cursor) ^ needle_word) & prefix_mask == 0, matched, advance
         self.builder.switch_to_block(compare);
-        let candidate_word = self.builder.mload(cursor);
+        let candidate_word = self.builder.load(cursor, PtrLocation::Memory);
         let different = self.builder.xor(candidate_word, scan.needle_word);
         let different = self.builder.and(different, scan.prefix_mask);
         let prefix_equal = self.builder.eq_zero(different);
@@ -1343,7 +1323,7 @@ impl FunctionLowerer<'_, '_> {
         // mstore output, cursor - source
         self.builder.switch_to_block(matched);
         let at = self.builder.sub(cursor, scan.source);
-        self.builder.mstore(output, at);
+        self.builder.store(output, at);
         let word = self.builder.imm(32);
         let next_output = self.builder.add(output, word);
         let next_cursor = self.builder.add(cursor, scan.step);
@@ -1365,31 +1345,26 @@ impl FunctionLowerer<'_, '_> {
     /// the payload word, zeroing the padding as the body's `new bytes(1)` does,
     /// rather than the subject bytes that follow it.
     fn lower_core_string_split_empty(&mut self, subject: ValueId, length: ValueId) {
-        let bytes = MemoryObjectKind::Bytes;
         let (out, _) = self
             .builder
             .alloc_dynamic_word_array(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        let source = self.builder.memory_object_data(subject, bytes);
+        let source = self.builder.memory_data(subject);
         self.builder.counted_loop(length, |builder, index| {
             let one = builder.imm(1);
             let size = builder.imm(64);
-            let piece = builder.alloc_object(
-                size,
-                MemoryObjectLayout::Bytes,
-                AllocationSemantics::INTERNAL,
-            );
-            builder.set_memory_object_len(piece, one, bytes);
+            let piece = builder.alloc(size, AllocationSemantics::INTERNAL);
+            builder.set_memory_len(piece, one);
             // piece[0..32] = mload(source + index) & (0xff << 248)
             let source_address = builder.add(source, index);
-            let word = builder.mload(source_address);
+            let word = builder.load(source_address, PtrLocation::Memory);
             let first_byte = builder.imm(U256::from(0xff) << 248);
             let word = builder.and(word, first_byte);
             let zero = builder.imm(0);
-            builder.memory_object_store_word(piece, zero, word);
+            builder.memory_store_word(piece, zero, word);
             let piece = builder.cast(piece, MirType::I256);
             let five = builder.imm(5);
-            let offset = builder.shl(five, index);
-            builder.memory_object_store_word(out, offset, piece);
+            let offset = builder.shl(index, five);
+            builder.memory_store_word(out, offset, piece);
         });
         self.builder.ret([out]);
     }
@@ -1407,8 +1382,6 @@ impl FunctionLowerer<'_, '_> {
         split_mode: ValueId,
         drops_empty_ends: bool,
     ) {
-        let bytes = MemoryObjectKind::Bytes;
-        let array = MemoryObjectKind::DynamicArray;
         let return_indices = self.builder.create_block();
         let split = self.builder.create_block();
         let indices_only = self.builder.eq_zero(split_mode);
@@ -1419,18 +1392,18 @@ impl FunctionLowerer<'_, '_> {
 
         self.builder.switch_to_block(split);
         let one = self.builder.imm(1);
-        let count = self.builder.memory_object_len(offsets, array);
+        let count = self.builder.memory_len(offsets);
         // The search allocation already reserved `count + 2` words for split.
         let result_count = self.builder.add(count, one);
-        self.builder.set_memory_object_len(offsets, result_count, array);
-        let offsets_data = self.builder.memory_object_data(offsets, array);
+        self.builder.set_memory_len(offsets, result_count);
+        let offsets_data = self.builder.memory_data(offsets);
         let five = self.builder.imm(5);
-        let final_offset = self.builder.shl(five, count);
+        let final_offset = self.builder.shl(count, five);
         let final_slot = self.builder.add(offsets_data, final_offset);
-        self.builder.mstore(final_slot, length);
-        let result_bytes = self.builder.shl(five, result_count);
+        self.builder.store(final_slot, length);
+        let result_bytes = self.builder.shl(result_count, five);
         let offsets_end = self.builder.add(offsets_data, result_bytes);
-        let source = self.builder.memory_object_data(subject, bytes);
+        let source = self.builder.memory_data(subject);
         let entry = self.builder.current_block();
         let header = self.builder.create_block();
         let create_piece = self.builder.create_block();
@@ -1448,27 +1421,27 @@ impl FunctionLowerer<'_, '_> {
         self.builder.branch(finished, done, create_piece);
 
         self.builder.switch_to_block(create_piece);
-        let end = self.builder.mload(slot);
+        let end = self.builder.load(slot, PtrLocation::Memory);
         let piece_length = self.builder.sub(end, previous);
         let piece_empty = self.builder.eq_zero(piece_length);
         self.builder.branch(piece_empty, empty_piece, copied_piece);
 
         self.builder.switch_to_block(empty_piece);
         let zero_slot = self.builder.imm(EvmMemoryLayout::ZERO_SLOT);
-        let empty_value = self.builder.cast(zero_slot, MirType::MemPtr);
+        let empty_value = self.builder.cast(zero_slot, MirType::MEMPTR);
         self.builder.jump(store_piece);
 
         self.builder.switch_to_block(copied_piece);
         let piece = self.alloc_core_proven_bytes(piece_length);
-        let destination = self.builder.memory_object_data(piece, bytes);
+        let destination = self.builder.memory_data(piece);
         let source_address = self.builder.add(source, previous);
-        self.builder.mcopy_heap(destination, source_address, piece_length);
+        self.builder.copy_heap(destination, source_address, piece_length, PtrLocation::Memory);
         self.builder.jump(store_piece);
 
         self.builder.switch_to_block(store_piece);
         let piece = self.builder.phi(vec![(empty_piece, empty_value), (copied_piece, piece)]);
         let piece = self.builder.cast(piece, MirType::I256);
-        self.builder.mstore(slot, piece);
+        self.builder.store(slot, piece);
         let next_previous = self.builder.add(end, delimiter_length);
         let word = self.builder.imm(32);
         let next_slot = self.builder.add(slot, word);
@@ -1484,12 +1457,12 @@ impl FunctionLowerer<'_, '_> {
             let dropped = self.builder.eq_zero(delimiter_length);
             let dropped = self.builder.cast_word(dropped);
             let base = self.builder.cast_word(offsets);
-            let shift = self.builder.shl(five, dropped);
+            let shift = self.builder.shl(dropped, five);
             let result = self.builder.add(base, shift);
-            let ends = self.builder.shl(one, dropped);
+            let ends = self.builder.shl(dropped, one);
             let pieces = self.builder.sub(result_count, ends);
-            self.builder.mstore(result, pieces);
-            let result = self.builder.cast(result, MirType::MemPtr);
+            self.builder.store(result, pieces);
+            let result = self.builder.cast(result, MirType::MEMPTR);
             self.builder.ret([result]);
         } else {
             self.builder.ret([offsets]);
@@ -1514,7 +1487,7 @@ impl FunctionLowerer<'_, '_> {
         let mut smeared = value;
         for shift in [8, 16, 32, 64, 128] {
             let shift = self.builder.imm(shift);
-            let shifted = self.builder.shr(shift, smeared);
+            let shifted = self.builder.shr(smeared, shift);
             smeared = self.builder.or(smeared, shifted);
         }
         let ones = U256::MAX / U256::from(255);
@@ -1525,20 +1498,20 @@ impl FunctionLowerer<'_, '_> {
         let top_bits = self.builder.imm(ones * U256::from(0x80));
         let marks = self.builder.and(any, top_bits);
         let seven = self.builder.imm(7);
-        let marks = self.builder.shr(seven, marks);
+        let marks = self.builder.shr(marks, seven);
         let twos = self.builder.imm(ones * U256::from(2));
         let digits = self.builder.mul(marks, twos);
         let top = self.builder.imm(248);
-        let digits = self.builder.shr(top, digits);
+        let digits = self.builder.shr(digits, top);
         let cursor = self.builder.sub(end, digits);
         let low_mask = self.builder.imm(U256::MAX >> 128);
         let low = self.builder.and(value, low_mask);
         let low = super::hex::hex_word(&mut self.builder, low);
         let word = self.builder.imm(32);
         let low_start = self.builder.sub(end, word);
-        self.builder.mstore(low_start, low);
+        self.builder.store(low_start, low);
         let half = self.builder.imm(128);
-        let high = self.builder.shr(half, value);
+        let high = self.builder.shr(value, half);
         let has_high = self.builder.ne_zero(high);
         self.builder.branch(has_high, high_half, join);
 
@@ -1546,7 +1519,7 @@ impl FunctionLowerer<'_, '_> {
         self.builder.switch_to_block(high_half);
         let high = super::hex::hex_word(&mut self.builder, high);
         let high_start = self.builder.sub(low_start, word);
-        self.builder.mstore(high_start, high);
+        self.builder.store(high_start, high);
         self.builder.jump(join);
 
         self.builder.switch_to_block(join);
@@ -1559,10 +1532,9 @@ impl FunctionLowerer<'_, '_> {
         needle: ValueId,
         replacement: ValueId,
     ) {
-        let kind = MemoryObjectKind::Bytes;
-        let length = self.builder.memory_object_len(subject, kind);
-        let needle_length = self.builder.memory_object_len(needle, kind);
-        let replacement_length = self.builder.memory_object_len(replacement, kind);
+        let length = self.builder.memory_len(subject);
+        let needle_length = self.builder.memory_len(needle);
+        let replacement_length = self.builder.memory_len(replacement);
         let return_subject = self.builder.create_block();
         let fits = self.builder.create_block();
         let too_long = self.builder.gt(needle_length, length);
@@ -1608,16 +1580,15 @@ impl FunctionLowerer<'_, '_> {
         length: ValueId,
         replacement_length: ValueId,
     ) {
-        let kind = MemoryObjectKind::Bytes;
         let one = self.builder.imm(1);
         let count = self.builder.checked_add(length, one);
         let inserted = self.builder.checked_mul(count, replacement_length);
         let capacity = self.builder.checked_add(length, inserted);
         let out =
             self.builder.alloc_bytes_object(capacity, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        let source = self.builder.memory_object_data(subject, kind);
-        let replacement = self.builder.memory_object_data(replacement, kind);
-        let destination = self.builder.memory_object_data(out, kind);
+        let source = self.builder.memory_data(subject);
+        let replacement = self.builder.memory_data(replacement);
+        let destination = self.builder.memory_data(out);
         let entry = self.builder.current_block();
         let header = self.builder.create_block();
         let body = self.builder.create_block();
@@ -1635,18 +1606,23 @@ impl FunctionLowerer<'_, '_> {
 
         self.builder.switch_to_block(body);
         let output_address = self.builder.add(destination, output);
-        self.builder.mcopy_heap(output_address, replacement, replacement_length);
+        self.builder.copy_heap(
+            output_address,
+            replacement,
+            replacement_length,
+            PtrLocation::Memory,
+        );
         let after_replacement = self.builder.add(output, replacement_length);
         let has_byte = self.builder.lt(index, length);
         self.builder.branch(has_byte, copy_byte, next_without_byte);
 
         self.builder.switch_to_block(copy_byte);
         let source_address = self.builder.add(source, index);
-        let word = self.builder.mload(source_address);
+        let word = self.builder.load(source_address, PtrLocation::Memory);
         let zero = self.builder.imm(0);
         let byte = self.builder.byte(zero, word);
         let output_address = self.builder.add(destination, after_replacement);
-        self.builder.mstore8(output_address, byte);
+        self.builder.store8(output_address, byte);
         let next_index = self.builder.add(index, one);
         let next_output = self.builder.add(after_replacement, one);
         self.builder.jump(header);
@@ -1664,7 +1640,7 @@ impl FunctionLowerer<'_, '_> {
         self.builder.switch_to_block(done);
         let output_end = self.builder.add(destination, capacity);
         let zero = self.builder.imm(0);
-        self.builder.mstore(output_end, zero);
+        self.builder.store(output_end, zero);
         self.builder.ret([out]);
     }
 
@@ -1678,7 +1654,6 @@ impl FunctionLowerer<'_, '_> {
         needle_length: ValueId,
         replacement_length: ValueId,
     ) {
-        let kind = MemoryObjectKind::Bytes;
         let same_capacity = self.builder.create_block();
         let growing_capacity = self.builder.create_block();
         let allocate = self.builder.create_block();
@@ -1705,13 +1680,13 @@ impl FunctionLowerer<'_, '_> {
         let allocation_base = self.builder.fmp();
         let header = self.builder.imm(32);
         let destination = self.builder.add(allocation_base, header);
-        let source = self.builder.memory_object_data(subject, kind);
+        let source = self.builder.memory_data(subject);
         let source = self.builder.cast_word(source);
         let search_end = self.builder.sub(length, needle_length);
         let last = self.builder.add(source, search_end);
-        let needle_data = self.builder.memory_object_data(needle, kind);
-        let replacement_data = self.builder.memory_object_data(replacement, kind);
-        let needle_word = self.builder.mload(needle_data);
+        let needle_data = self.builder.memory_data(needle);
+        let replacement_data = self.builder.memory_data(replacement);
+        let needle_word = self.builder.load(needle_data, PtrLocation::Memory);
         let low_five = self.builder.imm(31);
         let remainder = self.builder.and(needle_length, low_five);
         let word = self.builder.imm(32);
@@ -1719,7 +1694,7 @@ impl FunctionLowerer<'_, '_> {
         let eight = self.builder.imm(8);
         let masked_bits = self.builder.mul(missing, eight);
         let all = self.builder.imm(U256::MAX);
-        let prefix_mask = self.builder.shl(masked_bits, all);
+        let prefix_mask = self.builder.shl(all, masked_bits);
         let short_scan = self.builder.create_block();
         let long_hash = self.builder.create_block();
         let finish = self.builder.create_block();
@@ -1774,7 +1749,6 @@ impl FunctionLowerer<'_, '_> {
         // empty = needle_length == 0
         // step = needle_length + empty
         // jumpi replacement_length > needle_length, growing_capacity, allocate
-        let kind = MemoryObjectKind::Bytes;
         let needle_empty = self.builder.eq_zero(needle_length);
         let empty_step = self.builder.cast_word(needle_empty);
         let step = self.builder.add(needle_length, empty_step);
@@ -1803,13 +1777,13 @@ impl FunctionLowerer<'_, '_> {
         let allocation_base = self.builder.fmp();
         let header = self.builder.imm(32);
         let destination = self.builder.add(allocation_base, header);
-        let source = self.builder.memory_object_data(subject, kind);
+        let source = self.builder.memory_data(subject);
         let source = self.builder.cast_word(source);
         let search_end = self.builder.sub(length, needle_length);
         let last = self.builder.add(source, search_end);
-        let needle_data = self.builder.memory_object_data(needle, kind);
-        let replacement_data = self.builder.memory_object_data(replacement, kind);
-        let needle_word = self.builder.mload(needle_data);
+        let needle_data = self.builder.memory_data(needle);
+        let replacement_data = self.builder.memory_data(replacement);
+        let needle_word = self.builder.load(needle_data, PtrLocation::Memory);
         let low_five = self.builder.imm(31);
         let remainder = self.builder.and(needle_length, low_five);
         let word = self.builder.imm(32);
@@ -1817,7 +1791,7 @@ impl FunctionLowerer<'_, '_> {
         let eight = self.builder.imm(8);
         let masked_bits = self.builder.mul(missing, eight);
         let all = self.builder.imm(U256::MAX);
-        let prefix_mask = self.builder.shl(masked_bits, all);
+        let prefix_mask = self.builder.shl(all, masked_bits);
         let needle_hash = self.builder.keccak256(needle_data, needle_length);
         let finish = self.builder.create_block();
         let scan = ReplaceScan {
@@ -1851,15 +1825,14 @@ impl FunctionLowerer<'_, '_> {
         // mstore output + tail, 0
         // output_length = output + tail - (fmp + 32)
         // out = alloc bytes at fmp, padded(output_length); len(out) = output_length
-        let kind = MemoryObjectKind::Bytes;
         let end = self.builder.add(last, needle_length);
         let tail = self.builder.sub(end, copied);
-        self.builder.mcopy_heap(output, copied, tail);
+        self.builder.copy_heap(output, copied, tail, PtrLocation::Memory);
         let output_end = self.builder.add(output, tail);
         // The word after the output zeroes its padding, as `new bytes` does; it lies past the
         // allocation, in free memory.
         let zero = self.builder.imm(0);
-        self.builder.mstore(output_end, zero);
+        self.builder.store(output_end, zero);
         // The scans allocate nothing, so the free-memory pointer still marks
         // the output header; reading it again keeps the destination out of
         // the loops' live state.
@@ -1868,16 +1841,12 @@ impl FunctionLowerer<'_, '_> {
         let destination = self.builder.add(allocation_base, header);
         let output_length = self.builder.sub(output_end, destination);
         let allocation_size = self.builder.checked_padded_size(output_length);
-        let out = self.builder.alloc_object(
-            allocation_size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::INTERNAL,
-        );
+        let out = self.builder.alloc(allocation_size, AllocationSemantics::INTERNAL);
         let Value::Inst(allocation) = *self.builder.func().value(out) else {
             unreachable!("allocation result must reference its instruction")
         };
         self.builder.func_mut().inst_mut(allocation).metadata.set_preserves_fmp(true);
-        self.builder.set_memory_object_len(out, output_length, kind);
+        self.builder.set_memory_len(out, output_length);
         self.builder.ret([out]);
     }
 
@@ -1944,7 +1913,7 @@ impl FunctionLowerer<'_, '_> {
 
         // jumpi (mload(at) ^ needle_word) & prefix_mask == 0, matched, advance
         self.builder.switch_to_block(compare);
-        let candidate_word = self.builder.mload(at);
+        let candidate_word = self.builder.load(at, PtrLocation::Memory);
         let different = self.builder.xor(candidate_word, scan.needle_word);
         let different = self.builder.and(different, scan.prefix_mask);
         let prefix_equal = self.builder.eq_zero(different);
@@ -1961,9 +1930,14 @@ impl FunctionLowerer<'_, '_> {
         // mcopy output + (at - copied), data(replacement), replacement_length
         self.builder.switch_to_block(matched);
         let run = self.builder.sub(at, copied);
-        self.builder.mcopy_heap(output, copied, run);
+        self.builder.copy_heap(output, copied, run, PtrLocation::Memory);
         let after_run = self.builder.add(output, run);
-        self.builder.mcopy_heap(after_run, scan.replacement_data, scan.replacement_length);
+        self.builder.copy_heap(
+            after_run,
+            scan.replacement_data,
+            scan.replacement_length,
+            PtrLocation::Memory,
+        );
         let next_output = self.builder.add(after_run, scan.replacement_length);
         let next_copied = self.builder.add(at, scan.needle_length);
         let next_at = if scan.step == scan.needle_length {
@@ -1991,9 +1965,9 @@ impl FunctionLowerer<'_, '_> {
     fn keep_leading_bytes(&mut self, word: ValueId, count: ValueId) -> ValueId {
         // word & ~(MAX >> (count << 3))
         let three = self.builder.imm(3);
-        let bits = self.builder.shl(three, count);
+        let bits = self.builder.shl(count, three);
         let all = self.builder.imm(U256::MAX);
-        let past = self.builder.shr(bits, all);
+        let past = self.builder.shr(all, bits);
         let kept = self.builder.not(past);
         self.builder.and(word, kept)
     }

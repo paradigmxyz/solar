@@ -9,11 +9,15 @@ contract BytesMemoryElements {
     // CHECK-LABEL: fn @alloc{{[( ]}}
     // CHECK: [[MASK:v[0-9]+]] = not 31
     // CHECK: [[ALLOC_SIZE:v[0-9]+]] = and 159, [[MASK]]
-    // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic, [[ALLOC_SIZE]]
-    // CHECK: set_memory_object_len memorybytes, [[BUF]], 96
-    // CHECK: memory_object_store_byte memorybytes, {{.*}}, {{.*}}, {{.*}}
-    // CHECK: memory_object_store_byte memorybytes, {{.*}}, {{.*}}, {{.*}}
-    // CHECK: keccak256_bytes [[BUF]]
+    // CHECK: [[BUF:v[0-9]+]] = alloc zeroed checked [[ALLOC_SIZE]]
+    // CHECK: mstore [[BUF]], 96
+    // CHECK: [[BUF_37:v[0-9]+]] = ptradd [[BUF]], 37
+    // CHECK-NEXT: mstore8 [[BUF_37]], {{v[0-9]+}}
+    // CHECK: [[BUF_127:v[0-9]+]] = ptradd [[BUF]], 127
+    // CHECK-NEXT: mstore8 [[BUF_127]], {{v[0-9]+}}
+    // CHECK: [[DATA:v[0-9]+]] = ptradd [[BUF]], 32
+    // CHECK-NEXT: [[LEN:v[0-9]+]] = mload [[BUF]]
+    // CHECK-NEXT: keccak256 [[DATA]], [[LEN]]
     function alloc() external pure returns (bytes32) {
         bytes memory buf = new bytes(96);
         buf[5] = 0xAA;
@@ -22,10 +26,13 @@ contract BytesMemoryElements {
     }
 
     // CHECK-LABEL: fn @literal{{[( ]}}
-    // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 64
-    // CHECK: set_memory_object_len memorybytes, [[BUF]], 10
-    // CHECK: memory_object_store_byte memorybytes, {{.*}}, {{.*}}, {{.*}}
-    // CHECK: keccak256_bytes [[BUF]]
+    // CHECK: [[BUF:v[0-9]+]] = alloc 64
+    // CHECK: mstore [[BUF]], 10
+    // CHECK: [[BUF_37:v[0-9]+]] = ptradd [[BUF]], 37
+    // CHECK-NEXT: mstore8 [[BUF_37]], {{v[0-9]+}}
+    // CHECK: [[DATA:v[0-9]+]] = ptradd [[BUF]], 32
+    // CHECK-NEXT: [[LEN:v[0-9]+]] = mload [[BUF]]
+    // CHECK-NEXT: keccak256 [[DATA]], [[LEN]]
     function literal() external pure returns (bytes32) {
         bytes memory buf = hex"00010203040506070809";
         buf[5] = 0xAA;
@@ -37,16 +44,24 @@ contract BytesMemoryElements {
     // CHECK: {{v[0-9]+}} = lt [[PADDED]], arg0
     // CHECK: [[MASK:v[0-9]+]] = not 31
     // CHECK: [[ALLOC_SIZE:v[0-9]+]] = and [[PADDED]], [[MASK]]
-    // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic, [[ALLOC_SIZE]]
-    // CHECK: set_memory_object_len memorybytes, [[BUF]], arg0
+    // CHECK: [[BUF:v[0-9]+]] = alloc zeroed checked [[ALLOC_SIZE]]
+    // CHECK: mstore [[BUF]], arg0
     function allocDynamic(uint n) external pure returns (uint) {
         bytes memory buf = new bytes(n);
         return buf.length;
     }
 
     // CHECK-LABEL: fn @readWrite{{[( ]}}
-    // CHECK: memory_object_store_byte memorybytes, arg0, arg1, {{v[0-9]+}}
-    // CHECK: memory_object_load_byte memorybytes, arg0, arg1
+    // CHECK: icall panic_if<0x32>
+    // CHECK: [[BYTE:v[0-9]+]] = byte 0, arg2
+    // CHECK-NEXT: [[STORE_PTR:v[0-9]+]] = ptradd arg0, arg1
+    // CHECK-NEXT: [[STORE_PTR_32:v[0-9]+]] = ptradd [[STORE_PTR]], 32
+    // CHECK-NEXT: mstore8 [[STORE_PTR_32]], [[BYTE]]
+    // CHECK: icall panic_if<0x32>
+    // CHECK-NEXT: [[LOAD_PTR:v[0-9]+]] = ptradd arg0, arg1
+    // CHECK-NEXT: [[LOAD_PTR_32:v[0-9]+]] = ptradd [[LOAD_PTR]], 32
+    // CHECK-NEXT: [[WORD:v[0-9]+]] = mload [[LOAD_PTR_32]]
+    // CHECK-NEXT: {{v[0-9]+}} = byte 0, [[WORD]]
     function readWrite(bytes memory b, uint i, bytes1 v) external pure returns (bytes1) {
         b[i] = v;
         return b[i];

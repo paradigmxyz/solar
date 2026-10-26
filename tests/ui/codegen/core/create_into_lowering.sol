@@ -12,7 +12,7 @@
 // INTRINSIC: returndatasize
 // INTRINSIC: returndatacopy
 // INTRINSIC-NOT: icall @tryDeployInto
-// PORTABLE-LABEL: fn @tryDeployInto
+// PORTABLE-LABEL: fn @attempt
 // PORTABLE: returndatacopy
 import {Bytes} from "solar:core/Bytes.sol";
 import {Create} from "solar:core/Create.sol";

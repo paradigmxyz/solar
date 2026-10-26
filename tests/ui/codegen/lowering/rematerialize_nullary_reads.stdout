@@ -18,9 +18,6 @@ bb2 [cold]:
   push 0
   revert
 bb3:
-  push 960
-  push 64
-  mstore
   calldatasize
   push 0
   mstore

@@ -1,0 +1,147 @@
+// === ROOT/tests/ui/codegen/mir/memory-dse/dead_allocation_return.sol:DeadAllocationReturn ===
+@module DeadAllocationReturn
+@types
+  struct0: {i256, i256}
+
+fn @callIdentity(arg0: i256) -> i256 [inline_assembly, view] {
+  bb0:
+    v0 = gas
+    v1 = abi_encode [word], object, args arg0
+    v2 = address_staticcall i160 4, v1, gas v0
+    v3 = icall returndata_bytes<>
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v4 = mload v3
+    v5 = eq v4, 32
+    jump bb3
+  bb3:
+    v6 = phi [bb1: v5], [bb2: false]
+    v7 = eq v6, false
+    icall revert_if<empty>, v7
+    v8 = ptrtoint ptr<memory> v3 to i256
+    v9 = add v8, 32
+    v10 = mload v9
+    ret v10
+}
+
+fn @identity(arg0: i256) -> i256 [selector=0xac37eebb, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @callIdentity, arg0
+    v1 = add arg0, 1
+    v2 = icall @callIdentity, v1
+    v3 = add v0, v2
+    ret v3
+}
+
+fn @modexp(arg0: i256, arg1: i256) -> i256 [view] {
+  bb0:
+    v0 = gas
+    v1 = abi_encode [word, word, word, word, word, word], object, args 32, 32, 32, arg0, arg1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f
+    v2 = address_staticcall i160 5, v1, gas v0
+    v3 = icall returndata_bytes<>
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v4 = mload v3
+    v5 = eq v4, 32
+    jump bb3
+  bb3:
+    v6 = phi [bb1: v5], [bb2: false]
+    v7 = eq v6, false
+    icall revert_if<empty>, v7
+    v8 = abi_decode [uint256], v3
+    ret v8
+}
+
+fn @power(arg0: i256) -> struct0 [selector=0xcc193fb0, view, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = icall @modexp, arg0, 3
+    v1 = icall @modexp, arg0, 5
+    v2 = insert_value struct0, undef struct0, 0, v0
+    v3 = insert_value struct0, v2, 1, v1
+    ret v3
+}
+
+fn @digest(arg0: i256, arg1: ptr<memory>) -> i256 [pure] {
+  bb0:
+    v0 = abi_encode [word, memory_bytes], scratch, args arg0, arg1
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    v3 = keccak256 v1, v2
+    ret v3
+}
+
+fn @hashes(arg0: i256) -> struct0 [selector=0x501895ae, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[bytes32, bytes32]] {
+  bb0:
+    v0 = abi_encode_packed (uint256 arg0)
+    v1 = icall @digest, arg0, v0
+    v2 = checked_add uint256, arg0, 1
+    v3 = icall @digest, v2, v0
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
+}
+
+fn @build(arg0: i256) -> ptr<memory> [pure] {
+  bb0:
+    v0 = abi_encode [word], object, args arg0
+    ret v0
+}
+
+fn @returned(arg0: i256) -> ptr<memory> [selector=0xf8c883cc, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = icall @build, arg0
+    ret v0
+}
+
+fn @stored(arg0: i256) -> ptr<memory> [selector=0x8c396222, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v6]
+    v2 = lt v1, 1
+    jumpi v2, bb2, bb3
+  bb3:
+    v7 = abi_encode [word], object, args arg0
+    v8 = mload v0
+    v9 = lt 0, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = ptrtoint ptr<memory> v7 to i256
+    v12 = ptradd v0, 32
+    mstore v12, v11
+    v13 = mload v0
+    v14 = lt 0, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = ptradd v0, 32
+    v17 = mload v16, ptr<memory>
+    ret v17
+  bb2:
+    v3 = shl v1, 5
+    v4 = ptradd v0, v3
+    v5 = ptradd v4, 32
+    mstore v5, 96
+    v6 = add v1, 1
+    jump bb1
+}
+
+fn @length(arg0: ptr<memory>) -> i256 [pure] {
+  bb0:
+    v0 = mload arg0
+    ret v0
+}
+
+fn @passed(arg0: i256) -> i256 [selector=0x0a0155e5, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = abi_encode [word, word], object, args arg0, arg0
+    v1 = icall @length, v0
+    v2 = checked_div uint256, v1, 64
+    v3 = checked_mul uint256, v2, arg0
+    ret v3
+}

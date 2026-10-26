@@ -32,7 +32,7 @@ contract Search {
     // CHECK-NEXT: {{v[0-9]+}} = ne [[POINTER]],
     // CHECK: [[MATCHED:v[0-9]+]] = phi [{{bb[0-9]+}}: [[POINTER]]], [{{bb[0-9]+}}: [[START]]], [{{bb[0-9]+}}: {{v[0-9]+}}]
     // CHECK-NEXT: [[DELTA:v[0-9]+]] = sub [[MATCHED]], [[START]]
-    // CHECK-NEXT: {{v[0-9]+}} = shr 5, [[DELTA]]
+    // CHECK-NEXT: {{v[0-9]+}} = shr [[DELTA]], 5
     function find(uint256[] calldata values, uint256 x) external pure returns (uint256 found) {
         found = values.length;
         for (uint256 i = 0; i < values.length; ++i) {

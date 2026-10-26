@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/ternary_hex_literals.sol:TernaryHexLiterals ===
 @module TernaryHexLiterals
 @types
-  struct0: {memptr, i256}
+  struct0: {ptr<memory>, i256}
 
-fn @pick(arg0: i1) -> memptr [selector=0x85ffb95f, pure, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @pick(arg0: i1) -> ptr<memory> [selector=0x85ffb95f, pure, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -17,7 +17,7 @@ fn @pick(arg0: i1) -> memptr [selector=0x85ffb95f, pure, abi_params=[bool], abi_
     ret v2
 }
 
-fn @packed(arg0: i1) -> memptr [selector=0x6ebaaff1, pure, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @packed(arg0: i1) -> ptr<memory> [selector=0x6ebaaff1, pure, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -36,26 +36,24 @@ fn @pairHash(arg0: i1) -> i256 [selector=0x7e8b97e2, pure, abi_params=[bool], ab
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
-    v3 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v3, 32
-    v4 = memory_object_data memorybytes, v3
-    v5 = ptrtoint memptr v4 to i256
-    mstore v5, 0x863fcfbbee75e679d2a43818f377afc8a63590091c47f069b36b7cf8a4d4cad2
+    v2 = alloc 64 !metadata(preserves_fmp)
+    mstore v2, 32
+    v3 = ptradd v2, 32
+    mstore v3, 0x863fcfbbee75e679d2a43818f377afc8a63590091c47f069b36b7cf8a4d4cad2
     jump bb3
   bb1:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 32
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 32
+    v1 = ptradd v0, 32
+    mstore v1, 0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f
     jump bb3
   bb3:
-    v6 = phi [bb1: v0], [bb2: v3]
-    v7 = keccak256_packed (data hex"ff", bytes v6)
-    ret v7
+    v4 = phi [bb1: v0], [bb2: v2]
+    v5 = keccak256_packed (data hex"ff", bytes v4)
+    ret v5
 }
 
-fn @tuple(arg0: i1) -> struct0 [selector=0xea8ca604, pure, abi_params=[bool], abi_returns=[memory_bytes, word], abi_return_params=[bytes, u256]] {
+fn @tuple(arg0: i1) -> struct0 [selector=0xea8ca604, pure, abi_params=[bool], abi_returns=[memory_bytes, word], abi_return_params=[bytes, uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -73,7 +71,7 @@ fn @tuple(arg0: i1) -> struct0 [selector=0xea8ca604, pure, abi_params=[bool], ab
     ret v6
 }
 
-fn @discarded(arg0: i1) -> i256 [selector=0xa9c2e0b6, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @discarded(arg0: i1) -> i256 [selector=0xa9c2e0b6, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -94,10 +92,11 @@ fn @discarded(arg0: i1) -> i256 [selector=0xa9c2e0b6, pure, abi_params=[bool], a
     ret v3
 }
 
-fn @literal_bytes_word(arg0: i256, arg1: i256) -> memptr {
+fn @literal_bytes_word(arg0: i256, arg1: i256) -> ptr<memory> {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, arg1
-    memory_object_store_word memorybytes, v0, 0, arg0
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, arg1
+    v1 = ptradd v0, 32
+    mstore v1, arg0
     ret v0
 }

@@ -1,0 +1,22 @@
+- // === ROOT/tests/ui/codegen/mir/cse/length_across_alloc.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/length_across_alloc.mir (after cse) ===
+  @module AllocationExtent
+  fn @fresh(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = mload v0
+      v2 = alloc zeroed checked arg0
+      v3 = mload v0
+      v4 = add v1, v3
+      ret v4
+  }
+  
+  fn @raw(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = mload arg0
+      v1 = alloc zeroed checked arg1
+      v2 = mload arg0
+      v3 = add v0, v2
+      ret v3
+  }
+  

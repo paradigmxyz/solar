@@ -19,6 +19,8 @@ use std::{
 
 mod external;
 
+pub use external::run_external_suite;
+
 // ============================================================================
 // Configuration
 // ============================================================================
@@ -55,6 +57,9 @@ struct TestConfig {
     contract_filter: Option<String>,
     /// If true, only run with the compiler (no solc comparison).
     solar_only: bool,
+    /// The compiler leg runs once per entry, all against the one solc baseline. `None` follows
+    /// the project's own optimizer settings.
+    solar_levels: Vec<Option<OptLevel>>,
     /// Skipped test name patterns, passed to `--no-match-test` and re-applied
     /// post-hoc so both legs judge the same set.
     skip_tests: Vec<SkipEntry>,
@@ -91,6 +96,8 @@ impl TestConfig {
             test_filter: None,
             contract_filter: None,
             solar_only,
+            solar_levels: OptLevel::pinned()
+                .map_or_else(|| OptLevel::ALL.map(Some).to_vec(), |level| vec![Some(level)]),
             skip_tests: Vec::new(),
             skip_contracts: Vec::new(),
             policy: AssertionPolicy::InRepoStrict,
@@ -145,6 +152,8 @@ struct ArtifactData {
 
 struct FoundrySolc {
     path: PathBuf,
+    /// Keeps the wrapper script alive.
+    _dir: Option<tempfile::TempDir>,
 }
 
 impl FoundrySolc {
@@ -179,6 +188,53 @@ impl ForgeCompiler {
             Self::Solar => "failed to run forge test for Solar",
             Self::Solc => "failed to run forge test",
         }
+    }
+}
+
+/// An optimization level of the compiler leg, set through Foundry's optimizer settings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OptLevel {
+    None,
+    Gas,
+    Size,
+}
+
+impl OptLevel {
+    const ALL: [Self; 3] = [Self::None, Self::Gas, Self::Size];
+
+    /// The level `SOLAR_FOUNDRY_OPTIMIZATION` pins, if set.
+    fn pinned() -> Option<Self> {
+        let mode = std::env::var("SOLAR_FOUNDRY_OPTIMIZATION").ok()?;
+        let level = Self::ALL.into_iter().find(|level| level.name() == mode);
+        Some(level.unwrap_or_else(|| {
+            panic!("invalid SOLAR_FOUNDRY_OPTIMIZATION `{mode}`; expected none, gas, or size")
+        }))
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Gas => "gas",
+            Self::Size => "size",
+        }
+    }
+
+    /// The `(optimizer, optimizer_runs)` Foundry settings that select this level.
+    fn foundry_settings(self) -> (bool, u32) {
+        match self {
+            Self::None => (false, 200),
+            Self::Gas => (true, 200),
+            Self::Size => (true, 1),
+        }
+    }
+}
+
+/// Names a compiler leg in output: the project, plus `-O <level>` for a pinned level. `None`
+/// follows the project's own optimizer settings.
+fn leg_label(name: &str, level: Option<OptLevel>) -> String {
+    match level {
+        Some(level) => format!("{name} -O {}", level.name()),
+        None => name.to_string(),
     }
 }
 
@@ -236,38 +292,20 @@ fn discover_project_paths(dir: &Path, projects: &mut Vec<PathBuf>) {
     }
 }
 
-/// Gets the path to the compiler binary.
-///
-/// Uses the binary supplied by the compiler test runner when available and
-/// falls back to a binary on disk for this crate's unit tests.
+/// Gets the path to the compiler binary under test, set by the running suite.
 fn get_solar_binary() -> PathBuf {
-    if let Some(path) = SOLAR_BINARY.get() {
-        return path.clone();
-    }
+    SOLAR_BINARY.get().expect("the suite sets the compiler binary before running").clone()
+}
 
-    if let Some(path) = std::env::var_os("SOLAR_FOUNDRY_COMPILER") {
-        let path = PathBuf::from(path);
-        let path = if path.is_absolute() { path } else { workspace_root().join(path) };
-        assert!(path.is_file(), "SOLAR_FOUNDRY_COMPILER is not a file: {}", path.display());
-        return path;
-    }
-
-    if let Some(path) = option_env!("CARGO_BIN_EXE_solar") {
-        return PathBuf::from(path);
-    }
-
-    // `cargo tq foundry` builds the debug binary and `cargo tq foundry-external` the release
-    // one; whichever was built last is the compiler under test, so a release binary left behind
-    // by an earlier run never shadows a fresh debug build.
-    let workspace_root = workspace_root();
-    let release_binary = workspace_root.join("target/release/solar");
-    let debug_binary = workspace_root.join("target/debug/solar");
-    let modified = |path: &Path| std::fs::metadata(path).and_then(|meta| meta.modified()).ok();
-    match (modified(&release_binary), modified(&debug_binary)) {
-        (Some(release), Some(debug)) if release > debug => release_binary,
-        (Some(_), None) => release_binary,
-        _ => debug_binary,
-    }
+/// Picks the compiler under test: `SOLAR_FOUNDRY_COMPILER` if set, else the binary Cargo built.
+fn select_solar_binary(built: &Path) -> PathBuf {
+    let Some(path) = std::env::var_os("SOLAR_FOUNDRY_COMPILER") else {
+        return built.to_path_buf();
+    };
+    let path = PathBuf::from(path);
+    let path = if path.is_absolute() { path } else { workspace_root().join(path) };
+    assert!(path.is_file(), "SOLAR_FOUNDRY_COMPILER is not a file: {}", path.display());
+    path
 }
 
 /// Gets the path to the workspace root.
@@ -276,8 +314,32 @@ fn workspace_root() -> PathBuf {
 }
 
 /// A `solc`-compatible executable for `FOUNDRY_SOLC`.
+///
+/// Forge passes no compiler flags, so on Unix a wrapper script adds `-Zvalidate-ir=true` and keeps
+/// full MIR validation on release binaries.
 fn foundry_solc() -> FoundrySolc {
-    FoundrySolc { path: get_solar_binary() }
+    let binary = get_solar_binary();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::Builder::new()
+            .prefix("solar-foundry-solc-")
+            .permissions(fs::Permissions::from_mode(0o700))
+            .tempdir()
+            .expect("failed to create Foundry compiler directory");
+        let path = dir.path().join("solc");
+        let script = format!(
+            "#!/bin/sh\nexec '{}' -Zvalidate-ir=true \"$@\"\n",
+            binary.display().to_string().replace('\'', "'\\''")
+        );
+        fs::write(&path, script).expect("failed to write Foundry compiler wrapper");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755))
+            .expect("failed to make Foundry compiler wrapper executable");
+        FoundrySolc { path, _dir: Some(dir) }
+    }
+    #[cfg(not(unix))]
+    FoundrySolc { path: binary, _dir: None }
 }
 
 /// Checks if forge is available.
@@ -522,9 +584,11 @@ fn report_file_name(name: &str) -> String {
     out
 }
 
+/// Writes the project's JSON report: one `solar` entry per optimization level, keyed by level
+/// name (`project` for the project's own optimizer settings).
 fn write_runtime_report(
     config: &TestConfig,
-    solar_run: &CompilerRun,
+    solar_runs: &[(Option<OptLevel>, CompilerRun)],
     solc_run: Option<&CompilerRun>,
 ) {
     let Some(report_dir) = std::env::var_os("SOLAR_FOUNDRY_REPORT_DIR") else {
@@ -568,7 +632,12 @@ fn write_runtime_report(
             "command": config.rerun_command.as_str(),
             "env": rerun_env,
         },
-        "solar": compiler_run_json(solar_run),
+        "solar": solar_runs
+            .iter()
+            .map(|(level, run)| {
+                (level.map_or("project", OptLevel::name).to_string(), compiler_run_json(run))
+            })
+            .collect::<serde_json::Map<_, _>>(),
         "solc": solc_run.map(compiler_run_json),
     });
 
@@ -581,12 +650,13 @@ fn write_runtime_report(
 // Forge Execution
 // ============================================================================
 
-/// Runs forge test for a compiler.
+/// Runs forge test for a compiler; `level` applies to the Solar leg only.
 fn run_forge_test(
     project_dir: &Path,
     label: &str,
     config: &TestConfig,
     compiler: ForgeCompiler,
+    level: Option<OptLevel>,
 ) -> (Duration, Vec<TestResult>, ArtifactData) {
     let cache_dir = tempfile::Builder::new()
         .prefix(compiler.cache_prefix())
@@ -619,7 +689,7 @@ fn run_forge_test(
     if let Some(profile) = &config.foundry_profile {
         cmd.env("FOUNDRY_PROFILE", profile);
     }
-    set_forge_compiler(&mut cmd, config, foundry_solc.as_ref());
+    set_forge_compiler(&mut cmd, config, foundry_solc.as_ref(), level);
 
     // Add forge match filters if specified
     if !config.build_only {
@@ -641,7 +711,7 @@ fn run_forge_test(
     }
 
     let start = Instant::now();
-    if !prebuild_profiles(project_dir, label, config, compiler, foundry_solc.as_ref()) {
+    if !prebuild_profiles(project_dir, label, config, compiler, foundry_solc.as_ref(), level) {
         // A profile that failed to build may have left another leg's artifacts for the tests.
         eprintln!("\n[{label}] running no tests: a prebuilt profile failed to build");
         return (start.elapsed(), Vec::new(), ArtifactData::default());
@@ -672,24 +742,22 @@ fn run_forge_test(
     (test_time, tests, artifacts)
 }
 
-/// Points forge at a compiler leg's compiler and its `SOLAR_FOUNDRY_OPTIMIZATION` mode; the solc
-/// leg keeps forge's own solc and the project's optimizer settings.
-fn set_forge_compiler(cmd: &mut Command, config: &TestConfig, foundry_solc: Option<&FoundrySolc>) {
+/// Points forge at a compiler leg's compiler and optimization level; the solc leg keeps forge's
+/// own solc and the project's optimizer settings.
+fn set_forge_compiler(
+    cmd: &mut Command,
+    config: &TestConfig,
+    foundry_solc: Option<&FoundrySolc>,
+    level: Option<OptLevel>,
+) {
     if let Some(foundry_solc) = foundry_solc {
         // Foundry expects solc-compatible `--version` output when probing `FOUNDRY_SOLC`.
         cmd.env("SOLC_WRAPPER", "1").env("FOUNDRY_SOLC", foundry_solc.path());
         if let Some(version) = &config.solc_wrapper_version {
             cmd.env("SOLC_WRAPPER_VERSION", version);
         }
-        if let Ok(mode) = std::env::var("SOLAR_FOUNDRY_OPTIMIZATION") {
-            let (enabled, runs) = match mode.as_str() {
-                "none" => (false, 200),
-                "gas" => (true, 200),
-                "size" => (true, 1),
-                _ => panic!(
-                    "invalid SOLAR_FOUNDRY_OPTIMIZATION `{mode}`; expected none, gas, or size"
-                ),
-            };
+        if let Some(level) = level {
+            let (enabled, runs) = level.foundry_settings();
             cmd.env("FOUNDRY_OPTIMIZER", enabled.to_string())
                 .env("FOUNDRY_OPTIMIZER_RUNS", runs.to_string());
         }
@@ -709,6 +777,7 @@ fn prebuild_profiles(
     config: &TestConfig,
     compiler: ForgeCompiler,
     foundry_solc: Option<&FoundrySolc>,
+    level: Option<OptLevel>,
 ) -> bool {
     for profile in &config.prebuild_profiles {
         let cache_dir = tempfile::Builder::new()
@@ -721,7 +790,7 @@ fn prebuild_profiles(
             cmd.arg("--no-lint");
         }
         cmd.arg("--cache-path").arg(cache_dir.path()).env("FOUNDRY_PROFILE", profile);
-        set_forge_compiler(&mut cmd, config, foundry_solc);
+        set_forge_compiler(&mut cmd, config, foundry_solc, level);
         let output = cmd.output().unwrap_or_else(|err| {
             panic!("failed to run forge build for profile `{profile}`: {err}")
         });
@@ -801,56 +870,53 @@ fn print_test_diff(solar_tests: &[TestResult], solc_tests: &[TestResult], label:
     }
 }
 
-/// Runs a full comparison between the compiler and solc for a project.
-fn run_project_comparison(config: &TestConfig) -> (CompilerRun, CompilerRun) {
-    let project_dir = &config.path;
-
-    // Step 1: Run tests with the compiler
-    let (solar_test_time, solar_tests, solar_artifacts) = run_forge_test(
-        project_dir,
-        &format!("{}-solar", config.name),
-        config,
-        ForgeCompiler::Solar,
-    );
-    let solar_tests = filter_tests(solar_tests, config);
-    let solar_passed = solar_tests.iter().filter(|t| t.passed).count();
-    let solar_failed = solar_tests.iter().filter(|t| !t.passed).count();
-
-    let solar_run = CompilerRun {
-        compiler: "solar".to_string(),
-        compile_time: solar_test_time,
-        tests: solar_tests,
-        total_passed: solar_passed,
-        total_failed: solar_failed,
-        bytecode_sizes: solar_artifacts.bytecode_sizes,
-        internal_only_library_stubs: solar_artifacts.internal_only_library_stubs,
+/// Runs one compiler leg of a project and summarizes it; `level` applies to the Solar leg only.
+fn run_leg(config: &TestConfig, compiler: ForgeCompiler, level: Option<OptLevel>) -> CompilerRun {
+    let (name, label) = match compiler {
+        ForgeCompiler::Solar => ("solar", leg_label(&format!("{}-solar", config.name), level)),
+        ForgeCompiler::Solc => ("solc", format!("{}-solc", config.name)),
     };
+    let (compile_time, tests, artifacts) =
+        run_forge_test(&config.path, &label, config, compiler, level);
+    let tests = filter_tests(tests, config);
+    let total_passed = tests.iter().filter(|t| t.passed).count();
+    let total_failed = tests.iter().filter(|t| !t.passed).count();
 
-    // Step 2: Run tests with solc
-    let (solc_test_time, solc_tests, solc_artifacts) =
-        run_forge_test(project_dir, &format!("{}-solc", config.name), config, ForgeCompiler::Solc);
-    let solc_tests = filter_tests(solc_tests, config);
-    let solc_passed = solc_tests.iter().filter(|t| t.passed).count();
-    let solc_failed = solc_tests.iter().filter(|t| !t.passed).count();
+    CompilerRun {
+        compiler: name.to_string(),
+        compile_time,
+        tests,
+        total_passed,
+        total_failed,
+        bytecode_sizes: artifacts.bytecode_sizes,
+        internal_only_library_stubs: artifacts.internal_only_library_stubs,
+    }
+}
 
-    let solc_run = CompilerRun {
-        compiler: "solc".to_string(),
-        compile_time: solc_test_time,
-        tests: solc_tests,
-        total_passed: solc_passed,
-        total_failed: solc_failed,
-        bytecode_sizes: solc_artifacts.bytecode_sizes,
-        internal_only_library_stubs: solc_artifacts.internal_only_library_stubs,
-    };
+/// Runs the compiler leg at each of the project's optimization levels.
+fn run_solar_legs(config: &TestConfig) -> Vec<(Option<OptLevel>, CompilerRun)> {
+    config
+        .solar_levels
+        .iter()
+        .map(|&level| (level, run_leg(config, ForgeCompiler::Solar, level)))
+        .collect()
+}
 
+/// Prints the comparison between one compiler leg and the solc baseline.
+fn print_comparison(
+    config: &TestConfig,
+    label: &str,
+    solar_run: &CompilerRun,
+    solc_run: &CompilerRun,
+) {
     // Print diff summary if there are regressions
     if solar_run.total_failed > 0 && solc_run.total_failed < solar_run.total_failed {
-        print_test_diff(&solar_run.tests, &solc_run.tests, &config.name);
+        print_test_diff(&solar_run.tests, &solc_run.tests, label);
     }
 
     // Print comparison
     println!("\n{}", "=".repeat(70));
-    println!(" {} ", config.name.to_uppercase());
+    println!(" {} ", label.to_uppercase());
     if config.test_filter.is_some() || config.contract_filter.is_some() {
         println!(" Filters: test={:?} contract={:?}", config.test_filter, config.contract_filter);
     }
@@ -932,8 +998,6 @@ fn run_project_comparison(config: &TestConfig) -> (CompilerRun, CompilerRun) {
             );
         }
     }
-
-    (solar_run, solc_run)
 }
 
 // ============================================================================
@@ -942,17 +1006,6 @@ fn run_project_comparison(config: &TestConfig) -> (CompilerRun, CompilerRun) {
 
 /// Main test runner using config.
 fn run_test_with_config(config: &TestConfig) {
-    if !forge_available() {
-        eprintln!("Skipping {}: forge not found in PATH", config.name);
-        return;
-    }
-
-    let solar_binary = get_solar_binary();
-    if !solar_binary.exists() {
-        eprintln!("Skipping {}: Solar binary not found at {:?}", config.name, solar_binary);
-        return;
-    }
-
     let project_dir = &config.path;
     if !project_dir.exists() {
         panic!("Project directory not found: {:?}", project_dir);
@@ -980,64 +1033,81 @@ fn run_test_with_config(config: &TestConfig) {
 
 /// Runs test with the compiler only (no solc comparison).
 fn run_test_solar_only(config: &TestConfig) {
-    let project_dir = &config.path;
-    let (test_time, tests, artifacts) =
-        run_forge_test(project_dir, &config.name, config, ForgeCompiler::Solar);
-    let tests = filter_tests(tests, config);
+    let solar_runs = run_solar_legs(config);
+    write_runtime_report(config, &solar_runs, None);
 
-    let total_passed = tests.iter().filter(|t| t.passed).count();
-    let total_failed = tests.iter().filter(|t| !t.passed).count();
+    for (level, run) in &solar_runs {
+        println!(
+            "\n✅ [{}] Solar-only: {} passed, {} failed",
+            leg_label(&config.name, *level),
+            run.total_passed,
+            run.total_failed
+        );
+    }
 
-    let solar_run = CompilerRun {
-        compiler: "solar".to_string(),
-        compile_time: test_time,
-        tests,
-        total_passed,
-        total_failed,
-        bytecode_sizes: artifacts.bytecode_sizes,
-        internal_only_library_stubs: artifacts.internal_only_library_stubs,
-    };
-    write_runtime_report(config, &solar_run, None);
-
-    println!("\n✅ [{}] Solar-only: {} passed, {} failed", config.name, total_passed, total_failed);
-
-    enforce_policy(config, &solar_run, None);
+    enforce_levels(config, &solar_runs, None);
 }
 
-/// Runs test with a compiler-versus-solc comparison.
+/// Runs the solc baseline once, then the compiler once per optimization level against it.
 fn run_test_with_comparison(config: &TestConfig) {
-    let (solar_run, solc_run) = run_project_comparison(config);
-    write_runtime_report(config, &solar_run, Some(&solc_run));
-    enforce_policy(config, &solar_run, Some(&solc_run));
+    let solc_run = run_leg(config, ForgeCompiler::Solc, None);
+    let solar_runs = run_solar_legs(config);
+    for (level, solar_run) in &solar_runs {
+        print_comparison(config, &leg_label(&config.name, *level), solar_run, &solc_run);
+    }
+    write_runtime_report(config, &solar_runs, Some(&solc_run));
+    enforce_levels(config, &solar_runs, Some(&solc_run));
+}
+
+/// Applies the assertion policy to every level, so a failing level does not hide the others.
+fn enforce_levels(
+    config: &TestConfig,
+    solar_runs: &[(Option<OptLevel>, CompilerRun)],
+    solc_run: Option<&CompilerRun>,
+) {
+    let failed = solar_runs
+        .iter()
+        .filter_map(|(level, solar_run)| {
+            let label = leg_label(&config.name, *level);
+            catch_unwind(AssertUnwindSafe(|| enforce_policy(config, &label, solar_run, solc_run)))
+                .is_err()
+                .then_some(label)
+        })
+        .collect::<Vec<_>>();
+    assert!(failed.is_empty(), "Foundry legs failed: {}", failed.join(", "));
 }
 
 /// Applies the config's assertion policy to the run results.
-fn enforce_policy(config: &TestConfig, solar_run: &CompilerRun, solc_run: Option<&CompilerRun>) {
+fn enforce_policy(
+    config: &TestConfig,
+    label: &str,
+    solar_run: &CompilerRun,
+    solc_run: Option<&CompilerRun>,
+) {
     match config.policy {
         AssertionPolicy::InRepoStrict => {
             assert_eq!(
                 solar_run.total_failed, 0,
-                "[{}] {} Solar tests failed",
-                config.name, solar_run.total_failed
+                "[{label}] {} Solar tests failed",
+                solar_run.total_failed
             );
-            assert!(solar_run.total_passed > 0, "[{}] No Solar tests ran", config.name);
+            assert!(solar_run.total_passed > 0, "[{label}] No Solar tests ran");
 
             let Some(solc_run) = solc_run else { return };
             if solc_run.total_passed > solar_run.total_passed {
                 eprintln!(
-                    "⚠️  [{}] solc passed {} more tests than Solar",
-                    config.name,
+                    "⚠️  [{label}] solc passed {} more tests than Solar",
                     solc_run.total_passed - solar_run.total_passed
                 );
             }
 
-            println!("\n✓ [{}] {} tests passed with Solar", config.name, solar_run.total_passed);
+            println!("\n✓ [{label}] {} tests passed with Solar", solar_run.total_passed);
         }
         AssertionPolicy::ExternalDifferential => {
             let Some(solc_run) = solc_run else {
-                panic!("[{}] external projects always run the solc leg", config.name)
+                panic!("[{label}] external projects always run the solc leg")
             };
-            enforce_external(config, solar_run, solc_run);
+            enforce_external(config, label, solar_run, solc_run);
         }
     }
 }
@@ -1046,30 +1116,33 @@ fn enforce_policy(config: &TestConfig, solar_run: &CompilerRun, solc_run: Option
 /// oracle and the compiler must uphold every one of them. An empty solc leg
 /// means the baseline itself is broken (offline, incompatible forge), so the
 /// project is skipped instead of failed.
-fn enforce_external(config: &TestConfig, solar_run: &CompilerRun, solc_run: &CompilerRun) {
+fn enforce_external(
+    config: &TestConfig,
+    label: &str,
+    solar_run: &CompilerRun,
+    solc_run: &CompilerRun,
+) {
     let audit_errors = audit_artifacts(config, solar_run, solc_run);
 
     if config.build_only {
         if solc_run.bytecode_sizes.is_empty() {
-            eprintln!("[{}] SKIPPED (cannot judge): solc leg produced no artifacts", config.name);
+            eprintln!("[{label}] SKIPPED (cannot judge): solc leg produced no artifacts");
             return;
         }
         assert!(
             audit_errors.is_empty(),
-            "[{}] artifact audit failed:\n  {}",
-            config.name,
+            "[{label}] artifact audit failed:\n  {}",
             audit_errors.join("\n  ")
         );
         println!(
-            "\n✓ [{}] build-only: {} artifacts audited against solc",
-            config.name,
+            "\n✓ [{label}] build-only: {} artifacts audited against solc",
             solc_run.bytecode_sizes.len()
         );
         return;
     }
 
     if solc_run.tests.is_empty() {
-        eprintln!("[{}] SKIPPED (cannot judge): solc leg ran no tests", config.name);
+        eprintln!("[{label}] SKIPPED (cannot judge): solc leg ran no tests");
         return;
     }
 
@@ -1096,29 +1169,24 @@ fn enforce_external(config: &TestConfig, solar_run: &CompilerRun, solc_run: &Com
 
     assert!(
         regressions.is_empty(),
-        "[{}] {} differential regressions:\n  {}",
-        config.name,
+        "[{label}] {} differential regressions:\n  {}",
         regressions.len(),
         regressions.join("\n  ")
     );
     assert!(
         audit_errors.is_empty(),
-        "[{}] artifact audit failed:\n  {}",
-        config.name,
+        "[{label}] artifact audit failed:\n  {}",
         audit_errors.join("\n  ")
     );
 
     // Remaining compiler failures correspond to tests that also fail under solc
     // (or only exist under the compiler); they are upstream issues, not compiler bugs.
     if solar_run.total_failed > 0 {
-        eprintln!(
-            "ℹ️  [{}] {} tests fail under both compilers",
-            config.name, solar_run.total_failed
-        );
+        eprintln!("ℹ️  [{label}] {} tests fail under both compilers", solar_run.total_failed);
     }
 
     let oracle = solc_run.tests.iter().filter(|test| test.passed).count();
-    println!("\n✓ [{}] differential: {} solc-passing tests upheld with Solar", config.name, oracle);
+    println!("\n✓ [{label}] differential: {oracle} solc-passing tests upheld with Solar");
 }
 
 /// Audits the compiler's artifacts against solc's: every contract solc deploys
@@ -1156,9 +1224,19 @@ fn audit_artifacts(
     errors
 }
 
-/// Runs the default Foundry suite.
-pub(super) fn run_default_suite(solar: &Path) {
-    let _ = SOLAR_BINARY.set(solar.to_path_buf());
+/// Runs the default Foundry suite with the `solar` binary Cargo built for the test.
+pub fn run_default_suite(solar: &Path) {
+    if std::env::var_os("SOLAR_FOUNDRY_SKIP").is_some_and(|v| v != "0") {
+        eprintln!("Skipping the Foundry suite: SOLAR_FOUNDRY_SKIP is set");
+        return;
+    }
+    assert!(
+        forge_available(),
+        "forge not found in PATH; install Foundry, or set SOLAR_FOUNDRY_SKIP=1 to skip the \
+         Foundry suite"
+    );
+
+    let _ = SOLAR_BINARY.set(select_solar_binary(solar));
     let projects = discover_projects(&foundry_root());
     assert!(!projects.is_empty(), "No Foundry projects found");
 
@@ -1225,16 +1303,5 @@ mod tests {
             "methodIdentifiers": {},
         });
         assert!(!is_internal_only_library_stub(&empty_contract, "60806040525f80fdfea26469706673",));
-    }
-
-    #[test]
-    fn foundry() {
-        run_default_suite(&get_solar_binary());
-    }
-
-    #[test]
-    #[ignore = "external Foundry suite; run via `cargo tq foundry-external`"]
-    fn external() {
-        external::run_external_suite(&get_solar_binary());
     }
 }

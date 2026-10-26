@@ -20,10 +20,10 @@ fn @strength_reduce_shifted_address(arg0: i256) -> i256 {
     v2 = lt v1, 4
     jumpi v2, bb2, bb3
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = add arg0, v3
     v5 = mload v4
-    v7 = shl 5, v1
+    v7 = shl v1, 5
     v8 = add arg0, v7
     v9 = add v5, 1
     mstore v8, v9
@@ -47,7 +47,7 @@ fn @keep_shifted_address_single_use(arg0: i256) -> i256 {
     v2 = lt v1, 4
     jumpi v2, bb2, bb3
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = add arg0, v3
     mstore v4, v1
     v6 = add v1, 1
@@ -106,9 +106,9 @@ fn @keep_scale_one_single_use(arg0: i256) -> i256 {
 // Two address uses pay for carrying the extra pointer under the stack cost model.
 // CHECK-LABEL: {{^[ +].*}}fn @strength_reduce_checked_address{{[( ]}}
 // CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb0: arg0], [bb2: [[NEXT:v[0-9]+]]]
-// CHECK: {{^[ +].*}}checked_mul u256,
+// CHECK: {{^[ +].*}}checked_mul uint256,
 // CHECK: + mstore [[ADDRESS]], {{v[0-9]+}}
-// CHECK: {{^[ +].*}}checked_add u256,
+// CHECK: {{^[ +].*}}checked_add uint256,
 // CHECK: + [[NEXT]] = add [[ADDRESS]], 32
 fn @strength_reduce_checked_address(arg0: i256, arg1: i256) -> i256 {
   bb0:
@@ -118,12 +118,12 @@ fn @strength_reduce_checked_address(arg0: i256, arg1: i256) -> i256 {
     v2 = lt v1, arg1
     jumpi v2, bb2, bb3
   bb2:
-    v3 = checked_mul u256, v1, 32
+    v3 = checked_mul uint256, v1, 32
     v4 = add arg0, v3
     mstore v4, v1
     v7 = add arg0, v3
     mstore v7, v1
-    v6 = checked_add u256, v1, 1
+    v6 = checked_add uint256, v1, 1
     jump bb1
   bb3:
     ret 0
@@ -132,7 +132,7 @@ fn @strength_reduce_checked_address(arg0: i256, arg1: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @strength_reduce_commuted_checked_step{{[( ]}}
 // CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb0: arg0], [bb2: [[NEXT:v[0-9]+]]]
 // CHECK: + mstore [[ADDRESS]], {{v[0-9]+}}
-// CHECK: {{^[ +].*}}checked_add u256, 1,
+// CHECK: {{^[ +].*}}checked_add uint256, 1,
 // CHECK: + [[NEXT]] = add [[ADDRESS]], 32
 fn @strength_reduce_commuted_checked_step(arg0: i256) -> i256 {
   bb0:
@@ -142,12 +142,12 @@ fn @strength_reduce_commuted_checked_step(arg0: i256) -> i256 {
     v2 = lt v1, 4
     jumpi v2, bb2, bb3
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = add arg0, v3
     mstore v4, v1
     v7 = add arg0, v3
     mstore v7, v1
-    v5 = checked_add u256, 1, v1
+    v5 = checked_add uint256, 1, v1
     jump bb1
   bb3:
     ret 0
@@ -155,10 +155,10 @@ fn @strength_reduce_commuted_checked_step(arg0: i256) -> i256 {
 
 // Descending recurrences remain outside this transform's positive-stride contract.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_checked_descending_address{{[( ]}}
-// CHECK: {{^[ +].*}}shl 5,
+// CHECK: {{^[ +].*}}shl {{[^ ,]+}}, 5{{$}}
 // CHECK: {{^[ +].*}}add arg0,
-// CHECK: {{^[ +].*}}mstore
-// CHECK: {{^[ +].*}}checked_sub u256,
+// CHECK: {{^[ +](.*[^a-z_])?}}mstore
+// CHECK: {{^[ +].*}}checked_sub uint256,
 fn @keep_checked_descending_address(arg0: i256) -> i256 {
   bb0:
     jump bb1
@@ -167,10 +167,10 @@ fn @keep_checked_descending_address(arg0: i256) -> i256 {
     v2 = gt v1, 0
     jumpi v2, bb2, bb3
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = add arg0, v3
     mstore v4, v1
-    v6 = checked_sub u256, v1, 1
+    v6 = checked_sub uint256, v1, 1
     jump bb1
   bb3:
     ret 0
@@ -179,9 +179,9 @@ fn @keep_checked_descending_address(arg0: i256) -> i256 {
 // Keep one shared address expression instead of maintaining a counter for each field.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_shared_field_addresses{{[( ]}}
 // CHECK-NOT: + {{.*}}phi
-// CHECK: {{^[ +].*}}shl 5,
-// CHECK: {{^[ +].*}}mstore
-// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}shl {{[^ ,]+}}, 5{{$}}
+// CHECK: {{^[ +](.*[^a-z_])?}}mstore
+// CHECK: {{^[ +](.*[^a-z_])?}}mstore
 fn @keep_shared_field_addresses(arg0: i256) -> i256 {
   bb0:
     jump bb1
@@ -190,12 +190,12 @@ fn @keep_shared_field_addresses(arg0: i256) -> i256 {
     v2 = lt v1, 4
     jumpi v2, bb2, bb3
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = add arg0, v3
     v5 = add v4, 16
     mstore v4, v1
     mstore v5, v1
-    v6 = checked_add u256, v1, 1
+    v6 = checked_add uint256, v1, 1
     jump bb1
   bb3:
     ret 0
@@ -206,7 +206,7 @@ fn @keep_shared_field_addresses(arg0: i256) -> i256 {
 // CHECK-NOT: + {{.*}}phi
 // CHECK: {{^[ +].*}}add arg0,
 // CHECK: {{^[ +].*}}mstore8
-// CHECK: {{^[ +].*}}checked_add u256,
+// CHECK: {{^[ +].*}}checked_add uint256,
 fn @keep_checked_scale_one_address(arg0: i256) -> i256 {
   bb0:
     jump bb1
@@ -217,7 +217,7 @@ fn @keep_checked_scale_one_address(arg0: i256) -> i256 {
   bb2:
     v3 = add arg0, v1
     mstore8 v3, v1
-    v5 = checked_add u256, v1, 1
+    v5 = checked_add uint256, v1, 1
     jump bb1
   bb3:
     ret 0
@@ -235,10 +235,10 @@ fn @native_counter(arg0: i256) -> i256 {
     jumpi v2, bb2, bb3
   bb2:
     v20 = zext i8 v1 to i256
-    v3 = shl 5, v20
+    v3 = shl v20, 5
     v4 = add arg0, v3
     v5 = mload v4
-    v7 = shl 5, v20
+    v7 = shl v20, 5
     v8 = add arg0, v7
     v9 = add v5, 1
     mstore v8, v9
@@ -250,8 +250,8 @@ fn @native_counter(arg0: i256) -> i256 {
 
 // CHECK-LABEL: fn @wrapping_counter
 // CHECK-NOT: + {{.*}}phi
-// CHECK: shl 5,
-// CHECK: mload
+// CHECK: shl {{[^ ,]+}}, 5{{$}}
+// CHECK: {{(^|[^a-z_])}}mload
 fn @wrapping_counter(arg0: i256, arg1: i8) -> i256 {
   bb0:
     jump bb1
@@ -261,10 +261,10 @@ fn @wrapping_counter(arg0: i256, arg1: i8) -> i256 {
     jumpi v2, bb2, bb3
   bb2:
     v20 = zext i8 v1 to i256
-    v3 = shl 5, v20
+    v3 = shl v20, 5
     v4 = add arg0, v3
     v5 = mload v4
-    v7 = shl 5, v20
+    v7 = shl v20, 5
     v8 = add arg0, v7
     v9 = add v5, 1
     mstore v8, v9
@@ -287,12 +287,12 @@ fn @native_base(arg0: i8, arg1: i256) -> i256 {
     jumpi v2, bb2, bb3
   bb2:
     v20 = zext i8 arg0 to i256
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = add v20, v3
-    v10 = shl 1, arg1
+    v10 = shl arg1, 1
     v11 = add v4, v10
     v5 = mload v11
-    v7 = shl 5, v1
+    v7 = shl v1, 5
     v8 = add v20, v7
     v12 = add v8, v10
     v9 = add v5, 1
@@ -309,7 +309,7 @@ fn @native_base(arg0: i8, arg1: i256) -> i256 {
 // there, so no clamp is needed.
 // CHECK-LABEL: {{^[ +].*}}fn @reach_checked_bound{{[( ]}}
 // CHECK-NOT: = select
-// CHECK: + [[SCALED:v[0-9]+]] = shl 5, arg1
+// CHECK: + [[SCALED:v[0-9]+]] = shl arg1, 5
 // CHECK-NEXT: + [[END:v[0-9]+]] = add arg0, [[SCALED]]
 // CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb1: arg0], [bb3: [[NEXT:v[0-9]+]]]
 // CHECK: + {{v[0-9]+}} = ne [[ADDRESS]], [[END]]
@@ -319,7 +319,7 @@ fn @reach_checked_bound(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = calldatasize
     v1 = sub v0, arg0
-    v2 = shr 5, v1
+    v2 = shr v1, 5
     v3 = gt arg1, v2
     jumpi v3, bb5, bb1
   bb1:
@@ -330,7 +330,7 @@ fn @reach_checked_bound(arg0: i256, arg1: i256) -> i256 {
     v6 = lt v4, arg1
     jumpi v6, bb3, bb4
   bb3:
-    v7 = shl 5, v4
+    v7 = shl v4, 5
     v10 = add arg0, v7
     v11 = calldataload v10
     v8 = add v5, v11
@@ -347,7 +347,7 @@ fn @reach_checked_bound(arg0: i256, arg1: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @clamp_unchecked_bound{{[( ]}}
 // CHECK: + [[ABOVE:v[0-9]+]] = gt arg1, 0x20000000000000000
 // CHECK-NEXT: + [[BOUND:v[0-9]+]] = select [[ABOVE]], 0x20000000000000000, arg1
-// CHECK-NEXT: + [[SCALED:v[0-9]+]] = shl 5, [[BOUND]]
+// CHECK-NEXT: + [[SCALED:v[0-9]+]] = shl [[BOUND]], 5
 // CHECK-NEXT: + [[END:v[0-9]+]] = add arg0, [[SCALED]]
 // CHECK: + {{v[0-9]+}} = ne {{v[0-9]+}}, [[END]]
 fn @clamp_unchecked_bound(arg0: i256, arg1: i256) -> i256 {
@@ -359,7 +359,7 @@ fn @clamp_unchecked_bound(arg0: i256, arg1: i256) -> i256 {
     v2 = lt v0, arg1
     jumpi v2, bb2, bb3
   bb2:
-    v6 = shl 5, v0
+    v6 = shl v0, 5
     v7 = add arg0, v6
     v8 = calldataload v7
     v4 = add v1, v8
@@ -379,7 +379,7 @@ fn @clamp_bound_checked_on_one_path(arg0: i256, arg1: i256, arg2: i1) -> i256 {
   bb6:
     v12 = calldatasize
     v13 = sub v12, arg0
-    v14 = shr 5, v13
+    v14 = shr v13, 5
     v15 = gt arg1, v14
     jumpi v15, bb5, bb1
   bb1:
@@ -390,7 +390,7 @@ fn @clamp_bound_checked_on_one_path(arg0: i256, arg1: i256, arg2: i1) -> i256 {
     v6 = lt v4, arg1
     jumpi v6, bb3, bb4
   bb3:
-    v7 = shl 5, v4
+    v7 = shl v4, 5
     v10 = add arg0, v7
     v11 = calldataload v10
     v8 = add v5, v11
@@ -408,7 +408,7 @@ fn @clamp_bound_checked_on_one_path(arg0: i256, arg1: i256, arg2: i1) -> i256 {
 // CHECK-NOT: = gt arg1, 0x
 // CHECK: + [[BELOW:v[0-9]+]] = lt arg1, 1
 // CHECK-NEXT: + [[BOUND:v[0-9]+]] = select [[BELOW]], 1, arg1
-// CHECK-NEXT: + [[SCALED:v[0-9]+]] = shl 5, [[BOUND]]
+// CHECK-NEXT: + [[SCALED:v[0-9]+]] = shl [[BOUND]], 5
 // CHECK-NEXT: + [[END:v[0-9]+]] = add arg0, [[SCALED]]
 // CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb1: [[START:v[0-9]+]]], [bb3: {{v[0-9]+}}]
 // CHECK: + {{v[0-9]+}} = ne [[ADDRESS]], [[END]]
@@ -416,7 +416,7 @@ fn @clamp_bound_below_start(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = calldatasize
     v1 = sub v0, arg0
-    v2 = shr 5, v1
+    v2 = shr v1, 5
     v3 = gt arg1, v2
     jumpi v3, bb5, bb1
   bb1:
@@ -427,7 +427,7 @@ fn @clamp_bound_below_start(arg0: i256, arg1: i256) -> i256 {
     v6 = lt v4, arg1
     jumpi v6, bb3, bb4
   bb3:
-    v7 = shl 5, v4
+    v7 = shl v4, 5
     v10 = add arg0, v7
     v11 = calldataload v10
     v8 = add v5, v11
@@ -481,7 +481,7 @@ fn @keep_counter_stepping_by_two(arg0: i256, arg1: i256) -> i256 {
     v2 = lt v0, arg1
     jumpi v2, bb2, bb3
   bb2:
-    v6 = shl 5, v0
+    v6 = shl v0, 5
     v7 = add arg0, v6
     v8 = calldataload v7
     v4 = add v1, v8
@@ -501,13 +501,13 @@ fn @keep_counter_stepping_by_two(arg0: i256, arg1: i256) -> i256 {
 // CHECK: + {{v[0-9]+}} = ne [[POINTER]], [[END]]
 // CHECK: + [[SPLIT:bb[0-9]+]]:
 // CHECK-NEXT: + [[DELTA:v[0-9]+]] = sub [[POINTER]], arg0
-// CHECK-NEXT: + [[INDEX:v[0-9]+]] = shr 5, [[DELTA]]
+// CHECK-NEXT: + [[INDEX:v[0-9]+]] = shr [[DELTA]], 5
 // CHECK: = phi {{\[}}[[SPLIT]]: [[INDEX]]], [bb2: arg1]
 fn @rebuild_counter_on_exit_edge(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = calldatasize
     v1 = sub v0, arg0
-    v2 = shr 5, v1
+    v2 = shr v1, 5
     v3 = gt arg1, v2
     jumpi v3, bb6, bb1
   bb1:
@@ -517,7 +517,7 @@ fn @rebuild_counter_on_exit_edge(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v5 = lt v4, arg1
     jumpi v5, bb3, bb4
   bb3:
-    v6 = shl 5, v4
+    v6 = shl v4, 5
     v7 = add arg0, v6
     v8 = calldataload v7
     v10 = eq v8, arg2
@@ -536,13 +536,13 @@ fn @rebuild_counter_on_exit_edge(arg0: i256, arg1: i256, arg2: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @rebuild_counter_after_loop{{[( ]}}
 // CHECK: + {{v[0-9]+}} = ne
 // CHECK: + [[DELTA:v[0-9]+]] = sub {{v[0-9]+}}, arg0
-// CHECK-NEXT: + [[INDEX:v[0-9]+]] = shr 5, [[DELTA]]
+// CHECK-NEXT: + [[INDEX:v[0-9]+]] = shr [[DELTA]], 5
 // CHECK: ret [[INDEX]]
 fn @rebuild_counter_after_loop(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = calldatasize
     v1 = sub v0, arg0
-    v2 = shr 5, v1
+    v2 = shr v1, 5
     v3 = gt arg1, v2
     jumpi v3, bb5, bb1
   bb1:
@@ -552,7 +552,7 @@ fn @rebuild_counter_after_loop(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v5 = lt v4, arg1
     jumpi v5, bb3, bb6
   bb3:
-    v6 = shl 5, v4
+    v6 = shl v4, 5
     v7 = add arg0, v6
     v8 = calldataload v7
     v10 = eq v8, arg2
@@ -574,7 +574,7 @@ fn @keep_counter_read_derived(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = calldatasize
     v1 = sub v0, arg0
-    v2 = shr 5, v1
+    v2 = shr v1, 5
     v3 = gt arg1, v2
     jumpi v3, bb5, bb1
   bb1:
@@ -584,7 +584,7 @@ fn @keep_counter_read_derived(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v5 = lt v4, arg1
     jumpi v5, bb3, bb7
   bb3:
-    v6 = shl 5, v4
+    v6 = shl v4, 5
     v7 = add arg0, v6
     v8 = calldataload v7
     v10 = eq v8, arg2
@@ -613,7 +613,7 @@ fn @keep_narrow_counter_read_after_loop(arg0: i256) -> i256 {
     jumpi v2, bb2, bb3
   bb2:
     v20 = zext i8 v1 to i256
-    v3 = shl 5, v20
+    v3 = shl v20, 5
     v4 = add arg0, v3
     v5 = mload v4
     v7 = add v5, 1
@@ -631,15 +631,15 @@ fn @keep_narrow_counter_read_after_loop(arg0: i256) -> i256 {
 // CHECK-NOT: {{^[-+]}}
 fn @keep_descending_counter_read_after_loop(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v30 = alloc raw, exact, uninitialized, infallible, 128
-    v0 = ptrtoint memptr v30 to i256
+    v30 = alloc 128
+    v0 = ptrtoint ptr<memory> v30 to i256
     jump bb1
   bb1:
     v1 = phi [bb0: arg0], [bb3: v6]
     v2 = lt 0, v1
     jumpi v2, bb2, bb4
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = add v0, v3
     v5 = mload v4
     v7 = eq v5, arg1
@@ -659,19 +659,19 @@ fn @keep_descending_counter_read_after_loop(arg0: i256, arg1: i256) -> i256 {
 // CHECK-NEXT: + {{v[0-9]+}} = select [[ABOVE]], 0x20000000000000000, arg0
 // CHECK: + {{v[0-9]+}} = ne [[POINTER:v[0-9]+]], {{v[0-9]+}}
 // CHECK: + [[DELTA:v[0-9]+]] = sub [[POINTER]], {{v[0-9]+}}
-// CHECK-NEXT: + [[INDEX:v[0-9]+]] = shr 5, [[DELTA]]
+// CHECK-NEXT: + [[INDEX:v[0-9]+]] = shr [[DELTA]], 5
 // CHECK-NEXT: + ret [[INDEX]]
 fn @reach_heap_counter_read_after_loop(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v30 = alloc raw, exact, uninitialized, infallible, 128
-    v0 = ptrtoint memptr v30 to i256
+    v30 = alloc 128
+    v0 = ptrtoint ptr<memory> v30 to i256
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb3: v6]
     v2 = lt v1, arg0
     jumpi v2, bb2, bb4
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = add v0, v3
     v5 = mload v4
     v7 = eq v5, arg1
@@ -695,7 +695,7 @@ fn @keep_test_leaving_below_bound(arg0: i256, arg1: i256) -> i256 {
     v2 = lt v1, arg1
     jumpi v2, bb3, bb2
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = add arg0, v3
     v5 = calldataload v4
     mstore 0, v5
@@ -712,7 +712,7 @@ fn @keep_test_leaving_below_bound(arg0: i256, arg1: i256) -> i256 {
 // CHECK: + jumpi arg3, [[SPLIT:bb[0-9]+]], bb5
 // CHECK: + [[SPLIT]]:
 // CHECK-NEXT: + [[DELTA:v[0-9]+]] = sub {{v[0-9]+}}, arg0
-// CHECK-NEXT: + [[INDEX:v[0-9]+]] = shr 5, [[DELTA]]
+// CHECK-NEXT: + [[INDEX:v[0-9]+]] = shr [[DELTA]], 5
 // CHECK: + {{v[0-9]+}} = phi {{\[}}[[SPLIT]]: [[INDEX]]], [bb5: 7]
 fn @rebuild_counter_on_conditional_edge(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> i256 {
   bb0:
@@ -722,7 +722,7 @@ fn @rebuild_counter_on_conditional_edge(arg0: i256, arg1: i256, arg2: i256, arg3
     v5 = lt v4, arg1
     jumpi v5, bb3, bb5
   bb3:
-    v6 = shl 5, v4
+    v6 = shl v4, 5
     v7 = add arg0, v6
     v8 = calldataload v7
     v10 = eq v8, arg2

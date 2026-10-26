@@ -41,7 +41,6 @@ from evm_rules.lean import (
     term,
     theorem,
 )
-from evm_rules.memory import MemoryAddresses
 from evm_rules.mining import abstract_patterns, mine
 from evm_rules.prover import (
     LEAN_PROJECT,
@@ -176,14 +175,14 @@ class MiningTests(unittest.TestCase):
 
     def test_function_local_ids_and_frequency(self):
         report = self.mine_source("""@module M
-fn @first(arg0: u256, arg1: u256) {
+fn @first(arg0: i256, arg1: i256) {
   bb0:
     v0 = or arg0, arg1
     v1 = and arg0, arg1
     v2 = sub v0, v1
     ret v2
 }
-fn @second(arg0: u256, arg1: u256) {
+fn @second(arg0: i256, arg1: i256) {
   bb0:
     v10 = or arg0, arg1
     v11 = and arg0, arg1
@@ -199,7 +198,7 @@ fn @second(arg0: u256, arg1: u256) {
         self.assertEqual(len(report["sources"][0]["sha256"]), 64)
 
     def test_boundaries_and_shared_producers(self):
-        template = """fn @f(arg0: u256, arg1: u256) {
+        template = """fn @f(arg0: i256, arg1: i256) {
   bb0:
     v0 = not arg0
 %s
@@ -209,7 +208,7 @@ fn @second(arg0: u256, arg1: u256) {
 """
         for barrier in (
             "    sstore 0, v0",
-            "    v2 = mload v0",
+            "    v2 = load v0",
             "  bb1:",
             "    v3 = unknown v0",
         ):
@@ -220,7 +219,7 @@ fn @second(arg0: u256, arg1: u256) {
         self.assertEqual(report["candidates"], [])
 
     def test_mined_seed_is_proved_before_emission(self):
-        report = self.mine_source("""fn @f(arg0: u256) {
+        report = self.mine_source("""fn @f(arg0: i256) {
   bb0:
     v0 = not arg0
     v1 = not v0
@@ -246,11 +245,11 @@ fn @second(arg0: u256, arg1: u256) {
         self.assertEqual(rules[0][1], Expr.var("x"))
 
     def test_subtree_abstraction_exposes_dynamic_masks(self):
-        source = """fn @mask(arg0: u256) {
+        source = """fn @mask(arg0: i256) {
   bb0:
     v0 = sub 32, arg0
-    v1 = shl 3, v0
-    v2 = shl v1, 1
+    v1 = shl v0, 3
+    v2 = shl 1, v1
     v3 = sub v2, 1
     v4 = not v3
     ret v4
@@ -469,7 +468,7 @@ class SemanticsTests(unittest.TestCase):
         self.assertNotEqual(result["lhs_value"], result["rhs_value"])
 
     def test_unsupported_operations_fail(self):
-        for op in ("sload", "mload", "call", "keccak256", "mystery"):
+        for op in ("sload", "load", "call", "keccak256", "mystery"):
             with self.assertRaises(Unsupported):
                 term(expression(op, 0))
         with self.assertRaises(Unsupported):
@@ -666,14 +665,14 @@ class CallEffectTests(unittest.TestCase):
                 for name in ("Op.Call", "Op.StaticCall", "Op.DelegateCall", "Op.Log")
             )
         ]
-        self.assertEqual(len(rules), 13)
+        self.assertEqual(len(rules), 9)
         for rule in rules:
             cx = Context()
             lhs, rhs = cx.obligation(rule)
             result = check(lhs, rhs, cx.assumptions)
             self.assertEqual(result["status"], "proved", rule.line)
         for source in (
-            "(rule (rewrite (Op.Log0 offset size)) (Op.Log0 (imm (u256 0)) size))",
+            "(rule (rewrite (Op.Log offset size topics)) (Op.Log (imm (u256 0)) size topics))",
             "(rule (rewrite (Op.StaticCall gas addr offset size out count)) (Op.StaticCall gas addr (imm (u256 0)) size out count))",
         ):
             form, line = forms(source)[0]
@@ -697,130 +696,6 @@ class CallEffectTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(Unsupported, "instruction roots"):
             Context().obligation(changed)
-
-
-class MemoryAddressTests(unittest.TestCase):
-    def test_actual_projection_rules_and_missing_guards(self):
-        path = ISLE / "mir/egraph"
-        rules = [
-            Rule(form, line, str(path))
-            for form, line in forms(read_egraph_source())
-            if form[0] == "rule"
-            and any(name in repr(form) for name in MemoryAddresses.SHAPES)
-        ]
-        self.assertEqual(len(rules), 3)
-        for rule in rules:
-            cx = Context()
-            lhs, rhs = cx.obligation(rule)
-            result = check(lhs, rhs, cx.assumptions)
-            self.assertEqual(result["status"], "proved", rule.line)
-            # Removing the actual source guard must expose a nonzero header
-            # or field offset, rather than implicitly assuming the rewrite.
-            unguarded = Rule(
-                (rule.form[0], rule.form[1], rule.form[-1]), rule.line, rule.source
-            )
-            cx = Context()
-            lhs, rhs = cx.obligation(unguarded)
-            result = check(lhs, rhs, cx.assumptions)
-            self.assertEqual(result["status"], "counterexample", rule.line)
-            self.assertTrue(result["replayed"])
-
-    def assert_concrete_and_symbolic(self, value, values, expected):
-        self.assertTrue(lean_evaluates(value, values, expected))
-        self.assertEqual(concrete(value, values), expected)
-
-    def test_data_headers_and_slice_payload_pointers(self):
-        cx = Context()
-        object, kind = map(Expr.var, ("object", "kind"))
-        value = cx.operation("Op.MemoryObjectData", [object, kind])
-        flag = cx.memory.slices[object].args[0]
-        for tag, header in ((0, 32), (1, 32), (2, 0), (3, 0)):
-            for is_slice in (0, 1):
-                for pointer in (0, 128, MASK):
-                    self.assert_concrete_and_symbolic(
-                        value,
-                        {"object": pointer, "kind": tag, flag: is_slice},
-                        (pointer + (0 if is_slice else header)) & MASK,
-                    )
-        # Adding a header to a slice pointer is wrong, even for dynamic data.
-        wrong = expression("add", object, cx.memory.data_offset(kind))
-        result = check(value, wrong, cx.assumptions)
-        self.assertEqual(result["status"], "counterexample")
-        self.assertEqual(int(result["inputs"][flag], 16), 1)
-
-    def test_field_offsets_saturate_before_full_word_address_addition(self):
-        cx = Context()
-        object, layout, field = map(Expr.var, ("object", "layout", "field"))
-        value = cx.operation("Op.MemoryObjectFieldAddr", [object, layout, field])
-        for index in (0, 1, (1 << 59) - 1, 1 << 59, (1 << 64) - 2):
-            expected_offset = min(index * 32, (1 << 64) - 1)
-            self.assert_concrete_and_symbolic(
-                value, {"object": MASK, "field": index}, (MASK + expected_offset) & MASK
-            )
-        # Fields outside a struct's declared range have no valid projection.
-        shape = cx.memory.layouts[layout]
-        result = check(
-            value,
-            value,
-            [*cx.assumptions, Cond("eq", (field, shape.fields))],
-        )
-        self.assertEqual(result["status"], "inapplicable")
-
-    def test_element_strides_keep_zero_full_u32_and_wrapping_indices(self):
-        cx = Context()
-        object, layout, index = map(Expr.var, ("object", "layout", "index"))
-        value = cx.operation("Op.MemoryObjectElementAddr", [object, layout, index])
-        shape = cx.memory.layouts[layout]
-        for tag in range(3):
-            for words in (0, 1, (1 << 32) - 1):
-                for i in (0, 1, MASK):
-                    values = {
-                        "object": MASK,
-                        "index": i,
-                        shape.kind.args[0]: tag,
-                        shape.element_words.args[0]: words,
-                    }
-                    stride = 32 if tag == 0 else words * 32
-                    expected = (MASK + (32 if tag < 2 else 0) + i * stride) & MASK
-                    self.assert_concrete_and_symbolic(value, values, expected)
-        result = check(
-            value, value, [*cx.assumptions, Cond("eq", (shape.kind, Expr.const(3)))]
-        )
-        self.assertEqual(result["status"], "inapplicable")
-
-    def test_generated_schema_drift_and_wrong_arity_fail_closed(self):
-        cx = Context()
-        object, kind = map(Expr.var, ("object", "kind"))
-        with (
-            patch(
-                "evm_rules.isle.forms",
-                return_value=[
-                    (
-                        (
-                            "type",
-                            "Op",
-                            "extern",
-                            (
-                                "enum",
-                                (
-                                    "MemoryObjectData",
-                                    ("kind", "MemoryObjectKind"),
-                                    ("object", "Value"),
-                                ),
-                            ),
-                        ),
-                        1,
-                    )
-                ],
-            ),
-            self.assertRaisesRegex(Unsupported, "changed memory address schema"),
-        ):
-            cx.operation("Op.MemoryObjectData", [object, kind])
-        with self.assertRaises(Unsupported):
-            cx.operation("Op.MemoryObjectData", [object])
-        cx.memory.kind(kind)
-        with self.assertRaises(Unsupported):
-            cx.memory.layout(kind)
 
 
 class RuleTests(unittest.TestCase):

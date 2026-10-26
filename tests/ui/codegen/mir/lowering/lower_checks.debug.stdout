@@ -26,12 +26,12 @@
 -     icall revert_if_zero<tuple_data_too_short>, v2
 +     jumpi v2, bb7, bb6
 +   bb6:
-+     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 32 !metadata(memory=scratch)
-+     mstore 36, 34 !metadata(memory=scratch)
-+     mstore 68, 0x414249206465636f64696e673a207475706c65206461746120746f6f2073686f !metadata(memory=scratch)
-+     mstore 100, 0x7274000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     revert 0, 132
++     mstore 32, 32 !metadata(memory=scratch)
++     mstore 64, 34 !metadata(memory=scratch)
++     mstore 96, 0x414249206465636f64696e673a207475706c65206461746120746f6f2073686f !metadata(memory=scratch)
++     mstore 128, 0x7274000000000000000000000000000000000000000000000000000000000000
++     mstore 0, 0x8c379a0 !metadata(memory=scratch)
++     revert 28, 132
 +   bb7:
       mstore 96, v1
       jump bb3
@@ -41,7 +41,7 @@
       ret v5
   }
   
-  fn @payloads(arg0: i1, arg1: memptr, arg2: i256) {
+  fn @payloads(arg0: i1, arg1: ptr<memory>, arg2: i256) {
     bb0:
 -     icall require<short_string>, arg0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
 -     icall require<empty_string>, arg0
@@ -54,23 +54,23 @@
 +   bb2:
 +     jumpi arg0, bb4, bb3
 +   bb3:
-+     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 32 !metadata(memory=scratch)
-+     mstore 36, 0 !metadata(memory=scratch)
-+     revert 0, 68
++     mstore 32, 32 !metadata(memory=scratch)
++     mstore 64, 0 !metadata(memory=scratch)
++     mstore 0, 0x8c379a0 !metadata(memory=scratch)
++     revert 28, 68
 +   bb4:
 +     jumpi arg0, bb6, bb5
 +   bb5:
-+     v0 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args arg1
-+     v1 = slice_ptr v0
-+     v2 = slice_len v0
++     v0 = abi_encode [memory_bytes], scratch, selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args arg1
++     v1 = extract_value slice<memory>, v0, 0
++     v2 = extract_value slice<memory>, v0, 1
 +     revert v1, v2
 +   bb6:
 +     jumpi arg0, bb8, bb7
 +   bb7:
-+     v3 = abi_encode [word, memory_bytes], selector 0, args arg2, arg1
-+     v4 = slice_ptr v3
-+     v5 = slice_len v3
++     v3 = abi_encode [word, memory_bytes], scratch, selector 0, args arg2, arg1
++     v4 = extract_value slice<memory>, v3, 0
++     v5 = extract_value slice<memory>, v3, 1
 +     revert v4, v5
 +   bb8:
       ret
@@ -102,10 +102,10 @@
 + 
 + fn @revert_error(arg0: i256, arg1: i256) {
 +   bb0:
-+     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 32 !metadata(memory=scratch)
-+     mstore 36, arg0 !metadata(memory=scratch)
-+     mstore 68, arg1 !metadata(memory=scratch)
-+     revert 0, 100
++     mstore 32, 32 !metadata(memory=scratch)
++     mstore 64, arg0 !metadata(memory=scratch)
++     mstore 96, arg1 !metadata(memory=scratch)
++     mstore 0, 0x8c379a0 !metadata(memory=scratch)
++     revert 28, 100
   }
   

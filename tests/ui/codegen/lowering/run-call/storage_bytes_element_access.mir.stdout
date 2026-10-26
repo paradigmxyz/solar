@@ -13,13 +13,13 @@ fn @_fill(arg0: i256) {
     icall panic_if<0x41>, v1
     v2 = not 31
     v3 = and v0, v2
-    v4 = alloc memorybytes, exact, zeroed, panic, v3
-    set_memory_object_len memorybytes, v4, arg0
+    v4 = alloc zeroed checked v3
+    mstore v4, arg0
     jump bb1
   bb1:
     v5 = phi [bb0: arg0], [bb3: v5]
     v6 = phi [bb0: v4], [bb3: v6]
-    v7 = phi [bb0: 0], [bb3: v17]
+    v7 = phi [bb0: 0], [bb3: v19]
     v8 = lt v7, v5
     jumpi v8, bb4, bb5
   bb5:
@@ -28,25 +28,27 @@ fn @_fill(arg0: i256) {
     icall @store_storage_bytes, 0, v6
     ret
   bb4:
-    v9 = checked_add u256, v7, 1
+    v9 = checked_add uint256, v7, 1
     v10 = trunc i256 v9 to i8
     v11 = zext i8 v10 to i256
-    v12 = shl 248, v11
-    v13 = memory_object_len memorybytes, v6
+    v12 = shl v11, 248
+    v13 = mload v6
     v14 = lt v7, v13
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = byte 0, v12
-    memory_object_store_byte memorybytes, v6, v7, v16
+    v17 = ptradd v6, v7
+    v18 = ptradd v17, 32
+    mstore8 v18, v16
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v17 = checked_add u256, v7, 1
+    v19 = checked_add uint256, v7, 1
     jump bb1
 }
 
-fn @at(arg0: i256) -> i256 [selector=0xe0886f90, view, abi_params=[u256], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+fn @at(arg0: i256) -> i256 [selector=0xe0886f90, view, abi_params=[uint256], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v0
@@ -54,7 +56,7 @@ fn @at(arg0: i256) -> i256 [selector=0xe0886f90, view, abi_params=[u256], abi_re
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt arg0, v6
     v8 = eq v7, false
@@ -64,7 +66,7 @@ fn @at(arg0: i256) -> i256 [selector=0xe0886f90, view, abi_params=[u256], abi_re
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = shr 5, arg0
+    v10 = shr arg0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -73,12 +75,12 @@ fn @at(arg0: i256) -> i256 [selector=0xe0886f90, view, abi_params=[u256], abi_re
     v14 = sub 31, v13
     v15 = sload v12 !metadata(storage=symbolic(v12))
     v16 = mul v14, 8
-    v17 = shr v16, v15
-    v18 = shl 248, v17
+    v17 = shr v15, v16
+    v18 = shl v17, 248
     ret v18
 }
 
-fn @readSingle() -> struct0 [selector=0xf6f3185a, abi_params=[], abi_returns=[word<u8>, word], abi_return_params=[u8, u256]] {
+fn @readSingle() -> struct0 [selector=0xf6f3185a, abi_params=[], abi_returns=[word<uint8>, word], abi_return_params=[uint8, uint256]] {
   bb0:
     icall @_fill, 1
     v0 = sload 0 !metadata(storage=slot(0))
@@ -87,7 +89,7 @@ fn @readSingle() -> struct0 [selector=0xf6f3185a, abi_params=[], abi_returns=[wo
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = eq v7, false
@@ -97,7 +99,7 @@ fn @readSingle() -> struct0 [selector=0xf6f3185a, abi_params=[], abi_returns=[wo
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = shr 5, 0
+    v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -106,9 +108,9 @@ fn @readSingle() -> struct0 [selector=0xf6f3185a, abi_params=[], abi_returns=[wo
     v14 = sub 31, v13
     v15 = sload v12 !metadata(storage=symbolic(v12))
     v16 = mul v14, 8
-    v17 = shr v16, v15
-    v18 = shl 248, v17
-    v19 = shr 248, v18
+    v17 = shr v15, v16
+    v18 = shl v17, 248
+    v19 = shr v18, 248
     v20 = trunc i256 v19 to i8
     v21 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v21
@@ -116,14 +118,14 @@ fn @readSingle() -> struct0 [selector=0xf6f3185a, abi_params=[], abi_returns=[wo
     v23 = eq v22, 1
     v24 = sub 0, v22
     v25 = or 127, v24
-    v26 = shr 1, v21
+    v26 = shr v21, 1
     v27 = and v26, v25
     v28 = insert_value struct0, undef struct0, 0, v20
     v29 = insert_value struct0, v28, 1, v27
     ret v29
 }
 
-fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>, word], abi_return_params=[u8, u8, u8, u8, u256]] {
+fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[uint256], abi_returns=[word<uint8>, word<uint8>, word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint8, uint8, uint256]] {
   bb0:
     icall @_fill, arg0
     v0 = sload 0 !metadata(storage=slot(0))
@@ -132,7 +134,7 @@ fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[u256], ab
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = eq v7, false
@@ -142,7 +144,7 @@ fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[u256], ab
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = shr 5, 0
+    v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -151,9 +153,9 @@ fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[u256], ab
     v14 = sub 31, v13
     v15 = sload v12 !metadata(storage=symbolic(v12))
     v16 = mul v14, 8
-    v17 = shr v16, v15
-    v18 = shl 248, v17
-    v19 = shr 248, v18
+    v17 = shr v15, v16
+    v18 = shl v17, 248
+    v19 = shr v18, 248
     v20 = trunc i256 v19 to i8
     v21 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v21
@@ -161,7 +163,7 @@ fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[u256], ab
     v23 = eq v22, 1
     v24 = sub 0, v22
     v25 = or 127, v24
-    v26 = shr 1, v21
+    v26 = shr v21, 1
     v27 = and v26, v25
     v28 = lt 1, v27
     v29 = eq v28, false
@@ -171,7 +173,7 @@ fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[u256], ab
     jump bb6
   bb4:
     v30 = storage_array_data_slot 0
-    v31 = shr 5, 1
+    v31 = shr 1, 5
     v32 = add v30, v31
     jump bb6
   bb6:
@@ -180,18 +182,18 @@ fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[u256], ab
     v35 = sub 31, v34
     v36 = sload v33 !metadata(storage=symbolic(v33))
     v37 = mul v35, 8
-    v38 = shr v37, v36
-    v39 = shl 248, v38
-    v40 = shr 248, v39
+    v38 = shr v36, v37
+    v39 = shl v38, 248
+    v40 = shr v39, 248
     v41 = trunc i256 v40 to i8
-    v42 = checked_sub u256, arg0, 2
+    v42 = checked_sub uint256, arg0, 2
     v43 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v43
     v44 = and v43, 1
     v45 = eq v44, 1
     v46 = sub 0, v44
     v47 = or 127, v46
-    v48 = shr 1, v43
+    v48 = shr v43, 1
     v49 = and v48, v47
     v50 = lt v42, v49
     v51 = eq v50, false
@@ -201,7 +203,7 @@ fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[u256], ab
     jump bb9
   bb7:
     v52 = storage_array_data_slot 0
-    v53 = shr 5, v42
+    v53 = shr v42, 5
     v54 = add v52, v53
     jump bb9
   bb9:
@@ -210,18 +212,18 @@ fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[u256], ab
     v57 = sub 31, v56
     v58 = sload v55 !metadata(storage=symbolic(v55))
     v59 = mul v57, 8
-    v60 = shr v59, v58
-    v61 = shl 248, v60
-    v62 = shr 248, v61
+    v60 = shr v58, v59
+    v61 = shl v60, 248
+    v62 = shr v61, 248
     v63 = trunc i256 v62 to i8
-    v64 = checked_sub u256, arg0, 1
+    v64 = checked_sub uint256, arg0, 1
     v65 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v65
     v66 = and v65, 1
     v67 = eq v66, 1
     v68 = sub 0, v66
     v69 = or 127, v68
-    v70 = shr 1, v65
+    v70 = shr v65, 1
     v71 = and v70, v69
     v72 = lt v64, v71
     v73 = eq v72, false
@@ -231,7 +233,7 @@ fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[u256], ab
     jump bb12
   bb10:
     v74 = storage_array_data_slot 0
-    v75 = shr 5, v64
+    v75 = shr v64, 5
     v76 = add v74, v75
     jump bb12
   bb12:
@@ -240,9 +242,9 @@ fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[u256], ab
     v79 = sub 31, v78
     v80 = sload v77 !metadata(storage=symbolic(v77))
     v81 = mul v79, 8
-    v82 = shr v81, v80
-    v83 = shl 248, v82
-    v84 = shr 248, v83
+    v82 = shr v80, v81
+    v83 = shl v82, 248
+    v84 = shr v83, 248
     v85 = trunc i256 v84 to i8
     v86 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v86
@@ -250,7 +252,7 @@ fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[u256], ab
     v88 = eq v87, 1
     v89 = sub 0, v87
     v90 = or 127, v89
-    v91 = shr 1, v86
+    v91 = shr v86, 1
     v92 = and v91, v90
     v93 = insert_value struct1, undef struct1, 0, v20
     v94 = insert_value struct1, v93, 1, v41
@@ -260,7 +262,7 @@ fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[u256], ab
     ret v97
 }
 
-fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>, word], abi_return_params=[u8, u8, u8, u8, u256]] {
+fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[uint256], abi_returns=[word<uint8>, word<uint8>, word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint8, uint8, uint256]] {
   bb0:
     icall @_fill, arg0
     v0 = sload 0 !metadata(storage=slot(0))
@@ -269,7 +271,7 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = eq v7, false
@@ -279,7 +281,7 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = shr 5, 0
+    v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -287,23 +289,23 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     v13 = and 0, 31
     v14 = sub 31, v13
     v15 = mul v14, 8
-    v16 = shl v15, 255
+    v16 = shl 255, v15
     v17 = sload v12 !metadata(storage=symbolic(v12))
     v18 = not v16
     v19 = and v17, v18
-    v20 = shr 248, 0xaa00000000000000000000000000000000000000000000000000000000000000
+    v20 = shr 0xaa00000000000000000000000000000000000000000000000000000000000000, 248
     v21 = and v20, 255
-    v22 = shl v15, v21
+    v22 = shl v21, v15
     v23 = or v19, v22
     sstore v12, v23 !metadata(storage=symbolic(v12))
-    v24 = checked_sub u256, arg0, 1
+    v24 = checked_sub uint256, arg0, 1
     v25 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v25
     v26 = and v25, 1
     v27 = eq v26, 1
     v28 = sub 0, v26
     v29 = or 127, v28
-    v30 = shr 1, v25
+    v30 = shr v25, 1
     v31 = and v30, v29
     v32 = lt v24, v31
     v33 = eq v32, false
@@ -313,7 +315,7 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     jump bb6
   bb4:
     v34 = storage_array_data_slot 0
-    v35 = shr 5, v24
+    v35 = shr v24, 5
     v36 = add v34, v35
     jump bb6
   bb6:
@@ -321,13 +323,13 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     v38 = and v24, 31
     v39 = sub 31, v38
     v40 = mul v39, 8
-    v41 = shl v40, 255
+    v41 = shl 255, v40
     v42 = sload v37 !metadata(storage=symbolic(v37))
     v43 = not v41
     v44 = and v42, v43
-    v45 = shr 248, 0xbb00000000000000000000000000000000000000000000000000000000000000
+    v45 = shr 0xbb00000000000000000000000000000000000000000000000000000000000000, 248
     v46 = and v45, 255
-    v47 = shl v40, v46
+    v47 = shl v46, v40
     v48 = or v44, v47
     sstore v37, v48 !metadata(storage=symbolic(v37))
     v49 = sload 0 !metadata(storage=slot(0))
@@ -336,7 +338,7 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     v51 = eq v50, 1
     v52 = sub 0, v50
     v53 = or 127, v52
-    v54 = shr 1, v49
+    v54 = shr v49, 1
     v55 = and v54, v53
     v56 = lt 0, v55
     v57 = eq v56, false
@@ -346,7 +348,7 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     jump bb9
   bb7:
     v58 = storage_array_data_slot 0
-    v59 = shr 5, 0
+    v59 = shr 0, 5
     v60 = add v58, v59
     jump bb9
   bb9:
@@ -355,9 +357,9 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     v63 = sub 31, v62
     v64 = sload v61 !metadata(storage=symbolic(v61))
     v65 = mul v63, 8
-    v66 = shr v65, v64
-    v67 = shl 248, v66
-    v68 = shr 248, v67
+    v66 = shr v64, v65
+    v67 = shl v66, 248
+    v68 = shr v67, 248
     v69 = trunc i256 v68 to i8
     v70 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v70
@@ -365,7 +367,7 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     v72 = eq v71, 1
     v73 = sub 0, v71
     v74 = or 127, v73
-    v75 = shr 1, v70
+    v75 = shr v70, 1
     v76 = and v75, v74
     v77 = lt 1, v76
     v78 = eq v77, false
@@ -375,7 +377,7 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     jump bb12
   bb10:
     v79 = storage_array_data_slot 0
-    v80 = shr 5, 1
+    v80 = shr 1, 5
     v81 = add v79, v80
     jump bb12
   bb12:
@@ -384,18 +386,18 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     v84 = sub 31, v83
     v85 = sload v82 !metadata(storage=symbolic(v82))
     v86 = mul v84, 8
-    v87 = shr v86, v85
-    v88 = shl 248, v87
-    v89 = shr 248, v88
+    v87 = shr v85, v86
+    v88 = shl v87, 248
+    v89 = shr v88, 248
     v90 = trunc i256 v89 to i8
-    v91 = checked_sub u256, arg0, 2
+    v91 = checked_sub uint256, arg0, 2
     v92 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v92
     v93 = and v92, 1
     v94 = eq v93, 1
     v95 = sub 0, v93
     v96 = or 127, v95
-    v97 = shr 1, v92
+    v97 = shr v92, 1
     v98 = and v97, v96
     v99 = lt v91, v98
     v100 = eq v99, false
@@ -405,7 +407,7 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     jump bb15
   bb13:
     v101 = storage_array_data_slot 0
-    v102 = shr 5, v91
+    v102 = shr v91, 5
     v103 = add v101, v102
     jump bb15
   bb15:
@@ -414,18 +416,18 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     v106 = sub 31, v105
     v107 = sload v104 !metadata(storage=symbolic(v104))
     v108 = mul v106, 8
-    v109 = shr v108, v107
-    v110 = shl 248, v109
-    v111 = shr 248, v110
+    v109 = shr v107, v108
+    v110 = shl v109, 248
+    v111 = shr v110, 248
     v112 = trunc i256 v111 to i8
-    v113 = checked_sub u256, arg0, 1
+    v113 = checked_sub uint256, arg0, 1
     v114 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v114
     v115 = and v114, 1
     v116 = eq v115, 1
     v117 = sub 0, v115
     v118 = or 127, v117
-    v119 = shr 1, v114
+    v119 = shr v114, 1
     v120 = and v119, v118
     v121 = lt v113, v120
     v122 = eq v121, false
@@ -435,7 +437,7 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     jump bb18
   bb16:
     v123 = storage_array_data_slot 0
-    v124 = shr 5, v113
+    v124 = shr v113, 5
     v125 = add v123, v124
     jump bb18
   bb18:
@@ -444,9 +446,9 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     v128 = sub 31, v127
     v129 = sload v126 !metadata(storage=symbolic(v126))
     v130 = mul v128, 8
-    v131 = shr v130, v129
-    v132 = shl 248, v131
-    v133 = shr 248, v132
+    v131 = shr v129, v130
+    v132 = shl v131, 248
+    v133 = shr v132, 248
     v134 = trunc i256 v133 to i8
     v135 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v135
@@ -454,7 +456,7 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     v137 = eq v136, 1
     v138 = sub 0, v136
     v139 = or 127, v138
-    v140 = shr 1, v135
+    v140 = shr v135, 1
     v141 = and v140, v139
     v142 = insert_value struct1, undef struct1, 0, v69
     v143 = insert_value struct1, v142, 1, v90
@@ -464,44 +466,44 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     ret v146
 }
 
-fn @bumpAll(arg0: i256) -> struct2 [selector=0x583a2887, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @bumpAll(arg0: i256) -> struct2 [selector=0x583a2887, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     icall @_fill, arg0
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v60]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = phi [bb0: 0], [bb3: v3]
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v60]
     v4 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v4
     v5 = and v4, 1
     v6 = eq v5, 1
     v7 = sub 0, v5
     v8 = or 127, v7
-    v9 = shr 1, v4
+    v9 = shr v4, 1
     v10 = and v9, v8
-    v11 = lt v1, v10
+    v11 = lt v3, v10
     jumpi v11, bb4, bb5
   bb5:
     jump bb2
   bb2:
     jump bb13
   bb13:
-    v61 = phi [bb2: 0], [bb15: v97]
-    v62 = phi [bb2: v0], [bb15: v96]
-    v63 = phi [bb2: v1], [bb15: v63]
-    v64 = phi [bb2: v2], [bb15: v64]
-    v65 = phi [bb2: v3], [bb15: v65]
+    v61 = phi [bb2: v0], [bb15: v61]
+    v62 = phi [bb2: v1], [bb15: v96]
+    v63 = phi [bb2: v2], [bb15: v63]
+    v64 = phi [bb2: v3], [bb15: v64]
+    v65 = phi [bb2: 0], [bb15: v97]
     v66 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v66
     v67 = and v66, 1
     v68 = eq v67, 1
     v69 = sub 0, v67
     v70 = or 127, v69
-    v71 = shr 1, v66
+    v71 = shr v66, 1
     v72 = and v71, v70
-    v73 = lt v61, v72
+    v73 = lt v65, v72
     jumpi v73, bb16, bb17
   bb17:
     jump bb14
@@ -512,7 +514,7 @@ fn @bumpAll(arg0: i256) -> struct2 [selector=0x583a2887, abi_params=[u256], abi_
     v100 = eq v99, 1
     v101 = sub 0, v99
     v102 = or 127, v101
-    v103 = shr 1, v98
+    v103 = shr v98, 1
     v104 = and v103, v102
     v105 = insert_value struct2, undef struct2, 0, v62
     v106 = insert_value struct2, v105, 1, v104
@@ -524,9 +526,9 @@ fn @bumpAll(arg0: i256) -> struct2 [selector=0x583a2887, abi_params=[u256], abi_
     v76 = eq v75, 1
     v77 = sub 0, v75
     v78 = or 127, v77
-    v79 = shr 1, v74
+    v79 = shr v74, 1
     v80 = and v79, v78
-    v81 = lt v61, v80
+    v81 = lt v65, v80
     v82 = eq v81, false
     icall panic_if<0x32>, v82
     jumpi v76, bb19, bb20
@@ -534,26 +536,26 @@ fn @bumpAll(arg0: i256) -> struct2 [selector=0x583a2887, abi_params=[u256], abi_
     jump bb21
   bb19:
     v83 = storage_array_data_slot 0
-    v84 = shr 5, v61
+    v84 = shr v65, 5
     v85 = add v83, v84
     jump bb21
   bb21:
     v86 = phi [bb19: v85], [bb20: 0]
-    v87 = and v61, 31
+    v87 = and v65, 31
     v88 = sub 31, v87
     v89 = sload v86 !metadata(storage=symbolic(v86))
     v90 = mul v88, 8
-    v91 = shr v90, v89
-    v92 = shl 248, v91
-    v93 = shr 248, v92
+    v91 = shr v89, v90
+    v92 = shl v91, 248
+    v93 = shr v92, 248
     v94 = trunc i256 v93 to i8
     v95 = zext i8 v94 to i256
-    v96 = checked_add u256, v62, v95
+    v96 = checked_add uint256, v62, v95
     jump bb18
   bb18:
     jump bb15
   bb15:
-    v97 = checked_add u256, v61, 1
+    v97 = checked_add uint256, v65, 1
     jump bb13
   bb4:
     v12 = sload 0 !metadata(storage=slot(0))
@@ -562,9 +564,9 @@ fn @bumpAll(arg0: i256) -> struct2 [selector=0x583a2887, abi_params=[u256], abi_
     v14 = eq v13, 1
     v15 = sub 0, v13
     v16 = or 127, v15
-    v17 = shr 1, v12
+    v17 = shr v12, 1
     v18 = and v17, v16
-    v19 = lt v1, v18
+    v19 = lt v3, v18
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     jumpi v14, bb7, bb8
@@ -572,31 +574,31 @@ fn @bumpAll(arg0: i256) -> struct2 [selector=0x583a2887, abi_params=[u256], abi_
     jump bb9
   bb7:
     v21 = storage_array_data_slot 0
-    v22 = shr 5, v1
+    v22 = shr v3, 5
     v23 = add v21, v22
     jump bb9
   bb9:
     v24 = phi [bb7: v23], [bb8: 0]
-    v25 = and v1, 31
+    v25 = and v3, 31
     v26 = sub 31, v25
     v27 = sload v24 !metadata(storage=symbolic(v24))
     v28 = mul v26, 8
-    v29 = shr v28, v27
-    v30 = shl 248, v29
-    v31 = shr 248, v30
+    v29 = shr v27, v28
+    v30 = shl v29, 248
+    v31 = shr v30, 248
     v32 = trunc i256 v31 to i8
-    v33 = checked_add u8, v32, i8 1
+    v33 = checked_add uint8, v32, i8 1
     v34 = zext i8 v33 to i256
-    v35 = shl 248, v34
+    v35 = shl v34, 248
     v36 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v36
     v37 = and v36, 1
     v38 = eq v37, 1
     v39 = sub 0, v37
     v40 = or 127, v39
-    v41 = shr 1, v36
+    v41 = shr v36, 1
     v42 = and v41, v40
-    v43 = lt v1, v42
+    v43 = lt v3, v42
     v44 = eq v43, false
     icall panic_if<0x32>, v44
     jumpi v38, bb10, bb11
@@ -604,32 +606,32 @@ fn @bumpAll(arg0: i256) -> struct2 [selector=0x583a2887, abi_params=[u256], abi_
     jump bb12
   bb10:
     v45 = storage_array_data_slot 0
-    v46 = shr 5, v1
+    v46 = shr v3, 5
     v47 = add v45, v46
     jump bb12
   bb12:
     v48 = phi [bb10: v47], [bb11: 0]
-    v49 = and v1, 31
+    v49 = and v3, 31
     v50 = sub 31, v49
     v51 = mul v50, 8
-    v52 = shl v51, 255
+    v52 = shl 255, v51
     v53 = sload v48 !metadata(storage=symbolic(v48))
     v54 = not v52
     v55 = and v53, v54
-    v56 = shr 248, v35
+    v56 = shr v35, 248
     v57 = and v56, 255
-    v58 = shl v51, v57
+    v58 = shl v57, v51
     v59 = or v55, v58
     sstore v48, v59 !metadata(storage=symbolic(v48))
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v60 = checked_add u256, v1, 1
+    v60 = checked_add uint256, v3, 1
     jump bb1
 }
 
-fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {
+fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[uint256], abi_returns=[word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint256]] {
   bb0:
     icall @_fill, arg0
     v0 = sload 0 !metadata(storage=slot(0))
@@ -638,7 +640,7 @@ fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[u256]
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = eq v7, false
@@ -648,7 +650,7 @@ fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[u256]
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = shr 5, 0
+    v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -657,28 +659,28 @@ fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[u256]
     v14 = sub 31, v13
     v15 = sload v12 !metadata(storage=symbolic(v12))
     v16 = mul v14, 8
-    v17 = shr v16, v15
-    v18 = shl 248, v17
+    v17 = shr v15, v16
+    v18 = shl v17, 248
     v19 = or v18, 0xf000000000000000000000000000000000000000000000000000000000000000
     v20 = and v19, 0xff00000000000000000000000000000000000000000000000000000000000000
     v21 = mul v14, 8
-    v22 = shl v21, 255
+    v22 = shl 255, v21
     v23 = sload v12 !metadata(storage=symbolic(v12))
     v24 = not v22
     v25 = and v23, v24
-    v26 = shr 248, v20
+    v26 = shr v20, 248
     v27 = and v26, 255
-    v28 = shl v21, v27
+    v28 = shl v27, v21
     v29 = or v25, v28
     sstore v12, v29 !metadata(storage=symbolic(v12))
-    v30 = checked_sub u256, arg0, 1
+    v30 = checked_sub uint256, arg0, 1
     v31 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v31
     v32 = and v31, 1
     v33 = eq v32, 1
     v34 = sub 0, v32
     v35 = or 127, v34
-    v36 = shr 1, v31
+    v36 = shr v31, 1
     v37 = and v36, v35
     v38 = lt v30, v37
     v39 = eq v38, false
@@ -688,7 +690,7 @@ fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[u256]
     jump bb6
   bb4:
     v40 = storage_array_data_slot 0
-    v41 = shr 5, v30
+    v41 = shr v30, 5
     v42 = add v40, v41
     jump bb6
   bb6:
@@ -697,18 +699,18 @@ fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[u256]
     v45 = sub 31, v44
     v46 = sload v43 !metadata(storage=symbolic(v43))
     v47 = mul v45, 8
-    v48 = shr v47, v46
-    v49 = shl 248, v48
+    v48 = shr v46, v47
+    v49 = shl v48, 248
     v50 = and v49, 0xf00000000000000000000000000000000000000000000000000000000000000
     v51 = and v50, 0xff00000000000000000000000000000000000000000000000000000000000000
     v52 = mul v45, 8
-    v53 = shl v52, 255
+    v53 = shl 255, v52
     v54 = sload v43 !metadata(storage=symbolic(v43))
     v55 = not v53
     v56 = and v54, v55
-    v57 = shr 248, v51
+    v57 = shr v51, 248
     v58 = and v57, 255
-    v59 = shl v52, v58
+    v59 = shl v58, v52
     v60 = or v56, v59
     sstore v43, v60 !metadata(storage=symbolic(v43))
     v61 = sload 0 !metadata(storage=slot(0))
@@ -717,7 +719,7 @@ fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[u256]
     v63 = eq v62, 1
     v64 = sub 0, v62
     v65 = or 127, v64
-    v66 = shr 1, v61
+    v66 = shr v61, 1
     v67 = and v66, v65
     v68 = lt 0, v67
     v69 = eq v68, false
@@ -727,7 +729,7 @@ fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[u256]
     jump bb9
   bb7:
     v70 = storage_array_data_slot 0
-    v71 = shr 5, 0
+    v71 = shr 0, 5
     v72 = add v70, v71
     jump bb9
   bb9:
@@ -736,18 +738,18 @@ fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[u256]
     v75 = sub 31, v74
     v76 = sload v73 !metadata(storage=symbolic(v73))
     v77 = mul v75, 8
-    v78 = shr v77, v76
-    v79 = shl 248, v78
-    v80 = shr 248, v79
+    v78 = shr v76, v77
+    v79 = shl v78, 248
+    v80 = shr v79, 248
     v81 = trunc i256 v80 to i8
-    v82 = checked_sub u256, arg0, 1
+    v82 = checked_sub uint256, arg0, 1
     v83 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v83
     v84 = and v83, 1
     v85 = eq v84, 1
     v86 = sub 0, v84
     v87 = or 127, v86
-    v88 = shr 1, v83
+    v88 = shr v83, 1
     v89 = and v88, v87
     v90 = lt v82, v89
     v91 = eq v90, false
@@ -757,7 +759,7 @@ fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[u256]
     jump bb12
   bb10:
     v92 = storage_array_data_slot 0
-    v93 = shr 5, v82
+    v93 = shr v82, 5
     v94 = add v92, v93
     jump bb12
   bb12:
@@ -766,9 +768,9 @@ fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[u256]
     v97 = sub 31, v96
     v98 = sload v95 !metadata(storage=symbolic(v95))
     v99 = mul v97, 8
-    v100 = shr v99, v98
-    v101 = shl 248, v100
-    v102 = shr 248, v101
+    v100 = shr v98, v99
+    v101 = shl v100, 248
+    v102 = shr v101, 248
     v103 = trunc i256 v102 to i8
     v104 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v104
@@ -776,7 +778,7 @@ fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[u256]
     v106 = eq v105, 1
     v107 = sub 0, v105
     v108 = or 127, v107
-    v109 = shr 1, v104
+    v109 = shr v104, 1
     v110 = and v109, v108
     v111 = insert_value struct3, undef struct3, 0, v81
     v112 = insert_value struct3, v111, 1, v103
@@ -784,17 +786,17 @@ fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[u256]
     ret v113
 }
 
-fn @deleteLast(arg0: i256) -> struct3 [selector=0x32a309a7, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {
+fn @deleteLast(arg0: i256) -> struct3 [selector=0x32a309a7, abi_params=[uint256], abi_returns=[word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint256]] {
   bb0:
     icall @_fill, arg0
-    v0 = checked_sub u256, arg0, 1
+    v0 = checked_sub uint256, arg0, 1
     v1 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v1
     v2 = and v1, 1
     v3 = eq v2, 1
     v4 = sub 0, v2
     v5 = or 127, v4
-    v6 = shr 1, v1
+    v6 = shr v1, 1
     v7 = and v6, v5
     v8 = lt v0, v7
     v9 = eq v8, false
@@ -804,7 +806,7 @@ fn @deleteLast(arg0: i256) -> struct3 [selector=0x32a309a7, abi_params=[u256], a
     jump bb3
   bb1:
     v10 = storage_array_data_slot 0
-    v11 = shr 5, v0
+    v11 = shr v0, 5
     v12 = add v10, v11
     jump bb3
   bb3:
@@ -812,23 +814,23 @@ fn @deleteLast(arg0: i256) -> struct3 [selector=0x32a309a7, abi_params=[u256], a
     v14 = and v0, 31
     v15 = sub 31, v14
     v16 = mul v15, 8
-    v17 = shl v16, 255
+    v17 = shl 255, v16
     v18 = sload v13 !metadata(storage=symbolic(v13))
     v19 = not v17
     v20 = and v18, v19
-    v21 = shr 248, 0
+    v21 = shr 0, 248
     v22 = and v21, 255
-    v23 = shl v16, v22
+    v23 = shl v22, v16
     v24 = or v20, v23
     sstore v13, v24 !metadata(storage=symbolic(v13))
-    v25 = checked_sub u256, arg0, 1
+    v25 = checked_sub uint256, arg0, 1
     v26 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v26
     v27 = and v26, 1
     v28 = eq v27, 1
     v29 = sub 0, v27
     v30 = or 127, v29
-    v31 = shr 1, v26
+    v31 = shr v26, 1
     v32 = and v31, v30
     v33 = lt v25, v32
     v34 = eq v33, false
@@ -838,7 +840,7 @@ fn @deleteLast(arg0: i256) -> struct3 [selector=0x32a309a7, abi_params=[u256], a
     jump bb6
   bb4:
     v35 = storage_array_data_slot 0
-    v36 = shr 5, v25
+    v36 = shr v25, 5
     v37 = add v35, v36
     jump bb6
   bb6:
@@ -847,18 +849,18 @@ fn @deleteLast(arg0: i256) -> struct3 [selector=0x32a309a7, abi_params=[u256], a
     v40 = sub 31, v39
     v41 = sload v38 !metadata(storage=symbolic(v38))
     v42 = mul v40, 8
-    v43 = shr v42, v41
-    v44 = shl 248, v43
-    v45 = shr 248, v44
+    v43 = shr v41, v42
+    v44 = shl v43, 248
+    v45 = shr v44, 248
     v46 = trunc i256 v45 to i8
-    v47 = checked_sub u256, arg0, 2
+    v47 = checked_sub uint256, arg0, 2
     v48 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v48
     v49 = and v48, 1
     v50 = eq v49, 1
     v51 = sub 0, v49
     v52 = or 127, v51
-    v53 = shr 1, v48
+    v53 = shr v48, 1
     v54 = and v53, v52
     v55 = lt v47, v54
     v56 = eq v55, false
@@ -868,7 +870,7 @@ fn @deleteLast(arg0: i256) -> struct3 [selector=0x32a309a7, abi_params=[u256], a
     jump bb9
   bb7:
     v57 = storage_array_data_slot 0
-    v58 = shr 5, v47
+    v58 = shr v47, 5
     v59 = add v57, v58
     jump bb9
   bb9:
@@ -877,9 +879,9 @@ fn @deleteLast(arg0: i256) -> struct3 [selector=0x32a309a7, abi_params=[u256], a
     v62 = sub 31, v61
     v63 = sload v60 !metadata(storage=symbolic(v60))
     v64 = mul v62, 8
-    v65 = shr v64, v63
-    v66 = shl 248, v65
-    v67 = shr 248, v66
+    v65 = shr v63, v64
+    v66 = shl v65, 248
+    v67 = shr v66, 248
     v68 = trunc i256 v67 to i8
     v69 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v69
@@ -887,7 +889,7 @@ fn @deleteLast(arg0: i256) -> struct3 [selector=0x32a309a7, abi_params=[u256], a
     v71 = eq v70, 1
     v72 = sub 0, v70
     v73 = or 127, v72
-    v74 = shr 1, v69
+    v74 = shr v69, 1
     v75 = and v74, v73
     v76 = insert_value struct3, undef struct3, 0, v46
     v77 = insert_value struct3, v76, 1, v68
@@ -895,17 +897,17 @@ fn @deleteLast(arg0: i256) -> struct3 [selector=0x32a309a7, abi_params=[u256], a
     ret v78
 }
 
-fn @rawByte(arg0: i256) -> i256 [selector=0xa88f9005, inline_assembly, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @rawByte(arg0: i256) -> i256 [selector=0xa88f9005, inline_assembly, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @_fill, arg0
-    v0 = checked_sub u256, arg0, 1
+    v0 = checked_sub uint256, arg0, 1
     v1 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v1
     v2 = and v1, 1
     v3 = eq v2, 1
     v4 = sub 0, v2
     v5 = or 127, v4
-    v6 = shr 1, v1
+    v6 = shr v1, 1
     v7 = and v6, v5
     v8 = lt v0, v7
     v9 = eq v8, false
@@ -915,7 +917,7 @@ fn @rawByte(arg0: i256) -> i256 [selector=0xa88f9005, inline_assembly, abi_param
     jump bb3
   bb1:
     v10 = storage_array_data_slot 0
-    v11 = shr 5, v0
+    v11 = shr v0, 5
     v12 = add v10, v11
     jump bb3
   bb3:
@@ -924,12 +926,12 @@ fn @rawByte(arg0: i256) -> i256 [selector=0xa88f9005, inline_assembly, abi_param
     v15 = sub 31, v14
     v16 = sload v13 !metadata(storage=symbolic(v13))
     v17 = mul v15, 8
-    v18 = shr v17, v16
-    v19 = shl 248, v18
+    v18 = shr v16, v17
+    v19 = shl v18, 248
     ret v19
 }
 
-fn @shortString() -> struct3 [selector=0x2f9c7ab1, abi_params=[], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {
+fn @shortString() -> struct3 [selector=0x2f9c7ab1, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint256]] {
   bb0:
     store_storage_bytes_literal 1, hex"68656c6c6f"
     v0 = sload 1 !metadata(storage=slot(1))
@@ -938,7 +940,7 @@ fn @shortString() -> struct3 [selector=0x2f9c7ab1, abi_params=[], abi_returns=[w
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = eq v7, false
@@ -948,7 +950,7 @@ fn @shortString() -> struct3 [selector=0x2f9c7ab1, abi_params=[], abi_returns=[w
     jump bb3
   bb1:
     v9 = storage_array_data_slot 1
-    v10 = shr 5, 0
+    v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -957,9 +959,9 @@ fn @shortString() -> struct3 [selector=0x2f9c7ab1, abi_params=[], abi_returns=[w
     v14 = sub 31, v13
     v15 = sload v12 !metadata(storage=symbolic(v12))
     v16 = mul v14, 8
-    v17 = shr v16, v15
-    v18 = shl 248, v17
-    v19 = shr 248, v18
+    v17 = shr v15, v16
+    v18 = shl v17, 248
+    v19 = shr v18, 248
     v20 = trunc i256 v19 to i8
     v21 = sload 1 !metadata(storage=slot(1))
     validate_storage_bytes v21
@@ -967,7 +969,7 @@ fn @shortString() -> struct3 [selector=0x2f9c7ab1, abi_params=[], abi_returns=[w
     v23 = eq v22, 1
     v24 = sub 0, v22
     v25 = or 127, v24
-    v26 = shr 1, v21
+    v26 = shr v21, 1
     v27 = and v26, v25
     v28 = lt 4, v27
     v29 = eq v28, false
@@ -977,7 +979,7 @@ fn @shortString() -> struct3 [selector=0x2f9c7ab1, abi_params=[], abi_returns=[w
     jump bb6
   bb4:
     v30 = storage_array_data_slot 1
-    v31 = shr 5, 4
+    v31 = shr 4, 5
     v32 = add v30, v31
     jump bb6
   bb6:
@@ -986,9 +988,9 @@ fn @shortString() -> struct3 [selector=0x2f9c7ab1, abi_params=[], abi_returns=[w
     v35 = sub 31, v34
     v36 = sload v33 !metadata(storage=symbolic(v33))
     v37 = mul v35, 8
-    v38 = shr v37, v36
-    v39 = shl 248, v38
-    v40 = shr 248, v39
+    v38 = shr v36, v37
+    v39 = shl v38, 248
+    v40 = shr v39, 248
     v41 = trunc i256 v40 to i8
     v42 = sload 1 !metadata(storage=slot(1))
     validate_storage_bytes v42
@@ -996,7 +998,7 @@ fn @shortString() -> struct3 [selector=0x2f9c7ab1, abi_params=[], abi_returns=[w
     v44 = eq v43, 1
     v45 = sub 0, v43
     v46 = or 127, v45
-    v47 = shr 1, v42
+    v47 = shr v42, 1
     v48 = and v47, v46
     v49 = insert_value struct3, undef struct3, 0, v20
     v50 = insert_value struct3, v49, 1, v41
@@ -1004,7 +1006,7 @@ fn @shortString() -> struct3 [selector=0x2f9c7ab1, abi_params=[], abi_returns=[w
     ret v51
 }
 
-fn @longString() -> struct3 [selector=0x68a55dc0, abi_params=[], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {
+fn @longString() -> struct3 [selector=0x68a55dc0, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint256]] {
   bb0:
     store_storage_bytes_literal 1, hex"6162636465666768696a6b6c6d6e6f707172737475767778797a30313233343536"
     v0 = sload 1 !metadata(storage=slot(1))
@@ -1013,7 +1015,7 @@ fn @longString() -> struct3 [selector=0x68a55dc0, abi_params=[], abi_returns=[wo
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = eq v7, false
@@ -1023,7 +1025,7 @@ fn @longString() -> struct3 [selector=0x68a55dc0, abi_params=[], abi_returns=[wo
     jump bb3
   bb1:
     v9 = storage_array_data_slot 1
-    v10 = shr 5, 0
+    v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -1032,9 +1034,9 @@ fn @longString() -> struct3 [selector=0x68a55dc0, abi_params=[], abi_returns=[wo
     v14 = sub 31, v13
     v15 = sload v12 !metadata(storage=symbolic(v12))
     v16 = mul v14, 8
-    v17 = shr v16, v15
-    v18 = shl 248, v17
-    v19 = shr 248, v18
+    v17 = shr v15, v16
+    v18 = shl v17, 248
+    v19 = shr v18, 248
     v20 = trunc i256 v19 to i8
     v21 = sload 1 !metadata(storage=slot(1))
     validate_storage_bytes v21
@@ -1042,7 +1044,7 @@ fn @longString() -> struct3 [selector=0x68a55dc0, abi_params=[], abi_returns=[wo
     v23 = eq v22, 1
     v24 = sub 0, v22
     v25 = or 127, v24
-    v26 = shr 1, v21
+    v26 = shr v21, 1
     v27 = and v26, v25
     v28 = lt 32, v27
     v29 = eq v28, false
@@ -1052,7 +1054,7 @@ fn @longString() -> struct3 [selector=0x68a55dc0, abi_params=[], abi_returns=[wo
     jump bb6
   bb4:
     v30 = storage_array_data_slot 1
-    v31 = shr 5, 32
+    v31 = shr 32, 5
     v32 = add v30, v31
     jump bb6
   bb6:
@@ -1061,9 +1063,9 @@ fn @longString() -> struct3 [selector=0x68a55dc0, abi_params=[], abi_returns=[wo
     v35 = sub 31, v34
     v36 = sload v33 !metadata(storage=symbolic(v33))
     v37 = mul v35, 8
-    v38 = shr v37, v36
-    v39 = shl 248, v38
-    v40 = shr 248, v39
+    v38 = shr v36, v37
+    v39 = shl v38, 248
+    v40 = shr v39, 248
     v41 = trunc i256 v40 to i8
     v42 = sload 1 !metadata(storage=slot(1))
     validate_storage_bytes v42
@@ -1071,7 +1073,7 @@ fn @longString() -> struct3 [selector=0x68a55dc0, abi_params=[], abi_returns=[wo
     v44 = eq v43, 1
     v45 = sub 0, v43
     v46 = or 127, v45
-    v47 = shr 1, v42
+    v47 = shr v42, 1
     v48 = and v47, v46
     v49 = insert_value struct3, undef struct3, 0, v20
     v50 = insert_value struct3, v49, 1, v41
@@ -1079,7 +1081,7 @@ fn @longString() -> struct3 [selector=0x68a55dc0, abi_params=[], abi_returns=[wo
     ret v51
 }
 
-fn @writeShortString() -> struct3 [selector=0x9aa67864, abi_params=[], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {
+fn @writeShortString() -> struct3 [selector=0x9aa67864, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint256]] {
   bb0:
     store_storage_bytes_literal 1, hex"68656c6c6f"
     v0 = sload 1 !metadata(storage=slot(1))
@@ -1088,7 +1090,7 @@ fn @writeShortString() -> struct3 [selector=0x9aa67864, abi_params=[], abi_retur
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = eq v7, false
@@ -1098,7 +1100,7 @@ fn @writeShortString() -> struct3 [selector=0x9aa67864, abi_params=[], abi_retur
     jump bb3
   bb1:
     v9 = storage_array_data_slot 1
-    v10 = shr 5, 0
+    v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -1106,13 +1108,13 @@ fn @writeShortString() -> struct3 [selector=0x9aa67864, abi_params=[], abi_retur
     v13 = and 0, 31
     v14 = sub 31, v13
     v15 = mul v14, 8
-    v16 = shl v15, 255
+    v16 = shl 255, v15
     v17 = sload v12 !metadata(storage=symbolic(v12))
     v18 = not v16
     v19 = and v17, v18
-    v20 = shr 248, 0x5a00000000000000000000000000000000000000000000000000000000000000
+    v20 = shr 0x5a00000000000000000000000000000000000000000000000000000000000000, 248
     v21 = and v20, 255
-    v22 = shl v15, v21
+    v22 = shl v21, v15
     v23 = or v19, v22
     sstore v12, v23 !metadata(storage=symbolic(v12))
     v24 = sload 1 !metadata(storage=slot(1))
@@ -1121,7 +1123,7 @@ fn @writeShortString() -> struct3 [selector=0x9aa67864, abi_params=[], abi_retur
     v26 = eq v25, 1
     v27 = sub 0, v25
     v28 = or 127, v27
-    v29 = shr 1, v24
+    v29 = shr v24, 1
     v30 = and v29, v28
     v31 = lt 0, v30
     v32 = eq v31, false
@@ -1131,7 +1133,7 @@ fn @writeShortString() -> struct3 [selector=0x9aa67864, abi_params=[], abi_retur
     jump bb6
   bb4:
     v33 = storage_array_data_slot 1
-    v34 = shr 5, 0
+    v34 = shr 0, 5
     v35 = add v33, v34
     jump bb6
   bb6:
@@ -1140,9 +1142,9 @@ fn @writeShortString() -> struct3 [selector=0x9aa67864, abi_params=[], abi_retur
     v38 = sub 31, v37
     v39 = sload v36 !metadata(storage=symbolic(v36))
     v40 = mul v38, 8
-    v41 = shr v40, v39
-    v42 = shl 248, v41
-    v43 = shr 248, v42
+    v41 = shr v39, v40
+    v42 = shl v41, 248
+    v43 = shr v42, 248
     v44 = trunc i256 v43 to i8
     v45 = sload 1 !metadata(storage=slot(1))
     validate_storage_bytes v45
@@ -1150,7 +1152,7 @@ fn @writeShortString() -> struct3 [selector=0x9aa67864, abi_params=[], abi_retur
     v47 = eq v46, 1
     v48 = sub 0, v46
     v49 = or 127, v48
-    v50 = shr 1, v45
+    v50 = shr v45, 1
     v51 = and v50, v49
     v52 = lt 4, v51
     v53 = eq v52, false
@@ -1160,7 +1162,7 @@ fn @writeShortString() -> struct3 [selector=0x9aa67864, abi_params=[], abi_retur
     jump bb9
   bb7:
     v54 = storage_array_data_slot 1
-    v55 = shr 5, 4
+    v55 = shr 4, 5
     v56 = add v54, v55
     jump bb9
   bb9:
@@ -1169,9 +1171,9 @@ fn @writeShortString() -> struct3 [selector=0x9aa67864, abi_params=[], abi_retur
     v59 = sub 31, v58
     v60 = sload v57 !metadata(storage=symbolic(v57))
     v61 = mul v59, 8
-    v62 = shr v61, v60
-    v63 = shl 248, v62
-    v64 = shr 248, v63
+    v62 = shr v60, v61
+    v63 = shl v62, 248
+    v64 = shr v63, 248
     v65 = trunc i256 v64 to i8
     v66 = sload 1 !metadata(storage=slot(1))
     validate_storage_bytes v66
@@ -1179,7 +1181,7 @@ fn @writeShortString() -> struct3 [selector=0x9aa67864, abi_params=[], abi_retur
     v68 = eq v67, 1
     v69 = sub 0, v67
     v70 = or 127, v69
-    v71 = shr 1, v66
+    v71 = shr v66, 1
     v72 = and v71, v70
     v73 = insert_value struct3, undef struct3, 0, v44
     v74 = insert_value struct3, v73, 1, v65
@@ -1187,7 +1189,7 @@ fn @writeShortString() -> struct3 [selector=0x9aa67864, abi_params=[], abi_retur
     ret v75
 }
 
-fn @writeLongString() -> struct3 [selector=0x233b60b4, abi_params=[], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {
+fn @writeLongString() -> struct3 [selector=0x233b60b4, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint256]] {
   bb0:
     store_storage_bytes_literal 1, hex"6162636465666768696a6b6c6d6e6f707172737475767778797a30313233343536"
     v0 = sload 1 !metadata(storage=slot(1))
@@ -1196,7 +1198,7 @@ fn @writeLongString() -> struct3 [selector=0x233b60b4, abi_params=[], abi_return
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = eq v7, false
@@ -1206,7 +1208,7 @@ fn @writeLongString() -> struct3 [selector=0x233b60b4, abi_params=[], abi_return
     jump bb3
   bb1:
     v9 = storage_array_data_slot 1
-    v10 = shr 5, 0
+    v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -1214,13 +1216,13 @@ fn @writeLongString() -> struct3 [selector=0x233b60b4, abi_params=[], abi_return
     v13 = and 0, 31
     v14 = sub 31, v13
     v15 = mul v14, 8
-    v16 = shl v15, 255
+    v16 = shl 255, v15
     v17 = sload v12 !metadata(storage=symbolic(v12))
     v18 = not v16
     v19 = and v17, v18
-    v20 = shr 248, 0x5a00000000000000000000000000000000000000000000000000000000000000
+    v20 = shr 0x5a00000000000000000000000000000000000000000000000000000000000000, 248
     v21 = and v20, 255
-    v22 = shl v15, v21
+    v22 = shl v21, v15
     v23 = or v19, v22
     sstore v12, v23 !metadata(storage=symbolic(v12))
     v24 = sload 1 !metadata(storage=slot(1))
@@ -1229,7 +1231,7 @@ fn @writeLongString() -> struct3 [selector=0x233b60b4, abi_params=[], abi_return
     v26 = eq v25, 1
     v27 = sub 0, v25
     v28 = or 127, v27
-    v29 = shr 1, v24
+    v29 = shr v24, 1
     v30 = and v29, v28
     v31 = lt 0, v30
     v32 = eq v31, false
@@ -1239,7 +1241,7 @@ fn @writeLongString() -> struct3 [selector=0x233b60b4, abi_params=[], abi_return
     jump bb6
   bb4:
     v33 = storage_array_data_slot 1
-    v34 = shr 5, 0
+    v34 = shr 0, 5
     v35 = add v33, v34
     jump bb6
   bb6:
@@ -1248,9 +1250,9 @@ fn @writeLongString() -> struct3 [selector=0x233b60b4, abi_params=[], abi_return
     v38 = sub 31, v37
     v39 = sload v36 !metadata(storage=symbolic(v36))
     v40 = mul v38, 8
-    v41 = shr v40, v39
-    v42 = shl 248, v41
-    v43 = shr 248, v42
+    v41 = shr v39, v40
+    v42 = shl v41, 248
+    v43 = shr v42, 248
     v44 = trunc i256 v43 to i8
     v45 = sload 1 !metadata(storage=slot(1))
     validate_storage_bytes v45
@@ -1258,7 +1260,7 @@ fn @writeLongString() -> struct3 [selector=0x233b60b4, abi_params=[], abi_return
     v47 = eq v46, 1
     v48 = sub 0, v46
     v49 = or 127, v48
-    v50 = shr 1, v45
+    v50 = shr v45, 1
     v51 = and v50, v49
     v52 = lt 32, v51
     v53 = eq v52, false
@@ -1268,7 +1270,7 @@ fn @writeLongString() -> struct3 [selector=0x233b60b4, abi_params=[], abi_return
     jump bb9
   bb7:
     v54 = storage_array_data_slot 1
-    v55 = shr 5, 32
+    v55 = shr 32, 5
     v56 = add v54, v55
     jump bb9
   bb9:
@@ -1277,9 +1279,9 @@ fn @writeLongString() -> struct3 [selector=0x233b60b4, abi_params=[], abi_return
     v59 = sub 31, v58
     v60 = sload v57 !metadata(storage=symbolic(v57))
     v61 = mul v59, 8
-    v62 = shr v61, v60
-    v63 = shl 248, v62
-    v64 = shr 248, v63
+    v62 = shr v60, v61
+    v63 = shl v62, 248
+    v64 = shr v63, 248
     v65 = trunc i256 v64 to i8
     v66 = sload 1 !metadata(storage=slot(1))
     validate_storage_bytes v66
@@ -1287,7 +1289,7 @@ fn @writeLongString() -> struct3 [selector=0x233b60b4, abi_params=[], abi_return
     v68 = eq v67, 1
     v69 = sub 0, v67
     v70 = or 127, v69
-    v71 = shr 1, v66
+    v71 = shr v66, 1
     v72 = and v71, v70
     v73 = insert_value struct3, undef struct3, 0, v44
     v74 = insert_value struct3, v73, 1, v65
@@ -1295,7 +1297,7 @@ fn @writeLongString() -> struct3 [selector=0x233b60b4, abi_params=[], abi_return
     ret v75
 }
 
-fn @readOob(arg0: i256) -> i8 [selector=0x4043349b, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @readOob(arg0: i256) -> i8 [selector=0x4043349b, abi_params=[uint256], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     icall @_fill, arg0
     v0 = sload 0 !metadata(storage=slot(0))
@@ -1304,7 +1306,7 @@ fn @readOob(arg0: i256) -> i8 [selector=0x4043349b, abi_params=[u256], abi_retur
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt arg0, v6
     v8 = eq v7, false
@@ -1314,7 +1316,7 @@ fn @readOob(arg0: i256) -> i8 [selector=0x4043349b, abi_params=[u256], abi_retur
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = shr 5, arg0
+    v10 = shr arg0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -1323,14 +1325,14 @@ fn @readOob(arg0: i256) -> i8 [selector=0x4043349b, abi_params=[u256], abi_retur
     v14 = sub 31, v13
     v15 = sload v12 !metadata(storage=symbolic(v12))
     v16 = mul v14, 8
-    v17 = shr v16, v15
-    v18 = shl 248, v17
-    v19 = shr 248, v18
+    v17 = shr v15, v16
+    v18 = shl v17, 248
+    v19 = shr v18, 248
     v20 = trunc i256 v19 to i8
     ret v20
 }
 
-fn @writeOob(arg0: i256) [selector=0x4621e8f8, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @writeOob(arg0: i256) [selector=0x4621e8f8, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall @_fill, arg0
     v0 = sload 0 !metadata(storage=slot(0))
@@ -1339,7 +1341,7 @@ fn @writeOob(arg0: i256) [selector=0x4621e8f8, abi_params=[u256], abi_returns=[]
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt arg0, v6
     v8 = eq v7, false
@@ -1349,7 +1351,7 @@ fn @writeOob(arg0: i256) [selector=0x4621e8f8, abi_params=[u256], abi_returns=[]
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = shr 5, arg0
+    v10 = shr arg0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -1357,19 +1359,19 @@ fn @writeOob(arg0: i256) [selector=0x4621e8f8, abi_params=[u256], abi_returns=[]
     v13 = and arg0, 31
     v14 = sub 31, v13
     v15 = mul v14, 8
-    v16 = shl v15, 255
+    v16 = shl 255, v15
     v17 = sload v12 !metadata(storage=symbolic(v12))
     v18 = not v16
     v19 = and v17, v18
-    v20 = shr 248, 0x100000000000000000000000000000000000000000000000000000000000000
+    v20 = shr 0x100000000000000000000000000000000000000000000000000000000000000, 248
     v21 = and v20, 255
-    v22 = shl v15, v21
+    v22 = shl v21, v15
     v23 = or v19, v22
     sstore v12, v23 !metadata(storage=symbolic(v12))
     ret
 }
 
-fn @deleteOob(arg0: i256) [selector=0xfb2fda33, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @deleteOob(arg0: i256) [selector=0xfb2fda33, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall @_fill, arg0
     v0 = sload 0 !metadata(storage=slot(0))
@@ -1378,7 +1380,7 @@ fn @deleteOob(arg0: i256) [selector=0xfb2fda33, abi_params=[u256], abi_returns=[
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt arg0, v6
     v8 = eq v7, false
@@ -1388,7 +1390,7 @@ fn @deleteOob(arg0: i256) [selector=0xfb2fda33, abi_params=[u256], abi_returns=[
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = shr 5, arg0
+    v10 = shr arg0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -1396,19 +1398,19 @@ fn @deleteOob(arg0: i256) [selector=0xfb2fda33, abi_params=[u256], abi_returns=[
     v13 = and arg0, 31
     v14 = sub 31, v13
     v15 = mul v14, 8
-    v16 = shl v15, 255
+    v16 = shl 255, v15
     v17 = sload v12 !metadata(storage=symbolic(v12))
     v18 = not v16
     v19 = and v17, v18
-    v20 = shr 248, 0
+    v20 = shr 0, 248
     v21 = and v20, 255
-    v22 = shl v15, v21
+    v22 = shl v21, v15
     v23 = or v19, v22
     sstore v12, v23 !metadata(storage=symbolic(v12))
     ret
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

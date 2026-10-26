@@ -6,7 +6,7 @@
 //! requires dependence and profitability proofs; a memory read may expand EVM memory.
 
 use super::{EffectKind, InstKind};
-use crate::mir::{Builtin, Callee};
+use crate::mir::{AddressCallKind, Builtin, Callee, PtrLocation};
 
 /// Control behavior that must survive even when an operation's result is unused.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -46,8 +46,8 @@ pub(crate) struct InstructionEffects {
 
 impl InstructionEffects {
     /// Whether removing an unused operation could remove required behavior.
-    pub(crate) const fn must_execute(self, observes_msize: bool) -> bool {
-        self.observable || self.control.any() || (observes_msize && self.expands_memory)
+    pub(crate) const fn must_execute(self) -> bool {
+        self.observable || self.control.any()
     }
 
     /// Whether equal operands and unchanged read/write dependencies allow sharing a result.
@@ -86,6 +86,34 @@ impl InstKind {
         )
     }
 
+    /// Whether this operation reads account state, a balance or deployed code, which
+    /// [`may_change_account_state`](Self::may_change_account_state) operations can change.
+    pub(crate) const fn reads_account_state(&self) -> bool {
+        matches!(
+            self,
+            Self::ExtCodeSize(_) | Self::ExtCodeHash(_) | Self::Balance(_) | Self::SelfBalance
+        )
+    }
+
+    /// Whether this operation can move value or deploy or destroy code. Static calls cannot:
+    /// the static context forbids value transfers, `CREATE`, and `SELFDESTRUCT`.
+    pub(crate) const fn may_change_account_state(&self) -> bool {
+        matches!(
+            self.effect_kind(),
+            EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
+        ) && !matches!(
+            self,
+            Self::StaticCall { .. }
+                | Self::AddressCall { kind: AddressCallKind::Static, .. }
+                | Self::ICall {
+                    function: Callee::Builtin(
+                        Builtin::Sha256 | Builtin::Ripemd160 | Builtin::EcRecover
+                    ),
+                    ..
+                }
+        )
+    }
+
     /// Returns context-free effects; use alias and call summaries for resource footprints.
     pub(crate) const fn effects(&self) -> InstructionEffects {
         let control = match self {
@@ -110,14 +138,13 @@ impl InstKind {
             } => ControlEffects { may_revert: true, ..ControlEffects::NONE },
             Self::ICall { function: Callee::Function(_), .. } => ControlEffects::UNKNOWN,
             Self::Alloc { semantics, .. } => ControlEffects {
-                may_revert: matches!(semantics.failure, super::AllocationFailure::Panic),
+                may_revert: matches!(semantics.failure, super::AllocationFailure::Checked),
                 ..ControlEffects::NONE
             },
             Self::ICall {
                 function:
                     Callee::Builtin(
                         Builtin::Erc7201
-                        | Builtin::Concat(_)
                         | Builtin::Sha256
                         | Builtin::Ripemd160
                         | Builtin::EcRecover,
@@ -128,7 +155,9 @@ impl InstKind {
                 ControlEffects { may_revert: true, ..ControlEffects::NONE }
             }
             Self::AbiDecode { .. } => ControlEffects { may_revert: true, ..ControlEffects::NONE },
-            Self::ReturnDataCopy(..) => ControlEffects { may_revert: true, ..ControlEffects::NONE },
+            Self::Copy(.., PtrLocation::Returndata) => {
+                ControlEffects { may_revert: true, ..ControlEffects::NONE }
+            }
             Self::InsertValue { .. }
             | Self::ExtractValue { .. }
             | Self::Zext(..)
@@ -136,6 +165,7 @@ impl InstKind {
             | Self::Sext(..)
             | Self::PtrToInt(..)
             | Self::IntToPtr(..)
+            | Self::PtrAdd(..)
             | Self::Add(..)
             | Self::Sub(..)
             | Self::Mul(..)
@@ -161,44 +191,16 @@ impl InstKind {
             | Self::SGt(..)
             | Self::Eq(..)
             | Self::Ne(..)
-            | Self::MLoad(..)
-            | Self::MStore(..)
-            | Self::MStore8(..)
+            | Self::Load(..)
+            | Self::Store(..)
+            | Self::Store8(..)
             | Self::MemoryZero(..)
             | Self::MSize
             | Self::Fmp
             | Self::SetFmp(..)
-            | Self::MemoryObjectLen(..)
-            | Self::SetMemoryObjectLen(..)
-            | Self::MemoryObjectData(..)
-            | Self::MemoryObjectFieldAddr { .. }
-            | Self::MemoryObjectElementAddr { .. }
-            | Self::MemoryObjectLoadField { .. }
-            | Self::MemoryObjectStoreField { .. }
-            | Self::MemoryObjectLoadElement { .. }
-            | Self::MemoryObjectLoadByte { .. }
-            | Self::MemoryObjectStoreElement { .. }
-            | Self::MemoryObjectStoreByte { .. }
-            | Self::MemoryObjectStoreWord { .. }
-            | Self::MemorySliceLoadWord { .. }
-            | Self::CalldataSliceLoadWord { .. }
-            | Self::MemoryObjectCopyFromSlice { .. }
-            | Self::MemoryObjectCopyFromSliceAt { .. }
-            | Self::MemoryObjectCopy { .. }
-            | Self::StorageToMemory { .. }
-            | Self::MemoryToStorage { .. }
-            | Self::ClearStorage { .. }
-            | Self::MCopy(..)
-            | Self::SLoad(..)
-            | Self::SStore(..)
-            | Self::TLoad(..)
-            | Self::TStore(..)
-            | Self::CalldataLoad(..)
-            | Self::CalldataCopy(..)
+            | Self::Copy(..)
             | Self::CalldataSize
             | Self::MakeSlice { .. }
-            | Self::SlicePtr(..)
-            | Self::SliceLen(..)
             | Self::InternalFrameAddr(..)
             | Self::FrameLoad { .. }
             | Self::FrameStore { .. }
@@ -236,10 +238,8 @@ impl InstKind {
             | Self::BlobBaseFee
             | Self::BlobHash(..)
             | Self::Keccak256(..)
-            | Self::Keccak256Bytes(..)
             | Self::MappingSlot(..)
-            | Self::MappingSlotMemory(..)
-            | Self::MappingSlotCalldata(..)
+            | Self::MappingSlotBytes(..)
             | Self::StorageArrayDataSlot(..)
             | Self::StorageClearWords(..)
             | Self::StorageArrayElementSlot { .. }
@@ -251,11 +251,7 @@ impl InstKind {
             | Self::DelegateCall { .. }
             | Self::Create(..)
             | Self::Create2(..)
-            | Self::Log0(..)
-            | Self::Log1(..)
-            | Self::Log2(..)
-            | Self::Log3(..)
-            | Self::Log4(..)
+            | Self::Log { .. }
             | Self::Phi(..)
             | Self::Select(..)
             | Self::SignExtend(..) => ControlEffects::NONE,
@@ -274,20 +270,19 @@ impl InstKind {
                     | EffectKind::Create
                     | EffectKind::Log
             ),
-            expands_memory: (matches!(
+            expands_memory: matches!(
                 kind,
                 EffectKind::MemoryRead
                     | EffectKind::MemoryWrite
                     | EffectKind::ExternalCall
                     | EffectKind::Create
                     | EffectKind::Log
-            ) && !matches!(self, Self::MSize))
-                || matches!(
-                    self,
-                    Self::StorageBytesStore(..)
-                        | Self::StorageBytesStoreLiteral { .. }
-                        | Self::StorageClearWords(..)
-                ),
+            ) || matches!(
+                self,
+                Self::StorageBytesStore(..)
+                    | Self::StorageBytesStoreLiteral { .. }
+                    | Self::StorageClearWords(..)
+            ),
             observes_execution: self.observes_gas() || matches!(self, Self::MSize),
             idempotent_write: matches!(
                 self,
@@ -300,13 +295,9 @@ impl InstKind {
                 Self::Alloc { .. }
                     | Self::AbiEncode { .. }
                     | Self::AbiEncodePacked { .. }
-                    | Self::StorageToMemory { .. }
                     | Self::StorageBytesLoad(..)
                     | Self::StorageArrayLoad { .. }
-                    | Self::ICall {
-                        function: Callee::Builtin(Builtin::Concat(_) | Builtin::ReturndataBytes),
-                        ..
-                    }
+                    | Self::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. }
             ),
         }
     }

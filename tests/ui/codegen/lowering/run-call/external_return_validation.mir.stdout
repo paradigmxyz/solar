@@ -2,15 +2,15 @@
 @module ExternalReturnValidation
 @types
   struct0: {i8, i1, i128}
-  struct1: {memptr, memptr}
+  struct1: {ptr<memory>, ptr<memory>}
 
-fn @validatedTuple(arg0: i256, arg1: i256) -> struct0 [selector=0x7b478388, view, abi_params=[u256, u256], abi_returns=[word<u8>, word<bool>, word<u128>], abi_return_params=[u8, bool, u128]] {
+fn @validatedTuple(arg0: i256, arg1: i256) -> struct0 [selector=0x7b478388, view, abi_params=[uint256, uint256], abi_returns=[word<uint8>, word<bool>, word<uint128>], abi_return_params=[uint8, bool, uint128]] {
   bb0:
     v0 = address
     v1 = gas
     v2 = abi_encode [word, word], selector 0xe1ee60dd00000000000000000000000000000000000000000000000000000000, args arg0, arg1
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, v3, 96
     jumpi v6, bb2, bb1
@@ -20,39 +20,42 @@ fn @validatedTuple(arg0: i256, arg1: i256) -> struct0 [selector=0x7b478388, view
     v7 = returndatasize
     v8 = lt v7, 96
     icall revert_if<tuple_data_too_short>, v8
-    v9 = add v3, 0
-    v10 = mload v9
-    v11 = shr 8, v10
-    v12 = eq v11, 0
-    v13 = eq v12, false
-    icall revert_if<empty>, v13
-    v14 = add v3, 32
-    v15 = mload v14
-    v16 = lt v15, 2
-    v17 = eq v16, false
-    icall revert_if<empty>, v17
-    v18 = add v3, 64
-    v19 = mload v18
-    v20 = shr 128, v19
-    v21 = eq v20, 0
-    v22 = eq v21, false
-    icall revert_if<empty>, v22
-    v23 = trunc i256 v10 to i8
-    v24 = ne v15, 0
-    v25 = trunc i256 v19 to i128
-    v26 = insert_value struct0, undef struct0, 0, v23
-    v27 = insert_value struct0, v26, 1, v24
-    v28 = insert_value struct0, v27, 2, v25
-    v29 = extract_value struct0, v28, 0
-    v30 = extract_value struct0, v28, 1
-    v31 = extract_value struct0, v28, 2
-    v32 = insert_value struct0, undef struct0, 0, v29
-    v33 = insert_value struct0, v32, 1, v30
-    v34 = insert_value struct0, v33, 2, v31
-    ret v34
+    v9 = ptrtoint ptr<memory> v3 to i256
+    v10 = add v9, 0
+    v11 = mload v10
+    v12 = shr v11, 8
+    v13 = eq v12, 0
+    v14 = eq v13, false
+    icall revert_if<empty>, v14
+    v15 = ptrtoint ptr<memory> v3 to i256
+    v16 = add v15, 32
+    v17 = mload v16
+    v18 = lt v17, 2
+    v19 = eq v18, false
+    icall revert_if<empty>, v19
+    v20 = ptrtoint ptr<memory> v3 to i256
+    v21 = add v20, 64
+    v22 = mload v21
+    v23 = shr v22, 128
+    v24 = eq v23, 0
+    v25 = eq v24, false
+    icall revert_if<empty>, v25
+    v26 = trunc i256 v11 to i8
+    v27 = ne v17, 0
+    v28 = trunc i256 v22 to i128
+    v29 = insert_value struct0, undef struct0, 0, v26
+    v30 = insert_value struct0, v29, 1, v27
+    v31 = insert_value struct0, v30, 2, v28
+    v32 = extract_value struct0, v31, 0
+    v33 = extract_value struct0, v31, 1
+    v34 = extract_value struct0, v31, 2
+    v35 = insert_value struct0, undef struct0, 0, v32
+    v36 = insert_value struct0, v35, 1, v33
+    v37 = insert_value struct0, v36, 2, v34
+    ret v37
 }
 
-fn @tupleTarget(arg0: i256, arg1: i256) [selector=0xe1ee60dd, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word<u8>, word<bool>, word<u128>], abi_return_params=[u8, bool, u128]] {
+fn @tupleTarget(arg0: i256, arg1: i256) [selector=0xe1ee60dd, inline_assembly, pure, abi_params=[uint256, uint256], abi_returns=[word<uint8>, word<bool>, word<uint128>], abi_return_params=[uint8, bool, uint128]] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, arg1 !metadata(memory=scratch)
@@ -60,65 +63,61 @@ fn @tupleTarget(arg0: i256, arg1: i256) [selector=0xe1ee60dd, inline_assembly, p
     returndata 0, 96
 }
 
-fn @short() -> i256 [selector=0x38bea4cb, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @short() -> i256 [selector=0x38bea4cb, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0xeee93c0200000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
-    v5 = zext i160 v0 to i256
-    v6 = staticcall v1, v5, v3, v4, 0, 32
-    jumpi v6, bb2, bb1
+    mstore 0, 0xeee93c02 !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = staticcall v1, v2, 28, 4, 0, 32
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    ret v10
+    v4 = returndatasize
+    v5 = lt v4, 32
+    icall revert_if<tuple_data_too_short>, v5
+    v6 = add 0, 0
+    v7 = mload v6
+    ret v7
 }
 
-fn @shortTarget() [selector=0xeee93c02, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @shortTarget() [selector=0xeee93c02, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     returndata 0, 0
 }
 
-fn @dirty() -> i8 [selector=0x7dce0fd0, view, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @dirty() -> i8 [selector=0x7dce0fd0, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0xacf697c300000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
-    v5 = zext i160 v0 to i256
-    v6 = staticcall v1, v5, v3, v4, 0, 32
-    jumpi v6, bb2, bb1
+    mstore 0, 0xacf697c3 !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = staticcall v1, v2, 28, 4, 0, 32
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    v11 = shr 8, v10
-    v12 = eq v11, 0
-    v13 = eq v12, false
-    icall revert_if<empty>, v13
-    v14 = trunc i256 v10 to i8
-    ret v14
+    v4 = returndatasize
+    v5 = lt v4, 32
+    icall revert_if<tuple_data_too_short>, v5
+    v6 = add 0, 0
+    v7 = mload v6
+    v8 = shr v7, 8
+    v9 = eq v8, 0
+    v10 = eq v9, false
+    icall revert_if<empty>, v10
+    v11 = trunc i256 v7 to i8
+    ret v11
 }
 
-fn @dirtyTarget() [selector=0xacf697c3, inline_assembly, pure, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @dirtyTarget() [selector=0xacf697c3, inline_assembly, pure, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     mstore 0, 256 !metadata(memory=scratch)
     returndata 0, 32
 }
 
-fn @dirtyValue() -> i256 [selector=0x79df5ae3, inline_assembly, pure, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @dirtyValue() -> i256 [selector=0x79df5ae3, inline_assembly, pure, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     ret 256
 }
@@ -128,65 +127,64 @@ fn @dirtyBool() -> i256 [selector=0xf17a2b8e, inline_assembly, pure, abi_params=
     ret 2
 }
 
-fn @dirtyStruct() -> memptr [selector=0xe1193b83, inline_assembly, pure, abi_params=[], abi_returns=[tuple<word<u8>, word<bool>>], abi_return_params=[tuple<u8, bool>]] {
+fn @dirtyStruct() -> ptr<memory> [selector=0xe1193b83, inline_assembly, pure, abi_params=[], abi_returns=[tuple<word<uint8>, word<bool>>], abi_return_params=[tuple<uint8, bool>]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<2>, v0, 0, 0
-    memory_object_store_field memorystruct<2>, v0, 1, 0
-    v1 = ptrtoint memptr v0 to i256
-    mstore v1, 256
-    v2 = ptrtoint memptr v0 to i256
-    v3 = add v2, 32
-    mstore v3, 2
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = ptradd v0, 32
+    mstore v1, 0
+    v2 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, 256
+    v3 = ptrtoint ptr<memory> v0 to i256
+    v4 = add v3, 32
+    mstore v4, 2
     ret v0
 }
 
-fn @dirtyUnusedStructField() -> i8 [selector=0xc1226a60, view, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @dirtyUnusedStructField() -> i8 [selector=0xc1226a60, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x38a62c0100000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
-    v5 = alloc raw, exact, uninitialized, infallible, 64
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
+    v5 = alloc 64
     v6 = zext i160 v0 to i256
-    v7 = ptrtoint memptr v5 to i256
-    v8 = staticcall v1, v6, v3, v4, v7, 64
-    jumpi v8, bb2, bb1
+    v7 = staticcall v1, v6, v3, v4, v5, 64
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = returndatasize
-    v10 = lt v9, 64
-    icall revert_if<tuple_data_too_short>, v10
-    v11 = ptrtoint memptr v5 to i256
-    v12 = make_memory_slice v11, 64
-    v13 = abi_decode [tuple<u8, bool>], v12
-    v14 = memory_object_load_field memorystruct<2>, v13, 0
-    v15 = trunc i256 v14 to i8
-    ret v15
+    v8 = returndatasize
+    v9 = lt v8, 64
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = make_memory_slice v5, 64
+    v11 = abi_decode [tuple<uint8, bool>], v10
+    v12 = mload v11
+    v13 = trunc i256 v12 to i8
+    ret v13
 }
 
-fn @dirtyUnusedStructFieldTarget() [selector=0x38a62c01, inline_assembly, pure, abi_params=[], abi_returns=[tuple<word<u8>, word<bool>>], abi_return_params=[tuple<u8, bool>]] {
+fn @dirtyUnusedStructFieldTarget() [selector=0x38a62c01, inline_assembly, pure, abi_params=[], abi_returns=[tuple<word<uint8>, word<bool>>], abi_return_params=[tuple<uint8, bool>]] {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
     mstore 32, 2 !metadata(memory=scratch)
     returndata 0, 64
 }
 
-fn @dirtyStructBranch(arg0: i1) -> memptr [selector=0x6dd0f9bf, pure, abi_params=[bool], abi_returns=[tuple<word<u8>>], abi_return_params=[tuple<u8>]] {
+fn @dirtyStructBranch(arg0: i1) -> ptr<memory> [selector=0x6dd0f9bf, pure, abi_params=[bool], abi_returns=[tuple<word<uint8>>], abi_return_params=[tuple<uint8>]] {
   bb0:
     v0 = icall @dirtyValueInternal
-    v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<1>, v1, 0, 0
+    v1 = alloc 32 !metadata(preserves_fmp)
+    mstore v1, 0
     v2 = trunc i256 v0 to i8
     v3 = zext i8 v2 to i256
-    memory_object_store_field memorystruct<1>, v1, 0, v3
+    mstore v1, v3
     jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    memory_object_store_field memorystruct<1>, v1, 0, 1
+    mstore v1, 1
     jump bb3
   bb3:
     ret v1
@@ -197,7 +195,7 @@ fn @dirtyValueInternal() -> i256 [inline_assembly, pure] {
     ret 256
 }
 
-fn @dirtyInternalWiden() -> i256 [selector=0xcdec1938, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirtyInternalWiden() -> i256 [selector=0xcdec1938, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @dirtyValueInternal
     v1 = trunc i256 v0 to i8
@@ -205,35 +203,37 @@ fn @dirtyInternalWiden() -> i256 [selector=0xcdec1938, pure, abi_params=[], abi_
     ret v2
 }
 
-fn @dirtyInternalAggregate() -> memptr [selector=0x4697f467, pure, abi_params=[], abi_returns=[tuple<word<u8>, word<bool>>], abi_return_params=[tuple<u8, bool>]] {
+fn @dirtyInternalAggregate() -> ptr<memory> [selector=0x4697f467, pure, abi_params=[], abi_returns=[tuple<word<uint8>, word<bool>>], abi_return_params=[tuple<uint8, bool>]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<2>, v0, 0, 0
-    memory_object_store_field memorystruct<2>, v0, 1, 0
-    v1 = icall @dirtyAggregate
-    ret v1
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = ptradd v0, 32
+    mstore v1, 0
+    v2 = icall @dirtyAggregate
+    ret v2
 }
 
-fn @dirtyAggregate() -> memptr [inline_assembly, pure] {
+fn @dirtyAggregate() -> ptr<memory> [inline_assembly, pure] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<2>, v0, 0, 0
-    memory_object_store_field memorystruct<2>, v0, 1, 0
-    v1 = ptrtoint memptr v0 to i256
-    mstore v1, 257
-    v2 = ptrtoint memptr v0 to i256
-    v3 = add v2, 32
-    mstore v3, 2
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = ptradd v0, 32
+    mstore v1, 0
+    v2 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, 257
+    v3 = ptrtoint ptr<memory> v0 to i256
+    v4 = add v3, 32
+    mstore v4, 2
     ret v0
 }
 
-fn @distinctDynamicReturns() -> i256 [selector=0x56c7de2c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @distinctDynamicReturns() -> i256 [selector=0x56c7de2c, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x6d4ce63c00000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, v3, v4, 0, 0
     jumpi v6, bb2, bb1
@@ -241,26 +241,28 @@ fn @distinctDynamicReturns() -> i256 [selector=0x56c7de2c, abi_params=[], abi_re
     revert_returndata
   bb2:
     v7 = icall returndata_bytes<>
-    v8 = abi_decode [tuple<array<_, u256>>, tuple<array<_, u256>>], v7
+    v8 = abi_decode [tuple<array<_, uint256>>, tuple<array<_, uint256>>], v7
     v9 = extract_value struct1, v8, 0
     v10 = extract_value struct1, v8, 1
     v11 = insert_value struct1, undef struct1, 0, v9
     v12 = insert_value struct1, v11, 1, v10
     v13 = extract_value struct1, v12, 0
     v14 = extract_value struct1, v12, 1
-    v15 = memory_object_load_field memorystruct<1>, v13, 0, memptr
-    v16 = memory_object_len memoryarray, v15
+    v15 = mload v13, ptr<memory>
+    v16 = mload v15
     v17 = lt 0, v16
     v18 = eq v17, false
     icall panic_if<0x32>, v18
-    memory_object_store_element memoryarray<1>, v15, 0, 9
-    v19 = memory_object_load_field memorystruct<1>, v14, 0, memptr
-    v20 = memory_object_len memoryarray, v19
-    v21 = lt 0, v20
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = memory_object_load_element memoryarray<1>, v19, 0
-    ret v23
+    v19 = ptradd v15, 32
+    mstore v19, 9
+    v20 = mload v14, ptr<memory>
+    v21 = mload v20
+    v22 = lt 0, v21
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = ptradd v20, 32
+    v25 = mload v24
+    ret v25
 }
 
 fn @fallback() [inline_assembly, fallback] {
@@ -274,14 +276,14 @@ fn @fallback() [inline_assembly, fallback] {
     returndata 0, 192
 }
 
-fn @dirtyArray() -> memptr [selector=0xab113bc3, inline_assembly, pure, abi_params=[], abi_returns=[memory_array<word<bool>>], abi_return_params=[array<_, bool>]] {
+fn @dirtyArray() -> ptr<memory> [selector=0xab113bc3, inline_assembly, pure, abi_params=[], abi_returns=[memory_array<word<bool>>], abi_return_params=[array<_, bool>]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    set_memory_object_len memoryarray, v0, 2
-    v1 = ptrtoint memptr v0 to i256
+    v0 = alloc zeroed checked 96
+    mstore v0, 2
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     mstore v2, 2
-    v3 = ptrtoint memptr v0 to i256
+    v3 = ptrtoint ptr<memory> v0 to i256
     v4 = add v3, 64
     mstore v4, 256
     ret v0
@@ -289,62 +291,62 @@ fn @dirtyArray() -> memptr [selector=0xab113bc3, inline_assembly, pure, abi_para
 
 fn @dirtyMemoryFixedArray() -> i1 [selector=0x627cd2cc, inline_assembly, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
-    memory_zero v1, 32
-    v2 = ptrtoint memptr v0 to i256
-    mstore v2, 257
-    v3 = lt 0, 1
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    v5 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
-    v6 = trunc i256 v5 to i8
-    v7 = zext i8 v6 to i256
-    v8 = eq v6, i8 1
-    jumpi v8, bb1, bb2
+    v0 = alloc 32 !metadata(preserves_fmp)
+    memory_zero v0, 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, 257
+    v2 = lt 0, 1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = mload v0
+    v5 = trunc i256 v4 to i8
+    v6 = zext i8 v5 to i256
+    v7 = eq v5, i8 1
+    jumpi v7, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v9 = eq v7, 1
+    v8 = eq v6, 1
     jump bb3
   bb3:
-    v10 = phi [bb1: v9], [bb2: false]
-    ret v10
+    v9 = phi [bb1: v8], [bb2: false]
+    ret v9
 }
 
 fn @dirtyMemoryDynamicArray() -> i1 [selector=0x85ecd2fd, inline_assembly, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v0, 1
-    v1 = ptrtoint memptr v0 to i256
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     mstore v2, 258
-    v3 = memory_object_len memoryarray, v0
+    v3 = mload v0
     v4 = lt 0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = memory_object_load_element memoryarray<1>, v0, 0
-    v7 = trunc i256 v6 to i8
-    v8 = zext i8 v7 to i256
-    v9 = eq v7, i8 2
-    jumpi v9, bb1, bb2
+    v6 = ptradd v0, 32
+    v7 = mload v6
+    v8 = trunc i256 v7 to i8
+    v9 = zext i8 v8 to i256
+    v10 = eq v8, i8 2
+    jumpi v10, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v10 = eq v8, 2
+    v11 = eq v9, 2
     jump bb3
   bb3:
-    v11 = phi [bb1: v10], [bb2: false]
-    ret v11
+    v12 = phi [bb1: v11], [bb2: false]
+    ret v12
 }
 
 fn @dirtyMemoryStruct() -> i1 [selector=0x5c3a703b, inline_assembly, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<1>, v0, 0, 0
-    v1 = ptrtoint memptr v0 to i256
-    mstore v1, 257
-    v2 = memory_object_load_field memorystruct<1>, v0, 0
+    v0 = alloc 32 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, 257
+    v2 = mload v0
     v3 = trunc i256 v2 to i8
     v4 = zext i8 v3 to i256
     v5 = eq v3, i8 1
@@ -361,34 +363,33 @@ fn @dirtyMemoryStruct() -> i1 [selector=0x5c3a703b, inline_assembly, pure, abi_p
 
 fn @dirtyMemoryLvalue() -> i1 [selector=0x91f3b994, inline_assembly, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
-    memory_zero v1, 32
-    v2 = ptrtoint memptr v0 to i256
-    mstore v2, 257
-    v3 = lt 0, 1
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    v5 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
-    v6 = trunc i256 v5 to i8
-    v7 = checked_add u8, v6, i8 1
-    v8 = zext i8 v7 to i256
-    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v8
-    v9 = lt 0, 1
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
-    v12 = trunc i256 v11 to i8
-    v13 = eq v12, i8 2
-    ret v13
+    v0 = alloc 32 !metadata(preserves_fmp)
+    memory_zero v0, 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, 257
+    v2 = lt 0, 1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = mload v0
+    v5 = trunc i256 v4 to i8
+    v6 = checked_add uint8, v5, i8 1
+    v7 = zext i8 v6 to i256
+    mstore v0, v7
+    v8 = lt 0, 1
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = mload v0
+    v11 = trunc i256 v10 to i8
+    v12 = eq v11, i8 2
+    ret v12
 }
 
-fn @dirtyEnum() -> i256 [selector=0x676092a0, inline_assembly, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
+fn @dirtyEnum() -> i256 [selector=0x676092a0, inline_assembly, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, uint8>]] {
   bb0:
     ret 2
 }
 
-fn @dirtyEnumStorage() -> i256 [selector=0x7f3d1a0c, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirtyEnumStorage() -> i256 [selector=0x7f3d1a0c, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt 2, 2
     v1 = eq v0, false
@@ -402,7 +403,7 @@ fn @dirtyEnumStorage() -> i256 [selector=0x7f3d1a0c, inline_assembly, abi_params
     ret 1
 }
 
-fn @dirtyEnumStorageRead() -> i256 [selector=0xb2fb782c, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirtyEnumStorageRead() -> i256 [selector=0xb2fb782c, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -414,46 +415,45 @@ fn @dirtyEnumStorageRead() -> i256 [selector=0xb2fb782c, inline_assembly, abi_pa
     ret v4
 }
 
-fn @dirtyEnumExternalArg() -> i256 [selector=0x0ca35a15, inline_assembly, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirtyEnumExternalArg() -> i256 [selector=0x0ca35a15, inline_assembly, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas
     v2 = lt 2, 2
     v3 = eq v2, false
     icall panic_if<0x21>, v3
-    v4 = abi_encode [word<enum 2>], selector 0x5688f44300000000000000000000000000000000000000000000000000000000, args 2
-    v5 = slice_ptr v4
-    v6 = slice_len v4
-    v7 = zext i160 v0 to i256
-    v8 = staticcall v1, v7, v5, v6, 0, 32
-    jumpi v8, bb2, bb1
+    mstore 0, 0x5688f443 !metadata(memory=scratch)
+    mstore 32, 2 !metadata(memory=scratch)
+    v4 = zext i160 v0 to i256
+    v5 = staticcall v1, v4, 28, 36, 0, 32
+    jumpi v5, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = returndatasize
-    v10 = lt v9, 32
-    icall revert_if<tuple_data_too_short>, v10
-    v11 = add 0, 0
-    v12 = mload v11
-    ret v12
+    v6 = returndatasize
+    v7 = lt v6, 32
+    icall revert_if<tuple_data_too_short>, v7
+    v8 = add 0, 0
+    v9 = mload v8
+    ret v9
 }
 
-fn @enumTarget(arg0: i256) -> i256 [selector=0x5688f443, pure, abi_params=[enum<2, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @enumTarget(arg0: i256) -> i256 [selector=0x5688f443, pure, abi_params=[enum<2, uint8>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }
 
-fn @dirtyEnumStructExternalArg() -> i256 [selector=0x06fd3c7e, inline_assembly, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirtyEnumStructExternalArg() -> i256 [selector=0x06fd3c7e, inline_assembly, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<1>, v0, 0, 0
-    v1 = ptrtoint memptr v0 to i256
-    mstore v1, 2
+    v0 = alloc 32 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, 2
     v2 = address
     v3 = gas
-    v4 = abi_encode [tuple<word<enum 2>>], selector 0x9e10d92f00000000000000000000000000000000000000000000000000000000, args v0
-    v5 = slice_ptr v4
-    v6 = slice_len v4
+    v4 = abi_encode [tuple<word<enum 2>>], scratch, selector 0x9e10d92f00000000000000000000000000000000000000000000000000000000, args v0
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v2 to i256
     v8 = staticcall v3, v7, v5, v6, 0, 32
     jumpi v8, bb2, bb1
@@ -468,23 +468,23 @@ fn @dirtyEnumStructExternalArg() -> i256 [selector=0x06fd3c7e, inline_assembly, 
     ret v12
 }
 
-fn @enumStructTarget(arg0: memptr) -> i256 [selector=0x9e10d92f, pure, abi_params=[tuple<enum<2, u8>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @enumStructTarget(arg0: ptr<memory>) -> i256 [selector=0x9e10d92f, pure, abi_params=[tuple<enum<2, uint8>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }
 
-fn @dirtyEnumArrayExternalArg() -> i256 [selector=0xa5e959d5, inline_assembly, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirtyEnumArrayExternalArg() -> i256 [selector=0xa5e959d5, inline_assembly, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v0, 1
-    v1 = ptrtoint memptr v0 to i256
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     mstore v2, 2
     v3 = address
     v4 = gas
     v5 = abi_encode [memory_array<word<enum 2>>], selector 0x8529de5100000000000000000000000000000000000000000000000000000000, args v0
-    v6 = slice_ptr v5
-    v7 = slice_len v5
+    v6 = extract_value slice<memory>, v5, 0
+    v7 = extract_value slice<memory>, v5, 1
     v8 = zext i160 v3 to i256
     v9 = staticcall v4, v8, v6, v7, 0, 32
     jumpi v9, bb2, bb1
@@ -499,106 +499,102 @@ fn @dirtyEnumArrayExternalArg() -> i256 [selector=0xa5e959d5, inline_assembly, v
     ret v13
 }
 
-fn @enumArrayTarget(arg0: memptr) -> i256 [selector=0x8529de51, pure, abi_params=[array<_, enum<2, u8>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @enumArrayTarget(arg0: ptr<memory>) -> i256 [selector=0x8529de51, pure, abi_params=[array<_, enum<2, uint8>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }
 
-fn @dirtyEnumPacked() -> memptr [selector=0x1193687a, inline_assembly, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @dirtyEnumPacked() -> ptr<memory> [selector=0x1193687a, inline_assembly, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = lt 2, 2
     v1 = eq v0, false
     icall panic_if<0x21>, v1
-    v2 = abi_encode_packed (u8 i8 2)
+    v2 = abi_encode_packed (uint8 i8 2)
     ret v2
 }
 
-fn @dirtyEnumPackedArray() -> memptr [selector=0x4cd1ded8, inline_assembly, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @dirtyEnumPackedArray() -> ptr<memory> [selector=0x4cd1ded8, inline_assembly, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
-    memory_zero v1, 32
-    v2 = ptrtoint memptr v0 to i256
-    mstore v2, 2
-    v3 = abi_encode_packed (array<word<enum 2>> memoryfixedarray<1, 1> v0)
-    ret v3
+    v0 = alloc 32 !metadata(preserves_fmp)
+    memory_zero v0, 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, 2
+    v2 = abi_encode_packed (array<word<enum 2>> memoryfixedarray<1, 1> v0)
+    ret v2
 }
 
-fn @dirtyEnumNested() -> memptr [selector=0xb5dac01b, inline_assembly, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @dirtyEnumNested() -> ptr<memory> [selector=0xb5dac01b, inline_assembly, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v0 = alloc 32 !metadata(preserves_fmp)
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v6]
+    v1 = phi [bb0: 0], [bb2: v7]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v7 = ptrtoint memptr v0 to i256
-    v8 = add v7, 32
-    mstore v8, 2
-    v9 = abi_encode [array<1, array<1, word<enum 2>>>], object, args v0
-    ret v9
+    v8 = ptrtoint ptr<memory> v0 to i256
+    v9 = add v8, 32
+    mstore v9, 2
+    v10 = abi_encode [array<1, array<1, word<enum 2>>>], object, args v0
+    ret v10
   bb2:
-    v3 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    v4 = ptrtoint memptr v3 to i256
-    memory_zero v4, 32
-    v5 = ptrtoint memptr v3 to i256
-    memory_object_store_element memoryfixedarray<1, 1>, v0, v1, v5
-    v6 = add v1, 1
+    v3 = alloc 32 !metadata(preserves_fmp)
+    memory_zero v3, 32
+    v4 = shl v1, 5
+    v5 = ptradd v0, v4
+    v6 = ptrtoint ptr<memory> v3 to i256
+    mstore v5, v6
+    v7 = add v1, 1
     jump bb1
 }
 
-fn @dirtyBoolPacked() -> memptr [selector=0x09c9026f, inline_assembly, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @dirtyBoolPacked() -> ptr<memory> [selector=0x09c9026f, inline_assembly, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = eq 2, 0
-    v1 = eq v0, false
-    v2 = zext i1 v1 to i8
-    v3 = abi_encode_packed (u8 v2)
-    ret v3
+    v0 = ne 2, 0
+    v1 = zext i1 v0 to i8
+    v2 = abi_encode_packed (uint8 v1)
+    ret v2
 }
 
-fn @dynamicShort(arg0: i256) -> i1 [selector=0x73932459, view, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @dynamicShort(arg0: i256) -> i1 [selector=0x73932459, view, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [word], selector 0x3207938400000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = slice_ptr v2
-    v4 = slice_len v2
-    v5 = zext i160 v0 to i256
-    v6 = staticcall v1, v5, v3, v4, 0, 0
-    jumpi v6, bb2, bb1
+    mstore 0, 0x32079384 !metadata(memory=scratch)
+    mstore 32, arg0 !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = staticcall v1, v2, 28, 36, 0, 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [bytes], v7
+    v4 = icall returndata_bytes<>
+    v5 = abi_decode [bytes], v4
     ret true
 }
 
-fn @dynamicTarget(arg0: i256) [selector=0x32079384, inline_assembly, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @dynamicTarget(arg0: i256) [selector=0x32079384, inline_assembly, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     mstore 0, 32 !metadata(memory=scratch)
     mstore 32, 33 !metadata(memory=scratch)
     returndata 0, arg0
 }
 
-fn @dynamicLengthOverflow() -> i256 [selector=0x5e963174, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dynamicLengthOverflow() -> i256 [selector=0x5e963174, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0xe136590400000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
-    v5 = zext i160 v0 to i256
-    v6 = staticcall v1, v5, v3, v4, 0, 0
-    jumpi v6, bb2, bb1
+    mstore 0, 0xe1365904 !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = staticcall v1, v2, 28, 4, 0, 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [bytes], v7
-    v9 = memory_object_len memorybytes, v8
-    ret v9
+    v4 = icall returndata_bytes<>
+    v5 = abi_decode [bytes], v4
+    v6 = mload v5
+    ret v6
 }
 
 fn @dynamicLengthOverflowTarget() [selector=0xe1365904, inline_assembly, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -608,26 +604,24 @@ fn @dynamicLengthOverflowTarget() [selector=0xe1365904, inline_assembly, pure, a
     returndata 0, 64
 }
 
-fn @dynamicArrayLengthOverflow() -> i256 [selector=0xbd5e58ee, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dynamicArrayLengthOverflow() -> i256 [selector=0xbd5e58ee, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x839ae55400000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
-    v5 = zext i160 v0 to i256
-    v6 = staticcall v1, v5, v3, v4, 0, 0
-    jumpi v6, bb2, bb1
+    mstore 0, 0x839ae554 !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = staticcall v1, v2, 28, 4, 0, 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [array<_, u256>], v7
-    v9 = memory_object_len memoryarray, v8
-    ret v9
+    v4 = icall returndata_bytes<>
+    v5 = abi_decode [array<_, uint256>], v4
+    v6 = mload v5
+    ret v6
 }
 
-fn @dynamicArrayLengthOverflowTarget() [selector=0x839ae554, inline_assembly, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @dynamicArrayLengthOverflowTarget() [selector=0x839ae554, inline_assembly, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     mstore 0, 32 !metadata(memory=scratch)
     mstore 32, 0x10000000000000000 !metadata(memory=scratch)

@@ -1,8 +1,7 @@
 //! Opaque builtin call targets. Arguments use the ordinary internal-call operand list.
 
-use std::sync::Arc;
-
-use super::{AbiLayoutRef, ConcatPart, FunctionId, InstKind, RevertPayload, ValueId, ValueLayout};
+use super::{AbiLayoutRef, FunctionId, InstKind, RevertPayload, ValueId};
+use solar_interface::ByteSymbol;
 
 /// An internal call targets either a MIR definition or a builtin specialization.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -20,7 +19,7 @@ pub(crate) enum Builtin {
         is_zero: bool,
         failure: super::RevertKind,
     },
-    /// SHA-256 of a bytes object, including precompile output allocation and returndata effects.
+    /// SHA-256 of a bytes object, read from scratch memory; a failed precompile call reverts.
     Sha256,
     /// Left-aligned RIPEMD-160 of a bytes object, with the same effects as `sha256`.
     Ripemd160,
@@ -38,14 +37,13 @@ pub(crate) enum Builtin {
     Transfer,
     /// Copy the current returndata into a fresh bytes object (empty before Byzantium).
     ReturndataBytes,
-    /// A thin shared pointer keeps ordinary call instructions compact.
-    Concat(Arc<Vec<ValueLayout>>),
 }
 
 /// Error payload type for a require call.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum RequireKind {
     ShortString,
+    LongString(ByteSymbol),
     EmptyString,
     ErrorString,
     CustomError(AbiLayoutRef),
@@ -67,6 +65,7 @@ impl InstKind {
                 args.extend([length, data]);
                 RequireKind::ShortString
             }
+            RevertPayload::LongString(bytes) => RequireKind::LongString(bytes),
             RevertPayload::EmptyString => RequireKind::EmptyString,
             RevertPayload::ErrorString(value) => {
                 args.push(value);
@@ -81,21 +80,6 @@ impl InstKind {
         // icall builtin require<kind>, condition, payload_arguments
         Self::builtin(Builtin::Require(kind), args)
     }
-
-    /// Builds an opaque concat call with its specialized parameter types.
-    pub(crate) fn concat(parts: Vec<ConcatPart>) -> Self {
-        let types = parts
-            .iter()
-            .map(|part| match part {
-                ConcatPart::Bytes(_) => ValueLayout::MemoryObject(super::MemoryObjectKind::Bytes),
-                ConcatPart::Slice { location, .. } => ValueLayout::Slice(*location),
-                ConcatPart::Fixed { size, .. } => ValueLayout::FixedBytes(*size),
-            })
-            .collect();
-        let args = parts.iter().map(ConcatPart::value).collect::<Box<[_]>>();
-        // result = icall builtin concat<types>, arguments
-        Self::builtin(Builtin::Concat(Arc::new(types)), args)
-    }
 }
 
 impl RequireKind {
@@ -103,6 +87,7 @@ impl RequireKind {
     pub(crate) fn payload(&self, args: &[ValueId]) -> Option<RevertPayload> {
         Some(match (self, args) {
             (Self::ShortString, &[length, data]) => RevertPayload::ShortString { length, data },
+            (Self::LongString(bytes), []) => RevertPayload::LongString(*bytes),
             (Self::EmptyString, []) => RevertPayload::EmptyString,
             (Self::ErrorString, &[value]) => RevertPayload::ErrorString(value),
             (Self::CustomError(layout), [selector, values @ ..])
@@ -128,7 +113,7 @@ impl Builtin {
             Self::CheckedAddMod | Self::CheckedMulMod => Some(3),
             Self::Send | Self::Transfer => Some(2),
             Self::ReturndataBytes => Some(0),
-            Self::Require(_) | Self::Check { .. } | Self::Concat(_) => None,
+            Self::Require(_) | Self::Check { .. } => None,
         }
     }
 }

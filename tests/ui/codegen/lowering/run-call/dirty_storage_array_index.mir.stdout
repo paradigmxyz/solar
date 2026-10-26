@@ -5,7 +5,7 @@ fn @inject(arg0: i256) -> i256 [inline_assembly, pure] {
     ret arg0
 }
 
-fn @storageIndex(arg0: i256) -> i256 [selector=0xe1f98cd0, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @storageIndex(arg0: i256) -> i256 [selector=0xe1f98cd0, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff

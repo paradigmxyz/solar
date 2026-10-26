@@ -1,0 +1,169 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/new_struct_array_elements.sol:NewStructArrayElements ===
+@module NewStructArrayElements
+fn @wide() -> i256 [selector=0xe5f38a58, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc zeroed checked 96
+    mstore v0, 2
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v8]
+    v2 = lt v1, 2
+    jumpi v2, bb2, bb3
+  bb3:
+    v9 = mload v0
+    v10 = lt 0, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = ptradd v0, 32
+    v13 = mload v12, ptr<memory>
+    v14 = ptradd v13, 96
+    mstore v14, 5
+    v15 = mload v0
+    v16 = lt 1, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = ptradd v0, 64
+    v19 = mload v18, ptr<memory>
+    mstore v19, 20
+    v20 = mload v0
+    v21 = lt 0, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = ptradd v0, 32
+    v24 = mload v23, ptr<memory>
+    v25 = ptradd v24, 96
+    v26 = mload v25
+    v27 = mload v0
+    v28 = lt 1, v27
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = ptradd v0, 64
+    v31 = mload v30, ptr<memory>
+    v32 = mload v31
+    v33 = checked_add uint256, v26, v32
+    v34 = mload v0
+    v35 = lt 0, v34
+    v36 = eq v35, false
+    icall panic_if<0x32>, v36
+    v37 = ptradd v0, 32
+    v38 = mload v37, ptr<memory>
+    v39 = mload v38
+    v40 = checked_add uint256, v33, v39
+    ret v40
+  bb2:
+    v3 = alloc 128 !metadata(preserves_fmp)
+    memory_zero v3, 128
+    v4 = shl v1, 5
+    v5 = ptradd v0, v4
+    v6 = ptradd v5, 32
+    v7 = ptrtoint ptr<memory> v3 to i256
+    mstore v6, v7
+    v8 = add v1, 1
+    jump bb1
+}
+
+fn @nested() -> i256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v12]
+    v2 = lt v1, 1
+    jumpi v2, bb2, bb3
+  bb3:
+    v13 = mload v0
+    v14 = lt 0, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = ptradd v0, 32
+    v17 = mload v16, ptr<memory>
+    v18 = mload v17, ptr<memory>
+    v19 = ptradd v18, 32
+    mstore v19, 7
+    v20 = mload v0
+    v21 = lt 0, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = ptradd v0, 32
+    v24 = mload v23, ptr<memory>
+    v25 = mload v24, ptr<memory>
+    v26 = ptradd v25, 32
+    v27 = mload v26
+    v28 = mload v0
+    v29 = lt 0, v28
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = ptradd v0, 32
+    v32 = mload v31, ptr<memory>
+    v33 = mload v32, ptr<memory>
+    v34 = mload v33
+    v35 = checked_add uint256, v27, v34
+    ret v35
+  bb2:
+    v3 = alloc 64 !metadata(preserves_fmp)
+    v4 = alloc 64 !metadata(preserves_fmp)
+    mstore v4, 0
+    v5 = ptradd v4, 32
+    mstore v5, 0
+    v6 = ptrtoint ptr<memory> v4 to i256
+    mstore v3, v6
+    v7 = ptradd v3, 32
+    mstore v7, 0
+    v8 = shl v1, 5
+    v9 = ptradd v0, v8
+    v10 = ptradd v9, 32
+    v11 = ptrtoint ptr<memory> v3 to i256
+    mstore v10, v11
+    v12 = add v1, 1
+    jump bb1
+}
+
+fn @small() -> i256 [selector=0x6cf3c25e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v9]
+    v2 = lt v1, 1
+    jumpi v2, bb2, bb3
+  bb3:
+    v10 = mload v0
+    v11 = lt 0, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = ptradd v0, 32
+    v14 = mload v13, ptr<memory>
+    v15 = ptradd v14, 32
+    mstore v15, 3
+    v16 = mload v0
+    v17 = lt 0, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = ptradd v0, 32
+    v20 = mload v19, ptr<memory>
+    v21 = mload v20
+    v22 = mload v0
+    v23 = lt 0, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = ptradd v0, 32
+    v26 = mload v25, ptr<memory>
+    v27 = ptradd v26, 32
+    v28 = mload v27
+    v29 = checked_add uint256, v21, v28
+    ret v29
+  bb2:
+    v3 = alloc 64 !metadata(preserves_fmp)
+    mstore v3, 0
+    v4 = ptradd v3, 32
+    mstore v4, 0
+    v5 = shl v1, 5
+    v6 = ptradd v0, v5
+    v7 = ptradd v6, 32
+    v8 = ptrtoint ptr<memory> v3 to i256
+    mstore v7, v8
+    v9 = add v1, 1
+    jump bb1
+}

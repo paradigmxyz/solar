@@ -30,7 +30,8 @@ impl fmt::Display for Lit<'_> {
         match kind {
             LitKind::Str(s, ..) => write!(f, "{}\"{symbol}\"", s.prefix()),
             LitKind::Number(_)
-            | LitKind::Rational(_)
+            | LitKind::BigNumber(_)
+            | LitKind::Rational(..)
             | LitKind::Err(_)
             | LitKind::Address(_)
             | LitKind::Bool(_) => write!(f, "{symbol}"),
@@ -96,13 +97,16 @@ pub enum LitKind<'ast> {
     ///
     /// This list is only present in the AST, and is discarded after.
     Str(StrKind, ByteSymbol, &'ast [(Span, Symbol)]),
-    /// A decimal or hexadecimal number literal.
+    /// A decimal or hexadecimal number literal that fits in 256 bits.
     Number(U256),
-    /// A rational number literal.
+    /// A number literal wider than 256 bits, such as `1e100`.
+    BigNumber(LitUint),
+    /// A fractional number literal, such as `0.5`, as its numerator and denominator in lowest
+    /// terms.
     ///
-    /// Note that rational literals that evaluate to integers are represented as
-    /// [`Number`](Self::Number) (e.g. `1.2e3` is represented as `Number(1200)`).
-    Rational(num_rational::Ratio<U256>),
+    /// Number literals whose values are integers are [`Number`](Self::Number)s or
+    /// [`BigNumber`](Self::BigNumber)s, so `1.2e3` is `Number(1200)`.
+    Rational(LitUint, LitUint),
     /// An address literal. This is a special case of a 40 digit hexadecimal number literal.
     Address(Address),
     /// A boolean literal.
@@ -128,7 +132,8 @@ impl fmt::Debug for LitKind<'_> {
                 f.write_str(")")
             }
             Self::Number(value) => write!(f, "Number({value:?})"),
-            Self::Rational(value) => write!(f, "Rational({value:?})"),
+            Self::BigNumber(value) => write!(f, "BigNumber({value:?})"),
+            Self::Rational(numer, denom) => write!(f, "Rational({numer:?} / {denom:?})"),
             Self::Address(value) => write!(f, "Address({value:?})"),
             Self::Bool(value) => write!(f, "Bool({value:?})"),
             Self::Err(_) => write!(f, "Err"),
@@ -137,16 +142,53 @@ impl fmt::Debug for LitKind<'_> {
 }
 
 impl LitKind<'_> {
+    /// Returns `true` if this is a number literal, whatever its value.
+    pub fn is_number(&self) -> bool {
+        matches!(self, Self::Number(_) | Self::BigNumber(_) | Self::Rational(..))
+    }
+
     /// Returns the description of this literal kind.
     pub fn description(&self) -> &'static str {
         match self {
             Self::Str(kind, ..) => kind.description(),
-            Self::Number(_) => "number",
-            Self::Rational(_) => "rational",
+            Self::Number(_) | Self::BigNumber(_) => "number",
+            Self::Rational(..) => "rational",
             Self::Address(_) => "address",
             Self::Bool(_) => "boolean",
             Self::Err(_) => "<error>",
         }
+    }
+}
+
+/// An unsigned integer of a number literal, interned as its big-endian bytes.
+///
+/// Number literals that fit in 256 bits are stored inline as [`U256`]s instead. Interning keeps
+/// literals small and `Copy`.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct LitUint(ByteSymbol);
+
+impl fmt::Debug for LitUint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&alloy_primitives::hex::encode_prefixed(self.to_be_bytes()))
+    }
+}
+
+impl LitUint {
+    /// Interns an integer from its big-endian bytes, without leading zeros.
+    pub fn from_be_bytes(bytes: &[u8]) -> Self {
+        debug_assert!(bytes.first() != Some(&0), "leading zeros: {bytes:?}");
+        Self(ByteSymbol::intern(bytes))
+    }
+
+    /// Returns the integer's big-endian bytes, without leading zeros.
+    pub fn to_be_bytes(&self) -> &[u8] {
+        self.0.as_byte_str()
+    }
+
+    /// Returns the number of bits needed to represent the integer.
+    pub fn bit_len(&self) -> usize {
+        let bytes = self.to_be_bytes();
+        bytes.len() * 8 - bytes.first().map_or(0, |b| b.leading_zeros() as usize)
     }
 }
 

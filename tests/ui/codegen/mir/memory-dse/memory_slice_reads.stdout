@@ -1,38 +1,46 @@
 - // === ROOT/tests/ui/codegen/mir/memory-dse/memory_slice_reads.mir (before memory-dse) ===
 + // === ROOT/tests/ui/codegen/mir/memory-dse/memory_slice_reads.mir (after memory-dse) ===
   @module MemorySliceReads
-  fn @copy_reads_slice_range(arg0: memptr) {
+  fn @copy_reads_slice_range(arg0: ptr<memory>) {
     bb0:
-      v0 = make_memory_slice 128, 32
 -     mstore 0, 7
-      memory_object_copy_from_slice memorybytes, arg0, v0
+      v0 = ptrtoint ptr<memory> arg0 to i256
+      v1 = add v0, 32
+      mcopy v1, 128, 32
       mstore 0, 8
-      stop
+      ret
   }
   
-  fn @copy_at_reads_slice_range(arg0: memptr, arg1: i256) {
+  fn @copy_at_reads_slice_range(arg0: ptr<memory>, arg1: i256) {
     bb0:
-      v0 = make_memory_slice 128, 32
 -     mstore 0, 7
-      memory_object_copy_from_slice_at memorybytes, arg0, arg1, v0
+      v0 = ptrtoint ptr<memory> arg0 to i256
+      v1 = add v0, 32
+      v2 = add v1, arg1
+      mcopy v2, 128, 32
       mstore 0, 8
-      stop
+      ret
   }
   
-  fn @copy_keeps_read_store(arg0: memptr) {
-    bb0:
-      v0 = make_memory_slice 0, 32
-      mstore 0, 7
-      memory_object_copy_from_slice memorybytes, arg0, v0
-      mstore 0, 8
-      stop
-  }
-  
-  fn @copy_unknown_slice(arg0: memptr, arg1: memoryslice) {
+  fn @copy_keeps_read_store(arg0: ptr<memory>) {
     bb0:
       mstore 0, 7
-      memory_object_copy_from_slice memorybytes, arg0, arg1
+      v0 = ptrtoint ptr<memory> arg0 to i256
+      v1 = add v0, 32
+      mcopy v1, 0, 32
       mstore 0, 8
-      stop
+      ret
+  }
+  
+  fn @copy_unknown_slice(arg0: ptr<memory>, arg1: slice<memory>) {
+    bb0:
+      mstore 0, 7
+      v0 = ptrtoint ptr<memory> arg0 to i256
+      v1 = add v0, 32
+      v2 = extract_value slice<memory>, arg1, 0
+      v3 = extract_value slice<memory>, arg1, 1
+      mcopy v1, v2, v3
+      mstore 0, 8
+      ret
   }
   

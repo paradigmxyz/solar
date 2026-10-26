@@ -75,6 +75,12 @@ Options:
       -Zswitch-max-bit-slice-gas-code-growth <SWITCH_MAX_BIT_SLICE_GAS_CODE_GROWTH>
           Override the per-switch bit-slice table growth limit for benchmarking
 
+      -Ztune <TUNE>
+          Tune generated code for an execution engine (default: `none`; values: `none`, `interpreter`)
+
+      -Zpack-wide-jump-tables
+          Pack indexed jump table entries wider than one byte into words and pick them with a shift and a mask. Off by default: jump analysis in bytecode JITs cannot resolve the pick
+
       -Zassert-planned-edge-spill-home
           Assert instead of logging when a value is live across a planned stack edge into an already-emitted block without a spill home
 

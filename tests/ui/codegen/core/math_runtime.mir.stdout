@@ -11,7 +11,7 @@
 @types
   struct0: {i256, i256}
 
-fn @mul512.0(arg0: i256, arg1: i256) -> struct0 [selector=0x73d0b512, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @mul512.0(arg0: i256, arg1: i256) -> struct0 [selector=0x73d0b512, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = mul arg0, arg1
     v1 = mulmod arg0, arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -28,7 +28,7 @@ fn @mul512.0(arg0: i256, arg1: i256) -> struct0 [selector=0x73d0b512, pure, abi_
     ret v11
 }
 
-fn @mulDiv.1(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> i256 [selector=0xfb9f4917, pure, abi_params=[u256, u256, u256, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @mulDiv.1(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> i256 [selector=0xfb9f4917, pure, abi_params=[uint256, uint256, uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg3, bb1, bb2
   bb2:
@@ -44,19 +44,19 @@ fn @mulDiv.1(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> i256 [selector=0xf
     ret v3
 }
 
-fn @wrapAdd(arg0: i256, arg1: i256) -> i256 [selector=0x85ec2dc1, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @wrapAdd(arg0: i256, arg1: i256) -> i256 [selector=0x85ec2dc1, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, arg1
     ret v0
 }
 
-fn @wrapSub(arg0: i256, arg1: i256) -> i256 [selector=0x928d9cf4, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @wrapSub(arg0: i256, arg1: i256) -> i256 [selector=0x928d9cf4, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sub arg0, arg1
     ret v0
 }
 
-fn @wrapMul(arg0: i256, arg1: i256) -> i256 [selector=0x6f486eee, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @wrapMul(arg0: i256, arg1: i256) -> i256 [selector=0x6f486eee, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mul arg0, arg1
     ret v0
@@ -98,7 +98,7 @@ fn @mulDiv.6(arg0: i256, arg1: i256, arg2: i256, arg3: i8) -> i256 [pure] {
   bb5:
     jump bb6
   bb4:
-    v5 = checked_add u256, v0, 1
+    v5 = checked_add uint256, v0, 1
     jump bb6
   bb6:
     v6 = phi [bb4: v5], [bb5: v0]
@@ -167,10 +167,10 @@ fn @_mulDivDown(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
     v20 = sub v9, v16
     v21 = sub 0, arg2
     v22 = and arg2, v21
-    v23 = wrapping_div u256, arg2, v22
-    v24 = wrapping_div u256, v20, v22
+    v23 = wrapping_div uint256, arg2, v22
+    v24 = wrapping_div uint256, v20, v22
     v25 = sub 0, v22
-    v26 = wrapping_div u256, v25, v22
+    v26 = wrapping_div uint256, v25, v22
     v27 = add v26, 1
     v28 = mul v19, v27
     v29 = or v24, v28
@@ -197,15 +197,15 @@ fn @_mulDivDown(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
     v50 = mul v29, v49
     ret v50
   bb7:
-    v15 = checked_div u256, v9, arg2
+    v15 = checked_div uint256, v9, arg2
     ret v15
   bb1:
-    v11 = checked_div u256, v9, arg2
+    v11 = checked_div uint256, v9, arg2
     ret v11
 }
 
 fn @_overflow() [pure] {
   bb0:
-    v0 = checked_add u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    v0 = checked_add uint256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
     ret
 }

@@ -1,0 +1,8 @@
+error[6161]: the value of the constant `c` has a cyclic dependency via `c`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/cycle_checker_function_type.sol:LL:CC
+   │
+LL │ …     function ( ) internal returns ( bytes [ ] sto… ) ) ) ) ) ) ) [ ] storage ) constant c = c ;
+   ╰╴      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━…━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

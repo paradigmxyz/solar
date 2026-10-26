@@ -1,0 +1,20 @@
+error[4828]: invalid number literal
+   ╭▸ ROOT/tests/ui/parser/yul_fractional_literal.sol:LL:CC
+   │
+LL │             case 0.5 {}
+   ╰╴                 ━━━
+
+error[4828]: invalid number literal
+   ╭▸ ROOT/tests/ui/parser/yul_fractional_literal.sol:LL:CC
+   │
+LL │             if 0.5 {}
+   ╰╴               ━━━
+
+error[4828]: invalid number literal
+   ╭▸ ROOT/tests/ui/parser/yul_fractional_literal.sol:LL:CC
+   │
+LL │             let x := 0.5
+   ╰╴                     ━━━
+
+error: aborting due to 3 previous errors
+

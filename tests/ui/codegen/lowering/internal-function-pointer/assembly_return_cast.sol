@@ -32,7 +32,7 @@ struct PairDecoder {
 contract InternalFunctionPointerAssemblyReturnCast {
     // CHECK-LABEL: fn @decodePair(
     // CHECK: icall @_toPairReturnType, [[DECODE_PAIR:[0-9]+]]
-    // CHECK: icall @internal_dispatcher_asm_p_u256_r_memorystruct,
+    // CHECK: icall @internal_dispatcher_asm_p_uint256_r_memorystruct,
     function decodePair(uint256, uint256) external pure returns (uint256, uint256) {
         Pair memory pair = _toPairReturnType(_decodePair)(CalldataPointer.wrap(4));
         return (pair.a, pair.b);
@@ -74,7 +74,7 @@ contract InternalFunctionPointerAssemblyReturnCast {
     }
 
     // CHECK-LABEL: fn @isOdd(
-    // CHECK: icall @internal_dispatcher_p_u256_r_bool,
+    // CHECK: icall @internal_dispatcher_p_uint256_r_bool,
     function isOdd(uint256 value) external pure returns (bool) {
         function(uint256) internal pure returns (bool) predicate = _isOdd;
         return predicate(value);
@@ -155,22 +155,22 @@ contract InternalFunctionPointerAssemblyReturnCast {
 
     // A pointer that comes from assembly can hold any exposed function with a one-word shape;
     // the dispatcher reinterprets the `MemoryPointer` word as the `memory` struct reference.
-    // CHECK-LABEL: fn @internal_dispatcher_asm_p_u256_r_memorystruct(
+    // CHECK-LABEL: fn @internal_dispatcher_asm_p_uint256_r_memorystruct(
     // CHECK: eq arg0, [[DECODE_PAIR]]
     // CHECK: [[WORD:v[0-9]+]] = icall @_decodePair, arg1
-    // CHECK-NEXT: inttoptr i256 [[WORD]] to memptr
+    // CHECK-NEXT: inttoptr i256 [[WORD]] to ptr<memory>
     //
     // A pointer that never touches assembly keeps the per-type dispatch.
-    // CHECK-LABEL: fn @internal_dispatcher_p_u256_r_bool(
+    // CHECK-LABEL: fn @internal_dispatcher_p_uint256_r_bool(
     // CHECK-NOT: @_decodePair
     // CHECK: icall @_isOdd
     // CHECK-NOT: @_decodePair
     //
     // A raw word reaches a retyped callee's narrow parameter unmasked.
-    // CHECK-LABEL: fn @internal_dispatcher_asm_p_u256_r_u256_u256(
+    // CHECK-LABEL: fn @internal_dispatcher_asm_p_uint256_r_uint256_uint256(
     // CHECK-NOT: and arg1
     // CHECK: icall @_rawAndTyped, arg1
-    // CHECK-LABEL: fn @internal_dispatcher_asm_p_u256_r_u256(
+    // CHECK-LABEL: fn @internal_dispatcher_asm_p_uint256_r_uint256(
     function _toPairReturnType(
         function(CalldataPointer) internal pure returns (MemoryPointer) inFn
     ) internal pure returns (function(CalldataPointer) internal pure returns (Pair memory) outFn) {

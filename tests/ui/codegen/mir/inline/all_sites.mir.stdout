@@ -1,0 +1,68 @@
+// === ROOT/tests/ui/codegen/mir/inline/all_sites.sol:AllSites ===
+@module AllSites
+fn @accumulate(arg0: i256) -> i256 [selector=0xb4e7d02a, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = gt arg0, 0x3e8
+    v1 = eq v0, false
+    icall @ensure, v1
+    v2 = sload 0 !metadata(storage=slot(0))
+    jump bb1
+  bb1:
+    v3 = phi [bb0: arg0], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v4]
+    v5 = phi [bb0: v2], [bb3: v8]
+    v6 = phi [bb0: 0], [bb3: v9]
+    v7 = lt v6, v3
+    jumpi v7, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    sstore 0, v5 !metadata(storage=slot(0))
+    ret v5
+  bb4:
+    v8 = icall @checkedAdd, v5, v6
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v9 = icall @checkedAdd, v6, 1
+    jump bb1
+}
+
+fn @increment(arg0: i256) -> i256 [selector=0x7cf5dab0, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = icall @checkedAdd, v0, arg0
+    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = sload 0 !metadata(storage=slot(0))
+    ret v2
+}
+
+fn @ensure(arg0: i1) [pure] {
+  bb0:
+    v0 = eq arg0, false
+    icall revert_if<empty>, v0
+    ret
+}
+
+fn @checkedAdd(arg0: i256, arg1: i256) -> i256 [pure] {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @panicArithmetic
+    jump bb3
+  bb3:
+    ret v0
+}
+
+fn @panicArithmetic() [inline_assembly, pure] {
+  bb0:
+    v0 = shl 0x4e487b71, 224
+    mstore 0, v0 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

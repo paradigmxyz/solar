@@ -121,13 +121,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
     fn build_contract(mut self, contract_id: hir::ContractId) -> StorageLayoutOutput {
         let contract = self.gcx.hir.contract(contract_id);
         let base_slot = match self.location {
-            DataLocation::Storage => contract.layout.map_or(U256::ZERO, |layout| {
-                self.gcx
-                    .eval_const(layout)
-                    .ok()
-                    .and_then(|value| value.as_u256())
-                    .unwrap_or_default()
-            }),
+            DataLocation::Storage => self.gcx.const_eval().eval_base_slot(contract_id),
             DataLocation::Transient => U256::ZERO,
             DataLocation::Memory | DataLocation::Calldata => unreachable!(),
         };
@@ -424,9 +418,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
                 ElementaryType::Address(_) => U256::from(20),
                 ElementaryType::Bool => U256::from(1),
                 ElementaryType::String | ElementaryType::Bytes => U256::from(32),
-                ElementaryType::Fixed(size, _)
-                | ElementaryType::UFixed(size, _)
-                | ElementaryType::Int(size)
+                ElementaryType::Int(size)
                 | ElementaryType::UInt(size)
                 | ElementaryType::FixedBytes(size) => U256::from(size.bytes()),
             },
@@ -449,8 +441,6 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
             TyKind::Elementary(
                 ElementaryType::Address(_)
                     | ElementaryType::Bool
-                    | ElementaryType::Fixed(..)
-                    | ElementaryType::UFixed(..)
                     | ElementaryType::Int(_)
                     | ElementaryType::UInt(_)
                     | ElementaryType::FixedBytes(_)

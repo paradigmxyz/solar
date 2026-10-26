@@ -62,7 +62,7 @@ impl Default for BasicBlock {
 }
 
 /// A block terminator instruction.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Terminator {
     /// Unconditional jump to another block.
     Jump(BlockId),
@@ -194,6 +194,12 @@ impl Terminator {
             | Self::TailCall { .. }
             | Self::Invalid => false,
         }
+    }
+
+    /// Returns whether this terminator reverts the current call frame.
+    #[must_use]
+    pub(crate) const fn reverts(&self) -> bool {
+        matches!(self, Self::Revert { .. } | Self::RevertReturndata | Self::Invalid)
     }
 
     /// Visits the value operands of this terminator without allocating.

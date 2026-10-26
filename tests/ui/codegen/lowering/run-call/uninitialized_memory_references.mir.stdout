@@ -3,7 +3,7 @@
 @types
   struct0: {i1, i256, i256}
 
-fn @sharedWordLiteral(arg0: i256) -> i256 [selector=0x55fe9b37, inline_assembly, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @sharedWordLiteral(arg0: i256) -> i256 [selector=0x55fe9b37, inline_assembly, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = eq arg0, 0
@@ -18,25 +18,25 @@ fn @sharedWordLiteral(arg0: i256) -> i256 [selector=0x55fe9b37, inline_assembly,
     jump bb9
   bb7:
     v10 = icall @literal_bytes_word, 0x5678000000000000000000000000000000000000000000000000000000000000, 2
-    v11 = ptrtoint memptr v10 to i256
+    v11 = ptrtoint ptr<memory> v10 to i256
     v12 = add v11, 32
-    log0 v12, 2
+    log v12, 2
     jump bb9
   bb9:
     jump bb6
   bb4:
     v6 = icall @literal_bytes_word, 0x5678000000000000000000000000000000000000000000000000000000000000, 2
-    v7 = ptrtoint memptr v6 to i256
+    v7 = ptrtoint ptr<memory> v6 to i256
     v8 = add v7, 32
-    log0 v8, 2
+    log v8, 2
     jump bb6
   bb6:
     jump bb3
   bb1:
     v2 = icall @literal_bytes_word, 0x5678000000000000000000000000000000000000000000000000000000000000, 2
-    v3 = ptrtoint memptr v2 to i256
+    v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
-    log0 v4, 2
+    log v4, 2
     jump bb3
   bb3:
     v13 = mload 64 !metadata(memory=scratch)
@@ -44,7 +44,7 @@ fn @sharedWordLiteral(arg0: i256) -> i256 [selector=0x55fe9b37, inline_assembly,
     ret v14
 }
 
-fn @sharedLongLiteral(arg0: i256) -> i256 [selector=0xd250d2b7, inline_assembly, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @sharedLongLiteral(arg0: i256) -> i256 [selector=0xd250d2b7, inline_assembly, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = eq arg0, 0
@@ -62,33 +62,33 @@ fn @sharedLongLiteral(arg0: i256) -> i256 [selector=0xd250d2b7, inline_assembly,
     jump bb12
   bb10:
     v14 = icall @literal_bytes_0
-    v15 = ptrtoint memptr v14 to i256
+    v15 = ptrtoint ptr<memory> v14 to i256
     v16 = add v15, 32
-    log0 v16, 34
+    log v16, 34
     jump bb12
   bb12:
     jump bb9
   bb7:
     v10 = icall @literal_bytes_0
-    v11 = ptrtoint memptr v10 to i256
+    v11 = ptrtoint ptr<memory> v10 to i256
     v12 = add v11, 32
-    log0 v12, 34
+    log v12, 34
     jump bb9
   bb9:
     jump bb6
   bb4:
     v6 = icall @literal_bytes_0
-    v7 = ptrtoint memptr v6 to i256
+    v7 = ptrtoint ptr<memory> v6 to i256
     v8 = add v7, 32
-    log0 v8, 34
+    log v8, 34
     jump bb6
   bb6:
     jump bb3
   bb1:
     v2 = icall @literal_bytes_0
-    v3 = ptrtoint memptr v2 to i256
+    v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
-    log0 v4, 34
+    log v4, 34
     jump bb3
   bb3:
     v17 = mload 64 !metadata(memory=scratch)
@@ -96,59 +96,57 @@ fn @sharedLongLiteral(arg0: i256) -> i256 [selector=0xd250d2b7, inline_assembly,
     ret v18
 }
 
-fn @conditionalLiteral(arg0: i1) -> i256 [selector=0x288b909f, inline_assembly, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @conditionalLiteral(arg0: i1) -> i256 [selector=0x288b909f, inline_assembly, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v1, 2
-    v2 = memory_object_data memorybytes, v1
-    v3 = ptrtoint memptr v2 to i256
-    mstore v3, 0x1234000000000000000000000000000000000000000000000000000000000000
-    v4 = ptrtoint memptr v1 to i256
-    v5 = add v4, 32
-    log0 v5, 2
+    v1 = alloc 64 !metadata(preserves_fmp)
+    mstore v1, 2
+    v2 = ptradd v1, 32
+    mstore v2, 0x1234000000000000000000000000000000000000000000000000000000000000
+    v3 = ptrtoint ptr<memory> v1 to i256
+    v4 = add v3, 32
+    log v4, 2
     jump bb3
   bb3:
-    v6 = mload 64 !metadata(memory=scratch)
-    v7 = sub v6, v0
-    ret v7
+    v5 = mload 64 !metadata(memory=scratch)
+    v6 = sub v5, v0
+    ret v6
 }
 
-fn @overlappingLiteral(arg0: i1) -> i256 [selector=0x7d61a7f9, inline_assembly, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @overlappingLiteral(arg0: i1) -> i256 [selector=0x7d61a7f9, inline_assembly, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload 65 !metadata(memory=scratch)
-    v1 = shr 8, v0
+    v1 = shr v0, 8
     jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v2, 2
-    v3 = memory_object_data memorybytes, v2
-    v4 = ptrtoint memptr v3 to i256
-    mstore v4, 0xabcd000000000000000000000000000000000000000000000000000000000000
-    v5 = ptrtoint memptr v2 to i256
-    v6 = add v5, 32
-    log0 v6, 2
+    v2 = alloc 64 !metadata(preserves_fmp)
+    mstore v2, 2
+    v3 = ptradd v2, 32
+    mstore v3, 0xabcd000000000000000000000000000000000000000000000000000000000000
+    v4 = ptrtoint ptr<memory> v2 to i256
+    v5 = add v4, 32
+    log v5, 2
     jump bb3
   bb3:
-    v7 = mload 65 !metadata(memory=scratch)
-    v8 = shr 8, v7
-    v9 = sub v8, v1
-    ret v9
+    v6 = mload 65 !metadata(memory=scratch)
+    v7 = shr v6, 8
+    v8 = sub v7, v1
+    ret v8
 }
 
-fn @fmpIsStable() -> struct0 [selector=0x8543d886, inline_assembly, pure, abi_params=[], abi_returns=[word<bool>, word, word], abi_return_params=[bool, u256, u256]] {
+fn @fmpIsStable() -> struct0 [selector=0x8543d886, inline_assembly, pure, abi_params=[], abi_returns=[word<bool>, word, word], abi_return_params=[bool, uint256, uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = mload 64 !metadata(memory=scratch)
     v2 = eq v0, v1
-    v3 = memory_object_len memorybytes, memptr 96
-    v4 = memory_object_len memoryarray, memptr 96
+    v3 = mload ptr<memory> 96 !metadata(memory=scratch)
+    v4 = mload ptr<memory> 96 !metadata(memory=scratch)
     v5 = insert_value struct0, undef struct0, 0, v2
     v6 = insert_value struct0, v5, 1, v3
     v7 = insert_value struct0, v6, 2, v4
@@ -157,72 +155,85 @@ fn @fmpIsStable() -> struct0 [selector=0x8543d886, inline_assembly, pure, abi_pa
 
 fn @nullArrayElementsEncodeAsEmpty() -> i1 [selector=0x71417b4d, inline_assembly, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    set_memory_object_len memoryarray, v0, 2
+    v0 = alloc zeroed checked 96
+    mstore v0, 2
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v3]
+    v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v4 = abi_encode [memory_array<memory_bytes>], object, args v0
-    v5 = not 0
-    mstore 0, v5 !metadata(memory=scratch)
-    v6 = abi_encode [memory_array<memory_bytes>], object, args v0
+    v7 = abi_encode [memory_array<memory_bytes>], object, args v0
+    v8 = not 0
+    mstore 0, v8 !metadata(memory=scratch)
+    v9 = abi_encode [memory_array<memory_bytes>], object, args v0
     mstore 0, 0 !metadata(memory=scratch)
-    v7 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    set_memory_object_len memoryarray, v7, 2
+    v10 = alloc zeroed checked 96
+    mstore v10, 2
     jump bb4
   bb4:
-    v8 = phi [bb3: 0], [bb5: v10]
-    v9 = lt v8, 2
-    jumpi v9, bb5, bb6
+    v11 = phi [bb3: 0], [bb5: v16]
+    v12 = lt v11, 2
+    jumpi v12, bb5, bb6
   bb6:
-    v11 = abi_encode [memory_array<memory_array<word>>], object, args v7
-    v12 = not 0
-    mstore 0, v12 !metadata(memory=scratch)
-    v13 = abi_encode [memory_array<memory_array<word>>], object, args v7
-    v14 = keccak256_bytes v4
-    v15 = keccak256_bytes v6
-    v16 = eq v14, v15
-    jumpi v16, bb7, bb8
+    v17 = abi_encode [memory_array<memory_array<word>>], object, args v10
+    v18 = not 0
+    mstore 0, v18 !metadata(memory=scratch)
+    v19 = abi_encode [memory_array<memory_array<word>>], object, args v10
+    v20 = ptradd v7, 32
+    v21 = mload v7
+    v22 = keccak256 v20, v21
+    v23 = ptradd v9, 32
+    v24 = mload v9
+    v25 = keccak256 v23, v24
+    v26 = eq v22, v25
+    jumpi v26, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v17 = keccak256_bytes v11
-    v18 = keccak256_bytes v13
-    v19 = eq v17, v18
+    v27 = ptradd v17, 32
+    v28 = mload v17
+    v29 = keccak256 v27, v28
+    v30 = ptradd v19, 32
+    v31 = mload v19
+    v32 = keccak256 v30, v31
+    v33 = eq v29, v32
     jump bb9
   bb9:
-    v20 = phi [bb7: v19], [bb8: false]
-    ret v20
+    v34 = phi [bb7: v33], [bb8: false]
+    ret v34
   bb5:
-    memory_object_store_element memoryarray<1>, v7, v8, 96
-    v10 = add v8, 1
+    v13 = shl v11, 5
+    v14 = ptradd v10, v13
+    v15 = ptradd v14, 32
+    mstore v15, 96
+    v16 = add v11, 1
     jump bb4
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, 96
-    v3 = add v1, 1
+    v3 = shl v1, 5
+    v4 = ptradd v0, v3
+    v5 = ptradd v4, 32
+    mstore v5, 96
+    v6 = add v1, 1
     jump bb1
 }
 
-fn @literal_bytes_word(arg0: i256, arg1: i256) -> memptr {
+fn @literal_bytes_word(arg0: i256, arg1: i256) -> ptr<memory> {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, arg1
-    memory_object_store_word memorybytes, v0, 0, arg0
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, arg1
+    v1 = ptradd v0, 32
+    mstore v1, arg0
     ret v0
 }
 
-fn @literal_bytes_0() -> memptr {
+fn @literal_bytes_0() -> ptr<memory> {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 34
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
-    v3 = ptrtoint memptr v1 to i256
-    v4 = add v3, 32
-    mstore v4, 0x1122000000000000000000000000000000000000000000000000000000000000
+    v0 = alloc 96 !metadata(preserves_fmp)
+    mstore v0, 34
+    v1 = ptradd v0, 32
+    mstore v1, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+    v2 = ptradd v0, 64
+    mstore v2, 0x1122000000000000000000000000000000000000000000000000000000000000
     ret v0
 }

@@ -1,0 +1,156 @@
+// === ROOT/tests/ui/codegen/mir/cse/fresh_fmp_alias.sol:FreshFmpAlias ===
+@module FreshFmpAlias
+@types
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256}
+
+fn @forwarded(arg0: i256, arg1: i256) -> struct0 [selector=0x8f056cc4, pure, abi_params=[uint256, bytes32], abi_returns=[word, word, word], abi_return_params=[bytes32, uint256, uint256]] {
+  bb0:
+    v0 = alloc 96
+    v1 = trunc i256 arg0 to i160
+    v2 = zext i160 v1 to i256
+    v3 = trunc i256 arg0 to i128
+    v4 = zext i128 v3 to i256
+    mstore v0, v2
+    v5 = ptradd v0, 32
+    mstore v5, v4
+    v6 = ptradd v0, 64
+    mstore v6, arg1
+    v7 = abi_encode [word<uint8>, tuple<word<uint160>, word<uint128>, word>, word], scratch, args 1, v0, arg1
+    v8 = extract_value slice<memory>, v7, 0
+    v9 = extract_value slice<memory>, v7, 1
+    v10 = keccak256 v8, v9
+    v11 = ptradd v0, 32
+    v12 = mload v11
+    v13 = trunc i256 v12 to i128
+    v14 = zext i128 v13 to i256
+    v15 = mload v0
+    v16 = trunc i256 v15 to i160
+    v17 = zext i160 v16 to i256
+    v18 = insert_value struct0, undef struct0, 0, v10
+    v19 = insert_value struct0, v18, 1, v14
+    v20 = insert_value struct0, v19, 2, v17
+    ret v20
+}
+
+fn @reset(arg0: i256, arg1: i256) -> struct1 [selector=0xa49530f1, inline_assembly, pure, abi_params=[uint256, bytes32], abi_returns=[word, word], abi_return_params=[bytes32, bytes32]] {
+  bb0:
+    v0 = alloc 96
+    v1 = trunc i256 arg0 to i160
+    v2 = zext i160 v1 to i256
+    v3 = trunc i256 arg0 to i128
+    v4 = zext i128 v3 to i256
+    mstore v0, v2
+    v5 = ptradd v0, 32
+    mstore v5, v4
+    v6 = ptradd v0, 64
+    mstore v6, arg1
+    v7 = alloc 96
+    mstore v7, 1
+    v8 = ptradd v7, 32
+    mstore v8, 2
+    v9 = ptradd v7, 64
+    mstore v9, arg1
+    v10 = ptrtoint ptr<memory> v7 to i256
+    mstore 64, v10 !metadata(memory=scratch)
+    v11 = trunc i256 arg0 to i160
+    v12 = zext i160 v11 to i256
+    mstore v7, v12
+    v13 = trunc i256 arg0 to i128
+    v14 = zext i128 v13 to i256
+    v15 = ptradd v7, 32
+    mstore v15, v14
+    v16 = ptradd v7, 64
+    mstore v16, arg1
+    v17 = abi_encode [word<uint8>, tuple<word<uint160>, word<uint128>, word>, word], scratch, args 1, v0, arg1
+    v18 = extract_value slice<memory>, v17, 0
+    v19 = extract_value slice<memory>, v17, 1
+    v20 = keccak256 v18, v19
+    v21 = ptradd v7, 64
+    v22 = mload v21
+    v23 = insert_value struct1, undef struct1, 0, v20
+    v24 = insert_value struct1, v23, 1, v22
+    ret v24
+}
+
+fn @branch(arg0: i1, arg1: i256, arg2: i256) -> struct1 [selector=0xd1a26a50, pure, abi_params=[bool, uint256, bytes32], abi_returns=[word, word], abi_return_params=[bytes32, uint256]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    v15 = keccak256_packed (uint256 2, uint256 arg2)
+    jump bb3
+  bb1:
+    v0 = alloc 96
+    v1 = trunc i256 arg1 to i160
+    v2 = zext i160 v1 to i256
+    v3 = trunc i256 arg1 to i128
+    v4 = zext i128 v3 to i256
+    mstore v0, v2
+    v5 = ptradd v0, 32
+    mstore v5, v4
+    v6 = ptradd v0, 64
+    mstore v6, arg2
+    v7 = abi_encode [word<uint8>, tuple<word<uint160>, word<uint128>, word>, word], scratch, args 1, v0, arg2
+    v8 = extract_value slice<memory>, v7, 0
+    v9 = extract_value slice<memory>, v7, 1
+    v10 = keccak256 v8, v9
+    v11 = ptradd v0, 32
+    v12 = mload v11
+    v13 = trunc i256 v12 to i128
+    v14 = zext i128 v13 to i256
+    jump bb3
+  bb3:
+    v16 = phi [bb1: v10], [bb2: v15]
+    v17 = phi [bb1: v14], [bb2: 0]
+    v18 = keccak256_packed (uint256 v16, uint256 arg2)
+    v19 = insert_value struct1, undef struct1, 0, v18
+    v20 = insert_value struct1, v19, 1, v17
+    ret v20
+}
+
+fn @loop(arg0: i256, arg1: i256) -> struct1 [selector=0xef0cbedb, pure, abi_params=[uint256, bytes32], abi_returns=[word, word], abi_return_params=[bytes32, uint256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: arg1], [bb3: v18]
+    v3 = phi [bb0: 0], [bb3: v23]
+    v4 = phi [bb0: 0], [bb3: v24]
+    v5 = lt v4, v0
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v25 = insert_value struct1, undef struct1, 0, v2
+    v26 = insert_value struct1, v25, 1, v3
+    ret v26
+  bb4:
+    v6 = alloc 96
+    v7 = checked_add uint256, v4, 1
+    v8 = trunc i256 v7 to i160
+    v9 = zext i160 v8 to i256
+    v10 = checked_add uint256, v4, 1
+    v11 = trunc i256 v10 to i128
+    v12 = zext i128 v11 to i256
+    mstore v6, v9
+    v13 = ptradd v6, 32
+    mstore v13, v12
+    v14 = ptradd v6, 64
+    mstore v14, v2
+    v15 = abi_encode [word<uint8>, tuple<word<uint160>, word<uint128>, word>, word], scratch, args 1, v6, v2
+    v16 = extract_value slice<memory>, v15, 0
+    v17 = extract_value slice<memory>, v15, 1
+    v18 = keccak256 v16, v17
+    v19 = ptradd v6, 32
+    v20 = mload v19
+    v21 = trunc i256 v20 to i128
+    v22 = zext i128 v21 to i256
+    v23 = checked_add uint256, v3, v22
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v24 = checked_add uint256, v4, 1
+    jump bb1
+}
