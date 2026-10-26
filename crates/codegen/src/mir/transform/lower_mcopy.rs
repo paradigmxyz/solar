@@ -18,9 +18,11 @@
 //! repeated bytes.
 //! Constructor-reachable sites remain inline because their ABI output may
 //! occupy the free-memory pointer where an internal call would stage its frame.
-//! Copies through raw or symbolic memory bases also remain inline because the
-//! helper's argument frame could overlap either copied range, unless the copy
-//! is marked `disjoint`: ABI encoding copies from heap objects into heap
+//! Copies between Solidity memory objects, whatever their bases, call the helper, because the
+//! helper's argument frame lies below the initial free memory pointer, where only assembly that
+//! names constant addresses can place data (CODEGEN-009). Pointers computed from constants or
+//! calldata alone, and ranges that leave the scratch space, remain inline. Copies marked
+//! `disjoint` call the helper as well: ABI encoding copies from heap objects into heap
 //! output, clear of every frame.
 //!
 //! Copies marked `disjoint`, such as ABI encoding's copies of source data into
@@ -55,7 +57,10 @@ use crate::{
     target::{Cost, Target},
 };
 use solar_config::OptimizationMode;
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 use std::{collections::BTreeMap, sync::Arc};
@@ -308,7 +313,15 @@ fn lower_function(
     }
 }
 
-/// Returns whether a helper call frame is provably disjoint from both copy ranges.
+/// Returns whether a helper call frame is clear of both copy ranges.
+///
+/// Static frames lie between the scratch space and the initial free memory pointer, and only
+/// assembly that names constant addresses there can reach them (CODEGEN-009). This pass runs
+/// only where `mcopy` is not an opcode, so every copy is the compiler's own, between Solidity
+/// memory objects: the caller's frame is live, so the helper's frame lies beyond it, and heap
+/// objects, call results, and allocations lie above every frame. A pointer qualifies unless it
+/// is computed from constants or calldata alone, which can name a frame, or reaches past the
+/// scratch space.
 fn copy_helper_eligible(func: &Function, alias: Option<&AliasAnalysis>, inst: InstId) -> bool {
     let Some(alias) = alias else { return false };
     let InstKind::Copy(dest, src, len, PtrLocation::Memory) = func.inst(inst).kind else {
@@ -316,18 +329,66 @@ fn copy_helper_eligible(func: &Function, alias: Option<&AliasAnalysis>, inst: In
     };
     let size = alias.location_size(func, len);
     [dest, src].into_iter().all(|pointer| {
-        alias
-            .bare_memory_location(func, pointer, size)
-            .is_some_and(|location| helper_owned_base(location.address.base))
+        let Some(location) = alias.bare_memory_location(func, pointer, size) else {
+            return false;
+        };
+        let address = location.address;
+        let scratch = address.base == MemoryBase::Absolute
+            && size
+                .as_const()
+                .and_then(|size| address.offset.checked_add(size))
+                .is_some_and(|end| end <= EvmMemoryLayout::HEAP_START);
+        scratch || !is_constant_address(func, pointer)
     })
 }
 
-/// Returns whether a base belongs to compiler-managed memory outside a callee's frame.
-fn helper_owned_base(base: MemoryBase) -> bool {
-    matches!(
-        base,
-        MemoryBase::InternalFrame | MemoryBase::Allocation(_) | MemoryBase::DynamicAllocation(_)
-    )
+/// Returns whether a pointer is computed from constants and calldata alone, so that it can name
+/// any static address.
+fn is_constant_address(func: &Function, pointer: ValueId) -> bool {
+    let mut pending = vec![pointer];
+    let mut seen = FxHashSet::default();
+    while let Some(value) = pending.pop() {
+        if !seen.insert(value) {
+            continue;
+        }
+        let Value::Inst(inst) = func.value(value) else {
+            if matches!(func.value(value), Value::Immediate(_)) {
+                continue;
+            }
+            return false;
+        };
+        match &func.inst(*inst).kind {
+            InstKind::Load(.., PtrLocation::Calldata) | InstKind::CalldataSize => {}
+            InstKind::Add(lhs, rhs)
+            | InstKind::Sub(lhs, rhs)
+            | InstKind::Mul(lhs, rhs)
+            | InstKind::Div(lhs, rhs)
+            | InstKind::SDiv(lhs, rhs)
+            | InstKind::Mod(lhs, rhs)
+            | InstKind::SMod(lhs, rhs)
+            | InstKind::Exp(lhs, rhs)
+            | InstKind::And(lhs, rhs)
+            | InstKind::Or(lhs, rhs)
+            | InstKind::Xor(lhs, rhs)
+            | InstKind::Shl(lhs, rhs)
+            | InstKind::Shr(lhs, rhs)
+            | InstKind::Sar(lhs, rhs)
+            | InstKind::PtrAdd(lhs, rhs)
+            | InstKind::Select(_, lhs, rhs) => pending.extend([*lhs, *rhs]),
+            InstKind::AddMod(lhs, rhs, modulus) | InstKind::MulMod(lhs, rhs, modulus) => {
+                pending.extend([*lhs, *rhs, *modulus])
+            }
+            InstKind::Zext(inner)
+            | InstKind::Trunc(inner, _)
+            | InstKind::Sext(inner, ..)
+            | InstKind::Not(inner)
+            | InstKind::IntToPtr(inner)
+            | InstKind::PtrToInt(inner, _) => pending.push(*inner),
+            InstKind::Phi(incoming) => pending.extend(incoming.iter().map(|&(_, value)| value)),
+            _ => return false,
+        }
+    }
+    true
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]

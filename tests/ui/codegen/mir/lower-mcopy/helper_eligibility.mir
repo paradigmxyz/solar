@@ -1,0 +1,65 @@
+//@ compile-flags: -Osize --evm-version paris -Zmir-pipeline=lower-mcopy
+//@ filecheck:
+@module CopyHelperEligibility
+
+// Static frames lie between the scratch space and the initial free memory pointer. A copy between
+// Solidity memory objects cannot reach them, so its sites call the shared helper whatever their
+// pointers' provenance.
+
+// CHECK-LABEL: fn @objects
+// CHECK: + icall @mcopy_words, arg0, arg1, arg2
+// CHECK: + icall @mcopy_words, arg1, arg0, arg2
+// CHECK: + icall @mcopy_words, arg0, arg1, arg2
+fn @objects(arg0: i256, arg1: i256, arg2: i256) {
+  bb0:
+    mcopy arg0, arg1, arg2
+    mcopy arg1, arg0, arg2
+    mcopy arg0, arg1, arg2
+    ret
+}
+
+// Scratch space lies below every frame.
+// CHECK-LABEL: fn @scratch
+// CHECK: + icall @mcopy_words, 0, 64, 64
+fn @scratch() {
+  bb0:
+    mcopy 0, 64, 64
+    ret
+}
+
+// Constructor copies stay inline: their ABI output may occupy the memory where a call would
+// stage its arguments.
+// CHECK-LABEL: fn @constructor
+// CHECK-NOT: icall @mcopy_words
+// CHECK-LABEL: fn @frame_constant
+fn @constructor(arg0: i256, arg1: i256, arg2: i256) [constructor] {
+  bb0:
+    mcopy arg0, arg1, arg2
+    ret
+}
+
+// A pointer computed from constants alone can name a frame.
+// CHECK-NOT: icall @mcopy_words
+// CHECK-LABEL: fn @frame_computed
+// CHECK-NOT: icall @mcopy_words
+// CHECK-LABEL: fn @scratch_end
+fn @frame_constant(arg0: i256, arg1: i256) {
+  bb0:
+    mcopy 128, arg0, arg1
+    ret
+}
+
+fn @frame_computed(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = add 120, 8
+    mcopy v0, arg0, arg1
+    ret
+}
+
+// The source range 0x40..0x88 reaches the first frame word.
+// CHECK-NOT: icall @mcopy_words
+fn @scratch_end() {
+  bb0:
+    mcopy 0, 64, 72
+    ret
+}
