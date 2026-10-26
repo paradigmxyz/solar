@@ -816,6 +816,8 @@ class ProjectGenerationTests(unittest.TestCase):
                 {"slot": "3", "offset": 0, "type": "t_array(t_uint64)3_storage"},
                 {"slot": "4", "offset": 0, "type": "t_mapping"},
                 {"slot": "5", "offset": 0, "type": "t_string_storage"},
+                {"slot": "6", "offset": 0, "type": "t_flag"},
+                {"slot": "7", "offset": 0, "type": "t_function"},
             ],
             "types": {
                 "t_bool": {
@@ -862,6 +864,18 @@ class ProjectGenerationTests(unittest.TestCase):
                     "encoding": "bytes",
                     "label": "string",
                     "numberOfBytes": "32",
+                },
+                # A user-defined `bool` and an internal function pointer hide
+                # their encodings behind their labels.
+                "t_flag": {
+                    "encoding": "inplace",
+                    "label": "Flag",
+                    "numberOfBytes": "1",
+                },
+                "t_function": {
+                    "encoding": "inplace",
+                    "label": "function (uint256) returns (uint256)",
+                    "numberOfBytes": "8",
                 },
             },
         }
@@ -1089,6 +1103,16 @@ class CommandTests(unittest.TestCase):
             logging_result = symbolic.run(args, root / "logging-out")
             self.assertEqual(logging_result["status"], "incomplete")
             self.assertIn("reverted inner frames", logging_result["reason"])
+            # The constructor's TSTORE would stay visible to the first call.
+            deployed["object"] = "60" * 400
+            output["contracts"]["Probe.sol"]["Probe"]["evm"]["bytecode"] = {
+                "object": "5d"
+            }
+            for directory in (args.solc_attempt, args.solar_attempt):
+                (directory / "stdout.txt").write_text(json.dumps(output))
+            transient_result = symbolic.run(args, root / "transient-out")
+            self.assertEqual(transient_result["status"], "incomplete")
+            self.assertIn("transient storage", transient_result["reason"])
             deployed.pop("immutableReferences")
             (args.solar_attempt / "stdout.txt").write_text(json.dumps(output))
             with self.assertRaisesRegex(ValueError, "immutableReferences"):

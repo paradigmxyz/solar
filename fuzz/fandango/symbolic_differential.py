@@ -31,6 +31,13 @@ SYMBOLIC_QUERY_TIMEOUT = 30
 SYMBOLIC_MAX_SOLVER_QUERIES = 10_000
 SYMBOLIC_MAX_CALLDATA_BYTES = 4096
 SYMBOLIC_MAX_DEPTH = 100_000
+_LOG_OPCODES = {0xA0, 0xA1, 0xA2, 0xA3, 0xA4}
+# CALL, CALLCODE, DELEGATECALL, STATICCALL, CREATE, and CREATE2.
+_INNER_FRAME_OPCODES = {0xF0, 0xF1, 0xF2, 0xF4, 0xF5, 0xFA}
+# Labels of the fixed-size values whose encoding the label states.
+_STORAGE_VALUE_LABEL = re.compile(
+    r"u?int\d+|bytes\d+|bool|address( payable)?|contract .+|enum .+"
+)
 MIRROR_BASE_ADDRESS = "0x1000000000000000000000000000000000000004"
 # Covers empty, short, selector-only, and one-word calldata.
 RAW_CALLDATA_LENGTHS = (0, 3, 4, 36)
@@ -390,24 +397,34 @@ def run(
         starting = _storage_constraints(layout, standard_input["enum_members"])
         for check in checks:
             check["starting_storage"] = starting
-    runtimes = (solc_artifact["runtime"], solar_artifact["runtime"])
-    opcodes = set().union(*(_runtime_opcodes(runtime) for runtime in runtimes))
+    # The creation code embeds the runtime, so it covers both.
+    scanned = (
+        (solc_artifact["runtime"], solar_artifact["runtime"])
+        if runtime_only
+        else (solc_artifact["creation"], solar_artifact["creation"])
+    )
+    opcodes = set().union(*(_runtime_opcodes(code) for code in scanned))
     limitations = []
     if 0xF5 in opcodes:
         limitations.append("contracts created with CREATE2 are not compared")
     if 0x5D in opcodes:
-        # Every call runs in the test's transaction, so transient storage
-        # would persist between calls that are separate transactions on chain.
+        # Every call and the constructor run in the test's transaction, so
+        # transient storage would persist between calls that are separate
+        # transactions on chain.
         for check in checks:
             if (
                 sum(step["kind"] != "fixed" for step in check["steps"])
                 + len(prefix_calldata)
+                + (not runtime_only)
                 > 1
             ):
                 check["unsupported"] = (
                     "transient storage would persist between calls that are "
                     "separate transactions on chain"
                 )
+    if limit := _inner_frame_log_limit(*scanned):
+        for check in checks:
+            check["unsupported"] = limit
     codes = [
         artifact[key]
         for artifact in (solc_artifact, solar_artifact)
@@ -1466,6 +1483,12 @@ def _storage_constraints(
                     )
                 else:
                     visit(info["base"], slot + index * (element // 32), 0)
+        elif not _STORAGE_VALUE_LABEL.fullmatch(label):
+            # User-defined value types and internal function pointers hide
+            # their encoding behind the label: a user-defined `bool` still
+            # must hold 0 or 1, and each compiler numbers function pointers
+            # on its own.
+            unconstrained.add(slot)
         else:
             mask = ((1 << (8 * size)) - 1) << (8 * offset)
             enums = []
@@ -1487,7 +1510,7 @@ def _storage_constraints(
 
 
 def _runtime_opcodes(runtime: str) -> set[int]:
-    """Returns the opcodes of a runtime, skipping PUSH data and trailing metadata."""
+    """Returns the opcodes of runtime or creation code, skipping PUSH data and trailing metadata."""
     code = bytes.fromhex(runtime.removeprefix("0x"))
     if len(code) >= 2:
         metadata = int.from_bytes(code[-2:]) + 2
@@ -1500,6 +1523,22 @@ def _runtime_opcodes(runtime: str) -> set[int]:
         opcodes.add(opcode)
         pc += 1 + (opcode - 0x5F if 0x60 <= opcode <= 0x7F else 0)
     return opcodes
+
+
+def _inner_frame_log_limit(*codes: str) -> str | None:
+    """Reports code that can log in an inner frame that later reverts.
+
+    Foundry records the logs of every frame, including inner frames that revert
+    inside a successful call, and attributes no log to a frame, so the harness
+    cannot drop them.
+    """
+    for code in codes:
+        opcodes = _runtime_opcodes(code)
+        if opcodes & _LOG_OPCODES and opcodes & _INNER_FRAME_OPCODES:
+            return (
+                "logs of reverted inner frames cannot be told apart from committed logs"
+            )
+    return None
 
 
 def _run_forge(
@@ -2175,8 +2214,8 @@ _TEST_FOOTER = """\
     }
 
     // A reverted top-level call discards its logs on chain, but Foundry still
-    // records them, so drop them here. Logs of inner frames that revert
-    // inside a successful call are still recorded and compared.
+    // records them, so drop them here. The tool does not run code that can
+    // revert an inner frame after a log.
     function _committedLogs(
         Vm.Log[] memory committed,
         bool ok

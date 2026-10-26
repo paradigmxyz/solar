@@ -373,8 +373,10 @@ never stores a `bool` other than 0 or 1, an enum value outside its members, or
 nonzero bytes outside a slot's declared fields, and compilers may treat such
 storage differently, so the property assumes those encodings away using Solc's
 storage layout and AST; the covered starting states are the validly encoded
-ones. The words are test inputs, so a counterexample reports them under
-`starting_storage` and Foundry replays them exactly. Mapping and dynamic-array
+ones. A slot that holds a user-defined value type or an internal function
+pointer starts empty, because its encoding is not visible in the layout. The
+words are test inputs, so a counterexample reports them under `starting_storage`
+and Foundry replays them exactly. Mapping and dynamic-array
 contents, and `bytes` and `string` slots, start empty, because their contents
 live at hashed slots that concrete replay cannot reproduce. The mode needs a
 source compiled by this tool and rejects saved attempts, which carry no AST.
@@ -403,8 +405,9 @@ and storage writes are compared like every other call.
 All calls of a property run in one Foundry test transaction, while on chain
 they are separate transactions. A target that ends a property without code,
 because SELFDESTRUCT deleted it as a same-transaction creation, is reported
-incomplete. When either runtime uses `TSTORE`, sequences of more than one call
-are reported incomplete, because transient storage would persist between them.
+incomplete. When either build uses `TSTORE`, the constructor and the calls count
+as one sequence, and a sequence of more than one is reported incomplete,
+because transient storage would persist between them.
 
 Calls forward all remaining gas because Foundry's symbolic executor does not
 model gas and reports explicit gas caps, including those of Solidity's
@@ -416,8 +419,9 @@ external code and the behavior of created contracts are outside this lane;
 compare a created contract's own source to cover its behavior. Contracts
 created with `CREATE2` or by created contracts are not compared, and a target
 whose runtime uses `CREATE2` lists that under `limitations`. Foundry records
-logs from inner frames that revert inside a successful call, so such logs are
-still compared; a mismatch with `differs_in: logs` can come from such a frame.
+the logs of inner frames that revert inside a successful call and does not say
+which frame emitted each log, so it cannot drop them. A build with a `LOG`
+opcode and any call or create opcode is therefore reported incomplete.
 
 A generated symbolic bound is raised as needed to hold both builds' bytecode
 and is recorded in `result.json`. A mismatch is reported only after Foundry
