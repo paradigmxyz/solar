@@ -231,7 +231,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::Fill => self.lower_core_fill(&operands),
             CoreIntrinsic::EncodedSize => {
                 let [encoding] = *operands.as_slice() else { return None };
-                Some(self.core_bytes_len(encoding))
+                Some(self.builder.memory_len(encoding))
             }
             CoreIntrinsic::BuilderBacking => {
                 self.lower_core_builder_backing(function_id, &operands)
@@ -920,9 +920,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let five = self.builder.imm(5);
         let size = self.builder.shl(words, five);
         let copy = self.builder.alloc(size, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        let destination = self.builder.cast_word(copy);
-        let source = self.builder.cast_word(a);
-        self.builder.copy_heap(destination, source, size, PtrLocation::Memory);
+        self.builder.copy_heap(copy, a, size, PtrLocation::Memory);
         copy
     }
 
@@ -2026,7 +2024,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => return None,
         };
         // The payload is a buffer, or an encoding staged past the free memory pointer.
-        let input_size = self.core_bytes_len(payload);
+        let input_size = self.builder.memory_len(payload);
         let input = self.core_bytes_data(payload);
         let capacity = self.builder.memory_len(output);
         let destination = self.builder.memory_data(output);
@@ -2068,7 +2066,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => return None,
         };
         // The payload is a buffer, or an encoding staged past the free memory pointer.
-        let input_size = self.core_bytes_len(payload);
+        let input_size = self.builder.memory_len(payload);
         let input = self.core_bytes_data(payload);
         let zero = self.builder.imm(U256::ZERO);
         // success = call|staticcall(gas, target[, value], input, input_size, 0, 0)
@@ -2691,7 +2689,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         width: u8,
     ) -> Option<ValueId> {
         let [object, offset] = *operands else { return None };
-        let length = self.core_bytes_len(object);
+        let length = self.builder.memory_len(object);
         let misses = self.core_range_misses(length, offset, Width::Const(u64::from(width)));
         // ok = !misses
         // word = mload | calldataload(data(object) + (ok ? offset : 0))
@@ -2801,7 +2799,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let data = self.core_checked_range(object, offset, Width::Const(u64::from(width)));
         match leading_mask(width) {
             // stored = (mload(data) & ~leading) | (value & leading)
-            // memory_object_store_word(object, offset, stored)
+            // memory_store_word(object, offset, stored)
             Some(mask) => {
                 let tail = self.builder.imm(!mask);
                 let mask = self.builder.imm(mask);
@@ -2833,7 +2831,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let [out, offset, encoding] = *operands else { return None };
         // count = len(encoding)
         // destination = data(out) + offset, after panic(0x32) unless offset + count <= len(out)
-        let count = self.core_bytes_len(encoding);
+        let count = self.builder.memory_len(encoding);
         let destination = self.core_checked_range(out, offset, Width::Dynamic(count));
         let source = self.core_bytes_data(encoding);
         self.core_copy_bytes(encoding, destination, source, count);
@@ -2852,8 +2850,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // ok = !misses(len(out), offset, count)
         // written = ok ? count : 0
         // copy(data(out) + (ok ? offset : 0), data(encoding), written)
-        let count = self.core_bytes_len(encoding);
-        let length = self.core_bytes_len(out);
+        let count = self.builder.memory_len(encoding);
+        let length = self.builder.memory_len(out);
         let misses = self.core_range_misses(length, offset, Width::Dynamic(count));
         let ok = self.builder.eq_zero(misses);
         let zero = self.builder.imm(U256::ZERO);
@@ -2889,7 +2887,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let [dst, offset, count, value] = *operands else { return None };
         // The portable loop writes nothing for an empty fill, wherever it starts.
         // panic(0x32) if count != 0 && misses(length, offset, count)
-        let length = self.core_bytes_len(dst);
+        let length = self.builder.memory_len(dst);
         let misses = self.core_range_misses(length, offset, Width::Dynamic(count));
         let zero = self.builder.imm(0);
         let nonempty = self.builder.ne(count, zero);
@@ -2989,7 +2987,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // count = len(b)
         // left = data(a) + offset, after panic(0x32) unless offset + count <= len(a)
         // right = data(b)
-        let count = self.core_bytes_len(b);
+        let count = self.builder.memory_len(b);
         let left = self.core_checked_range(a, offset, Width::Dynamic(count));
         let left = self.builder.cast_word(left);
         let right = self.core_bytes_data(b);
@@ -3128,25 +3126,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// The sum is tested for wrapping as well as for fit, so an offset near
     /// the top of the word cannot wrap into a range that looks valid.
     fn core_checked_range(&mut self, object: ValueId, offset: ValueId, width: Width) -> ValueId {
-        let length = self.core_bytes_len(object);
+        let length = self.builder.memory_len(object);
         // panic(0x32) if misses(length, offset, width)
         let misses = self.core_range_misses(length, offset, width);
         self.builder.panic_if(misses, PanicCode::ArrayOutOfBounds);
         // address = data(object) + offset
         let data = self.core_bytes_data(object);
         self.builder.add(data, offset)
-    }
-
-    /// The length of a `bytes` operand: a memory object, or the slice a
-    /// `@custom:solar-view` variable reads in memory or calldata.
-    fn core_bytes_len(&mut self, bytes: ValueId) -> ValueId {
-        if self.builder.func().value_slice_location(bytes).is_some() {
-            // length = slice.len
-            self.builder.slice_len(bytes)
-        } else {
-            // length = object.len
-            self.builder.memory_len(bytes)
-        }
     }
 
     /// The address of the first byte of a `bytes` operand: a memory address, or a calldata

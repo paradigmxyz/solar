@@ -1319,32 +1319,15 @@ impl<'a> FunctionBuilder<'a> {
         self.ne(value, zero)
     }
 
-    /// Returns a word that is nonzero exactly when `value` exceeds `2^bits - 1`.
+    /// Tests whether `value` exceeds `2^bits - 1`.
     ///
-    /// With bitwise shifting the test is a shift, which needs no wide
-    /// immediate and joins other failure words through `or`.
-    pub(crate) fn exceeds_bits_word(
-        &mut self,
-        value: ValueId,
-        bits: u32,
-        shifting: bool,
-    ) -> ValueId {
-        if shifting {
-            // word = shr bits, value
-            let shift = self.imm(u64::from(bits));
-            return self.shr(value, shift);
-        }
-        // word = zext (gt value, 2^bits - 1) to i256
-        let above = self.exceeds_bits(value, bits, false);
-        self.cast(above, MirType::I256)
-    }
-
-    /// Tests whether `value` exceeds `2^bits - 1`; see [`Self::exceeds_bits_word`].
+    /// With bitwise shifting the test is a shift, which needs no wide immediate.
     pub(crate) fn exceeds_bits(&mut self, value: ValueId, bits: u32, shifting: bool) -> ValueId {
         debug_assert!((1..256).contains(&bits));
         if shifting {
-            // result = ne (shr bits, value), 0
-            let word = self.exceeds_bits_word(value, bits, true);
+            // result = ne (shr value, bits), 0
+            let shift = self.imm(u64::from(bits));
+            let word = self.shr(value, shift);
             return self.ne_zero(word);
         }
         // result = gt value, 2^bits - 1

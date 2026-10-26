@@ -2007,8 +2007,6 @@ fn @core_array_copy(arg0: ptr<memory>) -> ptr<memory> {
     v3 = add v0, 1
     v4 = shl v3, 5
     v5 = alloc checked v4
-    v6 = ptrtoint ptr<memory> v5 to i256
-    v7 = ptrtoint ptr<memory> arg0 to i256
     mcopy v5, arg0, v4 !metadata(memory=heap)
     ret v5
 }

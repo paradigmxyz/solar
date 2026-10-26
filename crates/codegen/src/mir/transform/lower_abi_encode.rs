@@ -1347,7 +1347,7 @@ fn encode_dynamic_body(
         // tail = encode_encoded(ty, value.ptr, value.len)
         let data = builder.slice_ptr(value);
         let len = builder.slice_len(value);
-        return encode_encoded(builder, ty, data, len, dest, location, helpers);
+        return encode_encoded(builder, ty, data, len, dest, location);
     }
     match ty {
         AbiType::Bytes(location) => {
@@ -1433,7 +1433,6 @@ fn encode_encoded(
     len: ValueId,
     dest: ValueId,
     location: PtrLocation,
-    helpers: &EncodeHelpers,
 ) -> ValueId {
     match ty {
         AbiType::Bytes(_) => {
@@ -1446,12 +1445,12 @@ fn encode_encoded(
             // tail = encode_encoded_elements(element, data, len, dest + 32)
             builder.store(dest, len);
             let heads = offset_ptr(builder, dest, 32);
-            encode_encoded_elements(builder, element, data, len, heads, location, helpers)
+            encode_encoded_elements(builder, element, data, len, heads, location)
         }
         AbiType::FixedArray { element, len, .. } => {
             // tail = encode_encoded_elements(element, data, len, dest)
             let count = builder.imm(*len);
-            encode_encoded_elements(builder, element, data, count, dest, location, helpers)
+            encode_encoded_elements(builder, element, data, count, dest, location)
         }
         AbiType::Tuple(fields) => {
             let head_size = fields.iter().map(AbiType::head_size).sum::<u64>();
@@ -1467,9 +1466,7 @@ fn encode_encoded(
                     builder.store(head, relative);
                     let (field_data, field_len) =
                         encoded_value(builder, field, data, source, location);
-                    tail = encode_encoded(
-                        builder, field, field_data, field_len, tail, location, helpers,
-                    );
+                    tail = encode_encoded(builder, field, field_data, field_len, tail, location);
                 } else {
                     // copy(head, source, head_size(field))
                     let size = builder.imm(field.head_size());
@@ -1519,7 +1516,6 @@ fn encode_encoded_elements(
     count: ValueId,
     dest: ValueId,
     location: PtrLocation,
-    helpers: &EncodeHelpers,
 ) -> ValueId {
     let head_size = builder.imm(element.head_size());
     let bytes = builder.mul(count, head_size);
@@ -1557,8 +1553,7 @@ fn encode_encoded_elements(
     let relative = builder.sub(tail, dest);
     builder.store(head, relative);
     let (element_data, element_len) = encoded_value(builder, element, heads, source, location);
-    let next_tail =
-        encode_encoded(builder, element, element_data, element_len, tail, location, helpers);
+    let next_tail = encode_encoded(builder, element, element_data, element_len, tail, location);
     let one = builder.imm(1);
     let next_remaining = builder.sub(remaining, one);
     let next_source = offset_ptr(builder, source, 32);

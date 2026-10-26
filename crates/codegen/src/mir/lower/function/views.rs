@@ -630,13 +630,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let abi = self.types.abi_type(ty)?;
         if !ty.is_ref_at(DataLocation::Memory) {
             // value = load_word(view, head)
-            let word = self.load_view_word(view, location, head);
+            let word = self.builder.slice_load_word(view, head);
             return Some(self.view_scalar(ty, word));
         }
         // position = load_word(view, head) when dynamic, else head
         // start = view.ptr + position
         let position =
-            if abi.is_dynamic() { self.load_view_word(view, location, head) } else { head };
+            if abi.is_dynamic() { self.builder.slice_load_word(view, head) } else { head };
         let pointer = self.builder.slice_ptr(view);
         let start = self.builder.add(pointer, position);
         Some(match ty.peel_refs().kind {
@@ -656,19 +656,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => {
                 // bytes, string, and dynamic arrays:
                 // item = slice(start + 32, load_word(view, position))
-                let length = self.load_view_word(view, location, position);
+                let length = self.builder.slice_load_word(view, position);
                 let data = self.builder.add_u64_offset(start, 32);
                 self.builder.make_slice(data, length, location)
             }
         })
-    }
-
-    /// Loads the word at byte `offset` of `view`, which lies in `location`.
-    fn load_view_word(&mut self, view: ValueId, location: PtrLocation, offset: ValueId) -> ValueId {
-        match location {
-            PtrLocation::Calldata => self.builder.slice_load_word(view, offset),
-            _ => self.builder.slice_load_word(view, offset),
-        }
     }
 
     /// The value of type `ty` a view's word holds. The decode validated the word, and nothing
@@ -1076,13 +1068,11 @@ fn write_targets(
         } => {}
         kind => {
             // Lowering emits a store through a pointer only inside the object's allocation, after
-            // any bounds check it needs; a store at a raw word may run past the object it
-            // starts in.
+            // any bounds check it needs; a store at a raw word, or a copy of any length, may run
+            // past the object it starts in.
             let contained = match kind {
                 InstKind::Alloc { .. } => true,
-                InstKind::Store(address, ..)
-                | InstKind::Store8(address, _)
-                | InstKind::Copy(address, ..) => {
+                InstKind::Store(address, ..) | InstKind::Store8(address, _) => {
                     func.value_ty(*address).is_some_and(MirType::is_pointer)
                 }
                 _ => false,

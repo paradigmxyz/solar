@@ -188,7 +188,7 @@ fn check_region(
     }
     // Whether `pointer` lies in memory the block allocated, rather than only maybe referring to it.
     let allocated = |pointer: ValueId| {
-        function.aa.memory_address(func, pointer).is_some_and(|address| match address.base {
+        function.aa.access_base(func, pointer).is_some_and(|address| match address.base {
             MemoryBase::Allocation(site)
             | MemoryBase::DynamicAllocation(site)
             | MemoryBase::FreeMemory(site) => inside(site),
@@ -460,7 +460,7 @@ impl PointerWrites {
         // Where a store of `stored` through `address` lands: this call's own memory, a
         // parameter's object, or memory older than the call.
         let record = |writes: &mut Self, address: ValueId, stored: &Stored| {
-            let Some(address) = function.aa.memory_address(func, address) else {
+            let Some(address) = function.aa.access_base(func, address) else {
                 writes.other.add(stored);
                 return;
             };

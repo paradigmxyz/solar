@@ -716,6 +716,17 @@ impl AliasAnalysis {
         Some(MemoryLocation::new(Self::refine_region(func, inst_id, base), LocationSize::Unknown))
     }
 
+    /// Returns the canonical address an access at `address` starts in: `memory_address`, except
+    /// that an address `ptradd (ptradd base, index), k` with a runtime index names `base + k`,
+    /// the object the access stays inside.
+    #[must_use]
+    pub(crate) fn access_base(&self, func: &Function, address: ValueId) -> Option<MemoryAddress> {
+        match self.runtime_offset_base(func, address) {
+            Some(base) => base,
+            None => self.memory_address(func, address),
+        }
+    }
+
     /// Returns the memory an access at `address` may touch, without instruction metadata, as
     /// [`Self::access_extent`] does.
     #[must_use]
