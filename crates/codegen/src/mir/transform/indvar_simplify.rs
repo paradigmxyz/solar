@@ -1648,7 +1648,8 @@ impl IndVarSimplifier {
         let iv = loop_data.induction_vars.iter().find(|iv| iv.value == key.iv)?;
         let delta =
             self.additive_step(func, key.iv, Some(iv.update_inst))?.checked_mul(key.scale)?;
-        if delta == 0 {
+        // The latch's step below needs the magnitude, which must exist before the phi does.
+        if delta == 0 || delta.checked_abs().is_none() {
             return None;
         }
 
@@ -1713,6 +1714,10 @@ impl IndVarSimplifier {
         let update_value = func.inst_result_value(update_inst)?;
         // The address of the counter one step back: `key` with the step taken off.
         let previous = AddressKey { constant: key.constant.checked_sub(delta)?, ..key.clone() };
+        // Every step that can fail runs before the phi and `next` enter their blocks, so a
+        // failure leaves no phi without its latch input.
+        let (update_block, update_index) = Self::position(func, loop_data, update_inst)?;
+        let magnitude = self.offset_value(func, delta.checked_abs()?)?;
         let carried =
             self.carried_start(func, cfg, loop_data, preheader, iv.init, update_value, &previous);
         // preheader: start = base + sum(invariant * scale) + init * scale + constant - delta
@@ -1734,10 +1739,7 @@ impl IndVarSimplifier {
             Instruction::new(InstKind::Phi(vec![(preheader, initial)]), Some(MirType::I256))
                 .with_debug_info_dropped(),
         );
-        self.insert_header_phi(func, loop_data.header, phi_inst);
         // update block: ...; counter' = update; next = ptr + delta; ...
-        let (update_block, update_index) = Self::position(func, loop_data, update_inst)?;
-        let magnitude = self.offset_value(func, delta.checked_abs()?)?;
         let kind = if delta > 0 {
             InstKind::Add(phi_value, magnitude)
         } else {
@@ -1746,36 +1748,40 @@ impl IndVarSimplifier {
         let (next_inst, next) = func.alloc_value_inst(
             Instruction::new(kind, Some(MirType::I256)).with_debug_info_dropped(),
         );
-        func.blocks[update_block].instructions.insert(update_index + 1, next_inst);
-        let InstKind::Phi(incoming) = &mut func.inst_mut(phi_inst).kind else {
-            return None;
-        };
-        incoming.push((latch, next));
-        if let Some((block, inputs)) = carried {
-            // block: start = phi [from: next], ..., [other: base + sum(...) + input * scale + ...]
-            let mut starts = Vec::with_capacity(inputs.len());
-            for (from, input) in inputs {
-                let start = if input == update_value {
-                    next
-                } else {
-                    self.pointer_at(func, from, &previous, input)?
-                };
-                starts.push((from, start));
+        // block: start = phi [from: next], ..., [other: base + sum(...) + input * scale + ...]
+        let start = match carried {
+            Some((block, inputs)) => {
+                let mut starts = Vec::with_capacity(inputs.len());
+                for (from, input) in inputs {
+                    let start = if input == update_value {
+                        next
+                    } else {
+                        self.pointer_at(func, from, &previous, input)?
+                    };
+                    starts.push((from, start));
+                }
+                let (start_inst, start) = func.alloc_value_inst(
+                    Instruction::new(InstKind::Phi(starts), Some(MirType::I256))
+                        .with_debug_info_dropped(),
+                );
+                Some((block, start_inst, start))
             }
-            let (start_inst, start) = func.alloc_value_inst(
-                Instruction::new(InstKind::Phi(starts), Some(MirType::I256))
-                    .with_debug_info_dropped(),
-            );
+            None => None,
+        };
+        // `next` goes in first: the phi may enter the update's own block, ahead of the update.
+        func.blocks[update_block].instructions.insert(update_index + 1, next_inst);
+        if let Some((block, start_inst, start)) = start {
             self.insert_header_phi(func, block, start_inst);
             let InstKind::Phi(incoming) = &mut func.inst_mut(phi_inst).kind else {
-                return None;
+                unreachable!("the pointer is a phi")
             };
-            for (from, value) in incoming.iter_mut() {
-                if *from == preheader {
-                    *value = start;
-                }
-            }
+            incoming[0].1 = start;
         }
+        let InstKind::Phi(incoming) = &mut func.inst_mut(phi_inst).kind else {
+            unreachable!("the pointer is a phi")
+        };
+        incoming.push((latch, next));
+        self.insert_header_phi(func, loop_data.header, phi_inst);
         self.stats.pointer_phis_inserted += 1;
         Some((phi_value, next))
     }

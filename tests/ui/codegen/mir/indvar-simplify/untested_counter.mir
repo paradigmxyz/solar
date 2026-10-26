@@ -121,3 +121,22 @@ fn @partition(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 {
     mstore v14, v41
     jump bb1
 }
+
+// A step of exactly `-2^127` bytes has no magnitude to move a pointer by, so the scan stays as it
+// is, with no pointer phi left behind without its input from the latch.
+// CHECK-LABEL: {{^[ +].*}}fn @no_magnitude{{[( ]}}
+// CHECK-NOT: {{^[+-]}}
+fn @no_magnitude(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg1], [bb1: v2]
+    v2 = sub v1, 0x40000000000000000000000000000000
+    v3 = shl v2, 1
+    v4 = add arg0, v3
+    v5 = mload v4
+    v6 = lt v5, arg2
+    jumpi v6, bb1, bb2
+  bb2:
+    ret v2
+}
