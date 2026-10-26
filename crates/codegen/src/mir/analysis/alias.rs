@@ -1871,21 +1871,31 @@ impl AliasAnalysis {
     }
 
     fn constant_word(func: &Function, value: ValueId, depth: usize) -> Option<U256> {
-        match func.value(value) {
-            Value::Immediate(immediate) => immediate.as_u256(),
-            Value::Inst(inst) if depth < 4 && super::integers::integer_bits(func, value) == 256 => {
-                let word = |operand| Self::constant_word(func, operand, depth + 1);
-                match func.inst(*inst).kind {
-                    InstKind::Add(first, second) => Some(word(first)?.wrapping_add(word(second)?)),
-                    InstKind::Sub(first, second) => Some(word(first)?.wrapping_sub(word(second)?)),
-                    InstKind::Mul(first, second) => Some(word(first)?.wrapping_mul(word(second)?)),
-                    InstKind::And(first, second) => Some(word(first)? & word(second)?),
-                    InstKind::Or(first, second) => Some(word(first)? | word(second)?),
-                    _ => None,
-                }
-            }
-            _ => None,
+        let inst = match func.value(value) {
+            Value::Immediate(immediate) => return immediate.as_u256(),
+            Value::Inst(inst) if depth < 4 => *inst,
+            _ => return None,
+        };
+        let (InstKind::Add(first, second)
+        | InstKind::Sub(first, second)
+        | InstKind::Mul(first, second)
+        | InstKind::And(first, second)
+        | InstKind::Or(first, second)) = func.inst(inst).kind
+        else {
+            return None;
+        };
+        let first_word = Self::constant_word(func, first, depth + 1)?;
+        let second_word = Self::constant_word(func, second, depth + 1)?;
+        if super::integers::integer_bits(func, value) != 256 {
+            return None;
         }
+        Some(match func.inst(inst).kind {
+            InstKind::Add(..) => first_word.wrapping_add(second_word),
+            InstKind::Sub(..) => first_word.wrapping_sub(second_word),
+            InstKind::Mul(..) => first_word.wrapping_mul(second_word),
+            InstKind::And(..) => first_word & second_word,
+            _ => first_word | second_word,
+        })
     }
 
     fn slice_pointer_address(
@@ -2109,14 +2119,19 @@ impl AliasAnalysis {
             | InstKind::ICall { .. }
             | InstKind::InternalFrameAddr(_)
             | InstKind::FrameLoad { .. } => false,
-            InstKind::PtrAdd(base, offset) => func.value_u64(*offset).is_none() || indexed(*base),
-            InstKind::Add(first, second) => match (func.value_u64(*first), func.value_u64(*second))
-            {
-                (_, Some(_)) => indexed(*first),
-                (Some(_), None) => indexed(*second),
-                (None, None) => true,
-            },
-            InstKind::Sub(base, offset) => func.value_u64(*offset).is_none() || indexed(*base),
+            InstKind::PtrAdd(base, offset) => {
+                Self::constant_offset(func, *offset).is_none() || indexed(*base)
+            }
+            InstKind::Add(first, second) => {
+                match (Self::constant_offset(func, *first), Self::constant_offset(func, *second)) {
+                    (_, Some(_)) => indexed(*first),
+                    (Some(_), None) => indexed(*second),
+                    (None, None) => true,
+                }
+            }
+            InstKind::Sub(base, offset) => {
+                Self::constant_offset(func, *offset).is_none() || indexed(*base)
+            }
             InstKind::Select(_, first, second) => indexed(*first) || indexed(*second),
             InstKind::Phi(incoming) => incoming.iter().any(|&(_, value)| indexed(value)),
             InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => indexed(*value),
