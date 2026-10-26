@@ -807,10 +807,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// ERC-6551 registry's proxy initcode at `[0x55, 0x10c)`, which it reads back after other
     /// code ran. A spill slot there would end up in the image, and a reload would read a byte of
     /// it. An entry's region ends at the higher of its spill area with its allocations and the
-    /// frames it reaches above the highest end of all entries, plus its heap prefix guard. A range
-    /// that starts below that end and ends above the entry's base moves the base to the range's
-    /// end, which moves the end, until no range intersects: a range beyond the final region
-    /// costs nothing.
+    /// frames it reaches above the highest end of all entries, followed by its allocations that do
+    /// not fit below them, plus its heap prefix guard. A range that starts below that end and
+    /// ends above the entry's base moves the base to the range's end, which moves the end,
+    /// until no range intersects: a range beyond the final region costs nothing.
     fn entry_spill_bases(
         &self,
         module: &Module,
@@ -853,14 +853,20 @@ impl<'gcx> EvmCodegen<'gcx> {
                 (entry, base)
             })
             .collect::<FxHashMap<_, _>>();
-        let sizes = entries
+        let allocations = entries
             .iter()
             .map(|&entry| {
-                let allocations = self
+                let size = self
                     .pending_static_allocs
                     .get(&entry)
                     .map_or(0, |allocations| allocations.iter().map(|&(_, size)| size).sum());
-                (entry, self.function_spill_size(entry).saturating_add(allocations))
+                (entry, size)
+            })
+            .collect::<FxHashMap<_, _>>();
+        let sizes = entries
+            .iter()
+            .map(|&entry| {
+                (entry, self.function_spill_size(entry).saturating_add(allocations[&entry]))
             })
             .collect::<FxHashMap<_, _>>();
         loop {
@@ -876,7 +882,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let frames = static_spans[&entry];
                 let mut end = ends[&entry];
                 if frames != 0 {
-                    end = end.max(region_start.saturating_add(frames));
+                    // Allocations that do not fit below the frames follow them.
+                    end = end.max(
+                        region_start.saturating_add(frames).saturating_add(allocations[&entry]),
+                    );
                 }
                 end = end.saturating_add(prefix_guards.get(&entry).copied().unwrap_or(0));
                 if let Some(raised) = ranges[&entry]
