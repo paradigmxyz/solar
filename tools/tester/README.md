@@ -11,6 +11,16 @@ a separate test that runs in the workspace's default
 `cargo tq solc-solidity`, or `cargo tq foundry`. Set `SOLAR_FOUNDRY_PROJECT` to
 run one discovered project.
 
+The Foundry runner runs solc once per project, with the project's own optimizer
+settings, as the baseline. It then runs the compiler at `-O none`, `-O gas`, and
+`-O size`, whatever the project's `foundry.toml` says, and every level must pass
+every test. A level that fails its assertions is named in the output, and the
+other levels are still judged. Set `SOLAR_FOUNDRY_OPTIMIZATION` (see below) to
+run one level, such as `SOLAR_FOUNDRY_OPTIMIZATION=none cargo tq foundry`. Only
+gas use and code size may differ between levels. The gas and size comparisons
+printed for each level are against solc at the project's own optimizer settings,
+which is unoptimized for most projects.
+
 Arguments after a UI-mode suite name (`ui`, `mir`, `evm-ir`, `standard-json`,
 `solc-solidity`, `solc-yul`) filter tests by path substring, as in
 `cargo tq ui tests/ui/typeck` or `cargo bless ui tests/ui/typeck`. Filtered runs
@@ -77,8 +87,9 @@ checkpoints, required tools, saved reports, and known compiler gaps.
 (morpho-blue, solmate, solady, seaport, openzeppelin-contracts,
 uniswap-v4-core) as a differential suite: both compilers run each project's own
 tests with a fixed fuzz seed, solc's passing tests are the oracle, and artifacts
-are audited for parity. The test is `#[ignore]`d, never runs in CI, and needs
-the network on first use.
+are audited for parity. The compiler leg follows each project's own optimizer
+settings unless `SOLAR_FOUNDRY_OPTIMIZATION` pins a level. The test is
+`#[ignore]`d, never runs in CI, and needs the network on first use.
 
 `tools/tester/src/foundry/external.rs` pins each project to a full commit hash.
 Checkouts in `target/foundry-external/checkouts/` are reused without network. A
@@ -102,6 +113,13 @@ files from `node_modules/hardhat-predeploy/bin` in its checkout. Install
 `hardhat-predeploy@1.0.1` with the version and integrity from that checkout's
 lockfile; the runner grants read access to that directory.
 
+Seaport at `SOLAR_FOUNDRY_OPTIMIZATION=none` fails 16 tests that pass at `gas`
+and `size`. `FuzzInscribers._getStorageSlotForOrderHash` uses `vm.accesses` to
+assert that `getOrderStatus` reads storage with exactly one `SLOAD`, which holds
+only in an optimized build; an unoptimized build reads the packed slot once per
+field. Treat those failures as expected at `none`: the test assumes an
+optimized build.
+
 A green run can still hide tests that fail under both compilers; check the
 reported baseline failures before claiming full coverage.
 
@@ -119,12 +137,16 @@ Environment variables:
   when sources pin an exact `pragma solidity`), `skip_tests` and
   `skip_contracts` (arrays of `{ pattern, reason }`; `reason` is required), and
   `notes`.
-- `SOLAR_FOUNDRY_REPORT_DIR`: also write per-project JSON reports.
+- `SOLAR_FOUNDRY_REPORT_DIR`: also write per-project JSON reports. The `solar`
+  entry maps each optimization level (`none`, `gas`, `size`, or `project` when
+  the project's own settings apply) to its run.
 - `SOLAR_FOUNDRY_SKIP`: skip the default Foundry suite. Without it, a missing
   `forge` or Solar binary fails the suite instead of passing silently.
 - `SOLAR_FOUNDRY_COMPILER`: Solar executable to use instead of the one Cargo
   builds for the test; relative paths start at the workspace root. A debug
   build enables MIR and EVM IR validation by default.
-- `SOLAR_FOUNDRY_OPTIMIZATION`: compile the Solar leg with `none`, `gas`, or
-  `size`, keeping the project's solc optimizer settings, so the unoptimized
-  Solar leg can run projects that need solc's optimizer to compile.
+- `SOLAR_FOUNDRY_OPTIMIZATION`: run only the Solar leg at `none`, `gas`, or
+  `size`, keeping the project's solc optimizer settings for the baseline, so
+  the unoptimized Solar leg can run projects that need solc's optimizer to
+  compile. Without it, the default suite runs all three levels and the external
+  suite follows each project's own settings.

@@ -7,9 +7,13 @@
 //! revisit their callees with updated call counts. The pipeline repeats this
 //! pass after lowering and cleanup expose smaller bodies.
 //!
-//! Size mode admits only tiny bodies whose estimated bytes do not grow. Gas
-//! mode also considers scalar loop helpers, constant-argument wrappers, and
-//! callees sharing a direct constant-slot read with the call block. The latter
+//! Size mode admits tiny bodies whose estimated bytes do not grow, and consumes
+//! sole-use callees, adding to the body the code the backend would stop sharing
+//! with other functions (see `shared_runs`). It also inlines every call of an
+//! arithmetic leaf or forwarder with several sites when the copies cost less than
+//! the shared body and its call protocols (see `all_sites`). Gas mode also
+//! considers scalar loop helpers, constant-argument wrappers, and callees sharing
+//! a direct constant-slot read with the call block. The latter
 //! must not write storage or observe gas; later CSE removes redundant reads.
 //! Reference-returning helpers stay shared except for transparent forwarders
 //! and one-word literals used once per emitted artifact. Shared void forwarders
@@ -54,8 +58,8 @@ use crate::{
         ImmutableEncoding, InstId, InstKind, Instruction, MirPhase, MirType, Module, PtrLocation,
         StorageAlias, Terminator, Value, ValueId,
         analysis::{
-            AddressSpace, CallGraphInfo, Liveness, LocalSummaryCache, LoopAnalyzer,
-            MemoryCallSummaries, direct_callees,
+            AddressSpace, CallGraphInfo, Liveness, LoopAnalyzer, MemoryCallSummaries,
+            direct_callees,
         },
         immutable::immutable_push_type_size,
         memory::EvmMemoryLayout,
@@ -69,8 +73,12 @@ use solar_ast::StateMutability;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
+mod all_sites;
 mod dispatch;
 mod guards;
+mod shared_runs;
+
+use shared_runs::SharedRuns;
 
 /// One inlining policy, before and after physical memory lowering.
 pub(crate) enum Inline {
@@ -97,29 +105,37 @@ impl MirPass for Inline {
         let physical = matches!(self, Self::Physical) || module.phase >= MirPhase::Lowered;
         let mut changed = false;
         for _ in 0..4 {
-            let calls = MemoryCallSummaries::new_cached(module, &mut LocalSummaryCache::default());
-            let straight_line = if target.optimization().is_gas() {
-                module.creation_pricing_functions().1
-            } else {
-                DenseBitSet::new_empty(module.functions.len())
-            };
-            let stats = MirInliner { target, physical, calls, straight_line }.run(module);
-            if !stats.consumed.is_empty() {
-                super::cfg_simplify::remove_unreferenced_functions(module, &stats.consumed);
+            let calls = analyses.fresh_call_summaries(module);
+            let straight_line = module.creation_pricing_functions().1;
+            let shared_runs = (!target.optimization().is_gas()).then(|| SharedRuns::new(module));
+            let stats =
+                MirInliner { target, physical, calls, straight_line, shared_runs }.run(module);
+            for &caller in &stats.modified {
+                analyses.invalidate_local_summary(caller);
+            }
+            if !stats.consumed.is_empty()
+                && let Some(keep) =
+                    super::cfg_simplify::remove_unreferenced_functions(module, &stats.consumed)
+            {
+                analyses.retain_local_summaries(&keep);
             }
             if stats.inlined == 0 {
                 break;
             }
             changed = true;
         }
+        let mut edited_later = false;
         if physical {
-            changed |= guards::inline_guards(module, &target);
+            edited_later = guards::inline_guards(module, &target);
             if dispatch::inline_dispatch(module, &target) {
                 let _ = super::cfg_simplify::FunctionDce.run_pass(gcx, module, analyses);
-                changed = true;
+                edited_later = true;
             }
         }
-        changed
+        if !edited_later {
+            analyses.preserve_local_summaries();
+        }
+        changed | edited_later
     }
 }
 
@@ -153,6 +169,8 @@ struct MirInliner {
     /// The creation-only functions that run a bounded number of times, whose code the creation
     /// model prices.
     straight_line: DenseBitSet<MirFunctionId>,
+    /// The runs of instructions the backend shares between functions. Size mode only.
+    shared_runs: Option<SharedRuns>,
 }
 
 impl MirInliner {
@@ -175,6 +193,8 @@ struct MirInlineStats {
     inlined: usize,
     /// Callees whose only call site was inlined; nothing calls them afterwards.
     consumed: Vec<MirFunctionId>,
+    /// Callers that received a clone.
+    modified: Vec<MirFunctionId>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -238,6 +258,8 @@ impl MirInliner {
             || summaries.values().any(|summary| summary.is_small_literal_return))
         .then(|| ArtifactCallCounts::new(module, &call_graph));
         let preferred_large_call_sites = self.preferred_large_call_sites(module, &summaries);
+        let mut consumed_everywhere =
+            all_sites::consumed_everywhere(self, module, &summaries, &call_counts);
 
         // Specialize dispatcher calls before helper-local inlining introduces phis.
         // Inline only into the callers that `call_counts` covers, so the count updates below stay
@@ -295,12 +317,13 @@ impl MirInliner {
                     continue;
                 }
                 let preferred = preferred_large_call_sites.get(&site.callee).copied();
+                let consume_all = consumed_everywhere.contains(&site.callee);
                 let inlineable = self.is_inlineable(
                     module,
                     caller_id,
                     site,
                     summary,
-                    Pricing { target: self.target, call_count },
+                    Pricing { target: self.target, call_count, consume_all },
                     preferred,
                 );
                 // Creation code carries its own copy of every callee, so a callee that only this
@@ -310,8 +333,11 @@ impl MirInliner {
                 let creation_inlineable = !inlineable
                     && self.straight_line.contains(caller_id)
                     && artifact_counts.is_some_and(|counts| {
-                        let creation =
-                            Pricing { target: self.target.priced_for(true), call_count: counts[0] };
+                        let creation = Pricing {
+                            target: self.target.priced_for(true),
+                            call_count: counts[0],
+                            consume_all: false,
+                        };
                         self.is_inlineable(module, caller_id, site, summary, creation, preferred)
                     });
                 if !inlineable && !creation_inlineable {
@@ -326,7 +352,8 @@ impl MirInliner {
                     let caller = module.function(caller_id);
                     let liveness =
                         caller_liveness.get_or_insert_with(|| Liveness::compute_live_sets(caller));
-                    if surviving_call_words(caller, liveness, site).saturating_add(peak)
+                    if surviving_call_words(caller, liveness, site.block, site.inst_index)
+                        .saturating_add(peak)
                         > Self::STACK_BUDGET
                     {
                         continue;
@@ -337,6 +364,9 @@ impl MirInliner {
                 let caller = module.function_mut(caller_id);
                 if inline_call(caller, site.block, site.inst_index, &callee) {
                     stats.inlined += 1;
+                    stats.modified.push(caller_id);
+                    // The price of its sites was for the body it had.
+                    consumed_everywhere.remove(&caller_id);
                     if call_counts.get(&site.callee) == Some(&1) {
                         stats.consumed.push(site.callee);
                     }
@@ -474,10 +504,12 @@ impl MirInliner {
         caller: MirFunctionId,
         site: CallSite,
         summary: MirInlineSummary,
-        Pricing { target, call_count }: Pricing,
+        Pricing { target, call_count, consume_all }: Pricing,
         preferred_large_call_site: Option<(MirFunctionId, InstId)>,
     ) -> bool {
         let single_call = call_count == 1;
+        // Inlining every call site removes the callee, as it does for a sole-use helper.
+        let sole = single_call || consume_all;
         let gas = self.target.optimization().is_gas();
         let hot = gas
             && site.loop_depth > 0
@@ -496,7 +528,7 @@ impl MirInliner {
                 && !can_specialize_dispatcher)
             || summary.is_entry_point
             || summary.is_constructor
-            || (summary.has_phi && !(summary.phi_stack_peak.is_some() && (single_call || hot)))
+            || (summary.has_phi && !(summary.phi_stack_peak.is_some() && (sole || hot)))
             || summary.has_unsupported_terminator
             || summary.return_count == 0
             || (self.physical
@@ -534,8 +566,7 @@ impl MirInliner {
             && (!summary.has_icall || summary.is_transparent_forwarder || (memory_wrapper && gas))
             && (single_call || !summary.void_forwarder_adds_args)
             && (!summary.has_control_flow || summary.is_check_wrapper);
-        let consume = gas
-            && single_call
+        let consume = sole
             && summary.internal_frame_size == 0
             && !summary.has_reference_return
             && summary.instruction_count <= 256;
@@ -555,7 +586,7 @@ impl MirInliner {
         let storage = gas && self.shares_storage_read(module, caller, site);
         let bounded = summary.instruction_count <= 96
             && summary.block_count <= 16
-            && (single_call
+            && (sole
                 || hot
                 || summary.block_count <= 10
                 || preferred_large_call_site == Some((caller, site.inst)));
@@ -572,7 +603,7 @@ impl MirInliner {
         // it replaces. Single-call callees disappear from emitted runtime
         // bytecode after inlining, so they are allowed through the normal
         // code-growth check below.
-        if !single_call
+        if !sole
             && site.loop_depth == 0
             && summary.has_state_effect
             && summary.estimated_code_size
@@ -582,7 +613,9 @@ impl MirInliner {
             return false;
         }
 
-        self.inline_lifetime_cost_improves(target, summary, site, single_call)
+        // `all_sites` priced the callee over every call site.
+        consume_all
+            || self.inline_lifetime_cost_improves(module, target, summary, site, single_call)
     }
 
     /// Compares runtime protocol savings over the expected contract lifetime
@@ -593,14 +626,21 @@ impl MirInliner {
     /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libevmasm/Inliner.cpp#L139>
     fn inline_lifetime_cost_improves(
         &self,
+        module: &Module,
         target: Target,
         summary: MirInlineSummary,
         site: CallSite,
         single_call: bool,
     ) -> bool {
-        let inlined_bytes = summary.estimated_code_size;
+        let mut inlined_bytes = summary.estimated_code_size;
         let mut removed_bytes = estimated_icall_code_size(&target, site);
         if single_call {
+            // Consuming the callee leaves the code the backend shares with other functions
+            // emitted again.
+            inlined_bytes += self
+                .shared_runs
+                .as_ref()
+                .map_or(0, |runs| runs.shared_bytes(&target, module, site.callee));
             removed_bytes = removed_bytes.saturating_add(
                 summary.estimated_code_size
                     + estimated_internal_return_code_size(&target, summary, site),
@@ -672,6 +712,8 @@ fn profitable(
 struct Pricing {
     target: Target,
     call_count: usize,
+    /// Whether inlining every call site and deleting the callee is profitable.
+    consume_all: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -1072,15 +1114,20 @@ fn scalar_stack_peak(func: &Function) -> usize {
 }
 
 /// Caller words that survive the internal call and overlap an inline expansion.
-fn surviving_call_words(func: &Function, liveness: &Liveness, site: CallSite) -> usize {
-    let body = &func.blocks[site.block];
-    let mut live = DenseBitSet::from(liveness.live_out(site.block));
+fn surviving_call_words(
+    func: &Function,
+    liveness: &Liveness,
+    block: BlockId,
+    inst_index: usize,
+) -> usize {
+    let body = &func.blocks[block];
+    let mut live = DenseBitSet::from(liveness.live_out(block));
     if let Some(term) = &body.terminator {
         term.visit_operands(|value| {
             live.insert(value);
         });
     }
-    for &inst in body.instructions[site.inst_index + 1..].iter().rev() {
+    for &inst in body.instructions[inst_index + 1..].iter().rev() {
         if let Some(result) = func.inst_result_value(inst) {
             live.remove(result);
         }
@@ -1088,7 +1135,7 @@ fn surviving_call_words(func: &Function, liveness: &Liveness, site: CallSite) ->
             live.insert(value);
         });
     }
-    if let Some(result) = func.inst_result_value(site.inst) {
+    if let Some(result) = func.inst_result_value(body.instructions[inst_index]) {
         live.remove(result);
     }
     live_word_count(func, &live)
@@ -1254,7 +1301,7 @@ fn abi_type_expansion(ty: &AbiType) -> usize {
         AbiType::Word(Some(_)) | AbiType::Function => 3,
         AbiType::Bytes(_) => 14,
         AbiType::DynamicArray { element, .. } => 12 + 2 * abi_type_expansion(element),
-        AbiType::FixedArray { element, len } => {
+        AbiType::FixedArray { element, len, .. } => {
             1 + abi_type_expansion(element) * usize::try_from(*len).unwrap_or(usize::MAX).min(8)
         }
         AbiType::Tuple(fields) => 1 + fields.iter().map(abi_type_expansion).sum::<usize>(),
@@ -1493,8 +1540,9 @@ fn estimated_icall_savings(target: &Target, site: CallSite, summary: MirInlineSu
     let frame_words = (summary.internal_frame_size / EvmMemoryLayout::WORD_SIZE)
         + (EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE)
         + (site.args_len + site.returns) as u64;
-    let protocol = target.icall(site.args_len, site.returns, frame_words).gas;
-    let return_protocol = target.internal_return(summary.param_count, site.returns).gas;
+    let protocol = target.runtime_gas(target.icall(site.args_len, site.returns, frame_words));
+    let return_protocol =
+        target.runtime_gas(target.internal_return(summary.param_count, site.returns));
     let loop_multiplier = (site.loop_depth as u64).saturating_add(1);
     u64::from(protocol + return_protocol) * loop_multiplier
 }

@@ -13,7 +13,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUSTC_WRAPPER: "sccache"
-  SOLC_VERSION: 0.8.37
+  SOLC_VERSION: 0.8.38
   FANDANGO_VERSION: 1.1.1
 
 jobs:
@@ -149,8 +149,6 @@ jobs:
         with:
           cache-on-failure: true
           cache-targets: false
-      - name: build
-        run: cargo build --features "${{ matrix.features || '' }}"
       - name: test
         run: cargo nextest run --profile ci --workspace --features "${{ matrix.features || '' }}"
       - name: test C API
@@ -413,12 +411,12 @@ jobs:
         with:
           persist-credentials: false
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
         with:
           category: "/language:${{matrix.language}}"
 

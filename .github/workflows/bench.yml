@@ -20,15 +20,15 @@ on:
       solc_version:
         description: solc release used by the codegen runtime benchmark
         required: true
-        default: 0.8.37
+        default: 0.8.38
         type: string
 
 env:
   CARGO_TERM_COLOR: always
   RUSTC_WRAPPER: "sccache"
-  SOLC_VERSION: ${{ inputs.solc_version || '0.8.37' }}
+  SOLC_VERSION: ${{ inputs.solc_version || '0.8.38' }}
   SOLX_VERSION: '0.1.8'
-  OKSOLC_REVISION: d5ff7399356b1ad238c839278a334e13e0e2dc81
+  OKSOLC_REVISION: c465a262edc835afff32951ee2d64e827bc16c3d
 
 jobs:
   codegen-runtime:
@@ -104,7 +104,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: target/oksolc/zig-out/bin/oksolc
-          key: oksolc-cli-v2-${{ runner.os }}-${{ runner.arch }}-zig-0.16.0-ReleaseFast-baseline-${{ env.OKSOLC_REVISION }}
+          key: oksolc-cli-v2-${{ runner.os }}-${{ runner.arch }}-zig-0.17.0-ReleaseFast-baseline-${{ env.OKSOLC_REVISION }}
 
       - name: Checkout oksolc (main only)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.oksolc-cache.outputs.cache-hit != 'true'
@@ -120,7 +120,7 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.oksolc-cache.outputs.cache-hit != 'true'
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
-          version: 0.16.0
+          version: 0.17.0
 
       - name: Build oksolc (main only)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.oksolc-cache.outputs.cache-hit != 'true'
@@ -252,6 +252,7 @@ jobs:
             --compile-repeats 5 \
             --gas \
             --gas-profile hot \
+            --gas-kinds \
             --start-anvil \
             --allow-failures \
             --artifacts target/codegen-bench/baseline/artifacts \
@@ -272,6 +273,7 @@ jobs:
             --compile-repeats 5
             --gas
             --gas-profile hot
+            --gas-kinds
             --start-anvil
             --allow-failures
             --artifacts target/codegen-bench/artifacts
@@ -384,7 +386,7 @@ jobs:
           cache-targets: false
       - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
       - name: Install cargo-codspeed
-        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
+        uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: cargo-codspeed
       - name: Build the benchmark targets
@@ -394,7 +396,7 @@ jobs:
           --bench criterion --bench lsp --bench lsp_diagnostic
           --features solar-lsp/bench
       - name: Run the benchmarks
-        uses: CodSpeedHQ/action@f842b9a3ffe213dbb81768fd7f7eeb4dfcf1c369 # v5.4.2
+        uses: CodSpeedHQ/action@821a40cd6c80e3cfe387caf55668287addd808da # v5.5.0
         with:
           run: >-
             cargo codspeed run -m simulation

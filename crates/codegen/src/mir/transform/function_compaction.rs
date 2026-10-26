@@ -644,7 +644,7 @@ fn prune_unused_returns(module: &mut Module, returning: &DenseBitSet<FunctionId>
 /// Returns whether discarding `value` can expose only pure instructions to later DCE.
 ///
 /// Reads are deliberately retained even when their loaded value is otherwise unused: memory reads
-/// can expand memory as observed by `msize`, state reads affect warm/cold access costs, and
+/// can expand memory, state reads affect warm/cold access costs, and
 /// environment reads such as `gas` are directly observable. Argument leaves are safe here because
 /// argument pruning applies this same proof to every concrete call operand and propagates caller
 /// argument dependencies to a fixed point.

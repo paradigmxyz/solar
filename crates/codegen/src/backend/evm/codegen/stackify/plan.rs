@@ -30,9 +30,13 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
+use std::{
+    cell::{Cell, RefCell},
+    collections::BTreeMap,
+};
 
 /// The modeled stack of a block being planned and the steps that produced it.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct Sim {
     stack: Layout,
     steps: Vec<Step>,
@@ -89,12 +93,44 @@ impl Sim {
         self.below = other.below;
     }
 
-    /// Continues with a fork's state, appending its steps.
-    fn join(&mut self, fork: Self) {
-        self.stack = fork.stack;
-        self.steps.extend(fork.steps);
+    /// Continues with a fork's state, appending its steps. The fork is left empty to reuse.
+    fn join(&mut self, fork: &mut Self) {
+        std::mem::swap(&mut self.stack, &mut fork.stack);
+        self.steps.append(&mut fork.steps);
         self.cost = fork.cost;
         self.peak = fork.peak;
+    }
+}
+
+/// An instruction of the block being planned with its operands.
+struct PlannedInst {
+    inst: InstId,
+    operands: Operands,
+}
+
+/// The cost of `POP` and of each `DUP` and `SWAP` up to depth 16.
+struct StackOpCosts {
+    dup: [Option<Cost>; 17],
+    swap: [Option<Cost>; 17],
+    pop: Option<Cost>,
+}
+
+impl StackOpCosts {
+    fn new(target: &Target) -> Self {
+        Self {
+            dup: std::array::from_fn(|n| target.stack_op(StackOp::Dup(n as u8))),
+            swap: std::array::from_fn(|n| target.stack_op(StackOp::Swap(n as u8))),
+            pop: target.stack_op(StackOp::Pop),
+        }
+    }
+
+    fn get(&self, op: StackOp) -> Option<Cost> {
+        match op {
+            StackOp::Dup(n) => self.dup.get(usize::from(n)).copied().flatten(),
+            StackOp::Swap(n) => self.swap.get(usize::from(n)).copied().flatten(),
+            StackOp::Pop => self.pop,
+            StackOp::Exchange(..) => None,
+        }
     }
 }
 
@@ -168,8 +204,13 @@ pub(super) struct Planner<'a> {
     conditions: FxHashMap<BlockId, (ValueId, bool)>,
     /// External arguments loaded at the start of a block and kept on the stack.
     arg_defs: FxHashMap<BlockId, SmallVec<[ValueId; 2]>>,
-    /// The constant retained by this trial, with the block that first materializes it.
-    constant_def: Option<(BlockId, ValueId)>,
+    /// The constants retained by this trial, with the blocks that first materialize them.
+    constant_defs: Vec<(BlockId, ValueId)>,
+    /// The blocks in which each retained constant is kept on the stack. The constant is pushed
+    /// fresh at its uses elsewhere.
+    held: FxHashMap<ValueId, DenseBitSet<BlockId>>,
+    /// The block being planned.
+    current: Cell<BlockId>,
     /// Number of operand positions reading each value.
     use_counts: IndexVec<ValueId, u32>,
     /// Blocks that return the results of their last instruction, an internal call, which
@@ -196,6 +237,14 @@ pub(super) struct Planner<'a> {
     pending: FxHashMap<BlockId, Vec<Pending>>,
     /// The latest plain plan of a placement decision.
     plain_trial: Option<PlainTrial>,
+    /// The cost of each stack operation the planner emits most.
+    stack_costs: StackOpCosts,
+    /// The fork `place_result` tries each swap on.
+    place_sim: Sim,
+    /// The candidate and the cheapest arrangement `prepare_any` keeps, reused across calls.
+    scratch: RefCell<[Sim; 2]>,
+    /// The fork a `trial` plans on.
+    trial_sim: RefCell<Sim>,
     peak: usize,
     calls: Vec<(FunctionId, usize)>,
     cost: Cost,
@@ -415,41 +464,17 @@ impl<'a> Planner<'a> {
             for &latch in &lp.back_edges {
                 backedges.insert((latch, lp.header));
             }
-            // Order the header's words by their last use in the loop body: the word consumed
-            // first sits on top, and words the body never reads sit deepest.
-            let mut order = FxHashMap::<ValueId, usize>::default();
-            let mut position = 0usize;
-            for &block in cfg.rpo() {
-                if !lp.blocks.contains(block) || block == lp.header {
-                    continue;
-                }
-                for &inst in &func.blocks[block].instructions {
-                    if !matches!(func.inst(inst).kind, InstKind::Phi(_)) {
-                        func.inst(inst).kind.visit_operands(|operand| {
-                            order.insert(operand, position);
-                        });
-                        position += 1;
-                    }
-                }
-                if let Some(term) = &func.blocks[block].terminator {
-                    term.visit_operands(|operand| {
-                        order.insert(operand, position);
-                    });
-                    position += 1;
-                }
-            }
             let header = lp.header;
             let mut words: Vec<ValueId> = liveness.live_in(header).iter().collect();
             words.extend(func.block_phi_results(header).iter());
             words.retain(|&value| !remat.contains(value) && !spilled.contains(value));
-            words.sort_by_key(|value| {
-                std::cmp::Reverse(order.get(value).copied().unwrap_or(usize::MAX))
-            });
-            let mut layout = Layout::with_capacity(words.len() + 1);
-            if has_ret && !ret_spilled {
-                layout.push(Slot::Ret);
-            }
-            layout.extend(words.into_iter().map(Slot::Value));
+            // Order the header's words by their last read in the loop body.
+            let body = cfg
+                .rpo()
+                .iter()
+                .copied()
+                .filter(|&block| block != header && lp.blocks.contains(block));
+            let layout = ordered_layout(func, body, words, has_ret && !ret_spilled, Read::Last);
             first_use.insert(header, layout);
         }
 
@@ -520,7 +545,9 @@ impl<'a> Planner<'a> {
             publish,
             conditions,
             arg_defs,
-            constant_def: None,
+            constant_defs: Vec::new(),
+            held: FxHashMap::default(),
+            current: Cell::new(BlockId::ENTRY),
             use_counts,
             tail_calls,
             args,
@@ -536,6 +563,10 @@ impl<'a> Planner<'a> {
             forward_preds,
             pending: FxHashMap::default(),
             plain_trial: None,
+            stack_costs: StackOpCosts::new(target),
+            place_sim: Sim::default(),
+            scratch: RefCell::default(),
+            trial_sim: RefCell::default(),
             peak: 0,
             calls: Vec::new(),
             cost: Cost::ZERO,
@@ -546,6 +577,7 @@ impl<'a> Planner<'a> {
     pub(super) fn plan(mut self) -> Result<Planned, Fail> {
         let cfg = self.cfg;
         for &block in cfg.rpo() {
+            self.current.set(block);
             self.resolve_join(block)?;
             let layout = match self.layouts[block].clone() {
                 Some(layout) => layout,
@@ -590,88 +622,140 @@ impl<'a> Planner<'a> {
         Ok(Planned { plan, natural: self.natural, first_use: self.first_use })
     }
 
-    /// Returns the repeated immediate that saves the most when kept on the stack, with the
-    /// nearest block outside loops that dominates its uses.
+    /// Returns the repeated immediates worth keeping on the stack, the one that saves the most
+    /// first, each with the block that first materializes it. A constant used in separate
+    /// branches comes once for all its uses, from the nearest block outside loops that dominates
+    /// them, and once for each branch of that block with several uses, so a branch that rejects
+    /// the first can still keep the constant.
     ///
-    /// Only one constant is retained. This is a profitability limit, not a stack limit: the plan
-    /// cannot see the later EVM IR pipeline, and keeping more constants traded small size savings
-    /// for large gas losses, such as P256 verification in size mode. Retaining more needs a
-    /// profitability check that accounts for EVM IR.
-    pub(super) fn constant_to_retain(&self) -> Option<(BlockId, ValueId)> {
-        let value = self
-            .remat
-            .iter()
-            .filter_map(|value| {
-                let Value::Immediate(immediate) = self.func.value(value) else { return None };
-                let count = self.use_counts[value];
-                if count < 2 {
-                    return None;
-                }
-                let push = self.target.push(immediate.as_u256()?);
-                // Leave cheap literals to local stack scheduling and EVM IR reuse.
-                if push.bytes <= (self.target.dup() + self.dead_word_removal()).bytes {
-                    return None;
-                }
-                let copies = self.target.dup().times(count - 1);
-                let before = push.times(count);
-                let after = push + copies + self.dead_word_removal();
-                self.target.cmp_lifetime(after, before).is_lt().then_some((
-                    value,
-                    Cost::new(
-                        before.gas.saturating_sub(after.gas),
-                        before.bytes.saturating_sub(after.bytes),
-                    ),
-                ))
-            })
-            .max_by(|(_, a), (_, b)| self.target.cmp_lifetime(*a, *b))?
-            .0;
-        let mut definition = None;
-        let mut note = |block| {
-            definition =
-                Some(definition.map_or(block, |other| common_dominator(self.cfg, other, block)));
+    /// This is a profitability ranking, not a stack limit: the plan cannot see the later EVM IR
+    /// pipeline, and keeping many constants traded small size savings for large gas losses, such
+    /// as P256 verification in size mode. The caller keeps a candidate only when a replan
+    /// confirms it.
+    pub(super) fn constants_to_retain(&self) -> Vec<(BlockId, ValueId)> {
+        // Leave cheap literals to local stack scheduling and EVM IR reuse.
+        let mut wide = DenseBitSet::new_empty(self.func.num_values());
+        for value in self.remat.iter() {
+            if matches!(self.func.value(value), Value::Immediate(_))
+                && self.use_counts[value] >= 2
+                && self.remat_costs[value].bytes
+                    > (self.target.dup() + self.dead_word_removal()).bytes
+            {
+                wide.insert(value);
+            }
+        }
+        if wide.is_empty() {
+            return Vec::new();
+        }
+        let mut use_blocks = FxHashMap::<ValueId, SmallVec<[BlockId; 4]>>::default();
+        let mut note = |value: ValueId, block| {
+            if wide.contains(value) {
+                use_blocks.entry(value).or_default().push(block);
+            }
         };
         for (block, data) in self.func.blocks.iter_enumerated() {
             for &inst in &data.instructions {
                 match &self.func.inst(inst).kind {
                     InstKind::Phi(incoming) => {
                         for &(pred, operand) in incoming {
-                            if operand == value {
-                                note(pred);
-                            }
+                            note(operand, pred);
                         }
                     }
-                    kind if kind.operands().contains(&value) => note(block),
-                    _ => {}
+                    kind => kind.visit_operands(|operand| note(operand, block)),
                 }
             }
-            if data.terminator.as_ref().is_some_and(|term| term.operands().contains(&value)) {
-                note(block);
+            if let Some(term) = &data.terminator {
+                term.visit_operands(|operand| note(operand, block));
             }
         }
-        let mut block = definition?;
+        let mut candidates = Vec::new();
+        for value in wide.iter() {
+            let Some(blocks) = use_blocks.get(&value) else { continue };
+            let Some(whole) = self.definition_block(blocks) else { continue };
+            candidates.extend(self.retention_saving(value, whole, blocks));
+            let dominators = self.cfg.dominators();
+            let mut branches = BTreeMap::<BlockId, SmallVec<[BlockId; 4]>>::default();
+            for &block in blocks {
+                // The child of the dominator of all uses that dominates this use.
+                if let Some(&branch) = dominators
+                    .children(whole)
+                    .iter()
+                    .find(|&&child| dominators.dominates(child, block))
+                {
+                    branches.entry(branch).or_default().push(block);
+                }
+            }
+            if branches.len() < 2 && !blocks.contains(&whole) {
+                continue;
+            }
+            for uses in branches.into_values() {
+                // A branch under a loop header climbs back to the dominator of all uses.
+                if let Some(definition) = self.definition_block(&uses)
+                    && definition != whole
+                {
+                    candidates.extend(self.retention_saving(value, definition, &uses));
+                }
+            }
+        }
+        candidates.sort_by(|(_, a), (_, b)| self.target.cmp_lifetime(*a, *b));
+        candidates.into_iter().rev().map(|(candidate, _)| candidate).collect()
+    }
+
+    /// What keeping `value` on the stack from `definition` saves over pushing it at each of its
+    /// uses in `blocks`, when that is worth a replan.
+    fn retention_saving(
+        &self,
+        value: ValueId,
+        definition: BlockId,
+        blocks: &[BlockId],
+    ) -> Option<((BlockId, ValueId), Cost)> {
+        if blocks.len() < 2 {
+            return None;
+        }
+        let price = |cost: Cost, block| if self.gas_mode { self.weigh(cost, block) } else { cost };
+        let push = self.remat_costs[value];
+        let before = blocks.iter().fold(Cost::ZERO, |sum, &block| sum + price(push, block));
+        let copies =
+            blocks.iter().fold(Cost::ZERO, |sum, &block| sum + price(self.target.dup(), block));
+        // The push at the definition replaces the copy of the first use.
+        let after = price(push, definition)
+            + copies.saturating_sub(self.target.dup())
+            + price(self.dead_word_removal(), definition);
+        self.target
+            .cmp_lifetime(after, before)
+            .is_lt()
+            .then_some(((definition, value), before.saturating_sub(after)))
+    }
+
+    /// The nearest block outside loops that dominates every block of `uses`.
+    fn definition_block(&self, uses: &[BlockId]) -> Option<BlockId> {
+        let mut block = uses.iter().copied().reduce(|a, b| common_dominator(self.cfg, a, b))?;
         while self.cfg.cyclic_blocks().contains(block)
             && let Some(idom) = self.cfg.dominators().idom(block)
         {
             block = idom;
         }
-        Some((block, value))
+        Some(block)
     }
 
-    pub(super) fn retain_constant(mut self, definition: (BlockId, ValueId)) -> Self {
-        self.remat.remove(definition.1);
-        self.constant_def = Some(definition);
+    /// Keeps each constant on the stack from its defining block through the blocks that block
+    /// dominates, where `liveness` is [`retention_liveness`] for the same definitions.
+    pub(super) fn retain_constants(
+        mut self,
+        definitions: &[(BlockId, ValueId)],
+        liveness: &'a Liveness,
+    ) -> Self {
+        self.held = held_blocks(self.func, self.cfg, definitions);
+        self.liveness = liveness;
+        self.constant_defs = definitions.to_vec();
         self
     }
 
-    /// Plans a block's instructions in their MIR order.
-    fn plan_body(&mut self, sim: &mut Sim, block: BlockId) -> Result<(), Fail> {
+    /// The instructions of a block that plan to code of their own, in MIR order.
+    fn planned_insts(&self, block: BlockId) -> Vec<PlannedInst> {
         let func = self.func;
-        let early = self.early_branch_phis(block);
         let tail_call = self.tail_calls.get(&block).copied();
-        let mut constant =
-            self.constant_def.filter(|&(def, _)| def == block).map(|(_, value)| value);
-        let mut uses = self.block_uses(block);
-        let planned: Vec<InstId> = func.blocks[block]
+        func.blocks[block]
             .instructions
             .iter()
             .copied()
@@ -680,18 +764,37 @@ impl<'a> Planner<'a> {
                     && !matches!(func.inst(inst).kind, InstKind::Phi(_))
                     && Some(inst) != tail_call
             })
-            .collect();
-        let windows = self.preplacement_windows(&planned);
+            .map(|inst| PlannedInst { inst, operands: func.inst(inst).kind.operands() })
+            .collect()
+    }
+
+    /// Plans a block's instructions in their MIR order.
+    fn plan_body(&mut self, sim: &mut Sim, block: BlockId) -> Result<(), Fail> {
+        let func = self.func;
+        let early = self.early_branch_phis(block);
+        let mut constants = self
+            .constant_defs
+            .iter()
+            .filter(|&&(def, _)| def == block)
+            .map(|&(_, value)| value)
+            .collect::<SmallVec<[_; 2]>>();
+        let mut uses = self.block_uses(block);
+        let planned = self.planned_insts(block);
+        let optimize = self.target.optimizes_stack_plans();
+        let windows =
+            if optimize { self.preplacement_windows(&planned) } else { Default::default() };
         let mut placed = FxHashSet::default();
-        for (position, &inst) in planned.iter().enumerate() {
-            if let Some(value) = constant
-                && func.inst(inst).kind.operands().contains(&value)
-            {
+        for (position, step) in planned.iter().enumerate() {
+            let inst = step.inst;
+            constants.retain(|&mut value| {
+                if !step.operands.contains(&value) {
+                    return true;
+                }
                 sim.steps.push(Step::Begin(None));
                 // push constant
                 self.fresh(sim, value);
-                constant = None;
-            }
+                false
+            });
             if let Some((early_inst, then_block, else_block)) = early
                 && early_inst == inst
             {
@@ -730,15 +833,16 @@ impl<'a> Planner<'a> {
                 }
                 placed.insert(*consumer);
             }
-            self.plan_inst_inner(sim, block, inst, &uses)?;
-            uses.consume(&func.inst(inst).kind.operands());
-            if let Some(result) = func.inst_result_value(inst)
+            self.plan_inst_inner(sim, block, step, &uses)?;
+            uses.consume(&step.operands);
+            if optimize
+                && let Some(result) = func.inst_result_value(inst)
                 && sim.stack.last() == Some(&Slot::Value(result))
             {
                 self.place_result(sim, block, &planned, position + 1, &mut uses)?;
             }
         }
-        if let Some(value) = constant {
+        for value in constants {
             sim.steps.push(Step::Begin(None));
             // push constant
             self.fresh(sim, value);
@@ -753,7 +857,7 @@ impl<'a> Planner<'a> {
         &mut self,
         sim: &mut Sim,
         block: BlockId,
-        planned: &[InstId],
+        planned: &[PlannedInst],
         next: usize,
         uses: &mut Uses,
     ) -> Result<(), Fail> {
@@ -761,7 +865,7 @@ impl<'a> Planner<'a> {
         let live_out = self.liveness.live_out(block);
         let rest = &planned[next..planned.len().min(next + MAX_PLACEMENT_WINDOW)];
         // A placement looks ahead no further than the next call.
-        let calls = rest.iter().position(|&inst| icall(&func.inst(inst).kind).is_some());
+        let calls = rest.iter().position(|step| icall(&func.inst(step.inst).kind).is_some());
         let rest = &rest[..calls.unwrap_or(rest.len())];
         let mut candidates = SmallVec::<[(usize, usize); MAX_PLACEMENT_CANDIDATES]>::new();
         for depth in 1..sim.stack.len().min(self.reach + 1) {
@@ -773,9 +877,9 @@ impl<'a> Planner<'a> {
             if remaining == 0 || live_out.contains(value) || self.is_fresh(value) {
                 continue;
             }
-            if let Some(end) = rest.iter().position(|&inst| {
-                let operands = func.inst(inst).kind.operands();
-                remaining -= operands.iter().filter(|&&operand| operand == value).count() as u32;
+            if let Some(end) = rest.iter().position(|step| {
+                remaining -=
+                    step.operands.iter().filter(|&&operand| operand == value).count() as u32;
                 remaining == 0
             }) {
                 candidates.push((depth, end));
@@ -794,10 +898,11 @@ impl<'a> Planner<'a> {
             })
             .collect::<SmallVec<[_; MAX_PLACEMENT_WINDOW]>>();
         let mut best: Option<(Cost, usize)> = None;
+        let mut swapped = std::mem::take(&mut self.place_sim);
         for (depth, end) in candidates {
             // Without a swap in the plain plan, an early one cannot pay for itself.
             let Some(&(plain, true)) = plain.get(end) else { continue };
-            let mut swapped = sim.fork();
+            swapped.refork(sim);
             if self.stack_op(&mut swapped, StackOp::Swap(depth as u8)).is_err() {
                 continue;
             }
@@ -809,6 +914,7 @@ impl<'a> Planner<'a> {
                 best = Some((cost, depth));
             }
         }
+        self.place_sim = swapped;
         if let Some((_, depth)) = best {
             self.stack_op(sim, StackOp::Swap(depth as u8))?;
         }
@@ -825,31 +931,33 @@ impl<'a> Planner<'a> {
     #[allow(clippy::too_many_arguments)]
     fn trial(
         &self,
-        sim: &Sim,
+        base: &Sim,
         block: BlockId,
-        window: &[InstId],
+        window: &[PlannedInst],
         uses: &mut Uses,
         offset: usize,
         pre: &[ValueId],
         bound: Option<Cost>,
     ) -> Option<Cost> {
-        let mut sim = sim.fork();
+        let mut fork = self.trial_sim.borrow_mut();
+        let sim = &mut *fork;
+        sim.refork(base);
         // Plan on the caller's counts and give back what the window consumed.
         let mut planned = 0;
-        for (index, &inst) in window.iter().enumerate() {
-            if index == offset && pre.iter().any(|&value| self.copy(&mut sim, value).is_err()) {
+        for (index, step) in window.iter().enumerate() {
+            if index == offset && pre.iter().any(|&value| self.copy(sim, value).is_err()) {
                 break;
             }
-            if self.plan_inst_inner(&mut sim, block, inst, uses).is_err()
+            if self.plan_inst_inner(sim, block, step, uses).is_err()
                 || bound.is_some_and(|bound| !self.target.cmp(sim.cost, bound).is_lt())
             {
                 break;
             }
-            uses.consume(&self.func.inst(inst).kind.operands());
+            uses.consume(&step.operands);
             planned += 1;
         }
-        for &inst in &window[..planned] {
-            uses.restore(&self.func.inst(inst).kind.operands());
+        for step in &window[..planned] {
+            uses.restore(&step.operands);
         }
         if planned < window.len() {
             return None;
@@ -869,7 +977,7 @@ impl<'a> Planner<'a> {
         &mut self,
         sim: &Sim,
         block: BlockId,
-        planned: &[InstId],
+        planned: &[PlannedInst],
         next: usize,
         len: usize,
         uses: &Uses,
@@ -900,13 +1008,13 @@ impl<'a> Planner<'a> {
             },
         };
         while trial.steps.len() < len && !trial.stopped {
-            let inst = planned[trial.start + trial.steps.len()];
+            let step = &planned[trial.start + trial.steps.len()];
             trial.sim.steps.clear();
-            if self.plan_inst_inner(&mut trial.sim, block, inst, &trial.uses).is_err() {
+            if self.plan_inst_inner(&mut trial.sim, block, step, &trial.uses).is_err() {
                 trial.stopped = true;
                 break;
             }
-            trial.uses.consume(&self.func.inst(inst).kind.operands());
+            trial.uses.consume(&step.operands);
             trial.states.push((trial.sim.stack.clone(), trial.sim.cost));
             trial.steps.push(PlainStep {
                 price: trial.sim.cost.plus(self.dead_word_removal().times(trial.sim.junk())),
@@ -920,21 +1028,21 @@ impl<'a> Planner<'a> {
     /// Finds, for instructions whose topmost computed operand comes from a chain of single-use
     /// instructions in this block, the start of that chain and the deeper operands that are
     /// pushed or copied anyway. Keyed by the chain's first position.
-    fn preplacement_windows(&self, planned: &[InstId]) -> FxHashMap<usize, Vec<Preplacement>> {
+    fn preplacement_windows(&self, planned: &[PlannedInst]) -> FxHashMap<usize, Vec<Preplacement>> {
         let func = self.func;
         let mut def_position = FxHashMap::default();
-        for (position, &inst) in planned.iter().enumerate() {
-            if let Some(result) = func.inst_result_value(inst) {
+        for (position, step) in planned.iter().enumerate() {
+            if let Some(result) = func.inst_result_value(step.inst) {
                 def_position.insert(result, position);
             }
             // A call also defines its extra results.
-            for &extra in self.projections.get(&inst).into_iter().flatten().flatten() {
+            for &extra in self.projections.get(&step.inst).into_iter().flatten().flatten() {
                 def_position.insert(extra, position);
             }
         }
         let mut windows = FxHashMap::<usize, Vec<Preplacement>>::default();
-        for (consumer, &inst) in planned.iter().enumerate() {
-            let kind = &func.inst(inst).kind;
+        for (consumer, step) in planned.iter().enumerate() {
+            let kind = &func.inst(step.inst).kind;
             if matches!(
                 kind,
                 InstKind::Select(..)
@@ -946,7 +1054,7 @@ impl<'a> Planner<'a> {
             ) {
                 continue;
             }
-            let push_order: Operands = kind.operands().iter().rev().copied().collect();
+            let push_order: Operands = step.operands.iter().rev().copied().collect();
             let Some(top) = push_order.iter().rposition(|&value| !self.is_fresh(value)) else {
                 continue;
             };
@@ -963,7 +1071,7 @@ impl<'a> Planner<'a> {
                 let mut start = work[0];
                 while let Some(position) = work.pop() {
                     start = start.min(position);
-                    for operand in func.inst(planned[position]).kind.operands() {
+                    for &operand in &planned[position].operands {
                         if self.use_counts[operand] == 1
                             && let Some(&producer) = def_position.get(&operand)
                             && producer < position
@@ -977,7 +1085,7 @@ impl<'a> Planner<'a> {
             // Copied values must exist before the chain starts. A spilled value is stored where
             // its instruction runs, so its reload cannot come earlier.
             let available = |operand: &ValueId, start: usize| {
-                self.remat.contains(*operand)
+                self.is_remat(*operand)
                     || def_position.get(operand).is_none_or(|&position| position < start)
             };
             let start = first(&[def]);
@@ -1031,13 +1139,14 @@ impl<'a> Planner<'a> {
     /// Scales the gas of code in `block` by how often the block runs; its bytes count once.
     fn weigh(&self, cost: Cost, block: BlockId) -> Cost {
         Cost::new(cost.gas.saturating_mul(self.executions[block]), cost.bytes)
+            .with_steps(cost.steps.saturating_mul(self.executions[block]))
     }
 
     /// Adds the cost of code planned in `block` and raises the peak to its stack.
     fn charge(&mut self, sim: &Sim, block: BlockId) {
         self.cost += self.weigh(sim.cost, block);
         if !self.cfg.cyclic_blocks().contains(block) {
-            self.non_loop_gas = self.non_loop_gas.saturating_add(sim.cost.gas);
+            self.non_loop_gas = self.non_loop_gas.saturating_add(self.target.runtime_gas(sim.cost));
         }
         self.peak = self.peak.max(sim.peak);
     }
@@ -1071,7 +1180,7 @@ impl<'a> Planner<'a> {
         saved.extend(
             self.spilled
                 .iter()
-                .filter(|&value| across.contains(value) && !self.remat.contains(value))
+                .filter(|&value| across.contains(value) && !self.is_remat(value))
                 .map(Victim::Value),
         );
         saved
@@ -1172,7 +1281,11 @@ impl<'a> Planner<'a> {
                 sim.stack.swap(height - 1 - n, height - 1 - m);
             }
         }
-        sim.cost += self.target.stack_op(op).expect("stack operation within reach");
+        sim.cost += self
+            .stack_costs
+            .get(op)
+            .or_else(|| self.target.stack_op(op))
+            .expect("stack operation within reach");
         sim.steps.push(Step::Stack(op));
         sim.observe(0);
         Ok(())
@@ -1231,15 +1344,21 @@ impl<'a> Planner<'a> {
         self.has_ret && !self.ret_spilled
     }
 
+    /// Whether a value is pushed fresh at each use in the block being planned.
+    fn is_remat(&self, value: ValueId) -> bool {
+        self.remat.contains(value)
+            && !self.held.get(&value).is_some_and(|held| held.contains(self.current.get()))
+    }
+
     fn can_spill(&self, value: ValueId) -> bool {
-        !self.remat.contains(value)
+        !self.is_remat(value)
             && !self.spilled.contains(value)
             && matches!(self.func.value(value), Value::Inst(_) | Value::Arg(_))
     }
 
     /// Pushes a fresh copy of a value that is not kept on the stack.
     fn fresh(&self, sim: &mut Sim, value: ValueId) {
-        if self.spilled.contains(value) && !self.remat.contains(value) {
+        if self.spilled.contains(value) && !self.is_remat(value) {
             sim.cost += StackCosts::DIRECT_LOAD;
             sim.steps.push(Step::Reload(value));
         } else {
@@ -1251,7 +1370,7 @@ impl<'a> Planner<'a> {
     }
 
     fn is_fresh(&self, value: ValueId) -> bool {
-        self.remat.contains(value) || self.spilled.contains(value)
+        self.is_remat(value) || self.spilled.contains(value)
     }
 
     /// Whether a word can be pushed without a stack copy.
@@ -1279,7 +1398,7 @@ impl<'a> Planner<'a> {
     }
 
     fn materialize_cost(&self, value: ValueId) -> Cost {
-        if self.remat.contains(value) {
+        if self.is_remat(value) {
             self.remat_costs[value]
         } else {
             materialize_cost(self.func, self.target, value)
@@ -1354,7 +1473,7 @@ impl<'a> Planner<'a> {
         dying: &dyn Fn(ValueId) -> bool,
     ) -> Result<(), Fail> {
         let (&gas, rest) = ops.split_last().expect("call has a gas operand");
-        if !self.remat.contains(gas) {
+        if !self.is_remat(gas) {
             return self.prepare(sim, ops, dying);
         }
         self.prepare(sim, rest, dying)?;
@@ -1387,9 +1506,13 @@ impl<'a> Planner<'a> {
             return Ok(0);
         }
         // Every order holds the same operands.
-        let dying_ops: SmallVec<[ValueId; 8]> =
-            orders[0].iter().copied().filter(|&value| dying(value)).collect();
-        let dying = &|value: ValueId| dying_ops.contains(&value);
+        let mut dying_ops = SmallVec::<[ValueId; 8]>::new();
+        for &value in orders[0] {
+            if dying(value) {
+                dying_ops.push(value);
+            }
+        }
+        let dying = &*dying_ops;
         // Operands already in place need nothing unless a dying one leaves a copy below. Every
         // strategy that prepares them at no cost does exactly this.
         for (index, ops) in orders.iter().enumerate() {
@@ -1405,29 +1528,40 @@ impl<'a> Planner<'a> {
             Build,
             Cycles,
         }
-        let consumable = dying_ops.iter().any(|&value| !self.is_fresh(value));
+        let consumable = dying.iter().any(|&value| !self.is_fresh(value));
         let mut best: Option<(Cost, usize)> = None;
-        let mut best_sim = Sim::new(Layout::new());
-        let mut candidate = sim.fork();
+        // Whether the cheapest arrangement so far swaps at least twice.
+        let mut best_swaps = false;
+        let mut scratch = self.scratch.borrow_mut();
+        let [mut candidate, mut best_sim] = scratch.each_mut();
         let mut failure = None;
         for (index, ops) in orders.iter().enumerate() {
             let in_place = self.consumed_in_place(&sim.stack, ops, dying);
+            // Longest run of operands already in place.
+            let placed = (1..=ops.len())
+                .rev()
+                .find(|&t| self.in_place(&sim.stack, &ops[..t], dying))
+                .unwrap_or(0);
+            // With nothing in place, building and reordering both copy every operand in order: the
+            // swap that building tries first needs a dying operand on the stack, which reordering
+            // would have consumed in place.
+            let build_is_reorder = placed == 0 && in_place.iter().all(Option::is_none);
             for strategy in [Strategy::Reorder, Strategy::Build, Strategy::Cycles] {
+                if strategy == Strategy::Build && build_is_reorder {
+                    continue;
+                }
                 // Following cycles only saves swaps when an operand is consumed in place and the
                 // cheapest arrangement so far needs at least two.
-                if strategy == Strategy::Cycles
-                    && !(consumable
-                        && best_sim.steps.iter().filter(|step| step.is_swap()).nth(1).is_some())
-                {
+                if strategy == Strategy::Cycles && !(consumable && best_swaps) {
                     continue;
                 }
                 candidate.refork(sim);
                 let result = match strategy {
-                    Strategy::Reorder => self.prepare_reorder(&mut candidate, ops, &in_place),
-                    Strategy::Build => self.prepare_build(&mut candidate, ops, dying),
+                    Strategy::Reorder => self.prepare_reorder(candidate, ops, &in_place),
+                    Strategy::Build => self.prepare_build(candidate, ops, placed, dying),
                     Strategy::Cycles => {
                         let budget = best.map(|(price, _)| price);
-                        self.prepare_cycles(&mut candidate, ops, &in_place, budget)
+                        self.prepare_cycles(candidate, ops, &in_place, budget)
                     }
                 };
                 if let Err(fail) = result {
@@ -1438,16 +1572,15 @@ impl<'a> Planner<'a> {
                 if best.is_some_and(|(best, _)| !self.target.cmp(candidate.cost, best).is_lt()) {
                     continue;
                 }
-                let leftovers = if dying_ops.is_empty() {
-                    0
-                } else {
-                    leftovers(&candidate.stack[..candidate.stack.len() - ops.len()], dying)
-                };
+                let leftovers =
+                    leftovers(&candidate.stack[..candidate.stack.len() - ops.len()], dying);
                 let price = candidate.cost.plus(
                     StackCosts::POP.plus(self.target.opcode(op::SWAP1).times(2)).times(leftovers),
                 );
                 if best.is_none_or(|(best, _)| self.target.cmp(price, best).is_lt()) {
                     best = Some((price, index));
+                    best_swaps =
+                        candidate.steps.iter().filter(|step| step.is_swap()).nth(1).is_some();
                     std::mem::swap(&mut best_sim, &mut candidate);
                 }
             }
@@ -1457,22 +1590,19 @@ impl<'a> Planner<'a> {
         Ok(index)
     }
 
-    /// Builds the operands bottom up: keeps values already in place at the top of the stack,
-    /// swaps the deepest operand up when it dies here, and copies every other operand on top.
+    /// Builds the operands bottom up: keeps the `placed` values already in place at the top of
+    /// the stack, swaps the deepest operand up when it dies here, and copies every other operand
+    /// on top.
     fn prepare_build(
         &self,
         sim: &mut Sim,
         ops: &[ValueId],
-        dying: &dyn Fn(ValueId) -> bool,
+        mut placed: usize,
+        dying: &[ValueId],
     ) -> Result<(), Fail> {
-        // Longest run of operands already in place.
-        let mut placed = (1..=ops.len())
-            .rev()
-            .find(|&t| self.in_place(&sim.stack, &ops[..t], dying))
-            .unwrap_or(0);
         if placed == 0
             && !self.is_fresh(ops[0])
-            && dying(ops[0])
+            && dying.contains(&ops[0])
             && let Some(depth) = sim.depth_of(Slot::Value(ops[0]))
             && depth > 0
             && depth <= self.reach
@@ -1488,13 +1618,15 @@ impl<'a> Planner<'a> {
 
     /// Whether the top of `stack` holds `ops` in push order, each once and consumable: a last
     /// use, a materializable value or a surplus copy.
-    fn in_place(&self, stack: &[Slot], ops: &[ValueId], dying: &dyn Fn(ValueId) -> bool) -> bool {
+    fn in_place(&self, stack: &[Slot], ops: &[ValueId], dying: &[ValueId]) -> bool {
         let Some(split) = stack.len().checked_sub(ops.len()) else { return false };
         let (below, top) = stack.split_at(split);
         ops.iter().enumerate().all(|(i, &value)| {
             top[i] == Slot::Value(value)
                 && !ops[..i].contains(&value)
-                && (self.is_fresh(value) || dying(value) || below.contains(&Slot::Value(value)))
+                && (self.is_fresh(value)
+                    || dying.contains(&value)
+                    || below.contains(&Slot::Value(value)))
         })
     }
 
@@ -1505,16 +1637,17 @@ impl<'a> Planner<'a> {
         &self,
         stack: &[Slot],
         ops: &[ValueId],
-        dying: &dyn Fn(ValueId) -> bool,
+        dying: &[ValueId],
     ) -> SmallVec<[Option<usize>; 8]> {
-        ops.iter()
-            .enumerate()
-            .map(|(i, &value)| {
-                (!self.is_fresh(value) && !ops[..i].contains(&value) && dying(value))
+        let mut positions = SmallVec::new();
+        for (i, &value) in ops.iter().enumerate() {
+            positions.push(
+                (!self.is_fresh(value) && !ops[..i].contains(&value) && dying.contains(&value))
                     .then(|| stack.iter().rposition(|&slot| slot == Slot::Value(value)))
-                    .flatten()
-            })
-            .collect()
+                    .flatten(),
+            );
+        }
+        positions
     }
 
     /// Consumes the operands `in_place` names in place, copies every other operand, and then
@@ -1732,7 +1865,7 @@ impl<'a> Planner<'a> {
             |ops: &[StackOp]| ops.iter().map(|&op| self.target.stack_op(op)).sum::<Option<Cost>>();
         cost(exchanges)
             .zip(cost(swaps))
-            .is_some_and(|(exchanges, swaps)| exchanges.dominates(swaps))
+            .is_some_and(|(exchanges, swaps)| self.target.dominates(exchanges, swaps))
     }
 
     // ----------------------------------------------------------------------------------------
@@ -1783,15 +1916,24 @@ impl<'a> Planner<'a> {
         &self,
         sim: &mut Sim,
         block: BlockId,
-        inst: InstId,
+        planned: &PlannedInst,
         uses: &Uses,
     ) -> Result<(), Fail> {
         let func = self.func;
+        let inst = planned.inst;
+        let operands = &planned.operands;
         let kind = &func.inst(inst).kind;
         sim.steps.push(Step::Begin(Some(inst)));
         let result = func.inst_result_value(inst);
-        let operands = kind.operands();
-        let dying = |value: ValueId| self.dies(block, uses, &operands, value);
+        // Whether each operand has no use after this instruction.
+        let mut dies = SmallVec::<[bool; 8]>::new();
+        for &operand in operands {
+            dies.push(self.dies(block, uses, operands, operand));
+        }
+        let dying = |value: ValueId| match operands.iter().position(|&operand| operand == value) {
+            Some(index) => dies[index],
+            None => self.dies(block, uses, operands, value),
+        };
         let push_order: Operands = operands.iter().rev().copied().collect();
         let pushes = |result: Option<ValueId>| result.map_or(0, |_| 1);
 
@@ -1846,7 +1988,7 @@ impl<'a> Planner<'a> {
             }
             // [saved, results] -> [results]; each saved word goes back to its slot
             self.restore_saved(sim, &saved)?;
-            self.finish_inst(sim, &operands, block, uses, None)?;
+            self.finish_inst(sim, operands, &dies, block, uses, None)?;
             return Ok(());
         }
 
@@ -1877,8 +2019,7 @@ impl<'a> Planner<'a> {
                     self.op(sim, op::ISZERO, 1, 1);
                 } else {
                     // ne a, b -> iszero (eq a, b)
-                    let mirrored: Operands = operands.iter().copied().collect();
-                    self.prepare_any(sim, &[&push_order, &mirrored], &dying)?;
+                    self.prepare_any(sim, &[&push_order, operands], &dying)?;
                     self.op(sim, op::EQ, 2, 1);
                 }
                 if ne {
@@ -1971,9 +2112,7 @@ impl<'a> Planner<'a> {
                     OpcodeLowering::Binary { opcode }
                         if let Some(mirror) = op::swapped_binary_opcode(opcode) =>
                     {
-                        let mirrored_ops: Operands = operands.iter().copied().collect();
-                        let flipped =
-                            self.prepare_any(sim, &[&push_order, &mirrored_ops], &dying)? == 1;
+                        let flipped = self.prepare_any(sim, &[&push_order, operands], &dying)? == 1;
                         self.op(sim, if flipped { mirror } else { opcode }, 2, pushes(result));
                     }
                     _ => {
@@ -1984,7 +2123,7 @@ impl<'a> Planner<'a> {
                 self.set_top_result(sim, result);
             }
         }
-        self.finish_inst(sim, &operands, block, uses, result)?;
+        self.finish_inst(sim, operands, &dies, block, uses, result)?;
         // [saved, result] -> [result]
         self.restore_saved(sim, &saved)
     }
@@ -2009,12 +2148,13 @@ impl<'a> Planner<'a> {
         &self,
         sim: &mut Sim,
         operands: &[ValueId],
+        dies: &[bool],
         block: BlockId,
         uses: &Uses,
         result: Option<ValueId>,
     ) -> Result<(), Fail> {
-        for &operand in operands {
-            if self.dies(block, uses, operands, operand) {
+        for (&operand, &dies) in operands.iter().zip(dies) {
+            if dies {
                 Self::kill(sim, operand);
             }
         }
@@ -2328,8 +2468,12 @@ impl<'a> Planner<'a> {
         Ok(())
     }
 
-    /// Chooses the layout of a join from its recorded edges, minimizing the weighted cost of
-    /// the shuffles and trampolines into it, and completes each edge.
+    /// Chooses the layout of a join from its recorded edges and completes each edge. The
+    /// candidates are each predecessor's proposal, priced by the weighted cost of the shuffles and
+    /// trampolines into it. Outside loops, the join's wanted order, its words by first read with
+    /// the first on top, competes with the cheapest proposal: each costs its incoming edges plus
+    /// a trial plan of the join's own instructions, so a layout the join consumes in place can
+    /// beat one the edges reach more cheaply.
     fn resolve_join(&mut self, join: BlockId) -> Result<(), Fail> {
         let Some(pending) = self.pending.remove(&join) else { return Ok(()) };
         if self.layouts[join].is_none() {
@@ -2342,26 +2486,27 @@ impl<'a> Planner<'a> {
                     continue;
                 }
                 let mut sim = Sim::new(edge.stack.clone());
+                self.current.set(edge.pred);
                 match self.adopt(&mut sim, edge.pred, join) {
-                    Ok(candidate) => candidates.push(candidate),
+                    Ok(candidate) if !candidates.contains(&candidate) => candidates.push(candidate),
+                    Ok(_) => {}
                     Err(fail) => {
                         failure.get_or_insert(fail);
                     }
                 }
             }
+            self.current.set(join);
             for candidate in candidates {
-                let mut total = Cost::ZERO;
-                for other in &pending {
-                    // An unreachable edge fails again below, naming a word to spill.
-                    let Ok(cost) = self.edge_cost(other, join, &candidate) else {
-                        total = Cost::MAX;
-                        break;
-                    };
-                    total += self.weigh(cost, other.pred);
-                }
+                let total = self.incoming_cost(&pending, join, &candidate);
                 if best.as_ref().is_none_or(|(best, _)| self.target.cmp(total, *best).is_lt()) {
                     best = Some((total, candidate));
                 }
+            }
+            if let Some((incoming, proposal)) = &best
+                && !self.cfg.cyclic_blocks().contains(join)
+                && let Some(wanted) = self.wanted_beats(&pending, join, *incoming, proposal)
+            {
+                best = Some(wanted);
             }
             let layout = match (best, failure) {
                 (Some((_, layout)), _) => layout,
@@ -2373,6 +2518,8 @@ impl<'a> Planner<'a> {
         }
         let layout = self.layouts[join].clone().unwrap();
         for edge in pending {
+            // The edge's code runs in its predecessor, where a retained constant may not be held.
+            self.current.set(edge.pred);
             let mut sim = Sim::new(edge.stack.clone());
             let target = self.edge_target(edge.pred, join, &layout, sim.height());
             match edge.side {
@@ -2406,28 +2553,131 @@ impl<'a> Planner<'a> {
                 }
             }
         }
+        self.current.set(join);
         Ok(())
+    }
+
+    /// The join's wanted order with its incoming cost, when it differs from `proposal`, the
+    /// cheapest proposal with incoming cost `incoming`, and the incoming edges plus a trial plan
+    /// of the join's own code cost less under it. A proposal whose trial cannot be planned loses.
+    fn wanted_beats(
+        &self,
+        pending: &[Pending],
+        join: BlockId,
+        incoming: Cost,
+        proposal: &Layout,
+    ) -> Option<(Cost, Layout)> {
+        let wanted = self.wanted_layout(join);
+        if wanted == *proposal {
+            return None;
+        }
+        let wanted_incoming = self.incoming_cost(pending, join, &wanted);
+        if wanted_incoming == Cost::MAX {
+            return None;
+        }
+        let planned = self.planned_insts(join);
+        let wanted_cost = self.join_cost(join, &planned, &wanted)?;
+        let wins = match self.join_cost(join, &planned, proposal) {
+            Some(proposal_cost) => {
+                let proposal_total = incoming + self.weigh(proposal_cost, join);
+                let wanted_total = wanted_incoming + self.weigh(wanted_cost, join);
+                self.target.cmp(wanted_total, proposal_total).is_lt()
+            }
+            None => true,
+        };
+        wins.then_some((wanted_incoming, wanted))
+    }
+
+    /// The weighted cost of the shuffles and trampolines that bring every recorded edge into
+    /// `layout`, or `Cost::MAX` when one cannot reach it.
+    fn incoming_cost(&self, pending: &[Pending], join: BlockId, layout: &Layout) -> Cost {
+        let mut total = Cost::ZERO;
+        for edge in pending {
+            // An unreachable edge fails again when the join completes it, naming a word to spill.
+            let Ok(cost) = self.edge_cost(edge, join, layout) else { return Cost::MAX };
+            total += self.weigh(cost, edge.pred);
+        }
+        total
+    }
+
+    /// The join's words, by first read in the join block with the first on top, and the return
+    /// address deepest. The block's instructions and terminator read them in this order, so a
+    /// layout like it needs no shuffle before them.
+    fn wanted_layout(&self, join: BlockId) -> Layout {
+        let words = self.join_words(join);
+        ordered_layout(self.func, [join], words, self.ret_on_stack(), Read::First)
+    }
+
+    /// Prices the join's own code entered with `layout`: its planned instructions and the shuffle
+    /// that places the operands its terminator reads. Returns `None` when they cannot be planned.
+    fn join_cost(&self, join: BlockId, planned: &[PlannedInst], layout: &Layout) -> Option<Cost> {
+        let base = Sim::new(layout.clone());
+        let body = self.trial(&base, join, planned, &mut self.block_uses(join), 0, &[], None)?;
+        let mut sim = self.trial_sim.borrow().fork();
+        let before = sim.cost;
+        self.terminator_operands(&mut sim, join).ok()?;
+        Some(body.plus(sim.cost.saturating_sub(before)))
+    }
+
+    /// Places the operands a block's return, branch, or revert reads, as `plan_terminator` does.
+    fn terminator_operands(&self, sim: &mut Sim, block: BlockId) -> Result<(), Fail> {
+        let live_out = self.liveness.live_out(block);
+        let dying = |value: ValueId| !live_out.contains(value);
+        match &self.func.blocks[block].terminator {
+            Some(Terminator::Return { values }) if self.has_ret => {
+                let values = match self.tail_calls.get(&block) {
+                    Some(&call) => icall(&self.func.inst(call).kind).unwrap().1,
+                    None => values.as_slice(),
+                };
+                self.shuffle(sim, &with_return_address(values))
+            }
+            Some(Terminator::Branch { condition, .. }) => {
+                let (condition, _) =
+                    self.conditions.get(&block).copied().unwrap_or((*condition, false));
+                self.prepare(sim, &[condition], &dying)
+            }
+            Some(Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size }) => {
+                self.prepare(sim, &[*size, *offset], &dying)
+            }
+            _ => Ok(()),
+        }
     }
 
     /// A join layout derived from no edge: the return address, then the join's live words and
     /// phi results kept on the stack, by value.
     fn canonical_layout(&self, join: BlockId) -> Layout {
-        let func = self.func;
-        let mut words: Vec<ValueId> = self.liveness.live_in(join).iter().collect();
-        words.extend(func.block_phi_results(join).iter());
-        words.retain(|&value| !self.is_fresh(value));
-        words.sort_unstable();
-        words.dedup();
-        let mut layout = Layout::with_capacity(words.len() + 1);
+        let mut layout = Layout::new();
         if self.ret_on_stack() {
             layout.push(Slot::Ret);
         }
-        layout.extend(words.into_iter().map(Slot::Value));
+        layout.extend(self.join_words(join).into_iter().map(Slot::Value));
         layout
+    }
+
+    /// The join's live words and phi results kept on the stack, by value.
+    fn join_words(&self, join: BlockId) -> Vec<ValueId> {
+        let mut words: Vec<ValueId> = self.liveness.live_in(join).iter().collect();
+        words.extend(self.func.block_phi_results(join).iter());
+        words.retain(|&value| !self.is_fresh(value));
+        words.sort_unstable();
+        words.dedup();
+        words
     }
 
     /// Prices one recorded edge into a candidate join layout.
     fn edge_cost(&self, edge: &Pending, join: BlockId, layout: &Layout) -> Result<Cost, Fail> {
+        let join_block = self.current.replace(edge.pred);
+        let cost = self.edge_cost_in_pred(edge, join, layout);
+        self.current.set(join_block);
+        cost
+    }
+
+    fn edge_cost_in_pred(
+        &self,
+        edge: &Pending,
+        join: BlockId,
+        layout: &Layout,
+    ) -> Result<Cost, Fail> {
         let mut sim = Sim::new(edge.stack.clone());
         let target = self.edge_target(edge.pred, join, layout, sim.height());
         if edge.side.is_none() {
@@ -2648,7 +2898,7 @@ impl<'a> Planner<'a> {
                 target.push(Want::Value(condition));
                 let mut candidate = sim.fork();
                 if self.shuffle(&mut candidate, &target).is_ok() {
-                    sim.join(candidate);
+                    sim.join(&mut candidate);
                     shuffled = true;
                 }
             }
@@ -2873,6 +3123,62 @@ fn with_return_address(values: &[ValueId]) -> Vec<Want> {
     values.iter().rev().map(|&value| Want::Value(value)).chain([Want::Ret]).collect()
 }
 
+/// Which read of a word places it in an `ordered_layout`.
+#[derive(Clone, Copy, PartialEq)]
+enum Read {
+    /// The first read, counting each operand.
+    First,
+    /// The last read, counting each instruction.
+    Last,
+}
+
+/// Orders `words` by their `read` in `blocks`, the return address deepest when `ret`: the word read
+/// first sits on top, and words never read sit deepest.
+fn ordered_layout(
+    func: &Function,
+    blocks: impl IntoIterator<Item = BlockId>,
+    mut words: Vec<ValueId>,
+    ret: bool,
+    read: Read,
+) -> Layout {
+    let mut order = FxHashMap::<ValueId, usize>::default();
+    let mut position = 0usize;
+    let mut note = |operands: &[ValueId]| {
+        let start = position;
+        for &operand in operands {
+            match read {
+                Read::First => {
+                    order.entry(operand).or_insert(position);
+                    position += 1;
+                }
+                Read::Last => {
+                    order.insert(operand, start);
+                }
+            }
+        }
+        if read == Read::Last {
+            position += 1;
+        }
+    };
+    for block in blocks {
+        for &inst in &func.blocks[block].instructions {
+            if !matches!(func.inst(inst).kind, InstKind::Phi(_)) {
+                note(&func.inst(inst).kind.operands());
+            }
+        }
+        if let Some(term) = &func.blocks[block].terminator {
+            note(&term.operands());
+        }
+    }
+    words.sort_by_key(|value| std::cmp::Reverse(order.get(value).copied().unwrap_or(usize::MAX)));
+    let mut layout = Layout::with_capacity(words.len() + 1);
+    if ret {
+        layout.push(Slot::Ret);
+    }
+    layout.extend(words.into_iter().map(Slot::Value));
+    layout
+}
+
 /// The multi-return protocol after one call.
 pub(super) struct Projection {
     /// Protocol instructions to elide.
@@ -3035,6 +3341,88 @@ fn common_dominator(cfg: &CfgInfo, a: BlockId, b: BlockId) -> BlockId {
 }
 
 /// Counts the copies of dying operands left in `below`, each removed eventually.
-fn leftovers(below: &[Slot], dying: &dyn Fn(ValueId) -> bool) -> u32 {
-    below.iter().filter(|slot| matches!(slot, Slot::Value(value) if dying(*value))).count() as u32
+fn leftovers(below: &[Slot], dying: &[ValueId]) -> u32 {
+    if dying.is_empty() {
+        return 0;
+    }
+    below.iter().filter(|slot| matches!(slot, Slot::Value(value) if dying.contains(value))).count()
+        as u32
+}
+
+/// The liveness of a function when each constant of `definitions` is kept on the stack from its
+/// defining block through the blocks that block dominates: the constant is live where a path
+/// inside that region reaches one of its uses, and nowhere else. A defining block is entered
+/// without it.
+pub(super) fn retention_liveness(
+    func: &Function,
+    cfg: &CfgInfo,
+    liveness: &Liveness,
+    definitions: &[(BlockId, ValueId)],
+) -> Liveness {
+    let mut liveness = liveness.clone();
+    for (&value, held) in &held_blocks(func, cfg, definitions) {
+        let mut used = DenseBitSet::new_empty(func.blocks.len());
+        let mut edge_used = DenseBitSet::new_empty(func.blocks.len());
+        for (block, data) in func.blocks.iter_enumerated() {
+            for &inst in &data.instructions {
+                match &func.inst(inst).kind {
+                    InstKind::Phi(incoming) => {
+                        for &(pred, operand) in incoming {
+                            if operand == value {
+                                edge_used.insert(pred);
+                            }
+                        }
+                    }
+                    kind if kind.operands().contains(&value) => {
+                        used.insert(block);
+                    }
+                    _ => {}
+                }
+            }
+            if data.terminator.as_ref().is_some_and(|term| term.operands().contains(&value)) {
+                used.insert(block);
+            }
+        }
+        let mut live_in = DenseBitSet::new_empty(func.blocks.len());
+        let mut live_out = DenseBitSet::new_empty(func.blocks.len());
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for &block in cfg.rpo().iter().rev() {
+                if !held.contains(block) {
+                    continue;
+                }
+                let mut out = edge_used.contains(block);
+                if let Some(term) = &func.blocks[block].terminator {
+                    term.for_each_successor(|succ| out |= live_in.contains(succ));
+                }
+                changed |= out && live_out.insert(block);
+                if (used.contains(block) || out) && !definitions.contains(&(block, value)) {
+                    changed |= live_in.insert(block);
+                }
+            }
+        }
+        liveness.set_value_live(value, &live_in, &live_out);
+    }
+    liveness
+}
+
+/// The blocks in which each constant of `definitions` is kept on the stack: those dominated by a
+/// block that defines it.
+fn held_blocks(
+    func: &Function,
+    cfg: &CfgInfo,
+    definitions: &[(BlockId, ValueId)],
+) -> FxHashMap<ValueId, DenseBitSet<BlockId>> {
+    let mut held = FxHashMap::<_, DenseBitSet<BlockId>>::default();
+    for &(def, value) in definitions {
+        let blocks = held.entry(value).or_insert_with(|| DenseBitSet::new_empty(func.blocks.len()));
+        let mut pending = vec![def];
+        while let Some(block) = pending.pop() {
+            if blocks.insert(block) {
+                pending.extend_from_slice(cfg.dominators().children(block));
+            }
+        }
+    }
+    held
 }

@@ -13,17 +13,15 @@
 //! - every use of the pointer is an in-bounds address derivation into exact loads, stores, hashes,
 //!   copies, logs, or external-data terminators; non-recursive internal calls are allowed only when
 //!   their interprocedural summaries prove that the pointer is not captured, that the callee never
-//!   resets the free-memory pointer or reads `msize`, and that it never relates the pointer to a
-//!   value derived from the free-memory pointer, since memory-safe assembly could otherwise derive
-//!   aliases from where the object lies relative to the heap;
-//! - functions observing `msize`, directly or in a callee, are skipped: eliding a bump changes the
-//!   high-water mark.
+//!   resets the free-memory pointer, and that it never relates the pointer to a value derived from
+//!   the free-memory pointer, since memory-safe assembly could otherwise derive aliases from where
+//!   the object lies relative to the heap;
 //! - allocations marked as source-visible FMP advances are never placed statically.
 
 use crate::mir::{
     ArgIdx, BlockId, Callee, Function, FunctionId, InstId, InstKind, MirType, Module, PtrLocation,
     Terminator, ValueId,
-    analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, MemoryCallSummaries, may_observe_msize},
+    analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, MemoryCallSummaries},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
 };
@@ -148,7 +146,6 @@ fn eligible_static_allocations(
     calls: &CallGraphInfo,
     summaries: &MemoryCallSummaries,
 ) -> Vec<StaticAllocCandidate> {
-    // Entries have no internal callers, so only the entry and its callees can read `msize`.
     if !is_entry(func)
         || calls.is_recursive(func_id)
         || !func.instructions().any(|inst_id| {
@@ -157,7 +154,6 @@ fn eligible_static_allocations(
                 InstKind::Alloc { semantics: crate::mir::AllocationSemantics::INTERNAL, .. }
             )
         })
-        || may_observe_msize(func, Some(summaries))
     {
         return Vec::new();
     }

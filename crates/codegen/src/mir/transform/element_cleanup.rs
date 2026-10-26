@@ -20,7 +20,9 @@
 //! internal parameter (each argument bounded by its own origin and the
 //! caller's transitive bound), the widest incoming array for a phi, the width
 //! of a storage-array load's validated unsigned elements, and the full word
-//! for anything else. Storage-array loads initialize fresh private arrays.
+//! for any other object ABI decoding produces. A pointer nothing tracks, which inline
+//! assembly may have offset into another array's words, gets a bound past the full word.
+//! Storage-array loads initialize fresh private arrays.
 //! A mask on an element load is dropped when its width covers both the array's
 //! origin bound and the transitive bound
 //! of the function reading it. Widths are tracked per function rather than
@@ -29,16 +31,18 @@
 //! a second summary includes stores through unknown origins before any masks are removed.
 //!
 //! Only word-element arrays, contiguous low-bit masks, and `zext iN (trunc i256 x to iN) to
-//! i256` round trips are rewritten. A narrowing result with other typed uses stays in place.
+//! i256` round trips are rewritten. An unsigned comparison of such a narrowing compares the
+//! element word instead, with its other operand zero-extended, which is free after integer
+//! lowering. A narrowing result with other typed uses stays in place.
 //! Runs early in the optimized phase, while `ptradd` keeps element addresses
 //! explicit and the call graph is explicit; removed masks lose their debug
 //! checkpoints rather than lending them to the loads.
 
 use super::egraph::max_bits_with_args;
 use crate::mir::{
-    AbiParamType, AbiWordValidator, AllocationInitialization, ArgIdx, EffectKind, Function,
-    FunctionId, InstId, InstKind, MemoryRegion, MirType, Module, PtrLocation, Terminator, Value,
-    ValueId,
+    AbiParamType, AbiWordValidator, AllocationInitialization, ArgIdx, BlockId, EffectKind,
+    Function, FunctionId, Immediate, InstId, InstKind, Instruction, MemoryRegion, MirType, Module,
+    PtrLocation, Terminator, Value, ValueId,
     analysis::direct_callees,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
@@ -58,9 +62,9 @@ pub(crate) struct ElementCleanup;
 const MAX_VALUE_DEPTH: u32 = 8;
 /// The width of a word nothing bounds.
 const FULL_WIDTH: u32 = 256;
-/// The widest array length whose element addresses cannot wrap around to the length word: every
-/// index below it addresses at most `32 + 32 * (2^251 - 2)`, under `2^256`.
-const MAX_HEADER_LENGTH_BITS: u32 = 251;
+/// The origin bound of a pointer nothing tracks: past every width, as it may point into the middle
+/// of another array's words, unlike an object's own start.
+const UNKNOWN_ORIGIN: u32 = FULL_WIDTH + 1;
 /// Fixed-point rounds after which every bound is given up as full.
 const MAX_ROUNDS: usize = 16;
 
@@ -160,27 +164,100 @@ impl MirPass for ElementCleanup {
                     dead.insert(inst);
                 }
             }
-            if replacements.is_empty() {
-                continue;
-            }
-            // result = and element, mask; use result -> use element
-            // NOTE: Removed cleanup instructions lose their debug checkpoints;
-            // their source locations must not be assigned to the load.
-            func.for_each_instruction_mut(|_, inst| {
-                inst.rewrite_operands(|value| {
-                    *value = utils::resolve_replacement(*value, &replacements);
+            if !replacements.is_empty() {
+                // result = and element, mask; use result -> use element
+                // NOTE: Removed cleanup instructions lose their debug checkpoints;
+                // their source locations must not be assigned to the load.
+                func.for_each_instruction_mut(|_, inst| {
+                    inst.rewrite_operands(|value| {
+                        *value = utils::resolve_replacement(*value, &replacements);
+                    });
                 });
-            });
-            for block in &mut func.blocks {
-                block.instructions.retain(|&inst| !dead.contains(inst));
-                if let Some(term) = &mut block.terminator {
-                    utils::replace_terminator_uses_canonicalized(term, &replacements);
+                for block in &mut func.blocks {
+                    block.instructions.retain(|&inst| !dead.contains(inst));
+                    if let Some(term) = &mut block.terminator {
+                        utils::replace_terminator_uses_canonicalized(term, &replacements);
+                    }
                 }
+                changed = true;
             }
-            changed = true;
+            changed |= widen_comparisons(func, &objects, reading);
         }
         changed
     }
+}
+
+/// Compares the words of narrowed elements instead of the narrowed values. An unsigned comparison
+/// of `trunc i256 x to iN`, where `x` is an element of an array that holds no word wider than N
+/// bits, has the result the same comparison of `x` has with the other operand zero-extended, so
+/// the narrowing and the mask it lowers to go once nothing else uses them. Signed comparisons
+/// read bit N - 1 as the sign and stay.
+fn widen_comparisons(func: &mut Function, objects: &FxHashMap<ValueId, u32>, reading: u32) -> bool {
+    let mut changed = false;
+    for block in func.blocks.indices() {
+        let mut position = 0;
+        while position < func.blocks[block].instructions.len() {
+            let inst = func.blocks[block].instructions[position];
+            let kind = &func.inst(inst).kind;
+            let (InstKind::Eq(a, b) | InstKind::Ne(a, b) | InstKind::Lt(a, b) | InstKind::Gt(a, b)) =
+                *kind
+            else {
+                position += 1;
+                continue;
+            };
+            let (wide_a, wide_b) = (
+                clean_element(func, a, objects, reading),
+                clean_element(func, b, objects, reading),
+            );
+            if wide_a.is_none() && wide_b.is_none() {
+                position += 1;
+                continue;
+            }
+            let mut widen = |func: &mut Function, value: ValueId, wide: Option<ValueId>| {
+                if let Some(wide) = wide {
+                    return wide;
+                }
+                if let Some(constant) = func.value_u256(value) {
+                    let immediate = Immediate::for_type(Some(MirType::I256), constant);
+                    return func.alloc_value(Value::Immediate(immediate));
+                }
+                // zext iN value to i256
+                let mut zext = Instruction::new(InstKind::Zext(value), Some(MirType::I256));
+                zext.metadata = func.inst(inst).metadata.debug_context();
+                let (zext, result) = func.alloc_value_inst(zext);
+                func.blocks[block].instructions.insert(position, zext);
+                position += 1;
+                result
+            };
+            let (a, b) = (widen(func, a, wide_a), widen(func, b, wide_b));
+            // cmp iN (trunc i256 x to iN), y -> cmp i256 x, (zext iN y to i256)
+            let kind = match func.inst(inst).kind {
+                InstKind::Eq(..) => InstKind::Eq(a, b),
+                InstKind::Ne(..) => InstKind::Ne(a, b),
+                InstKind::Lt(..) => InstKind::Lt(a, b),
+                _ => InstKind::Gt(a, b),
+            };
+            func.inst_mut(inst).replace_kind(kind);
+            changed = true;
+            position += 1;
+        }
+    }
+    changed
+}
+
+/// The word `value` narrows when it truncates an element of an array whose words all fit the
+/// narrowed width.
+fn clean_element(
+    func: &Function,
+    value: ValueId,
+    objects: &FxHashMap<ValueId, u32>,
+    reading: u32,
+) -> Option<ValueId> {
+    let Value::Inst(trunc) = *func.value(value) else { return None };
+    let InstKind::Trunc(element, bits) = func.inst(trunc).kind else { return None };
+    let Value::Inst(load) = *func.value(element) else { return None };
+    let object = word_element_object(func, load)?;
+    objects.get(&object).is_some_and(|&origin| origin.max(reading) <= bits).then_some(element)
 }
 
 /// The array a word element load or store accesses: a `ptr<memory>` object at a word-aligned
@@ -199,18 +276,15 @@ fn word_element_object(func: &Function, inst: InstId) -> Option<ValueId> {
     (!length && func.value_ty(object) == Some(MirType::MEMPTR)).then_some(object)
 }
 
-/// Whether storing `length` into the header of `object` keeps the header out of reach of its
-/// elements: `object` is a direct runtime-sized allocation, and no index below `length` wraps the
-/// element address around to the header. That holds when `length` fits in
-/// [`MAX_HEADER_LENGTH_BITS`] or is the length the allocation's checked size scales from, as in
-/// `new T[](length)`. A forged length, as from assembly, may let a wrapping index read the header.
+/// Whether storing `length` into the header of `object` keeps every element read inside the
+/// allocation: `object` is a direct runtime-sized allocation, and `length` is the length its
+/// checked size scales from, as in `new T[](length)`. Any other length, such as one assembly
+/// stores, may let an index pass the bounds check past the allocation, or wrap around to the
+/// header, and read words the width bounds never saw.
 fn is_header_length(func: &Function, object: ValueId, length: ValueId) -> bool {
     let Value::Inst(alloc) = *func.value(object) else { return false };
     let InstKind::Alloc { size, .. } = func.inst(alloc).kind else { return false };
-    func.value_u64(size).is_none()
-        && (max_bits_with_args(func, length, MAX_VALUE_DEPTH, &|_| FULL_WIDTH)
-            <= MAX_HEADER_LENGTH_BITS
-            || scaled_root(func, size) == length)
+    func.value_u64(size).is_none() && scaled_root(func, size) == length
 }
 
 /// The value `value` scales from through additions, multiplications, and shifts by constants.
@@ -248,7 +322,11 @@ fn masked_element(func: &Function, inst: InstId) -> Option<(ValueId, u32)> {
 /// The widest word the function's own instructions may store into an array.
 fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u32 {
     let mut bound = 0;
-    for inst in func.instructions() {
+    let instructions = func
+        .blocks
+        .iter_enumerated()
+        .flat_map(|(block, data)| data.instructions.iter().map(move |&inst| (block, inst)));
+    for (block, inst) in instructions {
         let instruction = func.inst(inst);
         let width = match &instruction.kind {
             InstKind::Store(.., PtrLocation::Memory)
@@ -258,12 +336,19 @@ fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u3
             {
                 0
             }
+            // The replaced word must be one of an object's own words, such as an array's header or
+            // element: a store one byte past an element moves its low byte into the next
+            // element's top byte.
+            InstKind::Store(address, value, PtrLocation::Memory)
+                if func.word_access(*address).is_some_and(|(object, ..)| {
+                    func.value_ty(object) == Some(MirType::MEMPTR) && known_origin(objects, object)
+                }) && replaces_no_narrower_word(func, block, inst, *address, *value) =>
+            {
+                0
+            }
             InstKind::Store(_, value, PtrLocation::Memory)
-                if word_element_object(func, inst).is_some_and(|object| {
-                    objects.is_none_or(|objects| {
-                        objects.get(&object).is_some_and(|&bound| bound < FULL_WIDTH)
-                    })
-                }) =>
+                if word_element_object(func, inst)
+                    .is_some_and(|object| narrow_origin(objects, object)) =>
             {
                 max_bits_with_args(func, *value, MAX_VALUE_DEPTH, &|_| FULL_WIDTH)
             }
@@ -293,6 +378,96 @@ fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u3
         }
     }
     bound
+}
+
+/// Whether `object` is an array of a known origin that holds words narrower than a word. Without
+/// `objects`, the provisional summary takes every object as one.
+fn narrow_origin(objects: Option<&FxHashMap<ValueId, u32>>, object: ValueId) -> bool {
+    objects.is_none_or(|objects| objects.get(&object).is_some_and(|&bound| bound < FULL_WIDTH))
+}
+
+/// Whether `object` is the start of an object of a known origin, built or decoded here or passed
+/// by every call site as one, rather than a pointer assembly may have offset into another array's
+/// words. Without `objects`, the provisional summary takes every object as one.
+fn known_origin(objects: Option<&FxHashMap<ValueId, u32>>, object: ValueId) -> bool {
+    objects.is_none_or(|objects| objects.get(&object).is_some_and(|&bound| bound <= FULL_WIDTH))
+}
+
+/// Whether the store `inst` of `value` at `address` leaves a word no wider than the one it
+/// replaces: on the only path to the store, a branch found `value` at most the word a load read
+/// from `address`, and nothing writes memory between that load and the store. Whatever array
+/// holds the word keeps its bound. A guarded truncation, `if (n > a.length) fail(); a.length = n`,
+/// stores such a word into an array parameter's header.
+fn replaces_no_narrower_word(
+    func: &Function,
+    mut block: BlockId,
+    inst: InstId,
+    address: ValueId,
+    value: ValueId,
+) -> bool {
+    let reads_only = |inst: InstId| {
+        matches!(func.inst(inst).kind.effect_kind(), EffectKind::Pure | EffectKind::MemoryRead)
+    };
+    let before = &func.blocks[block].instructions;
+    if !before.iter().take_while(|&&other| other != inst).all(|&other| reads_only(other)) {
+        return false;
+    }
+    let value = through_single_phis(func, value);
+    for _ in 0..MAX_VALUE_DEPTH {
+        let [predecessor] = *func.blocks[block].predecessors.as_slice() else { return false };
+        let data = &func.blocks[predecessor];
+        match data.terminator {
+            Some(Terminator::Jump(_))
+                if data.instructions.iter().all(|&other| reads_only(other)) =>
+            {
+                block = predecessor;
+            }
+            Some(Terminator::Branch { condition, then_block, else_block })
+                if then_block != else_block =>
+            {
+                let Value::Inst(test) = *func.value(condition) else { return false };
+                // On the else edge `a > b` and `a < b` fail; on the then edge they hold.
+                let (small, large) = match (&func.inst(test).kind, block == else_block) {
+                    (&InstKind::Gt(a, b), true) | (&InstKind::Lt(a, b), false) => (a, b),
+                    (&InstKind::Lt(a, b), true) | (&InstKind::Gt(a, b), false) => (b, a),
+                    _ => return false,
+                };
+                if through_single_phis(func, small) != value {
+                    return false;
+                }
+                let Value::Inst(load) = *func.value(large) else { return false };
+                let InstKind::Load(loaded, PtrLocation::Memory) = func.inst(load).kind else {
+                    return false;
+                };
+                let same_address = loaded == address
+                    || func
+                        .object_address(loaded)
+                        .is_some_and(|loaded| func.object_address(address) == Some(loaded));
+                let Some(position) = data.instructions.iter().position(|&other| other == load)
+                else {
+                    return false;
+                };
+                return same_address
+                    && data.instructions[position + 1..].iter().all(|&other| reads_only(other));
+            }
+            _ => return false,
+        }
+    }
+    false
+}
+
+/// The value `value` stands for through phis whose incoming values are all one value.
+fn through_single_phis(func: &Function, mut value: ValueId) -> ValueId {
+    for _ in 0..MAX_VALUE_DEPTH {
+        let Value::Inst(inst) = *func.value(value) else { break };
+        let InstKind::Phi(incoming) = &func.inst(inst).kind else { break };
+        let Some(&(_, first)) = incoming.first() else { break };
+        if incoming.iter().any(|&(_, other)| other != first) {
+            break;
+        }
+        value = first;
+    }
+    value
 }
 
 /// Each function's store bound including the functions it calls.
@@ -370,7 +545,7 @@ fn param_bounds(
             } else if func.selector.is_some() {
                 validated_width(func, index)
             } else {
-                FULL_WIDTH
+                UNKNOWN_ORIGIN
             };
             bounds.insert((id, index), entry);
         }
@@ -384,7 +559,7 @@ fn param_bounds(
                 for (index, &arg) in args.iter().enumerate() {
                     let key = (callee, ArgIdx::new(index));
                     let Some(bound) = bounds.get(&key).copied() else { continue };
-                    let passed = objects.get(&arg).copied().unwrap_or(FULL_WIDTH).max(reading);
+                    let passed = objects.get(&arg).copied().unwrap_or(UNKNOWN_ORIGIN).max(reading);
                     if passed > bound {
                         bounds.insert(key, passed);
                         changed = true;
@@ -411,7 +586,7 @@ fn param_bounds(
             return bounds;
         }
     }
-    bounds.values_mut().for_each(|bound| *bound = FULL_WIDTH);
+    bounds.values_mut().for_each(|bound| *bound = UNKNOWN_ORIGIN);
     bounds
 }
 
@@ -471,7 +646,7 @@ fn object_bounds(
         for (result, incoming) in &phis {
             let widest = incoming
                 .iter()
-                .map(|value| bounds.get(value).copied().unwrap_or(FULL_WIDTH))
+                .map(|value| bounds.get(value).copied().unwrap_or(UNKNOWN_ORIGIN))
                 .fold(0, u32::max);
             if widest > bounds[result] {
                 bounds.insert(*result, widest);
@@ -483,7 +658,7 @@ fn object_bounds(
         }
     }
     for (result, _) in &phis {
-        bounds.insert(*result, FULL_WIDTH);
+        bounds.insert(*result, UNKNOWN_ORIGIN);
     }
     bounds
 }

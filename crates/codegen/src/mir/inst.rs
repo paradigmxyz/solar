@@ -231,6 +231,18 @@ impl InstructionMetadata {
         self.flags.set_preserves_fmp(value);
     }
 
+    /// Returns whether this sum is an allocator bump that does not wrap.
+    #[must_use]
+    pub(crate) fn alloc_ptr(&self) -> bool {
+        self.flags.alloc_ptr()
+    }
+
+    /// Marks the sum of an allocation's pointer and size, which cannot wrap in a program that
+    /// completes, so the sum is not below the pointer.
+    pub(crate) fn set_alloc_ptr(&mut self, value: bool) {
+        self.flags.set_alloc_ptr(value);
+    }
+
     /// Returns whether this copy's source and destination ranges never overlap.
     #[must_use]
     pub(crate) fn disjoint(&self) -> bool {
@@ -257,6 +269,7 @@ impl MetadataFlags {
     const PRESERVES_FMP: u16 = 0b100_0000_0000;
     const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
     const DEBUG_INFO_HANDLED: u16 = 0b1_0000_0000_0000;
+    const ALLOC_PTR: u16 = 0b10_0000_0000_0000;
 
     fn memory_region(self) -> Option<MemoryRegion> {
         match self.0 & Self::MEMORY_MASK {
@@ -327,6 +340,18 @@ impl MetadataFlags {
             self.0 |= Self::PRESERVES_FMP;
         } else {
             self.0 &= !Self::PRESERVES_FMP;
+        }
+    }
+
+    fn alloc_ptr(self) -> bool {
+        self.0 & Self::ALLOC_PTR != 0
+    }
+
+    fn set_alloc_ptr(&mut self, value: bool) {
+        if value {
+            self.0 |= Self::ALLOC_PTR;
+        } else {
+            self.0 &= !Self::ALLOC_PTR;
         }
     }
 
@@ -606,6 +631,12 @@ impl EffectKind {
                 | Self::EnvironmentRead
         )
     }
+
+    /// Whether this reads or writes memory.
+    #[must_use]
+    pub(crate) const fn is_memory(self) -> bool {
+        matches!(self, Self::MemoryRead | Self::MemoryWrite)
+    }
 }
 
 /// Initialization performed for a newly reserved range.
@@ -693,11 +724,6 @@ pub(crate) struct Instruction {
 }
 
 impl Instruction {
-    /// Returns whether an unused instruction must retain its execution.
-    pub(crate) fn must_execute(&self, observes_msize: bool) -> bool {
-        self.kind.effects().must_execute(observes_msize)
-    }
-
     /// Returns the semantic operation that still needs representation lowering.
     pub(crate) fn unlowered_reason(&self, func: &Function) -> Option<PhaseCategory> {
         if self.result_ty == Some(MirType::I1)
@@ -764,6 +790,7 @@ impl Instruction {
         // %result = old(operands) -> %result = equivalent(new_operands)
         self.kind = kind;
         self.invalidate_operand_metadata();
+        self.metadata.set_alloc_ptr(false);
         if !matches!(self.kind, InstKind::Alloc { .. }) {
             self.metadata.clear_deferred_alloc();
             self.metadata.set_preserves_fmp(false);
@@ -1000,7 +1027,7 @@ impl InstKind {
     /// Returns whether the instruction has required effects, including control effects.
     #[must_use]
     pub(crate) const fn has_side_effects(&self) -> bool {
-        self.effects().must_execute(false)
+        self.effects().must_execute()
     }
 
     /// Returns a conservative effect classification for this instruction.
@@ -1043,11 +1070,17 @@ impl InstKind {
         }
     }
 
+    /// Returns whether this is a `shl`, `shr`, or `sar`.
+    #[must_use]
+    pub(crate) const fn is_shift(&self) -> bool {
+        matches!(self, Self::Shl(..) | Self::Shr(..) | Self::Sar(..))
+    }
+
     /// Returns whether the textual form lists the stored operands in reverse: shifts are stored
     /// in EVM stack order but read as `value, shift`.
     #[must_use]
     pub(crate) const fn reverses_text_operands(&self) -> bool {
-        matches!(self, Self::Shl(..) | Self::Shr(..) | Self::Sar(..))
+        self.is_shift()
     }
 }
 

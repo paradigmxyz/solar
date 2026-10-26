@@ -19,7 +19,7 @@ use solar_data_structures::{
     map::FxHashMap,
     sync::{self, Mutex, Scope},
 };
-use solar_interface::{Result, error_code};
+use solar_interface::{Result, Session, error_code};
 use solar_sema::{
     Gcx,
     hir::{ContractId, VariableId},
@@ -189,11 +189,7 @@ pub fn generate_contract_bytecodes(
     let graph = ContractGraph::discover(gcx, &requested)?;
     let contract_count = gcx.hir.contract_ids().len();
 
-    // Pass debugging writes directly to stdout and stderr, so keep its output ordered.
-    let parallel = gcx.sess.is_parallel()
-        && !gcx.sess.opts.unstable.print_after_each
-        && !gcx.sess.opts.unstable.pass_diff
-        && !gcx.sess.opts.unstable.time_passes;
+    let parallel = gcx.sess.is_parallel_codegen();
     let priorities = if parallel {
         graph.scheduling_priorities(gcx)
     } else {
@@ -219,7 +215,7 @@ pub fn generate_contract_bytecodes(
                 .map(|dependencies| AtomicUsize::new(dependencies.len() + 1))
                 .collect(),
         ),
-        queue: ContractQueue { jobs: Mutex::new(BinaryHeap::new()), priorities },
+        queue: ContractQueue { sess: gcx.sess, jobs: Mutex::new(BinaryHeap::new()), priorities },
     };
     // Every contract is scheduled up front; only its completion waits for the
     // bytecode of the contracts it creates.
@@ -361,14 +357,19 @@ impl ContractGraph {
         Ok(())
     }
 
-    /// Starts the estimated longest dependency chains first. Completing a
-    /// contract waits for the contracts it embeds, so their work is on the path
-    /// to every embedding contract. Source-body sizes are a cheap scheduling
-    /// estimate; they do not affect what gets compiled.
+    /// Starts the jobs on the estimated longest remaining path first.
+    ///
+    /// Scheduling a contract runs concurrently with scheduling the contracts it embeds; only
+    /// its short completion waits for them. A contract is therefore done at
+    /// `max(schedule end, embedded contracts done) + finish`, and the path from the start of a
+    /// contract's scheduling is its own cost plus the finish of itself and of the chain of
+    /// contracts that embed it. Source-body sizes are a cheap cost estimate; they do not affect
+    /// what gets compiled.
     fn scheduling_priorities(&self, gcx: Gcx<'_>) -> IndexVec<ContractId, u64> {
-        let mut costs = IndexVec::from_vec(vec![0u64; self.dependencies.len()]);
+        // Holds each contract's own cost until the traversal adds its finish chain.
+        let mut priorities = IndexVec::from_vec(vec![0u64; self.dependencies.len()]);
         for id in self.reachable.iter() {
-            costs[id] = gcx
+            priorities[id] = gcx
                 .contract_reachable_functions(id)
                 .iter()
                 .map(|function| {
@@ -378,13 +379,15 @@ impl ContractGraph {
                 .sum::<u64>()
                 .max(1);
         }
-        let mut priorities = costs.clone();
+        // The longest finish chain of the contracts that embed each contract.
+        let mut after = IndexVec::from_vec(vec![0; self.dependencies.len()]);
         let mut remaining = IndexVec::from_vec(self.dependents.iter().map(Vec::len).collect());
         let mut ready = self.reachable.iter().filter(|&id| remaining[id] == 0).collect::<Vec<_>>();
         while let Some(id) = ready.pop() {
+            let tail = (priorities[id] / FINISH_COST_DIVISOR).saturating_add(after[id]);
+            priorities[id] = priorities[id].saturating_add(tail);
             for child in self.dependencies[id].iter() {
-                priorities[child] =
-                    priorities[child].max(costs[child].saturating_add(priorities[id]));
+                after[child] = after[child].max(tail);
                 remaining[child] -= 1;
                 if remaining[child] == 0 {
                     ready.push(child);
@@ -394,6 +397,10 @@ impl ContractGraph {
         priorities
     }
 }
+
+/// A contract's completion costs about this fraction of its scheduling, from traces of the heavy
+/// projects (2 to 6 percent).
+const FINISH_COST_DIVISOR: u64 = 32;
 
 /// One unit of contract code generation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -405,23 +412,26 @@ enum ContractJob {
 }
 
 /// Workers choose the highest-priority ready job independently of Rayon's task order.
-struct ContractQueue {
+struct ContractQueue<'gcx> {
+    sess: &'gcx Session,
     jobs: Mutex<BinaryHeap<(u64, Reverse<ContractJob>)>>,
     priorities: IndexVec<ContractId, u64>,
 }
 
-impl ContractQueue {
+impl ContractQueue<'_> {
     fn push(&self, job: ContractJob) {
         // Completion is short and unblocks the contracts that embed its bytecode.
         let priority = match job {
             ContractJob::Schedule(id) => self.priorities[id],
             ContractJob::Finish(_) => u64::MAX,
         };
+        self.sess.queue_job();
         self.jobs.lock().push((priority, Reverse(job)));
     }
 
     fn pop(&self) -> ContractJob {
         let (_, Reverse(job)) = self.jobs.lock().pop().expect("each worker has a ready job");
+        self.sess.start_job();
         job
     }
 }
@@ -447,7 +457,7 @@ struct ContractJobs<'a, 'gcx> {
     scheduled: IndexVec<ContractId, Mutex<Option<ScheduledContract<'gcx>>>>,
     /// Unfinished inputs of each contract: its own scheduling and each dependency.
     remaining_inputs: IndexVec<ContractId, AtomicUsize>,
-    queue: ContractQueue,
+    queue: ContractQueue<'gcx>,
 }
 
 impl<'a, 'gcx> ContractJobs<'a, 'gcx> {

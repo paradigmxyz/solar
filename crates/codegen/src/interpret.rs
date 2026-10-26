@@ -156,7 +156,7 @@ fn with_module(
             return Err("the MIR was dumped before lowering, as `-O none` dumps it".into());
         }
         // Run only what the backend would compile.
-        if validate_phase(&sess.dcx, &module, MirPhase::Lowered).is_err() {
+        if validate_phase(&sess.dcx, &module, MirPhase::Lowered, false, true).is_err() {
             let diagnostics = sess.dcx.emitted_diagnostics().map(|d| d.to_string());
             return Err(format!("invalid lowered MIR: {}", diagnostics.unwrap_or_default()));
         }

@@ -541,19 +541,6 @@ impl Function {
         Some(result)
     }
 
-    /// Returns a map from each instruction to the block containing it.
-    #[must_use]
-    pub(crate) fn inst_blocks(&self) -> FxHashMap<InstId, BlockId> {
-        let mut inst_blocks =
-            FxHashMap::with_capacity_and_hasher(self.instructions.len(), Default::default());
-        for (block_id, block) in self.blocks.iter_enumerated() {
-            for &inst_id in &block.instructions {
-                inst_blocks.insert(inst_id, block_id);
-            }
-        }
-        inst_blocks
-    }
-
     /// Returns the block containing each placed instruction, indexed by instruction.
     #[must_use]
     pub(crate) fn inst_block_table(&self) -> IndexVec<InstId, Option<BlockId>> {

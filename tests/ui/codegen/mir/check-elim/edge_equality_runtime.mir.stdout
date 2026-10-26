@@ -1,0 +1,28 @@
+// === ROOT/tests/ui/codegen/mir/check-elim/edge_equality_runtime.sol:EdgeEquality ===
+@module EdgeEquality
+fn @sizes(arg0: ptr<memory>) -> i256 [selector=0xebf5a899, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mload arg0
+    v1 = ne v0, 32
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v2 = checked_mul uint256, v0, 2
+    v3 = checked_sub uint256, 32, v0
+    v4 = checked_add uint256, v2, v3
+    v5 = checked_add uint256, v4, 1
+    ret v5
+  bb1:
+    ret 0
+}
+
+fn @pack(arg0: ptr<memory>) -> ptr<memory> [selector=0x62b0ae87, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = mload arg0
+    v1 = eq v0, 64
+    v2 = eq v1, false
+    icall revert_if<empty>, v2
+    v3 = abi_encode_packed (bytes arg0, uint256 v0)
+    ret v3
+}

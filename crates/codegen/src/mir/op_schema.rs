@@ -1302,7 +1302,7 @@ define_mir_ops! {
     AbiEncodePacked { parts: Box<[PackedPart]>, hash: bool },
     #[mir_op(mnemonic = "address_call", result = I1, phases = PhaseSet::SEMANTIC,
         effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
-    #[operand_types(func => Some(typing::address_call_types(gas.is_some(), value.is_some())))]
+    #[operand_types(func => Some(typing::address_call_types(func, *input, gas.is_some(), value.is_some())))]
     AddressCall {
         kind: AddressCallKind,
         address: ValueId,

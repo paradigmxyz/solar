@@ -31,6 +31,7 @@ pub use link::{
 pub mod interpret;
 
 mod ir_parse;
+mod isle_log;
 mod source_info;
 
 pub(crate) mod target;

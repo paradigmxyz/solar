@@ -175,9 +175,16 @@ pub(crate) fn run_passes_inner(
             let pass_changed = if cached {
                 false
             } else {
-                analyses.begin_pass(gcx.sess.opts.optimization.is_gas());
+                // A queued contract job needs the workers more than this pass does.
+                let parallel = gcx.sess.is_parallel_codegen() && !gcx.sess.has_queued_jobs();
+                analyses.begin_pass(gcx.sess.opts.optimization.is_gas(), parallel);
+                // A pass that edits the module, reported or not, outdates the check, unless the
+                // pass itself advanced the phase after its last edit.
+                let lowered_checked = std::mem::take(&mut module.lowered_checked);
                 let pass_changed = tracing::trace_span!("mir_pass", pass = pass_name)
                     .in_scope(|| pass.run_pass(gcx, module, &mut analyses));
+                module.lowered_checked |=
+                    lowered_checked && !pass_changed && !analyses.unreported_edit;
                 analyses.finish_pass(pass_changed);
                 if pass_changed {
                     // Passes rename the storage alias bases they replace, but not the ones they

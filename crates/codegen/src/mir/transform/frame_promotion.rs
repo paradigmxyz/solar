@@ -11,16 +11,11 @@
 //! - reject escaped addresses, partial stores, dynamic memory aliases, calls, returndata
 //!   observations, and ABI return-buffer overlap
 //! - preserve SSA values across control flow with explicit phi insertion
-//! - skip modules where any function reads `msize`: internal calls share memory, so a caller or
-//!   callee could observe the lower memory expansion
 
 use crate::mir::{
     BlockId, Callee, FrameMode, Function, InstId, InstKind, Instruction, MirType, Module,
     PtrLocation, Terminator, ValueId,
-    analysis::{
-        AliasAnalysis, CfgInfo, LocationSize, MemoryAddress, MemoryLocation,
-        module_may_observe_msize,
-    },
+    analysis::{AliasAnalysis, CfgInfo, LocationSize, MemoryAddress, MemoryLocation},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
     utils as mir_utils,
@@ -45,11 +40,6 @@ impl MirPass for FrameSlotPromotion {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        // Removing local-slot traffic can lower memory expansion, which `msize` in any
-        // function can observe: internal calls share memory.
-        if module_may_observe_msize(module) {
-            return false;
-        }
         run_function_pass(module, analyses, |func, _| {
             FrameSlotPromoter::new().run(func).total() != 0
         })
@@ -273,10 +263,9 @@ impl FrameSlotPromoter {
     }
 
     /// Only internal-frame slots and the external entry's locals promote, and both need a
-    /// frame. `msize` is a barrier for the whole module (see the pass). `gas()` is deliberately
-    /// NOT one: exact gas is never a semantic guarantee, and barring it blocked promotion in
-    /// every forwarding proxy, whose `delegatecall(gas(), ...)` is exactly the construct that
-    /// scribbles compiler locals and needs them off memory.
+    /// frame. `gas()` is deliberately not a barrier: exact gas is never a semantic guarantee, and
+    /// barring it blocked promotion in every forwarding proxy, whose `delegatecall(gas(), ...)` is
+    /// exactly the construct that scribbles compiler locals and needs them off memory.
     fn may_promote(func: &Function) -> bool {
         func.internal_frame_size != 0
             || func
@@ -473,53 +462,6 @@ impl FrameSlotPromoter {
                     ))
                     || Self::internal_frame_offset(func, aa, value) == Some(slot_offset)
             }
-            InstKind::Store8(addr, _) => {
-                Self::internal_frame_range_may_overlap(func, aa, addr, Some(1), slot_offset)
-            }
-            InstKind::Keccak256(addr, size)
-            | InstKind::Log { offset: addr, size, .. }
-            | InstKind::MemoryZero(addr, size)
-            | InstKind::DataCopy(_, addr, size)
-            | InstKind::CodeCopy(addr, _, size)
-            | InstKind::Copy(addr, _, size, PtrLocation::Calldata | PtrLocation::Returndata) => {
-                Self::internal_frame_range_may_overlap(
-                    func,
-                    aa,
-                    addr,
-                    func.value_u64(size),
-                    slot_offset,
-                )
-            }
-            InstKind::Copy(dest, src, size, PtrLocation::Memory) => {
-                let size = func.value_u64(size);
-                Self::internal_frame_range_may_overlap(func, aa, dest, size, slot_offset)
-                    || Self::internal_frame_range_may_overlap(func, aa, src, size, slot_offset)
-            }
-            InstKind::ExtCodeCopy(_, dest, _, size) => Self::internal_frame_range_may_overlap(
-                func,
-                aa,
-                dest,
-                func.value_u64(size),
-                slot_offset,
-            ),
-            InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
-            | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
-            | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
-            | InstKind::DelegateCall { args_offset, args_size, ret_offset, ret_size, .. } => {
-                Self::internal_frame_range_may_overlap(
-                    func,
-                    aa,
-                    args_offset,
-                    func.value_u64(args_size),
-                    slot_offset,
-                ) || Self::internal_frame_range_may_overlap(
-                    func,
-                    aa,
-                    ret_offset,
-                    func.value_u64(ret_size),
-                    slot_offset,
-                )
-            }
             InstKind::Add(a, b) => {
                 let exact_frame_addr = Self::internal_frame_add_offset(func, aa, a, b, 0)
                     .or_else(|| Self::internal_frame_add_offset(func, aa, b, a, 0))
@@ -529,10 +471,22 @@ impl FrameSlotPromoter {
                         Self::internal_frame_offset(func, aa, value) == Some(slot_offset)
                     })
             }
-            _ => kind
-                .operands()
-                .iter()
-                .any(|&value| Self::internal_frame_offset(func, aa, value) == Some(slot_offset)),
+            _ => {
+                // NOTE: `Create` ranges are scanned by operand here, unlike in
+                // `inst_may_observe_external_slot`.
+                let ranges = if matches!(*kind, InstKind::Create(..) | InstKind::Create2(..)) {
+                    None
+                } else {
+                    Self::raw_memory_reaches(func, kind, |addr, size| {
+                        Self::internal_frame_range_may_overlap(func, aa, addr, size, slot_offset)
+                    })
+                };
+                ranges.unwrap_or_else(|| {
+                    kind.operands().iter().any(|&value| {
+                        Self::internal_frame_offset(func, aa, value) == Some(slot_offset)
+                    })
+                })
+            }
         }
     }
 
@@ -587,46 +541,6 @@ impl FrameSlotPromoter {
                 !Self::is_exact_external_slot_access(func, aa, addr, slot_addr)
                     && Self::external_range_reaches_slot(func, aa, addr, Some(32), slot_addr)
             }
-            InstKind::Store8(addr, _) => {
-                Self::external_range_reaches_slot(func, aa, addr, Some(1), slot_addr)
-            }
-            InstKind::Keccak256(addr, size)
-            | InstKind::Log { offset: addr, size, .. }
-            | InstKind::MemoryZero(addr, size)
-            | InstKind::DataCopy(_, addr, size)
-            | InstKind::CodeCopy(addr, _, size)
-            | InstKind::Copy(addr, _, size, PtrLocation::Calldata | PtrLocation::Returndata) => {
-                Self::external_range_reaches_slot(func, aa, addr, func.value_u64(size), slot_addr)
-            }
-            InstKind::Copy(dest, src, size, PtrLocation::Memory) => {
-                let size = func.value_u64(size);
-                Self::external_range_reaches_slot(func, aa, dest, size, slot_addr)
-                    || Self::external_range_reaches_slot(func, aa, src, size, slot_addr)
-            }
-            InstKind::ExtCodeCopy(_, dest, _, size) => {
-                Self::external_range_reaches_slot(func, aa, dest, func.value_u64(size), slot_addr)
-            }
-            InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
-            | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
-            | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
-            | InstKind::DelegateCall { args_offset, args_size, ret_offset, ret_size, .. } => {
-                Self::external_range_reaches_slot(
-                    func,
-                    aa,
-                    args_offset,
-                    func.value_u64(args_size),
-                    slot_addr,
-                ) || Self::external_range_reaches_slot(
-                    func,
-                    aa,
-                    ret_offset,
-                    func.value_u64(ret_size),
-                    slot_addr,
-                )
-            }
-            InstKind::Create(_, offset, size) | InstKind::Create2(_, offset, size, _) => {
-                Self::external_range_reaches_slot(func, aa, offset, func.value_u64(size), slot_addr)
-            }
             // Internal callees address their own frame through the frame
             // pointer and stage data in scratch or heap memory; they never
             // reference a caller's compiler-owned absolute local slots.
@@ -634,8 +548,11 @@ impl FrameSlotPromoter {
             InstKind::MappingSlotBytes(key, _) if func.value_ty(key) == Some(MirType::MEMPTR) => {
                 true
             }
-            InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } | InstKind::MSize => true,
-            _ => false,
+            InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => true,
+            _ => Self::raw_memory_reaches(func, kind, |addr, size| {
+                Self::external_range_reaches_slot(func, aa, addr, size, slot_addr)
+            })
+            .unwrap_or(false),
         }
     }
 
@@ -739,6 +656,20 @@ impl FrameSlotPromoter {
             ),
         )
         .may_alias()
+    }
+
+    /// Returns whether any raw memory range of `kind` satisfies `reaches`, or `None` when the
+    /// instruction accesses no raw memory range.
+    fn raw_memory_reaches(
+        func: &Function,
+        kind: &InstKind,
+        mut reaches: impl FnMut(ValueId, Option<u64>) -> bool,
+    ) -> Option<bool> {
+        let mut result = None;
+        kind.visit_raw_memory(|_, addr, size| {
+            *result.get_or_insert(false) |= reaches(addr, size.constant(func));
+        });
+        result
     }
 }
 

@@ -1,0 +1,19 @@
+- // === ROOT/tests/ui/codegen/mir/lower-shifts/debug_spans.mir (before lower-shifts) ===
++ // === ROOT/tests/ui/codegen/mir/lower-shifts/debug_spans.mir (after lower-shifts) ===
+  @module LowerShiftDebugSpans
+  fn @spans(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = shl arg0, arg1 !metadata(span=30..40)
+-     v1 = sar arg0, 8 !metadata(span=50..60)
++     v3 = exp 2, arg1 !metadata(span=30..40)
++     v0 = mul arg0, v3 !metadata(span=30..40)
++     v4 = slt arg0, 0 !metadata(span=50..60)
++     v5 = zext i1 v4 to i256 !metadata(span=50..60)
++     v6 = sub 0, v5 !metadata(span=50..60)
++     v7 = xor arg0, v6 !metadata(span=50..60)
++     v8 = div v7, 256 !metadata(span=50..60)
++     v1 = xor v8, v6 !metadata(span=50..60)
+      v2 = add v0, v1
+      ret v2
+  }
+  

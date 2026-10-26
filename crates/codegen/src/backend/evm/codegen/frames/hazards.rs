@@ -169,7 +169,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         match address.base {
             MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
-            | MemoryBase::InternalFrame => false,
+            | MemoryBase::InternalFrame
+            | MemoryBase::FreeMemory(_) => false,
             MemoryBase::Absolute => address.offset < LOW_MEMORY_BOUND,
             MemoryBase::Value(value) => {
                 let mut visiting = DenseBitSet::new_empty(func.num_values());
@@ -445,7 +446,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 overlaps(*offset, *size)
             }
             InstKind::Log { offset, size, .. } => overlaps(*offset, *size),
-            InstKind::MSize | InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. } => true,
+            InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. } => true,
             // These semantic memory operations are normally gone by the `lowered` phase. If
             // one remains, its complete accessed range is not represented as physical operands
             // here, so retain the Solidity memory invariant conservatively.

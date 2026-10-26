@@ -1,0 +1,255 @@
+- // === ROOT/tests/ui/codegen/mir/check-elim/edge_equality.mir (before check-elim) ===
++ // === ROOT/tests/ui/codegen/mir/check-elim/edge_equality.mir (after check-elim) ===
+  @module EdgeEquality
+  fn @eq_true_edge(arg0: i256) {
+    bb0:
+      v0 = eq arg0, 32
+      jumpi v0, bb1, bb2
+    bb2:
+      returndata 0, 0
+    bb1:
+-     v1 = add arg0, 1
++     v1 = add 32, 1
+      mstore 0, v1
+      returndata 0, 32
+  }
+  
+  fn @ne_false_edge(arg0: i256) {
+    bb0:
+      v0 = ne 64, arg0
+      jumpi v0, bb2, bb1
+    bb1:
+-     v1 = sub 64, arg0
++     v1 = sub 64, 64
+      mstore 0, v1
+      returndata 0, 32
+    bb2:
+      returndata 0, 0
+  }
+  
+  fn @dominated_only(arg0: i256, arg1: i1) {
+    bb0:
+      v0 = eq arg0, 7
+      jumpi v0, bb1, bb2
+    bb2:
+      v1 = add arg0, 1
+      jump bb5
+    bb1:
+      jumpi arg1, bb3, bb4
+    bb4:
+-     v3 = mul arg0, 3
++     v3 = mul 7, 3
+      jump bb5
+    bb3:
+-     v2 = add arg0, 2
++     v2 = add 7, 2
+      jump bb5
+    bb5:
+      v4 = phi [bb2: v1], [bb3: v2], [bb4: v3]
+      v5 = add v4, arg0
+      mstore 0, v5
+      returndata 0, 32
+  }
+  
+  fn @shared_target(arg0: i256, arg1: i1) {
+    bb0:
+      v0 = eq arg0, 7
+      jumpi v0, bb1, bb2
+    bb1:
+      jumpi arg1, bb3, bb2
+    bb2:
+      v1 = add arg0, 1
+      mstore 0, v1
+      returndata 0, 32
+    bb3:
+      returndata 0, 0
+  }
+  
+  fn @phi_operand(arg0: i256, arg1: i1) {
+    bb0:
+      v0 = eq arg0, 9
+      jumpi v0, bb1, bb4
+    bb1:
+      jumpi arg1, bb2, bb3
+    bb3:
+-     v1 = add arg0, 1
++     v1 = add 9, 1
+      jump bb4
+    bb2:
+      jump bb4
+    bb4:
+      v2 = phi [bb0: arg0], [bb2: arg0], [bb3: v1]
+      mstore 0, v2
+      returndata 0, 32
+  }
+  
+  fn @single_read(arg0: i256) {
+    bb0:
+      v0 = eq arg0, 5
+      jumpi v0, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      mstore 0, arg0
+      returndata 0, 32
+  }
+  
+  fn @repeated_reads(arg0: i256) {
+    bb0:
+      v0 = eq arg0, 5
+      jumpi v0, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+-     mstore 0, arg0
+-     mstore 32, arg0
++     mstore 0, 5
++     mstore 32, 5
+      returndata 0, 64
+  }
+  
+  fn @contradiction(arg0: i256) {
+    bb0:
+      v0 = eq arg0, 5
+      jumpi v0, bb1, bb4
+    bb4:
+      returndata 0, 0
+    bb1:
+-     v1 = eq arg0, 6
+-     jumpi v1, bb3, bb2
++     v1 = eq 5, 6
++     jump bb2
+    bb2:
+-     v2 = add arg0, 1
+-     v3 = add arg0, 2
++     v2 = add 5, 1
++     v3 = add 5, 2
+      v4 = add v2, v3
+      mstore 0, v4
+      returndata 0, 32
+    bb3:
+-     v5 = add arg0, arg0
++     v5 = add 5, 5
+      mstore 0, v5
+      returndata 0, 32
+  }
+  
+  fn @wide_constant(arg0: i256) {
+    bb0:
+      v0 = eq arg0, 0x1234567890123456789012345678901234567890
+      jumpi v0, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      mstore 0, arg0
+      mstore 32, arg0
+      mstore 64, arg0
+      returndata 0, 96
+  }
+  
+  fn @unfailing(arg0: i256) {
+    bb0:
+      v0 = eq arg0, 5
+      jumpi v0, bb1, bb2
+    bb2:
+      returndata 0, 0
+    bb1:
+-     v1 = checked_add uint256, arg0, 1
++     v1 = add 5, 1
+      mstore 0, v1
+      returndata 0, 32
+  }
+  
+  fn @raw_memory(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = eq arg0, 64
+      jumpi v0, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      mstore arg0, arg1
+      mstore arg0, arg1
+      calldatacopy arg1, arg1, arg0
+      calldatacopy arg1, arg1, arg0
+-     mstore 0, arg0
+-     mstore 32, arg0
++     mstore 0, 64
++     mstore 32, 64
+      returndata 0, 64
+  }
+  
+  fn @derived_address(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = eq arg0, 128
+      jumpi v0, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      v1 = add arg0, 32
+      mstore v1, arg1
+      mstore v1, arg1
+-     v2 = add arg0, 1
++     v2 = add 128, 1
+      returndata 0, v2
+  }
+  
+  fn @merged_address(arg0: i256, arg1: i256, arg2: i1) {
+    bb0:
+      v0 = eq arg0, 32
+      jumpi v0, bb1, bb4
+    bb4:
+      revert 0, 0
+    bb1:
+      jumpi arg2, bb2, bb3
+    bb2:
+      v1 = mul arg0, 2
+      jump bb3
+    bb3:
+      v2 = phi [bb1: arg1], [bb2: v1]
+      mstore v2, 128
+      mstore v2, 128
+      returndata 0, 32
+  }
+  
+  fn @call_argument(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = eq arg0, 64
+      jumpi v0, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      icall @write, arg1, arg0
+      icall @write, arg1, arg0
+      returndata 0, 0
+  }
+  
+  fn @call_derived_argument(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = eq arg0, 63
+      jumpi v0, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      v1 = add arg0, 1
+      icall @write, arg1, v1
+      icall @write, arg1, v1
+      returndata 0, 0
+  }
+  
+  fn @write(arg0: i256, arg1: i256) {
+    bb0:
+      calldatacopy arg0, 0, arg1
+      ret
+  }
+  
+  fn @returned_value(arg0: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 63
+      jumpi v0, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      v1 = add arg0, 1
+      ret v1
+  }
+  

@@ -22,18 +22,32 @@
 //! Remove functions that are never called, starting from entry points
 //! (public/external functions, constructor, fallback, receive).
 //!
+//! ## Calls That Cannot Return
+//! `noreturn-calls` ends each block at its first call to a bodied function that cannot return,
+//! such as a shared revert helper, with `invalid` after the call. HIR lowering continues after
+//! every call, so without it a failure path through `fail()` joins the code after it, and `if
+//! (i >= n) fail();` leaves no `i < n` there for the check, threading, and loop passes. A check
+//! or `require` whose condition folds to a failing constant ends its block the same way, so a
+//! helper that only fails, like `return new uint256[](0)[0];`, cannot return. The pass runs
+//! first in the semantic pipeline, again once CSE has forwarded the loads such checks read, and
+//! `lower-evm-shaped` repeats it with tail calls.
+//! Returnability follows explicit returns and tail-call chains conservatively: an unreachable
+//! return keeps a body returning until CFG cleanup removes it, and a caller worklist propagates
+//! the bodies that every path now leaves through such a call.
+//!
 //! Terminal-block equivalence compares every non-operand instruction field, including semantic
 //! layouts and literal payloads, while comparing SSA operands by definition position. It ignores
 //! source context. Shared instructions and
 //! terminators retain the bounded union of their original locations instead.
 
 use crate::mir::{
-    BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
-    Terminator, Value, ValueId,
+    BlockId, Builtin, Callee, Function, FunctionId, Immediate, InstKind, InstructionMetadata,
+    MirType, Module, Terminator, Value, ValueId,
     analysis::{CallGraphInfo, CfgInfo, direct_callees},
     pass::{MirPass, run_function_pass},
-    utils::{replace_terminator, retain_blocks},
+    utils::{eval, replace_terminator, retain_blocks},
 };
+use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
@@ -146,6 +160,24 @@ impl MirPass for FunctionDce {
         let call_graph = CallGraphInfo::new(module);
         let reachable = call_graph.reachable_from_entries();
         !reachable.is_empty() && retain_functions(module, reachable) != 0
+    }
+}
+
+/// Module pass that ends each block at its first call to a function that cannot return.
+pub(crate) struct NoreturnCalls;
+
+impl MirPass for NoreturnCalls {
+    fn name(&self) -> &'static str {
+        "noreturn-calls"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        end_nonreturning_calls(module, false)
     }
 }
 
@@ -824,8 +856,12 @@ impl CfgSimplifier {
 /// that are not entry points themselves, renumbering the survivors.
 ///
 /// Unlike [`FunctionDce`], this never touches a function outside `candidates`,
-/// so an uncalled function that was never reachable survives.
-pub(super) fn remove_unreferenced_functions(module: &mut Module, candidates: &[FunctionId]) {
+/// so an uncalled function that was never reachable survives. Returns the functions kept when
+/// any is removed.
+pub(super) fn remove_unreferenced_functions(
+    module: &mut Module,
+    candidates: &[FunctionId],
+) -> Option<DenseBitSet<FunctionId>> {
     let count = module.functions.len();
     let mut referenced = DenseBitSet::new_empty(count);
     if let Some(entry) = module.dispatch_entry() {
@@ -845,7 +881,7 @@ pub(super) fn remove_unreferenced_functions(module: &mut Module, candidates: &[F
             keep.remove(candidate);
         }
     }
-    retain_functions(module, &keep);
+    (retain_functions(module, &keep) != 0).then_some(keep)
 }
 
 /// Keeps exactly the functions in `keep`, renumbering call and tail-call
@@ -895,4 +931,190 @@ fn retain_functions(module: &mut Module, keep: &DenseBitSet<FunctionId>) -> usiz
     }
 
     removed
+}
+
+/// Ends each block at its first call to a bodied callee proven unable to return, including a
+/// call with results, or at its first check that always fails. With `tail_calls`, a call to a
+/// selectorless, non-recursive callee becomes a [`Terminator::TailCall`]; any other call or
+/// check stays, followed by an unreachable `invalid`. Returns whether any block changed.
+pub(super) fn end_nonreturning_calls(module: &mut Module, tail_calls: bool) -> bool {
+    let mut changed = false;
+    for func in &mut module.functions {
+        changed |= end_failing_checks(func);
+    }
+    // Skip call-graph analysis when no internal calls remain.
+    let has_candidate = module.functions.iter().any(|func| {
+        func.instructions().any(|inst_id| {
+            matches!(func.inst(inst_id).kind, InstKind::ICall { function: Callee::Function(_), .. })
+        })
+    });
+    if !has_candidate {
+        return changed;
+    }
+    let call_graph = CallGraphInfo::new(module);
+    let returning = module.returning_functions();
+    let mut nonreturning = DenseBitSet::new_empty(module.functions.len());
+    let mut tail_callable = DenseBitSet::new_empty(module.functions.len());
+    for (func_id, func) in module.functions.iter_enumerated() {
+        if func.blocks.is_empty() {
+            continue;
+        }
+        if !returning.contains(func_id) {
+            nonreturning.insert(func_id);
+        }
+        if tail_calls
+            && func.selector.is_none()
+            && !func.attributes.is_receive
+            && !func.attributes.is_fallback
+            && !call_graph.is_recursive(func_id)
+        {
+            tail_callable.insert(func_id);
+        }
+    }
+
+    // Keep reverse edges even when cleanup removes a call: stale edges only
+    // cause a redundant visit, and function IDs stay stable through block cleanup.
+    let mut callers = index_vec![Vec::new(); module.functions.len()];
+    for caller in module.functions.indices() {
+        for callee in call_graph.callees(caller) {
+            callers[callee].push(caller);
+        }
+    }
+    let mut worklist = Vec::new();
+    let mut queued = DenseBitSet::new_empty(module.functions.len());
+    for callee in &nonreturning {
+        for &caller in &callers[callee] {
+            if queued.insert(caller) {
+                worklist.push(caller);
+            }
+        }
+    }
+    while let Some(func_id) = worklist.pop() {
+        queued.remove(func_id);
+        let func = &mut module.functions[func_id];
+        let mut function_changed = false;
+        for block_id in (0..func.blocks.len()).map(BlockId::from_usize) {
+            let insts = &func.blocks[block_id].instructions;
+            let Some((position, function)) =
+                insts.iter().enumerate().find_map(|(position, &inst_id)| {
+                    let inst = func.inst(inst_id);
+                    if let InstKind::ICall { function: Callee::Function(function), .. } = &inst.kind
+                        && nonreturning.contains(*function)
+                    {
+                        Some((position, *function))
+                    } else {
+                        None
+                    }
+                })
+            else {
+                continue;
+            };
+
+            let inst = func.inst(insts[position]);
+            let metadata = inst.metadata.debug_context();
+            let InstKind::ICall { args, .. } = &inst.kind else { unreachable!() };
+            if tail_callable.contains(function) {
+                // result = icall callee, args -> tail_call callee, args
+                let terminator =
+                    Terminator::TailCall { function, args: args.iter().copied().collect() };
+                func.blocks[block_id].instructions.truncate(position);
+                replace_terminator(func, block_id, terminator);
+                func.blocks[block_id].terminator_metadata = metadata;
+            } else if position + 1 == insts.len()
+                && matches!(func.blocks[block_id].terminator, Some(Terminator::Invalid))
+            {
+                continue;
+            } else {
+                // result = icall callee, args
+                // invalid
+                func.blocks[block_id].instructions.truncate(position + 1);
+                replace_terminator(func, block_id, Terminator::Invalid);
+                // NOTE: The unreachable terminator has no source checkpoint.
+                func.blocks[block_id].terminator_metadata.mark_debug_info_dropped();
+            }
+            function_changed = true;
+        }
+        if function_changed {
+            let _ = remove_unreachable_blocks(func);
+            changed = true;
+        }
+        if !nonreturning.contains(func_id)
+            && !func.blocks.is_empty()
+            && !func.blocks.iter().any(|block| match &block.terminator {
+                Some(Terminator::Return { .. }) => true,
+                Some(Terminator::TailCall { function, .. }) => !nonreturning.contains(*function),
+                _ => false,
+            })
+        {
+            nonreturning.insert(func_id);
+            for &caller in &callers[func_id] {
+                if queued.insert(caller) {
+                    worklist.push(caller);
+                }
+            }
+        }
+    }
+    changed
+}
+
+/// Ends each block at its first check or `require` whose condition always fails, with `invalid`
+/// after it, so a body that only fails, such as `return new uint256[](0)[0];`, cannot return.
+fn end_failing_checks(func: &mut Function) -> bool {
+    let mut changed = false;
+    for block in func.blocks.indices() {
+        let insts = &func.blocks[block].instructions;
+        let Some(position) =
+            insts.iter().position(|&inst| always_fails(func, &func.inst(inst).kind))
+        else {
+            continue;
+        };
+        if position + 1 == insts.len()
+            && matches!(func.blocks[block].terminator, Some(Terminator::Invalid))
+        {
+            continue;
+        }
+        // check condition
+        // invalid
+        func.blocks[block].instructions.truncate(position + 1);
+        replace_terminator(func, block, Terminator::Invalid);
+        // NOTE: The unreachable terminator has no source checkpoint.
+        func.blocks[block].terminator_metadata.mark_debug_info_dropped();
+        changed = true;
+    }
+    if changed {
+        let _ = remove_unreachable_blocks(func);
+    }
+    changed
+}
+
+/// Whether `kind` is a check or `require` whose condition folds to a failing constant.
+fn always_fails(func: &Function, kind: &InstKind) -> bool {
+    match kind {
+        InstKind::ICall { function: Callee::Builtin(Builtin::Check { is_zero, .. }), args } => {
+            constant(func, args[0], MAX_FOLD_DEPTH).is_some_and(|value| value.is_zero() == *is_zero)
+        }
+        InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), args } => {
+            constant(func, args[0], MAX_FOLD_DEPTH).is_some_and(|value| value.is_zero())
+        }
+        _ => false,
+    }
+}
+
+/// How many pure instructions [`constant`] folds through.
+const MAX_FOLD_DEPTH: u32 = 4;
+
+/// The constant `value` folds to through pure instructions over immediates.
+fn constant(func: &Function, value: ValueId, depth: u32) -> Option<U256> {
+    if let Some(value) = func.value_u256(value) {
+        return Some(value);
+    }
+    let Value::Inst(inst) = *func.value(value) else { return None };
+    if depth == 0 {
+        return None;
+    }
+    eval::eval_typed_inst(func, &func.inst(inst).kind, |operand| {
+        constant(func, operand, depth - 1).ok_or(())
+    })
+    .ok()
+    .flatten()
 }

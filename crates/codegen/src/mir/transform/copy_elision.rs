@@ -21,15 +21,11 @@
 //! writes and keeps them. Every other read of the pointer's slot still counts. Callers' later
 //! reads of the slot cannot see the removed writes: allocations start at or above the heap floor
 //! (see `heap-floor`), above the slot.
-//! Modules where any function reads `msize` are skipped: internal calls share memory, so a caller
-//! or callee could observe the lower memory expansion.
 
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, MirType, Module, PtrLocation, Terminator, Value, ValueId,
-    analysis::{
-        Access, AddressSpace, AliasAnalysis, Location, MemoryBase, MemoryLocation,
-        module_may_observe_msize,
-    },
+    BlockId, Function, InstId, InstKind, MirType, Module, PtrLocation, RawMemoryAccess, Terminator,
+    Value, ValueId,
+    analysis::{Access, AddressSpace, AliasAnalysis, Location, MemoryBase, MemoryLocation},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias},
 };
@@ -49,11 +45,6 @@ impl MirPass for CopyElision {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        // Removing writes can lower memory expansion, which `msize` in any function can
-        // observe: internal calls share memory.
-        if module_may_observe_msize(module) {
-            return false;
-        }
         run_function_pass_with_alias(module, analyses, |func, analyses| {
             CopyElisionCx::default().run(func, analyses.alias())
         })
@@ -286,61 +277,18 @@ impl CopyElisionCx {
                 }
                 let inst = func.inst(inst_id);
                 match &inst.kind {
-                    // Writes to the allocation: the address is a derived value.
-                    InstKind::Store(addr, value, PtrLocation::Memory) => {
-                        if derived.contains(value) {
-                            return None; // Storing an interior address elsewhere is a read/escape.
-                        }
-                        if derived.contains(addr) {
-                            writes.push(inst_id);
-                        }
+                    // Storing an interior address elsewhere is a read/escape.
+                    InstKind::Store(_, value, PtrLocation::Memory) | InstKind::Store8(_, value)
+                        if derived.contains(value) =>
+                    {
+                        return None;
                     }
-                    InstKind::Store8(addr, value) => {
-                        if derived.contains(value) {
-                            return None;
-                        }
-                        if derived.contains(addr) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::MemoryZero(addr, _) => {
-                        if derived.contains(addr) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::Copy(dest, _, _, PtrLocation::Calldata | PtrLocation::Returndata)
-                    | InstKind::DataCopy(_, dest, _)
-                    | InstKind::CodeCopy(dest, _, _) => {
-                        if derived.contains(dest) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::ExtCodeCopy(_, dest, _, _) => {
-                        if derived.contains(dest) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::Copy(dest, source, _, PtrLocation::Memory) => {
-                        if derived.contains(source) {
-                            return None; // Read as a copy source.
-                        }
-                        if derived.contains(dest) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    // Reads of the allocation keep every write.
-                    InstKind::Load(addr, PtrLocation::Memory)
-                    | InstKind::ExtractValue {
+                    InstKind::ExtractValue {
                         ty: MirType::Slice(_),
                         aggregate: addr,
                         index: MirType::SLICE_LEN_FIELD,
                     } => {
                         if derived.contains(addr) {
-                            return None;
-                        }
-                    }
-                    InstKind::Keccak256(offset, _) => {
-                        if derived.contains(offset) {
                             return None;
                         }
                     }
@@ -359,7 +307,25 @@ impl CopyElisionCx {
                     | InstKind::Alloc { .. } => {}
                     // Any other use of a derived address is treated as a read.
                     kind => {
-                        if kind.operands().iter().any(|op| derived.contains(op)) {
+                        // Memory accesses are judged by their raw ranges. Calls, creates, logs,
+                        // and operations without a range read every derived operand.
+                        let mut ranged = false;
+                        let mut read = false;
+                        if kind.effect_kind().is_memory() {
+                            kind.visit_raw_memory(|access, addr, _| {
+                                ranged = true;
+                                if derived.contains(&addr) {
+                                    match access {
+                                        RawMemoryAccess::Write => writes.push(inst_id),
+                                        RawMemoryAccess::Read | RawMemoryAccess::PartialWrite => {
+                                            read = true;
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                        if read || !ranged && kind.operands().iter().any(|op| derived.contains(op))
+                        {
                             return None;
                         }
                     }

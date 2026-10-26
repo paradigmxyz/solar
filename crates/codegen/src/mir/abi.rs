@@ -265,12 +265,36 @@ pub(crate) enum AbiType {
         element: Box<Self>,
         /// Number of elements.
         len: u64,
+        /// Whether solc copies the array from calldata as one block, because its elements are
+        /// `uint256` or `bytes32`. It reads every other element type one word at a time, which
+        /// differs when the array lies across 2^256.
+        block_copy: bool,
     },
     /// A struct or tuple represented by a memory pointer.
     Tuple(Box<[Self]>),
 }
 
 impl AbiType {
+    /// Returns the layout with every byte string and dynamic array placed in `location`.
+    #[must_use]
+    pub(crate) fn at_location(self, location: PtrLocation) -> Self {
+        match self {
+            Self::Word(_) | Self::Function => self,
+            Self::Bytes(_) => Self::Bytes(location),
+            Self::DynamicArray { element, .. } => {
+                Self::DynamicArray { element: Box::new(element.at_location(location)), location }
+            }
+            Self::FixedArray { element, len, block_copy } => Self::FixedArray {
+                element: Box::new(element.at_location(location)),
+                len,
+                block_copy,
+            },
+            Self::Tuple(fields) => Self::Tuple(
+                fields.into_vec().into_iter().map(|f| f.at_location(location)).collect(),
+            ),
+        }
+    }
+
     /// Returns whether the ABI value occupies an offset in its containing head.
     #[must_use]
     pub(crate) fn is_dynamic(&self) -> bool {
@@ -300,7 +324,7 @@ impl AbiType {
     pub(crate) fn tail_size(&self) -> u64 {
         match self {
             Self::Word(_) | Self::Function | Self::Bytes(_) | Self::DynamicArray { .. } => 32,
-            Self::FixedArray { element, len } => element.head_size() * len,
+            Self::FixedArray { element, len, .. } => element.head_size() * len,
             Self::Tuple(fields) => fields.iter().map(Self::head_size).sum(),
         }
     }
@@ -329,7 +353,11 @@ impl fmt::Display for AbiType {
             // location's own `Display` yields the `memory`/`calldata` prefix.
             Self::Bytes(location) => write!(f, "{location}_bytes"),
             Self::DynamicArray { element, location } => write!(f, "{location}_array<{element}>"),
-            Self::FixedArray { element, len } => write!(f, "array<{len}, {element}>"),
+            // A word array that solc does not copy as a block carries `wordwise`.
+            Self::FixedArray { element, len, block_copy } => {
+                let wordwise = !block_copy && matches!(element.as_ref(), Self::Word(None));
+                write!(f, "array<{len}, {element}{}>", if wordwise { ", wordwise" } else { "" })
+            }
             Self::Tuple(fields) => {
                 write!(f, "tuple<")?;
                 for (index, ty) in fields.iter().enumerate() {
@@ -429,28 +457,18 @@ impl AbiWordValidator {
     }
 
     /// Builds the condition that is true when `word` is canonical.
-    pub(crate) fn condition(
-        self,
-        builder: &mut FunctionBuilder<'_>,
-        word: ValueId,
-        has_bitwise_shifting: bool,
-    ) -> ValueId {
+    pub(crate) fn condition(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
         match self {
             Self::Unsigned(bits) | Self::LeftAligned(bits) => {
-                if has_bitwise_shifting {
-                    let shift = builder.imm(u64::from(bits));
-                    let shifted = if matches!(self, Self::Unsigned(_)) {
-                        builder.shr(word, shift)
-                    } else {
-                        builder.shl(word, shift)
-                    };
-                    builder.eq_zero(shifted)
+                // shifted = word >> bits (or word << bits)
+                // valid = shifted == 0
+                let shift = builder.imm(u64::from(bits));
+                let shifted = if matches!(self, Self::Unsigned(_)) {
+                    builder.shr(word, shift)
                 } else {
-                    let mask = self.canonical_mask().expect("masked validator has a mask");
-                    let mask = builder.imm(mask);
-                    let canonical = builder.and(word, mask);
-                    builder.eq(word, canonical)
-                }
+                    builder.shl(word, shift)
+                };
+                builder.eq_zero(shifted)
             }
             Self::SignExtend(byte_index) => {
                 let byte_index = builder.imm(byte_index);
@@ -458,13 +476,8 @@ impl AbiWordValidator {
                 builder.eq(word, canonical)
             }
             Self::Bool => {
-                if has_bitwise_shifting {
-                    let two = builder.imm(2);
-                    builder.lt(word, two)
-                } else {
-                    let canonical = builder.ne_zero(word);
-                    builder.eq(word, canonical)
-                }
+                let two = builder.imm(2);
+                builder.lt(word, two)
             }
             Self::EnumRange(variants) => {
                 let variants = builder.imm(variants);

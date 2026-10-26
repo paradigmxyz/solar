@@ -7,7 +7,10 @@ use super::{
 };
 use crate::{
     link::{ContractCode, LibraryTable},
-    mir::analysis::{CfgInfo, direct_callees},
+    mir::{
+        analysis::{CfgInfo, direct_callees},
+        pass_manager::should_validate_ir,
+    },
 };
 use alloy_primitives::Bytes;
 use smallvec::SmallVec;
@@ -117,6 +120,9 @@ pub struct Module {
     debug_info_tracked: bool,
     /// Resolved backend layout, used only by execution tools and final dumps.
     pub(crate) backend_memory: Option<BackendMemory>,
+    /// Whether the last full `lowered` check still describes this module: no change since
+    /// `advance_phase` passed it.
+    pub(super) lowered_checked: bool,
 }
 
 impl Module {
@@ -179,6 +185,7 @@ impl Module {
             phase: MirPhase::Semantic,
             debug_info_tracked: false,
             backend_memory: None,
+            lowered_checked: false,
         }
     }
 
@@ -200,22 +207,42 @@ impl Module {
     }
 
     /// Checks the destination representation before advancing the phase.
+    ///
+    /// Release builds check only the phase contract, unless `-Zvalidate-ir` is set.
     pub(crate) fn advance_phase(
         &mut self,
-        dcx: &solar_interface::diagnostics::DiagCtxt,
+        gcx: solar_sema::Gcx<'_>,
         phase: MirPhase,
     ) -> solar_interface::Result<()> {
         assert!(phase >= self.phase, "MIR phase cannot regress");
-        crate::mir::analysis::validate_phase(dcx, self, phase)?;
+        crate::mir::analysis::validate_phase(
+            gcx.dcx(),
+            self,
+            phase,
+            gcx.sess.is_parallel_codegen(),
+            should_validate_ir(gcx),
+        )?;
         self.phase = phase;
+        self.lowered_checked = phase == MirPhase::Lowered;
         Ok(())
     }
 
+    /// Records that the module changed since its last full `lowered` check.
+    pub(crate) fn invalidate_lowered_check(&mut self) {
+        self.lowered_checked = false;
+    }
+
     /// Checks backend legality and borrows the module without permitting further rewrites.
+    ///
+    /// Skips the check when `advance_phase` passed it and nothing changed the module since,
+    /// unless `recheck` is set. Without `recheck`, the check covers only the phase contract.
+    /// Targets without shift opcodes always check that no shift is left.
     pub(crate) fn as_lowered(
         &self,
-        dcx: &solar_interface::diagnostics::DiagCtxt,
+        gcx: solar_sema::Gcx<'_>,
+        recheck: bool,
     ) -> solar_interface::Result<LoweredModule<'_>> {
+        let dcx = gcx.dcx();
         if self.phase != MirPhase::Lowered {
             return Err(dcx
                 .err(format!(
@@ -225,7 +252,18 @@ impl Module {
                 .span(self.name.span)
                 .emit());
         }
-        crate::mir::analysis::validate_phase(dcx, self, MirPhase::Lowered)?;
+        if recheck || !self.lowered_checked {
+            crate::mir::analysis::validate_phase(
+                dcx,
+                self,
+                MirPhase::Lowered,
+                gcx.sess.is_parallel_codegen(),
+                recheck,
+            )?;
+        }
+        if !gcx.sess.opts.evm_version.has_bitwise_shifting() {
+            crate::mir::analysis::validate_legal_shifts(dcx, self)?;
+        }
         Ok(LoweredModule(self))
     }
 
