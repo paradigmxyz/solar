@@ -241,6 +241,7 @@ jobs:
           git checkout --detach "$GITHUB_SHA"
 
       - name: Run exact-base benchmark
+        id: exact-base
         if: github.event_name == 'pull_request' && steps.baseline.outputs.found != 'true'
         env:
           BASE_SHA: ${{ steps.baseline.outputs.sha }}
@@ -262,12 +263,13 @@ jobs:
             echo "::warning::Exact-base codegen benchmark failed to complete"
           fi
           # The perf site imports these results for the base only when they name its commit.
-          # A PR that changes the harness measured the base with its own, so leave them unnamed.
+          # A PR that changes the harness or inputs measured the base with its own, so skip it.
           results=target/codegen-bench/baseline/results.json
           if [[ -f "$results" ]] &&
-            git diff --quiet "$BASE_SHA" "$GITHUB_SHA" -- benches/runtime .github/workflows/bench.yml; then
+            git diff --quiet "$BASE_SHA" "$GITHUB_SHA" -- benches testdata .github/workflows/bench.yml; then
             jq --arg commit "$BASE_SHA" '.commit = $commit' "$results" > "$results.tmp"
             mv "$results.tmp" "$results"
+            echo "named=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run codegen benchmark
@@ -363,11 +365,7 @@ jobs:
 
       # The perf site imports this when the base has no benchmark run of its own.
       - name: Upload exact-base results
-        if: >-
-          always() &&
-          github.event_name == 'pull_request' &&
-          steps.baseline.outputs.found != 'true' &&
-          hashFiles('target/codegen-bench/baseline/results.json') != ''
+        if: always() && steps.exact-base.outputs.named == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: codegen-runtime-exact-base
