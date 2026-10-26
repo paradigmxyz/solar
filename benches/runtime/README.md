@@ -107,7 +107,7 @@ a matching reference result exists.
 - `--solc-legacy` (needs `--solc`) also compiles with the `--solc` binary and `viaIR: false`, as
   compiler `solc-legacy`, so one run covers solc's legacy and via-IR pipelines. Every other setting
   matches `solc`. Cases that only compile with via-IR (stack too deep) fail as an ordinary reference
-  compiler failure.
+  compiler failure: no report warning, but the run exits 1 unless `--allow-failures` is set.
 - `--solar-size` adds compiler `solar-size`: the same Solar binary with `optimizer.runs` forced to
   1, so a run holds our `-Ogas` (`solar`, at the case's own runs, normally 200) and `-Osize`
   results. It conflicts with `--optimizer-runs`, which would pin both to one objective. Its

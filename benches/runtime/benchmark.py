@@ -2717,7 +2717,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             merged_specs = []
             shared_input = (
                 prepare_input(test, args.evm_version, args.optimizer_runs)
-                if reference_specs
+                if reference_specs and "benchmark_error" not in result
                 else None
             )
             for reference_spec in reference_specs:

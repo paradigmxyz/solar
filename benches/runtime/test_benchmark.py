@@ -514,6 +514,37 @@ class FailureHandlingTests(unittest.TestCase):
             {"solar", "solc", "solc-legacy", "solx", "oksolc"},
         )
 
+    def test_failed_case_does_not_rebuild_input_for_saved_references(self) -> None:
+        case = benchmark.TEST_CASES[0]
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(benchmark, "find_binary", return_value=Path("solar")),
+            mock.patch.object(benchmark, "binary_version", return_value=("0.2.0", "")),
+            mock.patch.object(
+                benchmark, "run_test_case", side_effect=RuntimeError("unexpected")
+            ),
+            mock.patch.object(benchmark, "prepare_input", side_effect=KeyError("boom")),
+        ):
+            reference_path = Path(directory) / "reference.json"
+            reference_path.write_text(json.dumps({"results": []}))
+            output = Path(directory) / "results.json"
+            return_code = benchmark.main(
+                [
+                    "--solar",
+                    "solar",
+                    "--reference-results",
+                    str(reference_path),
+                    "--tests",
+                    case.test_id,
+                    "--allow-failures",
+                    "--output",
+                    str(output),
+                ]
+            )
+            document = json.loads(output.read_text())
+        self.assertEqual(return_code, 0)
+        self.assertIn("unexpected", document["results"][0]["benchmark_error"])
+
     def test_live_oksolc_with_saved_references(self) -> None:
         case = benchmark.TEST_CASES[0]
         for jobs in (1, 8):
