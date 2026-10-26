@@ -19,7 +19,7 @@
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
     mir::{
-        BlockId, Function, Op, Terminator, Value, ValueId, analysis::AddressSpace,
+        BlockId, Function, InstId, Op, Terminator, Value, ValueId, analysis::AddressSpace,
         memory::EvmMemoryLayout,
     },
 };
@@ -834,21 +834,26 @@ impl Target {
     /// Estimated code of the instructions of one block with the pushes of their immediates,
     /// without its terminator.
     pub(crate) fn block_instructions_estimate(&self, func: &Function, block: BlockId) -> Cost {
-        let block = &func.blocks[block];
-        let mut cost = Cost::ZERO;
-        for &inst in &block.instructions {
-            let kind = &func.inst(inst).kind;
-            let immediate = |value| match func.value(value) {
-                Value::Immediate(immediate) => immediate.as_u256(),
-                _ => None,
-            };
-            cost += self.op(&kind.op(), immediate);
-            kind.visit_operands(|operand| {
-                if let Some(value) = immediate(operand) {
-                    cost += self.push(value);
-                }
-            });
-        }
+        func.blocks[block]
+            .instructions
+            .iter()
+            .map(|&inst| self.instruction_estimate(func, inst))
+            .sum()
+    }
+
+    /// Estimated code of one instruction: its operation and the pushes of its immediate operands.
+    pub(crate) fn instruction_estimate(&self, func: &Function, inst: InstId) -> Cost {
+        let kind = &func.inst(inst).kind;
+        let immediate = |value| match func.value(value) {
+            Value::Immediate(immediate) => immediate.as_u256(),
+            _ => None,
+        };
+        let mut cost = self.op(&kind.op(), immediate);
+        kind.visit_operands(|operand| {
+            if let Some(value) = immediate(operand) {
+                cost += self.push(value);
+            }
+        });
         cost
     }
 
@@ -1127,6 +1132,35 @@ impl Target {
             }
             _ => false,
         }
+    }
+
+    /// Whether a `KECCAK256` over constant words, whose result `uses` operands read, becomes the
+    /// immediate `hash` at each use. `keccak` is the hash with its operands and `stores` the
+    /// constant stores the fold leaves dead, which only they read. The hash saves gas on every
+    /// execution but costs a `PUSH32` per use where the result would stay on the stack and be
+    /// duplicated, so it needs the stores to pay for those bytes. Inside a loop, the gas saved
+    /// on [`Self::UNCOUNTED_LOOP_ITERATIONS`] iterations may repay the deposit of the bytes
+    /// instead.
+    pub(crate) fn folds_constant_keccak(
+        &self,
+        hash: U256,
+        keccak: Cost,
+        stores: Cost,
+        uses: u32,
+        in_loop: bool,
+    ) -> bool {
+        let kept = keccak + stores + self.dup().times(uses.saturating_sub(1));
+        let folded = self.push(hash).times(uses);
+        let gas_saving = i64::from(self.runtime_gas(kept)) - i64::from(self.runtime_gas(folded));
+        let byte_saving = i64::from(kept.bytes) - i64::from(folded.bytes);
+        self.improves(gas_saving, byte_saving)
+            || in_loop
+                && self.optimization.is_gas()
+                && gas_saving > 0
+                && !self.deposit_repays_gas(
+                    byte_saving.unsigned_abs(),
+                    gas_saving.unsigned_abs() * Self::UNCOUNTED_LOOP_ITERATIONS,
+                )
     }
 
     /// Whether one shared copy of a terminal block, entered by a jump from each of `sites`,
@@ -1717,5 +1751,42 @@ mod tests {
         let hot =
             Target::with(EvmVersion::Cancun, OptimizationMode::Gas, Target::LOOP_COPY_MIN_RUNS);
         assert_eq!(hot.loop_join_copy_budget(194), u64::MAX);
+    }
+
+    #[test]
+    fn constant_keccaks_fold_when_their_dead_stores_pay_for_the_hash() {
+        let hash = U256::from_be_bytes(alloy_primitives::keccak256([0; 64]).0);
+        let word = U256::from_be_bytes(alloy_primitives::keccak256([1]).0);
+        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let target = Target::with(EvmVersion::Osaka, optimization, 200);
+            // `keccak256 0, 64`.
+            let keccak = target.push(U256::from(64))
+                + target.push(U256::ZERO)
+                + target.opcode_with_immediates(
+                    op::KECCAK256,
+                    &[Some(U256::ZERO), Some(U256::from(64))],
+                );
+            let store = |word: U256, address: u64| {
+                target.push(word) + target.push(U256::from(address)) + target.opcode(op::MSTORE)
+            };
+            let small = store(U256::from(7), 0) + store(U256::from(5), 32);
+            let full = store(word, 0) + store(word, 32);
+            // The hash costs 29 bytes more than the instruction, whatever gas it saves.
+            assert!(!target.folds_constant_keccak(hash, keccak, Cost::ZERO, 1, false));
+            assert!(!target.folds_constant_keccak(hash, keccak, small, 1, false));
+            // Dead stores of full words repay it once, but not a second use.
+            assert!(target.folds_constant_keccak(hash, keccak, store(word, 0), 1, false));
+            assert!(target.folds_constant_keccak(hash, keccak, full, 2, false));
+            assert!(!target.folds_constant_keccak(hash, keccak, full, 3, false));
+            // A hash nothing reads is dead whatever the stores.
+            assert!(target.folds_constant_keccak(hash, keccak, Cost::ZERO, 0, false));
+            // A short hash costs fewer bytes than the instruction and wins on its own.
+            assert!(target.folds_constant_keccak(U256::from(1), keccak, Cost::ZERO, 1, false));
+            // A loop repays the bytes with the gas of its iterations, when optimizing for gas.
+            assert_eq!(
+                target.folds_constant_keccak(hash, keccak, Cost::ZERO, 1, true),
+                optimization.is_gas()
+            );
+        }
     }
 }
