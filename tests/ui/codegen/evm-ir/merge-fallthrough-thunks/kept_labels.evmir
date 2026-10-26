@@ -1,0 +1,23 @@
+//@ compile-flags: -Onone -Zevm-ir-pipeline=merge-fallthrough-thunks
+@module KeptLabels
+
+// The entry thunk goes and its target becomes the entry.
+bb0:
+  jump bb1
+bb1:
+  jump bb2
+
+// bb3 is used as a value, so its identity stays even though it precedes its target.
+bb2:
+  push bb3
+  push bb4
+  eq
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb3:
+  jump bb4
+bb4:
+  stop

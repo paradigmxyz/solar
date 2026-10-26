@@ -37,11 +37,6 @@
 //! is unobservable. Empty continuation thunks can therefore be bypassed even through a pushed
 //! return address. Ordinary address-taken labels remain opaque. The declaration is emitted by call
 //! lowering and machine outlining and round-trips through EVM IR independently of debug output.
-//!
-//! [`MergeFallthroughThunks`] runs at every optimization level, including `none`. A thunk placed
-//! right before its target emits no instruction, so the thunk's label and the target's label
-//! would assemble to two adjacent `JUMPDEST`s. It redirects edges through such thunks and removes
-//! them. Labels used as values stay distinct.
 
 use super::{
     EvmPass,
@@ -98,6 +93,7 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
             &mut state.addressed,
             &mut state.jump_heads,
             &mut state.order,
+            // fallthrough_only
             false,
         );
         let inlined = thread_shared_jumps
@@ -128,7 +124,12 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
 
 /// Redirects edges through empty jump thunks placed right before their target, then removes them.
 ///
-/// Such a thunk assembles to nothing but its own `JUMPDEST`, directly followed by the target's.
+/// Such a thunk emits no jump when its edge becomes a fallthrough, so its label and its target's
+/// would assemble to two adjacent `JUMPDEST`s. This is the thunk redirection of [`CfgSimplify`]
+/// restricted to those thunks, followed by the unreachable-block sweep, and repeated until stable:
+/// removing a thunk can place the thunk before it right before the same target. It runs last in
+/// the default pipeline, after the final layout, and at every optimization level because `none`
+/// runs no other CFG cleanup. Labels used as values stay distinct, as in [`CfgSimplify`].
 pub(super) struct MergeFallthroughThunks;
 
 impl EvmPass for MergeFallthroughThunks {
@@ -142,16 +143,16 @@ impl EvmPass for MergeFallthroughThunks {
 
     fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
         let mut state = RunState::default();
-        state.reserve(module.blocks.len());
         let mut changed = false;
-        // Removing a thunk can place the thunk before it right before the same target.
         while redirect_jump_thunks(
             module,
+            // thread_shared_jumps
             false,
             &mut state.thunks,
             &mut state.addressed,
             &mut state.jump_heads,
             &mut state.order,
+            // fallthrough_only
             true,
         ) {
             changed = true;
