@@ -64,3 +64,15 @@
 
 (decl pure integer_sign_bit () u64)
 (extern constructor integer_sign_bit integer_sign_bit)
+
+(decl pure late_word_sequence () bool)
+(extern constructor late_word_sequence late_word_sequence)
+
+;; The constant masks one value: no other instruction reads it, apart from a
+;; redundant second `and` with the same mask. A profitability condition only.
+(decl pure unshared_mask (U256) bool)
+(extern constructor unshared_mask unshared_mask)
+
+;; `x & m` is compared with a constant that `m` keeps. A profitability condition only.
+(decl pure compared_mask (Value U256) bool)
+(extern constructor compared_mask compared_mask)

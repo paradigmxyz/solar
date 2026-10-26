@@ -1,0 +1,110 @@
+// === ROOT/tests/ui/codegen/mir/check-elim/join_phi_relations.sol:JoinPhiRelations ===
+@module JoinPhiRelations
+fn @lastIndexOf(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 [selector=0x46c1da7f, pure, abi_params=[array<_, uint256>, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mload arg0
+    v1 = eq v0, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v2 = lt arg2, v0
+    jumpi v2, bb4, bb5
+  bb5:
+    v3 = checked_sub uint256, v0, 1
+    jump bb6
+  bb4:
+    jump bb6
+  bb6:
+    v4 = phi [bb4: arg2], [bb5: v3]
+    jump bb7
+  bb7:
+    v5 = phi [bb6: arg0], [bb11: v5]
+    v6 = phi [bb6: arg1], [bb11: v6]
+    v7 = phi [bb6: arg2], [bb11: v7]
+    v8 = phi [bb6: 0], [bb11: v8]
+    v9 = phi [bb6: v0], [bb11: v9]
+    v10 = phi [bb6: v4], [bb11: v20]
+    v11 = mload v5
+    v12 = lt v10, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = shl v10, 5
+    v15 = ptradd v5, v14
+    v16 = ptradd v15, 32
+    v17 = mload v16
+    v18 = ne v17, v6
+    jumpi v18, bb9, bb10
+  bb10:
+    jump bb8
+  bb8:
+    ret v10
+  bb9:
+    v19 = eq v10, 0
+    jumpi v19, bb12, bb13
+  bb13:
+    jump bb14
+  bb14:
+    v20 = checked_sub uint256, v10, 1
+    jump bb11
+  bb11:
+    jump bb7
+  bb12:
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  bb1:
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+}
+
+fn @keepsCheck(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 [selector=0x117f94d5, pure, abi_params=[array<_, uint256>, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mload arg0
+    v1 = eq v0, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v2 = lt arg2, v0
+    jumpi v2, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    jump bb6
+  bb6:
+    v3 = phi [bb4: arg2], [bb5: v0]
+    jump bb7
+  bb7:
+    v4 = phi [bb6: arg0], [bb11: v4]
+    v5 = phi [bb6: arg1], [bb11: v5]
+    v6 = phi [bb6: arg2], [bb11: v6]
+    v7 = phi [bb6: 0], [bb11: v7]
+    v8 = phi [bb6: v0], [bb11: v8]
+    v9 = phi [bb6: v3], [bb11: v19]
+    v10 = mload v4
+    v11 = lt v9, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = shl v9, 5
+    v14 = ptradd v4, v13
+    v15 = ptradd v14, 32
+    v16 = mload v15
+    v17 = ne v16, v5
+    jumpi v17, bb9, bb10
+  bb10:
+    jump bb8
+  bb8:
+    ret v9
+  bb9:
+    v18 = eq v9, 0
+    jumpi v18, bb12, bb13
+  bb13:
+    jump bb14
+  bb14:
+    v19 = checked_sub uint256, v9, 1
+    jump bb11
+  bb11:
+    jump bb7
+  bb12:
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  bb1:
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+}

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/repeated_stack_args.sol:RepeatedStackArgs ===
 @module RepeatedStackArgs
-fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 1
     v1 = icall @mix, v0, v0

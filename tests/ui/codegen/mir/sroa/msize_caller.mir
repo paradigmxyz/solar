@@ -1,0 +1,38 @@
+//@compile-flags: -Zmir-pipeline=sroa
+//@filecheck:
+@module SroaMsizeCaller
+
+// `msize` reads all of memory in the alias model, so a function that reads it, or calls one that
+// does, keeps its objects in memory.
+// CHECK-LABEL: fn @touch_then_measure{{[( ]}}
+// CHECK: {{^[ +]+}}mstore
+// CHECK: {{^[ +]+(v[0-9]+ = )?}}mload
+fn @touch_then_measure(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 32
+    mstore v0, arg0
+    v1 = mload v0
+    v2 = icall @measure
+    v3 = add v1, v2
+    ret v3
+}
+
+fn @measure() -> i256 {
+  bb0:
+    v0 = msize
+    ret v0
+}
+
+// `msize` in the function reads the object, so it stays in memory.
+// CHECK-LABEL: fn @observe_size{{[( ]}}
+// CHECK: {{^[ +]+}}memory_zero
+// CHECK: {{^[ +]+}}mstore
+fn @observe_size() -> i256 {
+  bb0:
+    v0 = alloc 32
+    v12 = ptrtoint ptr<memory> v0 to i256
+    memory_zero v12, 32
+    mstore v0, 7
+    v2 = msize
+    ret v2
+}

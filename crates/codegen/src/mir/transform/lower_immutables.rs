@@ -4,15 +4,17 @@
 //! immutable-aware passes reason about assignments without treating the
 //! backend staging area as arbitrary memory. This pass expands assignments
 //! only after those optimizations have finished.
+//!
+//! Each assignment becomes a word store to the immutable's constructor-memory home, which the
+//! backend copies into the deployed code's placeholders. Only functions unreachable from the
+//! runtime entry, selectors, receive, and fallback are rewritten: an assignment left in runtime
+//! code stays semantic and fails the lowered-phase check rather than writing memory there.
 
 use crate::mir::{
-    Callee, EffectKind, FunctionBuilder, FunctionId, InstKind, MemoryRegion, Module, PtrLocation,
-    Terminator,
+    EffectKind, FunctionBuilder, InstKind, MemoryRegion, Module, PtrLocation,
     immutable::{immutable_staging_addr, immutable_staging_base},
     pass::MirPass,
 };
-use solar_data_structures::bit_set::DenseBitSet;
-use std::collections::VecDeque;
 
 /// Lowers immutable assignments to memory stores in the deployment staging area.
 pub(crate) struct LowerImmutables;
@@ -32,8 +34,13 @@ impl MirPass for LowerImmutables {
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        if !module.iter_functions().any(|(_, func)| {
+            func.instructions().any(|id| matches!(func.inst(id).kind, InstKind::StoreImmutable(..)))
+        }) {
+            return false;
+        }
         let staging_base = immutable_staging_base(module);
-        let runtime_reachable = runtime_reachable_functions(module);
+        let runtime_reachable = module.runtime_reachable_functions();
         let mut changed = false;
         for (func_id, func) in module.functions.iter_mut_enumerated() {
             if runtime_reachable.contains(func_id) {
@@ -63,40 +70,4 @@ impl MirPass for LowerImmutables {
         }
         changed
     }
-}
-
-fn runtime_reachable_functions(module: &Module) -> DenseBitSet<FunctionId> {
-    let mut reachable = DenseBitSet::new_empty(module.functions.len());
-    let mut worklist = VecDeque::new();
-    if let Some(entry) = module.dispatch_entry() {
-        reachable.insert(entry);
-        worklist.push_back(entry);
-    }
-    for (func_id, func) in module.functions.iter_enumerated() {
-        if (func.selector.is_some() || func.attributes.is_fallback || func.attributes.is_receive)
-            && reachable.insert(func_id)
-        {
-            worklist.push_back(func_id);
-        }
-    }
-
-    while let Some(func_id) = worklist.pop_front() {
-        let func = module.function(func_id);
-        for inst_id in func.instructions() {
-            if let InstKind::ICall { function: Callee::Function(function), .. } =
-                func.inst(inst_id).kind
-                && reachable.insert(function)
-            {
-                worklist.push_back(function);
-            }
-        }
-        for block in &func.blocks {
-            if let Some(Terminator::TailCall { function, .. }) = &block.terminator
-                && reachable.insert(*function)
-            {
-                worklist.push_back(*function);
-            }
-        }
-    }
-    reachable
 }

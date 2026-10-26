@@ -20,8 +20,8 @@
 
 use crate::mir::{
     AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, EffectKind,
-    Function, FunctionBuilder, InstId, InstKind, Module, PtrLocation, ValueId,
-    analysis::AliasAnalysis, memory::EvmMemoryLayout, pass::MirPass,
+    Function, FunctionBuilder, InstId, InstKind, Module, ValueId, analysis::AliasAnalysis,
+    pass::MirPass,
 };
 use solar_sema::Gcx;
 
@@ -130,35 +130,17 @@ fn preserves_group(func: &Function, inst_id: InstId) -> bool {
         // Lowering places constructor homes outside the FMP word.
         | EffectKind::ImmutableRead
         | EffectKind::ImmutableWrite => true,
-        EffectKind::MemoryRead => match &inst.kind {
-            InstKind::Load(addr, PtrLocation::Memory) => {
-                range_avoids_fmp(func, *addr, Some(EvmMemoryLayout::WORD_SIZE))
-            }
-            InstKind::Keccak256(addr, len) => range_avoids_fmp(func, *addr, func.value_u64(*len)),
-            // `Fmp` and `MSize` observe the allocation frontier; the object
-            // and mapping forms are gone by this point in the pipeline.
-            _ => false,
-        },
-        EffectKind::MemoryWrite => match &inst.kind {
-            InstKind::Store(addr, _, PtrLocation::Memory) => {
-                range_avoids_fmp(func, *addr, Some(EvmMemoryLayout::WORD_SIZE))
-            }
-            InstKind::Store8(addr, _) => range_avoids_fmp(func, *addr, Some(1)),
-            InstKind::MemoryZero(addr, len)
-            | InstKind::Copy(addr, _, len, PtrLocation::Calldata | PtrLocation::Returndata)
-            | InstKind::DataCopy(_, addr, len)
-            | InstKind::CodeCopy(addr, _, len)
-            | InstKind::ExtCodeCopy(_, addr, _, len) => {
-                range_avoids_fmp(func, *addr, func.value_u64(*len))
-            }
-            InstKind::Copy(dest, src, len, PtrLocation::Memory) => {
-                let len = func.value_u64(*len);
-                range_avoids_fmp(func, *dest, len) && range_avoids_fmp(func, *src, len)
-            }
-            // `SetFmp` moves the frontier; non-member `Alloc` shapes and the
-            // remaining aggregate writes stay conservative barriers.
-            _ => false,
-        },
+        // `Fmp`, `SetFmp`, non-member `Alloc` shapes, and the remaining aggregate accesses have no
+        // raw memory range and stay conservative barriers. The object and mapping forms are gone
+        // by this point in the pipeline.
+        EffectKind::MemoryRead | EffectKind::MemoryWrite => {
+            let mut avoids_fmp = None;
+            inst.kind.visit_raw_memory(|_, addr, size| {
+                *avoids_fmp.get_or_insert(true) &=
+                    range_avoids_fmp(func, addr, size.constant(func));
+            });
+            avoids_fmp.unwrap_or(false)
+        }
         EffectKind::ExternalCall
         | EffectKind::ICall
         | EffectKind::Create

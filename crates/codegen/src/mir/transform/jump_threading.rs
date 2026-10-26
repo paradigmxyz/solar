@@ -21,13 +21,10 @@
 //! inputs stay unchanged. Constant incoming edges also bypass a phi followed by
 //! an equality or inequality with zero, provided no result escapes the block.
 
-use crate::{
-    mir::{
-        BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
-        pass::{MirPass, run_function_pass},
-        utils::replace_terminator,
-    },
-    target::GasTier,
+use crate::mir::{
+    BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
+    pass::{MirPass, run_function_pass},
+    utils::replace_terminator,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
@@ -45,51 +42,17 @@ impl MirPass for JumpThreading {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
-            JumpThreader::new().run_to_fixpoint(func).total_threaded() != 0
-        })
-    }
-}
-
-/// Statistics from jump threading optimization.
-#[derive(Debug, Default, Clone)]
-struct JumpThreadingStats {
-    /// Number of unconditional jumps threaded.
-    jumps_threaded: usize,
-    /// Number of conditional branch targets threaded.
-    branches_threaded: usize,
-    /// Number of switch case targets threaded.
-    switches_threaded: usize,
-    /// Estimated gas saved (one `JUMP` per eliminated jump).
-    gas_saved: usize,
-}
-
-impl JumpThreadingStats {
-    /// Returns the total number of threading operations performed.
-    #[must_use]
-    fn total_threaded(&self) -> usize {
-        self.jumps_threaded + self.branches_threaded + self.switches_threaded
+        run_function_pass(module, analyses, |func, _| JumpThreader.run_to_fixpoint(func) != 0)
     }
 }
 
 /// Jump threading optimization pass.
-#[derive(Debug, Default)]
-struct JumpThreader {
-    /// Statistics from the last run.
-    stats: JumpThreadingStats,
-}
+struct JumpThreader;
 
 impl JumpThreader {
-    /// Creates a new jump threader.
-    #[must_use]
-    fn new() -> Self {
-        Self::default()
-    }
-
     /// Runs jump threading on a function.
     /// Returns the number of MIR mutations performed.
     fn run(&mut self, func: &mut Function) -> usize {
-        self.stats = JumpThreadingStats::default();
         let mut changed = 0;
 
         // Build a map of blocks that are "forwarders" - blocks that only jump unconditionally
@@ -100,34 +63,24 @@ impl JumpThreader {
             let final_targets = self.resolve_final_targets(&forwarders, func.blocks.len());
 
             // Update all terminators to use final targets
-            self.thread_jumps(func, &final_targets);
-            changed += self.stats.total_threaded();
+            changed += self.thread_jumps(func, &final_targets);
         }
 
         changed += self.thread_phi_constant_edges(func);
         changed += self.fold_single_predecessor_phi_branches(func);
-
-        if changed == 0 {
-            return 0;
-        }
-
         changed
     }
 
-    /// Runs jump threading iteratively until no more changes.
-    fn run_to_fixpoint(&mut self, func: &mut Function) -> JumpThreadingStats {
-        let mut total_stats = JumpThreadingStats::default();
+    /// Runs jump threading iteratively until no more changes and returns the number of rewrites.
+    fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+        let mut total = 0;
         loop {
             let changed = self.run(func);
             if changed == 0 {
-                break;
+                return total;
             }
-            total_stats.jumps_threaded += self.stats.jumps_threaded;
-            total_stats.branches_threaded += self.stats.branches_threaded;
-            total_stats.switches_threaded += self.stats.switches_threaded;
-            total_stats.gas_saved += self.stats.gas_saved;
+            total += changed;
         }
-        total_stats
     }
 
     /// Finds blocks that only contain an unconditional jump (forwarder blocks).
@@ -195,33 +148,39 @@ impl JumpThreader {
         current
     }
 
-    /// Updates all terminators to use the final targets.
-    fn thread_jumps(&mut self, func: &mut Function, final_targets: &FxHashMap<BlockId, BlockId>) {
+    /// Updates all terminators to use the final targets. Returns the number of rewritten
+    /// terminators.
+    fn thread_jumps(
+        &self,
+        func: &mut Function,
+        final_targets: &FxHashMap<BlockId, BlockId>,
+    ) -> usize {
+        let mut threaded = 0;
         let block_ids = func.blocks.indices();
         for block_id in block_ids {
             let Some(mut term) = func.blocks[block_id].terminator.clone() else {
                 continue;
             };
-            self.thread_terminator(func, &mut term, final_targets);
+            threaded += usize::from(Self::thread_terminator(func, &mut term, final_targets));
             // jump/branch/switch through forwarders -> their final targets
             replace_terminator(func, block_id, term);
         }
+        threaded
     }
 
-    /// Threads a single terminator's targets.
+    /// Threads a single terminator's targets. Returns whether any target changed.
     fn thread_terminator(
-        &mut self,
         func: &Function,
         term: &mut Terminator,
         final_targets: &FxHashMap<BlockId, BlockId>,
-    ) {
+    ) -> bool {
         match term {
             Terminator::Jump(target) => {
-                if let Some(final_target) = Self::threaded_target(func, *target, final_targets) {
-                    *target = final_target;
-                    self.stats.jumps_threaded += 1;
-                    self.stats.gas_saved += GasTier::Mid.fixed_gas() as usize;
-                }
+                let Some(final_target) = Self::threaded_target(func, *target, final_targets) else {
+                    return false;
+                };
+                *target = final_target;
+                true
             }
 
             Terminator::Branch { then_block, else_block, .. } => {
@@ -236,10 +195,7 @@ impl JumpThreader {
                     *else_block = final_target;
                     changed = true;
                 }
-                if changed {
-                    self.stats.branches_threaded += 1;
-                    self.stats.gas_saved += GasTier::Mid.fixed_gas() as usize;
-                }
+                changed
             }
 
             Terminator::Switch { default, cases, .. } => {
@@ -255,10 +211,7 @@ impl JumpThreader {
                         changed = true;
                     }
                 }
-                if changed {
-                    self.stats.switches_threaded += 1;
-                    self.stats.gas_saved += GasTier::Mid.fixed_gas() as usize;
-                }
+                changed
             }
 
             Terminator::Return { .. }
@@ -268,7 +221,7 @@ impl JumpThreader {
             | Terminator::Stop
             | Terminator::SelfDestruct { .. }
             | Terminator::TailCall { .. }
-            | Terminator::Invalid => {}
+            | Terminator::Invalid => false,
         }
     }
 
@@ -357,11 +310,6 @@ impl JumpThreader {
             }
         }
 
-        if threaded != 0 {
-            self.stats.branches_threaded += threaded;
-            self.stats.gas_saved += threaded * 8;
-        }
-
         threaded
     }
 
@@ -415,8 +363,6 @@ impl JumpThreader {
             func.blocks[pred].terminator_metadata.merge_debug_context(&context);
             folded += 1;
         }
-        self.stats.branches_threaded += folded;
-        self.stats.gas_saved += folded * 8;
         folded
     }
 

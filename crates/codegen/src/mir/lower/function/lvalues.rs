@@ -124,7 +124,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.normalize_memory_scalar(ty, value))
             }
             LValuePlace::MemoryElement { object, layout, index, ty } => {
-                // value = mload (ptradd object, header + shl 5, index)
+                // value = mload (ptradd object, header + shl index, 5)
                 let value = self.builder.memory_load_element_as(
                     object,
                     layout,
@@ -246,6 +246,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if ty != types::TypeLowerer::mir_type(source_ty) {
                 self.dirty_values.insert(value);
             }
+            // A fixed-bytes immutable keeps its full word, so assembly can have stored dirty bits
+            // that ABI return encoding would otherwise trust as canonical.
+            if self.cx.state.raw_scalars.contains(&id)
+                && let crate::mir::ValueLayout::FixedBytes(size) =
+                    types::TypeLowerer::value_layout(source_ty)
+            {
+                return Some(self.clean_fixed_bytes(value, size.bytes()));
+            }
             return Some(value);
         }
         if let Some(access) = self.storage_refs.get(&id).copied() {
@@ -274,6 +282,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             );
         }
         self.cx.report_unsupported(span, "identifier")
+    }
+
+    /// Stores a value in an immutable. A raw immutable keeps the bits assembly wrote; any other
+    /// is cleaned, and an enum range checked, like solc. The clean does not depend on the value's
+    /// dirty mark, which loop phis and carrier casts can drop.
+    pub(super) fn store_immutable_value(
+        &mut self,
+        id: VariableId,
+        immutable_id: ImmutableId,
+        mut value: ValueId,
+    ) {
+        let source_ty = self.cx.gcx.type_of_item(id.into());
+        if matches!(source_ty.kind, TyKind::Enum(_)) || !self.cx.state.raw_scalars.contains(&id) {
+            value = self.normalize_abi_scalar(value, source_ty);
+        }
+        // value = cast to the immutable value type
+        let ty = self.cx.module.immutable_type(immutable_id).mir_type();
+        let value = self.builder.cast(value, ty);
+        self.builder.store_immutable(immutable_id, value);
     }
 
     pub(super) fn store_variable(
@@ -318,10 +345,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(());
         }
         if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
-            // value = cast to the immutable value type
-            let ty = self.cx.module.immutable_type(immutable_id).mir_type();
-            let value = self.builder.cast(value, ty);
-            self.builder.store_immutable(immutable_id, value);
+            self.store_immutable_value(id, immutable_id, value);
             return Some(());
         }
         if let Some(location) = self.cx.storage.get(id) {
@@ -398,7 +422,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.builder.slice_len(slice))
             }
             YulSuffix::FunctionAddress => {
-                // value = and (shr 32, variable), address_mask
+                // value = and (shr variable, 32), address_mask
                 let pointer = self.load_variable(id, span)?;
                 Some(self.external_function_address(pointer))
             }
@@ -449,14 +473,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.make_slice(pointer, value, PtrLocation::Calldata)
             }
             YulSuffix::FunctionAddress => {
-                // address = shl 32, (and value, address_mask)
+                // address = shl (and value, address_mask), 32
                 // pointer = or address, (and variable, 0xffffffff)
                 let pointer = self.load_variable(id, span)?;
                 let mask = self.builder.imm(u32::MAX);
                 let address_mask = self.builder.imm(U256::MAX >> 96);
                 let address = self.builder.and(value, address_mask);
                 let shift = self.builder.imm(32);
-                let address = self.builder.shl(shift, address);
+                let address = self.builder.shl(address, shift);
                 let selector = self.builder.and(pointer, mask);
                 self.builder.or(address, selector)
             }

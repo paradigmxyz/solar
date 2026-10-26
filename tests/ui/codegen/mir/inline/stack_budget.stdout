@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/inline/stack_budget.mir (before inline-single-use) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/stack_budget.mir (after inline-single-use) ===
+- // === ROOT/tests/ui/codegen/mir/inline/stack_budget.mir (before inline) ===
++ // === ROOT/tests/ui/codegen/mir/inline/stack_budget.mir (after inline) ===
   @module StackBudget
   fn @low_pressure(arg0: i1, arg1: i256) -> i256 [selector=0x01020304] {
     bb0:

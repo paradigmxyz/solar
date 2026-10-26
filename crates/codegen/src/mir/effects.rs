@@ -6,7 +6,7 @@
 //! requires dependence and profitability proofs; a memory read may expand EVM memory.
 
 use super::{EffectKind, InstKind};
-use crate::mir::{Builtin, Callee, PtrLocation};
+use crate::mir::{AddressCallKind, Builtin, Callee, PtrLocation};
 
 /// Control behavior that must survive even when an operation's result is unused.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -46,8 +46,8 @@ pub(crate) struct InstructionEffects {
 
 impl InstructionEffects {
     /// Whether removing an unused operation could remove required behavior.
-    pub(crate) const fn must_execute(self, observes_msize: bool) -> bool {
-        self.observable || self.control.any() || (observes_msize && self.expands_memory)
+    pub(crate) const fn must_execute(self) -> bool {
+        self.observable || self.control.any()
     }
 
     /// Whether equal operands and unchanged read/write dependencies allow sharing a result.
@@ -83,6 +83,34 @@ impl InstKind {
                     ..
                 }
                 | Self::AddressCall { gas: None, .. }
+        )
+    }
+
+    /// Whether this operation reads account state, a balance or deployed code, which
+    /// [`may_change_account_state`](Self::may_change_account_state) operations can change.
+    pub(crate) const fn reads_account_state(&self) -> bool {
+        matches!(
+            self,
+            Self::ExtCodeSize(_) | Self::ExtCodeHash(_) | Self::Balance(_) | Self::SelfBalance
+        )
+    }
+
+    /// Whether this operation can move value or deploy or destroy code. Static calls cannot:
+    /// the static context forbids value transfers, `CREATE`, and `SELFDESTRUCT`.
+    pub(crate) const fn may_change_account_state(&self) -> bool {
+        matches!(
+            self.effect_kind(),
+            EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
+        ) && !matches!(
+            self,
+            Self::StaticCall { .. }
+                | Self::AddressCall { kind: AddressCallKind::Static, .. }
+                | Self::ICall {
+                    function: Callee::Builtin(
+                        Builtin::Sha256 | Builtin::Ripemd160 | Builtin::EcRecover
+                    ),
+                    ..
+                }
         )
     }
 
@@ -170,9 +198,6 @@ impl InstKind {
             | Self::MSize
             | Self::Fmp
             | Self::SetFmp(..)
-            | Self::StorageToMemory { .. }
-            | Self::MemoryToStorage { .. }
-            | Self::ClearStorage { .. }
             | Self::Copy(..)
             | Self::CalldataSize
             | Self::MakeSlice { .. }
@@ -245,20 +270,19 @@ impl InstKind {
                     | EffectKind::Create
                     | EffectKind::Log
             ),
-            expands_memory: (matches!(
+            expands_memory: matches!(
                 kind,
                 EffectKind::MemoryRead
                     | EffectKind::MemoryWrite
                     | EffectKind::ExternalCall
                     | EffectKind::Create
                     | EffectKind::Log
-            ) && !matches!(self, Self::MSize))
-                || matches!(
-                    self,
-                    Self::StorageBytesStore(..)
-                        | Self::StorageBytesStoreLiteral { .. }
-                        | Self::StorageClearWords(..)
-                ),
+            ) || matches!(
+                self,
+                Self::StorageBytesStore(..)
+                    | Self::StorageBytesStoreLiteral { .. }
+                    | Self::StorageClearWords(..)
+            ),
             observes_execution: self.observes_gas() || matches!(self, Self::MSize),
             idempotent_write: matches!(
                 self,
@@ -271,7 +295,6 @@ impl InstKind {
                 Self::Alloc { .. }
                     | Self::AbiEncode { .. }
                     | Self::AbiEncodePacked { .. }
-                    | Self::StorageToMemory { .. }
                     | Self::StorageBytesLoad(..)
                     | Self::StorageArrayLoad { .. }
                     | Self::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. }

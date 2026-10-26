@@ -4,7 +4,7 @@
 @types
   struct0: {i256, i256}
 
-fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 4
     v1 = insert_value struct0, v0, 1, 5
@@ -16,7 +16,7 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[wo
 @types
   struct0: {i256, i256}
 
-fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
     v1 = extract_value slice<memory>, v0, 0

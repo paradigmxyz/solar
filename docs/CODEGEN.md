@@ -77,6 +77,25 @@ word-rule checker, its Lean model and proofs, and their tests live in
 commands and coverage limits). The checker must reject unsupported semantics,
 never treat them as proved.
 
+To count how often each rule fires on an input, with no rebuild, enable the
+`solar::codegen::isle` log target of any binary built with the default
+`tracing` feature. The rules run only with the optimizer enabled (`-Ogas`,
+`-Osize`, or `settings.optimizer.enabled` in Standard JSON):
+
+```bash
+RUST_LOG=solar::codegen::isle=debug solar --standard-json < input.json \
+  2>&1 >/dev/null | sed -n 's/.*ISLE //p' | sort | uniq -c | sort -rn
+```
+
+Each line is a count, the term the rule belongs to, and the rule's file and
+line, such as
+`127594 rewrite solar-codegen/isle/mir/egraph/arithmetic.isle line 4`.
+The line is 0-based: the `(rule` form is on line `n + 1`. Rules that never
+appear never fired on that input. For `rewrite`, a firing means the rule
+matched and offered an alternative to the e-graph, not that extraction chose
+it. The `egraph`, `word_sequence`, and `peephole` rule sets log; `select` does
+not, because the cost model and the inliner call it tens of millions of times.
+
 ISLE does local matching and replacement, not whole algorithms. The e-graph
 covers scalar identities and pure expression numbering, overlapping the
 pure-expression part of `cse`; it does not replace alias-sensitive
@@ -117,10 +136,34 @@ version-independent tiers in constants.
 
 `Target::new(gcx)` builds the model from the session's EVM version,
 optimization mode, and optimizer runs. It answers opcode and MIR operation
-costs as `Cost { gas, bytes }` (sizing dynamic work from known immediate
-operands), push materialization cost, deposit economics
+costs as `Cost { gas, bytes, steps }` (sizing dynamic work from known immediate
+operands, and counting executed instructions), push materialization cost, deposit economics
 (`CODE_DEPOSIT_GAS_PER_BYTE`, `lifetime_gas`), and objective ordering
 (`objective_key`, `cmp`, `improves`).
+`-Ztune` selects the execution engine: `Target::runtime_gas` is the one runtime price
+every ranking uses, gas for `none` and gas plus a dispatch charge per executed
+instruction for `interpreter`.
+Creation code has its own model, `Target::priced_for(true)`, under the gas
+objective. It runs once per deployment, and the deployment transaction pays
+calldata gas (`byte_gas`: 16 per byte, 68 before Istanbul) for each byte instead
+of the code deposit, so costs rank by deployment gas and loop copying stays off.
+A pass builds the `Target` of the function it is optimizing, never one for the
+whole module. MIR function passes ask the function's `FunctionAnalyses`:
+`target` for passes that rank code shapes without weighing blocks by how often
+they run, which prices creation code only without loops, recursion, or a looping
+caller (`Module::creation_pricing_functions`), and `loop_aware_target` for
+passes that multiply by trip counts themselves, which price every creation-only
+function (`Module::creation_only_functions`) as creation code. The inliner counts
+the calls that creation code holds on its own, since it carries its own copy of
+each callee, and only adds inlines to those the runtime model chooses. EVM IR
+passes ask the block (`Block::target`): creation code is the module that the
+runtime follows (`code_follows`), and a block in a loop, or in creation code that
+a loop or recursion calls (`BlockMetadata::repeats`, set from
+`Module::repeated_functions`), keeps the runtime model. The stack planner does
+the same per function. Helpers shared across call sites (`lower-mcopy`,
+`lower-abi-encode`, `outline-reverts`, `specialize`) and lowering from HIR keep
+the runtime model, because one decision serves code of both kinds or the code's
+function and loops are not known yet.
 The stack scheduler plans against a `Target` and orders plans by
 `objective_key`; `target/stack.rs` holds its fixed opcode and frame-sequence
 estimates, built from the opcode table. Never write gas or byte literals in

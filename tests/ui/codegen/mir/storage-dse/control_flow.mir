@@ -1,4 +1,4 @@
-//@compile-flags: -Zmir-pipeline=storage-load-cse,storage-dse,egraph,dce
+//@compile-flags: -Zmir-pipeline=storage-cse,storage-dse,egraph,dce
 @module StorageDseControlFlow
 
 fn @both_paths(arg0: i1) {
@@ -18,6 +18,20 @@ fn @one_path_reads(arg0: i1) -> i256 {
     sstore 0, 1
     jumpi arg0, bb1, bb2
   bb1:
+    v0 = sload 0
+    sstore 0, 2
+    ret v0
+  bb2:
+    sstore 0, 3
+    ret 0
+}
+
+fn @one_path_reads_after_alias(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    sstore 0, 1
+    jumpi arg0, bb1, bb2
+  bb1:
+    sstore arg1, 5
     v0 = sload 0
     sstore 0, 2
     ret v0
@@ -49,7 +63,7 @@ fn @packed(arg0: i256, arg1: i256) {
     v4 = sload 0
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
     v6 = and arg1, 255
-    v7 = shl 8, v6
+    v7 = shl v6, 8
     v8 = or v5, v7
     sstore 0, v8
     stop

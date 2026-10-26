@@ -1,0 +1,44 @@
+- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/calldata_block_copy.mir (before lower-abi-encode) ===
++ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/calldata_block_copy.mir (after lower-abi-encode) ===
+  @module CalldataBlockCopy
+  fn @block(arg0: slice<calldata>) -> slice<memory> {
+    bb0:
+-     v0 = abi_encode [array<2, word>], args arg0
+-     ret v0
++     v1 = alloc 96
++     mstore v1, 64
++     v2 = ptradd v1, 32
++     v3 = extract_value slice<calldata>, arg0, 0
++     calldatacopy v2, v3, 64 !metadata(memory=heap)
++     v4 = make_memory_slice v2, 64
++     ret v4
+  }
+  
+  fn @wordwise(arg0: slice<calldata>) -> slice<memory> {
+    bb0:
+-     v0 = abi_encode [array<2, word, wordwise>], args arg0
+-     ret v0
++     v1 = alloc 96
++     mstore v1, 64
++     v2 = ptradd v1, 32
++     v3 = extract_value slice<calldata>, arg0, 0
++     jump bb1
++   bb1:
++     v4 = phi [bb0: 0], [bb2: v12]
++     v5 = lt v4, 2
++     jumpi v5, bb2, bb3
++   bb3:
++     v13 = make_memory_slice v2, 64
++     ret v13
++   bb2:
++     v6 = mul v4, 32
++     v7 = ptrtoint ptr<calldata> v3 to i256
++     v8 = add v7, v6
++     v9 = ptrtoint ptr<memory> v2 to i256
++     v10 = add v9, v6
++     v11 = calldataload v8
++     mstore v10, v11
++     v12 = add v4, 1
++     jump bb1
+  }
+  

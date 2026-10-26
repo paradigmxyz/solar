@@ -22,20 +22,20 @@ fn @constructor() [constructor] {
     v12 = mod v6, 8
     v13 = mul v12, 4
     v14 = mul v13, 8
-    v15 = shl v14, 0xffffffff
+    v15 = shl 0xffffffff, v14
     v16 = sload v11 !metadata(storage=symbolic(v11))
     v17 = not v15
     v18 = and v16, v17
-    v19 = shr 224, 0x1234567800000000000000000000000000000000000000000000000000000000
+    v19 = shr 0x1234567800000000000000000000000000000000000000000000000000000000, 224
     v20 = and v19, 0xffffffff
-    v21 = shl v14, v20
+    v21 = shl v20, v14
     v22 = or v18, v21
     sstore v11, v22 !metadata(storage=symbolic(v11))
     sstore v5, v8 !metadata(storage=slot(1))
     ret
 }
 
-fn @readCopy() -> struct0 [selector=0x3af23521, view, abi_params=[], abi_returns=[word<u160>, word<bytes4>], abi_return_params=[address, bytes4]] {
+fn @readCopy() -> struct0 [selector=0x3af23521, view, abi_params=[], abi_returns=[word<uint160>, word<bytes4>], abi_return_params=[address, bytes4]] {
   bb0:
     v0 = alloc checked 64
     v1 = sload 0 !metadata(storage=slot(0))
@@ -63,7 +63,7 @@ fn @readCopy() -> struct0 [selector=0x3af23521, view, abi_params=[], abi_returns
     ret v19
 }
 
-fn @readDirect() -> struct0 [selector=0x28da8d5d, view, abi_params=[], abi_returns=[word<u160>, word<bytes4>], abi_return_params=[address, bytes4]] {
+fn @readDirect() -> struct0 [selector=0x28da8d5d, view, abi_params=[], abi_returns=[word<uint160>, word<bytes4>], abi_return_params=[address, bytes4]] {
   bb0:
     v0 = alloc checked 64
     v1 = sload 0 !metadata(storage=slot(0))

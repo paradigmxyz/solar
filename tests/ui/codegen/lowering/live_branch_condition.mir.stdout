@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:LiveBranchCondition ===
 @module LiveBranchCondition
-fn @next(arg0: i256) -> i256 [selector=0xedd004e5, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @next(arg0: i256) -> i256 [selector=0xedd004e5, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_add u256, arg0, 1
+    v0 = checked_add uint256, arg0, 1
     ret v0
 }
 
-fn @both(arg0: i256) -> i256 [selector=0x75de2d6b, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @both(arg0: i256) -> i256 [selector=0x75de2d6b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     switch arg0, default bb3, [0 => bb2]
   bb2:
@@ -22,7 +22,7 @@ fn @both(arg0: i256) -> i256 [selector=0x75de2d6b, pure, abi_params=[u256], abi_
 
 // === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:ReturndataBranch ===
 @module ReturndataBranch
-fn @test(arg0: i256) [selector=0x29e99f07, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @test(arg0: i256) [selector=0x29e99f07, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gas
     v1 = staticcall v0, 4, 0, arg0, 0, 0
@@ -56,7 +56,7 @@ fn @test(arg0: i256) [selector=0x29e99f07, view, abi_params=[u256], abi_returns=
 @types
   struct0: {i256, i1}
 
-fn @aggregate(arg0: i1, arg1: i256) -> struct0 [selector=0xb22b6a9f, pure, abi_params=[bool, u256], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
+fn @aggregate(arg0: i1, arg1: i256) -> struct0 [selector=0xb22b6a9f, pure, abi_params=[bool, uint256], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 0
@@ -72,36 +72,36 @@ fn @aggregate(arg0: i1, arg1: i256) -> struct0 [selector=0xb22b6a9f, pure, abi_p
   bb3:
     jump bb4
   bb4:
-    v2 = phi [bb3: 0], [bb6: v16]
-    v3 = phi [bb3: arg0], [bb6: v3]
-    v4 = phi [bb3: v0], [bb6: v4]
+    v2 = phi [bb3: arg0], [bb6: v2]
+    v3 = phi [bb3: arg1], [bb6: v3]
+    v4 = phi [bb3: 0], [bb6: v4]
     v5 = phi [bb3: 0], [bb6: v5]
-    v6 = phi [bb3: arg1], [bb6: v6]
-    v7 = phi [bb3: 0], [bb6: v7]
-    v8 = lt v2, v6
+    v6 = phi [bb3: v0], [bb6: v6]
+    v7 = phi [bb3: 0], [bb6: v16]
+    v8 = lt v7, v3
     jumpi v8, bb7, bb8
   bb8:
     jump bb5
   bb5:
-    v17 = ptradd v4, 32
+    v17 = ptradd v6, 32
     v18 = mload v17
     v19 = insert_value struct0, undef struct0, 0, v18
-    v20 = insert_value struct0, v19, 1, v3
+    v20 = insert_value struct0, v19, 1, v2
     ret v20
   bb7:
-    v9 = mload v4
-    v10 = checked_add u256, v9, v2
-    mstore v4, v10
-    v11 = mload v4
-    v12 = ptradd v4, 32
+    v9 = mload v6
+    v10 = checked_add uint256, v9, v7
+    mstore v6, v10
+    v11 = mload v6
+    v12 = ptradd v6, 32
     v13 = mload v12
-    v14 = checked_add u256, v13, v11
-    v15 = ptradd v4, 32
+    v14 = checked_add uint256, v13, v11
+    v15 = ptradd v6, 32
     mstore v15, v14
     jump bb9
   bb9:
     jump bb6
   bb6:
-    v16 = checked_add u256, v2, 1
+    v16 = checked_add uint256, v7, 1
     jump bb4
 }

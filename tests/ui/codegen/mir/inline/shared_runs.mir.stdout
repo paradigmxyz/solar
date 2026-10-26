@@ -1,0 +1,56 @@
+// === ROOT/tests/ui/codegen/mir/inline/shared_runs.sol:SharedRuns ===
+@module SharedRuns
+fn @paint() [selector=0xff30d0af, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = icall @paintUint, 0x8ac7230489e80000
+    v1 = abi_encode [memory_bytes], scratch, args v0
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
+    log v2, v3, 0x3b852aae33bfaaba77460d67d4bd698268f53e539bdd70b5cd09add63c79057f
+    v4 = icall @paintBool, true
+    v5 = abi_encode [memory_bytes], scratch, args v4
+    v6 = extract_value slice<memory>, v5, 0
+    v7 = extract_value slice<memory>, v5, 1
+    log v6, v7, 0x3b852aae33bfaaba77460d67d4bd698268f53e539bdd70b5cd09add63c79057f
+    ret
+}
+
+fn @paintUint(arg0: i256) -> ptr<memory> [pure] {
+  bb0:
+    v0 = gas
+    mstore 0, 0xb6eb6316 !metadata(memory=scratch)
+    mstore 32, arg0 !metadata(memory=scratch)
+    v1 = staticcall v0, 0x7109709ecfa91a80626ff3989d68f67f5b1dd12d, 28, 36, 0, 0
+    jumpi v1, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v2 = icall returndata_bytes<>
+    v3 = abi_decode [bytes], v2
+    v4 = icall @wrap, v3
+    ret v4
+}
+
+fn @paintBool(arg0: i1) -> ptr<memory> [pure] {
+  bb0:
+    v0 = gas
+    v1 = ne arg0, false
+    mstore 0, 0x57177c8e !metadata(memory=scratch)
+    v2 = zext i1 v1 to i256
+    mstore 32, v2 !metadata(memory=scratch)
+    v3 = staticcall v0, 0x7109709ecfa91a80626ff3989d68f67f5b1dd12d, 28, 36, 0, 0
+    jumpi v3, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v4 = icall returndata_bytes<>
+    v5 = abi_decode [bytes], v4
+    v6 = icall @wrap, v5
+    ret v6
+}
+
+fn @wrap(arg0: ptr<memory>) -> ptr<memory> [pure] {
+  bb0:
+    v0 = abi_encode_packed (data hex"3c", bytes arg0, data hex"3e")
+    ret v0
+}

@@ -1,0 +1,8 @@
+warning[0067]: `msize` is not exact when optimizing
+   ╭▸ ROOT/tests/ui/codegen/lowering/entry_free_memory.sol:LL:CC
+   │
+LL │             mstore(0, msize())
+   │                       ━━━━━
+   │
+   ╰ note: the optimizer does not preserve the exact value
+

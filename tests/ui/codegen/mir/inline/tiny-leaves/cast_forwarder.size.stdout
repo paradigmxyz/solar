@@ -1,0 +1,121 @@
+- // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/cast_forwarder.mir (before inline) ===
++ // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/cast_forwarder.mir (after inline) ===
+  @module CastForwarder
+  fn @caller(arg0: i160) -> i1 {
+    bb0:
+-     v0 = icall @contains, arg0
+-     ret v0
++     jump bb2
++   bb2:
++     v1 = zext i160 arg0 to i256
++     v2 = icall @inner_contains, v1
++     jump bb1
++   bb1:
++     v3 = phi [bb2: v2]
++     ret v3
+  }
+  
+  fn @other(arg0: i160) -> i1 {
+    bb0:
+-     v0 = icall @contains, arg0
+-     ret v0
+- }
+- 
+- fn @contains(arg0: i160) -> i1 {
+-   bb0:
+-     v0 = zext i160 arg0 to i256
+-     v1 = icall @inner_contains, v0
+-     ret v1
++     jump bb2
++   bb2:
++     v1 = zext i160 arg0 to i256
++     v2 = icall @inner_contains, v1
++     jump bb1
++   bb1:
++     v3 = phi [bb2: v2]
++     ret v3
+  }
+  
+  fn @inner_contains(arg0: i256) -> i1 {
+    bb0:
+      v0 = sload arg0
+      v1 = ne v0, 0
+      jumpi v1, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      ret v1
+  }
+  
+  fn @trunc_caller(arg0: i256) -> i1 {
+    bb0:
+      v0 = icall @trunc_wrapper, arg0
+      v1 = icall @trunc_wrapper, arg0
+      v2 = and v0, v1
+      ret v2
+  }
+  
+  fn @trunc_wrapper(arg0: i256) -> i1 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+      v2 = icall @inner_contains, v1
+      ret v2
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/cast_forwarder.mir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/cast_forwarder.mir (after cfg-simplify) ===
+  @module CastForwarder
+  fn @caller(arg0: i160) -> i1 {
+    bb0:
+-     jump bb2
+-   bb2:
+      v1 = zext i160 arg0 to i256
+      v2 = icall @inner_contains, v1
+-     jump bb1
+-   bb1:
+-     v3 = phi [bb2: v2]
+-     ret v3
++     ret v2
+  }
+  
+  fn @other(arg0: i160) -> i1 {
+    bb0:
+-     jump bb2
+-   bb2:
+      v1 = zext i160 arg0 to i256
+      v2 = icall @inner_contains, v1
+-     jump bb1
+-   bb1:
+-     v3 = phi [bb2: v2]
+-     ret v3
++     ret v2
+  }
+  
+  fn @inner_contains(arg0: i256) -> i1 {
+    bb0:
+      v0 = sload arg0
+      v1 = ne v0, 0
+      jumpi v1, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      ret v1
+  }
+  
+  fn @trunc_caller(arg0: i256) -> i1 {
+    bb0:
+      v0 = icall @trunc_wrapper, arg0
+      v1 = icall @trunc_wrapper, arg0
+      v2 = and v0, v1
+      ret v2
+  }
+  
+  fn @trunc_wrapper(arg0: i256) -> i1 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+      v2 = icall @inner_contains, v1
+      ret v2
+  }
+  

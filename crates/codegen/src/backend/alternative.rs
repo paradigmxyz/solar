@@ -6,7 +6,7 @@
 use super::evm::EvmArtifact;
 use crate::{
     link::EmbeddedBytecodes,
-    mir::{Module, pass::run_pipeline},
+    mir::{Module, pass::run_pipeline, pass_manager::should_validate_ir},
 };
 use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
@@ -74,7 +74,9 @@ pub(crate) fn compile(
             .emit();
         return EvmArtifact::default();
     }
-    let Ok(module) = module.as_lowered(gcx.dcx()) else { return EvmArtifact::default() };
+    let Ok(module) = module.as_lowered(gcx, should_validate_ir(gcx)) else {
+        return EvmArtifact::default();
+    };
     let module = &*module;
     let result: Result<EvmArtifact, String> = {
         match gcx.sess.opts.codegen_backend {

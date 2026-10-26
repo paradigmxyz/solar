@@ -4,10 +4,12 @@
 //! of the rest of the IR. The helpers here rebuild block storage and remap every
 //! entry, push, and terminator reference together.
 
-use super::compact_pushes::selected_len;
-use crate::backend::evm::{
-    ir::{BlockId, Instruction, Module, PushValue, TerminatorKind},
-    op,
+use crate::{
+    backend::evm::{
+        ir::{BlockId, Instruction, Module, PushValue, TerminatorKind},
+        op,
+    },
+    target::Target,
 };
 use solar_data_structures::{
     index::{IndexVec, index_vec},
@@ -85,6 +87,22 @@ impl Hash for MachineInstKey {
     }
 }
 
+/// A stack operation as a symbolic stack simulation sees it. A push is a stack operation for this
+/// purpose: deleting it deletes the word it pushes.
+#[derive(Clone, Copy)]
+pub(super) enum SymbolicStackOp {
+    Push,
+    Physical(op::StackOp),
+}
+
+/// Returns the symbolic stack operation of a push or physical stack operation.
+pub(super) fn symbolic_stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {
+    if inst.is_encoded_push() {
+        return Some(SymbolicStackOp::Push);
+    }
+    inst.as_stack_op().map(SymbolicStackOp::Physical)
+}
+
 /// Returns whether the boundary at `index` in `instructions` may be disturbed.
 ///
 /// The boundary right after a `keep_with_next` instruction is not a legal split point, so no
@@ -138,13 +156,13 @@ pub(super) fn instruction_size_lower_bound(gcx: Gcx<'_>, inst: &Instruction) -> 
         });
     }
     if inst.pushed_library().is_some() {
-        return 21;
+        return Target::new(gcx).opcode(op::PUSH20).bytes as usize;
     }
     if let Some(type_size) = inst.immutable_type_size() {
-        return usize::from(type_size.bytes()) + 1;
+        return Target::new(gcx).opcode(op::push(type_size.bytes())).bytes as usize;
     }
     if let Some(value) = inst.concrete_immediate() {
-        return selected_len(gcx, value);
+        return Target::new(gcx).push(value).bytes as usize;
     }
     // Labels and data offsets are address-sensitive. They may resolve to
     // zero, so one byte is the only safe lower bound before assembly.
@@ -160,6 +178,25 @@ pub(super) fn is_terminal_boundary(kind: &TerminatorKind) -> bool {
 pub(in crate::backend::evm::ir) fn remap_block_order(module: &mut Module, order: &[BlockId]) {
     debug_assert_eq!(order.len(), module.blocks.len());
     remap_blocks(module, order);
+}
+
+/// Counts the pushed labels and terminator edges targeting each block, plus the program entry.
+pub(super) fn count_block_references(module: &Module, references: &mut IndexVec<BlockId, usize>) {
+    references.clear();
+    references.resize(module.blocks.len(), 0);
+    if let Some(entry) = references.first_mut() {
+        *entry = 1;
+    }
+    for block in &module.blocks {
+        for inst in &block.instructions {
+            if let Some(target) = inst.pushed_block() {
+                references[target] += 1;
+            }
+        }
+        if let Some(term) = &block.terminator {
+            term.kind.visit_targets(|target| references[target] += 1);
+        }
+    }
 }
 
 pub(super) fn retain_blocks(module: &mut Module, order: &[BlockId]) {

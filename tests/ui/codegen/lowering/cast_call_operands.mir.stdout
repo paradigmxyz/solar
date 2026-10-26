@@ -3,12 +3,12 @@
 @types
   struct0: {i256, i128, i256, i256}
 
-fn @accept(arg0: i160, arg1: i256) -> i1 [selector=0xcd67571c, pure, abi_params=[address, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @accept(arg0: i160, arg1: i256) -> i1 [selector=0xcd67571c, pure, abi_params=[address, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     ret true
 }
 
-fn @prepare(arg0: i160, arg1: i160, arg2: i24, arg3: i160) -> i160 [selector=0xe2351092, abi_params=[address, address, u24, u160], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @prepare(arg0: i160, arg1: i160, arg2: i24, arg3: i160) -> i160 [selector=0xe2351092, abi_params=[address, address, uint24, uint160], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffffffffffffffffffffffffffffffffffffff
@@ -21,7 +21,7 @@ fn @prepare(arg0: i160, arg1: i160, arg2: i24, arg3: i160) -> i160 [selector=0xe
     ret v6
 }
 
-fn @consume(arg0: slice<calldata>) -> struct0 [selector=0x353abfa4, view, abi_params=[tuple<address, address, i24, i24, u256, u256>], abi_returns=[word, word<u128>, word, word], abi_return_params=[u256, u128, u256, u256]] {
+fn @consume(arg0: slice<calldata>) -> struct0 [selector=0x353abfa4, view, abi_params=[tuple<address, address, int24, int24, uint256, uint256>], abi_returns=[word, word<uint128>, word, word], abi_return_params=[uint256, uint128, uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -30,7 +30,7 @@ fn @consume(arg0: slice<calldata>) -> struct0 [selector=0x353abfa4, view, abi_pa
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = trunc i256 v4 to i160
     v6 = zext i160 v5 to i256
-    v7 = checked_add u256, v3, v6
+    v7 = checked_add uint256, v3, v6
     v8 = insert_value struct0, undef struct0, 0, v7
     v9 = insert_value struct0, v8, 1, i128 0
     v10 = insert_value struct0, v9, 2, 0
@@ -48,114 +48,102 @@ fn @consume(arg0: slice<calldata>) -> struct0 [selector=0x353abfa4, view, abi_pa
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize CallTarget_creation_code_0
-    v2 = datasize CallTarget_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy CallTarget_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize CallTarget_creation_code_0
+    v1 = fmp
+    datacopy CallTarget_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = sload 0 !metadata(storage=slot(0))
-    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = and v9, v10
-    v12 = zext i160 v7 to i256
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = or v11, v13
-    sstore 0, v14 !metadata(storage=slot(0))
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = and v4, v5
+    v7 = zext i160 v2 to i256
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = or v6, v8
+    sstore 0, v9 !metadata(storage=slot(0))
     ret
 }
 
-fn @castCallOperands(arg0: i1) -> i256 [selector=0x8ac59a7e, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @castCallOperands(arg0: i1) -> i256 [selector=0x8ac59a7e, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
-    v2 = abi_encode []
-    v3 = datasize CallTarget_creation_code_0
-    v4 = datasize CallTarget_creation_code_0, 31, aligned
-    v5 = alloc v4
-    datacopy CallTarget_creation_code_0, v5, v3
-    v6 = extract_value slice<memory>, v2, 0
-    v7 = ptrtoint ptr<memory> v5 to i256
-    v8 = add v7, v3
-    mcopy v8, v6, 0 !metadata(memory=heap)
-    v9 = create 0, v5, v3
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
+    v2 = datasize CallTarget_creation_code_0
+    v3 = fmp
+    datacopy CallTarget_creation_code_0, v3, v2
+    v4 = create 0, v3, v2
+    v5 = ne v4, i160 0
+    jumpi v5, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = lt v1, v9
-    jumpi v11, bb3, bb4
+    v6 = lt v1, v4
+    jumpi v6, bb3, bb4
   bb4:
     jump bb5
   bb3:
     jump bb5
   bb5:
-    v12 = phi [bb3: v1], [bb4: v9]
-    v13 = phi [bb3: v9], [bb4: v1]
-    v14 = mapping_slot 0, 1
-    v15 = sload v14 !metadata(storage=symbolic(v14))
-    v16 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v17 = and v15, v16
-    v18 = and 3, 0xffffffffffffffffffffffffffffffffffffffff
-    v19 = or v17, v18
-    sstore v14, v19 !metadata(storage=symbolic(v14))
-    v20 = add v14, 1
-    v21 = sload v20 !metadata(storage=offset(v14, 1))
-    v22 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v23 = and v21, v22
-    v24 = and 5, 0xffffffffffffffffffffffffffffffffffffffff
-    v25 = or v23, v24
-    sstore v20, v25 !metadata(storage=offset(v14, 1))
-    v26 = add v14, 1
-    v27 = shl 160, 0xffffff
-    v28 = sload v26 !metadata(storage=offset(v14, 1))
-    v29 = not v27
-    v30 = and v28, v29
-    v31 = and 0xfffffe, 0xffffff
-    v32 = shl 160, v31
-    v33 = or v30, v32
-    sstore v26, v33 !metadata(storage=offset(v14, 1))
-    v34 = add v14, 1
-    v35 = shl 184, 0xffffff
-    v36 = sload v34 !metadata(storage=offset(v14, 1))
-    v37 = not v35
-    v38 = and v36, v37
-    v39 = and 4, 0xffffff
-    v40 = shl 184, v39
-    v41 = or v38, v40
-    sstore v34, v41 !metadata(storage=offset(v14, 1))
-    v42 = add v14, 2
-    sstore v42, 7 !metadata(storage=offset(v14, 2))
-    v43 = add v14, 3
-    sstore v43, 11 !metadata(storage=offset(v14, 3))
+    v7 = phi [bb3: v1], [bb4: v4]
+    v8 = phi [bb3: v4], [bb4: v1]
+    v9 = mapping_slot 0, 1
+    v10 = sload v9 !metadata(storage=symbolic(v9))
+    v11 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v12 = and v10, v11
+    v13 = and 3, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = or v12, v13
+    sstore v9, v14 !metadata(storage=symbolic(v9))
+    v15 = add v9, 1
+    v16 = sload v15 !metadata(storage=offset(v9, 1))
+    v17 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v18 = and v16, v17
+    v19 = and 5, 0xffffffffffffffffffffffffffffffffffffffff
+    v20 = or v18, v19
+    sstore v15, v20 !metadata(storage=offset(v9, 1))
+    v21 = add v9, 1
+    v22 = shl 0xffffff, 160
+    v23 = sload v21 !metadata(storage=offset(v9, 1))
+    v24 = not v22
+    v25 = and v23, v24
+    v26 = and 0xfffffe, 0xffffff
+    v27 = shl v26, 160
+    v28 = or v25, v27
+    sstore v21, v28 !metadata(storage=offset(v9, 1))
+    v29 = add v9, 1
+    v30 = shl 0xffffff, 184
+    v31 = sload v29 !metadata(storage=offset(v9, 1))
+    v32 = not v30
+    v33 = and v31, v32
+    v34 = and 4, 0xffffff
+    v35 = shl v34, 184
+    v36 = or v33, v35
+    sstore v29, v36 !metadata(storage=offset(v9, 1))
+    v37 = add v9, 2
+    sstore v37, 7 !metadata(storage=offset(v9, 2))
+    v38 = add v9, 3
+    sstore v38, 11 !metadata(storage=offset(v9, 3))
     jumpi arg0, bb6, bb7
   bb7:
     jump bb8
   bb6:
     jump bb8
   bb8:
-    v44 = phi [bb6: v13], [bb7: v12]
+    v39 = phi [bb6: v8], [bb7: v7]
     jumpi arg0, bb9, bb10
   bb10:
     jump bb11
   bb9:
     jump bb11
   bb11:
-    v45 = phi [bb9: v12], [bb10: v13]
-    icall @invokeWideCall, v44, v45, 0
-    v46 = zext i160 v44 to i256
-    v47 = mapping_slot v46, 2
-    v48 = sload v47 !metadata(storage=symbolic(v47))
-    ret v48
+    v40 = phi [bb9: v7], [bb10: v8]
+    icall @invokeWideCall, v39, v40, 0
+    v41 = zext i160 v39 to i256
+    v42 = mapping_slot v41, 2
+    v43 = sload v42 !metadata(storage=symbolic(v42))
+    ret v43
 }
 
 fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
@@ -174,13 +162,13 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     mstore v9, v8
     v10 = add v0, 1
     v11 = sload v10 !metadata(storage=offset(v0, 1))
-    v12 = shr 160, v11
+    v12 = shr v11, 160
     v13 = signextend 2, v12
     v14 = ptradd v1, 64
     mstore v14, v13
     v15 = add v0, 1
     v16 = sload v15 !metadata(storage=offset(v0, 1))
-    v17 = shr 184, v16
+    v17 = shr v16, 184
     v18 = signextend 2, v17
     v19 = ptradd v1, 96
     mstore v19, v18
@@ -211,7 +199,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v30 = sload 0 !metadata(storage=slot(0))
     v31 = trunc i256 v30 to i160
     v32 = zext i160 v31 to i256
-    v33 = abi_encode [word<u160>, word], selector 0xcd67571c00000000000000000000000000000000000000000000000000000000, args v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v33 = abi_encode [word<uint160>, word], scratch, selector 0xcd67571c00000000000000000000000000000000000000000000000000000000, args v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v34 = extract_value slice<memory>, v33, 0
     v35 = extract_value slice<memory>, v33, 1
     v36 = zext i160 v27 to i256
@@ -232,7 +220,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v45 = sload 0 !metadata(storage=slot(0))
     v46 = trunc i256 v45 to i160
     v47 = zext i160 v46 to i256
-    v48 = abi_encode [word<u160>, word], selector 0xcd67571c00000000000000000000000000000000000000000000000000000000, args v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v48 = abi_encode [word<uint160>, word], scratch, selector 0xcd67571c00000000000000000000000000000000000000000000000000000000, args v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v49 = extract_value slice<memory>, v48, 0
     v50 = extract_value slice<memory>, v48, 1
     v51 = zext i160 v28 to i256
@@ -268,11 +256,11 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v73 = ptradd v1, 96
     v74 = mload v73
     v75 = trunc i256 v74 to i24
-    v76 = checked_sub i24, i24 0, v75
+    v76 = checked_sub int24, i24 0, v75
     v77 = ptradd v1, 64
     v78 = mload v77
     v79 = trunc i256 v78 to i24
-    v80 = checked_sub i24, i24 0, v79
+    v80 = checked_sub int24, i24 0, v79
     jump bb16
   bb14:
     v67 = ptradd v1, 64
@@ -311,7 +299,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v94 = zext i160 v27 to i256
     v95 = zext i160 v28 to i256
     v96 = zext i160 v66 to i256
-    v97 = abi_encode [word<u160>, word<u160>, word<u24>, word<u160>], selector 0xe235109200000000000000000000000000000000000000000000000000000000, args v94, v95, 0x2710, v96
+    v97 = abi_encode [word<uint160>, word<uint160>, word<uint24>, word<uint160>], scratch, selector 0xe235109200000000000000000000000000000000000000000000000000000000, args v94, v95, 0x2710, v96
     v98 = extract_value slice<memory>, v97, 0
     v99 = extract_value slice<memory>, v97, 1
     v100 = zext i160 v60 to i256
@@ -325,7 +313,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     icall revert_if<tuple_data_too_short>, v103
     v104 = add 0, 0
     v105 = mload v104
-    v106 = shr 160, v105
+    v106 = shr v105, 160
     v107 = eq v106, 0
     v108 = eq v107, false
     icall revert_if<empty>, v108
@@ -346,7 +334,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     mstore v118, v87
     v119 = ptradd v110, 160
     mstore v119, v92
-    v120 = abi_encode [tuple<word<u160>, word<u160>, word<i24>, word<i24>, word, word>], selector 0x353abfa400000000000000000000000000000000000000000000000000000000, args v110
+    v120 = abi_encode [tuple<word<uint160>, word<uint160>, word<int24>, word<int24>, word, word>], selector 0x353abfa400000000000000000000000000000000000000000000000000000000, args v110
     v121 = extract_value slice<memory>, v120, 0
     v122 = extract_value slice<memory>, v120, 1
     v123 = zext i160 v60 to i256
@@ -364,7 +352,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v130 = ptrtoint ptr<memory> v121 to i256
     v131 = add v130, 32
     v132 = mload v131
-    v133 = shr 128, v132
+    v133 = shr v132, 128
     v134 = eq v133, 0
     v135 = eq v134, false
     icall revert_if<empty>, v135

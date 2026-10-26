@@ -9,10 +9,6 @@ use solar_interface::diagnostics::ErrorGuaranteed;
 
 const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
 
-/// Default structs with fewer value fields than this are built inline. A heuristic: one allocation
-/// and a few stores usually cost less than calling a shared constructor.
-const MIN_SHARED_DEFAULT_STRUCT_FIELDS: usize = 4;
-
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_array(
         &mut self,
@@ -63,64 +59,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.memory_store_field(object, index as u64, value);
         }
         Some(object)
-    }
-
-    pub(super) fn materialize_array_element(
-        &mut self,
-        object: ValueId,
-        layout: MemoryObjectLayout,
-        index: ValueId,
-        element: Ty<'gcx>,
-        value: ValueId,
-    ) -> Option<ValueId> {
-        // value = inttoptr value to ptr<memory>
-        let value = self.builder.cast(value, MirType::MEMPTR);
-        let zero = self.builder.imm(U256::ZERO);
-        let is_null = self.builder.eq(value, zero);
-        let preheader = self.builder.current_block();
-        let allocate = self.builder.create_block();
-        let merge = self.builder.create_block();
-        // if value == 0 { allocated = default_object(element) or icall @default_struct_N }
-        self.builder.branch(is_null, allocate, merge);
-
-        self.builder.switch_to_block(allocate);
-        let allocated = self.default_element_object(element)?;
-        self.builder.memory_store_element(object, layout, index, allocated);
-        let allocation_block = self.builder.current_block();
-        self.builder.jump(merge);
-
-        // value = phi(value, allocated)
-        self.builder.switch_to_block(merge);
-        Some(self.builder.phi(vec![(preheader, value), (allocation_block, allocated)]))
-    }
-
-    /// Allocates the default object of an array element that was never assigned.
-    ///
-    /// Every read of a struct element can reach this path, so structs share one constructor
-    /// instead of repeating it at each read.
-    fn default_element_object(&mut self, element: Ty<'gcx>) -> Option<ValueId> {
-        let TyKind::Struct(id) = element.peel_refs().kind else {
-            return self.default_object(element);
-        };
-        let fields = self.cx.gcx.hir.strukt(id).fields;
-        let small = fields.len() < MIN_SHARED_DEFAULT_STRUCT_FIELDS
-            && fields
-                .iter()
-                .all(|&field| self.cx.gcx.type_of_item(field.into()).peel_refs().is_value_type());
-        if small {
-            return self.default_object(element);
-        }
-        // fn @default_struct_N() -> ptr<memory> { object = default(Struct); ret object }
-        let helper =
-            self.lazy_helper(helper_name(sym::default_struct, id.index()), |this, function| {
-                let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-                let object = lowerer.default_object(element)?;
-                lowerer.builder.set_return_type(MirType::MEMPTR);
-                lowerer.builder.ret([object]);
-                Some(())
-            })?;
-        // object = icall @default_struct_N
-        Some(self.builder.icall(helper, Vec::new(), MirType::MEMPTR))
     }
 
     pub(super) fn lower_struct_constructor(

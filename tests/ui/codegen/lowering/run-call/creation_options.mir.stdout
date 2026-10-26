@@ -8,34 +8,21 @@
 
 fn @sameShortLiteralSalt() -> i1 [selector=0xae55518d, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize CreationOptionsChild_creation_code_0
-    v2 = datasize CreationOptionsChild_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy CreationOptionsChild_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7: i256 = create2 0, v3, v1, 0x78797a0000000000000000000000000000000000000000000000000000000000
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v0 = datasize CreationOptionsChild_creation_code_0
+    v1 = fmp
+    datacopy CreationOptionsChild_creation_code_0, v1, v0
+    v2: i256 = create2 0, v1, v0, 0x78797a0000000000000000000000000000000000000000000000000000000000
+    v3 = ne v2, 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = abi_encode []
-    v10 = datasize CreationOptionsChild_creation_code_0
-    v11 = datasize CreationOptionsChild_creation_code_0, 31, aligned
-    v12 = alloc v11
-    datacopy CreationOptionsChild_creation_code_0, v12, v10
-    v13 = extract_value slice<memory>, v9, 0
-    v14 = ptrtoint ptr<memory> v12 to i256
-    v15 = add v14, v10
-    mcopy v15, v13, 0 !metadata(memory=heap)
-    v16: i256 = create2 0, v12, v10, 0x78797a0000000000000000000000000000000000000000000000000000000000
-    v17 = eq v16, 0
-    v18 = eq v17, false
-    jumpi v18, bb3, bb4
+    v4 = datasize CreationOptionsChild_creation_code_0
+    v5 = fmp
+    datacopy CreationOptionsChild_creation_code_0, v5, v4
+    v6: i256 = create2 0, v5, v4, 0x78797a0000000000000000000000000000000000000000000000000000000000
+    v7 = ne v6, 0
+    jumpi v7, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
@@ -51,34 +38,21 @@ fn @sameShortLiteralSalt() -> i1 [selector=0xae55518d, abi_params=[], abi_return
 
 fn @sameEmptyLiteralSalt() -> i1 [selector=0x01dd6ed9, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize CreationOptionsChild_creation_code_0
-    v2 = datasize CreationOptionsChild_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy CreationOptionsChild_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7: i256 = create2 0, v3, v1, 0
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v0 = datasize CreationOptionsChild_creation_code_0
+    v1 = fmp
+    datacopy CreationOptionsChild_creation_code_0, v1, v0
+    v2: i256 = create2 0, v1, v0, 0
+    v3 = ne v2, 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = abi_encode []
-    v10 = datasize CreationOptionsChild_creation_code_0
-    v11 = datasize CreationOptionsChild_creation_code_0, 31, aligned
-    v12 = alloc v11
-    datacopy CreationOptionsChild_creation_code_0, v12, v10
-    v13 = extract_value slice<memory>, v9, 0
-    v14 = ptrtoint ptr<memory> v12 to i256
-    v15 = add v14, v10
-    mcopy v15, v13, 0 !metadata(memory=heap)
-    v16: i256 = create2 0, v12, v10, 0
-    v17 = eq v16, 0
-    v18 = eq v17, false
-    jumpi v18, bb3, bb4
+    v4 = datasize CreationOptionsChild_creation_code_0
+    v5 = fmp
+    datacopy CreationOptionsChild_creation_code_0, v5, v4
+    v6: i256 = create2 0, v5, v4, 0
+    v7 = ne v6, 0
+    jumpi v7, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
@@ -94,34 +68,21 @@ fn @sameEmptyLiteralSalt() -> i1 [selector=0x01dd6ed9, abi_params=[], abi_return
 
 fn @sameFullLiteralSalt() -> i1 [selector=0xaf96a2f0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize CreationOptionsChild_creation_code_0
-    v2 = datasize CreationOptionsChild_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy CreationOptionsChild_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7: i256 = create2 0, v3, v1, 0x3132333435363738393031323334353637383930313233343536373839303132
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v0 = datasize CreationOptionsChild_creation_code_0
+    v1 = fmp
+    datacopy CreationOptionsChild_creation_code_0, v1, v0
+    v2: i256 = create2 0, v1, v0, 0x3132333435363738393031323334353637383930313233343536373839303132
+    v3 = ne v2, 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = abi_encode []
-    v10 = datasize CreationOptionsChild_creation_code_0
-    v11 = datasize CreationOptionsChild_creation_code_0, 31, aligned
-    v12 = alloc v11
-    datacopy CreationOptionsChild_creation_code_0, v12, v10
-    v13 = extract_value slice<memory>, v9, 0
-    v14 = ptrtoint ptr<memory> v12 to i256
-    v15 = add v14, v10
-    mcopy v15, v13, 0 !metadata(memory=heap)
-    v16: i256 = create2 0, v12, v10, 0x3132333435363738393031323334353637383930313233343536373839303132
-    v17 = eq v16, 0
-    v18 = eq v17, false
-    jumpi v18, bb3, bb4
+    v4 = datasize CreationOptionsChild_creation_code_0
+    v5 = fmp
+    datacopy CreationOptionsChild_creation_code_0, v5, v4
+    v6: i256 = create2 0, v5, v4, 0x3132333435363738393031323334353637383930313233343536373839303132
+    v7 = ne v6, 0
+    jumpi v7, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
@@ -137,38 +98,26 @@ fn @sameFullLiteralSalt() -> i1 [selector=0xaf96a2f0, abi_params=[], abi_returns
 
 fn @differentLiteralSalts() -> i1 [selector=0x3109d26e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize CreationOptionsChild_creation_code_0
-    v2 = datasize CreationOptionsChild_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy CreationOptionsChild_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7: i256 = create2 0, v3, v1, 0x6162630000000000000000000000000000000000000000000000000000000000
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v0 = datasize CreationOptionsChild_creation_code_0
+    v1 = fmp
+    datacopy CreationOptionsChild_creation_code_0, v1, v0
+    v2: i256 = create2 0, v1, v0, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v3 = ne v2, 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = trunc i256 v7 to i160
-    v10 = abi_encode []
-    v11 = datasize CreationOptionsChild_creation_code_0
-    v12 = datasize CreationOptionsChild_creation_code_0, 31, aligned
-    v13 = alloc v12
-    datacopy CreationOptionsChild_creation_code_0, v13, v11
-    v14 = extract_value slice<memory>, v10, 0
-    v15 = ptrtoint ptr<memory> v13 to i256
-    v16 = add v15, v11
-    mcopy v16, v14, 0 !metadata(memory=heap)
-    v17: i256 = create2 0, v13, v11, 0x6465660000000000000000000000000000000000000000000000000000000000
-    v18 = ne v17, 0
-    jumpi v18, bb4, bb3
+    v4 = trunc i256 v2 to i160
+    v5 = datasize CreationOptionsChild_creation_code_0
+    v6 = fmp
+    datacopy CreationOptionsChild_creation_code_0, v6, v5
+    v7: i256 = create2 0, v6, v5, 0x6465660000000000000000000000000000000000000000000000000000000000
+    v8 = ne v7, 0
+    jumpi v8, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v19 = trunc i256 v17 to i160
-    v20 = ne v9, v19
-    ret v20
+    v9 = trunc i256 v7 to i160
+    v10 = ne v4, v9
+    ret v10
 }

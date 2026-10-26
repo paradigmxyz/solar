@@ -361,10 +361,7 @@ def run_engine(root, args, *, directory=None):
 
 
 def fuzz_campaign(root, args):
-    specs = args.compiler or [
-        "solc=solc --standard-json",
-        "solar=solar --standard-json",
-    ]
+    specs = args.compiler or corpus.DEFAULT_COMPILERS
     names = [corpus.parse_compiler_spec(spec)[0] for spec in specs]
     if len(set(names)) != len(names):
         raise ValueError("provide unique --compiler NAME='COMMAND ARGS' entries")

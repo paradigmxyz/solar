@@ -236,13 +236,16 @@ fn specialize_round(
         } else {
             old
         });
-        if after.bytes >= before.bytes || new.gas > old.gas || after.gas > before.gas {
+        if after.bytes >= before.bytes
+            || target.runtime_gas(new) > target.runtime_gas(old)
+            || target.runtime_gas(after) > target.runtime_gas(before)
+        {
             continue;
         }
 
         let mut candidate = candidate.clone();
-        // Keep one shared body through subsequent inlining passes.
-        candidate.attributes.no_inline = true;
+        // Keep sharing when a clone would exceed the call protocol it removes.
+        candidate.attributes.no_inline = new.bytes > new_call.bytes;
         let specialized = if all_calls {
             module.functions[callee] = candidate;
             callee

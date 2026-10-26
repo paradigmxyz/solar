@@ -53,7 +53,7 @@ fn @pairHash(arg0: i1) -> i256 [selector=0x7e8b97e2, pure, abi_params=[bool], ab
     ret v5
 }
 
-fn @tuple(arg0: i1) -> struct0 [selector=0xea8ca604, pure, abi_params=[bool], abi_returns=[memory_bytes, word], abi_return_params=[bytes, u256]] {
+fn @tuple(arg0: i1) -> struct0 [selector=0xea8ca604, pure, abi_params=[bool], abi_returns=[memory_bytes, word], abi_return_params=[bytes, uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -71,7 +71,7 @@ fn @tuple(arg0: i1) -> struct0 [selector=0xea8ca604, pure, abi_params=[bool], ab
     ret v6
 }
 
-fn @discarded(arg0: i1) -> i256 [selector=0xa9c2e0b6, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @discarded(arg0: i1) -> i256 [selector=0xa9c2e0b6, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:

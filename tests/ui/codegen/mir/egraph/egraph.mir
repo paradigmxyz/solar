@@ -32,7 +32,7 @@ fn @value_numbering(arg0: i256, arg1: i256) -> i256 {
 // multiplication by a power of two becomes a shift, and an offset of an
 // offset becomes one addition with a folded constant.
 // CHECK-LABEL: {{^[ +].*}}fn @cheapest_node{{[( ]}}
-// CHECK: {{^[ +].*}}[[SHL:v[0-9]+]] = shl 3, arg0
+// CHECK: {{^[ +].*}}[[SHL:v[0-9]+]] = shl arg0, 3
 // CHECK: {{^[ +].*}}[[OFF:v[0-9]+]] = add arg0, 9
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = add [[SHL]], [[OFF]]
 fn @cheapest_node(arg0: i256) -> i256 {

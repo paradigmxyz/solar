@@ -1,0 +1,165 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/assembly_dirty_immutables.sol:AssemblyDirtyImmutables ===
+@module AssemblyDirtyImmutables
+@immutables
+  id: bytes4
+  flag: uint256
+  owner: uint256
+  small: uint8
+  wrapped: bytes4
+
+fn @id() -> i256 [selector=0xaf640d0f, view, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+  bb0:
+    v0 = loadimmutable id
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v1
+}
+
+fn @flag() -> i256 [selector=0x890eba68, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = loadimmutable flag
+    ret v0
+}
+
+fn @owner() -> i256 [selector=0x8da5cb5b, view, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
+  bb0:
+    v0 = loadimmutable owner
+    ret v0
+}
+
+fn @small() -> i256 [selector=0x6cf3c25e, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
+  bb0:
+    v0 = loadimmutable small
+    v1 = zext i8 v0 to i256
+    ret v1
+}
+
+fn @wrapped() -> i256 [selector=0x50e70d48, view, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+  bb0:
+    v0 = loadimmutable wrapped
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v1
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = not 0
+    v1 = not 0
+    v2 = not 0
+    storeimmutable id, v0
+    storeimmutable flag, 256
+    storeimmutable owner, v1
+    storeimmutable small, i8 255
+    storeimmutable wrapped, v2
+    ret
+}
+
+fn @unwrapped() -> i1 [selector=0x52e7751f, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = loadimmutable wrapped
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v2 = eq v1, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v2
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/assembly_dirty_immutables.sol:Stored ===
+@module Stored
+@immutables
+  stored: bytes4
+  storedWrapped: bytes4
+
+fn @stored() -> i256 [selector=0xe582dd31, view, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+  bb0:
+    v0 = loadimmutable stored
+    ret v0
+}
+
+fn @storedWrapped() -> i256 [selector=0x5863c7b1, view, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+  bb0:
+    v0 = loadimmutable storedWrapped
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @internal_dispatcher_asm_p_uint256_r_bytes4, 1, 0
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    storeimmutable stored, v1
+    v2 = icall @internal_dispatcher_asm_p_uint256_r_bytes4, 1, 0
+    v3 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    storeimmutable storedWrapped, v3
+    ret
+}
+
+fn @full(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+}
+
+fn @internal_dispatcher_asm_p_uint256_r_bytes4(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 1
+    jumpi v0, bb1, bb2
+  bb2:
+    icall panic_if<0x51>, true
+    invalid
+  bb1:
+    v1 = icall @full, arg1
+    ret v1
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/assembly_dirty_immutables.sol:Loop ===
+@module Loop
+@immutables
+  looped: bytes4
+
+fn @looped() -> i256 [selector=0x2e6dedb7, view, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+  bb0:
+    v0 = loadimmutable looped
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @internal_dispatcher_asm_p_uint256_r_bytes4, 1, 0
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 1], [bb3: v1]
+    v2 = phi [bb0: 1], [bb3: v2]
+    v3 = phi [bb0: v0], [bb3: v5]
+    v4 = phi [bb0: v0], [bb3: v3]
+    v5 = phi [bb0: v0], [bb3: v4]
+    v6 = phi [bb0: v0], [bb3: v5]
+    v7 = phi [bb0: 0], [bb3: v9]
+    v8 = lt v7, 3
+    jumpi v8, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v10 = and v3, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    storeimmutable looped, v10
+    ret
+  bb4:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v9 = checked_add uint256, v7, 1
+    jump bb1
+}
+
+fn @full(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+}
+
+fn @internal_dispatcher_asm_p_uint256_r_bytes4(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 1
+    jumpi v0, bb1, bb2
+  bb2:
+    icall panic_if<0x51>, true
+    invalid
+  bb1:
+    v1 = icall @full, arg1
+    ret v1
+}

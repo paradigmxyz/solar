@@ -131,11 +131,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         for func_id in info.internal.iter() {
             let Some(plan) = plans[func_id].take() else { continue };
             let func = &module.functions[func_id];
+            self.asm.repeating_code = info.repeated.contains(func_id);
             self.asm.define_label(self.function_labels[&func_id]);
             self.mark_debug_function_invoke(func);
             self.body = Body::Internal(func_id);
             self.emit_stackified_body(func_id, func, plan);
         }
+        self.asm.repeating_code = false;
         self.body = Body::External;
     }
 
@@ -201,9 +203,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut order = self.block_layout_order(func, &cfg);
         order.retain(|block| !forward.contains_key(block));
         let mut trampolines = Vec::new();
+        // The continuations and trampolines of a block in a loop of creation code may run as often
+        // as the block, but only the labels of MIR blocks are marked as loop labels.
+        let repeating = self.asm.repeating_code;
+        let in_loop = |codegen: &Self, block| codegen.in_constructor && loop_blocks.contains(block);
         for (pos, &block) in order.iter().enumerate() {
             let Some(block_plan) = plan.blocks[block].as_ref() else { continue };
             let next = order.get(pos + 1).copied();
+            self.asm.repeating_code = repeating || in_loop(self, block);
             if !func.blocks[block].predecessors.is_empty() {
                 self.asm.define_label(self.block_labels[&block]);
             }
@@ -230,6 +237,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         for (label, steps, target, source) in trampolines {
+            self.asm.repeating_code = repeating || in_loop(self, source);
             self.asm.define_label(label);
             self.set_terminator_origin(func, source);
             for step in &steps {
@@ -237,6 +245,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             self.emit_stackified_jump(target, None);
         }
+        self.asm.repeating_code = repeating;
         if self.capture_debug_info {
             self.asm.set_source_span(None);
             self.asm.set_modifier_depth(0);
@@ -379,9 +388,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             Step::Filler => self.asm.emit_push(U256::ZERO),
             Step::Begin(inst) => {
                 if self.capture_debug_info {
-                    let metadata = &func.inst(inst).metadata;
-                    self.asm.set_source_spans(metadata.source_spans());
-                    self.asm.set_modifier_depth(metadata.modifier_depth());
+                    if let Some(inst) = inst {
+                        let metadata = &func.inst(inst).metadata;
+                        self.asm.set_source_spans(metadata.source_spans());
+                        self.asm.set_modifier_depth(metadata.modifier_depth());
+                    } else {
+                        // NOTE: A retained constant has no single source consumer.
+                        self.asm.set_source_span(None);
+                        self.asm.set_modifier_depth(0);
+                    }
                 }
             }
             Step::Op(opcode) => self.asm.emit_op(opcode),

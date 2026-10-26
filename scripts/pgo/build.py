@@ -104,11 +104,6 @@ def main() -> None:
     environment = os.environ.copy()
     environment["CARGO_INCREMENTAL"] = "0"
     environment["RUSTFLAGS"] = target_rustflags(target, environment.get("RUSTFLAGS"))
-    if target.endswith("-apple-darwin"):
-        for variable in ("CFLAGS", "CXXFLAGS"):
-            environment[variable] = append_flags(
-                environment.get(variable), "-fno-profile-generate -fno-profile-use"
-            )
 
     profile = "dev" if args.debug else "dist"
     profile_directory = "debug" if profile == "dev" else profile

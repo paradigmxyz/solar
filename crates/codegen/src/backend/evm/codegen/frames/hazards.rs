@@ -169,7 +169,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         match address.base {
             MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
-            | MemoryBase::InternalFrame => false,
+            | MemoryBase::InternalFrame
+            | MemoryBase::FreeMemory(_) => false,
             MemoryBase::Absolute => address.offset < LOW_MEMORY_BOUND,
             MemoryBase::Value(value) => {
                 let mut visiting = DenseBitSet::new_empty(func.num_values());
@@ -402,9 +403,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         provenance
     }
 
-    /// Returns whether a function can read, write, or observe the reserved free-memory-pointer
-    /// word. Unknown offsets and lengths are conservatively overlapping; constant ranges proven
-    /// disjoint from `[0x40, 0x60)` keep the lazy entry initialization optimization.
+    /// Returns whether a function can read or observe the reserved free-memory-pointer word, or
+    /// write part of it. Unknown offsets and lengths are conservatively overlapping; constant
+    /// ranges proven disjoint from `[0x40, 0x60)` keep the lazy entry initialization optimization.
+    /// A full-word store to the slot overwrites the initialization without observing it, and a
+    /// `revert` or `return` range in the block of such a store reads the stored word.
     pub(in crate::backend::evm::codegen) fn function_may_observe_free_memory_slot(
         func: &Function,
     ) -> bool {
@@ -418,6 +421,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             Self::constant_memory_range_may_overlap_fmp(func.value_u64(offset), Some(size))
         };
         if func.instructions().any(|inst_id| match &func.inst(inst_id).kind {
+            InstKind::Store(..) if func.is_fmp_slot_store(inst_id) => false,
             InstKind::Load(offset, PtrLocation::Memory)
             | InstKind::Store(offset, _, PtrLocation::Memory) => {
                 overlaps_const(*offset, EvmMemoryLayout::WORD_SIZE)
@@ -442,14 +446,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 overlaps(*offset, *size)
             }
             InstKind::Log { offset, size, .. } => overlaps(*offset, *size),
-            InstKind::MSize | InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. } => true,
+            InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. } => true,
             // These semantic memory operations are normally gone by the `lowered` phase. If
             // one remains, its complete accessed range is not represented as physical operands
             // here, so retain the Solidity memory invariant conservatively.
-            InstKind::AbiEncode { .. }
-            | InstKind::StorageToMemory { .. }
-            | InstKind::MemoryToStorage { .. }
-            | InstKind::MappingSlotBytes(_, _) => true,
+            InstKind::AbiEncode { .. } | InstKind::MappingSlotBytes(_, _) => true,
             _ => false,
         }) {
             return true;
@@ -457,7 +458,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         func.blocks.iter().any(|block| match block.terminator.as_ref() {
             Some(Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size }) => {
-                overlaps(*offset, *size)
+                overlaps(*offset, *size) && !func.block_stores_fmp_slot(block)
             }
             _ => false,
         })

@@ -12,7 +12,7 @@ contract EventEncoding {
     event NamedEvent(uint256 a, uint256 b);
 
     // CHECK-LABEL: fn @emitArray
-    // CHECK: [[ARRAY_ENCODED:v[0-9]+]] = abi_encode [array<2, word>], args
+    // CHECK: [[ARRAY_ENCODED:v[0-9]+]] = abi_encode [array<2, word>], scratch, args
     // CHECK: [[ARRAY_PTR:v[0-9]+]] = extract_value slice<memory>, [[ARRAY_ENCODED]], 0
     // CHECK: [[ARRAY_LEN:v[0-9]+]] = extract_value slice<memory>, [[ARRAY_ENCODED]], 1
     // CHECK: log [[ARRAY_PTR]], [[ARRAY_LEN]], 0x625921711aa49386aa5b640487cbc3efdcbda2656254ae2c5ad71b2ede1efcf4
@@ -56,7 +56,7 @@ contract EventEncoding {
 
     // CHECK-LABEL: fn @emitIndexedExternalFunction
     // CHECK: [[POINTER:v[0-9]+]] = or
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl 64, [[POINTER]]
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl [[POINTER]], 64
     // CHECK: log 0, 0, {{[^,]+}}, [[SHIFTED]]
     function emitIndexedExternalFunction() external {
         emit IndexedExternalFunction(this.target);
@@ -65,10 +65,9 @@ contract EventEncoding {
     function target() external {}
 
     // CHECK-LABEL: fn @emitNamed
-    // CHECK: [[NAMED_ENCODED:v[0-9]+]] = abi_encode [word, word], args 1, 2
-    // CHECK: [[NAMED_PTR:v[0-9]+]] = extract_value slice<memory>, [[NAMED_ENCODED]], 0
-    // CHECK: [[NAMED_LEN:v[0-9]+]] = extract_value slice<memory>, [[NAMED_ENCODED]], 1
-    // CHECK: log [[NAMED_PTR]], [[NAMED_LEN]],
+    // CHECK: mstore 0, 1
+    // CHECK-NEXT: mstore 32, 2
+    // CHECK-NEXT: log 0, 64,
     function emitNamed() external {
         emit NamedEvent({b: 2, a: 1});
     }

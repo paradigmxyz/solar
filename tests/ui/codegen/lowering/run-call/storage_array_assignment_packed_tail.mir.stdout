@@ -25,7 +25,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 32
     mstore v0, 0
@@ -63,12 +63,12 @@ fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word
     v49 = and v48, 0xffffffff
     sstore v47, v49 !metadata(storage=symbolic(v46))
     v50 = mul v8, 8
-    v51 = shl v50, 0xffffffff
+    v51 = shl 0xffffffff, v50
     v52 = sload v6 !metadata(storage=symbolic(v6))
     v53 = not v51
     v54 = and v52, v53
     v55 = and 4, 0xffffffff
-    v56 = shl v50, v55
+    v56 = shl v55, v50
     v57 = or v54, v56
     sstore v6, v57 !metadata(storage=symbolic(v6))
     v58 = alloc 32
@@ -118,12 +118,12 @@ fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word
     v115 = mul v114, 4
     v116 = sload v113 !metadata(storage=symbolic(v113))
     v117 = mul v115, 8
-    v118 = shr v117, v116
+    v118 = shr v116, v117
     v119 = trunc i256 v118 to i32
     v120 = zext i32 v119 to i256
     ret v120
   bb15:
-    v79 = shl 5, v77
+    v79 = shl v77, 5
     v80 = ptradd v58, v79
     v81 = mload v80
     v82 = storage_array_data_slot 0
@@ -132,12 +132,12 @@ fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word
     v85 = mod v77, 8
     v86 = mul v85, 4
     v87 = mul v86, 8
-    v88 = shl v87, 0xffffffff
+    v88 = shl 0xffffffff, v87
     v89 = sload v84 !metadata(storage=symbolic(v84))
     v90 = not v88
     v91 = and v89, v90
     v92 = and v81, 0xffffffff
-    v93 = shl v87, v92
+    v93 = shl v92, v87
     v94 = or v91, v93
     sstore v84, v94 !metadata(storage=symbolic(v84))
     v95 = add v77, 1
@@ -149,18 +149,18 @@ fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word
     v66 = mod v61, 8
     v67 = mul v66, 4
     v68 = mul v67, 8
-    v69 = shl v68, 0xffffffff
+    v69 = shl 0xffffffff, v68
     v70 = sload v65 !metadata(storage=symbolic(v65))
     v71 = not v69
     v72 = and v70, v71
     v73 = and 0, 0xffffffff
-    v74 = shl v68, v73
+    v74 = shl v73, v68
     v75 = or v72, v74
     sstore v65, v75 !metadata(storage=symbolic(v65))
     v76 = add v61, 1
     jump bb11
   bb7:
-    v29 = shl 5, v27
+    v29 = shl v27, 5
     v30 = ptradd v0, v29
     v31 = mload v30
     v32 = storage_array_data_slot 0
@@ -169,12 +169,12 @@ fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word
     v35 = mod v27, 8
     v36 = mul v35, 4
     v37 = mul v36, 8
-    v38 = shl v37, 0xffffffff
+    v38 = shl 0xffffffff, v37
     v39 = sload v34 !metadata(storage=symbolic(v34))
     v40 = not v38
     v41 = and v39, v40
     v42 = and v31, 0xffffffff
-    v43 = shl v37, v42
+    v43 = shl v42, v37
     v44 = or v41, v43
     sstore v34, v44 !metadata(storage=symbolic(v34))
     v45 = add v27, 1
@@ -186,27 +186,27 @@ fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word
     v16 = mod v11, 8
     v17 = mul v16, 4
     v18 = mul v17, 8
-    v19 = shl v18, 0xffffffff
+    v19 = shl 0xffffffff, v18
     v20 = sload v15 !metadata(storage=symbolic(v15))
     v21 = not v19
     v22 = and v20, v21
     v23 = and 0, 0xffffffff
-    v24 = shl v18, v23
+    v24 = shl v23, v18
     v25 = or v22, v24
     sstore v15, v25 !metadata(storage=symbolic(v15))
     v26 = add v11, 1
     jump bb3
 }
 
-fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     jump bb1
   bb1:
     v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: v0], [bb3: v14]
-    v3 = phi [bb0: 0], [bb3: v3]
-    v4 = gt v2, v1
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: v0], [bb3: v14]
+    v4 = gt v3, v1
     v5 = eq v4, false
     jumpi v5, bb4, bb5
   bb5:
@@ -262,13 +262,13 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], a
     v60 = lt v59, v40
     jumpi v60, bb13, bb14
   bb14:
-    v79 = shr 3, v40
+    v79 = shr v40, 3
     v80 = and v40, 7
     v81 = eq v80, 0
     jumpi v81, bb16, bb15
   bb15:
     v82 = mul v80, 32
-    v83 = shl v82, 1
+    v83 = shl 1, v82
     v84 = sub v83, 1
     v85 = storage_array_data_slot 0
     v86 = add v85, v79
@@ -278,12 +278,12 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], a
     jump bb16
   bb16:
     v89 = mul v39, 8
-    v90 = shl v89, 0xffffffff
+    v90 = shl 0xffffffff, v89
     v91 = sload v37 !metadata(storage=symbolic(v37))
     v92 = not v90
     v93 = and v91, v92
     v94 = and 4, 0xffffffff
-    v95 = shl v89, v94
+    v95 = shl v94, v89
     v96 = or v93, v95
     sstore v37, v96 !metadata(storage=symbolic(v37))
     v97 = mload v31
@@ -306,13 +306,13 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], a
     v117 = lt v116, v97
     jumpi v117, bb23, bb24
   bb24:
-    v136 = shr 3, v97
+    v136 = shr v97, 3
     v137 = and v97, 7
     v138 = eq v137, 0
     jumpi v138, bb26, bb25
   bb25:
     v139 = mul v137, 32
-    v140 = shl v139, 1
+    v140 = shl 1, v139
     v141 = sub v140, 1
     v142 = storage_array_data_slot 0
     v143 = add v142, v136
@@ -342,12 +342,12 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], a
     v161 = mul v160, 4
     v162 = sload v159 !metadata(storage=symbolic(v159))
     v163 = mul v161, 8
-    v164 = shr v163, v162
+    v164 = shr v162, v163
     v165 = trunc i256 v164 to i32
     v166 = zext i32 v165 to i256
     ret v166
   bb23:
-    v118 = shl 5, v116
+    v118 = shl v116, 5
     v119 = ptradd v31, v118
     v120 = ptradd v119, 32
     v121 = mload v120
@@ -357,12 +357,12 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], a
     v125 = mod v116, 8
     v126 = mul v125, 4
     v127 = mul v126, 8
-    v128 = shl v127, 0xffffffff
+    v128 = shl 0xffffffff, v127
     v129 = sload v124 !metadata(storage=symbolic(v124))
     v130 = not v128
     v131 = and v129, v130
     v132 = and v121, 0xffffffff
-    v133 = shl v127, v132
+    v133 = shl v132, v127
     v134 = or v131, v133
     sstore v124, v134 !metadata(storage=symbolic(v124))
     v135 = add v116, 1
@@ -374,18 +374,18 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], a
     v105 = mod v100, 8
     v106 = mul v105, 4
     v107 = mul v106, 8
-    v108 = shl v107, 0xffffffff
+    v108 = shl 0xffffffff, v107
     v109 = sload v104 !metadata(storage=symbolic(v104))
     v110 = not v108
     v111 = and v109, v110
     v112 = and 0, 0xffffffff
-    v113 = shl v107, v112
+    v113 = shl v112, v107
     v114 = or v111, v113
     sstore v104, v114 !metadata(storage=symbolic(v104))
     v115 = add v100, 1
     jump bb19
   bb13:
-    v61 = shl 5, v59
+    v61 = shl v59, 5
     v62 = ptradd v31, v61
     v63 = ptradd v62, 32
     v64 = mload v63
@@ -395,12 +395,12 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], a
     v68 = mod v59, 8
     v69 = mul v68, 4
     v70 = mul v69, 8
-    v71 = shl v70, 0xffffffff
+    v71 = shl 0xffffffff, v70
     v72 = sload v67 !metadata(storage=symbolic(v67))
     v73 = not v71
     v74 = and v72, v73
     v75 = and v64, 0xffffffff
-    v76 = shl v70, v75
+    v76 = shl v75, v70
     v77 = or v74, v76
     sstore v67, v77 !metadata(storage=symbolic(v67))
     v78 = add v59, 1
@@ -412,12 +412,12 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], a
     v48 = mod v43, 8
     v49 = mul v48, 4
     v50 = mul v49, 8
-    v51 = shl v50, 0xffffffff
+    v51 = shl 0xffffffff, v50
     v52 = sload v47 !metadata(storage=symbolic(v47))
     v53 = not v51
     v54 = and v52, v53
     v55 = and 0, 0xffffffff
-    v56 = shl v50, v55
+    v56 = shl v55, v50
     v57 = or v54, v56
     sstore v47, v57 !metadata(storage=symbolic(v47))
     v58 = add v43, 1
@@ -437,18 +437,18 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], a
   bb6:
     jump bb3
   bb3:
-    v14 = checked_add u256, v2, 1
+    v14 = checked_add uint256, v3, 1
     jump bb1
 }
 
-fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    v1 = phi [bb0: v0], [bb3: v12]
-    v2 = phi [bb0: 0], [bb3: v2]
-    v3 = lt v1, 9
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = phi [bb0: v0], [bb3: v12]
+    v3 = lt v2, 9
     jumpi v3, bb4, bb5
   bb5:
     jump bb2
@@ -484,12 +484,12 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
     jumpi v41, bb13, bb14
   bb14:
     v59 = mul v21, 8
-    v60 = shl v59, 0xffffffff
+    v60 = shl 0xffffffff, v59
     v61 = sload v19 !metadata(storage=symbolic(v19))
     v62 = not v60
     v63 = and v61, v62
     v64 = and 4, 0xffffffff
-    v65 = shl v59, v64
+    v65 = shl v64, v59
     v66 = or v63, v65
     sstore v19, v66 !metadata(storage=symbolic(v19))
     v67 = sload 0 !metadata(storage=slot(0))
@@ -532,12 +532,12 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
     v119 = mul v118, 4
     v120 = sload v117 !metadata(storage=symbolic(v117))
     v121 = mul v119, 8
-    v122 = shr v121, v120
+    v122 = shr v120, v121
     v123 = trunc i256 v122 to i32
     v124 = zext i32 v123 to i256
     ret v124
   bb21:
-    v87 = shl 5, v85
+    v87 = shl v85, 5
     v88 = ptradd v13, v87
     v89 = mload v88
     v90 = storage_array_data_slot 0
@@ -546,12 +546,12 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
     v93 = mod v85, 8
     v94 = mul v93, 4
     v95 = mul v94, 8
-    v96 = shl v95, 0xffffffff
+    v96 = shl 0xffffffff, v95
     v97 = sload v92 !metadata(storage=symbolic(v92))
     v98 = not v96
     v99 = and v97, v98
     v100 = and v89, 0xffffffff
-    v101 = shl v95, v100
+    v101 = shl v100, v95
     v102 = or v99, v101
     sstore v92, v102 !metadata(storage=symbolic(v92))
     v103 = add v85, 1
@@ -563,18 +563,18 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
     v74 = mod v69, 8
     v75 = mul v74, 4
     v76 = mul v75, 8
-    v77 = shl v76, 0xffffffff
+    v77 = shl 0xffffffff, v76
     v78 = sload v73 !metadata(storage=symbolic(v73))
     v79 = not v77
     v80 = and v78, v79
     v81 = and 0, 0xffffffff
-    v82 = shl v76, v81
+    v82 = shl v81, v76
     v83 = or v80, v82
     sstore v73, v83 !metadata(storage=symbolic(v73))
     v84 = add v69, 1
     jump bb17
   bb13:
-    v42 = shl 5, v40
+    v42 = shl v40, 5
     v43 = ptradd v13, v42
     v44 = mload v43
     v45 = storage_array_data_slot 0
@@ -583,12 +583,12 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
     v48 = mod v40, 8
     v49 = mul v48, 4
     v50 = mul v49, 8
-    v51 = shl v50, 0xffffffff
+    v51 = shl 0xffffffff, v50
     v52 = sload v47 !metadata(storage=symbolic(v47))
     v53 = not v51
     v54 = and v52, v53
     v55 = and v44, 0xffffffff
-    v56 = shl v50, v55
+    v56 = shl v55, v50
     v57 = or v54, v56
     sstore v47, v57 !metadata(storage=symbolic(v47))
     v58 = add v40, 1
@@ -600,12 +600,12 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
     v29 = mod v24, 8
     v30 = mul v29, 4
     v31 = mul v30, 8
-    v32 = shl v31, 0xffffffff
+    v32 = shl 0xffffffff, v31
     v33 = sload v28 !metadata(storage=symbolic(v28))
     v34 = not v32
     v35 = and v33, v34
     v36 = and 0, 0xffffffff
-    v37 = shl v31, v36
+    v37 = shl v36, v31
     v38 = or v35, v37
     sstore v28, v38 !metadata(storage=symbolic(v28))
     v39 = add v24, 1
@@ -625,6 +625,6 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
   bb6:
     jump bb3
   bb3:
-    v12 = checked_add u256, v1, 1
+    v12 = checked_add uint256, v2, 1
     jump bb1
 }

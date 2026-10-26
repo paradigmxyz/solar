@@ -119,9 +119,6 @@ pub(super) fn translate(module: &Module, base: u64) -> Module {
                     | InstKind::Alloc { .. }
                     | InstKind::AbiEncode { .. }
                     | InstKind::AbiDecode { .. }
-                    | InstKind::StorageToMemory { .. }
-                    | InstKind::MemoryToStorage { .. }
-                    | InstKind::ClearStorage { .. }
                     | InstKind::Load(
                         _,
                         PtrLocation::Calldata

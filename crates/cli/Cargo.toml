@@ -32,7 +32,7 @@ clap = { workspace = true, features = ["derive"] }
 indexmap = { workspace = true, features = ["serde"] }
 rayon.workspace = true
 serde = { workspace = true, features = ["derive"] }
-serde_json.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
 sha2.workspace = true
 semver.workspace = true
 

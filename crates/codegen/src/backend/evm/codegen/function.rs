@@ -15,7 +15,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// keep it live on the exit, so the backedge's phi inputs must not replace
     /// it before the branch. Rerouting such an edge through a fresh jump-only
     /// block gives those inputs a home after the predecessor's branch.
-    pub(super) fn split_phi_critical_edges(func: &mut Function) {
+    pub(super) fn split_phi_critical_edges(func: &mut Function) -> bool {
         let has_phis = func.blocks.iter().any(|block| {
             block
                 .instructions
@@ -23,7 +23,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .any(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
         });
         if !has_phis {
-            return;
+            return false;
         }
         // Only an edge from a block with other successors needs liveness.
         let liveness = LazyCell::new(|| Liveness::compute(func));
@@ -51,6 +51,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         drop(liveness);
 
+        let changed = !splits.is_empty();
         for (pred, succ) in splits {
             let edge = func.alloc_block();
             func.blocks[edge].terminator = Some(Terminator::Jump(succ));
@@ -97,6 +98,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
+        changed
     }
 
     /// Finds blocks that abort directly or can only reach other cold blocks.
@@ -137,20 +139,19 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// reachable exits all abort.
     fn block_aborts(&self, func: &Function, block_id: BlockId) -> bool {
         let block = &func.blocks[block_id];
-        matches!(
-            block.terminator,
-            Some(Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid)
-        ) || matches!(
-            block.terminator,
-            Some(Terminator::TailCall { function, .. })
-                if self.cold_functions.contains(function)
-        ) || block.instructions.iter().any(|&inst_id| {
-            matches!(
-                func.inst(inst_id).kind,
-                InstKind::ICall { function: Callee::Function(function), .. }
+        block.terminator.as_ref().is_some_and(Terminator::reverts)
+            || matches!(
+                block.terminator,
+                Some(Terminator::TailCall { function, .. })
                     if self.cold_functions.contains(function)
             )
-        })
+            || block.instructions.iter().any(|&inst_id| {
+                matches!(
+                    func.inst(inst_id).kind,
+                    InstKind::ICall { function: Callee::Function(function), .. }
+                        if self.cold_functions.contains(function)
+                )
+            })
     }
 
     pub(super) fn block_is_cold(&self, block_id: BlockId) -> bool {

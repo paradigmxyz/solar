@@ -1,0 +1,74 @@
+// === ROOT/tests/ui/codegen/mir/check-elim/remainder_bounds.sol:RemainderBounds ===
+@module RemainderBounds
+fn @pick(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x9d6a1cd3, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = checked_rem uint256, arg1, v0
+    v2 = extract_value slice<calldata>, arg0, 1
+    v3 = lt v1, v2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = extract_value slice<calldata>, arg0, 0
+    v6 = mul v1, 32
+    v7 = eq 32, 0
+    v8 = div v6, 32
+    v9 = eq v8, v1
+    v10 = or v7, v9
+    v11 = zext i1 v10 to i256
+    v12 = eq v11, 0
+    icall panic_if<0x41>, v12
+    v13 = ptrtoint ptr<calldata> v5 to i256
+    v14 = add v13, v6
+    v15 = calldataload v14
+    ret v15
+}
+
+fn @pickDown(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0xe4bcb1d7, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mload arg0
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg0], [bb5: v1]
+    v2 = phi [bb0: arg1], [bb5: v2]
+    v3 = phi [bb0: 0], [bb5: v15]
+    v4 = phi [bb0: v0], [bb5: v16]
+    v5 = gt v4, 1
+    jumpi v5, bb3, bb4
+  bb4:
+    jump bb2
+  bb2:
+    ret v3
+  bb3:
+    v6 = shr v2, v4
+    v7 = checked_rem uint256, v6, v4
+    v8 = mload v1
+    v9 = lt v7, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = shl v7, 5
+    v12 = ptradd v1, v11
+    v13 = ptradd v12, 32
+    v14 = mload v13
+    v15 = checked_add uint256, v3, v14
+    v16 = checked_sub uint256, v4, 1
+    jump bb5
+  bb5:
+    jump bb1
+}
+
+fn @pickRest(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x74dbbcbe, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = lt arg1, arg0
+    v1 = eq v0, false
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v2 = checked_sub uint256, arg0, arg1
+    v3 = checked_rem uint256, arg2, v2
+    v4 = checked_add uint256, v3, arg1
+    ret v4
+  bb1:
+    icall revert_if<empty>, true
+    invalid
+}

@@ -587,11 +587,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 (entry, span)
             })
             .collect();
-        let heap_prefix = Self::heap_prefix_offsets(module);
         let heap_prefix_guards = module
             .functions
             .iter_enumerated()
-            .map(|(func_id, func)| heap_prefix.guard(func_id, func))
+            .map(|(func_id, func)| self.heap_prefix.guard(func_id, func))
             .collect::<IndexVec<FunctionId, _>>();
         let reachable_heap_prefix_guards: FxHashMap<FunctionId, u64> = self
             .runtime_entry_reachability
@@ -998,7 +997,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         break;
                     }
                 }
-                kind if kind.effect_kind() == EffectKind::Pure => {}
+                kind if kind.effect_kind().is_read_only() => {}
                 _ => return None,
             }
         }
@@ -1037,9 +1036,48 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         let HeapPrefixOffsets { arguments, returns, projections } = &mut offsets;
+        let calls = module
+            .functions
+            .iter()
+            .map(|func| {
+                let tail_calls = func.blocks.iter().filter_map(|block| {
+                    if let Some(Terminator::TailCall { function, args }) = &block.terminator {
+                        Some((*function, &args[..]))
+                    } else {
+                        None
+                    }
+                });
+                func.instructions()
+                    .filter_map(|inst_id| {
+                        if let InstKind::ICall { function: Callee::Function(function), args } =
+                            &func.inst(inst_id).kind
+                        {
+                            Some((*function, &args[..]))
+                        } else {
+                            None
+                        }
+                    })
+                    .chain(tail_calls)
+                    .collect::<Vec<_>>()
+            })
+            .collect::<IndexVec<FunctionId, _>>();
+        let mut callers = index_vec![Vec::new(); module.functions.len()];
+        for (func_id, edges) in calls.iter_enumerated() {
+            for &(callee, _) in edges {
+                callers[callee].push(func_id);
+            }
+        }
+        // A function reads only its own argument facts and its callees' return facts, so a
+        // function whose inputs are unchanged since its last visit would store nothing new.
+        let mut dirty = DenseBitSet::new_filled(module.functions.len());
         for _ in 0..=module.functions.len() * 2 {
-            let mut changed = false;
+            if dirty.is_empty() {
+                break;
+            }
             for (func_id, func) in module.functions.iter_enumerated() {
+                if !dirty.remove(func_id) {
+                    continue;
+                }
                 let mut visiting = DenseBitSet::new_empty(func.num_values());
                 let mut memo = HeapPrefixCache::default();
                 let mut derive = |value| {
@@ -1057,25 +1095,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     )
                 };
                 let mut incoming = Vec::new();
-                let calls = func
-                    .instructions()
-                    .filter_map(|inst_id| {
-                        if let InstKind::ICall { function: Callee::Function(function), args } =
-                            &func.inst(inst_id).kind
-                        {
-                            Some((*function, &args[..]))
-                        } else {
-                            None
-                        }
-                    })
-                    .chain(func.blocks.iter().filter_map(|block| {
-                        if let Some(Terminator::TailCall { function, args }) = &block.terminator {
-                            Some((*function, &args[..]))
-                        } else {
-                            None
-                        }
-                    }));
-                for (callee, args) in calls {
+                for &(callee, args) in &calls[func_id] {
                     for (index, &value) in args.iter().enumerate() {
                         if let Some(offset) = derive(value) {
                             incoming.push((callee, ArgIdx::new(index), offset));
@@ -1105,27 +1125,30 @@ impl<'gcx> EvmCodegen<'gcx> {
                 for (callee, index, offset) in incoming {
                     let stored =
                         arguments.entry(callee).or_default().entry(index).or_insert_with(|| {
-                            changed = true;
+                            dirty.insert(callee);
                             offset
                         });
                     if offset > *stored {
                         *stored = offset;
-                        changed = true;
+                        dirty.insert(callee);
                     }
                 }
+                let mut returns_grew = false;
                 for (component, offset) in returned {
                     let stored = returns.entry((func_id, component)).or_insert_with(|| {
-                        changed = true;
+                        returns_grew = true;
                         offset
                     });
                     if offset > *stored {
                         *stored = offset;
-                        changed = true;
+                        returns_grew = true;
                     }
                 }
-            }
-            if !changed {
-                break;
+                if returns_grew {
+                    for &caller in &callers[func_id] {
+                        dirty.insert(caller);
+                    }
+                }
             }
         }
         offsets
@@ -1454,7 +1477,25 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         self.record_runtime_entry_reachability(call_graph, entry);
         let reachable = &self.runtime_entry_reachability[&entry];
-        let needs_free_memory = reachable.iter().any(|func_id| {
+        if !Self::functions_need_free_memory(module, call_graph, reachable.iter()) {
+            return;
+        }
+
+        let id = self.asm.new_deferred_const();
+        self.asm.emit_push_deferred(id);
+        self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
+        self.asm.emit_op(op::MSTORE);
+        self.runtime_free_memory_consts.insert(entry, id);
+    }
+
+    /// Whether any of `functions` reads the free memory pointer, directly or through the frame
+    /// and multi-word return conventions that allocate above it.
+    pub(in crate::backend::evm::codegen) fn functions_need_free_memory(
+        module: &Module,
+        call_graph: &CallGraphInfo,
+        mut functions: impl Iterator<Item = FunctionId>,
+    ) -> bool {
+        functions.any(|func_id| {
             call_graph.is_recursive(func_id)
                 || Self::function_may_observe_free_memory_slot(&module.functions[func_id])
                 || module.functions[func_id].instructions().any(|inst_id| {
@@ -1464,16 +1505,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                             if module.function(function).return_components().len() > 1
                     )
                 })
-        });
-        if !needs_free_memory {
-            return;
-        }
-
-        let id = self.asm.new_deferred_const();
-        self.asm.emit_push_deferred(id);
-        self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-        self.asm.emit_op(op::MSTORE);
-        self.runtime_free_memory_consts.insert(entry, id);
+        })
     }
 
     /// Records every function whose memory bounds contribute to one runtime entry.
@@ -1604,13 +1636,13 @@ mod tests {
         // divided = (add / 32) * 32
         // mixed_alignment = (add >> 5) * 32
         let shift = builder.imm(5);
-        let quotient = builder.shr(shift, add);
-        let shifted_alignment = builder.shl(shift, quotient);
+        let quotient = builder.shr(add, shift);
+        let shifted_alignment = builder.shl(quotient, shift);
         let mixed_alignment = builder.mul(word, quotient);
         let quotient = builder.div(add, word);
         let divided_alignment = builder.mul(quotient, word);
         let commuted_divided = builder.mul(word, quotient);
-        let mixed_shift = builder.shl(shift, quotient);
+        let mixed_shift = builder.shl(quotient, shift);
         // opaque_alignment = (opaque / 32) * 32
         // mismatched = (add / 32) * 16
         let opaque_quotient = builder.div(opaque, word);

@@ -1,4 +1,4 @@
-//@ compile-flags: -Zmir-pipeline=lower-abi-encode
+//@ compile-flags: -Ogas --evm-version paris -Zmir-pipeline=lower-abi-encode
 //@ filecheck:
 @module ConditionalLiteral
 
@@ -7,8 +7,7 @@
 // CHECK-LABEL: (after lower-abi-encode)
 // CHECK: fn @encode
 // CHECK: + {{v[0-9]+}} = mload v0
-// CHECK-NEXT: + [[NULL_WORD:v[0-9]+]] = ptrtoint ptr<memory> v0 to i256
-// CHECK-NEXT: + {{v[0-9]+}} = eq [[NULL_WORD]], 0
+// CHECK-NOT: = mul
 // CHECK: + [[DATA:v[0-9]+]] = ptradd v0, 32
 // CHECK: + mcopy {{v[0-9]+}}, [[DATA]],
 fn @encode(arg0: i256) -> slice<memory> {
@@ -30,8 +29,7 @@ fn @encode(arg0: i256) -> slice<memory> {
 // A wrapping offset from a later object reaches the earlier object's payload.
 // CHECK: fn @overlapping
 // CHECK: + {{v[0-9]+}} = mload v0
-// CHECK-NEXT: + [[NULL_WORD:v[0-9]+]] = ptrtoint ptr<memory> v0 to i256
-// CHECK-NEXT: + {{v[0-9]+}} = eq [[NULL_WORD]], 0
+// CHECK-NOT: = mul
 // CHECK: + [[DATA:v[0-9]+]] = ptradd v0, 32
 // CHECK: + mcopy {{v[0-9]+}}, [[DATA]],
 fn @overlapping(arg0: i256) -> slice<memory> {
@@ -53,9 +51,9 @@ fn @overlapping(arg0: i256) -> slice<memory> {
 // Literal folding cannot remove an observable free-memory-pointer bump.
 // CHECK: fn @preserved
 // CHECK: alloc 64 !metadata(preserves_fmp)
-// CHECK: + {{v[0-9]+}} = mload v0
-// CHECK-NEXT: + [[NULL_WORD:v[0-9]+]] = ptrtoint ptr<memory> v0 to i256
-// CHECK-NEXT: + {{v[0-9]+}} = eq [[NULL_WORD]], 0
+// CHECK: mstore v1, 1
+// CHECK: mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
+// CHECK-NOT: mcopy
 fn @preserved() -> slice<memory> {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)

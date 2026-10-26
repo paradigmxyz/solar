@@ -17,6 +17,17 @@ pub(super) struct ExternalReturnPlan {
     decode_returndata: bool,
 }
 
+/// Where an external call's input is encoded.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CallInputStaging {
+    /// A fresh allocation.
+    Reserved,
+    /// The free memory pointer, without a bump.
+    Unreserved,
+    /// The scratch words at address 0.
+    Scratch,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum ExternalReturnMode {
     First,
@@ -117,7 +128,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // result = lower_struct_ctor(callee, args)
             return self.lower_struct_constructor(expr, struct_id, args).map(CallResult::Value);
         }
-        if self.is_type_conversion(callee) {
+        if expressions::is_type_conversion(self.cx.gcx, callee) {
             // result = convert(callee, args)
             if args.len() != 1 {
                 return self.cx.report_unsupported(expr.span, "type conversion");
@@ -251,7 +262,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
         let created = self.lower_create_contract(ty, contract_id, args, call_opts)?;
-        self.revert_external_call(created);
+        self.builder.revert_returndata_unless(created);
         Some(created)
     }
 
@@ -323,46 +334,41 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             },
         )?;
         let (values, types): (Vec<_>, Vec<_>) = arguments.into_iter().unzip();
-        // arguments = abi_encode(constructor_args)
+        // arguments = abi_encode(constructor_args) if constructor_args
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-        let encoded = self.builder.abi_encode(Arc::clone(&layout), None, values.into_boxed_slice());
+        let encoded = (!layout.types.is_empty())
+            .then(|| self.builder.abi_encode(Arc::clone(&layout), None, values.into_boxed_slice()));
         let static_len = (!layout.types.iter().any(AbiType::is_dynamic))
             .then(|| layout.head_size())
             .filter(|&len| EvmMemoryLayout::align_word(len).is_some());
         let encoded_len = match static_len {
             Some(len) => self.builder.imm(len),
-            None => self.builder.slice_len(encoded),
+            None => {
+                self.builder.slice_len(encoded.expect("dynamic constructor arguments are encoded"))
+            }
         };
 
         // len = datasize initcode(C)
         let bytecode_len_value = self.builder.data_size(bytecode, 0, false);
-        // CREATE consumes a raw byte range, so do not reserve a semantic bytes
-        // header that no later operation can observe.
-        let (total_len, allocation_size) = if let Some(len) = static_len {
+        let total_len = if let Some(len) = static_len {
             // total_len = datasize initcode(C), len
-            // allocation_size = datasize initcode(C), len + 31, aligned
-            let total_len = if len == 0 {
-                bytecode_len_value
-            } else {
-                self.builder.data_size(bytecode, len, false)
-            };
-            (total_len, self.builder.data_size(bytecode, len + 31, true))
+            if len == 0 { bytecode_len_value } else { self.builder.data_size(bytecode, len, false) }
         } else {
             // total_len = checked_add len, encoded_len
-            // allocation_size = checked_add(total_len, 31) & ~31
-            let total_len = self.builder.checked_add(bytecode_len_value, encoded_len);
-            let padding = self.builder.imm(31);
-            let rounded_len = self.builder.checked_add(total_len, padding);
-            (total_len, self.builder.mask_padded_size(rounded_len))
+            self.builder.checked_add(bytecode_len_value, encoded_len)
         };
-        let data = self.builder.alloc(allocation_size, AllocationSemantics::INTERNAL);
+        // CREATE consumes a raw byte range that nothing reads afterwards, so stage it at the free
+        // memory pointer without reserving it, as solc does.
+        let data = self.builder.fmp();
 
         // datacopy initcode(C), data, len
         self.builder.data_copy(DataRef::new(bytecode, 0), data, bytecode_len_value);
-        let encoded_ptr = self.builder.slice_ptr(encoded);
-        let copy_dest = self.builder.add(data, bytecode_len_value);
-        // init = creation_bytecode ++ arguments
-        self.builder.copy_heap(copy_dest, encoded_ptr, encoded_len, PtrLocation::Memory);
+        if let Some(encoded) = encoded {
+            let encoded_ptr = self.builder.slice_ptr(encoded);
+            let copy_dest = self.builder.add(data, bytecode_len_value);
+            // init = creation_bytecode ++ arguments
+            self.builder.copy_heap(copy_dest, encoded_ptr, encoded_len, PtrLocation::Memory);
+        }
         // address = create|create2(value, init, init.length[, salt])
         let created = if let Some(salt) = salt {
             self.builder.create2(call_value, data, total_len, salt)
@@ -419,7 +425,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(options),
         );
         // if !ok { revert(0, returndatasize()) }
-        self.revert_external_call(success);
+        self.builder.revert_returndata_unless(success);
         // results = decode_buffer | decode_returndata | load_words(ret_offset)
         self.finish_external_call(
             return_plan,
@@ -437,9 +443,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let selector_mask = self.builder.imm(u32::MAX);
         let selector = self.builder.and(function_value, selector_mask);
         let selector_shift = self.builder.imm(224);
-        let selector = self.builder.shl(selector_shift, selector);
+        let selector = self.builder.shl(selector, selector_shift);
         let address_shift = self.builder.imm(32);
-        let address = self.builder.shr(address_shift, function_value);
+        let address = self.builder.shr(function_value, address_shift);
         (address, selector)
     }
 
@@ -631,7 +637,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && u64::from(32 - size.bytes()) * 8 != 0
         {
             let shift = self.builder.imm(u64::from(32 - size.bytes()) * 8);
-            self.builder.shr(shift, value)
+            self.builder.shr(value, shift)
         } else {
             value
         };
@@ -670,7 +676,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         // value = value << (32 - to.width) * 8
         let shift = self.builder.imm(u64::from(32 - size.bytes()) * 8);
-        self.builder.shl(shift, value)
+        self.builder.shl(value, shift)
     }
 
     /// Converts the first data word of a dynamic `bytes` value of `length` bytes to a
@@ -684,7 +690,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let missing = self.builder.sub(width_value, length);
         let bits_per_byte = self.builder.imm(8);
         let shift = self.builder.mul(bits_per_byte, missing);
-        let short_mask = self.builder.shl(shift, fixed_mask);
+        let short_mask = self.builder.shl(fixed_mask, shift);
         let mask = self.builder.select(short, short_mask, fixed_mask);
         self.builder.and(word, mask)
     }
@@ -696,11 +702,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 value
             }
             TyKind::Fn(_) => value,
-            TyKind::Elementary(ElementaryType::Bool) => {
-                let zero = self.builder.imm(U256::ZERO);
-                let is_zero = self.builder.eq(value, zero);
-                self.builder.eq_zero(is_zero)
-            }
+            TyKind::Elementary(ElementaryType::Bool) => self.builder.ne_zero(value),
             _ if matches!(
                 types::TypeLowerer::value_layout(ty),
                 crate::mir::ValueLayout::Int(_)
@@ -729,7 +731,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn normalize_memory_scalar(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
         if matches!(ty.peel_refs().kind, TyKind::Fn(function) if function.is_external()) {
             let shift = self.builder.imm(64);
-            return self.builder.shr(shift, value);
+            return self.builder.shr(value, shift);
         }
         self.normalize_abi_scalar(value, ty)
     }
@@ -739,7 +741,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && function.is_external()
         {
             let shift = self.builder.imm(64);
-            return self.builder.shr(shift, value);
+            return self.builder.shr(value, shift);
         }
         value
     }
@@ -753,7 +755,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && function.is_external()
         {
             let shift = self.builder.imm(64);
-            return self.builder.shl(shift, value);
+            return self.builder.shl(value, shift);
         }
         let value = self.normalize_dirty_scalar(value, ty);
         raw_scalars::cast_carrier(
@@ -971,7 +973,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(options),
         );
         // if !ok { revert(0, returndatasize()) }
-        self.revert_external_call(success);
+        self.builder.revert_returndata_unless(success);
         // result = decode_buffer | decode_returndata | load_words(ret_offset)
         let values = self.finish_external_call(
             return_plan,
@@ -1114,7 +1116,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             None,
         );
         // if !ok { revert(0, returndatasize()) }
-        self.revert_external_call(success);
+        self.builder.revert_returndata_unless(success);
         if return_types.is_empty() {
             return Some(CallResult::Void);
         }
@@ -1337,11 +1339,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // mstore(add(fmp(), ret_size), 0)
         let gas = options.and_then(|options| options.gas);
         self.touch_call_output_area(gas, return_tys, overlay_buffer.is_some());
-        // input = abi_encode(selector, args)
-        let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-        let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
-        let input = self.builder.slice_ptr(encoded);
-        let input_size = self.builder.slice_len(encoded);
+        let (input, input_size) = match self.call_input_staging(&types, return_tys) {
+            CallInputStaging::Scratch => {
+                self.encode_call_input_in_scratch(selector, &values, &types)
+            }
+            staging => {
+                // input = abi_encode[, scratch](selector, args)
+                let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
+                let values = values.into_boxed_slice();
+                let encoded = if staging == CallInputStaging::Unreserved {
+                    self.builder.abi_encode_scratch(layout, Some(selector), values)
+                } else {
+                    self.builder.abi_encode(layout, Some(selector), values)
+                };
+                (self.builder.slice_ptr(encoded), self.builder.slice_len(encoded))
+            }
+        };
         // zero = 0
         // gas = gas() if can_overcharge_gas_for_call
         let options = options.unwrap_or_else(|| self.default_call_options());
@@ -1374,6 +1387,72 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         };
         (success, plan)
+    }
+
+    /// Encodes a call input of a selector and at most one stack scalar in the scratch words,
+    /// right-aligning the selector so that the input starts at address 28, and returns its
+    /// address and size.
+    fn encode_call_input_in_scratch(
+        &mut self,
+        selector: ValueId,
+        values: &[ValueId],
+        types: &[AbiType],
+    ) -> (ValueId, ValueId) {
+        // mstore(0, selector >> 224)
+        let selector = match self.builder.func().value_u256(selector) {
+            Some(selector) => self.builder.imm(selector >> 224),
+            None => {
+                let shift = self.builder.imm(224);
+                self.builder.shr(selector, shift)
+            }
+        };
+        let slot = self.builder.imm(EvmMemoryLayout::SCRATCH_SLOT);
+        self.builder.store(slot, selector);
+        if let (&[value], [ty]) = (values, types) {
+            // mstore(32, arg)
+            let value = if matches!(ty, AbiType::Function) {
+                let shift = self.builder.imm(64);
+                self.builder.shl(value, shift)
+            } else {
+                value
+            };
+            let address = self.builder.imm(EvmMemoryLayout::WORD_SIZE);
+            self.builder.store(address, value);
+        }
+        // input = 28, size = 4 + 32 * args
+        let input = self.builder.imm(EvmMemoryLayout::WORD_SIZE - 4);
+        let size = self.builder.imm(4 + EvmMemoryLayout::WORD_SIZE * values.len() as u64);
+        (input, size)
+    }
+
+    /// Where a call's input is encoded.
+    ///
+    /// Nothing keeps the input after the call, so the reservation is only needed while the return
+    /// plan overlays it: before Byzantium the output area always does, a multi-word return that
+    /// is not decoded reads from the input's address, and a static aggregate return buffer is
+    /// allocated at the unbumped pointer. A dynamic layout keeps the reservation because encoding
+    /// it in place costs more code than the bump saves.
+    ///
+    /// An input of a selector and at most one stack scalar goes to the scratch words instead. The
+    /// call reads its input before it writes its output, so a word returned to scratch can
+    /// overlay it.
+    fn call_input_staging(
+        &mut self,
+        types: &[AbiType],
+        return_tys: &[Ty<'gcx>],
+    ) -> CallInputStaging {
+        if !self.cx.gcx.sess.opts.evm_version.supports_returndata()
+            || return_tys.len() > 1
+            || types.iter().any(AbiType::is_dynamic)
+            || self.static_aggregate_return_layout(return_tys.iter().copied()).is_some()
+        {
+            return CallInputStaging::Reserved;
+        }
+        if matches!(types, [] | [AbiType::Word(_) | AbiType::Function]) {
+            CallInputStaging::Scratch
+        } else {
+            CallInputStaging::Unreserved
+        }
     }
 
     pub(super) fn finish_external_call(
@@ -1508,8 +1587,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => AbiWordValidator::from_return_layout(types::TypeLowerer::value_layout(ty)),
         };
         let Some(validator) = validator else { return };
-        let shifts = self.cx.gcx.sess.opts.evm_version.has_bitwise_shifting();
-        let valid = validator.condition(&mut self.builder, value, shifts);
+        let valid = validator.condition(&mut self.builder, value);
 
         let invalid = self.builder.eq_zero(valid);
         self.builder.revert_if(invalid, RevertReason::Empty);

@@ -13,7 +13,7 @@
 fn @entry() [entry] {
   bb0:
     v0 = calldataload 0
-    v2 = shr 224, v0
+    v2 = shr v0, 224
     switch v2, default bb2, [7 => bb1]
   bb1:
     tail_call fn1
@@ -277,5 +277,16 @@ fn @chain_tail(arg0: i256) -> i256 {
 fn @chain_body(arg0: i256) -> i256 {
   bb0:
     v0 = icall @scalar_fail, arg0
+    ret v0
+}
+
+// Erasing a pointer cast from a narrower word widens the word instead of retyping it. Function
+// pointers reinterpreted through assembly return a `bool` as a memory pointer this way.
+// CHECK-LABEL: {{^[ +].*}}fn @narrow_pointer{{[( ]}}
+// CHECK: - [[CAST:v[0-9]+]] = inttoptr i1 arg0 to ptr<memory>
+// CHECK: + [[CAST]] = zext i1 arg0 to i256
+fn @narrow_pointer(arg0: i1) -> ptr<memory> {
+  bb0:
+    v0 = inttoptr i1 arg0 to ptr<memory>
     ret v0
 }

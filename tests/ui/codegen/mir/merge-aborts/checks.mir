@@ -139,7 +139,7 @@ fn @zero_test(arg0: i256, arg1: i256) -> i256 {
     revert 0, 0
 }
 
-// In a loop of a gas build, a test that aborts on its false edge and compares
+// In a loop, a test that aborts on its false edge and compares
 // two words turns into its negation, `eq c, false`, and merges.
 // CHECK-LABEL: {{^[ +].*}}fn @mixed_loop{{[( ]}}
 // CHECK: - jumpi [[BELOW:v[0-9]+]], bb3, bb5
@@ -314,7 +314,7 @@ fn @bounded_sum(arg0: i256, arg1: i256) -> i256 {
     v2 = lt v1, arg0
     jumpi v2, bb3, bb1
   bb1:
-    v3 = shr 8, arg1
+    v3 = shr arg1, 8
     v4 = and v3, 0xffff
     v5 = add v1, v4
     v6 = lt v5, v1

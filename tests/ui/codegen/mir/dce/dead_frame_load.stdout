@@ -1,0 +1,10 @@
+- // === ROOT/tests/ui/codegen/mir/dce/dead_frame_load.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/dce/dead_frame_load.mir (after dce) ===
+  @module DeadFrameLoad
+  fn @dead_load() {
+    bb0:
+      frame_store scratch, word, 0, 7
+-     v0 = frame_load scratch, word, 0
+      stop
+  }
+  

@@ -1,7 +1,7 @@
 use crate::{
     ast_lowering::resolve::{Declaration, Declarations},
     hir::{self, Item, ItemId, Res, Visit},
-    ty::{Gcx, SameSourceFileLevelUserTypeError, Ty, TyKind, TypeckResults},
+    ty::{ExprMap, Gcx, SameSourceFileLevelUserTypeError, Ty, TyKind, TypeckResults},
 };
 use alloy_primitives::{B256, Selector, U256};
 use rayon::prelude::*;
@@ -26,6 +26,7 @@ mod view_pure_checker;
 
 #[instrument(name = "typeck", level = "debug", skip_all)]
 pub(crate) fn check(gcx: Gcx<'_>) {
+    let units = units(gcx);
     let mut typeck_results = TypeckResults::default();
     parallel!(
         gcx.sess,
@@ -35,18 +36,16 @@ pub(crate) fn check(gcx: Gcx<'_>) {
             gcx.hir.par_error_ids().for_each(|id| check_error(gcx, id));
         },
         {
-            typeck_results = gcx
-                .hir
-                .par_source_ids()
-                .map(|id| {
-                    check_source(gcx, id);
-                    // TODO: Parallelize more.
-                    checker::check(gcx, id)
-                })
-                .reduce(TypeckResults::default, |mut a, b| {
-                    merge_typeck_results(gcx, &mut a, b);
-                    a
-                });
+            let check_unit = |results, &(source, unit)| checker::check(gcx, source, unit, results);
+            // Few units finish faster than the pool wakes up.
+            typeck_results = if units.len() < PAR_UNITS {
+                units.iter().fold(TypeckResults::default(), check_unit)
+            } else {
+                merge_typeck_results(
+                    gcx,
+                    units.par_iter().fold(TypeckResults::default, check_unit).collect::<Vec<_>>(),
+                )
+            };
         },
     );
     gcx.set_typeck_results(typeck_results);
@@ -57,11 +56,11 @@ pub(crate) fn check(gcx: Gcx<'_>) {
     if typeck_ok {
         constant_cycles::check(gcx);
     }
-    constant_values::check(gcx);
+    constant_values::check(gcx, &units);
     check_error_selector_collisions(gcx);
     control_flow::check(gcx);
     // solc's `StaticAnalyzer` runs before its `ViewPureChecker`.
-    constant_divisors::check(gcx);
+    constant_divisors::check(gcx, &units);
     view_pure_checker::check(gcx);
 }
 
@@ -102,50 +101,107 @@ fn check_source(gcx: Gcx<'_>, id: hir::SourceId) {
 
 fn merge_typeck_results<'gcx>(
     gcx: Gcx<'gcx>,
-    results: &mut TypeckResults<'gcx>,
-    new_results: TypeckResults<'gcx>,
+    results: Vec<TypeckResults<'gcx>>,
+) -> TypeckResults<'gcx> {
+    let mut merged = TypeckResults::default();
+    let mut expr_types = Vec::with_capacity(results.len());
+    let mut resolved_exprs = Vec::with_capacity(results.len());
+    let mut resolved_callees = Vec::with_capacity(results.len());
+    for new_results in results {
+        expr_types.push(new_results.expr_types);
+        resolved_exprs.push(new_results.resolved_exprs);
+        resolved_callees.push(new_results.resolved_callees);
+
+        for id in new_results.unsupported_udvt_operators.iter() {
+            merged.unsupported_udvt_operators.insert(id);
+        }
+        merged.user_operators.extend(new_results.user_operators);
+        merged.base_slots.extend(new_results.base_slots);
+    }
+
+    merged.expr_types = ExprMap::merge(expr_types, |id, prev_ty, ty| {
+        gcx.dcx()
+            .bug(format!(
+                "expression {id:?} already has type {}; tried to register {}",
+                prev_ty.display(gcx),
+                ty.display(gcx),
+            ))
+            .emit();
+    });
+    merged.resolved_exprs = ExprMap::merge(resolved_exprs, |id, prev_res, res| {
+        gcx.dcx()
+            .bug(format!(
+                "expression {id:?} already has resolution {prev_res:?}; tried to register {res:?}",
+            ))
+            .emit();
+    });
+    merged.resolved_callees = ExprMap::merge(resolved_callees, |id, prev_res, res| {
+        gcx.dcx()
+            .bug(format!(
+                "expression {id:?} already has resolved callee {prev_res:?}; tried to register {res:?}",
+            ))
+            .emit();
+    });
+    merged
+}
+
+/// The fewest units for which checking them in parallel pays.
+const PAR_UNITS: usize = 64;
+
+/// A part of a source that is checked on its own.
+#[derive(Clone, Copy)]
+enum Unit {
+    /// The checks that only need the source.
+    Source,
+    /// The storage layout and base constructor arguments of a contract.
+    ContractHeader(hir::ContractId),
+    /// An item of a source, or of the contract it is declared in.
+    Item(Option<hir::ContractId>, ItemId),
+}
+
+/// Visits every item of every source, in parallel if there are many, each with its own visitor.
+///
+/// A contract's base arguments are visited as their own item. `units` come from [`units`].
+fn par_visit_items<'gcx, V: Visit<'gcx>>(
+    units: &[(hir::SourceId, Unit)],
+    new_visitor: impl Fn() -> V + Sync,
 ) {
-    for (id, ty) in new_results.expr_types {
-        if let Some(prev_ty) = results.expr_types.insert(id, ty) {
-            gcx.dcx()
-                .bug(format!(
-                    "expression {id:?} already has type {}; tried to register {}",
-                    prev_ty.display(gcx),
-                    ty.display(gcx),
-                ))
-                .emit();
+    let visit = |&(_, unit): &(hir::SourceId, Unit)| {
+        let mut visitor = new_visitor();
+        let _ = match unit {
+            Unit::Source => return,
+            Unit::ContractHeader(id) => visitor
+                .hir()
+                .contract(id)
+                .bases_args
+                .iter()
+                .try_for_each(|base| visitor.visit_modifier(base)),
+            Unit::Item(_, item) => visitor.visit_nested_item(item),
+        };
+    };
+    if units.len() < PAR_UNITS {
+        units.iter().for_each(visit);
+    } else {
+        units.par_iter().for_each(visit);
+    }
+}
+
+/// Returns the units of every source, in source order.
+fn units(gcx: Gcx<'_>) -> Vec<(hir::SourceId, Unit)> {
+    let mut units = Vec::new();
+    for source in gcx.hir.source_ids() {
+        units.push((source, Unit::Source));
+        for &item in gcx.hir.source(source).items {
+            if let ItemId::Contract(id) = item {
+                units.push((source, Unit::ContractHeader(id)));
+                let items = gcx.hir.contract(id).items;
+                units.extend(items.iter().map(|&item| (source, Unit::Item(Some(id), item))));
+            } else {
+                units.push((source, Unit::Item(None, item)));
+            }
         }
     }
-
-    for (id, res) in new_results.resolved_exprs {
-        if let Some(prev_res) = results.resolved_exprs.insert(id, res) {
-            gcx.dcx()
-                .bug(format!(
-                    "expression {id:?} already has resolution {prev_res:?}; tried to register {res:?}",
-                ))
-                .emit();
-        }
-    }
-
-    for (id, res) in new_results.resolved_callees {
-        if let Some(prev_res) = results.resolved_callees.insert(id, res) {
-            gcx.dcx()
-                .bug(format!(
-                    "expression {id:?} already has resolved callee {prev_res:?}; tried to register {res:?}",
-                ))
-                .emit();
-        }
-    }
-
-    for id in new_results.unsupported_udvt_operators.iter() {
-        results.unsupported_udvt_operators.insert(id);
-    }
-
-    for (id, function) in new_results.user_operators {
-        results.user_operators.insert(id, function);
-    }
-
-    results.base_slots.extend(new_results.base_slots);
+    units
 }
 
 fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<'gcx>) {

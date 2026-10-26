@@ -3,19 +3,19 @@
 @types
   struct0: {i256, i256}
 
-fn @simple() -> i256 [selector=0xdf201a46, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @simple() -> i256 [selector=0xdf201a46, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @value.4
     ret v0
 }
 
-fn @conditional(arg0: i256) -> i256 [selector=0xd28ac8d6, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @conditional(arg0: i256) -> i256 [selector=0xd28ac8d6, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @value.5, arg0
     ret v0
 }
 
-fn @multiple() -> struct0 [selector=0x437a8ae6, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @multiple() -> struct0 [selector=0x437a8ae6, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @values
     v1 = extract_value struct0, v0, 0
@@ -25,7 +25,7 @@ fn @multiple() -> struct0 [selector=0x437a8ae6, pure, abi_params=[], abi_returns
     ret v4
 }
 
-fn @fallthrough() -> i256 [selector=0xb3afd11d, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fallthrough() -> i256 [selector=0xb3afd11d, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @value.7
     ret v0
