@@ -2423,21 +2423,24 @@ impl<'a> Planner<'a> {
                 && !self.cfg.cyclic_blocks().contains(join)
             {
                 let wanted = self.wanted_layout(join);
-                if wanted != *proposal {
-                    let wanted_incoming = self.incoming_cost(&pending, join, &wanted);
+                let wanted_incoming = (wanted != *proposal)
+                    .then(|| self.incoming_cost(&pending, join, &wanted))
+                    .filter(|&cost| cost != Cost::MAX);
+                if let Some(wanted_incoming) = wanted_incoming {
                     let planned = self.planned_insts(join);
-                    let proposal_price = self.join_cost(join, &planned, proposal);
-                    let wanted_price = self.join_cost(join, &planned, &wanted);
-                    let wins = match (proposal_price, wanted_price) {
-                        (Some(proposal_price), Some(wanted_price)) => {
-                            let proposal_total = *incoming + self.weigh(proposal_price, join);
-                            let wanted_total = wanted_incoming + self.weigh(wanted_price, join);
+                    let wins = match (
+                        self.join_cost(join, &planned, proposal),
+                        self.join_cost(join, &planned, &wanted),
+                    ) {
+                        (Some(proposal_cost), Some(wanted_cost)) => {
+                            let proposal_total = *incoming + self.weigh(proposal_cost, join);
+                            let wanted_total = wanted_incoming + self.weigh(wanted_cost, join);
                             self.target.cmp(wanted_total, proposal_total).is_lt()
                         }
                         (None, Some(_)) => true,
                         _ => false,
                     };
-                    if wins && wanted_incoming != Cost::MAX {
+                    if wins {
                         best = Some((wanted_incoming, wanted));
                     }
                 }
