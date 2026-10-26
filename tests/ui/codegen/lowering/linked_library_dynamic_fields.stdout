@@ -280,16 +280,15 @@ bb15 [loop]:
   jumpi
   pop
   pop
-  push 0x3e8
+  dup 1
   dup 5
-  mul
-  swap 4
   push 0x4189374bc6a7ef9db22d0e5604189374bc6a7ef9db22d0e5604189374bc6a7
   lt
   push bb22
   jumpi
-  swap 3
-  dup 4
+  swap 4
+  push 0x3e8
+  mul
   add
   swap 3
   dup 4
@@ -299,11 +298,11 @@ bb15 [loop]:
   pop
   push 0
   mstore
+  dup 1
   push 4
   calldataload
   push 32
   mstore
-  dup 1
   push 64
   push 0
   keccak256
