@@ -19,14 +19,14 @@
 // CHECK-NEXT: call
 // CHECK: extcodesize
 // CHECK: jumpi
-// CHECK-NEXT: push 100
-// CHECK-NEXT: swap 1
+// CHECK-NEXT: push 0
+// CHECK-NEXT: swap 3
+// CHECK-NEXT: swap 4
 // CHECK-NEXT: push 0
 // CHECK-NEXT: push 0
 // CHECK-NEXT: swap 4
-// CHECK-NEXT: push 0
-// CHECK-NEXT: swap 6
-// CHECK-NEXT: swap 7
+// CHECK-NEXT: push 100
+// CHECK-NEXT: swap 4
 // CHECK-NEXT: call
 interface Token {
     function burnFrom(address from, uint256 amount) external;
