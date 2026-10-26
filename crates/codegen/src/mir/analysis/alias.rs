@@ -15,7 +15,11 @@ use crate::mir::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 use std::{
     cell::{Cell, OnceCell, RefCell},
     collections::VecDeque,
@@ -401,19 +405,26 @@ struct FreshFmps {
     dominators: DominatorTree,
     /// The block and index of each unique `alloc` and each fresh free-memory-pointer read.
     positions: FxHashMap<InstId, (BlockId, usize)>,
+    /// The unique `alloc`s, whose runtime-indexed accesses wrap and so keep no such order.
+    allocs: FxHashSet<InstId>,
 }
 
 impl FreshFmps {
     /// Returns whether one base is a unique allocation that precedes the instruction the other
     /// names.
-    fn separates(&self, first: MemoryBase, second: MemoryBase) -> bool {
-        match (first, second) {
-            (MemoryBase::Allocation(alloc), MemoryBase::FreeMemory(fresh))
-            | (MemoryBase::FreeMemory(fresh), MemoryBase::Allocation(alloc)) => {
-                self.precedes(alloc, fresh)
+    fn separates(&self, first: MemoryLocation, second: MemoryLocation) -> bool {
+        let (alloc, fresh, size) = match (first.address.base, second.address.base) {
+            (MemoryBase::Allocation(alloc), MemoryBase::FreeMemory(fresh)) => {
+                (alloc, fresh, second.size)
             }
-            _ => false,
-        }
+            (MemoryBase::FreeMemory(fresh), MemoryBase::Allocation(alloc)) => {
+                (alloc, fresh, first.size)
+            }
+            _ => return false,
+        };
+        // A runtime index wraps, so an indexed access to an allocation may land below it.
+        (size != LocationSize::Unknown || !self.allocs.contains(&fresh))
+            && self.precedes(alloc, fresh)
     }
 
     /// Returns whether `alloc` executes before `fresh` on every path.
@@ -500,7 +511,7 @@ impl PointerProvenance {
         let mut allocations = FxHashMap::default();
         // The unique `alloc`s and the free-memory-pointer reads that no reset precedes.
         let mut positions = FxHashMap::default();
-        let mut has_alloc = false;
+        let mut allocs = FxHashSet::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
             let entry_fresh = reachable.contains(block_id) && !poisoned.contains(block_id);
             for (index, &inst_id) in block.instructions.iter().enumerate() {
@@ -514,7 +525,7 @@ impl PointerProvenance {
                     );
                     if unique && matches!(func.inst(inst_id).kind, InstKind::Alloc { .. }) {
                         positions.insert(inst_id, (block_id, index));
-                        has_alloc = true;
+                        allocs.insert(inst_id);
                     }
                 } else if matches!(func.inst(inst_id).kind, InstKind::Fmp)
                     && entry_fresh
@@ -524,8 +535,11 @@ impl PointerProvenance {
                 }
             }
         }
-        let fresh_fmps =
-            has_alloc.then(|| FreshFmps { dominators: cfg.dominators().clone(), positions });
+        let fresh_fmps = (!allocs.is_empty()).then(|| FreshFmps {
+            dominators: cfg.dominators().clone(),
+            positions,
+            allocs,
+        });
 
         Self { allocations, fresh_fmps, addresses: RefCell::default() }
     }
@@ -1540,7 +1554,7 @@ impl AliasAnalysis {
         // NOTE: Like the disjointness of two allocations, this assumes that an access based on an
         // allocation stays inside it.
         if let Some(fresh) = self.provenance.get().and_then(|p| p.fresh_fmps.as_ref())
-            && fresh.separates(first.address.base, second.address.base)
+            && fresh.separates(first, second)
         {
             return AliasResult::NoAlias;
         }
