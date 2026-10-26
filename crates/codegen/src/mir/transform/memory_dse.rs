@@ -7,14 +7,16 @@
 //!   identical dominating copy loaded and becomes an `mstore` of it.
 //! - Frame stores: a store to an internal-frame word that no instruction or terminator of the
 //!   function can read is removed, unless the function makes internal calls or observes gas.
-//! - Within each block: `keccak256` over words that constant stores fully define folds to its hash;
-//!   an `mload` reads the value of the latest store to the same canonical word; a store of the
-//!   value the word already holds is removed; and a backward scan removes a full-word store that a
-//!   later full-word store, `memory_zero`, or copy into a constant range overwrites before any read
-//!   or gas observation; a small word-sized zero fill or calldata copy whose every word such a
-//!   write overwrites goes too. Returndata copies stay because their source bounds check can
-//!   revert. Reads over constant ranges, such as hashes, logs, and call inputs, only keep the words
-//!   they cover.
+//! - Within each block: `keccak256` over words that constant stores fully define folds to its hash
+//!   when that is cheaper: the hash is a `PUSH32` at each use, where the result stays on the stack,
+//!   so the fold must repay those bytes with the stores it leaves dead, found by running the
+//!   liveness dataflow below without the hash; an `mload` reads the value of the latest store to
+//!   the same canonical word; a store of the value the word already holds is removed; and a
+//!   backward scan removes a full-word store that a later full-word store, `memory_zero`, or copy
+//!   into a constant range overwrites before any read or gas observation; a small word-sized zero
+//!   fill or calldata copy whose every word such a write overwrites goes too. Returndata copies
+//!   stay because their source bounds check can revert. Reads over constant ranges, such as hashes,
+//!   logs, and call inputs, only keep the words they cover.
 //! - Store narrowing: when a later full-word store overwrites the last 31 bytes of a word store
 //!   before any read or gas observation, only the first byte of the earlier store is observable, so
 //!   the backward scan shortens the store to an `mstore8` of that byte. `mstore8` demands only the
@@ -51,16 +53,19 @@
 //! allocation lowering removes fills that only become explicit there, before memory-zero lowering
 //! turns them into copies or loops.
 
-use crate::mir::{
-    BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryRegion, MirType, Module,
-    PtrLocation, Terminator, Value, ValueId,
-    analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
-        MemoryAddress, MemoryBase, MemoryLocation,
+use crate::{
+    mir::{
+        BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryRegion, MirType, Module,
+        PtrLocation, Terminator, Value, ValueId,
+        analysis::{
+            Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
+            MemoryAddress, MemoryBase, MemoryLocation,
+        },
+        memory::EvmMemoryLayout,
+        pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
+        utils as mir_utils,
     },
-    memory::EvmMemoryLayout,
-    pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
-    utils as mir_utils,
+    target::Target,
 };
 use alloy_primitives::{U256, keccak256};
 use smallvec::SmallVec;
@@ -84,7 +89,7 @@ impl MirPass for MemoryDse {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
@@ -99,8 +104,12 @@ impl MirPass for MemoryDse {
             analyses,
             &selected,
             |func, analyses| {
-                MemoryStoreEliminator::new(Rc::clone(analyses.alias()), Rc::clone(analyses.cfg()))
-                    .run_to_fixpoint(func)
+                MemoryStoreEliminator::new(
+                    Rc::clone(analyses.alias()),
+                    Rc::clone(analyses.cfg()),
+                    analyses.target(gcx),
+                )
+                .run_to_fixpoint(func)
                     != 0
             },
         )
@@ -129,6 +138,10 @@ struct MemoryStoreEliminator {
     /// Number of memory instructions eliminated.
     eliminated_count: usize,
     alias: Rc<AliasAnalysis>,
+    target: Target,
+    /// Memory live at the entry of each block as of the start of the round, built when the first
+    /// fold candidate needs it. Rewrites of the round only remove reads, so it stays conservative.
+    live_in: Option<IndexVec<BlockId, MemLive>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -441,12 +454,13 @@ impl BlockScratch {
 
 impl MemoryStoreEliminator {
     /// Creates a new memory optimization pass.
-    fn new(alias: Rc<AliasAnalysis>, cfg: Rc<CfgInfo>) -> Self {
-        Self { cfg, eliminated_count: 0, alias }
+    fn new(alias: Rc<AliasAnalysis>, cfg: Rc<CfgInfo>, target: Target) -> Self {
+        Self { cfg, eliminated_count: 0, alias, target, live_in: None }
     }
 
     fn run_with_scratch(&mut self, func: &mut Function, scratch: &mut BlockScratch) -> usize {
         self.eliminated_count = 0;
+        self.live_in = None;
 
         // Every rewrite needs a store or an immutable copy to act on; functions without one skip
         // the whole scan and never build the alias snapshot.
@@ -509,42 +523,16 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        // Backward fixpoint: live_in[b] = transfer(b, ∪ live_in[succ(b)]).
-        //
-        // The transfer is monotone over a lattice of bounded height
-        // (`MEM_LIVE_CAP` slots, topped by `All`), so a worklist seeded in
-        // postorder reaches the same least fixpoint as a full round-robin sweep
-        // while touching each block only when one of its successors actually
-        // moved. Postorder puts successors before predecessors, which is the
-        // direction information flows here.
-        let cfg = &*self.cfg;
-        let mut live_in = index_vec![MemLive::empty(); func.blocks.len()];
-        let mut worklist = cfg.rpo().iter().rev().copied().collect::<VecDeque<_>>();
-        self.eliminated_count += mir_utils::invalidate_unreachable_blocks(func, cfg.reachable());
-        let mut queued = DenseBitSet::new_empty(func.blocks.len());
-        for &block_id in &worklist {
-            queued.insert(block_id);
-        }
-        while let Some(block_id) = worklist.pop_front() {
-            queued.remove(block_id);
-            let out = Self::live_out(func, block_id, &live_in);
-            let new_in = self.transfer_block(func, block_id, out, &mut None);
-            if live_in[block_id] != new_in {
-                live_in[block_id] = new_in;
-                for &pred in &func.blocks[block_id].predecessors {
-                    if queued.insert(pred) {
-                        worklist.push_back(pred);
-                    }
-                }
-            }
-        }
+        self.eliminated_count +=
+            mir_utils::invalidate_unreachable_blocks(func, self.cfg.reachable());
+        let live_in = self.memory_live_in(func);
 
         // Collect dead stores using the stabilized live-out of each block.
         let mut dead = DenseBitSet::new_empty(func.num_insts());
-        for &block_id in cfg.rpo() {
+        for &block_id in self.cfg.rpo() {
             let out = Self::live_out(func, block_id, &live_in);
             let mut collector = Some(&mut dead);
-            self.transfer_block(func, block_id, out, &mut collector);
+            self.transfer_block(func, block_id, out, &mut collector, None);
         }
 
         if dead.is_empty() {
@@ -554,6 +542,39 @@ impl MemoryStoreEliminator {
         for block in func.blocks.iter_mut() {
             block.instructions.retain(|&id| !dead.contains(id));
         }
+    }
+
+    /// Solves the backward memory liveness over the reachable blocks and returns the slots live at
+    /// the entry of each.
+    fn memory_live_in(&self, func: &Function) -> IndexVec<BlockId, MemLive> {
+        // Backward fixpoint: live_in[b] = transfer(b, ∪ live_in[succ(b)]).
+        //
+        // The transfer is monotone over a lattice of bounded height
+        // (`MEM_LIVE_CAP` slots, topped by `All`), so a worklist seeded in
+        // postorder reaches the same least fixpoint as a full round-robin sweep
+        // while touching each block only when one of its successors actually
+        // moved. Postorder puts successors before predecessors, which is the
+        // direction information flows here.
+        let mut live_in = index_vec![MemLive::empty(); func.blocks.len()];
+        let mut worklist = self.cfg.rpo().iter().rev().copied().collect::<VecDeque<_>>();
+        let mut queued = DenseBitSet::new_empty(func.blocks.len());
+        for &block_id in &worklist {
+            queued.insert(block_id);
+        }
+        while let Some(block_id) = worklist.pop_front() {
+            queued.remove(block_id);
+            let out = Self::live_out(func, block_id, &live_in);
+            let new_in = self.transfer_block(func, block_id, out, &mut None, None);
+            if live_in[block_id] != new_in {
+                live_in[block_id] = new_in;
+                for &pred in &func.blocks[block_id].predecessors {
+                    if queued.insert(pred) {
+                        worklist.push_back(pred);
+                    }
+                }
+            }
+        }
+        live_in
     }
 
     fn live_out(func: &Function, block: BlockId, live_in: &IndexVec<BlockId, MemLive>) -> MemLive {
@@ -568,13 +589,15 @@ impl MemoryStoreEliminator {
 
     /// Runs the backward transfer over one block's terminator and instructions,
     /// returning the live set at block entry. When `dead` is `Some`, records the
-    /// full-word constant stores found dead against the flowing live set.
+    /// full-word constant stores found dead against the flowing live set. The hashes in `folded`
+    /// read nothing.
     fn transfer_block(
         &self,
         func: &Function,
         block: BlockId,
         mut live: MemLive,
         dead: &mut Option<&mut DenseBitSet<InstId>>,
+        folded: Option<&DenseBitSet<InstId>>,
     ) -> MemLive {
         // Terminator first: it executes after every instruction in the block.
         match func.blocks[block].terminator.as_ref() {
@@ -625,6 +648,8 @@ impl MemoryStoreEliminator {
                 }
                 InstKind::Fmp | InstKind::Alloc { .. } => live.add_addr(EvmMemoryLayout::FMP_SLOT),
                 InstKind::SetFmp(_) => live.kill(EvmMemoryLayout::FMP_SLOT),
+                InstKind::Keccak256(..)
+                    if folded.is_some_and(|folded| folded.contains(inst_id)) => {}
                 InstKind::Keccak256(offset, size) | InstKind::Log { offset, size, .. } => {
                     Self::mark_read(func, &mut live, *offset, *size);
                 }
@@ -1286,10 +1311,12 @@ impl MemoryStoreEliminator {
                     let Some(result) = func.inst_result_value(inst_id) else {
                         continue;
                     };
-                    let hash = keccak256(&bytes);
-                    let replacement = func.alloc_value(Value::Immediate(Immediate::I256(
-                        U256::from_be_bytes(hash.0),
-                    )));
+                    let hash = U256::from_be_bytes(keccak256(&bytes).0);
+                    if !self.folds_keccak(func, block_id, inst_id, result, hash, &mut scratch.dead)
+                    {
+                        continue;
+                    }
+                    let replacement = func.alloc_value(Value::Immediate(Immediate::I256(hash)));
                     scratch.replacements.insert(result, replacement);
                     scratch.dead.insert(inst_id);
                     self.eliminated_count += 1;
@@ -1307,6 +1334,40 @@ impl MemoryStoreEliminator {
 
         scratch.replace_uses(func);
         func.blocks[block_id].instructions.retain(|&id| !scratch.dead.contains(id));
+    }
+
+    /// Whether the hash `keccak` computes, which equals the constant `hash`, is cheaper as an
+    /// immediate. The stores it leaves dead are credited: the stores that no longer have a reader
+    /// once `keccak` and the hashes already `folded` in the block go.
+    fn folds_keccak(
+        &mut self,
+        func: &Function,
+        block: BlockId,
+        keccak: InstId,
+        result: ValueId,
+        hash: U256,
+        folded: &mut DenseBitSet<InstId>,
+    ) -> bool {
+        if self.live_in.is_none() {
+            self.live_in = Some(self.memory_live_in(func));
+        }
+        let Some(live_in) = &self.live_in else { return false };
+        let out = Self::live_out(func, block, live_in);
+        let mut dead_before = DenseBitSet::new_empty(func.num_insts());
+        self.transfer_block(func, block, out.clone(), &mut Some(&mut dead_before), Some(folded));
+        folded.insert(keccak);
+        let mut dead_after = DenseBitSet::new_empty(func.num_insts());
+        self.transfer_block(func, block, out, &mut Some(&mut dead_after), Some(folded));
+        folded.remove(keccak);
+        let stores = dead_after
+            .iter()
+            .filter(|&store| !dead_before.contains(store))
+            .map(|store| self.target.instruction_estimate(func, store))
+            .sum();
+        let keccak_cost = self.target.instruction_estimate(func, keccak);
+        let uses = super::egraph::use_counts(func)[result];
+        let in_loop = self.cfg.cyclic_blocks().contains(block);
+        self.target.folds_constant_keccak(hash, keccak_cost, stores, uses, in_loop)
     }
 
     fn remove_equal_stores(

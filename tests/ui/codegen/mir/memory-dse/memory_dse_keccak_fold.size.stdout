@@ -1,0 +1,66 @@
+- // === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_keccak_fold.mir (before memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_keccak_fold.mir (after memory-dse) ===
+  @module MemoryDseKeccakFold
+  fn @fold_dead_words() {
+    bb0:
+-     mstore 0, 0x36b6384b5eca791c62761152d0c79bb0604c104a5fb6f4eb0703f3154bb3db0
+-     mstore 32, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
+-     v0 = keccak256 0, 64
+-     sstore 0, v0
++     sstore 0, 0x3196704a2b58fda17a75cb346654cda44776ee73f6ab009e295270a7f557ae1a
+      stop
+  }
+  
+  fn @keep_small_live_words() -> i256 {
+    bb0:
+      mstore 0, 7
+      mstore 32, 5
+      v0 = keccak256 0, 64
+      ret v0
+  }
+  
+  fn @keep_many_uses() {
+    bb0:
+      mstore 0, 0x36b6384b5eca791c62761152d0c79bb0604c104a5fb6f4eb0703f3154bb3db0
+      mstore 32, 5
+      v0 = keccak256 0, 64
+      sstore 0, v0
+      sstore 1, v0
+      sstore 2, v0
+      stop
+  }
+  
+  fn @loop_hash(arg0: i256) -> i256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb1: v4]
+      v1 = phi [bb0: 0], [bb1: v3]
+      mstore 0, 7
+      mstore 32, 5
+      v2 = keccak256 0, 64
+      v3 = add v1, v2
+      v4 = add v0, 1
+      v5 = lt v4, arg0
+      jumpi v5, bb1, bb2
+    bb2:
+      ret v3
+  }
+  
+  fn @keep_dynamic_word(arg0: i256) -> i256 {
+    bb0:
+      mstore 0, arg0
+      mstore 32, 5
+      v0 = keccak256 0, 64
+      ret v0
+  }
+  
+  fn @keep_after_memory_clobber() -> i256 {
+    bb0:
+-     mstore 0, 7
+      mstore 32, 5
+      calldatacopy 0, 0, 32
+      v0 = keccak256 0, 64
+      ret v0
+  }
+  

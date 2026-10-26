@@ -9,7 +9,8 @@ fn @constructor() [abi_wrapper, constructor] {
   bb1:
     mstore 0, 1 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    sstore 0xada5013122d395ba3c54772283fb069b10426056ef8ca54750cb9bb552a59e7d, 5
+    v3 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v3, 5
     ret
   bb2:
     revert 0, 0
