@@ -116,10 +116,36 @@ impl Transcript {
         }
     }
 
-    /// Adds `reply` to the conversation, returning its text and the tokens it used.
-    pub(super) fn push_reply(&mut self, reply: &Value) -> Result<(String, Usage), String> {
+    /// Returns the tokens `reply` used, whether or not it holds a usable answer.
+    pub(super) fn usage(&self, reply: &Value) -> Usage {
         let usage = &reply["usage"];
         let tokens = |field: &str| usage[field].as_u64().unwrap_or(0);
+        match self.protocol {
+            Protocol::Messages => Usage {
+                input: tokens("input_tokens"),
+                output: tokens("output_tokens"),
+                cache_read: tokens("cache_read_input_tokens"),
+                cache_write: tokens("cache_creation_input_tokens"),
+            },
+            Protocol::ChatCompletions => {
+                // Cache hits sit in the prompt details for OpenAI and at the top for DeepSeek.
+                let prompt = tokens("prompt_tokens");
+                let cached = usage["prompt_tokens_details"]["cached_tokens"]
+                    .as_u64()
+                    .unwrap_or_else(|| tokens("prompt_cache_hit_tokens"))
+                    .min(prompt);
+                Usage {
+                    input: prompt - cached,
+                    output: tokens("completion_tokens"),
+                    cache_read: cached,
+                    cache_write: 0,
+                }
+            }
+        }
+    }
+
+    /// Adds `reply` to the conversation, returning its text.
+    pub(super) fn push_reply(&mut self, reply: &Value) -> Result<String, String> {
         match self.protocol {
             Protocol::Messages => {
                 let content = reply["content"].as_array().ok_or("the reply holds no content")?;
@@ -133,13 +159,7 @@ impl Transcript {
                     .collect::<String>();
                 // The reply goes back as sent, reasoning blocks and their signatures included.
                 self.messages.push(json!({"role": "assistant", "content": content}));
-                let usage = Usage {
-                    input: tokens("input_tokens"),
-                    output: tokens("output_tokens"),
-                    cache_read: tokens("cache_read_input_tokens"),
-                    cache_write: tokens("cache_creation_input_tokens"),
-                };
-                Ok((text, usage))
+                Ok(text)
             }
             Protocol::ChatCompletions => {
                 let message = &reply["choices"][0]["message"];
@@ -153,19 +173,7 @@ impl Transcript {
                     sent["reasoning_content"] = json!(reasoning);
                 }
                 self.messages.push(sent);
-                // Cache hits sit in the prompt details for OpenAI and at the top for DeepSeek.
-                let prompt = tokens("prompt_tokens");
-                let cached = usage["prompt_tokens_details"]["cached_tokens"]
-                    .as_u64()
-                    .unwrap_or_else(|| tokens("prompt_cache_hit_tokens"))
-                    .min(prompt);
-                let usage = Usage {
-                    input: prompt - cached,
-                    output: tokens("completion_tokens"),
-                    cache_read: cached,
-                    cache_write: 0,
-                };
-                Ok((text, usage))
+                Ok(text)
             }
         }
     }
@@ -449,7 +457,8 @@ mod tests {
                 "cache_read_input_tokens": 13,
             },
         });
-        let (text, usage) = transcript.push_reply(&reply).unwrap();
+        let usage = transcript.usage(&reply);
+        let text = transcript.push_reply(&reply).unwrap();
         assert_eq!(text, "ab");
         assert_eq!(usage, Usage { input: 5, output: 7, cache_read: 13, cache_write: 11 });
         transcript.push_prompt("second");
@@ -520,8 +529,17 @@ mod tests {
 "#]]
         );
 
-        let refused = json!({"content": [], "stop_reason": "refusal"});
+        // A refusal is no answer, but it still used the tokens it reports.
+        let refused = json!({
+            "content": [],
+            "stop_reason": "refusal",
+            "usage": {"input_tokens": 3, "output_tokens": 1},
+        });
         assert!(transcript.push_reply(&refused).is_err());
+        assert_eq!(
+            transcript.usage(&refused),
+            Usage { input: 3, output: 1, cache_read: 0, cache_write: 0 }
+        );
         assert!(transcript.push_reply(&json!({"error": {}})).is_err());
     }
 
@@ -540,7 +558,8 @@ mod tests {
             }],
             "usage": {"prompt_tokens": 20, "completion_tokens": 7, "prompt_cache_hit_tokens": 16},
         });
-        let (text, usage) = transcript.push_reply(&reply).unwrap();
+        let usage = transcript.usage(&reply);
+        let text = transcript.push_reply(&reply).unwrap();
         assert_eq!(text, "a");
         assert_eq!(usage, Usage { input: 4, output: 7, cache_read: 16, cache_write: 0 });
         transcript.push_prompt("second");
@@ -552,7 +571,8 @@ mod tests {
                 "prompt_tokens_details": {"cached_tokens": 30},
             },
         });
-        let (text, usage) = transcript.push_reply(&reply).unwrap();
+        let usage = transcript.usage(&reply);
+        let text = transcript.push_reply(&reply).unwrap();
         assert_eq!(text, "");
         assert_eq!(usage, Usage { input: 0, output: 1, cache_read: 20, cache_write: 0 });
         transcript.push_prompt("third");
@@ -748,7 +768,8 @@ data: [DONE]
 "#]]
         );
         let mut transcript = Transcript::new(Protocol::ChatCompletions, "m".into(), None);
-        let (text, usage) = transcript.push_reply(&reply).unwrap();
+        let usage = transcript.usage(&reply);
+        let text = transcript.push_reply(&reply).unwrap();
         assert_eq!(
             (text.as_str(), usage),
             ("ab", Usage { input: 4, output: 7, cache_read: 16, cache_write: 0 })

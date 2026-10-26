@@ -106,6 +106,9 @@ const MAX_TURNS: usize = 4;
 /// The longest wait for one reply, including the wait for a turn to start.
 #[cfg(feature = "llm-transport")]
 const TURN_TIMEOUT: Duration = Duration::from_secs(600);
+/// Why a conversation stops when the shared budget runs out.
+#[cfg(feature = "llm-transport")]
+const BUDGET_SPENT: &str = "the conversations spent their budget";
 /// Estimated spend, in nano-USD, after which no turn starts.
 #[cfg(feature = "llm-transport")]
 const BUDGET_NANO_USD: u64 = 5_000_000_000;
@@ -380,7 +383,7 @@ impl Installed {
             label: unstable.llm_model.clone().unwrap_or_else(|| "the default OpenAI model".into()),
             console: sess.opts.error_format == ErrorFormat::Human,
             backend,
-            turns: Arc::new(Semaphore::new(MAX_TURNS)),
+            turns: Semaphore::new(MAX_TURNS),
             asked: AtomicU64::new(0),
             tokens: AtomicU64::new(0),
             spent_nano_usd: AtomicU64::new(0),
@@ -423,7 +426,7 @@ struct Shared {
     /// Whether conversations report on stderr.
     console: bool,
     backend: Backend,
-    turns: Arc<Semaphore>,
+    turns: Semaphore,
     asked: AtomicU64,
     tokens: AtomicU64,
     spent_nano_usd: AtomicU64,
@@ -477,10 +480,14 @@ fn wait<T: Send + 'static>(
     timeout: Duration,
 ) -> Result<T, LlmError> {
     let (sender, receiver) = mpsc::sync_channel(1);
-    runtime.spawn(async move {
+    let task = runtime.spawn(async move {
         let _ = sender.send(future.await);
     });
-    receiver.recv_timeout(timeout).map_err(|_| LlmError::new("the model did not answer in time"))
+    receiver.recv_timeout(timeout).map_err(|_| {
+        // A turn that timed out must not go on holding its permit, or send its request later.
+        task.abort();
+        LlmError::new("the model did not answer in time")
+    })
 }
 
 #[cfg(feature = "llm-transport")]
@@ -560,7 +567,7 @@ trait Chat: Send {
     /// Sends `prompt` and returns the reply, streaming it to `voice` as it arrives.
     fn turn(
         &mut self,
-        shared: &Shared,
+        shared: &Arc<Shared>,
         prompt: String,
         voice: &Arc<Voice>,
     ) -> Result<Turn, LlmError>;
@@ -579,17 +586,20 @@ struct AgentChat {
 impl Chat for AgentChat {
     fn turn(
         &mut self,
-        shared: &Shared,
+        shared: &Arc<Shared>,
         prompt: String,
         voice: &Arc<Voice>,
     ) -> Result<Turn, LlmError> {
         let Some(mut events) = self.events.take() else {
             return Err(LlmError::new("an earlier turn lost the agent's events"));
         };
-        let (agent, turns, voice) =
-            (self.agent.clone(), Arc::clone(&shared.turns), Arc::clone(voice));
+        let (agent, budget, voice) = (self.agent.clone(), Arc::clone(shared), Arc::clone(voice));
         let (result, events) = shared.run(async move {
-            let _permit = turns.acquire_owned().await;
+            let _permit = budget.turns.acquire().await;
+            // Other turns may have spent the budget while this one waited for its permit.
+            if !budget.affordable() {
+                return (None, events);
+            }
             let result = async {
                 let turn = agent.prompt(prompt).await?;
                 // The reply streams in until the event that ends the turn.
@@ -609,9 +619,10 @@ impl Chat for AgentChat {
                 turn.await
             }
             .await;
-            (result, events)
+            (Some(result), events)
         })?;
         self.events = Some(events);
+        let Some(result) = result else { return Err(LlmError::new(BUDGET_SPENT)) };
         let result = result.map_err(|error| LlmError::new(error.to_string()))?;
         let usage = result.usage();
         Ok(Turn {
@@ -645,26 +656,37 @@ struct HttpChat {
 impl Chat for HttpChat {
     fn turn(
         &mut self,
-        shared: &Shared,
+        shared: &Arc<Shared>,
         prompt: String,
         voice: &Arc<Voice>,
     ) -> Result<Turn, LlmError> {
         self.transcript.push_prompt(&prompt);
         let body = self.transcript.request(INSTRUCTIONS);
         let reply = self.transcript.reply_stream();
-        let (client, turns, voice) =
-            (Arc::clone(&self.client), Arc::clone(&shared.turns), Arc::clone(voice));
+        let (client, budget, voice) =
+            (Arc::clone(&self.client), Arc::clone(shared), Arc::clone(voice));
         let reply = shared
             .run(async move {
-                let _permit = turns.acquire_owned().await;
+                let _permit = budget.turns.acquire().await;
+                // Other turns may have spent the budget while this one waited for its permit.
+                if !budget.affordable() {
+                    return Err(BUDGET_SPENT.to_string());
+                }
                 client
                     .send(&body, reply, |delta| voice.stream(&delta), |note| voice.say(note))
                     .await
             })?
             .map_err(LlmError::new)?;
-        let (text, usage) = self.transcript.push_reply(&reply).map_err(LlmError::new)?;
+        // A reply that is no answer, such as a refusal, still used the tokens it reports.
+        let usage = self.transcript.usage(&reply);
         let nano_usd = self.client.prices.map(|prices| prices.cost(usage));
-        Ok(Turn { text, tokens: usage.total(), nano_usd })
+        match self.transcript.push_reply(&reply) {
+            Ok(text) => Ok(Turn { text, tokens: usage.total(), nano_usd }),
+            Err(error) => {
+                shared.record(usage.total(), nano_usd);
+                Err(LlmError::new(error))
+            }
+        }
     }
 }
 
@@ -748,7 +770,7 @@ impl Conversation {
     /// Sends `prompt` and returns the reply, unless the budget is spent.
     fn turn(&mut self, prompt: String) -> Result<String, LlmError> {
         if !self.shared.affordable() {
-            return Err(LlmError::new("the conversations spent their budget"));
+            return Err(LlmError::new(BUDGET_SPENT));
         }
         let start = Instant::now();
         let turn = self.chat.turn(&self.shared, prompt, &self.voice);
@@ -872,6 +894,7 @@ impl fmt::Display for Usd {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::AtomicBool;
 
     #[test]
     fn replies() {
@@ -895,5 +918,32 @@ mod tests {
         assert_eq!(Usd(5_000_000_000).to_string(), "$5");
         assert_eq!(Usd(12_500_000).to_string(), "$0.0125");
         assert_eq!(Usd(1_250_000_001).to_string(), "$1.250000001");
+    }
+
+    #[cfg(feature = "llm-transport")]
+    #[test]
+    fn timed_out_turns_stop() {
+        struct Flag(Arc<AtomicBool>);
+
+        impl Drop for Flag {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::Relaxed);
+            }
+        }
+
+        let runtime = tokio::runtime::Builder::new_multi_thread().enable_time().build().unwrap();
+        let dropped = Arc::new(AtomicBool::new(false));
+        let flag = Flag(Arc::clone(&dropped));
+        let turn = async move {
+            let _flag = flag;
+            std::future::pending::<()>().await;
+        };
+        assert!(wait(runtime.handle(), turn, Duration::from_millis(50)).is_err());
+        // The turn's future, with its permit and request, goes with the timeout.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !dropped.load(Ordering::Relaxed) {
+            assert!(Instant::now() < deadline, "the timed-out turn is still running");
+            std::thread::sleep(Duration::from_millis(10));
+        }
     }
 }

@@ -482,7 +482,7 @@ data: {"type":"message_stop"}
         transcript.push_prompt("make it cheaper");
         let body = transcript.request("brief");
         let reply = client.send(&body, transcript.reply_stream(), |_| {}, |_| {}).await?;
-        transcript.push_reply(&reply).map(|(text, _)| text)
+        transcript.push_reply(&reply)
     }
 
     #[tokio::test]

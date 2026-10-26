@@ -444,7 +444,7 @@ fn anthropic_rewrites() {
         str![[r#"
 warning: `-Zllm-optimize=live` sends the MIR of offered functions to `127.0.0.1`
 
-llm-optimize Triangle @sumBelow: costs 5047 gas, 47 bytes; asking anthropic/claude-opus-5-5 for something cheaper
+llm-optimize Triangle @sumBelow: costs 5122 gas, 47 bytes; asking anthropic/claude-opus-5-5 for something cheaper
 llm-optimize Triangle @sumBelow: round 1
   Triangle @sumBelow ┆ Summing an arithmetic series.
   Triangle @sumBelow │ The loop sums an arithmetic series.
@@ -465,7 +465,7 @@ llm-optimize Triangle @sumBelow: round 2
   Triangle @sumBelow │ NO_IMPROVEMENT
 llm-optimize Triangle @sumBelow: replied in [..] s using 1200 tokens, an estimated $0.008
 llm-optimize Triangle @sumBelow: the model has nothing cheaper
-llm-optimize Triangle @sumBelow: keeps a rewrite at 81 gas, 32 bytes, down from 5047 gas, 47 bytes
+llm-optimize Triangle @sumBelow: keeps a rewrite at 81 gas, 32 bytes, down from 5122 gas, 47 bytes
 note: `llm-optimize` asked Anthropic 2 turns using 2400 tokens, an estimated $0.016
 
 
@@ -505,7 +505,7 @@ fn opencode_rewrites() {
         str![[r#"
 warning: `-Zllm-optimize=live` sends the MIR of offered functions to `127.0.0.1`
 
-llm-optimize Triangle @sumBelow: costs 5047 gas, 47 bytes; asking opencode/deepseek-v4.1-flash for something cheaper
+llm-optimize Triangle @sumBelow: costs 5122 gas, 47 bytes; asking opencode/deepseek-v4.1-flash for something cheaper
 llm-optimize Triangle @sumBelow: round 1
   Triangle @sumBelow ┆ Summing an arithmetic series.
   Triangle @sumBelow │ The loop sums an arithmetic series.
@@ -526,7 +526,7 @@ llm-optimize Triangle @sumBelow: round 2
   Triangle @sumBelow │ NO_IMPROVEMENT
 llm-optimize Triangle @sumBelow: replied in [..] s using 1200 tokens, an estimated $0.00054
 llm-optimize Triangle @sumBelow: the model has nothing cheaper
-llm-optimize Triangle @sumBelow: keeps a rewrite at 81 gas, 32 bytes, down from 5047 gas, 47 bytes
+llm-optimize Triangle @sumBelow: keeps a rewrite at 81 gas, 32 bytes, down from 5122 gas, 47 bytes
 note: `llm-optimize` asked OpenCode Zen 2 turns using 2400 tokens, an estimated $0.00108
 
 
@@ -591,7 +591,7 @@ fn chat_provider_retries() {
         str![[r#"
 warning: `-Zllm-optimize=live` sends the MIR of offered functions to `127.0.0.1`
 
-llm-optimize Triangle @sumBelow: costs 5047 gas, 47 bytes; asking opencode/deepseek-v4.1-flash for something cheaper
+llm-optimize Triangle @sumBelow: costs 5122 gas, 47 bytes; asking opencode/deepseek-v4.1-flash for something cheaper
 llm-optimize Triangle @sumBelow: round 1
 llm-optimize Triangle @sumBelow: OpenCode Zen answered 429 Too Many Requests: slow down; sending again in 0.0 s
 llm-optimize Triangle @sumBelow: OpenCode Zen answered 429 Too Many Requests: slow down; sending again in 0.0 s
@@ -614,7 +614,7 @@ llm-optimize Triangle @sumBelow: round 2
   Triangle @sumBelow │ NO_IMPROVEMENT
 llm-optimize Triangle @sumBelow: replied in [..] s using 1200 tokens, an estimated $0.00054
 llm-optimize Triangle @sumBelow: the model has nothing cheaper
-llm-optimize Triangle @sumBelow: keeps a rewrite at 81 gas, 32 bytes, down from 5047 gas, 47 bytes
+llm-optimize Triangle @sumBelow: keeps a rewrite at 81 gas, 32 bytes, down from 5122 gas, 47 bytes
 note: `llm-optimize` asked OpenCode Zen 2 turns using 2400 tokens, an estimated $0.00108
 
 
@@ -646,7 +646,7 @@ fn cached_rewrites_skip_the_model() {
         str![[r#"
 warning: `-Zllm-optimize=live` sends the MIR of offered functions to `127.0.0.1`
 
-llm-optimize Triangle @sumBelow: reuses its cached rewrite at 81 gas, 32 bytes, down from 5047 gas, 47 bytes, without asking opencode/deepseek-v4.1-flash
+llm-optimize Triangle @sumBelow: reuses its cached rewrite at 81 gas, 32 bytes, down from 5122 gas, 47 bytes, without asking opencode/deepseek-v4.1-flash
 
 "#]]
     );
