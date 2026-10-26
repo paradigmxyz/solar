@@ -514,7 +514,6 @@ bb39:
   dup 2
   mstore
   push 32
-  dup 2
   add
   push 0xe2179b8e
   push 224
@@ -529,6 +528,8 @@ bb39:
   sub
   mul
   add
+  jump bb84
+bb84:
   dup 2
   mstore
   push 64
@@ -539,38 +540,22 @@ bb39:
   push 32
   dup 3
   mstore
-  swap 3
-  mload
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
   push 32
-  dup 6
+  dup 2
   add
   push 0
-  dup 3
-  dup 8
-  add
+  dup 2
   mstore
-  dup 3
-  swap 1
-  swap 6
-  mstore
-  dup 5
-  add
-  swap 3
+  push 4
   swap 1
   swap 2
-  swap 4
-  jump bb84
-bb84:
-  mcopy
-  dup 2
+  mstore
+  push 4
+  swap 2
+  swap 3
   swap 1
-  sub
+  mcopy
+  push 96
   swap 1
   return
 bb43:
@@ -610,46 +595,8 @@ bb86:
   dup 2
   mstore
   push 32
-  dup 2
-  add
-  swap 2
-  dup 3
-  mstore
-  push 64
-  mload
-  push 32
-  dup 2
-  add
-  push 32
-  dup 3
-  mstore
-  swap 2
-  mload
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
-  push 32
-  dup 5
-  add
-  push 0
-  dup 3
-  dup 7
-  add
-  mstore
-  dup 3
-  swap 1
-  swap 5
-  mstore
-  dup 4
   add
   swap 1
-  swap 2
-  swap 4
-  swap 1
-  swap 3
   jump bb84
 bb46:
   push 128
