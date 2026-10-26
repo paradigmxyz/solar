@@ -178,7 +178,11 @@
 //! Integer cleanup reuses the dominator walk after integer legalization to remove masks
 //! whose inputs already fit, without running the forward fixed-point analysis. A word
 //! widened back from its own nonzero test, `zext(v != 0)`, counts as a one-bit mask, so a
-//! boolean that ABI decoding checked keeps its word instead of normalizing it again.
+//! boolean that ABI decoding checked keeps its word instead of normalizing it again. A high
+//! mask `and x, MAX << low`, which ranges cannot express, is redundant where some `shl x, k`
+//! with `256 - k >= low` has range `{0}`: that `bytesN` guard proves the low bits zero. Only
+//! functions with a high mask on a value they also shift enter the pass for this rule, since
+//! equality propagation makes the code of other functions worse.
 //! It also uses runtime immutable bounds, since legalization can introduce masks after the
 //! earlier immutable pass. Constructor-reachable functions retain their full-word semantics.
 //! Run late check elimination after the post-memory CSE. Only functions with removed checks receive
@@ -252,12 +256,17 @@ impl MirPass for IntegerCleanup {
     ) -> bool {
         let target = Target::new(gcx);
         let cleanup = |func: &mut Function, immutable_ranges: Option<&FxHashMap<_, _>>| {
-            if (immutable_ranges.is_none()
+            if immutable_ranges.is_none()
                 && !func
                     .blocks
                     .iter()
-                    .any(|block| matches!(block.terminator, Some(Terminator::Branch { .. }))))
-                || !func.instructions().any(|id| {
+                    .any(|block| matches!(block.terminator, Some(Terminator::Branch { .. })))
+            {
+                return false;
+            }
+            let shifted_high_masks = shifted_high_mask_inputs(func);
+            if shifted_high_masks.is_empty()
+                && !func.instructions().any(|id| {
                     let kind = &func.inst(id).kind;
                     low_mask_input(func, kind).is_some()
                         || widened_nonzero_test(func, kind).is_some()
@@ -270,6 +279,7 @@ impl MirPass for IntegerCleanup {
             let removed = invalidate_unreachable_blocks(func, cfg.reachable());
             let mut eliminator = CheckEliminator {
                 collect_masks: true,
+                shifted_high_masks,
                 propagate_equalities: Some(target),
                 immutable_ranges,
                 ..Default::default()
@@ -727,6 +737,8 @@ struct CheckEliminator<'a> {
     cfg: Option<Rc<CfgInfo>>,
     collect_masks: bool,
     redundant_masks: Vec<(InstId, ValueId)>,
+    /// The constant left shifts of each value a high mask cleans, as `(shift, result)`.
+    shifted_high_masks: FxHashMap<ValueId, SmallVec<[(usize, ValueId); 2]>>,
     /// Records constants that dominating branches prove equal to a value, when the target
     /// prices the constant as cheap to read.
     propagate_equalities: Option<Target>,
@@ -1535,6 +1547,22 @@ impl<'a> CheckEliminator<'a> {
 
     fn redundant_mask(&mut self, func: &Function, id: InstId) -> Option<ValueId> {
         let inst = func.inst(id);
+        if let Some((value, low)) = high_mask_input(func, &inst.kind) {
+            // `shl x, k` is zero iff the low `256 - k` bits of `x` are, which covers the `low`
+            // bits the mask clears.
+            if inst.result_ty != func.value_ty(value)
+                || inst.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure)
+            {
+                return None;
+            }
+            let shifts = self.shifted_high_masks.get(&value)?.clone();
+            return shifts
+                .into_iter()
+                .any(|(shift, result)| {
+                    256 - shift >= low && self.range_of(func, result, MAX_DEPTH).hi.is_zero()
+                })
+                .then_some(value);
+        }
         let (value, mask) = low_mask_input(func, &inst.kind)
             .or_else(|| widened_nonzero_test(func, &inst.kind).map(|value| (value, U256::ONE)))?;
         (self.range_of(func, value, MAX_DEPTH).hi <= mask
@@ -3312,6 +3340,43 @@ fn ascending_trip_bound(
     let travel = step.checked_shl(Target::MAX_TRIP_COUNT_BITS)?;
     let far = initial.checked_add(travel).filter(|&far| far <= integer_max(func, value))?;
     Some(Range::new(initial, far))
+}
+
+/// The value `x` of `and x, MAX << low`, which clears the low `low` bits, and `low`.
+fn high_mask_input(func: &Function, kind: &InstKind) -> Option<(ValueId, usize)> {
+    let InstKind::And(a, b) = *kind else { return None };
+    let (value, mask) = const_of(func, b)
+        .map(|mask| (a, mask))
+        .or_else(|| const_of(func, a).map(|mask| (b, mask)))?;
+    let low = mask.trailing_zeros();
+    (low > 0 && low < 256 && mask == U256::MAX << low).then_some((value, low))
+}
+
+/// The constant left shifts `shl x, k` with `k < 256`, as `(k, result)`, for each `x` that a
+/// high mask cleans.
+fn shifted_high_mask_inputs(
+    func: &Function,
+) -> FxHashMap<ValueId, SmallVec<[(usize, ValueId); 2]>> {
+    let masked = func
+        .instructions()
+        .filter_map(|id| high_mask_input(func, &func.inst(id).kind))
+        .map(|(value, _)| value)
+        .collect::<FxHashSet<_>>();
+    let mut shifts = FxHashMap::<_, SmallVec<_>>::default();
+    if masked.is_empty() {
+        return shifts;
+    }
+    for id in func.instructions() {
+        if let InstKind::Shl(shift, value) = func.inst(id).kind
+            && masked.contains(&value)
+            && let Some(shift) = func.value_u64(shift)
+            && shift < 256
+            && let Some(result) = func.inst_result_value(id)
+        {
+            shifts.entry(value).or_default().push((shift as usize, result));
+        }
+    }
+    shifts
 }
 
 fn low_mask_input(func: &Function, kind: &InstKind) -> Option<(ValueId, U256)> {
