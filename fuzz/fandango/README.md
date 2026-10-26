@@ -309,12 +309,26 @@ uv run --project tools/compiler-diff compiler-diff symbolic -- \
 ```
 
 Both compilers receive the same closed Standard JSON input and compiler
-settings. The generated Foundry property deploys both runtimes with ordinary
-`CREATE`, calls each from the same initial state, and compares success or
-revert status and exact returndata. This avoids unsupported symbolic
-cheatcodes. The target copies have different addresses, so functions that
-observe their own address or depend on external self-calls are outside this
-lane.
+settings. The generated Foundry property takes a state snapshot, deploys the
+Solc runtime with ordinary `CREATE`, runs the prefix and selected call, records
+the outcome, and reverts to the snapshot. It then deploys the Solar runtime at
+the same address and repeats the calls. Both runtimes therefore observe the
+same `address(this)`, external self-calls, and log emitter. The property
+compares:
+
+- success or revert status and exact returndata of every call;
+- ordered logs, including emitter, topics, and data;
+- every target storage slot either runtime wrote, read back after the last
+  call; slots neither runtime wrote keep their initial zero;
+- the target's final balance and nonce; and
+- with `--include-payable`, the final balance of a symbolic `observer`
+  account, so Ether sent to any account must agree.
+
+Calls forward all remaining gas because Foundry's symbolic executor does not
+model gas and reports explicit gas caps as incomplete. Calls to addresses
+without code are modeled as calls to empty accounts
+(`symbolic_call_targets = true`); in this closed world the only code belongs
+to the target, the harness, cheatcodes, and active precompiles.
 A generated symbolic bound is raised as needed to hold both runtime bytecode
 blobs and is recorded in `result.json`.
 A symbolic suffix mismatch is reported only after Foundry concretely replays
@@ -333,36 +347,42 @@ Solc still compiles the harness. See the [saved-artifact example](../../tools/co
 
 Pure functions are enabled by default. `--include-view` allows a selected view
 function with zero-initialized storage. `--include-stateful` allows a selected
-nonpayable function under a zero-initialized, single-call model. Repeat
-`--prefix-calldata 0x...` to prepare fixed zero-value calls to the same target
-before a symbolic view or nonpayable call. The tool executes the prefix in the
-symbolic property before comparing the selected call. Prefix success and
-returndata must agree.
+nonpayable function under a zero-initialized, single-call model.
+`--include-payable` allows a payable function and sends it a symbolic value.
+`--symbolic-caller` makes the selected call's `msg.sender` symbolic; without
+it, the harness is the caller. A counterexample reports the target calldata
+and, when present, the `caller`, `value`, and `observer` that exposed it.
+Repeat `--prefix-calldata 0x...` to prepare fixed zero-value calls to the same
+target before a symbolic view, nonpayable, or payable call. The tool executes
+the prefix in the symbolic property before comparing the selected call. Prefix
+success and returndata must agree, and prefix logs and storage writes are part
+of the final comparison.
 
 Prefix calldata includes the selector and ABI-encoded arguments; `0x` targets
 receive or fallback. View suffixes still require `--include-view`, while
-nonpayable suffixes require `--include-stateful`. Constructors, payable calls,
-arbitrary callers, and side effects in external contracts remain outside this
-lane. Prefixes are fixed state preparation, not symbolic transaction-sequence
-exploration.
+nonpayable suffixes require `--include-stateful`. Constructors, the state of
+contracts the target creates, and calls into pre-existing external code remain
+outside this lane; a created contract's code differs between compilers, so
+only the target's nonce is compared. Prefixes are fixed state preparation, not
+symbolic transaction-sequence exploration.
 
 For real projects, use `--project-root`, repeat `--include-path`, and pass
 `--remapping prefix=target` as needed. Solc resolves the import closure once;
 the tool then embeds all resolved sources before compiling with either
 compiler, so the final compiler inputs are byte-for-byte identical.
 
-Each runtime call receives the same fixed 10,000,000-gas budget, recorded as
-part of the bounds. Programs whose result depends on transaction-local access
-warmth or other dynamic gas context remain outside the sound comparison scope.
+Programs whose result depends on remaining gas, transaction-local access
+warmth, or other dynamic gas context remain outside the sound comparison
+scope; Foundry reports gas observations as incomplete rather than proving them.
 
 The default dynamic input lengths are `0,1,2,3`. Use `--dynamic-lengths` to
 change all dynamic inputs or repeat `--input-length INDEX=LENGTHS` for a
 specific top-level array, `bytes`, or `string` argument. `--max-paths`,
 `--max-solver-queries`, `--max-depth`, `--max-calldata-bytes`,
 `--symbolic-timeout`, and `--exploration-order` expose the search bounds an
-external campaign runner needs. `--max-returndata-bytes` scopes exact output
-comparison; paths with longer equal outputs are excluded from the bounded
-claim.
+external campaign runner needs. `--max-returndata-bytes` scopes exact
+returndata and log-data comparison; paths with longer equal outputs are
+excluded from the bounded claim.
 
 Exit status 0 means no mismatch was found within the recorded bounds, 1 means a
 concretely replayed mismatch was found, and 2 means the run was incomplete.
