@@ -1,0 +1,22 @@
+//@compile-flags: -Zmir-pipeline=memory-dse
+//@filecheck:
+@module MemoryDseMsizeCaller
+
+// A callee that reads `msize` is a barrier for block-local store elimination.
+// CHECK-LABEL: @icall_msize_barrier
+// CHECK: {{^ +}}mstore 0x1000, 42
+// CHECK: {{^ +}}{{v[0-9]+}} = icall @observe_msize
+// CHECK: {{^ +}}mstore 0x1000, 0
+fn @icall_msize_barrier() -> i256 {
+  bb0:
+    mstore 4096, 42
+    v0 = icall @observe_msize
+    mstore 4096, 0
+    ret v0
+}
+
+fn @observe_msize() -> i256 {
+  bb0:
+    v0 = msize
+    ret v0
+}

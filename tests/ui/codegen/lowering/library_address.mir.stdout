@@ -1,14 +1,14 @@
 // === ROOT/tests/ui/codegen/lowering/library_address.sol:L ===
 @module L
 @library
-fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret arg0
 }
 
 // === ROOT/tests/ui/codegen/lowering/library_address.sol:C ===
 @module C
-fn @addr() -> i160 [selector=0x767800de, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @addr() -> i160 [selector=0x767800de, pure, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     ret i160 0x1111111111111111111111111111111111111111
 }

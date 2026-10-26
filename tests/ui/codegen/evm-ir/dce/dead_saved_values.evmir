@@ -1,11 +1,11 @@
 //@ revisions: gas size
 //@[gas] compile-flags: --evm-version amsterdam -Ogas -Zevm-ir-pipeline=dce
-//@[gas] filecheck: --check-prefixes=COMMON,GAS
 //@[size] compile-flags: --evm-version amsterdam -Osize -Zevm-ir-pipeline=dce
-//@[size] filecheck: --check-prefixes=COMMON,SIZE
+//@ filecheck: --check-prefix=COMMON
 @module module
 
-// A trailing `gas` keeps terminal-tail cleanup out of copy-elimination cases with no live result.
+// A trailing memory load keeps terminal-tail cleanup out of copy-elimination cases.
+// It may expand memory even though its result is unused.
 
 // Eliminate a dead saved value across an arbitrary straight-line region.
 // COMMON-LABEL: {{^[ +].*}}bb0:
@@ -60,14 +60,10 @@ bb2:
   stop
 
 // Retarget a read of the omitted original to its remaining alias.
-// GAS-LABEL: {{^[ +].*}}bb3:
-// GAS: {{^[ +].*}}dup 1
-// GAS-NEXT: -   dup 2
-// GAS: -   swap 1
-// SIZE-LABEL: {{^[ +].*}}bb3:
-// SIZE: {{^[ +].*}}dup 1
-// SIZE-NEXT: {{^[ +].*}}dup 2
-// SIZE: {{^[ +].*}}swap 1
+// COMMON-LABEL: {{^[ +].*}}bb3:
+// COMMON: {{^[ +].*}}dup 1
+// COMMON-NEXT: -   dup 2
+// COMMON: -   swap 1
 bb3:
   push 1
   push 2
@@ -77,7 +73,9 @@ bb3:
   swap 1
   pop
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // Elide a permutation that only moves the omitted original.
@@ -104,7 +102,9 @@ bb5:
   push bb6
   jumpi
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 bb6:
@@ -137,7 +137,9 @@ bb8:
   pop
   pop
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // Prefer removing an immediately discarded copy over rotating three results.
@@ -157,7 +159,9 @@ bb9:
   pop
   pop
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // Remove an unused non-top stack copy and its cleanup permutation.
@@ -171,17 +175,16 @@ bb10:
   swap 1
   pop
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // Adjust a deeper read across the omitted original.
-// GAS-LABEL: {{^[ +].*}}bb11:
-// GAS: -   dup 1
-// GAS: -   dup 3
-// GAS: +   dup 2
-// SIZE-LABEL: {{^[ +].*}}bb11:
-// SIZE: {{^[ +].*}}dup 1
-// SIZE: {{^[ +].*}}dup 3
+// COMMON-LABEL: {{^[ +].*}}bb11:
+// COMMON: -   dup 1
+// COMMON: -   dup 3
+// COMMON: +   dup 2
 bb11:
   push 7
   dup 1
@@ -191,7 +194,9 @@ bb11:
   pop
   pop
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // Keep a copy when an ordinary operation consumes both occurrences.
@@ -203,7 +208,9 @@ bb12:
   dup 1
   add
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // Reject a rotation that saves no size and increases gas.
@@ -222,7 +229,9 @@ bb13:
   pop
   pop
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // Keep a deeper copy when it is consumed as an operand.
@@ -236,7 +245,9 @@ bb14:
   add
   pop
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // Track an omitted copy through logical extended stack operations.
@@ -248,7 +259,9 @@ bb15:
   dup 2
   pop
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // COMMON-LABEL: {{^[ +].*}}bb16:
@@ -260,7 +273,9 @@ bb16:
   dup 1
   swap 1
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // COMMON-LABEL: {{^[ +].*}}bb17:
@@ -274,5 +289,7 @@ bb17:
   dup 1
   exchange 1, 2
   pop
-  gas
+  push 0
+  mload
+  pop
   stop

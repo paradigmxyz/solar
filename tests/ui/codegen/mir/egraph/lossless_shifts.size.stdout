@@ -9,8 +9,8 @@
   fn @roundtrip_byte(arg0: i256) -> i256 {
     bb0:
       v0 = byte 0, arg0
-      v1 = shl 248, v0
--     v2 = shr 248, v1
+      v1 = shl v0, 248
+-     v2 = shr v1, 248
 -     ret v2
 +     ret v0
   }
@@ -19,8 +19,8 @@
     bb0:
       v0 = eq arg0, arg1
       v1 = zext i1 v0 to i256
-      v2 = shl 255, v1
--     v3 = shr 255, v2
+      v2 = shl v1, 255
+-     v3 = shr v2, 255
 -     ret v3
 +     ret v1
   }
@@ -28,15 +28,15 @@
   fn @shared_shift(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = byte 31, arg0
-      v1 = shl 248, v0
-      v2 = shr 248, v1
+      v1 = shl v0, 248
+      v2 = shr v1, 248
       ret v1, v2
   }
   
   fn @truncating_roundtrip(arg0: i256) -> i256 {
     bb0:
-      v0 = shl 248, arg0
--     v1 = shr 248, v0
+      v0 = shl arg0, 248
+-     v1 = shr v0, 248
 +     v1 = and arg0, 255
       ret v1
   }
@@ -44,8 +44,8 @@
   fn @overshift(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
--     v1 = shl 256, v0
--     v2 = shr 256, v1
+-     v1 = shl v0, 256
+-     v2 = shr v1, 256
 -     ret v2
 +     ret 0
   }
@@ -54,8 +54,8 @@
     bb0:
       v0 = byte 0, arg0
       v1 = byte 31, arg1
-      v2 = shl 248, v0
-      v3 = shl 248, v1
+      v2 = shl v0, 248
+      v3 = shl v1, 248
       v4 = eq v2, v3
       v5 = lt v2, v3
       v6 = gt v2, v3
@@ -68,7 +68,7 @@
   fn @across_blocks(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = byte 0, arg0
-      v1 = shl 248, v0
+      v1 = shl v0, 248
       v2 = ne arg1, 0
       jumpi v2, bb1, bb2
     bb2:
@@ -86,7 +86,7 @@
   fn @aligned_constants(arg0: i256) -> struct2 [return_abi=[i256, i256, i256, i256, i256, i256]] {
     bb0:
       v0 = byte 31, arg0
-      v1 = shl 248, v0
+      v1 = shl v0, 248
 -     v2 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000000
 -     v3 = lt v1, 0x700000000000000000000000000000000000000000000000000000000000000
 -     v4 = gt v1, 0x700000000000000000000000000000000000000000000000000000000000000
@@ -109,7 +109,7 @@
   fn @unaligned_constants(arg0: i256) -> struct1 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = byte 31, arg0
-      v1 = shl 248, v0
+      v1 = shl v0, 248
       v2 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000001
       v3 = lt v1, 0x700000000000000000000000000000000000000000000000000000000000001
       v4 = gt v1, 0x700000000000000000000000000000000000000000000000000000000000001
@@ -121,8 +121,8 @@
   
   fn @truncating_compare(arg0: i256, arg1: i256) -> struct1 [return_abi=[i256, i256, i256]] {
     bb0:
-      v0 = shl 248, arg0
-      v1 = shl 248, arg1
+      v0 = shl arg0, 248
+      v1 = shl arg1, 248
       v2 = eq v0, v1
       v3 = lt v0, v1
       v4 = eq v0, 0x700000000000000000000000000000000000000000000000000000000000000
@@ -136,8 +136,8 @@
     bb0:
       v0 = byte 31, arg0
       v1 = byte 31, arg1
-      v2 = shl 248, v0
-      v3 = shl 248, v1
+      v2 = shl v0, 248
+      v3 = shl v1, 248
       v4 = slt v2, v3
       v5 = sgt v2, v3
       v6 = zext i1 v4 to i256
@@ -148,13 +148,13 @@
   fn @cross_block_roundtrip(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
-      v1 = shl 248, v0
+      v1 = shl v0, 248
       v2 = ne arg1, 0
       jumpi v2, bb1, bb2
     bb2:
       ret 0
     bb1:
-      v3 = shr 248, v1
+      v3 = shr v1, 248
       ret v3
   }
   
@@ -162,8 +162,8 @@
     bb0:
       v0 = byte 0, arg0
       v1 = byte 31, arg1
-      v2 = shl 248, v0
-      v3 = shl 248, v1
+      v2 = shl v0, 248
+      v3 = shl v1, 248
 -     v4 = eq v2, v3
 +     v4 = eq v0, v1
       v5 = zext i1 v4 to i256
@@ -173,7 +173,7 @@
   fn @constant_eq_0(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
-      v1 = shl 248, v0
+      v1 = shl v0, 248
 -     v2 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000000
 +     v2 = eq v0, 7
       v3 = zext i1 v2 to i256
@@ -183,7 +183,7 @@
   fn @constant_eq_1(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
-      v1 = shl 248, v0
+      v1 = shl v0, 248
 -     v2 = eq 0x700000000000000000000000000000000000000000000000000000000000000, v1
 +     v2 = eq v0, 7
       v3 = zext i1 v2 to i256
@@ -194,8 +194,8 @@
     bb0:
       v0 = byte 0, arg0
       v1 = byte 31, arg1
-      v2 = shl 248, v0
-      v3 = shl 248, v1
+      v2 = shl v0, 248
+      v3 = shl v1, 248
 -     v4 = lt v2, v3
 +     v4 = lt v0, v1
       v5 = zext i1 v4 to i256
@@ -205,7 +205,7 @@
   fn @constant_lt_0(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
-      v1 = shl 248, v0
+      v1 = shl v0, 248
 -     v2 = lt v1, 0x700000000000000000000000000000000000000000000000000000000000000
 +     v2 = lt v0, 7
       v3 = zext i1 v2 to i256
@@ -215,7 +215,7 @@
   fn @constant_lt_1(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
-      v1 = shl 248, v0
+      v1 = shl v0, 248
 -     v2 = lt 0x700000000000000000000000000000000000000000000000000000000000000, v1
 +     v2 = gt v0, 7
       v3 = zext i1 v2 to i256
@@ -226,8 +226,8 @@
     bb0:
       v0 = byte 0, arg0
       v1 = byte 31, arg1
-      v2 = shl 248, v0
-      v3 = shl 248, v1
+      v2 = shl v0, 248
+      v3 = shl v1, 248
 -     v4 = gt v2, v3
 +     v4 = gt v0, v1
       v5 = zext i1 v4 to i256
@@ -237,7 +237,7 @@
   fn @constant_gt_0(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
-      v1 = shl 248, v0
+      v1 = shl v0, 248
 -     v2 = gt v1, 0x700000000000000000000000000000000000000000000000000000000000000
 +     v2 = gt v0, 7
       v3 = zext i1 v2 to i256
@@ -247,7 +247,7 @@
   fn @constant_gt_1(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
-      v1 = shl 248, v0
+      v1 = shl v0, 248
 -     v2 = gt 0x700000000000000000000000000000000000000000000000000000000000000, v1
 +     v2 = lt v0, 7
       v3 = zext i1 v2 to i256
@@ -265,7 +265,7 @@
   fn @roundtrip_byte(arg0: i256) -> i256 {
     bb0:
       v0 = byte 0, arg0
--     v1 = shl 248, v0
+-     v1 = shl v0, 248
       ret v0
   }
   
@@ -273,21 +273,21 @@
     bb0:
       v0 = eq arg0, arg1
       v1 = zext i1 v0 to i256
--     v2 = shl 255, v1
+-     v2 = shl v1, 255
       ret v1
   }
   
   fn @shared_shift(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = byte 31, arg0
-      v1 = shl 248, v0
-      v2 = shr 248, v1
+      v1 = shl v0, 248
+      v2 = shr v1, 248
       ret v1, v2
   }
   
   fn @truncating_roundtrip(arg0: i256) -> i256 {
     bb0:
--     v0 = shl 248, arg0
+-     v0 = shl arg0, 248
       v1 = and arg0, 255
       ret v1
   }
@@ -302,8 +302,8 @@
     bb0:
       v0 = byte 0, arg0
       v1 = byte 31, arg1
-      v2 = shl 248, v0
-      v3 = shl 248, v1
+      v2 = shl v0, 248
+      v3 = shl v1, 248
       v4 = eq v2, v3
       v5 = lt v2, v3
       v6 = gt v2, v3
@@ -316,7 +316,7 @@
   fn @across_blocks(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = byte 0, arg0
--     v1 = shl 248, v0
+-     v1 = shl v0, 248
       v2 = ne arg1, 0
       jumpi v2, bb1, bb2
     bb2:
@@ -332,7 +332,7 @@
   fn @aligned_constants(arg0: i256) -> struct2 [return_abi=[i256, i256, i256, i256, i256, i256]] {
     bb0:
       v0 = byte 31, arg0
--     v1 = shl 248, v0
+-     v1 = shl v0, 248
       v2 = eq v0, 7
       v3 = lt v0, 7
       v4 = gt v0, 7
@@ -345,7 +345,7 @@
   fn @unaligned_constants(arg0: i256) -> struct1 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = byte 31, arg0
-      v1 = shl 248, v0
+      v1 = shl v0, 248
       v2 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000001
       v3 = lt v1, 0x700000000000000000000000000000000000000000000000000000000000001
       v4 = gt v1, 0x700000000000000000000000000000000000000000000000000000000000001
@@ -357,8 +357,8 @@
   
   fn @truncating_compare(arg0: i256, arg1: i256) -> struct1 [return_abi=[i256, i256, i256]] {
     bb0:
-      v0 = shl 248, arg0
-      v1 = shl 248, arg1
+      v0 = shl arg0, 248
+      v1 = shl arg1, 248
       v2 = eq v0, v1
       v3 = lt v0, v1
       v4 = eq v0, 0x700000000000000000000000000000000000000000000000000000000000000
@@ -372,8 +372,8 @@
     bb0:
       v0 = byte 31, arg0
       v1 = byte 31, arg1
-      v2 = shl 248, v0
-      v3 = shl 248, v1
+      v2 = shl v0, 248
+      v3 = shl v1, 248
       v4 = slt v2, v3
       v5 = sgt v2, v3
       v6 = zext i1 v4 to i256
@@ -384,13 +384,13 @@
   fn @cross_block_roundtrip(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
-      v1 = shl 248, v0
+      v1 = shl v0, 248
       v2 = ne arg1, 0
       jumpi v2, bb1, bb2
     bb2:
       ret 0
     bb1:
-      v3 = shr 248, v1
+      v3 = shr v1, 248
       ret v3
   }
   
@@ -398,8 +398,8 @@
     bb0:
       v0 = byte 0, arg0
       v1 = byte 31, arg1
--     v2 = shl 248, v0
--     v3 = shl 248, v1
+-     v2 = shl v0, 248
+-     v3 = shl v1, 248
       v4 = eq v0, v1
       v5 = zext i1 v4 to i256
       ret v5
@@ -408,7 +408,7 @@
   fn @constant_eq_0(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
--     v1 = shl 248, v0
+-     v1 = shl v0, 248
       v2 = eq v0, 7
       v3 = zext i1 v2 to i256
       ret v3
@@ -417,7 +417,7 @@
   fn @constant_eq_1(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
--     v1 = shl 248, v0
+-     v1 = shl v0, 248
       v2 = eq v0, 7
       v3 = zext i1 v2 to i256
       ret v3
@@ -427,8 +427,8 @@
     bb0:
       v0 = byte 0, arg0
       v1 = byte 31, arg1
--     v2 = shl 248, v0
--     v3 = shl 248, v1
+-     v2 = shl v0, 248
+-     v3 = shl v1, 248
       v4 = lt v0, v1
       v5 = zext i1 v4 to i256
       ret v5
@@ -437,7 +437,7 @@
   fn @constant_lt_0(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
--     v1 = shl 248, v0
+-     v1 = shl v0, 248
       v2 = lt v0, 7
       v3 = zext i1 v2 to i256
       ret v3
@@ -446,7 +446,7 @@
   fn @constant_lt_1(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
--     v1 = shl 248, v0
+-     v1 = shl v0, 248
       v2 = gt v0, 7
       v3 = zext i1 v2 to i256
       ret v3
@@ -456,8 +456,8 @@
     bb0:
       v0 = byte 0, arg0
       v1 = byte 31, arg1
--     v2 = shl 248, v0
--     v3 = shl 248, v1
+-     v2 = shl v0, 248
+-     v3 = shl v1, 248
       v4 = gt v0, v1
       v5 = zext i1 v4 to i256
       ret v5
@@ -466,7 +466,7 @@
   fn @constant_gt_0(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
--     v1 = shl 248, v0
+-     v1 = shl v0, 248
       v2 = gt v0, 7
       v3 = zext i1 v2 to i256
       ret v3
@@ -475,7 +475,7 @@
   fn @constant_gt_1(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
--     v1 = shl 248, v0
+-     v1 = shl v0, 248
       v2 = lt v0, 7
       v3 = zext i1 v2 to i256
       ret v3

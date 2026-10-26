@@ -3,12 +3,20 @@
 //! Semantic MIR initially leaves selector routing implicit. This conversion pass
 //! creates an ordinary MIR function named `entry` while the module stays semantic.
 //!
-//! The synthesized `entry` function loads the 4-byte selector through a
-//! semantic calldata slice and switches on it to one argument-free `tail_call`
-//! per external wrapper, defaulting to a `revert`. It is meant
-//! to run after [`super::lower_abi::LowerAbi`], which turns external functions into the
-//! argument-free self-decoding wrappers this switch routes to; that is why it
-//! only routes selector-bearing functions that take no MIR arguments.
+//! The synthesized `entry` function reads the selector from the first calldata
+//! word (`shr 224`, or a division by `2**224` before Constantinople) and
+//! switches on it to one argument-free `tail_call` per external wrapper. It is
+//! meant to run after [`super::lower_abi::LowerAbi`], which turns external
+//! functions into the argument-free self-decoding wrappers this switch routes
+//! to; that is why it only routes selector-bearing functions that take no MIR
+//! arguments. Empty calldata goes to `receive` when there is one, and a selector
+//! miss goes to `fallback` or reverts. Calldata shorter than four bytes is
+//! zero-padded by `calldataload`, so it is sent to the default target first
+//! only when some selector ends in a zero byte and could match it.
+//!
+//! When every external entry rejects Ether, `entry` checks `callvalue` once;
+//! otherwise `lower-abi` has already put the check into each rejecting
+//! wrapper, and the two passes share that predicate.
 //!
 //! It checks that ABI entries are explicit before creating routes, and reports an error
 //! if no valid entry can be formed. The final conversion verifies the complete lowered
@@ -23,24 +31,24 @@
 //! through `DELEGATECALL`. Each guarded case computes the comparison itself: a
 //! value shared across the selector switch would be spilled to memory before
 //! dispatch, which unguarded view and pure routes could observe through
-//! `msize()` or a raw `mload`. In `--revert-strings debug` mode the revert
+//! a raw `mload`. In `--revert-strings debug` mode the revert
 //! carries solc's "Non-view function of library called without DELEGATECALL"
 //! message.
 //!
-//! When every selector wrapper starts with the same ABI head-size check, this
-//! pass hoists that check into `entry` and removes the dead wrapper guards. In
-//! non-debug mode the hoisted calldata check, the callvalue check, and selector
-//! misses share one empty-revert block. Debug revert strings retain distinct
-//! paths so each rejection keeps its diagnostic payload.
+//! When at least two selector wrappers all start with the same ABI head-size
+//! check and there is no `receive` or `fallback`, which accept other calldata
+//! shapes, this pass hoists that check into `entry` and removes the dead
+//! wrapper guards. In non-debug mode the hoisted calldata check, the callvalue
+//! check, and selector misses share one empty-revert block. Debug revert
+//! strings retain distinct paths so each rejection keeps its diagnostic
+//! payload.
 //!
-//! This pass runs after [`super::lower_abi::LowerAbi`] in the codegen pipeline.
 //! The backend only consumes the final `lowered` module.
 
 use crate::mir::{
     BlockId, Function, FunctionBuilder, FunctionId, InstKind, MirPhase, MirType, Module,
     PtrLocation, RevertReason, Terminator, Value, ValueId, pass::MirPass,
 };
-use alloy_primitives::U256;
 use solar_config::RevertStrings;
 use solar_interface::{Ident, sym};
 
@@ -50,7 +58,6 @@ pub(crate) struct LowerDispatch;
 struct EntryOptions {
     hoist_callvalue: bool,
     minimum_calldata: Option<u64>,
-    has_bitwise_shifting: bool,
     revert_strings: RevertStrings,
 }
 
@@ -81,11 +88,7 @@ impl MirPass for LowerDispatch {
             );
             return false;
         }
-        let changed = lower_dispatch(
-            module,
-            gcx.sess.opts.evm_version.has_bitwise_shifting(),
-            gcx.sess.opts.revert_strings,
-        );
+        let changed = lower_dispatch(module, gcx.sess.opts.revert_strings);
         if module.dispatch_entry().is_none() {
             analyses
                 .fail(gcx.dcx().err("`lower-dispatch` cannot route this entry signature").emit());
@@ -95,11 +98,7 @@ impl MirPass for LowerDispatch {
     }
 }
 
-fn lower_dispatch(
-    module: &mut Module,
-    has_bitwise_shifting: bool,
-    revert_strings: RevertStrings,
-) -> bool {
+fn lower_dispatch(module: &mut Module, revert_strings: RevertStrings) -> bool {
     // An existing entry already makes selector routing explicit.
     if module.dispatch_entry().is_some() {
         return false;
@@ -165,7 +164,6 @@ fn lower_dispatch(
         EntryOptions {
             hoist_callvalue,
             minimum_calldata: common_calldata_guard.as_ref().map(|(minimum, _)| *minimum),
-            has_bitwise_shifting,
             revert_strings,
         },
     );
@@ -185,8 +183,7 @@ fn build_entry(
     fallback: Option<FunctionId>,
     options: EntryOptions,
 ) {
-    let EntryOptions { hoist_callvalue, minimum_calldata, has_bitwise_shifting, revert_strings } =
-        options;
+    let EntryOptions { hoist_callvalue, minimum_calldata, revert_strings } = options;
     // `CALLDATALOAD(0)` right-pads short calldata with zeroes before the
     // selector extraction. A short input can therefore match a selector
     // only when its final byte is zero; guard all short inputs if any
@@ -305,7 +302,7 @@ fn build_entry(
         if routes.is_empty() {
             builder.jump(default_block);
         } else {
-            let selector = load_selector(&mut builder, has_bitwise_shifting);
+            let selector = load_selector(&mut builder);
             let cases = routes
                 .iter()
                 .zip(&case_blocks)
@@ -417,14 +414,9 @@ fn common_calldata_guard(
 }
 
 /// Loads the 4-byte function selector from the first calldata word.
-fn load_selector(builder: &mut FunctionBuilder<'_>, has_bitwise_shifting: bool) -> ValueId {
+fn load_selector(builder: &mut FunctionBuilder<'_>) -> ValueId {
     let zero = builder.imm(0);
     let word = builder.load(zero, PtrLocation::Calldata);
-    if has_bitwise_shifting {
-        let shift = builder.imm(224);
-        builder.shr(shift, word)
-    } else {
-        let divisor = builder.imm(U256::from(1) << 224);
-        builder.div(word, divisor)
-    }
+    let shift = builder.imm(224);
+    builder.shr(word, shift)
 }

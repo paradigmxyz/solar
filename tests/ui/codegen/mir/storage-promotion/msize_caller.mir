@@ -1,0 +1,57 @@
+//@compile-flags: -Zmir-pipeline=storage-promotion
+//@filecheck: --enable-var-scope
+@module StoragePromotionMsize
+
+// `msize` in the function itself does not block promotion.
+// CHECK-LABEL: @promote_around_msize
+// CHECK: {{^[ +]+}}mstore [[TEMP:[0-9]+]], 1
+// CHECK: [[VALUE:v[0-9]+]] = mload [[TEMP]]
+// CHECK: sstore 0, [[VALUE]]
+fn @promote_around_msize(arg0: i256) -> i256 [selector=0x01020304] {
+  bb0:
+    v0 = msize
+    sstore 0, 1
+    jump bb1
+  bb1:
+    v3 = lt arg0, 3
+    jumpi v3, bb2, bb3
+  bb2:
+    v4 = sload 0
+    v5 = mul v4, 2
+    sstore 0, v5
+    jump bb1
+  bb3:
+    v1 = msize
+    v2 = sub v1, v0
+    ret v2
+}
+
+// A callee that reads `msize` does not either.
+// CHECK-LABEL: @promote_around_msize_callee
+// CHECK: {{^[ +]+}}mstore [[TEMP:[0-9]+]], 1
+// CHECK: [[VALUE:v[0-9]+]] = mload [[TEMP]]
+// CHECK: sstore 0, [[VALUE]]
+fn @promote_around_msize_callee(arg0: i256) -> i256 [selector=0x01020305] {
+  bb0:
+    v0 = icall @observe_memory_size
+    sstore 0, 1
+    jump bb1
+  bb1:
+    v3 = lt arg0, 3
+    jumpi v3, bb2, bb3
+  bb2:
+    v4 = sload 0
+    v5 = mul v4, 2
+    sstore 0, v5
+    jump bb1
+  bb3:
+    v1 = icall @observe_memory_size
+    v2 = sub v1, v0
+    ret v2
+}
+
+fn @observe_memory_size() -> i256 {
+  bb0:
+    v0 = msize
+    ret v0
+}

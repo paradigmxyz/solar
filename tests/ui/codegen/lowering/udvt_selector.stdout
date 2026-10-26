@@ -39,10 +39,10 @@ bb0:
   lt
   push bb7
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0

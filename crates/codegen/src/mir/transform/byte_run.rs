@@ -58,7 +58,7 @@
 //! backward scan a block gives.
 
 use crate::mir::{
-    EffectKind, Function, Immediate, InstId, InstKind, Module, PtrLocation, Value, ValueId,
+    Function, Immediate, InstId, InstKind, Module, PtrLocation, Value, ValueId,
     pass::{MirPass, ModuleAnalyses, run_function_pass},
 };
 use alloy_primitives::U256;
@@ -172,7 +172,7 @@ fn fuse(
         }
     }
 
-    // %result = shr(256 - 8 * run, %lowest_word)
+    // %result = shr %lowest_word, 256 - 8 * run
     let amount = 256 - 8 * run as u64;
     let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(amount))));
     let word = leaves[0].word;
@@ -379,24 +379,15 @@ fn byte_read(func: &Function, inst: InstId) -> Option<(Vec<ValueId>, u64, ValueI
     Some((base, offset, word))
 }
 
-/// Removes instructions left without users by the rewrites above.
-///
-/// A memory read expands the EVM memory high-water mark even when its value is
-/// discarded, and a later `msize` observes that. Functions containing one keep
-/// their reads, matching the rule dead code elimination applies. Returns whether
-/// anything was removed.
+/// Removes instructions left without users by the rewrites above. Returns whether anything was
+/// removed.
 fn sweep_dead(func: &mut Function) -> bool {
-    let observes_msize =
-        func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize));
     let mut swept = false;
     loop {
         let uses = super::egraph::use_counts(func);
         let mut dead = FxHashSet::default();
         for inst in func.instructions() {
-            let inst_ref = func.inst(inst);
-            if inst_ref.kind.has_side_effects()
-                || (observes_msize && inst_ref.kind.effect_kind() == EffectKind::MemoryRead)
-            {
+            if func.inst(inst).kind.has_side_effects() {
                 continue;
             }
             if let Some(result) = func.inst_result_value(inst)

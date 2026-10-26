@@ -70,7 +70,7 @@ fn @f1(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i256 {
     ret v33
 }
 
-fn @run(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i256 [selector=0xc481bd6a, abi_params=[u256, u256, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @run(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i256 [selector=0xc481bd6a, abi_params=[uint256, uint256, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @f1, arg0, arg1, arg2, arg3, arg4
     ret v0

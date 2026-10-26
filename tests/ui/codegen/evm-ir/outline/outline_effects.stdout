@@ -1,0 +1,117 @@
+- // === ROOT/tests/ui/codegen/evm-ir/outline/outline_effects.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/outline_effects.evmir (after outline) ===
+  @module module
+  bb0:
+-   push 32
+-   push 0
+-   keccak256
+-   push 1
+-   sload
+-   push 0
+-   push 0
+-   log2
+-   push 64
+-   push 0
+-   push 0
+-   calldatacopy
+-   push 255
+-   push 64
+-   mstore8
+-   jump bb1
++   push bb7
++   jump bb6
+  bb1:
+-   push 32
+-   push 0
+-   keccak256
+-   push 1
+-   sload
+-   push 0
+-   push 0
+-   log2
+-   push 64
+-   push 0
+-   push 0
+-   calldatacopy
+-   push 255
+-   push 64
+-   mstore8
+-   jump bb2
++   push bb8
++   jump bb6
+  bb2:
+-   push 32
+-   push 0
+-   keccak256
+-   push 1
+-   sload
+-   push 0
+-   push 0
+-   log2
+-   push 64
+-   push 0
+-   push 0
+-   calldatacopy
+-   push 255
+-   push 64
+-   mstore8
+-   jump bb3
++   push bb9
++   jump bb6
+  bb3:
+    push 17
+    push 34
+    sstore
+    gas
+    push 51
+    mstore
+    push 68
+    push 85
+    sstore
+    jump bb4
+  bb4:
+    push 17
+    push 34
+    sstore
+    gas
+    push 51
+    mstore
+    push 68
+    push 85
+    sstore
+    jump bb5
+  bb5:
+    push 17
+    push 34
+    sstore
+    gas
+    push 51
+    mstore
+    push 68
+    push 85
+    sstore
+    stop
++ bb6:
++   push 32
++   push 0
++   keccak256
++   push 1
++   sload
++   push 0
++   push 0
++   log2
++   push 64
++   push 0
++   push 0
++   calldatacopy
++   push 255
++   push 64
++   mstore8
++   jump
++ bb7 [continuation]:
++   jump bb1
++ bb8 [continuation]:
++   jump bb2
++ bb9 [continuation]:
++   jump bb3
+  

@@ -4,6 +4,7 @@
 
 // A terminal ABI encoder may reuse a fresh full-word array. The payload moves
 // forward once, then the old length and data words become the tuple header.
+// A fresh object is never null, so its length needs no null guard.
 // CHECK-LABEL: {{^[ +].*}}fn @fresh_array{{[( ]}}
 fn @fresh_array() -> ptr<memory> {
   bb0:
@@ -16,13 +17,12 @@ fn @fresh_array() -> ptr<memory> {
 // CHECK-LABEL: {{^[ +].*}}fn @terminal{{[( ]}}
 // CHECK: - {{v[0-9]+}} = abi_encode
 // CHECK: + [[LENGTH:v[0-9]+]] = mload [[OBJECT:v[0-9]+]]
-// CHECK: + [[ENCODE_LENGTH:v[0-9]+]] = mul [[LENGTH]], {{v[0-9]+}}
 // CHECK-NEXT: + [[SOURCE:v[0-9]+]] = ptradd [[OBJECT]], 32
-// CHECK: + [[BYTES:v[0-9]+]] = shl 5, [[ENCODE_LENGTH]]
+// CHECK: + [[BYTES:v[0-9]+]] = shl [[LENGTH]], 5
 // CHECK: + [[DESTINATION:v[0-9]+]] = ptradd [[OBJECT]], 64
 // CHECK: + mcopy [[DESTINATION]], [[SOURCE]], [[BYTES]]
 // CHECK: + mstore [[OBJECT]], 32
-// CHECK: + mstore [[SOURCE]], [[ENCODE_LENGTH]]
+// CHECK: + mstore [[SOURCE]], [[LENGTH]]
 // CHECK: + [[TOTAL:v[0-9]+]] = add [[BYTES]], 64
 // CHECK: + [[ENCODED:v[0-9]+]] = make_memory_slice [[OBJECT]], [[TOTAL]]
 fn @terminal() {
@@ -66,13 +66,12 @@ fn @fresh_bytes_wrapper(arg0: i256) -> ptr<memory> {
 // CHECK-LABEL: {{^[ +].*}}fn @terminal_bytes{{[( ]}}
 // CHECK: - {{v[0-9]+}} = abi_encode
 // CHECK: + [[LENGTH:v[0-9]+]] = mload [[OBJECT:v[0-9]+]]
-// CHECK: + [[ENCODE_LENGTH:v[0-9]+]] = mul [[LENGTH]],
 // CHECK-NEXT: + [[SOURCE:v[0-9]+]] = ptradd [[OBJECT]], 32
 // CHECK: + [[SOURCE_WORD:v[0-9]+]] = ptrtoint ptr<memory> [[SOURCE]] to i256
 // CHECK-NEXT: + [[LAST:v[0-9]+]] = add [[SOURCE_WORD]],
 // CHECK: + mstore [[LAST]], 0
 // CHECK: + [[DESTINATION:v[0-9]+]] = ptradd [[OBJECT]], 64
-// CHECK: + mcopy [[DESTINATION]], [[SOURCE]], [[ENCODE_LENGTH]]
+// CHECK: + mcopy [[DESTINATION]], [[SOURCE]], [[LENGTH]]
 // CHECK: + mstore [[OBJECT]], 32
 fn @terminal_bytes(arg0: i256) {
   bb0:

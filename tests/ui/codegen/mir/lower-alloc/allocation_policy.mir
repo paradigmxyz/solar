@@ -9,16 +9,15 @@
 // CHECK-NOT: +     {{.*}}ptrtoint
 // CHECK: +     memory_zero [[OBJECT]], arg0
 // CHECK-LABEL:   fn @internal() -> i256 {
-// CHECK: +     [[WORD:v[0-9]+]] = mload 64 !metadata(memory=scratch)
+// CHECK: +     [[WORD:v[0-9]+]] = mload 64 !metadata(memory=scratch, alloc_ptr)
 // CHECK: +     [[PTR:v[0-9]+]] = inttoptr i256 [[WORD]] to ptr<memory> !metadata(memory=scratch, span=10..20)
 // CHECK-NOT: +     {{.*}}ptrtoint
-// CHECK: +     [[END:v[0-9]+]] = add [[WORD]], 32
-// CHECK: +     mstore 64, [[END]] !metadata(memory=scratch, preserves_valid_fmp)
+// CHECK: +     [[END:v[0-9]+]] = add [[WORD]], 32 !metadata(alloc_ptr)
+// CHECK: +     mstore 64, [[END]] !metadata(memory=scratch)
 // CHECK-LABEL: + fn @alloc(arg0: i256) -> ptr<memory> {
-// CHECK: +     [[POINTER:v[0-9]+]] = mload 64 !metadata(memory=scratch)
+// CHECK: +     [[POINTER:v[0-9]+]] = mload 64 !metadata(memory=scratch, alloc_ptr)
 // CHECK: +     [[OBJECT:v[0-9]+]] = inttoptr i256 [[POINTER]] to ptr<memory>
 // CHECK: +     jumpi {{v[0-9]+}}, {{bb[0-9]+}}, {{bb[0-9]+}}
-// CHECK: +     mstore 64, {{v[0-9]+}} !metadata(memory=scratch, preserves_valid_fmp)
 // CHECK: +     revert 28, 36
 @module AllocationPolicy
 

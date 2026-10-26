@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/cse/cse_global_loads.mir (after cse) ===
   @module CseGlobalLoads
   @immutables
-    value: u256
+    value: uint256
   
   fn @dominating_mload(arg0: i1) -> i256 {
     bb0:
@@ -26,8 +26,9 @@
       jumpi arg0, bb1, bb2
     bb2:
       sstore 0, 7
-      v2 = sload 0
-      ret v2
+-     v2 = sload 0
+-     ret v2
++     ret 7
     bb1:
 -     v1 = sload 0
 -     ret v1

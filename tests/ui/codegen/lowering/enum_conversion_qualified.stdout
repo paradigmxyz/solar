@@ -52,10 +52,10 @@ bb5:
   push bb11
   jumpi
   iszero
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb8:
   push 4
@@ -66,8 +66,8 @@ bb8:
   push bb11
   jumpi
   iszero
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

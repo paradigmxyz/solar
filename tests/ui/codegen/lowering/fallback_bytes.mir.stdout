@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256}
 
-fn @invoke(arg0: ptr<memory>) -> struct0 [selector=0xa6514259, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, bytes32]] {
+fn @invoke(arg0: ptr<memory>) -> struct0 [selector=0xa6514259, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[uint256, bytes32]] {
   bb0:
     v0 = address
     v1 = gas
@@ -22,26 +22,15 @@ fn @invoke(arg0: ptr<memory>) -> struct0 [selector=0xa6514259, abi_params=[bytes
 
 fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
   bb0:
-    v0 = extract_value slice<calldata>, arg0, 0
-    v1 = extract_value slice<calldata>, arg0, 1
-    v2 = calldatasize
-    v3 = gt v1, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v3
-    v4 = sub v2, v1
-    v5 = ptrtoint ptr<calldata> v0 to i256
-    v6 = sgt v5, v4
-    icall revert_if<calldata_tail_too_short>, v6
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = add v0, 63
+    v2 = not 31
+    v3 = and v1, v2
+    v4 = alloc v3
+    mstore v4, v0
+    v5 = ptradd v4, 32
+    v6 = extract_value slice<calldata>, arg0, 0
     v7 = extract_value slice<calldata>, arg0, 1
-    v8 = add v7, 63
-    v9 = lt v8, v7
-    icall panic_if<0x41>, v9
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc v11
-    mstore v12, v7
-    v13 = ptradd v12, 32
-    v14 = extract_value slice<calldata>, arg0, 0
-    v15 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v13, v14, v15
-    ret v12
+    calldatacopy v5, v6, v7
+    ret v4
 }

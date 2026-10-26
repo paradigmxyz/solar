@@ -3,12 +3,12 @@
 //@ normalize-stdout-test: "(?s).+" -> ""
 
 // Both arrays stay on the stack across the low-memory copy, so staging the
-// child's creation code reaches its size and destination with shallow `dup`s.
+// child's creation code reaches its size and destination with `dup`s alone, no `pop`.
 // CHECK: push_data Child_creation_code_0
-// CHECK-NEXT: dup 3
+// CHECK-NEXT: dup 5
 // CHECK-NEXT: codecopy
 // CHECK-NEXT: push {{[0-9]+}}
-// CHECK-NEXT: dup 2
+// CHECK-NEXT: dup 4
 // CHECK-NEXT: add
 contract Child {
     constructor(address[] memory, uint256[] memory, uint256) {}

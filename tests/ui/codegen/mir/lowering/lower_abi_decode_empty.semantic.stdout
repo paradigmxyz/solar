@@ -9,7 +9,7 @@
   
   fn @word(arg0: ptr<memory>) -> i256 {
     bb0:
-      v0 = abi_decode [u256], arg0
+      v0 = abi_decode [uint256], arg0
       ret v0
   }
   

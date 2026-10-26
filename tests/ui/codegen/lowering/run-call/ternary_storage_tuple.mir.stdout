@@ -32,19 +32,19 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @empty() -> struct0 [selector=0xf2a75fe4, pure, abi_params=[], abi_returns=[memory_array<word>, memory_array<word>], abi_return_params=[array<_, u256>, array<_, u256>]] {
+fn @empty() -> struct0 [selector=0xf2a75fe4, pure, abi_params=[], abi_returns=[memory_array<word>, memory_array<word>], abi_return_params=[array<_, uint256>, array<_, uint256>]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, ptr<memory> 96
     v1 = insert_value struct0, v0, 1, ptr<memory> 96
     ret v1
 }
 
-fn @emptyOne() -> ptr<memory> [selector=0xf3aefcd8, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @emptyOne() -> ptr<memory> [selector=0xf3aefcd8, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     ret ptr<memory> 96
 }
 
-fn @returnCall(arg0: i1) -> struct0 [selector=0x5ac1cd5e, view, abi_params=[bool], abi_returns=[memory_array<word>, memory_array<word>], abi_return_params=[array<_, u256>, array<_, u256>]] {
+fn @returnCall(arg0: i1) -> struct0 [selector=0x5ac1cd5e, view, abi_params=[bool], abi_returns=[memory_array<word>, memory_array<word>], abi_return_params=[array<_, uint256>, array<_, uint256>]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -60,7 +60,7 @@ fn @returnCall(arg0: i1) -> struct0 [selector=0x5ac1cd5e, view, abi_params=[bool
     revert_returndata
   bb5:
     v9 = icall returndata_bytes<>
-    v10 = abi_decode [array<_, u256>, array<_, u256>], v9
+    v10 = abi_decode [array<_, uint256>, array<_, uint256>], v9
     v11 = extract_value struct0, v10, 0
     v12 = extract_value struct0, v10, 1
     v13 = insert_value struct0, undef struct0, 0, v11
@@ -80,7 +80,7 @@ fn @returnCall(arg0: i1) -> struct0 [selector=0x5ac1cd5e, view, abi_params=[bool
     ret v20
 }
 
-fn @returnSwap(arg0: i1) -> struct0 [selector=0x8e13d368, view, abi_params=[bool], abi_returns=[memory_array<word>, memory_array<word>], abi_return_params=[array<_, u256>, array<_, u256>]] {
+fn @returnSwap(arg0: i1) -> struct0 [selector=0x8e13d368, view, abi_params=[bool], abi_returns=[memory_array<word>, memory_array<word>], abi_return_params=[array<_, uint256>, array<_, uint256>]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -97,33 +97,31 @@ fn @returnSwap(arg0: i1) -> struct0 [selector=0x8e13d368, view, abi_params=[bool
     ret v5
 }
 
-fn @returnPointer(arg0: i1) -> ptr<memory> [selector=0x82ecaf4d, view, abi_params=[bool], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @returnPointer(arg0: i1) -> ptr<memory> [selector=0x82ecaf4d, view, abi_params=[bool], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
     v1 = address
     v2 = gas
-    v3 = abi_encode [], selector 0xf3aefcd800000000000000000000000000000000000000000000000000000000
-    v4 = extract_value slice<memory>, v3, 0
-    v5 = extract_value slice<memory>, v3, 1
-    v6 = zext i160 v1 to i256
-    v7 = staticcall v2, v6, v4, v5, 0, 0
-    jumpi v7, bb5, bb4
+    mstore 0, 0xf3aefcd8 !metadata(memory=scratch)
+    v3 = zext i160 v1 to i256
+    v4 = staticcall v2, v3, 28, 4, 0, 0
+    jumpi v4, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v8 = icall returndata_bytes<>
-    v9 = abi_decode [array<_, u256>], v8
+    v5 = icall returndata_bytes<>
+    v6 = abi_decode [array<_, uint256>], v5
     jump bb3
   bb1:
     v0 = icall @load_storage_word_array, 0
     jump bb3
   bb3:
-    v10 = phi [bb1: v0], [bb5: v9]
-    ret v10
+    v7 = phi [bb1: v0], [bb5: v6]
+    ret v7
 }
 
-fn @declarePointers(arg0: i1) -> i256 [selector=0x518349b9, view, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @declarePointers(arg0: i1) -> i256 [selector=0x518349b9, view, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -135,12 +133,12 @@ fn @declarePointers(arg0: i1) -> i256 [selector=0x518349b9, view, abi_params=[bo
     v1 = phi [bb1: 1], [bb2: 0]
     v2 = sload v0 !metadata(storage=symbolic(v0))
     v3 = sload v1 !metadata(storage=symbolic(v1))
-    v4 = checked_mul u256, 2, v3
-    v5 = checked_add u256, v2, v4
+    v4 = checked_mul uint256, 2, v3
+    v5 = checked_add uint256, v2, v4
     ret v5
 }
 
-fn @declareMemory(arg0: i1) -> struct0 [selector=0x3b7f229a, view, abi_params=[bool], abi_returns=[memory_array<word>, memory_array<word>], abi_return_params=[array<_, u256>, array<_, u256>]] {
+fn @declareMemory(arg0: i1) -> struct0 [selector=0x3b7f229a, view, abi_params=[bool], abi_returns=[memory_array<word>, memory_array<word>], abi_return_params=[array<_, uint256>, array<_, uint256>]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -157,7 +155,7 @@ fn @declareMemory(arg0: i1) -> struct0 [selector=0x3b7f229a, view, abi_params=[b
     ret v5
 }
 
-fn @assignMemory(arg0: i1) -> struct0 [selector=0x75a65ceb, view, abi_params=[bool], abi_returns=[memory_array<word>, memory_array<word>], abi_return_params=[array<_, u256>, array<_, u256>]] {
+fn @assignMemory(arg0: i1) -> struct0 [selector=0x75a65ceb, view, abi_params=[bool], abi_returns=[memory_array<word>, memory_array<word>], abi_return_params=[array<_, uint256>, array<_, uint256>]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -173,7 +171,7 @@ fn @assignMemory(arg0: i1) -> struct0 [selector=0x75a65ceb, view, abi_params=[bo
     revert_returndata
   bb5:
     v9 = icall returndata_bytes<>
-    v10 = abi_decode [array<_, u256>, array<_, u256>], v9
+    v10 = abi_decode [array<_, uint256>, array<_, uint256>], v9
     v11 = extract_value struct0, v10, 0
     v12 = extract_value struct0, v10, 1
     v13 = insert_value struct0, undef struct0, 0, v11
@@ -193,7 +191,7 @@ fn @assignMemory(arg0: i1) -> struct0 [selector=0x75a65ceb, view, abi_params=[bo
     ret v20
 }
 
-fn @assignPointers(arg0: i1) -> i256 [selector=0x33a1f821, view, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @assignPointers(arg0: i1) -> i256 [selector=0x33a1f821, view, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -205,12 +203,12 @@ fn @assignPointers(arg0: i1) -> i256 [selector=0x33a1f821, view, abi_params=[boo
     v1 = phi [bb1: 1], [bb2: 0]
     v2 = sload v0 !metadata(storage=symbolic(v0))
     v3 = sload v1 !metadata(storage=symbolic(v1))
-    v4 = checked_mul u256, 2, v3
-    v5 = checked_add u256, v2, v4
+    v4 = checked_mul uint256, 2, v3
+    v5 = checked_add uint256, v2, v4
     ret v5
 }
 
-fn @assignStorage(arg0: i1) -> struct0 [selector=0xd54ebd37, abi_params=[bool], abi_returns=[memory_array<word>, memory_array<word>], abi_return_params=[array<_, u256>, array<_, u256>]] {
+fn @assignStorage(arg0: i1) -> struct0 [selector=0xd54ebd37, abi_params=[bool], abi_returns=[memory_array<word>, memory_array<word>], abi_return_params=[array<_, uint256>, array<_, uint256>]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -268,7 +266,7 @@ fn @assignStorage(arg0: i1) -> struct0 [selector=0xd54ebd37, abi_params=[bool], 
     v41 = insert_value struct0, v40, 1, v39
     ret v41
   bb18:
-    v31 = shl 5, v29
+    v31 = shl v29, 5
     v32 = ptradd v20, v31
     v33 = ptradd v32, 32
     v34 = mload v33
@@ -284,7 +282,7 @@ fn @assignStorage(arg0: i1) -> struct0 [selector=0xd54ebd37, abi_params=[bool], 
     v28 = add v24, 1
     jump bb14
   bb10:
-    v13 = shl 5, v11
+    v13 = shl v11, 5
     v14 = ptradd v2, v13
     v15 = ptradd v14, 32
     v16 = mload v15
@@ -311,7 +309,7 @@ fn @getSecond() -> i256 [view] {
     ret 1
 }
 
-fn @returnIndirect(arg0: i1) -> struct0 [selector=0xde009a58, view, abi_params=[bool], abi_returns=[memory_array<word>, memory_array<word>], abi_return_params=[array<_, u256>, array<_, u256>]] {
+fn @returnIndirect(arg0: i1) -> struct0 [selector=0xde009a58, view, abi_params=[bool], abi_returns=[memory_array<word>, memory_array<word>], abi_return_params=[array<_, uint256>, array<_, uint256>]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -344,23 +342,21 @@ fn @returnIndirect(arg0: i1) -> struct0 [selector=0xde009a58, view, abi_params=[
     ret v9
 }
 
-fn @returnIndirectOne(arg0: i1) -> ptr<memory> [selector=0xf7a7bdf0, view, abi_params=[bool], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @returnIndirectOne(arg0: i1) -> ptr<memory> [selector=0xf7a7bdf0, view, abi_params=[bool], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
     v3 = address
     v4 = gas
-    v5 = abi_encode [], selector 0xf3aefcd800000000000000000000000000000000000000000000000000000000
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = zext i160 v3 to i256
-    v9 = staticcall v4, v8, v6, v7, 0, 0
-    jumpi v9, bb8, bb7
+    mstore 0, 0xf3aefcd8 !metadata(memory=scratch)
+    v5 = zext i160 v3 to i256
+    v6 = staticcall v4, v5, 28, 4, 0, 0
+    jumpi v6, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v10 = icall returndata_bytes<>
-    v11 = abi_decode [array<_, u256>], v10
+    v7 = icall returndata_bytes<>
+    v8 = abi_decode [array<_, uint256>], v7
     jump bb3
   bb1:
     jumpi arg0, bb4, bb5
@@ -374,11 +370,11 @@ fn @returnIndirectOne(arg0: i1) -> ptr<memory> [selector=0xf7a7bdf0, view, abi_p
     v2 = icall @load_storage_word_array, v1
     jump bb3
   bb3:
-    v12 = phi [bb6: v2], [bb8: v11]
-    ret v12
+    v9 = phi [bb6: v2], [bb8: v8]
+    ret v9
 }
 
-fn @assignMixed(arg0: i1) -> struct0 [selector=0xe3f7893c, abi_params=[bool], abi_returns=[memory_array<word>, memory_array<word>], abi_return_params=[array<_, u256>, array<_, u256>]] {
+fn @assignMixed(arg0: i1) -> struct0 [selector=0xe3f7893c, abi_params=[bool], abi_returns=[memory_array<word>, memory_array<word>], abi_return_params=[array<_, uint256>, array<_, uint256>]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -415,7 +411,7 @@ fn @assignMixed(arg0: i1) -> struct0 [selector=0xe3f7893c, abi_params=[bool], ab
     v23 = insert_value struct0, v22, 1, v21
     ret v23
   bb10:
-    v13 = shl 5, v11
+    v13 = shl v11, 5
     v14 = ptradd v2, v13
     v15 = ptradd v14, 32
     v16 = mload v15
@@ -434,7 +430,7 @@ fn @assignMixed(arg0: i1) -> struct0 [selector=0xe3f7893c, abi_params=[bool], ab
 
 fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
   bb0:
-    v0 = load_storage_array u256, arg0
+    v0 = load_storage_array uint256, arg0
     ret v0
 }
 

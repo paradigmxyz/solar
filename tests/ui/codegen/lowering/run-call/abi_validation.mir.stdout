@@ -5,39 +5,38 @@ fn @vBool(arg0: i1) -> i1 [selector=0x18a11c47, pure, abi_params=[bool], abi_ret
     ret arg0
 }
 
-fn @vUint8(arg0: i8) -> i8 [selector=0xd5f6949e, pure, abi_params=[u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @vUint8(arg0: i8) -> i8 [selector=0xd5f6949e, pure, abi_params=[uint8], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     ret arg0
 }
 
-fn @vAddress(arg0: i160) -> i160 [selector=0x23347413, view, abi_params=[address], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @vAddress(arg0: i160) -> i160 [selector=0x23347413, view, abi_params=[address], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = address
     v1 = gas
+    mstore 0, 0x9e9aa54a !metadata(memory=scratch)
     v2 = zext i160 arg0 to i256
-    v3 = abi_encode [word<u160>], selector 0x9e9aa54a00000000000000000000000000000000000000000000000000000000, args v2
-    v4 = extract_value slice<memory>, v3, 0
-    v5 = extract_value slice<memory>, v3, 1
-    v6 = zext i160 v0 to i256
-    v7 = staticcall v1, v6, v4, v5, 0, 32
-    jumpi v7, bb2, bb1
+    mstore 32, v2 !metadata(memory=scratch)
+    v3 = zext i160 v0 to i256
+    v4 = staticcall v1, v3, 28, 36, 0, 32
+    jumpi v4, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = returndatasize
-    v9 = lt v8, 32
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = add 0, 0
-    v11 = mload v10
-    v12 = shr 160, v11
-    v13 = eq v12, 0
-    v14 = eq v13, false
-    icall revert_if<empty>, v14
-    v15 = trunc i256 v11 to i160
-    ret v15
+    v5 = returndatasize
+    v6 = lt v5, 32
+    icall revert_if<tuple_data_too_short>, v6
+    v7 = add 0, 0
+    v8 = mload v7
+    v9 = shr v8, 160
+    v10 = eq v9, 0
+    v11 = eq v10, false
+    icall revert_if<empty>, v11
+    v12 = trunc i256 v8 to i160
+    ret v12
 }
 
-fn @vAddressTarget(arg0: i160) -> i160 [selector=0x9e9aa54a, pure, abi_params=[address], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @vAddressTarget(arg0: i160) -> i160 [selector=0x9e9aa54a, pure, abi_params=[address], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     ret arg0
 }
@@ -47,21 +46,20 @@ fn @dirtyBytes1(arg0: i256) -> i256 [selector=0x92fef914, view, abi_params=[byte
     v0 = address
     v1 = gas
     v2 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v3 = abi_encode [word<bytes1>], selector 0xa408523c00000000000000000000000000000000000000000000000000000000, args v2
-    v4 = extract_value slice<memory>, v3, 0
-    v5 = extract_value slice<memory>, v3, 1
-    v6 = zext i160 v0 to i256
-    v7 = staticcall v1, v6, v4, v5, 0, 32
-    jumpi v7, bb2, bb1
+    mstore 0, 0xa408523c !metadata(memory=scratch)
+    mstore 32, v2 !metadata(memory=scratch)
+    v3 = zext i160 v0 to i256
+    v4 = staticcall v1, v3, 28, 36, 0, 32
+    jumpi v4, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = returndatasize
-    v9 = lt v8, 32
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = add 0, 0
-    v11 = mload v10
-    ret v11
+    v5 = returndatasize
+    v6 = lt v5, 32
+    icall revert_if<tuple_data_too_short>, v6
+    v7 = add 0, 0
+    v8 = mload v7
+    ret v8
 }
 
 fn @bytes1Target(arg0: i256) -> i256 [selector=0xa408523c, pure, abi_params=[bytes1], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -70,31 +68,30 @@ fn @bytes1Target(arg0: i256) -> i256 [selector=0xa408523c, pure, abi_params=[byt
     ret v0
 }
 
-fn @dirtyEnumArg(arg0: i256) -> i256 [selector=0xc3e104d2, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirtyEnumArg(arg0: i256) -> i256 [selector=0xc3e104d2, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas
     v2 = lt arg0, 2
     v3 = eq v2, false
     icall panic_if<0x21>, v3
-    v4 = abi_encode [word<enum 2>], selector 0x5688f44300000000000000000000000000000000000000000000000000000000, args arg0
-    v5 = extract_value slice<memory>, v4, 0
-    v6 = extract_value slice<memory>, v4, 1
-    v7 = zext i160 v0 to i256
-    v8 = staticcall v1, v7, v5, v6, 0, 32
-    jumpi v8, bb2, bb1
+    mstore 0, 0x5688f443 !metadata(memory=scratch)
+    mstore 32, arg0 !metadata(memory=scratch)
+    v4 = zext i160 v0 to i256
+    v5 = staticcall v1, v4, 28, 36, 0, 32
+    jumpi v5, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = returndatasize
-    v10 = lt v9, 32
-    icall revert_if<tuple_data_too_short>, v10
-    v11 = add 0, 0
-    v12 = mload v11
-    ret v12
+    v6 = returndatasize
+    v7 = lt v6, 32
+    icall revert_if<tuple_data_too_short>, v7
+    v8 = add 0, 0
+    v9 = mload v8
+    ret v9
 }
 
-fn @enumTarget(arg0: i256) -> i256 [selector=0x5688f443, pure, abi_params=[enum<2, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @enumTarget(arg0: i256) -> i256 [selector=0x5688f443, pure, abi_params=[enum<2, uint8>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt arg0, 2
     v1 = eq v0, false

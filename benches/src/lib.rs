@@ -29,8 +29,11 @@ pub const COMPILERS: &[&dyn Compiler] = if IS_CODSPEED {
         // fmt
         &Solc,
         &Solar,
+        #[cfg(feature = "others")]
         &Solang,
+        #[cfg(feature = "others")]
         &Slang,
+        #[cfg(feature = "others")]
         &TreeSitter,
     ]
 };
@@ -92,6 +95,8 @@ pub fn get_srcs() -> &'static [Source] {
                 "../testdata/projects/uniswap-v2-pair.json.gz",
                 Capabilities::lex_only(),
             ),
+            include_source("../testdata/projects/tempo-zones.json.gz", Capabilities::all())
+                .no_codspeed_codegen(),
         ]);
 
         sources
@@ -499,7 +504,9 @@ fn session(source: &Source) -> Session {
         .build()
 }
 
+#[cfg(feature = "others")]
 pub struct Solang;
+#[cfg(feature = "others")]
 impl Compiler for Solang {
     fn name(&self) -> &'static str {
         "solang"
@@ -546,7 +553,9 @@ impl Compiler for Solang {
     }
 }
 
+#[cfg(feature = "others")]
 pub struct Slang;
+#[cfg(feature = "others")]
 impl Compiler for Slang {
     fn name(&self) -> &'static str {
         "slang"
@@ -585,7 +594,9 @@ impl Compiler for Slang {
     }
 }
 
+#[cfg(feature = "others")]
 pub struct TreeSitter;
+#[cfg(feature = "others")]
 impl Compiler for TreeSitter {
     fn name(&self) -> &'static str {
         "tree-sitter"

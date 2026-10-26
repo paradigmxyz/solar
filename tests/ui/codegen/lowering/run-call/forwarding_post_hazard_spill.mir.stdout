@@ -16,7 +16,7 @@ fn @constructor() [constructor] {
   bb4:
     v4 = add v0, 1
     v5 = mul v0, 8
-    v6 = shl v5, v4
+    v6 = shl v4, v5
     sstore v0, v6 !metadata(storage=symbolic(v0))
     jump bb6
   bb6:
@@ -26,7 +26,7 @@ fn @constructor() [constructor] {
     jump bb1
 }
 
-fn @f(arg0: i256) -> i256 [selector=0xb3de648b, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @f(arg0: i256) -> i256 [selector=0xb3de648b, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = sload 1 !metadata(storage=slot(1))

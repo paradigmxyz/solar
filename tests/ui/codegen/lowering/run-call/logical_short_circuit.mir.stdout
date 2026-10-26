@@ -6,12 +6,12 @@
 fn @bump() -> i1 [selector=0x68110b2f, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     ret true
 }
 
-fn @andSkipsRhs() -> struct0 [selector=0x59db58e9, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
+fn @andSkipsRhs() -> struct0 [selector=0x59db58e9, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
   bb0:
     jumpi false, bb1, bb2
   bb2:
@@ -19,69 +19,65 @@ fn @andSkipsRhs() -> struct0 [selector=0x59db58e9, abi_params=[], abi_returns=[w
   bb1:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x68110b2f00000000000000000000000000000000000000000000000000000000
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    v5 = zext i160 v0 to i256
-    v6 = call v1, v5, 0, v3, v4, 0, 32
-    jumpi v6, bb5, bb4
+    mstore 0, 0x68110b2f !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = call v1, v2, 0, 28, 4, 0, 32
+    jumpi v3, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    v11 = lt v10, 2
-    v12 = eq v11, false
-    icall revert_if<empty>, v12
-    v13 = ne v10, 0
+    v4 = returndatasize
+    v5 = lt v4, 32
+    icall revert_if<tuple_data_too_short>, v5
+    v6 = add 0, 0
+    v7 = mload v6
+    v8 = lt v7, 2
+    v9 = eq v8, false
+    icall revert_if<empty>, v9
+    v10 = ne v7, 0
     jump bb3
   bb3:
-    v14 = phi [bb5: v13], [bb2: false]
-    v15 = sload 0 !metadata(storage=slot(0))
-    v16 = insert_value struct0, undef struct0, 0, v15
-    v17 = insert_value struct0, v16, 1, v14
-    ret v17
+    v11 = phi [bb5: v10], [bb2: false]
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = insert_value struct0, undef struct0, 0, v12
+    v14 = insert_value struct0, v13, 1, v11
+    ret v14
 }
 
-fn @orSkipsRhs() -> struct0 [selector=0x136ed8bf, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
+fn @orSkipsRhs() -> struct0 [selector=0x136ed8bf, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
   bb0:
     jumpi true, bb2, bb1
   bb1:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x68110b2f00000000000000000000000000000000000000000000000000000000
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    v5 = zext i160 v0 to i256
-    v6 = call v1, v5, 0, v3, v4, 0, 32
-    jumpi v6, bb5, bb4
+    mstore 0, 0x68110b2f !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = call v1, v2, 0, 28, 4, 0, 32
+    jumpi v3, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    v11 = lt v10, 2
-    v12 = eq v11, false
-    icall revert_if<empty>, v12
-    v13 = ne v10, 0
+    v4 = returndatasize
+    v5 = lt v4, 32
+    icall revert_if<tuple_data_too_short>, v5
+    v6 = add 0, 0
+    v7 = mload v6
+    v8 = lt v7, 2
+    v9 = eq v8, false
+    icall revert_if<empty>, v9
+    v10 = ne v7, 0
     jump bb3
   bb2:
     jump bb3
   bb3:
-    v14 = phi [bb5: v13], [bb2: true]
-    v15 = sload 0 !metadata(storage=slot(0))
-    v16 = insert_value struct0, undef struct0, 0, v15
-    v17 = insert_value struct0, v16, 1, v14
-    ret v17
+    v11 = phi [bb5: v10], [bb2: true]
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = insert_value struct0, undef struct0, 0, v12
+    v14 = insert_value struct0, v13, 1, v11
+    ret v14
 }
 
-fn @andRunsRhs() -> struct0 [selector=0x87ab0848, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
+fn @andRunsRhs() -> struct0 [selector=0x87ab0848, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
   bb0:
     jumpi true, bb1, bb2
   bb2:
@@ -89,66 +85,62 @@ fn @andRunsRhs() -> struct0 [selector=0x87ab0848, abi_params=[], abi_returns=[wo
   bb1:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x68110b2f00000000000000000000000000000000000000000000000000000000
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    v5 = zext i160 v0 to i256
-    v6 = call v1, v5, 0, v3, v4, 0, 32
-    jumpi v6, bb5, bb4
+    mstore 0, 0x68110b2f !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = call v1, v2, 0, 28, 4, 0, 32
+    jumpi v3, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    v11 = lt v10, 2
-    v12 = eq v11, false
-    icall revert_if<empty>, v12
-    v13 = ne v10, 0
+    v4 = returndatasize
+    v5 = lt v4, 32
+    icall revert_if<tuple_data_too_short>, v5
+    v6 = add 0, 0
+    v7 = mload v6
+    v8 = lt v7, 2
+    v9 = eq v8, false
+    icall revert_if<empty>, v9
+    v10 = ne v7, 0
     jump bb3
   bb3:
-    v14 = phi [bb5: v13], [bb2: false]
-    v15 = sload 0 !metadata(storage=slot(0))
-    v16 = insert_value struct0, undef struct0, 0, v15
-    v17 = insert_value struct0, v16, 1, v14
-    ret v17
+    v11 = phi [bb5: v10], [bb2: false]
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = insert_value struct0, undef struct0, 0, v12
+    v14 = insert_value struct0, v13, 1, v11
+    ret v14
 }
 
-fn @orRunsRhs() -> struct0 [selector=0x6baa9b2a, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
+fn @orRunsRhs() -> struct0 [selector=0x6baa9b2a, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
   bb0:
     jumpi false, bb2, bb1
   bb1:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x68110b2f00000000000000000000000000000000000000000000000000000000
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    v5 = zext i160 v0 to i256
-    v6 = call v1, v5, 0, v3, v4, 0, 32
-    jumpi v6, bb5, bb4
+    mstore 0, 0x68110b2f !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = call v1, v2, 0, 28, 4, 0, 32
+    jumpi v3, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    v11 = lt v10, 2
-    v12 = eq v11, false
-    icall revert_if<empty>, v12
-    v13 = ne v10, 0
+    v4 = returndatasize
+    v5 = lt v4, 32
+    icall revert_if<tuple_data_too_short>, v5
+    v6 = add 0, 0
+    v7 = mload v6
+    v8 = lt v7, 2
+    v9 = eq v8, false
+    icall revert_if<empty>, v9
+    v10 = ne v7, 0
     jump bb3
   bb2:
     jump bb3
   bb3:
-    v14 = phi [bb5: v13], [bb2: true]
-    v15 = sload 0 !metadata(storage=slot(0))
-    v16 = insert_value struct0, undef struct0, 0, v15
-    v17 = insert_value struct0, v16, 1, v14
-    ret v17
+    v11 = phi [bb5: v10], [bb2: true]
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = insert_value struct0, undef struct0, 0, v12
+    v14 = insert_value struct0, v13, 1, v11
+    ret v14
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/logical_short_circuit.sol:SharedRevert ===
@@ -157,7 +149,7 @@ fn @orRunsRhs() -> struct0 [selector=0x6baa9b2a, abi_params=[], abi_returns=[wor
   struct0: {i256, i160, i160, ptr<memory>, i256, i256, i256, i256, i8, i256, i256}
   struct1: {ptr<memory>, i256, i256, i1, i1, i256}
 
-fn @agreements(arg0: i256) -> struct0 [selector=0xbd14de96, view, abi_params=[u256], abi_returns=[word, word<u160>, word<u160>, memory_bytes, word, word, word, word, word<enum 6>, word, word], abi_return_params=[u256, address, address, bytes, u256, u256, u256, u256, enum<6, u8>, u256, u256]] {
+fn @agreements(arg0: i256) -> struct0 [selector=0xbd14de96, view, abi_params=[uint256], abi_returns=[word, word<uint160>, word<uint160>, memory_bytes, word, word, word, word, word<enum 6>, word, word], abi_return_params=[uint256, address, address, bytes, uint256, uint256, uint256, uint256, enum<6, uint8>, uint256, uint256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -204,7 +196,7 @@ fn @agreements(arg0: i256) -> struct0 [selector=0xbd14de96, view, abi_params=[u2
     ret v39
 }
 
-fn @agreementMilestones(arg0: i256, arg1: i256) -> struct1 [selector=0xeebeb84a, view, abi_params=[u256, u256], abi_returns=[memory_bytes, word, word, word<bool>, word<bool>, word], abi_return_params=[bytes, u256, u256, bool, bool, u256]] {
+fn @agreementMilestones(arg0: i256, arg1: i256) -> struct1 [selector=0xeebeb84a, view, abi_params=[uint256, uint256], abi_returns=[memory_bytes, word, word, word<bool>, word<bool>, word], abi_return_params=[bytes, uint256, uint256, bool, bool, uint256]] {
   bb0:
     v0 = mapping_slot arg0, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -224,7 +216,7 @@ fn @agreementMilestones(arg0: i256, arg1: i256) -> struct1 [selector=0xeebeb84a,
     v14 = ne v13, i8 0
     v15 = add v5, 3
     v16 = sload v15 !metadata(storage=offset(v5, 3))
-    v17 = shr 8, v16
+    v17 = shr v16, 8
     v18 = trunc i256 v17 to i8
     v19 = ne v18, i8 0
     v20 = add v5, 4
@@ -238,7 +230,7 @@ fn @agreementMilestones(arg0: i256, arg1: i256) -> struct1 [selector=0xeebeb84a,
     ret v27
 }
 
-fn @milestoneEvidence(arg0: i256, arg1: i256) -> i256 [selector=0x80df73b4, view, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @milestoneEvidence(arg0: i256, arg1: i256) -> i256 [selector=0x80df73b4, view, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = mapping_slot arg0, 2
     v1 = mapping_slot arg1, v0
@@ -246,7 +238,7 @@ fn @milestoneEvidence(arg0: i256, arg1: i256) -> i256 [selector=0x80df73b4, view
     ret v2
 }
 
-fn @evidenceSubmittedAt(arg0: i256, arg1: i256) -> i256 [selector=0x1a69e412, view, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @evidenceSubmittedAt(arg0: i256, arg1: i256) -> i256 [selector=0x1a69e412, view, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot arg0, 3
     v1 = mapping_slot arg1, v0
@@ -254,7 +246,7 @@ fn @evidenceSubmittedAt(arg0: i256, arg1: i256) -> i256 [selector=0x1a69e412, vi
     ret v2
 }
 
-fn @submitMilestoneEvidence(arg0: i256, arg1: i256, arg2: i256) [selector=0x0106d04d, abi_params=[u256, u256, bytes32], abi_returns=[], abi_return_params=[]] {
+fn @submitMilestoneEvidence(arg0: i256, arg1: i256, arg2: i256) [selector=0x0106d04d, abi_params=[uint256, uint256, bytes32], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 4 !metadata(storage=slot(4))
     v1 = trunc i256 v0 to i8
@@ -353,7 +345,7 @@ fn @submitMilestoneEvidence(arg0: i256, arg1: i256, arg2: i256) [selector=0x0106
     sstore v63, v61 !metadata(storage=symbolic(v63))
     v64 = caller
     v65 = zext i160 v64 to i256
-    v66 = abi_encode [word, word, word, word<u160>], args arg0, arg1, arg2, v65
+    v66 = abi_encode [word, word, word, word<uint160>], scratch, args arg0, arg1, arg2, v65
     v67 = extract_value slice<memory>, v66, 0
     v68 = extract_value slice<memory>, v66, 1
     log v67, v68, 0xd3d92350b79235cd3a240b073d88670c261a59c3ac23a9e2bb3bcd3965e37299
@@ -372,7 +364,7 @@ fn @submitMilestoneEvidence(arg0: i256, arg1: i256, arg2: i256) [selector=0x0106
     ret
 }
 
-fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot 1, 0
     v1 = address
@@ -422,7 +414,7 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, abi_params=[u256
     sstore v35, arg1 !metadata(storage=offset(v34, 2))
     v36 = address
     v37 = gas
-    v38 = abi_encode [word, word, word], selector 0x106d04d00000000000000000000000000000000000000000000000000000000, args 1, 0, 1
+    v38 = abi_encode [word, word, word], scratch, selector 0x106d04d00000000000000000000000000000000000000000000000000000000, args 1, 0, 1
     v39 = extract_value slice<memory>, v38, 0
     v40 = extract_value slice<memory>, v38, 1
     v41 = zext i160 v36 to i256

@@ -9,7 +9,7 @@
 @module LowerAbiDispatch
 // COMPOSE-LABEL: {{^[ +].*}}after lower-dispatch
 // COMPOSE: + fn @entry{{[( ]}}
-// COMPOSE: + [[SELECTOR:v[0-9]+]] = shr 224
+// COMPOSE: + [[SELECTOR:v[0-9]+]] = shr {{v[0-9]+}}, 224
 // COMPOSE: + switch [[SELECTOR]], default {{.*}}[0x9507d39a =>
 // COMPOSE: + tail_call @get
 // An out-of-order required conversion reports an error before later passes run.

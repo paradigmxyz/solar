@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{
     link::{CodeKind, LibraryTable},
-    mir::{MirPhase, analysis::cold_functions},
+    mir::{MirPhase, analysis::cold_functions, pass_manager::should_validate_ir},
 };
 use alloy_primitives::Bytes;
 use solar_interface::Symbol;
@@ -47,18 +47,22 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Late CFG passes can leave critical edges whose phi inputs would
         // replace values still live on a sibling edge, so give each such edge
         // its own block.
+        let mut changed = false;
         for func in &mut module.functions {
-            Self::split_phi_critical_edges(func);
+            changed |= Self::split_phi_critical_edges(func);
         }
         if !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             for func in &mut module.functions {
-                func.canonicalize_argument_uses();
+                changed |= func.canonicalize_argument_uses() != 0;
                 if matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size) {
-                    func.canonicalize_immediate_uses();
+                    changed |= func.canonicalize_immediate_uses() != 0;
                 }
             }
         }
-        let Ok(lowered) = module.as_lowered(self.gcx.dcx()) else {
+        if changed {
+            module.invalidate_lowered_check();
+        }
+        let Ok(lowered) = module.as_lowered(self.gcx, should_validate_ir(self.gcx)) else {
             return false;
         };
         let module = &*lowered;
@@ -67,6 +71,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let call_graph = CallGraphInfo::new(module);
         (self.heap_pointer_return_functions, self.heap_pointer_args) =
             Self::collect_heap_pointer_facts(module);
+        self.heap_prefix = Self::heap_prefix_offsets(module);
         // The switch planner prices tail calls to empty bodies as shared terminals.
         self.empty_stop_functions = Self::empty_stop_functions(module);
         self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
@@ -369,11 +374,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.reset_artifact(module);
 
             let internal_targets = call_graph.reachable_callees_from(std::iter::once(ctor_id));
-            let heap_prefix = Self::heap_prefix_offsets(module);
             let heap_guard = internal_targets
                 .iter()
                 .chain([ctor_id])
-                .map(|func_id| heap_prefix.guard(func_id, &module.functions[func_id]))
+                .map(|func_id| self.heap_prefix.guard(func_id, &module.functions[func_id]))
                 .max()
                 .unwrap_or(0);
 
@@ -405,10 +409,20 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_push_deferred(constructor_fixed_memory_end);
                 self.asm.emit_op(op::CODECOPY);
             }
-            // mstore(FMP_SLOT, heap_start)
-            self.emit_constructor_heap_start();
-            self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-            self.asm.emit_op(op::MSTORE);
+            // Without arguments to place above, the pointer matters only to code that reads it,
+            // as in runtime entries.
+            let needs_free_memory = constructor_arg_offset.is_some()
+                || Self::functions_need_free_memory(
+                    module,
+                    call_graph,
+                    internal_targets.iter().chain([ctor_id]),
+                );
+            if needs_free_memory {
+                // mstore(FMP_SLOT, heap_start)
+                self.emit_constructor_heap_start();
+                self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
+                self.asm.emit_op(op::MSTORE);
+            }
 
             // Every ordinary completion of the constructor body (which includes SSTORE for
             // initializers) jumps to one label so branch layout cannot strand the deployment

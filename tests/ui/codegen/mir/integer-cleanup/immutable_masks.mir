@@ -1,0 +1,60 @@
+//@ revisions: gas size legacy
+//@[gas] compile-flags: -Ogas --evm-version=osaka -Zmir-pipeline=integer-cleanup
+//@[size] compile-flags: -Osize --evm-version=osaka -Zmir-pipeline=integer-cleanup
+//@[legacy] compile-flags: -Ogas --evm-version=byzantium -Zmir-pipeline=integer-cleanup
+@module ImmutableMasks
+@immutables
+  account: uint160
+  signed: int64
+
+fn @runtime() -> i256 [selector=1] {
+  bb0:
+    v0: i256 = loadimmutable account
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v1
+}
+
+fn @narrower() -> i256 [selector=2] {
+  bb0:
+    v0: i256 = loadimmutable account
+    v1 = and v0, 0xff
+    ret v1
+}
+
+fn @signed_value() -> i256 [selector=3] {
+  bb0:
+    v0: i256 = loadimmutable signed
+    v1 = and v0, 0xffffffffffffffff
+    ret v1
+}
+
+fn @runtime_shared() -> i256 [selector=4] {
+  bb0:
+    tail_call @shared
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @bridge
+    mstore 0, v0
+    stop
+}
+
+fn @bridge() -> i256 {
+  bb0:
+    tail_call @shared
+}
+
+fn @shared() -> i256 {
+  bb0:
+    v0: i256 = loadimmutable account
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v1
+}
+
+fn @unrooted() -> i256 {
+  bb0:
+    v0: i256 = loadimmutable account
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v1
+}

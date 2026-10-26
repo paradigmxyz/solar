@@ -19,7 +19,7 @@ use crate::mir::{
     ArgIdx, Callee, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstKind,
     MirType, Module, PtrLocation, StructId, StructType, Terminator, Value, ValueId,
     memory::EvmMemoryLayout,
-    pass::{MirPass, ModuleAnalyses},
+    pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
 };
 use solar_data_structures::{index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
@@ -37,7 +37,7 @@ impl MirPass for LowerStructs {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        match lower_structs(module) {
+        match lower_structs(module, analyses) {
             Ok(changed) => changed,
             Err(reason) => {
                 analyses.fail(
@@ -95,7 +95,7 @@ impl Layouts {
     }
 }
 
-fn lower_structs(module: &mut Module) -> Result<bool, &'static str> {
+fn lower_structs(module: &mut Module, analyses: &mut ModuleAnalyses) -> Result<bool, &'static str> {
     if !module.has_struct_values() {
         return Ok(false);
     }
@@ -134,16 +134,16 @@ fn lower_structs(module: &mut Module) -> Result<bool, &'static str> {
             .ok_or("local frame offsets cannot be rebased for the expanded signature")?;
         shifts.push(offsets);
     }
-    for (id, func) in module.functions.iter_mut_enumerated() {
+    Ok(run_lowering_function_pass(module, analyses, |func, function_analyses| {
         // unreachable aggregate definitions -> removed blocks and phi inputs
         let _ = super::cfg_simplify::remove_unreachable_blocks(func);
         lower_function(func, &layouts);
         // frame_addr(old_local_base + offset) -> frame_addr(new_local_base + offset)
-        for &(inst, offset) in &shifts[id] {
+        for &(inst, offset) in &shifts[function_analyses.function()] {
             func.inst_mut(inst).kind = InstKind::InternalFrameAddr(offset);
         }
-    }
-    Ok(true)
+        true
+    }))
 }
 
 /// Checks the slice representation contract before exposing a field's two words.
@@ -279,11 +279,6 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                             // slice -> ptrtoint (extract_value slice, 0), extract_value slice, 1
                             let pointer = builder.slice_ptr(value);
                             vec![builder.cast(pointer, MirType::I256), builder.slice_len(value)]
-                        } else if layouts.types[ty].fields[index as usize] == MirType::I256
-                            && matches!(builder.func().value_ty(value), Some(MirType::MEMPTR))
-                        {
-                            // raw field = ptrtoint object to i256
-                            vec![builder.cast_word(value)]
                         } else {
                             components(value, &aggregates)
                         };

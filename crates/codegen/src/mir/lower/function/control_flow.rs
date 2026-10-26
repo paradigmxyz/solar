@@ -379,9 +379,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // address = create(...)
             // ok = address != 0
             let created = self.lower_create_contract(ty, contract_id, *args, call_opts)?;
-            let zero = self.builder.imm(U256::ZERO);
-            let failed = self.builder.eq(created, zero);
-            (self.builder.eq_zero(failed), Some(created), None)
+            (self.builder.ne_zero(created), Some(created), None)
         } else {
             let address = match target.callee {
                 TryCallee::Member { receiver, .. } => self.lower_expr(receiver)?,
@@ -506,7 +504,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let zero = self.builder.imm(U256::ZERO);
             let selector_word = self.builder.slice_load_word(view, zero);
             let selector_shift = self.builder.imm(224);
-            let selector = self.builder.shr(selector_shift, selector_word);
+            let selector = self.builder.shr(selector_word, selector_shift);
             TryCatchData { object, data, len, selector }
         });
         // Solidity matches the typed clauses before the low-level one, whichever order they are
@@ -876,7 +874,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let before_storage_refs = self.storage_refs.clone();
         let mut header_values = before_values.clone();
         let mut header_phis = FxHashMap::default();
-        for (&id, &value) in &before_values {
+        // Phis follow the variables' declaration order, not the hash order of
+        // their ids, which shifts with unrelated sources.
+        let mut loop_values =
+            before_values.iter().map(|(&id, &value)| (id, value)).collect::<Vec<_>>();
+        loop_values.sort_unstable_by_key(|&(id, _)| id);
+        for (id, value) in loop_values {
             let value = if self.cx.state.raw_scalars.contains(&id)
                 && self.builder.func().value_ty(value).is_some_and(|ty| ty.integer_bits().is_some())
             {
@@ -893,7 +896,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         self.values = header_values.clone();
         let mut header_storage_refs = before_storage_refs.clone();
-        for (&id, &access) in &before_storage_refs {
+        let mut loop_refs =
+            before_storage_refs.iter().map(|(&id, &access)| (id, access)).collect::<Vec<_>>();
+        loop_refs.sort_unstable_by_key(|&(id, _)| id);
+        for (id, access) in loop_refs {
             let slot = self.builder.phi(vec![(preheader, access.slot)]);
             let offset = access.offset.map(|offset| self.builder.phi(vec![(preheader, offset)]));
             header_storage_refs.insert(id, StorageAccess { slot, offset, ..access });
@@ -1016,7 +1022,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         exits: &[LoopState],
         header_phis: &FxHashMap<VariableId, ValueId>,
     ) -> FxHashMap<VariableId, ValueId> {
-        let ids = before.keys().copied().collect::<Vec<_>>();
+        let mut ids = before.keys().copied().collect::<Vec<_>>();
+        ids.sort_unstable();
         let mut merged = before;
         for id in ids {
             let before_value = merged[&id];
@@ -1087,7 +1094,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         else_branch: MergeBranch<ValueId>,
     ) -> FxHashMap<VariableId, ValueId> {
         let mut values = before;
-        let ids = values.keys().copied().collect::<Vec<_>>();
+        let mut ids = values.keys().copied().collect::<Vec<_>>();
+        ids.sort_unstable();
         for id in ids {
             let then_value = then_branch.values.get(&id).copied();
             let else_value = else_branch.values.get(&id).copied();
@@ -1115,7 +1123,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut before: FxHashMap<VariableId, ValueId>,
         states: &[LoopState],
     ) -> FxHashMap<VariableId, ValueId> {
-        let ids = before.keys().copied().collect::<Vec<_>>();
+        let mut ids = before.keys().copied().collect::<Vec<_>>();
+        ids.sort_unstable();
         for id in ids {
             let incoming = states
                 .iter()

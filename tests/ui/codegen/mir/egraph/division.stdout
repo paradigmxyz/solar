@@ -143,7 +143,7 @@
 -     v7 = gt v6, arg0
       v8 = mul arg0, 3
 -     v9 = div v8, 2
-+     v9 = shr 1, v8
++     v9 = shr v8, 1
       v10 = lt arg0, v9
 -     ret v1, v4, v7, v10
 +     ret false, false, false, v10
@@ -220,6 +220,55 @@
 -     v1 = gt v0, i8 25
 -     ret v1
 +     ret false
+  }
+  
+  fn @guarded_div(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = ne arg1, 0
+      v1 = zext i1 v0 to i256
+      v2 = div arg0, arg1
+-     v3 = mul v1, v2
+-     ret v3
++     ret v2
+  }
+  
+  fn @guarded_mod(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = ne arg1, 0
+      v1 = zext i1 v0 to i256
+      v2 = mod arg0, arg1
+-     v3 = mul v2, v1
+-     ret v3
++     ret v2
+  }
+  
+  fn @guarded_sdiv(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = ne arg1, 0
+      v1 = zext i1 v0 to i256
+      v2 = sdiv arg0, arg1
+-     v3 = mul v2, v1
+-     ret v3
++     ret v2
+  }
+  
+  fn @guarded_smod(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = ne arg1, 0
+      v1 = zext i1 v0 to i256
+      v2 = smod arg0, arg1
+-     v3 = mul v1, v2
+-     ret v3
++     ret v2
+  }
+  
+  fn @guarded_by_other(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = zext i1 v0 to i256
+      v2 = div arg0, arg1
+      v3 = mul v1, v2
+      ret v3
   }
   
 - // === ROOT/tests/ui/codegen/mir/egraph/division.mir (before dce) ===
@@ -343,7 +392,7 @@
 -     v5 = mul arg0, 997
 -     v6 = div v5, 0x3e8
       v8 = mul arg0, 3
-      v9 = shr 1, v8
+      v9 = shr v8, 1
       v10 = lt arg0, v9
       ret false, false, false, v10
   }
@@ -407,5 +456,46 @@
     bb0:
 -     v0 = div arg0, i8 10
       ret false
+  }
+  
+  fn @guarded_div(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = ne arg1, 0
+-     v1 = zext i1 v0 to i256
+      v2 = div arg0, arg1
+      ret v2
+  }
+  
+  fn @guarded_mod(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = ne arg1, 0
+-     v1 = zext i1 v0 to i256
+      v2 = mod arg0, arg1
+      ret v2
+  }
+  
+  fn @guarded_sdiv(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = ne arg1, 0
+-     v1 = zext i1 v0 to i256
+      v2 = sdiv arg0, arg1
+      ret v2
+  }
+  
+  fn @guarded_smod(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = ne arg1, 0
+-     v1 = zext i1 v0 to i256
+      v2 = smod arg0, arg1
+      ret v2
+  }
+  
+  fn @guarded_by_other(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = zext i1 v0 to i256
+      v2 = div arg0, arg1
+      v3 = mul v1, v2
+      ret v3
   }
   

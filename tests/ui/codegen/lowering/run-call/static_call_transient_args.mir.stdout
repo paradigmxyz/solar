@@ -21,7 +21,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @getMinDelay() -> i256 [selector=0xf27a0c92, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @getMinDelay() -> i256 [selector=0xf27a0c92, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     ret v0
@@ -35,16 +35,62 @@ fn @isOperation(arg0: i256) -> i1 [selector=0x31d50750, view, abi_params=[bytes3
     ret v2
 }
 
-fn @hashOperationBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>, arg3: i256, arg4: i256) -> i256 [selector=0xb1c5f427, pure, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @hashOperationBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>, arg3: i256, arg4: i256) -> i256 [selector=0xb1c5f427, pure, abi_params=[array<_, address>, array<_, uint256>, array<_, bytes>, bytes32, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = abi_encode [calldata_array<word<u160>>, calldata_array<word>, calldata_array<calldata_bytes>, word, word], scratch, args arg0, arg1, arg2, arg3, arg4
-    v1 = extract_value slice<memory>, v0, 0
-    v2 = extract_value slice<memory>, v0, 1
-    v3 = keccak256 v1, v2
-    ret v3
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = mul v0, 32
+    v2 = eq 32, 0
+    v3 = div v1, 32
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = zext i1 v5 to i256
+    v7 = eq v6, 0
+    icall panic_if<0x41>, v7
+    v8 = extract_value slice<calldata>, arg0, 1
+    v9 = extract_value slice<calldata>, arg0, 0
+    jump bb1
+  bb1:
+    v10 = phi [bb0: 0], [bb2: v19]
+    v11 = lt v10, v8
+    jumpi v11, bb2, bb3
+  bb3:
+    v20 = extract_value slice<calldata>, arg1, 1
+    v21 = mul v20, 32
+    v22 = eq 32, 0
+    v23 = div v21, 32
+    v24 = eq v23, v20
+    v25 = or v22, v24
+    v26 = zext i1 v25 to i256
+    v27 = eq v26, 0
+    icall panic_if<0x41>, v27
+    v28 = extract_value slice<calldata>, arg2, 1
+    v29 = mul v28, 32
+    v30 = eq 32, 0
+    v31 = div v29, 32
+    v32 = eq v31, v28
+    v33 = or v30, v32
+    v34 = zext i1 v33 to i256
+    v35 = eq v34, 0
+    icall panic_if<0x41>, v35
+    v36 = abi_encode [calldata_array<word<uint160>>, calldata_array<word>, calldata_array<calldata_bytes>, word, word], scratch, args arg0, arg1, arg2, arg3, arg4
+    v37 = extract_value slice<memory>, v36, 0
+    v38 = extract_value slice<memory>, v36, 1
+    v39 = keccak256 v37, v38
+    ret v39
+  bb2:
+    v12 = mul v10, 32
+    v13 = ptrtoint ptr<calldata> v9 to i256
+    v14 = add v13, v12
+    v15 = calldataload v14
+    v16 = shr v15, 160
+    v17 = eq v16, 0
+    v18 = eq v17, false
+    icall revert_if<empty>, v18
+    v19 = add v10, 1
+    jump bb1
 }
 
-fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>, arg3: i256, arg4: i256, arg5: i256) -> i256 [selector=0x8f2a0bb0, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>, arg3: i256, arg4: i256, arg5: i256) -> i256 [selector=0x8f2a0bb0, abi_params=[array<_, address>, array<_, uint256>, array<_, bytes>, bytes32, bytes32, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = mapping_slot 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0
     v1 = caller
@@ -79,45 +125,45 @@ fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<call
     icall @_schedule, v20, arg5
     jump bb12
   bb12:
-    v21 = phi [bb11: arg5], [bb14: v21]
-    v22 = phi [bb11: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1], [bb14: v22]
-    v23 = phi [bb11: arg2], [bb14: v23]
-    v24 = phi [bb11: v20], [bb14: v24]
+    v21 = phi [bb11: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1], [bb14: v21]
+    v22 = phi [bb11: arg0], [bb14: v22]
+    v23 = phi [bb11: arg1], [bb14: v23]
+    v24 = phi [bb11: arg2], [bb14: v24]
     v25 = phi [bb11: arg3], [bb14: v25]
-    v26 = phi [bb11: 0], [bb14: v108]
-    v27 = phi [bb11: arg0], [bb14: v27]
-    v28 = phi [bb11: arg4], [bb14: v28]
-    v29 = phi [bb11: arg1], [bb14: v29]
-    v30 = extract_value slice<calldata>, v27, 1
-    v31 = lt v26, v30
+    v26 = phi [bb11: arg4], [bb14: v26]
+    v27 = phi [bb11: arg5], [bb14: v27]
+    v28 = phi [bb11: v20], [bb14: v28]
+    v29 = phi [bb11: 0], [bb14: v101]
+    v30 = extract_value slice<calldata>, v22, 1
+    v31 = lt v29, v30
     jumpi v31, bb15, bb16
   bb16:
     jump bb13
   bb13:
-    v109 = ne v28, 0
-    jumpi v109, bb18, bb19
+    v102 = ne v26, 0
+    jumpi v102, bb18, bb19
   bb19:
     jump bb20
   bb18:
-    mstore 0, v28 !metadata(memory=scratch)
-    log 0, 32, 0x20fda5fd27a1ea7bf5b9567f143ac5470bb059374a27e8f67cb44f946f6d0387, v24
+    mstore 0, v26 !metadata(memory=scratch)
+    log 0, 32, 0x20fda5fd27a1ea7bf5b9567f143ac5470bb059374a27e8f67cb44f946f6d0387, v28
     jump bb20
   bb20:
     jump bb5
   bb5:
     jump bb1
   bb1:
-    ret v24
+    ret v28
   bb15:
-    v32 = extract_value slice<calldata>, v27, 1
-    v33 = lt v26, v32
+    v32 = extract_value slice<calldata>, v22, 1
+    v33 = lt v29, v32
     v34 = eq v33, false
     icall panic_if<0x32>, v34
-    v35 = extract_value slice<calldata>, v27, 0
-    v36 = mul v26, 32
+    v35 = extract_value slice<calldata>, v22, 0
+    v36 = mul v29, 32
     v37 = eq 32, 0
     v38 = div v36, 32
-    v39 = eq v38, v26
+    v39 = eq v38, v29
     v40 = or v37, v39
     v41 = zext i1 v40 to i256
     v42 = eq v41, 0
@@ -125,20 +171,20 @@ fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<call
     v43 = ptrtoint ptr<calldata> v35 to i256
     v44 = add v43, v36
     v45 = calldataload v44
-    v46 = shr 160, v45
+    v46 = shr v45, 160
     v47 = eq v46, 0
     v48 = eq v47, false
     icall revert_if<empty>, v48
     v49 = trunc i256 v45 to i160
-    v50 = extract_value slice<calldata>, v29, 1
-    v51 = lt v26, v50
+    v50 = extract_value slice<calldata>, v23, 1
+    v51 = lt v29, v50
     v52 = eq v51, false
     icall panic_if<0x32>, v52
-    v53 = extract_value slice<calldata>, v29, 0
-    v54 = mul v26, 32
+    v53 = extract_value slice<calldata>, v23, 0
+    v54 = mul v29, 32
     v55 = eq 32, 0
     v56 = div v54, 32
-    v57 = eq v56, v26
+    v57 = eq v56, v29
     v58 = or v55, v57
     v59 = zext i1 v58 to i256
     v60 = eq v59, 0
@@ -146,15 +192,15 @@ fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<call
     v61 = ptrtoint ptr<calldata> v53 to i256
     v62 = add v61, v54
     v63 = calldataload v62
-    v64 = extract_value slice<calldata>, v23, 1
-    v65 = lt v26, v64
+    v64 = extract_value slice<calldata>, v24, 1
+    v65 = lt v29, v64
     v66 = eq v65, false
     icall panic_if<0x32>, v66
-    v67 = extract_value slice<calldata>, v23, 0
-    v68 = mul v26, 32
+    v67 = extract_value slice<calldata>, v24, 0
+    v68 = mul v29, 32
     v69 = eq 32, 0
     v70 = div v68, 32
-    v71 = eq v70, v26
+    v71 = eq v70, v29
     v72 = or v69, v71
     v73 = zext i1 v72 to i256
     v74 = eq v73, 0
@@ -185,25 +231,16 @@ fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<call
     icall revert_if<calldata_tail_too_short>, v94
     v95 = inttoptr i256 v92 to ptr<calldata>
     v96 = make_calldata_slice v95, v89
-    v97 = extract_value slice<calldata>, v96, 0
-    v98 = extract_value slice<calldata>, v96, 1
-    v99 = calldatasize
-    v100 = gt v98, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v100
-    v101 = sub v99, v98
-    v102 = ptrtoint ptr<calldata> v97 to i256
-    v103 = sgt v102, v101
-    icall revert_if<calldata_tail_too_short>, v103
-    v104 = zext i160 v49 to i256
-    v105 = abi_encode [word<u160>, word, calldata_bytes, word, word], args v104, v63, v96, v25, v21
-    v106 = extract_value slice<memory>, v105, 0
-    v107 = extract_value slice<memory>, v105, 1
-    log v106, v107, 0x4cf4410cc57040e44862ef0f45f3dd5a5e02db8eb8add648d4b0e236f1d07dca, v24, v26
+    v97 = zext i160 v49 to i256
+    v98 = abi_encode [word<uint160>, word, calldata_bytes, word, word], scratch, args v97, v63, v96, v25, v27
+    v99 = extract_value slice<memory>, v98, 0
+    v100 = extract_value slice<memory>, v98, 1
+    log v99, v100, 0x4cf4410cc57040e44862ef0f45f3dd5a5e02db8eb8add648d4b0e236f1d07dca, v28, v29
     jump bb17
   bb17:
     jump bb14
   bb14:
-    v108 = checked_add u256, v26, 1
+    v101 = checked_add uint256, v29, 1
     jump bb12
   bb9:
     v17 = extract_value slice<calldata>, arg0, 1
@@ -214,7 +251,7 @@ fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<call
   bb2:
     v8 = caller
     v9 = zext i160 v8 to i256
-    icall require<custom_error [word<u160>, word]>, false, 0x161a64a00000000000000000000000000000000000000000000000000000000, v9, 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
+    icall require<custom_error [word<uint160>, word]>, false, 0x161a64a00000000000000000000000000000000000000000000000000000000, v9, 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
     invalid
 }
 
@@ -232,7 +269,7 @@ fn @_schedule(arg0: i256, arg1: i256) {
     jump bb6
   bb6:
     v3 = timestamp
-    v4 = checked_add u256, v3, arg1
+    v4 = checked_add uint256, v3, arg1
     v5 = mapping_slot arg0, 1
     sstore v5, v4 !metadata(storage=symbolic(v5))
     ret
@@ -246,7 +283,7 @@ fn @_schedule(arg0: i256, arg1: i256) {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/static_call_transient_args.sol:DeepCallArguments ===
 @module DeepCallArguments
-fn @buried(arg0: i256) -> i256 [selector=0x121df711, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @buried(arg0: i256) -> i256 [selector=0x121df711, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @buriedInner, arg0
     ret v0
@@ -297,50 +334,50 @@ fn @buriedInner(arg0: i256) -> i256 [view] {
     ret v39
 }
 
-fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_add u256, arg0, 1
-    v1 = checked_add u256, arg0, 2
-    v2 = checked_add u256, arg0, 3
-    v3 = checked_add u256, arg0, 4
-    v4 = checked_add u256, arg0, 5
-    v5 = checked_add u256, arg0, 6
-    v6 = checked_add u256, arg0, 7
-    v7 = checked_add u256, arg0, 8
+    v0 = checked_add uint256, arg0, 1
+    v1 = checked_add uint256, arg0, 2
+    v2 = checked_add uint256, arg0, 3
+    v3 = checked_add uint256, arg0, 4
+    v4 = checked_add uint256, arg0, 5
+    v5 = checked_add uint256, arg0, 6
+    v6 = checked_add uint256, arg0, 7
+    v7 = checked_add uint256, arg0, 8
     v8 = icall @combine, v0, v1, v2, v3, v4, v5, v6, v7
     v9 = icall @combine, v7, v6, v5, v4, v3, v2, v1, v0
-    v10 = checked_add u256, v8, v9
-    v11 = checked_add u256, v10, v0
-    v12 = checked_add u256, v11, v1
-    v13 = checked_add u256, v12, v2
-    v14 = checked_add u256, v13, v3
-    v15 = checked_add u256, v14, v4
-    v16 = checked_add u256, v15, v5
-    v17 = checked_add u256, v16, v6
-    v18 = checked_add u256, v17, v7
+    v10 = checked_add uint256, v8, v9
+    v11 = checked_add uint256, v10, v0
+    v12 = checked_add uint256, v11, v1
+    v13 = checked_add uint256, v12, v2
+    v14 = checked_add uint256, v13, v3
+    v15 = checked_add uint256, v14, v4
+    v16 = checked_add uint256, v15, v5
+    v17 = checked_add uint256, v16, v6
+    v18 = checked_add uint256, v17, v7
     ret v18
 }
 
 fn @combine(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256) -> i256 [pure] {
   bb0:
-    v0 = checked_mul u256, 2, arg1
-    v1 = checked_add u256, arg0, v0
-    v2 = checked_mul u256, 3, arg2
-    v3 = checked_add u256, v1, v2
-    v4 = checked_mul u256, 4, arg3
-    v5 = checked_add u256, v3, v4
-    v6 = checked_mul u256, 5, arg4
-    v7 = checked_add u256, v5, v6
-    v8 = checked_mul u256, 6, arg5
-    v9 = checked_add u256, v7, v8
-    v10 = checked_mul u256, 7, arg6
-    v11 = checked_add u256, v9, v10
-    v12 = checked_mul u256, 8, arg7
-    v13 = checked_add u256, v11, v12
+    v0 = checked_mul uint256, 2, arg1
+    v1 = checked_add uint256, arg0, v0
+    v2 = checked_mul uint256, 3, arg2
+    v3 = checked_add uint256, v1, v2
+    v4 = checked_mul uint256, 4, arg3
+    v5 = checked_add uint256, v3, v4
+    v6 = checked_mul uint256, 5, arg4
+    v7 = checked_add uint256, v5, v6
+    v8 = checked_mul uint256, 6, arg5
+    v9 = checked_add uint256, v7, v8
+    v10 = checked_mul uint256, 7, arg6
+    v11 = checked_add uint256, v9, v10
+    v12 = checked_mul uint256, 8, arg7
+    v13 = checked_add uint256, v11, v12
     ret v13
 }
 
-fn @wide(arg0: i256) -> i256 [selector=0x598b5337, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @wide(arg0: i256) -> i256 [selector=0x598b5337, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 0
     v1 = add arg0, 1

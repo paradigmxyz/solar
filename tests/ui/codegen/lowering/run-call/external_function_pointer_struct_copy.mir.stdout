@@ -48,13 +48,13 @@ fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_p
     v27 = ptrtoint ptr<calldata> v2 to i256
     v28 = add v27, v26
     v29 = calldataload v28
-    v30 = shl 192, v29
+    v30 = shl v29, 192
     v31 = eq v30, 0
     v32 = eq v31, false
     icall revert_if<empty>, v32
-    v33 = shr 64, v29
-    v34 = shl 64, v33
-    v35 = shl 5, v24
+    v33 = shr v29, 64
+    v34 = shl v33, 64
+    v35 = shl v24, 5
     v36 = ptradd v23, v35
     v37 = ptradd v36, 32
     mstore v37, v34
@@ -69,28 +69,22 @@ fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_p
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize ExternalFunctionPointerStructCopyTarget_creation_code_0
-    v2 = datasize ExternalFunctionPointerStructCopyTarget_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy ExternalFunctionPointerStructCopyTarget_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize ExternalFunctionPointerStructCopyTarget_creation_code_0
+    v1 = fmp
+    datacopy ExternalFunctionPointerStructCopyTarget_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = sload 0 !metadata(storage=slot(0))
-    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = and v9, v10
-    v12 = zext i160 v7 to i256
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = or v11, v13
-    sstore 0, v14 !metadata(storage=slot(0))
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = and v4, v5
+    v7 = zext i160 v2 to i256
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = or v6, v8
+    sstore 0, v9 !metadata(storage=slot(0))
     ret
 }
 
@@ -100,35 +94,35 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     mstore v0, 3
     v1 = address
     v2 = zext i160 v1 to i256
-    v3 = shl 32, v2
+    v3 = shl v2, 32
     v4 = or v3, 0xd24c5a36
     v5 = mload v0
     v6 = lt 0, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    v8 = shl 64, v4
+    v8 = shl v4, 64
     v9 = ptradd v0, 32
     mstore v9, v8
     v10 = address
     v11 = zext i160 v10 to i256
-    v12 = shl 32, v11
+    v12 = shl v11, 32
     v13 = or v12, 0xc5337ed4
     v14 = mload v0
     v15 = lt 1, v14
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = shl 64, v13
+    v17 = shl v13, 64
     v18 = ptradd v0, 64
     mstore v18, v17
     v19 = address
     v20 = zext i160 v19 to i256
-    v21 = shl 32, v20
+    v21 = shl v20, 32
     v22 = or v21, 0xafb0db5f
     v23 = mload v0
     v24 = lt 2, v23
     v25 = eq v24, false
     icall panic_if<0x32>, v25
-    v26 = shl 64, v22
+    v26 = shl v22, 64
     v27 = ptradd v0, 96
     mstore v27, v26
     v28 = sload 0 !metadata(storage=slot(0))
@@ -157,10 +151,10 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     icall panic_if<0x32>, v45
     v46 = ptradd v42, 32
     v47 = mload v46
-    v48 = shr 64, v47
+    v48 = shr v47, 64
     v49 = address
     v50 = zext i160 v49 to i256
-    v51 = shl 32, v50
+    v51 = shl v50, 32
     v52 = or v51, 0xd24c5a36
     v53 = eq v48, v52
     v54 = eq v53, false
@@ -172,10 +166,10 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     icall panic_if<0x32>, v58
     v59 = ptradd v55, 64
     v60 = mload v59
-    v61 = shr 64, v60
+    v61 = shr v60, 64
     v62 = address
     v63 = zext i160 v62 to i256
-    v64 = shl 32, v63
+    v64 = shl v63, 32
     v65 = or v64, 0xc5337ed4
     v66 = eq v61, v65
     v67 = eq v66, false
@@ -187,10 +181,10 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     icall panic_if<0x32>, v71
     v72 = ptradd v68, 96
     v73 = mload v72
-    v74 = shr 64, v73
+    v74 = shr v73, 64
     v75 = address
     v76 = zext i160 v75 to i256
-    v77 = shl 32, v76
+    v77 = shl v76, 32
     v78 = or v77, 0xafb0db5f
     v79 = eq v74, v78
     v80 = eq v79, false

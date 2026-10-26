@@ -29,7 +29,7 @@ contract ConstantPowZero {
     }
 
     // CHECK-LABEL: fn @at(
-    // CHECK-SAME: abi_params=[array<2, u256>, u256]
+    // CHECK-SAME: abi_params=[array<2, uint256>, uint256]
     function at(uint256[(0 ** 0) + 1] calldata input, uint256 index) external pure returns (uint256) {
         return input[index];
     }

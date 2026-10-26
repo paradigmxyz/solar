@@ -2,8 +2,8 @@
 //@filecheck:
 @module GvnLoadImmutable
 @immutables
-  first: u256
-  second: u256
+  first: uint256
+  second: uint256
 
 // GVN leaves immutable loads to CSE, which tracks their clobbers.
 // CHECK-LABEL: {{^[ +].*}}fn @same_immutable_stays{{[( ]}}

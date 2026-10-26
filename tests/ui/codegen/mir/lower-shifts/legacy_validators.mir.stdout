@@ -1,0 +1,30 @@
+// === ROOT/tests/ui/codegen/mir/lower-shifts/legacy_validators.sol:LegacyValidators ===
+@module LegacyValidators
+fn @word8(arg0: i8) -> i256 [selector=0x8464342e, pure, abi_params=[uint8], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = zext i8 arg0 to i256
+    ret v0
+}
+
+fn @flag(arg0: i1) -> i256 [selector=0xa92a4c3b, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: i8 1], [bb2: i8 0]
+    v1 = zext i8 v0 to i256
+    ret v1
+}
+
+fn @selector(arg0: i256) -> i256 [selector=0x9d3d6c73, pure, abi_params=[bytes4], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+  bb0:
+    ret arg0
+}
+
+fn @owner(arg0: i160) -> i160 [selector=0x666e1b39, pure, abi_params=[address], abi_returns=[word<uint160>], abi_return_params=[address]] {
+  bb0:
+    ret arg0
+}

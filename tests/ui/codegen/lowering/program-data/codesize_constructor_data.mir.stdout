@@ -1,0 +1,58 @@
+// === ROOT/tests/ui/codegen/lowering/program-data/codesize_constructor_data.sol:Child ===
+@module Child
+fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 7
+}
+
+// === ROOT/tests/ui/codegen/lowering/program-data/codesize_constructor_data.sol:Factory ===
+@module Factory
+@data
+  Child_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/program-data/codesize_constructor_data.sol:Child"
+
+@immutables
+  child: address
+
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = loadimmutable child
+    v1 = gas
+    mstore 0, 0x3fa4f245 !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = staticcall v1, v2, 28, 4, 0, 32
+    jumpi v3, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v4 = returndatasize
+    v5 = lt v4, 32
+    icall revert_if<tuple_data_too_short>, v5
+    v6 = add 0, 0
+    v7 = mload v6
+    ret v7
+}
+
+fn @sizeMatches() -> i1 [selector=0x6cb0d5a7, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = codesize
+    v1 = address
+    v2 = zext i160 v1 to i256
+    v3 = extcodesize v2
+    v4 = eq v0, v3
+    ret v4
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = datasize Child_creation_code_0
+    v1 = fmp
+    datacopy Child_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    storeimmutable child, v2
+    ret
+}

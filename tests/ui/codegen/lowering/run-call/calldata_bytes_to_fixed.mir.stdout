@@ -8,7 +8,7 @@ fn @first(arg0: slice<calldata>) -> i256 [selector=0x936fc730, pure, abi_params=
     v3 = lt v2, 1
     v4 = sub 1, v2
     v5 = mul 8, v4
-    v6 = shl v5, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v6 = shl 0xff00000000000000000000000000000000000000000000000000000000000000, v5
     v7 = select v3, v6, 0xff00000000000000000000000000000000000000000000000000000000000000
     v8 = and v1, v7
     ret v8
@@ -22,7 +22,7 @@ fn @half(arg0: slice<calldata>) -> i256 [selector=0xf67e1bfb, pure, abi_params=[
     v3 = lt v2, 16
     v4 = sub 16, v2
     v5 = mul 8, v4
-    v6 = shl v5, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v6 = shl 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000, v5
     v7 = select v3, v6, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
     v8 = and v1, v7
     ret v8
@@ -36,13 +36,13 @@ fn @word(arg0: slice<calldata>) -> i256 [selector=0xc22ee0b0, pure, abi_params=[
     v3 = lt v2, 32
     v4 = sub 32, v2
     v5 = mul 8, v4
-    v6 = shl v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v6 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v5
     v7 = select v3, v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v8 = and v1, v7
     ret v8
 }
 
-fn @sliced(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x183ecf01, pure, abi_params=[bytes, u256, u256], abi_returns=[word<bytes16>], abi_return_params=[bytes16]] {
+fn @sliced(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x183ecf01, pure, abi_params=[bytes, uint256, uint256], abi_returns=[word<bytes16>], abi_return_params=[bytes16]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
@@ -60,7 +60,7 @@ fn @sliced(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x18
     v12 = lt v11, 16
     v13 = sub 16, v11
     v14 = mul 8, v13
-    v15 = shl v14, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v15 = shl 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000, v14
     v16 = select v12, v15, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
     v17 = and v10, v16
     ret v17

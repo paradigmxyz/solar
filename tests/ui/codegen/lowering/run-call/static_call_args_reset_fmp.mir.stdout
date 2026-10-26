@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/static_call_args_reset_fmp.sol:StaticCallArgsResetFmp ===
 @module StaticCallArgsResetFmp
-fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @mix, arg0, 1
     v1 = icall @mix, arg0, 3
@@ -28,7 +28,7 @@ fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, pure, abi_params=[u256], abi_r
     ret v20
 }
 
-fn @runInternal(arg0: i256) -> i256 [selector=0xc19b8781, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @runInternal(arg0: i256) -> i256 [selector=0xc19b8781, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @inner, arg0
     ret v0

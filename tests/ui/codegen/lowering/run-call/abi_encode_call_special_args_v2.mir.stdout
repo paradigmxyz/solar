@@ -8,12 +8,12 @@ fn @fNoArgs() [selector=0x1af93581, abi_params=[], abi_returns=[], abi_return_pa
     ret
 }
 
-fn @fArray(arg0: ptr<memory>) [selector=0x0a326c0c, abi_params=[array<_, u256>], abi_returns=[], abi_return_params=[]] {
+fn @fArray(arg0: ptr<memory>) [selector=0x0a326c0c, abi_params=[array<_, uint256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @fUint(arg0: i256, arg1: i256) -> struct0 [selector=0x432672b2, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @fUint(arg0: i256, arg1: i256) -> struct0 [selector=0x432672b2, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 0
     v1 = insert_value struct0, v0, 1, 0

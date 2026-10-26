@@ -1,0 +1,28 @@
+//@ compile-flags: -Osize -Zevm-ir-pipeline=inline-returns
+@module InlineReturnsSize
+
+bb0:
+  push 1
+  jumpi bb1, bb2
+bb1:
+  jump bb3
+bb2:
+  jump bb3
+
+// A destination is a label push, never `PUSH0`: this three-byte tail fits the label push and
+// `JUMP` that reach it.
+bb3:
+  push 0
+  push 0
+  revert
+
+bb4:
+  jump bb6
+bb5:
+  stop
+
+// A five-byte tail exceeds that transfer and stays shared.
+bb6:
+  push 32
+  push 64
+  return

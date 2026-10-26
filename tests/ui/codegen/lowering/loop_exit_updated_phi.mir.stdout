@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/loop_exit_updated_phi.sol:Test ===
 @module Test
-fn @decimal(arg0: i256) -> ptr<memory> [selector=0xf371efa4, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @decimal(arg0: i256) -> ptr<memory> [selector=0xf371efa4, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 128
@@ -9,18 +9,18 @@ fn @decimal(arg0: i256) -> ptr<memory> [selector=0xf371efa4, pure, abi_params=[u
     mstore v1, 0
     jump bb1
   bb1:
-    v3 = phi [bb0: v1], [bb5: v3]
+    v3 = phi [bb0: arg0], [bb5: v9]
     v4 = phi [bb0: v1], [bb5: v6]
-    v5 = phi [bb0: arg0], [bb5: v9]
+    v5 = phi [bb0: v1], [bb5: v5]
     jumpi true, bb3, bb4
   bb4:
     jump bb2
   bb3:
     v6 = sub v4, 1
-    v7 = mod v5, 10
+    v7 = mod v3, 10
     v8 = add 48, v7
     mstore8 v6, v8
-    v9 = div v5, 10
+    v9 = div v3, 10
     v10 = eq v9, 0
     v11 = zext i1 v10 to i256
     v12 = ne v11, 0
@@ -34,10 +34,10 @@ fn @decimal(arg0: i256) -> ptr<memory> [selector=0xf371efa4, pure, abi_params=[u
   bb6:
     jump bb2
   bb2:
-    v13 = phi [bb6: v6], [bb4: v4]
-    v14 = phi [bb6: v9], [bb4: v5]
-    v15 = sub v3, v13
-    v16 = sub v13, 32
+    v13 = phi [bb6: v9], [bb4: v3]
+    v14 = phi [bb6: v6], [bb4: v4]
+    v15 = sub v5, v14
+    v16 = sub v14, 32
     mstore v16, v15
     v17 = inttoptr i256 v16 to ptr<memory>
     ret v17

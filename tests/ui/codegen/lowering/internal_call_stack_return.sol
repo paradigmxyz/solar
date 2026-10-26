@@ -35,7 +35,7 @@ contract ICallStackReturn {
     // GAS: push 11
     // GAS-NEXT: mul
     // GAS-NEXT: add
-    // GAS-NEXT: push 128
+    // GAS-NEXT: push 0
     // GAS-NEXT: mstore
     // The void helper is inlined, keeping the multiplication live across storage writes.
     // GAS: [[VOID_ENTRY]]:
@@ -57,13 +57,16 @@ contract ICallStackReturn {
     // GAS-NOT: mload
     // GAS: addmod
 
-    // Size mode keeps a one-word helper result on the physical stack and removes its
+    // Size mode inlines the small helpers at every call site, and the backend shares the
+    // repeated body again, keeping its one-word result on the physical stack and removing its
     // frame slot. Gas mode consumes the small helpers through single-use inlining.
     //
     // SIZE-LABEL: @module ICallStackReturn_runtime
     // SIZE: push 11
     // SIZE-NEXT: mul
-    // SIZE-NEXT: swap 1
+    // SIZE-NEXT: swap 2
+    // SIZE-NEXT: mul
+    // SIZE-NEXT: swap 2
     // SIZE-NEXT: jump
     function stackAcross(uint256 x) external pure returns (uint256) {
         unchecked {

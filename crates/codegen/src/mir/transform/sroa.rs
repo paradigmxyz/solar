@@ -64,9 +64,7 @@ impl SroaCx {
                 }
             }
         }
-        if allocs.is_empty()
-            || func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize))
-        {
+        if allocs.is_empty() {
             return false;
         }
 

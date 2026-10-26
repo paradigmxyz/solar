@@ -391,7 +391,10 @@ fn display_inst_kind<'a>(
         func: &Function,
     ) -> fmt::Result {
         write!(f, "{}", kind.mnemonic())?;
-        let operands = kind.operands();
+        let mut operands = kind.operands();
+        if kind.reverses_text_operands() {
+            operands.reverse();
+        }
         if !operands.is_empty() {
             write!(
                 f,
@@ -571,6 +574,11 @@ fn display_inst_kind<'a>(
                     write!(f, "require<")?;
                     match kind {
                         RequireKind::ShortString => write!(f, "short_string")?,
+                        RequireKind::LongString(bytes) => write!(
+                            f,
+                            "long_string hex\"{}\"",
+                            alloy_primitives::hex::display(bytes.as_byte_str())
+                        )?,
                         RequireKind::EmptyString => write!(f, "empty_string")?,
                         RequireKind::ErrorString => write!(f, "error_string")?,
                         RequireKind::CustomError(layout) => write!(f, "custom_error {layout}")?,
@@ -601,21 +609,6 @@ fn display_inst_kind<'a>(
         }
         InstKind::AbiDecode { data, layout } => {
             write!(f, "abi_decode {layout}, {}", display_val(*data, func))
-        }
-        InstKind::StorageToMemory { storage, memory, layout } => write!(
-            f,
-            "storage_to_memory {layout}, {}, {}",
-            display_val(*storage, func),
-            display_val(*memory, func)
-        ),
-        InstKind::MemoryToStorage { memory, storage, layout } => write!(
-            f,
-            "memory_to_storage {layout}, {}, {}",
-            display_val(*memory, func),
-            display_val(*storage, func)
-        ),
-        InstKind::ClearStorage { storage, layout } => {
-            write!(f, "clear_storage {layout}, {}", display_val(*storage, func))
         }
         InstKind::ICall { function: Callee::Function(function), args } => {
             write!(f, "icall {}", display_function_ref(*function, module))?;
@@ -777,7 +770,7 @@ fn display_metadata<'a>(
         Unchecked,
         DeferredAlloc,
         PreservesFmp,
-        PreservesValidFmp,
+        AllocPtr,
         Disjoint,
         LoopDepth(u16),
         Effect(EffectKind),
@@ -805,7 +798,7 @@ fn display_metadata<'a>(
             MetadataField::Unchecked => write!(f, "unchecked"),
             MetadataField::DeferredAlloc => write!(f, "deferred_alloc"),
             MetadataField::PreservesFmp => write!(f, "preserves_fmp"),
-            MetadataField::PreservesValidFmp => write!(f, "preserves_valid_fmp"),
+            MetadataField::AllocPtr => write!(f, "alloc_ptr"),
             MetadataField::Disjoint => write!(f, "disjoint"),
             MetadataField::LoopDepth(loop_depth) => write!(f, "loop_depth={loop_depth}"),
             MetadataField::Effect(effect) => write!(f, "effect={}", effect.name()),
@@ -823,7 +816,7 @@ fn display_metadata<'a>(
     }
 
     fmt::from_fn(move |f| {
-        let mut fields = ArrayVec::<MetadataField<'_>, 11>::new();
+        let mut fields = ArrayVec::<MetadataField<'_>, 12>::new();
 
         if let Some(storage) = metadata.storage_alias() {
             fields.push(MetadataField::Storage(storage, func));
@@ -857,8 +850,8 @@ fn display_metadata<'a>(
         if metadata.preserves_fmp() {
             fields.push(MetadataField::PreservesFmp);
         }
-        if metadata.preserves_valid_fmp() {
-            fields.push(MetadataField::PreservesValidFmp);
+        if metadata.alloc_ptr() {
+            fields.push(MetadataField::AllocPtr);
         }
         if metadata.disjoint() {
             fields.push(MetadataField::Disjoint);

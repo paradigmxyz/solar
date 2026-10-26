@@ -1,0 +1,10 @@
+//@ revisions: homestead byzantium
+//@[homestead] compile-flags: --evm-version homestead -Zevm-ir-pipeline=legalize-revert
+//@[byzantium] compile-flags: --evm-version byzantium -Zevm-ir-pipeline=legalize-revert
+@module module
+
+// Before Byzantium, `revert` becomes `invalid`, the closest terminating opcode.
+bb0:
+  push 0
+  dup 1
+  revert

@@ -1,0 +1,14 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "abi": []
+      }
+    }
+  }
+}

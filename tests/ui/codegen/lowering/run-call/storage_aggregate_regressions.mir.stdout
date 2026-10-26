@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_aggregate_regressions.sol:StorageAggregateRegressions ===
 @module StorageAggregateRegressions
-fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt 0, 2
     v1 = eq v0, false
@@ -52,123 +52,117 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v45 = lt 0, 2
     v46 = eq v45, false
     icall panic_if<0x32>, v46
-    v47 = mload v28
-    v48 = inttoptr i256 v47 to ptr<memory>
-    v49 = eq v47, 0
-    jumpi v49, bb7, bb8
-  bb7:
-    v50 = alloc 64
-    memory_zero v50, 64
-    v51 = ptrtoint ptr<memory> v50 to i256
-    mstore v28, v51
-    jump bb8
+    v47 = mload v28, ptr<memory>
+    v48 = lt 1, 2
+    v49 = eq v48, false
+    icall panic_if<0x32>, v49
+    v50 = ptradd v47, 32
+    v51 = mload v50
+    v52 = eq v51, 2
+    jumpi v52, bb7, bb8
   bb8:
-    v52 = phi [bb3: v48], [bb7: v50]
+    jump bb9
+  bb7:
     v53 = lt 1, 2
     v54 = eq v53, false
     icall panic_if<0x32>, v54
-    v55 = ptradd v52, 32
-    v56 = mload v55
-    v57 = eq v56, 2
-    jumpi v57, bb9, bb10
-  bb10:
-    jump bb11
+    v55 = ptradd v28, 32
+    v56 = mload v55, ptr<memory>
+    v57 = lt 0, 2
+    v58 = eq v57, false
+    icall panic_if<0x32>, v58
+    v59 = mload v56
+    v60 = eq v59, 3
+    jump bb9
   bb9:
-    v58 = lt 1, 2
-    v59 = eq v58, false
-    icall panic_if<0x32>, v59
-    v60 = ptradd v28, 32
-    v61 = mload v60
-    v62 = inttoptr i256 v61 to ptr<memory>
-    v63 = eq v61, 0
-    jumpi v63, bb12, bb13
+    v61 = phi [bb7: v60], [bb8: false]
+    icall require<short_string>, v61, 11, 0x6e657374656420636f7079000000000000000000000000000000000000000000
+    v62 = sload 4 !metadata(storage=slot(4))
+    v63 = gt v62, 0xffffffffffffffff
+    icall panic_if<0x41>, v63
+    v64 = add v62, 1
+    v65 = storage_array_data_slot 4
+    v66 = mul v62, 2
+    v67 = add v65, v66
+    sstore 4, v64 !metadata(storage=slot(4))
+    v68 = sload 4 !metadata(storage=slot(4))
+    v69 = lt 0, v68
+    v70 = eq v69, false
+    icall panic_if<0x32>, v70
+    v71 = storage_array_data_slot 4
+    v72 = mul 0, 2
+    v73 = add v71, v72
+    sstore v73, 11 !metadata(storage=symbolic(v73))
+    v74 = add v73, 1
+    sstore v74, 22 !metadata(storage=offset(v73, 1))
+    v75 = sload 4 !metadata(storage=slot(4))
+    v76 = lt 0, v75
+    v77 = eq v76, false
+    icall panic_if<0x32>, v77
+    v78 = storage_array_data_slot 4
+    v79 = mul 0, 2
+    v80 = add v78, v79
+    v81 = sload v80 !metadata(storage=symbolic(v80))
+    v82 = eq v81, 11
+    jumpi v82, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    v83 = sload 4 !metadata(storage=slot(4))
+    v84 = lt 0, v83
+    v85 = eq v84, false
+    icall panic_if<0x32>, v85
+    v86 = storage_array_data_slot 4
+    v87 = mul 0, 2
+    v88 = add v86, v87
+    v89 = add v88, 1
+    v90 = sload v89 !metadata(storage=offset(v88, 1))
+    v91 = eq v90, 22
+    jump bb12
   bb12:
-    v64 = alloc 64
-    memory_zero v64, 64
-    v65 = ptradd v28, 32
-    v66 = ptrtoint ptr<memory> v64 to i256
-    mstore v65, v66
+    v92 = phi [bb10: v91], [bb11: false]
+    icall require<short_string>, v92, 13, 0x7374727563742061737369676e00000000000000000000000000000000000000
+    v93 = sload 5 !metadata(storage=slot(5))
+    v94 = gt v93, 0xffffffffffffffff
+    icall panic_if<0x41>, v94
+    v95 = add v93, 1
+    v96 = storage_array_data_slot 5
+    v97 = mul v93, 2
+    v98 = add v96, v97
+    sstore 5, v95 !metadata(storage=slot(5))
+    v99 = alloc 64
+    mstore v99, 31
+    v100 = ptradd v99, 32
+    mstore v100, 32
+    v101 = sload 5 !metadata(storage=slot(5))
+    v102 = lt 0, v101
+    v103 = eq v102, false
+    icall panic_if<0x32>, v103
+    v104 = storage_array_data_slot 5
+    v105 = mul 0, 2
+    v106 = add v104, v105
     jump bb13
   bb13:
-    v67 = phi [bb9: v62], [bb12: v64]
-    v68 = lt 0, 2
-    v69 = eq v68, false
-    icall panic_if<0x32>, v69
-    v70 = mload v67
-    v71 = eq v70, 3
-    jump bb11
-  bb11:
-    v72 = phi [bb13: v71], [bb10: false]
-    icall require<short_string>, v72, 11, 0x6e657374656420636f7079000000000000000000000000000000000000000000
-    v73 = sload 4 !metadata(storage=slot(4))
-    v74 = gt v73, 0xffffffffffffffff
-    icall panic_if<0x41>, v74
-    v75 = add v73, 1
-    v76 = storage_array_data_slot 4
-    v77 = mul v73, 2
-    v78 = add v76, v77
-    sstore 4, v75 !metadata(storage=slot(4))
-    v79 = sload 4 !metadata(storage=slot(4))
-    v80 = lt 0, v79
-    v81 = eq v80, false
-    icall panic_if<0x32>, v81
-    v82 = storage_array_data_slot 4
-    v83 = mul 0, 2
-    v84 = add v82, v83
-    sstore v84, 11 !metadata(storage=symbolic(v84))
-    v85 = add v84, 1
-    sstore v85, 22 !metadata(storage=offset(v84, 1))
-    v86 = sload 4 !metadata(storage=slot(4))
-    v87 = lt 0, v86
-    v88 = eq v87, false
-    icall panic_if<0x32>, v88
-    v89 = storage_array_data_slot 4
-    v90 = mul 0, 2
-    v91 = add v89, v90
-    v92 = sload v91 !metadata(storage=symbolic(v91))
-    v93 = eq v92, 11
-    jumpi v93, bb14, bb15
+    v107 = phi [bb12: 0], [bb18: v114]
+    v108 = lt v107, 2
+    jumpi v108, bb14, bb15
   bb15:
-    jump bb16
-  bb14:
-    v94 = sload 4 !metadata(storage=slot(4))
-    v95 = lt 0, v94
-    v96 = eq v95, false
-    icall panic_if<0x32>, v96
-    v97 = storage_array_data_slot 4
-    v98 = mul 0, 2
-    v99 = add v97, v98
-    v100 = add v99, 1
-    v101 = sload v100 !metadata(storage=offset(v99, 1))
-    v102 = eq v101, 22
-    jump bb16
-  bb16:
-    v103 = phi [bb14: v102], [bb15: false]
-    icall require<short_string>, v103, 13, 0x7374727563742061737369676e00000000000000000000000000000000000000
-    v104 = sload 5 !metadata(storage=slot(5))
-    v105 = gt v104, 0xffffffffffffffff
-    icall panic_if<0x41>, v105
-    v106 = add v104, 1
-    v107 = storage_array_data_slot 5
-    v108 = mul v104, 2
-    v109 = add v107, v108
-    sstore 5, v106 !metadata(storage=slot(5))
-    v110 = alloc 64
-    mstore v110, 31
-    v111 = ptradd v110, 32
-    mstore v111, 32
-    v112 = sload 5 !metadata(storage=slot(5))
-    v113 = lt 0, v112
-    v114 = eq v113, false
-    icall panic_if<0x32>, v114
-    v115 = storage_array_data_slot 5
-    v116 = mul 0, 2
-    v117 = add v115, v116
-    jump bb17
-  bb17:
-    v118 = phi [bb16: 0], [bb22: v125]
-    v119 = lt v118, 2
-    jumpi v119, bb18, bb19
+    v115 = sload 5 !metadata(storage=slot(5))
+    v116 = lt 0, v115
+    v117 = eq v116, false
+    icall panic_if<0x32>, v117
+    v118 = storage_array_data_slot 5
+    v119 = mul 0, 2
+    v120 = add v118, v119
+    v121 = lt 0, 2
+    v122 = eq v121, false
+    icall panic_if<0x32>, v122
+    v123 = add v120, 0
+    v124 = sload v123 !metadata(storage=symbolic(v120))
+    v125 = eq v124, 31
+    jumpi v125, bb19, bb20
+  bb20:
+    jump bb21
   bb19:
     v126 = sload 5 !metadata(storage=slot(5))
     v127 = lt 0, v126
@@ -177,562 +171,544 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v129 = storage_array_data_slot 5
     v130 = mul 0, 2
     v131 = add v129, v130
-    v132 = lt 0, 2
+    v132 = lt 1, 2
     v133 = eq v132, false
     icall panic_if<0x32>, v133
-    v134 = add v131, 0
-    v135 = sload v134 !metadata(storage=symbolic(v131))
-    v136 = eq v135, 31
-    jumpi v136, bb23, bb24
+    v134 = add v131, 1
+    v135 = sload v134 !metadata(storage=offset(v131, 1))
+    v136 = eq v135, 32
+    jump bb21
+  bb21:
+    v137 = phi [bb19: v136], [bb20: false]
+    icall require<short_string>, v137, 12, 0x66697865642061737369676e0000000000000000000000000000000000000000
+    v138 = sload 6 !metadata(storage=slot(6))
+    v139 = gt v138, 0xffffffffffffffff
+    icall panic_if<0x41>, v139
+    v140 = add v138, 1
+    v141 = storage_array_data_slot 6
+    v142 = add v141, v138
+    sstore 6, v140 !metadata(storage=slot(6))
+    v143 = alloc zeroed checked 96
+    mstore v143, 2
+    v144 = mload v143
+    v145 = lt 0, v144
+    v146 = eq v145, false
+    icall panic_if<0x32>, v146
+    v147 = ptradd v143, 32
+    mstore v147, 41
+    v148 = mload v143
+    v149 = lt 1, v148
+    v150 = eq v149, false
+    icall panic_if<0x32>, v150
+    v151 = ptradd v143, 64
+    mstore v151, 42
+    v152 = sload 6 !metadata(storage=slot(6))
+    v153 = lt 0, v152
+    v154 = eq v153, false
+    icall panic_if<0x32>, v154
+    v155 = storage_array_data_slot 6
+    v156 = add v155, 0
+    v157 = mload v143
+    v158 = sload v156 !metadata(storage=symbolic(v155))
+    v159 = gt v158, v157
+    jumpi v159, bb22, bb23
+  bb22:
+    jump bb24
   bb24:
-    jump bb25
-  bb23:
-    v137 = sload 5 !metadata(storage=slot(5))
-    v138 = lt 0, v137
-    v139 = eq v138, false
-    icall panic_if<0x32>, v139
-    v140 = storage_array_data_slot 5
-    v141 = mul 0, 2
-    v142 = add v140, v141
-    v143 = lt 1, 2
-    v144 = eq v143, false
-    icall panic_if<0x32>, v144
-    v145 = add v142, 1
-    v146 = sload v145 !metadata(storage=offset(v142, 1))
-    v147 = eq v146, 32
-    jump bb25
-  bb25:
-    v148 = phi [bb23: v147], [bb24: false]
-    icall require<short_string>, v148, 12, 0x66697865642061737369676e0000000000000000000000000000000000000000
-    v149 = sload 6 !metadata(storage=slot(6))
-    v150 = gt v149, 0xffffffffffffffff
-    icall panic_if<0x41>, v150
-    v151 = add v149, 1
-    v152 = storage_array_data_slot 6
-    v153 = add v152, v149
-    sstore 6, v151 !metadata(storage=slot(6))
-    v154 = alloc zeroed checked 96
-    mstore v154, 2
-    v155 = mload v154
-    v156 = lt 0, v155
-    v157 = eq v156, false
-    icall panic_if<0x32>, v157
-    v158 = ptradd v154, 32
-    mstore v158, 41
-    v159 = mload v154
-    v160 = lt 1, v159
-    v161 = eq v160, false
-    icall panic_if<0x32>, v161
-    v162 = ptradd v154, 64
-    mstore v162, 42
-    v163 = sload 6 !metadata(storage=slot(6))
-    v164 = lt 0, v163
-    v165 = eq v164, false
-    icall panic_if<0x32>, v165
-    v166 = storage_array_data_slot 6
-    v167 = add v166, 0
-    v168 = mload v154
-    v169 = sload v167 !metadata(storage=symbolic(v166))
-    v170 = gt v169, v168
-    jumpi v170, bb26, bb27
+    v160 = phi [bb22: v157], [bb25: v164]
+    v161 = lt v160, v158
+    jumpi v161, bb25, bb26
   bb26:
-    jump bb28
-  bb28:
-    v171 = phi [bb26: v168], [bb29: v175]
-    v172 = lt v171, v169
-    jumpi v172, bb29, bb30
-  bb30:
+    jump bb23
+  bb23:
+    sstore v156, v157 !metadata(storage=symbolic(v155))
     jump bb27
   bb27:
-    sstore v167, v168 !metadata(storage=symbolic(v166))
-    jump bb31
+    v165 = phi [bb23: 0], [bb28: v173]
+    v166 = lt v165, v157
+    jumpi v166, bb28, bb29
+  bb29:
+    v174 = sload 6 !metadata(storage=slot(6))
+    v175 = lt 0, v174
+    v176 = eq v175, false
+    icall panic_if<0x32>, v176
+    v177 = storage_array_data_slot 6
+    v178 = add v177, 0
+    v179 = sload v178 !metadata(storage=symbolic(v177))
+    v180 = eq v179, 2
+    jumpi v180, bb30, bb31
   bb31:
-    v176 = phi [bb27: 0], [bb32: v184]
-    v177 = lt v176, v168
-    jumpi v177, bb32, bb33
-  bb33:
-    v185 = sload 6 !metadata(storage=slot(6))
-    v186 = lt 0, v185
-    v187 = eq v186, false
-    icall panic_if<0x32>, v187
-    v188 = storage_array_data_slot 6
-    v189 = add v188, 0
-    v190 = sload v189 !metadata(storage=symbolic(v188))
-    v191 = eq v190, 2
-    jumpi v191, bb34, bb35
-  bb35:
-    jump bb36
+    jump bb32
+  bb30:
+    v181 = sload 6 !metadata(storage=slot(6))
+    v182 = lt 0, v181
+    v183 = eq v182, false
+    icall panic_if<0x32>, v183
+    v184 = storage_array_data_slot 6
+    v185 = add v184, 0
+    v186 = sload v185 !metadata(storage=symbolic(v184))
+    v187 = lt 1, v186
+    v188 = eq v187, false
+    icall panic_if<0x32>, v188
+    v189 = storage_array_data_slot v185
+    v190 = add v189, 1
+    v191 = sload v190 !metadata(storage=offset(v189, 1))
+    v192 = eq v191, 42
+    jump bb32
+  bb32:
+    v193 = phi [bb30: v192], [bb31: false]
+    icall require<short_string>, v193, 14, 0x64796e616d69632061737369676e000000000000000000000000000000000000
+    v194 = sload 7 !metadata(storage=slot(7))
+    v195 = gt v194, 0xffffffffffffffff
+    icall panic_if<0x41>, v195
+    v196 = add v194, 1
+    v197 = storage_array_data_slot 7
+    v198 = add v197, v194
+    sstore 7, v196 !metadata(storage=slot(7))
+    v199 = sload 7 !metadata(storage=slot(7))
+    v200 = lt 0, v199
+    v201 = eq v200, false
+    icall panic_if<0x32>, v201
+    v202 = storage_array_data_slot 7
+    v203 = add v202, 0
+    store_storage_bytes_literal v203, hex"aabbcc"
+    v204 = sload 7 !metadata(storage=slot(7))
+    v205 = lt 0, v204
+    v206 = eq v205, false
+    icall panic_if<0x32>, v206
+    v207 = storage_array_data_slot 7
+    v208 = add v207, 0
+    v209 = sload v208 !metadata(storage=symbolic(v207))
+    validate_storage_bytes v209
+    v210 = and v209, 1
+    v211 = eq v210, 1
+    v212 = sub 0, v210
+    v213 = or 127, v212
+    v214 = shr v209, 1
+    v215 = and v214, v213
+    v216 = eq v215, 3
+    jumpi v216, bb33, bb34
   bb34:
-    v192 = sload 6 !metadata(storage=slot(6))
-    v193 = lt 0, v192
-    v194 = eq v193, false
-    icall panic_if<0x32>, v194
-    v195 = storage_array_data_slot 6
-    v196 = add v195, 0
-    v197 = sload v196 !metadata(storage=symbolic(v195))
-    v198 = lt 1, v197
-    v199 = eq v198, false
-    icall panic_if<0x32>, v199
-    v200 = storage_array_data_slot v196
-    v201 = add v200, 1
-    v202 = sload v201 !metadata(storage=offset(v200, 1))
-    v203 = eq v202, 42
-    jump bb36
-  bb36:
-    v204 = phi [bb34: v203], [bb35: false]
-    icall require<short_string>, v204, 14, 0x64796e616d69632061737369676e000000000000000000000000000000000000
-    v205 = sload 7 !metadata(storage=slot(7))
-    v206 = gt v205, 0xffffffffffffffff
-    icall panic_if<0x41>, v206
-    v207 = add v205, 1
-    v208 = storage_array_data_slot 7
-    v209 = add v208, v205
-    sstore 7, v207 !metadata(storage=slot(7))
-    v210 = sload 7 !metadata(storage=slot(7))
-    v211 = lt 0, v210
-    v212 = eq v211, false
-    icall panic_if<0x32>, v212
-    v213 = storage_array_data_slot 7
-    v214 = add v213, 0
-    store_storage_bytes_literal v214, hex"aabbcc"
-    v215 = sload 7 !metadata(storage=slot(7))
-    v216 = lt 0, v215
-    v217 = eq v216, false
-    icall panic_if<0x32>, v217
-    v218 = storage_array_data_slot 7
-    v219 = add v218, 0
-    v220 = sload v219 !metadata(storage=symbolic(v218))
-    validate_storage_bytes v220
-    v221 = and v220, 1
-    v222 = eq v221, 1
-    v223 = sub 0, v221
-    v224 = or 127, v223
-    v225 = shr 1, v220
-    v226 = and v225, v224
-    v227 = eq v226, 3
-    jumpi v227, bb37, bb38
-  bb38:
-    jump bb39
-  bb37:
-    v228 = sload 7 !metadata(storage=slot(7))
-    v229 = lt 0, v228
+    jump bb35
+  bb33:
+    v217 = sload 7 !metadata(storage=slot(7))
+    v218 = lt 0, v217
+    v219 = eq v218, false
+    icall panic_if<0x32>, v219
+    v220 = storage_array_data_slot 7
+    v221 = add v220, 0
+    v222 = sload v221 !metadata(storage=symbolic(v220))
+    validate_storage_bytes v222
+    v223 = and v222, 1
+    v224 = eq v223, 1
+    v225 = sub 0, v223
+    v226 = or 127, v225
+    v227 = shr v222, 1
+    v228 = and v227, v226
+    v229 = lt 1, v228
     v230 = eq v229, false
     icall panic_if<0x32>, v230
-    v231 = storage_array_data_slot 7
-    v232 = add v231, 0
-    v233 = sload v232 !metadata(storage=symbolic(v231))
-    validate_storage_bytes v233
-    v234 = and v233, 1
-    v235 = eq v234, 1
-    v236 = sub 0, v234
-    v237 = or 127, v236
-    v238 = shr 1, v233
-    v239 = and v238, v237
-    v240 = lt 1, v239
-    v241 = eq v240, false
-    icall panic_if<0x32>, v241
-    jumpi v235, bb40, bb41
-  bb41:
-    jump bb42
-  bb40:
-    v242 = storage_array_data_slot v232
-    v243 = shr 5, 1
-    v244 = add v242, v243
-    jump bb42
-  bb42:
-    v245 = phi [bb40: v244], [bb41: v232]
-    v246 = and 1, 31
-    v247 = sub 31, v246
-    v248 = sload v245 !metadata(storage=symbolic(v245))
-    v249 = mul v247, 8
-    v250 = shr v249, v248
-    v251 = shl 248, v250
-    v252 = eq v251, 0xbb00000000000000000000000000000000000000000000000000000000000000
+    jumpi v224, bb36, bb37
+  bb37:
+    jump bb38
+  bb36:
+    v231 = storage_array_data_slot v221
+    v232 = shr 1, 5
+    v233 = add v231, v232
+    jump bb38
+  bb38:
+    v234 = phi [bb36: v233], [bb37: v221]
+    v235 = and 1, 31
+    v236 = sub 31, v235
+    v237 = sload v234 !metadata(storage=symbolic(v234))
+    v238 = mul v236, 8
+    v239 = shr v237, v238
+    v240 = shl v239, 248
+    v241 = eq v240, 0xbb00000000000000000000000000000000000000000000000000000000000000
+    jump bb35
+  bb35:
+    v242 = phi [bb38: v241], [bb34: false]
+    icall require<short_string>, v242, 12, 0x62797465732061737369676e0000000000000000000000000000000000000000
+    v243 = sload 8 !metadata(storage=slot(8))
+    v244 = gt v243, 0xffffffffffffffff
+    icall panic_if<0x41>, v244
+    v245 = add v243, 1
+    v246 = storage_array_data_slot 8
+    v247 = div v243, 10
+    v248 = add v246, v247
+    v249 = mod v243, 10
+    v250 = mul v249, 3
+    v251 = mul v250, 8
+    v252 = shl 0xffffff, v251
+    v253 = sload v248 !metadata(storage=symbolic(v248))
+    v254 = not v252
+    v255 = and v253, v254
+    v256 = and 7, 0xffffff
+    v257 = shl v256, v251
+    v258 = or v255, v257
+    sstore v248, v258 !metadata(storage=symbolic(v248))
+    sstore 8, v245 !metadata(storage=slot(8))
+    v259 = sload 8 !metadata(storage=slot(8))
+    v260 = gt v259, 0xffffffffffffffff
+    icall panic_if<0x41>, v260
+    v261 = add v259, 1
+    v262 = storage_array_data_slot 8
+    v263 = div v259, 10
+    v264 = add v262, v263
+    v265 = mod v259, 10
+    v266 = mul v265, 3
+    v267 = mul v266, 8
+    v268 = shl 0xffffff, v267
+    v269 = sload v264 !metadata(storage=symbolic(v264))
+    v270 = not v268
+    v271 = and v269, v270
+    v272 = and 8, 0xffffff
+    v273 = shl v272, v267
+    v274 = or v271, v273
+    sstore v264, v274 !metadata(storage=symbolic(v264))
+    sstore 8, v261 !metadata(storage=slot(8))
+    v275 = sload 9 !metadata(storage=slot(9))
+    v276 = gt v275, 0xffffffffffffffff
+    icall panic_if<0x41>, v276
+    v277 = add v275, 1
+    v278 = storage_array_data_slot 9
+    v279 = add v278, v275
+    sstore v279, 9 !metadata(storage=symbolic(v279))
+    sstore 9, v277 !metadata(storage=slot(9))
+    v280 = sload 9 !metadata(storage=slot(9))
+    v281 = gt v280, 0xffffffffffffffff
+    icall panic_if<0x41>, v281
+    v282 = add v280, 1
+    v283 = storage_array_data_slot 9
+    v284 = add v283, v280
+    sstore v284, 10 !metadata(storage=symbolic(v284))
+    sstore 9, v282 !metadata(storage=slot(9))
+    v285 = sload 10 !metadata(storage=slot(10))
+    v286 = gt v285, 0xffffffffffffffff
+    icall panic_if<0x41>, v286
+    v287 = add v285, 1
+    v288 = storage_array_data_slot 10
+    v289 = add v288, v285
+    sstore 10, v287 !metadata(storage=slot(10))
+    v290 = sload 10 !metadata(storage=slot(10))
+    v291 = lt 0, v290
+    v292 = eq v291, false
+    icall panic_if<0x32>, v292
+    v293 = storage_array_data_slot 10
+    v294 = add v293, 0
+    v295 = sload v294 !metadata(storage=symbolic(v293))
+    v296 = gt v295, 0xffffffffffffffff
+    icall panic_if<0x41>, v296
+    v297 = add v295, 1
+    v298 = storage_array_data_slot v294
+    v299 = add v298, v295
+    sstore v299, 12 !metadata(storage=symbolic(v299))
+    sstore v294, v297 !metadata(storage=symbolic(v293))
+    v300 = sload 4 !metadata(storage=slot(4))
+    sstore 4, 0 !metadata(storage=slot(4))
     jump bb39
   bb39:
-    v253 = phi [bb42: v252], [bb38: false]
-    icall require<short_string>, v253, 12, 0x62797465732061737369676e0000000000000000000000000000000000000000
-    v254 = sload 8 !metadata(storage=slot(8))
-    v255 = gt v254, 0xffffffffffffffff
-    icall panic_if<0x41>, v255
-    v256 = add v254, 1
-    v257 = storage_array_data_slot 8
-    v258 = div v254, 10
-    v259 = add v257, v258
-    v260 = mod v254, 10
-    v261 = mul v260, 3
-    v262 = mul v261, 8
-    v263 = shl v262, 0xffffff
-    v264 = sload v259 !metadata(storage=symbolic(v259))
-    v265 = not v263
-    v266 = and v264, v265
-    v267 = and 7, 0xffffff
-    v268 = shl v262, v267
-    v269 = or v266, v268
-    sstore v259, v269 !metadata(storage=symbolic(v259))
-    sstore 8, v256 !metadata(storage=slot(8))
-    v270 = sload 8 !metadata(storage=slot(8))
-    v271 = gt v270, 0xffffffffffffffff
-    icall panic_if<0x41>, v271
-    v272 = add v270, 1
-    v273 = storage_array_data_slot 8
-    v274 = div v270, 10
-    v275 = add v273, v274
-    v276 = mod v270, 10
-    v277 = mul v276, 3
-    v278 = mul v277, 8
-    v279 = shl v278, 0xffffff
-    v280 = sload v275 !metadata(storage=symbolic(v275))
-    v281 = not v279
-    v282 = and v280, v281
-    v283 = and 8, 0xffffff
-    v284 = shl v278, v283
-    v285 = or v282, v284
-    sstore v275, v285 !metadata(storage=symbolic(v275))
-    sstore 8, v272 !metadata(storage=slot(8))
-    v286 = sload 9 !metadata(storage=slot(9))
-    v287 = gt v286, 0xffffffffffffffff
-    icall panic_if<0x41>, v287
-    v288 = add v286, 1
-    v289 = storage_array_data_slot 9
-    v290 = add v289, v286
-    sstore v290, 9 !metadata(storage=symbolic(v290))
-    sstore 9, v288 !metadata(storage=slot(9))
-    v291 = sload 9 !metadata(storage=slot(9))
-    v292 = gt v291, 0xffffffffffffffff
-    icall panic_if<0x41>, v292
-    v293 = add v291, 1
-    v294 = storage_array_data_slot 9
-    v295 = add v294, v291
-    sstore v295, 10 !metadata(storage=symbolic(v295))
-    sstore 9, v293 !metadata(storage=slot(9))
-    v296 = sload 10 !metadata(storage=slot(10))
-    v297 = gt v296, 0xffffffffffffffff
-    icall panic_if<0x41>, v297
-    v298 = add v296, 1
-    v299 = storage_array_data_slot 10
-    v300 = add v299, v296
-    sstore 10, v298 !metadata(storage=slot(10))
-    v301 = sload 10 !metadata(storage=slot(10))
-    v302 = lt 0, v301
-    v303 = eq v302, false
-    icall panic_if<0x32>, v303
-    v304 = storage_array_data_slot 10
-    v305 = add v304, 0
-    v306 = sload v305 !metadata(storage=symbolic(v304))
-    v307 = gt v306, 0xffffffffffffffff
-    icall panic_if<0x41>, v307
-    v308 = add v306, 1
-    v309 = storage_array_data_slot v305
-    v310 = add v309, v306
-    sstore v310, 12 !metadata(storage=symbolic(v310))
-    sstore v305, v308 !metadata(storage=symbolic(v304))
-    v311 = sload 4 !metadata(storage=slot(4))
-    sstore 4, 0 !metadata(storage=slot(4))
-    jump bb43
-  bb43:
-    v312 = phi [bb39: 0], [bb44: v318]
-    v313 = lt v312, v311
-    jumpi v313, bb44, bb45
-  bb45:
-    v319 = sload 5 !metadata(storage=slot(5))
+    v301 = phi [bb35: 0], [bb40: v307]
+    v302 = lt v301, v300
+    jumpi v302, bb40, bb41
+  bb41:
+    v308 = sload 5 !metadata(storage=slot(5))
     sstore 5, 0 !metadata(storage=slot(5))
-    jump bb46
-  bb46:
-    v320 = phi [bb45: 0], [bb51: v329]
-    v321 = lt v320, v319
-    jumpi v321, bb47, bb48
-  bb48:
-    v330 = sload 7 !metadata(storage=slot(7))
+    jump bb42
+  bb42:
+    v309 = phi [bb41: 0], [bb47: v318]
+    v310 = lt v309, v308
+    jumpi v310, bb43, bb44
+  bb44:
+    v319 = sload 7 !metadata(storage=slot(7))
     sstore 7, 0 !metadata(storage=slot(7))
-    jump bb52
-  bb52:
-    v331 = phi [bb48: 0], [bb56: v344]
-    v332 = lt v331, v330
-    jumpi v332, bb53, bb54
-  bb54:
-    v345 = sload 8 !metadata(storage=slot(8))
+    jump bb48
+  bb48:
+    v320 = phi [bb44: 0], [bb52: v333]
+    v321 = lt v320, v319
+    jumpi v321, bb49, bb50
+  bb50:
+    v334 = sload 8 !metadata(storage=slot(8))
     sstore 8, 0 !metadata(storage=slot(8))
-    v346 = div v345, 10
-    v347 = mod v345, 10
-    v348 = eq v347, 0
-    v349 = eq v348, false
-    v350 = zext i1 v349 to i256
-    v351 = add v346, v350
-    clear_storage_words 8, 0, v351
-    v352 = sload 9 !metadata(storage=slot(9))
+    v335 = div v334, 10
+    v336 = mod v334, 10
+    v337 = ne v336, 0
+    v338 = zext i1 v337 to i256
+    v339 = add v335, v338
+    clear_storage_words 8, 0, v339
+    v340 = sload 9 !metadata(storage=slot(9))
     sstore 9, 0 !metadata(storage=slot(9))
-    jump bb57
-  bb57:
-    v353 = phi [bb54: 0], [bb58: v357]
-    v354 = lt v353, v352
-    jumpi v354, bb58, bb59
-  bb59:
-    v358 = sload 10 !metadata(storage=slot(10))
+    jump bb53
+  bb53:
+    v341 = phi [bb50: 0], [bb54: v345]
+    v342 = lt v341, v340
+    jumpi v342, bb54, bb55
+  bb55:
+    v346 = sload 10 !metadata(storage=slot(10))
     sstore 10, 0 !metadata(storage=slot(10))
-    jump bb60
-  bb60:
-    v359 = phi [bb59: 0], [bb65: v369]
-    v360 = lt v359, v358
-    jumpi v360, bb61, bb62
-  bb62:
+    jump bb56
+  bb56:
+    v347 = phi [bb55: 0], [bb61: v357]
+    v348 = lt v347, v346
+    jumpi v348, bb57, bb58
+  bb58:
     sstore 4, 1 !metadata(storage=slot(4))
     sstore 5, 1 !metadata(storage=slot(5))
     sstore 7, 1 !metadata(storage=slot(7))
     sstore 8, 2 !metadata(storage=slot(8))
     sstore 9, 2 !metadata(storage=slot(9))
     sstore 10, 1 !metadata(storage=slot(10))
-    v370 = sload 4 !metadata(storage=slot(4))
-    v371 = lt 0, v370
-    v372 = eq v371, false
-    icall panic_if<0x32>, v372
-    v373 = storage_array_data_slot 4
-    v374 = mul 0, 2
-    v375 = add v373, v374
-    v376 = sload v375 !metadata(storage=symbolic(v375))
-    v377 = eq v376, 0
-    jumpi v377, bb66, bb67
-  bb67:
-    jump bb68
-  bb66:
-    v378 = sload 4 !metadata(storage=slot(4))
-    v379 = lt 0, v378
-    v380 = eq v379, false
-    icall panic_if<0x32>, v380
-    v381 = storage_array_data_slot 4
-    v382 = mul 0, 2
-    v383 = add v381, v382
-    v384 = add v383, 1
-    v385 = sload v384 !metadata(storage=offset(v383, 1))
+    v358 = sload 4 !metadata(storage=slot(4))
+    v359 = lt 0, v358
+    v360 = eq v359, false
+    icall panic_if<0x32>, v360
+    v361 = storage_array_data_slot 4
+    v362 = mul 0, 2
+    v363 = add v361, v362
+    v364 = sload v363 !metadata(storage=symbolic(v363))
+    v365 = eq v364, 0
+    jumpi v365, bb62, bb63
+  bb63:
+    jump bb64
+  bb62:
+    v366 = sload 4 !metadata(storage=slot(4))
+    v367 = lt 0, v366
+    v368 = eq v367, false
+    icall panic_if<0x32>, v368
+    v369 = storage_array_data_slot 4
+    v370 = mul 0, 2
+    v371 = add v369, v370
+    v372 = add v371, 1
+    v373 = sload v372 !metadata(storage=offset(v371, 1))
+    v374 = eq v373, 0
+    jump bb64
+  bb64:
+    v375 = phi [bb62: v374], [bb63: false]
+    icall require<short_string>, v375, 13, 0x7374727563742064656c65746500000000000000000000000000000000000000
+    v376 = sload 5 !metadata(storage=slot(5))
+    v377 = lt 0, v376
+    v378 = eq v377, false
+    icall panic_if<0x32>, v378
+    v379 = storage_array_data_slot 5
+    v380 = mul 0, 2
+    v381 = add v379, v380
+    v382 = lt 0, 2
+    v383 = eq v382, false
+    icall panic_if<0x32>, v383
+    v384 = add v381, 0
+    v385 = sload v384 !metadata(storage=symbolic(v381))
     v386 = eq v385, 0
-    jump bb68
-  bb68:
-    v387 = phi [bb66: v386], [bb67: false]
-    icall require<short_string>, v387, 13, 0x7374727563742064656c65746500000000000000000000000000000000000000
-    v388 = sload 5 !metadata(storage=slot(5))
-    v389 = lt 0, v388
-    v390 = eq v389, false
-    icall panic_if<0x32>, v390
-    v391 = storage_array_data_slot 5
-    v392 = mul 0, 2
-    v393 = add v391, v392
-    v394 = lt 0, 2
-    v395 = eq v394, false
-    icall panic_if<0x32>, v395
-    v396 = add v393, 0
-    v397 = sload v396 !metadata(storage=symbolic(v393))
-    v398 = eq v397, 0
-    jumpi v398, bb69, bb70
-  bb70:
-    jump bb71
-  bb69:
-    v399 = sload 5 !metadata(storage=slot(5))
+    jumpi v386, bb65, bb66
+  bb66:
+    jump bb67
+  bb65:
+    v387 = sload 5 !metadata(storage=slot(5))
+    v388 = lt 0, v387
+    v389 = eq v388, false
+    icall panic_if<0x32>, v389
+    v390 = storage_array_data_slot 5
+    v391 = mul 0, 2
+    v392 = add v390, v391
+    v393 = lt 1, 2
+    v394 = eq v393, false
+    icall panic_if<0x32>, v394
+    v395 = add v392, 1
+    v396 = sload v395 !metadata(storage=offset(v392, 1))
+    v397 = eq v396, 0
+    jump bb67
+  bb67:
+    v398 = phi [bb65: v397], [bb66: false]
+    icall require<short_string>, v398, 12, 0x66697865642064656c6574650000000000000000000000000000000000000000
+    v399 = sload 7 !metadata(storage=slot(7))
     v400 = lt 0, v399
     v401 = eq v400, false
     icall panic_if<0x32>, v401
-    v402 = storage_array_data_slot 5
-    v403 = mul 0, 2
-    v404 = add v402, v403
-    v405 = lt 1, 2
-    v406 = eq v405, false
-    icall panic_if<0x32>, v406
-    v407 = add v404, 1
-    v408 = sload v407 !metadata(storage=offset(v404, 1))
-    v409 = eq v408, 0
-    jump bb71
-  bb71:
-    v410 = phi [bb69: v409], [bb70: false]
-    icall require<short_string>, v410, 12, 0x66697865642064656c6574650000000000000000000000000000000000000000
-    v411 = sload 7 !metadata(storage=slot(7))
-    v412 = lt 0, v411
-    v413 = eq v412, false
-    icall panic_if<0x32>, v413
-    v414 = storage_array_data_slot 7
-    v415 = add v414, 0
-    v416 = sload v415 !metadata(storage=symbolic(v414))
-    validate_storage_bytes v416
-    v417 = and v416, 1
-    v418 = eq v417, 1
-    v419 = sub 0, v417
-    v420 = or 127, v419
-    v421 = shr 1, v416
-    v422 = and v421, v420
-    v423 = eq v422, 0
-    icall require<short_string>, v423, 12, 0x62797465732064656c6574650000000000000000000000000000000000000000
-    v424 = sload 8 !metadata(storage=slot(8))
-    v425 = lt 0, v424
-    v426 = eq v425, false
-    icall panic_if<0x32>, v426
-    v427 = storage_array_data_slot 8
-    v428 = div 0, 10
-    v429 = add v427, v428
-    v430 = mod 0, 10
-    v431 = mul v430, 3
-    v432 = sload v429 !metadata(storage=symbolic(v429))
-    v433 = mul v431, 8
-    v434 = shr v433, v432
-    v435 = trunc i256 v434 to i24
-    v436 = eq v435, i24 0
-    jumpi v436, bb72, bb73
-  bb73:
-    jump bb74
+    v402 = storage_array_data_slot 7
+    v403 = add v402, 0
+    v404 = sload v403 !metadata(storage=symbolic(v402))
+    validate_storage_bytes v404
+    v405 = and v404, 1
+    v406 = eq v405, 1
+    v407 = sub 0, v405
+    v408 = or 127, v407
+    v409 = shr v404, 1
+    v410 = and v409, v408
+    v411 = eq v410, 0
+    icall require<short_string>, v411, 12, 0x62797465732064656c6574650000000000000000000000000000000000000000
+    v412 = sload 8 !metadata(storage=slot(8))
+    v413 = lt 0, v412
+    v414 = eq v413, false
+    icall panic_if<0x32>, v414
+    v415 = storage_array_data_slot 8
+    v416 = div 0, 10
+    v417 = add v415, v416
+    v418 = mod 0, 10
+    v419 = mul v418, 3
+    v420 = sload v417 !metadata(storage=symbolic(v417))
+    v421 = mul v419, 8
+    v422 = shr v420, v421
+    v423 = trunc i256 v422 to i24
+    v424 = eq v423, i24 0
+    jumpi v424, bb68, bb69
+  bb69:
+    jump bb70
+  bb68:
+    v425 = sload 8 !metadata(storage=slot(8))
+    v426 = lt 1, v425
+    v427 = eq v426, false
+    icall panic_if<0x32>, v427
+    v428 = storage_array_data_slot 8
+    v429 = div 1, 10
+    v430 = add v428, v429
+    v431 = mod 1, 10
+    v432 = mul v431, 3
+    v433 = sload v430 !metadata(storage=symbolic(v430))
+    v434 = mul v432, 8
+    v435 = shr v433, v434
+    v436 = trunc i256 v435 to i24
+    v437 = eq v436, i24 0
+    jump bb70
+  bb70:
+    v438 = phi [bb68: v437], [bb69: false]
+    icall require<short_string>, v438, 13, 0x7061636b65642064656c65746500000000000000000000000000000000000000
+    v439 = sload 9 !metadata(storage=slot(9))
+    v440 = lt 0, v439
+    v441 = eq v440, false
+    icall panic_if<0x32>, v441
+    v442 = storage_array_data_slot 9
+    v443 = add v442, 0
+    v444 = sload v443 !metadata(storage=symbolic(v442))
+    v445 = eq v444, 0
+    jumpi v445, bb71, bb72
   bb72:
-    v437 = sload 8 !metadata(storage=slot(8))
-    v438 = lt 1, v437
-    v439 = eq v438, false
-    icall panic_if<0x32>, v439
-    v440 = storage_array_data_slot 8
-    v441 = div 1, 10
-    v442 = add v440, v441
-    v443 = mod 1, 10
-    v444 = mul v443, 3
-    v445 = sload v442 !metadata(storage=symbolic(v442))
-    v446 = mul v444, 8
-    v447 = shr v446, v445
-    v448 = trunc i256 v447 to i24
-    v449 = eq v448, i24 0
-    jump bb74
-  bb74:
-    v450 = phi [bb72: v449], [bb73: false]
-    icall require<short_string>, v450, 13, 0x7061636b65642064656c65746500000000000000000000000000000000000000
-    v451 = sload 9 !metadata(storage=slot(9))
-    v452 = lt 0, v451
-    v453 = eq v452, false
-    icall panic_if<0x32>, v453
-    v454 = storage_array_data_slot 9
-    v455 = add v454, 0
-    v456 = sload v455 !metadata(storage=symbolic(v454))
-    v457 = eq v456, 0
-    jumpi v457, bb75, bb76
-  bb76:
-    jump bb77
-  bb75:
-    v458 = sload 9 !metadata(storage=slot(9))
-    v459 = lt 1, v458
-    v460 = eq v459, false
-    icall panic_if<0x32>, v460
-    v461 = storage_array_data_slot 9
-    v462 = add v461, 1
-    v463 = sload v462 !metadata(storage=offset(v461, 1))
-    v464 = eq v463, 0
-    jump bb77
-  bb77:
-    v465 = phi [bb75: v464], [bb76: false]
-    icall require<short_string>, v465, 11, 0x776f72642064656c657465000000000000000000000000000000000000000000
-    v466 = sload 10 !metadata(storage=slot(10))
-    v467 = lt 0, v466
-    v468 = eq v467, false
-    icall panic_if<0x32>, v468
-    v469 = storage_array_data_slot 10
-    v470 = add v469, 0
-    v471 = sload v470 !metadata(storage=symbolic(v469))
-    v472 = eq v471, 0
-    icall require<short_string>, v472, 13, 0x6e65737465642064656c65746500000000000000000000000000000000000000
+    jump bb73
+  bb71:
+    v446 = sload 9 !metadata(storage=slot(9))
+    v447 = lt 1, v446
+    v448 = eq v447, false
+    icall panic_if<0x32>, v448
+    v449 = storage_array_data_slot 9
+    v450 = add v449, 1
+    v451 = sload v450 !metadata(storage=offset(v449, 1))
+    v452 = eq v451, 0
+    jump bb73
+  bb73:
+    v453 = phi [bb71: v452], [bb72: false]
+    icall require<short_string>, v453, 11, 0x776f72642064656c657465000000000000000000000000000000000000000000
+    v454 = sload 10 !metadata(storage=slot(10))
+    v455 = lt 0, v454
+    v456 = eq v455, false
+    icall panic_if<0x32>, v456
+    v457 = storage_array_data_slot 10
+    v458 = add v457, 0
+    v459 = sload v458 !metadata(storage=symbolic(v457))
+    v460 = eq v459, 0
+    icall require<short_string>, v460, 13, 0x6e65737465642064656c65746500000000000000000000000000000000000000
     ret 1
+  bb57:
+    v349 = storage_array_data_slot 10
+    v350 = add v349, v347
+    v351 = sload v350 !metadata(storage=symbolic(v350))
+    sstore v350, 0 !metadata(storage=symbolic(v350))
+    jump bb59
+  bb59:
+    v352 = phi [bb57: 0], [bb60: v356]
+    v353 = lt v352, v351
+    jumpi v353, bb60, bb61
   bb61:
-    v361 = storage_array_data_slot 10
-    v362 = add v361, v359
-    v363 = sload v362 !metadata(storage=symbolic(v362))
-    sstore v362, 0 !metadata(storage=symbolic(v362))
-    jump bb63
-  bb63:
-    v364 = phi [bb61: 0], [bb64: v368]
-    v365 = lt v364, v363
-    jumpi v365, bb64, bb65
-  bb65:
-    v369 = add v359, 1
-    jump bb60
-  bb64:
-    v366 = storage_array_data_slot v362
-    v367 = add v366, v364
-    sstore v367, 0 !metadata(storage=symbolic(v367))
-    v368 = add v364, 1
-    jump bb63
-  bb58:
-    v355 = storage_array_data_slot 9
-    v356 = add v355, v353
-    sstore v356, 0 !metadata(storage=symbolic(v356))
-    v357 = add v353, 1
-    jump bb57
-  bb53:
-    v333 = storage_array_data_slot 7
-    v334 = add v333, v331
-    v335 = sload v334 !metadata(storage=symbolic(v334))
-    validate_storage_bytes v335
-    v336 = and v335, 1
-    v337 = eq v336, 1
-    v338 = sub 0, v336
-    v339 = or 127, v338
-    v340 = shr 1, v335
-    v341 = and v340, v339
-    v342 = add v341, 31
-    v343 = div v342, 32
-    jumpi v337, bb55, bb56
-  bb55:
-    clear_storage_words v334, 0, v343
+    v357 = add v347, 1
     jump bb56
-  bb56:
-    sstore v334, 0 !metadata(storage=symbolic(v334))
-    v344 = add v331, 1
-    jump bb52
-  bb47:
-    v322 = storage_array_data_slot 5
-    v323 = mul v320, 2
-    v324 = add v322, v323
-    jump bb49
+  bb60:
+    v354 = storage_array_data_slot v350
+    v355 = add v354, v352
+    sstore v355, 0 !metadata(storage=symbolic(v355))
+    v356 = add v352, 1
+    jump bb59
+  bb54:
+    v343 = storage_array_data_slot 9
+    v344 = add v343, v341
+    sstore v344, 0 !metadata(storage=symbolic(v344))
+    v345 = add v341, 1
+    jump bb53
   bb49:
-    v325 = phi [bb47: 0], [bb50: v328]
-    v326 = lt v325, 2
-    jumpi v326, bb50, bb51
+    v322 = storage_array_data_slot 7
+    v323 = add v322, v320
+    v324 = sload v323 !metadata(storage=symbolic(v323))
+    validate_storage_bytes v324
+    v325 = and v324, 1
+    v326 = eq v325, 1
+    v327 = sub 0, v325
+    v328 = or 127, v327
+    v329 = shr v324, 1
+    v330 = and v329, v328
+    v331 = add v330, 31
+    v332 = div v331, 32
+    jumpi v326, bb51, bb52
   bb51:
-    v329 = add v320, 1
-    jump bb46
-  bb50:
-    v327 = add v324, v325
-    sstore v327, 0 !metadata(storage=symbolic(v327))
-    v328 = add v325, 1
-    jump bb49
-  bb44:
-    v314 = storage_array_data_slot 4
-    v315 = mul v312, 2
-    v316 = add v314, v315
+    clear_storage_words v323, 0, v332
+    jump bb52
+  bb52:
+    sstore v323, 0 !metadata(storage=symbolic(v323))
+    v333 = add v320, 1
+    jump bb48
+  bb43:
+    v311 = storage_array_data_slot 5
+    v312 = mul v309, 2
+    v313 = add v311, v312
+    jump bb45
+  bb45:
+    v314 = phi [bb43: 0], [bb46: v317]
+    v315 = lt v314, 2
+    jumpi v315, bb46, bb47
+  bb47:
+    v318 = add v309, 1
+    jump bb42
+  bb46:
+    v316 = add v313, v314
     sstore v316, 0 !metadata(storage=symbolic(v316))
-    v317 = add v316, 1
-    sstore v317, 0 !metadata(storage=offset(v316, 1))
-    v318 = add v312, 1
-    jump bb43
-  bb32:
-    v178 = shl 5, v176
-    v179 = ptradd v154, v178
-    v180 = ptradd v179, 32
-    v181 = mload v180
-    v182 = storage_array_data_slot v167
-    v183 = add v182, v176
-    sstore v183, v181 !metadata(storage=symbolic(v183))
-    v184 = add v176, 1
-    jump bb31
-  bb29:
-    v173 = storage_array_data_slot v167
-    v174 = add v173, v171
-    sstore v174, 0 !metadata(storage=symbolic(v174))
-    v175 = add v171, 1
-    jump bb28
+    v317 = add v314, 1
+    jump bb45
+  bb40:
+    v303 = storage_array_data_slot 4
+    v304 = mul v301, 2
+    v305 = add v303, v304
+    sstore v305, 0 !metadata(storage=symbolic(v305))
+    v306 = add v305, 1
+    sstore v306, 0 !metadata(storage=offset(v305, 1))
+    v307 = add v301, 1
+    jump bb39
+  bb28:
+    v167 = shl v165, 5
+    v168 = ptradd v143, v167
+    v169 = ptradd v168, 32
+    v170 = mload v169
+    v171 = storage_array_data_slot v156
+    v172 = add v171, v165
+    sstore v172, v170 !metadata(storage=symbolic(v172))
+    v173 = add v165, 1
+    jump bb27
+  bb25:
+    v162 = storage_array_data_slot v156
+    v163 = add v162, v160
+    sstore v163, 0 !metadata(storage=symbolic(v163))
+    v164 = add v160, 1
+    jump bb24
+  bb14:
+    v109 = add v106, v107
+    v110 = lt v107, 2
+    jumpi v110, bb16, bb17
+  bb17:
+    sstore v109, 0 !metadata(storage=symbolic(v109))
+    jump bb18
+  bb16:
+    v111 = shl v107, 5
+    v112 = ptradd v99, v111
+    v113 = mload v112
+    sstore v109, v113 !metadata(storage=symbolic(v109))
+    jump bb18
   bb18:
-    v120 = add v117, v118
-    v121 = lt v118, 2
-    jumpi v121, bb20, bb21
-  bb21:
-    sstore v120, 0 !metadata(storage=symbolic(v120))
-    jump bb22
-  bb20:
-    v122 = shl 5, v118
-    v123 = ptradd v110, v122
-    v124 = mload v123
-    sstore v120, v124 !metadata(storage=symbolic(v120))
-    jump bb22
-  bb22:
-    v125 = add v118, 1
-    jump bb17
+    v114 = add v107, 1
+    jump bb13
   bb2:
     v31 = mul v29, 2
     v32 = add 0, v31
@@ -744,7 +720,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jumpi v35, bb5, bb6
   bb6:
     v41 = ptrtoint ptr<memory> v33 to i256
-    v42 = shl 5, v29
+    v42 = shl v29, 5
     v43 = ptradd v28, v42
     mstore v43, v41
     v44 = add v29, 1
@@ -752,7 +728,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb5:
     v36 = add v32, v34
     v37 = sload v36 !metadata(storage=symbolic(v36))
-    v38 = shl 5, v34
+    v38 = shl v34, 5
     v39 = ptradd v33, v38
     mstore v39, v37
     v40 = add v34, 1

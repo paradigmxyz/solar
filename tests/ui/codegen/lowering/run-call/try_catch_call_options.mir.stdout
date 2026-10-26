@@ -12,28 +12,22 @@ fn @ping() [selector=0x5c36b186, abi_params=[], abi_returns=[], abi_return_param
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize TryCallOptionsTarget_creation_code_0
-    v2 = datasize TryCallOptionsTarget_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy TryCallOptionsTarget_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize TryCallOptionsTarget_creation_code_0
+    v1 = fmp
+    datacopy TryCallOptionsTarget_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = sload 0 !metadata(storage=slot(0))
-    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = and v9, v10
-    v12 = zext i160 v7 to i256
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = or v11, v13
-    sstore 0, v14 !metadata(storage=slot(0))
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = and v4, v5
+    v7 = zext i160 v2 to i256
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = or v6, v8
+    sstore 0, v9 !metadata(storage=slot(0))
     ret
 }
 
@@ -42,16 +36,14 @@ fn @highLevelGas() -> i1 [selector=0x480be654, abi_params=[], abi_returns=[word<
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
     v2 = gas
-    v3 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
-    v4 = extract_value slice<memory>, v3, 0
-    v5 = extract_value slice<memory>, v3, 1
+    mstore 0, 0x5c36b186 !metadata(memory=scratch)
+    v3 = zext i160 v1 to i256
+    v4 = extcodesize v3
+    v5 = eq v4, 0
+    icall revert_if<target_contract_has_no_code>, v5
     v6 = zext i160 v1 to i256
-    v7 = extcodesize v6
-    v8 = eq v7, 0
-    icall revert_if<target_contract_has_no_code>, v8
-    v9 = zext i160 v1 to i256
-    v10 = call 0, v9, 0, v4, v5, 0, 0
-    jumpi v10, bb1, bb2
+    v7 = call 0, v6, 0, 28, 4, 0, 0
+    jumpi v7, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -73,20 +65,18 @@ fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[], abi_return
     revert 0, 32
 }
 
-fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
+    mstore 0, 0xa9cc4718 !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = extcodesize v2
+    v4 = eq v3, 0
+    icall revert_if<target_contract_has_no_code>, v4
     v5 = zext i160 v0 to i256
-    v6 = extcodesize v5
-    v7 = eq v6, 0
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = zext i160 v0 to i256
-    v9 = staticcall v1, v8, v3, v4, 0, 0
-    jumpi v9, bb1, bb2
+    v6 = staticcall v1, v5, 28, 4, 0, 0
+    jumpi v6, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -94,11 +84,11 @@ fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word]
     invalid
   bb4:
     returndatacopy 0, 0, 32 !metadata(memory=scratch)
-    v10 = mload 0 !metadata(memory=scratch)
+    v7 = mload 0 !metadata(memory=scratch)
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v11 = phi [bb1: 0], [bb4: v10]
-    ret v11
+    v8 = phi [bb1: 0], [bb4: v7]
+    ret v8
 }
