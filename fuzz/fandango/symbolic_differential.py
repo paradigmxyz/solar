@@ -31,6 +31,9 @@ SYMBOLIC_QUERY_TIMEOUT = 30
 SYMBOLIC_MAX_SOLVER_QUERIES = 10_000
 SYMBOLIC_MAX_CALLDATA_BYTES = 4096
 SYMBOLIC_MAX_DEPTH = 100_000
+_LOG_OPCODES = {0xA0, 0xA1, 0xA2, 0xA3, 0xA4}
+# CALL, CALLCODE, DELEGATECALL, STATICCALL, CREATE, and CREATE2.
+_INNER_FRAME_OPCODES = {0xF0, 0xF1, 0xF2, 0xF4, 0xF5, 0xFA}
 STATE_MIRROR_ADDRESS = "0x1000000000000000000000000000000000000004"
 
 
@@ -312,35 +315,39 @@ def run(
         serialized_input + "\n",
         encoding="utf-8",
     )
-    _write_project(
-        project,
-        solc_runtime,
-        solar_runtime,
-        function,
-        args.evm_version,
-        dynamic_lengths=args.dynamic_lengths,
-        input_lengths=input_lengths,
-        prefix_calldata=prefix_calldata,
-        exploration_order=args.exploration_order,
-        max_dynamic_length=max_dynamic_length,
-        max_returndata_bytes=args.max_returndata_bytes,
-        extras=extras,
-    )
-    report = _run_forge(
-        tools["forge"],
-        tools["solc"],
-        tools["solver"],
-        project,
-        args,
-        max_dynamic_length,
-    )
-    result = _classify(
-        report,
-        function["selector"],
-        bounds,
-        inputs=function["inputs"],
-        extras=extras,
-    )
+    limit = _inner_frame_log_limit(solc_runtime, solar_runtime)
+    if limit:
+        result = {"status": "incomplete", "reason": limit}
+    else:
+        _write_project(
+            project,
+            solc_runtime,
+            solar_runtime,
+            function,
+            args.evm_version,
+            dynamic_lengths=args.dynamic_lengths,
+            input_lengths=input_lengths,
+            prefix_calldata=prefix_calldata,
+            exploration_order=args.exploration_order,
+            max_dynamic_length=max_dynamic_length,
+            max_returndata_bytes=args.max_returndata_bytes,
+            extras=extras,
+        )
+        report = _run_forge(
+            tools["forge"],
+            tools["solc"],
+            tools["solver"],
+            project,
+            args,
+            max_dynamic_length,
+        )
+        result = _classify(
+            report,
+            function["selector"],
+            bounds,
+            inputs=function["inputs"],
+            extras=extras,
+        )
     result.update(
         {
             "schema": SCHEMA,
@@ -1160,6 +1167,38 @@ def _validate_bounded_agreement(
         )
 
 
+def _runtime_opcodes(runtime: str) -> set[int]:
+    """Returns the opcodes of a runtime, skipping PUSH data and trailing metadata."""
+    code = bytes.fromhex(runtime.removeprefix("0x"))
+    if len(code) >= 2:
+        metadata = int.from_bytes(code[-2:]) + 2
+        if metadata < len(code) and 0xA1 <= code[-metadata] <= 0xA6:
+            code = code[:-metadata]
+    opcodes = set()
+    pc = 0
+    while pc < len(code):
+        opcode = code[pc]
+        opcodes.add(opcode)
+        pc += 1 + (opcode - 0x5F if 0x60 <= opcode <= 0x7F else 0)
+    return opcodes
+
+
+def _inner_frame_log_limit(*runtimes: str) -> str | None:
+    """Reports a runtime that can log in an inner frame that later reverts.
+
+    Foundry records the logs of every frame, including inner frames that revert
+    inside a successful call, and attributes no log to a frame, so the harness
+    cannot drop them.
+    """
+    for runtime in runtimes:
+        opcodes = _runtime_opcodes(runtime)
+        if opcodes & _LOG_OPCODES and opcodes & _INNER_FRAME_OPCODES:
+            return (
+                "logs of reverted inner frames cannot be told apart from committed logs"
+            )
+    return None
+
+
 def _target_calldata(
     selector: str,
     wrapper_calldata: Any,
@@ -1346,8 +1385,8 @@ contract SymbolicDifferentialTest {{
 {observe_b}    }}
 
     // Foundry keeps the logs of reverted frames, so a reverted top-level or
-    // prefix call contributes none. Logs of inner frames that revert inside a
-    // successful call are still recorded.
+    // prefix call contributes none. The tool does not run runtimes that can
+    // revert an inner frame after a log.
     function _committedLogs(bool ok) private returns (Vm.Log[] memory logs) {{
         logs = vm.getRecordedLogs();
         if (!ok) logs = new Vm.Log[](0);

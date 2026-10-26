@@ -318,13 +318,17 @@ compares:
 
 - success or revert status and exact returndata of every call;
 - ordered logs of the calls that succeeded, including emitter, topics, and
-  data; logs of a reverted call are ignored, but logs of an inner frame that
-  reverts inside a successful call are not filtered;
+  data; logs of a reverted call are ignored;
 - every target storage slot either runtime wrote, read back after the last
   call; slots neither runtime wrote keep their initial zero;
 - the target's final balance and nonce; and
 - with `--include-payable`, the final balance of a symbolic `observer`
   account, so Ether sent to any account must agree.
+
+Foundry keeps the logs of reverted frames and does not say which frame emitted
+each log, so it cannot drop the logs of an inner frame that reverts inside a
+successful call. A runtime with a `LOG` opcode and any call or create opcode is
+therefore reported as `incomplete` without running Forge.
 
 Calls forward all remaining gas because Foundry's symbolic executor does not
 model gas and reports explicit gas caps as incomplete. Calls to addresses
