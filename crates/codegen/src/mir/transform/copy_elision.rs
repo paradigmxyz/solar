@@ -642,8 +642,12 @@ impl CopyElisionCx {
         let mut rewrites = Vec::new();
         for copy in &copies {
             let InstKind::Copy(_, source, _, _) = func.inst(copy.inst).kind else { continue };
-            let Some(address) = alias.memory_address(func, source) else { continue };
-            let read = MemoryLocation::new(address, alias.location_size(func, copy.size));
+            // A range that may leave its allocation keeps no order against the others.
+            let Some(read) =
+                alias.bare_memory_location(func, source, alias.location_size(func, copy.size))
+            else {
+                continue;
+            };
             let fill = fills.iter().find(|fill| {
                 fill.site == copy.site
                     && fill.offset <= copy.offset

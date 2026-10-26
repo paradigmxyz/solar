@@ -32,12 +32,12 @@
     bb0:
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      calldatacopy v1, arg0, arg1
-      v2 = alloc 64
+      v2 = alloc arg1
       v3 = ptrtoint ptr<memory> v2 to i256
--     mcopy v3, v1, arg1
-+     calldatacopy v3, arg0, arg1
-      v4 = mload v3
+      calldatacopy v3, arg0, arg1
+-     mcopy v1, v3, arg1
++     calldatacopy v1, arg0, arg1
+      v4 = mload v1
       ret v4
   }
   
