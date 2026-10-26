@@ -3,8 +3,8 @@
 @phase lowered
 fn @sizes() [selector=0xebf5a899, abi_wrapper, pure] {
   bb0:
-    v12 = icall @decode_calldata_type
-    v0 = mload v12
+    v10 = icall @decode_calldata_type
+    v0 = mload v10
     v1 = ne v0, 32
     jumpi v1, bb1, bb2
   bb2:
