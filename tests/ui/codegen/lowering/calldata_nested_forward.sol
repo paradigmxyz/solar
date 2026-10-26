@@ -23,11 +23,9 @@ contract NestedCalldataForward {
         sink.consume(data);
     }
 
+    // A calldata array of structs with dynamic members stays in calldata too.
     // CHECK-LABEL: fn @forwardStructs{{[( ]}}
-    // CHECK: set_memory_object_len memoryarray
-    // CHECK-DAG: set_memory_object_len memorybytes
-    // CHECK-DAG: abi_encode [memory_array<tuple<word, memory_bytes>>]
-    // CHECK: memory_object_store_element memoryarray
+    // CHECK: abi_encode [calldata_array<tuple<word, calldata_bytes>>]
     function forwardStructs(NestedItem[] calldata data, StructSink sink) external {
         sink.consume(data);
     }

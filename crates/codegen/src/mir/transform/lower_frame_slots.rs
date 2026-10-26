@@ -1,7 +1,20 @@
-//! Lower semantic mutable-local frame slots to physical memory operations.
+//! Lower semantic frame-slot loads and stores to physical memory operations.
+//!
+//! `frame_load` and `frame_store` name a word or slice slot by its offset within one of three
+//! frames. External entries keep their mutable locals at a fixed address from the heap start.
+//! Internal functions address theirs through `internal_frame_addr`, past the frame header and the
+//! function's argument and return words, so the backend's frame layout decides the final address.
+//! A multi-return result reads the buffer pointer from its reserved slot. A slice slot holds two
+//! words, its pointer and then its length, and becomes two loads or stores around a
+//! `make_slice` or slice projections for `lower-slices` to fold; multi-return buffers hold only
+//! words.
+//!
+//! The pass runs after ABI, dispatch, and struct lowering, once signatures and the argument count
+//! that internal frame offsets depend on are final, and before mapping-slot and memory-object
+//! lowering.
 
 use crate::mir::{
-    FrameMode, FrameSlotKind, Function, FunctionBuilder, InstKind, MirPhase, Module,
+    FrameMode, FrameSlotKind, Function, FunctionBuilder, InstKind, Module, PtrLocation,
     memory::EvmMemoryLayout, pass::MirPass,
 };
 use solar_data_structures::map::FxHashMap;
@@ -25,9 +38,6 @@ impl MirPass for LowerFrameSlots {
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        if module.phase() == MirPhase::Lowered {
-            return false;
-        }
         let mut changed = false;
         for func in &mut module.functions {
             changed |= lower_function(func);
@@ -56,12 +66,12 @@ fn lower_function(func: &mut Function) -> bool {
                 InstKind::FrameLoad { offset, mode, kind } => {
                     let address = frame_address(&mut builder, offset, mode);
                     let value = match kind {
-                        FrameSlotKind::Word => builder.mload(address),
+                        FrameSlotKind::Word => builder.load(address, PtrLocation::Memory),
                         FrameSlotKind::Slice(location) if mode != FrameMode::MultiReturn => {
-                            let ptr = builder.mload(address);
+                            let ptr = builder.load(address, PtrLocation::Memory);
                             let len_address =
                                 builder.add_u64_offset(address, EvmMemoryLayout::WORD_SIZE);
-                            let len = builder.mload(len_address);
+                            let len = builder.load(len_address, PtrLocation::Memory);
                             builder.make_slice(ptr, len, location)
                         }
                         FrameSlotKind::Slice(_) => {
@@ -81,15 +91,15 @@ fn lower_function(func: &mut Function) -> bool {
                             if mode == FrameMode::MultiReturn {
                                 debug_assert_eq!(offset, 0);
                             }
-                            builder.mstore(address, value);
+                            builder.store(address, value);
                         }
                         FrameSlotKind::Slice(_) if mode != FrameMode::MultiReturn => {
                             let ptr = builder.slice_ptr(value);
                             let len = builder.slice_len(value);
-                            builder.mstore(address, ptr);
+                            builder.store(address, ptr);
                             let len_address =
                                 builder.add_u64_offset(address, EvmMemoryLayout::WORD_SIZE);
-                            builder.mstore(len_address, len);
+                            builder.store(len_address, len);
                         }
                         FrameSlotKind::Slice(_) => {
                             unreachable!("multi-return buffers contain words")

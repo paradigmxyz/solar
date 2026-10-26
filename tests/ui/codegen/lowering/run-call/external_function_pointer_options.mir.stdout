@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_options.sol:ExternalFunctionPointerOptions ===
 @module ExternalFunctionPointerOptions
-fn @sink(arg0: i256) [selector=0xa4ba067e, payable, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @sink(arg0: i256) [selector=0xa4ba067e, payable, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
@@ -8,8 +8,8 @@ fn @sink(arg0: i256) [selector=0xa4ba067e, payable, abi_params=[u256], abi_retur
 fn @gasOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 2
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 2
     sstore 0, v2 !metadata(storage=slot(0))
     v3 = gas
     ret v3
@@ -18,8 +18,8 @@ fn @gasOpt() -> i256 {
 fn @valueOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 3
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 3
     sstore 0, v2 !metadata(storage=slot(0))
     ret 0
 }
@@ -27,41 +27,41 @@ fn @valueOpt() -> i256 {
 fn @arg() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 4
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 4
     sstore 0, v2 !metadata(storage=slot(0))
     ret 7
 }
 
-fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0xa4ba067e
     v4 = and v3, 0xffffffff
-    v5 = shl 224, v4
-    v6 = shr 32, v3
+    v5 = shl v4, 224
+    v6 = shr v3, 32
     v7 = gas
     v8 = icall @gasOpt
     v9 = icall @valueOpt
     v10 = icall @arg
-    v11 = abi_encode [word], selector v5, args v10
-    v12 = slice_ptr v11
-    v13 = slice_len v11
-    v14 = extcodesize v6
-    v15 = eq v14, 0
-    icall revert_if<target_contract_has_no_code>, v15
-    v16 = call v8, v6, v9, v12, v13, 0, 0
-    jumpi v16, bb2, bb1
+    v11 = shr v5, 224
+    mstore 0, v11 !metadata(memory=scratch)
+    mstore 32, v10 !metadata(memory=scratch)
+    v12 = extcodesize v6
+    v13 = eq v12, 0
+    icall revert_if<target_contract_has_no_code>, v13
+    v14 = call v8, v6, v9, 28, 36, 0, 0
+    jumpi v14, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v17 = sload 0 !metadata(storage=slot(0))
-    ret v17
+    v15 = sload 0 !metadata(storage=slot(0))
+    ret v15
 }
 
-fn @fail(arg0: i256) [selector=0x132e4f3c, payable, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @fail(arg0: i256) [selector=0x132e4f3c, payable, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall revert_if<empty>, true
     invalid
@@ -70,7 +70,7 @@ fn @fail(arg0: i256) [selector=0x132e4f3c, payable, abi_params=[u256], abi_retur
 fn @receiver() -> i160 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 1, v1 !metadata(storage=slot(1))
     v2 = address
     ret v2
@@ -79,16 +79,16 @@ fn @receiver() -> i160 {
 fn @functionValue() -> i256 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 1, v1 !metadata(storage=slot(1))
     v2 = address
     v3 = zext i160 v2 to i256
-    v4 = shl 32, v3
+    v4 = shl v3, 32
     v5 = or v4, 0x132e4f3c
     ret v5
 }
 
-fn @discardOptions() -> i256 [selector=0x0035efd4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @discardOptions() -> i256 [selector=0x0035efd4, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = icall @gasOpt
@@ -101,10 +101,10 @@ fn @optionMembers() -> i1 [selector=0x1b98d889, abi_params=[], abi_returns=[word
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0xa4ba067e
     v4 = icall @gasOpt
-    v5 = shr 32, v3
+    v5 = shr v3, 32
     v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
     v7 = trunc i256 v6 to i160
     v8 = address
@@ -115,60 +115,58 @@ fn @optionMembers() -> i1 [selector=0x1b98d889, abi_params=[], abi_returns=[word
   bb1:
     v10 = address
     v11 = zext i160 v10 to i256
-    v12 = shl 32, v11
+    v12 = shl v11, 32
     v13 = or v12, 0xa4ba067e
     v14 = icall @gasOpt
     v15 = and v13, 0xffffffff
-    v16 = shl 224, v15
-    v17 = and 0xa4ba067e125a6f0e3cfe5e4c092b29103c9d26b99fb8d9e558f7dcd14db6919b, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v18 = eq v16, v17
+    v16 = shl v15, 224
+    v17 = eq v16, 0xa4ba067e00000000000000000000000000000000000000000000000000000000
     jump bb3
   bb3:
-    v19 = phi [bb1: v18], [bb2: false]
-    jumpi v19, bb4, bb5
+    v18 = phi [bb1: v17], [bb2: false]
+    jumpi v18, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v20 = sload 0 !metadata(storage=slot(0))
-    v21 = eq v20, 22
+    v19 = sload 0 !metadata(storage=slot(0))
+    v20 = eq v19, 22
     jump bb6
   bb6:
-    v22 = phi [bb4: v21], [bb5: false]
-    ret v22
+    v21 = phi [bb4: v20], [bb5: false]
+    ret v21
 }
 
 fn @directSelector() -> i1 [selector=0x2c3bf323, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @receiver
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0x132e4f3c
     v4 = icall @valueOpt
-    v5 = checked_add u256, 1, v4
+    v5 = checked_add uint256, 1, v4
     v6 = icall @gasOpt
     v7 = and v3, 0xffffffff
-    v8 = shl 224, v7
-    v9 = and 0x132e4f3c911fc961ee6e46daa96718c60884ce1a9e47c852552ee06ad2277562, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v10 = eq v8, v9
-    jumpi v10, bb1, bb2
+    v8 = shl v7, 224
+    v9 = eq v8, 0x132e4f3c00000000000000000000000000000000000000000000000000000000
+    jumpi v9, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v11 = sload 0 !metadata(storage=slot(0))
-    v12 = eq v11, 32
+    v10 = sload 0 !metadata(storage=slot(0))
+    v11 = eq v10, 32
     jump bb3
   bb3:
-    v13 = phi [bb1: v12], [bb2: false]
-    jumpi v13, bb4, bb5
+    v12 = phi [bb1: v11], [bb2: false]
+    jumpi v12, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v14 = sload 1 !metadata(storage=slot(1))
-    v15 = eq v14, 1
+    v13 = sload 1 !metadata(storage=slot(1))
+    v14 = eq v13, 1
     jump bb6
   bb6:
-    v16 = phi [bb4: v15], [bb5: false]
-    ret v16
+    v15 = phi [bb4: v14], [bb5: false]
+    ret v15
 }
 
 fn @pointerSelector(arg0: i1) -> i1 [selector=0x7700d7ca, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -177,51 +175,49 @@ fn @pointerSelector(arg0: i1) -> i1 [selector=0x7700d7ca, abi_params=[bool], abi
   bb2:
     v4 = address
     v5 = zext i160 v4 to i256
-    v6 = shl 32, v5
+    v6 = shl v5, 32
     v7 = or v6, 0x132e4f3c
     jump bb3
   bb1:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0xa4ba067e
     jump bb3
   bb3:
     v8 = phi [bb1: v3], [bb2: v7]
     v9 = icall @gasOpt
     v10 = icall @valueOpt
-    v11 = checked_add u256, 1, v10
+    v11 = checked_add uint256, 1, v10
     v12 = and v8, 0xffffffff
-    v13 = shl 224, v12
+    v13 = shl v12, 224
     jumpi arg0, bb4, bb5
   bb5:
-    v15 = and 0x132e4f3c911fc961ee6e46daa96718c60884ce1a9e47c852552ee06ad2277562, 0xffffffff00000000000000000000000000000000000000000000000000000000
     jump bb6
   bb4:
-    v14 = and 0xa4ba067e125a6f0e3cfe5e4c092b29103c9d26b99fb8d9e558f7dcd14db6919b, 0xffffffff00000000000000000000000000000000000000000000000000000000
     jump bb6
   bb6:
-    v16 = phi [bb4: v14], [bb5: v15]
-    v17 = eq v13, v16
-    jumpi v17, bb7, bb8
+    v14 = phi [bb4: 0xa4ba067e00000000000000000000000000000000000000000000000000000000], [bb5: 0x132e4f3c00000000000000000000000000000000000000000000000000000000]
+    v15 = eq v13, v14
+    jumpi v15, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v18 = sload 0 !metadata(storage=slot(0))
-    v19 = eq v18, 23
+    v16 = sload 0 !metadata(storage=slot(0))
+    v17 = eq v16, 23
     jump bb9
   bb9:
-    v20 = phi [bb7: v19], [bb8: false]
-    jumpi v20, bb10, bb11
+    v18 = phi [bb7: v17], [bb8: false]
+    jumpi v18, bb10, bb11
   bb11:
     jump bb12
   bb10:
-    v21 = sload 1 !metadata(storage=slot(1))
-    v22 = eq v21, 0
+    v19 = sload 1 !metadata(storage=slot(1))
+    v20 = eq v19, 0
     jump bb12
   bb12:
-    v23 = phi [bb10: v22], [bb11: false]
-    ret v23
+    v21 = phi [bb10: v20], [bb11: false]
+    ret v21
 }
 
 fn @returnedSelector() -> i1 [selector=0x9be40e11, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -229,28 +225,27 @@ fn @returnedSelector() -> i1 [selector=0x9be40e11, abi_params=[], abi_returns=[w
     v0 = icall @functionValue
     v1 = icall @gasOpt
     v2 = icall @valueOpt
-    v3 = checked_add u256, 1, v2
+    v3 = checked_add uint256, 1, v2
     v4 = and v0, 0xffffffff
-    v5 = shl 224, v4
-    v6 = and 0x132e4f3c911fc961ee6e46daa96718c60884ce1a9e47c852552ee06ad2277562, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v7 = eq v5, v6
-    jumpi v7, bb1, bb2
+    v5 = shl v4, 224
+    v6 = eq v5, 0x132e4f3c00000000000000000000000000000000000000000000000000000000
+    jumpi v6, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v8 = sload 0 !metadata(storage=slot(0))
-    v9 = eq v8, 23
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = eq v7, 23
     jump bb3
   bb3:
-    v10 = phi [bb1: v9], [bb2: false]
-    jumpi v10, bb4, bb5
+    v9 = phi [bb1: v8], [bb2: false]
+    jumpi v9, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v11 = sload 1 !metadata(storage=slot(1))
-    v12 = eq v11, 1
+    v10 = sload 1 !metadata(storage=slot(1))
+    v11 = eq v10, 1
     jump bb6
   bb6:
-    v13 = phi [bb4: v12], [bb5: false]
-    ret v13
+    v12 = phi [bb4: v11], [bb5: false]
+    ret v12
 }

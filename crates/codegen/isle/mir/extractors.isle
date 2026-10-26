@@ -6,10 +6,10 @@
 (decl inst (Op) Value)
 (extern extractor inst inst_data)
 
-(decl insertvalue (StructId Value u32 Value) Value)
+(decl insertvalue (MirType Value u32 Value) Value)
 (extractor (insertvalue ty aggregate index value) (inst (Op.InsertValue ty aggregate index value)))
 
-(decl extractvalue (StructId Value u32) Value)
+(decl extractvalue (MirType Value u32) Value)
 (extractor (extractvalue ty aggregate index) (inst (Op.ExtractValue ty aggregate index)))
 
 (decl zext (Value) Value)
@@ -26,6 +26,9 @@
 
 (decl inttoptr (Value) Value)
 (extractor (inttoptr operand0) (inst (Op.IntToPtr operand0)))
+
+(decl ptradd (Value Value) Value)
+(extractor (ptradd ptr offset) (inst (Op.PtrAdd ptr offset)))
 
 (decl checkedbinary (CheckedOp ArithmeticKind Value Value) Value)
 (extractor (checkedbinary op arithmetic lhs rhs) (inst (Op.CheckedBinary op arithmetic lhs rhs)))
@@ -132,14 +135,14 @@
 (decl ne (Value Value) Value)
 (extractor (ne a b) (inst (Op.Ne a b)))
 
-(decl mload (Value) Value)
-(extractor (mload offset) (inst (Op.MLoad offset)))
+(decl load (Value PtrLocation) Value)
+(extractor (load ptr location) (inst (Op.Load ptr location)))
 
-(decl mstore (Value Value) Value)
-(extractor (mstore offset value) (inst (Op.MStore offset value)))
+(decl store (Value Value PtrLocation) Value)
+(extractor (store ptr value location) (inst (Op.Store ptr value location)))
 
-(decl mstore8 (Value Value) Value)
-(extractor (mstore8 offset value) (inst (Op.MStore8 offset value)))
+(decl store8 (Value Value) Value)
+(extractor (store8 ptr value) (inst (Op.Store8 ptr value)))
 
 (decl memoryzero (Value Value) Value)
 (extractor (memoryzero offset size) (inst (Op.MemoryZero offset size)))
@@ -153,59 +156,11 @@
 (decl setfmp (Value) Value)
 (extractor (setfmp value) (inst (Op.SetFmp value)))
 
-(decl alloc (Value AllocationKind AllocationSemantics) Value)
-(extractor (alloc size kind semantics) (inst (Op.Alloc size kind semantics)))
+(decl heapfloor () Value)
+(extractor (heapfloor) (inst (Op.HeapFloor)))
 
-(decl memoryobjectlen (Value MemoryObjectKind) Value)
-(extractor (memoryobjectlen object kind) (inst (Op.MemoryObjectLen object kind)))
-
-(decl setmemoryobjectlen (Value Value MemoryObjectKind) Value)
-(extractor (setmemoryobjectlen object len kind) (inst (Op.SetMemoryObjectLen object len kind)))
-
-(decl memoryobjectdata (Value MemoryObjectKind) Value)
-(extractor (memoryobjectdata object kind) (inst (Op.MemoryObjectData object kind)))
-
-(decl memoryobjectfieldaddr (Value MemoryObjectLayout u64) Value)
-(extractor (memoryobjectfieldaddr object layout field) (inst (Op.MemoryObjectFieldAddr object layout field)))
-
-(decl memoryobjectelementaddr (Value MemoryObjectLayout Value) Value)
-(extractor (memoryobjectelementaddr object layout index) (inst (Op.MemoryObjectElementAddr object layout index)))
-
-(decl memoryobjectloadfield (Value MemoryObjectLayout u64) Value)
-(extractor (memoryobjectloadfield object layout field) (inst (Op.MemoryObjectLoadField object layout field)))
-
-(decl memoryobjectstorefield (Value MemoryObjectLayout u64 Value) Value)
-(extractor (memoryobjectstorefield object layout field value) (inst (Op.MemoryObjectStoreField object layout field value)))
-
-(decl memoryobjectloadelement (Value MemoryObjectLayout Value) Value)
-(extractor (memoryobjectloadelement object layout index) (inst (Op.MemoryObjectLoadElement object layout index)))
-
-(decl memoryobjectloadbyte (Value Value) Value)
-(extractor (memoryobjectloadbyte object index) (inst (Op.MemoryObjectLoadByte object index)))
-
-(decl memoryobjectstoreelement (Value MemoryObjectLayout Value Value) Value)
-(extractor (memoryobjectstoreelement object layout index value) (inst (Op.MemoryObjectStoreElement object layout index value)))
-
-(decl memoryobjectstorebyte (Value Value Value) Value)
-(extractor (memoryobjectstorebyte object index value) (inst (Op.MemoryObjectStoreByte object index value)))
-
-(decl memoryobjectstoreword (Value Value Value) Value)
-(extractor (memoryobjectstoreword object offset value) (inst (Op.MemoryObjectStoreWord object offset value)))
-
-(decl memorysliceloadword (Value Value) Value)
-(extractor (memorysliceloadword slice offset) (inst (Op.MemorySliceLoadWord slice offset)))
-
-(decl calldatasliceloadword (Value Value) Value)
-(extractor (calldatasliceloadword slice offset) (inst (Op.CalldataSliceLoadWord slice offset)))
-
-(decl memoryobjectcopyfromslice (Value MemoryObjectKind Value) Value)
-(extractor (memoryobjectcopyfromslice object kind source) (inst (Op.MemoryObjectCopyFromSlice object kind source)))
-
-(decl memoryobjectcopyfromsliceat (Value MemoryObjectKind Value Value) Value)
-(extractor (memoryobjectcopyfromsliceat object kind offset source) (inst (Op.MemoryObjectCopyFromSliceAt object kind offset source)))
-
-(decl memoryobjectcopy (Value MemoryObjectKind Value MemoryObjectKind Value) Value)
-(extractor (memoryobjectcopy destination destination_kind source source_kind length) (inst (Op.MemoryObjectCopy destination destination_kind source source_kind length)))
+(decl alloc (Value AllocationSemantics) Value)
+(extractor (alloc size semantics) (inst (Op.Alloc size semantics)))
 
 (decl abiencode (AbiEncodeMode OptionValue Unit Unit) Value)
 (extractor (abiencode mode selector args layout) (inst (Op.AbiEncode mode selector args layout)))
@@ -213,47 +168,14 @@
 (decl abidecode (Value Unit) Value)
 (extractor (abidecode data layout) (inst (Op.AbiDecode data layout)))
 
-(decl storagetomemory (Value Value Unit) Value)
-(extractor (storagetomemory storage memory layout) (inst (Op.StorageToMemory storage memory layout)))
-
-(decl memorytostorage (Value Value Unit) Value)
-(extractor (memorytostorage memory storage layout) (inst (Op.MemoryToStorage memory storage layout)))
-
-(decl clearstorage (Value Unit) Value)
-(extractor (clearstorage storage layout) (inst (Op.ClearStorage storage layout)))
-
-(decl mcopy (Value Value Value) Value)
-(extractor (mcopy dest src len) (inst (Op.MCopy dest src len)))
-
-(decl sload (Value) Value)
-(extractor (sload slot) (inst (Op.SLoad slot)))
-
-(decl sstore (Value Value) Value)
-(extractor (sstore slot value) (inst (Op.SStore slot value)))
-
-(decl tload (Value) Value)
-(extractor (tload slot) (inst (Op.TLoad slot)))
-
-(decl tstore (Value Value) Value)
-(extractor (tstore slot value) (inst (Op.TStore slot value)))
-
-(decl calldataload (Value) Value)
-(extractor (calldataload offset) (inst (Op.CalldataLoad offset)))
-
-(decl calldatacopy (Value Value Value) Value)
-(extractor (calldatacopy dest offset size) (inst (Op.CalldataCopy dest offset size)))
+(decl copy (Value Value Value PtrLocation) Value)
+(extractor (copy dest src len location) (inst (Op.Copy dest src len location)))
 
 (decl calldatasize () Value)
 (extractor (calldatasize) (inst (Op.CalldataSize)))
 
-(decl makeslice (Value Value SliceLocation) Value)
+(decl makeslice (Value Value PtrLocation) Value)
 (extractor (makeslice ptr len location) (inst (Op.MakeSlice ptr len location)))
-
-(decl sliceptr (Value) Value)
-(extractor (sliceptr slice) (inst (Op.SlicePtr slice)))
-
-(decl slicelen (Value) Value)
-(extractor (slicelen slice) (inst (Op.SliceLen slice)))
 
 (decl internalframeaddr (u64) Value)
 (extractor (internalframeaddr offset) (inst (Op.InternalFrameAddr offset)))
@@ -302,9 +224,6 @@
 
 (decl returndatasize () Value)
 (extractor (returndatasize) (inst (Op.ReturnDataSize)))
-
-(decl returndatacopy (Value Value Value) Value)
-(extractor (returndatacopy dest offset size) (inst (Op.ReturnDataCopy dest offset size)))
 
 (decl caller () Value)
 (extractor (caller) (inst (Op.Caller)))
@@ -366,17 +285,11 @@
 (decl keccak256 (Value Value) Value)
 (extractor (keccak256 offset size) (inst (Op.Keccak256 offset size)))
 
-(decl keccak256bytes (Value) Value)
-(extractor (keccak256bytes object) (inst (Op.Keccak256Bytes object)))
-
 (decl mappingslot (Value Value) Value)
 (extractor (mappingslot key slot) (inst (Op.MappingSlot key slot)))
 
-(decl mappingslotmemory (Value Value) Value)
-(extractor (mappingslotmemory key slot) (inst (Op.MappingSlotMemory key slot)))
-
-(decl mappingslotcalldata (Value Value) Value)
-(extractor (mappingslotcalldata key slot) (inst (Op.MappingSlotCalldata key slot)))
+(decl mappingslotbytes (Value Value) Value)
+(extractor (mappingslotbytes key slot) (inst (Op.MappingSlotBytes key slot)))
 
 (decl storagearraydataslot (Value) Value)
 (extractor (storagearraydataslot slot) (inst (Op.StorageArrayDataSlot slot)))
@@ -405,20 +318,8 @@
 (decl create2 (Value Value Value Value) Value)
 (extractor (create2 value offset size salt) (inst (Op.Create2 value offset size salt)))
 
-(decl log0 (Value Value) Value)
-(extractor (log0 offset size) (inst (Op.Log0 offset size)))
-
-(decl log1 (Value Value Value) Value)
-(extractor (log1 offset size topic1) (inst (Op.Log1 offset size topic1)))
-
-(decl log2 (Value Value Value Value) Value)
-(extractor (log2 offset size topic1 topic2) (inst (Op.Log2 offset size topic1 topic2)))
-
-(decl log3 (Value Value Value Value Value) Value)
-(extractor (log3 offset size topic1 topic2 topic3) (inst (Op.Log3 offset size topic1 topic2 topic3)))
-
-(decl log4 (Value Value Value Value Value Value) Value)
-(extractor (log4 offset size topic1 topic2 topic3 topic4) (inst (Op.Log4 offset size topic1 topic2 topic3 topic4)))
+(decl log (Value Value LogTopics) Value)
+(extractor (log offset size topics) (inst (Op.Log offset size topics)))
 
 (decl phi (Unit) Value)
 (extractor (phi incoming) (inst (Op.Phi incoming)))

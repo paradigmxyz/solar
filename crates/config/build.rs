@@ -1,24 +1,37 @@
-#[cfg(feature = "version")]
 use std::{env, io::Read, path::Path};
 
-#[cfg(feature = "version")]
-const SOLC_VERSION_FALLBACK: &str = "0.8.37";
+const SOLC_VERSION_FALLBACK: &str = "0.8.38";
 #[cfg(feature = "version")]
 const VERSION_UNKNOWN: &str = "unknown";
 #[cfg(feature = "version")]
 const VERGEN_IDEMPOTENT_OUTPUT: &str = "VERGEN_IDEMPOTENT_OUTPUT";
 
-#[cfg(feature = "version")]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let cargo = vergen::Cargo::builder().features(true).target_triple(true).build();
-    let build = vergen::Build::builder().build_timestamp(true).build();
-    let git = vergen::Gitcl::builder()
+    let solc_version = solc_version();
+    println!("cargo:rustc-env=SOLC_SEMVER_VERSION={solc_version}");
+
+    #[cfg(feature = "version")]
+    emit_version(&solc_version)?;
+
+    Ok(())
+}
+
+#[cfg(feature = "version")]
+fn emit_version(solc_version: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let cargo = smolgen::Cargo::builder().features(true).target_triple(true).build();
+    let build = smolgen::Build::builder().build_timestamp(true).build();
+    // Tracking the git HEAD reruns this script, and rebuilds every crate above this one, on every
+    // commit and checkout. Debug builds skip it and keep the SHA from the last run of this script.
+    // Release profiles keep tracking HEAD, so their version matches the checkout.
+    let track_head = env::var("PROFILE")? != "debug";
+    let git = smolgen::Gitcl::builder()
         .describe(false, true, None)
         .dirty(true)
         .sha(false)
         .vcs_info_fallback(true)
+        .rerun_on_head_change(track_head)
         .build();
-    vergen::Emitter::new()
+    smolgen::Emitter::new()
         .default_on_error()
         .add_instructions(&cargo)?
         .add_instructions(&build)?
@@ -72,7 +85,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("cargo:rustc-env=LONG_VERSION{i}={line}");
     }
 
-    let solc_version = solc_version();
     let solc_compat_version = format!("{solc_version}+commit.{sha_short}.solar.{version}");
 
     let solc_long_version = format!(
@@ -95,22 +107,20 @@ fn vergen_env(key: &str) -> String {
     }
 }
 
-#[cfg(not(feature = "version"))]
-fn main() {}
-
-#[cfg(feature = "version")]
 fn solc_version() -> String {
     let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") else {
         return SOLC_VERSION_FALLBACK.to_string();
     };
     let solc_dir = Path::new(&manifest_dir).join("../../testdata/solidity");
 
-    println!("cargo:rerun-if-changed={}", solc_dir.join("CMakeLists.txt").display());
+    // A missing path would rerun the build script on every build.
+    let cmake = solc_dir.join("CMakeLists.txt");
+    let watched = if cmake.exists() { cmake.as_path() } else { Path::new("build.rs") };
+    println!("cargo:rerun-if-changed={}", watched.display());
 
     solc_version_from_cmake(&solc_dir).unwrap_or_else(|_| SOLC_VERSION_FALLBACK.to_string())
 }
 
-#[cfg(feature = "version")]
 fn solc_version_from_cmake(dir: &Path) -> Result<String, Box<dyn std::error::Error>> {
     let mut cmake = String::new();
     std::fs::File::open(dir.join("CMakeLists.txt"))?.read_to_string(&mut cmake)?;

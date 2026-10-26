@@ -1,0 +1,34 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=pack-data
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=pack-data
+// Zero runs copy from past the end of calldata, which reads as zeros, so they
+// add no data. A single zero word stays a store.
+@module zero_fill
+
+bb0:
+  push 128
+  push 0
+  dup 2
+  mstore
+  push 0
+  push 32
+  dup 3
+  add
+  mstore
+  push 0
+  push 64
+  dup 3
+  add
+  mstore
+  push 0
+  push 96
+  dup 3
+  add
+  mstore
+  stop
+
+bb1:
+  push 0
+  push 128
+  mstore
+  stop

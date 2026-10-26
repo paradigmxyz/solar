@@ -1,0 +1,59 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_with_signature_storage.sol:AbiEncodeWithSignatureStorage ===
+@module AbiEncodeWithSignatureStorage
+fn @pointer() -> ptr<memory> [selector=0x2f5f3b3c, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = icall @load_storage_bytes, 0
+    v1 = ptradd v0, 32
+    v2 = mload v0
+    v3 = keccak256 v1, v2
+    v4 = shr v3, 224
+    v5 = shl v4, 224
+    v6 = abi_encode [word], object, selector v5, args 7
+    ret v6
+}
+
+fn @ternary(arg0: i1) -> ptr<memory> [selector=0xee58c378, view, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 0], [bb2: 1]
+    v1 = icall @load_storage_bytes, v0
+    v2 = ptradd v1, 32
+    v3 = mload v1
+    v4 = keccak256 v2, v3
+    v5 = shr v4, 224
+    v6 = shl v5, 224
+    v7 = abi_encode [word], object, selector v6, args 7
+    ret v7
+}
+
+fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = load_storage_bytes arg0
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 10
+    v1 = ptradd v0, 32
+    mstore v1, 0x662875696e743235362900000000000000000000000000000000000000000000
+    icall @store_storage_bytes, 0, v0
+    v2 = alloc 64 !metadata(preserves_fmp)
+    mstore v2, 10
+    v3 = ptradd v2, 32
+    mstore v3, 0x672875696e743235362900000000000000000000000000000000000000000000
+    icall @store_storage_bytes, 1, v2
+    ret
+}
+
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
+  bb0:
+    store_storage_bytes arg0, arg1
+    ret
+}

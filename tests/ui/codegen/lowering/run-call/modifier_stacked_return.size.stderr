@@ -1,0 +1,20 @@
+warning[6321]: unnamed return variable can remain unassigned
+   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/modifier_stacked_return.sol:LL:CC
+   │
+LL │     function f() public m m m returns (uint256) {
+   │                                        ━━━━━━━
+   │
+   ╰ help: add an explicit return with value to all non-reverting code paths or name the variable
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/modifier_stacked_return.sol:LL:CC
+   │
+LL │         for (uint256 i; i < 10; ++i) {
+   ╰╴                                ━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/modifier_stacked_return.sol:LL:CC
+   │
+LL │         for (uint256 i; i < 10; ++i) {
+   ╰╴                                ━━━
+

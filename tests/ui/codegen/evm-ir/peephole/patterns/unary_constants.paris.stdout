@@ -55,7 +55,7 @@
     iszero
     stop
   bb15:
-    push_deferred 0
+    push_immutable 0, 32
     iszero
     stop
   bb100:

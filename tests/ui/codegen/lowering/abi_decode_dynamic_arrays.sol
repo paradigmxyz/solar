@@ -11,7 +11,7 @@
 contract AbiDecodeDynamicArrays {
     // ADDA-LABEL: fn @words
     // Bulk copy, no per-element validation for full-word elements.
-    // ADDA: mcopy
+    // ADDA: {{(^|[^a-z_])}}mcopy
     function words(bytes memory b) public pure returns (uint256[] memory) {
         return abi.decode(b, (uint256[]));
     }
@@ -20,9 +20,13 @@ contract AbiDecodeDynamicArrays {
     // A validation loop on decode (dirty words revert), then the return
     // encoder canonicalizes each element in place instead of bulk-copying.
     // ADDA: jumpi
-    // ADDA: = eq {{v[0-9]+}}, {{(0|false)}}
-    // ADDA-NOT: mcopy
+    // ADDA: = ne {{v[0-9]+}}, 0
+    // ADDA-NOT: {{(^|[^a-z_])}}mcopy {{[^cr]}}
     // ADDA: returndata
+    // ADDA: [[VALID:v[0-9]+]] = lt {{v[0-9]+}}, 2
+    // ADDA-NEXT: jumpi [[VALID]], {{bb[0-9]+}}, [[INVALID:bb[0-9]+]]
+    // ADDA: [[INVALID]]:
+    // ADDA-NEXT: revert 0, 0
     function bools(bytes memory b) public pure returns (bool[] memory) {
         return abi.decode(b, (bool[]));
     }
@@ -30,13 +34,13 @@ contract AbiDecodeDynamicArrays {
     // ADDA-LABEL: fn @strs
     // Element-wise decode: per-element offsets resolve against the array's
     // own data region.
-    // ADDA: mcopy
+    // ADDA: {{(^|[^a-z_])}}mcopy
     function strs(bytes memory b) public pure returns (string[] memory) {
         return abi.decode(b, (string[]));
     }
 
     // ADDA-LABEL: fn @mixed
-    // ADDA: mcopy
+    // ADDA: {{(^|[^a-z_])}}mcopy
     function mixed(bytes memory b) public pure returns (uint256, uint256[] memory, string memory) {
         return abi.decode(b, (uint256, uint256[], string));
     }

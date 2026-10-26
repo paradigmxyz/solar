@@ -1,0 +1,37 @@
+//@ compile-flags: -Zmir-pipeline=check-elim
+@module CheckedOperations
+
+// Semantic checked operations become plain ones when the dominating facts prove they cannot
+// fail: the counter below its bound cannot overflow on increment, the guarded difference cannot
+// underflow, and the divisor above zero cannot fail the division.
+fn @proven(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, arg1
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = checked_add uint256, arg0, 1
+    v2 = checked_sub uint256, arg1, arg0
+    v3 = lt arg2, 100
+    jumpi v3, bb3, bb2
+  bb3:
+    v4 = checked_mul uint256, arg2, arg2
+    v5 = gt arg2, 0
+    jumpi v5, bb4, bb2
+  bb4:
+    v6 = checked_div uint256, v1, arg2
+    v8 = add v6, v4
+    v9 = add v8, v2
+    ret v9
+  bb2:
+    ret 0
+}
+
+// Without those facts the checks stay.
+fn @unproven(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = checked_add uint256, arg0, 1
+    v1 = checked_sub uint256, arg1, arg0
+    v2 = checked_div uint256, v0, arg1
+    v3 = add v1, v2
+    ret v3
+}

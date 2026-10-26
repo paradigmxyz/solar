@@ -19,7 +19,7 @@
 //! improvement under the target's immediate materialization costs. A known-false
 //! inline conditional jump then disappears with its two pushes. These rules
 //! preserve protected instruction boundaries, and never treat symbolic label
-//! addresses or deferred values as literal constants.
+//! addresses or immutable placeholders as literal constants.
 //!
 //! The separate `late-word` entry point runs only after structural cleanup. It
 //! replaces a low-mask construction with a shorter complement/shift form. A closed
@@ -31,17 +31,15 @@
 //! doing it in MIR can turn a shareable run into two smaller inline copies that
 //! occupy more bytes overall. Matching is bounded to 24 instructions per tail.
 
-use super::{
-    EvmPass,
-    compact_pushes::{immediate_materialization_cost, materialize_immediate},
-    utils::MachineInstKey,
-};
-use crate::backend::evm::{
-    ir::{Instruction, Module, PushValue, TerminatorKind},
-    op,
+use super::{EvmPass, compact_pushes::materialize_immediate, utils::MachineInstKey};
+use crate::{
+    backend::evm::{
+        ir::{Instruction, Module, PushValue, TerminatorKind},
+        op,
+    },
+    target::Target,
 };
 use alloy_primitives::U256;
-use solar_config::EvmVersion;
 use solar_data_structures::map::{FxHashMap, FxHasher};
 use solar_sema::Gcx;
 use std::{
@@ -172,7 +170,7 @@ impl fmt::Debug for CleanBlocks {
 }
 
 fn optimize_module(gcx: Gcx<'_>, module: &mut Module, late: bool, final_cleanup: bool) -> bool {
-    let evm_version = gcx.sess.opts.evm_version;
+    let target = Target::new(gcx);
     let mut changed = false;
     let mut scratch = Vec::new();
     let clean = &mut module.peephole_clean;
@@ -188,7 +186,7 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, late: bool, final_cleanup:
             0
         } else {
             optimize(
-                evm_version,
+                target,
                 &mut block.instructions,
                 &mut scratch,
                 block.label,
@@ -237,7 +235,7 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, late: bool, final_cleanup:
 }
 
 fn optimize(
-    evm_version: EvmVersion,
+    target: Target,
     instructions: &mut Vec<Instruction>,
     scratch: &mut Vec<Instruction>,
     block: u32,
@@ -250,8 +248,8 @@ fn optimize(
     // The early rules match no prefix of an early-clean block, so only the final
     // rules can supply its first rewrite.
     let first = (1..=instructions.len()).find_map(|end| {
-        let mut context = isle::PeepContext::new(&instructions[..end], evm_version)
-            .with_final_cleanup(final_cleanup);
+        let mut context =
+            isle::PeepContext::new(&instructions[..end], target).with_final_cleanup(final_cleanup);
         if early_clean { context.final_rewrite() } else { context.select(late) }
             .map(|rewrite| (end, rewrite))
     });
@@ -261,14 +259,14 @@ fn optimize(
     // Resume the streaming matcher at the first changed tail, including cascades.
     scratch.clear();
     scratch.extend(instructions.drain(end..));
-    rewrite(evm_version, instructions, usize::from(skip), edit, block);
+    rewrite(target, instructions, usize::from(skip), edit, block);
     let mut rewrites = 1;
-    while try_peephole(evm_version, instructions, block, late, final_cleanup) {
+    while try_peephole(target, instructions, block, late, final_cleanup) {
         rewrites += 1;
     }
     for inst in scratch.drain(..) {
         instructions.push(inst);
-        while try_peephole(evm_version, instructions, block, late, final_cleanup) {
+        while try_peephole(target, instructions, block, late, final_cleanup) {
             rewrites += 1;
         }
     }
@@ -276,25 +274,24 @@ fn optimize(
 }
 
 fn try_peephole(
-    evm_version: EvmVersion,
+    target: Target,
     instructions: &mut Vec<Instruction>,
     block: u32,
     late: bool,
     final_cleanup: bool,
 ) -> bool {
-    let Some(isle::Rewrite { skip, edit }) = isle::PeepContext::new(instructions, evm_version)
-        .with_final_cleanup(final_cleanup)
-        .select(late)
+    let Some(isle::Rewrite { skip, edit }) =
+        isle::PeepContext::new(instructions, target).with_final_cleanup(final_cleanup).select(late)
     else {
         return false;
     };
-    rewrite(evm_version, instructions, usize::from(skip), edit, block)
+    rewrite(target, instructions, usize::from(skip), edit, block)
 }
 
 // Keep trace formatting out of the hot matcher's stack frame.
 #[inline(never)]
 fn rewrite(
-    evm_version: EvmVersion,
+    target: Target,
     instructions: &mut Vec<Instruction>,
     skip: usize,
     edit: Edit,
@@ -303,7 +300,7 @@ fn rewrite(
     let start = instructions.len() - skip;
     let input = tracing::enabled!(target: TRACE_TARGET, tracing::Level::TRACE)
         .then(|| instructions[start..].to_vec());
-    edit.apply(evm_version, instructions, start);
+    edit.apply(target, instructions, start);
     if let Some(input) = input {
         trace!(
             target: TRACE_TARGET,
@@ -357,15 +354,13 @@ enum Edit {
         value: U256,
         opcode: u8,
     },
+    ZeroLessIszero,
     ReloadStoredValue,
     ConsumeStoredValue {
         depth: u8,
     },
     DropNonzeroTest,
     EqIszeroJumpi,
-    StackOp {
-        op: op::StackOp,
-    },
     StackOps {
         first: op::StackOp,
         second: op::StackOp,
@@ -373,7 +368,7 @@ enum Edit {
 }
 
 impl Edit {
-    fn apply(self, evm_version: EvmVersion, instructions: &mut Vec<Instruction>, start: usize) {
+    fn apply(self, target: Target, instructions: &mut Vec<Instruction>, start: usize) {
         match self {
             Self::LowMaskWithSwap => {
                 // push 0; not; protected_count; shl; not
@@ -404,7 +399,7 @@ impl Edit {
             }
             Self::FoldConstants { value } => {
                 instructions.truncate(start);
-                materialize_immediate(instructions, evm_version, value);
+                materialize_immediate(instructions, target.evm_version(), value);
             }
             Self::RemoveFirstKeepOne => {
                 instructions.remove(start);
@@ -455,6 +450,14 @@ impl Edit {
                 overwrite_raw(comparison, opcode);
                 comparison.metadata.absorb_debug_info(&iszero.metadata);
             }
+            Self::ZeroLessIszero => {
+                // PUSH 0; LT; ISZERO => ISZERO
+                instructions.remove(start);
+                let iszero = instructions.pop().expect("matched ISZERO");
+                let comparison = instructions.last_mut().expect("matched comparison");
+                overwrite_raw(comparison, op::ISZERO);
+                comparison.metadata.absorb_debug_info(&iszero.metadata);
+            }
             Self::ReloadStoredValue => {
                 instructions.swap(start, start + 3);
                 instructions.swap(start + 1, start + 2);
@@ -470,10 +473,6 @@ impl Edit {
                 instructions.remove(start + 1);
                 overwrite_raw(&mut instructions[start + 2], op::JUMPI);
             }
-            Self::StackOp { op: stack_op } => {
-                instructions[start] = Instruction::stack_op(stack_op).with_debug_info_dropped();
-                instructions.truncate(start + 1);
-            }
             Self::StackOps { first, second } => {
                 instructions[start] = Instruction::stack_op(first).with_debug_info_dropped();
                 instructions[start + 1] = Instruction::stack_op(second).with_debug_info_dropped();
@@ -484,7 +483,7 @@ impl Edit {
 }
 
 fn overwrite_raw(inst: &mut Instruction, opcode: u8) {
-    debug_assert!(raw_opcode(inst).is_some());
+    debug_assert!(inst.as_evm_opcode().is_some());
     let metadata = std::mem::take(&mut inst.metadata);
     *inst = Instruction::opcode(opcode);
     inst.metadata = metadata;
@@ -496,32 +495,8 @@ fn overwrite_stack_op(inst: &mut Instruction, stack_op: op::StackOp) {
     inst.metadata = metadata;
 }
 
-/// Returns the byte length and static gas of the selected materialization of `value`.
-pub(super) fn materialization_cost(evm_version: EvmVersion, value: U256) -> (usize, usize) {
-    immediate_materialization_cost(evm_version, value)
-}
-
-fn raw_opcode(inst: &Instruction) -> Option<u8> {
-    inst.as_evm_opcode()
-}
-
-pub(super) fn push_value(inst: &Instruction) -> Option<U256> {
-    if !inst.is_encoded_push() || inst.deferred_push().is_some() || inst.immutable_push().is_some()
-    {
-        return None;
-    }
-    match &inst.value {
-        Some(PushValue::Immediate(value)) => Some(*value),
-        _ => None,
-    }
-}
-
 fn is_block_push(inst: &Instruction) -> bool {
     inst.is_encoded_push() && matches!(inst.value, Some(PushValue::Block(_)))
-}
-
-fn is_removable_push(inst: &Instruction) -> bool {
-    inst.is_encoded_push() && inst.deferred_push().is_none()
 }
 
 struct InstructionSequence<'a>(&'a [Instruction]);
@@ -532,18 +507,16 @@ impl fmt::Display for InstructionSequence<'_> {
             if index != 0 {
                 f.write_str(" ")?;
             }
-            if inst.deferred_push().is_some() {
-                f.write_str("push_deferred")?;
-            } else if inst.immutable_push().is_some() {
+            if inst.immutable_push().is_some() {
                 f.write_str("push_immutable")?;
-            } else if let Some(value) = push_value(inst) {
+            } else if let Some(value) = inst.concrete_immediate() {
                 write!(f, "push {value:#x}")?;
             } else if inst.is_encoded_push() {
                 f.write_str("push_ref")?;
-            } else if let Some(mnemonic) = op::mnemonic(inst.opcode) {
+            } else if let Some(mnemonic) = inst.as_evm_opcode().and_then(op::mnemonic) {
                 f.write_str(mnemonic)?;
             } else {
-                write!(f, "0x{:02x}", inst.opcode)?;
+                write!(f, "{}", inst.mnemonic())?;
             }
         }
         Ok(())

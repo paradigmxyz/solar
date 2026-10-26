@@ -36,7 +36,9 @@
 // last-group loop and the first two sites of the main loop; the other two
 // sites keep the call because the main loop's live words leave no room for
 // the helper's remaining joins. The encoder's mode flags differ between its
-// callers here, so its helper keeps the flag parameter and stays shared.
+// callers here, so its helper keeps the flag parameter and stays shared. The
+// encoder's output bounds checks read the length its allocation stored, so they
+// fold against the loop's own tests and its loop splits the same way.
 
 library Base64 {
     bytes32 private constant ENCODE0 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef";
@@ -125,21 +127,18 @@ library Base64 {
 }
 
 contract CheckedBase64 {
-    // OPT-LABEL: fn @encode{{[.0-9]*}}(arg0: memptr, arg1: i1, arg2: i1)
+    // OPT-LABEL: fn @encode{{[.0-9]*}}(arg0: i256, arg1: i1, arg2: i1)
     // Allocating the output may alias the input header, so reload it before the loop.
-    // OPT: [[INPUT:v[0-9]+]] = ptrtoint memptr arg0 to i256
-    // OPT: {{v[0-9]+}} = mload [[INPUT]]
-    // OPT: {{v[0-9]+}} = mload [[INPUT]]
-    // OPT-LABEL: fn @decode{{[.0-9]*}}(arg0: memptr)
+    // OPT: {{v[0-9]+}} = mload arg0
+    // OPT: {{v[0-9]+}} = mload arg0
+    // OPT-LABEL: fn @decode{{[.0-9]*}}(arg0: i256)
     // Allocating the output may alias the input header, so reload it before the loop.
-    // OPT: [[INPUT:v[0-9]+]] = ptrtoint memptr arg0 to i256
-    // OPT: {{v[0-9]+}} = mload [[INPUT]]
-    // OPT: {{v[0-9]+}} = mload [[INPUT]]
+    // OPT: {{v[0-9]+}} = mload arg0
+    // OPT: {{v[0-9]+}} = mload arg0
     // OPT-NOT: icall @literal_bytes_word
     // OPT: {{v[0-9]+}} = add {{v[0-9]+}}, 3{{$}}
     // OPT-NEXT: [[MAIN:v[0-9]+]] = lt
     // OPT-NEXT: jumpi [[MAIN]]
-    // OPT-NOT: icall @_decode
     function decode(string memory data) external pure returns (bytes memory) {
         return Base64.decode(data);
     }

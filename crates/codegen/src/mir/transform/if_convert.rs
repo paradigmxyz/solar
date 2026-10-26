@@ -19,7 +19,13 @@
 //!   among constant table words needs no branch;
 //! - a literal chosen over a select the condition implies, `x < a ? A : (x < b ? B : C)` with `a <=
 //!   b`, becomes `C + [x < b] * (B - C) + [x < a] * (A - B)`, so a ladder of literal selections on
-//!   one value collapses one level at a time; and
+//!   one value collapses one level at a time;
+//! - a boolean merged with `true`, `c ? true : e` and `c ? t : true`, becomes `c | e` and `!c | t`,
+//!   the shape a chain of `||` operands leaves at its last join;
+//! - a boolean merged with `false`, `c ? t : false` or `c ? false : e`, becomes an `and`;
+//! - a select whose arms agree, `x == C ? K : f(x)` with `f(C) == K` for an addition, subtraction
+//!   or exclusive-or of `x` and a literal, becomes `f(x)`: checked Solidity spells a wrapping
+//!   increment `x == type(uint256).max ? 0 : x + 1`, which is `x + 1`; and
 //! - any other pair becomes `f + c * (t - f)`.
 //!
 //! Conditions are canonical booleans and cast to words before arithmetic.
@@ -34,18 +40,21 @@
 //! per arm and two phis per join are considered, and a site converts only
 //! when running both arms plus the selects on every execution costs no more
 //! than the branch, the arm jump, their labels, and the arm that runs on an
-//! average path. Runs after the late CFG cleanup, so folded conditions never
-//! reach it, and before hot-leaf inlining, so cloned lookup helpers arrive
-//! already branch-free. Converts a sweep of sites with updated predecessor lists before
-//! running CFG cleanup, avoiding a whole-function cleanup for each diamond.
+//! average path. The selects read the condition as a zero-or-one word, one
+//! copy each, while the branch reads a word tested against zero directly, so
+//! such a test pays for its comparison only after conversion. Runs after the
+//! late CFG cleanup, so folded conditions never reach it, and before hot-leaf
+//! inlining, so cloned lookup helpers arrive already branch-free. Converts a
+//! sweep of sites with updated predecessor lists before running CFG cleanup,
+//! avoiding a whole-function cleanup for each diamond.
 
 use super::{cfg_simplify::simplify_function, egraph::is_bool_value};
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, EffectKind, Function, Immediate, InstId, InstKind, MirType, Module, Terminator,
-        Value, ValueId,
-        analysis::CfgInfo,
+        BlockId, EffectKind, Function, Immediate, InstId, InstKind, MirType, Module, Op,
+        Terminator, Value, ValueId,
+        analysis::{CfgInfo, integers::integer_mask},
         pass::{MirPass, run_function_pass},
         utils::invalidate_unreachable_blocks,
     },
@@ -69,8 +78,9 @@ impl MirPass for IfConvert {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let target = Target::new(gcx);
-        run_function_pass(module, analyses, |func, _| if_convert_function(func, target))
+        run_function_pass(module, analyses, |func, analyses| {
+            if_convert_function(func, &analyses.target(gcx))
+        })
     }
 }
 
@@ -116,9 +126,14 @@ enum SelectForm {
     /// `else + c * (then - else)`, with the difference folded when both are
     /// literals.
     General(Option<U256>),
+    /// A boolean merged with `true`: `c | e`, or `!c | t` when `else` is the literal.
+    Or { negated: bool },
+    /// The value both edges compute: a literal on the edge taken when `x == C`, and on the
+    /// other edge a word operation of `x` that gives that literal at `x = C`.
+    Either(ValueId),
 }
 
-fn if_convert_function(func: &mut Function, target: Target) -> bool {
+fn if_convert_function(func: &mut Function, target: &Target) -> bool {
     let cfg = CfgInfo::new(func);
     let mut changed = invalidate_unreachable_blocks(func, cfg.reachable()) != 0;
     loop {
@@ -138,7 +153,7 @@ fn if_convert_function(func: &mut Function, target: Target) -> bool {
     changed
 }
 
-fn find_site(func: &Function, target: Target, block: BlockId) -> Option<Site> {
+fn find_site(func: &Function, target: &Target, block: BlockId) -> Option<Site> {
     let body = &func.blocks[block];
     let Some(Terminator::Branch { condition, then_block, else_block }) = body.terminator else {
         return None;
@@ -232,6 +247,16 @@ fn select_form(
     if then_value == else_value {
         return SelectForm::Same;
     }
+    if let Some(value) = agreeing_value(func, condition, then_value, else_value) {
+        return SelectForm::Either(value);
+    }
+    // c ? true : e => c | e, c ? t : true => !c | t
+    if func.value_ty(then_value) == Some(MirType::I1) {
+        let is_true = |value| func.value_u256(value).is_some_and(|value| !value.is_zero());
+        if is_true(then_value) || is_true(else_value) {
+            return SelectForm::Or { negated: !is_true(then_value) };
+        }
+    }
     if let Some(derived) = derivation(func, then_value, else_value) {
         return SelectForm::Scaled(derived);
     }
@@ -309,7 +334,7 @@ fn implies(func: &Function, first: ValueId, mut second: ValueId) -> bool {
 /// more under the objective than the branch, the arm jump, their labels,
 /// one stack move per phi at the join, and the arm and phi literal an
 /// average path executes.
-fn profitable(func: &Function, target: Target, site: &Site, selects: &[Select]) -> bool {
+fn profitable(func: &Function, target: &Target, site: &Site, selects: &[Select]) -> bool {
     // Arm instructions whose results the scaled forms recompute are dropped.
     let replaced: Vec<ValueId> = selects
         .iter()
@@ -332,8 +357,21 @@ fn profitable(func: &Function, target: Target, site: &Site, selects: &[Select]) 
     }
     let mut selected = Cost::ZERO;
     let mut joined = Cost::ZERO;
+    // Selects that scale the same amount share one product of the condition.
+    let mut products = Vec::new();
+    let mut reads = 0;
     for select in selects {
-        selected = selected.plus(select_cost(func, target, select));
+        let product = scaled_amount(func, select);
+        let shared = product.is_some_and(|product| products.contains(&product));
+        if let Some(product) = product
+            && !shared
+        {
+            products.push(product);
+        }
+        if !shared && !matches!(select.form, SelectForm::Same | SelectForm::Either(_)) {
+            reads += 1;
+        }
+        selected = selected.plus(select_cost(func, target, select, shared));
         // The join moves one stack slot per phi, and a literal reaching it
         // is pushed on its path.
         joined = joined.plus(target.dup().times(2));
@@ -346,23 +384,23 @@ fn profitable(func: &Function, target: Target, site: &Site, selects: &[Select]) 
     // Doubled costs: the transfers and join moves run on every path, each
     // arm and phi literal on one of the two paths.
     let before = transfer_cost(target).plus(arms).plus(joined);
-    let after = kept_arms.plus(selected).times(2);
+    // Selects that read no condition leave its comparison dead.
+    let condition =
+        if reads == 0 { Cost::ZERO } else { condition_cost(func, target, site.condition, reads) };
+    let after = kept_arms.plus(selected).plus(condition).times(2);
     target.cmp(after, before) != Ordering::Greater
 }
 
 /// Doubled per-execution cost of the transfers a site removes: the branch
 /// and the join label on every path, and the arm jump with its label on one
 /// of the two paths.
-fn transfer_cost(target: Target) -> Cost {
-    let label = target.opcode(op::PUSH2);
-    let every_path = target.opcode(op::JUMPI).plus(label).plus(target.opcode(op::JUMPDEST));
-    let one_path = target.opcode(op::JUMP).plus(label).plus(target.opcode(op::JUMPDEST));
-    every_path.times(2).plus(one_path)
+fn transfer_cost(target: &Target) -> Cost {
+    target.branch().times(2).plus(target.jump())
 }
 
 /// Cost of one instruction: its operation and the pushes that materialize
 /// its literal operands.
-fn inst_cost(func: &Function, target: Target, inst: InstId) -> Cost {
+fn inst_cost(func: &Function, target: &Target, inst: InstId) -> Cost {
     let kind = &func.inst(inst).kind;
     let mut cost = target.op(&kind.op(), |value| func.value_u256(value));
     kind.visit_operands(|operand| {
@@ -375,24 +413,28 @@ fn inst_cost(func: &Function, target: Target, inst: InstId) -> Cost {
 
 /// Cost of the instructions a select adds: the pushes of its literal
 /// operands, one duplicate of an operand it uses twice, and its operations.
-fn select_cost(func: &Function, target: Target, select: &Select) -> Cost {
+/// A scaled select whose product an earlier select computes only combines it.
+fn select_cost(func: &Function, target: &Target, select: &Select, shared: bool) -> Cost {
     let literal = |value| func.value_u256(value).map_or(Cost::ZERO, |literal| target.push(literal));
     let scaled = |derived: Derivation, negated: bool, scaled_value| {
-        let mut cost = target.opcode(op::MUL);
+        let mut product = target.opcode(op::MUL);
         if negated {
-            cost = cost.plus(target.opcode(op::ISZERO));
+            product = product.plus(target.opcode(op::ISZERO));
         }
-        match derived {
+        let (amount, combine) = match derived {
             // c * t
-            Derivation::FromZero => cost.plus(literal(scaled_value)),
+            // NOTE: A boolean product is emitted as `and` but keeps this price, so it converts
+            // exactly the sites it converted as a multiplication.
+            Derivation::FromZero => (scaled_value, Cost::ZERO),
             // e op c * k
-            Derivation::Add(amount) => cost.plus(literal(amount)).plus(target.opcode(op::ADD)),
-            Derivation::Or(amount) => cost.plus(literal(amount)).plus(target.opcode(op::OR)),
-            Derivation::Shr(amount) => cost.plus(literal(amount)).plus(target.opcode(op::SHR)),
-        }
+            Derivation::Add(amount) => (amount, target.opcode(op::ADD)),
+            Derivation::Or(amount) => (amount, target.opcode(op::OR)),
+            Derivation::Shr(amount) => (amount, target.opcode(op::SHR)),
+        };
+        if shared { combine } else { product.plus(literal(amount)).plus(combine) }
     };
     match select.form {
-        SelectForm::Same => Cost::ZERO,
+        SelectForm::Same | SelectForm::Either(_) => Cost::ZERO,
         SelectForm::Scaled(derived) => scaled(derived, false, select.then_value),
         SelectForm::ScaledNegated(derived) => scaled(derived, true, select.else_value),
         // e + c * delta
@@ -405,6 +447,11 @@ fn select_cost(func: &Function, target: Target, select: &Select) -> Cost {
             .plus(target.push(delta))
             .plus(target.opcode(op::ADD))
             .plus(literal(select.else_value)),
+        // c | e, or !c | t
+        SelectForm::Or { negated } => {
+            let cost = target.opcode(op::OR);
+            if negated { cost.plus(target.opcode(op::ISZERO)) } else { cost }
+        }
         // f + c * (t - f), with f used twice
         SelectForm::General(None) => {
             let reused = if func.value_u256(select.else_value).is_some() {
@@ -419,6 +466,28 @@ fn select_cost(func: &Function, target: Target, select: &Select) -> Cost {
                 .plus(target.opcode(op::MUL))
                 .plus(target.opcode(op::ADD))
         }
+    }
+}
+
+/// Per-execution cost of the condition the selects read: a zero-or-one word,
+/// copied for each read after the first. A nonzero test of a word, which the
+/// branch read directly, or a word that is no boolean also pays for the
+/// comparison that makes it one.
+fn condition_cost(func: &Function, target: &Target, condition: ValueId, reads: u32) -> Cost {
+    let copies = target.dup().times(reads.saturating_sub(1));
+    let nonzero_test = match func.value(condition) {
+        Value::Inst(inst) => {
+            let op = func.inst(*inst).kind.op();
+            matches!(op, Op::Ne { .. })
+                && Target::zero_test_input(&op, |value| func.value_u256(value)).is_some()
+        }
+        _ => false,
+    };
+    if nonzero_test || !is_bool_value(func, condition) {
+        // ne word, 0: iszero iszero
+        copies.plus(target.opcode(op::ISZERO).times(2))
+    } else {
+        copies
     }
 }
 
@@ -499,6 +568,8 @@ fn select_value(
     let ty = func.value_ty(then_value).or_else(|| func.value_ty(else_value));
     match select.form {
         SelectForm::Same => then_value,
+        // x == C ? f(C) : f(x) => f(x)
+        SelectForm::Either(value) => value,
         SelectForm::Scaled(derived) => {
             scaled_select(func, block, condition, then_value, else_value, derived, ty)
         }
@@ -514,6 +585,16 @@ fn select_value(
             let scaled = append(func, block, InstKind::Mul(condition, delta), Some(MirType::I256));
             append(func, block, InstKind::Add(else_value, scaled), ty)
         }
+        // c ? true : e => c | e
+        SelectForm::Or { negated: false } => {
+            append(func, block, InstKind::Or(condition, else_value), ty)
+        }
+        // c ? t : true => (c == 0) | t
+        SelectForm::Or { negated: true } => {
+            let zero = literal(func, U256::ZERO);
+            let negated = append(func, block, InstKind::Eq(condition, zero), Some(MirType::I1));
+            append(func, block, InstKind::Or(negated, then_value), ty)
+        }
         // c ? t : f => f + c * (t - f)
         SelectForm::General(delta) => {
             let delta = match delta {
@@ -526,6 +607,89 @@ fn select_value(
             append(func, block, InstKind::Add(else_value, scaled), ty)
         }
     }
+}
+
+/// The value a select gives on both edges: either arm when both add the same amount to one
+/// value at the select's width, as `x > max - k ? x - (max - k + 1) : x + k` does, whatever the
+/// condition; or, for `x == C ? K : f(x)` or `x != C ? f(x) : K`, `f(x)`, where `f` adds,
+/// subtracts or exclusive-ors a literal and `f(C)` is `K` at the select's width. The condition
+/// may be such a comparison or its negation.
+fn agreeing_value(
+    func: &Function,
+    condition: ValueId,
+    then_value: ValueId,
+    else_value: ValueId,
+) -> Option<ValueId> {
+    if let Some(MirType::Int(bits)) = func.value_ty(else_value)
+        && let (Some((a, then_amount)), Some((b, else_amount))) =
+            (added_literal(func, then_value), added_literal(func, else_value))
+        && a == b
+        && then_amount.wrapping_sub(else_amount) & integer_mask(bits.get()) == U256::ZERO
+    {
+        return Some(else_value);
+    }
+    let (x, c, equal) = literal_comparison(func, condition, MAX_NEGATIONS)?;
+    // The value on the edge taken when `x == c`, and the other edge's.
+    let (at_c, other) = if equal { (then_value, else_value) } else { (else_value, then_value) };
+    let literal = func.value_u256(at_c)?;
+    let Some(MirType::Int(bits)) = func.value_ty(other) else { return None };
+    let Value::Inst(inst) = func.value(other) else { return None };
+    let operand = |value: ValueId| if value == x { Some(c) } else { func.value_u256(value) };
+    let result = match func.inst(*inst).kind {
+        InstKind::Add(a, b) if a == x || b == x => operand(a)?.wrapping_add(operand(b)?),
+        InstKind::Sub(a, b) if a == x || b == x => operand(a)?.wrapping_sub(operand(b)?),
+        InstKind::Xor(a, b) if a == x || b == x => operand(a)? ^ operand(b)?,
+        _ => return None,
+    };
+    (result & integer_mask(bits.get()) == literal).then_some(other)
+}
+
+/// `(x, k)` for a value `x + k` or `x - (-k)`, with `k` a literal and `x` not.
+fn added_literal(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
+    let Value::Inst(inst) = func.value(value) else { return None };
+    match func.inst(*inst).kind {
+        InstKind::Add(a, b) => match (func.value_u256(a), func.value_u256(b)) {
+            (None, Some(k)) => Some((a, k)),
+            (Some(k), None) => Some((b, k)),
+            _ => None,
+        },
+        InstKind::Sub(a, b) if func.value_u256(a).is_none() => {
+            Some((a, U256::ZERO.wrapping_sub(func.value_u256(b)?)))
+        }
+        _ => None,
+    }
+}
+
+/// Negations of a comparison a branch condition may wrap.
+const MAX_NEGATIONS: u32 = 2;
+
+/// `(x, C, true)` for a condition `x == C`, and `(x, C, false)` for `x != C`, with `C` a
+/// literal and `x` not, through `eq(b, 0)` negations of a boolean `b`.
+fn literal_comparison(
+    func: &Function,
+    condition: ValueId,
+    negations: u32,
+) -> Option<(ValueId, U256, bool)> {
+    let Value::Inst(inst) = func.value(condition) else { return None };
+    let (a, b, equal) = match func.inst(*inst).kind {
+        InstKind::Eq(a, b) => (a, b, true),
+        InstKind::Ne(a, b) => (a, b, false),
+        _ => return None,
+    };
+    let (x, c) = match (func.value_u256(a), func.value_u256(b)) {
+        (None, Some(c)) => (a, c),
+        (Some(c), None) => (b, c),
+        _ => return None,
+    };
+    // eq(b, 0) of a boolean comparison b negates it.
+    if c.is_zero()
+        && negations != 0
+        && is_bool_value(func, x)
+        && let Some((inner, literal, inner_equal)) = literal_comparison(func, x, negations - 1)
+    {
+        return Some((inner, literal, inner_equal != equal));
+    }
+    Some((x, c, equal))
 }
 
 /// `then = base op k` for a base equal to `else`, or a zero else value.
@@ -567,6 +731,10 @@ fn scaled_select(
         append(func, block, InstKind::Mul(condition, amount), Some(MirType::I256))
     };
     match derived {
+        // c ? t : false => c & t
+        Derivation::FromZero if ty == Some(MirType::I1) => {
+            append(func, block, InstKind::And(condition, then_value), ty)
+        }
         // c ? t : 0 => c * t
         Derivation::FromZero => append(func, block, InstKind::Mul(condition, then_value), ty),
         // c ? e + k : e => e + c * k
@@ -606,4 +774,20 @@ fn append(func: &mut Function, block: BlockId, kind: InstKind, ty: Option<MirTyp
         builder.func_mut().inst_mut(inst).metadata.mark_debug_info_dropped();
     }
     value
+}
+
+/// The negation and amount of the condition product a scaled select adds, by
+/// literal value when the amount is one: selects with the same key share it.
+fn scaled_amount(func: &Function, select: &Select) -> Option<(bool, Result<U256, ValueId>)> {
+    let (negated, derived) = match select.form {
+        SelectForm::Scaled(derived) => (false, derived),
+        SelectForm::ScaledNegated(derived) => (true, derived),
+        _ => return None,
+    };
+    match derived {
+        Derivation::Add(amount) | Derivation::Or(amount) | Derivation::Shr(amount) => {
+            Some((negated, func.value_u256(amount).ok_or(amount)))
+        }
+        Derivation::FromZero => None,
+    }
 }

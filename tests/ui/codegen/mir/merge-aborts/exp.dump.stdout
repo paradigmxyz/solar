@@ -16,11 +16,11 @@ fn @checked() [selector=0x1239168b, abi_wrapper, pure] {
     v6 = lt v5, v3
     jumpi v6, bb1, bb3
   bb3:
-    mstore 128, v5
-    returndata 128, 32
+    mstore 0, v5 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb4:
     revert 0, 0
@@ -33,7 +33,7 @@ fn @entry() [entry] {
     jumpi v1, bb3, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     switch v3, default bb3, [0x1239168b => bb2]
   bb2:
     tail_call @checked

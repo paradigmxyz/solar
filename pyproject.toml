@@ -6,12 +6,14 @@ dependencies = []
 
 [tool.uv]
 package = false
+# Apply a seven-day cooldown to registry packages, including build dependencies.
+exclude-newer = "7 days"
 
 [tool.uv.workspace]
 members = ["tools/compiler-diff", "benches/analyze"]
 
 [dependency-groups]
-dev = ["ruff", "ty", "jsonschema==4.25.1"]
+dev = ["ruff", "ty", "jsonschema==4.25.1", "pytest", "pytest-xdist"]
 
 [tool.ty.environment]
 extra-paths = ["tools/compiler-diff"]

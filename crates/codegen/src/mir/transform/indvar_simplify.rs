@@ -8,11 +8,9 @@
 //! ptr = phi [preheader: base + init * stride + constant], [latch: ptr + step * stride]
 //! ```
 //!
-//! The initial implementation is deliberately narrow. It requires canonical
-//! loops with a dedicated preheader, a single latch, and a single additive
-//! induction-variable update. That gives later loop optimizations a real
-//! ScalarEvolution-backed transform without guessing from ad hoc instruction
-//! patterns.
+//! It requires canonical loops with a dedicated preheader and a single latch,
+//! and counters with a single additive update, and takes the address
+//! expressions from scalar evolution rather than from instruction patterns.
 //!
 //! The address may scale the induction variable negatively (a pointer walking
 //! down from the end of an array) and may add scaled loop invariants, such as
@@ -44,7 +42,8 @@
 //!
 //! A pointer with any other base, such as a calldata array element, may wrap,
 //! so it takes over the test only from a counter that starts at a literal below
-//! `2^64` and steps by one, and tests `ptr != end` instead. Two pointers agree
+//! `2^64`, steps by one, and keeps the loop running while `i < bound` holds, and
+//! tests `ptr != end` instead. Two pointers agree
 //! exactly when their counters agree modulo `2^(256 - k)`, where `2^k` is the
 //! largest power of two dividing the scale, so the pointer first reaches `end`
 //! when the counter reaches a bound between the start and that modulus. A bound
@@ -58,11 +57,16 @@
 //! stopped. Once the pointer takes over the exit test, each such read is rebuilt
 //! from the pointer as `init + (ptr - start) / scale`, a shift for a power-of-two
 //! scale, at the top of the reading block, or at the end of the block a phi reads
-//! it from. A phi reading it over a critical exit edge, from a loop block into a
-//! join, needs a block of its own on that edge: the pass splits those edges after
-//! visiting every loop of the function and then visits those loops again. Only
-//! the counter itself may be read after the loop; a value the loop derives from
-//! it keeps the counter.
+//! it from. Only the equality exit takes over from such a counter: it counts up
+//! and its clamped `end` cannot wrap, while a heap pointer's `ptr < end` would
+//! leave at once for a bound near the word size and return a counter the loop
+//! never reached. A phi reading the counter over a critical edge, from a loop
+//! block or from a block after the loop that also branches elsewhere, needs a
+//! block of its own on that edge, so that only the path into the phi pays for the
+//! rebuild: the pass splits those edges after visiting every loop of the function
+//! and then visits those loops again. Only the counter itself may be read after
+//! the loop; a value the loop derives from it keeps the counter, and so does a
+//! counter narrower than a word, which the rebuild would replace with a word.
 //!
 //! Safety contract:
 //! - require canonical loops with a preheader and a single latch
@@ -71,13 +75,14 @@
 //! - recognize checked unsigned updates at every width and retain their failure checks.
 //! - add only one scaled address counter when the original update must stay live.
 
+use super::egraph::max_bits_with_args;
 use crate::{
     mir::{
         ArithmeticKind, BlockId, CheckedOp, Function, FunctionBuilder, Immediate, InstId, InstKind,
         Instruction, MemoryRegion, MirType, Module, Terminator, Value, ValueId,
         analysis::{
             AffineTerm, AliasAnalysis, CfgInfo, InductionVariable, Loop, LoopAnalyzer,
-            ScalarEvolution,
+            ScalarEvolution, integers::unsigned_bounds,
         },
         pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
         utils as mir_utils,
@@ -169,8 +174,15 @@ struct ExitReads {
     blocks: Vec<BlockId>,
     /// Phis outside the loop with the counter incoming from a block outside the loop.
     phis: Vec<(InstId, BlockId)>,
-    /// Exit edges, from a loop block to a join outside it, whose phis read the counter.
+    /// Edges into a join outside the loop whose phis read the counter, from a loop block or
+    /// from a block that also branches elsewhere: each needs a block of its own to rebuild in.
     edges: Vec<(BlockId, BlockId)>,
+}
+
+impl ExitReads {
+    fn is_empty(&self) -> bool {
+        self.blocks.is_empty() && self.phis.is_empty() && self.edges.is_empty()
+    }
 }
 
 /// The header's exit test, `lt counter, bound` or `lt bound, counter`.
@@ -179,6 +191,8 @@ struct ExitTest {
     condition: InstId,
     bound: ValueId,
     counter_first: bool,
+    /// Whether the loop continues where the test holds and leaves where it fails.
+    continues_on_true: bool,
 }
 
 /// How a pointer that replaces the counter tests the loop's exit.
@@ -325,7 +339,7 @@ impl IndVarSimplifier {
         let Some(step) = self.additive_step(func, iv.value, Some(iv.update_inst)) else {
             return;
         };
-        let must_keep_update = func.inst(iv.update_inst).kind.effects().must_execute(false);
+        let must_keep_update = func.inst(iv.update_inst).kind.has_side_effects();
 
         let scev = ScalarEvolution::analyze(func, loop_data);
         let carried = Self::carried_words(func, loop_data);
@@ -383,16 +397,21 @@ impl IndVarSimplifier {
         // that cannot wrap takes over the exit test and the counter dies; that credit
         // is weighed across all families at once.
         let exit_test = self.counter_exit_test(func, loop_data, iv.value);
-        let exit_reads = exit_test.filter(|_| !must_keep_update).and_then(|test| {
-            Self::counter_only_feeds(
-                func,
-                loop_data,
-                iv.value,
-                test.condition,
-                Some(iv.update_inst),
-                &addresses,
-            )
-        });
+        // The pointer rebuilds a counter read after the loop as a word, so a narrower counter
+        // read there keeps its test until integer lowering widens it.
+        let exit_reads = exit_test
+            .filter(|_| !must_keep_update)
+            .and_then(|test| {
+                Self::counter_only_feeds(
+                    func,
+                    loop_data,
+                    iv.value,
+                    test.condition,
+                    Some(iv.update_inst),
+                    &addresses,
+                )
+            })
+            .filter(|reads| reads.is_empty() || func.value_ty(iv.value) == Some(MirType::I256));
         let counter_free = exit_reads.is_some();
         // A counter that starts at a literal and steps by one leaves the loop exactly when an
         // ascending pointer reaches its value at the bound, clamped where that value could
@@ -400,19 +419,38 @@ impl IndVarSimplifier {
         // proof that the pointer does not wrap.
         let literal_start =
             func.value_u256(iv.init).filter(|&start| step == 1 && start <= U256::from(u64::MAX));
+        // A counter read after the loop is rebuilt from where its pointer stopped, so the pointer
+        // must stop where the counter would: a heap pointer's unclamped `end` wraps for a bound
+        // near the word size, leaving at once where the counter runs out of gas, and a descending
+        // counter does not count up from its start. Only the clamped equality exit rebuilds it.
+        let read_after = exit_reads.as_ref().is_some_and(|reads| !reads.is_empty());
+        // NOTE: A small trip count does not bound an arbitrary start or bound. Keep strict
+        // pointer comparisons only when both fit well below the wrap point; the clamped
+        // equality fallback below handles large bounds without making that assumption.
         let test_family = if counter_free {
             families
                 .iter()
                 .position(|members| {
                     let key = &members[0].0;
                     key.scale > 0
+                        && key.scale <= 1 << 62
                         && key.invariants.is_empty()
                         && key.base.is_some_and(|base| self.is_heap_address(func, base))
+                        && step > 0
+                        && step <= 1 << 64
+                        && max_bits_with_args(func, iv.init, 4, &|_| 256) <= 64
+                        && exit_test.is_some_and(|test| {
+                            max_bits_with_args(func, test.bound, 4, &|_| 256) <= 128
+                        })
                 })
+                .filter(|_| !read_after)
                 .map(|index| (index, PointerExit::Below))
                 .or_else(|| {
                     let start = literal_start?;
-                    exit_test.filter(|test| test.counter_first)?;
+                    // `ptr != end` holds until the counter first reaches the bound, which is
+                    // `i < bound` only for a loop that runs while the test holds: one that runs
+                    // while `i >= bound` would leave a step past its start.
+                    exit_test.filter(|test| test.counter_first && test.continues_on_true)?;
                     let index = families.iter().position(|members| {
                         let key = &members[0].0;
                         key.scale > 0
@@ -624,10 +662,13 @@ impl IndVarSimplifier {
         loop_data: &Loop,
         iv: ValueId,
     ) -> Option<ExitTest> {
-        let Some(Terminator::Branch { condition, .. }) = &func.blocks[loop_data.header].terminator
+        let Some(Terminator::Branch { condition, then_block, else_block }) =
+            &func.blocks[loop_data.header].terminator
         else {
             return None;
         };
+        let continues_on_true =
+            loop_data.blocks.contains(*then_block) && !loop_data.blocks.contains(*else_block);
         let Value::Inst(condition) = *func.value(*condition) else { return None };
         let InstKind::Lt(a, b) = func.inst(condition).kind else { return None };
         let invariant = |value: ValueId| match func.value(value) {
@@ -639,9 +680,9 @@ impl IndVarSimplifier {
             Value::Undef(_) | Value::Error(_) => false,
         };
         if a == iv && invariant(b) {
-            Some(ExitTest { condition, bound: b, counter_first: true })
+            Some(ExitTest { condition, bound: b, counter_first: true, continues_on_true })
         } else if b == iv && invariant(a) {
-            Some(ExitTest { condition, bound: a, counter_first: false })
+            Some(ExitTest { condition, bound: a, counter_first: false, continues_on_true })
         } else {
             None
         }
@@ -720,7 +761,13 @@ impl IndVarSimplifier {
                         if value != iv {
                             continue;
                         }
-                        if loop_data.blocks.contains(from) {
+                        // The rebuild runs at the end of the block the phi reads it from, so
+                        // every path out of that block would pay for it.
+                        let branches_elsewhere =
+                            func.blocks[from].terminator.as_ref().is_some_and(|term| {
+                                term.successors().iter().any(|&successor| successor != block_id)
+                            });
+                        if loop_data.blocks.contains(from) || branches_elsewhere {
                             reads.edges.push((from, block_id));
                         } else {
                             reads.phis.push((inst_id, from));
@@ -750,6 +797,11 @@ impl IndVarSimplifier {
         scale: i128,
         reads: &ExitReads,
     ) {
+        // The rebuild counts up from the start, as the equality exit's counter does; a counter
+        // left unrebuilt stays alive for its readers.
+        if iv.descending {
+            return;
+        }
         let Some(start) = preheader_value(func, pointer, preheader) else { return };
         let Ok(magnitude) = u128::try_from(scale) else { return };
         // counter = init + (ptr - start) >> log2(scale)   or   / scale
@@ -1008,7 +1060,7 @@ impl IndVarSimplifier {
     /// use of the primary offset, an add per use of a sibling offset, a latch
     /// update of two operations, and one loop-carried word beside the counter
     /// its exit test keeps alive. That word costs two operations, so a
-    /// single scaled use only breaks even and is left alone (the `copy` loop
+    /// single scaled use only breaks even and is left alone (the `mcopy` loop
     /// lost 1.2% carrying two such pointers, and charging one in loops with
     /// three carried words still cost every sorting kernel a few tenths of a
     /// percent), plus one for every word past four the loop already carries,
@@ -1289,11 +1341,7 @@ impl IndVarSimplifier {
     }
 
     fn value_i128(&self, func: &Function, value: ValueId) -> Option<i128> {
-        let value = match func.value(value) {
-            Value::Immediate(imm) => imm.as_u256()?,
-            _ => return None,
-        };
-        if value <= U256::from(i128::MAX as u128) { Some(value.to::<u128>() as i128) } else { None }
+        i128::try_from(func.value_u256(value)?).ok()
     }
 
     fn has_non_address_loop_use(&self, func: &Function, loop_data: &Loop, value: ValueId) -> bool {
@@ -1343,8 +1391,7 @@ impl IndVarSimplifier {
     }
 }
 
-/// How deep [`bounded_on_entry`] follows a branch condition's operands and a bound's
-/// definition.
+/// How deep [`bounded_on_entry`] follows a branch condition's operands.
 const MAX_FACT_DEPTH: usize = 8;
 
 /// Whether every path into `block` takes a branch edge that keeps `value` at most a word
@@ -1391,7 +1438,7 @@ fn implies_at_most(
         | (&InstKind::Gt(x, a), true)
             if a == value =>
         {
-            upper_bound(func, x, depth).is_some_and(|bound| bound <= limit)
+            unsigned_bounds(func, x).1 <= limit
         }
         // A zero `or` has zero operands, and a nonzero `and` nonzero ones.
         (&InstKind::Or(a, b), false) | (&InstKind::And(a, b), true) => {
@@ -1401,39 +1448,6 @@ fn implies_at_most(
         (&InstKind::Ne(a, b), _) if is_zero(b) => implies(a, nonzero),
         (&InstKind::Zext(source), _) => implies(source, nonzero),
         _ => false,
-    }
-}
-
-/// The largest value a word can take by its definition: literals, comparisons, masks, right
-/// shifts, and quotients by a literal.
-fn upper_bound(func: &Function, value: ValueId, depth: usize) -> Option<U256> {
-    if let Some(constant) = func.value_u256(value) {
-        return Some(constant);
-    }
-    let depth = depth.checked_sub(1)?;
-    let Value::Inst(inst_id) = *func.value(value) else { return None };
-    match func.inst(inst_id).kind {
-        InstKind::Lt(..)
-        | InstKind::Gt(..)
-        | InstKind::SLt(..)
-        | InstKind::SGt(..)
-        | InstKind::Eq(..)
-        | InstKind::Ne(..) => Some(U256::from(1)),
-        InstKind::Zext(source) => upper_bound(func, source, depth),
-        InstKind::And(a, b) => match (upper_bound(func, a, depth), upper_bound(func, b, depth)) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (bound, None) | (None, bound) => bound,
-        },
-        InstKind::Shr(shift, source) => {
-            let shift = usize::try_from(func.value_u256(shift)?).ok()?;
-            let source = upper_bound(func, source, depth).unwrap_or(U256::MAX);
-            Some(source.checked_shr(shift).unwrap_or(U256::ZERO))
-        }
-        InstKind::Div(_, divisor) => {
-            let divisor = func.value_u256(divisor)?;
-            Some(U256::MAX.checked_div(divisor).unwrap_or(U256::ZERO))
-        }
-        _ => None,
     }
 }
 

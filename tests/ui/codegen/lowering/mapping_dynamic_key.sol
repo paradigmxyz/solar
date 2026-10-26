@@ -3,19 +3,19 @@
 
 contract MappingDynamicKey {
     // CHECK-LABEL: fn @lookup{{[( ]}}
-    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_calldata arg0, 0
+    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_bytes arg0, 0
     // CHECK: sload [[SLOT]]
     mapping(string => address) public lookup;
 
     // CHECK-LABEL: fn @set{{[( ]}}
-    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_memory arg0, 0
+    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_bytes arg0, 0
     // CHECK: sstore [[SLOT]], {{v[0-9]+}}
     function set(string memory name, address owner) public {
         lookup[name] = owner;
     }
 
     // CHECK-LABEL: fn @get{{[( ]}}
-    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_memory arg0, 0
+    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_bytes arg0, 0
     // CHECK: sload [[SLOT]]
     function get(string memory name) public view returns (address) {
         return lookup[name];
@@ -26,12 +26,12 @@ contract MappingDynamicKey {
 // (applied per level for nested mappings).
 contract MappingDynamicKeyPaths {
     // CHECK-LABEL: fn @flat{{[( ]}}
-    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_calldata arg0, 0
+    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_bytes arg0, 0
     // CHECK: sload [[SLOT]]
     mapping(string => uint256) public flat;
 
     // CHECK-LABEL: fn @nestedFirst{{[( ]}}
-    // CHECK: [[OUTER:v[0-9]+]] = mapping_slot_calldata arg0, 1
+    // CHECK: [[OUTER:v[0-9]+]] = mapping_slot_bytes arg0, 1
     // CHECK: [[KEY:v[0-9]+]] = zext i160 arg1 to i256
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot [[KEY]], [[OUTER]]
     mapping(string => mapping(address => uint256)) public nestedFirst;
@@ -39,7 +39,7 @@ contract MappingDynamicKeyPaths {
     // CHECK-LABEL: fn @nestedSecond{{[( ]}}
     // CHECK: [[KEY:v[0-9]+]] = zext i160 arg0 to i256
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot [[KEY]], 2
-    // CHECK: [[INNER:v[0-9]+]] = mapping_slot_calldata arg1, [[OUTER]]
+    // CHECK: [[INNER:v[0-9]+]] = mapping_slot_bytes arg1, [[OUTER]]
     mapping(address => mapping(string => uint256)) public nestedSecond;
 
     // CHECK-LABEL: fn @skey{{[( ]}}
@@ -50,17 +50,17 @@ contract MappingDynamicKeyPaths {
     // Literal keys hash exactly the literal's bytes, hitting the same slot
     // as the equivalent runtime key.
     // CHECK-LABEL: fn @setLit{{[( ]}}
-    // CHECK: [[LITERAL_DATA_PTR:v[0-9]+]] = memory_object_data memorybytes, {{v[0-9]+}}
-    // CHECK: [[LITERAL_DATA:v[0-9]+]] = ptrtoint memptr [[LITERAL_DATA_PTR]] to i256
-    // CHECK: mstore [[LITERAL_DATA]], 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_memory {{v[0-9]+}}, 0
+    // CHECK: mstore [[LITERAL:v[0-9]+]], 5
+    // CHECK: [[LITERAL_32:v[0-9]+]] = ptradd [[LITERAL]], 32
+    // CHECK-NEXT: mstore [[LITERAL_32]], 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_bytes [[LITERAL]], 0
     // CHECK: sstore [[SLOT]], arg0
     function setLit(uint256 v) public {
         flat["hello"] = v;
     }
 
     // CHECK-LABEL: fn @setLitLong{{[( ]}}
-    // CHECK: [[SLOT_LONG:v[0-9]+]] = mapping_slot_memory {{v[0-9]+}}, 0
+    // CHECK: [[SLOT_LONG:v[0-9]+]] = mapping_slot_bytes {{v[0-9]+}}, 0
     // CHECK: sstore [[SLOT_LONG]], arg0
     function setLitLong(uint256 v) public {
         flat["a literal key longer than thirty-two bytes, hashed in full"] = v;
@@ -68,7 +68,7 @@ contract MappingDynamicKeyPaths {
 
     // Nested mappings dispatch on the key type at every level.
     // CHECK-LABEL: fn @setNestedFirst{{[( ]}}
-    // CHECK: [[OUTER:v[0-9]+]] = mapping_slot_memory arg0, 1
+    // CHECK: [[OUTER:v[0-9]+]] = mapping_slot_bytes arg0, 1
     // CHECK: [[KEY:v[0-9]+]] = zext i160 arg1 to i256
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot [[KEY]], [[OUTER]]
     // CHECK: sstore [[INNER]], arg2
@@ -77,7 +77,7 @@ contract MappingDynamicKeyPaths {
     }
 
     // CHECK-LABEL: fn @getNestedFirst{{[( ]}}
-    // CHECK: [[OUTER:v[0-9]+]] = mapping_slot_memory arg0, 1
+    // CHECK: [[OUTER:v[0-9]+]] = mapping_slot_bytes arg0, 1
     // CHECK: [[KEY:v[0-9]+]] = zext i160 arg1 to i256
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot [[KEY]], [[OUTER]]
     // CHECK: sload [[INNER]]
@@ -88,7 +88,7 @@ contract MappingDynamicKeyPaths {
     // CHECK-LABEL: fn @setNestedSecond{{[( ]}}
     // CHECK: [[KEY:v[0-9]+]] = zext i160 arg0 to i256
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot [[KEY]], 2
-    // CHECK: [[INNER:v[0-9]+]] = mapping_slot_memory arg1, [[OUTER]]
+    // CHECK: [[INNER:v[0-9]+]] = mapping_slot_bytes arg1, [[OUTER]]
     // CHECK: sstore [[INNER]], arg2
     function setNestedSecond(address a, string memory k, uint256 v) public {
         nestedSecond[a][k] = v;
@@ -103,7 +103,7 @@ contract MappingDynamicKeyPaths {
 
     // CHECK-LABEL: fn @setViaStorageKey{{[( ]}}
     // CHECK: load_storage_bytes 3
-    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_memory {{v[0-9]+}}, 0
+    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_bytes {{v[0-9]+}}, 0
     // CHECK: sstore [[SLOT]], arg0
     function setViaStorageKey(uint256 v) public {
         flat[skey] = v;
@@ -112,10 +112,10 @@ contract MappingDynamicKeyPaths {
     // Calldata keys remain semantic until the mapping-slot lowering pass;
     // subsequent allocations must not overlap their payload.
     // CHECK-LABEL: fn @setThenAlloc{{[( ]}}
-    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_calldata arg0, 0
+    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_bytes arg0, 0
     // CHECK: sstore [[SLOT]], arg1
-    // CHECK: [[OUT:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic,
-    // CHECK: set_memory_object_len memorybytes, [[OUT]], 32
+    // CHECK: [[OUT:v[0-9]+]] = alloc zeroed checked
+    // CHECK: mstore [[OUT]], 32
     function setThenAlloc(string calldata k, uint256 v) public returns (uint256) {
         flat[k] = v;
         bytes memory out = new bytes(32);

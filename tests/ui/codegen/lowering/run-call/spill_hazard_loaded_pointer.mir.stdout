@@ -1,0 +1,89 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/spill_hazard_loaded_pointer.sol:C ===
+@module C
+fn @g(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x84fac6b9, pure, abi_params=[uint256, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v6]
+    v2 = lt v1, 1
+    jumpi v2, bb2, bb3
+  bb3:
+    v7 = shl arg3, 5
+    v8 = ptrtoint ptr<memory> v0 to i256
+    v9 = add v8, 32
+    v10 = add v9, v7
+    mstore v10, arg0
+    v11 = mload v0
+    v12 = lt 0, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = ptradd v0, 32
+    v15 = mload v14, ptr<memory>
+    v16 = checked_add uint256, arg2, 1
+    v17 = keccak256_packed (uint256 v16)
+    v18 = checked_add uint256, arg2, 2
+    v19 = keccak256_packed (uint256 v18)
+    v20 = checked_add uint256, arg2, 3
+    v21 = keccak256_packed (uint256 v20)
+    v22 = checked_add uint256, arg2, 4
+    v23 = keccak256_packed (uint256 v22)
+    v24 = checked_add uint256, arg2, 5
+    v25 = keccak256_packed (uint256 v24)
+    v26 = checked_add uint256, arg2, 6
+    v27 = keccak256_packed (uint256 v26)
+    v28 = checked_add uint256, arg2, 7
+    v29 = keccak256_packed (uint256 v28)
+    v30 = checked_add uint256, arg2, 8
+    v31 = keccak256_packed (uint256 v30)
+    v32 = checked_add uint256, arg2, 9
+    v33 = keccak256_packed (uint256 v32)
+    v34 = checked_add uint256, arg2, 10
+    v35 = keccak256_packed (uint256 v34)
+    v36 = checked_add uint256, arg2, 11
+    v37 = keccak256_packed (uint256 v36)
+    v38 = checked_add uint256, arg2, 12
+    v39 = keccak256_packed (uint256 v38)
+    v40 = checked_add uint256, arg2, 13
+    v41 = keccak256_packed (uint256 v40)
+    v42 = checked_add uint256, arg2, 14
+    v43 = keccak256_packed (uint256 v42)
+    v44 = checked_add uint256, arg2, 15
+    v45 = keccak256_packed (uint256 v44)
+    v46 = checked_add uint256, arg2, 16
+    v47 = keccak256_packed (uint256 v46)
+    v48 = checked_add uint256, arg2, 17
+    v49 = keccak256_packed (uint256 v48)
+    v50 = checked_add uint256, arg2, 18
+    v51 = keccak256_packed (uint256 v50)
+    v52 = calldatasize
+    v53 = ptrtoint ptr<memory> v15 to i256
+    v54 = add v53, 32
+    calldatacopy v54, v52, arg1
+    v55 = xor v17, v19
+    v56 = xor v55, v21
+    v57 = xor v56, v23
+    v58 = xor v57, v25
+    v59 = xor v58, v27
+    v60 = xor v59, v29
+    v61 = xor v60, v31
+    v62 = xor v61, v33
+    v63 = xor v62, v35
+    v64 = xor v63, v37
+    v65 = xor v64, v39
+    v66 = xor v65, v41
+    v67 = xor v66, v43
+    v68 = xor v67, v45
+    v69 = xor v68, v47
+    v70 = xor v69, v49
+    v71 = xor v70, v51
+    ret v71
+  bb2:
+    v3 = shl v1, 5
+    v4 = ptradd v0, v3
+    v5 = ptradd v4, 32
+    mstore v5, 96
+    v6 = add v1, 1
+    jump bb1
+}

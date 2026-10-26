@@ -22,7 +22,7 @@ error: operators can only be defined in a global `using for` directive
 LL │ using {addRight as +, negRight as -} for TransitiveInt;
    ╰╴                      ━━━━━━━━
 
-error: cannot apply builtin operator `+` to `TransitiveInt` and `TransitiveInt`
+error[2271]: cannot apply builtin operator `+` to `TransitiveInt` and `TransitiveInt`
    ╭▸ ROOT/tests/ui/using-for/imports/transitive_non_global_operator.sol:LL:CC
    │
 LL │         return a + b;

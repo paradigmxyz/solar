@@ -1,0 +1,14 @@
+error[3464]: this variable is of storage pointer type and can be accessed without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/uninitialized_access/bug10821-require.sol:LL:CC
+   │
+LL │         b[0] = 0x42;
+   │         ━
+   ╰╴
+note: the variable was declared here
+   ╭▸ ROOT/tests/ui/typeck/control_flow/uninitialized_access/bug10821-require.sol:LL:CC
+   │
+LL │         bytes storage b;
+   ╰╴        ━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

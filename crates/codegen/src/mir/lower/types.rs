@@ -2,7 +2,7 @@
 
 use crate::mir::{
     AbiParamType, AbiType, AbiWordValidator, MemoryObjectKind, MemoryObjectLayout, MirType,
-    SliceLocation, ValueLayout,
+    PtrLocation, ValueLayout,
 };
 use solar_ast::{DataLocation, TypeSize};
 use solar_data_structures::map::FxHashSet;
@@ -39,7 +39,7 @@ impl<'gcx> TypeLowerer<'gcx> {
                     | TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes)
             )
         {
-            return ValueLayout::Slice(SliceLocation::Calldata);
+            return ValueLayout::Slice(PtrLocation::Calldata);
         }
         if matches!(ty.kind, TyKind::Ref(_, DataLocation::Storage)) {
             return ValueLayout::StoragePtr;
@@ -50,12 +50,6 @@ impl<'gcx> TypeLowerer<'gcx> {
                 ElementaryType::Address(_) => ValueLayout::Address,
                 ElementaryType::Int(size) => ValueLayout::Int(TypeSize::new_int_bits(size.bits())),
                 ElementaryType::UInt(size) => {
-                    ValueLayout::UInt(TypeSize::new_int_bits(size.bits()))
-                }
-                ElementaryType::Fixed(size, _) => {
-                    ValueLayout::Int(TypeSize::new_int_bits(size.bits()))
-                }
-                ElementaryType::UFixed(size, _) => {
                     ValueLayout::UInt(TypeSize::new_int_bits(size.bits()))
                 }
                 ElementaryType::FixedBytes(size) => ValueLayout::FixedBytes(size),
@@ -74,14 +68,6 @@ impl<'gcx> TypeLowerer<'gcx> {
             TyKind::Udvt(underlying, _) => Self::value_layout(underlying),
             TyKind::Contract(_) | TyKind::Super(_) => ValueLayout::Address,
             _ => ValueLayout::uint256(),
-        }
-    }
-
-    /// Preserves raw scalar bits in immutables for inline assembly reads.
-    pub(super) fn immutable_layout(ty: Ty<'_>) -> ValueLayout {
-        match Self::value_layout(ty) {
-            ValueLayout::Bool | ValueLayout::Address => ValueLayout::uint256(),
-            layout => layout,
         }
     }
 
@@ -129,6 +115,16 @@ impl<'gcx> TypeLowerer<'gcx> {
         self.abi_return_shapes_inner(Self::return_encoding_ty(self.gcx, ty), DataLocation::Memory)
     }
 
+    /// Whether solc copies a calldata array of `element`s as one block: it does so for `uint256`
+    /// and `bytes32`, and reads every other element type one word at a time.
+    fn copies_as_block(element: Ty<'gcx>) -> bool {
+        match element.peel_refs().kind {
+            TyKind::Elementary(ElementaryType::UInt(size)) => size.bits() == 256,
+            TyKind::Elementary(ElementaryType::FixedBytes(size)) => size.bytes() == 32,
+            _ => false,
+        }
+    }
+
     /// Returns the semantic object layout for a memory-backed aggregate.
     pub(super) fn memory_layout(&self, ty: Ty<'gcx>) -> Option<MemoryObjectLayout> {
         Some(match ty.peel_refs().kind {
@@ -154,11 +150,11 @@ impl<'gcx> TypeLowerer<'gcx> {
         1
     }
 
-    fn abi_slice_location(ty: Ty<'_>) -> SliceLocation {
+    fn abi_slice_location(ty: Ty<'_>) -> PtrLocation {
         if ty.is_ref_at(DataLocation::Calldata) {
-            SliceLocation::Calldata
+            PtrLocation::Calldata
         } else {
-            SliceLocation::Memory
+            PtrLocation::Memory
         }
     }
 
@@ -290,6 +286,7 @@ impl<'gcx> TypeLowerer<'gcx> {
                     AbiType::FixedArray {
                         element: Box::new(abi_element),
                         len: u64::try_from(len).ok()?,
+                        block_copy: Self::copies_as_block(element),
                     },
                     AbiParamType::FixedArray {
                         element: Box::new(param_element),
@@ -357,6 +354,7 @@ impl<'gcx> TypeLowerer<'gcx> {
                     self.abi_type_inner(element.with_loc_if_ref(self.gcx, location), location)?,
                 ),
                 len: u64::try_from(len).ok()?,
+                block_copy: Self::copies_as_block(element),
             },
             TyKind::Struct(id) => {
                 if !self.seen_structs.insert(id) {

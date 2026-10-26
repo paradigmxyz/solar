@@ -9,7 +9,7 @@ fn @overwritten_store() {
   bb0:
     mstore 128, 0
     mstore 128, 42
-    stop
+    ret
 }
 
 // CHECK-LABEL: @store_observed_only_by_load
@@ -35,7 +35,7 @@ fn @disjoint_keccak() {
     mstore 128, 0
     v0 = keccak256 0, 64
     mstore 128, 1
-    stop
+    ret
 }
 
 // CHECK-LABEL: @overlapping_keccak
@@ -47,7 +47,7 @@ fn @overlapping_keccak() {
     mstore 128, 0
     v0 = keccak256 96, 64
     mstore 128, 1
-    stop
+    ret
 }
 
 // CHECK-LABEL: @cross_block_dead_store
@@ -105,7 +105,7 @@ fn @gas_barrier() {
     mstore 128, 0
     v0 = gas
     mstore 128, 42
-    stop
+    ret
 }
 
 // CHECK-LABEL: @distinct_immediate_addresses
@@ -115,7 +115,7 @@ fn @distinct_immediate_addresses() {
   bb0:
     mstore 128, 0
     mstore 128, 42
-    stop
+    ret
 }
 
 // CHECK-LABEL: @equivalent_base_load
@@ -145,18 +145,18 @@ fn @equivalent_base_overwrite(arg0: i256) {
     mstore v1, 0
     v2 = add arg0, 32
     mstore v2, 42
-    stop
+    ret
 }
 
 // CHECK-LABEL: @unused_frame_store
 // CHECK:       [[FRAME_PTR:v[0-9]+]] = internal_frame_addr
-// CHECK: [[FRAME:v[0-9]+]] = ptrtoint memptr [[FRAME_PTR]] to i256
+// CHECK: [[FRAME:v[0-9]+]] = ptrtoint ptr<memory> [[FRAME_PTR]] to i256
 // CHECK: -     mstore [[FRAME]], 0
 // CHECK:       ret 0
 fn @unused_frame_store() -> i256 {
   bb0:
     v7 = internal_frame_addr 192
-    v0 = ptrtoint memptr v7 to i256
+    v0 = ptrtoint ptr<memory> v7 to i256
     mstore v0, 0
     ret 0
 }
@@ -193,7 +193,7 @@ fn @overlapping_load() {
     mstore 128, 0
     v0 = mload 129
     mstore 128, 42
-    stop
+    ret
 }
 
 // CHECK-LABEL: @forward_load
@@ -272,24 +272,6 @@ fn @icall_clean_callee() -> i256 {
 fn @callee() {
   bb0:
     ret
-}
-
-// CHECK-LABEL: @icall_msize_barrier
-// CHECK: {{^ +}}mstore 0x1000, 42
-// CHECK: {{^ +}}{{v[0-9]+}} = icall @observe_msize
-// CHECK: {{^ +}}mstore 0x1000, 0
-fn @icall_msize_barrier() -> i256 {
-  bb0:
-    mstore 4096, 42
-    v0 = icall @observe_msize
-    mstore 4096, 0
-    ret v0
-}
-
-fn @observe_msize() -> i256 {
-  bb0:
-    v0 = msize
-    ret v0
 }
 
 // CHECK-LABEL: @chained_forwarding

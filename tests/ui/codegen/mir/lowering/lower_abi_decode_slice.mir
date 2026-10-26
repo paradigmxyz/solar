@@ -1,0 +1,34 @@
+//@ revisions: semantic lowered
+//@[semantic] compile-flags: -Zmir-pipeline=none
+//@[lowered] compile-flags: -Zmir-pipeline=lower-abi
+// A memory slice is decoded in place, with its pointer as the base and its length checked
+// against the head size, so no bytes object or length word is needed. A decoder that static
+// slice inputs share takes only the base: each caller checks its own length. A dynamic layout
+// keeps the slice, whose length bounds the tail offsets.
+@module LowerAbiDecodeSlice
+
+fn @inline(arg0: slice<memory>) -> i256 {
+  bb0:
+    v0 = abi_decode [uint256], arg0
+    ret v0
+}
+
+fn @shared(arg0: ptr<memory>, arg1: ptr<memory>) -> i256 {
+  bb0:
+    v0 = make_memory_slice arg0, 64
+    v1 = abi_decode [tuple<uint256, uint256>], v0
+    v7 = ptrtoint ptr<memory> arg1 to i256
+    v2 = make_memory_slice arg1, v7
+    v3 = abi_decode [tuple<uint256, uint256>], v2
+    v4 = mload v1
+    v9001 = ptradd v3, 32
+    v5 = mload v9001
+    v6 = add v4, v5
+    ret v6
+}
+
+fn @dynamic(arg0: slice<memory>) -> ptr<memory> {
+  bb0:
+    v0 = abi_decode [bytes], arg0
+    ret v0
+}

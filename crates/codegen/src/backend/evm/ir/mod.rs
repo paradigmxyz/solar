@@ -19,10 +19,13 @@ use crate::{
     backend::assembler::{self, assembly},
     link::{EmbeddedBytecodes, LibraryId, LibraryTable, RelocatableBytecode},
     mir::{ImmutableId, TypeSize},
+    target::Target,
 };
 use alloy_primitives::U256;
+use solar_config::EvmVersion;
 use solar_data_structures::{index::IndexVec, newtype_index};
 use solar_interface::{Span, Symbol};
+use solar_sema::Gcx;
 use std::fmt;
 
 pub(crate) use crate::link::{Data, DataBytes, DataId, DataRef, DataSize};
@@ -31,6 +34,7 @@ pub(in crate::backend) mod builder;
 mod display;
 mod parse;
 mod passes;
+pub(in crate::backend::evm) use passes::SharedSchedules;
 pub(crate) use passes::compact_pushes;
 pub(in crate::backend) mod verify;
 
@@ -44,7 +48,7 @@ pub(in crate::backend) use passes::{
         ImmediateMaterialization, ImmediateMaterializationOp, immediate_materialization_len,
     },
     data::pack_linked_data,
-    legalize_shifts,
+    legalize_revert,
 };
 
 /// Validates the target-independent invariants of an EVM IR module.
@@ -83,6 +87,12 @@ pub struct Module {
 }
 
 impl Module {
+    /// The cost model of this module's code: the creation model for creation code, which the
+    /// runtime artifact follows.
+    pub(crate) fn target(&self, gcx: Gcx<'_>) -> Target {
+        Target::new(gcx).priced_for(self.code_follows)
+    }
+
     /// Links embedded contract bytecode into deferred data, interning the bytecode's libraries
     /// into `libraries`.
     ///
@@ -237,6 +247,17 @@ impl Block {
             terminator: None,
         }
     }
+
+    /// Whether the block runs at most once per call of its code, outside every loop.
+    pub(crate) fn runs_once(&self) -> bool {
+        !self.metadata.in_loop && !self.metadata.repeats
+    }
+
+    /// The cost model of this block: the creation model for creation code, which the runtime
+    /// artifact follows (`code_follows`), unless the block may run more than once.
+    pub(crate) fn target(&self, gcx: Gcx<'_>, code_follows: bool) -> Target {
+        Target::new(gcx).priced_for(code_follows && self.runs_once())
+    }
 }
 
 /// Block-level metadata.
@@ -246,6 +267,10 @@ pub(crate) struct BlockMetadata {
     pub(crate) hotness: Hotness,
     /// Whether the block contains code from a known natural loop.
     pub(crate) in_loop: bool,
+    /// Whether the block may run more than once per deployment although it is not in a loop of
+    /// its own function: it belongs to creation code that a loop or recursion calls. Pricing
+    /// treats such blocks as runtime code.
+    pub(crate) repeats: bool,
     /// This label's address is used only for control transfer, never as an observable word.
     /// Hidden return targets and branches separated from their pushed labels by sharing carry
     /// this property. References may be redirected to an
@@ -296,7 +321,6 @@ pub(crate) struct Instruction {
 
 impl Instruction {
     const ENCODED_PUSH: u8 = 1;
-    const DEFERRED: u8 = 2;
     const IMMUTABLE: u8 = 4;
     const DATA: u8 = 8;
     const DATA_SIZE: u8 = 16;
@@ -402,19 +426,6 @@ impl Instruction {
         }
     }
 
-    /// Creates an encoded deferred push instruction.
-    #[must_use]
-    pub(in crate::backend) fn push_deferred(id: assembly::DeferredConst) -> Self {
-        assert!(
-            id.index() <= assembly::AsmInst::PAYLOAD_MASK as usize,
-            "deferred constant ID overflow"
-        );
-        Self::encoded_push(
-            PushValue::Immediate(U256::from(id.index())),
-            Self::ENCODED_PUSH | Self::DEFERRED,
-        )
-    }
-
     /// Creates an encoded immutable push instruction with a fixed immediate width.
     #[must_use]
     pub(in crate::backend) fn push_immutable(id: ImmutableId, type_size: TypeSize) -> Self {
@@ -462,7 +473,7 @@ impl Instruction {
 
     /// Returns a literal runtime word carried by an ordinary immediate push.
     ///
-    /// Deferred and immutable pushes encode internal IDs in the same payload variant, but their
+    /// Immutable pushes encode internal IDs in the same payload variant, but their
     /// runtime values are supplied later and must not participate in constant-value reasoning.
     #[must_use]
     pub(in crate::backend) const fn concrete_immediate(&self) -> Option<U256> {
@@ -491,16 +502,14 @@ impl Instruction {
     }
 
     /// Returns whether a repeated push of this value may reuse an earlier copy through `DUP`:
-    /// a nonzero immediate, which `PUSH0` does not already encode in one byte, or a size
-    /// derived from a data length.
+    /// an immediate other than a native `PUSH0`, or a size derived from a data length.
     #[must_use]
-    pub(in crate::backend) fn is_duplicable_push(&self) -> bool {
-        self.deferred_push().is_none()
-            && match self.value {
-                Some(PushValue::Immediate(value)) => !value.is_zero(),
-                Some(PushValue::DataSize(_)) => true,
-                _ => false,
-            }
+    pub(in crate::backend) fn is_duplicable_push(&self, evm_version: EvmVersion) -> bool {
+        match self.value {
+            Some(PushValue::Immediate(value)) => !value.is_zero() || !evm_version.has_push0(),
+            Some(PushValue::DataSize(_)) => true,
+            _ => false,
+        }
     }
 
     /// Returns the program-data size carried by this push instruction, if any.
@@ -528,9 +537,6 @@ impl Instruction {
                     f.write_str("push_library")
                 }
                 Self::ENCODED_PUSH => f.write_str("push"),
-                encoding if encoding == Self::ENCODED_PUSH | Self::DEFERRED => {
-                    f.write_str("push_deferred")
-                }
                 encoding if encoding == Self::ENCODED_PUSH | Self::IMMUTABLE => {
                     f.write_str("push_immutable")
                 }
@@ -576,18 +582,6 @@ impl Instruction {
             .and_then(|definition| definition.stack_io)
             .expect("verified instruction stack effect");
         StackEffect::new(inputs, outputs)
-    }
-
-    /// Returns the deferred constant referenced by this push instruction, if any.
-    #[must_use]
-    pub(in crate::backend) fn deferred_push(&self) -> Option<assembly::DeferredConst> {
-        if self.encoding & Self::DEFERRED == 0 {
-            return None;
-        }
-        let value = self.pushed_value().expect("deferred push must carry an immediate");
-        Some(assembly::DeferredConst::from_usize(
-            usize::try_from(value).expect("deferred constant ID must fit usize"),
-        ))
     }
 
     /// Returns the immutable identifier carried by this push instruction, if any.
@@ -689,12 +683,16 @@ pub(crate) enum TerminatorKind {
     Op(u8),
 }
 
+/// Most words an indexed jump holds above its index while it reads its target from a packed
+/// table.
+pub(crate) const INDEXED_JUMP_STACK_GROWTH: usize = 3;
+
 impl TerminatorKind {
     /// Returns the temporary stack growth introduced when lowering this terminator.
     #[must_use]
     pub(crate) fn lowering_stack_growth(&self, next: Option<BlockId>) -> usize {
         match self {
-            Self::IndexedJump(_) => 3,
+            Self::IndexedJump(_) => INDEXED_JUMP_STACK_GROWTH,
             Self::Jump(target) => usize::from(Some(*target) != next),
             Self::JumpI { .. } => 1,
             Self::Op(_) => 0,

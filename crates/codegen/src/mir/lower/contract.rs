@@ -1,6 +1,6 @@
 //! Contract-level lowering and function discovery.
 
-use super::{function, storage::StorageLayout, types::TypeLowerer};
+use super::{function, storage::StorageLayout};
 use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet, FxIndexSet},
@@ -8,6 +8,7 @@ use solar_data_structures::{
 use solar_interface::{ByteSymbol, Ident, kw, sym};
 use solar_sema::{
     Gcx,
+    eval::ConstValue,
     hir::{self, ContractId, Visit},
     ty::TyKind,
 };
@@ -21,23 +22,6 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
     let storage = StorageLayout::for_contract(gcx, contract_id);
-    let mut immutable_ids = FxHashMap::default();
-    for &base in contract.linearized_bases.iter().rev() {
-        for id in gcx.hir.contract(base).variables() {
-            let variable = gcx.hir.variable(id);
-            if !variable.is_state_variable() || !variable.is_immutable() {
-                continue;
-            }
-            let Some(name) = variable.name else { continue };
-            let mir_id = module.add_immutable(
-                name,
-                TypeLowerer::immutable_layout(gcx.type_of_item(id.into())),
-                Some(id),
-            );
-            immutable_ids.insert(id, mir_id);
-        }
-    }
-
     let mut function_ids = Vec::new();
     let mut seen_selectors = FxHashSet::default();
     let reachable = gcx.contract_reachable_functions(contract_id);
@@ -138,11 +122,23 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let function_ids =
         function_ids.into_iter().filter(|(id, _)| seen_ids.insert(*id)).collect::<Vec<_>>();
     state.analyze_raw_scalars(gcx, contract_id, &function_ids);
+    let mut immutable_ids = FxHashMap::default();
+    for &base in contract.linearized_bases.iter().rev() {
+        for id in gcx.hir.contract(base).variables() {
+            let variable = gcx.hir.variable(id);
+            if !variable.is_state_variable() || !variable.is_immutable() {
+                continue;
+            }
+            let Some(name) = variable.name else { continue };
+            let mir_id = module.add_immutable(name, state.immutable_layout(gcx, id), Some(id));
+            immutable_ids.insert(id, mir_id);
+        }
+    }
     let is_library = contract.kind == hir::ContractKind::Library;
     module.is_library = is_library;
-    // A library's non-view external functions may only run through `DELEGATECALL`. Like
-    // solc, the dispatch compares `address()` against the library's own deployment address,
-    // which the creation code patches into the runtime code like an immutable.
+    // A library's non-view external functions may only run through `DELEGATECALL`. The
+    // dispatch compares `address()` against the library's own deployment address, which the
+    // creation code patches into the runtime code like an immutable.
     let library_deploy_address = (is_library
         && function_ids.iter().any(|&(id, expose_selector)| {
             expose_selector
@@ -192,13 +188,14 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let has_implicit_base_constructors =
         contract.linearized_bases.iter().skip(1).any(|&base| gcx.hir.contract(base).ctor.is_some())
             || contract.linearized_bases_args.iter().any(Option::is_some);
+    let bytecode_dependencies = gcx.contract_bytecode_dependencies(contract_id);
     let synthetic_ok = (|| {
         let mut context = function::LoweringContext {
             gcx,
             module: &mut module,
             storage: &storage,
             contract_id,
-            bytecode_dependencies: gcx.contract_bytecode_dependencies(contract_id),
+            bytecode_dependencies: &bytecode_dependencies,
             function_ids: &mir_ids,
             immutable_ids: &immutable_ids,
             state: &mut state,
@@ -297,7 +294,7 @@ fn shared_string_literals(
     function_ids: &[(hir::FunctionId, bool)],
 ) -> (FxIndexSet<ByteSymbol>, FxHashSet<ByteSymbol>) {
     struct Counter<'hir> {
-        hir: &'hir hir::Hir<'hir>,
+        gcx: Gcx<'hir>,
         counts: FxHashMap<ByteSymbol, usize>,
     }
 
@@ -305,28 +302,24 @@ fn shared_string_literals(
         type BreakValue = Never;
 
         fn hir(&self) -> &'hir hir::Hir<'hir> {
-            self.hir
+            &self.gcx.hir
         }
 
         fn visit_expr(&mut self, expr: &'hir hir::Expr<'hir>) -> ControlFlow<Self::BreakValue> {
-            if let hir::ExprKind::Lit(lit) = expr.kind
-                && let solar_ast::LitKind::Str(_, bytes, _) = lit.kind
+            let is_constant = match expr.kind {
+                hir::ExprKind::Lit(_) => true,
+                _ => expr.as_variable().is_some_and(|id| self.gcx.hir.variable(id).is_constant()),
+            };
+            if is_constant
+                && let Ok(ConstValue::Bytes(bytes, _)) = self.gcx.const_eval().eval_expr(expr)
             {
-                *self.counts.entry(bytes).or_default() += 1;
-            }
-            if let Some(variable_id) = expr.as_variable()
-                && self.hir.variable(variable_id).is_constant()
-                && let Some(initializer) = self.hir.variable(variable_id).initializer
-                && let hir::ExprKind::Lit(lit) = initializer.peel_parens().kind
-                && let solar_ast::LitKind::Str(_, bytes, _) = lit.kind
-            {
-                *self.counts.entry(bytes).or_default() += 1;
+                *self.counts.entry(*bytes).or_default() += 1;
             }
             self.walk_expr(expr)
         }
     }
 
-    let mut counter = Counter { hir: &gcx.hir, counts: FxHashMap::default() };
+    let mut counter = Counter { gcx, counts: FxHashMap::default() };
     for &(function_id, _) in function_ids {
         let _ = counter.visit_function(gcx.hir.function(function_id));
     }
@@ -363,7 +356,6 @@ pub(super) fn declaration(
         is_constructor: function.kind == hir::FunctionKind::Constructor,
         is_fallback: function.kind == hir::FunctionKind::Fallback,
         is_receive: function.kind == hir::FunctionKind::Receive,
-        is_yul: function.is_yul,
         may_return_memory: false,
         is_function_pointer_dispatcher: false,
         no_inline: false,

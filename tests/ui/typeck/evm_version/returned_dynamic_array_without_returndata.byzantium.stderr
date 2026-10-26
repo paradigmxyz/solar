@@ -1,0 +1,8 @@
+warning[6321]: unnamed return variable can remain unassigned
+   ╭▸ ROOT/tests/ui/typeck/evm_version/returned_dynamic_array_without_returndata.sol:LL:CC
+   │
+LL │     function test() public view returns (bool) {
+   │                                          ━━━━
+   │
+   ╰ help: add an explicit return with value to all non-reverting code paths or name the variable
+

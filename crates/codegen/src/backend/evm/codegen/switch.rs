@@ -3,11 +3,16 @@
 //! Constant switches start as MIR `switch` terminators. This module compares
 //! several EVM shapes for the same sorted case values: a source-ordered linear
 //! scan, a balanced binary tree, modulo buckets, a bounds-checked dense table,
-//! and collision-free bit-slice or affine hashes. Each candidate models both
+//! and collision-free bit-slice or affine hashes. Bucket counts range from
+//! short tables of four to sixty-four slots, whose chains replace the top
+//! levels of a tree in one indexed jump, up to about one case per slot; a
+//! power-of-two count hashes with a mask. Each candidate models both
 //! hit and miss paths, including the default cleanup sequence and the later
 //! block-layout effects that change label widths.
 //!
-//! Gas mode limits extra code and ranks candidates by the modeled runtime cost.
+//! Gas mode ranks switches emitted in the dispatch entry by their lifetime cost: modeled
+//! runtime over the expected calls plus the deposit of their code. Other switches
+//! rank by modeled runtime cost within an artifact-wide code-growth budget.
 //! Size mode uses conservative label widths while selecting a plan and lets the
 //! EVM IR layout pass recover safe local-width and fallthrough wins. The emitter
 //! keeps the original case order for linear scans and uses sorted values only
@@ -18,7 +23,7 @@ use crate::{
     backend::{
         assembler::{
             Label,
-            assembly::{estimated_indexed_jump_code_size, packs_indexed_jump},
+            assembly::{TablePacking, estimated_indexed_jump_code_size, packs_indexed_jump},
         },
         evm::{
             ir::immediate_materialization_cost,
@@ -52,7 +57,10 @@ const JUMPDEST_GAS: usize = GasTier::Jumpdest.fixed_gas() as usize;
 const PACKED_TERMINAL_TARGET_MAX_SIZE: usize = 2;
 const MIN_BUCKET_CASES: usize = 2;
 // Bound table footprint and the number of bucket blocks processed by EVM IR passes.
-const MAX_BUCKET_CASES: usize = 64;
+// Lifetime pricing weighs the selector switch's footprint itself, so the bound only
+// needs to keep the table searches small; 128 cases admit large ABIs such as a full
+// set of integer casts.
+const MAX_BUCKET_CASES: usize = 128;
 const MAX_PERFECT_BIT_TABLE_SIZE: usize = 256;
 const MAX_DENSE_RANGE: usize = 4096;
 const MAX_BUCKET_CANDIDATES: usize = 33;
@@ -60,7 +68,9 @@ const MAX_BUCKET_CANDIDATES: usize = 33;
 // their individual gas-mode growth at a round conservative plateau under unknown
 // case frequencies.
 pub(super) const MAX_BIT_SLICE_GAS_CODE_GROWTH: usize = 80;
-/// Bounds cumulative bytecode growth per artifact under the runtime-gas objective.
+/// Bounds cumulative bytecode growth per artifact under the runtime-gas objective
+/// for switches without an execution estimate. The external selector switch
+/// weighs its deposit against its expected calls instead.
 ///
 /// Keep this a round policy limit rather than fitting it to a corpus transition.
 pub(super) const MAX_GAS_CODE_GROWTH: usize = 192;
@@ -120,6 +130,9 @@ pub(super) struct SwitchPlanOptions {
     /// Conservative bound from the assembler's artifact context. Final EVM
     /// IR lowering chooses the exact width for each table.
     pub(super) table_target_width: usize,
+    /// Whether table entries wider than one byte may be packed into words
+    /// (`-Zpack-wide-jump-tables`).
+    pub(super) pack_wide_jump_tables: bool,
     pub(super) max_gas_code_growth: usize,
     pub(super) max_bit_slice_gas_code_growth: usize,
     pub(super) forced: SwitchLowering,
@@ -224,6 +237,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         expected_executions,
         default,
         table_target_width,
+        pack_wide_jump_tables,
         max_gas_code_growth,
         max_bit_slice_gas_code_growth,
         forced,
@@ -313,6 +327,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                                 evm_version,
                                 explicit_default,
                                 table_target_width,
+                                pack_wide_jump_tables,
                             ),
                             SwitchPlan::Buckets { bucket_count },
                         )
@@ -325,6 +340,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 default,
                 table_target_width,
                 layout.shared_case_continuation,
+                pack_wide_jump_tables,
             )
             .map(|(low, range, cost)| (cost, SwitchPlan::Dense { low, range })),
             SwitchLowering::Perfect => perfect_hash_candidates_with_tests(
@@ -333,6 +349,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 evm_version,
                 default,
                 table_target_width,
+                pack_wide_jump_tables,
             )
             .into_iter()
             .min_by_key(|&(cost, _)| plan_cost_key(cost, optimization)),
@@ -414,6 +431,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 evm_version,
                 explicit_default,
                 table_target_width,
+                pack_wide_jump_tables,
             );
             if gas_candidate_is_better(
                 cost,
@@ -432,6 +450,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         default,
         table_target_width,
         layout.shared_case_continuation,
+        pack_wide_jump_tables,
     ) {
         let better = match optimization {
             OptimizationMode::Gas => gas_candidate_is_better(
@@ -462,6 +481,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         evm_version,
         default,
         table_target_width,
+        pack_wide_jump_tables,
     ) {
         let better = match optimization {
             OptimizationMode::Gas => {
@@ -847,15 +867,20 @@ fn binary_leaf_sizes(len: usize) -> Vec<usize> {
 fn bucket_count_candidates(len: usize) -> Vec<usize> {
     let first = (len.saturating_mul(3) / 4).max(2);
     let last = len.saturating_mul(5) / 4;
+    // Fewer buckets scan longer chains through a smaller table, between a
+    // balanced tree's leaves and one case per slot. Powers of two up to 64
+    // keep the table packable and the search bounded.
+    let short_tables = (2..=6).map(|shift| 1usize << shift).filter(|&count| count < first);
     let count = last - first + 1;
     if count <= MAX_BUCKET_CANDIDATES {
-        return (first..=last).collect();
+        return short_tables.chain(first..=last).collect();
     }
 
     let span = last - first;
     let denominator = MAX_BUCKET_CANDIDATES - 1;
     let mut candidates = (0..MAX_BUCKET_CANDIDATES)
         .map(|index| first + span.saturating_mul(index) / denominator)
+        .chain(short_tables)
         .collect::<Vec<_>>();
     candidates.push(len);
     candidates.sort_unstable();
@@ -870,17 +895,23 @@ fn bucket_lowering_cost_with_tests(
     evm_version: EvmVersion,
     default: SwitchDefault,
     table_target_width: usize,
+    pack_wide_jump_tables: bool,
 ) -> LoweringCost {
     debug_assert!(!default.can_fallthrough());
     debug_assert_eq!(values.len(), equality_costs.len());
-    let hash_len = 1 + push_len(evm_version, U256::from(bucket_count)) + 1 + 1;
-    let hash_gas = VERY_LOW_GAS * 3 + MOD_GAS;
+    // bucket = and value, count - 1 (a power of two), or mod value, count
+    let (hash_len, hash_gas) = if bucket_count.is_power_of_two() {
+        (1 + push_len(evm_version, U256::from(bucket_count - 1)) + 1, VERY_LOW_GAS * 3)
+    } else {
+        (1 + push_len(evm_version, U256::from(bucket_count)) + 1 + 1, VERY_LOW_GAS * 3 + MOD_GAS)
+    };
     let (mut cost, dispatch_gas) = indexed_jump_dispatch_cost(
         values.len(),
         bucket_count,
         (hash_len, hash_gas),
         evm_version,
         table_target_width,
+        pack_wide_jump_tables,
     );
 
     let mut bucket_path_gas = vec![0; bucket_count];
@@ -914,10 +945,12 @@ fn indexed_jump_dispatch_cost(
     hash: (usize, usize),
     evm_version: EvmVersion,
     table_target_width: usize,
+    pack_wide_jump_tables: bool,
 ) -> (LoweringCost, usize) {
     let (hash_len, hash_gas) = hash;
     let indexed_jump_gas =
-        indexed_jump_gas(table_len, table_target_width, evm_version) + JUMPDEST_GAS;
+        indexed_jump_gas(table_len, table_target_width, evm_version, pack_wide_jump_tables)
+            + JUMPDEST_GAS;
     let dispatch_gas = hash_gas + indexed_jump_gas;
     let cost = LoweringCost {
         code_size: hash_len
@@ -926,7 +959,7 @@ fn indexed_jump_dispatch_cost(
                 table_target_width,
                 1,
                 evm_version,
-                table_target_width == 1,
+                TablePacking { two_words: table_target_width == 1, wide: pack_wide_jump_tables },
             ),
         max_code_size: hash_len
             + estimated_indexed_jump_code_size(
@@ -934,7 +967,7 @@ fn indexed_jump_dispatch_cost(
                 table_target_width,
                 table_target_width,
                 evm_version,
-                false,
+                TablePacking { two_words: false, wide: pack_wide_jump_tables },
             ),
         hit_gas_sum: dispatch_gas * case_count,
         miss_gas: dispatch_gas,
@@ -942,6 +975,7 @@ fn indexed_jump_dispatch_cost(
     (cost, dispatch_gas)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn bounded_indexed_jump_cost(
     values: &[U256],
     range: usize,
@@ -950,13 +984,15 @@ fn bounded_indexed_jump_cost(
     default: SwitchDefault,
     table_target_width: usize,
     shared_case_continuation: bool,
+    pack_wide_jump_tables: bool,
 ) -> LoweringCost {
     let (hash_len, hash_gas) = hash;
     let bounds_prefix_len = 1 + push_len(evm_version, U256::from(range)) + 1;
     let bounds_len = bounds_prefix_len + MIN_LABEL_PUSH_LEN + 1;
     let max_bounds_len = bounds_prefix_len + max_label_push_len(table_target_width) + 1;
     let bounds_gas = VERY_LOW_GAS * 4 + JUMPI_GAS;
-    let indexed_jump_gas = indexed_jump_gas(range, table_target_width, evm_version);
+    let indexed_jump_gas =
+        indexed_jump_gas(range, table_target_width, evm_version, pack_wide_jump_tables);
     let continuation_gas = usize::from(shared_case_continuation) * DEFAULT_JUMP_GAS;
     let hit_gas = hash_gas + bounds_gas + JUMPDEST_GAS + indexed_jump_gas + continuation_gas;
     let default_body_gas =
@@ -978,7 +1014,7 @@ fn bounded_indexed_jump_cost(
                 table_target_width,
                 1,
                 evm_version,
-                table_target_width == 1,
+                TablePacking { two_words: table_target_width == 1, wide: pack_wide_jump_tables },
             )
             + usize::from(shared_case_continuation) * MIN_DEFAULT_JUMP_LEN,
         max_code_size: hash_len
@@ -991,7 +1027,7 @@ fn bounded_indexed_jump_cost(
                 table_target_width,
                 table_target_width,
                 evm_version,
-                false,
+                TablePacking { two_words: false, wide: pack_wide_jump_tables },
             ),
         hit_gas_sum: hit_gas * values.len(),
         miss_gas,
@@ -1004,6 +1040,7 @@ fn dense_lowering_cost(
     default: SwitchDefault,
     table_target_width: usize,
     shared_case_continuation: bool,
+    pack_wide_jump_tables: bool,
 ) -> Option<(U256, usize, LoweringCost)> {
     let low = *values.first()?;
     let high = *values.last()?;
@@ -1026,6 +1063,7 @@ fn dense_lowering_cost(
             default,
             table_target_width,
             shared_case_continuation,
+            pack_wide_jump_tables,
         ),
     ))
 }
@@ -1036,12 +1074,20 @@ fn perfect_hash_candidates_with_tests(
     evm_version: EvmVersion,
     default: SwitchDefault,
     table_target_width: usize,
+    pack_wide_jump_tables: bool,
 ) -> Vec<(LoweringCost, SwitchPlan)> {
     debug_assert_eq!(values.len(), equality_costs.len());
     let mut candidates = Vec::with_capacity(4);
     if let Some(hash @ PerfectHash::Affine { .. }) = affine_hash(values, evm_version) {
         candidates.push((
-            affine_lowering_cost(values, hash, evm_version, default, table_target_width),
+            affine_lowering_cost(
+                values,
+                hash,
+                evm_version,
+                default,
+                table_target_width,
+                pack_wide_jump_tables,
+            ),
             SwitchPlan::Perfect { hash },
         ));
     }
@@ -1082,6 +1128,7 @@ fn perfect_hash_candidates_with_tests(
                             evm_version,
                             default.without_fallthrough(),
                             table_target_width,
+                            pack_wide_jump_tables,
                         ),
                         SwitchPlan::Perfect { hash },
                     ));
@@ -1102,6 +1149,7 @@ fn bit_slice_lowering_cost_with_tests(
     evm_version: EvmVersion,
     default: SwitchDefault,
     table_target_width: usize,
+    pack_wide_jump_tables: bool,
 ) -> LoweringCost {
     let PerfectHash::BitSlice { shift, mask } = hash else { unreachable!() };
     debug_assert!(!default.can_fallthrough());
@@ -1119,6 +1167,7 @@ fn bit_slice_lowering_cost_with_tests(
         (hash_len, hash_gas),
         evm_version,
         table_target_width,
+        pack_wide_jump_tables,
     );
 
     debug_assert_eq!(values.len(), equality_costs.len());
@@ -1194,6 +1243,7 @@ fn affine_lowering_cost(
     evm_version: EvmVersion,
     default: SwitchDefault,
     table_target_width: usize,
+    pack_wide_jump_tables: bool,
 ) -> LoweringCost {
     let PerfectHash::Affine { low, multiplier, rotate, range } = hash else { unreachable!() };
     let (low_len, low_gas) = immediate_materialization_cost(evm_version, low);
@@ -1213,6 +1263,7 @@ fn affine_lowering_cost(
         default,
         table_target_width,
         false,
+        pack_wide_jump_tables,
     )
 }
 
@@ -1265,8 +1316,13 @@ pub(super) fn affine_index(value: U256, low: U256, multiplier: U256, rotate: usi
     usize::try_from(hashed).expect("affine switch hash must fit usize")
 }
 
-fn indexed_jump_gas(table_size: usize, target_width: usize, evm_version: EvmVersion) -> usize {
-    if packs_indexed_jump(table_size, target_width, evm_version) {
+fn indexed_jump_gas(
+    table_size: usize,
+    target_width: usize,
+    evm_version: EvmVersion,
+    pack_wide_jump_tables: bool,
+) -> usize {
+    if packs_indexed_jump(table_size, target_width, evm_version, pack_wide_jump_tables) {
         let scale = target_width * 8;
         VERY_LOW_GAS * 6 + if scale.is_power_of_two() { VERY_LOW_GAS } else { MUL_GAS } + JUMP_GAS
     } else {
@@ -1502,19 +1558,16 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let mid = entries.len() / 2;
         let left_label = self.asm.new_label();
-        let entry_stack = self.scheduler.stack.clone();
 
         // With the pivot on top, GT computes `pivot > selector`.
-        self.emit_stack_op(StackOp::Dup(1));
-        self.emit_operand(func, entries[mid].value_id);
+        self.asm.emit_stack_op(StackOp::Dup(1));
+        self.emit_case_value(func, entries[mid].value_id);
         self.asm.emit_op(op::GT);
-        self.scheduler.instruction_executed_untracked(2);
         self.emit_conditional_jump(left_label, false);
 
         self.emit_binary_mir_switch(func, &entries[mid..], default, false, leaf_size);
 
         self.asm.define_label(left_label);
-        self.scheduler.stack = entry_stack;
         self.emit_binary_mir_switch(func, &entries[..mid], default, can_fallthrough, leaf_size);
     }
 
@@ -1544,19 +1597,21 @@ impl<'gcx> EvmCodegen<'gcx> {
             })
             .collect();
 
-        self.emit_stack_op(StackOp::Dup(1));
-        self.asm.emit_push(U256::from(bucket_count));
-        self.scheduler.stack.push_unknown();
-        self.emit_stack_op(StackOp::Swap(1));
-        self.asm.emit_op(op::MOD);
-        self.scheduler.instruction_executed_untracked(2);
+        self.asm.emit_stack_op(StackOp::Dup(1));
+        if bucket_count.is_power_of_two() {
+            // bucket = and value, count - 1
+            self.asm.emit_push(U256::from(bucket_count - 1));
+            self.asm.emit_op(op::AND);
+        } else {
+            // bucket = mod value, count
+            self.asm.emit_push(U256::from(bucket_count));
+            self.asm.emit_stack_op(StackOp::Swap(1));
+            self.asm.emit_op(op::MOD);
+        }
         self.asm.emit_indexed_jump(bucket_labels.clone());
-        self.scheduler.stack.pop();
 
-        let entry_stack = self.scheduler.stack.clone();
         if let Some(empty_label) = empty_label {
             self.asm.define_label(empty_label);
-            self.scheduler.stack = entry_stack.clone();
             self.emit_mir_switch_default(default, false);
         }
         let last_bucket = buckets.iter().rposition(|bucket| !bucket.is_empty()).unwrap();
@@ -1565,7 +1620,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 continue;
             }
             self.asm.define_label(label);
-            self.scheduler.stack = entry_stack.clone();
             for entry in bucket {
                 self.emit_mir_switch_eq_jump(func, entry.value_id, Some(entry.value), entry.target);
             }
@@ -1589,10 +1643,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         if !low.is_zero() {
             self.asm.emit_push(low);
-            self.scheduler.stack.push_unknown();
-            self.emit_stack_op(StackOp::Swap(1));
+            self.asm.emit_stack_op(StackOp::Swap(1));
             self.asm.emit_op(op::SUB);
-            self.scheduler.instruction_executed_untracked(2);
         }
         self.emit_bounded_indexed_jump(default, range, targets);
     }
@@ -1642,26 +1694,19 @@ impl<'gcx> EvmCodegen<'gcx> {
             })
             .collect::<Vec<_>>();
 
-        self.emit_stack_op(StackOp::Dup(1));
+        self.asm.emit_stack_op(StackOp::Dup(1));
         if shift != 0 {
             self.asm.emit_push(U256::from(shift));
-            self.scheduler.stack.push_unknown();
             self.asm.emit_op(op::SHR);
-            self.scheduler.instruction_executed_untracked(2);
         }
         self.asm.emit_push(U256::from(mask));
-        self.scheduler.stack.push_unknown();
         self.asm.emit_op(op::AND);
-        self.scheduler.instruction_executed_untracked(2);
         self.asm.emit_indexed_jump(slot_labels.clone());
-        self.scheduler.stack.pop();
 
-        let entry_stack = self.scheduler.stack.clone();
         let last_slot = slots.iter().rposition(Option::is_some).unwrap();
         for (index, (label, entry)) in slot_labels.into_iter().zip(slots).enumerate() {
             let Some(entry) = entry else { continue };
             self.asm.define_label(label);
-            self.scheduler.stack = entry_stack.clone();
             self.emit_mir_switch_eq_jump_with_miss(
                 func,
                 entry.value_id,
@@ -1684,7 +1729,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         if let Some(miss_label) = miss_label {
             self.asm.define_label(miss_label);
-            self.scheduler.stack = entry_stack;
             self.emit_mir_switch_default(default, can_fallthrough);
         }
     }
@@ -1706,52 +1750,38 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         if !low.is_zero() {
             self.asm.emit_push(low);
-            self.scheduler.stack.push_unknown();
-            self.emit_stack_op(StackOp::Swap(1));
+            self.asm.emit_stack_op(StackOp::Swap(1));
             self.asm.emit_op(op::SUB);
-            self.scheduler.instruction_executed_untracked(2);
         }
         if multiplier != U256::ONE {
             self.asm.emit_push(multiplier);
-            self.scheduler.stack.push_unknown();
             self.asm.emit_op(op::MUL);
-            self.scheduler.instruction_executed_untracked(2);
         }
         if rotate != 0 {
-            self.emit_stack_op(StackOp::Dup(1));
+            self.asm.emit_stack_op(StackOp::Dup(1));
             self.asm.emit_push(U256::from(rotate));
-            self.scheduler.stack.push_unknown();
             self.asm.emit_op(op::SHR);
-            self.scheduler.instruction_executed_untracked(2);
-            self.emit_stack_op(StackOp::Swap(1));
+            self.asm.emit_stack_op(StackOp::Swap(1));
             self.asm.emit_push(U256::from(256 - rotate));
-            self.scheduler.stack.push_unknown();
             self.asm.emit_op(op::SHL);
-            self.scheduler.instruction_executed_untracked(2);
             self.asm.emit_op(op::OR);
-            self.scheduler.instruction_executed_untracked(2);
         }
         self.emit_bounded_indexed_jump(default, range, targets);
     }
 
     fn emit_bounded_indexed_jump(&mut self, default: BlockId, range: usize, targets: Vec<Label>) {
         let in_range = self.asm.new_label();
-        self.emit_stack_op(StackOp::Dup(1));
+        self.asm.emit_stack_op(StackOp::Dup(1));
         self.asm.emit_push(U256::from(range));
-        self.scheduler.stack.push_unknown();
         self.asm.emit_op(op::GT);
-        self.scheduler.instruction_executed_untracked(2);
         self.emit_conditional_jump(in_range, false);
 
-        let indexed_stack = self.scheduler.stack.clone();
-        self.emit_stack_op(StackOp::Pop);
-        self.emit_push_label(self.block_labels[&default]);
+        self.asm.emit_stack_op(StackOp::Pop);
+        self.asm.emit_push_label(self.block_labels[&default]);
         self.asm.emit_op(op::JUMP);
 
         self.asm.define_label(in_range);
-        self.scheduler.stack = indexed_stack;
         self.asm.emit_indexed_jump(targets);
-        self.scheduler.stack.pop();
     }
 
     fn emit_mir_switch_eq_jump(
@@ -1773,14 +1803,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         miss: Option<Label>,
     ) {
         // dup selector; [push value; eq/sub]; jumpi [iszero] condition, target/next
-        self.emit_stack_op(StackOp::Dup(1));
+        self.asm.emit_stack_op(StackOp::Dup(1));
         let compare_zero = value.is_some_and(|value| value.is_zero())
             && self.gcx.sess.opts.optimization != OptimizationMode::None;
         if !compare_zero {
-            self.emit_operand(func, value_id);
+            self.emit_case_value(func, value_id);
             // A miss needs only nonzero, so subtraction avoids EQ followed by ISZERO.
             self.asm.emit_op(if self.emitting_entry { op::EQ } else { op::SUB });
-            self.scheduler.instruction_executed_untracked(2);
         }
         if self.emitting_entry {
             self.emit_conditional_jump(self.block_labels[&target], compare_zero);
@@ -1788,24 +1817,22 @@ impl<'gcx> EvmCodegen<'gcx> {
             let next = miss.unwrap_or_else(|| self.asm.new_label());
             self.emit_conditional_jump(next, false);
 
-            let next_stack = self.scheduler.stack.clone();
-            self.emit_stack_op(StackOp::Pop);
-            self.emit_push_label(self.block_labels[&target]);
+            self.asm.emit_stack_op(StackOp::Pop);
+            self.asm.emit_push_label(self.block_labels[&target]);
             self.asm.emit_op(op::JUMP);
 
             if miss.is_none() {
                 self.asm.define_label(next);
-                self.scheduler.stack = next_stack;
             }
         }
     }
 
     fn emit_mir_switch_default(&mut self, default: BlockId, can_fallthrough: bool) {
         if !self.emitting_entry {
-            self.emit_stack_op(StackOp::Pop);
+            self.asm.emit_stack_op(StackOp::Pop);
         }
         if !can_fallthrough {
-            self.emit_push_label(self.block_labels[&default]);
+            self.asm.emit_push_label(self.block_labels[&default]);
             self.asm.emit_op(op::JUMP);
         }
     }
@@ -1813,13 +1840,14 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn emit_switch_terminator(
         &mut self,
         func: &Function,
-        value: ValueId,
         default: BlockId,
         cases: &[(ValueId, BlockId)],
         fallthrough: Option<BlockId>,
-        preserve_stack: bool,
     ) {
         let constant_entries = self.constant_switch_entries(func, cases);
+        // A switch in the dispatch entry prices its deposit over the expected calls, so
+        // only switches without an execution estimate draw on the budget.
+        let lifetime_priced = self.emitting_entry;
         let plan = constant_entries.as_ref().map_or(
             SwitchSelection { plan: SwitchPlan::Linear, gas_code_growth: 0 },
             |(linear_values, entries)| {
@@ -1837,12 +1865,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                     SwitchPlanOptions {
                         optimization: self.gcx.sess.opts.optimization,
                         evm_version: self.gcx.sess.opts.evm_version,
-                        expected_executions: self
-                            .emitting_entry
+                        expected_executions: lifetime_priced
                             .then(|| Target::new(self.gcx).expected_executions()),
                         default,
                         table_target_width: self.asm.indexed_jump_target_width_bound(),
-                        max_gas_code_growth: self.switch_gas_code_growth_remaining,
+                        pack_wide_jump_tables: self.gcx.sess.opts.unstable.pack_wide_jump_tables,
+                        max_gas_code_growth: if lifetime_priced {
+                            usize::MAX
+                        } else {
+                            self.switch_gas_code_growth_remaining
+                        },
                         max_bit_slice_gas_code_growth: self
                             .gcx
                             .sess
@@ -1856,44 +1888,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 )
             },
         );
-        self.switch_gas_code_growth_remaining =
-            self.switch_gas_code_growth_remaining.saturating_sub(plan.gas_code_growth);
+        if !lifetime_priced {
+            self.switch_gas_code_growth_remaining =
+                self.switch_gas_code_growth_remaining.saturating_sub(plan.gas_code_growth);
+        }
         let plan = plan.plan;
         let constant_entries = constant_entries.map(|(_, entries)| entries);
-
-        if preserve_stack {
-            debug_assert_eq!(self.scheduler.stack.top(), Some(value));
-        } else if self.emitting_entry {
-            // The entry's just-computed selector stays on the stack
-            // through the case chain — no spill, clear, and reload —
-            // and is left inert below the taken arm instead of paying
-            // a POP. Every successor terminates externally and the
-            // entry runs once, so the leftover word cannot accumulate.
-            self.emit_value(func, value);
-            while self.scheduler.depth() > 1 {
-                self.emit_stack_op(StackOp::Swap(1));
-                self.emit_stack_op(StackOp::Pop);
-            }
-        } else {
-            let mut operands = Vec::with_capacity(cases.len() + 1);
-            operands.push(value);
-            operands.extend(cases.iter().map(|(case_val, _)| *case_val));
-            self.spill_values_before_stack_clear(func, &operands);
-
-            if self.scheduler.is_stack_only_value(value) {
-                // A stack-only scrutinee has no memory home to reload after
-                // the drain. Copy it to the top while it is still tracked and
-                // pop the rest from beneath, like the entry dispatch path.
-                self.emit_value(func, value);
-                while self.scheduler.depth() > 1 {
-                    self.emit_stack_op(StackOp::Swap(1));
-                    self.emit_stack_op(StackOp::Pop);
-                }
-            } else {
-                self.pop_all_stack_values();
-                self.emit_value(func, value);
-            }
-        }
 
         match (plan, constant_entries) {
             (SwitchPlan::Binary { leaf_size }, Some(entries)) => {
@@ -1931,5 +1931,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_mir_switch_default(default, fallthrough == Some(default));
             }
         }
+    }
+
+    /// Pushes a constant case value.
+    fn emit_case_value(&mut self, func: &Function, value: ValueId) {
+        let value = func.value_u256(value).expect("switch case values are constants");
+        self.asm.emit_push(value);
     }
 }

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/function_pointer_inline_array_options.sol:FunctionPointerInlineArrayOptions ===
 @module FunctionPointerInlineArrayOptions
-fn @f() -> i256 [selector=0x26121ff0, payable, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @f() -> i256 [selector=0x26121ff0, payable, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = callvalue
     v1 = gt v0, 0
@@ -9,7 +9,7 @@ fn @f() -> i256 [selector=0x26121ff0, payable, abi_params=[], abi_returns=[word]
     ret 1
 }
 
-fn @g() -> i256 [selector=0xe2179b8e, payable, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @g() -> i256 [selector=0xe2179b8e, payable, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = callvalue
     v1 = gt v0, 0
@@ -18,42 +18,42 @@ fn @g() -> i256 [selector=0xe2179b8e, payable, abi_params=[], abi_returns=[word]
     ret 2
 }
 
-fn @h() -> i256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @h() -> i256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc 64
     v1 = address
     v2 = zext i160 v1 to i256
-    v3 = shl 32, v2
+    v3 = shl v2, 32
     v4 = or v3, 0x26121ff0
-    v5 = shl 64, v4
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v5
+    v5 = shl v4, 64
+    mstore v0, v5
     v6 = address
     v7 = zext i160 v6 to i256
-    v8 = shl 32, v7
+    v8 = shl v7, 32
     v9 = or v8, 0xe2179b8e
-    v10 = shl 64, v9
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v10
-    v11 = lt 0, 2
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v14 = shr 64, v13
-    v15 = and v14, 0xffffffff
-    v16 = shl 224, v15
-    v17 = shr 32, v14
-    v18 = gas
-    v19 = abi_encode [], selector v16
-    v20 = slice_ptr v19
-    v21 = slice_len v19
-    v22 = call v18, v17, 1, v20, v21, 0, 32
-    jumpi v22, bb2, bb1
+    v10 = shl v9, 64
+    v11 = ptradd v0, 32
+    mstore v11, v10
+    v12 = lt 0, 2
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = mload v0
+    v15 = shr v14, 64
+    v16 = and v15, 0xffffffff
+    v17 = shl v16, 224
+    v18 = shr v15, 32
+    v19 = gas
+    v20 = shr v17, 224
+    mstore 0, v20 !metadata(memory=scratch)
+    v21 = call v19, v18, 1, 28, 4, 0, 32
+    jumpi v21, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v23 = returndatasize
-    v24 = lt v23, 32
-    icall revert_if<tuple_data_too_short>, v24
-    v25 = add 0, 0
-    v26 = mload v25
-    ret v26
+    v22 = returndatasize
+    v23 = lt v22, 32
+    icall revert_if<tuple_data_too_short>, v23
+    v24 = add 0, 0
+    v25 = mload v24
+    ret v25
 }

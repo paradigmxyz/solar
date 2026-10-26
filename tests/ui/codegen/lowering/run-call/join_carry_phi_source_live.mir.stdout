@@ -10,15 +10,15 @@ fn @helper(arg0: i256, arg1: i256) -> i256 [pure] {
   bb2:
     jump bb3
   bb3:
-    v1 = checked_sub u256, arg0, 1
-    v2 = checked_add u256, arg1, 1
+    v1 = checked_sub uint256, arg0, 1
+    v2 = checked_add uint256, arg1, 1
     v3 = icall @helper, v1, v2
     ret v3
   bb1:
     ret arg1
 }
 
-fn @fee(arg0: i256, arg1: i256, arg2: i1, arg3: i256) -> struct0 [selector=0x603ced03, pure, abi_params=[u256, u256, bool, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @fee(arg0: i256, arg1: i256, arg2: i1, arg3: i256) -> struct0 [selector=0x603ced03, pure, abi_params=[uint256, uint256, bool, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     jumpi arg2, bb1, bb2
   bb2:

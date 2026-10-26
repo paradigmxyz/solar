@@ -12,8 +12,10 @@ import sys
 import tempfile
 import time
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from pathlib import Path
+from queue import SimpleQueue
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -39,7 +41,6 @@ from evm_rules.lean import (
     term,
     theorem,
 )
-from evm_rules.memory import MemoryAddresses
 from evm_rules.mining import abstract_patterns, mine
 from evm_rules.prover import (
     LEAN_PROJECT,
@@ -61,8 +62,9 @@ from evm_rules.verification import (
 from verify import main
 
 # These tests check proof results, not prover performance. Leave headroom for
-# slower CI runners.
-PROOF_TIMEOUT_MS = 30_000
+# slower CI runners and for tests running in parallel: Lean limits the SAT
+# solver by wall-clock time.
+PROOF_TIMEOUT_MS = 120_000
 
 
 def expression(op, *args):
@@ -93,6 +95,24 @@ def tearDownModule():
 def check(lhs, rhs, assumptions=(), timeout_ms=PROOF_TIMEOUT_MS):
     """Decide `assumptions → lhs = rhs` with the Lean model."""
     return shared_checker().check(lhs, rhs, assumptions, timeout_ms)
+
+
+def check_all(queries, timeout_ms=PROOF_TIMEOUT_MS):
+    """Decide each `(lhs, rhs, assumptions)` query, with one Lean checker per core."""
+    idle = SimpleQueue()
+
+    def run(query):
+        worker = idle.get()
+        try:
+            return worker.check(*query, timeout_ms)
+        finally:
+            idle.put(worker)
+
+    jobs = os.cpu_count() or 4
+    with ExitStack() as stack, ThreadPoolExecutor(jobs) as pool:
+        for _ in range(jobs):
+            idle.put(stack.enter_context(Checker(lean_path())))
+        return list(pool.map(run, queries))
 
 
 def verify_rules(path, *, processes=False, timeout_s=PROOF_TIMEOUT_MS // 1000):
@@ -155,14 +175,14 @@ class MiningTests(unittest.TestCase):
 
     def test_function_local_ids_and_frequency(self):
         report = self.mine_source("""@module M
-fn @first(arg0: u256, arg1: u256) {
+fn @first(arg0: i256, arg1: i256) {
   bb0:
     v0 = or arg0, arg1
     v1 = and arg0, arg1
     v2 = sub v0, v1
     ret v2
 }
-fn @second(arg0: u256, arg1: u256) {
+fn @second(arg0: i256, arg1: i256) {
   bb0:
     v10 = or arg0, arg1
     v11 = and arg0, arg1
@@ -178,7 +198,7 @@ fn @second(arg0: u256, arg1: u256) {
         self.assertEqual(len(report["sources"][0]["sha256"]), 64)
 
     def test_boundaries_and_shared_producers(self):
-        template = """fn @f(arg0: u256, arg1: u256) {
+        template = """fn @f(arg0: i256, arg1: i256) {
   bb0:
     v0 = not arg0
 %s
@@ -188,7 +208,7 @@ fn @second(arg0: u256, arg1: u256) {
 """
         for barrier in (
             "    sstore 0, v0",
-            "    v2 = mload v0",
+            "    v2 = load v0",
             "  bb1:",
             "    v3 = unknown v0",
         ):
@@ -199,7 +219,7 @@ fn @second(arg0: u256, arg1: u256) {
         self.assertEqual(report["candidates"], [])
 
     def test_mined_seed_is_proved_before_emission(self):
-        report = self.mine_source("""fn @f(arg0: u256) {
+        report = self.mine_source("""fn @f(arg0: i256) {
   bb0:
     v0 = not arg0
     v1 = not v0
@@ -217,7 +237,7 @@ fn @second(arg0: u256, arg1: u256) {
                 ["not"],
                 1,
                 10,
-                5000,
+                PROOF_TIMEOUT_MS,
                 seeds=seeds,
                 checker=shared_checker(),
             )
@@ -225,11 +245,11 @@ fn @second(arg0: u256, arg1: u256) {
         self.assertEqual(rules[0][1], Expr.var("x"))
 
     def test_subtree_abstraction_exposes_dynamic_masks(self):
-        source = """fn @mask(arg0: u256) {
+        source = """fn @mask(arg0: i256) {
   bb0:
     v0 = sub 32, arg0
-    v1 = shl 3, v0
-    v2 = shl v1, 1
+    v1 = shl v0, 3
+    v2 = shl 1, v1
     v3 = sub v2, 1
     v4 = not v3
     ret v4
@@ -448,7 +468,7 @@ class SemanticsTests(unittest.TestCase):
         self.assertNotEqual(result["lhs_value"], result["rhs_value"])
 
     def test_unsupported_operations_fail(self):
-        for op in ("sload", "mload", "call", "keccak256", "mystery"):
+        for op in ("sload", "load", "call", "keccak256", "mystery"):
             with self.assertRaises(Unsupported):
                 term(expression(op, 0))
         with self.assertRaises(Unsupported):
@@ -523,7 +543,9 @@ class EnvironmentTests(unittest.TestCase):
                 lhs, rhs = cx.obligation(rule)
                 # Lean relates the two reads through the rule's hand-written proof.
                 proof = (MANUAL_PROOFS / f"egraph_{rule.digest[:16]}.lean").read_text()
-                result = shared_checker().check(lhs, rhs, cx.assumptions, 30_000, proof)
+                result = shared_checker().check(
+                    lhs, rhs, cx.assumptions, PROOF_TIMEOUT_MS, proof
+                )
                 self.assertEqual(result["status"], "proved", result)
                 # Dropping the low-bit guard must expose a different account balance.
                 broken = Rule(
@@ -535,7 +557,7 @@ class EnvironmentTests(unittest.TestCase):
                 )
                 cx = Context()
                 lhs, rhs = cx.obligation(broken)
-                result = check(lhs, rhs, cx.assumptions, 5000)
+                result = check(lhs, rhs, cx.assumptions)
                 self.assertEqual(result["status"], "counterexample")
                 self.assertTrue(result["replayed"])
 
@@ -639,7 +661,7 @@ class CallEffectTests(unittest.TestCase):
         for rule in rules:
             context = Context()
             lhs, rhs = context.obligation(rule)
-            result = check(lhs, rhs, context.assumptions, 5000)
+            result = check(lhs, rhs, context.assumptions)
             self.assertEqual(result["status"], "proved")
 
     def test_changed_call_operands_are_counterexamples(self):
@@ -652,7 +674,7 @@ class CallEffectTests(unittest.TestCase):
                 )
                 context = Context()
                 lhs, rhs = context.obligation(changed)
-                result = check(lhs, rhs, context.assumptions, 5000)
+                result = check(lhs, rhs, context.assumptions)
                 self.assertEqual(result["status"], "counterexample")
 
     def test_empty_memory_regions_preserve_effects(self):
@@ -666,20 +688,20 @@ class CallEffectTests(unittest.TestCase):
                 for name in ("Op.Call", "Op.StaticCall", "Op.DelegateCall", "Op.Log")
             )
         ]
-        self.assertEqual(len(rules), 13)
+        self.assertEqual(len(rules), 9)
         for rule in rules:
             cx = Context()
             lhs, rhs = cx.obligation(rule)
-            result = check(lhs, rhs, cx.assumptions, 5000)
+            result = check(lhs, rhs, cx.assumptions)
             self.assertEqual(result["status"], "proved", rule.line)
         for source in (
-            "(rule (rewrite (Op.Log0 offset size)) (Op.Log0 (imm (u256 0)) size))",
+            "(rule (rewrite (Op.Log offset size topics)) (Op.Log (imm (u256 0)) size topics))",
             "(rule (rewrite (Op.StaticCall gas addr offset size out count)) (Op.StaticCall gas addr (imm (u256 0)) size out count))",
         ):
             form, line = forms(source)[0]
             cx = Context()
             lhs, rhs = cx.obligation(Rule(form, line, "missing-size-guard"))
-            result = check(lhs, rhs, cx.assumptions, 5000)
+            result = check(lhs, rhs, cx.assumptions)
             self.assertEqual(result["status"], "counterexample")
 
     def test_calls_cannot_be_removed_changed_or_nested(self):
@@ -699,138 +721,7 @@ class CallEffectTests(unittest.TestCase):
             Context().obligation(changed)
 
 
-class MemoryAddressTests(unittest.TestCase):
-    def test_actual_projection_rules_and_missing_guards(self):
-        path = ISLE / "mir/egraph"
-        rules = [
-            Rule(form, line, str(path))
-            for form, line in forms(read_egraph_source())
-            if form[0] == "rule"
-            and any(name in repr(form) for name in MemoryAddresses.SHAPES)
-        ]
-        self.assertEqual(len(rules), 3)
-        for rule in rules:
-            cx = Context()
-            lhs, rhs = cx.obligation(rule)
-            result = check(lhs, rhs, cx.assumptions, 5000)
-            self.assertEqual(result["status"], "proved", rule.line)
-            # Removing the actual source guard must expose a nonzero header
-            # or field offset, rather than implicitly assuming the rewrite.
-            unguarded = Rule(
-                (rule.form[0], rule.form[1], rule.form[-1]), rule.line, rule.source
-            )
-            cx = Context()
-            lhs, rhs = cx.obligation(unguarded)
-            result = check(lhs, rhs, cx.assumptions, 5000)
-            self.assertEqual(result["status"], "counterexample", rule.line)
-            self.assertTrue(result["replayed"])
-
-    def assert_concrete_and_symbolic(self, value, values, expected):
-        self.assertTrue(lean_evaluates(value, values, expected))
-        self.assertEqual(concrete(value, values), expected)
-
-    def test_data_headers_and_slice_payload_pointers(self):
-        cx = Context()
-        object, kind = map(Expr.var, ("object", "kind"))
-        value = cx.operation("Op.MemoryObjectData", [object, kind])
-        flag = cx.memory.slices[object].args[0]
-        for tag, header in ((0, 32), (1, 32), (2, 0), (3, 0)):
-            for is_slice in (0, 1):
-                for pointer in (0, 128, MASK):
-                    self.assert_concrete_and_symbolic(
-                        value,
-                        {"object": pointer, "kind": tag, flag: is_slice},
-                        (pointer + (0 if is_slice else header)) & MASK,
-                    )
-        # Adding a header to a slice pointer is wrong, even for dynamic data.
-        wrong = expression("add", object, cx.memory.data_offset(kind))
-        result = check(value, wrong, cx.assumptions, 5000)
-        self.assertEqual(result["status"], "counterexample")
-        self.assertEqual(int(result["inputs"][flag], 16), 1)
-
-    def test_field_offsets_saturate_before_full_word_address_addition(self):
-        cx = Context()
-        object, layout, field = map(Expr.var, ("object", "layout", "field"))
-        value = cx.operation("Op.MemoryObjectFieldAddr", [object, layout, field])
-        for index in (0, 1, (1 << 59) - 1, 1 << 59, (1 << 64) - 2):
-            expected_offset = min(index * 32, (1 << 64) - 1)
-            self.assert_concrete_and_symbolic(
-                value, {"object": MASK, "field": index}, (MASK + expected_offset) & MASK
-            )
-        # Fields outside a struct's declared range have no valid projection.
-        shape = cx.memory.layouts[layout]
-        result = check(
-            value,
-            value,
-            [*cx.assumptions, Cond("eq", (field, shape.fields))],
-        )
-        self.assertEqual(result["status"], "inapplicable")
-
-    def test_element_strides_keep_zero_full_u32_and_wrapping_indices(self):
-        cx = Context()
-        object, layout, index = map(Expr.var, ("object", "layout", "index"))
-        value = cx.operation("Op.MemoryObjectElementAddr", [object, layout, index])
-        shape = cx.memory.layouts[layout]
-        for tag in range(3):
-            for words in (0, 1, (1 << 32) - 1):
-                for i in (0, 1, MASK):
-                    values = {
-                        "object": MASK,
-                        "index": i,
-                        shape.kind.args[0]: tag,
-                        shape.element_words.args[0]: words,
-                    }
-                    stride = 32 if tag == 0 else words * 32
-                    expected = (MASK + (32 if tag < 2 else 0) + i * stride) & MASK
-                    self.assert_concrete_and_symbolic(value, values, expected)
-        result = check(
-            value, value, [*cx.assumptions, Cond("eq", (shape.kind, Expr.const(3)))]
-        )
-        self.assertEqual(result["status"], "inapplicable")
-
-    def test_generated_schema_drift_and_wrong_arity_fail_closed(self):
-        cx = Context()
-        object, kind = map(Expr.var, ("object", "kind"))
-        with (
-            patch(
-                "evm_rules.isle.forms",
-                return_value=[
-                    (
-                        (
-                            "type",
-                            "Op",
-                            "extern",
-                            (
-                                "enum",
-                                (
-                                    "MemoryObjectData",
-                                    ("kind", "MemoryObjectKind"),
-                                    ("object", "Value"),
-                                ),
-                            ),
-                        ),
-                        1,
-                    )
-                ],
-            ),
-            self.assertRaisesRegex(Unsupported, "changed memory address schema"),
-        ):
-            cx.operation("Op.MemoryObjectData", [object, kind])
-        with self.assertRaises(Unsupported):
-            cx.operation("Op.MemoryObjectData", [object])
-        cx.memory.kind(kind)
-        with self.assertRaises(Unsupported):
-            cx.memory.layout(kind)
-
-
 class RuleTests(unittest.TestCase):
-    def test_stack_selection_rules(self):
-        report = verify_rules(ISLE / "mir-to-evm/stack_select.isle")
-        self.assertEqual(len(report["rules"]), 15)
-        for result in report["rules"]:
-            with self.subTest(line=result["line"]):
-                self.assertEqual(result["status"], "proved", result)
-
     def test_narrow_integer_rules(self):
         entries = list(obligations(ISLE / "mir/word"))
         native = [entry for entry in entries if "integer_bits" in entry]
@@ -881,21 +772,22 @@ class RuleTests(unittest.TestCase):
             and "power_of_two_shift" not in repr(form)
         ]
         self.assertGreater(len(rules), 10)
+        cases = []
         for bits in (1, 8, 16, 160, 248, 256):
             for rule in rules:
-                with self.subTest(bits=bits, rule=rule.form):
-                    cx = Context(integer_bits=bits)
-                    lhs, rhs = cx.obligation(rule)
-                    result = check(lhs, rhs, cx.assumptions)
-                    if result["status"] == "inapplicable":
-                        self.assertEqual(
-                            check(Expr.const(0), Expr.const(1), cx.assumptions)[
-                                "status"
-                            ],
-                            "inapplicable",
-                        )
-                    else:
-                        self.assertEqual(result["status"], "proved", result)
+                cx = Context(integer_bits=bits)
+                lhs, rhs = cx.obligation(rule)
+                cases.append((bits, rule, (lhs, rhs, cx.assumptions)))
+        results = check_all([query for *_, query in cases])
+        for (bits, rule, (_, _, assumptions)), result in zip(cases, results):
+            with self.subTest(bits=bits, rule=rule.form):
+                if result["status"] == "inapplicable":
+                    self.assertEqual(
+                        check(Expr.const(0), Expr.const(1), assumptions)["status"],
+                        "inapplicable",
+                    )
+                else:
+                    self.assertEqual(result["status"], "proved", result)
 
     def test_native_overflow_guards(self):
         for bits in (1, *range(8, 257, 8)):
@@ -1031,7 +923,7 @@ class RuleTests(unittest.TestCase):
             for bit in (0, 1):
                 assumptions = [Cond("eq", (value, Expr.const(bit)))]
                 for lowered in (shifted, multiply):
-                    result = check(expected, lowered, assumptions, 5000)
+                    result = check(expected, lowered, assumptions)
                     self.assertEqual(
                         result["status"], "proved", (bits, bit, lowered, result)
                     )
@@ -1311,7 +1203,12 @@ class CliTests(unittest.TestCase):
 
             def run():
                 report = verify_files(
-                    [path], work, lean_path(), jobs=1, timeout_s=30, progress=None
+                    [path],
+                    work,
+                    lean_path(),
+                    jobs=1,
+                    timeout_s=PROOF_TIMEOUT_MS // 1000,
+                    progress=None,
                 )
                 rule = report["files"][0]["rules"][0]
                 return rule["status"], (work / rule["name"] / "Proof.lean").read_text()
@@ -1370,13 +1267,13 @@ class CliTests(unittest.TestCase):
     def test_worker_reuses_process_without_retaining_declarations(self):
         with Checker(lean_path()) as checker:
             source = COMMANDS + "\ntheorem previous (x : Word) : x = x := by rfl"
-            self.assertTrue(checker.ask(source, 30)[0])
+            self.assertTrue(checker.ask(source, PROOF_TIMEOUT_MS // 1000)[0])
             process = checker.process
-            self.assertTrue(checker.ask(source, 30)[0])
+            self.assertTrue(checker.ask(source, PROOF_TIMEOUT_MS // 1000)[0])
             self.assertIs(checker.process, process)
             reply = checker.ask(
                 COMMANDS + "\ntheorem next (x : Word) : x = x := by exact previous x",
-                30,
+                PROOF_TIMEOUT_MS // 1000,
             )
             self.assertFalse(reply[0])
             self.assertIn("Unknown identifier", reply[1])
@@ -1470,7 +1367,7 @@ class CliTests(unittest.TestCase):
                     Path(directory) / "work",
                     lean_path(),
                     jobs=2,
-                    timeout_s=30,
+                    timeout_s=PROOF_TIMEOUT_MS // 1000,
                     progress=None,
                 )
             self.assertEqual(report["counts"], {"proved": 6})
@@ -1511,7 +1408,7 @@ class DiscoveryTests(unittest.TestCase):
             ["xor"],
             1,
             20,
-            5000,
+            PROOF_TIMEOUT_MS,
             seeds=[seed],
             checker=shared_checker(),
         )
@@ -1531,7 +1428,7 @@ class DiscoveryTests(unittest.TestCase):
             ["not"],
             1,
             20,
-            5000,
+            PROOF_TIMEOUT_MS,
             initial_samples=initial,
             seeds=[seed],
             checker=shared_checker(),
@@ -1548,7 +1445,7 @@ class DiscoveryTests(unittest.TestCase):
             ["not"],
             1,
             20,
-            5000,
+            PROOF_TIMEOUT_MS,
             seeds=[expression("not", expression("not", x))],
             checker=unknown,
         )
@@ -1598,7 +1495,7 @@ class DiscoveryTests(unittest.TestCase):
                     ops=["xor"],
                     max_ops=1,
                     max_expressions=20,
-                    timeout_ms=5000,
+                    timeout_ms=PROOF_TIMEOUT_MS,
                     include_constants=False,
                     emit_isle=output,
                 )
@@ -1622,7 +1519,7 @@ class DiscoveryTests(unittest.TestCase):
                     ops=["not"],
                     max_ops=1,
                     max_expressions=10,
-                    timeout_ms=5000,
+                    timeout_ms=PROOF_TIMEOUT_MS,
                     include_constants=False,
                     emit_isle=output,
                 )
@@ -1639,7 +1536,7 @@ class DiscoveryTests(unittest.TestCase):
                     ["not"],
                     1,
                     20,
-                    5000,
+                    PROOF_TIMEOUT_MS,
                     checker=shared_checker(),
                 )
 
@@ -1650,7 +1547,7 @@ class DiscoveryTests(unittest.TestCase):
             ["xor", "not"],
             3,
             1000,
-            5000,
+            PROOF_TIMEOUT_MS,
             include_constants=True,
             checker=shared_checker(),
         )
@@ -1678,7 +1575,7 @@ class DiscoveryTests(unittest.TestCase):
             ["not"],
             1,
             20,
-            5000,
+            PROOF_TIMEOUT_MS,
             initial_samples=[{"x": 0}],
             checker=shared_checker(),
         )
@@ -1702,7 +1599,7 @@ class DiscoveryTests(unittest.TestCase):
             ["not", "and", "or"],
             3,
             500,
-            5000,
+            PROOF_TIMEOUT_MS,
             max_rhs_ops=2,
             checker=shared_checker(),
         )
@@ -1742,7 +1639,7 @@ class DiscoveryTests(unittest.TestCase):
                 ["and"],
                 2,
                 20,
-                5000,
+                PROOF_TIMEOUT_MS,
                 constants=[123456789],
                 checker=shared_checker(),
             )
@@ -1754,7 +1651,7 @@ class DiscoveryTests(unittest.TestCase):
             ["xor"],
             2,
             30,
-            5000,
+            PROOF_TIMEOUT_MS,
             include_constants=True,
             constants=[255],
             checker=shared_checker(),
@@ -2096,7 +1993,7 @@ class ArithTests(unittest.TestCase):
             with self.subTest(name):
                 lhs, rhs, assumptions = lean_rule(source)
                 # `evm_arith` fails, and bit-blasting still finds a counterexample.
-                result = shared_checker().check(lhs, rhs, assumptions, 5_000)
+                result = check(lhs, rhs, assumptions)
                 self.assertEqual(result["status"], "counterexample", result)
                 self.assertTrue(result["replayed"])
 

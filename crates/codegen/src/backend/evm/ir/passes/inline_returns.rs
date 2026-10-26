@@ -3,26 +3,27 @@
 //! Sharing a one- or two-instruction return tail can cost more than spelling it out: an explicit
 //! jump needs a destination push, a `JUMP`, and a destination `JUMPDEST`. This pass replaces direct
 //! non-fallthrough jumps with the target's complete terminal body when its encoded size fits the
-//! transfer budget. Gas mode budgets a `PUSH1` and `JUMP`; size mode uses the smallest push
-//! available on the selected fork, including a zero-address `PUSH0`. Gas mode can therefore spend
-//! one byte when a destination ultimately resolves to zero. The target remains available to other
-//! callers; ordinary CFG cleanup removes it only when no references remain.
+//! transfer budget. Gas mode budgets a `PUSH1` and `JUMP`; size mode budgets the target's label
+//! push and `JUMP`. A destination address is a label, never the `PUSH0` that a zero immediate
+//! would use. Across the benchmark corpus this price shrank runtime code by 1,126 bytes, with 244
+//! contracts smaller and 3 larger by 21. The target remains available to other callers; ordinary
+//! CFG cleanup removes it only when no references remain.
 //!
 //! Only immediate pushes, physical stack operations, and position-independent computations are
-//! copied. Deferred values and immutable patches are excluded, and `keep_with_next` boundaries
+//! copied. Immutable patches are excluded, and `keep_with_next` boundaries
 //! remain intact. Entry targets and current fallthrough edges are excluded because their transfer
 //! may cost fewer bytes. The rewrite removes transfer gas independently of execution frequency and
 //! does not depend on debug metadata. It runs after sharing, which can create these tiny tails.
+//! The default pipeline cleans up stack identities exposed by the copied return.
 
 use super::{EvmPass, utils::is_split_point};
 use crate::{
     backend::evm::{
-        ir::{BlockId, Module, PushValue, TerminatorKind},
+        ir::{BlockId, Module, TerminatorKind},
         op,
     },
     target::Target,
 };
-use alloy_primitives::U256;
 use solar_sema::Gcx;
 
 pub(super) struct InlineReturns;
@@ -37,7 +38,7 @@ impl EvmPass for InlineReturns {
         let address_bytes = if gcx.sess.opts.optimization.is_gas() {
             target.opcode(op::PUSH1).bytes
         } else {
-            target.push(U256::ZERO).bytes
+            target.label_push().bytes
         };
         let transfer_bytes = address_bytes + target.opcode(op::JUMP).bytes;
         let mut changed = false;
@@ -58,16 +59,9 @@ impl EvmPass for InlineReturns {
             let tail = &module.blocks[callee];
             let Some(term) = &tail.terminator else { continue };
             let TerminatorKind::Op(opcode) = term.kind else { continue };
-            if !op::is_terminal(opcode) {
-                continue;
-            }
             let size = tail.instructions.iter().try_fold(target.opcode(opcode).bytes, |n, inst| {
                 let bytes = if inst.is_encoded_push() {
-                    if inst.deferred_push().is_some() || inst.immutable_push().is_some() {
-                        return None;
-                    }
-                    let Some(PushValue::Immediate(value)) = inst.value else { return None };
-                    target.push(value).bytes
+                    target.push(inst.concrete_immediate()?).bytes
                 } else if let Some(stack) = inst.as_stack_op() {
                     stack.assembled_len(target.evm_version())? as u32
                 } else if op::is_unaffected_by_preceding_push(inst.opcode) {

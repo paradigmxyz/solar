@@ -335,7 +335,8 @@ mod tests {
             .iter()
             .map(|(path, contents)| {
                 let file = path.as_path().strip_prefix("/workspace").unwrap();
-                (file.display().to_string(), contents.to_string(), vfs.get_file_version(path))
+                let file = file.to_string_lossy().replace('\\', "/");
+                (file, contents.to_string(), vfs.get_file_version(path))
             })
             .collect::<Vec<_>>();
         files.sort();

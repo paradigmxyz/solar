@@ -8,10 +8,10 @@ fn @sum(arg0: i256) -> i256 {
   bb0:
     v0 = sub arg0, 1
     v1 = mul arg0, v0
-    v2 = shr 1, v1
+    v2 = shr v1, 1
     v3 = sub arg0, 8192
-    v4 = shr 255, v3
-    v5 = shl 1, v4
+    v4 = shr v3, 255
+    v5 = shl v4, 1
     v6 = sub 3, v5
     v7 = mul v2, v6
     ret v7
@@ -21,7 +21,7 @@ fn @sum(arg0: i256) -> i256 {
   bb0:
     v0 = sub arg0, 1
     v1 = mul arg0, v0
-    v2 = shr 1, v1
+    v2 = shr v1, 1
     ret v2
 }
 --- candidate
@@ -39,8 +39,8 @@ fn @sum(arg0: i256) -> i256 {
     jump bb1
   bb3:
     v5 = sub arg0, 8192
-    v6 = shr 255, v5
-    v7 = shl 1, v6
+    v6 = shr v5, 255
+    v7 = shl v6, 1
     v8 = sub 3, v7
     v9 = mul v1, v8
     ret v9
@@ -62,8 +62,8 @@ fn @total(arg0: i256) -> i256 {
     jump bb1
   bb3:
     v5 = sub arg0, 60001
-    v6 = shr 255, v5
-    v7 = shl 1, v6
+    v6 = shr v5, 255
+    v7 = shl v6, 1
     v8 = sub 3, v7
     v9 = mul v1, v8
     ret v9
@@ -82,8 +82,8 @@ fn @total(arg0: i256) -> i256 {
     v4 = add v1, v0
     jump bb1
   bb3:
-    v5 = shr 16, arg0
-    v6 = shl 1, v5
+    v5 = shr arg0, 16
+    v6 = shl v5, 1
     v7 = add v6, 1
     v8 = mul v1, v7
     ret v8

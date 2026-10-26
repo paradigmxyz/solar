@@ -14,16 +14,30 @@ fn @reuse_sload_after_disjoint_store(arg0: i256, arg1: i256) -> i256 {
     ret v6
 }
 
-// CHECK-LABEL: {{^[ +].*}}fn @keep_sload_after_aliasing_store{{[( ]}}
+// The store writes the loaded slot exactly, so it forwards its word to the reload.
+// CHECK-LABEL: {{^[ +].*}}fn @forward_store_to_aliasing_sload{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = sload arg0
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload arg0
-fn @keep_sload_after_aliasing_store(arg0: i256, arg1: i256) -> i256 {
+// CHECK: - {{v[0-9]+}} = sload arg0
+// CHECK: + {{v[0-9]+}} = add {{v[0-9]+}}, arg1
+fn @forward_store_to_aliasing_sload(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = sload arg0
     v3 = add arg0, 0
     sstore v3, arg1
     v5 = sload arg0
     v6 = add v2, v5
+    ret v6
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @keep_sload_after_aliasing_store{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload arg0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload arg0
+fn @keep_sload_after_aliasing_store(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v3 = sload arg0
+    sstore arg2, arg1
+    v5 = sload arg0
+    v6 = add v3, v5
     ret v6
 }
 
@@ -37,6 +51,28 @@ fn @reuse_tload_after_disjoint_store(arg0: i256, arg1: i256) -> i256 {
     tstore v3, arg1
     v5 = tload arg0
     v6 = add v2, v5
+    ret v6
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @forward_tstore_to_tload{{[( ]}}
+// CHECK: - {{v[0-9]+}} = tload arg0
+// CHECK: + ret arg1
+fn @forward_tstore_to_tload(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    tstore arg0, arg1
+    v2 = tload arg0
+    ret v2
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @keep_tload_after_unknown_tstore{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = tload arg0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = tload arg0
+fn @keep_tload_after_unknown_tstore(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v3 = tload arg0
+    tstore arg2, arg1
+    v5 = tload arg0
+    v6 = add v3, v5
     ret v6
 }
 
@@ -72,7 +108,7 @@ fn @clear_clobbers_storage(arg0: i256, arg1: i256) -> i256 {
 // CHECK: {{^[ +].*}}sload 0
 // CHECK: {{^[ +].*}}store_storage_bytes arg0, arg1
 // CHECK: {{^[ +].*}}sload 0
-fn @store_bytes_clobbers_storage(arg0: i256, arg1: memptr) -> i256 {
+fn @store_bytes_clobbers_storage(arg0: i256, arg1: ptr<memory>) -> i256 {
   bb0:
     v0 = sload 0
     store_storage_bytes arg0, arg1

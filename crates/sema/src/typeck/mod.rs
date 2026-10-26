@@ -1,38 +1,66 @@
 use crate::{
     ast_lowering::resolve::{Declaration, Declarations},
     hir::{self, Item, ItemId, Res, Visit},
-    ty::{Gcx, SameSourceFileLevelUserTypeError, Ty, TyKind, TypeckResults},
+    ty::{ExprMap, Gcx, SameSourceFileLevelUserTypeError, Ty, TyKind, TypeckResults},
 };
-use alloy_primitives::{B256, U256};
+use alloy_primitives::{B256, Selector, U256};
 use rayon::prelude::*;
 use solar_ast::{DataLocation, StateMutability, Visibility};
-use solar_data_structures::{Never, bit_set::GrowableBitSet, map::FxIndexMap, parallel};
-use solar_interface::{Span, diagnostics::ErrorGuaranteed, error_code};
+use solar_data_structures::{
+    Never,
+    bit_set::GrowableBitSet,
+    map::{FxHashMap, FxIndexMap},
+    parallel,
+};
+use solar_interface::{Span, diagnostics::ErrorGuaranteed, error_code, sym};
 use std::ops::ControlFlow;
 
 mod checker;
+mod constant_cycles;
+mod constant_divisors;
+mod constant_values;
+mod control_flow;
 pub(crate) mod override_checker;
 mod udvt;
 mod view_pure_checker;
 
 #[instrument(name = "typeck", level = "debug", skip_all)]
 pub(crate) fn check(gcx: Gcx<'_>) {
+    let units = units(gcx);
     let mut typeck_results = TypeckResults::default();
-    parallel!(gcx.sess, gcx.hir.par_contract_ids().for_each(|id| check_contract(gcx, id)), {
-        typeck_results = gcx
-            .hir
-            .par_source_ids()
-            .map(|id| {
-                check_source(gcx, id);
-                // TODO: Parallelize more.
-                checker::check(gcx, id)
-            })
-            .reduce(TypeckResults::default, |mut a, b| {
-                merge_typeck_results(gcx, &mut a, b);
-                a
-            });
-    },);
+    parallel!(
+        gcx.sess,
+        gcx.hir.par_contract_ids().for_each(|id| check_contract(gcx, id)),
+        {
+            gcx.hir.par_event_ids().for_each(|id| check_event(gcx, id));
+            gcx.hir.par_error_ids().for_each(|id| check_error(gcx, id));
+        },
+        {
+            let check_unit = |results, &(source, unit)| checker::check(gcx, source, unit, results);
+            // Few units finish faster than the pool wakes up.
+            typeck_results = if units.len() < PAR_UNITS {
+                units.iter().fold(TypeckResults::default(), check_unit)
+            } else {
+                merge_typeck_results(
+                    gcx,
+                    units.par_iter().fold(TypeckResults::default, check_unit).collect::<Vec<_>>(),
+                )
+            };
+        },
+    );
     gcx.set_typeck_results(typeck_results);
+    // solc's `PostTypeChecker` runs when type checking succeeds, and its own errors do not stop
+    // its constant cycle check.
+    let typeck_ok = gcx.dcx().has_errors().is_ok();
+    check_interface_variables(gcx);
+    if typeck_ok {
+        constant_cycles::check(gcx);
+    }
+    constant_values::check(gcx, &units);
+    check_error_selector_collisions(gcx);
+    control_flow::check(gcx);
+    // solc's `StaticAnalyzer` runs before its `ViewPureChecker`.
+    constant_divisors::check(gcx, &units);
     view_pure_checker::check(gcx);
 }
 
@@ -40,12 +68,16 @@ fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
     check_duplicate_definitions(gcx, &gcx.symbol_resolver.contract_scopes[id]);
     check_storage_size_upper_bound(gcx, id);
     check_payable_fallback_without_receive(gcx, id);
+    check_storage_layout_inheritance(gcx, id);
     check_external_type_clashes(gcx, id);
     check_receive_function(gcx, id);
+    check_constructor_parameters(gcx, id);
     check_library_functions(gcx, id);
     check_interface_members(gcx, id);
     for f_id in gcx.hir.contract(id).functions() {
-        check_payable_function(gcx, gcx.hir.function(f_id));
+        let f = gcx.hir.function(f_id);
+        check_payable_function(gcx, f);
+        check_fallback_signature(gcx, f);
     }
     for using in gcx.hir.contract(id).usings {
         check_using_directive(gcx, using);
@@ -69,52 +101,111 @@ fn check_source(gcx: Gcx<'_>, id: hir::SourceId) {
 
 fn merge_typeck_results<'gcx>(
     gcx: Gcx<'gcx>,
-    results: &mut TypeckResults<'gcx>,
-    new_results: TypeckResults<'gcx>,
+    results: Vec<TypeckResults<'gcx>>,
+) -> TypeckResults<'gcx> {
+    let mut merged = TypeckResults::default();
+    let mut expr_types = Vec::with_capacity(results.len());
+    let mut resolved_exprs = Vec::with_capacity(results.len());
+    let mut resolved_callees = Vec::with_capacity(results.len());
+    for new_results in results {
+        expr_types.push(new_results.expr_types);
+        resolved_exprs.push(new_results.resolved_exprs);
+        resolved_callees.push(new_results.resolved_callees);
+
+        for id in new_results.unsupported_udvt_operators.iter() {
+            merged.unsupported_udvt_operators.insert(id);
+        }
+        merged.user_operators.extend(new_results.user_operators);
+        merged.base_slots.extend(new_results.base_slots);
+    }
+
+    merged.expr_types = ExprMap::merge(expr_types, |id, prev_ty, ty| {
+        gcx.dcx()
+            .bug(format!(
+                "expression {id:?} already has type {}; tried to register {}",
+                prev_ty.display(gcx),
+                ty.display(gcx),
+            ))
+            .emit();
+    });
+    merged.resolved_exprs = ExprMap::merge(resolved_exprs, |id, prev_res, res| {
+        gcx.dcx()
+            .bug(format!(
+                "expression {id:?} already has resolution {prev_res:?}; tried to register {res:?}",
+            ))
+            .emit();
+    });
+    merged.resolved_callees = ExprMap::merge(resolved_callees, |id, prev_res, res| {
+        gcx.dcx()
+            .bug(format!(
+                "expression {id:?} already has resolved callee {prev_res:?}; tried to register {res:?}",
+            ))
+            .emit();
+    });
+    merged
+}
+
+/// The fewest units for which checking them in parallel pays.
+const PAR_UNITS: usize = 64;
+
+/// A part of a source that is checked on its own.
+#[derive(Clone, Copy)]
+enum Unit {
+    /// The checks that only need the source.
+    Source,
+    /// The storage layout and base constructor arguments of a contract.
+    ContractHeader(hir::ContractId),
+    /// An item of a source, or of the contract it is declared in.
+    Item(Option<hir::ContractId>, ItemId),
+}
+
+/// Visits every item of every source, in parallel if there are many, each with its own visitor.
+///
+/// A contract's base arguments are visited as their own item. `units` come from [`units`].
+fn par_visit_items<'gcx, V: Visit<'gcx>>(
+    units: &[(hir::SourceId, Unit)],
+    new_visitor: impl Fn() -> V + Sync,
 ) {
-    for (id, ty) in new_results.expr_types {
-        if let Some(prev_ty) = results.expr_types.insert(id, ty) {
-            gcx.dcx()
-                .bug(format!(
-                    "expression {id:?} already has type {}; tried to register {}",
-                    prev_ty.display(gcx),
-                    ty.display(gcx),
-                ))
-                .emit();
-        }
-    }
-
-    for (id, res) in new_results.resolved_exprs {
-        if let Some(prev_res) = results.resolved_exprs.insert(id, res) {
-            gcx.dcx()
-                .bug(format!(
-                    "expression {id:?} already has resolution {prev_res:?}; tried to register {res:?}",
-                ))
-                .emit();
-        }
-    }
-
-    for (id, res) in new_results.resolved_callees {
-        if let Some(prev_res) = results.resolved_callees.insert(id, res) {
-            gcx.dcx()
-                .bug(format!(
-                    "expression {id:?} already has resolved callee {prev_res:?}; tried to register {res:?}",
-                ))
-                .emit();
-        }
-    }
-
-    for id in new_results.unsupported_udvt_operators.iter() {
-        results.unsupported_udvt_operators.insert(id);
-    }
-
-    for (id, function) in new_results.user_operators {
-        results.user_operators.insert(id, function);
+    let visit = |&(_, unit): &(hir::SourceId, Unit)| {
+        let mut visitor = new_visitor();
+        let _ = match unit {
+            Unit::Source => return,
+            Unit::ContractHeader(id) => visitor
+                .hir()
+                .contract(id)
+                .bases_args
+                .iter()
+                .try_for_each(|base| visitor.visit_modifier(base)),
+            Unit::Item(_, item) => visitor.visit_nested_item(item),
+        };
+    };
+    if units.len() < PAR_UNITS {
+        units.iter().for_each(visit);
+    } else {
+        units.par_iter().for_each(visit);
     }
 }
 
+/// Returns the units of every source, in source order.
+fn units(gcx: Gcx<'_>) -> Vec<(hir::SourceId, Unit)> {
+    let mut units = Vec::new();
+    for source in gcx.hir.source_ids() {
+        units.push((source, Unit::Source));
+        for &item in gcx.hir.source(source).items {
+            if let ItemId::Contract(id) = item {
+                units.push((source, Unit::ContractHeader(id)));
+                let items = gcx.hir.contract(id).items;
+                units.extend(items.iter().map(|&item| (source, Unit::Item(Some(id), item))));
+            } else {
+                units.push((source, Unit::Item(None, item)));
+            }
+        }
+    }
+    units
+}
+
 fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<'gcx>) {
-    let using_ty = gcx.type_of_using_directive(using);
+    let using_ty = gcx.type_of_using_directive(using).filter(|ty| !ty.references_error());
 
     if using.global
         && let Some(ty) = using_ty
@@ -128,14 +219,6 @@ fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<
                 gcx.dcx().emit_err(using.span, "can only use `global` with types defined in the same source unit at file level");
             }
         }
-    }
-
-    if !using.global
-        && let Some(ty) = using_ty
-        && let TyKind::Contract(id) = ty.kind
-        && gcx.hir.contract(id).kind.is_library()
-    {
-        gcx.dcx().emit_err(using.span, "invalid use of library name");
     }
 
     for entry in using.entries {
@@ -220,10 +303,6 @@ fn check_using_function<'gcx>(
 }
 
 fn check_external_type_clashes(gcx: Gcx<'_>, contract_id: hir::ContractId) {
-    if gcx.hir.contract(contract_id).kind.is_library() {
-        return;
-    }
-
     let mut external_declarations: FxIndexMap<B256, Vec<ItemId>> = FxIndexMap::default();
 
     for item_id in gcx.hir.contract_item_ids(contract_id) {
@@ -272,6 +351,23 @@ fn check_payable_fallback_without_receive(gcx: Gcx<'_>, contract_id: hir::Contra
                     "receive",
                     solar_interface::diagnostics::Applicability::MachineApplicable,
                 )
+                .emit();
+        }
+    }
+}
+
+/// Checks that the contract does not inherit from a contract with a custom storage layout.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/ContractLevelChecker.cpp#L121-L138>
+fn check_storage_layout_inheritance(gcx: Gcx<'_>, contract_id: hir::ContractId) {
+    let contract = gcx.hir.contract(contract_id);
+    for (base, &base_id) in contract.bases_args.iter().zip(contract.bases) {
+        if let Some(layout) = gcx.hir.contract(base_id).layout {
+            gcx.dcx()
+                .err("cannot inherit from a contract with a custom storage layout")
+                .code(error_code!(8894))
+                .span(base.span)
+                .span_note(layout.span, "custom storage layout defined here")
                 .emit();
         }
     }
@@ -523,81 +619,94 @@ fn check_library_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
 /// - functions: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L432-L443>
 /// - `virtual`: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L306-L318>
 /// - modifiers: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L292-L297>
-/// - variables: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/PostTypeChecker.cpp#L391-L401>
 fn check_interface_members(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     let contract = gcx.hir.contract(contract_id);
     if !contract.kind.is_interface() {
         return;
     }
 
-    // Iterate over the items in declaration order to report them in the same order solc does.
-    for &item in contract.items {
-        match item {
-            ItemId::Function(f_id) => {
-                let f = gcx.hir.function(f_id);
+    for (base, &base_id) in contract.bases_args.iter().zip(contract.bases) {
+        if !gcx.hir.contract(base_id).kind.is_interface() {
+            gcx.dcx()
+                .err("interfaces can only inherit from other interfaces")
+                .code(error_code!(6536))
+                .span(base.span)
+                .emit();
+        }
+    }
 
-                // Modifiers are not functions in solc, so they get their own error instead of the
-                // function ones below.
-                if f.kind.is_modifier() {
-                    gcx.dcx()
-                        .err("modifiers cannot be defined or declared in interfaces")
-                        .code(error_code!(6408))
-                        .span(f.span)
-                        .emit();
-                    continue;
-                }
+    // Iterate over the functions in declaration order to report them in the same order solc does.
+    for f_id in contract.functions() {
+        let f = gcx.hir.function(f_id);
 
-                // Getters have no declaration of their own in solc, and are always lowered as an
-                // implemented `external` function here; the variable they belong to is rejected
-                // below instead. Yul functions from inline assembly are items too, but they
-                // belong to the function that contains them, which is reported on its own.
-                if f.is_getter() || f.is_yul {
-                    continue;
-                }
+        // Modifiers are not functions in solc, so they get their own error instead of the
+        // function ones below.
+        if f.kind.is_modifier() {
+            gcx.dcx()
+                .err("modifiers cannot be defined or declared in interfaces")
+                .code(error_code!(6408))
+                .span(f.span)
+                .emit();
+            continue;
+        }
 
-                // `virtual` is implied here, and ends solc's `virtual` chain: see
-                // `check_library_functions` and `check_unimplemented_functions`.
-                if f.marked_virtual {
-                    gcx.dcx()
-                        .warn("interface functions are implicitly `virtual`")
-                        .code(error_code!(5815))
-                        .span(f.span)
-                        .emit();
-                }
+        // Getters have no declaration of their own in solc, and are always lowered as an
+        // implemented `external` function here; the variable they belong to is rejected by
+        // `check_interface_variables` instead. Yul functions from inline assembly are items too,
+        // but they belong to the function that contains them, which is reported on its own.
+        if f.is_getter() || f.is_yul {
+            continue;
+        }
 
-                if f.body.is_some() {
-                    gcx.dcx()
-                        .err("functions in interfaces cannot have an implementation")
-                        .code(error_code!(4726))
-                        .span(f.span)
-                        .emit();
-                }
+        // `virtual` is implied here, and ends solc's `virtual` chain: see
+        // `check_library_functions` and `check_unimplemented_functions`.
+        if f.marked_virtual {
+            gcx.dcx()
+                .warn("interface functions are implicitly `virtual`")
+                .code(error_code!(5815))
+                .span(f.span)
+                .emit();
+        }
 
-                if f.is_constructor() {
-                    gcx.dcx()
-                        .err("constructor cannot be defined in interfaces")
-                        .code(error_code!(6482))
-                        .span(f.span)
-                        .emit();
-                } else if f.visibility != Visibility::External {
-                    gcx.dcx()
-                        .err("functions in interfaces must be declared `external`")
-                        .code(error_code!(1560))
-                        .span(f.span)
-                        .emit();
-                }
-            }
-            // Parameters and struct fields are not items, so every variable item declared in an
-            // interface is rejected, `constant` ones included.
-            ItemId::Variable(v_id) => {
-                let v = gcx.hir.variable(v_id);
-                gcx.dcx()
-                    .err("variables cannot be declared in interfaces")
-                    .code(error_code!(8274))
-                    .span(v.span)
-                    .emit();
-            }
-            _ => {}
+        if f.body.is_some() {
+            gcx.dcx()
+                .err("functions in interfaces cannot have an implementation")
+                .code(error_code!(4726))
+                .span(f.span)
+                .emit();
+        }
+
+        if f.is_constructor() {
+            gcx.dcx()
+                .err("constructor cannot be defined in interfaces")
+                .code(error_code!(6482))
+                .span(f.span)
+                .emit();
+        } else if f.visibility != Visibility::External {
+            gcx.dcx()
+                .err("functions in interfaces must be declared `external`")
+                .code(error_code!(1560))
+                .span(f.span)
+                .emit();
+        }
+    }
+}
+
+/// Rejects variables declared in interfaces.
+///
+/// solc reports this in its `PostTypeChecker`, so it does not hide constant cycle errors.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/PostTypeChecker.cpp#L391-L401>
+fn check_interface_variables(gcx: Gcx<'_>) {
+    for contract in gcx.hir.contracts().filter(|contract| contract.kind.is_interface()) {
+        // Parameters and struct fields are not items, so every variable item declared in an
+        // interface is rejected, `constant` ones included.
+        for v_id in contract.variables() {
+            gcx.dcx()
+                .err("variables cannot be declared in interfaces")
+                .code(error_code!(8274))
+                .span(gcx.hir.variable(v_id).span)
+                .emit();
         }
     }
 }
@@ -640,6 +749,62 @@ fn check_payable_function(gcx: Gcx<'_>, f: &hir::Function<'_>) {
             return;
         };
     gcx.dcx().err(msg).code(code).span(f.span).emit();
+}
+
+/// Checks that a fallback function has one of the two signatures the dispatcher can route.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L2037-L2050>
+fn check_fallback_signature(gcx: Gcx<'_>, f: &hir::Function<'_>) {
+    if !f.kind.is_fallback() || (f.parameters.is_empty() && f.returns.is_empty()) {
+        return;
+    }
+    if let [param] = *f.parameters
+        && let [ret] = *f.returns
+        && gcx.type_of_item(param.into()) == gcx.types.bytes_ref.calldata
+        && gcx.type_of_item(ret.into()) == gcx.types.bytes_ref.memory
+    {
+        return;
+    }
+    if f.variables().any(|var| gcx.type_of_item(var.into()).references_error()) {
+        return;
+    }
+
+    // Point at the returns, or at the parameters when there are none.
+    let vars = if f.returns.is_empty() { f.parameters } else { f.returns };
+    gcx.dcx()
+        .err("invalid fallback function signature")
+        .code(error_code!(5570))
+        .span(Span::join_first_last(vars.iter().map(|&var| gcx.hir.variable(var).span)))
+        .help("use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`")
+        .emit();
+}
+
+/// Checks that the constructor of a non-abstract contract only takes parameters that can be
+/// ABI-decoded from the deployment data.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L343-L370>
+fn check_constructor_parameters(gcx: Gcx<'_>, contract_id: hir::ContractId) {
+    let contract = gcx.hir.contract(contract_id);
+    let Some(ctor) = contract.ctor.filter(|_| !contract.is_abstract()) else { return };
+    for &param in gcx.hir.function(ctor).parameters {
+        let var = gcx.hir.variable(param);
+        let ty = gcx.type_of_item(param.into());
+        if ty.references_error() {
+            continue;
+        }
+        let diag = if var.data_location == Some(DataLocation::Storage) {
+            gcx.dcx()
+                .err("this parameter has a type that can only be used internally")
+                .code(error_code!(3644))
+        } else if let Some(subject) = ty.interface_type_error(false, gcx) {
+            gcx.dcx()
+                .err(format!("{subject} cannot be constructor parameters"))
+                .code(error_code!(4103))
+        } else {
+            continue;
+        };
+        diag.span(var.span).help("make the contract `abstract` to avoid this problem").emit();
+    }
 }
 
 /// Checks for violation of maximum storage size to ensure slot allocation algorithms works.
@@ -718,6 +883,7 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Result<Option<U256>,
         | TyKind::StringLiteral(..)
         | TyKind::CallOptions(_)
         | TyKind::IntLiteral(..)
+        | TyKind::RationalLiteral
         | TyKind::Mapping(..)
         | TyKind::Contract(..)
         | TyKind::Super(..)
@@ -776,13 +942,6 @@ impl<'gcx> BreakContinueChecker<'gcx> {
         Self { gcx, loop_depth: 0 }
     }
 
-    fn visit_block(&mut self, block: hir::Block<'gcx>) -> ControlFlow<Never> {
-        for stmt in block.stmts {
-            self.visit_stmt(stmt)?;
-        }
-        ControlFlow::Continue(())
-    }
-
     fn check_break_continue(&self, span: Span, kind: &str) {
         if self.loop_depth == 0 {
             let msg = format!("`{kind}` outside of a loop");
@@ -799,8 +958,13 @@ impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
     }
 
     fn visit_nested_function(&mut self, id: hir::FunctionId) -> ControlFlow<Self::BreakValue> {
+        let function = self.hir().function(id);
+        // AST validation checks Yul `break` and `continue`.
+        if function.is_yul {
+            return ControlFlow::Continue(());
+        }
         let loop_depth = std::mem::replace(&mut self.loop_depth, 0);
-        let r = self.visit_function(self.hir().function(id));
+        let r = self.visit_function(function);
         self.loop_depth = loop_depth;
         r
     }
@@ -809,15 +973,13 @@ impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
         match stmt.kind {
             hir::StmtKind::Break => self.check_break_continue(stmt.span, "break"),
             hir::StmtKind::Continue => self.check_break_continue(stmt.span, "continue"),
-            hir::StmtKind::Loop(block, source) => {
+            hir::StmtKind::Loop(..) => {
                 self.loop_depth += 1;
-                self.visit_block(block)?;
-                if let hir::LoopSource::For { update: Some(update) } = source {
-                    self.visit_stmt(update)?;
-                }
+                let r = self.walk_stmt(stmt);
                 self.loop_depth -= 1;
-                return ControlFlow::Continue(());
+                return r;
             }
+            hir::StmtKind::AssemblyBlock(_) => return ControlFlow::Continue(()),
             _ => {}
         }
 
@@ -828,6 +990,128 @@ impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
     #[inline]
     fn visit_expr(&mut self, _expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
         ControlFlow::Continue(())
+    }
+}
+
+/// Checks the parameters of an event and the number of its indexed parameters.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L689-L710>
+fn check_event(gcx: Gcx<'_>, id: hir::EventId) {
+    let event = gcx.hir.event(id);
+    let _ = check_event_or_error_parameters(gcx, "event", event.parameters);
+    let indexed = event.parameters.iter().filter(|&&p| gcx.hir.variable(p).indexed).count();
+    let (max, msg, code) = if event.anonymous {
+        (4, "more than 4 indexed arguments for anonymous event", error_code!(8598))
+    } else {
+        (3, "more than 3 indexed arguments for event", error_code!(7249))
+    };
+    if indexed > max {
+        gcx.dcx().err(msg).code(code).span(event.span).emit();
+    }
+}
+
+/// Checks the parameters of an error, and that it does not redefine a built-in error or use a
+/// reserved selector.
+///
+/// References:
+/// - parameters: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L689-L710>
+/// - reserved errors: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/PostTypeChecker.cpp#L435-L458>
+fn check_error(gcx: Gcx<'_>, id: hir::ErrorId) {
+    let error = gcx.hir.error(id);
+    let params = check_event_or_error_parameters(gcx, "error", error.parameters);
+    if matches!(error.name.name, sym::Error | sym::Panic) {
+        gcx.dcx()
+            .err("the built-in errors `Error` and `Panic` cannot be re-defined")
+            .code(error_code!(1855))
+            .span(error.name.span)
+            .emit();
+    } else if params.is_ok() {
+        let selector = gcx.function_selector(id);
+        if selector == Selector::ZERO || selector == Selector::repeat_byte(0xff) {
+            gcx.dcx()
+                .err(format!("the selector `{selector}` is reserved"))
+                .code(error_code!(2855))
+                .span(error.span)
+                .help("rename the error to avoid the collision")
+                .emit();
+        }
+    }
+}
+
+/// Checks that event or error parameters have interface types.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L4263-L4276>
+fn check_event_or_error_parameters(
+    gcx: Gcx<'_>,
+    kind: &str,
+    parameters: &[hir::VariableId],
+) -> Result<(), ErrorGuaranteed> {
+    let mut result = Ok(());
+    for &param in parameters {
+        let ty = gcx.type_of_item(param.into());
+        if let Err(guar) = ty.error_reported() {
+            result = Err(guar);
+            continue;
+        }
+        if ty.can_be_exported(gcx) {
+            continue;
+        }
+        // Recursiveness comes before internal functions.
+        // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L2384>
+        let (what, code) = if ty.has_mapping(gcx) {
+            ("types containing mappings", error_code!(3448))
+        } else if ty.is_recursive(gcx) {
+            ("recursive types", error_code!(3417))
+        } else {
+            ("types containing internal function pointers", error_code!(3417))
+        };
+        let msg = format!("{what} cannot be {kind} parameter types");
+        result = Err(gcx.dcx().err(msg).code(code).span(gcx.hir.variable(param).span).emit());
+    }
+    result
+}
+
+/// Checks that the errors in the interface of each contract have distinct selectors.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/PostTypeContractLevelChecker.cpp#L59-L77>
+fn check_error_selector_collisions(gcx: Gcx<'_>) {
+    if gcx.dcx().has_errors().is_err() {
+        return;
+    }
+
+    // Returns the first error seen with the same selector as `id` but a different signature.
+    let find_collision = |selectors: &mut FxHashMap<Selector, hir::ErrorId>, id: hir::ErrorId| {
+        let hash = gcx.item_selector(id.into());
+        let prev = *selectors.entry(Selector::from_slice(&hash[..4])).or_insert(id);
+        (gcx.item_selector(prev.into()) != hash).then_some(prev)
+    };
+
+    // Collisions are rare, so only build the call graphs that find the errors used by each
+    // contract when two error signatures anywhere share a selector.
+    let mut selectors = FxHashMap::default();
+    let any_collision = gcx.hir.error_ids().any(|id| find_collision(&mut selectors, id).is_some());
+    if !any_collision {
+        return;
+    }
+
+    for contract_id in gcx.hir.contract_ids() {
+        selectors.clear();
+        for id in gcx.interface_errors(contract_id).iter() {
+            if let Some(prev) = find_collision(&mut selectors, id) {
+                let signature = gcx.item_signature(id.into());
+                let prev_signature = gcx.item_signature(prev.into());
+                let selector = gcx.function_selector(id);
+                gcx.dcx()
+                    .err("error signature hash collision")
+                    .code(error_code!(4883))
+                    .span(gcx.hir.error(id).name.span)
+                    .span_note(gcx.hir.error(prev).span, "other error is here")
+                    .note(format!(
+                        "the error signatures `{signature}` and `{prev_signature}` produce the same 4-byte selector `{selector}`"
+                    ))
+                    .emit();
+            }
+        }
     }
 }
 

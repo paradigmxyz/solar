@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/linear.sol:Linear ===
 @module Linear
-fn @add(arg0: i256, arg1: i256) -> i256 [selector=0x771602f7, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @add(arg0: i256, arg1: i256) -> i256 [selector=0x771602f7, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v1 = add arg0, arg1
     v2 = lt v1, arg0
@@ -8,12 +8,12 @@ fn @add(arg0: i256, arg1: i256) -> i256 [selector=0x771602f7, pure, abi_params=[
   bb2:
     ret v1
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @sub(arg0: i256, arg1: i256) -> i256 [selector=0xb67d77c5, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @sub(arg0: i256, arg1: i256) -> i256 [selector=0xb67d77c5, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v1 = sub arg0, arg1
     v2 = lt arg0, arg1
@@ -21,12 +21,12 @@ fn @sub(arg0: i256, arg1: i256) -> i256 [selector=0xb67d77c5, pure, abi_params=[
   bb2:
     ret v1
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @add_one(arg0: i256) -> i256 [selector=0xdde38a34, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @add_one(arg0: i256) -> i256 [selector=0xdde38a34, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v1 = add arg0, 1
     v2 = lt v1, arg0
@@ -34,7 +34,7 @@ fn @add_one(arg0: i256) -> i256 [selector=0xdde38a34, pure, abi_params=[u256], a
   bb2:
     ret v1
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }

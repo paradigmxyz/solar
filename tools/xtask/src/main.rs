@@ -11,8 +11,8 @@ use xshell::{Shell, cmd};
 
 mod flags;
 
-const INT_FLAGS: &[&str] = &["--package=solar-compiler", "--test=tests"];
-const FOUNDRY_FLAGS: &[&str] = &["--package=solar-tester"];
+const INT_FLAGS: &[&str] = &["--test=tests"];
+const FOUNDRY_FLAGS: &[&str] = &["--test=it"];
 
 fn main() -> anyhow::Result<()> {
     let flags = flags::Xtask::from_env_or_exit();
@@ -28,13 +28,11 @@ fn main() -> anyhow::Result<()> {
             }
 
             if test_name.as_deref() == Some("foundry-external") {
-                // Release: external projects are compile-heavy, and the runner
-                // prefers an existing release binary over a fresh debug one.
-                cmd!(sh, "cargo build --release --package=solar-compiler --bin=solar").run()?;
-                let mut cmd = cmd!(sh, "cargo nextest run");
+                // Release: external projects are compile-heavy.
+                let mut cmd = cmd!(sh, "cargo nextest run --release");
                 cmd = cmd
                     .args(FOUNDRY_FLAGS)
-                    .arg("foundry::tests::external")
+                    .arg("foundry::external")
                     .arg("--run-ignored=only")
                     .arg("--no-capture");
                 if let Some(project) = rest.first() {
@@ -45,9 +43,8 @@ fn main() -> anyhow::Result<()> {
             }
 
             if test_name.as_deref().is_some_and(|name| matches!(name, "foundry" | "runtime")) {
-                cmd!(sh, "cargo build --package=solar-compiler --bin=solar").run()?;
                 let mut cmd = cmd!(sh, "cargo nextest run");
-                cmd = cmd.args(FOUNDRY_FLAGS).arg("foundry::tests::foundry").arg("--");
+                cmd = cmd.args(FOUNDRY_FLAGS).arg("foundry::foundry").arg("--");
                 if !rest.is_empty() {
                     cmd = cmd.args(rest);
                 }
@@ -55,17 +52,28 @@ fn main() -> anyhow::Result<()> {
                 return Ok(());
             }
 
-            let mut cmd =
-                if bless { cmd!(sh, "cargo test") } else { cmd!(sh, "cargo nextest run") };
+            // nextest treats arguments after `--` as test-name filters, which match nothing in
+            // the single `ui_test` harness test, so filtered runs go to the harness directly.
+            let mode = test_name.as_deref().and_then(tester_mode);
+            let mut cmd = if bless || (mode.is_some() && !rest.is_empty()) {
+                cmd!(sh, "cargo test")
+            } else {
+                cmd!(sh, "cargo nextest run")
+            };
+            // Blessing without a suite covers every tester mode; the upstream solc modes never
+            // write expectations.
             if bless && test_name.is_none() {
-                cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", "ui");
+                cmd = cmd.args(INT_FLAGS);
             }
-            if let Some(t) = test_name {
-                if let Some(mode) = tester_mode(&t) {
-                    cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", mode);
-                } else {
-                    cmd = cmd.arg(t);
+            if let Some(mode) = mode {
+                cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", mode);
+                // Without `--no-capture`, nextest reports the harness as a single test instead of
+                // the harness's own `test result:` line with the real count.
+                if !bless && rest.is_empty() {
+                    cmd = cmd.arg("--no-capture");
                 }
+            } else if let Some(t) = &test_name {
+                cmd = cmd.arg(t);
             }
             cmd = cmd.arg("--");
             if bless {

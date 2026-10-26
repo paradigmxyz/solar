@@ -4,7 +4,9 @@ bb0:
   callvalue
   push bb3
   jumpi
-  push 0x100000000000000000000000000000000000000000000000000000000
+  push 224
+  push 2
+  exp
   push 0
   calldataload
   div
@@ -14,10 +16,10 @@ bb0:
   push bb3
   jumpi
   push 42
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0
@@ -29,7 +31,9 @@ bb0:
   callvalue
   push bb4
   jumpi
-  push 0x100000000000000000000000000000000000000000000000000000000
+  push 224
+  push 2
+  exp
   push 0
   calldataload
   div
@@ -43,7 +47,7 @@ bb0:
   sub
   push bb4
   jumpi
-  push 192
+  push 128
   push 64
   mstore
   push 0
@@ -52,11 +56,6 @@ bb0:
   and
   push 64
   mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
   push 0x3fa4f24500000000000000000000000000000000000000000000000000000000
   dup 2
   mstore
@@ -65,9 +64,6 @@ bb0:
   iszero
   push bb4
   jumpi
-  dup 1
-  push 160
-  mstore
   push 32
   dup 2
   push 4
@@ -76,28 +72,21 @@ bb0:
   dup 7
   push 0xc350
   call
-  jump bb10
-bb10:
-  swap 2
-  pop
-  pop
   iszero
   push bb4
   jumpi
-  push 160
   mload
-  mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb4 [cold]:
   push 0
   dup 1
   invalid
 bb9:
-  push 192
+  push 128
   push 64
   mstore
   push 0
@@ -108,11 +97,6 @@ bb9:
   gas
   push 64
   mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
   push 0x3fa4f24500000000000000000000000000000000000000000000000000000000
   dup 2
   mstore
@@ -121,9 +105,6 @@ bb9:
   iszero
   push bb4
   jumpi
-  dup 2
-  push 160
-  mstore
   push 32
   dup 3
   push 4
@@ -132,6 +113,13 @@ bb9:
   dup 8
   dup 7
   call
-  swap 1
+  iszero
+  push bb4
+  jumpi
   pop
-  jump bb10
+  mload
+  push 0
+  mstore
+  push 32
+  push 0
+  return

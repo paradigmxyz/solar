@@ -1,0 +1,8 @@
+error[2571]: libraries cannot be inherited from
+   ╭▸ ROOT/tests/ui/resolve/inheriting_from_library.sol:LL:CC
+   │
+LL │ contract Test is Lib {}
+   ╰╴                 ━━━
+
+error: aborting due to 1 previous error
+

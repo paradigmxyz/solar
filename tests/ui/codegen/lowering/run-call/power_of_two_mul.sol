@@ -12,7 +12,7 @@
 // LEGACY-NEXT: calldataload
 // LEGACY-NEXT: push 2
 // LEGACY-NEXT: exp
-//@[none] compile-flags: --evm-version=byzantium
+//@[mir] compile-flags: --evm-version=byzantium
 //@ run-call: mul32 0 => 0
 //@ run-call: mul32 1 => 32
 //@ run-call: mul32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0

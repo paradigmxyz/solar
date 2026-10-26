@@ -142,6 +142,29 @@ ALGORITHM_INPUTS = (
 )
 
 
+# Batch inputs for calldata array loops: 32 amounts of seven to eight nonzero
+# bytes, small weights, and distinct accounts searched for the last one.
+CALLDATA_AMOUNTS = "[" + ",".join(str(10**15 * (i + 1)) for i in range(32)) + "]"
+CALLDATA_WEIGHTS = "[" + ",".join(str(i + 1) for i in range(32)) + "]"
+CALLDATA_ACCOUNTS = "[" + ",".join(f"0x{0xA11CE000 + i:040x}" for i in range(32)) + "]"
+CALLDATA_LAST_ACCOUNT = f"0x{0xA11CE000 + 31:040x}"
+
+# The valid RIP-7212 probe vector from the pinned OpenZeppelin P256 library.
+P256_SIGNATURE = (
+    "0xbb5a52f42f9c9261ed4361f59422a1e30036e7c32b270c8807a419feca605023",
+    "0x" + "00" * 31 + "05",
+    "0x" + "00" * 31 + "01",
+    "0xa71af64de5126a4a4e02b7922d66ce9415ce88a4c9d25514d91082c8725ac957",
+    "0x5d47723c8fbe580bb369fec9c2665d8e30a435b9932645482e7c9f11e872296b",
+)
+P256_INPUTS = (
+    ("valid", P256_SIGNATURE),
+    ("wrong-hash", ("0x" + "11" * 32, *P256_SIGNATURE[1:])),
+    ("zero-r", (P256_SIGNATURE[0], "0x" + "00" * 32, *P256_SIGNATURE[2:])),
+    ("off-curve", (*P256_SIGNATURE[:3], "0x" + "00" * 32, "0x" + "00" * 32)),
+)
+
+
 @dataclass(frozen=True)
 class RuntimeCheck:
     label: str
@@ -280,6 +303,11 @@ PROJECTS = {
         "solarray-a547630.json.gz",
         (Source("evmcheb/solarray", "a547630f9bf7837af9e6919d217672afe7abf7f1"),),
     ),
+    "tempo-zones": Project(
+        "tempo-zones",
+        "tempo-zones.json.gz",
+        (Source("tempoxyz/zones", "700069eb8a40fce7e1f7a4bf0fc5703bcc692c43"),),
+    ),
 }
 
 
@@ -320,6 +348,10 @@ class TestCase:
 
 def source(name: str) -> str:
     return (TESTDATA_ROOT / name).read_text()
+
+
+ZONES_TOKEN = "0x20c0000000000000000000000000000000000001"
+ZONES_KEY_X = "0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
 
 
 TEST_CASES: Sequence[TestCase] = (
@@ -659,6 +691,90 @@ TEST_CASES: Sequence[TestCase] = (
                 "whole-lots-max",
                 "wholeLots(uint256,uint256,uint256)(uint256)",
                 (MAX_UINT256, "0", "1"),
+            ),
+        ),
+    ),
+    TestCase(
+        test_id="calldata-loops",
+        description="Totals, maxima, searches and dot products over calldata arrays",
+        source_code=(TESTDATA_ROOT / "runtime/CalldataLoops.sol").read_text(),
+        source_path="testdata/runtime/CalldataLoops.sol",
+        source_name="CalldataLoops.sol",
+        contract_name="CalldataLoops",
+        gas_calls=(
+            GasCall("sum", "sum(uint256[],uint256)", (CALLDATA_AMOUNTS, "16")),
+            GasCall(
+                "weighted",
+                "weighted(uint256[],uint256,uint256)",
+                (CALLDATA_AMOUNTS, "3000000007", "16"),
+            ),
+            GasCall("max", "max(uint256[],uint256)", (CALLDATA_AMOUNTS, "16")),
+            GasCall(
+                "index-of",
+                "indexOf(address[],address,uint256)",
+                (CALLDATA_ACCOUNTS, CALLDATA_LAST_ACCOUNT, "16"),
+            ),
+            GasCall(
+                "dot",
+                "dot(uint256[],uint256[],uint256)",
+                (CALLDATA_AMOUNTS, CALLDATA_WEIGHTS, "16"),
+            ),
+        ),
+        runtime_checks=(
+            RuntimeCheck(
+                "sum", "sum(uint256[],uint256)(uint256)", (CALLDATA_AMOUNTS, "16")
+            ),
+            RuntimeCheck("sum-empty", "sum(uint256[],uint256)(uint256)", ("[]", "4")),
+            RuntimeCheck(
+                "sum-max",
+                "sum(uint256[],uint256)(uint256)",
+                (f"[{MAX_UINT256},0]", "1"),
+            ),
+            RuntimeCheck(
+                "weighted",
+                "weighted(uint256[],uint256,uint256)(uint256)",
+                (CALLDATA_AMOUNTS, "3000000007", "16"),
+            ),
+            RuntimeCheck(
+                "weighted-limit",
+                "weighted(uint256[],uint256,uint256)(uint256)",
+                (f"[{((1 << 256) - 1) // 3}]", "3", "1"),
+            ),
+            RuntimeCheck(
+                "weighted-zero-price",
+                "weighted(uint256[],uint256,uint256)(uint256)",
+                (CALLDATA_AMOUNTS, "0", "2"),
+            ),
+            RuntimeCheck(
+                "max", "max(uint256[],uint256)(uint256)", (CALLDATA_AMOUNTS, "16")
+            ),
+            RuntimeCheck(
+                "max-first", "max(uint256[],uint256)(uint256)", ("[9,3,1]", "1")
+            ),
+            RuntimeCheck(
+                "index-of",
+                "indexOf(address[],address,uint256)(uint256)",
+                (CALLDATA_ACCOUNTS, CALLDATA_LAST_ACCOUNT, "16"),
+            ),
+            RuntimeCheck(
+                "index-of-missing",
+                "indexOf(address[],address,uint256)(uint256)",
+                (CALLDATA_ACCOUNTS, ZERO_ADDRESS, "1"),
+            ),
+            RuntimeCheck(
+                "index-of-zero-rounds",
+                "indexOf(address[],address,uint256)(uint256)",
+                (CALLDATA_ACCOUNTS, CALLDATA_LAST_ACCOUNT, "0"),
+            ),
+            RuntimeCheck(
+                "dot",
+                "dot(uint256[],uint256[],uint256)(uint256)",
+                (CALLDATA_AMOUNTS, CALLDATA_WEIGHTS, "16"),
+            ),
+            RuntimeCheck(
+                "dot-empty",
+                "dot(uint256[],uint256[],uint256)(uint256)",
+                ("[]", "[]", "3"),
             ),
         ),
     ),
@@ -1351,6 +1467,26 @@ TEST_CASES: Sequence[TestCase] = (
         suite="large",
     ),
     TestCase(
+        test_id="openzeppelin-p256",
+        description="OpenZeppelin P256 software verification",
+        project=PROJECTS["openzeppelin-5.6.1"],
+        source="runtime/P256.sol",
+        source_code=source("runtime/P256.sol"),
+        source_path="testdata/runtime/P256.sol",
+        contract_name="P256Verifier",
+        gas_calls=tuple(
+            GasCall(label, "verify(bytes32,bytes32,bytes32,bytes32,bytes32)", args)
+            for label, args in P256_INPUTS
+        ),
+        runtime_checks=tuple(
+            RuntimeCheck(
+                label, "verify(bytes32,bytes32,bytes32,bytes32,bytes32)(bool)", args
+            )
+            for label, args in P256_INPUTS
+        ),
+        suite="large",
+    ),
+    TestCase(
         test_id="solady-signature-checker",
         description="Solady SignatureCheckerLib",
         project=PROJECTS["solady-0.1.26"],
@@ -1521,6 +1657,34 @@ TEST_CASES: Sequence[TestCase] = (
         suite="repository",
     ),
     TestCase(
+        test_id="tempo-zones-portal",
+        description="Tempo Zones portal encrypted deposits through an ERC-1167 proxy",
+        min_solc="0.8.35",
+        project=PROJECTS["tempo-zones"],
+        source="src/runtime/tempo/ZonePortal.sol",
+        contract_name="ZonePortal",
+        gas_calls=tuple(
+            GasCall(
+                label,
+                "deposit(address,uint128,uint256,(bytes32,uint8,bytes,bytes12,bytes16),address)",
+                (
+                    ZONES_TOKEN,
+                    "10000000",
+                    "0",
+                    f"({ZONES_KEY_X},2,0x{'01' * 64},0x{'01' * 12},0x{'01' * 16})",
+                    DEFAULT_SENDER,
+                ),
+            )
+            for label in ("deposit-first", "deposit-existing")
+        ),
+        runtime_checks=(
+            RuntimeCheck("deposit-count", "depositCount()(uint64)"),
+            RuntimeCheck("deposit-queue", "currentDepositQueueHash()(bytes32)"),
+            RuntimeCheck("encryption-key-count", "encryptionKeyCount()(uint256)"),
+        ),
+        suite="repository",
+    ),
+    TestCase(
         test_id="seaport-1.6-project",
         description="Seaport 1.6 full project",
         contract_name="*",
@@ -1589,6 +1753,14 @@ TEST_CASES: Sequence[TestCase] = (
         description="Solarray full project",
         contract_name="*",
         project=PROJECTS["solarray-a547630"],
+        whole_project=True,
+        suite="heavy",
+    ),
+    TestCase(
+        test_id="tempo-zones-project",
+        description="Tempo Zones full project (viaIR, including tests)",
+        contract_name="*",
+        project=PROJECTS["tempo-zones"],
         whole_project=True,
         suite="heavy",
     ),

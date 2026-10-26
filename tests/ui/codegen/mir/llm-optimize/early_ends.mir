@@ -19,7 +19,7 @@ fn @main() [entry] {
 
 fn @sum(arg0: i256) -> i256 {
   bb0:
-    v0 = shr 8, arg0
+    v0 = shr arg0, 8
     v1 = and v0, 0xffff
     v14 = slt arg0, 0
     v15 = select v14, 0, v1

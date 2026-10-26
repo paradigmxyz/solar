@@ -1,6 +1,8 @@
 //! Shared utilities for MIR transforms.
 
-use crate::mir::{BlockId, Function, InstId, InstKind, Terminator, memory::EvmMemoryLayout};
+use crate::mir::{
+    BlockId, Function, FunctionBuilder, InstId, InstKind, Terminator, memory::EvmMemoryLayout,
+};
 use solar_sema::hir::StateMutability;
 
 /// Whether an external entry must reject nonzero callvalue.
@@ -13,7 +15,7 @@ pub(super) fn rejects_callvalue(func: &Function) -> bool {
 
 /// Whether a library's external entry may only run through `DELEGATECALL`.
 ///
-/// Like solc, only non-view functions are guarded; view and pure functions accept direct calls.
+/// Only non-view functions are guarded; view and pure functions accept direct calls.
 pub(super) fn needs_delegatecall_guard(func: &Function) -> bool {
     matches!(
         func.attributes.state_mutability,
@@ -98,4 +100,34 @@ pub(super) fn rebase_frame_offsets(func: &Function, slots: usize) -> Option<Vec<
         }
     }
     Some(offsets)
+}
+
+/// Rebuilds `block` in order, letting `expand` replace instructions with new code.
+///
+/// `expand` returns `false` to keep an instruction, which then moves to the builder's current
+/// block. When an expansion splits the block, the original terminator and its source context move
+/// to the final continuation and successor phis follow it.
+pub(super) fn expand_block(
+    builder: &mut FunctionBuilder<'_>,
+    block: BlockId,
+    mut expand: impl FnMut(&mut FunctionBuilder<'_>, InstId) -> bool,
+) {
+    let instructions = std::mem::take(&mut builder.func_mut().blocks[block].instructions);
+    let (terminator, metadata) = builder.func_mut().blocks[block].take_terminator();
+    builder.switch_to_block(block);
+    for inst in instructions {
+        if !expand(builder, inst) {
+            // continuation: original instruction
+            let current = builder.current_block();
+            builder.func_mut().blocks[current].instructions.push(inst);
+        }
+    }
+    // continuation: original terminator
+    let end = builder.current_block();
+    if let Some(terminator) = terminator {
+        builder.func_mut().blocks[end].set_terminator(terminator, metadata);
+    }
+    if end != block {
+        redirect_successor_predecessors(builder.func_mut(), block, end);
+    }
 }

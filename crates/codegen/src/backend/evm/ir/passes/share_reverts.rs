@@ -17,13 +17,15 @@
 //! so a sequence whose intervening gas is observable is left alone.
 
 use super::{
-    EvmPass,
-    peephole::{invert_comparison, materialization_cost},
+    EvmPass, compact_pushes::immediate_materialization_cost, peephole::invert_comparison,
     utils::is_split_point,
 };
-use crate::backend::evm::{
-    ir::{BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
-    op,
+use crate::{
+    backend::evm::{
+        ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
+        op,
+    },
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_data_structures::bit_set::DenseBitSet;
@@ -50,7 +52,7 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let shared = empty_reverts
         .iter()
         .next()
-        .filter(|&shared| !preserves_shared_revert_low_address(module, shared));
+        .filter(|&shared| !preserves_shared_revert_low_address(Target::new(gcx), module, shared));
     let mut cold_reverts = DenseBitSet::new_empty(module.blocks.len());
     for (id, block) in module.blocks.iter_enumerated() {
         if block.metadata.hotness.is_cold()
@@ -81,8 +83,7 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
         let Some(target_revert) = target_revert else { continue };
         let [.., target, jumpi] = block.instructions.as_slice() else { continue };
         let Some(PushValue::Block(continuation)) = target.value else { continue };
-        if jumpi.opcode != op::JUMPI
-            || jumpi.is_encoded_push()
+        if jumpi.as_evm_opcode() != Some(op::JUMPI)
             || !target.is_encoded_push()
             || revert.index() != block_id.index() + 1
             || continuation.index() != revert.index() + 1
@@ -117,8 +118,8 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 continue;
             };
             let previous = block.instructions[start].concrete_immediate().unwrap();
-            let before = materialization_cost(evm_version, previous);
-            let after = materialization_cost(evm_version, bound);
+            let before = immediate_materialization_cost(evm_version, previous);
+            let after = immediate_materialization_cost(evm_version, bound);
             if after.0 > before.0 || after.1 > before.1 {
                 continue;
             }
@@ -165,19 +166,22 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
     changed
 }
 
-fn preserves_shared_revert_low_address(module: &Module, shared: BlockId) -> bool {
+fn preserves_shared_revert_low_address(target: Target, module: &Module, shared: BlockId) -> bool {
     // Inverting the branch can remove the early unconditional jump that lets
     // layout keep a frequently referenced revert below the PUSH1 boundary.
-    let block_size = |block: &crate::backend::evm::ir::Block| {
-        1 + block
-            .instructions
-            .iter()
-            .map(|inst| if inst.is_encoded_push() { 2 } else { 1 })
-            .sum::<usize>()
+    // Estimate every block with a label, one-byte pushes, and a jump below that boundary.
+    let push = target.opcode(op::PUSH1).bytes as usize;
+    let block_size = |block: &Block| {
+        target.opcode(op::JUMPDEST).bytes as usize
             + block
-                .terminator
-                .as_ref()
-                .map_or(0, |term| if matches!(term.kind, TerminatorKind::Jump(_)) { 3 } else { 1 })
+                .instructions
+                .iter()
+                .map(|inst| if inst.is_encoded_push() { push } else { 1 })
+                .sum::<usize>()
+            + block.terminator.as_ref().map_or(0, |term| match term.kind {
+                TerminatorKind::Jump(_) => push + target.opcode(op::JUMP).bytes as usize,
+                _ => 1,
+            })
     };
     let mut references = 0;
     let mut shared_end = 0;
@@ -211,8 +215,5 @@ fn is_empty_revert(module: &Module, block: BlockId) -> bool {
 }
 
 fn is_zero_push(inst: &Instruction) -> bool {
-    inst.is_encoded_push()
-        && inst.deferred_push().is_none()
-        && inst.immutable_push().is_none()
-        && matches!(inst.value, Some(PushValue::Immediate(value)) if value == U256::ZERO)
+    inst.concrete_immediate() == Some(U256::ZERO)
 }

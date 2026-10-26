@@ -9,7 +9,7 @@ use alloy_json_abi::AbiItem;
 use anstyle::{AnsiColor, Color, Style};
 use solar_codegen::{
     ContractArtifact, ContractSelection, RuntimeDataFn,
-    backend::evm::{self, DynamicFrame, ir},
+    backend::evm::{self, ir},
     generate_contract_bytecodes, generate_mir_input_bytecode,
     mir::{Module, pass, validate},
 };
@@ -254,7 +254,6 @@ fn emit_mir_input_artifacts(gcx: Gcx<'_>, file: &str, mut module: Module) -> Res
             writeln!(writer, "// === {name} ===")
                 .and_then(|()| write_highlighted(&mut writer, module.to_string(), Syntax::Ir))
                 .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
-            write_heap_frames(&mut writer, gcx, &artifact.runtime_dynamic_frames)?;
         }
         let (deployment_ir, runtime_ir) =
             (artifact.deployment_evm_ir.as_ref(), artifact.runtime_evm_ir.as_ref());
@@ -418,7 +417,7 @@ fn emit_combined_json(
         source_list: source_map_encoder.as_ref().map(|_| {
             gcx.hir
                 .source_ids()
-                .map(|id| gcx.hir.source(id).file.name.display().to_string().replace('\\', "/"))
+                .map(|id| gcx.hir.source(id).file.name.display().to_string())
                 .collect()
         }),
         version: solar_config::version::SEMVER_VERSION,
@@ -427,7 +426,7 @@ fn emit_combined_json(
 
     let emit_contracts = emit_abi || emit_hashes || codegen_requested;
     for id in gcx.hir.contract_ids().filter(|_| emit_contracts) {
-        let name = contract_output_name(gcx, id);
+        let name = gcx.contract_fully_qualified_name(id).to_string();
         let contract_output = output.contracts.entry(name).or_default();
 
         if emit_abi {
@@ -500,12 +499,6 @@ fn write_output_json<T: serde::Serialize>(
     Ok(())
 }
 
-fn contract_output_name(gcx: Gcx<'_>, id: ContractId) -> String {
-    let contract = gcx.hir.contract(id);
-    let source = gcx.hir.source(contract.source);
-    format!("{}:{}", source.file.name.display().to_string().replace('\\', "/"), contract.name)
-}
-
 fn has_mir_dump(gcx: Gcx<'_>) -> bool {
     gcx.sess.opts.unstable.dump.as_ref().is_some_and(|dump| {
         dump.kinds
@@ -572,21 +565,6 @@ fn dump_mir_contract(
     }
     if dump.kinds.contains(&DumpKind::MirFinal) {
         write_mir_dump_contract(writer, gcx, id, module, DumpKind::MirFinal, first)?;
-        write_heap_frames(writer, gcx, &artifacts[&id].runtime_dynamic_frames)?;
-    }
-    Ok(())
-}
-
-/// Writes a line for each heap frame the runtime's internal calls take, after a final MIR dump.
-fn write_heap_frames(writer: &mut ConsoleWriter, gcx: Gcx<'_>, frames: &[DynamicFrame]) -> Result {
-    for frame in frames {
-        let restores = if frame.restores_free_memory { "restores" } else { "keeps" };
-        writeln!(
-            writer,
-            "// frame @{}: {} bytes, {restores} the free memory pointer",
-            frame.function, frame.size
-        )
-        .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     }
     Ok(())
 }
@@ -603,8 +581,7 @@ fn contract_dump_path_matches(gcx: Gcx<'_>, id: ContractId, path: &str) -> bool 
         return true;
     }
 
-    let path = path.replace('\\', "/");
-    path == gcx.contract_fully_qualified_name(id).to_string().replace('\\', "/")
+    path == gcx.contract_fully_qualified_name(id).to_string()
 }
 
 fn matching_dump_contracts(gcx: Gcx<'_>, dump: &Dump) -> Result<ContractSelection> {
@@ -662,7 +639,7 @@ fn available_dump_contracts(gcx: Gcx<'_>) -> String {
     gcx.hir
         .contract_ids()
         .filter(|&id| is_dumpable_contract(gcx, id))
-        .map(|id| gcx.contract_fully_qualified_name(id).to_string().replace('\\', "/"))
+        .map(|id| gcx.contract_fully_qualified_name(id).to_string())
         .collect::<Vec<_>>()
         .join(", ")
 }

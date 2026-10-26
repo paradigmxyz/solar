@@ -23,12 +23,12 @@
   
   fn @keep_load_across_allocation_fmp_update() -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memptr v0 to i256
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
       v2 = mload v1
       icall @noop
-      v3 = alloc raw, exact, uninitialized, infallible, 32
-      v4 = ptrtoint memptr v3 to i256
+      v3 = alloc 32
+      v4 = ptrtoint ptr<memory> v3 to i256
       mstore v4, 7
       v5 = mload v1
       v6 = add v2, v5
@@ -274,10 +274,10 @@
   
   fn @bounded_allocation_range() -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 64
-      v1 = ptrtoint memptr v0 to i256
-      v2 = alloc raw, exact, uninitialized, infallible, 32
-      v3 = ptrtoint memptr v2 to i256
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      v2 = alloc 32
+      v3 = ptrtoint ptr<memory> v2 to i256
       v4 = mload v3
       icall @write_next_word, v1
 -     v5 = mload v3
@@ -288,10 +288,10 @@
   
   fn @out_of_bounds_allocation_range() -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memptr v0 to i256
-      v2 = alloc raw, exact, uninitialized, infallible, 32
-      v3 = ptrtoint memptr v2 to i256
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
+      v2 = alloc 32
+      v3 = ptrtoint ptr<memory> v2 to i256
       v4 = mload v3
       icall @write_next_word, v1
       v5 = mload v3
@@ -421,10 +421,10 @@
   
   fn @out_of_bounds_caller_read() -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memptr v0 to i256
-      v2 = alloc raw, exact, uninitialized, infallible, 32
-      v3 = ptrtoint memptr v2 to i256
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
+      v2 = alloc 32
+      v3 = ptrtoint ptr<memory> v2 to i256
       v4 = add v1, 32
       v5 = mload v4
       icall @writer, v3

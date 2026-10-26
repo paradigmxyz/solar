@@ -1,0 +1,29 @@
+- // === ROOT/tests/ui/codegen/mir/sroa/msize_caller.mir (before sroa) ===
++ // === ROOT/tests/ui/codegen/mir/sroa/msize_caller.mir (after sroa) ===
+  @module SroaMsizeCaller
+  fn @touch_then_measure(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc 32
+      mstore v0, arg0
+      v1 = mload v0
+      v2 = icall @measure
+      v3 = add v1, v2
+      ret v3
+  }
+  
+  fn @measure() -> i256 {
+    bb0:
+      v0 = msize
+      ret v0
+  }
+  
+  fn @observe_size() -> i256 {
+    bb0:
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
+      memory_zero v1, 32
+      mstore v0, 7
+      v2 = msize
+      ret v2
+  }
+  

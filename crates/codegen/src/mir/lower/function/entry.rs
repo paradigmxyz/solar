@@ -65,10 +65,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let source_ty = self.cx.gcx.type_of_expr(initializer.id)?;
             let value = self.lower_typed_expr(initializer, ty)?;
             if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
-                // value = cast to the immutable value type
-                let ty = self.cx.module.immutable_type(immutable_id).mir_type();
-                let value = self.builder.cast(value, ty);
-                self.builder.store_immutable(immutable_id, value);
+                self.store_immutable_value(id, immutable_id, value);
             } else {
                 self.store_state_variable(id, value, source_ty, initializer.span)?;
             }
@@ -141,10 +138,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     // A storage-reference argument passes the referenced slot,
                     // like a storage parameter of an internal call.
                     if Self::is_storage_parameter(parameter_ty) {
-                        let Some(access) = this.storage_access(argument) else {
-                            return this.cx.report_unsupported(argument.span, "storage access");
-                        };
-                        return Some(access.slot);
+                        return Some(this.require_storage_access(argument)?.slot);
                     }
                     this.lower_typed_expr(argument, parameter_ty)
                 },
@@ -152,17 +146,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // Later bases may name an earlier base's parameters in their own
             // argument list, and each body is lowered from these bindings, so
             // they stay live for the rest of the constructor.
-            self.bind_constructor_parameters(constructor.parameters, &values);
+            self.bind_inlined_parameters(constructor.parameters, &values);
             self.prepared_constructors.insert(constructor_id);
         }
         Some(())
     }
 
-    /// Binds an inlined constructor's parameters to already lowered arguments.
+    /// Binds an inlined constructor's or function's parameters to already lowered arguments.
     ///
     /// A storage-reference parameter is a slot number, so it binds as a
     /// storage reference like a lowered function's own parameter does.
-    pub(super) fn bind_constructor_parameters(
+    pub(super) fn bind_inlined_parameters(
         &mut self,
         parameters: &[VariableId],
         values: &[ValueId],
@@ -216,6 +210,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 name_span: constructor.span,
                 id: hir::ItemId::Contract(base_id),
                 args,
+                qualified: false,
             };
             self.lower_base_constructor(&modifier, constructor_id, constructor)?;
         }

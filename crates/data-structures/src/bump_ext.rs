@@ -3,6 +3,10 @@ use bumpalo::Bump;
 use smallvec::SmallVec;
 
 /// Extension trait for [`Bump`].
+///
+/// The arena never runs destructors, so the safe allocation methods reject element types that need
+/// drop at compile time, since their owned memory would leak. Use [`DropArena`](crate::DropArena)
+/// for such values.
 #[expect(clippy::mut_from_ref)] // Arena.
 pub trait BumpExt {
     /// Returns the number of bytes currently in use.
@@ -17,21 +21,12 @@ pub trait BumpExt {
     fn alloc_from_iter<T>(&self, iter: impl Iterator<Item = T>) -> &mut [T];
 
     /// Allocates a vector of items on the arena.
-    ///
-    /// NOTE: This method does not drop the values, so you likely want to wrap the result in a
-    /// [`bumpalo::boxed::Box`] if `T: Drop`.
     fn alloc_vec<T>(&self, values: Vec<T>) -> &mut [T];
 
     /// Allocates a `SmallVector` of items on the arena.
-    ///
-    /// NOTE: This method does not drop the values, so you likely want to wrap the result in a
-    /// [`bumpalo::boxed::Box`] if `T: Drop`.
     fn alloc_smallvec<A: smallvec::Array>(&self, values: SmallVec<A>) -> &mut [A::Item];
 
     /// Allocates an array of items on the arena.
-    ///
-    /// NOTE: This method does not drop the values, so you likely want to wrap the result in a
-    /// [`bumpalo::boxed::Box`] if `T: Drop`.
     fn alloc_array<T, const N: usize>(&self, values: [T; N]) -> &mut [T];
 
     /// Allocates a slice of items on the arena and copies them in.
@@ -63,6 +58,15 @@ pub trait BumpExt {
         &self,
         header: H,
         values: SmallVec<A>,
+    ) -> &mut RawThinSlice<H, A::Item>;
+
+    /// Like [`alloc_smallvec_thin`](Self::alloc_smallvec_thin), but moves the elements out of
+    /// `values` and leaves it empty, instead of moving `values` itself, which would copy its
+    /// inline buffer.
+    fn alloc_smallvec_drain_thin<H, A: smallvec::Array>(
+        &self,
+        header: H,
+        values: &mut SmallVec<A>,
     ) -> &mut RawThinSlice<H, A::Item>;
 
     /// See [`alloc_array`](Self::alloc_array).
@@ -99,11 +103,13 @@ impl BumpExt for Bump {
 
     #[inline]
     fn alloc_as_slice<T>(&self, value: T) -> &mut [T] {
+        assert_no_drop::<T>();
         std::slice::from_mut(self.alloc(value))
     }
 
     #[inline]
     fn alloc_from_iter<T>(&self, mut iter: impl Iterator<Item = T>) -> &mut [T] {
+        assert_no_drop::<T>();
         match iter.size_hint() {
             (min, Some(max)) if min == max => self.alloc_slice_fill_with(min, |_| {
                 iter.next().expect("Iterator supplied too few elements")
@@ -114,6 +120,7 @@ impl BumpExt for Bump {
 
     #[inline]
     fn alloc_vec<T>(&self, mut values: Vec<T>) -> &mut [T] {
+        assert_no_drop::<T>();
         if values.is_empty() {
             return &mut [];
         }
@@ -128,6 +135,7 @@ impl BumpExt for Bump {
 
     #[inline]
     fn alloc_smallvec<A: smallvec::Array>(&self, mut values: SmallVec<A>) -> &mut [A::Item] {
+        assert_no_drop::<A::Item>();
         if values.is_empty() {
             return &mut [];
         }
@@ -142,6 +150,7 @@ impl BumpExt for Bump {
 
     #[inline]
     fn alloc_array<T, const N: usize>(&self, values: [T; N]) -> &mut [T] {
+        assert_no_drop::<T>();
         if values.is_empty() {
             return &mut [];
         }
@@ -164,6 +173,7 @@ impl BumpExt for Bump {
 
     #[inline]
     fn alloc_as_thin_slice<H, T>(&self, header: H, value: T) -> &mut RawThinSlice<H, T> {
+        assert_no_drop::<T>();
         let value = std::mem::ManuallyDrop::new(value);
         unsafe { self.alloc_thin_slice_unchecked(header, std::slice::from_ref(&*value)) }
     }
@@ -174,6 +184,7 @@ impl BumpExt for Bump {
         header: H,
         mut iter: impl Iterator<Item = T>,
     ) -> &mut RawThinSlice<H, T> {
+        assert_no_drop::<T>();
         match iter.size_hint() {
             (min, Some(max)) if min == max => {
                 RawThinSlice::<H, T>::from_arena_with(self, header, min, |_| {
@@ -186,6 +197,7 @@ impl BumpExt for Bump {
 
     #[inline]
     fn alloc_vec_thin<H, T>(&self, header: H, mut values: Vec<T>) -> &mut RawThinSlice<H, T> {
+        assert_no_drop::<T>();
         // SAFETY: The `Vec` is deallocated, but the elements are not dropped.
         unsafe {
             let r = self.alloc_thin_slice_unchecked(header, values.as_slice());
@@ -200,6 +212,16 @@ impl BumpExt for Bump {
         header: H,
         mut values: SmallVec<A>,
     ) -> &mut RawThinSlice<H, A::Item> {
+        self.alloc_smallvec_drain_thin(header, &mut values)
+    }
+
+    #[inline]
+    fn alloc_smallvec_drain_thin<H, A: smallvec::Array>(
+        &self,
+        header: H,
+        values: &mut SmallVec<A>,
+    ) -> &mut RawThinSlice<H, A::Item> {
+        assert_no_drop::<A::Item>();
         // SAFETY: See `alloc_vec_thin`.
         unsafe {
             let r = self.alloc_thin_slice_unchecked(header, values.as_slice());
@@ -214,6 +236,7 @@ impl BumpExt for Bump {
         header: H,
         values: [T; N],
     ) -> &mut RawThinSlice<H, T> {
+        assert_no_drop::<T>();
         let values = std::mem::ManuallyDrop::new(values);
         // SAFETY: The values are not dropped.
         unsafe { self.alloc_thin_slice_unchecked(header, values.as_slice()) }
@@ -229,58 +252,29 @@ impl BumpExt for Bump {
     }
 }
 
+/// Rejects at compile time types whose owned memory would leak in the arena.
+#[inline(always)]
+fn assert_no_drop<T>() {
+    const { assert!(!std::mem::needs_drop::<T>(), "arena values must not need drop") };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[derive(Debug, PartialEq, Eq)]
-    struct DropBomb(i32, bool);
-    impl DropBomb {
-        fn new(i: i32) -> Self {
-            Self(i, true)
-        }
-        fn defuse(&mut self) {
-            self.1 = false;
-        }
-    }
-    impl Drop for DropBomb {
-        fn drop(&mut self) {
-            if self.1 && !std::thread::panicking() {
-                panic!("boom");
-            }
-        }
-    }
-
     #[test]
     fn test_alloc_vec() {
         let bump = Bump::new();
-        let vec = vec![DropBomb::new(1), DropBomb::new(2), DropBomb::new(3)];
-        let other_vec = vec![DropBomb::new(1), DropBomb::new(2), DropBomb::new(3)];
-        let slice = bump.alloc_vec(vec);
-        assert_eq!(slice, &other_vec[..]);
-        for item in slice {
-            item.defuse();
-        }
-        for mut item in other_vec {
-            item.defuse();
-        }
+        let slice = bump.alloc_vec(vec!["a", "b", "c"]);
+        assert_eq!(slice, ["a", "b", "c"]);
     }
 
     #[test]
     fn test_alloc_vec_thin() {
         let bump = Bump::new();
-        let vec = vec![DropBomb::new(1), DropBomb::new(2), DropBomb::new(3)];
-        let other_vec = vec![DropBomb::new(1), DropBomb::new(2), DropBomb::new(3)];
-        let raw_slice = bump.alloc_vec_thin(69usize, vec);
+        let raw_slice = bump.alloc_vec_thin(69usize, vec!["a", "b", "c"]);
         assert_eq!(*raw_slice.header(), 69usize);
-        let slice = &mut **raw_slice;
-        assert_eq!(slice, &other_vec[..]);
-        for item in slice {
-            item.defuse();
-        }
-        for mut item in other_vec {
-            item.defuse();
-        }
+        assert_eq!(raw_slice.as_slice(), ["a", "b", "c"]);
     }
 
     #[test]

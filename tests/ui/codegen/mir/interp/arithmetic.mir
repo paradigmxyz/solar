@@ -9,7 +9,7 @@
 fn @entry() [entry] {
   bb0:
     v0 = calldataload 0
-    v1 = shr 224, v0
+    v1 = shr v0, 224
     switch v1, default bb2, [0x70cfc9de => bb1]
   bb1:
     tail_call @edges
@@ -27,10 +27,10 @@ fn @edges() [selector=0x70cfc9de, abi_wrapper] {
     v5 = mulmod arg0, arg0, arg1
     v6 = exp arg0, arg1
     v7 = signextend arg1, arg0
-    v8 = sar arg1, arg0
+    v8 = sar arg0, arg1
     v9 = byte arg1, arg0
-    v10 = shl arg1, arg0
-    v11 = shr arg1, arg0
+    v10 = shl arg0, arg1
+    v11 = shr arg0, arg1
     mstore 0x80, v0
     mstore 0xa0, v1
     mstore 0xc0, v2

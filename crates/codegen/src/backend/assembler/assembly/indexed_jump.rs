@@ -1,4 +1,27 @@
 //! Indexed jump table planning and assembly lowering.
+//!
+//! An indexed jump takes its target from a table in one of three encodings:
+//!
+//! - A packed word of one-byte entries, picked with `BYTE`, either absolute or relative to the
+//!   table's earliest target. It needs at most 32 entries.
+//! - A stride table: equal-width entry stubs, `JUMPDEST PUSHn target JUMP`, laid out densely with
+//!   no other `JUMPDEST` between them. The jump goes to `table + index * stride`.
+//! - With `-Zpack-wide-jump-tables`, entries wider than one byte packed into one or two words and
+//!   picked with a shift and a mask, as in `PUSH16 table; SHR; PUSH2 0xffff AND; JUMP`.
+//!
+//! The shifted pick is off by default. The JIT of evm2 (alloy-rs/evm2, PR #791) tracks jump
+//! targets as intervals. It resolves the `BYTE` pick and the stride table, whose target is a
+//! bounded interval, but not the shifted pick: `SHL 4` of `0..=7` becomes the interval
+//! `0..=112`, and `SHR` and `AND` on a packed word have no interval fold. One unresolved jump
+//! makes the JIT drop every jump resolution in the contract, including internal returns and the
+//! stride tables. Measured on evm2, an 8-case assembly switch in a loop with a hashed index tied
+//! across lowerings on the interpreter, while binary search ran 2.3x faster than the shifted
+//! pick on the JIT. A 40-case stride table tied binary search on the JIT, ran 36-39% faster on
+//! the interpreter and used 25-31% less gas.
+//!
+//! The switch planner prices tables through `estimated_indexed_jump_code_size` and
+//! `packs_indexed_jump`. It plans with the widest target width, so without the flag it prices
+//! the stride table; a table may still pack when the final offsets fit one byte.
 
 use super::{Program, lower};
 use crate::backend::{
@@ -12,7 +35,7 @@ use crate::backend::{
     },
 };
 use alloy_primitives::U256;
-use solar_config::EvmVersion;
+use solar_config::{CompileOpts, EvmVersion};
 use solar_data_structures::index::{IndexVec, index_vec};
 
 fn push_immediate(
@@ -25,6 +48,22 @@ fn push_immediate(
         ImmediateMaterializationOp::Push(value) => program.push(assembler.push_inst(value)),
         ImmediateMaterializationOp::Opcode(opcode) => program.push_op(opcode),
     });
+}
+
+/// The packed table encodings the assembler may choose.
+#[derive(Clone, Copy, Debug)]
+pub(in crate::backend) struct TablePacking {
+    /// Allow base-relative entries and two packed words (set at `-Osize`).
+    pub(in crate::backend) two_words: bool,
+    /// Allow entries wider than one byte, picked out of a packed word with a shift and a mask
+    /// (`-Zpack-wide-jump-tables`).
+    pub(in crate::backend) wide: bool,
+}
+
+impl TablePacking {
+    pub(in crate::backend) fn new(opts: &CompileOpts) -> Self {
+        Self { two_words: opts.optimization.is_size(), wide: opts.unstable.pack_wide_jump_tables }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -83,7 +122,7 @@ pub(super) struct IndexedJumpTable {
 pub(super) fn materialize_tables_with_metadata(
     module: &mut ir::Module,
     evm_version: EvmVersion,
-    pack_two_word_tables: bool,
+    packing: TablePacking,
 ) -> (IndexVec<BlockId, IndexedJumpLowering>, Vec<IndexedJumpTable>) {
     let tables = module
         .blocks
@@ -119,7 +158,7 @@ pub(super) fn materialize_tables_with_metadata(
                 &offsets,
                 global_width,
                 evm_version,
-                pack_two_word_tables,
+                packing,
             )
         })
         .collect::<Vec<_>>();
@@ -145,7 +184,7 @@ pub(super) fn materialize_tables_with_metadata(
                 &offsets,
                 global_width,
                 evm_version,
-                pack_two_word_tables,
+                packing,
             );
             if next != *encoding {
                 *encoding = next;
@@ -196,7 +235,7 @@ pub(super) fn initialize_indexed_jump_widths(
     lowerings: &mut IndexVec<BlockId, IndexedJumpLowering>,
     tables: &[IndexedJumpTable],
     evm_version: EvmVersion,
-    pack_two_word_tables: bool,
+    packing: TablePacking,
 ) {
     for table in tables {
         let encoding = lowerings[table.source].table.expect("indexed jump table lowering");
@@ -207,7 +246,7 @@ pub(super) fn initialize_indexed_jump_widths(
                 table.targets.len(),
                 1,
                 evm_version,
-                pack_two_word_tables,
+                packing,
                 outlined_indexed_jump_len(table.targets.len(), 1),
             )
         };
@@ -239,7 +278,7 @@ pub(super) fn refine_indexed_jump_widths(
     labels: &[Option<Label>],
     label_offsets: &solar_data_structures::map::FxHashMap<Label, usize>,
     evm_version: EvmVersion,
-    pack_two_word_tables: bool,
+    packing: TablePacking,
 ) -> bool {
     let global_width = label_offsets.values().copied().max().map_or(1, |offset| {
         (1u8..=32)
@@ -276,7 +315,7 @@ pub(super) fn refine_indexed_jump_widths(
                 &block_offsets,
                 global_width,
                 evm_version,
-                pack_two_word_tables,
+                packing,
             )
         };
 
@@ -338,7 +377,7 @@ fn refine_packed_indexed_jump_encoding(
     offsets: &IndexVec<BlockId, usize>,
     global_width: u8,
     evm_version: EvmVersion,
-    pack_two_word_tables: bool,
+    packing: TablePacking,
 ) -> IndexedJumpEncoding {
     let absolute_width =
         current.width.max(indexed_jump_target_width(targets, offsets, global_width));
@@ -348,7 +387,7 @@ fn refine_packed_indexed_jump_encoding(
         absolute_width,
         None,
         evm_version,
-        pack_two_word_tables,
+        packing,
         outlined_len,
     );
 
@@ -364,7 +403,7 @@ fn refine_packed_indexed_jump_encoding(
         relative_width,
         Some((base, relative_base_width)),
         evm_version,
-        pack_two_word_tables,
+        packing,
         outlined_len,
     );
 
@@ -412,7 +451,7 @@ fn choose_indexed_jump_encoding(
     offsets: &IndexVec<BlockId, usize>,
     global_width: u8,
     evm_version: EvmVersion,
-    allow_relative: bool,
+    packing: TablePacking,
 ) -> IndexedJumpEncoding {
     let absolute_width = indexed_jump_target_width(targets, offsets, global_width);
     let outlined_len = outlined_indexed_jump_len(targets.len(), absolute_width);
@@ -421,10 +460,10 @@ fn choose_indexed_jump_encoding(
         absolute_width,
         None,
         evm_version,
-        allow_relative,
+        packing,
         outlined_len,
     );
-    if !allow_relative {
+    if !packing.two_words {
         return absolute;
     }
 
@@ -436,7 +475,7 @@ fn choose_indexed_jump_encoding(
         width,
         Some((base, base_width)),
         evm_version,
-        true,
+        TablePacking { two_words: true, ..packing },
         outlined_len,
     );
     choose_shorter_relative_encoding(absolute, relative, targets.len(), evm_version)
@@ -455,7 +494,7 @@ fn make_indexed_jump_encoding(
     width: u8,
     base: Option<(BlockId, u8)>,
     evm_version: EvmVersion,
-    pack_two_word_tables: bool,
+    packing: TablePacking,
     outlined_len: usize,
 ) -> IndexedJumpEncoding {
     IndexedJumpEncoding {
@@ -464,7 +503,7 @@ fn make_indexed_jump_encoding(
             table_len,
             width,
             evm_version,
-            pack_two_word_tables,
+            packing,
             outlined_len,
         ),
         base,
@@ -493,7 +532,7 @@ fn update_indexed_jump_encoding(
     offsets: &IndexVec<BlockId, usize>,
     global_width: u8,
     evm_version: EvmVersion,
-    pack_two_word_tables: bool,
+    packing: TablePacking,
 ) -> IndexedJumpEncoding {
     let absolute_width = indexed_jump_target_width(targets, offsets, global_width);
     if let Some((base, previous_base_width)) = encoding.base {
@@ -507,7 +546,7 @@ fn update_indexed_jump_encoding(
             width,
             Some((base, base_width)),
             evm_version,
-            pack_two_word_tables,
+            packing,
             outlined_len,
         );
         let absolute = make_indexed_jump_encoding(
@@ -515,7 +554,7 @@ fn update_indexed_jump_encoding(
             absolute_width,
             None,
             evm_version,
-            pack_two_word_tables,
+            packing,
             outlined_len,
         );
         return choose_shorter_relative_encoding(absolute, relative, targets.len(), evm_version);
@@ -529,7 +568,7 @@ fn update_indexed_jump_encoding(
         targets.len(),
         absolute_width,
         evm_version,
-        pack_two_word_tables,
+        packing,
         outlined_len,
     );
     let absolute = if encoding.packed_chunks != PackedTableChunks::None
@@ -539,7 +578,7 @@ fn update_indexed_jump_encoding(
     } else {
         IndexedJumpEncoding { width: absolute_width, packed_chunks: absolute_chunks, base: None }
     };
-    if !pack_two_word_tables {
+    if !packing.two_words {
         return absolute;
     }
 
@@ -551,7 +590,7 @@ fn update_indexed_jump_encoding(
         width,
         Some((base, base_width)),
         evm_version,
-        true,
+        TablePacking { two_words: true, ..packing },
         outlined_len,
     );
     choose_shorter_relative_encoding(absolute, relative, targets.len(), evm_version)
@@ -587,19 +626,14 @@ pub(in crate::backend) fn estimated_indexed_jump_code_size(
     target_width: usize,
     base_width: usize,
     evm_version: EvmVersion,
-    pack_two_word_tables: bool,
+    packing: TablePacking,
 ) -> usize {
     let target_width = u8::try_from(target_width).expect("indexed jump target width must fit u8");
     let base_width = u8::try_from(base_width).expect("indexed jump base width must fit u8");
     let outlined_len =
         usize::from(base_width) + 6 + table_len.saturating_mul(usize::from(target_width) + 3);
-    let packed_chunks = indexed_jump_packed_chunks(
-        table_len,
-        target_width,
-        evm_version,
-        pack_two_word_tables,
-        outlined_len,
-    );
+    let packed_chunks =
+        indexed_jump_packed_chunks(table_len, target_width, evm_version, packing, outlined_len);
     match packed_chunks {
         PackedTableChunks::None => outlined_len,
         chunks => packed_indexed_jump_len(
@@ -613,7 +647,7 @@ fn indexed_jump_packed_chunks(
     table_len: usize,
     target_width: u8,
     evm_version: EvmVersion,
-    pack_two_word_tables: bool,
+    packing: TablePacking,
     outlined_len: usize,
 ) -> PackedTableChunks {
     if !supports_indexed_jump_packing(table_len, evm_version) {
@@ -621,7 +655,11 @@ fn indexed_jump_packed_chunks(
     }
     let bytes = table_len.saturating_mul(usize::from(target_width));
     if bytes <= WORD_BYTES {
-        PackedTableChunks::One
+        if target_width == 1 || packing.wide {
+            PackedTableChunks::One
+        } else {
+            PackedTableChunks::None
+        }
     } else {
         let entries_per_chunk = WORD_BYTES / usize::from(target_width);
         let table = PackedTableEstimate {
@@ -630,7 +668,8 @@ fn indexed_jump_packed_chunks(
             chunks: PackedTableChunks::Two,
             base_width: 0,
         };
-        if pack_two_word_tables
+        if packing.wide
+            && packing.two_words
             && target_width.is_power_of_two()
             && entries_per_chunk >= 2
             && bytes <= 64
@@ -643,13 +682,16 @@ fn indexed_jump_packed_chunks(
     }
 }
 
+/// Returns whether a table of `table_len` targets of `target_width` bytes fits one packed word.
 pub(in crate::backend) fn packs_indexed_jump(
     table_len: usize,
     target_width: usize,
     evm_version: EvmVersion,
+    pack_wide: bool,
 ) -> bool {
     supports_indexed_jump_packing(table_len, evm_version)
         && table_len.saturating_mul(target_width) <= WORD_BYTES
+        && (target_width == 1 || pack_wide)
 }
 
 fn supports_indexed_jump_packing(table_len: usize, evm_version: EvmVersion) -> bool {
@@ -664,7 +706,7 @@ pub(in crate::backend) fn estimated_indexed_jump_terminator_size(
     table_len: usize,
     max_target_width: u8,
     evm_version: EvmVersion,
-    pack_two_word_tables: bool,
+    packing: TablePacking,
 ) -> usize {
     (1..=max_target_width)
         .map(|target_width| {
@@ -673,7 +715,7 @@ pub(in crate::backend) fn estimated_indexed_jump_terminator_size(
                 table_len,
                 target_width,
                 evm_version,
-                pack_two_word_tables,
+                packing,
                 outlined_len,
             );
             if packed_chunks == PackedTableChunks::None {
@@ -684,7 +726,7 @@ pub(in crate::backend) fn estimated_indexed_jump_terminator_size(
                         len: table_len,
                         width: target_width,
                         chunks: packed_chunks,
-                        base_width: if pack_two_word_tables { max_target_width } else { 0 },
+                        base_width: if packing.two_words { max_target_width } else { 0 },
                     },
                     evm_version,
                 )
@@ -771,9 +813,7 @@ fn estimated_block_size(
 ) -> usize {
     let mut size = 1usize;
     for inst in &block.instructions {
-        let inst_size = if inst.deferred_push().is_some() {
-            33
-        } else if let Some(type_size) = inst.immutable_type_size() {
+        let inst_size = if let Some(type_size) = inst.immutable_type_size() {
             usize::from(type_size.bytes()) + 1
         } else if inst.is_encoded_push() {
             if inst.pushed_library().is_some() {

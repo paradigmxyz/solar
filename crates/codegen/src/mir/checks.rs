@@ -1,7 +1,12 @@
 //! Semantic failures retained until conditional checks are expanded.
 
 use super::{AbiLayoutRef, ValueId};
-use solar_interface::{Symbol, sym};
+use solar_interface::{ByteSymbol, Symbol, sym};
+
+/// Word arguments of a custom error staged in scratch memory. The payload spans
+/// `[28, 32 * (words + 1))`; a longer one would end above the heap start at `0x80`, and a
+/// constant memory range there moves the spill area of every entry reaching it.
+pub(crate) const MAX_SCRATCH_ERROR_WORDS: usize = 3;
 
 /// Solidity's built-in `Panic(uint256)` error codes.
 #[repr(u8)]
@@ -187,6 +192,46 @@ impl RevertReason {
     }
 }
 
+/// The debug messages that the checks of a nested calldata value report. All variants apply
+/// the same checks; see [`FunctionBuilder::check_calldata_tail_offset`].
+///
+/// [`FunctionBuilder::check_calldata_tail_offset`]: super::FunctionBuilder::check_calldata_tail_offset
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum CalldataTail {
+    /// The calldata tail messages, used when HIR lowering accesses or copies calldata.
+    Access,
+    /// The "Invalid calldata access" messages, used when the encoder copies `bytes[]`.
+    Encode,
+    /// The ABI decoder's messages, used when a returned calldata value is copied to memory.
+    Decode,
+}
+
+impl CalldataTail {
+    pub(crate) const fn offset_reason(self) -> RevertReason {
+        match self {
+            Self::Access => RevertReason::InvalidCalldataTailOffset,
+            Self::Encode => RevertReason::InvalidCalldataAccessOffset,
+            Self::Decode => RevertReason::InvalidCalldataArrayOffset,
+        }
+    }
+
+    pub(crate) const fn length_reason(self) -> RevertReason {
+        match self {
+            Self::Access => RevertReason::InvalidCalldataTailLength,
+            Self::Encode => RevertReason::InvalidCalldataAccessLength,
+            Self::Decode => RevertReason::InvalidCalldataArrayLength,
+        }
+    }
+
+    pub(crate) const fn stride_reason(self) -> RevertReason {
+        match self {
+            Self::Access => RevertReason::CalldataTailTooShort,
+            Self::Encode => RevertReason::InvalidCalldataAccessStride,
+            Self::Decode => RevertReason::InvalidCalldataArrayStride,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum RevertKind {
     Panic(PanicCode),
@@ -197,6 +242,7 @@ pub(crate) enum RevertKind {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum RevertPayload {
     ShortString { length: ValueId, data: ValueId },
+    LongString(ByteSymbol),
     EmptyString,
     ErrorString(ValueId),
     CustomError { selector: ValueId, layout: AbiLayoutRef, values: Box<[ValueId]> },

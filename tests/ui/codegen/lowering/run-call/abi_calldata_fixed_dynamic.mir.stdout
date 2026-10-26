@@ -1,67 +1,71 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_fixed_dynamic.sol:AbiCalldataFixedDynamic ===
 @module AbiCalldataFixedDynamic
-fn @lengths(arg0: calldataslice) -> i256 [selector=0xe718a709, pure, abi_params=[array<2, bytes>], abi_returns=[word], abi_return_params=[u256]] {
+fn @lengths(arg0: slice<calldata>) -> i256 [selector=0xe718a709, pure, abi_params=[array<2, bytes>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value slice<calldata>, arg0, 1
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = slice_ptr arg0
-    v4 = add v3, 0
-    v5 = calldatasize
-    v6 = sub v5, v4
-    v7 = slt v6, 32
-    icall revert_if<calldata_tail_too_short>, v7
-    v8 = calldataload v4
-    v9 = add v3, v8
-    v10 = calldatasize
-    v11 = sub v10, v3
-    v12 = sub v11, 31
-    v13 = slt v8, v12
-    v14 = eq v13, false
-    icall revert_if<invalid_calldata_tail_offset>, v14
-    v15 = calldataload v9
-    v16 = gt v15, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v16
-    v17 = mul v15, 1
-    v18 = add v9, 32
+    v3 = extract_value slice<calldata>, arg0, 0
+    v4 = ptrtoint ptr<calldata> v3 to i256
+    v5 = add v4, 0
+    v6 = calldatasize
+    v7 = sub v6, v5
+    v8 = slt v7, 32
+    icall revert_if<calldata_tail_too_short>, v8
+    v9 = calldataload v5
+    v10 = ptrtoint ptr<calldata> v3 to i256
+    v11 = add v10, v9
+    v12 = calldatasize
+    v13 = ptrtoint ptr<calldata> v3 to i256
+    v14 = sub v12, v13
+    v15 = sub v14, 31
+    v16 = slt v9, v15
+    v17 = eq v16, false
+    icall revert_if<invalid_calldata_tail_offset>, v17
+    v18 = calldataload v11
     v19 = calldatasize
-    v20 = sub v19, v17
-    v21 = sgt v18, v20
-    icall revert_if<calldata_tail_too_short>, v21
-    v22 = add v9, 32
-    v23 = make_calldata_slice v22, v15
-    v24 = slice_len v23
-    v25 = slice_len arg0
-    v26 = lt 1, v25
-    v27 = eq v26, false
-    icall panic_if<0x32>, v27
-    v28 = slice_ptr arg0
-    v29 = add v28, 32
-    v30 = calldatasize
-    v31 = sub v30, v29
-    v32 = slt v31, 32
-    icall revert_if<calldata_tail_too_short>, v32
-    v33 = calldataload v29
-    v34 = add v28, v33
-    v35 = calldatasize
-    v36 = sub v35, v28
-    v37 = sub v36, 31
-    v38 = slt v33, v37
-    v39 = eq v38, false
-    icall revert_if<invalid_calldata_tail_offset>, v39
-    v40 = calldataload v34
-    v41 = gt v40, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v41
-    v42 = mul v40, 1
-    v43 = add v34, 32
-    v44 = calldatasize
-    v45 = sub v44, v42
-    v46 = sgt v43, v45
-    icall revert_if<calldata_tail_too_short>, v46
-    v47 = add v34, 32
-    v48 = make_calldata_slice v47, v40
-    v49 = slice_len v48
-    v50 = checked_add u256, v24, v49
-    ret v50
+    v20 = gt v18, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v20
+    v21 = add v11, 32
+    v22 = sub v19, v18
+    v23 = sgt v21, v22
+    icall revert_if<calldata_tail_too_short>, v23
+    v24 = inttoptr i256 v21 to ptr<calldata>
+    v25 = make_calldata_slice v24, v18
+    v26 = extract_value slice<calldata>, v25, 1
+    v27 = extract_value slice<calldata>, arg0, 1
+    v28 = lt 1, v27
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = extract_value slice<calldata>, arg0, 0
+    v31 = ptrtoint ptr<calldata> v30 to i256
+    v32 = add v31, 32
+    v33 = calldatasize
+    v34 = sub v33, v32
+    v35 = slt v34, 32
+    icall revert_if<calldata_tail_too_short>, v35
+    v36 = calldataload v32
+    v37 = ptrtoint ptr<calldata> v30 to i256
+    v38 = add v37, v36
+    v39 = calldatasize
+    v40 = ptrtoint ptr<calldata> v30 to i256
+    v41 = sub v39, v40
+    v42 = sub v41, 31
+    v43 = slt v36, v42
+    v44 = eq v43, false
+    icall revert_if<invalid_calldata_tail_offset>, v44
+    v45 = calldataload v38
+    v46 = calldatasize
+    v47 = gt v45, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v47
+    v48 = add v38, 32
+    v49 = sub v46, v45
+    v50 = sgt v48, v49
+    icall revert_if<calldata_tail_too_short>, v50
+    v51 = inttoptr i256 v48 to ptr<calldata>
+    v52 = make_calldata_slice v51, v45
+    v53 = extract_value slice<calldata>, v52, 1
+    v54 = checked_add uint256, v26, v53
+    ret v54
 }

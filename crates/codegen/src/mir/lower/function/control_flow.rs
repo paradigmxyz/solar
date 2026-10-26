@@ -48,8 +48,8 @@ struct TryTarget<'a, 'gcx> {
     return_types: Vec<Ty<'gcx>>,
     /// Parameter names for named-argument resolution.
     parameter_names: Option<CallableParamNames>,
-    /// Whether the call must use STATICCALL.
-    static_call: bool,
+    /// The call opcode; unused for a contract creation.
+    kind: AddressCallKind,
 }
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
@@ -232,12 +232,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .collect(),
                 return_types: Vec::new(),
                 parameter_names: Some(parameter_names),
-                static_call: false,
+                kind: AddressCallKind::Call,
             }
-        } else if let ExprKind::Member(receiver, _) = callee.kind {
-            let Some(function_id) = self.cx.gcx.resolved_function(callee) else {
-                return self.cx.report_unsupported(try_stmt.expr.span, "try target");
-            };
+        } else if let ExprKind::Member(receiver, _) = callee.kind
+            && let Some(function_id) = self.cx.gcx.resolved_function(callee)
+        {
             let function = self.cx.gcx.hir.function(function_id);
             let is_external_library = function.contract.is_some_and(|contract| {
                 self.cx.gcx.hir.contract(contract).kind == hir::ContractKind::Library
@@ -245,7 +244,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 function.visibility,
                 hir::Visibility::Public | hir::Visibility::External
             );
-            let (callee, parameter_types, parameter_names, static_call) = if is_external_library {
+            let (callee, parameter_types, parameter_names, kind) = if is_external_library {
                 let address = self.library_address(function_id);
                 let attached =
                     self.cx.gcx.resolved_callee(callee.id).is_some_and(|callee| callee.attached);
@@ -265,7 +264,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         .gcx
                         .call_param_source(callee)
                         .map(|source| self.cx.gcx.callable_param_names(source)),
-                    false,
+                    AddressCallKind::Delegate,
                 )
             } else {
                 (
@@ -282,7 +281,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         id: function_id,
                         skips_receiver: false,
                     })),
-                    self.uses_static_call(function.state_mutability),
+                    self.external_call_kind(function.state_mutability),
                 )
             };
             TryTarget {
@@ -294,7 +293,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .map(|&return_id| self.cx.gcx.type_of_item(return_id.into()))
                     .collect(),
                 parameter_names,
-                static_call,
+                kind,
             }
         } else if let Some(TyKind::Fn(function)) =
             self.cx.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
@@ -308,7 +307,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 parameter_types: function.parameters.to_vec(),
                 return_types: function.returns.to_vec(),
                 parameter_names: None,
-                static_call: self.uses_static_call(function.state_mutability),
+                kind: self.external_call_kind(function.state_mutability),
             }
         } else {
             return self.cx.report_unsupported(try_stmt.expr.span, "try target");
@@ -371,15 +370,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let return_types = self.external_return_types(&target.return_types);
 
+        // Several return words come back over the input area and may reach past it into free
+        // memory, so the defaults are allocated before the call rather than over its output.
+        self.materialize_default_bindings();
         let (success, creation_value, ret_plan) = if let TryCallee::Creation { ty, contract_id } =
             target.callee
         {
             // address = create(...)
             // ok = address != 0
             let created = self.lower_create_contract(ty, contract_id, *args, call_opts)?;
-            let zero = self.builder.imm(U256::ZERO);
-            let failed = self.builder.eq(created, zero);
-            (self.builder.eq_zero(failed), Some(created), None)
+            (self.builder.ne_zero(created), Some(created), None)
         } else {
             let address = match target.callee {
                 TryCallee::Member { receiver, .. } => self.lower_expr(receiver)?,
@@ -388,7 +388,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 TryCallee::Creation { .. } => unreachable!(),
             };
             let options = self.lower_call_options(call_opts, true, "try call option")?;
-            let (call_value, zero) = (options.value, options.zero);
             let (mut values, mut types) =
                 if let TryCallee::LinkedLibrary { function, receiver, .. } = target.callee {
                     let capacity = args.len() + usize::from(receiver.is_some());
@@ -431,52 +430,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 TryCallee::FunctionPointer { selector, .. } => selector,
                 TryCallee::Creation { .. } => unreachable!(),
             };
-            // buffer = alloc_overlay_return_buffer(returns)
-            // input = abi_encode(selector, args)
-            let overlay_buffer = self.alloc_overlay_return_buffer(&return_types);
-            // mstore(add(fmp(), ret_size), 0)
-            self.touch_call_output_area(options.gas, &return_types, overlay_buffer.is_some());
-            let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-            let encoded =
-                self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
-            let input = self.builder.slice_ptr(encoded);
-            let input_size = self.builder.slice_len(encoded);
-            // From Byzantium on the return values come out of the return data, which the catch
-            // clauses need anyway; before it the call writes them into an output area overlaying
-            // its input and the success path reads them back from there.
-            // ret_offset, ret_size = plan_return_buffer(returns)
-            let ret_plan = (!supports_returndata)
-                .then(|| self.plan_return_buffer(input, zero, &return_types, overlay_buffer));
-            let (ret_offset, ret_size) = match &ret_plan {
-                Some(plan) => plan.output_area(),
-                None => (zero, self.builder.imm(0)),
-            };
-            if self.needs_code_check(return_types.len()) {
-                self.revert_if_no_code(address);
-            }
-            // The code check above is emitted at every version that needs the reserve, so the
-            // call cannot create the callee's account.
-            // gas = gas() | sub(gas(), reserve)
-            let gas = self.call_gas(options.gas, options.value_set, false);
-            // ok = delegatecall|staticcall|call(gas, address, input, ret_offset, ret_size)
-            let success = match target.callee {
-                TryCallee::LinkedLibrary { .. } => {
-                    self.builder.delegatecall(gas, address, input, input_size, ret_offset, ret_size)
-                }
-                _ if target.static_call => {
-                    self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
-                }
-                _ => self
-                    .builder
-                    .call(gas, address, call_value, input, input_size, ret_offset, ret_size),
-            };
-            (success, None, ret_plan)
+            // ok = delegatecall|staticcall|call(address, selector, args)
+            let (success, ret_plan) = self.emit_external_call(
+                target.kind,
+                address,
+                selector,
+                (values, types),
+                &return_types,
+                Some(options),
+            );
+            (success, None, Some(ret_plan))
         };
 
         let success_block = self.builder.create_block();
         let catch_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
-        self.materialize_default_bindings();
         let before = self.values.clone();
         let before_storage_refs = self.storage_refs.clone();
         // branch(ok, success, catch)
@@ -490,21 +458,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             let value = self.materialize_raw_scalar(binding, value);
             self.values.insert(binding, value);
-        } else if !return_types.is_empty() {
-            let values = if let Some(plan) = ret_plan {
-                // success.returns = load_words(ret_offset) | abi_decode(buffer)
-                self.finish_external_call(
-                    plan,
-                    &return_types,
-                    returns_clause.span,
-                    ExternalReturnMode::All,
-                    "codegen cannot decode try/catch returndata before Byzantium",
-                )?
-            } else {
-                // success.returns = abi_decode(returndata)
-                let data = self.materialize_returndata_bytes();
-                self.lower_abi_decode_values(data, &return_types, returns_clause.span)?
-            };
+        } else if let Some(plan) = ret_plan {
+            // success.returns = load_words | abi_decode(buffer) | abi_decode(returndata)
+            let values = self.finish_external_call(
+                plan,
+                &return_types,
+                returns_clause.span,
+                ExternalReturnMode::All,
+                "codegen cannot decode try/catch returndata before Byzantium",
+            )?;
             for (&binding, value) in returns_clause.args.iter().zip(values) {
                 let value = self.materialize_raw_scalar(binding, value);
                 self.values.insert(binding, value);
@@ -536,13 +498,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // selector = mload(data) >> 224
         let catch_data = (supports_returndata && needs_data).then(|| {
             let object = self.materialize_returndata_bytes();
-            let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
-            let len = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
+            let view = self.builder.memory_slice(object);
+            let data = self.builder.slice_ptr(view);
+            let len = self.builder.slice_len(view);
             let zero = self.builder.imm(U256::ZERO);
-            let selector_slice = self.builder.make_slice(data, len, SliceLocation::Memory);
-            let selector_word = self.builder.memory_slice_load_word(selector_slice, zero);
+            let selector_word = self.builder.slice_load_word(view, zero);
             let selector_shift = self.builder.imm(224);
-            let selector = self.builder.shr(selector_shift, selector_word);
+            let selector = self.builder.shr(selector_word, selector_shift);
             TryCatchData { object, data, len, selector }
         });
         // Solidity matches the typed clauses before the low-level one, whichever order they are
@@ -775,13 +737,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
     ) -> Option<ValueId> {
         let source_ty = self.cx.gcx.type_of_expr(expr.id)?;
-        let value = self.lower_expr(expr)?;
-        let value = if ty.is_ref_at(DataLocation::Memory) {
-            self.materialize_memory_argument(ty, value, expr.span)?
-        } else {
-            value
-        };
-        Some(self.coerce_value(value, source_ty, ty))
+        let value = self.lower_component(expr)?;
+        self.convert_tuple_component(value, source_ty, ty, expr.span)
     }
 
     pub(super) fn lower_logical(
@@ -917,7 +874,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let before_storage_refs = self.storage_refs.clone();
         let mut header_values = before_values.clone();
         let mut header_phis = FxHashMap::default();
-        for (&id, &value) in &before_values {
+        // Phis follow the variables' declaration order, not the hash order of
+        // their ids, which shifts with unrelated sources.
+        let mut loop_values =
+            before_values.iter().map(|(&id, &value)| (id, value)).collect::<Vec<_>>();
+        loop_values.sort_unstable_by_key(|&(id, _)| id);
+        for (id, value) in loop_values {
             let value = if self.cx.state.raw_scalars.contains(&id)
                 && self.builder.func().value_ty(value).is_some_and(|ty| ty.integer_bits().is_some())
             {
@@ -934,7 +896,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         self.values = header_values.clone();
         let mut header_storage_refs = before_storage_refs.clone();
-        for (&id, &access) in &before_storage_refs {
+        let mut loop_refs =
+            before_storage_refs.iter().map(|(&id, &access)| (id, access)).collect::<Vec<_>>();
+        loop_refs.sort_unstable_by_key(|&(id, _)| id);
+        for (id, access) in loop_refs {
             let slot = self.builder.phi(vec![(preheader, access.slot)]);
             let offset = access.offset.map(|offset| self.builder.phi(vec![(preheader, offset)]));
             header_storage_refs.insert(id, StorageAccess { slot, offset, ..access });
@@ -1057,7 +1022,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         exits: &[LoopState],
         header_phis: &FxHashMap<VariableId, ValueId>,
     ) -> FxHashMap<VariableId, ValueId> {
-        let ids = before.keys().copied().collect::<Vec<_>>();
+        let mut ids = before.keys().copied().collect::<Vec<_>>();
+        ids.sort_unstable();
         let mut merged = before;
         for id in ids {
             let before_value = merged[&id];
@@ -1128,7 +1094,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         else_branch: MergeBranch<ValueId>,
     ) -> FxHashMap<VariableId, ValueId> {
         let mut values = before;
-        let ids = values.keys().copied().collect::<Vec<_>>();
+        let mut ids = values.keys().copied().collect::<Vec<_>>();
+        ids.sort_unstable();
         for id in ids {
             let then_value = then_branch.values.get(&id).copied();
             let else_value = else_branch.values.get(&id).copied();
@@ -1156,7 +1123,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut before: FxHashMap<VariableId, ValueId>,
         states: &[LoopState],
     ) -> FxHashMap<VariableId, ValueId> {
-        let ids = before.keys().copied().collect::<Vec<_>>();
+        let mut ids = before.keys().copied().collect::<Vec<_>>();
+        ids.sort_unstable();
         for id in ids {
             let incoming = states
                 .iter()

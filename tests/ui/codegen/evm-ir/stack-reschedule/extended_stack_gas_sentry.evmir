@@ -1,0 +1,20 @@
+//@ compile-flags: --evm-version amsterdam -Zevm-ir-pipeline=stack-reschedule
+//@ filecheck:
+@module module
+
+// A `DUPN` ends the run, so the `pop` after the `SSTORE` cannot move above its gas sentry.
+// CHECK-LABEL: {{^[ +].*}}bb0 [stack=16]:
+// CHECK: sstore
+// CHECK: pop
+bb0 [stack=16]:
+  push 5
+  dup 17
+  sstore
+  swap 1
+  push 1
+  add
+  swap 1
+  pop
+  push 0
+  mstore
+  stop

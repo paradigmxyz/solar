@@ -25,7 +25,8 @@
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, Callee, Function, InstId, InstKind, Module, Terminator, Value, ValueId,
+        BlockId, Callee, Function, InstId, InstKind, Module, PtrLocation, Terminator, Value,
+        ValueId,
         analysis::{CfgInfo, Liveness},
         memory::EvmMemoryLayout,
         utils::interp::{Meter, StorageAccess},
@@ -126,7 +127,11 @@ impl Meter for GasMeter<'_> {
             } else {
                 let op = kind.op();
                 // `storage` prices a storage access from the slot's state.
-                let storage = matches!(kind, InstKind::SLoad(_) | InstKind::SStore(..));
+                let storage = matches!(
+                    kind,
+                    InstKind::Load(_, PtrLocation::Storage)
+                        | InstKind::Store(.., PtrLocation::Storage)
+                );
                 let run = if storage { 0 } else { u64::from(target.op(&op, operand).gas) };
                 price - u64::from(target.op(&op, static_value).gas) + run
             };

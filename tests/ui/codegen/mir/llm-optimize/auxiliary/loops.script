@@ -26,6 +26,6 @@ fn @sum(arg0: i256) -> i256 {
     v4 = and arg0, 255
     v0 = sub v4, 1
     v1 = mul v4, v0
-    v2 = shr 1, v1
+    v2 = shr v1, 1
     ret v2
 }

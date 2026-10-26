@@ -1,10 +1,10 @@
 - // === ROOT/tests/ui/codegen/mir/lower-slices/frame_offset_overflow.mir (before lower-slices) ===
 + // === ROOT/tests/ui/codegen/mir/lower-slices/frame_offset_overflow.mir (after lower-slices) ===
   @module FrameOffsetOverflow
-  fn @overflow(arg0: memoryslice) {
+  fn @overflow(arg0: slice<memory>) {
     bb0:
       v0 = internal_frame_addr 18446744073709551615
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       stop
   }
   

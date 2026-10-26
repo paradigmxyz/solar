@@ -157,10 +157,12 @@ impl Ident {
         self.name.is_reserved_yul_builtin_in(evm_version)
     }
 
-    /// Returns `true` if the identifier is a future Yul EVM builtin keyword.
+    /// Returns `true` if the identifier is a Yul identifier that will be reserved in the future.
+    ///
+    /// See [`Symbol::is_future_yul_reserved_identifier`].
     #[inline]
-    pub fn is_future_yul_builtin(self, evm_version: crate::config::EvmVersion) -> bool {
-        self.name.is_future_yul_builtin(evm_version)
+    pub fn is_future_yul_reserved_identifier(self, evm_version: crate::config::EvmVersion) -> bool {
+        self.name.is_future_yul_reserved_identifier(evm_version)
     }
 
     /// Returns `true` if the identifier is either a keyword, either currently in use or reserved
@@ -337,12 +339,18 @@ impl Symbol {
     /// Returns `true` if the symbol is a Yul EVM builtin keyword reserved by `evm_version`.
     #[inline]
     pub fn is_reserved_yul_builtin_in(self, evm_version: crate::config::EvmVersion) -> bool {
-        self.is_reserved_yul_builtin() && !self.is_future_yul_builtin(evm_version)
+        self.is_reserved_yul_builtin() && !self.is_future_yul_reserved_identifier(evm_version)
     }
 
-    /// Returns `true` if the symbol is a future Yul EVM builtin keyword.
+    /// Returns `true` if the symbol is a Yul identifier that will be reserved in the future: an EVM
+    /// builtin that `evm_version` does not have yet.
+    ///
+    /// `dupn`, `swapn` and `exchange` (EIP-8024) are reserved from Amsterdam, but no supported EVM
+    /// version has them yet, so they are reserved unconditionally.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.38/liblangutil/Token.cpp#L172-L188>
     #[inline]
-    pub fn is_future_yul_builtin(self, evm_version: crate::config::EvmVersion) -> bool {
+    pub fn is_future_yul_reserved_identifier(self, evm_version: crate::config::EvmVersion) -> bool {
         match self {
             kw::Basefee => !evm_version.has_base_fee(),
             kw::Prevrandao => !evm_version.has_prev_randao(),
@@ -351,6 +359,7 @@ impl Symbol {
             }
             kw::Clz => !evm_version.has_clz(),
             kw::Slotnum => !evm_version.has_slot_num(),
+            sym::dupn | sym::exchange | sym::swapn => true,
             _ => false,
         }
     }
@@ -1014,6 +1023,7 @@ symbols! {
         address_staticcall,
         aligned,
         alloc,
+        alloc_ptr,
         args,
         array,
         asm,
@@ -1023,10 +1033,8 @@ symbols! {
         built,
         calldata_array,
         calldata_bytes,
-        calldata_slice_load_word,
         calldata_tail_too_short,
-        calldataptr,
-        calldataslice,
+        checked,
         checked_add,
         checked_addmod,
         checked_div,
@@ -1035,9 +1043,7 @@ symbols! {
         checked_pow,
         checked_rem,
         checked_sub,
-        cleanup_return,
         clear_recursive_storage,
-        clear_storage,
         clear_storage_words,
         code,
         codehash,
@@ -1058,7 +1064,6 @@ symbols! {
         decode_static,
         decode_static_alias,
         decode_static_ptr,
-        default_struct,
         deferred_alloc,
         deployment,
         disjoint,
@@ -1076,6 +1081,7 @@ symbols! {
         encodeWithSelector,
         encodeWithSignature,
         encode_abi_array,
+        encode_abi_calldata,
         encode_abi_tuple,
         entry,
         environment_read,
@@ -1086,7 +1092,6 @@ symbols! {
         ether_sent_to_non_payable,
         evm_dash_shaped: "evm-shaped",
         evmasm,
-        exact,
         exchange,
         exit,
         experimental,
@@ -1110,7 +1115,6 @@ symbols! {
         immutable_write,
         immutables,
         indexed_jump,
-        infallible,
         insert_value,
         interfaceId,
         internal_dispatcher,
@@ -1131,7 +1135,6 @@ symbols! {
         invoke,
         jump,
         jumpi,
-        keccak256_bytes,
         keccak256_packed,
         keep_with_next,
         layout,
@@ -1151,14 +1154,14 @@ symbols! {
         load_storage_struct_array,
         load_storage_word_array,
         log,
+        long_string,
         loop_depth,
         lowered,
         make_calldata_slice,
         make_memory_slice,
         make_returndata_slice,
         mapping_slot,
-        mapping_slot_calldata,
-        mapping_slot_memory,
+        mapping_slot_bytes,
         max,
         may_return_memory,
         mcopy_words,
@@ -1166,31 +1169,13 @@ symbols! {
         memory_bytes,
         memory_dash_lowered: "memory-lowered",
         memory_dash_safe: "memory-safe",
-        memory_object_copy,
-        memory_object_copy_from_slice,
-        memory_object_copy_from_slice_at,
-        memory_object_data,
-        memory_object_element_addr,
-        memory_object_field_addr,
-        memory_object_len,
-        memory_object_load_byte,
-        memory_object_load_element,
-        memory_object_load_field,
-        memory_object_store_byte,
-        memory_object_store_element,
-        memory_object_store_field,
-        memory_object_store_word,
         memory_read,
-        memory_slice_load_word,
-        memory_to_storage,
         memory_write,
         memory_zero,
         memoryarray,
         memorybytes,
         memoryfixedarray,
-        memoryslice,
         memorystruct,
-        memptr,
         meta,
         metadata,
         min,
@@ -1204,17 +1189,16 @@ symbols! {
         object,
         offset,
         optimized,
-        panic,
         panic_if,
         panic_if_zero,
         phase,
         phi,
         preserves_fmp,
+        ptr,
         ptrtoint,
         push,
         push_data,
         push_data_size,
-        push_deferred,
         push_immutable,
         push_library,
         raw,
@@ -1225,7 +1209,7 @@ symbols! {
         returndata,
         returndata_array,
         returndata_bytes,
-        returndataslice,
+        returndataload,
         revert_error,
         revert_if,
         revert_if_zero,
@@ -1243,14 +1227,12 @@ symbols! {
         send,
         sender,
         set_fmp,
-        set_memory_object_len,
         sext,
         sha256,
         short_string,
         sig,
+        slice,
         slice_greater_than_length,
-        slice_len,
-        slice_ptr,
         slice_starts_after_end,
         slot,
         solidity,
@@ -1260,7 +1242,6 @@ symbols! {
         storage_array_data_slot,
         storage_array_element_slot,
         storage_read,
-        storage_to_memory,
         storage_write,
         storageptr,
         store_recursive_storage,
@@ -1291,7 +1272,6 @@ symbols! {
         types,
         undef,
         underscore: "_",
-        uninitialized,
         unknown,
         unknown_selector,
         unwrap,
@@ -1300,6 +1280,7 @@ symbols! {
         value,
         void,
         word,
+        wordwise,
         wrap,
         wrapping_div,
         x,

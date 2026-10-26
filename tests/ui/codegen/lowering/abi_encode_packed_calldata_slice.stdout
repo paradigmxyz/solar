@@ -24,7 +24,7 @@ bb4 [cold]:
   push 0
   revert
 bb5:
-  push 160
+  push 128
   push 64
   mstore
   push 100
@@ -32,6 +32,10 @@ bb5:
   lt
   push bb4
   jumpi
+  push 36
+  calldataload
+  push 68
+  calldataload
   push bb7
   jump bb15
 bb15:
@@ -40,77 +44,58 @@ bb15:
   push 4
   dup 2
   add
-  push 32
-  dup 2
-  add
-  swap 2
-  push 0
-  not
-  push 192
-  shr
-  lt
-  calldatasize
-  dup 4
-  gt
-  or
-  dup 2
-  calldataload
-  swap 3
+  swap 1
+  push 36
   calldatasize
   sub
-  swap 1
-  swap 3
-  gt
-  swap 1
-  swap 2
+  lt
+  dup 2
+  calldataload
+  push 32
+  dup 4
+  add
+  calldatasize
+  sub
+  lt
   or
   push bb4
   jumpi
   swap 1
   jump
 bb7 [continuation]:
-  dup 1
-  calldataload
-  swap 1
+  dup 3
+  dup 3
+  lt
+  dup 3
+  dup 3
   push 32
   add
-  swap 1
-  push 68
-  calldataload
-  gt
-  push 36
-  calldataload
-  push 68
+  swap 3
   calldataload
   lt
   or
   push bb4
   jumpi
-  push 36
-  calldataload
-  push 68
-  calldataload
-  sub
-  swap 1
-  push 36
-  calldataload
+  dup 3
   add
+  swap 2
   push 64
   mload
-  dup 3
-  dup 3
+  swap 2
+  sub
+  swap 1
+  dup 2
+  dup 4
   dup 3
   calldatacopy
-  swap 1
-  pop
   keccak256
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb10:
-  push 160
+  push 128
   push 64
   mstore
   push 68
@@ -118,6 +103,8 @@ bb10:
   lt
   push bb4
   jumpi
+  push 36
+  calldataload
   push bb12
   jump bb15
 bb12 [continuation]:
@@ -126,51 +113,46 @@ bb12 [continuation]:
   swap 1
   push 32
   add
-  push 36
-  calldataload
+  dup 3
   dup 3
   lt
   push bb4
   jumpi
-  push 36
-  calldataload
+  dup 3
   swap 1
   swap 2
   sub
-  swap 1
-  push 36
-  calldataload
+  swap 2
   add
   push 64
   mload
+  swap 2
   push 112
   push 248
   shl
-  dup 2
+  dup 4
   mstore
   push 1
-  dup 2
-  add
   dup 4
+  add
+  dup 2
   dup 4
   dup 3
   calldatacopy
-  swap 2
-  pop
-  swap 2
   add
   push 1
   dup 2
   mstore
   push 32
   add
-  dup 2
+  dup 3
   swap 1
   sub
   swap 1
+  swap 2
   keccak256
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

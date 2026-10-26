@@ -1,0 +1,22 @@
+//@compile-flags: -Zmir-pipeline=lower-abi-encode
+//@filecheck:
+@module CalldataBlockCopy
+
+// A fixed array of `uint256` or `bytes32` copies as one block, like solc.
+// CHECK-LABEL: {{^[ +].*}}fn @block{{[( ]}}
+// CHECK: calldatacopy
+fn @block(arg0: slice<calldata>) -> slice<memory> {
+  bb0:
+    v0 = abi_encode [array<2, word>], args arg0
+    ret v0
+}
+
+// Other full-word element types, marked `wordwise`, load one word at a time.
+// CHECK-LABEL: {{^[ +].*}}fn @wordwise{{[( ]}}
+// CHECK-NOT: calldatacopy
+// CHECK: calldataload
+fn @wordwise(arg0: slice<calldata>) -> slice<memory> {
+  bb0:
+    v0 = abi_encode [array<2, word, wordwise>], args arg0
+    ret v0
+}

@@ -28,23 +28,15 @@ bb4 [cold]:
   revert
 bb5:
   push 7
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb6:
   push 128
   dup 1
   push 64
-  mstore
-  push 160
-  dup 2
-  add
-  push 64
-  mstore
-  dup 1
-  dup 2
   mstore
   push 32
   dup 2
@@ -53,44 +45,30 @@ bb6:
   push_data literal_0
   dup 3
   codecopy
-  dup 2
-  iszero
-  iszero
-  push 7
-  shl
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
-  dup 1
-  dup 4
-  add
   push 0
+  dup 3
+  dup 3
+  add
+  mstore
+  dup 2
+  dup 2
+  push 64
+  dup 5
+  add
+  mcopy
+  push 32
+  dup 3
+  mstore
+  dup 2
   swap 1
   mstore
-  push 64
-  dup 5
-  add
-  dup 3
-  dup 5
-  dup 3
-  mcopy
-  pop
-  push 32
-  dup 5
-  mstore
-  swap 2
-  mstore
-  push 64
-  add
-  dup 2
+  push 192
+  swap 1
   return
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeFactory (runtime) ===
 @module CodeFactory_runtime
 @data
-  CodeTarget_creation_code_0: hex"34600d5760ee8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b60808060405260a081016040528081526020810181606e823981151560071b601f8101601f19168083015f9052604084018284825e5060208452915260400181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+  CodeTarget_creation_code_0: hex"34600d5760d18060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602a575b5f5ffd5b60075f5260205ff35b6080806040526020810181605182395f828201528181604084015e6020825281905260c090f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 
 bb0:
   callvalue
@@ -110,62 +88,45 @@ bb0:
   sub
   push bb4
   jumpi
-  push 160
+  push 128
+  dup 1
   push 64
   mstore
-  push 255
   push 288
-  push 64
-  mload
-  swap 1
   dup 2
   add
   push 64
   mstore
-  dup 2
+  push 226
   dup 2
   mstore
   push 32
   dup 2
   add
-  push 256
-  dup 3
-  add
   push 0
-  swap 1
+  push 256
+  dup 4
+  add
   mstore
-  dup 3
+  push 226
   push_data CodeTarget_creation_code_0
   dup 3
   codecopy
-  swap 2
-  pop
+  swap 1
   mload
   swap 1
   push 0
   create
-  push 64
-  mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
   push 0x3fa4f245
-  push 224
-  shl
-  dup 2
+  push 0
   mstore
   push 32
   push 0
   push 4
-  dup 4
-  dup 6
+  push 28
+  dup 5
   gas
   staticcall
-  swap 2
-  pop
-  pop
   iszero
   push bb8
   jumpi
@@ -176,10 +137,10 @@ bb0:
   jumpi
   push 0
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb4 [cold]:
   push 0
@@ -194,58 +155,40 @@ bb8 [cold]:
   push 0
   revert
 bb10:
-  push 192
+  push 128
+  dup 1
   push 64
   mstore
-  push 0
-  push 160
-  mstore
-  push 255
-  push 256
-  push 64
-  mload
-  swap 1
-  dup 2
-  add
-  push 64
-  mstore
-  dup 2
+  push 226
   push_data CodeTarget_creation_code_0
   dup 3
   codecopy
+  push 226
+  swap 1
   push 0
   create
   dup 1
   iszero
   push bb8
   jumpi
-  push 238
-  push 288
   push 64
   mload
-  swap 1
-  dup 2
-  add
-  push 64
-  mstore
-  dup 2
+  push 209
   dup 2
   mstore
   push 32
   dup 2
   add
-  push 256
-  dup 3
-  add
   push 0
-  swap 1
+  push 224
+  dup 4
+  add
   mstore
-  dup 3
+  push 209
   push_data CodeTarget_creation_code_0+17
   dup 3
   codecopy
-  swap 2
-  pop
+  swap 1
   mload
   swap 1
   keccak256

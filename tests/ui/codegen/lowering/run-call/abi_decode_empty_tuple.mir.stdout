@@ -1,0 +1,85 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_empty_tuple.sol:AbiDecodeEmptyTuple ===
+@module AbiDecodeEmptyTuple
+fn @record(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = checked_add uint256, v0, arg0
+    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = abi_encode [word], object, args arg0
+    ret v2
+}
+
+fn @decodeCall(arg0: i256) -> i256 [selector=0x14b002f7, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    sstore 0, 1 !metadata(storage=slot(0))
+    v0 = icall @record, arg0
+    abi_decode [], v0
+    v1 = sload 0 !metadata(storage=slot(0))
+    ret v1
+}
+
+fn @decodeVoid(arg0: ptr<memory>) {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = checked_add uint256, v0, 1
+    sstore 0, v1 !metadata(storage=slot(0))
+    abi_decode [], arg0
+    ret
+}
+
+fn @decodeReturn(arg0: ptr<memory>) -> i256 [selector=0x59f6030d, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    icall @decodeVoid, arg0
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @decodeCalldata(arg0: slice<calldata>) -> i256 [selector=0xea59e64a, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    sstore 0, 2 !metadata(storage=slot(0))
+    abi_decode [], arg0
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @decodeCalldataLength(arg0: i256) -> i256 [selector=0x616430c5, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = calldatasize
+    v1 = make_calldata_slice ptr<calldata> 0, v0
+    v2 = extract_value slice<calldata>, v1, 0
+    v3 = extract_value slice<calldata>, v1, 1
+    v4 = gt 0, v3
+    v5 = lt 0, 0
+    v6 = or v4, v5
+    v7 = zext i1 v6 to i256
+    icall revert_if<empty>, v6
+    v8 = sub 0, 0
+    v9 = ptradd v2, 0
+    v10 = make_calldata_slice v9, v8
+    v11 = extract_value slice<calldata>, v10, 0
+    v12 = make_calldata_slice v11, arg0
+    abi_decode [], v12
+    ret 3
+}
+
+fn @decodeMemoryLength(arg0: i256) -> i256 [selector=0xc96a44ab, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = not 31
+    v1 = and 63, v0
+    v2 = alloc zeroed checked v1
+    mstore v2, 0
+    v3 = ptrtoint ptr<memory> v2 to i256
+    mstore v2, arg0
+    abi_decode [], v2
+    ret 4
+}
+
+fn @decodeStorageLength(arg0: i256) -> i256 [selector=0x0359dd97, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mul arg0, 2
+    v1 = add v0, 1
+    sstore 1, v1 !metadata(storage=slot(1))
+    v2 = load_storage_bytes 1
+    abi_decode [], v2
+    ret 5
+}

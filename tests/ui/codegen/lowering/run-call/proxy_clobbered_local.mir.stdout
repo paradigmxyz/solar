@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:Impl ===
 @module Impl
-fn @echo(arg0: i256) -> i256 [selector=0x6279e43c, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @echo(arg0: i256) -> i256 [selector=0x6279e43c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret arg0
 }
@@ -10,7 +10,7 @@ fn @echo(arg0: i256) -> i256 [selector=0x6279e43c, pure, abi_params=[u256], abi_
 @data
   Impl_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:Impl"
 
-fn @keepsLocal(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i256 [selector=0x0ea6bb92, pure, abi_params=[u256, u256, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @keepsLocal(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i256 [selector=0x0ea6bb92, pure, abi_params=[uint256, uint256, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gt arg0, 0
     jumpi v0, bb1, bb2
@@ -22,53 +22,45 @@ fn @keepsLocal(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i2
     v1 = phi [bb1: 42], [bb2: 1]
     v2 = calldatasize
     calldatacopy 0, 0, v2 !metadata(memory=scratch)
-    v3 = checked_add u256, v1, arg1
-    v4 = checked_sub u256, v3, arg1
-    v5 = checked_add u256, v4, arg2
-    v6 = checked_sub u256, v5, arg2
-    v7 = checked_add u256, v6, arg3
-    v8 = checked_sub u256, v7, arg3
-    v9 = checked_add u256, v8, arg4
-    v10 = checked_sub u256, v9, arg4
+    v3 = checked_add uint256, v1, arg1
+    v4 = checked_sub uint256, v3, arg1
+    v5 = checked_add uint256, v4, arg2
+    v6 = checked_sub uint256, v5, arg2
+    v7 = checked_add uint256, v6, arg3
+    v8 = checked_sub uint256, v7, arg3
+    v9 = checked_add uint256, v8, arg4
+    v10 = checked_sub uint256, v9, arg4
     ret v10
 }
 
-fn @forwards() -> i256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @forwards() -> i256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize Impl_creation_code_0
-    v2 = datasize Impl_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    datacopy Impl_creation_code_0, v4, v1
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
+    v0 = datasize Impl_creation_code_0
+    v1 = fmp
+    datacopy Impl_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = zext i160 v9 to i256
-    v12 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args 7
-    v13 = mload 64 !metadata(memory=scratch)
-    v14 = calldatasize
-    calldatacopy 0, 0, v14 !metadata(memory=scratch)
-    v15 = ptrtoint memptr v12 to i256
-    v16 = mload v15
-    v17 = ptrtoint memptr v12 to i256
-    v18 = add v17, 32
-    v19 = gas
-    v20 = delegatecall v19, v11, v18, v16, 0, 32
-    v21 = zext i1 v20 to i256
-    v22 = mload 0 !metadata(memory=scratch)
-    v23 = eq v22, 7
-    v24 = zext i1 v23 to i256
-    v25 = and v21, v24
-    v26 = eq v25, 1
-    icall require<short_string>, v26, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
+    v4 = zext i160 v2 to i256
+    v5 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args 7
+    v6 = mload 64 !metadata(memory=scratch)
+    v7 = calldatasize
+    calldatacopy 0, 0, v7 !metadata(memory=scratch)
+    v8 = ptrtoint ptr<memory> v5 to i256
+    v9 = mload v5
+    v10 = ptrtoint ptr<memory> v5 to i256
+    v11 = add v10, 32
+    v12 = gas
+    v13 = delegatecall v12, v4, v11, v9, 0, 32
+    v14 = zext i1 v13 to i256
+    v15 = mload 0 !metadata(memory=scratch)
+    v16 = eq v15, 7
+    v17 = zext i1 v16 to i256
+    v18 = and v14, v17
+    v19 = eq v18, 1
+    icall require<short_string>, v19, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     ret 1
 }

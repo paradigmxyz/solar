@@ -16,7 +16,8 @@
 //! tests. Manifest projects keep their sources unchanged.
 
 use super::{
-    AssertionPolicy, SOLAR_BINARY, SkipEntry, TestConfig, forge_available, workspace_root,
+    AssertionPolicy, OptLevel, SOLAR_BINARY, SkipEntry, TestConfig, forge_available,
+    select_solar_binary, workspace_root,
 };
 use std::{
     collections::HashSet,
@@ -58,6 +59,9 @@ struct ExternalProject {
     solc_version: Option<&'static str>,
     /// Foundry profile used for both compiler legs.
     profile: Option<&'static str>,
+    /// Foundry profiles each leg builds before `forge test`, for suites that deploy the
+    /// artifacts those profiles write.
+    prebuild_profiles: &'static [&'static str],
     skip_tests: &'static [Skip],
     skip_contracts: &'static [Skip],
     notes: &'static str,
@@ -76,6 +80,7 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         mode: ExternalMode::Test,
         solc_version: Some("0.8.19"),
         profile: None,
+        prebuild_profiles: &[],
         skip_tests: &[],
         skip_contracts: &[],
         notes: "lending core: exact 0.8.19 pragma, invariant suite, evm paris",
@@ -89,6 +94,7 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         // The test files pin `pragma solidity 0.8.15` exactly.
         solc_version: Some("0.8.15"),
         profile: None,
+        prebuild_profiles: &[],
         skip_tests: &[],
         skip_contracts: &[],
         notes: "token/utility library: heavy fuzz coverage of arithmetic edge cases",
@@ -120,6 +126,7 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         mode: ExternalMode::Test,
         solc_version: None,
         profile: None,
+        prebuild_profiles: &[],
         skip_tests: &[],
         skip_contracts: &[],
         notes: "assembly-heavy library: the widest inline-assembly coverage available",
@@ -145,14 +152,66 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         name: "seaport",
         repo: "https://github.com/ProjectOpenSea/seaport",
         rev: "080133906585660f6a76b82984f3fb690ff4b2a9",
-        mode: ExternalMode::Build,
+        mode: ExternalMode::Test,
         // `contracts/Seaport.sol` pins `pragma solidity =0.8.24`.
         solc_version: Some("0.8.24"),
-        profile: Some("optimized"),
+        profile: None,
+        // The tests deploy Seaport from `optimized-out/` and its reference implementation from
+        // `reference-out/`, so each leg builds both with its own compiler first.
+        prebuild_profiles: &["optimized", "reference"],
         skip_tests: &[],
         skip_contracts: &[],
-        notes: "build-only: whole-project codegen and artifact parity",
-        test_fixes: &[],
+        notes: "marketplace core: via-IR build, assembly decoders behind retyped function pointers",
+        test_fixes: &[
+            TestFix {
+                path: "test/foundry/utils/BaseOrderTest.sol",
+                before: "AmountDeriver {\n    using ArithmeticUtil for uint256;\n",
+                after: "AmountDeriver {\n    function blockTimestamp() external view returns (uint256) {\n        return block.timestamp;\n    }\n\n    function locateCurrentAmountNow(\n        uint256 startAmount,\n        uint256 endAmount,\n        uint256 startTime,\n        uint256 endTime,\n        bool roundUp\n    ) external view returns (uint256) {\n        return _locateCurrentAmount(startAmount, endAmount, startTime, endTime, roundUp);\n    }\n\n    using ArithmeticUtil for uint256;\n",
+                reason: "add helpers that read the timestamp after vm.warp in their own call (CODEGEN-008)",
+            },
+            TestFix {
+                path: "test/foundry/FulfillOrderTest.t.sol",
+                before: "uint256 startTime = block.timestamp;\n        vm.warp(block.timestamp + context.args.warpAmount);\n        uint256 expectedAmount = _locateCurrentAmount(\n            context.args.startAmount.mul(1000),\n            context.args.endAmount.mul(1000),\n            startTime,\n            startTime + 1000,\n            false",
+                after: "vm.warp(block.timestamp + context.args.warpAmount);\n        uint256 startTime = this.blockTimestamp() - context.args.warpAmount;\n        uint256 expectedAmount = this.locateCurrentAmountNow(\n            context.args.startAmount.mul(1000),\n            context.args.endAmount.mul(1000),\n            startTime,\n            startTime + 1000,\n            false",
+                reason: "derive the expected offer amount from the warped timestamp (CODEGEN-008)",
+            },
+            TestFix {
+                path: "test/foundry/FulfillOrderTest.t.sol",
+                before: "uint256 startTime = block.timestamp;\n        vm.warp(block.timestamp + context.args.warpAmount);\n        uint256 expectedAmount = _locateCurrentAmount(\n            context.args.startAmount.mul(1000),\n            context.args.endAmount.mul(1000),\n            startTime,\n            startTime + 1000,\n            true",
+                after: "vm.warp(block.timestamp + context.args.warpAmount);\n        uint256 startTime = this.blockTimestamp() - context.args.warpAmount;\n        uint256 expectedAmount = this.locateCurrentAmountNow(\n            context.args.startAmount.mul(1000),\n            context.args.endAmount.mul(1000),\n            startTime,\n            startTime + 1000,\n            true",
+                reason: "derive the expected consideration amount from the warped timestamp (CODEGEN-008)",
+            },
+            TestFix {
+                path: "test/foundry/FulfillAdvancedOrder.t.sol",
+                before: "uint256 startTime = block.timestamp;\n        vm.warp(block.timestamp + context.warpAmount);",
+                after: "vm.warp(block.timestamp + context.warpAmount);\n        uint256 startTime = this.blockTimestamp() - context.warpAmount;",
+                reason: "derive the order start from the warped timestamp (CODEGEN-008)",
+            },
+            TestFix {
+                path: "test/foundry/FulfillAdvancedOrder.t.sol",
+                before: "uint256 currentAmount = _locateCurrentAmount(\n            context.tokenAmount * 2,",
+                after: "uint256 currentAmount = this.locateCurrentAmountNow(\n            context.tokenAmount * 2,",
+                reason: "read the warped timestamp for the expected offer amount (CODEGEN-008)",
+            },
+            TestFix {
+                path: "test/foundry/MatchAdvancedOrder.t.sol",
+                before: "vm.warp(startTime + 500);\n\n        // current amount should be mean of start and end amounts\n        uint256 currentAmount = _locateCurrentAmount(\n            context.args.baseStart.mul(20), // start amount\n            context.args.baseEnd.mul(20), // end amount\n            startTime, // startTime\n            startTime + 1000, // endTime\n            false",
+                after: "vm.warp(startTime + 500);\n        startTime = this.blockTimestamp() - 500;\n\n        // current amount should be mean of start and end amounts\n        uint256 currentAmount = this.locateCurrentAmountNow(\n            context.args.baseStart.mul(20), // start amount\n            context.args.baseEnd.mul(20), // end amount\n            startTime, // startTime\n            startTime + 1000, // endTime\n            false",
+                reason: "derive the expected offer amount from the warped timestamp (CODEGEN-008)",
+            },
+            TestFix {
+                path: "test/foundry/MatchAdvancedOrder.t.sol",
+                before: "vm.warp(startTime + 500);\n\n        // current amount should be mean of start and end amounts\n        uint256 currentAmount = _locateCurrentAmount(\n            context.args.baseStart.mul(20), // start amount\n            context.args.baseEnd.mul(20), // end amount\n            startTime, // startTime\n            startTime + 1000, // endTime\n            true",
+                after: "vm.warp(startTime + 500);\n        startTime = this.blockTimestamp() - 500;\n\n        // current amount should be mean of start and end amounts\n        uint256 currentAmount = this.locateCurrentAmountNow(\n            context.args.baseStart.mul(20), // start amount\n            context.args.baseEnd.mul(20), // end amount\n            startTime, // startTime\n            startTime + 1000, // endTime\n            true",
+                reason: "derive the expected consideration amount from the warped timestamp (CODEGEN-008)",
+            },
+            TestFix {
+                path: "test/foundry/zone/PreAndPostFulfillmentCheck.t.sol",
+                before: "        uint8 numTips\n    ) public {\n        test(\n            this.execBasicStatefulFuzz,",
+                after: "        uint8 numTips\n    ) public {\n        numOriginalAdditional %= 39;\n        numTips %= 39 - numOriginalAdditional;\n        test(\n            this.execBasicStatefulFuzz,",
+                reason: "fuzz basic orders with at most 38 additional recipients; 39 reach the compiler's memory (CODEGEN-010)",
+            },
+        ],
     },
     ExternalProject {
         name: "openzeppelin-contracts",
@@ -161,6 +220,7 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         mode: ExternalMode::Test,
         solc_version: None,
         profile: None,
+        prebuild_profiles: &[],
         skip_tests: &[],
         skip_contracts: &[],
         notes: "divergence tracker: broadest idiomatic Solidity surface; needs a forge that knows evm osaka",
@@ -187,6 +247,7 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         // `src/PoolManager.sol` pins `pragma solidity =0.8.26`.
         solc_version: Some("0.8.26"),
         profile: None,
+        prebuild_profiles: &[],
         skip_tests: &[],
         skip_contracts: &[],
         notes: "divergence tracker: transient storage, via-ir profile, ffi gas snapshots",
@@ -219,6 +280,7 @@ struct ResolvedProject {
     mode: ExternalMode,
     solc_version: Option<String>,
     profile: Option<String>,
+    prebuild_profiles: Vec<String>,
     skip_tests: Vec<SkipEntry>,
     skip_contracts: Vec<SkipEntry>,
     notes: String,
@@ -246,6 +308,8 @@ struct ManifestProject {
     mode: ExternalMode,
     solc_version: Option<String>,
     profile: Option<String>,
+    #[serde(default)]
+    prebuild_profiles: Vec<String>,
     #[serde(default)]
     skip_tests: Vec<ManifestSkip>,
     #[serde(default)]
@@ -278,6 +342,11 @@ impl ResolvedProject {
             mode: project.mode,
             solc_version: project.solc_version.map(str::to_string),
             profile: project.profile.map(str::to_string),
+            prebuild_profiles: project
+                .prebuild_profiles
+                .iter()
+                .map(|&profile| profile.to_string())
+                .collect(),
             skip_tests: skip_entries(project.skip_tests),
             skip_contracts: skip_entries(project.skip_contracts),
             notes: project.notes.to_string(),
@@ -306,6 +375,7 @@ impl ResolvedProject {
             mode: project.mode,
             solc_version: project.solc_version,
             profile: project.profile,
+            prebuild_profiles: project.prebuild_profiles,
             skip_tests: manifest_skips(project.skip_tests),
             skip_contracts: manifest_skips(project.skip_contracts),
             notes: project.notes,
@@ -320,6 +390,7 @@ impl ResolvedProject {
             test_filter: None,
             contract_filter: None,
             solar_only: false,
+            solar_levels: vec![OptLevel::pinned()],
             skip_tests: self.skip_tests.clone(),
             skip_contracts: self.skip_contracts.clone(),
             policy: AssertionPolicy::ExternalDifferential,
@@ -327,6 +398,7 @@ impl ResolvedProject {
             fuzz_seed: Some(EXTERNAL_FUZZ_SEED),
             solc_wrapper_version: self.solc_version.clone(),
             foundry_profile: self.profile.clone(),
+            prebuild_profiles: self.prebuild_profiles.clone(),
             traces: false,
             rerun_command: format!("cargo tq foundry-external {}", self.name),
         }
@@ -465,9 +537,9 @@ fn git_output(dir: &Path, args: &[&str]) -> Result<String, String> {
 /// Runs the external Foundry suite.
 ///
 /// Fetch failures skip the affected project so offline runs degrade instead of
-/// failing; every other divergence is judged by [`AssertionPolicy::ExternalDifferential`].
-pub(super) fn run_external_suite(solar: &Path) {
-    let _ = SOLAR_BINARY.set(solar.to_path_buf());
+/// failing; every other divergence is judged by `AssertionPolicy::ExternalDifferential`.
+pub fn run_external_suite(solar: &Path) {
+    let _ = SOLAR_BINARY.set(select_solar_binary(solar));
 
     if !forge_available() {
         eprintln!("Skipping external Foundry suite: forge not found in PATH");

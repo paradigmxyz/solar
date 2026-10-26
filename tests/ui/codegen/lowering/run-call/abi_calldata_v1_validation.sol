@@ -8,7 +8,7 @@
 // ported-from: test/libsolidity/semanticTests/abicoder/validation/array_exceeds_calldatasize_v1.sol
 // ported-from: test/libsolidity/semanticTests/abicoder/validation/array_exceeds_size_limit_for_calldata_types_v1.sol
 
-pragma abicoder v1;
+pragma abicoder v1; //~ WARN: ABI coder v1 is not supported
 
 contract AbiCalldataV1Validation {
     function f(uint256[] calldata values) external pure {}

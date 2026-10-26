@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256}
 
-fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = mapping_slot 0, 0
     v1 = lt 0x80000000000000000000000000000000000000000000000000, 0x100000000000000000000000000000000000000000000000000
@@ -16,7 +16,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     icall panic_if<0x32>, v6
     v7 = add v4, 1
     sstore v7, 7 !metadata(storage=offset(v4, 1))
-    v8 = checked_add u256, 0x80000000000000000000000000000000000000000000000000, 1
+    v8 = checked_add uint256, 0x80000000000000000000000000000000000000000000000000, 1
     v9 = lt v8, 0x100000000000000000000000000000000000000000000000000
     v10 = eq v9, false
     icall panic_if<0x32>, v10
@@ -37,7 +37,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     icall panic_if<0x32>, v21
     v22 = add v19, 1
     v23 = sload v22 !metadata(storage=offset(v19, 1))
-    v24 = checked_add u256, 0x80000000000000000000000000000000000000000000000000, 1
+    v24 = checked_add uint256, 0x80000000000000000000000000000000000000000000000000, 1
     v25 = lt v24, 0x100000000000000000000000000000000000000000000000000
     v26 = eq v25, false
     icall panic_if<0x32>, v26
@@ -53,7 +53,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     ret v34
 }
 
-fn @read(arg0: i256) -> i256 [selector=0xed2e5a97, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @read(arg0: i256) -> i256 [selector=0xed2e5a97, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot 0, 0
     v1 = lt arg0, 0x100000000000000000000000000000000000000000000000000
@@ -72,7 +72,6 @@ fn @read(arg0: i256) -> i256 [selector=0xed2e5a97, view, abi_params=[u256], abi_
 fn @hasExpectedLength() -> i1 [selector=0xa2fb6983, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mapping_slot 0, 0
-    v1 = exp 2, 200
-    v2 = eq 0x100000000000000000000000000000000000000000000000000, v1
-    ret v2
+    v1 = eq 0x100000000000000000000000000000000000000000000000000, 0x100000000000000000000000000000000000000000000000000
+    ret v1
 }

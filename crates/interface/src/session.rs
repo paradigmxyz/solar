@@ -1,6 +1,7 @@
 use crate::{
     ByteSymbol, ColorChoice, SessionGlobals, SourceMap, Symbol,
     diagnostics::{DiagCtxt, EmittedDiagnostics},
+    source_map::absolute_path,
 };
 use solar_config::{
     CompileOpts, CompilerOutput, CompilerStage, Language, LlmOptimizeMode, SINGLE_THREADED_TARGET,
@@ -11,7 +12,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         Arc, OnceLock, PoisonError, RwLock,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicU64, AtomicUsize, Ordering},
     },
 };
 
@@ -29,6 +30,8 @@ pub struct Session {
     /// The rayon thread pool. This is spawned lazily on first use, rather than always constructing
     /// one with `SessionBuilder`.
     thread_pool: OnceLock<rayon::ThreadPool>,
+    /// The code generation jobs that wait for a worker.
+    queued_jobs: AtomicUsize,
 }
 
 impl Default for Session {
@@ -177,8 +180,14 @@ impl SessionBuilder {
         });
         let mut opts = opts.unwrap_or_default();
         Session::infer_language(&mut opts);
-        let sess =
-            Session { globals, dcx, opts, id: SessionId::fresh(), thread_pool: OnceLock::new() };
+        let sess = Session {
+            globals,
+            dcx,
+            opts,
+            id: SessionId::fresh(),
+            thread_pool: OnceLock::new(),
+            queued_jobs: AtomicUsize::new(0),
+        };
         sess.reconfigure();
         debug!(version = %solar_config::version::SEMVER_VERSION, "created new session");
         sess
@@ -241,6 +250,7 @@ impl Session {
             globals: self.globals.clone(),
             id: self.id,
             thread_pool: OnceLock::new(),
+            queued_jobs: AtomicUsize::new(0),
         }
     }
 
@@ -256,6 +266,7 @@ impl Session {
         result = result.and(self.check_unique("emit", &self.opts.emit));
         result = result.and(self.validate_language());
         result = result.and(self.validate_llm_optimize());
+        result = result.and(self.validate_base_path());
         result
     }
 
@@ -320,28 +331,41 @@ impl Session {
         }
     }
 
+    fn validate_base_path(&self) -> crate::Result<()> {
+        // Standard JSON mode does not access the file system.
+        let Some(base_path) = self.opts.base_path.as_deref().filter(|_| !self.opts.standard_json)
+        else {
+            return Ok(());
+        };
+        let msg = if self.source_map().file_loader().canonicalize_path(base_path).is_err() {
+            "does not exist"
+        } else if std::fs::metadata(base_path).is_ok_and(|metadata| !metadata.is_dir()) {
+            "is not a directory"
+        } else {
+            return Ok(());
+        };
+        Err(self.dcx.err(format!("base path `{}` {msg}", base_path.display())).emit())
+    }
+
     /// Reconfigures inner state to match any new options.
     ///
     /// Call this after updating options.
     pub fn reconfigure(&self) {
-        'bp: {
-            let new_base_path = if self.opts.unstable.ui_testing {
-                // `ui_test` relies on absolute paths.
-                None
-            } else if self.opts.standard_json {
-                // Standard JSON keys are source unit names, so display them verbatim. An empty
-                // base path also makes imports resolve by source unit name without `--base-path`.
-                Some(PathBuf::new())
-            } else if let Some(base_path) =
-                self.opts.base_path.clone().or_else(|| std::env::current_dir().ok())
-                && let Ok(base_path) = self.source_map().file_loader().canonicalize_path(&base_path)
-            {
-                Some(base_path)
-            } else {
-                break 'bp;
-            };
-            self.source_map().set_base_path(new_base_path);
-        }
+        let (base_path, include_paths, current_dir) = if self.opts.unstable.ui_testing {
+            // `ui_test` relies on absolute paths.
+            (None, Vec::new(), None)
+        } else if self.opts.standard_json {
+            // Standard JSON keys are source unit names, so display them verbatim. An empty
+            // base path also makes imports resolve by source unit name without `--base-path`.
+            (Some(PathBuf::new()), Vec::new(), None)
+        } else {
+            let current_dir = std::env::current_dir().ok();
+            let absolute = |path: &Path| absolute_path(current_dir.as_deref(), path);
+            let include_paths = self.opts.include_paths.iter().map(|path| absolute(path)).collect();
+            let base_path = self.opts.base_path.as_deref().map(absolute).or(current_dir.clone());
+            (base_path, include_paths, current_dir)
+        };
+        self.source_map().set_roots(base_path, include_paths, current_dir);
     }
 
     fn check_unique<T: Eq + std::hash::Hash + std::fmt::Display>(
@@ -442,6 +466,35 @@ impl Session {
     #[inline]
     pub fn is_parallel(&self) -> bool {
         !self.is_sequential()
+    }
+
+    /// Returns `true` if code generation may run on several threads: parallelism is enabled and
+    /// no pass-debugging flag is set. Pass debugging writes directly to stdout and stderr, so it
+    /// keeps its output ordered.
+    #[inline]
+    pub fn is_parallel_codegen(&self) -> bool {
+        let unstable = &self.opts.unstable;
+        self.is_parallel()
+            && !unstable.print_after_each
+            && !unstable.pass_diff
+            && !unstable.time_passes
+            && !unstable.llm_trace
+    }
+
+    /// Records a code generation job that waits for a worker.
+    pub fn queue_job(&self) {
+        self.queued_jobs.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Records that a worker took a queued code generation job.
+    pub fn start_job(&self) {
+        self.queued_jobs.fetch_sub(1, Ordering::Relaxed);
+    }
+
+    /// Returns `true` if code generation jobs wait for a worker, so that work split off a running
+    /// job would only compete with them.
+    pub fn has_queued_jobs(&self) -> bool {
+        self.queued_jobs.load(Ordering::Relaxed) != 0
     }
 
     /// Returns `true` if the given output should be emitted.
@@ -594,7 +647,8 @@ impl Session {
         debug_assert!(threads > 0, "number of threads must already be resolved");
         let mut builder = rayon::ThreadPoolBuilder::new()
             .thread_name(|i| format!("solar-{i}"))
-            .num_threads(threads);
+            .num_threads(threads)
+            .stack_size(thread_stack_size());
         // We still want to use a rayon thread pool with 1 thread so that `ParallelIterator`s don't
         // install and run in the default global thread pool.
         if threads == 1 {
@@ -614,6 +668,17 @@ impl Session {
         }
         err.emit()
     }
+}
+
+/// Returns the stack size of compiler threads: `RUST_MIN_STACK` if set, or 16 MiB.
+///
+/// Like rustc, we do not grow the stack manually: deeply nested input recurses deeply, and the OS
+/// commits stack pages only when they are used, so a large limit costs nothing until it is needed.
+pub fn thread_stack_size() -> usize {
+    std::env::var("RUST_MIN_STACK")
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(16 * 1024 * 1024)
 }
 
 fn reentrant_log() {

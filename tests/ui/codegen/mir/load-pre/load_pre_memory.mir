@@ -154,23 +154,27 @@ fn @staticcall_zero_return_preserves_memory(arg0: i1, arg1: i256) -> i256 {
     ret v1
 }
 
-// CHECK-LABEL: {{^[ +].*}}fn @msize_blocks_memory{{[( ]}}
+// `msize` is not a kill: the inserted read may move above it.
+// CHECK-LABEL: {{^[ +].*}}fn @msize_does_not_block_memory{{[( ]}}
+// CHECK: + [[INSERTED:v[0-9]+]] = mload 128
+// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: {{v[0-9]+}}], [bb2: [[INSERTED]]]
 // CHECK: {{^[ +].*}}msize
-// CHECK: {{^[ +].*}}[[JOIN:v[0-9]+]] = mload 128
-fn @msize_blocks_memory(arg0: i1) -> i256 {
+// CHECK: + {{v[0-9]+}} = add [[MERGE]], [[MERGE]]
+fn @msize_does_not_block_memory(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
     v1 = mload 128
     jump bb3
   bb2:
-    v2 = mload 128
     jump bb3
   bb3:
-    v3 = msize
+    v2 = msize
+    v3 = mload 128
     v4 = mload 128
     v5 = add v3, v4
-    ret v5
+    v6 = add v5, v2
+    ret v6
 }
 
 // Implicit gas observations constrain partial-redundancy insertion.
@@ -180,7 +184,7 @@ fn @msize_blocks_memory(arg0: i1) -> i256 {
 // CHECK: {{^[ +] *}}bb3:
 // CHECK: {{^[ +].*}}mload 128
 // CHECK: {{^[ +].*}}mload 128
-fn @default_gas_call_blocks_prefix(arg0: i1, arg1: memptr) -> i256 {
+fn @default_gas_call_blocks_prefix(arg0: i1, arg1: ptr<memory>) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -204,7 +208,7 @@ fn @default_gas_call_blocks_prefix(arg0: i1, arg1: memptr) -> i256 {
 // CHECK: {{^[ +] *}}bb3:
 // CHECK: {{^[ +].*}}mload 128
 // CHECK: {{^[ +].*}}mload 128
-fn @default_gas_call_blocks_reload(arg0: i1, arg1: memptr) -> i256 {
+fn @default_gas_call_blocks_reload(arg0: i1, arg1: ptr<memory>) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -228,7 +232,7 @@ fn @default_gas_call_blocks_reload(arg0: i1, arg1: memptr) -> i256 {
 // CHECK: {{^[ +] *}}bb3:
 // CHECK: {{^[ +].*}}mload 128
 // CHECK: {{^[ +].*}}mload 128
-fn @explicit_gas_call_blocks_pre(arg0: i1, arg1: memptr) -> i256 {
+fn @explicit_gas_call_blocks_pre(arg0: i1, arg1: ptr<memory>) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

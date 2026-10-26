@@ -18,9 +18,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let initializer = self.cx.gcx.hir.variable(*id).initializer;
                 let ty = self.cx.gcx.type_of_item((*id).into());
                 if ty.is_ref_at(DataLocation::Storage) {
-                    let Some(initializer) = initializer else { return Some(()) };
-                    let Some(access) = self.storage_access(initializer) else {
-                        return self.cx.report_unsupported(initializer.span, "storage access");
+                    let access = if let Some(initializer) = initializer {
+                        self.require_storage_access(initializer)?
+                    } else {
+                        // An unassigned storage reference points at slot zero, like in solc.
+                        // storage_ref = slot 0
+                        StorageAccess {
+                            slot: self.builder.imm(U256::ZERO),
+                            location: StorageLocation::word(U256::ZERO),
+                            offset: None,
+                        }
                     };
                     self.storage_refs.insert(*id, access);
                     return Some(());
@@ -38,12 +45,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 let value = if !self.in_inline_assembly
                     && let Some(expr) = initializer
-                    && let Ok(ConstValue::Integer(value)) = self.cx.gcx.try_eval_const_value(expr)
+                    && let Ok(value) = self.cx.gcx.const_eval().eval_int(expr)
                     && let Some(value) = value.as_u256()
                 {
-                    // value = constant
+                    let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
                     let value = self.builder.imm(value);
-                    self.coerce_value(value, self.cx.gcx.type_of_expr(expr.id)?, ty)
+                    self.coerce_value(value, expr_ty, ty)
                 } else if let Some(expr) = initializer {
                     if self.in_inline_assembly {
                         self.lower_yul_word_expr(expr)?
@@ -67,7 +74,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     // storage slot as if it were a memory pointer.
                     let ty = self.cx.gcx.type_of_item(id.into());
                     ty.is_ref_at(DataLocation::Storage) || ty.is_ref_at(DataLocation::Memory)
-                }) && let Some(values) = self.lower_storage_reference_call(expr.peel_parens())
+                }) && let Some(values) = self.lower_storage_reference_values(expr.peel_parens())
                 {
                     if values.len() != ids.len() {
                         return self.cx.report_unsupported(expr.span, "storage reference tuple");
@@ -78,9 +85,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         if let Some(access) = access {
                             if !ty.is_ref_at(DataLocation::Storage) {
                                 // A storage-reference return declared into a
-                                // non-storage local copies the referenced
-                                // value, matching solc; the reference itself
-                                // only binds to a storage variable.
+                                // non-storage local copies the referenced value;
+                                // the reference itself only binds to a storage
+                                // variable.
                                 let span = self.cx.gcx.hir.variable(*id).span;
                                 let value = self.load_storage_object(ty, value, span)?;
                                 self.values.insert(*id, value);
@@ -120,9 +127,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         };
                         let ty = self.cx.gcx.type_of_item((*id).into());
                         if ty.is_ref_at(DataLocation::Storage) {
-                            let Some(access) = self.storage_access(value) else {
-                                return self.cx.report_unsupported(value.span, "storage access");
-                            };
+                            let access = self.require_storage_access(value)?;
                             self.storage_refs.insert(*id, access);
                             continue;
                         }
@@ -217,14 +222,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         for (id, value) in return_ids.into_iter().zip(values) {
                             let ty = self.cx.gcx.type_of_item(id.into());
                             if ty.is_ref_at(DataLocation::Storage) {
-                                let access =
-                                    self.storage_refs.get(&id).copied().unwrap_or(StorageAccess {
-                                        slot: value,
-                                        location: StorageLocation::word(U256::ZERO),
-                                        offset: None,
-                                    });
-                                self.storage_refs
-                                    .insert(id, StorageAccess { slot: value, ..access });
+                                self.set_storage_ref_slot(id, value);
                             } else {
                                 let value =
                                     self.materialize_scalar_carrier(id, value, stmt.span)?;
@@ -277,19 +275,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Returns `true` if `--revert-strings strip` drops the reason string `expr`.
     ///
-    /// Custom error payloads are never stripped. Like solc, a reason that is not a compile-time
-    /// constant string is still evaluated so its side effects and failures are kept; only the
-    /// payload is dropped.
+    /// Custom error payloads are never stripped. A reason that is not a compile-time constant
+    /// string is still evaluated so its side effects and failures are kept; only the payload is
+    /// dropped.
     pub(super) fn strips_revert_string(&mut self, expr: &hir::Expr<'_>) -> Option<bool> {
         if !self.cx.gcx.sess.opts.revert_strings.is_strip() {
             return Some(false);
         }
-        if let ExprKind::Call(callee, ..) = &expr.kind
+        if let ExprKind::Call(callee, ..) = &expr.peel_parens().kind
             && let Some(hir::Res::Item(hir::ItemId::Error(_))) = self.cx.gcx.resolved_expr(callee)
         {
             return Some(false);
         }
-        if self.constant_string_bytes(expr).is_none() {
+        if self.constant_bytes(expr).is_none() {
             self.lower_discarded_expr(expr)?;
         }
         Some(true)
@@ -307,9 +305,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_discarded_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
+        // Reading a constant with a value has no effects. One without a value runs its helper,
+        // which can revert.
+        let gcx = self.cx.gcx;
+        if let Some(id) = gcx.resolved_variable(expr)
+            && gcx.hir.variable(id).is_constant()
+        {
+            if gcx.const_eval().eval_var(id).is_err() {
+                return self.call_constant_helper(id).map(drop);
+            }
+            return Some(());
+        }
         match &expr.kind {
             // Names and `new T` have no effects to evaluate.
             ExprKind::Ident(_) | ExprKind::New(_) => Some(()),
+            // Neither does literal arithmetic, whose fractions have no runtime value.
+            _ if expr.is_numeric_literal() => Some(()),
             ExprKind::Call(callee, args) => {
                 let (callee, options) = callee.split_call_options();
                 self.lower_call(expr, callee, *args, options, false).map(drop)
@@ -361,10 +372,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Member(receiver, _)
                 if self.cx.gcx.resolved_builtin(expr) == Some(Builtin::ArrayPop) =>
             {
-                if self.storage_access(receiver).is_none() {
-                    return self.cx.report_unsupported(receiver.span, "storage access");
-                }
-                Some(())
+                self.require_storage_access(receiver).map(drop)
             }
             // A member function, such as `to.transfer`, or a member of an item only evaluates its
             // receiver. Function-typed fields are still read: calldata reads validate them.
@@ -418,21 +426,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.prepare_custom_error_payload(error_id, *args);
         }
 
-        if let Some(bytes) = self.constant_string_bytes(expr)
-            && (1..=32).contains(&bytes.as_byte_str().len())
-        {
-            let length = self.builder.imm(bytes.as_byte_str().len() as u64);
-            let data = self.lower_string_literal_word(bytes.as_byte_str());
-            return Some(RevertPayload::ShortString { length, data });
-        }
-
-        let literal = expr.peel_parens();
-        if let ExprKind::Lit(lit) = &literal.kind
-            && let LitKind::Str(StrKind::Str | StrKind::Unicode | StrKind::Hex, bytes, _) =
-                &lit.kind
-            && bytes.as_byte_str().is_empty()
-        {
-            return Some(RevertPayload::EmptyString);
+        if let Some(symbol) = self.constant_bytes(expr) {
+            let bytes = symbol.as_byte_str();
+            return Some(match bytes.len() {
+                0 => RevertPayload::EmptyString,
+                1..=32 => {
+                    let length = self.builder.imm(bytes.len() as u64);
+                    let data = self.lower_string_literal_word(bytes);
+                    RevertPayload::ShortString { length, data }
+                }
+                _ => RevertPayload::LongString(symbol),
+            });
         }
 
         let ty = self.cx.gcx.type_of_expr(expr.id)?;
@@ -447,28 +451,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let condition = self.builder.imm_bool(false);
         self.builder.require(condition, payload);
         self.builder.invalid();
-    }
-
-    fn constant_string_bytes(&self, expr: &hir::Expr<'_>) -> Option<ByteSymbol> {
-        let mut expr = expr.peel_parens();
-        for _ in 0..4 {
-            match &expr.kind {
-                ExprKind::Lit(lit) => {
-                    let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
-                    return Some(*bytes);
-                }
-                ExprKind::Ident(_) | ExprKind::Member(..) => {
-                    let variable_id = self.cx.gcx.resolved_variable(expr)?;
-                    let variable = self.cx.gcx.hir.variable(variable_id);
-                    if !variable.is_constant() {
-                        return None;
-                    }
-                    expr = variable.initializer?.peel_parens();
-                }
-                _ => return None,
-            }
-        }
-        None
     }
 
     fn prepare_custom_error_payload(
@@ -518,20 +500,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
 
         let event = self.cx.gcx.hir.event(event_id);
-        let max_indexed = if event.anonymous { 4 } else { 3 };
         let indexed_count =
             event.parameters.iter().filter(|&&id| self.cx.gcx.hir.variable(id).indexed).count();
-        if indexed_count > max_indexed {
-            if self.cx.state.invalid_event_topics.insert(event_id) {
-                self.cx
-                    .gcx
-                    .dcx()
-                    .err(format!("event cannot have more than {max_indexed} indexed parameters"))
-                    .span(event.span)
-                    .emit();
-            }
-            return Some(());
-        }
         if args.len() != event.parameters.len() {
             return self.cx.report_unsupported(args.span, "event argument list");
         }
@@ -558,11 +528,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             |this, index, argument| {
                 let parameter_ty = this.cx.gcx.type_of_item(event.parameters[index].into());
                 let value = this.lower_typed_expr(argument, parameter_ty)?;
-                if let Some(argument_ty) = this.cx.gcx.type_of_expr(argument.id)
-                    && let Some(argument_abi_type) = this.types.abi_type(argument_ty)
-                {
-                    this.validate_calldata_bytes_argument(value, &argument_abi_type);
-                }
                 Some((argument, value))
             },
         )?;
@@ -588,15 +553,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     | TyKind::Tuple(_) => {
                         let mut abi_type = self.types.abi_type(parameter_ty)?;
                         abi_type = self.abi_type_for_value(value, abi_type);
-                        let validated_static =
-                            self.validate_calldata_static_argument(value, parameter_ty);
+                        self.validate_calldata_static_argument(value, parameter_ty);
                         let calldata_dynamic = self.builder.func().value_slice_location(value)
-                            == Some(SliceLocation::Calldata)
+                            == Some(PtrLocation::Calldata)
                             && abi_type.is_dynamic();
-                        if (calldata_dynamic
-                            || self.needs_calldata_materialization(value, &abi_type))
-                            && !validated_static
-                        {
+                        if calldata_dynamic {
                             value = self.materialize_calldata_argument(
                                 parameter_ty,
                                 value,
@@ -629,11 +590,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // data_values += argument
                 let mut abi_type = self.types.abi_type(parameter_ty)?;
                 abi_type = self.abi_type_for_value(value, abi_type);
-                let validated_static = self.validate_calldata_static_argument(value, parameter_ty);
-                if self.needs_calldata_materialization(value, &abi_type) && !validated_static {
-                    value =
-                        self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
-                    abi_type = Self::memory_abi_type(abi_type);
+                self.check_calldata_array_size(value, parameter_ty, &abi_type);
+                self.validate_calldata_static_argument(value, parameter_ty);
+                // The dispatcher validates the elements of an argument that only ABI decoding
+                // passes when an encoding takes it.
+                if Self::is_calldata_word_array(&abi_type)
+                    && self.needs_calldata_aggregate_validation(value, parameter_ty)
+                    && !self.is_decoded_external_argument(value)
+                {
+                    self.validate_calldata_word_array(value, parameter_ty);
                 }
                 if matches!(abi_type, AbiType::Word(_)) {
                     value = self.lower_word_value(parameter_ty, argument, value);
@@ -643,32 +608,31 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
 
-        // data = abi_encode(non_indexed_arguments)
+        // data = abi_encode_scratch(non_indexed_arguments)
         let (data_ptr, data_size) = if data_types.is_empty() {
             let zero = self.builder.imm(U256::ZERO);
             (zero, zero)
-        } else if matches!(data_types.as_slice(), [AbiType::Word(_)]) {
-            let zero = self.builder.imm(0);
-            self.builder.mstore(zero, data_values[0]);
-            (zero, self.builder.imm(32))
+        } else if data_types.len() <= 2
+            && data_types.iter().all(|ty| matches!(ty, AbiType::Word(_)))
+        {
+            // mstore 0, a
+            // mstore 32, b
+            for (index, &value) in data_values.iter().enumerate() {
+                let offset = self.builder.imm(32 * index as u64);
+                self.builder.store(offset, value);
+            }
+            (self.builder.imm(0), self.builder.imm(32 * data_values.len() as u64))
         } else {
             let layout = Arc::new(AbiLayout::new(data_types.into_boxed_slice()));
-            let encoded = self.builder.abi_encode(layout, None, data_values.into_boxed_slice());
+            let encoded =
+                self.builder.abi_encode_scratch(layout, None, data_values.into_boxed_slice());
             (self.builder.slice_ptr(encoded), self.builder.slice_len(encoded))
         };
-        // log0..log4(data.data, data.length, topics...)
-        match topics.as_slice() {
-            [] => self.builder.log0(data_ptr, data_size),
-            &[topic] => self.builder.log1(data_ptr, data_size, topic),
-            &[topic1, topic2] => self.builder.log2(data_ptr, data_size, topic1, topic2),
-            &[topic1, topic2, topic3] => {
-                self.builder.log3(data_ptr, data_size, topic1, topic2, topic3)
-            }
-            &[topic1, topic2, topic3, topic4] => {
-                self.builder.log4(data_ptr, data_size, topic1, topic2, topic3, topic4)
-            }
-            _ => return self.cx.report_unsupported(args.span, "event topic list"),
+        // log data.data, data.length, topics...
+        if topics.len() > LogTopics::MAX {
+            return self.cx.report_unsupported(args.span, "event topic list");
         }
+        self.builder.log(data_ptr, data_size, &topics);
         Some(())
     }
 
@@ -739,7 +703,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && function.is_external()
         {
             let shift = self.builder.imm(64);
-            return self.builder.shl(shift, value);
+            return self.builder.shl(value, shift);
         }
         if !matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::FixedBytes(_))) {
             let layout = types::TypeLowerer::value_layout(ty);
@@ -752,9 +716,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(value) = self.lower_fixed_bytes_literal(ty, expr) {
             return value;
         }
-        if matches!(self.builder.func().value_ty(value), Some(MirType::MemPtr)) {
+        if matches!(self.builder.func().value_ty(value), Some(MirType::MEMPTR)) {
             let zero = self.builder.imm(0);
-            return self.builder.memory_object_load_element(value, MemoryObjectLayout::Bytes, zero);
+            return self.builder.slice_load_word(value, zero);
         }
         value
     }

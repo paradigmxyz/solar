@@ -1,5 +1,5 @@
-//@ codegen-matrix: standard
-//@[mir] compile-flags: --emit=abi --pretty-json
+//@ codegen-matrix: standard abi
+//@[abi] compile-flags: -O none -Zdump=mir --emit=abi --pretty-json
 contract C {
     uint public x;
 

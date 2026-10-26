@@ -300,7 +300,7 @@ impl<'a> Tests<'a> {
                 if probes.len() == MAX_PROBES {
                     break 'probes;
                 }
-                if ty == MirType::MemPtr {
+                if ty == MirType::MEMPTR {
                     continue;
                 }
                 let mut input = references[(index + param) % references.len()].input.clone();
@@ -1059,7 +1059,7 @@ fn generate(
     let mut args = SmallVec::<[U256; 4]>::new();
     for &ty in &function.params {
         let value = match ty {
-            MirType::MemPtr => match rng.below(8) {
+            MirType::MEMPTR => match rng.below(8) {
                 0 if !args.is_empty() => args[rng.below(args.len() as u64) as usize],
                 1 => U256::from(EvmMemoryLayout::ZERO_SLOT),
                 _ => U256::from(fmp + 32 * rng.below(8)),

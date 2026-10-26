@@ -3,18 +3,18 @@
 //! After ABI and dispatch lowering, some internal calls still target bodies that
 //! terminate execution instead of returning. This pass drops the continuation of
 //! every call to a bodied callee proven unable to return, including calls with
-//! results. It replaces eligible calls with [`Terminator::TailCall`]; other calls
-//! remain ordinary instructions followed by an unreachable `invalid` terminator.
+//! results, as `noreturn-calls` does early in the semantic pipeline. It replaces
+//! eligible calls with tail calls; other calls remain ordinary instructions followed
+//! by an unreachable `invalid` terminator.
 //!
-//! The pass then verifies all lowered-representation requirements and advances the
-//! module from semantic to lowered MIR. A failed check leaves its phase semantic
-//! and prevents the backend from consuming it.
+//! The pass then erases pointer types: every pointer becomes the `i256` word it holds and the
+//! casts between the two disappear, so the backend sees one value for each address. It verifies
+//! all lowered-representation requirements and advances the module from semantic to lowered MIR. A
+//! failed check leaves its phase semantic and prevents the backend from consuming it.
 //!
-//! Arguments ride along: the backend stores them at the callee's compile-time
-//! frame addresses and jumps, pushing no return address. That addressing only
-//! exists for callees the backend gives a static frame (bodied, selectorless,
-//! non-recursive). Constructor-reachable calls also keep ordinary frames, even
-//! without arguments: callee locals and spills still need a frame base.
+//! Arguments ride along on the stack: the backend jumps with them in place and
+//! pushes no return address. Only bodied, selectorless, non-recursive callees
+//! qualify.
 //! Returnability follows explicit returns and tail-call chains conservatively;
 //! unreachable returns can prevent a proof until CFG cleanup removes them. A
 //! caller worklist propagates newly proven nonreturning bodies after cleanup;
@@ -25,13 +25,10 @@
 //! selects the phi successor. This pass isolates only those copies in a single-successor block.
 
 use crate::mir::{
-    Callee, Function, FunctionId, InstKind, MirPhase, Module, Terminator,
-    analysis::{CallGraphInfo, Liveness},
-    pass::MirPass,
-    transform::cfg_simplify::remove_unreachable_blocks,
-    utils::{replace_terminator, split_edge},
+    Function, Immediate, InstKind, MirPhase, MirType, Module, Value, ValueId, analysis::Liveness,
+    pass::MirPass, transform::cfg_simplify::end_nonreturning_calls, utils::split_edge,
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::index_vec};
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use std::cell::LazyCell;
 
 /// Shapes call edges and checks the final MIR phase transition.
@@ -57,7 +54,7 @@ impl MirPass for LowerEvmShaped {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let changed = lower_evm_shaped(module);
-        if let Err(error) = module.advance_phase(gcx.dcx(), MirPhase::Lowered) {
+        if let Err(error) = module.advance_phase(gcx, MirPhase::Lowered) {
             analyses.fail(error);
         }
         changed
@@ -69,125 +66,73 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
         return false;
     }
 
-    // Skip call-graph analysis when no internal calls remain.
-    let has_candidate = module.functions.iter().any(|func| {
-        func.instructions().any(|inst_id| {
-            matches!(func.inst(inst_id).kind, InstKind::ICall { function: Callee::Function(_), .. })
-        })
-    });
-    if has_candidate {
-        let call_graph = CallGraphInfo::new(module);
-        let returning = module.returning_functions();
-        let mut nonreturning = DenseBitSet::new_empty(module.functions.len());
-        let mut tail_callable = DenseBitSet::new_empty(module.functions.len());
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if func.blocks.is_empty() {
-                continue;
-            }
-            if !returning.contains(func_id) {
-                nonreturning.insert(func_id);
-            }
-            if is_tail_callable(module, &call_graph, func_id) {
-                tail_callable.insert(func_id);
-            }
-        }
-        let constructor_reachable = constructor_reachable(module, &call_graph);
-
-        // Keep reverse edges even when cleanup removes a call: stale edges only
-        // cause a redundant visit, and function IDs stay stable through block cleanup.
-        let mut callers = index_vec![Vec::new(); module.functions.len()];
-        for (caller, func) in module.iter_functions() {
-            for inst in func.instructions() {
-                if let InstKind::ICall { function: Callee::Function(callee), .. } =
-                    func.inst(inst).kind
-                {
-                    callers[callee].push(caller);
-                }
-            }
-            for block in &func.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = block.terminator {
-                    callers[function].push(caller);
-                }
-            }
-        }
-        let mut worklist = Vec::new();
-        let mut queued = DenseBitSet::new_empty(module.functions.len());
-        for callee in &nonreturning {
-            for &caller in &callers[callee] {
-                if queued.insert(caller) {
-                    worklist.push(caller);
-                }
-            }
-        }
-        while let Some(func_id) = worklist.pop() {
-            queued.remove(func_id);
-            let func = &mut module.functions[func_id];
-            let mut function_changed = false;
-            for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
-                let insts = &func.blocks[block_id].instructions;
-                let Some((position, function)) =
-                    insts.iter().enumerate().find_map(|(position, &inst_id)| {
-                        let inst = func.inst(inst_id);
-                        if let InstKind::ICall { function: Callee::Function(function), .. } =
-                            &inst.kind
-                            && nonreturning.contains(*function)
-                        {
-                            Some((position, *function))
-                        } else {
-                            None
-                        }
-                    })
-                else {
-                    continue;
-                };
-
-                let inst = func.inst(insts[position]);
-                let metadata = inst.metadata.debug_context();
-                let InstKind::ICall { args, .. } = &inst.kind else { unreachable!() };
-                if tail_callable.contains(function) && !constructor_reachable.contains(func_id) {
-                    // result = icall callee, args -> tail_call callee, args
-                    let terminator =
-                        Terminator::TailCall { function, args: args.iter().copied().collect() };
-                    func.blocks[block_id].instructions.truncate(position);
-                    replace_terminator(func, block_id, terminator);
-                    func.blocks[block_id].terminator_metadata = metadata;
-                } else {
-                    // result = icall callee, args
-                    // invalid
-                    func.blocks[block_id].instructions.truncate(position + 1);
-                    replace_terminator(func, block_id, Terminator::Invalid);
-                    // NOTE: The unreachable terminator has no source checkpoint.
-                    func.blocks[block_id].terminator_metadata.mark_debug_info_dropped();
-                }
-                function_changed = true;
-            }
-            if function_changed {
-                let _ = remove_unreachable_blocks(func);
-            }
-            if !nonreturning.contains(func_id)
-                && !func.blocks.is_empty()
-                && !func.blocks.iter().any(|block| match &block.terminator {
-                    Some(Terminator::Return { .. }) => true,
-                    Some(Terminator::TailCall { function, .. }) => {
-                        !nonreturning.contains(*function)
-                    }
-                    _ => false,
-                })
-            {
-                nonreturning.insert(func_id);
-                for &caller in &callers[func_id] {
-                    if queued.insert(caller) {
-                        worklist.push(caller);
-                    }
-                }
-            }
-        }
-    }
+    end_nonreturning_calls(module, true);
     for func in &mut module.functions {
+        erase_pointer_types(func);
         split_clobbering_phi_edges(func);
     }
 
     true
+}
+
+/// Retypes every pointer as the word it holds and drops the casts between the two, so the backend
+/// sees one value for each address.
+fn erase_pointer_types(func: &mut Function) {
+    let word = |ty: MirType| if ty.is_pointer() { MirType::I256 } else { ty };
+    for index in func.arg_indices() {
+        let ty = func.arg_ty(index);
+        func.set_arg_ty(index, word(ty));
+    }
+    let returns = func.return_abi().map(|abi| abi.iter().copied().map(word).collect::<Vec<_>>());
+    func.set_return_type(word(func.return_type()));
+    if let Some(returns) = returns {
+        func.set_return_abi(returns);
+    }
+    for index in 0..func.num_values() {
+        // ptr<location> literal -> i256 literal
+        match func.value_mut(ValueId::new(index)) {
+            Value::Immediate(immediate @ Immediate::Pointer(..)) => {
+                let word = immediate.as_u256().expect("pointer literals hold a word");
+                *immediate = Immediate::I256(word);
+            }
+            Value::Undef(ty) => *ty = word(*ty),
+            _ => {}
+        }
+    }
+    let mut replacements = FxHashMap::default();
+    let mut casts = FxHashSet::default();
+    for inst in func.instructions().collect::<Vec<_>>() {
+        let narrow_operand = match func.inst(inst).kind {
+            InstKind::IntToPtr(operand) => func.value_ty(operand) != Some(MirType::I256),
+            _ => false,
+        };
+        let instruction = func.inst_mut(inst);
+        instruction.result_ty = instruction.result_ty.map(word);
+        match instruction.kind {
+            // pointer = inttoptr narrow to ptr<location> -> zext narrow to i256
+            InstKind::IntToPtr(operand) if narrow_operand => {
+                instruction.kind = InstKind::Zext(operand);
+            }
+            // word = ptrtoint pointer to i256 -> pointer
+            // pointer = inttoptr word to ptr<location> -> word
+            InstKind::PtrToInt(operand, 256) | InstKind::IntToPtr(operand) => {
+                casts.insert(inst);
+                if let Some(result) = func.inst_result_value(inst) {
+                    replacements.insert(result, operand);
+                }
+            }
+            // narrow = ptrtoint pointer to iN -> trunc pointer to iN
+            InstKind::PtrToInt(operand, bits) => instruction.kind = InstKind::Trunc(operand, bits),
+            _ => {}
+        }
+    }
+    if casts.is_empty() {
+        return;
+    }
+    func.replace_uses_canonicalized(&replacements);
+    for block in &mut func.blocks {
+        block.instructions.retain(|inst| !casts.contains(inst));
+    }
 }
 
 fn split_clobbering_phi_edges(func: &mut Function) {
@@ -237,40 +182,4 @@ fn split_clobbering_phi_edges(func: &mut Function) {
     for (predecessor, successor) in edges {
         split_edge(func, predecessor, successor);
     }
-}
-
-/// Returns whether a tail call may target function `id`: a function with a body, no selector, and
-/// no recursion, which is not a receive or fallback function. The backend passes a tail call's
-/// arguments in its target's static frame, which only such functions get.
-pub(crate) fn is_tail_callable(
-    module: &Module,
-    call_graph: &CallGraphInfo,
-    id: FunctionId,
-) -> bool {
-    let func = module.function(id);
-    !func.blocks.is_empty()
-        && func.selector.is_none()
-        && !func.attributes.is_receive
-        && !func.attributes.is_fallback
-        && !call_graph.is_recursive(id)
-}
-
-/// Returns the constructors and the functions they can reach, which may make no tail calls:
-/// deployment emits their bodies with dynamic frames, and even a callee without arguments needs
-/// the ordinary call to establish a base for its locals and spills.
-pub(crate) fn constructor_reachable(
-    module: &Module,
-    call_graph: &CallGraphInfo,
-) -> DenseBitSet<FunctionId> {
-    let constructors = || {
-        module
-            .functions
-            .iter_enumerated()
-            .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id))
-    };
-    let mut reachable = call_graph.reachable_callees_from(constructors());
-    for id in constructors() {
-        reachable.insert(id);
-    }
-    reachable
 }

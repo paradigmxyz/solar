@@ -10,26 +10,31 @@
 // CHECK: + [[END:v[0-9]+]] = constructor_args_end
 // CHECK: + [[REQUIRED:v[0-9]+]] = add [[BASE]], 160
 // CHECK: + {{v[0-9]+}} = gt [[REQUIRED]], [[END]]
-// CHECK: + [[OUTER:v[0-9]+]] = alloc memoryfixedarray<2, 1>
+// CHECK: + [[OUTER:v[0-9]+]] = alloc 64
 // CHECK: + [[OUTER_INDEX:v[0-9]+]] = phi
 // CHECK: + {{v[0-9]+}} = lt [[OUTER_INDEX]], 2
 // CHECK: + {{v[0-9]+}} = add {{v[0-9]+}}, arg4
 // CHECK: + {{v[0-9]+}} = mul [[OUTER_INDEX]], 64
-// CHECK: + [[INNER:v[0-9]+]] = alloc memoryfixedarray<2, 1>
+// CHECK: + [[INNER:v[0-9]+]] = alloc 64
 // CHECK: + [[INNER_INDEX:v[0-9]+]] = phi
 // CHECK: + {{v[0-9]+}} = lt [[INNER_INDEX]], 2
-// CHECK: + [[INNER_PTR:v[0-9]+]] = ptrtoint memptr [[INNER]] to i256
-// CHECK-NEXT: + memory_object_store_element memoryfixedarray<2, 1>, [[OUTER]], [[OUTER_INDEX]], [[INNER_PTR]]
+// CHECK: + [[OFF1:v[0-9]+]] = shl [[OUTER_INDEX]], 5
+// CHECK-NEXT: + [[OUTER_ELEM:v[0-9]+]] = ptradd [[OUTER]], [[OFF1]]
+// CHECK-NEXT: + [[INNER_PTR:v[0-9]+]] = ptrtoint ptr<memory> [[INNER]] to i256
+// CHECK-NEXT: + mstore [[OUTER_ELEM]], [[INNER_PTR]]
 // CHECK: + {{v[0-9]+}} = mul [[INNER_INDEX]], 32
 // CHECK: + [[WORD:v[0-9]+]] = mload
-// CHECK: + memory_object_store_element memoryfixedarray<2, 1>, [[INNER]], [[INNER_INDEX]], [[WORD]]
+// CHECK-NEXT: + [[OFF2:v[0-9]+]] = shl [[INNER_INDEX]], 5
+// CHECK-NEXT: + [[INNER_ELEM:v[0-9]+]] = ptradd [[INNER]], [[OFF2]]
+// CHECK-NEXT: + mstore [[INNER_ELEM]], [[WORD]]
 @module LowerAbiConstructorParams
 
-fn @constructor(arg0: memptr, arg1: i256) [abi_params=[array<2, array<2, u256>>, u256]] {
+fn @constructor(arg0: ptr<memory>, arg1: i256) [abi_params=[array<2, array<2, uint256>>, uint256]] {
   bb0:
-    v0 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 1
-    v3 = inttoptr i256 v0 to memptr
-    v1 = memory_object_load_element memoryfixedarray<2, 1>, v3, 0
+    v4 = ptradd arg0, 32
+    v0 = mload v4
+    v3 = inttoptr i256 v0 to ptr<memory>
+    v1 = mload v3
     v2 = add v1, arg1
     mstore 0, v2
     stop

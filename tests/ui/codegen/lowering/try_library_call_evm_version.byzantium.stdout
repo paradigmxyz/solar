@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol:TryLib ===
 @module TryLib
 @library
-fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_mul u256, 2, arg0
+    v0 = checked_mul uint256, 2, arg0
     ret v0
 }
 
-fn @noop(arg0: i256) [selector=0x67190395, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @noop(arg0: i256) [selector=0x67190395, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
@@ -17,22 +17,21 @@ fn @noop(arg0: i256) [selector=0x67190395, pure, abi_params=[u256], abi_returns=
 @libraries
   TryLib_0: "ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol:TryLib"
 
-fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = library_address TryLib_0
     v1 = gas
-    v2 = abi_encode [word], selector 0xeee9720600000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = slice_ptr v2
-    v4 = slice_len v2
-    v5 = zext i160 v0 to i256
-    v6 = delegatecall v1, v5, v3, v4, 0, 0
-    jumpi v6, bb1, bb2
+    mstore 0, 0xeee97206 !metadata(memory=scratch)
+    mstore 32, arg0 !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = delegatecall v1, v2, 28, 36, 0, 32
+    jumpi v3, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -41,29 +40,31 @@ fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[u256], abi_ret
   bb4:
     jump bb3
   bb1:
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [u256], v7
-    sstore 0, v8 !metadata(storage=slot(0))
+    v4 = returndatasize
+    v5 = lt v4, 32
+    icall revert_if<tuple_data_too_short>, v5
+    v6 = add 0, 0
+    v7 = mload v6
+    sstore 0, v7 !metadata(storage=slot(0))
     jump bb3
   bb3:
-    v9 = phi [bb1: v8], [bb4: 7]
-    ret v9
+    v8 = phi [bb1: v7], [bb4: 7]
+    ret v8
 }
 
-fn @libNoReturn(arg0: i256) -> i256 [selector=0x364676bf, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @libNoReturn(arg0: i256) -> i256 [selector=0x364676bf, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = library_address TryLib_0
     v1 = gas
-    v2 = abi_encode [word], selector 0x6719039500000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    mstore 0, 0x67190395 !metadata(memory=scratch)
+    mstore 32, arg0 !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = extcodesize v2
+    v4 = eq v3, 0
+    icall revert_if<target_contract_has_no_code>, v4
     v5 = zext i160 v0 to i256
-    v6 = extcodesize v5
-    v7 = eq v6, 0
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = zext i160 v0 to i256
-    v9 = delegatecall v1, v8, v3, v4, 0, 0
-    jumpi v9, bb1, bb2
+    v6 = delegatecall v1, v5, 28, 36, 0, 0
+    jumpi v6, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -75,6 +76,6 @@ fn @libNoReturn(arg0: i256) -> i256 [selector=0x364676bf, abi_params=[u256], abi
     sstore 0, 1 !metadata(storage=slot(0))
     jump bb3
   bb3:
-    v10 = phi [bb1: 1], [bb4: 7]
-    ret v10
+    v7 = phi [bb1: 1], [bb4: 7]
+    ret v7
 }

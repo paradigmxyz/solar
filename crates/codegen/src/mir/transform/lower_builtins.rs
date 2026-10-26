@@ -6,15 +6,19 @@
 //! emits array loops and overflow checks, repairing successor phi labels when it splits blocks.
 //! Revert outlining can then share builtin failure payloads. Precompile calls
 //! retain their returndata and memory observations even when their scalar result is unused.
+//! As in solc, a failed precompile call forwards its return data, and the 32-byte result lands in
+//! scratch memory instead of an allocation.
 //! Payable sends and transfers expand to stipend-limited calls; transfers branch to a semantic
 //! returndata revert on failure, leaving payload expansion to revert lowering. Low-level address
 //! calls expose their bytes input only here and retain explicit gas/value options. Return-data
 //! capture allocates and copies after the call, before any later call can replace the data.
 
 use crate::mir::{
-    AddressCallKind, AllocationSemantics, Builtin, Callee, ConcatPart, FunctionBuilder, InstKind,
-    MemoryObjectKind, MemoryObjectLayout, Module, PanicCode, SliceLocation, ValueId,
+    AddressCallKind, AllocationSemantics, Builtin, Callee, FunctionBuilder, InstKind,
+    MemoryObjectKind, Module, PanicCode, PhaseCategory, PtrLocation, ValueId,
+    memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
+    transform::utils::expand_block,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -93,15 +97,10 @@ impl MirPass for LowerBuiltins {
                 {
                     continue;
                 }
-                let instructions = std::mem::take(&mut func.blocks[block].instructions);
-                let (terminator, metadata) = func.blocks[block].take_terminator();
                 let mut builder = FunctionBuilder::new(func);
-                builder.switch_to_block(block);
-                for id in instructions {
+                expand_block(&mut builder, block, |builder, id| {
                     if !is_builtin(&builder.func().inst(id).kind) {
-                        let current = builder.current_block();
-                        builder.func_mut().blocks[current].instructions.push(id);
-                        continue;
+                        return false;
                     }
                     let inst = builder.func().inst(id).clone();
                     builder.set_debug_context(&inst.metadata);
@@ -111,31 +110,25 @@ impl MirPass for LowerBuiltins {
                                 unreachable!("validated builtin arguments")
                             };
                             // success = send(address, amount)
-                            // if !success { revert_returndata }
-                            let success = lower_send(&mut builder, address, amount);
-                            let revert = builder.create_block();
-                            let continuation = builder.create_block();
-                            builder.branch(success, continuation, revert);
-                            builder.switch_to_block(revert);
-                            builder.revert_returndata();
-                            builder.switch_to_block(continuation);
-                            continue;
+                            let success = lower_send(builder, address, amount);
+                            builder.revert_returndata_unless(success);
+                            return true;
                         }
                         InstKind::ValidateStorageBytes(header) => {
                             // validate_storage_bytes(header) -> encoding predicate; panic if
                             // invalid
-                            super::lower_storage_bytes::validate(&mut builder, header);
-                            continue;
+                            super::lower_storage_bytes::validate(builder, header);
+                            return true;
                         }
                         InstKind::StorageBytesStore(slot, object) => {
                             // validate header; clear old tail; write header and data
                             super::lower_storage_bytes::store(
-                                &mut builder,
+                                builder,
                                 slot,
                                 object,
                                 clear_helper.expect("storage store requires a clear helper"),
                             );
-                            continue;
+                            return true;
                         }
                         InstKind::StorageBytesStoreLiteral { slot, bytes } => {
                             // header = sload(slot)
@@ -143,31 +136,31 @@ impl MirPass for LowerBuiltins {
                             if let Some(&helper) = literal_helpers.get(&bytes) {
                                 // icall store_literal, slot, header
                                 builder.icall_void(helper, vec![slot, header]);
-                                continue;
+                                return true;
                             }
                             // validate header; clear old tail; store literal header and data
                             super::lower_storage_bytes::store_literal(
-                                &mut builder,
+                                builder,
                                 slot,
                                 header,
                                 &bytes,
                                 clear_helper
                                     .expect("literal storage store requires a clear helper"),
                             );
-                            continue;
+                            return true;
                         }
                         InstKind::StorageClearWords(slot, first, end) => {
                             // for index in first..end { sstore(storage_array_data_slot(slot) +
                             // index, 0) }
-                            super::lower_storage_bytes::clear_words(&mut builder, slot, first, end);
-                            continue;
+                            super::lower_storage_bytes::clear_words(builder, slot, first, end);
+                            return true;
                         }
                         _ => {}
                     }
                     // builtin(args) -> buffer setup; copies or precompile call; result
                     let result = match inst.kind {
                         InstKind::AbiEncodePacked { parts, hash } => {
-                            super::lower_packed::lower_packed(&mut builder, parts, hash)
+                            super::lower_packed::lower_packed(builder, parts, hash)
                         }
                         InstKind::ICall {
                             function:
@@ -190,21 +183,19 @@ impl MirPass for LowerBuiltins {
                         }
                         InstKind::StorageArrayLoad { slot, element, enum_variants } => {
                             super::lower_storage_arrays::load(
-                                &mut builder,
+                                builder,
                                 slot,
                                 element,
                                 enum_variants,
                                 bytes_helper,
                             )
                         }
-                        InstKind::StorageBytesLoad(slot) => super::lower_storage_bytes::load(
-                            &mut builder,
-                            slot,
-                            gcx.sess.opts.optimization.is_size(),
-                        ),
+                        InstKind::StorageBytesLoad(slot) => {
+                            super::lower_storage_bytes::load(builder, slot)
+                        }
                         InstKind::AddressCall { kind, address, input, gas, value } => {
                             lower_address_call(
-                                &mut builder,
+                                builder,
                                 gcx.sess.opts.evm_version,
                                 kind,
                                 address,
@@ -216,52 +207,36 @@ impl MirPass for LowerBuiltins {
                         InstKind::ICall {
                             function: Callee::Builtin(Builtin::ReturndataBytes),
                             ..
-                        } => lower_returndata(&mut builder, gcx.sess.opts.evm_version),
+                        } => lower_returndata(builder, gcx.sess.opts.evm_version),
                         InstKind::ICall { function: Callee::Builtin(Builtin::Send), args } => {
                             let [address, amount] = *args.as_ref() else {
                                 unreachable!("validated builtin arguments")
                             };
-                            lower_send(&mut builder, address, amount)
+                            lower_send(builder, address, amount)
                         }
                         InstKind::ICall { function: Callee::Builtin(Builtin::Erc7201), args } => {
                             let [input] = *args.as_ref() else {
                                 unreachable!("validated builtin arguments")
                             };
-                            lower_erc7201(&mut builder, input)
+                            lower_erc7201(builder, input)
                         }
-                        InstKind::ICall {
-                            function: Callee::Builtin(Builtin::Concat(types)),
-                            args,
-                        } => lower_concat(
-                            &mut builder,
-                            types
-                                .iter()
-                                .zip(args)
-                                .map(|(&ty, value)| match ty {
-                                    crate::mir::ValueLayout::FixedBytes(size) => {
-                                        ConcatPart::Fixed { value, size }
-                                    }
-                                    _ => ConcatPart::Bytes(value),
-                                })
-                                .collect(),
-                        ),
                         InstKind::ICall { function: Callee::Builtin(Builtin::Sha256), args } => {
                             let [input] = *args.as_ref() else {
                                 unreachable!("validated builtin arguments")
                             };
-                            lower_hash(&mut builder, gcx.sess.opts.evm_version, input, false)
+                            lower_hash(builder, gcx.sess.opts.evm_version, input, false)
                         }
                         InstKind::ICall { function: Callee::Builtin(Builtin::Ripemd160), args } => {
                             let [input] = *args.as_ref() else {
                                 unreachable!("validated builtin arguments")
                             };
-                            lower_hash(&mut builder, gcx.sess.opts.evm_version, input, true)
+                            lower_hash(builder, gcx.sess.opts.evm_version, input, true)
                         }
                         InstKind::ICall { function: Callee::Builtin(Builtin::EcRecover), args } => {
                             let [hash, v, r, s] = *args.as_ref() else {
                                 unreachable!("validated builtin arguments")
                             };
-                            lower_ecrecover(&mut builder, gcx.sess.opts.evm_version, hash, v, r, s)
+                            lower_ecrecover(builder, gcx.sess.opts.evm_version, hash, v, r, s)
                         }
                         _ => unreachable!("builtin checked above"),
                     };
@@ -271,15 +246,8 @@ impl MirPass for LowerBuiltins {
                     let result =
                         builder.cast(result, builder.func().value_ty(old).expect("typed builtin"));
                     replacements.insert(old, result);
-                }
-                // continuation: remaining instructions; original terminator
-                let end = builder.current_block();
-                if let Some(terminator) = terminator {
-                    builder.func_mut().blocks[end].set_terminator(terminator, metadata);
-                }
-                if end != block {
-                    super::utils::redirect_successor_predecessors(builder.func_mut(), block, end);
-                }
+                    true
+                });
             }
             func.replace_uses_canonicalized(&replacements);
             true
@@ -288,35 +256,7 @@ impl MirPass for LowerBuiltins {
 }
 
 fn is_builtin(kind: &InstKind) -> bool {
-    matches!(
-        kind,
-        InstKind::ValidateStorageBytes(..)
-            | InstKind::StorageBytesLoad(..)
-            | InstKind::StorageArrayLoad { .. }
-            | InstKind::StorageBytesStore(..)
-            | InstKind::StorageBytesStoreLiteral { .. }
-            | InstKind::StorageClearWords(..)
-            | InstKind::ICall {
-                function: Callee::Builtin(
-                    Builtin::Erc7201 | Builtin::CheckedAddMod | Builtin::CheckedMulMod
-                ),
-                ..
-            }
-            | InstKind::AbiEncodePacked { .. }
-            | InstKind::ICall {
-                function: Callee::Builtin(
-                    Builtin::Concat(_)
-                        | Builtin::Sha256
-                        | Builtin::Ripemd160
-                        | Builtin::EcRecover
-                        | Builtin::Send
-                        | Builtin::Transfer
-                ),
-                ..
-            }
-            | InstKind::AddressCall { .. }
-            | InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. }
-    )
+    kind.op_def().phase_category == Some(PhaseCategory::Builtin)
 }
 
 fn lower_address_call(
@@ -328,12 +268,12 @@ fn lower_address_call(
     gas: Option<ValueId>,
     value: Option<ValueId>,
 ) -> ValueId {
-    // offset = memory_object_data input
-    // size = memory_object_len input
+    // offset = add (ptrtoint input), 32
+    // size = mload input
     // gas = explicit_gas | gas() - pre_tangerine_reserve
     // success = call/staticcall/delegatecall(gas, address, value?, offset, size, 0, 0)
-    let offset = builder.memory_object_data(input, MemoryObjectKind::Bytes);
-    let size = builder.memory_object_len(input, MemoryObjectKind::Bytes);
+    let offset = builder.memory_data(input);
+    let size = builder.memory_len(input);
     let zero = builder.imm(0);
     // A bare call has no code guard. Like solc, reserve possible account creation even for
     // delegatecall on pre-EIP-150 targets; an explicit zero value option still reserves value gas.
@@ -360,8 +300,8 @@ fn lower_returndata(builder: &mut FunctionBuilder<'_>, evm: EvmVersion) -> Value
     let length = if evm.supports_returndata() { builder.returndatasize() } else { builder.imm(0) };
     let object = builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
     let zero = builder.imm(0);
-    let source = builder.make_slice(zero, length, SliceLocation::Returndata);
-    builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
+    let source = builder.make_slice(zero, length, PtrLocation::Returndata);
+    builder.memory_copy_from_slice(object, source);
     object
 }
 
@@ -381,20 +321,22 @@ fn lower_hash(
     input: ValueId,
     ripemd: bool,
 ) -> ValueId {
-    // input_ptr = memory_object_data input
-    // input_len = memory_object_len input
-    // output = bytes(32)
-    // precompile_call(sha256 ? 2 : 3, input, output)
-    // result = mload(output.data)
-    let input_ptr = builder.memory_object_data(input, MemoryObjectKind::Bytes);
-    let input_len = builder.memory_object_len(input, MemoryObjectKind::Bytes);
-    let (output_ptr, output_len) = alloc_output(builder);
+    // NOTE: A successful call always writes the whole digest, so it can land in scratch memory.
+    // input_ptr = add (ptrtoint input), 32
+    // input_len = mload input
+    // success = precompile_call(sha256 ? 2 : 3, input_ptr, input_len, scratch, 32)
+    // branch success, done, failed
+    // failed: revert_returndata
+    // done: result = load(scratch)
+    let input_ptr = builder.memory_data(input);
+    let input_len = builder.memory_len(input);
     let address = builder.imm(if ripemd { 3 } else { 2 });
+    let scratch = builder.imm(EvmMemoryLayout::SCRATCH_SLOT);
     let output_size = builder.imm(32);
-    precompile_call(builder, evm, address, input_ptr, input_len, output_ptr, output_size);
-    let zero = builder.imm(0);
-    let output = builder.make_slice(output_ptr, output_len, SliceLocation::Memory);
-    let value = builder.memory_slice_load_word(output, zero);
+    let success =
+        precompile_call(builder, evm, address, input_ptr, input_len, scratch, output_size);
+    builder.revert_returndata_unless(success);
+    let value = builder.load(scratch, PtrLocation::Memory);
     if ripemd {
         // result = result << 96
         let scale = builder.imm(1_u128 << 96);
@@ -412,45 +354,34 @@ fn lower_ecrecover(
     r: ValueId,
     s: ValueId,
 ) -> ValueId {
-    // input = bytes(160)
-    // store(input, hash, 0)
-    // store(input, v, 32)
-    // store(input, r, 64)
-    // store(input, s, 96)
-    // precompile_call(1, input.data, 128, output.data, 32)
-    // result = load(output, 0)
-    let size = builder.imm(192);
-    let input =
-        builder.alloc_object(size, MemoryObjectLayout::Bytes, AllocationSemantics::SOLIDITY_ZEROED);
-    let length = builder.imm(160);
-    builder.set_memory_object_len(input, length, MemoryObjectKind::Bytes);
-    let pointer = builder.memory_object_data(input, MemoryObjectKind::Bytes);
+    // NOTE: The precompile consumes its input synchronously, so staging at the free-memory
+    // pointer does not reserve it. A rejected signature returns no data; clear the output first.
+    // input = fmp
+    // store(input, hash)
+    // store(input + 32, v)
+    // store(input + 64, r)
+    // store(input + 96, s)
+    // store(scratch, 0)
+    // success = precompile_call(1, input, 128, scratch, 32)
+    // branch success, done, failed
+    // failed: revert_returndata
+    // done: result = load(scratch)
+    let input = builder.fmp();
+    let input = builder.cast_word(input);
     for (offset, value) in [(0, hash), (32, v), (64, r), (96, s)] {
-        let offset = builder.imm(offset);
-        builder.memory_object_store_word(input, offset, value);
+        let address = builder.add_u64_offset(input, offset);
+        let value = builder.cast_word(value);
+        builder.store(address, value);
     }
-    // The final zeroed word lies beyond the four input words and is safe on failure too.
-    let output = builder.add_u64_offset(pointer, 128);
+    let scratch = builder.imm(EvmMemoryLayout::SCRATCH_SLOT);
+    let zero = builder.imm(0);
+    builder.store(scratch, zero);
     let address = builder.imm(1);
     let input_size = builder.imm(128);
     let output_size = builder.imm(32);
-    precompile_call(builder, evm, address, pointer, input_size, output, output_size);
-    let slice = builder.make_slice(output, output_size, SliceLocation::Memory);
-    let zero = builder.imm(0);
-    builder.memory_slice_load_word(slice, zero)
-}
-
-fn alloc_output(builder: &mut FunctionBuilder<'_>) -> (ValueId, ValueId) {
-    // output = alloc bytes(64), zeroed
-    // memory_object_len output = 32
-    // pointer = memory_object_data output
-    let size = builder.imm(64);
-    let output =
-        builder.alloc_object(size, MemoryObjectLayout::Bytes, AllocationSemantics::SOLIDITY_ZEROED);
-    let length = builder.imm(32);
-    builder.set_memory_object_len(output, length, MemoryObjectKind::Bytes);
-    let pointer = builder.memory_object_data(output, MemoryObjectKind::Bytes);
-    (pointer, length)
+    let success = precompile_call(builder, evm, address, input, input_size, scratch, output_size);
+    builder.revert_returndata_unless(success);
+    builder.load(scratch, PtrLocation::Memory)
 }
 
 fn precompile_call(
@@ -461,67 +392,16 @@ fn precompile_call(
     input_size: ValueId,
     output: ValueId,
     output_size: ValueId,
-) {
+) -> ValueId {
     let gas = crate::mir::utils::precompile_gas(builder, evm);
     if evm.has_static_call() {
         // staticcall(precompile_gas, address, input, output)
-        builder.staticcall(gas, address, input, input_size, output, output_size);
+        builder.staticcall(gas, address, input, input_size, output, output_size)
     } else {
         // call(precompile_gas, address, 0, input, output)
         let zero = builder.imm(0);
-        builder.call(gas, address, zero, input, input_size, output, output_size);
+        builder.call(gas, address, zero, input, input_size, output, output_size)
     }
-}
-
-fn lower_concat(builder: &mut FunctionBuilder<'_>, parts: Vec<ConcatPart>) -> ValueId {
-    // total = sum(part lengths)
-    // output = alloc_bytes(padded_size(total))
-    // memory_object_len output = total
-    let mut total = builder.imm(0);
-    let lengths = parts
-        .iter()
-        .map(|part| {
-            let length = match *part {
-                ConcatPart::Bytes(value) => {
-                    builder.memory_object_len(value, MemoryObjectKind::Bytes)
-                }
-                ConcatPart::Fixed { size, .. } => builder.imm(size.bytes()),
-            };
-            total = builder.add(total, length);
-            length
-        })
-        .collect::<Vec<_>>();
-    let size = builder.padded_size(total);
-    let output = builder.alloc_object(
-        size,
-        MemoryObjectLayout::Bytes,
-        AllocationSemantics::SOLIDITY_UNINITIALIZED,
-    );
-    builder.set_memory_object_len(output, total, MemoryObjectKind::Bytes);
-    let mut offset = builder.imm(0);
-    for (part, length) in parts.into_iter().zip(lengths) {
-        match part {
-            ConcatPart::Bytes(value) => {
-                // source = memory_slice(memory_object_data(value), length)
-                // copy(output, offset, source)
-                let pointer = builder.memory_object_data(value, MemoryObjectKind::Bytes);
-                let source = builder.make_slice(pointer, length, SliceLocation::Memory);
-                builder.memory_object_copy_from_slice_at(
-                    output,
-                    MemoryObjectKind::Bytes,
-                    offset,
-                    source,
-                );
-            }
-            ConcatPart::Fixed { value, .. } => {
-                // store_word(output, offset, value)
-                builder.memory_object_store_word(output, offset, value);
-            }
-        }
-        // offset += length
-        offset = builder.add(offset, length);
-    }
-    output
 }
 
 fn lower_erc7201(builder: &mut FunctionBuilder<'_>, input: ValueId) -> ValueId {
@@ -535,8 +415,8 @@ fn lower_erc7201(builder: &mut FunctionBuilder<'_>, input: ValueId) -> ValueId {
     let length = builder.imm(32);
     let object = builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
     let zero = builder.imm(0);
-    builder.memory_object_store_word(object, zero, inner);
-    let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
+    builder.memory_store_word(object, zero, inner);
+    let data = builder.memory_data(object);
     let outer = builder.keccak256(data, length);
     let mask = builder.imm(!U256::from(0xff));
     builder.and(outer, mask)

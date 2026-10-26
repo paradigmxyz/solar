@@ -1,0 +1,34 @@
+// === ROOT/tests/ui/codegen/mir/check-elim/narrow_signed_counter.sol:NarrowSignedCounter ===
+@module NarrowSignedCounter
+fn @count() -> i256 [selector=0x06661abd, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb5: v5]
+    v1 = phi [bb0: i24 0xffffce], [bb5: v3]
+    v2 = slt v1, i24 50
+    jumpi v2, bb3, bb4
+  bb4:
+    jump bb2
+  bb2:
+    ret v0
+  bb3:
+    v3 = add v1, i24 1
+    v4 = icall @id, v1
+    v5 = add v0, 1
+    v6 = gt v5, 0x3e8
+    jumpi v6, bb6, bb7
+  bb7:
+    jump bb8
+  bb8:
+    jump bb5
+  bb5:
+    jump bb1
+  bb6:
+    ret 0x270f
+}
+
+fn @id(arg0: i24) -> i24 [pure] {
+  bb0:
+    ret arg0
+}

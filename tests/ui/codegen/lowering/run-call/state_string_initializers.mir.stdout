@@ -1,25 +1,25 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/state_string_initializers.sol:StateStringInitializers ===
 @module StateStringInitializers
-fn @name() -> memptr [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @name() -> ptr<memory> [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 0
     ret v0
 }
 
-fn @symbol() -> memptr [selector=0x95d89b41, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @symbol() -> ptr<memory> [selector=0x95d89b41, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 1
     ret v0
 }
 
-fn @decimals() -> i8 [selector=0x313ce567, view, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @decimals() -> i8 [selector=0x313ce567, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = trunc i256 v0 to i8
     ret v1
 }
 
-fn @load_storage_bytes(arg0: i256) -> memptr {
+fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0
@@ -27,28 +27,26 @@ fn @load_storage_bytes(arg0: i256) -> memptr {
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 11
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x4e61746976654552433230000000000000000000000000000000000000000000
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 11
+    v1 = ptradd v0, 32
+    mstore v1, 0x4e61746976654552433230000000000000000000000000000000000000000000
     icall @store_storage_bytes, 0, v0
-    v3 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v3, 6
-    v4 = memory_object_data memorybytes, v3
-    v5 = ptrtoint memptr v4 to i256
-    mstore v5, 0x4e45524332300000000000000000000000000000000000000000000000000000
-    icall @store_storage_bytes, 1, v3
-    v6 = sload 2 !metadata(storage=slot(2))
-    v7 = not 255
-    v8 = and v6, v7
-    v9 = and 18, 255
-    v10 = or v8, v9
-    sstore 2, v10 !metadata(storage=slot(2))
+    v2 = alloc 64 !metadata(preserves_fmp)
+    mstore v2, 6
+    v3 = ptradd v2, 32
+    mstore v3, 0x4e45524332300000000000000000000000000000000000000000000000000000
+    icall @store_storage_bytes, 1, v2
+    v4 = sload 2 !metadata(storage=slot(2))
+    v5 = not 255
+    v6 = and v4, v5
+    v7 = and 18, 255
+    v8 = or v6, v7
+    sstore 2, v8 !metadata(storage=slot(2))
     ret
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
@@ -57,101 +55,79 @@ fn @store_storage_bytes(arg0: i256, arg1: memptr) {
 // === ROOT/tests/ui/codegen/lowering/run-call/state_string_initializers.sol:DeployStateStringInitializers ===
 @module DeployStateStringInitializers
 @types
-  struct0: {memptr, memptr, i8}
+  struct0: {ptr<memory>, ptr<memory>, i8}
 
 @data
   StateStringInitializers_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/state_string_initializers.sol:StateStringInitializers"
 
 fn @deploys() -> i1 [selector=0x225b4d71, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize StateStringInitializers_creation_code_0
-    v2 = datasize StateStringInitializers_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    datacopy StateStringInitializers_creation_code_0, v4, v1
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
+    v0 = datasize StateStringInitializers_creation_code_0
+    v1 = fmp
+    datacopy StateStringInitializers_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = zext i160 v9 to i256
-    v12 = extcodesize v11
-    v13 = ne v12, 0
-    ret v13
+    v4 = zext i160 v2 to i256
+    v5 = extcodesize v4
+    v6 = ne v5, 0
+    ret v6
 }
 
-fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory_bytes, memory_bytes, word<u8>], abi_return_params=[bytes, bytes, u8]] {
+fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory_bytes, memory_bytes, word<uint8>], abi_return_params=[bytes, bytes, uint8]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize StateStringInitializers_creation_code_0
-    v2 = datasize StateStringInitializers_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    datacopy StateStringInitializers_creation_code_0, v4, v1
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
+    v0 = datasize StateStringInitializers_creation_code_0
+    v1 = fmp
+    datacopy StateStringInitializers_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = gas
-    v12 = abi_encode [], selector 0x6fdde0300000000000000000000000000000000000000000000000000000000
-    v13 = slice_ptr v12
-    v14 = slice_len v12
-    v15 = zext i160 v9 to i256
-    v16 = staticcall v11, v15, v13, v14, 0, 0
-    jumpi v16, bb4, bb3
+    v4 = gas
+    mstore 0, 0x6fdde03 !metadata(memory=scratch)
+    v5 = zext i160 v2 to i256
+    v6 = staticcall v4, v5, 28, 4, 0, 0
+    jumpi v6, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v17 = icall returndata_bytes<>
-    v18 = abi_decode [bytes], v17
-    v19 = gas
-    v20 = abi_encode [], selector 0x95d89b4100000000000000000000000000000000000000000000000000000000
-    v21 = slice_ptr v20
-    v22 = slice_len v20
-    v23 = zext i160 v9 to i256
-    v24 = staticcall v19, v23, v21, v22, 0, 0
-    jumpi v24, bb6, bb5
+    v7 = icall returndata_bytes<>
+    v8 = abi_decode [bytes], v7
+    v9 = gas
+    mstore 0, 0x95d89b41 !metadata(memory=scratch)
+    v10 = zext i160 v2 to i256
+    v11 = staticcall v9, v10, 28, 4, 0, 0
+    jumpi v11, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v25 = icall returndata_bytes<>
-    v26 = abi_decode [bytes], v25
-    v27 = gas
-    v28 = abi_encode [], selector 0x313ce56700000000000000000000000000000000000000000000000000000000
-    v29 = slice_ptr v28
-    v30 = slice_len v28
-    v31 = zext i160 v9 to i256
-    v32 = staticcall v27, v31, v29, v30, 0, 32
-    jumpi v32, bb8, bb7
+    v12 = icall returndata_bytes<>
+    v13 = abi_decode [bytes], v12
+    v14 = gas
+    mstore 0, 0x313ce567 !metadata(memory=scratch)
+    v15 = zext i160 v2 to i256
+    v16 = staticcall v14, v15, 28, 4, 0, 32
+    jumpi v16, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v33 = returndatasize
-    v34 = lt v33, 32
-    icall revert_if<tuple_data_too_short>, v34
-    v35 = add 0, 0
-    v36 = mload v35
-    v37 = and v36, 255
-    v38 = eq v36, v37
-    v39 = eq v38, false
-    icall revert_if<empty>, v39
-    v40 = trunc i256 v36 to i8
-    v41 = insert_value struct0, undef struct0, 0, v18
-    v42 = insert_value struct0, v41, 1, v26
-    v43 = insert_value struct0, v42, 2, v40
-    ret v43
+    v17 = returndatasize
+    v18 = lt v17, 32
+    icall revert_if<tuple_data_too_short>, v18
+    v19 = add 0, 0
+    v20 = mload v19
+    v21 = shr v20, 8
+    v22 = eq v21, 0
+    v23 = eq v22, false
+    icall revert_if<empty>, v23
+    v24 = trunc i256 v20 to i8
+    v25 = insert_value struct0, undef struct0, 0, v8
+    v26 = insert_value struct0, v25, 1, v13
+    v27 = insert_value struct0, v26, 2, v24
+    ret v27
 }

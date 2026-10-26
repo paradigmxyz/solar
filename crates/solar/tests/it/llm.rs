@@ -31,7 +31,7 @@ const WRONG: &str = "fn @sumBelow(arg0: i256) -> i256 [pure] {
     v3 = and arg0, 255
     v0 = add v3, 1
     v1 = mul v3, v0
-    v2 = shr 1, v1
+    v2 = shr v1, 1
     ret v2
 }
 ";
@@ -42,7 +42,7 @@ const RIGHT: &str = "fn @sumBelow(arg0: i256) -> i256 [pure] {
     v3 = and arg0, 255
     v0 = sub v3, 1
     v1 = mul v3, v0
-    v2 = shr 1, v1
+    v2 = shr v1, 1
     ret v2
 }
 ";
@@ -454,7 +454,7 @@ llm-optimize Triangle @sumBelow: round 1
   Triangle @sumBelow │     v3 = and arg0, 255
   Triangle @sumBelow │     v0 = sub v3, 1
   Triangle @sumBelow │     v1 = mul v3, v0
-  Triangle @sumBelow │     v2 = shr 1, v1
+  Triangle @sumBelow │     v2 = shr v1, 1
   Triangle @sumBelow │     ret v2
   Triangle @sumBelow │ }
   Triangle @sumBelow │ ```
@@ -515,7 +515,7 @@ llm-optimize Triangle @sumBelow: round 1
   Triangle @sumBelow │     v3 = and arg0, 255
   Triangle @sumBelow │     v0 = sub v3, 1
   Triangle @sumBelow │     v1 = mul v3, v0
-  Triangle @sumBelow │     v2 = shr 1, v1
+  Triangle @sumBelow │     v2 = shr v1, 1
   Triangle @sumBelow │     ret v2
   Triangle @sumBelow │ }
   Triangle @sumBelow │ ```
@@ -603,7 +603,7 @@ llm-optimize Triangle @sumBelow: OpenCode Zen answered 429 Too Many Requests: sl
   Triangle @sumBelow │     v3 = and arg0, 255
   Triangle @sumBelow │     v0 = sub v3, 1
   Triangle @sumBelow │     v1 = mul v3, v0
-  Triangle @sumBelow │     v2 = shr 1, v1
+  Triangle @sumBelow │     v2 = shr v1, 1
   Triangle @sumBelow │     ret v2
   Triangle @sumBelow │ }
   Triangle @sumBelow │ ```

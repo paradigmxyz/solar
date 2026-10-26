@@ -55,21 +55,21 @@ fn @sum(arg0: i256) -> i256 [pure] {
 - The first block is the entry. Blocks are `bbN:` labels; values are `argN` or `vN`, each `vN`
   defined once, and a definition must come before its uses on every path.
 - Types: `i1` is exactly 0 or 1; `i160` holds addresses, with its upper 96 bits zero; `i256` is a
-  full word; `memptr` is a memory address. Integer literals are decimal or `0x` hex and are `i256`
+  full word; `ptr<memory>` is a memory address. Integer literals are decimal or `0x` hex and are `i256`
   unless typed, as in `i1 1` or `i160 0x10`.
 - Operands follow the EVM's order: `sub a, b` is `a - b`, `div a, b` is `a / b`, `lt a, b` is
-  `a < b`, `shl shift, value`, `shr shift, value`, `sar shift, value`, `byte index, value`,
+  `a < b`, `shl value, shift`, `shr value, shift`, `sar value, shift`, `byte index, value`,
   `signextend byte, value`, `exp base, exponent`, `addmod a, b, n`, `mulmod a, b, n`.
 - `lt`, `gt`, `slt`, `sgt`, `eq`, and `ne` return `i1`. Test a word against zero with `eq v, 0`
   or `ne v, 0`; there is no `iszero`.
 - Casts name both types: `zext i1 v to i256`, `trunc i256 v to i160`, `sext i160 v to i256`,
-  `ptrtoint memptr v to i256`, `inttoptr i256 v to memptr`. Conditions must be `i1`.
+  `ptrtoint ptr<memory> v to i256`, `inttoptr i256 v to ptr<memory>`. Conditions must be `i1`.
 - `select c, a, b` is `c ? a : b`. A `phi` starts its block and names one input per predecessor.
 - Memory: `mload offset`, `mstore offset, value`, `mstore8 offset, value`,
   `mcopy dest, src, length`, and `keccak256 offset, length`, which hashes memory.
 - Storage: `sload slot`, `sstore slot, value`, and on Cancun and later `tload slot` and
-  `tstore slot, value` for transient storage. Events: `log0 offset, size` up to
-  `log4 offset, size, topic1, topic2, topic3, topic4`, logging the memory at `offset`.
+  `tstore slot, value` for transient storage. Events: `log offset, size` with up to
+  four topics, `log offset, size, topic1, topic2, topic3, topic4`, logging the memory at `offset`.
 - Context: `caller`, `callvalue`, `address`, `origin`, `timestamp`, `number`, `chainid`, and the
   other reads of the call and block; addresses are `i160`.
 - Calls: `v = icall @f, a, b`, or `icall @f, a` when `@f` returns nothing.
@@ -98,7 +98,7 @@ inputs the original returns on, and its bytes are the size of its code:
   slot and 100 after. An `sstore` that changes a slot the call has not changed yet costs 20,000
   when the slot was zero and 2,900 otherwise, every other `sstore` costs 100, and each adds 2,100
   when it is the call's first touch of the slot; refunds do not count. `tload` and `tstore` cost
-  100, and `logN` 375, plus 375 per topic and 8 per byte of data. These are the prices from
+  100, and `log` 375, plus 375 per topic and 8 per byte of data. These are the prices from
   Berlin on;
 - each constant operand costs a push, and each other operand one stack copy, so values used far
   from their definitions and values kept live across a lot of code cost more;

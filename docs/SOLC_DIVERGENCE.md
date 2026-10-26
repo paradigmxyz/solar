@@ -47,6 +47,124 @@ Solc-specific pass controls have no equivalent meaning in Solar's pipeline.
 Coverage: `tests/ui/standard-json/metadata/options/test.jsonc` and
 `tests/ui/standard-json/debug/unknown-key/test.jsonc`.
 
+### JSON-002: Ethdebug output does not depend on `debugInfo` or `experimental`
+
+Status: intentional.
+
+Difference: `solar` always emits full ethdebug output for the
+`evm.bytecode.ethdebug`, `evm.deployedBytecode.ethdebug` and `ethdebug.*`
+selections. `solc` 0.8.38 emits no semantic debug info for the program outputs
+unless `settings.debug.debugInfo` contains `ethdebug`, and rejects ethdebug
+outputs and `ethdebug` in `debugInfo` unless `settings.experimental` is set.
+`solar` has no `settings.experimental` and ignores it. It rejects `ethdebug`
+without `ast-id` in `debugInfo` like `solc`.
+
+Rationale: `solar` builds ethdebug output from its own debug info, which does
+not depend on a Yul IR selection, and an experimental flag would only block
+tools that request the output.
+
+Coverage: `tests/ui/standard-json/debug/ethdebug-output-without-debug-info`,
+`tests/ui/standard-json/debug/ethdebug-with-ast-id` and
+`tests/ui/standard-json/debug/ethdebug-without-ast-id`.
+
+## Import Resolution
+
+### IMPORT-001: Files on disk are one source unit each
+
+Status: intentional.
+
+Difference: `solc` treats source unit names as opaque strings, so `src/B.sol`,
+`src//B.sol`, `src/./B.sol`, `./src/B.sol` from a remapping target, and an
+absolute path to the same file are separate source units. `solar` names a file
+that it loads from disk by its normalized path, shown relative to the base
+path, so all of these are one source unit named `src/B.sol`. In Standard JSON,
+`solar` names a file read through the callback by its normalized source unit
+name, keeping the `//` of a URL scheme, and asks the callback for the
+normalized path in each root, so `lib/X.sol`, `lib//X.sol` and
+`lib/sub/../X.sol` are one source unit `lib/X.sol`, read once when the read
+succeeds. `solc` asks for each name as written. A file that
+imports both `src/B.sol` and `src//B.sol` fails with `Identifier already
+declared` in `solc` and compiles in `solar`. `solar` also looks up absolute
+import paths and remapping targets as they are, where `solc` prepends a
+non-empty base path to them. Since names come from paths, two different files
+can get the same name; `solar` reports this for any source, where `solc` only
+checks the files given on the command line.
+
+Normalizing names has other effects. Remapping contexts match the normalized
+name, so a file reached through the target `./lib/` has the context `lib/...`
+in `solar` and `./lib/...` in `solc`. `solar` applies `..` segments before
+following symbolic links, so `link/../x.sol` names `x.sol` next to `link`, not
+next to its target. A `file://` import that `solar` loads from disk is named by
+its path, so `file://src/B.sol` and `src/B.sol` are one source unit `src/B.sol`,
+where `solc` keeps the prefix in the name. Files read through the Standard JSON
+callback keep the prefix, as in `solc`.
+
+Rationale: duplicate copies of one file only produce spurious conflicts. Build
+tools such as Foundry preload sources under relative names and pass absolute
+remapping targets, which must resolve to the preloaded sources
+([#1628](https://github.com/paradigmxyz/solar/pull/1628)).
+
+Coverage: `callback_imports_merge_spellings` and `callback_imports_file_urls` in
+`crates/solar/tests/it/standard_json.rs`,
+`absolute_remapping_reuses_preloaded_source_unit_name`,
+`direct_import_reuses_preloaded_source_unit_name` and
+`file_url_imports_load_from_disk` in
+`crates/interface/src/source_map/file_resolver.rs`.
+
+### IMPORT-002: Names of files in nested include paths
+
+Status: intentional.
+
+Difference: `solar` names every file from disk the way `solc` names files given
+on the command line: relative to the base path, else to the first include path
+that contains it. `solc` names an imported file by the import's source unit
+name instead. The two differ when a file lies in more than one root, such as an
+include path inside the base path or inside an earlier include path. With
+`--base-path . --include-path node_modules`, `solc` names an import of
+`@oz/A.sol` `@oz/A.sol`, and `solar` names it `node_modules/@oz/A.sol`. Since
+remapping contexts match the importing file's name, a context such as
+`@oz/:x/=y/` applies in `solc` and not in `solar`, and `node_modules/@oz/:x/=y/`
+the other way around.
+
+For a file named relative to an include path outside the base path, `solar`
+resolves relative imports against the file's absolute path. Remappings for
+source unit names then do not apply to them, they do not search the other
+roots, and `../` can leave the include path.
+Remapping contexts match both the file's name and its absolute path. Like
+`solc`, an import resolves to an input file with its source unit name before
+searching the disk, but files loaded for other imports don't count, so where
+`solc` would reuse such a file, `solar` can report an ambiguous import or a
+duplicate name instead.
+
+Rationale: a name that depends only on the file's path is the same for every
+import of the file. It also keeps remapping contexts such as `lib/dep/` matching
+files in Foundry's `lib` include path, as `solc` does for files that remappings
+route through the base path. Foundry names sources outside the project by their
+absolute paths and writes remapping contexts for them.
+
+Coverage: `nested_include_paths_name_by_base_path`,
+`include_paths_name_source_units`, `relative_imports_leave_include_paths` and
+`remapping_contexts_match_absolute_paths_outside_base_path` in
+`crates/interface/src/source_map/file_resolver.rs`, and
+`crates/solar/tests/it/paths.rs`.
+
+### IMPORT-003: Lenient path options
+
+Status: intentional.
+
+Difference: `solar` accepts `--include-path` without `--base-path`, using the
+current directory as the base path, and does not report an ambiguous import
+when several roots lead to the same path, as with a repeated include path.
+Different paths to one file, such as an include path and a symbolic link to it,
+are still ambiguous, as in `solc`. In Standard JSON mode, which does not access
+the file system, it does not check the base path. It does not restrict imports
+to allowed paths, so `--allow-paths` has no effect.
+
+Rationale: these inputs have a single sensible meaning, and Standard JSON reads
+imports only through the read callback.
+
+Coverage: `include_paths_without_base_path` in `crates/solar/tests/it/paths.rs`.
+
 ## Parsing
 
 ### PARSE-001: Validation stage differences
@@ -69,13 +187,120 @@ Coverage: `tests/ui/typeck/unchecked_as_single_statement.sol`; the upstream
 `unchecked_while_body` parse-only fixture remains excluded from solc parity
 testing.
 
+### PARSE-002: Directional override markers in doc comments
+
+Status: intentional.
+
+Difference: `solar` rejects unbalanced Unicode directional embeddings and
+overrides (U+202A..U+202E) in NatSpec doc comments (`///` and `/** */`), as it
+does in plain comments and unicode string literals. `solc` checks only plain
+comments and unicode string literals.
+
+Rationale: the check defends against "Trojan Source" attacks, where source text
+renders in a different order from how it compiles; a doc comment can hide code
+just as a plain comment can.
+
+Coverage: `tests/ui/lexer/direction_override/markers.sol`;
+[#1844](https://github.com/paradigmxyz/solar/issues/1844).
+
+### PARSE-004: Fixed-point types
+
+Status: intentional.
+
+Difference: `solc` accepts `fixed`, `ufixed`, `fixedMxN` and `ufixedMxN` types
+in declarations, conversions, operators, the ABI and storage layouts, and fails
+only when code generation reaches a fixed-point operation. It also gives
+fractional literals fixed-point mobile types, so it accepts comparisons of them,
+such as `0.3 < 0.5`, conditionals with fractional branches and inline arrays of
+fractions. `solar` rejects every fixed-point type during parsing, and fractional
+literals have no mobile type, so it rejects those expressions. Valid fixed-point
+type names stay keywords, as in `solc`.
+
+Rationale: `solc` cannot generate code for fixed-point operations, so we do not
+represent fixed-point types.
+
+Coverage: `tests/ui/parser/fixed_point_type.sol`,
+`tests/ui/parser/fixed_point_type_default.sol`,
+`tests/ui/parser/fixed_mxn_types.sol`,
+`tests/ui/parser/fixed_mxn_declaration_names.sol`,
+`tests/ui/typeck/rational_literal_operators.sol`, and
+`tests/ui/typeck/rational_literal_mobile_type.sol`; the upstream fixtures that use
+fixed-point types are excluded from solc parity testing.
+
+### PARSE-005: Yul number literals
+
+Status: intentional.
+
+Difference: `solc` accepts only plain decimal and hexadecimal integers in Yul
+and inline assembly, and rejects `1_000`, `0x1_0` and `1e5` with error 4828.
+`solar` accepts any number literal whose value is an integer, as in Solidity,
+and rejects fractions such as `0.5` with error 4828.
+
+Rationale: these literals have one obvious value, so rejecting them only makes
+the language harder to use.
+
+Coverage: `tests/ui/codegen/lowering/run-call/assembly_number_literals.sol` and
+`tests/ui/parser/yul_fractional_literal.sol`.
+
+### PARSE-006: Number literals are limited to 4096 bits
+
+Status: intentional.
+
+Difference: `solc` accepts decimal and hexadecimal number literals with any
+number of digits, and limits only the results of literal arithmetic to 4096
+bits, so a 2000-digit literal divided by itself is `1`. `solar` also rejects a
+literal whose digits, before any exponent, are wider than 4096 bits. Leading
+zeros of a fraction count toward the limit, since they widen its denominator;
+those of an integer do not.
+
+Rationale: literal arithmetic cannot produce a value wider than 4096 bits, so
+a wider literal has no use, and the limit bounds the parser's work on one
+token.
+
+Coverage: `tests/ui/parser/number_literal_too_large.sol`.
+
 ## AST Validation
 
-No intentional divergences documented yet.
+### AST-001: Version pragma mismatches are warnings
+
+Status: intentional.
+
+Difference: `solar` checks `pragma solidity` requirements against the `solc`
+version it implements like `solc`, with the same error code 5333, but reports a
+mismatch as a warning instead of a fatal parser error. `SOLC_WRAPPER_VERSION`
+changes only the version that `--version` reports, not the one checked.
+`solc` also uses 4294967295 as its wildcard marker, so it accepts
+`pragma solidity ^4294967295;`; `solar` reads it as a number and warns.
+
+Rationale: a hard error would reject sources pinned to a different `solc`
+release even when `solar` can compile them. The warning still flags sources
+that ask for different language semantics.
+
+Coverage: `tests/ui/parser/pragma_version_mismatch.sol`,
+`tests/ui/parser/pragma_valid.sol` and
+`tests/ui/parser/pragma_version_component_above_signed_int.sol`; the upstream
+`wrong_compiler_*`, `broken_version_1` and `version_component_*_greater`
+fixtures remain excluded from solc parity testing.
 
 ## Name Resolution
 
-No intentional divergences documented yet.
+### NAME-001: Yul declarations can shadow enclosing Yul names
+
+Status: intentional.
+
+Difference: `solc` rejects a Yul variable or function whose name is already
+declared in any enclosing Yul scope, including across function boundaries and
+`for` loop parts, with errors 1395 and 6052. `solar` rejects only a name that
+is already declared in the same Yul scope, so `{ let x := 1 { let x := 2 } }`
+compiles and the inner `x` shadows the outer one.
+
+Rationale: an inner declaration resolves without ambiguity to the innermost
+scope, as in Solidity, so the code compiles to the same program the author
+wrote. Duplicates within one scope stay errors because Yul has no overloads,
+and a use of the name there would be ambiguous.
+
+Coverage: `tests/ui/yul_lowering/name_clashes.sol` and
+`tests/ui/yul_lowering/yul_function_scope.sol`.
 
 ## Type Checking
 
@@ -110,7 +335,15 @@ nested `uint256[2][2] memory w = [[1, 2], [3, 4]];`. `solar` seeds the
 literal's element type with the element type of the destination, so it accepts
 all of them and stores the widened values. A copy into storage, such as
 `s = [[1, 2], [3, 4]];` or `a.push([1, 2])`, is accepted by both, because a
-storage copy converts element-wise.
+storage copy converts element-wise. The seed also gives a common type to
+elements that have none of their own: `solar` accepts
+`int256[3] memory a = [100, 0, int256(-100)];`, where `solc` reports error 6378
+because `uint8` and `int256` have no common type. Positional base constructor
+arguments are seeded too, in an inheritance specifier such as
+`contract E is B([100, int256(-100)])` and in a constructor header, and so is
+the empty literal: `s = [];` clears a `uint256[]` storage array, where `solc`
+reports error 6378. Named base constructor arguments, function call arguments
+and `abi.encode` operands are not seeded and keep `solc`'s rule.
 
 Rationale: we deliberately support this extended form. The seed gives a
 literal the element type of its destination, which is how a nested literal
@@ -120,7 +353,9 @@ values are correct; only the acceptance is wider than `solc`'s, and every
 program `solc` accepts here has the same meaning in `solar`.
 
 Coverage: `tests/ui/typeck/inline_array_reference_elements.sol`,
-`tests/ui/typeck/array_push_element_locations.sol`, and
+`tests/ui/typeck/inline_array_common_type.sol`,
+`tests/ui/typeck/array_push_element_locations.sol`,
+`tests/ui/codegen/lowering/run-call/inline_array_mixed_elements.sol`, and
 `tests/ui/codegen/lowering/run-call/nested_array_storage_memory.sol`.
 
 ### TYPECK-004: Named arguments in base constructor and modifier invocations
@@ -171,10 +406,10 @@ Status: intentional.
 Difference: Solar rejects copying or ABI-encoding fixed arrays with more than
 `2^64 - 1` elements during type checking, including arrays nested in structs.
 It still accepts their storage declarations, indexed accesses, and storage
-reference bindings. Solc 0.8.37 compiles the storage-to-storage array, tuple,
+reference bindings. Solc 0.8.38 compiles the storage-to-storage array, tuple,
 and struct copies covered by the fixture, but those copies panic with code
 `0x41` at runtime. ABI-encoding the same array causes an internal compiler
-error in solc 0.8.37. These results hold with both code generators and with
+error in solc 0.8.38. These results hold with both code generators and with
 optimization enabled or disabled.
 
 Rationale: report unsupported copies at their source during type checking,
@@ -185,9 +420,203 @@ storage.
 Coverage: `tests/ui/typeck/storage_oversized_copy.sol` and
 `tests/ui/codegen/lowering/run-call/full_width_storage_layout.sol`.
 
+### TYPECK-007: Uninitialized storage pointers are reported once per location
+
+Status: intentional.
+
+Difference: `solc` analyzes each function once per contract that inherits it
+and reports error 3464 for every analysis, so a base function with one
+uninitialized access gets one error per derived contract. `solar` runs the same
+analyses but reports each location once.
+
+Rationale: the copies point at the same code and give no extra information.
+
+Coverage: `tests/ui/typeck/control_flow/uninitialized_storage_pointer.sol`.
+
+### TYPECK-008: Unreachable code across sources
+
+Status: intentional.
+
+Difference: when unreachable code spans a function and a modifier declared in
+another source, `solc` merges the ranges into one with mixed sources and
+reports only the part in the function's source. `solar` reports the part in
+each source.
+
+Rationale: the merged `solc` range is invalid and hides unreachable code.
+
+Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
+
+### TYPECK-010: Order of constant dependencies across sources
+
+Status: parity debt.
+
+Difference: when a constant reaches cycles through dependencies declared in
+different sources, error 6161 names the first of them. `solc` orders
+dependencies by AST ID, which follows parse order: the input files by name,
+then each newly imported source. `solar` orders them by declaration after
+sorting sources by imports, so an imported source comes first.
+
+Rationale: `solar` does not track which sources were input files, which `solc`
+needs to number its AST.
+
+Coverage: `tests/ui/typeck/constant_cycles/cross_source_dependency_order.sol`.
+
+### TYPECK-011: Module-typed conditionals
+
+Status: intentional.
+
+Difference: `solar` rejects conditionals whose branches are modules, such as
+`(c ? M : M).x`, which `solc` accepts.
+
+Rationale: codegen resolves module members statically and would drop the
+condition, and real code does not use the construct.
+
+Coverage: `tests/ui/typeck/module_conditional.sol`.
+
+### TYPECK-013: Inline assembly names and constants
+
+Status: intentional.
+
+Difference: `solar` accepts inline assembly that `solc` rejects:
+
+- reads of value-type constants whose value is not a number literal, such as
+  `uint(7)`, `true ? 5 : 6`, `three + 1`, `~uint(0)` or `keccak256("abc")`
+  (`solc` error 7615), if `solar` computes the value at compile time;
+- Yul declarations that shadow a Solidity declaration outside the block, such
+  as a parameter, contract, function or `msg` (`solc` error 3859);
+- the Yul names `this`, `super` and `_` (`solc` error 4113);
+- Yul names reserved for EVM instructions and pure Yul builtins, such as `pc`,
+  `dup1` or `datasize` (`solc` error 5017);
+- a Yul variable inside a Yul function that shares its name with a Solidity
+  local, such as `function g() -> x` in a function that returns `x` (`solc`
+  error 6578).
+
+Rationale: these rules reject code that `solar` compiles correctly. Yul scoping
+resolves the inner declaration first, and constant folding gives assembly the
+same value Solidity sees. The parser also serves formatters and linters, which
+should accept the names.
+
+Coverage: `tests/ui/codegen/lowering/run-call/assembly_constant_expressions.sol`,
+`tests/ui/codegen/lowering/run-call/assembly_names.sol` and
+`tests/ui/typeck/assembly_unfolded_constant.sol`.
+
+### TYPECK-016: ABI heads are bounded as a whole
+
+Status: intentional.
+
+Difference: `solar` rejects a type when any head of its ABI encoding, including
+the heads inside the tails of dynamic parts, takes `2^32 - 1` bytes or more. A
+struct's head counts all its members together. The check covers calldata
+variables; parameters of constructors, events, errors and external function
+types; parameters and returns of public and external functions; arguments of
+`abi.encode` and its variants other than `abi.encodePacked`; and `abi.decode`
+types. `solc` 0.8.38 checks only constructor and public callable parameters
+against calldata, and sizes structs one member at a time, so it accepts, for
+example, an external function that takes a calldata struct with two
+`uint256[134217727]` members.
+
+Rationale: the backend computes head sizes in 64 bits, and larger heads exhaust
+memory or overflow during lowering. No transaction can pass or return such a
+value within a block gas limit.
+
+Coverage: `tests/ui/typeck/abi_head_size.sol`,
+`tests/ui/typeck/public_param_calldata_size.sol` and
+`tests/ui/typeck/struct_member_sizes.sol`.
+
+### TYPECK-018: `msg.gas`
+
+Status: intentional.
+
+Difference: `solar` accepts `msg.gas` as `gasleft()` with warning 1400, where
+`solc` rejects it with error 1400.
+
+Rationale: the meaning is unambiguous and we compile it correctly, so a
+warning is enough to steer code to `gasleft()`.
+
+Coverage: `tests/ui/typeck/msg_gas.sol`.
+
+### TYPECK-019: Struct nesting depth
+
+Status: intentional.
+
+Difference: `solar` reports "struct is too deeply nested" (5651) when the
+longest chain of directly nested structs reaches 256. `solc` measures the depth
+of its search tree, which skips a struct already reached through a shorter
+path, so it accepts some struct graphs with a longer chain.
+
+Rationale: code that walks struct types recurses along the longest chain, and
+the `solc` depth depends on field order. Real code does not nest structs this
+deeply.
+
+Coverage: `tests/ui/typeck/recursive_struct_deep_direct.sol`.
+
+### TYPECK-020: Early constant evaluation
+
+Status: intentional.
+
+Difference: `solar` evaluates array lengths, base slots and constant operands
+like `solc`'s `ConstantEvaluator`, with these exceptions:
+
+- An array length can read a constant declared after the array type, which
+  `solc` rejects with error 5462.
+- `solc`'s static analyzer evaluates the operands of every division and modulo
+  by a constant, and the modulus of every `addmod` and `mulmod`, and reports
+  the arithmetic errors (2643, 3667, 6020), long chains (5210) and `erc7201`
+  arguments that are not strings (9796) it finds in them. `solar` reports no
+  error in these operands, only a zero divisor or modulus (1211 or 4195), also
+  when the dividend fails with an error `solc` reports.
+- A literal operation without a value in a constant that an array length
+  reads, such as `1 / 0`, gets error 2271, as it does wherever the constant is
+  used. `solc` reports it as 6020 when it evaluates the array length first.
+- A typed shift by a negative or signed amount gets error 2271 from type
+  checking, and an array length that reads it gets 5462 too. `solc`'s
+  evaluator reports one error 6020 instead.
+
+Rationale: the order of declarations does not change the value of a constant,
+and each error is reported once, where the expression is checked.
+
+Coverage: `tests/ui/codegen/lowering/run-call/array_len_const_eval.sol`,
+`tests/ui/typeck/array_len_eval_errors.sol`,
+`tests/ui/typeck/array_len_unsupported.sol`,
+`tests/ui/typeck/array_len_typed_negative_shift.sol`,
+`tests/ui/typeck/division_by_zero_solc_values.sol`,
+`tests/ui/typeck/literal_division_by_zero.sol` and
+`tests/ui/typeck/constant_depth_limit.sol`.
+
+### TYPECK-021: Repeated Yul multi-assignment targets
+
+Status: intentional.
+
+Difference: `solc` rejects a Yul multi-assignment that names the same target
+twice, such as `x, x := f()` or `a.length, a.length := f()`, with error 9005.
+`solar` accepts plain and suffixed repeats, and the leftmost value wins.
+
+Rationale: targets are written right to left, so the result is well defined,
+and rejecting the code would only block programs we compile correctly.
+
+Coverage:
+`tests/ui/codegen/lowering/run-call/yul_multi_assignment_duplicate_targets.sol`.
+
 ## Contract-Level Checks
 
-No intentional divergences documented yet.
+### CONTRACT-001: Base slots that solc does not evaluate
+
+Status: intentional.
+
+Difference: `solar` accepts base slots of storage layout specifiers whose value
+its constant evaluator computes after type checking but `solc`'s does not, such
+as conditionals (`layout at true ? 42 : 94`), conversions, member accesses and
+builtins, and the constants they read. `solc` rejects them with error 1505,
+and with error 9796 for `erc7201` of a string its evaluator does not
+compute.
+
+Rationale: the base slot has a well-defined value. Errors in a value that
+`solc` does not compute get `solc`'s code for it, 1505.
+
+Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol`,
+`tests/ui/typeck/storage_layout_base_slot_erc7201.sol` and
+`tests/ui/codegen/lowering/run-call/storage_layout_base_slot_const_eval.sol`;
+upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.sol`.
 
 ## Code Generation
 
@@ -211,7 +640,7 @@ No intentional divergences documented yet.
   per-use-site masks, and keeps the in-assembly raw-scratch idiom
   (`value := shl(96, value)` then reading `value` back) working exactly like
   `solc`.
-- Coverage: `tests/ui/codegen/run-call/assembly_assign_cleanup.sol`;
+- Coverage: `tests/ui/codegen/lowering/run-call/assembly_assign_cleanup.sol`;
   external-suite canary: solady `BrutalizerTest::testBrutalizedAddress` and
   `testBrutalizedBool` fail by asserting dirt survives.
 
@@ -235,27 +664,6 @@ No intentional divergences documented yet.
   and EIP-170 parity for the rest of the corpus.
 - Coverage: `cargo tq foundry-external seaport`; the exact exemptions live in
   `SEAPORT_CODE_SIZE_SKIPS` in `tools/tester/src/foundry/external.rs`.
-
-### CODEGEN-003: Integer literal expressions lose arbitrary precision during lowering
-
-- ID: CODEGEN-003
-- Status: intentional
-- Difference: `solc` keeps a number-literal expression at arbitrary precision
-  until conversion to a non-literal type. `solar`'s type checker computes the
-  same literal-only expression with `BigInt` and retains an `IntLiteral` type,
-  but function lowering ignores that computed value. It recursively emits
-  `U256` EVM operations for its leaves and operators. An intermediate that
-  exceeds an EVM word can therefore wrap or, when given a checked integer type
-  by lowering, revert with `Panic(0x11)` before a later literal operation
-  reduces it. `(2**255 + 2**255) % 7` is one reproducer: solc returns `2`;
-  solar reverts. The divergence also covers literal-only expressions with
-  oversized intermediates followed by division, comparison, subtraction,
-  shifts, or another operation that makes the final result representable.
-- Rationale: this codegen path intentionally lowers function-body operations
-  as EVM-width operations, even when type checking has evaluated an all-literal
-  tree. We do not materialize the type checker's literal result here.
-- Coverage: `symbolic-audit/literal_addmod_fold.sol`; upstream source
-  `testdata/solidity/test/libsolidity/semanticTests/arithmetics/addmod_mulmod.sol`.
 
 ### CODEGEN-004: Public array getters return a panic instead of an empty revert
 
@@ -346,7 +754,11 @@ No intentional divergences documented yet.
   `vm.getBlockNumber() - 1` passes the reproduced case and 256 fixed-seed fuzz
   cases under both compilers. The external runner applies this test-only
   correction to both compiler legs and keeps the test enabled. It checks the
-  expected source text before applying the correction.
+  expected source text before applying the correction. The pinned Seaport
+  suite's ascending and descending amount tests save `block.timestamp` before
+  `vm.warp` and compute the expected amount from it afterwards; the runner
+  reads the warped timestamp through an external helper instead, so the five
+  affected tests pass under both compilers.
 
 ### CODEGEN-009: Static frames sit below the initial free memory pointer
 
@@ -366,3 +778,97 @@ No intentional divergences documented yet.
   them.
 - Coverage: `tests/ui/codegen/lowering/run-call/pre_cancun_memory_copies.sol`
   encodes an object that assembly allocates through the shared copy helper.
+
+### CODEGEN-010: Assembly cannot hand compiler-owned memory to the heap
+
+- ID: CODEGEN-010
+- Status: intentional
+- Difference: When inline assembly stores a value computed from constants
+  and calldata into the free memory pointer slot, every later read of the
+  slot as the pointer sees at least the initial free memory pointer: an
+  allocation, or an `mload` whose word addresses memory. After
+  `mstore(0x40, 0x80)`, such a read sees `0x80` under `solc` and the initial
+  pointer here. A word that is also read as data, such as one hashed in
+  scratch memory, or loaded and then compared, hashed, encoded, stored, or
+  used as a key, stays in the slot for those reads, and only the pointer
+  reads see the raised value. Each external function
+  that runs code writing memory at an absolute address computed from calldata,
+  as Seaport lays out a basic order's hashes and event data, keeps its spill
+  slots and the frames it reaches above `0x2080`, and above the constant
+  ranges assembly names there in the functions it runs or that an external
+  function sharing those frames runs. This costs memory expansion gas; other
+  external functions keep their memory low unless they share those frames, or
+  a recursive helper places every frame above all external functions.
+- Rationale: The spill slots and internal-call frames below the initial free
+  memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack, so
+  the next allocation after a lowered pointer, or the absolute layout itself,
+  would replace them. Raising only the pointer reads keeps the stored value for
+  code that uses the slot as scratch, such as an error argument before a revert
+  or a hash input before the pointer is restored. A pointer derived from the
+  heap already lies above the initial one, and an absolute pointer that reaches
+  the store through a parameter, memory, or a call keeps its value. The
+  `heap-floor` pass documents how it tells pointer reads from data reads. A
+  layout that grows past `0x2080`, or one indexed by a loop counter alone, can
+  still reach the compiler's memory; Seaport's basic orders with about 40 or
+  more additional recipients do.
+- Coverage: `tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol`,
+  `tests/ui/codegen/lowering/run-call/assembly_low_memory_routes.sol`,
+  `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
+  `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
+  `cargo tq foundry-external seaport`, whose runner keeps
+  `PreAndPostFulfillmentCheckTest::testBasicStateful(uint8,uint8)` at 38
+  additional recipients or fewer; 39 already fail.
+
+### CODEGEN-011: ABI coder v1 is not supported
+
+- ID: CODEGEN-011
+- Status: intentional
+- Difference: `solc` honors `pragma abicoder v1` and generates ABI coder v1
+  encoders and decoders for that source unit. `solar` warns that ABI coder v1
+  is not supported and always generates ABI coder v2 code. Calldata decoding
+  validates arguments like v2, so a `bool` argument of `2` or a `uint8` or
+  `address` argument with dirty high bits reverts, where v1 cleans it and
+  continues. The type checker also does not apply v1's restrictions, so v1
+  source units may use structs and nested dynamic arrays at ABI boundaries,
+  which `solc` rejects. The warning reuses `solc`'s 9511 code, so
+  `--allow 9511` also hides this change.
+- Rationale: ABI coder v1 is deprecated, and both coders encode the types v1
+  accepts the same way. A second coder would only change how malformed input
+  fails and which types compile.
+- Coverage: `tests/ui/codegen/lowering/run-call/abicoder_v1_uses_v2.sol` and
+  `tests/ui/parser/pragma_valid.sol`.
+
+### CODEGEN-012: External function pointer suffixes keep only their field bits
+
+- ID: CODEGEN-012
+- Status: intentional
+- Difference: `solc` keeps an external function pointer in assembly as two
+  raw stack words, so after `f.address := not(0)` and `f.selector := not(0)`
+  both `f.address` and `f.selector` read back as `2^256 - 1`. `solar` stores
+  the pointer as one packed word, so an assignment keeps only the low 160 bits
+  of the address and the low 32 bits of the selector, and assembly reads the
+  cleaned values. Solidity-level reads match in both compilers.
+- Rationale: the packed word cannot hold two raw 256-bit values.
+- Coverage:
+  `tests/ui/codegen/lowering/run-call/yul_function_pointer_suffix_dirty_bits.sol`.
+
+### CODEGEN-013: Constants are values
+
+- ID: CODEGEN-013
+- Status: intentional
+- Difference: `solc` evaluates the initializer of a constant at every use, in
+  the arithmetic mode of the use. `solar` evaluates a constant once at compile
+  time and uses its value. A constant without a value at compile time, because
+  its initializer reverts, as with `uint8 constant C = A + 1` where `A` is
+  `255`, or because `solar` does not compute it, such as
+  `keccak256(type(C).creationCode)` or a byte array larger than 64 KiB, gets a
+  helper function that runs its initializer, one per arithmetic mode. Each use
+  calls the one for its mode, as in `solc`'s IR codegen, so such a constant
+  wraps inside `unchecked`.
+- Rationale: a constant is one value, and computing it once is cheaper than
+  running its initializer at every use.
+- Coverage: `tests/ui/codegen/lowering/run-call/constant_reverting_initializer.sol`,
+  `tests/ui/codegen/lowering/run-call/constant_eval_aggregates.sol`,
+  `tests/ui/codegen/lowering/run-call/constant_runtime_initializer.sol`,
+  `tests/ui/codegen/lowering/run-call/constant_bytes_too_large.sol` and
+  `tests/ui/codegen/lowering/constant_values_too_large.sol`.

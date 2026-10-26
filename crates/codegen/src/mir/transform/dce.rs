@@ -1,16 +1,15 @@
 //! Dead Code Elimination (DCE) optimization pass.
 //!
 //! Remove unused computations and internal calls whose summaries prove that they have no
-//! observable behavior and terminate normally. Memory reads remain live when `msize` can observe
-//! their expansion. Calls with missing bodies, recursive cycles, checks, or external termination
-//! remain conservative; lowered multi-return buffer writes also prevent removal. Run on either
-//! representation, sharing cached module summaries. A use-count worklist removes dead chains in
-//! linear time; cyclic uses remain live. Reachability is computed once, and memory reads are
-//! reconsidered only when deleting the last `msize` observer makes them discardable.
+//! observable behavior and terminate normally. Calls with missing bodies, recursive cycles,
+//! checks, or external termination remain conservative; lowered multi-return buffer writes also
+//! prevent removal. Run on either representation, sharing cached module summaries. A use-count
+//! worklist removes dead chains in linear time; cyclic uses remain live. Reachability is computed
+//! once.
 
 use crate::mir::{
     Callee, Function, InstId, InstKind, Module, Value, ValueId,
-    analysis::{CfgInfo, MemoryCallSummaries, may_observe_msize},
+    analysis::{CfgInfo, MemoryCallSummaries},
     pass::{MirPass, run_function_pass_with_cfg},
     utils::invalidate_unreachable_blocks,
 };
@@ -45,13 +44,9 @@ impl MirPass for Dce {
 
 /// Dead Code Elimination pass.
 ///
-/// Removes instructions that:
-/// 1. Have a result that is never used
-/// 2. Have no side effects
-/// 3. Are in unreachable blocks
-/// 4. Are instructions after a terminator (unreachable code)
-///
-/// Side-effect instructions (SSTORE, MSTORE, CALL, LOG, etc.) are always kept.
+/// Empties unreachable blocks and removes instructions whose results are unused and whose
+/// execution `InstKind::has_side_effects` does not require, together with internal calls whose
+/// summaries allow discarding them.
 #[derive(Debug, Default)]
 pub(crate) struct DeadCodeEliminator {
     call_summaries: Option<Arc<MemoryCallSummaries>>,
@@ -70,17 +65,10 @@ impl DeadCodeEliminator {
     }
 
     fn run_with_cfg(&mut self, func: &mut Function, cfg: &CfgInfo) -> usize {
-        let mut removed = invalidate_unreachable_blocks(func, cfg.reachable());
-
-        let observes_msize = may_observe_msize(func, self.call_summaries.as_deref());
-        removed += self.remove_dead_chains(func, observes_msize);
-        if observes_msize && !may_observe_msize(func, self.call_summaries.as_deref()) {
-            removed += self.remove_dead_chains(func, false);
-        }
-        removed
+        invalidate_unreachable_blocks(func, cfg.reachable()) + self.remove_dead_chains(func)
     }
 
-    fn remove_dead_chains(&self, func: &mut Function, observes_msize: bool) -> usize {
+    fn remove_dead_chains(&self, func: &mut Function) -> usize {
         let mut uses = IndexVec::<ValueId, usize>::from_vec(vec![0; func.num_values()]);
         for block in &func.blocks {
             if let Some(term) = &block.terminator {
@@ -101,8 +89,8 @@ impl DeadCodeEliminator {
             let inst = func.inst(inst_id);
             let discardable_call = matches!(&inst.kind, InstKind::ICall { function: Callee::Function(function), .. }
                 if self.call_summaries.as_ref().and_then(|summaries| summaries.get(*function))
-                    .is_some_and(|summary| summary.can_discard_call(observes_msize)));
-            if !inst.must_execute(observes_msize) || discardable_call {
+                    .is_some_and(|summary| summary.can_discard_call()));
+            if !inst.kind.has_side_effects() || discardable_call {
                 discardable.insert(inst_id);
                 if inst.result().is_none_or(|result| uses[result] == 0) {
                     pending.push(inst_id);

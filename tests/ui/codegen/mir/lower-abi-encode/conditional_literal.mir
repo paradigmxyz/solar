@@ -1,4 +1,4 @@
-//@ compile-flags: -Zmir-pipeline=lower-abi-encode
+//@ compile-flags: -Ogas --evm-version paris -Zmir-pipeline=lower-abi-encode
 //@ filecheck:
 @module ConditionalLiteral
 
@@ -6,16 +6,20 @@
 // initializer uses cannot turn this conditional initialization into a literal.
 // CHECK-LABEL: (after lower-abi-encode)
 // CHECK: fn @encode
-// CHECK: memory_object_len memorybytes, v0
-// CHECK: memory_object_data memorybytes, v0
-fn @encode(arg0: i256) -> memoryslice {
+// CHECK: + {{v[0-9]+}} = mload v0
+// CHECK-NOT: = mul
+// CHECK: + [[DATA:v[0-9]+]] = ptradd v0, 32
+// CHECK: + mcopy {{v[0-9]+}}, [[DATA]],
+fn @encode(arg0: i256) -> slice<memory> {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v0, 1
+    v0 = alloc 64
+    v3 = ptrtoint ptr<memory> v0 to i256
+    mstore v3, 1
     v2 = ne arg0, 0
     jumpi v2, bb1, bb2
   bb1:
-    memory_object_store_word memorybytes, v0, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v4 = ptradd v0, 32
+    mstore v4, 0x3100000000000000000000000000000000000000000000000000000000000000
     jump bb2
   bb2:
     v1 = abi_encode [memory_bytes], args v0
@@ -24,29 +28,39 @@ fn @encode(arg0: i256) -> memoryslice {
 
 // A wrapping offset from a later object reaches the earlier object's payload.
 // CHECK: fn @overlapping
-// CHECK: memory_object_len memorybytes, v0
-// CHECK: memory_object_data memorybytes, v0
-fn @overlapping(arg0: i256) -> memoryslice {
+// CHECK: + {{v[0-9]+}} = mload v0
+// CHECK-NOT: = mul
+// CHECK: + [[DATA:v[0-9]+]] = ptradd v0, 32
+// CHECK: + mcopy {{v[0-9]+}}, [[DATA]],
+fn @overlapping(arg0: i256) -> slice<memory> {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v0, 1
-    memory_object_store_word memorybytes, v0, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v1, 1
-    memory_object_store_word memorybytes, v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc0, arg0
+    v0 = alloc 64
+    v3 = ptrtoint ptr<memory> v0 to i256
+    mstore v3, 1
+    v4 = ptradd v0, 32
+    mstore v4, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v1 = alloc 64
+    v5 = ptrtoint ptr<memory> v1 to i256
+    mstore v5, 1
+    v6 = ptradd v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    mstore v6, arg0
     v2 = abi_encode [memory_bytes], args v0
     ret v2
 }
 
 // Literal folding cannot remove an observable free-memory-pointer bump.
 // CHECK: fn @preserved
-// CHECK: alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-// CHECK: memory_object_len memorybytes, v0
-fn @preserved() -> memoryslice {
+// CHECK: alloc 64 !metadata(preserves_fmp)
+// CHECK: mstore v1, 1
+// CHECK: mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
+// CHECK-NOT: mcopy
+fn @preserved() -> slice<memory> {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 1
-    memory_object_store_word memorybytes, v0, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v0 = alloc 64 !metadata(preserves_fmp)
+    v2 = ptrtoint ptr<memory> v0 to i256
+    mstore v2, 1
+    v3 = ptradd v0, 32
+    mstore v3, 0x3100000000000000000000000000000000000000000000000000000000000000
     v1 = abi_encode [memory_bytes], args v0
     ret v1
 }

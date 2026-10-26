@@ -1,0 +1,113 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/try_member_function_pointer.sol:TryMemberFunctionPointer ===
+@module TryMemberFunctionPointer
+fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = ne arg0, 0
+    icall require<short_string>, v0, 4, 0x7a65726f00000000000000000000000000000000000000000000000000000000
+    v1 = checked_mul uint256, arg0, 2
+    ret v1
+}
+
+fn @seven() -> i256 [selector=0x78710d37, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 7
+}
+
+fn @file() -> ptr<memory> [selector=0x8525855d, view, abi_params=[], abi_returns=[tuple<function>], abi_return_params=[tuple<function>]] {
+  bb0:
+    v0 = alloc 32 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = alloc 32
+    v2 = address
+    v3 = zext i160 v2 to i256
+    v4 = shl v3, 32
+    v5 = or v4, 0x78710d37
+    v6 = shl v5, 64
+    mstore v1, v6
+    ret v1
+}
+
+fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 32
+    v1 = address
+    v2 = zext i160 v1 to i256
+    v3 = shl v2, 32
+    v4 = or v3, 0xeee97206
+    v5 = shl v4, 64
+    mstore v0, v5
+    v6 = mload v0
+    v7 = shr v6, 64
+    v8 = and v7, 0xffffffff
+    v9 = shl v8, 224
+    v10 = shr v7, 32
+    v11 = gas
+    v12 = shr v9, 224
+    mstore 0, v12 !metadata(memory=scratch)
+    mstore 32, arg0 !metadata(memory=scratch)
+    v13 = call v11, v10, 0, 28, 36, 0, 32
+    jumpi v13, bb1, bb2
+  bb2:
+    jumpi true, bb4, bb5
+  bb5:
+    icall revert_if<empty>, true
+    invalid
+  bb4:
+    ret 1
+  bb1:
+    v14 = returndatasize
+    v15 = lt v14, 32
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = add 0, 0
+    v17 = mload v16
+    ret v17
+  bb3:
+    ret 0
+}
+
+fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x8525855d00000000000000000000000000000000000000000000000000000000
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
+    v5 = alloc 32
+    v6 = zext i160 v0 to i256
+    v7 = staticcall v1, v6, v3, v4, v5, 32
+    jumpi v7, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v8 = returndatasize
+    v9 = lt v8, 32
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = make_memory_slice v5, 32
+    v11 = abi_decode [tuple<function>], v10
+    v12 = mload v11
+    v13 = shr v12, 64
+    v14 = and v13, 0xffffffff
+    v15 = shl v14, 224
+    v16 = shr v13, 32
+    v17 = gas
+    v18 = shr v15, 224
+    mstore 0, v18 !metadata(memory=scratch)
+    v19 = staticcall v17, v16, 28, 4, 0, 32
+    jumpi v19, bb3, bb4
+  bb4:
+    jumpi true, bb6, bb7
+  bb7:
+    icall revert_if<empty>, true
+    invalid
+  bb6:
+    ret 0
+  bb3:
+    v20 = returndatasize
+    v21 = lt v20, 32
+    icall revert_if<tuple_data_too_short>, v21
+    v22 = add 0, 0
+    v23 = mload v22
+    ret v23
+  bb5:
+    ret 0
+}

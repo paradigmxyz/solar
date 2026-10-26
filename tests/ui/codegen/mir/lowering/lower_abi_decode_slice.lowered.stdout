@@ -1,0 +1,122 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_decode_slice.mir (before lower-abi) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_decode_slice.mir (after lower-abi) ===
+  @module LowerAbiDecodeSlice
+  fn @inline(arg0: slice<memory>) -> i256 {
+    bb0:
+-     v0 = abi_decode [uint256], arg0
+-     ret v0
++     v1 = extract_value slice<memory>, arg0, 0
++     v2 = extract_value slice<memory>, arg0, 1
++     v3 = ptrtoint ptr<memory> v1 to i256
++     v4 = add v3, v2
++     v5 = slt v2, 32
++     jumpi v5, bb1, bb2
++   bb2:
++     v6 = mload v1
++     ret v6
++   bb1:
++     revert 0, 0
+  }
+  
+  fn @shared(arg0: ptr<memory>, arg1: ptr<memory>) -> i256 {
+    bb0:
+      v0 = make_memory_slice arg0, 64
+-     v1 = abi_decode [tuple<uint256, uint256>], v0
++     v9 = extract_value slice<memory>, v0, 0
++     v10 = extract_value slice<memory>, v0, 1
++     v11 = slt v10, 64
++     jumpi v11, bb1, bb2
++   bb2:
++     v12 = icall @decode_static, v9
+      v2 = ptrtoint ptr<memory> arg1 to i256
+      v3 = make_memory_slice arg1, v2
+-     v4 = abi_decode [tuple<uint256, uint256>], v3
+-     v5 = mload v1
+-     v6 = ptradd v4, 32
++     v13 = extract_value slice<memory>, v3, 0
++     v14 = extract_value slice<memory>, v3, 1
++     v15 = slt v14, 64
++     jumpi v15, bb1, bb3
++   bb3:
++     v16 = icall @decode_static, v13
++     v5 = mload v12
++     v6 = ptradd v16, 32
+      v7 = mload v6
+      v8 = add v5, v7
+      ret v8
++   bb1:
++     revert 0, 0
+  }
+  
+  fn @dynamic(arg0: slice<memory>) -> ptr<memory> {
+    bb0:
+-     v0 = abi_decode [bytes], arg0
+-     ret v0
++     v1 = extract_value slice<memory>, arg0, 0
++     v2 = extract_value slice<memory>, arg0, 1
++     v3 = ptrtoint ptr<memory> v1 to i256
++     v4 = add v3, v2
++     v5 = slt v2, 32
++     jumpi v5, bb1, bb2
++   bb2:
++     v6 = mload v1
++     v7 = ptrtoint ptr<memory> v1 to i256
++     v8 = add v7, v6
++     v9 = ptrtoint ptr<memory> v1 to i256
++     v10 = add v9, v6
++     v11 = add v10, 32
++     v12 = gt v6, 0xffffffffffffffff
++     v13 = gt v11, v4
++     v14 = or v12, v13
++     v15 = zext i1 v14 to i256
++     jumpi v14, bb1, bb3
++   bb3:
++     v16 = mload v8
++     v17 = add v8, 32
++     v18 = add v16, 63
++     v19 = lt v18, v16
++     jumpi v19, bb4, bb5
++   bb5:
++     v20 = not 31
++     v21 = and v18, v20
++     v22 = alloc checked v21
++     mstore v22, v16
++     v23 = sub v4, v17
++     v24 = gt v16, v23
++     jumpi v24, bb1, bb6
++   bb6:
++     v25 = inttoptr i256 v17 to ptr<memory>
++     v26 = make_memory_slice v25, v16
++     v27 = ptradd v22, 32
++     v28 = extract_value slice<memory>, v26, 0
++     v29 = extract_value slice<memory>, v26, 1
++     mcopy v27, v28, v29
++     ret v22
++   bb4:
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
++   bb1:
++     revert 0, 0
++ }
++ 
++ fn @decode_static(arg0: ptr<memory>) -> ptr<memory> {
++   bb0:
++     v0 = ptrtoint ptr<memory> arg0 to i256
++     v1 = add v0, 64
++     v2 = slt 64, 64
++     jumpi v2, bb1, bb2
++   bb2:
++     v3 = alloc 64
++     v4 = mload arg0
++     mstore v3, v4
++     v5 = ptrtoint ptr<memory> arg0 to i256
++     v6 = add v5, 32
++     v7 = mload v6
++     v8 = ptradd v3, 32
++     mstore v8, v7
++     ret v3
++   bb1:
++     revert 0, 0
+  }
+  

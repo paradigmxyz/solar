@@ -19,6 +19,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import cache, lru_cache
 from pathlib import Path, PureWindowsPath
@@ -33,6 +34,8 @@ from cases import (
     MAX_UINT256,
     TEST_CASES,
     ZERO_ADDRESS,
+    ZONES_KEY_X,
+    ZONES_TOKEN,
     TestCase,
     gas_calls,
     runtime_checks,
@@ -57,6 +60,8 @@ CAST_TX_TIMEOUT = 30
 CAST_READ_TIMEOUT = 10
 CAST_RPC_TIMEOUT = 10
 CAST_GAS_LIMIT = "80000000"
+CAST_TRACE_TIMEOUT = 120
+GAS_KINDS_TRACER = Path(__file__).with_name("gas_kinds_tracer.js")
 RUNTIME_FIXTURES = ROOT / "fixtures/runtime/RuntimeFixtures.sol"
 ARTIFACT_DUMP_KINDS = (
     "mir",
@@ -859,7 +864,6 @@ def start_anvil(rpc_url: str) -> subprocess.Popen[bytes]:
             "anvil",
             "--port",
             match.group(1),
-            "--steps-tracing",
             "--disable-code-size-limit",
             "--gas-limit",
             "100000000",
@@ -1029,6 +1033,18 @@ def call_contract(
     rpc_url: str,
     private_key: str,
 ) -> tuple[int | None, str]:
+    gas, _, error = send_call(address, signature, args, rpc_url, private_key)
+    return gas, error
+
+
+def send_call(
+    address: str,
+    signature: str,
+    args: Sequence[str],
+    rpc_url: str,
+    private_key: str,
+) -> tuple[int | None, str | None, str]:
+    """Sends a call and returns its receipt gas, transaction hash, and error."""
     proc = run(
         [
             "cast",
@@ -1051,18 +1067,81 @@ def call_contract(
         timeout=CAST_TX_TIMEOUT,
     )
     if proc.returncode != 0:
-        return None, proc.stderr[:1000]
+        return None, None, proc.stderr[:1000]
     try:
         data = json.loads(proc.stdout)
     except json.JSONDecodeError as exc:
-        return None, f"invalid call JSON: {exc}"
+        return None, None, f"invalid call JSON: {exc}"
     status = parse_receipt_int(data.get("status"))
     gas = parse_receipt_int(data.get("gasUsed"))
     if status is not None and status != 1:
-        return None, f"transaction failed (status={status}, gasUsed={gas})"
+        return None, None, f"transaction failed (status={status}, gasUsed={gas})"
     if gas is None:
-        return None, "transaction receipt missing gasUsed"
-    return gas, ""
+        return None, None, "transaction receipt missing gasUsed"
+    tx_hash = data.get("transactionHash")
+    return gas, tx_hash if isinstance(tx_hash, str) else None, ""
+
+
+@cache
+def gas_kinds_tracer() -> str:
+    return GAS_KINDS_TRACER.read_text()
+
+
+def trace_gas_kinds(
+    tx_hash: str | None, receipt_gas: int, rpc_url: str
+) -> tuple[dict[str, Any] | None, str]:
+    """Traces a mined call and splits its execution gas by opcode kind.
+
+    The result holds `execution_gas`, the gas of the executed steps before the refund, and
+    `gas_kinds`, which sums to it. Receipt gas must be the steps plus the intrinsic gas minus the
+    applied refund, or the EIP-7623 calldata floor when that is higher (`calldata_floor`);
+    any other receipt gas means the trace missed gas.
+    """
+    if tx_hash is None:
+        return None, "transaction receipt missing transactionHash"
+    trace, error = rpc_request_from_file(
+        "debug_traceTransaction",
+        (tx_hash, {"tracer": gas_kinds_tracer(), "timeout": "3600s"}),
+        rpc_url,
+        CAST_TRACE_TIMEOUT,
+    )
+    if not isinstance(trace, dict):
+        return None, error or "trace result is not an object"
+    try:
+        kinds = {str(kind): int(gas) for kind, gas in trace["kinds"].items()}
+        execution_gas, refund, first_gas, gas_limit, root_spent = (
+            int(trace[field])
+            for field in ("exec", "refund", "firstGas", "gasLimit", "rootSpent")
+        )
+        if first_gas < 0:
+            raise ValueError(first_gas)
+    except AttributeError, KeyError, TypeError, ValueError:
+        return None, f"malformed gas trace: {json.dumps(trace)[:200]}"
+    if sum(kinds.values()) != execution_gas:
+        return None, f"gas kinds sum to {sum(kinds.values())}, not {execution_gas}"
+    # The receipt cannot check calls billed at the floor, so the root frame's own gas does.
+    if root_spent != execution_gas:
+        return (
+            None,
+            f"traced steps carry {execution_gas} gas, the root frame spent {root_spent}",
+        )
+    intrinsic_gas = gas_limit - first_gas
+    applied_refund = min(refund, (execution_gas + intrinsic_gas) // 5)
+    expected = execution_gas + intrinsic_gas - applied_refund
+    # Calldata costs 4 gas per token and the floor 10, with no access list or creation.
+    floor = 21000 + (intrinsic_gas - 21000) * 5 // 2
+    if receipt_gas != max(expected, floor):
+        return (
+            None,
+            f"traced gas {expected} (floor {floor}) does not explain receipt gas {receipt_gas}",
+        )
+    return {
+        "execution_gas": execution_gas,
+        "gas_kinds": {kind: gas for kind, gas in sorted(kinds.items()) if gas},
+        "intrinsic_gas": intrinsic_gas,
+        "gas_refund": applied_refund,
+        "calldata_floor": floor > expected,
+    }, ""
 
 
 def read_contract(
@@ -1552,7 +1631,182 @@ def run_cold_path_checks(
         )
     if test_case.test_id == "nitro-one-step-proof":
         return run_nitro_cold_paths(address, rpc_url)
+    if test_case.test_id == "tempo-zones-portal":
+        sender, error = private_key_address(private_key)
+        if sender is None:
+            return [runtime_error("zones-sender", error)]
+        observations = []
+        for label, target, signature, args, expected in (
+            ("zones-deposit-count", address, "depositCount()(uint64)", (), 2),
+            (
+                "zones-escrow",
+                ZONES_TOKEN,
+                "balanceOf(address)(uint256)",
+                (address,),
+                20_000_000,
+            ),
+            (
+                "zones-sender-balance",
+                ZONES_TOKEN,
+                "balanceOf(address)(uint256)",
+                (sender,),
+                80_000_000,
+            ),
+        ):
+            value, error = read_uint(target, signature, args, rpc_url)
+            observations.append(
+                runtime_error(label, error)
+                if value is None
+                else checked_value(label, value, expected)
+            )
+        return observations
     return []
+
+
+def prepare_zones_portal(
+    implementation: str,
+    rpc_url: str,
+    private_key: str,
+) -> tuple[str | None, int | None, str]:
+    """Initialize a fresh proxy with identical token/registry code on local Anvil."""
+    if re.fullmatch(r"http://(?:127\.0\.0\.1|localhost):\d+", rpc_url) is None:
+        return None, None, "Zones fixtures require a local Anvil RPC"
+    sender, error = private_key_address(private_key)
+    if sender is None:
+        return None, None, error
+    fixtures = json.loads((RUNTIME_FIXTURES.parent / "Zones.json").read_text())
+
+    for name, target in (
+        ("RuntimeZoneToken", ZONES_TOKEN),
+        ("RuntimeZoneRegistry", "0x403c000000000000000000000000000000000000"),
+    ):
+        bytecode = fixtures["creation_bytecode"][name]
+        fixture, _, error = deploy_creation_code(
+            bytecode, (), None, rpc_url, private_key
+        )
+        if fixture is None:
+            return None, None, error
+        code, error = rpc_request("eth_getCode", (fixture, "latest"), rpc_url)
+        if error or not isinstance(code, str) or code == "0x":
+            return None, None, error or f"empty {name} runtime"
+        _, error = rpc_request("anvil_setCode", (target, code), rpc_url)
+        if error:
+            return None, None, error
+
+    proxy_code = (
+        "3d602d80600a3d3981f3363d3d373d3d3d363d73"
+        + implementation.removeprefix("0x")
+        + "5af43d82803e903d91602b57fd5bf3"
+    )
+    proxy, proxy_gas, error = deploy_creation_code(
+        proxy_code, (), None, rpc_url, private_key
+    )
+    if proxy is None:
+        return None, None, error
+
+    factory = "0x5af2000000000000000000000000000000000000"
+    signature = (
+        "initialize(uint32,address,bool,bool,address[],address[],address,address,"
+        "address[],uint8,address,string)"
+    )
+    args = (
+        "1",
+        ZONES_TOKEN,
+        "false",
+        "false",
+        "[]",
+        "[]",
+        ZERO_ADDRESS,
+        sender,
+        f"[{sender}]",
+        "1",
+        ZERO_ADDRESS,
+        "",
+    )
+    calldata, error = encode_calldata(signature, args)
+    if calldata is None:
+        return None, None, error
+    for method, params in (
+        ("anvil_setBalance", (factory, hex(10**20))),
+        ("anvil_impersonateAccount", (factory,)),
+    ):
+        _, error = rpc_request(method, params, rpc_url)
+        if error:
+            return None, None, error
+    try:
+        proc = run(
+            [
+                "cast",
+                "send",
+                proxy,
+                "--data",
+                calldata,
+                "--from",
+                factory,
+                "--unlocked",
+                "--rpc-url",
+                rpc_url,
+                "--gas-limit",
+                CAST_GAS_LIMIT,
+                "--json",
+            ],
+            timeout=CAST_TX_TIMEOUT,
+        )
+        if proc.returncode != 0:
+            return None, None, (proc.stderr or proc.stdout)[:1000]
+        receipt = json.loads(proc.stdout)
+        if parse_receipt_int(receipt.get("status")) != 1:
+            return None, None, "Zones initialization reverted"
+    finally:
+        _, cleanup_error = rpc_request(
+            "anvil_stopImpersonatingAccount", (factory,), rpc_url
+        )
+    if cleanup_error:
+        return None, None, cleanup_error
+
+    # Public test key 1 proves possession of the secp256k1 generator point.
+    encoded = abi_encode_constructor(
+        (proxy, ZONES_KEY_X, "2"), "key(address,bytes32,uint8)"
+    )
+    if encoded is None:
+        return None, None, "cannot encode Zones encryption key proof"
+    digest = run(["cast", "keccak", "0x" + encoded], timeout=30)
+    if digest.returncode != 0:
+        return None, None, digest.stderr[:1000]
+    proof = run(
+        [
+            "cast",
+            "wallet",
+            "sign",
+            "--no-hash",
+            "--private-key",
+            "0x" + "00" * 31 + "01",
+            digest.stdout.strip(),
+        ],
+        timeout=30,
+    )
+    if proof.returncode != 0:
+        return None, None, proof.stderr[:1000]
+    proof_hex = proof.stdout.strip().removeprefix("0x")
+    for target, signature, args in (
+        (
+            proxy,
+            "setSequencerEncryptionKey(bytes32,uint8,uint8,bytes32,bytes32)",
+            (
+                ZONES_KEY_X,
+                "2",
+                str(int(proof_hex[128:130], 16)),
+                "0x" + proof_hex[:64],
+                "0x" + proof_hex[64:128],
+            ),
+        ),
+        (ZONES_TOKEN, "setBalance(address,uint256)", (sender, "100000000")),
+        (ZONES_TOKEN, "approve(address,uint256)", (proxy, MAX_UINT256)),
+    ):
+        gas, error = call_contract(target, signature, args, rpc_url, private_key)
+        if gas is None:
+            return None, None, error
+    return proxy, proxy_gas, ""
 
 
 def compare_runtime_results(
@@ -1770,6 +2024,7 @@ def run_test_case(
     repeat_long_compiles: bool = False,
     artifact_root: Path | None = None,
     optimizer_runs: int | None = None,
+    gas_kinds: bool = False,
 ) -> dict[str, Any]:
     entry: dict[str, Any] = {
         "test_id": test_case.test_id,
@@ -1823,6 +2078,7 @@ def run_test_case(
             "openzeppelin-vesting-wallet",
             "nitro-one-step-proof",
             "lilweb3-fractional",
+            "tempo-zones-portal",
         }
         if compiled["status"] != "ok" or not include_gas:
             continue
@@ -1846,10 +2102,22 @@ def run_test_case(
 
         compiler_entry["deploy_status"] = "ok"
         compiler_entry["deploy_gas"] = deploy_gas
+        if test_case.test_id == "tempo-zones-portal":
+            compiler_entry["implementation_address"] = address
+            address, proxy_gas, error = prepare_zones_portal(
+                address, rpc_url, private_key
+            )
+            compiler_entry["proxy_deploy_gas"] = proxy_gas
+            if address is None:
+                compiler_entry["deploy_status"] = "failed"
+                compiler_entry["runtime_status"] = "failed"
+                compiler_entry["deploy_error"] = error
+                continue
         compiler_entry["address"] = address
         gas_results = []
         total_gas = 0
         gas_failed = False
+        gas_kinds_failed = False
         for call in calls:
             for index in range(call.repeat):
                 label = call.label if call.repeat == 1 else f"{call.label}#{index + 1}"
@@ -1857,7 +2125,7 @@ def run_test_case(
                     verbose,
                     f"[{test_case.test_id}] {spec.compiler_id} tx {label}: {call.signature}",
                 )
-                gas, error = call_contract(
+                gas, tx_hash, error = send_call(
                     address, call.signature, call.args, rpc_url, private_key
                 )
                 if gas is None:
@@ -1873,18 +2141,26 @@ def run_test_case(
                         }
                     )
                     continue
-                gas_results.append(
-                    {
-                        "label": label,
-                        "call": call.signature,
-                        "args": list(call.args),
-                        "gas": gas,
-                        "comparison_exclusion_reason": call.comparison_exclusion_reason,
-                    }
-                )
+                gas_result = {
+                    "label": label,
+                    "call": call.signature,
+                    "args": list(call.args),
+                    "gas": gas,
+                    "comparison_exclusion_reason": call.comparison_exclusion_reason,
+                }
+                if gas_kinds:
+                    kinds, error = trace_gas_kinds(tx_hash, gas, rpc_url)
+                    if kinds is None:
+                        gas_kinds_failed = True
+                        gas_result["gas_kinds_error"] = error
+                    else:
+                        gas_result.update(kinds)
+                gas_results.append(gas_result)
                 total_gas += gas
         compiler_entry["gas_results"] = gas_results
         compiler_entry["gas_status"] = "failed" if gas_failed else "ok"
+        if gas_kinds:
+            compiler_entry["gas_kinds_status"] = "failed" if gas_kinds_failed else "ok"
         compiler_entry["total_gas"] = None if gas_failed else total_gas
 
         runtime_results = []
@@ -2002,6 +2278,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Compile each test this many times and record the median time (default: 1)",
     )
     parser.add_argument(
+        "-j",
+        "--jobs",
+        type=int,
+        default=1,
+        help="Run this many test cases at once without recording compile times; not with --gas (default: 1)",
+    )
+    parser.add_argument(
+        "--ignore-compile-time",
+        action="store_true",
+        help="Compile each case once and record no compile times; lets --jobs run compile-time mode",
+    )
+    parser.add_argument(
         "--repeat-long-compiles",
         action="store_true",
         help="Do not stop repeats after a compile takes at least 10 seconds",
@@ -2044,6 +2332,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Gas workload profile: smoke preserves the existing calls, hot runs a broader optimizer workload",
     )
     parser.add_argument(
+        "--gas-kinds",
+        action="store_true",
+        help="With --gas, trace each call to record execution gas and gas by opcode kind (needs an anvil node)",
+    )
+    parser.add_argument(
         "--start-anvil", action="store_true", help="Start anvil automatically for --gas"
     )
     parser.add_argument(
@@ -2073,6 +2366,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.oksolc_jobs < 1:
         parser.error("--oksolc-jobs must be positive")
+    if args.jobs < 1:
+        parser.error("--jobs must be positive")
+    if args.gas_kinds and not args.gas:
+        parser.error("--gas-kinds requires --gas")
+    if args.jobs > 1:
+        if args.gas:
+            parser.error("--jobs cannot be combined with --gas")
+        if "compile-time" in args.mode and not args.ignore_compile_time:
+            parser.error("--jobs skews compile-time mode; pass --ignore-compile-time")
+        args.ignore_compile_time = True
+    if args.ignore_compile_time:
+        args.compile_repeats = 1
     if args.reference_results and (args.solc or args.solx):
         parser.error("--reference-results cannot be combined with --solc or --solx")
     try:
@@ -2276,10 +2581,42 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"Forcing optimizer runs {args.optimizer_runs} ({objective} objective for Solar)"
         )
     print(f"Running {len(tests)} tests")
+    if args.jobs > 1:
+        print(f"Running {args.jobs} tests at a time without compile times")
+
+    def run_case(test: TestCase) -> dict[str, Any]:
+        try:
+            result = run_test_case(
+                test,
+                specs,
+                args.gas,
+                args.gas_profile,
+                args.rpc_url,
+                args.private_key,
+                args.verbose,
+                args.compile_repeats,
+                args.evm_version,
+                args.repeat_long_compiles,
+                args.artifacts,
+                args.optimizer_runs,
+                args.gas_kinds,
+            )
+        except Exception as exc:
+            print(
+                _color(f"[{test.test_id}] Unexpected benchmark failure: {exc}", RED),
+                file=sys.stderr,
+            )
+            result = failed_test_result(test, specs, args.gas_profile, exc)
+        if args.ignore_compile_time:
+            for data in result["compilers"].values():
+                data["compile_time_seconds"] = None
+                data.pop("compile_time_samples", None)
+        return result
 
     results = []
     timings = {}
     anvil_proc = None
+    executor = ThreadPoolExecutor(args.jobs) if args.jobs > 1 else None
     try:
         if args.gas and args.start_anvil:
             print("Starting anvil...")
@@ -2294,9 +2631,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 tests = []
         current_suite = None
         suite_started = None
+        # `Executor.map` yields results in input order, so output stays deterministic.
+        parallel_results = executor.map(run_case, tests) if executor else None
         for test in tests:
             suite = test.suite
-            if suite != current_suite:
+            if parallel_results is None and suite != current_suite:
                 if current_suite is not None and suite_started is not None:
                     timings[current_suite] = (
                         timings.get(current_suite, 0.0)
@@ -2305,29 +2644,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     )
                 current_suite = suite
                 suite_started = time.monotonic()
-            try:
-                result = run_test_case(
-                    test,
-                    specs,
-                    args.gas,
-                    args.gas_profile,
-                    args.rpc_url,
-                    args.private_key,
-                    args.verbose,
-                    args.compile_repeats,
-                    args.evm_version,
-                    args.repeat_long_compiles,
-                    args.artifacts,
-                    args.optimizer_runs,
-                )
-            except Exception as exc:
-                print(
-                    _color(
-                        f"[{test.test_id}] Unexpected benchmark failure: {exc}", RED
-                    ),
-                    file=sys.stderr,
-                )
-                result = failed_test_result(test, specs, args.gas_profile, exc)
+            result = (
+                run_case(test) if parallel_results is None else next(parallel_results)
+            )
             merged_specs = []
             for reference_spec in reference_specs:
                 compiler_id = reference_spec.compiler_id
@@ -2365,6 +2684,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 timings.get(current_suite, 0.0) + time.monotonic() - suite_started
             )
     finally:
+        if executor is not None:
+            executor.shutdown(cancel_futures=True)
         if anvil_proc:
             print("Stopping anvil...")
             try:
@@ -2390,6 +2711,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                         print(
                             f"\n{result['test_id']} {compiler_id} tx {gas_result.get('label')} error:\n"
                             f"{gas_result.get('error', '')}"
+                        )
+                    if gas_result.get("gas_kinds_error"):
+                        print(
+                            f"\n{result['test_id']} {compiler_id} tx {gas_result.get('label')} gas trace error:\n"
+                            f"{gas_result['gas_kinds_error']}"
                         )
             for mismatch in result.get("runtime_mismatches") or []:
                 values = ", ".join(
@@ -2427,7 +2753,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         (result["test_id"], compiler_id)
         for result in results
         for compiler_id, data in result["compilers"].items()
-        if data.get("gas_status") == "failed"
+        if "failed" in (data.get("gas_status"), data.get("gas_kinds_status"))
     ]
     if (failed or runtime_failed or gas_failed) and not args.allow_failures:
         if failed:
@@ -2449,7 +2775,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if gas_failed:
             print(
                 _color(
-                    f"{len(gas_failed)} gas transaction runs failed; use --allow-failures to keep exit code 0",
+                    f"{len(gas_failed)} gas transaction or trace runs failed; use --allow-failures to keep exit code 0",
                     RED,
                 ),
                 file=sys.stderr,

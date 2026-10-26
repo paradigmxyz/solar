@@ -1,0 +1,45 @@
+- // === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/counter.evmir (before stack-reschedule) ===
++ // === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/counter.evmir (after stack-reschedule) ===
+  @module module
+  bb0 [loop] [stack=3]:
+    dup 2
+-   dup 2
+-   add
+-   swap 2
+    push 1
+    add
+    dup 1
+-   swap 3
+-   add
+-   swap 2
+    push 1
+    add
+-   dup 1
+    swap 3
++   dup 3
+    add
+-   swap 2
++   add
++   dup 3
+    push 1
+    add
+-   dup 1
+    swap 3
++   add
++   dup 3
+    add
+    swap 1
+    dup 2
+    lt
+    push bb1
+    jumpi
+    swap 1
+    push 1
+    add
+    swap 1
+    jump bb0
+  bb1 [cold]:
+    push 0
+    push 0
+    revert
+  

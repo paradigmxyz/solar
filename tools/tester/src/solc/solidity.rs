@@ -38,12 +38,8 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         return Err("natspec is not checked");
     }
 
-    if path_contains("_direction_override") {
-        return Err("Unicode direction override checks not implemented");
-    }
-
     if path_contains("wrong_compiler_") {
-        return Err("Solidity pragma version is not checked");
+        return Err("Solidity pragma version mismatches are warnings");
     }
 
     // Directories starting with `_` are not tests.
@@ -57,17 +53,12 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
     #[rustfmt::skip]
     if matches!(
         stem,
-        // Solc supports unlimited-precision rational arithmetic, while we reject these literals
-        // as too large during parsing.
-        | "rational_number_exp_limit_fine"
-        | "exponent_fine"
-        | "rational_large_1"
-        | "constant_initialized_with_unlimited_arithmetic_expression"
         // `address payable` is allowed by the grammar (see `elementary-type-name`), but not by Solc.
         | "address_payable_type_expression"
-        | "mapping_from_address_payable"
-        // Compiler version requirements are not enforced.
+        // Compiler version mismatches are warnings.
         | "broken_version_1"
+        | "version_component_above_signed_int_greater"
+        | "version_component_signed_int_min_greater"
         // Checked during AST validation rather than parsing.
         | "unchecked_while_body"
         // Arbitrary `pragma experimental` values are allowed by Solc apparently.
@@ -92,6 +83,12 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         // We allow named modifier and base-constructor arguments, which solc rejects.
         | "inherited_constructor_named_parameters"
         | "named_parameters_invocation"
+
+        // Fixed-point types are rejected during parsing.
+        | "all_value_types"
+        | "fixed_point_add"
+        | "fixed_point_compound_add"
+        | "free_function_4"
     ) {
         return Err("manually skipped");
     };

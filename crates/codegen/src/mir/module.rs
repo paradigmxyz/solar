@@ -5,7 +5,13 @@ use super::{
     Disambiguator, Function, FunctionId, ImmutableId, MangledSymbol, MirType, StructId, StructType,
     Terminator, ValueId,
 };
-use crate::link::{ContractCode, LibraryTable};
+use crate::{
+    link::{ContractCode, LibraryTable},
+    mir::{
+        analysis::{CfgInfo, direct_callees},
+        pass_manager::should_validate_ir,
+    },
+};
 use alloy_primitives::{B256, Bytes};
 use smallvec::SmallVec;
 use solar_data_structures::{
@@ -114,6 +120,9 @@ pub struct Module {
     debug_info_tracked: bool,
     /// Digests of the rewrites `llm-optimize` applied, in function order.
     pub(crate) llm_rewrites: Vec<B256>,
+    /// Whether the last full `lowered` check still describes this module: no change since
+    /// `advance_phase` passed it.
+    pub(super) lowered_checked: bool,
 }
 
 impl Module {
@@ -188,6 +197,7 @@ impl Module {
             phase: MirPhase::Semantic,
             debug_info_tracked: false,
             llm_rewrites: Vec::new(),
+            lowered_checked: false,
         }
     }
 
@@ -209,22 +219,42 @@ impl Module {
     }
 
     /// Checks the destination representation before advancing the phase.
+    ///
+    /// Release builds check only the phase contract, unless `-Zvalidate-ir` is set.
     pub(crate) fn advance_phase(
         &mut self,
-        dcx: &solar_interface::diagnostics::DiagCtxt,
+        gcx: solar_sema::Gcx<'_>,
         phase: MirPhase,
     ) -> solar_interface::Result<()> {
         assert!(phase >= self.phase, "MIR phase cannot regress");
-        crate::mir::analysis::validate_phase(dcx, self, phase)?;
+        crate::mir::analysis::validate_phase(
+            gcx.dcx(),
+            self,
+            phase,
+            gcx.sess.is_parallel_codegen(),
+            should_validate_ir(gcx),
+        )?;
         self.phase = phase;
+        self.lowered_checked = phase == MirPhase::Lowered;
         Ok(())
     }
 
+    /// Records that the module changed since its last full `lowered` check.
+    pub(crate) fn invalidate_lowered_check(&mut self) {
+        self.lowered_checked = false;
+    }
+
     /// Checks backend legality and borrows the module without permitting further rewrites.
+    ///
+    /// Skips the check when `advance_phase` passed it and nothing changed the module since,
+    /// unless `recheck` is set. Without `recheck`, the check covers only the phase contract.
+    /// Targets without shift opcodes always check that no shift is left.
     pub(crate) fn as_lowered(
         &self,
-        dcx: &solar_interface::diagnostics::DiagCtxt,
+        gcx: solar_sema::Gcx<'_>,
+        recheck: bool,
     ) -> solar_interface::Result<LoweredModule<'_>> {
+        let dcx = gcx.dcx();
         if self.phase != MirPhase::Lowered {
             return Err(dcx
                 .err(format!(
@@ -234,7 +264,18 @@ impl Module {
                 .span(self.name.span)
                 .emit());
         }
-        crate::mir::analysis::validate_phase(dcx, self, MirPhase::Lowered)?;
+        if recheck || !self.lowered_checked {
+            crate::mir::analysis::validate_phase(
+                dcx,
+                self,
+                MirPhase::Lowered,
+                gcx.sess.is_parallel_codegen(),
+                recheck,
+            )?;
+        }
+        if !gcx.sess.opts.evm_version.has_bitwise_shifting() {
+            crate::mir::analysis::validate_legal_shifts(dcx, self)?;
+        }
         Ok(LoweredModule(self))
     }
 
@@ -353,6 +394,119 @@ impl Module {
     /// Updates the dispatch entry after remapping function IDs.
     pub(crate) fn remap_dispatch_entry(&mut self, entry: Option<FunctionId>) {
         self.dispatch_entry = entry;
+    }
+
+    /// Returns the functions that the runtime entry, a selector, `receive`, or `fallback`
+    /// reaches through calls.
+    #[must_use]
+    pub(crate) fn runtime_reachable_functions(&self) -> DenseBitSet<FunctionId> {
+        let roots = self.dispatch_entry().into_iter().chain(
+            self.functions.iter_enumerated().filter_map(|(id, func)| {
+                (func.selector.is_some()
+                    || func.attributes.is_fallback
+                    || func.attributes.is_receive)
+                    .then_some(id)
+            }),
+        );
+        self.reachable_from(roots)
+    }
+
+    /// Returns the functions that run only during deployment: the constructor and the functions
+    /// it reaches through calls, less those the runtime also reaches. Functions that neither
+    /// artifact roots, which only ad-hoc MIR has, and the functions they reach stay out, because
+    /// no one knows where they run.
+    #[must_use]
+    pub(crate) fn creation_only_functions(&self) -> DenseBitSet<FunctionId> {
+        let constructor = self.reachable_from(
+            self.functions
+                .iter_enumerated()
+                .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
+        );
+        let runtime = self.runtime_reachable_functions();
+        let mut creation = constructor.clone();
+        creation.subtract(&runtime);
+        let mut rooted = constructor;
+        rooted.union(&runtime);
+        let mut unrooted = DenseBitSet::new_filled(self.functions.len());
+        unrooted.subtract(&rooted);
+        creation.subtract(&self.reachable_from(unrooted.iter()));
+        creation
+    }
+
+    /// Returns the creation-only functions that no loop or recursion calls, and the subset of
+    /// those without loops of their own. Their instructions run a bounded number of times, not
+    /// scaled by a trip count, which the creation model's single execution approximates for the
+    /// second set, and for the whole of the first when a transform weighs the function's own
+    /// loops.
+    #[must_use]
+    pub(crate) fn creation_pricing_functions(
+        &self,
+    ) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
+        let creation = self.creation_only_functions();
+        let (looping, repeated) = self.loops_and_repeats(&creation);
+        let mut called_once = creation;
+        called_once.subtract(&repeated);
+        let mut straight = called_once.clone();
+        straight.subtract(&looping);
+        (called_once, straight)
+    }
+
+    /// Returns the functions of `domain` that run more than once per deployment because they
+    /// are recursive, or because a function with a loop, or a recursive one, calls them
+    /// directly or not.
+    #[must_use]
+    pub(crate) fn repeated_functions(
+        &self,
+        domain: &DenseBitSet<FunctionId>,
+    ) -> DenseBitSet<FunctionId> {
+        self.loops_and_repeats(domain).1
+    }
+
+    /// Returns the functions of `domain` with a loop of their own, and those it repeats.
+    fn loops_and_repeats(
+        &self,
+        domain: &DenseBitSet<FunctionId>,
+    ) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
+        let mut looping = DenseBitSet::new_empty(self.functions.len());
+        let mut repeated = DenseBitSet::new_empty(self.functions.len());
+        let mut worklist = Vec::new();
+        for id in domain.iter() {
+            let func = self.function(id);
+            let has_loop = !CfgInfo::new(func).cyclic_blocks().is_empty();
+            let repeats_callees =
+                has_loop || self.reachable_from(direct_callees(func)).contains(id);
+            if has_loop {
+                looping.insert(id);
+            }
+            if repeats_callees {
+                worklist.extend(
+                    direct_callees(func)
+                        .filter(|&callee| domain.contains(callee) && repeated.insert(callee)),
+                );
+            }
+        }
+        while let Some(id) = worklist.pop() {
+            worklist.extend(
+                direct_callees(self.function(id))
+                    .filter(|&callee| domain.contains(callee) && repeated.insert(callee)),
+            );
+        }
+        (looping, repeated)
+    }
+
+    /// Returns `roots` and every function they reach through calls.
+    fn reachable_from(
+        &self,
+        roots: impl IntoIterator<Item = FunctionId>,
+    ) -> DenseBitSet<FunctionId> {
+        let mut reachable = DenseBitSet::new_empty(self.functions.len());
+        let mut worklist = roots.into_iter().filter(|&id| reachable.insert(id)).collect::<Vec<_>>();
+        while let Some(func_id) = worklist.pop() {
+            worklist.extend(
+                direct_callees(self.function(func_id)).filter(|&callee| reachable.insert(callee)),
+            );
+        }
+        reachable
     }
 
     /// Returns the function for the given ID.

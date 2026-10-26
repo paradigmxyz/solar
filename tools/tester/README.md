@@ -3,12 +3,30 @@
 Integration test support for the compiler.
 
 `crates/solar/tests.rs` passes the freshly built `solar` binary to the UI, MIR,
-EVM IR, standard JSON, and upstream compatibility runners. The Foundry runner is
-a separate test in this crate that runs in the workspace's default
+EVM IR, standard JSON, and upstream compatibility runners, and
+`crates/solar/tests/it/foundry.rs` passes it to the Foundry runner. The Foundry runner is
+a separate test that runs in the workspace's default
 `cargo nextest run` and discovers every project under `tests/foundry` with a
 `foundry.toml`. Run one suite with a `cargo tq` alias, such as `cargo tq ui`,
 `cargo tq solc-solidity`, or `cargo tq foundry`. Set `SOLAR_FOUNDRY_PROJECT` to
 run one discovered project.
+
+The Foundry runner runs solc once per project, with the project's own optimizer
+settings, as the baseline. It then runs the compiler at `-O none`, `-O gas`, and
+`-O size`, whatever the project's `foundry.toml` says, and every level must pass
+every test. A level that fails its assertions is named in the output, and the
+other levels are still judged. Set `SOLAR_FOUNDRY_OPTIMIZATION` (see below) to
+run one level, such as `SOLAR_FOUNDRY_OPTIMIZATION=none cargo tq foundry`. Only
+gas use and code size may differ between levels. The gas and size comparisons
+printed for each level are against solc at the project's own optimizer settings,
+which is unoptimized for most projects.
+
+Arguments after a UI-mode suite name (`ui`, `mir`, `evm-ir`, `standard-json`,
+`solc-solidity`, `solc-yul`) filter tests by path substring, as in
+`cargo tq ui tests/ui/typeck` or `cargo bless ui tests/ui/typeck`. Filtered runs
+use `cargo test`, since nextest would read the filters as test names. `cargo t`
+runs every suite and `cargo bless` blesses every UI-mode suite, including
+standard JSON.
 
 ## Runtime directives
 
@@ -86,8 +104,9 @@ checkpoints, required tools, saved reports, and known compiler gaps.
 (morpho-blue, solmate, solady, seaport, openzeppelin-contracts,
 uniswap-v4-core) as a differential suite: both compilers run each project's own
 tests with a fixed fuzz seed, solc's passing tests are the oracle, and artifacts
-are audited for parity. The test is `#[ignore]`d, never runs in CI, and needs
-the network on first use.
+are audited for parity. The compiler leg follows each project's own optimizer
+settings unless `SOLAR_FOUNDRY_OPTIMIZATION` pins a level. The test is
+`#[ignore]`d, never runs in CI, and needs the network on first use.
 
 `tools/tester/src/foundry/external.rs` pins each project to a full commit hash.
 Checkouts in `target/foundry-external/checkouts/` are reused without network. A
@@ -111,6 +130,13 @@ files from `node_modules/hardhat-predeploy/bin` in its checkout. Install
 `hardhat-predeploy@1.0.1` with the version and integrity from that checkout's
 lockfile; the runner grants read access to that directory.
 
+Seaport at `SOLAR_FOUNDRY_OPTIMIZATION=none` fails 16 tests that pass at `gas`
+and `size`. `FuzzInscribers._getStorageSlotForOrderHash` uses `vm.accesses` to
+assert that `getOrderStatus` reads storage with exactly one `SLOAD`, which holds
+only in an optimized build; an unoptimized build reads the packed slot once per
+field. Treat those failures as expected at `none`: the test assumes an
+optimized build.
+
 A green run can still hide tests that fail under both compilers; check the
 reported baseline failures before claiming full coverage.
 
@@ -121,14 +147,23 @@ Environment variables:
   list, for out-of-repo projects. Each `[[project]]` table has `name` and either
   `repo` and `rev` (fetched) or `path` (an existing local directory, relative to
   the manifest). Optional keys: `mode` (`"test"` or `"build"`), `profile`
-  (Foundry profile for both compiler legs), `solc_version` (solc version the
-  compiler leg emulates, needed when sources pin an exact `pragma solidity`),
-  `skip_tests` and `skip_contracts` (arrays of `{ pattern, reason }`; `reason`
-  is required), and `notes`.
-- `SOLAR_FOUNDRY_REPORT_DIR`: also write per-project JSON reports.
-- `SOLAR_FOUNDRY_COMPILER`: Solar executable to use instead of the latest local
-  build; relative paths start at the workspace root. A debug build enables MIR
-  and EVM IR validation by default.
-- `SOLAR_FOUNDRY_OPTIMIZATION`: compile the Solar leg with `none`, `gas`, or
-  `size`, keeping the project's solc optimizer settings, so the unoptimized
-  Solar leg can run projects that need solc's optimizer to compile.
+  (Foundry profile for both compiler legs), `prebuild_profiles` (Foundry
+  profiles each leg builds with its own compiler before `forge test`, for
+  suites that deploy those profiles' artifacts; a leg whose prebuild fails
+  runs no tests), `solc_version` (solc version the compiler leg emulates, needed
+  when sources pin an exact `pragma solidity`), `skip_tests` and
+  `skip_contracts` (arrays of `{ pattern, reason }`; `reason` is required), and
+  `notes`.
+- `SOLAR_FOUNDRY_REPORT_DIR`: also write per-project JSON reports. The `solar`
+  entry maps each optimization level (`none`, `gas`, `size`, or `project` when
+  the project's own settings apply) to its run.
+- `SOLAR_FOUNDRY_SKIP`: skip the default Foundry suite. Without it, a missing
+  `forge` or Solar binary fails the suite instead of passing silently.
+- `SOLAR_FOUNDRY_COMPILER`: Solar executable to use instead of the one Cargo
+  builds for the test; relative paths start at the workspace root. A debug
+  build enables MIR and EVM IR validation by default.
+- `SOLAR_FOUNDRY_OPTIMIZATION`: run only the Solar leg at `none`, `gas`, or
+  `size`, keeping the project's solc optimizer settings for the baseline, so
+  the unoptimized Solar leg can run projects that need solc's optimizer to
+  compile. Without it, the default suite runs all three levels and the external
+  suite follows each project's own settings.

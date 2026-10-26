@@ -5,13 +5,13 @@ since only its target never returns. `wraps` then keeps its call and wins by the
 --- candidate
 fn @wraps(arg0: i256) -> i256 {
   bb0:
-    v0 = shl 2, arg0
+    v0 = shl arg0, 2
     tail_call @helper, v0
 }
 --- candidate
 fn @wraps(arg0: i256) -> i256 {
   bb0:
-    v0 = shl 2, arg0
+    v0 = shl arg0, 2
     v1 = icall @helper, v0
     ret v1
 }
@@ -20,6 +20,6 @@ fn @wraps(arg0: i256) -> i256 {
 --- candidate
 fn @ends(arg0: i256) {
   bb0:
-    v0 = shl 2, arg0
+    v0 = shl arg0, 2
     tail_call @finish, v0
 }

@@ -1,6 +1,6 @@
 //@ revisions: gas size
-//@[gas] compile-flags: -Ogas -Zmir-pipeline=inline-tiny-leaves,cfg-simplify,dce
-//@[size] compile-flags: -Osize -Zmir-pipeline=inline-tiny-leaves,cfg-simplify,dce
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=inline,cfg-simplify,dce
+//@[size] compile-flags: -Osize -Zmir-pipeline=inline,cfg-simplify,dce
 @module ReturnWords
 @types
   struct0: {i256, i256}

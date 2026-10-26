@@ -15,8 +15,7 @@ cargo build                            # Build
 cargo t                                # Run all tests with nextest (preferred)
 cargo nextest run --workspace          # Run tests
 cargo llvm-cov nextest --workspace     # Test coverage
-cargo uitest                           # Run UI tests
-cargo uibless                          # Update UI test expectations
+cargo bless                            # Update all test expectations
 cargo fmt --all                        # Format
 cargo cl                               # Lint
 cargo run -- file.sol                  # Run compiler
@@ -24,7 +23,8 @@ cargo run -- -Zhelp                    # Unstable flags help
 cargo run -p solar-mir-interp -- f.mir # Run lowered MIR in the MIR interpreter
 ```
 
-Filter tests with `cargo uitest <path-substring>` or
+Filter tests with `cargo tq <mode> <path-substring>` (bless with
+`cargo bless <mode> <path-substring>`), and Rust tests with
 `cargo nextest run -p <crate> <test-name>`. Run focused tests while iterating and broader checks once the change settles.
 For documentation-only changes, check prose, examples, and spelling; do not
 build or run tests. Avoid plain `cargo test`.
@@ -128,8 +128,8 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
 
 - Prefer UI tests (`tests/ui/`) over unit tests for end-to-end behavior,
   especially diagnostics, sema, and compiler output.
-- For codegen tests, use `//@ codegen-matrix: standard` (`none`, `gas`, `size`,
-  `mir` revisions) unless it cannot express the test.
+- For codegen tests, use `//@ codegen-matrix: standard` (`mir`, `gas`, `size`
+  revisions) unless it cannot express the test.
 - To test one source under different flags, passes, levels, EVM versions, or
   outputs, use one test with `//@ revisions:` and revision-scoped directives.
   Use separate files only when the source text itself differs in purpose.
@@ -306,10 +306,11 @@ self.dcx()
 
 ### IR construction and rewrites
 
-- Generated MIR scalars are `i1`, `i160`, `i256`, or `memptr`; structs and
-  slices keep their types. `memptr` is opaque, like LLVM's `ptr`: accessing
-  operations carry the layout. Keep source widths, signedness, and ABI encodings
-  in operation or layout metadata.
+- Generated MIR scalars are `i1`, `i160`, `i256`, or `ptr<memory>`; structs
+  and slices keep their types. `ptr<memory>` is opaque, like LLVM's `ptr`:
+  reach object words with `ptradd` and `mload`/`mstore`, never with integer
+  arithmetic. Keep source widths, signedness, and ABI encodings in operation or
+  layout metadata.
 - `iN` names bit width. MIR syntax accepts any positive 32-bit width, but source
   lowering emits only `i1`, `i160`, and `i256`; other widths need EVM IR
   lowering support first.
@@ -326,8 +327,11 @@ self.dcx()
   and does not test for nonzero.
 - Zero tests are `eq v, 0` and `ne v, 0`; `ISZERO` belongs to EVM IR. Rewrites
   keep value and type; bool-to-word needs `zext i1 v to i256`.
-- `memptr` is not an integer; pointer casts do not establish validity,
+- `ptr<memory>` is not an integer; pointer casts do not establish validity,
   provenance, ownership, or non-wrapping arithmetic.
+- Memory pointers are never null: store the zero slot or a default object as a
+  default memory value, never 0, and read pointers without zero guards. See
+  [docs/MIR.md](docs/MIR.md#value-types-and-conversions).
 - Keep raw Solidity bool and address bits as `i256` where assembly can see them;
   convert to `i1` for logic and branches.
 - Put an IR or pseudo-IR comment, in emitted order and one instruction per line
@@ -361,3 +365,10 @@ bytecode size, then compile time and memory; reject changes that only speed up
 compilation. Record a baseline before editing, and follow the
 [local build workflow](benches/runtime/README.md#comparing-local-builds). For
 parser benchmarks, see [benches/README.md](benches/README.md).
+
+- Reuse the frozen baseline's results; do not rerun it.
+- Narrow with `--tests` while iterating.
+- Check output identity with compile-only runs and output fingerprints.
+- Use release binaries for corpus-wide compiles.
+- Make a local WIP commit before scripted bulk edits.
+- Delete your own `target/` and worktree when done; keep evidence elsewhere.

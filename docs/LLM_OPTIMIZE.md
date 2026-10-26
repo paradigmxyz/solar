@@ -133,12 +133,8 @@ interface is a few words the tests can generate:
 
 - an internal function reachable from an entry, not the dispatch entry, an external entry, an ABI
   wrapper, or a function-pointer dispatcher;
-- not recursive, with explicit `iN` or `memptr` parameters and at most one returned word,
+- not recursive, with explicit `iN` or `ptr<memory>` parameters and at most one returned word,
   since the backend passes further results through a memory buffer of its own;
-- outside the constructor, and calling nothing recursive: the backend keeps the frames of such
-  calls on the heap, where a call writes memory above the free memory pointer and, when the
-  callee takes or returns memory, leaves the pointer raised past its frame, neither of which the
-  tests model;
 - at most 256 instructions;
 - only word operations and casts, `select`, phis, `mload`, `mstore`, `mstore8`, `mcopy`,
   `keccak256`, persistent and transient storage, logs, reads of the call and block context other
@@ -179,7 +175,7 @@ Each candidate goes through these stages, and the verdict names the one that rej
 2. **Constraints.** The signature, operations the interpreter runs and the target EVM version
    has, callees, tail calls, and `switch` cases that are distinct constants. A candidate tail
    calls only as `lower-evm-shaped` does: to a function that never returns and is not
-   recursive, from code the constructor does not run. After dead code elimination, the candidate
+   recursive. After dead code elimination, the candidate
    may not keep more values live at once than the original, a bound on the stack pressure the
    cost model cannot see.
 3. **Validation.** The MIR validator checks the candidate's body in place of the original's.
@@ -314,7 +310,7 @@ fn @sumBelow(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = sub arg0, 1
     v1 = mul arg0, v0
-    v2 = shr 1, v1
+    v2 = shr v1, 1
     ret v2
 }
 ```

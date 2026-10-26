@@ -10,7 +10,7 @@
 //! - `word(value)`, `low_bits(value, bits)`, and `sign_extend(value, from, to)`: casts.
 //! - `not_equal(a, b)`, `select(condition, if_true, if_false)`, `phi(incoming)`, `call(callee,
 //!   args)`, and `checked(op, arithmetic, lhs, rhs)`.
-//! - `allocate(size, kind, semantics)`: a fresh memory region, and `data_copy(data, dest, size)`:
+//! - `allocate(size, semantics)`: a fresh memory region, and `data_copy(data, dest, size)`:
 //!   constant data copied to memory.
 //!
 //! [`InstKind::semantics`] returns one instruction's declaration. Tools interpret it instead of
@@ -27,10 +27,11 @@
 //! [`InstKind::semantics`]: super::InstKind::semantics
 
 use super::{
-    AllocationKind, AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef,
-    ValueId,
+    AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, LogTopics,
+    PtrLocation, ValueId,
 };
-use smallvec::SmallVec;
+use crate::backend::evm::op;
+use smallvec::{SmallVec, smallvec};
 
 /// What one MIR operation computes.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -55,10 +56,9 @@ pub(crate) enum Semantics<'a> {
     /// The checked arithmetic operation on the operands, which panics when its result does not
     /// fit the arithmetic type or its divisor is zero.
     Checked(CheckedOp, ArithmeticKind, ValueId, ValueId),
-    /// The address of a fresh memory region of the operand's size, of this kind and with these
-    /// alignment, initialization, and failure rules. Lowering bumps the free memory pointer for
-    /// it, except for the allocations it defers to the backend, which places them in its layout.
-    Allocate(ValueId, &'a AllocationKind, AllocationSemantics),
+    /// The address of a fresh memory region of the operand's size, with these alignment,
+    /// initialization, and failure rules. Lowering bumps the free memory pointer for it.
+    Allocate(ValueId, AllocationSemantics),
     /// The constant data at the reference, copied to memory at the first operand for the second
     /// operand's byte count.
     DataCopy(DataRef, ValueId, ValueId),
@@ -119,12 +119,58 @@ pub(super) mod declare {
     }
 
     /// A fresh memory region.
-    pub(crate) fn allocate<'a>(
-        size: &ValueId,
-        kind: &'a AllocationKind,
-        semantics: &AllocationSemantics,
-    ) -> Semantics<'a> {
-        Semantics::Allocate(*size, kind, *semantics)
+    pub(crate) fn allocate(size: &ValueId, semantics: &AllocationSemantics) -> Semantics<'static> {
+        Semantics::Allocate(*size, *semantics)
+    }
+
+    /// The opcode that loads a word from `location`, which has none for return data.
+    pub(crate) fn load(ptr: &ValueId, location: &PtrLocation) -> Option<Semantics<'static>> {
+        let opcode = match location {
+            PtrLocation::Memory => op::MLOAD,
+            PtrLocation::Calldata => op::CALLDATALOAD,
+            PtrLocation::Returndata => return None,
+            PtrLocation::Storage => op::SLOAD,
+            PtrLocation::Transient => op::TLOAD,
+        };
+        Some(Semantics::Opcode(opcode, smallvec![*ptr]))
+    }
+
+    /// The opcode that stores a word to `location`, which only memory and the two storages allow.
+    pub(crate) fn store(
+        ptr: &ValueId,
+        value: &ValueId,
+        location: &PtrLocation,
+    ) -> Option<Semantics<'static>> {
+        let opcode = match location {
+            PtrLocation::Memory => op::MSTORE,
+            PtrLocation::Storage => op::SSTORE,
+            PtrLocation::Transient => op::TSTORE,
+            PtrLocation::Calldata | PtrLocation::Returndata => return None,
+        };
+        Some(Semantics::Opcode(opcode, smallvec![*ptr, *value]))
+    }
+
+    /// The opcode that copies `len` bytes from `location` to memory, which storage lacks.
+    pub(crate) fn copy(
+        dest: &ValueId,
+        src: &ValueId,
+        len: &ValueId,
+        location: &PtrLocation,
+    ) -> Option<Semantics<'static>> {
+        let opcode = match location {
+            PtrLocation::Memory => op::MCOPY,
+            PtrLocation::Calldata => op::CALLDATACOPY,
+            PtrLocation::Returndata => op::RETURNDATACOPY,
+            PtrLocation::Storage | PtrLocation::Transient => return None,
+        };
+        Some(Semantics::Opcode(opcode, smallvec![*dest, *src, *len]))
+    }
+
+    /// The `LOGn` opcode for `n` topics.
+    pub(crate) fn log(offset: &ValueId, size: &ValueId, topics: &LogTopics) -> Semantics<'static> {
+        let mut operands = smallvec![*offset, *size];
+        operands.extend_from_slice(topics.as_slice());
+        Semantics::Opcode(op::LOG0 + topics.len() as u8, operands)
     }
 
     /// Constant data copied to memory.

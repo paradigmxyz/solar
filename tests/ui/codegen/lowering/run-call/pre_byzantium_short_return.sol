@@ -71,7 +71,7 @@ contract ShortReturns {
     // the selector, and the store to the scratch word below the heap is not part of it.
     // HOMESTEAD-LABEL: fn @emptySingle
     // HOMESTEAD: mstore 0, 42
-    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: call {{v[0-9]+}}, {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 32
     function emptySingle() external returns (uint256) {
         assembly {
@@ -86,7 +86,7 @@ contract ShortReturns {
     }
 
     // HOMESTEAD-LABEL: fn @emptyPair
-    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: call {{v[0-9]+}}, {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64
     function emptyPair() external returns (uint256, uint256) {
         assembly {
@@ -100,10 +100,10 @@ contract ShortReturns {
     // read, so the call is not charged the expansion out of what it withholds.
     // HOMESTEAD-LABEL: fn @emptyFour
     // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
-    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
+    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint ptr<memory> [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 128
     // HOMESTEAD: mstore [[ABOVE]], 0
-    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
     // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 128
@@ -114,13 +114,12 @@ contract ShortReturns {
     // An aggregate return decodes out of a buffer taken before the arguments, so the copy out of
     // the overlaid area cannot run into memory the decoding allocates above it.
     // HOMESTEAD-LABEL: fn @emptyAgg
-    // HOMESTEAD: [[BUFFER:v[0-9]+]] = alloc memorybytes
-    // HOMESTEAD: [[DATA_PTR:v[0-9]+]] = memory_object_data memorybytes, [[BUFFER]]
-    // HOMESTEAD: [[DATA:v[0-9]+]] = ptrtoint memptr [[DATA_PTR]] to i256
-    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[BUFFER:v[0-9]+]] = alloc 64{{$}}
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: call {{v[0-9]+}}, {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64
-    // HOMESTEAD: mcopy [[DATA]], [[INPUT]], 64
-    // HOMESTEAD: abi_decode {{.*}}, [[BUFFER]]
+    // HOMESTEAD: mcopy [[BUFFER]], [[INPUT]], 64
+    // HOMESTEAD: [[SLICE:v[0-9]+]] = make_memory_slice [[BUFFER]], 64
+    // HOMESTEAD: abi_decode {{.*}}, [[SLICE]]
     function emptyAgg() external returns (uint256[2] memory) {
         return Target(address(this)).agg();
     }
@@ -146,10 +145,10 @@ contract ShortReturns {
     // inside the area would hand back zeros where solc hands back the assembly's writes.
     // HOMESTEAD-LABEL: fn @dirtyFour
     // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
-    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
+    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint ptr<memory> [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 128
     // HOMESTEAD: mstore [[ABOVE]], 0
-    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: call {{.*}}, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 128
     function dirtyFour() external returns (uint256, uint256, uint256, uint256) {
         assembly {

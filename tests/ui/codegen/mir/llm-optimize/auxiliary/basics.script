@@ -4,7 +4,7 @@ Scripted candidates for `basics.mir`.
 --- candidate
 fn @pow2(arg0: i256) -> i256 {
   bb0:
-    v0 = shl arg0, 1
+    v0 = shl 1, arg0
     ret v0
 }
 

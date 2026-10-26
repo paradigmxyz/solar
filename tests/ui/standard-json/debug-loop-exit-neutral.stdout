@@ -21,19 +21,19 @@
       "A": {
         "evm": {
           "bytecode": {
-            "object": "60c06040523460125760358060165f395ff35b5f5ffd346031575f3560e01c80633c311f3c03603157602436106031576004355b6001900380601d5760010160805260206080f35b5f5ffd",
-            "sourceMap": ":::-:0;;;;;;;;;;;;;;;;"
+            "object": "34600d5760338060115f395ff35b5f5ffd34602f575f3560e01c80633c311f3c03602f5760243610602f576004355b6001900380601d576001015f5260205ff35b5f5ffd",
+            "sourceMap": ":::-:0;;;;;;;;;;;;;"
           },
           "deployedBytecode": {
-            "object": "346031575f3560e01c80633c311f3c03603157602436106031576004355b6001900380601d5760010160805260206080f35b5f5ffd",
-            "sourceMap": ":::-:0;;;;;;;;;;;;;;;;;;;;180:9:0;;;209;206:22;;-1:-1:-1;;20:238:0;;;;;-1:-1:-1;;;"
+            "object": "34602f575f3560e01c80633c311f3c03602f5760243610602f576004355b6001900380601d576001015f5260205ff35b5f5ffd",
+            "sourceMap": ":::-:0;;;;;;;;;;;;;;;;;131:111:0;;-1:-1:-1;180:9:0;;;206:22;;;-1:-1:-1;;20:238:0;;;;;-1:-1:-1;;;"
           }
         }
       },
       "B": {
         "evm": {
           "bytecode": {
-            "object": "60c06040523460125760358060165f395ff35b5f5ffd346031575f3560e01c80633c311f3c03603157602436106031576004355b6001900380601d5760010160805260206080f35b5f5ffd",
+            "object": "34600d5760338060115f395ff35b5f5ffd34602f575f3560e01c80633c311f3c03602f5760243610602f576004355b6001900380601d576001015f5260205ff35b5f5ffd",
             "ethdebug": {
               "compilation": {
                 "id": "solar-COMPILATION_ID"
@@ -55,70 +55,76 @@
                 {
                   "offset": 0,
                   "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0xc0"
-                    ]
-                  }
-                },
-                {
-                  "offset": 2,
-                  "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0x40"
-                    ]
-                  }
-                },
-                {
-                  "offset": 4,
-                  "operation": {
-                    "mnemonic": "MSTORE"
-                  }
-                },
-                {
-                  "offset": 5,
-                  "operation": {
                     "mnemonic": "CALLVALUE"
                   }
                 },
                 {
-                  "offset": 6,
+                  "offset": 1,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x12"
+                      "0x0d"
                     ]
                   }
                 },
                 {
-                  "offset": 8,
+                  "offset": 3,
                   "operation": {
                     "mnemonic": "JUMPI"
                   }
                 },
                 {
-                  "offset": 9,
+                  "offset": 4,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x35"
+                      "0x33"
                     ]
                   }
                 },
                 {
-                  "offset": 11,
+                  "offset": 6,
                   "operation": {
                     "mnemonic": "DUP1"
                   }
                 },
                 {
-                  "offset": 12,
+                  "offset": 7,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x16"
+                      "0x11"
                     ]
+                  }
+                },
+                {
+                  "offset": 9,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
+                  "offset": 10,
+                  "operation": {
+                    "mnemonic": "CODECOPY"
+                  }
+                },
+                {
+                  "offset": 11,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
+                  "offset": 12,
+                  "operation": {
+                    "mnemonic": "RETURN"
+                  }
+                },
+                {
+                  "offset": 13,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
                   }
                 },
                 {
@@ -130,41 +136,11 @@
                 {
                   "offset": 15,
                   "operation": {
-                    "mnemonic": "CODECOPY"
+                    "mnemonic": "PUSH0"
                   }
                 },
                 {
                   "offset": 16,
-                  "operation": {
-                    "mnemonic": "PUSH0"
-                  }
-                },
-                {
-                  "offset": 17,
-                  "operation": {
-                    "mnemonic": "RETURN"
-                  }
-                },
-                {
-                  "offset": 18,
-                  "operation": {
-                    "mnemonic": "JUMPDEST"
-                  }
-                },
-                {
-                  "offset": 19,
-                  "operation": {
-                    "mnemonic": "PUSH0"
-                  }
-                },
-                {
-                  "offset": 20,
-                  "operation": {
-                    "mnemonic": "PUSH0"
-                  }
-                },
-                {
-                  "offset": 21,
                   "operation": {
                     "mnemonic": "REVERT"
                   }
@@ -173,7 +149,7 @@
             }
           },
           "deployedBytecode": {
-            "object": "346031575f3560e01c80633c311f3c03603157602436106031576004355b6001900380601d5760010160805260206080f35b5f5ffd",
+            "object": "34602f575f3560e01c80633c311f3c03602f5760243610602f576004355b6001900380601d576001015f5260205ff35b5f5ffd",
             "ethdebug": {
               "compilation": {
                 "id": "solar-COMPILATION_ID"
@@ -203,7 +179,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x31"
+                      "0x2f"
                     ]
                   }
                 },
@@ -266,7 +242,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x31"
+                      "0x2f"
                     ]
                   }
                 },
@@ -302,7 +278,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x31"
+                      "0x2f"
                     ]
                   }
                 },
@@ -319,12 +295,34 @@
                     "arguments": [
                       "0x04"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 131,
+                        "length": 111
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 28,
                   "operation": {
                     "mnemonic": "CALLDATALOAD"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 131,
+                        "length": 111
+                      }
+                    }
                   }
                 },
                 {
@@ -398,8 +396,8 @@
                         "id": 0
                       },
                       "range": {
-                        "offset": 209,
-                        "length": 9
+                        "offset": 206,
+                        "length": 22
                       }
                     }
                   }
@@ -459,10 +457,7 @@
                 {
                   "offset": 41,
                   "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0x80"
-                    ]
+                    "mnemonic": "PUSH0"
                   },
                   "context": {
                     "code": {
@@ -477,7 +472,7 @@
                   }
                 },
                 {
-                  "offset": 43,
+                  "offset": 42,
                   "operation": {
                     "mnemonic": "MSTORE"
                   },
@@ -494,7 +489,7 @@
                   }
                 },
                 {
-                  "offset": 44,
+                  "offset": 43,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -514,12 +509,9 @@
                   }
                 },
                 {
-                  "offset": 46,
+                  "offset": 45,
                   "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0x80"
-                    ]
+                    "mnemonic": "PUSH0"
                   },
                   "context": {
                     "code": {
@@ -534,7 +526,7 @@
                   }
                 },
                 {
-                  "offset": 48,
+                  "offset": 46,
                   "operation": {
                     "mnemonic": "RETURN"
                   },
@@ -552,25 +544,25 @@
                   }
                 },
                 {
-                  "offset": 49,
+                  "offset": 47,
                   "operation": {
                     "mnemonic": "JUMPDEST"
                   }
                 },
                 {
+                  "offset": 48,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
+                  "offset": 49,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
                   "offset": 50,
-                  "operation": {
-                    "mnemonic": "PUSH0"
-                  }
-                },
-                {
-                  "offset": 51,
-                  "operation": {
-                    "mnemonic": "PUSH0"
-                  }
-                },
-                {
-                  "offset": 52,
                   "operation": {
                     "mnemonic": "REVERT"
                   },
@@ -586,10 +578,10 @@
       "C": {
         "evm": {
           "bytecode": {
-            "object": "60c06040523460125760358060165f395ff35b5f5ffd346031575f3560e01c80633c311f3c03603157602436106031576004355b6001900380601d5760010160805260206080f35b5f5ffd"
+            "object": "34600d5760338060115f395ff35b5f5ffd34602f575f3560e01c80633c311f3c03602f5760243610602f576004355b6001900380601d576001015f5260205ff35b5f5ffd"
           },
           "deployedBytecode": {
-            "object": "346031575f3560e01c80633c311f3c03603157602436106031576004355b6001900380601d5760010160805260206080f35b5f5ffd"
+            "object": "34602f575f3560e01c80633c311f3c03602f5760243610602f576004355b6001900380601d576001015f5260205ff35b5f5ffd"
           }
         }
       }

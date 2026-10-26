@@ -1,13 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/library_delegatecall_guard.sol:Lib ===
 @module Lib
 @library
-@types
-  struct0: {i256, i256}
-
 @immutables
   library_deploy_address: address
 
-fn @bump(arg0: i256, arg1: i256) -> i256 [selector=0x14f9a01b, abi_params=[storageptr, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @bump(arg0: i256, arg1: i256) -> i256 [selector=0x14f9a01b, abi_params=[storageptr, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = gt v0, 0xffffffffffffffff
@@ -21,25 +18,23 @@ fn @bump(arg0: i256, arg1: i256) -> i256 [selector=0x14f9a01b, abi_params=[stora
     ret v5
 }
 
-fn @peek(arg0: i256) -> i256 [selector=0xcbdd72a4, view, abi_params=[storageptr], abi_returns=[word], abi_return_params=[u256]] {
+fn @peek(arg0: i256) -> i256 [selector=0xcbdd72a4, view, abi_params=[storageptr], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     ret v0
 }
 
-fn @twice(arg0: i256) -> i256 [selector=0x3cf3bbf4, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @twice(arg0: i256) -> i256 [selector=0x3cf3bbf4, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_mul u256, 2, arg0
+    v0 = checked_mul uint256, 2, arg0
     ret v0
 }
 
-fn @probe() -> struct0 [selector=0xb74af5a9, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @probe() -> i256 [selector=0xb74af5a9, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = msize
     v1 = mload 128
-    v2 = insert_value struct0, undef struct0, 0, v0
-    v3 = insert_value struct0, v2, 1, v1
-    ret v3
+    ret v1
 }
 
 fn @constructor() [constructor] {

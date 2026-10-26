@@ -1,6 +1,6 @@
 //! Lowering from block EVM IR to its finalized layout-linear form.
 
-use super::{AsmInst, AsmInstKind, Program, indexed_jump};
+use super::{AsmInst, AsmInstKind, Program, TablePacking, indexed_jump};
 use crate::{
     backend::{
         assembler::{ArtifactKind, Assembler, Label, OptimizedProgram, PreparedAssembly},
@@ -24,7 +24,6 @@ impl Assembler<'_> {
     )]
     pub(in crate::backend) fn optimize(&mut self) {
         let Some((mut program, labels)) = self.finish_evm_ir() else { return };
-        ir::builder::resolve_known_deferred_constants(&mut program, &self.deferred_values);
         let failed = !self.run_pipeline(&mut program);
         self.optimized = Some(OptimizedProgram { program, labels, failed });
     }
@@ -43,7 +42,7 @@ impl Assembler<'_> {
             !input_is_valid || ir::verify::Verifier::is_valid(program),
             "EVM IR pipeline invalidated a valid module"
         );
-        let _legalized = ir::legalize_shifts(self.gcx, program);
+        let _legalized = ir::legalize_revert(self.gcx, program);
         if !succeeded() {
             return false;
         }
@@ -89,14 +88,7 @@ impl Assembler<'_> {
         };
         self.block_labels = labels;
         self.block_labels.clear();
-        PreparedAssembly {
-            evm_ir,
-            program,
-            push_values: std::mem::take(&mut self.push_values),
-            immutable_pushes: std::mem::take(&mut self.immutable_pushes),
-            next_label: std::mem::take(&mut self.next_label),
-            deferred_values: std::mem::take(&mut self.deferred_values),
-        }
+        PreparedAssembly { evm_ir, program }
     }
 }
 
@@ -156,13 +148,13 @@ pub(in crate::backend) fn lower_evm_ir(
     let (mut indexed_jump_lowerings, mut tables) = indexed_jump::materialize_tables_with_metadata(
         module,
         assembler.gcx.sess.opts.evm_version,
-        assembler.gcx.sess.opts.optimization.is_size(),
+        TablePacking::new(&assembler.gcx.sess.opts),
     );
     indexed_jump::initialize_indexed_jump_widths(
         &mut indexed_jump_lowerings,
         &tables,
         assembler.gcx.sess.opts.evm_version,
-        assembler.gcx.sess.opts.optimization.is_size(),
+        TablePacking::new(&assembler.gcx.sess.opts),
     );
     let data_layout_is_observable = module.data_layout_is_observable();
     for _ in 0..=32 {
@@ -186,7 +178,7 @@ pub(in crate::backend) fn lower_evm_ir(
             labels,
             &label_offsets,
             assembler.gcx.sess.opts.evm_version,
-            assembler.gcx.sess.opts.optimization.is_size(),
+            TablePacking::new(&assembler.gcx.sess.opts),
         ) {
             return program;
         }
@@ -364,9 +356,7 @@ fn lower_instruction(
     module: &ir::Module,
     labels: &mut Vec<Option<Label>>,
 ) {
-    let inst = if let Some(id) = inst.deferred_push() {
-        AsmInst::push_deferred(id)
-    } else if let Some(id) = inst.immutable_push() {
+    let inst = if let Some(id) = inst.immutable_push() {
         let type_size = inst.immutable_type_size().expect("validated immutable width");
         assembler.immutable_push_inst(id, type_size)
     } else if inst.is_encoded_push() {

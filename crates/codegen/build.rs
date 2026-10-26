@@ -5,7 +5,6 @@ use std::{env, fs, path::PathBuf};
 /// Rule sets and the ISLE files each one is compiled from, prelude first.
 const RULE_SETS: &[(&str, &[&str])] = &[
     ("select", &["mir/prelude.isle", "evm-ir/prelude.isle", "mir-to-evm/select.isle"]),
-    ("stack_select", &["mir/prelude.isle", "mir/extractors.isle", "mir-to-evm/stack_select.isle"]),
     (
         "egraph",
         &[
@@ -64,6 +63,11 @@ fn main() {
         ..Default::default()
     };
     for (name, files) in RULE_SETS {
+        // `select` runs per candidate inside the cost model and the inliner, so it stays silent.
+        let options = cranelift_isle::codegen::CodegenOptions {
+            emit_logging: *name != "select",
+            ..options.clone()
+        };
         let inputs: Vec<PathBuf> = files.iter().map(|file| isle_dir.join(file)).collect();
         for input in &inputs {
             println!("cargo:rerun-if-changed={}", input.display());

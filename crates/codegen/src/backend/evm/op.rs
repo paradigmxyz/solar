@@ -6,6 +6,7 @@
 
 use crate::target::GasTier;
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_interface::Symbol;
 
@@ -35,6 +36,15 @@ impl OpcodeTraits {
     pub(crate) const WRITES_STORAGE: Self = Self(1 << 3);
     /// The operation halts or unconditionally transfers control.
     pub(crate) const TERMINAL: Self = Self(1 << 4);
+    /// The operation depends on the gas left: `GAS` reads it, calls and creates forward all but
+    /// a 64th of it, and `SSTORE` fails unless more than the 2,300-gas call stipend remains. Work
+    /// that moves before it changes what it sees.
+    pub(crate) const OBSERVES_GAS: Self = Self(1 << 5);
+    /// The operation only reads the executing call's context: the result touches no memory,
+    /// storage, or other account, and the operation has no effect besides its static gas, so an
+    /// unused result can be dropped. Account, storage and memory reads are not context reads:
+    /// they warm what they touch or expand memory.
+    pub(crate) const CONTEXT_READ: Self = Self(1 << 6);
 
     /// Returns the union of two property sets.
     pub(crate) const fn union(self, other: Self) -> Self {
@@ -378,45 +388,47 @@ opcodes! {
     0x1d => SAR => sar => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(since Constantinople) => eval(sar);
     0x1e => CLZ => clz => stack_io(1, 1) => traits(PURE) => gas(low) => available(since Osaka) => result_bits(9) => eval(clz);
     0x20 => KECCAK256 => keccak256 => stack_io(2, 1) => traits() => gas(keccak) => available(legacy);
-    0x30 => ADDRESS => address => stack_io(0, 1) => traits() => gas(base) => available(legacy) => result_bits(160);
+    0x30 => ADDRESS => address => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(160);
     0x31 => BALANCE => balance => stack_io(1, 1) => traits() => gas(balance) => available(legacy) => input_bits(160);
-    0x32 => ORIGIN => origin => stack_io(0, 1) => traits() => gas(base) => available(legacy) => result_bits(160);
-    0x33 => CALLER => caller => stack_io(0, 1) => traits() => gas(base) => available(legacy) => result_bits(160);
-    0x34 => CALLVALUE => callvalue => stack_io(0, 1) => traits() => gas(base) => available(legacy);
-    0x35 => CALLDATALOAD => calldataload => stack_io(1, 1) => traits() => gas(verylow) => available(legacy);
-    0x36 => CALLDATASIZE => calldatasize => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x32 => ORIGIN => origin => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(160);
+    0x33 => CALLER => caller => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(160);
+    0x34 => CALLVALUE => callvalue => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
+    0x35 => CALLDATALOAD => calldataload => stack_io(1, 1) => traits(CONTEXT_READ) => gas(verylow) => available(legacy);
+    // Calldata and code lengths are gas-bounded, even before code-size caps, and fit in 64 bits.
+    0x36 => CALLDATASIZE => calldatasize => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(64);
     0x37 => CALLDATACOPY => calldatacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(legacy);
-    0x38 => CODESIZE => codesize => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x38 => CODESIZE => codesize => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(64);
     0x39 => CODECOPY => codecopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(legacy);
-    0x3a => GASPRICE => gasprice => stack_io(0, 1) => traits() => gas(base) => available(legacy);
-    0x3b => EXTCODESIZE => extcodesize => stack_io(1, 1) => traits() => gas(extcode) => available(legacy) => input_bits(160);
+    0x3a => GASPRICE => gasprice => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
+    0x3b => EXTCODESIZE => extcodesize => stack_io(1, 1) => traits() => gas(extcode) => available(legacy) => result_bits(64) => input_bits(160);
     0x3c => EXTCODECOPY => extcodecopy => stack_io(4, 0) => traits(WRITES_MEMORY) => gas(extcode) => available(legacy) => input_bits(160);
-    0x3d => RETURNDATASIZE => returndatasize => stack_io(0, 1) => traits() => gas(base) => available(since Byzantium);
+    // Return data comes from gas-bounded EVM memory or precompile output, so its length fits in 64 bits.
+    0x3d => RETURNDATASIZE => returndatasize => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(since Byzantium) => result_bits(64);
     0x3e => RETURNDATACOPY => returndatacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(since Byzantium);
     0x3f => EXTCODEHASH => extcodehash => stack_io(1, 1) => traits() => gas(extcodehash) => available(since Constantinople) => input_bits(160);
     0x40 => BLOCKHASH => blockhash => stack_io(1, 1) => traits() => gas(blockhash) => available(legacy);
-    0x41 => COINBASE => coinbase => stack_io(0, 1) => traits() => gas(base) => available(legacy) => result_bits(160);
-    0x42 => TIMESTAMP => timestamp => stack_io(0, 1) => traits() => gas(base) => available(legacy);
-    0x43 => NUMBER => number => stack_io(0, 1) => traits() => gas(base) => available(legacy);
-    0x44 => PREVRANDAO => prevrandao => stack_io(0, 1) => traits() => gas(base) => available(legacy);
-    0x45 => GASLIMIT => gaslimit => stack_io(0, 1) => traits() => gas(base) => available(legacy);
-    0x46 => CHAINID => chainid => stack_io(0, 1) => traits() => gas(base) => available(since Istanbul);
-    0x47 => SELFBALANCE => selfbalance => stack_io(0, 1) => traits() => gas(low) => available(since Istanbul);
-    0x48 => BASEFEE => basefee => stack_io(0, 1) => traits() => gas(base) => available(since London);
-    0x49 => BLOBHASH => blobhash => stack_io(1, 1) => traits() => gas(verylow) => available(since Cancun);
-    0x4a => BLOBBASEFEE => blobbasefee => stack_io(0, 1) => traits() => gas(base) => available(since Cancun);
+    0x41 => COINBASE => coinbase => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(160);
+    0x42 => TIMESTAMP => timestamp => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
+    0x43 => NUMBER => number => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
+    0x44 => PREVRANDAO => prevrandao => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
+    0x45 => GASLIMIT => gaslimit => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
+    0x46 => CHAINID => chainid => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(since Istanbul);
+    0x47 => SELFBALANCE => selfbalance => stack_io(0, 1) => traits(CONTEXT_READ) => gas(low) => available(since Istanbul);
+    0x48 => BASEFEE => basefee => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(since London);
+    0x49 => BLOBHASH => blobhash => stack_io(1, 1) => traits(CONTEXT_READ) => gas(verylow) => available(since Cancun);
+    0x4a => BLOBBASEFEE => blobbasefee => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(since Cancun);
     0x4b => SLOTNUM => slotnum => stack_io(0, 1) => traits() => gas(base) => available(slot_num);
     0x50 => POP => pop => stack_io(1, 0) => traits() => gas(base) => available(legacy) => input_bits(0);
     0x51 => MLOAD => mload => stack_io(1, 1) => traits() => gas(verylow) => available(legacy);
     0x52 => MSTORE => mstore => stack_io(2, 0) => traits(WRITES_MEMORY) => gas(verylow) => available(legacy);
     0x53 => MSTORE8 => mstore8 => stack_io(2, 0) => traits(WRITES_MEMORY) => gas(verylow) => available(legacy) => input_bits(256, 8);
     0x54 => SLOAD => sload => stack_io(1, 1) => traits() => gas(sload) => available(legacy);
-    0x55 => SSTORE => sstore => stack_io(2, 0) => traits(WRITES_STORAGE) => gas(sstore) => available(legacy);
+    0x55 => SSTORE => sstore => stack_io(2, 0) => traits(WRITES_STORAGE | OBSERVES_GAS) => gas(sstore) => available(legacy);
     0x56 => JUMP => jump => stack_io(1, 0) => traits(TERMINAL) => gas(mid) => available(legacy);
     0x57 => JUMPI => jumpi => stack_io(2, 0) => traits() => gas(high) => available(legacy);
-    0x58 => PC => pc => stack_io(0, 1) => traits() => gas(base) => available(legacy);
-    0x59 => MSIZE => msize => stack_io(0, 1) => traits() => gas(base) => available(legacy);
-    0x5a => GAS => gas => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x58 => PC => pc => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
+    0x59 => MSIZE => msize => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
+    0x5a => GAS => gas => stack_io(0, 1) => traits(CONTEXT_READ | OBSERVES_GAS) => gas(base) => available(legacy);
     0x5b => JUMPDEST => jumpdest => stack_io(0, 0) => traits() => gas(jumpdest) => available(legacy);
     0x5c => TLOAD => tload => stack_io(1, 1) => traits() => gas(transient) => available(since Cancun);
     0x5d => TSTORE => tstore => stack_io(2, 0) => traits(WRITES_STORAGE) => gas(transient) => available(since Cancun);
@@ -494,13 +506,13 @@ opcodes! {
     0xe6 => DUPN => dupn => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
     0xe7 => SWAPN => swapn => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
     0xe8 => EXCHANGE => exchange => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
-    0xf0 => CREATE => create => stack_io(3, 1) => traits(WRITES_STORAGE) => gas(create) => available(legacy) => result_bits(160);
-    0xf1 => CALL => call => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
-    0xf2 => CALLCODE => callcode => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
+    0xf0 => CREATE => create => stack_io(3, 1) => traits(WRITES_STORAGE | OBSERVES_GAS) => gas(create) => available(legacy) => result_bits(160);
+    0xf1 => CALL => call => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
+    0xf2 => CALLCODE => callcode => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
     0xf3 => RETURN => r#return => stack_io(2, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
-    0xf4 => DELEGATECALL => delegatecall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
-    0xf5 => CREATE2 => create2 => stack_io(4, 1) => traits(WRITES_STORAGE) => gas(create) => available(since Constantinople) => result_bits(160);
-    0xfa => STATICCALL => staticcall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(since Byzantium) => result_bits(1) => input_bits(256, 160);
+    0xf4 => DELEGATECALL => delegatecall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
+    0xf5 => CREATE2 => create2 => stack_io(4, 1) => traits(WRITES_STORAGE | OBSERVES_GAS) => gas(create) => available(since Constantinople) => result_bits(160);
+    0xfa => STATICCALL => staticcall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS) => gas(call) => available(since Byzantium) => result_bits(1) => input_bits(256, 160);
     0xfd => REVERT => revert => stack_io(2, 0) => traits(TERMINAL) => gas(zero) => available(since Byzantium);
     0xfe => INVALID => invalid => stack_io(0, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
     0xff => SELFDESTRUCT => selfdestruct => stack_io(1, 0) => traits(TERMINAL) => gas(selfdestruct) => available(legacy) => input_bits(160);
@@ -548,6 +560,12 @@ impl OpDef {
         self.traits.contains(OpcodeTraits::PURE)
     }
 
+    /// Returns whether this operation only reads the executing call's context.
+    #[must_use]
+    pub(crate) const fn is_context_read(self) -> bool {
+        self.traits.contains(OpcodeTraits::CONTEXT_READ)
+    }
+
     /// Returns whether this operation may write to memory.
     #[must_use]
     pub(crate) const fn writes_memory(self) -> bool {
@@ -558,6 +576,23 @@ impl OpDef {
     #[must_use]
     pub(crate) const fn writes_storage(self) -> bool {
         self.traits.contains(OpcodeTraits::WRITES_STORAGE)
+    }
+
+    /// Returns whether this operation depends on the gas left.
+    #[must_use]
+    pub(crate) const fn observes_gas(self) -> bool {
+        self.traits.contains(OpcodeTraits::OBSERVES_GAS)
+    }
+
+    /// Returns whether this operation behaves the same wherever it runs: it has a fixed stack
+    /// effect and neither transfers control nor observes its code position or the gas left. Code
+    /// may move such an operation to another position, such as a shared body or a copied tail.
+    #[must_use]
+    pub(crate) const fn is_position_independent(self) -> bool {
+        self.stack_io.is_some()
+            && !self.is_terminal()
+            && !self.observes_gas()
+            && !matches!(self.opcode, JUMPI | JUMPDEST | PC)
     }
 }
 
@@ -797,6 +832,26 @@ impl StackOp {
         let op = Self::Exchange(n, m);
         if op.is_valid() { Some(op) } else { None }
     }
+
+    /// Matches a cycle through the top that leaves the top in place, `SWAPa SWAPb1 ... SWAPbj
+    /// SWAPa` with at least one inner swap, at the start of `ops`. Returns the equivalent
+    /// `EXCHANGE a, b1 ... EXCHANGE a, bj` and the number of operations matched.
+    pub(crate) fn exchange_cycle(
+        ops: impl IntoIterator<Item = Self>,
+    ) -> Option<(SmallVec<[Self; 4]>, usize)> {
+        let mut ops = ops.into_iter();
+        let Some(Self::Swap(first)) = ops.next() else { return None };
+        let mut exchanges = SmallVec::new();
+        for op in ops {
+            let Self::Swap(depth) = op else { return None };
+            if depth == first {
+                let len = exchanges.len() + 2;
+                return (len > 2).then_some((exchanges, len));
+            }
+            exchanges.push(Self::from_swaps(first, depth, first)?);
+        }
+        None
+    }
 }
 
 /// Encodes the immediate used by `DUPN` and `SWAPN`.
@@ -884,45 +939,33 @@ pub(crate) const fn is_pure(op: u8) -> bool {
     }
 }
 
+/// Returns whether an opcode only reads the executing call's context, with no effect besides its
+/// static gas, so an unused result can be dropped.
+#[must_use]
+pub(crate) const fn is_context_read(op: u8) -> bool {
+    match definition(op) {
+        Some(definition) => definition.is_context_read(),
+        None => false,
+    }
+}
+
 /// Returns whether inserting a push immediately before this opcode preserves its behavior.
 ///
-/// This includes opcodes that expand memory or warm an account or storage slot because the push
-/// does not affect those changes. Position and gas observations are excluded.
+/// This holds for position-independent operations that produce one word without writing state.
+/// It includes opcodes that expand memory or warm an account or storage slot because the push does
+/// not affect those changes.
 #[must_use]
 pub(crate) const fn is_unaffected_by_preceding_push(op: u8) -> bool {
-    is_pure(op)
-        || matches!(
-            op,
-            KECCAK256
-                | ADDRESS
-                | BALANCE
-                | ORIGIN
-                | CALLER
-                | CALLVALUE
-                | CALLDATALOAD
-                | CALLDATASIZE
-                | CODESIZE
-                | GASPRICE
-                | EXTCODESIZE
-                | RETURNDATASIZE
-                | EXTCODEHASH
-                | BLOCKHASH
-                | COINBASE
-                | TIMESTAMP
-                | NUMBER
-                | PREVRANDAO
-                | GASLIMIT
-                | CHAINID
-                | SELFBALANCE
-                | BASEFEE
-                | BLOBHASH
-                | BLOBBASEFEE
-                | MLOAD
-                | SLOAD
-                | MSIZE
-                | TLOAD
-                | PUSH0
-        )
+    match definition(op) {
+        Some(definition) => {
+            definition.is_position_independent()
+                && matches!(definition.stack_io, Some((_, 1)))
+                && !definition.writes_memory()
+                && !definition.writes_storage()
+                && !matches!(op, PUSH1..=PUSH32)
+        }
+        None => false,
+    }
 }
 
 /// Returns whether an opcode may write to memory, invalidating cached memory reads.
@@ -942,6 +985,20 @@ pub(crate) const fn writes_storage(op: u8) -> bool {
         Some(definition) => definition.writes_storage(),
         None => false,
     }
+}
+
+/// Returns whether an opcode reads nothing but its operands and calldata, so it gives the same
+/// result wherever it runs within a transaction's frame.
+#[must_use]
+pub(crate) const fn reads_only_operands_or_calldata(op: u8) -> bool {
+    is_pure(op) || matches!(op, CALLDATALOAD | CALLDATASIZE)
+}
+
+/// Returns whether an opcode is a memory or storage load or store, or `KECCAK256`: an access
+/// whose only effect is on the words it names.
+#[must_use]
+pub(crate) const fn is_plain_access(op: u8) -> bool {
+    matches!(op, MLOAD | MSTORE | MSTORE8 | SLOAD | SSTORE | TLOAD | TSTORE | KECCAK256)
 }
 
 #[cfg(test)]
@@ -1021,6 +1078,8 @@ mod tests {
                 ("writes_memory", def.writes_memory()),
                 ("writes_storage", def.writes_storage()),
                 ("terminal", def.is_terminal()),
+                ("observes_gas", def.observes_gas()),
+                ("context_read", def.is_context_read()),
             ];
             for (name, set) in traits {
                 if set {

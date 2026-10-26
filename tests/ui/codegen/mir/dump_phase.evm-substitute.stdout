@@ -2,8 +2,6 @@
 @module DumpPhase_runtime
 bb0:
   callvalue
-  iszero
-  iszero
   push bb3
   jumpi
   jump bb1
@@ -34,10 +32,10 @@ bb4:
 bb5:
   push 4
   calldataload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb6 [cold]:
   push 0

@@ -10,8 +10,6 @@ t = "tq"
 qt = "tq"
 tq = "xtask test"
 bless = "xtask test --bless"
-uitest = "xtask test ui"
-uibless = "xtask test ui --bless"
 
 # Required for `dist` to work with linux arm targets: https://github.com/axodotdev/cargo-dist/issues/74#issuecomment-2053680080
 [env]
@@ -19,6 +17,8 @@ CC_aarch64_unknown_linux_musl = "aarch64-linux-gnu-gcc"
 # Let cargo-release dry-run verification build already-published crates from
 # package tarballs, where Git metadata is unavailable.
 VERGEN_DEFAULT_ON_ERROR = "1"
+# Resolve snapbox `file!` snapshots from this workspace, even in a nested worktree.
+CARGO_RUSTC_CURRENT_DIR = { value = "", relative = true }
 
 [target.aarch64-unknown-linux-gnu]
 linker = "aarch64-linux-gnu-gcc"

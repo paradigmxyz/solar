@@ -15,12 +15,12 @@ bb3 [cold]:
   push 0
   push 0
   revert
-bb9 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
+bb8 [cold]:
   push 17
   push 32
+  mstore
+  push 0x4e487b71
+  push 0
   mstore
   push 36
   push 28
@@ -31,15 +31,14 @@ bb1:
   eq
   push bb3
   jumpi
-  push 100
-  calldatasize
-  lt
-  push bb3
-  jumpi
   push 36
   calldataload
   push 160
   shr
+  push 100
+  calldatasize
+  lt
+  or
   push bb3
   jumpi
   push 36
@@ -62,7 +61,7 @@ bb1:
   swap 1
   dup 2
   lt
-  push bb9
+  push bb8
   jumpi
   dup 1
   swap 2
@@ -75,12 +74,12 @@ bb1:
   swap 1
   dup 2
   lt
-  push bb9
+  push bb8
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:C (runtime) ===
 @module C_runtime
@@ -97,27 +96,21 @@ bb0:
   sub
   push bb3
   jumpi
-  push 160
+  push 128
   push 64
   mstore
-  push 68
-  calldatasize
-  lt
-  push bb3
-  jumpi
   push 4
   calldataload
   push 160
   shr
+  push 68
+  calldatasize
+  lt
+  or
   push bb3
   jumpi
   push 64
   mload
-  push 128
-  dup 2
-  add
-  push 64
-  mstore
   push 0xed2f0bb8
   push 224
   shl
@@ -129,12 +122,11 @@ bb0:
   push 0
   dup 2
   mstore
-  push 32
-  dup 2
-  add
   push 4
   calldataload
-  swap 1
+  push 32
+  dup 3
+  add
   mstore
   push 64
   add
@@ -142,84 +134,37 @@ bb0:
   calldataload
   swap 1
   mstore
-  push 0
+  push 32
   push 0
   push 100
   dup 4
   push 0x1111111111111111111111111111111111111111
   gas
   delegatecall
-  swap 1
-  pop
   iszero
-  push bb10
+  push bb8
   jumpi
   returndatasize
-  push 63
-  dup 2
-  add
-  dup 2
-  dup 2
-  lt
-  push bb11
-  jumpi
-  push 31
-  not
-  and
-  push 64
-  mload
-  swap 1
-  dup 2
-  add
-  push 64
-  mstore
-  dup 2
-  dup 2
-  mstore
-  push 32
-  add
-  dup 2
-  push 0
-  dup 3
-  returndatacopy
-  dup 2
-  dup 2
-  add
-  dup 2
-  gt
-  swap 2
   push 32
   gt
-  swap 1
-  swap 2
-  or
   push bb3
   jumpi
+  push 0
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0
   push 0
   revert
-bb10 [cold]:
+bb8 [cold]:
   returndatasize
   push 0
   push 0
   returndatacopy
   returndatasize
   push 0
-  revert
-bb11 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
-  push 65
-  push 32
-  mstore
-  push 36
-  push 28
   revert

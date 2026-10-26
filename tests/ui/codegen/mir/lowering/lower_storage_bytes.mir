@@ -3,7 +3,7 @@
 //@[expanded] compile-flags: -Zmir-pipeline=lower-builtins
 //@[expanded] filecheck:
 //@[expanded_size] compile-flags: -Zmir-pipeline=lower-builtins -Osize
-//@[expanded_size] filecheck: --check-prefixes=CHECK,SIZE
+//@[expanded_size] filecheck:
 //@[expanded_size] normalize-stdout-test: "(?s).+" -> ""
 @module StorageBytes
 
@@ -12,7 +12,7 @@
 // CHECK-NEXT: [[LONG:v[0-9]+]] = eq [[FLAG]], 1
 // CHECK-NEXT: [[NEG:v[0-9]+]] = sub 0, [[FLAG]]
 // CHECK-NEXT: [[MASK:v[0-9]+]] = or 127, [[NEG]]
-// CHECK-NEXT: [[HALF:v[0-9]+]] = shr 1, [[HEADER]]
+// CHECK-NEXT: [[HALF:v[0-9]+]] = shr [[HEADER]], 1
 // CHECK-NEXT: [[LENGTH:v[0-9]+]] = and [[HALF]], [[MASK]]
 // CHECK-NEXT: [[SHORT:v[0-9]+]] = lt [[LENGTH]], 32
 // CHECK-NEXT: [[INVALID:v[0-9]+]] = eq [[LONG]], [[SHORT]]
@@ -24,20 +24,19 @@ fn @header(arg0: i256) -> i256 {
     ret v0
 }
 
-// SIZE-LABEL: fn @load(
-// SIZE: [[BASE:v[0-9]+]] = storage_array_data_slot arg0
-// SIZE: [[INDEX:v[0-9]+]] = phi
-// SIZE-NEXT: [[ADDRESS:v[0-9]+]] = phi [{{bb[0-9]+}}: [[BASE]]], [{{bb[0-9]+}}: [[NEXT:v[0-9]+]]]
-// SIZE-NEXT: [[MORE:v[0-9]+]] = lt [[INDEX]], {{v[0-9]+}}
-// SIZE: sload [[ADDRESS]]
-// SIZE: [[NEXT]] = add [[ADDRESS]], 1
-fn @load(arg0: i256) -> memptr {
+// CHECK-LABEL: fn @load(
+// CHECK: [[BASE:v[0-9]+]] = storage_array_data_slot arg0
+// CHECK: [[INDEX:v[0-9]+]] = phi
+// CHECK-NEXT: [[MORE:v[0-9]+]] = lt [[INDEX]], {{v[0-9]+}}
+// CHECK: [[ADDRESS:v[0-9]+]] = add [[BASE]], [[INDEX]]
+// CHECK-NEXT: sload [[ADDRESS]]
+fn @load(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_bytes arg0 !metadata(span=20..30, modifier_depth=2)
     ret v0
 }
 
-fn @edge(arg0: i1, arg1: i256, arg2: memptr) -> memptr {
+fn @edge(arg0: i1, arg1: i256, arg2: ptr<memory>) -> ptr<memory> {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -63,7 +62,7 @@ fn @clear(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i256 {
     ret v0
 }
 
-fn @store(arg0: i1, arg1: i256, arg2: memptr) -> i256 {
+fn @store(arg0: i1, arg1: i256, arg2: ptr<memory>) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

@@ -1,0 +1,62 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_constant_fold_width.sol:FixedBytesConstantFoldWidth ===
+@module FixedBytesConstantFoldWidth
+fn @crossWidthLocal() -> i256 [selector=0x7a24c6ed, pure, abi_params=[], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {
+  bb0:
+    ret 0x700000000000000000000000000000000000000000000000000000000000000
+}
+
+fn @crossWidthConstant() -> i256 [selector=0xb8776813, pure, abi_params=[], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {
+  bb0:
+    ret 0x700000000000000000000000000000000000000000000000000000000000000
+}
+
+fn @crossWidthStructField() -> i256 [selector=0x3ed4a0f0, abi_params=[], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 0xffff
+    v2 = and v0, v1
+    v3 = shr 0x700000000000000000000000000000000000000000000000000000000000000, 240
+    v4 = and v3, 0xffff
+    v5 = or v2, v4
+    sstore 0, v5 !metadata(storage=slot(0))
+    v6 = add 0, 1
+    sstore v6, 1 !metadata(storage=slot(1))
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = shl v7, 240
+    ret v8
+}
+
+fn @crossWidthAssembly() -> i256 [selector=0xb9761af7, pure, abi_params=[], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {
+  bb0:
+    ret 0x700000000000000000000000000000000000000000000000000000000000000
+}
+
+fn @crossWidthCompare() -> i1 [selector=0xe7368e98, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    ret true
+}
+
+fn @crossWidthCompareConstant() -> i1 [selector=0xf6148df3, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    ret true
+}
+
+fn @shiftRoundTrip() -> i256 [selector=0xabb727a8, pure, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+  bb0:
+    ret 0
+}
+
+fn @shiftRoundTripConstant() -> i256 [selector=0x7f299607, pure, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+  bb0:
+    ret 0
+}
+
+fn @bitNotShift() -> i256 [selector=0xf8ef9055, pure, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+  bb0:
+    ret 0xf00000000000000000000000000000000000000000000000000000000000000
+}
+
+fn @bitNotShiftConstant() -> i256 [selector=0x520d6e25, pure, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+  bb0:
+    ret 0xf00000000000000000000000000000000000000000000000000000000000000
+}

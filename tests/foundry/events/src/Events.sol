@@ -91,4 +91,50 @@ contract Events {
         }
         emit IndexedDynamicEnum(values);
     }
+
+    struct Pair {
+        uint256 first;
+        uint256 second;
+    }
+
+    event TwoWords(uint256 first, uint256 second);
+
+    event TwoWordsIndexed(uint256 indexed id, address account, bool flag);
+
+    event TwoWordsAnonymous(address account, bool flag) anonymous;
+
+    function emitTwoWords(uint256 first, uint256 second) public {
+        emit TwoWords(first, second);
+    }
+
+    function emitTwoWordsIndexed(uint256 id, address account, bool flag) public {
+        emit TwoWordsIndexed(id, account, flag);
+    }
+
+    function emitTwoWordsAnonymous(address account, bool flag) public {
+        emit TwoWordsAnonymous(account, flag);
+    }
+
+    // The fields are read before the data words are written over the memory they alias.
+    function emitTwoWordsSwapped() public {
+        Pair memory pair;
+        assembly {
+            mstore(0, 1)
+            mstore(0x20, 2)
+            pair := 0
+        }
+        emit TwoWords(pair.second, pair.first);
+    }
+
+    event ThreeWords(uint256 first, uint256 second, uint256 third);
+
+    event DynamicData(uint256 indexed id, bytes data, string text, uint256 count);
+
+    function emitThreeWords(uint256 first, uint256 second, uint256 third) public {
+        emit ThreeWords(first, second, third);
+    }
+
+    function emitDynamicData(uint256 id, bytes memory data, uint256 count) public {
+        emit DynamicData(id, data, "a literal string that is longer than a single word", count);
+    }
 }

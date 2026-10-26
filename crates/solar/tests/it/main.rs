@@ -6,10 +6,15 @@ mod lint;
 mod debug_outputs;
 
 #[cfg(feature = "cli")]
+mod foundry;
+#[cfg(feature = "cli")]
 mod llm;
 
 #[cfg(feature = "cli")]
 mod lsp;
+
+#[cfg(feature = "cli")]
+mod paths;
 
 #[cfg(feature = "cli")]
 mod standard_json;

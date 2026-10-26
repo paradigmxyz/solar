@@ -21,7 +21,7 @@ use solar_data_structures::{
 use std::collections::VecDeque;
 
 /// Liveness analysis results for a function.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Liveness {
     /// Values live at each block's entry.
     live_in: BitMatrix<BlockId, ValueId>,
@@ -45,7 +45,7 @@ impl Liveness {
     }
 
     /// Computes only the block live-in and live-out sets, without the per-block
-    /// last uses that [`Self::is_used_at_or_after`] and [`Self::is_dead_after`] need.
+    /// last uses that [`Self::is_used_at_or_after`] needs.
     #[must_use]
     pub(crate) fn compute_live_sets(func: &Function) -> Self {
         Self::compute_inner(func, false)
@@ -188,64 +188,28 @@ impl Liveness {
         Self { live_in, live_out, last_use_in_block: Some(last_use_in_block), num_values }
     }
 
-    /// Computes the subset of liveness needed by codegen when every computed
-    /// value is consumed in its defining block and the function has no
-    /// referenced arguments. Returns `None` when the function needs full dataflow.
-    ///
-    /// Immediate and undefined values are rematerializable, so they do not
-    /// need live-in/live-out tracking. Instruction results still retain exact
-    /// last-use information for stack scheduling.
-    pub(crate) fn compute_block_local_for_codegen(func: &Function) -> Option<Self> {
-        let num_values = func.num_values();
+    /// Returns whether every computed value is consumed in its defining block and the
+    /// function reads no arguments.
+    pub(crate) fn is_block_local(func: &Function) -> bool {
         let mut defining_blocks = index_vec![None; func.num_insts()];
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 defining_blocks[inst_id] = Some(block_id);
             }
         }
-
         let is_local = |value, block_id| match func.value(value) {
             Value::Inst(inst_id) => defining_blocks[*inst_id] == Some(block_id),
             Value::Arg(_) => false,
             Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => true,
         };
-        let mut operands = SmallVec::<[ValueId; 8]>::new();
-        for (block_id, block) in func.blocks.iter_enumerated() {
-            for &inst_id in &block.instructions {
-                operands.clear();
-                func.inst(inst_id).kind.collect_operands(&mut operands);
-                if operands.iter().any(|&value| !is_local(value, block_id)) {
-                    return None;
-                }
-            }
-            if let Some(term) = &block.terminator {
-                operands.clear();
-                collect_terminator_uses(term, &mut operands);
-                if operands.iter().any(|&value| !is_local(value, block_id)) {
-                    return None;
-                }
-            }
-        }
-
-        let live_in = BitMatrix::new(func.blocks.len(), 0);
-        let live_out = BitMatrix::new(func.blocks.len(), 0);
-        let mut last_use_in_block = FxHashMap::default();
-        for (block_id, block) in func.blocks.iter_enumerated() {
-            if let Some(term) = &block.terminator {
-                operands.clear();
-                collect_terminator_uses(term, &mut operands);
-                for &operand in &operands {
-                    last_use_in_block.entry((operand, block_id)).or_insert(None);
-                }
-            }
-            for (inst_idx, &inst_id) in block.instructions.iter().enumerate().rev() {
-                func.inst(inst_id).kind.visit_operands(|operand| {
-                    last_use_in_block.entry((operand, block_id)).or_insert(Some(inst_idx));
-                });
-            }
-        }
-
-        Some(Self { live_in, live_out, last_use_in_block: Some(last_use_in_block), num_values })
+        func.blocks.iter_enumerated().all(|(block_id, block)| {
+            block.instructions.iter().all(|&inst_id| {
+                func.inst(inst_id).kind.operands().iter().all(|&value| is_local(value, block_id))
+            }) && block
+                .terminator
+                .as_ref()
+                .is_none_or(|term| term.operands().iter().all(|&value| is_local(value, block_id)))
+        })
     }
 
     /// Returns the values live at the entry of a block.
@@ -258,6 +222,24 @@ impl Liveness {
     #[must_use]
     pub(crate) fn live_out(&self, block: BlockId) -> BitMatrixRow<'_, ValueId> {
         self.live_out.row(block)
+    }
+
+    /// Makes `value` live in and out of exactly the given blocks.
+    pub(crate) fn set_value_live(
+        &mut self,
+        value: ValueId,
+        live_in: &DenseBitSet<BlockId>,
+        live_out: &DenseBitSet<BlockId>,
+    ) {
+        for block in (0..live_in.domain_size()).map(BlockId::from_usize) {
+            for (matrix, blocks) in [(&mut self.live_in, live_in), (&mut self.live_out, live_out)] {
+                if blocks.contains(block) {
+                    matrix.insert(block, value);
+                } else {
+                    matrix.remove(block, value);
+                }
+            }
+        }
     }
 
     fn last_uses(&self) -> &FxHashMap<(ValueId, BlockId), Option<usize>> {
@@ -280,29 +262,6 @@ impl Liveness {
             Some(Some(last_idx)) => *last_idx >= inst_idx,
             Some(None) => true,
             None => false,
-        }
-    }
-
-    /// Returns true if the value is dead after the given instruction in the given block.
-    ///
-    /// A value is dead after an instruction if:
-    /// 1. The instruction is the last use of the value within this block, AND
-    /// 2. The value is NOT in live_out (meaning no successor blocks use it)
-    #[must_use]
-    pub(crate) fn is_dead_after(&self, val: ValueId, block: BlockId, inst_idx: usize) -> bool {
-        // If the value is in live_out, it's used by successor blocks, so it's not dead
-        if self.live_out(block).contains(val) {
-            return false;
-        }
-
-        // Check if this instruction is the last use within this block
-        match self.last_uses().get(&(val, block)) {
-            Some(&Some(last_idx)) => last_idx == inst_idx,
-            // Last use is in terminator - not dead after any instruction
-            Some(&None) => false,
-            // Value not used in this block at all - should not happen if we're asking
-            // but conservatively say it's dead
-            None => true,
         }
     }
 }

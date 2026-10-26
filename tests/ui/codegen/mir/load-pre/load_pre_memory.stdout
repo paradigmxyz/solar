@@ -126,23 +126,27 @@
 +     ret v0
   }
   
-  fn @msize_blocks_memory(arg0: i1) -> i256 {
+  fn @msize_does_not_block_memory(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
-      v1 = mload 128
++     v6 = mload 128
       jump bb3
     bb1:
       v0 = mload 128
       jump bb3
     bb3:
-      v2 = msize
-      v3 = mload 128
-      v4 = add v2, v3
-      ret v4
++     v7 = phi [bb1: v0], [bb2: v6]
+      v1 = msize
+-     v2 = mload 128
+-     v3 = mload 128
+-     v4 = add v2, v3
++     v4 = add v7, v7
+      v5 = add v4, v1
+      ret v5
   }
   
-  fn @default_gas_call_blocks_prefix(arg0: i1, arg1: memptr) -> i256 {
+  fn @default_gas_call_blocks_prefix(arg0: i1, arg1: ptr<memory>) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -159,7 +163,7 @@
       ret v5
   }
   
-  fn @default_gas_call_blocks_reload(arg0: i1, arg1: memptr) -> i256 {
+  fn @default_gas_call_blocks_reload(arg0: i1, arg1: ptr<memory>) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -176,7 +180,7 @@
       ret v5
   }
   
-  fn @explicit_gas_call_blocks_pre(arg0: i1, arg1: memptr) -> i256 {
+  fn @explicit_gas_call_blocks_pre(arg0: i1, arg1: ptr<memory>) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:

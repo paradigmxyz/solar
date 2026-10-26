@@ -7,6 +7,8 @@ ignore = [
     # `fxhash` is unmaintained; only the `llm` feature's model client reaches it, through a tool
     # search index the rewriter never enables
     "RUSTSEC-2025-0057",
+    # `crypto-bigint` 0.5 has no patched release; only test tooling pulls it in, through `k256` 0.13.
+    "RUSTSEC-2026-0387",
 ]
 
 [bans]
@@ -48,12 +50,4 @@ exceptions = [
 
 [sources]
 unknown-registry = "deny"
-unknown-git = "deny"
-allow-git = [
-    # Used only for testing.
-    "https://github.com/DaniPopes/ui_test",
-    "https://github.com/oli-obk/ui_test",
-    "https://github.com/alloy-rs/evm2",
-    # Used only for benchmarks.
-    "https://github.com/DaniPopes/codspeed-rust",
-]
+unknown-git = "allow"

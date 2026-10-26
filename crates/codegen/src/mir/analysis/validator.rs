@@ -41,14 +41,15 @@
 
 use crate::mir::{
     AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId, InstKind,
-    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, RequireKind, ResultKind,
-    SliceLocation, StructId, Terminator, TypeSize, Value, ValueId, analysis::CfgInfo,
+    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation, RequireKind,
+    ResultKind, StructId, Terminator, TypeSize, Value, ValueId, analysis::CfgInfo,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
+    sync,
 };
 use solar_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
@@ -323,12 +324,11 @@ impl<'a> Validator<'a> {
                 }
             }
             Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                if [*offset, *size]
-                    .into_iter()
-                    .any(|value| func.value_ty(value) != Some(MirType::I256))
+                if !matches!(func.value_ty(*offset), Some(MirType::I256 | MirType::MEMPTR))
+                    || func.value_ty(*size) != Some(MirType::I256)
                 {
                     self.emit_at_block(
-                        "raw return and revert operands must have type `i256`; use an explicit cast",
+                        "raw return and revert operands must be a memory address and an `i256` size",
                         block,
                     );
                 }
@@ -717,15 +717,15 @@ impl<'a> Validator<'a> {
 
     /// Validates every function in a module.
     fn validate_module(mut self, module: &Module) {
-        self.validate_module_at_phase(module, module.phase());
+        self.validate_module_at_phase(module, module.phase(), false);
     }
 
-    fn validate_module_at_phase(&mut self, module: &Module, phase: MirPhase) {
+    fn validate_module_at_phase(&mut self, module: &Module, phase: MirPhase, parallel: bool) {
         self.returning_functions = Some(module.returning_functions());
         self.prepare_return_abi_validation(module);
         for (id, ty) in module.struct_types.iter_enumerated() {
             for field in &ty.fields {
-                self.validate_integer_type(*field);
+                self.validate_type(*field);
                 if *field == MirType::Void
                     || matches!(field, MirType::Struct(nested) if *nested >= id)
                 {
@@ -738,11 +738,33 @@ impl<'a> Validator<'a> {
         }
         self.validate_module_phase(module, phase);
         self.validate_immutable_declarations(module);
+        if parallel && self.functions_are_valid(module, phase) {
+            return;
+        }
         for (id, func) in module.iter_functions() {
             self.function = Some(id);
             self.validate_function(module, func, phase);
         }
         self.function = None;
+    }
+
+    /// Checks the functions in parallel with their diagnostics discarded.
+    ///
+    /// A module with a finding is checked again in function order, so diagnostics keep their
+    /// serial order.
+    fn functions_are_valid(&self, module: &Module, phase: MirPhase) -> bool {
+        let returning_functions = &self.returning_functions;
+        let return_field_counts = &self.return_field_counts;
+        sync::par_try_map(true, module.functions.indices().collect(), |id| {
+            let dcx = DiagCtxt::with_silent_emitter(None);
+            let mut validator = Validator::new(&dcx);
+            validator.returning_functions = returning_functions.clone();
+            validator.return_field_counts = return_field_counts.clone();
+            validator.function = Some(id);
+            validator.validate_function(module, &module.functions[id], phase);
+            validator.error.map_or(Ok(()), |_| Err(()))
+        })
+        .is_ok()
     }
 
     fn prepare_return_abi_validation(&mut self, module: &Module) {
@@ -779,12 +801,19 @@ impl<'a> Validator<'a> {
         }
     }
 
-    fn validate_integer_type(&mut self, ty: MirType) {
+    fn validate_type(&mut self, ty: MirType) {
         if let Some(bits) = ty.integer_bits()
             && !MirType::valid_integer_width(bits)
         {
             self.emit(format_args!(
                 "unsupported integer type `{ty}`; expected i1 or a byte width from i8 through i256"
+            ));
+        }
+        if let MirType::Ptr(location) | MirType::Slice(location) = ty
+            && matches!(location, PtrLocation::Storage | PtrLocation::Transient)
+        {
+            self.emit(format_args!(
+                "unsupported type `{ty}`; pointers and slices address memory, calldata, or returndata"
             ));
         }
     }
@@ -810,7 +839,7 @@ impl<'a> Validator<'a> {
             .chain(std::iter::once(func.return_type()))
             .chain(func.return_components().iter().copied())
         {
-            self.validate_integer_type(ty);
+            self.validate_type(ty);
             if let MirType::Struct(id) = ty
                 && module.struct_types.get(id).is_none()
             {
@@ -884,13 +913,7 @@ impl<'a> Validator<'a> {
                             );
                         }
                     }
-                    InstKind::AbiDecode { data, layout } => {
-                        self.check_value_type(
-                            func.value_ty(*data),
-                            Some(MirType::MemPtr),
-                            block,
-                            id,
-                        );
+                    InstKind::AbiDecode { layout, .. } => {
                         let valid = match inst.result_ty {
                             Some(MirType::Struct(ty)) => {
                                 module.struct_types.get(ty).is_some_and(|ty| {
@@ -903,7 +926,7 @@ impl<'a> Validator<'a> {
                                 })
                             }
                             Some(ty) => layout.types.len() == 1 && ty == layout.types[0].mir_type(),
-                            None => false,
+                            None => layout.types.is_empty(),
                         };
                         if !valid {
                             self.emit_at_inst(
@@ -941,21 +964,39 @@ impl<'a> Validator<'a> {
                     InstKind::ExtractValue { ty, aggregate, index } => (ty, aggregate, index, None),
                     _ => continue,
                 };
-                let Some(fields) = module.struct_types.get(ty) else {
-                    self.emit_at_inst(
-                        format_args!("undefined struct type `struct{}`", ty.index()),
-                        block,
-                        id,
-                    );
+                let field = match ty {
+                    MirType::Struct(struct_id) => {
+                        let Some(fields) = module.struct_types.get(struct_id) else {
+                            self.emit_at_inst(
+                                format_args!("undefined struct type `{ty}`"),
+                                block,
+                                id,
+                            );
+                            continue;
+                        };
+                        fields.fields.get(index as usize).copied()
+                    }
+                    MirType::Slice(location) if inserted.is_none() => {
+                        MirType::slice_fields(location).get(index as usize).copied()
+                    }
+                    _ => {
+                        let expected =
+                            if inserted.is_some() { "a struct" } else { "a struct or slice" };
+                        self.emit_at_inst(
+                            format_args!("aggregate type must be {expected}"),
+                            block,
+                            id,
+                        );
+                        continue;
+                    }
+                };
+                let Some(field) = field else {
+                    self.emit_at_inst("aggregate field index is out of bounds", block, id);
                     continue;
                 };
-                let Some(&field) = fields.fields.get(index as usize) else {
-                    self.emit_at_inst("struct field index is out of bounds", block, id);
-                    continue;
-                };
-                if func.value_ty(aggregate) != Some(MirType::Struct(ty)) {
+                if func.value_ty(aggregate) != Some(ty) {
                     self.emit_at_inst(
-                        "aggregate operand does not match its declared struct type",
+                        "aggregate operand does not match its declared type",
                         block,
                         id,
                     );
@@ -968,13 +1009,13 @@ impl<'a> Validator<'a> {
                             id,
                         );
                     }
-                    MirType::Struct(ty)
+                    ty
                 } else {
                     field
                 };
                 if inst.result_ty != Some(result) {
                     self.emit_at_inst(
-                        format_args!("struct instruction result must have type `{result}`"),
+                        format_args!("aggregate instruction result must have type `{result}`"),
                         block,
                         id,
                     );
@@ -1052,7 +1093,7 @@ impl<'a> Validator<'a> {
             None | Some(MirType::Void) => {
                 self.emit(format_args!("live value v{} has no value type", value.index()));
             }
-            Some(ty) => self.validate_integer_type(ty),
+            Some(ty) => self.validate_type(ty),
         }
         if let Value::Immediate(immediate) = func.value(value)
             && let MirType::Int(bits) = immediate.ty()
@@ -1076,7 +1117,7 @@ impl<'a> Validator<'a> {
                     InstKind::ICall { function: Callee::Builtin(builtin), args } => {
                         let result = match builtin {
                             Builtin::Require(_) | Builtin::Check { .. } | Builtin::Transfer => None,
-                            Builtin::ReturndataBytes | Builtin::Concat(_) => Some(MirType::MemPtr),
+                            Builtin::ReturndataBytes => Some(MirType::MEMPTR),
                             Builtin::CheckedAddMod
                             | Builtin::CheckedMulMod
                             | Builtin::Sha256
@@ -1090,13 +1131,9 @@ impl<'a> Validator<'a> {
                                 .get(1)
                                 .and_then(|&value| func.value_u64(value))
                                 .is_some_and(|length| (1..=32).contains(&length)),
-                            Builtin::Concat(types) => types.iter().all(|ty| {
-                                matches!(
-                                    ty,
-                                    crate::mir::ValueLayout::MemoryObject(MemoryObjectKind::Bytes)
-                                        | crate::mir::ValueLayout::FixedBytes(_)
-                                )
-                            }),
+                            Builtin::Require(RequireKind::LongString(bytes)) => {
+                                bytes.as_byte_str().len() > 32
+                            }
                             _ => true,
                         };
                         metadata_valid
@@ -1131,14 +1168,14 @@ impl<'a> Validator<'a> {
                                         }
                                         crate::mir::PackedArraySource::Slice(location) => matches!(
                                             location,
-                                            SliceLocation::Memory | SliceLocation::Calldata
+                                            PtrLocation::Memory | PtrLocation::Calldata
                                         ),
                                     }
                             }
                         });
                         valid_parts
                             && inst.result_ty
-                                == Some(if *hash { MirType::I256 } else { MirType::MemPtr })
+                                == Some(if *hash { MirType::I256 } else { MirType::MEMPTR })
                     }
                     InstKind::CheckedBinary { arithmetic, .. } => {
                         let (crate::mir::ArithmeticKind::Unsigned(bits)
@@ -1156,15 +1193,18 @@ impl<'a> Validator<'a> {
                             (1..=256).contains(&variants)
                                 && *element
                                     == crate::mir::ValueLayout::UInt(TypeSize::new_int_bits(8))
-                        }) && inst.result_ty == Some(MirType::MemPtr)
+                        }) && inst.result_ty == Some(MirType::MEMPTR)
                     }
-                    InstKind::StorageBytesLoad(_) => inst.result_ty == Some(MirType::MemPtr),
+                    InstKind::StorageBytesLoad(_) => inst.result_ty == Some(MirType::MEMPTR),
                     InstKind::AddressCall { kind, value, .. } => {
                         *kind == AddressCallKind::Call || value.is_none()
                     }
-                    InstKind::MemoryObjectCopyFromSlice { source, .. }
-                    | InstKind::MemoryObjectCopyFromSliceAt { source, .. } => {
-                        matches!(func.value_ty(*source), Some(MirType::Slice(_)))
+                    InstKind::Load(.., location) => *location != PtrLocation::Returndata,
+                    InstKind::Store(.., location) => {
+                        !matches!(location, PtrLocation::Calldata | PtrLocation::Returndata)
+                    }
+                    InstKind::Copy(.., location) => {
+                        !matches!(location, PtrLocation::Storage | PtrLocation::Transient)
                     }
                     _ => true,
                 };
@@ -1372,6 +1412,16 @@ impl<'a> Validator<'a> {
         }
     }
 
+    /// Checks only what the phase promises, without the SSA, CFG, and type invariants.
+    fn validate_phase_contract(&mut self, module: &Module, phase: MirPhase) {
+        self.validate_module_phase(module, phase);
+        for (id, func) in module.iter_functions() {
+            self.function = Some(id);
+            self.validate_function_phase(module, phase, func);
+        }
+        self.function = None;
+    }
+
     fn validate_function_phase(&mut self, module: &Module, phase: MirPhase, func: &Function) {
         if phase == MirPhase::Lowered && func.is_external_entry() && !func.attributes.is_abi_wrapper
         {
@@ -1443,11 +1493,7 @@ impl<'a> Validator<'a> {
                             inst_id,
                         );
                     }
-                    let semantic_op = func
-                        .inst(inst_id)
-                        .unlowered_reason(func)
-                        .or_else(|| kind.phase_violation(phase, &func.inst(inst_id).metadata));
-                    if let Some(semantic_op) = semantic_op {
+                    if let Some(semantic_op) = func.inst(inst_id).unlowered_reason(func) {
                         self.emit_at_inst(
                             format_args!(
                                 "{semantic_op} instruction `{}` survives the `{}` phase boundary",
@@ -1468,14 +1514,24 @@ pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
     Validator::new(dcx).validate_module(module);
 }
 
-/// Checks all SSA, type, and representation invariants against the requested phase.
+/// Checks the module against the requested phase.
+///
+/// With `full`, checks all SSA, type, and representation invariants. Otherwise checks only the
+/// phase contract: the routing entry, ABI wrappers, word types, and instructions that must be
+/// lowered by the phase boundary.
 pub(crate) fn validate_phase(
     dcx: &DiagCtxt,
     module: &Module,
     phase: MirPhase,
+    parallel: bool,
+    full: bool,
 ) -> solar_interface::Result<()> {
     let mut validator = Validator::new(dcx);
-    validator.validate_module_at_phase(module, phase);
+    if full {
+        validator.validate_module_at_phase(module, phase, parallel);
+    } else {
+        validator.validate_phase_contract(module, phase);
+    }
     validator.error.map_or(Ok(()), Err)
 }
 
@@ -1496,6 +1552,34 @@ pub(crate) fn validate_function_at_phase(
     }
     validator.function = Some(id);
     validator.validate_function(module, function, phase);
+    validator.error.map_or(Ok(()), Err)
+}
+/// Rejects shifts in a module that targets an EVM version without shift opcodes.
+///
+/// `lower-shifts` removes them, so one left after lowering means that pass did not run.
+pub(crate) fn validate_legal_shifts(
+    dcx: &DiagCtxt,
+    module: &Module,
+) -> solar_interface::Result<()> {
+    let mut validator = Validator::new(dcx);
+    for (id, func) in module.functions.iter_enumerated() {
+        validator.function = Some(id);
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                let kind = &func.inst(inst_id).kind;
+                if kind.is_shift() {
+                    validator.emit_at_inst(
+                        format_args!(
+                            "`{}` instruction survives lowering for an EVM version without shifts",
+                            kind.mnemonic()
+                        ),
+                        block_id,
+                        inst_id,
+                    );
+                }
+            }
+        }
+    }
     validator.error.map_or(Ok(()), Err)
 }
 
@@ -1531,14 +1615,9 @@ fn return_abi_matches(
                     continue;
                 }
                 match ty {
-                    MirType::MemPtr if actual == MirType::I256 => {}
+                    MirType::Ptr(_) if actual == MirType::I256 => {}
                     MirType::Slice(location) => {
-                        let pointer = match location {
-                            SliceLocation::Memory => MirType::I256,
-                            SliceLocation::Calldata => MirType::I256,
-                            SliceLocation::Returndata => MirType::I256,
-                        };
-                        if actual != pointer {
+                        if actual != MirType::Ptr(location) && actual != MirType::I256 {
                             return false;
                         }
                         if pointer_only && components.is_empty() {
@@ -1560,7 +1639,7 @@ fn return_abi_matches(
 
 /// Returns the first type, in signature and then block order, that is not a scalar word.
 fn first_non_word_type(func: &Function) -> Option<MirType> {
-    let non_word = |ty: MirType| !matches!(ty, MirType::I1 | MirType::I256 | MirType::MemPtr);
+    let non_word = |ty: MirType| !matches!(ty, MirType::I1 | MirType::I256 | MirType::Ptr(_));
     let signature = func.arg_indices().map(|index| func.arg_ty(index));
     if let Some(ty) =
         signature.chain(func.return_components().iter().copied()).find(|&ty| non_word(ty))

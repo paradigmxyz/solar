@@ -1,21 +1,19 @@
 // === ROOT/tests/ui/codegen/run-call/string_line_continuation.sol:StringLineContinuation ===
 @module StringLineContinuation
-fn @unicodeLine() -> memptr [selector=0x7d426567, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @unicodeLine() -> ptr<memory> [selector=0x7d426567, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 20
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0xf09f98832c20f09f98ad2c20616e6420f09f9888000000000000000000000000
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 20
+    v1 = ptradd v0, 32
+    mstore v1, 0xf09f98832c20f09f98ad2c20616e6420f09f9888000000000000000000000000
     ret v0
 }
 
-fn @asciiLine() -> memptr [selector=0x9c02ba08, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @asciiLine() -> ptr<memory> [selector=0x9c02ba08, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 5
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x6120202062000000000000000000000000000000000000000000000000000000
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 5
+    v1 = ptradd v0, 32
+    mstore v1, 0x6120202062000000000000000000000000000000000000000000000000000000
     ret v0
 }

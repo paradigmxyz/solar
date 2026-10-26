@@ -11,9 +11,7 @@ use super::{OperandViews, canonical_operands, same_value};
 use crate::{
     backend::evm::op,
     mir::{
-        ArgIdx, BlockId, Function, Immediate, InstKind, MemoryObjectKind, MemoryObjectLayout,
-        MirType, Op, Value as MirValue, ValueId,
-        memory::{EvmMemoryLayout, MemoryLayoutPolicy},
+        ArgIdx, BlockId, Function, Immediate, InstKind, MirType, Op, Value as MirValue, ValueId,
     },
     target::Target,
 };
@@ -44,6 +42,8 @@ const MAX_ISLE_RETURNS: usize = 8;
     unused_variables
 )]
 mod generated {
+    use crate::isle_log as log;
+
     include!(concat!(env!("OUT_DIR"), "/egraph.isle.rs"));
 }
 
@@ -51,7 +51,7 @@ mod generated {
 pub(super) struct RuleContext<'a> {
     func: &'a mut Function,
     evm_version: EvmVersion,
-    target: Option<Target>,
+    target: Option<&'a Target>,
     /// Original block of the root, for rules that must not extend cross-block dependencies.
     block: Option<BlockId>,
     /// Pre-pass use counts for profitability guards, when available.
@@ -76,7 +76,7 @@ impl<'a> RuleContext<'a> {
     }
 
     /// Supplies the session cost model for conservative materialization guards.
-    pub(super) fn with_target(mut self, target: Target) -> Self {
+    pub(super) fn with_target(mut self, target: &'a Target) -> Self {
         self.target = Some(target);
         self
     }
@@ -328,7 +328,7 @@ impl generated::Context for RuleContext<'_> {
         self.target.is_some_and(|target| {
             let after = target.push(replacement);
             let before = target.push(original);
-            after.gas <= before.gas && after.bytes <= before.bytes
+            target.runtime_gas(after) <= target.runtime_gas(before) && after.bytes <= before.bytes
         })
     }
 
@@ -620,17 +620,5 @@ impl generated::Context for RuleContext<'_> {
 
     fn has_known_sign_bit(&mut self, value: Value) -> bool {
         has_known_sign_bit(self.func, value)
-    }
-
-    fn object_data_offset(&mut self, kind: MemoryObjectKind) -> u64 {
-        EvmMemoryLayout::object_data_offset(kind)
-    }
-
-    fn field_offset(&mut self, layout: MemoryObjectLayout, field: u64) -> Option<u64> {
-        EvmMemoryLayout::field_offset(layout, field)
-    }
-
-    fn layout_kind(&mut self, layout: MemoryObjectLayout) -> MemoryObjectKind {
-        layout.kind()
     }
 }

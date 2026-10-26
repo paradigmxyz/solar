@@ -1,0 +1,12 @@
+warning[5333]: source file requires different compiler version (current compiler is SOLC_VERSION)
+   ╭▸ ROOT/tests/ui/parser/pragma_version_component_above_signed_int.sol:LL:CC
+   │
+LL │ pragma solidity >3000000000.0.0;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+warning[5333]: source file requires different compiler version (current compiler is SOLC_VERSION)
+   ╭▸ ROOT/tests/ui/parser/pragma_version_component_above_signed_int.sol:LL:CC
+   │
+LL │ pragma solidity >2147483648.0.0;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+

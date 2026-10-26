@@ -126,7 +126,7 @@ compiler-diff --dir /tmp/solc-suite import-directory \
   testdata/solidity/test/libsolidity --format solc --allow-skips
 compiler-diff --dir /tmp/solc-suite run --continue-on-failure \
   --compiler 'solc=/absolute/path/to/solc --standard-json' \
-  --compiler 'solar=/absolute/path/to/solar --standard-json'
+  --compiler 'solar=/absolute/path/to/solar --standard-json -Zvalidate-ir=true'
 compiler-diff --dir /tmp/solc-suite compare --continue-on-failure
 ```
 
@@ -173,7 +173,7 @@ compiler-diff --dir /tmp/compiler-fuzz fuzz \
   --population-size 24 --mutation-rate 0.4 --crossover-rate 0.4 \
   --seed 7 --count 64 --rounds 10 \
   --compiler 'solc=/absolute/path/to/solc --standard-json' \
-  --compiler 'solar=/absolute/path/to/solar --standard-json'
+  --compiler 'solar=/absolute/path/to/solar --standard-json -Zvalidate-ir=true'
 ```
 
 Defaults are `--grammar fuzz/fandango/solidity-source.fan`,
@@ -214,7 +214,7 @@ Add a symbolic check of a function present in every generated contract:
 compiler-diff --dir /tmp/compiler-fuzz fuzz \
   --grammar /absolute/path/to/pure-function.fan --contract C --seed 7 --count 8 \
   --compiler 'baseline=/absolute/path/to/solc --standard-json' \
-  --compiler 'candidate=/absolute/path/to/solar --standard-json' \
+  --compiler 'candidate=/absolute/path/to/solar --standard-json -Zvalidate-ir=true' \
   --symbolic-signature 'f(uint256)' --symbolic-solc /absolute/path/to/solc \
   --symbolic-args '--max-paths 64 --symbolic-timeout 10'
 ```

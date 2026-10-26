@@ -2,11 +2,11 @@
 
 use super::{
     super::{
-        AliasAnalysis, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap,
-        FxHashSet, InstId, InstKind, MemoryBase, MemoryRegion, MirType, Module, Terminator, U256,
-        Value, ValueId,
+        AliasAnalysis, ArgIdx, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId,
+        FxHashMap, FxHashSet, IndexVec, InstId, InstKind, MemoryBase, MemoryRegion, Module,
+        Terminator, U256, Value, ValueId,
     },
-    SPILL_HAZARD_BOUND,
+    LOW_MEMORY_BOUND, PtrLocation,
 };
 use crate::mir::Callee;
 
@@ -41,12 +41,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             (!below_spills).then_some(dest)
         };
         match func.inst(inst_id).kind {
-            InstKind::CalldataCopy(dest, _, size)
+            InstKind::Copy(dest, _, size, PtrLocation::Calldata | PtrLocation::Memory)
             | InstKind::DataCopy(_, dest, size)
             | InstKind::CodeCopy(dest, _, size)
-            | InstKind::ExtCodeCopy(_, dest, _, size)
-            | InstKind::MCopy(dest, _, size) => dynamic_range(dest, size),
-            InstKind::ReturnDataCopy(dest, offset, size) => {
+            | InstKind::ExtCodeCopy(_, dest, _, size) => dynamic_range(dest, size),
+            InstKind::Copy(dest, offset, size, PtrLocation::Returndata) => {
                 // `returndatacopy(_, returndatasize(), n)` is an OOG guard:
                 // `n == 0` writes nothing, while every nonzero length is out
                 // of bounds and traps before memory is modified.
@@ -67,7 +66,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // A fixed-width store through a loop-carried pointer that starts below the spill
             // area sweeps every slot the loop reaches; across the iterations it is as unbounded
             // as a variable-length copy.
-            InstKind::MStore(dest, _) | InstKind::MStore8(dest, _)
+            InstKind::Store(dest, _, PtrLocation::Memory) | InstKind::Store8(dest, _)
                 if Self::is_low_sweeping_pointer(func, dest) =>
             {
                 Some(dest)
@@ -127,6 +126,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// loop-carried pointer that starts below the spill area and sweeps it.
     pub(in crate::backend::evm::codegen) fn compute_spill_hazard_insts(
         &self,
+        func_id: FunctionId,
         func: &Function,
     ) -> FxHashSet<InstId> {
         let mut hazards = FxHashSet::default();
@@ -141,7 +141,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         let aa = AliasAnalysis::new(func);
         for (inst_id, dest) in candidates {
-            if self.write_dest_may_reach_spills(func, &aa, dest) {
+            if self.write_dest_may_reach_spills(func_id, func, &aa, dest) {
                 hazards.insert(inst_id);
             }
         }
@@ -155,6 +155,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// fixed low-memory spill slots.
     fn write_dest_may_reach_spills(
         &self,
+        func_id: FunctionId,
         func: &Function,
         aa: &AliasAnalysis,
         dest: ValueId,
@@ -168,69 +169,123 @@ impl<'gcx> EvmCodegen<'gcx> {
         match address.base {
             MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
-            | MemoryBase::InternalFrame => false,
-            MemoryBase::Absolute => {
-                address.offset < EvmMemoryLayout::HEAP_START.saturating_add(SPILL_HAZARD_BOUND)
-            }
+            | MemoryBase::InternalFrame
+            | MemoryBase::FreeMemory(_) => false,
+            MemoryBase::Absolute => address.offset < LOW_MEMORY_BOUND,
             MemoryBase::Value(value) => {
                 let mut visiting = DenseBitSet::new_empty(func.num_values());
                 let mut memo = FxHashMap::default();
-                self.heap_pointer_provenance(func, aa, value, &mut visiting, &mut memo)
+                self.heap_pointer_provenance(func_id, func, aa, value, &mut visiting, &mut memo)
                     != Some(true)
             }
         }
     }
 
-    /// Finds leaf helpers that return a pointer rooted at the free-memory pointer.
-    /// Calls through these helpers lose alias provenance in MIR, so remember the
-    /// narrow interprocedural fact needed by forwarding-buffer hazard analysis.
-    pub(in crate::backend::evm::codegen) fn collect_heap_pointer_return_functions(
+    /// Finds leaf helpers that return a pointer rooted at the free-memory pointer,
+    /// and memory-reference arguments that every internal call site passes such
+    /// a pointer. Calls lose alias provenance in MIR, so remember the narrow
+    /// interprocedural facts needed by forwarding-buffer hazard analysis.
+    ///
+    /// Both sets start from every candidate and shrink until no return or call
+    /// site refutes them, since each can depend on the other: a helper may
+    /// return its argument, and a call site may pass a helper's result.
+    /// Inline assembly can retag any word as a memory reference, so an argument
+    /// is trusted only through its callers.
+    pub(in crate::backend::evm::codegen) fn collect_heap_pointer_facts(
         module: &Module,
-    ) -> DenseBitSet<FunctionId> {
-        let mut functions = DenseBitSet::new_empty(module.functions.len());
-        let no_helpers = DenseBitSet::new_empty(module.functions.len());
+    ) -> (DenseBitSet<FunctionId>, IndexVec<FunctionId, DenseBitSet<ArgIdx>>) {
+        let mut helpers = DenseBitSet::new_empty(module.functions.len());
         for (func_id, func) in module.functions.iter_enumerated() {
-            if func.instructions().any(|inst_id| {
+            let leaf = !func.instructions().any(|inst_id| {
                 matches!(func.inst(inst_id).kind, InstKind::ICall { .. } | InstKind::SetFmp(_))
                     || matches!(
                         func.inst(inst_id).kind,
-                        InstKind::MStore(address, _)
+                        InstKind::Store(address, _, PtrLocation::Memory)
                             if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
                     )
-            }) {
-                continue;
-            }
-
-            let aa = AliasAnalysis::new(func);
-            let mut saw_return = false;
-            let mut valid = true;
-            for block in &func.blocks {
-                let Some(Terminator::Return { values }) = &block.terminator else { continue };
-                saw_return = true;
-                if values.len() != 1 {
-                    valid = false;
-                    break;
-                }
-                let mut visiting = DenseBitSet::new_empty(func.num_values());
-                let mut memo = FxHashMap::default();
-                if Self::heap_pointer_provenance_with_helpers(
-                    func,
-                    &aa,
-                    values[0],
-                    &no_helpers,
-                    &mut visiting,
-                    &mut memo,
-                ) != Some(true)
-                {
-                    valid = false;
-                    break;
-                }
-            }
-            if saw_return && valid {
-                functions.insert(func_id);
+            });
+            let mut returns = func.blocks.iter().filter_map(|block| match &block.terminator {
+                Some(Terminator::Return { values }) => Some(values.len()),
+                _ => None,
+            });
+            if leaf && returns.next() == Some(1) && returns.all(|len| len == 1) {
+                helpers.insert(func_id);
             }
         }
-        functions
+        let mut args = module
+            .functions
+            .iter()
+            .map(|func| {
+                let mut args = DenseBitSet::new_empty(func.arg_indices().count());
+                for (arg, ty) in func.params.iter_enumerated() {
+                    if ty.is_memory_reference() {
+                        args.insert(arg);
+                    }
+                }
+                args
+            })
+            .collect::<IndexVec<FunctionId, _>>();
+        let analyses =
+            module.functions.iter().map(AliasAnalysis::new).collect::<IndexVec<FunctionId, _>>();
+
+        loop {
+            let mut refuted_helpers = Vec::new();
+            let mut refuted_args = Vec::new();
+            for (func_id, func) in module.functions.iter_enumerated() {
+                let is_heap_pointer = |value| {
+                    let mut visiting = DenseBitSet::new_empty(func.num_values());
+                    let mut memo = FxHashMap::default();
+                    Self::heap_pointer_provenance_with_helpers(
+                        func,
+                        &analyses[func_id],
+                        value,
+                        &helpers,
+                        &args[func_id],
+                        &mut visiting,
+                        &mut memo,
+                    ) == Some(true)
+                };
+                if helpers.contains(func_id)
+                    && !func.blocks.iter().all(|block| match &block.terminator {
+                        Some(Terminator::Return { values }) => is_heap_pointer(values[0]),
+                        _ => true,
+                    })
+                {
+                    refuted_helpers.push(func_id);
+                }
+                let calls = func
+                    .instructions()
+                    .filter_map(|inst_id| match &func.inst(inst_id).kind {
+                        InstKind::ICall { function: Callee::Function(function), args } => {
+                            Some((*function, &args[..]))
+                        }
+                        _ => None,
+                    })
+                    .chain(func.blocks.iter().filter_map(|block| match &block.terminator {
+                        Some(Terminator::TailCall { function, args }) => {
+                            Some((*function, &args[..]))
+                        }
+                        _ => None,
+                    }));
+                for (callee, values) in calls {
+                    for (index, &value) in values.iter().enumerate() {
+                        let arg = ArgIdx::new(index);
+                        if args[callee].contains(arg) && !is_heap_pointer(value) {
+                            refuted_args.push((callee, arg));
+                        }
+                    }
+                }
+            }
+            if refuted_helpers.is_empty() && refuted_args.is_empty() {
+                return (helpers, args);
+            }
+            for func_id in refuted_helpers {
+                helpers.remove(func_id);
+            }
+            for (func_id, arg) in refuted_args {
+                args[func_id].remove(arg);
+            }
+        }
     }
 
     /// Returns `Some(grounded)` for a heap-pointer derivation. Recursive phi
@@ -238,6 +293,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// also contain a concrete FMP, allocation, or qualified-helper origin.
     fn heap_pointer_provenance(
         &self,
+        func_id: FunctionId,
         func: &Function,
         aa: &AliasAnalysis,
         value: ValueId,
@@ -249,6 +305,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             aa,
             value,
             &self.heap_pointer_return_functions,
+            &self.heap_pointer_args[func_id],
             visiting,
             memo,
         )
@@ -259,6 +316,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         aa: &AliasAnalysis,
         value: ValueId,
         helper_returns: &DenseBitSet<FunctionId>,
+        heap_args: &DenseBitSet<ArgIdx>,
         visiting: &mut DenseBitSet<ValueId>,
         memo: &mut FxHashMap<ValueId, bool>,
     ) -> Option<bool> {
@@ -281,6 +339,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 aa,
                 value,
                 helper_returns,
+                heap_args,
                 visiting,
                 memo,
             )
@@ -290,15 +349,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             .memory_address(func, value)
             .and_then(|address| matches!(address.region, MemoryRegion::Heap).then_some(true))
             .or_else(|| {
-                if matches!(func.value(value), Value::Arg(_))
-                    && func.value_ty(value).is_some_and(MirType::is_memory_reference)
-                {
-                    return Some(true);
-                }
-                let Value::Inst(inst_id) = func.value(value) else { return None };
+                let inst_id = match func.value(value) {
+                    Value::Arg(arg) if heap_args.contains(*arg) => return Some(true),
+                    Value::Inst(inst_id) => inst_id,
+                    _ => return None,
+                };
                 match &func.inst(*inst_id).kind {
                     InstKind::Fmp | InstKind::Alloc { .. } => Some(true),
-                    InstKind::MLoad(address)
+                    InstKind::Load(address, PtrLocation::Memory)
                         if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
                     {
                         Some(true)
@@ -311,19 +369,19 @@ impl<'gcx> EvmCodegen<'gcx> {
                     InstKind::Add(first, second) => {
                         derive(*first, visiting, memo).or_else(|| derive(*second, visiting, memo))
                     }
-                    InstKind::Sub(base, _)
-                    | InstKind::IntToPtr(base)
-                    | InstKind::PtrToInt(base, 256) => derive(*base, visiting, memo),
+                    InstKind::Sub(base, offset)
+                        if AliasAnalysis::sub_keeps_pointer_region(func, *offset) =>
+                    {
+                        derive(*base, visiting, memo)
+                    }
+                    InstKind::IntToPtr(base) | InstKind::PtrToInt(base, 256) => {
+                        derive(*base, visiting, memo)
+                    }
                     InstKind::And(first, second) if aligned_mask(*second) => {
                         derive(*first, visiting, memo)
                     }
                     InstKind::And(first, second) if aligned_mask(*first) => {
                         derive(*second, visiting, memo)
-                    }
-                    InstKind::MemoryObjectData(object, _)
-                    | InstKind::MemoryObjectFieldAddr { object, .. }
-                    | InstKind::MemoryObjectElementAddr { object, .. } => {
-                        derive(*object, visiting, memo)
                     }
                     InstKind::Phi(incoming) => {
                         let mut grounded = false;
@@ -345,9 +403,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         provenance
     }
 
-    /// Returns whether a function can read, write, or observe the reserved free-memory-pointer
-    /// word. Unknown offsets and lengths are conservatively overlapping; constant ranges proven
-    /// disjoint from `[0x40, 0x60)` keep the lazy entry initialization optimization.
+    /// Returns whether a function can read or observe the reserved free-memory-pointer word, or
+    /// write part of it. Unknown offsets and lengths are conservatively overlapping; constant
+    /// ranges proven disjoint from `[0x40, 0x60)` keep the lazy entry initialization optimization.
+    /// A full-word store to the slot overwrites the initialization without observing it, and a
+    /// `revert` or `return` range in the block of such a store reads the stored word.
     pub(in crate::backend::evm::codegen) fn function_may_observe_free_memory_slot(
         func: &Function,
     ) -> bool {
@@ -361,18 +421,21 @@ impl<'gcx> EvmCodegen<'gcx> {
             Self::constant_memory_range_may_overlap_fmp(func.value_u64(offset), Some(size))
         };
         if func.instructions().any(|inst_id| match &func.inst(inst_id).kind {
-            InstKind::MLoad(offset) | InstKind::MStore(offset, _) => {
+            InstKind::Store(..) if func.is_fmp_slot_store(inst_id) => false,
+            InstKind::Load(offset, PtrLocation::Memory)
+            | InstKind::Store(offset, _, PtrLocation::Memory) => {
                 overlaps_const(*offset, EvmMemoryLayout::WORD_SIZE)
             }
-            InstKind::MStore8(offset, _) => overlaps_const(*offset, 1),
+            InstKind::Store8(offset, _) => overlaps_const(*offset, 1),
             InstKind::MemoryZero(offset, size)
             | InstKind::Keccak256(offset, size)
-            | InstKind::CalldataCopy(offset, _, size)
+            | InstKind::Copy(offset, _, size, PtrLocation::Calldata | PtrLocation::Returndata)
             | InstKind::DataCopy(_, offset, size)
             | InstKind::CodeCopy(offset, _, size)
-            | InstKind::ReturnDataCopy(offset, _, size)
             | InstKind::ExtCodeCopy(_, offset, _, size) => overlaps(*offset, *size),
-            InstKind::MCopy(dest, src, size) => overlaps(*dest, *size) || overlaps(*src, *size),
+            InstKind::Copy(dest, src, size, PtrLocation::Memory) => {
+                overlaps(*dest, *size) || overlaps(*src, *size)
+            }
             InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
@@ -382,25 +445,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::Create(_, offset, size) | InstKind::Create2(_, offset, size, _) => {
                 overlaps(*offset, *size)
             }
-            InstKind::Log0(offset, size)
-            | InstKind::Log1(offset, size, _)
-            | InstKind::Log2(offset, size, _, _)
-            | InstKind::Log3(offset, size, _, _, _)
-            | InstKind::Log4(offset, size, _, _, _, _) => overlaps(*offset, *size),
-            InstKind::MSize | InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. } => true,
+            InstKind::Log { offset, size, .. } => overlaps(*offset, *size),
+            InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. } => true,
             // These semantic memory operations are normally gone by the `lowered` phase. If
             // one remains, its complete accessed range is not represented as physical operands
             // here, so retain the Solidity memory invariant conservatively.
-            InstKind::MemoryObjectLen(_, _)
-            | InstKind::SetMemoryObjectLen(_, _, _)
-            | InstKind::MemoryObjectData(_, _)
-            | InstKind::MemoryObjectFieldAddr { .. }
-            | InstKind::MemoryObjectElementAddr { .. }
-            | InstKind::AbiEncode { .. }
-            | InstKind::StorageToMemory { .. }
-            | InstKind::MemoryToStorage { .. }
-            | InstKind::Keccak256Bytes(_)
-            | InstKind::MappingSlotMemory(_, _) => true,
+            InstKind::AbiEncode { .. } | InstKind::MappingSlotBytes(_, _) => true,
             _ => false,
         }) {
             return true;
@@ -408,7 +458,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         func.blocks.iter().any(|block| match block.terminator.as_ref() {
             Some(Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size }) => {
-                overlaps(*offset, *size)
+                overlaps(*offset, *size) && !func.block_stores_fmp_slot(block)
             }
             _ => false,
         })

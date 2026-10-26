@@ -67,8 +67,9 @@
       ret v0
   }
   
-  fn @keep_mload_msize_in_function() -> i256 {
+  fn @hoist_mload_around_msize() -> i256 {
     bb0:
++     v3 = mload 64
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v3]
@@ -80,7 +81,7 @@
       v6 = add v0, v5
       ret v6
     bb2:
-      v3 = mload 64
+-     v3 = mload 64
       v4 = add v1, 1
       jump bb1
   }
@@ -98,7 +99,7 @@
       ret v0
     bb2:
 -     v3 = sload 5
-      v4 = checked_add u256, v1, 1
+      v4 = checked_add uint256, v1, 1
       jump bb1
   }
   
@@ -113,10 +114,10 @@
     bb3:
       ret v0
     bb2:
-      v3 = checked_add u256, arg0, 1
+      v3 = checked_add uint256, arg0, 1
 -     v4 = sload 5
 +     v4 = sload 5 !metadata(storage=slot(5))
-      v5 = checked_add u256, v1, 1
+      v5 = checked_add uint256, v1, 1
       jump bb1
   }
   
@@ -126,7 +127,7 @@
     bb1:
       v0 = phi [bb0: 0], [bb2: v4]
       v1 = phi [bb0: 0], [bb2: v5]
-      v2 = checked_add u256, arg0, 1
+      v2 = checked_add uint256, arg0, 1
       v3 = lt v1, 10
       jumpi v3, bb2, bb3
     bb3:
@@ -134,7 +135,7 @@
     bb2:
 -     v4 = sload 5
 +     v4 = sload 5 !metadata(storage=slot(5))
-      v5 = checked_add u256, v1, 1
+      v5 = checked_add uint256, v1, 1
       jump bb1
   }
   

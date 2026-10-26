@@ -1,0 +1,100 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_reference_unassigned.sol:StorageReferenceUnassigned ===
+@module StorageReferenceUnassigned
+@types
+  struct0: {i256, i256}
+
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 5 !metadata(storage=slot(0))
+    v0 = mapping_slot 3, 1
+    sstore v0, 30 !metadata(storage=symbolic(v0))
+    ret
+}
+
+fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, view, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v40]
+    v2 = phi [bb0: 0], [bb3: v37]
+    v3 = phi [bb0: 0], [bb3: v41]
+    v4 = phi [bb0: 0], [bb3: v38]
+    v5 = extract_value slice<calldata>, v0, 1
+    v6 = lt v3, v5
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v1
+  bb4:
+    v7 = extract_value slice<calldata>, v0, 1
+    v8 = lt v3, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = extract_value slice<calldata>, v0, 0
+    v11 = mul v3, 32
+    v12 = eq 32, 0
+    v13 = div v11, 32
+    v14 = eq v13, v3
+    v15 = or v12, v14
+    v16 = zext i1 v15 to i256
+    v17 = eq v16, 0
+    icall panic_if<0x41>, v17
+    v18 = ptrtoint ptr<calldata> v10 to i256
+    v19 = add v18, v11
+    v20 = calldataload v19
+    v21 = ne v2, v20
+    jumpi v21, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v22 = extract_value slice<calldata>, v0, 1
+    v23 = lt v3, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = extract_value slice<calldata>, v0, 0
+    v26 = mul v3, 32
+    v27 = eq 32, 0
+    v28 = div v26, 32
+    v29 = eq v28, v3
+    v30 = or v27, v29
+    v31 = zext i1 v30 to i256
+    v32 = eq v31, 0
+    icall panic_if<0x41>, v32
+    v33 = ptrtoint ptr<calldata> v25 to i256
+    v34 = add v33, v26
+    v35 = calldataload v34
+    v36 = mapping_slot v35, 1
+    jump bb9
+  bb9:
+    v37 = phi [bb7: v35], [bb8: v2]
+    v38 = phi [bb7: v36], [bb8: v4]
+    v39 = sload v38 !metadata(storage=symbolic(v38))
+    v40 = checked_add uint256, v1, v39
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v41 = checked_add uint256, v3, 1
+    jump bb1
+}
+
+fn @write(arg0: i1, arg1: i256) -> struct0 [selector=0x6eb8533f, abi_params=[bool, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v0 = mapping_slot 1, 1
+    jump bb3
+  bb3:
+    v1 = phi [bb1: v0], [bb2: 0]
+    sstore v1, arg1 !metadata(storage=symbolic(v1))
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = mapping_slot 1, 1
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    v5 = insert_value struct0, undef struct0, 0, v2
+    v6 = insert_value struct0, v5, 1, v4
+    ret v6
+}

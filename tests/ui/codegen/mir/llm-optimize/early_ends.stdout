@@ -1,10 +1,10 @@
 llm-optimize EarlyEnds @main: not offered: is the dispatch entry
-llm-optimize EarlyEnds @sum: offered at 3738 gas, 91 bytes
-llm-optimize EarlyEnds @sum: round 1: rejected at equivalence: the original returns 0x32b8b965, but the candidate returns 0x2b8b964
-  on arg0 = 0x1723275bc92a8051cacaa29440b46e9ed37628248303801b4ca352e2c9a127e8, free memory pointer 0xc0
-llm-optimize EarlyEnds @sum: round 2: accepted at 1650 gas, 63 bytes
+llm-optimize EarlyEnds @sum: offered at 4831 gas, 91 bytes
+llm-optimize EarlyEnds @sum: round 1: rejected at equivalence: the original returns 0x31cd1cf9, but the candidate returns 0x1cd1cf8
+  on arg0 = 0x7b7465c736a44862b2564d85afa833f7c3937b7e324c5073092595ba219faf25, free memory pointer 0x160
+llm-optimize EarlyEnds @sum: round 2: accepted at 2110 gas, 63 bytes
 llm-optimize EarlyEnds @sum: round 3: nothing cheaper
-llm-optimize EarlyEnds @sum: rewritten from 3738 gas, 91 bytes to 1650 gas, 63 bytes
+llm-optimize EarlyEnds @sum: rewritten from 4831 gas, 91 bytes to 2110 gas, 63 bytes
 - // === ROOT/tests/ui/codegen/mir/llm-optimize/early_ends.mir (before llm-optimize) ===
 + // === ROOT/tests/ui/codegen/mir/llm-optimize/early_ends.mir (after llm-optimize) ===
   @module EarlyEnds
@@ -19,7 +19,7 @@ llm-optimize EarlyEnds @sum: rewritten from 3738 gas, 91 bytes to 1650 gas, 63 b
   
   fn @sum(arg0: i256) -> i256 {
     bb0:
-      v0 = shr 8, arg0
+      v0 = shr arg0, 8
       v1 = and v0, 0xffff
       v2 = slt arg0, 0
       v3 = select v2, 0, v1

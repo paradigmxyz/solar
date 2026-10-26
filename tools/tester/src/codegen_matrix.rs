@@ -6,7 +6,10 @@ use ui_test::{
 
 pub(crate) const NAME: &str = "codegen-matrix";
 
-const STANDARD_REVISIONS: &[&str] = &["none", "gas", "size", "mir"];
+pub(crate) const STANDARD_REVISIONS: &[&str] = &["mir", "gas", "size"];
+
+/// Also emits runtime bytecode and source maps so every revision exercises them.
+const EMIT: &str = "--emit=abi,bin,bin-runtime,srcmap,srcmap-runtime";
 
 pub(crate) fn parse(parser: &mut CommentParser<&mut Revisioned>, args: Spanned<&str>, _span: Span) {
     let mut revisions = args.split_whitespace();
@@ -49,18 +52,20 @@ pub(crate) fn apply(config: &mut Config, src: &str) -> bool {
     }
     config.comment_defaults.revisions = Some(revisions);
     let artifact_stdout = Regex::new(r"(?s).+").unwrap();
-    for (revision, flags) in [
-        ("none", &["-O", "none", "--emit=abi,bin"] as &[&str]),
-        ("gas", &["-O", "gas", "--emit=abi,bin"]),
-        ("size", &["-O", "size", "--emit=abi,bin"]),
-        ("mir", &["-O", "none", "-Zdump=mir"]),
+    // `mir` emits artifacts so that `-O none` still runs the backend.
+    for (revision, flags, stdout) in [
+        (
+            "mir",
+            &["-O", "none", EMIT, "-Zdump=mir"] as &[&str],
+            crate::run_call_dump_stdout_regex(),
+        ),
+        ("gas", &["-O", "gas", EMIT], &artifact_stdout),
+        ("size", &["-O", "size", EMIT], &artifact_stdout),
     ] {
         let defaults =
             config.comment_defaults.revisioned.entry(vec![revision.to_owned()]).or_default();
         defaults.compile_flags.extend(flags.iter().map(|flag| (*flag).to_owned()));
-        if revision != "mir" {
-            defaults.normalize_stdout.push((artifact_stdout.clone().into(), vec![]));
-        }
+        defaults.normalize_stdout.push((stdout.clone().into(), vec![]));
     }
     true
 }
@@ -93,14 +98,11 @@ mod tests {
         assert!(apply(&mut config, "//@ codegen-matrix: standard\n"));
         assert_eq!(
             config.comment_defaults.revisions.as_deref(),
-            Some(&["none".to_owned(), "gas".to_owned(), "size".to_owned(), "mir".to_owned()][..])
+            Some(&["mir".to_owned(), "gas".to_owned(), "size".to_owned()][..])
         );
         assert_eq!(
             config.comment_defaults.revisioned[&["mir".to_owned()][..]].compile_flags,
-            ["-O", "none", "-Zdump=mir"].map(str::to_owned)
-        );
-        assert!(
-            config.comment_defaults.revisioned[&["mir".to_owned()][..]].normalize_stdout.is_empty()
+            ["-O", "none", EMIT, "-Zdump=mir"].map(str::to_owned)
         );
     }
 
@@ -111,18 +113,12 @@ mod tests {
         assert_eq!(
             config.comment_defaults.revisions.as_deref(),
             Some(
-                &[
-                    "none".to_owned(),
-                    "gas".to_owned(),
-                    "size".to_owned(),
-                    "mir".to_owned(),
-                    "unlinked".to_owned(),
-                ][..]
+                &["mir".to_owned(), "gas".to_owned(), "size".to_owned(), "unlinked".to_owned()][..]
             )
         );
         assert_eq!(
             revisions("//@ codegen-matrix: standard unlinked\n"),
-            ["none", "gas", "size", "mir", "unlinked"]
+            ["mir", "gas", "size", "unlinked"]
         );
     }
 }

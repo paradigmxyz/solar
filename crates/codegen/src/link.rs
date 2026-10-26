@@ -2,9 +2,11 @@
 
 use alloy_primitives::{Bytes, U256};
 use solar_data_structures::{fmt::FmtIteratorExt, index::IndexVec, map::FxHashMap, newtype_index};
-use solar_interface::{Symbol, sym};
+use solar_interface::Symbol;
 use solar_sema::{Gcx, hir::ContractId};
 use std::fmt;
+
+pub(crate) use solar_sema::eval::CodeKind;
 
 newtype_index! {
     /// An index into a module's library table.
@@ -235,25 +237,6 @@ impl RelocatableBytecode {
                     .intern(*self.libraries.get(reloc.library).expect("valid bytecode library ID")),
             })
             .collect()
-    }
-}
-
-/// Which bytecode of a contract another contract embeds.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum CodeKind {
-    /// Deployment bytecode, including the initcode prefix.
-    Creation,
-    /// Deployed runtime bytecode.
-    Runtime,
-}
-
-impl CodeKind {
-    /// Returns the textual IR keyword.
-    pub(crate) fn keyword(self) -> Symbol {
-        match self {
-            Self::Creation => sym::creation_code,
-            Self::Runtime => sym::runtime_code,
-        }
     }
 }
 

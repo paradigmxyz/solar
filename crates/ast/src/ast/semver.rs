@@ -166,6 +166,13 @@ impl fmt::Debug for SemverVersion {
 impl From<semver::Version> for SemverVersion {
     #[inline]
     fn from(version: semver::Version) -> Self {
+        Self::from(&version)
+    }
+}
+
+impl From<&semver::Version> for SemverVersion {
+    #[inline]
+    fn from(version: &semver::Version) -> Self {
         Self {
             span: Span::DUMMY,
             major: version.major.into(),
@@ -194,7 +201,8 @@ impl SemverVersion {
     }
 }
 
-/// A SemVer version requirement. This is a list of components, and is never empty.
+/// A SemVer version requirement. This is a list of components, and is empty only when parsing
+/// it failed.
 #[derive(Debug)]
 pub struct SemverReq<'ast> {
     /// The components of this requirement.

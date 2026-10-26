@@ -5,9 +5,8 @@ candidates with, and the UI test runner checks `run-call` directives against. Th
 `solar_codegen::interpret`.
 
 The input is one lowered MIR module, such as a fixture under `tests/ui/codegen/mir/`, or the output
-of `solar -Zdump=mir-final`, which prints the final MIR of each contract along with the heap frames
-the backend takes for its calls. The tool runs only a module the validator accepts, as the backend
-compiles only such modules. `-` reads standard input, so a contract can go straight from the
+of `solar -Zdump=mir-final`, which prints the final MIR of each contract. The tool runs only a
+module the validator accepts, as the backend compiles only such modules. `-` reads standard input, so a contract can go straight from the
 compiler to the interpreter:
 
 ```bash
@@ -48,7 +47,7 @@ Storage reads return what `--storage SLOT=VALUE` sets and zero otherwise; contex
 `--context NAME=VALUE` sets, such as `caller`, `callvalue`, `timestamp`, or `chainid`, and zero
 otherwise. Each run starts from that state, so replaying a sequence of transactions means passing
 the storage one run leaves to the next. `--heap-start` sets where the free memory pointer starts,
-`0x80` unless the backend placed frames above it; the compiled bytecode stores it at `0x40` first.
+`0x80`; the compiled bytecode stores it at `0x40` first.
 
 ## Output
 

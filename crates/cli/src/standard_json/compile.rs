@@ -8,7 +8,7 @@ use super::{
         SourceOutput, StandardJsonReadCallback, optimizer_settings, print_standard_json_stats,
         strip_json_comments,
     },
-    metadata::Metadata,
+    metadata::{Metadata, source_name},
 };
 use crate::{
     bytecode::MaybeHexBytecode,
@@ -139,14 +139,14 @@ fn write_empty_standard_json_output(
     diagnostics: &solar_data_structures::sync::RwLock<Vec<solar_interface::diagnostics::Diag>>,
     out: &mut (dyn Write + Send),
 ) -> io::Result<()> {
-    let mut output = CompilerOutput::default();
+    let output = CompilerOutput::default();
     let diagnostics = diagnostics.read();
-    finish_standard_json_output(&mut output, source_map, opts, &diagnostics, out)
+    finish_standard_json_output(output, source_map, opts, &diagnostics, out)
 }
 
 #[tracing::instrument(name = "write_output", level = "debug", skip_all)]
 fn finish_standard_json_output<'a>(
-    output: &mut CompilerOutput<'a>,
+    mut output: CompilerOutput<'a>,
     source_map: Arc<SourceMap>,
     opts: &CompileOpts,
     diagnostics: &'a [solar_interface::diagnostics::Diag],
@@ -163,20 +163,22 @@ fn finish_standard_json_output<'a>(
         output.contracts.clear();
     }
 
-    crate::emit::to_json(out, &output, opts.pretty_json).map_err(Into::into)
+    // Raw contracts would not be indented, and with nothing to parallelize, buffering every
+    // serialized contract only raises peak memory.
+    if opts.pretty_json || output.contracts.is_empty() || rayon::current_num_threads() == 1 {
+        crate::emit::to_json(out, &output, opts.pretty_json)
+    } else {
+        crate::emit::to_json(out, &output.serialize_contracts()?, false)
+    }
+    .map_err(Into::into)
 }
 
 /// Applies `settings.debug`, enforcing solc's selection rules.
 ///
 /// `debugInfo` components only affect Yul IR output, which we do not emit, so only the rules
-/// that solc rejects inputs for are checked: `snippet` requires `location`, and an explicit
-/// selection has to include `ethdebug` when ethdebug bytecode output is requested.
-fn apply_debug_settings(
-    dcx: &DiagCtxt,
-    opts: &mut CompileOpts,
-    debug: &DebugSettings,
-    output_selection: &OutputSelection<'_>,
-) {
+/// that solc rejects inputs for are checked: `snippet` requires `location`, and `ethdebug`
+/// requires `ast-id`.
+fn apply_debug_settings(dcx: &DiagCtxt, opts: &mut CompileOpts, debug: &DebugSettings) {
     match debug.revert_strings {
         Some(RevertStrings::VerboseDebug) => {
             dcx.err(
@@ -196,15 +198,11 @@ fn apply_debug_settings(
         dcx.err("to use `snippet` with `settings.debug.debugInfo` you must also select `location`")
             .emit();
     }
-    let ethdebug_outputs =
-        OutputSelectionFlags::BYTECODE_ETHDEBUG | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
-    if output_selection.union().intersects(ethdebug_outputs)
-        && !debug.selects_debug_info(DebugInfoComponent::Ethdebug)
+    if debug.selects_debug_info(DebugInfoComponent::Ethdebug)
+        && !debug.selects_debug_info(DebugInfoComponent::AstId)
     {
-        dcx.err(
-            "`ethdebug` needs to be enabled in `settings.debug.debugInfo` if `evm.bytecode.ethdebug` or `evm.deployedBytecode.ethdebug` was selected as output",
-        )
-        .emit();
+        dcx.err("to use `ethdebug` with `settings.debug.debugInfo` you must also select `ast-id`")
+            .emit();
     }
 }
 
@@ -284,7 +282,7 @@ fn compile<T>(
     // `settings.debug.revertStrings` selects a non-default mode.
     opts.revert_strings = RevertStrings::Default;
     if let Some(debug) = debug {
-        apply_debug_settings(&dcx, opts, debug, output_selection);
+        apply_debug_settings(&dcx, opts, debug);
     }
     if dcx.has_errors().is_err() {
         return write_empty_standard_json_output(source_map, opts, diagnostics, out);
@@ -414,8 +412,7 @@ fn compile<T>(
                     gcx.hir
                         .par_contracts_enumerated()
                         .filter_map(|(contract_id, contract)| {
-                            let source = gcx.hir.source(contract.source);
-                            let source_name = standard_json_source_name(&source.file.name);
+                            let source_name = source_name(gcx, contract.source);
                             let contract_name = contract.name.as_str();
                             let contract_selection =
                                 output_selection.contract(&source_name, contract_name);
@@ -464,7 +461,7 @@ fn compile<T>(
 
             let diagnostics = diagnostics.read();
             output_result = Some(finish_standard_json_output(
-                &mut output,
+                output,
                 Arc::clone(&source_map),
                 opts,
                 &diagnostics,
@@ -516,8 +513,7 @@ impl StandardJsonFileLoader {
                 "File import callback not supported",
             ));
         };
-        let data = callback_path(path);
-        match read_callback.read("source", &data) {
+        match read_callback.read("source", &path.to_string_lossy()) {
             ReadCallbackResult::Success(contents) => Ok(contents),
             ReadCallbackResult::Error(error) => Err(io::Error::other(error)),
             ReadCallbackResult::Unsupported => {
@@ -532,22 +528,6 @@ pub(crate) fn unsupported_callback_kind(kind: &str) -> String {
     format!("Callback kind `{kind}` is not supported")
 }
 
-fn callback_path(path: &Path) -> Cow<'_, str> {
-    let path = if path.is_absolute()
-        && let Ok(cwd) = std::env::current_dir()
-        && let Ok(path) = path.strip_prefix(cwd)
-    {
-        path
-    } else {
-        path
-    };
-    path.to_string_lossy()
-}
-
-pub(super) fn standard_json_source_name(name: &solar_interface::source_map::FileName) -> String {
-    name.display().to_string().replace('\\', "/")
-}
-
 fn disallowed_io(path: &Path) -> io::Error {
     io::Error::new(
         io::ErrorKind::PermissionDenied,
@@ -559,12 +539,11 @@ fn disallowed_io(path: &Path) -> io::Error {
 fn source_outputs_from_compiler(
     compiler: &solar_sema::CompilerRef<'_>,
 ) -> FxIndexMap<String, SourceOutput> {
-    compiler
-        .gcx()
-        .sources
+    let gcx = compiler.gcx();
+    gcx.sources
         .iter_enumerated()
         .map(|(id, source)| {
-            (standard_json_source_name(&source.file.name), SourceOutput { id: id.index() as u32 })
+            (source.file.name.display().to_string(), SourceOutput { id: id.index() as u32 })
         })
         .collect()
 }
@@ -800,8 +779,7 @@ fn requested_bytecode_contracts(
             continue;
         }
 
-        let source = gcx.hir.source(contract.source);
-        let source_name = standard_json_source_name(&source.file.name);
+        let source_name = source_name(gcx, contract.source);
         let contract_name = contract.name.as_str();
         if output_selection.contract(&source_name, contract_name).intersects(bytecode_outputs) {
             contracts.insert(contract_id);
@@ -831,8 +809,7 @@ fn requested_metadata_contracts(
     }
     if requests_metadata {
         for (contract_id, contract) in gcx.hir.contracts_enumerated() {
-            let source = gcx.hir.source(contract.source);
-            let source_name = standard_json_source_name(&source.file.name);
+            let source_name = source_name(gcx, contract.source);
             if output_selection
                 .contract(&source_name, contract.name.as_str())
                 .contains(OutputSelectionFlags::METADATA)
@@ -863,8 +840,7 @@ fn requested_debug_info_contracts(
             continue;
         }
 
-        let source = gcx.hir.source(contract.source);
-        let source_name = standard_json_source_name(&source.file.name);
+        let source_name = source_name(gcx, contract.source);
         if output_selection.contract(&source_name, contract.name.as_str()).intersects(debug_outputs)
         {
             contracts.insert(contract_id);
@@ -880,8 +856,7 @@ fn contract_output_requested(
 ) -> bool {
     output_selection.all().intersects(outputs)
         || gcx.hir.contracts().any(|contract| {
-            let source = gcx.hir.source(contract.source);
-            let source_name = standard_json_source_name(&source.file.name);
+            let source_name = source_name(gcx, contract.source);
             output_selection.contract(&source_name, contract.name.as_str()).intersects(outputs)
         })
 }

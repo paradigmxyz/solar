@@ -7,13 +7,13 @@ use super::{
 };
 use crate::mir::{
     AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CheckedOp, ConcatPart, DataId,
-    DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, MemoryObjectKind,
-    MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart, PanicCode, RevertPayload,
-    RevertReason, SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
+    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CalldataTail, CheckedOp, DataId,
+    DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, LogTopics,
+    MemoryObjectKind, MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart,
+    PanicCode, PtrLocation, RevertPayload, RevertReason, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::{U256, keccak256};
-use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, StrKind, TypeSize, UnOpKind};
+use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, TypeSize, UnOpKind};
 use solar_data_structures::{
     bit_set::DenseBitSet,
     map::{FxHashMap, FxHashSet, FxIndexSet, StdEntry},
@@ -52,7 +52,7 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) storage: &'ctx StorageLayout<'gcx>,
     pub(super) contract_id: hir::ContractId,
     /// Contracts whose bytecode this contract embeds.
-    pub(super) bytecode_dependencies: &'gcx DenseBitSet<hir::ContractId>,
+    pub(super) bytecode_dependencies: &'ctx DenseBitSet<hir::ContractId>,
     pub(super) function_ids: &'ctx FxHashMap<hir::FunctionId, FunctionId>,
     pub(super) immutable_ids: &'ctx FxHashMap<VariableId, ImmutableId>,
     pub(super) state: &'ctx mut LoweringState,
@@ -98,7 +98,6 @@ pub(super) enum RecursiveStorageHelper {
 
 #[derive(Default)]
 pub(super) struct LoweringState {
-    pub(super) invalid_event_topics: FxHashSet<hir::EventId>,
     pub(super) pointer_registry: InternalFunctionPointerRegistry,
     /// DO NOT ADD OTHER HELPER MAPS. USE THIS ONE ONLY.
     pub(super) helpers: FxHashMap<Symbol, FunctionId>,
@@ -252,8 +251,10 @@ struct LoweredCallOptions {
     value: ValueId,
     /// Whether the call has an explicit `{value: ...}` option.
     ///
-    /// A pre-EIP-150 call reserves the value-transfer cost whenever the option is there, like
-    /// solc's `valueSet`, because the amount is not known to be zero.
+    /// A pre-EIP-150 call reserves the value-transfer cost whenever the option is there, because
+    /// the amount is not known to be zero.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/ExpressionCompiler.cpp#L2923-L2924>
     value_set: bool,
     /// A zero immediate, reusable by the caller.
     zero: ValueId,
@@ -318,9 +319,24 @@ struct StorageAccess {
 enum LValuePlace<'gcx> {
     Variable { id: VariableId, span: Span },
     Storage { ty: Ty<'gcx>, access: StorageAccess, span: Span },
-    MemoryField { object: ValueId, layout: MemoryObjectLayout, field: u64, ty: Ty<'gcx> },
+    MemoryField { object: ValueId, field: u64, ty: Ty<'gcx> },
     MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId, ty: Ty<'gcx> },
     MemoryByte { object: ValueId, index: ValueId, ty: Ty<'gcx> },
+    YulSuffix { id: VariableId, suffix: YulSuffix, span: Span },
+}
+
+/// A Yul suffix on a variable, such as `x.offset` or `x.slot`.
+///
+/// Loads and stores read the variable when they run, so later writes see
+/// earlier ones in a multi-assignment.
+#[derive(Clone, Copy)]
+enum YulSuffix {
+    CalldataOffset,
+    CalldataLength,
+    FunctionAddress,
+    FunctionSelector,
+    StorageSlot,
+    StorageOffset,
 }
 
 #[derive(Clone, Copy)]
@@ -380,17 +396,34 @@ impl InternalFunctionPointerShape {
             && self.returns == target.returns
     }
 
-    fn helper_name(&self) -> Symbol {
+    /// Returns whether a pointer of this shape can hold a `target` function retyped by inline
+    /// assembly: every parameter and return either keeps its layout or stays one word, which
+    /// the dispatcher reinterprets.
+    ///
+    /// NOTE: Calldata references travel as `(offset, length)` slices, so a one-slot calldata
+    /// struct retyped to a word, which solc dispatches by stack arity, reaches no target.
+    fn is_word_compatible_with(&self, target: &Self) -> bool {
+        let compatible = |lhs: &[crate::mir::ValueLayout], rhs: &[crate::mir::ValueLayout]| {
+            lhs.len() == rhs.len()
+                && lhs
+                    .iter()
+                    .zip(rhs)
+                    .all(|(&lhs, &rhs)| lhs == rhs || (lhs.is_word() && rhs.is_word()))
+        };
+        compatible(&self.params, &target.params) && compatible(&self.returns, &target.returns)
+    }
+
+    fn helper_name(&self, from_assembly: bool) -> Symbol {
         let params = self.params.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
         let returns = self.returns.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
-        helper_name(
-            sym::internal_dispatcher,
-            format!(
-                "p_{}_r_{}",
-                if params.is_empty() { "none" } else { &params },
-                if returns.is_empty() { "none" } else { &returns },
-            ),
-        )
+        let suffix = format!(
+            "{}p_{}_r_{}",
+            if from_assembly { "asm_" } else { "" },
+            if params.is_empty() { "none" } else { &params },
+            if returns.is_empty() { "none" } else { &returns },
+        );
+        // `slice<calldata>` -> `slice_calldata`, keeping the name an identifier.
+        helper_name(sym::internal_dispatcher, suffix.replace('<', "_").replace('>', ""))
     }
 }
 
@@ -401,7 +434,35 @@ fn helper_name(prefix: Symbol, suffix: impl Display) -> Symbol {
 #[derive(Default)]
 pub(super) struct InternalFunctionPointerRegistry {
     targets: FxHashSet<hir::FunctionId>,
-    dispatchers: FxHashMap<FunctionId, InternalFunctionPointerShape>,
+    dispatchers: FxHashMap<FunctionId, InternalFunctionPointerDispatch>,
+    /// Functions whose pointers may reach inline assembly, which can retype them.
+    assembly_exposed: FxHashSet<hir::FunctionId>,
+    /// Pointer calls whose callee may hold a pointer retyped by inline assembly.
+    assembly_calls: FxHashSet<hir::ExprId>,
+}
+
+impl InternalFunctionPointerRegistry {
+    /// Returns whether a pointer of this shape that inline assembly retyped can hold an exposed
+    /// function that the per-type dispatcher does not select.
+    fn assembly_widens(&self, gcx: Gcx<'_>, shape: &InternalFunctionPointerShape) -> bool {
+        self.assembly_exposed.iter().any(|&function_id| {
+            let TyKind::Fn(function) = gcx.type_of_item(function_id.into()).kind else {
+                return false;
+            };
+            let candidate = InternalFunctionPointerShape::from_ty(function);
+            !shape.is_assembly_cast_compatible_with(&candidate)
+                && shape.is_word_compatible_with(&candidate)
+        })
+    }
+}
+
+/// The pointers one internal function pointer dispatcher selects a callee for.
+#[derive(Clone)]
+pub(super) struct InternalFunctionPointerDispatch {
+    shape: InternalFunctionPointerShape,
+    /// Whether the pointers may come from inline assembly, which also makes the functions
+    /// exposed to assembly with a word-compatible shape reachable.
+    from_assembly: bool,
 }
 
 fn internal_function_pointer_id(function_id: hir::FunctionId) -> u64 {
@@ -556,24 +617,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         allow_value: bool,
         diagnostic: &'static str,
     ) -> Option<LoweredCallOptions> {
-        // zero = 0
-        // gas = gas() if can_overcharge_gas_for_call
-        // value = zero
         // for option { gas/value = lower(option.value) }
-        let zero = self.builder.imm(U256::ZERO);
-        let evm_version = self.cx.gcx.sess.opts.evm_version;
-        let mut gas = evm_version.can_overcharge_gas_for_call().then(|| self.builder.gas());
-        let mut value = zero;
-        let mut value_set = false;
+        let mut lowered = self.default_call_options();
         if let Some(options) = options {
             for option in options.args {
                 let option_value =
                     self.lower_typed_expr(&option.value, self.cx.gcx.types.uint(256))?;
                 match option.name.name {
-                    kw::Gas => gas = Some(option_value),
+                    kw::Gas => lowered.gas = Some(option_value),
                     sym::value if allow_value => {
-                        value = option_value;
-                        value_set = true;
+                        lowered.value = option_value;
+                        lowered.value_set = true;
                     }
                     _ => {
                         return self.cx.report_unsupported(option.name.span, diagnostic);
@@ -581,7 +635,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
         }
-        Some(LoweredCallOptions { gas, value, value_set, zero })
+        Some(lowered)
+    }
+
+    /// Lowers the options of a call that sets none.
+    fn default_call_options(&mut self) -> LoweredCallOptions {
+        // zero = 0
+        // gas = gas() if can_overcharge_gas_for_call
+        // value = zero
+        let zero = self.builder.imm(U256::ZERO);
+        let evm_version = self.cx.gcx.sess.opts.evm_version;
+        let gas = evm_version.can_overcharge_gas_for_call().then(|| self.builder.gas());
+        LoweredCallOptions { gas, value: zero, value_set: false, zero }
     }
 
     fn validate_enum(&mut self, ty: Ty<'gcx>, value: ValueId) {
@@ -624,12 +689,38 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        // Fold pure value expressions. Literal arithmetic is exact, so its intermediate values may
+        // be fractions or may not fit any integer type. Constant names fold in
+        // `lower_constant_variable`.
+        let computes = matches!(
+            expr.kind,
+            ExprKind::Unary(..)
+                | ExprKind::Binary(..)
+                | ExprKind::Ternary(..)
+                | ExprKind::Call(..)
+                | ExprKind::Member(..)
+                | ExprKind::Payable(_)
+                | ExprKind::Index(..)
+                | ExprKind::Tuple(_)
+        );
+        // Inline assembly reads raw words, so only literal arithmetic folds there.
+        let solidity_value = || {
+            !self.in_inline_assembly
+                && self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_value_type())
+        };
         // value = const_eval(expr)
-        if int_literal_expr_contains_wide(self.cx.gcx, expr).is_some_and(|wide| wide)
-            && let Ok(value) = self.cx.gcx.try_eval_const(expr)
-            && value.bit_len() <= 256
+        if computes
+            && (solidity_value() || is_literal_operation(self.cx.gcx, expr))
+            && let Ok(value) = self.cx.gcx.const_eval().eval_expr(expr)
+            && !matches!(value, ConstValue::Bytes(..))
         {
-            return Some(self.builder.imm(value.as_evm_word()));
+            // Fractions have no runtime value.
+            if let ConstValue::Rational(_) = value {
+                return self.cx.report_unsupported(expr.span, "fractional value");
+            }
+            if let Some(value) = self.lower_const_value(value, expr.span) {
+                return Some(value);
+            }
         }
         match &expr.kind {
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),
@@ -647,7 +738,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && self.cx.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Calldata)
                     && matches!(
                         self.builder.func().value_ty(value),
-                        Some(MirType::Slice(SliceLocation::Calldata))
+                        Some(MirType::Slice(PtrLocation::Calldata))
                     )
                 {
                     Some(self.builder.slice_ptr(value))
@@ -657,7 +748,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             ExprKind::Binary(lhs, op, rhs) => {
                 self.assert_operand_ty_registered(expr);
-                if matches!(op.kind, BinOpKind::And | BinOpKind::Or) {
+                if op.kind.is_logical() {
                     return self.lower_logical(lhs, op.kind, rhs);
                 }
                 if let Some(function_id) = self.cx.gcx.user_operator(expr.id) {
@@ -838,9 +929,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
                 if op.is_none() && self.is_storage_reference_binding(lhs) {
-                    let Some(access) = self.storage_access(rhs) else {
-                        return self.cx.report_unsupported(rhs.span, "storage access");
-                    };
+                    let access = self.require_storage_access(rhs)?;
                     let Some(id) = self.cx.gcx.resolved_variable(lhs) else {
                         return self.cx.report_unsupported(lhs.span, "storage reference target");
                     };
@@ -893,7 +982,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let preserve_calldata_slice = lhs_ty.is_ref_at(DataLocation::Calldata)
                     && matches!(
                         self.builder.func().value_ty(rhs_value),
-                        Some(MirType::Slice(SliceLocation::Calldata))
+                        Some(MirType::Slice(PtrLocation::Calldata))
                     );
                 let value = if preserve_calldata_slice {
                     rhs_value
@@ -916,7 +1005,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Tuple([Some(inner)]) => self.lower_expr(inner),
             ExprKind::Tuple(values) => self.lower_tuple(expr, values),
             ExprKind::Member(receiver, name) => self.lower_member(expr, receiver, *name),
-            ExprKind::YulMember(receiver, name) => self.lower_yul_member(expr, receiver, *name),
+            ExprKind::YulMember(..) => {
+                let place = self.resolve_lvalue_place(expr)?;
+                self.load_lvalue_place(&place)
+            }
             ExprKind::Index(receiver, index) => self.lower_index(expr, receiver, *index),
             ExprKind::Slice(receiver, start, end) => self.lower_slice(expr, receiver, *start, *end),
             ExprKind::Payable(value) => self.lower_expr(value),
@@ -937,27 +1029,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 }
 
-fn int_literal_expr_contains_wide(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> Option<bool> {
-    let is_wide = |expr| gcx.try_eval_const(expr).is_ok_and(|value| value.bit_len() > 256);
-    match &expr.kind {
-        ExprKind::Lit(lit) if matches!(lit.kind, LitKind::Number(_)) => Some(false),
-        ExprKind::Unary(op, inner) if matches!(op.kind, UnOpKind::Neg | UnOpKind::BitNot) => {
-            Some(is_wide(expr) || int_literal_expr_contains_wide(gcx, inner)?)
-        }
-        ExprKind::Binary(lhs, op, rhs)
-            if !op.kind.is_cmp() && !matches!(op.kind, BinOpKind::Or | BinOpKind::And) =>
-        {
-            Some(
-                is_wide(expr)
-                    || int_literal_expr_contains_wide(gcx, lhs)?
-                    || int_literal_expr_contains_wide(gcx, rhs)?,
-            )
-        }
-        ExprKind::Tuple([Some(inner)]) => int_literal_expr_contains_wide(gcx, inner),
-        _ => None,
-    }
-}
-
 pub(super) fn generate_internal_function_pointer_dispatchers(
     gcx: Gcx<'_>,
     module: &mut Module,
@@ -969,7 +1040,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
         .filter(|(_, function)| function.attributes.is_function_pointer_dispatcher)
         .map(|(id, _)| (state.pointer_registry.dispatchers[&id].clone(), id))
         .collect::<Vec<_>>();
-    for (shape, dispatcher) in dispatchers {
+    for (InternalFunctionPointerDispatch { shape, from_assembly }, dispatcher) in dispatchers {
         let mut candidates = state
             .pointer_registry
             .targets
@@ -979,9 +1050,11 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     return None;
                 };
                 let candidate_shape = InternalFunctionPointerShape::from_ty(function);
-                shape
-                    .is_assembly_cast_compatible_with(&candidate_shape)
-                    .then_some((function_id, candidate_shape))
+                (shape.is_assembly_cast_compatible_with(&candidate_shape)
+                    || (from_assembly
+                        && state.pointer_registry.assembly_exposed.contains(&function_id)
+                        && shape.is_word_compatible_with(&candidate_shape)))
+                .then_some((function_id, candidate_shape))
             })
             .filter_map(|(function_id, candidate_shape)| {
                 function_ids
@@ -1012,8 +1085,8 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
 
             // for target {
             //     if function_id == target {
-            //         results = icall(target, arguments)
-            //         return results
+            //         results = icall(target, reinterpret(arguments))
+            //         return reinterpret(results)
             //     }
             // }
             for (function_id, mir_id, candidate_shape) in candidates {
@@ -1032,19 +1105,12 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     .zip(&candidate_shape.params)
                     .zip(gcx.hir.function(function_id).parameters)
                     .map(|(((argument, &source), &target), &parameter)| {
-                        let argument = if source == target {
-                            argument
+                        let carrier = state.scalar_carrier(gcx, parameter);
+                        if source == target {
+                            raw_scalars::cast_carrier(&mut builder, argument, source, carrier)
                         } else {
-                            AbiWordValidator::from_layout(target).map_or(argument, |validator| {
-                                validator.cleanup(&mut builder, argument)
-                            })
-                        };
-                        raw_scalars::cast_carrier(
-                            &mut builder,
-                            argument,
-                            source,
-                            state.scalar_carrier(gcx, parameter),
-                        )
+                            reinterpret_word(&mut builder, argument, source, target, carrier)
+                        }
                     })
                     .collect::<Vec<_>>();
                 if shape.returns.is_empty() {
@@ -1055,6 +1121,15 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     // ret result
                     let result_ty = module.function(mir_id).return_type();
                     let result = builder.icall(mir_id, call_arguments, result_ty);
+                    let cast_return = |builder: &mut FunctionBuilder<'_>, value, index, ty| {
+                        let (source, target) =
+                            (candidate_shape.returns[index], shape.returns[index]);
+                        if source == target {
+                            raw_scalars::cast_carrier(builder, value, target, ty)
+                        } else {
+                            reinterpret_word(builder, value, source, target, ty)
+                        }
+                    };
                     let result = if let (MirType::Struct(source), MirType::Struct(target)) =
                         (result_ty, builder.func().return_type())
                         && source != target
@@ -1068,18 +1143,13 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                             .map(|(index, (from, to))| {
                                 let value =
                                     builder.extract_value(source, result, index as u32, from);
-                                raw_scalars::cast_carrier(
-                                    &mut builder,
-                                    value,
-                                    shape.returns[index],
-                                    to,
-                                )
+                                cast_return(&mut builder, value, index, to)
                             })
                             .collect::<Vec<_>>();
                         builder.make_struct(target, values)
                     } else if shape.returns.len() == 1 {
                         let ty = builder.func().return_type();
-                        raw_scalars::cast_carrier(&mut builder, result, shape.returns[0], ty)
+                        cast_return(&mut builder, result, 0, ty)
                     } else {
                         result
                     };
@@ -1100,14 +1170,10 @@ fn arithmetic_kind(ty: Ty<'_>) -> Option<ArithmeticKind> {
     match ty.peel_refs().kind {
         TyKind::Udvt(inner, _) => arithmetic_kind(inner),
         TyKind::Elementary(elementary) => match elementary {
-            solar_sema::hir::ElementaryType::UInt(size)
-            | solar_sema::hir::ElementaryType::UFixed(size, _) => {
+            solar_sema::hir::ElementaryType::UInt(size) => {
                 Some(ArithmeticKind::Unsigned(size.bits()))
             }
-            solar_sema::hir::ElementaryType::Int(size)
-            | solar_sema::hir::ElementaryType::Fixed(size, _) => {
-                Some(ArithmeticKind::Signed(size.bits()))
-            }
+            solar_sema::hir::ElementaryType::Int(size) => Some(ArithmeticKind::Signed(size.bits())),
             _ => None,
         },
         _ => None,
@@ -1127,22 +1193,39 @@ fn report_error<T>(gcx: Gcx<'_>, span: Span, message: &'static str) -> Option<T>
     None
 }
 
-fn resolve_call_target(
-    gcx: Gcx<'_>,
-    contract: hir::ContractId,
-    callee: &hir::Expr<'_>,
-    function: hir::FunctionId,
-) -> hir::FunctionId {
-    if let ExprKind::Member(base, _) = callee.kind
-        && let Some(TyKind::Type(ty)) = gcx.type_of_expr(base.id).map(|ty| ty.kind)
-    {
-        return match ty.kind {
-            TyKind::Contract(_) => function,
-            TyKind::Super(defining_contract) => {
-                gcx.resolve_super_function(contract, defining_contract, function)
-            }
-            _ => gcx.resolve_virtual_function(contract, function),
-        };
+/// Reinterprets a one-word value that inline assembly retyped from `source` to `target`.
+fn reinterpret_word(
+    builder: &mut FunctionBuilder<'_>,
+    value: ValueId,
+    source: crate::mir::ValueLayout,
+    target: crate::mir::ValueLayout,
+    carrier: MirType,
+) -> ValueId {
+    // word = zext | sext | ptrtoint value to i256
+    // word = canonical(target, word), unless the carrier is a raw word
+    // value = trunc | ne 0 | inttoptr word to carrier
+    let word = raw_scalars::cast_carrier(builder, value, source, MirType::I256);
+    // A raw word carrier passes the bits on as a direct call would: the receiver cleans them where
+    // Solidity reads the value, and its assembly sees them as they are. Internal function pointers
+    // are small identifiers: the ABI's left-aligned cleanup of external function words does not
+    // apply to them.
+    let word = if carrier == MirType::I256 || target == crate::mir::ValueLayout::Function {
+        word
+    } else {
+        AbiWordValidator::from_layout(target)
+            .map_or(word, |validator| validator.cleanup(builder, word))
+    };
+    builder.cast(word, carrier)
+}
+
+/// Returns `true` if `expr` is a number literal, an operation on them, or a comparison of them.
+///
+/// Only literal arithmetic has literal types, so this needs no walk of the operands.
+fn is_literal_operation(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> bool {
+    let is_literal =
+        |expr: &hir::Expr<'_>| gcx.type_of_expr(expr.id).is_some_and(Ty::is_number_literal);
+    match &expr.kind {
+        ExprKind::Binary(lhs, op, rhs) if op.kind.is_cmp() => is_literal(lhs) && is_literal(rhs),
+        _ => is_literal(expr),
     }
-    gcx.resolve_virtual_function(contract, function)
 }

@@ -1,8 +1,13 @@
+import hashlib
 import importlib.util
 import io
 import json
+import shutil
+import socket
+import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -14,6 +19,8 @@ assert SPEC is not None and SPEC.loader is not None
 benchmark = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = benchmark
 SPEC.loader.exec_module(benchmark)
+
+from cases import GasCall
 
 
 class CorpusTests(unittest.TestCase):
@@ -92,13 +99,13 @@ class CorpusTests(unittest.TestCase):
             )
 
     def test_vendored_cases_and_projects_exist(self) -> None:
-        self.assertEqual(len(benchmark.TEST_CASES), 34)
+        self.assertEqual(len(benchmark.TEST_CASES), 38)
         repository_cases = [
             case for case in benchmark.TEST_CASES if case.suite == "repository"
         ]
-        self.assertEqual(len(repository_cases), 11)
+        self.assertEqual(len(repository_cases), 12)
         heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
-        self.assertEqual(len(heavy_cases), 9)
+        self.assertEqual(len(heavy_cases), 10)
         for case in heavy_cases:
             self.assertTrue(case.whole_project)
             self.assertTrue(case.project_path.is_file())
@@ -115,6 +122,7 @@ class CorpusTests(unittest.TestCase):
             "maple-erc20": 2,
             "solady-encoding": 3,
             "solady-algorithms": 5,
+            "tempo-zones-portal": 23,
         }
         for case in repository_cases:
             self.assertTrue(case.project_path.is_file(), case.test_id)
@@ -134,8 +142,56 @@ class CorpusTests(unittest.TestCase):
             self.assertTrue(payload["settings"]["viaIR"])
             self.assertEqual(
                 payload["settings"]["metadata"],
-                {"appendCBOR": False, "bytecodeHash": "none"},
+                benchmark.load_project(case.project_path)["settings"]["metadata"]
+                if case.test_id == "tempo-zones-portal"
+                else {"appendCBOR": False, "bytecodeHash": "none"},
             )
+
+    def test_zones_fixture_rejects_remote_rpc_before_mutation(self) -> None:
+        with mock.patch.object(benchmark, "rpc_request") as rpc:
+            address, gas, error = benchmark.prepare_zones_portal(
+                "0x" + "11" * 20,
+                "https://example.com",
+                benchmark.DEFAULT_PRIVATE_KEY,
+            )
+        self.assertIsNone(address)
+        self.assertIsNone(gas)
+        self.assertEqual(error, "Zones fixtures require a local Anvil RPC")
+        rpc.assert_not_called()
+
+    def test_zones_checks_reject_matching_but_incorrect_state(self) -> None:
+        case = next(
+            case
+            for case in benchmark.TEST_CASES
+            if case.test_id == "tempo-zones-portal"
+        )
+        with mock.patch.object(
+            benchmark, "read_uint", side_effect=((0, ""), (0, ""), (100_000_000, ""))
+        ):
+            checks = benchmark.run_cold_path_checks(
+                case,
+                "0x" + "11" * 20,
+                "solc",
+                "http://localhost:8545",
+                benchmark.DEFAULT_PRIVATE_KEY,
+            )
+        self.assertEqual([check["status"] for check in checks], ["failed"] * 3)
+        self.assertEqual(checks[0]["error"], "expected 2, got 0")
+
+    def test_zones_mock_bytecode_matches_its_source_revision(self) -> None:
+        fixtures = json.loads(
+            (benchmark.RUNTIME_FIXTURES.parent / "Zones.json").read_text()
+        )
+        self.assertEqual(
+            fixtures["source_sha256"],
+            hashlib.sha256(benchmark.RUNTIME_FIXTURES.read_bytes()).hexdigest(),
+        )
+        self.assertEqual(
+            set(fixtures["creation_bytecode"]),
+            {"RuntimeZoneToken", "RuntimeZoneRegistry"},
+        )
+        for bytecode in fixtures["creation_bytecode"].values():
+            self.assertTrue(bytes.fromhex(bytecode))
 
     def test_benchmark_wrapper_preserves_pinned_sources(self) -> None:
         for test_id, count in (("solady-encoding", 153), ("solady-algorithms", 85)):
@@ -181,7 +237,7 @@ class CorpusTests(unittest.TestCase):
 
     def test_full_project_cases_preserve_archives(self) -> None:
         heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
-        self.assertEqual(len(heavy_cases), 9)
+        self.assertEqual(len(heavy_cases), 10)
         self.assertTrue(all(case.whole_project for case in heavy_cases))
         case = next(
             case for case in heavy_cases if case.project.name == "solady-0.1.26"
@@ -290,15 +346,16 @@ class CorpusTests(unittest.TestCase):
 
     def test_large_cases_resolve_from_pinned_projects(self) -> None:
         large_cases = [case for case in benchmark.TEST_CASES if case.suite == "large"]
-        self.assertEqual(len(large_cases), 3)
+        self.assertEqual(len(large_cases), 4)
         expected_source_counts = {
             "openzeppelin-governor": 48,
+            "openzeppelin-p256": 6,
             "solady-signature-checker": 12,
             "solady-lib-string": 9,
         }
         for case in large_cases:
-            project = benchmark.load_project(case.project_path)
-            selected = benchmark.project_slice(project, case.source)
+            payload, _, _ = benchmark.compiler_input(case, None)
+            selected = json.loads(payload)["sources"]
             self.assertEqual(len(selected), expected_source_counts[case.test_id])
 
     def test_project_slice_resolves_relative_and_remapped_imports(self) -> None:
@@ -1243,6 +1300,327 @@ class RpcTransportTests(unittest.TestCase):
             "eth_getTransactionReceipt",
             ("0xtx",),
             "http://127.0.0.1:8545",
+        )
+
+
+class GasKindsTests(unittest.TestCase):
+    def trace(self, **values):
+        trace = {
+            "kinds": {"push": 30, "stack": 20, "storage": 22100},
+            "exec": 22150,
+            "refund": 0,
+            "firstGas": 78796,
+            "gasLimit": 100000,
+            **values,
+        }
+        trace.setdefault("rootSpent", trace["exec"])
+        return trace
+
+    def trace_gas_kinds(self, receipt_gas, trace=None, error=""):
+        with mock.patch.object(
+            benchmark, "rpc_request_from_file", return_value=(trace, error)
+        ) as request:
+            return benchmark.trace_gas_kinds(
+                "0xtx", receipt_gas, "http://127.0.0.1:8545"
+            ), request
+
+    def test_traces_the_call_and_splits_execution_gas(self) -> None:
+        (kinds, error), request = self.trace_gas_kinds(43354, self.trace())
+        self.assertEqual(error, "")
+        self.assertEqual(
+            kinds,
+            {
+                "execution_gas": 22150,
+                "gas_kinds": {"push": 30, "stack": 20, "storage": 22100},
+                "intrinsic_gas": 21204,
+                "gas_refund": 0,
+                "calldata_floor": False,
+            },
+        )
+        method, (tx_hash, options), rpc_url, _ = request.call_args.args
+        self.assertEqual(
+            (method, tx_hash, rpc_url),
+            ("debug_traceTransaction", "0xtx", "http://127.0.0.1:8545"),
+        )
+        self.assertEqual(options["tracer"], benchmark.gas_kinds_tracer())
+
+    def test_applies_capped_refund_and_detects_calldata_floor(self) -> None:
+        trace = self.trace(refund=1_000_000)
+        (kinds, _), _ = self.trace_gas_kinds(43354 - 8670, trace)
+        assert kinds is not None
+        self.assertEqual((kinds["gas_refund"], kinds["calldata_floor"]), (8670, False))
+        floor = self.trace(kinds={"push": 100}, exec=100)
+        (kinds, _), _ = self.trace_gas_kinds(21510, floor)
+        assert kinds is not None
+        self.assertTrue(kinds["calldata_floor"])
+        self.assertEqual(kinds["execution_gas"], 100)
+
+    def test_rejects_traces_that_do_not_explain_receipt_gas(self) -> None:
+        for receipt_gas, trace, error, message in (
+            (43354, self.trace(exec=22151), "", "sum to 22150, not 22151"),
+            (43000, self.trace(), "", "does not explain receipt gas 43000"),
+            (50000, self.trace(), "", "does not explain receipt gas 50000"),
+            (43354, self.trace(rootSpent=22000), "", "root frame spent 22000"),
+            (43354, self.trace(firstGas=-1), "", "malformed gas trace"),
+            (43354, {"kinds": {}}, "", "malformed gas trace"),
+            (43354, None, "rpc down", "rpc down"),
+        ):
+            with self.subTest(message=message):
+                (kinds, error_message), _ = self.trace_gas_kinds(
+                    receipt_gas, trace, error
+                )
+                self.assertIsNone(kinds)
+                self.assertIn(message, error_message)
+        self.assertEqual(
+            benchmark.trace_gas_kinds(None, 1, "rpc"),
+            (None, "transaction receipt missing transactionHash"),
+        )
+
+    def run_case(self, gas_kinds, trace_result):
+        case = next(case for case in benchmark.TEST_CASES if case.test_id == "counter")
+        spec = benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar")
+        calls = [GasCall("set", "set(uint256)", ("1",))]
+        with (
+            mock.patch.object(
+                benchmark, "compiler_input", return_value=("{}", 120, "input")
+            ),
+            mock.patch.object(
+                benchmark,
+                "compile_case",
+                return_value={"status": "ok", "bytecode": "00"},
+            ),
+            mock.patch.object(
+                benchmark, "deploy_contract", return_value=("address", 1, "")
+            ),
+            mock.patch.object(benchmark, "gas_calls", return_value=calls),
+            mock.patch.object(benchmark, "runtime_checks", return_value=[]),
+            mock.patch.object(benchmark, "send_call", return_value=(43354, "0xtx", "")),
+            mock.patch.object(
+                benchmark, "trace_gas_kinds", return_value=trace_result
+            ) as trace,
+        ):
+            result = benchmark.run_test_case(
+                case, [spec], True, "hot", "rpc", "key", gas_kinds=gas_kinds
+            )
+        return result["compilers"]["solar"], trace
+
+    def test_gas_results_record_execution_gas_and_kinds(self) -> None:
+        kinds = {"execution_gas": 20, "gas_kinds": {"push": 20}, "calldata_floor": True}
+        data, trace = self.run_case(True, (kinds, ""))
+        trace.assert_called_once_with("0xtx", 43354, "rpc")
+        self.assertEqual(data["gas_kinds_status"], "ok")
+        self.assertEqual(
+            data["gas_results"],
+            [
+                {
+                    "label": "set",
+                    "call": "set(uint256)",
+                    "args": ["1"],
+                    "gas": 43354,
+                    "comparison_exclusion_reason": None,
+                    **kinds,
+                }
+            ],
+        )
+
+    def test_trace_failure_keeps_receipt_gas_and_fails_the_trace_status(self) -> None:
+        data, _ = self.run_case(True, (None, "no trace"))
+        self.assertEqual((data["gas_status"], data["total_gas"]), ("ok", 43354))
+        self.assertEqual(data["gas_kinds_status"], "failed")
+        self.assertEqual(data["gas_results"][0]["gas_kinds_error"], "no trace")
+        self.assertNotIn("execution_gas", data["gas_results"][0])
+
+    def test_untraced_runs_record_receipt_gas_only(self) -> None:
+        data, trace = self.run_case(False, (None, ""))
+        trace.assert_not_called()
+        self.assertNotIn("gas_kinds_status", data)
+        self.assertEqual(
+            set(data["gas_results"][0]),
+            {"label", "call", "args", "gas", "comparison_exclusion_reason"},
+        )
+
+    def test_send_call_returns_receipt_gas_and_hash(self) -> None:
+        process = mock.Mock(
+            returncode=0,
+            stdout=json.dumps(
+                {"status": "0x1", "gasUsed": "0x5208", "transactionHash": "0xab"}
+            ),
+            stderr="",
+        )
+        with mock.patch.object(benchmark, "run", return_value=process):
+            self.assertEqual(
+                benchmark.send_call("0x1", "f()", (), "rpc", "key"), (21000, "0xab", "")
+            )
+            self.assertEqual(
+                benchmark.call_contract("0x1", "f()", (), "rpc", "key"), (21000, "")
+            )
+
+    def test_gas_kinds_requires_gas(self) -> None:
+        with (
+            mock.patch("sys.stderr", new_callable=io.StringIO) as stderr,
+            self.assertRaises(SystemExit) as error,
+        ):
+            benchmark.main(["--gas-kinds"])
+        self.assertEqual(error.exception.code, 2)
+        self.assertTrue(
+            stderr.getvalue().endswith("error: --gas-kinds requires --gas\n")
+        )
+
+    @unittest.skipUnless(
+        shutil.which("anvil") and shutil.which("cast"),
+        "anvil and cast are not installed",
+    )
+    def test_tracer_explains_receipt_gas_of_nested_frames(self) -> None:
+        def push(value: int, size: int = 1) -> str:
+            return f"{0x5F + size:02x}{value:0{2 * size}x}"
+
+        def deploy(runtime: str) -> str:
+            size = len(runtime) // 2
+            # CODECOPY the runtime behind this 12-byte prefix, then RETURN it.
+            return f"{push(size)}{push(12)}{push(0)}39{push(size)}{push(0)}f3{runtime}"
+
+        # CALLVALUE PUSH1 jump JUMPI then a JUMPDEST PUSH0 PUSH0 REVERT, as constructor and runtime.
+        child_initcode = "34600e57600a60125f39600a5ff35b5f5ffd" + "3460065700005b5f5ffd"
+        # Reverts after growing memory: the REVERT step arrives through `fault`.
+        reverter = push(50000, 2) + push(0) + "fd"
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            rpc_url = f"http://127.0.0.1:{probe.getsockname()[1]}"
+        anvil = benchmark.start_anvil(rpc_url)
+        self.addCleanup(benchmark.stop_anvil, anvil)
+        reverter_address, _, error = benchmark.deploy_creation_code(
+            deploy(reverter), (), None, rpc_url, benchmark.DEFAULT_PRIVATE_KEY
+        )
+        self.assertEqual(error, "")
+        assert reverter_address is not None
+        runtime = "".join(
+            [
+                # CALL the reverter, then the identity precompile after a frame with steps.
+                push(0) * 5 + push(int(reverter_address, 16), 20) + "5af150",
+                push(0) * 2 + push(0x40) + push(0) + push(4) + "5afa50",
+                # CREATE a contract with a guard in its constructor and a 10-byte runtime that
+                # has one (2000 gas to deposit), then CALL it.
+                push(int(child_initcode, 16), 28)
+                + push(0)
+                + "52"
+                + push(28)
+                + push(4)
+                + push(0)
+                + "f0"
+                + push(0) * 5
+                + "855af150"
+                + "50"
+                + "00",
+            ]
+        )
+        address, _, error = benchmark.deploy_creation_code(
+            deploy(runtime), (), None, rpc_url, benchmark.DEFAULT_PRIVATE_KEY
+        )
+        self.assertEqual(error, "")
+        assert address is not None
+        gas, tx_hash, error = benchmark.send_call(
+            address, "f()", (), rpc_url, benchmark.DEFAULT_PRIVATE_KEY
+        )
+        self.assertEqual(error, "")
+        assert gas is not None
+        kinds, error = benchmark.trace_gas_kinds(tx_hash, gas, rpc_url)
+        self.assertEqual(error, "")
+        assert kinds is not None
+        self.assertFalse(kinds["calldata_floor"])
+        self.assertEqual(kinds["execution_gas"] + kinds["intrinsic_gas"], gas)
+        self.assertEqual(sum(kinds["gas_kinds"].values()), kinds["execution_gas"])
+        self.assertGreater(kinds["gas_kinds"]["precompile"], 0)
+        self.assertTrue(9000 < kinds["gas_kinds"]["mem_expansion"] < 10000)
+        self.assertGreater(kinds["gas_kinds"]["call"], 32000 + 2000)
+        # The constructor's guard must not hide the runtime's.
+        self.assertGreaterEqual(kinds["gas_kinds"].get("guard", 0), 13)
+
+    @unittest.skipUnless(shutil.which("node"), "node is not installed")
+    def test_tracer_is_a_javascript_object_literal(self) -> None:
+        script = (
+            "const t = ("
+            + benchmark.gas_kinds_tracer()
+            + "); for (const f of ['step', 'enter', 'exit', 'fault', 'result']) if (typeof t[f] !== 'function') throw new Error(f)"
+        )
+        subprocess.run(["node", "-e", script], check=True)
+
+
+class ParallelRunTests(unittest.TestCase):
+    def test_jobs_argument_errors(self) -> None:
+        for flags, message in (
+            (["--jobs", "0"], "--jobs must be positive"),
+            (["--jobs", "2", "--gas"], "--jobs cannot be combined with --gas"),
+            (
+                ["--jobs", "2", "--mode", "compile-time"],
+                "--jobs skews compile-time mode; pass --ignore-compile-time",
+            ),
+        ):
+            with (
+                self.subTest(flags=flags),
+                mock.patch("sys.stderr", new_callable=io.StringIO) as stderr,
+                self.assertRaises(SystemExit) as error,
+            ):
+                benchmark.main(flags)
+            self.assertEqual(error.exception.code, 2)
+            self.assertTrue(stderr.getvalue().endswith(f"error: {message}\n"))
+
+    def test_jobs_run_cases_concurrently_in_input_order(self) -> None:
+        test_ids = ["counter", "factorial", "seaport-1.6-project"]
+        barrier = threading.Barrier(len(test_ids), timeout=10)
+
+        def run_case(test, *_args):
+            barrier.wait()
+            return {
+                "test_id": test.test_id,
+                "suite": test.suite,
+                "compilers": {
+                    "solar": {
+                        "status": "ok",
+                        "compile_time_seconds": 1.0,
+                        "compile_time_samples": [1.0],
+                        "output_fingerprint": test.test_id,
+                    }
+                },
+            }
+
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(benchmark, "find_binary", return_value=Path("solar")),
+            mock.patch.object(benchmark, "binary_version", return_value=("test", "")),
+            mock.patch.object(benchmark, "run_test_case", side_effect=run_case),
+        ):
+            output = Path(directory) / "results.json"
+            return_code = benchmark.main(
+                [
+                    "--mode",
+                    "runtime",
+                    "compile-time",
+                    "--jobs",
+                    str(len(test_ids)),
+                    "--ignore-compile-time",
+                    "--tests",
+                    *test_ids,
+                    "--output",
+                    str(output),
+                ]
+            )
+            document = json.loads(output.read_text())
+
+        self.assertEqual(return_code, 0)
+        self.assertEqual(
+            [result["test_id"] for result in document["results"]], test_ids
+        )
+        self.assertEqual(document["timings"], {})
+        self.assertEqual(
+            [result["compilers"]["solar"] for result in document["results"]],
+            [
+                {
+                    "status": "ok",
+                    "compile_time_seconds": None,
+                    "output_fingerprint": test_id,
+                }
+                for test_id in test_ids
+            ],
         )
 
 

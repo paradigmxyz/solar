@@ -26,45 +26,45 @@
 0x1d sar              io=2/1 since=constantinople gas=3 pure
 0x1e clz              io=1/1 bits=[]/9 since=osaka gas=5 pure
 0x20 keccak256        io=2/1 since=homestead gas=30 +6
-0x30 address          io=0/1 bits=[]/160 since=homestead gas=2
+0x30 address          io=0/1 bits=[]/160 since=homestead gas=2 context_read
 0x31 balance          io=1/1 bits=[160]/256 since=homestead gas=20 tangerineWhistle=400 istanbul=700 berlin=2600
-0x32 origin           io=0/1 bits=[]/160 since=homestead gas=2
-0x33 caller           io=0/1 bits=[]/160 since=homestead gas=2
-0x34 callvalue        io=0/1 since=homestead gas=2
-0x35 calldataload     io=1/1 since=homestead gas=3
-0x36 calldatasize     io=0/1 since=homestead gas=2
+0x32 origin           io=0/1 bits=[]/160 since=homestead gas=2 context_read
+0x33 caller           io=0/1 bits=[]/160 since=homestead gas=2 context_read
+0x34 callvalue        io=0/1 since=homestead gas=2 context_read
+0x35 calldataload     io=1/1 since=homestead gas=3 context_read
+0x36 calldatasize     io=0/1 bits=[]/64 since=homestead gas=2 context_read
 0x37 calldatacopy     io=3/0 since=homestead gas=3 +3 writes_memory
-0x38 codesize         io=0/1 since=homestead gas=2
+0x38 codesize         io=0/1 bits=[]/64 since=homestead gas=2 context_read
 0x39 codecopy         io=3/0 since=homestead gas=3 +3 writes_memory
-0x3a gasprice         io=0/1 since=homestead gas=2
-0x3b extcodesize      io=1/1 bits=[160]/256 since=homestead gas=20 tangerineWhistle=700 berlin=2600
+0x3a gasprice         io=0/1 since=homestead gas=2 context_read
+0x3b extcodesize      io=1/1 bits=[160]/64 since=homestead gas=20 tangerineWhistle=700 berlin=2600
 0x3c extcodecopy      io=4/0 bits=[160]/256 since=homestead gas=20 tangerineWhistle=700 berlin=2600 writes_memory
-0x3d returndatasize   io=0/1 since=byzantium gas=2
+0x3d returndatasize   io=0/1 bits=[]/64 since=byzantium gas=2 context_read
 0x3e returndatacopy   io=3/0 since=byzantium gas=3 +3 writes_memory
 0x3f extcodehash      io=1/1 bits=[160]/256 since=constantinople gas=400 istanbul=700 berlin=2600
 0x40 blockhash        io=1/1 since=homestead gas=20
-0x41 coinbase         io=0/1 bits=[]/160 since=homestead gas=2
-0x42 timestamp        io=0/1 since=homestead gas=2
-0x43 number           io=0/1 since=homestead gas=2
-0x44 prevrandao       io=0/1 since=homestead gas=2
-0x45 gaslimit         io=0/1 since=homestead gas=2
-0x46 chainid          io=0/1 since=istanbul gas=2
-0x47 selfbalance      io=0/1 since=istanbul gas=5
-0x48 basefee          io=0/1 since=london gas=2
-0x49 blobhash         io=1/1 since=cancun gas=3
-0x4a blobbasefee      io=0/1 since=cancun gas=2
+0x41 coinbase         io=0/1 bits=[]/160 since=homestead gas=2 context_read
+0x42 timestamp        io=0/1 since=homestead gas=2 context_read
+0x43 number           io=0/1 since=homestead gas=2 context_read
+0x44 prevrandao       io=0/1 since=homestead gas=2 context_read
+0x45 gaslimit         io=0/1 since=homestead gas=2 context_read
+0x46 chainid          io=0/1 since=istanbul gas=2 context_read
+0x47 selfbalance      io=0/1 since=istanbul gas=5 context_read
+0x48 basefee          io=0/1 since=london gas=2 context_read
+0x49 blobhash         io=1/1 since=cancun gas=3 context_read
+0x4a blobbasefee      io=0/1 since=cancun gas=2 context_read
 0x4b slotnum          io=0/1 since=amsterdam gas=2
 0x50 pop              io=1/0 bits=[0]/256 since=homestead gas=2
 0x51 mload            io=1/1 since=homestead gas=3
 0x52 mstore           io=2/0 since=homestead gas=3 writes_memory
 0x53 mstore8          io=2/0 bits=[256, 8]/256 since=homestead gas=3 writes_memory
 0x54 sload            io=1/1 since=homestead gas=50 tangerineWhistle=200 istanbul=800 berlin=2100
-0x55 sstore           io=2/0 since=homestead gas=5000 writes_storage
+0x55 sstore           io=2/0 since=homestead gas=5000 writes_storage observes_gas
 0x56 jump             io=1/0 since=homestead gas=8 terminal
 0x57 jumpi            io=2/0 since=homestead gas=10
-0x58 pc               io=0/1 since=homestead gas=2
-0x59 msize            io=0/1 since=homestead gas=2
-0x5a gas              io=0/1 since=homestead gas=2
+0x58 pc               io=0/1 since=homestead gas=2 context_read
+0x59 msize            io=0/1 since=homestead gas=2 context_read
+0x5a gas              io=0/1 since=homestead gas=2 observes_gas context_read
 0x5b jumpdest         io=0/0 since=homestead gas=1
 0x5c tload            io=1/1 since=cancun gas=100
 0x5d tstore           io=2/0 since=cancun gas=100 writes_storage
@@ -142,13 +142,13 @@
 0xe6 dupn             io=? since=amsterdam gas=3
 0xe7 swapn            io=? since=amsterdam gas=3
 0xe8 exchange         io=? since=amsterdam gas=3
-0xf0 create           io=3/1 bits=[]/160 since=homestead gas=32000 writes_storage
-0xf1 call             io=7/1 bits=[256, 160]/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage
-0xf2 callcode         io=7/1 bits=[256, 160]/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage
+0xf0 create           io=3/1 bits=[]/160 since=homestead gas=32000 writes_storage observes_gas
+0xf1 call             io=7/1 bits=[256, 160]/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage observes_gas
+0xf2 callcode         io=7/1 bits=[256, 160]/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage observes_gas
 0xf3 return           io=2/0 since=homestead gas=0 terminal
-0xf4 delegatecall     io=6/1 bits=[256, 160]/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage
-0xf5 create2          io=4/1 bits=[]/160 since=constantinople gas=32000 writes_storage
-0xfa staticcall       io=6/1 bits=[256, 160]/1 since=byzantium gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage
+0xf4 delegatecall     io=6/1 bits=[256, 160]/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage observes_gas
+0xf5 create2          io=4/1 bits=[]/160 since=constantinople gas=32000 writes_storage observes_gas
+0xfa staticcall       io=6/1 bits=[256, 160]/1 since=byzantium gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage observes_gas
 0xfd revert           io=2/0 since=byzantium gas=0 terminal
 0xfe invalid          io=0/0 since=homestead gas=0 terminal
 0xff selfdestruct     io=1/0 bits=[160]/256 since=homestead gas=0 tangerineWhistle=5000 terminal

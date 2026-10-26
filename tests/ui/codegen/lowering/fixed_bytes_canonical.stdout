@@ -3,10 +3,10 @@
 @types
   struct0: {i128, i128, i160, i160}
 
-fn @fromUint(arg0: i8) -> i256 [selector=0x0b5b6892, pure, abi_params=[u8], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+fn @fromUint(arg0: i8) -> i256 [selector=0x0b5b6892, pure, abi_params=[uint8], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = zext i8 arg0 to i256
-    v1 = shl 248, v0
+    v1 = shl v0, 248
     ret v1
 }
 
@@ -15,17 +15,18 @@ fn @fromHex() -> i256 [selector=0x7b05e034, pure, abi_params=[], abi_returns=[wo
     ret 0x100000000000000000000000000000000000000000000000000000000000000
 }
 
-fn @compareElement(arg0: memptr) -> i1 [selector=0x6c07068b, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @compareElement(arg0: ptr<memory>) -> i1 [selector=0x6c07068b, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
+    v0 = mload arg0
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = memory_object_load_byte memorybytes, arg0, 0
-    v4 = shl 248, v3
-    v5 = shl 248, 1
-    v6 = eq v4, v5
-    ret v6
+    v3 = ptradd arg0, 32
+    v4 = mload v3
+    v5 = byte 0, v4
+    v6 = shl v5, 248
+    v7 = eq v6, 0x100000000000000000000000000000000000000000000000000000000000000
+    ret v7
 }
 
 fn @narrow(arg0: i256) -> i256 [selector=0xb6234141, pure, abi_params=[bytes4], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {
@@ -35,19 +36,19 @@ fn @narrow(arg0: i256) -> i256 [selector=0xb6234141, pure, abi_params=[bytes4], 
     ret v1
 }
 
-fn @toIntegers(arg0: i256, arg1: i256) -> struct0 [selector=0x1987d9f5, pure, abi_params=[bytes16, bytes20], abi_returns=[word<u128>, word<i128>, word<u160>, word<u160>], abi_return_params=[u128, i128, u160, address]] {
+fn @toIntegers(arg0: i256, arg1: i256) -> struct0 [selector=0x1987d9f5, pure, abi_params=[bytes16, bytes20], abi_returns=[word<uint128>, word<int128>, word<uint160>, word<uint160>], abi_return_params=[uint128, int128, uint160, address]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
-    v1 = shr 128, v0
+    v1 = shr v0, 128
     v2 = trunc i256 v1 to i128
     v3 = and arg0, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
-    v4 = shr 128, v3
+    v4 = shr v3, 128
     v5 = trunc i256 v4 to i128
     v6 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v7 = shr 96, v6
+    v7 = shr v6, 96
     v8 = trunc i256 v7 to i160
     v9 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v10 = shr 96, v9
+    v10 = shr v9, 96
     v11 = trunc i256 v10 to i160
     v12 = insert_value struct0, undef struct0, 0, v2
     v13 = insert_value struct0, v12, 1, v5

@@ -1,10 +1,8 @@
 //@ compile-flags: -Zmir-pipeline=llm-optimize -Zllm-optimize=script -Zllm-trace --evm-version=cancun
 //@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/tail_calls.script
 // A candidate may tail call only as `lower-evm-shaped` would, to a function that never returns:
-// the backend jumps to the target without expecting it back, and passes the arguments in the
-// target's static frame, which recursive functions and entry points lack. Code the constructor
-// runs is not offered at all, since deployment keeps every call frame on the heap, and neither
-// is `@forwards`, which calls the recursive `@parity`.
+// the backend jumps to the target without expecting it back, and recursive functions and entry
+// points cannot be tail call targets.
 @module TailCalls
 @phase lowered
 fn @constructor() [constructor, abi_wrapper] {

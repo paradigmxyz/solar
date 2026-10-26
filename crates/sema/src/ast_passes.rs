@@ -1,9 +1,11 @@
 //! AST-related passes.
 
-use alloy_primitives::Address;
 use solar_ast::{self as ast, visit::Visit};
 use solar_data_structures::Never;
-use solar_interface::{Session, Span, diagnostics::DiagCtxt, error_code, sym};
+use solar_interface::{
+    Ident, Session, Span, config::version::solc_semver_version, diagnostics::DiagCtxt, error_code,
+    sym,
+};
 use std::ops::ControlFlow;
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
@@ -25,9 +27,11 @@ struct AstValidator<'sess, 'ast> {
     function_kind: Option<ast::FunctionKind>,
     in_unchecked_block: bool,
     placeholder_count: u32,
+    yul_for_part: YulForPart,
+    in_yul_function: bool,
 }
 
-impl<'sess> AstValidator<'sess, '_> {
+impl<'sess, 'ast> AstValidator<'sess, 'ast> {
     fn new(sess: &'sess Session) -> Self {
         Self {
             item_span: Span::DUMMY,
@@ -36,6 +40,8 @@ impl<'sess> AstValidator<'sess, '_> {
             function_kind: None,
             in_unchecked_block: false,
             placeholder_count: 0,
+            yul_for_part: YulForPart::None,
+            in_yul_function: false,
         }
     }
 
@@ -60,40 +66,16 @@ impl<'sess> AstValidator<'sess, '_> {
     }
 
     fn check_underscores_in_number_literals(&self, lit: &ast::Lit<'_>) {
-        let (ast::LitKind::Number(_) | ast::LitKind::Rational(_)) = lit.kind else {
+        if !lit.kind.is_number() && !matches!(lit.kind, ast::LitKind::Address(_)) {
             return;
-        };
-        let value = lit.symbol.as_str();
-
-        let report = |help: &'static str| {
+        }
+        for help in number_literal_underscore_errors(lit.symbol.as_str()) {
             let _ = self
                 .dcx()
                 .err("invalid use of underscores in number literal")
                 .span(lit.span)
                 .help(help)
                 .emit();
-        };
-
-        if value.ends_with('_') {
-            report("remove trailing underscores");
-            return;
-        }
-        if value.contains("__") {
-            report("only 1 consecutive underscore `_` is allowed between digits");
-            return;
-        }
-
-        if value.starts_with("0x") {
-            return;
-        }
-        if value.contains("._") || value.contains("_.") {
-            report("remove underscores in front of the fraction part");
-        }
-        if value.contains("_e") || value.contains("_E") {
-            report("remove underscores at the end of the mantissa");
-        }
-        if value.contains("e_") || value.contains("E_") {
-            report("remove underscores in front of the exponent");
         }
     }
 
@@ -106,9 +88,7 @@ impl<'sess> AstValidator<'sess, '_> {
             return;
         };
 
-        let (ast::LitKind::Number(_) | ast::LitKind::Rational(_)) = lit.kind else {
-            panic!("non-number literal with denomination {:?}", lit.kind)
-        };
+        assert!(lit.kind.is_number(), "non-number literal with denomination {:?}", lit.kind);
 
         if lit.symbol.as_str().starts_with("0x") {
             self.dcx()
@@ -128,14 +108,101 @@ impl<'sess> AstValidator<'sess, '_> {
             return;
         };
 
-        if Address::parse_checksummed(lit.symbol.as_str(), None).is_err() {
+        let checksummed = addr.to_checksum_buffer(None);
+        let digits = lit.symbol.as_str().bytes().filter(|&b| b != b'_');
+        if !digits.eq(checksummed.as_str().bytes()) {
             self.dcx()
                 .err("invalid checksummed address")
                 .span(lit.span)
-                .help(format!("correct checksummed address: \"{}\"", addr.to_checksum(None)))
+                .help(format!("correct checksummed address: \"{checksummed}\""))
                 .note("if this is not used as an address, please prepend \"00\"")
                 .emit();
         }
+    }
+
+    /// Checks an explicit constructor visibility, which only `abstract` decides now.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L2068-L2091>
+    fn check_constructor_visibility(
+        &self,
+        visibility: ast::Spanned<ast::Visibility>,
+        is_abstract: bool,
+    ) {
+        match *visibility {
+            ast::Visibility::Public if is_abstract => {
+                self.dcx()
+                    .err("abstract contracts cannot have public constructors")
+                    .code(error_code!(8295))
+                    .span(visibility.span)
+                    .help("remove the `public` keyword")
+                    .emit();
+            }
+            ast::Visibility::Internal if !is_abstract => {
+                self.dcx()
+                    .err("non-abstract contracts cannot have internal constructors")
+                    .code(error_code!(1845))
+                    .span(visibility.span)
+                    .help("remove the `internal` keyword and make the contract `abstract`")
+                    .emit();
+            }
+            _ => {
+                self.dcx()
+                    .warn("visibility for constructor is ignored")
+                    .code(error_code!(2462))
+                    .span(visibility.span)
+                    .note(
+                        "to make the contract non-deployable, marking it `abstract` is sufficient",
+                    )
+                    .emit();
+            }
+        }
+    }
+
+    fn check_yul_break_continue(&self, span: Span, kw: &str) {
+        let (code, msg) = match self.yul_for_part {
+            YulForPart::None => (error_code!(2592), "needs to be inside a for-loop body"),
+            YulForPart::Init => (error_code!(9615), "in for-loop init block is not allowed"),
+            YulForPart::Post => (error_code!(2461), "in for-loop post block is not allowed"),
+            YulForPart::Body => return,
+        };
+        self.dcx().err(format!("keyword `{kw}` {msg}")).code(code).span(span).emit();
+    }
+
+    fn visit_yul_block_in(
+        &mut self,
+        part: YulForPart,
+        block: &'ast ast::yul::Block<'ast>,
+    ) -> ControlFlow<Never> {
+        let prev = std::mem::replace(&mut self.yul_for_part, part);
+        let r = self.visit_yul_block(block);
+        self.yul_for_part = prev;
+        r
+    }
+
+    /// Reports a mapping key name that a nested mapping reuses as its key name, or that the
+    /// innermost mapping reuses as its value name.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/DeclarationTypeChecker.cpp#L281-L321>
+    fn check_mapping_names(&self, span: Span, mapping: &ast::TypeMapping<'_>) {
+        let Some(key_name) = mapping.key_name else { return };
+        let check = |name: Option<Ident>| {
+            if let Some(name) = name
+                && name == key_name
+            {
+                self.dcx()
+                    .err(format!("conflicting parameter name `{key_name}` in mapping"))
+                    .code(error_code!(1809))
+                    .span(span)
+                    .span_note(name.span, "the name is reused here")
+                    .emit();
+            }
+        };
+        let mut inner = mapping;
+        while let ast::TypeKind::Mapping(child) = &inner.value.kind {
+            check(child.key_name);
+            inner = child;
+        }
+        check(inner.value_name);
     }
 }
 
@@ -155,7 +222,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         if fields.is_empty() {
             self.dcx().emit_err(name.span, "structs must have at least one field");
         }
-        ControlFlow::Continue(())
+        self.walk_item_struct(item)
     }
 
     fn visit_item_enum(
@@ -177,17 +244,35 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         pragma: &'ast ast::PragmaDirective<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
         match &pragma.tokens {
-            ast::PragmaTokens::Version(name, _version) => {
+            ast::PragmaTokens::Version(name, req) => {
                 if name.name != sym::solidity {
                     let msg = "only `solidity` is supported as a version pragma";
                     self.dcx().emit_err(name.span, msg);
+                } else if !req.dis.is_empty()
+                    && let version = solc_semver_version()
+                    && !req.matches(&version.into())
+                {
+                    let msg = format!(
+                        "source file requires different compiler version \
+                         (current compiler is {version})"
+                    );
+                    self.dcx().warn(msg).code(error_code!(5333)).span(self.item_span).emit();
                 }
             }
             ast::PragmaTokens::Custom(name, value) => {
                 let name = name.as_str();
                 let value = value.as_ref().map(ast::IdentOrStrLit::as_str);
                 match (name, value) {
-                    ("abicoder", Some("v1" | "v2")) => {}
+                    ("abicoder", Some("v1")) => {
+                        self.dcx()
+                            .warn("ABI coder v1 is not supported")
+                            .code(error_code!(9511))
+                            .span(self.item_span)
+                            .note("ABI coder v2 is used instead")
+                            .help("remove the pragma or use `pragma abicoder v2`")
+                            .emit();
+                    }
+                    ("abicoder", Some("v2")) => {}
                     ("experimental", Some("ABIEncoderV2")) => {}
                     ("experimental", Some("SMTChecker")) => {}
                     ("experimental", Some("solidity")) => {
@@ -251,6 +336,48 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         self.walk_stmt(stmt)
     }
 
+    fn visit_yul_stmt(
+        &mut self,
+        stmt: &'ast ast::yul::Stmt<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
+        match &stmt.kind {
+            ast::yul::StmtKind::Break => self.check_yul_break_continue(stmt.span, "break"),
+            ast::yul::StmtKind::Continue => self.check_yul_break_continue(stmt.span, "continue"),
+            ast::yul::StmtKind::Leave if !self.in_yul_function => {
+                self.dcx()
+                    .err("keyword `leave` can only be used inside a function")
+                    .code(error_code!(8149))
+                    .span(stmt.span)
+                    .emit();
+            }
+            ast::yul::StmtKind::For(ast::yul::StmtFor { init, cond, step, body }) => {
+                self.visit_yul_block_in(YulForPart::Init, init)?;
+                self.visit_yul_expr(cond)?;
+                self.visit_yul_block_in(YulForPart::Post, step)?;
+                return self.visit_yul_block_in(YulForPart::Body, body);
+            }
+            ast::yul::StmtKind::FunctionDef(function) => {
+                if self.yul_for_part == YulForPart::Init {
+                    self.dcx()
+                        .err("functions cannot be defined inside a for-loop init block")
+                        .code(error_code!(3441))
+                        .span(function.name.span)
+                        .emit();
+                }
+                let prev = (
+                    std::mem::replace(&mut self.yul_for_part, YulForPart::None),
+                    std::mem::replace(&mut self.in_yul_function, true),
+                );
+                let r = self.walk_yul_stmt(stmt);
+                (self.yul_for_part, self.in_yul_function) = prev;
+                return r;
+            }
+            _ => {}
+        }
+
+        self.walk_yul_stmt(stmt)
+    }
+
     fn visit_item_contract(
         &mut self,
         contract: &'ast ast::ItemContract<'ast>,
@@ -301,6 +428,11 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     self.item_span,
                     "functions without implementation cannot have modifiers",
                 );
+            }
+            if func.kind.is_constructor()
+                && let Some(visibility) = func.header.visibility
+            {
+                self.check_constructor_visibility(visibility, contract.kind.is_abstract_contract());
             }
         }
 
@@ -431,7 +563,73 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                         .emit();
                 }
             }
+            if let Some(vis) = f.visibility
+                && matches!(*vis, ast::Visibility::Private | ast::Visibility::Public)
+            {
+                self.dcx()
+                    .err("invalid visibility, can only be `external` or `internal`")
+                    .code(error_code!(6012))
+                    .span(vis.span)
+                    .emit();
+            }
+            if let Some(state_mutability) = f.state_mutability
+                && state_mutability.is_payable()
+                && matches!(f.visibility(), None | Some(ast::Visibility::Internal))
+            {
+                self.dcx()
+                    .err("only external function types can be payable")
+                    .code(error_code!(7415))
+                    .span(state_mutability.span)
+                    .emit();
+            }
+        } else if let ast::TypeKind::Mapping(mapping) = &ty.kind {
+            self.check_mapping_names(ty.span, mapping);
         }
         self.walk_ty(ty)
     }
+}
+
+/// Returns the help message of each invalid use of underscores in a number literal.
+pub(crate) fn number_literal_underscore_errors(value: &str) -> Vec<&'static str> {
+    if value.ends_with('_') {
+        return vec!["remove trailing underscores"];
+    }
+    if value.contains("__") {
+        return vec!["only 1 consecutive underscore `_` is allowed between digits"];
+    }
+    if value.starts_with("0x_") {
+        return vec!["remove underscores after the `0x` prefix"];
+    }
+    // Like solc, reject underscores after a leading zero, as in `0_E5`.
+    if value.starts_with("0_") {
+        return vec!["remove underscores after the leading zero"];
+    }
+
+    let mut errors = Vec::new();
+    if value.starts_with("0x") {
+        return errors;
+    }
+    if value.contains("._") || value.contains("_.") {
+        errors.push("remove underscores in front of the fraction part");
+    }
+    // Accept underscores next to an uppercase `E` exponent.
+    // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/SyntaxChecker.cpp#L349-L353>
+    if value.contains("_e") {
+        errors.push("remove underscores at the end of the mantissa");
+    }
+    // Also reject underscores after the sign of either exponent, as in `1E-_2`.
+    if value.contains("e_") || value.contains("e-_") || value.contains("E-_") {
+        errors.push("remove underscores in front of the exponent");
+    }
+    errors
+}
+
+/// The part of a Yul `for` loop that a statement is in.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum YulForPart {
+    /// Outside of any `for` loop, or inside a function definition.
+    None,
+    Init,
+    Post,
+    Body,
 }

@@ -78,8 +78,8 @@
   
   fn @known_memory() -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memptr v0 to i256
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
       mstore v1, 19
 -     icall @guard, 42
 -     v2 = icall @read, v1
@@ -93,15 +93,15 @@
       ret v0
   }
   
-  fn @reference_caller() -> memptr {
+  fn @reference_caller() -> ptr<memory> {
     bb0:
       v0 = icall @reference
       ret v0
   }
   
-  fn @reference() -> memptr {
+  fn @reference() -> ptr<memory> {
     bb0:
-      ret memptr 5
+      ret ptr<memory> 5
   }
   
   fn @closed_i8() -> i8 {

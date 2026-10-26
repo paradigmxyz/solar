@@ -7,8 +7,8 @@
 // in place (~60-90 bytes per site — aave's `Errors.X` constants alone account
 // for kilobytes). The constant may be a literal, a local `constant`, or a
 // library `constant` reached through a member access. Messages longer than
-// one word materialize their resolved bytes and use the generic encoder —
-// resolving through `lower_expr` would truncate the constant to one word.
+// one word write their resolved bytes from constants, only on the failure
+// path — resolving through `lower_expr` would truncate the constant to one word.
 // Revert data is byte-identical to solc 0.8.30 for every shape (verified on
 // anvil, including the 33-byte and empty-string edges).
 
@@ -37,31 +37,30 @@ contract R {
     // CHECK-NEXT: push 168
     // CHECK-NEXT: shl
     // CHECK-NEXT: push 11
-    // CHECK-NEXT: swap 1
     // CHECK-NEXT: jump [[SHORT_HELPER]]
     function viaLiteral(uint256 x) external pure returns (uint256) {
         require(x > 5, "literal msg");
         return x;
     }
 
+    // CHECK: push 0x6c6f63616c2d636f6e73742d6d7367
     // CHECK: push 15
-    // CHECK-NEXT: push 0x6c6f63616c2d636f6e73742d6d7367
-    // CHECK: jump [[SHORT_HELPER]]
+    // CHECK-NEXT: jump [[SHORT_HELPER]]
     function viaLocalConst(uint256 x) external pure returns (uint256) {
         require(x > 5, LOCAL);
         return x;
     }
 
-    // CHECK: push 33
-    // CHECK: push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
-    // CHECK-DAG: mcopy
-    // CHECK-DAG: revert
+    // The long message is stored as constant words on the cold path, after the free-memory
+    // pointer is read there; `viaRevertMsg` reuses the short helper.
+    // CHECK-DAG: push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
+    // CHECK-DAG: push 132
     function viaLong(uint256 x) external pure returns (uint256) {
         require(x > 5, Errors.LONG);
         return x;
     }
 
-    // The two cold paths may be laid out in either order.
+    // The cold paths may be laid out in any order.
     // CHECK-DAG: push 0x7265766572742d70617468
     // CHECK-DAG: jump [[WORD11_HELPER]]
     function viaRevertMsg(uint256 x) external pure returns (uint256) {
