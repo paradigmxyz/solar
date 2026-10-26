@@ -64,7 +64,7 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     for block_id in module.blocks.indices() {
         let block = &module.blocks[block_id];
         let in_loop = block.metadata.in_loop && !block.metadata.hotness.is_cold();
-        let repeated = gcx.sess.opts.optimization.is_size() || block.metadata.hotness.is_cold();
+        let repeated = target.optimization().is_size() || block.metadata.hotness.is_cold();
         if !block.instructions.iter().any(|inst| {
             inst.concrete_immediate().is_some_and(|value| {
                 !matches!(select_recipe(evm_version, value, repeated).recipe, CompactPush::Literal)

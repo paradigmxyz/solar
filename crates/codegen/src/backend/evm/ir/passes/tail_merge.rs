@@ -619,7 +619,7 @@ fn terminator_lower_bound(
 /// keeps the one-byte bound, leaving its lifetime pricing of hot tails unchanged.
 fn label_push_lower_bound(gcx: Gcx<'_>, module: &Module, target: BlockId) -> usize {
     let entry = BlockId::from_usize(0);
-    let past_entry = !gcx.sess.opts.optimization.is_gas()
+    let past_entry = !module.optimization(gcx).is_gas()
         && target != entry
         && !module.blocks[entry].instructions.is_empty();
     push_len(gcx.sess.opts.evm_version, alloy_primitives::U256::from(u8::from(past_entry)))
