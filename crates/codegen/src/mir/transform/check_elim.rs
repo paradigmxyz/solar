@@ -543,9 +543,6 @@ fn runtime_immutable_bounds(
 /// Maximum recursion depth when evaluating value ranges and conditions.
 const MAX_DEPTH: usize = 12;
 
-/// Maximum number of states a transitive relation search visits.
-const MAX_RELATION_STATES: usize = 128;
-
 /// Functions with this many blocks list the relations their scope states during the dominator
 /// walk. Smaller ones have too few candidates per value to repay the lists.
 const MIN_BLOCKS_FOR_ACTIVE_RELATIONS: usize = 128;
@@ -662,6 +659,7 @@ struct ActiveRelations {
 impl ActiveRelations {
     const ABSENT: u32 = u32::MAX;
 
+    /// Creates empty lists over the candidates of `index`.
     fn new(func: &Function, index: &FxHashMap<ValueId, SmallVec<[Relation; 2]>>) -> Self {
         let mut slots = FxHashMap::<Relation, [u32; 2]>::default();
         for (&value, relations) in index {
@@ -703,6 +701,7 @@ impl ActiveRelations {
         }
     }
 
+    /// Takes `relation` out of the lists `link` put it in.
     fn unlink(&mut self, func: &Function, relation: Relation) {
         let Some(&slot) = self.slots.get(&relation) else { return };
         let (a, b) = relation.operands();
@@ -769,6 +768,7 @@ impl ActiveRelations {
         }
     }
 
+    /// Marks `value` nonzero, and queues it to carry that upward, unless it already is.
     fn reach(&mut self, pending: &mut SmallVec<[ValueId; 8]>, value: ValueId) {
         if self.nonzero.insert(value) {
             self.nonzero_trail.push(value);
@@ -2313,6 +2313,7 @@ impl<'a> CheckEliminator<'a> {
         equality_only: bool,
         seen: &mut FxHashSet<(ValueId, bool)>,
     ) -> Option<bool> {
+        const MAX_RELATION_STATES: usize = 128;
         let index = self.relation_index.as_ref().expect("relation index was just built");
         if self.active_relations.is_none() {
             let mut pending = SmallVec::<[_; 8]>::new();

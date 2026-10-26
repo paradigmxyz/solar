@@ -1,5 +1,6 @@
-//@ compile-flags: -Ogas -Zdump=mir
-//@ filecheck:
+//@ codegen-matrix: standard dump
+//@[dump] compile-flags: -Ogas -Zdump=mir
+//@[dump] filecheck:
 //@ run-call: chained 1, 2, 100 => 197
 //@ run-call: chained 0, 5, 200 => 395
 //@ run-call-fail: chained 1, 2, 3 => 0xaf7cfeb1
@@ -8,9 +9,9 @@
 //@ run-call-fail: unchained 1, 2, 1 => 0xaf7cfeb1
 //@ run-call-fail: unchained 1, 2, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 
-// A function with many branches lists the relations its scope states as it walks. The searches
-// through them still prove `a < c` from `a < b` and `b < c`, so neither difference checks its
-// underflow, however many branches precede them.
+// The guards keep each function above the 128 blocks from which the dominator walk lists the
+// relations its scope states. The searches through them still prove `a < c` from `a < b` and
+// `b < c`, so neither difference checks its underflow, however many branches precede them.
 // CHECK-LABEL: fn @chained()
 // CHECK-NOT: lt arg2, arg1
 // CHECK-NOT: lt arg2, arg0
@@ -75,26 +76,6 @@ contract LongFunction {
         if (c == 48) revert Hole();
         if (c == 49) revert Hole();
         if (c == 50) revert Hole();
-        if (c == 51) revert Hole();
-        if (c == 52) revert Hole();
-        if (c == 53) revert Hole();
-        if (c == 54) revert Hole();
-        if (c == 55) revert Hole();
-        if (c == 56) revert Hole();
-        if (c == 57) revert Hole();
-        if (c == 58) revert Hole();
-        if (c == 59) revert Hole();
-        if (c == 60) revert Hole();
-        if (c == 61) revert Hole();
-        if (c == 62) revert Hole();
-        if (c == 63) revert Hole();
-        if (c == 64) revert Hole();
-        if (c == 65) revert Hole();
-        if (c == 66) revert Hole();
-        if (c == 67) revert Hole();
-        if (c == 68) revert Hole();
-        if (c == 69) revert Hole();
-        if (c == 70) revert Hole();
         r = (c - b) + (c - a);
     }
 
@@ -150,26 +131,6 @@ contract LongFunction {
         if (c == 48) revert Hole();
         if (c == 49) revert Hole();
         if (c == 50) revert Hole();
-        if (c == 51) revert Hole();
-        if (c == 52) revert Hole();
-        if (c == 53) revert Hole();
-        if (c == 54) revert Hole();
-        if (c == 55) revert Hole();
-        if (c == 56) revert Hole();
-        if (c == 57) revert Hole();
-        if (c == 58) revert Hole();
-        if (c == 59) revert Hole();
-        if (c == 60) revert Hole();
-        if (c == 61) revert Hole();
-        if (c == 62) revert Hole();
-        if (c == 63) revert Hole();
-        if (c == 64) revert Hole();
-        if (c == 65) revert Hole();
-        if (c == 66) revert Hole();
-        if (c == 67) revert Hole();
-        if (c == 68) revert Hole();
-        if (c == 69) revert Hole();
-        if (c == 70) revert Hole();
         r = (c - b) + (c - a);
     }
 }
