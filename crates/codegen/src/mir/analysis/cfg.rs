@@ -202,7 +202,8 @@ impl CfgInfo {
 }
 
 /// Predecessor count above which [`DominatorTree::compute`] merges idom chains with a heap instead
-/// of intersecting predecessors pairwise.
+/// of intersecting predecessors pairwise. Typical blocks have few predecessors, and the heap
+/// costs more than the pairwise fold there.
 const MANY_PREDECESSORS: usize = 32;
 
 /// Immediate-dominator tree for one MIR function.
@@ -299,7 +300,9 @@ impl DominatorTree {
         heap: &mut BinaryHeap<usize>,
     ) -> Option<BlockId> {
         heap.clear();
-        heap.extend(preds.iter().filter(|&&pred| idoms[pred].is_some()).map(|&p| rpo_numbers[p]));
+        heap.extend(
+            preds.iter().filter(|&&pred| idoms[pred].is_some()).map(|&pred| rpo_numbers[pred]),
+        );
         while let Some(number) = heap.pop() {
             while heap.peek() == Some(&number) {
                 heap.pop();
