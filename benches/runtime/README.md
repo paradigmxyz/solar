@@ -97,7 +97,7 @@ the evm2 revision and the SHA-256 of the runner binary. Reference compilers that
 
 The counts come from `perf_event_open` hardware counters of user-mode instructions, thread-scoped,
 and the script runs the runner on one core (`taskset`) when it can. Rerun in another process, the
-instruction counts of 63 of 68 calls moved by under 0.1% and none by more than 1.2%; net counts of
+instruction counts of 65 of 68 calls moved by under 0.1% and none by more than 0.4%; net counts of
 small calls can move by about 50 instructions, and per-benchmark sums stayed within 0.1%. Cycles
 follow host load and moved by a median of 2%, up to 59%. Counters need `perf_event_paranoid` of 2
 or less or `CAP_PERFMON`, and a CPU performance monitoring unit, which most virtual machines and
