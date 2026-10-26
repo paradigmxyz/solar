@@ -108,7 +108,8 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     mstore v106, v121
     v116 = mload v26
     v2 = mload v116
-    v108 = add v40, 32
+    v117 = mload v102
+    v108 = add v117, 32
     v118 = mload v108
     v124 = mload 64 !metadata(memory=scratch)
     v76 = add v124, 96

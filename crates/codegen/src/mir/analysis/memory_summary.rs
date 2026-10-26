@@ -15,7 +15,7 @@ use super::{
 };
 use crate::mir::{
     ArgIdx, BlockId, Callee, ControlEffects, Function, FunctionId, InstId, InstKind, MemoryRegion,
-    MirType, Module, PtrLocation, StorageAlias, Terminator, Value, ValueId,
+    MirType, Module, PtrLocation, RawMemoryAccess, StorageAlias, Terminator, Value, ValueId,
     memory::EvmMemoryLayout, utils::IndexLists,
 };
 use alloy_primitives::U256;
@@ -885,7 +885,8 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
 }
 
 fn instruction_may_recycle_fmp(func: &Function, inst_id: InstId) -> bool {
-    match func.inst(inst_id).kind {
+    let kind = &func.inst(inst_id).kind;
+    match *kind {
         InstKind::SetFmp(_) | InstKind::MappingSlotBytes(..) => true,
         InstKind::Store(address, value, PtrLocation::Memory) => {
             if func.value_u64(address) != Some(EvmMemoryLayout::FMP_SLOT) {
@@ -893,22 +894,16 @@ fn instruction_may_recycle_fmp(func: &Function, inst_id: InstId) -> bool {
             }
             !is_monotonic_fmp_advance(func, value)
         }
-        InstKind::Store8(address, _)
-        | InstKind::Copy(address, ..)
-        | InstKind::MemoryZero(address, _)
-        | InstKind::CodeCopy(address, _, _) => {
-            func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+        // NOTE: A `DataCopy` to the FMP slot is not counted.
+        InstKind::DataCopy(..) => false,
+        _ => {
+            let mut recycles = false;
+            kind.visit_raw_memory(|access, address, _| {
+                recycles |= access != RawMemoryAccess::Read
+                    && func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT);
+            });
+            recycles
         }
-        InstKind::ExtCodeCopy(_, address, _, _) => {
-            func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
-        }
-        InstKind::Call { ret_offset, .. }
-        | InstKind::CallCode { ret_offset, .. }
-        | InstKind::StaticCall { ret_offset, .. }
-        | InstKind::DelegateCall { ret_offset, .. } => {
-            func.value_u64(ret_offset) == Some(EvmMemoryLayout::FMP_SLOT)
-        }
-        _ => false,
     }
 }
 
