@@ -2,7 +2,7 @@
 
 use crate::{
     EvmCodegen,
-    backend::evm::{DebugInfo, EvmArtifact, ir},
+    backend::evm::{CodegenState, DebugInfo, EvmArtifact, ir},
     link::{
         ContractBytecodes, EmbeddedBytecodes, LibraryRelocation, LibraryTable, QualifiedName,
         RelocatableBytecode,
@@ -225,6 +225,9 @@ pub fn generate_contract_bytecodes(
             jobs.spawn_worker(&scope);
         }
     });
+    // The plans are most of the codegen state and only code generation reads them, so free
+    // them before the output phase builds on top of them.
+    gcx.codegen_state::<CodegenState>().clear_plans();
     let artifacts = jobs.artifacts;
     gcx.dcx().has_errors()?;
 
