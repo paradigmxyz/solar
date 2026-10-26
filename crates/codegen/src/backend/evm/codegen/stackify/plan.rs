@@ -456,41 +456,17 @@ impl<'a> Planner<'a> {
             for &latch in &lp.back_edges {
                 backedges.insert((latch, lp.header));
             }
-            // Order the header's words by their last use in the loop body: the word consumed
-            // first sits on top, and words the body never reads sit deepest.
-            let mut order = FxHashMap::<ValueId, usize>::default();
-            let mut position = 0usize;
-            for &block in cfg.rpo() {
-                if !lp.blocks.contains(block) || block == lp.header {
-                    continue;
-                }
-                for &inst in &func.blocks[block].instructions {
-                    if !matches!(func.inst(inst).kind, InstKind::Phi(_)) {
-                        func.inst(inst).kind.visit_operands(|operand| {
-                            order.insert(operand, position);
-                        });
-                        position += 1;
-                    }
-                }
-                if let Some(term) = &func.blocks[block].terminator {
-                    term.visit_operands(|operand| {
-                        order.insert(operand, position);
-                    });
-                    position += 1;
-                }
-            }
             let header = lp.header;
             let mut words: Vec<ValueId> = liveness.live_in(header).iter().collect();
             words.extend(func.block_phi_results(header).iter());
             words.retain(|&value| !remat.contains(value) && !spilled.contains(value));
-            words.sort_by_key(|value| {
-                std::cmp::Reverse(order.get(value).copied().unwrap_or(usize::MAX))
-            });
-            let mut layout = Layout::with_capacity(words.len() + 1);
-            if has_ret && !ret_spilled {
-                layout.push(Slot::Ret);
-            }
-            layout.extend(words.into_iter().map(Slot::Value));
+            // The word consumed first sits on top, and words the body never reads sit deepest.
+            let body = cfg
+                .rpo()
+                .iter()
+                .copied()
+                .filter(|&block| block != header && lp.blocks.contains(block));
+            let layout = ordered_layout(func, body, words, has_ret && !ret_spilled, false);
             first_use.insert(header, layout);
         }
 
@@ -705,15 +681,11 @@ impl<'a> Planner<'a> {
         self
     }
 
-    /// Plans a block's instructions in their MIR order.
-    fn plan_body(&mut self, sim: &mut Sim, block: BlockId) -> Result<(), Fail> {
+    /// The instructions of a block that plan to code of their own, in MIR order.
+    fn planned_insts(&self, block: BlockId) -> Vec<PlannedInst> {
         let func = self.func;
-        let early = self.early_branch_phis(block);
         let tail_call = self.tail_calls.get(&block).copied();
-        let mut constant =
-            self.constant_def.filter(|&(def, _)| def == block).map(|(_, value)| value);
-        let mut uses = self.block_uses(block);
-        let planned: Vec<PlannedInst> = func.blocks[block]
+        func.blocks[block]
             .instructions
             .iter()
             .copied()
@@ -723,7 +695,17 @@ impl<'a> Planner<'a> {
                     && Some(inst) != tail_call
             })
             .map(|inst| PlannedInst { inst, operands: func.inst(inst).kind.operands() })
-            .collect();
+            .collect()
+    }
+
+    /// Plans a block's instructions in their MIR order.
+    fn plan_body(&mut self, sim: &mut Sim, block: BlockId) -> Result<(), Fail> {
+        let func = self.func;
+        let early = self.early_branch_phis(block);
+        let mut constant =
+            self.constant_def.filter(|&(def, _)| def == block).map(|(_, value)| value);
+        let mut uses = self.block_uses(block);
+        let planned = self.planned_insts(block);
         let optimize = self.target.optimizes_stack_plans();
         let windows =
             if optimize { self.preplacement_windows(&planned) } else { Default::default() };
@@ -2405,8 +2387,12 @@ impl<'a> Planner<'a> {
         Ok(())
     }
 
-    /// Chooses the layout of a join from its recorded edges, minimizing the weighted cost of
-    /// the shuffles and trampolines into it, and completes each edge.
+    /// Chooses the layout of a join from its recorded edges and completes each edge. The
+    /// candidates are each predecessor's proposal, priced by the weighted cost of the shuffles and
+    /// trampolines into it. Outside loops, the join's wanted order, its words by first read with
+    /// the first on top, competes with the cheapest proposal: each costs its incoming edges plus
+    /// a trial plan of the join's own instructions, so a layout the join consumes in place can
+    /// beat one the edges reach more cheaply.
     fn resolve_join(&mut self, join: BlockId) -> Result<(), Fail> {
         let Some(pending) = self.pending.remove(&join) else { return Ok(()) };
         if self.layouts[join].is_none() {
@@ -2420,24 +2406,40 @@ impl<'a> Planner<'a> {
                 }
                 let mut sim = Sim::new(edge.stack.clone());
                 match self.adopt(&mut sim, edge.pred, join) {
-                    Ok(candidate) => candidates.push(candidate),
+                    Ok(candidate) if !candidates.contains(&candidate) => candidates.push(candidate),
+                    Ok(_) => {}
                     Err(fail) => {
                         failure.get_or_insert(fail);
                     }
                 }
             }
             for candidate in candidates {
-                let mut total = Cost::ZERO;
-                for other in &pending {
-                    // An unreachable edge fails again below, naming a word to spill.
-                    let Ok(cost) = self.edge_cost(other, join, &candidate) else {
-                        total = Cost::MAX;
-                        break;
-                    };
-                    total += self.weigh(cost, other.pred);
-                }
+                let total = self.incoming_cost(&pending, join, &candidate);
                 if best.as_ref().is_none_or(|(best, _)| self.target.cmp(total, *best).is_lt()) {
                     best = Some((total, candidate));
+                }
+            }
+            if let Some((incoming, proposal)) = &best
+                && !self.cfg.cyclic_blocks().contains(join)
+            {
+                let wanted = self.wanted_layout(join);
+                if wanted != *proposal {
+                    let wanted_incoming = self.incoming_cost(&pending, join, &wanted);
+                    let planned = self.planned_insts(join);
+                    let proposal_price = self.join_cost(join, &planned, proposal);
+                    let wanted_price = self.join_cost(join, &planned, &wanted);
+                    let wins = match (proposal_price, wanted_price) {
+                        (Some(proposal_price), Some(wanted_price)) => {
+                            let proposal_total = *incoming + self.weigh(proposal_price, join);
+                            let wanted_total = wanted_incoming + self.weigh(wanted_price, join);
+                            self.target.cmp(wanted_total, proposal_total).is_lt()
+                        }
+                        (None, Some(_)) => true,
+                        _ => false,
+                    };
+                    if wins && wanted_incoming != Cost::MAX {
+                        best = Some((wanted_incoming, wanted));
+                    }
                 }
             }
             let layout = match (best, failure) {
@@ -2484,6 +2486,65 @@ impl<'a> Planner<'a> {
             }
         }
         Ok(())
+    }
+
+    /// The weighted cost of the shuffles and trampolines that bring every recorded edge into
+    /// `layout`, or `Cost::MAX` when one cannot reach it.
+    fn incoming_cost(&self, pending: &[Pending], join: BlockId, layout: &Layout) -> Cost {
+        let mut total = Cost::ZERO;
+        for edge in pending {
+            // An unreachable edge fails again when the join completes it, naming a word to spill.
+            let Ok(cost) = self.edge_cost(edge, join, layout) else { return Cost::MAX };
+            total += self.weigh(cost, edge.pred);
+        }
+        total
+    }
+
+    /// The join's words, by first read in the join block with the first on top, and the return
+    /// address deepest. The block's instructions and terminator read them in this order, so a
+    /// layout like it needs no shuffle before them.
+    fn wanted_layout(&self, join: BlockId) -> Layout {
+        let mut words: Vec<ValueId> = self.liveness.live_in(join).iter().collect();
+        words.extend(self.func.block_phi_results(join).iter());
+        words.retain(|&value| !self.is_fresh(value));
+        words.sort_unstable();
+        words.dedup();
+        ordered_layout(self.func, [join], words, self.ret_on_stack(), true)
+    }
+
+    /// Prices the join's own code entered with `layout`: its planned instructions and the shuffle
+    /// that places the operands its terminator reads. Returns `None` when they cannot be planned.
+    fn join_cost(&self, join: BlockId, planned: &[PlannedInst], layout: &Layout) -> Option<Cost> {
+        let base = Sim::new(layout.clone());
+        let body = self.trial(&base, join, planned, &mut self.block_uses(join), 0, &[], None)?;
+        let mut sim = self.trial_sim.borrow().fork();
+        let before = sim.cost;
+        self.terminator_operands(&mut sim, join).ok()?;
+        Some(body.plus(sim.cost.saturating_sub(before)))
+    }
+
+    /// Places the operands a block's return, branch, or revert reads, as `plan_terminator` does.
+    fn terminator_operands(&self, sim: &mut Sim, block: BlockId) -> Result<(), Fail> {
+        let live_out = self.liveness.live_out(block);
+        let dying = |value: ValueId| !live_out.contains(value);
+        match &self.func.blocks[block].terminator {
+            Some(Terminator::Return { values }) if self.has_ret => {
+                let values = match self.tail_calls.get(&block) {
+                    Some(&call) => icall(&self.func.inst(call).kind).unwrap().1,
+                    None => values.as_slice(),
+                };
+                self.shuffle(sim, &with_return_address(values))
+            }
+            Some(Terminator::Branch { condition, .. }) => {
+                let (condition, _) =
+                    self.conditions.get(&block).copied().unwrap_or((*condition, false));
+                self.prepare(sim, &[condition], &dying)
+            }
+            Some(Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size }) => {
+                self.prepare(sim, &[*size, *offset], &dying)
+            }
+            _ => Ok(()),
+        }
     }
 
     /// A join layout derived from no edge: the return address, then the join's live words and
@@ -2948,6 +3009,51 @@ struct Pending {
 /// first on top, then the return address.
 fn with_return_address(values: &[ValueId]) -> Vec<Want> {
     values.iter().rev().map(|&value| Want::Value(value)).chain([Want::Ret]).collect()
+}
+
+/// Orders `words` by their reads in `blocks`, the return address deepest when `ret`: the word read
+/// first sits on top, and words never read sit deepest. With `first`, a word's position is its
+/// first read, counting each operand; otherwise it is its last, counting each instruction.
+fn ordered_layout(
+    func: &Function,
+    blocks: impl IntoIterator<Item = BlockId>,
+    mut words: Vec<ValueId>,
+    ret: bool,
+    first: bool,
+) -> Layout {
+    let mut order = FxHashMap::<ValueId, usize>::default();
+    let mut position = 0usize;
+    let mut note = |operands: &[ValueId]| {
+        let start = position;
+        for &operand in operands {
+            if first {
+                order.entry(operand).or_insert(position);
+                position += 1;
+            } else {
+                order.insert(operand, start);
+            }
+        }
+        if !first {
+            position += 1;
+        }
+    };
+    for block in blocks {
+        for &inst in &func.blocks[block].instructions {
+            if !matches!(func.inst(inst).kind, InstKind::Phi(_)) {
+                note(&func.inst(inst).kind.operands());
+            }
+        }
+        if let Some(term) = &func.blocks[block].terminator {
+            note(&term.operands());
+        }
+    }
+    words.sort_by_key(|value| std::cmp::Reverse(order.get(value).copied().unwrap_or(usize::MAX)));
+    let mut layout = Layout::with_capacity(words.len() + 1);
+    if ret {
+        layout.push(Slot::Ret);
+    }
+    layout.extend(words.into_iter().map(Slot::Value));
+    layout
 }
 
 /// The multi-return protocol after one call.
