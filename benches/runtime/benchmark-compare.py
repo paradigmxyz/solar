@@ -1668,10 +1668,13 @@ def evm2_report(results: list[dict[str, Any]]) -> list[str]:
         return []
     names = ["solar", *reference_compiler_ids(results)]
 
-    def totals(result: dict[str, Any], name: str) -> tuple[int | None, ...]:
-        solar = compiler_data(result, "solar")
+    def totals(
+        result: dict[str, Any], name: str, other: str = "solar"
+    ) -> tuple[int | None, ...]:
         return tuple(
-            comparable_evm2(compiler_data(result, name), solar, field)
+            comparable_evm2(
+                compiler_data(result, name), compiler_data(result, other), field
+            )
             for field in ("evm2_net_instructions", "evm2_instructions", "evm2_steps")
         )
 
@@ -1691,8 +1694,10 @@ def evm2_report(results: list[dict[str, Any]]) -> list[str]:
     ratios = []
     for name in names[1:]:
         pairs = []
-        for row in table:
-            net, raw = (ratio(row["solar"][i], row[name][i]) for i in (0, 1))
+        for result, row in zip(results, table, strict=True):
+            # Both sums cover the calls neither compiler excludes.
+            solar = totals(result, "solar", name)
+            net, raw = (ratio(solar[i], row[name][i]) for i in (0, 1))
             if net is not None and raw is not None:
                 pairs.append((net, raw))
         if pairs:

@@ -1465,6 +1465,17 @@ class RunComparisonTests(unittest.TestCase):
         self.assertIn("| other | 13.3 | 13.3 |", report)
         self.assertIn("| all | 13.3 | 26.7 |", report)
 
+    def test_evm2_ratios_cover_the_calls_neither_compiler_excludes(self):
+        row = self.replayed_fixture()
+        solc = copy.deepcopy(row["compilers"]["solar"])
+        first, second = solc["gas_results"]
+        first.update(evm2_instructions=5200, evm2_net_instructions=200)
+        second.update(evm2_net_instructions=600, comparison_exclusion_reason="skip")
+        row["compilers"]["solc"] = solc
+        with patch.dict(os.environ, {}, clear=True):
+            report = benchmark.codegen_report([row], [], "main")
+        self.assertIn("| solc (n=1) | ✅ -50.00% | ✅ -1.92% |", report)
+
     def test_evm2_cost_ignores_counts_of_another_runner(self):
         row = self.replayed_fixture()
         row["compilers"]["solc"] = copy.deepcopy(row["compilers"]["solar"])
