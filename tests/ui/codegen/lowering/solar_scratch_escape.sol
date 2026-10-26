@@ -159,6 +159,13 @@ contract Test {
         return outer[0].length;
     }
 
+    function throughIndexedStore(bytes[] memory outer, uint256 i, uint256 x) external pure {
+        /// @custom:solar-scratch
+        {
+            outer[i] = abi.encode(x); //~ ERROR: this stores a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+        }
+    }
+
     modifier scratchBody() {
         /// @custom:solar-scratch
         {
