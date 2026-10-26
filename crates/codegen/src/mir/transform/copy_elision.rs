@@ -23,7 +23,8 @@
 //! (see `heap-floor`), above the slot.
 
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, MirType, Module, PtrLocation, Terminator, Value, ValueId,
+    BlockId, Function, InstId, InstKind, MirType, Module, PtrLocation, RawMemoryAccess, Terminator,
+    Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, Location, LocationSize, MemoryBase, MemoryLocation,
     },
@@ -190,9 +191,13 @@ impl CopyElisionCx {
         let reads_allocation = |access: Access| match access {
             Access::Any(AddressSpace::Memory) => true,
             // A runtime-indexed access wraps, and so may land in any object.
+            Access::Location(Location::Memory(location))
+                if location.size == LocationSize::Unknown =>
+            {
+                true
+            }
             Access::Location(Location::Memory(location)) => {
-                location.size == LocationSize::Unknown
-                    || alias.memory_alias(allocation, location).may_alias()
+                alias.memory_alias(allocation, location).may_alias()
             }
             _ => false,
         };
@@ -280,61 +285,18 @@ impl CopyElisionCx {
                 }
                 let inst = func.inst(inst_id);
                 match &inst.kind {
-                    // Writes to the allocation: the address is a derived value.
-                    InstKind::Store(addr, value, PtrLocation::Memory) => {
-                        if derived.contains(value) {
-                            return None; // Storing an interior address elsewhere is a read/escape.
-                        }
-                        if derived.contains(addr) {
-                            writes.push(inst_id);
-                        }
+                    // Storing an interior address elsewhere is a read/escape.
+                    InstKind::Store(_, value, PtrLocation::Memory) | InstKind::Store8(_, value)
+                        if derived.contains(value) =>
+                    {
+                        return None;
                     }
-                    InstKind::Store8(addr, value) => {
-                        if derived.contains(value) {
-                            return None;
-                        }
-                        if derived.contains(addr) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::MemoryZero(addr, _) => {
-                        if derived.contains(addr) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::Copy(dest, _, _, PtrLocation::Calldata | PtrLocation::Returndata)
-                    | InstKind::DataCopy(_, dest, _)
-                    | InstKind::CodeCopy(dest, _, _) => {
-                        if derived.contains(dest) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::ExtCodeCopy(_, dest, _, _) => {
-                        if derived.contains(dest) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::Copy(dest, source, _, PtrLocation::Memory) => {
-                        if derived.contains(source) {
-                            return None; // Read as a copy source.
-                        }
-                        if derived.contains(dest) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    // Reads of the allocation keep every write.
-                    InstKind::Load(addr, PtrLocation::Memory)
-                    | InstKind::ExtractValue {
+                    InstKind::ExtractValue {
                         ty: MirType::Slice(_),
                         aggregate: addr,
                         index: MirType::SLICE_LEN_FIELD,
                     } => {
                         if derived.contains(addr) {
-                            return None;
-                        }
-                    }
-                    InstKind::Keccak256(offset, _) => {
-                        if derived.contains(offset) {
                             return None;
                         }
                     }
@@ -353,7 +315,25 @@ impl CopyElisionCx {
                     | InstKind::Alloc { .. } => {}
                     // Any other use of a derived address is treated as a read.
                     kind => {
-                        if kind.operands().iter().any(|op| derived.contains(op)) {
+                        // Memory accesses are judged by their raw ranges. Calls, creates, logs,
+                        // and operations without a range read every derived operand.
+                        let mut ranged = false;
+                        let mut read = false;
+                        if kind.effect_kind().is_memory() {
+                            kind.visit_raw_memory(|access, addr, _| {
+                                ranged = true;
+                                if derived.contains(&addr) {
+                                    match access {
+                                        RawMemoryAccess::Write => writes.push(inst_id),
+                                        RawMemoryAccess::Read | RawMemoryAccess::PartialWrite => {
+                                            read = true;
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                        if read || !ranged && kind.operands().iter().any(|op| derived.contains(op))
+                        {
                             return None;
                         }
                     }

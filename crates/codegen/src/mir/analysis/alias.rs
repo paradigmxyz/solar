@@ -16,7 +16,7 @@ use crate::mir::{
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use std::{
-    cell::{OnceCell, RefCell},
+    cell::{Cell, OnceCell, RefCell},
     collections::VecDeque,
     sync::Arc,
 };
@@ -543,6 +543,9 @@ pub(crate) struct AliasAnalysis {
     provenance: OnceCell<PointerProvenance>,
     /// Values whose derived pointer graph reaches a capturing use.
     escaping_values: RefCell<Option<DenseBitSet<ValueId>>>,
+    /// Whether some access may run through a runtime index, which wraps and so may land on any
+    /// object. Unknown until the provenance is built.
+    wraps: Cell<Option<bool>>,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
 }
 
@@ -562,6 +565,7 @@ impl AliasAnalysis {
         Self {
             provenance: OnceCell::new(),
             escaping_values: RefCell::new(None),
+            wraps: Cell::new(None),
             call_summaries: Some(summaries),
         }
     }
@@ -612,25 +616,61 @@ impl AliasAnalysis {
             provenance.addresses.borrow_mut().clear();
         }
         self.escaping_values.borrow_mut().take();
+        self.wraps.set(None);
     }
 
     fn with_optional_summaries(
         _func: &Function,
         call_summaries: Option<Arc<MemoryCallSummaries>>,
     ) -> Self {
-        Self { provenance: OnceCell::new(), escaping_values: RefCell::new(None), call_summaries }
+        Self {
+            provenance: OnceCell::new(),
+            escaping_values: RefCell::new(None),
+            wraps: Cell::new(None),
+            call_summaries,
+        }
     }
 
     /// The lazily built provenance snapshot for `func`. Every query passes the
     /// same function the analysis was created for.
     fn provenance(&self, func: &Function) -> &PointerProvenance {
-        self.provenance.get_or_init(|| {
+        let provenance = self.provenance.get_or_init(|| {
             PointerProvenance::new(
                 func,
                 self.call_summaries.as_deref(),
                 Self::instruction_may_reset_fmp_with_summaries,
             )
-        })
+        });
+        if self.wraps.get().is_none() {
+            // The scan resolves addresses, which re-enters here; the pessimistic value answers.
+            self.wraps.set(Some(true));
+            if provenance.allocations.values().any(|facts| facts.unique) {
+                self.wraps.set(Some(self.function_may_wrap(func)));
+            }
+        }
+        provenance
+    }
+
+    /// Returns whether an access of `func` may run through a runtime index or has an unknown
+    /// extent, so that it wraps and may land on any object.
+    fn function_may_wrap(&self, func: &Function) -> bool {
+        let wraps = |effects: ModRef| {
+            effects.reads().iter().chain(effects.writes()).any(|access| match access {
+                Access::Any(AddressSpace::Memory) => true,
+                Access::Location(Location::Memory(location)) => {
+                    location.size == LocationSize::Unknown
+                }
+                _ => false,
+            })
+        };
+        func.instructions().any(|inst| {
+            self.instruction_may_wrap_write(func, inst)
+                || wraps(self.instruction_mod_ref(func, inst))
+        }) || func
+            .blocks
+            .iter()
+            .filter_map(|block| block.terminator.as_ref())
+            .any(|terminator| wraps(self.terminator_mod_ref(func, terminator)))
     }
 
     /// Canonicalizes a MIR value used as a memory address.
@@ -1503,8 +1543,9 @@ impl AliasAnalysis {
         {
             return AliasResult::NoAlias;
         }
-        if Self::absolute_below_allocation(first, second)
-            || Self::absolute_below_allocation(second, first)
+        if self.wraps.get() == Some(false)
+            && (Self::absolute_below_unique_allocation(first, second)
+                || Self::absolute_below_unique_allocation(second, first))
         {
             return AliasResult::NoAlias;
         }
@@ -1512,14 +1553,19 @@ impl AliasAnalysis {
     }
 
     /// Returns whether `other` is an absolute range that ends at or below the start of `alloc`.
+    /// Unlike [`Self::absolute_below_allocation`], it also covers the reserved words below the
+    /// heap, which holds for unique allocations only.
     ///
     /// No reset of the free-memory pointer precedes a unique allocation, so its pointer is at
     /// or above the heap start, and a location at offset `n` in it starts at or above
     /// `HEAP_START + n`. `Allocation` bases come only from the provenance snapshot, which
-    /// assigns them to unique allocations.
+    /// assigns them to unique allocations. The caller applies the rule only to a function with
+    /// no access through a runtime index: such an access wraps and may land on an earlier
+    /// object, which the disjointness of allocations assumes away, and their aliasing with the
+    /// free-memory pointer slot used to keep passes from trusting it.
     // NOTE: Like `pointer_lower_bound`, this trusts the pointer to enter the function at or above
     // the heap start, which memory-unsafe assembly in a caller could violate.
-    fn absolute_below_allocation(alloc: MemoryLocation, other: MemoryLocation) -> bool {
+    fn absolute_below_unique_allocation(alloc: MemoryLocation, other: MemoryLocation) -> bool {
         if matches!(alloc.address.base, MemoryBase::Allocation(_))
             && other.address.base == MemoryBase::Absolute
             && let Some(size) = other.size.as_const()
@@ -1530,6 +1576,26 @@ impl AliasAnalysis {
         } else {
             false
         }
+    }
+
+    /// Whether `absolute` is a heap-start-or-higher absolute range that ends at or below the
+    /// lowest address `allocation` can start at: every allocation lies at or above the heap
+    /// start, as [`Self::pointer_lower_bound`] trusts. Reserved low memory stays `MayAlias`,
+    /// since the free-memory-pointer slot there reflects allocations.
+    fn absolute_below_allocation(absolute: MemoryLocation, allocation: MemoryLocation) -> bool {
+        let (MemoryBase::Absolute, Some(_), LocationSize::Const(size)) =
+            (absolute.address.base, Self::allocation_base(allocation.address.base), absolute.size)
+        else {
+            return false;
+        };
+        let start = EvmMemoryLayout::HEAP_START.checked_add(allocation.address.offset);
+        absolute.address.offset >= EvmMemoryLayout::HEAP_START
+            && absolute
+                .address
+                .offset
+                .checked_add(size)
+                .zip(start)
+                .is_some_and(|(end, start)| end <= start)
     }
 
     /// Computes a memory-range relationship after addresses are canonicalized.
@@ -1554,6 +1620,11 @@ impl AliasAnalysis {
         // non-allocation base is likewise `MayAlias`.
         let first_alloc = Self::allocation_base(first.address.base);
         let second_alloc = Self::allocation_base(second.address.base);
+        if Self::absolute_below_allocation(first, second)
+            || Self::absolute_below_allocation(second, first)
+        {
+            return AliasResult::NoAlias;
+        }
         match (first_alloc, second_alloc) {
             (Some((a, a_dynamic)), Some((b, b_dynamic))) => {
                 if a != b {
