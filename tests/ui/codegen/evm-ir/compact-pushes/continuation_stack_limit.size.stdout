@@ -85,4 +85,25 @@
 +   shr
     pop
     stop
+  bb19 [stack=1021]:
+    push bb21
+    push 1
+    push bb22
+    jumpi
+    pop
+    stop
+  bb20 [stack=0]:
+    push bb21
+    jump bb23
+  bb21 [continuation]:
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    pop
+    stop
+  bb22:
+    push 7
+    push 8
+    swap 2
+    jump
+  bb23 [ret=0, inputs=1, outputs=0]:
+    jump
   
