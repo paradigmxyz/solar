@@ -1,0 +1,17 @@
+//@compile-flags: -Zmir-pipeline=defer-alloc
+//@filecheck:
+@module DeferAllocUnreservedSliceLength
+
+// The length field of a slice can hold the pointer as an integer, which a later read of the
+// field exposes, so the pointer escapes and the allocation keeps its bump.
+// CHECK:   fn @helper{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @helper(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = make_memory_slice v0, v1
+    v3 = extract_value slice<memory>, v2, 1
+    sstore 0, v3
+    revert 0, 0
+}

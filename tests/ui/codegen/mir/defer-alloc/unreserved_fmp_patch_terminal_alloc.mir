@@ -1,0 +1,22 @@
+//@compile-flags: -Zmir-pipeline=defer-alloc
+//@filecheck:
+@module DeferAllocUnreservedFmpPatchTerminalAlloc
+
+// A write that ends the execution still counts when an allocation follows it in the block: the
+// allocation reads the patched free-memory pointer.
+// CHECK:   fn @helper{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @helper(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    revert v0, 32
+}
+
+fn @patch_then_alloc(arg0: i256) {
+  bb0:
+    mstore8 arg0, 1
+    v0 = alloc 32
+    mstore v0, 1
+    revert v0, 32
+}

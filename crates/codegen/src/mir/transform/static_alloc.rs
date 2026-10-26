@@ -377,10 +377,12 @@ fn derivation_is_tracked(
         | InstKind::IntToPtr(_)
         | InstKind::ExtractValue {
             ty: MirType::Slice(_), index: MirType::SLICE_PTR_FIELD, ..
-        }
-        | InstKind::MakeSlice { .. } => {
-            Some(func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r)))
-        }
+        } => Some(func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))),
+        // A derived length would leak the pointer as an integer through the length field.
+        InstKind::MakeSlice { len, .. } => Some(
+            !derived.contains_key(len)
+                && func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r)),
+        ),
         InstKind::ExtractValue {
             ty: MirType::Slice(_), index: MirType::SLICE_LEN_FIELD, ..
         } => Some(true),
@@ -759,7 +761,8 @@ impl UnreservedAnalysis<'_> {
 /// the old pointer.
 fn accesses_fmp_slot(func: &Function) -> bool {
     func.blocks.iter().any(|block| {
-        // Whether execution ends after the instruction without another call or creation.
+        // Whether execution ends after the instruction without another call, creation, or
+        // instruction that reads the free-memory pointer.
         let mut ends = matches!(
             block.terminator,
             Some(
@@ -791,10 +794,12 @@ fn accesses_fmp_slot(func: &Function) -> bool {
                     }
                 };
             });
-            ends &= !matches!(
-                kind.effect_kind(),
-                EffectKind::ICall | EffectKind::ExternalCall | EffectKind::Create
-            );
+            ends &= !(instruction_observes_fmp(func, inst)
+                || matches!(kind, InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. })
+                || matches!(
+                    kind.effect_kind(),
+                    EffectKind::ICall | EffectKind::ExternalCall | EffectKind::Create
+                ));
             hit
         })
     }) || func.blocks.iter().any(|block| {
