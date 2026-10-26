@@ -15,18 +15,18 @@
 //!
 //! Two proofs then make the walk's result safe to remove:
 //!
-//! - A deferred allocation was placed statically with every pointer use an in-bounds address
-//!   derivation, so no other way to reach its words exists. Functions that observe gas keep its
-//!   writes, since removing them can lower memory expansion.
-//! - Any other allocation needs alias analysis. Its pointer must not escape, no instruction or
-//!   terminator may read an address that may alias its extent, and every write must lie inside its
-//!   constant-size extent. An indexed element store also qualifies when its sole incoming edge
-//!   proves an unsigned index bound whose last word fits. Other dynamic addresses stay
-//!   conservative. An allocation that runs once reads the free-memory pointer before its object
-//!   exists, so that read does not count; one in a loop reads it again after the previous
-//!   instance's writes and keeps them. Every other read of the slot still counts. Callers' later
-//!   reads of the slot cannot see the removed writes: allocations start at or above the heap floor
-//!   (see `heap-floor`), above the slot.
+//! - A deferred allocation whose only writes are stores needs nothing more: its pointer uses are
+//!   in-bounds address derivations, so no other way to reach its words exists. Functions that
+//!   observe gas keep its stores, since removing them can lower memory expansion.
+//! - Every other case needs alias analysis, including copies and fills into a deferred allocation.
+//!   Its pointer must not escape, no instruction or terminator may read an address that may alias
+//!   its extent, and every write must lie inside its constant-size extent. An indexed element store
+//!   also qualifies when its sole incoming edge proves an unsigned index bound whose last word
+//!   fits. Other dynamic addresses stay conservative. An allocation that runs once reads the
+//!   free-memory pointer before its object exists, so that read does not count; one in a loop reads
+//!   it again after the previous instance's writes and keeps them. Every other read of the slot
+//!   still counts. Callers' later reads of the slot cannot see the removed writes: allocations
+//!   start at or above the heap floor (see `heap-floor`), above the slot.
 //!
 //! The rewrite runs inside the `memory-dse` fixpoint, so removing a copy that read one allocation
 //! lets the next round remove the writes into that allocation.
@@ -42,6 +42,7 @@ use crate::mir::{
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
 
@@ -64,15 +65,23 @@ impl MemoryStoreEliminator {
         let mut dead = DenseBitSet::new_empty(func.num_insts());
         for (object, deferred) in allocations {
             let Some(writes) = uses.write_only_writes(func, object) else { continue };
-            let removable = if deferred {
+            // Placement proves nothing about copies and fills: a deferred object can sit below the
+            // free-memory pointer, where assembly may read it from another heap pointer.
+            let only_stores = writes.iter().all(|&write| {
+                matches!(
+                    func.inst(write).kind,
+                    InstKind::Store(.., PtrLocation::Memory) | InstKind::Store8(..)
+                )
+            });
+            let removable = if deferred && only_stores {
                 !*observes_gas.get_or_insert_with(|| {
                     let gas = GasObservations::new(func, &self.cfg, self.alias());
                     func.instructions().any(|inst| gas.observes(inst))
                 })
             } else {
-                !self.alias().value_escapes(func, object)
+                uses.writes_fit_allocation(func, self.alias(), object, &writes)
+                    && !self.alias().value_escapes(func, object)
                     && !self.allocation_may_be_read(func, object)
-                    && uses.writes_fit_allocation(func, self.alias(), object, &writes)
             };
             if removable {
                 for write in writes {
@@ -128,18 +137,18 @@ impl MemoryStoreEliminator {
 /// Operand users of one function, shared by the proofs of all its allocations.
 struct WriteOnlyUses {
     /// Instruction uses indexed by operand value.
-    uses: FxHashMap<ValueId, SmallVec<[InstId; 4]>>,
+    uses: IndexVec<ValueId, SmallVec<[InstId; 4]>>,
     /// Blocks containing indexed element stores that may need an edge bounds proof.
     indexed_stores: FxHashMap<InstId, BlockId>,
     /// Values used by terminators.
-    terminator_uses: FxHashSet<ValueId>,
+    terminator_uses: DenseBitSet<ValueId>,
 }
 
 impl WriteOnlyUses {
     fn new(func: &Function) -> Self {
-        let mut uses = FxHashMap::<_, SmallVec<_>>::default();
+        let mut uses = index_vec![SmallVec::new(); func.num_values()];
         let mut indexed_stores = FxHashMap::default();
-        let mut terminator_uses = FxHashSet::default();
+        let mut terminator_uses = DenseBitSet::new_empty(func.num_values());
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
@@ -148,10 +157,12 @@ impl WriteOnlyUses {
                 {
                     indexed_stores.insert(inst_id, block_id);
                 }
-                inst.visit_operands(|operand| uses.entry(operand).or_default().push(inst_id));
+                inst.visit_operands(|operand| uses[operand].push(inst_id));
             }
             if let Some(terminator) = &block.terminator {
-                terminator_uses.extend(terminator.operands());
+                for operand in terminator.operands() {
+                    terminator_uses.insert(operand);
+                }
             }
         }
         Self { uses, indexed_stores, terminator_uses }
@@ -167,7 +178,7 @@ impl WriteOnlyUses {
         let mut worklist = vec![object];
         let mut seen = FxHashSet::default();
         while let Some(value) = worklist.pop() {
-            for &inst_id in self.uses.get(&value).into_iter().flatten() {
+            for &inst_id in self.uses[value].iter() {
                 if !seen.insert(inst_id) {
                     continue;
                 }
@@ -200,7 +211,7 @@ impl WriteOnlyUses {
         let mut writes = Vec::new();
         let mut seen = FxHashSet::default();
         for value in &derived {
-            for &inst_id in self.uses.get(value).into_iter().flatten() {
+            for &inst_id in self.uses[*value].iter() {
                 if !seen.insert(inst_id) {
                     continue;
                 }
@@ -274,7 +285,7 @@ impl WriteOnlyUses {
 
         // Terminators never read a non-escaping allocation (that would escape),
         // but guard defensively.
-        if self.terminator_uses.iter().any(|value| derived.contains(value)) {
+        if derived.iter().any(|&value| self.terminator_uses.contains(value)) {
             return None;
         }
 

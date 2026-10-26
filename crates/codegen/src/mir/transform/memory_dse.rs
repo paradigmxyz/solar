@@ -32,10 +32,10 @@
 //!   the same word in another block from the cross-block rewrites.
 //! - Write-only allocations: an allocation that nothing reads loses the stores and copies that fill
 //!   it, as a decoded struct does once forwarding has replaced the reads of its used fields. A
-//!   deferred allocation qualifies when its pointer only ever addresses writes, since static
-//!   placement keeps every other way to reach its words out of the function; any other allocation
-//!   needs alias analysis to show that it does not escape, no read may alias it, and its writes
-//!   stay inside it. The allocation itself stays. See `write_only`.
+//!   deferred allocation whose pointer only addresses stores qualifies directly, since static
+//!   placement keeps every other way to reach its words out of the function; any other case needs
+//!   alias analysis to show that the allocation does not escape, no read may alias it, and its
+//!   writes stay inside it. The allocation itself stays. See `write_only`.
 //! - Across edges: a constant store equal to the constant a sole predecessor left in the word is
 //!   removed, and a store that the single jump successor overwrites first, with no memory or gas
 //!   observer in between, is removed.

@@ -57,6 +57,13 @@
 -     calldatacopy v1, 4, 32
 -     memory_zero v0, 32
       returndatacopy v1, 0, 32
+      stop
+  }
+  
+  fn @copy_with_aliasing_read() {
+    bb0:
+      v0 = alloc 64 !metadata(deferred_alloc)
+      calldatacopy v0, 4, 32
       returndata 128, 32
   }
   
