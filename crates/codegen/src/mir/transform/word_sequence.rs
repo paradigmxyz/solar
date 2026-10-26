@@ -389,10 +389,7 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
                 let inserted = recipe.materialize(func, inst);
                 if let Some(masks) = &mut masks {
                     masks.insert(func, inst);
-                    masks.refresh(
-                        func,
-                        func.inst_result_value(inst).expect("a recipe root has a result"),
-                    );
+                    masks.refresh(func, inst);
                 }
                 uses.resize(func.num_values(), 0);
                 for new in inserted.iter().copied().chain(std::iter::once(inst)) {
@@ -414,7 +411,7 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
         }
         // Earlier producers replaced by recipes no longer occur in the block.
         ordered.retain(|inst| !deleted.contains(inst));
-        // The mask index sees the recipe instructions and not the deleted ones once reattached.
+        // Reattaching the block adds the recipe instructions and drops the deleted producers.
         if let Some(masks) = &mut masks {
             for &inst in &added {
                 masks.insert(func, inst);

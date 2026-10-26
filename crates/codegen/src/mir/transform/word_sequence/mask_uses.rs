@@ -84,7 +84,8 @@ impl MaskUses {
             _ => {}
         }
         if let Some(mask) = repeated_mask(func, inst) {
-            self.repeat(inst, mask);
+            *self.uses.entry(mask).or_default() -= 1;
+            self.repeated.insert(inst, mask);
         }
     }
 
@@ -122,24 +123,21 @@ impl MaskUses {
     }
 
     /// Recounts the `(x & m) & m` users of an instruction result after its kind changed.
-    pub(super) fn refresh(&mut self, func: &Function, result: ValueId) {
+    pub(super) fn refresh(&mut self, func: &Function, inst: InstId) {
+        let Some(result) = func.inst_result_value(inst) else { return };
         let Some(outers) = self.outers.get(&result) else { return };
-        for inst in outers.clone() {
-            let mask = repeated_mask(func, inst);
-            if self.repeated.get(&inst) != mask.as_ref() {
-                if let Some(old) = self.repeated.remove(&inst) {
+        for &outer in outers {
+            let mask = repeated_mask(func, outer);
+            if self.repeated.get(&outer) != mask.as_ref() {
+                if let Some(old) = self.repeated.remove(&outer) {
                     *self.uses.entry(old).or_default() += 1;
                 }
                 if let Some(mask) = mask {
-                    self.repeat(inst, mask);
+                    *self.uses.entry(mask).or_default() -= 1;
+                    self.repeated.insert(outer, mask);
                 }
             }
         }
-    }
-
-    fn repeat(&mut self, inst: InstId, mask: U256) {
-        *self.uses.entry(mask).or_default() -= 1;
-        self.repeated.insert(inst, mask);
     }
 }
 
