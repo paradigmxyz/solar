@@ -1146,15 +1146,12 @@ def trace_gas_kinds(
     }, ""
 
 
-def evm2_environment(rpc_url: str) -> tuple[dict[str, Any] | None, str]:
-    """The chain ID and hardfork the node ran its transactions under."""
-    chain_id, error = rpc_request("eth_chainId", (), rpc_url)
-    if chain_id is None:
-        return None, error
+def evm2_hardfork(rpc_url: str) -> tuple[str | None, str]:
+    """The hardfork the node ran its transactions under."""
     info, error = rpc_request("anvil_nodeInfo", (), rpc_url)
     if not isinstance(info, dict) or not isinstance(info.get("hardFork"), str):
         return None, error or "anvil_nodeInfo has no hardFork"
-    return {"chainId": chain_id, "hardfork": info["hardFork"]}, ""
+    return info["hardFork"], ""
 
 
 def evm2_replay(
@@ -1210,23 +1207,13 @@ def evm2_pin() -> list[str]:
 
 
 def run_evm2_runner(
-    runner: Path, environment: dict[str, Any], replays: Sequence[dict[str, Any]]
+    runner: Path, hardfork: str, replays: Sequence[dict[str, Any]]
 ) -> tuple[dict[str, Any] | None, str]:
-    with tempfile.NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
-        prefix="solar-bench-evm2-",
-        suffix=".json",
-        delete=False,
-    ) as input_file:
-        json.dump({**environment, "calls": list(replays)}, input_file)
-        input_path = Path(input_file.name)
-    try:
-        proc = run(
-            [*evm2_pin(), str(runner), str(input_path)], timeout=EVM2_RUNNER_TIMEOUT
-        )
-    finally:
-        input_path.unlink(missing_ok=True)
+    proc = run(
+        [*evm2_pin(), str(runner)],
+        input_text=json.dumps({"hardfork": hardfork, "calls": list(replays)}),
+        timeout=EVM2_RUNNER_TIMEOUT,
+    )
     if proc.returncode != 0:
         return None, (proc.stderr or proc.stdout or "evm2 runner failed")[:1000]
     try:
@@ -1253,10 +1240,10 @@ def record_evm2(
     """
     output, error = None, ""
     if replays:
-        environment, error = evm2_environment(rpc_url)
-        if environment is not None:
+        hardfork, error = evm2_hardfork(rpc_url)
+        if hardfork is not None:
             output, error = run_evm2_runner(
-                runner, environment, [replay for _, replay in replays]
+                runner, hardfork, [replay for _, replay in replays]
             )
     totals = {"instructions": 0, "net_instructions": 0, "steps": 0}
     for index, (gas_result, _) in enumerate(replays):

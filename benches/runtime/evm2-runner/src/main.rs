@@ -1,7 +1,7 @@
 //! Replays recorded transactions on evm2's interpreter and counts the host instructions each one
 //! costs.
 //!
-//! The input is one JSON document: the chain ID, the node's hardfork, and a list of calls. Each
+//! The input is one JSON document on stdin: the node's hardfork and a list of calls. Each
 //! call carries the transaction, its block header, and the prestate it touched, as the node's
 //! `eth_getTransactionByHash`, `eth_getBlockByNumber`, and `debug_traceTransaction` (with
 //! `prestateTracer`) return them, plus the gas the node's receipt reports. Every call is rebuilt
@@ -27,7 +27,7 @@ use std::{collections::HashMap, process::ExitCode};
 
 const EVM2_REV: &str = env!("EVM2_REV");
 
-const USAGE: &str = "usage: evm2-runner INPUT.json | --check";
+const USAGE: &str = "usage: evm2-runner < INPUT.json | evm2-runner --check";
 
 /// Timed batches per measurement; the result is the median batch.
 const BATCHES: u64 = 7;
@@ -38,7 +38,6 @@ const BATCH_CYCLES: u64 = 200_000;
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Input {
-    chain_id: U64,
     hardfork: String,
     calls: Vec<Call>,
 }
@@ -127,20 +126,19 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<(), String> {
-    let path = match std::env::args().nth(1).ok_or(USAGE)?.as_str() {
-        "--check" => return Counters::new().map(drop),
-        path => path.to_string(),
-    };
-    let input = serde_json::from_slice::<Input>(
-        &std::fs::read(&path).map_err(|error| format!("cannot read {path}: {error}"))?,
-    )
-    .map_err(|error| format!("invalid input {path}: {error}"))?;
+    match std::env::args().nth(1).as_deref() {
+        Some("--check") => return Counters::new().map(drop),
+        Some(_) => return Err(USAGE.into()),
+        None => {}
+    }
+    let input = serde_json::from_reader::<_, Input>(std::io::stdin().lock())
+        .map_err(|error| format!("invalid input: {error}"))?;
     let spec = spec_id(&input.hardfork)?;
     let counters = Counters::new()?;
     let calls = input
         .calls
         .iter()
-        .map(|call| match measure(&input, spec, call, &counters) {
+        .map(|call| match measure(spec, call, &counters) {
             Ok(measurement) => CallOutput::Measurement(measurement),
             Err(error) => CallOutput::Error(error),
         })
@@ -173,15 +171,10 @@ fn spec_id(hardfork: &str) -> Result<SpecId, String> {
     })
 }
 
-fn measure(
-    input: &Input,
-    spec: SpecId,
-    call: &Call,
-    counters: &Counters,
-) -> Result<Measurement, String> {
+fn measure(spec: SpecId, call: &Call, counters: &Counters) -> Result<Measurement, String> {
     let target = call.tx.to.ok_or("contract creations are not replayed")?;
-    let tx = recovered_tx(&call.tx)?;
-    let mut evm = new_evm(input, spec, call, None)?;
+    let tx = recovered_tx(&call.tx, target)?;
+    let mut evm = new_evm(spec, call, None)?;
     let result = evm.transact(&tx).map_err(|error| format!("{error:?}"))?.discard();
     check_receipt(&result, call)?;
     let mut steps = Steps(0);
@@ -192,7 +185,7 @@ fn measure(
         counters.median(|| evm.transact(&tx).map(|r| drop(r.discard())))?;
 
     // The same transaction on a contract that stops at once.
-    let mut stop_evm = new_evm(input, spec, call, Some(target))?;
+    let mut stop_evm = new_evm(spec, call, Some(target))?;
     let (_, stop_instructions) =
         counters.median(|| stop_evm.transact(&tx).map(|r| drop(r.discard())))?;
 
@@ -220,7 +213,6 @@ fn check_receipt(result: &TxResult<BaseEvmTypes>, call: &Call) -> Result<(), Str
 
 /// Builds the EVM for one call. With `stop_target`, that account's code is a single STOP.
 fn new_evm(
-    input: &Input,
     spec: SpecId,
     call: &Call,
     stop_target: Option<Address>,
@@ -245,7 +237,7 @@ fn new_evm(
     // Like the node, which lifts the code size limits, and with a gas limit cap above the 80M the
     // calls use.
     let mut version = *Version::base(spec);
-    version.chain_id = input.chain_id.to();
+    version.chain_id = call.tx.chain_id.to();
     version.max_code_size = usize::MAX;
     version.max_initcode_size = usize::MAX;
     version.tx_gas_limit_cap = u64::MAX;
@@ -270,7 +262,7 @@ fn new_evm(
 }
 
 /// Rebuilds the EIP-1559 transaction `cast send` makes.
-fn recovered_tx(tx: &RpcTx) -> Result<RecoveredTxEnvelope, String> {
+fn recovered_tx(tx: &RpcTx, target: Address) -> Result<RecoveredTxEnvelope, String> {
     if tx.ty.to::<u8>() != 2 {
         return Err(format!("unsupported transaction type {}", tx.ty));
     }
@@ -280,7 +272,7 @@ fn recovered_tx(tx: &RpcTx) -> Result<RecoveredTxEnvelope, String> {
         gas_limit: tx.gas.to(),
         max_fee_per_gas: tx.max_fee_per_gas.to(),
         max_priority_fee_per_gas: tx.max_priority_fee_per_gas.to(),
-        to: tx.to.map_or(TxKind::Create, TxKind::Call),
+        to: TxKind::Call(target),
         value: tx.value,
         access_list: Default::default(),
         input: tx.input.clone(),
@@ -355,7 +347,7 @@ fn perf_counter(config: u64) -> Result<i32, String> {
     let mut attr = [0u64; 17];
     attr[0] = 136u64 << 32;
     attr[1] = config;
-    // exclude_kernel | exclude_hv
+    // exclude_kernel | exclude_hv.
     attr[5] = (1 << 5) | (1 << 6);
     let fd = unsafe { libc::syscall(libc::SYS_perf_event_open, attr.as_ptr(), 0, -1, -1, 0) };
     if fd < 0 {

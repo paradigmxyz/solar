@@ -104,8 +104,9 @@ or less or `CAP_PERFMON`, and a CPU performance monitoring unit, which most virt
 GitHub-hosted runners lack. The script checks this at start and exits with the runner's error. CI
 does not pass `--evm2`.
 
-Counts are comparable only between runs of one runner binary: build flags such as
-`-Ctarget-cpu=native` change the instructions executed. The report and the comparison ignore counts
+Counts are comparable only between runs of one runner binary on one CPU model: build flags such as
+`-Ctarget-cpu=native` change the instructions executed, and libraries may pick other code paths on
+another CPU. The report and the comparison ignore counts
 whose `evm2_runner` differs. The runner keeps the `keccak-cache-global` feature of `alloy-primitives`
 off, because with it repeated executions of one call hit the cache and hide the cost of hashing in
 mapping-heavy calls; check `cargo tree -e features` after changing its dependencies. One untimed

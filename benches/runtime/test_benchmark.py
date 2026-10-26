@@ -1369,34 +1369,25 @@ class Evm2Tests(unittest.TestCase):
                 benchmark.evm2_replay("0xtx", 1, "rpc"), (None, "rpc down")
             )
 
-    def test_environment_reads_chain_id_and_hardfork(self) -> None:
-        def request(method, params, rpc_url):
-            return {
-                "eth_chainId": "0x7a69",
-                "anvil_nodeInfo": {"hardFork": "Bpo1"},
-            }[method], ""
-
-        with mock.patch.object(benchmark, "rpc_request", side_effect=request):
-            self.assertEqual(
-                benchmark.evm2_environment("rpc"),
-                ({"chainId": "0x7a69", "hardfork": "Bpo1"}, ""),
-            )
+    def test_hardfork_comes_from_the_node(self) -> None:
+        with mock.patch.object(
+            benchmark, "rpc_request", return_value=({"hardFork": "Bpo1"}, "")
+        ):
+            self.assertEqual(benchmark.evm2_hardfork("rpc"), ("Bpo1", ""))
         with mock.patch.object(benchmark, "rpc_request", return_value=({}, "")):
-            environment, error = benchmark.evm2_environment("rpc")
-        self.assertIsNone(environment)
+            hardfork, error = benchmark.evm2_hardfork("rpc")
+        self.assertIsNone(hardfork)
         self.assertIn("no hardFork", error)
 
     def test_runner_gets_the_replays_and_returns_its_counts(self) -> None:
         runner = self.fake_runner(
             "import json, sys\n"
-            "document = json.load(open(sys.argv[-1]))\n"
+            "document = json.load(sys.stdin)\n"
             "print(json.dumps({'evm2_rev': document['hardfork'], 'calls': [\n"
             "    {'measurement': {'instructions': 7}}\n"
             "    for call in document['calls']]}))\n"
         )
-        output, error = benchmark.run_evm2_runner(
-            runner, {"chainId": "0x1", "hardfork": "Osaka"}, [self.replay()]
-        )
+        output, error = benchmark.run_evm2_runner(runner, "Osaka", [self.replay()])
         self.assertEqual(error, "")
         self.assertEqual(
             output,
@@ -1414,7 +1405,9 @@ class Evm2Tests(unittest.TestCase):
             (malformed, "malformed evm2 runner output"),
         ):
             with self.subTest(message=message):
-                output, error = benchmark.run_evm2_runner(runner, {}, [self.replay()])
+                output, error = benchmark.run_evm2_runner(
+                    runner, "Osaka", [self.replay()]
+                )
                 self.assertIsNone(output)
                 self.assertIn(message, error)
         self.assertEqual(benchmark.check_evm2_runner(self.fake_runner("")), "")
@@ -1437,7 +1430,7 @@ class Evm2Tests(unittest.TestCase):
         replays = [(result, self.replay()) for result in results]
         runner = runner or self.fake_runner("")
         with (
-            mock.patch.object(benchmark, "evm2_environment", return_value=({}, "")),
+            mock.patch.object(benchmark, "evm2_hardfork", return_value=("Osaka", "")),
             mock.patch.object(
                 benchmark, "run_evm2_runner", return_value=output
             ) as run_runner,
