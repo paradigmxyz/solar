@@ -1345,6 +1345,135 @@ class RunComparisonTests(unittest.TestCase):
             report,
         )
 
+    def replayed_fixture(self, test_id="test", runner="runner-a"):
+        row = self.fixture(test_id)
+        data = row["compilers"]["solar"]
+        data.update(
+            evm2_status="ok",
+            evm2_runner={"evm2_rev": "rev", "binary_sha256": runner},
+        )
+        for call, (raw, net, steps) in zip(
+            data["gas_results"], ((5100, 100, 10), (5300, 300, 20))
+        ):
+            call.update(
+                evm2_instructions=raw,
+                evm2_net_instructions=net,
+                evm2_cycles=raw // 2,
+                evm2_steps=steps,
+            )
+        return row
+
+    def test_evm2_deltas_follow_gas_comparison_eligibility(self):
+        before = self.replayed_fixture()
+        after = copy.deepcopy(before)
+        calls = after["compilers"]["solar"]["gas_results"]
+        calls[0]["evm2_net_instructions"] = 90
+        calls[1].update(evm2_net_instructions=5000, comparison_exclusion_reason="skip")
+        comparison = benchmark.compare_runs([after], [before])
+        row = comparison["rows"][0]
+        self.assertEqual(
+            (
+                row["metrics"]["evm2_net_instructions"]["before"],
+                row["metrics"]["evm2_net_instructions"]["after"],
+            ),
+            (100, 90),
+        )
+        self.assertEqual(
+            [call["evm2_net_instructions"]["delta"] for call in row["gas_calls"]],
+            [-10, None],
+        )
+        self.assertTrue(benchmark.comparison_has_changes(comparison, True))
+        comparison["baseline"] = "before"
+        markdown = benchmark.comparison_report(comparison)
+        self.assertIn("| evm2 net instructions | ✅ -10.00% |", markdown)
+        self.assertIn(
+            "evm2 net baseline | evm2 net candidate | evm2 net change", markdown
+        )
+        self.assertIn("| 100 | 90 | ✅ -10.00% |", markdown)
+        self.assertIn(
+            "| evm2 net instructions |",
+            benchmark.pr_comment(comparison, True, False, "main"),
+        )
+
+    def test_evm2_counts_of_different_runners_are_not_compared(self):
+        before = self.replayed_fixture(runner="runner-a")
+        after = self.replayed_fixture(runner="runner-b")
+        for call in after["compilers"]["solar"]["gas_results"]:
+            call["evm2_net_instructions"] += 1
+        comparison = benchmark.compare_runs([after], [before])
+        row = comparison["rows"][0]
+        self.assertIn("evm2 runners differ", row["issues"])
+        self.assertIsNone(row["metrics"]["evm2_net_instructions"]["delta"])
+        self.assertEqual(
+            {call["evm2_net_instructions"]["reason"] for call in row["gas_calls"]},
+            {"evm2 runners differ"},
+        )
+        self.assertEqual(comparison["summary"]["evm2_net_instructions"]["paired"], 0)
+
+    def test_unreplayed_runs_keep_the_reports_without_evm2(self):
+        replayed = self.replayed_fixture()
+        plain = self.fixture()
+        for before, after in ((plain, replayed), (replayed, plain)):
+            comparison = benchmark.compare_runs([after], [before])
+            comparison["baseline"] = "before"
+            row = comparison["rows"][0]
+            self.assertIsNone(row["metrics"]["evm2_net_instructions"]["delta"])
+            self.assertEqual(
+                comparison["summary"]["evm2_net_instructions"]["paired"], 0
+            )
+            self.assertNotIn("evm2", benchmark.comparison_report(comparison))
+            self.assertNotIn(
+                "evm2", benchmark.pr_comment(comparison, True, False, "main")
+            )
+        self.assertNotIn("evm2", benchmark.codegen_report([plain], []))
+
+    def test_failed_evm2_replay_is_an_incomplete_comparison(self):
+        before = self.replayed_fixture()
+        after = copy.deepcopy(before)
+        after["compilers"]["solar"]["evm2_status"] = "failed"
+        row = benchmark.compare_runs([after], [before])["rows"][0]
+        self.assertEqual(row["issues"], ["candidate evm2 replay failed"])
+        self.assertIsNone(row["metrics"]["evm2_net_instructions"]["delta"])
+
+    def test_report_shows_evm2_cost_against_reference_compilers(self):
+        row = self.replayed_fixture()
+        solc = copy.deepcopy(row["compilers"]["solar"])
+        for call, (raw, net, steps) in zip(
+            solc["gas_results"], ((5200, 200, 5), (5600, 600, 10))
+        ):
+            call.update(
+                evm2_instructions=raw, evm2_net_instructions=net, evm2_steps=steps
+            )
+        row["compilers"]["solc"] = solc
+        other = self.replayed_fixture("other")
+        other["compilers"]["solc"] = copy.deepcopy(other["compilers"]["solar"])
+        with patch.dict(os.environ, {}, clear=True):
+            report = benchmark.codegen_report([row, other], [], "main")
+        self.assertIn(
+            "| bench | gas (vs main) | solc | evm2 net instructions (vs main) | solc | size (vs main) | solc |",
+            report,
+        )
+        self.assertIn(
+            "| test | 30 (n/a) | 30 (~0%) | 400 (n/a) | 800 (✅ +100.00%) | 100B (n/a) | 100B (~0%) |",
+            report,
+        )
+        # Solar's net instructions over solc's: 400/800 and 400/400, so a geometric mean of 0.707.
+        # The raw ratios are 10400/10800 and 1.
+        self.assertIn("| solc (n=2) | ✅ -29.29% | ✅ -1.87% |", report)
+        # Net instructions per step: Solar 400/30 and solc 800/15 for `test`.
+        self.assertIn("| test | 13.3 | 53.3 |", report)
+        self.assertIn("| other | 13.3 | 13.3 |", report)
+        self.assertIn("| all | 13.3 | 26.7 |", report)
+
+    def test_evm2_cost_ignores_counts_of_another_runner(self):
+        row = self.replayed_fixture()
+        row["compilers"]["solc"] = copy.deepcopy(row["compilers"]["solar"])
+        row["compilers"]["solc"]["evm2_runner"]["binary_sha256"] = "runner-b"
+        with patch.dict(os.environ, {}, clear=True):
+            report = benchmark.codegen_report([row], [], "main")
+        self.assertNotIn("| Solar vs |", report)
+        self.assertIn("| test | 13.3 | n/a |", report)
+
     def test_report_tables_use_comparison_eligibility(self):
         before = self.fixture()
         after = self.fixture(input_fingerprint="changed", runtime_size=90)

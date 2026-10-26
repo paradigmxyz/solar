@@ -58,6 +58,60 @@ checked against receipt gas; a trace that cannot explain it fails the run's `gas
 (without `--allow-failures`, the exit code too) and leaves receipt gas as measured. Reference
 compilers that run live get the same fields.
 
+`--evm2 RUNNER` (needs `--gas`) measures how much work an interpreter does for each call. Gas is
+not time: every opcode dispatch costs the interpreter about the same, whatever its gas. The runner
+is a small program, [`evm2-runner`](evm2-runner/), that replays every gas call on the interpreter of
+[evm2](https://github.com/alloy-rs/evm2) and counts the host CPU instructions one execution takes.
+For each call the script fetches the transaction, its block header, and the accounts it touched
+(`debug_traceTransaction` with `prestateTracer`) from the node, so the node must be anvil (tested
+with 1.8.6), and the runner rebuilds that call from that state and block. This covers calls with
+special setup, such as proxies, `setCode` helpers, and timestamp reads, with no redeployment. The
+replay must reproduce the receipt's gas and success status; a call that does not gets an
+`evm2_error` and no counts, and fails the run's `evm2_status` (without `--allow-failures`, the exit
+code too). Excluded comparison calls and failed calls are not replayed. Build the runner once:
+
+```sh
+cargo build --release --locked --manifest-path benches/runtime/evm2-runner/Cargo.toml
+```
+
+It pins evm2 to the revision in its `Cargo.toml` (`91be3c56`) and uses only the interpreter, so the
+build needs no LLVM. Its dependencies are not part of Solar's workspace. The binary is
+`benches/runtime/evm2-runner/target/release/evm2-runner`. Each gas result then records:
+
+- `evm2_instructions`: user-mode instructions of one execution of the call, the median of 7
+  batches, each long enough to run at least 200k cycles.
+- `evm2_net_instructions`: `evm2_instructions` minus the same transaction against a target account
+  whose code is one STOP, on the same state. The remainder, about 5,000 instructions, is the fixed
+  cost of a transaction, which no compiler changes and which pulls raw ratios between compilers
+  toward 1. Compare net instructions.
+- `evm2_steps`: the EVM instructions the call executes, so `evm2_net_instructions / evm2_steps` is
+  the host cost of one step. A compiler that runs fewer, heavier steps does less gas-priced work but
+  not necessarily less interpreter work.
+- `evm2_cycles`: the median batch's user-mode cycles. It follows host load, so read it only as a
+  cross-check.
+
+Each compiler also records `evm2_status`, the sums `total_evm2_instructions`,
+`total_evm2_net_instructions`, and `total_evm2_steps` over the replayed calls, and `evm2_runner`,
+the evm2 revision and the SHA-256 of the runner binary. Reference compilers that run live, and
+`--reference-results` entries, carry the same fields.
+
+The counts come from `perf_event_open` hardware counters of user-mode instructions, thread-scoped,
+and the script runs the runner on one core (`taskset`) when it can. Rerun in another process, the
+instruction counts of 63 of 68 calls moved by under 0.1% and none by more than 1.2%; net counts of
+small calls can move by about 50 instructions, and per-benchmark sums stayed within 0.1%. Cycles
+follow host load and moved by a median of 2%, up to 59%. Counters need `perf_event_paranoid` of 2
+or less or `CAP_PERFMON`, and a CPU performance monitoring unit, which most virtual machines and
+GitHub-hosted runners lack. The script checks this at start and exits with the runner's error. CI
+does not pass `--evm2`.
+
+Counts are comparable only between runs of one runner binary: build flags such as
+`-Ctarget-cpu=native` change the instructions executed. The report and the comparison ignore counts
+whose `evm2_runner` differs. The runner keeps the `keccak-cache-global` feature of `alloy-primitives`
+off, because with it repeated executions of one call hit the cache and hide the cost of hashing in
+mapping-heavy calls; check `cargo tree -e features` after changing its dependencies. One untimed
+execution before the batches fills the code analysis and state caches, as a long-running node has
+them filled.
+
 `--artifacts PATH` writes a file tree per runtime case and compiler from an extra, untimed compile.
 Each compiler directory has a `sources/` tree of every embedded Standard JSON source, keeping paths,
 contents, line endings, and extensionless names; source URLs are not fetched. Paths must be
@@ -177,6 +231,12 @@ that sum the same comparable calls, a column after the gas column of the single-
 execution columns in the per-call table, where † marks receipt gas billed at the calldata floor. A
 collapsed table lists each opcode kind's execution gas delta, for all compared cases and for each
 changed case. Older results lack the fields; their reports omit these columns and tables.
+
+Runs recorded with `--evm2` add net instructions the same way: a summary and per-case row, a column
+group after the gas columns of the single-run table, and net instruction columns in the per-call
+table. A single-run report also has an "evm2 interpreter" section with Solar's geometric-mean ratio
+of net and raw instructions to each reference compiler, and a collapsed table of net instructions
+per EVM step. Counts from different runner binaries stay out of every delta and ratio.
 
 Compile time and RSS comparisons need matching compiler labels and known build profiles, but labels
 do not prove comparable builds: review machine differences and timing noise, and note that building

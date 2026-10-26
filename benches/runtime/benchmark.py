@@ -11,6 +11,7 @@ import copy
 import gzip
 import hashlib
 import json
+import os
 import re
 import shutil
 import statistics
@@ -62,6 +63,7 @@ CAST_RPC_TIMEOUT = 10
 CAST_GAS_LIMIT = "80000000"
 CAST_TRACE_TIMEOUT = 120
 GAS_KINDS_TRACER = Path(__file__).with_name("gas_kinds_tracer.js")
+EVM2_RUNNER_TIMEOUT = 900
 RUNTIME_FIXTURES = ROOT / "fixtures/runtime/RuntimeFixtures.sol"
 ARTIFACT_DUMP_KINDS = (
     "mir",
@@ -1144,6 +1146,142 @@ def trace_gas_kinds(
     }, ""
 
 
+def evm2_environment(rpc_url: str) -> tuple[dict[str, Any] | None, str]:
+    """The chain ID and hardfork the node ran its transactions under."""
+    chain_id, error = rpc_request("eth_chainId", (), rpc_url)
+    if chain_id is None:
+        return None, error
+    info, error = rpc_request("anvil_nodeInfo", (), rpc_url)
+    if not isinstance(info, dict) or not isinstance(info.get("hardFork"), str):
+        return None, error or "anvil_nodeInfo has no hardFork"
+    return {"chainId": chain_id, "hardfork": info["hardFork"]}, ""
+
+
+def evm2_replay(
+    tx_hash: str | None, receipt_gas: int, rpc_url: str
+) -> tuple[dict[str, Any] | None, str]:
+    """Fetches what the runner needs to replay a mined call: the transaction, its block
+    header, the prestate it touched, and the receipt's gas."""
+    if tx_hash is None:
+        return None, "transaction receipt missing transactionHash"
+    tx, error = rpc_request("eth_getTransactionByHash", (tx_hash,), rpc_url)
+    if not isinstance(tx, dict) or tx.get("blockNumber") is None:
+        return None, error or "transaction is not mined"
+    block, error = rpc_request(
+        "eth_getBlockByNumber", (tx["blockNumber"], False), rpc_url
+    )
+    if not isinstance(block, dict):
+        return None, error or "block is missing"
+    prestate, error = rpc_request_from_file(
+        "debug_traceTransaction",
+        (tx_hash, {"tracer": "prestateTracer", "timeout": "3600s"}),
+        rpc_url,
+        CAST_TRACE_TIMEOUT,
+    )
+    if not isinstance(prestate, dict):
+        return None, error or "prestate trace is not an object"
+    return {
+        "tx": tx,
+        "block": block,
+        "prestate": prestate,
+        "gasUsed": hex(receipt_gas),
+    }, ""
+
+
+def check_evm2_runner(runner: Path) -> str:
+    """Returns why the runner cannot count instructions here, or an empty string."""
+    proc = run([str(runner), "--check"], timeout=30)
+    if proc.returncode != 0:
+        return (proc.stderr or proc.stdout or "evm2 runner failed")[:1000].strip()
+    return ""
+
+
+@cache
+def evm2_runner_identity(runner: Path) -> str:
+    return hashlib.sha256(runner.read_bytes()).hexdigest()
+
+
+def evm2_pin() -> list[str]:
+    """Pins the runner to one core, when `taskset` and the CPU affinity call exist."""
+    taskset = shutil.which("taskset")
+    if taskset is None or not hasattr(os, "sched_getaffinity"):
+        return []
+    return [taskset, "-c", str(max(os.sched_getaffinity(0)))]
+
+
+def run_evm2_runner(
+    runner: Path, environment: dict[str, Any], replays: Sequence[dict[str, Any]]
+) -> tuple[dict[str, Any] | None, str]:
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        prefix="solar-bench-evm2-",
+        suffix=".json",
+        delete=False,
+    ) as input_file:
+        json.dump({**environment, "calls": list(replays)}, input_file)
+        input_path = Path(input_file.name)
+    try:
+        proc = run(
+            [*evm2_pin(), str(runner), str(input_path)], timeout=EVM2_RUNNER_TIMEOUT
+        )
+    finally:
+        input_path.unlink(missing_ok=True)
+    if proc.returncode != 0:
+        return None, (proc.stderr or proc.stdout or "evm2 runner failed")[:1000]
+    try:
+        output = json.loads(proc.stdout)
+        calls = output["calls"]
+        if len(calls) != len(replays):
+            raise ValueError("call count")
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        return None, f"malformed evm2 runner output: {exc}"
+    return output, ""
+
+
+def record_evm2(
+    compiler_entry: dict[str, Any],
+    runner: Path,
+    rpc_url: str,
+    replays: Sequence[tuple[dict[str, Any], dict[str, Any]]],
+) -> None:
+    """Runs the runner on a compiler's replays and records its counts in the gas results.
+
+    Each replay must reproduce its receipt's gas and success status, or its call gets an
+    `evm2_error` and no counts. The compiler's `evm2_status` is then failed, as it is when
+    a call's replay inputs could not be fetched (its gas result has an `evm2_error` already).
+    """
+    output, error = None, ""
+    if replays:
+        environment, error = evm2_environment(rpc_url)
+        if environment is not None:
+            output, error = run_evm2_runner(
+                runner, environment, [replay for _, replay in replays]
+            )
+    totals = {"instructions": 0, "net_instructions": 0, "steps": 0}
+    for index, (gas_result, _) in enumerate(replays):
+        call = output["calls"][index] if output else {}
+        measurement = call.get("measurement")
+        if not isinstance(measurement, dict):
+            gas_result["evm2_error"] = call.get("error") or error or "no evm2 result"
+            continue
+        for name in ("instructions", "net_instructions", "cycles", "steps"):
+            gas_result[f"evm2_{name}"] = measurement[name]
+        for name in totals:
+            totals[name] += measurement[name]
+    failed = any(
+        "evm2_error" in gas_result for gas_result in compiler_entry["gas_results"]
+    )
+    compiler_entry["evm2_status"] = "failed" if failed else "ok"
+    if output:
+        compiler_entry["evm2_runner"] = {
+            "evm2_rev": output["evm2_rev"],
+            "binary_sha256": evm2_runner_identity(runner),
+        }
+    for name, total in totals.items():
+        compiler_entry[f"total_evm2_{name}"] = None if failed else total
+
+
 def read_contract(
     address: str,
     signature: str,
@@ -2025,6 +2163,7 @@ def run_test_case(
     artifact_root: Path | None = None,
     optimizer_runs: int | None = None,
     gas_kinds: bool = False,
+    evm2_runner: Path | None = None,
 ) -> dict[str, Any]:
     entry: dict[str, Any] = {
         "test_id": test_case.test_id,
@@ -2118,6 +2257,7 @@ def run_test_case(
         total_gas = 0
         gas_failed = False
         gas_kinds_failed = False
+        evm2_replays = []
         for call in calls:
             for index in range(call.repeat):
                 label = call.label if call.repeat == 1 else f"{call.label}#{index + 1}"
@@ -2155,6 +2295,12 @@ def run_test_case(
                         gas_result["gas_kinds_error"] = error
                     else:
                         gas_result.update(kinds)
+                if evm2_runner is not None and not call.comparison_exclusion_reason:
+                    replay, error = evm2_replay(tx_hash, gas, rpc_url)
+                    if replay is None:
+                        gas_result["evm2_error"] = error
+                    else:
+                        evm2_replays.append((gas_result, replay))
                 gas_results.append(gas_result)
                 total_gas += gas
         compiler_entry["gas_results"] = gas_results
@@ -2162,6 +2308,8 @@ def run_test_case(
         if gas_kinds:
             compiler_entry["gas_kinds_status"] = "failed" if gas_kinds_failed else "ok"
         compiler_entry["total_gas"] = None if gas_failed else total_gas
+        if evm2_runner is not None:
+            record_evm2(compiler_entry, evm2_runner, rpc_url, evm2_replays)
 
         runtime_results = []
         runtime_failed = False
@@ -2337,6 +2485,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="With --gas, trace each call to record execution gas and gas by opcode kind (needs an anvil node)",
     )
     parser.add_argument(
+        "--evm2",
+        type=Path,
+        metavar="RUNNER",
+        help="With --gas, replay each call on evm2's interpreter with this runner binary "
+        "(build it as benches/runtime/README.md describes) and record the host instructions "
+        "it costs (needs an anvil node and CPU performance counters)",
+    )
+    parser.add_argument(
         "--start-anvil", action="store_true", help="Start anvil automatically for --gas"
     )
     parser.add_argument(
@@ -2370,6 +2526,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--jobs must be positive")
     if args.gas_kinds and not args.gas:
         parser.error("--gas-kinds requires --gas")
+    if args.evm2 and not args.gas:
+        parser.error("--evm2 requires --gas")
     if args.jobs > 1:
         if args.gas:
             parser.error("--jobs cannot be combined with --gas")
@@ -2547,6 +2705,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 1
 
+    if args.evm2 and (error := check_evm2_runner(args.evm2)):
+        print(_color(error, RED), file=sys.stderr)
+        return 1
+
     for spec in specs:
         print(f"Using {spec.label}")
     if args.reference_results:
@@ -2600,6 +2762,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.artifacts,
                 args.optimizer_runs,
                 args.gas_kinds,
+                args.evm2,
             )
         except Exception as exc:
             print(
@@ -2717,6 +2880,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                             f"\n{result['test_id']} {compiler_id} tx {gas_result.get('label')} gas trace error:\n"
                             f"{gas_result['gas_kinds_error']}"
                         )
+                    if gas_result.get("evm2_error"):
+                        print(
+                            f"\n{result['test_id']} {compiler_id} tx {gas_result.get('label')} evm2 error:\n"
+                            f"{gas_result['evm2_error']}"
+                        )
             for mismatch in result.get("runtime_mismatches") or []:
                 values = ", ".join(
                     f"{compiler_id}={value}"
@@ -2753,7 +2921,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         (result["test_id"], compiler_id)
         for result in results
         for compiler_id, data in result["compilers"].items()
-        if "failed" in (data.get("gas_status"), data.get("gas_kinds_status"))
+        if "failed"
+        in (
+            data.get("gas_status"),
+            data.get("gas_kinds_status"),
+            data.get("evm2_status"),
+        )
     ]
     if (failed or runtime_failed or gas_failed) and not args.allow_failures:
         if failed:
@@ -2775,7 +2948,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if gas_failed:
             print(
                 _color(
-                    f"{len(gas_failed)} gas transaction or trace runs failed; use --allow-failures to keep exit code 0",
+                    f"{len(gas_failed)} gas transaction, trace, or evm2 runs failed; use --allow-failures to keep exit code 0",
                     RED,
                 ),
                 file=sys.stderr,

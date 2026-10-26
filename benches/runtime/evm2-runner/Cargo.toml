@@ -1,0 +1,23 @@
+[package]
+name = "evm2-runner"
+description = "Counts the host instructions evm2's interpreter spends on replayed transactions"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# Keeps evm2's dependency tree out of the Solar workspace and its lockfile.
+[workspace]
+
+[dependencies]
+alloy-consensus = { version = "2.0.4", default-features = false }
+alloy-primitives = { version = "1.5.7", features = ["serde", "std"] }
+evm2 = { git = "https://github.com/alloy-rs/evm2", rev = "91be3c56766a98d8abd63c51ecb7ba313f458da5" }
+libc = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[profile.release]
+opt-level = 3
+codegen-units = 1
+lto = "fat"
+panic = "abort"

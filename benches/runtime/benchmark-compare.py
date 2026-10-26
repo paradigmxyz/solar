@@ -18,6 +18,7 @@ import subprocess
 import sys
 import uuid
 from collections import Counter
+from collections.abc import Sequence
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, cast
@@ -30,6 +31,7 @@ PERF_SITE_URL = "https://www.getfoundry.sh/perf/solar/"
 METRICS = {
     "total_gas": "runtime gas",
     "execution_gas": "execution gas",
+    "evm2_net_instructions": "evm2 net instructions",
     "runtime_size": "runtime bytes",
     "deploy_gas": "creation gas",
     "bytecode_size": "creation bytes",
@@ -44,6 +46,11 @@ ARTIFACT_KINDS = {
     "bytecode": (".hex",),
     "json": (".json",),
 }
+
+
+def geomean_percent(ratios: list[float]) -> float:
+    """The geometric mean of ratios, as a percent change."""
+    return math.expm1(math.fsum(map(math.log, ratios)) / len(ratios)) * 100
 
 
 def numeric(value: Any) -> bool:
@@ -105,13 +112,42 @@ def traced_calls(
     return calls or None
 
 
+def comparable_call_sum(
+    data: dict[str, Any], other: dict[str, Any] | None, field: str
+) -> int | None:
+    calls = traced_calls(data, other)
+    if not calls or not all(numeric(call.get(field)) for call in calls):
+        return None
+    return sum(call[field] for call in calls)
+
+
 def comparable_execution_gas(
     data: dict[str, Any], other: dict[str, Any] | None = None
 ) -> int | None:
-    calls = traced_calls(data, other)
-    if not calls or not all(numeric(call.get("execution_gas")) for call in calls):
+    return comparable_call_sum(data, other, "execution_gas")
+
+
+def evm2_runners_match(data: dict[str, Any], other: dict[str, Any] | None) -> bool:
+    """Instruction counts are comparable only between runs of one runner binary."""
+    runner, other_runner = data.get("evm2_runner"), (other or {}).get("evm2_runner")
+    return not (runner and other_runner) or runner == other_runner
+
+
+def comparable_evm2(
+    data: dict[str, Any],
+    other: dict[str, Any] | None = None,
+    field: str = "evm2_net_instructions",
+) -> int | None:
+    if data.get("evm2_status") != "ok" or not evm2_runners_match(data, other):
         return None
-    return sum(call["execution_gas"] for call in calls)
+    return comparable_call_sum(data, other, field)
+
+
+# The metrics that sum a per-call field, which only runs with the matching option record.
+CALL_SUMS = {
+    "execution_gas": comparable_execution_gas,
+    "evm2_net_instructions": comparable_evm2,
+}
 
 
 def comparable_gas_kinds(
@@ -202,6 +238,10 @@ def compare_runs(
                 issues.append(f"{label} gas run failed")
             if data.get("gas_kinds_status") == "failed":
                 issues.append(f"{label} gas trace failed")
+            if data.get("evm2_status") == "failed":
+                issues.append(f"{label} evm2 replay failed")
+        if old and new and not evm2_runners_match(old, new):
+            issues.append("evm2 runners differ")
         for label, case in (("baseline", before), ("candidate", after)):
             if case.get("benchmark_error"):
                 issues.append(f"{label}: {case['benchmark_error']}")
@@ -211,7 +251,7 @@ def compare_runs(
         measurements = {}
         for metric_name in METRICS:
             reason = input_reason
-            if metric_name in ("total_gas", "execution_gas", "deploy_gas"):
+            if metric_name in ("total_gas", "deploy_gas", *CALL_SUMS):
                 reason = gas_reason
             elif (
                 metric_name in ("compile_time_seconds", "peak_rss_bytes")
@@ -233,15 +273,16 @@ def compare_runs(
                     and (old_value is None or new_value is None)
                 ):
                     reason = "no comparable gas calls"
-            elif metric_name == "execution_gas":
+            elif metric_name in CALL_SUMS:
                 old_value, new_value = (
-                    comparable_execution_gas(old, new),
-                    comparable_execution_gas(new, old),
+                    CALL_SUMS[metric_name](old, new),
+                    CALL_SUMS[metric_name](new, old),
                 )
             measurements[metric_name] = delta(old_value, new_value, reason)
 
         calls = []
         exclusions = gas_exclusions(old, new)
+        same_runner = evm2_runners_match(old, new)
         if gas_reason is None:
             for old_call, new_call in zip(
                 old.get("gas_results") or [], new.get("gas_results") or [], strict=True
@@ -260,6 +301,12 @@ def compare_runs(
                             old_call.get("execution_gas"),
                             new_call.get("execution_gas"),
                             exclusions.get(gas_call_key(new_call)),
+                        ),
+                        "evm2_net_instructions": delta(
+                            old_call.get("evm2_net_instructions"),
+                            new_call.get("evm2_net_instructions"),
+                            exclusions.get(gas_call_key(new_call))
+                            or (None if same_runner else "evm2 runners differ"),
                         ),
                         "calldata_floor_before": old_call.get("calldata_floor"),
                         "calldata_floor_after": new_call.get("calldata_floor"),
@@ -333,13 +380,9 @@ def compare_runs(
         summary[name] = {
             "paired": len(paired),
             "ratio_pairs": len(positive),
-            "percent": math.expm1(
-                math.fsum(
-                    math.log(value["after"] / value["before"]) for value in positive
-                )
-                / len(positive)
+            "percent": geomean_percent(
+                [value["after"] / value["before"] for value in positive]
             )
-            * 100
             if positive
             else None,
             "improved": sum(value["delta"] < 0 for value in paired),
@@ -450,7 +493,7 @@ def comparison_report(comparison: dict[str, Any]) -> str:
         "| --- | ---: |",
     ]
     for name, values in comparison["summary"].items():
-        if name == "execution_gas" and not values["paired"]:
+        if name in CALL_SUMS and not values["paired"]:
             continue
         change = (
             fmt_pct(values["percent"], positive_is_good=False)
@@ -554,20 +597,30 @@ def per_call_gas_report(rows: list[dict[str, Any]]) -> list[str]:
         for call in row["gas_calls"]
         if call["delta"] not in (None, 0)
         or call["execution_gas"]["delta"] not in (None, 0)
+        or call["evm2_net_instructions"]["delta"] not in (None, 0)
     ]
     if not changed:
         return []
-    traced = any(
-        numeric(call["execution_gas"][side])
-        for _, call in changed
-        for side in ("before", "after")
-    )
+
+    def recorded(field: str) -> bool:
+        return any(
+            numeric(call[field][side])
+            for _, call in changed
+            for side in ("before", "after")
+        )
+
+    traced = recorded("execution_gas")
+    replayed = recorded("evm2_net_instructions")
 
     def change(call: dict[str, Any]) -> float:
         return max(
             (
                 value["percent"]
-                for value in (call, call["execution_gas"])
+                for value in (
+                    call,
+                    call["execution_gas"],
+                    call["evm2_net_instructions"],
+                )
                 if value["percent"] is not None
             ),
             default=0,
@@ -582,12 +635,20 @@ def per_call_gas_report(rows: list[dict[str, Any]]) -> list[str]:
         values += [before, after, *rest]
         if traced:
             values += comparison_cell_list(call["execution_gas"])
+        if replayed:
+            before, after, _, percent = comparison_cell_list(
+                call["evm2_net_instructions"]
+            )
+            values += [before, after, percent]
         cells.append("| " + " | ".join(values) + " |")
     header = "| Case | Call | Baseline | Candidate | Delta | Change |"
     separator = "| --- | --- | ---: | ---: | ---: | ---: |"
     if traced:
         header += " Exec baseline | Exec candidate | Exec delta | Exec change |"
         separator += " ---: | ---: | ---: | ---: |"
+    if replayed:
+        header += " evm2 net baseline | evm2 net candidate | evm2 net change |"
+        separator += " ---: | ---: | ---: |"
     floor = any(
         call["calldata_floor_before"] or call["calldata_floor_after"]
         for _, call in changed
@@ -1225,14 +1286,18 @@ def fmt_value_with_delta_vs_current(
     return f"{fmt_int(value, suffix)} ({fmt_pct_vs_current(current, comparison)})"
 
 
-def has_execution_gas(results: list[dict[str, Any]]) -> bool:
+def has_call_field(results: list[dict[str, Any]], field: str) -> bool:
     return any(
-        numeric(call.get("execution_gas"))
+        numeric(call.get(field))
         for result in results
         for data in (result.get("compilers") or {}).values()
         if isinstance(data, dict)
         for call in data.get("gas_results") or []
     )
+
+
+def recorded_extra_columns(results: list[dict[str, Any]]) -> list[str]:
+    return [name for name in CALL_SUMS if has_call_field(results, name)]
 
 
 def benchmark_rows(
@@ -1246,7 +1311,7 @@ def benchmark_rows(
         "total_gas",
         "runtime_size",
         compared,
-        has_execution_gas(results),
+        recorded_extra_columns(results),
     )
 
 
@@ -1281,6 +1346,7 @@ def comparison_has_changes(
                 for metric in (
                     "total_gas",
                     "execution_gas",
+                    "evm2_net_instructions",
                     "runtime_size",
                     "deploy_gas",
                     "bytecode_size",
@@ -1326,7 +1392,7 @@ def metric_rows(
     gas_metric: str,
     size_metric: str,
     compared: dict | None = None,
-    execution: bool = False,
+    extra_columns: Sequence[str] = (),
 ) -> list[str]:
     rows = []
     for result in results:
@@ -1350,29 +1416,31 @@ def metric_rows(
             ]
             if compared is None:
                 base_solar_gas = comparable_gas(base_data, current_data)
-        execution_cells = []
-        if execution:
-            solar_execution = comparable_execution_gas(
+        extra_cells = []
+        for name in extra_columns:
+            comparable = CALL_SUMS[name]
+            solar_value = comparable(
                 compiler_data(result, "solar"), compiler_data(base, "solar")
             )
-            base_solar_execution = (
-                compared_baseline(result, base, "execution_gas", compared)
+            base_solar_value = (
+                compared_baseline(result, base, name, compared)
                 if compared is not None
-                else comparable_execution_gas(
+                else comparable(
                     compiler_data(base, "solar"), compiler_data(result, "solar")
                 )
             )
-            execution_cells = [
+            extra_cells += [
                 fmt_value_with_lower_is_better_delta(
-                    solar_execution, solar_execution, base_solar_execution
+                    solar_value, solar_value, base_solar_value
                 ),
                 *(
-                    fmt_value_with_delta_vs_current(value, solar_execution, value)
+                    fmt_value_with_delta_vs_current(value, solar_value, value)
                     for value in (
-                        comparable_execution_gas(
-                            compiler_data(result, name), compiler_data(result, "solar")
+                        comparable(
+                            compiler_data(result, reference),
+                            compiler_data(result, "solar"),
                         )
-                        for name in reference_compiler_ids(results)
+                        for reference in reference_compiler_ids(results)
                     )
                 ),
             ]
@@ -1401,7 +1469,7 @@ def metric_rows(
                         fmt_value_with_delta_vs_current(value, solar_gas, value)
                         for value in reference_gas
                     ),
-                    *execution_cells,
+                    *extra_cells,
                     fmt_value_with_lower_is_better_delta(
                         solar_size, solar_size, base_solar_size, "B"
                     ),
@@ -1594,6 +1662,95 @@ def compile_time_report(
     ]
 
 
+def evm2_report(results: list[dict[str, Any]]) -> list[str]:
+    """Solar's evm2 cost against each reference compiler and per EVM step."""
+    if not has_call_field(results, "evm2_net_instructions"):
+        return []
+    names = ["solar", *reference_compiler_ids(results)]
+
+    def totals(result: dict[str, Any], name: str) -> tuple[int | None, ...]:
+        solar = compiler_data(result, "solar")
+        return tuple(
+            comparable_evm2(compiler_data(result, name), solar, field)
+            for field in ("evm2_net_instructions", "evm2_instructions", "evm2_steps")
+        )
+
+    lines = [
+        f"### {perf_link('evm2 interpreter')}",
+        "",
+        "Host instructions evm2's interpreter spends on the comparable gas calls of each benchmark. Net subtracts the same call on a STOP contract. Lower is better.",
+        "",
+    ]
+
+    def ratio(solar: int | None, other: int | None) -> float | None:
+        if solar is None or other is None or solar <= 0 or other <= 0:
+            return None
+        return solar / other
+
+    table = [{name: totals(result, name) for name in names} for result in results]
+    ratios = []
+    for name in names[1:]:
+        pairs = []
+        for row in table:
+            net, raw = (ratio(row["solar"][i], row[name][i]) for i in (0, 1))
+            if net is not None and raw is not None:
+                pairs.append((net, raw))
+        if pairs:
+            changes = [
+                fmt_pct(
+                    geomean_percent([pair[i] for pair in pairs]), positive_is_good=False
+                )
+                for i in (0, 1)
+            ]
+            ratios.append(f"| {name} (n={len(pairs)}) | {' | '.join(changes)} |")
+    if ratios:
+        lines.extend(
+            [
+                "| Solar vs | Net instructions | Raw instructions |",
+                "| --- | ---: | ---: |",
+                *ratios,
+                "",
+                "Equal-weight geometric mean of Solar's ratio to the compiler over n benchmarks.",
+                "",
+            ]
+        )
+
+    def per_step(net: int | None, steps: int | None) -> str:
+        return f"{net / steps:.1f}" if net is not None and steps else "n/a"
+
+    rows = []
+    sums = {name: [0, 0] for name in names}
+    for result, row in zip(results, table, strict=True):
+        cells = []
+        for name in names:
+            net, _, steps = row[name]
+            cells.append(per_step(net, steps))
+            if net is not None and steps:
+                sums[name][0] += net
+                sums[name][1] += steps
+        if any(cell != "n/a" for cell in cells):
+            test_id = str(result.get("test_id", "<unknown>"))
+            rows.append(
+                f"| {perf_link(markdown_cell(test_id), test_id)} | {' | '.join(cells)} |"
+            )
+    if rows:
+        lines.extend(
+            [
+                "<details>",
+                "<summary>evm2 net instructions per EVM step</summary>",
+                "",
+                f"| bench | {' | '.join(names)} |",
+                "| ----- |" + " ---- |" * len(names),
+                *rows,
+                f"| all | {' | '.join(per_step(*sums[name]) for name in names)} |",
+                "",
+                "</details>",
+                "",
+            ]
+        )
+    return lines
+
+
 def report_section(
     title: str,
     results: list[dict[str, Any]],
@@ -1616,18 +1773,19 @@ def report_section(
     references = reference_compiler_ids(results)
     reference_headers = " | ".join(references)
 
-    def metric_table(execution: bool) -> tuple[str, str]:
+    def metric_table(extra_columns: list[str]) -> tuple[str, str]:
         titles = f"| bench | gas (vs {baseline_label}) | {reference_headers} |"
         dashes = "| ----- | ------------- |" + " ---- |" * len(references)
-        if execution:
-            titles += f" execution gas (vs {baseline_label}) | {reference_headers} |"
-            dashes += " ------------------------ |" + " ---- |" * len(references)
+        for name in extra_columns:
+            title = f"{METRICS[name]} (vs {baseline_label})"
+            titles += f" {title} | {reference_headers} |"
+            dashes += f" {'-' * len(title)} |" + " ---- |" * len(references)
         titles += f" size (vs {baseline_label}) | {reference_headers} |"
         dashes += " -------------- |" + " ---- |" * len(references)
         return titles, dashes
 
-    metric_header, metric_separator = metric_table(False)
-    runtime_header, runtime_separator = metric_table(has_execution_gas(results))
+    metric_header, metric_separator = metric_table([])
+    runtime_header, runtime_separator = metric_table(recorded_extra_columns(results))
 
     rows = benchmark_rows(results, baseline, compared)
     if rows:
@@ -1639,6 +1797,7 @@ def report_section(
                 "",
             ]
         )
+    lines.extend(evm2_report(results))
     deployment = deployment_rows(results, baseline, compared)
     if deployment:
         lines.extend(
@@ -1749,11 +1908,7 @@ def pr_comment(
         lines.extend(["", "### Overview", "", "| Metric | Change |", "| --- | ---: |"])
         metrics = [
             "total_gas",
-            *(
-                ["execution_gas"]
-                if comparison["summary"]["execution_gas"]["paired"]
-                else []
-            ),
+            *(name for name in CALL_SUMS if comparison["summary"][name]["paired"]),
             "runtime_size",
             "deploy_gas",
             "bytecode_size",
@@ -2077,6 +2232,7 @@ def main(argv: list[str] | None = None) -> int:
         for name in (
             "total_gas",
             "execution_gas",
+            "evm2_net_instructions",
             "runtime_size",
             "deploy_gas",
             "bytecode_size",

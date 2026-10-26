@@ -11,3 +11,4 @@ tests/foundry/**/cache*/
 tests/foundry/**/out*/
 crates/codegen/testdata/**/cache*/
 crates/codegen/testdata/**/out*/
+/benches/runtime/evm2-runner/target

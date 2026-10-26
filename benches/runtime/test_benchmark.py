@@ -1303,6 +1303,309 @@ class RpcTransportTests(unittest.TestCase):
         )
 
 
+class Evm2Tests(unittest.TestCase):
+    def fake_runner(self, script: str) -> Path:
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory)
+        runner = directory / "runner"
+        runner.write_text(f"#!{sys.executable}\n{script}")
+        runner.chmod(0o755)
+        return runner
+
+    def rpc(self, method, params, rpc_url, *rest):
+        return {
+            "eth_getTransactionByHash": {"hash": "0xtx", "blockNumber": "0x2"},
+            "eth_getBlockByNumber": {"number": "0x2", "miner": "0x0"},
+            "debug_traceTransaction": {"0xaa": {"balance": "0x1"}},
+        }[method], ""
+
+    FAILING_RUNNER = (
+        "import sys\nprint('perf_event_open failed', file=sys.stderr)\nsys.exit(1)\n"
+    )
+
+    def replay(self):
+        return {"tx": {}, "block": {}, "prestate": {}, "gasUsed": "0x1"}
+
+    def test_replay_collects_transaction_block_and_prestate(self) -> None:
+        with (
+            mock.patch.object(
+                benchmark, "rpc_request", side_effect=self.rpc
+            ) as request,
+            mock.patch.object(
+                benchmark, "rpc_request_from_file", side_effect=self.rpc
+            ) as trace,
+        ):
+            replay, error = benchmark.evm2_replay("0xtx", 43354, "rpc")
+        self.assertEqual(error, "")
+        self.assertEqual(
+            replay,
+            {
+                "tx": {"hash": "0xtx", "blockNumber": "0x2"},
+                "block": {"number": "0x2", "miner": "0x0"},
+                "prestate": {"0xaa": {"balance": "0x1"}},
+                "gasUsed": "0xa95a",
+            },
+        )
+        self.assertEqual(
+            request.call_args_list[1].args[:2], ("eth_getBlockByNumber", ("0x2", False))
+        )
+        self.assertEqual(
+            trace.call_args.args[:2],
+            (
+                "debug_traceTransaction",
+                ("0xtx", {"tracer": "prestateTracer", "timeout": "3600s"}),
+            ),
+        )
+
+    def test_replay_reports_missing_inputs(self) -> None:
+        self.assertEqual(
+            benchmark.evm2_replay(None, 1, "rpc"),
+            (None, "transaction receipt missing transactionHash"),
+        )
+        with mock.patch.object(
+            benchmark, "rpc_request", return_value=(None, "rpc down")
+        ):
+            self.assertEqual(
+                benchmark.evm2_replay("0xtx", 1, "rpc"), (None, "rpc down")
+            )
+
+    def test_environment_reads_chain_id_and_hardfork(self) -> None:
+        def request(method, params, rpc_url):
+            return {
+                "eth_chainId": "0x7a69",
+                "anvil_nodeInfo": {"hardFork": "Bpo1"},
+            }[method], ""
+
+        with mock.patch.object(benchmark, "rpc_request", side_effect=request):
+            self.assertEqual(
+                benchmark.evm2_environment("rpc"),
+                ({"chainId": "0x7a69", "hardfork": "Bpo1"}, ""),
+            )
+        with mock.patch.object(benchmark, "rpc_request", return_value=({}, "")):
+            environment, error = benchmark.evm2_environment("rpc")
+        self.assertIsNone(environment)
+        self.assertIn("no hardFork", error)
+
+    def test_runner_gets_the_replays_and_returns_its_counts(self) -> None:
+        runner = self.fake_runner(
+            "import json, sys\n"
+            "document = json.load(open(sys.argv[-1]))\n"
+            "print(json.dumps({'evm2_rev': document['hardfork'], 'calls': [\n"
+            "    {'measurement': {'instructions': 7}}\n"
+            "    for call in document['calls']]}))\n"
+        )
+        output, error = benchmark.run_evm2_runner(
+            runner, {"chainId": "0x1", "hardfork": "Osaka"}, [self.replay()]
+        )
+        self.assertEqual(error, "")
+        self.assertEqual(
+            output,
+            {
+                "evm2_rev": "Osaka",
+                "calls": [{"measurement": {"instructions": 7}}],
+            },
+        )
+
+    def test_runner_failures_are_reported(self) -> None:
+        failing = self.fake_runner(self.FAILING_RUNNER)
+        malformed = self.fake_runner("print('{\"calls\": []}')\n")
+        for runner, message in (
+            (failing, "perf_event_open failed"),
+            (malformed, "malformed evm2 runner output"),
+        ):
+            with self.subTest(message=message):
+                output, error = benchmark.run_evm2_runner(runner, {}, [self.replay()])
+                self.assertIsNone(output)
+                self.assertIn(message, error)
+        self.assertEqual(benchmark.check_evm2_runner(self.fake_runner("")), "")
+        self.assertIn("perf_event_open failed", benchmark.check_evm2_runner(failing))
+
+    def test_pins_the_runner_to_one_core(self) -> None:
+        with (
+            mock.patch.object(benchmark.shutil, "which", return_value="/bin/taskset"),
+            mock.patch.object(
+                benchmark.os, "sched_getaffinity", return_value={0, 3, 5}
+            ),
+        ):
+            self.assertEqual(benchmark.evm2_pin(), ["/bin/taskset", "-c", "5"])
+        with mock.patch.object(benchmark.shutil, "which", return_value=None):
+            self.assertEqual(benchmark.evm2_pin(), [])
+
+    def record(self, calls, output, runner=None):
+        results = [{"label": call} for call in calls]
+        entry = {"gas_results": results}
+        replays = [(result, self.replay()) for result in results]
+        runner = runner or self.fake_runner("")
+        with (
+            mock.patch.object(benchmark, "evm2_environment", return_value=({}, "")),
+            mock.patch.object(
+                benchmark, "run_evm2_runner", return_value=output
+            ) as run_runner,
+        ):
+            benchmark.record_evm2(entry, runner, "rpc", replays)
+        return entry, results, run_runner
+
+    def test_record_sums_counts_and_pins_the_runner_identity(self) -> None:
+        measurement = {"instructions": 5100, "net_instructions": 100, "cycles": 9}
+        output = {
+            "evm2_rev": "rev",
+            "calls": [
+                {"measurement": {**measurement, "steps": 10}},
+                {
+                    "measurement": {
+                        **measurement,
+                        "net_instructions": 300,
+                        "steps": 20,
+                    },
+                },
+            ],
+        }
+        runner = self.fake_runner("print(1)\n")
+        entry, results, run_runner = self.record(["a", "b"], (output, ""), runner)
+        self.assertEqual(
+            results[1],
+            {
+                "label": "b",
+                "evm2_instructions": 5100,
+                "evm2_net_instructions": 300,
+                "evm2_cycles": 9,
+                "evm2_steps": 20,
+            },
+        )
+        self.assertEqual(
+            {name: value for name, value in entry.items() if name != "gas_results"},
+            {
+                "evm2_status": "ok",
+                "evm2_runner": {
+                    "evm2_rev": "rev",
+                    "binary_sha256": hashlib.sha256(runner.read_bytes()).hexdigest(),
+                },
+                "total_evm2_instructions": 10200,
+                "total_evm2_net_instructions": 400,
+                "total_evm2_steps": 30,
+            },
+        )
+        self.assertEqual(len(run_runner.call_args.args[2]), 2)
+
+    def test_record_fails_calls_the_runner_could_not_replay(self) -> None:
+        output = {
+            "evm2_rev": "rev",
+            "calls": [
+                {"error": "replay used 5 gas, the receipt has 6"},
+                {
+                    "measurement": {
+                        "instructions": 1,
+                        "net_instructions": 1,
+                        "cycles": 1,
+                        "steps": 1,
+                    },
+                },
+            ],
+        }
+        entry, results, _ = self.record(["a", "b"], (output, ""))
+        self.assertEqual(entry["evm2_status"], "failed")
+        self.assertIsNone(entry["total_evm2_net_instructions"])
+        self.assertEqual(
+            results[0]["evm2_error"], "replay used 5 gas, the receipt has 6"
+        )
+        self.assertNotIn("evm2_error", results[1])
+
+    def test_record_fails_every_call_when_the_runner_fails(self) -> None:
+        entry, results, _ = self.record(["a", "b"], (None, "perf_event_open failed"))
+        self.assertEqual(entry["evm2_status"], "failed")
+        self.assertNotIn("evm2_runner", entry)
+        self.assertEqual(
+            [result["evm2_error"] for result in results], ["perf_event_open failed"] * 2
+        )
+
+    def test_record_fails_the_status_of_calls_without_replay_inputs(self) -> None:
+        entry = {"gas_results": [{"label": "a", "evm2_error": "no prestate"}]}
+        benchmark.record_evm2(entry, self.fake_runner(""), "rpc", [])
+        self.assertEqual(entry["evm2_status"], "failed")
+        self.assertIsNone(entry["total_evm2_net_instructions"])
+
+    def run_case(self, calls, replay_result=None, evm2_runner=Path("runner")):
+        case = next(case for case in benchmark.TEST_CASES if case.test_id == "counter")
+        spec = benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar")
+        replay_result = replay_result or (self.replay(), "")
+        with (
+            mock.patch.object(
+                benchmark, "compiler_input", return_value=("{}", 120, "input")
+            ),
+            mock.patch.object(
+                benchmark,
+                "compile_case",
+                return_value={"status": "ok", "bytecode": "00"},
+            ),
+            mock.patch.object(
+                benchmark, "deploy_contract", return_value=("address", 1, "")
+            ),
+            mock.patch.object(benchmark, "gas_calls", return_value=calls),
+            mock.patch.object(benchmark, "runtime_checks", return_value=[]),
+            mock.patch.object(benchmark, "send_call", return_value=(43354, "0xtx", "")),
+            mock.patch.object(
+                benchmark, "evm2_replay", return_value=replay_result
+            ) as replay,
+            mock.patch.object(benchmark, "record_evm2") as record,
+        ):
+            result = benchmark.run_test_case(
+                case, [spec], True, "hot", "rpc", "key", evm2_runner=evm2_runner
+            )
+        return result["compilers"]["solar"], replay, record
+
+    def test_gas_calls_are_replayed_except_excluded_ones(self) -> None:
+        calls = [
+            GasCall("set", "set(uint256)", ("1",)),
+            GasCall("brutal", "set(uint256)", ("2",), comparison_exclusion_reason="x"),
+        ]
+        data, replay, record = self.run_case(calls)
+        replay.assert_called_once_with("0xtx", 43354, "rpc")
+        entry, runner, rpc_url, replays = record.call_args.args
+        self.assertEqual(
+            (runner, rpc_url, [gas["label"] for gas, _ in replays]),
+            (Path("runner"), "rpc", ["set"]),
+        )
+        self.assertEqual(entry, data)
+        self.assertIs(replays[0][0], data["gas_results"][0])
+        self.assertNotIn("evm2_status", data)
+
+    def test_missing_replay_inputs_fail_the_call_and_the_status(self) -> None:
+        data, _, record = self.run_case(
+            [GasCall("set", "set(uint256)", ("1",))], (None, "no prestate")
+        )
+        self.assertEqual(data["gas_results"][0]["evm2_error"], "no prestate")
+        self.assertEqual((data["gas_status"], data["total_gas"]), ("ok", 43354))
+        self.assertEqual(record.call_args.args[3], [])
+
+    def test_runs_without_the_runner_record_nothing(self) -> None:
+        data, replay, record = self.run_case(
+            [GasCall("set", "set(uint256)", ("1",))], evm2_runner=None
+        )
+        replay.assert_not_called()
+        record.assert_not_called()
+        self.assertNotIn("evm2_error", data["gas_results"][0])
+
+    def test_evm2_requires_gas_and_a_working_runner(self) -> None:
+        with (
+            mock.patch("sys.stderr", new_callable=io.StringIO) as stderr,
+            self.assertRaises(SystemExit) as error,
+        ):
+            benchmark.main(["--evm2", "runner"])
+        self.assertEqual(error.exception.code, 2)
+        self.assertTrue(stderr.getvalue().endswith("error: --evm2 requires --gas\n"))
+
+        runner = self.fake_runner(self.FAILING_RUNNER)
+        with (
+            mock.patch.object(benchmark, "check_tool", return_value=True),
+            mock.patch("sys.stderr", new_callable=io.StringIO) as stderr,
+        ):
+            code = benchmark.main(
+                ["--gas", "--evm2", str(runner), "--solar", sys.executable]
+            )
+        self.assertEqual(code, 1)
+        self.assertIn("perf_event_open failed", stderr.getvalue())
+
+
 class GasKindsTests(unittest.TestCase):
     def trace(self, **values):
         trace = {
