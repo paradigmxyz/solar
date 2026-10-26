@@ -2,9 +2,15 @@
 //!
 //! An allocation that never escapes and is never read is dead no matter what is
 //! written into it: the copies and stores that fill it produce no observable
-//! effect. The allocation itself remains because its free-memory-pointer bump
-//! and failure behavior are independently observable. This arises after other
-//! passes strip the readers of a materialized buffer — a scalar-replaced
+//! effect. A pointer to an allocation that is only stored into other dead
+//! allocations does not escape either, so a decoded struct, the nested structs and
+//! `bytes` objects it points to, and the pointers between them die together: the
+//! pass finds the largest set of allocations whose every use is a write into the
+//! set, a store of a member's pointer into a member, or nothing else. A member
+//! that is read, escapes, or has its pointer stored anywhere else keeps itself and
+//! every allocation whose pointer it holds. The allocation itself remains because its
+//! free-memory-pointer bump and failure behavior are independently observable. This arises after
+//! other passes strip the readers of a materialized buffer — a scalar-replaced
 //! struct, an inlined helper whose result is discarded, a re-encoded argument
 //! that is dropped — leaving a copy whose destination no one observes.
 //!
@@ -21,13 +27,27 @@
 //! writes and keeps them. Every other read of the pointer's slot still counts. Callers' later
 //! reads of the slot cannot see the removed writes: allocations start at or above the heap floor
 //! (see `heap-floor`), above the slot.
+//!
+//! Before that, the pass redirects a copy out of a buffer that one calldata copy filled. When
+//! `calldatacopy buf, src, m` dominates `mcopy dst, buf + s, n`, the copied range lies inside
+//! the filled one, and no instruction on a path between them may write it, the `mcopy` becomes
+//! `calldatacopy dst, src + (s - buf offset), n`: calldata never changes, so the bytes are the
+//! ones the fill wrote. The buffer is then often unread. Sizes compare when both are constants
+//! or when a dominating branch edge proves a size equal to one, such as the `revert` of a
+//! length check. A buffer that `returndatacopy` filled does not qualify, because return data
+//! changes with every call.
 
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, MirType, Module, PtrLocation, Terminator, Value, ValueId,
-    analysis::{Access, AddressSpace, AliasAnalysis, Location, MemoryBase, MemoryLocation},
+    BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, PtrLocation,
+    Terminator, Value, ValueId,
+    analysis::{
+        Access, AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, MemoryAddress,
+        MemoryBase, MemoryLocation,
+    },
     memory::EvmMemoryLayout,
-    pass::{MirPass, run_function_pass_with_alias},
+    pass::{MirPass, run_function_pass_with_alias_and_cfg},
 };
+use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 /// Copy-elision pass over write-only memory allocations.
@@ -44,8 +64,8 @@ impl MirPass for CopyElision {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass_with_alias(module, analyses, |func, analyses| {
-            CopyElisionCx::default().run(func, analyses.alias())
+        run_function_pass_with_alias_and_cfg(module, analyses, |func, analyses| {
+            CopyElisionCx::default().run(func, analyses.alias(), analyses.cfg())
         })
     }
 }
@@ -60,10 +80,46 @@ struct CopyElisionCx {
     indexed_stores: FxHashMap<InstId, BlockId>,
     /// Values used by terminators.
     terminator_uses: FxHashSet<ValueId>,
+    /// The block of each instruction.
+    inst_positions: FxHashMap<InstId, (BlockId, usize)>,
+}
+
+/// How a function uses one allocation, when no use may read it.
+#[derive(Debug)]
+struct ObjectUses {
+    object: ValueId,
+    /// Address values derived from the allocation.
+    derived: FxHashSet<ValueId>,
+    /// Writes into the allocation that may be removed.
+    writes: Vec<InstId>,
+    /// Addresses the allocation's pointer is stored at.
+    stored_at: Vec<ValueId>,
+}
+
+/// A copy that fills part of an allocation from calldata.
+#[derive(Debug)]
+struct CalldataFill {
+    block: BlockId,
+    index: usize,
+    site: InstId,
+    offset: u64,
+    size: ValueId,
+    source: ValueId,
+}
+
+/// A fixed-size copy out of an allocation.
+#[derive(Debug)]
+struct MemoryCopy {
+    inst: InstId,
+    block: BlockId,
+    index: usize,
+    site: InstId,
+    offset: u64,
+    size: u64,
 }
 
 impl CopyElisionCx {
-    fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
+    fn run(&mut self, func: &mut Function, alias: &AliasAnalysis, cfg: &CfgInfo) -> bool {
         let allocs: Vec<ValueId> = func
             .instructions()
             .filter_map(|inst_id| {
@@ -75,27 +131,15 @@ impl CopyElisionCx {
         if allocs.is_empty() {
             return false;
         }
-        let mut changed = false;
+        let mut changed = self.forward_calldata_copies(func, alias, cfg);
         loop {
             self.uses.clear();
             self.indexed_stores.clear();
             self.terminator_uses.clear();
+            self.inst_positions.clear();
             self.index_uses(func);
 
-            let mut dead = FxHashSet::default();
-            for &object in &allocs {
-                if alias.value_escapes(func, object)
-                    || self.allocation_may_be_read(func, alias, object)
-                {
-                    continue;
-                }
-                if let Some(writes) = self.write_only_writes(func, object)
-                    && self.writes_fit_allocation(func, alias, object, &writes)
-                {
-                    dead.extend(writes);
-                    self.eliminated += 1;
-                }
-            }
+            let dead = self.dead_writes(func, alias, cfg, &allocs);
             if dead.is_empty() {
                 break;
             }
@@ -108,28 +152,83 @@ impl CopyElisionCx {
         changed
     }
 
+    /// Returns the writes into the largest set of allocations that nothing reads.
+    ///
+    /// An allocation joins the set when no use may read it and its writes fit its extent. It
+    /// stays when its pointer is stored anywhere but into a member, so a member's pointer never
+    /// reaches memory that is read.
+    fn dead_writes(
+        &mut self,
+        func: &Function,
+        alias: &AliasAnalysis,
+        cfg: &CfgInfo,
+        allocs: &[ValueId],
+    ) -> FxHashSet<InstId> {
+        let mut members = Vec::new();
+        for &object in allocs {
+            let Some(uses) = self.object_uses(func, object) else { continue };
+            // A stored pointer escapes unless the set keeps it, which the fixpoint below decides.
+            if (uses.stored_at.is_empty() && alias.value_escapes(func, object))
+                || self.allocation_may_be_read(func, alias, cfg, object)
+                || !self.writes_fit_allocation(func, alias, cfg, object, &uses.writes)
+            {
+                continue;
+            }
+            members.push(uses);
+        }
+        let mut owners = FxHashMap::default();
+        for (index, member) in members.iter().enumerate() {
+            owners.extend(member.derived.iter().map(|&value| (value, index)));
+        }
+        // Drop members whose pointer is stored outside the set until none changes.
+        let mut dropped = FxHashSet::default();
+        while let Some(member) = members.iter().find(|member| {
+            !dropped.contains(&member.object)
+                && member.stored_at.iter().any(|address| {
+                    owners
+                        .get(address)
+                        .is_none_or(|&owner| dropped.contains(&members[owner].object))
+                })
+        }) {
+            dropped.insert(member.object);
+        }
+        let mut dead = FxHashSet::default();
+        for member in members.iter().filter(|member| !dropped.contains(&member.object)) {
+            if !member.writes.is_empty() {
+                self.eliminated += 1;
+            }
+            dead.extend(member.writes.iter().copied());
+        }
+        dead
+    }
+
     fn writes_fit_allocation(
         &self,
         func: &Function,
         alias: &AliasAnalysis,
+        cfg: &CfgInfo,
         object: ValueId,
         writes: &[InstId],
     ) -> bool {
-        if let Value::Inst(inst) = func.value(object)
-            && let InstKind::Alloc { size, .. } = func.inst(*inst).kind
+        if let Value::Inst(alloc) = func.value(object)
+            && let InstKind::Alloc { size, .. } = func.inst(*alloc).kind
             && let Some(size) = func.value_u64(size)
             && let Some(address) = alias.memory_address(func, object)
             && let Some(end) = address.offset.checked_add(size)
         {
+            // A write of unknown extent names the allocation's pointer as a fresh base; with a
+            // constant width its range starts at the same offset.
+            let is_unbounded_view = |base| base == MemoryBase::FreeMemory(*alloc);
             writes.iter().all(|&inst| {
                 if self.guarded_element_end(func, object, inst).is_some_and(|end| end <= size) {
                     return true;
                 }
                 alias.instruction_mod_ref(func, inst).writes().iter().all(|access| {
                     if let Access::Location(Location::Memory(location)) = access
-                        && location.address.base == address.base
+                        && (location.address.base == address.base
+                            || is_unbounded_view(location.address.base))
                         && location.address.offset >= address.offset
-                        && let Some(size) = location.size.as_const()
+                        && let Some(size) = self.constant_size(func, cfg, inst, location.size)
                         && let Some(write_end) = location.address.offset.checked_add(size)
                     {
                         write_end <= end
@@ -171,6 +270,7 @@ impl CopyElisionCx {
         &self,
         func: &Function,
         alias: &AliasAnalysis,
+        cfg: &CfgInfo,
         object: ValueId,
     ) -> bool {
         let (allocation, alloc_inst) = if let Value::Inst(inst) = func.value(object)
@@ -192,22 +292,52 @@ impl CopyElisionCx {
             }
             _ => false,
         };
+        // Every write to a unique allocation follows it, so a read that no path runs after the
+        // allocation cannot observe a write.
+        let runs_after = |inst: InstId| {
+            !own_fmp_read
+                || self.runs_after(cfg, alloc_inst, self.inst_positions.get(&inst).copied())
+        };
         func.instructions().any(|inst| {
             !(own_fmp_read && inst == alloc_inst)
+                && runs_after(inst)
                 && alias
                     .instruction_mod_ref(func, inst)
                     .reads()
                     .iter()
                     .copied()
                     .any(reads_allocation)
-        }) || func.blocks.iter().filter_map(|block| block.terminator.as_ref()).any(|terminator| {
-            alias.terminator_mod_ref(func, terminator).reads().iter().copied().any(reads_allocation)
+        }) || func.blocks.iter_enumerated().any(|(block, data)| {
+            data.terminator.as_ref().is_some_and(|terminator| {
+                (!own_fmp_read
+                    || self.runs_after(cfg, alloc_inst, Some((block, data.instructions.len()))))
+                    && alias
+                        .terminator_mod_ref(func, terminator)
+                        .reads()
+                        .iter()
+                        .copied()
+                        .any(reads_allocation)
+            })
         })
+    }
+
+    /// Returns whether a path can run the instruction at `position` after `alloc`.
+    fn runs_after(&self, cfg: &CfgInfo, alloc: InstId, position: Option<(BlockId, usize)>) -> bool {
+        let (Some((alloc_block, alloc_index)), Some((block, index))) =
+            (self.inst_positions.get(&alloc).copied(), position)
+        else {
+            return true;
+        };
+        if block == alloc_block && index > alloc_index {
+            return true;
+        }
+        cfg.transitive_reachability(alloc_block).is_none_or(|row| row.contains(block))
     }
 
     fn index_uses(&mut self, func: &Function) {
         for (block_id, block) in func.blocks.iter_enumerated() {
-            for &inst_id in &block.instructions {
+            for (index, &inst_id) in block.instructions.iter().enumerate() {
+                self.inst_positions.insert(inst_id, (block_id, index));
                 let inst = func.inst(inst_id);
                 if let InstKind::Store(address, _, PtrLocation::Memory) = inst.kind
                     && func.element_address(address).is_some()
@@ -226,9 +356,10 @@ impl CopyElisionCx {
         }
     }
 
-    /// If every access to the allocation writes it, returns the write
-    /// instructions to remove; returns `None` if the allocation is read.
-    fn write_only_writes(&self, func: &Function, object: ValueId) -> Option<Vec<InstId>> {
+    /// If every use of the allocation writes it or stores its pointer, returns the write
+    /// instructions to remove and the addresses its pointer is stored at; returns `None` if
+    /// anything else uses it.
+    fn object_uses(&self, func: &Function, object: ValueId) -> Option<ObjectUses> {
         // Address values derived from the allocation. Follow only indexed uses
         // instead of rescanning every instruction for each derived value.
         let mut derived = FxHashSet::default();
@@ -268,6 +399,7 @@ impl CopyElisionCx {
         }
 
         let mut writes = Vec::new();
+        let mut stored_at = Vec::new();
         let mut seen = FxHashSet::default();
         for value in &derived {
             for &inst_id in self.uses.get(value).into_iter().flatten() {
@@ -278,8 +410,10 @@ impl CopyElisionCx {
                 match &inst.kind {
                     // Writes to the allocation: the address is a derived value.
                     InstKind::Store(addr, value, PtrLocation::Memory) => {
+                        // Storing an interior address elsewhere is an escape unless that memory is
+                        // dead too.
                         if derived.contains(value) {
-                            return None; // Storing an interior address elsewhere is a read/escape.
+                            stored_at.push(*addr);
                         }
                         if derived.contains(addr) {
                             writes.push(inst_id);
@@ -366,6 +500,224 @@ impl CopyElisionCx {
         // A write that can fail on its own, such as `returndatacopy` past the end of the return
         // data, stays even though its destination is unread.
         writes.retain(|&inst_id| !func.inst(inst_id).kind.effects().control.any());
-        (!writes.is_empty()).then_some(writes)
+        Some(ObjectUses { object, derived, writes, stored_at })
+    }
+    /// Returns the constant width of an access by `inst`, including a size that a dominating
+    /// branch proves constant.
+    fn constant_size(
+        &self,
+        func: &Function,
+        cfg: &CfgInfo,
+        inst: InstId,
+        size: LocationSize,
+    ) -> Option<u64> {
+        match size {
+            LocationSize::Const(size) => Some(size),
+            LocationSize::Dynamic(size) => {
+                Self::known_constant(func, cfg, self.inst_positions.get(&inst)?.0, size)
+            }
+            LocationSize::Unknown => None,
+        }
+    }
+
+    /// Returns the constant `value` equals in `block`: an immediate, or the other side of an
+    /// equality that the only edge into a dominating block proves.
+    fn known_constant(
+        func: &Function,
+        cfg: &CfgInfo,
+        block: BlockId,
+        value: ValueId,
+    ) -> Option<u64> {
+        if let Some(constant) = func.value_u64(value) {
+            return Some(constant);
+        }
+        let dominators = cfg.dominators();
+        let mut current = block;
+        loop {
+            // The edge into `current` holds `value == constant` when it is the equal side of the
+            // branch on `eq`/`ne`.
+            if let [pred] = cfg.predecessors(current)
+                && let Some(Terminator::Branch { condition, then_block, else_block }) =
+                    func.blocks[*pred].terminator
+                && then_block != else_block
+                && let Value::Inst(condition) = *func.value(condition)
+                && let Some((first, second)) = match func.inst(condition).kind {
+                    InstKind::Eq(first, second) if current == then_block => Some((first, second)),
+                    InstKind::Ne(first, second) if current == else_block => Some((first, second)),
+                    _ => None,
+                }
+                && let Some(constant) =
+                    [(first, second), (second, first)].into_iter().find_map(|(operand, other)| {
+                        (operand == value).then(|| func.value_u64(other))?
+                    })
+            {
+                return Some(constant);
+            }
+            current = dominators.idom(current).filter(|&idom| idom != current)?;
+        }
+    }
+
+    /// Redirects `mcopy` out of a calldata-filled buffer to read calldata itself.
+    fn forward_calldata_copies(
+        &mut self,
+        func: &mut Function,
+        alias: &AliasAnalysis,
+        cfg: &CfgInfo,
+    ) -> bool {
+        let mut fills = Vec::new();
+        let mut copies = Vec::new();
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for (index, &inst) in block.instructions.iter().enumerate() {
+                match func.inst(inst).kind {
+                    InstKind::Copy(dest, source, size, PtrLocation::Calldata) => {
+                        if let Some(MemoryAddress {
+                            base: MemoryBase::Allocation(site),
+                            offset,
+                            ..
+                        }) = alias.memory_address(func, dest)
+                        {
+                            fills.push(CalldataFill {
+                                block: block_id,
+                                index,
+                                site,
+                                offset,
+                                size,
+                                source,
+                            });
+                        }
+                    }
+                    InstKind::Copy(_, source, size, PtrLocation::Memory) => {
+                        if let Some(MemoryAddress {
+                            base: MemoryBase::Allocation(site),
+                            offset,
+                            ..
+                        }) = alias.memory_address(func, source)
+                            && let Some(size) = Self::known_constant(func, cfg, block_id, size)
+                            && size > 0
+                        {
+                            copies.push(MemoryCopy {
+                                inst,
+                                block: block_id,
+                                index,
+                                site,
+                                offset,
+                                size,
+                            });
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if fills.is_empty() || copies.is_empty() {
+            return false;
+        }
+
+        let mut rewrites = Vec::new();
+        for copy in &copies {
+            let InstKind::Copy(_, source, _, _) = func.inst(copy.inst).kind else { continue };
+            let Some(address) = alias.memory_address(func, source) else { continue };
+            let read = MemoryLocation::new(address, LocationSize::Const(copy.size));
+            let fill = fills.iter().find(|fill| {
+                fill.site == copy.site
+                    && fill.offset <= copy.offset
+                    && Self::known_constant(func, cfg, fill.block, fill.size).is_some_and(|size| {
+                        (copy.offset - fill.offset)
+                            .checked_add(copy.size)
+                            .is_some_and(|end| end <= size)
+                    })
+                    && Self::dominates(cfg, fill.block, fill.index, copy.block, copy.index)
+                    && !Self::written_between(func, alias, cfg, fill, copy, read)
+            });
+            if let Some(fill) = fill {
+                rewrites.push((copy.inst, copy.block, fill.source, copy.offset - fill.offset));
+            }
+        }
+
+        let changed = !rewrites.is_empty();
+        for (inst, block, source, shift) in rewrites {
+            let InstKind::Copy(dest, _, size, _) = func.inst(inst).kind else { continue };
+            let source = if shift == 0 {
+                source
+            } else {
+                let offset = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(shift))));
+                // add src, shift
+                let (add, source) = func.alloc_value_inst(
+                    Instruction::new(InstKind::Add(source, offset), Some(MirType::I256))
+                        .with_debug_info_dropped(),
+                );
+                let position = func.blocks[block].instructions.iter().position(|&id| id == inst);
+                let Some(position) = position else { continue };
+                func.blocks[block].instructions.insert(position, add);
+                source
+            };
+            // calldatacopy dest, source, size
+            func.inst_mut(inst).kind = InstKind::Copy(dest, source, size, PtrLocation::Calldata);
+        }
+        changed
+    }
+
+    /// Returns whether the first instruction runs before the second on every path.
+    fn dominates(
+        cfg: &CfgInfo,
+        first_block: BlockId,
+        first_index: usize,
+        second_block: BlockId,
+        second_index: usize,
+    ) -> bool {
+        if first_block == second_block {
+            first_index < second_index
+        } else {
+            cfg.dominators().dominates(first_block, second_block)
+        }
+    }
+
+    /// Returns whether an instruction on a path from the fill to the copy may write `read`.
+    ///
+    /// Blocks that lie on such a path count whole, and a block that loops back to itself counts
+    /// whole as the copy's block even where the copy comes first.
+    fn written_between(
+        func: &Function,
+        alias: &AliasAnalysis,
+        cfg: &CfgInfo,
+        fill: &CalldataFill,
+        copy: &MemoryCopy,
+        read: MemoryLocation,
+    ) -> bool {
+        let writes = |inst| {
+            alias.instruction_mod_ref(func, inst).writes().iter().any(|&access| match access {
+                Access::Any(AddressSpace::Memory) => true,
+                Access::Location(Location::Memory(write)) => {
+                    alias.memory_alias(read, write).may_alias()
+                }
+                _ => false,
+            })
+        };
+        let instructions = |block: BlockId| func.blocks[block].instructions.iter().copied();
+        if fill.block == copy.block {
+            return instructions(fill.block)
+                .skip(fill.index + 1)
+                .take(copy.index - fill.index - 1)
+                .any(writes);
+        }
+        if instructions(fill.block).skip(fill.index + 1).any(writes)
+            || instructions(copy.block).take(copy.index).any(writes)
+        {
+            return true;
+        }
+        if cfg.cyclic_blocks().contains(copy.block)
+            && instructions(copy.block).skip(copy.index + 1).any(writes)
+        {
+            return true;
+        }
+        let Some(from_fill) = cfg.transitive_reachability(fill.block) else { return true };
+        // Blocks reachable from the fill that reach the copy.
+        func.blocks.indices().any(|block| {
+            block != fill.block
+                && block != copy.block
+                && from_fill.contains(block)
+                && cfg.transitive_reachability(block).is_none_or(|row| row.contains(copy.block))
+                && instructions(block).any(writes)
+        })
     }
 }

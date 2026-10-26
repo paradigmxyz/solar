@@ -305,6 +305,10 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_mapping_slots::LowerMappingSlots,
     &lower_memory_objects::LowerMemoryObjects,
     &cse::Cse::All,
+    // The fields of a decoded struct are forwarded only by the CSE above, so this is the first
+    // point where the struct and the objects it points to are written and never read. Its
+    // stores, and the copies that fill its buffers, go while the allocations are still symbolic.
+    &copy_elision::CopyElision,
     // Physical memory accesses let CSE unify semantic lengths with raw loads.
     // Repeated bounds checks then use the same condition as a dominating guard:
     // branch condition, body, exit; body: ...; branch condition, checked, panic

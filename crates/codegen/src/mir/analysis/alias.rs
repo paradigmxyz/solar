@@ -13,6 +13,7 @@ use crate::mir::{
     ImmutableId, InstId, InstKind, MemoryRegion, MirType, PtrLocation, RequireKind, StorageAlias,
     Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
+use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use std::{
@@ -1762,7 +1763,8 @@ impl AliasAnalysis {
         {
             return self.memory_address_with_depth(func, value, depth + 1);
         }
-        self.memory_address_with_depth(func, base, depth + 1)?.checked_add(func.value_u64(offset)?)
+        self.memory_address_with_depth(func, base, depth + 1)?
+            .checked_add(Self::constant_offset(func, offset, 0)?)
     }
 
     fn address_sub(
@@ -1773,8 +1775,27 @@ impl AliasAnalysis {
         depth: usize,
     ) -> Option<MemoryAddress> {
         let mut address = self.memory_address_with_depth(func, base, depth + 1)?;
-        address.offset = address.offset.checked_sub(func.value_u64(offset)?)?;
+        address.offset = address.offset.checked_sub(Self::constant_offset(func, offset, 0)?)?;
         Some(address)
+    }
+
+    /// Evaluates an offset built from immediates only, such as a length rounded up to a word
+    /// after forwarding made the length constant but before folding ran.
+    fn constant_offset(func: &Function, value: ValueId, depth: usize) -> Option<u64> {
+        u64::try_from(Self::constant_word(func, value, depth)?).ok()
+    }
+
+    fn constant_word(func: &Function, value: ValueId, depth: usize) -> Option<U256> {
+        match func.value(value) {
+            Value::Immediate(immediate) => immediate.as_u256(),
+            Value::Inst(inst) if depth < 8 => {
+                crate::mir::utils::eval::eval_typed_inst(func, &func.inst(*inst).kind, |operand| {
+                    Self::constant_word(func, operand, depth + 1).ok_or(())
+                })
+                .ok()?
+            }
+            _ => None,
+        }
     }
 
     fn slice_pointer_address(
@@ -2033,10 +2054,11 @@ impl AliasAnalysis {
                     || super::integers::arithmetic_no_wrap(func, value)) =>
             {
                 Self::pointer_lower_bound(func, *first, depth + 1)
-                    .and_then(|base| base.checked_add(func.value_u64(*second)?))
+                    .and_then(|base| base.checked_add(Self::constant_offset(func, *second, 0)?))
                     .or_else(|| {
-                        Self::pointer_lower_bound(func, *second, depth + 1)
-                            .and_then(|base| base.checked_add(func.value_u64(*first)?))
+                        Self::pointer_lower_bound(func, *second, depth + 1).and_then(|base| {
+                            base.checked_add(Self::constant_offset(func, *first, 0)?)
+                        })
                     })
             }
             InstKind::Sub(base, offset)
@@ -2044,11 +2066,11 @@ impl AliasAnalysis {
                     || super::integers::arithmetic_no_wrap(func, value)) =>
             {
                 Self::pointer_lower_bound(func, *base, depth + 1)
-                    .and_then(|base| base.checked_sub(func.value_u64(*offset)?))
+                    .and_then(|base| base.checked_sub(Self::constant_offset(func, *offset, 0)?))
             }
             // `ptradd` does not wrap, so a runtime offset only moves the pointer up.
             InstKind::PtrAdd(base, offset) => Self::pointer_lower_bound(func, *base, depth + 1)?
-                .checked_add(func.value_u64(*offset).unwrap_or(0)),
+                .checked_add(Self::constant_offset(func, *offset, 0).unwrap_or(0)),
             InstKind::ExtractValue {
                 ty: MirType::Slice(_),
                 aggregate: slice,
