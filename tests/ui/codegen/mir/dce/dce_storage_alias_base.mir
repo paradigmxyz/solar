@@ -1,7 +1,10 @@
-//@compile-flags: -Zmir-pipeline=dce
+//@revisions: dce byte-run
+//@[dce]compile-flags: -Zmir-pipeline=dce
+//@[byte-run]compile-flags: -Zmir-pipeline=byte-run-loads
 //@filecheck:
 // A storage alias names its base slot without using it, so deleting the base's
-// last use drops the alias instead of leaving it naming a deleted value.
+// last use drops the alias instead of leaving it naming a deleted value, also
+// when the deleting pass reports no change.
 @module DceStorageAliasBase
 // CHECK-LABEL: {{^[ +].*}}fn @store{{[( ]}}
 // CHECK: - [[BASE:v[0-9]+]] = add arg0, 1
