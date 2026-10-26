@@ -12,7 +12,7 @@ use solar_data_structures::{
     bit_set::{BitMatrix, BitMatrixRow, DenseBitSet},
     index::{IndexVec, index_vec},
 };
-use std::cell::OnceCell;
+use std::{cell::OnceCell, collections::BinaryHeap};
 
 /// Control-flow facts for one MIR function.
 #[derive(Clone, Debug)]
@@ -201,6 +201,10 @@ impl CfgInfo {
     }
 }
 
+/// Predecessor count above which [`DominatorTree::compute`] merges idom chains with a heap instead
+/// of intersecting predecessors pairwise.
+const MANY_PREDECESSORS: usize = 32;
+
 /// Immediate-dominator tree for one MIR function.
 #[derive(Clone, Debug)]
 pub(crate) struct DominatorTree {
@@ -221,6 +225,7 @@ impl DominatorTree {
 
         let mut idoms = index_vec![None; block_count];
         idoms[BlockId::ENTRY] = Some(BlockId::ENTRY);
+        let mut heap = BinaryHeap::new();
         let mut changed = true;
         while changed {
             changed = false;
@@ -229,16 +234,21 @@ impl DominatorTree {
                 if block_predecessors.is_empty() {
                     continue;
                 }
-                let mut new_idom: Option<BlockId> = None;
-                for &pred in block_predecessors {
-                    if idoms[pred].is_none() {
-                        continue;
+                let new_idom = if block_predecessors.len() > MANY_PREDECESSORS {
+                    Self::intersect_many(&idoms, rpo, &rpo_numbers, block_predecessors, &mut heap)
+                } else {
+                    let mut new_idom: Option<BlockId> = None;
+                    for &pred in block_predecessors {
+                        if idoms[pred].is_none() {
+                            continue;
+                        }
+                        new_idom = Some(match new_idom {
+                            None => pred,
+                            Some(current) => Self::intersect(&idoms, &rpo_numbers, pred, current),
+                        });
                     }
-                    new_idom = Some(match new_idom {
-                        None => pred,
-                        Some(current) => Self::intersect(&idoms, &rpo_numbers, pred, current),
-                    });
-                }
+                    new_idom
+                };
                 if let Some(new_idom) = new_idom
                     && idoms[block] != Some(new_idom)
                 {
@@ -273,6 +283,35 @@ impl DominatorTree {
             }
         }
         a
+    }
+
+    /// Returns the nearest common dominator of the processed `preds`, or `None` if there are none.
+    ///
+    /// Folding [`Self::intersect`] over many predecessors re-walks the same idom chain once per
+    /// predecessor. Instead, advance one finger per predecessor, always the one with the largest
+    /// reverse postorder number, and merge fingers that meet. Each tree node is visited at most
+    /// once, so the cost follows the size of the walked subtree, not the number of predecessors.
+    fn intersect_many(
+        idoms: &IndexVec<BlockId, Option<BlockId>>,
+        rpo: &[BlockId],
+        rpo_numbers: &IndexVec<BlockId, usize>,
+        preds: &[BlockId],
+        heap: &mut BinaryHeap<usize>,
+    ) -> Option<BlockId> {
+        heap.clear();
+        heap.extend(preds.iter().filter(|&&pred| idoms[pred].is_some()).map(|&p| rpo_numbers[p]));
+        while let Some(number) = heap.pop() {
+            while heap.peek() == Some(&number) {
+                heap.pop();
+            }
+            let block = rpo[number];
+            if heap.is_empty() {
+                return Some(block);
+            }
+            let idom = idoms[block].expect("processed block has an immediate dominator");
+            heap.push(rpo_numbers[idom]);
+        }
+        None
     }
 
     /// Returns the immediate dominator of `block`, if reachable.
