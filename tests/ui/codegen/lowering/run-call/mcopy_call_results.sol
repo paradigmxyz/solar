@@ -1,5 +1,7 @@
 //@ compile-flags: --evm-version paris
-//@ codegen-matrix: standard
+//@ codegen-matrix: standard shared
+//@[shared] compile-flags: -Osize -Zdump=mir
+//@[shared] filecheck: --check-prefix=SHARED
 //@ run-call: message(uint256,uint256) 0, 0 => 0x7c307c307c
 //@ run-call: message(uint256,uint256) 3, 12 => 0x6161617c337c31327c616161616161616161616161
 //@ run-call: message(uint256,uint256) 31, 32 => 0x616161616161616161616161616161616161616161616161616161616161617c33317c33327c6161616161616161616161616161616161616161616161616161616161616161
@@ -14,6 +16,8 @@
 // output overlaps it and the shared helper must copy backward; the output's length word replaces
 // the first word of the piece, so the test reads the second.
 contract MCopyCallResults {
+    // SHARED-LABEL: fn @message(
+    // SHARED: icall @mcopy_words, {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}
     function message(uint256 a, uint256 b) external pure returns (bytes memory) {
         return bytes.concat(padding(a), "|", digits(a), "|", digits(b), "|", padding(b));
     }

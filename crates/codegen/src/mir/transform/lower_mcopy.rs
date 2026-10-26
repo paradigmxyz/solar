@@ -18,12 +18,11 @@
 //! repeated bytes.
 //! Constructor-reachable sites remain inline because their ABI output may
 //! occupy the free-memory pointer where an internal call would stage its frame.
-//! Copies between Solidity memory objects, whatever their bases, call the helper, because the
-//! helper's argument frame lies below the initial free memory pointer, where only assembly that
-//! names constant addresses can place data (CODEGEN-009). Pointers computed from constants or
-//! calldata alone, and ranges that leave the scratch space, remain inline. Copies marked
-//! `disjoint` call the helper as well: ABI encoding copies from heap objects into heap
-//! output, clear of every frame.
+//! Copies between Solidity memory objects, whatever their bases, may call the helper: its frame
+//! lies below the initial free memory pointer, which only assembly that names constant addresses
+//! reaches (CODEGEN-009). Pointers computed from constants or calldata alone, and ranges that
+//! leave the scratch space, remain inline. Copies marked `disjoint` may call it too: ABI
+//! encoding copies from heap objects into heap output, which no frame overlaps.
 //!
 //! Copies marked `disjoint`, such as ABI encoding's copies of source data into
 //! its output, run forward. Constant lengths of at most one word also copy
@@ -47,8 +46,8 @@
 
 use crate::{
     mir::{
-        BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction, MirType,
-        Module, PtrLocation, Value, ValueId,
+        BlockId, EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
+        MirType, Module, PtrLocation, Value, ValueId,
         analysis::{AliasAnalysis, AliasResult, CallGraphInfo, MemoryBase, MemoryCallSummaries},
         memory::EvmMemoryLayout,
         pass::MirPass,
@@ -313,15 +312,16 @@ fn lower_function(
     }
 }
 
-/// Returns whether a helper call frame is clear of both copy ranges.
+/// Returns whether a helper call frame does not overlap either copy range.
 ///
 /// Static frames lie between the scratch space and the initial free memory pointer, and only
 /// assembly that names constant addresses there can reach them (CODEGEN-009). This pass runs
 /// only where `mcopy` is not an opcode, so every copy is the compiler's own, between Solidity
-/// memory objects: the caller's frame is live, so the helper's frame lies beyond it, and heap
-/// objects, call results, and allocations lie above every frame. A pointer qualifies unless it
-/// is computed from constants or calldata alone, which can name a frame, or reaches past the
-/// scratch space.
+/// memory objects. A pointer qualifies unless constants or calldata alone compute it, or it
+/// names a constant range that leaves the scratch space.
+///
+/// The caller's frame is live, so the helper's frame does not overlap it; and heap objects,
+/// call results, and allocations start at or above the initial free memory pointer.
 fn copy_helper_eligible(func: &Function, alias: Option<&AliasAnalysis>, inst: InstId) -> bool {
     let Some(alias) = alias else { return false };
     let InstKind::Copy(dest, src, len, PtrLocation::Memory) = func.inst(inst).kind else {
@@ -344,6 +344,10 @@ fn copy_helper_eligible(func: &Function, alias: Option<&AliasAnalysis>, inst: In
 
 /// Returns whether a pointer is computed from constants and calldata alone, so that it can name
 /// any static address.
+///
+/// Every pure operation passes constants through, so an operation added later cannot hide a
+/// constant. Anything else, such as a load, a call result, an allocation, or a frame address, is
+/// not constant.
 fn is_constant_address(func: &Function, pointer: ValueId) -> bool {
     let mut pending = vec![pointer];
     let mut seen = FxHashSet::default();
@@ -351,40 +355,16 @@ fn is_constant_address(func: &Function, pointer: ValueId) -> bool {
         if !seen.insert(value) {
             continue;
         }
-        let Value::Inst(inst) = func.value(value) else {
-            if matches!(func.value(value), Value::Immediate(_)) {
-                continue;
-            }
-            return false;
+        let inst = match func.value(value) {
+            Value::Immediate(_) => continue,
+            Value::Inst(inst) => func.inst(*inst),
+            _ => return false,
         };
-        match &func.inst(*inst).kind {
+        match &inst.kind {
             InstKind::Load(.., PtrLocation::Calldata) | InstKind::CalldataSize => {}
-            InstKind::Add(lhs, rhs)
-            | InstKind::Sub(lhs, rhs)
-            | InstKind::Mul(lhs, rhs)
-            | InstKind::Div(lhs, rhs)
-            | InstKind::SDiv(lhs, rhs)
-            | InstKind::Mod(lhs, rhs)
-            | InstKind::SMod(lhs, rhs)
-            | InstKind::Exp(lhs, rhs)
-            | InstKind::And(lhs, rhs)
-            | InstKind::Or(lhs, rhs)
-            | InstKind::Xor(lhs, rhs)
-            | InstKind::Shl(lhs, rhs)
-            | InstKind::Shr(lhs, rhs)
-            | InstKind::Sar(lhs, rhs)
-            | InstKind::PtrAdd(lhs, rhs)
-            | InstKind::Select(_, lhs, rhs) => pending.extend([*lhs, *rhs]),
-            InstKind::AddMod(lhs, rhs, modulus) | InstKind::MulMod(lhs, rhs, modulus) => {
-                pending.extend([*lhs, *rhs, *modulus])
-            }
-            InstKind::Zext(inner)
-            | InstKind::Trunc(inner, _)
-            | InstKind::Sext(inner, ..)
-            | InstKind::Not(inner)
-            | InstKind::IntToPtr(inner)
-            | InstKind::PtrToInt(inner, _) => pending.push(*inner),
-            InstKind::Phi(incoming) => pending.extend(incoming.iter().map(|&(_, value)| value)),
+            InstKind::Select(_, lhs, rhs) => pending.extend([*lhs, *rhs]),
+            InstKind::InternalFrameAddr(_) => return false,
+            kind if kind.op_def().effect == EffectKind::Pure => pending.extend(kind.operands()),
             _ => return false,
         }
     }

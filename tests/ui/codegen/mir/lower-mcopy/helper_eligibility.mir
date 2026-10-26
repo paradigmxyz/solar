@@ -6,11 +6,11 @@
 // Solidity memory objects cannot reach them, so its sites call the shared helper whatever their
 // pointers' provenance.
 
-// CHECK-LABEL: fn @objects
+// CHECK-LABEL: fn @unknown_pointers
 // CHECK: + icall @mcopy_words, arg0, arg1, arg2
 // CHECK: + icall @mcopy_words, arg1, arg0, arg2
 // CHECK: + icall @mcopy_words, arg0, arg1, arg2
-fn @objects(arg0: i256, arg1: i256, arg2: i256) {
+fn @unknown_pointers(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
     mcopy arg0, arg1, arg2
     mcopy arg1, arg0, arg2
@@ -27,28 +27,47 @@ fn @scratch() {
     ret
 }
 
+// A pointer that merges an allocation with a constant is not computed from constants alone.
+// CHECK-LABEL: fn @allocation_or_constant
+// CHECK: + icall @mcopy_words, {{v[0-9]+}}, arg1, arg2
+fn @allocation_or_constant(arg0: i256, arg1: i256, arg2: i256) {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = alloc 64
+    v2 = ptrtoint ptr<memory> v1 to i256
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v2], [bb2: 128]
+    mcopy v3, arg1, arg2
+    ret
+}
+
 // Constructor copies stay inline: their ABI output may occupy the memory where a call would
 // stage its arguments.
 // CHECK-LABEL: fn @constructor
 // CHECK-NOT: icall @mcopy_words
-// CHECK-LABEL: fn @frame_constant
 fn @constructor(arg0: i256, arg1: i256, arg2: i256) [constructor] {
   bb0:
     mcopy arg0, arg1, arg2
     ret
 }
 
-// A pointer computed from constants alone can name a frame.
+// A constant address can name a frame.
+// CHECK-LABEL: fn @frame_constant
 // CHECK-NOT: icall @mcopy_words
-// CHECK-LABEL: fn @frame_computed
-// CHECK-NOT: icall @mcopy_words
-// CHECK-LABEL: fn @scratch_end
 fn @frame_constant(arg0: i256, arg1: i256) {
   bb0:
     mcopy 128, arg0, arg1
     ret
 }
 
+// So can a pointer computed from constants.
+// CHECK-LABEL: fn @frame_computed
+// CHECK-NOT: icall @mcopy_words
 fn @frame_computed(arg0: i256, arg1: i256) {
   bb0:
     v0 = add 120, 8
@@ -56,7 +75,29 @@ fn @frame_computed(arg0: i256, arg1: i256) {
     ret
 }
 
+// So can a pointer that selects between constants, whatever the condition.
+// CHECK-LABEL: fn @frame_selected
+// CHECK-NOT: icall @mcopy_words
+fn @frame_selected(arg0: i256, arg1: i256, arg2: i256) {
+  bb0:
+    v0 = ne arg0, 0
+    v1 = select v0, 128, 192
+    mcopy v1, arg1, arg2
+    ret
+}
+
+// So can a pointer computed from calldata.
+// CHECK-LABEL: fn @frame_calldata
+// CHECK-NOT: icall @mcopy_words
+fn @frame_calldata(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = calldataload 4
+    mcopy v0, arg0, arg1
+    ret
+}
+
 // The source range 0x40..0x88 reaches the first frame word.
+// CHECK-LABEL: fn @scratch_end
 // CHECK-NOT: icall @mcopy_words
 fn @scratch_end() {
   bb0:

@@ -770,10 +770,10 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   can reach. Inline assembly that stores data at constant addresses in that
   range, instead of allocating through the free memory pointer, can have it
   overwritten by any internal call, including the helpers the compiler
-  generates for ABI encoding and pre-Cancun memory copies. Those copies call
-  one shared helper unless a pointer is computed from constants or calldata
-  alone, so a memory object that assembly places in that range through any
-  other computation can be overwritten by the helper's arguments before the
+  generates for ABI encoding and pre-Cancun memory copies. Those copies may
+  call one shared helper, unless a pointer is computed from constants or
+  calldata alone, so a memory object that assembly places in that range through
+  any other computation can be overwritten by the helper's frame before the
   copy reads it.
 - Rationale: The Solidity documentation counts only scratch space, memory
   allocated through the free memory pointer, and memory past the free memory
@@ -781,12 +781,12 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   calls cheaper than a memory stack, and memory-safe assembly never reaches
   them.
 - Coverage: `tests/ui/codegen/lowering/run-call/pre_cancun_memory_copies.sol`
-  encodes an object that assembly allocates through the shared copy helper,
+  encodes an object that assembly allocates through the shared copy helper.
   `tests/ui/codegen/lowering/run-call/mcopy_call_results.sol` copies call
-  results through it, `tests/ui/codegen/lowering/run-call/mcopy_shared_helper_raw.sol`
-  keeps a constant address inline, and
-  `tests/ui/codegen/mir/lower-mcopy/helper_eligibility.mir` pins which copies
-  call it.
+  results through it, and
+  `tests/ui/codegen/lowering/run-call/mcopy_shared_helper_raw.sol` keeps a
+  constant address inline. `tests/ui/codegen/mir/lower-mcopy/helper_eligibility.mir`
+  pins which copies may call it.
 
 ### CODEGEN-010: Assembly cannot hand compiler-owned memory to the heap
 

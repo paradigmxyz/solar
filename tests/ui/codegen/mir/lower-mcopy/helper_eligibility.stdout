@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-mcopy/helper_eligibility.mir (before lower-mcopy) ===
 + // === ROOT/tests/ui/codegen/mir/lower-mcopy/helper_eligibility.mir (after lower-mcopy) ===
   @module CopyHelperEligibility
-  fn @objects(arg0: i256, arg1: i256, arg2: i256) {
+  fn @unknown_pointers(arg0: i256, arg1: i256, arg2: i256) {
     bb0:
 -     mcopy arg0, arg1, arg2
 -     mcopy arg1, arg0, arg2
@@ -16,6 +16,23 @@
     bb0:
 -     mcopy 0, 64, 64
 +     icall @mcopy_words, 0, 64, 64
+      ret
+  }
+  
+  fn @allocation_or_constant(arg0: i256, arg1: i256, arg2: i256) {
+    bb0:
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      v1 = alloc 64
+      v2 = ptrtoint ptr<memory> v1 to i256
+      jump bb3
+    bb3:
+      v3 = phi [bb1: v2], [bb2: 128]
+-     mcopy v3, arg1, arg2
++     icall @mcopy_words, v3, arg1, arg2
       ret
   }
   
@@ -170,6 +187,157 @@
   fn @frame_computed(arg0: i256, arg1: i256) {
     bb0:
       v0 = add 120, 8
+-     mcopy v0, arg0, arg1
++     v1 = eq arg1, 0
++     jumpi v1, bb1, bb2
++   bb2:
++     v2 = not 31
++     v3 = and arg1, v2
++     v4 = lt arg0, v0
++     jumpi v4, bb4, bb3
++   bb3:
++     jump bb5
++   bb5:
++     v5 = phi [bb3: 0], [bb6: v10]
++     v6 = lt v5, v3
++     jumpi v6, bb6, bb7
++   bb7:
++     v11 = lt v3, arg1
++     jumpi v11, bb8, bb1
++   bb8:
++     v12 = and arg1, 31
++     v13 = sub 32, v12
++     v14 = shl v13, 3
++     v15 = add arg0, v3
++     v16 = mload v15
++     v17 = add v0, v3
++     v18 = mload v17
++     v19 = xor v16, v18
++     v20 = shr v19, v14
++     v21 = shl v20, v14
++     v22 = xor v18, v21
++     mstore v17, v22
++     jump bb1
++   bb6:
++     v7 = add arg0, v5
++     v8 = mload v7
++     v9 = add v0, v5
++     mstore v9, v8
++     v10 = add v5, 32
++     jump bb5
++   bb4:
++     v23 = lt v3, arg1
++     jumpi v23, bb12, bb11
++   bb11:
++     jump bb9
++   bb12:
++     v24 = and arg1, 31
++     v25 = sub 32, v24
++     v26 = shl v25, 3
++     v27 = add arg0, v3
++     v28 = mload v27
++     v29 = add v0, v3
++     v30 = mload v29
++     v31 = xor v28, v30
++     v32 = shr v31, v26
++     v33 = shl v32, v26
++     v34 = xor v30, v33
++     mstore v29, v34
++     jump bb9
++   bb9:
++     v35 = phi [bb11: v3], [bb12: v3], [bb10: v37]
++     v36 = eq v35, 0
++     jumpi v36, bb1, bb10
++   bb10:
++     v37 = sub v35, 32
++     v38 = add arg0, v37
++     v39 = mload v38
++     v40 = add v0, v37
++     mstore v40, v39
++     jump bb9
++   bb1:
+      ret
+  }
+  
+  fn @frame_selected(arg0: i256, arg1: i256, arg2: i256) {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, 128, 192
+-     mcopy v1, arg1, arg2
++     v2 = eq arg2, 0
++     jumpi v2, bb1, bb2
++   bb2:
++     v3 = not 31
++     v4 = and arg2, v3
++     v5 = lt arg1, v1
++     jumpi v5, bb4, bb3
++   bb3:
++     jump bb5
++   bb5:
++     v6 = phi [bb3: 0], [bb6: v11]
++     v7 = lt v6, v4
++     jumpi v7, bb6, bb7
++   bb7:
++     v12 = lt v4, arg2
++     jumpi v12, bb8, bb1
++   bb8:
++     v13 = and arg2, 31
++     v14 = sub 32, v13
++     v15 = shl v14, 3
++     v16 = add arg1, v4
++     v17 = mload v16
++     v18 = add v1, v4
++     v19 = mload v18
++     v20 = xor v17, v19
++     v21 = shr v20, v15
++     v22 = shl v21, v15
++     v23 = xor v19, v22
++     mstore v18, v23
++     jump bb1
++   bb6:
++     v8 = add arg1, v6
++     v9 = mload v8
++     v10 = add v1, v6
++     mstore v10, v9
++     v11 = add v6, 32
++     jump bb5
++   bb4:
++     v24 = lt v4, arg2
++     jumpi v24, bb12, bb11
++   bb11:
++     jump bb9
++   bb12:
++     v25 = and arg2, 31
++     v26 = sub 32, v25
++     v27 = shl v26, 3
++     v28 = add arg1, v4
++     v29 = mload v28
++     v30 = add v1, v4
++     v31 = mload v30
++     v32 = xor v29, v31
++     v33 = shr v32, v27
++     v34 = shl v33, v27
++     v35 = xor v31, v34
++     mstore v30, v35
++     jump bb9
++   bb9:
++     v36 = phi [bb11: v4], [bb12: v4], [bb10: v38]
++     v37 = eq v36, 0
++     jumpi v37, bb1, bb10
++   bb10:
++     v38 = sub v36, 32
++     v39 = add arg1, v38
++     v40 = mload v39
++     v41 = add v1, v38
++     mstore v41, v40
++     jump bb9
++   bb1:
+      ret
+  }
+  
+  fn @frame_calldata(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = calldataload 4
 -     mcopy v0, arg0, arg1
 +     v1 = eq arg1, 0
 +     jumpi v1, bb1, bb2
