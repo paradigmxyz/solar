@@ -963,7 +963,7 @@ struct LabelFlow {
 }
 
 /// Follows the addresses a block pushes to the call that consumes them.
-fn label_flow(module: &Module, block: &Block) -> LabelFlow {
+fn label_flow(module: &Module, block: &Block, may_return: &DenseBitSet<BlockId>) -> LabelFlow {
     /// A pushed address on the stack: its position from the block's entry height, the block it
     /// names, and the index of the instruction that pushed it.
     struct Word {
@@ -990,6 +990,16 @@ fn label_flow(module: &Module, block: &Block) -> LabelFlow {
             words.push(Word { slot: height, block: label, push: at });
             height += 1;
             continue;
+        }
+        // A branch that can reach a dynamic jump may take the addresses below its operands there,
+        // where they are entered at another depth.
+        if inst.opcode == op::JUMPI
+            && at
+                .checked_sub(1)
+                .and_then(|previous| block.instructions[previous].pushed_block())
+                .is_none_or(|taken| may_return.contains(taken))
+        {
+            words.clear();
         }
         let slot_of = |words: &[Word], slot: isize| words.iter().position(|w| w.slot == slot);
         match inst.as_stack_op() {
@@ -1047,7 +1057,31 @@ fn label_flow(module: &Module, block: &Block) -> LabelFlow {
 }
 
 fn label_flows(module: &Module) -> IndexVec<BlockId, LabelFlow> {
-    module.blocks.iter().map(|block| label_flow(module, block)).collect()
+    // The blocks from which a dynamic jump is reachable. A call reaches its callee, whose return
+    // is one, so the calls' own return edges are not needed.
+    let mut predecessors = index_vec![Vec::new(); module.blocks.len()];
+    let mut may_return = DenseBitSet::new_empty(module.blocks.len());
+    let mut pending = Vec::new();
+    let mut successors = Vec::new();
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        if matches!(
+            block.terminator.as_ref().map(|term| &term.kind),
+            Some(TerminatorKind::Op(op::JUMP))
+        ) {
+            pending.push(block_id);
+        }
+        successors.clear();
+        direct_successors(&LabelFlow::default(), block, &mut successors);
+        for &target in &successors {
+            predecessors[target].push(block_id);
+        }
+    }
+    while let Some(block_id) = pending.pop() {
+        if may_return.insert(block_id) {
+            pending.extend(predecessors[block_id].iter().copied());
+        }
+    }
+    module.blocks.iter().map(|block| label_flow(module, block, &may_return)).collect()
 }
 
 /// Appends every direct control-flow successor of `block`, in walk order.

@@ -148,3 +148,35 @@ bb22:
 
 bb23 [ret=0, inputs=1, outputs=0]:
   jump
+
+// A branch that can return through an address below its operands enters its block at another
+// depth, so the call that also consumes the address does not bound it.
+// CHECK-LABEL: bb26 [continuation]:
+// CHECK-NEXT: {{^ +}}push 0xffffffffffffffffffffffffffffffffffffffff
+bb24 [stack=1021]:
+  push bb26
+  push 1
+  push bb28
+  jumpi
+  push 3
+  jump bb29
+
+bb25 [stack=0]:
+  push bb26
+  push 5
+  jump bb29
+
+bb26 [continuation]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+bb28:
+  push 7
+  push 8
+  swap 2
+  jump
+
+bb29 [ret=1, inputs=2, outputs=1]:
+  swap 1
+  jump
