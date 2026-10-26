@@ -66,3 +66,22 @@ fn @allocatedBetween(arg0: i256) -> struct0 [selector=0x6b854ea5, abi_params=[ui
     v17 = insert_value struct0, v16, 1, v15
     ret v17
 }
+
+fn @sized(arg0: i256) -> i1 [selector=0x04c63cf9, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = address
+    v2 = gas
+    v3 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args arg0
+    v4 = address_call v1, v3, gas v2
+    v5 = icall returndata_bytes<>
+    v6 = eq v4, false
+    icall revert_if<empty>, v6
+    v7 = mload v5
+    v8 = msize
+    v9 = checked_add uint256, v0, 32
+    v10 = checked_add uint256, v9, v7
+    v11 = lt v8, v10
+    v12 = eq v11, false
+    ret v12
+}

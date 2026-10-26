@@ -13,7 +13,8 @@
 //! calls expose their bytes input only here and retain explicit gas/value options. Return-data
 //! capture allocates and copies after the call, before any later call can replace the data. A
 //! capture whose bytes are only measured, its length loaded on the one quiet path after it, is
-//! `returndatasize` instead.
+//! `returndatasize` instead when optimizing. An unoptimized build keeps the copy: its `msize` is
+//! exact, and the copy expands memory.
 
 use crate::mir::{
     AddressCallKind, AllocationSemantics, Builtin, Callee, EffectKind, Function, FunctionBuilder,
@@ -24,7 +25,7 @@ use crate::mir::{
     transform::utils::expand_block,
 };
 use alloy_primitives::U256;
-use solar_config::EvmVersion;
+use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::map::FxHashMap;
 
 pub(crate) struct LowerBuiltins;
@@ -88,7 +89,9 @@ impl MirPass for LowerBuiltins {
             })
             .collect::<FxHashMap<_, _>>();
         let evm_version = gcx.sess.opts.evm_version;
-        let measure = evm_version.supports_returndata();
+        // Only the optimizer leaves `msize` inexact, so an unoptimized build keeps every capture.
+        let measure = evm_version.supports_returndata()
+            && gcx.sess.opts.optimization != OptimizationMode::None;
         run_function_pass(module, analyses, |func, _| {
             let measured = measure && measure_returndata(func);
             if !func.instructions().any(|id| is_builtin(&func.inst(id).kind)) {

@@ -6,6 +6,7 @@
 //@ run-call: measure 33 => 128
 //@ run-call: decoded 3 => 3
 //@ run-call: allocatedBetween 3 => 96, 1
+//@[mir] run-call: sized 256 => true
 
 // Return data whose bytes are only measured is never copied: the length is
 // `returndatasize` at the capture.
@@ -21,6 +22,8 @@
 
 // A memory write between the capture and its length might reach the buffer,
 // so the capture stays.
+// An unoptimized build keeps every capture: its `msize` is exact, and the copy
+// expands memory.
 // CHECK-LABEL: fn @allocatedBetween(
 // CHECK: returndatacopy
 contract ReturndataLength {
@@ -44,5 +47,20 @@ contract ReturndataLength {
         uint256[] memory other = new uint256[](1);
         other[0] = 1;
         return (answer.length, other[0]);
+    }
+
+    function sized(uint256 n) external returns (bool) {
+        uint256 start;
+        assembly {
+            start := mload(0x40)
+        }
+        (bool ok, bytes memory answer) = address(this).call(abi.encodeCall(this.echo, (n)));
+        require(ok);
+        uint256 length = answer.length;
+        uint256 size;
+        assembly {
+            size := msize() //~[gas,size,dump] WARN: `msize` is not exact when optimizing
+        }
+        return size >= start + 32 + length;
     }
 }
