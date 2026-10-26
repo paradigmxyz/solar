@@ -788,17 +788,31 @@ struct FmpObservers {
 }
 
 impl FmpObservers {
-    fn new(module: &Module, calls: &CallGraphInfo) -> Self {
+    /// Finds the readers of the module, or `None` when there are none, so no bump has an
+    /// observer. The heap-address analysis runs only when a read might be exempt.
+    fn new(module: &Module, calls: &CallGraphInfo) -> Option<Self> {
         let count = module.functions.len();
-        let heap = heap_addresses_of(module);
+        let reads = |func: &Function, heap| {
+            func.instructions().any(|inst| reads_fmp_slot(func, heap, inst))
+                || func.blocks.indices().any(|block| terminator_reads_fmp_slot(func, heap, block))
+        };
         let mut readers = DenseBitSet::new_empty(count);
         for (func_id, func) in module.functions.iter_enumerated() {
-            let heap = &heap[func_id];
-            if func.instructions().any(|inst| reads_fmp_slot(func, heap, inst))
-                || func.blocks.indices().any(|block| terminator_reads_fmp_slot(func, heap, block))
-            {
+            if reads(func, None) {
                 readers.insert(func_id);
             }
+        }
+        if readers.is_empty() {
+            return None;
+        }
+        let heap = heap_addresses_of(module);
+        for func_id in readers.iter().collect::<Vec<_>>() {
+            if !reads(&module.functions[func_id], Some(&heap[func_id])) {
+                readers.remove(func_id);
+            }
+        }
+        if readers.is_empty() {
+            return None;
         }
         let mut callers = index_vec![Vec::new(); count];
         for func_id in module.functions.indices() {
@@ -827,7 +841,7 @@ impl FmpObservers {
                 }
             }
         }
-        Self { heap, readers, reads_reach, returns_to_reader }
+        Some(Self { heap, readers, reads_reach, returns_to_reader })
     }
 
     /// The position of the last observation in each block of the function: a read, a call to a
@@ -843,7 +857,7 @@ impl FmpObservers {
                     InstKind::ICall { function: Callee::Function(callee), .. } => {
                         self.reads_reach.contains(callee)
                     }
-                    _ => self.readers.contains(func_id) && reads_fmp_slot(func, heap, inst),
+                    _ => self.readers.contains(func_id) && reads_fmp_slot(func, Some(heap), inst),
                 };
                 if observes {
                     last = Some(position);
@@ -870,7 +884,7 @@ impl FmpObservers {
 /// heap-pointer assumption; a constant range that misses the slot, or an unsized one, does not
 /// escape that rule. A write of the whole word does not count: the entry's initialization writes
 /// it, and it ignores the old pointer.
-fn reads_fmp_slot(func: &Function, heap: &DenseBitSet<ValueId>, inst: InstId) -> bool {
+fn reads_fmp_slot(func: &Function, heap: Option<&DenseBitSet<ValueId>>, inst: InstId) -> bool {
     let mut hit = false;
     func.inst(inst).kind.visit_raw_memory(|access, address, size| {
         let len = match size {
@@ -879,7 +893,8 @@ fn reads_fmp_slot(func: &Function, heap: &DenseBitSet<ValueId>, inst: InstId) ->
         };
         hit |= match access {
             RawMemoryAccess::Read => {
-                !heap.contains(address) && AliasAnalysis::range_may_overlap_fmp(func, address, len)
+                !heap.is_some_and(|heap| heap.contains(address))
+                    && AliasAnalysis::range_may_overlap_fmp(func, address, len)
             }
             // A patch has constant bounds; a whole-word write ignores the old pointer.
             RawMemoryAccess::Write | RawMemoryAccess::PartialWrite => {
@@ -901,7 +916,7 @@ fn terminator_reads_fmp_slot(func: &Function, heap: &DenseBitSet<ValueId>, block
     matches!(
         data.terminator,
         Some(Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size })
-            if !heap.contains(offset)
+            if !heap.is_some_and(|heap| heap.contains(offset))
                 && AliasAnalysis::range_may_overlap_fmp(func, offset, func.value_u64(size))
                 && !reads_copied_returndata(func, &data.instructions, offset, size)
     )
