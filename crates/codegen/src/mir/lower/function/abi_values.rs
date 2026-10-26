@@ -567,7 +567,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// types, hashed in place: an array's packed encoding is its elements as ABI words, which
     /// is how memory holds them. The encoding cleans narrower elements, which inline assembly
     /// can leave dirty in memory, and checks the range of enums, so those arrays take the
-    /// encoder.
+    /// encoder. A length past `2**251 - 1` words, which only inline assembly can store,
+    /// overflows the byte size and panics with 0x41 as the encoder's size check does, instead
+    /// of hashing a wrapped size.
     pub(super) fn lower_keccak_packed_word_array(
         &mut self,
         args: hir::CallArgs<'_>,
@@ -587,10 +589,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return None;
         }
+        // panic_if array.len >> 251 != 0, 0x41
         // hash = keccak256(array.data, array.len << 5)
         let array = self.lower_expr(expr)?;
         let data = self.builder.memory_data(array);
         let length = self.builder.memory_len(array);
+        let limit = self.builder.imm(251);
+        let excess = self.builder.shr(length, limit);
+        let too_long = self.builder.ne_zero(excess);
+        self.builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
         let shift = self.builder.imm(5);
         let size = self.builder.shl(length, shift);
         Some(self.builder.keccak256(data, size))

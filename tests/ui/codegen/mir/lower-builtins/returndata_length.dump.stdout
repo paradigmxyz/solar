@@ -164,8 +164,8 @@ fn @sized() [selector=0x04c63cf9, abi_wrapper] {
     v0 = mload 64 !metadata(memory=scratch)
     v1: i256 = address
     v2 = gas
-    v35 = mload 64 !metadata(memory=scratch)
-    v36 = add v35, 96
+    v35 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v36 = add v35, 96 !metadata(alloc_ptr)
     mstore 64, v36 !metadata(memory=scratch)
     mstore v35, 36
     v31 = add v35, 32

@@ -105,7 +105,10 @@ fn @words() -> i256 [selector=0xf2c31bd9, pure, abi_params=[], abi_returns=[word
     mstore v5, 0x1234
     v6 = ptradd v0, 32
     v7 = mload v0
-    v8 = shl v7, 5
-    v9 = keccak256 v6, v8
-    ret v9
+    v8 = shr v7, 251
+    v9 = ne v8, 0
+    icall panic_if<0x41>, v9
+    v10 = shl v7, 5
+    v11 = keccak256 v6, v10
+    ret v11
 }

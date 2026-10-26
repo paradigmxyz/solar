@@ -24,18 +24,24 @@ fn @three(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xae4e757a, pure
     mstore v12, arg2
     v13 = ptradd v0, 32
     v14 = mload v0
-    v15 = shl v14, 5
-    v16 = keccak256 v13, v15
-    ret v16
+    v15 = shr v14, 251
+    v16 = ne v15, 0
+    icall panic_if<0x41>, v16
+    v17 = shl v14, 5
+    v18 = keccak256 v13, v17
+    ret v18
 }
 
 fn @empty() -> i256 [selector=0xf2a75fe4, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = ptradd ptr<memory> 96, 32
     v1 = mload ptr<memory> 96 !metadata(memory=scratch)
-    v2 = shl v1, 5
-    v3 = keccak256 v0, v2
-    ret v3
+    v2 = shr v1, 251
+    v3 = ne v2, 0
+    icall panic_if<0x41>, v3
+    v4 = shl v1, 5
+    v5 = keccak256 v0, v4
+    ret v5
 }
 
 fn @addresses(arg0: i160) -> i256 [selector=0x82d38954, pure, abi_params=[address], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -54,4 +60,21 @@ fn @addresses(arg0: i160) -> i256 [selector=0x82d38954, pure, abi_params=[addres
     v8 = mload v6
     v9 = keccak256 v7, v8
     ret v9
+}
+
+fn @forged() -> i256 [selector=0xd1caa6e6, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    v1 = shl 1, 251
+    v2 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, v1
+    v3 = ptradd v0, 32
+    v4 = mload v0
+    v5 = shr v4, 251
+    v6 = ne v5, 0
+    icall panic_if<0x41>, v6
+    v7 = shl v4, 5
+    v8 = keccak256 v3, v7
+    ret v8
 }

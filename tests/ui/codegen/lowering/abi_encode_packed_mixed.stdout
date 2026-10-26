@@ -25,9 +25,12 @@ fn @hashArray(arg0: ptr<memory>) -> i256 [selector=0x42233547, pure, abi_params=
   bb0:
     v0 = ptradd arg0, 32
     v1 = mload arg0
-    v2 = shl v1, 5
-    v3 = keccak256 v0, v2
-    ret v3
+    v2 = shr v1, 251
+    v3 = ne v2, 0
+    icall panic_if<0x41>, v3
+    v4 = shl v1, 5
+    v5 = keccak256 v0, v4
+    ret v5
 }
 
 fn @signedStaticRun(arg0: i8, arg1: i16, arg2: i256) -> i256 [selector=0xc570e197, pure, abi_params=[uint8, int16, bytes3], abi_returns=[word], abi_return_params=[bytes32]] {
