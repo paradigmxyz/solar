@@ -1,0 +1,114 @@
+// === ROOT/tests/ui/codegen/lowering/long_revert_strings.sol:Messages ===
+@module Messages
+@library
+
+// === ROOT/tests/ui/codegen/lowering/long_revert_strings.sol:LongRevertStrings ===
+@module LongRevertStrings
+fn @require32(arg0: i256) [selector=0xae6a90d7, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = ne arg0, 0
+    icall require<short_string>, v0, 32, 0x62697077444b5259352e666d7441484f563239636a7178454c535a362d676e75
+    ret
+}
+
+fn @require33(arg0: i256) [selector=0x5c9f133f, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = ne arg0, 0
+    icall require<long_string hex"636a7178454c535a362d676e75424950573320646b7279464d54303761686f7643">, v0
+    ret
+}
+
+fn @require64(arg0: i256) [selector=0xe540efb5, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = ne arg0, 0
+    icall require<long_string hex"646b7279464d54303761686f76434a5158343a656c737a474e55313862697077444b5259352e666d7441484f563239636a7178454c535a362d676e7542495057">, v0
+    ret
+}
+
+fn @require65(arg0: i256) [selector=0xa2b84245, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = ne arg0, 0
+    icall require<long_string hex"656c737a474e55313862697077444b5259352e666d7441484f563239636a7178454c535a362d676e75424950573320646b7279464d54303761686f76434a515834">, v0
+    ret
+}
+
+fn @require100(arg0: i256) [selector=0xfae8ba39, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = ne arg0, 0
+    icall require<long_string hex"666d7441484f563239636a7178454c535a362d676e75424950573320646b7279464d54303761686f76434a5158343a656c737a474e55313862697077444b5259352e666d7441484f563239636a7178454c535a362d676e75424950573320646b7279464d">, v0
+    ret
+}
+
+fn @revertLiteral(arg0: i256) [selector=0x18541a59, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret
+  bb1:
+    icall require<long_string hex"656c737a474e55313862697077444b5259352e666d7441484f563239636a7178454c535a362d676e75424950573320646b7279464d54303761686f76434a515834">, false
+    invalid
+}
+
+fn @viaConstant(arg0: i256) [selector=0xa437fc08, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = ne arg0, 0
+    icall require<long_string hex"666d7441484f563239636a7178454c535a362d676e75424950573320646b7279464d54303761686f76434a5158343a656c737a474e55313862697077444b5259352e666d7441484f563239636a7178454c535a362d676e75424950573320646b7279464d">, v0
+    ret
+}
+
+fn @viaMemberConstant(arg0: i256) [selector=0x1666cddb, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = ne arg0, 0
+    icall require<long_string hex"636a7178454c535a362d676e75424950573320646b7279464d54303761686f7643">, v0
+    ret
+}
+
+fn @requireRepeated(arg0: i256) [selector=0xb89da542, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = ne arg0, 0
+    icall require<long_string hex"6161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161">, v0
+    ret
+}
+
+fn @emptyConstant(arg0: i256) [selector=0x06a79d35, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = ne arg0, 0
+    icall require<empty_string>, v0
+    ret
+}
+
+fn @folded(arg0: i256) [selector=0x511b2b61, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = ne arg0, 0
+    icall require<long_string hex"666d7441484f563239636a7178454c535a362d676e75424950573320646b7279464d54303761686f76434a5158343a656c737a474e55313862697077444b5259352e666d7441484f563239636a7178454c535a362d676e75424950573320646b7279464d7461696c">, v0
+    ret
+}
+
+fn @evaluatedFirst(arg0: i256) -> i256 [selector=0x4973e8fb, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    sstore 0, 0 !metadata(storage=slot(0))
+    v0 = ne arg0, 0
+    v1 = icall @message
+    icall require<error_string>, v0, v1
+    v2 = sload 0 !metadata(storage=slot(0))
+    ret v2
+}
+
+fn @message() -> ptr<memory> {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = checked_add uint256, v0, 1
+    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = alloc 128 !metadata(preserves_fmp)
+    mstore v2, 65
+    v3 = ptradd v2, 32
+    mstore v3, 0x656c737a474e55313862697077444b5259352e666d7441484f563239636a7178
+    v4 = ptradd v2, 64
+    mstore v4, 0x454c535a362d676e75424950573320646b7279464d54303761686f76434a5158
+    v5 = ptradd v2, 96
+    mstore v5, 0x3400000000000000000000000000000000000000000000000000000000000000
+    ret v2
+}

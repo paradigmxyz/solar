@@ -69,10 +69,7 @@ bb47:
   dup 3
   dup 2
   lt
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   dup 3
   gt
   or
@@ -122,15 +119,14 @@ bb32:
   sub
   dup 2
   swap 6
+  swap 3
+  swap 5
   swap 2
   swap 4
   swap 6
-  swap 5
-  swap 3
-  swap 5
   jump bb33
 bb33 [loop]:
-  dup 4
+  dup 3
   dup 2
   lt
   iszero
@@ -141,7 +137,7 @@ bb33 [loop]:
   dup 1
   push 0
   byte
-  dup 5
+  dup 6
   eq
   push bb36
   jumpi
@@ -259,30 +255,26 @@ bb21:
   jump bb40
 bb40:
   push 4
+  calldatasize
+  push 36
+  dup 3
   calldataload
-  push 4
+  swap 2
+  sub
   dup 2
+  gt
+  push bb6
+  jumpi
   add
   push 32
   dup 2
-  add
-  swap 2
-  push 0
-  not
-  push 192
-  shr
-  lt
-  calldatasize
-  dup 4
-  gt
-  or
-  push bb6
-  jumpi
   calldataload
-  push 63
-  dup 2
+  swap 2
   add
   dup 2
+  push 63
+  add
+  dup 3
   dup 2
   lt
   push bb45
@@ -362,7 +354,7 @@ bb36 [loop]:
   mstore
   push 1
   add
-  dup 4
+  dup 3
   dup 2
   lt
   push bb33
@@ -399,13 +391,13 @@ bb38:
   pop
   jump bb37
 bb43 [continuation]:
-  dup 2
+  dup 3
   dup 2
   mstore
-  dup 3
+  dup 2
   calldatasize
   sub
-  dup 3
+  dup 4
   gt
   push bb6
   jumpi
@@ -413,6 +405,7 @@ bb43 [continuation]:
   dup 2
   add
   swap 3
+  swap 2
   swap 1
   swap 3
   calldatacopy

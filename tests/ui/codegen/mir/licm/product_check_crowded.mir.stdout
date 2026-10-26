@@ -1,0 +1,40 @@
+// === ROOT/tests/ui/codegen/mir/licm/product_check_crowded.sol:ProductCheckCrowded ===
+@module ProductCheckCrowded
+fn @crowded(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) -> i256 [selector=0xf6f9e3a3, pure, abi_params=[uint256, uint256, uint256, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v11]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: arg2], [bb3: v14]
+    v3 = phi [bb0: arg3], [bb3: v15]
+    v4 = phi [bb0: arg4], [bb3: v16]
+    v5 = phi [bb0: arg5], [bb3: v5]
+    v6 = phi [bb0: 0], [bb3: v6]
+    v7 = phi [bb0: 0], [bb3: v13]
+    v8 = phi [bb0: 0], [bb3: v17]
+    v9 = lt v8, v5
+    jumpi v9, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v18 = checked_add uint256, v0, v7
+    v19 = checked_add uint256, v18, v2
+    v20 = checked_add uint256, v19, v3
+    v21 = checked_add uint256, v20, v4
+    ret v21
+  bb4:
+    v10 = checked_mul uint256, v0, v1
+    v11 = checked_add uint256, v10, 1
+    v12 = xor v2, v8
+    v13 = checked_add uint256, v7, v12
+    v14 = checked_add uint256, v3, v8
+    v15 = xor v4, v14
+    v16 = checked_add uint256, v13, v15
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v17 = checked_add uint256, v8, 1
+    jump bb1
+}

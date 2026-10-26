@@ -19,7 +19,10 @@
 //! new blocks and labels are installed through the normal EVM IR CFG representation.
 //!
 //! Gas mode keeps computations and immediate pushes in known loop blocks inline,
-//! since each outlined site adds call and return jumps on every iteration.
+//! since each outlined site adds call and return jumps on every iteration. Size mode shares a
+//! push inside a loop only when the bytes it saves there repay those jumps over the expected
+//! executions, at the target's estimate of a loop's iterations per execution, so a constant that
+//! enough other code repeats does not slow down every iteration of an unrelated loop.
 //!
 //! Replacing a site splits its block around the run, so both ends of a candidate run must be
 //! boundaries `keep_with_next` allows to become block boundaries.
@@ -37,7 +40,6 @@
 
 use super::{
     EvmPass,
-    compact_pushes::selected_len,
     utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound, is_split_point},
 };
 use crate::{
@@ -194,9 +196,9 @@ fn transfer_size(target: &Target) -> usize {
 
 /// Returns the gas of one call and return, excluding the shared body's rotations.
 fn transfer_gas(target: &Target) -> u32 {
-    target.opcode_gas(op::PUSH2) * 2
-        + target.opcode_gas(op::JUMP) * 2
-        + target.opcode_gas(op::JUMPDEST) * 2
+    target.runtime_gas(
+        (target.opcode(op::PUSH2) + target.opcode(op::JUMP) + target.opcode(op::JUMPDEST)).times(2),
+    )
 }
 
 /// Returns the per-site bytes, shared body bytes, and transfer gas of a push share.
@@ -208,7 +210,11 @@ fn push_share_costs(target: &Target) -> (usize, usize, u32) {
     let body_bytes = (target.opcode(op::JUMPDEST).bytes
         + target.opcode(op::SWAP1).bytes
         + target.opcode(op::JUMP).bytes) as usize;
-    (transfer_size(target), body_bytes, transfer_gas(target) + target.opcode_gas(op::SWAP1))
+    (
+        transfer_size(target),
+        body_bytes,
+        transfer_gas(target) + target.runtime_gas(target.opcode(op::SWAP1)),
+    )
 }
 
 fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
@@ -345,7 +351,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                 target
             };
             let transfer_gas = transfer_gas(&target)
-                + target.opcode_gas(op::SWAP1)
+                + target.runtime_gas(target.opcode(op::SWAP1))
                     * u32::from(first.outputs.saturating_add(first.inputs));
             if !target
                 .deposit_repays_gas(saved_bytes as u64, free.len() as u64 * u64::from(transfer_gas))
@@ -697,23 +703,30 @@ fn split_parametric_outline_site(
 }
 
 fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
+    let target = module.target(gcx);
+    let (site_bytes, body_bytes, transfer_gas) = push_share_costs(&target);
     let mut sites = FxHashMap::<U256, SmallVec<[(BlockId, usize); 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
-        if gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop {
+        let in_loop = block.metadata.in_loop;
+        if gcx.sess.opts.optimization.is_gas() && in_loop {
             continue;
         }
         for (index, inst) in block.instructions.iter().enumerate() {
             if let Some(value) = inst.concrete_immediate()
                 && is_split_point(&block.instructions, index)
                 && is_split_point(&block.instructions, index + 1)
+                // A loop site pays the call and return on every iteration.
+                && (!in_loop
+                    || target.shares_in_loop(
+                        (target.push(value).bytes as usize).saturating_sub(site_bytes) as u64,
+                        u64::from(transfer_gas),
+                    ))
             {
                 sites.entry(value).or_default().push((block_id, index));
             }
         }
     }
 
-    let target = module.target(gcx);
-    let (site_bytes, body_bytes, transfer_gas) = push_share_costs(&target);
     const MIN_SAVING: usize = 8;
     let mut values: Vec<_> = sites
         .iter()
@@ -722,7 +735,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             if state.inline_store_literals.contains(&value) {
                 return None;
             }
-            let push_size = selected_len(gcx, value);
+            let push_size = target.push(value).bytes as usize;
             // Sites that may run more than once pay the transfer gas at the runtime price.
             let (target, transfer_gas) =
                 if repeats(module, occurrences.iter().map(|&(block, _)| block)) {

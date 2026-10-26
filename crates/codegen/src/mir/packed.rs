@@ -43,7 +43,9 @@ pub(crate) enum PackedArraySource {
 pub(crate) fn packed_element_bytes(element: &AbiType) -> Option<u64> {
     match element {
         AbiType::Word(_) | AbiType::Function => Some(32),
-        AbiType::FixedArray { element, len } => packed_element_bytes(element)?.checked_mul(*len),
+        AbiType::FixedArray { element, len, .. } => {
+            packed_element_bytes(element)?.checked_mul(*len)
+        }
         AbiType::DynamicArray { .. } | AbiType::Bytes(_) | AbiType::Tuple(_) => None,
     }
 }

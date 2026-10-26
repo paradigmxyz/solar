@@ -16,8 +16,8 @@ use std::{
 use ui_test::{
     CommentParser, Errored, Revisioned,
     build_manager::BuildManager,
-    color_eyre::eyre,
     custom_flags::Flag,
+    eyre,
     per_test_config::TestConfig,
     spanned::{Span, Spanned},
 };
@@ -38,8 +38,6 @@ mod utils;
 ///
 /// `cmd` is the path to the `solar` binary used by all modes.
 pub fn run_tests(cmd: &'static Path) -> Result<()> {
-    ui_test::color_eyre::install()?;
-
     let mut args = ui_test::Args::test()?;
 
     // Fast path for `--list`, invoked by `cargo-nextest`.
@@ -378,6 +376,12 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
             && (line.contains("-j") || line.contains("--threads"))
     }) {
         config.program.args.retain(|arg| arg != "-j1");
+    }
+    if src.lines().any(|line| {
+        let line = line.trim_start();
+        line.starts_with("//@") && line.contains("compile-flags") && line.contains("-Zvalidate-ir")
+    }) {
+        config.program.args.retain(|arg| arg != "-Zvalidate-ir=true");
     }
 }
 

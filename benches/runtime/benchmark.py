@@ -61,6 +61,8 @@ CAST_TX_TIMEOUT = 30
 CAST_READ_TIMEOUT = 10
 CAST_RPC_TIMEOUT = 10
 CAST_GAS_LIMIT = "80000000"
+CAST_TRACE_TIMEOUT = 120
+GAS_KINDS_TRACER = Path(__file__).with_name("gas_kinds_tracer.js")
 RUNTIME_FIXTURES = ROOT / "fixtures/runtime/RuntimeFixtures.sol"
 ARTIFACT_DUMP_KINDS = (
     "mir",
@@ -1057,6 +1059,18 @@ def call_contract(
     rpc_url: str,
     private_key: str,
 ) -> tuple[int | None, str]:
+    gas, _, error = send_call(address, signature, args, rpc_url, private_key)
+    return gas, error
+
+
+def send_call(
+    address: str,
+    signature: str,
+    args: Sequence[str],
+    rpc_url: str,
+    private_key: str,
+) -> tuple[int | None, str | None, str]:
+    """Sends a call and returns its receipt gas, transaction hash, and error."""
     proc = run(
         [
             "cast",
@@ -1079,18 +1093,81 @@ def call_contract(
         timeout=CAST_TX_TIMEOUT,
     )
     if proc.returncode != 0:
-        return None, proc.stderr[:1000]
+        return None, None, proc.stderr[:1000]
     try:
         data = json.loads(proc.stdout)
     except json.JSONDecodeError as exc:
-        return None, f"invalid call JSON: {exc}"
+        return None, None, f"invalid call JSON: {exc}"
     status = parse_receipt_int(data.get("status"))
     gas = parse_receipt_int(data.get("gasUsed"))
     if status is not None and status != 1:
-        return None, f"transaction failed (status={status}, gasUsed={gas})"
+        return None, None, f"transaction failed (status={status}, gasUsed={gas})"
     if gas is None:
-        return None, "transaction receipt missing gasUsed"
-    return gas, ""
+        return None, None, "transaction receipt missing gasUsed"
+    tx_hash = data.get("transactionHash")
+    return gas, tx_hash if isinstance(tx_hash, str) else None, ""
+
+
+@cache
+def gas_kinds_tracer() -> str:
+    return GAS_KINDS_TRACER.read_text()
+
+
+def trace_gas_kinds(
+    tx_hash: str | None, receipt_gas: int, rpc_url: str
+) -> tuple[dict[str, Any] | None, str]:
+    """Traces a mined call and splits its execution gas by opcode kind.
+
+    The result holds `execution_gas`, the gas of the executed steps before the refund, and
+    `gas_kinds`, which sums to it. Receipt gas must be the steps plus the intrinsic gas minus the
+    applied refund, or the EIP-7623 calldata floor when that is higher (`calldata_floor`);
+    any other receipt gas means the trace missed gas.
+    """
+    if tx_hash is None:
+        return None, "transaction receipt missing transactionHash"
+    trace, error = rpc_request_from_file(
+        "debug_traceTransaction",
+        (tx_hash, {"tracer": gas_kinds_tracer(), "timeout": "3600s"}),
+        rpc_url,
+        CAST_TRACE_TIMEOUT,
+    )
+    if not isinstance(trace, dict):
+        return None, error or "trace result is not an object"
+    try:
+        kinds = {str(kind): int(gas) for kind, gas in trace["kinds"].items()}
+        execution_gas, refund, first_gas, gas_limit, root_spent = (
+            int(trace[field])
+            for field in ("exec", "refund", "firstGas", "gasLimit", "rootSpent")
+        )
+        if first_gas < 0:
+            raise ValueError(first_gas)
+    except AttributeError, KeyError, TypeError, ValueError:
+        return None, f"malformed gas trace: {json.dumps(trace)[:200]}"
+    if sum(kinds.values()) != execution_gas:
+        return None, f"gas kinds sum to {sum(kinds.values())}, not {execution_gas}"
+    # The receipt cannot check calls billed at the floor, so the root frame's own gas does.
+    if root_spent != execution_gas:
+        return (
+            None,
+            f"traced steps carry {execution_gas} gas, the root frame spent {root_spent}",
+        )
+    intrinsic_gas = gas_limit - first_gas
+    applied_refund = min(refund, (execution_gas + intrinsic_gas) // 5)
+    expected = execution_gas + intrinsic_gas - applied_refund
+    # Calldata costs 4 gas per token and the floor 10, with no access list or creation.
+    floor = 21000 + (intrinsic_gas - 21000) * 5 // 2
+    if receipt_gas != max(expected, floor):
+        return (
+            None,
+            f"traced gas {expected} (floor {floor}) does not explain receipt gas {receipt_gas}",
+        )
+    return {
+        "execution_gas": execution_gas,
+        "gas_kinds": {kind: gas for kind, gas in sorted(kinds.items()) if gas},
+        "intrinsic_gas": intrinsic_gas,
+        "gas_refund": applied_refund,
+        "calldata_floor": floor > expected,
+    }, ""
 
 
 def read_contract(
@@ -1973,6 +2050,7 @@ def run_test_case(
     repeat_long_compiles: bool = False,
     artifact_root: Path | None = None,
     optimizer_runs: int | None = None,
+    gas_kinds: bool = False,
 ) -> dict[str, Any]:
     entry: dict[str, Any] = {
         "test_id": test_case.test_id,
@@ -2065,6 +2143,7 @@ def run_test_case(
         gas_results = []
         total_gas = 0
         gas_failed = False
+        gas_kinds_failed = False
         for call in calls:
             for index in range(call.repeat):
                 label = call.label if call.repeat == 1 else f"{call.label}#{index + 1}"
@@ -2072,7 +2151,7 @@ def run_test_case(
                     verbose,
                     f"[{test_case.test_id}] {spec.compiler_id} tx {label}: {call.signature}",
                 )
-                gas, error = call_contract(
+                gas, tx_hash, error = send_call(
                     address, call.signature, call.args, rpc_url, private_key
                 )
                 if gas is None:
@@ -2088,18 +2167,26 @@ def run_test_case(
                         }
                     )
                     continue
-                gas_results.append(
-                    {
-                        "label": label,
-                        "call": call.signature,
-                        "args": list(call.args),
-                        "gas": gas,
-                        "comparison_exclusion_reason": call.comparison_exclusion_reason,
-                    }
-                )
+                gas_result = {
+                    "label": label,
+                    "call": call.signature,
+                    "args": list(call.args),
+                    "gas": gas,
+                    "comparison_exclusion_reason": call.comparison_exclusion_reason,
+                }
+                if gas_kinds:
+                    kinds, error = trace_gas_kinds(tx_hash, gas, rpc_url)
+                    if kinds is None:
+                        gas_kinds_failed = True
+                        gas_result["gas_kinds_error"] = error
+                    else:
+                        gas_result.update(kinds)
+                gas_results.append(gas_result)
                 total_gas += gas
         compiler_entry["gas_results"] = gas_results
         compiler_entry["gas_status"] = "failed" if gas_failed else "ok"
+        if gas_kinds:
+            compiler_entry["gas_kinds_status"] = "failed" if gas_kinds_failed else "ok"
         compiler_entry["total_gas"] = None if gas_failed else total_gas
 
         runtime_results = []
@@ -2271,6 +2358,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Gas workload profile: smoke preserves the existing calls, hot runs a broader optimizer workload",
     )
     parser.add_argument(
+        "--gas-kinds",
+        action="store_true",
+        help="With --gas, trace each call to record execution gas and gas by opcode kind (needs an anvil node)",
+    )
+    parser.add_argument(
         "--start-anvil", action="store_true", help="Start anvil automatically for --gas"
     )
     parser.add_argument(
@@ -2302,6 +2394,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--oksolc-jobs must be positive")
     if args.jobs < 1:
         parser.error("--jobs must be positive")
+    if args.gas_kinds and not args.gas:
+        parser.error("--gas-kinds requires --gas")
     if args.jobs > 1:
         if args.gas:
             parser.error("--jobs cannot be combined with --gas")
@@ -2531,6 +2625,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.repeat_long_compiles,
                 args.artifacts,
                 args.optimizer_runs,
+                args.gas_kinds,
             )
         except Exception as exc:
             print(
@@ -2643,6 +2738,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                             f"\n{result['test_id']} {compiler_id} tx {gas_result.get('label')} error:\n"
                             f"{gas_result.get('error', '')}"
                         )
+                    if gas_result.get("gas_kinds_error"):
+                        print(
+                            f"\n{result['test_id']} {compiler_id} tx {gas_result.get('label')} gas trace error:\n"
+                            f"{gas_result['gas_kinds_error']}"
+                        )
             for mismatch in result.get("runtime_mismatches") or []:
                 values = ", ".join(
                     f"{compiler_id}={value}"
@@ -2679,7 +2779,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         (result["test_id"], compiler_id)
         for result in results
         for compiler_id, data in result["compilers"].items()
-        if data.get("gas_status") == "failed"
+        if "failed" in (data.get("gas_status"), data.get("gas_kinds_status"))
     ]
     if (failed or runtime_failed or gas_failed) and not args.allow_failures:
         if failed:
@@ -2701,7 +2801,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if gas_failed:
             print(
                 _color(
-                    f"{len(gas_failed)} gas transaction runs failed; use --allow-failures to keep exit code 0",
+                    f"{len(gas_failed)} gas transaction or trace runs failed; use --allow-failures to keep exit code 0",
                     RED,
                 ),
                 file=sys.stderr,

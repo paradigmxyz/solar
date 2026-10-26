@@ -29,10 +29,11 @@
 //! and initialization remain for later observers. A revert or return of a
 //! scratch encoding of words and one literal, with only pure instructions
 //! between them, has no observer, so the literal's allocation goes too rather
-//! than repeating the payload as stores beside the folded copy. This is
-//! limited to gas-mode encodings before Cancun.
-//! NOTE: Duplicating preserved payloads can grow native-MCOPY encoders and
-//! size-mode copies; keep their copies until their full code shape is priced.
+//! than repeating the payload as stores beside the folded copy. The cost
+//! model decides each preserved literal (`Target::folds_preserved_literal`):
+//! gas mode folds before Cancun, where the copy is a loop; size mode folds
+//! every unobserved literal and any other whose stores take fewer bytes than
+//! the length computation and copy they replace, with or without native MCOPY.
 //!
 //! Element loops. Full-word memory arrays and calldata word arrays copy as one
 //! block. Memory words that need cleanup use a guarded do-while over a
@@ -41,8 +42,19 @@
 //! stores keep their order. Allocations of at most one element keep a counted
 //! loop, whose rotation would add an entry guard and an exit phi. Byte tails
 //! zero their last padded word before writing the length header, which needs
-//! no branch even for an empty tail; size mode keeps the guarded store,
-//! because those tails share better under machine outlining.
+//! no branch even for an empty tail.
+//!
+//! Calldata aggregates. A struct or array in calldata, with dynamic members at any depth,
+//! encodes straight from where it lies instead of through a memory copy. Offsets in calldata
+//! need not be canonical, so each dynamic member is followed through its offset, encoded at the
+//! next tail, and given a new offset in its head. The checks are those of solc's ABI encoder:
+//! each tail offset must leave room for the member's head, each length must fit in 64 bits, each
+//! array must end inside calldata, and a narrow word that is not canonical reverts, where
+//! the same word read from memory is cleaned. Static elements that need no validation copy as
+//! one block, as solc copies an array of `uint256` or `bytes32`; solc loads every other static
+//! element one word at a time, so a range that wraps past 2^256 sends such arrays to an
+//! element loop, which reads each word at its own wrapping address. Under the size objective
+//! the loop is the only code, because the guard and the copy cost more bytes than they save.
 //!
 //! In-place returns. Under the gas and size objectives, a terminal external
 //! return of a fresh full-word array or byte string that is not a literal
@@ -55,8 +67,11 @@
 //! `encode_abi_tuple` helper when the cost model ranks the call protocol below
 //! the expanded copies, which in practice happens under the size objective.
 //! Memory arrays whose element loop appears at two or more sites share an
-//! `encode_abi_array` helper, built inner layouts first. Functions reachable
-//! from a constructor always encode inline: a constructor call frame is
+//! `encode_abi_array` helper, built inner layouts first. Calldata arrays of composite elements,
+//! fixed arrays of dynamic elements, and structs with dynamic members share an
+//! `encode_abi_calldata` helper when the cost model ranks a call below the expansions, which
+//! covers a layout nested in several larger ones as well as one encoded at several sites. Functions
+//! reachable from a constructor always encode inline: a constructor call frame is
 //! allocated at the free-memory pointer, where an outlined encoder would still
 //! be writing its unreserved output.
 
@@ -64,9 +79,12 @@ use crate::{
     mir::{
         AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, CalldataTail, EffectKind,
         Function, FunctionBuilder, FunctionId, InstId, InstKind, InstructionMetadata,
-        MemoryObjectLayout, MirType, Module, PtrLocation, Terminator, Value, ValueId,
-        analysis::CallGraphInfo, memory::EvmMemoryLayout, pass::MirPass,
-        transform::utils::redirect_successor_predecessors, utils::resolve_replacement,
+        MemoryObjectLayout, MirType, Module, PtrLocation, RevertReason, Terminator, Value, ValueId,
+        analysis::CallGraphInfo,
+        memory::EvmMemoryLayout,
+        pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
+        transform::utils::redirect_successor_predecessors,
+        utils::resolve_replacement,
     },
     target::Target,
 };
@@ -80,6 +98,7 @@ use solar_data_structures::{
 };
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
+use std::sync::Arc;
 
 /// Lowers `abi_encode` after the main optimization pipeline.
 pub(crate) struct LowerAbiEncode;
@@ -93,17 +112,13 @@ impl MirPass for LowerAbiEncode {
         true
     }
 
-    fn run_pass(
-        &self,
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         let revert_strings = gcx.sess.opts.revert_strings;
         let target = Target::new(gcx);
         let (fresh_object_returns, mut destructive_returns) =
             plan_destructive_terminal_returns(&target, module);
         let mut helpers = synthesize_array_helpers(&target, module, revert_strings);
+        synthesize_calldata_helpers(&target, module, &mut helpers, revert_strings);
         synthesize_tuple_helpers(
             &target,
             module,
@@ -124,29 +139,33 @@ impl MirPass for LowerAbiEncode {
                 constructors.insert(id);
             }
         }
-        let mut inline_helpers = EncodeHelpers {
-            branchless_byte_tails: !target.optimization().is_size(),
-            ..EncodeHelpers::default()
-        };
-        let mut changed = !helpers.arrays.is_empty() || !helpers.tuples.is_empty();
-        for (func_id, func) in module.functions.iter_mut_enumerated() {
+        let inline_helpers = EncodeHelpers::new(&target);
+        let mut changed = !helpers.arrays.is_empty()
+            || !helpers.calldata.is_empty()
+            || !helpers.tuples.is_empty();
+        changed |= run_lowering_function_pass(module, analyses, |func, function_analyses| {
+            let func_id = function_analyses.function();
             // NOTE: Constructor calls allocate frames at the free-memory pointer. Encoding
             // writes there before reserving its output, so an outlined call would overwrite it.
             // abi_encode(args) => inline head stores and tail copies
-            let helpers =
-                if constructors.contains(func_id) { &mut inline_helpers } else { &mut helpers };
-            changed |= lower_function(
+            let helpers = if constructors.contains(func_id) { &inline_helpers } else { &helpers };
+            lower_function(
                 &target,
                 func,
                 helpers,
                 revert_strings,
                 &fresh_object_returns,
                 &destructive_returns[func_id],
-            );
-        }
+            )
+        });
         CallGraphInfo::assert_runtime_helpers(
             module,
-            helpers.arrays.values().chain(helpers.tuples.values()).copied(),
+            helpers
+                .arrays
+                .values()
+                .chain(helpers.calldata.values())
+                .chain(helpers.tuples.values())
+                .copied(),
         );
         changed
     }
@@ -191,14 +210,29 @@ impl TupleHelperKey {
     }
 }
 
-/// Shared encoder helpers available to every site in the module.
-#[derive(Default)]
+/// Shared encoder helpers available to every site in the module. Each function lowers with its
+/// own copy, which adds the literal objects it proves.
+#[derive(Clone)]
 struct EncodeHelpers {
-    arrays: FxHashMap<ArrayHelperKey, FunctionId>,
-    tuples: FxHashMap<TupleHelperKey, FunctionId>,
+    arrays: Arc<FxHashMap<ArrayHelperKey, FunctionId>>,
+    /// Keyed by the layout with every location set to calldata.
+    calldata: Arc<FxHashMap<AbiType, FunctionId>>,
+    tuples: Arc<FxHashMap<TupleHelperKey, FunctionId>>,
     /// Proven on the original function, before encoding emits raw memory operations.
     literal_objects: FxHashSet<ValueId>,
-    branchless_byte_tails: bool,
+    target: Target,
+}
+
+impl EncodeHelpers {
+    fn new(target: &Target) -> Self {
+        Self {
+            arrays: Arc::default(),
+            calldata: Arc::default(),
+            tuples: Arc::default(),
+            literal_objects: FxHashSet::default(),
+            target: *target,
+        }
+    }
 }
 
 /// Builds `encode_abi_tuple(args.., [selector]) -> encoded` for every encoding shape at least
@@ -266,7 +300,7 @@ fn synthesize_tuple_helpers(
     }
     for (key, function) in shared {
         let helper = module.add_function(function);
-        helpers.tuples.insert(key, helper);
+        Arc::make_mut(&mut helpers.tuples).insert(key, helper);
     }
 }
 
@@ -292,6 +326,9 @@ fn synthesize_array_helpers(
         occurrences: usize,
         counts: &mut FxHashMap<ArrayHelperKey, (usize, usize)>,
     ) {
+        if value.is_some_and(|value| is_calldata_slice(func, value)) {
+            return;
+        }
         match ty {
             AbiType::DynamicArray { element, location } => {
                 let location = value
@@ -307,7 +344,7 @@ fn synthesize_array_helpers(
                 }
                 count_sites(func, element, None, occurrences, counts);
             }
-            AbiType::FixedArray { element, len } => count_sites(
+            AbiType::FixedArray { element, len, .. } => count_sites(
                 func,
                 element,
                 None,
@@ -339,10 +376,7 @@ fn synthesize_array_helpers(
         .collect::<Vec<_>>();
     keys.sort_by_key(|(first, key)| (array_depth(&key.element), *first));
 
-    let mut helpers = EncodeHelpers {
-        branchless_byte_tails: !target.optimization().is_size(),
-        ..EncodeHelpers::default()
-    };
+    let mut helpers = EncodeHelpers::new(target);
     for (_, key) in keys {
         let mut function = Function::new(Ident::with_dummy_span(sym::encode_abi_array));
         {
@@ -359,9 +393,129 @@ fn synthesize_array_helpers(
             builder.ret([length]);
         }
         let helper = module.add_function(function);
-        helpers.arrays.insert(key, helper);
+        Arc::make_mut(&mut helpers.arrays).insert(key, helper);
     }
     helpers
+}
+
+/// Builds `encode_abi_calldata(value, dest) -> length` for every composite calldata layout, an
+/// array of non-word elements, a fixed array of dynamic elements, or a struct with dynamic
+/// members, whose expansion the cost model ranks below a call. Like solc's per-type
+/// `abi_encode_*_calldata` functions, one helper serves every site that encodes the layout
+/// as a value or as a member of a larger layout.
+///
+/// Layouts are decided from the outermost in. A layout that is shared is expanded once, in its
+/// helper, so the layouts it contains count one expansion per occurrence in it rather than one
+/// per site that calls it. Each candidate body is priced with its contents expanded, and the
+/// helpers that are kept are built from the innermost out so that outer bodies call inner ones.
+fn synthesize_calldata_helpers(
+    target: &Target,
+    module: &mut Module,
+    helpers: &mut EncodeHelpers,
+    revert_strings: RevertStrings,
+) {
+    fn collect(ty: &AbiType, layouts: &mut Vec<AbiType>) {
+        if is_calldata_helper_layout(ty) && !layouts.contains(ty) {
+            layouts.push(ty.clone());
+            calldata_children(ty).for_each(|child| collect(child, layouts));
+        }
+    }
+
+    // Layouts of the calldata values encoded, in order of first appearance, and the number of
+    // sites encoding each.
+    let mut layouts = Vec::new();
+    let mut sites = FxHashMap::<AbiType, usize>::default();
+    for func in module.functions.iter() {
+        for inst in func.instructions() {
+            let InstKind::AbiEncode { args, layout, .. } = &func.inst(inst).kind else { continue };
+            for (&arg, ty) in args.iter().zip(&layout.types) {
+                if is_calldata_slice(func, arg) && is_calldata_helper_layout(ty) {
+                    let ty = ty.clone().at_location(PtrLocation::Calldata);
+                    collect(&ty, &mut layouts);
+                    *sites.entry(ty).or_default() += 1;
+                }
+            }
+        }
+    }
+    layouts.sort_by_key(|ty| std::cmp::Reverse(calldata_depth(ty)));
+
+    // Every layout that contains this one has been decided, so its expansions are known.
+    let mut shared = Vec::new();
+    for layout in layouts {
+        let expansions = sites.get(&layout).copied().unwrap_or(0);
+        if expansions >= 2 {
+            let function = calldata_helper(&layout, revert_strings, helpers);
+            let body_bytes = target.code_estimate(&function).bytes;
+            let expansions = u32::try_from(expansions).unwrap_or(u32::MAX);
+            let params = function.params.len();
+            let (with_helper, expanded) = target.helper_sharing(body_bytes, params, 1, expansions);
+            if target.cmp(with_helper, expanded).is_lt() {
+                // A shared layout expands once, in its helper.
+                for child in calldata_children(&layout) {
+                    *sites.entry(child.clone()).or_default() += 1;
+                }
+                shared.push(layout);
+                continue;
+            }
+        }
+        for child in calldata_children(&layout) {
+            *sites.entry(child.clone()).or_default() += expansions;
+        }
+    }
+    // Inner layouts first, so outer bodies call inner helpers.
+    for layout in shared.into_iter().rev() {
+        let function = calldata_helper(&layout, revert_strings, helpers);
+        let helper = module.add_function(function);
+        Arc::make_mut(&mut helpers.calldata).insert(layout, helper);
+    }
+}
+
+/// Builds the helper encoding the calldata layout `ty`, calling the helpers `helpers` has for
+/// the layouts inside it.
+fn calldata_helper(
+    ty: &AbiType,
+    revert_strings: RevertStrings,
+    helpers: &EncodeHelpers,
+) -> Function {
+    let mut function = Function::new(Ident::with_dummy_span(sym::encode_abi_calldata));
+    {
+        let mut builder = FunctionBuilder::new(&mut function).with_revert_strings(revert_strings);
+        let value = builder.add_param(MirType::Slice(PtrLocation::Calldata));
+        let dest = builder.add_param(MirType::MEMPTR);
+        let dest = builder.cast(dest, MirType::I256);
+        let tail = encode_calldata_body(&mut builder, ty, value, dest, helpers);
+        let length = builder.sub(tail, dest);
+        builder.set_return_type(MirType::I256);
+        builder.ret([length]);
+    }
+    function
+}
+
+/// Whether `ty` is a calldata layout with a helper of its own: it has a loop or several members
+/// to encode, unlike a byte string or an array of words, which copy as one block.
+fn is_calldata_helper_layout(ty: &AbiType) -> bool {
+    match ty {
+        AbiType::DynamicArray { element, .. } => !matches!(element.as_ref(), AbiType::Word(_)),
+        AbiType::FixedArray { .. } | AbiType::Tuple(_) => ty.is_dynamic(),
+        AbiType::Word(_) | AbiType::Function | AbiType::Bytes(_) => false,
+    }
+}
+
+/// The layouts directly inside `ty` that have helpers of their own.
+fn calldata_children(ty: &AbiType) -> impl Iterator<Item = &AbiType> {
+    let children: &[AbiType] = match ty {
+        AbiType::DynamicArray { element, .. } | AbiType::FixedArray { element, .. } => {
+            std::slice::from_ref(element)
+        }
+        AbiType::Tuple(fields) => fields,
+        AbiType::Word(_) | AbiType::Function | AbiType::Bytes(_) => &[],
+    };
+    children.iter().filter(|child| is_calldata_helper_layout(child))
+}
+
+/// Number of calldata layouts nested inside `ty`, counting itself.
+fn calldata_depth(ty: &AbiType) -> usize {
+    1 + calldata_children(ty).map(calldata_depth).max().unwrap_or(0)
 }
 
 /// Returns the shared helper encoding a memory array of `element`s passed as `value`.
@@ -413,7 +567,7 @@ enum AbiValueSource {
 fn lower_function(
     target: &Target,
     func: &mut Function,
-    helpers: &mut EncodeHelpers,
+    helpers: &EncodeHelpers,
     revert_strings: RevertStrings,
     fresh_object_returns: &DenseBitSet<FunctionId>,
     destructive_returns: &FxHashSet<InstId>,
@@ -423,13 +577,18 @@ fn lower_function(
     if !has_encodes {
         return false;
     }
+    let mut helpers = helpers.clone();
     helpers.literal_objects = literal_objects_at_encodes(func);
-    let fold_preserved = target.optimization().is_gas() && !target.evm_version().has_mcopy();
+    let unobserved = terminal_scratch_literals(func, &helpers.literal_objects);
     helpers.literal_objects.retain(|&object| {
-        fold_preserved
-            || !matches!(func.value(object), Value::Inst(inst) if func.inst(*inst).metadata.preserves_fmp())
+        let Value::Inst(inst) = func.value(object) else { return true };
+        !func.inst(*inst).metadata.preserves_fmp()
+            || target.folds_preserved_literal(unobserved.contains(&object), || {
+                literal_bytes(func, object, defining_block(func, *inst)?)
+            })
     });
-    let terminal_literals = terminal_scratch_literals(func, &helpers.literal_objects);
+    let mut terminal_literals = unobserved;
+    terminal_literals.retain(|object| helpers.literal_objects.contains(object));
 
     let mut replacements = FxHashMap::default();
     let mut literal_objects = FxHashSet::default();
@@ -452,7 +611,7 @@ fn lower_function(
                 .iter()
                 .map(|&value| resolve_replacement(value, &replacements))
                 .collect::<Vec<_>>();
-            let layout = std::sync::Arc::clone(layout);
+            let layout = Arc::clone(layout);
             let mode = *mode;
             // abi_encode(args) !metadata(span) => icall or stores/copies !metadata(span)
             let metadata = builder.func().inst(inst).metadata.clone();
@@ -479,7 +638,7 @@ fn lower_function(
                         let call_args = args.iter().copied().chain(selector).collect();
                         builder.icall(helper, call_args, result_ty)
                     }
-                    None => lower_encode(&mut builder, &layout, selector, &args, mode, helpers),
+                    None => lower_encode(&mut builder, &layout, selector, &args, mode, &helpers),
                 }
             };
             literal_objects.extend(args.iter().copied());
@@ -930,7 +1089,7 @@ fn encode_static_impl(
             builder.func().value_slice_location(value)
     {
         let source = builder.slice_ptr(value);
-        encode_static_slice(builder, ty, source, head_addr, location);
+        encode_static_slice(builder, ty, source, head_addr, location, false);
         return;
     }
     match ty {
@@ -949,7 +1108,7 @@ fn encode_static_impl(
                 field_head = offset_ptr(builder, field_head, field.head_size());
             }
         }
-        AbiType::FixedArray { element, len } => {
+        AbiType::FixedArray { element, len, .. } => {
             encode_static_array(builder, element, *len, value, head_addr, allow_slice_fast_path);
         }
         AbiType::Function => {
@@ -1067,12 +1226,15 @@ fn encode_value(
     }
 }
 
+/// Encodes the static value at `source` into `head_addr`. A `validate`
+/// reverts on a calldata word that is not canonical for its type, as ABI decoding would have.
 fn encode_static_slice(
     builder: &mut FunctionBuilder<'_>,
     ty: &AbiType,
     source: ValueId,
     head_addr: ValueId,
     location: PtrLocation,
+    validate: bool,
 ) {
     match ty {
         AbiType::Tuple(fields) => {
@@ -1080,28 +1242,38 @@ fn encode_static_slice(
             let mut head = head_addr;
             for field in fields {
                 let source_word = offset_ptr(builder, source, source_offset);
-                encode_static_slice(builder, field, source_word, head, location);
+                encode_static_slice(builder, field, source_word, head, location, validate);
                 source_offset += field.head_size();
                 head = offset_ptr(builder, head, field.head_size());
             }
         }
-        AbiType::FixedArray { element, len } => {
+        AbiType::FixedArray { block_copy: true, .. } if location == PtrLocation::Calldata => {
+            // Like solc, copy the words as one block, which reads zeros from an address that
+            // wraps past the end of the address space where per-word loads would wrap around.
+            // calldatacopy head_addr, source, head_size
+            let size = builder.imm(ty.head_size());
+            copy_source_data(builder, location, head_addr, source, size);
+        }
+        AbiType::FixedArray { element, len, .. } => {
             let length = builder.imm(*len);
             let stride = builder.imm(element.head_size());
             builder.counted_loop(length, |builder, index| {
                 let offset = builder.mul(index, stride);
                 let source_word = builder.add(source, offset);
                 let head = builder.add(head_addr, offset);
-                encode_static_slice(builder, element, source_word, head, location);
+                encode_static_slice(builder, element, source_word, head, location, validate);
             });
         }
         AbiType::Function => {
             let value = builder.load(source, location);
+            let function = AbiWordValidator::from_layout(crate::mir::ValueLayout::Function)
+                .expect("function words always require cleanup");
             let value = if location == PtrLocation::Memory {
-                AbiWordValidator::from_layout(crate::mir::ValueLayout::Function)
-                    .expect("function words always require cleanup")
-                    .cleanup(builder, value)
+                function.cleanup(builder, value)
             } else {
+                if validate {
+                    validate_calldata_word(builder, function, value);
+                }
                 value
             };
             builder.store(head_addr, value);
@@ -1112,7 +1284,13 @@ fn encode_static_slice(
                 Some(cleanup) if location == PtrLocation::Memory => {
                     clean_word(builder, *cleanup, value)
                 }
-                _ => value,
+                Some(cleanup) => {
+                    if validate {
+                        validate_calldata_word(builder, *cleanup, value);
+                    }
+                    value
+                }
+                None => value,
             };
             builder.store(head_addr, value);
         }
@@ -1120,6 +1298,17 @@ fn encode_static_slice(
             unreachable!("dynamic ABI values are not static")
         }
     }
+}
+
+/// Reverts unless the calldata `word` is canonical for `validator`.
+fn validate_calldata_word(
+    builder: &mut FunctionBuilder<'_>,
+    validator: AbiWordValidator,
+    word: ValueId,
+) {
+    // if !valid(word) { revert(0, 0) }
+    let valid = validator.condition(builder, word);
+    builder.revert_if_zero(valid, RevertReason::Empty);
 }
 
 /// Canonicalizes a word read from memory before it is encoded: narrow values are masked or
@@ -1149,14 +1338,7 @@ fn encode_dynamic_body(
     match ty {
         AbiType::Bytes(location) => {
             let location = effective_slice_location(builder.func(), value, *location);
-            encode_bytes(
-                builder,
-                value,
-                dest,
-                location,
-                helpers.literal_objects.contains(&value),
-                helpers.branchless_byte_tails,
-            )
+            encode_bytes(builder, value, dest, location, helpers.literal_objects.contains(&value))
         }
         AbiType::DynamicArray { element, location } => {
             let location = effective_slice_location(builder.func(), value, *location);
@@ -1168,9 +1350,10 @@ fn encode_dynamic_body(
                 }
                 return encode_memory_array(builder, element, value, dest, helpers);
             }
+            // Calldata function pointers are validated one at a time, like members of a struct.
             let word_cleanup = match element.as_ref() {
                 AbiType::Word(cleanup) => Some(*cleanup),
-                AbiType::Function => {
+                AbiType::Function if location != PtrLocation::Calldata => {
                     Some(AbiWordValidator::from_layout(crate::mir::ValueLayout::Function))
                 }
                 _ => None,
@@ -1178,20 +1361,15 @@ fn encode_dynamic_body(
             if let Some(cleanup) = word_cleanup {
                 return encode_word_array(builder, value, dest, location, cleanup);
             }
-            match location {
-                PtrLocation::Calldata => {
-                    if matches!(element.as_ref(), AbiType::Bytes(_)) {
-                        encode_calldata_bytes_array(builder, element, value, dest, helpers)
-                    } else {
-                        unreachable!(
-                            "non-word calldata arrays are materialized before ABI encoding"
-                        )
-                    }
-                }
-                _ => unreachable!("only calldata arrays reach slice encoding"),
-            }
+            debug_assert_eq!(location, PtrLocation::Calldata, "only calldata arrays are slices");
+            encode_calldata_body(builder, ty, value, dest, helpers)
         }
-        AbiType::FixedArray { element, len } => encode_memory_array_elements(
+        AbiType::FixedArray { .. } | AbiType::Tuple(_)
+            if is_calldata_slice(builder.func(), value) =>
+        {
+            encode_calldata_body(builder, ty, value, dest, helpers)
+        }
+        AbiType::FixedArray { element, len, .. } => encode_memory_array_elements(
             builder,
             element,
             value,
@@ -1209,6 +1387,54 @@ fn encode_dynamic_body(
         }
         AbiType::Word(_) | AbiType::Function => unreachable!("word ABI values are static"),
     }
+}
+
+/// Encodes the calldata aggregate `value` of layout `ty` at `dest`, through the shared helper
+/// for its layout if there is one.
+fn encode_calldata_body(
+    builder: &mut FunctionBuilder<'_>,
+    ty: &AbiType,
+    value: ValueId,
+    dest: ValueId,
+    helpers: &EncodeHelpers,
+) -> ValueId {
+    if !helpers.calldata.is_empty()
+        && let Some(&helper) = helpers.calldata.get(&ty.clone().at_location(PtrLocation::Calldata))
+    {
+        // length = icall @encode_abi_calldata, value, dest
+        let pointer = builder.cast(dest, MirType::MEMPTR);
+        let length = builder.icall(helper, vec![value, pointer], MirType::I256);
+        return builder.add(dest, length);
+    }
+    match ty {
+        AbiType::DynamicArray { element, .. } => {
+            // length = slice_len(value)
+            // mstore dest, length
+            // encode_calldata_elements(element, slice_ptr(value), length, dest + 32)
+            let length = builder.slice_len(value);
+            builder.store(dest, length);
+            let area = builder.add_u64_offset(dest, 32);
+            let base = builder.slice_ptr(value);
+            encode_calldata_elements(builder, element, base, length, area, helpers)
+        }
+        AbiType::FixedArray { element, len, .. } => {
+            // encode_calldata_elements(element, slice_ptr(value), len, dest)
+            let length = builder.imm(*len);
+            let base = builder.slice_ptr(value);
+            encode_calldata_elements(builder, element, base, length, dest, helpers)
+        }
+        AbiType::Tuple(fields) => {
+            let base = builder.slice_ptr(value);
+            encode_calldata_tuple(builder, fields, base, dest, helpers)
+        }
+        AbiType::Word(_) | AbiType::Function | AbiType::Bytes(_) => {
+            unreachable!("calldata aggregates are arrays and tuples")
+        }
+    }
+}
+
+fn is_calldata_slice(func: &Function, value: ValueId) -> bool {
+    func.value_slice_location(value) == Some(PtrLocation::Calldata)
 }
 
 fn effective_slice_location(func: &Function, value: ValueId, declared: PtrLocation) -> PtrLocation {
@@ -1312,21 +1538,156 @@ fn encode_memory_array_elements(
     current_tail
 }
 
-fn encode_calldata_bytes_array(
+/// Encodes the members of a calldata struct at `base` into `dest`, re-encoding each dynamic
+/// member's offset and validating what solc's ABI encoder validates: the tail offsets, lengths,
+/// and ranges of dynamic members, and every narrow word.
+fn encode_calldata_tuple(
     builder: &mut FunctionBuilder<'_>,
-    element: &AbiType,
-    value: ValueId,
+    fields: &[AbiType],
+    base: ValueId,
     dest: ValueId,
     helpers: &EncodeHelpers,
 ) -> ValueId {
-    let len = builder.slice_len(value);
-    builder.store(dest, len);
+    let head_size = fields.iter().map(AbiType::head_size).sum();
+    let mut tail = offset_ptr(builder, dest, head_size);
+    let mut offset = 0;
+    for field in fields {
+        // tail = encode field at dest + offset from base + offset
+        let source_head = offset_ptr(builder, base, offset);
+        let head_addr = offset_ptr(builder, dest, offset);
+        let field_dest = AbiValueDest { head_addr, tuple_base: dest, tail };
+        tail = encode_calldata_element(builder, field, source_head, base, field_dest, helpers);
+        offset += field.head_size();
+    }
+    tail
+}
 
-    let word = builder.imm(32);
-    let element_area = builder.add(dest, word);
-    let head_bytes = builder.mul(len, word);
-    let initial_tail = builder.add(element_area, head_bytes);
-    let source_base = builder.slice_ptr(value);
+/// Encodes the element of `ty` whose head is at `source_head` in the calldata aggregate at
+/// `base`, returning the end of the encoded tail.
+fn encode_calldata_element(
+    builder: &mut FunctionBuilder<'_>,
+    ty: &AbiType,
+    source_head: ValueId,
+    base: ValueId,
+    dest: AbiValueDest,
+    helpers: &EncodeHelpers,
+) -> ValueId {
+    if !ty.is_dynamic() {
+        encode_static_slice(builder, ty, source_head, dest.head_addr, PtrLocation::Calldata, true);
+        return dest.tail;
+    }
+    let value = calldata_dynamic_value(builder, ty, source_head, base);
+    if let AbiType::DynamicArray { element, .. } = ty
+        && let AbiType::Word(Some(validator)) = element.as_ref()
+    {
+        // Neither lowering nor the dispatcher validates the words of a nested array, which
+        // then copy as one block.
+        // for index in 0..slice_len(value): validate(calldataload(slice_ptr(value) + index * 32))
+        let length = builder.slice_len(value);
+        let words = builder.slice_ptr(value);
+        let word = builder.imm(32);
+        builder.counted_loop(length, |builder, index| {
+            let offset = builder.mul(index, word);
+            let position = builder.add(words, offset);
+            let value = builder.load(position, PtrLocation::Calldata);
+            validate_calldata_word(builder, *validator, value);
+        });
+    }
+    encode_value(builder, ty, value, dest, AbiValueSource::Scalar, helpers)
+}
+
+/// Follows the tail offset at `head` to the dynamic value of `ty` in the calldata aggregate at
+/// `base`, with solc's `calldata_access` checks, and returns it as a calldata slice: the data
+/// and length of a byte string or array, the head and member count of a fixed array, and the
+/// head of a struct.
+fn calldata_dynamic_value(
+    builder: &mut FunctionBuilder<'_>,
+    ty: &AbiType,
+    head: ValueId,
+    base: ValueId,
+) -> ValueId {
+    let tail = CalldataTail::Encode;
+    // offset = calldataload(head)
+    // check_calldata_tail_offset(base, offset, tail_size)
+    // position = base + offset
+    let offset = builder.load(head, PtrLocation::Calldata);
+    let calldata_end = builder.calldatasize();
+    builder.check_calldata_tail_offset(tail, base, offset, calldata_end, ty.tail_size());
+    let position = builder.add(base, offset);
+    let stride = match ty {
+        AbiType::Bytes(_) => 1,
+        AbiType::DynamicArray { element, .. } => element.head_size(),
+        AbiType::FixedArray { len, .. } => {
+            let length = builder.imm(*len);
+            return builder.make_slice(position, length, PtrLocation::Calldata);
+        }
+        AbiType::Tuple(_) => {
+            let size = builder.imm(ty.head_size());
+            return builder.make_slice(position, size, PtrLocation::Calldata);
+        }
+        AbiType::Word(_) | AbiType::Function => unreachable!("word ABI values are static"),
+    };
+    // length = calldataload(position)
+    // data = calldata_tail_data(position + 32, length, stride)
+    let length = builder.load(position, PtrLocation::Calldata);
+    let data = builder.calldata_tail_data(tail, position, 32, length, calldata_end, stride);
+    builder.make_slice(data, length, PtrLocation::Calldata)
+}
+
+/// Encodes `length` calldata elements of one layout, whose heads start at `base`, into `area`.
+/// Dynamic elements re-encode their offsets. Static elements that need no validation copy as
+/// one block.
+fn encode_calldata_elements(
+    builder: &mut FunctionBuilder<'_>,
+    element: &AbiType,
+    base: ValueId,
+    length: ValueId,
+    area: ValueId,
+    helpers: &EncodeHelpers,
+) -> ValueId {
+    let stride = builder.imm(element.head_size());
+    let head_bytes = builder.mul(length, stride);
+    let initial_tail = builder.add(area, head_bytes);
+    if !element.is_dynamic() {
+        // for index in 0..length: encode_static(element, base + index * stride)
+        let encode_each = |builder: &mut FunctionBuilder<'_>| {
+            let validate = needs_calldata_validation(element);
+            builder.counted_loop(length, |builder, index| {
+                let offset = builder.mul(index, stride);
+                let source = builder.add(base, offset);
+                let head = builder.add(area, offset);
+                encode_static_slice(
+                    builder,
+                    element,
+                    source,
+                    head,
+                    PtrLocation::Calldata,
+                    validate,
+                );
+            });
+        };
+        if needs_calldata_validation(element)
+            || !helpers.target.guards_block_copy(element.head_size() / 32)
+        {
+            encode_each(builder);
+            return initial_tail;
+        }
+        // if base + head_bytes < base { encode_each } else { calldatacopy area, base, head_bytes }
+        let end = builder.add(base, head_bytes);
+        let wraps = builder.lt(end, base);
+        let each = builder.create_block();
+        let copy = builder.create_block();
+        let done = builder.create_block();
+        builder.branch(wraps, each, copy);
+        builder.switch_to_block(each);
+        encode_each(builder);
+        builder.jump(done);
+        builder.switch_to_block(copy);
+        copy_source_data(builder, PtrLocation::Calldata, area, base, head_bytes);
+        builder.jump(done);
+        builder.switch_to_block(done);
+        return initial_tail;
+    }
 
     let preheader = builder.current_block();
     let cond = builder.create_block();
@@ -1335,41 +1696,28 @@ fn encode_calldata_bytes_array(
     builder.jump(cond);
 
     builder.switch_to_block(cond);
-    let remaining = builder.phi(vec![(preheader, len)]);
+    let remaining = builder.phi(vec![(preheader, length)]);
     let current_tail = builder.phi(vec![(preheader, initial_tail)]);
-    let element_head = builder.phi(vec![(preheader, element_area)]);
-    let source_head = builder.phi(vec![(preheader, source_base)]);
+    let element_head = builder.phi(vec![(preheader, area)]);
+    let source_head = builder.phi(vec![(preheader, base)]);
     let zero = builder.imm(0);
     let has_next = builder.gt(remaining, zero);
     builder.branch(has_next, body, done);
 
     builder.switch_to_block(body);
-    // offset = calldataload(source_head)
-    // check_calldata_tail_offset(source_base, offset)
-    // element_base = source_base + offset
-    // length = calldataload(element_base)
-    // data = calldata_tail_data(element_base + 32, length, 1)
-    let tail = CalldataTail::Encode;
-    let offset = builder.load(source_head, PtrLocation::Calldata);
-    let calldata_end = builder.calldatasize();
-    builder.check_calldata_tail_offset(tail, source_base, offset, calldata_end, 32);
-    let element_base = builder.add(source_base, offset);
-    let length = builder.load(element_base, PtrLocation::Calldata);
-    let data = builder.calldata_tail_data(tail, element_base, 32, length, calldata_end, 1);
-    let element_value = builder.make_slice(data, length, PtrLocation::Calldata);
-    let new_tail = encode_value(
+    let new_tail = encode_calldata_element(
         builder,
         element,
-        element_value,
-        AbiValueDest { head_addr: element_head, tuple_base: element_area, tail: current_tail },
-        AbiValueSource::Scalar,
+        source_head,
+        base,
+        AbiValueDest { head_addr: element_head, tuple_base: area, tail: current_tail },
         helpers,
     );
 
     let one = builder.imm(1);
     let next_remaining = builder.sub(remaining, one);
-    let next_source = builder.add(source_head, word);
-    let next_head = builder.add(element_head, word);
+    let next_source = builder.add(source_head, stride);
+    let next_head = builder.add(element_head, stride);
     let backedge = builder.current_block();
     builder.jump(cond);
     builder.add_phi_incoming(remaining, backedge, next_remaining);
@@ -1379,6 +1727,17 @@ fn encode_calldata_bytes_array(
 
     builder.switch_to_block(done);
     current_tail
+}
+
+/// Whether a static calldata value holds a word that ABI decoding would validate.
+fn needs_calldata_validation(ty: &AbiType) -> bool {
+    match ty {
+        AbiType::Word(cleanup) => cleanup.is_some(),
+        AbiType::Function => true,
+        AbiType::FixedArray { element, .. } => needs_calldata_validation(element),
+        AbiType::Tuple(fields) => fields.iter().any(needs_calldata_validation),
+        AbiType::Bytes(_) | AbiType::DynamicArray { .. } => false,
+    }
 }
 
 fn encode_word_array(
@@ -1463,7 +1822,6 @@ fn encode_bytes(
     dest: ValueId,
     location: PtrLocation,
     literal_folding: bool,
-    branchless_padding: bool,
 ) -> ValueId {
     if literal_folding
         && location == PtrLocation::Memory
@@ -1488,11 +1846,6 @@ fn encode_bytes(
         PtrLocation::Memory => memory_object_len(builder, value),
         _ => builder.slice_len(value),
     };
-    if !branchless_padding {
-        // mstore dest, len
-        builder.store(dest, len);
-    }
-
     let word = builder.imm(32);
     let thirty_one = builder.imm(31);
     let mask = builder.not(thirty_one);
@@ -1500,28 +1853,14 @@ fn encode_bytes(
     let padded = builder.and(rounded, mask);
     let data_dest = builder.add(dest, word);
 
-    if branchless_padding {
-        // last = dest + padded
-        // store last, 0
-        // mstore dest, len
-        // For an empty tail, last == dest; write the header after zeroing it.
-        let last = builder.add(dest, padded);
-        let zero = builder.imm(0);
-        builder.store(last, zero);
-        builder.store(dest, len);
-    } else {
-        // if padded != 0: mstore dest + padded, 0
-        let zero_block = builder.create_block();
-        let copy_block = builder.create_block();
-        let empty = builder.eq_zero(padded);
-        builder.branch(empty, copy_block, zero_block);
-        builder.switch_to_block(zero_block);
-        let last = builder.add(dest, padded);
-        let zero = builder.imm(0);
-        builder.store(last, zero);
-        builder.jump(copy_block);
-        builder.switch_to_block(copy_block);
-    }
+    // last = dest + padded
+    // store last, 0
+    // mstore dest, len
+    // For an empty tail, last == dest; write the header after zeroing it.
+    let last = builder.add(dest, padded);
+    let zero = builder.imm(0);
+    builder.store(last, zero);
+    builder.store(dest, len);
     let data_source = match location {
         PtrLocation::Memory => builder.memory_data(value),
         _ => builder.slice_ptr(value),
@@ -1692,8 +2031,8 @@ fn literal_object_uses(func: &Function, object: ValueId) -> impl Iterator<Item =
 }
 
 /// Returns the bytes represented by an immutable literal object when all active
-/// uses are initialization operations preceding this encoding in the same block.
-/// The caller must also exclude opaque observers using the original IR.
+/// uses, apart from encodings, are initialization operations preceding this encoding in the
+/// same block. The caller must also exclude opaque observers using the original IR.
 fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec<u8>> {
     if func.value_ty(object) != Some(MirType::MEMPTR) {
         return None;
@@ -1712,7 +2051,9 @@ fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec
         if !func.blocks[block].instructions.contains(&inst) {
             return None;
         }
-        if func.is_object_derivation(inst) {
+        if func.is_object_derivation(inst)
+            || matches!(func.inst(inst).kind, InstKind::AbiEncode { .. })
+        {
             continue;
         }
         // Payload offset and stored word.
@@ -1759,6 +2100,13 @@ fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec
     Some(bytes)
 }
 
+/// The block that holds `inst`.
+fn defining_block(func: &Function, inst: InstId) -> Option<BlockId> {
+    func.blocks
+        .iter_enumerated()
+        .find_map(|(id, block)| block.instructions.contains(&inst).then_some(id))
+}
+
 /// Removes a literal object's initialization after its encoding has embedded
 /// the bytes directly in the output. The object must have no active use other
 /// than its allocation and literal stores; otherwise the object remains live. An allocation
@@ -1774,14 +2122,10 @@ fn remove_literal_objects(
         if func.inst(*defining_inst).metadata.preserves_fmp() && !unobserved.contains(&object) {
             continue;
         }
-        let Some(block) = func
-            .blocks
-            .iter_enumerated()
-            .find_map(|(id, block)| block.instructions.contains(defining_inst).then_some(id))
-        else {
-            continue;
-        };
-        if literal_bytes(func, object, block).is_none() {
+        if defining_block(func, *defining_inst)
+            .and_then(|block| literal_bytes(func, object, block))
+            .is_none()
+        {
             continue;
         }
         removed.insert(*defining_inst);

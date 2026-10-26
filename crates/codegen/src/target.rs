@@ -18,11 +18,14 @@
 
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
-    mir::{BlockId, Function, Op, Terminator, Value, ValueId, memory::EvmMemoryLayout},
+    mir::{
+        BlockId, Function, Op, Terminator, Value, ValueId, analysis::AddressSpace,
+        memory::EvmMemoryLayout,
+    },
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_config::{EvmVersion, OptimizationMode};
+use solar_config::{EvmVersion, OptimizationMode, Tune};
 use solar_sema::Gcx;
 use std::{cmp::Ordering, ops};
 
@@ -258,13 +261,16 @@ const fn opcode_bytes(opcode: u8) -> u32 {
     1 + immediate
 }
 
-/// Static gas and encoded size of a code sequence.
+/// Static gas, encoded size, and executed instructions of a code sequence.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub(crate) struct Cost {
     /// Static gas of one execution.
     pub(crate) gas: u32,
     /// Encoded bytes.
     pub(crate) bytes: u32,
+    /// Instructions of one execution. Execution engines that dispatch each instruction pay for
+    /// them; see [`Target::runtime_gas`].
+    pub(crate) steps: u32,
 }
 
 impl Cost {
@@ -272,33 +278,50 @@ impl Cost {
     pub(crate) const ZERO: Self = Self::new(0, 0);
 
     /// More than any real code costs.
-    pub(crate) const MAX: Self = Self::new(u32::MAX, u32::MAX);
+    pub(crate) const MAX: Self = Self::new(u32::MAX, u32::MAX).with_steps(u32::MAX);
 
-    /// Creates a cost.
+    /// Creates a cost of code whose executed instructions are not counted.
     pub(crate) const fn new(gas: u32, bytes: u32) -> Self {
-        Self { gas, bytes }
+        Self { gas, bytes, steps: 0 }
     }
 
-    /// Whether this costs no more gas and bytes than `other` and less of one.
-    pub(crate) fn dominates(self, other: Self) -> bool {
-        self.gas <= other.gas && self.bytes <= other.bytes && self != other
+    /// This cost with `steps` executed instructions.
+    pub(crate) const fn with_steps(self, steps: u32) -> Self {
+        Self { steps, ..self }
     }
 
     /// Cost of an opcode whose static gas is identical on every EVM version.
     /// Panics for unknown opcodes or a fork-dependent gas tier.
-    const fn fixed_opcode(opcode: u8) -> Self {
+    pub(crate) const fn fixed_opcode(opcode: u8) -> Self {
         let Some(definition) = op::definition(opcode) else { panic!("unknown opcode") };
-        Self::new(definition.gas.fixed_gas(), opcode_bytes(opcode))
+        Self::new(definition.gas.fixed_gas(), opcode_bytes(opcode)).with_steps(1)
     }
 
     /// Sums two costs, saturating.
     pub(crate) const fn plus(self, other: Self) -> Self {
-        Self::new(self.gas.saturating_add(other.gas), self.bytes.saturating_add(other.bytes))
+        Self {
+            gas: self.gas.saturating_add(other.gas),
+            bytes: self.bytes.saturating_add(other.bytes),
+            steps: self.steps.saturating_add(other.steps),
+        }
+    }
+
+    /// Subtracts `other` from every dimension, saturating at zero.
+    pub(crate) const fn saturating_sub(self, other: Self) -> Self {
+        Self {
+            gas: self.gas.saturating_sub(other.gas),
+            bytes: self.bytes.saturating_sub(other.bytes),
+            steps: self.steps.saturating_sub(other.steps),
+        }
     }
 
     /// Scales a cost, saturating.
     pub(crate) const fn times(self, count: u32) -> Self {
-        Self::new(self.gas.saturating_mul(count), self.bytes.saturating_mul(count))
+        Self {
+            gas: self.gas.saturating_mul(count),
+            bytes: self.bytes.saturating_mul(count),
+            steps: self.steps.saturating_mul(count),
+        }
     }
 }
 
@@ -323,13 +346,15 @@ impl std::iter::Sum for Cost {
 }
 
 /// The cost model of the selected EVM version under the active objective.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct Target {
     evm_version: EvmVersion,
     optimization: OptimizationMode,
     expected_executions: u64,
     /// Whether the model prices creation code, which runs once and pays calldata per byte.
     creation: bool,
+    /// The execution engine the code is tuned for.
+    tune: Tune,
 }
 
 impl Target {
@@ -352,6 +377,19 @@ impl Target {
     /// run per invocation when weighing code growth inside it: GCC's estimate
     /// for such loops.
     pub(crate) const UNCOUNTED_LOOP_ITERATIONS: u64 = 10;
+    /// Gas an interpreter's dispatch of one instruction is worth, charged per executed
+    /// instruction under [`Tune::Interpreter`]. Measured on evm2's interpreter (AMD Zen 5,
+    /// tail-call dispatch): every opcode costs about 7.3 cycles whatever its push width or
+    /// `DUP` and `SWAP` depth, a `JUMPDEST` 7.6, while heavy opcodes cost about one cycle per
+    /// gas (`EXP` of 2 k: 57 gas against 51 to 56 cycles). One dispatch is then worth about 4
+    /// gas of work beyond the 3 gas of a cheap opcode. A fit of whole programs agrees: cycles grew
+    /// by 6.7 per executed opcode (R² 0.93), about 3.7 gas each.
+    pub(crate) const INTERPRETER_DISPATCH_GAS: u32 = 4;
+
+    /// How many consecutive MIR instructions must repeat for the backend's tail merge and
+    /// outlining to share them. Six kept corpus bytecode smallest in `-Osize`; shorter runs
+    /// match common idioms that no pass shares, and longer ones miss shared wrappers.
+    pub(crate) const SHARED_RUN_INSTRUCTIONS: usize = 6;
     /// How many times more often the stack planner counts a block for each loop around it.
     pub(crate) const LOOP_BLOCK_WEIGHT: u32 = 8;
     /// The most the stack planner counts any block, however deeply nested.
@@ -364,12 +402,24 @@ impl Target {
     /// The most bytes the copies of a completely unrolled loop's body may take, whatever its
     /// pricing, so that a contract near the code size limit cannot grow past it.
     pub(crate) const MAX_LOOP_COPY_BYTES: u32 = 256;
+    /// The most bytes one copy of a loop block into a path that jumps to it may take: a latch
+    /// and the header test that the paths of a branching loop body then repeat. On the safe
+    /// Solady benchmarks the gas saved stops growing past this size, while the runtime corpus
+    /// keeps growing.
+    pub(crate) const MAX_LOOP_JOIN_COPY_BYTES: u32 = 40;
+    /// Below [`Self::LOOP_COPY_MIN_RUNS`], the copies of loop blocks into the paths that jump to
+    /// them may add one part in this many of a small module's code.
+    pub(crate) const LOOP_JOIN_COPY_SHARE: u64 = 20;
+    /// The code size below which a module counts as small when its copies are weighed against
+    /// it: a contract built around a loop or two, a sixth of EIP-170's limit.
+    pub(crate) const SMALL_CODE_BYTES: u64 = 4_096;
 
     /// The model of the session's EVM version, objective, and optimizer runs.
     pub(crate) fn new(gcx: Gcx<'_>) -> Self {
         let opts = &gcx.sess.opts;
         let expected_executions = Self::optimizer_runs(opts.optimization, opts.optimizer_runs);
         Self::with(opts.evm_version, opts.optimization, expected_executions)
+            .tuned(opts.unstable.tune)
     }
 
     /// Resolves the run count used by enabled lifetime-aware optimizations.
@@ -389,7 +439,12 @@ impl Target {
         optimization: OptimizationMode,
         expected_executions: u64,
     ) -> Self {
-        Self { evm_version, optimization, expected_executions, creation: false }
+        Self { evm_version, optimization, expected_executions, creation: false, tune: Tune::None }
+    }
+
+    /// This model with code tuned for the execution engine `tune`.
+    pub(crate) const fn tuned(self, tune: Tune) -> Self {
+        Self { tune, ..self }
     }
 
     /// This model for code that runs only at deployment when `creation` is set, itself
@@ -431,6 +486,11 @@ impl Target {
         self.optimization
     }
 
+    /// Whether the stack planner searches for cheaper plans; `-O none` takes its first plan.
+    pub(crate) fn optimizes_stack_plans(&self) -> bool {
+        !matches!(self.optimization, OptimizationMode::None)
+    }
+
     pub(crate) fn expected_executions(&self) -> u64 {
         self.expected_executions
     }
@@ -446,6 +506,44 @@ impl Target {
         self.expected_executions >= Self::LOOP_COPY_MIN_RUNS
     }
 
+    /// Whether copying a loop block whose code costs `copy`, entered on `paths` paths, into a loop
+    /// block that jumps to it pays. In gas builds the copy saves the jump's label push, `JUMP` and
+    /// `JUMPDEST` on each iteration through the edge: [`Self::UNCOUNTED_LOOP_ITERATIONS`] per
+    /// execution, shared equally by the paths into the block, against the deposit of the copied
+    /// bytes beyond the removed label push and `JUMP`. No copy is larger than
+    /// [`Self::MAX_LOOP_JOIN_COPY_BYTES`].
+    pub(crate) fn duplicates_loop_block(&self, copy: Cost, paths: u32) -> bool {
+        if !self.optimization.is_gas() || paths == 0 || copy.bytes > Self::MAX_LOOP_JOIN_COPY_BYTES
+        {
+            return false;
+        }
+        let (added, saved) = self.loop_block_copy(copy, paths);
+        !self.deposit_repays_gas(added, saved)
+    }
+
+    /// The bytes a copy of a loop block whose code costs `copy`, entered on `paths` paths, adds
+    /// beyond the label push and `JUMP` it replaces, and the gas it saves on each execution: the
+    /// jump on [`Self::UNCOUNTED_LOOP_ITERATIONS`] iterations, shared equally by the paths.
+    pub(crate) fn loop_block_copy(&self, copy: Cost, paths: u32) -> (u64, u64) {
+        let removed = self.label_push() + self.opcode(op::JUMP);
+        let saved =
+            u64::from(self.jump().gas) * Self::UNCOUNTED_LOOP_ITERATIONS / u64::from(paths.max(1));
+        (u64::from(copy.bytes.saturating_sub(removed.bytes)), saved)
+    }
+
+    /// The most bytes the copies of loop blocks may add to a module of `code_bytes` bytes. From
+    /// [`Self::LOOP_COPY_MIN_RUNS`] on, and in a module of at least [`Self::SMALL_CODE_BYTES`],
+    /// every copy that pays goes. Below those runs, as at the default 200, a build still values
+    /// its code size, and in a small module a couple of copies of its one loop grow it by a tenth
+    /// or more: they may add one part in [`Self::LOOP_JOIN_COPY_SHARE`] of its code.
+    pub(crate) fn loop_join_copy_budget(&self, code_bytes: u64) -> u64 {
+        if self.copies_loops() || code_bytes >= Self::SMALL_CODE_BYTES {
+            u64::MAX
+        } else {
+            code_bytes / Self::LOOP_JOIN_COPY_SHARE
+        }
+    }
+
     /// Static gas of one opcode; unknown opcodes are free.
     pub(crate) fn opcode_gas(&self, opcode: u8) -> u32 {
         self.opcode_gas_at(opcode, Warmth::Cold)
@@ -457,9 +555,20 @@ impl Target {
         op::definition(opcode).map_or(0, |def| def.gas.gas_at(self.evm_version, warmth))
     }
 
+    /// Static gas of reading again a location in `space` that an earlier access already touched:
+    /// a warm storage slot, a transient slot, a memory word, or an immutable's pushed constant.
+    pub(crate) fn repeated_read_gas(&self, space: AddressSpace) -> u32 {
+        match space {
+            AddressSpace::Storage => self.opcode_gas_at(op::SLOAD, Warmth::Warm),
+            AddressSpace::Transient => self.opcode_gas(op::TLOAD),
+            AddressSpace::Memory => self.opcode_gas(op::MLOAD),
+            AddressSpace::Immutable => self.opcode_gas(op::PUSH32),
+        }
+    }
+
     /// Cost of one opcode with its immediate, before dynamic components.
     pub(crate) fn opcode(&self, opcode: u8) -> Cost {
-        Cost::new(self.opcode_gas(opcode), opcode_bytes(opcode))
+        Cost::new(self.opcode_gas(opcode), opcode_bytes(opcode)).with_steps(1)
     }
 
     /// Cost of an opcode whose arguments are known in EVM pop order.
@@ -487,7 +596,10 @@ impl Target {
     /// cannot lower it. An `EXCHANGE` before Amsterdam costs its three swaps.
     pub(crate) fn stack_op(&self, stack_op: op::StackOp) -> Option<Cost> {
         let metrics = stack_op.metrics(self.evm_version)?;
-        Some(Cost::new(metrics.static_gas as u32, metrics.assembled_len as u32))
+        Some(
+            Cost::new(metrics.static_gas as u32, metrics.assembled_len as u32)
+                .with_steps(metrics.instruction_count as u32),
+        )
     }
 
     /// Cost of pushing a block label, which resolves to a two-byte push in all but the largest
@@ -496,10 +608,10 @@ impl Target {
         self.opcode(op::PUSH2)
     }
 
-    /// Cost of pushing `value` through its cheapest materialization.
+    /// Cost of pushing `value` through the materialization the push selector emits: the one
+    /// with the fewest bytes, whatever the tune.
     pub(crate) fn push(&self, value: U256) -> Cost {
-        let (bytes, gas) = compact_pushes::immediate_materialization_cost(self.evm_version, value);
-        Cost::new(gas as u32, bytes as u32)
+        compact_pushes::immediate_materialization(self.evm_version, value)
     }
 
     /// Whether reading `value` as an immediate costs no more gas than a `DUP` and at most one
@@ -569,13 +681,13 @@ impl Target {
                 + if matches!(op, Op::Ne { .. }) { self.opcode(op::ISZERO) } else { Cost::ZERO };
         }
         let Some(lowering) = select::opcode_lowering(op) else {
-            return Cost::new(GasTier::VeryLow.gas(self.evm_version), 1);
+            return Cost::new(GasTier::VeryLow.gas(self.evm_version), 1).with_steps(1);
         };
         let tier = op::definition(lowering.opcode()).map_or(GasTier::VeryLow, |def| def.gas);
         let static_gas = tier.gas_at(self.evm_version, warmth);
         let dynamic_gas = tier.dynamic_gas(self.evm_version);
         if dynamic_gas == 0 {
-            return Cost::new(static_gas, 1);
+            return Cost::new(static_gas, 1).with_steps(1);
         }
         let mut arguments = SmallVec::<[Option<U256>; 8]>::new();
         // Only the visit matters; the mapped copy is discarded.
@@ -584,7 +696,7 @@ impl Target {
             value
         });
         let dynamic = dynamic_gas.saturating_mul(tier.dynamic_units(&arguments));
-        Cost::new(static_gas.saturating_add(dynamic), 1)
+        Cost::new(static_gas.saturating_add(dynamic), 1).with_steps(1)
     }
 
     /// Whether an opcode-lowered MIR operation's gas depends on operands or access warmth.
@@ -639,17 +751,31 @@ impl Target {
     /// return label, the jump, the landing, and the frame protocol moving
     /// `args` arguments in and `returns` results out, whose gas grows with
     /// the callee's frame of `frame_words` words.
+    ///
+    /// The gas and bytes are an empirical fit. Its instructions follow from the gas: the label
+    /// push, jump, and landing count exactly, and every further 3 gas, the price of the `DUP`,
+    /// `PUSH`, `SWAP`, `MLOAD`, and `MSTORE` that make up the rest of the protocol, is one
+    /// instruction.
     pub(crate) fn icall(&self, args: usize, returns: usize, frame_words: u64) -> Cost {
         let moved = (args + returns) as u32;
         let protocol = 90 + moved * 24 + u32::try_from(frame_words).unwrap_or(u32::MAX) * 6;
-        Cost::new(protocol, 18 + moved * 5)
+        Cost::new(protocol, 18 + moved * 5).with_steps(self.protocol_steps(protocol, self.jump()))
     }
 
     /// Cost of one internal return: the jump back through the pushed label
     /// and the protocol handing `returns` results past `params` parameters.
+    /// Its instructions follow from the gas as in [`Self::icall`], with the jump counted exactly.
     pub(crate) fn internal_return(&self, params: usize, returns: usize) -> Cost {
         let moved = (params + returns) as u32;
-        Cost::new(24 + moved * 8, 8 + moved * 4)
+        let protocol = 24 + moved * 8;
+        Cost::new(protocol, 8 + moved * 4)
+            .with_steps(self.protocol_steps(protocol, self.opcode(op::JUMP)))
+    }
+
+    /// Instructions of a fitted protocol of `gas`, which includes the exactly known sequence
+    /// `known`: its own instructions, and one for each 3 gas beyond it.
+    fn protocol_steps(&self, gas: u32, known: Cost) -> u32 {
+        known.steps + gas.saturating_sub(known.gas).div_ceil(GasTier::VeryLow.gas(self.evm_version))
     }
 
     /// Prices sharing one helper with `body_bytes` of body, `params` parameters, and `returns`
@@ -667,13 +793,14 @@ impl Target {
     ) -> (Cost, Cost) {
         let frame_words = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE
             + (params + returns) as u64;
-        let gas = self.icall(params, returns, frame_words).gas
-            + self.internal_return(params, returns).gas;
+        let protocol =
+            self.icall(params, returns, frame_words) + self.internal_return(params, returns);
         let moves = self.dup().times((params + returns) as u32);
         let call = self.label_push() + self.jump() + moves;
         let ret =
             self.opcode(op::JUMPDEST) + self.dup().times(returns as u32) + self.opcode(op::JUMP);
-        let shared = Cost::new(gas, call.bytes)
+        let shared = Cost::new(protocol.gas, call.bytes)
+            .with_steps(protocol.steps)
             .times(sites)
             .plus(Cost::new(0, body_bytes.saturating_add(ret.bytes)));
         (shared, Cost::new(0, body_bytes).times(sites))
@@ -688,6 +815,25 @@ impl Target {
 
     /// Estimated code of one block, priced as in [`Self::code_estimate`].
     pub(crate) fn block_code_estimate(&self, func: &Function, block: BlockId) -> Cost {
+        let mut cost = self.block_instructions_estimate(func, block);
+        let block = &func.blocks[block];
+        if let Some(terminator) = &block.terminator {
+            // An unconditional edge does not pay the conditional jump's higher gas price.
+            // Other CFG edges retain the conservative conditional-edge estimate.
+            if matches!(terminator, Terminator::Jump(_)) {
+                cost += self.jump();
+            } else {
+                for _ in 0..terminator.successors().len() {
+                    cost += self.branch();
+                }
+            }
+        }
+        cost
+    }
+
+    /// Estimated code of the instructions of one block with the pushes of their immediates,
+    /// without its terminator.
+    pub(crate) fn block_instructions_estimate(&self, func: &Function, block: BlockId) -> Cost {
         let block = &func.blocks[block];
         let mut cost = Cost::ZERO;
         for &inst in &block.instructions {
@@ -703,24 +849,39 @@ impl Target {
                 }
             });
         }
-        if let Some(terminator) = &block.terminator {
-            // An unconditional edge does not pay the conditional jump's higher gas price.
-            // Other CFG edges retain the conservative conditional-edge estimate.
-            if matches!(terminator, Terminator::Jump(_)) {
-                cost += self.jump();
-            } else {
-                for _ in 0..terminator.successors().len() {
-                    cost += self.branch();
-                }
-            }
-        }
         cost
+    }
+
+    /// Whether the engine pays for the dispatch of each executed instruction.
+    const fn charges_dispatch(&self) -> bool {
+        matches!(self.tune, Tune::Interpreter)
+    }
+
+    /// The runtime gas every ranking of `cost` uses: its static gas, plus under
+    /// [`Tune::Interpreter`] the dispatch of each executed instruction.
+    pub(crate) fn runtime_gas(&self, cost: Cost) -> u32 {
+        if self.charges_dispatch() {
+            cost.gas.saturating_add(cost.steps.saturating_mul(Self::INTERPRETER_DISPATCH_GAS))
+        } else {
+            cost.gas
+        }
+    }
+
+    /// Whether `a` costs no more than `b` in every dimension the model ranks and less in one.
+    /// Executed instructions count only when the engine dispatches them.
+    pub(crate) fn dominates(&self, a: Cost, b: Cost) -> bool {
+        let ranked = |cost: Cost| {
+            let steps = if self.charges_dispatch() { cost.steps } else { 0 };
+            (cost.gas, cost.bytes, steps)
+        };
+        let (a, b) = (ranked(a), ranked(b));
+        a.0 <= b.0 && a.1 <= b.1 && a.2 <= b.2 && a != b
     }
 
     /// Deployment-lifetime gas of `cost`: expected executions of its runtime
     /// gas plus the price of its bytes.
     pub(crate) fn lifetime_gas(&self, cost: Cost) -> u128 {
-        u128::from(cost.gas) * u128::from(self.expected_executions)
+        u128::from(self.runtime_gas(cost)) * u128::from(self.expected_executions)
             + u128::from(cost.bytes) * u128::from(self.byte_gas())
     }
 
@@ -730,11 +891,11 @@ impl Target {
     /// calldata, when optimizing for gas.
     pub(crate) fn objective_key(&self, cost: Cost) -> [u32; 2] {
         match self.optimization {
-            OptimizationMode::Size => [cost.bytes, cost.gas],
+            OptimizationMode::Size => [cost.bytes, self.runtime_gas(cost)],
             _ if self.creation => {
                 [u32::try_from(self.lifetime_gas(cost)).unwrap_or(u32::MAX), cost.bytes]
             }
-            _ => [cost.gas, cost.bytes],
+            _ => [self.runtime_gas(cost), cost.bytes],
         }
     }
 
@@ -759,6 +920,35 @@ impl Target {
             > u128::from(gas) * u128::from(self.expected_executions)
     }
 
+    /// Whether a compact recipe for an immediate, `saved_bytes` shorter than its literal push and
+    /// `extra_gas` dearer to run, is the better code. Size builds always take the bytes. Gas builds
+    /// take them when the deposit they save covers the extra gas over the expected executions,
+    /// [`Self::UNCOUNTED_LOOP_ITERATIONS`] times over for a push inside a loop, so a hot loop
+    /// pushes a mask as a literal rather than rebuilding it on every iteration; a tie takes the
+    /// bytes, which cost no more over the deployment's lifetime.
+    ///
+    /// The push is priced over at most [`Self::DEFAULT_EXPECTED_EXECUTIONS`]: it runs only on the
+    /// calls whose path reaches it, a fraction of the deployment's calls once they spread over its
+    /// entry points. Priced at the full count, a contract built for 1,000 runs keeps each
+    /// left-aligned string literal as a `PUSH32`, 26 bytes longer than a shifted `PUSH3`, to save
+    /// 6 gas on the calls that reach it, and each `not(31)` of its loops as a `PUSH32`, 30 bytes
+    /// longer than `PUSH1 31 NOT`, to save 3 gas an iteration.
+    pub(crate) fn compacts_immediate(
+        &self,
+        saved_bytes: u64,
+        extra_gas: u64,
+        in_loop: bool,
+    ) -> bool {
+        if !self.optimization.is_gas() {
+            return true;
+        }
+        let iterations = if in_loop { Self::UNCOUNTED_LOOP_ITERATIONS } else { 1 };
+        let executions = self.expected_executions.min(Self::DEFAULT_EXPECTED_EXECUTIONS);
+        saved_bytes != 0
+            && u128::from(saved_bytes) * u128::from(self.byte_gas())
+                >= u128::from(extra_gas) * u128::from(iterations) * u128::from(executions)
+    }
+
     /// Whether a change that saves `gas_saving` gas and `byte_saving` bytes
     /// per site improves the objective; negative savings are growth.
     pub(crate) fn improves(&self, gas_saving: i64, byte_saving: i64) -> bool {
@@ -781,6 +971,40 @@ impl Target {
         self.label_push() + self.opcode(op::JUMPI) + self.opcode(op::JUMPDEST)
     }
 
+    /// Whether encoding static calldata elements of `element_words` words keeps a block copy
+    /// behind a wrap guard, with the per-word loop as the fallback, rather than running the
+    /// loop alone. Solc loads each word at its own address, and a block copy reads zeros where
+    /// the range crosses 2^256, so the guard sends only a range that wraps to the loop. The
+    /// guard adds a copy and a branch to code that holds the loop already, and one element
+    /// is priced: the copy must save gas on it to pay for those bytes, which only the gas
+    /// objective counts.
+    pub(crate) fn guards_block_copy(&self, element_words: u64) -> bool {
+        let words = u32::try_from(element_words).unwrap_or(u32::MAX);
+        // One iteration: a load, a store, and the address step for each word, and the branch.
+        let step = self.opcode(op::CALLDATALOAD) + self.opcode(op::MSTORE) + self.opcode(op::ADD);
+        let looped = step.times(words) + self.branch();
+        // Overflow test of the range end, the branch around the loop, and the copy.
+        let guard = self.opcode(op::ADD) + self.opcode(op::LT) + self.branch();
+        let copy = self.opcode(op::CALLDATACOPY)
+            + self.copied_words(usize::try_from(element_words.saturating_mul(32)).unwrap_or(0));
+        // The loop stays in the guarded shape as the fallback, so only its bytes remain.
+        let guarded = Cost::new(guard.gas + copy.gas, guard.bytes + copy.bytes + looped.bytes);
+        self.cmp(guarded, looped).is_lt()
+    }
+    /// The factor `2**shift` that a constant shift lowered to `MUL` or `DIV` pushes, or `None`
+    /// when computing it with `EXP` costs less over the deployment lifetime. Shifts of 256 or
+    /// more give a zero factor, which matches the wrapped `EXP` result.
+    pub(crate) fn legacy_shift_factor(&self, shift: U256) -> Option<U256> {
+        let two = U256::from(2);
+        let factor =
+            if shift < U256::from(256) { U256::ONE << shift.to::<usize>() } else { U256::ZERO };
+        let folded = self.opcode(op::push(factor.byte_len().max(1) as u8));
+        let computed = self.push(shift)
+            + self.push(two)
+            + self.opcode_with_immediates(op::EXP, &[Some(two), Some(shift)]);
+        self.cmp_lifetime(folded, computed).is_le().then_some(factor)
+    }
+
     /// Whether legacy splat expansion beats the selected ordinary lowering in size.
     /// For word stores, the first two stores are common; price each remaining materialized
     /// word, offset, store, and stack moves. For a data copy, include the pool and the splat's
@@ -793,16 +1017,7 @@ impl Target {
         data_copy: bool,
     ) -> bool {
         let word_size = op::WORD_BYTES;
-        let loop_body = self.jump()
-            + self.branch()
-            + self.dup().times(7)
-            + self.opcode(op::ADD).times(4)
-            + self.opcode(op::LT)
-            + self.opcode(op::MLOAD)
-            + self.opcode(op::MSTORE)
-            + self.opcode(op::POP).times(3)
-            + self.push(U256::ZERO)
-            + self.push(U256::from(word_size));
+        let loop_body = self.word_copy_loop();
         let mut copies = Cost::ZERO;
         let mut filled = 2 * word_size;
         while filled < size {
@@ -835,6 +1050,85 @@ impl Target {
         }
     }
 
+    /// One iteration of a word-by-word memory copy loop, with its counter and cursor moves.
+    fn word_copy_loop(&self) -> Cost {
+        self.jump()
+            + self.branch()
+            + self.dup().times(7)
+            + self.opcode(op::ADD).times(4)
+            + self.opcode(op::LT)
+            + self.opcode(op::MLOAD)
+            + self.opcode(op::MSTORE)
+            + self.opcode(op::POP).times(3)
+            + self.push(U256::ZERO)
+            + self.push(U256::from(op::WORD_BYTES))
+    }
+
+    /// Whether an ABI encoding writes a literal byte string as stores of its own words, beside
+    /// the preserved object that already holds it, instead of copying that object. `bytes`
+    /// reads the literal, which only the size objective needs. `removes_original` says nothing
+    /// reads the object afterwards, so folding also drops its allocation and stores. Gas ranks
+    /// the stores above the copy loop that runs before MCOPY and below the copy instruction
+    /// that follows it. Size compares the stores with the length computation, padding store,
+    /// and copy they replace, and folds whenever the object goes away, since the stores then
+    /// only move.
+    pub(crate) fn folds_preserved_literal(
+        &self,
+        removes_original: bool,
+        bytes: impl FnOnce() -> Option<Vec<u8>>,
+    ) -> bool {
+        match self.optimization {
+            OptimizationMode::Gas => !self.evm_version.has_mcopy(),
+            OptimizationMode::Size => {
+                if removes_original {
+                    return true;
+                }
+                let Some(bytes) = bytes() else { return false };
+                let word_size = op::WORD_BYTES;
+                let size = U256::from(bytes.len().next_multiple_of(word_size));
+                // mstore dest, len; mstore dest + 32 + 32 * i, word; tail = dest + 32 + size
+                let folded = self.push(U256::from(bytes.len()))
+                    + self.dup()
+                    + self.opcode(op::MSTORE)
+                    + bytes
+                        .chunks(word_size)
+                        .map(|chunk| {
+                            let mut word = [0; op::WORD_BYTES];
+                            word[..chunk.len()].copy_from_slice(chunk);
+                            self.push(U256::from_be_bytes(word))
+                                + self.push(U256::from(word_size))
+                                + self.dup()
+                                + self.opcode(op::ADD)
+                                + self.opcode(op::MSTORE)
+                        })
+                        .sum::<Cost>()
+                    + self.push(size)
+                    + self.opcode(op::ADD);
+                // len = mload object; padded = (len + 31) & ~31; mstore dest + padded, 0;
+                // mstore dest, len; copy data to dest + 32; tail = dest + 32 + padded
+                let copy = if self.evm_version.has_mcopy() {
+                    self.opcode(op::MCOPY)
+                } else {
+                    self.word_copy_loop()
+                };
+                let copied = self.dup()
+                    + self.opcode(op::MLOAD)
+                    + self.push(U256::from(word_size - 1)).times(2)
+                    + self.opcode(op::ADD)
+                    + self.opcode(op::NOT)
+                    + self.opcode(op::AND)
+                    + (self.dup() + self.opcode(op::ADD)).times(2)
+                    + self.push(U256::ZERO)
+                    + (self.dup() + self.opcode(op::MSTORE)).times(2)
+                    + (self.push(U256::from(word_size)) + self.opcode(op::ADD)).times(2)
+                    + self.dup().times(3)
+                    + copy;
+                folded.bytes < copied.bytes
+            }
+            _ => false,
+        }
+    }
+
     /// Whether one shared copy of a terminal block, entered by a jump from each of `sites`,
     /// takes fewer bytes than a copy at every site. When optimizing for size, a copy no larger
     /// than a jump to and from a shared body stays with the backend, whose terminal-block sharing
@@ -846,6 +1140,19 @@ impl Target {
             return false;
         }
         (jump.times(sites) + copy + self.opcode(op::JUMPDEST)).bytes < copy.times(sites).bytes
+    }
+
+    /// Whether code shared from a site inside a loop pays for itself when the bytes it saves at
+    /// that site, `saved_bytes`, cost `transfer_gas` more on every iteration: the deposit of the
+    /// bytes against the transfers over the expected executions,
+    /// [`Self::UNCOUNTED_LOOP_ITERATIONS`] times per execution. This holds in size builds too,
+    /// which otherwise take the bytes, so a hot loop keeps code that only its size made worth
+    /// sharing.
+    pub(crate) fn shares_in_loop(&self, saved_bytes: u64, transfer_gas: u64) -> bool {
+        self.deposit_repays_gas(
+            saved_bytes,
+            transfer_gas.saturating_mul(Self::UNCOUNTED_LOOP_ITERATIONS),
+        )
     }
 }
 
@@ -960,8 +1267,8 @@ mod tests {
         let mut function = Function::new(Ident::DUMMY);
         let slot = function.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
         let load = InstKind::Load(slot, PtrLocation::Storage).op();
-        assert_eq!(target.op_at(&load, |_| None, Warmth::Warm), Cost::new(100, 1));
-        assert_eq!(target.op(&load, |_| None), Cost::new(2100, 1));
+        assert_eq!(target.op_at(&load, |_| None, Warmth::Warm), Cost::new(100, 1).with_steps(1));
+        assert_eq!(target.op(&load, |_| None), Cost::new(2100, 1).with_steps(1));
         for version in [EvmVersion::Istanbul, EvmVersion::Berlin, EvmVersion::Osaka] {
             let target = Target::with(version, OptimizationMode::Gas, 200);
             for kind in
@@ -975,8 +1282,8 @@ mod tests {
     #[test]
     fn select_prices_the_emitted_sequence() {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
-        assert_eq!(target.select(false), Cost::new(17, 5));
-        assert_eq!(target.select(true), Cost::new(20, 6));
+        assert_eq!(target.select(false), Cost::new(17, 5).with_steps(5));
+        assert_eq!(target.select(true), Cost::new(20, 6).with_steps(6));
     }
 
     #[test]
@@ -1052,18 +1359,18 @@ mod tests {
                 (id.index() == 1).then_some(value).flatten()
             })
         };
-        assert_eq!(exponent(None), Cost::new(60, 1));
-        assert_eq!(exponent(Some(U256::from(255))), Cost::new(60, 1));
-        assert_eq!(exponent(Some(U256::from(1 << 16))), Cost::new(160, 1));
-        assert_eq!(exponent(Some(U256::ZERO)), Cost::new(10, 1));
+        assert_eq!(exponent(None), Cost::new(60, 1).with_steps(1));
+        assert_eq!(exponent(Some(U256::from(255))), Cost::new(60, 1).with_steps(1));
+        assert_eq!(exponent(Some(U256::from(1 << 16))), Cost::new(160, 1).with_steps(1));
+        assert_eq!(exponent(Some(U256::ZERO)), Cost::new(10, 1).with_steps(1));
         assert_eq!(
             target.opcode_with_immediates(op::EXP, &[Some(U256::from(2)), Some(U256::from(256))]),
-            Cost::new(110, 1),
+            Cost::new(110, 1).with_steps(1),
         );
         assert_eq!(
             Target::with(EvmVersion::Homestead, OptimizationMode::Gas, 200)
                 .opcode_with_immediates(op::EXP, &[Some(U256::from(2)), Some(U256::from(256))]),
-            Cost::new(30, 1),
+            Cost::new(30, 1).with_steps(1),
         );
         assert_eq!(GasTier::Keccak.dynamic_units(&[None, Some(U256::from(64))]), 2);
         assert_eq!(GasTier::Copy.dynamic_units(&[None, None, Some(U256::from(33))]), 2);
@@ -1091,34 +1398,78 @@ mod tests {
         function.blocks[exit]
             .set_generated_terminator(Terminator::Return { values: smallvec::smallvec![sum] });
         // `add` with both pushes of its immediate, then a pushed label, a jump and a landing.
-        assert_eq!(target.block_code_estimate(&function, BlockId::ENTRY), Cost::new(21, 10));
+        assert_eq!(
+            target.block_code_estimate(&function, BlockId::ENTRY),
+            Cost::new(21, 10).with_steps(6)
+        );
         assert_eq!(target.block_code_estimate(&function, exit), Cost::ZERO);
-        assert_eq!(target.code_estimate(&function), Cost::new(21, 10));
+        assert_eq!(target.code_estimate(&function), Cost::new(21, 10).with_steps(6));
     }
 
     #[test]
     fn pushes_and_stack_ops() {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
-        assert_eq!(target.dup(), Cost::new(3, 1));
-        assert_eq!(target.opcode(op::POP), Cost::new(2, 1));
-        assert_eq!(target.opcode(op::PUSH2), Cost::new(3, 3));
-        assert_eq!(target.label_push(), Cost::new(3, 3));
-        assert_eq!(target.push(U256::ZERO), Cost::new(2, 1));
-        assert_eq!(target.push(U256::from(0x1234)), Cost::new(3, 3));
+        let one = |gas, bytes| Cost::new(gas, bytes).with_steps(1);
+        assert_eq!(target.dup(), one(3, 1));
+        assert_eq!(target.opcode(op::POP), one(2, 1));
+        assert_eq!(target.opcode(op::PUSH2), one(3, 3));
+        assert_eq!(target.label_push(), one(3, 3));
+        assert_eq!(target.push(U256::ZERO), one(2, 1));
+        assert_eq!(target.push(U256::from(0x1234)), one(3, 3));
+        // `PUSH0; NOT`.
+        assert_eq!(target.push(U256::MAX), Cost::new(5, 2).with_steps(2));
         assert_eq!(target.copied_words(64), Cost::new(6, 0));
         let legacy = Target::with(EvmVersion::Paris, OptimizationMode::Gas, 200);
-        assert_eq!(legacy.push(U256::ZERO), Cost::new(3, 2));
-        assert_eq!(target.stack_op(op::StackOp::Swap(16)), Some(Cost::new(3, 1)));
-        assert_eq!(target.stack_op(op::StackOp::Pop), Some(Cost::new(2, 1)));
-        assert_eq!(target.stack_op(op::StackOp::Exchange(1, 2)), Some(Cost::new(9, 3)));
+        assert_eq!(legacy.push(U256::ZERO), one(3, 2));
+        assert_eq!(target.stack_op(op::StackOp::Swap(16)), Some(one(3, 1)));
+        assert_eq!(target.stack_op(op::StackOp::Pop), Some(one(2, 1)));
+        // Three swaps before Amsterdam.
+        assert_eq!(
+            target.stack_op(op::StackOp::Exchange(1, 2)),
+            Some(Cost::new(9, 3).with_steps(3))
+        );
         assert_eq!(target.stack_op(op::StackOp::Exchange(1, 17)), None);
         let amsterdam = Target::with(EvmVersion::Amsterdam, OptimizationMode::Gas, 200);
-        assert_eq!(amsterdam.stack_op(op::StackOp::Dup(17)), Some(Cost::new(3, 2)));
-        assert_eq!(amsterdam.stack_op(op::StackOp::Exchange(1, 2)), Some(Cost::new(3, 2)));
-        assert!(Cost::new(3, 2).dominates(Cost::new(9, 3)));
-        assert!(Cost::new(9, 2).dominates(Cost::new(9, 3)));
-        assert!(!Cost::new(9, 3).dominates(Cost::new(9, 3)));
-        assert!(!Cost::new(3, 4).dominates(Cost::new(9, 3)));
+        assert_eq!(amsterdam.stack_op(op::StackOp::Dup(17)), Some(one(3, 2)));
+        assert_eq!(amsterdam.stack_op(op::StackOp::Exchange(1, 2)), Some(one(3, 2)));
+        assert!(target.dominates(Cost::new(3, 2), Cost::new(9, 3)));
+        assert!(target.dominates(Cost::new(9, 2), Cost::new(9, 3)));
+        assert!(!target.dominates(Cost::new(9, 3), Cost::new(9, 3)));
+        assert!(!target.dominates(Cost::new(3, 4), Cost::new(9, 3)));
+    }
+
+    #[test]
+    fn interpreter_charges_each_executed_instruction() {
+        let model = |tune| Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200).tuned(tune);
+        let none = model(Tune::None);
+        let interpreter = model(Tune::Interpreter);
+        let cost = Cost::new(10, 4).with_steps(3);
+        assert_eq!(Target::INTERPRETER_DISPATCH_GAS, 4);
+        assert_eq!(none.runtime_gas(cost), 10);
+        assert_eq!(interpreter.runtime_gas(cost), 22);
+        assert_eq!(interpreter.objective_key(cost), [22, 4]);
+        assert_eq!(none.objective_key(cost), [10, 4]);
+        assert_eq!(interpreter.lifetime_gas(cost), 22 * 200 + 4 * 200);
+        // Fewer gas and bytes in more instructions dominates only where dispatch is free.
+        let more_steps = Cost::new(9, 4).with_steps(5);
+        assert!(none.dominates(more_steps, cost));
+        assert!(!interpreter.dominates(more_steps, cost));
+        assert!(interpreter.dominates(Cost::new(10, 4).with_steps(2), cost));
+        assert!(!none.dominates(Cost::new(10, 4).with_steps(2), cost));
+    }
+
+    #[test]
+    fn every_tune_selects_the_fewest_bytes() {
+        let address_mask = (U256::ONE << 160) - U256::ONE;
+        for tune in [Tune::None, Tune::Interpreter] {
+            for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+                let target = Target::with(EvmVersion::Osaka, optimization, 200).tuned(tune);
+                // `PUSH0; NOT; PUSH1 0x60; SHR` against `PUSH20 0xff..ff`.
+                assert_eq!(target.push(address_mask), Cost::new(11, 5).with_steps(4));
+                // `PUSH0; NOT`.
+                assert_eq!(target.push(U256::MAX), Cost::new(5, 2).with_steps(2));
+            }
+        }
     }
 
     #[test]
@@ -1149,6 +1500,35 @@ mod tests {
     }
 
     #[test]
+    fn compact_immediates_repay_their_gas() {
+        // `type(uint128).max`: `PUSH16` is 17 bytes for 3 gas, `PUSH0 NOT PUSH1 128 SHR` 5 bytes
+        // for 11: 12 bytes deposit 2,400 gas against 8 gas on 200 executions, 1,600, or 16,000
+        // ten times over in a loop.
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        assert!(target.compacts_immediate(12, 8, false));
+        assert!(!target.compacts_immediate(12, 8, true));
+        // `type(uint64).max`: 4 bytes, 800 gas, do not repay 8 gas on 200 executions.
+        assert!(!target.compacts_immediate(4, 8, false));
+        // A recipe that costs no more gas always wins.
+        assert!(target.compacts_immediate(1, 0, true));
+        let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
+        assert!(size.compacts_immediate(12, 8, true));
+        // A tie takes the bytes: `not(31)` in a loop saves 30 bytes, 6,000 gas, for 3 gas ten
+        // times over on 200 executions, 6,000.
+        assert!(target.compacts_immediate(30, 3, true));
+        // A recipe that saves no bytes does not win.
+        assert!(!target.compacts_immediate(0, 0, false));
+        // More runs than the default price a push at the default: the 26 bytes of a left-aligned
+        // `"abc"`, 5,200 gas, repay 6 gas on 200 executions, though not on 1,000, nor ten times
+        // over in a loop, and `not(31)` still ties in a loop.
+        let hot = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 1_000);
+        assert!(hot.compacts_immediate(26, 6, false));
+        assert!(!hot.compacts_immediate(26, 6, true));
+        assert!(!hot.compacts_immediate(4, 8, false));
+        assert!(hot.compacts_immediate(30, 3, true));
+    }
+
+    #[test]
     fn deposit_repays_gas_over_expected_executions() {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         // 10 bytes deposit 2,000 gas; 9 gas on 200 executions is 1,800.
@@ -1166,7 +1546,13 @@ mod tests {
         // Three sites each pay a call with a 5-word frame and a return. Each emits two label
         // pushes, a jump, a landing, and three moves; the helper adds a landing, one body, a
         // result move, and the return jump.
-        assert_eq!(shared, Cost::new(3 * ((90 + 3 * 24 + 5 * 6) + (24 + 3 * 8)), 3 * 11 + 103));
+        assert_eq!(
+            shared,
+            Cost::new(3 * ((90 + 3 * 24 + 5 * 6) + (24 + 3 * 8)), 3 * 11 + 103)
+                // Per site: 63 instructions to call (3 exactly, then 60 for the other 180 gas) and
+                // 15 to return (1 exactly, then 14 for the other 40 gas).
+                .with_steps(3 * (63 + 15))
+        );
         assert_eq!(expanded, Cost::new(0, 300));
         assert!(target.cmp(shared, expanded).is_lt());
         let (shared, expanded) = target.helper_sharing(10, 2, 1, 2);
@@ -1180,13 +1566,24 @@ mod tests {
     }
 
     #[test]
+    fn calldata_block_copy_guard_pays_only_for_gas() {
+        let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
+        let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        // The guard adds a copy and a branch to the loop it keeps: bytes under the size
+        // objective, and a copy that beats the loop's gas on even one element under gas.
+        assert!(!size.guards_block_copy(2));
+        assert!(gas.guards_block_copy(2));
+        assert!(gas.guards_block_copy(8));
+    }
+
+    #[test]
     fn control_flow_costs_distinguish_unconditional_edges() {
         for version in
             [EvmVersion::Homestead, EvmVersion::Paris, EvmVersion::Osaka, EvmVersion::Amsterdam]
         {
             let target = Target::with(version, OptimizationMode::Gas, 200);
-            assert_eq!(target.jump(), Cost::new(12, 5));
-            assert_eq!(target.branch(), Cost::new(14, 5));
+            assert_eq!(target.jump(), Cost::new(12, 5).with_steps(3));
+            assert_eq!(target.branch(), Cost::new(14, 5).with_steps(3));
             let mut function = Function::new(Ident::DUMMY);
             let then_block = function.alloc_block();
             let else_block = function.alloc_block();
@@ -1217,6 +1614,28 @@ mod tests {
         assert!(target.legacy_splat_is_profitable(word, 96, true));
         assert!(target.legacy_splat_is_profitable(word, 5120, true));
     }
+
+    #[test]
+    fn preserved_literals_fold_by_objective() {
+        let folds = |target: Target, removes_original, len| {
+            target.folds_preserved_literal(removes_original, || Some(vec![0x41; len]))
+        };
+        let gas = |evm_version| Target::with(evm_version, OptimizationMode::Gas, 200);
+        let size = |evm_version| Target::with(evm_version, OptimizationMode::Size, 1);
+        // Gas folds only where the copy would be a loop, and never reads the literal.
+        assert!(gas(EvmVersion::Paris).folds_preserved_literal(false, || None));
+        assert!(!gas(EvmVersion::Cancun).folds_preserved_literal(true, || None));
+        // The stores of a short string cost fewer bytes than the length math and a copy.
+        assert!(folds(size(EvmVersion::Cancun), false, 4));
+        assert!(!folds(size(EvmVersion::Cancun), false, 32));
+        // The copy loop is longer than MCOPY, so longer strings still fold before Cancun.
+        assert!(folds(size(EvmVersion::Paris), false, 32));
+        assert!(!folds(size(EvmVersion::Paris), false, 64));
+        // Folding that drops the original object only moves the stores.
+        assert!(folds(size(EvmVersion::Cancun), true, 64));
+        assert!(!size(EvmVersion::Cancun).folds_preserved_literal(false, || None));
+    }
+
     #[test]
     fn terminal_copy_sharing() {
         let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
@@ -1231,5 +1650,72 @@ mod tests {
         assert!(size.shares_terminal_copy(medium, 3));
         // One site never pays for a jump.
         assert!(!gas.shares_terminal_copy(Cost::new(0, 40), 1));
+    }
+
+    #[test]
+    fn legacy_shifts_push_the_factor_when_it_costs_less() {
+        let shift = |bits| U256::from(bits);
+        let size = Target::with(EvmVersion::Byzantium, OptimizationMode::Size, 1);
+        assert_eq!(size.legacy_shift_factor(shift(8)), Some(U256::from(256)));
+        assert_eq!(size.legacy_shift_factor(shift(224)), None);
+        // 24 more bytes of deposit outweigh the 63 gas of `EXP` unless the code runs often.
+        let few = Target::with(EvmVersion::Byzantium, OptimizationMode::Gas, 1);
+        assert_eq!(few.legacy_shift_factor(shift(224)), None);
+        let many = Target::with(EvmVersion::Byzantium, OptimizationMode::Gas, 200);
+        assert_eq!(many.legacy_shift_factor(shift(224)), Some(U256::ONE << 224));
+        assert_eq!(many.legacy_shift_factor(shift(256)), Some(U256::ZERO));
+    }
+
+    #[test]
+    fn loop_sites_share_by_lifetime_gas() {
+        // A pooled `PUSH32` saves 25 bytes at a site and adds 27 gas of transfers to every
+        // iteration: 5,000 gas of deposit against 54,000 over 200 runs of ten iterations, or 270
+        // over one run.
+        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let target = |runs| Target::with(EvmVersion::Cancun, optimization, runs);
+            assert!(!target(200).shares_in_loop(25, 27));
+            assert!(target(1).shares_in_loop(25, 27));
+            assert!(!target(1).shares_in_loop(0, 27));
+        }
+    }
+
+    #[test]
+    fn loop_blocks_are_duplicated_by_lifetime_gas() {
+        let gas = Target::with(EvmVersion::Cancun, OptimizationMode::Gas, 200);
+        // A 12-byte latch on one of three paths saves 12 gas on a third of ten iterations: 8,000
+        // gas over 200 runs against 8 more bytes, 1,600 gas of deposit.
+        assert!(gas.duplicates_loop_block(Cost::new(30, 12), 3));
+        // Then the saving repays at most 40 added bytes, and on the only path any copy that
+        // fits the size limit.
+        assert!(gas.duplicates_loop_block(Cost::new(0, 40), 3));
+        assert!(!gas.duplicates_loop_block(Cost::new(0, 40), 4));
+        assert!(gas.duplicates_loop_block(Cost::new(0, Target::MAX_LOOP_JOIN_COPY_BYTES), 1));
+        assert!(!gas.duplicates_loop_block(Cost::new(0, Target::MAX_LOOP_JOIN_COPY_BYTES + 1), 1));
+        // One expected execution repays no added byte.
+        let once = Target::with(EvmVersion::Cancun, OptimizationMode::Gas, 1);
+        assert!(once.duplicates_loop_block(Cost::new(0, 4), 1));
+        assert!(!once.duplicates_loop_block(Cost::new(0, 5), 1));
+        let size = Target::with(EvmVersion::Cancun, OptimizationMode::Size, 200);
+        assert!(!size.duplicates_loop_block(Cost::new(30, 12), 1));
+    }
+
+    #[test]
+    fn loop_join_copies_keep_to_a_share_of_the_code() {
+        let gas = Target::with(EvmVersion::Cancun, OptimizationMode::Gas, 200);
+        // A 12-byte latch adds 8 bytes beyond the label push and jump it replaces, and saves the
+        // jump on a third of ten iterations.
+        assert_eq!(
+            gas.loop_block_copy(Cost::new(30, 12), 3),
+            (8, u64::from(gas.jump().gas) * 10 / 3)
+        );
+        // At 200 runs, a 194-byte contract built around one loop may grow by 9 bytes, the
+        // largest small one by 204, and a large one by every copy that pays.
+        assert_eq!(gas.loop_join_copy_budget(194), 9);
+        assert_eq!(gas.loop_join_copy_budget(Target::SMALL_CODE_BYTES - 1), 204);
+        assert_eq!(gas.loop_join_copy_budget(Target::SMALL_CODE_BYTES), u64::MAX);
+        // From the runs that copy loop bodies on, every copy that pays goes.
+        let hot =
+            Target::with(EvmVersion::Cancun, OptimizationMode::Gas, Target::LOOP_COPY_MIN_RUNS);
+        assert_eq!(hot.loop_join_copy_budget(194), u64::MAX);
     }
 }

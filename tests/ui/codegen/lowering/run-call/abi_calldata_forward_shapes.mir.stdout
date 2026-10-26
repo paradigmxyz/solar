@@ -1,0 +1,500 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_forward_shapes.sol:AbiCalldataForwardShapes ===
+@module AbiCalldataForwardShapes
+fn @sinkFlags(arg0: slice<calldata>) -> i256 [selector=0xb9bf39e0, pure, abi_params=[array<_, tuple<bool, int8, enum<3, uint8>, bytes4>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = calldatasize
+    v1 = make_calldata_slice ptr<calldata> 0, v0
+    v2 = extract_value slice<calldata>, v1, 0
+    v3 = extract_value slice<calldata>, v1, 1
+    v4 = calldatasize
+    v5 = gt v3, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v5
+    v6 = sub v4, v3
+    v7 = ptrtoint ptr<calldata> v2 to i256
+    v8 = sgt v7, v6
+    icall revert_if<calldata_tail_too_short>, v8
+    v9 = extract_value slice<calldata>, v1, 1
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    icall panic_if<0x41>, v11
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc v13
+    mstore v14, v9
+    v15 = ptradd v14, 32
+    v16 = extract_value slice<calldata>, v1, 0
+    v17 = extract_value slice<calldata>, v1, 1
+    calldatacopy v15, v16, v17
+    v18 = ptradd v14, 32
+    v19 = mload v14
+    v20 = keccak256 v18, v19
+    ret v20
+}
+
+fn @sinkPairs(arg0: slice<calldata>) -> i256 [selector=0xc7c34c1b, pure, abi_params=[array<_, tuple<uint256, uint256>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = calldatasize
+    v1 = make_calldata_slice ptr<calldata> 0, v0
+    v2 = extract_value slice<calldata>, v1, 0
+    v3 = extract_value slice<calldata>, v1, 1
+    v4 = calldatasize
+    v5 = gt v3, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v5
+    v6 = sub v4, v3
+    v7 = ptrtoint ptr<calldata> v2 to i256
+    v8 = sgt v7, v6
+    icall revert_if<calldata_tail_too_short>, v8
+    v9 = extract_value slice<calldata>, v1, 1
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    icall panic_if<0x41>, v11
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc v13
+    mstore v14, v9
+    v15 = ptradd v14, 32
+    v16 = extract_value slice<calldata>, v1, 0
+    v17 = extract_value slice<calldata>, v1, 1
+    calldatacopy v15, v16, v17
+    v18 = ptradd v14, 32
+    v19 = mload v14
+    v20 = keccak256 v18, v19
+    ret v20
+}
+
+fn @sinkGrid(arg0: slice<calldata>) -> i256 [selector=0xdbf408bc, pure, abi_params=[array<2, array<_, uint256>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = calldatasize
+    v1 = make_calldata_slice ptr<calldata> 0, v0
+    v2 = extract_value slice<calldata>, v1, 0
+    v3 = extract_value slice<calldata>, v1, 1
+    v4 = calldatasize
+    v5 = gt v3, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v5
+    v6 = sub v4, v3
+    v7 = ptrtoint ptr<calldata> v2 to i256
+    v8 = sgt v7, v6
+    icall revert_if<calldata_tail_too_short>, v8
+    v9 = extract_value slice<calldata>, v1, 1
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    icall panic_if<0x41>, v11
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc v13
+    mstore v14, v9
+    v15 = ptradd v14, 32
+    v16 = extract_value slice<calldata>, v1, 0
+    v17 = extract_value slice<calldata>, v1, 1
+    calldatacopy v15, v16, v17
+    v18 = ptradd v14, 32
+    v19 = mload v14
+    v20 = keccak256 v18, v19
+    ret v20
+}
+
+fn @sinkMixed(arg0: slice<calldata>) -> i256 [selector=0x4cafa207, pure, abi_params=[tuple<array<_, tuple<bool, int8, enum<3, uint8>, bytes4>>, array<_, tuple<uint256, uint256>>, array<2, array<_, uint256>>, array<_, bytes>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = calldatasize
+    v1 = make_calldata_slice ptr<calldata> 0, v0
+    v2 = extract_value slice<calldata>, v1, 0
+    v3 = extract_value slice<calldata>, v1, 1
+    v4 = calldatasize
+    v5 = gt v3, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v5
+    v6 = sub v4, v3
+    v7 = ptrtoint ptr<calldata> v2 to i256
+    v8 = sgt v7, v6
+    icall revert_if<calldata_tail_too_short>, v8
+    v9 = extract_value slice<calldata>, v1, 1
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    icall panic_if<0x41>, v11
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc v13
+    mstore v14, v9
+    v15 = ptradd v14, 32
+    v16 = extract_value slice<calldata>, v1, 0
+    v17 = extract_value slice<calldata>, v1, 1
+    calldatacopy v15, v16, v17
+    v18 = ptradd v14, 32
+    v19 = mload v14
+    v20 = keccak256 v18, v19
+    ret v20
+}
+
+fn @forwardFlags(arg0: slice<calldata>) -> i256 [selector=0xe1a0d55e, view, abi_params=[array<_, tuple<bool, int8, enum<3, uint8>, bytes4>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [calldata_array<tuple<word<bool>, word<int8>, word<enum 3>, word<bytes4>>>], selector 0xb9bf39e000000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
+    v5 = zext i160 v0 to i256
+    v6 = staticcall v1, v5, v3, v4, 0, 32
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    ret v10
+}
+
+fn @forwardPairs(arg0: slice<calldata>) -> i256 [selector=0x405d54ae, view, abi_params=[array<_, tuple<uint256, uint256>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [calldata_array<tuple<word, word>>], selector 0xc7c34c1b00000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
+    v5 = zext i160 v0 to i256
+    v6 = staticcall v1, v5, v3, v4, 0, 32
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    ret v10
+}
+
+fn @forwardGrid(arg0: slice<calldata>) -> i256 [selector=0x29a283a9, view, abi_params=[array<2, array<_, uint256>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [array<2, calldata_array<word>>], selector 0xdbf408bc00000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
+    v5 = zext i160 v0 to i256
+    v6 = staticcall v1, v5, v3, v4, 0, 32
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    ret v10
+}
+
+fn @forwardMixed(arg0: slice<calldata>) -> i256 [selector=0xfcee3596, view, abi_params=[tuple<array<_, tuple<bool, int8, enum<3, uint8>, bytes4>>, array<_, tuple<uint256, uint256>>, array<2, array<_, uint256>>, array<_, bytes>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [tuple<calldata_array<tuple<word<bool>, word<int8>, word<enum 3>, word<bytes4>>>, calldata_array<tuple<word, word>>, array<2, calldata_array<word>>, calldata_array<calldata_bytes>>], selector 0x4cafa20700000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
+    v5 = zext i160 v0 to i256
+    v6 = staticcall v1, v5, v3, v4, 0, 32
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    ret v10
+}
+
+fn @sinkNested(arg0: slice<calldata>) -> i256 [selector=0x889a8b28, pure, abi_params=[array<_, array<_, uint8>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = calldatasize
+    v1 = make_calldata_slice ptr<calldata> 0, v0
+    v2 = extract_value slice<calldata>, v1, 0
+    v3 = extract_value slice<calldata>, v1, 1
+    v4 = calldatasize
+    v5 = gt v3, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v5
+    v6 = sub v4, v3
+    v7 = ptrtoint ptr<calldata> v2 to i256
+    v8 = sgt v7, v6
+    icall revert_if<calldata_tail_too_short>, v8
+    v9 = extract_value slice<calldata>, v1, 1
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    icall panic_if<0x41>, v11
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc v13
+    mstore v14, v9
+    v15 = ptradd v14, 32
+    v16 = extract_value slice<calldata>, v1, 0
+    v17 = extract_value slice<calldata>, v1, 1
+    calldatacopy v15, v16, v17
+    v18 = ptradd v14, 32
+    v19 = mload v14
+    v20 = keccak256 v18, v19
+    ret v20
+}
+
+fn @sinkHolder(arg0: slice<calldata>) -> i256 [selector=0x0cd51333, pure, abi_params=[tuple<array<_, address>, uint256>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = calldatasize
+    v1 = make_calldata_slice ptr<calldata> 0, v0
+    v2 = extract_value slice<calldata>, v1, 0
+    v3 = extract_value slice<calldata>, v1, 1
+    v4 = calldatasize
+    v5 = gt v3, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v5
+    v6 = sub v4, v3
+    v7 = ptrtoint ptr<calldata> v2 to i256
+    v8 = sgt v7, v6
+    icall revert_if<calldata_tail_too_short>, v8
+    v9 = extract_value slice<calldata>, v1, 1
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    icall panic_if<0x41>, v11
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc v13
+    mstore v14, v9
+    v15 = ptradd v14, 32
+    v16 = extract_value slice<calldata>, v1, 0
+    v17 = extract_value slice<calldata>, v1, 1
+    calldatacopy v15, v16, v17
+    v18 = ptradd v14, 32
+    v19 = mload v14
+    v20 = keccak256 v18, v19
+    ret v20
+}
+
+fn @forwardNested(arg0: slice<calldata>) -> i256 [selector=0x781c097b, view, abi_params=[array<_, array<_, uint8>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [calldata_array<calldata_array<word<uint8>>>], selector 0x889a8b2800000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
+    v5 = zext i160 v0 to i256
+    v6 = staticcall v1, v5, v3, v4, 0, 32
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    ret v10
+}
+
+fn @forwardHolder(arg0: slice<calldata>) -> i256 [selector=0xbbedecff, view, abi_params=[tuple<array<_, address>, uint256>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [tuple<calldata_array<word<uint160>>, word>], selector 0xcd5133300000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
+    v5 = zext i160 v0 to i256
+    v6 = staticcall v1, v5, v3, v4, 0, 32
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    ret v10
+}
+
+fn @encodeNested(arg0: slice<calldata>) -> i256 [selector=0xda6b77b2, pure, abi_params=[array<_, array<_, uint8>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = abi_encode [calldata_array<calldata_array<word<uint8>>>], scratch, args arg0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    v3 = keccak256 v1, v2
+    ret v3
+}
+
+fn @encodeHolder(arg0: slice<calldata>) -> i256 [selector=0xba4a62a6, pure, abi_params=[tuple<array<_, address>, uint256>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = abi_encode [tuple<calldata_array<word<uint160>>, word>], scratch, args arg0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    v3 = keccak256 v1, v2
+    ret v3
+}
+
+fn @encodeForgedSlice(arg0: slice<calldata>) -> i256 [selector=0xb6061ce7, pure, abi_params=[array<_, tuple<uint256, uint256>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
+    v2 = gt v1, v1
+    v3 = lt v1, 1
+    v4 = or v2, v3
+    v5 = zext i1 v4 to i256
+    icall revert_if<empty>, v4
+    v6 = sub v1, 1
+    v7 = ptradd v0, 64
+    v8 = make_calldata_slice v7, v6
+    v9 = shl 1, 250
+    v10 = extract_value slice<calldata>, v8, 0
+    v11 = make_calldata_slice v10, v9
+    v12 = extract_value slice<calldata>, v11, 1
+    v13 = mul v12, 64
+    v14 = eq 64, 0
+    v15 = div v13, 64
+    v16 = eq v15, v12
+    v17 = or v14, v16
+    v18 = zext i1 v17 to i256
+    v19 = eq v18, 0
+    icall panic_if<0x41>, v19
+    v20 = abi_encode [calldata_array<tuple<word, word>>], scratch, args v11
+    v21 = extract_value slice<memory>, v20, 0
+    v22 = extract_value slice<memory>, v20, 1
+    v23 = keccak256 v21, v22
+    ret v23
+}
+
+fn @sinkWrap(arg0: slice<calldata>) -> i256 [selector=0xf23fcded, pure, abi_params=[array<_, tuple<bytes, array<2, uint256>>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = calldatasize
+    v1 = make_calldata_slice ptr<calldata> 0, v0
+    v2 = extract_value slice<calldata>, v1, 0
+    v3 = extract_value slice<calldata>, v1, 1
+    v4 = calldatasize
+    v5 = gt v3, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v5
+    v6 = sub v4, v3
+    v7 = ptrtoint ptr<calldata> v2 to i256
+    v8 = sgt v7, v6
+    icall revert_if<calldata_tail_too_short>, v8
+    v9 = extract_value slice<calldata>, v1, 1
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    icall panic_if<0x41>, v11
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc v13
+    mstore v14, v9
+    v15 = ptradd v14, 32
+    v16 = extract_value slice<calldata>, v1, 0
+    v17 = extract_value slice<calldata>, v1, 1
+    calldatacopy v15, v16, v17
+    v18 = ptradd v14, 32
+    v19 = mload v14
+    v20 = keccak256 v18, v19
+    ret v20
+}
+
+fn @forwardWrap(arg0: slice<calldata>) -> i256 [selector=0xb46a75c0, view, abi_params=[array<_, tuple<bytes, array<2, uint256>>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [calldata_array<tuple<calldata_bytes, array<2, word>>>], selector 0xf23fcded00000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
+    v5 = zext i160 v0 to i256
+    v6 = staticcall v1, v5, v3, v4, 0, 32
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    ret v10
+}
+
+fn @encodeWrap(arg0: slice<calldata>) -> i256 [selector=0x60022e6b, pure, abi_params=[array<_, tuple<bytes, array<2, uint256>>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = abi_encode [calldata_array<tuple<calldata_bytes, array<2, word>>>], scratch, args arg0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    v3 = keccak256 v1, v2
+    ret v3
+}
+
+fn @encodeSigned(arg0: slice<calldata>) -> i256 [selector=0x5cbe52cc, pure, abi_params=[array<_, tuple<bytes, array<2, int256>>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = abi_encode [calldata_array<tuple<calldata_bytes, array<2, word, wordwise>>>], scratch, args arg0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    v3 = keccak256 v1, v2
+    ret v3
+}
+
+fn @encodeTyped(arg0: slice<calldata>) -> i256 [selector=0x941cee31, pure, abi_params=[array<_, tuple<bytes, array<2, uint256>>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = abi_encode [calldata_array<tuple<calldata_bytes, array<2, word, wordwise>>>], scratch, args arg0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    v3 = keccak256 v1, v2
+    ret v3
+}
+
+fn @encodeForgedPairs(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x87c85d0c, pure, abi_params=[array<_, tuple<uint256, uint256>>, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = inttoptr i256 arg1 to ptr<calldata>
+    v2 = make_calldata_slice v1, v0
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = make_calldata_slice v3, arg2
+    v5 = extract_value slice<calldata>, v4, 1
+    v6 = mul v5, 64
+    v7 = eq 64, 0
+    v8 = div v6, 64
+    v9 = eq v8, v5
+    v10 = or v7, v9
+    v11 = zext i1 v10 to i256
+    v12 = eq v11, 0
+    icall panic_if<0x41>, v12
+    v13 = abi_encode [calldata_array<tuple<word, word>>], scratch, args v4
+    v14 = extract_value slice<memory>, v13, 0
+    v15 = extract_value slice<memory>, v13, 1
+    v16 = keccak256 v14, v15
+    ret v16
+}
+
+fn @encodeFlags(arg0: slice<calldata>) -> i256 [selector=0x2faa18d0, pure, abi_params=[array<_, tuple<bool, int8, enum<3, uint8>, bytes4>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = abi_encode [calldata_array<tuple<word<bool>, word<int8>, word<enum 3>, word<bytes4>>>], scratch, args arg0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    v3 = keccak256 v1, v2
+    ret v3
+}
+
+fn @encodePairs(arg0: slice<calldata>) -> i256 [selector=0xfa2223cd, pure, abi_params=[array<_, tuple<uint256, uint256>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = abi_encode [calldata_array<tuple<word, word>>], scratch, args arg0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    v3 = keccak256 v1, v2
+    ret v3
+}
+
+fn @encodeGrid(arg0: slice<calldata>) -> i256 [selector=0x3752d72e, pure, abi_params=[array<2, array<_, uint256>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = abi_encode [array<2, calldata_array<word>>], scratch, args arg0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    v3 = keccak256 v1, v2
+    ret v3
+}
+
+fn @encodeMixed(arg0: slice<calldata>) -> i256 [selector=0x131d61f0, pure, abi_params=[tuple<array<_, tuple<bool, int8, enum<3, uint8>, bytes4>>, array<_, tuple<uint256, uint256>>, array<2, array<_, uint256>>, array<_, bytes>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = abi_encode [tuple<calldata_array<tuple<word<bool>, word<int8>, word<enum 3>, word<bytes4>>>, calldata_array<tuple<word, word>>, array<2, calldata_array<word>>, calldata_array<calldata_bytes>>], scratch, args arg0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    v3 = keccak256 v1, v2
+    ret v3
+}

@@ -164,6 +164,38 @@
 +     returndata v7, v18
   }
   
+  fn @short_observed() {
+    bb0:
+      v0 = alloc 64 !metadata(preserves_fmp)
+      mstore v0, 4
+      v1 = ptradd v0, 32
+      mstore v1, 0x150b7a0200000000000000000000000000000000000000000000000000000000
+-     v2 = abi_encode [memory_bytes], scratch, args v0
+-     v3 = extract_value slice<memory>, v2, 0
+-     v4 = extract_value slice<memory>, v2, 1
++     v6 = fmp
++     v7 = ptrtoint ptr<memory> v6 to i256
++     v8 = add v7, 32
++     v9 = ptrtoint ptr<memory> v6 to i256
++     v10 = sub v8, v9
++     mstore v6, v10
++     mstore v8, 4
++     v11 = add v8, 32
++     v12 = add v11, 0
++     mstore v12, 0x150b7a0200000000000000000000000000000000000000000000000000000000
++     v13 = add v11, 32
++     v14 = ptrtoint ptr<memory> v6 to i256
++     v15 = sub v13, v14
++     v16 = add v15, 0
++     v17 = make_memory_slice v6, v16
++     v3 = extract_value slice<memory>, v17, 0
++     v4 = extract_value slice<memory>, v17, 1
+      v5 = fmp
+      mstore v5, 1
+-     returndata v3, v4
++     returndata v6, v16
+  }
+  
   fn @revert_reads_allocation() {
     bb0:
       v0 = alloc 96 !metadata(preserves_fmp)

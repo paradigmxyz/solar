@@ -18,15 +18,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(feature = "version")]
 fn emit_version(solc_version: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let cargo = vergen::Cargo::builder().features(true).target_triple(true).build();
-    let build = vergen::Build::builder().build_timestamp(true).build();
-    let git = vergen::Gitcl::builder()
+    let cargo = smolgen::Cargo::builder().features(true).target_triple(true).build();
+    let build = smolgen::Build::builder().build_timestamp(true).build();
+    // Tracking the git HEAD reruns this script, and rebuilds every crate above this one, on every
+    // commit and checkout. Debug builds skip it and keep the SHA from the last run of this script.
+    // Release profiles keep tracking HEAD, so their version matches the checkout.
+    let track_head = env::var("PROFILE")? != "debug";
+    let git = smolgen::Gitcl::builder()
         .describe(false, true, None)
         .dirty(true)
         .sha(false)
         .vcs_info_fallback(true)
+        .rerun_on_head_change(track_head)
         .build();
-    vergen::Emitter::new()
+    smolgen::Emitter::new()
         .default_on_error()
         .add_instructions(&cargo)?
         .add_instructions(&build)?

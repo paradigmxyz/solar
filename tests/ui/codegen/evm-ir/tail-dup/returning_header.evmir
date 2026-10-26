@@ -1,0 +1,52 @@
+//@ revisions: gas budget size
+//@[gas] compile-flags: -Ogas --optimize-runs 10000 -Zevm-ir-pipeline=tail-dup
+//@[budget] compile-flags: -Ogas -Zevm-ir-pipeline=tail-dup
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=tail-dup
+//@[gas] filecheck: --check-prefix=GAS
+// A loop header that tests each element and returns once an element fails runs on every
+// iteration, though it ends the call: its conditional jump continues the loop. Gas builds copy it
+// into the latch, return included, so each iteration runs straight from the latch into the next
+// test instead of jumping back. Size builds copy nothing.
+// GAS-LABEL: {{^[ +].*}}bb2 [loop]:
+// GAS-NEXT: {{^[ +].*}}push 1
+// GAS-NEXT: {{^[ +].*}}add
+// GAS-NEXT: - jump bb1
+// GAS-NEXT: + dup 2
+// GAS-NEXT: + dup 2
+// GAS-NEXT: + eq
+// GAS-NEXT: + push bb3
+// GAS-NEXT: + jumpi
+// GAS: + push bb2
+// GAS-NEXT: + jumpi
+// GAS: + return
+// At the default runs, the copy of this small module's header would add more than a twentieth
+// of its code, so it stays shared.
+@module ReturningHeader
+bb0:
+  push 0
+  calldataload
+  push 0
+  jump bb1
+bb1 [loop]:
+  dup 2
+  dup 2
+  eq
+  push bb3
+  jumpi
+  dup 1
+  calldataload
+  push 1
+  and
+  push bb2
+  jumpi
+  pop
+  pop
+  push 0
+  push 0
+  return
+bb2 [loop]:
+  push 1
+  add
+  jump bb1
+bb3:
+  stop

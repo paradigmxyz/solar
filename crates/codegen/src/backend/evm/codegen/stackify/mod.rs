@@ -38,9 +38,12 @@
 //! model. Blocks are visited in reverse postorder. A block with one forward predecessor takes
 //! that predecessor's stack, with words dead in the block marked as junk and phi inputs renamed
 //! to their results. A join waits until all its forward predecessors are planned and then takes
-//! the candidate layout that minimizes the weighted cost of every incoming shuffle. Acyclic blocks
-//! that never return keep a floating layout: they name only the top of the stack and ignore the
-//! words below, so predecessors with different depths share them without a shuffle.
+//! the predecessor proposal that minimizes the weighted cost of every incoming shuffle. Outside
+//! loops, the join's wanted order, its words by first read with the first on top, replaces that
+//! proposal when its incoming shuffles plus a trial plan of the join's own instructions and the
+//! operands its terminator reads cost less. Acyclic blocks that never return keep a floating
+//! layout: they name only the top of the stack and ignore the words below, so predecessors with
+//! different depths share them without a shuffle.
 //!
 //! A conditional branch shares one physical stack between its successors. A successor whose
 //! fixed layout that stack does not satisfy receives a trampoline carrying the shuffle. Before
@@ -68,7 +71,14 @@
 //! Loop headers are first laid out by their preheader. Later planning rounds lay each header
 //! out by the order of last use in the loop, and then in the order the best plan's latches
 //! naturally leave the carried words; the cheapest plan wins under the objective, weighting loop
-//! blocks by their nesting depth in gas mode.
+//! blocks by their nesting depth in gas mode. The orders of those rounds follow the words' uses
+//! and the latches, and so can miss the layout that lets a loop body compute the next value of one
+//! word before its last use of another and swap it in place. After the rounds, each header that the
+//! best plan's hints lay out, innermost loops first, is also laid out with each pair of its top
+//! [`HEADER_EXCHANGED_WORDS`] words exchanged, one pair at a time, and replanned. The header keeps
+//! the exchange of the cheapest plan, if any beats the best, and the next header builds on it.
+//! Each replan costs time in proportion to the function's size, so a function takes at most
+//! [`HEADER_REPLAN_WORK`] divided by its instruction count replans.
 //!
 //! Optimized functions also try keeping their most expensive repeated immediate on the stack.
 //! The trial materializes it once in the nearest block outside loops that dominates its uses,
@@ -79,6 +89,11 @@
 //! cannot fund more setup. Size mode reserves a jump's bytes as a margin: small local savings can
 //! disrupt later outlining. Within the defining block, materialization waits until the first use,
 //! or the terminator if only successors need it. Call-chain overflow retries omit this word.
+//!
+//! `-O none` takes the first plan: it plans each function once, with preheader loop layouts and
+//! without the operand copy trials, the result swap or constant retention, so the code may use
+//! more gas and bytes. Spilling and restarts still run, because they keep every value within
+//! reach.
 //!
 //! When a needed word lies beyond the target's reach, the value is spilled: it is stored once
 //! when defined, reloaded at every use, and planning restarts. After many restarts, every other
@@ -102,6 +117,9 @@
 //! not, the callers on that chain plan again with every value live across a call spilled, and
 //! then with their return addresses in memory too, until it fits.
 //!
+//! A function whose body, module facts, and cost model equal those of a function planned before in
+//! the compilation takes that plan instead of planning again; see `cache`.
+//!
 //! The plan of a function is complete before any code is emitted, so a failure leaves no partial
 //! output. Emission follows the block order of `function`. Blocks that only jump on are
 //! skipped, and a branch whose successors both need a jump falls through into a trampoline.
@@ -112,13 +130,17 @@ use super::{
     StackOp, Terminator, Value, ValueId, index_vec, select::rematerializable_nullary_value,
 };
 use crate::{
+    backend::evm::CodegenState,
     mir::{ArgIdx, Callee, analysis::LoopInfo},
     target::{Cost, Target},
 };
+use cache::PlanKey;
 use plan::{Planned, Planner};
 use smallvec::SmallVec;
 use solar_data_structures::sync;
 
+mod cache;
+pub(in crate::backend::evm) use cache::PlanCache;
 mod emit;
 mod plan;
 mod shuffle;
@@ -318,7 +340,7 @@ struct Analysis {
 
 /// What a function moves to memory to shorten the stack it keeps below its calls, raised for
 /// the callers on a call chain deeper than the EVM stack.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum CallSpill {
     None,
     /// Every value live across an internal call.
@@ -345,6 +367,12 @@ const PARALLEL_PLAN_INSTS: usize = 4096;
 
 /// Maximum number of planning rounds that refine loop header layouts.
 const LAYOUT_ROUNDS: usize = 4;
+
+/// Words at the top of a loop header's layout of which each pair is tried exchanged.
+const HEADER_EXCHANGED_WORDS: usize = 4;
+
+/// The most plans of a function, times its instructions, that exchanging header words may spend.
+const HEADER_REPLAN_WORK: usize = 2048;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Emits the runtime: the dispatch entry, the external entries, and the internal functions
@@ -577,14 +605,23 @@ impl<'gcx> EvmCodegen<'gcx> {
             (0..functions).map(|_| None).collect::<IndexVec<FunctionId, Option<Analysis>>>();
         let mut plans =
             (0..functions).map(|_| None).collect::<IndexVec<FunctionId, Option<FunctionPlan>>>();
+        let cache = &self.gcx.codegen_state::<CodegenState>().plans;
         let planned = sync::par_try_map(parallel, bodies, |func_id| {
-            let analysis = self.analyze(module, &info, func_id, &hazards[func_id], &writers);
-            let plan =
-                self.plan_function_stackified(module, &info, func_id, &analysis, CallSpill::None)?;
+            let mut analysis = None;
+            let plan = self.plan_cached(
+                cache,
+                module,
+                &info,
+                func_id,
+                &hazards[func_id],
+                &writers,
+                &mut analysis,
+                CallSpill::None,
+            )?;
             Ok((func_id, analysis, plan))
         })?;
         for (func_id, analysis, plan) in planned {
-            analyses[func_id] = Some(analysis);
+            analyses[func_id] = analysis;
             plans[func_id] = Some(plan);
         }
 
@@ -611,16 +648,24 @@ impl<'gcx> EvmCodegen<'gcx> {
             for &func_id in &chain {
                 if call_spills[func_id] == level {
                     call_spills[func_id] = next;
-                    respilled.push((func_id, analyses[func_id].take().expect("planned body")));
+                    respilled.push((func_id, analyses[func_id].take()));
                 }
             }
-            let replanned = sync::par_try_map(parallel, respilled, |(func_id, analysis)| {
-                let plan =
-                    self.plan_function_stackified(module, &info, func_id, &analysis, next)?;
+            let replanned = sync::par_try_map(parallel, respilled, |(func_id, mut analysis)| {
+                let plan = self.plan_cached(
+                    cache,
+                    module,
+                    &info,
+                    func_id,
+                    &hazards[func_id],
+                    &writers,
+                    &mut analysis,
+                    next,
+                )?;
                 Ok((func_id, analysis, plan))
             })?;
             for (func_id, analysis, plan) in replanned {
-                analyses[func_id] = Some(analysis);
+                analyses[func_id] = analysis;
                 plans[func_id] = Some(plan);
             }
         }
@@ -674,6 +719,32 @@ impl<'gcx> EvmCodegen<'gcx> {
         Analysis { liveness, cfg, loops, saved, pinned, recomputable }
     }
 
+    /// Plans a function, or takes the plan of an identical function planned before from `cache`.
+    /// The function's analysis is computed only when planning needs it, and left in `analysis`.
+    #[allow(clippy::too_many_arguments)]
+    fn plan_cached(
+        &self,
+        cache: &PlanCache,
+        module: &Module,
+        info: &ModuleInfo,
+        func_id: FunctionId,
+        hazards: &FxHashSet<InstId>,
+        writers: &DenseBitSet<FunctionId>,
+        analysis: &mut Option<Analysis>,
+        call_spill: CallSpill,
+    ) -> Result<FunctionPlan, Decline> {
+        let target = self.target(info, func_id);
+        let key = PlanKey::new(module, info, func_id, hazards, writers, &target, call_spill);
+        if let Some(plan) = cache.get(&key) {
+            return Ok(plan);
+        }
+        let analysis =
+            analysis.get_or_insert_with(|| self.analyze(module, info, func_id, hazards, writers));
+        let plan = self.plan_function_stackified(module, info, func_id, analysis, call_spill)?;
+        cache.insert(key, &plan);
+        Ok(plan)
+    }
+
     fn plan_function_stackified(
         &self,
         module: &Module,
@@ -716,6 +787,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut candidates = vec![FxHashMap::default()];
         let mut round = 0;
         let mut tried = Vec::new();
+        let mut best_hints = FxHashMap::default();
         while let Some(hints) = candidates.pop() {
             round += 1;
             // The same hints give the same plan.
@@ -739,7 +811,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if round == 1
                     && restarts == 0
                     && call_spill == CallSpill::None
-                    && (target.optimization().is_gas() || target.optimization().is_size())
+                    && target.optimizes_stack_plans()
                 {
                     constant = planner.constant_to_retain();
                 }
@@ -769,7 +841,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             };
             if round == 1 {
-                if natural.is_empty() {
+                if natural.is_empty() || !target.optimizes_stack_plans() {
                     best = Some(plan);
                     break;
                 }
@@ -780,6 +852,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             if best.as_ref().is_none_or(|best| target.cmp(plan.cost, best.cost).is_lt()) {
                 best = Some(plan);
+                best_hints = hints.clone();
                 // Lay each loop header out as this plan's latch left it.
                 if natural != hints && round < LAYOUT_ROUNDS {
                     candidates.insert(0, natural);
@@ -787,6 +860,27 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         let mut best = best.expect("at least one plan");
+        let replan = |hints: &FxHashMap<BlockId, Layout>| {
+            Planner::new(
+                module,
+                info,
+                func_id,
+                analysis,
+                &target,
+                &spilled,
+                ret_spilled,
+                restarts >= single_spills,
+                hints,
+            )
+            .ok()?
+            .plan()
+            .ok()
+        };
+        if target.optimizes_stack_plans() {
+            exchange_header_words(
+                func, analysis, &target, best_hints, &mut tried, &mut best, replan,
+            );
+        }
         let hints = FxHashMap::default();
         if let Some(constant) = constant
             && let Ok(planner) = Planner::new(
@@ -804,7 +898,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // Creation code pays for every byte it leaves out, so a constant kept on the stack
             // may cost gas, as long as the deployment gets cheaper.
             && (target.is_creation()
-                || (candidate.plan.cost.dominates(best.cost)
+                || (target.dominates(candidate.plan.cost, best.cost)
                     && candidate.plan.non_loop_gas <= best.non_loop_gas))
             && target.cmp_lifetime(candidate.plan.cost, best.cost).is_lt()
             && (!target.optimization().is_size()
@@ -1021,3 +1115,52 @@ fn icall(kind: &InstKind) -> Option<(FunctionId, &[ValueId])> {
 
 type Layout = Vec<Slot>;
 type Operands = SmallVec<[ValueId; 8]>;
+
+/// Lays each loop header of `hints` out with two of its top words exchanged, and keeps a plan
+/// only when it is cheaper under the objective. A header takes the exchange that saves the most,
+/// and the next header builds on it.
+fn exchange_header_words(
+    func: &Function,
+    analysis: &Analysis,
+    target: &Target,
+    mut hints: FxHashMap<BlockId, Layout>,
+    tried: &mut Vec<FxHashMap<BlockId, Layout>>,
+    best: &mut FunctionPlan,
+    replan: impl Fn(&FxHashMap<BlockId, Layout>) -> Option<Planned>,
+) {
+    // Replans cost time in proportion to the function's size, so large functions get fewer,
+    // spent on the innermost loops first.
+    let mut replans =
+        HEADER_REPLAN_WORK / func.blocks.iter().map(|b| b.instructions.len()).sum::<usize>().max(1);
+    let depth = |header| analysis.loops.all_loops().filter(|lp| lp.blocks.contains(header)).count();
+    let mut headers = hints.keys().copied().collect::<Vec<_>>();
+    headers.sort_by_cached_key(|&header| (std::cmp::Reverse(depth(header)), header));
+    for header in headers {
+        let base = hints[&header].clone();
+        let top = base.len() - base.len().min(HEADER_EXCHANGED_WORDS);
+        let mut chosen = base.clone();
+        for lower in top..base.len() {
+            for upper in lower + 1..base.len() {
+                let mut layout = base.clone();
+                layout.swap(lower, upper);
+                if layout == base {
+                    continue;
+                }
+                hints.insert(header, layout.clone());
+                if tried.contains(&hints) {
+                    continue;
+                }
+                let Some(left) = replans.checked_sub(1) else { return };
+                replans = left;
+                tried.push(hints.clone());
+                if let Some(planned) = replan(&hints)
+                    && target.cmp(planned.plan.cost, best.cost).is_lt()
+                {
+                    *best = planned.plan;
+                    chosen = layout;
+                }
+            }
+        }
+        hints.insert(header, chosen);
+    }
+}

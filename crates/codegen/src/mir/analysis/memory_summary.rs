@@ -15,7 +15,7 @@ use super::{
 };
 use crate::mir::{
     ArgIdx, BlockId, Callee, ControlEffects, Function, FunctionId, InstId, InstKind, MemoryRegion,
-    MirType, Module, PtrLocation, StorageAlias, Terminator, Value, ValueId,
+    MirType, Module, PtrLocation, RawMemoryAccess, StorageAlias, Terminator, Value, ValueId,
     memory::EvmMemoryLayout, utils::IndexLists,
 };
 use alloy_primitives::U256;
@@ -168,6 +168,9 @@ pub(crate) struct FunctionMemorySummary {
     /// A bounded leaf with deterministic word reads and fully restored writes.
     restores_memory: bool,
     may_reset_fmp: bool,
+    /// Whether the function may write memory through a runtime index, which wraps and so may land
+    /// on the free-memory pointer.
+    may_wrap_write: bool,
     /// Whether the function may move the free-memory pointer below its current value.
     may_recycle_fmp: bool,
     /// Whether the function may read or write the free-memory pointer directly.
@@ -196,6 +199,7 @@ impl FunctionMemorySummary {
             has_multiple_returns: false,
             restores_memory: false,
             may_reset_fmp: false,
+            may_wrap_write: false,
             may_recycle_fmp: false,
             may_observe_fmp: false,
             may_observe_gas: false,
@@ -223,6 +227,7 @@ impl FunctionMemorySummary {
             has_multiple_returns: false,
             restores_memory: false,
             may_reset_fmp: true,
+            may_wrap_write: true,
             may_recycle_fmp: true,
             may_observe_fmp: true,
             may_observe_gas: true,
@@ -260,6 +265,12 @@ impl FunctionMemorySummary {
     #[must_use]
     pub(crate) const fn may_reset_fmp(&self) -> bool {
         self.may_reset_fmp
+    }
+
+    /// Returns whether the function may write memory through a runtime index, which wraps.
+    #[must_use]
+    pub(crate) const fn may_wrap_write(&self) -> bool {
+        self.may_wrap_write
     }
 
     /// Returns whether the function may recycle the free-memory pointer.
@@ -312,7 +323,7 @@ impl FunctionMemorySummary {
         space: AddressSpace,
         write: bool,
     ) -> Option<&BTreeSet<U256>> {
-        let index = slot_space_index(space)?;
+        let index = space.slot_index()?;
         let footprint = if write { &self.slot_writes[index] } else { &self.slot_reads[index] };
         (!footprint.unknown).then_some(&footprint.slots)
     }
@@ -347,7 +358,7 @@ impl FunctionMemorySummary {
             let footprint = if write { &mut self.memory_writes } else { &mut self.memory_reads };
             footprint.insert(MemoryRange::export(func, access));
         }
-        if let Some(index) = slot_space_index(space) {
+        if let Some(index) = space.slot_index() {
             let slot = match access {
                 Access::Location(Location::Storage(StorageAlias::Slot(slot)))
                 | Access::Location(Location::Transient(StorageAlias::Slot(slot))) => Some(slot),
@@ -368,6 +379,7 @@ impl FunctionMemorySummary {
             self.slot_writes[index].merge(&other.slot_writes[index]);
         }
         self.may_reset_fmp |= other.may_reset_fmp;
+        self.may_wrap_write |= other.may_wrap_write;
         self.may_recycle_fmp |= other.may_recycle_fmp;
         self.may_observe_fmp |= other.may_observe_fmp;
         self.may_observe_gas |= other.may_observe_gas;
@@ -613,14 +625,6 @@ fn merge_call(
     }
 }
 
-const fn slot_space_index(space: AddressSpace) -> Option<usize> {
-    match space {
-        AddressSpace::Storage => Some(0),
-        AddressSpace::Transient => Some(1),
-        _ => None,
-    }
-}
-
 const fn space_index(space: AddressSpace) -> usize {
     match space {
         AddressSpace::Memory => 0,
@@ -685,6 +689,8 @@ fn local_summary(
                     summary.record_access(func, access, true);
                 }
                 summary.may_reset_fmp |= aa.instruction_may_reset_fmp(func, inst_id);
+                summary.may_wrap_write |=
+                    aa.instruction_writes_through_runtime_index(func, inst_id);
                 summary.may_recycle_fmp |= instruction_may_recycle_fmp(func, inst_id);
             }
             summary.may_observe_fmp |= instruction_observes_fmp(func, inst_id);
@@ -871,7 +877,8 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
 }
 
 fn instruction_may_recycle_fmp(func: &Function, inst_id: InstId) -> bool {
-    match func.inst(inst_id).kind {
+    let kind = &func.inst(inst_id).kind;
+    match *kind {
         InstKind::SetFmp(_) | InstKind::MappingSlotBytes(..) => true,
         InstKind::Store(address, value, PtrLocation::Memory) => {
             if func.value_u64(address) != Some(EvmMemoryLayout::FMP_SLOT) {
@@ -879,22 +886,16 @@ fn instruction_may_recycle_fmp(func: &Function, inst_id: InstId) -> bool {
             }
             !is_monotonic_fmp_advance(func, value)
         }
-        InstKind::Store8(address, _)
-        | InstKind::Copy(address, ..)
-        | InstKind::MemoryZero(address, _)
-        | InstKind::CodeCopy(address, _, _) => {
-            func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+        // NOTE: A `DataCopy` to the FMP slot is not counted.
+        InstKind::DataCopy(..) => false,
+        _ => {
+            let mut recycles = false;
+            kind.visit_raw_memory(|access, address, _| {
+                recycles |= access != RawMemoryAccess::Read
+                    && func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT);
+            });
+            recycles
         }
-        InstKind::ExtCodeCopy(_, address, _, _) => {
-            func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
-        }
-        InstKind::Call { ret_offset, .. }
-        | InstKind::CallCode { ret_offset, .. }
-        | InstKind::StaticCall { ret_offset, .. }
-        | InstKind::DelegateCall { ret_offset, .. } => {
-            func.value_u64(ret_offset) == Some(EvmMemoryLayout::FMP_SLOT)
-        }
-        _ => false,
     }
 }
 
