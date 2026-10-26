@@ -68,7 +68,7 @@
   
   fn @writes(arg0: i256) {
     bb0:
-      mstore arg0, 7
+      mstore 0, 7
       ret
   }
   

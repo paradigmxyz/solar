@@ -1,0 +1,27 @@
+//@compile-flags: -Zmir-pipeline=defer-alloc
+//@filecheck:
+@module DeferAllocUnreservedFmpPatchCopy
+
+// A copy of a variable number of bytes from constant address 0 can overwrite the low bytes of
+// the free-memory pointer's slot, and a copy to a variable address can land on it. Either keeps
+// every bump in the module when execution continues past it.
+// CHECK:   fn @helper{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @helper(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    revert v0, 32
+}
+
+fn @patch_size(arg0: i256) {
+  bb0:
+    calldatacopy 0, 0, arg0
+    ret
+}
+
+fn @patch_address(arg0: i256) {
+  bb0:
+    calldatacopy arg0, 0, 4
+    ret
+}

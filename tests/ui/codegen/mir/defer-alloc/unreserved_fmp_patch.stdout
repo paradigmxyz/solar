@@ -11,6 +11,6 @@
   fn @patch() {
     bb0:
       mstore8 64, 1
-      stop
+      ret
   }
   

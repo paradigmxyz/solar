@@ -1,0 +1,22 @@
+- // === ROOT/tests/ui/codegen/mir/defer-alloc/unreserved_fmp_patch_copy.mir (before defer-alloc) ===
++ // === ROOT/tests/ui/codegen/mir/defer-alloc/unreserved_fmp_patch_copy.mir (after defer-alloc) ===
+  @module DeferAllocUnreservedFmpPatchCopy
+  fn @helper(arg0: i256) {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      revert v0, 32
+  }
+  
+  fn @patch_size(arg0: i256) {
+    bb0:
+      calldatacopy 0, 0, arg0
+      ret
+  }
+  
+  fn @patch_address(arg0: i256) {
+    bb0:
+      calldatacopy arg0, 0, 4
+      ret
+  }
+  

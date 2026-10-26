@@ -55,7 +55,8 @@
 //! in any function of the module, keeps every bump. A read counts unless its address is at or above
 //! the heap start by `AliasAnalysis`'s heap-pointer assumption, so a variable address or size
 //! counts too. The exception is the bubbled revert data of a failed call, which a copy has just
-//! overwritten. A partial constant write of the slot counts as well. Allocations marked as
+//! overwritten. A write that may reach the slot counts as well, since a partial one keeps the old
+//! pointer's other bytes, unless it ends the execution. Allocations marked as
 //! source-visible FMP advances and those that static placement takes are left alone. `msize` is
 //! not tracked.
 
@@ -752,29 +753,50 @@ impl UnreservedAnalysis<'_> {
 /// Whether the function may read the free-memory pointer's slot the way assembly does, or patch
 /// part of it. A read counts unless its address is at or above the heap start by the established
 /// heap-pointer assumption; a constant range that misses the slot, or an unsized one, does not
-/// escape that rule. A write of the whole word does not count: the entry's initialization writes
-/// it, and it ignores the old pointer.
+/// escape that rule. A write that may reach the slot counts too, since a partial one keeps the old
+/// pointer's other bytes, unless it ends the execution: nothing reads the pointer after it. A
+/// write of the whole word does not count: the entry's initialization writes it, and it ignores
+/// the old pointer.
 fn accesses_fmp_slot(func: &Function) -> bool {
-    func.instructions().any(|inst| {
-        let mut hit = false;
-        func.inst(inst).kind.visit_raw_memory(|access, address, size| {
-            let len = match size {
-                RawMemorySize::Bytes(len) => Some(len),
-                RawMemorySize::Value(size) => func.value_u64(size),
-            };
-            hit |= match access {
-                RawMemoryAccess::Read => AliasAnalysis::range_may_overlap_fmp(func, address, len),
-                // A patch has constant bounds; a whole-word write ignores the old pointer.
-                RawMemoryAccess::Write | RawMemoryAccess::PartialWrite => {
-                    func.value_u64(address).is_some()
-                        && len.is_some()
-                        && AliasAnalysis::range_may_overlap_fmp(func, address, len)
-                        && !(func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
-                            && len == Some(EvmMemoryLayout::WORD_SIZE))
-                }
-            };
-        });
-        hit
+    func.blocks.iter().any(|block| {
+        // Whether execution ends after the instruction without another call or creation.
+        let mut ends = matches!(
+            block.terminator,
+            Some(
+                Terminator::Revert { .. }
+                    | Terminator::RevertReturndata
+                    | Terminator::ReturnData { .. }
+                    | Terminator::Stop
+                    | Terminator::SelfDestruct { .. }
+                    | Terminator::Invalid
+            )
+        );
+        block.instructions.iter().rev().any(|&inst| {
+            let kind = &func.inst(inst).kind;
+            let mut hit = false;
+            kind.visit_raw_memory(|access, address, size| {
+                let len = match size {
+                    RawMemorySize::Bytes(len) => Some(len),
+                    RawMemorySize::Value(size) => func.value_u64(size),
+                };
+                hit |= match access {
+                    RawMemoryAccess::Read => {
+                        AliasAnalysis::range_may_overlap_fmp(func, address, len)
+                    }
+                    RawMemoryAccess::Write | RawMemoryAccess::PartialWrite => {
+                        !ends
+                            && AliasAnalysis::range_may_overlap_fmp(func, address, len)
+                            && !(func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+                                && len == Some(EvmMemoryLayout::WORD_SIZE))
+                    }
+                };
+            });
+            ends &= !matches!(
+                kind.effect_kind(),
+                EffectKind::ICall | EffectKind::ExternalCall | EffectKind::Create
+            );
+            hit
+        })
     }) || func.blocks.iter().any(|block| {
         matches!(
             block.terminator,

@@ -1,0 +1,26 @@
+//@compile-flags: -Zmir-pipeline=defer-alloc
+//@filecheck:
+@module DeferAllocUnreservedFmpPatchTerminal
+
+// A write that may reach the free-memory pointer's slot but ends the execution leaves nothing to
+// observe the old pointer, so the allocation stays unreserved.
+// CHECK:   fn @helper{{.*}}
+// CHECK: + {{.*}}fmp
+fn @helper(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    revert v0, 32
+}
+
+fn @patch_size(arg0: i256) {
+  bb0:
+    calldatacopy 0, 0, arg0
+    revert 128, 0
+}
+
+fn @patch_address(arg0: i256) {
+  bb0:
+    mstore8 arg0, 1
+    stop
+}

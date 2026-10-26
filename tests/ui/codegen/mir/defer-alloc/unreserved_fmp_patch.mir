@@ -3,8 +3,8 @@
 @module DeferAllocUnreservedFmpPatch
 
 // A partial write of the free-memory pointer keeps the other bytes of the old value, so it
-// observes the bump like a read does. A write of the whole word does not, and the entry's
-// initialization is one.
+// observes the bump like a read does, unless it ends the execution. A write of the whole word does
+// not, and the entry's initialization is one.
 // CHECK:   fn @helper{{.*}}
 // CHECK-NOT: + {{.*}}fmp
 fn @helper(arg0: i256) {
@@ -17,5 +17,5 @@ fn @helper(arg0: i256) {
 fn @patch() {
   bb0:
     mstore8 64, 1
-    stop
+    ret
 }
