@@ -42,6 +42,27 @@ fn @search_step(arg0: i256, arg1: i256) -> i256 {
 // CHECK: + {{v[0-9]+}} = add [[F]], [[S]]
 fn @cheap_diamond(arg0: i256, arg1: i256) -> i256 {
   bb0:
+    v3 = lt arg0, 10
+    jumpi v3, bb1, bb2
+  bb1:
+    v0 = mul arg1, 3
+    jump bb3
+  bb2:
+    v1 = xor arg1, 7
+    jump bb3
+  bb3:
+    v2 = phi [bb1: v0], [bb2: v1]
+    ret v2
+}
+
+// The same diamond on a nonzero test keeps its branch: `jumpi` reads the
+// tested word, while the select first needs the test's zero-or-one word.
+// CHECK-LABEL: {{^[ +].*}}fn @nonzero_diamond{{[( ]}}
+// CHECK: {{^ +}}[[COND:v[0-9]+]] = ne arg0, 0
+// CHECK: {{^ +}}jumpi [[COND]]
+// CHECK-NOT: {{^[+-]}}
+fn @nonzero_diamond(arg0: i256, arg1: i256) -> i256 {
+  bb0:
     v3 = ne arg0, 0
     jumpi v3, bb1, bb2
   bb1:
@@ -53,6 +74,28 @@ fn @cheap_diamond(arg0: i256, arg1: i256) -> i256 {
   bb3:
     v2 = phi [bb1: v0], [bb2: v1]
     ret v2
+}
+
+// A divisibility step: the general select and the scaled count read the
+// condition once each, and the division would run on every path, so the
+// branch stays.
+// CHECK-LABEL: {{^[ +].*}}fn @divisible_step{{[( ]}}
+// CHECK: {{^ +}}jumpi
+// CHECK-NOT: {{^[+-]}}
+fn @divisible_step(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = mod arg0, 1000000
+    v1 = eq v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = div arg0, 1000000
+    v3 = add arg1, 6
+    jump bb2
+  bb2:
+    v4 = phi [bb0: arg0], [bb1: v2]
+    v5 = phi [bb0: arg1], [bb1: v3]
+    v6 = xor v4, v5
+    ret v6
 }
 
 // A diamond of three-instruction arms: speculating both costs more than

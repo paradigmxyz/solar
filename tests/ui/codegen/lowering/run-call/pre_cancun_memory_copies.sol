@@ -9,7 +9,7 @@
 //@ run-call: recycled => true
 //@ run-call: fresh => [1, 2, 3]
 //@ run-call: freshEmpty => []
-//@ run-call: recycledTail => 0x2222222222222222222222222222222222222222222222222222222222222233
+//@ run-call: recycledTail => 0x2222222222222222222222222222222222222222222222222222222222222200
 //@ run-call: pair 0x010203 => 0x6434eef45d1cf9636a9110e89819a6e75faf47621e0cf3d88b23b7903b0eed83
 
 // Without `MCOPY`, memory copies lower to word loops: whole-word lengths skip
@@ -20,6 +20,8 @@
 // Concatenation of bounded heap literals uses the same forward helper.
 // Once assembly moves the free memory pointer back, a new object can overlap a
 // live one, and the copy between them must check its direction at runtime.
+// Concatenation clears the word after its result, as solc does, so the byte
+// past the copy reads zero.
 contract PreCancunMemoryCopies {
     function words() external pure returns (bool) {
         uint256[] memory values = new uint256[](3);

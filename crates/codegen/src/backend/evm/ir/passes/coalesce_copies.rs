@@ -130,5 +130,5 @@ fn profitable(gcx: Gcx<'_>, source: U256, destination: U256, length: U256, words
     for value in [length, source, destination] {
         new += target.push(value);
     }
-    new.bytes < old.bytes && new.gas <= old.gas
+    new.bytes < old.bytes && target.runtime_gas(new) <= target.runtime_gas(old)
 }

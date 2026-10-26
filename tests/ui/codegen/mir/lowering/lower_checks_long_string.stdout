@@ -1,0 +1,23 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_checks_long_string.mir (before lower-checks) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_checks_long_string.mir (after lower-checks) ===
+  @module LowerChecksLongString
+  fn @require_long(arg0: i1) {
+    bb0:
+-     icall require<long_string hex"636a7178454c535a362d676e75424950573320646b7279464d54303761686f7643">, arg0
++     jumpi arg0, bb2, bb1
++   bb1:
++     v0 = fmp
++     v1 = ptradd v0, 68
++     mstore v1, 0x636a7178454c535a362d676e75424950573320646b7279464d54303761686f76
++     v2 = ptradd v0, 100
++     mstore v2, 0x4300000000000000000000000000000000000000000000000000000000000000
++     v3 = ptradd v0, 36
++     mstore v3, 33
++     mstore v0, 0x8c379a000000000000000000000000000000000000000000000000000000000
++     v4 = ptradd v0, 4
++     mstore v4, 32
++     revert v0, 132
++   bb2:
+      ret
+  }
+  

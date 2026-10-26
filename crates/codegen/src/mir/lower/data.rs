@@ -13,9 +13,9 @@ use std::borrow::Cow;
 /// A destination address as a base plus a constant offset, so each word store addresses the
 /// base directly rather than through another addition.
 #[derive(Clone, Copy)]
-pub(super) struct DataDest {
-    pub(super) base: ValueId,
-    pub(super) offset: u64,
+pub(crate) struct DataDest {
+    pub(crate) base: ValueId,
+    pub(crate) offset: u64,
 }
 
 impl DataDest {
@@ -31,7 +31,7 @@ impl DataDest {
 }
 
 /// Copies constant data and clears its padding through `padded_size`.
-pub(super) fn copy_data_to_memory(
+pub(crate) fn copy_data_to_memory(
     gcx: Gcx<'_>,
     module: &mut Module,
     builder: &mut FunctionBuilder<'_>,
@@ -122,7 +122,7 @@ fn data_copy_is_profitable_for(gcx: Gcx<'_>, data: &[u8], separate_tail: bool) -
     }
 
     target.improves(
-        i64::from(old.gas) - i64::from(new.gas),
+        i64::from(target.runtime_gas(old)) - i64::from(target.runtime_gas(new)),
         i64::from(old.bytes) - i64::from(new.bytes),
     )
 }

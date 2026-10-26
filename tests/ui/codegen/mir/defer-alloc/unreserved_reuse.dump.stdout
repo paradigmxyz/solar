@@ -9,83 +9,79 @@
 
 fn @stage() [selector=0xfa8c96ef, abi_wrapper] {
   bb0:
-    v29 = icall @decode_calldata_slice
-    v30 = calldataload v29
-    v31 = add v29, 32
+    v25 = icall @decode_calldata_slice
+    v26 = calldataload v25
+    v27 = add v25, 32
     v0: i256 = loadimmutable impl
     v1 = gas
-    v56 = mload 64 !metadata(memory=scratch)
-    mstore v56, v30
-    v48 = add v56, 32
-    calldatacopy v48, v31, v30
-    v16 = delegatecall v1, v0, v48, v30, 0, 0
-    v17 = returndatasize
-    v18 = add v17, 63
-    v21 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v57 = mload 64 !metadata(memory=scratch)
-    v58 = add v57, v21
-    mstore 64, v58 !metadata(memory=scratch)
-    mstore v57, v17
-    v50 = add v57, 32
-    returndatacopy v50, 0, v17
-    jumpi v16, bb2, bb1
+    v50 = mload 64 !metadata(memory=scratch)
+    calldatacopy v50, v27, v26
+    v12 = delegatecall v1, v0, v50, v26, 0, 0
+    v13 = returndatasize
+    v14 = add v13, 63
+    v17 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v51 = mload 64 !metadata(memory=scratch)
+    v52 = add v51, v17
+    mstore 64, v52 !metadata(memory=scratch)
+    mstore v51, v13
+    v44 = add v51, 32
+    returndatacopy v44, 0, v13
+    jumpi v12, bb2, bb1
   bb1:
     revert 0, 0
   bb2:
-    v39 = add v17, 31
-    v41 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v43 = add v50, v41
-    mstore v43, 0
-    v52 = add v57, 64
-    mcopy v52, v50, v17
-    mstore v57, 32
-    mstore v50, v17
-    v45 = add v41, 64
-    returndata v57, v45
+    v35 = add v13, 31
+    v37 = and v35, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v39 = add v44, v37
+    mstore v39, 0
+    v46 = add v51, 64
+    mcopy v46, v44, v13
+    mstore v51, 32
+    mstore v44, v13
+    v41 = add v37, 64
+    returndata v51, v41
 }
 
 fn @zeroed() [selector=0x84322464, abi_wrapper, view] {
   bb0:
-    v45 = icall @decode_calldata_slice
-    v46 = calldataload v45
-    v47 = add v45, 32
+    v41 = icall @decode_calldata_slice
+    v42 = calldataload v41
+    v43 = add v41, 32
     v0 = gas
-    v66 = mload 64 !metadata(memory=scratch)
-    mstore v66, v46
-    v52 = add v66, 32
-    calldatacopy v52, v47, v46
-    v32 = staticcall v0, 4, v52, v46, 0, 0
-    v33 = returndatasize
-    v67 = mload 64 !metadata(memory=scratch)
-    mstore v67, v33
-    v54 = add v67, 32
-    returndatacopy v54, 0, v33
-    v13 = eq v33, v46
-    v69 = and v32, v13
-    jumpi v69, bb2, bb1
+    v60 = mload 64 !metadata(memory=scratch)
+    calldatacopy v60, v43, v42
+    v28 = staticcall v0, 4, v60, v42, 0, 0
+    v29 = returndatasize
+    v61 = mload 64 !metadata(memory=scratch)
+    mstore v61, v29
+    v48 = add v61, 32
+    returndatacopy v48, 0, v29
+    v9 = eq v29, v42
+    v63 = and v28, v9
+    jumpi v63, bb2, bb1
   bb1:
     revert 0, 0
   bb2:
-    v60 = mload 64 !metadata(memory=scratch)
-    v61 = add v60, 128
-    v62 = lt v61, v60
-    v63 = gt v61, 0xffffffffffffffff
-    v64 = or v62, v63
-    jumpi v64, bb4, bb3
+    v54 = mload 64 !metadata(memory=scratch)
+    v55 = add v54, 128
+    v56 = lt v55, v54
+    v57 = gt v55, 0xffffffffffffffff
+    v58 = or v56, v57
+    jumpi v58, bb4, bb3
   bb3:
-    mstore 64, v61 !metadata(memory=scratch)
-    v68 = calldatasize
-    calldatacopy v60, v68, 128
-    mstore v60, 96
-    v20 = add v60, 96
-    v21 = mload v20
-    v23 = add v60, 64
-    v24 = mload v23
-    v26 = add v60, 32
-    v27 = mload v26
-    v28 = or v27, v24
-    v29 = or v28, v21
-    mstore 0, v29 !metadata(memory=scratch)
+    mstore 64, v55 !metadata(memory=scratch)
+    v62 = calldatasize
+    calldatacopy v54, v62, 128
+    mstore v54, 96
+    v16 = add v54, 96
+    v17 = mload v16
+    v19 = add v54, 64
+    v20 = mload v19
+    v22 = add v54, 32
+    v23 = mload v22
+    v24 = or v23, v20
+    v25 = or v24, v17
+    mstore 0, v25 !metadata(memory=scratch)
     returndata 0, 32
   bb4:
     mstore 32, 65 !metadata(memory=scratch)

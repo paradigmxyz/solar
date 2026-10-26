@@ -70,11 +70,6 @@ bb6:
   push 64
   mload
   dup 2
-  dup 2
-  mstore
-  push 32
-  add
-  dup 2
   dup 4
   dup 3
   calldatacopy
