@@ -1,0 +1,147 @@
+// === ROOT/tests/ui/codegen/mir/check-elim/join_phi_relations.sol:JoinPhiRelations ===
+@module JoinPhiRelations
+@phase lowered
+fn @lastIndexOf() [selector=0x46c1da7f, abi_wrapper, pure] {
+  bb0:
+    v27 = icall @decode_calldata_type
+    v0 = mload v27
+    v1 = eq v0, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = lt arg2, v0
+    v3 = sub v0, 1
+    v21 = sub arg2, v3
+    v22 = zext i1 v2 to i256
+    v23 = mul v22, v21
+    v24 = add v3, v23
+    v34 = shl v24, 5
+    v35 = add v27, v34
+    v36 = add v35, 32
+    jump bb3
+  bb3:
+    v10 = phi [bb2: v24], [bb6: v20]
+    v37 = phi [bb2: v36], [bb6: v38]
+    v17 = mload v37
+    v18 = ne v17, arg1
+    jumpi v18, bb5, bb4
+  bb4:
+    mstore 0, v10 !metadata(memory=scratch)
+    returndata 0, 32
+  bb5:
+    v19 = eq v10, 0
+    jumpi v19, bb1, bb6
+  bb6:
+    v20 = sub v10, 1
+    v38 = sub v37, 32
+    jump bb3
+  bb1:
+    mstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
+  bb0:
+    v26 = icall @decode_calldata_type
+    v0 = mload v26
+    v1 = eq v0, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    v20 = sub arg2, v0
+    v2 = lt arg2, v0
+    v21 = zext i1 v2 to i256
+    v22 = mul v21, v20
+    v23 = add v0, v22
+    v33 = shl v23, 5
+    v34 = add v26, v33
+    v35 = add v34, 32
+    jump bb3
+  bb3:
+    v9 = phi [bb2: v23], [bb6: v19]
+    v36 = phi [bb2: v35], [bb6: v37]
+    v11 = lt v9, v0
+    jumpi v11, bb8, bb7
+  bb7:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb8:
+    v16 = mload v36
+    v17 = ne v16, arg1
+    jumpi v17, bb5, bb4
+  bb4:
+    mstore 0, v9 !metadata(memory=scratch)
+    returndata 0, 32
+  bb5:
+    v18 = eq v9, 0
+    jumpi v18, bb1, bb6
+  bb6:
+    v19 = sub v9, 1
+    v37 = sub v36, 32
+    jump bb3
+  bb1:
+    mstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @decode_calldata_type() -> i256 [may_return_memory] {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload 4
+    v2 = add v1, 4
+    v4 = sub v0, 36
+    v5 = gt v1, v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload v2
+    v7 = add v2, 32
+    v8 = gt v6, 0x7fffffffffffffe
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = add v6, 1
+    v10 = shl v9, 5
+    v25 = mload 64 !metadata(memory=scratch)
+    v26 = add v25, v10
+    v27 = lt v26, v25
+    v28 = gt v26, 0xffffffffffffffff
+    v29 = or v27, v28
+    jumpi v29, bb3, bb6
+  bb6:
+    mstore 64, v26 !metadata(memory=scratch)
+    mstore v25, v6
+    v12 = shl v6, 5
+    v13 = sub v0, v7
+    v14 = shr v13, 5
+    v15 = gt v6, v14
+    jumpi v15, bb1, bb5
+  bb5:
+    v22 = add v25, 32
+    calldatacopy v22, v7, v12
+    ret v25
+  bb3:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 100
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x117f94d5 => bb3, 0x46c1da7f => bb4]
+  bb4:
+    tail_call @lastIndexOf
+  bb3:
+    tail_call @keepsCheck
+  bb1:
+    revert 0, 0
+}
