@@ -56,7 +56,7 @@ bb0:
   and
   push bb12
   jump bb11
-bb11:
+bb11 [ret=0, inputs=1, outputs=1]:
   push 64
   mload
   push 32

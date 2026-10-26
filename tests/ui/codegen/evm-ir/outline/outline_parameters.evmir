@@ -23,7 +23,7 @@
 // CHECK-NEXT: push 8
 // CHECK: + push 7
 // CHECK-NEXT: + jump [[STUB]]
-// CHECK: + [[STUB]]:
+// CHECK: + [[STUB]] {{\[ret=.*\]}}:
 // CHECK-COUNT-8: {{^[ +].*}}not
 // CHECK: + swap 1
 // CHECK-NEXT: {{^[ +].*}}add

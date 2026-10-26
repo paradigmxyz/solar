@@ -39,7 +39,7 @@ bb5:
 bb6:
   push bb9
   jump bb7
-bb7:
+bb7 [ret=0, inputs=1, outputs=0]:
   push 160
   push 64
   mstore
@@ -225,7 +225,7 @@ bb14 [cold]:
   swap 2
   swap 1
   jump bb15
-bb15:
+bb15 [ret=2, inputs=3, outputs=2]:
   push 36
   dup 3
   add

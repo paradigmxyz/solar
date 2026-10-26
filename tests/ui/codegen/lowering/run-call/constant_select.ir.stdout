@@ -182,7 +182,7 @@ bb16:
   and
   push bb19
   jump bb76
-bb76:
+bb76 [ret=0, inputs=2, outputs=1]:
   push 64
   mload
   swap 2
@@ -525,7 +525,7 @@ bb44:
   jumpi
   push bb46
   jump bb73
-bb73:
+bb73 [ret=0, inputs=1, outputs=1]:
   push 4
   calldataload
   push 4

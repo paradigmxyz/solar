@@ -42,6 +42,13 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
                 function.declaration.hi().0
             )?;
         }
+        if let Some(effect) = block.metadata.call_effect {
+            write!(
+                f,
+                " [ret={}, inputs={}, outputs={}]",
+                effect.ret, effect.effect.inputs, effect.effect.outputs
+            )?;
+        }
         if let Some(depth) = block.metadata.entry_depth {
             write!(f, " [stack={depth}]")?;
         }

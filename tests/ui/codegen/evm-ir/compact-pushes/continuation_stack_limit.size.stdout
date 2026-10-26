@@ -1,0 +1,88 @@
+- // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/continuation_stack_limit.evmir (before compact-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/continuation_stack_limit.evmir (after compact-pushes) ===
+  @module ContinuationStackLimit
+  bb0 [stack=1000]:
+    push bb2
+    jump bb1
+  bb1 [ret=0, inputs=1, outputs=0]:
+    jump
+  bb2 [continuation]:
+-   push 0xffffffffffffffffffffffffffffffffffffffff
++   push 0
++   not
++   push 96
++   shr
+    pop
+    stop
+  bb3 [stack=1022]:
+    push bb5
+    jump bb4
+  bb4 [ret=0, inputs=1, outputs=1]:
+    jump
+  bb5 [continuation]:
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    pop
+    stop
+  bb6 [stack=10]:
+    push bb8
+    push 7
+    jump bb7
+  bb7 [ret=1, inputs=2, outputs=1]:
+    swap 1
+    jump
+  bb8 [continuation]:
+-   push 0xffffffffffffffffffffffffffffffffffffffff
++   push 0
++   not
++   push 96
++   shr
+    pop
+    stop
+  bb9 [stack=1]:
+    push bb11
+    jump bb10
+  bb10 [ret=0, inputs=1, outputs=0]:
+    dup 1
+    push bb13
+    jumpi
+    push bb12
+    jump bb10
+  bb11 [continuation]:
+-   push 0xffffffffffffffffffffffffffffffffffffffff
++   push 0
++   not
++   push 96
++   shr
+    pop
+    stop
+  bb12 [continuation]:
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    pop
+    jump
+  bb13:
+    jump
+  bb14 [stack=3]:
+    push bb16
+    dup 1
+    pop
+    jump bb15
+  bb15 [ret=0, inputs=1, outputs=0]:
+    jump
+  bb16 [continuation]:
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    pop
+    stop
+  bb17 [stack=5]:
+    push bb18
+    push 1
+    swap 1
+    jump
+  bb18 [continuation]:
+-   push 0xffffffffffffffffffffffffffffffffffffffff
++   push 0
++   not
++   push 96
++   shr
+    pop
+    stop
+  

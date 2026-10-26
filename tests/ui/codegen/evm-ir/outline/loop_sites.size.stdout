@@ -13,7 +13,7 @@
   bb1 [loop]:
 +   push bb4
 +   jump bb2
-+ bb2:
++ bb2 [ret=0, inputs=1, outputs=0]:
     push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
     not
     not

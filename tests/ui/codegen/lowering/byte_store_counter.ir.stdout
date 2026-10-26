@@ -117,7 +117,7 @@ bb9:
   push 4
   push bb11
   jump bb73
-bb73:
+bb73 [ret=0, inputs=2, outputs=1]:
   swap 1
   calldataload
   push 4
@@ -148,7 +148,7 @@ bb73:
   and
   push bb76
   jump bb80
-bb80:
+bb80 [ret=0, inputs=2, outputs=1]:
   push 64
   mload
   swap 2
@@ -172,7 +172,7 @@ bb80:
 bb11 [continuation]:
   push bb12
   jump bb54
-bb54:
+bb54 [ret=0, inputs=2, outputs=1]:
   dup 2
   mload
   dup 1
@@ -262,7 +262,7 @@ bb20:
 bb22 [continuation]:
   push bb23
   jump bb66
-bb66 [loop]:
+bb66 [loop] [ret=0, inputs=2, outputs=1]:
   swap 1
   push 32
   dup 2

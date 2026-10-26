@@ -182,7 +182,7 @@ bb11:
   jumpi
   push bb14
   jump bb34
-bb34:
+bb34 [ret=0, inputs=2, outputs=1]:
   push 64
   mload
   push 128

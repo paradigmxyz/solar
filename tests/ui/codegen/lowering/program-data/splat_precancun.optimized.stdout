@@ -149,7 +149,7 @@ bb7:
   mstore
   push bb8
   jump bb16
-bb16:
+bb16 [ret=0, inputs=1, outputs=1]:
   push 64
   mload
   push 224
@@ -221,7 +221,7 @@ bb11:
   push 128
   push 33
   jump bb19
-bb19:
+bb19 [ret=2, inputs=3, outputs=3]:
   dup 2
   mstore
   push 32

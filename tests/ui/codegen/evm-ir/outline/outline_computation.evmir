@@ -8,7 +8,7 @@
 // CHECK: {{^[ +].*}}bb1:
 // CHECK: + push [[RET1:bb[0-9]+]]
 // CHECK: + jump [[OUTLINE]]
-// CHECK: + [[OUTLINE]]:
+// CHECK: + [[OUTLINE]] {{\[ret=.*\]}}:
 // CHECK-COUNT-12: {{^[ +].*}}push 1
 // CHECK: + jump
 // CHECK: + [[RET0]] [continuation]:

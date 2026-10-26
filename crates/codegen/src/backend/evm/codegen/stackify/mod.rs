@@ -127,7 +127,10 @@ use super::{
     StackOp, Terminator, Value, ValueId, index_vec, select::rematerializable_nullary_value,
 };
 use crate::{
-    backend::evm::CodegenState,
+    backend::evm::{
+        CodegenState,
+        ir::{CallEffect, StackEffect},
+    },
     mir::{ArgIdx, Callee, analysis::LoopInfo},
     target::{Cost, Target},
 };
@@ -314,6 +317,19 @@ struct ModuleInfo {
     /// Whether `entry` is the runtime dispatch entry, whose switch leaves its selector on the
     /// stack.
     emitting_entry: bool,
+}
+
+impl ModuleInfo {
+    /// How a call to `func` returns: the arguments sit below the return address, which the
+    /// function replaces with its results. A function that never returns has no effect.
+    fn call_effect(&self, func: FunctionId) -> Option<CallEffect> {
+        if !self.returning.contains(func) {
+            return None;
+        }
+        let inputs = u8::try_from(self.params[func] + 1).ok()?;
+        let outputs = u8::try_from(self.returns[func]).ok()?;
+        Some(CallEffect { ret: 0, effect: StackEffect::new(inputs, outputs) })
+    }
 }
 
 /// Facts about one function that every planning attempt shares.
