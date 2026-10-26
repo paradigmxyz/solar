@@ -62,6 +62,10 @@ const MAX_REBUILT_OPS: u32 = 4;
 /// Most stack words an operation chain reads.
 const MAX_REBUILT_LEAVES: usize = 2;
 
+/// Most casts an operation chain looks through. They emit no opcode, but each is a step of the
+/// walk that collects the chain.
+const MAX_REBUILT_CASTS: u32 = 4;
+
 /// Most operations an affine form looks through.
 const MAX_AFFINE_OPS: u32 = 8;
 
@@ -452,7 +456,9 @@ fn offset_kind(func: &mut Function, base: ValueId, offset: U256) -> InstKind {
 }
 
 /// The operations computing `value` from fresh words and at most [`MAX_REBUILT_LEAVES`] stack
-/// words in at most [`MAX_REBUILT_OPS`] opcodes, operands first, with those stack words.
+/// words in at most [`MAX_REBUILT_OPS`] opcodes and [`MAX_REBUILT_CASTS`] casts, operands first,
+/// with those stack words. Each operation is charged before its operands are visited, so a long
+/// dependency chain stops at the budget instead of being walked back to its start.
 fn operation_chain(func: &Function, internal: bool, value: ValueId) -> Option<(Chain, Leaves)> {
     fn collect(
         func: &Function,
@@ -461,6 +467,7 @@ fn operation_chain(func: &Function, internal: bool, value: ValueId) -> Option<(C
         insts: &mut Chain,
         leaves: &mut Leaves,
         ops: &mut u32,
+        casts: &mut u32,
     ) -> bool {
         if materialized_at_use(func, internal, value) {
             return true;
@@ -476,22 +483,28 @@ fn operation_chain(func: &Function, internal: bool, value: ValueId) -> Option<(C
             return true;
         }
         let kind = &func.inst(def).kind;
-        if !kind
-            .operands()
-            .iter()
-            .all(|&operand| collect(func, internal, operand, insts, leaves, ops))
+        let (spent, budget) =
+            if matches!(kind, InstKind::Zext(_) | InstKind::PtrToInt(..) | InstKind::IntToPtr(_)) {
+                (&mut *casts, MAX_REBUILT_CASTS)
+            } else {
+                (&mut *ops, MAX_REBUILT_OPS)
+            };
+        *spent += 1;
+        if *spent > budget
+            || !kind
+                .operands()
+                .iter()
+                .all(|&operand| collect(func, internal, operand, insts, leaves, ops, casts))
         {
             return false;
         }
-        if !matches!(kind, InstKind::Zext(_) | InstKind::PtrToInt(..) | InstKind::IntToPtr(_)) {
-            *ops += 1;
-        }
         insts.push(def);
-        *ops <= MAX_REBUILT_OPS
+        true
     }
     let mut insts = SmallVec::new();
     let mut leaves = SmallVec::new();
-    collect(func, internal, value, &mut insts, &mut leaves, &mut 0).then_some((insts, leaves))
+    collect(func, internal, value, &mut insts, &mut leaves, &mut 0, &mut 0)
+        .then_some((insts, leaves))
 }
 
 /// Whether `value` is computed by one stable opcode or a cast, which a copy repeats exactly.
@@ -550,5 +563,36 @@ fn remove_unused(func: &mut Function) {
     }
     for block in &mut func.blocks {
         block.instructions.retain(|inst| !removed.contains(inst));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::FunctionBuilder;
+    use solar_interface::Ident;
+
+    /// A function adding one to its parameter `len` times, and the last sum.
+    fn add_chain(len: usize) -> (Function, ValueId) {
+        let mut func = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut func);
+        let mut value = builder.add_param(MirType::I256);
+        let one = builder.imm(1);
+        for _ in 0..len {
+            value = builder.add(value, one);
+        }
+        (func, value)
+    }
+
+    #[test]
+    fn operation_chains_stop_at_their_budget() {
+        // Four additions fit, reading the parameter as their only stack word.
+        let (func, value) = add_chain(4);
+        let (insts, leaves) = operation_chain(&func, true, value).expect("four additions fit");
+        assert_eq!((insts.len(), leaves.len()), (4, 1));
+        // A longer chain is rejected within the budget, not walked back to its start, which
+        // takes one stack frame per operation.
+        let (func, value) = add_chain(100_000);
+        assert!(operation_chain(&func, true, value).is_none());
     }
 }
