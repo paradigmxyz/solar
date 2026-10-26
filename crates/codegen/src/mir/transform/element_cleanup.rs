@@ -65,9 +65,6 @@ const FULL_WIDTH: u32 = 256;
 /// The origin bound of a pointer nothing tracks: past every width, as it may point into the middle
 /// of another array's words, unlike an object's own start.
 const UNKNOWN_ORIGIN: u32 = FULL_WIDTH + 1;
-/// The widest array length whose element addresses cannot wrap around to the length word: every
-/// index below it addresses at most `32 + 32 * (2^251 - 2)`, under `2^256`.
-const MAX_HEADER_LENGTH_BITS: u32 = 251;
 /// Fixed-point rounds after which every bound is given up as full.
 const MAX_ROUNDS: usize = 16;
 
@@ -279,18 +276,15 @@ fn word_element_object(func: &Function, inst: InstId) -> Option<ValueId> {
     (!length && func.value_ty(object) == Some(MirType::MEMPTR)).then_some(object)
 }
 
-/// Whether storing `length` into the header of `object` keeps the header out of reach of its
-/// elements: `object` is a direct runtime-sized allocation, and no index below `length` wraps the
-/// element address around to the header. That holds when `length` fits in
-/// [`MAX_HEADER_LENGTH_BITS`] or is the length the allocation's checked size scales from, as in
-/// `new T[](length)`. A forged length, as from assembly, may let a wrapping index read the header.
+/// Whether storing `length` into the header of `object` keeps every element read inside the
+/// allocation: `object` is a direct runtime-sized allocation, and `length` is the length its
+/// checked size scales from, as in `new T[](length)`. Any other length, such as one assembly
+/// stores, may let an index pass the bounds check past the allocation, or wrap around to the
+/// header, and read words the width bounds never saw.
 fn is_header_length(func: &Function, object: ValueId, length: ValueId) -> bool {
     let Value::Inst(alloc) = *func.value(object) else { return false };
     let InstKind::Alloc { size, .. } = func.inst(alloc).kind else { return false };
-    func.value_u64(size).is_none()
-        && (max_bits_with_args(func, length, MAX_VALUE_DEPTH, &|_| FULL_WIDTH)
-            <= MAX_HEADER_LENGTH_BITS
-            || scaled_root(func, size) == length)
+    func.value_u64(size).is_none() && scaled_root(func, size) == length
 }
 
 /// The value `value` scales from through additions, multiplications, and shifts by constants.
