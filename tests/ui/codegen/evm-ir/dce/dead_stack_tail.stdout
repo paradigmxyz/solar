@@ -17,4 +17,20 @@
   bb3:
     push 0
     revert
+  bb4:
+-   calldatasize
+-   caller
+-   callvalue
+-   pop
+    push 0
+    push 0
+    revert
+  bb5:
+    push 5
+    balance
+    push 0
+    mload
+    push 0
+    push 0
+    revert
   

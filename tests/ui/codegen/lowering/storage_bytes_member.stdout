@@ -156,25 +156,24 @@ bb19 [loop]:
   eq
   push bb26
   jumpi
-  swap 1
-  push 2
-  add
-  swap 1
   push 31
   sub
   push 3
   shl
-  swap 1
+  push 2
   push 255
   dup 3
   shl
   not
-  and
-  swap 2
+  swap 3
+  add
+  swap 3
   push 0
   byte
   swap 1
   shl
+  swap 2
+  and
   or
   dup 3
   sstore
@@ -669,17 +668,12 @@ bb61:
   dup 2
   dup 2
   lt
-  push 0
-  not
-  push 192
-  shr
-  dup 3
-  gt
+  swap 1
+  push 0xffffffffffffffff
+  lt
   or
   push bb69
   jumpi
-  push 64
-  mstore
   swap 2
   dup 3
   mstore
@@ -744,29 +738,30 @@ bb65 [loop]:
   add
   swap 3
   pop
+  swap 3
   dup 3
-  dup 2
+  dup 5
   sub
   push bb68
   jumpi
-  swap 3
   jump bb67
 bb68 [loop]:
-  dup 1
+  dup 2
+  dup 5
+  push 1
+  add
+  swap 5
   sload
-  dup 3
+  swap 1
   push 32
   add
   swap 3
   mstore
-  push 1
-  add
   dup 3
-  dup 2
+  dup 5
   sub
   push bb68
   jumpi
-  swap 3
   jump bb67
 bb38 [cold]:
   push 49

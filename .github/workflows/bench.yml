@@ -252,6 +252,7 @@ jobs:
             --compile-repeats 5 \
             --gas \
             --gas-profile hot \
+            --gas-kinds \
             --start-anvil \
             --allow-failures \
             --artifacts target/codegen-bench/baseline/artifacts \
@@ -272,6 +273,7 @@ jobs:
             --compile-repeats 5
             --gas
             --gas-profile hot
+            --gas-kinds
             --start-anvil
             --allow-failures
             --artifacts target/codegen-bench/artifacts
