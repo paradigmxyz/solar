@@ -460,13 +460,13 @@ impl<'a> Planner<'a> {
             let mut words: Vec<ValueId> = liveness.live_in(header).iter().collect();
             words.extend(func.block_phi_results(header).iter());
             words.retain(|&value| !remat.contains(value) && !spilled.contains(value));
-            // The word consumed first sits on top, and words the body never reads sit deepest.
+            // Order the header's words by their last read in the loop body.
             let body = cfg
                 .rpo()
                 .iter()
                 .copied()
                 .filter(|&block| block != header && lp.blocks.contains(block));
-            let layout = ordered_layout(func, body, words, has_ret && !ret_spilled, false);
+            let layout = ordered_layout(func, body, words, has_ret && !ret_spilled, Read::Last);
             first_use.insert(header, layout);
         }
 
@@ -2421,29 +2421,9 @@ impl<'a> Planner<'a> {
             }
             if let Some((incoming, proposal)) = &best
                 && !self.cfg.cyclic_blocks().contains(join)
+                && let Some(wanted) = self.wanted_beats(&pending, join, *incoming, proposal)
             {
-                let wanted = self.wanted_layout(join);
-                let wanted_incoming = (wanted != *proposal)
-                    .then(|| self.incoming_cost(&pending, join, &wanted))
-                    .filter(|&cost| cost != Cost::MAX);
-                if let Some(wanted_incoming) = wanted_incoming {
-                    let planned = self.planned_insts(join);
-                    let wins = match (
-                        self.join_cost(join, &planned, proposal),
-                        self.join_cost(join, &planned, &wanted),
-                    ) {
-                        (Some(proposal_cost), Some(wanted_cost)) => {
-                            let proposal_total = *incoming + self.weigh(proposal_cost, join);
-                            let wanted_total = wanted_incoming + self.weigh(wanted_cost, join);
-                            self.target.cmp(wanted_total, proposal_total).is_lt()
-                        }
-                        (None, Some(_)) => true,
-                        _ => false,
-                    };
-                    if wins {
-                        best = Some((wanted_incoming, wanted));
-                    }
-                }
+                best = Some(wanted);
             }
             let layout = match (best, failure) {
                 (Some((_, layout)), _) => layout,
@@ -2491,6 +2471,37 @@ impl<'a> Planner<'a> {
         Ok(())
     }
 
+    /// The join's wanted order with its incoming cost, when it differs from `proposal`, the
+    /// cheapest proposal with incoming cost `incoming`, and the incoming edges plus a trial plan
+    /// of the join's own code cost less under it. A proposal whose trial cannot be planned loses.
+    fn wanted_beats(
+        &self,
+        pending: &[Pending],
+        join: BlockId,
+        incoming: Cost,
+        proposal: &Layout,
+    ) -> Option<(Cost, Layout)> {
+        let wanted = self.wanted_layout(join);
+        if wanted == *proposal {
+            return None;
+        }
+        let wanted_incoming = self.incoming_cost(pending, join, &wanted);
+        if wanted_incoming == Cost::MAX {
+            return None;
+        }
+        let planned = self.planned_insts(join);
+        let wanted_cost = self.join_cost(join, &planned, &wanted)?;
+        let wins = match self.join_cost(join, &planned, proposal) {
+            Some(proposal_cost) => {
+                let proposal_total = incoming + self.weigh(proposal_cost, join);
+                let wanted_total = wanted_incoming + self.weigh(wanted_cost, join);
+                self.target.cmp(wanted_total, proposal_total).is_lt()
+            }
+            None => true,
+        };
+        wins.then_some((wanted_incoming, wanted))
+    }
+
     /// The weighted cost of the shuffles and trampolines that bring every recorded edge into
     /// `layout`, or `Cost::MAX` when one cannot reach it.
     fn incoming_cost(&self, pending: &[Pending], join: BlockId, layout: &Layout) -> Cost {
@@ -2507,12 +2518,8 @@ impl<'a> Planner<'a> {
     /// address deepest. The block's instructions and terminator read them in this order, so a
     /// layout like it needs no shuffle before them.
     fn wanted_layout(&self, join: BlockId) -> Layout {
-        let mut words: Vec<ValueId> = self.liveness.live_in(join).iter().collect();
-        words.extend(self.func.block_phi_results(join).iter());
-        words.retain(|&value| !self.is_fresh(value));
-        words.sort_unstable();
-        words.dedup();
-        ordered_layout(self.func, [join], words, self.ret_on_stack(), true)
+        let words = self.join_words(join);
+        ordered_layout(self.func, [join], words, self.ret_on_stack(), Read::First)
     }
 
     /// Prices the join's own code entered with `layout`: its planned instructions and the shuffle
@@ -2553,18 +2560,22 @@ impl<'a> Planner<'a> {
     /// A join layout derived from no edge: the return address, then the join's live words and
     /// phi results kept on the stack, by value.
     fn canonical_layout(&self, join: BlockId) -> Layout {
-        let func = self.func;
-        let mut words: Vec<ValueId> = self.liveness.live_in(join).iter().collect();
-        words.extend(func.block_phi_results(join).iter());
-        words.retain(|&value| !self.is_fresh(value));
-        words.sort_unstable();
-        words.dedup();
-        let mut layout = Layout::with_capacity(words.len() + 1);
+        let mut layout = Layout::new();
         if self.ret_on_stack() {
             layout.push(Slot::Ret);
         }
-        layout.extend(words.into_iter().map(Slot::Value));
+        layout.extend(self.join_words(join).into_iter().map(Slot::Value));
         layout
+    }
+
+    /// The join's live words and phi results kept on the stack, by value.
+    fn join_words(&self, join: BlockId) -> Vec<ValueId> {
+        let mut words: Vec<ValueId> = self.liveness.live_in(join).iter().collect();
+        words.extend(self.func.block_phi_results(join).iter());
+        words.retain(|&value| !self.is_fresh(value));
+        words.sort_unstable();
+        words.dedup();
+        words
     }
 
     /// Prices one recorded edge into a candidate join layout.
@@ -3014,29 +3025,40 @@ fn with_return_address(values: &[ValueId]) -> Vec<Want> {
     values.iter().rev().map(|&value| Want::Value(value)).chain([Want::Ret]).collect()
 }
 
-/// Orders `words` by their reads in `blocks`, the return address deepest when `ret`: the word read
-/// first sits on top, and words never read sit deepest. With `first`, a word's position is its
-/// first read, counting each operand; otherwise it is its last, counting each instruction.
+/// Which read of a word places it in an `ordered_layout`.
+#[derive(Clone, Copy, PartialEq)]
+enum Read {
+    /// The first read, counting each operand.
+    First,
+    /// The last read, counting each instruction.
+    Last,
+}
+
+/// Orders `words` by their `read` in `blocks`, the return address deepest when `ret`: the word read
+/// first sits on top, and words never read sit deepest.
 fn ordered_layout(
     func: &Function,
     blocks: impl IntoIterator<Item = BlockId>,
     mut words: Vec<ValueId>,
     ret: bool,
-    first: bool,
+    read: Read,
 ) -> Layout {
     let mut order = FxHashMap::<ValueId, usize>::default();
     let mut position = 0usize;
     let mut note = |operands: &[ValueId]| {
         let start = position;
         for &operand in operands {
-            if first {
-                order.entry(operand).or_insert(position);
-                position += 1;
-            } else {
-                order.insert(operand, start);
+            match read {
+                Read::First => {
+                    order.entry(operand).or_insert(position);
+                    position += 1;
+                }
+                Read::Last => {
+                    order.insert(operand, start);
+                }
             }
         }
-        if !first {
+        if read == Read::Last {
             position += 1;
         }
     };

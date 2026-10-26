@@ -5,6 +5,7 @@
 //@ normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: one 3, 7 => 5
 //@ run-call: two 3, 7 => 6
+//@ run-call: three 3, 7 => 4
 //@ run-call-fail: one 3, 0 => Panic(0x12)
 
 // The precompile call's success flag and result reach `inverse`'s join through phis, and the
