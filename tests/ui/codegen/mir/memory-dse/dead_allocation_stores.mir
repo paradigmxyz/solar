@@ -6,33 +6,35 @@
 // length word, so the length store goes.
 // CHECK-LABEL: {{^[ +].*}}fn @call_input{{[( ]}}
 // CHECK: alloc
-// CHECK-NEXT: {{^-}} mstore v1, arg0
+// CHECK-NEXT: {{^-}} mstore v2, v0
 // CHECK: delegatecall
 fn @call_input(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
-    v0 = add arg0, 32
+    v4 = and arg0, 0xffffffff
+    v0 = add v4, 32
     v1 = alloc v0
-    mstore v1, arg0
+    mstore v1, v4
     v2 = ptradd v1, 32
-    calldatacopy v2, 0, arg0
-    v3 = delegatecall arg1, arg2, v2, arg0, 0, 0
+    calldatacopy v2, 0, v4
+    v3 = delegatecall arg1, arg2, v2, v4, 0, 0
     stop
 }
 
 // A revert range over the data keeps the returndata copy and drops the length store.
 // CHECK-LABEL: {{^[ +].*}}fn @revert_data{{[( ]}}
-// CHECK: {{^-}} mstore v1, arg0
+// CHECK: {{^-}} mstore v2, v0
 // CHECK: returndatacopy
 // CHECK: revert
 fn @revert_data(arg0: i256) {
   bb0:
-    v0 = add arg0, 32
+    v4 = and arg0, 0xffffffff
+    v0 = add v4, 32
     v1 = alloc v0
-    mstore v1, arg0
+    mstore v1, v4
     v2 = ptradd v1, 32
-    returndatacopy v2, 0, arg0
+    returndatacopy v2, 0, v4
     v3 = ptrtoint ptr<memory> v2 to i256
-    revert v3, arg0
+    revert v3, v4
 }
 
 // A constant-size encoding temp: only the length word is outside the call input.
