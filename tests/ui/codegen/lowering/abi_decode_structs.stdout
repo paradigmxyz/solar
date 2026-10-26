@@ -29,8 +29,6 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
     v27 = lt v26, 2
     jumpi v27, bb4, bb1
   bb4:
-    v43 = add v16, 64
-    mstore v43, v26
     v1 = mload v16
     mstore 0, v1 !metadata(memory=scratch)
     mstore 32, v20

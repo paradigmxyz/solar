@@ -12,11 +12,10 @@ fn @decoded() [selector=0x45c91515, abi_wrapper, pure] {
     v15 = add v13, 32
     v1 = add v14, 63
     v3 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v23 = heap_floor
-    v24 = add v23, v3
-    mstore 64, v24 !metadata(memory=scratch)
-    mstore v23, v14
-    v20 = add v23, 32
+    v22 = heap_floor
+    v23 = add v22, v3
+    mstore 64, v23 !metadata(memory=scratch)
+    v20 = add v22, 32
     calldatacopy v20, v15, v14
     mstore 0, v14
     returndata 0, 32
@@ -37,20 +36,19 @@ fn @lengthSet() [selector=0xa5e448c2, abi_wrapper, pure] {
     jumpi v4, bb1, bb2
   bb2:
     v6 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v35 = heap_floor
-    v36 = add v35, v6
-    mstore 64, v36 !metadata(memory=scratch)
-    mstore v35, arg1
+    v34 = heap_floor
+    v35 = add v34, v6
+    mstore 64, v35 !metadata(memory=scratch)
     v10 = calldatasize
     v21 = shr arg1, 64
     v12 = sub v10, arg1
     v14 = sgt v27, v12
-    v37 = zext i1 v14 to i256
-    v38 = or v21, v37
-    v39 = ne v38, 0
-    jumpi v39, bb3, bb4
+    v36 = zext i1 v14 to i256
+    v37 = or v21, v36
+    v38 = ne v37, 0
+    jumpi v38, bb3, bb4
   bb4:
-    v32 = add v35, 32
+    v32 = add v34, 32
     calldatacopy v32, v27, arg1
     mstore 0, arg1
     returndata 0, 32
@@ -75,20 +73,19 @@ fn @offsetSet() [selector=0xba062698, abi_wrapper, pure] {
     jumpi v8, bb1, bb2
   bb2:
     v10 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v39 = heap_floor
-    v40 = add v39, v10
-    mstore 64, v40 !metadata(memory=scratch)
-    mstore v39, v30
+    v38 = heap_floor
+    v39 = add v38, v10
+    mstore 64, v39 !metadata(memory=scratch)
     v14 = calldatasize
     v25 = shr v30, 64
     v16 = sub v14, v30
     v18 = sgt v2, v16
-    v41 = zext i1 v18 to i256
-    v42 = or v25, v41
-    v43 = ne v42, 0
-    jumpi v43, bb3, bb4
+    v40 = zext i1 v18 to i256
+    v41 = or v25, v40
+    v42 = ne v41, 0
+    jumpi v42, bb3, bb4
   bb4:
-    v36 = add v39, 32
+    v36 = add v38, 32
     calldatacopy v36, v2, v30
     mstore 0, v30
     returndata 0, 32
@@ -111,18 +108,17 @@ fn @forwarded() [selector=0xbf6f2c90, abi_wrapper, pure] {
     v19 = shr v24, 64
     v4 = sub v2, v24
     v6 = sgt v25, v4
-    v35 = zext i1 v6 to i256
-    v36 = or v19, v35
-    v37 = ne v36, 0
-    jumpi v37, bb1, bb2
+    v34 = zext i1 v6 to i256
+    v35 = or v19, v34
+    v36 = ne v35, 0
+    jumpi v36, bb1, bb2
   bb2:
     v8 = add v24, 63
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v33 = heap_floor
-    v34 = add v33, v11
-    mstore 64, v34 !metadata(memory=scratch)
-    mstore v33, v24
-    v30 = add v33, 32
+    v32 = heap_floor
+    v33 = add v32, v11
+    mstore 64, v33 !metadata(memory=scratch)
+    v30 = add v32, 32
     calldatacopy v30, v25, v24
     mstore 0, v24
     returndata 0, 32
