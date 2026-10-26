@@ -127,6 +127,13 @@ impl SroaCx {
         }
 
         let location = alias.bare_memory_location(func, object, LocationSize::Const(zero_size))?;
+        // Effects are filed by allocation site, so the object must be named by its own.
+        let (MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site)) =
+            location.address.base
+        else {
+            return None;
+        };
+        debug_assert_eq!(site, alloc);
         let effects = scan.effects.get_or_insert_default();
         if effects.touches(func, alias, location, alloc, scanned) {
             return None;
