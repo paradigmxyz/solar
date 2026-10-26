@@ -894,6 +894,8 @@ impl fmt::Display for Usd {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "llm-transport")]
     use std::sync::atomic::AtomicBool;
 
     #[test]
