@@ -711,6 +711,9 @@ fn coalesce_blocks(
                     terminator.metadata.set_function_invoke(function);
                 }
             }
+            // The effect describes the successor's code, the slot it returns through and its net
+            // stack change, so every other entry into the successor sees the same one, and an
+            // effect the successor already declares is kept.
             if let Absorption::Passes(effect) = absorption
                 && let Some(terminator) = &terminator
             {
