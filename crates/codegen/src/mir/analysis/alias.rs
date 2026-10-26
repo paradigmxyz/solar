@@ -772,9 +772,9 @@ impl AliasAnalysis {
     }
 
     /// Names an access to allocation `inst` that may leave its bounds by the allocation's
-    /// pointer value instead, which keeps no disjointness from later allocations. A unique
-    /// allocation keeps its place in the order of fresh pointers: the access starts at its offset
-    /// and goes up, so it cannot reach an earlier allocation.
+    /// pointer value instead, which keeps no disjointness from other allocations. A unique `alloc`
+    /// keeps its place in the order of fresh pointers instead: the access starts at its offset and
+    /// goes up, so it cannot reach an earlier allocation.
     fn unbounded_allocation(
         func: &Function,
         mut address: MemoryAddress,
