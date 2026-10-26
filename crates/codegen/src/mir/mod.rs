@@ -43,7 +43,9 @@ mod arithmetic;
 pub(crate) use arithmetic::{ArithmeticKind, CheckedOp};
 
 mod checks;
-pub(crate) use checks::{CalldataTail, PanicCode, RevertKind, RevertPayload, RevertReason};
+pub(crate) use checks::{
+    CalldataTail, MAX_SCRATCH_ERROR_WORDS, PanicCode, RevertKind, RevertPayload, RevertReason,
+};
 
 mod effects;
 pub(crate) use effects::ControlEffects;

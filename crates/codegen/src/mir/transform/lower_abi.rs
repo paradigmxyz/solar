@@ -2420,7 +2420,9 @@ impl LowerAbiCx {
     ///
     /// Calldata indexing validates the selected word at the point of access.
     /// A full pass is only needed when the array itself crosses another ABI or
-    /// memory boundary, such as encoding or passing it to another function.
+    /// memory boundary, such as encoding it or passing it to an external call.
+    /// An internal callee that takes it as a calldata slice validates the
+    /// elements it reads, copies or encodes, so passing it there needs none.
     fn needs_full_calldata_array_validation(
         &self,
         func: &Function,
@@ -2460,7 +2462,13 @@ impl LowerAbiCx {
                             || callee_params.and_then(|params| params.get(index))
                                 == Some(&MirType::Slice(PtrLocation::Calldata))
                     });
-                    !preserves_calldata
+                    // A callee that takes the array as a calldata slice validates each element
+                    // where it reads, copies or encodes it, as solc does, so the call alone
+                    // needs no validation here, whether or not it returns a value.
+                    if preserves_calldata {
+                        continue;
+                    }
+                    true
                 }
                 InstKind::ExtractValue { ty: MirType::Slice(_), .. } => false,
                 InstKind::Load(

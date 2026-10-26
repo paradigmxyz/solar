@@ -16,7 +16,7 @@ contract C {
         assembly ("memory-safe") {
             calldatacopy(0, 0, 4)
         }
-        return (triples[0][0], triples[0][1], triples[0][2] + other[1] - 9);
+        return (triples[0][0], triples[0][1], triples[0][2] + other[0] + other[1] - 18);
     }
 }
 
