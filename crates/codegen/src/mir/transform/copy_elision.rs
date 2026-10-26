@@ -24,7 +24,9 @@
 
 use crate::mir::{
     BlockId, Function, InstId, InstKind, MirType, Module, PtrLocation, Terminator, Value, ValueId,
-    analysis::{Access, AddressSpace, AliasAnalysis, Location, MemoryBase, MemoryLocation},
+    analysis::{
+        Access, AddressSpace, AliasAnalysis, Location, LocationSize, MemoryBase, MemoryLocation,
+    },
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias},
 };
@@ -187,8 +189,10 @@ impl CopyElisionCx {
         let own_fmp_read = allocation.address.base == MemoryBase::Allocation(alloc_inst);
         let reads_allocation = |access: Access| match access {
             Access::Any(AddressSpace::Memory) => true,
+            // A runtime-indexed access wraps, and so may land in any object.
             Access::Location(Location::Memory(location)) => {
-                alias.memory_alias(allocation, location).may_alias()
+                location.size == LocationSize::Unknown
+                    || alias.memory_alias(allocation, location).may_alias()
             }
             _ => false,
         };
