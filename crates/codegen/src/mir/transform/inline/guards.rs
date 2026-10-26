@@ -85,7 +85,7 @@ fn profitable(target: &Target, guard: &Guard) -> bool {
     let protocol = target.icall(guard.function.params.len(), 0, 0)
         + target.internal_return(guard.function.params.len(), 0);
     // With no branch profile, weight the returning and continuing edges equally.
-    let savings = protocol.gas.saturating_sub(prefix.gas) / 2;
+    let savings = target.runtime_gas(protocol).saturating_sub(target.runtime_gas(prefix)) / 2;
     super::profitable(
         target,
         (prefix + target.jump()).bytes as usize,

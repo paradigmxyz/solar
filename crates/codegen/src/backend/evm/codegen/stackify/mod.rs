@@ -859,7 +859,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // Creation code pays for every byte it leaves out, so a constant kept on the stack
             // may cost gas, as long as the deployment gets cheaper.
             && (target.is_creation()
-                || (candidate.plan.cost.dominates(best.cost)
+                || (target.dominates(candidate.plan.cost, best.cost)
                     && candidate.plan.non_loop_gas <= best.non_loop_gas))
             && target.cmp_lifetime(candidate.plan.cost, best.cost).is_lt()
             && (!target.optimization().is_size()

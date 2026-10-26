@@ -43,6 +43,26 @@ bb12 [cold]:
   push 0
   push 0
   revert
+bb71 [loop]:
+  push 0
+  dup 2
+  sstore
+  swap 2
+  push 1
+  add
+  swap 2
+  push 1
+  add
+  dup 4
+  dup 4
+  lt
+  push bb71
+  jumpi
+  pop
+  swap 2
+  pop
+  pop
+  jump
 bb62:
   push 68
   calldatasize
@@ -183,7 +203,7 @@ bb76:
   push 64
   mstore
   jump
-bb19 [continuation]:
+bb19 [loop] [continuation]:
   dup 3
   dup 2
   mstore
@@ -260,19 +280,6 @@ bb19 [continuation]:
   keccak256
   dup 3
   add
-  jump bb69
-bb71 [loop]:
-  push 0
-  dup 2
-  sstore
-  swap 2
-  push 1
-  add
-  swap 2
-  push 1
-  add
-  jump bb69
-bb69 [loop]:
   dup 4
   dup 4
   lt
@@ -461,7 +468,7 @@ bb37:
   add
   swap 1
   return
-bb35:
+bb35 [loop]:
   dup 1
   push 32
   push 0
@@ -473,7 +480,13 @@ bb35:
   swap 1
   swap 2
   push 0
-  jump bb36
+  dup 4
+  dup 2
+  lt
+  push bb38
+  jumpi
+  swap 2
+  jump bb37
 bb38 [loop]:
   dup 1
   push 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
@@ -486,8 +499,6 @@ bb38 [loop]:
   mstore
   push 1
   add
-  jump bb36
-bb36 [loop]:
   dup 4
   dup 2
   lt

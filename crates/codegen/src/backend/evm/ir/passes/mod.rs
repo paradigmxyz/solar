@@ -25,6 +25,7 @@ mod reorder_pushes;
 mod share_reverts;
 mod stack_normalize;
 mod stack_reschedule;
+mod tail_dup;
 mod tail_duplicate;
 mod tail_merge;
 mod terminal_dedup;
@@ -109,6 +110,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &outline::Outline,
     &terminal_dedup::TerminalDedup,
     &tail_merge::TailMerge,
+    &tail_dup::TailDup,
     &block_layout::BlockLayout,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,
@@ -183,6 +185,8 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &late_structural::LateStructural,
     &peephole::Peephole::FINAL,
     &peephole::Cleanup(inline_returns::InlineReturns),
+    // Copy loop joins only after the last tail merge, which would share the copies again.
+    &peephole::Cleanup(tail_dup::TailDup),
     &cfg_simplify::CfgSimplify::FINAL,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,

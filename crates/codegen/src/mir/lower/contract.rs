@@ -8,6 +8,7 @@ use solar_data_structures::{
 use solar_interface::{ByteSymbol, Ident, kw, sym};
 use solar_sema::{
     Gcx,
+    eval::ConstValue,
     hir::{self, ContractId, Visit},
     ty::TyKind,
 };
@@ -293,7 +294,7 @@ fn shared_string_literals(
     function_ids: &[(hir::FunctionId, bool)],
 ) -> (FxIndexSet<ByteSymbol>, FxHashSet<ByteSymbol>) {
     struct Counter<'hir> {
-        hir: &'hir hir::Hir<'hir>,
+        gcx: Gcx<'hir>,
         counts: FxHashMap<ByteSymbol, usize>,
     }
 
@@ -301,28 +302,24 @@ fn shared_string_literals(
         type BreakValue = Never;
 
         fn hir(&self) -> &'hir hir::Hir<'hir> {
-            self.hir
+            &self.gcx.hir
         }
 
         fn visit_expr(&mut self, expr: &'hir hir::Expr<'hir>) -> ControlFlow<Self::BreakValue> {
-            if let hir::ExprKind::Lit(lit) = expr.kind
-                && let solar_ast::LitKind::Str(_, bytes, _) = lit.kind
+            let is_constant = match expr.kind {
+                hir::ExprKind::Lit(_) => true,
+                _ => expr.as_variable().is_some_and(|id| self.gcx.hir.variable(id).is_constant()),
+            };
+            if is_constant
+                && let Ok(ConstValue::Bytes(bytes, _)) = self.gcx.const_eval().eval_expr(expr)
             {
-                *self.counts.entry(bytes).or_default() += 1;
-            }
-            if let Some(variable_id) = expr.as_variable()
-                && self.hir.variable(variable_id).is_constant()
-                && let Some(initializer) = self.hir.variable(variable_id).initializer
-                && let hir::ExprKind::Lit(lit) = initializer.peel_parens().kind
-                && let solar_ast::LitKind::Str(_, bytes, _) = lit.kind
-            {
-                *self.counts.entry(bytes).or_default() += 1;
+                *self.counts.entry(*bytes).or_default() += 1;
             }
             self.walk_expr(expr)
         }
     }
 
-    let mut counter = Counter { hir: &gcx.hir, counts: FxHashMap::default() };
+    let mut counter = Counter { gcx, counts: FxHashMap::default() };
     for &(function_id, _) in function_ids {
         let _ = counter.visit_function(gcx.hir.function(function_id));
     }

@@ -1,0 +1,25 @@
+//@ compile-flags: -Zmir-pipeline=lower-checks
+//@ filecheck:
+@module LowerChecksLongString
+
+// A constant message longer than one word is written only in the failure block. It reads the
+// free-memory pointer there, stores the message words, then the length, selector, and offset, so
+// that tail merging shares the message-independent stores. The branch on the condition precedes
+// all of them.
+// CHECK-LABEL: fn @require_long(
+// CHECK: jumpi arg0, [[CONTINUE:bb[0-9]+]], [[FAILURE:bb[0-9]+]]
+// CHECK: [[FAILURE]]:
+// CHECK-NEXT: [[PTR:v[0-9]+]] = fmp
+// CHECK: mstore {{v[0-9]+}}, 0x636a7178454c535a362d676e75424950573320646b7279464d54303761686f76
+// CHECK: mstore {{v[0-9]+}}, 33
+// CHECK-NEXT: mstore [[PTR]], 0x8c379a000000000000000000000000000000000000000000000000000000000
+// CHECK-NEXT: [[OFFSET:v[0-9]+]] = ptradd [[PTR]], 4
+// CHECK-NEXT: mstore [[OFFSET]], 32
+// CHECK-NEXT: revert [[PTR]], 132
+// CHECK: [[CONTINUE]]:
+// CHECK-NEXT: ret
+fn @require_long(arg0: i1) {
+  bb0:
+    icall require<long_string hex"636a7178454c535a362d676e75424950573320646b7279464d54303761686f7643">, arg0
+    ret
+}
