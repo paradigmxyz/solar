@@ -37,6 +37,22 @@ fn @keep_small_live_words() -> i256 {
     ret v2
 }
 
+// Full words that the return keeps alive are not credited to the fold, and the hash costs
+// more bytes than the instruction.
+// GAS-LABEL: {{^[ +].*}}fn @keep_big_live_words{{[( ]}}
+// GAS: {{^[ +].*}}mstore 0, 0x36b6384b5eca791c62761152d0c79bb0604c104a5fb6f4eb0703f3154bb3db0
+// GAS: {{^[ +].*}}{{v[0-9]+}} = keccak256 0, 64
+// SIZE-LABEL: {{^[ +].*}}fn @keep_big_live_words{{[( ]}}
+// SIZE: {{^[ +].*}}mstore 0, 0x36b6384b5eca791c62761152d0c79bb0604c104a5fb6f4eb0703f3154bb3db0
+// SIZE: {{^[ +].*}}{{v[0-9]+}} = keccak256 0, 64
+fn @keep_big_live_words() -> i256 {
+  bb0:
+    mstore 0, 0x36b6384b5eca791c62761152d0c79bb0604c104a5fb6f4eb0703f3154bb3db0
+    mstore 32, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
+    v2 = keccak256 0, 64
+    ret v2
+}
+
 // Each use of the folded hash pushes it again, so two uses outweigh the two dead stores.
 // GAS-LABEL: {{^[ +].*}}fn @keep_many_uses{{[( ]}}
 // GAS: {{^[ +].*}}{{v[0-9]+}} = keccak256 0, 64

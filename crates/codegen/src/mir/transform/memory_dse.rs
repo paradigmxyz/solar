@@ -1348,11 +1348,9 @@ impl MemoryStoreEliminator {
         hash: U256,
         folded: &mut DenseBitSet<InstId>,
     ) -> bool {
-        if self.live_in.is_none() {
-            self.live_in = Some(self.memory_live_in(func));
-        }
-        let Some(live_in) = &self.live_in else { return false };
-        let out = Self::live_out(func, block, live_in);
+        let live_in = self.live_in.take().unwrap_or_else(|| self.memory_live_in(func));
+        let out = Self::live_out(func, block, &live_in);
+        self.live_in = Some(live_in);
         let mut dead_before = DenseBitSet::new_empty(func.num_insts());
         self.transfer_block(func, block, out.clone(), &mut Some(&mut dead_before), Some(folded));
         folded.insert(keccak);
