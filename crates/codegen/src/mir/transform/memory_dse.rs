@@ -61,11 +61,11 @@
 //!   call, a return to the caller, and a tail call make all memory live; revert and return data
 //!   keep only the words they cover, and halts such as `stop` keep none.
 //!
-//! NOTE: MIR does not record which inline assembly is memory-safe, and a `ret` is assumed to read
-//! no dead object of its function. Assembly that is not memory-safe could read such an object in
-//! the caller through a pointer rebuilt from the free-memory pointer. Memory-safe assembly may only
-//! use pointers it was given, later objects already reuse dead regions, and our heap layout differs
-//! from solc's.
+//! NOTE: Codegen does not track which inline assembly is annotated memory-safe, so no block is
+//! treated as unsafe. A `ret` or tail call is assumed to read no dead object of its function.
+//! Assembly that reads such an object in the caller through a forged pointer, such as one rebuilt
+//! from the free-memory pointer, is unsupported. Memory-safe assembly may only use pointers it was
+//! given, later objects already reuse dead regions, and our heap layout differs from solc's.
 //!
 //! Keys come from alias analysis, which canonicalizes an address as a base plus a constant offset.
 //! Allocation-based keys require the complete access range to fit; wider accesses may overlap
