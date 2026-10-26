@@ -4,15 +4,15 @@
   fn @operations(arg0: i256) -> i256 {
     bb0:
 -     v0 = fmp
-+     v4 = mload 64 !metadata(memory=scratch)
++     v4 = mload 64 !metadata(memory=scratch, alloc_ptr)
 +     v0 = inttoptr i256 v4 to ptr<memory> !metadata(memory=scratch)
       v1 = ptrtoint ptr<memory> v0 to i256
 -     set_fmp v0 !metadata(preserves_fmp)
 -     v2 = alloc 64
 +     mstore 64, v4 !metadata(memory=scratch)
-+     v5 = mload 64 !metadata(memory=scratch)
++     v5 = mload 64 !metadata(memory=scratch, alloc_ptr)
 +     v2 = inttoptr i256 v5 to ptr<memory> !metadata(memory=scratch)
-+     v6 = add v5, 64
++     v6 = add v5, 64 !metadata(alloc_ptr)
 +     mstore 64, v6 !metadata(memory=scratch)
       v3 = ptrtoint ptr<memory> v2 to i256
       mstore v3, arg0

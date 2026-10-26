@@ -13,7 +13,7 @@ fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
     mstore v38, 2
     v40 = add v44, 96
     mstore v40, 3
-    v45 = mload 64
+    v45 = mload 64 !metadata(alloc_ptr)
     v23 = add v45, 32
     mstore v45, 32
     mstore v23, 3
@@ -38,7 +38,7 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     v6 = lt v5, 33
     jumpi v6, bb3, bb2
   bb2:
-    v70 = mload 64 !metadata(memory=scratch)
+    v70 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v42 = add v70, 32
     v43 = add v42, 32
     mstore v42, 32
@@ -48,7 +48,7 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     mstore v43, 33
     v61 = add v69, 32
     icall @mcopy_words, v49, v61, 33
-    v71 = mload 64
+    v71 = mload 64 !metadata(alloc_ptr)
     v72 = add v71, 160
     mstore 64, v72
     mstore v71, 128
@@ -73,8 +73,8 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
 
 fn @concat() [selector=0x6bdbf8e6, abi_wrapper, pure] {
   bb0:
-    v59 = mload 64 !metadata(memory=scratch)
-    v60 = add v59, 160
+    v59 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v60 = add v59, 160 !metadata(alloc_ptr)
     mstore 64, v60
     mstore v59, 33
     v40 = add v59, 32
@@ -85,7 +85,7 @@ fn @concat() [selector=0x6bdbf8e6, abi_wrapper, pure] {
     mstore v58, 2
     v44 = add v59, 128
     mstore v44, 0x2223000000000000000000000000000000000000000000000000000000000000
-    v61 = mload 64
+    v61 = mload 64 !metadata(alloc_ptr)
     v62 = add v61, 96
     mstore 64, v62
     mstore v61, 35
@@ -116,7 +116,7 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
     v4 = add v0, 128
     mstore 64, v4
     v6 = keccak256 v1, 70
-    v39 = mload 64
+    v39 = mload 64 !metadata(alloc_ptr)
     v18 = add v39, 32
     v19 = add v18, 64
     mstore v18, 64
@@ -137,8 +137,8 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
     jumpi v33, bb1, bb2
   bb2:
     v35 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v40 = mload 64
-    v41 = add v40, v35
+    v40 = mload 64 !metadata(alloc_ptr)
+    v41 = add v40, v35 !metadata(alloc_ptr)
     mstore 64, v41
     mstore v40, v30
     v10 = add v40, 128
@@ -170,8 +170,8 @@ fn @recycled() [selector=0xa163996f, abi_wrapper, pure] {
     jumpi v21, bb1, bb2
   bb2:
     v23 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v86 = mload 64
-    v87 = add v86, v23
+    v86 = mload 64 !metadata(alloc_ptr)
+    v87 = add v86, v23 !metadata(alloc_ptr)
     mstore 64, v87
     mstore v86, v15
     v37 = add v86, 32
@@ -315,8 +315,8 @@ fn @recycledTail() [selector=0x52eea5e4, abi_wrapper, pure] {
     jumpi v22, bb1, bb2
   bb2:
     v24 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v85 = mload 64
-    v86 = add v85, v24
+    v85 = mload 64 !metadata(alloc_ptr)
+    v86 = add v85, v24 !metadata(alloc_ptr)
     mstore 64, v86
     mstore v85, v16
     v36 = add v85, 32
@@ -424,7 +424,7 @@ fn @pair() [selector=0x9f4b9fa0, abi_wrapper, pure] {
   bb5:
     v56 = add v62, 32
     calldatacopy v56, v12, v11
-    v63 = mload 64 !metadata(memory=scratch)
+    v63 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v28 = add v63, 64
     mstore v63, 64
     v31 = mload v62
@@ -539,8 +539,8 @@ fn @mcopy_words(arg0: i256, arg1: i256, arg2: i256) {
 
 fn @alloc(arg0: i256) -> i256 {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v2 = add v0, arg0
+    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v2 = add v0, arg0 !metadata(alloc_ptr)
     v3 = lt v2, v0
     v7 = shr v2, 64
     v4 = ne v7, 0

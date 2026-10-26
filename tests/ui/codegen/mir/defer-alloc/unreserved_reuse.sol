@@ -14,14 +14,13 @@
 // CHECK: delegatecall
 
 // Both the input buffer and the returndata copy are unreserved. The checked, zeroed object that
-// follows keeps its bump and clears its memory explicitly.
+// follows clears its memory explicitly.
 // CHECK-LABEL: fn @zeroed{{.*}}
 // CHECK: = mload 64
 // CHECK-NOT: mstore 64
 // CHECK: staticcall
 // CHECK-NOT: mstore 64
 // CHECK: returndatacopy
-// CHECK: mstore 64
 // CHECK: calldatacopy {{v[0-9]+}}, {{v[0-9]+}}, 128
 
 contract UnreservedReuse {

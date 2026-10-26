@@ -14,15 +14,11 @@ fn @stage() [selector=0xfa8c96ef, abi_wrapper] {
     v27 = add v25, 32
     v0: i256 = loadimmutable impl
     v1 = gas
-    v50 = mload 64 !metadata(memory=scratch)
+    v50 = mload 64 !metadata(memory=scratch, alloc_ptr)
     calldatacopy v50, v27, v26
     v12 = delegatecall v1, v0, v50, v26, 0, 0
     v13 = returndatasize
-    v14 = add v13, 63
-    v17 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v51 = mload 64 !metadata(memory=scratch)
-    v52 = add v51, v17
-    mstore 64, v52 !metadata(memory=scratch)
+    v51 = mload 64 !metadata(memory=scratch, alloc_ptr)
     mstore v51, v13
     v44 = add v51, 32
     returndatacopy v44, 0, v13
@@ -48,11 +44,11 @@ fn @zeroed() [selector=0x84322464, abi_wrapper, view] {
     v42 = calldataload v41
     v43 = add v41, 32
     v0 = gas
-    v58 = mload 64 !metadata(memory=scratch)
+    v58 = mload 64 !metadata(memory=scratch, alloc_ptr)
     calldatacopy v58, v43, v42
     v28 = staticcall v0, 4, v58, v42, 0, 0
     v29 = returndatasize
-    v59 = mload 64 !metadata(memory=scratch)
+    v59 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v48 = add v59, 32
     returndatacopy v48, 0, v29
     v9 = eq v29, v42
@@ -61,14 +57,13 @@ fn @zeroed() [selector=0x84322464, abi_wrapper, view] {
   bb1:
     revert 0, 0
   bb2:
-    v52 = mload 64 !metadata(memory=scratch)
-    v53 = add v52, 128
+    v52 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v53 = add v52, 128 !metadata(alloc_ptr)
     v54 = lt v53, v52
     v55 = gt v53, 0xffffffffffffffff
     v56 = or v54, v55
     jumpi v56, bb4, bb3
   bb3:
-    mstore 64, v53 !metadata(memory=scratch)
     v60 = calldatasize
     calldatacopy v52, v60, 128
     v16 = add v52, 96
@@ -94,7 +89,7 @@ fn @constructor() [abi_wrapper, constructor] {
     jumpi v7, bb4, bb1
   bb1:
     v0 = datasize Impl_creation_code_0
-    v10 = mload 64 !metadata(memory=scratch)
+    v10 = mload 64 !metadata(memory=scratch, alloc_ptr)
     datacopy Impl_creation_code_0, v10, v0
     v2: i256 = create 0, v10, v0
     v3 = ne v2, 0
@@ -162,9 +157,7 @@ fn @fallback() [abi_wrapper, fallback] {
 
 fn @fallback.body(arg0: i256, arg1: i256) {
   bb0:
-    v6 = mload 64 !metadata(memory=scratch)
-    v7 = add v6, 64
-    mstore 64, v7 !metadata(memory=scratch)
+    v6 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v5 = add v6, 32
     mstore v5, 0x102030405000000000000000000000000000000000000000000000000000000
     returndata v5, 5
