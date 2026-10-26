@@ -1,0 +1,156 @@
+//@ compile-flags: -Zmir-pipeline=cse
+//@ filecheck: --enable-var-scope
+@module AllocFmpBarrier
+
+// No reset of the free memory pointer precedes the first allocation, so its pointer is at or above
+// the heap start and neither the free memory pointer write of a later `alloc` nor a scratch write
+// can reach its words.
+// CHECK-LABEL: @unique_across_alloc
+// CHECK: {{^ +}}[[FIRST:v[0-9]+]] = mload {{v[0-9]+}}
+// CHECK: {{^ +}}[[SECOND:v[0-9]+]] = mload {{v[0-9]+}}
+// CHECK: - {{v[0-9]+}} = mload {{v[0-9]+}}
+// CHECK: - {{v[0-9]+}} = mload {{v[0-9]+}}
+// CHECK: + {{v[0-9]+}} = add [[FIRST]], [[FIRST]]
+// CHECK: + {{v[0-9]+}} = add {{v[0-9]+}}, [[SECOND]]
+fn @unique_across_alloc(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = ptradd v0, 32
+    v3 = mload v1
+    v9 = mload v2
+    v4 = alloc zeroed checked arg0
+    mstore 0, arg1
+    mstore 64, arg1
+    mstore 96, arg1
+    v5 = mload v1
+    v6 = mload v2
+    v7 = add v3, v5
+    v8 = add v7, v6
+    v10 = add v8, v9
+    ret v10
+}
+
+// The stored value forwards to the load past the later allocation and its stores.
+// CHECK-LABEL: @store_forwards_across_alloc
+// CHECK: - {{v[0-9]+}} = mload {{v[0-9]+}}
+// CHECK: - ret {{v[0-9]+}}
+// CHECK: + ret arg0
+fn @store_forwards_across_alloc(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v1, arg0
+    v2 = alloc 64
+    v3 = ptrtoint ptr<memory> v2 to i256
+    mstore v3, arg1
+    set_fmp v2
+    v4 = mload v1
+    ret v4
+}
+
+// The allocation lies at or above the heap start, so a word at offset 32 starts at or above 160. A
+// store that ends at 160 cannot reach it; a store at 160 may.
+// CHECK-LABEL: @absolute_below_offset
+// CHECK: {{^ +}}[[FIRST:v[0-9]+]] = mload
+// CHECK: {{^ +}}[[SECOND:v[0-9]+]] = mload
+// CHECK: - {{v[0-9]+}} = mload {{v[0-9]+}}
+// CHECK: {{^ +}}{{v[0-9]+}} = mload
+// CHECK: + {{v[0-9]+}} = add [[FIRST]], [[FIRST]]
+fn @absolute_below_offset(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = ptradd v0, 32
+    v2 = mload v1
+    v3 = ptrtoint ptr<memory> v0 to i256
+    v4 = mload v3
+    mstore 128, arg0
+    v5 = mload v1
+    mstore 160, arg0
+    v6 = mload v1
+    v7 = add v2, v5
+    v8 = add v7, v6
+    v9 = add v8, v4
+    ret v9
+}
+
+// An assembly store to the free memory pointer slot may recycle low memory, so the later
+// allocation may overlap the first one and its store clobbers the cached word.
+// CHECK-LABEL: @store_to_fmp_slot_resets
+// CHECK: {{^ +}}[[A:v[0-9]+]] = mload
+// CHECK: {{^ +}}[[B:v[0-9]+]] = mload
+// CHECK: {{^ +}}{{v[0-9]+}} = add [[A]], [[B]]
+fn @store_to_fmp_slot_resets(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = alloc 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = mload v1
+    mstore 64, 128
+    v3 = alloc 32
+    v4 = ptrtoint ptr<memory> v3 to i256
+    mstore v4, arg1
+    v5 = mload v1
+    v6 = add v2, v5
+    ret v6
+}
+
+// A callee that sets the free memory pointer resets it for the caller too.
+// CHECK-LABEL: @call_resets
+// CHECK: {{^ +}}[[A:v[0-9]+]] = mload
+// CHECK: {{^ +}}[[B:v[0-9]+]] = mload
+// CHECK: {{^ +}}{{v[0-9]+}} = add [[A]], [[B]]
+fn @call_resets(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = alloc 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = mload v1
+    icall @resetter, v0
+    v3 = alloc 32
+    v4 = ptrtoint ptr<memory> v3 to i256
+    mstore v4, arg1
+    v5 = mload v1
+    v6 = add v2, v5
+    ret v6
+}
+
+// Each iteration allocates anew, so the allocation is not unique and keeps today's behavior.
+// CHECK-LABEL: @loop_allocation
+// CHECK: {{^ +}}[[A:v[0-9]+]] = mload
+// CHECK: {{^ +}}{{v[0-9]+}} = alloc zeroed checked arg1
+// CHECK: {{^ +}}[[B:v[0-9]+]] = mload
+// CHECK: {{^ +}}{{v[0-9]+}} = add [[A]], [[B]]
+fn @loop_allocation(arg0: i256, arg1: i256, arg2: i1) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = mload v1
+    v3 = alloc zeroed checked arg1
+    v4 = mload v1
+    v5 = add v2, v4
+    jumpi arg2, bb1, bb2
+  bb2:
+    ret v5
+}
+
+// A raw pointer may point at the free memory pointer slot.
+// CHECK-LABEL: @raw
+// CHECK: {{^ +}}[[A:v[0-9]+]] = mload arg0
+// CHECK: {{^ +}}{{v[0-9]+}} = alloc zeroed checked arg1
+// CHECK: {{^ +}}[[B:v[0-9]+]] = mload arg0
+// CHECK: {{^ +}}{{v[0-9]+}} = add [[A]], [[B]]
+fn @raw(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = mload arg0
+    v1 = alloc zeroed checked arg1
+    v2 = mload arg0
+    v3 = add v0, v2
+    ret v3
+}
+
+fn @resetter(arg0: ptr<memory>) {
+  bb0:
+    set_fmp arg0
+    ret
+}

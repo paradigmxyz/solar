@@ -110,10 +110,8 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     mstore v106, v121
     v116 = mload v26
     v2 = mload v116
-    v117 = mload v102
-    v108 = add v117, 32
+    v108 = add v40, 32
     v118 = mload v108
-    v9 = mload v121
     v124 = mload 64 !metadata(memory=scratch)
     v76 = add v124, 96
     mstore v124, v2
@@ -130,7 +128,7 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     v110 = add v118, 32
     mcopy v85, v110, v81 !metadata(memory=heap, disjoint)
     v90 = add v124, 64
-    mstore v90, v9
+    mstore v90, v52
     v92 = sub v88, v124
     returndata v124, v92
   bb7:

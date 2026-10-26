@@ -10,23 +10,16 @@ fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
     v8 = lt v7, 36
     jumpi v8, bb3, bb4
   bb4:
-    v22 = mload 64 !metadata(memory=scratch)
-    v23 = add v22, 64
-    mstore 64, v23 !metadata(memory=scratch)
-    mstore v22, 0
-    v19 = add v22, 32
-    mstore v19, 0
+    v19 = mload 64 !metadata(memory=scratch)
+    v20 = add v19, 64
+    mstore 64, v20 !metadata(memory=scratch)
     v2 = alloc 64 !metadata(deferred_alloc)
     v5 = add arg0, 1
     v6 = eq v5, 0
     jumpi v6, bb1, bb2
   bb2:
-    mstore v2, arg0
-    v17 = add v2, 32
-    mstore v17, v5
     mstore 128, arg0
-    v12 = mload v17
-    mstore 160, v12
+    mstore 160, v5
     returndata 128, 64
   bb1:
     mstore 32, 17 !metadata(memory=scratch)
@@ -45,8 +38,6 @@ fn @makeArray() [selector=0x9510f212, abi_wrapper, pure] {
     v31 = mload 64 !metadata(memory=scratch)
     v32 = add v31, 192
     mstore 64, v32 !metadata(memory=scratch)
-    v33 = calldatasize
-    calldatacopy v31, v33, 96
     v30 = add v31, 96
     mstore v30, arg0
     v6 = add arg0, 1
@@ -90,12 +81,9 @@ fn @makePair() [selector=0xf4d7be11, abi_wrapper, pure] {
     v13 = lt v12, 36
     jumpi v13, bb4, bb5
   bb5:
-    v29 = mload 64 !metadata(memory=scratch)
-    v30 = add v29, 64
-    mstore 64, v30 !metadata(memory=scratch)
-    mstore v29, 0
-    v25 = add v29, 32
-    mstore v25, 0
+    v26 = mload 64 !metadata(memory=scratch)
+    v27 = add v26, 64
+    mstore 64, v27 !metadata(memory=scratch)
     v2 = alloc 64 !metadata(deferred_alloc)
     v8 = add arg0, 1
     v9 = eq v8, 0
@@ -110,8 +98,7 @@ fn @makePair() [selector=0xf4d7be11, abi_wrapper, pure] {
   bb3:
     v14 = mload v2
     mstore 128, v14
-    v17 = mload v23
-    mstore 160, v17
+    mstore 160, v8
     mstore 192, v10
     returndata 128, 96
   bb1:
