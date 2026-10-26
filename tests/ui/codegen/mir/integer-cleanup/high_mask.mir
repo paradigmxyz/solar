@@ -123,3 +123,57 @@ fn @non_contiguous(arg0: i256) {
   bb2:
     revert 0, 0
 }
+
+// A shift by 97 zeroes only the low 159 bits, one short of the mask's 160.
+// CHECK-LABEL: fn @off_by_one
+// CHECK-NOT: {{^[-+]}}
+// CHECK: mstore 0, v2
+fn @off_by_one(arg0: i256) {
+  bb0:
+    v0 = shl arg0, 97
+    v1 = eq v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = and arg0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    mstore 0, v2
+    returndata 0, 32
+  bb2:
+    revert 0, 0
+}
+
+// A shift by 256 is always zero and proves nothing about the input.
+// CHECK-LABEL: fn @shift_by_width
+// CHECK-NOT: {{^[-+]}}
+// CHECK: mstore 0, v2
+fn @shift_by_width(arg0: i256) {
+  bb0:
+    v0 = shl arg0, 256
+    v1 = eq v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = and arg0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    mstore 0, v2
+    returndata 0, 32
+  bb2:
+    revert 0, 0
+}
+
+// A second guard, on a different shift, still proves the mask; the mask's constant may come
+// first.
+// CHECK-LABEL: fn @second_shift
+// CHECK: - mstore 0, v3
+// CHECK-NEXT: + mstore 0, arg0
+fn @second_shift(arg0: i256) {
+  bb0:
+    v0 = shl arg0, 200
+    v1 = shl arg0, 64
+    v2 = eq v1, 0
+    jumpi v2, bb1, bb2
+  bb1:
+    v3 = and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000, arg0
+    mstore 0, v3
+    mstore 32, v0
+    returndata 0, 64
+  bb2:
+    revert 0, 0
+}

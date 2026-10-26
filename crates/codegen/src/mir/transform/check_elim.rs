@@ -1548,14 +1548,14 @@ impl<'a> CheckEliminator<'a> {
     fn redundant_mask(&mut self, func: &Function, id: InstId) -> Option<ValueId> {
         let inst = func.inst(id);
         if let Some((value, low)) = high_mask_input(func, &inst.kind) {
-            // `shl x, k` is zero iff the low `256 - k` bits of `x` are, which covers the `low`
-            // bits the mask clears.
             if inst.result_ty != func.value_ty(value)
                 || inst.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure)
             {
                 return None;
             }
             let shifts = self.shifted_high_masks.get(&value)?.clone();
+            // `shl x, k` is zero iff the low `256 - k` bits of `x` are, which covers the `low`
+            // bits the mask clears.
             return shifts
                 .into_iter()
                 .any(|(shift, result)| {
@@ -3352,25 +3352,28 @@ fn high_mask_input(func: &Function, kind: &InstKind) -> Option<(ValueId, usize)>
     (low > 0 && low < 256 && mask == U256::MAX << low).then_some((value, low))
 }
 
-/// The constant left shifts `shl x, k` with `k < 256`, as `(k, result)`, for each `x` that a
-/// high mask cleans.
+/// The constant left shifts `shl x, k`, as `(k, result)`, that prove some high mask on `x`
+/// redundant when they are zero: `k < 256` and `256 - k` at least the mask's `low`.
 fn shifted_high_mask_inputs(
     func: &Function,
 ) -> FxHashMap<ValueId, SmallVec<[(usize, ValueId); 2]>> {
-    let masked = func
-        .instructions()
-        .filter_map(|id| high_mask_input(func, &func.inst(id).kind))
-        .map(|(value, _)| value)
-        .collect::<FxHashSet<_>>();
+    let mut lows = FxHashMap::<_, usize>::default();
+    for id in func.instructions() {
+        if let Some((value, low)) = high_mask_input(func, &func.inst(id).kind) {
+            let min = lows.entry(value).or_insert(low);
+            *min = (*min).min(low);
+        }
+    }
     let mut shifts = FxHashMap::<_, SmallVec<_>>::default();
-    if masked.is_empty() {
+    if lows.is_empty() {
         return shifts;
     }
     for id in func.instructions() {
         if let InstKind::Shl(shift, value) = func.inst(id).kind
-            && masked.contains(&value)
+            && let Some(&low) = lows.get(&value)
             && let Some(shift) = func.value_u64(shift)
             && shift < 256
+            && 256 - shift as usize >= low
             && let Some(result) = func.inst_result_value(id)
         {
             shifts.entry(value).or_default().push((shift as usize, result));

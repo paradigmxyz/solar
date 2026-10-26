@@ -96,3 +96,45 @@
       returndata 0, 32
   }
   
+  fn @off_by_one(arg0: i256) {
+    bb0:
+      v0 = shl arg0, 97
+      v1 = eq v0, 0
+      jumpi v1, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      v2 = and arg0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+      mstore 0, v2
+      returndata 0, 32
+  }
+  
+  fn @shift_by_width(arg0: i256) {
+    bb0:
+      v0 = shl arg0, 256
+      v1 = eq v0, 0
+      jumpi v1, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      v2 = and arg0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+      mstore 0, v2
+      returndata 0, 32
+  }
+  
+  fn @second_shift(arg0: i256) {
+    bb0:
+      v0 = shl arg0, 200
+      v1 = shl arg0, 64
+      v2 = eq v1, 0
+      jumpi v2, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+-     v3 = and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000, arg0
+-     mstore 0, v3
++     mstore 0, arg0
+      mstore 32, v0
+      returndata 0, 64
+  }
+  
