@@ -222,6 +222,55 @@
 +     ret false
   }
   
+  fn @guarded_div(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = ne arg1, 0
+      v1 = zext i1 v0 to i256
+      v2 = div arg0, arg1
+-     v3 = mul v1, v2
+-     ret v3
++     ret v2
+  }
+  
+  fn @guarded_mod(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = ne arg1, 0
+      v1 = zext i1 v0 to i256
+      v2 = mod arg0, arg1
+-     v3 = mul v2, v1
+-     ret v3
++     ret v2
+  }
+  
+  fn @guarded_sdiv(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = ne arg1, 0
+      v1 = zext i1 v0 to i256
+      v2 = sdiv arg0, arg1
+-     v3 = mul v2, v1
+-     ret v3
++     ret v2
+  }
+  
+  fn @guarded_smod(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = ne arg1, 0
+      v1 = zext i1 v0 to i256
+      v2 = smod arg0, arg1
+-     v3 = mul v1, v2
+-     ret v3
++     ret v2
+  }
+  
+  fn @guarded_by_other(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = zext i1 v0 to i256
+      v2 = div arg0, arg1
+      v3 = mul v1, v2
+      ret v3
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/egraph/division.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/division.mir (after dce) ===
   @module Division
@@ -407,5 +456,46 @@
     bb0:
 -     v0 = div arg0, i8 10
       ret false
+  }
+  
+  fn @guarded_div(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = ne arg1, 0
+-     v1 = zext i1 v0 to i256
+      v2 = div arg0, arg1
+      ret v2
+  }
+  
+  fn @guarded_mod(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = ne arg1, 0
+-     v1 = zext i1 v0 to i256
+      v2 = mod arg0, arg1
+      ret v2
+  }
+  
+  fn @guarded_sdiv(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = ne arg1, 0
+-     v1 = zext i1 v0 to i256
+      v2 = sdiv arg0, arg1
+      ret v2
+  }
+  
+  fn @guarded_smod(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = ne arg1, 0
+-     v1 = zext i1 v0 to i256
+      v2 = smod arg0, arg1
+      ret v2
+  }
+  
+  fn @guarded_by_other(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = zext i1 v0 to i256
+      v2 = div arg0, arg1
+      v3 = mul v1, v2
+      ret v3
   }
   
