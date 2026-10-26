@@ -33,10 +33,23 @@
 //! Calldata cannot change, so its loads may sit anywhere that dominates the stores:
 //! `calldatacopy` reads the same bytes, zero-fills past the end of calldata as `calldataload`
 //! does, and writes the same destination range. The two differ where the source range wraps past
-//! `2^256`: the loads wrap to the start of calldata and the copy reads zeros. A run is
-//! rewritten only when the last word's address provably cannot wrap, which is a constant source,
-//! a dominating guard (`check-elim` evaluates `start + reach < start` as false, from a range
-//! bound or from a bound by `calldatasize`), or a start that a passed check keeps inside calldata.
+//! `2^256`: the loads wrap to the start of calldata and the copy reads zeros. A run is rewritten
+//! only when the last word's address provably cannot wrap. That holds for a constant source, and
+//! otherwise for what `check-elim`'s `facts_at` shows at the first store:
+//!
+//! - `start + reach < start` is false, from an upper bound of `start`: the ranges of its terms, the
+//!   bound `calldatasize` gives a value a passed check keeps below it, and sums, products and
+//!   shifts of those. A loop cursor that steps by a constant, or an index times a stride, is
+//!   bounded by its entry value plus the step over the target's trip limit, because every iteration
+//!   burns gas and each step below the bound cannot wrap;
+//! - the run ends inside calldata: `x <= calldatasize` and `calldatasize - x >= c + reach` for
+//!   `start = x + c`, through the difference some check of the function already computes. A chain
+//!   of nested offsets, each checked against the room behind the pointer it adds to, proves one
+//!   link at a time;
+//! - a parameter of an internal function is bounded or below `calldatasize` at every call, which
+//!   `argument_facts` takes from the checks that dominate each call, round by round through the
+//!   callers. Only functions that are called directly qualify.
+//!
 //! Other runs keep their loads.
 //!
 //! `mcopy` reads its whole source before it writes, where the word pairs interleave loads and
@@ -55,12 +68,12 @@
 //! # Limitations
 //!
 //! A run must lie in one block, as `byte-run-loads` requires, so a decoder that validates each
-//! word in its own block is left alone. A source that loops over an array has a cursor whose
-//! bound needs an induction proof, which this pass does not attempt.
+//! word in its own block is left alone. A pointer that an internal call returns, or one that a
+//! signed offset check lets wrap, has no bound here, and its run keeps its loads.
 
 use super::{
     byte_run::{address_key, sweep_dead},
-    check_elim::conditions_false,
+    check_elim::{ParamFacts, RunQuery, argument_facts, calldatasize_value, facts_at},
     egraph::use_counts,
     lower_mcopy::{CopyDirection, copy_direction_of},
 };
@@ -93,8 +106,15 @@ impl MirPass for CopyRuns {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         let target = Target::new(gcx);
+        // What every call establishes about the parameters, once a block holds a calldata run.
+        let arguments = if module.functions.iter().any(has_calldata_pair) {
+            argument_facts(module)
+        } else {
+            Default::default()
+        };
         run_function_pass_with_alias(module, analyses, |func, analyses| {
-            run_function(func, analyses.alias(), &target)
+            let params = arguments.of(analyses.function());
+            run_function(func, analyses.alias(), &target, &params)
         })
     }
 }
@@ -137,7 +157,12 @@ impl Candidate {
     }
 }
 
-fn run_function(func: &mut Function, alias: &AliasAnalysis, target: &Target) -> bool {
+fn run_function(
+    func: &mut Function,
+    alias: &AliasAnalysis,
+    target: &Target,
+    params: &ParamFacts,
+) -> bool {
     let mut uses = None;
     let mut candidates = Vec::new();
     for block in func.blocks.indices().collect::<Vec<_>>() {
@@ -155,7 +180,7 @@ fn run_function(func: &mut Function, alias: &AliasAnalysis, target: &Target) -> 
     if candidates.is_empty() {
         return false;
     }
-    let exact = non_wrapping_calldata_runs(func, &candidates);
+    let exact = non_wrapping_calldata_runs(func, &candidates, params);
     let mut removed = FxHashMap::<BlockId, FxHashSet<InstId>>::default();
     for candidate in candidates {
         // Memory addresses cannot wrap: a word at 2^256 - 32 or above runs out of gas.
@@ -196,7 +221,11 @@ fn run_function(func: &mut Function, alias: &AliasAnalysis, target: &Target) -> 
 /// calldata. With `start = x + c`, that is `x <= calldatasize` and
 /// `calldatasize - x >= c + reach`, through the difference some check of the function already
 /// computes.
-fn non_wrapping_calldata_runs(func: &mut Function, candidates: &[Candidate]) -> FxHashSet<InstId> {
+fn non_wrapping_calldata_runs(
+    func: &mut Function,
+    candidates: &[Candidate],
+    params: &ParamFacts,
+) -> FxHashSet<InstId> {
     let mut exact = FxHashSet::default();
     let mut unproven = Vec::new();
     for candidate in candidates.iter().filter(|c| c.source == PtrLocation::Calldata) {
@@ -212,11 +241,7 @@ fn non_wrapping_calldata_runs(func: &mut Function, candidates: &[Candidate]) -> 
     if unproven.is_empty() {
         return exact;
     }
-    let size = func.instructions().find_map(|inst| {
-        matches!(func.inst(inst).kind, InstKind::CalldataSize)
-            .then(|| func.inst_result_value(inst))
-            .flatten()
-    });
+    let size = calldatasize_value(func);
     // The difference `calldatasize - x` that a check of the function computes, for each `x`.
     let mut rooms = FxHashMap::<ValueId, ValueId>::default();
     if let Some(size) = size {
@@ -233,8 +258,10 @@ fn non_wrapping_calldata_runs(func: &mut Function, candidates: &[Candidate]) -> 
     let mark = func.allocation_mark();
     let mut queries = Vec::new();
     let mut conditions = Vec::new();
+    let mut runs = Vec::new();
     for candidate in unproven {
         let reach = U256::from(WORD * (candidate.words() - 1));
+        runs.push(RunQuery { inst: candidate.store, start: candidate.src, reach });
         let reach_value = func.alloc_value(Value::Immediate(Immediate::I256(reach)));
         // wraps = lt (add start, reach), start
         let end = alloc_inst(func, InstKind::Add(candidate.src, reach_value), MirType::I256);
@@ -256,12 +283,15 @@ fn non_wrapping_calldata_runs(func: &mut Function, candidates: &[Candidate]) -> 
         }
         conditions.push((candidate.store, proofs));
     }
-    let refuted = conditions_false(func, &queries);
+    let proven = facts_at(func, size, params, &queries, &runs);
     func.truncate_to(mark);
+    exact.extend(proven.bounded_runs);
     exact.extend(
         conditions
             .into_iter()
-            .filter(|(_, proofs)| proofs.iter().any(|proof| refuted.contains(proof)))
+            .filter(|(_, proofs)| {
+                proofs.iter().any(|proof| proven.false_conditions.contains(proof))
+            })
             .map(|(store, _)| store),
     );
     exact
@@ -441,4 +471,21 @@ fn reads_multi_return_buffer_pointer(func: &Function, value: ValueId) -> bool {
     matches!(*func.value(value), Value::Inst(inst)
         if matches!(func.inst(inst).kind, InstKind::Load(slot, PtrLocation::Memory)
             if func.value_u64(slot) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT)))
+}
+
+/// Whether `func` stores a calldata word to memory twice in one block, the shape of a calldata
+/// run.
+fn has_calldata_pair(func: &Function) -> bool {
+    func.blocks.iter().any(|block| {
+        block
+            .instructions
+            .iter()
+            .filter(|&&inst| {
+                matches!(func.inst(inst).kind, InstKind::Store(_, value, PtrLocation::Memory)
+                    if matches!(*func.value(value), Value::Inst(load)
+                        if matches!(func.inst(load).kind, InstKind::Load(_, PtrLocation::Calldata))))
+            })
+            .nth(1)
+            .is_some()
+    })
 }

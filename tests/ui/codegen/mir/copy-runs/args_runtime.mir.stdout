@@ -1,0 +1,47 @@
+// === ROOT/tests/ui/codegen/mir/copy-runs/args_runtime.sol:Test ===
+@module Test
+fn @e(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [pure] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = calldataload v0
+    v2 = shr v1, 160
+    v3 = eq v2, 0
+    v4 = eq v3, false
+    icall revert_if<empty>, v4
+    v5 = ptrtoint ptr<calldata> v0 to i256
+    v6 = add v5, 32
+    v7 = ptrtoint ptr<calldata> v0 to i256
+    v8 = add v7, 64
+    v9 = ptrtoint ptr<calldata> v0 to i256
+    v10 = add v9, 96
+    v11 = ptrtoint ptr<calldata> v0 to i256
+    v12 = add v11, 128
+    v13 = abi_encode [tuple<word<uint160>, word, word, word, word>, word], object, args arg0, arg1
+    ret v13
+}
+
+fn @f1(arg0: slice<calldata>, arg1: slice<calldata>) -> ptr<memory> [selector=0x99146cb5, pure, abi_params=[tuple<address, uint256, uint256, uint256, uint256>, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg1, 1
+    v1 = checked_add uint256, v0, 1
+    v2 = icall @e, arg0, v1
+    ret v2
+}
+
+fn @f2(arg0: slice<calldata>, arg1: slice<calldata>) -> ptr<memory> [selector=0xa2df0d1d, pure, abi_params=[tuple<address, uint256, uint256, uint256, uint256>, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg1, 1
+    v1 = checked_add uint256, v0, 2
+    v2 = icall @e, arg0, v1
+    ret v2
+}
+
+fn @f3(arg0: i256, arg1: slice<calldata>) -> ptr<memory> [selector=0xa85b6253, pure, abi_params=[uint256, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = inttoptr i256 arg0 to ptr<calldata>
+    v1 = make_calldata_slice v0, 0
+    v2 = extract_value slice<calldata>, arg1, 1
+    v3 = checked_add uint256, v2, 3
+    v4 = icall @e, v1, v3
+    ret v4
+}

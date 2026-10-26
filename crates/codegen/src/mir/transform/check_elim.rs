@@ -144,6 +144,12 @@
 //! boolean that ABI decoding checked keeps its word instead of normalizing it again.
 //! It also uses runtime immutable bounds, since legalization can introduce masks after the
 //! earlier immutable pass. Constructor-reachable functions retain their full-word semantics.
+//! `facts_at` asks what these facts prove at given instructions of a function that no pass
+//! changes: that a condition is false there, or that a calldata run's start plus its reach cannot
+//! wrap. Only these queries use the non-strict form of the sum lemma, which reads
+//! `a + b <= end` from `b <= end - a` and `a <= end`, and chains it through nested offsets;
+//! `argument_facts` carries what every call establishes about a parameter into its callee.
+//!
 //! Run late check elimination after the post-memory CSE. Only functions with removed checks receive
 //! CFG cleanup, avoiding unrelated late block merges in other functions.
 
@@ -322,21 +328,187 @@ impl MirPass for LateCheckElim {
     }
 }
 
-/// Returns the conditions of `queries` that are false wherever their instruction runs, by the
-/// facts the dominating branches and checks establish. A condition is an existing value, not
-/// necessarily one a block computes. The function is not changed.
-pub(crate) fn conditions_false(
+/// What [`facts_at`] proved.
+#[derive(Default)]
+pub(crate) struct ProvenFacts {
+    /// The queried conditions that are false wherever their instruction runs.
+    pub(crate) false_conditions: FxHashSet<ValueId>,
+    /// The instructions where a queried calldata run cannot wrap past `2^256`.
+    pub(crate) bounded_runs: FxHashSet<InstId>,
+}
+
+/// What every call of a function establishes about its parameters, by index.
+#[derive(Clone, Default)]
+pub(crate) struct ParamFacts {
+    /// Parameters at or below `calldatasize`.
+    pub(crate) below_size: FxHashSet<usize>,
+    /// Upper bounds of parameters.
+    pub(crate) bounds: FxHashMap<usize, U256>,
+}
+
+/// A calldata run to bound: its first start address and the distance to its last word.
+pub(crate) struct RunQuery {
+    pub(crate) inst: InstId,
+    pub(crate) start: ValueId,
+    pub(crate) reach: U256,
+}
+
+/// Evaluates `conditions`, each an existing value that need not be one a block computes, and the
+/// calldata `runs`, by the facts the dominating branches and checks establish where each
+/// instruction runs. `size` is the function's `calldatasize`, if it reads one. The function is not
+/// changed.
+///
+/// A run cannot wrap when an upper bound of its start plus its reach fits the word. The bound
+/// takes each value's range, the bound `calldatasize` gives a value that a passed check keeps at
+/// or below it, and the sum, product and shift of bounded values. A loop cursor that steps by a
+/// constant is bounded by its entry value plus the step over the target's trip limit: every
+/// iteration burns gas, and each step below the bound cannot wrap.
+pub(crate) fn facts_at(
     func: &Function,
-    queries: &[(InstId, ValueId)],
-) -> FxHashSet<ValueId> {
+    size: Option<ValueId>,
+    params: &ParamFacts,
+    conditions: &[(InstId, ValueId)],
+    runs: &[RunQuery],
+) -> ProvenFacts {
+    let eliminator = walk_queries(func, size, params, conditions, runs, &[]);
+    ProvenFacts { false_conditions: eliminator.refuted, bounded_runs: eliminator.bounded_runs }
+}
+
+/// The index of the first `calldatasize` that `func` reads.
+pub(crate) fn calldatasize_value(func: &Function) -> Option<ValueId> {
+    func.instructions().find_map(|inst| {
+        matches!(func.inst(inst).kind, InstKind::CalldataSize)
+            .then(|| func.inst_result_value(inst))
+            .flatten()
+    })
+}
+
+/// What every call in the module establishes about the parameters of each internal function, by
+/// `(function, index)`.
+#[derive(Default, PartialEq)]
+pub(crate) struct ArgumentFacts {
+    /// Parameters every call keeps at or below `calldatasize`.
+    pub(crate) below_size: FxHashSet<(FunctionId, usize)>,
+    /// Upper bounds of parameters, which every call keeps below.
+    pub(crate) bounds: FxHashMap<(FunctionId, usize), U256>,
+}
+
+impl ArgumentFacts {
+    /// The facts about the parameters of `function`.
+    pub(crate) fn of(&self, function: FunctionId) -> ParamFacts {
+        ParamFacts {
+            below_size: self
+                .below_size
+                .iter()
+                .filter(|(owner, _)| *owner == function)
+                .map(|&(_, index)| index)
+                .collect(),
+            bounds: self
+                .bounds
+                .iter()
+                .filter(|((owner, _), _)| *owner == function)
+                .map(|(&(_, index), &bound)| (index, bound))
+                .collect(),
+        }
+    }
+}
+
+/// The parameter facts that every call in the module establishes: each call passes a value that
+/// the checks dominating it keep at or below `calldatasize`, or under a bound, or a caller's own
+/// parameter of this kind. Only internal functions called directly qualify. Each round builds on
+/// the one before, so a call that depends on its own function's parameter is not taken as proof
+/// of it.
+pub(crate) fn argument_facts(module: &Module) -> ArgumentFacts {
+    let mut known = ArgumentFacts::default();
+    // Functions that something other than a direct internal call can reach take arguments no
+    // caller here controls.
+    let mut reached_otherwise = FxHashSet::default();
+    for (id, func) in module.functions.iter_enumerated() {
+        if func.is_public() || func.is_external_entry() {
+            reached_otherwise.insert(id);
+        }
+        for block in &func.blocks {
+            if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+                reached_otherwise.insert(*function);
+            }
+        }
+    }
+    for _ in 0..3 {
+        let mut below = FxHashMap::<(FunctionId, usize), bool>::default();
+        let mut bounds = FxHashMap::<(FunctionId, usize), U256>::default();
+        for (caller, func) in module.functions.iter_enumerated() {
+            let mut calls = Vec::new();
+            for inst in func.instructions() {
+                if let InstKind::ICall { function: Callee::Function(callee), args } =
+                    &func.inst(inst).kind
+                    && !reached_otherwise.contains(callee)
+                    && !args.is_empty()
+                {
+                    calls.push((inst, *callee, args.clone()));
+                }
+            }
+            if calls.is_empty() {
+                continue;
+            }
+            let queries = calls
+                .iter()
+                .flat_map(|(inst, _, args)| args.iter().map(|&arg| (*inst, arg)))
+                .collect::<Vec<_>>();
+            let walked =
+                walk_queries(func, calldatasize_value(func), &known.of(caller), &[], &[], &queries);
+            for (inst, callee, args) in &calls {
+                for (index, &arg) in args.iter().enumerate() {
+                    let holds = walked.below_size.contains(&(*inst, arg));
+                    *below.entry((*callee, index)).or_insert(true) &= holds;
+                    let bound =
+                        walked.value_bounds.get(&(*inst, arg)).copied().unwrap_or(U256::MAX);
+                    let widest = bounds.entry((*callee, index)).or_insert(U256::ZERO);
+                    *widest = (*widest).max(bound);
+                }
+            }
+        }
+        let next = ArgumentFacts {
+            below_size: below
+                .into_iter()
+                .filter_map(|(parameter, holds)| holds.then_some(parameter))
+                .collect(),
+            bounds: bounds.into_iter().filter(|&(_, bound)| bound < U256::MAX).collect(),
+        };
+        if next == known {
+            break;
+        }
+        known = next;
+    }
+    known
+}
+
+/// Builds the facts of `func` and walks its blocks once, answering every query.
+fn walk_queries<'a>(
+    func: &Function,
+    size: Option<ValueId>,
+    params: &ParamFacts,
+    conditions: &[(InstId, ValueId)],
+    runs: &[RunQuery],
+    size_queries: &[(InstId, ValueId)],
+) -> CheckEliminator<'a> {
     let mut eliminator = CheckEliminator::new(None);
     eliminator.non_strict_sums = true;
-    for &(inst, condition) in queries {
+    eliminator.size = size;
+    eliminator.params = params.clone();
+    for &(inst, condition) in conditions {
         eliminator.queries.entry(inst).or_default().push(condition);
+    }
+    for run in runs {
+        eliminator.run_queries.insert(run.inst, (run.start, run.reach));
+    }
+    for &(inst, value) in size_queries {
+        eliminator.size_queries.entry(inst).or_default().push(value);
     }
     let cfg = CfgInfo::new(func);
     let mut relevant = branch_inputs(func, &cfg);
-    let mut pending = queries.iter().map(|&(_, condition)| condition).collect::<Vec<_>>();
+    let mut pending = conditions.iter().map(|&(_, condition)| condition).collect::<Vec<_>>();
+    pending.extend(runs.iter().map(|run| run.start));
+    pending.extend(size_queries.iter().map(|&(_, value)| value));
     while let Some(value) = pending.pop() {
         if relevant.insert(value)
             && let Value::Inst(inst) = func.value(value)
@@ -346,8 +518,16 @@ pub(crate) fn conditions_false(
     }
     eliminator.universal_relations = universal_relations(func, &relevant);
     let facts = eliminator.join_facts(func, &cfg, &relevant);
+    for (value, bound) in counter_bounds(func, &cfg, &relevant) {
+        eliminator.trip_bounds.entry(value).or_insert(bound);
+    }
+    for (phi, initial, next) in loop_phis(func, &cfg) {
+        if let Some(step) = largest_step(func, phi, next) {
+            eliminator.cursors.insert(phi, (initial, step));
+        }
+    }
     let _ = eliminator.collect_folds(func, &cfg, &facts, &[], &mut Vec::new(), None);
-    eliminator.refuted
+    eliminator
 }
 
 /// Recognizes short unconditional failure paths: a chain of jumps to a block that aborts,
@@ -525,6 +705,9 @@ fn runtime_immutable_bounds(
 /// Maximum recursion depth when evaluating value ranges and conditions.
 const MAX_DEPTH: usize = 12;
 
+/// How many operations deep [`CheckEliminator::upper_bound`] follows a value.
+const MAX_BOUND_DEPTH: usize = 6;
+
 /// Statistics from check elimination.
 #[derive(Debug, Default, Clone)]
 struct CheckElimStats {
@@ -692,6 +875,23 @@ struct CheckEliminator<'a> {
     queries: FxHashMap<InstId, SmallVec<[ValueId; 2]>>,
     /// The conditions of `queries` that are false wherever their instruction runs.
     refuted: FxHashSet<ValueId>,
+    /// Calldata runs to bound where an instruction runs, for [`facts_at`]: start and reach.
+    run_queries: FxHashMap<InstId, (ValueId, U256)>,
+    /// The instructions of `run_queries` whose run cannot wrap.
+    bounded_runs: FxHashSet<InstId>,
+    /// The function's `calldatasize`, whose range bounds the values kept below it.
+    size: Option<ValueId>,
+    /// Parameters that every call keeps at or below `calldatasize`, by index.
+    params: ParamFacts,
+    /// Values to test against `calldatasize` where an instruction runs, for
+    /// [`arguments_below_calldatasize`].
+    size_queries: FxHashMap<InstId, SmallVec<[ValueId; 4]>>,
+    /// The `(instruction, value)` pairs of `size_queries` that hold.
+    below_size: FxHashSet<(InstId, ValueId)>,
+    /// The upper bound of each queried value.
+    value_bounds: FxHashMap<(InstId, ValueId), U256>,
+    /// Loop header phis that advance by at most a constant: the entry value and the step.
+    cursors: FxHashMap<ValueId, (ValueId, U256)>,
     /// Statistics from the last run.
     stats: CheckElimStats,
     ranges: FxHashMap<ValueId, Range>,
@@ -943,6 +1143,25 @@ impl<'a> CheckEliminator<'a> {
                     }
 
                     for &id in &func.blocks[block].instructions {
+                        if let Some(values) = self.size_queries.get(&id).cloned() {
+                            for value in values {
+                                let bound = self.upper_bound(func, value, MAX_BOUND_DEPTH);
+                                self.value_bounds.insert((id, value), bound);
+                                if let Some(size) = self.size
+                                    && self.has_relation(func, Relation::Le(value, size))
+                                {
+                                    self.below_size.insert((id, value));
+                                }
+                            }
+                        }
+                        if let Some(&(start, reach)) = self.run_queries.get(&id)
+                            && self
+                                .upper_bound(func, start, MAX_BOUND_DEPTH)
+                                .checked_add(reach)
+                                .is_some()
+                        {
+                            self.bounded_runs.insert(id);
+                        }
                         if !self.queries.is_empty()
                             && let Some(conditions) = self.queries.get(&id).cloned()
                         {
@@ -1572,20 +1791,40 @@ impl<'a> CheckEliminator<'a> {
         limit: Option<ValueId>,
         strict: bool,
     ) -> bool {
-        const MAX_SUM_DEPTH: usize = 2;
-        if self.sum_depth >= MAX_SUM_DEPTH {
+        // The queries of [`facts_at`] follow chains of nested offsets, one lemma per link.
+        let max_sum_depth = if self.non_strict_sums { 6 } else { 2 };
+        if self.sum_depth >= max_sum_depth {
             return false;
         }
+        // A constant past the sum, `(base + offset) + extra`, shrinks the room the offset has.
+        let (sum, extra) = match inst_kind(func, sum) {
+            Some(&InstKind::Add(inner, step) | &InstKind::Add(step, inner))
+                if self.non_strict_sums
+                    && !strict
+                    && matches!(inst_kind(func, inner), Some(InstKind::Add(..)))
+                    && const_of(func, step).is_some() =>
+            {
+                (inner, const_of(func, step).unwrap())
+            }
+            _ => (sum, U256::ZERO),
+        };
         let Some(&InstKind::Add(first, second)) = inst_kind(func, sum) else { return false };
         self.ensure_difference_index(func);
         self.sum_depth += 1;
         let found = [(first, second), (second, first)].into_iter().any(|(base, offset)| {
-            let candidates = self
-                .difference_index
-                .as_ref()
-                .and_then(|index| index.get(&base))
-                .cloned()
-                .unwrap_or_default();
+            // Equal constants are separate values until the pipeline ends, so a constant base
+            // finds the differences of every equal constant.
+            let candidates = self.difference_index.as_ref().map_or_else(
+                Default::default,
+                |index| match const_of(func, base).filter(|_| self.non_strict_sums) {
+                    Some(constant) => index
+                        .iter()
+                        .filter(|&(&key, _)| const_of(func, key) == Some(constant))
+                        .flat_map(|(_, entries)| entries.iter().copied())
+                        .collect(),
+                    None => index.get(&base).cloned().unwrap_or_default(),
+                },
+            );
             candidates.into_iter().any(|(minuend, difference)| {
                 let below = if strict {
                     Relation::Lt(offset, difference)
@@ -1597,8 +1836,11 @@ impl<'a> CheckEliminator<'a> {
                         && const_of(func, base).is_some_and(|base| {
                             self.range_of(func, minuend, MAX_DEPTH).lo >= base
                         }));
-                self.has_relation(func, below)
-                    && base_fits
+                (if extra.is_zero() {
+                    self.has_relation(func, below)
+                } else {
+                    self.offset_has_room(func, offset, difference, extra)
+                }) && base_fits
                     && limit.is_none_or(|limit| {
                         minuend == limit || self.has_relation(func, Relation::Le(minuend, limit))
                     })
@@ -1710,6 +1952,13 @@ impl<'a> CheckEliminator<'a> {
         if start == end && !needs_strict {
             return true;
         }
+        if self.non_strict_sums
+            && let Relation::Le(value, bound) = relation
+            && Some(bound) == self.size
+            && self.value_below_size(func, value)
+        {
+            return true;
+        }
         // `a + b <= end` follows from `b <= end - a` and `a <= end`, whichever edges `a + b` has.
         if self.non_strict_sums
             && let Relation::Le(sum, limit) = relation
@@ -1749,6 +1998,43 @@ impl<'a> CheckEliminator<'a> {
                     && self.sum_stays_below(func, sum, None, true)
             }
             Relation::Eq(..) | Relation::Ne(..) => false,
+        }
+    }
+
+    /// Whether the scope keeps `offset + extra` at or below `difference`, as a check against
+    /// `difference - c` for a constant `c` of at least `extra` that `difference` is at least.
+    fn offset_has_room(
+        &mut self,
+        func: &Function,
+        offset: ValueId,
+        difference: ValueId,
+        extra: U256,
+    ) -> bool {
+        let edges = self
+            .relations
+            .iter()
+            .filter_map(|&relation| match relation {
+                Relation::Le(a, b) | Relation::Lt(a, b) if a == offset => Some(b),
+                _ => None,
+            })
+            .collect::<SmallVec<[ValueId; 4]>>();
+        edges.into_iter().any(|edge| {
+            matches!(inst_kind(func, edge), Some(&InstKind::Sub(minuend, step))
+            if minuend == difference
+                && const_of(func, step).is_some_and(|step| {
+                    step >= extra && self.range_of(func, difference, MAX_DEPTH).lo >= step
+                }))
+        })
+    }
+
+    /// Whether `value` is a parameter every call keeps at or below `calldatasize`, or a constant
+    /// that the scope keeps `calldatasize` above.
+    fn value_below_size(&mut self, func: &Function, value: ValueId) -> bool {
+        let Some(size) = self.size else { return false };
+        match func.value(value) {
+            Value::Arg(index) => self.params.below_size.contains(&index.index()),
+            _ => const_of(func, value)
+                .is_some_and(|constant| self.range_of(func, size, MAX_DEPTH).lo >= constant),
         }
     }
 
@@ -1955,6 +2241,49 @@ impl<'a> CheckEliminator<'a> {
     }
 
     /// Evaluates the truthiness (`!= 0`) of `value`, if provable.
+    /// An upper bound of `value` in the current scope. See [`facts_at`].
+    fn upper_bound(&mut self, func: &Function, value: ValueId, depth: usize) -> U256 {
+        let mut bound = self.range_of(func, value, MAX_DEPTH).hi;
+        if let Value::Arg(index) = func.value(value)
+            && let Some(&limit) = self.params.bounds.get(&index.index())
+        {
+            bound = bound.min(limit);
+        }
+        if let Some(size) = self.size
+            && value != size
+        {
+            let limit = self.range_of(func, size, MAX_DEPTH).hi;
+            if bound > limit && self.has_relation(func, Relation::Le(value, size)) {
+                bound = limit;
+            }
+        }
+        let Some(depth) = depth.checked_sub(1) else { return bound };
+        let derived = match inst_kind(func, value).cloned() {
+            Some(InstKind::Add(a, b)) => {
+                self.upper_bound(func, a, depth).checked_add(self.upper_bound(func, b, depth))
+            }
+            Some(InstKind::Mul(a, b)) => {
+                self.upper_bound(func, a, depth).checked_mul(self.upper_bound(func, b, depth))
+            }
+            Some(InstKind::Shl(count, a)) => {
+                let (count, a) =
+                    (self.upper_bound(func, count, depth), self.upper_bound(func, a, depth));
+                usize::try_from(count)
+                    .ok()
+                    .filter(|&count| a.leading_zeros() >= count)
+                    .map(|count| a << count)
+            }
+            Some(InstKind::Phi(_)) => {
+                self.cursors.get(&value).copied().and_then(|(initial, step)| {
+                    let travel = step.checked_shl(Target::MAX_TRIP_COUNT_BITS)?;
+                    self.upper_bound(func, initial, depth).checked_add(travel)
+                })
+            }
+            _ => None,
+        };
+        derived.map_or(bound, |derived| bound.min(derived))
+    }
+
     fn eval_truth(&mut self, func: &Function, value: ValueId, depth: usize) -> Option<bool> {
         if let Some(constant) = const_of(func, value) {
             return Some(!constant.is_zero());
@@ -2711,18 +3040,33 @@ fn counter_bounds(
     relevant: &DenseBitSet<ValueId>,
 ) -> Vec<(ValueId, Range)> {
     let mut bounds = Vec::new();
+    for (value, initial, next) in loop_phis(func, cfg) {
+        if !relevant.contains(value) {
+            continue;
+        }
+        if let Some(initial) = const_of(func, initial)
+            && let Some(step) = largest_step(func, value, next)
+            && let Some(bound) = ascending_trip_bound(func, value, initial, step)
+        {
+            bounds.push((value, bound));
+        }
+    }
+    bounds
+}
+
+/// The loop header phis with one entry edge and one latch edge, as the phi, its entry value, and
+/// its latch value.
+fn loop_phis(func: &Function, cfg: &CfgInfo) -> Vec<(ValueId, ValueId, ValueId)> {
+    let mut phis = Vec::new();
     let cyclic = cfg.cyclic_blocks();
     if cyclic.is_empty() {
-        return bounds;
+        return phis;
     }
     let dominators = cfg.dominators();
     for header in cyclic.iter() {
         for &inst in &func.blocks[header].instructions {
             let InstKind::Phi(incoming) = &func.inst(inst).kind else { continue };
             let Some(value) = func.inst_result_value(inst) else { continue };
-            if !relevant.contains(value) {
-                continue;
-            }
             let [(first_block, first), (second_block, second)] = incoming.as_slice() else {
                 continue;
             };
@@ -2739,15 +3083,10 @@ fn counter_bounds(
             {
                 continue;
             }
-            if let Some(initial) = const_of(func, initial)
-                && let Some(step) = largest_step(func, value, next)
-                && let Some(bound) = ascending_trip_bound(func, value, initial, step)
-            {
-                bounds.push((value, bound));
-            }
+            phis.push((value, initial, next));
         }
     }
-    bounds
+    phis
 }
 
 /// The largest constant `next` adds to the header phi `phi`, when every value `next` can be,
