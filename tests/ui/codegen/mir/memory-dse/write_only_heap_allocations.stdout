@@ -122,7 +122,23 @@
       ret 0
     bb2:
       v2 = alloc 64
-      mstore v2, 7
+-     mstore v2, 7
+      v3 = add v0, 1
+      jump bb1
+  }
+  
+  fn @loop_allocation_copy(arg0: i256) -> i256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v3]
+      v1 = lt v0, arg0
+      jumpi v1, bb2, bb3
+    bb3:
+      ret 0
+    bb2:
+      v2 = alloc 64
+      calldatacopy v2, 4, 32
       v3 = add v0, 1
       jump bb1
   }
@@ -258,7 +274,22 @@
       ret 0
     bb2:
       v2 = alloc 64
-      mstore v2, 7
+      v3 = add v0, 1
+      jump bb1
+  }
+  
+  fn @loop_allocation_copy(arg0: i256) -> i256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v3]
+      v1 = lt v0, arg0
+      jumpi v1, bb2, bb3
+    bb3:
+      ret 0
+    bb2:
+      v2 = alloc 64
+      calldatacopy v2, 4, 32
       v3 = add v0, 1
       jump bb1
   }

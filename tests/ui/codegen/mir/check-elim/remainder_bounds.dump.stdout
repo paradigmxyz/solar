@@ -53,8 +53,8 @@ fn @pickDown() [selector=0xe4bcb1d7, abi_wrapper, pure] {
   bb9:
     v29 = add v26, 1
     v30 = shl v29, 5
-    v49 = mload 64 !metadata(memory=scratch)
-    v50 = add v49, v30
+    v49 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v50 = add v49, v30 !metadata(alloc_ptr)
     v51 = lt v50, v49
     v52 = gt v50, 0xffffffffffffffff
     v53 = or v51, v52

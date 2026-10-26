@@ -146,11 +146,10 @@ fn @unguarded_join(arg0: i256) -> i256 {
     ret 0
 }
 
-// An allocation in a loop reads the free-memory pointer again on the next
-// iteration, after the previous instance's writes, so they stay.
+// The dead-allocation-store rule removes a store nothing reads, even in a loop.
 // CHECK-LABEL: {{^[ +].*}}fn @loop_allocation{{[( ]}}
 // CHECK: {{^[ +].*}}alloc 64
-// CHECK-NEXT: {{^ .*}}mstore {{v[0-9]+}}, 7
+// CHECK-NEXT: {{^ .*}}{{v[0-9]+}} = add
 fn @loop_allocation(arg0: i256) -> i256 {
   bb0:
     jump bb1
@@ -161,6 +160,27 @@ fn @loop_allocation(arg0: i256) -> i256 {
   bb2:
     v0 = alloc 64
     mstore v0, 7
+    v3 = add v1, 1
+    jump bb1
+  bb3:
+    ret 0
+}
+
+// An allocation in a loop reads the free-memory pointer again on the next
+// iteration, after the previous instance's writes, so a copy into it stays.
+// CHECK-LABEL: {{^[ +].*}}fn @loop_allocation_copy{{[( ]}}
+// CHECK: {{^[ +].*}}alloc 64
+// CHECK-NEXT: {{^ .*}}calldatacopy {{v[0-9]+}}, 4, 32
+fn @loop_allocation_copy(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = lt v1, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v0 = alloc 64
+    calldatacopy v0, 4, 32
     v3 = add v1, 1
     jump bb1
   bb3:

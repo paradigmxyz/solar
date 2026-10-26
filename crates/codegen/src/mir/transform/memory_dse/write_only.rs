@@ -13,30 +13,26 @@
 //! destination is derived. A write that can fail on its own, such as `returndatacopy` past the end
 //! of the return data, always stays.
 //!
-//! Two proofs then make the walk's result safe to remove:
-//!
-//! - A deferred allocation whose only writes are stores needs nothing more: its pointer uses are
-//!   in-bounds address derivations, so no other way to reach its words exists. Functions that
-//!   observe gas keep its stores, since removing them can lower memory expansion.
-//! - Every other case needs alias analysis, including copies and fills into a deferred allocation.
-//!   Its pointer must not escape, no instruction or terminator may read an address that may alias
-//!   its extent, and every write must lie inside its constant-size extent. An indexed element store
-//!   also qualifies when its sole incoming edge proves an unsigned index bound whose last word
-//!   fits. Other dynamic addresses stay conservative. An allocation that runs once reads the
-//!   free-memory pointer before its object exists, so that read does not count; one in a loop reads
-//!   it again after the previous instance's writes and keeps them. Every other read of the slot
-//!   still counts. Callers' later reads of the slot cannot see the removed writes: allocations
-//!   start at or above the heap floor (see `heap-floor`), above the slot.
+//! Alias analysis then proves the walk's result safe to remove. The pointer must not escape, no
+//! instruction or terminator may read an address that may alias the allocation's extent, and
+//! every write must lie inside its constant-size extent. An indexed element store also qualifies
+//! when its sole incoming edge proves an unsigned index bound whose last word fits. Other dynamic
+//! addresses stay conservative. An allocation that runs once reads the free-memory pointer before
+//! its object exists, so that read does not count; one in a loop reads it again after the previous
+//! instance's writes and keeps them. Every other read of the slot still counts. Callers' later
+//! reads of the slot cannot see the removed writes: allocations start at or above the heap floor
+//! (see `heap-floor`), above the slot. Unlike the dead-allocation-store rule, which removes single
+//! constant-offset stores by reachability, this one removes every write of an allocation that is
+//! never read, including copies, fills, and bounded indexed stores.
 //!
 //! The rewrite runs inside the `memory-dse` fixpoint, so removing a copy that read one allocation
 //! lets the next round remove the writes into that allocation.
 
 use super::MemoryStoreEliminator;
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, MirType, PtrLocation, Terminator, Value, ValueId,
-    analysis::{
-        Access, AddressSpace, AliasAnalysis, GasObservations, Location, MemoryBase, MemoryLocation,
-    },
+    BlockId, Function, InstId, InstKind, MirType, PtrLocation, RawMemoryAccess, Terminator, Value,
+    ValueId,
+    analysis::{Access, AddressSpace, AliasAnalysis, Location, MemoryBase, MemoryLocation},
     memory::EvmMemoryLayout,
 };
 use smallvec::SmallVec;
@@ -52,38 +48,20 @@ impl MemoryStoreEliminator {
         let allocations: Vec<_> = func
             .instructions()
             .filter(|&inst| matches!(func.inst(inst).kind, InstKind::Alloc { .. }))
-            .filter_map(|inst| {
-                Some((func.inst_result_value(inst)?, func.inst(inst).metadata.deferred_alloc()))
-            })
+            .filter_map(|inst| func.inst_result_value(inst))
             .collect();
         if allocations.is_empty() {
             return;
         }
 
         let uses = WriteOnlyUses::new(func);
-        let mut observes_gas = None;
         let mut dead = DenseBitSet::new_empty(func.num_insts());
-        for (object, deferred) in allocations {
-            let Some(writes) = uses.write_only_writes(func, object) else { continue };
-            // Placement proves nothing about copies and fills: a deferred object can sit below the
-            // free-memory pointer, where assembly may read it from another heap pointer.
-            let only_stores = writes.iter().all(|&write| {
-                matches!(
-                    func.inst(write).kind,
-                    InstKind::Store(.., PtrLocation::Memory) | InstKind::Store8(..)
-                )
-            });
-            let removable = if deferred && only_stores {
-                !*observes_gas.get_or_insert_with(|| {
-                    let gas = GasObservations::new(func, &self.cfg, self.alias());
-                    func.instructions().any(|inst| gas.observes(inst))
-                })
-            } else {
-                uses.writes_fit_allocation(func, self.alias(), object, &writes)
-                    && !self.alias().value_escapes(func, object)
-                    && !self.allocation_may_be_read(func, object)
-            };
-            if removable {
+        for object in allocations {
+            if let Some(writes) = uses.write_only_writes(func, object)
+                && uses.writes_fit_allocation(func, self.alias(), object, &writes)
+                && !self.alias().value_escapes(func, object)
+                && !self.allocation_may_be_read(func, object)
+            {
                 for write in writes {
                     dead.insert(write);
                 }
@@ -217,46 +195,18 @@ impl WriteOnlyUses {
                 }
                 let inst = func.inst(inst_id);
                 match &inst.kind {
-                    // Writes to the allocation: the address is a derived value.
-                    InstKind::Store(addr, value, PtrLocation::Memory)
-                    | InstKind::Store8(addr, value) => {
-                        if derived.contains(value) {
-                            return None; // Storing an interior address elsewhere is a read/escape.
-                        }
-                        if derived.contains(addr) {
-                            writes.push(inst_id);
-                        }
+                    // Storing an interior address elsewhere is a read/escape.
+                    InstKind::Store(_, value, PtrLocation::Memory) | InstKind::Store8(_, value)
+                        if derived.contains(value) =>
+                    {
+                        return None;
                     }
-                    InstKind::MemoryZero(dest, _)
-                    | InstKind::Copy(dest, _, _, PtrLocation::Calldata | PtrLocation::Returndata)
-                    | InstKind::DataCopy(_, dest, _)
-                    | InstKind::CodeCopy(dest, _, _)
-                    | InstKind::ExtCodeCopy(_, dest, _, _) => {
-                        if derived.contains(dest) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::Copy(dest, source, _, PtrLocation::Memory) => {
-                        if derived.contains(source) {
-                            return None; // Read as a copy source.
-                        }
-                        if derived.contains(dest) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    // Reads of the allocation keep every write.
-                    InstKind::Load(addr, PtrLocation::Memory)
-                    | InstKind::ExtractValue {
+                    InstKind::ExtractValue {
                         ty: MirType::Slice(_),
                         aggregate: addr,
                         index: MirType::SLICE_LEN_FIELD,
                     } => {
                         if derived.contains(addr) {
-                            return None;
-                        }
-                    }
-                    InstKind::Keccak256(offset, _) => {
-                        if derived.contains(offset) {
                             return None;
                         }
                     }
@@ -275,7 +225,25 @@ impl WriteOnlyUses {
                     | InstKind::Alloc { .. } => {}
                     // Any other use of a derived address is treated as a read.
                     kind => {
-                        if kind.operands().iter().any(|op| derived.contains(op)) {
+                        // Memory accesses are judged by their raw ranges. Calls, creates, logs,
+                        // and operations without a range read every derived operand.
+                        let mut ranged = false;
+                        let mut read = false;
+                        if kind.effect_kind().is_memory() {
+                            kind.visit_raw_memory(|access, addr, _| {
+                                ranged = true;
+                                if derived.contains(&addr) {
+                                    match access {
+                                        RawMemoryAccess::Write => writes.push(inst_id),
+                                        RawMemoryAccess::Read | RawMemoryAccess::PartialWrite => {
+                                            read = true;
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                        if read || !ranged && kind.operands().iter().any(|op| derived.contains(op))
+                        {
                             return None;
                         }
                     }
