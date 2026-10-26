@@ -37,6 +37,11 @@
 //! is unobservable. Empty continuation thunks can therefore be bypassed even through a pushed
 //! return address. Ordinary address-taken labels remain opaque. The declaration is emitted by call
 //! lowering and machine outlining and round-trips through EVM IR independently of debug output.
+//!
+//! [`MergeFallthroughThunks`] runs at every optimization level, including `none`. A thunk placed
+//! right before its target emits no instruction, so the thunk's label and the target's label
+//! would assemble to two adjacent `JUMPDEST`s. It redirects edges through such thunks and removes
+//! them. Labels used as values stay distinct.
 
 use super::{
     EvmPass,
@@ -93,6 +98,7 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
             &mut state.addressed,
             &mut state.jump_heads,
             &mut state.order,
+            false,
         );
         let inlined = thread_shared_jumps
             && gcx.sess.opts.optimization.is_gas()
@@ -117,6 +123,48 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
             }
             return changed;
         }
+    }
+}
+
+/// Redirects edges through empty jump thunks placed right before their target, then removes them.
+///
+/// Such a thunk assembles to nothing but its own `JUMPDEST`, directly followed by the target's.
+pub(super) struct MergeFallthroughThunks;
+
+impl EvmPass for MergeFallthroughThunks {
+    fn name(&self) -> &'static str {
+        "merge-fallthrough-thunks"
+    }
+
+    fn is_required(&self) -> bool {
+        true
+    }
+
+    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+        let mut state = RunState::default();
+        state.reserve(module.blocks.len());
+        let mut changed = false;
+        // Removing a thunk can place the thunk before it right before the same target.
+        while redirect_jump_thunks(
+            module,
+            false,
+            &mut state.thunks,
+            &mut state.addressed,
+            &mut state.jump_heads,
+            &mut state.order,
+            true,
+        ) {
+            changed = true;
+            // Every redirected thunk is unreferenced now, so this sweep removes it.
+            let _ = remove_unreachable_blocks(
+                module,
+                &mut state.reachable,
+                &mut state.pending,
+                &mut state.references,
+                &mut state.order,
+            );
+        }
+        changed
     }
 }
 
@@ -412,6 +460,7 @@ fn redirect_jump_thunks(
     addressed: &mut DenseBitSet<BlockId>,
     jump_heads: &mut DenseBitSet<BlockId>,
     order: &mut Vec<BlockId>,
+    fallthrough_only: bool,
 ) -> bool {
     // Redirect direct edges through empty blocks. Keep labels used as values distinct, and move
     // each removed thunk's debug event to its incoming edges.
@@ -437,6 +486,9 @@ fn redirect_jump_thunks(
         {
             thunks.insert(block_id, *target);
         }
+    }
+    if fallthrough_only {
+        thunks.retain(|&block, &mut target| module.next_block(block) == Some(target));
     }
     if thunks.is_empty() {
         return false;

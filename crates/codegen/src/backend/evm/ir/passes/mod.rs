@@ -107,6 +107,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &data::PackData,
     &legalize_revert::LegalizeRevert,
     &cfg_simplify::CfgSimplify::FINAL,
+    &cfg_simplify::MergeFallthroughThunks,
     &outline::Outline,
     &terminal_dedup::TerminalDedup,
     &tail_merge::TailMerge,
@@ -195,6 +196,8 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Introduce `EXCHANGE` only after every peephole has seen the plain swaps.
     &stack_normalize::StackNormalize::FINAL,
     &tail_duplicate::TailDuplicate,
+    // Remove a label-only thunk that layout placed right before its target.
+    &cfg_simplify::MergeFallthroughThunks,
 ];
 
 /// Finds an EVM IR pass by command-line name.
