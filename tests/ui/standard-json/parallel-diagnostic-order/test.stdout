@@ -1,0 +1,1062 @@
+{
+  "errors": [
+    {
+      "sourceLocation": {
+        "file": "C01.sol",
+        "start": 63,
+        "end": 69
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C01.sol",
+          "start": 0,
+          "end": 0,
+          "message": "to make the contract non-deployable, marking it `abstract` is sufficient"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2462",
+      "message": "visibility for constructor is ignored",
+      "formattedMessage": "warning[2462]: visibility for constructor is ignored\n   ╭▸ C01.sol:LL:CC\n   │\nLL │     constructor() public {}\n   │                   ━━━━━━\n   │\n   ╰ note: to make the contract non-deployable, marking it `abstract` is sufficient\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C02.sol",
+        "start": 63,
+        "end": 69
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C02.sol",
+          "start": 0,
+          "end": 0,
+          "message": "to make the contract non-deployable, marking it `abstract` is sufficient"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2462",
+      "message": "visibility for constructor is ignored",
+      "formattedMessage": "warning[2462]: visibility for constructor is ignored\n   ╭▸ C02.sol:LL:CC\n   │\nLL │     constructor() public {}\n   │                   ━━━━━━\n   │\n   ╰ note: to make the contract non-deployable, marking it `abstract` is sufficient\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C03.sol",
+        "start": 63,
+        "end": 69
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C03.sol",
+          "start": 0,
+          "end": 0,
+          "message": "to make the contract non-deployable, marking it `abstract` is sufficient"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2462",
+      "message": "visibility for constructor is ignored",
+      "formattedMessage": "warning[2462]: visibility for constructor is ignored\n   ╭▸ C03.sol:LL:CC\n   │\nLL │     constructor() public {}\n   │                   ━━━━━━\n   │\n   ╰ note: to make the contract non-deployable, marking it `abstract` is sufficient\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C04.sol",
+        "start": 63,
+        "end": 69
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C04.sol",
+          "start": 0,
+          "end": 0,
+          "message": "to make the contract non-deployable, marking it `abstract` is sufficient"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2462",
+      "message": "visibility for constructor is ignored",
+      "formattedMessage": "warning[2462]: visibility for constructor is ignored\n   ╭▸ C04.sol:LL:CC\n   │\nLL │     constructor() public {}\n   │                   ━━━━━━\n   │\n   ╰ note: to make the contract non-deployable, marking it `abstract` is sufficient\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C05.sol",
+        "start": 63,
+        "end": 69
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C05.sol",
+          "start": 0,
+          "end": 0,
+          "message": "to make the contract non-deployable, marking it `abstract` is sufficient"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2462",
+      "message": "visibility for constructor is ignored",
+      "formattedMessage": "warning[2462]: visibility for constructor is ignored\n   ╭▸ C05.sol:LL:CC\n   │\nLL │     constructor() public {}\n   │                   ━━━━━━\n   │\n   ╰ note: to make the contract non-deployable, marking it `abstract` is sufficient\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C06.sol",
+        "start": 63,
+        "end": 69
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C06.sol",
+          "start": 0,
+          "end": 0,
+          "message": "to make the contract non-deployable, marking it `abstract` is sufficient"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2462",
+      "message": "visibility for constructor is ignored",
+      "formattedMessage": "warning[2462]: visibility for constructor is ignored\n   ╭▸ C06.sol:LL:CC\n   │\nLL │     constructor() public {}\n   │                   ━━━━━━\n   │\n   ╰ note: to make the contract non-deployable, marking it `abstract` is sufficient\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C07.sol",
+        "start": 63,
+        "end": 69
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C07.sol",
+          "start": 0,
+          "end": 0,
+          "message": "to make the contract non-deployable, marking it `abstract` is sufficient"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2462",
+      "message": "visibility for constructor is ignored",
+      "formattedMessage": "warning[2462]: visibility for constructor is ignored\n   ╭▸ C07.sol:LL:CC\n   │\nLL │     constructor() public {}\n   │                   ━━━━━━\n   │\n   ╰ note: to make the contract non-deployable, marking it `abstract` is sufficient\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C08.sol",
+        "start": 63,
+        "end": 69
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C08.sol",
+          "start": 0,
+          "end": 0,
+          "message": "to make the contract non-deployable, marking it `abstract` is sufficient"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2462",
+      "message": "visibility for constructor is ignored",
+      "formattedMessage": "warning[2462]: visibility for constructor is ignored\n   ╭▸ C08.sol:LL:CC\n   │\nLL │     constructor() public {}\n   │                   ━━━━━━\n   │\n   ╰ note: to make the contract non-deployable, marking it `abstract` is sufficient\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C01.sol",
+        "start": 119,
+        "end": 124
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "3881",
+      "message": "tag `@param` references non-existent parameter 'missing'",
+      "formattedMessage": "warning[3881]: tag `@param` references non-existent parameter 'missing'\n   ╭▸ C01.sol:LL:CC\n   │\nLL │     /// @param missing no such parameter\n   ╰╴         ━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C02.sol",
+        "start": 119,
+        "end": 124
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "3881",
+      "message": "tag `@param` references non-existent parameter 'missing'",
+      "formattedMessage": "warning[3881]: tag `@param` references non-existent parameter 'missing'\n   ╭▸ C02.sol:LL:CC\n   │\nLL │     /// @param missing no such parameter\n   ╰╴         ━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C03.sol",
+        "start": 119,
+        "end": 124
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "3881",
+      "message": "tag `@param` references non-existent parameter 'missing'",
+      "formattedMessage": "warning[3881]: tag `@param` references non-existent parameter 'missing'\n   ╭▸ C03.sol:LL:CC\n   │\nLL │     /// @param missing no such parameter\n   ╰╴         ━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C04.sol",
+        "start": 119,
+        "end": 124
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "3881",
+      "message": "tag `@param` references non-existent parameter 'missing'",
+      "formattedMessage": "warning[3881]: tag `@param` references non-existent parameter 'missing'\n   ╭▸ C04.sol:LL:CC\n   │\nLL │     /// @param missing no such parameter\n   ╰╴         ━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C05.sol",
+        "start": 119,
+        "end": 124
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "3881",
+      "message": "tag `@param` references non-existent parameter 'missing'",
+      "formattedMessage": "warning[3881]: tag `@param` references non-existent parameter 'missing'\n   ╭▸ C05.sol:LL:CC\n   │\nLL │     /// @param missing no such parameter\n   ╰╴         ━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C06.sol",
+        "start": 119,
+        "end": 124
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "3881",
+      "message": "tag `@param` references non-existent parameter 'missing'",
+      "formattedMessage": "warning[3881]: tag `@param` references non-existent parameter 'missing'\n   ╭▸ C06.sol:LL:CC\n   │\nLL │     /// @param missing no such parameter\n   ╰╴         ━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C07.sol",
+        "start": 119,
+        "end": 124
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "3881",
+      "message": "tag `@param` references non-existent parameter 'missing'",
+      "formattedMessage": "warning[3881]: tag `@param` references non-existent parameter 'missing'\n   ╭▸ C07.sol:LL:CC\n   │\nLL │     /// @param missing no such parameter\n   ╰╴         ━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C08.sol",
+        "start": 119,
+        "end": 124
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "3881",
+      "message": "tag `@param` references non-existent parameter 'missing'",
+      "formattedMessage": "warning[3881]: tag `@param` references non-existent parameter 'missing'\n   ╭▸ C08.sol:LL:CC\n   │\nLL │     /// @param missing no such parameter\n   ╰╴         ━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C01.sol",
+        "start": 247,
+        "end": 263
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "8417",
+      "message": "since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain",
+      "formattedMessage": "warning[8417]: since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain\n   ╭▸ C01.sol:LL:CC\n   │\nLL │         return block.difficulty;\n   ╰╴               ━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C02.sol",
+        "start": 247,
+        "end": 263
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "8417",
+      "message": "since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain",
+      "formattedMessage": "warning[8417]: since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain\n   ╭▸ C02.sol:LL:CC\n   │\nLL │         return block.difficulty;\n   ╰╴               ━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C03.sol",
+        "start": 247,
+        "end": 263
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "8417",
+      "message": "since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain",
+      "formattedMessage": "warning[8417]: since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain\n   ╭▸ C03.sol:LL:CC\n   │\nLL │         return block.difficulty;\n   ╰╴               ━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C04.sol",
+        "start": 247,
+        "end": 263
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "8417",
+      "message": "since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain",
+      "formattedMessage": "warning[8417]: since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain\n   ╭▸ C04.sol:LL:CC\n   │\nLL │         return block.difficulty;\n   ╰╴               ━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C05.sol",
+        "start": 247,
+        "end": 263
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "8417",
+      "message": "since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain",
+      "formattedMessage": "warning[8417]: since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain\n   ╭▸ C05.sol:LL:CC\n   │\nLL │         return block.difficulty;\n   ╰╴               ━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C06.sol",
+        "start": 247,
+        "end": 263
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "8417",
+      "message": "since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain",
+      "formattedMessage": "warning[8417]: since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain\n   ╭▸ C06.sol:LL:CC\n   │\nLL │         return block.difficulty;\n   ╰╴               ━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C07.sol",
+        "start": 247,
+        "end": 263
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "8417",
+      "message": "since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain",
+      "formattedMessage": "warning[8417]: since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain\n   ╭▸ C07.sol:LL:CC\n   │\nLL │         return block.difficulty;\n   ╰╴               ━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C08.sol",
+        "start": 247,
+        "end": 263
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "8417",
+      "message": "since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain",
+      "formattedMessage": "warning[8417]: since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain\n   ╭▸ C08.sol:LL:CC\n   │\nLL │         return block.difficulty;\n   ╰╴               ━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C01.sol",
+        "start": 31,
+        "end": 34
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "3628",
+      "message": "contract has a payable fallback function, but no receive ether function",
+      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C01.sol:LL:CC\n   │\nLL │ contract C01 is Base {\n   │          ━━━\n   ‡\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C02.sol",
+        "start": 31,
+        "end": 34
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "3628",
+      "message": "contract has a payable fallback function, but no receive ether function",
+      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C02.sol:LL:CC\n   │\nLL │ contract C02 is Base {\n   │          ━━━\n   ‡\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C03.sol",
+        "start": 31,
+        "end": 34
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "3628",
+      "message": "contract has a payable fallback function, but no receive ether function",
+      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C03.sol:LL:CC\n   │\nLL │ contract C03 is Base {\n   │          ━━━\n   ‡\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C04.sol",
+        "start": 31,
+        "end": 34
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "3628",
+      "message": "contract has a payable fallback function, but no receive ether function",
+      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C04.sol:LL:CC\n   │\nLL │ contract C04 is Base {\n   │          ━━━\n   ‡\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C05.sol",
+        "start": 31,
+        "end": 34
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "3628",
+      "message": "contract has a payable fallback function, but no receive ether function",
+      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C05.sol:LL:CC\n   │\nLL │ contract C05 is Base {\n   │          ━━━\n   ‡\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C06.sol",
+        "start": 31,
+        "end": 34
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "3628",
+      "message": "contract has a payable fallback function, but no receive ether function",
+      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C06.sol:LL:CC\n   │\nLL │ contract C06 is Base {\n   │          ━━━\n   ‡\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C07.sol",
+        "start": 31,
+        "end": 34
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "3628",
+      "message": "contract has a payable fallback function, but no receive ether function",
+      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C07.sol:LL:CC\n   │\nLL │ contract C07 is Base {\n   │          ━━━\n   ‡\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C08.sol",
+        "start": 31,
+        "end": 34
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "3628",
+      "message": "contract has a payable fallback function, but no receive ether function",
+      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C08.sol:LL:CC\n   │\nLL │ contract C08 is Base {\n   │          ━━━\n   ‡\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
+    },
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C01.sol",
+        "start": 361,
+        "end": 366
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C01.sol",
+          "start": 0,
+          "end": 0,
+          "message": "the optimizer does not preserve the exact value"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "0067",
+      "message": "`msize` is not exact when optimizing",
+      "formattedMessage": "warning[0067]: `msize` is not exact when optimizing\n   ╭▸ C01.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C01.sol",
+        "start": 22,
+        "end": 386
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C01.sol",
+          "start": 0,
+          "end": 0,
+          "message": "the limit was introduced in spuriousDragon"
+        },
+        {
+          "file": "C01.sol",
+          "start": 0,
+          "end": 0,
+          "message": "this contract may not be deployable on Mainnet"
+        },
+        {
+          "file": "C01.sol",
+          "start": 0,
+          "end": 0,
+          "message": "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "5574",
+      "message": "contract code size is 25218 bytes and exceeds 24576 bytes",
+      "formattedMessage": "warning[5574]: contract code size is 25218 bytes and exceeds 24576 bytes\n   ╭▸ C01.sol:LL:CC\n   │\nLL │ ┏ contract C01 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ‡ ┃\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C02.sol",
+        "start": 361,
+        "end": 366
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C02.sol",
+          "start": 0,
+          "end": 0,
+          "message": "the optimizer does not preserve the exact value"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "0067",
+      "message": "`msize` is not exact when optimizing",
+      "formattedMessage": "warning[0067]: `msize` is not exact when optimizing\n   ╭▸ C02.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C02.sol",
+        "start": 22,
+        "end": 386
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C02.sol",
+          "start": 0,
+          "end": 0,
+          "message": "the limit was introduced in spuriousDragon"
+        },
+        {
+          "file": "C02.sol",
+          "start": 0,
+          "end": 0,
+          "message": "this contract may not be deployable on Mainnet"
+        },
+        {
+          "file": "C02.sol",
+          "start": 0,
+          "end": 0,
+          "message": "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "5574",
+      "message": "contract code size is 25218 bytes and exceeds 24576 bytes",
+      "formattedMessage": "warning[5574]: contract code size is 25218 bytes and exceeds 24576 bytes\n   ╭▸ C02.sol:LL:CC\n   │\nLL │ ┏ contract C02 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ‡ ┃\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C03.sol",
+        "start": 361,
+        "end": 366
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C03.sol",
+          "start": 0,
+          "end": 0,
+          "message": "the optimizer does not preserve the exact value"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "0067",
+      "message": "`msize` is not exact when optimizing",
+      "formattedMessage": "warning[0067]: `msize` is not exact when optimizing\n   ╭▸ C03.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C03.sol",
+        "start": 22,
+        "end": 386
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C03.sol",
+          "start": 0,
+          "end": 0,
+          "message": "the limit was introduced in spuriousDragon"
+        },
+        {
+          "file": "C03.sol",
+          "start": 0,
+          "end": 0,
+          "message": "this contract may not be deployable on Mainnet"
+        },
+        {
+          "file": "C03.sol",
+          "start": 0,
+          "end": 0,
+          "message": "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "5574",
+      "message": "contract code size is 25218 bytes and exceeds 24576 bytes",
+      "formattedMessage": "warning[5574]: contract code size is 25218 bytes and exceeds 24576 bytes\n   ╭▸ C03.sol:LL:CC\n   │\nLL │ ┏ contract C03 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ‡ ┃\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C04.sol",
+        "start": 361,
+        "end": 366
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C04.sol",
+          "start": 0,
+          "end": 0,
+          "message": "the optimizer does not preserve the exact value"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "0067",
+      "message": "`msize` is not exact when optimizing",
+      "formattedMessage": "warning[0067]: `msize` is not exact when optimizing\n   ╭▸ C04.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C04.sol",
+        "start": 22,
+        "end": 386
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C04.sol",
+          "start": 0,
+          "end": 0,
+          "message": "the limit was introduced in spuriousDragon"
+        },
+        {
+          "file": "C04.sol",
+          "start": 0,
+          "end": 0,
+          "message": "this contract may not be deployable on Mainnet"
+        },
+        {
+          "file": "C04.sol",
+          "start": 0,
+          "end": 0,
+          "message": "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "5574",
+      "message": "contract code size is 25218 bytes and exceeds 24576 bytes",
+      "formattedMessage": "warning[5574]: contract code size is 25218 bytes and exceeds 24576 bytes\n   ╭▸ C04.sol:LL:CC\n   │\nLL │ ┏ contract C04 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ‡ ┃\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C05.sol",
+        "start": 361,
+        "end": 366
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C05.sol",
+          "start": 0,
+          "end": 0,
+          "message": "the optimizer does not preserve the exact value"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "0067",
+      "message": "`msize` is not exact when optimizing",
+      "formattedMessage": "warning[0067]: `msize` is not exact when optimizing\n   ╭▸ C05.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C05.sol",
+        "start": 22,
+        "end": 386
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C05.sol",
+          "start": 0,
+          "end": 0,
+          "message": "the limit was introduced in spuriousDragon"
+        },
+        {
+          "file": "C05.sol",
+          "start": 0,
+          "end": 0,
+          "message": "this contract may not be deployable on Mainnet"
+        },
+        {
+          "file": "C05.sol",
+          "start": 0,
+          "end": 0,
+          "message": "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "5574",
+      "message": "contract code size is 25218 bytes and exceeds 24576 bytes",
+      "formattedMessage": "warning[5574]: contract code size is 25218 bytes and exceeds 24576 bytes\n   ╭▸ C05.sol:LL:CC\n   │\nLL │ ┏ contract C05 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ‡ ┃\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C06.sol",
+        "start": 361,
+        "end": 366
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C06.sol",
+          "start": 0,
+          "end": 0,
+          "message": "the optimizer does not preserve the exact value"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "0067",
+      "message": "`msize` is not exact when optimizing",
+      "formattedMessage": "warning[0067]: `msize` is not exact when optimizing\n   ╭▸ C06.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C06.sol",
+        "start": 22,
+        "end": 386
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C06.sol",
+          "start": 0,
+          "end": 0,
+          "message": "the limit was introduced in spuriousDragon"
+        },
+        {
+          "file": "C06.sol",
+          "start": 0,
+          "end": 0,
+          "message": "this contract may not be deployable on Mainnet"
+        },
+        {
+          "file": "C06.sol",
+          "start": 0,
+          "end": 0,
+          "message": "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "5574",
+      "message": "contract code size is 25218 bytes and exceeds 24576 bytes",
+      "formattedMessage": "warning[5574]: contract code size is 25218 bytes and exceeds 24576 bytes\n   ╭▸ C06.sol:LL:CC\n   │\nLL │ ┏ contract C06 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ‡ ┃\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C07.sol",
+        "start": 361,
+        "end": 366
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C07.sol",
+          "start": 0,
+          "end": 0,
+          "message": "the optimizer does not preserve the exact value"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "0067",
+      "message": "`msize` is not exact when optimizing",
+      "formattedMessage": "warning[0067]: `msize` is not exact when optimizing\n   ╭▸ C07.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C07.sol",
+        "start": 22,
+        "end": 386
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C07.sol",
+          "start": 0,
+          "end": 0,
+          "message": "the limit was introduced in spuriousDragon"
+        },
+        {
+          "file": "C07.sol",
+          "start": 0,
+          "end": 0,
+          "message": "this contract may not be deployable on Mainnet"
+        },
+        {
+          "file": "C07.sol",
+          "start": 0,
+          "end": 0,
+          "message": "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "5574",
+      "message": "contract code size is 25218 bytes and exceeds 24576 bytes",
+      "formattedMessage": "warning[5574]: contract code size is 25218 bytes and exceeds 24576 bytes\n   ╭▸ C07.sol:LL:CC\n   │\nLL │ ┏ contract C07 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ‡ ┃\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C08.sol",
+        "start": 361,
+        "end": 366
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C08.sol",
+          "start": 0,
+          "end": 0,
+          "message": "the optimizer does not preserve the exact value"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "0067",
+      "message": "`msize` is not exact when optimizing",
+      "formattedMessage": "warning[0067]: `msize` is not exact when optimizing\n   ╭▸ C08.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "C08.sol",
+        "start": 22,
+        "end": 386
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "C08.sol",
+          "start": 0,
+          "end": 0,
+          "message": "the limit was introduced in spuriousDragon"
+        },
+        {
+          "file": "C08.sol",
+          "start": 0,
+          "end": 0,
+          "message": "this contract may not be deployable on Mainnet"
+        },
+        {
+          "file": "C08.sol",
+          "start": 0,
+          "end": 0,
+          "message": "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries"
+        }
+      ],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "5574",
+      "message": "contract code size is 25218 bytes and exceeds 24576 bytes",
+      "formattedMessage": "warning[5574]: contract code size is 25218 bytes and exceeds 24576 bytes\n   ╭▸ C08.sol:LL:CC\n   │\nLL │ ┏ contract C08 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ‡ ┃\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
+    }
+  ],
+  "sources": {
+    "Base.sol": {
+      "id": 0
+    },
+    "C01.sol": {
+      "id": 1
+    },
+    "C02.sol": {
+      "id": 2
+    },
+    "C03.sol": {
+      "id": 3
+    },
+    "C04.sol": {
+      "id": 4
+    },
+    "C05.sol": {
+      "id": 5
+    },
+    "C06.sol": {
+      "id": 6
+    },
+    "C07.sol": {
+      "id": 7
+    },
+    "C08.sol": {
+      "id": 8
+    }
+  },
+  "contracts": {
+    "Base.sol": {
+      "Base": {
+        "evm": {
+          "deployedBytecode": {
+            "object": ""
+          }
+        }
+      }
+    },
+    "C01.sol": {
+      "C01": {
+        "evm": {
+          "deployedBytecode": {
+            "object": "BYTECODE"
+          }
+        }
+      }
+    },
+    "C02.sol": {
+      "C02": {
+        "evm": {
+          "deployedBytecode": {
+            "object": "BYTECODE"
+          }
+        }
+      }
+    },
+    "C03.sol": {
+      "C03": {
+        "evm": {
+          "deployedBytecode": {
+            "object": "BYTECODE"
+          }
+        }
+      }
+    },
+    "C04.sol": {
+      "C04": {
+        "evm": {
+          "deployedBytecode": {
+            "object": "BYTECODE"
+          }
+        }
+      }
+    },
+    "C05.sol": {
+      "C05": {
+        "evm": {
+          "deployedBytecode": {
+            "object": "BYTECODE"
+          }
+        }
+      }
+    },
+    "C06.sol": {
+      "C06": {
+        "evm": {
+          "deployedBytecode": {
+            "object": "BYTECODE"
+          }
+        }
+      }
+    },
+    "C07.sol": {
+      "C07": {
+        "evm": {
+          "deployedBytecode": {
+            "object": "BYTECODE"
+          }
+        }
+      }
+    },
+    "C08.sol": {
+      "C08": {
+        "evm": {
+          "deployedBytecode": {
+            "object": "BYTECODE"
+          }
+        }
+      }
+    }
+  }
+}

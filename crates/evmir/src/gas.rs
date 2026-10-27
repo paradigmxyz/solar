@@ -69,6 +69,9 @@ impl GasTier {
     pub const COPY_WORD_GAS: u32 = 3;
     /// Gas of a warm account or storage access under EIP-2929.
     pub const WARM_ACCESS_GAS: u32 = 100;
+    /// Gas of expanding memory by one word, before the quadratic term that small memories do not
+    /// reach.
+    pub const MEMORY_WORD_GAS: u32 = 3;
     /// The surcharge EIP-2929 adds to a storage write of a cold slot.
     const COLD_SLOAD_GAS: u32 = 2100;
 

@@ -937,6 +937,15 @@ impl Target {
             transfer_gas.saturating_mul(Self::UNCOUNTED_LOOP_ITERATIONS),
         )
     }
+
+    /// Cost of `words` words of a function's fixed spill frame on each call of an external entry
+    /// that can reach the function. The frames of the functions an entry reaches lie below its
+    /// heap, so each word moves the heap up by one, and every call expands memory over the word
+    /// once its first allocation does, whether or not the function runs. The stores and reloads
+    /// that use the word are priced with the code that runs them.
+    pub(crate) fn frame_words(&self, words: u32) -> Cost {
+        Cost::new(GasTier::MEMORY_WORD_GAS.saturating_mul(words), 0)
+    }
 }
 
 #[cfg(test)]
@@ -1500,5 +1509,15 @@ mod tests {
         let hot =
             Target::with(EvmVersion::Cancun, OptimizationMode::Gas, Target::LOOP_COPY_MIN_RUNS);
         assert_eq!(hot.loop_join_copy_budget(194), u64::MAX);
+    }
+
+    #[test]
+    fn frame_words_cost_memory_expansion() {
+        // A word below the heap costs every call one more word of expansion, and no bytes.
+        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let target = Target::with(EvmVersion::Cancun, optimization, 200);
+            assert_eq!(target.frame_words(0), Cost::ZERO);
+            assert_eq!(target.frame_words(10), Cost::new(30, 0));
+        }
     }
 }

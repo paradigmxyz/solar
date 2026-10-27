@@ -1,0 +1,15 @@
+//@compile-flags: -Zmir-pipeline=lower-mapping-slots
+//@filecheck:
+// Lowering a mapping slot to its hash renames the slot a storage alias names,
+// so the alias never refers to the deleted `mapping_slot` result.
+@module MappingSlotStorageAlias
+// CHECK-LABEL: {{^[ +].*}}fn @store{{[( ]}}
+// CHECK: + [[HASH:v[0-9]+]] = keccak256 0, 64
+// CHECK: + sstore {{v[0-9]+}}, arg1 !metadata(storage=offset([[HASH]], 1))
+fn @store(arg0: i256, arg1: i256) {
+  bb0:
+    v1 = mapping_slot arg0, 7
+    v2 = add v1, 1
+    sstore v2, arg1 !metadata(storage=offset(v1, 1))
+    stop
+}

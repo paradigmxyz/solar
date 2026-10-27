@@ -10,7 +10,7 @@ use solar_data_structures::{
 use solar_interface::{
     Result, Session,
     config::CompilerStage,
-    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    diagnostics::{DeferredDiagnostics, DiagCtxt, ErrorGuaranteed},
     source_map::{FileName, FileResolver, ResolveError, SourceFile},
 };
 use solar_parse::{Lexer, Parser, unescape};
@@ -123,7 +123,17 @@ impl<'gcx> ParsingContext<'gcx> {
         &mut self,
         paths: impl IntoParallelIterator<Item = impl AsRef<Path>>,
     ) -> Result<()> {
-        let resolved = self.par_resolve_files(paths).collect::<Result<Vec<_>>>()?;
+        let dcx = self.dcx();
+        let results = paths
+            .into_par_iter()
+            .map(|path| dcx.defer(|| self.resolve_file(path)))
+            .collect::<Vec<_>>();
+        // Like a sequential load, stop at the first file that fails.
+        let mut resolved = Vec::with_capacity(results.len());
+        for (result, diagnostics) in results {
+            dcx.emit_deferred(diagnostics);
+            resolved.push(result?);
+        }
         self.add_files(resolved);
         Ok(())
     }
@@ -137,14 +147,22 @@ impl<'gcx> ParsingContext<'gcx> {
     {
         let source_map = self.sess.source_map();
         let dcx = self.dcx();
-        let files = files
+        let results = files
             .into_par_iter()
             .map(|(name, src)| {
-                source_map
-                    .new_source_file(name, src)
-                    .map_err(|e| dcx.err(format!("failed to load source: {e}")).emit())
+                dcx.defer(|| {
+                    source_map
+                        .new_source_file(name, src)
+                        .map_err(|e| dcx.err(format!("failed to load source: {e}")).emit())
+                })
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<Vec<_>>();
+        // Like a sequential load, stop at the first file that fails.
+        let mut files = Vec::with_capacity(results.len());
+        for (result, diagnostics) in results {
+            dcx.emit_deferred(diagnostics);
+            files.push(result?);
+        }
         self.add_files(files);
         Ok(())
     }
@@ -277,61 +295,88 @@ impl<'gcx> ParsingContext<'gcx> {
         sources: &mut Sources<'ast>,
         arenas: &'ast ThreadLocal<ast::Arena>,
     ) {
+        let roots = sources
+            .iter_enumerated()
+            .filter(|(_, source)| source.ast.is_none())
+            .map(|(id, source)| (id, source.file.clone()))
+            .collect::<Vec<_>>();
+        let order = roots.iter().map(|&(id, _)| id).collect();
         let lock = Mutex::new(std::mem::take(sources));
+        let jobs = ParseJobs { sources: &lock, parsed: Mutex::default() };
         rayon::scope(|scope| {
-            let sources = &*lock.lock();
-            for (id, source) in sources.iter_enumerated() {
-                if source.ast.is_some() {
-                    continue;
-                }
-                let file = source.file.clone();
-                self.spawn_parse_job(&lock, id, file, arenas, scope);
+            for (id, file) in roots {
+                self.spawn_parse_job(&jobs, id, file, arenas, scope);
             }
         });
+        let parsed = jobs.parsed.into_inner();
         *sources = lock.into_inner();
+        self.emit_parse_diagnostics(order, parsed);
+    }
+
+    /// Emits the diagnostics of the parse jobs in the order of a sequential parse: roots in order,
+    /// then each file's imports in order of discovery.
+    fn emit_parse_diagnostics(
+        &self,
+        mut order: Vec<SourceId>,
+        mut parsed: FxHashMap<SourceId, ParsedFile>,
+    ) {
+        let mut i = 0;
+        while let Some(&id) = order.get(i) {
+            i += 1;
+            // A file that is queued twice, or that an earlier parse already handled, has nothing
+            // left to emit.
+            let Some(file) = parsed.remove(&id) else { continue };
+            order.extend(file.discovered);
+            self.dcx().emit_deferred(file.diagnostics);
+        }
     }
 
     fn spawn_parse_job<'ast, 'scope>(
         &'scope self,
-        lock: &'scope Mutex<Sources<'ast>>,
+        jobs: &'scope ParseJobs<'scope, 'ast>,
         id: SourceId,
         file: Arc<SourceFile>,
         arenas: &'ast ThreadLocal<ast::Arena>,
         scope: &rayon::Scope<'scope>,
     ) {
-        scope.spawn(move |scope| self.parse_job(lock, id, file, arenas, scope));
+        scope.spawn(move |scope| self.parse_job(jobs, id, file, arenas, scope));
     }
 
     #[instrument(level = "debug", skip_all)]
     fn parse_job<'ast, 'scope>(
         &'scope self,
-        lock: &'scope Mutex<Sources<'ast>>,
+        jobs: &'scope ParseJobs<'scope, 'ast>,
         id: SourceId,
         file: Arc<SourceFile>,
         arenas: &'ast ThreadLocal<ast::Arena>,
         scope: &rayon::Scope<'scope>,
     ) {
         let mut imports = Vec::new();
+        let mut discovered = Vec::new();
         let parent = parent_path(&file);
-        let ast = self.parse_one(&file, arenas.get_or_default(), |item_id, _, import| {
-            let _guard = trace_span!("resolve_import").entered();
-            let Some(import_file) = self.resolve_import_directive(import, parent) else {
-                return;
-            };
-            imports.push((item_id, import_file.clone()));
+        let (ast, diagnostics) = self.dcx().defer(|| {
+            self.parse_one(&file, arenas.get_or_default(), |item_id, _, import| {
+                let _guard = trace_span!("resolve_import").entered();
+                let Some(import_file) = self.resolve_import_directive(import, parent) else {
+                    return;
+                };
+                imports.push((item_id, import_file.clone()));
 
-            let (import_id, is_new) = {
-                let sources = &mut *lock.lock();
-                sources.get_or_insert_file(import_file.clone())
-            };
-            if is_new {
-                self.spawn_parse_job(lock, import_id, import_file, arenas, scope);
-            }
+                let (import_id, is_new) = {
+                    let sources = &mut *jobs.sources.lock();
+                    sources.get_or_insert_file(import_file.clone())
+                };
+                discovered.push(import_id);
+                if is_new {
+                    self.spawn_parse_job(jobs, import_id, import_file, arenas, scope);
+                }
+            })
         });
+        jobs.parsed.lock().insert(id, ParsedFile { discovered, diagnostics });
 
         // Set AST and add imports.
         let _guard = debug_span!("add_imports").entered();
-        let sources = &mut *lock.lock();
+        let sources = &mut *jobs.sources.lock();
         assert!(sources[id].ast.is_none());
         sources[id].ast = ast;
         if sources[id].ast.is_some() {
@@ -439,6 +484,19 @@ impl Drop for ParsingContext<'_> {
         // an error returned with `?` in between calls to `parse`.
         warn!("`ParsingContext::parse` not called");
     }
+}
+
+/// Shared state of the parallel parse jobs.
+struct ParseJobs<'a, 'ast> {
+    sources: &'a Mutex<Sources<'ast>>,
+    parsed: Mutex<FxHashMap<SourceId, ParsedFile>>,
+}
+
+/// The outcome of a parse job that does not depend on the order of the jobs.
+struct ParsedFile {
+    /// The files that the file imports, in order of appearance, including when its parse failed.
+    discovered: Vec<SourceId>,
+    diagnostics: DeferredDiagnostics,
 }
 
 /// Returns the path that imports in `file` are relative to.

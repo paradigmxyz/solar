@@ -1,0 +1,146 @@
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S1 { uint[0] a; }
+   ╰╴                 ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S2 { uint[0] a; }
+   ╰╴                 ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S3 { uint[0] a; }
+   ╰╴                 ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S4 { uint[0] a; }
+   ╰╴                 ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S5 { uint[0] a; }
+   ╰╴                 ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S6 { uint[0] a; }
+   ╰╴                 ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S7 { uint[0] a; }
+   ╰╴                 ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S8 { uint[0] a; }
+   ╰╴                 ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S9 { uint[0] a; }
+   ╰╴                 ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S10 { uint[0] a; }
+   ╰╴                  ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S11 { uint[0] a; }
+   ╰╴                  ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S12 { uint[0] a; }
+   ╰╴                  ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S13 { uint[0] a; }
+   ╰╴                  ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S14 { uint[0] a; }
+   ╰╴                  ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S15 { uint[0] a; }
+   ╰╴                  ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S16 { uint[0] a; }
+   ╰╴                  ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S17 { uint[0] a; }
+   ╰╴                  ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S18 { uint[0] a; }
+   ╰╴                  ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S19 { uint[0] a; }
+   ╰╴                  ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S20 { uint[0] a; }
+   ╰╴                  ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S21 { uint[0] a; }
+   ╰╴                  ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S22 { uint[0] a; }
+   ╰╴                  ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S23 { uint[0] a; }
+   ╰╴                  ━
+
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_order.sol:LL:CC
+   │
+LL │ struct S24 { uint[0] a; }
+   ╰╴                  ━
+
+error: aborting due to 24 previous errors
+

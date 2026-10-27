@@ -241,7 +241,10 @@ jobs:
           git checkout --detach "$GITHUB_SHA"
 
       - name: Run exact-base benchmark
+        id: exact-base
         if: github.event_name == 'pull_request' && steps.baseline.outputs.found != 'true'
+        env:
+          BASE_SHA: ${{ steps.baseline.outputs.sha }}
         run: |
           set -euo pipefail
           if ! python3 benches/runtime/benchmark.py --verbose \
@@ -258,6 +261,15 @@ jobs:
             --artifacts target/codegen-bench/baseline/artifacts \
             --output target/codegen-bench/baseline/results.json; then
             echo "::warning::Exact-base codegen benchmark failed to complete"
+          fi
+          # The perf site imports these results for the base only when they name its commit.
+          # A PR that changes the harness or inputs measured the base with its own, so skip it.
+          results=target/codegen-bench/baseline/results.json
+          if [[ -f "$results" ]] &&
+            git diff --quiet "$BASE_SHA" "$GITHUB_SHA" -- benches/runtime testdata .github/workflows/bench.yml; then
+            jq --arg commit "$BASE_SHA" '.commit = $commit' "$results" > "$results.tmp"
+            mv "$results.tmp" "$results"
+            echo "named=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run codegen benchmark
@@ -340,14 +352,26 @@ jobs:
           path: target/codegen-bench/comment.md
           only_update: ${{ steps.runtime-report.outputs.should_comment != 'true' }}
 
+      # A failed run must not upload, or the perf site takes its report for the commit's benchmark.
       - name: Upload results as artifact
-        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: codegen-runtime-results
           path: target/codegen-bench/
           retention-days: 30
           if-no-files-found: ignore
+
+      # The perf site imports this when the base has no benchmark run of its own. It ignores
+      # fork runs, which run their own workflow, so do not upload one there.
+      - name: Upload exact-base results
+        if: >-
+          steps.exact-base.outputs.named == 'true' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: codegen-runtime-exact-base
+          path: target/codegen-bench/baseline/
+          retention-days: 30
 
       - name: Save baseline (main only)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

@@ -23,6 +23,9 @@ pub(crate) use cfg::{CfgInfo, DominatorTree};
 mod gas;
 pub(crate) use gas::GasObservations;
 
+mod fresh_fmp;
+pub(crate) use fresh_fmp::FreshFmpReads;
+
 mod call_graph;
 pub(crate) use call_graph::{CallGraphInfo, direct_callees};
 

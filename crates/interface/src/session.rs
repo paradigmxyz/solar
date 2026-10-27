@@ -153,7 +153,7 @@ impl SessionBuilder {
     #[track_caller]
     pub fn build(mut self) -> Session {
         let opts = self.opts.take();
-        let mut dcx = self.dcx.take().unwrap_or_else(|| {
+        let dcx = self.dcx.take().unwrap_or_else(|| {
             opts.as_ref()
                 .map(DiagCtxt::from_opts)
                 .unwrap_or_else(|| panic!("either diagnostics context or options must be set"))
@@ -161,9 +161,9 @@ impl SessionBuilder {
         let globals = Arc::new(match self.globals.take() {
             Some(globals) => {
                 // Check that the source map matches the one in the diagnostics context.
-                if let Some(sm) = dcx.source_map_mut() {
+                if let Some(sm) = dcx.source_map() {
                     assert!(
-                        Arc::ptr_eq(&globals.source_map, sm),
+                        Arc::ptr_eq(&globals.source_map, &sm),
                         "session source map does not match the one in the diagnostics context"
                     );
                 }
@@ -171,7 +171,7 @@ impl SessionBuilder {
             }
             None => {
                 // Set the source map from the diagnostics context.
-                let sm = dcx.source_map_mut().cloned().unwrap_or_default();
+                let sm = dcx.source_map().unwrap_or_default();
                 SessionGlobals::new(sm)
             }
         });

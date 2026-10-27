@@ -298,6 +298,12 @@ impl OptimizationMode {
     pub const fn is_gas(self) -> bool {
         matches!(self, Self::Gas)
     }
+
+    /// Returns whether only the required passes run (`-O none`).
+    #[inline]
+    pub const fn is_none(self) -> bool {
+        matches!(self, Self::None)
+    }
 }
 
 str_enum! {

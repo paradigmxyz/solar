@@ -87,6 +87,32 @@ impl PassCacheKey {
     }
 }
 
+/// Runs one pipeline slot at `-O none` too, for cheap cleanups whose bytecode savings repay their
+/// compile time. Wrap single slots, not every occurrence of a pass.
+struct RunsAtNone<P>(P);
+
+impl<P: EvmPass> EvmPass for RunsAtNone<P> {
+    fn name(&self) -> &'static str {
+        self.0.name()
+    }
+
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
+        gcx.sess.opts.optimization.is_none() || self.0.is_enabled(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        self.0.is_required()
+    }
+
+    fn cache_config(&self) -> u64 {
+        self.0.cache_config()
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        self.0.run_pass(gcx, module)
+    }
+}
+
 /// All EVM IR passes exposed by `-Zevm-ir-pipeline`.
 pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &block_cse::BlockCse,
@@ -121,7 +147,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Normalize and establish the first physical layout.
     &peephole::Peephole::EARLY,
     &coalesce_copies::CoalesceCopies,
-    &cfg_simplify::CfgSimplify::EARLY,
+    &RunsAtNone(cfg_simplify::CfgSimplify::EARLY),
     &data::PackExistingData,
     &peephole::Cleanup(compact_pushes::CompactPushes),
     &block_layout::BlockLayout,
