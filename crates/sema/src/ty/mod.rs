@@ -1258,8 +1258,8 @@ impl<'gcx> Gcx<'gcx> {
     ) -> impl Iterator<Item = members::Member<'gcx>> + 'gcx {
         let native =
             self.native_members_in_context(ty, contract).unwrap_or_else(|| self.native_members(ty));
-        let attached = self.attached_functions(ty, source, contract);
-        native.iter().copied().chain(attached)
+        let attached = self.attached_functions((ty, source, contract));
+        native.iter().copied().chain(attached.iter().copied())
     }
 
     fn native_members_in_context(
@@ -1320,7 +1320,7 @@ impl<'gcx> Gcx<'gcx> {
         });
     }
 
-    fn attached_functions(
+    fn build_attached_functions(
         self,
         ty: Ty<'gcx>,
         source: hir::SourceId,
@@ -2110,6 +2110,15 @@ fn internal_function_members_in_context(
 ) -> members::MemberList<'gcx> {
     let (id, current_contract) = key;
     gcx.bump().alloc_vec(members::internal_function_members_in_context(gcx, id, current_contract))
+}
+
+/// Returns the functions attached to a type by the `using ... for` directives in scope.
+fn attached_functions(
+    gcx: _,
+    key: (Ty<'gcx>, hir::SourceId, Option<hir::ContractId>)
+) -> members::MemberList<'gcx> {
+    let (ty, source, contract) = key;
+    gcx.bump().alloc_vec(gcx.build_attached_functions(ty, source, contract))
 }
 
 /// Reports a literal operand at `span` that is too large for any integer type, next to a typed
