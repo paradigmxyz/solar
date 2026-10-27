@@ -104,9 +104,12 @@ contract LoopCalled {
 }
 
 // The code after a call in a constructor loop runs once per iteration too, so the constants it
-// uses keep their pushes instead of sharing them through a stub.
+// uses stay on the stack from one push before the loop instead of being shared through a stub.
 // DEPLOY-LABEL: // === {{.*}}:LoopAfterCall (deployment) ===
-// DEPLOY-COUNT-2: PUSH32 0x1234567812345678123456781234567812345678123456781234567812345678
+// DEPLOY: PUSH32 0x4234567812345678123456781234567812345678123456781234567812345678
+// DEPLOY-NEXT: PUSH32 0x3234567812345678123456781234567812345678123456781234567812345678
+// DEPLOY-NEXT: PUSH32 0x2234567812345678123456781234567812345678123456781234567812345678
+// DEPLOY-NEXT: PUSH32 0x1234567812345678123456781234567812345678123456781234567812345678
 contract LoopAfterCall {
     uint256[50] public arr;
     uint256 public total;
