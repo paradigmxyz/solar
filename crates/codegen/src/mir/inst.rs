@@ -798,7 +798,8 @@ impl Instruction {
     }
 
     /// Visits operands during an equivalence-preserving rewrite and invalidates
-    /// operand-dependent facts only if a value actually changes.
+    /// operand-dependent facts only if a value actually changes. Without an operand change, the
+    /// base of a storage alias is renamed the same way.
     pub(crate) fn rewrite_operands(&mut self, mut f: impl FnMut(&mut ValueId)) {
         let mut changed = false;
         // %result = op(operands) -> %result = op(equivalent_operands)
@@ -810,8 +811,8 @@ impl Instruction {
         if changed {
             self.invalidate_operand_metadata();
         } else if let Some(alias) = self.metadata.storage_alias() {
-            // A storage alias names its base slot like an operand, and an equivalent base keeps
-            // it true.
+            // sstore slot, value !metadata(storage=offset(old, n))
+            //   -> sstore slot, value !metadata(storage=offset(new, n))
             self.metadata.set_storage_alias(Some(alias.map_base(&mut f)));
         }
     }
