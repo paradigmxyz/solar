@@ -58,9 +58,7 @@ bb10 [cold]:
 bb7:
   push 4
   calldataload
-  push 384
-  push 128
-  add
+  push 512
   push 64
   mstore
   push 1
