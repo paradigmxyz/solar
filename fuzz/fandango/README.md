@@ -402,12 +402,14 @@ symbolic calls. Prefix calldata includes the selector and ABI-encoded
 arguments; `0x` targets receive or fallback. Prefix success, returndata, logs,
 and storage writes are compared like every other call.
 
-All calls of a property run in one Foundry test transaction, while on chain
-they are separate transactions. A target that ends a property without code,
-because SELFDESTRUCT deleted it as a same-transaction creation, is reported
-incomplete. When either build uses `TSTORE`, the constructor and the calls count
-as one sequence, and a sequence of more than one is reported incomplete,
-because transient storage would persist between them.
+With call isolation, Forge runs each call of a property as its own
+transaction, as on chain. A target that ends a property without code, because
+SELFDESTRUCT deleted it as a same-transaction creation, is reported
+incomplete. Forge without foundry-rs/foundry#17865 runs all symbolic calls in
+one transaction; with such a Forge, when either build uses `TSTORE`, the
+constructor and the calls count as one sequence, and a sequence of more than
+one is reported incomplete, because transient storage would persist between
+them.
 
 Calls forward all remaining gas because Foundry's symbolic executor does not
 model gas and reports explicit gas caps, including those of Solidity's
@@ -418,13 +420,15 @@ the harness, cheatcodes, and active precompiles. Calls into pre-existing
 external code and the behavior of created contracts are outside this lane;
 compare a created contract's own source to cover its behavior. Contracts
 created with `CREATE2` or by created contracts are not compared, and a target
-whose runtime uses `CREATE2` lists that under `limitations`. Foundry records
-the logs of inner frames that revert inside a successful call and does not say
-which frame emitted each log, so it cannot drop them. For a build with a `LOG`
-opcode and any call or create opcode, a `logs` difference is therefore reported
-incomplete, because it may come from such a frame, and agreement lists this under
-`limitations`, because a log committed in one build and reverted in the other
-matches in both recordings.
+whose runtime uses `CREATE2` lists that under `limitations`. Forge without
+foundry-rs/foundry#17866 records the logs of inner frames that revert inside a
+successful call and does not say which frame emitted each log, so it cannot
+drop them. With such a Forge, for a build with a `LOG` opcode and any call or
+create opcode, a `logs` difference is reported incomplete, because it may come
+from such a frame, and agreement lists this under `limitations`, because a log
+committed in one build and reverted in the other matches in both recordings.
+solsymdiff probes each Forge binary once for both fixes and caches the answer
+under `$XDG_CACHE_HOME/solsymdiff`.
 
 A generated symbolic bound is raised as needed to hold both builds' bytecode
 and is recorded in `result.json`. A mismatch is reported only after Foundry

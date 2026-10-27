@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import itertools
 import json
@@ -407,10 +408,10 @@ def run(
     limitations = []
     if 0xF5 in opcodes:
         limitations.append("contracts created with CREATE2 are not compared")
-    if 0x5D in opcodes:
-        # Every call and the constructor run in the test's transaction, so
-        # transient storage would persist between calls that are separate
-        # transactions on chain.
+    if 0x5D in opcodes and not _forge_semantics(tools, args)["isolated_transactions"]:
+        # Without symbolic call isolation, every call and the constructor run
+        # in the test's transaction, so transient storage would persist between
+        # calls that are separate transactions on chain.
         for check in checks:
             if (
                 sum(step["kind"] != "fixed" for step in check["steps"])
@@ -422,7 +423,9 @@ def run(
                     "transient storage would persist between calls that are "
                     "separate transactions on chain"
                 )
-    if limit := _inner_frame_log_limit(*scanned):
+    if (limit := _inner_frame_log_limit(*scanned)) and not _forge_semantics(
+        tools, args
+    )["reverted_logs_dropped"]:
         # A log committed in one build and reverted in the other matches in
         # both recordings, so agreement is qualified too.
         limitations.append(limit)
@@ -1542,6 +1545,150 @@ def _inner_frame_log_limit(*codes: str) -> str | None:
                 "logs of reverted inner frames are not told apart from committed logs"
             )
     return None
+
+
+_SEMANTICS_PROBE = """// SPDX-License-Identifier: UNLICENSED
+pragma solidity >=0.8.24;
+
+interface Vm {
+    struct Log {
+        bytes32[] topics;
+        bytes data;
+        address emitter;
+    }
+
+    function recordLogs() external;
+    function getRecordedLogs() external returns (Log[] memory);
+}
+
+contract Transient {
+    function set() external {
+        assembly {
+            tstore(0, 1)
+        }
+    }
+
+    function get() external view returns (uint256 value) {
+        assembly {
+            value := tload(0)
+        }
+    }
+}
+
+contract Logger {
+    event Logged();
+
+    function inner() external {
+        emit Logged();
+        revert();
+    }
+
+    function outer() external {
+        try this.inner() {} catch {}
+    }
+}
+
+contract Probe {
+    Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+
+    function checkIsolatedTransactions() public {
+        Transient t = new Transient();
+        t.set();
+        require(t.get() == 0);
+    }
+
+    function checkRevertedLogsDropped() public {
+        Logger logger = new Logger();
+        vm.recordLogs();
+        logger.outer();
+        require(vm.getRecordedLogs().length == 0);
+    }
+}
+"""
+_SEMANTICS: dict[tuple[str, int, int], dict[str, bool]] = {}
+
+
+def _forge_semantics(
+    tools: dict[str, str], args: argparse.Namespace
+) -> dict[str, bool]:
+    """Probes what the symbolic engine of this Forge models, once per binary.
+
+    Older Forge runs the whole symbolic test as one transaction, so transient
+    storage persists between the harness's calls (foundry-rs/foundry#17865), and
+    records the logs of inner frames that revert (foundry-rs/foundry#17866).
+    The harness reports those cases as incomplete only when Forge has the gap.
+    """
+    forge = tools["forge"]
+    stat = os.stat(forge)
+    key = (os.path.realpath(forge), stat.st_mtime_ns, stat.st_size)
+    if key in _SEMANTICS:
+        return _SEMANTICS[key]
+    cache_root = pathlib.Path(
+        os.environ.get("XDG_CACHE_HOME") or pathlib.Path.home() / ".cache"
+    )
+    digest = hashlib.sha256(repr(key).encode()).hexdigest()[:16]
+    cache = cache_root / "solsymdiff" / f"forge-semantics-{digest}.json"
+    with contextlib.suppress(OSError, ValueError):
+        _SEMANTICS[key] = json.loads(cache.read_text())
+        return _SEMANTICS[key]
+    semantics = {}
+    with tempfile.TemporaryDirectory(prefix="solsymdiff-probe-") as tmp:
+        project = pathlib.Path(tmp)
+        (project / "test").mkdir()
+        (project / "test" / "Probe.t.sol").write_text(_SEMANTICS_PROBE)
+        (project / "foundry.toml").write_text('[profile.default]\ntest = "test"\n')
+        env = {
+            name: value
+            for name, value in os.environ.items()
+            if not name.startswith(("FOUNDRY_", "DAPP_"))
+        }
+        help_output = subprocess.run(
+            [forge, "test", "--help"], check=False, text=True, capture_output=True
+        ).stdout
+        local = (
+            ["--allow-local-compiler"]
+            if "--allow-local-compiler" in help_output
+            else []
+        )
+        for name, test in (
+            ("isolated_transactions", "checkIsolatedTransactions"),
+            ("reverted_logs_dropped", "checkRevertedLogsDropped"),
+        ):
+            result = subprocess.run(
+                [
+                    forge,
+                    "test",
+                    "--root",
+                    str(project),
+                    "--use",
+                    tools["solc"],
+                    *local,
+                    "--evm-version",
+                    "cancun",
+                    "--offline",
+                    "--symbolic",
+                    "--symbolic-solver",
+                    tools["solver"],
+                    "--match-test",
+                    f"^{test}",
+                ],
+                check=False,
+                cwd=project,
+                env=env,
+                text=True,
+                capture_output=True,
+                timeout=args.timeout,
+            )
+            semantics[name] = result.returncode == 0 and "[PASS]" in result.stdout
+    _SEMANTICS[key] = semantics
+    try:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        partial = cache.with_suffix(f".{os.getpid()}.tmp")
+        partial.write_text(json.dumps(semantics))
+        partial.replace(cache)
+    except OSError:
+        pass
+    return semantics
 
 
 def _run_forge(

@@ -1153,6 +1153,10 @@ class CommandTests(unittest.TestCase):
                     "logs of reverted inner frames are not told apart from committed logs"
                 ],
             )
+            fixed_logs = {"isolated_transactions": False, "reverted_logs_dropped": True}
+            with patch.object(symbolic, "_forge_semantics", return_value=fixed_logs):
+                dropped_result = symbolic.run(args, root / "dropped-logs-out")
+            self.assertEqual(dropped_result["limitations"], [])
             deployed["object"] = "60" * 400
             # The constructor's TSTORE would stay visible to the first call.
             output["contracts"]["Probe.sol"]["Probe"]["evm"]["bytecode"] = {
@@ -1163,6 +1167,11 @@ class CommandTests(unittest.TestCase):
             transient_result = symbolic.run(args, root / "transient-out")
             self.assertEqual(transient_result["status"], "incomplete")
             self.assertIn("transient storage", transient_result["reason"])
+            # Forge with call isolation runs each call as its own transaction.
+            fixed = {"isolated_transactions": True, "reverted_logs_dropped": True}
+            with patch.object(symbolic, "_forge_semantics", return_value=fixed):
+                isolated_result = symbolic.run(args, root / "isolated-out")
+            self.assertEqual(isolated_result["status"], "bounded_agreement")
             deployed.pop("immutableReferences")
             (args.solar_attempt / "stdout.txt").write_text(json.dumps(output))
             with self.assertRaisesRegex(ValueError, "immutableReferences"):
