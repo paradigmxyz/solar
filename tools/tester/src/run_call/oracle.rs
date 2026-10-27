@@ -8,29 +8,25 @@
 //! its calls both ways, so a call the interpreter cannot run, or one the EVM ends by running out
 //! of gas or stack, which the interpreter does not model, fails the test.
 
-use super::trace::{Context, Trace};
+use super::{
+    dump::{self, Kind},
+    trace::{Context, Trace},
+};
 use alloy_primitives::{U256, hex};
 use evm2::interpreter::InstrStop;
 use solar_codegen::interpret::{self, Host, Outcome};
 use solar_config::EvmVersion;
 use solar_evmir::op;
-use std::{
-    collections::HashMap,
-    ffi::OsString,
-    process::Command,
-    sync::{Arc, Mutex},
-};
 use ui_test::{build_manager::BuildManager, per_test_config::TestConfig};
 
-/// What a compiler command dumped, or why it could not.
-type Dumps = Arc<Result<Dump, String>>;
-
-/// The final MIR modules and runtime bytecode of each contract a compiler command built.
-#[derive(Default)]
-struct Dump {
-    modules: HashMap<String, String>,
-    runtimes: HashMap<String, Vec<u8>>,
-}
+/// The final MIR modules the backend compiled.
+const KIND: Kind = Kind {
+    dump: "mir-final",
+    name: "MIR",
+    modules: |text| {
+        interpret::parse_dump(text).into_iter().map(|module| (module.name, module.mir)).collect()
+    },
+};
 
 /// A call to check.
 pub(super) struct Call<'a> {
@@ -78,7 +74,7 @@ pub(super) fn check(
 ) -> Result<(), String> {
     let unsupported =
         |reason: &str| Err(format!("the MIR interpreter cannot check `{}`: {reason}", call.name));
-    let dumps = dumps(config, build_manager);
+    let dumps = dump::dumps(config, build_manager, &KIND);
     let dump = match dumps.as_ref() {
         Ok(dump) => dump,
         Err(error) => {
@@ -159,109 +155,6 @@ fn describe(outcome: &Outcome, stop: Option<InstrStop>) -> String {
     }
 }
 
-/// Returns what the test's compiler command dumps, compiling once per command.
-fn dumps(config: &TestConfig, build_manager: &BuildManager) -> Dumps {
-    static CACHE: Mutex<Option<HashMap<String, Dumps>>> = Mutex::new(None);
-    let command = match config.build_command(build_manager) {
-        Ok(command) => dump_command(&command),
-        Err(error) => return Arc::new(Err(format!("cannot rebuild the command: {error:?}"))),
-    };
-    let key = format!("{command:?}");
-    let cache = || CACHE.lock().unwrap_or_else(|poison| poison.into_inner());
-    if let Some(dumps) = cache().get_or_insert_with(HashMap::new).get(&key) {
-        return dumps.clone();
-    }
-    // Compile without the lock, so tests on other threads dump in parallel.
-    let dumps = Arc::new(run_dump(command));
-    cache().get_or_insert_with(HashMap::new).entry(key).or_insert(dumps).clone()
-}
-
-/// Returns `command` with its dumps replaced by a dump of the MIR the backend compiles, also
-/// emitting the runtime bytecode.
-fn dump_command(command: &Command) -> Command {
-    let mut dump = Command::new(command.get_program());
-    // `--emit X` is `--emit=X`.
-    let mut original = command.get_args().peekable();
-    let mut normalized = Vec::<OsString>::new();
-    while let Some(arg) = original.next() {
-        match original.peek() {
-            Some(outputs) if arg == "--emit" => {
-                normalized.push(format!("--emit={}", outputs.to_string_lossy()).into());
-                original.next();
-            }
-            _ => normalized.push(arg.to_owned()),
-        }
-    }
-    // The compiler rejects an output requested twice.
-    let mut emits_runtime = normalized.iter().any(|arg| {
-        let text = arg.to_string_lossy();
-        text.strip_prefix("--emit=")
-            .is_some_and(|outputs| outputs.split(',').any(|output| output == "bin-runtime"))
-    });
-    let mut args = normalized.iter().peekable();
-    while let Some(arg) = args.next() {
-        let text = arg.to_string_lossy();
-        // The JSON stays compact, one line among the dump's.
-        if text.starts_with("-Zdump=") || text == "--pretty-json" {
-            continue;
-        }
-        if text == "-Z"
-            && args.peek().is_some_and(|next| next.to_string_lossy().starts_with("dump="))
-        {
-            args.next();
-            continue;
-        }
-        if let Some(outputs) = text.strip_prefix("--emit=")
-            && !emits_runtime
-        {
-            dump.arg(format!("--emit={outputs},bin-runtime"));
-            emits_runtime = true;
-            continue;
-        }
-        dump.arg(arg);
-    }
-    if !emits_runtime {
-        dump.arg("--emit=bin-runtime");
-    }
-    dump.args(["-Zdump=mir-final", "--color=never"]);
-    for (key, value) in command.get_envs() {
-        match value {
-            Some(value) => dump.env(key, value),
-            None => dump.env_remove(key),
-        };
-    }
-    if let Some(directory) = command.get_current_dir() {
-        dump.current_dir(directory);
-    }
-    dump
-}
-
-/// Runs a dump command and splits its output into modules and runtime bytecode by contract.
-fn run_dump(mut command: Command) -> Result<Dump, String> {
-    let output = command.output().map_err(|error| format!("cannot run the compiler: {error}"))?;
-    if !output.status.success() {
-        return Err("the MIR dump failed".into());
-    }
-    parse_dump(&output.stdout)
-}
-
-/// Splits what a dump command printed into modules and runtime bytecode by contract.
-fn parse_dump(stdout: &[u8]) -> Result<Dump, String> {
-    let mut dump = Dump::default();
-    for module in interpret::parse_dump(&String::from_utf8_lossy(stdout)) {
-        dump.modules.insert(module.name, module.mir);
-    }
-    let json = super::compiler_json(stdout)?;
-    let contracts = json.get("contracts").and_then(serde_json::Value::as_object);
-    for (name, contract) in contracts.into_iter().flatten() {
-        let runtime = contract.get("bin-runtime").and_then(serde_json::Value::as_str);
-        if let Some(runtime) = runtime.and_then(|runtime| hex::decode(runtime).ok()) {
-            dump.runtimes.insert(name.clone(), runtime);
-        }
-    }
-    Ok(dump)
-}
-
 /// Accept only the explicit invalid instruction or REVERT before its activation.
 fn expected_halt(stop: InstrStop, opcode: Option<u8>, version: EvmVersion) -> bool {
     (stop == InstrStop::InvalidOpcode && opcode == Some(op::INVALID))
@@ -273,42 +166,6 @@ fn expected_halt(stop: InstrStop, opcode: Option<u8>, version: EvmVersion) -> bo
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn dumps_keep_compact_json() {
-        let mut command = Command::new("solar");
-        command.args(["--pretty-json", "--emit=abi", "-Zdump=evm-ir", "test.sol"]);
-        let args = dump_command(&command)
-            .get_args()
-            .map(|arg| arg.to_string_lossy().into_owned())
-            .collect::<Vec<_>>();
-        assert_eq!(
-            args,
-            ["--emit=abi,bin-runtime", "test.sol", "-Zdump=mir-final", "--color=never"]
-        );
-    }
-
-    #[test]
-    fn dumps_keep_a_separate_emit_value() {
-        let mut command = Command::new("solar");
-        command.args(["--emit", "abi,bin,bin-runtime", "test.sol"]);
-        let args = dump_command(&command)
-            .get_args()
-            .map(|arg| arg.to_string_lossy().into_owned())
-            .collect::<Vec<_>>();
-        assert_eq!(
-            args,
-            ["--emit=abi,bin,bin-runtime", "test.sol", "-Zdump=mir-final", "--color=never"]
-        );
-    }
-
-    #[test]
-    fn dumps_read_pretty_json() {
-        let stdout =
-            b"{\n  \"contracts\": {\n    \"a.sol:A\": {\"bin-runtime\": \"6001\"}\n  }\n}\n";
-        let dump = parse_dump(stdout).unwrap();
-        assert_eq!(dump.runtimes["a.sol:A"], [0x60, 0x01]);
-    }
 
     #[test]
     fn rejects_unexpected_halts() {

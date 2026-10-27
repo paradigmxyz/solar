@@ -59,8 +59,12 @@ fn storage(evm: &Evm<'_, BaseEvmTypes>, contract: Address) -> HashMap<U256, U256
     })
 }
 
-/// Records the first value the EVM stores at the free memory pointer's slot, which is where the
-/// backend's entry code starts the heap, and the last opcode the EVM ran.
+/// Records the first value the EVM stores at the free memory pointer's slot and the last opcode the
+/// EVM ran.
+///
+/// The stored value is the heap start only when the entry code sets the free memory pointer, so
+/// the MIR check uses it only for a module without backend memory records, which carry the heap
+/// starts the backend chose.
 #[derive(Clone, Default)]
 pub(super) struct Observer {
     heap_start: Rc<Cell<Option<U256>>>,

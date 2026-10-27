@@ -9,7 +9,6 @@ use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_interface::Symbol;
-
 use std::fmt::Write as _;
 
 pub mod word;

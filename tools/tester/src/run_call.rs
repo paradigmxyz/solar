@@ -18,6 +18,7 @@ use ui_test::{
     spanned::{Span, Spanned},
 };
 
+mod dump;
 mod evm_ir;
 mod oracle;
 mod trace;

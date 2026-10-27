@@ -19,18 +19,19 @@
 //! A test written in EVM IR exists to run its calls both ways, so it is checked without the
 //! variable, and a call the interpreter cannot run fails it instead of being skipped.
 
-use super::trace::{Context, Trace};
+use super::{
+    dump::{self, Kind},
+    trace::{Context, Trace},
+};
 use alloy_primitives::{U256, hex};
 use evm2::interpreter::InstrStop;
 use solar_config::EvmVersion;
 use solar_evmir_interpreter::{self as interpret, Halt, Host, Outcome};
 use std::{
-    collections::HashMap,
     fs::{File, OpenOptions},
     io::{Read, Write},
     path::Path,
-    process::Command,
-    sync::{Arc, Mutex, OnceLock},
+    sync::Mutex,
 };
 use ui_test::{build_manager::BuildManager, per_test_config::TestConfig};
 
@@ -40,16 +41,18 @@ const VARIABLE: &str = "SOLAR_RUN_CALL_EVM_IR";
 /// The program the dump names for the runtime EVM IR of a contract before the EVM IR pipeline.
 const SCHEDULED_RUNTIME: &str = "scheduled runtime";
 
-/// What a compiler command dumped, or why it could not.
-type Dumps = Arc<Result<Dump, String>>;
-
-/// The scheduled runtime EVM IR and the runtime bytecode of each contract a compiler command
-/// built.
-#[derive(Default)]
-struct Dump {
-    modules: HashMap<String, String>,
-    runtimes: HashMap<String, Vec<u8>>,
-}
+/// The scheduled runtime EVM IR of each contract.
+const KIND: Kind = Kind {
+    dump: "evm-ir-runtime-scheduled",
+    name: "EVM IR",
+    modules: |text| {
+        interpret::parse_dump(text)
+            .into_iter()
+            .filter(|module| module.program.as_deref() == Some(SCHEDULED_RUNTIME))
+            .map(|module| (module.name, module.evm_ir))
+            .collect()
+    },
+};
 
 /// A call to check.
 pub(super) struct Call<'a> {
@@ -131,7 +134,7 @@ pub(super) fn check(
             Err(error) => return skip(&format!("cannot read the test: {error}")),
         }
     } else {
-        let dumps = dumps(config, build_manager);
+        let dumps = dump::dumps(config, build_manager, &KIND);
         let dump = match dumps.as_ref() {
             Ok(dump) => dump,
             Err(error) => return broken(error),
@@ -228,120 +231,9 @@ fn record(config: &TestConfig, call: &str, status: &str, detail: &str) {
     }
 }
 
-/// Returns what the test's compiler command dumps, compiling once per command.
-fn dumps(config: &TestConfig, build_manager: &BuildManager) -> Dumps {
-    static CACHE: Mutex<Option<HashMap<String, Arc<OnceLock<Dumps>>>>> = Mutex::new(None);
-    let command = match config.build_command(build_manager) {
-        Ok(command) => dump_command(&command),
-        Err(error) => return Arc::new(Err(format!("cannot rebuild the command: {error:?}"))),
-    };
-    let key = format!("{command:?}");
-    // The lock covers the lookup only: the compiles of different commands run in parallel.
-    let once = {
-        let mut cache = CACHE.lock().unwrap_or_else(|poison| poison.into_inner());
-        cache.get_or_insert_with(HashMap::new).entry(key).or_default().clone()
-    };
-    once.get_or_init(|| Arc::new(run_dump(command))).clone()
-}
-
-/// Returns `command` with its dumps replaced by a dump of the scheduled runtime EVM IR, also
-/// emitting the runtime bytecode.
-fn dump_command(command: &Command) -> Command {
-    let mut dump = Command::new(command.get_program());
-    // The compiler rejects an output requested twice.
-    let mut emits_runtime = command.get_args().any(|arg| {
-        let text = arg.to_string_lossy();
-        text.strip_prefix("--emit=")
-            .is_some_and(|outputs| outputs.split(',').any(|output| output == "bin-runtime"))
-    });
-    let mut args = command.get_args().peekable();
-    while let Some(arg) = args.next() {
-        let text = arg.to_string_lossy();
-        // The JSON stays compact, one line before the dumps.
-        if text.starts_with("-Zdump=") || text == "--pretty-json" {
-            continue;
-        }
-        if text == "-Z"
-            && args.peek().is_some_and(|next| next.to_string_lossy().starts_with("dump="))
-        {
-            args.next();
-            continue;
-        }
-        if let Some(outputs) = text.strip_prefix("--emit=")
-            && !emits_runtime
-        {
-            dump.arg(format!("--emit={outputs},bin-runtime"));
-            emits_runtime = true;
-            continue;
-        }
-        dump.arg(arg);
-    }
-    if !emits_runtime {
-        dump.arg("--emit=bin-runtime");
-    }
-    dump.args(["-Zdump=evm-ir-runtime-scheduled", "--color=never"]);
-    for (key, value) in command.get_envs() {
-        match value {
-            Some(value) => dump.env(key, value),
-            None => dump.env_remove(key),
-        };
-    }
-    if let Some(directory) = command.get_current_dir() {
-        dump.current_dir(directory);
-    }
-    dump
-}
-
-/// Runs a dump command and splits its output into modules and runtime bytecode by contract.
-fn run_dump(mut command: Command) -> Result<Dump, String> {
-    let output = command.output().map_err(|error| format!("cannot run the compiler: {error}"))?;
-    if !output.status.success() {
-        return Err("the EVM IR dump failed".into());
-    }
-    parse_dump(&output.stdout)
-}
-
-/// Splits what a dump command printed into modules and runtime bytecode by contract.
-fn parse_dump(stdout: &[u8]) -> Result<Dump, String> {
-    let mut dump = Dump::default();
-    for module in interpret::parse_dump(&String::from_utf8_lossy(stdout)) {
-        if module.program.as_deref() == Some(SCHEDULED_RUNTIME) {
-            dump.modules.insert(module.name, module.evm_ir);
-        }
-    }
-    let json = super::compiler_json(stdout)?;
-    let contracts = json.get("contracts").and_then(serde_json::Value::as_object);
-    for (name, contract) in contracts.into_iter().flatten() {
-        let runtime = contract.get("bin-runtime").and_then(serde_json::Value::as_str);
-        if let Some(runtime) = runtime.and_then(|runtime| hex::decode(runtime).ok()) {
-            dump.runtimes.insert(name.clone(), runtime);
-        }
-    }
-    Ok(dump)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn dumps_keep_compact_json() {
-        let mut command = Command::new("solar");
-        command.args(["--pretty-json", "--emit=abi", "-Zdump=mir", "test.sol"]);
-        let args = dump_command(&command)
-            .get_args()
-            .map(|arg| arg.to_string_lossy().into_owned())
-            .collect::<Vec<_>>();
-        assert_eq!(
-            args,
-            [
-                "--emit=abi,bin-runtime",
-                "test.sol",
-                "-Zdump=evm-ir-runtime-scheduled",
-                "--color=never"
-            ]
-        );
-    }
 
     #[test]
     fn dumps_follow_the_json() {
@@ -351,7 +243,7 @@ mod tests {
 bb0:
   stop
 "#;
-        let dump = parse_dump(stdout).unwrap();
+        let dump = dump::parse_dump(stdout, KIND.modules).unwrap();
         assert_eq!(dump.runtimes["a.sol:A"], [0]);
         assert_eq!(dump.modules["a.sol:A"], "@module A_runtime\nbb0:\n  stop\n");
     }

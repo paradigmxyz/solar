@@ -56,10 +56,11 @@ In a test written in lowered MIR, such as those in `tests/ui/codegen/mir/interp/
 every `run-call` and `run-call-fail` directive also runs through the MIR
 interpreter (`solar_codegen::interpret`) on the final MIR of the called
 contract, which the runner obtains by compiling the test again with
-`-Zdump=mir-final`. The interpreter starts from the storage, balances, code, and
-heap start the EVM had just before the call, and must end the same way, return
-the same data, emit the same logs, and write the same storage. A disagreement
-fails the test: it is a bug in the backend or in the interpreter. So does a call
+`-Zdump=mir-final`. The interpreter starts from the storage, balances, and code
+the EVM had just before the call, places memory where the backend placed it, and
+must end the same way, return the same data, emit the same logs, and write the
+same storage. A disagreement fails the test: it is a bug in the backend or in
+the interpreter. So does a call
 the interpreter cannot run: calls to other contracts, contract creation, `gas`,
 and deployed code that is not the compiled runtime, such as a contract with
 immutables. The runner compiles the module like a contract named after the file
