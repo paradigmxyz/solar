@@ -314,7 +314,6 @@ jobs:
             --common-output target/codegen-bench/common.json
             --report-output target/codegen-bench/report.md
             --pr-comment-output target/codegen-bench/comment.md
-            --matrix-output target/codegen-bench/matrix.svg
             --comment-output target/codegen-bench/should-comment
             --ignore-compile-time-changes
           )
@@ -333,24 +332,6 @@ jobs:
               echo true > target/codegen-bench/should-comment
             fi
           fi
-
-      - name: Upload compiler matrix
-        if: >-
-          github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository &&
-          hashFiles('target/codegen-bench/matrix.svg') != ''
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          repository_id="$(gh api "repos/$GITHUB_REPOSITORY" --jq .id)"
-          url="$(gh api --method POST \
-            "https://uploads.github.com/user-attachments/assets?content_type=image%2Fsvg%2Bxml&name=compiler-matrix.svg&repository_id=$repository_id" \
-            -H 'Content-Type: image/svg+xml' \
-            --input target/codegen-bench/matrix.svg --jq .url)"
-          printf '\n![Runtime gas and bytes per benchmark, colored against solar](%s)\n' "$url" \
-            >> target/codegen-bench/comment.md
 
       - name: Comment on PR
         if: >-

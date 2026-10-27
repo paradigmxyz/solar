@@ -147,10 +147,9 @@ links even when the base run lacks it.
 CI also runs `--solc-legacy` with every live solc run (the exact-base run and main) and
 `--solar-size` on every run, so each PR compares Solar `-Ogas`, Solar `-Osize`, solc via-IR, and solc
 legacy. A baseline artifact without `solc-legacy` results counts as incomplete, so PRs rebuild it
-until main has one. `--matrix-output PATH` of `benchmark-compare.py` writes an SVG heatmap of runtime
-gas and bytes per benchmark and compiler, colored against `solar`, with a geometric-mean row. CI
-uploads it as a comment attachment and adds it to the PR comment; if the upload fails, the comment
-omits the image.
+until main has one. The PR comment ends with one collapsible table per metric (runtime gas open, the
+rest a click away), listing every benchmark with each compiler's value and difference from `solar`,
+and a geometric-mean row.
 
 ## Comparing runs
 

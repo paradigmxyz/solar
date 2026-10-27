@@ -8,7 +8,6 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from xml.etree import ElementTree
 
 from jsonschema import Draft202012Validator
 
@@ -358,32 +357,57 @@ class ReportFormattingTests(unittest.TestCase):
             report,
         )
 
-    def test_compiler_matrix_svg_is_valid_and_needs_a_second_compiler(self):
-        single = [result("a", total_gas=1, runtime_size=1, status="ok")]
-        self.assertIsNone(benchmark.matrix_svg(single))
-        both = [
+    def test_pr_comment_has_a_switchable_table_per_metric(self):
+        def compilers(**gas):
+            return {
+                name: {
+                    "status": "ok",
+                    "total_gas": value,
+                    "runtime_size": 0 if name == "solar-size" else 100,
+                }
+                for name, value in gas.items()
+            }
+
+        results = [
             {
-                "test_id": "a<b>",
+                "test_id": "a",
+                "suite": "repository",
+                "compilers": compilers(
+                    solar=100, **{"solar-size": 110, "solc": 200, "solc-legacy": 250}
+                ),
+            },
+            {
+                "test_id": "b",
                 "suite": "repository",
                 "compilers": {
-                    name: {"status": "ok", "total_gas": gas, "runtime_size": gas}
-                    for name, gas in (("solar", 100), ("solar-size", 90))
+                    **compilers(solar=100, solc=100),
+                    "solc-legacy": {"status": "failed"},
                 },
-            }
+            },
         ]
+        comparison = benchmark.compare_runs(results, results)
+        comparison["baseline"] = "main.json"
 
-        both[0]["compilers"]["solar-size"]["runtime_size"] = 0
+        comment = benchmark.pr_comment(comparison, True, False, "main", results)
 
-        svg = benchmark.matrix_svg(both)
-
-        assert svg is not None
-        root = ElementTree.fromstring(svg)
-        text = [
-            element.text for element in root.iter("{http://www.w3.org/2000/svg}text")
-        ]
-        self.assertIn("a<b>", text)
-        self.assertEqual(text.count("solar-size"), 2)
-        self.assertIn("-10.0%", text)
+        self.assertIn(
+            "<details open>\n<summary>runtime gas</summary>\n\n"
+            "| bench | solar | solar-size | solc | solc-legacy |\n"
+            "| --- | ---: | ---: | ---: | ---: |\n",
+            comment,
+        )
+        self.assertIn(
+            "| a | 100 | 110 (✅ +10.00%) | 200 (✅ +100.00%) | 250 (✅ +150.00%) |",
+            comment,
+        )
+        self.assertIn("| b | 100 | n/a | 100 (~0%) | n/a |", comment)
+        self.assertIn(
+            "| **geometric mean** | | ✅ +10.00% | ✅ +41.42% | ✅ +150.00% |", comment
+        )
+        self.assertIn("<details>\n<summary>runtime bytes</summary>", comment)
+        self.assertNotIn(
+            "matrix", benchmark.pr_comment(comparison, True, False, "main")
+        )
 
     def test_codegen_report_labels_failed_revision(self):
         def timed_result(test_id, solar_status):

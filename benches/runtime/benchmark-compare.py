@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import difflib
 import hashlib
-import html
 import itertools
 import json
 import math
@@ -1485,90 +1484,65 @@ def matrix_ratios(
     return ratios
 
 
-def matrix_svg(results: list[dict[str, Any]]) -> str | None:
-    """A heatmap of runtime gas and bytes per benchmark, colored against `solar`."""
-    names = ["solar", *matrix_compilers(results)]
-    panels = (("total_gas", "runtime gas"), ("runtime_size", "runtime bytes"))
-    rows = [
-        result
-        for result in results
-        if any(compiler_metric(result, "solar", metric) for metric, _ in panels)
-    ]
-    if len(names) < 2 or not rows:
-        return None
-    label, cell, height, gap = 190, 96, 22, 16
-    width = label + len(panels) * (len(names) * cell + gap)
-    total = 2 * height + (len(rows) + 1) * height + 12
-    out = [
-        (
-            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{total}" '
-            'font-family="ui-monospace,monospace" font-size="11">'
-        ),
-        f'<rect width="{width}" height="{total}" fill="#ffffff"/>',
-    ]
-
-    def text(x: float, y: float, value: str, anchor: str = "middle"):
-        out.append(
-            f'<text x="{x}" y="{y}" text-anchor="{anchor}" fill="#1f2328">'
-            f"{html.escape(value)}</text>"
-        )
-
-    def shade(ratio: float) -> str:
-        # Red above solar, green below, saturating at a factor of two.
-        ratio = max(-1.0, min(1.0, math.log2(ratio)))
-        return (
-            f"hsl(0 70% {100 - 35 * ratio}%)"
-            if ratio > 0
-            else f"hsl(130 55% {100 + 30 * ratio}%)"
-        )
-
-    for index, (metric, title) in enumerate(panels):
-        left = label + index * (len(names) * cell + gap)
-        text(left + len(names) * cell / 2, 15, f"{title} (vs solar)")
-        for column, name in enumerate(names):
-            text(left + column * cell + cell / 2, height + 15, name)
-        for row, result in enumerate(rows):
-            top = 2 * height + row * height
-            base = compiler_metric(result, "solar", metric)
-            for column, name in enumerate(names):
-                value = compiler_metric(result, name, metric)
-                if value is None:
-                    fill, shown = "#eaeef2", "n/a"
-                elif not base or not value or name == "solar":
-                    fill, shown = "#f6f8fa", f"{value:,}"
-                else:
-                    fill, shown = shade(value / base), f"{value:,}"
-                x = left + column * cell
-                out.append(
-                    f'<rect x="{x}" y="{top}" width="{cell - 1}" height="{height - 1}" fill="{fill}"/>'
+def matrix_sections(results: list[dict[str, Any]]) -> list[str]:
+    """One collapsible benchmark-by-compiler table per metric; runtime gas starts open."""
+    compilers = matrix_compilers(results)
+    lines = []
+    for metric, title in MATRIX_METRICS.items() if compilers else ():
+        rows = []
+        for result in results:
+            solar = compiler_data(result, "solar")
+            base = matrix_value(result, "solar", metric, {})
+            if base is None:
+                continue
+            cells = []
+            for name in compilers:
+                other = compiler_data(result, name)
+                value = matrix_value(result, name, metric, solar)
+                paired = matrix_value(result, "solar", metric, other)
+                cells.append(
+                    f"{value:,} ({fmt_pct((value - paired) / paired * 100)})"
+                    if value is not None and paired is not None
+                    else "n/a"
                 )
-                text(x + cell - 6, top + 15, shown, "end")
-    for row, result in enumerate(rows):
-        text(4, 2 * height + row * height + 15, str(result.get("test_id", "")), "start")
-    top = 2 * height + len(rows) * height + 4
-    text(4, top + 15, "geometric mean vs solar", "start")
-    for index, (metric, _) in enumerate(panels):
-        left = label + index * (len(names) * cell + gap)
-        for column, name in enumerate(names[1:], 1):
+            rows.append(
+                f"| {perf_link(markdown_cell(result.get('test_id', '')), str(result.get('test_id', '')))} "
+                f"| {base:,} | " + " | ".join(cells) + " |"
+            )
+        if not rows:
+            continue
+        means = []
+        for name in compilers:
             ratios = matrix_ratios(results, name, metric)
-            mean = (
-                math.exp(math.fsum(map(math.log, ratios)) / len(ratios))
+            means.append(
+                fmt_pct(
+                    math.expm1(math.fsum(map(math.log, ratios)) / len(ratios)) * 100
+                )
                 if ratios
-                else None
+                else "n/a"
             )
-            x = left + column * cell
-            out.append(
-                f'<rect x="{x}" y="{top}" width="{cell - 1}" height="{height - 1}" '
-                f'fill="{shade(mean) if mean else "#eaeef2"}"/>'
-            )
-            text(
-                x + cell - 6,
-                top + 15,
-                f"{(mean - 1) * 100:+.1f}%" if mean else "n/a",
-                "end",
-            )
-    out.append("</svg>")
-    return "\n".join(out) + "\n"
+        lines.extend(
+            [
+                "",
+                "<details open>" if metric == "total_gas" else "<details>",
+                f"<summary>{title}</summary>",
+                "",
+                "| bench | solar | " + " | ".join(compilers) + " |",
+                "| --- | ---: |" + " ---: |" * len(compilers),
+                *rows,
+                "| **geometric mean** | | " + " | ".join(means) + " |",
+                "",
+                "</details>",
+            ]
+        )
+    if lines:
+        lines[:0] = [
+            "",
+            "### Compilers vs `solar`",
+            "",
+            "Each cell is the value and its difference from `solar`; ✅ where `solar` is ahead.",
+        ]
+    return lines
 
 
 def memory_summary_rows(results: list[dict[str, Any]]) -> list[str]:
@@ -1872,7 +1846,11 @@ def format_report(
 
 
 def pr_comment(
-    comparison: dict[str, Any], has_changes: bool, behind_base: bool, base_ref: str
+    comparison: dict[str, Any],
+    has_changes: bool,
+    behind_base: bool,
+    base_ref: str,
+    results: list[dict[str, Any]] | None = None,
 ) -> str:
     lines = ["## Codegen benchmarks", ""]
     if not comparison["rows"]:
@@ -1931,6 +1909,7 @@ def pr_comment(
                     *changed,
                 ]
             )
+    lines.extend(matrix_sections(results or []))
     if any(row["issues"] for row in comparison["rows"]):
         lines.extend(
             [
@@ -2120,11 +2099,6 @@ def main(argv: list[str] | None = None) -> int:
         default="solar",
     )
     parser.add_argument(
-        "--matrix-output",
-        type=Path,
-        help="Write an SVG heatmap of the compilers' gas and size",
-    )
-    parser.add_argument(
         "--comment-output", type=Path, help="Write CI should-comment metadata"
     )
     parser.add_argument("--ignore-compile-time-changes", action="store_true")
@@ -2256,11 +2230,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.pr_comment_output is not None:
         args.pr_comment_output.parent.mkdir(parents=True, exist_ok=True)
         args.pr_comment_output.write_text(
-            pr_comment(comparison, should_comment, behind_base, base_ref)
+            pr_comment(comparison, should_comment, behind_base, base_ref, results)
         )
-    if args.matrix_output is not None and (svg := matrix_svg(results)):
-        args.matrix_output.parent.mkdir(parents=True, exist_ok=True)
-        args.matrix_output.write_text(svg)
     if args.json_output is not None:
         args.json_output.parent.mkdir(parents=True, exist_ok=True)
         args.json_output.write_text(
