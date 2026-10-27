@@ -80,6 +80,9 @@ fn lower_function(func: &mut Function) -> bool {
                     // result = inttoptr address
                     let base = builder.cast(ptr, MirType::I256);
                     let address = builder.add(base, offset);
+                    if let Value::Inst(add) = *builder.func().value(address) {
+                        builder.func_mut().inst_mut(add).metadata.set_checked_object_offset();
+                    }
                     builder.func_mut().inst_mut(inst).kind = InstKind::IntToPtr(address);
                 }
                 ref kind

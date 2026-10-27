@@ -99,7 +99,16 @@
       v1 = keccak256 0, 96
       calldatacopy 64, 36, 32
       v2 = mload 64
-      mstore v2, v1
+-     mstore v2, v1
++     v7 = heap_floor
++     v8 = lt v2, v7
++     v9 = select v8, v7, v2
++     mstore v9, v1
++     v3 = mload 64 !metadata(memory=scratch)
++     v4 = heap_floor
++     v5 = lt v3, v4
++     v6 = select v5, v4, v3
++     mstore 64, v6 !metadata(memory=scratch)
       ret v1
   }
   
@@ -595,5 +604,75 @@
       v2 = inttoptr i256 v1 to ptr<memory>
       v3 = mload v2
       ret v3
+  }
+  
+  fn @param_stored_as_pointer(arg0: i256) -> i256 {
+    bb0:
+-     mstore 64, arg0
++     v1 = heap_floor
++     v2 = lt arg0, v1
++     v3 = select v2, v1, arg0
++     mstore 64, v3
+      v0 = mload 64
+      mstore v0, 1
+      ret 0
+  }
+  
+  fn @computed_store() -> i256 {
+    bb0:
+      v0 = calldataload 4
+      v1 = add v0, 32
+      mstore v1, 128
+      v2 = mload 64
+-     mstore v2, 1
++     v7 = heap_floor
++     v8 = lt v2, v7
++     v9 = select v8, v7, v2
++     mstore v9, 1
++     v3 = mload 64 !metadata(memory=scratch)
++     v4 = heap_floor
++     v5 = lt v3, v4
++     v6 = select v5, v4, v3
++     mstore 64, v6 !metadata(memory=scratch)
+      ret 0
+  }
+  
+  fn @heap_store() -> i256 {
+    bb0:
+      v0 = mload 64
+      v1 = add v0, 32
+      mstore v1, 128
+      v2 = mload 64
+      mstore v2, 1
+      ret 0
+  }
+  
+  fn @low_word() -> i256 {
+    bb0:
+      v0 = calldataload 4
+      ret v0
+  }
+  
+  fn @tail_to_low_word() -> i256 {
+    bb0:
+      tail_call @low_word
+  }
+  
+  fn @tail_called_result() -> i256 {
+    bb0:
+      v0 = icall @tail_to_low_word
+      mstore v0, 128
+      v1 = mload 64
+-     mstore v1, 1
++     v6 = heap_floor
++     v7 = lt v1, v6
++     v8 = select v7, v6, v1
++     mstore v8, 1
++     v2 = mload 64 !metadata(memory=scratch)
++     v3 = heap_floor
++     v4 = lt v2, v3
++     v5 = select v4, v3, v2
++     mstore 64, v5 !metadata(memory=scratch)
+      ret 0
   }
   
