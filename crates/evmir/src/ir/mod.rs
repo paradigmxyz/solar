@@ -31,7 +31,6 @@ use std::fmt;
 pub use crate::link::{Data, DataBytes, DataId, DataRef, DataSize};
 
 mod display;
-pub use display::{display_instruction_operation, display_terminator_operation};
 
 mod parse;
 

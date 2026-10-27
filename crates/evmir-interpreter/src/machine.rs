@@ -790,9 +790,9 @@ impl<'m> Run<'_, 'm> {
             .ok_or_else(|| unsupported("jumps to an address that no pushed block has"))
     }
 
-    /// Pops the top of the stack for the operation at `site`.
+    /// Pops the top of the stack, which must not hold the code size.
     fn pop(&mut self) -> Result<U256, Outcome> {
-        let value = self.stack.pop().ok_or_else(|| Outcome::Halt(Halt::StackUnderflow))?;
+        let value = self.stack.pop().ok_or(Outcome::Halt(Halt::StackUnderflow))?;
         if self.code_sizes.remove(self.stack.len()) {
             return Err(unsupported("observes the code size, which only assembly decides"));
         }

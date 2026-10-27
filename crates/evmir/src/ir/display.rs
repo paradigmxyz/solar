@@ -61,17 +61,6 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
 
 fn display_instruction<'a>(module: &'a Module, inst: &'a Instruction) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| {
-        write!(f, "{}", display_instruction_operation(module, inst))?;
-        write!(f, "{}", display_metadata(&inst.metadata))
-    })
-}
-
-/// Displays an instruction of `module` as EVM IR text prints it, without its metadata.
-pub fn display_instruction_operation<'a>(
-    module: &'a Module,
-    inst: &'a Instruction,
-) -> impl fmt::Display + 'a {
-    fmt::from_fn(move |f| {
         match inst.as_stack_op() {
             Some(op::StackOp::Dup(n)) => write!(f, "dup {n}")?,
             Some(op::StackOp::Swap(n)) => write!(f, "swap {n}")?,
@@ -85,22 +74,11 @@ pub fn display_instruction_operation<'a>(
         if let Some(size) = inst.immutable_type_size() {
             write!(f, ", {}", size.bytes())?;
         }
-        Ok(())
+        write!(f, "{}", display_metadata(&inst.metadata))
     })
 }
 
 fn display_terminator<'a>(module: &'a Module, term: &'a Terminator) -> impl fmt::Display + 'a {
-    fmt::from_fn(move |f| {
-        write!(f, "{}", display_terminator_operation(module, term))?;
-        write!(f, "{}", display_metadata(&term.metadata))
-    })
-}
-
-/// Displays a terminator of `module` as EVM IR text prints it, without its metadata.
-pub fn display_terminator_operation<'a>(
-    module: &'a Module,
-    term: &'a Terminator,
-) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| {
         match &term.kind {
             TerminatorKind::Jump(target) => {
@@ -134,7 +112,7 @@ pub fn display_terminator_operation<'a>(
                 }
             }
         }
-        Ok(())
+        write!(f, "{}", display_metadata(&term.metadata))
     })
 }
 
@@ -205,7 +183,7 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
         PushValue::Data(data) => write!(
             f,
             "{}",
-            display_data_ref(module.data[data.id].name, data.id.index(), data.offset)
+            display_data_ref(module.data[data.id].name, data.id.index(), data.offset,)
         ),
         PushValue::DataSize(size) => {
             let name = module.data[size.data].name;

@@ -36,6 +36,13 @@ pub(crate) struct CodegenState {
     plans: PlanCache,
 }
 
+impl CodegenState {
+    /// Frees the stored plans.
+    pub(crate) fn clear_plans(&self) {
+        self.plans.clear();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -46,12 +53,5 @@ mod tests {
             op::isle_prelude(),
             snapbox::file!["../../../isle/evm-ir/prelude.isle"]
         );
-    }
-}
-
-impl CodegenState {
-    /// Frees the stored plans.
-    pub(crate) fn clear_plans(&self) {
-        self.plans.clear();
     }
 }

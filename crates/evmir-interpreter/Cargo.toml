@@ -32,7 +32,5 @@ solar-interface.workspace = true
 alloy-primitives.workspace = true
 smallvec.workspace = true
 
-[dev-dependencies]
-
 [features]
 nightly = ["solar-data-structures/nightly", "solar-evmir/nightly", "solar-interface/nightly"]
