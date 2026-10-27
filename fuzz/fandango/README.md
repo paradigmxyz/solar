@@ -422,7 +422,9 @@ whose runtime uses `CREATE2` lists that under `limitations`. Foundry records
 the logs of inner frames that revert inside a successful call and does not say
 which frame emitted each log, so it cannot drop them. For a build with a `LOG`
 opcode and any call or create opcode, a `logs` difference is therefore reported
-incomplete, because it may come from such a frame.
+incomplete, because it may come from such a frame, and agreement lists this under
+`limitations`, because a log committed in one build and reverted in the other
+matches in both recordings.
 
 A generated symbolic bound is raised as needed to hold both builds' bytecode
 and is recorded in `result.json`. A mismatch is reported only after Foundry

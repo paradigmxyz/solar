@@ -423,6 +423,9 @@ def run(
                     "separate transactions on chain"
                 )
     if limit := _inner_frame_log_limit(*scanned):
+        # A log committed in one build and reverted in the other matches in
+        # both recordings, so agreement is qualified too.
+        limitations.append(limit)
         for check in checks:
             check["log_limit"] = limit
     codes = [
@@ -894,6 +897,17 @@ def _select_function(
         raise AbiDisagreement(str(err)) from err
     if _function_shape(solc_entry) != _function_shape(solar_entry):
         raise AbiDisagreement(f"compiler ABI disagreement for {signature}")
+    solc_selector = _selector(solc_artifact["method_identifiers"], signature, "Solc")
+    solar_selector = _selector(
+        solar_artifact["method_identifiers"],
+        signature,
+        "Solar",
+    )
+    if solc_selector != solar_selector:
+        raise AbiDisagreement(
+            f"compiler selector disagreement for {signature}: "
+            f"Solc={solc_selector}, Solar={solar_selector}"
+        )
     mutability = solc_entry.get("stateMutability")
     allowed = {"pure"}
     if include_view:
@@ -909,18 +923,6 @@ def _select_function(
         )
     if not all(_supported_input(item) for item in solc_entry["inputs"]):
         raise ValueError(f"{signature} uses an unsupported symbolic input")
-
-    solc_selector = _selector(solc_artifact["method_identifiers"], signature, "Solc")
-    solar_selector = _selector(
-        solar_artifact["method_identifiers"],
-        signature,
-        "Solar",
-    )
-    if solc_selector != solar_selector:
-        raise AbiDisagreement(
-            f"compiler selector disagreement for {signature}: "
-            f"Solc={solc_selector}, Solar={solar_selector}"
-        )
     return {
         "signature": signature,
         "selector": solc_selector,
@@ -1104,7 +1106,8 @@ def _plan_checks(
                 include_payable=getattr(args, "include_payable", False) or depth > 1,
             )
         ]
-        skipped = []
+        if depth == 1:
+            skipped = []
         if prefix_calldata and functions[0]["mutability"] == "pure":
             raise ValueError("prefix calls require a view or nonpayable target")
 
@@ -1535,7 +1538,9 @@ def _inner_frame_log_limit(*codes: str) -> str | None:
     for code in codes:
         opcodes = _runtime_opcodes(code)
         if opcodes & _LOG_OPCODES and opcodes & _INNER_FRAME_OPCODES:
-            return "a logs difference may come from an inner frame that reverted"
+            return (
+                "logs of reverted inner frames are not told apart from committed logs"
+            )
     return None
 
 

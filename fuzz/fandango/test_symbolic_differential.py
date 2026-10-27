@@ -312,7 +312,7 @@ class ResultClassificationTests(unittest.TestCase):
             symbolic._classify(report, [check]),
             {
                 "status": "incomplete",
-                "reason": "a logs difference may come from an inner frame that reverted",
+                "reason": "logs of reverted inner frames are not told apart from committed logs",
             },
         )
         self.assertIsNone(symbolic._inner_frame_log_limit("0xa0", "0xf1"))
@@ -593,6 +593,36 @@ class CheckPlanningTests(unittest.TestCase):
 
         self.assertEqual([check["label"] for check in checks], ["<other calldata>"])
         self.assertEqual(skipped[0]["signature"], "f(function)")
+
+    def test_signature_with_depth_reports_skipped_functions(self) -> None:
+        artifact = _artifact()
+        artifact["abi"].append(
+            {
+                "type": "function",
+                "name": "g",
+                "inputs": [{"name": "f", "type": "function"}],
+                "outputs": [],
+                "stateMutability": "nonpayable",
+            }
+        )
+        artifact["method_identifiers"]["g(function)"] = "c3de648b"
+
+        _, skipped = symbolic._plan_checks(artifact, artifact, _plan_args(depth=2), ())
+
+        self.assertEqual([item["signature"] for item in skipped], ["g(function)"])
+
+    def test_selector_disagreement_on_an_unsupported_function_is_an_abi_mismatch(
+        self,
+    ) -> None:
+        inputs = [{"name": "f", "type": "function"}]
+
+        with self.assertRaises(symbolic.AbiDisagreement):
+            symbolic._plan_checks(
+                _artifact(inputs=inputs),
+                _artifact(inputs=inputs, selector="aaaaaaaa"),
+                _plan_args(all_functions=True),
+                (),
+            )
 
     def test_runtime_opcodes_skip_push_data_and_metadata(self) -> None:
         # PUSH1 0x5d, TSTORE, then CBOR metadata whose bytes include 0xf5.
@@ -1112,6 +1142,18 @@ class CommandTests(unittest.TestCase):
             deployed = output["contracts"]["Probe.sol"]["Probe"]["evm"][
                 "deployedBytecode"
             ]
+            # LOG0 and CALL: a log may come from a frame that later reverts.
+            deployed["object"] = "a0f1"
+            (args.solar_attempt / "stdout.txt").write_text(json.dumps(output))
+            logging_result = symbolic.run(args, root / "logging-out")
+            self.assertEqual(logging_result["status"], "bounded_agreement")
+            self.assertEqual(
+                logging_result["limitations"],
+                [
+                    "logs of reverted inner frames are not told apart from committed logs"
+                ],
+            )
+            deployed["object"] = "60" * 400
             # The constructor's TSTORE would stay visible to the first call.
             output["contracts"]["Probe.sol"]["Probe"]["evm"]["bytecode"] = {
                 "object": "5d"
