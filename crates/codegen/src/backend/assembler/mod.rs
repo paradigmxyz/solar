@@ -272,26 +272,6 @@ impl<'gcx> Assembler<'gcx> {
         *self.immutable_pushes.get(index)
     }
 
-    #[must_use]
-    pub(crate) fn assemble_with_evm_ir(&mut self, capture_evm_ir: bool) -> AssembledCode {
-        self.assemble_with_captures(capture_evm_ir, false)
-    }
-
-    #[must_use]
-    pub(crate) fn assemble_with_captures(
-        &mut self,
-        capture_evm_ir: bool,
-        capture_debug_info: bool,
-    ) -> AssembledCode {
-        self.optimize();
-        self.assemble_linked(
-            &EmbeddedBytecodes::default(),
-            &mut LibraryTable::default(),
-            capture_evm_ir,
-            capture_debug_info,
-        )
-    }
-
     /// Links embedded contract bytecode into the optimized program, then lowers and
     /// assembles it and clears the assembler.
     pub(in crate::backend) fn assemble_linked(

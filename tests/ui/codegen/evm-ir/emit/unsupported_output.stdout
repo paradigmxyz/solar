@@ -1,0 +1,6 @@
+- // === ROOT/tests/ui/codegen/evm-ir/emit/unsupported_output.evmir (before none) ===
++ // === ROOT/tests/ui/codegen/evm-ir/emit/unsupported_output.evmir (after none) ===
+  @module program
+  bb0:
+    stop
+  

@@ -712,7 +712,7 @@ impl<'a, 'gcx> Builder<'a, 'gcx> {
             StmtKind::Block(ref block) => lowered_for(block)
                 .map_or(stmt.span, |(_, for_)| stmt.span.with_hi(self.stmt_end(for_))),
             StmtKind::Return(None) | StmtKind::UncheckedBlock(_) | StmtKind::Loop(..) => stmt.span,
-            StmtKind::AssemblyBlock(_)
+            StmtKind::AssemblyBlock(..)
             | StmtKind::Switch(_)
             | StmtKind::Try(_)
             | StmtKind::Placeholder
@@ -764,7 +764,7 @@ impl<'a, 'gcx> Builder<'a, 'gcx> {
                     self.stmts(block.stmts);
                 }
             }
-            StmtKind::AssemblyBlock(ref block) => {
+            StmtKind::AssemblyBlock(ref block, _) => {
                 self.in_assembly = true;
                 self.yul_stmts(block);
                 self.in_assembly = false;

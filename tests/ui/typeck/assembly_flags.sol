@@ -12,4 +12,11 @@ contract C {
             let y := 8
         }
     }
+
+    function b() public {
+        /// @solidity memory-safe-assembly
+        assembly ("memory-safe") {
+            let y := 6
+        }
+    }
 }

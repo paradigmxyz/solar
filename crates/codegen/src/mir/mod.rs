@@ -4,7 +4,7 @@
 
 use solar_data_structures::newtype_index;
 
-pub(crate) use crate::link::{Data, DataBytes, DataId, DataRef, DataSize};
+pub(crate) use crate::link::{Data, DataBytes, DataId, DataRef, DataSize, ImmutableId};
 
 pub(crate) mod analysis;
 pub(crate) mod immutable;
@@ -102,9 +102,6 @@ newtype_index! {
 
     /// A unique identifier for a function in the MIR.
     pub(crate) struct FunctionId;
-
-    /// A unique identifier for an immutable in the MIR module.
-    pub(crate) struct ImmutableId;
 }
 
 impl BlockId {

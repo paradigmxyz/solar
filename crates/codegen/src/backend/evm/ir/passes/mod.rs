@@ -33,7 +33,6 @@ mod terminal_layout;
 pub(super) mod utils;
 
 pub(in crate::backend) use legalize_revert::legalize_revert;
-pub(super) use peephole::CleanBlocks;
 pub(in crate::backend::evm) use stack_reschedule::SharedSchedules;
 
 use super::Module;
@@ -275,7 +274,7 @@ fn run_passes_inner(
             let cached = unchanged.contains(&cache_key);
             debug_assert!(unchanged.iter().filter(|entry| **entry == cache_key).count() <= 1);
             let target_support_before = (!cached && validate_each && should_validate_ir(gcx))
-                .then(|| super::verify::Verifier::new(gcx).target_support_snapshot(module));
+                .then(|| super::verifier(gcx).target_support_snapshot(module));
             let pass_changed = !cached
                 && tracing::trace_span!("evm_ir_pass", pass = pass_name)
                     .in_scope(|| pass.run_pass(gcx, module));
@@ -349,7 +348,7 @@ fn assert_debug_info_handled(module: &Module, pass_name: &str, when: &str) {
 /// `name` overrides the module name in pass output.
 #[must_use]
 pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
-    super::verify::Verifier::new(gcx).verify_before_pipeline(module);
+    super::verifier(gcx).verify_before_pipeline(module);
     if gcx.dcx().has_errors().is_err() {
         return false;
     }

@@ -3,19 +3,24 @@
 @phase lowered
 fn @frame_counter_feeds_affine_address(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v13 = add arg1, 32
+    v17 = add arg1, 32
     jump bb1
   bb1:
-    v12 = phi [bb0: 0], [bb2: v9]
-    v14 = phi [bb0: v13], [bb2: v15]
-    v5 = lt v12, arg0
+    v16 = phi [bb0: 0], [bb2: v9]
+    v18 = phi [bb0: v17], [bb2: v19]
+    v5 = lt v16, arg0
     jumpi v5, bb2, bb3
   bb3:
+    v12 = mload 64 !metadata(memory=scratch)
+    v13 = heap_floor
+    v14 = lt v12, v13
+    v15 = select v14, v13, v12
+    mstore 64, v15 !metadata(memory=scratch)
     ret 0
   bb2:
-    mstore v14, v12
-    v9 = add v12, 1
-    v15 = add v14, 32
+    mstore v18, v16
+    v9 = add v16, 1
+    v19 = add v18, 32
     jump bb1
 }
 

@@ -97,6 +97,16 @@ bb7:
 bb33:
   push 64
   mload
+  push 128
+  dup 1
+  dup 3
+  lt
+  swap 1
+  dup 3
+  swap 1
+  sub
+  mul
+  add
   push 32
   dup 4
   add
@@ -109,14 +119,14 @@ bb33:
   sub
   dup 2
   swap 6
-  swap 3
-  swap 5
   swap 2
+  swap 5
+  swap 3
   swap 4
   swap 6
   jump bb34
 bb34 [loop]:
-  dup 3
+  dup 4
   dup 2
   lt
   iszero
@@ -127,7 +137,7 @@ bb34 [loop]:
   dup 1
   push 0
   byte
-  dup 6
+  dup 5
   eq
   push bb37
   jumpi
@@ -309,6 +319,19 @@ bb24 [continuation]:
 bb25 [continuation]:
   push 64
   mload
+  push 128
+  dup 1
+  dup 3
+  lt
+  swap 1
+  dup 3
+  swap 1
+  sub
+  mul
+  add
+  dup 1
+  push 64
+  mstore
   push 32
   dup 2
   add
@@ -370,7 +393,7 @@ bb37 [loop]:
   mstore
   push 1
   add
-  dup 3
+  dup 4
   dup 2
   lt
   push bb34
@@ -381,6 +404,9 @@ bb37 [loop]:
   pop
   jump bb38
 bb38:
+  swap 2
+  swap 1
+  swap 2
   sub
   dup 1
   dup 3

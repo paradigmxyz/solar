@@ -363,7 +363,7 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Never> {
         let previous = self.assembly;
         match stmt.kind {
-            StmtKind::AssemblyBlock(_) => self.assembly = true,
+            StmtKind::AssemblyBlock(..) => self.assembly = true,
             StmtKind::Return(Some(expr)) => self.connect(self.returns, expr),
             StmtKind::DeclMulti(ids, expr) => {
                 self.connect(&ids.iter().flatten().copied().collect::<SmallVec<[_; 4]>>(), expr);

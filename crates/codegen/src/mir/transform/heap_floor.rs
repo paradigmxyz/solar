@@ -5,8 +5,8 @@
 //! hand that memory back to the heap by storing an absolute address into the pointer's slot:
 //! Seaport moves the pointer to just past the event data it lays out at an address that calldata
 //! sizes, and resets it to `0x80` after batch transfers. The next allocation then overwrites live
-//! compiler words. This pass raises each word that such a store, `mstore 64, v` with `v` computed
-//! from constants and calldata alone, leaves in the slot to
+//! compiler words. This pass raises each word that such a store, `mstore 64, v` with `v` not proven
+//! to be a heap pointer, leaves in the slot to
 //!
 //! ```text
 //! floor = heap_floor
@@ -15,8 +15,11 @@
 //! ```
 //!
 //! where `heap_floor` is the initial pointer of every entry that can run the function, which
-//! codegen fixes once it has placed the frames. A pointer derived from the heap, or loaded from
-//! memory or a parameter, already lies above the floor in a valid program and stays as stored.
+//! codegen fixes once it has placed the frames. A pointer derived from the heap stays as stored.
+//! A constant, a calldata word, a word loaded from memory, and a parameter or call result that not
+//! every call fills with a heap pointer are raised: a later pass can fold them into constants, as
+//! inlining does for an argument, and the raise survives that fold because the floor is not known
+//! until codegen.
 //!
 //! The slot can also hold plain data: an error argument before a revert, or a hash input before the
 //! pointer is restored. A forward search tells the reads apart. It follows the stored word through
@@ -82,24 +85,32 @@
 //! its loads or delete its dead stores see the clamped value. Codegen is too late to clamp: load
 //! forwarding has already replaced a load of the slot with the raw address.
 //!
-//! NOTE: Only a full-word store to the constant slot whose value the storing function computes from
-//! constants and calldata is clamped. An absolute address passed through a parameter, memory, or a
-//! call, and copies or byte stores that overwrite the pointer, keep their bytes. An access at a
-//! heap pointer plus a constant is assumed not to cover the slot, also when the pointer is a memory
-//! object that a call returns or another object holds, or a word the slot holds after a store the
-//! pass leaves alone, while a loaded word stored elsewhere stays data even if a later load uses it
-//! as a pointer. A slot clamped before a compiler read stays clamped for a later read of it as
-//! data, including the read of a memory object that an allocating operation such as an encoding
-//! takes. Writes replace the word only when one block covers all of its bytes. A loaded word passed
-//! to a callee or returned to callers that read it as a pointer is clamped as a whole there, even
-//! if they also read it as data, and a word an external function returns as data is clamped as a
-//! whole in each internal caller that reads it as a pointer. See CODEGEN-010.
+//! A write through an address the program computes, or one whose constant range reaches only part
+//! of the slot, may leave any word there: a store through `p` does when `p` turns out to be
+//! `0x40`, and a copy or a byte store does too. The write cannot be clamped, since it may write
+//! elsewhere; the pointer reads after it are clamped instead, as for a word that is also read as
+//! data. Writes at heap pointers, by the compiler, and of heap pointers are not such writes.
+//!
+//! A module whose assembly all promises memory safety, or that has none, keeps the earlier rule: it
+//! raises only constants and calldata words, and trusts the type of a memory reference. Its
+//! assembly cannot store a word that is no heap pointer in the slot, nor write through one.
+//!
+//! NOTE: A pointer that the program moves by an offset it cannot bound, or steps back from in a
+//! loop, is not a heap pointer. An access at a heap pointer plus a constant is assumed not to cover
+//! the slot, also when the pointer is a memory object that another object holds, or a word the slot
+//! holds after a store the pass leaves alone, while a loaded word stored elsewhere stays data even
+//! if a later load uses it as a pointer. A slot clamped before a compiler read stays clamped for a
+//! later read of it as data, including the read of a memory object that an allocating operation
+//! such as an encoding takes. Writes replace the word only when one block covers all of its bytes.
+//! A loaded word passed to a callee or returned to callers that read it as a pointer is clamped as
+//! a whole there, even if they also read it as data, and a word an external function returns as
+//! data is clamped as a whole in each internal caller that reads it as a pointer. See CODEGEN-010.
 
 use crate::mir::{
     AbiType, ArgIdx, BlockId, Callee, CheckedOp, EffectKind, Function, FunctionId, Immediate,
     InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion, MirType, Module, PtrLocation,
     RawMemoryAccess, RawMemorySize, Terminator, Value, ValueId,
-    analysis::{AddressInput, absolute_address_inputs},
+    analysis::{AddressInput, absolute_address_inputs, pointer_bases},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
     utils::{IndexLists, replace_inst_uses},
@@ -158,9 +169,10 @@ enum Clamp {
     Slot(FunctionId, BlockId, Option<InstId>),
 }
 
-/// Finds where to clamp the words that stores of constants and calldata leave in the free memory
-/// pointer's slot: at the store when every read of the word reads the pointer, and at each
-/// pointer read when some read takes the word as data. The loads to clamp come with a plan for
+/// Finds where to clamp the words that stores of values not proven to be heap pointers, and writes
+/// through computed addresses, leave in the free memory pointer's slot: at the store when every
+/// read of the word reads the pointer, and at each pointer read when some read takes the word as
+/// data, or the writer may not write the slot at all. The loads to clamp come with a plan for
 /// each function, which covers all of the function's loads at once.
 fn floor_clamps(module: &Module) -> (FxIndexSet<Clamp>, Vec<(FunctionId, LoadClamps)>) {
     let mut uses = PointerUses::new(module);
@@ -172,7 +184,11 @@ fn floor_clamps(module: &Module) -> (FxIndexSet<Clamp>, Vec<(FunctionId, LoadCla
                     func.inst(inst_id).kind
                     && is_slot(func, address)
                     && func.value_ty(value) == Some(MirType::I256)
-                    && uses.address_inputs(func_id)[value] != AddressInput::Other
+                    && if module.has_unsafe_assembly() {
+                        uses.may_be_low(func_id, value)
+                    } else {
+                        uses.address_inputs(func_id)[value] != AddressInput::Other
+                    }
                 {
                     let reads = uses.reads_after(func_id, block, index + 1);
                     match (reads.pointer, reads.data) {
@@ -184,6 +200,10 @@ fn floor_clamps(module: &Module) -> (FxIndexSet<Clamp>, Vec<(FunctionId, LoadCla
                         }
                         (false, _) => {}
                     }
+                } else if module.has_unsafe_assembly() && uses.may_write_slot(func_id, inst_id) {
+                    // The write may leave any word in the slot, which only the pointer reads
+                    // after it can clamp.
+                    uses.clamp_pointer_reads(func_id, block, index + 1, &mut clamps);
                 }
             }
         }
@@ -536,6 +556,9 @@ fn module_heap_addresses(
     module: &Module,
     call_sites: &IndexVec<FunctionId, Vec<CallSite>>,
 ) -> IndexVec<FunctionId, DenseBitSet<ValueId>> {
+    // A module whose assembly all promises memory safety keeps the type of a memory reference as
+    // proof that it points into the heap.
+    let trust_types = !module.has_unsafe_assembly();
     let mut params = module
         .functions
         .iter_enumerated()
@@ -554,57 +577,93 @@ fn module_heap_addresses(
             params
         })
         .collect::<IndexVec<FunctionId, _>>();
-    let mut heap = module
-        .functions
-        .iter_enumerated()
-        .map(|(func_id, func)| function_heap_addresses(func, &params[func_id]))
-        .collect::<IndexVec<FunctionId, _>>();
-    let mut pending = module.functions.indices().collect::<Vec<_>>();
-    while let Some(caller) = pending.pop() {
-        let func = &module.functions[caller];
-        let mut lowered = Vec::new();
-        let mut pass = |callee: FunctionId, args: &[ValueId]| {
+    // A function returns a heap pointer when every return and tail call does. A call result is one
+    // only then, not by its type, since the callee's assembly may have cast any word to the
+    // type.
+    let mut returns = DenseBitSet::new_empty(module.functions.len());
+    for (func_id, func) in module.functions.iter_enumerated() {
+        if func.return_components().len() == 1 {
+            returns.insert(func_id);
+        }
+    }
+    loop {
+        let heap = module
+            .functions
+            .iter_enumerated()
+            .map(|(func_id, func)| {
+                function_heap_addresses(func, &params[func_id], &returns, trust_types)
+            })
+            .collect::<IndexVec<FunctionId, _>>();
+        let mut changed = false;
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if returns.contains(func_id)
+                && func.blocks.iter().any(|block| match &block.terminator {
+                    Some(Terminator::Return { values }) => {
+                        values.first().is_none_or(|&value| !heap[func_id].contains(value))
+                    }
+                    // A tail call returns what its callee returns.
+                    Some(Terminator::TailCall { function, .. }) => !returns.contains(*function),
+                    _ => false,
+                })
+            {
+                returns.remove(func_id);
+                changed = true;
+            }
+        }
+        let mut pass = |caller: FunctionId, callee: FunctionId, args: &[ValueId]| {
             for (index, &arg) in args.iter().enumerate() {
                 if !heap[caller].contains(arg)
                     && index < params[callee].domain_size()
                     && params[callee].remove(ArgIdx::new(index))
                 {
-                    lowered.push(callee);
+                    changed = true;
                 }
             }
         };
-        for inst in func.instructions() {
-            if let InstKind::ICall { function: Callee::Function(callee), args } =
-                &func.inst(inst).kind
-            {
-                pass(*callee, args);
+        for (caller, func) in module.functions.iter_enumerated() {
+            for inst in func.instructions() {
+                if let InstKind::ICall { function: Callee::Function(callee), args } =
+                    &func.inst(inst).kind
+                {
+                    pass(caller, *callee, args);
+                }
+            }
+            for block in &func.blocks {
+                if let Some(Terminator::TailCall { function, args }) = &block.terminator {
+                    pass(caller, *function, args);
+                }
             }
         }
-        for block in &func.blocks {
-            if let Some(Terminator::TailCall { function, args }) = &block.terminator {
-                pass(*function, args);
-            }
-        }
-        for callee in lowered {
-            heap[callee] = function_heap_addresses(&module.functions[callee], &params[callee]);
-            pending.push(callee);
+        if !changed {
+            return heap;
         }
     }
-    heap
 }
 
 /// Returns the words `func` computes from heap pointers, with the parameters `params` marks as
-/// holding one: the free memory pointer, allocations, and memory objects, a word that adds a
-/// constant or another heap pointer to one, the address of such an object's data, a field, or an
-/// element at a constant index, and a choice between such words. Every candidate starts as a heap
-/// pointer, and one whose inputs are not drops out until none does.
-fn function_heap_addresses(func: &Function, params: &DenseBitSet<ArgIdx>) -> DenseBitSet<ValueId> {
+/// holding one and the results of calls to the functions `returns` holds: the free memory pointer,
+/// allocations, and memory objects, a word that adds a constant or another heap pointer to one, the
+/// address of such an object's data, a field, or an element at a constant index, and a choice
+/// between such words. Every candidate starts as a heap pointer, and one whose inputs are not drops
+/// out until none does.
+fn function_heap_addresses(
+    func: &Function,
+    params: &DenseBitSet<ArgIdx>,
+    returns: &DenseBitSet<FunctionId>,
+    trust_types: bool,
+) -> DenseBitSet<ValueId> {
     let mut heap = DenseBitSet::new_empty(func.num_values());
     for index in 0..func.num_values() {
         let value = ValueId::new(index);
         let candidate = match *func.value(value) {
             Value::Arg(index) => params.contains(index),
-            Value::Inst(inst) => may_compute_heap_address(func, inst),
+            Value::Inst(inst) => match func.inst(inst).kind {
+                InstKind::ICall { function: Callee::Function(callee), .. } => {
+                    returns.contains(callee)
+                        || trust_types && func.inst(inst).result_ty == Some(MirType::MEMPTR)
+                }
+                _ => may_compute_heap_address(func, inst, trust_types),
+            },
             _ => false,
         };
         if candidate {
@@ -627,9 +686,64 @@ fn function_heap_addresses(func: &Function, params: &DenseBitSet<ArgIdx>) -> Den
     heap
 }
 
+/// The words [`may_be_low`] looks at before it gives up and says the word may be low, so that
+/// shared phi chains cannot make the walk exponential.
+const MAY_BE_LOW_STEPS: u32 = 256;
+
+/// Whether the word `address` may lie below the heap: it does unless `heap` holds it, or
+/// [`pointer_bases`] moves it, with steps back of at most `max_step_back`, from bases that are all
+/// high, or it is a cast, select, or phi whose operands are all high.
+fn may_be_low(
+    func: &Function,
+    heap: &DenseBitSet<ValueId>,
+    address: ValueId,
+    max_step_back: u64,
+) -> bool {
+    let mut visiting = DenseBitSet::new_empty(func.num_values());
+    let mut steps = MAY_BE_LOW_STEPS;
+    walk_may_be_low(func, heap, address, max_step_back, &mut visiting, &mut steps)
+}
+
+fn walk_may_be_low(
+    func: &Function,
+    heap: &DenseBitSet<ValueId>,
+    address: ValueId,
+    max_step_back: u64,
+    visiting: &mut DenseBitSet<ValueId>,
+    steps: &mut u32,
+) -> bool {
+    if heap.contains(address) {
+        return false;
+    }
+    let Value::Inst(inst) = *func.value(address) else { return true };
+    if !visiting.insert(address) {
+        return false;
+    }
+    let Some(remaining) = steps.checked_sub(1) else {
+        visiting.remove(address);
+        return true;
+    };
+    *steps = remaining;
+    let mut low = |value| walk_may_be_low(func, heap, value, max_step_back, visiting, steps);
+    let result = match &func.inst(inst).kind {
+        InstKind::Add(..) | InstKind::PtrAdd(..) | InstKind::Sub(..) => {
+            let bases = pointer_bases(func, address, max_step_back);
+            bases.is_empty() || bases.into_iter().all(low)
+        }
+        InstKind::Zext(operand) | InstKind::IntToPtr(operand) | InstKind::PtrToInt(operand, _) => {
+            low(*operand)
+        }
+        InstKind::Select(_, a, b) => low(*a) || low(*b),
+        InstKind::Phi(incoming) => incoming.iter().any(|&(_, value)| low(value)),
+        _ => true,
+    };
+    visiting.remove(address);
+    result
+}
+
 /// Whether an instruction may compute a heap pointer: the free memory pointer, an allocation, or
 /// another memory object, or a word computed from such pointers.
-fn may_compute_heap_address(func: &Function, inst: InstId) -> bool {
+fn may_compute_heap_address(func: &Function, inst: InstId, trust_types: bool) -> bool {
     let instruction = func.inst(inst);
     match instruction.kind {
         InstKind::Fmp
@@ -646,6 +760,10 @@ fn may_compute_heap_address(func: &Function, inst: InstId) -> bool {
         }
         | InstKind::MakeSlice { location: PtrLocation::Memory, .. } => true,
         InstKind::Load(address, PtrLocation::Memory) => is_slot(func, address),
+        // The results and fields that calls return are heap pointers only as `returns` says.
+        InstKind::ICall { .. } | InstKind::ExtractValue { .. } => {
+            trust_types && instruction.result_ty == Some(MirType::MEMPTR)
+        }
         _ => instruction.result_ty == Some(MirType::MEMPTR),
     }
 }
@@ -1366,6 +1484,45 @@ impl<'a> PointerUses<'a> {
             }
         });
         objects.into_iter().any(|object| self.may_read_slot(func_id, object, None, written))
+    }
+
+    /// Returns whether an instruction may leave a word that is not a heap pointer in the slot
+    /// without being a full-word store at the slot, which clamps at the store: a write whose
+    /// constant range reaches the slot, or whose computed destination may be low, whatever it
+    /// writes: a store of a heap pointer at an odd address leaves half of it. The compiler's own
+    /// writes are not such writes.
+    fn may_write_slot(&mut self, func_id: FunctionId, inst_id: InstId) -> bool {
+        let module = self.module;
+        let func = &module.functions[func_id];
+        let inst = func.inst(inst_id);
+        if matches!(
+            inst.metadata.memory_region(),
+            Some(MemoryRegion::AbiReturn | MemoryRegion::Heap | MemoryRegion::InternalFrame)
+        ) || matches!(inst.kind, InstKind::Store(address, ..) if is_slot(func, address))
+        {
+            return false;
+        }
+        let heap = self.heap_addresses(func_id);
+        let low = |address| may_be_low(func, heap, address, EvmMemoryLayout::WORD_SIZE);
+        let mut writes = false;
+        inst.kind.visit_raw_memory(|access, address, size| {
+            let size = size.constant(func);
+            writes |= access != RawMemoryAccess::Read
+                && size != Some(0)
+                && match func.value_u64(address) {
+                    Some(start) => slot_bytes(start, size.unwrap_or(u64::MAX)) != 0,
+                    None => low(address),
+                };
+        });
+        writes
+    }
+
+    /// Returns whether the word `value` of `func_id`, stored in the slot, may lie below the heap.
+    /// A pointer that steps back is low, as the allocation would start inside the frames.
+    fn may_be_low(&mut self, func_id: FunctionId, value: ValueId) -> bool {
+        let func = &self.module.functions[func_id];
+        let heap = self.heap_addresses(func_id);
+        may_be_low(func, heap, value, 0)
     }
 
     /// Returns the words `func_id` computes from heap pointers.

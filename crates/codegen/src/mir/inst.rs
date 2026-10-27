@@ -220,6 +220,18 @@ impl InstructionMetadata {
         self.flags.clear_deferred_alloc();
     }
 
+    /// Returns whether this word addition came from pointer arithmetic on a memory object, whose
+    /// offset the compiler checked against the object's bounds.
+    #[must_use]
+    pub(crate) fn checked_object_offset(&self) -> bool {
+        self.flags.checked_object_offset()
+    }
+
+    /// Marks a word addition that came from pointer arithmetic on a memory object.
+    pub(crate) fn set_checked_object_offset(&mut self) {
+        self.flags.set_checked_object_offset();
+    }
+
     /// Returns whether this allocation must keep its free-memory-pointer address and bump.
     #[must_use]
     pub(crate) fn preserves_fmp(&self) -> bool {
@@ -269,7 +281,8 @@ impl MetadataFlags {
     const PRESERVES_FMP: u16 = 0b100_0000_0000;
     const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
     const DEBUG_INFO_HANDLED: u16 = 0b1_0000_0000_0000;
-    const ALLOC_PTR: u16 = 0b10_0000_0000_0000;
+    const CHECKED_OBJECT_OFFSET: u16 = 0b10_0000_0000_0000;
+    const ALLOC_PTR: u16 = 0b100_0000_0000_0000;
 
     fn memory_region(self) -> Option<MemoryRegion> {
         match self.0 & Self::MEMORY_MASK {
@@ -329,6 +342,14 @@ impl MetadataFlags {
         } else {
             self.0 &= !Self::DISJOINT;
         }
+    }
+
+    fn checked_object_offset(self) -> bool {
+        self.0 & Self::CHECKED_OBJECT_OFFSET != 0
+    }
+
+    fn set_checked_object_offset(&mut self) {
+        self.0 |= Self::CHECKED_OBJECT_OFFSET;
     }
 
     fn preserves_fmp(self) -> bool {
