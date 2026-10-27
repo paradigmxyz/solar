@@ -1,0 +1,137 @@
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 0, 2, 3, 0 => 5
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1, 0 => 0
+//@ run-call: scalc(uint256,int256,int256,int256)(int256) 1, 2, 3, 0 => -1
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 2, 6, 7, 0 => 42
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 3, 7, 2, 0 => 3
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 3, 7, 0, 0 => 0
+//@ run-call: scalc(uint256,int256,int256,int256)(int256) 4, -7, 2, 0 => -3
+//@ run-call: scalc(uint256,int256,int256,int256)(int256) 4, -57896044618658097711785492504343953926634992332820282019728792003956564819968, -1, 0 => -57896044618658097711785492504343953926634992332820282019728792003956564819968
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 5, 7, 3, 0 => 1
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 5, 7, 0, 0 => 0
+//@ run-call: scalc(uint256,int256,int256,int256)(int256) 6, -7, 3, 0 => -1
+//@ run-call: scalc(uint256,int256,int256,int256)(int256) 6, 7, -3, 0 => 1
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 7, 2, 10, 0 => 1024
+//@ run-call: scalc(uint256,int256,int256,int256)(int256) 8, 0, 255, 0 => -1
+//@ run-call: scalc(uint256,int256,int256,int256)(int256) 8, 1, 255, 0 => 255
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 9, 2, 3, 0 => 1
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 10, 2, 3, 0 => 0
+//@ run-call: scalc(uint256,int256,int256,int256)(int256) 11, -1, 0, 0 => 1
+//@ run-call: scalc(uint256,int256,int256,int256)(int256) 12, -1, 0, 0 => 0
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 13, 3, 3, 0 => 1
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 14, 12, 10, 0 => 8
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 15, 12, 10, 0 => 14
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 16, 12, 10, 0 => 6
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 17, 31, 0x1234, 0 => 52
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 17, 30, 0x1234, 0 => 18
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 17, 32, 0x1234, 0 => 0
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 18, 4, 1, 0 => 16
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 18, 256, 1, 0 => 0
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 19, 4, 256, 0 => 16
+//@ run-call: scalc(uint256,int256,int256,int256)(int256) 20, 4, -256, 0 => -16
+//@ run-call: scalc(uint256,int256,int256,int256)(int256) 20, 300, -1, 0 => -1
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 21, 0, 0, 0 => 1
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 21, 5, 0, 0 => 0
+//@ run-call: scalc(uint256,int256,int256,int256)(int256) 22, 0, 0, 0 => -1
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 23, 1, 0, 0 => 255
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 23, 0, 0, 0 => 256
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 7 => 3
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 24, 1, 2, 0 => 0
+//@ run-call: calc(uint256,uint256,uint256,uint256)(uint256) 25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 12 => 9
+
+// Applies operation `op` to `a`, `b`, and `c`, with `a` on top of the stack: `calc(op, a, b, c)`
+// and `scalc` share this code, which reads the words after the selector.
+@module arithmetic
+bb0:
+  push 100
+  calldataload
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  indexed_jump bb1, bb2, bb3, bb4, bb5, bb6, bb7, bb8, bb9, bb10, bb11, bb12, bb13, bb14, bb15, bb16, bb17, bb18, bb19, bb20, bb21, bb22, bb23, bb24, bb25, bb26
+bb1:
+  add
+  jump bb27
+bb2:
+  sub
+  jump bb27
+bb3:
+  mul
+  jump bb27
+bb4:
+  div
+  jump bb27
+bb5:
+  sdiv
+  jump bb27
+bb6:
+  mod
+  jump bb27
+bb7:
+  smod
+  jump bb27
+bb8:
+  exp
+  jump bb27
+bb9:
+  signextend
+  jump bb27
+bb10:
+  lt
+  jump bb27
+bb11:
+  gt
+  jump bb27
+bb12:
+  slt
+  jump bb27
+bb13:
+  sgt
+  jump bb27
+bb14:
+  eq
+  jump bb27
+bb15:
+  and
+  jump bb27
+bb16:
+  or
+  jump bb27
+bb17:
+  xor
+  jump bb27
+bb18:
+  byte
+  jump bb27
+bb19:
+  shl
+  jump bb27
+bb20:
+  shr
+  jump bb27
+bb21:
+  sar
+  jump bb27
+bb22:
+  iszero
+  jump bb27
+bb23:
+  not
+  jump bb27
+bb24:
+  clz
+  jump bb27
+bb25:
+  addmod
+  jump bb27
+bb26:
+  mulmod
+  jump bb27
+bb27:
+  push 0
+  mstore
+  push 32
+  push 0
+  return

@@ -1,5 +1,5 @@
 //@compile-flags: -Zmir-pipeline=default
-//@filecheck: --implicit-check-not=internal_frame_addr --implicit-check-not=mload
+//@filecheck: --implicit-check-not=internal_frame_addr --implicit-check-not=mload{{[[:space:]]}}v
 @module PipelineFrameIndVar
 // The promoted frame counter feeds a scaled and offset address, which the
 // strength reduction turns into a pointer phi.

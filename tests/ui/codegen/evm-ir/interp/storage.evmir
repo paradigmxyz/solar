@@ -1,0 +1,128 @@
+//@ run-call: bump()(uint256,uint256) => 1, 2
+//@ run-call: transient(uint256)(uint256,uint256) 42 => 42, 0
+//@ run-call: emit() =>
+//@ run-call-fail: discard() =>
+
+// Persistent and transient storage, and events. A revert discards the writes and events before
+// it.
+@module storage
+bb0:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x68110b2f
+  eq
+  push bb2
+  jumpi
+  dup 1
+  push 0xfabc9efa
+  eq
+  push bb3
+  jumpi
+  dup 1
+  push 0x3bdab8bf
+  eq
+  push bb4
+  jumpi
+  dup 1
+  push 0xbb702c8e
+  eq
+  push bb5
+  jumpi
+  jump bb1
+bb1 [cold]:
+  push 0
+  push 0
+  revert
+
+// bump() increments slot 0, stores twice the result in slot 1, and returns both slots.
+bb2:
+  push 0
+  sload
+  push 1
+  add
+  dup 1
+  push 0
+  sstore
+  dup 1
+  add
+  push 1
+  sstore
+  push 0
+  sload
+  push 0
+  mstore
+  push 1
+  sload
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+
+// transient(value) stores `value` in transient slot 7 and returns slots 7 and 8.
+bb3:
+  push 4
+  calldataload
+  push 7
+  tstore
+  push 7
+  tload
+  push 0
+  mstore
+  push 8
+  tload
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+
+// emit() logs one event with each number of topics.
+bb4:
+  push 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+  push 0
+  mstore
+  push 32
+  push 0
+  log0
+  push 0xaa
+  push 1
+  push 31
+  log1
+  push 0xbb
+  push 0xaa
+  push 0
+  push 0
+  log2
+  push 0xcc
+  push 0xbb
+  push 0xaa
+  push 2
+  push 30
+  log3
+  push 0xdd
+  push 0xcc
+  push 0xbb
+  push 0xaa
+  push 3
+  push 5
+  log4
+  stop
+
+// discard() writes and logs before it reverts.
+bb5:
+  push 1
+  push 0
+  sstore
+  push 1
+  push 3
+  tstore
+  push 0
+  push 0
+  log0
+  push 0
+  push 0
+  revert

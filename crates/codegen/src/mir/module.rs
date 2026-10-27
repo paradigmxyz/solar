@@ -114,6 +114,12 @@ pub struct Module {
     /// caller's value, and guards its non-view external functions with
     /// [`Self::library_deploy_address`].
     pub(crate) is_library: bool,
+    /// Whether the module may contain inline assembly that does not promise memory safety, whose
+    /// writes the compiler cannot place.
+    ///
+    /// Textual MIR may hold raw memory operations, so it counts as unsafe. Lowering Solidity
+    /// clears the bit and sets it again for every assembly block that lacks the promise.
+    unsafe_assembly: bool,
     /// The lowering phase this module is in.
     pub(super) phase: MirPhase,
     /// Whether passes must account for every instruction's source debug information.
@@ -180,10 +186,22 @@ impl Module {
             libraries: LibraryTable::default(),
             is_interface: false,
             is_library: false,
+            unsafe_assembly: true,
             phase: MirPhase::Semantic,
             debug_info_tracked: false,
             lowered_checked: false,
         }
+    }
+
+    /// Returns whether the module may contain inline assembly that does not promise memory safety.
+    #[must_use]
+    pub(crate) const fn has_unsafe_assembly(&self) -> bool {
+        self.unsafe_assembly
+    }
+
+    /// Records whether the module may contain inline assembly that does not promise memory safety.
+    pub(crate) fn set_unsafe_assembly(&mut self, unsafe_assembly: bool) {
+        self.unsafe_assembly = unsafe_assembly;
     }
 
     /// Enables or disables source debug information auditing for optimization passes.
