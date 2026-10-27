@@ -1,0 +1,52 @@
+//@compile-flags: -Zmir-pipeline=coalesce-allocs
+//@filecheck:
+@module CoalesceAccessBounds
+
+// Computing the offset before the access does not invalidate the later proof: by the time the
+// offset is used, the base has been accessed successfully and cannot be near the word limit.
+// CHECK-LABEL: fn @access_before_use
+// CHECK: + v0 = alloc 64
+// CHECK: mstore v1, 1
+// CHECK: mstore v2, 2
+fn @access_before_use() -> i256 {
+  bb0:
+    v0 = alloc 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, 64
+    mstore v1, 1
+    mstore v2, 2
+    v3 = alloc 32
+    v4 = ptrtoint ptr<memory> v3 to i256
+    ret v4
+}
+
+// The address may wrap onto the FMP before any successful access has bounded its base. An access
+// after this store cannot justify moving the second allocation before the store.
+// CHECK-LABEL: fn @access_after_use
+// CHECK-NOT: +
+fn @access_after_use() -> i256 {
+  bb0:
+    v0 = alloc 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, 64
+    mstore v2, 2
+    mstore v1, 1
+    v3 = alloc 32
+    v4 = ptrtoint ptr<memory> v3 to i256
+    ret v4
+}
+
+// A zero-length access ignores its address and cannot prove that an offset will not wrap.
+// CHECK-LABEL: fn @empty_access
+// CHECK-NOT: +
+fn @empty_access() -> i256 {
+  bb0:
+    v0 = alloc 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, 64
+    calldatacopy v1, 0, 0
+    mstore v2, 2
+    v3 = alloc 32
+    v4 = ptrtoint ptr<memory> v3 to i256
+    ret v4
+}

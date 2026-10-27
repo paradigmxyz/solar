@@ -1,0 +1,43 @@
+- // === ROOT/tests/ui/codegen/mir/coalesce-allocs/access_bounds.mir (before coalesce-allocs) ===
++ // === ROOT/tests/ui/codegen/mir/coalesce-allocs/access_bounds.mir (after coalesce-allocs) ===
+  @module CoalesceAccessBounds
+  fn @access_before_use() -> i256 {
+    bb0:
+-     v0 = alloc 32
++     v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      v2 = add v1, 64
+      mstore v1, 1
+      mstore v2, 2
+-     v3 = alloc 32
++     v5 = ptrtoint ptr<memory> v0 to i256
++     v6 = add v5, 32
++     v3 = inttoptr i256 v6 to ptr<memory>
+      v4 = ptrtoint ptr<memory> v3 to i256
+      ret v4
+  }
+  
+  fn @access_after_use() -> i256 {
+    bb0:
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
+      v2 = add v1, 64
+      mstore v2, 2
+      mstore v1, 1
+      v3 = alloc 32
+      v4 = ptrtoint ptr<memory> v3 to i256
+      ret v4
+  }
+  
+  fn @empty_access() -> i256 {
+    bb0:
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
+      v2 = add v1, 64
+      calldatacopy v1, 0, 0
+      mstore v2, 2
+      v3 = alloc 32
+      v4 = ptrtoint ptr<memory> v3 to i256
+      ret v4
+  }
+  

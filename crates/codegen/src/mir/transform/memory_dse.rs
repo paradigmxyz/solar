@@ -87,6 +87,11 @@
 //!   other tail call; revert and return data keep only the words they cover, and halts such as
 //!   `stop` keep none.
 //!
+//! Unbounded raw reads retain their exact address and size until a full overwrite of the same
+//! range discharges them. Unmatched reads keep every slot live; their value identities are
+//! forgotten before crossing definitions or function boundaries, so loop iterations and callees
+//! cannot be confused. Partial writes and gas or memory-size observations never discharge them.
+//!
 //! Keys come from alias analysis, which canonicalizes an address as a base plus a constant offset.
 //! Allocation-based keys require the complete access range to fit; wider accesses may overlap
 //! adjacent allocations. Every other instruction is classified through its shared ModRef effects:
@@ -103,10 +108,10 @@
 use crate::{
     mir::{
         AllocationFailure, BasicBlock, BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, MangledSymbol, MemoryRegion,
-        MirType, Module, PtrLocation, Terminator, Value, ValueId,
+        MirType, Module, PtrLocation, RawMemoryAccess, Terminator, Value, ValueId,
         analysis::{
             Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
-            MemoryAddress, MemoryBase, MemoryCallSummaries, MemoryLocation, ModRef,
+            MemoryAddress, MemoryBase, MemoryCallSummaries, MemoryLocation, ModRef, ReadBounds,
             integers::no_wrap_with,
         },
         memory::EvmMemoryLayout,
@@ -160,6 +165,9 @@ impl MirPass for MemoryDse {
                 selected.insert(func_id);
             }
         }
+        if selected.is_empty() {
+            return false;
+        }
         let free_pointer = free_pointer_trusted(module);
         let terminal = Arc::new(terminal_liveness(module, free_pointer));
         let summaries = analyses.call_summaries(module);
@@ -212,7 +220,8 @@ fn terminal_liveness(module: &Module, free_pointer: bool) -> FxHashMap<FunctionI
             false,
         )
         .with_free_pointer(free_pointer);
-        let entry = eliminator.liveness(func).swap_remove(BlockId::ENTRY);
+        let mut entry = eliminator.liveness(func).swap_remove(BlockId::ENTRY);
+        MemoryStoreEliminator::summarize_live(&mut entry);
         if !entry.is_all() {
             terminal.insert(id, entry);
         }
@@ -333,12 +342,35 @@ fn return_facts(
             sites.entry(caller).or_default().push((callee, block, inst));
         }
     }
+    // The function bodies, CFGs, alias facts, and returned-pointer bounds do not change between
+    // rounds. Keep their analyses, and group calls by block so each suffix is scanned only once.
+    let mut callers = sites
+        .into_iter()
+        .map(|(caller, mut sites)| {
+            let func = &module.functions[caller];
+            let eliminator = MemoryStoreEliminator::new(
+                Rc::new(AliasAnalysis::empty_with_summaries(Arc::clone(summaries))),
+                Rc::new(CfgInfo::new(func)),
+                false,
+            )
+            .with_free_pointer(free_pointer)
+            .with_terminal(Arc::clone(terminal));
+            sites.sort_unstable_by_key(|&(_, block, _)| block);
+            let blocks = sites
+                .chunk_by(|a, b| a.1 == b.1)
+                .map(|group| (group[0].1, group.len()))
+                .filter(|&(block, _)| eliminator.cfg.is_reachable(block))
+                .collect::<Vec<_>>();
+            (caller, eliminator, blocks)
+        })
+        .filter(|(_, _, blocks)| !blocks.is_empty())
+        .collect::<Vec<_>>();
 
     let mut live = FxHashMap::default();
     for id in tracked.iter() {
         live.insert(id, MemLive::empty());
     }
-    for _ in 0..RETURN_LIVENESS_ROUNDS {
+    for round in 0..RETURN_LIVENESS_ROUNDS {
         let snapshot = Arc::new(ReturnFacts {
             live: live
                 .iter()
@@ -347,23 +379,18 @@ fn return_facts(
             bounds: facts.bounds.clone(),
         });
         let mut next = live.clone();
-        for (&caller, sites) in &sites {
-            let func = &module.functions[caller];
-            let eliminator = MemoryStoreEliminator::new(
-                Rc::new(AliasAnalysis::empty_with_summaries(Arc::clone(summaries))),
-                Rc::new(CfgInfo::new(func)),
-                false,
-            )
-            .with_free_pointer(free_pointer)
-            .with_terminal(Arc::clone(terminal))
-            .with_returns(Arc::clone(&snapshot));
-            let live_in = eliminator.liveness(func);
-            for &(callee, block, inst) in sites {
-                if eliminator.cfg.is_reachable(block) {
-                    let after = eliminator.live_after(func, block, inst, &live_in);
-                    next.get_mut(&callee).expect("tracked callee").join(&after);
-                }
+        for (caller, eliminator, blocks) in &mut callers {
+            let func = &module.functions[*caller];
+            // Only this caller's return liveness can change its transfer between rounds. Its
+            // previous contributions remain in `next`, so an unchanged boundary needs no scan.
+            if round != 0
+                && eliminator.returns.live.get(&func.name) == snapshot.live.get(&func.name)
+            {
+                continue;
             }
+            eliminator.returns = Arc::clone(&snapshot);
+            let live_in = eliminator.liveness(func);
+            eliminator.join_call_liveness(func, blocks, &live_in, &mut next);
         }
         for callee in tracked.iter() {
             for &caller in &tails[callee] {
@@ -503,6 +530,8 @@ struct MemoryStoreEliminator {
     /// Whether a word loaded from the free memory pointer's slot bounds reads through it; see
     /// [`free_pointer_trusted`].
     free_pointer: bool,
+    /// Non-wrap proofs for the current immutable function snapshot.
+    read_bounds: ReadBounds,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -529,15 +558,18 @@ type LiveSlots = SmallVec<[u64; 16]>;
 struct MemLive {
     slots: LiveSlots,
     from: Option<u64>,
+    /// Exact reads without a useful address bound. A matching full overwrite discharges them;
+    /// until then, they may observe any slot. These IDs belong to the current function only.
+    ranges: SmallVec<[(ValueId, ValueId); 2]>,
 }
 
 impl MemLive {
     fn empty() -> Self {
-        Self { slots: LiveSlots::new(), from: None }
+        Self { slots: LiveSlots::new(), from: None, ranges: SmallVec::new() }
     }
 
     fn all() -> Self {
-        Self { slots: LiveSlots::new(), from: Some(0) }
+        Self { slots: LiveSlots::new(), from: Some(0), ranges: SmallVec::new() }
     }
 
     fn is_all(&self) -> bool {
@@ -550,7 +582,7 @@ impl MemLive {
     }
 
     fn contains(&self, addr: u64) -> bool {
-        self.covers(addr) || self.slots.binary_search(&addr).is_ok()
+        !self.ranges.is_empty() || self.covers(addr) || self.slots.binary_search(&addr).is_ok()
     }
 
     fn add_addr(&mut self, addr: u64) {
@@ -571,6 +603,9 @@ impl MemLive {
         let from = self.from.map_or(from, |old| old.min(from));
         self.from = Some(from);
         self.slots.retain(|addr| addr.saturating_add(EvmMemoryLayout::WORD_SIZE) <= from);
+        if from == 0 {
+            self.ranges.clear();
+        }
     }
 
     /// Kills a fully overwritten slot. A word `from` covers stays live: the representation has no
@@ -584,6 +619,9 @@ impl MemLive {
     fn join(&mut self, other: &Self) {
         if let Some(from) = other.from {
             self.add_from(from);
+        }
+        for &(offset, size) in &other.ranges {
+            self.add_range(offset, size);
         }
         if other.slots.is_empty() {
             return;
@@ -628,6 +666,20 @@ impl MemLive {
             *self = Self::all();
         } else {
             self.slots = merged;
+        }
+    }
+
+    /// Keeps a bounded, canonical set so joins converge independently of predecessor order.
+    fn add_range(&mut self, offset: ValueId, size: ValueId) {
+        if self.is_all() {
+            return;
+        }
+        if let Err(index) = self.ranges.binary_search(&(offset, size)) {
+            if self.ranges.len() == 8 {
+                *self = Self::all();
+            } else {
+                self.ranges.insert(index, (offset, size));
+            }
         }
     }
 }
@@ -866,6 +918,7 @@ impl MemoryStoreEliminator {
             terminal: Arc::default(),
             returns: Arc::default(),
             free_pointer: false,
+            read_bounds: ReadBounds::default(),
         }
     }
 
@@ -906,10 +959,12 @@ impl MemoryStoreEliminator {
         self.reuse_redundant_immutable_copies(func);
         self.alias().clear_cached_addresses();
         self.remove_unused_internal_frame_stores(func);
+        self.read_bounds = ReadBounds::default();
 
         // Liveness runs before block-local forwarding: forwarding replaces a reloaded pointer by
         // the stored word, whose bound the alias analysis may not know.
         self.remove_dead_memory_stores(func);
+        self.read_bounds = ReadBounds::default();
 
         let block_ids = func.blocks.indices();
         let has_precise_reads = func
@@ -918,6 +973,7 @@ impl MemoryStoreEliminator {
         for block_id in block_ids {
             self.process_block(func, block_id, has_precise_reads, scratch);
             self.alias().clear_cached_addresses();
+            self.read_bounds = ReadBounds::default();
         }
         self.remove_dead_allocation_stores(func);
         self.remove_cross_block_equal_const_stores(func);
@@ -1046,24 +1102,35 @@ impl MemoryStoreEliminator {
         live
     }
 
-    /// The memory live right after `inst`, an instruction of `block`, given the memory live into
-    /// every block.
-    fn live_after(
+    /// Joins memory live after tracked calls into their callees, walking each block suffix once.
+    /// Each block carries its tracked call count so the scan stops at its first tracked call.
+    fn join_call_liveness(
         &self,
         func: &Function,
-        block: BlockId,
-        inst: InstId,
+        blocks: &[(BlockId, usize)],
         live_in: &IndexVec<BlockId, MemLive>,
-    ) -> MemLive {
-        let mut live = Self::live_out(func, block, live_in);
-        self.transfer_terminator(func, block, &mut live);
-        for &inst_id in func.blocks[block].instructions.iter().rev() {
-            if inst_id == inst {
-                break;
+        returned: &mut FxHashMap<FunctionId, MemLive>,
+    ) {
+        for &(block, mut remaining) in blocks {
+            let mut live = Self::live_out(func, block, live_in);
+            self.transfer_terminator(func, block, &mut live);
+            for &inst in func.blocks[block].instructions.iter().rev() {
+                if let InstKind::ICall { function: Callee::Function(callee), .. } =
+                    func.inst(inst).kind
+                    && let Some(returned) = returned.get_mut(&callee)
+                {
+                    let mut after = live.clone();
+                    Self::summarize_live(&mut after);
+                    returned.join(&after);
+                    remaining -= 1;
+                    if remaining == 0 {
+                        break;
+                    }
+                }
+                self.transfer_inst(func, inst, &mut live, &mut None);
             }
-            self.transfer_inst(func, inst_id, &mut live, &mut None);
+            debug_assert_eq!(remaining, 0, "all tracked calls were visited");
         }
-        live
     }
 
     fn transfer_terminator(&self, func: &Function, block: BlockId, live: &mut MemLive) {
@@ -1099,6 +1166,27 @@ impl MemoryStoreEliminator {
         live: &mut MemLive,
         dead: &mut Option<&mut DenseBitSet<InstId>>,
     ) {
+        // A value defined in a loop can name different addresses on successive iterations.
+        // Forget exact identities before crossing their definitions, including phis.
+        if let Some(value) = func.inst_result_value(inst_id)
+            && live.ranges.iter().any(|&(offset, size)| value == offset || value == size)
+        {
+            Self::summarize_live(live);
+        }
+        // No ordinary transfer can refine top: constant kills leave its open range intact.
+        // A known non-returning call is the exception, since its callee replaces the suffix.
+        if live.is_all()
+            && !matches!(func.inst(inst_id).kind,
+                InstKind::ICall { function: Callee::Function(function), .. }
+                if self.terminal.contains_key(&function))
+        {
+            return;
+        }
+        // Transfer writes before reads, as a memory copy reads its source before writing its
+        // destination. Word stores first test their own liveness before killing the range.
+        if !matches!(func.inst(inst_id).kind, InstKind::Store(.., PtrLocation::Memory)) {
+            self.kill_written_ranges(func, inst_id, live);
+        }
         match &func.inst(inst_id).kind {
             InstKind::Store(addr, _, PtrLocation::Memory) => {
                 if let Some(slot) = self.word_aligned_const(func, *addr) {
@@ -1139,6 +1227,9 @@ impl MemoryStoreEliminator {
             }
             _ => self.mark_effects(func, inst_id, live),
         }
+        if matches!(func.inst(inst_id).kind, InstKind::Store(.., PtrLocation::Memory)) {
+            self.kill_written_ranges(func, inst_id, live);
+        }
     }
 
     /// The memory a call or tail call to `function` keeps live: what it reads first when it never
@@ -1156,7 +1247,7 @@ impl MemoryStoreEliminator {
     /// The least address a read through `value` can reach; see
     /// [`AliasAnalysis::read_lower_bound`].
     fn read_bound(&self, func: &Function, value: ValueId) -> Option<u64> {
-        AliasAnalysis::read_lower_bound(
+        self.read_bounds.read_lower_bound(
             func,
             value,
             &|function| self.returns.bounds.get(&function).copied(),
@@ -1213,10 +1304,12 @@ impl MemoryStoreEliminator {
             | MemoryBase::DynamicAllocation(_) => EvmMemoryLayout::HEAP_START.checked_add(offset),
             MemoryBase::FreeMemory(read) => func
                 .inst_result_value(read)
-                .filter(|&value| AliasAnalysis::constant_offset_no_wrap(func, value, offset))
+                .filter(|&value| self.read_bounds.constant_offset_no_wrap(func, value, offset))
                 .and_then(|value| self.read_bound(func, value))
                 .and_then(|bound| bound.checked_add(offset)),
-            MemoryBase::Value(value) => AliasAnalysis::constant_offset_no_wrap(func, value, offset)
+            MemoryBase::Value(value) => self
+                .read_bounds
+                .constant_offset_no_wrap(func, value, offset)
                 .then(|| self.read_bound(func, value)?.checked_add(offset))
                 .flatten(),
         };
@@ -1237,7 +1330,7 @@ impl MemoryStoreEliminator {
         user: Option<InstId>,
     ) {
         let bound = match user {
-            Some(user) => AliasAnalysis::read_lower_bound_at(
+            Some(user) => self.read_bounds.read_lower_bound_at(
                 func,
                 address,
                 &|function| self.returns.bounds.get(&function).copied(),
@@ -1272,7 +1365,15 @@ impl MemoryStoreEliminator {
         }
         match (func.value_u64(offset), func.value_u64(size)) {
             (Some(offset), Some(size)) => Self::mark_range(live, offset, size),
-            _ => self.mark_from(func, live, offset, func.value_u64(size), user),
+            _ => {
+                let mut read = MemLive::empty();
+                self.mark_from(func, &mut read, offset, func.value_u64(size), user);
+                if read.is_all() {
+                    live.add_range(AliasAnalysis::memory_address_value(func, offset), size);
+                } else {
+                    live.join(&read);
+                }
+            }
         }
     }
 
@@ -1496,9 +1597,9 @@ impl MemoryStoreEliminator {
                         } else {
                             // The store writes byte `key`, and a later store overwrites the
                             // other 31 bytes before any read.
-                            if Self::offset_mem_addr_key(key, 1)
-                                .is_some_and(|tail| scratch.overwritten.contains(&tail))
-                                && let Some(byte) = Self::top_byte(func, *value)
+                            if Self::offset_mem_addr_key(key, 1).is_some_and(|tail| {
+                                Self::contains_overwritten_word(&scratch.overwritten, tail)
+                            }) && let Some(byte) = Self::top_byte(func, *value)
                             {
                                 scratch.narrowed.push((inst_id, *addr, byte));
                             }
@@ -2045,7 +2146,9 @@ impl MemoryStoreEliminator {
 
         for &inst_id in &func.blocks[block_id].instructions {
             let inst = func.inst(inst_id);
-            if fmp_word.is_some() && self.alias().instruction_may_write_fmp(func, inst_id) {
+            if fmp_word.is_some()
+                && self.alias().instruction_may_write_fmp(func, inst_id, &self.read_bounds)
+            {
                 fmp_word = None;
             }
             match &inst.kind {
@@ -2284,6 +2387,21 @@ impl MemoryStoreEliminator {
 
     fn offset_mem_addr_key(key: MemAddrKey, add: u64) -> Option<MemAddrKey> {
         key.0.checked_add(add).map(MemAddrKey)
+    }
+
+    /// Finds an exact overwritten word, including when the access crosses its allocation's
+    /// end. Losing allocation disjointness does not change that allocation's pointer value;
+    /// compare only the same allocation and offset, leaving all other alias relationships intact.
+    fn contains_overwritten_word(overwritten: &FxHashSet<MemAddrKey>, mut key: MemAddrKey) -> bool {
+        if overwritten.contains(&key) {
+            return true;
+        }
+        key.0.base = match key.0.base {
+            MemoryBase::Allocation(alloc) => MemoryBase::UnboundedAllocation(alloc),
+            MemoryBase::UnboundedAllocation(alloc) => MemoryBase::Allocation(alloc),
+            _ => return false,
+        };
+        overwritten.contains(&key)
     }
 
     fn is_memory_or_gas_observer(&self, func: &Function, inst_id: InstId) -> bool {
@@ -2665,6 +2783,34 @@ impl MemoryStoreEliminator {
         Self::mark_range(live, 0, end);
         live.add_from(bound.checked_add(address.offset).unwrap_or(bound));
         true
+    }
+
+    /// Function-local value identities cannot escape into a callee's liveness summary.
+    /// Unresolved exact reads have no useful bound, so forgetting them keeps every slot live.
+    fn summarize_live(live: &mut MemLive) {
+        if !live.ranges.is_empty() {
+            *live = MemLive::all();
+        }
+    }
+
+    /// Discharges exact reads only after a complete overwrite of that same runtime range.
+    /// This needs no assumption about pointer provenance or non-wrapping address arithmetic.
+    fn kill_written_ranges(&self, func: &Function, inst: InstId, live: &mut MemLive) {
+        if live.ranges.is_empty() {
+            return;
+        }
+        func.inst(inst).kind.visit_raw_memory(|access, address, size| {
+            if access == RawMemoryAccess::Write {
+                let address = AliasAnalysis::memory_address_value(func, address);
+                live.ranges.retain(|&mut (offset, length)| {
+                    address != offset
+                        || !(size == crate::mir::RawMemorySize::Value(length)
+                            || size
+                                .constant(func)
+                                .is_some_and(|n| func.value_u64(length) == Some(n)))
+                });
+            }
+        });
     }
 }
 

@@ -17,10 +17,15 @@
 //! at its original program point, the fused program stores and zeroes the
 //! same addresses in the same order as the unfused one. Avoiding the
 //! free-memory-pointer word alone is therefore never the safety argument.
+//! Successful accesses earlier in the same block bound raw addresses, so constant offsets from
+//! those addresses cannot wrap onto the FMP. Group discovery uses one immutable proof snapshot;
+//! rewriting starts only after every group has been selected.
 
 use crate::mir::{
     AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, EffectKind,
-    Function, FunctionBuilder, InstId, InstKind, Module, ValueId, analysis::AliasAnalysis,
+    Function, FunctionBuilder, InstId, InstKind, Module, ValueId,
+    analysis::{AliasAnalysis, ReadBounds},
+    memory::EvmMemoryLayout,
     pass::MirPass,
 };
 use solar_sema::Gcx;
@@ -68,27 +73,33 @@ fn coalesce_function(func: &mut Function) -> bool {
         return false;
     }
 
-    let mut changed = false;
+    let proofs = ReadBounds::default();
+    let mut groups = Vec::new();
     let blocks = func.blocks.indices();
     for block in blocks {
-        let instructions = func.blocks[block].instructions.clone();
         let mut group = Vec::<Member>::new();
-        for inst_id in instructions {
+        for &inst_id in &func.blocks[block].instructions {
             if let Some(member) = fusable_alloc(func, inst_id) {
                 let compatible = group.last().is_none_or(|last| {
                     last.semantics.initialization == member.semantics.initialization
                 });
                 if !compatible {
-                    changed |= flush_group(func, block, &mut group);
+                    groups.push((block, std::mem::take(&mut group)));
                 }
                 group.push(member);
                 continue;
             }
-            if preserves_group(func, inst_id) {
+            if group.is_empty() || preserves_group(func, inst_id, &proofs) {
                 continue;
             }
-            changed |= flush_group(func, block, &mut group);
+            groups.push((block, std::mem::take(&mut group)));
         }
+        if !group.is_empty() {
+            groups.push((block, group));
+        }
+    }
+    let mut changed = false;
+    for (block, mut group) in groups {
         changed |= flush_group(func, block, &mut group);
     }
     changed
@@ -114,7 +125,7 @@ fn fusable_alloc(func: &Function, inst_id: InstId) -> Option<Member> {
 /// The instruction must have no control effects and cannot observe or modify
 /// the free-memory pointer: every memory access must provably avoid the FMP
 /// word at `[0x40, 0x60)`.
-fn preserves_group(func: &Function, inst_id: InstId) -> bool {
+fn preserves_group(func: &Function, inst_id: InstId, proofs: &ReadBounds) -> bool {
     let inst = func.inst(inst_id);
     if inst.kind.effects().control.any() {
         return false;
@@ -137,7 +148,7 @@ fn preserves_group(func: &Function, inst_id: InstId) -> bool {
             let mut avoids_fmp = None;
             inst.kind.visit_raw_memory(|_, addr, size| {
                 *avoids_fmp.get_or_insert(true) &=
-                    range_avoids_fmp(func, addr, size.constant(func));
+                    range_avoids_fmp(func, addr, size.constant(func), inst_id, proofs);
             });
             avoids_fmp.unwrap_or(false)
         }
@@ -151,8 +162,17 @@ fn preserves_group(func: &Function, inst_id: InstId) -> bool {
 /// Returns whether `[addr, addr + len)` provably avoids the FMP word.
 ///
 /// `len` is `None` when the access length is not a compile-time constant.
-fn range_avoids_fmp(func: &Function, addr: ValueId, len: Option<u64>) -> bool {
-    !AliasAnalysis::range_may_overlap_fmp(func, addr, len)
+fn range_avoids_fmp(
+    func: &Function,
+    addr: ValueId,
+    len: Option<u64>,
+    user: InstId,
+    proofs: &ReadBounds,
+) -> bool {
+    proofs
+        .read_lower_bound_at(func, addr, &|_| None, false, user)
+        .is_some_and(|bound| bound >= EvmMemoryLayout::HEAP_START)
+        || !AliasAnalysis::range_may_overlap_fmp(func, addr, len)
 }
 
 /// Rewrites a collected group into one fused allocation plus constant offsets.
