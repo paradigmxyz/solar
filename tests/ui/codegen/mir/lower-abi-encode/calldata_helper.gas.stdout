@@ -23,7 +23,7 @@ fn @fa() [selector=0xa2467f05, abi_wrapper] {
     jumpi v210, bb3, bb5
   bb5:
     v0 = gas
-    v186 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v186 = heap_floor !metadata(alloc_ptr)
     mstore v186, 0xe9c7a9a00000000000000000000000000000000000000000000000000000000
     v30 = add v186, 4
     v31 = add v30, 32
@@ -233,7 +233,7 @@ fn @fb() [selector=0x81fba7cd, abi_wrapper] {
     jumpi v211, bb3, bb5
   bb5:
     v0 = gas
-    v187 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v187 = heap_floor !metadata(alloc_ptr)
     mstore v187, 0xf3b450f00000000000000000000000000000000000000000000000000000000
     v30 = add v187, 4
     v31 = add v30, 64
@@ -445,7 +445,7 @@ fn @fc() [selector=0xeb19e25e, abi_wrapper] {
     jumpi v128, bb3, bb5
   bb5:
     v0 = gas
-    v112 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v112 = heap_floor !metadata(alloc_ptr)
     mstore v112, 0xd6c30fce00000000000000000000000000000000000000000000000000000000
     v30 = add v112, 4
     v31 = add v30, 32

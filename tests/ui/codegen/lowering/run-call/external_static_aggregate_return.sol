@@ -39,7 +39,7 @@ contract ExternalStaticAggregateReturn {
     // CHECK: [[DATA:v[0-9]+]] = make_memory_slice {{v[0-9]+}}, 64
     // CHECK: abi_decode [tuple<uint256, uint256>], [[DATA]]
     // OPT-LABEL: fn @structReturn{{[( ]}}
-    // OPT: [[FMP:v[0-9]+]] = mload 64
+    // OPT: [[FMP:v[0-9]+]] = heap_floor
     // OPT: add [[FMP]], 128
     // OPT: staticcall {{.*}}, 64
     // OPT-NOT: mcopy
@@ -74,7 +74,7 @@ contract ExternalStaticAggregateReturn {
     }
 
     // OPT-LABEL: fn @pairReturn{{[( ]}}
-    // OPT: [[FMP:v[0-9]+]] = mload 64
+    // OPT: [[FMP:v[0-9]+]] = heap_floor
     // OPT: add [[FMP]], 160
     // OPT-NOT: mstore {{v[0-9]+}}, 96
     // OPT: staticcall {{.*}}, 96

@@ -152,6 +152,12 @@ impl Function {
             || self.attributes.is_fallback
     }
 
+    /// Returns whether the runtime dispatches to this function: an external entry other than the
+    /// constructor.
+    pub(crate) fn is_runtime_entry(&self) -> bool {
+        self.is_external_entry() && !self.attributes.is_constructor
+    }
+
     /// Returns the value for the given ID.
     #[must_use]
     pub(crate) fn value(&self, id: ValueId) -> &Value {

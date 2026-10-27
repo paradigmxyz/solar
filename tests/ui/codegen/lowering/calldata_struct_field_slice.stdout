@@ -109,7 +109,7 @@ fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
   bb7:
     v47 = add v21, 63
     v48 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v49 = mload 64
+    v49 = heap_floor
     v51 = add v49, v48
     mstore 64, v51
     v53 = add v49, 32

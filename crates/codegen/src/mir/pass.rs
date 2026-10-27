@@ -79,11 +79,11 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &frame_promotion::FrameSlotPromotion,
     &function_compaction::DeadArgElim,
     &function_compaction::MergeEquivalentFunctions,
-    &memory_dse::MemoryDse,
+    &memory_dse::MemoryDse::Standard,
+    &memory_dse::MemoryDse::WithUnreadAllocations,
     &coalesce_allocs::CoalesceAllocs,
     &static_alloc::DeferAlloc,
     &sroa::Sroa,
-    &copy_elision::CopyElision,
     &dce::Dce,
     &lower_arithmetic::LowerArithmetic,
     &lower_builtins::LowerBuiltins,
@@ -257,7 +257,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
     &sroa::Sroa,
-    &memory_dse::MemoryDse,
+    &memory_dse::MemoryDse::Standard,
     &dce::Dce,
     // Late control-flow rewrites expose scalar simplifications.
     // Thread and clean the CFG first so the rest of this sequence observes the
@@ -297,8 +297,8 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Small pure diamonds become selects once folded conditions are gone.
     &if_convert::IfConvert,
     &frame_promotion::FrameSlotPromotion,
-    &copy_elision::CopyElision,
-    &memory_dse::MemoryDse,
+    // Builtin expansion exposes buffers whose readers are gone.
+    &memory_dse::MemoryDse::WithUnreadAllocations,
     &lower_abi::LowerAbi,
     // ABI lowering exposes canonical-word helpers to the same inlining policy.
     &inline::Inline::Semantic,
@@ -322,17 +322,20 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &egraph::Egraph,
     &word_sequence::WordSequence::Late,
     &cfg_simplify::CfgSimplify,
-    &memory_dse::MemoryDse,
+    &memory_dse::MemoryDse::Standard,
     // Expose callee reads before late CSE.
     &inline::Inline::Semantic,
     &cse::Cse::All,
+    // Forwarding exposes masks on stored words, such as ABI-encoded struct fields. Fold them
+    // while integer types still exist.
+    &egraph::Egraph,
     // Fold checks exposed by forwarding in late CSE. Gas-only: under `-Osize` it grows the
     // corpus's bytecode.
     &GasOnly::new(check_elim::CheckElim),
     &dce::Dce,
     // Forwarding has replaced the reads of allocation headers, which leaves their stores dead
     // while the allocations are still atomic.
-    &memory_dse::MemoryDse,
+    &memory_dse::MemoryDse::Standard,
     &lower_dispatch::LowerDispatch,
     &lower_structs::LowerStructs,
     // Hoisted ABI guards leave empty wrapper entries and unreachable reverts.
@@ -373,7 +376,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Allocation lowering exposes zero fills and free-memory-pointer stores
     // that later stores in the same block can overwrite completely. Keep this
     // gas-only: late constant-keccak folding can grow bytecode under `-Osize`.
-    &GasOnly::new(memory_dse::MemoryDse),
+    &GasOnly::new(memory_dse::MemoryDse::Standard),
     &lower_memory_zero::LowerMemoryZero,
     // Materialize integer cleanup before word-level extraction and scheduling.
     &lower_integers::LowerIntegers,

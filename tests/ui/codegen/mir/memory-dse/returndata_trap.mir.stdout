@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/copy-elision/returndata_trap.sol:ReturndataTrap ===
+// === ROOT/tests/ui/codegen/mir/memory-dse/returndata_trap.sol:ReturndataTrap ===
 @module ReturndataTrap
 fn @fail() -> i256 [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
