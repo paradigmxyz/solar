@@ -57,13 +57,20 @@ pub(crate) fn pointer_bases(
 
 /// Whether `offset` is a word that cannot wrap a pointer around the address space.
 fn is_bounded_offset(func: &Function, offset: ValueId) -> bool {
-    offset_bound(func, offset, &mut DenseBitSet::new_empty(func.num_values())).is_some()
+    let mut visiting = DenseBitSet::new_empty(func.num_values());
+    let mut steps = OFFSET_BOUND_STEPS;
+    offset_bound(func, offset, &mut visiting, &mut steps).is_some()
 }
+
+/// The words [`offset_bound`] looks at before it gives up, so that shared operands, as in a chain
+/// of `add(n, n)`, cannot make the walk exponential. A word it gives up on is not bounded.
+const OFFSET_BOUND_STEPS: u32 = 256;
 
 fn offset_bound(
     func: &Function,
     value: ValueId,
     visiting: &mut DenseBitSet<ValueId>,
+    steps: &mut u32,
 ) -> Option<u128> {
     // Far below 2^255, so that sums and products of bounded words cannot wrap.
     const LIMIT: u128 = 1 << 100;
@@ -75,7 +82,8 @@ fn offset_bound(
     if !visiting.insert(value) {
         return None;
     }
-    let mut bound = |value| offset_bound(func, value, visiting);
+    *steps = steps.checked_sub(1)?;
+    let mut bound = |value| offset_bound(func, value, visiting, steps);
     let result = match &func.inst(*inst_id).kind {
         InstKind::CalldataSize
         | InstKind::ReturnDataSize
