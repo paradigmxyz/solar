@@ -33,7 +33,8 @@ pub enum Outcome {
     Success(Vec<u8>),
     /// It reverted with this data.
     Revert(Vec<u8>),
-    /// It reached `INVALID`, or `REVERT` before Byzantium.
+    /// It reached `INVALID` or an opcode the EVM version lacks, such as `REVERT` before
+    /// Byzantium.
     Halt,
     /// A returndata copy exceeded the available bytes.
     ReturndataOutOfBounds,
@@ -56,8 +57,8 @@ pub struct Execution {
 
 /// How a run executes.
 pub struct Options {
-    /// The EVM version the module targets, which decides what `revert` does in a transaction:
-    /// before Byzantium, `REVERT` is an undefined opcode, so it halts.
+    /// The EVM version the module targets, which decides which opcodes a transaction can run:
+    /// one the version lacks, such as `REVERT` before Byzantium, halts.
     pub evm_version: EvmVersion,
     /// Units of work before the run stops: one per operation and per copied, hashed, or returned
     /// word.

@@ -117,7 +117,7 @@ pub(crate) enum Outcome {
     ReturnData(Vec<u8>),
     /// Execution stopped the transaction.
     Stop,
-    /// Execution reached `INVALID`, or `REVERT` before Byzantium.
+    /// Execution reached `INVALID` or an opcode the EVM version lacks.
     Invalid,
     /// A returndata copy exceeded the available bytes.
     ReturndataOutOfBounds,
@@ -477,7 +477,7 @@ struct World<'t> {
 /// The context of a run that executes a whole transaction.
 struct Transaction<'t> {
     calldata: &'t [u8],
-    /// The EVM version the module targets, which decides what `revert` does.
+    /// The EVM version the module targets, which decides which opcodes exist.
     evm_version: EvmVersion,
 }
 
@@ -588,6 +588,14 @@ impl<'a> Run<'_, 'a, '_> {
         ControlFlow::Continue(())
     }
 
+    /// Returns whether the transaction's EVM version lacks `opcode`, which then halts as an
+    /// undefined opcode, as `REVERT` does before Byzantium.
+    fn lacks(&self, opcode: u8) -> bool {
+        self.transaction.as_ref().is_some_and(|transaction| {
+            op::definition(opcode).is_some_and(|def| !def.is_available(transaction.evm_version))
+        })
+    }
+
     fn instruction(&mut self, body: &'a Function, inst: InstId) -> ControlFlow<Outcome> {
         self.burn(1)?;
         let instruction = body.inst(inst);
@@ -599,6 +607,11 @@ impl<'a> Run<'_, 'a, '_> {
         let Some(semantics) = instruction.kind.semantics() else {
             return ControlFlow::Break(Outcome::Unsupported(mnemonic));
         };
+        if let Semantics::Opcode(opcode, _) = semantics
+            && self.lacks(opcode)
+        {
+            return ControlFlow::Break(Outcome::Invalid);
+        }
         let frame = self.frames.last().expect("a run always has a frame");
         let result = match semantics {
             Semantics::HeapFloor if self.transaction.is_some() => {
@@ -942,11 +955,7 @@ impl<'a> Run<'_, 'a, '_> {
             }
             &Terminator::Revert { offset, size } => {
                 let (offset, size) = (frame.read(offset)?, frame.read(size)?);
-                // `REVERT` is an undefined opcode before Byzantium, so it halts.
-                if let Some(transaction) = &self.transaction
-                    && op::definition(op::REVERT)
-                        .is_some_and(|revert| !revert.is_available(transaction.evm_version))
-                {
+                if self.lacks(op::REVERT) {
                     return ControlFlow::Break(Outcome::Invalid);
                 }
                 self.burn_words(size)?;
@@ -1361,6 +1370,18 @@ fn @entry() [entry] {
         assert_eq!(transact(module, &[0, 0, 0, 1]).outcome, Outcome::Revert(Vec::new()));
         let outcome = transact_on(module, &[0, 0, 0, 1], EvmVersion::Homestead).outcome;
         assert_eq!(outcome, Outcome::Invalid);
+
+        // Neither does `TSTORE` before Cancun.
+        let module = "@module Transient
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    tstore 1, 2
+    stop
+}
+";
+        assert_eq!(transact_on(module, &[], EvmVersion::Shanghai).outcome, Outcome::Invalid);
+        assert_eq!(transact_on(module, &[], EvmVersion::Cancun).outcome, Outcome::Stop);
     }
 
     #[test]
