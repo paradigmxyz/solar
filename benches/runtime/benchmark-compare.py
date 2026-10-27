@@ -1462,6 +1462,9 @@ def matrix_value(
     data = compiler_data(result, compiler)
     if data.get("status") != "ok":
         return None
+    # Gas of a program that failed its runtime checks says nothing about codegen.
+    if metric in ("total_gas", "execution_gas") and runtime_failed(result, compiler):
+        return None
     if metric == "total_gas":
         value = comparable_gas(data, other)
     elif metric == "execution_gas":

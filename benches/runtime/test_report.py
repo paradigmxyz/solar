@@ -387,6 +387,7 @@ class ReportFormattingTests(unittest.TestCase):
         ]
         comparison = benchmark.compare_runs(results, results)
         comparison["baseline"] = "main.json"
+        results[1]["compilers"]["solc"]["runtime_status"] = "failed"
 
         comment = benchmark.pr_comment(comparison, True, False, "main", results)
 
@@ -400,9 +401,9 @@ class ReportFormattingTests(unittest.TestCase):
             "| a | 100 | 110 (✅ +10.00%) | 200 (✅ +100.00%) | 250 (✅ +150.00%) |",
             comment,
         )
-        self.assertIn("| b | 100 | n/a | 100 (~0%) | n/a |", comment)
+        self.assertIn("| b | 100 | n/a | n/a | n/a |", comment)
         self.assertIn(
-            "| **geometric mean** | | ✅ +10.00% | ✅ +41.42% | ✅ +150.00% |", comment
+            "| **geometric mean** | | ✅ +10.00% | ✅ +100.00% | ✅ +150.00% |", comment
         )
         self.assertIn("<details>\n<summary>runtime bytes</summary>", comment)
         self.assertNotIn(
