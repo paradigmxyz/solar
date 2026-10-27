@@ -12,22 +12,69 @@ use anstream::ColorChoice;
 use rayon::prelude::*;
 use solar_config::{CompileOpts, ErrorFormat};
 use solar_data_structures::{map::FxHashSet, sync::Mutex};
-use std::{borrow::Cow, cell::RefCell, fmt, hash::BuildHasher, num::NonZeroUsize, sync::Arc};
+#[cfg(debug_assertions)]
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    fmt,
+    hash::BuildHasher,
+    mem,
+    num::NonZeroUsize,
+    sync::{Arc, Weak},
+    time::Duration,
+};
 
 thread_local! {
-    /// The diagnostics deferred by the innermost [`DiagCtxt::defer`] running on this thread.
+    /// The deferral of the innermost [`DiagCtxt::defer`] running on this thread.
+    ///
+    /// Emission takes it out while the emitter runs, so an emitter can use another context.
     static DEFERRED: RefCell<Option<Deferral>> = const { RefCell::new(None) };
 }
 
+/// Contexts that have withheld diagnostics, for [`flush_withheld`].
+static WITHHOLDING: Mutex<Vec<Weak<Mutex<DiagCtxtInner>>>> = Mutex::new(Vec::new());
+
 struct Deferral {
     dcx: *const DiagCtxt,
-    diagnostics: Vec<Diag>,
+    /// Created by the first diagnostic.
+    batch: Option<Arc<Batch>>,
+}
+
+/// The context that withholds diagnostics, and the batch of the deferral that creates it.
+type Withholding<'a> = (&'a Arc<Mutex<DiagCtxtInner>>, &'a mut Option<Arc<Batch>>);
+
+/// The diagnostics that one [`DiagCtxt::defer`] withheld.
+///
+/// The context also tracks it, so that [`flush_withheld`] can emit it wherever it sits. If it is
+/// dropped with diagnostics left, for example by a panic that unwinds, they are emitted then.
+struct Batch {
+    dcx: Arc<Mutex<DiagCtxtInner>>,
+    diagnostics: Mutex<Vec<Diag>>,
+}
+
+impl Drop for Batch {
+    fn drop(&mut self) {
+        let diagnostics = mem::take(self.diagnostics.get_mut());
+        if !diagnostics.is_empty() {
+            let mut inner = self.dcx.lock();
+            for mut diagnostic in diagnostics {
+                inner.deliver_diagnostic(&mut diagnostic);
+            }
+        }
+    }
 }
 
 /// Diagnostics withheld by [`DiagCtxt::defer`], to be emitted with [`DiagCtxt::emit_deferred`].
-#[derive(Debug, Default)]
-#[must_use = "deferred diagnostics are lost unless passed to `DiagCtxt::emit_deferred`"]
-pub struct DeferredDiagnostics(Vec<Diag>);
+#[derive(Default)]
+#[must_use = "pass deferred diagnostics to `DiagCtxt::emit_deferred`"]
+pub struct DeferredDiagnostics(Vec<Arc<Batch>>);
+
+impl fmt::Debug for DeferredDiagnostics {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("DeferredDiagnostics").field(&self.0.len()).finish()
+    }
+}
 
 impl DeferredDiagnostics {
     /// Moves the diagnostics of `other` after these.
@@ -37,12 +84,44 @@ impl DeferredDiagnostics {
 
     /// Returns whether there are no diagnostics.
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.0.iter().all(|batch| batch.diagnostics.lock().is_empty())
     }
 
     /// Stably sorts the diagnostics by the key `f` computes for each.
     pub fn sort_by_cached_key<K: Ord>(&mut self, f: impl FnMut(&Diag) -> K) {
-        self.0.sort_by_cached_key(f);
+        let mut diagnostics = self.take_diagnostics();
+        diagnostics.sort_by_cached_key(f);
+        if let Some(batch) = self.0.first() {
+            batch.diagnostics.lock().extend(diagnostics);
+            self.0.truncate(1);
+        }
+    }
+
+    fn take_diagnostics(&self) -> Vec<Diag> {
+        let mut diagnostics = Vec::new();
+        for batch in &self.0 {
+            diagnostics.append(&mut batch.diagnostics.lock());
+        }
+        diagnostics
+    }
+}
+
+fn flush_inner(inner: &Mutex<DiagCtxtInner>) {
+    if let Some(mut inner) = inner.try_lock_for(Duration::from_millis(500)) {
+        inner.flush_withheld();
+    }
+}
+
+/// Emits every diagnostic that a [`DiagCtxt::defer`] on any thread still withholds, in the order
+/// that they first withheld one. This is best effort, for a panic that is about to end the
+/// program, where the work that holds them cannot finish: a thread that holds a context's lock
+/// for longer than a moment is skipped.
+pub fn flush_withheld() {
+    let contexts = WITHHOLDING.lock().clone();
+    for context in contexts {
+        if let Some(context) = context.upgrade() {
+            flush_inner(&context);
+        }
     }
 }
 
@@ -90,7 +169,10 @@ impl DiagCtxtFlags {
 ///
 /// Certain errors (fatal, bug) may cause immediate exit, others log errors for later reporting.
 pub struct DiagCtxt {
-    inner: Mutex<DiagCtxtInner>,
+    inner: Arc<Mutex<DiagCtxtInner>>,
+    /// The [`DiagCtxt::defer`] calls in progress.
+    #[cfg(debug_assertions)]
+    defers: AtomicUsize,
 }
 
 impl fmt::Debug for DiagCtxt {
@@ -130,13 +212,21 @@ struct DiagCtxtInner {
     /// This set contains a hash of every diagnostic that has been emitted by this `DiagCtxt`.
     /// These hashes are used to avoid emitting the same error twice.
     emitted_diagnostics: FxHashSet<u64>,
+
+    /// The batches of withheld diagnostics, in the order that they first got one.
+    withheld: Vec<Weak<Batch>>,
+    prune_withheld_at: usize,
+    /// Whether the context is in `WITHHOLDING`.
+    registered: bool,
 }
 
 impl DiagCtxt {
     /// Creates a new `DiagCtxt` with the given diagnostics emitter.
     pub fn new(emitter: Box<DynEmitter>) -> Self {
         Self {
-            inner: Mutex::new(DiagCtxtInner {
+            #[cfg(debug_assertions)]
+            defers: AtomicUsize::new(0),
+            inner: Arc::new(Mutex::new(DiagCtxtInner {
                 emitter,
                 flags: DiagCtxtFlags::default(),
                 allowed_diagnostic_codes: FxHashSet::default(),
@@ -147,7 +237,10 @@ impl DiagCtxt {
                 note_count: 0,
                 deduplicated_note_count: 0,
                 emitted_diagnostics: FxHashSet::default(),
-            }),
+                withheld: Vec::new(),
+                prune_withheld_at: 64,
+                registered: false,
+            })),
         }
     }
 
@@ -277,7 +370,7 @@ impl DiagCtxt {
 
     /// Gets the source map associated with this context.
     pub fn source_map_mut(&mut self) -> Option<&Arc<SourceMap>> {
-        self.inner.get_mut().emitter.source_map()
+        Arc::get_mut(&mut self.inner)?.get_mut().emitter.source_map()
     }
 
     /// Sets flags.
@@ -293,7 +386,7 @@ impl DiagCtxt {
 
     /// Sets flags.
     pub fn set_flags_mut(&mut self, f: impl FnOnce(&mut DiagCtxtFlags)) {
-        f(&mut self.inner.get_mut().flags);
+        f(&mut self.inner.lock().flags);
     }
 
     /// Adds diagnostic codes that should be allowed.
@@ -303,7 +396,7 @@ impl DiagCtxt {
 
     /// Adds diagnostic codes that should be allowed.
     pub fn set_allowed_diagnostic_codes_mut(&mut self, codes: impl IntoIterator<Item = String>) {
-        self.inner.get_mut().allowed_diagnostic_codes.extend(codes);
+        self.inner.lock().allowed_diagnostic_codes.extend(codes);
     }
 
     /// Disables emitting warnings.
@@ -349,47 +442,70 @@ impl DiagCtxt {
         &self,
         diagnostic: &mut Diag,
     ) -> Result<(), ErrorGuaranteed> {
+        let mut deferral = self.take_deferral();
+        #[cfg(debug_assertions)]
+        debug_assert!(
+            deferral.is_some()
+                || self.defers.load(Ordering::Relaxed) == 0
+                || matches!(diagnostic.level, Level::Bug | Level::Fatal),
+            "diagnostic emitted outside the deferral that its parallel work expects: {:?}",
+            diagnostic.messages.first().map(|(message, _)| message.as_str()),
+        );
+        let result = self.inner.lock().emit_diagnostic_without_consuming(
+            diagnostic,
+            deferral.as_mut().map(|deferral| (&self.inner, &mut deferral.batch)),
+        );
+        self.restore_deferral(deferral);
+        result
+    }
+
+    /// Takes the deferral of this thread out, if it is this context's.
+    fn take_deferral(&self) -> Option<Deferral> {
         DEFERRED.with_borrow_mut(|deferral| {
-            let deferred = deferral
-                .as_mut()
-                .filter(|deferral| std::ptr::eq(deferral.dcx, self))
-                .map(|deferral| &mut deferral.diagnostics);
-            self.inner.lock().emit_diagnostic_without_consuming(diagnostic, deferred)
+            deferral.take_if(|deferral| std::ptr::eq(deferral.dcx, self))
         })
+    }
+
+    fn restore_deferral(&self, deferral: Option<Deferral>) {
+        if deferral.is_some() {
+            DEFERRED.set(deferral);
+        }
     }
 
     /// Runs `f`, withholding the diagnostics that it emits on this thread.
     ///
     /// The withheld diagnostics count towards [`err_count`](Self::err_count) and the other counts
     /// at once, but reach the emitter only through [`emit_deferred`](Self::emit_deferred), which
-    /// also deduplicates them. Calls nest, and diagnostics emitted by work that `f` hands to other
-    /// threads are not withheld.
+    /// also deduplicates them. A bug or a fatal error first emits all that are withheld, and so
+    /// does [`flush_withheld`], which the panic hook calls. Calls nest. Diagnostics emitted by work
+    /// that `f` hands to other threads are not withheld, and a debug build asserts that there are
+    /// none; such work must use [`par_defer`](Self::par_defer) or [`defer`](Self::defer) itself.
     pub fn defer<R>(&self, f: impl FnOnce() -> R) -> (R, DeferredDiagnostics) {
-        /// Restores the enclosing deferral. If `f` unwinds, it first emits the diagnostics that it
-        /// withheld, so that they are not lost to the panic.
+        /// Restores the enclosing deferral, also when `f` unwinds. The diagnostics that `f`
+        /// withheld are emitted as the batch drops.
         struct Restore<'a> {
+            #[cfg_attr(not(debug_assertions), allow(dead_code))]
             dcx: &'a DiagCtxt,
             outer: Option<Deferral>,
         }
         impl Drop for Restore<'_> {
             fn drop(&mut self) {
-                let current = DEFERRED.replace(self.outer.take());
-                if std::thread::panicking()
-                    && let Some(current) = current
-                {
-                    self.dcx.emit_deferred(DeferredDiagnostics(current.diagnostics));
-                }
+                DEFERRED.set(self.outer.take());
+                #[cfg(debug_assertions)]
+                self.dcx.defers.fetch_sub(1, Ordering::Relaxed);
             }
         }
 
-        let outer = DEFERRED.replace(Some(Deferral { dcx: self, diagnostics: vec![] }));
+        #[cfg(debug_assertions)]
+        self.defers.fetch_add(1, Ordering::Relaxed);
+        let outer = DEFERRED.replace(Some(Deferral { dcx: self, batch: None }));
         let restore = Restore { dcx: self, outer };
         let result = f();
         let deferral = DEFERRED.take();
         drop(restore);
         (
             result,
-            DeferredDiagnostics(deferral.map(|deferral| deferral.diagnostics).unwrap_or_default()),
+            DeferredDiagnostics(deferral.and_then(|deferral| deferral.batch).into_iter().collect()),
         )
     }
 
@@ -397,21 +513,32 @@ impl DiagCtxt {
     ///
     /// Within another [`defer`](Self::defer), they join its diagnostics instead.
     pub fn emit_deferred(&self, deferred: DeferredDiagnostics) {
-        if deferred.0.is_empty() {
+        let diagnostics = deferred.take_diagnostics();
+        if diagnostics.is_empty() {
             return;
         }
-        DEFERRED.with_borrow_mut(|deferral| {
-            if let Some(deferral) =
-                deferral.as_mut().filter(|deferral| std::ptr::eq(deferral.dcx, self))
-            {
-                deferral.diagnostics.extend(deferred.0);
-                return;
-            }
+        let mut deferral = self.take_deferral();
+        {
             let mut inner = self.inner.lock();
-            for mut diagnostic in deferred.0 {
-                inner.deliver_diagnostic(&mut diagnostic);
+            match deferral.as_mut() {
+                Some(deferral) => {
+                    let batch = inner.withhold(&self.inner, &mut deferral.batch);
+                    batch.diagnostics.lock().extend(diagnostics);
+                }
+                None => {
+                    for mut diagnostic in diagnostics {
+                        inner.deliver_diagnostic(&mut diagnostic);
+                    }
+                }
             }
-        });
+        }
+        self.restore_deferral(deferral);
+    }
+
+    /// Emits the diagnostics that a [`defer`](Self::defer) on any thread still withholds, in the
+    /// order that they first withheld one. See [`flush_withheld`].
+    pub fn flush_withheld(&self) {
+        flush_inner(&self.inner);
     }
 
     /// Runs `f` for every item of `iter` in parallel, and returns its results and the diagnostics
@@ -618,11 +745,11 @@ impl DiagCtxtInner {
         self.emit_diagnostic_without_consuming(&mut diagnostic, None)
     }
 
-    /// Counts the diagnostic, and emits it, or pushes it to `deferred` if given.
+    /// Counts the diagnostic, and emits it, or withholds it in the batch of `deferral` if given.
     fn emit_diagnostic_without_consuming(
         &mut self,
         diagnostic: &mut Diag,
-        deferred: Option<&mut Vec<Diag>>,
+        deferral: Option<Withholding<'_>>,
     ) -> Result<(), ErrorGuaranteed> {
         if self.is_allowed_diagnostic(diagnostic) {
             return Ok(());
@@ -640,13 +767,16 @@ impl DiagCtxtInner {
             diagnostic.level = Level::Bug;
         }
 
-        match deferred {
-            Some(deferred) if diagnostic.level != Level::Bug => deferred.push(diagnostic.clone()),
-            deferred => {
-                // A bug panics when counted, so it is emitted first, after the diagnostics that
-                // precede it.
-                for mut withheld in deferred.into_iter().flat_map(|deferred| deferred.drain(..)) {
-                    self.deliver_diagnostic(&mut withheld);
+        match deferral {
+            Some((handle, batch)) if !matches!(diagnostic.level, Level::Bug | Level::Fatal) => {
+                let batch = self.withhold(handle, batch);
+                batch.diagnostics.lock().push(diagnostic.clone());
+            }
+            _ => {
+                // A bug panics when counted and a fatal error ends the program, so what is
+                // withheld comes out first.
+                if matches!(diagnostic.level, Level::Bug | Level::Fatal) {
+                    self.flush_withheld();
                 }
                 self.deliver_diagnostic(diagnostic);
             }
@@ -663,6 +793,40 @@ impl DiagCtxtInner {
             }
             // Don't bump any counters for `Help`, `OnceHelp`, or `Allow`
             Ok(())
+        }
+    }
+
+    /// Returns the batch in `slot`, creating and tracking it first if there is none.
+    fn withhold<'a>(
+        &mut self,
+        handle: &Arc<Mutex<Self>>,
+        slot: &'a mut Option<Arc<Batch>>,
+    ) -> &'a Arc<Batch> {
+        slot.get_or_insert_with(|| {
+            let batch =
+                Arc::new(Batch { dcx: Arc::clone(handle), diagnostics: Mutex::new(Vec::new()) });
+            if self.withheld.len() >= self.prune_withheld_at {
+                self.withheld.retain(|batch| batch.strong_count() > 0);
+                self.prune_withheld_at = (2 * self.withheld.len()).max(64);
+            }
+            self.withheld.push(Arc::downgrade(&batch));
+            if !mem::replace(&mut self.registered, true) {
+                let mut contexts = WITHHOLDING.lock();
+                contexts.retain(|context| context.strong_count() > 0);
+                contexts.push(Arc::downgrade(handle));
+            }
+            batch
+        })
+    }
+
+    /// Emits the diagnostics that batches withhold, in the order that the batches got their first.
+    fn flush_withheld(&mut self) {
+        let batches = self.withheld.iter().filter_map(Weak::upgrade).collect::<Vec<_>>();
+        for batch in batches {
+            let diagnostics = mem::take(&mut *batch.diagnostics.lock());
+            for mut diagnostic in diagnostics {
+                self.deliver_diagnostic(&mut diagnostic);
+            }
         }
     }
 

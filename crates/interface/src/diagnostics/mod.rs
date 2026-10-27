@@ -18,7 +18,7 @@ mod builder;
 pub use builder::{DiagBuilder, EmissionGuarantee};
 
 mod context;
-pub use context::{DeferredDiagnostics, DiagCtxt, DiagCtxtFlags};
+pub use context::{DeferredDiagnostics, DiagCtxt, DiagCtxtFlags, flush_withheld};
 
 mod emitter;
 pub use emitter::{
@@ -1292,6 +1292,7 @@ mod tests {
     use snapbox::IntoData as _;
     use snapbox::{assert_data_eq, str};
     use solar_config::HumanEmitterKind;
+    use std::sync::Arc;
 
     #[test]
     fn test_styled_messages() {
@@ -1528,6 +1529,112 @@ warning: confusable spelling
 
         assert!(result.is_err());
         assert_eq!(diagnostics.read().len(), 1);
+    }
+
+    fn buffer_dcx() -> (DiagCtxt, Arc<solar_data_structures::sync::RwLock<Vec<Diag>>>) {
+        let (emitter, diagnostics) = InMemoryEmitter::new();
+        let dcx = DiagCtxt::new(Box::new(emitter)).with_flags(|flags| {
+            flags.track_diagnostics = false;
+        });
+        (dcx, diagnostics)
+    }
+
+    fn messages(diagnostics: &solar_data_structures::sync::RwLock<Vec<Diag>>) -> Vec<String> {
+        diagnostics.read().iter().map(|diag| diag.messages[0].0.as_str().to_string()).collect()
+    }
+
+    #[test]
+    fn test_flush_withheld_emits_batches_that_are_still_held() {
+        let (dcx, diagnostics) = buffer_dcx();
+
+        let (_, first) = dcx.defer(|| dcx.warn("first").emit());
+        let (_, second) = dcx.defer(|| dcx.warn("second").emit());
+        assert!(messages(&diagnostics).is_empty());
+
+        dcx.flush_withheld();
+        assert_eq!(messages(&diagnostics), ["first", "second"]);
+
+        // Emitting them afterwards adds nothing.
+        dcx.emit_deferred(second);
+        dcx.emit_deferred(first);
+        assert_eq!(messages(&diagnostics), ["first", "second"]);
+    }
+
+    #[test]
+    fn test_bug_and_fatal_emit_withheld_diagnostics_first() {
+        for fatal in [false, true] {
+            let (dcx, diagnostics) = buffer_dcx();
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let (_, _held) = dcx.defer(|| {
+                    dcx.err("earlier").emit();
+                    if fatal {
+                        dcx.fatal("last").emit();
+                    } else {
+                        dcx.bug("last").emit();
+                    }
+                });
+            }));
+            assert!(result.is_err());
+            assert_eq!(messages(&diagnostics), ["earlier", "last"]);
+        }
+    }
+
+    #[test]
+    fn test_deferred_diagnostics_are_emitted_when_a_sibling_panics() {
+        let (dcx, diagnostics) = buffer_dcx();
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            dcx.par_for_each((0..64).into_par_iter(), |i| {
+                dcx.warn(format!("{i}")).emit();
+                if i == 63 {
+                    panic!("boom");
+                }
+            });
+        }));
+
+        assert!(result.is_err());
+        assert_eq!(diagnostics.read().len(), 64);
+    }
+
+    #[test]
+    fn test_emitter_can_forward_to_another_context() {
+        struct Forward(Arc<DiagCtxt>);
+        impl Emitter for Forward {
+            fn emit_diagnostic(&mut self, diagnostic: &mut Diag) {
+                let _ = self.0.err(diagnostic.messages[0].0.as_str().to_string()).emit();
+            }
+        }
+
+        let (target, diagnostics) = buffer_dcx();
+        let dcx = DiagCtxt::new(Box::new(Forward(Arc::new(target))));
+
+        let (_, deferred) = dcx.defer(|| dcx.err("forwarded").emit());
+        dcx.emit_deferred(deferred);
+        let _ = dcx.err("direct").emit();
+
+        assert_eq!(messages(&diagnostics), ["forwarded", "direct"]);
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn test_emission_from_unwrapped_parallel_work_is_asserted() {
+        let (dcx, _) = buffer_dcx();
+
+        let (panicked, _) = dcx.defer(|| {
+            std::thread::scope(|scope| {
+                scope
+                    .spawn(|| {
+                        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            let _ = dcx.err("from a thread without a deferral").emit();
+                        }))
+                        .is_err()
+                    })
+                    .join()
+                    .unwrap()
+            })
+        });
+
+        assert!(panicked);
     }
 
     #[test]
@@ -1958,7 +2065,7 @@ contract Test {
     }
 
     #[cfg(feature = "json")]
-    use std::sync::{Arc, Mutex};
+    use std::sync::Mutex;
 
     #[cfg(feature = "json")]
     #[derive(Clone)]
