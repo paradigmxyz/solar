@@ -23,10 +23,10 @@
 // CHECK: mstore8
 // CHECK: mcopy
 
-// A word written a byte at a time is one word store.
+// A word written a byte at a time is one word store behind the offset wrap guard.
 // CHECK-LABEL: fn @word(
-// CHECK-NOT: mstore8
-// CHECK: ret
+// CHECK: mstore
+// CHECK: mstore8
 
 // A fill checks against the stored length, not the whole words allocated.
 // CHECK-LABEL: fn @fill(

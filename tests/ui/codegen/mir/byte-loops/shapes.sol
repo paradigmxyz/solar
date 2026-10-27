@@ -103,10 +103,10 @@
 // CHECK-LABEL: fn @viaHelper(
 // CHECK: mcopy
 
-// A constant byte fills the range with one masked word store.
+// A constant byte fills the range with one masked word store unless its offset wraps.
 // CHECK-LABEL: fn @zeroSome(
-// CHECK-NOT: mstore8
 // CHECK: mstore
+// CHECK: mstore8
 
 // So does a byte the loop does not vary.
 // CHECK-LABEL: fn @fillSome(

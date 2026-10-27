@@ -25,15 +25,15 @@
 // CHECK-NOT: byte 0
 // CHECK: and {{v[0-9]+}}, 0xffffffff00000000000000000000000000000000000000000000000000000000
 
-// A scatter of a whole word is one store.
+// A scatter of a whole word is one store unless its offset wraps into the length header.
 // CHECK-LABEL: fn @store32(
-// CHECK-NOT: mstore8
 // CHECK: mstore
+// CHECK: mstore8
 
 // Below a word, the store keeps the bytes after the written ones.
 // CHECK-LABEL: fn @store2(
-// CHECK-NOT: mstore8
 // CHECK: mstore
+// CHECK: mstore8
 
 // A copy into a fresh buffer is an `mcopy`, behind a test that keeps the loop for a source
 // that the buffer overlaps, as a memory argument may.

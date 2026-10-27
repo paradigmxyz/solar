@@ -40,52 +40,82 @@ fn @loadSome() [selector=0x982de5a7, abi_wrapper, pure] {
 
 fn @storeSome() [selector=0x26843d1f, abi_wrapper, pure] {
   bb0:
-    v42 = calldatasize
-    v43 = lt v42, 132
-    jumpi v43, bb5, bb6
-  bb6:
-    v44 = icall @decode_calldata_type
+    v48 = calldatasize
+    v49 = lt v48, 132
+    jumpi v49, bb12, bb13
+  bb13:
+    v50 = icall @decode_calldata_type
     v19 = eq arg3, 0
-    jumpi v19, bb1, bb2
-  bb2:
-    v20 = mload v44
-    v21 = lt v20, arg3
-    v22 = sub v20, arg3
-    v23 = gt arg1, v22
-    v24 = or v21, v23
-    v26 = gt arg3, 32
-    v29 = or v24, v26
-    jumpi v29, bb3, bb4
+    jumpi v19, bb2, bb4
   bb4:
-    v63 = add v44, arg1
-    v64 = add v63, 32
-    v32 = lt arg3, 32
-    v33 = select v32, arg3, 32
-    v34 = shl v33, 3
-    v35 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v34
-    v36 = not v35
-    v38 = mload v64
-    v39 = and v38, v35
-    v40 = and arg2, v36
-    v41 = or v39, v40
-    mstore v64, v41
-    jump bb1
-  bb3:
-    tail_call @revert_stub
-  bb1:
-    v48 = mload v44
-    v59 = add v44, 32
-    v50 = add v48, 31
-    v52 = and v50, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v54 = add v59, v52
-    mstore v54, 0
-    v61 = add v44, 64
-    mcopy v61, v59, v48
-    mstore v44, 32
-    mstore v59, v48
-    v56 = add v52, 64
-    returndata v44, v56
+    v69 = add v50, arg1
+    v70 = add v69, 32
+    v72 = add v50, 32
+    v25 = lt v70, v72
+    jumpi v25, bb1, bb5
   bb5:
+    v26 = mload v50
+    v27 = lt v26, arg3
+    v28 = sub v26, arg3
+    v29 = gt arg1, v28
+    v30 = or v27, v29
+    v32 = gt arg3, 32
+    v35 = or v30, v32
+    jumpi v35, bb6, bb9
+  bb9:
+    v36 = lt arg3, 32
+    v37 = select v36, arg3, 32
+    v38 = shl v37, 3
+    v39 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v38
+    v40 = not v39
+    v42 = mload v70
+    v43 = and v42, v39
+    v44 = and arg2, v40
+    v45 = or v43, v44
+    mstore v70, v45
+    jump bb2
+  bb1:
+    v5 = phi [bb4: 0], [bb8: v18]
+    v6 = lt v5, arg3
+    jumpi v6, bb3, bb2
+  bb3:
+    v7 = lt v5, 32
+    jumpi v7, bb7, bb6
+  bb7:
+    v9 = byte v5, arg2
+    v46 = add arg1, v5
+    v47 = lt v46, arg1
+    jumpi v47, bb10, bb11
+  bb11:
+    v12 = mload v50
+    v13 = lt v46, v12
+    jumpi v13, bb8, bb6
+  bb6:
+    tail_call @revert_stub
+  bb8:
+    v74 = add v50, v46
+    v75 = add v74, 32
+    mstore8 v75, v9
+    v18 = add v5, 1
+    jump bb1
+  bb10:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb2:
+    v54 = mload v50
+    v65 = add v50, 32
+    v56 = add v54, 31
+    v58 = and v56, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v60 = add v65, v58
+    mstore v60, 0
+    v67 = add v50, 64
+    mcopy v67, v65, v54
+    mstore v50, 32
+    mstore v65, v54
+    v62 = add v58, 64
+    returndata v50, v62
+  bb12:
     revert 0, 0
 }
 

@@ -10,8 +10,8 @@
 //@ run-call: loadNowhere 0x10000000000000000, 0 => 0x0000000000000000000000000000000000000000000000000000000000000000
 //@ run-call: storeNowhere 0x10000000000000000, 0x0102000000000000000000000000000000000000000000000000000000000000, 0 => 0
 
-// A gather or scatter of a count that may be zero accesses one word at the offset it checked,
-// for a nonzero count only. A count of zero checks nothing and touches no memory, so the offset,
+// A gather or scatter's fast path accesses one word at the offset it checked, for a nonzero
+// count only. A count of zero checks nothing and touches no memory, so the offset,
 // and even the buffer, may be anything: a word there could expand memory until the call runs out
 // of gas.
 contract Test {
@@ -37,6 +37,7 @@ contract Test {
     // CHECK-NEXT: [[ADDRESS:v[0-9]+]] = add [[BASE]], 32
     // CHECK: mload [[ADDRESS]]
     // CHECK: mstore [[ADDRESS]],
+    // CHECK: mstore8
     function storeSome(bytes memory b, uint256 offset, bytes32 value, uint256 count)
         external
         pure

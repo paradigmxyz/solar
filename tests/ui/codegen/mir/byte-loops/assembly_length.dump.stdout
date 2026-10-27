@@ -133,60 +133,81 @@ fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
 
 fn @word() [selector=0x73d8cb1e, abi_wrapper, pure] {
   bb0:
-    v39 = calldatasize
-    v40 = lt v39, 68
-    jumpi v40, bb7, bb8
-  bb8:
+    v43 = calldatasize
+    v44 = lt v43, 68
+    jumpi v44, bb12, bb13
+  bb13:
     icall @_dirty
-    v37 = add arg1, 31
-    v38 = lt v37, arg1
-    jumpi v38, bb5, bb6
-  bb6:
-    v1 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v41 = add arg1, 31
+    v42 = lt v41, arg1
+    jumpi v42, bb10, bb11
+  bb11:
+    v1 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v2 = add v1, 63
     v3 = lt v2, v1
-    jumpi v3, bb1, bb2
-  bb2:
+    jumpi v3, bb5, bb6
+  bb6:
     v5 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v71 = icall @alloc, v5
-    v74 = calldatasize
-    calldatacopy v71, v74, v5
-    mstore v71, arg1
-    v30 = lt arg1, 32
-    v31 = sub arg1, 32
-    v32 = lt v31, 8
-    v33 = or v30, v32
-    jumpi v33, bb3, bb4
+    v79 = icall @alloc, v5
+    v82 = calldatasize
+    calldatacopy v79, v82, v5
+    mstore v79, arg1
+    v69 = add v79, 40
+    v71 = add v79, 32
+    v34 = lt v69, v71
+    jumpi v34, bb1, bb4
   bb4:
-    v65 = add v71, 40
-    mstore v65, arg0
-    v26 = icall @_tail, v71
-    v72 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v46 = add v72, 64
-    mstore v72, 64
-    v49 = mload v71
-    v51 = add v49, 31
-    v52 = and v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v53 = add v46, 32
-    v54 = add v46, v52
-    mstore v54, 0
-    mstore v46, v49
-    v56 = add v53, v52
-    v67 = add v71, 32
-    mcopy v53, v67, v49 !metadata(memory=heap, disjoint)
-    v58 = add v72, 32
-    mstore v58, v26
-    v60 = sub v56, v72
-    returndata v72, v60
-  bb3:
-    tail_call @revert_stub.7
+    v36 = lt arg1, 32
+    v37 = sub arg1, 32
+    v38 = lt v37, 8
+    v39 = or v36, v38
+    jumpi v39, bb7, bb9
+  bb9:
+    mstore v69, arg0
+    jump bb2
   bb1:
-    tail_call @revert_stub.6
+    v12 = phi [bb6: 0], [bb8: v25]
+    v13 = lt v12, 32
+    jumpi v13, bb3, bb2
+  bb2:
+    v26 = icall @_tail, v79
+    v80 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v50 = add v80, 64
+    mstore v80, 64
+    v53 = mload v79
+    v55 = add v53, 31
+    v56 = and v55, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v57 = add v50, 32
+    v58 = add v50, v56
+    mstore v58, 0
+    mstore v50, v53
+    v60 = add v57, v56
+    mcopy v57, v71, v53 !metadata(disjoint)
+    v62 = add v80, 32
+    mstore v62, v26
+    v64 = sub v60, v80
+    returndata v80, v64
+  bb3:
+    v16 = byte v12, arg0
+    v18 = add v12, 8
+    v19 = mload v79
+    v20 = lt v18, v19
+    jumpi v20, bb8, bb7
+  bb7:
+    tail_call @revert_stub.7
+  bb8:
+    v73 = add v79, v18
+    v74 = add v73, 32
+    mstore8 v74, v16
+    v25 = add v12, 1
+    jump bb1
   bb5:
+    tail_call @revert_stub.6
+  bb10:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb7:
+  bb12:
     revert 0, 0
 }
 

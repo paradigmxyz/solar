@@ -81,10 +81,11 @@
 //! tests for it at run time and keeps the loop then, joining the loop's result with the gathered
 //! word after it for a gather. A scatter below 32 bytes reads and rewrites the bytes after the ones
 //! it writes, and a copy's `mcopy` reads and writes exactly the copied ranges; memory expansion can
-//! differ, which only `msize` sees. A gather stores nothing. Copies keep their original loop when
-//! an effective source or destination address wraps below its object's data start: the destination
-//! can then overwrite its own length word, and the source header need not precede its data. Other
-//! copies' stores may reach their source's length word, which the next paragraph covers.
+//! differ, which only `msize` sees. A gather stores nothing. Scatters, fills and copies keep their
+//! original loop when an effective destination address wraps below its object's data start: a
+//! store can then change the length checked by the next iteration. Copies also keep the loop when
+//! the source address wraps, since its header need not precede its data. Other copies' stores may
+//! reach their source's length word, which the next paragraph covers.
 //!
 //! A forward byte copy equals `mcopy` unless its destination starts strictly inside its source
 //! range, where the loop copies bytes it already wrote. A source and a destination at distinct
@@ -345,7 +346,9 @@ fn plan(func: &Function, l: &Loop) -> Option<Plan> {
     if escapes(func, l, lp.test) {
         return None;
     }
-    if let Shape::Copy { overlap: Overlap::Guarded, .. } = shape {
+    let keeps_loop = matches!(shape, Shape::Copy { overlap: Overlap::Guarded, .. })
+        || matches!(&shape, Shape::Scatter { access, .. } if has_memory_offset(func, access));
+    if keeps_loop {
         // The fast path joins the loop's exit, which must not distinguish its predecessors.
         if func.blocks[lp.exit]
             .instructions
@@ -1592,11 +1595,12 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
         }
         Shape::Scatter { access, stored, width } => {
             // fill: value = mul (byte position, value | and value, 0xff), 0x0101...01
-            // [branch (eq bound, 0), header, setup]
+            // [branch (eq bound, 0), exit|header, setup]
+            // [branch (memory offset wraps), header, fast]
             // setup: panic_if (range does not fit || bound > width), 0x32
             // mstore address, value
             // or, below a word: mstore address, or (and (mload address), ~mask), (and value, mask)
-            // [jump header]
+            // [jump exit|header]
             let value = match stored {
                 Scattered::Word(value) => value,
                 Scattered::Fill(None, value)
@@ -1616,9 +1620,31 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
                     builder.mul(byte, lanes)
                 }
             };
+            let guarded = has_memory_offset(builder.func(), &access);
             if literal.is_none() {
-                skip_when_empty(&mut builder, &lp);
+                if guarded {
+                    // empty = eq bound, 0; branch empty, exit, setup
+                    let empty = builder.eq_zero(lp.bound);
+                    let setup = builder.create_block();
+                    builder.branch(empty, lp.exit, setup);
+                    builder.switch_to_block(setup);
+                    enter_from(builder.func_mut(), lp.header, lp.preheader, setup);
+                } else {
+                    skip_when_empty(&mut builder, &lp);
+                }
             }
+            let address = guarded.then(|| {
+                // address = ptradd (ptradd object, offset), 32
+                // branch (lt (ptrtoint address), (ptrtoint (ptradd object, 32))), header, fast
+                let address = memory_data_address(&mut builder, &access);
+                let word = builder.cast(address, MirType::I256);
+                let wraps = memory_offset_wraps(&mut builder, &access, word)
+                    .expect("scatter has a nonzero memory offset");
+                let fast = builder.create_block();
+                builder.branch(wraps, lp.header, fast);
+                builder.switch_to_block(fast);
+                address
+            });
             let mut fails = range_fails(&mut builder, &access, lp.bound, None);
             if literal.is_none() {
                 // A dynamic bound always comes with the value's index check.
@@ -1627,7 +1653,7 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
                 fails = builder.or(fails, wide);
             }
             builder.panic_if(fails, PanicCode::ArrayOutOfBounds);
-            let address = memory_data_address(&mut builder, &access);
+            let address = address.unwrap_or_else(|| memory_data_address(&mut builder, &access));
             let stored = match leading_mask(&mut builder, lp.bound, literal, 32) {
                 Some(mask) => {
                     let keep = builder.not(mask);
@@ -1639,6 +1665,13 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
                 None => value,
             };
             builder.store(address, stored);
+            if guarded {
+                // fast: ...; jump exit
+                builder.jump(lp.exit);
+                replace_after_loop(func, &lp, None, &replacements);
+                rebuild_predecessors(func);
+                return;
+            }
             if literal.is_none() {
                 builder.jump(lp.header);
             }
@@ -2215,18 +2248,26 @@ fn escapes(func: &Function, l: &Loop, value: ValueId) -> bool {
 
 /// Tests whether a memory access's offset moves its effective address below its object's data
 /// start. The caller keeps the loop then: the header-to-data ordering and stable length words
-/// that bulk copies rely on no longer hold. An absent or zero offset needs no test.
+/// that bulk stores and copies rely on no longer hold. An absent or zero offset needs no test.
 fn memory_offset_wraps(
     builder: &mut FunctionBuilder<'_>,
     access: &Access,
     address: ValueId,
 ) -> Option<ValueId> {
     let Buffer::Memory(object) = access.buffer else { return None };
-    access.offset.filter(|&offset| builder.func().value_u64(offset) != Some(0))?;
+    if !has_memory_offset(builder.func(), access) {
+        return None;
+    }
     // data = ptrtoint (ptradd object, 32)
     // wraps = lt address, data
     let header = builder.imm(EvmMemoryLayout::WORD_SIZE);
     let data = builder.ptradd(object, header);
     let data = builder.cast(data, MirType::I256);
     Some(builder.lt(address, data))
+}
+
+/// Whether a memory access has an offset that may wrap below its object's data start.
+fn has_memory_offset(func: &Function, access: &Access) -> bool {
+    matches!(access.buffer, Buffer::Memory(_))
+        && access.offset.is_some_and(|offset| func.value_u64(offset) != Some(0))
 }
