@@ -2465,10 +2465,13 @@ impl MemoryStoreEliminator {
             let heap_reads = heap_reads.iter().filter(|read| {
                 exposed
                     && read.beyond.is_none_or(|object| {
-                        let (block, index) = positions[&object];
-                        object != alloc
-                            && (block == alloc_block && index < alloc_index
-                                || Self::block_reaches(cfg, block, alloc_block))
+                        // Semantic ABI allocations also have allocation IDs, but only explicit
+                        // `alloc`s have positions here. An untracked read may reach any object.
+                        positions.get(&object).is_none_or(|&(block, index)| {
+                            object != alloc
+                                && (block == alloc_block && index < alloc_index
+                                    || Self::block_reaches(cfg, block, alloc_block))
+                        })
                     })
             });
             let heap_reads = heap_reads.collect::<Vec<_>>();
