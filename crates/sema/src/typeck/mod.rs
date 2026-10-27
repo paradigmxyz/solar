@@ -12,7 +12,11 @@ use solar_data_structures::{
     map::{FxHashMap, FxIndexMap},
     parallel,
 };
-use solar_interface::{Span, diagnostics::ErrorGuaranteed, error_code, sym};
+use solar_interface::{
+    Span,
+    diagnostics::{DeferredDiagnostics, ErrorGuaranteed},
+    error_code, sym,
+};
 use std::ops::ControlFlow;
 
 mod checker;
@@ -27,27 +31,49 @@ mod view_pure_checker;
 #[instrument(name = "typeck", level = "debug", skip_all)]
 pub(crate) fn check(gcx: Gcx<'_>) {
     let units = units(gcx);
+    let dcx = gcx.dcx();
     let mut typeck_results = TypeckResults::default();
+    let mut contract_diagnostics = DeferredDiagnostics::default();
+    let mut event_diagnostics = DeferredDiagnostics::default();
+    let mut unit_diagnostics = DeferredDiagnostics::default();
     parallel!(
         gcx.sess,
-        gcx.hir.par_contract_ids().for_each(|id| check_contract(gcx, id)),
+        contract_diagnostics =
+            dcx.par_defer(gcx.hir.par_contract_ids(), |id| check_contract(gcx, id)).1,
         {
-            gcx.hir.par_event_ids().for_each(|id| check_event(gcx, id));
-            gcx.hir.par_error_ids().for_each(|id| check_error(gcx, id));
+            event_diagnostics = dcx.par_defer(gcx.hir.par_event_ids(), |id| check_event(gcx, id)).1;
+            event_diagnostics
+                .append(dcx.par_defer(gcx.hir.par_error_ids(), |id| check_error(gcx, id)).1);
         },
         {
-            let check_unit = |results, &(source, unit)| checker::check(gcx, source, unit, results);
-            // Few units finish faster than the pool wakes up.
-            typeck_results = if units.len() < PAR_UNITS {
-                units.iter().fold(TypeckResults::default(), check_unit)
-            } else {
-                merge_typeck_results(
-                    gcx,
-                    units.par_iter().fold(TypeckResults::default, check_unit).collect::<Vec<_>>(),
-                )
+            let check_unit = |(results, mut diagnostics): (_, DeferredDiagnostics),
+                              &(source, unit)| {
+                let (results, deferred) = dcx.defer(|| checker::check(gcx, source, unit, results));
+                diagnostics.append(deferred);
+                (results, diagnostics)
             };
+            // Few units finish faster than the pool wakes up.
+            if units.len() < PAR_UNITS {
+                (typeck_results, unit_diagnostics) =
+                    units.iter().fold(Default::default(), check_unit);
+            } else {
+                let (results, diagnostics): (Vec<_>, Vec<_>) = units
+                    .par_iter()
+                    .fold(Default::default, check_unit)
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .unzip();
+                for diagnostics in diagnostics {
+                    unit_diagnostics.append(diagnostics);
+                }
+                typeck_results = merge_typeck_results(gcx, results);
+            }
         },
     );
+    // A sequential run executes the spawned arms before the first.
+    dcx.emit_deferred(event_diagnostics);
+    dcx.emit_deferred(unit_diagnostics);
+    dcx.emit_deferred(contract_diagnostics);
     gcx.set_typeck_results(typeck_results);
     // solc's `PostTypeChecker` runs when type checking succeeds, and its own errors do not stop
     // its constant cycle check.
@@ -163,6 +189,7 @@ enum Unit {
 ///
 /// A contract's base arguments are visited as their own item. `units` come from [`units`].
 fn par_visit_items<'gcx, V: Visit<'gcx>>(
+    gcx: Gcx<'gcx>,
     units: &[(hir::SourceId, Unit)],
     new_visitor: impl Fn() -> V + Sync,
 ) {
@@ -182,7 +209,7 @@ fn par_visit_items<'gcx, V: Visit<'gcx>>(
     if units.len() < PAR_UNITS {
         units.iter().for_each(visit);
     } else {
-        units.par_iter().for_each(visit);
+        gcx.dcx().par_for_each(units.par_iter(), visit);
     }
 }
 

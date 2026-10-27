@@ -9,9 +9,37 @@ use super::{
 };
 use crate::{Result, SourceMap, Span};
 use anstream::ColorChoice;
+use rayon::prelude::*;
 use solar_config::{CompileOpts, ErrorFormat};
 use solar_data_structures::{map::FxHashSet, sync::Mutex};
-use std::{borrow::Cow, fmt, hash::BuildHasher, num::NonZeroUsize, sync::Arc};
+use std::{borrow::Cow, cell::RefCell, fmt, hash::BuildHasher, num::NonZeroUsize, sync::Arc};
+
+thread_local! {
+    /// The diagnostics deferred by the innermost [`DiagCtxt::defer`] running on this thread.
+    static DEFERRED: RefCell<Option<Deferral>> = const { RefCell::new(None) };
+}
+
+struct Deferral {
+    dcx: *const DiagCtxt,
+    diagnostics: Vec<Diag>,
+}
+
+/// Diagnostics withheld by [`DiagCtxt::defer`], to be emitted with [`DiagCtxt::emit_deferred`].
+#[derive(Debug, Default)]
+#[must_use = "deferred diagnostics are lost unless passed to `DiagCtxt::emit_deferred`"]
+pub struct DeferredDiagnostics(Vec<Diag>);
+
+impl DeferredDiagnostics {
+    /// Moves the diagnostics of `other` after these.
+    pub fn append(&mut self, mut other: Self) {
+        self.0.append(&mut other.0);
+    }
+
+    /// Stably sorts the diagnostics by the key `f` computes for each.
+    pub fn sort_by_cached_key<K: Ord>(&mut self, f: impl FnMut(&Diag) -> K) {
+        self.0.sort_by_cached_key(f);
+    }
+}
 
 /// Flags that control the behaviour of a [`DiagCtxt`].
 #[derive(Clone, Copy, Debug)]
@@ -316,7 +344,99 @@ impl DiagCtxt {
         &self,
         diagnostic: &mut Diag,
     ) -> Result<(), ErrorGuaranteed> {
-        self.inner.lock().emit_diagnostic_without_consuming(diagnostic)
+        DEFERRED.with_borrow_mut(|deferral| {
+            let deferred = deferral
+                .as_mut()
+                .filter(|deferral| std::ptr::eq(deferral.dcx, self))
+                .map(|deferral| &mut deferral.diagnostics);
+            self.inner.lock().emit_diagnostic_without_consuming(diagnostic, deferred)
+        })
+    }
+
+    /// Runs `f`, withholding the diagnostics that it emits on this thread.
+    ///
+    /// The withheld diagnostics count towards [`err_count`](Self::err_count) and the other counts
+    /// at once, but reach the emitter only through [`emit_deferred`](Self::emit_deferred), which
+    /// also deduplicates them. Calls nest, and diagnostics emitted by work that `f` hands to other
+    /// threads are not withheld.
+    pub fn defer<R>(&self, f: impl FnOnce() -> R) -> (R, DeferredDiagnostics) {
+        /// Restores the enclosing deferral. If `f` unwinds, it first emits the diagnostics that it
+        /// withheld, so that they are not lost to the panic.
+        struct Restore<'a> {
+            dcx: &'a DiagCtxt,
+            outer: Option<Deferral>,
+        }
+        impl Drop for Restore<'_> {
+            fn drop(&mut self) {
+                let current = DEFERRED.replace(self.outer.take());
+                if std::thread::panicking()
+                    && let Some(current) = current
+                {
+                    self.dcx.emit_deferred(DeferredDiagnostics(current.diagnostics));
+                }
+            }
+        }
+
+        let outer = DEFERRED.replace(Some(Deferral { dcx: self, diagnostics: vec![] }));
+        let restore = Restore { dcx: self, outer };
+        let result = f();
+        let deferral = DEFERRED.take();
+        drop(restore);
+        (
+            result,
+            DeferredDiagnostics(deferral.map(|deferral| deferral.diagnostics).unwrap_or_default()),
+        )
+    }
+
+    /// Emits the diagnostics withheld by [`defer`](Self::defer), in the order they were emitted.
+    ///
+    /// Within another [`defer`](Self::defer), they join its diagnostics instead.
+    pub fn emit_deferred(&self, deferred: DeferredDiagnostics) {
+        if deferred.0.is_empty() {
+            return;
+        }
+        DEFERRED.with_borrow_mut(|deferral| {
+            if let Some(deferral) =
+                deferral.as_mut().filter(|deferral| std::ptr::eq(deferral.dcx, self))
+            {
+                deferral.diagnostics.extend(deferred.0);
+                return;
+            }
+            let mut inner = self.inner.lock();
+            for mut diagnostic in deferred.0 {
+                inner.deliver_diagnostic(&mut diagnostic);
+            }
+        });
+    }
+
+    /// Runs `f` for every item of `iter` in parallel, and returns its results and the diagnostics
+    /// of each call in the order of the items, as a sequential loop would emit them.
+    ///
+    /// `iter` must keep the order of its items when collected, as every Rayon iterator does.
+    pub fn par_defer<I, R>(
+        &self,
+        iter: I,
+        f: impl Fn(I::Item) -> R + Sync + Send,
+    ) -> (Vec<R>, DeferredDiagnostics)
+    where
+        I: ParallelIterator,
+        R: Send,
+    {
+        let (results, batches) = iter.map(|item| self.defer(|| f(item))).unzip::<_, _, _, Vec<_>>();
+        let mut deferred = DeferredDiagnostics::default();
+        for batch in batches {
+            deferred.append(batch);
+        }
+        (results, deferred)
+    }
+
+    /// Runs `f` for every item of `iter` in parallel, and emits the diagnostics of each call in the
+    /// order of the items. See [`par_defer`](Self::par_defer).
+    pub fn par_for_each<I>(&self, iter: I, f: impl Fn(I::Item) + Sync + Send)
+    where
+        I: ParallelIterator,
+    {
+        self.emit_deferred(self.par_defer(iter, f).1);
     }
 
     /// Returns the number of errors that have been emitted, including duplicates.
@@ -488,12 +608,14 @@ impl DiagCtxt {
 
 impl DiagCtxtInner {
     fn emit_diagnostic(&mut self, mut diagnostic: Diag) -> Result<(), ErrorGuaranteed> {
-        self.emit_diagnostic_without_consuming(&mut diagnostic)
+        self.emit_diagnostic_without_consuming(&mut diagnostic, None)
     }
 
+    /// Counts the diagnostic, and emits it, or pushes it to `deferred` if given.
     fn emit_diagnostic_without_consuming(
         &mut self,
         diagnostic: &mut Diag,
+        deferred: Option<&mut Vec<Diag>>,
     ) -> Result<(), ErrorGuaranteed> {
         if self.is_allowed_diagnostic(diagnostic) {
             return Ok(());
@@ -511,27 +633,15 @@ impl DiagCtxtInner {
             diagnostic.level = Level::Bug;
         }
 
-        let already_emitted = self.insert_diagnostic(diagnostic);
-        if !(self.flags.deduplicate_diagnostics && already_emitted) {
-            // Remove duplicate `Once*` subdiagnostics.
-            diagnostic.children.retain(|sub| {
-                if !matches!(sub.level, Level::OnceNote | Level::OnceHelp) {
-                    return true;
+        match deferred {
+            Some(deferred) if diagnostic.level != Level::Bug => deferred.push(diagnostic.clone()),
+            deferred => {
+                // A bug panics when counted, so it is emitted first, after the diagnostics that
+                // precede it.
+                for mut withheld in deferred.into_iter().flat_map(|deferred| deferred.drain(..)) {
+                    self.deliver_diagnostic(&mut withheld);
                 }
-                let sub_already_emitted = self.insert_diagnostic(sub);
-                !sub_already_emitted
-            });
-
-            // Unlike rustc, deduplication is only disabled internally for UI testing, so do not
-            // attach rustc's `-Z deduplicate-diagnostics=no` note.
-
-            self.emitter.emit_diagnostic(diagnostic);
-            if diagnostic.is_error() {
-                self.deduplicated_err_count += 1;
-            } else if diagnostic.level == Level::Warning {
-                self.deduplicated_warn_count += 1;
-            } else if diagnostic.is_note() {
-                self.deduplicated_note_count += 1;
+                self.deliver_diagnostic(diagnostic);
             }
         }
 
@@ -546,6 +656,35 @@ impl DiagCtxtInner {
             }
             // Don't bump any counters for `Help`, `OnceHelp`, or `Allow`
             Ok(())
+        }
+    }
+
+    /// Emits the diagnostic unless it duplicates one that was emitted.
+    fn deliver_diagnostic(&mut self, diagnostic: &mut Diag) {
+        let already_emitted = self.insert_diagnostic(diagnostic);
+        if self.flags.deduplicate_diagnostics && already_emitted {
+            return;
+        }
+
+        // Remove duplicate `Once*` subdiagnostics.
+        diagnostic.children.retain(|sub| {
+            if !matches!(sub.level, Level::OnceNote | Level::OnceHelp) {
+                return true;
+            }
+            let sub_already_emitted = self.insert_diagnostic(sub);
+            !sub_already_emitted
+        });
+
+        // Unlike rustc, deduplication is only disabled internally for UI testing, so do not
+        // attach rustc's `-Z deduplicate-diagnostics=no` note.
+
+        self.emitter.emit_diagnostic(diagnostic);
+        if diagnostic.is_error() {
+            self.deduplicated_err_count += 1;
+        } else if diagnostic.level == Level::Warning {
+            self.deduplicated_warn_count += 1;
+        } else if diagnostic.is_note() {
+            self.deduplicated_note_count += 1;
         }
     }
 

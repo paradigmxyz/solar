@@ -341,6 +341,7 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
         if path.with_extension("stdout").exists() {
             config.comment_defaults.base().add_custom(FileCheck::NAME, FileCheck::default());
         }
+        retain_requested_threads(config, src);
         if path.file_name().is_some_and(|name| name == "test.jsonc") {
             standard_json::configure_directory_fixture(config, path, cfg.tmp_dir);
         }
@@ -369,6 +370,17 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
             config.stdout_filter(RUN_CALL_STDOUT_FILTER_PATTERN, "");
         }
     }
+    retain_requested_threads(config, src);
+    if src.lines().any(|line| {
+        let line = line.trim_start();
+        line.starts_with("//@") && line.contains("compile-flags") && line.contains("-Zvalidate-ir")
+    }) {
+        config.program.args.retain(|arg| arg != "-Zvalidate-ir=true");
+    }
+}
+
+/// Drops the default `-j1` when the test passes its own thread count.
+fn retain_requested_threads(config: &mut ui_test::Config, src: &str) {
     if src.lines().any(|line| {
         let line = line.trim_start();
         line.starts_with("//@")
@@ -376,12 +388,6 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
             && (line.contains("-j") || line.contains("--threads"))
     }) {
         config.program.args.retain(|arg| arg != "-j1");
-    }
-    if src.lines().any(|line| {
-        let line = line.trim_start();
-        line.starts_with("//@") && line.contains("compile-flags") && line.contains("-Zvalidate-ir")
-    }) {
-        config.program.args.retain(|arg| arg != "-Zvalidate-ir=true");
     }
 }
 

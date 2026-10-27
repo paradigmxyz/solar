@@ -18,7 +18,7 @@ mod builder;
 pub use builder::{DiagBuilder, EmissionGuarantee};
 
 mod context;
-pub use context::{DiagCtxt, DiagCtxtFlags};
+pub use context::{DeferredDiagnostics, DiagCtxt, DiagCtxtFlags};
 
 mod emitter;
 pub use emitter::{
@@ -1287,6 +1287,7 @@ fn write_fmt(output: &mut String, msg: &DiagMsg, style: &Style, level: Level) {
 mod tests {
     use super::*;
     use crate::{BytePos, ColorChoice, Span, source_map};
+    use rayon::prelude::*;
     #[cfg(feature = "json")]
     use snapbox::IntoData as _;
     use snapbox::{assert_data_eq, str};
@@ -1477,6 +1478,78 @@ warning: confusable spelling
         assert_eq!(diagnostics.len(), 2);
         assert_eq!(diagnostics[0].children.len(), 1);
         assert!(diagnostics[1].children.is_empty());
+    }
+
+    #[test]
+    fn test_deferred_diagnostics_are_counted_at_once_and_emitted_in_order() {
+        let (emitter, diagnostics) = InMemoryEmitter::new();
+        let dcx = DiagCtxt::new(Box::new(emitter)).with_flags(|flags| {
+            flags.track_diagnostics = false;
+        });
+
+        let (_, outer) = dcx.defer(|| {
+            let _ = dcx.err("first").emit();
+            let (_, inner) = dcx.defer(|| {
+                let _ = dcx.err("inner").emit();
+                let _ = dcx.err("inner").emit();
+            });
+            let _ = dcx.err("second").emit();
+            dcx.emit_deferred(inner);
+        });
+        let _ = dcx.err("direct").emit();
+
+        assert_eq!(dcx.err_count(), 5);
+        let messages = || {
+            diagnostics
+                .read()
+                .iter()
+                .map(|diag| diag.messages[0].0.as_str().to_string())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(messages(), ["direct"]);
+
+        dcx.emit_deferred(outer);
+        assert_eq!(messages(), ["direct", "first", "second", "inner"]);
+    }
+
+    #[test]
+    fn test_deferred_diagnostics_are_emitted_when_the_deferring_code_panics() {
+        let (emitter, diagnostics) = InMemoryEmitter::new();
+        let dcx = DiagCtxt::new(Box::new(emitter)).with_flags(|flags| {
+            flags.track_diagnostics = false;
+        });
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            dcx.defer(|| {
+                let _ = dcx.err("withheld").emit();
+                panic!("boom");
+            })
+        }));
+
+        assert!(result.is_err());
+        assert_eq!(diagnostics.read().len(), 1);
+    }
+
+    #[test]
+    fn test_par_for_each_emits_in_item_order() {
+        let (emitter, diagnostics) = InMemoryEmitter::new();
+        let dcx = DiagCtxt::new(Box::new(emitter)).with_flags(|flags| {
+            flags.track_diagnostics = false;
+        });
+
+        dcx.par_for_each((0..256).into_par_iter(), |i| {
+            dcx.warn(format!("{i}")).emit();
+            dcx.warn(format!("{i} again")).emit();
+        });
+
+        let expected =
+            (0..256).flat_map(|i| [format!("{i}"), format!("{i} again")]).collect::<Vec<_>>();
+        let actual = diagnostics
+            .read()
+            .iter()
+            .map(|diag| diag.messages[0].0.as_str().to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(actual, expected);
     }
 
     #[test]
