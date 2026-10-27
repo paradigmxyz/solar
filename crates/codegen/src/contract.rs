@@ -215,6 +215,7 @@ pub fn generate_contract_bytecodes(
                 .collect(),
         ),
         queue: ContractQueue::new(gcx.sess, &graph, priorities),
+        parallel,
     };
     // Every contract is queued up front; only its completion waits for the bytecode of the
     // contracts it creates.
@@ -550,6 +551,7 @@ struct ContractJobs<'a, 'gcx> {
     /// Unfinished inputs of each contract: its own scheduling and each dependency.
     remaining_inputs: IndexVec<ContractId, AtomicUsize>,
     queue: ContractQueue<'gcx>,
+    parallel: bool,
 }
 
 impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
@@ -578,16 +580,25 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
                         .expect("contract artifact should only be generated once");
                     for &dependent in &self.graph.dependents[contract_id] {
                         if self.queue.dependency_finished(dependent) {
-                            self.spawn_worker(&scope);
+                            self.wake_worker(&scope);
                         }
                         self.release(&scope, dependent);
                     }
                     if self.queue.complete(contract_id) {
-                        self.spawn_worker(&scope);
+                        self.wake_worker(&scope);
                     }
                 }
             }
         });
+    }
+
+    /// Spawns a worker for a job that became eligible. Without threads, a spawn runs inline and
+    /// would nest the next contract in this one, and the workers spawned up front already cover
+    /// every job.
+    fn wake_worker<'scope>(&'scope self, scope: &Scope<'_, 'scope>) {
+        if self.parallel {
+            self.spawn_worker(scope);
+        }
     }
 
     /// Lets every contract report its own diagnostics after an error: the failed contract's
