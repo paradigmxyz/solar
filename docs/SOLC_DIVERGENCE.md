@@ -797,7 +797,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   slots and the frames it reaches above `0x2080`, and above the constant
   ranges assembly names there in the functions it runs or that an external
   function sharing those frames runs. This costs memory expansion gas; other
-  external functions keep their memory low unless they share those frames, or
+  external functions keep their memory low unless they share those frames or a
+  function that reads the heap floor, which gives them one initial pointer, or
   a recursive helper places every frame above all external functions.
 - Rationale: The spill slots and internal-call frames below the initial free
   memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack, so

@@ -63,8 +63,7 @@ bb6 [continuation]:
   swap 1
   push 32
   add
-  push 64
-  mload
+  push 128
   dup 3
   dup 3
   dup 3
@@ -107,8 +106,7 @@ bb9 [continuation]:
   swap 1
   push 32
   add
-  push 64
-  mload
+  push 128
   swap 2
   push 0x707265
   push 232

@@ -649,34 +649,32 @@ bb61:
   eq
   push bb72
   jumpi
-  push 31
-  dup 2
-  add
-  push 5
-  shr
+  dup 1
+  dup 1
   push 63
-  dup 3
   add
   push 31
   not
   and
-  push 64
-  mload
-  swap 1
-  dup 2
+  push 128
   add
-  dup 2
-  dup 2
-  lt
+  dup 1
+  push 128
+  gt
   swap 1
   push 0xffffffffffffffff
   lt
   or
   push bb69
   jumpi
-  swap 2
-  dup 3
+  push 128
   mstore
+  push 31
+  add
+  push 5
+  shr
+  push 128
+  swap 1
   swap 2
   push bb65
   jumpi

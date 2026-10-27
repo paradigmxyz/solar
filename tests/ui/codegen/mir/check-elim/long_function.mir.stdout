@@ -1,0 +1,826 @@
+// === ROOT/tests/ui/codegen/mir/check-elim/long_function.sol:LongFunction ===
+@module LongFunction
+fn @chained(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd2fe3d6a, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = lt arg0, arg1
+    v1 = eq v0, false
+    icall revert_if<empty>, v1
+    v2 = lt arg1, arg2
+    v3 = eq v2, false
+    icall revert_if<empty>, v3
+    v4 = eq arg2, 1
+    jumpi v4, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v5 = eq arg2, 2
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb6
+  bb6:
+    v6 = eq arg2, 3
+    jumpi v6, bb7, bb8
+  bb8:
+    jump bb9
+  bb9:
+    v7 = eq arg2, 4
+    jumpi v7, bb10, bb11
+  bb11:
+    jump bb12
+  bb12:
+    v8 = eq arg2, 5
+    jumpi v8, bb13, bb14
+  bb14:
+    jump bb15
+  bb15:
+    v9 = eq arg2, 6
+    jumpi v9, bb16, bb17
+  bb17:
+    jump bb18
+  bb18:
+    v10 = eq arg2, 7
+    jumpi v10, bb19, bb20
+  bb20:
+    jump bb21
+  bb21:
+    v11 = eq arg2, 8
+    jumpi v11, bb22, bb23
+  bb23:
+    jump bb24
+  bb24:
+    v12 = eq arg2, 9
+    jumpi v12, bb25, bb26
+  bb26:
+    jump bb27
+  bb27:
+    v13 = eq arg2, 10
+    jumpi v13, bb28, bb29
+  bb29:
+    jump bb30
+  bb30:
+    v14 = eq arg2, 11
+    jumpi v14, bb31, bb32
+  bb32:
+    jump bb33
+  bb33:
+    v15 = eq arg2, 12
+    jumpi v15, bb34, bb35
+  bb35:
+    jump bb36
+  bb36:
+    v16 = eq arg2, 13
+    jumpi v16, bb37, bb38
+  bb38:
+    jump bb39
+  bb39:
+    v17 = eq arg2, 14
+    jumpi v17, bb40, bb41
+  bb41:
+    jump bb42
+  bb42:
+    v18 = eq arg2, 15
+    jumpi v18, bb43, bb44
+  bb44:
+    jump bb45
+  bb45:
+    v19 = eq arg2, 16
+    jumpi v19, bb46, bb47
+  bb47:
+    jump bb48
+  bb48:
+    v20 = eq arg2, 17
+    jumpi v20, bb49, bb50
+  bb50:
+    jump bb51
+  bb51:
+    v21 = eq arg2, 18
+    jumpi v21, bb52, bb53
+  bb53:
+    jump bb54
+  bb54:
+    v22 = eq arg2, 19
+    jumpi v22, bb55, bb56
+  bb56:
+    jump bb57
+  bb57:
+    v23 = eq arg2, 20
+    jumpi v23, bb58, bb59
+  bb59:
+    jump bb60
+  bb60:
+    v24 = eq arg2, 21
+    jumpi v24, bb61, bb62
+  bb62:
+    jump bb63
+  bb63:
+    v25 = eq arg2, 22
+    jumpi v25, bb64, bb65
+  bb65:
+    jump bb66
+  bb66:
+    v26 = eq arg2, 23
+    jumpi v26, bb67, bb68
+  bb68:
+    jump bb69
+  bb69:
+    v27 = eq arg2, 24
+    jumpi v27, bb70, bb71
+  bb71:
+    jump bb72
+  bb72:
+    v28 = eq arg2, 25
+    jumpi v28, bb73, bb74
+  bb74:
+    jump bb75
+  bb75:
+    v29 = eq arg2, 26
+    jumpi v29, bb76, bb77
+  bb77:
+    jump bb78
+  bb78:
+    v30 = eq arg2, 27
+    jumpi v30, bb79, bb80
+  bb80:
+    jump bb81
+  bb81:
+    v31 = eq arg2, 28
+    jumpi v31, bb82, bb83
+  bb83:
+    jump bb84
+  bb84:
+    v32 = eq arg2, 29
+    jumpi v32, bb85, bb86
+  bb86:
+    jump bb87
+  bb87:
+    v33 = eq arg2, 30
+    jumpi v33, bb88, bb89
+  bb89:
+    jump bb90
+  bb90:
+    v34 = eq arg2, 31
+    jumpi v34, bb91, bb92
+  bb92:
+    jump bb93
+  bb93:
+    v35 = eq arg2, 32
+    jumpi v35, bb94, bb95
+  bb95:
+    jump bb96
+  bb96:
+    v36 = eq arg2, 33
+    jumpi v36, bb97, bb98
+  bb98:
+    jump bb99
+  bb99:
+    v37 = eq arg2, 34
+    jumpi v37, bb100, bb101
+  bb101:
+    jump bb102
+  bb102:
+    v38 = eq arg2, 35
+    jumpi v38, bb103, bb104
+  bb104:
+    jump bb105
+  bb105:
+    v39 = eq arg2, 36
+    jumpi v39, bb106, bb107
+  bb107:
+    jump bb108
+  bb108:
+    v40 = eq arg2, 37
+    jumpi v40, bb109, bb110
+  bb110:
+    jump bb111
+  bb111:
+    v41 = eq arg2, 38
+    jumpi v41, bb112, bb113
+  bb113:
+    jump bb114
+  bb114:
+    v42 = eq arg2, 39
+    jumpi v42, bb115, bb116
+  bb116:
+    jump bb117
+  bb117:
+    v43 = eq arg2, 40
+    jumpi v43, bb118, bb119
+  bb119:
+    jump bb120
+  bb120:
+    v44 = eq arg2, 41
+    jumpi v44, bb121, bb122
+  bb122:
+    jump bb123
+  bb123:
+    v45 = eq arg2, 42
+    jumpi v45, bb124, bb125
+  bb125:
+    jump bb126
+  bb126:
+    v46 = eq arg2, 43
+    jumpi v46, bb127, bb128
+  bb128:
+    jump bb129
+  bb129:
+    v47 = eq arg2, 44
+    jumpi v47, bb130, bb131
+  bb131:
+    jump bb132
+  bb132:
+    v48 = eq arg2, 45
+    jumpi v48, bb133, bb134
+  bb134:
+    jump bb135
+  bb135:
+    v49 = eq arg2, 46
+    jumpi v49, bb136, bb137
+  bb137:
+    jump bb138
+  bb138:
+    v50 = eq arg2, 47
+    jumpi v50, bb139, bb140
+  bb140:
+    jump bb141
+  bb141:
+    v51 = eq arg2, 48
+    jumpi v51, bb142, bb143
+  bb143:
+    jump bb144
+  bb144:
+    v52 = eq arg2, 49
+    jumpi v52, bb145, bb146
+  bb146:
+    jump bb147
+  bb147:
+    v53 = eq arg2, 50
+    jumpi v53, bb148, bb149
+  bb149:
+    jump bb150
+  bb150:
+    v54 = checked_sub uint256, arg2, arg1
+    v55 = checked_sub uint256, arg2, arg0
+    v56 = checked_add uint256, v54, v55
+    ret v56
+  bb148:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb145:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb142:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb139:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb136:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb133:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb130:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb127:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb124:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb121:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb118:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb115:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb112:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb109:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb106:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb103:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb100:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb97:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb94:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb91:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb88:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb85:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb82:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb79:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb76:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb73:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb70:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb67:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb64:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb61:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb58:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb55:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb52:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb49:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb46:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb43:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb40:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb37:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb34:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb31:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb28:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb25:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb22:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb19:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb16:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb13:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb10:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb7:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb4:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb1:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+}
+
+fn @unchained(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xaeb2e72f, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = lt arg0, arg1
+    v1 = eq v0, false
+    icall revert_if<empty>, v1
+    v2 = eq arg2, 1
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v3 = eq arg2, 2
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb6
+  bb6:
+    v4 = eq arg2, 3
+    jumpi v4, bb7, bb8
+  bb8:
+    jump bb9
+  bb9:
+    v5 = eq arg2, 4
+    jumpi v5, bb10, bb11
+  bb11:
+    jump bb12
+  bb12:
+    v6 = eq arg2, 5
+    jumpi v6, bb13, bb14
+  bb14:
+    jump bb15
+  bb15:
+    v7 = eq arg2, 6
+    jumpi v7, bb16, bb17
+  bb17:
+    jump bb18
+  bb18:
+    v8 = eq arg2, 7
+    jumpi v8, bb19, bb20
+  bb20:
+    jump bb21
+  bb21:
+    v9 = eq arg2, 8
+    jumpi v9, bb22, bb23
+  bb23:
+    jump bb24
+  bb24:
+    v10 = eq arg2, 9
+    jumpi v10, bb25, bb26
+  bb26:
+    jump bb27
+  bb27:
+    v11 = eq arg2, 10
+    jumpi v11, bb28, bb29
+  bb29:
+    jump bb30
+  bb30:
+    v12 = eq arg2, 11
+    jumpi v12, bb31, bb32
+  bb32:
+    jump bb33
+  bb33:
+    v13 = eq arg2, 12
+    jumpi v13, bb34, bb35
+  bb35:
+    jump bb36
+  bb36:
+    v14 = eq arg2, 13
+    jumpi v14, bb37, bb38
+  bb38:
+    jump bb39
+  bb39:
+    v15 = eq arg2, 14
+    jumpi v15, bb40, bb41
+  bb41:
+    jump bb42
+  bb42:
+    v16 = eq arg2, 15
+    jumpi v16, bb43, bb44
+  bb44:
+    jump bb45
+  bb45:
+    v17 = eq arg2, 16
+    jumpi v17, bb46, bb47
+  bb47:
+    jump bb48
+  bb48:
+    v18 = eq arg2, 17
+    jumpi v18, bb49, bb50
+  bb50:
+    jump bb51
+  bb51:
+    v19 = eq arg2, 18
+    jumpi v19, bb52, bb53
+  bb53:
+    jump bb54
+  bb54:
+    v20 = eq arg2, 19
+    jumpi v20, bb55, bb56
+  bb56:
+    jump bb57
+  bb57:
+    v21 = eq arg2, 20
+    jumpi v21, bb58, bb59
+  bb59:
+    jump bb60
+  bb60:
+    v22 = eq arg2, 21
+    jumpi v22, bb61, bb62
+  bb62:
+    jump bb63
+  bb63:
+    v23 = eq arg2, 22
+    jumpi v23, bb64, bb65
+  bb65:
+    jump bb66
+  bb66:
+    v24 = eq arg2, 23
+    jumpi v24, bb67, bb68
+  bb68:
+    jump bb69
+  bb69:
+    v25 = eq arg2, 24
+    jumpi v25, bb70, bb71
+  bb71:
+    jump bb72
+  bb72:
+    v26 = eq arg2, 25
+    jumpi v26, bb73, bb74
+  bb74:
+    jump bb75
+  bb75:
+    v27 = eq arg2, 26
+    jumpi v27, bb76, bb77
+  bb77:
+    jump bb78
+  bb78:
+    v28 = eq arg2, 27
+    jumpi v28, bb79, bb80
+  bb80:
+    jump bb81
+  bb81:
+    v29 = eq arg2, 28
+    jumpi v29, bb82, bb83
+  bb83:
+    jump bb84
+  bb84:
+    v30 = eq arg2, 29
+    jumpi v30, bb85, bb86
+  bb86:
+    jump bb87
+  bb87:
+    v31 = eq arg2, 30
+    jumpi v31, bb88, bb89
+  bb89:
+    jump bb90
+  bb90:
+    v32 = eq arg2, 31
+    jumpi v32, bb91, bb92
+  bb92:
+    jump bb93
+  bb93:
+    v33 = eq arg2, 32
+    jumpi v33, bb94, bb95
+  bb95:
+    jump bb96
+  bb96:
+    v34 = eq arg2, 33
+    jumpi v34, bb97, bb98
+  bb98:
+    jump bb99
+  bb99:
+    v35 = eq arg2, 34
+    jumpi v35, bb100, bb101
+  bb101:
+    jump bb102
+  bb102:
+    v36 = eq arg2, 35
+    jumpi v36, bb103, bb104
+  bb104:
+    jump bb105
+  bb105:
+    v37 = eq arg2, 36
+    jumpi v37, bb106, bb107
+  bb107:
+    jump bb108
+  bb108:
+    v38 = eq arg2, 37
+    jumpi v38, bb109, bb110
+  bb110:
+    jump bb111
+  bb111:
+    v39 = eq arg2, 38
+    jumpi v39, bb112, bb113
+  bb113:
+    jump bb114
+  bb114:
+    v40 = eq arg2, 39
+    jumpi v40, bb115, bb116
+  bb116:
+    jump bb117
+  bb117:
+    v41 = eq arg2, 40
+    jumpi v41, bb118, bb119
+  bb119:
+    jump bb120
+  bb120:
+    v42 = eq arg2, 41
+    jumpi v42, bb121, bb122
+  bb122:
+    jump bb123
+  bb123:
+    v43 = eq arg2, 42
+    jumpi v43, bb124, bb125
+  bb125:
+    jump bb126
+  bb126:
+    v44 = eq arg2, 43
+    jumpi v44, bb127, bb128
+  bb128:
+    jump bb129
+  bb129:
+    v45 = eq arg2, 44
+    jumpi v45, bb130, bb131
+  bb131:
+    jump bb132
+  bb132:
+    v46 = eq arg2, 45
+    jumpi v46, bb133, bb134
+  bb134:
+    jump bb135
+  bb135:
+    v47 = eq arg2, 46
+    jumpi v47, bb136, bb137
+  bb137:
+    jump bb138
+  bb138:
+    v48 = eq arg2, 47
+    jumpi v48, bb139, bb140
+  bb140:
+    jump bb141
+  bb141:
+    v49 = eq arg2, 48
+    jumpi v49, bb142, bb143
+  bb143:
+    jump bb144
+  bb144:
+    v50 = eq arg2, 49
+    jumpi v50, bb145, bb146
+  bb146:
+    jump bb147
+  bb147:
+    v51 = eq arg2, 50
+    jumpi v51, bb148, bb149
+  bb149:
+    jump bb150
+  bb150:
+    v52 = checked_sub uint256, arg2, arg1
+    v53 = checked_sub uint256, arg2, arg0
+    v54 = checked_add uint256, v52, v53
+    ret v54
+  bb148:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb145:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb142:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb139:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb136:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb133:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb130:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb127:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb124:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb121:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb118:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb115:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb112:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb109:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb106:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb103:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb100:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb97:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb94:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb91:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb88:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb85:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb82:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb79:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb76:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb73:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb70:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb67:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb64:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb61:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb58:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb55:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb52:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb49:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb46:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb43:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb40:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb37:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb34:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb31:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb28:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb25:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb22:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb19:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb16:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb13:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb10:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb7:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb4:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+  bb1:
+    icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
+    invalid
+}

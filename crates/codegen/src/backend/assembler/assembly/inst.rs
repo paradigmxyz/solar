@@ -1,6 +1,9 @@
 //! Compact instructions for finalized, layout-linear EVM IR.
 
-use crate::{backend::evm::ir::DataId, link::LibraryId};
+use crate::{
+    backend::evm::ir::{self, DataId},
+    link::LibraryId,
+};
 use solar_data_structures::{index::Idx, newtype_index};
 
 newtype_index! {
@@ -86,7 +89,7 @@ impl AsmIndex for DataId {
 pub(in crate::backend) struct AsmInst(u32);
 
 impl AsmInst {
-    pub(in crate::backend) const PAYLOAD_MASK: u32 = 0x0fff_ffff;
+    pub(in crate::backend) const PAYLOAD_MASK: u32 = ir::MAX_ASSEMBLY_ID;
     const INLINE_PUSH_MAX: u32 = 0x7fff_ffff;
     const TAG_MASK: u32 = 0xf000_0000;
     const TAG_OP: u32 = 0x8000_0000;

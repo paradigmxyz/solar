@@ -18,37 +18,15 @@
 //! function identities are indices into a function table.
 
 use super::op;
-use smallvec::SmallVec;
 use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxIndexSet},
     newtype_index,
 };
-use solar_interface::{BytePos, Span, Symbol};
+use solar_interface::{BytePos, Span};
 use std::iter::FusedIterator;
 
-pub use crate::source_info::MAX_DEBUG_SPANS;
-
-/// Source origins associated with one machine instruction.
-pub type DebugSpans = SmallVec<[Span; 2]>;
-
-/// Source-language identity of a function activation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct DebugFunction {
-    /// Function identifier in the source language.
-    pub identifier: Symbol,
-    /// Source range of the complete declaration.
-    pub declaration: Span,
-}
-
-/// Function activation transition associated with an instruction.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum DebugFunctionExit {
-    /// Successful return from the active function.
-    Return,
-    /// Revert from the active function.
-    Revert,
-}
+pub use solar_evmir::debug::{DebugFunction, DebugFunctionExit, DebugSpans, MAX_DEBUG_SPANS};
 
 /// Source location state shared by a run of instructions.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
