@@ -64,3 +64,15 @@
       ret v5
   }
   
+  fn @indexed_write_into_earlier(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = alloc arg1
+      v2 = ptrtoint ptr<memory> v1 to i256
+      mstore v2, arg0
+      v3 = ptradd v0, arg2
+      mstore v3, 9
+      v4 = mload v2
+      ret v4
+  }
+  

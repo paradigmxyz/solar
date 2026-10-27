@@ -6,6 +6,8 @@
 //@ run-call: reset 0x00000000000000000000000000000000000000000000000000000000000000050101010101010101010101010101010101010101010101010101010101010101 => 69
 //@ run-call: wrappedIndex 1, 0 => 7
 //@ run-call: wrappedIndex 1, 115792089237316195423570985008687907853269984665640564039457584007913129639934 => 9
+//@ run-call: earlierIndex 3, 0 => 3, 3
+//@ run-call: earlierIndex 3, 1 => 3, 12345
 //@ run-call-fail: reset 0x => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 
 struct Inner {
@@ -53,5 +55,17 @@ contract AllocUpward {
         }
         b[i] = 9;
         return a[0];
+    }
+
+    // Assembly lengthens `a`, so its index runs past it into `b`.
+    function earlierIndex(uint256 n, uint256 i) external pure returns (uint256, uint256) {
+        uint256[] memory a = new uint256[](1);
+        uint256[] memory b = new uint256[](n);
+        uint256 before = b.length;
+        assembly {
+            mstore(a, not(0))
+        }
+        a[i] = 12345;
+        return (before, b.length);
     }
 }

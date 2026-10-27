@@ -447,17 +447,17 @@ impl FreshFmps {
     /// Returns whether one base is a unique allocation that precedes the instruction the other
     /// names.
     fn separates(&self, first: MemoryLocation, second: MemoryLocation) -> bool {
-        let (alloc, fresh, size) = match (first.address.base, second.address.base) {
+        let (alloc, fresh, sizes) = match (first.address.base, second.address.base) {
             (MemoryBase::Allocation(alloc), MemoryBase::FreeMemory(fresh)) => {
-                (alloc, fresh, second.size)
+                (alloc, fresh, [first.size, second.size])
             }
             (MemoryBase::FreeMemory(fresh), MemoryBase::Allocation(alloc)) => {
-                (alloc, fresh, first.size)
+                (alloc, fresh, [second.size, first.size])
             }
             _ => return false,
         };
-        // A runtime index wraps, so an indexed access to an allocation may land below it.
-        (size != LocationSize::Unknown || !self.allocs.contains(&fresh))
+        // A runtime index wraps, so an indexed access, to either allocation, may land below it.
+        (!self.allocs.contains(&fresh) || !sizes.contains(&LocationSize::Unknown))
             && self.precedes(alloc, fresh)
     }
 
