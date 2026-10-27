@@ -186,6 +186,13 @@ pub(crate) fn run_passes_inner(
                 module.lowered_checked |=
                     lowered_checked && !pass_changed && !analyses.unreported_edit;
                 analyses.finish_pass(pass_changed);
+                if pass_changed || analyses.unreported_edit {
+                    // Passes rename the storage alias bases they replace, but not the ones they
+                    // delete with their last other use.
+                    for func in module.functions.iter_mut() {
+                        func.drop_dangling_storage_aliases();
+                    }
+                }
                 pass_changed
             };
             if pass_changed {
