@@ -2011,10 +2011,6 @@ impl AliasAnalysis {
         }
     }
 
-    /// Returns whether an address is computed with a runtime value, on any path of a select or
-    /// phi: added to a pointer, or through any arithmetic this does not follow. Pointers that
-    /// come from an allocation, a load, a call, or an argument, and constant offsets from them,
-    /// are not. A chain too deep to follow counts as indexed.
     /// Returns whether an instruction writes memory at an address computed with a runtime index.
     fn writes_at_indexed_address(func: &Function, inst: InstId) -> bool {
         let indexed = |address| Self::address_has_runtime_index(func, address, 8);
@@ -2034,6 +2030,10 @@ impl AliasAnalysis {
         }
     }
 
+    /// Returns whether an address is computed with a runtime value, on any path of a select or
+    /// phi: added to a pointer, or through any arithmetic this does not follow. Pointers that
+    /// come from an allocation, a load, a call, or an argument, and constant offsets from them,
+    /// are not. A chain too deep to follow counts as indexed.
     fn address_has_runtime_index(func: &Function, address: ValueId, depth: u32) -> bool {
         let Some(depth) = depth.checked_sub(1) else { return true };
         let Value::Inst(inst) = func.value(address) else { return false };
