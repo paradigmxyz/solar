@@ -42,7 +42,7 @@
 use crate::mir::{
     AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId, InstKind,
     MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation, RequireKind,
-    ResultKind, StructId, Terminator, TypeSize, Value, ValueId, analysis::CfgInfo,
+    ResultKind, StorageAlias, StructId, Terminator, TypeSize, Value, ValueId, analysis::CfgInfo,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -167,10 +167,12 @@ impl<'a> Validator<'a> {
         for (block, body) in func.blocks.iter_enumerated() {
             for &id in body.instructions.iter().filter(|id| id.index() < func.num_insts()) {
                 let alias = func.inst(id).metadata.storage_alias();
-                let Some(base) = alias.and_then(|alias| alias.symbolic_base()) else { continue };
+                let Some(base) = alias.and_then(StorageAlias::symbolic_base) else { continue };
                 let defined = base.index() < func.num_values()
                     && match func.value(base) {
-                        Value::Inst(defining) => seen.contains(*defining),
+                        Value::Inst(defining) => {
+                            defining.index() < func.num_insts() && seen.contains(*defining)
+                        }
                         Value::Arg(index) => index.index() < num_args,
                         Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => true,
                     };

@@ -189,6 +189,7 @@ pub(crate) fn run_passes_inner(
                 if pass_changed || analyses.unreported_edit {
                     // Passes rename the storage alias bases they replace, but not the ones they
                     // delete with their last other use.
+                    // sstore s, v !metadata(storage=offset(dead, n)) -> sstore s, v
                     for func in module.functions.iter_mut() {
                         func.drop_dangling_storage_aliases();
                     }
