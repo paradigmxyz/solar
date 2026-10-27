@@ -287,6 +287,12 @@ str_enum! {
 }
 
 impl OptimizationMode {
+    /// Returns whether only the required passes run (`-O none`).
+    #[inline]
+    pub const fn is_none(self) -> bool {
+        matches!(self, Self::None)
+    }
+
     /// Returns whether codegen should favor bytecode size over runtime gas (`-O size`).
     #[inline]
     pub const fn is_size(self) -> bool {
