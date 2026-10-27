@@ -81,9 +81,10 @@
 //! tests for it at run time and keeps the loop then, joining the loop's result with the gathered
 //! word after it for a gather. A scatter below 32 bytes reads and rewrites the bytes after the ones
 //! it writes, and a copy's `mcopy` reads and writes exactly the copied ranges; memory expansion can
-//! differ, which only `msize` sees. A loop's own stores never reach the length word of the buffer
-//! they write, which lies below its checked range, or feed a gather, which stores nothing. A copy's
-//! stores may reach its source's length word, which the next paragraph covers.
+//! differ, which only `msize` sees. A gather stores nothing. Copies keep their original loop when
+//! an effective source or destination address wraps below its object's data start: the destination
+//! can then overwrite its own length word, and the source header need not precede its data. Other
+//! copies' stores may reach their source's length word, which the next paragraph covers.
 //!
 //! A forward byte copy equals `mcopy` unless its destination starts strictly inside its source
 //! range, where the loop copies bytes it already wrote. A source and a destination at distinct
@@ -98,7 +99,7 @@
 //! with a length from before the loop, while the copy reads it once. For a source other than the
 //! destination, the test therefore keeps the loop whenever the destination range meets the span
 //! from the source's length word to the end of its range, which also catches every overlap the
-//! plain test does, in either direction.
+//! plain test does, in either direction, when neither address wraps below its data start.
 //!
 //! # Fresh destinations
 //!
@@ -118,8 +119,9 @@
 //! source's range against its length from before the allocation proves it in advance and drops
 //! the check; its test also keeps the source off the free memory pointer, below the zero slot, so
 //! that length is still the source's. The slow path zeroes the buffer as the allocation would
-//! have, then copies as the guarded copy above does. Its loop is entered through that test, not a
-//! preheader, so no loop pass takes it up again.
+//! have, then copies as the guarded copy above does. A wrapped source start takes this slow path
+//! too, so the loop cannot read bytes whose zeroing was skipped. Its loop is entered through that
+//! test, not a preheader, so no loop pass takes it up again.
 //!
 //! The loop's header test skips its body for a zero bound. A copy must keep that test whenever
 //! its setup loads a memory buffer's length: even an unused load can expand memory or run out of
@@ -1136,12 +1138,19 @@ fn word_copy(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
 /// inside its allocation, which its allocation's size or the length its checks compare with
 /// proves. Inline assembly can grow a length past its allocation, and the range it admits then
 /// runs into the next object. A calldata range wraps only where inline assembly set its slice's
-/// offset, never for an external function's decoded argument. Every other copy tests at run time
-/// where the loop differs from the copy.
+/// offset, never for an external function's decoded argument, but its destination must also stay
+/// above its own length word. Every other copy tests at run time where the loop differs from the
+/// copy.
 fn copy_overlap(func: &Function, lp: &Counted, src: &Access, dst: &Access) -> Overlap {
     let (Buffer::Memory(source), Buffer::Memory(destination)) = (src.buffer, dst.buffer) else {
         return match src.buffer {
-            Buffer::Calldata(slice) if decoded_argument(func, slice) => Overlap::Disjoint,
+            Buffer::Calldata(slice)
+                if decoded_argument(func, slice)
+                    && (dst.offset.is_none_or(|offset| func.value_u64(offset) == Some(0))
+                        || within_allocation(func, &AliasAnalysis::new(func), lp, dst)) =>
+            {
+                Overlap::Disjoint
+            }
             _ => Overlap::Guarded,
         };
     };
@@ -1779,11 +1788,12 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
 /// fast path drops the check and the test also keeps the source off the free memory pointer,
 /// below the zero slot. Otherwise the zeroing runs late, and the copy goes as before: the loop
 /// for a destination that leads into its source or meets its length word, and `mcopy` for any
-/// other.
+/// other. A source offset that wraps below the source's data start takes the slow path too, so
+/// the buffer is zeroed before the loop reads it.
 ///
 /// ```text
 /// start = ptrtoint src; base = ptrtoint dst; limit = ptrtoint (ptradd dst, size)
-/// overlaps = start < limit && base < from + bound [|| start < 0x60]
+/// overlaps = (start < limit && base < from + bound) || source_offset_wraps [|| start < 0x60]
 /// branch overlaps, slow, fast
 /// fast:  [panic_if src range does not fit, 0x32]; [mstore (ptradd dst, size - 32), 0]
 ///        mcopy to, from, bound; jump exit
@@ -1816,6 +1826,10 @@ fn fresh_guarded_copy(
     let below = builder.lt(start, limit);
     let inside = builder.lt(base, end);
     let mut overlaps = builder.and(below, inside);
+    if let Some(wraps) = memory_offset_wraps(builder, src, from) {
+        // overlaps = or overlaps, wraps
+        overlaps = builder.or(overlaps, wraps);
+    }
     if fresh.source_fits {
         let zero_slot = builder.imm(EvmMemoryLayout::ZERO_SLOT);
         let reserved = builder.lt(start, zero_slot);
@@ -1858,8 +1872,10 @@ fn fresh_guarded_copy(
 /// into its source. The loop reloads the source's length after every store, unless it compares
 /// with a length from before the loop, while the copy reads it once. For a source other than
 /// the destination, the loop also stays for a destination that meets the source's length word.
-/// That word lies below the source's data, so a test of the span from it to the end of the
-/// source range also catches every overlap of either direction.
+/// The span from that word to the end of the source range catches overlaps in either direction
+/// only when the source's effective address stays above its data start. Wrapped source and
+/// destination starts keep the loop, including copies within the same object: a wrapped store
+/// can overwrite its own length word and change the next iteration's bounds check.
 fn keeps_loop(
     builder: &mut FunctionBuilder<'_>,
     lp: &Counted,
@@ -1867,20 +1883,34 @@ fn keeps_loop(
     dst: &Access,
     size: ValueId,
 ) -> ValueId {
-    if let Buffer::Calldata(_) = src.buffer {
-        return calldata_wraps(builder, src, lp.bound);
+    if let Buffer::Calldata(slice) = src.buffer {
+        // wraps = decoded ? false : calldata_wraps
+        // to = ptrtoint (dst data + offset)
+        // wraps = or wraps, destination_wraps
+        let mut wraps = if decoded_argument(builder.func(), slice) {
+            builder.imm_bool(false)
+        } else {
+            calldata_wraps(builder, src, lp.bound)
+        };
+        let to = memory_data_address(builder, dst);
+        let to = builder.cast(to, MirType::I256);
+        if let Some(destination_wraps) = memory_offset_wraps(builder, dst, to) {
+            // wraps = or wraps, destination_wraps
+            wraps = builder.or(wraps, destination_wraps);
+        }
+        return wraps;
     }
     // from = src data + offset; to = dst data + offset
     let from = memory_data_address(builder, src);
     let to = memory_data_address(builder, dst);
     let from = builder.cast(from, MirType::I256);
     let to = builder.cast(to, MirType::I256);
-    let overlaps = if let Buffer::Memory(object) = src.buffer
+    let mut overlaps = if let Buffer::Memory(object) = src.buffer
         && src.len.is_none()
         && src.buffer != dst.buffer
     {
         // start = ptrtoint src
-        // ahead = to < from + bound && start < to + bound
+        // ahead = to < from + size && start < to + size
         let start = builder.cast(object, MirType::I256);
         let end = builder.add(from, size);
         let last = builder.add(to, size);
@@ -1890,13 +1920,19 @@ fn keeps_loop(
     } else {
         // A downward copy goes wrong the other way round, when its source starts inside the
         // destination range:
-        // behind = to < from && from < to + bound
+        // behind = to < from && from < to + size
         let (lead, trail) = if lp.descending { (to, from) } else { (from, to) };
         let end = builder.add(lead, size);
         let after = builder.lt(lead, trail);
         let inside = builder.lt(trail, end);
         builder.and(after, inside)
     };
+    for (access, address) in [(src, from), (dst, to)] {
+        if let Some(wraps) = memory_offset_wraps(builder, access, address) {
+            // overlaps = or overlaps, wraps
+            overlaps = builder.or(overlaps, wraps);
+        }
+    }
     if src.shift == 0 {
         return overlaps;
     }
@@ -2175,4 +2211,22 @@ fn escapes(func: &Function, l: &Loop, value: ValueId) -> bool {
         }
         found
     })
+}
+
+/// Tests whether a memory access's offset moves its effective address below its object's data
+/// start. The caller keeps the loop then: the header-to-data ordering and stable length words
+/// that bulk copies rely on no longer hold. An absent or zero offset needs no test.
+fn memory_offset_wraps(
+    builder: &mut FunctionBuilder<'_>,
+    access: &Access,
+    address: ValueId,
+) -> Option<ValueId> {
+    let Buffer::Memory(object) = access.buffer else { return None };
+    access.offset.filter(|&offset| builder.func().value_u64(offset) != Some(0))?;
+    // data = ptrtoint (ptradd object, 32)
+    // wraps = lt address, data
+    let header = builder.imm(EvmMemoryLayout::WORD_SIZE);
+    let data = builder.ptradd(object, header);
+    let data = builder.cast(data, MirType::I256);
+    Some(builder.lt(address, data))
 }

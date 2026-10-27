@@ -4,38 +4,55 @@
 fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
   bb0:
     v0 = calldatasize
-    v51 = add v0, 64
-    v4 = add v51, 63
+    v59 = add v0, 64
+    v4 = add v59, 63
     v7 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v75 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v76 = add v75, v7 !metadata(alloc_ptr)
-    v77 = lt v76, v75
-    v78 = gt v76, 0xffffffffffffffff
-    v79 = or v77, v78
-    jumpi v79, bb4, bb3
-  bb3:
-    v81 = calldatasize
-    calldatacopy v75, v81, v7
-    mstore v75, v51
+    v88 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v89 = add v88, v7 !metadata(alloc_ptr)
+    v90 = lt v89, v88
+    v91 = gt v89, 0xffffffffffffffff
+    v92 = or v90, v91
+    jumpi v92, bb7, bb6
+  bb6:
+    v94 = calldatasize
+    calldatacopy v88, v94, v7
+    mstore v88, v59
     v33 = eq v0, 0
-    jumpi v33, bb1, bb2
-  bb2:
-    v72 = add v75, 96
-    calldatacopy v72, 0, v0
-    jump bb1
-  bb1:
-    v67 = add v75, 32
-    v58 = add v51, 31
-    v60 = and v58, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v62 = add v67, v60
-    mstore v62, 0
-    v69 = add v75, 64
-    mcopy v69, v67, v51
-    mstore v75, 32
-    mstore v67, v51
-    v64 = add v60, 64
-    returndata v75, v64
+    jumpi v33, bb2, bb4
   bb4:
+    v83 = add v88, 96
+    v85 = add v88, 32
+    v43 = lt v83, v85
+    jumpi v43, bb1, bb5
+  bb5:
+    calldatacopy v83, 0, v0
+    jump bb2
+  bb1:
+    v11 = phi [bb4: 0], [bb3: v32]
+    v12 = lt v11, v0
+    jumpi v12, bb3, bb2
+  bb3:
+    v22 = calldataload v11
+    v23 = byte 0, v22
+    v25 = add v11, 64
+    v79 = add v88, v25
+    v80 = add v79, 32
+    mstore8 v80, v23
+    v32 = add v11, 1
+    jump bb1
+  bb2:
+    v75 = add v88, 32
+    v66 = add v59, 31
+    v68 = and v66, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v70 = add v75, v68
+    mstore v70, 0
+    v77 = add v88, 64
+    mcopy v77, v75, v59
+    mstore v88, 32
+    mstore v75, v59
+    v72 = add v68, 64
+    returndata v88, v72
+  bb7:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

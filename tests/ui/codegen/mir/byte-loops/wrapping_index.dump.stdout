@@ -313,20 +313,20 @@ fn @destinationFirst() [selector=0x5072325f, abi_wrapper, pure] {
 
 fn @wrappedCopy() [selector=0xbd307fab, abi_wrapper, pure] {
   bb0:
-    v46 = calldatasize
-    v47 = lt v46, 68
-    jumpi v47, bb7, bb8
+    v48 = calldatasize
+    v49 = lt v48, 68
+    jumpi v49, bb7, bb8
   bb8:
-    v48 = icall @decode_calldata_slice
+    v50 = icall @decode_calldata_slice
     v6 = add arg1, 63
     v7 = lt v6, arg1
     jumpi v7, bb5, bb6
   bb6:
     v9 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v75 = icall @alloc, v9
-    v77 = calldatasize
-    calldatacopy v75, v77, v9
-    mstore v75, arg1
+    v77 = icall @alloc, v9
+    v79 = calldatasize
+    calldatacopy v77, v79, v9
+    mstore v77, arg1
     v33 = eq arg1, 0
     jumpi v33, bb2, bb4
   bb4:
@@ -339,23 +339,23 @@ fn @wrappedCopy() [selector=0xbd307fab, abi_wrapper, pure] {
     v22 = add v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v23 = calldataload v22
     v24 = byte 0, v23
-    v71 = add v75, v14
-    v72 = add v71, 32
-    mstore8 v72, v24
+    v73 = add v77, v14
+    v74 = add v73, 32
+    mstore8 v74, v24
     v32 = add v14, 1
     jump bb1
   bb2:
-    v67 = add v75, 32
-    v58 = add arg1, 31
-    v60 = and v58, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v62 = add v67, v60
-    mstore v62, 0
-    v69 = add v75, 64
-    mcopy v69, v67, arg1
-    mstore v75, 32
-    mstore v67, arg1
-    v64 = add v60, 64
-    returndata v75, v64
+    v69 = add v77, 32
+    v60 = add arg1, 31
+    v62 = and v60, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v64 = add v69, v62
+    mstore v64, 0
+    v71 = add v77, 64
+    mcopy v71, v69, arg1
+    mstore v77, 32
+    mstore v69, arg1
+    v66 = add v62, 64
+    returndata v77, v66
   bb5:
     tail_call @revert_stub.8
   bb7:
@@ -400,20 +400,20 @@ fn @wrappedWord() [selector=0xc280cc68, abi_wrapper, pure] {
 
 fn @wrappedArray() [selector=0x20a8a4e4, abi_wrapper, pure] {
   bb0:
-    v88 = calldatasize
-    v89 = lt v88, 132
-    v90 = calldataload 4
-    v91 = add v90, 4
-    v93 = sub v88, 36
-    v94 = gt v90, v93
-    v125 = or v89, v94
-    v95 = calldataload v91
-    v96 = add v91, 32
-    v97 = sub v88, v96
-    v98 = shr v97, 5
-    v99 = gt v95, v98
-    v126 = or v125, v99
-    jumpi v126, bb14, bb15
+    v90 = calldatasize
+    v91 = lt v90, 132
+    v92 = calldataload 4
+    v93 = add v92, 4
+    v95 = sub v90, 36
+    v96 = gt v92, v95
+    v127 = or v91, v96
+    v97 = calldataload v93
+    v98 = add v93, 32
+    v99 = sub v90, v98
+    v100 = shr v99, 5
+    v101 = gt v97, v100
+    v128 = or v127, v101
+    jumpi v128, bb14, bb15
   bb15:
     v13 = add arg3, 1
     v14 = eq v13, 0
@@ -424,10 +424,10 @@ fn @wrappedArray() [selector=0x20a8a4e4, abi_wrapper, pure] {
     v21 = ne v17, v13
     jumpi v21, bb6, bb8
   bb8:
-    v122 = icall @alloc, v15
-    v124 = calldatasize
-    calldatacopy v122, v124, v15
-    mstore v122, arg3
+    v124 = icall @alloc, v15
+    v126 = calldatasize
+    calldatacopy v124, v126, v15
+    mstore v124, arg3
     v52 = eq arg3, 0
     jumpi v52, bb2, bb4
   bb4:
@@ -440,37 +440,37 @@ fn @wrappedArray() [selector=0x20a8a4e4, abi_wrapper, pure] {
     v62 = lt v61, arg2
     v64 = gt v61, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v65 = or v62, v64
-    v69 = or v60, v65
-    jumpi v69, bb1, bb5
+    v71 = or v60, v65
+    jumpi v71, bb1, bb5
   bb5:
-    v116 = add v122, 32
-    calldatacopy v116, v57, v53
+    v118 = add v124, 32
+    calldatacopy v118, v57, v53
     jump bb2
   bb1:
     v28 = phi [bb4: 0], [bb11: v51]
     v29 = lt v28, arg3
     jumpi v29, bb3, bb2
   bb3:
-    v85 = add arg2, v28
-    v86 = lt v85, arg2
-    jumpi v86, bb12, bb13
+    v87 = add arg2, v28
+    v88 = lt v87, arg2
+    jumpi v88, bb12, bb13
   bb13:
-    v32 = lt v85, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v32 = lt v87, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jumpi v32, bb10, bb9
   bb9:
     tail_call @revert_stub.9
   bb10:
-    v35 = shl v85, 5
+    v35 = shl v87, 5
     v37 = shr v35, 5
-    v41 = ne v37, v85
+    v41 = ne v37, v87
     jumpi v41, bb6, bb11
   bb11:
     v43 = add arg1, v35
     v44 = calldataload v43
     v48 = shl v28, 5
-    v118 = add v122, v48
-    v119 = add v118, 32
-    mstore v119, v44
+    v120 = add v124, v48
+    v121 = add v120, 32
+    mstore v121, v44
     v51 = add v28, 1
     jump bb1
   bb12:
@@ -478,14 +478,14 @@ fn @wrappedArray() [selector=0x20a8a4e4, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
-    v112 = add v122, 32
-    v107 = shl arg3, 5
-    v114 = add v122, 64
-    mcopy v114, v112, v107
-    mstore v122, 32
-    mstore v112, arg3
-    v109 = add v107, 64
-    returndata v122, v109
+    v114 = add v124, 32
+    v109 = shl arg3, 5
+    v116 = add v124, 64
+    mcopy v116, v114, v109
+    mstore v124, 32
+    mstore v114, arg3
+    v111 = add v109, 64
+    returndata v124, v111
   bb6:
     tail_call @revert_stub.8
   bb14:

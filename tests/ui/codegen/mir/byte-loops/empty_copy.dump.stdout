@@ -225,14 +225,14 @@ fn @_calldataCopy(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_me
     v26 = lt v25, arg0
     jumpi v26, bb1, bb5
   bb5:
-    v28 = lt arg1, arg3
-    v29 = mload arg2
-    v30 = lt v29, arg3
-    v31 = or v28, v30
-    jumpi v31, bb6, bb9
+    v30 = lt arg1, arg3
+    v31 = mload arg2
+    v32 = lt v31, arg3
+    v33 = or v30, v32
+    jumpi v33, bb6, bb9
   bb9:
-    v40 = add arg2, 32
-    calldatacopy v40, arg0, arg3
+    v42 = add arg2, 32
+    calldatacopy v42, arg0, arg3
     jump bb2
   bb1:
     v3 = phi [bb4: 0], [bb8: v21]
@@ -251,9 +251,9 @@ fn @_calldataCopy(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_me
   bb6:
     tail_call @revert_stub
   bb8:
-    v37 = add arg2, v3
-    v38 = add v37, 32
-    mstore8 v38, v13
+    v39 = add arg2, v3
+    v40 = add v39, 32
+    mstore8 v40, v13
     v21 = add v3, 1
     jump bb1
   bb2:
