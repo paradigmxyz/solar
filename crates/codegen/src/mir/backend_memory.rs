@@ -8,9 +8,9 @@ use super::{
     Callee, EffectKind, Function, FunctionId, InstId, Module, Semantics, Value, ValueId,
     analysis::CfgInfo, memory::EvmMemoryLayout,
 };
-use crate::backend::evm::op;
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_evmir::op;
 use std::fmt;
 
 /// The backend's chosen lowering of a deferred allocation.

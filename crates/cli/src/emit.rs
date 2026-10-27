@@ -168,16 +168,16 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
         let mut module = ir::Module::parse(gcx.sess, source)?;
         ir::validate(gcx, &module);
         if gcx.dcx().has_errors().is_ok() {
-            if has_disasm_dump(gcx) {
-                dump_evm_ir_input_disassembly(gcx, module)?;
-                return Ok(());
-            }
-
             let name = source.name.display().to_string();
             let _changed = ir::run_pipeline(gcx, &mut module, Some(&name));
             ir::validate(gcx, &module);
             gcx.dcx().has_errors()?;
 
+            // The disassembly shows the program's own bytecode, which `--emit=bin-runtime` outputs
+            // too.
+            if has_disasm_dump(gcx) {
+                dump_evm_ir_input_disassembly(gcx, module.clone())?;
+            }
             let value = gcx
                 .sess
                 .opts
@@ -193,6 +193,7 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
                     module.to_text(),
                 )?;
             }
+            emit_evm_ir_input_artifacts(gcx, &name, module)?;
         }
     }
     Ok(())
@@ -224,6 +225,7 @@ fn emit_mir_input_artifacts(gcx: Gcx<'_>, file: &str, mut module: Module) -> Res
                 DumpKind::MirFinal
                     | DumpKind::EvmIr
                     | DumpKind::EvmIrRuntime
+                    | DumpKind::EvmIrRuntimeScheduled
                     | DumpKind::DisasmDeploy
                     | DumpKind::DisasmRuntime
             )
@@ -255,9 +257,12 @@ fn emit_mir_input_artifacts(gcx: Gcx<'_>, file: &str, mut module: Module) -> Res
                 .and_then(|()| write_highlighted(&mut writer, module.to_string(), Syntax::Ir))
                 .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
         }
-        let (deployment_ir, runtime_ir) =
-            (artifact.deployment_evm_ir.as_ref(), artifact.runtime_evm_ir.as_ref());
-        write_evm_ir(&mut writer, gcx, dump, &name, deployment_ir, runtime_ir)?;
+        let evm_ir = [
+            artifact.deployment_evm_ir.as_ref(),
+            artifact.runtime_evm_ir.as_ref(),
+            artifact.runtime_scheduled_evm_ir.as_ref(),
+        ];
+        write_evm_ir(&mut writer, gcx, dump, &name, evm_ir)?;
         write_disassembly(&mut writer, gcx, dump, &name, &artifact.deployment, &artifact.runtime)?;
         writer
             .flush()
@@ -287,10 +292,58 @@ fn emit_mir_input_artifacts(gcx: Gcx<'_>, file: &str, mut module: Module) -> Res
     write_output_json(gcx, &output, emit_bin || emit_bin_runtime)
 }
 
+/// Assembles an EVM IR input program when `--emit` asks for contract outputs, and emits them as
+/// for a contract named after the file and the module. The program is runtime code: its creation
+/// code only deploys it, and it declares no ABI.
+fn emit_evm_ir_input_artifacts(gcx: Gcx<'_>, file: &str, module: ir::Module) -> Result {
+    let sess = gcx.sess;
+    let [mut emit_abi, mut emit_hashes, mut emit_bin, mut emit_bin_runtime] = [false; 4];
+    for &output in &sess.opts.emit {
+        match output {
+            CompilerOutput::Abi => emit_abi = true,
+            CompilerOutput::Hashes => emit_hashes = true,
+            CompilerOutput::Bin => emit_bin = true,
+            CompilerOutput::BinRuntime => emit_bin_runtime = true,
+            output if output.is_codegen() || output == CompilerOutput::EthdebugResources => {
+                let message = format!("`--emit={output}` is not supported for EVM IR input");
+                return Err(sess.dcx.err(message).emit());
+            }
+            _ => {}
+        }
+    }
+    if !(emit_abi || emit_hashes || emit_bin || emit_bin_runtime) {
+        return Ok(());
+    }
+    let name = format!("{}:{}", file.replace('\\', "/"), module.name());
+    let bytecode = if emit_bin || emit_bin_runtime {
+        Some(ir::into_deployable_bytecode(gcx, module)?)
+    } else {
+        None
+    };
+    let mut output =
+        CombinedJson { version: solar_config::version::SEMVER_VERSION, ..Default::default() };
+    let contract = output.contracts.entry(name).or_default();
+    if emit_abi {
+        contract.abi = Some(&[]);
+    }
+    if emit_hashes {
+        contract.hashes = Some(Hashes::new());
+    }
+    if let Some(bytecode) = bytecode {
+        if emit_bin {
+            contract.bin = Some(MaybeHexBytecode::new(bytecode.deployment.into(), &[]));
+        }
+        if emit_bin_runtime {
+            contract.bin_runtime = Some(MaybeHexBytecode::new(bytecode.runtime.into(), &[]));
+        }
+    }
+    write_output_json(gcx, &output, emit_bin || emit_bin_runtime)
+}
+
 fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: ir::Module) -> Result {
     let dump = gcx.sess.opts.unstable.dump.as_ref().expect("dump options should be present");
     let name = module.name();
-    let bytecode = module.into_bytecode(gcx)?;
+    let bytecode = ir::into_bytecode(gcx, module)?;
     let mut writer = console_writer(gcx.sess.opts.color);
     if dump.kinds.contains(&DumpKind::DisasmDeploy) {
         writeln!(writer, "// === {name} (deployment) ===")
@@ -354,7 +407,9 @@ fn emit_mir_pipeline_output(
 }
 
 fn should_print_pipeline_output(gcx: Gcx<'_>, value: &str) -> bool {
-    (!gcx.sess.opts.language.is_evm_ir() || !has_disasm_dump(gcx))
+    // An EVM IR program's pipeline output would precede the JSON of `--emit` on stdout.
+    (!gcx.sess.opts.language.is_evm_ir()
+        || !(has_disasm_dump(gcx) || !gcx.sess.opts.emit.is_empty()))
         && !gcx.sess.opts.unstable.print_after_each
         && (!gcx.sess.opts.unstable.pass_diff || value == "default")
 }
@@ -509,7 +564,12 @@ fn has_mir_dump(gcx: Gcx<'_>) -> bool {
 
 fn has_evm_ir_dump(gcx: Gcx<'_>) -> bool {
     gcx.sess.opts.unstable.dump.as_ref().is_some_and(|dump| {
-        dump.kinds.iter().any(|kind| matches!(kind, DumpKind::EvmIr | DumpKind::EvmIrRuntime))
+        dump.kinds.iter().any(|kind| {
+            matches!(
+                kind,
+                DumpKind::EvmIr | DumpKind::EvmIrRuntime | DumpKind::EvmIrRuntimeScheduled
+            )
+        })
     })
 }
 
@@ -679,18 +739,22 @@ fn write_evm_ir_dump_contract(
 ) -> Result {
     let Some(artifact) = artifacts.get(&id) else { return Ok(()) };
     let name = gcx.contract_fully_qualified_name(id);
-    let (deployment, runtime) = (&artifact.deployment_evm_ir, &artifact.runtime_evm_ir);
-    write_evm_ir(writer, gcx, dump, name, deployment.as_ref(), runtime.as_ref())
+    let evm_ir = [
+        artifact.deployment_evm_ir.as_ref(),
+        artifact.runtime_evm_ir.as_ref(),
+        artifact.runtime_scheduled_evm_ir.as_ref(),
+    ];
+    write_evm_ir(writer, gcx, dump, name, evm_ir)
 }
 
-/// Writes the EVM IR of contract `name` that `dump` asks for.
+/// Writes the EVM IR of contract `name` that `dump` asks for: the creation code, the runtime code,
+/// and the runtime code as stack scheduling emitted it.
 fn write_evm_ir(
     writer: &mut ConsoleWriter,
     gcx: Gcx<'_>,
     dump: &Dump,
     name: impl fmt::Display,
-    deployment: Option<&ir::Module>,
-    runtime: Option<&ir::Module>,
+    [deployment, runtime, scheduled]: [Option<&ir::Module>; 3],
 ) -> Result {
     if dump.kinds.contains(&DumpKind::EvmIr) {
         writeln!(writer, "// === {name} (creation) ===")
@@ -705,6 +769,14 @@ fn write_evm_ir(
             .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
         if let Some(runtime) = runtime {
             write_highlighted(writer, runtime.to_text().to_string(), Syntax::Ir)
+                .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        }
+    }
+    if dump.kinds.contains(&DumpKind::EvmIrRuntimeScheduled) {
+        writeln!(writer, "// === {name} (scheduled runtime) ===")
+            .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        if let Some(scheduled) = scheduled {
+            write_highlighted(writer, scheduled.to_text().to_string(), Syntax::Ir)
                 .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
         }
     }

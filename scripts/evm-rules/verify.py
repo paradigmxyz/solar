@@ -228,8 +228,8 @@ def main():
             "crates/codegen/src/backend/evm/codegen/select.rs",
             "crates/codegen/src/backend/evm/ir/passes/peephole.rs",
             "crates/codegen/src/backend/evm/ir/passes/peephole/isle.rs",
-            "crates/codegen/src/backend/evm/op.rs",
-            "crates/codegen/src/backend/evm/op/word.rs",
+            "crates/evmir/src/op.rs",
+            "crates/evmir/src/op/word.rs",
             "crates/codegen/src/mir/semantics.rs",
         )
     }

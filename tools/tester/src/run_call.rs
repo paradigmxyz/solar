@@ -9,7 +9,7 @@ use evm2::{
     evm::{AccountInfo, InMemoryDB},
 };
 use serde_json::Value;
-use std::{borrow::Cow, cell::Cell, path::Path, rc::Rc};
+use std::{borrow::Cow, path::Path};
 use ui_test::{
     CommentParser, Errored, Revisioned,
     build_manager::BuildManager,
@@ -18,7 +18,9 @@ use ui_test::{
     spanned::{Span, Spanned},
 };
 
+mod evm_ir;
 mod oracle;
+mod trace;
 
 const CALLER: Address = Address::repeat_byte(0x22);
 
@@ -61,8 +63,8 @@ struct Outcome {
     success: bool,
     output: Vec<u8>,
     stop: String,
-    /// What the call did, when the MIR interpreter checks it.
-    trace: Option<oracle::Trace>,
+    /// What the call did, when an interpreter checks it.
+    trace: Option<trace::Trace>,
 }
 
 struct ResolvedCall<'a> {
@@ -132,26 +134,35 @@ impl RunCall {
     ) -> Result<(), String> {
         let artifacts = parse_artifacts(output)?;
         let test_path = config.status.path();
-        let call =
-            resolve_call(&artifacts, test_path, &self.call, &self.expected, &self.settings, false)?;
-        let actual = execute(&call, spec_id, oracle::applies(config))?;
+        let abi_less = oracle::applies(config) || evm_ir::is_evm_ir(config);
+        let call = resolve_call(
+            &artifacts,
+            test_path,
+            &self.call,
+            &self.expected,
+            &self.settings,
+            false,
+            abi_less,
+        )?;
+        let actual = execute(&call, spec_id, traced(config))?;
         if !actual.success {
             return Err(format!(
                 "`{}` failed with {}: 0x{}",
                 display_call(&self.call, call.function.as_deref()),
                 actual.stop,
-                hex::display(actual.output)
+                hex::display(&actual.output)
             ));
         }
         if actual.output != call.expected {
             return Err(format!(
                 "`{}` returned 0x{}, expected 0x{}",
                 display_call(&self.call, call.function.as_deref()),
-                hex::display(actual.output),
-                hex::display(call.expected)
+                hex::display(&actual.output),
+                hex::display(&call.expected)
             ));
         }
-        check_mir(config, build_manager, &self.call, &call, &actual)
+        check_mir(config, build_manager, &self.call, &call, &actual)?;
+        check_evm_ir(config, build_manager, &self.call, &call, &actual)
     }
 }
 
@@ -187,25 +198,34 @@ impl RunCallFail {
     ) -> Result<(), String> {
         let artifacts = parse_artifacts(output)?;
         let test_path = config.status.path();
-        let call =
-            resolve_call(&artifacts, test_path, &self.call, &self.expected, &self.settings, true)?;
-        let actual = execute(&call, spec_id, oracle::applies(config))?;
+        let abi_less = oracle::applies(config) || evm_ir::is_evm_ir(config);
+        let call = resolve_call(
+            &artifacts,
+            test_path,
+            &self.call,
+            &self.expected,
+            &self.settings,
+            true,
+            abi_less,
+        )?;
+        let actual = execute(&call, spec_id, traced(config))?;
         if actual.success {
             return Err(format!(
                 "`{}` succeeded with 0x{}, expected failure",
                 display_call(&self.call, call.function.as_deref()),
-                hex::display(actual.output)
+                hex::display(&actual.output)
             ));
         }
         if actual.output != call.expected {
             return Err(format!(
                 "`{}` reverted with 0x{}, expected 0x{}",
                 display_call(&self.call, call.function.as_deref()),
-                hex::display(actual.output),
-                hex::display(call.expected)
+                hex::display(&actual.output),
+                hex::display(&call.expected)
             ));
         }
-        check_mir(config, build_manager, &self.call, &call, &actual)
+        check_mir(config, build_manager, &self.call, &call, &actual)?;
+        check_evm_ir(config, build_manager, &self.call, &call, &actual)
     }
 }
 
@@ -237,6 +257,11 @@ macro_rules! impl_flag {
 impl_flag!(RunCall);
 impl_flag!(RunCallFail);
 
+/// Returns whether an interpreter checks the test's calls, so that each call records a trace.
+fn traced(config: &TestConfig) -> bool {
+    oracle::applies(config) || evm_ir::applies(config)
+}
+
 /// Checks the call against the MIR interpreter when the test is written in MIR.
 fn check_mir(
     config: &TestConfig,
@@ -245,7 +270,9 @@ fn check_mir(
     call: &ResolvedCall<'_>,
     actual: &Outcome,
 ) -> Result<(), String> {
-    let Some(trace) = &actual.trace else { return Ok(()) };
+    let Some(trace) = actual.trace.as_ref().filter(|_| oracle::applies(config)) else {
+        return Ok(());
+    };
     let name = display_call(directive, call.function.as_deref());
     let evm_version = evm_version(config)?
         .parse()
@@ -258,6 +285,30 @@ fn check_mir(
         evm_version,
     };
     oracle::check(config, build_manager, &call, trace)
+}
+
+/// Checks the call against the EVM IR interpreter when that check applies.
+fn check_evm_ir(
+    config: &TestConfig,
+    build_manager: &BuildManager,
+    directive: &str,
+    call: &ResolvedCall<'_>,
+    actual: &Outcome,
+) -> Result<(), String> {
+    let Some(trace) = actual.trace.as_ref().filter(|_| evm_ir::applies(config)) else {
+        return Ok(());
+    };
+    let evm_version = evm_version(config)?
+        .parse()
+        .map_err(|error| format!("unsupported EVM version for the EVM IR interpreter: {error}"))?;
+    let call = evm_ir::Call {
+        contract: &call.artifact.name,
+        name: directive,
+        input: &call.input,
+        value: call.value,
+        evm_version,
+    };
+    evm_ir::check(config, build_manager, &call, trace)
 }
 
 fn parse_call(args: &str) -> Result<ParsedCall<'_>, String> {
@@ -344,6 +395,8 @@ fn parse_integer(value: &str, setting: &str) -> Result<U256, String> {
         .map_err(|err| format!("invalid `{setting}` value `{value}`: {err}"))
 }
 
+/// Resolves a call directive against the compiled `artifacts`. A test whose contracts have no
+/// ABI, `abi_less`, names a function by its full signature.
 fn resolve_call<'a>(
     artifacts: &'a [Artifact],
     test_path: &Path,
@@ -351,6 +404,7 @@ fn resolve_call<'a>(
     expected: &str,
     settings: &CallSettings,
     failure: bool,
+    abi_less: bool,
 ) -> Result<ResolvedCall<'a>, String> {
     if call.starts_with("0x") {
         let artifact = only_artifact(artifacts, test_path)?;
@@ -373,8 +427,7 @@ fn resolve_call<'a>(
     }
 
     let (function_name, args) = call.split_once(char::is_whitespace).unwrap_or((call, ""));
-    let mir = test_path.extension().is_some_and(|extension| extension == "mir");
-    let (artifact, function) = find_function(artifacts, function_name, mir)?;
+    let (artifact, function) = find_function(artifacts, function_name, abi_less)?;
     let constructor_args = encode_constructor(artifact, settings.constructor.as_deref())?;
     let input = encode_values(&function, args, false)?;
     let expected = if failure {
@@ -402,6 +455,10 @@ fn flag_error(command: &str, message: String) -> Errored {
     }
 }
 
+fn display_call(call: &str, function: Option<&Function>) -> String {
+    function.map_or_else(|| call.to_owned(), Function::signature)
+}
+
 /// Returns the JSON document of `--emit` outputs in `output`, compact or pretty, which a dump the
 /// compiler prints may precede or follow.
 fn compiler_json(output: &[u8]) -> Result<Value, String> {
@@ -409,7 +466,7 @@ fn compiler_json(output: &[u8]) -> Result<Value, String> {
         Ok(output) => return Ok(output),
         Err(err) => err,
     };
-    // Dumps print before the JSON, which starts a line with its top-level object.
+    // The JSON starts a line with its top-level object.
     (0..output.len())
         .rev()
         .filter(|&start| output[start] == b'{' && (start == 0 || output[start - 1] == b'\n'))
@@ -421,10 +478,6 @@ fn compiler_json(output: &[u8]) -> Result<Value, String> {
             json.get("contracts").is_some().then_some(json)
         })
         .ok_or_else(|| format!("failed to parse compiler output: {err}"))
-}
-
-fn display_call(call: &str, function: Option<&Function>) -> String {
-    function.map_or_else(|| call.to_owned(), Function::signature)
 }
 
 fn parse_artifacts(output: &[u8]) -> Result<Vec<Artifact>, String> {
@@ -468,12 +521,12 @@ fn only_artifact<'a>(artifacts: &'a [Artifact], test_path: &Path) -> Result<&'a 
     }
 }
 
-/// Finds the function `name` names in `artifacts`. In a test of MIR input, whose modules have no
-/// ABI, a full signature names a function without one.
+/// Finds the function `name` names in `artifacts`. When the contracts have no ABI, `abi_less`, a
+/// full signature names a function without one.
 fn find_function<'a>(
     artifacts: &'a [Artifact],
     name: &str,
-    mir: bool,
+    abi_less: bool,
 ) -> Result<(&'a Artifact, Cow<'a, Function>), String> {
     let (contract_name, function_name) = name
         .split_once("::")
@@ -493,20 +546,19 @@ fn find_function<'a>(
                 .map(move |function| (artifact, function))
         });
     let Some((artifact, function)) = matches.next() else {
-        // A MIR module has no ABI, so a call to it gives the function's full signature. A
-        // Solidity contract without functions only has a fallback, which a call naming a missing
-        // function would reach.
-        if !mir {
+        // A Solidity contract without functions only has a fallback, which a call naming a
+        // missing function would reach.
+        if !abi_less {
             return Err(format!("function `{name}` was not found in compiler output"));
         }
-        let abi_less = artifacts
+        let candidates = artifacts
             .iter()
             .filter(|artifact| {
                 contract_matches(artifact) && artifact.abi.functions().next().is_none()
             })
             .collect::<Vec<_>>();
         if function_name.contains('(')
-            && let [artifact] = abi_less[..]
+            && let [artifact] = candidates[..]
         {
             return Ok((artifact, Cow::Owned(parse_signature(function_name)?)));
         }
@@ -753,8 +805,8 @@ fn setup_call(artifact: &Artifact, function: Option<&Function>) -> Result<Option
 }
 
 /// Deploys the called contract, runs its `setUp()` when the call needs one, and executes the call,
-/// recording what it did for the MIR interpreter to check when `check_mir` is set.
-fn execute(call: &ResolvedCall<'_>, spec_id: SpecId, check_mir: bool) -> Result<Outcome, String> {
+/// recording what it did for the interpreter checks when `traced` is set.
+fn execute(call: &ResolvedCall<'_>, spec_id: SpecId, traced: bool) -> Result<Outcome, String> {
     let setup = setup_call(call.artifact, call.function.as_deref())?;
     let mut database = InMemoryDB::default();
     database.insert_account_info(&CALLER, AccountInfo::default().with_balance(U256::MAX));
@@ -799,11 +851,10 @@ fn execute(call: &ResolvedCall<'_>, spec_id: SpecId, check_mir: bool) -> Result<
             ));
         }
     }
-    let before = check_mir.then(|| oracle::Chain::capture(&evm, contract));
-    let heap_start = Rc::new(Cell::new(None));
-    let last_opcode = Rc::new(Cell::new(None));
+    let before = traced.then(|| trace::Chain::capture(&evm, contract));
+    let observer = trace::Observer::default();
     if before.is_some() {
-        evm.set_inspector(oracle::HeapStart(heap_start.clone(), last_opcode.clone()));
+        evm.set_inspector(observer.clone());
     }
     let input = Bytes::copy_from_slice(&call.input);
     let gas_limit = call.gas_limit.unwrap_or_else(|| default_gas_limit(spec_id));
@@ -811,7 +862,7 @@ fn execute(call: &ResolvedCall<'_>, spec_id: SpecId, check_mir: bool) -> Result<
     let trace = before.map(|before| {
         evm.clear_inspector();
         let (stop, output, logs) = (result.stop, &result.output, &result.logs);
-        oracle::Trace::new(before, &evm, stop, output, logs, heap_start.get(), last_opcode.get())
+        trace::Trace::new(before, &evm, stop, output, logs, &observer)
     });
     Ok(Outcome { trace, ..outcome(result) })
 }
@@ -997,16 +1048,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_invalid_error_invocations() {
-        assert!(encode_revert_data("Panic(1) extra").is_err());
-        assert!(encode_revert_data("Error()").is_err());
-        assert!(encode_revert_data("E(uint256)").is_err());
-        assert!(encode_revert_data("E(uint256)(1) extra").is_err());
-        assert!(encode_revert_data("E(uint256)(1").is_err());
-    }
-
-    #[test]
-    fn signatures_name_functions_only_in_mir() {
+    fn signatures_name_functions_only_without_an_abi() {
         let artifact = |abi: &str| Artifact {
             name: "source:Test".into(),
             abi: serde_json::from_str(abi).unwrap(),
@@ -1016,8 +1058,8 @@ mod tests {
         let signature = "missing(uint256)(uint256)";
         let error = find_function(&fallback_only, signature, false).unwrap_err();
         assert_eq!(error, "function `missing(uint256)(uint256)` was not found in compiler output");
-        let module = [artifact("[]")];
-        let (_, function) = find_function(&module, signature, true).unwrap();
+        let program = [artifact("[]")];
+        let (_, function) = find_function(&program, signature, true).unwrap();
         assert_eq!(function.signature(), "missing(uint256)");
     }
 
@@ -1037,5 +1079,14 @@ mod tests {
             "invalid function signature `f()(uint256)x`: unexpected `x` after the outputs"
         );
         assert!(parse_signature("f(uint256").is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_error_invocations() {
+        assert!(encode_revert_data("Panic(1) extra").is_err());
+        assert!(encode_revert_data("Error()").is_err());
+        assert!(encode_revert_data("E(uint256)").is_err());
+        assert!(encode_revert_data("E(uint256)(1) extra").is_err());
+        assert!(encode_revert_data("E(uint256)(1").is_err());
     }
 }

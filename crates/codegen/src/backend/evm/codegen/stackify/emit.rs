@@ -141,8 +141,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.body = Body::External;
     }
 
-    fn emit_stackified_body(&mut self, func_id: FunctionId, module: &Module, plan: FunctionPlan) {
+    fn emit_stackified_body(
+        &mut self,
+        func_id: FunctionId,
+        module: &Module,
+        mut plan: FunctionPlan,
+    ) {
         let func = &module.functions[func_id];
+        // The plan may be for a copy that rebuilds values at their uses.
+        let rebuilt = plan.rebuilt.take();
+        let func = rebuilt.as_deref().unwrap_or(func);
         if self.capture_mir {
             for (block_id, block) in func.blocks.iter_enumerated() {
                 for (index, &inst) in block.instructions.iter().enumerate() {

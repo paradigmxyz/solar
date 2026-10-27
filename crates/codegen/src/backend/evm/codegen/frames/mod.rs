@@ -145,13 +145,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         })
     }
 
-    pub(in crate::backend::evm::codegen) fn is_external_entry(func: &Function) -> bool {
-        Self::is_runtime_function(func)
-            && (func.selector.is_some()
-                || func.attributes.is_receive
-                || func.attributes.is_fallback)
-    }
-
     pub(in crate::backend::evm::codegen) fn is_runtime_function(func: &Function) -> bool {
         !func.attributes.is_constructor
     }
@@ -835,8 +828,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else {
             FxHashMap::default()
         };
-        let free_memory_floors: FxHashMap<FunctionId, u64> = self
-            .runtime_free_memory_consts
+        // Every entry has a floor, whether or not it initializes the pointer: a fresh read in a
+        // function it reaches takes the floor in place of the slot.
+        let mut free_memory_floors: FxHashMap<FunctionId, u64> = self
+            .runtime_entry_reachability
             .keys()
             .copied()
             .map(|entry| {
@@ -856,13 +851,36 @@ impl<'gcx> EvmCodegen<'gcx> {
                 )
             })
             .collect();
+        // The entries that run a function with a heap floor share one initial pointer, the highest
+        // of their floors, so that a read of the slot and a read of the floor in that function
+        // return the same word. Entries linked through several such functions merge.
+        let mut merged = true;
+        while merged {
+            merged = false;
+            for &(func_id, _) in &self.fmp_floor_consts {
+                let entries = free_memory_floors
+                    .keys()
+                    .copied()
+                    .filter(|entry| {
+                        own_reach.get(entry).is_some_and(|reach| reach.contains(func_id))
+                    })
+                    .collect::<Vec<_>>();
+                let Some(floor) = entries.iter().map(|entry| free_memory_floors[entry]).max()
+                else {
+                    continue;
+                };
+                for entry in entries {
+                    merged |= free_memory_floors.insert(entry, floor) != Some(floor);
+                }
+            }
+        }
         self.entry_frame_ends = entry_frame_ends;
         for (entry, id) in self.runtime_free_memory_consts.drain() {
             let floor = free_memory_floors[&entry];
             self.asm.set_deferred_const(id, U256::from(floor));
         }
-        // A clamped free-memory-pointer store keeps the highest initial pointer of the entries
-        // that reach its function; one that no entry reaches never runs.
+        // A heap floor is the highest initial pointer of the entries that run its function before
+        // control passes to another entry; one that no entry runs never executes.
         for (func_id, id) in std::mem::take(&mut self.fmp_floor_consts) {
             if self.capture_mir {
                 self.heap_floor_sites.insert(func_id, id);
@@ -870,9 +888,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let floor = free_memory_floors
                 .iter()
                 .filter(|&(entry, _)| {
-                    self.runtime_entry_reachability
-                        .get(entry)
-                        .is_some_and(|reachable| reachable.contains(func_id))
+                    own_reach.get(entry).is_some_and(|reach| reach.contains(func_id))
                 })
                 .map(|(_, &floor)| floor)
                 .max()
@@ -1277,7 +1293,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 })
             }
             Value::Inst(inst_id) => match &func.inst(*inst_id).kind {
-                InstKind::Fmp | InstKind::Alloc { .. } => Some(0),
+                InstKind::Fmp | InstKind::Alloc { .. } | InstKind::HeapFloor => Some(0),
                 InstKind::Load(address, PtrLocation::Memory)
                     if Self::heap_prefix_constant(func, *address, 0)
                         == Some(U256::from(EvmMemoryLayout::FMP_SLOT)) =>
@@ -1495,7 +1511,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         self.record_runtime_entry_reachability(call_graph, entry);
         let reachable = &self.runtime_entry_reachability[&entry];
-        if !Self::functions_need_free_memory(module, call_graph, reachable.iter()) {
+        if !Self::entry_needs_free_memory(module, call_graph, entry, reachable.iter()) {
             return;
         }
 
@@ -1517,16 +1533,77 @@ impl<'gcx> EvmCodegen<'gcx> {
         mut functions: impl Iterator<Item = FunctionId>,
     ) -> bool {
         functions.any(|func_id| {
-            call_graph.is_recursive(func_id)
+            Self::function_uses_free_memory_conventions(module, call_graph, func_id)
                 || Self::function_may_observe_free_memory_slot(&module.functions[func_id])
-                || module.functions[func_id].instructions().any(|inst_id| {
-                    matches!(
-                        module.functions[func_id].inst(inst_id).kind,
-                        InstKind::ICall { function: Callee::Function(function), .. }
-                            if module.function(function).return_components().len() > 1
-                    )
-                })
         })
+    }
+
+    /// Whether the entry's run can read the slot's initial value, or `functions`, the functions
+    /// it reaches, use it through the frame and multi-word return conventions. An observation
+    /// that a full-word store to the slot precedes on every path, in its function or before the
+    /// call that reaches it, sees the stored word.
+    fn entry_needs_free_memory(
+        module: &Module,
+        call_graph: &CallGraphInfo,
+        entry: FunctionId,
+        mut functions: impl Iterator<Item = FunctionId>,
+    ) -> bool {
+        if functions
+            .any(|func_id| Self::function_uses_free_memory_conventions(module, call_graph, func_id))
+        {
+            return true;
+        }
+        let mut seen = DenseBitSet::new_empty(module.functions.len());
+        let mut stores = FxHashMap::default();
+        let mut stores_slot =
+            |callee| Self::always_stores_free_memory_slot(module, callee, &mut stores);
+        let mut pending = vec![entry];
+        while let Some(func_id) = pending.pop() {
+            if !seen.insert(func_id) {
+                continue;
+            }
+            let used = Self::initial_free_memory_use(&module.functions[func_id], &mut stores_slot);
+            if used.observes {
+                return true;
+            }
+            pending.extend(used.calls);
+        }
+        false
+    }
+
+    /// Whether every path through `func_id` to its return stores the slot, memoized in `memo`. A
+    /// function that calls itself, directly or not, stores nothing for this purpose.
+    fn always_stores_free_memory_slot(
+        module: &Module,
+        func_id: FunctionId,
+        memo: &mut FxHashMap<FunctionId, Option<bool>>,
+    ) -> bool {
+        if let Some(stores) = memo.get(&func_id) {
+            return stores.unwrap_or(false);
+        }
+        memo.insert(func_id, None);
+        let stores =
+            Self::stores_free_memory_slot_on_return(&module.functions[func_id], &mut |callee| {
+                Self::always_stores_free_memory_slot(module, callee, memo)
+            });
+        memo.insert(func_id, Some(stores));
+        stores
+    }
+
+    /// Whether the frame or multi-word return convention of a function allocates above the slot.
+    fn function_uses_free_memory_conventions(
+        module: &Module,
+        call_graph: &CallGraphInfo,
+        func_id: FunctionId,
+    ) -> bool {
+        call_graph.is_recursive(func_id)
+            || module.functions[func_id].instructions().any(|inst_id| {
+                matches!(
+                    module.functions[func_id].inst(inst_id).kind,
+                    InstKind::ICall { function: Callee::Function(function), .. }
+                        if module.function(function).return_components().len() > 1
+                )
+            })
     }
 
     /// Records every function whose memory bounds contribute to one runtime entry.

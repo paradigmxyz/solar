@@ -8,18 +8,16 @@
 //! sema evaluates Solidity source constants and reports semantic errors, while
 //! MIR folding must match 256-bit EVM wrapping and zero-divisor semantics.
 
-use crate::{
-    backend::evm::op::{
-        self,
-        word::{i256_div, i256_mod, signextend},
-    },
-    mir::{
-        ArithmeticKind, Builtin, Callee, CheckedOp, Function, InstKind, MirType, ResultKind,
-        Semantics, ValueId,
-    },
+use crate::mir::{
+    ArithmeticKind, Builtin, Callee, CheckedOp, Function, InstKind, MirType, ResultKind, Semantics,
+    ValueId,
 };
 use alloy_primitives::{I256, U256};
 use smallvec::SmallVec;
+use solar_evmir::op::{
+    self,
+    word::{i256_div, i256_mod, signextend},
+};
 
 /// Evaluates integer operations in their declared width, with EVM's total semantics.
 pub(crate) fn eval_typed_inst<E>(

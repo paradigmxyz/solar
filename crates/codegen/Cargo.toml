@@ -19,6 +19,7 @@ workspace = true
 solar-ast.workspace = true
 solar-config.workspace = true
 solar-data-structures.workspace = true
+solar-evmir.workspace = true
 solar-interface.workspace = true
 solar-parse.workspace = true
 solar-sema.workspace = true
@@ -42,6 +43,7 @@ cranelift-isle.workspace = true
 nightly = [
     "solar-ast/nightly",
     "solar-data-structures/nightly",
+    "solar-evmir/nightly",
     "solar-interface/nightly",
     "solar-parse/nightly",
     "solar-sema/nightly",

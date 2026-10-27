@@ -1,6 +1,6 @@
 //! Functions for installing a custom panic hook.
 
-use crate::diagnostics::{DiagCtxt, ExplicitBug, FatalAbort};
+use crate::diagnostics::{DiagCtxt, ExplicitBug, FatalAbort, flush_withheld};
 use std::panic::PanicHookInfo;
 
 const BUG_REPORT_URL: &str =
@@ -16,6 +16,9 @@ pub fn install() {
         if info.payload().is::<FatalAbort>() {
             std::process::exit(1);
         }
+
+        // Release the diagnostics that parallel work still withholds, as the work will not finish.
+        flush_withheld();
 
         // Lock stderr to prevent interleaving of concurrent panics.
         let _guard = std::io::stderr().lock();
@@ -54,4 +57,48 @@ where
 {
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| hook_fn(&default_hook, info)));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use snapbox::{assert_data_eq, str};
+    use std::process::Command;
+
+    const TEST: &str = "panic_hook::tests::ice_prints_withheld_diagnostics_first";
+    const CHILD: &str = "SOLAR_PANIC_HOOK_TEST_CHILD";
+
+    /// A panic while a parallel phase withholds diagnostics prints them before the panic message.
+    #[test]
+    fn ice_prints_withheld_diagnostics_first() {
+        if std::env::var_os(CHILD).is_some() {
+            install();
+            let dcx = DiagCtxt::with_stderr_emitter(None).with_flags(|flags| {
+                flags.track_diagnostics = false;
+            });
+            // A finished item whose diagnostics wait for the end of the phase.
+            let (_, _withheld) = dcx.defer(|| dcx.err("earlier error").emit());
+            panic!("boom");
+        }
+
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", TEST, "--nocapture", "--test-threads=1"])
+            .env(CHILD, "1")
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert_data_eq!(
+            String::from_utf8(output.stderr).unwrap(),
+            str![[r#"
+...
+error: earlier error
+
+...
+boom
+...
+error: the compiler unexpectedly panicked; this is a bug.
+...
+"#]]
+        );
+    }
 }

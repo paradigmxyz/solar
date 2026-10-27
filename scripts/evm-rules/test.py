@@ -511,7 +511,7 @@ class SemanticsTests(unittest.TestCase):
         `#guard` cannot evaluate for large exponents, so those rows check the Python
         model alone.
         """
-        table = ROOT / "crates/codegen/src/backend/evm/op/word.snap"
+        table = ROOT / "crates/evmir/src/op/word.snap"
         lines = table.read_text().splitlines()
         self.assertGreater(len(lines), 0)
         for line in lines:

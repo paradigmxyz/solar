@@ -1,11 +1,7 @@
 //@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
 //@ filecheck:
-// Definition spans cover implicit returns, including the synthetic constructor.
-// CHECK-LABEL: "bytecode": {
-// CHECK: "mnemonic": "JUMP"
-// CHECK: "offset": 0,
-// CHECK-NEXT: "length": 411
-// CHECK: "sourceMap": "{{.*}}0:411:0
+// Definition spans cover implicit returns. `-O none` removes the jump-only block of the synthetic
+// constructor, so its span is dropped from the creation code.
 // CHECK-LABEL: "deployedBytecode": {
 // CHECK: "mnemonic": "STOP"
 // CHECK: "offset": 39,
@@ -14,12 +10,12 @@
 // CHECK: "offset": 74,
 // CHECK-NEXT: "length": 68
 // CHECK: "mnemonic": "JUMP"
-// CHECK: "offset": 280,
-// CHECK-NEXT: "length": 64
-// CHECK: "mnemonic": "JUMP"
 // CHECK: "offset": 345,
 // CHECK-NEXT: "length": 64
-// CHECK: "sourceMap": "{{.*}}39:34:0{{.*}}74:68:0{{.*}}280:64:0{{.*}}345:64:0
+// CHECK: "mnemonic": "JUMP"
+// CHECK: "offset": 280,
+// CHECK-NEXT: "length": 64
+// CHECK: "sourceMap": "{{.*}}39:34:0{{.*}}74:68:0{{.*}}345:64:0{{.*}}280:64:0
 {
   "language": "Solidity",
   "sources": {

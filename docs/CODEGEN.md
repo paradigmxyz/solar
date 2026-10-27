@@ -14,7 +14,7 @@ traversal, the `Op` rewrite view, the ISLE prelude, a constructor per operation
 and a `FunctionBuilder` method per variant marked `#[builder(name)]` or
 `#[builder(name, void)]`. Write custom text syntax or a custom builder only for
 an attribute the generic forms cannot express.
-Declare EVM opcodes the same way in `backend/evm/op.rs`, with traits,
+Declare EVM opcodes the same way in `crates/evmir/src/op.rs`, with traits,
 availability, and, for pure opcodes, word semantics (`op/word.rs`, reached
 through `op::eval`) per row; `op_table.snap` snapshots the table, and
 `op/word.snap` lists pure opcode results on boundary words, which the rule
@@ -78,7 +78,11 @@ replacement on the right:
 
 `cargo check -p solar-codegen` checks rule types and overlaps. Add pass UI
 tests per the [test layout](../AGENTS.md#codegen--mir-pass-tests); rules that
-affect execution also need runtime or differential tests. The offline
+affect execution also need runtime or differential tests. A `run-call` in a
+`.evmir` test is both: the runner checks the call's result in an EVM and runs
+the call on the test's own text in the EVM IR interpreter, which must agree with
+the bytecode the pass's output assembles to (see the
+[tester guide](../tools/tester/README.md#evm-ir-interpreter-check)). The offline
 word-rule checker, its Lean model and proofs, and their tests live in
 `scripts/evm-rules/` (see its [guide](../scripts/evm-rules/README.md) for
 commands and coverage limits). The checker must reject unsupported semantics,
@@ -134,11 +138,12 @@ schedule; the pass never prices or matches instructions itself.
 ## Target Cost Model
 
 The target cost model in `crates/codegen/src/target.rs` prices every choice
-between equivalent code shapes. Each opcode row in `backend/evm/op.rs` has a
-`gas(tier)` column. `GasTier::gas` resolves a tier to the selected EVM
-version's static gas across the fork schedule (EIP-150, EIP-1884, EIP-2929,
-and later repricings), `dynamic_gas` gives the per-word or per-byte part, and
-`op_table.snap` snapshots the resolved schedule. `GasTier::fixed_gas` serves
+between equivalent code shapes. Each opcode row in `crates/evmir/src/op.rs` has
+a `gas(tier)` column, and `crates/evmir/src/gas.rs` holds the schedule:
+`GasTier::gas` resolves a tier to the selected EVM version's static gas across
+the fork schedule (EIP-150, EIP-1884, EIP-2929, and later repricings),
+`dynamic_gas` gives the per-word or per-byte part, and `op_table.snap`
+snapshots the resolved schedule. `GasTier::fixed_gas` serves
 version-independent tiers in constants.
 
 `Target::new(gcx)` builds the model from the session's EVM version,

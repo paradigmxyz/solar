@@ -66,7 +66,7 @@
 use super::{EvmPass, utils::is_split_point};
 use crate::{
     backend::evm::{
-        ir::{Block, BlockId, Instruction, Module, TerminatorKind},
+        ir::{Block, BlockId, Instruction, Module, ModuleTarget, TerminatorKind},
         op,
     },
     target::{Cost, Target},

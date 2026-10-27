@@ -37,8 +37,8 @@ use super::{EvmPass, utils::is_split_point};
 use crate::{
     backend::evm::{
         ir::{
-            BlockId, Data, DataId, DataRef, DataSize, Instruction, Metadata, Module, PushValue,
-            Terminator, TerminatorKind,
+            BlockId, BlockTarget, Data, DataId, DataRef, DataSize, Instruction, Metadata, Module,
+            ModuleTarget, PushValue, Terminator, TerminatorKind,
         },
         op::{self, WORD_BYTES},
     },

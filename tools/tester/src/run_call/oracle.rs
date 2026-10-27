@@ -8,25 +8,16 @@
 //! its calls both ways, so a call the interpreter cannot run, or one the EVM ends by running out
 //! of gas or stack, which the interpreter does not model, fails the test.
 
-use super::CALLER;
-use alloy_primitives::{Address, B256, Log, U256, hex};
-use evm2::{
-    BaseEvmTypes, Evm,
-    env::{BlockEnv, TxEnv},
-    evm::{AccountInfo, inspector::Inspector},
-    interpreter::{InstrStop, Interpreter},
-};
-use solar_codegen::{
-    backend::evm::op,
-    interpret::{self, Host, Outcome},
-};
+use super::trace::{Context, Trace};
+use alloy_primitives::{U256, hex};
+use evm2::interpreter::InstrStop;
+use solar_codegen::interpret::{self, Host, Outcome};
 use solar_config::EvmVersion;
+use solar_evmir::op;
 use std::{
-    cell::Cell,
     collections::HashMap,
     ffi::OsString,
     process::Command,
-    rc::Rc,
     sync::{Arc, Mutex},
 };
 use ui_test::{build_manager::BuildManager, per_test_config::TestConfig};
@@ -57,161 +48,20 @@ pub(super) fn applies(config: &TestConfig) -> bool {
     config.status.path().extension().is_some_and(|extension| extension == "mir")
 }
 
-/// An account as the called contract sees it.
-struct Account {
-    balance: U256,
-    code: Vec<u8>,
-    code_hash: B256,
-}
-
-/// The chain state the called contract saw, captured from the EVM just before the call.
-pub(super) struct Chain {
-    contract: Address,
-    storage: HashMap<U256, U256>,
-    accounts: HashMap<Address, Account>,
-}
-
-impl Chain {
-    /// Captures the state of `evm`, whose next transaction calls `contract`.
-    ///
-    /// The accepted-state overlay holds every account the deployment and `setUp()` touched,
-    /// which includes every account the call can observe.
-    pub(super) fn capture(evm: &Evm<'_, BaseEvmTypes>, contract: Address) -> Self {
-        let cache = &evm.overlay_db().cache;
-        let accounts = cache
-            .accounts
-            .iter()
-            .filter_map(|(address, info)| Some((*address, info.as_ref()?)))
-            .map(|(address, info): (Address, &AccountInfo)| {
-                let code = info.code.as_ref().or_else(|| cache.contracts.get(&info.code_hash));
-                let code = code.map(|code| code.original_byte_slice().to_vec()).unwrap_or_default();
-                (address, Account { balance: info.balance, code, code_hash: info.code_hash })
-            })
-            .collect();
-        Self { contract, storage: storage(evm, contract), accounts }
-    }
-}
-
-/// Returns the persistent storage of `contract` in `evm`.
-fn storage(evm: &Evm<'_, BaseEvmTypes>, contract: Address) -> HashMap<U256, U256> {
-    let storage = evm.overlay_db().cache.storage.get(&contract);
-    storage.map_or_else(HashMap::new, |storage| {
-        storage.slots.iter().map(|(&slot, &value)| (slot, value)).collect()
-    })
-}
-
-/// Records the first value the EVM stores at the free memory pointer's slot, which is where the
-/// backend's entry code starts the heap.
-pub(super) struct HeapStart(pub(super) Rc<Cell<Option<U256>>>, pub(super) Rc<Cell<Option<u8>>>);
-
-impl Inspector<BaseEvmTypes> for HeapStart {
-    fn step(&mut self, interpreter: &mut Interpreter<'_, '_, BaseEvmTypes>) {
-        self.1.set(Some(interpreter.opcode()));
-        let stack = interpreter.stack();
-        if self.0.get().is_none()
-            && interpreter.opcode() == op::MSTORE
-            && stack.peek(0) == Some(U256::from(0x40))
-        {
-            self.0.set(stack.peek(1));
-        }
-    }
-}
-
-/// What a call did in the EVM.
-pub(super) struct Trace {
-    before: Chain,
-    stop: InstrStop,
-    output: Vec<u8>,
-    logs: Vec<Log>,
-    storage: HashMap<U256, U256>,
-    heap_start: Option<U256>,
-    last_opcode: Option<u8>,
-}
-
-impl Trace {
-    /// Records the call that took `evm` from `before` to its current state, starting its heap
-    /// at `heap_start` if it stored one.
-    pub(super) fn new(
-        before: Chain,
-        evm: &Evm<'_, BaseEvmTypes>,
-        stop: InstrStop,
-        output: &[u8],
-        logs: &[Log],
-        heap_start: Option<U256>,
-        last_opcode: Option<u8>,
-    ) -> Self {
-        let storage = storage(evm, before.contract);
-        Self {
-            before,
-            stop,
-            output: output.to_vec(),
-            logs: logs.to_vec(),
-            storage,
-            heap_start,
-            last_opcode,
-        }
-    }
-}
-
-/// Answers the interpreter's context reads from the captured chain state and the values the EVM
-/// was configured with.
+/// Answers the MIR interpreter's reads from the captured call context and the heap start the EVM
+/// stored.
 struct EvmHost<'a> {
-    chain: &'a Chain,
-    value: U256,
-    block: BlockEnv<BaseEvmTypes>,
+    context: Context<'a>,
     heap_start: Option<U256>,
-}
-
-impl EvmHost<'_> {
-    /// Returns an account's balance during the call, after its value moved to the contract.
-    fn balance(&self, address: Address) -> U256 {
-        let before =
-            self.chain.accounts.get(&address).map_or(U256::ZERO, |account| account.balance);
-        if address == self.chain.contract {
-            before + self.value
-        } else if address == CALLER {
-            before - self.value
-        } else {
-            before
-        }
-    }
 }
 
 impl Host for EvmHost<'_> {
     fn read(&mut self, opcode: u8, operands: &[U256]) -> Option<U256> {
-        let address = || operands.first().map(|word| Address::from_word(word.to_be_bytes().into()));
-        let account = |address: Address| self.chain.accounts.get(&address);
-        Some(match opcode {
-            op::ADDRESS => self.chain.contract.into_word().into(),
-            op::ORIGIN | op::CALLER => CALLER.into_word().into(),
-            op::CALLVALUE => self.value,
-            // The call is a legacy transaction with a zero gas price and no blobs, in the first
-            // block, which has no ancestors to hash.
-            op::GASPRICE | op::BLOCKHASH | op::BLOBHASH => U256::ZERO,
-            op::CHAINID => TxEnv::<BaseEvmTypes>::default().chain_id,
-            op::COINBASE => self.block.beneficiary.into_word().into(),
-            op::TIMESTAMP => self.block.timestamp,
-            op::NUMBER => self.block.number,
-            op::PREVRANDAO => self.block.prevrandao,
-            op::GASLIMIT => self.block.gas_limit,
-            op::BASEFEE => self.block.basefee,
-            op::BLOBBASEFEE => self.block.blob_basefee,
-            op::SLOTNUM => self.block.slot_num,
-            op::SELFBALANCE => self.balance(self.chain.contract),
-            op::BALANCE => self.balance(address()?),
-            op::CODESIZE => U256::from(account(self.chain.contract)?.code.len()),
-            op::EXTCODESIZE => {
-                U256::from(account(address()?).map_or(0, |account| account.code.len()))
-            }
-            op::EXTCODEHASH => {
-                account(address()?).map_or(U256::ZERO, |account| account.code_hash.into())
-            }
-            _ => return None,
-        })
+        self.context.read(opcode, operands)
     }
 
     fn storage(&mut self, slot: U256) -> U256 {
-        self.chain.storage.get(&slot).copied().unwrap_or_default()
+        self.context.storage(slot)
     }
 
     fn free_memory_start(&mut self) -> U256 {
@@ -243,8 +93,7 @@ pub(super) fn check(
         return Err(format!("the MIR dump has no runtime for `{}`", call.contract));
     };
     // A constructor may deploy other code, and deployment patches immutables into the runtime.
-    let deployed = trace.before.accounts.get(&trace.before.contract).map(|account| &account.code);
-    if deployed != Some(runtime) {
+    if trace.before.deployed_code() != Some(&runtime[..]) {
         return unsupported("the deployed code is not the compiled runtime");
     }
     let expected = match trace.stop {
@@ -270,9 +119,8 @@ pub(super) fn check(
             ));
         }
     };
-    let block = BlockEnv::<BaseEvmTypes>::default();
-    let heap_start = trace.heap_start;
-    let mut host = EvmHost { chain: &trace.before, value: call.value, block, heap_start };
+    let context = Context::new(&trace.before, call.value);
+    let mut host = EvmHost { context, heap_start: trace.heap_start };
     let options = interpret::Options { evm_version: call.evm_version, ..Default::default() };
     let execution = match interpret::transact(module, call.input, &mut host, options) {
         Ok(execution) => execution,
@@ -290,42 +138,8 @@ pub(super) fn check(
             describe(&execution.outcome, None)
         ));
     } else if matches!(expected, Outcome::Success(_)) {
-        let logs = trace
-            .logs
-            .iter()
-            .map(|log| {
-                let topics = log.data.topics().iter().map(|topic| U256::from_be_bytes(topic.0));
-                (topics.collect::<Vec<_>>(), log.data.data.to_vec())
-            })
-            .collect::<Vec<_>>();
-        let mir_logs = execution
-            .logs
-            .iter()
-            .map(|log| (log.topics.clone(), log.data.clone()))
-            .collect::<Vec<_>>();
-        if logs != mir_logs {
-            differences.push(format!(
-                "the EVM logged {}, the MIR {}",
-                describe_logs(&logs),
-                describe_logs(&mir_logs)
-            ));
-        }
-        let written = execution.storage.iter().copied().collect::<HashMap<_, _>>();
-        for (&slot, &value) in &written {
-            let evm = trace.storage.get(&slot).copied().unwrap_or_default();
-            if evm != value {
-                differences.push(format!(
-                    "slot {slot:#x} holds {evm:#x} in the EVM, {value:#x} in the MIR"
-                ));
-            }
-        }
-        for (&slot, &value) in &trace.storage {
-            let before = trace.before.storage.get(&slot).copied().unwrap_or_default();
-            if value != before && !written.contains_key(&slot) {
-                differences
-                    .push(format!("the EVM wrote {value:#x} to slot {slot:#x}, the MIR did not"));
-            }
-        }
+        let logs = execution.logs.iter().map(|log| (log.topics.clone(), log.data.clone()));
+        differences.extend(trace.effect_differences(logs.collect(), &execution.storage, "MIR"));
     }
     if differences.is_empty() {
         return Ok(());
@@ -343,15 +157,6 @@ fn describe(outcome: &Outcome, stop: Option<InstrStop>) -> String {
         (Outcome::ReturndataOutOfBounds, _) => "halted on an out-of-bounds returndata copy".into(),
         (Outcome::Unsupported(reason), _) => format!("could not run: {reason}"),
     }
-}
-
-/// Describes events as their topics and data, in hex.
-fn describe_logs(logs: &[(Vec<U256>, Vec<u8>)]) -> String {
-    let logs = logs.iter().map(|(topics, data)| {
-        let topics = topics.iter().map(|topic| format!("{topic:#x}")).collect::<Vec<_>>();
-        format!("topics [{}] data 0x{}", topics.join(", "), hex::encode(data))
-    });
-    format!("[{}]", logs.collect::<Vec<_>>().join("; "))
 }
 
 /// Returns what the test's compiler command dumps, compiling once per command.

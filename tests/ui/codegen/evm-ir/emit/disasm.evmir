@@ -1,0 +1,9 @@
+//@ compile-flags: --emit=bin-runtime -Zdump=disasm-runtime
+
+// A disassembly dump does not replace the outputs `--emit` asks for: both show one bytecode.
+@module program
+bb0:
+  push 1
+  push 0
+  sstore
+  stop

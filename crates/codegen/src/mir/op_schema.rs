@@ -723,7 +723,7 @@ macro_rules! declared_semantics {
         None
     };
     ($inst:ident; opcode($opcode:ident)) => {
-        Some(Semantics::Opcode(crate::backend::evm::op::$opcode, $inst.operands()))
+        Some(Semantics::Opcode(solar_evmir::op::$opcode, $inst.operands()))
     };
     ($inst:ident; opcode(match $location:ident { $( $at:ident => $opcode:ident ),+ $(,)? })) => {
         match $location {
@@ -1812,6 +1812,7 @@ define_mir_ops! {
         side_effects = false,
         category = None
     )]
+    #[builder(heap_floor)]
     #[operand_types(func => Some(smallvec![]))]
     #[semantics(heap_floor())]
     HeapFloor,

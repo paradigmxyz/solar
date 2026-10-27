@@ -3,8 +3,7 @@
 use crate::{backend::evm::op::StackOp, mir::ValueId};
 use smallvec::SmallVec;
 
-/// Maximum total stack depth for EVM.
-pub(crate) const MAX_STACK_DEPTH: usize = 1024;
+pub(crate) use crate::backend::evm::op::MAX_STACK_DEPTH;
 
 /// A symbolic EVM stack, top first.
 #[derive(Clone, Debug)]

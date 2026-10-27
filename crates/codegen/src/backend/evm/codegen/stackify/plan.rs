@@ -16,8 +16,8 @@ use crate::{
         op,
     },
     mir::{
-        ArgIdx, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, Module, OpTraits,
-        PtrLocation, Terminator, Value, ValueId,
+        ArgIdx, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, OpTraits, PtrLocation,
+        Terminator, Value, ValueId,
         analysis::{CfgInfo, Liveness},
         memory::EvmMemoryLayout,
     },
@@ -186,6 +186,8 @@ pub(super) struct Planner<'a> {
     cfg: &'a CfgInfo,
     /// Values pushed fresh at each use instead of kept on the stack.
     remat: DenseBitSet<ValueId>,
+    /// The values of `remat` and `spilled`; `is_fresh` leaves out those `held` in the block.
+    fresh_values: DenseBitSet<ValueId>,
     /// The cost of pushing each value of `remat`.
     remat_costs: IndexVec<ValueId, Cost>,
     /// The instructions that overwrite this function's fixed frame, with the values live across
@@ -254,7 +256,7 @@ pub(super) struct Planner<'a> {
 impl<'a> Planner<'a> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
-        module: &'a Module,
+        func: &'a Function,
         info: &'a ModuleInfo,
         func_id: FunctionId,
         analysis: &'a Analysis,
@@ -265,7 +267,6 @@ impl<'a> Planner<'a> {
         hints: &'a FxHashMap<BlockId, Layout>,
     ) -> Result<Self, &'static str> {
         let Analysis { liveness, cfg, loops, pinned, recomputable, saved, .. } = analysis;
-        let func = &module.functions[func_id];
         let internal = info.internal.contains(func_id);
         let has_ret = info.returning.contains(func_id);
         let args = if internal { argument_values(func)? } else { IndexVec::new() };
@@ -537,6 +538,11 @@ impl<'a> Planner<'a> {
                 }
                 costs
             },
+            fresh_values: {
+                let mut fresh = remat.clone();
+                fresh.union(spilled);
+                fresh
+            },
             remat,
             saved,
             batch_spills,
@@ -618,6 +624,7 @@ impl<'a> Planner<'a> {
             calls: self.calls,
             cost: self.cost,
             non_loop_gas: self.non_loop_gas,
+            rebuilt: None,
         };
         Ok(Planned { plan, natural: self.natural, first_use: self.first_use })
     }
@@ -1238,6 +1245,7 @@ impl<'a> Planner<'a> {
     }
 
     /// Swaps the word at `depth` to the top.
+    #[inline(always)]
     fn swap_up(&self, sim: &mut Sim, depth: usize) -> Result<(), Fail> {
         if depth == 0 {
             return Ok(());
@@ -1252,6 +1260,7 @@ impl<'a> Planner<'a> {
     // Primitive operations.
     // ----------------------------------------------------------------------------------------
 
+    #[inline(always)]
     fn stack_op(&self, sim: &mut Sim, op: StackOp) -> Result<(), Fail> {
         let height = sim.stack.len();
         match op {
@@ -1357,6 +1366,7 @@ impl<'a> Planner<'a> {
     }
 
     /// Pushes a fresh copy of a value that is not kept on the stack.
+    #[inline(always)]
     fn fresh(&self, sim: &mut Sim, value: ValueId) {
         if self.spilled.contains(value) && !self.is_remat(value) {
             sim.cost += StackCosts::DIRECT_LOAD;
@@ -1370,7 +1380,9 @@ impl<'a> Planner<'a> {
     }
 
     fn is_fresh(&self, value: ValueId) -> bool {
-        self.is_remat(value) || self.spilled.contains(value)
+        self.fresh_values.contains(value)
+            && (self.spilled.contains(value)
+                || !self.held.get(&value).is_some_and(|held| held.contains(self.current.get())))
     }
 
     /// Whether a word can be pushed without a stack copy.
@@ -1423,6 +1435,7 @@ impl<'a> Planner<'a> {
     }
 
     /// Pushes a copy of `value`: a fresh materialization or a `DUP` of its shallowest copy.
+    #[inline(always)]
     fn copy(&self, sim: &mut Sim, value: ValueId) -> Result<(), Fail> {
         if self.is_fresh(value) {
             self.fresh(sim, value);
@@ -1514,13 +1527,15 @@ impl<'a> Planner<'a> {
         }
         let dying = &*dying_ops;
         // Operands already in place need nothing unless a dying one leaves a copy below. Every
-        // strategy that prepares them at no cost does exactly this.
+        // strategy that prepares them at no cost does exactly this. Whether each order has them in
+        // place also tells how many it keeps when it needs more.
+        let mut all_in_place = SmallVec::<[bool; 2]>::new();
         for (index, ops) in orders.iter().enumerate() {
-            if self.in_place(&sim.stack, ops, dying)
-                && leftovers(&sim.stack[..sim.stack.len() - ops.len()], dying) == 0
-            {
+            let in_place = self.in_place(&sim.stack, ops, dying);
+            if in_place && leftovers(&sim.stack[..sim.stack.len() - ops.len()], dying) == 0 {
                 return Ok(index);
             }
+            all_in_place.push(in_place);
         }
         #[derive(Clone, Copy, PartialEq, Eq)]
         enum Strategy {
@@ -1528,31 +1543,45 @@ impl<'a> Planner<'a> {
             Build,
             Cycles,
         }
-        let consumable = dying.iter().any(|&value| !self.is_fresh(value));
+        // The stack position of the shallowest copy of each dying operand that is not fresh.
+        let mut consumable = SmallVec::<[(ValueId, Option<usize>); 8]>::new();
+        for &value in dying {
+            if !self.is_fresh(value) && !consumable.iter().any(|&(seen, _)| seen == value) {
+                let position = sim.stack.iter().rposition(|&slot| slot == Slot::Value(value));
+                consumable.push((value, position));
+            }
+        }
         let mut best: Option<(Cost, usize)> = None;
         // Whether the cheapest arrangement so far swaps at least twice.
         let mut best_swaps = false;
         let mut scratch = self.scratch.borrow_mut();
         let [mut candidate, mut best_sim] = scratch.each_mut();
         let mut failure = None;
+        let mut in_place = SmallVec::<[Option<usize>; 8]>::new();
         for (index, ops) in orders.iter().enumerate() {
-            let in_place = self.consumed_in_place(&sim.stack, ops, dying);
+            Self::consumed_in_place(&consumable, ops, &mut in_place);
             // Longest run of operands already in place.
-            let placed = (1..=ops.len())
-                .rev()
-                .find(|&t| self.in_place(&sim.stack, &ops[..t], dying))
-                .unwrap_or(0);
+            let placed = if all_in_place[index] {
+                ops.len()
+            } else {
+                (1..ops.len())
+                    .rev()
+                    .find(|&t| self.in_place(&sim.stack, &ops[..t], dying))
+                    .unwrap_or(0)
+            };
             // With nothing in place, building and reordering both copy every operand in order: the
             // swap that building tries first needs a dying operand on the stack, which reordering
-            // would have consumed in place.
-            let build_is_reorder = placed == 0 && in_place.iter().all(Option::is_none);
+            // would have consumed in place. A lone operand consumed in place takes the same swap
+            // with either strategy, or fails on the same word.
+            let build_is_reorder = (placed == 0 && in_place.iter().all(Option::is_none))
+                || (ops.len() == 1 && in_place[0].is_some());
             for strategy in [Strategy::Reorder, Strategy::Build, Strategy::Cycles] {
                 if strategy == Strategy::Build && build_is_reorder {
                     continue;
                 }
                 // Following cycles only saves swaps when an operand is consumed in place and the
                 // cheapest arrangement so far needs at least two.
-                if strategy == Strategy::Cycles && !(consumable && best_swaps) {
+                if strategy == Strategy::Cycles && (consumable.is_empty() || !best_swaps) {
                     continue;
                 }
                 candidate.refork(sim);
@@ -1618,7 +1647,14 @@ impl<'a> Planner<'a> {
 
     /// Whether the top of `stack` holds `ops` in push order, each once and consumable: a last
     /// use, a materializable value or a surplus copy.
+    #[inline(always)]
     fn in_place(&self, stack: &[Slot], ops: &[ValueId], dying: &[ValueId]) -> bool {
+        // The last operand must be on top.
+        if let Some(&last) = ops.last()
+            && stack.last() != Some(&Slot::Value(last))
+        {
+            return false;
+        }
         let Some(split) = stack.len().checked_sub(ops.len()) else { return false };
         let (below, top) = stack.split_at(split);
         ops.iter().enumerate().all(|(i, &value)| {
@@ -1632,22 +1668,23 @@ impl<'a> Planner<'a> {
 
     /// The stack position of the word each operand consumes in place: the shallowest copy of a
     /// value whose last use this is, at its first occurrence. Copies only push, so these
-    /// positions hold while the other operands are copied.
+    /// positions hold while the other operands are copied. `consumable` holds the positions of
+    /// the dying operands that are not fresh.
     fn consumed_in_place(
-        &self,
-        stack: &[Slot],
+        consumable: &[(ValueId, Option<usize>)],
         ops: &[ValueId],
-        dying: &[ValueId],
-    ) -> SmallVec<[Option<usize>; 8]> {
-        let mut positions = SmallVec::new();
+        positions: &mut SmallVec<[Option<usize>; 8]>,
+    ) {
+        positions.clear();
         for (i, &value) in ops.iter().enumerate() {
             positions.push(
-                (!self.is_fresh(value) && !ops[..i].contains(&value) && dying.contains(&value))
-                    .then(|| stack.iter().rposition(|&slot| slot == Slot::Value(value)))
-                    .flatten(),
+                consumable
+                    .iter()
+                    .find(|&&(consumed, _)| consumed == value)
+                    .filter(|_| !ops[..i].contains(&value))
+                    .and_then(|&(_, position)| position),
             );
         }
-        positions
     }
 
     /// Consumes the operands `in_place` names in place, copies every other operand, and then
@@ -1696,6 +1733,7 @@ impl<'a> Planner<'a> {
     }
 
     /// Swaps the word at `depth` to the top, following the swap in the operand positions.
+    #[inline(always)]
     fn positioned_swap(
         &self,
         sim: &mut Sim,
@@ -1709,6 +1747,7 @@ impl<'a> Planner<'a> {
     }
 
     /// Follows a swap of the stack words at positions `a` and `b` in the operand positions.
+    #[inline(always)]
     fn swap_positions(positions: &mut [usize], a: usize, b: usize) {
         for position in positions {
             if *position == a {
@@ -3344,6 +3383,9 @@ fn common_dominator(cfg: &CfgInfo, a: BlockId, b: BlockId) -> BlockId {
 fn leftovers(below: &[Slot], dying: &[ValueId]) -> u32 {
     if dying.is_empty() {
         return 0;
+    }
+    if let &[only] = dying {
+        return below.iter().filter(|&&slot| slot == Slot::Value(only)).count() as u32;
     }
     below.iter().filter(|slot| matches!(slot, Slot::Value(value) if dying.contains(value))).count()
         as u32

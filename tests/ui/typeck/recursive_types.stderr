@@ -14,6 +14,24 @@ LL │ ┃         A a;
 LL │ ┃     }
    ╰╴┗━━━━━┛
 
+error: name has to refer to a valid user-defined type
+   ╭▸ ROOT/tests/ui/typeck/recursive_types.sol:LL:CC
+   │
+LL │     event E1(E2);
+   ╰╴             ━━
+
+error: name has to refer to a valid user-defined type
+   ╭▸ ROOT/tests/ui/typeck/recursive_types.sol:LL:CC
+   │
+LL │     event E2(E1);
+   ╰╴             ━━
+
+error: the underlying type of UDVTs must be an elementary value type
+   ╭▸ ROOT/tests/ui/typeck/recursive_types.sol:LL:CC
+   │
+LL │     type U1 is U1;
+   ╰╴               ━━
+
 error: recursive types cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/recursive_types.sol:LL:CC
    │
@@ -31,24 +49,6 @@ error: name has to refer to a valid user-defined type
    │
 LL │     function e(E2 memory) public {}
    ╰╴               ━━
-
-error: the underlying type of UDVTs must be an elementary value type
-   ╭▸ ROOT/tests/ui/typeck/recursive_types.sol:LL:CC
-   │
-LL │     type U1 is U1;
-   ╰╴               ━━
-
-error: name has to refer to a valid user-defined type
-   ╭▸ ROOT/tests/ui/typeck/recursive_types.sol:LL:CC
-   │
-LL │     event E1(E2);
-   ╰╴             ━━
-
-error: name has to refer to a valid user-defined type
-   ╭▸ ROOT/tests/ui/typeck/recursive_types.sol:LL:CC
-   │
-LL │     event E2(E1);
-   ╰╴             ━━
 
 error: aborting due to 8 previous errors
 

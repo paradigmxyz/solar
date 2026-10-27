@@ -55,13 +55,10 @@
 //! instructions, values, and blocks a function names, and checks the rest as it runs, so a value
 //! used before its definition or a phi missing an edge also ends a run as unsupported.
 
-use crate::{
-    backend::evm::op,
-    mir::{
-        AllocationPlacement, ArgIdx, BlockId, Callee, DataRef, Function, FunctionId, InstId,
-        InstKind, MirPhase, Module, Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
-        utils::eval::eval_semantics,
-    },
+use crate::mir::{
+    AllocationPlacement, ArgIdx, BlockId, Callee, DataRef, Function, FunctionId, InstId, InstKind,
+    MirPhase, Module, Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    utils::eval::eval_semantics,
 };
 use alloy_primitives::{U256, keccak256};
 use smallvec::SmallVec;
@@ -70,6 +67,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
+use solar_evmir::op;
 use std::{convert::Infallible, ops::ControlFlow};
 
 /// Bytes of memory an execution may use: growing memory to 16 MiB costs about 538 million gas,

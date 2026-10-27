@@ -73,7 +73,7 @@ pub(crate) enum Semantics<'a> {
 /// operation's fields by reference.
 pub(super) mod declare {
     use super::*;
-    use crate::backend::evm::op;
+    use solar_evmir::op;
 
     /// The operand's word, unchanged.
     pub(crate) fn word(value: &ValueId) -> Semantics<'static> {
@@ -152,10 +152,8 @@ pub(super) mod declare {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        backend::evm::op,
-        mir::{InstKind, PtrLocation},
-    };
+    use crate::mir::{InstKind, PtrLocation};
+    use solar_evmir::op;
     use std::fmt::Write as _;
 
     #[test]

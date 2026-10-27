@@ -298,6 +298,12 @@ impl OptimizationMode {
     pub const fn is_gas(self) -> bool {
         matches!(self, Self::Gas)
     }
+
+    /// Returns whether only the required passes run (`-O none`).
+    #[inline]
+    pub const fn is_none(self) -> bool {
+        matches!(self, Self::None)
+    }
 }
 
 str_enum! {
@@ -358,6 +364,7 @@ impl Dump {
                     | DumpKind::MirFinal
                     | DumpKind::EvmIr
                     | DumpKind::EvmIrRuntime
+                    | DumpKind::EvmIrRuntimeScheduled
                     | DumpKind::DisasmDeploy
                     | DumpKind::DisasmRuntime
             )
@@ -402,6 +409,8 @@ str_enum! {
         EvmIr,
         /// Print runtime EVM IR.
         EvmIrRuntime,
+        /// Print runtime EVM IR as stack scheduling emits it, before the EVM IR pipeline.
+        EvmIrRuntimeScheduled,
         /// Print deployment bytecode disassembly.
         DisasmDeploy,
         /// Print runtime bytecode disassembly.
