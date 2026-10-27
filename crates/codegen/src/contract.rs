@@ -27,6 +27,7 @@ use solar_sema::{
 use std::{
     cmp::Reverse,
     collections::BinaryHeap,
+    mem,
     sync::{
         OnceLock,
         atomic::{AtomicUsize, Ordering},
@@ -214,12 +215,13 @@ pub fn generate_contract_bytecodes(
                 .map(|dependencies| AtomicUsize::new(dependencies.len() + 1))
                 .collect(),
         ),
-        queue: ContractQueue { sess: gcx.sess, jobs: Mutex::new(BinaryHeap::new()), priorities },
+        queue: ContractQueue::new(gcx.sess, &graph, priorities),
+        parallel,
     };
-    // Every contract is scheduled up front; only its completion waits for the
-    // bytecode of the contracts it creates.
+    // Every contract is queued up front; only its completion waits for the bytecode of the
+    // contracts it creates.
     for contract_id in graph.reachable.iter() {
-        jobs.queue.push(ContractJob::Schedule(contract_id));
+        jobs.queue.push_schedule(contract_id);
     }
     sync::scope(parallel, |scope| {
         for _ in graph.reachable.iter() {
@@ -393,28 +395,146 @@ enum ContractJob {
     Finish(ContractId),
 }
 
-/// Workers choose the highest-priority ready job independently of Rayon's task order.
+/// Workers choose the highest-priority eligible job independently of Rayon's task order.
+///
+/// A contract whose embedded contracts are unfinished is *early*: it can be scheduled, but its
+/// optimized MIR and scheduled EVM IR then stay in memory until the last embedded contract
+/// finishes. Scheduling every contract as soon as a worker is free parks dozens of them on
+/// large projects, and peak memory grows with that count. At most one early contract per worker
+/// thread is in flight, from the start of its scheduling to the end of its completion. Beyond
+/// that, workers run only jobs of contracts that are not early. Some early scheduling must stay,
+/// because it overlaps a contract's scheduling with its embedded contracts, and a lower limit
+/// delays the long contracts on the critical path (2 to 4% of wall time on solady at half the
+/// threads).
+///
+/// A worker that finds no eligible job returns. A job becoming eligible spawns a worker, which
+/// happens when a completion is queued, a contract's last embedded contract finishes, an early
+/// contract completes, or an error lifts the limit. The contract with no unfinished embedded
+/// contracts is always eligible, so the queue never stalls. After an error, the limit is lifted so
+/// that every contract still reports its own diagnostics.
 struct ContractQueue<'gcx> {
     sess: &'gcx Session,
-    jobs: Mutex<BinaryHeap<(u64, Reverse<ContractJob>)>>,
+    state: Mutex<QueueState>,
     priorities: IndexVec<ContractId, u64>,
+    /// The most early contracts in flight.
+    early_limit: usize,
 }
 
-impl ContractQueue<'_> {
-    fn push(&self, job: ContractJob) {
-        // Completion is short and unblocks the contracts that embed its bytecode.
-        let priority = match job {
-            ContractJob::Schedule(id) => self.priorities[id],
-            ContractJob::Finish(_) => u64::MAX,
-        };
-        self.sess.queue_job();
-        self.jobs.lock().push((priority, Reverse(job)));
+struct QueueState {
+    /// Completions and schedulings of contracts that embed no unfinished contract.
+    ///
+    /// Only these count as queued jobs for [`Session::has_queued_jobs`]: a job that cannot run
+    /// leaves the workers free to split other work.
+    ready: BinaryHeap<(u64, Reverse<ContractJob>)>,
+    /// Schedulings of contracts with unfinished embedded contracts. An entry is stale once
+    /// `unfinished_dependencies` reaches zero, because the job then moves to `ready`.
+    early: BinaryHeap<(u64, Reverse<ContractJob>)>,
+    unfinished_dependencies: IndexVec<ContractId, usize>,
+    /// Contracts scheduled early and not yet completed.
+    in_flight: DenseBitSet<ContractId>,
+    /// Number of `in_flight` contracts.
+    in_flight_count: usize,
+    unbounded: bool,
+}
+
+impl<'gcx> ContractQueue<'gcx> {
+    fn new(
+        sess: &'gcx Session,
+        graph: &ContractGraph,
+        priorities: IndexVec<ContractId, u64>,
+    ) -> Self {
+        // Without worker threads, contracts already run after the contracts they embed.
+        let early_limit = if sess.is_parallel_codegen() { sess.threads() } else { 0 };
+        Self {
+            sess,
+            state: Mutex::new(QueueState {
+                ready: BinaryHeap::new(),
+                early: BinaryHeap::new(),
+                unfinished_dependencies: graph.dependencies.iter().map(|d| d.count()).collect(),
+                in_flight: DenseBitSet::new_empty(graph.dependencies.len()),
+                in_flight_count: 0,
+                unbounded: false,
+            }),
+            priorities,
+            early_limit,
+        }
     }
 
-    fn pop(&self) -> ContractJob {
-        let (_, Reverse(job)) = self.jobs.lock().pop().expect("each worker has a ready job");
+    fn push_schedule(&self, contract_id: ContractId) {
+        let entry = (self.priorities[contract_id], Reverse(ContractJob::Schedule(contract_id)));
+        let mut state = self.state.lock();
+        if state.unfinished_dependencies[contract_id] == 0 {
+            self.sess.queue_job();
+            state.ready.push(entry);
+        } else {
+            state.early.push(entry);
+        }
+    }
+
+    fn push_finish(&self, contract_id: ContractId) {
+        self.sess.queue_job();
+        let entry = (u64::MAX, Reverse(ContractJob::Finish(contract_id)));
+        self.state.lock().ready.push(entry);
+    }
+
+    /// Records a finished embedded contract of `contract_id`. Returns whether this makes its
+    /// scheduling eligible.
+    fn dependency_finished(&self, contract_id: ContractId) -> bool {
+        let mut state = self.state.lock();
+        state.unfinished_dependencies[contract_id] -= 1;
+        if state.unfinished_dependencies[contract_id] != 0 || state.in_flight.contains(contract_id)
+        {
+            return false;
+        }
+        self.sess.queue_job();
+        state
+            .ready
+            .push((self.priorities[contract_id], Reverse(ContractJob::Schedule(contract_id))));
+        true
+    }
+
+    /// Records that `contract_id` is complete. Returns whether this frees a slot for a waiting
+    /// early contract.
+    fn complete(&self, contract_id: ContractId) -> bool {
+        let mut state = self.state.lock();
+        if !state.in_flight.remove(contract_id) {
+            return false;
+        }
+        state.in_flight_count -= 1;
+        !state.early.is_empty()
+    }
+
+    /// Lifts the limit on early contracts. Returns the number of early jobs that become eligible.
+    fn lift_limit(&self) -> usize {
+        let mut state = self.state.lock();
+        if mem::replace(&mut state.unbounded, true) { 0 } else { state.early.len() }
+    }
+
+    /// Takes the highest-priority eligible job, if any.
+    fn pop(&self) -> Option<ContractJob> {
+        let mut state = self.state.lock();
+        while let Some(&(_, Reverse(ContractJob::Schedule(id)))) = state.early.peek()
+            && state.unfinished_dependencies[id] == 0
+        {
+            state.early.pop();
+        }
+        let may_park = state.unbounded || state.in_flight_count < self.early_limit;
+        let take_early = may_park
+            && match (state.ready.peek(), state.early.peek()) {
+                (_, None) => false,
+                (None, Some(_)) => true,
+                (Some(ready), Some(early)) => early > ready,
+            };
+        if take_early {
+            let (_, Reverse(job)) = state.early.pop()?;
+            let ContractJob::Schedule(id) = job else { unreachable!("only schedulings are early") };
+            state.in_flight.insert(id);
+            state.in_flight_count += 1;
+            return Some(job);
+        }
+        let (_, Reverse(job)) = state.ready.pop()?;
         self.sess.start_job();
-        job
+        Some(job)
     }
 }
 
@@ -442,31 +562,62 @@ struct ContractJobs<'a, 'gcx> {
     /// Unfinished inputs of each contract: its own scheduling and each dependency.
     remaining_inputs: IndexVec<ContractId, AtomicUsize>,
     queue: ContractQueue<'gcx>,
+    parallel: bool,
 }
 
 impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
-    /// Spawns a worker that runs the highest-priority ready job.
+    /// Spawns a worker that runs the highest-priority eligible job, if there is one.
     fn spawn_worker<'scope>(&'scope self, scope: &Scope<'_, 'scope>) {
-        scope.spawn(move |scope| match self.queue.pop() {
-            ContractJob::Schedule(contract_id) => {
-                let Ok(scheduled) = self.schedule(contract_id) else { return };
-                *self.scheduled[contract_id].lock() = Some(scheduled);
-                self.release(&scope, contract_id);
-            }
-            ContractJob::Finish(contract_id) => {
-                let scheduled = self.scheduled[contract_id]
-                    .lock()
-                    .take()
-                    .expect("contract should be scheduled before it finishes");
-                let Ok(artifact) = self.finish(contract_id, scheduled) else { return };
-                self.artifacts[contract_id]
-                    .set(artifact)
-                    .expect("contract artifact should only be generated once");
-                for &dependent in &self.graph.dependents[contract_id] {
-                    self.release(&scope, dependent);
+        scope.spawn(move |scope| {
+            let Some(job) = self.queue.pop() else { return };
+            match job {
+                ContractJob::Schedule(contract_id) => {
+                    let Ok(scheduled) = self.schedule(contract_id) else {
+                        return self.lift_limit(&scope);
+                    };
+                    *self.scheduled[contract_id].lock() = Some(scheduled);
+                    self.release(&scope, contract_id);
+                }
+                ContractJob::Finish(contract_id) => {
+                    let scheduled = self.scheduled[contract_id]
+                        .lock()
+                        .take()
+                        .expect("contract should be scheduled before it finishes");
+                    let Ok(artifact) = self.finish(contract_id, scheduled) else {
+                        return self.lift_limit(&scope);
+                    };
+                    self.artifacts[contract_id]
+                        .set(artifact)
+                        .expect("contract artifact should only be generated once");
+                    for &dependent in &self.graph.dependents[contract_id] {
+                        if self.queue.dependency_finished(dependent) {
+                            self.wake_worker(&scope);
+                        }
+                        self.release(&scope, dependent);
+                    }
+                    if self.queue.complete(contract_id) {
+                        self.wake_worker(&scope);
+                    }
                 }
             }
         });
+    }
+
+    /// Spawns a worker for a job that became eligible. Without threads, a spawn runs inline and
+    /// would nest the next contract in this one, and the workers spawned up front already cover
+    /// every job.
+    fn wake_worker<'scope>(&'scope self, scope: &Scope<'_, 'scope>) {
+        if self.parallel {
+            self.spawn_worker(scope);
+        }
+    }
+
+    /// Lets every contract report its own diagnostics after an error: the failed contract's
+    /// dependents never complete, so they would hold their early slots forever.
+    fn lift_limit<'scope>(&'scope self, scope: &Scope<'_, 'scope>) {
+        for _ in 0..self.queue.lift_limit() {
+            self.spawn_worker(scope);
+        }
     }
 
     /// Records one finished input of `contract_id` and completes it after the last one.
@@ -474,7 +625,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
         let previous = self.remaining_inputs[contract_id].fetch_sub(1, Ordering::AcqRel);
         assert!(previous > 0, "contract input count underflow");
         if previous == 1 {
-            self.queue.push(ContractJob::Finish(contract_id));
+            self.queue.push_finish(contract_id);
             self.spawn_worker(scope);
         }
     }
