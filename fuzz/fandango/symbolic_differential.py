@@ -18,6 +18,9 @@ import sys
 import tempfile
 from typing import Any
 
+if sys.platform != "win32":
+    import resource
+
 sys.path.insert(
     0, str(pathlib.Path(__file__).resolve().parents[2] / "tools/compiler-diff")
 )
@@ -1764,6 +1767,7 @@ def _run_forge(
         text=True,
         capture_output=True,
         timeout=args.timeout,
+        preexec_fn=_raise_stack_limit if sys.platform != "win32" else None,
     )
     # Via-IR can run out of stack slots when the harness has a single property
     # and Solc inlines every helper into it; without the optimizer it does not.
@@ -1776,6 +1780,7 @@ def _run_forge(
             text=True,
             capture_output=True,
             timeout=args.timeout,
+            preexec_fn=_raise_stack_limit if sys.platform != "win32" else None,
         )
     if not result.stdout.strip():
         detail = result.stderr.strip() or "no output"
@@ -1787,6 +1792,16 @@ def _run_forge(
     if not isinstance(report, dict):
         raise ValueError("Forge JSON output must be an object")
     return report
+
+
+def _raise_stack_limit() -> None:
+    """Raises the stack limit of Forge and the Solc it runs to the hard limit.
+
+    Older Solc releases, such as 0.8.26, recurse deeply on the harness's long
+    hex literals and crash with SIGSEGV under the default 8 MiB stack.
+    """
+    _, hard = resource.getrlimit(resource.RLIMIT_STACK)
+    resource.setrlimit(resource.RLIMIT_STACK, (hard, hard))
 
 
 def _host_svm_home(env: dict[str, str]) -> pathlib.Path:
