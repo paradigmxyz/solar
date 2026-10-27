@@ -1485,45 +1485,6 @@ def matrix_ratios(
     return ratios
 
 
-def compiler_matrix_table(results: list[dict[str, Any]]) -> list[str]:
-    """Equal-weight geometric mean of each compiler relative to `solar`, per metric."""
-    compilers = matrix_compilers(results)
-    ratios = {
-        metric: [matrix_ratios(results, name, metric) for name in compilers]
-        for metric in MATRIX_METRICS
-    }
-    rows = [
-        f"| {title} | "
-        + " | ".join(
-            fmt_pct(math.expm1(math.fsum(map(math.log, values)) / len(values)) * 100)
-            if values
-            else "n/a"
-            for values in ratios[metric]
-        )
-        + " |"
-        for metric, title in MATRIX_METRICS.items()
-        if any(ratios[metric])
-    ]
-    if not rows:
-        return []
-    counts = ", ".join(
-        f"{name} {len(values)}" for name, values in zip(compilers, ratios["total_gas"])
-    )
-    return [
-        "",
-        "### Compilers vs `solar`",
-        "",
-        "| metric | " + " | ".join(compilers) + " |",
-        "| --- |" + " ---: |" * len(compilers),
-        *rows,
-        "",
-        (
-            "Equal-weight geometric mean of each compiler relative to `solar`; ✅ where "
-            f"`solar` is ahead. Benchmarks compared for runtime gas: {counts}."
-        ),
-    ]
-
-
 def matrix_svg(results: list[dict[str, Any]]) -> str | None:
     """A heatmap of runtime gas and bytes per benchmark, colored against `solar`."""
     names = ["solar", *matrix_compilers(results)]
@@ -1537,7 +1498,7 @@ def matrix_svg(results: list[dict[str, Any]]) -> str | None:
         return None
     label, cell, height, gap = 190, 96, 22, 16
     width = label + len(panels) * (len(names) * cell + gap)
-    total = 2 * height + len(rows) * height + 8
+    total = 2 * height + (len(rows) + 1) * height + 12
     out = [
         (
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{total}" '
@@ -1550,6 +1511,15 @@ def matrix_svg(results: list[dict[str, Any]]) -> str | None:
         out.append(
             f'<text x="{x}" y="{y}" text-anchor="{anchor}" fill="#1f2328">'
             f"{html.escape(value)}</text>"
+        )
+
+    def shade(ratio: float) -> str:
+        # Red above solar, green below, saturating at a factor of two.
+        ratio = max(-1.0, min(1.0, math.log2(ratio)))
+        return (
+            f"hsl(0 70% {100 - 35 * ratio}%)"
+            if ratio > 0
+            else f"hsl(130 55% {100 + 30 * ratio}%)"
         )
 
     for index, (metric, title) in enumerate(panels):
@@ -1567,14 +1537,7 @@ def matrix_svg(results: list[dict[str, Any]]) -> str | None:
                 elif not base or name == "solar":
                     fill, shown = "#f6f8fa", f"{value:,}"
                 else:
-                    # Red above solar, green below, saturating at a factor of two.
-                    ratio = max(-1.0, min(1.0, math.log2(value / base)))
-                    fill = (
-                        f"hsl(0 70% {100 - 35 * ratio}%)"
-                        if ratio > 0
-                        else f"hsl(130 55% {100 + 30 * ratio}%)"
-                    )
-                    shown = f"{value:,}"
+                    fill, shown = shade(value / base), f"{value:,}"
                 x = left + column * cell
                 out.append(
                     f'<rect x="{x}" y="{top}" width="{cell - 1}" height="{height - 1}" fill="{fill}"/>'
@@ -1582,6 +1545,28 @@ def matrix_svg(results: list[dict[str, Any]]) -> str | None:
                 text(x + cell - 6, top + 15, shown, "end")
     for row, result in enumerate(rows):
         text(4, 2 * height + row * height + 15, str(result.get("test_id", "")), "start")
+    top = 2 * height + len(rows) * height + 4
+    text(4, top + 15, "geometric mean vs solar", "start")
+    for index, (metric, _) in enumerate(panels):
+        left = label + index * (len(names) * cell + gap)
+        for column, name in enumerate(names[1:], 1):
+            ratios = matrix_ratios(results, name, metric)
+            mean = (
+                math.exp(math.fsum(map(math.log, ratios)) / len(ratios))
+                if ratios
+                else None
+            )
+            x = left + column * cell
+            out.append(
+                f'<rect x="{x}" y="{top}" width="{cell - 1}" height="{height - 1}" '
+                f'fill="{shade(mean) if mean else "#eaeef2"}"/>'
+            )
+            text(
+                x + cell - 6,
+                top + 15,
+                f"{(mean - 1) * 100:+.1f}%" if mean else "n/a",
+                "end",
+            )
     out.append("</svg>")
     return "\n".join(out) + "\n"
 
@@ -1887,11 +1872,7 @@ def format_report(
 
 
 def pr_comment(
-    comparison: dict[str, Any],
-    has_changes: bool,
-    behind_base: bool,
-    base_ref: str,
-    results: list[dict[str, Any]] | None = None,
+    comparison: dict[str, Any], has_changes: bool, behind_base: bool, base_ref: str
 ) -> str:
     lines = ["## Codegen benchmarks", ""]
     if not comparison["rows"]:
@@ -1950,7 +1931,6 @@ def pr_comment(
                     *changed,
                 ]
             )
-    lines.extend(compiler_matrix_table(results or []))
     if any(row["issues"] for row in comparison["rows"]):
         lines.extend(
             [
@@ -2276,7 +2256,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.pr_comment_output is not None:
         args.pr_comment_output.parent.mkdir(parents=True, exist_ok=True)
         args.pr_comment_output.write_text(
-            pr_comment(comparison, should_comment, behind_base, base_ref, results)
+            pr_comment(comparison, should_comment, behind_base, base_ref)
         )
     if args.matrix_output is not None and (svg := matrix_svg(results)):
         args.matrix_output.parent.mkdir(parents=True, exist_ok=True)

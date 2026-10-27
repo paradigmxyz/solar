@@ -358,52 +358,6 @@ class ReportFormattingTests(unittest.TestCase):
             report,
         )
 
-    def test_compiler_matrix_compares_each_compiler_with_solar(self):
-        def compilers(**gas):
-            return {
-                name: {
-                    "status": "ok",
-                    "total_gas": value,
-                    "runtime_size": 100,
-                    "deploy_gas": 100,
-                    "bytecode_size": 100,
-                }
-                for name, value in gas.items()
-            }
-
-        results = [
-            {
-                "test_id": "a",
-                "suite": "repository",
-                "compilers": compilers(
-                    solar=100, **{"solar-size": 110, "solc": 200, "solc-legacy": 250}
-                ),
-            },
-            {
-                "test_id": "b",
-                "suite": "repository",
-                "compilers": {
-                    **compilers(solar=100, solc=100),
-                    "solc-legacy": {"status": "failed"},
-                },
-            },
-        ]
-
-        table = benchmark.compiler_matrix_table(results)
-
-        self.assertEqual(
-            table[3:6],
-            [
-                "| metric | solar-size | solc | solc-legacy |",
-                "| --- | ---: | ---: | ---: |",
-                "| runtime gas | ✅ +10.00% | ✅ +41.42% | ✅ +150.00% |",
-            ],
-        )
-        self.assertIn("solar-size 1, solc 2, solc-legacy 1", table[-1])
-        self.assertEqual(
-            benchmark.compiler_matrix_table([result("a", status="ok", total_gas=1)]), []
-        )
-
     def test_compiler_matrix_svg_is_valid_and_needs_a_second_compiler(self):
         single = [result("a", total_gas=1, runtime_size=1, status="ok")]
         self.assertIsNone(benchmark.matrix_svg(single))
@@ -427,20 +381,7 @@ class ReportFormattingTests(unittest.TestCase):
         ]
         self.assertIn("a<b>", text)
         self.assertEqual(text.count("solar-size"), 2)
-
-    def test_pr_comment_adds_the_compiler_matrix(self):
-        current = result(status="ok", total_gas=10)
-        current["compilers"]["solc"] = {"status": "ok", "total_gas": 20}
-        comparison = benchmark.compare_runs([current], [current])
-        comparison["baseline"] = "main.json"
-
-        comment = benchmark.pr_comment(comparison, True, False, "main", [current])
-
-        self.assertIn("### Compilers vs `solar`", comment)
-        self.assertNotIn(
-            "### Compilers vs `solar`",
-            benchmark.pr_comment(comparison, True, False, "main"),
-        )
+        self.assertIn("-10.0%", text)
 
     def test_codegen_report_labels_failed_revision(self):
         def timed_result(test_id, solar_status):

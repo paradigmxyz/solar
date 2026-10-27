@@ -144,6 +144,14 @@ oksolc appear beside solc in the Markdown report. The website reads compiler col
 choices from the uploaded results, so oksolc shows in the overview and the PR comment's artifact
 links even when the base run lacks it.
 
+CI also runs `--solc-legacy` with every live solc run (the exact-base run and main) and
+`--solar-size` on every run, so each PR compares Solar `-Ogas`, Solar `-Osize`, solc via-IR, and solc
+legacy. A baseline artifact without `solc-legacy` results counts as incomplete, so PRs rebuild it
+until main has one. `--matrix-output PATH` of `benchmark-compare.py` writes an SVG heatmap of runtime
+gas and bytes per benchmark and compiler, colored against `solar`, with a geometric-mean row. CI
+uploads it as a comment attachment and adds it to the PR comment; if the upload fails, the comment
+omits the image.
+
 ## Comparing runs
 
 `benchmark-compare.py` also produces CI's Markdown report, common benchmark JSON, job summary, and
