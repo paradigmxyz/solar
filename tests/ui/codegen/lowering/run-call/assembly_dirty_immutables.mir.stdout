@@ -40,7 +40,7 @@ fn @wrapped() -> i256 [selector=0x50e70d48, view, abi_params=[], abi_returns=[wo
     ret v1
 }
 
-fn @constructor() [constructor] {
+fn @constructor() [constructor, inline_assembly] {
   bb0:
     v0 = not 0
     v1 = not 0
@@ -79,7 +79,7 @@ fn @storedWrapped() -> i256 [selector=0x5863c7b1, view, abi_params=[], abi_retur
     ret v0
 }
 
-fn @constructor() [constructor] {
+fn @constructor() [constructor, inline_assembly] {
   bb0:
     v0 = icall @internal_dispatcher_asm_p_uint256_r_bytes4, 1, 0
     v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
@@ -118,7 +118,7 @@ fn @looped() -> i256 [selector=0x2e6dedb7, view, abi_params=[], abi_returns=[wor
     ret v0
 }
 
-fn @constructor() [constructor] {
+fn @constructor() [constructor, inline_assembly] {
   bb0:
     v0 = icall @internal_dispatcher_asm_p_uint256_r_bytes4, 1, 0
     jump bb1

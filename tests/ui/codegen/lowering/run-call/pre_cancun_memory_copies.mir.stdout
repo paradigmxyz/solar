@@ -30,7 +30,7 @@ fn @words() -> i1 [selector=0xf2c31bd9, pure, abi_params=[], abi_returns=[word<b
     ret v17
 }
 
-fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @bytesTail() -> i1 [selector=0x56818b01, inline_assembly, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = not 31
     v1 = and 96, v0
@@ -127,7 +127,7 @@ fn @concat() -> i1 [selector=0x6bdbf8e6, pure, abi_params=[], abi_returns=[word<
     ret v12
 }
 
-fn @assembled() -> i1 [selector=0xd1381062, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @assembled() -> i1 [selector=0xd1381062, inline_assembly, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, 70
@@ -150,7 +150,7 @@ fn @assembled() -> i1 [selector=0xd1381062, pure, abi_params=[], abi_returns=[wo
     ret v12
 }
 
-fn @recycled() -> i1 [selector=0xa163996f, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @recycled() -> i1 [selector=0xa163996f, inline_assembly, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = not 31
     v1 = and 127, v0
@@ -205,7 +205,7 @@ fn @freshEmpty() -> ptr<memory> [selector=0x2f9cb906, pure, abi_params=[], abi_r
     ret v0
 }
 
-fn @recycledTail() -> i256 [selector=0x52eea5e4, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @recycledTail() -> i256 [selector=0x52eea5e4, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = not 31
     v1 = and 126, v0

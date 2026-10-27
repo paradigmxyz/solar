@@ -89,7 +89,7 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
     ret v41
 }
 
-fn @decode.3(arg0: slice<calldata>) -> struct1 [pure] {
+fn @decode.3(arg0: slice<calldata>) -> struct1 [inline_assembly, pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256

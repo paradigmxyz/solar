@@ -28,6 +28,8 @@ impl AbiType {
         if self.input_type(Some(actual)) != actual {
             return false;
         }
+        // A memory or calldata slice of an aggregate may be a view of its ABI encoding; a
+        // returndata slice holds only words.
         match (self, actual) {
             (Self::DynamicArray { element, .. }, MirType::Slice(PtrLocation::Returndata)) => {
                 matches!(element.as_ref(), Self::Word(_) | Self::Function)

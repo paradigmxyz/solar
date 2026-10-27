@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256}
 
-fn @callIdentity(arg0: i256) -> i256 [view] {
+fn @callIdentity(arg0: i256) -> i256 [inline_assembly, view] {
   bb0:
     v0 = gas
     v1 = abi_encode [word], object, args arg0

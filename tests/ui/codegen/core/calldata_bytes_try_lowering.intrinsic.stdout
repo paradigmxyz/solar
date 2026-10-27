@@ -1,0 +1,200 @@
+// === <solar:core/CalldataBytes.sol>:CalldataBytes ===
+@module CalldataBytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/calldata_bytes_try_lowering.sol:Test ===
+@module Test
+@phase lowered
+@types
+  struct0: {i1, i256}
+
+fn @try1() [selector=0x7c4fe00c, abi_wrapper, pure] {
+  bb0:
+    v24 = calldatasize
+    v25 = lt v24, 68
+    jumpi v25, bb1, bb2
+  bb2:
+    v26 = icall @decode_calldata_slice
+    v27 = calldataload v26
+    v28 = add v26, 32
+    v1 = add arg1, 1
+    v2 = eq v1, 0
+    v3 = gt v1, v27
+    v4 = or v2, v3
+    v6 = eq v4, false
+    v20 = zext i1 v6 to i256
+    v7 = mul v20, arg1
+    v10 = add v28, v7
+    v11 = calldataload v10
+    v12 = mul v20, v11
+    v13 = and v12, 0xff00000000000000000000000000000000000000000000000000000000000000
+    mstore 0, v20
+    mstore 32, v13 !metadata(memory=scratch)
+    returndata 0, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @try4() [selector=0x7f498037, abi_wrapper, pure] {
+  bb0:
+    v24 = calldatasize
+    v25 = lt v24, 68
+    jumpi v25, bb1, bb2
+  bb2:
+    v26 = icall @decode_calldata_slice
+    v27 = calldataload v26
+    v28 = add v26, 32
+    v1 = add arg1, 4
+    v2 = lt v1, arg1
+    v3 = gt v1, v27
+    v4 = or v2, v3
+    v6 = eq v4, false
+    v20 = zext i1 v6 to i256
+    v7 = mul v20, arg1
+    v10 = add v28, v7
+    v11 = calldataload v10
+    v12 = mul v20, v11
+    v13 = and v12, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 0, v20
+    mstore 32, v13 !metadata(memory=scratch)
+    returndata 0, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @try32() [selector=0xf00ebb05, abi_wrapper, pure] {
+  bb0:
+    v23 = calldatasize
+    v24 = lt v23, 68
+    jumpi v24, bb1, bb2
+  bb2:
+    v25 = icall @decode_calldata_slice
+    v26 = calldataload v25
+    v27 = add v25, 32
+    v1 = add arg1, 32
+    v2 = lt v1, arg1
+    v3 = gt v1, v26
+    v4 = or v2, v3
+    v6 = eq v4, false
+    v19 = zext i1 v6 to i256
+    v7 = mul v19, arg1
+    v10 = add v27, v7
+    v11 = calldataload v10
+    v12 = mul v19, v11
+    mstore 0, v19
+    mstore 32, v12 !metadata(memory=scratch)
+    returndata 0, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @tryWord() [selector=0xdc133dec, abi_wrapper, pure] {
+  bb0:
+    v23 = calldatasize
+    v24 = lt v23, 68
+    jumpi v24, bb1, bb2
+  bb2:
+    v25 = icall @decode_calldata_slice
+    v26 = calldataload v25
+    v27 = add v25, 32
+    v1 = add arg1, 32
+    v2 = lt v1, arg1
+    v3 = gt v1, v26
+    v4 = or v2, v3
+    v6 = eq v4, false
+    v19 = zext i1 v6 to i256
+    v7 = mul v19, arg1
+    v10 = add v27, v7
+    v11 = calldataload v10
+    v12 = mul v19, v11
+    mstore 0, v19
+    mstore 32, v12 !metadata(memory=scratch)
+    returndata 0, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @tryTwo() [selector=0x2031ea5c, abi_wrapper, pure] {
+  bb0:
+    v24 = calldatasize
+    v25 = lt v24, 100
+    jumpi v25, bb1, bb2
+  bb2:
+    v26 = icall @decode_calldata_slice
+    v27 = calldataload v26
+    v28 = add v26, 32
+    v31 = calldataload 36
+    v32 = add v31, 4
+    v34 = sub v24, 36
+    v35 = gt v31, v34
+    v36 = calldataload v32
+    v37 = add v32, 32
+    v38 = sub v24, v37
+    v39 = gt v36, v38
+    v44 = or v35, v39
+    jumpi v44, bb1, bb3
+  bb3:
+    v1 = add arg2, 4
+    v2 = lt v1, arg2
+    v3 = gt v1, v27
+    v4 = or v2, v3
+    v6 = eq v4, false
+    v20 = zext i1 v6 to i256
+    v7 = mul v20, arg2
+    v10 = add v28, v7
+    v11 = calldataload v10
+    v12 = mul v20, v11
+    v13 = and v12, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 0, v20
+    mstore 32, v13 !metadata(memory=scratch)
+    returndata 0, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @decode_calldata_slice() -> i256 {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload 4
+    v2 = add v1, 4
+    v4 = sub v0, 36
+    v5 = gt v1, v4
+    v6 = calldataload v2
+    v7 = add v2, 32
+    v8 = sub v0, v7
+    v9 = gt v6, v8
+    v10 = or v5, v9
+    jumpi v10, bb1, bb2
+  bb2:
+    ret v2
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb7, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb7, [0x2031ea5c => bb2, 0x7c4fe00c => bb3, 0x7f498037 => bb4, 0xdc133dec => bb5, 0xf00ebb05 => bb6]
+  bb6:
+    tail_call @try32
+  bb5:
+    tail_call @tryWord
+  bb4:
+    tail_call @try4
+  bb3:
+    tail_call @try1
+  bb2:
+    tail_call @tryTwo
+  bb7:
+    revert 0, 0
+}

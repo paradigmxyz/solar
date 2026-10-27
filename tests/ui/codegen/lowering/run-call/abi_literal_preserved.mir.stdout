@@ -38,7 +38,7 @@ fn @probe() -> i256 [selector=0xb74af5a9, view, abi_params=[], abi_returns=[word
     ret v14
 }
 
-fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @observed() -> i256 [selector=0xba210709, inline_assembly, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = address

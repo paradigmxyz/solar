@@ -12,7 +12,7 @@ fn @invoke(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x33298e25, abi_para
     ret v4
 }
 
-fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
+fn @fallback(arg0: slice<calldata>) -> ptr<memory> [inline_assembly, fallback] {
   bb0:
     v0 = calldataload 0
     v1 = ne v0, 0

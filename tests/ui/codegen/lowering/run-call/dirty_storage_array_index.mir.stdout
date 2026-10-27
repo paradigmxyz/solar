@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dirty_storage_array_index.sol:DirtyStorageArrayIndex ===
 @module DirtyStorageArrayIndex
-fn @inject(arg0: i256) -> i256 [pure] {
+fn @inject(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     ret arg0
 }

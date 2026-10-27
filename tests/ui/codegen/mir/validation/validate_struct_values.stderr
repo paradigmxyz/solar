@@ -54,5 +54,7 @@ error: [fn27] [bb0, inst0] `eq` has incompatible scalar types; use an explicit c
 
 error: [fn28] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
 
-error: aborting due to 28 previous errors
+error: [fn31] [bb0, inst0] ABI input location does not support its layout
+
+error: aborting due to 29 previous errors
 

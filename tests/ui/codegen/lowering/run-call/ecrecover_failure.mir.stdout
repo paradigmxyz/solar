@@ -7,7 +7,7 @@ fn @recover() -> i160 [selector=0xce746024, pure, abi_params=[], abi_returns=[wo
     ret v1
 }
 
-fn @recoverInvalidDirtyScratch() -> i160 [selector=0x5721fb2d, pure, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
+fn @recoverInvalidDirtyScratch() -> i160 [selector=0x5721fb2d, inline_assembly, pure, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = not 0
     mstore 0, v0 !metadata(memory=scratch)

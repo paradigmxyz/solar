@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_packed_calldata_fixed_padding.sol:AbiPackedCalldataFixedPadding ===
 @module AbiPackedCalldataFixedPadding
-fn @packed(arg0: i256) -> ptr<memory> [selector=0x977eca9c, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @packed(arg0: i256) -> ptr<memory> [selector=0x977eca9c, inline_assembly, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 4, 2
     v1 = extract_value slice<calldata>, v0, 0
@@ -25,7 +25,7 @@ fn @packed(arg0: i256) -> ptr<memory> [selector=0x977eca9c, pure, abi_params=[ui
     jump bb1
 }
 
-fn @hashed(arg0: i256) -> i256 [selector=0xec727bea, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @hashed(arg0: i256) -> i256 [selector=0xec727bea, inline_assembly, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 4, 2
     v1 = extract_value slice<calldata>, v0, 0
@@ -53,7 +53,7 @@ fn @hashed(arg0: i256) -> i256 [selector=0xec727bea, pure, abi_params=[uint256],
     jump bb1
 }
 
-fn @signed(arg0: i256) -> ptr<memory> [selector=0xbfe355dd, pure, abi_params=[int256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @signed(arg0: i256) -> ptr<memory> [selector=0xbfe355dd, inline_assembly, pure, abi_params=[int256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 4, 2
     v1 = extract_value slice<calldata>, v0, 0
@@ -78,7 +78,7 @@ fn @signed(arg0: i256) -> ptr<memory> [selector=0xbfe355dd, pure, abi_params=[in
     jump bb1
 }
 
-fn @flags(arg0: i256) -> ptr<memory> [selector=0x81274d3a, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @flags(arg0: i256) -> ptr<memory> [selector=0x81274d3a, inline_assembly, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 4, 2
     v1 = extract_value slice<calldata>, v0, 0
@@ -102,7 +102,7 @@ fn @flags(arg0: i256) -> ptr<memory> [selector=0x81274d3a, pure, abi_params=[uin
     jump bb1
 }
 
-fn @fixedBytes(arg0: i256) -> ptr<memory> [selector=0xfe805efe, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @fixedBytes(arg0: i256) -> ptr<memory> [selector=0xfe805efe, inline_assembly, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 4, 2
     v1 = extract_value slice<calldata>, v0, 0
@@ -127,7 +127,7 @@ fn @fixedBytes(arg0: i256) -> ptr<memory> [selector=0xfe805efe, pure, abi_params
     jump bb1
 }
 
-fn @checkedCopy(arg0: i256) -> ptr<memory> [selector=0xc77131b7, pure, abi_params=[uint256], abi_returns=[array<2, word<uint8>>], abi_return_params=[array<2, uint8>]] {
+fn @checkedCopy(arg0: i256) -> ptr<memory> [selector=0xc77131b7, inline_assembly, pure, abi_params=[uint256], abi_returns=[array<2, word<uint8>>], abi_return_params=[array<2, uint8>]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 4, 2
     v1 = alloc 64 !metadata(preserves_fmp)

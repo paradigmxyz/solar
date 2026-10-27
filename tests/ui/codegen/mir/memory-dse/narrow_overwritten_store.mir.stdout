@@ -9,7 +9,7 @@ fn @hashU8(arg0: i8, arg1: i256) -> i256 [selector=0xe99643f7, pure, abi_params=
     ret v0
 }
 
-fn @hashWide(arg0: i256, arg1: i256) -> i256 [selector=0xcdd7e94c, pure, abi_params=[uint256, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @hashWide(arg0: i256, arg1: i256) -> i256 [selector=0xcdd7e94c, inline_assembly, pure, abi_params=[uint256, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = shl arg0, 248
     mstore 128, v0
@@ -18,7 +18,7 @@ fn @hashWide(arg0: i256, arg1: i256) -> i256 [selector=0xcdd7e94c, pure, abi_par
     ret v1
 }
 
-fn @hashConst(arg0: i256) -> i256 [selector=0x227e2968, pure, abi_params=[bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @hashConst(arg0: i256) -> i256 [selector=0x227e2968, inline_assembly, pure, abi_params=[bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = shl 97, 248
     mstore 128, v0
@@ -27,7 +27,7 @@ fn @hashConst(arg0: i256) -> i256 [selector=0x227e2968, pure, abi_params=[bytes3
     ret v1
 }
 
-fn @tailRead(arg0: i256, arg1: i256) [selector=0x8c0dcc20, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @tailRead(arg0: i256, arg1: i256) [selector=0x8c0dcc20, inline_assembly, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 0
     mstore 128, v0
@@ -41,7 +41,7 @@ fn @tailRead(arg0: i256, arg1: i256) [selector=0x8c0dcc20, pure, abi_params=[uin
     returndata 192, 32
 }
 
-fn @literal(arg0: i256) [selector=0x41d012fd, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[bytes32, uint256]] {
+fn @literal(arg0: i256) [selector=0x41d012fd, inline_assembly, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[bytes32, uint256]] {
   bb0:
     mstore 128, 0x6100000000000000000000000000000000000000000000000000000000000000
     mstore 160, arg0

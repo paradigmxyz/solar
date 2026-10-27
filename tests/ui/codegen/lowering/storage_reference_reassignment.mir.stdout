@@ -105,7 +105,7 @@ fn @packedRebind(arg0: i1, arg1: i256, arg2: i256, arg3: i8) -> struct1 [selecto
     ret v23
 }
 
-fn @packedYulRebind(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> struct2 [selector=0x3c827d72, abi_params=[bool, uint256, uint256, uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+fn @packedYulRebind(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> struct2 [selector=0x3c827d72, inline_assembly, abi_params=[bool, uint256, uint256, uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -126,7 +126,7 @@ fn @packedYulRebind(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> struct2 [se
     ret v8
 }
 
-fn @yulPackedOffset(arg0: i256) -> i256 [selector=0x6d9cf6e9, abi_params=[uint8], abi_returns=[word], abi_return_params=[uint256]] {
+fn @yulPackedOffset(arg0: i256) -> i256 [selector=0x6d9cf6e9, inline_assembly, abi_params=[uint8], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mul 1, 8
     v1 = shl 255, v0

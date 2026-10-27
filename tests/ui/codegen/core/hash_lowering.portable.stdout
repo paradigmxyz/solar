@@ -1,0 +1,153 @@
+// === <solar:core/Hash.sol>:Hash ===
+@module Hash
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/hash_lowering.sol:Test ===
+@module Test
+@phase lowered
+fn @hash() [selector=0x00d07523, abi_wrapper, pure] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 100
+    v3 = calldataload 4
+    v4 = add v3, 4
+    v6 = sub v1, 36
+    v7 = gt v3, v6
+    v28 = or v2, v7
+    jumpi v28, bb1, bb2
+  bb2:
+    v8 = calldataload v4
+    v9 = add v4, 32
+    v10 = add v8, 63
+    v11 = lt v10, v8
+    jumpi v11, bb3, bb4
+  bb4:
+    v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v27 = icall @alloc, v13
+    mstore v27, v8
+    v15 = sub v1, v9
+    v16 = gt v8, v15
+    jumpi v16, bb1, bb5
+  bb5:
+    v24 = add v27, 32
+    calldatacopy v24, v9, v8
+    v0 = icall @keccak256Range, v27, arg1, arg2
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
+  bb3:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @keccak256Range(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, pure] {
+  bb0:
+    v0 = mload arg0
+    v1 = gt arg2, v0
+    v3 = sub v0, arg2
+    v4 = gt arg1, v3
+    v54 = or v1, v4
+    jumpi v54, bb1, bb2
+  bb2:
+    v7 = add arg2, 63
+    v8 = lt v7, arg2
+    jumpi v8, bb6, bb7
+  bb7:
+    v10 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v51 = icall @alloc, v10
+    v53 = calldatasize
+    calldatacopy v51, v53, v10
+    mstore v51, arg2
+    jump bb3
+  bb3:
+    v17 = phi [bb7: 0], [bb9: v34]
+    v18 = lt v17, arg2
+    jumpi v18, bb5, bb4
+  bb4:
+    v41 = add v51, 32
+    v37 = keccak256 v41, arg2
+    ret v37
+  bb5:
+    v38 = add arg1, v17
+    v39 = lt v38, arg1
+    jumpi v39, bb10, bb11
+  bb11:
+    v20 = mload arg0
+    v21 = lt v38, v20
+    jumpi v21, bb9, bb8
+  bb8:
+    tail_call @revert_stub
+  bb9:
+    v43 = add arg0, v38
+    v44 = add v43, 32
+    v25 = mload v44
+    v26 = byte 0, v25
+    v46 = add v51, v17
+    v47 = add v46, 32
+    mstore8 v47, v26
+    v34 = add v17, 1
+    jump bb3
+  bb10:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb6:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    tail_call @_outOfBounds
+}
+
+fn @_outOfBounds() [pure] {
+  bb0:
+    v6 = icall @alloc, 32
+    mstore v6, 0
+    tail_call @revert_stub
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xd07523 => bb2]
+  bb2:
+    tail_call @hash
+  bb3:
+    revert 0, 0
+}
+
+fn @alloc(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v2 = add v0, arg0 !metadata(alloc_ptr)
+    v3 = lt v2, v0
+    v4 = gt v2, 0xffffffffffffffff
+    v5 = or v3, v4
+    jumpi v5, bb1, bb2
+  bb2:
+    mstore 64, v2 !metadata(memory=scratch)
+    ret v0
+  bb1:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}

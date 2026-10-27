@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_calldata_pointer_unchecked.sol:AssemblyCalldataPointerUnchecked ===
 @module AssemblyCalldataPointerUnchecked
-fn @b() -> slice<calldata> [pure] {
+fn @b() -> slice<calldata> [inline_assembly, pure] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
     v1 = extract_value slice<calldata>, v0, 1
@@ -10,7 +10,7 @@ fn @b() -> slice<calldata> [pure] {
     ret v4
 }
 
-fn @words(arg0: i256) -> slice<calldata> [pure] {
+fn @words(arg0: i256) -> slice<calldata> [inline_assembly, pure] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
     v1 = extract_value slice<calldata>, v0, 1

@@ -1,0 +1,34 @@
+// === <solar:core/Revert.sol>:Revert ===
+@module Revert
+@library
+
+// === ROOT/tests/ui/codegen/core/revert_runtime.sol:Test ===
+@module Test
+fn @boom(arg0: ptr<memory>) [selector=0x6b8d59f9, pure, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = mload arg0
+    v1 = ptradd arg0, 32
+    revert v1, v0
+}
+
+fn @maybe(arg0: ptr<memory>, arg1: i1) -> i256 [selector=0x5bab7980, pure, abi_params=[bytes, bool], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jumpi arg1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret 7
+  bb1:
+    v0 = mload arg0
+    v1 = ptradd arg0, 32
+    revert v1, v0
+}
+
+fn @raw(arg0: ptr<memory>) [inline_assembly, pure] {
+  bb0:
+    v0 = ptrtoint ptr<memory> arg0 to i256
+    v1 = mload arg0
+    v2 = ptrtoint ptr<memory> arg0 to i256
+    v3 = add v2, 32
+    revert v3, v1
+}

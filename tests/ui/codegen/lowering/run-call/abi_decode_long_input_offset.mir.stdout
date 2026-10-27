@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_long_input_offset.sol:AbiDecodeLongInputOffset ===
 @module AbiDecodeLongInputOffset
-fn @bytesLen(arg0: slice<calldata>) -> i256 [selector=0xd9ed8fc2, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
+fn @bytesLen(arg0: slice<calldata>) -> i256 [selector=0xd9ed8fc2, inline_assembly, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = shl 1, 255
     v1 = sub v0, 1
@@ -11,7 +11,7 @@ fn @bytesLen(arg0: slice<calldata>) -> i256 [selector=0xd9ed8fc2, pure, abi_para
     ret v5
 }
 
-fn @arrayLen(arg0: slice<calldata>) -> i256 [selector=0xb21281b1, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
+fn @arrayLen(arg0: slice<calldata>) -> i256 [selector=0xb21281b1, inline_assembly, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = shl 1, 255
     v1 = sub v0, 1

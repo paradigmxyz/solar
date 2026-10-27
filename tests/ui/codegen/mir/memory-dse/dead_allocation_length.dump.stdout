@@ -31,7 +31,7 @@ fn @echo() [selector=0x624fbfdc, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @fail() [selector=0x132e4f3c, abi_wrapper, pure] {
+fn @fail() [selector=0x132e4f3c, abi_wrapper, inline_assembly, pure] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -109,7 +109,7 @@ fn @relay() [selector=0x8f0d6f17, abi_wrapper] {
     revert 0, 0
 }
 
-fn @fallback() [abi_wrapper, fallback] {
+fn @fallback() [abi_wrapper, inline_assembly, fallback] {
   bb0:
     v0 = calldatasize
     tail_call @fallback.body, 0, v0
@@ -134,7 +134,7 @@ fn @decode_calldata_slice() -> i256 {
     revert 0, 0
 }
 
-fn @fallback.body(arg0: i256, arg1: i256) {
+fn @fallback.body(arg0: i256, arg1: i256) [inline_assembly] {
   bb0:
     v0: i256 = address
     v1 = gas

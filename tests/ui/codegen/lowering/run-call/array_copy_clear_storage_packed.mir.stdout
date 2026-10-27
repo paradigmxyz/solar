@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/array_copy_clear_storage_packed.sol:ArrayCopyClearStoragePacked ===
 @module ArrayCopyClearStoragePacked
-fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<uint128>], abi_return_params=[uint128]] {
+fn @f() -> i128 [selector=0x26121ff0, inline_assembly, abi_params=[], abi_returns=[word<uint128>], abi_return_params=[uint128]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -224,7 +224,7 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<uint128>]
     jump bb3
 }
 
-fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<uint64>], abi_return_params=[uint64]] {
+fn @g() -> i64 [selector=0xe2179b8e, inline_assembly, abi_params=[], abi_returns=[word<uint64>], abi_return_params=[uint64]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
@@ -448,7 +448,7 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<uint64>], 
     jump bb3
 }
 
-fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<uint120>], abi_return_params=[uint120]] {
+fn @h() -> i120 [selector=0xb8c9d365, inline_assembly, abi_params=[], abi_returns=[word<uint120>], abi_return_params=[uint120]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = gt v0, 0xffffffffffffffff

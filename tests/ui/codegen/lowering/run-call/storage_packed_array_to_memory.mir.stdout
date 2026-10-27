@@ -1221,7 +1221,7 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     jump bb1
 }
 
-fn @dirtyEnum() -> i256 [selector=0x676092a0, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @dirtyEnum() -> i256 [selector=0x676092a0, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = lt i8 1, i8 3
     v1 = eq v0, false

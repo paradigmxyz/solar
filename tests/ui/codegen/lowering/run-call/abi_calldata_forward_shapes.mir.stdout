@@ -330,7 +330,7 @@ fn @encodeHolder(arg0: slice<calldata>) -> i256 [selector=0xba4a62a6, pure, abi_
     ret v3
 }
 
-fn @encodeForgedSlice(arg0: slice<calldata>) -> i256 [selector=0xb6061ce7, pure, abi_params=[array<_, tuple<uint256, uint256>>], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @encodeForgedSlice(arg0: slice<calldata>) -> i256 [selector=0xb6061ce7, inline_assembly, pure, abi_params=[array<_, tuple<uint256, uint256>>], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
@@ -440,7 +440,7 @@ fn @encodeTyped(arg0: slice<calldata>) -> i256 [selector=0x941cee31, pure, abi_p
     ret v3
 }
 
-fn @encodeForgedPairs(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x87c85d0c, pure, abi_params=[array<_, tuple<uint256, uint256>>, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @encodeForgedPairs(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x87c85d0c, inline_assembly, pure, abi_params=[array<_, tuple<uint256, uint256>>, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = inttoptr i256 arg1 to ptr<calldata>

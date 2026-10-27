@@ -175,7 +175,7 @@ fn @_parseSlices(arg0: slice<calldata>) -> struct4 [pure] {
     ret v6
 }
 
-fn @_tryParseSlices(arg0: slice<calldata>) -> struct5 [pure] {
+fn @_tryParseSlices(arg0: slice<calldata>) -> struct5 [inline_assembly, pure] {
   bb0:
     v0 = icall @_splitSlices, arg0
     v1 = extract_value struct6, v0, 0
@@ -274,7 +274,7 @@ fn @_splitSlices(arg0: slice<calldata>) -> struct6 [pure] {
     ret v53
 }
 
-fn @_delegate(arg0: slice<calldata>) -> struct1 [pure] {
+fn @_delegate(arg0: slice<calldata>) -> struct1 [inline_assembly, pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -296,7 +296,7 @@ fn @_delegate(arg0: slice<calldata>) -> struct1 [pure] {
     ret v16
 }
 
-fn @_single(arg0: slice<calldata>) -> struct3 [pure] {
+fn @_single(arg0: slice<calldata>) -> struct3 [inline_assembly, pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256

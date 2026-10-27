@@ -15,7 +15,7 @@ fn @echo(arg0: slice<calldata>) -> ptr<memory> [selector=0x624fbfdc, pure, abi_p
     ret v4
 }
 
-fn @fail(arg0: i256) [selector=0x132e4f3c, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+fn @fail(arg0: i256) [selector=0x132e4f3c, inline_assembly, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     revert 0, 32
@@ -39,7 +39,7 @@ fn @relay(arg0: slice<calldata>) -> ptr<memory> [selector=0x8f0d6f17, abi_params
     ret v4
 }
 
-fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
+fn @fallback(arg0: slice<calldata>) -> ptr<memory> [inline_assembly, fallback] {
   bb0:
     v0 = address
     v1 = gas

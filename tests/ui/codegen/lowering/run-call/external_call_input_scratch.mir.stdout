@@ -214,7 +214,7 @@ fn @live() -> ptr<memory> [pure] {
     ret v0
 }
 
-fn @fmp() -> i256 [pure] {
+fn @fmp() -> i256 [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     ret v0

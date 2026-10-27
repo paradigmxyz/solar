@@ -39,7 +39,7 @@ fn @aliasDoesNotAllocate() -> i256 [selector=0xb2b4bf46, pure, abi_params=[], ab
     ret v3
 }
 
-fn @dynamicDefaults() -> struct0 [selector=0xd295ba8d, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
+fn @dynamicDefaults() -> struct0 [selector=0xd295ba8d, inline_assembly, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = icall @freeMemoryPointer
     v1 = icall @freeMemoryPointer
@@ -54,7 +54,7 @@ fn @dynamicDefaults() -> struct0 [selector=0xd295ba8d, pure, abi_params=[], abi_
     ret v9
 }
 
-fn @nestedDynamicDefaults() -> struct1 [selector=0xd34386dc, pure, abi_params=[], abi_returns=[word, word, word, word<bool>], abi_return_params=[uint256, uint256, uint256, bool]] {
+fn @nestedDynamicDefaults() -> struct1 [selector=0xd34386dc, inline_assembly, pure, abi_params=[], abi_returns=[word, word, word, word<bool>], abi_return_params=[uint256, uint256, uint256, bool]] {
   bb0:
     v0 = icall @freeMemoryPointer
     v1 = alloc 96 !metadata(preserves_fmp)
@@ -96,7 +96,7 @@ fn @defaultThroughICall() -> i1 [selector=0x4ed54f6b, pure, abi_params=[], abi_r
     ret v0
 }
 
-fn @fixedArrayDynamicDefaults() -> struct2 [selector=0x94633452, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+fn @fixedArrayDynamicDefaults() -> struct2 [selector=0x94633452, inline_assembly, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = icall @freeMemoryPointer
     v1 = alloc 64 !metadata(preserves_fmp)
@@ -125,7 +125,7 @@ fn @fixedArrayDynamicDefaults() -> struct2 [selector=0x94633452, pure, abi_param
     jump bb1
 }
 
-fn @nestedStaticDefaults() -> i256 [selector=0x1ebfa70d, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+fn @nestedStaticDefaults() -> i256 [selector=0x1ebfa70d, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @freeMemoryPointer
     v1 = alloc 64 !metadata(preserves_fmp)
@@ -203,7 +203,7 @@ fn @isEmpty(arg0: ptr<memory>) -> i1 [pure] {
     ret v1
 }
 
-fn @rawPointerPair() -> struct4 [pure] {
+fn @rawPointerPair() -> struct4 [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 64
@@ -224,7 +224,7 @@ fn @rawPointerPair() -> struct4 [pure] {
     ret v10
 }
 
-fn @freeMemoryPointer() -> i256 [pure] {
+fn @freeMemoryPointer() -> i256 [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     ret v0

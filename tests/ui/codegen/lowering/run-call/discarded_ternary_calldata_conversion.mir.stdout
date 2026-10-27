@@ -113,7 +113,7 @@ fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_para
     jump bb1
 }
 
-fn @test(arg0: i1, arg1: i1) -> i1 [selector=0x7442b287, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @test(arg0: i1, arg1: i1) -> i1 [selector=0x7442b287, inline_assembly, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1

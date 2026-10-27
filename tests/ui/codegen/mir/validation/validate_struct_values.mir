@@ -206,3 +206,24 @@ fn @wrong_result_annotation(arg0: i8, arg1: i8) -> i16 {
     v0: i16 = add arg0, arg1
     ret v0
 }
+
+// A calldata slice of a dynamic tuple or of nested arrays is a view of its ABI
+// encoding, which the encoder copies from calldata.
+fn @dynamic_calldata_tuple(arg0: slice<calldata>) -> slice<memory> {
+  bb0:
+    v0 = abi_encode [tuple<calldata_bytes>], args arg0
+    ret v0
+}
+
+fn @nested_calldata_array(arg0: slice<calldata>) -> slice<memory> {
+  bb0:
+    v0 = abi_encode [calldata_array<calldata_array<word>>], args arg0
+    ret v0
+}
+
+//~? ERROR: [fn31] [bb0, inst0] ABI input location does not support its layout
+fn @returndata_bytes_array(arg0: slice<returndata>) -> slice<memory> {
+  bb0:
+    v0 = abi_encode [returndata_array<returndata_bytes>], args arg0
+    ret v0
+}

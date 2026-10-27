@@ -96,7 +96,7 @@ fn @logArray(arg0: slice<calldata>) {
     jump bb1
 }
 
-fn @arrayDirect(arg0: i256) -> i256 [selector=0x1bc4b3c7, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @arrayDirect(arg0: i256) -> i256 [selector=0x1bc4b3c7, inline_assembly, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
     v1 = extract_value slice<calldata>, v0, 1
@@ -138,7 +138,7 @@ fn @arrayDirect(arg0: i256) -> i256 [selector=0x1bc4b3c7, pure, abi_params=[uint
     jump bb1
 }
 
-fn @arrayInternal(arg0: i256) -> i256 [selector=0x478b5525, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @arrayInternal(arg0: i256) -> i256 [selector=0x478b5525, inline_assembly, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
     v1 = extract_value slice<calldata>, v0, 1
@@ -149,7 +149,7 @@ fn @arrayInternal(arg0: i256) -> i256 [selector=0x478b5525, pure, abi_params=[ui
     ret v5
 }
 
-fn @arrayPastEnd(arg0: slice<calldata>) -> i256 [selector=0x5b524347, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @arrayPastEnd(arg0: slice<calldata>) -> i256 [selector=0x5b524347, inline_assembly, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -165,7 +165,7 @@ fn @arrayPastEnd(arg0: slice<calldata>) -> i256 [selector=0x5b524347, pure, abi_
     ret v10
 }
 
-fn @structDirect(arg0: i256) -> i256 [selector=0xcf7d0a4c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @structDirect(arg0: i256) -> i256 [selector=0xcf7d0a4c, inline_assembly, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 4, 0
     v1 = extract_value slice<calldata>, v0, 0
@@ -188,14 +188,14 @@ fn @structDirect(arg0: i256) -> i256 [selector=0xcf7d0a4c, pure, abi_params=[uin
     ret v15
 }
 
-fn @structInternal(arg0: i256) -> i256 [selector=0xa11cea7b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @structInternal(arg0: i256) -> i256 [selector=0xa11cea7b, inline_assembly, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 4, 0
     v1 = icall @encodeStruct, v0
     ret v1
 }
 
-fn @enumArray(arg0: i256) -> i256 [selector=0xd6447683, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @enumArray(arg0: i256) -> i256 [selector=0xd6447683, inline_assembly, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
     v1 = extract_value slice<calldata>, v0, 1
@@ -236,7 +236,7 @@ fn @enumArray(arg0: i256) -> i256 [selector=0xd6447683, pure, abi_params=[uint25
     jump bb1
 }
 
-fn @packed(arg0: i256) -> i256 [selector=0x977eca9c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @packed(arg0: i256) -> i256 [selector=0x977eca9c, inline_assembly, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
     v1 = extract_value slice<calldata>, v0, 1
@@ -278,7 +278,7 @@ fn @packed(arg0: i256) -> i256 [selector=0x977eca9c, pure, abi_params=[uint256],
     jump bb1
 }
 
-fn @logged(arg0: i256) -> i256 [selector=0xf3f1126a, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @logged(arg0: i256) -> i256 [selector=0xf3f1126a, inline_assembly, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
     v1 = extract_value slice<calldata>, v0, 1
@@ -320,7 +320,7 @@ fn @logged(arg0: i256) -> i256 [selector=0xf3f1126a, abi_params=[uint256], abi_r
     jump bb1
 }
 
-fn @loggedInternal(arg0: i256) -> i256 [selector=0x8f1fefad, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @loggedInternal(arg0: i256) -> i256 [selector=0x8f1fefad, inline_assembly, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
     v1 = extract_value slice<calldata>, v0, 1
@@ -331,7 +331,7 @@ fn @loggedInternal(arg0: i256) -> i256 [selector=0x8f1fefad, abi_params=[uint256
     ret 2
 }
 
-fn @loggedIndexed(arg0: i256) -> i256 [selector=0x1d045b60, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @loggedIndexed(arg0: i256) -> i256 [selector=0x1d045b60, inline_assembly, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
     v1 = extract_value slice<calldata>, v0, 1

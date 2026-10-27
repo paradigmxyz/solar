@@ -212,7 +212,7 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x06889ec9, pure, abi_params=[t
     ret v173
 }
 
-fn @first(arg0: slice<calldata>) -> i256 [selector=0x0e2e2b05, pure, abi_params=[tuple<array<_, uint256>, array<_, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
+fn @first(arg0: slice<calldata>) -> i256 [selector=0x0e2e2b05, inline_assembly, pure, abi_params=[tuple<array<_, uint256>, array<_, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/decompression_loop_spills.sol:Decompressor ===
 @module Decompressor
-fn @fallback() [fallback, payable] {
+fn @fallback() [inline_assembly, fallback, payable] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i8
@@ -26,7 +26,7 @@ fn @fallback() [fallback, payable] {
     returndata 0, 32
 }
 
-fn @_decompress() {
+fn @_decompress() [inline_assembly] {
   bb0:
     v0 = calldatasize
     v1 = eq v0, 0

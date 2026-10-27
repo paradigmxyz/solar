@@ -93,7 +93,7 @@ fn @reason() -> ptr<memory> {
     ret v2
 }
 
-fn @returnSeven() -> i256 [pure] {
+fn @returnSeven() -> i256 [inline_assembly, pure] {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)
     returndata 0, 32

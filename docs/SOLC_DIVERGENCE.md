@@ -67,6 +67,37 @@ Coverage: `tests/ui/standard-json/debug/ethdebug-output-without-debug-info`,
 `tests/ui/standard-json/debug/ethdebug-with-ast-id` and
 `tests/ui/standard-json/debug/ethdebug-without-ast-id`.
 
+### JSON-003: Supplied `solar:core/` sources
+
+Status: intentional.
+
+Difference: a standard-JSON source whose name starts with `solar:core/` is
+set aside with a warning when its content is not the compiler's module, and
+the compiler's module is compiled in its place. `solc` compiles any content
+under any name.
+
+Rationale: the prefix names the compiler's own library, whose functions the
+compiler lowers by name. Compiling other text under it would let a source
+claim those lowerings.
+
+Coverage: `tests/ui/standard-json/core-module-supplied.jsonc`.
+
+### JSON-004: Extra outputs
+
+Status: intentional.
+
+Difference: `solar` accepts the `solarBuild` and `solarSafety` output
+selections, and its `storageLayout` output adds a `namespaces` field for
+ERC-7201 namespaces. `solc` has no such outputs.
+
+Rationale: they report what the compiler checks for the `solar:core/`
+builders, the `@custom:solar-safe` profile and ERC-7201 namespaces. Tools that
+read only `solc`'s fields are unaffected.
+
+Coverage: `tests/ui/standard-json/solar-build/test.jsonc`,
+`tests/ui/standard-json/solar-safety/test.jsonc` and
+`tests/ui/standard-json/storage-layout-erc7201/test.jsonc`.
+
 ## Import Resolution
 
 ### IMPORT-001: Files on disk are one source unit each
@@ -302,6 +333,22 @@ and a use of the name there would be ambiguous.
 Coverage: `tests/ui/yul_lowering/name_clashes.sol` and
 `tests/ui/yul_lowering/yul_function_scope.sol`.
 
+### NAME-002: The reserved `solar:core/` prefix
+
+Status: intentional.
+
+Difference: imports under `solar:core/` resolve to the compiler's library
+modules before remappings apply, and a file loaded under such a name is an
+error unless its text is exactly the module's. `solc` treats the prefix as an
+ordinary import path.
+
+Rationale: the compiler lowers the library's functions directly, so the name
+must identify that exact code. A project that also builds with `solc` remaps
+the prefix to a copy of `crates/std/solidity/`, which both compilers accept.
+
+Coverage: the reserved-source tests in `crates/sema/src/core/mod.rs` and
+`tests/ui/codegen/core/`.
+
 ## Type Checking
 
 ### TYPECK-001: Called Yul functions in view/pure checking
@@ -419,6 +466,35 @@ storage.
 
 Coverage: `tests/ui/typeck/storage_oversized_copy.sol` and
 `tests/ui/codegen/lowering/run-call/full_width_storage_layout.sol`.
+
+### TYPECK-007: `@custom:solar-` tags are checked
+
+Status: intentional.
+
+Difference: NatSpec tags named `@custom:solar-view`, `@custom:solar-scratch`,
+`@custom:solar-terminates`, `@custom:solar-safe` and `@custom:solar-trusted`
+are requirements: code that breaks one, a tag on an item it does not apply
+to, and any other `@custom:solar-` tag are errors. `solc` accepts any custom
+tag as documentation.
+
+Rationale: the tags let checked Solidity do what used to need assembly, so
+the compiler must hold the code to them. Other compilers still read them as
+documentation, so tagged code builds there unchanged.
+
+Coverage: `tests/ui/natspec/solar_tags.sol` and `tests/ui/typeck/solar_safe.sol`.
+
+### TYPECK-008: ERC-7201 namespaces are checked
+
+Status: intentional.
+
+Difference: a `@custom:storage-location erc7201:<id>` namespace declared
+twice, or an assembly accessor that points at a slot other than the
+namespace's location, is an error. `solc` does not check the annotation.
+
+Rationale: a wrong slot or a reused namespace silently shares storage between
+unrelated state, which the annotation exists to prevent.
+
+Coverage: `tests/ui/typeck/erc7201_namespaces.sol`.
 
 ### TYPECK-007: Uninitialized storage pointers are reported once per location
 

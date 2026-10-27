@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/edge_equality_memory.sol:EdgeEqualityMemory ===
 @module EdgeEqualityMemory
-fn @sized(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf5037775, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @sized(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf5037775, inline_assembly, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
     v1 = keccak256_packed (uint256 arg0, uint256 1)
@@ -69,7 +69,7 @@ fn @sized(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf5037775, pure
     ret v48
 }
 
-fn @addressed(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa249b625, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @addressed(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa249b625, inline_assembly, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
     v1 = keccak256_packed (uint256 arg0, uint256 1)
@@ -135,7 +135,7 @@ fn @addressed(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa249b625, 
     ret v45
 }
 
-fn @derived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x5d97a064, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @derived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x5d97a064, inline_assembly, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
     v1 = keccak256_packed (uint256 arg0, uint256 1)
@@ -199,7 +199,7 @@ fn @derived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x5d97a064, pu
     ret v44
 }
 
-fn @derivedOnce(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x1304ae34, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @derivedOnce(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x1304ae34, inline_assembly, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
     v1 = keccak256_packed (uint256 arg0, uint256 1)
@@ -261,7 +261,7 @@ fn @derivedOnce(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x1304ae34
     ret v43
 }
 
-fn @copied(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xc8ef3ab5, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @copied(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xc8ef3ab5, inline_assembly, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
     v1 = keccak256_packed (uint256 arg0, uint256 1)
@@ -323,7 +323,7 @@ fn @copied(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xc8ef3ab5, pur
     ret v42
 }
 
-fn @called(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb59297ac, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @called(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb59297ac, inline_assembly, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
     v1 = keccak256_packed (uint256 arg0, uint256 1)
@@ -383,7 +383,7 @@ fn @called(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb59297ac, pur
     ret v40
 }
 
-fn @calledDerived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x619af4bd, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @calledDerived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x619af4bd, inline_assembly, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
     v1 = keccak256_packed (uint256 arg0, uint256 1)
@@ -445,7 +445,7 @@ fn @calledDerived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x619af4
     ret v42
 }
 
-fn @masked(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdd455ef0, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @masked(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdd455ef0, inline_assembly, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
     v1 = keccak256_packed (uint256 arg0, uint256 1)
@@ -509,7 +509,7 @@ fn @masked(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdd455ef0, pur
     ret v44
 }
 
-fn @returned(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdfd2c4db, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @returned(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdfd2c4db, inline_assembly, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
     v1 = keccak256_packed (uint256 arg0, uint256 1)
@@ -571,13 +571,13 @@ fn @_size(arg0: i256) -> i256 [pure] {
     ret v2
 }
 
-fn @_write(arg0: i256, arg1: i256) [pure] {
+fn @_write(arg0: i256, arg1: i256) [inline_assembly, pure] {
   bb0:
     calldatacopy arg0, 0, arg1
     ret
 }
 
-fn @_copy(arg0: i256) -> ptr<memory> [pure] {
+fn @_copy(arg0: i256) -> ptr<memory> [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, arg0

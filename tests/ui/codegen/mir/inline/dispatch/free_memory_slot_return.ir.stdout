@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/inline/dispatch/free_memory_slot_return.sol:Unwritten ===
 @module Unwritten
 @phase lowered
-fn @raw() [selector=0xc096a632, abi_wrapper, pure] {
+fn @raw() [selector=0xc096a632, abi_wrapper, inline_assembly, pure] {
   bb0:
     returndata 64, 32
 }
@@ -46,7 +46,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/mir/inline/dispatch/free_memory_slot_return.sol:Written ===
 @module Written
 @phase lowered
-fn @entry() [entry] {
+fn @entry() [entry, inline_assembly] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
@@ -86,7 +86,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/mir/inline/dispatch/free_memory_slot_return.sol:Conditional ===
 @module Conditional
 @phase lowered
-fn @raw() [selector=0x302e678f, abi_wrapper, pure] {
+fn @raw() [selector=0x302e678f, abi_wrapper, inline_assembly, pure] {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36

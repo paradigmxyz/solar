@@ -32,7 +32,7 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v7
 }
 
-fn @sizeMatches() -> i1 [selector=0x6cb0d5a7, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @sizeMatches() -> i1 [selector=0x6cb0d5a7, inline_assembly, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = codesize
     v1 = address

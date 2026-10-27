@@ -1,0 +1,242 @@
+// === <solar:core/Create.sol>:Create ===
+@module Create
+@library
+
+// === ROOT/tests/ui/codegen/core/create_runtime.sol:Test ===
+@module Test
+@types
+  struct0: {i1, ptr<memory>}
+  struct1: {i1, i160}
+  struct2: {i1, i1}
+  struct3: {i1, i256}
+
+fn @spawn(arg0: ptr<memory>) -> ptr<memory> [selector=0x0da0cf17, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = mload arg0
+    v1 = ptradd arg0, 32
+    v2 = create 0, v1, v0
+    v3 = eq v2, i160 0
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = zext i160 v2 to i256
+    v5 = extcodesize v4
+    v6 = add v5, 63
+    v7 = lt v6, v5
+    icall panic_if<0x41>, v7
+    v8 = not 31
+    v9 = and v6, v8
+    v10 = alloc zeroed checked v9
+    mstore v10, v5
+    v11 = ptradd v10, 32
+    v12 = zext i160 v2 to i256
+    extcodecopy v12, v11, 0, v5 !metadata(memory=heap)
+    ret v10
+  bb1:
+    mstore 0, 0x3011642500000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    revert 0, 4
+}
+
+fn @spawnAt(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x9639302c, abi_params=[bytes, bytes32], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = mload arg0
+    v1 = ptradd arg0, 32
+    v2: i256 = create2 0, v1, v0, arg1
+    v3 = eq v2, 0
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = trunc i256 v2 to i160
+    v5 = zext i160 v4 to i256
+    v6 = extcodesize v5
+    v7 = add v6, 63
+    v8 = lt v7, v6
+    icall panic_if<0x41>, v8
+    v9 = not 31
+    v10 = and v7, v9
+    v11 = alloc zeroed checked v10
+    mstore v11, v6
+    v12 = ptradd v11, 32
+    v13 = zext i160 v4 to i256
+    extcodecopy v13, v12, 0, v6 !metadata(memory=heap)
+    ret v11
+  bb1:
+    mstore 0, 0x3011642500000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    revert 0, 4
+}
+
+fn @predicted(arg0: ptr<memory>, arg1: i256) -> i1 [selector=0x1aab0aa1, abi_params=[bytes, bytes32], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = mload arg0
+    v1 = ptradd arg0, 32
+    v2: i256 = create2 0, v1, v0, arg1
+    v3 = eq v2, 0
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = trunc i256 v2 to i160
+    v5 = zext i160 v4 to i256
+    v6 = address
+    v7 = ptradd arg0, 32
+    v8 = mload arg0
+    v9 = keccak256 v7, v8
+    v10 = icall @predict2, v6, arg1, v9
+    v11 = eq v4, v10
+    ret v11
+  bb1:
+    mstore 0, 0x3011642500000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    revert 0, 4
+}
+
+fn @attempt(arg0: ptr<memory>) -> struct0 [selector=0xa95d7aa6, abi_params=[bytes], abi_returns=[word<bool>, memory_bytes], abi_return_params=[bool, bytes]] {
+  bb0:
+    v0 = mload arg0
+    v1 = ptradd arg0, 32
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    v4 = insert_value struct1, undef struct1, 0, v3
+    v5 = insert_value struct1, v4, 1, v2
+    v6 = extract_value struct1, v5, 0
+    v7 = extract_value struct1, v5, 1
+    v8 = zext i160 v7 to i256
+    v9 = zext i160 v7 to i256
+    v10 = extcodesize v9
+    v11 = add v10, 63
+    v12 = lt v11, v10
+    icall panic_if<0x41>, v12
+    v13 = not 31
+    v14 = and v11, v13
+    v15 = alloc zeroed checked v14
+    mstore v15, v10
+    v16 = ptradd v15, 32
+    v17 = zext i160 v7 to i256
+    extcodecopy v17, v16, 0, v10 !metadata(memory=heap)
+    v18 = insert_value struct0, undef struct0, 0, v6
+    v19 = insert_value struct0, v18, 1, v15
+    ret v19
+}
+
+fn @attemptAt(arg0: ptr<memory>, arg1: i256) -> struct0 [selector=0xaa568f57, abi_params=[bytes, bytes32], abi_returns=[word<bool>, memory_bytes], abi_return_params=[bool, bytes]] {
+  bb0:
+    v0 = mload arg0
+    v1 = ptradd arg0, 32
+    v2: i256 = create2 0, v1, v0, arg1
+    v3 = ne v2, 0
+    v4 = trunc i256 v2 to i160
+    v5 = insert_value struct1, undef struct1, 0, v3
+    v6 = insert_value struct1, v5, 1, v4
+    v7 = extract_value struct1, v6, 0
+    v8 = extract_value struct1, v6, 1
+    v9 = zext i160 v8 to i256
+    v10 = zext i160 v8 to i256
+    v11 = extcodesize v10
+    v12 = add v11, 63
+    v13 = lt v12, v11
+    icall panic_if<0x41>, v13
+    v14 = not 31
+    v15 = and v12, v14
+    v16 = alloc zeroed checked v15
+    mstore v16, v11
+    v17 = ptradd v16, 32
+    v18 = zext i160 v8 to i256
+    extcodecopy v18, v17, 0, v11 !metadata(memory=heap)
+    v19 = insert_value struct0, undef struct0, 0, v7
+    v20 = insert_value struct0, v19, 1, v16
+    ret v20
+}
+
+fn @twice(arg0: ptr<memory>, arg1: i256) -> struct2 [selector=0x8cf98279, abi_params=[bytes, bytes32], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
+  bb0:
+    v0 = mload arg0
+    v1 = ptradd arg0, 32
+    v2: i256 = create2 0, v1, v0, arg1
+    v3 = ne v2, 0
+    v4 = trunc i256 v2 to i160
+    v5 = insert_value struct1, undef struct1, 0, v3
+    v6 = insert_value struct1, v5, 1, v4
+    v7 = extract_value struct1, v6, 0
+    v8 = extract_value struct1, v6, 1
+    v9 = mload arg0
+    v10 = ptradd arg0, 32
+    v11: i256 = create2 0, v10, v9, arg1
+    v12 = ne v11, 0
+    v13 = trunc i256 v11 to i160
+    v14 = insert_value struct1, undef struct1, 0, v12
+    v15 = insert_value struct1, v14, 1, v13
+    v16 = extract_value struct1, v15, 0
+    v17 = extract_value struct1, v15, 1
+    v18 = insert_value struct2, undef struct2, 0, v7
+    v19 = insert_value struct2, v18, 1, v16
+    ret v19
+}
+
+fn @deploy(arg0: ptr<memory>, arg1: i256) -> i256 [inline_assembly] {
+  bb0:
+    v0 = ptrtoint ptr<memory> arg0 to i256
+    v1 = mload arg0
+    v2 = ptrtoint ptr<memory> arg0 to i256
+    v3 = add v2, 32
+    v4 = create arg1, v3, v1
+    v5 = zext i160 v4 to i256
+    v6 = eq v4, i160 0
+    jumpi v6, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret v5
+  bb1:
+    icall require<custom_error []>, false, 0x3011642500000000000000000000000000000000000000000000000000000000
+    invalid
+}
+
+fn @deploy2(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 [inline_assembly] {
+  bb0:
+    v0 = ptrtoint ptr<memory> arg0 to i256
+    v1 = mload arg0
+    v2 = ptrtoint ptr<memory> arg0 to i256
+    v3 = add v2, 32
+    v4: i256 = create2 arg2, v3, v1, arg1
+    v5 = trunc i256 v4 to i160
+    v6 = eq v5, i160 0
+    jumpi v6, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret v4
+  bb1:
+    icall require<custom_error []>, false, 0x3011642500000000000000000000000000000000000000000000000000000000
+    invalid
+}
+
+fn @tryDeploy(arg0: ptr<memory>, arg1: i256) -> struct3 [inline_assembly] {
+  bb0:
+    v0 = ptrtoint ptr<memory> arg0 to i256
+    v1 = mload arg0
+    v2 = ptrtoint ptr<memory> arg0 to i256
+    v3 = add v2, 32
+    v4 = create arg1, v3, v1
+    v5 = zext i160 v4 to i256
+    v6 = ne v4, i160 0
+    v7 = insert_value struct3, undef struct3, 0, v6
+    v8 = insert_value struct3, v7, 1, v5
+    ret v8
+}
+
+fn @tryDeploy2(arg0: ptr<memory>, arg1: i256, arg2: i256) -> struct3 [inline_assembly] {
+  bb0:
+    v0 = ptrtoint ptr<memory> arg0 to i256
+    v1 = mload arg0
+    v2 = ptrtoint ptr<memory> arg0 to i256
+    v3 = add v2, 32
+    v4: i256 = create2 arg2, v3, v1, arg1
+    v5 = trunc i256 v4 to i160
+    v6 = ne v5, i160 0
+    v7 = insert_value struct3, undef struct3, 0, v6
+    v8 = insert_value struct3, v7, 1, v4
+    ret v8
+}
+
+fn @predict2(arg0: i160, arg1: i256, arg2: i256) -> i160 [pure] {
+  bb0:
+    v0 = and 0xff00000000000000000000000000000000000000000000000000000000000000, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v1 = keccak256_packed (bytes1 v0, uint160 arg0, bytes32 arg1, bytes32 arg2)
+    v2 = trunc i256 v1 to i160
+    ret v2
+}

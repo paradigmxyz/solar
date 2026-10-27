@@ -1,0 +1,174 @@
+// === ROOT/tests/ui/codegen/core/auxiliary/forward_target.sol:ForwardTarget ===
+@module ForwardTarget
+@types
+  struct0: {i160, i256}
+
+fn @sum(arg0: i256, arg1: i256) -> i256 [selector=0xcad0899b, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = checked_add uint256, arg0, arg1
+    ret v0
+}
+
+fn @whoAmI() -> struct0 [selector=0xda91254c, abi_params=[], abi_returns=[word<uint160>, word], abi_return_params=[address, uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = checked_add uint256, v0, 1
+    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = caller
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = insert_value struct0, undef struct0, 0, v2
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
+}
+
+fn @fail(arg0: i256) [selector=0x132e4f3c, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    icall require<custom_error [word]>, false, 0xc77ea64100000000000000000000000000000000000000000000000000000000, arg0
+    invalid
+}
+
+fn @paid() -> i256 [selector=0x295b4e17, payable, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = callvalue
+    ret v0
+}
+
+fn @greet() -> ptr<memory> [selector=0xcfae3217, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 22
+    v1 = ptradd v0, 32
+    mstore v1, 0x68656c6c6f2c20666f7277617264656420776f726c6400000000000000000000
+    ret v0
+}
+
+// === <solar:core/Calls.sol>:Calls ===
+@module Calls
+@library
+
+// === ROOT/tests/ui/codegen/core/forward_runtime.sol:Proxy ===
+@module Proxy
+@data
+  ForwardTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/core/auxiliary/forward_target.sol:ForwardTarget"
+
+@immutables
+  target: uint256
+
+fn @fallback() [fallback, payable] {
+  bb0:
+    v0 = calldataload 0
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v2 = eq v1, 0xda91254c00000000000000000000000000000000000000000000000000000000
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v14 = loadimmutable target
+    v15 = trunc i256 v14 to i160
+    v16 = callvalue
+    v17 = calldatasize
+    v18 = make_calldata_slice ptr<calldata> 0, v17
+    v19 = extract_value slice<calldata>, v18, 1
+    v20 = extract_value slice<calldata>, v18, 0
+    calldatacopy 0, v20, v19 !metadata(memory=scratch)
+    v21 = gas
+    v22 = zext i160 v15 to i256
+    v23 = call v21, v22, v16, 0, v19, 0, 0
+    jumpi v23, bb6, bb7
+  bb7:
+    revert_returndata
+  bb6:
+    v24 = returndatasize
+    returndatacopy 0, 0, v24 !metadata(memory=abi_return)
+    v25 = returndatasize
+    returndata 0, v25
+  bb1:
+    v3 = loadimmutable target
+    v4 = trunc i256 v3 to i160
+    v5 = calldatasize
+    v6 = make_calldata_slice ptr<calldata> 0, v5
+    v7 = extract_value slice<calldata>, v6, 1
+    v8 = extract_value slice<calldata>, v6, 0
+    calldatacopy 0, v8, v7 !metadata(memory=scratch)
+    v9 = gas
+    v10 = zext i160 v4 to i256
+    v11 = delegatecall v9, v10, 0, v7, 0, 0
+    jumpi v11, bb4, bb5
+  bb5:
+    revert_returndata
+  bb4:
+    v12 = returndatasize
+    returndatacopy 0, 0, v12 !metadata(memory=abi_return)
+    v13 = returndatasize
+    returndata 0, v13
+}
+
+fn @forward(arg0: i256, arg1: i256, arg2: slice<calldata>) [inline_assembly] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = extract_value slice<calldata>, arg2, 1
+    v2 = extract_value slice<calldata>, arg2, 0
+    v3 = ptrtoint ptr<calldata> v2 to i256
+    calldatacopy v0, v2, v1
+    v4 = extract_value slice<calldata>, arg2, 1
+    v5 = gas
+    v6 = call v5, arg0, arg1, v0, v4, 0, 0
+    v7 = zext i1 v6 to i256
+    v8 = returndatasize
+    returndatacopy v0, 0, v8
+    v9 = eq v7, 0
+    v10 = zext i1 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v13 = returndatasize
+    returndata v0, v13
+  bb1:
+    v12 = returndatasize
+    revert v0, v12
+}
+
+fn @forwardDelegate(arg0: i256, arg1: slice<calldata>) [inline_assembly] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = extract_value slice<calldata>, arg1, 1
+    v2 = extract_value slice<calldata>, arg1, 0
+    v3 = ptrtoint ptr<calldata> v2 to i256
+    calldatacopy v0, v2, v1
+    v4 = extract_value slice<calldata>, arg1, 1
+    v5 = gas
+    v6 = delegatecall v5, arg0, v0, v4, 0, 0
+    v7 = zext i1 v6 to i256
+    v8 = returndatasize
+    returndatacopy v0, 0, v8
+    v9 = eq v7, 0
+    v10 = zext i1 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v13 = returndatasize
+    returndata v0, v13
+  bb1:
+    v12 = returndatasize
+    revert v0, v12
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = datasize ForwardTarget_creation_code_0
+    v1 = fmp
+    datacopy ForwardTarget_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v4 = zext i160 v2 to i256
+    storeimmutable target, v4
+    ret
+}

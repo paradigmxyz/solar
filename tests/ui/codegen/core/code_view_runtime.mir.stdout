@@ -1,0 +1,500 @@
+// === <solar:core/Code.sol>:Code ===
+@module Code
+@library
+
+// === <solar:core/Create.sol>:Create ===
+@module Create
+@library
+
+// === ROOT/tests/ui/codegen/core/code_view_runtime.sol:Test ===
+@module Test
+@types
+  struct0: {i1, i256, i256}
+
+fn @viewed(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0xb7d40d8c, abi_params=[bytes, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = mload arg0
+    v1 = ptradd arg0, 32
+    v2 = create 0, v1, v0
+    v3 = eq v2, i160 0
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = zext i160 v2 to i256
+    v5 = icall @slice.8, v4, arg1, arg2
+    v6 = shr v5, 96
+    v7 = trunc i256 v6 to i160
+    v8 = shr v5, 48
+    v9 = and v8, 0xffffffffffff
+    v10 = and v5, 0xffffffffffff
+    v11 = add v10, 63
+    v12 = lt v11, v10
+    icall panic_if<0x41>, v12
+    v13 = not 31
+    v14 = and v11, v13
+    v15 = alloc checked v14
+    mstore v15, v10
+    v16 = zext i160 v7 to i256
+    v17 = extcodesize v16
+    v18 = add v9, v10
+    v19 = lt v18, v9
+    v20 = gt v18, v17
+    v21 = or v19, v20
+    v22 = zext i1 v21 to i256
+    icall panic_if<0x32>, v21
+    v23 = ptradd v15, 32
+    v24 = zext i160 v7 to i256
+    extcodecopy v24, v23, v9, v10 !metadata(memory=heap)
+    v25 = ptrtoint ptr<memory> v23 to i256
+    v26 = add v25, v10
+    mstore v26, 0
+    ret v15
+  bb1:
+    mstore 0, 0x3011642500000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    revert 0, 4
+}
+
+fn @nested(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> ptr<memory> [selector=0x67a7216e, abi_params=[bytes, uint256, uint256, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = mload arg0
+    v1 = ptradd arg0, 32
+    v2 = create 0, v1, v0
+    v3 = eq v2, i160 0
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = zext i160 v2 to i256
+    v5 = icall @slice.8, v4, arg1, arg2
+    v6 = icall @slice.9, v5, arg3, arg4
+    v7 = shr v6, 96
+    v8 = trunc i256 v7 to i160
+    v9 = shr v6, 48
+    v10 = and v9, 0xffffffffffff
+    v11 = and v6, 0xffffffffffff
+    v12 = add v11, 63
+    v13 = lt v12, v11
+    icall panic_if<0x41>, v13
+    v14 = not 31
+    v15 = and v12, v14
+    v16 = alloc checked v15
+    mstore v16, v11
+    v17 = zext i160 v8 to i256
+    v18 = extcodesize v17
+    v19 = add v10, v11
+    v20 = lt v19, v10
+    v21 = gt v19, v18
+    v22 = or v20, v21
+    v23 = zext i1 v22 to i256
+    icall panic_if<0x32>, v22
+    v24 = ptradd v16, 32
+    v25 = zext i160 v8 to i256
+    extcodecopy v25, v24, v10, v11 !metadata(memory=heap)
+    v26 = ptrtoint ptr<memory> v24 to i256
+    v27 = add v26, v11
+    mstore v27, 0
+    ret v16
+  bb1:
+    mstore 0, 0x3011642500000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    revert 0, 4
+}
+
+fn @fields(arg0: ptr<memory>, arg1: i256, arg2: i256) -> struct0 [selector=0x98cd6942, abi_params=[bytes, uint256, uint256], abi_returns=[word<bool>, word, word], abi_return_params=[bool, uint256, uint256]] {
+  bb0:
+    v0 = mload arg0
+    v1 = ptradd arg0, 32
+    v2 = create 0, v1, v0
+    v3 = eq v2, i160 0
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = zext i160 v2 to i256
+    v5 = zext i160 v2 to i256
+    v6 = icall @slice.8, v5, arg1, arg2
+    v7 = icall @account, v6
+    v8 = trunc i256 v7 to i160
+    v9 = eq v8, v2
+    v10 = icall @offset, v6
+    v11 = icall @length, v6
+    v12 = insert_value struct0, undef struct0, 0, v9
+    v13 = insert_value struct0, v12, 1, v10
+    v14 = insert_value struct0, v13, 2, v11
+    ret v14
+  bb1:
+    mstore 0, 0x3011642500000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    revert 0, 4
+}
+
+fn @copied(arg0: ptr<memory>) -> ptr<memory> [selector=0x08d930ef, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 4
+    v1 = ptradd v0, 32
+    mstore v1, 0xaaaaaaaa00000000000000000000000000000000000000000000000000000000
+    v2 = mload arg0
+    v3 = ptradd arg0, 32
+    v4 = create 0, v3, v2
+    v5 = eq v4, i160 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = zext i160 v4 to i256
+    v7 = icall @slice.8, v6, 4, 2
+    v8 = shr v7, 96
+    v9 = trunc i256 v8 to i160
+    v10 = shr v7, 48
+    v11 = and v10, 0xffffffffffff
+    v12 = and v7, 0xffffffffffff
+    v13 = mload v0
+    v14 = add 1, v12
+    v15 = lt v14, 1
+    v16 = gt v14, v13
+    v17 = or v15, v16
+    v18 = zext i1 v17 to i256
+    icall panic_if<0x32>, v17
+    v19 = ptradd v0, 32
+    v20 = ptrtoint ptr<memory> v19 to i256
+    v21 = add v20, 1
+    v22 = zext i160 v9 to i256
+    v23 = extcodesize v22
+    v24 = add v11, v12
+    v25 = lt v24, v11
+    v26 = gt v24, v23
+    v27 = or v25, v26
+    v28 = zext i1 v27 to i256
+    icall panic_if<0x32>, v27
+    v29 = zext i160 v9 to i256
+    extcodecopy v29, v21, v11, v12 !metadata(memory=heap)
+    ret v0
+  bb1:
+    mstore 0, 0x3011642500000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    revert 0, 4
+}
+
+fn @overflowing(arg0: ptr<memory>) -> ptr<memory> [selector=0x04010343, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = not 31
+    v1 = and 64, v0
+    v2 = alloc zeroed checked v1
+    mstore v2, 1
+    v3 = mload arg0
+    v4 = ptradd arg0, 32
+    v5 = create 0, v4, v3
+    v6 = eq v5, i160 0
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = zext i160 v5 to i256
+    v8 = icall @slice.8, v7, 0, 2
+    v9 = shr v8, 96
+    v10 = trunc i256 v9 to i160
+    v11 = shr v8, 48
+    v12 = and v11, 0xffffffffffff
+    v13 = and v8, 0xffffffffffff
+    v14 = mload v2
+    v15 = add 0, v13
+    v16 = lt v15, 0
+    v17 = gt v15, v14
+    v18 = or v16, v17
+    v19 = zext i1 v18 to i256
+    icall panic_if<0x32>, v18
+    v20 = ptradd v2, 32
+    v21 = ptrtoint ptr<memory> v20 to i256
+    v22 = add v21, 0
+    v23 = zext i160 v10 to i256
+    v24 = extcodesize v23
+    v25 = add v12, v13
+    v26 = lt v25, v12
+    v27 = gt v25, v24
+    v28 = or v26, v27
+    v29 = zext i1 v28 to i256
+    icall panic_if<0x32>, v28
+    v30 = zext i160 v10 to i256
+    extcodecopy v30, v22, v12, v13 !metadata(memory=heap)
+    ret v2
+  bb1:
+    mstore 0, 0x3011642500000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    revert 0, 4
+}
+
+fn @arrived(arg0: i256) -> ptr<memory> [selector=0xf2c46f72, view, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = shr arg0, 96
+    v1 = trunc i256 v0 to i160
+    v2 = shr arg0, 48
+    v3 = and v2, 0xffffffffffff
+    v4 = and arg0, 0xffffffffffff
+    v5 = add v4, 63
+    v6 = lt v5, v4
+    icall panic_if<0x41>, v6
+    v7 = not 31
+    v8 = and v5, v7
+    v9 = alloc checked v8
+    mstore v9, v4
+    v10 = zext i160 v1 to i256
+    v11 = extcodesize v10
+    v12 = add v3, v4
+    v13 = lt v12, v3
+    v14 = gt v12, v11
+    v15 = or v13, v14
+    v16 = zext i1 v15 to i256
+    icall panic_if<0x32>, v15
+    v17 = ptradd v9, 32
+    v18 = zext i160 v1 to i256
+    extcodecopy v18, v17, v3, v4 !metadata(memory=heap)
+    v19 = ptrtoint ptr<memory> v17 to i256
+    v20 = add v19, v4
+    mstore v20, 0
+    ret v9
+}
+
+fn @copyInto.6(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [inline_assembly, view] {
+  bb0:
+    v0 = mload arg0
+    v1 = gt arg4, v0
+    jumpi v1, bb2, bb1
+  bb1:
+    v2 = mload arg0
+    v3 = checked_sub uint256, v2, arg4
+    v4 = gt arg1, v3
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v5 = phi [bb1: v4], [bb2: true]
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v6 = icall @_outOfBounds
+    jump bb6
+  bb6:
+    v7 = phi [bb4: v6], [bb5: arg4]
+    v8 = extcodesize arg2
+    v9 = gt v7, v8
+    jumpi v9, bb8, bb7
+  bb7:
+    v10 = checked_sub uint256, v8, v7
+    v11 = gt arg3, v10
+    jump bb9
+  bb8:
+    jump bb9
+  bb9:
+    v12 = phi [bb7: v11], [bb8: true]
+    jumpi v12, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    v13 = icall @_outOfBounds
+    jump bb12
+  bb12:
+    v14 = phi [bb10: v13], [bb11: v7]
+    v15 = ptrtoint ptr<memory> arg0 to i256
+    v16 = add v15, 32
+    v17 = add v16, arg1
+    extcodecopy arg2, v17, arg3, v14
+    ret
+}
+
+fn @read.7(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [view] {
+  bb0:
+    v0 = add arg2, 63
+    v1 = lt v0, arg2
+    icall panic_if<0x41>, v1
+    v2 = not 31
+    v3 = and v0, v2
+    v4 = alloc zeroed checked v3
+    mstore v4, arg2
+    v5 = trunc i256 arg0 to i160
+    v6 = mload v4
+    v7 = add 0, arg2
+    v8 = lt v7, 0
+    v9 = gt v7, v6
+    v10 = or v8, v9
+    v11 = zext i1 v10 to i256
+    icall panic_if<0x32>, v10
+    v12 = ptradd v4, 32
+    v13 = ptrtoint ptr<memory> v12 to i256
+    v14 = add v13, 0
+    v15 = zext i160 v5 to i256
+    v16 = extcodesize v15
+    v17 = add arg1, arg2
+    v18 = lt v17, arg1
+    v19 = gt v17, v16
+    v20 = or v18, v19
+    v21 = zext i1 v20 to i256
+    icall panic_if<0x32>, v20
+    v22 = zext i160 v5 to i256
+    extcodecopy v22, v14, arg1, arg2 !metadata(memory=heap)
+    ret v4
+}
+
+fn @slice.8(arg0: i256, arg1: i256, arg2: i256) -> i256 [view] {
+  bb0:
+    v0 = extcodesize arg0
+    v1 = gt arg2, v0
+    jumpi v1, bb2, bb1
+  bb1:
+    v2 = checked_sub uint256, v0, arg2
+    v3 = gt arg1, v2
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v4 = phi [bb1: v3], [bb2: true]
+    jumpi v4, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v5 = icall @_outOfBounds
+    jump bb6
+  bb6:
+    v6 = phi [bb4: v5], [bb5: arg2]
+    v7 = icall @_pack, arg0, arg1, v6
+    ret v7
+}
+
+fn @slice.9(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
+  bb0:
+    v0 = icall @length, arg0
+    v1 = gt arg2, v0
+    jumpi v1, bb2, bb1
+  bb1:
+    v2 = checked_sub uint256, v0, arg2
+    v3 = gt arg1, v2
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v4 = phi [bb1: v3], [bb2: true]
+    jumpi v4, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v5 = icall @_outOfBounds
+    jump bb6
+  bb6:
+    v6 = phi [bb4: v5], [bb5: arg2]
+    v7 = icall @account, arg0
+    v8 = icall @offset, arg0
+    v9 = checked_add uint256, v8, arg1
+    v10 = icall @_pack, v7, v9, v6
+    ret v10
+}
+
+fn @account(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = shr arg0, 96
+    v1 = trunc i256 v0 to i160
+    v2 = zext i160 v1 to i256
+    ret v2
+}
+
+fn @offset(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = shr arg0, 48
+    v1 = and v0, 0xffffffffffff
+    ret v1
+}
+
+fn @length(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = and arg0, 0xffffffffffff
+    ret v0
+}
+
+fn @copyInto.13(arg0: ptr<memory>, arg1: i256, arg2: i256) [view] {
+  bb0:
+    v0 = icall @account, arg2
+    v1 = trunc i256 v0 to i160
+    v2 = icall @offset, arg2
+    v3 = icall @length, arg2
+    v4 = mload arg0
+    v5 = add arg1, v3
+    v6 = lt v5, arg1
+    v7 = gt v5, v4
+    v8 = or v6, v7
+    v9 = zext i1 v8 to i256
+    icall panic_if<0x32>, v8
+    v10 = ptradd arg0, 32
+    v11 = ptrtoint ptr<memory> v10 to i256
+    v12 = add v11, arg1
+    v13 = zext i160 v1 to i256
+    v14 = extcodesize v13
+    v15 = add v2, v3
+    v16 = lt v15, v2
+    v17 = gt v15, v14
+    v18 = or v16, v17
+    v19 = zext i1 v18 to i256
+    icall panic_if<0x32>, v18
+    v20 = zext i160 v1 to i256
+    extcodecopy v20, v12, v2, v3 !metadata(memory=heap)
+    ret
+}
+
+fn @read.14(arg0: i256) -> ptr<memory> [view] {
+  bb0:
+    v0 = icall @account, arg0
+    v1 = trunc i256 v0 to i160
+    v2 = icall @offset, arg0
+    v3 = icall @length, arg0
+    v4 = add v3, 63
+    v5 = lt v4, v3
+    icall panic_if<0x41>, v5
+    v6 = not 31
+    v7 = and v4, v6
+    v8 = alloc checked v7
+    mstore v8, v3
+    v9 = zext i160 v1 to i256
+    v10 = extcodesize v9
+    v11 = add v2, v3
+    v12 = lt v11, v2
+    v13 = gt v11, v10
+    v14 = or v12, v13
+    v15 = zext i1 v14 to i256
+    icall panic_if<0x32>, v14
+    v16 = ptradd v8, 32
+    v17 = zext i160 v1 to i256
+    extcodecopy v17, v16, v2, v3 !metadata(memory=heap)
+    v18 = ptrtoint ptr<memory> v16 to i256
+    v19 = add v18, v3
+    mstore v19, 0
+    ret v8
+}
+
+fn @_pack(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    v2 = shl v1, 96
+    v3 = shl arg1, 48
+    v4 = or v2, v3
+    v5 = or v4, arg2
+    ret v5
+}
+
+fn @_outOfBounds() -> i256 [pure] {
+  bb0:
+    v0 = alloc zeroed checked 32
+    mstore v0, 0
+    v1 = mload v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 32
+    v5 = mload v4
+    ret v5
+}
+
+fn @deploy(arg0: ptr<memory>, arg1: i256) -> i256 [inline_assembly] {
+  bb0:
+    v0 = ptrtoint ptr<memory> arg0 to i256
+    v1 = mload arg0
+    v2 = ptrtoint ptr<memory> arg0 to i256
+    v3 = add v2, 32
+    v4 = create arg1, v3, v1
+    v5 = zext i160 v4 to i256
+    v6 = eq v4, i160 0
+    jumpi v6, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret v5
+  bb1:
+    icall require<custom_error []>, false, 0x3011642500000000000000000000000000000000000000000000000000000000
+    invalid
+}

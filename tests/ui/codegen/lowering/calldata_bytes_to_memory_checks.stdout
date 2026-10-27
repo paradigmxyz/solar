@@ -19,7 +19,7 @@ fn @decoded() [selector=0x45c91515, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @lengthSet() [selector=0xa5e448c2, abi_wrapper, pure] {
+fn @lengthSet() [selector=0xa5e448c2, abi_wrapper, inline_assembly, pure] {
   bb0:
     v23 = calldatasize
     v24 = lt v23, 68
@@ -51,7 +51,7 @@ fn @lengthSet() [selector=0xa5e448c2, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @offsetSet() [selector=0xba062698, abi_wrapper, pure] {
+fn @offsetSet() [selector=0xba062698, abi_wrapper, inline_assembly, pure] {
   bb0:
     v27 = calldatasize
     v28 = lt v27, 68

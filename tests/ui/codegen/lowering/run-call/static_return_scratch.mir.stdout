@@ -39,7 +39,7 @@ fn @unused(arg0: i256) [selector=0xbef217cc, pure, abi_params=[uint256], abi_ret
     ret
 }
 
-fn @swapped() -> struct0 [selector=0x817ba96a, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+fn @swapped() -> struct0 [selector=0x817ba96a, inline_assembly, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
     mstore 32, 2 !metadata(memory=scratch)
@@ -50,7 +50,7 @@ fn @swapped() -> struct0 [selector=0x817ba96a, pure, abi_params=[], abi_returns=
     ret v3
 }
 
-fn @aliasedArrays() -> struct2 [selector=0xf54f1c28, pure, abi_params=[], abi_returns=[array<1, word>, array<1, word>], abi_return_params=[array<1, uint256>, array<1, uint256>]] {
+fn @aliasedArrays() -> struct2 [selector=0xf54f1c28, inline_assembly, pure, abi_params=[], abi_returns=[array<1, word>, array<1, word>], abi_return_params=[array<1, uint256>, array<1, uint256>]] {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
     mstore 32, 2 !metadata(memory=scratch)
@@ -59,7 +59,7 @@ fn @aliasedArrays() -> struct2 [selector=0xf54f1c28, pure, abi_params=[], abi_re
     ret v1
 }
 
-fn @scalarThenAlias() -> struct3 [selector=0x69021083, pure, abi_params=[], abi_returns=[word, array<1, word>], abi_return_params=[uint256, array<1, uint256>]] {
+fn @scalarThenAlias() -> struct3 [selector=0x69021083, inline_assembly, pure, abi_params=[], abi_returns=[word, array<1, word>], abi_return_params=[uint256, array<1, uint256>]] {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)
     v0 = insert_value struct3, undef struct3, 0, 5
@@ -79,7 +79,7 @@ fn @four(arg0: i256) -> struct4 [selector=0xe2595336, pure, abi_params=[uint256]
     ret v6
 }
 
-fn @pointerWords() -> struct4 [selector=0x3b5b734e, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
+fn @pointerWords() -> struct4 [selector=0x3b5b734e, inline_assembly, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = mload 96 !metadata(memory=scratch)
     v1 = mload 64 !metadata(memory=scratch)
@@ -92,7 +92,7 @@ fn @pointerWords() -> struct4 [selector=0x3b5b734e, pure, abi_params=[], abi_ret
     ret v7
 }
 
-fn @modified(arg0: i256) -> struct1 [selector=0xd492dffb, pure, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+fn @modified(arg0: i256) -> struct1 [selector=0xd492dffb, inline_assembly, pure, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 1
     v1 = checked_add uint256, arg0, 2
@@ -110,7 +110,7 @@ fn @modified(arg0: i256) -> struct1 [selector=0xd492dffb, pure, abi_params=[uint
     ret v4
 }
 
-fn @structFields() -> struct1 [selector=0x94c60039, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+fn @structFields() -> struct1 [selector=0x94c60039, inline_assembly, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
     mstore v0, 0

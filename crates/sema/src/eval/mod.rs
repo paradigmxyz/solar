@@ -92,6 +92,7 @@ mod builtins;
 mod expr;
 mod value;
 
+pub(crate) use builtins::erc7201_slot;
 pub use value::{BytesKind, CodeKind, ConstValue, FixedBytes, IntScalar};
 
 /// Where a constant value is required, which selects solc's codes for evaluation errors.

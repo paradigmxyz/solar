@@ -1,0 +1,257 @@
+// === <solar:core/Return.sol>:Return ===
+@module Return
+@library
+
+// === ROOT/tests/ui/codegen/core/return_values_runtime.sol:Test ===
+@module Test
+fn @word(arg0: i256) [selector=0xa77f389c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @signed(arg0: i256) [selector=0xbfe355dd, pure, abi_params=[int256], abi_returns=[word], abi_return_params=[int256]] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @account(arg0: i256) [selector=0x2dd7c658, pure, abi_params=[uint256], abi_returns=[word<uint160>], abi_return_params=[address]] {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @flag(arg0: i1) [selector=0xa92a4c3b, pure, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = eq arg0, false
+    v1 = zext i1 v0 to i256
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @dirtyAccount(arg0: i256) [selector=0xeefca58e, inline_assembly, pure, abi_params=[uint256], abi_returns=[word<uint160>], abi_return_params=[address]] {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @dirtyFlag(arg0: i256) [selector=0x7ceb6daf, inline_assembly, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = ne arg0, 0
+    v1 = zext i1 v0 to i256
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @hash(arg0: i256) [selector=0xd8389dc5, pure, abi_params=[bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @blob(arg0: slice<calldata>) [selector=0x03cd5167, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
+    v2 = calldatasize
+    v3 = gt v1, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v3
+    v4 = sub v2, v1
+    v5 = ptrtoint ptr<calldata> v0 to i256
+    v6 = sgt v5, v4
+    icall revert_if<calldata_tail_too_short>, v6
+    v7 = extract_value slice<calldata>, arg0, 1
+    v8 = add v7, 63
+    v9 = lt v8, v7
+    icall panic_if<0x41>, v9
+    v10 = not 31
+    v11 = and v8, v10
+    v12 = alloc v11
+    mstore v12, v7
+    v13 = ptradd v12, 32
+    v14 = extract_value slice<calldata>, arg0, 0
+    v15 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v13, v14, v15
+    v16 = ptrtoint ptr<memory> v12 to i256
+    v17 = sub v16, 32
+    mstore v17, 32
+    v18 = mload v12
+    v19 = ptradd v12, 32
+    v20 = ptrtoint ptr<memory> v19 to i256
+    v21 = add v20, v18
+    mstore v21, 0
+    v22 = add v18, 31
+    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v24 = add v23, 64
+    returndata v17, v24
+}
+
+fn @text(arg0: ptr<memory>) [selector=0x174e6c98, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = ptrtoint ptr<memory> arg0 to i256
+    v1 = sub v0, 32
+    mstore v1, 32
+    v2 = mload arg0
+    v3 = ptradd arg0, 32
+    v4 = ptrtoint ptr<memory> v3 to i256
+    v5 = add v4, v2
+    mstore v5, 0
+    v6 = add v2, 31
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v8 = add v7, 64
+    returndata v1, v8
+}
+
+fn @pointer(arg0: i256) -> i256 [selector=0xf9d6a52e, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    icall @internal_dispatcher_p_uint256_r_none, 19, arg0
+    ret 0
+}
+
+fn @_square(arg0: i256) [pure] {
+  bb0:
+    v0 = checked_mul uint256, arg0, arg0
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @fallback() [fallback] {
+  bb0:
+    v0 = calldatasize
+    v1 = make_calldata_slice ptr<calldata> 0, v0
+    v2 = extract_value slice<calldata>, v1, 1
+    v3 = eq v2, 0
+    jumpi v3, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v4 = calldatasize
+    v5 = make_calldata_slice ptr<calldata> 0, v4
+    v6 = extract_value slice<calldata>, v5, 0
+    v7 = extract_value slice<calldata>, v5, 1
+    v8 = calldatasize
+    v9 = gt v7, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v9
+    v10 = sub v8, v7
+    v11 = ptrtoint ptr<calldata> v6 to i256
+    v12 = sgt v11, v10
+    icall revert_if<calldata_tail_too_short>, v12
+    v13 = extract_value slice<calldata>, v5, 1
+    v14 = add v13, 63
+    v15 = lt v14, v13
+    icall panic_if<0x41>, v15
+    v16 = not 31
+    v17 = and v14, v16
+    v18 = alloc v17
+    mstore v18, v13
+    v19 = ptradd v18, 32
+    v20 = extract_value slice<calldata>, v5, 0
+    v21 = extract_value slice<calldata>, v5, 1
+    calldatacopy v19, v20, v21
+    v22 = mload v18
+    v23 = ptradd v18, 32
+    returndata v23, v22
+  bb1:
+    mstore 0, 42 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @abiEncoded.12(arg0: ptr<memory>) [inline_assembly, pure] {
+  bb0:
+    v0 = abi_encode [memory_bytes], object, args arg0
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = mload v0
+    v3 = ptrtoint ptr<memory> v0 to i256
+    v4 = add v3, 32
+    returndata v4, v2
+}
+
+fn @abiEncoded.13(arg0: ptr<memory>) [inline_assembly, pure] {
+  bb0:
+    v0 = abi_encode [memory_bytes], object, args arg0
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = mload v0
+    v3 = ptrtoint ptr<memory> v0 to i256
+    v4 = add v3, 32
+    returndata v4, v2
+}
+
+fn @abiEncoded.14(arg0: i256) [inline_assembly, pure] {
+  bb0:
+    v0 = abi_encode [word], object, args arg0
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = mload v0
+    v3 = ptrtoint ptr<memory> v0 to i256
+    v4 = add v3, 32
+    returndata v4, v2
+}
+
+fn @abiEncoded.15(arg0: i256) [inline_assembly, pure] {
+  bb0:
+    v0 = abi_encode [word], object, args arg0
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = mload v0
+    v3 = ptrtoint ptr<memory> v0 to i256
+    v4 = add v3, 32
+    returndata v4, v2
+}
+
+fn @abiEncoded.16(arg0: i256) [inline_assembly, pure] {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    v2 = abi_encode [word<uint160>], object, args v1
+    v3 = ptrtoint ptr<memory> v2 to i256
+    v4 = mload v2
+    v5 = ptrtoint ptr<memory> v2 to i256
+    v6 = add v5, 32
+    returndata v6, v4
+}
+
+fn @abiEncoded.17(arg0: i256) [inline_assembly, pure] {
+  bb0:
+    v0 = ne arg0, 0
+    v1 = zext i1 v0 to i256
+    v2 = abi_encode [word<bool>], object, args v1
+    v3 = ptrtoint ptr<memory> v2 to i256
+    v4 = mload v2
+    v5 = ptrtoint ptr<memory> v2 to i256
+    v6 = add v5, 32
+    returndata v6, v4
+}
+
+fn @abiEncoded.18(arg0: i256) [inline_assembly, pure] {
+  bb0:
+    v0 = abi_encode [word], object, args arg0
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = mload v0
+    v3 = ptrtoint ptr<memory> v0 to i256
+    v4 = add v3, 32
+    returndata v4, v2
+}
+
+fn @raw(arg0: ptr<memory>) [inline_assembly, pure] {
+  bb0:
+    v0 = ptrtoint ptr<memory> arg0 to i256
+    v1 = mload arg0
+    v2 = ptrtoint ptr<memory> arg0 to i256
+    v3 = add v2, 32
+    returndata v3, v1
+}
+
+fn @internal_dispatcher_p_uint256_r_none(arg0: i256, arg1: i256) [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 19
+    jumpi v0, bb1, bb2
+  bb2:
+    icall panic_if<0x51>, true
+    invalid
+  bb1:
+    icall @_square, arg1
+    ret
+}

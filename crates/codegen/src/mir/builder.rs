@@ -521,6 +521,13 @@ impl<'a> FunctionBuilder<'a> {
         self.mask_padded_size(rounded)
     }
 
+    /// Returns the word-aligned allocation size of `length` bytes, without an overflow check.
+    pub(crate) fn padded_size(&mut self, length: ValueId) -> ValueId {
+        let padding = self.imm(63);
+        let rounded = self.add(length, padding);
+        self.mask_padded_size(rounded)
+    }
+
     /// Rounds `rounded` down to a multiple of 32.
     pub(crate) fn mask_padded_size(&mut self, rounded: ValueId) -> ValueId {
         let mask = self.imm(31);
@@ -842,6 +849,11 @@ impl<'a> FunctionBuilder<'a> {
 
     fn storage_alias(&self, slot: ValueId) -> StorageAlias {
         StorageAlias::for_value(self.func, slot)
+    }
+
+    /// Sets the free-memory pointer.
+    pub(crate) fn set_fmp(&mut self, value: ValueId) {
+        self.emit_void_inst(InstKind::SetFmp(value))
     }
 
     /// Reserves memory under an explicit semantic policy.
@@ -1305,6 +1317,22 @@ impl<'a> FunctionBuilder<'a> {
         )));
         // result = ne value, 0
         self.ne(value, zero)
+    }
+
+    /// Tests whether `value` exceeds `2^bits - 1`.
+    ///
+    /// With bitwise shifting the test is a shift, which needs no wide immediate.
+    pub(crate) fn exceeds_bits(&mut self, value: ValueId, bits: u32, shifting: bool) -> ValueId {
+        debug_assert!((1..256).contains(&bits));
+        if shifting {
+            // result = ne (shr value, bits), 0
+            let shift = self.imm(u64::from(bits));
+            let word = self.shr(value, shift);
+            return self.ne_zero(word);
+        }
+        // result = gt value, 2^bits - 1
+        let limit = self.imm(U256::MAX >> (256 - bits as usize));
+        self.gt(value, limit)
     }
 
     /// Preserves all bits while forgetting a value's nominal one-word type.

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/legacy_shift_layout.sol:LegacyShiftLayout ===
 @module LegacyShiftLayout
-fn @layout(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x3f3109b7, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @layout(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x3f3109b7, inline_assembly, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
     v1 = keccak256_packed (uint256 arg0, uint256 1)

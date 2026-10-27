@@ -38,7 +38,7 @@ fn @tail33() -> ptr<memory> [selector=0xd615f6a1, pure, abi_params=[], abi_retur
     ret v3
 }
 
-fn @dirty() [pure] {
+fn @dirty() [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 512

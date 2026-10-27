@@ -886,7 +886,17 @@ impl<'a> Validator<'a> {
                             );
                         }
                     }
-                    InstKind::AbiDecode { layout, .. } => {
+                    InstKind::AbiDecode { data, layout } => {
+                        let data_ty = func.value_ty(*data);
+                        // A `bytes`, array, or struct field may be a view: a slice of the data's
+                        // location.
+                        let view = MirType::Slice(match data_ty {
+                            Some(MirType::Slice(PtrLocation::Calldata)) => PtrLocation::Calldata,
+                            _ => PtrLocation::Memory,
+                        });
+                        let field_ok = |field: MirType, abi: &crate::mir::AbiParamType| {
+                            field == abi.mir_type() || (!abi.is_scalar_word() && field == view)
+                        };
                         let valid = match inst.result_ty {
                             Some(MirType::Struct(ty)) => {
                                 module.struct_types.get(ty).is_some_and(|ty| {
@@ -895,10 +905,10 @@ impl<'a> Validator<'a> {
                                             .fields
                                             .iter()
                                             .zip(&layout.types)
-                                            .all(|(&field, abi)| field == abi.mir_type())
+                                            .all(|(&field, abi)| field_ok(field, abi))
                                 })
                             }
-                            Some(ty) => layout.types.len() == 1 && ty == layout.types[0].mir_type(),
+                            Some(ty) => layout.types.len() == 1 && field_ok(ty, &layout.types[0]),
                             None => layout.types.is_empty(),
                         };
                         if !valid {

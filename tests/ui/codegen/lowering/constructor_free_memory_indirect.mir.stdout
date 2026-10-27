@@ -23,7 +23,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @freeMemoryStarted() -> i256 [pure] {
+fn @freeMemoryStarted() -> i256 [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = lt v0, 128
@@ -67,7 +67,7 @@ fn @started() -> i256 [selector=0x1f2698ab, view, abi_params=[], abi_returns=[wo
     ret v3
 }
 
-fn @freeMemoryStarted() -> i256 [pure] {
+fn @freeMemoryStarted() -> i256 [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = lt v0, 128
@@ -106,7 +106,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @freeMemoryStarted() -> i256 [pure] {
+fn @freeMemoryStarted() -> i256 [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = lt v0, 128
@@ -147,7 +147,7 @@ fn @record() {
     ret
 }
 
-fn @freeMemoryStarted() -> i256 [pure] {
+fn @freeMemoryStarted() -> i256 [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = lt v0, 128

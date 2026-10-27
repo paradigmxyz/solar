@@ -16,6 +16,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match &stmt.kind {
             StmtKind::DeclSingle(id) => {
                 let initializer = self.cx.gcx.hir.variable(*id).initializer;
+                if self.cx.gcx.hir.solar_view(*id).is_some()
+                    && let Some(initializer) = initializer
+                {
+                    if self.is_view_decode(initializer) {
+                        return self.lower_view_decode(&[Some(*id)], initializer);
+                    }
+                    return self.lower_view_declaration(*id, initializer);
+                }
                 let ty = self.cx.gcx.type_of_item((*id).into());
                 if ty.is_ref_at(DataLocation::Storage) {
                     let access = if let Some(initializer) = initializer {
@@ -68,6 +76,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.values.insert(*id, value);
             }
             StmtKind::DeclMulti(ids, expr) => {
+                if ids.iter().flatten().any(|&id| self.cx.gcx.hir.solar_view(id).is_some())
+                    && self.is_view_decode(expr)
+                {
+                    return self.lower_view_decode(ids, expr);
+                }
                 if ids.iter().flatten().any(|&id| {
                     // Memory declarations must also route through the copy
                     // path: the generic path would bind the callee's raw
@@ -180,11 +193,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 self.lower_discarded_expr(expr)?;
             }
-            StmtKind::Block(block) => self.lower_block(*block)?,
+            StmtKind::Block(block) => match self.cx.gcx.hir.solar_scratch(block.span) {
+                Some(tag) => self.lower_scratch_block(*block, tag)?,
+                None => self.lower_block(*block)?,
+            },
             StmtKind::UncheckedBlock(block) => {
                 let previous = self.unchecked;
                 self.unchecked = true;
-                let result = self.lower_block(*block);
+                let result = match self.cx.gcx.hir.solar_scratch(block.span) {
+                    Some(tag) => self.lower_scratch_block(*block, tag),
+                    None => self.lower_block(*block),
+                };
                 self.unchecked = previous;
                 result?;
             }
@@ -256,6 +275,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             StmtKind::Revert(expr) => self.lower_revert_payload(expr)?,
             StmtKind::AssemblyBlock(block) => {
+                // Type checking rejects assembly in a scratch block itself; this is the body
+                // a modifier's `_` runs inside one.
+                if let Some(&tag) = self.open_scratch.last() {
+                    self.cx
+                        .gcx
+                        .dcx()
+                        .err("a `@custom:solar-scratch` block cannot contain inline assembly")
+                        .span(stmt.span)
+                        .span_note(tag, "the tag is here")
+                        .note("a modifier's `_` runs the function's body inside the block")
+                        .emit();
+                }
+                self.builder.func_mut().attributes.inline_assembly = true;
                 let previous = std::mem::replace(&mut self.in_inline_assembly, true);
                 let result = self.lower_block(*block);
                 self.in_inline_assembly = previous;
@@ -439,6 +471,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             });
         }
 
+        if self.is_view_expr(expr) {
+            // The message is a copy of the view's bytes, on the path that reverts.
+            let view = self.lower_view_expr(expr)?;
+            let message = if self.builder.func().value_slice_location(view).is_some() {
+                self.materialize_memory_slice(view)
+            } else {
+                view
+            };
+            return Some(RevertPayload::ErrorString(message));
+        }
         let ty = self.cx.gcx.type_of_expr(expr.id)?;
         let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
         let value = self.lower_typed_expr(expr, memory_ty)?;
@@ -526,6 +568,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             args.span,
             "event argument",
             |this, index, argument| {
+                if this.is_view_expr(argument) {
+                    // A view is logged from where it reads its value.
+                    return Some((argument, this.lower_view_expr(argument)?));
+                }
                 let parameter_ty = this.cx.gcx.type_of_item(event.parameters[index].into());
                 let value = this.lower_typed_expr(argument, parameter_ty)?;
                 Some((argument, value))
@@ -537,9 +583,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let (argument, mut value) = arguments[index];
             let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
             let variable = self.cx.gcx.hir.variable(parameter);
+            let view = self.is_view_expr(argument);
             if variable.indexed {
                 // topics += encode_indexed(argument)
                 match parameter_ty.peel_refs().kind {
+                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) if view => {
+                        // topic = keccak256(view)
+                        topics.push(self.hash_view(value));
+                    }
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                         if matches!(self.builder.func().value_ty(value), Some(MirType::Slice(_))) {
                             value = self.materialize_memory_slice(value);
@@ -551,6 +602,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     | TyKind::DynArray(_)
                     | TyKind::Slice(_)
                     | TyKind::Tuple(_) => {
+                        if view {
+                            // The in-place encoding of an indexed aggregate reads a copy.
+                            value = self.materialize_view(parameter_ty, value, argument.span)?;
+                        }
                         let mut abi_type = self.types.abi_type(parameter_ty)?;
                         abi_type = self.abi_type_for_value(value, abi_type);
                         self.validate_calldata_static_argument(value, parameter_ty);
@@ -586,6 +641,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                     _ => topics.push(self.lower_word_value(parameter_ty, argument, value)),
                 }
+            } else if view {
+                // data_values += view, encoded from where it reads its value
+                let memory_ty = parameter_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+                let abi_type = self.types.abi_type(memory_ty)?;
+                data_types.push(self.abi_type_for_value(value, abi_type));
+                data_values.push(value);
             } else {
                 // data_values += argument
                 let mut abi_type = self.types.abi_type(parameter_ty)?;

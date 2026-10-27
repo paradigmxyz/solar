@@ -1,0 +1,180 @@
+// === <solar:core/Bytes.sol>:Bytes ===
+@module Bytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/Create.sol>:Create ===
+@module Create
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/create_into_lowering.sol:Test ===
+@module Test
+@phase lowered
+@types
+  struct0: {i1, ptr<memory>, i256, i256, ptr<memory>}
+  struct1: {i1, i256, i256, i256}
+  struct2: {i1, i256, i256, i256}
+
+fn @attempt() [selector=0xf1f9ae8f, abi_wrapper] {
+  bb0:
+    v75 = calldatasize
+    v76 = lt v75, 68
+    v77 = calldataload 4
+    v78 = add v77, 4
+    v80 = sub v75, 36
+    v81 = gt v77, v80
+    v158 = or v76, v81
+    jumpi v158, bb8, bb9
+  bb9:
+    v82 = calldataload v78
+    v83 = add v78, 32
+    v84 = add v82, 63
+    v85 = lt v84, v82
+    jumpi v85, bb6, bb10
+  bb10:
+    v87 = and v84, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v152 = icall @alloc, v87
+    mstore v152, v82
+    v89 = sub v75, v83
+    v90 = gt v82, v89
+    jumpi v90, bb8, bb11
+  bb11:
+    v141 = add v152, 32
+    calldatacopy v141, v83, v82
+    v0 = add arg1, 63
+    v1 = lt v0, arg1
+    jumpi v1, bb6, bb7
+  bb7:
+    v3 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v151 = icall @alloc, v3
+    v157 = calldatasize
+    calldatacopy v151, v157, v3
+    mstore v151, arg1
+    v139 = add v151, 32
+    v20 = shr arg1, 5
+    v71 = gt v20, 0x20000000000000000
+    v72 = select v71, 0x20000000000000000, v20
+    v73 = shl v72, 5
+    v74 = add v139, v73
+    jump bb1
+  bb1:
+    v69 = phi [bb7: v139], [bb2: v70]
+    v22 = ne v69, v74
+    jumpi v22, bb2, bb3
+  bb3:
+    v26 = and arg1, 31
+    v27 = ne v26, 0
+    jumpi v27, bb4, bb5
+  bb4:
+    v28 = shl v26, 3
+    v29 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v28
+    v30 = shl v20, 5
+    v31 = add v139, v30
+    v32 = mload v31
+    v34 = not v29
+    v36 = or v32, v34
+    mstore v31, v36
+    jump bb5
+  bb5:
+    v37 = mload v151
+    v39 = mload v152
+    v41: i256 = create 0, v141, v39
+    v42 = returndatasize
+    v43 = lt v42, v37
+    v44 = select v43, v42, v37
+    returndatacopy v139, 0, v44
+    v45 = ne v41, 0
+    v56 = extcodesize v41
+    v57 = add v56, 63
+    v60 = and v57, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v150 = icall @alloc, v60
+    v155 = calldatasize
+    calldatacopy v150, v155, v60
+    mstore v150, v56
+    v137 = add v150, 32
+    extcodecopy v41, v137, 0, v56
+    v97 = zext i1 v45 to i256
+    v153 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v103 = add v153, 160
+    mstore v153, v97
+    v105 = add v153, 32
+    mstore v105, 160
+    v108 = mload v150
+    v110 = add v108, 31
+    v111 = and v110, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v112 = add v103, 32
+    v113 = add v103, v111
+    mstore v113, 0
+    mstore v103, v108
+    v115 = add v112, v111
+    mcopy v112, v137, v108 !metadata(disjoint)
+    v117 = add v153, 64
+    mstore v117, v44
+    v119 = add v153, 96
+    mstore v119, v42
+    v123 = sub v115, v153
+    v121 = add v153, 128
+    mstore v121, v123
+    v124 = mload v151
+    v126 = add v124, 31
+    v127 = and v126, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v128 = add v115, 32
+    v129 = add v115, v127
+    mstore v129, 0
+    mstore v115, v124
+    v131 = add v128, v127
+    mcopy v128, v139, v124 !metadata(disjoint)
+    v133 = sub v131, v153
+    returndata v153, v133
+  bb2:
+    mstore v69, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v70 = add v69, 32
+    jump bb1
+  bb6:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb8:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xf1f9ae8f => bb2]
+  bb2:
+    tail_call @attempt
+  bb3:
+    revert 0, 0
+}
+
+fn @alloc(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v2 = add v0, arg0 !metadata(alloc_ptr)
+    v3 = lt v2, v0
+    v4 = gt v2, 0xffffffffffffffff
+    v5 = or v3, v4
+    jumpi v5, bb1, bb2
+  bb2:
+    mstore 64, v2 !metadata(memory=scratch)
+    ret v0
+  bb1:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}

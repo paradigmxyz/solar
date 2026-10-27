@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/memory-dse/dead_allocation_reset.sol:DeadAllocationReset ===
 @module DeadAllocationReset
-fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @f(arg0: i256) -> i256 [selector=0xb3de648b, inline_assembly, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
@@ -23,7 +23,7 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[uint256], abi_
     ret v11
 }
 
-fn @neighbour(arg0: i256) -> i256 [selector=0xf7374c27, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @neighbour(arg0: i256) -> i256 [selector=0xf7374c27, inline_assembly, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
     memory_zero v0, 32
@@ -39,7 +39,7 @@ fn @neighbour(arg0: i256) -> i256 [selector=0xf7374c27, pure, abi_params=[uint25
     ret v6
 }
 
-fn @grown(arg0: i256) -> i256 [selector=0x922be285, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @grown(arg0: i256) -> i256 [selector=0x922be285, inline_assembly, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 63
     v1 = lt v0, arg0
@@ -59,7 +59,7 @@ fn @grown(arg0: i256) -> i256 [selector=0x922be285, pure, abi_params=[uint256], 
     ret v10
 }
 
-fn @wrapped(arg0: i256, arg1: i256) -> i256 [selector=0x08a7c76d, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @wrapped(arg0: i256, arg1: i256) -> i256 [selector=0x08a7c76d, inline_assembly, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1

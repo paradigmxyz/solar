@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/element-cleanup/grown_length.sol:GrownLength ===
 @module GrownLength
-fn @dirty() [pure] {
+fn @dirty() [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = not 0
@@ -13,7 +13,7 @@ fn @dirty() [pure] {
     ret
 }
 
-fn @find(arg0: i256, arg1: i256, arg2: i160) -> i1 [pure] {
+fn @find(arg0: i256, arg1: i256, arg2: i160) -> i1 [inline_assembly, pure] {
   bb0:
     v0 = mul arg0, 1
     v1 = eq 1, 0

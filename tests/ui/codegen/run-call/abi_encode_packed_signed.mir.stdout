@@ -60,7 +60,7 @@ fn @signedCall(arg0: i8) -> i8 [selector=0x036e241f, view, abi_params=[int8], ab
     ret v12
 }
 
-fn @signedWord(arg0: i8) -> i256 [selector=0x1b01a17f, pure, abi_params=[int8], abi_returns=[word], abi_return_params=[int256]] {
+fn @signedWord(arg0: i8) -> i256 [selector=0x1b01a17f, inline_assembly, pure, abi_params=[int8], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = sext i8 arg0 to i256
     v1 = abi_encode [word<int8>], object, args v0
@@ -70,7 +70,7 @@ fn @signedWord(arg0: i8) -> i256 [selector=0x1b01a17f, pure, abi_params=[int8], 
     ret v4
 }
 
-fn @signedUserWord() -> i256 [selector=0xf36510a8, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
+fn @signedUserWord() -> i256 [selector=0xf36510a8, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = sext i16 0xffff to i256
     v1 = abi_encode [word<int16>], object, args v0
@@ -80,7 +80,7 @@ fn @signedUserWord() -> i256 [selector=0xf36510a8, pure, abi_params=[], abi_retu
     ret v4
 }
 
-fn @signedUserMemory() -> i256 [selector=0xe8190462, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
+fn @signedUserMemory() -> i256 [selector=0xe8190462, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
@@ -244,7 +244,7 @@ fn @packedDynamicHashLocal(arg0: i256, arg1: slice<calldata>) -> i256 [selector=
     ret v0
 }
 
-fn @packedDynamicHashModified(arg0: i256, arg1: slice<calldata>) -> i256 [selector=0x31a86e65, pure, abi_params=[bytes32, bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @packedDynamicHashModified(arg0: i256, arg1: slice<calldata>) -> i256 [selector=0x31a86e65, inline_assembly, pure, abi_params=[bytes32, bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode_packed (bytes32 arg0, bytes arg1)
     v1 = ptradd v0, 32
@@ -272,7 +272,7 @@ fn @mutatedInput() -> ptr<memory> [selector=0x7d98764f, pure, abi_params=[], abi
     ret v3
 }
 
-fn @shorten(arg0: ptr<memory>) -> i8 [pure] {
+fn @shorten(arg0: ptr<memory>) -> i8 [inline_assembly, pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     mstore arg0, 1

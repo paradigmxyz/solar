@@ -6,7 +6,7 @@ fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[wor
     ret v0
 }
 
-fn @constructor() [constructor] {
+fn @constructor() [constructor, inline_assembly] {
   bb0:
     jump bb1
   bb1:

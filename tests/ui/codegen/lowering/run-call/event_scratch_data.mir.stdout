@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/event_scratch_data.sol:EventScratchData ===
 @module EventScratchData
-fn @keepsHeap(arg0: i256, arg1: i256) -> i256 [selector=0x58c66fb0, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @keepsHeap(arg0: i256, arg1: i256) -> i256 [selector=0x58c66fb0, inline_assembly, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64
     mstore v0, 17
@@ -48,7 +48,7 @@ fn @keepsHeap(arg0: i256, arg1: i256) -> i256 [selector=0x58c66fb0, abi_params=[
     ret v17
 }
 
-fn @aliased() -> i256 [selector=0x1d15e393, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+fn @aliased() -> i256 [selector=0x1d15e393, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 0
@@ -78,7 +78,7 @@ fn @threeWords(arg0: i256) -> i256 [selector=0x72877259, abi_params=[uint256], a
     ret arg0
 }
 
-fn @threeWordsKeepsHeap(arg0: i256) -> i256 [selector=0x09952c7c, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @threeWordsKeepsHeap(arg0: i256) -> i256 [selector=0x09952c7c, inline_assembly, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64
     mstore v0, 17
@@ -129,7 +129,7 @@ fn @threeWordsKeepsHeap(arg0: i256) -> i256 [selector=0x09952c7c, abi_params=[ui
     ret v22
 }
 
-fn @dynamicKeepsHeap(arg0: i256) -> i256 [selector=0xb0d4547e, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @dynamicKeepsHeap(arg0: i256) -> i256 [selector=0xb0d4547e, inline_assembly, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 31
     v1 = and 103, v0

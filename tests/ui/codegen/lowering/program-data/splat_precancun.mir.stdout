@@ -22,7 +22,7 @@ fn @hash() -> i256 [selector=0x09bd5a60, pure, abi_params=[], abi_returns=[word]
     ret v3
 }
 
-fn @paddingIsZero() -> i256 [selector=0x06793283, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @paddingIsZero() -> i256 [selector=0x06793283, inline_assembly, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @data
     v1 = ptrtoint ptr<memory> v0 to i256

@@ -242,7 +242,7 @@ fn packed(value: &ConstValue, data: &mut Vec<u8>) -> Result<(), EE> {
 /// Computes the ERC-7201 storage namespace base slot.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/units-and-global-variables.html#mathematical-and-cryptographic-functions>
-fn erc7201_slot(namespace_id: &[u8]) -> B256 {
+pub(crate) fn erc7201_slot(namespace_id: &[u8]) -> B256 {
     let inner = keccak256(namespace_id);
     let inner = U256::from_be_bytes(inner.0).wrapping_sub(U256::from(1));
     let mut outer = keccak256(inner.to_be_bytes::<32>());

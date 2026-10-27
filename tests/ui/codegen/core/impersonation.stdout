@@ -1,0 +1,77 @@
+// === <solar:core/Bytes.sol>:Bytes ===
+@module Bytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/impersonation.sol:Test ===
+@module Test
+@phase lowered
+fn @f() [selector=0xd45754f8, abi_wrapper, pure] {
+  bb0:
+    v11 = calldatasize
+    v12 = lt v11, 36
+    v13 = calldataload 4
+    v14 = add v13, 4
+    v16 = sub v11, 36
+    v17 = gt v13, v16
+    v43 = or v12, v17
+    jumpi v43, bb3, bb4
+  bb4:
+    v18 = calldataload v14
+    v19 = add v14, 32
+    v20 = add v18, 63
+    v21 = lt v20, v18
+    jumpi v21, bb5, bb6
+  bb6:
+    v23 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v37 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v38 = add v37, v23 !metadata(alloc_ptr)
+    v39 = lt v38, v37
+    v40 = gt v38, 0xffffffffffffffff
+    v41 = or v39, v40
+    jumpi v41, bb5, bb8
+  bb8:
+    mstore v37, v18
+    v25 = sub v11, v19
+    v26 = gt v18, v25
+    jumpi v26, bb3, bb7
+  bb7:
+    v34 = add v37, 32
+    calldatacopy v34, v19, v18
+    v3 = lt v18, 4
+    jumpi v3, bb1, bb2
+  bb2:
+    v9 = mload v34
+    v10 = and v9, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 0, v10 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb5:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xd45754f8 => bb2]
+  bb2:
+    tail_call @f
+  bb3:
+    revert 0, 0
+}

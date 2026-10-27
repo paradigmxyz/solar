@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256}
 
-fn @overwritten() [selector=0x5e97f278, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+fn @overwritten() [selector=0x5e97f278, inline_assembly, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     calldatacopy 257, 0, 64
     mstore 257, 7
@@ -11,7 +11,7 @@ fn @overwritten() [selector=0x5e97f278, pure, abi_params=[], abi_returns=[word, 
     returndata 257, 64
 }
 
-fn @partialOverwrite() [selector=0x9defb653, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+fn @partialOverwrite() [selector=0x9defb653, inline_assembly, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = calldatasize
     calldatacopy 256, v0, 64
@@ -19,7 +19,7 @@ fn @partialOverwrite() [selector=0x9defb653, pure, abi_params=[], abi_returns=[w
     returndata 256, 64
 }
 
-fn @expansion() -> i256 [selector=0x7fce0203, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+fn @expansion() -> i256 [selector=0x7fce0203, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = calldatasize
     calldatacopy 256, v0, 64
@@ -29,7 +29,7 @@ fn @expansion() -> i256 [selector=0x7fce0203, pure, abi_params=[], abi_returns=[
     ret v1
 }
 
-fn @returndataBounds() [selector=0xa6a0e5ea, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+fn @returndataBounds() [selector=0xa6a0e5ea, inline_assembly, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     returndatacopy 256, 0, 64
     mstore 256, 7

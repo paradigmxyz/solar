@@ -24,7 +24,7 @@ fn @hashU8() [selector=0xe99643f7, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @hashWide() [selector=0xcdd7e94c, abi_wrapper, pure] {
+fn @hashWide() [selector=0xcdd7e94c, abi_wrapper, inline_assembly, pure] {
   bb0:
     v2 = calldatasize
     v3 = lt v2, 68
@@ -39,7 +39,7 @@ fn @hashWide() [selector=0xcdd7e94c, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @hashConst() [selector=0x227e2968, abi_wrapper, pure] {
+fn @hashConst() [selector=0x227e2968, abi_wrapper, inline_assembly, pure] {
   bb0:
     v2 = calldatasize
     v3 = lt v2, 36
@@ -54,7 +54,7 @@ fn @hashConst() [selector=0x227e2968, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @tailRead() [selector=0x8c0dcc20, abi_wrapper, pure] {
+fn @tailRead() [selector=0x8c0dcc20, abi_wrapper, inline_assembly, pure] {
   bb0:
     v4 = calldatasize
     v5 = lt v4, 68
@@ -71,7 +71,7 @@ fn @tailRead() [selector=0x8c0dcc20, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @literal() [selector=0x41d012fd, abi_wrapper, pure] {
+fn @literal() [selector=0x41d012fd, abi_wrapper, inline_assembly, pure] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36

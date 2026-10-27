@@ -11,7 +11,7 @@ fn @trimLen(arg0: slice<calldata>) -> i256 [selector=0x341fda35, pure, abi_param
     ret v1
 }
 
-fn @_trim(arg0: slice<calldata>) -> slice<calldata> [pure] {
+fn @_trim(arg0: slice<calldata>) -> slice<calldata> [inline_assembly, pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = gt v0, 8
@@ -35,7 +35,7 @@ fn @_trim(arg0: slice<calldata>) -> slice<calldata> [pure] {
     ret v12
 }
 
-fn @forward(arg0: slice<calldata>) -> i256 [selector=0xd948d468, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
+fn @forward(arg0: slice<calldata>) -> i256 [selector=0xd948d468, inline_assembly, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
     v1 = extract_value slice<calldata>, v0, 0
@@ -104,7 +104,7 @@ fn @headTail(arg0: slice<calldata>) -> struct0 [selector=0xdd941f9b, pure, abi_p
     ret v6
 }
 
-fn @_split(arg0: slice<calldata>) -> struct1 [pure] {
+fn @_split(arg0: slice<calldata>) -> struct1 [inline_assembly, pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1

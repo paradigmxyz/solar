@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/packed_recycled_fmp.sol:PackedRecycledFmp ===
 @module PackedRecycledFmp
-fn @payload() -> ptr<memory> [selector=0xa878f858, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @payload() -> ptr<memory> [selector=0xa878f858, inline_assembly, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
@@ -20,7 +20,7 @@ fn @payload() -> ptr<memory> [selector=0xa878f858, pure, abi_params=[], abi_retu
     ret v9
 }
 
-fn @length() -> ptr<memory> [selector=0x1f7b6d32, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @length() -> ptr<memory> [selector=0x1f7b6d32, inline_assembly, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
@@ -38,7 +38,7 @@ fn @length() -> ptr<memory> [selector=0x1f7b6d32, pure, abi_params=[], abi_retur
     ret v7
 }
 
-fn @overlap() -> i256 [selector=0xea9e4070, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+fn @overlap() -> i256 [selector=0xea9e4070, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
     mstore v0, 33

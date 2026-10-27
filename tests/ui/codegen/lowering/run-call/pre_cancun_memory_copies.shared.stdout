@@ -26,7 +26,7 @@ fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
     returndata 0, 32
 }
 
-fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
+fn @bytesTail() [selector=0x56818b01, abi_wrapper, inline_assembly, pure] {
   bb0:
     v69 = icall @alloc, 96
     v74 = calldatasize
@@ -103,7 +103,7 @@ fn @concat() [selector=0x6bdbf8e6, abi_wrapper, pure] {
     returndata 0, 32
 }
 
-fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
+fn @assembled() [selector=0xd1381062, abi_wrapper, inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, 70
@@ -153,7 +153,7 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
     revert 28, 36
 }
 
-fn @recycled() [selector=0xa163996f, abi_wrapper, pure] {
+fn @recycled() [selector=0xa163996f, abi_wrapper, inline_assembly, pure] {
   bb0:
     v85 = icall @alloc, 96
     v89 = calldatasize
@@ -296,7 +296,7 @@ fn @freshEmpty() [selector=0x2f9cb906, abi_wrapper, pure] {
     returndata v23, 64
 }
 
-fn @recycledTail() [selector=0x52eea5e4, abi_wrapper, pure] {
+fn @recycledTail() [selector=0x52eea5e4, abi_wrapper, inline_assembly, pure] {
   bb0:
     v84 = icall @alloc, 96
     v88 = calldatasize

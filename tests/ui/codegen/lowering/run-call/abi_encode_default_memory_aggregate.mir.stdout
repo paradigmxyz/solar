@@ -163,7 +163,7 @@ fn @hashNestedTuple() -> i256 [selector=0xe4f5ccbe, pure, abi_params=[], abi_ret
     jump bb1
 }
 
-fn @returnDefaultSmall() -> ptr<memory> [selector=0x443c486c, pure, abi_params=[], abi_returns=[memory_array<tuple<word<uint8>>>], abi_return_params=[array<_, tuple<uint8>>]] {
+fn @returnDefaultSmall() -> ptr<memory> [selector=0x443c486c, inline_assembly, pure, abi_params=[], abi_returns=[memory_array<tuple<word<uint8>>>], abi_return_params=[array<_, tuple<uint8>>]] {
   bb0:
     mstore 0, 291 !metadata(memory=scratch)
     v0 = alloc zeroed checked 64

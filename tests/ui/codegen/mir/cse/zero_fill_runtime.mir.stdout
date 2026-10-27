@@ -14,7 +14,7 @@ fn @get(arg0: i160, arg1: i128) -> ptr<memory> [selector=0x68e4440b, pure, abi_p
     ret v1
 }
 
-fn @overwrite(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xc22e8f19, pure, abi_params=[uint256, uint256], abi_returns=[tuple<word, word, word>], abi_return_params=[tuple<uint256, uint256, uint256>]] {
+fn @overwrite(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xc22e8f19, inline_assembly, pure, abi_params=[uint256, uint256], abi_returns=[tuple<word, word, word>], abi_return_params=[tuple<uint256, uint256, uint256>]] {
   bb0:
     v0 = mod arg1, 3
     v1 = mul v0, 32

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_dirty_modifier_argument.sol:AssemblyDirtyModifierArgument ===
 @module AssemblyDirtyModifierArgument
-fn @raw() -> i256 [selector=0xc096a632, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @raw() -> i256 [selector=0xc096a632, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = icall @dirty
     sstore 0, v0 !metadata(storage=slot(0))
@@ -12,7 +12,7 @@ fn @raw() -> i256 [selector=0xc096a632, abi_params=[], abi_returns=[word], abi_r
     ret v1
 }
 
-fn @dirty() -> i256 [pure] {
+fn @dirty() -> i256 [inline_assembly, pure] {
   bb0:
     ret 0x12345678ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 }

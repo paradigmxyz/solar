@@ -416,7 +416,7 @@ fn @assign() -> struct1 [selector=0x12ae6397, abi_params=[], abi_returns=[word<u
     ret v62
 }
 
-fn @clearDirtyWord() -> i256 [selector=0xc9cbcc52, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+fn @clearDirtyWord() -> i256 [selector=0xc9cbcc52, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 0
     sstore 2, v0 !metadata(storage=slot(2))
@@ -425,7 +425,7 @@ fn @clearDirtyWord() -> i256 [selector=0xc9cbcc52, abi_params=[], abi_returns=[w
     ret v1
 }
 
-fn @clearStructWithMapping() -> struct2 [selector=0xb447ab5f, abi_params=[], abi_returns=[word, word<uint8>, word, word], abi_return_params=[uint256, uint8, uint256, uint256]] {
+fn @clearStructWithMapping() -> struct2 [selector=0xb447ab5f, inline_assembly, abi_params=[], abi_returns=[word, word<uint8>, word, word], abi_return_params=[uint256, uint8, uint256, uint256]] {
   bb0:
     v0 = add 3, 1
     sstore 3, 1 !metadata(storage=slot(3))

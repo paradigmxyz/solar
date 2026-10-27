@@ -1,0 +1,410 @@
+// === <solar:core/Bytes.sol>:Bytes ===
+@module Bytes
+@library
+
+// === <solar:core/Abi.sol>:Abi ===
+@module Abi
+@library
+
+// === ROOT/tests/ui/codegen/core/abi_encoded_size_runtime.sol:Test ===
+@module Test
+@types
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256}
+  struct2: {slice<memory>, slice<memory>}
+
+fn @target(arg0: i256, arg1: ptr<memory>) [selector=0x83eca346, pure, abi_params=[uint256, bytes], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+fn @values(arg0: i256) -> struct0 [selector=0x5e383d21, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = ne true, false
+    v1 = ne true, false
+    v2 = zext i1 v1 to i256
+    v3 = abi_encode [word, word<uint160>, word<bool>, word], object, args arg0, 0, v2, 0
+    v4 = mload v3
+    v5 = insert_value struct0, undef struct0, 0, 128
+    v6 = insert_value struct0, v5, 1, v4
+    ret v6
+}
+
+fn @byteStrings(arg0: slice<calldata>) -> struct0 [selector=0xc16420d7, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = add v0, 63
+    v2 = not 31
+    v3 = and v1, v2
+    v4 = alloc v3
+    mstore v4, v0
+    v5 = ptradd v4, 32
+    v6 = extract_value slice<calldata>, arg0, 0
+    v7 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v5, v6, v7
+    v8 = extract_value slice<calldata>, arg0, 1
+    v9 = add v8, 31
+    v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v11 = add v10, 32
+    v12 = add 64, v11
+    v13 = mload v4
+    v14 = add v13, 31
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v16 = add v15, 32
+    v17 = add v12, v16
+    v18 = abi_encode [calldata_bytes, memory_bytes], object, args arg0, v4
+    v19 = mload v18
+    v20 = insert_value struct0, undef struct0, 0, v17
+    v21 = insert_value struct0, v20, 1, v19
+    ret v21
+}
+
+fn @text(arg0: ptr<memory>) -> struct0 [selector=0x174e6c98, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 7
+    v1 = ptradd v0, 32
+    mstore v1, 0x6c69746572616c00000000000000000000000000000000000000000000000000
+    v2 = ptrtoint ptr<memory> v0 to i256
+    v3 = mload arg0
+    v4 = add v3, 31
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v6 = add v5, 32
+    v7 = add 96, v6
+    v8 = mload v0
+    v9 = add v8, 31
+    v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v11 = add v10, 32
+    v12 = add v7, v11
+    v13 = alloc 64 !metadata(preserves_fmp)
+    mstore v13, 7
+    v14 = ptradd v13, 32
+    mstore v14, 0x6c69746572616c00000000000000000000000000000000000000000000000000
+    v15 = ptrtoint ptr<memory> v13 to i256
+    v16 = abi_encode [memory_bytes, memory_bytes, word], object, args arg0, v13, 1
+    v17 = mload v16
+    v18 = insert_value struct0, undef struct0, 0, v12
+    v19 = insert_value struct0, v18, 1, v17
+    ret v19
+}
+
+fn @words(arg0: slice<calldata>) -> struct0 [selector=0xdc95fc7e, pure, abi_params=[array<_, uint256>], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 0
+    v2 = mul v0, 32
+    v3 = eq 32, 0
+    v4 = div v2, 32
+    v5 = eq v4, v0
+    v6 = or v3, v5
+    v7 = zext i1 v6 to i256
+    v8 = eq v7, 0
+    icall panic_if<0x41>, v8
+    v9 = calldatasize
+    v10 = ptrtoint ptr<calldata> v1 to i256
+    v11 = sub v9, v10
+    v12 = slt v11, v2
+    icall revert_if<calldata_tail_too_short>, v12
+    v13 = mul v0, 32
+    v14 = eq 32, 0
+    v15 = div v13, 32
+    v16 = eq v15, v0
+    v17 = or v14, v16
+    v18 = zext i1 v17 to i256
+    v19 = eq v18, 0
+    icall panic_if<0x41>, v19
+    v20 = add 32, v13
+    v21 = lt v20, 32
+    icall panic_if<0x41>, v21
+    v22 = alloc v20
+    mstore v22, v0
+    v23 = make_calldata_slice v1, v13
+    v24 = ptradd v22, 32
+    v25 = extract_value slice<calldata>, v23, 0
+    v26 = extract_value slice<calldata>, v23, 1
+    calldatacopy v24, v25, v26
+    v27 = extract_value slice<calldata>, arg0, 1
+    v28 = mul v27, 32
+    v29 = add v28, 32
+    v30 = add 64, v29
+    v31 = mload v22
+    v32 = mul v31, 32
+    v33 = add v32, 32
+    v34 = add v30, v33
+    v35 = abi_encode [calldata_array<word>, memory_array<word>], object, args arg0, v22
+    v36 = mload v35
+    v37 = insert_value struct0, undef struct0, 0, v34
+    v38 = insert_value struct0, v37, 1, v36
+    ret v38
+}
+
+fn @points(arg0: ptr<memory>) -> struct0 [selector=0x8213e88a, pure, abi_params=[array<_, tuple<uint64, address>>], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = mload arg0
+    v1 = mul v0, 64
+    v2 = add v1, 32
+    v3 = add 32, v2
+    v4 = abi_encode [memory_array<tuple<word<uint64>, word<uint160>>>], object, args arg0
+    v5 = mload v4
+    v6 = insert_value struct0, undef struct0, 0, v3
+    v7 = insert_value struct0, v6, 1, v5
+    ret v7
+}
+
+fn @fixedWords(arg0: ptr<memory>) -> struct0 [selector=0x15c21a36, pure, abi_params=[array<3, uint256>], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = abi_encode [array<3, word>, word<uint8>], object, args arg0, 1
+    v1 = mload v0
+    v2 = insert_value struct0, undef struct0, 0, 128
+    v3 = insert_value struct0, v2, 1, v1
+    ret v3
+}
+
+fn @nested(arg0: ptr<memory>) -> struct0 [selector=0xea9683a1, pure, abi_params=[array<_, bytes>], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = abi_encode [memory_array<memory_bytes>], scratch, args arg0
+    v1 = extract_value slice<memory>, v0, 1
+    v2 = abi_encode [memory_array<memory_bytes>], object, args arg0
+    v3 = mload v2
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
+}
+
+fn @order(arg0: ptr<memory>) -> struct0 [selector=0xfbcffc64, pure, abi_params=[tuple<uint256, bytes>], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = abi_encode [tuple<word, memory_bytes>], scratch, args arg0
+    v1 = extract_value slice<memory>, v0, 1
+    v2 = abi_encode [tuple<word, memory_bytes>], object, args arg0
+    v3 = mload v2
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
+}
+
+fn @prefixed(arg0: i256, arg1: ptr<memory>) -> struct1 [selector=0x0ee284f4, view, abi_params=[uint256, bytes], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = shl 0x12345678, 224
+    v1 = mload arg1
+    v2 = add v1, 31
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v4 = add v3, 32
+    v5 = add 68, v4
+    v6 = mload arg1
+    v7 = add v6, 31
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v9 = add v8, 32
+    v10 = add 68, v9
+    v11 = abi_encode [word, memory_bytes], scratch, selector 0x83eca34600000000000000000000000000000000000000000000000000000000, args arg0, arg1
+    v12 = extract_value slice<memory>, v11, 1
+    v13 = insert_value struct1, undef struct1, 0, v5
+    v14 = insert_value struct1, v13, 1, v10
+    v15 = insert_value struct1, v14, 2, v12
+    ret v15
+}
+
+fn @counted() -> struct0 [selector=0xf937f910, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = shl 0x12345678, 224
+    v1 = icall @bump
+    v2 = icall @bump
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = insert_value struct0, undef struct0, 0, 68
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
+}
+
+fn @bump() -> i256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = checked_add uint256, v0, 1
+    sstore 0, v1 !metadata(storage=slot(0))
+    ret v1
+}
+
+fn @viewed(arg0: ptr<memory>) -> struct0 [selector=0xd3855add, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = abi_decode [bytes, array<_, uint256>], arg0, views
+    v1 = extract_value struct2, v0, 0
+    v2 = extract_value struct2, v0, 1
+    v3 = extract_value slice<memory>, v1, 1
+    v4 = add v3, 31
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v6 = add v5, 32
+    v7 = add 64, v6
+    v8 = extract_value slice<memory>, v2, 1
+    v9 = mul v8, 32
+    v10 = add v9, 32
+    v11 = add v7, v10
+    v12 = abi_encode [memory_bytes, memory_array<word>], object, args v1, v2
+    v13 = mload v12
+    v14 = insert_value struct0, undef struct0, 0, v11
+    v15 = insert_value struct0, v14, 1, v13
+    ret v15
+}
+
+fn @plain(arg0: ptr<memory>) -> i256 [selector=0xbe9ebcc5, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mload arg0
+    ret v0
+}
+
+fn @enums(arg0: ptr<memory>, arg1: ptr<memory>) -> struct0 [selector=0x7a8cc119, pure, abi_params=[tuple<uint256, enum<2, uint8>>, array<_, enum<2, uint8>>], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = abi_encode [tuple<word, word<enum 2>>, memory_array<word<enum 2>>], scratch, args arg0, arg1
+    v1 = extract_value slice<memory>, v0, 1
+    v2 = abi_encode [tuple<word, word<enum 2>>, memory_array<word<enum 2>>], object, args arg0, arg1
+    v3 = mload v2
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
+}
+
+fn @dirtyEnumField() -> i256 [selector=0x44fb8c4a, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 64
+    v1 = lt i8 0, i8 2
+    v2 = eq v1, false
+    icall panic_if<0x21>, v2
+    mstore v0, 1
+    v3 = ptradd v0, 32
+    mstore v3, 0
+    v4 = ptrtoint ptr<memory> v0 to i256
+    v5 = add v4, 32
+    mstore v5, 5
+    v6 = abi_encode [tuple<word, word<enum 2>>], scratch, args v0
+    v7 = extract_value slice<memory>, v6, 1
+    ret v7
+}
+
+fn @dirtyEnumElement() -> i256 [selector=0xfac969e4, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc zeroed checked 96
+    mstore v0, 2
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, 64
+    mstore v2, 7
+    v3 = abi_encode [memory_array<word<enum 2>>], scratch, args v0
+    v4 = extract_value slice<memory>, v3, 1
+    ret v4
+}
+
+fn @dirtyEnumValue() -> i256 [selector=0xddfbe917, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = lt 9, 2
+    v1 = eq v0, false
+    icall panic_if<0x21>, v1
+    v2 = abi_encode [word<enum 2>], scratch, args 9
+    v3 = extract_value slice<memory>, v2, 1
+    ret v3
+}
+
+fn @calldataBools(arg0: slice<calldata>) -> i256 [selector=0xa58f1777, pure, abi_params=[array<_, bool>], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = mul v0, 32
+    v2 = eq 32, 0
+    v3 = div v1, 32
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = zext i1 v5 to i256
+    v7 = eq v6, 0
+    icall panic_if<0x41>, v7
+    v8 = extract_value slice<calldata>, arg0, 1
+    v9 = extract_value slice<calldata>, arg0, 0
+    jump bb1
+  bb1:
+    v10 = phi [bb0: 0], [bb2: v18]
+    v11 = lt v10, v8
+    jumpi v11, bb2, bb3
+  bb3:
+    v19 = abi_encode [calldata_array<word<bool>>], scratch, args arg0
+    v20 = extract_value slice<memory>, v19, 1
+    ret v20
+  bb2:
+    v12 = mul v10, 32
+    v13 = ptrtoint ptr<calldata> v9 to i256
+    v14 = add v13, v12
+    v15 = calldataload v14
+    v16 = lt v15, 2
+    v17 = eq v16, false
+    icall revert_if<empty>, v17
+    v18 = add v10, 1
+    jump bb1
+}
+
+fn @calldataBytes1(arg0: slice<calldata>) -> i256 [selector=0x3f5c2ab6, pure, abi_params=[array<_, bytes1>], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = mul v0, 32
+    v2 = eq 32, 0
+    v3 = div v1, 32
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = zext i1 v5 to i256
+    v7 = eq v6, 0
+    icall panic_if<0x41>, v7
+    v8 = extract_value slice<calldata>, arg0, 1
+    v9 = extract_value slice<calldata>, arg0, 0
+    jump bb1
+  bb1:
+    v10 = phi [bb0: 0], [bb2: v19]
+    v11 = lt v10, v8
+    jumpi v11, bb2, bb3
+  bb3:
+    v20 = abi_encode [calldata_array<word<bytes1>>], scratch, args arg0
+    v21 = extract_value slice<memory>, v20, 1
+    ret v21
+  bb2:
+    v12 = mul v10, 32
+    v13 = ptrtoint ptr<calldata> v9 to i256
+    v14 = add v13, v12
+    v15 = calldataload v14
+    v16 = shl v15, 8
+    v17 = eq v16, 0
+    v18 = eq v17, false
+    icall revert_if<empty>, v18
+    v19 = add v10, 1
+    jump bb1
+}
+
+fn @calldataAddresses(arg0: slice<calldata>) -> i256 [selector=0x244c198f, pure, abi_params=[array<_, address>], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = mul v0, 32
+    v2 = eq 32, 0
+    v3 = div v1, 32
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = zext i1 v5 to i256
+    v7 = eq v6, 0
+    icall panic_if<0x41>, v7
+    v8 = extract_value slice<calldata>, arg0, 1
+    v9 = extract_value slice<calldata>, arg0, 0
+    jump bb1
+  bb1:
+    v10 = phi [bb0: 0], [bb2: v19]
+    v11 = lt v10, v8
+    jumpi v11, bb2, bb3
+  bb3:
+    v20 = abi_encode [calldata_array<word<uint160>>], scratch, args arg0
+    v21 = extract_value slice<memory>, v20, 1
+    ret v21
+  bb2:
+    v12 = mul v10, 32
+    v13 = ptrtoint ptr<calldata> v9 to i256
+    v14 = add v13, v12
+    v15 = calldataload v14
+    v16 = shr v15, 160
+    v17 = eq v16, 0
+    v18 = eq v17, false
+    icall revert_if<empty>, v18
+    v19 = add v10, 1
+    jump bb1
+}
+
+fn @encodedSize(arg0: ptr<memory>) -> i256 [pure] {
+  bb0:
+    v0 = mload arg0
+    ret v0
+}

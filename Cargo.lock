@@ -4433,7 +4433,6 @@ dependencies = [
 name = "solar-bench"
 version = "0.2.0"
 dependencies = [
- "alloy-primitives",
  "codspeed-criterion-compat",
  "flate2",
  "semver 1.0.28",
@@ -4711,10 +4710,15 @@ dependencies = [
  "solar-interface",
  "solar-macros",
  "solar-parse",
+ "solar-std",
  "strum 0.28.0",
  "thread_local",
  "tracing",
 ]
+
+[[package]]
+name = "solar-std"
+version = "0.2.0"
 
 [[package]]
 name = "solar-tester"

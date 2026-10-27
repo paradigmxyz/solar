@@ -1,0 +1,357 @@
+// === <solar:core/Bytes.sol>:Bytes ===
+@module Bytes
+@library
+
+// === ROOT/tests/ui/codegen/lowering/solar_scratch_runtime.sol:Test ===
+@module Test
+@types
+  struct0: {i256, ptr<memory>}
+  struct1: {i256, i256}
+  struct2: {ptr<memory>, i256}
+
+fn @digests(arg0: i256, arg1: i256) -> i256 [selector=0xcf8609a5, pure, abi_params=[uint256, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v9]
+    v3 = phi [bb0: 0], [bb3: v10]
+    v4 = lt v3, v0
+    jumpi v4, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v2
+  bb4:
+    v5 = fmp
+    v6 = abi_encode [word, word, word], object, args v3, v1, v2
+    v7 = ptradd v6, 32
+    v8 = mload v6
+    v9 = keccak256 v7, v8
+    set_fmp v5
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v10 = checked_add uint256, v3, 1
+    jump bb1
+}
+
+fn @nested(arg0: i256) -> struct0 [selector=0x10b80908, pure, abi_params=[uint256], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
+  bb0:
+    v0 = abi_encode [word], object, args arg0
+    v1 = fmp
+    v2 = abi_encode [word, word], object, args arg0, arg0
+    v3 = mload v2
+    v4 = fmp
+    v5 = abi_encode [word, word, word], object, args arg0, arg0, arg0
+    v6 = mload v5
+    v7 = checked_add uint256, v3, v6
+    set_fmp v4
+    v8 = checked_add uint256, arg0, 1
+    v9 = abi_encode [word], object, args v8
+    v10 = mload v9
+    v11 = mload v2
+    v12 = lt 31, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = ptradd v2, 63
+    v15 = mload v14
+    v16 = byte 0, v15
+    v17 = shl v16, 248
+    v18 = shr v17, 248
+    v19 = trunc i256 v18 to i8
+    v20 = zext i8 v19 to i256
+    v21 = checked_add uint256, v10, v20
+    v22 = checked_add uint256, v7, v21
+    set_fmp v1
+    v23 = checked_add uint256, arg0, 2
+    v24 = abi_encode [word], object, args v23
+    v25 = mload v24
+    v26 = mload v0
+    v27 = lt 31, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = ptradd v0, 63
+    v30 = mload v29
+    v31 = byte 0, v30
+    v32 = shl v31, 248
+    v33 = shr v32, 248
+    v34 = trunc i256 v33 to i8
+    v35 = zext i8 v34 to i256
+    v36 = checked_add uint256, v25, v35
+    v37 = checked_add uint256, v22, v36
+    v38 = insert_value struct0, undef struct0, 0, v37
+    v39 = insert_value struct0, v38, 1, v0
+    ret v39
+}
+
+fn @early(arg0: i256) -> i256 [selector=0x14872516, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = fmp
+    v1 = abi_encode [word], object, args arg0
+    v2 = gt arg0, 5
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    set_fmp v0
+    v5 = abi_encode [word, word], object, args arg0, arg0
+    v6 = mload v5
+    ret v6
+  bb1:
+    v3 = mload v1
+    v4 = checked_add uint256, v3, arg0
+    ret v4
+}
+
+fn @unchecked_(arg0: i256) -> i256 [selector=0x0f863b9f, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = fmp
+    v1 = abi_encode [word], object, args arg0
+    v2 = ptradd v1, 32
+    v3 = mload v1
+    v4 = keccak256 v2, v3
+    v5 = add v4, arg0
+    set_fmp v0
+    ret v5
+}
+
+fn @viewed(arg0: ptr<memory>) -> struct1 [selector=0xd3855add, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[bytes32, uint256]] {
+  bb0:
+    v0 = fmp
+    v1 = abi_encode_packed (bytes arg0, bytes arg0)
+    v2 = mload v1
+    v3 = checked_sub uint256, v2, 1
+    v4 = mload v1
+    v5 = add 1, v3
+    v6 = lt v5, 1
+    v7 = gt v5, v4
+    v8 = or v6, v7
+    v9 = zext i1 v8 to i256
+    icall panic_if<0x32>, v8
+    v10 = ptradd v1, 32
+    v11 = ptrtoint ptr<memory> v10 to i256
+    v12 = add v11, 1
+    v13 = inttoptr i256 v12 to ptr<memory>
+    v14 = make_memory_slice v13, v3
+    v15 = extract_value slice<memory>, v14, 0
+    v16 = extract_value slice<memory>, v14, 1
+    v17 = keccak256 v15, v16
+    v18 = extract_value slice<memory>, v14, 1
+    set_fmp v0
+    v19 = insert_value struct1, undef struct1, 0, v17
+    v20 = insert_value struct1, v19, 1, v18
+    ret v20
+}
+
+fn @make(arg0: i256) -> ptr<memory> [pure] {
+  bb0:
+    v0 = abi_encode [word, word], object, args arg0, arg0
+    ret v0
+}
+
+fn @link(arg0: ptr<memory>, arg1: i256) [pure] {
+  bb0:
+    v0 = icall @make, arg1
+    v1 = mload arg0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptrtoint ptr<memory> v0 to i256
+    v5 = ptradd arg0, 32
+    mstore v5, v4
+    ret
+}
+
+fn @helpers(arg0: i256) -> i256 [selector=0x8e7d36dc, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = fmp
+    v1 = alloc zeroed checked 64
+    mstore v1, 1
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb2: v7]
+    v3 = lt v2, 1
+    jumpi v3, bb2, bb3
+  bb3:
+    icall @link, v1, arg0
+    v8 = mload v1
+    v9 = lt 0, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = ptradd v1, 32
+    v12 = mload v11, ptr<memory>
+    v13 = ptradd v12, 32
+    v14 = mload v12
+    v15 = keccak256 v13, v14
+    set_fmp v0
+    v16 = checked_add uint256, arg0, 1
+    v17 = icall @make, v16
+    v18 = ptradd v17, 32
+    v19 = mload v17
+    v20 = keccak256 v18, v19
+    v21 = xor v15, v20
+    ret v21
+  bb2:
+    v4 = shl v2, 5
+    v5 = ptradd v1, v4
+    v6 = ptradd v5, 32
+    mstore v6, 96
+    v7 = add v2, 1
+    jump bb1
+}
+
+fn @setFirst(arg0: ptr<memory>, arg1: ptr<memory>) [pure] {
+  bb0:
+    v0 = mload arg0
+    v1 = lt 0, v0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = ptrtoint ptr<memory> arg1 to i256
+    v4 = ptradd arg0, 32
+    mstore v4, v3
+    ret
+}
+
+fn @relink(arg0: ptr<memory>) -> struct2 [selector=0x300c4e17, pure, abi_params=[bytes], abi_returns=[memory_bytes, word], abi_return_params=[bytes, uint256]] {
+  bb0:
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v6]
+    v2 = lt v1, 1
+    jumpi v2, bb2, bb3
+  bb3:
+    v7 = fmp
+    v8 = mload arg0
+    v9 = mload arg0
+    v10 = abi_encode [word, word], object, args v8, v9
+    icall @setFirst, v0, arg0
+    v11 = mload v10
+    set_fmp v7
+    v12 = abi_encode [word, word, word], object, args 0, 0, 0
+    v13 = mload v0
+    v14 = lt 0, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = ptradd v0, 32
+    v17 = mload v16, ptr<memory>
+    v18 = mload v12
+    v19 = checked_sub uint256, v18, 96
+    v20 = checked_add uint256, v11, v19
+    v21 = insert_value struct2, undef struct2, 0, v17
+    v22 = insert_value struct2, v21, 1, v20
+    ret v22
+  bb2:
+    v3 = shl v1, 5
+    v4 = ptradd v0, v3
+    v5 = ptradd v4, 32
+    mstore v5, 96
+    v6 = add v1, 1
+    jump bb1
+}
+
+fn @returnVariable(arg0: i256) -> ptr<memory> [selector=0x11d15b2e, pure, abi_params=[uint256], abi_returns=[array<2, word>], abi_return_params=[array<2, uint256>]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    memory_zero v0, 64
+    v1 = fmp
+    v2 = lt 0, 2
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    mstore v0, arg0
+    v4 = abi_encode [word], object, args arg0
+    v5 = mload v4
+    v6 = lt 1, 2
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v0, 32
+    mstore v8, v5
+    set_fmp v1
+    ret v0
+}
+
+fn @slice(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [pure] {
+  bb0:
+    v0 = mload arg0
+    v1 = gt arg1, v0
+    jumpi v1, bb2, bb1
+  bb1:
+    v2 = mload arg0
+    v3 = checked_sub uint256, v2, arg1
+    v4 = gt arg2, v3
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v5 = phi [bb1: v4], [bb2: true]
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v6 = icall @_outOfBounds
+    jump bb6
+  bb6:
+    v7 = phi [bb4: v6], [bb5: arg1]
+    v8 = add arg2, 63
+    v9 = lt v8, arg2
+    icall panic_if<0x41>, v9
+    v10 = not 31
+    v11 = and v8, v10
+    v12 = alloc zeroed checked v11
+    mstore v12, arg2
+    jump bb7
+  bb7:
+    v13 = phi [bb6: arg0], [bb9: v13]
+    v14 = phi [bb6: v7], [bb9: v14]
+    v15 = phi [bb6: arg2], [bb9: v15]
+    v16 = phi [bb6: v12], [bb9: v16]
+    v17 = phi [bb6: 0], [bb9: v34]
+    v18 = lt v17, v15
+    jumpi v18, bb10, bb11
+  bb11:
+    jump bb8
+  bb8:
+    ret v16
+  bb10:
+    v19 = checked_add uint256, v14, v17
+    v20 = mload v13
+    v21 = lt v19, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = ptradd v13, v19
+    v24 = ptradd v23, 32
+    v25 = mload v24
+    v26 = byte 0, v25
+    v27 = shl v26, 248
+    v28 = mload v16
+    v29 = lt v17, v28
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = byte 0, v27
+    v32 = ptradd v16, v17
+    v33 = ptradd v32, 32
+    mstore8 v33, v31
+    jump bb12
+  bb12:
+    jump bb9
+  bb9:
+    v34 = checked_add uint256, v17, 1
+    jump bb7
+}
+
+fn @_outOfBounds() -> i256 [pure] {
+  bb0:
+    v0 = alloc zeroed checked 32
+    mstore v0, 0
+    v1 = mload v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 32
+    v5 = mload v4
+    ret v5
+}

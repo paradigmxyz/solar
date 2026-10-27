@@ -31,7 +31,7 @@ fn @readMemory(arg0: ptr<memory>) -> i256 [selector=0xfa397925, view, abi_params
     ret v1
 }
 
-fn @readMemoryFmp(arg0: ptr<memory>) -> i1 [selector=0x8028da35, view, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @readMemoryFmp(arg0: ptr<memory>) -> i1 [selector=0x8028da35, inline_assembly, view, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = gt v0, 128

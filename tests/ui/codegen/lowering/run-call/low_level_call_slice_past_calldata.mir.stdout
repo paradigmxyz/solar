@@ -36,7 +36,7 @@ fn @echo(arg0: slice<calldata>) -> ptr<memory> [selector=0x624fbfdc, view, abi_p
     ret v6
 }
 
-fn @_slice(arg0: i256, arg1: i256) -> slice<calldata> [pure] {
+fn @_slice(arg0: i256, arg1: i256) -> slice<calldata> [inline_assembly, pure] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
     v1 = extract_value slice<calldata>, v0, 1

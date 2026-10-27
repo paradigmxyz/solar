@@ -1,0 +1,304 @@
+// === <solar:core/Arrays.sol>:Arrays ===
+@module Arrays
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/Bytes.sol>:Bytes ===
+@module Bytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/Buffers.sol>:Buffers ===
+@module Buffers
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/Strings.sol>:Strings ===
+@module Strings
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/hex_fixed_lowering.sol:Test ===
+@module Test
+@phase lowered
+fn @spell() [selector=0x0f590e07, abi_wrapper, pure] {
+  bb0:
+    v175 = calldatasize
+    v176 = lt v175, 68
+    jumpi v176, bb19, bb20
+  bb20:
+    v0 = lt arg1, 16
+    jumpi v0, bb1, bb4
+  bb4:
+    v57 = gt arg1, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v57, bb15, bb16
+  bb16:
+    v58 = add arg1, arg1
+    v173 = shr v58, 64
+    v59 = ne v173, 0
+    jumpi v59, bb17, bb18
+  bb18:
+    v60 = add v58, 2
+    v61 = add v60, 95
+    v62 = and v61, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v210 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v211 = add v210, v62 !metadata(alloc_ptr)
+    v212 = lt v211, v210
+    v213 = gt v211, 0xffffffffffffffff
+    v214 = or v212, v213
+    jumpi v214, bb17, bb21
+  bb21:
+    mstore 64, v211 !metadata(memory=scratch)
+    mstore v210, v60
+    v66 = add v210, 34
+    v67 = shl arg1, 3
+    v68 = shr arg0, v67
+    v69 = ne v68, 0
+    jumpi v69, bb6, bb8
+  bb8:
+    v70 = gt arg1, 16
+    jumpi v70, bb10, bb9
+  bb9:
+    v71 = shl arg0, 64
+    v72 = or arg0, v71
+    v73 = and v72, 0xffffffffffffffff0000000000000000ffffffffffffffff
+    v74 = shl v73, 32
+    v75 = or v73, v74
+    v76 = and v75, 0xffffffff00000000ffffffff00000000ffffffff00000000ffffffff
+    v77 = shl v76, 16
+    v78 = or v76, v77
+    v79 = and v78, 0xffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
+    v80 = shl v79, 8
+    v81 = or v79, v80
+    v82 = and v81, 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
+    v83 = shl v82, 4
+    v84 = or v82, v83
+    v85 = and v84, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    v86 = add v85, 0x606060606060606060606060606060606060606060606060606060606060606
+    v87 = shr v86, 4
+    v88 = and v87, 0x101010101010101010101010101010101010101010101010101010101010101
+    v89 = add v85, 0x3030303030303030303030303030303030303030303030303030303030303030
+    v90 = mul v88, 39
+    v91 = add v89, v90
+    v92 = shl v58, 3
+    v93 = sub 256, v92
+    v94 = shl v91, v93
+    mstore v66, v94
+    jump bb11
+  bb10:
+    v95 = gt v58, 64
+    v96 = sub v58, 64
+    v162 = zext i1 v95 to i256
+    v97 = mul v162, v96
+    v98 = add v97, 31
+    v99 = shr v98, 5
+    v169 = gt v99, 0x20000000000000000
+    v170 = select v169, 0x20000000000000000, v99
+    v171 = shl v170, 5
+    v172 = add v66, v171
+    jump bb12
+  bb12:
+    v167 = phi [bb10: v66], [bb13: v168]
+    v101 = ne v167, v172
+    jumpi v101, bb13, bb14
+  bb14:
+    v105 = add v66, v97
+    v106 = shr arg0, 128
+    v107 = shl v106, 64
+    v108 = or v106, v107
+    v109 = and v108, 0xffffffffffffffff0000000000000000ffffffffffffffff
+    v110 = shl v109, 32
+    v111 = or v109, v110
+    v112 = and v111, 0xffffffff00000000ffffffff00000000ffffffff00000000ffffffff
+    v113 = shl v112, 16
+    v114 = or v112, v113
+    v115 = and v114, 0xffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
+    v116 = shl v115, 8
+    v117 = or v115, v116
+    v118 = and v117, 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
+    v119 = shl v118, 4
+    v120 = or v118, v119
+    v121 = and v120, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    v122 = add v121, 0x606060606060606060606060606060606060606060606060606060606060606
+    v123 = shr v122, 4
+    v124 = and v123, 0x101010101010101010101010101010101010101010101010101010101010101
+    v125 = add v121, 0x3030303030303030303030303030303030303030303030303030303030303030
+    v126 = mul v124, 39
+    v127 = add v125, v126
+    v128 = sub 64, v58
+    v164 = eq v95, false
+    v165 = zext i1 v164 to i256
+    v129 = mul v165, v128
+    v130 = shl v129, 3
+    v131 = shl v127, v130
+    mstore v105, v131
+    v132 = and arg0, 0xffffffffffffffffffffffffffffffff
+    v133 = shl v132, 64
+    v134 = or v132, v133
+    v135 = and v134, 0xffffffffffffffff0000000000000000ffffffffffffffff
+    v136 = shl v135, 32
+    v137 = or v135, v136
+    v138 = and v137, 0xffffffff00000000ffffffff00000000ffffffff00000000ffffffff
+    v139 = shl v138, 16
+    v140 = or v138, v139
+    v141 = and v140, 0xffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
+    v142 = shl v141, 8
+    v143 = or v141, v142
+    v144 = and v143, 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
+    v145 = shl v144, 4
+    v146 = or v144, v145
+    v147 = and v146, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    v148 = add v147, 0x606060606060606060606060606060606060606060606060606060606060606
+    v149 = shr v148, 4
+    v150 = and v149, 0x101010101010101010101010101010101010101010101010101010101010101
+    v151 = add v147, 0x3030303030303030303030303030303030303030303030303030303030303030
+    v152 = mul v150, 39
+    v153 = add v151, v152
+    v154 = add v66, v58
+    v155 = sub v154, 32
+    mstore v155, v153
+    mstore v154, 0
+    jump bb11
+  bb11:
+    v158 = shl v60, 16
+    v159 = or v158, 0x3078
+    v157 = add v210, 2
+    mstore v157, v159
+    jump bb5
+  bb13:
+    mstore v167, 0x3030303030303030303030303030303030303030303030303030303030303030
+    v168 = add v167, 32
+    jump bb12
+  bb17:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb15:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    v1 = shl arg1, 3
+    v2 = shr arg0, v1
+    v3 = ne v2, 0
+    jumpi v3, bb6, bb7
+  bb7:
+    v4 = lt arg1, 3
+    jumpi v4, bb2, bb3
+  bb3:
+    v26 = shl arg0, 64
+    v27 = or arg0, v26
+    v28 = and v27, 0xffffffffffffffff0000000000000000ffffffffffffffff
+    v29 = shl v28, 32
+    v30 = or v28, v29
+    v31 = and v30, 0xffffffff00000000ffffffff00000000ffffffff00000000ffffffff
+    v32 = shl v31, 16
+    v33 = or v31, v32
+    v34 = and v33, 0xffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
+    v35 = shl v34, 8
+    v36 = or v34, v35
+    v37 = and v36, 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
+    v38 = shl v37, 4
+    v39 = or v37, v38
+    v40 = and v39, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    v41 = add v40, 0x606060606060606060606060606060606060606060606060606060606060606
+    v42 = shr v41, 4
+    v43 = and v42, 0x101010101010101010101010101010101010101010101010101010101010101
+    v44 = add v40, 0x3030303030303030303030303030303030303030303030303030303030303030
+    v45 = mul v43, 39
+    v46 = add v44, v45
+    v47 = add arg1, arg1
+    v48 = shl v47, 3
+    v49 = sub 256, v48
+    v50 = shl v46, v49
+    v51 = shr v50, 16
+    v52 = or v51, 0x3078000000000000000000000000000000000000000000000000000000000000
+    v218 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v219 = add v218, 64
+    mstore 64, v219 !metadata(memory=scratch)
+    v54 = add v47, 2
+    mstore v218, v54
+    v200 = add v218, 32
+    mstore v200, v52
+    jump bb5
+  bb2:
+    v5 = shl arg0, 8
+    v6 = or arg0, v5
+    v7 = and v6, 0xff00ff
+    v8 = shl v7, 4
+    v9 = or v7, v8
+    v10 = and v9, 0xf0f0f0f
+    v11 = add v10, 0x6060606
+    v12 = shr v11, 4
+    v13 = and v12, 0x1010101
+    v14 = add v10, 0x30303030
+    v15 = mul v13, 39
+    v16 = add v14, v15
+    v17 = add arg1, arg1
+    v18 = shl v17, 3
+    v19 = sub 256, v18
+    v20 = shl v16, v19
+    v21 = shr v20, 16
+    v22 = or v21, 0x3078000000000000000000000000000000000000000000000000000000000000
+    v216 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v217 = add v216, 64
+    mstore 64, v217 !metadata(memory=scratch)
+    v24 = add v17, 2
+    mstore v216, v24
+    v198 = add v216, 32
+    mstore v198, v22
+    jump bb5
+  bb5:
+    v160 = phi [bb2: v216], [bb3: v218], [bb11: v210]
+    v220 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v182 = add v220, 32
+    mstore v220, 32
+    v185 = mload v160
+    v187 = add v185, 31
+    v188 = and v187, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v189 = add v182, 32
+    v190 = add v182, v188
+    mstore v190, 0
+    mstore v182, v185
+    v192 = add v189, v188
+    v202 = add v160, 32
+    mcopy v189, v202, v185 !metadata(memory=heap, disjoint)
+    v194 = sub v192, v220
+    returndata v220, v194
+  bb6:
+    mstore 0, 0x2194895a !metadata(memory=scratch)
+    revert 28, 4
+  bb19:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xf590e07 => bb2]
+  bb2:
+    tail_call @spell
+  bb3:
+    revert 0, 0
+}

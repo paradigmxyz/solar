@@ -19,7 +19,7 @@ fn @single(arg0: ptr<memory>, arg1: i8) -> ptr<memory> [selector=0x1f48d2ce, pur
     ret v10
 }
 
-fn @wordAndByte(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x28e22812, pure, abi_params=[bytes, bytes32, uint8], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @wordAndByte(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x28e22812, inline_assembly, pure, abi_params=[bytes, bytes32, uint8], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = not 31
     v1 = and 96, v0

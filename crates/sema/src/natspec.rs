@@ -4,7 +4,11 @@ use crate::{
 };
 use solar_ast as ast;
 use solar_data_structures::{BumpExt, map::FxHashSet, smallvec::SmallVec};
-use solar_interface::{Ident, Span, Symbol, error_code, kw};
+use solar_interface::{
+    Ident, Span, Symbol,
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    error_code, kw, sym,
+};
 use std::ops::Range;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -327,6 +331,14 @@ impl<'gcx> Resolver<'gcx> {
                     | NatSpecKind::Dev
                     | NatSpecKind::Custom { .. }
                     | NatSpecKind::Internal { .. } => {
+                        // `solar-terminates`, `solar-view` naming parameters, `solar-safe` and
+                        // `solar-trusted` are the `solar-` tags of a declaration.
+                        if let NatSpecKind::Custom { name } = natspec.kind
+                            && let Some(tag) = SolarTag::from_custom(name.name)
+                            && !item_tag_applies(self.gcx, tag, item_id)
+                        {
+                            report_misplaced_solar_tag(self.gcx.dcx(), tag, name.name, tag_span);
+                        }
                         local_tags.push(*natspec);
                     }
                     NatSpecKind::Title => {
@@ -814,5 +826,120 @@ impl<'gcx> Resolver<'gcx> {
         };
         let ty = ty.as_externally_callable_function(false, self.gcx);
         if let TyKind::Fn(fn_ty) = ty.kind { Some(fn_ty.parameters) } else { None }
+    }
+}
+
+/// A `@custom:solar-*` tag: a requirement this compiler checks and relies on, which other
+/// compilers read as documentation.
+///
+/// The whole `solar-` namespace is reserved, so a misspelled tag is an error rather than a
+/// requirement that silently goes unchecked.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SolarTag {
+    /// `@custom:solar-view`: the declared memory reference variables, or the named parameters of
+    /// an internal function, read their bytes in place.
+    View,
+    /// `@custom:solar-scratch`: the memory the block allocates is reused after it.
+    Scratch,
+    /// `@custom:solar-terminates`: the function ends the call on every path.
+    Terminates,
+    /// `@custom:solar-safe`: the code the contract runs has no inline assembly, or no unchecked
+    /// arithmetic.
+    Safe,
+    /// `@custom:solar-trusted`: reviewed code a `@custom:solar-safe` contract may run.
+    Trusted,
+    /// A `solar-` tag this compiler does not define.
+    Unknown,
+}
+
+impl SolarTag {
+    /// Classifies a custom tag by its name, or returns `None` outside the `solar-` namespace.
+    pub(crate) fn from_custom(name: Symbol) -> Option<Self> {
+        match name {
+            sym::solar_dash_view => Some(Self::View),
+            sym::solar_dash_scratch => Some(Self::Scratch),
+            sym::solar_dash_terminates => Some(Self::Terminates),
+            sym::solar_dash_safe => Some(Self::Safe),
+            sym::solar_dash_trusted => Some(Self::Trusted),
+            _ => name.as_str().starts_with("solar-").then_some(Self::Unknown),
+        }
+    }
+}
+
+/// Whether the `solar-` tag `tag` can document the item `item`: `@custom:solar-safe` a contract or
+/// a library, `@custom:solar-trusted` one of those or a function or modifier with a body, and the
+/// other declaration tags what [`declaration_tag_applies`] accepts.
+fn item_tag_applies(gcx: Gcx<'_>, tag: SolarTag, item: hir::ItemId) -> bool {
+    let code_contract = |id| gcx.hir.contract(id).kind != hir::ContractKind::Interface;
+    match (tag, item) {
+        (SolarTag::Terminates | SolarTag::View, item) => declaration_tag_applies(gcx, item),
+        (SolarTag::Safe | SolarTag::Trusted, hir::ItemId::Contract(id)) => code_contract(id),
+        (SolarTag::Trusted, hir::ItemId::Function(id)) => gcx.hir.function(id).body.is_some(),
+        _ => false,
+    }
+}
+
+/// Whether `@custom:solar-terminates`, or `@custom:solar-view` naming parameters, can document
+/// `item`: an internal or private function with a body, which a caller reaches only through an
+/// internal call.
+pub(crate) fn declaration_tag_applies(gcx: Gcx<'_>, item: hir::ItemId) -> bool {
+    let hir::ItemId::Function(id) = item else { return false };
+    let function = gcx.hir.function(id);
+    function.kind == hir::FunctionKind::Function
+        && matches!(function.visibility, hir::Visibility::Internal | hir::Visibility::Private)
+        && function.body.is_some()
+}
+
+/// Reports a `solar-` tag that documents something it does not apply to, or that is unknown.
+pub(crate) fn report_misplaced_solar_tag(
+    dcx: &DiagCtxt,
+    tag: SolarTag,
+    name: Symbol,
+    span: Span,
+) -> ErrorGuaranteed {
+    match tag {
+        SolarTag::View => dcx
+            .err(
+                "`@custom:solar-view` must document a variable declaration statement or an \
+                 internal function",
+            )
+            .span(span)
+            .help(
+                "put it on the statement `bytes memory v = Bytes.slice(source, offset, count);`, \
+                 or on an internal function to name its view parameters",
+            )
+            .emit(),
+        SolarTag::Scratch => dcx
+            .err("`@custom:solar-scratch` must document a block statement")
+            .span(span)
+            .help("put it on a `{ ... }` block whose allocations do not outlive it")
+            .emit(),
+        SolarTag::Terminates => dcx
+            .err("`@custom:solar-terminates` must document an internal or private function")
+            .span(span)
+            .help("put it on a function with a body that ends the call on every path")
+            .emit(),
+        SolarTag::Safe => dcx
+            .err("`@custom:solar-safe` must document a contract or a library")
+            .span(span)
+            .help("put it on the contract whose code must be free of assembly and unchecked arithmetic")
+            .emit(),
+        SolarTag::Trusted => dcx
+            .err(
+                "`@custom:solar-trusted` must document a function, a modifier, a contract, or a \
+                 library",
+            )
+            .span(span)
+            .help("put it on the reviewed code a `@custom:solar-safe` contract runs")
+            .emit(),
+        SolarTag::Unknown => dcx
+            .err(format!("unknown tag `@custom:{name}`"))
+            .span(span)
+            .note("`@custom:solar-` tags are requirements this compiler checks")
+            .help(
+                "the supported tags are `@custom:solar-view`, `@custom:solar-scratch`, \
+                 `@custom:solar-terminates`, `@custom:solar-safe`, and `@custom:solar-trusted`",
+            )
+            .emit(),
     }
 }

@@ -32,7 +32,7 @@ fn @wordAligned(arg0: slice<calldata>) -> i256 [selector=0xc0b853b2, pure, abi_p
     ret v1
 }
 
-fn @_dirty() [pure] {
+fn @_dirty() [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     jump bb1
@@ -59,7 +59,7 @@ fn @_dirty() [pure] {
     jump bb1
 }
 
-fn @_tail(arg0: ptr<memory>) -> i256 [pure] {
+fn @_tail(arg0: ptr<memory>) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = mload arg0

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe ===
 @module Probe
-fn @roundTrip() -> i256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+fn @roundTrip() -> i256 [selector=0x6643a628, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 192
     v1 = alloc 160
@@ -161,7 +161,7 @@ fn @roundTrip() -> i256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe2 ===
 @module Probe2
-fn @outer() -> i256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+fn @outer() -> i256 [selector=0x87c3dbb6, inline_assembly, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 128
     v1 = alloc 160
@@ -212,7 +212,7 @@ fn @outer() -> i256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word
     ret 1
 }
 
-fn @inner(arg0: slice<calldata>) -> i256 [selector=0x3c12b05c, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @inner(arg0: slice<calldata>) -> i256 [selector=0x3c12b05c, inline_assembly, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_decode [tuple<address, tuple<address, address, uint24, int24, address>, int256, bytes>], arg0
     v1 = ptradd v0, 32
@@ -224,21 +224,21 @@ fn @inner(arg0: slice<calldata>) -> i256 [selector=0x3c12b05c, pure, abi_params=
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe3 ===
 @module Probe3
-fn @idOfKeyOnly(arg0: ptr<memory>, arg1: i160) -> i256 [selector=0x128e91fc, pure, abi_params=[tuple<address, address, uint24, int24, address>, uint160], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @idOfKeyOnly(arg0: ptr<memory>, arg1: i160) -> i256 [selector=0x128e91fc, inline_assembly, pure, abi_params=[tuple<address, address, uint24, int24, address>, uint160], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = keccak256 v0, 160
     ret v1
 }
 
-fn @idOfKeyMixed(arg0: ptr<memory>, arg1: ptr<memory>, arg2: slice<calldata>) -> i256 [selector=0xd0a3f749, pure, abi_params=[tuple<address, address, uint24, int24, address>, tuple<int24, int24, int256, bytes32>, bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @idOfKeyMixed(arg0: ptr<memory>, arg1: ptr<memory>, arg2: slice<calldata>) -> i256 [selector=0xd0a3f749, inline_assembly, pure, abi_params=[tuple<address, address, uint24, int24, address>, tuple<int24, int24, int256, bytes32>, bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = keccak256 v0, 160
     ret v1
 }
 
-fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+fn @run() -> i256 [selector=0xc0406226, inline_assembly, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 160
     v1 = sext i24 60 to i256

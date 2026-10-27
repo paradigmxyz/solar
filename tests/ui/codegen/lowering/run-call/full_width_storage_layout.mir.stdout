@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/full_width_storage_layout.sol:LargeStorageArrays ===
 @module LargeStorageArrays
-fn @check() -> i1 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @check() -> i1 [selector=0x919840ad, inline_assembly, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = lt 0xffffffffffffffff, 0x10000000000000000
     v1 = eq v0, false

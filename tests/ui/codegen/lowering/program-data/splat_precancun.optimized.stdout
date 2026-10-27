@@ -27,7 +27,7 @@ fn @hash() [selector=0x09bd5a60, abi_wrapper, pure] {
     returndata 0, 32
 }
 
-fn @paddingIsZero() [selector=0x06793283, abi_wrapper, pure] {
+fn @paddingIsZero() [selector=0x06793283, abi_wrapper, inline_assembly, pure] {
   bb0:
     v0 = icall @data
     v2 = mload v0

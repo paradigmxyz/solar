@@ -33,7 +33,7 @@ fn @forwarded(arg0: i256, arg1: i256) -> struct0 [selector=0x8f056cc4, pure, abi
     ret v20
 }
 
-fn @reset(arg0: i256, arg1: i256) -> struct1 [selector=0xa49530f1, pure, abi_params=[uint256, bytes32], abi_returns=[word, word], abi_return_params=[bytes32, bytes32]] {
+fn @reset(arg0: i256, arg1: i256) -> struct1 [selector=0xa49530f1, inline_assembly, pure, abi_params=[uint256, bytes32], abi_returns=[word, word], abi_return_params=[bytes32, bytes32]] {
   bb0:
     v0 = alloc 96
     v1 = trunc i256 arg0 to i160

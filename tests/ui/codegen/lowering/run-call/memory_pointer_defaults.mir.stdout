@@ -5,7 +5,7 @@
   struct1: {ptr<memory>, ptr<memory>, ptr<memory>, i256}
   struct2: {ptr<memory>, ptr<memory>, ptr<memory>, ptr<memory>}
 
-fn @dirtyScratch() [pure] {
+fn @dirtyScratch() [inline_assembly, pure] {
   bb0:
     mstore 0, 32 !metadata(memory=scratch)
     mstore 32, 32 !metadata(memory=scratch)

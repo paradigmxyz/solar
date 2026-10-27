@@ -4,14 +4,14 @@
 @types
   struct0: {i256, i256}
 
-fn @overwritten() [selector=0x5e97f278, abi_wrapper, pure] {
+fn @overwritten() [selector=0x5e97f278, abi_wrapper, inline_assembly, pure] {
   bb0:
     mstore 257, 7
     mstore 289, 9
     returndata 257, 64
 }
 
-fn @partialOverwrite() [selector=0x9defb653, abi_wrapper, pure] {
+fn @partialOverwrite() [selector=0x9defb653, abi_wrapper, inline_assembly, pure] {
   bb0:
     v0 = calldatasize
     calldatacopy 256, v0, 64
@@ -19,7 +19,7 @@ fn @partialOverwrite() [selector=0x9defb653, abi_wrapper, pure] {
     returndata 256, 64
 }
 
-fn @expansion() [selector=0x7fce0203, abi_wrapper, pure] {
+fn @expansion() [selector=0x7fce0203, abi_wrapper, inline_assembly, pure] {
   bb0:
     v0 = calldatasize
     calldatacopy 256, v0, 64
@@ -29,7 +29,7 @@ fn @expansion() [selector=0x7fce0203, abi_wrapper, pure] {
     returndata 0, 32
 }
 
-fn @returndataBounds() [selector=0xa6a0e5ea, abi_wrapper, pure] {
+fn @returndataBounds() [selector=0xa6a0e5ea, abi_wrapper, inline_assembly, pure] {
   bb0:
     returndatacopy 256, 0, 64
     mstore 256, 7

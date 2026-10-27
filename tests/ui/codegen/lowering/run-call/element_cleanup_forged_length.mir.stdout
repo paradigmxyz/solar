@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/element_cleanup_forged_length.sol:ElementCleanupForgedLength ===
 @module ElementCleanupForgedLength
-fn @forged(arg0: i256) -> i256 [selector=0x0fa02195, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @forged(arg0: i256) -> i256 [selector=0x0fa02195, inline_assembly, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1

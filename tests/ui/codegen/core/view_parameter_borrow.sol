@@ -1,0 +1,114 @@
+//@ compile-flags: -Ogas --emit=bin
+
+// A view parameter reads the caller's bytes in place, so the function may only
+// read it in place, and nothing the function does may change those bytes
+// while it still reads them: writes of the memory that existed when it was
+// entered are rejected, writes of fresh memory are not.
+import {Bytes} from "solar:core/Bytes.sol";
+
+contract Test {
+    /// @custom:solar-view data
+    function write(bytes memory data) internal pure {
+        data[0] = 0x01; //~ ERROR: the view `data` can only be read in place
+    }
+
+    /// @custom:solar-view data
+    function keep(bytes memory data) internal pure returns (bytes memory) {
+        return data; //~ ERROR: the view `data` can only be read in place
+    }
+
+    // Another parameter may be the same object as the caller's bytes.
+    /// @custom:solar-view data
+    function throughOther(bytes memory data, bytes memory other) internal pure returns (bytes1) {
+        other[0] = 0x01; //~ ERROR: this may change bytes that the view `data` still reads
+        return data[0];
+    }
+
+    /// @custom:solar-view data
+    function fresh(bytes memory data) internal pure returns (bytes1 first, bytes memory out) {
+        out = new bytes(2);
+        out[0] = 0x01;
+        first = data[0];
+    }
+
+    /// @custom:solar-view data
+    function afterLastRead(bytes memory data, bytes memory other) internal pure returns (bytes1 first) {
+        first = data[0];
+        other[0] = 0x01;
+    }
+
+    // A view decoded from a view parameter reads the parameter's bytes too,
+    // and so does one decoded from a slice of it.
+    /// @custom:solar-view data
+    function decodedThroughOther(bytes memory data, bytes memory other) internal pure returns (bytes1) {
+        /// @custom:solar-view
+        (bytes memory inner) = abi.decode(data, (bytes));
+        other[64] = 0x01; //~ ERROR: this may change bytes that the view `inner` still reads
+        return inner[0];
+    }
+
+    /// @custom:solar-view data
+    function decodedSliceThroughOther(bytes memory data, bytes memory other) internal pure returns (bytes1) {
+        /// @custom:solar-view
+        bytes memory tail = Bytes.slice(data, 4, data.length - 4);
+        /// @custom:solar-view
+        (bytes memory inner) = abi.decode(tail, (bytes));
+        other[68] = 0x01; //~ ERROR: this may change bytes that the view `inner` still reads
+        return inner[0];
+    }
+
+    /// @custom:solar-view data
+    function decodedFresh(bytes memory data) internal pure returns (bytes1 first, bytes memory out) {
+        /// @custom:solar-view
+        (bytes memory inner) = abi.decode(data, (bytes));
+        out = new bytes(2);
+        out[0] = 0x01;
+        first = inner[0];
+    }
+
+    struct Pair {
+        uint256 a;
+        bytes b;
+    }
+
+    /// @custom:solar-view values
+    function writeElement(uint256[] memory values) internal pure {
+        values[0] = 1; //~ ERROR: the view `values` can only be read in place
+    }
+
+    /// @custom:solar-view pair
+    function keepPair(Pair memory pair) internal pure returns (bytes memory) {
+        return pair.b; //~ ERROR: the view `pair` can only be read in place
+    }
+
+    // An array a caller passes as a view of the bytes it was decoded from is
+    // borrowed like any view parameter; an array object is the caller's own.
+    /// @custom:solar-view values
+    function readAfterWrite(uint256[] memory values, bytes memory other) internal pure returns (uint256) {
+        other[0] = 0x01; //~ ERROR: this may change bytes that the view `values` still reads
+        return values[0];
+    }
+
+    function pointer() internal pure returns (uint256) {
+        function(bytes memory) internal pure f = write; //~ ERROR: a function with `@custom:solar-view` parameters cannot be used as a value
+        f("x");
+        return 0;
+    }
+
+    function run(bytes memory b, bytes memory c) public pure returns (bytes1, bytes1, uint256) {
+        write(b);
+        keep(b);
+        (bytes1 first, ) = fresh(b);
+        (bytes1 decoded, ) = decodedFresh(b);
+        first ^= decoded ^ decodedThroughOther(b, c) ^ decodedSliceThroughOther(b, c);
+        return (throughOther(b, c), first ^ afterLastRead(b, c), pointer());
+    }
+
+    function runAggregates(bytes memory b, uint256[] memory values) public pure returns (uint256) {
+        writeElement(values);
+        keepPair(Pair(1, b));
+        /// @custom:solar-view
+        (uint256[] memory decoded) = abi.decode(b, (uint256[]));
+        return readAfterWrite(decoded, b) + readAfterWrite(values, b);
+    }
+}

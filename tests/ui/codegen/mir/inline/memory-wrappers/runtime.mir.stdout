@@ -19,7 +19,7 @@ fn @twice(arg0: ptr<memory>) -> struct0 [selector=0xff491092, pure, abi_params=[
     ret v4
 }
 
-fn @wrap(arg0: ptr<memory>) -> ptr<memory> [pure] {
+fn @wrap(arg0: ptr<memory>) -> ptr<memory> [inline_assembly, pure] {
   bb0:
     v0 = icall @copy, arg0
     v1 = ptrtoint ptr<memory> v0 to i256
