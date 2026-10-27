@@ -390,7 +390,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn emit_runtime(&mut self, module: &Module, call_graph: &CallGraphInfo) {
         let Some(entry) = module.dispatch_entry() else {
             assert!(
-                !module.functions.iter().any(Self::is_external_entry),
+                !module.functions.iter().any(Function::is_runtime_entry),
                 "evm-shaped module with a runtime interface must have a MIR `entry` function"
             );
             return;
@@ -403,7 +403,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .filter(|&(func_id, func)| {
                 Self::is_runtime_function(func)
                     && (func_id == entry
-                        || Self::is_external_entry(func)
+                        || func.is_runtime_entry()
                         || internal_targets.contains(func_id))
             })
             .map(|(func_id, _)| func_id)
@@ -465,7 +465,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut internal = DenseBitSet::new_empty(functions);
         for &func_id in &bodies {
             let func = &module.functions[func_id];
-            if func_id != entry && !Self::is_external_entry(func) {
+            if func_id != entry && !func.is_runtime_entry() {
                 internal.insert(func_id);
                 if call_graph.is_recursive(func_id) {
                     // A recursive activation cannot own a fixed frame.

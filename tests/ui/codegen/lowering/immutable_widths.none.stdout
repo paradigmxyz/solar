@@ -24,9 +24,6 @@ bb4 [cold]:
   push 0
   revert
 bb5:
-  push 352
-  push 64
-  mstore
   push_immutable 0, 1
   push_immutable 1, 2
   push 1

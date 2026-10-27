@@ -92,8 +92,7 @@ bb0:
   iszero
   push bb10
   jumpi
-  push 64
-  mload
+  push 128
   push 0xfaf4836c
   push 224
   shl
@@ -176,8 +175,7 @@ bb0:
   lt
   push bb3
   jumpi
-  push 64
-  mload
+  push 128
   push 0x5e0b1cef
   push 224
   shl

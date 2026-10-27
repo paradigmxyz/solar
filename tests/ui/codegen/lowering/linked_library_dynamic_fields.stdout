@@ -376,9 +376,6 @@ bb5:
   push 0
   return
 bb8:
-  push 128
-  push 64
-  mstore
   push 100
   calldataload
   push 160
@@ -458,8 +455,7 @@ bb8:
   calldataload
   push 100
   calldataload
-  push 64
-  mload
+  push 128
   swap 3
   dup 4
   add
