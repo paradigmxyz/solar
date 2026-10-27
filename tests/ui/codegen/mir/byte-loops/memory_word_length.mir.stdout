@@ -1,0 +1,73 @@
+// === ROOT/tests/ui/codegen/mir/byte-loops/memory_word_length.sol:Test ===
+@module Test
+fn @copy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf5088730, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc zeroed checked 96
+    mstore v0, 2
+    v1 = alloc zeroed checked 96
+    mstore v1, 2
+    v2 = mload v0
+    v3 = lt 0, v2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = ptradd v0, 32
+    mstore v5, 11
+    v6 = mload v0
+    v7 = lt 1, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = ptradd v0, 64
+    mstore v9, 22
+    v10 = not 0
+    v11 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, v10
+    v12 = not 0
+    v13 = ptrtoint ptr<memory> v1 to i256
+    mstore v1, v12
+    jump bb1
+  bb1:
+    v14 = phi [bb0: arg0], [bb3: v14]
+    v15 = phi [bb0: arg1], [bb3: v15]
+    v16 = phi [bb0: arg2], [bb3: v16]
+    v17 = phi [bb0: 0], [bb3: v17]
+    v18 = phi [bb0: v0], [bb3: v18]
+    v19 = phi [bb0: v1], [bb3: v19]
+    v20 = phi [bb0: 0], [bb3: v37]
+    v21 = lt v20, v16
+    jumpi v21, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v38 = mload v19
+    v39 = lt 0, v38
+    v40 = eq v39, false
+    icall panic_if<0x32>, v40
+    v41 = ptradd v19, 32
+    v42 = mload v41
+    ret v42
+  bb4:
+    v22 = checked_add uint256, v14, v20
+    v23 = mload v18
+    v24 = lt v22, v23
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = shl v22, 5
+    v27 = ptradd v18, v26
+    v28 = ptradd v27, 32
+    v29 = mload v28
+    v30 = checked_add uint256, v15, v20
+    v31 = mload v19
+    v32 = lt v30, v31
+    v33 = eq v32, false
+    icall panic_if<0x32>, v33
+    v34 = shl v30, 5
+    v35 = ptradd v19, v34
+    v36 = ptradd v35, 32
+    mstore v36, v29
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v37 = checked_add uint256, v20, 1
+    jump bb1
+}

@@ -5,7 +5,9 @@
 //! identities, while incompatible incoming paths conservatively join to a
 //! symbolic pointer. Region labels do not prove disjointness: raw pointer operations
 //! and FMP recycling can cross those regions. The analysis exposes the memory,
-//! storage, and transient-storage effects of each instruction.
+//! storage, and transient-storage effects of each instruction. Runtime pointer offsets retain
+//! their symbolic value: a forged array length can admit indices that wrap into the object's
+//! header, another allocation, or reserved memory.
 
 use super::{CfgInfo, DominatorTree, MemoryCallSummaries};
 use crate::mir::{
@@ -698,69 +700,6 @@ impl AliasAnalysis {
         address
     }
 
-    /// Returns the memory an access at `address` may touch. Unlike [`Self::memory_location`],
-    /// which names the accessed word, this covers everything at or after `base + k` for an address
-    /// `ptradd (ptradd base, index), k` with a runtime index: `ptradd` does not wrap, so the
-    /// access stays inside the base's object.
-    fn access_extent(
-        &self,
-        func: &Function,
-        inst_id: InstId,
-        address: ValueId,
-        size: LocationSize,
-    ) -> Option<MemoryLocation> {
-        let Some(base) = self.runtime_offset_base(func, address) else {
-            return self.memory_location(func, inst_id, address, size);
-        };
-        let base = base?;
-        Some(MemoryLocation::new(Self::refine_region(func, inst_id, base), LocationSize::Unknown))
-    }
-
-    /// Returns the memory an access at `address` may touch, without instruction metadata, as
-    /// [`Self::access_extent`] does.
-    #[must_use]
-    pub(crate) fn bare_access_extent(
-        &self,
-        func: &Function,
-        address: ValueId,
-        size: LocationSize,
-    ) -> Option<MemoryLocation> {
-        match self.runtime_offset_base(func, address) {
-            Some(base) => Some(MemoryLocation::new(base?, LocationSize::Unknown)),
-            None => self.bare_memory_location(func, address, size),
-        }
-    }
-
-    /// Returns the address `base + k` of an address `ptradd (ptradd base, index), k` with a
-    /// runtime index and constant `ptradd`s `k` around it, or `None` without a runtime index.
-    fn runtime_offset_base(
-        &self,
-        func: &Function,
-        address: ValueId,
-    ) -> Option<Option<MemoryAddress>> {
-        // The canonical address of the chain is the runtime-indexed `ptradd` plus `k`.
-        let address = self.memory_address(func, address)?;
-        let MemoryBase::Value(indexed) = address.base else { return None };
-        let Value::Inst(inst) = func.value(indexed) else { return None };
-        let InstKind::PtrAdd(base, index) = func.inst(*inst).kind else { return None };
-        func.value_u64(index).is_none().then(|| {
-            let base = self.memory_address(func, base)?.checked_add(address.offset)?;
-            // NOTE: `ptradd` keeps the access inside its object, but a direct access to an
-            // allocation of runtime size cannot prove it fits, so `bounded_memory_location` names
-            // that object by its pointer value. Name the indexed access the same way, or the two
-            // would look like different objects and every indexed store would clobber the
-            // object's header words.
-            match base.base {
-                MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst)
-                    if Self::allocation_size(func, inst).is_none() =>
-                {
-                    Self::unbounded_allocation(func, base, inst)
-                }
-                _ => Some(base),
-            }
-        })
-    }
-
     /// Creates a memory location without instruction metadata.
     #[must_use]
     pub(crate) fn bare_memory_location(
@@ -1115,7 +1054,7 @@ impl AliasAnalysis {
             ))));
         }
         let read_memory = |effects: &mut ModRef, address, size| {
-            if let Some(location) = self.access_extent(
+            if let Some(location) = self.memory_location(
                 func,
                 inst_id,
                 resolve(address),
@@ -1141,7 +1080,7 @@ impl AliasAnalysis {
             }
         };
         let write_memory = |effects: &mut ModRef, address, size| {
-            if let Some(location) = self.access_extent(
+            if let Some(location) = self.memory_location(
                 func,
                 inst_id,
                 resolve(address),
@@ -2101,8 +2040,7 @@ impl AliasAnalysis {
     /// Returns a conservative lower bound for the first byte of an access of `size` at a
     /// canonical address, which holds even when a runtime index wraps around.
     ///
-    /// An access of unknown extent through a non-absolute base is a runtime-indexed `ptradd`
-    /// whose index the canonical address discards, so it has no bound.
+    /// An access of unknown extent through a non-absolute base keeps no bound.
     pub(crate) fn address_lower_bound(
         func: &Function,
         address: MemoryAddress,
@@ -2137,8 +2075,7 @@ impl AliasAnalysis {
         address < fmp_end && end > EvmMemoryLayout::FMP_SLOT
     }
 
-    /// Returns a conservative lower bound for a compiler-owned pointer, trusting that `ptradd`
-    /// never wraps.
+    /// Returns a conservative lower bound for a compiler-owned pointer.
     pub(crate) fn pointer_lower_bound(func: &Function, value: ValueId) -> Option<u64> {
         Self::lower_bound(func, value, 0, true)
     }
@@ -2211,15 +2148,10 @@ impl AliasAnalysis {
                 Self::lower_bound(func, *base, depth + 1, trusted)
                     .and_then(|base| base.checked_sub(func.value_u64(*offset)?))
             }
-            // `ptradd` does not wrap, so a runtime offset only moves the pointer up. A program
-            // that forges the length an index is checked against can still wrap it around, so
-            // `trusted` is false for reads, which must not miss a slot below the heap.
+            // A forged length can admit a runtime offset that wraps below the object's start,
+            // even for a compiler-owned allocation. Such writes may reset the FMP as well.
             InstKind::PtrAdd(base, offset) => {
-                let offset = match func.value_u64(*offset) {
-                    Some(offset) => offset,
-                    None if trusted => 0,
-                    None => return None,
-                };
+                let offset = func.value_u64(*offset)?;
                 Self::lower_bound(func, *base, depth + 1, trusted)?.checked_add(offset)
             }
             InstKind::ExtractValue {
