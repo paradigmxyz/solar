@@ -35,3 +35,10 @@ pub(crate) struct CodegenState {
     schedules: ir::SharedSchedules,
     plans: PlanCache,
 }
+
+impl CodegenState {
+    /// Frees the stored plans.
+    pub(crate) fn clear_plans(&self) {
+        self.plans.clear();
+    }
+}
