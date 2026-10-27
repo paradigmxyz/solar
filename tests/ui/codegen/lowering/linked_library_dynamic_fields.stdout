@@ -599,16 +599,11 @@ bb8:
   swap 1
   swap 2
   mcopy
-  swap 5
-  push 0
-  not
-  push 96
-  shr
-  and
-  swap 1
-  swap 5
   push 96
   add
+  swap 5
+  swap 1
+  swap 5
   mstore
   pop
   swap 1
