@@ -145,9 +145,9 @@ fn @bytesIntoHeader() [selector=0x10ca09ba, abi_wrapper, pure] {
 
 fn @freshWrapped() [selector=0x42a6a755, abi_wrapper, pure] {
   bb0:
-    v8 = calldatasize
-    v9 = lt v8, 36
-    jumpi v9, bb1, bb2
+    v12 = calldatasize
+    v13 = lt v12, 36
+    jumpi v13, bb1, bb2
   bb2:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 256
@@ -156,18 +156,23 @@ fn @freshWrapped() [selector=0x42a6a755, abi_wrapper, pure] {
     mstore v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v5 = sub v0, v1
     v7 = icall @_freshBytes, v1, v5, arg0
-    v13 = mload v7
-    v24 = add v7, 32
-    v15 = add v13, 31
-    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = add v24, v17
-    mstore v19, 0
-    v26 = add v7, 64
-    mcopy v26, v24, v13
+    v8 = mload 64 !metadata(memory=scratch)
+    v9 = heap_floor
+    v10 = lt v8, v9
+    v11 = select v10, v9, v8
+    mstore 64, v11 !metadata(memory=scratch)
+    v17 = mload v7
+    v28 = add v7, 32
+    v19 = add v17, 31
+    v21 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v23 = add v28, v21
+    mstore v23, 0
+    v30 = add v7, 64
+    mcopy v30, v28, v17
     mstore v7, 32
-    mstore v24, v13
-    v21 = add v17, 64
-    returndata v7, v21
+    mstore v28, v17
+    v25 = add v21, 64
+    returndata v7, v25
   bb1:
     revert 0, 0
 }

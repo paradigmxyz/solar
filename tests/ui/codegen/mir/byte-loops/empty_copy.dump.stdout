@@ -3,160 +3,165 @@
 @phase lowered
 fn @memoryCopy() [selector=0x261f992c, abi_wrapper, pure] {
   bb0:
-    v47 = heap_floor !metadata(alloc_ptr)
-    v48 = add v47, 64 !metadata(alloc_ptr)
-    mstore 64, v48
-    mstore v47, 3
-    v37 = add v47, 32
-    mstore v37, 0x1122330000000000000000000000000000000000000000000000000000000000
-    v46 = icall @alloc, 64
-    v50 = calldatasize
-    calldatacopy v46, v50, 64
-    mstore v46, 3
-    v17 = sub arg1, v46
+    v51 = heap_floor !metadata(alloc_ptr)
+    v52 = add v51, 64 !metadata(alloc_ptr)
+    mstore 64, v52
+    mstore v51, 3
+    v41 = add v51, 32
+    mstore v41, 0x1122330000000000000000000000000000000000000000000000000000000000
+    v50 = icall @alloc, 64
+    v54 = calldatasize
+    calldatacopy v50, v54, 64
+    mstore v50, 3
+    v21 = sub arg1, v50
     v8 = ne arg1, 0
-    v18 = zext i1 v8 to i256
-    v19 = mul v18, v17
-    v20 = add v46, v19
-    v13 = sub arg0, v47
+    v22 = zext i1 v8 to i256
+    v23 = mul v22, v21
+    v24 = add v50, v23
+    v17 = sub arg0, v51
     v5 = ne arg0, 0
-    v14 = zext i1 v5 to i256
-    v15 = mul v14, v13
-    v16 = add v47, v15
-    icall @_memoryCopy, v16, v20, arg2
-    v26 = mload v46
-    v39 = add v46, 32
-    v28 = add v26, 31
-    v30 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v32 = add v39, v30
-    mstore v32, 0
-    v41 = add v46, 64
-    mcopy v41, v39, v26
-    mstore v46, 32
-    mstore v39, v26
-    v34 = add v30, 64
-    returndata v46, v34
+    v18 = zext i1 v5 to i256
+    v19 = mul v18, v17
+    v20 = add v51, v19
+    icall @_memoryCopy, v20, v24, arg2
+    v30 = mload v50
+    v43 = add v50, 32
+    v32 = add v30, 31
+    v34 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v36 = add v43, v34
+    mstore v36, 0
+    v45 = add v50, 64
+    mcopy v45, v43, v30
+    mstore v50, 32
+    mstore v43, v30
+    v38 = add v34, 64
+    returndata v50, v38
 }
 
 fn @calldataCopy() [selector=0xa70bf1aa, abi_wrapper, pure] {
   bb0:
-    v11 = calldatasize
-    v13 = calldataload 4
-    v14 = add v13, 4
-    v16 = sub v11, 36
-    v17 = gt v13, v16
-    v18 = calldataload v14
-    v19 = add v14, 32
-    v20 = sub v11, v19
-    v21 = gt v18, v20
-    v22 = or v17, v21
-    jumpi v22, bb1, bb2
+    v15 = calldatasize
+    v17 = calldataload 4
+    v18 = add v17, 4
+    v20 = sub v15, 36
+    v21 = gt v17, v20
+    v22 = calldataload v18
+    v23 = add v18, 32
+    v24 = sub v15, v23
+    v25 = gt v22, v24
+    v26 = or v21, v25
+    jumpi v26, bb1, bb2
   bb2:
-    v49 = icall @alloc, 64
-    v51 = calldatasize
-    calldatacopy v49, v51, 64
-    mstore v49, 3
-    v7 = sub arg1, v49
+    v53 = icall @alloc, 64
+    v55 = calldatasize
+    calldatacopy v53, v55, 64
+    mstore v53, 3
+    v11 = sub arg1, v53
     v3 = ne arg1, 0
-    v8 = zext i1 v3 to i256
-    v9 = mul v8, v7
-    v10 = add v49, v9
-    icall @_calldataCopy, v19, v18, v10, arg2
-    v29 = mload v49
-    v40 = add v49, 32
-    v31 = add v29, 31
-    v33 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v35 = add v40, v33
-    mstore v35, 0
-    v42 = add v49, 64
-    mcopy v42, v40, v29
-    mstore v49, 32
-    mstore v40, v29
-    v37 = add v33, 64
-    returndata v49, v37
+    v12 = zext i1 v3 to i256
+    v13 = mul v12, v11
+    v14 = add v53, v13
+    icall @_calldataCopy, v23, v22, v14, arg2
+    v33 = mload v53
+    v44 = add v53, 32
+    v35 = add v33, 31
+    v37 = and v35, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v39 = add v44, v37
+    mstore v39, 0
+    v46 = add v53, 64
+    mcopy v46, v44, v33
+    mstore v53, 32
+    mstore v44, v33
+    v41 = add v37, 64
+    returndata v53, v41
   bb1:
     revert 0, 0
 }
 
 fn @downCopy() [selector=0xc7e6d660, abi_wrapper, pure] {
   bb0:
-    v47 = heap_floor !metadata(alloc_ptr)
-    v48 = add v47, 64 !metadata(alloc_ptr)
-    mstore 64, v48
-    mstore v47, 3
-    v37 = add v47, 32
-    mstore v37, 0x1122330000000000000000000000000000000000000000000000000000000000
-    v46 = icall @alloc, 64
-    v50 = calldatasize
-    calldatacopy v46, v50, 64
-    mstore v46, 3
-    v17 = sub arg1, v46
+    v51 = heap_floor !metadata(alloc_ptr)
+    v52 = add v51, 64 !metadata(alloc_ptr)
+    mstore 64, v52
+    mstore v51, 3
+    v41 = add v51, 32
+    mstore v41, 0x1122330000000000000000000000000000000000000000000000000000000000
+    v50 = icall @alloc, 64
+    v54 = calldatasize
+    calldatacopy v50, v54, 64
+    mstore v50, 3
+    v21 = sub arg1, v50
     v8 = ne arg1, 0
-    v18 = zext i1 v8 to i256
-    v19 = mul v18, v17
-    v20 = add v46, v19
-    v13 = sub arg0, v47
+    v22 = zext i1 v8 to i256
+    v23 = mul v22, v21
+    v24 = add v50, v23
+    v17 = sub arg0, v51
     v5 = ne arg0, 0
-    v14 = zext i1 v5 to i256
-    v15 = mul v14, v13
-    v16 = add v47, v15
-    icall @_downCopy, v16, v20, arg2
-    v26 = mload v46
-    v39 = add v46, 32
-    v28 = add v26, 31
-    v30 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v32 = add v39, v30
-    mstore v32, 0
-    v41 = add v46, 64
-    mcopy v41, v39, v26
-    mstore v46, 32
-    mstore v39, v26
-    v34 = add v30, 64
-    returndata v46, v34
+    v18 = zext i1 v5 to i256
+    v19 = mul v18, v17
+    v20 = add v51, v19
+    icall @_downCopy, v20, v24, arg2
+    v30 = mload v50
+    v43 = add v50, 32
+    v32 = add v30, 31
+    v34 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v36 = add v43, v34
+    mstore v36, 0
+    v45 = add v50, 64
+    mcopy v45, v43, v30
+    mstore v50, 32
+    mstore v43, v30
+    v38 = add v34, 64
+    returndata v50, v38
 }
 
 fn @freshCopy() [selector=0x602d1e17, abi_wrapper, pure] {
   bb0:
-    v9 = calldatasize
-    v11 = calldataload 4
-    v12 = add v11, 4
-    v14 = sub v9, 36
-    v15 = gt v11, v14
-    jumpi v15, bb1, bb2
+    v13 = calldatasize
+    v15 = calldataload 4
+    v16 = add v15, 4
+    v18 = sub v13, 36
+    v19 = gt v15, v18
+    jumpi v19, bb1, bb2
   bb2:
-    v16 = calldataload v12
-    v17 = add v12, 32
-    v18 = add v16, 63
-    v19 = lt v18, v16
-    jumpi v19, bb3, bb4
+    v20 = calldataload v16
+    v21 = add v16, 32
+    v22 = add v20, 63
+    v23 = lt v22, v20
+    jumpi v23, bb3, bb4
   bb4:
-    v21 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v52 = icall @alloc, v21
-    mstore v52, v16
-    v23 = sub v9, v17
-    v24 = gt v16, v23
-    jumpi v24, bb1, bb5
+    v25 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v56 = icall @alloc, v25
+    mstore v56, v20
+    v27 = sub v13, v21
+    v28 = gt v20, v27
+    jumpi v28, bb1, bb5
   bb5:
-    v44 = add v52, 32
-    calldatacopy v44, v17, v16
-    v5 = sub arg1, v52
+    v48 = add v56, 32
+    calldatacopy v48, v21, v20
+    v9 = sub arg1, v56
     v0 = ne arg1, 0
-    v6 = zext i1 v0 to i256
-    v7 = mul v6, v5
-    v8 = add v52, v7
-    v4 = icall @_freshCopy, v8, arg2
-    v33 = mload v4
-    v46 = add v4, 32
-    v35 = add v33, 31
-    v37 = and v35, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v39 = add v46, v37
-    mstore v39, 0
-    v48 = add v4, 64
-    mcopy v48, v46, v33
+    v10 = zext i1 v0 to i256
+    v11 = mul v10, v9
+    v12 = add v56, v11
+    v4 = icall @_freshCopy, v12, arg2
+    v5 = mload 64 !metadata(memory=scratch)
+    v6 = heap_floor
+    v7 = lt v5, v6
+    v8 = select v7, v6, v5
+    mstore 64, v8 !metadata(memory=scratch)
+    v37 = mload v4
+    v50 = add v4, 32
+    v39 = add v37, 31
+    v41 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v43 = add v50, v41
+    mstore v43, 0
+    v52 = add v4, 64
+    mcopy v52, v50, v37
     mstore v4, 32
-    mstore v46, v33
-    v41 = add v37, 64
-    returndata v4, v41
+    mstore v50, v37
+    v45 = add v41, 64
+    returndata v4, v45
   bb3:
     mstore 32, 65
     mstore 0, 0x4e487b71
