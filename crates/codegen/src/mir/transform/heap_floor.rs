@@ -686,6 +686,10 @@ fn function_heap_addresses(
     heap
 }
 
+/// The words [`may_be_low`] looks at before it gives up and says the word may be low, so that
+/// shared phi chains cannot make the walk exponential.
+const MAY_BE_LOW_STEPS: u32 = 256;
+
 /// Whether the word `address` may lie below the heap: it does unless `heap` holds it, or
 /// [`pointer_bases`] moves it, with steps back of at most `max_step_back`, from bases that are all
 /// high, or it is a cast, select, or phi whose operands are all high.
@@ -694,7 +698,19 @@ fn may_be_low(
     heap: &DenseBitSet<ValueId>,
     address: ValueId,
     max_step_back: u64,
+) -> bool {
+    let mut visiting = DenseBitSet::new_empty(func.num_values());
+    let mut steps = MAY_BE_LOW_STEPS;
+    walk_may_be_low(func, heap, address, max_step_back, &mut visiting, &mut steps)
+}
+
+fn walk_may_be_low(
+    func: &Function,
+    heap: &DenseBitSet<ValueId>,
+    address: ValueId,
+    max_step_back: u64,
     visiting: &mut DenseBitSet<ValueId>,
+    steps: &mut u32,
 ) -> bool {
     if heap.contains(address) {
         return false;
@@ -703,7 +719,12 @@ fn may_be_low(
     if !visiting.insert(address) {
         return false;
     }
-    let mut low = |value| may_be_low(func, heap, value, max_step_back, visiting);
+    let Some(remaining) = steps.checked_sub(1) else {
+        visiting.remove(address);
+        return true;
+    };
+    *steps = remaining;
+    let mut low = |value| walk_may_be_low(func, heap, value, max_step_back, visiting, steps);
     let result = match &func.inst(inst).kind {
         InstKind::Add(..) | InstKind::PtrAdd(..) | InstKind::Sub(..) => {
             let bases = pointer_bases(func, address, max_step_back);
@@ -1482,10 +1503,7 @@ impl<'a> PointerUses<'a> {
             return false;
         }
         let heap = self.heap_addresses(func_id);
-        let low = |address| {
-            let mut visiting = DenseBitSet::new_empty(func.num_values());
-            may_be_low(func, heap, address, EvmMemoryLayout::WORD_SIZE, &mut visiting)
-        };
+        let low = |address| may_be_low(func, heap, address, EvmMemoryLayout::WORD_SIZE);
         let mut writes = false;
         inst.kind.visit_raw_memory(|access, address, size| {
             let size = size.constant(func);
@@ -1504,8 +1522,7 @@ impl<'a> PointerUses<'a> {
     fn may_be_low(&mut self, func_id: FunctionId, value: ValueId) -> bool {
         let func = &self.module.functions[func_id];
         let heap = self.heap_addresses(func_id);
-        let mut visiting = DenseBitSet::new_empty(func.num_values());
-        may_be_low(func, heap, value, 0, &mut visiting)
+        may_be_low(func, heap, value, 0)
     }
 
     /// Returns the words `func_id` computes from heap pointers.
