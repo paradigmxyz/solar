@@ -326,6 +326,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Expose callee reads before late CSE.
     &inline::Inline::Semantic,
     &cse::Cse::All,
+    // Forwarding exposes masks on stored words, such as ABI-encoded struct fields. Fold them
+    // while integer types still exist.
+    &egraph::Egraph,
     // Fold checks exposed by forwarding in late CSE. Gas-only: under `-Osize` it grows the
     // corpus's bytecode.
     &GasOnly::new(check_elim::CheckElim),

@@ -287,13 +287,13 @@ fn @fresh() [selector=0xb466b76f, abi_wrapper, pure] {
 
 fn @freshEmpty() [selector=0x2f9cb906, abi_wrapper, pure] {
   bb0:
-    v23 = icall @alloc, 32
-    mstore v23, 0
-    mstore v23, 0
-    mstore v23, 32
-    v11 = add v23, 32
+    v14 = icall @alloc, 32
+    mstore v14, 0
+    mstore v14, 0
+    mstore v14, 32
+    v11 = add v14, 32
     mstore v11, 0
-    returndata v23, 64
+    returndata v14, 64
 }
 
 fn @recycledTail() [selector=0x52eea5e4, abi_wrapper, pure] {
