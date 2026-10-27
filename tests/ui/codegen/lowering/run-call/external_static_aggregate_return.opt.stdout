@@ -10,8 +10,8 @@ fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
     v8 = lt v7, 36
     jumpi v8, bb3, bb4
   bb4:
-    v16 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v17 = add v16, 64
+    v16 = heap_floor !metadata(alloc_ptr)
+    v17 = add v16, 64 !metadata(alloc_ptr)
     mstore 64, v17 !metadata(memory=scratch)
     v2 = alloc 64 !metadata(deferred_alloc)
     v5 = add arg0, 1
@@ -35,7 +35,7 @@ fn @makeArray() [selector=0x9510f212, abi_wrapper, pure] {
     v11 = lt v10, 36
     jumpi v11, bb4, bb5
   bb5:
-    v31 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v31 = heap_floor !metadata(alloc_ptr)
     v32 = add v31, 192 !metadata(alloc_ptr)
     mstore 64, v32 !metadata(memory=scratch)
     v33 = calldatasize
@@ -83,8 +83,8 @@ fn @makePair() [selector=0xf4d7be11, abi_wrapper, pure] {
     v13 = lt v12, 36
     jumpi v13, bb4, bb5
   bb5:
-    v26 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v27 = add v26, 64
+    v26 = heap_floor !metadata(alloc_ptr)
+    v27 = add v26, 64 !metadata(alloc_ptr)
     mstore 64, v27 !metadata(memory=scratch)
     v2 = alloc 64 !metadata(deferred_alloc)
     v8 = add arg0, 1
@@ -125,7 +125,7 @@ fn @structReturn() [selector=0xc3f9a16c, abi_wrapper, view] {
   bb7:
     v0: i256 = address
     v1 = gas
-    v37 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v37 = heap_floor !metadata(alloc_ptr)
     v38 = add v37, 128 !metadata(alloc_ptr)
     mstore 64, v38 !metadata(memory=scratch)
     mstore v37, 0x62dc843600000000000000000000000000000000000000000000000000000000
@@ -170,7 +170,7 @@ fn @arrayReturn() [selector=0xad0cb941, abi_wrapper, view] {
   bb11:
     v0: i256 = address
     v1 = gas
-    v65 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v65 = heap_floor !metadata(alloc_ptr)
     v66 = add v65, 160 !metadata(alloc_ptr)
     mstore 64, v66 !metadata(memory=scratch)
     mstore v65, 0x9510f21200000000000000000000000000000000000000000000000000000000
@@ -237,7 +237,7 @@ fn @tryStructReturn() [selector=0xcc20ef0a, abi_wrapper, view] {
   bb7:
     v0: i256 = address
     v1 = gas
-    v36 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v36 = heap_floor !metadata(alloc_ptr)
     v37 = add v36, 128 !metadata(alloc_ptr)
     mstore 64, v37 !metadata(memory=scratch)
     mstore v36, 0x62dc843600000000000000000000000000000000000000000000000000000000
@@ -280,7 +280,7 @@ fn @pairReturn() [selector=0xc6630f71, abi_wrapper, view] {
   bb7:
     v0: i256 = address
     v1 = gas
-    v56 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v56 = heap_floor !metadata(alloc_ptr)
     v57 = add v56, 160 !metadata(alloc_ptr)
     mstore 64, v57 !metadata(memory=scratch)
     mstore v56, 0xf4d7be1100000000000000000000000000000000000000000000000000000000
@@ -326,7 +326,7 @@ fn @shortReturn() [selector=0xc41518f3, abi_wrapper, view] {
   bb0:
     v0: i256 = address
     v1 = gas
-    v35 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v35 = heap_floor !metadata(alloc_ptr)
     v36 = add v35, 96 !metadata(alloc_ptr)
     mstore 64, v36 !metadata(memory=scratch)
     mstore v35, 0xe3b21a7a00000000000000000000000000000000000000000000000000000000

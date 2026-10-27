@@ -3,8 +3,8 @@
 @phase lowered
 fn @memoryCopy() [selector=0x261f992c, abi_wrapper, pure] {
   bb0:
-    v47 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v48 = add v47, 64
+    v47 = heap_floor !metadata(alloc_ptr)
+    v48 = add v47, 64 !metadata(alloc_ptr)
     mstore 64, v48
     mstore v47, 3
     v37 = add v47, 32
@@ -80,8 +80,8 @@ fn @calldataCopy() [selector=0xa70bf1aa, abi_wrapper, pure] {
 
 fn @downCopy() [selector=0xc7e6d660, abi_wrapper, pure] {
   bb0:
-    v47 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v48 = add v47, 64
+    v47 = heap_floor !metadata(alloc_ptr)
+    v48 = add v47, 64 !metadata(alloc_ptr)
     mstore 64, v48
     mstore v47, 3
     v37 = add v47, 32

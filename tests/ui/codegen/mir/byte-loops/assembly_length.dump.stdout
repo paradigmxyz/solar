@@ -12,22 +12,28 @@ fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
     v78 = add v77, 4
     v80 = sub v75, 36
     v81 = gt v77, v80
-    v146 = or v76, v81
-    jumpi v146, bb14, bb15
+    v151 = or v76, v81
+    jumpi v151, bb14, bb15
   bb15:
     v82 = calldataload v78
     v83 = add v78, 32
     v84 = add v82, 63
     v85 = lt v84, v82
-    jumpi v85, bb16, bb17
-  bb17:
     v87 = and v84, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v142 = icall @alloc, v87
+    v142 = heap_floor !metadata(alloc_ptr)
+    v143 = add v142, v87 !metadata(alloc_ptr)
+    v144 = lt v143, v142
+    v145 = gt v143, 0xffffffffffffffff
+    v146 = or v144, v145
+    v152 = or v85, v146
+    jumpi v152, bb16, bb18
+  bb18:
+    mstore 64, v143 !metadata(memory=scratch)
     mstore v142, v82
     v89 = sub v75, v83
     v90 = gt v82, v89
-    jumpi v90, bb14, bb18
-  bb18:
+    jumpi v90, bb14, bb17
+  bb17:
     v132 = add v142, 32
     calldatacopy v132, v83, v82
     icall @_dirty
@@ -36,8 +42,8 @@ fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
     v70 = lt v0, arg1
     v71 = add v69, 31
     v72 = lt v71, v69
-    v147 = or v70, v72
-    jumpi v147, bb12, bb13
+    v153 = or v70, v72
+    jumpi v153, bb12, bb13
   bb13:
     v3 = and v71, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v4 = add v3, 63
@@ -46,8 +52,8 @@ fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
   bb7:
     v7 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v141 = icall @alloc, v7
-    v145 = calldatasize
-    calldatacopy v141, v145, v7
+    v150 = calldatasize
+    calldatacopy v141, v150, v7
     mstore v141, v69
     v36 = eq v69, 0
     jumpi v36, bb2, bb4
@@ -100,9 +106,9 @@ fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
     jump bb1
   bb2:
     v33 = icall @_tail, v141
-    v143 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v101 = add v143, 64
-    mstore v143, 64
+    v148 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v101 = add v148, 64
+    mstore v148, 64
     v104 = mload v141
     v106 = add v104, 31
     v107 = and v106, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -113,10 +119,10 @@ fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
     v111 = add v108, v107
     v119 = add v141, 32
     mcopy v108, v119, v104 !metadata(memory=heap, disjoint)
-    v113 = add v143, 32
+    v113 = add v148, 32
     mstore v113, v33
-    v115 = sub v111, v143
-    returndata v143, v115
+    v115 = sub v111, v148
+    returndata v148, v115
   bb6:
     tail_call @revert_stub.6
   bb12:
@@ -268,36 +274,42 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
 
 fn @grownPast() [selector=0xd89b44d4, abi_wrapper, pure] {
   bb0:
-    v89 = icall @alloc, 64
-    v92 = calldatasize
-    calldatacopy v89, v92, 64
-    mstore v89, 1
-    v90 = icall @alloc, 96
-    v94 = calldatasize
-    calldatacopy v90, v94, 96
-    mstore v90, 64
-    mstore v89, 200
-    v9 = add v89, 32
+    v90 = heap_floor !metadata(alloc_ptr)
+    v91 = add v90, 64 !metadata(alloc_ptr)
+    v92 = lt v91, v90
+    v93 = gt v91, 0xffffffffffffffff
+    v94 = or v92, v93
+    jumpi v94, bb10, bb9
+  bb9:
+    mstore 64, v91 !metadata(memory=scratch)
+    v96 = calldatasize
+    calldatacopy v90, v96, 64
+    mstore v90, 1
+    v89 = icall @alloc, 96
+    v98 = calldatasize
+    calldatacopy v89, v98, 96
+    mstore v89, 64
+    mstore v90, 200
+    v9 = add v90, 32
     mstore v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v11 = add v89, 64
-    mstore v11, 0x101010101010101010101010101010101010101010101010101010101010101
-    v71 = add v89, 72
-    v73 = add v90, 32
+    mstore v91, 0x101010101010101010101010101010101010101010101010101010101010101
+    v71 = add v90, 72
+    v73 = add v89, 32
     v42 = add v71, 64
     v43 = add v73, 64
     v44 = lt v73, v42
-    v45 = lt v89, v43
+    v45 = lt v90, v43
     v46 = and v44, v45
     v50 = lt v71, v9
     v53 = or v46, v50
     jumpi v53, bb1, bb4
   bb4:
-    v54 = mload v89
+    v54 = mload v90
     v55 = lt v54, 64
     v56 = sub v54, 64
     v57 = lt v56, 40
     v58 = or v55, v57
-    v60 = mload v90
+    v60 = mload v89
     v61 = lt v60, 64
     v64 = or v58, v61
     jumpi v64, bb5, bb8
@@ -305,35 +317,39 @@ fn @grownPast() [selector=0xd89b44d4, abi_wrapper, pure] {
     mcopy v73, v71, 64
     jump bb2
   bb1:
-    v15 = phi [bb0: 0], [bb7: v32]
+    v15 = phi [bb9: 0], [bb7: v32]
     v16 = lt v15, 64
     jumpi v16, bb3, bb2
   bb2:
-    v34 = add v90, 64
+    v34 = add v89, 64
     v35 = mload v34
     mstore 0, v35 !metadata(memory=scratch)
     returndata 0, 32
   bb3:
     v17 = add v15, 40
-    v18 = mload v89
+    v18 = mload v90
     v19 = lt v17, v18
     jumpi v19, bb6, bb5
   bb6:
-    v77 = add v89, v17
+    v77 = add v90, v17
     v78 = add v77, 32
     v23 = mload v78
     v24 = byte 0, v23
-    v26 = mload v90
+    v26 = mload v89
     v27 = lt v15, v26
     jumpi v27, bb7, bb5
   bb5:
     tail_call @revert_stub.7
   bb7:
-    v80 = add v90, v15
+    v80 = add v89, v15
     v81 = add v80, 32
     mstore8 v81, v24
     v32 = add v15, 1
     jump bb1
+  bb10:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @_dirty() [pure] {

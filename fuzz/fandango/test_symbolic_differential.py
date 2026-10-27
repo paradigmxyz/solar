@@ -53,6 +53,7 @@ def _forge_report(
             "max_solver_queries": 100,
             "max_calldata_bytes": 512,
             "max_dynamic_length": max_dynamic_length,
+            "max_depth": symbolic.SYMBOLIC_MAX_DEPTH,
             "exploration_order": "bfs",
             "storage_layout": "solidity",
             "default_array_lengths": [0, 1],
@@ -121,6 +122,21 @@ class FunctionSelectionTests(unittest.TestCase):
 
         self.assertEqual(view["mutability"], "view")
         self.assertEqual(stateful["mutability"], "nonpayable")
+
+        with self.assertRaisesRegex(ValueError, "allowed: nonpayable, pure"):
+            symbolic._select_function(
+                _artifact(mutability="payable"),
+                _artifact(mutability="payable"),
+                "f(uint256)",
+                include_stateful=True,
+            )
+        payable = symbolic._select_function(
+            _artifact(mutability="payable"),
+            _artifact(mutability="payable"),
+            "f(uint256)",
+            include_payable=True,
+        )
+        self.assertEqual(payable["mutability"], "payable")
 
     def test_rejects_selector_disagreement(self) -> None:
 
@@ -211,6 +227,51 @@ class ResultClassificationTests(unittest.TestCase):
                 "0xb3de648b",
             )
 
+    def test_counterexample_separates_harness_inputs(self) -> None:
+        inputs = [
+            {"name": "a", "type": "uint256"},
+            {"name": "b", "type": "bytes"},
+            {"name": "c", "type": "uint8[2]"},
+        ]
+        target_args = (
+            (7).to_bytes(32)
+            + (128).to_bytes(32)
+            + (1).to_bytes(32)
+            + (2).to_bytes(32)
+            + (2).to_bytes(32)
+            + bytes.fromhex("abcd").ljust(32, b"\0")
+        )
+        harness_args = (
+            (7).to_bytes(32)
+            + (128 + 96).to_bytes(32)
+            + (1).to_bytes(32)
+            + (2).to_bytes(32)
+            + bytes(12)
+            + bytes.fromhex("00000000000000000000000000000000000000ca")
+            + (5).to_bytes(32)
+            + bytes(12)
+            + bytes.fromhex("00000000000000000000000000000000000000fe")
+            + (2).to_bytes(32)
+            + bytes.fromhex("abcd").ljust(32, b"\0")
+        )
+
+        calldata, values = symbolic._target_calldata(
+            "0xb3de648b",
+            "0x12345678" + harness_args.hex(),
+            inputs,
+            ("caller", "value", "observer"),
+        )
+
+        self.assertEqual(calldata, "0xb3de648b" + target_args.hex())
+        self.assertEqual(
+            values,
+            {
+                "caller": "0x00000000000000000000000000000000000000ca",
+                "value": "5",
+                "observer": "0x00000000000000000000000000000000000000fe",
+            },
+        )
+
     def test_bounded_agreement_requires_the_requested_forge_bounds(self) -> None:
         expected = {
             "solver_timeout_seconds": 5,
@@ -240,7 +301,7 @@ class ResultClassificationTests(unittest.TestCase):
 
 
 class ProjectGenerationTests(unittest.TestCase):
-    def test_writes_only_the_focused_symbolic_harness(self) -> None:
+    def test_pure_harness_runs_both_runtimes_at_one_address(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = pathlib.Path(tmp)
             symbolic._write_project(
@@ -263,17 +324,24 @@ class ProjectGenerationTests(unittest.TestCase):
         self.assertIn("0xb3de648b", test_source)
         self.assertIn("60006000f3", test_source)
         self.assertIn("60016000f3", test_source)
-        self.assertNotIn("RuntimeRouter", test_source)
-        self.assertIn("solcTarget = _deploy(SOLC_CODE)", test_source)
-        self.assertIn("solcTarget.staticcall", test_source)
-        self.assertIn("solarTarget.staticcall", test_source)
+        self.assertNotIn("function setUp", test_source)
+        self.assertNotIn("{gas:", test_source)
+        self.assertNotIn("prefixResults", test_source)
+        self.assertNotIn("vm.prank", test_source)
+        self.assertNotIn("vm.deal", test_source)
+        self.assertEqual(test_source.count("target.staticcall(callData)"), 2)
+        solc = test_source.index("address target = _deploy(SOLC_CODE)")
+        revert = test_source.index("assert(vm.revertToStateAndDelete(snapshot))")
+        solar = test_source.index("assert(_deploy(SOLAR_CODE) == target)")
+        self.assertLess(test_source.index("vm.snapshotState()"), solc)
+        self.assertLess(solc, revert)
+        self.assertLess(revert, solar)
         self.assertIn("target := create", test_source)
-        self.assertNotIn("recordLogs", test_source)
-        self.assertNotIn("vm.store", test_source)
         self.assertIn('evm_version = "osaka"', config)
         self.assertIn("max_dynamic_length = 256", config)
+        self.assertIn("symbolic_call_targets = true", config)
 
-    def test_stateful_harness_compares_single_call_results(self) -> None:
+    def test_stateful_harness_compares_final_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = pathlib.Path(tmp)
             symbolic._write_project(
@@ -292,14 +360,59 @@ class ProjectGenerationTests(unittest.TestCase):
             test_source = (project / "test" / "SymbolicDifferential.t.sol").read_text()
             config = (project / "foundry.toml").read_text()
 
-        self.assertNotIn("RuntimeRouter", test_source)
-        self.assertIn("solcTarget.call", test_source)
-        self.assertIn("solarTarget.call", test_source)
-        self.assertIn("target := create", test_source)
+        self.assertEqual(test_source.count("target.call(callData)"), 2)
         self.assertNotIn("vm.etch", test_source)
-        self.assertNotIn("vm.record", test_source)
-        self.assertNotIn("vm.store", test_source)
+        self.assertEqual(test_source.count("vm.accesses(target)"), 2)
+        self.assertEqual(test_source.count("vm.getRecordedLogs()"), 1)
+        self.assertIn("logsA[0] = _committedLogs(okA);", test_source)
+        self.assertIn("logsB[0] = _committedLogs(okB);", test_source)
+        self.assertIn("vm.store(STATE_MIRROR, writesA[i], valuesA[i])", test_source)
+        self.assertIn(
+            "assert(vm.load(STATE_MIRROR, writesB[i]) == vm.load(target, writesB[i]))",
+            test_source,
+        )
+        self.assertIn("_assertSameBytes(a[i].data, b[i].data)", test_source)
+        self.assertIn("assert(target.balance == balanceA)", test_source)
+        self.assertIn("assert(vm.getNonce(target) == nonceA)", test_source)
+        self.assertNotIn("observer", test_source)
         self.assertIn('storage_layout = "zero_init"', config)
+
+    def test_payable_harness_sends_symbolic_value_from_symbolic_caller(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = pathlib.Path(tmp)
+            symbolic._write_project(
+                project,
+                "0x60006000f3",
+                "0x60016000f3",
+                {
+                    "selector": "0xb3de648b",
+                    "inputs": [{"name": "value", "type": "uint256"}],
+                    "mutability": "payable",
+                },
+                "osaka",
+                max_dynamic_length=256,
+                extras=("caller", "value", "observer"),
+            )
+
+            test_source = (project / "test" / "SymbolicDifferential.t.sol").read_text()
+
+        self.assertIn(
+            "checkSymbolicDifferential(uint256 arg0, address caller, "
+            "uint256 value, address observer)",
+            test_source,
+        )
+        self.assertIn("vm.deal(caller, value);", test_source)
+        self.assertLess(
+            test_source.index("vm.deal(caller, value);"),
+            test_source.index("vm.snapshotState()"),
+        )
+        self.assertEqual(
+            test_source.count("vm.prank(caller);\n        (bool ok"),
+            2,
+        )
+        self.assertEqual(test_source.count("target.call{value: value}(callData)"), 2)
+        self.assertIn("uint256 observedA = observer.balance;", test_source)
+        self.assertIn("assert(observer.balance == observedA);", test_source)
 
     def test_prefix_state_is_prepared_before_symbolic_comparison(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -321,6 +434,9 @@ class ProjectGenerationTests(unittest.TestCase):
             test_source = (project / "test" / "SymbolicDifferential.t.sol").read_text()
 
         symbolic_start = test_source.index("function checkSymbolicDifferential")
+        self.assertIn("logsA[1] = _committedLogs(ok);", test_source)
+        self.assertIn("logsB[1] = _committedLogs(ok);", test_source)
+        self.assertIn("logsA[2] = _committedLogs(okA);", test_source)
         self.assertEqual(test_source.count('hex"12345678"'), 2)
         self.assertEqual(test_source.count('hex""'), 2)
         first_prefix_a = test_source.index('hex"12345678"')
@@ -331,22 +447,16 @@ class ProjectGenerationTests(unittest.TestCase):
             first_prefix_a < second_prefix_a < first_prefix_b < second_prefix_b
         )
         self.assertGreater(first_prefix_a, symbolic_start)
+        self.assertGreater(first_prefix_a, test_source.index("vm.record();"))
         self.assertIn("assert(prefixResults[0]", test_source)
-        self.assertEqual(
-            test_source.count("solcTarget.staticcall{gas: CALL_GAS}(callData)"),
-            1,
-        )
-        self.assertEqual(
-            test_source.count("solarTarget.staticcall{gas: CALL_GAS}(callData)"),
-            1,
-        )
-        self.assertNotIn("vm.etch", test_source)
-        self.assertNotIn("vm.record", test_source)
-        self.assertNotIn("vm.store", test_source)
-        self.assertNotIn("uint256 snapshot", test_source)
-        self.assertLess(
-            second_prefix_b,
-            test_source.index("solcTarget.staticcall", symbolic_start),
+        suffix_a = test_source.index("target.staticcall(callData)")
+        suffix_b = test_source.index("target.staticcall(callData)", suffix_a + 1)
+        self.assertTrue(
+            second_prefix_a
+            < suffix_a
+            < test_source.index("assert(vm.revertToStateAndDelete(snapshot))")
+            < second_prefix_b
+            < suffix_b
         )
 
 
@@ -389,6 +499,8 @@ class CommandTests(unittest.TestCase):
                 via_ir=True,
                 include_view=False,
                 include_stateful=False,
+                include_payable=False,
+                symbolic_caller=False,
                 prefix_calldata=[],
                 project_root=None,
                 include_path=[],
@@ -512,9 +624,16 @@ class CommandTests(unittest.TestCase):
             for directory in (args.solc_attempt, args.solar_attempt):
                 (directory / "input.json").write_text(json.dumps(standard_input))
                 (directory / "stdout.txt").write_text(json.dumps(output))
-            output["contracts"]["Probe.sol"]["Probe"]["evm"]["deployedBytecode"].pop(
-                "immutableReferences"
-            )
+            deployed = output["contracts"]["Probe.sol"]["Probe"]["evm"][
+                "deployedBytecode"
+            ]
+            # LOG0 and CALL: a log may come from a frame that later reverts.
+            deployed["object"] = "a0f1"
+            (args.solar_attempt / "stdout.txt").write_text(json.dumps(output))
+            logging_result = symbolic.run(args, root / "logging-out")
+            self.assertEqual(logging_result["status"], "incomplete")
+            self.assertIn("reverted inner frames", logging_result["reason"])
+            deployed.pop("immutableReferences")
             (args.solar_attempt / "stdout.txt").write_text(json.dumps(output))
             with self.assertRaisesRegex(ValueError, "immutableReferences"):
                 symbolic.run(args, root / "saved-out")

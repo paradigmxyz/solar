@@ -613,13 +613,19 @@ fn @_dirty() [pure] {
 
 fn @_count(arg0: i256) -> i256 [may_return_memory, pure] {
   bb0:
-    v77 = icall @alloc, 64
+    v77 = heap_floor !metadata(alloc_ptr)
+    v78 = add v77, 64 !metadata(alloc_ptr)
+    v79 = lt v78, v77
+    v80 = gt v78, 0xffffffffffffffff
+    v81 = or v79, v80
+    jumpi v81, bb13, bb12
+  bb12:
+    mstore 64, v78 !metadata(memory=scratch)
     mstore v77, 32
     v60 = add arg0, 32
     v62 = add v77, 32
     v34 = add v60, 32
-    v64 = add v77, 64
-    v39 = lt arg0, v64
+    v39 = lt arg0, v78
     v40 = lt v77, v34
     v41 = and v39, v40
     jumpi v41, bb5, bb4
@@ -670,6 +676,10 @@ fn @_count(arg0: i256) -> i256 [may_return_memory, pure] {
     mstore8 v70, v16
     v24 = add v8, 1
     jump bb1
+  bb13:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @revert_stub.10() {
@@ -699,15 +709,21 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v7 = add v2, 32
     v8 = add v6, 63
     v9 = lt v8, v6
-    jumpi v9, bb3, bb4
-  bb4:
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v24 = icall @alloc, v11
+    v24 = heap_floor !metadata(alloc_ptr)
+    v25 = add v24, v11 !metadata(alloc_ptr)
+    v26 = lt v25, v24
+    v27 = gt v25, 0xffffffffffffffff
+    v28 = or v26, v27
+    v30 = or v9, v28
+    jumpi v30, bb3, bb5
+  bb5:
+    mstore 64, v25 !metadata(memory=scratch)
     mstore v24, v6
     v13 = sub v0, v7
     v14 = gt v6, v13
-    jumpi v14, bb1, bb5
-  bb5:
+    jumpi v14, bb1, bb4
+  bb4:
     v21 = add v24, 32
     calldatacopy v21, v7, v6
     ret v24

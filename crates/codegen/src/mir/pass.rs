@@ -80,11 +80,11 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &frame_promotion::FrameSlotPromotion,
     &function_compaction::DeadArgElim,
     &function_compaction::MergeEquivalentFunctions,
-    &memory_dse::MemoryDse,
+    &memory_dse::MemoryDse::Standard,
+    &memory_dse::MemoryDse::WithUnreadAllocations,
     &coalesce_allocs::CoalesceAllocs,
     &static_alloc::DeferAlloc,
     &sroa::Sroa,
-    &copy_elision::CopyElision,
     &dce::Dce,
     &lower_arithmetic::LowerArithmetic,
     &lower_builtins::LowerBuiltins,
@@ -175,6 +175,43 @@ impl<P: MirPass> MirPass for GasOnly<P> {
     }
 }
 
+/// Runs one pipeline slot at `-O none` too, for cheap cleanups whose bytecode savings repay their
+/// compile time. Wrap single slots, not every occurrence of a pass.
+struct RunsAtNone<P>(P);
+
+impl<P> RunsAtNone<P> {
+    const fn new(pass: P) -> Self {
+        Self(pass)
+    }
+}
+
+impl<P: MirPass> MirPass for RunsAtNone<P> {
+    fn name(&self) -> &'static str {
+        self.0.name()
+    }
+
+    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        gcx.sess.opts.optimization.is_none() || self.0.is_enabled(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        self.0.is_required()
+    }
+
+    fn cache_key(&self) -> Option<(&'static str, &'static str)> {
+        self.0.cache_key()
+    }
+
+    fn run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut ModuleAnalyses,
+    ) -> bool {
+        self.0.run_pass(gcx, module, analyses)
+    }
+}
+
 /// The canonical MIR pipeline used by EVM codegen.
 static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // Clamp inline assembly's stores of absolute addresses to the free memory pointer before any
@@ -224,7 +261,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
     &sroa::Sroa,
-    &memory_dse::MemoryDse,
+    &memory_dse::MemoryDse::Standard,
     &dce::Dce,
     // Late control-flow rewrites expose scalar simplifications.
     // Thread and clean the CFG first so the rest of this sequence observes the
@@ -258,12 +295,14 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &word_sequence::WordSequence::Early,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
-    &cfg_simplify::CfgSimplify,
+    // Runs at `-O none` too: it removes the empty blocks lowering leaves, which shrinks every
+    // later pass's input and the bytecode.
+    &RunsAtNone::new(cfg_simplify::CfgSimplify),
     // Small pure diamonds become selects once folded conditions are gone.
     &if_convert::IfConvert,
     &frame_promotion::FrameSlotPromotion,
-    &copy_elision::CopyElision,
-    &memory_dse::MemoryDse,
+    // Builtin expansion exposes buffers whose readers are gone.
+    &memory_dse::MemoryDse::WithUnreadAllocations,
     &lower_abi::LowerAbi,
     // ABI lowering exposes canonical-word helpers to the same inlining policy.
     &inline::Inline::Semantic,
@@ -287,17 +326,20 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &egraph::Egraph,
     &word_sequence::WordSequence::Late,
     &cfg_simplify::CfgSimplify,
-    &memory_dse::MemoryDse,
+    &memory_dse::MemoryDse::Standard,
     // Expose callee reads before late CSE.
     &inline::Inline::Semantic,
     &cse::Cse::All,
+    // Forwarding exposes masks on stored words, such as ABI-encoded struct fields. Fold them
+    // while integer types still exist.
+    &egraph::Egraph,
     // Fold checks exposed by forwarding in late CSE. Gas-only: under `-Osize` it grows the
     // corpus's bytecode.
     &GasOnly::new(check_elim::CheckElim),
     &dce::Dce,
     // Forwarding has replaced the reads of allocation headers, which leaves their stores dead
     // while the allocations are still atomic.
-    &memory_dse::MemoryDse,
+    &memory_dse::MemoryDse::Standard,
     &lower_dispatch::LowerDispatch,
     &lower_structs::LowerStructs,
     // Hoisted ABI guards leave empty wrapper entries and unreachable reverts.
@@ -338,7 +380,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Allocation lowering exposes zero fills and free-memory-pointer stores
     // that later stores in the same block can overwrite completely. Keep this
     // gas-only: late constant-keccak folding can grow bytecode under `-Osize`.
-    &GasOnly::new(memory_dse::MemoryDse),
+    &GasOnly::new(memory_dse::MemoryDse::Standard),
     &lower_memory_zero::LowerMemoryZero,
     // Materialize integer cleanup before word-level extraction and scheduling.
     &lower_integers::LowerIntegers,

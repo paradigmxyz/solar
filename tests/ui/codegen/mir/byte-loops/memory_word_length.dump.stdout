@@ -7,13 +7,24 @@ fn @copy() [selector=0xf5088730, abi_wrapper, pure] {
     v101 = lt v100, 100
     jumpi v101, bb16, bb17
   bb17:
-    v130 = icall @alloc, 96
-    v133 = calldatasize
-    calldatacopy v130, v133, 96
+    v130 = heap_floor !metadata(alloc_ptr)
+    v131 = add v130, 96 !metadata(alloc_ptr)
+    v132 = lt v131, v130
+    v133 = gt v131, 0xffffffffffffffff
+    v134 = or v132, v133
+    jumpi v134, bb19, bb18
+  bb18:
+    mstore 64, v131 !metadata(memory=scratch)
+    v142 = calldatasize
+    calldatacopy v130, v142, 96
     mstore v130, 2
-    v131 = icall @alloc, 96
-    v135 = calldatasize
-    calldatacopy v131, v135, 96
+    v137 = add v131, 96
+    v139 = gt v137, 0xffffffffffffffff
+    jumpi v139, bb19, bb20
+  bb20:
+    mstore 64, v137 !metadata(memory=scratch)
+    v143 = calldatasize
+    calldatacopy v131, v143, 96
     v2 = mload v130
     v3 = gt v2, 0
     jumpi v3, bb7, bb6
@@ -115,6 +126,10 @@ fn @copy() [selector=0xf5088730, abi_wrapper, pure] {
     v42 = mload v116
     mstore 0, v42 !metadata(memory=scratch)
     returndata 0, 32
+  bb19:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb16:
     revert 0, 0
 }
@@ -132,21 +147,4 @@ fn @entry() [entry] {
     tail_call @copy
   bb3:
     revert 0, 0
-}
-
-fn @alloc(arg0: i256) -> i256 {
-  bb0:
-    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v2 = add v0, arg0 !metadata(alloc_ptr)
-    v3 = lt v2, v0
-    v4 = gt v2, 0xffffffffffffffff
-    v5 = or v3, v4
-    jumpi v5, bb1, bb2
-  bb2:
-    mstore 64, v2 !metadata(memory=scratch)
-    ret v0
-  bb1:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }

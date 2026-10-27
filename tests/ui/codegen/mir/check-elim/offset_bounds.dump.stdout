@@ -7,7 +7,7 @@ fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
     v60 = add v0, 64
     v4 = add v60, 63
     v7 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v91 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v91 = heap_floor !metadata(alloc_ptr)
     v92 = add v91, v7 !metadata(alloc_ptr)
     v93 = lt v92, v91
     v94 = gt v92, 0xffffffffffffffff

@@ -8,7 +8,8 @@ use super::{
     },
     LOW_MEMORY_BOUND, PtrLocation,
 };
-use crate::mir::Callee;
+use crate::mir::{BlockId, Callee, analysis::CfgInfo};
+use solar_data_structures::index::index_vec;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Returns the destination of a symbolic memory write that can cover a
@@ -405,22 +406,141 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Returns whether a function can read or observe the reserved free-memory-pointer word, or
     /// write part of it. Unknown offsets and lengths are conservatively overlapping; constant
-    /// ranges proven disjoint from `[0x40, 0x60)` keep the lazy entry initialization optimization.
+    /// ranges proven disjoint from `[0x40, 0x60)`, and ranges addressed from the heap, which
+    /// starts above the slot, keep the lazy entry initialization optimization.
     /// A full-word store to the slot overwrites the initialization without observing it, and a
     /// `revert` or `return` range in the block of such a store reads the stored word.
     pub(in crate::backend::evm::codegen) fn function_may_observe_free_memory_slot(
         func: &Function,
     ) -> bool {
+        func.instructions()
+            .any(|inst_id| Self::instruction_may_observe_free_memory_slot(func, inst_id))
+            || func.blocks.iter().any(|block| {
+                Self::terminator_may_observe_free_memory_slot(func, block.terminator.as_ref())
+                    && !func.block_stores_fmp_slot(block)
+            })
+    }
+
+    /// Returns what a function does with the slot's initial value: whether it observes the slot
+    /// before every path to the observation stored a full word, and the functions it calls before
+    /// such a store. A call to a function that stores the slot on every path to its return
+    /// counts as a store, per `stores_slot`.
+    pub(in crate::backend::evm::codegen) fn initial_free_memory_use(
+        func: &Function,
+        stores_slot: &mut dyn FnMut(FunctionId) -> bool,
+    ) -> InitialSlotUse {
+        let mut used = InitialSlotUse::default();
+        if func.blocks.is_empty() {
+            return used;
+        }
+        let flow = Self::slot_store_flow(func, stores_slot);
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            if flow.cfg.is_reachable(block_id) && flow.stored_in[block_id] {
+                continue;
+            }
+            // The storing instruction itself runs before its store takes effect.
+            let end = flow.first_stores[block_id].map_or(block.instructions.len(), |at| at + 1);
+            for &inst in &block.instructions[..end] {
+                if let InstKind::ICall { function: Callee::Function(callee), .. } =
+                    func.inst(inst).kind
+                {
+                    used.calls.push(callee);
+                }
+                used.observes |= Self::instruction_may_observe_free_memory_slot(func, inst);
+            }
+            if flow.first_stores[block_id].is_none() {
+                match block.terminator {
+                    Some(Terminator::TailCall { function, .. }) => used.calls.push(function),
+                    ref terminator => {
+                        used.observes |= Self::terminator_may_observe_free_memory_slot(
+                            func,
+                            terminator.as_ref(),
+                        );
+                    }
+                }
+            }
+        }
+        used
+    }
+
+    /// Returns whether every path from the start of a function to a return stores a full word to
+    /// the slot, in the function or in a call that `stores_slot` accepts.
+    pub(in crate::backend::evm::codegen) fn stores_free_memory_slot_on_return(
+        func: &Function,
+        stores_slot: &mut dyn FnMut(FunctionId) -> bool,
+    ) -> bool {
+        if func.blocks.is_empty() {
+            return false;
+        }
+        let flow = Self::slot_store_flow(func, stores_slot);
+        func.blocks.iter_enumerated().all(|(block_id, block)| {
+            if !flow.cfg.is_reachable(block_id) {
+                return true;
+            }
+            let stored = flow.stored_in[block_id] || flow.first_stores[block_id].is_some();
+            match block.terminator {
+                Some(Terminator::Return { .. }) => stored,
+                Some(Terminator::TailCall { function, .. }) => stored || stores_slot(function),
+                _ => true,
+            }
+        })
+    }
+
+    /// Finds, for every block, the first instruction that stores the slot and whether every path
+    /// into the block stored it before.
+    fn slot_store_flow(
+        func: &Function,
+        stores_slot: &mut dyn FnMut(FunctionId) -> bool,
+    ) -> SlotStoreFlow {
+        let cfg = CfgInfo::new(func);
+        let first_stores = func
+            .blocks
+            .iter()
+            .map(|block| {
+                block.instructions.iter().position(|&inst| {
+                    func.is_fmp_slot_store(inst)
+                        || matches!(
+                            func.inst(inst).kind,
+                            InstKind::ICall { function: Callee::Function(callee), .. }
+                                if stores_slot(callee)
+                        )
+                })
+            })
+            .collect::<IndexVec<BlockId, _>>();
+        // A block starts after a store when every path into it stored; loops start optimistic.
+        let mut stored_in = index_vec![true; func.blocks.len()];
+        stored_in[BlockId::ENTRY] = false;
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for &block in cfg.rpo() {
+                let stored = block != BlockId::ENTRY
+                    && cfg.predecessors(block).iter().all(|&pred| {
+                        !cfg.is_reachable(pred) || stored_in[pred] || first_stores[pred].is_some()
+                    });
+                if stored_in[block] != stored {
+                    stored_in[block] = stored;
+                    changed = true;
+                }
+            }
+        }
+        SlotStoreFlow { cfg, first_stores, stored_in }
+    }
+
+    fn instruction_may_observe_free_memory_slot(func: &Function, inst_id: InstId) -> bool {
+        // An address that is not a constant overlaps unless the heap it lies in starts above the
+        // slot.
         let overlaps = |offset, size| {
             Self::constant_memory_range_may_overlap_fmp(
                 func.value_u64(offset),
                 func.value_u64(size),
-            )
+            ) && AliasAnalysis::range_may_overlap_fmp(func, offset, func.value_u64(size))
         };
         let overlaps_const = |offset, size| {
             Self::constant_memory_range_may_overlap_fmp(func.value_u64(offset), Some(size))
+                && AliasAnalysis::range_may_overlap_fmp(func, offset, Some(size))
         };
-        if func.instructions().any(|inst_id| match &func.inst(inst_id).kind {
+        match &func.inst(inst_id).kind {
             InstKind::Store(..) if func.is_fmp_slot_store(inst_id) => false,
             InstKind::Load(offset, PtrLocation::Memory)
             | InstKind::Store(offset, _, PtrLocation::Memory) => {
@@ -452,16 +572,22 @@ impl<'gcx> EvmCodegen<'gcx> {
             // here, so retain the Solidity memory invariant conservatively.
             InstKind::AbiEncode { .. } | InstKind::MappingSlotBytes(_, _) => true,
             _ => false,
-        }) {
-            return true;
         }
+    }
 
-        func.blocks.iter().any(|block| match block.terminator.as_ref() {
+    fn terminator_may_observe_free_memory_slot(
+        func: &Function,
+        terminator: Option<&Terminator>,
+    ) -> bool {
+        match terminator {
             Some(Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size }) => {
-                overlaps(*offset, *size) && !func.block_stores_fmp_slot(block)
+                Self::constant_memory_range_may_overlap_fmp(
+                    func.value_u64(*offset),
+                    func.value_u64(*size),
+                ) && AliasAnalysis::range_may_overlap_fmp(func, *offset, func.value_u64(*size))
             }
             _ => false,
-        })
+        }
     }
 
     pub(in crate::backend::evm::codegen) fn constant_memory_range_may_overlap_fmp(
@@ -480,4 +606,21 @@ impl<'gcx> EvmCodegen<'gcx> {
         let Some(size) = size else { return true };
         offset.checked_add(size).is_none_or(|range_end| range_end > start)
     }
+}
+
+/// How a function uses the free-memory pointer's initial value.
+#[derive(Default)]
+pub(in crate::backend::evm::codegen) struct InitialSlotUse {
+    /// Whether an observation of the slot has a path from the function's start without a
+    /// full-word store before it.
+    pub(in crate::backend::evm::codegen) observes: bool,
+    /// The functions called before any such store.
+    pub(in crate::backend::evm::codegen) calls: Vec<FunctionId>,
+}
+
+/// Where a function stores the slot.
+struct SlotStoreFlow {
+    cfg: CfgInfo,
+    first_stores: IndexVec<BlockId, Option<usize>>,
+    stored_in: IndexVec<BlockId, bool>,
 }

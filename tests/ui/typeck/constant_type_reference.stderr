@@ -1,3 +1,9 @@
+error[9259]: only constants of value type and byte array type are implemented
+   ╭▸ ROOT/tests/ui/typeck/constant_type_reference.sol:LL:CC
+   │
+LL │ int[L] constant L = 6;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━
+
 error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/constant_type_reference.sol:LL:CC
    │
@@ -9,8 +15,8 @@ LL │ int[L] constant L = 6;
 error[9259]: only constants of value type and byte array type are implemented
    ╭▸ ROOT/tests/ui/typeck/constant_type_reference.sol:LL:CC
    │
-LL │ int[L] constant L = 6;
-   ╰╴━━━━━━━━━━━━━━━━━━━━━━
+LL │     int[M] constant M = 6;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
 
 error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/constant_type_reference.sol:LL:CC
@@ -19,12 +25,6 @@ LL │     int[M] constant M = 6;
    │         ━               ─ evaluation of constant value failed here
    │
    ╰ help: array lengths take number literals, integer constants and arithmetic on them
-
-error[9259]: only constants of value type and byte array type are implemented
-   ╭▸ ROOT/tests/ui/typeck/constant_type_reference.sol:LL:CC
-   │
-LL │     int[M] constant M = 6;
-   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
 
 error: aborting due to 4 previous errors
 
