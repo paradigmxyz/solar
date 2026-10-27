@@ -1615,6 +1615,31 @@ warning: confusable spelling
         assert_eq!(messages(&diagnostics), ["forwarded", "direct"]);
     }
 
+    #[test]
+    fn test_nested_deferrals_of_distinct_contexts() {
+        let (a, a_diagnostics) = buffer_dcx();
+        let (b, b_diagnostics) = buffer_dcx();
+
+        let ((_, inner), outer) = a.defer(|| b.defer(|| a.warn("from a").emit()));
+        // Emitting through `a` under `b`'s deferral is not withheld.
+        assert_eq!(messages(&a_diagnostics), ["from a"]);
+        a.emit_deferred(outer);
+        b.emit_deferred(inner);
+        assert!(messages(&b_diagnostics).is_empty());
+    }
+
+    #[test]
+    fn test_session_keeps_the_source_map_of_a_context_that_deferred() {
+        let source_map = std::sync::Arc::new(source_map::SourceMap::empty());
+        let dcx = DiagCtxt::with_buffer_emitter(Some(source_map.clone()), ColorChoice::Never);
+        let (_, deferred) = dcx.defer(|| dcx.warn("withheld").emit());
+        dcx.emit_deferred(deferred);
+
+        let sess = crate::Session::builder().dcx(dcx).build();
+
+        assert!(std::ptr::eq(sess.source_map(), &*source_map));
+    }
+
     #[cfg(debug_assertions)]
     #[test]
     fn test_emission_from_unwrapped_parallel_work_is_asserted() {

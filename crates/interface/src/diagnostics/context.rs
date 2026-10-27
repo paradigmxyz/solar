@@ -32,6 +32,12 @@ thread_local! {
     static DEFERRED: RefCell<Option<Deferral>> = const { RefCell::new(None) };
 }
 
+#[cfg(debug_assertions)]
+thread_local! {
+    /// The contexts that have a [`DiagCtxt::defer`] running on this thread, innermost last.
+    static DEFERRING: RefCell<Vec<*const DiagCtxt>> = const { RefCell::new(Vec::new()) };
+}
+
 /// Contexts that have withheld diagnostics, for [`flush_withheld`].
 static WITHHOLDING: Mutex<Vec<Weak<Mutex<DiagCtxtInner>>>> = Mutex::new(Vec::new());
 
@@ -368,11 +374,6 @@ impl DiagCtxt {
         self.inner.lock().emitter.source_map().cloned()
     }
 
-    /// Gets the source map associated with this context.
-    pub fn source_map_mut(&mut self) -> Option<&Arc<SourceMap>> {
-        Arc::get_mut(&mut self.inner)?.get_mut().emitter.source_map()
-    }
-
     /// Sets flags.
     pub fn with_flags(mut self, f: impl FnOnce(&mut DiagCtxtFlags)) -> Self {
         self.set_flags_mut(f);
@@ -447,6 +448,8 @@ impl DiagCtxt {
         debug_assert!(
             deferral.is_some()
                 || self.defers.load(Ordering::Relaxed) == 0
+                || DEFERRING
+                    .with_borrow(|deferring| deferring.iter().any(|&dcx| std::ptr::eq(dcx, self)))
                 || matches!(diagnostic.level, Level::Bug | Level::Fatal),
             "diagnostic emitted outside the deferral that its parallel work expects: {:?}",
             diagnostic.messages.first().map(|(message, _)| message.as_str()),
@@ -492,12 +495,18 @@ impl DiagCtxt {
             fn drop(&mut self) {
                 DEFERRED.set(self.outer.take());
                 #[cfg(debug_assertions)]
-                self.dcx.defers.fetch_sub(1, Ordering::Relaxed);
+                {
+                    self.dcx.defers.fetch_sub(1, Ordering::Relaxed);
+                    DEFERRING.with_borrow_mut(|deferring| deferring.pop());
+                }
             }
         }
 
         #[cfg(debug_assertions)]
-        self.defers.fetch_add(1, Ordering::Relaxed);
+        {
+            self.defers.fetch_add(1, Ordering::Relaxed);
+            DEFERRING.with_borrow_mut(|deferring| deferring.push(self));
+        }
         let outer = DEFERRED.replace(Some(Deferral { dcx: self, batch: None }));
         let restore = Restore { dcx: self, outer };
         let result = f();
