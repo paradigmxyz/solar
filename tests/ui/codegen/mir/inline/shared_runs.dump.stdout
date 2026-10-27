@@ -34,7 +34,7 @@ fn @paintUint(arg0: i256) -> i256 [may_return_memory, pure] {
     v5 = returndatasize
     v6 = add v5, 63
     v9 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v22 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v22 = heap_floor !metadata(alloc_ptr)
     v23 = add v22, v9 !metadata(alloc_ptr)
     mstore 64, v23 !metadata(memory=scratch)
     mstore v22, v5

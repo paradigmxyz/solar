@@ -1,0 +1,74 @@
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`
+   ╭▸ ROOT/tests/ui/resolve/auxiliary/parallel_parse_order_1.sol:LL:CC
+   │
+LL │     uint x1 = ;
+   ╰╴              ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`
+   ╭▸ ROOT/tests/ui/resolve/auxiliary/parallel_parse_order_2.sol:LL:CC
+   │
+LL │     uint x2 = ;
+   ╰╴              ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`
+   ╭▸ ROOT/tests/ui/resolve/auxiliary/parallel_parse_order_3.sol:LL:CC
+   │
+LL │     uint x3 = ;
+   ╰╴              ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`
+   ╭▸ ROOT/tests/ui/resolve/auxiliary/parallel_parse_order_4.sol:LL:CC
+   │
+LL │     uint x4 = ;
+   ╰╴              ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`
+   ╭▸ ROOT/tests/ui/resolve/auxiliary/parallel_parse_order_5.sol:LL:CC
+   │
+LL │     uint x5 = ;
+   ╰╴              ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`
+   ╭▸ ROOT/tests/ui/resolve/auxiliary/parallel_parse_order_6.sol:LL:CC
+   │
+LL │     uint x6 = ;
+   ╰╴              ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`
+   ╭▸ ROOT/tests/ui/resolve/auxiliary/parallel_parse_order_7.sol:LL:CC
+   │
+LL │     uint x7 = ;
+   ╰╴              ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`
+   ╭▸ ROOT/tests/ui/resolve/auxiliary/parallel_parse_order_8.sol:LL:CC
+   │
+LL │     uint x8 = ;
+   ╰╴              ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`
+   ╭▸ ROOT/tests/ui/resolve/auxiliary/parallel_parse_order_9.sol:LL:CC
+   │
+LL │     uint x9 = ;
+   ╰╴              ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`
+   ╭▸ ROOT/tests/ui/resolve/auxiliary/parallel_parse_order_10.sol:LL:CC
+   │
+LL │     uint x10 = ;
+   ╰╴               ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`
+   ╭▸ ROOT/tests/ui/resolve/auxiliary/parallel_parse_order_11.sol:LL:CC
+   │
+LL │     uint x11 = ;
+   ╰╴               ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`
+   ╭▸ ROOT/tests/ui/resolve/auxiliary/parallel_parse_order_12.sol:LL:CC
+   │
+LL │     uint x12 = ;
+   ╰╴               ━ expected one of 10 possible tokens
+
+error: aborting due to 12 previous errors
+

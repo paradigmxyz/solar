@@ -73,9 +73,9 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
 
 fn @concat() [selector=0x6bdbf8e6, abi_wrapper, pure] {
   bb0:
-    v59 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v59 = heap_floor !metadata(alloc_ptr)
     v60 = add v59, 160 !metadata(alloc_ptr)
-    mstore 64, v60
+    mstore 64, v60 !metadata(memory=scratch)
     mstore v59, 33
     v40 = add v59, 32
     mstore v40, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
@@ -287,13 +287,13 @@ fn @fresh() [selector=0xb466b76f, abi_wrapper, pure] {
 
 fn @freshEmpty() [selector=0x2f9cb906, abi_wrapper, pure] {
   bb0:
-    v23 = icall @alloc, 32
-    mstore v23, 0
-    mstore v23, 0
-    mstore v23, 32
-    v11 = add v23, 32
+    v14 = icall @alloc, 32
+    mstore v14, 0
+    mstore v14, 0
+    mstore v14, 32
+    v11 = add v14, 32
     mstore v11, 0
-    returndata v23, 64
+    returndata v14, 64
 }
 
 fn @recycledTail() [selector=0x52eea5e4, abi_wrapper, pure] {

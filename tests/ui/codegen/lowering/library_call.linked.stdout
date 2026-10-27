@@ -109,8 +109,7 @@ bb0:
   or
   push bb3
   jumpi
-  push 64
-  mload
+  push 128
   push 0xed2f0bb8
   push 224
   shl
