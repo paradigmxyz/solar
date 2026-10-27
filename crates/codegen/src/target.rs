@@ -544,8 +544,9 @@ impl Target {
         }
     }
 
-    /// Whether a loop rewritten into one copy keeps a test of its length before the copy's
-    /// setup, which then runs only for a nonzero length, as the loop body did.
+    /// Whether a loop rewritten into one copy keeps an optional test of its length before the
+    /// copy's setup, which then runs only for a nonzero length, as the loop body did. A test
+    /// required to avoid new memory accesses on an empty copy must stay regardless of this cost.
     ///
     /// The test is one branch on every copy. The setup it skips for an empty copy holds the
     /// range checks with their panic branch, any overlap test, and the copy instruction, several

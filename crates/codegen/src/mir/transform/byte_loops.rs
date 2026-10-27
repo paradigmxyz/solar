@@ -121,10 +121,11 @@
 //! have, then copies as the guarded copy above does. Its loop is entered through that test, not a
 //! preheader, so no loop pass takes it up again.
 //!
-//! The loop's header test skips its body for a zero bound. A copy keeps that test in gas builds,
-//! as [`crate::target::Target::tests_empty_copies`] prices it: a copy of nothing then skips the
-//! overlap test, the checks and the copy, whose checks no longer need the `bound != 0` masks. Size
-//! builds, and copies of a literal bound, run the setup unconditionally.
+//! The loop's header test skips its body for a zero bound. A copy must keep that test whenever
+//! its setup loads a memory buffer's length: even an unused load can expand memory or run out of
+//! gas. When the setup needs no such load, [`crate::target::Target::tests_empty_copies`] prices
+//! the optional test. Gas builds keep it to skip the overlap test, checks and copy for an empty
+//! range, while size builds mask the panic conditions with `bound != 0` instead.
 //!
 //! # Place in the pipeline
 //!
@@ -1634,9 +1635,15 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
             }
         }
         Shape::Copy { src, dst, dst_checked, overlap } => {
-            // A copy of nothing skips its setup, as the loop's own header test did: the checks,
-            // any overlap test, and the copy, which then run only for a nonzero bound.
-            let tested = literal.is_none() && tests_empty_copies;
+            // A zero count must skip new length loads even when the target prefers no branch:
+            // masking the panic does not prevent an otherwise unused load from exhausting gas.
+            let loads_length = |access: &Access| {
+                matches!(access.buffer, Buffer::Memory(_)) && access.len.is_none()
+            };
+            let needs_empty_test =
+                loads_length(&src) || (dst_checked && fresh.is_none() && loads_length(&dst));
+            let tested =
+                literal.is_none_or(|count| count == 0) && (needs_empty_test || tests_empty_copies);
             if tested {
                 // empty = eq bound, 0
                 // branch empty, skip, setup
