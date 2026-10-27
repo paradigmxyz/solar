@@ -1,6 +1,7 @@
 //@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
 //@ filecheck:
-// Definition spans cover implicit returns.
+// Definition spans cover implicit returns. `-O none` removes the jump-only block of the synthetic
+// constructor, so its span is dropped from the creation code.
 // CHECK-LABEL: "deployedBytecode": {
 // CHECK: "mnemonic": "STOP"
 // CHECK: "offset": 39,
