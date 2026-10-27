@@ -1877,7 +1877,7 @@ impl AliasAnalysis {
         };
         match func.inst(*inst_id).kind {
             InstKind::InternalFrameAddr(_) => MemoryRegion::InternalFrame,
-            InstKind::Fmp | InstKind::Alloc { .. } => MemoryRegion::Heap,
+            InstKind::Fmp | InstKind::Alloc { .. } | InstKind::HeapFloor => MemoryRegion::Heap,
             InstKind::Load(address, PtrLocation::Memory)
                 if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
             {
@@ -2203,7 +2203,9 @@ impl AliasAnalysis {
         }
         let Value::Inst(inst) = func.value(value) else { return None };
         match &func.inst(*inst).kind {
-            InstKind::Fmp | InstKind::Alloc { .. } => Some(EvmMemoryLayout::HEAP_START),
+            InstKind::Fmp | InstKind::Alloc { .. } | InstKind::HeapFloor => {
+                Some(EvmMemoryLayout::HEAP_START)
+            }
             // A decoded scalar is calldata the caller controls, not a pointer.
             InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => func
                 .value_ty(value)

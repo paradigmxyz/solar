@@ -16,6 +16,18 @@ warning[6546]: tag `@title` not valid for functions
 LL │     /// @title Invalid title on function
    ╰╴         ━━━━━
 
+warning[6546]: tag `@return` not valid for events
+   ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   │
+LL │     /// @return Invalid return on event
+   ╰╴         ━━━━━━
+
+warning[6546]: tag `@inheritdoc` not valid for events
+   ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   │
+LL │     /// @inheritdoc InvalidInheritdocBase
+   ╰╴         ━━━━━━━━━━
+
 warning[3881]: tag `@param` references non-existent parameter 'y'
    ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    │
@@ -38,17 +50,5 @@ warning[4682]: tag `@inheritdoc` references contract "InheritdocIntermediate", b
    ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    │
 LL │     /// @inheritdoc InheritdocIntermediate
-   ╰╴         ━━━━━━━━━━
-
-warning[6546]: tag `@return` not valid for events
-   ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
-   │
-LL │     /// @return Invalid return on event
-   ╰╴         ━━━━━━
-
-warning[6546]: tag `@inheritdoc` not valid for events
-   ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
-   │
-LL │     /// @inheritdoc InvalidInheritdocBase
    ╰╴         ━━━━━━━━━━
 

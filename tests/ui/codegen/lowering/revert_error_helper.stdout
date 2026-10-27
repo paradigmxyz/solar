@@ -167,9 +167,6 @@ bb16 [cold]:
   push 15
   jump bb23
 bb17:
-  push 128
-  push 64
-  mstore
   push 4
   calldataload
   push 6
@@ -199,8 +196,7 @@ bb22 [cold]:
   push 0x7265766572742d70617468
   jump bb24
 bb19 [cold]:
-  push 64
-  mload
+  push 128
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
   push 68
   dup 3

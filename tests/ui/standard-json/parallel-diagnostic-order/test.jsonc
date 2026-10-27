@@ -1,0 +1,48 @@
+//@ compile-flags: -j8
+//@ normalize-stdout-test: "[0-9a-f]{100,}" -> "BYTECODE"
+// CHECK: "errors": [
+// CHECK: "file": "C01.sol"
+// CHECK: "errorCode": "2462"
+// CHECK: "file": "C08.sol"
+// CHECK: "errorCode": "2462"
+// CHECK: "file": "C01.sol"
+// CHECK: "errorCode": "3881"
+// CHECK: "file": "C08.sol"
+// CHECK: "errorCode": "3881"
+// CHECK: "file": "C01.sol"
+// CHECK: "errorCode": "8417"
+// CHECK: "file": "C08.sol"
+// CHECK: "errorCode": "8417"
+// CHECK: "file": "C01.sol"
+// CHECK: "errorCode": "3628"
+// CHECK: "file": "C08.sol"
+// CHECK: "errorCode": "3628"
+// CHECK: "errorCode": "2264"
+// CHECK: "file": "C01.sol"
+// CHECK: "errorCode": "0067"
+// CHECK: "file": "C01.sol"
+// CHECK: "errorCode": "5574"
+// CHECK: "file": "C02.sol"
+// CHECK: "errorCode": "0067"
+// CHECK: "file": "C02.sol"
+// CHECK: "errorCode": "5574"
+// CHECK: "file": "C08.sol"
+// CHECK: "errorCode": "0067"
+// CHECK: "file": "C08.sol"
+// CHECK: "errorCode": "5574"
+// CHECK: "sources": {
+{
+  "language": "Solidity",
+  "settings": {
+    "optimizer": {
+      "enabled": true
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "evm.deployedBytecode.object"
+        ]
+      }
+    }
+  }
+}

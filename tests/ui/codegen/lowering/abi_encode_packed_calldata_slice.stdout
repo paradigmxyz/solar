@@ -24,9 +24,6 @@ bb4 [cold]:
   push 0
   revert
 bb5:
-  push 128
-  push 64
-  mstore
   push 100
   calldatasize
   lt
@@ -77,13 +74,13 @@ bb7 [continuation]:
   push bb4
   jumpi
   dup 3
-  add
-  swap 2
-  push 64
-  mload
+  swap 1
   swap 2
   sub
+  swap 2
+  add
   swap 1
+  push 128
   dup 2
   dup 4
   dup 3
@@ -124,8 +121,7 @@ bb12 [continuation]:
   sub
   swap 2
   add
-  push 64
-  mload
+  push 128
   swap 2
   push 112
   push 248

@@ -46,9 +46,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         entry: FunctionId,
     ) -> DenseBitSet<FunctionId> {
         call_graph.reachable_callees_from(module.functions.iter_enumerated().filter_map(
-            |(func_id, func)| {
-                (func_id == entry || Self::is_external_entry(func)).then_some(func_id)
-            },
+            |(func_id, func)| (func_id == entry || func.is_runtime_entry()).then_some(func_id),
         ))
     }
 

@@ -13,7 +13,7 @@ contract FixedBytesLiteralAssign {
     bytes1 slot;
 
     // MIR-LABEL: fn @patch
-    // MIR: {{v[0-9]+}} = mload 64
+    // MIR: {{v[0-9]+}} = heap_floor
     // MIR-NOT: mstore 64,
     // MIR: mstore8 {{v[0-9]+}}, 45
     function patch(bool safe) external pure returns (bytes1) {
