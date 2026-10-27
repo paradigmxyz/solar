@@ -220,53 +220,6 @@ def corpus_ratios(path, ref, suites):
     return mt.gm(t), mt.gm(g), mt.gm(d)
 
 
-def morpho():
-    case = "morpho-blue-project"
-    bars = [
-        ("solc 0.8.38", ctime(SHARED, case, "solc"), GREY),
-        ("oksolc 0.2.2", ctime(SHARED, case, "oksolc"), GREY),
-        ("slang-solx 0.1.8", ctime(SHARED, case, "solx"), GREY),
-        ("Slang preview", ctime(SLANG, case, "solx"), GREY),
-        ("Solar", ctime(SHARED, case, "solar"), GREEN),
-    ]
-    fig = figure(
-        "Compiling Morpho Blue",
-        "Build time (seconds), lower is better",
-        [HW, ("via-IR, Cancun, median of 5", "mono"), SRC],
-    )
-    ax = fig.add_axes([0.24, 0.22, 0.68, 0.53])
-    ys = range(len(bars))[::-1]
-    ax.barh(ys, [b[1] for b in bars], color=[b[2] for b in bars], height=0.62)
-    ax.set_yticks(list(ys), [b[0] for b in bars])
-    for y, (_, v, _) in zip(ys, bars):
-        ax.text(
-            v + 0.35,
-            y,
-            f"{v:.2f} s",
-            va="center",
-            fontsize=11.5,
-            color=INK,
-            fontfamily=MONO["family"],
-        )
-    speedup = bars[0][1] / bars[-1][1]
-    ax.text(
-        bars[-1][1] + 5.5,
-        0,
-        f"{speedup:.0f}× faster than solc",
-        va="center",
-        fontsize=12,
-        color=INK,
-        fontfamily=MONO["family"],
-        bbox={"boxstyle": "square,pad=0.45", "fc": "white", "ec": "#CFCFCF", "lw": 1.2},
-    )
-    ax.set_xlim(0, 37)
-    style_axes(ax, xgrid=True)
-    for label in ax.get_yticklabels():
-        label.set_fontfamily(SERIF["family"])
-        label.set_fontsize(14)
-    save(fig, "compile-morpho.png")
-
-
 PROJECTS = [
     ("morpho-blue-project", "Morpho Blue"),
     ("solady-0.1.26-project", "Solady"),
@@ -280,7 +233,7 @@ PROJECTS = [
 def projects():
     fig = figure(
         "Solar vs. solc Build Time",
-        "Whole project (seconds)",
+        "Whole project (seconds, log scale)",
         [HW, ("via-IR, Cancun, median of 5", "mono"), SRC],
     )
     legend(fig, [("solc 0.8.38", GREY), ("Solar", GREEN)])
@@ -290,9 +243,12 @@ def projects():
         solc, solar = ctime(SHARED, case, "solc"), ctime(SHARED, case, "solar")
         ax.bar(i - w / 2, solc, w, color=GREY)
         ax.bar(i + w / 2, solar, w, color=GREEN)
-        callout(ax, i, solc + 5, f"{solc / solar:.0f}×\n{solar:.2f} s")
+        callout(ax, i, solc * 1.35, f"{solc / solar:.0f}×\n{solar:.2f} s")
     ax.set_xticks(range(len(PROJECTS)), [p[1] for p in PROJECTS])
-    ax.set_ylim(0, 112)
+    ax.set_yscale("log")
+    ax.set_ylim(0.1, 1000)
+    ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{v:g}"))
+    ax.yaxis.set_minor_locator(ticker.NullLocator())
     style_axes(ax)
     for label in ax.get_xticklabels():
         label.set_fontfamily(SERIF["family"])
@@ -680,7 +636,6 @@ def execution():
 
 if __name__ == "__main__":
     load_fonts()
-    morpho()
     projects()
     compare()
     gas_workloads()
