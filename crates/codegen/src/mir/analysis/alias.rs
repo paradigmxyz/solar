@@ -695,14 +695,67 @@ impl AliasAnalysis {
                 _ => false,
             })
         };
-        func.instructions().any(|inst| {
+        let indexed = |address| Self::address_has_runtime_index(func, address, 8);
+        let exact = |inst| {
             self.instruction_may_wrap_write(func, inst)
                 || wraps(self.instruction_mod_ref(func, inst))
+        };
+        func.instructions().any(|inst| match func.inst(inst).kind {
+            // Only an access through a runtime index can have an unknown extent, and checking its
+            // address is cheaper than building its ModRef.
+            InstKind::Load(address, PtrLocation::Memory)
+            | InstKind::Store(address, _, PtrLocation::Memory)
+            | InstKind::Store8(address, _) => indexed(address) && exact(inst),
+            InstKind::Load(..) | InstKind::Store(..) => false,
+            InstKind::MemoryZero(address, size) if func.value_u64(size).is_some() => {
+                indexed(address) && exact(inst)
+            }
+            InstKind::Alloc { size, .. } if func.value_u64(size).is_some() => false,
+            InstKind::Fmp | InstKind::SetFmp(..) => false,
+            ref kind if Self::is_value_computation(kind) => false,
+            _ => exact(inst),
         }) || func
             .blocks
             .iter()
             .filter_map(|block| block.terminator.as_ref())
             .any(|terminator| wraps(self.terminator_mod_ref(func, terminator)))
+    }
+
+    /// Returns whether an instruction only computes a value, so it reads and writes no memory.
+    fn is_value_computation(kind: &InstKind) -> bool {
+        matches!(
+            kind,
+            InstKind::Zext(..)
+                | InstKind::Trunc(..)
+                | InstKind::Sext(..)
+                | InstKind::PtrToInt(..)
+                | InstKind::IntToPtr(..)
+                | InstKind::PtrAdd(..)
+                | InstKind::Add(..)
+                | InstKind::Sub(..)
+                | InstKind::Mul(..)
+                | InstKind::Div(..)
+                | InstKind::SDiv(..)
+                | InstKind::Mod(..)
+                | InstKind::SMod(..)
+                | InstKind::AddMod(..)
+                | InstKind::MulMod(..)
+                | InstKind::And(..)
+                | InstKind::Or(..)
+                | InstKind::Xor(..)
+                | InstKind::Not(..)
+                | InstKind::Shl(..)
+                | InstKind::Shr(..)
+                | InstKind::Sar(..)
+                | InstKind::Lt(..)
+                | InstKind::Gt(..)
+                | InstKind::SLt(..)
+                | InstKind::SGt(..)
+                | InstKind::Eq(..)
+                | InstKind::Ne(..)
+                | InstKind::Phi(..)
+                | InstKind::Select(..)
+        )
     }
 
     /// Canonicalizes a MIR value used as a memory address.
