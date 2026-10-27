@@ -255,9 +255,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             StmtKind::Revert(expr) => self.lower_revert_payload(expr)?,
-            StmtKind::AssemblyBlock(block) => {
+            StmtKind::AssemblyBlock(block, memory_safe) => {
                 let previous = std::mem::replace(&mut self.in_inline_assembly, true);
+                let previous_writes = std::mem::take(&mut self.assembly_writes_memory);
                 let result = self.lower_block(*block);
+                // A block that writes no memory cannot break the promise.
+                if !memory_safe && self.assembly_writes_memory {
+                    self.cx.module.set_unsafe_assembly(true);
+                }
+                self.assembly_writes_memory = previous_writes;
                 self.in_inline_assembly = previous;
                 result?;
             }

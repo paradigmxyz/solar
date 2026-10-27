@@ -233,6 +233,9 @@ struct FunctionLowerer<'gcx, 'ctx> {
     is_getter: bool,
     unchecked: bool,
     in_inline_assembly: bool,
+    /// Whether the inline assembly lowered so far may write memory: a store, a copy, a call with
+    /// a return buffer, or an assignment to a memory reference.
+    assembly_writes_memory: bool,
 }
 
 /// The lowered `{gas: ..., value: ...}` options of an external call.
@@ -507,6 +510,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             is_getter: false,
             unchecked: false,
             in_inline_assembly: false,
+            assembly_writes_memory: false,
         }
     }
 

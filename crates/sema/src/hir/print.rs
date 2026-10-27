@@ -449,7 +449,7 @@ impl<'gcx, W: fmt::Write> HirPrinter<'gcx, W> {
                 self.out.write_str("unchecked ")?;
                 self.print_block(block)?;
             }
-            StmtKind::AssemblyBlock(block) => {
+            StmtKind::AssemblyBlock(block, _) => {
                 self.out.write_str("assembly ")?;
                 self.print_block(block)?;
             }

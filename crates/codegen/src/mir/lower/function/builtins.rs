@@ -754,6 +754,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(())
             }};
         }
+        self.assembly_writes_memory |= matches!(
+            builtin,
+            Builtin::YulMstore
+                | Builtin::YulMstore8
+                | Builtin::YulMcopy
+                | Builtin::YulCalldatacopy
+                | Builtin::YulCodecopy
+                | Builtin::YulExtcodecopy
+                | Builtin::YulReturndatacopy
+        );
         match builtin {
             Builtin::YulMstore => lower!(store(offset, value)),
             Builtin::YulMstore8 => lower!(store8(offset, value)),
@@ -814,6 +824,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.builder.cast(value, MirType::I256))
             }};
         }
+        self.assembly_writes_memory |= matches!(
+            builtin,
+            Builtin::YulCall
+                | Builtin::YulCallcode
+                | Builtin::YulStaticcall
+                | Builtin::YulDelegatecall
+        );
         match builtin {
             Builtin::YulAdd => lower!(add(lhs, rhs)),
             Builtin::YulSub => lower!(sub(lhs, rhs)),
