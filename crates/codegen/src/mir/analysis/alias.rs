@@ -1585,12 +1585,16 @@ impl AliasAnalysis {
             _ => {}
         }
         // An access beyond the extent of a unique allocation starts at its offset and goes up, so
-        // it cannot reach the allocation's words below that offset.
+        // it cannot reach the allocation's words below that offset. A runtime index wraps, so an
+        // indexed access has no such start.
         if let (MemoryBase::Allocation(site), MemoryBase::FreeMemory(fresh))
         | (MemoryBase::FreeMemory(fresh), MemoryBase::Allocation(site)) =
             (first.address.base, second.address.base)
             && site == fresh
         {
+            if first.size == LocationSize::Unknown || second.size == LocationSize::Unknown {
+                return AliasResult::MayAlias;
+            }
             return match Self::compare_offsets(first, second) {
                 AliasResult::NoAlias => AliasResult::NoAlias,
                 _ => AliasResult::MayAlias,

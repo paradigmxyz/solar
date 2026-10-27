@@ -1521,6 +1521,7 @@ impl<'a> Eliminator<'a> {
             | (MemoryBase::FreeMemory(site), MemoryBase::Allocation(fresh)) =
                 (group.base, written.address.base)
                 && site == fresh
+                && written.size != LocationSize::Unknown
             {
                 written_group.base = group.base;
             }

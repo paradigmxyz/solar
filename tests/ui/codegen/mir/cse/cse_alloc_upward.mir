@@ -107,3 +107,21 @@ fn @indexed_write_into_earlier(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v7 = mload v2
     ret v7
 }
+
+// An indexed write wraps, so it may land on a word of the allocation below its own offset.
+// CHECK-LABEL: @indexed_write_same_allocation
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK:       mstore
+// CHECK:       {{v[0-9]+}} = mload [[ADDR]]
+fn @indexed_write_same_allocation(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    v3 = add v2, 16
+    mstore v3, arg0
+    v12 = ptradd v10, arg1
+    v13 = ptradd v12, 64
+    mstore v13, 9
+    v7 = mload v3
+    ret v7
+}
