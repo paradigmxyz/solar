@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from xml.etree import ElementTree
 
 from jsonschema import Draft202012Validator
 
@@ -335,6 +336,110 @@ class ReportFormattingTests(unittest.TestCase):
             "| bench | gas (vs main) | solc | oksolc | size (vs main) | solc | oksolc |\n"
             "| ----- | ------------- | ---- | ---- | -------------- | ---- | ---- |\n"
             "| test | n/a (n/a) | n/a (n/a) | 30 (n/a) | n/a (n/a) | n/a (n/a) | 40B (n/a) |\n",
+        )
+
+    def test_codegen_report_adds_variant_compiler_columns(self):
+        current = result()
+        for name in ("solc-legacy", "solar-size"):
+            current["compilers"][name] = {
+                "status": "ok",
+                "total_gas": 10,
+                "runtime_size": 20,
+                "deploy_gas": 30,
+                "bytecode_size": 40,
+            }
+        report = benchmark.codegen_report([current], [current])
+        self.assertIn(
+            "| bench | gas (vs main) | solc | solc-legacy | solar-size | size (vs main) | solc | solc-legacy | solar-size |",
+            report,
+        )
+        self.assertIn(
+            "| test | n/a (n/a) | n/a (n/a) | 10 (n/a) | 10 (n/a) | n/a (n/a) | n/a (n/a) | 20B (n/a) | 20B (n/a) |",
+            report,
+        )
+
+    def test_compiler_matrix_compares_each_compiler_with_solar(self):
+        def compilers(**gas):
+            return {
+                name: {
+                    "status": "ok",
+                    "total_gas": value,
+                    "runtime_size": 100,
+                    "deploy_gas": 100,
+                    "bytecode_size": 100,
+                }
+                for name, value in gas.items()
+            }
+
+        results = [
+            {
+                "test_id": "a",
+                "suite": "repository",
+                "compilers": compilers(
+                    solar=100, **{"solar-size": 110, "solc": 200, "solc-legacy": 250}
+                ),
+            },
+            {
+                "test_id": "b",
+                "suite": "repository",
+                "compilers": {
+                    **compilers(solar=100, solc=100),
+                    "solc-legacy": {"status": "failed"},
+                },
+            },
+        ]
+
+        table = benchmark.compiler_matrix_table(results)
+
+        self.assertEqual(
+            table[3:6],
+            [
+                "| metric | solar-size | solc | solc-legacy |",
+                "| --- | ---: | ---: | ---: |",
+                "| runtime gas | ✅ +10.00% | ✅ +41.42% | ✅ +150.00% |",
+            ],
+        )
+        self.assertIn("solar-size 1, solc 2, solc-legacy 1", table[-1])
+        self.assertEqual(
+            benchmark.compiler_matrix_table([result("a", status="ok", total_gas=1)]), []
+        )
+
+    def test_compiler_matrix_svg_is_valid_and_needs_a_second_compiler(self):
+        single = [result("a", total_gas=1, runtime_size=1, status="ok")]
+        self.assertIsNone(benchmark.matrix_svg(single))
+        both = [
+            {
+                "test_id": "a<b>",
+                "suite": "repository",
+                "compilers": {
+                    name: {"status": "ok", "total_gas": gas, "runtime_size": gas}
+                    for name, gas in (("solar", 100), ("solar-size", 90))
+                },
+            }
+        ]
+
+        svg = benchmark.matrix_svg(both)
+
+        assert svg is not None
+        root = ElementTree.fromstring(svg)
+        text = [
+            element.text for element in root.iter("{http://www.w3.org/2000/svg}text")
+        ]
+        self.assertIn("a<b>", text)
+        self.assertEqual(text.count("solar-size"), 2)
+
+    def test_pr_comment_adds_the_compiler_matrix(self):
+        current = result(status="ok", total_gas=10)
+        current["compilers"]["solc"] = {"status": "ok", "total_gas": 20}
+        comparison = benchmark.compare_runs([current], [current])
+        comparison["baseline"] = "main.json"
+
+        comment = benchmark.pr_comment(comparison, True, False, "main", [current])
+
+        self.assertIn("### Compilers vs `solar`", comment)
+        self.assertNotIn(
+            "### Compilers vs `solar`",
+            benchmark.pr_comment(comparison, True, False, "main"),
         )
 
     def test_codegen_report_labels_failed_revision(self):
@@ -886,7 +991,7 @@ class RunComparisonTests(unittest.TestCase):
             )
 
     def test_reference_report_uses_selected_compiler(self):
-        for compiler in ("solc", "solx", "oksolc"):
+        for compiler in ("solc", "solc-legacy", "solx", "oksolc"):
             before = self.fixture()
             before["compilers"][compiler] = copy.deepcopy(before["compilers"]["solar"])
             after = copy.deepcopy(before)
@@ -1015,7 +1120,7 @@ class RunComparisonTests(unittest.TestCase):
         self.assertIn("candidate gas run failed", row["issues"])
 
     def test_reference_failures_do_not_trigger_comments_or_warnings(self):
-        for compiler in ("solc", "solx", "oksolc"):
+        for compiler in ("solc", "solc-legacy", "solx", "oksolc"):
             for stage in ("status", "runtime_status", "gas_status"):
                 with self.subTest(compiler=compiler, stage=stage):
                     before = self.fixture()
@@ -1052,6 +1157,17 @@ class RunComparisonTests(unittest.TestCase):
                         benchmark.runtime_issue_details([after]),
                         ["repository/test solar: runtime_status=failed"],
                     )
+
+    def test_solar_size_failures_trigger_warnings(self):
+        for stage, warnings in (
+            ("status", benchmark.compiler_failures),
+            ("runtime_status", benchmark.runtime_issue_details),
+        ):
+            with self.subTest(stage=stage):
+                after = self.fixture()
+                after["compilers"]["solar-size"] = {"status": "ok", stage: "failed"}
+                self.assertEqual(len(warnings([after])), 1)
+                self.assertIn("solar-size", warnings([after])[0])
 
     def test_mismatches_require_a_solar_observation(self):
         before = self.fixture()

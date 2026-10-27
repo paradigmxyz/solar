@@ -215,7 +215,8 @@ jobs:
               if gh run download "$run_id" \
                 --name "$artifact" \
                 --dir "$download_dir" \
-                2>/dev/null && [[ -f "$download_dir/results.json" && -d "$download_dir/artifacts" ]]; then
+                2>/dev/null && [[ -f "$download_dir/results.json" && -d "$download_dir/artifacts" ]] &&
+                grep -q '"solc-legacy"' "$download_dir/results.json"; then
                 cp -R "$download_dir"/. target/codegen-bench/baseline/
                 echo "found=true" >> "$GITHUB_OUTPUT"
                 exit 0
@@ -246,6 +247,7 @@ jobs:
           set -euo pipefail
           if ! python3 benches/runtime/benchmark.py --verbose \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
+            --solc-legacy \
             --solar target/release/solar-base \
             --mode runtime compile-time \
             --suite all \
@@ -268,6 +270,7 @@ jobs:
           args=(
             --verbose
             --solar target/release/solar-head
+            --solar-size
             --mode runtime compile-time
             --suite all
             --compile-repeats 5
@@ -285,7 +288,7 @@ jobs:
               --reference-results target/codegen-bench/baseline/results.json
             )
           else
-            args+=(--solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}")
+            args+=(--solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" --solc-legacy)
           fi
           if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/main" ]]; then
             args+=(--solx "$RUNNER_TEMP/solx/solx")
@@ -311,6 +314,7 @@ jobs:
             --common-output target/codegen-bench/common.json
             --report-output target/codegen-bench/report.md
             --pr-comment-output target/codegen-bench/comment.md
+            --matrix-output target/codegen-bench/matrix.svg
             --comment-output target/codegen-bench/should-comment
             --ignore-compile-time-changes
           )
@@ -329,6 +333,24 @@ jobs:
               echo true > target/codegen-bench/should-comment
             fi
           fi
+
+      - name: Upload compiler matrix
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          hashFiles('target/codegen-bench/matrix.svg') != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repository_id="$(gh api "repos/$GITHUB_REPOSITORY" --jq .id)"
+          url="$(gh api --method POST \
+            "https://uploads.github.com/user-attachments/assets?content_type=image%2Fsvg%2Bxml&name=compiler-matrix.svg&repository_id=$repository_id" \
+            -H 'Content-Type: image/svg+xml' \
+            --input target/codegen-bench/matrix.svg --jq .url)"
+          printf '\n![Runtime gas and bytes per benchmark, colored against solar](%s)\n' "$url" \
+            >> target/codegen-bench/comment.md
 
       - name: Comment on PR
         if: >-

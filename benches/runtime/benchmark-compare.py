@@ -10,6 +10,8 @@ from __future__ import annotations
 import argparse
 import difflib
 import hashlib
+import html
+import itertools
 import json
 import math
 import os
@@ -36,6 +38,8 @@ METRICS = {
     "compile_time_seconds": "compile seconds",
     "peak_rss_bytes": "peak RSS bytes",
 }
+# Our compiler and its variants: their failures and mismatches raise warnings.
+SOLAR_COMPILERS = ("solar", "solar-size")
 ARTIFACT_KINDS = {
     "mir": (".mir",),
     "llvm-ir": (".ll",),
@@ -740,7 +744,7 @@ def compiler_failures(results: list[dict[str, Any]]) -> list[str]:
             continue
         compilers = result.get("compilers", {})
         for compiler_id, data in compilers.items():
-            if compiler_id == "solar" and data.get("status") != "ok":
+            if compiler_id in SOLAR_COMPILERS and data.get("status") != "ok":
                 error_lines = str(data.get("error") or "").strip().splitlines()
                 error = error_lines[0] if error_lines else "compiler failed"
                 failures.append(f"{test_id} {compiler_id}: {error}")
@@ -781,19 +785,19 @@ def runtime_failed(result: dict[str, Any], compiler: str) -> bool:
 
 def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
     details = []
-    for result in results:
-        if not runtime_failed(result, "solar"):
+    for result, solar in itertools.product(results, SOLAR_COMPILERS):
+        if not runtime_failed(result, solar):
             continue
         test_id = "/".join(suite_key(result))
         before = len(details)
 
-        for mismatch in runtime_mismatches(result, "solar"):
+        for mismatch in runtime_mismatches(result, solar):
             label = mismatch.get("label", "<unknown>")
             values = mismatch.get("values") or {}
             details.append(f"{test_id} {label}: {format_values(values)}")
 
         for compiler_id, data in (result.get("compilers") or {}).items():
-            if compiler_id != "solar":
+            if compiler_id != solar:
                 continue
             for check in data.get("runtime_results") or []:
                 if check.get("status") == "ok":
@@ -803,10 +807,11 @@ def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
                 details.append(f"{test_id} {compiler_id} {label}: {shorten(error)}")
 
         if len(details) == before:
-            status = compiler_data(result, "solar").get("runtime_status")
-            details.append(f"{test_id} solar: runtime_status={status}")
+            status = compiler_data(result, solar).get("runtime_status")
+            details.append(f"{test_id} {solar}: runtime_status={status}")
 
-    return details
+    # Both of our compilers can see the same mismatch.
+    return list(dict.fromkeys(details))
 
 
 def baseline_regression_details(
@@ -1432,6 +1437,155 @@ def reference_compiler_ids(results: list[dict[str, Any]]) -> list[str]:
     ]
 
 
+MATRIX_METRICS = {
+    "total_gas": "runtime gas",
+    "execution_gas": "execution gas",
+    "runtime_size": "runtime bytes",
+    "deploy_gas": "creation gas",
+    "bytecode_size": "creation bytes",
+}
+MATRIX_ORDER = ("solar-size", "solc", "solc-legacy", "solx", "oksolc")
+
+
+def matrix_compilers(results: list[dict[str, Any]]) -> list[str]:
+    """The compilers compared with `solar`, ours first, then solc and the rest."""
+    return sorted(
+        (name for name in compiler_ids(results) if name != "solar"),
+        key=lambda name: (
+            MATRIX_ORDER.index(name) if name in MATRIX_ORDER else len(MATRIX_ORDER)
+        ),
+    )
+
+
+def matrix_value(
+    result: dict[str, Any], compiler: str, metric: str, other: dict[str, Any]
+) -> int | None:
+    data = compiler_data(result, compiler)
+    if data.get("status") != "ok":
+        return None
+    if metric == "total_gas":
+        value = comparable_gas(data, other)
+    elif metric == "execution_gas":
+        value = comparable_execution_gas(data, other)
+    else:
+        value = data.get(metric)
+    return value if isinstance(value, int) and value > 0 else None
+
+
+def matrix_ratios(
+    results: list[dict[str, Any]], compiler: str, metric: str
+) -> list[float]:
+    ratios = []
+    for result in results:
+        solar, other = compiler_data(result, "solar"), compiler_data(result, compiler)
+        base = matrix_value(result, "solar", metric, other)
+        value = matrix_value(result, compiler, metric, solar)
+        if base is not None and value is not None:
+            ratios.append(value / base)
+    return ratios
+
+
+def compiler_matrix_table(results: list[dict[str, Any]]) -> list[str]:
+    """Equal-weight geometric mean of each compiler relative to `solar`, per metric."""
+    compilers = matrix_compilers(results)
+    ratios = {
+        metric: [matrix_ratios(results, name, metric) for name in compilers]
+        for metric in MATRIX_METRICS
+    }
+    rows = [
+        f"| {title} | "
+        + " | ".join(
+            fmt_pct(math.expm1(math.fsum(map(math.log, values)) / len(values)) * 100)
+            if values
+            else "n/a"
+            for values in ratios[metric]
+        )
+        + " |"
+        for metric, title in MATRIX_METRICS.items()
+        if any(ratios[metric])
+    ]
+    if not rows:
+        return []
+    counts = ", ".join(
+        f"{name} {len(values)}" for name, values in zip(compilers, ratios["total_gas"])
+    )
+    return [
+        "",
+        "### Compilers vs `solar`",
+        "",
+        "| metric | " + " | ".join(compilers) + " |",
+        "| --- |" + " ---: |" * len(compilers),
+        *rows,
+        "",
+        (
+            "Equal-weight geometric mean of each compiler relative to `solar`; ✅ where "
+            f"`solar` is ahead. Benchmarks compared for runtime gas: {counts}."
+        ),
+    ]
+
+
+def matrix_svg(results: list[dict[str, Any]]) -> str | None:
+    """A heatmap of runtime gas and bytes per benchmark, colored against `solar`."""
+    names = ["solar", *matrix_compilers(results)]
+    panels = (("total_gas", "runtime gas"), ("runtime_size", "runtime bytes"))
+    rows = [
+        result
+        for result in results
+        if any(compiler_metric(result, "solar", metric) for metric, _ in panels)
+    ]
+    if len(names) < 2 or not rows:
+        return None
+    label, cell, height, gap = 190, 96, 22, 16
+    width = label + len(panels) * (len(names) * cell + gap)
+    total = 2 * height + len(rows) * height + 8
+    out = [
+        (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{total}" '
+            'font-family="ui-monospace,monospace" font-size="11">'
+        ),
+        f'<rect width="{width}" height="{total}" fill="#ffffff"/>',
+    ]
+
+    def text(x: float, y: float, value: str, anchor: str = "middle"):
+        out.append(
+            f'<text x="{x}" y="{y}" text-anchor="{anchor}" fill="#1f2328">'
+            f"{html.escape(value)}</text>"
+        )
+
+    for index, (metric, title) in enumerate(panels):
+        left = label + index * (len(names) * cell + gap)
+        text(left + len(names) * cell / 2, 15, f"{title} (vs solar)")
+        for column, name in enumerate(names):
+            text(left + column * cell + cell / 2, height + 15, name)
+        for row, result in enumerate(rows):
+            top = 2 * height + row * height
+            base = compiler_metric(result, "solar", metric)
+            for column, name in enumerate(names):
+                value = compiler_metric(result, name, metric)
+                if value is None:
+                    fill, shown = "#eaeef2", "n/a"
+                elif not base or name == "solar":
+                    fill, shown = "#f6f8fa", f"{value:,}"
+                else:
+                    # Red above solar, green below, saturating at a factor of two.
+                    ratio = max(-1.0, min(1.0, math.log2(value / base)))
+                    fill = (
+                        f"hsl(0 70% {100 - 35 * ratio}%)"
+                        if ratio > 0
+                        else f"hsl(130 55% {100 + 30 * ratio}%)"
+                    )
+                    shown = f"{value:,}"
+                x = left + column * cell
+                out.append(
+                    f'<rect x="{x}" y="{top}" width="{cell - 1}" height="{height - 1}" fill="{fill}"/>'
+                )
+                text(x + cell - 6, top + 15, shown, "end")
+    for row, result in enumerate(rows):
+        text(4, 2 * height + row * height + 15, str(result.get("test_id", "")), "start")
+    out.append("</svg>")
+    return "\n".join(out) + "\n"
+
+
 def memory_summary_rows(results: list[dict[str, Any]]) -> list[str]:
     rows = []
     for compiler_id in compiler_ids(results):
@@ -1733,7 +1887,11 @@ def format_report(
 
 
 def pr_comment(
-    comparison: dict[str, Any], has_changes: bool, behind_base: bool, base_ref: str
+    comparison: dict[str, Any],
+    has_changes: bool,
+    behind_base: bool,
+    base_ref: str,
+    results: list[dict[str, Any]] | None = None,
 ) -> str:
     lines = ["## Codegen benchmarks", ""]
     if not comparison["rows"]:
@@ -1792,6 +1950,7 @@ def pr_comment(
                     *changed,
                 ]
             )
+    lines.extend(compiler_matrix_table(results or []))
     if any(row["issues"] for row in comparison["rows"]):
         lines.extend(
             [
@@ -1976,7 +2135,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--tests", nargs="+", help="Select test IDs from either run")
     parser.add_argument(
-        "--compiler", choices=("solar", "solc", "solx", "oksolc"), default="solar"
+        "--compiler",
+        choices=("solar", "solar-size", "solc", "solc-legacy", "solx", "oksolc"),
+        default="solar",
+    )
+    parser.add_argument(
+        "--matrix-output",
+        type=Path,
+        help="Write an SVG heatmap of the compilers' gas and size",
     )
     parser.add_argument(
         "--comment-output", type=Path, help="Write CI should-comment metadata"
@@ -2110,8 +2276,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.pr_comment_output is not None:
         args.pr_comment_output.parent.mkdir(parents=True, exist_ok=True)
         args.pr_comment_output.write_text(
-            pr_comment(comparison, should_comment, behind_base, base_ref)
+            pr_comment(comparison, should_comment, behind_base, base_ref, results)
         )
+    if args.matrix_output is not None and (svg := matrix_svg(results)):
+        args.matrix_output.parent.mkdir(parents=True, exist_ok=True)
+        args.matrix_output.write_text(svg)
     if args.json_output is not None:
         args.json_output.parent.mkdir(parents=True, exist_ok=True)
         args.json_output.write_text(
