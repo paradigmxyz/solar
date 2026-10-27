@@ -1534,7 +1534,7 @@ def matrix_svg(results: list[dict[str, Any]]) -> str | None:
                 value = compiler_metric(result, name, metric)
                 if value is None:
                     fill, shown = "#eaeef2", "n/a"
-                elif not base or name == "solar":
+                elif not base or not value or name == "solar":
                     fill, shown = "#f6f8fa", f"{value:,}"
                 else:
                     fill, shown = shade(value / base), f"{value:,}"

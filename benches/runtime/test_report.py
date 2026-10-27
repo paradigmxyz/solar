@@ -372,6 +372,8 @@ class ReportFormattingTests(unittest.TestCase):
             }
         ]
 
+        both[0]["compilers"]["solar-size"]["runtime_size"] = 0
+
         svg = benchmark.matrix_svg(both)
 
         assert svg is not None
