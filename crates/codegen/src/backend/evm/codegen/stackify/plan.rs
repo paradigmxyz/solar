@@ -16,8 +16,8 @@ use crate::{
         op,
     },
     mir::{
-        ArgIdx, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, Module, OpTraits,
-        PtrLocation, Terminator, Value, ValueId,
+        ArgIdx, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, OpTraits, PtrLocation,
+        Terminator, Value, ValueId,
         analysis::{CfgInfo, Liveness},
         memory::EvmMemoryLayout,
     },
@@ -256,7 +256,7 @@ pub(super) struct Planner<'a> {
 impl<'a> Planner<'a> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
-        module: &'a Module,
+        func: &'a Function,
         info: &'a ModuleInfo,
         func_id: FunctionId,
         analysis: &'a Analysis,
@@ -267,7 +267,6 @@ impl<'a> Planner<'a> {
         hints: &'a FxHashMap<BlockId, Layout>,
     ) -> Result<Self, &'static str> {
         let Analysis { liveness, cfg, loops, pinned, recomputable, saved, .. } = analysis;
-        let func = &module.functions[func_id];
         let internal = info.internal.contains(func_id);
         let has_ret = info.returning.contains(func_id);
         let args = if internal { argument_values(func)? } else { IndexVec::new() };
@@ -625,6 +624,7 @@ impl<'a> Planner<'a> {
             calls: self.calls,
             cost: self.cost,
             non_loop_gas: self.non_loop_gas,
+            rebuilt: None,
         };
         Ok(Planned { plan, natural: self.natural, first_use: self.first_use })
     }
