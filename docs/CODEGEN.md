@@ -4,15 +4,22 @@
 
 Declare each MIR operation once, as a row in `crates/codegen/src/mir/op_schema.rs`:
 typed payload with named tuple operands, mnemonic, result kind, operand type
-contract, phase set, effect, traits, and side-effect flag. The macro generates
-operand traversal, the `Op` rewrite view, the ISLE prelude, a constructor per
-operation (the text parser uses it for every operation built from value
-operands alone), and a `FunctionBuilder` method per variant marked
-`#[builder(name)]` or `#[builder(name, void)]`. Write custom text syntax or a
-custom builder only for an attribute the generic forms cannot express.
-Declare EVM opcodes the same way in `backend/evm/op.rs`, with traits and
-availability per row; `op_table.snap` snapshots the table. Add operations to
-these tables only; never add a parallel `match` that classifies them.
+contract, phase set, effect, traits, side-effect flag, and, when the operation
+has one, its meaning in `#[semantics(...)]`: an EVM opcode on the operands in
+pop order, a cast, a comparison, `select`, a phi, a call, or checked arithmetic
+(see `mir/semantics.rs`). Constant folding and the MIR interpreter evaluate
+operations through `InstKind::semantics`. The macro generates operand
+traversal, the `Op` rewrite view, the ISLE prelude, a constructor per operation
+(the text parser uses it for every operation built from value operands alone),
+and a `FunctionBuilder` method per variant marked `#[builder(name)]` or
+`#[builder(name, void)]`. Write custom text syntax or a custom builder only for
+an attribute the generic forms cannot express.
+Declare EVM opcodes the same way in `backend/evm/op.rs`, with traits,
+availability, and, for pure opcodes, word semantics (`op/word.rs`, reached
+through `op::eval`) per row; `op_table.snap` snapshots the table, and
+`op/word.snap` lists pure opcode results on boundary words, which the rule
+checker's tests evaluate with their own word models. Add operations to these
+tables only; never add a parallel `match` that classifies them.
 
 Write rewrite rules in ISLE
 ([tutorial](https://github.com/bytecodealliance/wasmtime/tree/main/cranelift/isle#tutorial),

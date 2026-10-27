@@ -15,7 +15,6 @@ use crate::{
         op,
         op::*,
     },
-    mir::utils::eval,
     target::Target,
 };
 use alloy_primitives::U256;
@@ -552,7 +551,7 @@ impl generated::Context for PeepContext<'_> {
         let lhs_value = lhs.concrete_immediate()?;
         let rhs_value = rhs.concrete_immediate()?;
         let opcode = instruction.as_evm_opcode()?;
-        let result = eval::eval_opcode(opcode, &[rhs_value, lhs_value])?;
+        let result = op::eval(opcode, &[rhs_value, lhs_value])?;
         let target = self.target;
         // PUSH lhs; PUSH rhs; opcode => materialize evaluated word
         // Price the operation too: compact wide constants may need several
@@ -568,7 +567,7 @@ impl generated::Context for PeepContext<'_> {
         let [value, instruction] = self.unprotected_tail()?;
         let value = self.instructions[value].concrete_immediate()?;
         let opcode = self.instructions[instruction].as_evm_opcode()?;
-        let result = eval::eval_opcode(opcode, &[value])?;
+        let result = op::eval(opcode, &[value])?;
         let target = self.target;
         // PUSH value; unary_opcode => materialize evaluated word
         let input = target.push(value) + target.opcode_with_immediates(opcode, &[Some(value)]);

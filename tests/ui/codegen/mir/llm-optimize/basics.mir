@@ -1,0 +1,31 @@
+//@ revisions: cancun byzantium
+//@ compile-flags: -Zmir-pipeline=llm-optimize -Zllm-optimize=script -Zllm-trace
+//@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/basics.script
+//@[cancun] compile-flags: --evm-version=cancun
+//@[byzantium] compile-flags: --evm-version=byzantium
+// Paths are relative to `crates/solar`, where UI tests run.
+// A candidate replaces its original only when it behaves the same on every test input and costs
+// less. Byzantium has no `shl`, so its build keeps `exp`.
+@module Basics
+@phase lowered
+fn @main() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = icall @pow2, v0
+    v2 = icall @identity, v1
+    mstore 0, v2
+    returndata 0, 32
+}
+
+fn @pow2(arg0: i256) -> i256 {
+  bb0:
+    v0 = exp 2, arg0
+    ret v0
+}
+
+fn @identity(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 0
+    v1 = mul v0, 1
+    ret v1
+}

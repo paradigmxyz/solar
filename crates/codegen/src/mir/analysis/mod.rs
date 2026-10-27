@@ -39,7 +39,9 @@ mod scalar_evolution;
 pub(crate) use scalar_evolution::{AffineExpr, AffineTerm, ScalarEvolution};
 
 mod validator;
-pub(crate) use validator::{validate, validate_legal_shifts, validate_phase};
+pub(crate) use validator::{
+    validate, validate_function_at_phase, validate_legal_shifts, validate_phase,
+};
 
 mod absolute_addresses;
 pub(crate) use absolute_addresses::{AddressInput, absolute_address_inputs};

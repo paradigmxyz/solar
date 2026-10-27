@@ -1,0 +1,34 @@
+//@ compile-flags: -Zmir-pipeline=llm-optimize -Zllm-optimize=replay -Zllm-trace --evm-version=cancun
+//@ compile-flags: -Zllm-cache=../../tests/ui/codegen/mir/llm-optimize/auxiliary/cache
+// Replay applies recorded rewrites only after checking them again: `@identity`'s entry was edited
+// to a wrong rewrite, and `@absent` has none.
+@module Replay
+@phase lowered
+fn @main() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = icall @pow2, v0
+    v2 = icall @identity, v1
+    v3 = icall @absent, v2
+    mstore 0, v3
+    returndata 0, 32
+}
+
+fn @pow2(arg0: i256) -> i256 {
+  bb0:
+    v0 = exp 2, arg0
+    ret v0
+}
+
+fn @identity(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 0
+    v1 = mul v0, 1
+    ret v1
+}
+
+fn @absent(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 0
+    ret v0
+}

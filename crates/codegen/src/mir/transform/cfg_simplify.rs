@@ -962,12 +962,7 @@ pub(super) fn end_nonreturning_calls(module: &mut Module, tail_calls: bool) -> b
         if !returning.contains(func_id) {
             nonreturning.insert(func_id);
         }
-        if tail_calls
-            && func.selector.is_none()
-            && !func.attributes.is_receive
-            && !func.attributes.is_fallback
-            && !call_graph.is_recursive(func_id)
-        {
+        if tail_calls && is_tail_callable(module, &call_graph, func_id) {
             tail_callable.insert(func_id);
         }
     }
@@ -1055,6 +1050,21 @@ pub(super) fn end_nonreturning_calls(module: &mut Module, tail_calls: bool) -> b
         }
     }
     changed
+}
+
+/// Returns whether a tail call may target function `id`: a function with a body, no selector, and
+/// no recursion, which is not a receive or fallback function.
+pub(crate) fn is_tail_callable(
+    module: &Module,
+    call_graph: &CallGraphInfo,
+    id: FunctionId,
+) -> bool {
+    let func = module.function(id);
+    !func.blocks.is_empty()
+        && func.selector.is_none()
+        && !func.attributes.is_receive
+        && !func.attributes.is_fallback
+        && !call_graph.is_recursive(id)
 }
 
 /// Ends each block at its first check or `require` whose condition always fails, with `invalid`

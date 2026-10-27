@@ -29,7 +29,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             panic!("cannot codegen MIR function `{}` without an entry block", func.name);
         }
         self.reset_for_module(module);
-        self.run_optimization_passes(module);
+        if self.run_pipeline {
+            self.run_optimization_passes(module);
+        }
         if self.gcx.dcx().has_errors().is_err() {
             return false;
         }

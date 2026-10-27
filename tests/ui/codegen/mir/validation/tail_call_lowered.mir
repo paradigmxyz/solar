@@ -1,0 +1,52 @@
+// Lowered MIR tail calls only functions that never return to their caller: the backend jumps to
+// the target without expecting it back, and an internal function returns its results where its
+// own caller reads them. An external entry's return ends the transaction instead.
+@module TailCallLowered
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr 224, v0
+    switch v1, default bb2, [0x12345678 => bb1]
+  bb1:
+    tail_call @external
+  bb2:
+    revert 0, 0
+}
+
+fn @external() [selector=0x12345678, abi_wrapper] {
+  bb0:
+    v0 = icall @forwards, 1
+    v1 = icall @chains, v0
+    icall @ends, v1
+    ret
+}
+
+//~? ERROR: [fn2] [bb0] tail call to returning function `double` survives the `lowered` phase boundary
+fn @forwards(arg0: i256) -> i256 {
+  bb0:
+    tail_call @double, arg0
+}
+
+fn @double(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, arg0
+    ret v0
+}
+
+//~? ERROR: [fn4] [bb0] tail call to returning function `forwards` survives the `lowered` phase boundary
+fn @chains(arg0: i256) -> i256 {
+  bb0:
+    tail_call @forwards, arg0
+}
+
+fn @ends(arg0: i256) {
+  bb0:
+    tail_call @finish, arg0
+}
+
+fn @finish(arg0: i256) {
+  bb0:
+    mstore 0, arg0
+    returndata 0, 32
+}

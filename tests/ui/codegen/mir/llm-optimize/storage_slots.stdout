@@ -1,0 +1,22 @@
+llm-optimize StorageSlots @main: not offered: is the dispatch entry
+llm-optimize StorageSlots @read: offered at 2138 gas, 31 bytes
+llm-optimize StorageSlots @read: round 1: rejected at equivalence: the original returns 0x0, but the candidate returns 0x594ef80d086f5980da5bc5d6d848e6a557f299fee06fa6bf920327c73179d133
+  on free memory pointer 0x124, storage slot 0xad64d6cb4d28af3b0000000000000001 = 0x0
+llm-optimize StorageSlots @read: round 2: nothing cheaper
+- // === ROOT/tests/ui/codegen/mir/llm-optimize/storage_slots.mir (before llm-optimize) ===
++ // === ROOT/tests/ui/codegen/mir/llm-optimize/storage_slots.mir (after llm-optimize) ===
+  @module StorageSlots
+  @phase lowered
+  fn @main() [entry] {
+    bb0:
+      v0 = icall @read
+      mstore 0, v0
+      returndata 0, 32
+  }
+  
+  fn @read() -> i256 {
+    bb0:
+      v0 = sload 0xad64d6cb4d28af3b0000000000000001
+      ret v0
+  }
+  

@@ -4,9 +4,7 @@
 //! local edge helpers below. New edges need explicit phi inputs; none of these helpers updates
 //! cached analyses or reconstructs SSA after moving definitions.
 
-use crate::mir::{
-    BasicBlock, BlockId, Function, InstKind, Instruction, PtrLocation, Terminator, ValueId,
-};
+use crate::mir::{BasicBlock, BlockId, Function, InstKind, Instruction, Terminator, ValueId};
 use alloy_primitives::U256;
 use smallvec::smallvec;
 use solar_data_structures::{
@@ -20,6 +18,7 @@ mod gas;
 pub(crate) use gas::{pre_tangerine_call_gas, precompile_gas};
 mod index_lists;
 pub(crate) use index_lists::IndexLists;
+pub(crate) mod interp;
 
 pub(crate) fn remap_block_order(
     func: &mut Function,
@@ -357,23 +356,6 @@ pub(crate) fn replace_terminator_uses_canonicalized(
 /// Converts a U256 to a u64 when lossless.
 pub(crate) fn u256_to_u64(value: U256) -> Option<u64> {
     value.try_into().ok()
-}
-
-/// Returns true for instructions whose operands derive memory metadata.
-pub(crate) fn is_memory_inst(kind: &InstKind) -> bool {
-    matches!(
-        kind,
-        InstKind::Load(.., PtrLocation::Memory)
-            | InstKind::Store(.., PtrLocation::Memory)
-            | InstKind::Store8(..)
-            | InstKind::MemoryZero(_, _)
-            | InstKind::Copy(..)
-            | InstKind::DataCopy(_, _, _)
-            | InstKind::CodeCopy(_, _, _)
-            | InstKind::ExtCodeCopy(..)
-            | InstKind::Keccak256(_, _)
-            | InstKind::MappingSlotBytes(_, _)
-    )
 }
 
 fn replace_inst_operands(

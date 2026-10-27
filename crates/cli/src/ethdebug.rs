@@ -155,6 +155,7 @@ impl EthdebugCompilation {
 pub(crate) fn make_ethdebug_compilation(
     gcx: Gcx<'_>,
     metadata_identity: Option<alloy_primitives::B256>,
+    artifacts: Option<&FxHashMap<ContractId, ContractArtifact>>,
 ) -> EthdebugCompilation {
     let language = if gcx.sess.opts.language.is_yul() { "Yul" } else { "Solidity" };
     let sources = gcx
@@ -217,6 +218,25 @@ pub(crate) fn make_ethdebug_compilation(
         append_length_prefixed(&mut identity, &source.path);
         append_length_prefixed(&mut identity, &source.contents);
         append_length_prefixed(&mut identity, &source.language);
+    }
+    // `llm-optimize` rewrites change bytecode without changing the sources or options above.
+    // Compilations without rewrites keep the identity they always had.
+    let rewritten = gcx
+        .hir
+        .contract_ids()
+        .filter_map(|id| Some((id, artifacts?.get(&id)?)))
+        .filter(|(_, artifact)| !artifact.llm_rewrites.is_empty())
+        .collect::<Vec<_>>();
+    if !rewritten.is_empty() {
+        append_length_prefixed(&mut identity, "llm-optimize");
+        append_length_prefixed(&mut identity, &rewritten.len().to_string());
+        for (id, artifact) in rewritten {
+            append_length_prefixed(&mut identity, &id.index().to_string());
+            append_length_prefixed(&mut identity, &artifact.llm_rewrites.len().to_string());
+            for rewrite in &artifact.llm_rewrites {
+                append_length_prefixed(&mut identity, &rewrite.to_string());
+            }
+        }
     }
     let digest = alloy_primitives::keccak256(identity.as_bytes());
     let id = format!("solar-{}", alloy_primitives::hex::display(digest));

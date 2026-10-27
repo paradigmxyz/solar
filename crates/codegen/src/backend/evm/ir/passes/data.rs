@@ -43,7 +43,6 @@ use crate::{
         op::{self, WORD_BYTES},
     },
     link::LibraryRelocation,
-    mir::utils::eval,
     target::{Cost, Target},
 };
 use alloy_primitives::{Bytes, U256};
@@ -473,7 +472,7 @@ fn scan_run(
                 RunWord { slot: a.slot.or(b.slot), offset: a.offset.wrapping_add(b.offset) }
             }
             _ if operands.iter().all(|word| word.slot.is_none()) => {
-                let Some(value) = eval::eval_opcode(opcode, &arguments) else { break };
+                let Some(value) = op::eval(opcode, &arguments) else { break };
                 RunWord::constant(value)
             }
             _ => break,

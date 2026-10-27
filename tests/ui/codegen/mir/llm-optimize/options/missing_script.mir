@@ -1,0 +1,12 @@
+//@ ignore-host: windows
+//@ compile-flags: -Zmir-pipeline=llm-optimize -Zllm-optimize=script
+//@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/missing.script
+// The operating system's message is part of the diagnostic.
+@module MissingScript
+@phase lowered
+fn @main() [entry] {
+  bb0:
+    stop
+}
+
+//~? ERROR: cannot read `../../tests/ui/codegen/mir/llm-optimize/auxiliary/missing.script`: No such file or directory (os error 2)

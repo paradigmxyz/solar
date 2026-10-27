@@ -1,0 +1,30 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    }
+  ],
+  "sources": {
+    "triangle.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "triangle.sol": {
+      "Triangle": {
+        "evm": {
+          "deployedBytecode": {
+            "object": "346038575f3560e01c8063461d633214604357806350c2698d0360385760243610603857600435603c5b9060ff16600181030260011c90565b5f5ffd5b5f5260205ff35b6044361060385760043560536029565b602435605c6029565b015f5260205ff3fea2646970667358221220d907bae7ff81c6f60ea6d693d8374c1e47cae94af5be5eb58ab9c0145327742765736f6c6172430002000034"
+          }
+        }
+      }
+    }
+  }
+}

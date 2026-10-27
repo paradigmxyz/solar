@@ -48,11 +48,22 @@ impl MirPass for Dce {
 /// execution `InstKind::has_side_effects` does not require, together with internal calls whose
 /// summaries allow discarding them.
 #[derive(Debug, Default)]
-struct DeadCodeEliminator {
+pub(crate) struct DeadCodeEliminator {
     call_summaries: Option<Arc<MemoryCallSummaries>>,
 }
 
 impl DeadCodeEliminator {
+    /// Creates a new dead code eliminator.
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    /// Removes unreachable blocks and unused instructions to a fixed point.
+    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+        let cfg = CfgInfo::new(func);
+        self.run_with_cfg(func, &cfg)
+    }
+
     fn run_with_cfg(&mut self, func: &mut Function, cfg: &CfgInfo) -> usize {
         invalidate_unreachable_blocks(func, cfg.reachable()) + self.remove_dead_chains(func)
     }

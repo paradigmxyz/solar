@@ -1,0 +1,44 @@
+//@ compile-flags: -Zmir-pipeline=llm-optimize -Zllm-optimize=script -Zllm-trace --evm-version=cancun
+//@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/memory.script
+// Memory must end the same, and a candidate may only write what its original writes: the backend
+// keeps frames and spill slots in memory that no function addresses.
+@module Memory
+@phase lowered
+fn @main() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = calldataload 32
+    v2 = icall @hash_pair, v0, v1
+    v3 = icall @aliasing, v0, v1
+    v4 = add v2, v3
+    icall @check, v4
+    mstore 0, v4
+    returndata 0, 32
+}
+
+fn @hash_pair(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    mstore 0, arg0
+    mstore 32, arg1
+    v0 = keccak256 0, 64
+    ret v0
+}
+
+fn @aliasing(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    mstore arg0, 1
+    mstore arg1, 2
+    v0 = mload arg0
+    ret v0
+}
+
+fn @check(arg0: i256) {
+  bb0:
+    v0 = gt arg0, 1000
+    jumpi v0, bb1, bb2
+  bb1:
+    mstore 0, arg0
+    revert 0, 32
+  bb2:
+    ret
+}

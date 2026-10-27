@@ -1,0 +1,59 @@
+Candidates for `memory.mir`. The session for `hash_pair` stops after three rejections, before
+its fourth candidate.
+
+--- function hash_pair
+--- candidate
+fn @hash_pair(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    mstore 0, arg1
+    mstore 32, arg0
+    v0 = keccak256 0, 64
+    ret v0
+}
+--- candidate
+fn @hash_pair(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    mstore 0, arg0
+    mstore 32, arg1
+    v0 = keccak256 0, 64
+    mstore 96, 0
+    ret v0
+}
+--- candidate
+fn @hash_pair(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    mstore 0, arg0
+    mstore 32, arg1
+    v0 = keccak256 0, 63
+    ret v0
+}
+--- candidate
+fn @hash_pair(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    mstore 0, arg0
+    mstore 32, arg1
+    v0 = keccak256 0, 64
+    ret v0
+}
+
+--- function aliasing
+--- candidate
+fn @aliasing(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    mstore arg0, 1
+    mstore arg1, 2
+    ret 1
+}
+
+--- function check
+--- candidate
+fn @check(arg0: i256) {
+  bb0:
+    v0 = gt arg0, 1000
+    jumpi v0, bb1, bb2
+  bb1:
+    mstore 0, arg0
+    revert 0, 31
+  bb2:
+    ret
+}

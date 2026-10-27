@@ -1,0 +1,9 @@
+//@ compile-flags: -Zllm-optimize=script -Zllm-script=candidates.script -Zllm-effort=high
+@module Options
+@phase lowered
+fn @main() [entry] {
+  bb0:
+    stop
+}
+
+//~? ERROR: `-Zllm-effort` requires `-Zllm-optimize=live`

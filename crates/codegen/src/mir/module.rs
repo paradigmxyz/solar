@@ -12,7 +12,7 @@ use crate::{
         pass_manager::should_validate_ir,
     },
 };
-use alloy_primitives::Bytes;
+use alloy_primitives::{B256, Bytes};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -118,6 +118,8 @@ pub struct Module {
     pub(super) phase: MirPhase,
     /// Whether passes must account for every instruction's source debug information.
     debug_info_tracked: bool,
+    /// Digests of the rewrites `llm-optimize` applied, in function order.
+    pub(crate) llm_rewrites: Vec<B256>,
     /// Whether the last full `lowered` check still describes this module: no change since
     /// `advance_phase` passed it.
     pub(super) lowered_checked: bool,
@@ -163,6 +165,18 @@ impl Module {
         super::parser::parse(sess, source)
     }
 
+    /// Parses one function as a candidate replacement for one of this module's functions.
+    ///
+    /// Candidates are untrusted, so they are held to a stricter grammar than [`Self::parse`]
+    /// accepts: see [`super::parser::parse_candidate`]. [`Self::candidate_text`] prints it.
+    pub(crate) fn parse_function(
+        &self,
+        sess: &solar_interface::Session,
+        source: &solar_interface::source_map::SourceFile,
+    ) -> solar_interface::Result<Function> {
+        super::parser::parse_candidate(sess, source, self)
+    }
+
     /// Creates a new module.
     #[must_use]
     pub(crate) fn new(name: Ident) -> Self {
@@ -182,6 +196,7 @@ impl Module {
             is_library: false,
             phase: MirPhase::Semantic,
             debug_info_tracked: false,
+            llm_rewrites: Vec::new(),
             lowered_checked: false,
         }
     }
@@ -650,6 +665,11 @@ impl Module {
         self.functions.iter_enumerated()
     }
 
+    /// Returns the module's name, which its `@module` line declares.
+    pub fn name(&self) -> Ident {
+        self.name
+    }
+
     /// Returns the human-readable textual MIR representation of this module.
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
@@ -690,6 +710,7 @@ impl Module {
                             func,
                             Some(self),
                             self.dispatch_entry == Some(id),
+                            true,
                         )
                     })
                     .format("\n")
@@ -709,6 +730,12 @@ impl Module {
                     .format("\n\n")
             )
         })
+    }
+
+    /// Displays `function` as candidate text: its textual MIR without metadata, naming callees
+    /// from this module. [`Self::parse_function`] parses it back.
+    pub(crate) fn candidate_text<'a>(&'a self, function: &'a Function) -> impl fmt::Display + 'a {
+        super::display::display_function_text(function, Some(self), false, false)
     }
 }
 

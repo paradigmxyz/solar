@@ -104,6 +104,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_memory_zero::LowerMemoryZero,
     &lower_shifts::LowerShifts,
     &evm_inst_schedule::EvmInstSchedule,
+    &llm_optimize::LlmOptimize,
     &heap_floor::HeapFloor,
 ];
 
@@ -399,6 +400,8 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     &dce::Dce,
     // Targets without shift opcodes get arithmetic instead, so scheduling orders its operands.
     &lower_shifts::LowerShifts,
+    // Only with `-Zllm-optimize`: offer the finished word SSA of small functions to a rewriter.
+    &llm_optimize::LlmOptimize,
     &evm_inst_schedule::EvmInstSchedule,
 ];
 
