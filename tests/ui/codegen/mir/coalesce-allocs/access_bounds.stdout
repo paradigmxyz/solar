@@ -41,3 +41,97 @@
       ret v4
   }
   
+  fn @later_member_field() -> i256 {
+    bb0:
+-     v0 = alloc 32
++     v0 = alloc 160
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+-     v2 = alloc 96
++     v7 = ptrtoint ptr<memory> v0 to i256
++     v8 = add v7, 32
++     v2 = inttoptr i256 v8 to ptr<memory>
+      v3 = ptrtoint ptr<memory> v2 to i256
+      v4 = add v3, 64
+      mstore v4, 2
+-     v5 = alloc 32
++     v9 = ptrtoint ptr<memory> v0 to i256
++     v10 = add v9, 128
++     v5 = inttoptr i256 v10 to ptr<memory>
+      v6 = ptrtoint ptr<memory> v5 to i256
+      ret v6
+  }
+  
+  fn @earlier_member_field() -> i256 {
+    bb0:
+-     v0 = alloc 32
++     v0 = alloc 128
+      v1 = ptrtoint ptr<memory> v0 to i256
+-     v2 = alloc 96
++     v7 = ptrtoint ptr<memory> v0 to i256
++     v8 = add v7, 32
++     v2 = inttoptr i256 v8 to ptr<memory>
+      v3 = ptrtoint ptr<memory> v2 to i256
+      mstore v3, 1
+      v4 = add v1, 64
+      mstore v4, 2
+      v5 = alloc 32
+      v6 = ptrtoint ptr<memory> v5 to i256
+      ret v6
+  }
+  
+  fn @empty_access_before_later_member() -> i256 {
+    bb0:
+-     v0 = alloc 32
++     v0 = alloc 128
+      v1 = ptrtoint ptr<memory> v0 to i256
+      calldatacopy v1, 0, 0
+-     v2 = alloc 96
++     v7 = ptrtoint ptr<memory> v0 to i256
++     v8 = add v7, 32
++     v2 = inttoptr i256 v8 to ptr<memory>
+      v3 = ptrtoint ptr<memory> v2 to i256
+      v4 = add v3, 64
+      mstore v4, 2
+      v5 = alloc 32
+      v6 = ptrtoint ptr<memory> v5 to i256
+      ret v6
+  }
+  
+  fn @keep_compact_field_offset() -> i256 {
+    bb0:
+-     v0 = alloc 384
++     v0 = alloc 480
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+-     v2 = alloc 96
++     v7 = ptrtoint ptr<memory> v0 to i256
++     v8 = add v7, 384
++     v2 = inttoptr i256 v8 to ptr<memory>
+      v3 = ptrtoint ptr<memory> v2 to i256
+      v4 = add v3, 64
+      mstore v4, 2
+      v5 = alloc 32
+      v6 = ptrtoint ptr<memory> v5 to i256
+      ret v6
+  }
+  
+  fn @published_member() -> i256 {
+    bb0:
+-     v0 = alloc 32
++     v0 = alloc 128
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      mstore 0, v1
+-     v2 = alloc 96
++     v7 = ptrtoint ptr<memory> v0 to i256
++     v8 = add v7, 32
++     v2 = inttoptr i256 v8 to ptr<memory>
+      v3 = ptrtoint ptr<memory> v2 to i256
+      v4 = add v3, 64
+      mstore v4, 2
+      v5 = alloc 32
+      v6 = ptrtoint ptr<memory> v5 to i256
+      ret v6
+  }
+  

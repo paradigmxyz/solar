@@ -13,10 +13,14 @@
 //! fallthrough edges, including a call followed by a shared failure block. Packing also
 //! reserves address space for one-byte indexed jump tables to avoid widening their lookups.
 //! Size estimates guide placement; assembly still resolves the exact offsets and widths.
+//! In size mode, shared indirect-return tails prefer the predecessor with strictly more incoming
+//! references. This keeps the more frequently shared outlined entry adjacent to its return tail,
+//! rather than making every call through it pay another jump. Reference counts estimate frequency;
+//! they are not execution profiles. Other trace edges and gas-mode placement keep their order.
 
 use super::{
     EvmPass,
-    utils::{is_terminal_boundary, remap_block_order},
+    utils::{is_split_point, is_terminal_boundary, remap_block_order},
 };
 use crate::{
     backend::{
@@ -30,7 +34,7 @@ use crate::{
     },
     target::Target,
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
 pub(super) struct BlockLayout;
@@ -59,13 +63,18 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
         }
     }
 
-    append_layout_trace(module, BlockId::ENTRY, &mut state.placed, &mut state.order);
+    let preferred = if gcx.sess.opts.optimization.is_size() {
+        shared_return_predecessors(module, &module.target(gcx))
+    } else {
+        FxHashMap::default()
+    };
+    append_layout_trace(module, BlockId::ENTRY, &preferred, &mut state.placed, &mut state.order);
     for cold in [false, true] {
         for block in module.blocks.indices() {
             if state.predecessor_counts[block] == 0
                 && is_cold_terminal_block(&module.blocks[block]) == cold
             {
-                append_layout_trace(module, block, &mut state.placed, &mut state.order);
+                append_layout_trace(module, block, &preferred, &mut state.placed, &mut state.order);
             }
         }
     }
@@ -74,7 +83,7 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
     for cold in [false, true] {
         for block in module.blocks.indices() {
             if is_cold_terminal_block(&module.blocks[block]) == cold {
-                append_layout_trace(module, block, &mut state.placed, &mut state.order);
+                append_layout_trace(module, block, &preferred, &mut state.placed, &mut state.order);
             }
         }
     }
@@ -414,12 +423,21 @@ pub(super) fn is_physical_terminal_boundary(block: &Block, next: Option<BlockId>
 fn append_layout_trace(
     module: &Module,
     mut block: BlockId,
+    preferred: &FxHashMap<BlockId, BlockId>,
     placed: &mut DenseBitSet<BlockId>,
     order: &mut Vec<BlockId>,
 ) {
     while block.index() < module.blocks.len() && placed.insert(block) {
         order.push(block);
         let Some(target) = layout_successor(module, block) else { return };
+        if preferred.get(&target).is_some_and(|&pred| pred != block && !placed.contains(pred))
+            && is_split_point(
+                &module.blocks[block].instructions,
+                module.blocks[block].instructions.len(),
+            )
+        {
+            return;
+        }
         block = target;
     }
 }
@@ -451,4 +469,51 @@ pub(super) fn triangle_arm(module: &Module, arm: BlockId, join: BlockId) -> bool
 fn is_cold_terminal_block(block: &Block) -> bool {
     block.metadata.hotness.is_cold()
         && block.terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
+}
+
+/// Selects a shared return tail's unique highest-weight predecessor. Changing which jump falls
+/// through keeps the number of jumps unchanged; price their estimated executions with the target.
+fn shared_return_predecessors(module: &Module, target: &Target) -> FxHashMap<BlockId, BlockId> {
+    let mut incoming = IndexVec::from_vec(vec![0usize; module.blocks.len()]);
+    for block in &module.blocks {
+        for inst in &block.instructions {
+            if let Some(target) = inst.pushed_block() {
+                incoming[target] += 1;
+            }
+        }
+        if let Some(term) = &block.terminator {
+            term.kind.visit_targets(|target| incoming[target] += 1);
+        }
+    }
+    let jump_gas = target.runtime_gas(target.jump()) as usize;
+    let mut candidates = FxHashMap::<BlockId, (BlockId, usize, bool)>::default();
+    for (block, data) in module.blocks.iter_enumerated() {
+        let Some(TerminatorKind::Jump(tail)) = data.terminator.as_ref().map(|term| &term.kind)
+        else {
+            continue;
+        };
+        if !matches!(
+            module.blocks[*tail].terminator.as_ref().map(|term| &term.kind),
+            Some(TerminatorKind::Op(op::JUMP))
+        ) {
+            continue;
+        }
+        let weight = incoming[block].saturating_mul(jump_gas);
+        candidates
+            .entry(*tail)
+            .and_modify(|best| {
+                if weight > best.1 {
+                    *best = (block, weight, true);
+                } else if weight == best.1 {
+                    best.2 = false;
+                }
+            })
+            .or_insert((block, weight, true));
+    }
+    candidates
+        .into_iter()
+        .filter_map(|(tail, (block, weight, unique))| {
+            (unique && weight > jump_gas).then_some((tail, block))
+        })
+        .collect()
 }

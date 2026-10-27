@@ -551,8 +551,8 @@ impl PointerProvenance {
             .iter()
             .map(|block| {
                 block.instructions.iter().position(|&inst| {
-                    !proofs.raw_writes_avoid_fmp(func, inst)
-                        && may_reset_fmp(func, inst, call_summaries)
+                    may_reset_fmp(func, inst, call_summaries)
+                        && !proofs.raw_writes_avoid_fmp(func, inst)
                 })
             })
             .collect::<IndexVec<BlockId, _>>();
@@ -890,11 +890,13 @@ impl AliasAnalysis {
         address: ValueId,
         size: LocationSize,
     ) -> Option<MemoryLocation> {
-        let Some(base) = self.runtime_offset_base(func, address) else {
-            return self.memory_location(func, inst_id, address, size);
-        };
-        let base = base?;
-        Some(MemoryLocation::new(Self::refine_region(func, inst_id, base), LocationSize::Unknown))
+        let (base, unknown_extent) = self.access_base(func, address)?;
+        let base = Self::refine_region(func, inst_id, base);
+        if unknown_extent {
+            Some(MemoryLocation::new(base, LocationSize::Unknown))
+        } else {
+            Self::bounded_memory_location(func, base, size)
+        }
     }
 
     /// Returns the memory an access at `address` may touch, without instruction metadata, as
@@ -906,55 +908,57 @@ impl AliasAnalysis {
         address: ValueId,
         size: LocationSize,
     ) -> Option<MemoryLocation> {
-        match self.runtime_offset_base(func, address) {
-            Some(base) => Some(MemoryLocation::new(base?, LocationSize::Unknown)),
-            None => self.bare_memory_location(func, address, size),
+        let (base, unknown_extent) = self.access_base(func, address)?;
+        if unknown_extent {
+            Some(MemoryLocation::new(base, LocationSize::Unknown))
+        } else {
+            Self::bounded_memory_location(func, base, size)
         }
     }
 
-    /// Returns the address `base + k` of an address `ptradd (ptradd base, index), k` with a
-    /// runtime index and constant `ptradd`s `k` around it, or `None` without a runtime index.
+    /// Returns a canonical access address and whether its extent is unknown. For an address
+    /// `ptradd (ptradd base, index), k` with a runtime index and constant `ptradd`s around it,
+    /// this returns `base + k` with an unknown extent; ordinary addresses retain their size.
     /// The end of an object's payload, `p + 32 + len` for a length stored into `p`, is `p + 32`
     /// in the same way, though an access there may leave the object.
-    fn runtime_offset_base(
-        &self,
-        func: &Function,
-        address: ValueId,
-    ) -> Option<Option<MemoryAddress>> {
+    fn access_base(&self, func: &Function, address: ValueId) -> Option<(MemoryAddress, bool)> {
         if let Some(object) = Self::payload_end(func, address) {
-            return Some((|| {
-                let base =
-                    self.memory_address(func, object)?.checked_add(EvmMemoryLayout::WORD_SIZE)?;
-                match base.base {
-                    MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => {
-                        Self::unbounded_allocation(func, base, inst)
-                    }
-                    _ => Some(base),
+            let base =
+                self.memory_address(func, object)?.checked_add(EvmMemoryLayout::WORD_SIZE)?;
+            let base = match base.base {
+                MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => {
+                    Self::unbounded_allocation(func, base, inst)?
                 }
-            })());
+                _ => base,
+            };
+            return Some((base, true));
         }
         // The canonical address of the chain is the runtime-indexed `ptradd` plus `k`.
         let address = self.memory_address(func, address)?;
-        let MemoryBase::Value(indexed) = address.base else { return None };
-        let Value::Inst(inst) = func.value(indexed) else { return None };
-        let InstKind::PtrAdd(base, index) = func.inst(*inst).kind else { return None };
-        func.value_u64(index).is_none().then(|| {
-            let base = self.memory_address(func, base)?.checked_add(address.offset)?;
-            // NOTE: `ptradd` keeps the access inside its object, but the bounds check of an
-            // object of runtime size reads its length word, which inline assembly can enlarge past
-            // the allocation, so an indexed access may reach the next object. It is named by the
-            // allocation's pointer value, as a direct access that may leave a unique allocation
-            // is, which keeps no disjointness from other objects but compares with the
-            // allocation's other accesses by offset, so indexed stores leave the header words.
-            match base.base {
-                MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst)
-                    if Self::allocation_size(func, inst).is_none() =>
-                {
-                    Self::unbounded_allocation(func, base, inst)
-                }
-                _ => Some(base),
+        let MemoryBase::Value(indexed) = address.base else { return Some((address, false)) };
+        let Value::Inst(inst) = func.value(indexed) else { return Some((address, false)) };
+        let InstKind::PtrAdd(base, index) = func.inst(*inst).kind else {
+            return Some((address, false));
+        };
+        if func.value_u64(index).is_some() {
+            return Some((address, false));
+        }
+        let base = self.memory_address(func, base)?.checked_add(address.offset)?;
+        // NOTE: `ptradd` keeps the access inside its object, but the bounds check of an
+        // object of runtime size reads its length word, which inline assembly can enlarge past
+        // the allocation, so an indexed access may reach the next object. It is named by the
+        // allocation's pointer value, as a direct access that may leave a unique allocation
+        // is, which keeps no disjointness from other objects but compares with the
+        // allocation's other accesses by offset, so indexed stores leave the header words.
+        let base = match base.base {
+            MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst)
+                if Self::allocation_size(func, inst).is_none() =>
+            {
+                Self::unbounded_allocation(func, base, inst)?
             }
-        })
+            _ => base,
+        };
+        Some((base, true))
     }
 
     /// Creates a memory location without instruction metadata.
@@ -2554,28 +2558,36 @@ impl AliasAnalysis {
             InstKind::ICall { function: Callee::Function(function), .. } => call(*function),
             InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => bound(*value),
             InstKind::Add(first, second) => {
-                let lower = bound(*first)
-                    .and_then(|base| base.checked_add(func.value_u64(*second)?))
-                    .or_else(|| bound(*second)?.checked_add(func.value_u64(*first)?))
+                let lower = func
+                    .value_u64(*second)
+                    .and_then(|offset| bound(*first)?.checked_add(offset))
+                    .or_else(|| {
+                        func.value_u64(*first)
+                            .and_then(|offset| bound(*second)?.checked_add(offset))
+                    })
                     .or_else(|| func.inst(*inst).metadata.alloc_ptr().then(|| bound(*first))?)?;
                 // First establish a useful base. Proving that arbitrary scalar arithmetic
                 // cannot wrap cannot give an address a heap lower bound.
                 (func.inst(*inst).metadata.alloc_ptr()
                     || match proofs {
-                        Some(proofs) => proofs.arithmetic_no_wrap(func, value),
-                        None => super::integers::arithmetic_no_wrap(func, value),
-                    }
-                    || match proofs {
                         Some(proofs) => {
                             proofs.constant_add_after_access(func, value, before.unwrap_or(*inst))
+                                || proofs.arithmetic_no_wrap(func, value)
                         }
                         None => {
-                            Self::constant_add_after_access_at(func, value, before.unwrap_or(*inst))
+                            super::integers::arithmetic_no_wrap(func, value)
+                                || Self::constant_add_after_access_at(
+                                    func,
+                                    value,
+                                    before.unwrap_or(*inst),
+                                )
                         }
                     })
                 .then_some(lower)
             }
-            InstKind::PtrAdd(base, offset) => bound(*base)?.checked_add(func.value_u64(*offset)?),
+            InstKind::PtrAdd(base, offset) => {
+                func.value_u64(*offset).and_then(|offset| bound(*base)?.checked_add(offset))
+            }
             InstKind::ExtractValue {
                 ty: MirType::Slice(PtrLocation::Memory),
                 aggregate: slice,
@@ -2606,9 +2618,10 @@ impl AliasAnalysis {
                         proofs,
                     )
                 })
-                .collect::<Option<Vec<_>>>()?
-                .into_iter()
-                .min(),
+                .try_fold(None, |least, bound| {
+                    let bound = bound?;
+                    Some(Some(least.map_or(bound, |least: u64| least.min(bound))))
+                })?,
             InstKind::Select(_, first, second) => Some(bound(*first)?.min(bound(*second)?)),
             _ => None,
         }
@@ -2651,34 +2664,37 @@ impl AliasAnalysis {
             InstKind::InternalFrameAddr(offset) => EvmMemoryLayout::HEAP_START.checked_add(*offset),
             InstKind::Add(first, second) => {
                 // Adding to a lower bound alone does not prove that the actual sum cannot wrap.
-                (super::integers::arithmetic_no_wrap(func, value)
-                    || Self::constant_add_after_access(func, value))
-                .then(|| {
-                    Self::lower_bound(func, *first, depth + 1, trusted)
-                        .and_then(|base| base.checked_add(func.value_u64(*second)?))
-                        .or_else(|| {
-                            Self::lower_bound(func, *second, depth + 1, trusted)
-                                .and_then(|base| base.checked_add(func.value_u64(*first)?))
+                func.value_u64(*second)
+                    .and_then(|offset| {
+                        Self::lower_bound(func, *first, depth + 1, trusted)?.checked_add(offset)
+                    })
+                    .or_else(|| {
+                        func.value_u64(*first).and_then(|offset| {
+                            Self::lower_bound(func, *second, depth + 1, trusted)?
+                                .checked_add(offset)
                         })
-                })
-                .flatten()
-                .or_else(|| {
-                    // The allocator's bump `p + size` is not below `p`: allocation proved or
-                    // checked that it does not wrap. A sum the program computes, such as an
-                    // index, may wrap, so it keeps no bound.
-                    func.inst(*inst)
-                        .metadata
-                        .alloc_ptr()
-                        .then(|| Self::lower_bound(func, *first, depth + 1, trusted))?
-                })
-                .or_else(|| {
-                    if !trusted {
-                        return None;
-                    }
-                    let object = Self::payload_end(func, value)?;
-                    Self::lower_bound(func, object, depth + 1, trusted)?
-                        .checked_add(EvmMemoryLayout::WORD_SIZE)
-                })
+                    })
+                    .filter(|_| {
+                        super::integers::arithmetic_no_wrap(func, value)
+                            || Self::constant_add_after_access(func, value)
+                    })
+                    .or_else(|| {
+                        // The allocator's bump `p + size` is not below `p`: allocation proved or
+                        // checked that it does not wrap. A sum the program computes, such as an
+                        // index, may wrap, so it keeps no bound.
+                        func.inst(*inst)
+                            .metadata
+                            .alloc_ptr()
+                            .then(|| Self::lower_bound(func, *first, depth + 1, trusted))?
+                    })
+                    .or_else(|| {
+                        if !trusted {
+                            return None;
+                        }
+                        let object = Self::payload_end(func, value)?;
+                        Self::lower_bound(func, object, depth + 1, trusted)?
+                            .checked_add(EvmMemoryLayout::WORD_SIZE)
+                    })
             }
             InstKind::Sub(base, offset)
                 if (super::integers::integer_bits(func, value) == 256
@@ -2712,9 +2728,10 @@ impl AliasAnalysis {
             InstKind::Phi(incoming) => incoming
                 .iter()
                 .map(|(_, value)| Self::lower_bound(func, *value, depth + 1, trusted))
-                .collect::<Option<Vec<_>>>()?
-                .into_iter()
-                .min(),
+                .try_fold(None, |least, bound| {
+                    let bound = bound?;
+                    Some(Some(least.map_or(bound, |least: u64| least.min(bound))))
+                })?,
             InstKind::Select(_, first, second) => {
                 Some(Self::lower_bound(func, *first, depth + 1, trusted)?.min(Self::lower_bound(
                     func,

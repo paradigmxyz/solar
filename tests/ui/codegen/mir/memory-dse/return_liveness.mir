@@ -116,3 +116,53 @@ fn @uncalled(arg0: i256) {
     mstore 0, arg0
     ret
 }
+
+// Returned-pointer bounds flow through both ordinary calls and tail calls, even when their
+// definitions precede the callee. The final caller reads only the returned heap buffer.
+fn @read_forwarded_buffer(arg0: i256) {
+  bb0:
+    v0 = icall @tail_buffer, arg0
+    v1 = mload v0
+    returndata v0, v1
+}
+
+fn @tail_buffer(arg0: i256) -> i256 {
+  bb0:
+    tail_call @call_buffer, arg0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @call_buffer{{[( ]}}
+// CHECK: - mstore 32, arg0
+// CHECK: {{^ +}}ret
+fn @call_buffer(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @fresh, arg0
+    mstore 32, arg0
+    ret v0
+}
+
+// A caller's loop header precedes the call in block order, but reads its scratch result on
+// the next iteration. Return liveness must follow that backedge.
+fn @observe_loop(arg0: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v2]
+    v1 = mload 0
+    v3 = lt v0, arg0
+    jumpi v3, bb2, bb3
+  bb2:
+    icall @loop_scratch, v1
+    v2 = add v0, 1
+    jump bb1
+  bb3:
+    stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @loop_scratch{{[( ]}}
+// CHECK: {{^ +}}mstore 0, arg0
+fn @loop_scratch(arg0: i256) {
+  bb0:
+    mstore 0, arg0
+    ret
+}

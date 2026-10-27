@@ -92,3 +92,44 @@
       ret
   }
   
+  fn @read_forwarded_buffer(arg0: i256) {
+    bb0:
+      v0 = icall @tail_buffer, arg0
+      v1 = mload v0
+      returndata v0, v1
+  }
+  
+  fn @tail_buffer(arg0: i256) -> i256 {
+    bb0:
+      tail_call @call_buffer, arg0
+  }
+  
+  fn @call_buffer(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @fresh, arg0
+-     mstore 32, arg0
+      ret v0
+  }
+  
+  fn @observe_loop(arg0: i256) {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v3]
+      v1 = mload 0
+      v2 = lt v0, arg0
+      jumpi v2, bb2, bb3
+    bb3:
+      stop
+    bb2:
+      icall @loop_scratch, v1
+      v3 = add v0, 1
+      jump bb1
+  }
+  
+  fn @loop_scratch(arg0: i256) {
+    bb0:
+      mstore 0, arg0
+      ret
+  }
+  

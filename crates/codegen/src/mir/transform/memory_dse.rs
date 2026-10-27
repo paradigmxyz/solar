@@ -107,7 +107,7 @@
 
 use crate::{
     mir::{
-        AllocationFailure, BasicBlock, BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, MangledSymbol, MemoryRegion,
+        AllocationFailure, BasicBlock, BlockId, Callee, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MangledSymbol, MemoryRegion,
         MirType, Module, PtrLocation, RawMemoryAccess, Terminator, Value, ValueId,
         analysis::{
             Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
@@ -115,7 +115,7 @@ use crate::{
             integers::no_wrap_with,
         },
         memory::EvmMemoryLayout,
-        pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
+        pass::{MirPass, ModuleAnalyses, run_selected_function_pass_with_alias_and_cfg},
         utils as mir_utils,
     },
     target::Target,
@@ -156,7 +156,7 @@ impl MirPass for MemoryDse {
         &self,
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut ModuleAnalyses,
     ) -> bool {
         let unread_allocations = matches!(self, Self::WithUnreadAllocations);
         let mut selected = DenseBitSet::new_empty(module.functions.len());
@@ -169,9 +169,9 @@ impl MirPass for MemoryDse {
             return false;
         }
         let free_pointer = free_pointer_trusted(module);
-        let terminal = Arc::new(terminal_liveness(module, free_pointer));
+        let terminal = Arc::new(terminal_liveness(module, analyses, free_pointer));
         let summaries = analyses.call_summaries(module);
-        let returns = Arc::new(return_facts(module, &summaries, &terminal, free_pointer));
+        let returns = Arc::new(return_facts(module, analyses, &summaries, &terminal, free_pointer));
         run_selected_function_pass_with_alias_and_cfg(
             module,
             analyses,
@@ -196,7 +196,11 @@ impl MirPass for MemoryDse {
 /// The memory each function that never returns and calls nothing reads before writing it, as a
 /// shared revert helper reads only the payload it stores first. A call or tail call to such a
 /// function keeps no other word live.
-fn terminal_liveness(module: &Module, free_pointer: bool) -> FxHashMap<FunctionId, MemLive> {
+fn terminal_liveness(
+    module: &Module,
+    analyses: &mut ModuleAnalyses,
+    free_pointer: bool,
+) -> FxHashMap<FunctionId, MemLive> {
     let mut terminal = FxHashMap::default();
     for (id, func) in module.functions.iter_enumerated() {
         let returns = |block: &BasicBlock| {
@@ -214,12 +218,9 @@ fn terminal_liveness(module: &Module, free_pointer: bool) -> FxHashMap<FunctionI
         {
             continue;
         }
-        let eliminator = MemoryStoreEliminator::new(
-            Rc::new(AliasAnalysis::new(func)),
-            Rc::new(CfgInfo::new(func)),
-            false,
-        )
-        .with_free_pointer(free_pointer);
+        let eliminator =
+            MemoryStoreEliminator::new(Rc::new(AliasAnalysis::new(func)), analyses.cfg(id, func), false)
+                .with_free_pointer(free_pointer);
         let mut entry = eliminator.liveness(func).swap_remove(BlockId::ENTRY);
         MemoryStoreEliminator::summarize_live(&mut entry);
         if !entry.is_all() {
@@ -258,21 +259,40 @@ const RETURN_LIVENESS_ROUNDS: usize = 8;
 /// all memory live.
 fn return_facts(
     module: &Module,
+    analyses: &mut ModuleAnalyses,
     summaries: &Arc<MemoryCallSummaries>,
     terminal: &Arc<FxHashMap<FunctionId, MemLive>>,
     free_pointer: bool,
 ) -> ReturnFacts {
     let mut facts = ReturnFacts::default();
+    let mut calls = index_vec![Vec::new(); module.functions.len()];
+    let mut tails = index_vec![Vec::new(); module.functions.len()];
+    let mut pending = DenseBitSet::new_empty(module.functions.len());
+    for (caller, func) in module.functions.iter_enumerated() {
+        if func.return_components().len() == 1 {
+            pending.insert(caller);
+        }
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst in &block.instructions {
+                if let InstKind::ICall { function: Callee::Function(callee), .. } =
+                    func.inst(inst).kind
+                {
+                    calls[callee].push((caller, block_id, inst));
+                }
+            }
+            if let Some(Terminator::TailCall { function, .. }) = block.terminator {
+                tails[function].push(caller);
+            }
+        }
+    }
     // A tail call to a function that never returns hands back no result.
     let returning = module.returning_functions();
-    // Callees first: a bound found once never changes, so the loop ends after a round that
-    // finds none.
-    loop {
+    // A bound found once never changes. A failed proof can change only when a callee gains a
+    // bound, so revisit just those callers, with every round still using the previous facts.
+    while !pending.is_empty() {
         let mut found = Vec::new();
-        for (id, func) in module.functions.iter_enumerated() {
-            if facts.bounds.contains_key(&id) || func.return_components().len() != 1 {
-                continue;
-            }
+        for id in pending.iter() {
+            let func = &module.functions[id];
             let call = |function: FunctionId| facts.bounds.get(&function).copied();
             let mut bound = Some(u64::MAX);
             let mut returns = false;
@@ -291,30 +311,27 @@ fn return_facts(
                 };
                 returns = true;
                 bound = bound.zip(returned).map(|(bound, returned)| bound.min(returned));
+                if bound.is_none() {
+                    break;
+                }
             }
             if returns && let Some(bound) = bound {
                 found.push((id, bound));
             }
         }
-        if found.is_empty() {
-            break;
-        }
-        facts.bounds.extend(found);
-    }
-
-    let mut calls = index_vec![Vec::new(); module.functions.len()];
-    let mut tails = index_vec![Vec::new(); module.functions.len()];
-    for (caller, func) in module.functions.iter_enumerated() {
-        for (block_id, block) in func.blocks.iter_enumerated() {
-            for &inst in &block.instructions {
-                if let InstKind::ICall { function: Callee::Function(callee), .. } =
-                    func.inst(inst).kind
+        pending.clear();
+        facts.bounds.extend(found.iter().copied());
+        for (callee, _) in found {
+            for caller in calls[callee]
+                .iter()
+                .map(|&(caller, _, _)| caller)
+                .chain(tails[callee].iter().copied())
+            {
+                if module.functions[caller].return_components().len() == 1
+                    && !facts.bounds.contains_key(&caller)
                 {
-                    calls[callee].push((caller, block_id, inst));
+                    pending.insert(caller);
                 }
-            }
-            if let Some(Terminator::TailCall { function, .. }) = block.terminator {
-                tails[function].push(caller);
             }
         }
     }
@@ -350,7 +367,7 @@ fn return_facts(
             let func = &module.functions[caller];
             let eliminator = MemoryStoreEliminator::new(
                 Rc::new(AliasAnalysis::empty_with_summaries(Arc::clone(summaries))),
-                Rc::new(CfgInfo::new(func)),
+                analyses.cfg(caller, func),
                 false,
             )
             .with_free_pointer(free_pointer)
@@ -361,9 +378,29 @@ fn return_facts(
                 .map(|group| (group[0].1, group.len()))
                 .filter(|&(block, _)| eliminator.cfg.is_reachable(block))
                 .collect::<Vec<_>>();
-            (caller, eliminator, blocks)
+            let mut callees = sites.into_iter().map(|(callee, _, _)| callee).collect::<Vec<_>>();
+            callees.sort_unstable();
+            callees.dedup();
+            // Only blocks reachable after a tracked call can contribute to its live-out.
+            // Keep the successor closure, including loop backedges, so every dependency of a
+            // retained block is present in the restricted liveness solve.
+            let mut live_blocks = DenseBitSet::new_empty(func.blocks.len());
+            let mut worklist = Vec::new();
+            for &(block, _) in &blocks {
+                if live_blocks.insert(block) {
+                    worklist.push(block);
+                }
+            }
+            while let Some(block) = worklist.pop() {
+                for &successor in eliminator.cfg.successors(block) {
+                    if live_blocks.insert(successor) {
+                        worklist.push(successor);
+                    }
+                }
+            }
+            (caller, eliminator, blocks, callees, live_blocks)
         })
-        .filter(|(_, _, blocks)| !blocks.is_empty())
+        .filter(|(_, _, blocks, _, _)| !blocks.is_empty())
         .collect::<Vec<_>>();
 
     let mut live = FxHashMap::default();
@@ -379,17 +416,19 @@ fn return_facts(
             bounds: facts.bounds.clone(),
         });
         let mut next = live.clone();
-        for (caller, eliminator, blocks) in &mut callers {
+        for (caller, eliminator, blocks, callees, live_blocks) in &mut callers {
             let func = &module.functions[*caller];
             // Only this caller's return liveness can change its transfer between rounds. Its
             // previous contributions remain in `next`, so an unchanged boundary needs no scan.
+            // Nor can another contribution change a callee that already keeps all memory live.
             if round != 0
-                && eliminator.returns.live.get(&func.name) == snapshot.live.get(&func.name)
+                && (eliminator.returns.live.get(&func.name) == snapshot.live.get(&func.name)
+                    || callees.iter().all(|callee| live[callee].is_all()))
             {
                 continue;
             }
             eliminator.returns = Arc::clone(&snapshot);
-            let live_in = eliminator.liveness(func);
+            let live_in = eliminator.liveness_in(func, live_blocks);
             eliminator.join_call_liveness(func, blocks, &live_in, &mut next);
         }
         for callee in tracked.iter() {
@@ -462,6 +501,9 @@ fn free_pointer_trusted(module: &Module) -> bool {
 /// Whether `inst` may write the low bytes of the free memory pointer's slot, other than with
 /// a proven heap pointer or one of the compiler's own updates; see [`free_pointer_trusted`].
 fn forges_free_pointer(func: &Function, alias: &AliasAnalysis, inst: InstId) -> bool {
+    if func.inst(inst).kind.effect_kind() == EffectKind::Pure {
+        return false;
+    }
     match func.inst(inst).kind {
         InstKind::Store(address, value, PtrLocation::Memory)
             if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
@@ -544,8 +586,9 @@ const MEM_LIVE_CAP: usize = 64;
 /// Live slot set, kept sorted ascending. `MEM_LIVE_CAP` bounds the length, so a
 /// sorted vector beats hashing on every operation the dataflow performs:
 /// membership and insertion are binary searches, and the join is a linear merge
-/// instead of a rehash of the smaller side.
-type LiveSlots = SmallVec<[u64; 16]>;
+/// instead of a rehash of the smaller side. Almost all block-entry sets have zero to four
+/// slots; larger sets spill without changing the analysis limit.
+type LiveSlots = SmallVec<[u64; 4]>;
 
 /// Backward memory-liveness lattice over constant word-aligned slots.
 ///
@@ -600,7 +643,9 @@ impl MemLive {
 
     /// Marks every word that reaches `from` or lies past it live.
     fn add_from(&mut self, from: u64) {
-        let from = self.from.map_or(from, |old| old.min(from));
+        if self.from.is_some_and(|old| old <= from) {
+            return;
+        }
         self.from = Some(from);
         self.slots.retain(|addr| addr.saturating_add(EvmMemoryLayout::WORD_SIZE) <= from);
         if from == 0 {
@@ -617,6 +662,9 @@ impl MemLive {
     }
 
     fn join(&mut self, other: &Self) {
+        if self.is_all() {
+            return;
+        }
         if let Some(from) = other.from {
             self.add_from(from);
         }
@@ -971,9 +1019,14 @@ impl MemoryStoreEliminator {
             .instructions()
             .any(|inst| Self::constant_range_read(&func.inst(inst).kind).is_some());
         for block_id in block_ids {
+            let before = self.eliminated_count;
             self.process_block(func, block_id, has_precise_reads, scratch);
-            self.alias().clear_cached_addresses();
-            self.read_bounds = ReadBounds::default();
+            // An unchanged block leaves every cached proof valid, including access positions
+            // in other blocks. Rebuild only after a rewrite removes or changes instructions.
+            if self.eliminated_count != before {
+                self.alias().clear_cached_addresses();
+                self.read_bounds = ReadBounds::default();
+            }
         }
         self.remove_dead_allocation_stores(func);
         self.remove_cross_block_equal_const_stores(func);
@@ -1044,9 +1097,25 @@ impl MemoryStoreEliminator {
     /// successors actually moved. Postorder puts successors before predecessors, which is the
     /// direction information flows here.
     fn liveness(&self, func: &Function) -> IndexVec<BlockId, MemLive> {
+        self.liveness_in(func, self.cfg.reachable())
+    }
+
+    /// Solves liveness in a successor-closed subset of the reachable CFG. Return summaries
+    /// need only blocks after their tracked calls; earlier blocks contribute to no call site.
+    fn liveness_in(
+        &self,
+        func: &Function,
+        blocks: &DenseBitSet<BlockId>,
+    ) -> IndexVec<BlockId, MemLive> {
         let cfg = &*self.cfg;
         let mut live_in = index_vec![MemLive::empty(); func.blocks.len()];
-        let mut worklist = cfg.rpo().iter().rev().copied().collect::<VecDeque<_>>();
+        let mut worklist = cfg
+            .rpo()
+            .iter()
+            .rev()
+            .copied()
+            .filter(|&block| blocks.contains(block))
+            .collect::<VecDeque<_>>();
         let mut queued = DenseBitSet::new_empty(func.blocks.len());
         for &block_id in &worklist {
             queued.insert(block_id);
@@ -1058,7 +1127,7 @@ impl MemoryStoreEliminator {
             if live_in[block_id] != new_in {
                 live_in[block_id] = new_in;
                 for &pred in &func.blocks[block_id].predecessors {
-                    if cfg.is_reachable(pred) && queued.insert(pred) {
+                    if blocks.contains(pred) && queued.insert(pred) {
                         worklist.push_back(pred);
                     }
                 }
@@ -1166,6 +1235,16 @@ impl MemoryStoreEliminator {
         live: &mut MemLive,
         dead: &mut Option<&mut DenseBitSet<InstId>>,
     ) {
+        // No ordinary transfer can refine top, which has no exact ranges: constant kills
+        // leave its open range intact. A known non-returning call is the exception, since
+        // its callee replaces the suffix.
+        if live.is_all()
+            && !matches!(func.inst(inst_id).kind,
+                InstKind::ICall { function: Callee::Function(function), .. }
+                if self.terminal.contains_key(&function))
+        {
+            return;
+        }
         // A value defined in a loop can name different addresses on successive iterations.
         // Forget exact identities before crossing their definitions, including phis.
         if let Some(value) = func.inst_result_value(inst_id)
@@ -1173,13 +1252,9 @@ impl MemoryStoreEliminator {
         {
             Self::summarize_live(live);
         }
-        // No ordinary transfer can refine top: constant kills leave its open range intact.
-        // A known non-returning call is the exception, since its callee replaces the suffix.
-        if live.is_all()
-            && !matches!(func.inst(inst_id).kind,
-                InstKind::ICall { function: Callee::Function(function), .. }
-                if self.terminal.contains_key(&function))
-        {
+        // Pure definitions can end an exact range's lifetime, but do not otherwise transfer
+        // memory liveness. Gas and memory-size observers have non-pure schema effects.
+        if func.inst(inst_id).kind.effect_kind() == EffectKind::Pure {
             return;
         }
         // Transfer writes before reads, as a memory copy reads its source before writing its
@@ -1552,6 +1627,9 @@ impl MemoryStoreEliminator {
         let mut has_load = false;
         let mut has_keccak = false;
         for &inst_id in &func.blocks[block_id].instructions {
+            if func.inst(inst_id).kind.effect_kind() == EffectKind::Pure {
+                continue;
+            }
             match func.inst(inst_id).kind {
                 InstKind::Store(.., PtrLocation::Memory) => {
                     mstores += 1;
@@ -1724,6 +1802,9 @@ impl MemoryStoreEliminator {
         inst_id: InstId,
         overwritten: &mut FxHashSet<MemAddrKey>,
     ) {
+        if func.inst(inst_id).kind.effect_kind() == EffectKind::Pure {
+            return;
+        }
         let effects = self.alias().instruction_mod_ref(func, inst_id);
         if effects.observes_gas()
             || effects.reads_anywhere(AddressSpace::Memory)
@@ -2146,6 +2227,9 @@ impl MemoryStoreEliminator {
 
         for &inst_id in &func.blocks[block_id].instructions {
             let inst = func.inst(inst_id);
+            if inst.kind.effect_kind() == EffectKind::Pure {
+                continue;
+            }
             if fmp_word.is_some()
                 && self.alias().instruction_may_write_fmp(func, inst_id, &self.read_bounds)
             {
@@ -2473,7 +2557,8 @@ impl MemoryStoreEliminator {
     }
 
     fn can_mutate_memory(&self, func: &Function, inst_id: InstId) -> bool {
-        self.alias().instruction_mod_ref(func, inst_id).writes_space(AddressSpace::Memory)
+        func.inst(inst_id).kind.effect_kind() != EffectKind::Pure
+            && self.alias().instruction_mod_ref(func, inst_id).writes_space(AddressSpace::Memory)
     }
 
     fn cross_block_memory_barrier(&self, func: &Function, inst_id: InstId) -> bool {
@@ -2561,6 +2646,9 @@ impl MemoryStoreEliminator {
         let mut wrapping_writes = false;
         for (block_id, block) in func.blocks.iter_enumerated() {
             for (index, &inst) in block.instructions.iter().enumerate() {
+                if func.inst(inst).kind.effect_kind() == EffectKind::Pure {
+                    continue;
+                }
                 let effects = self.alias().instruction_mod_ref(func, inst);
                 self.collect_heap_reads(func, &effects, (block_id, index), &mut heap_reads);
                 wrapping_writes |= self.alias().instruction_may_wrap_write(func, inst);

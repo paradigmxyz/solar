@@ -992,6 +992,16 @@ impl Target {
     pub(crate) fn frame_words(&self, words: u32) -> Cost {
         Cost::new(GasTier::MEMORY_WORD_GAS.saturating_mul(words), 0)
     }
+
+    /// Bytes saved when an outlined body's suffix and return share an existing return tail.
+    /// One copy replaces the suffix, the output rotations and the return jump with a jump to
+    /// the shared tail. Charge its pushed label, jump and additional landing.
+    pub(crate) fn shared_return_tail_savings(&self, suffix_bytes: u32, outputs: u16) -> u32 {
+        suffix_bytes
+            .saturating_add(self.opcode(op::SWAP1).times(u32::from(outputs)).bytes)
+            .saturating_add(self.opcode(op::JUMP).bytes)
+            .saturating_sub(self.jump().bytes)
+    }
 }
 
 #[cfg(test)]
@@ -1613,5 +1623,17 @@ mod tests {
             assert_eq!(target.frame_words(0), Cost::ZERO);
             assert_eq!(target.frame_words(10), Cost::new(30, 0));
         }
+    }
+
+    #[test]
+    fn outlined_return_tails_pay_for_their_jump() {
+        let target = Target::with(EvmVersion::Cancun, OptimizationMode::Size, 200);
+        let suffix = target.dup()
+            + target.opcode(op::ADD)
+            + target.push(U256::from(64))
+            + target.opcode(op::MSTORE);
+        assert_eq!(target.shared_return_tail_savings(suffix.bytes, 1), 2);
+        assert_eq!(target.shared_return_tail_savings(0, 1), 0);
+        assert_eq!(target.shared_return_tail_savings(suffix.bytes, 0), 1);
     }
 }
