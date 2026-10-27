@@ -174,6 +174,43 @@ impl<P: MirPass> MirPass for GasOnly<P> {
     }
 }
 
+/// Runs one pipeline slot at `-O none` too, for cheap cleanups whose bytecode savings repay their
+/// compile time. Wrap single slots, not every occurrence of a pass.
+struct RunsAtNone<P>(P);
+
+impl<P> RunsAtNone<P> {
+    const fn new(pass: P) -> Self {
+        Self(pass)
+    }
+}
+
+impl<P: MirPass> MirPass for RunsAtNone<P> {
+    fn name(&self) -> &'static str {
+        self.0.name()
+    }
+
+    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        gcx.sess.opts.optimization.is_none() || self.0.is_enabled(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        self.0.is_required()
+    }
+
+    fn cache_key(&self) -> Option<(&'static str, &'static str)> {
+        self.0.cache_key()
+    }
+
+    fn run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut ModuleAnalyses,
+    ) -> bool {
+        self.0.run_pass(gcx, module, analyses)
+    }
+}
+
 /// The canonical MIR pipeline used by EVM codegen.
 static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // Clamp inline assembly's stores of absolute addresses to the free memory pointer before any
@@ -254,7 +291,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &word_sequence::WordSequence::Early,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
-    &cfg_simplify::CfgSimplify,
+    // Runs at `-O none` too: it removes the empty blocks lowering leaves, which shrinks every
+    // later pass's input and the bytecode.
+    &RunsAtNone::new(cfg_simplify::CfgSimplify),
     // Small pure diamonds become selects once folded conditions are gone.
     &if_convert::IfConvert,
     &frame_promotion::FrameSlotPromotion,
