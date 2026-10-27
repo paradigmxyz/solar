@@ -5,8 +5,8 @@ fn @siftDown() [selector=0xcabbfceb, abi_wrapper, pure] {
   bb0:
     v31 = calldatasize
     v32 = lt v31, 100
-    jumpi v32, bb7, bb8
-  bb8:
+    jumpi v32, bb11, bb12
+  bb12:
     v33 = icall @decode_calldata_type
     v0 = mload v33
     v1 = lt arg1, v0
@@ -18,12 +18,16 @@ fn @siftDown() [selector=0xcabbfceb, abi_wrapper, pure] {
   bb6:
     jump bb1
   bb1:
-    v4 = phi [bb6: arg1], [bb4: v9]
+    v4 = phi [bb6: arg1], [bb10: v9]
     v7 = ne v4, 0
     jumpi v7, bb3, bb2
   bb3:
     v8 = sub v4, 1
     v9 = shr v8, 1
+    v10 = mload v33
+    v11 = lt v9, v10
+    jumpi v11, bb9, bb7
+  bb9:
     v13 = shl v9, 5
     v51 = add v33, v13
     v52 = add v51, 32
@@ -31,25 +35,35 @@ fn @siftDown() [selector=0xcabbfceb, abi_wrapper, pure] {
     v17 = lt arg2, v16
     jumpi v17, bb4, bb2
   bb2:
+    v25 = mload v33
+    v26 = lt v4, v25
+    jumpi v26, bb8, bb7
+  bb8:
     v28 = shl v4, 5
     v44 = add v33, v28
     v45 = add v44, 32
     mstore v45, arg2
+    v37 = mload v33
     v47 = add v33, 32
-    v39 = shl v0, 5
+    v39 = shl v37, 5
     v49 = add v33, 64
     mcopy v49, v47, v39
     mstore v33, 32
-    mstore v47, v0
+    mstore v47, v37
     v41 = add v39, 64
     returndata v33, v41
   bb4:
+    v20 = lt v4, v10
+    jumpi v20, bb10, bb7
+  bb7:
+    tail_call @revert_stub
+  bb10:
     v22 = shl v4, 5
     v54 = add v33, v22
     v55 = add v54, 32
     mstore v55, v16
     jump bb1
-  bb7:
+  bb11:
     revert 0, 0
 }
 
@@ -87,21 +101,20 @@ fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
     v41 = add v30, v25
     v42 = add v41, 32
     mstore v42, arg2
+    v34 = mload v30
     v44 = add v30, 32
-    v36 = shl v22, 5
+    v36 = shl v34, 5
     v46 = add v30, 64
     mcopy v46, v44, v36
     mstore v30, 32
-    mstore v44, v22
+    mstore v44, v34
     v38 = add v36, 64
     returndata v30, v38
   bb4:
     v17 = lt v1, v7
     jumpi v17, bb8, bb5
   bb5:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
+    tail_call @revert_stub
   bb8:
     v19 = shl v1, 5
     v51 = add v30, v19
@@ -140,6 +153,13 @@ fn @afterAllocation() [selector=0x510dcf1e, abi_wrapper, pure] {
     revert 28, 36
   bb4:
     revert 0, 0
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {

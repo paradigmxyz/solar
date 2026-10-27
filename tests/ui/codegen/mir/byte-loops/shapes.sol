@@ -86,18 +86,18 @@
 // CHECK-NEXT: jumpi [[EMPTY]]
 // CHECK: calldatacopy
 
-// A fresh destination's checks compare with the length its allocation stored. Its source is an
-// argument, which may overlap a fresh allocation, so the copy keeps the guarded loop.
+// A fresh destination's source is an argument, which may overlap a fresh allocation, so
+// the copy keeps the guarded loop and reloads the destination length on that path.
 // CHECK-LABEL: fn @fresh(
 // CHECK: mcopy
 // CHECK: mstore8
 
-// Between two fresh allocations, the copy needs no overlap guard: the only byte loop left is
-// the fill.
+// The indexed fill may reset the FMP, so the later allocation keeps the overlap guard.
+// Both the copy fallback and the original fill keep their byte stores.
 // CHECK-LABEL: fn @freshPair(
 // CHECK: mcopy
 // CHECK: mstore8
-// CHECK-NOT: mstore8
+// CHECK: mstore8
 
 // A `@custom:solar-inline` helper meets the caller's objects before this pass runs.
 // CHECK-LABEL: fn @viaHelper(

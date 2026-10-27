@@ -10,19 +10,15 @@
 //@ run-call: afterAllocation 3 => 6
 //@ run-call: afterAllocation 0 => 0
 
-// A passing check states its condition for the code after it, so the hole the
-// assertion keeps below the length bounds every position the loop visits: a
-// position only ever falls, to its parent `(pos - 1) >> 1`, which a checked
-// difference keeps below `pos`. Neither the parent read nor the writes check
-// their index.
+// The asserted position only falls to `(pos - 1) >> 1`, but its bound cannot be reused
+// across indexed stores without proving that those stores leave the length unchanged.
 // OPT-LABEL: fn @siftDown()
-// OPT-NOT: tail_call @revert_stub
-// OPT-NOT: mstore 32, 50
+// OPT: tail_call @revert_stub
 //
 // Without the assertion, the start position is unbounded and the writes keep
 // their checks.
 // OPT-LABEL: fn @keepsCheck()
-// OPT: mstore 32, 50
+// OPT: tail_call @revert_stub
 //
 // An allocation's size checks bound its length, `(m + 1) << 5 >> 5 == m + 1`,
 // so the doubled length cannot overflow.

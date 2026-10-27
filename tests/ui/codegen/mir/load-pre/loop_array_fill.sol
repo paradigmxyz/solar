@@ -10,11 +10,9 @@
 //@ run-call: lanes 0x000000090000000700000005 => [5, 7, 9]
 //@ run-call: lanes 0x0000000b000000090000000700000005 => [5, 7, 9]
 
-// A loop filling a fresh array reads the array's length in every bounds check.
-// Only the preheader writes it, so `load-pre` forwards the stored length into
-// the body and `check-elim` proves each index below it from the loop's own
-// test, leaving no array-bounds panic. `lanes` runs at most three times, so it
-// stays rolled even at the runs that copy loop bodies.
+// Filling a fresh array still works when its length reload stays in the loop: the value-local
+// alias analysis does not prove that a runtime index stays inside the allocation. `lanes`
+// runs at most three times, so it stays rolled even at the runs that copy loop bodies.
 contract LoopArrayFill {
     function fill(uint256 n) external pure returns (uint256[] memory ids) {
         ids = new uint256[](n);
@@ -26,10 +24,14 @@ contract LoopArrayFill {
     // CHECK-LABEL: fn @lanes
     // CHECK: [[COUNT:v[0-9]+]] = phi [bb0: 0], [bb5: 1], [bb6: {{v[0-9]+}}]
     // CHECK: = lt {{v[0-9]+}}, [[COUNT]]
+    // CHECK-NEXT: jumpi {{v[0-9]+}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+    // CHECK: [[BODY]]:
+    // CHECK: [[LENGTH:v[0-9]+]] = mload
+    // CHECK-NEXT: = lt {{v[0-9]+}}, [[LENGTH]]
     // CHECK-NEXT: jumpi
-    // CHECK-NOT: jumpi
+    // CHECK: mstore
     // CHECK-LABEL: fn @revert_stub
-    // CHECK-NOT: mstore 32, 50
+    // CHECK: mstore 32, 50
     function lanes(uint256 packed) external pure returns (uint256[] memory ids) {
         uint256 count = _count(packed);
         ids = new uint256[](count);
