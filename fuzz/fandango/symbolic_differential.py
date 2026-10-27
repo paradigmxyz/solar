@@ -424,7 +424,7 @@ def run(
                 )
     if limit := _inner_frame_log_limit(*scanned):
         for check in checks:
-            check["unsupported"] = limit
+            check["log_limit"] = limit
     codes = [
         artifact[key]
         for artifact in (solc_artifact, solar_artifact)
@@ -1530,14 +1530,12 @@ def _inner_frame_log_limit(*codes: str) -> str | None:
 
     Foundry records the logs of every frame, including inner frames that revert
     inside a successful call, and attributes no log to a frame, so the harness
-    cannot drop them.
+    cannot drop them. A `logs` difference in such code may come from one.
     """
     for code in codes:
         opcodes = _runtime_opcodes(code)
         if opcodes & _LOG_OPCODES and opcodes & _INNER_FRAME_OPCODES:
-            return (
-                "logs of reverted inner frames cannot be told apart from committed logs"
-            )
+            return "a logs difference may come from an inner frame that reverted"
     return None
 
 
@@ -1789,6 +1787,8 @@ def _classify_one(
             "status": "incomplete",
             "reason": f"counterexample replay failed outside the comparison: {differs_in}",
         }
+    if differs_in == "logs" and check.get("log_limit"):
+        return {"status": "incomplete", "reason": check["log_limit"]}
     counterexample = symbolic.get("counterexample")
     artifact = symbolic.get("artifact")
     if not isinstance(counterexample, dict) or not isinstance(artifact, dict):

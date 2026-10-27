@@ -303,6 +303,21 @@ class ResultClassificationTests(unittest.TestCase):
             },
         )
 
+    def test_logs_difference_with_inner_frames_is_incomplete(self) -> None:
+        report = _forge_report("fail_counterexample", replay="confirmed", reason="logs")
+        (check,) = _checks()
+        check["log_limit"] = symbolic._inner_frame_log_limit("0xa0f1")
+
+        self.assertEqual(
+            symbolic._classify(report, [check]),
+            {
+                "status": "incomplete",
+                "reason": "a logs difference may come from an inner frame that reverted",
+            },
+        )
+        self.assertIsNone(symbolic._inner_frame_log_limit("0xa0", "0xf1"))
+        self.assertEqual(symbolic._classify(report, _checks())["status"], "mismatch")
+
     def test_unsupported_failure_is_incomplete(self) -> None:
         result = symbolic._classify(
             _forge_report(
@@ -1097,14 +1112,7 @@ class CommandTests(unittest.TestCase):
             deployed = output["contracts"]["Probe.sol"]["Probe"]["evm"][
                 "deployedBytecode"
             ]
-            # LOG0 and CALL: a log may come from a frame that later reverts.
-            deployed["object"] = "a0f1"
-            (args.solar_attempt / "stdout.txt").write_text(json.dumps(output))
-            logging_result = symbolic.run(args, root / "logging-out")
-            self.assertEqual(logging_result["status"], "incomplete")
-            self.assertIn("reverted inner frames", logging_result["reason"])
             # The constructor's TSTORE would stay visible to the first call.
-            deployed["object"] = "60" * 400
             output["contracts"]["Probe.sol"]["Probe"]["evm"]["bytecode"] = {
                 "object": "5d"
             }

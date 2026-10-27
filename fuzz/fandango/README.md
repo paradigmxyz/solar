@@ -420,8 +420,9 @@ compare a created contract's own source to cover its behavior. Contracts
 created with `CREATE2` or by created contracts are not compared, and a target
 whose runtime uses `CREATE2` lists that under `limitations`. Foundry records
 the logs of inner frames that revert inside a successful call and does not say
-which frame emitted each log, so it cannot drop them. A build with a `LOG`
-opcode and any call or create opcode is therefore reported incomplete.
+which frame emitted each log, so it cannot drop them. For a build with a `LOG`
+opcode and any call or create opcode, a `logs` difference is therefore reported
+incomplete, because it may come from such a frame.
 
 A generated symbolic bound is raised as needed to hold both builds' bytecode
 and is recorded in `result.json`. A mismatch is reported only after Foundry
