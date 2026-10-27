@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import difflib
 import hashlib
-import itertools
 import json
 import math
 import os
@@ -37,8 +36,6 @@ METRICS = {
     "compile_time_seconds": "compile seconds",
     "peak_rss_bytes": "peak RSS bytes",
 }
-# Our compiler and its variants: their failures and mismatches raise warnings.
-SOLAR_COMPILERS = ("solar", "solar-size")
 ARTIFACT_KINDS = {
     "mir": (".mir",),
     "llvm-ir": (".ll",),
@@ -743,7 +740,7 @@ def compiler_failures(results: list[dict[str, Any]]) -> list[str]:
             continue
         compilers = result.get("compilers", {})
         for compiler_id, data in compilers.items():
-            if compiler_id in SOLAR_COMPILERS and data.get("status") != "ok":
+            if compiler_id == "solar" and data.get("status") != "ok":
                 error_lines = str(data.get("error") or "").strip().splitlines()
                 error = error_lines[0] if error_lines else "compiler failed"
                 failures.append(f"{test_id} {compiler_id}: {error}")
@@ -784,19 +781,19 @@ def runtime_failed(result: dict[str, Any], compiler: str) -> bool:
 
 def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
     details = []
-    for result, solar in itertools.product(results, SOLAR_COMPILERS):
-        if not runtime_failed(result, solar):
+    for result in results:
+        if not runtime_failed(result, "solar"):
             continue
         test_id = "/".join(suite_key(result))
         before = len(details)
 
-        for mismatch in runtime_mismatches(result, solar):
+        for mismatch in runtime_mismatches(result, "solar"):
             label = mismatch.get("label", "<unknown>")
             values = mismatch.get("values") or {}
             details.append(f"{test_id} {label}: {format_values(values)}")
 
         for compiler_id, data in (result.get("compilers") or {}).items():
-            if compiler_id != solar:
+            if compiler_id != "solar":
                 continue
             for check in data.get("runtime_results") or []:
                 if check.get("status") == "ok":
@@ -806,11 +803,10 @@ def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
                 details.append(f"{test_id} {compiler_id} {label}: {shorten(error)}")
 
         if len(details) == before:
-            status = compiler_data(result, solar).get("runtime_status")
-            details.append(f"{test_id} {solar}: runtime_status={status}")
+            status = compiler_data(result, "solar").get("runtime_status")
+            details.append(f"{test_id} solar: runtime_status={status}")
 
-    # Both of our compilers can see the same mismatch.
-    return list(dict.fromkeys(details))
+    return details
 
 
 def baseline_regression_details(
@@ -1980,9 +1976,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--tests", nargs="+", help="Select test IDs from either run")
     parser.add_argument(
-        "--compiler",
-        choices=("solar", "solar-size", "solc", "solc-legacy", "solx", "oksolc"),
-        default="solar",
+        "--compiler", choices=("solar", "solc", "solx", "oksolc"), default="solar"
     )
     parser.add_argument(
         "--comment-output", type=Path, help="Write CI should-comment metadata"

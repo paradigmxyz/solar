@@ -337,26 +337,6 @@ class ReportFormattingTests(unittest.TestCase):
             "| test | n/a (n/a) | n/a (n/a) | 30 (n/a) | n/a (n/a) | n/a (n/a) | 40B (n/a) |\n",
         )
 
-    def test_codegen_report_adds_variant_compiler_columns(self):
-        current = result()
-        for name in ("solc-legacy", "solar-size"):
-            current["compilers"][name] = {
-                "status": "ok",
-                "total_gas": 10,
-                "runtime_size": 20,
-                "deploy_gas": 30,
-                "bytecode_size": 40,
-            }
-        report = benchmark.codegen_report([current], [current])
-        self.assertIn(
-            "| bench | gas (vs main) | solc | solc-legacy | solar-size | size (vs main) | solc | solc-legacy | solar-size |",
-            report,
-        )
-        self.assertIn(
-            "| test | n/a (n/a) | n/a (n/a) | 10 (n/a) | 10 (n/a) | n/a (n/a) | n/a (n/a) | 20B (n/a) | 20B (n/a) |",
-            report,
-        )
-
     def test_codegen_report_labels_failed_revision(self):
         def timed_result(test_id, solar_status):
             return {
@@ -906,7 +886,7 @@ class RunComparisonTests(unittest.TestCase):
             )
 
     def test_reference_report_uses_selected_compiler(self):
-        for compiler in ("solc", "solc-legacy", "solx", "oksolc"):
+        for compiler in ("solc", "solx", "oksolc"):
             before = self.fixture()
             before["compilers"][compiler] = copy.deepcopy(before["compilers"]["solar"])
             after = copy.deepcopy(before)
@@ -1035,7 +1015,7 @@ class RunComparisonTests(unittest.TestCase):
         self.assertIn("candidate gas run failed", row["issues"])
 
     def test_reference_failures_do_not_trigger_comments_or_warnings(self):
-        for compiler in ("solc", "solc-legacy", "solx", "oksolc"):
+        for compiler in ("solc", "solx", "oksolc"):
             for stage in ("status", "runtime_status", "gas_status"):
                 with self.subTest(compiler=compiler, stage=stage):
                     before = self.fixture()
@@ -1072,17 +1052,6 @@ class RunComparisonTests(unittest.TestCase):
                         benchmark.runtime_issue_details([after]),
                         ["repository/test solar: runtime_status=failed"],
                     )
-
-    def test_solar_size_failures_trigger_warnings(self):
-        for stage, warnings in (
-            ("status", benchmark.compiler_failures),
-            ("runtime_status", benchmark.runtime_issue_details),
-        ):
-            with self.subTest(stage=stage):
-                after = self.fixture()
-                after["compilers"]["solar-size"] = {"status": "ok", stage: "failed"}
-                self.assertEqual(len(warnings([after])), 1)
-                self.assertIn("solar-size", warnings([after])[0])
 
     def test_mismatches_require_a_solar_observation(self):
         before = self.fixture()

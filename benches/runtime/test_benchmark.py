@@ -268,46 +268,36 @@ class CorpusTests(unittest.TestCase):
         )
         self.assertEqual(benchmark.with_optimizer_runs(original, None), original)
 
-    def test_each_compiler_compiles_its_own_input(self) -> None:
-        case = benchmark.TEST_CASES[0]
+    def test_variant_settings_reach_their_compiler_input(self) -> None:
         specs = (
-            benchmark.CompilerSpec("solc", "solc", Path("solc"), "solc"),
+            benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar"),
             benchmark.CompilerSpec(
                 "solc-legacy", "solc", Path("solc"), "solc-legacy", via_ir=False
             ),
-            benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar"),
             benchmark.CompilerSpec(
                 "solar-size", "solar", Path("solar"), "solar", optimizer_runs=1
             ),
         )
         inputs = {}
-        shared = benchmark.compiler_input(case, None, 200)
-        self.assertIs(benchmark.spec_compiler_input(shared, specs[0]), shared)
 
         def compile_case(spec, _case, prepared_input, *_args):
-            inputs[spec.compiler_id] = json.loads(prepared_input[0])["settings"]
-            return {"status": "failed", "input_fingerprint": prepared_input[2]}
+            inputs[spec.compiler_id] = prepared_input
+            return {"status": "failed"}
 
         with mock.patch.object(benchmark, "compile_case", side_effect=compile_case):
-            result = benchmark.run_test_case(
-                case, specs, False, "smoke", "rpc", "key", optimizer_runs=200
+            benchmark.run_test_case(
+                benchmark.TEST_CASES[0], specs, False, "smoke", "rpc", "key"
             )
 
-        self.assertEqual(
-            {name: (s["viaIR"], s["optimizer"]["runs"]) for name, s in inputs.items()},
-            {
-                "solc": (True, 200),
-                "solc-legacy": (False, 200),
-                "solar": (True, 200),
-                "solar-size": (True, 1),
-            },
-        )
-        fingerprints = {
-            name: data["input_fingerprint"]
-            for name, data in result["compilers"].items()
+        settings = {
+            name: json.loads(prepared[0])["settings"]
+            for name, prepared in inputs.items()
         }
-        self.assertEqual(fingerprints["solc"], fingerprints["solar"])
-        self.assertEqual(len(set(fingerprints.values())), 3)
+        self.assertEqual(settings["solar"]["optimizer"]["runs"], 200)
+        self.assertTrue(settings["solar"]["viaIR"])
+        self.assertFalse(settings["solc-legacy"]["viaIR"])
+        self.assertEqual(settings["solar-size"]["optimizer"]["runs"], 1)
+        self.assertEqual(len({prepared[2] for prepared in inputs.values()}), 3)
 
     def test_compiler_output_fingerprint_ignores_diagnostic_order(self) -> None:
         first = json.dumps(
@@ -438,11 +428,6 @@ class FailureHandlingTests(unittest.TestCase):
             (["--solx", "solx"], {"solar", "solx"}),
             (["--oksolc", "oksolc"], {"solar", "oksolc"}),
             (["--solc", "solc", "--solx", "solx"], {"solar", "solc", "solx"}),
-            (
-                ["--solc", "solc", "--solc-legacy"],
-                {"solar", "solc", "solc-legacy"},
-            ),
-            (["--solar-size"], {"solar", "solar-size"}),
         ):
             with self.subTest(flags=flags):
                 self.check_unexpected_test_error(flags, compilers)
@@ -451,26 +436,17 @@ class FailureHandlingTests(unittest.TestCase):
         self,
     ) -> None:
         case = benchmark.TEST_CASES[0]
-        shared = benchmark.compiler_input(case, None)
-        legacy = benchmark.CompilerSpec(
-            "solc-legacy", "solc", Path("solc"), "solc-legacy", via_ir=False
-        )
         entry = {
             "test_id": case.test_id,
             "suite": case.suite,
             "gas_profile": "smoke",
-            "compilers": {"solar": {"status": "ok", "input_fingerprint": shared[2]}},
+            "compilers": {"solar": {"status": "ok", "input_fingerprint": "same"}},
         }
         reference = {
             **entry,
             "compilers": {
-                name: {"status": "ok", "input_fingerprint": fingerprint}
-                for name, fingerprint in (
-                    ("solc", shared[2]),
-                    ("solc-legacy", benchmark.spec_compiler_input(shared, legacy)[2]),
-                    ("solx", shared[2]),
-                    ("oksolc", shared[2]),
-                )
+                name: {"status": "ok", "input_fingerprint": "same"}
+                for name in ("solc", "solx", "oksolc")
             },
         }
         with (
@@ -511,39 +487,8 @@ class FailureHandlingTests(unittest.TestCase):
         )
         self.assertEqual(
             set(document["results"][0]["compilers"]),
-            {"solar", "solc", "solc-legacy", "solx", "oksolc"},
+            {"solar", "solc", "solx", "oksolc"},
         )
-
-    def test_failed_case_does_not_rebuild_input_for_saved_references(self) -> None:
-        case = benchmark.TEST_CASES[0]
-        with (
-            tempfile.TemporaryDirectory() as directory,
-            mock.patch.object(benchmark, "find_binary", return_value=Path("solar")),
-            mock.patch.object(benchmark, "binary_version", return_value=("0.2.0", "")),
-            mock.patch.object(
-                benchmark, "run_test_case", side_effect=RuntimeError("unexpected")
-            ),
-            mock.patch.object(benchmark, "prepare_input", side_effect=KeyError("boom")),
-        ):
-            reference_path = Path(directory) / "reference.json"
-            reference_path.write_text(json.dumps({"results": []}))
-            output = Path(directory) / "results.json"
-            return_code = benchmark.main(
-                [
-                    "--solar",
-                    "solar",
-                    "--reference-results",
-                    str(reference_path),
-                    "--tests",
-                    case.test_id,
-                    "--allow-failures",
-                    "--output",
-                    str(output),
-                ]
-            )
-            document = json.loads(output.read_text())
-        self.assertEqual(return_code, 0)
-        self.assertIn("unexpected", document["results"][0]["benchmark_error"])
 
     def test_live_oksolc_with_saved_references(self) -> None:
         case = benchmark.TEST_CASES[0]
@@ -922,7 +867,7 @@ class RuntimeComparisonTests(unittest.TestCase):
             }
         }
 
-        merged = benchmark.merge_reference_compiler(entry, references, "solc", "input")
+        merged = benchmark.merge_reference_compiler(entry, references, "solc")
         specs = (
             benchmark.CompilerSpec("solc", "solc", Path("solc"), "solc"),
             benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar"),
@@ -936,9 +881,7 @@ class RuntimeComparisonTests(unittest.TestCase):
         references[("runtime", "test")]["compilers"]["solx"] = references[
             ("runtime", "test")
         ]["compilers"]["solc"]
-        self.assertTrue(
-            benchmark.merge_reference_compiler(entry, references, "solx", "input")
-        )
+        self.assertTrue(benchmark.merge_reference_compiler(entry, references, "solx"))
         benchmark.compare_runtime_results(
             entry,
             (*specs, benchmark.CompilerSpec("solx", "solx", Path("solx"), "solx")),
@@ -969,9 +912,7 @@ class RuntimeComparisonTests(unittest.TestCase):
                 "compilers": {"solx": failure},
             },
         }
-        self.assertTrue(
-            benchmark.merge_reference_compiler(entry, references, "solx", "input")
-        )
+        self.assertTrue(benchmark.merge_reference_compiler(entry, references, "solx"))
         self.assertEqual(entry["compilers"]["solx"], failure)
         self.assertIsNot(entry["compilers"]["solx"], failure)
 
@@ -981,9 +922,7 @@ class RuntimeComparisonTests(unittest.TestCase):
                 failure["input_fingerprint"] = fingerprint
                 entry["gas_profile"] = profile
                 self.assertFalse(
-                    benchmark.merge_reference_compiler(
-                        entry, references, "solx", "input"
-                    )
+                    benchmark.merge_reference_compiler(entry, references, "solx")
                 )
 
 
@@ -1111,13 +1050,6 @@ class ArtifactTests(unittest.TestCase):
 
         self.assertNotIn("evm.deployedBytecode.opcodes", solar_outputs)
         self.assertNotIn("evm.deployedBytecode.opcodes", solc_outputs)
-        legacy = json.loads(
-            benchmark.artifact_compiler_input(input_text, test_case, "solc-legacy")
-        )
-        legacy_outputs = next(iter(legacy["settings"]["outputSelection"].values()))[
-            test_case.contract_name
-        ]
-        self.assertEqual(legacy_outputs, solar_outputs)
         self.assertNotIn("irOptimized", solar_outputs)
         self.assertNotIn("ir", solar_outputs)
         self.assertIn("ir", solc_outputs)
@@ -1233,32 +1165,10 @@ class ArtifactTests(unittest.TestCase):
             ("runtime", "test"): {"compilers": {"solc": {"input_fingerprint": "old"}}}
         }
 
-        merged = benchmark.merge_reference_compiler(entry, references, "solc", "new")
+        merged = benchmark.merge_reference_compiler(entry, references, "solc")
 
         self.assertFalse(merged)
         self.assertNotIn("solc", entry["compilers"])
-
-    def test_reference_matches_the_fingerprint_of_its_own_settings(self) -> None:
-        references = {
-            ("runtime", "test"): {
-                "compilers": {
-                    "solc-legacy": {"status": "ok", "input_fingerprint": "legacy"}
-                }
-            }
-        }
-        for fingerprint, merged in (("legacy", True), ("shared", False), (None, False)):
-            with self.subTest(fingerprint=fingerprint):
-                entry = {
-                    "test_id": "test",
-                    "suite": "runtime",
-                    "compilers": {"solar": {"input_fingerprint": "shared"}},
-                }
-                self.assertEqual(
-                    benchmark.merge_reference_compiler(
-                        entry, references, "solc-legacy", fingerprint
-                    ),
-                    merged,
-                )
 
     def test_reference_reuse_copies_exclusions_without_changing_raw_gas(self):
         current_call = {
@@ -1289,7 +1199,7 @@ class ArtifactTests(unittest.TestCase):
         }
         self.assertTrue(
             benchmark.merge_reference_compiler(
-                entry, {("runtime", "test"): reference}, "solc", "input"
+                entry, {("runtime", "test"): reference}, "solc"
             )
         )
         self.assertEqual(
@@ -1325,7 +1235,7 @@ class ArtifactTests(unittest.TestCase):
             }
         }
 
-        merged = benchmark.merge_reference_compiler(entry, references, "solc", "input")
+        merged = benchmark.merge_reference_compiler(entry, references, "solc")
 
         self.assertFalse(merged)
         self.assertNotIn("solc", entry["compilers"])

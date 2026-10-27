@@ -326,7 +326,7 @@ class CompilerSpec:
     path: Path
     kind: str
     args: tuple[str, ...] = ("--standard-json",)
-    # Settings that replace the case's own in this compiler's Standard JSON input.
+    # Replace the case's own settings in this compiler's input.
     via_ir: bool | None = None
     optimizer_runs: int | None = None
 
@@ -395,14 +395,6 @@ def with_optimizer_runs(input_text: str, optimizer_runs: int | None) -> str:
     return json.dumps(payload)
 
 
-def with_via_ir(input_text: str, via_ir: bool | None) -> str:
-    if via_ir is None:
-        return input_text
-    payload = json.loads(input_text)
-    payload.setdefault("settings", {})["viaIR"] = via_ir
-    return json.dumps(payload)
-
-
 def compiler_input(
     test_case: TestCase,
     evm_version: str | None,
@@ -433,12 +425,12 @@ def compiler_input(
 def spec_compiler_input(
     prepared_input: tuple[str, int, str], spec: CompilerSpec
 ) -> tuple[str, int, str]:
-    """Applies the spec's settings to the shared input and fingerprints the result."""
-    if spec.via_ir is None and spec.optimizer_runs is None:
-        return prepared_input
     input_text, timeout, _ = prepared_input
     input_text = with_optimizer_runs(input_text, spec.optimizer_runs)
-    input_text = with_via_ir(input_text, spec.via_ir)
+    if spec.via_ir is not None:
+        payload = json.loads(input_text)
+        payload.setdefault("settings", {})["viaIR"] = spec.via_ir
+        input_text = json.dumps(payload)
     return input_text, timeout, hashlib.sha256(input_text.encode()).hexdigest()
 
 
@@ -1920,19 +1912,10 @@ def workload_signature(data: dict[str, Any]) -> tuple[object, ...]:
     return tuple(signature)
 
 
-def prepare_input(
-    test_case: TestCase, evm_version: str | None, optimizer_runs: int | None
-) -> tuple[str, int, str] | None:
-    if test_case.project_file is not None and not test_case.project_path.exists():
-        return None
-    return compiler_input(test_case, evm_version, optimizer_runs)
-
-
 def merge_reference_compiler(
     entry: dict[str, Any],
     references: dict[tuple[str, str], dict[str, Any]],
     compiler_id: str,
-    input_fingerprint: str | None,
 ) -> bool:
     reference = references.get(result_key(entry))
     if reference is None:
@@ -1946,7 +1929,12 @@ def merge_reference_compiler(
         return False
 
     reference_fingerprint = reference_data.get("input_fingerprint")
-    if not reference_fingerprint or reference_fingerprint != input_fingerprint:
+    current_fingerprints = {
+        data.get("input_fingerprint")
+        for data in compilers.values()
+        if isinstance(data, dict) and data.get("input_fingerprint")
+    }
+    if not reference_fingerprint or reference_fingerprint not in current_fingerprints:
         return False
     if entry.get("gas_profile") != reference.get("gas_profile"):
         return False
@@ -2066,16 +2054,18 @@ def run_test_case(
         entry["project"] = test_case.project.name
         entry["source"] = test_case.source
     reference_solc = next((spec.path for spec in specs if spec.kind == "solc"), None)
-    shared_input = prepare_input(test_case, evm_version, optimizer_runs)
+    prepared_input = (
+        None
+        if test_case.project_file is not None and not test_case.project_path.exists()
+        else compiler_input(test_case, evm_version, optimizer_runs)
+    )
     for spec in specs:
-        prepared_input = (
-            None if shared_input is None else spec_compiler_input(shared_input, spec)
-        )
+        spec_input = prepared_input and spec_compiler_input(prepared_input, spec)
         verbose_log(verbose, f"[{test_case.test_id}] compiling with {spec.compiler_id}")
         compiled = compile_case(
             spec,
             test_case,
-            prepared_input,
+            spec_input,
             compile_repeats,
             repeat_long_compiles,
         )
@@ -2084,10 +2074,8 @@ def run_test_case(
         compiler_entry.pop("runtime_bytecode", None)
         entry["compilers"][spec.compiler_id] = compiler_entry
 
-        if artifact_root is not None and prepared_input is not None:
-            artifact_error = write_artifacts(
-                artifact_root, spec, test_case, prepared_input
-            )
+        if artifact_root is not None and spec_input is not None:
+            artifact_error = write_artifacts(artifact_root, spec, test_case, spec_input)
             if artifact_error:
                 compiler_entry["artifact_error"] = artifact_error
                 verbose_log(
@@ -2288,8 +2276,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--solar-size",
         action="store_true",
-        help="Also benchmark solar with optimizer runs forced to 1, optimizing for size "
-        "(default: disabled; conflicts with --optimizer-runs)",
+        help="Also benchmark solar with optimizer runs forced to 1 (default: disabled)",
     )
     parser.add_argument(
         "--solar",
@@ -2501,17 +2488,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.solc:
         assert solc is not None
         specs.append(CompilerSpec("solc", f"solc {solc_version}", solc, "solc"))
-    if args.solc_legacy:
-        assert solc is not None
-        specs.append(
-            CompilerSpec(
-                "solc-legacy",
-                f"solc {solc_version} legacy",
-                solc,
-                "solc-legacy",
-                via_ir=False,
+        if args.solc_legacy:
+            specs.append(
+                CompilerSpec(
+                    "solc-legacy",
+                    f"solc {solc_version} legacy",
+                    solc,
+                    "solc-legacy",
+                    via_ir=False,
+                )
             )
-        )
     if args.solx:
         solx = find_binary(args.solx, ["solx"])
         if solx is None:
@@ -2556,13 +2542,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     reference_specs = (
         [
-            CompilerSpec(name, name, Path(name), name, via_ir=via_ir)
-            for name, via_ir in (
-                ("solc", None),
-                ("solc-legacy", False),
-                ("solx", None),
-                ("oksolc", None),
-            )
+            CompilerSpec(name, name, Path(name), name)
+            for name in ("solc", "solx", "oksolc")
             if name not in {spec.compiler_id for spec in specs}
         ]
         if args.reference_results
@@ -2715,21 +2696,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 run_case(test) if parallel_results is None else next(parallel_results)
             )
             merged_specs = []
-            shared_input = (
-                prepare_input(test, args.evm_version, args.optimizer_runs)
-                if reference_specs and "benchmark_error" not in result
-                else None
-            )
             for reference_spec in reference_specs:
                 compiler_id = reference_spec.compiler_id
-                if merge_reference_compiler(
-                    result,
-                    reference_results,
-                    compiler_id,
-                    spec_compiler_input(shared_input, reference_spec)[2]
-                    if shared_input
-                    else None,
-                ):
+                if merge_reference_compiler(result, reference_results, compiler_id):
                     merged_specs.append(reference_spec)
                     if (
                         args.artifacts is not None
