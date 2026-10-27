@@ -470,6 +470,21 @@ arrive plus a `summary.md` with mismatches, incomplete reasons, skipped
 functions, and limitations. It fails when a mismatch is found or a source has
 no deployable contract.
 
+A source ending in `.json` or `.json.gz` is a whole project: a Standard JSON
+input with inline sources, such as the archives in `testdata/projects/`. The
+runner compiles it once with each compiler, keeping the project's optimizer,
+via-IR, EVM version, and remappings, and compares every deployable contract of
+the units that `--exclude` does not match (tests, scripts, and test libraries
+by default) from those saved attempts. A missing `evmVersion` becomes
+`osaka`.
+
+```sh
+python3 fuzz/fandango/run_symbolic_campaign.py \
+  testdata/projects/morpho-blue-1.0.0.json.gz \
+  --out target/solsymdiff-morpho --solc solc --solar target/release/solar -- \
+  --symbolic-caller
+```
+
 Exit status 0 means no mismatch was found within the recorded bounds, 1 means a
 concretely replayed mismatch or an ABI difference was found, and 2 means the
 run was incomplete. This is a bounded check, not an unbounded equivalence

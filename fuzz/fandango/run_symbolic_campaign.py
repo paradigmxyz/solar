@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import collections
 import concurrent.futures
+import gzip
 import json
 import pathlib
 import re
@@ -15,6 +16,18 @@ import time
 from typing import Any
 
 SOLSYMDIFF = pathlib.Path(__file__).resolve().parents[1] / "bin" / "solsymdiff"
+# Project sources that are not deployed: tests, scripts, and test libraries.
+PROJECT_EXCLUDE = r"(^|/)(tests?|scripts?|forge-std|ds-test)/|\.[ts]\.sol$"
+PROJECT_OUTPUTS = [
+    "abi",
+    "evm.bytecode.linkReferences",
+    "evm.bytecode.object",
+    "evm.deployedBytecode.immutableReferences",
+    "evm.deployedBytecode.linkReferences",
+    "evm.deployedBytecode.object",
+    "evm.methodIdentifiers",
+    "storageLayout",
+]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -27,6 +40,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("sources", nargs="+", type=pathlib.Path)
     parser.add_argument("--out", type=pathlib.Path, required=True)
     parser.add_argument("--solc", default="solc")
+    parser.add_argument("--solar", default="target/debug/solar")
+    parser.add_argument(
+        "--exclude",
+        default=PROJECT_EXCLUDE,
+        help="source units of Standard JSON projects whose contracts are skipped",
+    )
     parser.add_argument("--jobs", type=int, default=4)
     parser.add_argument(
         "--timeout",
@@ -43,12 +62,18 @@ def main(argv: list[str] | None = None) -> int:
 
     jobs = []
     for source in args.sources:
-        contracts = _deployable_contracts(source.resolve(), args.solc)
-        if not contracts:
+        if source.name.endswith((".json", ".json.gz")):
+            found = _project_contracts(source.resolve(), args)
+        else:
+            found = [
+                (source.resolve(), contract, [])
+                for contract in _deployable_contracts(source.resolve(), args.solc)
+            ]
+        if not found:
             # A source that stops compiling must not silently leave the campaign.
             print(f"error: {source} has no deployable contract", file=sys.stderr)
             return 2
-        jobs.extend((source.resolve(), contract) for contract in contracts)
+        jobs.extend(found)
     print(f"{len(jobs)} contracts", file=sys.stderr)
     results = []
     with (
@@ -56,8 +81,8 @@ def main(argv: list[str] | None = None) -> int:
         concurrent.futures.ThreadPoolExecutor(args.jobs) as pool,
     ):
         futures = [
-            pool.submit(_run, source, contract, args, extra)
-            for source, contract in jobs
+            pool.submit(_run, source, contract, args, [*attempts, *extra])
+            for source, contract, attempts in jobs
         ]
         for future in concurrent.futures.as_completed(futures):
             result = future.result()
@@ -104,8 +129,82 @@ def _deployable_contracts(source: pathlib.Path, solc: str) -> list[str]:
     )
 
 
+def _project_contracts(
+    archive: pathlib.Path, args: argparse.Namespace
+) -> list[tuple[pathlib.PurePosixPath, str, list[str]]]:
+    """Compiles a Standard JSON project once with each compiler.
+
+    Returns every deployable contract outside `--exclude` with the saved
+    attempts that solsymdiff compares, so a project keeps its own settings and
+    is not recompiled per contract.
+    """
+    data = archive.read_bytes()
+    request = json.loads(gzip.decompress(data) if archive.suffix == ".gz" else data)
+    exclude = re.compile(args.exclude)
+    units = [unit for unit in request["sources"] if not exclude.search(unit)]
+    settings = request.setdefault("settings", {})
+    # Saved attempts must name the EVM version; this is current Solc's default.
+    settings.setdefault("evmVersion", "osaka")
+    settings["metadata"] = {"bytecodeHash": "none"}
+    settings["outputSelection"] = {
+        unit: {"*": PROJECT_OUTPUTS, "": ["ast"]} for unit in units
+    }
+    serialized = json.dumps(request)
+    name = archive.name.removesuffix(".gz").removesuffix(".json")
+    attempts = {}
+    stdout = {}
+    for label, compiler in (("solc", args.solc), ("solar", args.solar)):
+        directory = (args.out / "projects" / name / label).resolve()
+        directory.mkdir(parents=True, exist_ok=True)
+        process = subprocess.run(
+            [compiler, "--standard-json"],
+            input=serialized,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        (directory / "input.json").write_text(serialized)
+        (directory / "stdout.txt").write_text(process.stdout)
+        (directory / "result.json").write_text(
+            json.dumps({"returncode": process.returncode})
+        )
+        attempts[label] = ["--" + label + "-attempt", str(directory)]
+        stdout[label] = process.stdout
+    try:
+        output = json.loads(stdout["solc"])
+    except json.JSONDecodeError:
+        return []
+    for error in output.get("errors", []):
+        if error.get("severity") == "error":
+            print(error.get("formattedMessage", error), file=sys.stderr)
+    # Libraries have bytecode but are not called directly.
+    libraries = {
+        (unit, node.get("name"))
+        for unit in units
+        for node in output.get("sources", {})
+        .get(unit, {})
+        .get("ast", {})
+        .get("nodes", [])
+        if node.get("nodeType") == "ContractDefinition"
+        and node.get("contractKind") == "library"
+    }
+    return [
+        (
+            pathlib.PurePosixPath(unit),
+            contract,
+            [*attempts["solc"], *attempts["solar"]],
+        )
+        for unit in units
+        for contract, artifact in sorted(
+            output.get("contracts", {}).get(unit, {}).items()
+        )
+        if artifact.get("evm", {}).get("bytecode", {}).get("object")
+        and (unit, contract) not in libraries
+    ]
+
+
 def _run(
-    source: pathlib.Path,
+    source: pathlib.PurePath,
     contract: str,
     args: argparse.Namespace,
     extra: list[str],
@@ -120,6 +219,8 @@ def _run(
         "--all-functions",
         "--solc",
         args.solc,
+        "--solar",
+        args.solar,
         "--timeout",
         str(args.timeout),
         "--output-root",
@@ -129,7 +230,8 @@ def _run(
     start = time.monotonic()
     process = subprocess.run(command, capture_output=True, text=True, check=False)
     result: dict[str, Any] = {
-        "source": source.name,
+        # A project's source unit is relative and keeps its path.
+        "source": source.name if source.is_absolute() else source.as_posix(),
         "contract": contract,
         "seconds": round(time.monotonic() - start, 1),
     }

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import gzip
 import json
 import pathlib
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -77,6 +79,72 @@ class CampaignTests(unittest.TestCase):
 
         self.assertEqual(code, 2)
         run.assert_not_called()
+
+    def test_compiles_projects_once_and_skips_tests(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            archive = root / "p.json.gz"
+            archive.write_bytes(
+                gzip.compress(
+                    json.dumps(
+                        {
+                            "language": "Solidity",
+                            "sources": {
+                                "src/A.sol": {"content": ""},
+                                "test/A.t.sol": {"content": ""},
+                            },
+                            "settings": {"viaIR": True},
+                        }
+                    ).encode()
+                )
+            )
+            output = {
+                "contracts": {
+                    "src/A.sol": {
+                        "A": {"evm": {"bytecode": {"object": "6000"}}},
+                        "I": {"evm": {"bytecode": {"object": ""}}},
+                        "L": {"evm": {"bytecode": {"object": "6000"}}},
+                    }
+                },
+                "sources": {
+                    "src/A.sol": {
+                        "ast": {
+                            "nodes": [
+                                {
+                                    "nodeType": "ContractDefinition",
+                                    "name": "L",
+                                    "contractKind": "library",
+                                }
+                            ]
+                        }
+                    }
+                },
+            }
+            inputs = []
+
+            def compile(command, input, **kwargs):
+                inputs.append((command[0], json.loads(input)))
+                return subprocess.CompletedProcess(command, 0, json.dumps(output), "")
+
+            args = campaign.argparse.Namespace(
+                out=root / "out",
+                solc="solc",
+                solar="solar",
+                exclude=campaign.PROJECT_EXCLUDE,
+            )
+            with patch.object(campaign.subprocess, "run", side_effect=compile):
+                jobs = campaign._project_contracts(archive, args)
+
+        self.assertEqual([command for command, _ in inputs], ["solc", "solar"])
+        settings = inputs[0][1]["settings"]
+        self.assertTrue(settings["viaIR"])
+        self.assertEqual(settings["evmVersion"], "osaka")
+        self.assertEqual(list(settings["outputSelection"]), ["src/A.sol"])
+        [(unit, contract, attempts)] = jobs
+        self.assertEqual((unit.as_posix(), contract), ("src/A.sol", "A"))
+        self.assertEqual(attempts[0], "--solc-attempt")
+        self.assertTrue(attempts[1].endswith("projects/p/solc"))
+        self.assertEqual(attempts[2], "--solar-attempt")
 
     def test_reports_abi_mismatches_skips_and_limitations(self) -> None:
         summary = campaign._summary(

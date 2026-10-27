@@ -1618,6 +1618,18 @@ def _run_forge(
         capture_output=True,
         timeout=args.timeout,
     )
+    # Via-IR can run out of stack slots when the harness has a single property
+    # and Solc inlines every helper into it; without the optimizer it does not.
+    if not result.stdout.strip() and "too deep in the stack" in result.stderr:
+        result = subprocess.run(
+            command,
+            check=False,
+            cwd=project,
+            env={**env, "FOUNDRY_OPTIMIZER": "false"},
+            text=True,
+            capture_output=True,
+            timeout=args.timeout,
+        )
     if not result.stdout.strip():
         detail = result.stderr.strip() or "no output"
         raise ValueError(f"Forge did not emit JSON: {detail}")
