@@ -18,7 +18,7 @@ pragma solidity ^0.8.0;
 
 contract SortingNetworks {
     // CHECK-LABEL: @module SortingNetworks_runtime
-    // The heap starts right after the reserved words: no spill frame lies below it.
+    // The array is allocated right after the reserved words, so no spill frame lies below it.
     // CHECK: push 128{{$}}
     // CHECK: push 64
     // CHECK-NEXT: mstore
