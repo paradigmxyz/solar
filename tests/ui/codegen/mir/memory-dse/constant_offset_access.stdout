@@ -118,3 +118,26 @@
       returndata v1, 32
   }
   
+  fn @heap_floor_read(arg0: i256) {
+    bb0:
+-     mstore 0, 7
+      v0 = heap_floor
+      returndata v0, arg0
+  }
+  
+  fn @heap_floor_offset_read(arg0: i256) {
+    bb0:
+-     mstore 0, 7
+      v0 = heap_floor
+      v1 = add v0, 32
+      returndata v1, arg0
+  }
+  
+  fn @heap_floor_wrapped_read() {
+    bb0:
+      mstore 0, 7
+      v0 = heap_floor
+      v1 = add v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+      returndata v1, 32
+  }
+  

@@ -218,9 +218,12 @@ fn terminal_liveness(
         {
             continue;
         }
-        let eliminator =
-            MemoryStoreEliminator::new(Rc::new(AliasAnalysis::new(func)), analyses.cfg(id, func), false)
-                .with_free_pointer(free_pointer);
+        let eliminator = MemoryStoreEliminator::new(
+            Rc::new(AliasAnalysis::new(func)),
+            analyses.cfg(id, func),
+            false,
+        )
+        .with_free_pointer(free_pointer);
         let mut entry = eliminator.liveness(func).swap_remove(BlockId::ENTRY);
         MemoryStoreEliminator::summarize_live(&mut entry);
         if !entry.is_all() {

@@ -8,7 +8,10 @@
 
 use crate::{
     backend::evm::op,
-    mir::{Callee, Function, FunctionId, InstKind, MirType, Module, Terminator, Value, ValueId},
+    mir::{
+        Callee, Function, FunctionId, InstKind, MirType, Module, Terminator, Value, ValueId,
+        memory::EvmMemoryLayout,
+    },
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
@@ -55,6 +58,11 @@ fn bounds_with(
     let Value::Inst(id) = func.value(value) else { return full };
     let mut bounds = |value| bounds_with(func, value, depth, budget, known);
     match &func.inst(*id).kind {
+        // Runtime floors fit in u64. `emit_constructor_heap_start` computes
+        // align32(fixed_end + args_size) + heap_guard: three u64 values and at most 31 bytes
+        // of padding fit in 66 bits. The argument copy must succeed before MIR executes.
+        // This bounds the compiler's floor, not a free-memory-pointer slot that assembly writes.
+        InstKind::HeapFloor => (U256::from(EvmMemoryLayout::HEAP_START), integer_mask(66)),
         InstKind::Zext(value) => bounds(*value),
         InstKind::Trunc(value, _) => {
             let range = bounds(*value);

@@ -2311,6 +2311,7 @@ impl AliasAnalysis {
         match &func.inst(*inst).kind {
             InstKind::Alloc { .. }
             | InstKind::Fmp
+            | InstKind::HeapFloor
             | InstKind::Load(..)
             | InstKind::ICall { .. }
             | InstKind::InternalFrameAddr(_)
@@ -2556,9 +2557,10 @@ impl AliasAnalysis {
             )
         };
         match &func.inst(*inst).kind {
-            InstKind::Fmp | InstKind::Alloc { .. } | InstKind::AbiEncode { .. } => {
-                Some(EvmMemoryLayout::HEAP_START)
-            }
+            InstKind::Fmp
+            | InstKind::HeapFloor
+            | InstKind::Alloc { .. }
+            | InstKind::AbiEncode { .. } => Some(EvmMemoryLayout::HEAP_START),
             InstKind::AbiDecode { .. } if func.value_ty(value) == Some(MirType::MEMPTR) => {
                 Some(EvmMemoryLayout::HEAP_START)
             }

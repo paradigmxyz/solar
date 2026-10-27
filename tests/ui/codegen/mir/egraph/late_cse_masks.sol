@@ -1,8 +1,8 @@
 //@ codegen-matrix: standard optimized optimizedSize
 //@[optimized] compile-flags: -Ogas -Zdump=mir
 //@[optimizedSize] compile-flags: -Osize -Zdump=mir
-//@[optimized] filecheck:
-//@[optimizedSize] filecheck:
+//@[optimized] filecheck: --check-prefixes=CHECK,GAS
+//@[optimizedSize] filecheck: --check-prefixes=CHECK,SIZE
 //@ run-call: first 0x0000000000000000000000000000000000001234, 7 => true
 //@ run-call: second 0x0000000000000000000000000000000000001234, 7 => true
 //@ run-call: total => 0
@@ -19,8 +19,10 @@ contract LateCseMasks {
     uint256 public total;
 
     // CHECK-LABEL: fn @digest
-    // CHECK-NOT: = and
+    // GAS: [[BASE:v[0-9]+]] = heap_floor
+    // GAS-NEXT: [[BUF:v[0-9]+]] = add [[BASE]], 64
     // CHECK: mstore {{v[0-9]+}}, arg0
+    // SIZE: [[BUF:v[0-9]+]] = mload 64
     // CHECK-NOT: = and
     // CHECK: keccak256 {{v[0-9]+}}, 64
     function digest(address owner, uint256 amount) internal returns (bytes32) {

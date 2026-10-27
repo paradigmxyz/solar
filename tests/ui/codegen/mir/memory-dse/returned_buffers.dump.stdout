@@ -133,7 +133,7 @@ fn @_copy(arg0: i256) -> i256 [may_return_memory, view] {
   bb8:
     v7 = add v55, 63
     v10 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v76 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v76 = heap_floor !metadata(alloc_ptr)
     v77 = add v76, v10 !metadata(alloc_ptr)
     v78 = lt v77, v76
     v79 = gt v77, 0xffffffffffffffff

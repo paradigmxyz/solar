@@ -170,3 +170,43 @@ fn @wrapped_read_range_overflow() {
     mstore 64, 512
     returndata v1, 32
 }
+
+// Fresh allocation lowering reads the heap floor without reading the FMP slot. Even an
+// unknown read size cannot reach scratch when its starting address is the floor itself.
+// CHECK-LABEL: {{^[ +].*}}fn @heap_floor_read{{[( ]}}
+// CHECK: - mstore 0, 7
+// CHECK: {{^[ +].*}}[[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: returndata [[FLOOR]], arg0
+fn @heap_floor_read(arg0: i256) {
+  bb0:
+    mstore 0, 7
+    v0 = heap_floor
+    returndata v0, arg0
+}
+
+// A constant data offset from the compiler's bounded heap floor cannot wrap. This is the
+// address that fresh allocation lowering gives copies and hashes after the length header.
+// CHECK-LABEL: {{^[ +].*}}fn @heap_floor_offset_read{{[( ]}}
+// CHECK: - mstore 0, 7
+// CHECK: {{^[ +].*}}[[DATA:v[0-9]+]] = add {{v[0-9]+}}, 32
+// CHECK-NEXT: returndata [[DATA]], arg0
+fn @heap_floor_offset_read(arg0: i256) {
+  bb0:
+    mstore 0, 7
+    v0 = heap_floor
+    v1 = add v0, 32
+    returndata v1, arg0
+}
+
+// The floor is at least 128, but a wrapping offset can subtract 128 and reach scratch.
+// Recognizing the root must not establish a bound for arbitrary additions to it.
+// CHECK-LABEL: {{^[ +].*}}fn @heap_floor_wrapped_read{{[( ]}}
+// CHECK: {{^ +}}mstore 0, 7
+// CHECK: {{^[ +].*}}returndata
+fn @heap_floor_wrapped_read() {
+  bb0:
+    mstore 0, 7
+    v0 = heap_floor
+    v1 = add v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    returndata v1, 32
+}
