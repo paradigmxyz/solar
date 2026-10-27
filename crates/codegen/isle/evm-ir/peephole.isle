@@ -48,6 +48,7 @@
   (DropNonzeroTest)
   (EqIszeroJumpi)
   (StackOps (first StackOp) (second StackOp))
+  (MoveConstantThroughSwaps)
 ))
 
 (decl pure rewrite (u8 Edit) Rewrite)
@@ -70,6 +71,9 @@
 (extern extractor unprotected_last5 unprotected_last5)
 (decl last6 (Inst Inst Inst Inst Inst Inst) Window)
 (extern extractor last6 last6)
+;; A six-instruction window with no protected boundaries.
+(decl unprotected_last6 (Inst Inst Inst Inst Inst Inst) Window)
+(extern extractor unprotected_last6 unprotected_last6)
 ;; `SWAPn POP*n SWAP1 POP`, giving `n`.
 (decl swap_pop_chain (u8) Window)
 (extern extractor swap_pop_chain swap_pop_chain)
@@ -121,6 +125,10 @@
 ;; Consumes two stack items and pushes nothing.
 (decl pure is_sink (u8) bool)
 (extern constructor is_sink is_sink)
+(decl pure is_pure_binop (u8) bool)
+(extern constructor is_pure_binop is_pure_binop)
+(decl pure shorter_swap_braid (u8) bool)
+(extern constructor shorter_swap_braid shorter_swap_braid)
 (decl pure u8_add (u8 u8) u8)
 (extern constructor u8_add u8_add)
 (decl pure swap_op (u8) StackOp)
@@ -264,6 +272,15 @@
 (rule 80 (peep_swap (last2 (exchange n m) (swap m))) (rewrite 2 (Edit.StackOps (swap_op m) (swap_op n))))
 (rule 70 (peep_exchange (last2 (swap n) (exchange n m))) (rewrite 2 (Edit.StackOps (swap_op m) (swap_op n))))
 (rule 60 (peep_exchange (last2 (swap m) (exchange n m))) (rewrite 2 (Edit.StackOps (swap_op n) (swap_op m))))
+
+;; SWAP1; PUSH c; pure_binop; SWAPn; SWAP1; SWAPn => SWAPn; SWAP1; PUSH c; pure_binop.
+;; For n > 1, both sides apply the operation to the same two words and leave the same stack.
+;; The push and binary operation retain their input order, including noncommutative operations.
+(rule 50 (peep_swap (unprotected_last6 (swap 1) (push _) (opcode binop)
+                                     (swap n) (swap 1) (swap n)))
+         (if-let true (is_pure_binop binop))
+         (if-let true (shorter_swap_braid n))
+         (rewrite 6 (Edit.MoveConstantThroughSwaps)))
 
 ;; A bounded window around a closed, one-result shift-count computation.
 (type LateWindow (primitive LateWindow))

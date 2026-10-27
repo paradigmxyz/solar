@@ -501,7 +501,7 @@ fn free_pointer_trusted(module: &Module) -> bool {
 /// Whether `inst` may write the low bytes of the free memory pointer's slot, other than with
 /// a proven heap pointer or one of the compiler's own updates; see [`free_pointer_trusted`].
 fn forges_free_pointer(func: &Function, alias: &AliasAnalysis, inst: InstId) -> bool {
-    if func.inst(inst).kind.effect_kind() == EffectKind::Pure {
+    if func.inst(inst).kind.effect_kind().is_read_only() {
         return false;
     }
     match func.inst(inst).kind {
@@ -1637,11 +1637,7 @@ impl MemoryStoreEliminator {
                 }
                 InstKind::Load(_, PtrLocation::Memory) => has_load = true,
                 InstKind::Keccak256(_, _) => has_keccak = true,
-                _ if self
-                    .alias()
-                    .instruction_mod_ref(func, inst_id)
-                    .writes_space(AddressSpace::Memory) =>
-                {
+                _ if self.can_mutate_memory(func, inst_id) => {
                     memory_writes += 1;
                 }
                 _ => {}
@@ -2497,7 +2493,7 @@ impl MemoryStoreEliminator {
 
     fn has_frame_observer(&self, func: &Function) -> bool {
         func.instructions().any(|inst_id| {
-            self.alias().instruction_mod_ref(func, inst_id).observes_gas()
+            func.inst(inst_id).kind.observes_gas()
                 || matches!(
                     func.inst(inst_id).kind,
                     InstKind::ICall { function: Callee::Function(_), .. }
@@ -2557,7 +2553,7 @@ impl MemoryStoreEliminator {
     }
 
     fn can_mutate_memory(&self, func: &Function, inst_id: InstId) -> bool {
-        func.inst(inst_id).kind.effect_kind() != EffectKind::Pure
+        !func.inst(inst_id).kind.effect_kind().is_read_only()
             && self.alias().instruction_mod_ref(func, inst_id).writes_space(AddressSpace::Memory)
     }
 
@@ -2637,25 +2633,36 @@ impl MemoryStoreEliminator {
         }
 
         let cfg = &*self.cfg;
-        let gas = GasObservations::new(func, cfg, self.alias());
-        if func.instructions().any(|inst| gas.observes(inst)) {
+        if GasObservations::any(func, cfg, self.alias()) {
             return;
         }
 
         let mut heap_reads = Vec::new();
         let mut wrapping_writes = false;
-        for (block_id, block) in func.blocks.iter_enumerated() {
-            for (index, &inst) in block.instructions.iter().enumerate() {
-                if func.inst(inst).kind.effect_kind() == EffectKind::Pure {
-                    continue;
+        if candidates.iter().any(|&(_, _, exposed)| exposed) {
+            'reads: for (block_id, block) in func.blocks.iter_enumerated() {
+                for (index, &inst) in block.instructions.iter().enumerate() {
+                    if func.inst(inst).kind.effect_kind() == EffectKind::Pure {
+                        continue;
+                    }
+                    if self.alias().instruction_may_wrap_write(func, inst) {
+                        // Every exposed object stays once a wrapping write appears; deferred,
+                        // unexposed objects ignore these heap reads entirely.
+                        wrapping_writes = true;
+                        break 'reads;
+                    }
+                    let effects = self.alias().instruction_mod_ref(func, inst);
+                    self.collect_heap_reads(func, &effects, (block_id, index), &mut heap_reads);
                 }
-                let effects = self.alias().instruction_mod_ref(func, inst);
-                self.collect_heap_reads(func, &effects, (block_id, index), &mut heap_reads);
-                wrapping_writes |= self.alias().instruction_may_wrap_write(func, inst);
-            }
-            if let Some(terminator) = &block.terminator {
-                let effects = self.alias().terminator_mod_ref(func, terminator);
-                self.collect_heap_reads(func, &effects, (block_id, usize::MAX), &mut heap_reads);
+                if let Some(terminator) = &block.terminator {
+                    let effects = self.alias().terminator_mod_ref(func, terminator);
+                    self.collect_heap_reads(
+                        func,
+                        &effects,
+                        (block_id, usize::MAX),
+                        &mut heap_reads,
+                    );
+                }
             }
         }
 

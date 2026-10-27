@@ -849,7 +849,16 @@ impl AliasAnalysis {
     /// Canonicalizes a MIR value used as a memory address.
     #[must_use]
     pub(crate) fn memory_address(&self, func: &Function, value: ValueId) -> Option<MemoryAddress> {
-        self.memory_address_with_depth(func, value, 0)
+        // These roots need neither control-flow provenance nor recursive address resolution.
+        // Recursive operands still go through the resolver and its depth limit.
+        match func.value(value) {
+            Value::Immediate(immediate) => {
+                Some(MemoryAddress::absolute(immediate.as_u256()?.try_into().ok()?))
+            }
+            Value::Arg(_) => Some(MemoryAddress::symbolic(value, MemoryRegion::Unknown)),
+            Value::Undef(_) | Value::Error(_) => None,
+            Value::Inst(_) => self.memory_address_with_depth(func, value, 0),
+        }
     }
 
     /// Creates a memory location, using instruction metadata to refine its region.
@@ -2241,6 +2250,9 @@ impl AliasAnalysis {
         func: &Function,
         inst: InstId,
     ) -> bool {
+        if func.inst(inst).kind.effect_kind().is_read_only() {
+            return false;
+        }
         let address_indexed = Self::writes_at_indexed_address(func, inst);
         address_indexed || {
             self.instruction_mod_ref(func, inst).writes().iter().any(|access| {
@@ -2332,7 +2344,9 @@ impl AliasAnalysis {
         inst: InstId,
         proofs: &ReadBounds,
     ) -> bool {
-        if proofs.raw_writes_avoid_fmp(func, inst) {
+        if func.inst(inst).kind.effect_kind().is_read_only()
+            || proofs.raw_writes_avoid_fmp(func, inst)
+        {
             return false;
         }
         self.instruction_mod_ref(func, inst).writes().iter().any(|&access| match access {

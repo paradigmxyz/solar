@@ -16,7 +16,9 @@
 //! In size mode, shared indirect-return tails prefer the predecessor with strictly more incoming
 //! references. This keeps the more frequently shared outlined entry adjacent to its return tail,
 //! rather than making every call through it pay another jump. Reference counts estimate frequency;
-//! they are not execution profiles. Other trace edges and gas-mode placement keep their order.
+//! they are not execution profiles. A predecessor that pushes a continuation counts as one call
+//! site: its incoming branches do not measure uses of a shared stub entry.
+//! Other trace edges and gas-mode placement keep their order.
 
 use super::{
     EvmPass,
@@ -475,10 +477,14 @@ fn is_cold_terminal_block(block: &Block) -> bool {
 /// through keeps the number of jumps unchanged; price their estimated executions with the target.
 fn shared_return_predecessors(module: &Module, target: &Target) -> FxHashMap<BlockId, BlockId> {
     let mut incoming = IndexVec::from_vec(vec![0usize; module.blocks.len()]);
-    for block in &module.blocks {
+    let mut call_sites = DenseBitSet::new_empty(module.blocks.len());
+    for (id, block) in module.blocks.iter_enumerated() {
         for inst in &block.instructions {
             if let Some(target) = inst.pushed_block() {
                 incoming[target] += 1;
+                if module.blocks[target].metadata.is_continuation {
+                    call_sites.insert(id);
+                }
             }
         }
         if let Some(term) = &block.terminator {
@@ -498,7 +504,8 @@ fn shared_return_predecessors(module: &Module, target: &Target) -> FxHashMap<Blo
         ) {
             continue;
         }
-        let weight = incoming[block].saturating_mul(jump_gas);
+        let references = if call_sites.contains(block) { 1 } else { incoming[block] };
+        let weight = references.saturating_mul(jump_gas);
         candidates
             .entry(*tail)
             .and_modify(|best| {

@@ -20,6 +20,9 @@
 //! inline conditional jump then disappears with its two pushes. These rules
 //! preserve protected instruction boundaries, and never treat symbolic label
 //! addresses or immutable placeholders as literal constants.
+//! A constant binary operation may move through a three-swap permutation to remove two swaps.
+//! It keeps the operation's operands and their order, changes no memory effects, and never raises
+//! the stack peak; protected instruction boundaries and position-dependent operations reject it.
 //!
 //! The separate `late-word` entry point runs only after structural cleanup. It
 //! replaces a low-mask construction with a shorter complement/shift form. A closed
@@ -335,6 +338,8 @@ enum Edit {
         first: op::StackOp,
         second: op::StackOp,
     },
+    /// SWAP1; PUSH c; binop; SWAPn; SWAP1; SWAPn => SWAPn; SWAP1; PUSH c; binop.
+    MoveConstantThroughSwaps,
 }
 
 impl Edit {
@@ -447,6 +452,16 @@ impl Edit {
                 instructions[start] = Instruction::stack_op(first).with_debug_info_dropped();
                 instructions[start + 1] = Instruction::stack_op(second).with_debug_info_dropped();
                 instructions.truncate(start + 2);
+            }
+            Self::MoveConstantThroughSwaps => {
+                // SWAPn; SWAP1; PUSH c; binop
+                instructions.swap(start, start + 3);
+                instructions[start + 1..start + 5].rotate_right(1);
+                instructions.truncate(start + 4);
+                // NOTE: The intermediate stack layouts differ even though the final one agrees.
+                for inst in &mut instructions[start..] {
+                    inst.metadata.mark_debug_info_dropped();
+                }
             }
         }
     }

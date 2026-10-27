@@ -700,4 +700,21 @@ impl generated::Context for PeepContext<'_> {
     fn rewrite(&mut self, skip: u8, edit: &Edit) -> Rewrite {
         Rewrite { skip, edit: *edit }
     }
+
+    fn unprotected_last6(&mut self, _: Window) -> Option<(Inst, Inst, Inst, Inst, Inst, Inst)> {
+        self.unprotected_tail().map(|[a, b, c, d, e, f]| (a, b, c, d, e, f))
+    }
+
+    fn is_pure_binop(&mut self, opcode: u8) -> bool {
+        op::is_pure(opcode) && op::stack_io(opcode) == Some((2, 1))
+    }
+
+    fn shorter_swap_braid(&mut self, depth: u8) -> bool {
+        if depth <= 1 {
+            return false;
+        }
+        let Some(deep) = self.target.stack_op(StackOp::Swap(depth)) else { return false };
+        let pair = deep + self.target.opcode(SWAP1);
+        self.target.dominates(pair, pair + pair)
+    }
 }

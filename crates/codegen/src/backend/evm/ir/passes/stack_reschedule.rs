@@ -52,7 +52,9 @@
 //! from trying the many orders of the same words its bound cannot tell apart, which took most of
 //! its states and kept it from the cheap schedules for thousands of states in small loops. The
 //! bound changes with the few words a move touches, so it is updated per move rather than
-//! recomputed, and the queue keeps one small heap per value of a priority's first part, popping
+//! recomputed. States with the same performed operations reuse their remaining uses and ready
+//! operations, regardless of their stack order. The queue keeps one small heap per value of a
+//! priority's first part, popping
 //! in the order a single heap would.
 //!
 //! The search is exponential in the run's operations and stack height, and dominated the compile
@@ -460,6 +462,16 @@ struct Buffers {
     best: FxHashMap<State, u32>,
     /// Arena entries by priority.
     open: Queue,
+    /// Remaining-operation facts, independent of stack order, keyed by performed operations.
+    pending: FxHashMap<u16, Pending>,
+}
+
+/// Uses and ready operations shared by every state with the same performed operations.
+#[derive(Clone, Copy)]
+struct Pending {
+    need: [u8; 64],
+    ready: u16,
+    wanted: u64,
 }
 
 /// A visited search state.
@@ -739,6 +751,24 @@ impl Words {
     }
 }
 
+/// Dense operands in pop order and their multiplicities in the remaining-use bound.
+struct OperationOperands {
+    words: SmallVec<[usize; 3]>,
+    uses: SmallVec<[(usize, u8); 3]>,
+}
+
+/// Operation indices in ascending order, as in a full operation scan filtered by the mask.
+fn operation_indices(mut mask: u16) -> impl Iterator<Item = usize> {
+    std::iter::from_fn(move || {
+        if mask == 0 {
+            return None;
+        }
+        let index = mask.trailing_zeros() as usize;
+        mask &= mask - 1;
+        Some(index)
+    })
+}
+
 /// Searches for the cheapest schedule of a run's operations that leaves its stack, when one
 /// beats the run's own stack operations. A run that needs a search is looked up in the schedules
 /// shared by all programs before it, and stored there after it.
@@ -757,18 +787,18 @@ fn search(
         return None;
     }
     let all_done = ((1u32 << operation_count) - 1) as u16;
-    let operand_words = run
+    let mut operands = run
         .operations
         .iter()
         .map(|operation| {
-            operation
+            let words = operation
                 .operands
                 .iter()
                 .map(|&word| words.index(word))
-                .collect::<SmallVec<[usize; 3]>>()
+                .collect::<SmallVec<[usize; 3]>>();
+            OperationOperands { words, uses: SmallVec::new() }
         })
         .collect::<Vec<_>>();
-    let operands = operand_words.iter().map(SmallVec::as_slice).collect::<Vec<_>>();
     // The operations each one waits for: the producers of its operands and its ordered access.
     let needs = run
         .operations
@@ -794,11 +824,11 @@ fn search(
     let exit_len = usize::from(exit.len);
     let exit_words = exit.words();
     // The uses left of each word: by the exit and by the operations not yet performed.
-    let demand = |done: u16| -> [u8; 64] {
+    let demand = |done: u16, operands: &[OperationOperands]| -> [u8; 64] {
         let mut need = exit_uses;
-        for (index, &operation_operands) in operands.iter().enumerate() {
+        for (index, operation_operands) in operands.iter().enumerate() {
             if done & (1 << index) == 0 {
-                for &operand in operation_operands {
+                for &operand in &operation_operands.words {
                     need[operand] += 1;
                 }
             }
@@ -836,7 +866,7 @@ fn search(
     };
     let estimate = |state: State| -> u64 {
         let counts = counts_of(&state.words()[..usize::from(state.len)]);
-        let need = demand(state.done);
+        let need = demand(state.done, &operands);
         (0..word_count).map(|word| term(word, counts[word], need[word], state.done)).sum()
     };
     let mut budget = scalar(run.cost, target);
@@ -845,7 +875,8 @@ fn search(
         .fold(State { stack: 0, len: 0, done: 0 }, |state, depth| state.push(depth));
     // When the bound reaches the run's cost in the objective's first part, only the second part
     // could improve, which measured not worth a search; one swap above it, little can improve.
-    let gap = (budget >> 32).saturating_sub(estimate(start) >> 32);
+    let initial_bound = estimate(start);
+    let gap = (budget >> 32).saturating_sub(initial_bound >> 32);
     if gap == 0 {
         return None;
     }
@@ -856,6 +887,15 @@ fn search(
         &shared.0[(FxBuildHasher.hash_one(&key[..]) >> (u64::BITS - SHARED_SHARD_BITS)) as usize];
     if let Some(moves) = shard.0.read().get(&key[..]) {
         return moves.as_deref().map(<[Move]>::to_vec);
+    }
+    // Only a search that expands states needs operand multiplicities for its successor bounds.
+    for operation in &mut operands {
+        for &operand in &operation.words {
+            match operation.uses.iter_mut().find(|(word, _)| *word == operand) {
+                Some((_, count)) => *count += 1,
+                None => operation.uses.push((operand, 1)),
+            }
+        }
     }
     let limits = if gap <= swap >> 32 { limits.near } else { limits.states };
 
@@ -910,10 +950,8 @@ fn search(
                         }
                     }
                 } else {
-                    for (index, operation) in run.operations.iter().enumerate() {
-                        if ready & (1 << index) == 0 {
-                            continue;
-                        }
+                    for index in operation_indices(ready) {
+                        let operation = &run.operations[index];
                         // `a` on top and `b` below it, by the counted moves alone.
                         let reaches = |a: usize, b: usize| {
                             (top(0) == Some(a) && top(1) == Some(b))
@@ -924,7 +962,7 @@ fn search(
                                     owed(&counts, a, 1) && owed(&counts, b, 1)
                                 }
                         };
-                        let reachable = match operands[index] {
+                        let reachable = match operands[index].words.as_slice() {
                             [] => true,
                             &[a] => top(0) == Some(a) || owed(&counts, a, 1),
                             &[a, b] => {
@@ -946,20 +984,21 @@ fn search(
             true
         };
 
-    let Buffers { arena, best, open } = buffers;
+    let Buffers { arena, best, open, pending } = buffers;
     arena.clear();
     best.clear();
     open.clear();
+    pending.clear();
     arena.push(Node {
         state: start,
         parent: u32::MAX,
         step: None,
         cost: 0,
-        bound: estimate(start),
+        bound: initial_bound,
         refined: Refined::Unknown,
     });
     best.insert(start, 0);
-    open.push(BOUND_WEIGHT * estimate(start), 0, 0);
+    open.push(BOUND_WEIGHT * initial_bound, 0, 0);
     let mut expansions = 0;
     let mut found = None;
     let mut found_at = 0;
@@ -985,11 +1024,21 @@ fn search(
         let words = state.words();
         let stack = &words[..len];
         let counts = counts_of(stack);
-        let need = demand(state.done);
-        let ready = (0..operation_count).fold(0u16, |ready, index| {
-            let ready_now =
-                state.done & (1 << index) == 0 && state.done & needs[index] == needs[index];
-            ready | (u16::from(ready_now) << index)
+        let Pending { need, ready, wanted } = *pending.entry(state.done).or_insert_with(|| {
+            let need = demand(state.done, &operands);
+            let ready = (0..operation_count).fold(0u16, |ready, index| {
+                let ready_now =
+                    state.done & (1 << index) == 0 && state.done & needs[index] == needs[index];
+                ready | (u16::from(ready_now) << index)
+            });
+            // Words some ready operation reads.
+            let mut wanted = 0u64;
+            for index in operation_indices(ready) {
+                for &operand in &operands[index].words {
+                    wanted |= 1 << operand;
+                }
+            }
+            Pending { need, ready, wanted }
         });
         // Raise the bound of a state that needs a swap before its next operation, and order
         // it again, before expanding it.
@@ -1017,15 +1066,6 @@ fn search(
                 + term(word, count, need[word], state.done)
         };
         let finishing = state.done == all_done;
-        // Words some ready operation reads.
-        let mut wanted = 0u64;
-        for (index, &operation_operands) in operands.iter().enumerate() {
-            if ready & (1 << index) != 0 {
-                for &operand in operation_operands {
-                    wanted |= 1 << operand;
-                }
-            }
-        }
         let at = |depth: usize| usize::from(stack[depth]);
         // A surplus copy on top is popped or consumed before anything else, and until every
         // operation ran a swap follows only an operation or a pop: swapping again, or right after
@@ -1039,20 +1079,19 @@ fn search(
                 ));
         successors.clear();
         // Perform a ready operation.
-        for (index, operation) in run.operations.iter().enumerate() {
-            let arity = operands[index].len();
-            if ready & (1 << index) == 0
-                || len < arity
-                || (surplus_top && !operands[index].contains(&at(0)))
-            {
+        for index in operation_indices(ready) {
+            let operation = &run.operations[index];
+            let operation_operands = &operands[index];
+            let arity = operation_operands.words.len();
+            if len < arity || (surplus_top && !operation_operands.words.contains(&at(0))) {
                 continue;
             }
-            let in_order = (0..arity).all(|depth| at(depth) == operands[index][depth]);
+            let in_order = (0..arity).all(|depth| at(depth) == operation_operands.words[depth]);
             let swapped = !in_order
                 && operation.swapped.is_some()
                 && arity == 2
-                && at(0) == operands[index][1]
-                && at(1) == operands[index][0];
+                && at(0) == operation_operands.words[1]
+                && at(1) == operation_operands.words[0];
             if !in_order && !swapped {
                 continue;
             }
@@ -1063,15 +1102,8 @@ fn search(
             next.done |= 1 << index;
             // Performing it changes only the terms of the words it reads, each read `uses`
             // times less, and of its result.
-            let mut touched = SmallVec::<[(usize, u8); 4]>::new();
-            for &operand in operands[index] {
-                match touched.iter_mut().find(|(word, _)| *word == operand) {
-                    Some((_, uses)) => *uses += 1,
-                    None => touched.push((operand, 1)),
-                }
-            }
             let mut bound = here;
-            for &(word, uses) in &touched {
+            for &(word, uses) in &operation_operands.uses {
                 bound = bound - term(word, counts[word], need[word], state.done)
                     + term(word, counts[word] - uses, need[word] - uses, next.done);
             }
