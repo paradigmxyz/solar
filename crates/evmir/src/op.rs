@@ -1,59 +1,66 @@
 //! EVM opcode definitions and metadata.
 
-use crate::target::GasTier;
+use crate::gas::GasTier;
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_interface::Symbol;
+use std::fmt::Write as _;
+
+pub mod word;
+pub use word::eval_opcode;
 
 /// Number of bytes in an EVM word.
-pub(crate) const WORD_BYTES: usize = 32;
+pub const WORD_BYTES: usize = 32;
+
+/// Maximum number of words on the EVM stack.
+pub const MAX_STACK_DEPTH: usize = 1024;
 
 const UNKNOWN_PREFIX: &str = "op_";
 
 /// Declarative properties of an EVM operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct OpcodeTraits(u8);
+pub struct OpcodeTraits(u8);
 
 impl OpcodeTraits {
     /// No additional properties.
-    pub(crate) const NONE: Self = Self(0);
+    pub const NONE: Self = Self(0);
     /// The result is a deterministic function of the stack operands alone: no memory, storage,
     /// or environment dependency, so two occurrences with equal operands produce the same value.
-    pub(crate) const PURE: Self = Self(1 << 0);
+    pub const PURE: Self = Self(1 << 0);
     /// The operands may be swapped without changing the result.
-    pub(crate) const COMMUTATIVE: Self = Self(1 << 1);
+    pub const COMMUTATIVE: Self = Self(1 << 1);
     /// The operation may write to memory, invalidating cached memory reads.
-    pub(crate) const WRITES_MEMORY: Self = Self(1 << 2);
+    pub const WRITES_MEMORY: Self = Self(1 << 2);
     /// The operation may write to storage or transient storage, invalidating cached storage
     /// reads.
-    pub(crate) const WRITES_STORAGE: Self = Self(1 << 3);
+    pub const WRITES_STORAGE: Self = Self(1 << 3);
     /// The operation halts or unconditionally transfers control.
-    pub(crate) const TERMINAL: Self = Self(1 << 4);
+    pub const TERMINAL: Self = Self(1 << 4);
     /// The operation depends on the gas left: `GAS` reads it, calls and creates forward all but
     /// a 64th of it, and `SSTORE` fails unless more than the 2,300-gas call stipend remains. Work
     /// that moves before it changes what it sees.
-    pub(crate) const OBSERVES_GAS: Self = Self(1 << 5);
+    pub const OBSERVES_GAS: Self = Self(1 << 5);
     /// The operation only reads the executing call's context: the result touches no memory,
     /// storage, or other account, and the operation has no effect besides its static gas, so an
     /// unused result can be dropped. Account, storage and memory reads are not context reads:
     /// they warm what they touch or expand memory.
-    pub(crate) const CONTEXT_READ: Self = Self(1 << 6);
+    pub const CONTEXT_READ: Self = Self(1 << 6);
 
     /// Returns the union of two property sets.
-    pub(crate) const fn union(self, other: Self) -> Self {
+    pub const fn union(self, other: Self) -> Self {
         Self(self.0 | other.0)
     }
 
     /// Returns whether this set contains `trait_`.
-    pub(crate) const fn contains(self, trait_: Self) -> bool {
+    pub const fn contains(self, trait_: Self) -> bool {
         self.0 & trait_.0 == trait_.0
     }
 }
 
 /// Availability of an EVM operation across EVM versions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum Availability {
+pub enum Availability {
     /// Available in every supported EVM version.
     Legacy,
     /// Available from the given EVM version onward.
@@ -212,23 +219,23 @@ macro_rules! opcodes {
 
         /// Declarative metadata for one EVM operation.
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-        pub(crate) struct OpDef {
+        pub struct OpDef {
             /// Opcode byte.
-            pub(crate) opcode: u8,
+            pub opcode: u8,
             /// Canonical textual mnemonic.
-            pub(crate) mnemonic: &'static str,
+            pub mnemonic: &'static str,
             /// Number of stack items consumed and produced, unless an immediate operand decides it.
-            pub(crate) stack_io: Option<(u8, u8)>,
+            pub stack_io: Option<(u8, u8)>,
             /// Declarative operation properties.
-            pub(crate) traits: OpcodeTraits,
+            pub traits: OpcodeTraits,
             /// Maximum significant result bits; unknown results use the full word.
-            pub(crate) result_bits: u16,
+            pub result_bits: u16,
             /// Observed low bits per operand, in pop order; omitted operands use the full word.
-            pub(crate) input_bits: &'static [u16],
+            pub input_bits: &'static [u16],
             /// Gas class in the fork schedule.
-            pub(crate) gas: GasTier,
+            pub gas: GasTier,
             /// Availability across EVM versions.
-            pub(crate) availability: Availability,
+            pub availability: Availability,
         }
 
         /// Maps each opcode byte to its generated schema definition.
@@ -256,7 +263,7 @@ macro_rules! opcodes {
 
         /// Returns the generated schema definition for an opcode.
         #[must_use]
-        pub(crate) const fn definition(opcode: u8) -> Option<&'static OpDef> {
+        pub const fn definition(opcode: u8) -> Option<&'static OpDef> {
             match &OPCODE_DEFS[opcode as usize] {
                 Some(definition) => Some(definition),
                 None => None,
@@ -274,7 +281,7 @@ macro_rules! opcodes {
 
         /// Returns the opcode for a canonical mnemonic.
         #[must_use]
-        pub(crate) fn from_mnemonic(mnemonic: &str) -> Option<u8> {
+        pub fn from_mnemonic(mnemonic: &str) -> Option<u8> {
             match mnemonic {
                 $(opcode_mnemonic!($mnemonic) => Some($opcode),)*
                 _ => None,
@@ -282,7 +289,7 @@ macro_rules! opcodes {
         }
 
         /// Formats an opcode using its canonical mnemonic or `op_<hex>`.
-        pub(crate) fn fmt(opcode: u8, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        pub fn fmt(opcode: u8, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             if let Some(mnemonic) = mnemonic(opcode) {
                 f.write_str(mnemonic)
             } else {
@@ -292,7 +299,7 @@ macro_rules! opcodes {
 
         /// Parses a canonical mnemonic or `op_<hex>` into an opcode.
         #[must_use]
-        pub(crate) fn from_ir_mnemonic(mnemonic: &str) -> Option<u8> {
+        pub fn from_ir_mnemonic(mnemonic: &str) -> Option<u8> {
             from_mnemonic(mnemonic).or_else(|| {
                 let value = mnemonic.strip_prefix(UNKNOWN_PREFIX)?;
                 u8::from_str_radix(value, 16).ok()
@@ -301,13 +308,13 @@ macro_rules! opcodes {
 
         /// Parses an interned canonical mnemonic or `op_<hex>` into an opcode.
         #[must_use]
-        pub(crate) fn from_ir_symbol(mnemonic: Symbol) -> Option<u8> {
+        pub fn from_ir_symbol(mnemonic: Symbol) -> Option<u8> {
             from_ir_mnemonic(mnemonic.as_str())
         }
 
         /// Returns the number of stack items consumed and produced by an opcode.
         #[must_use]
-        pub(crate) const fn stack_io(opcode: u8) -> Option<(u8, u8)> {
+        pub const fn stack_io(opcode: u8) -> Option<(u8, u8)> {
             match definition(opcode) {
                 Some(definition) => definition.stack_io,
                 None => None,
@@ -476,13 +483,13 @@ opcodes! {
 }
 
 /// Returns the encoded length of a minimally sized PUSH for an EVM version.
-pub(crate) fn push_len(evm_version: EvmVersion, value: U256) -> usize {
+pub fn push_len(evm_version: EvmVersion, value: U256) -> usize {
     if value.is_zero() && evm_version.has_push0() { 1 } else { value.byte_len().max(1) + 1 }
 }
 
 /// Returns the PUSH opcode for the given width (1-32).
 #[must_use]
-pub(crate) const fn push(width: u8) -> u8 {
+pub const fn push(width: u8) -> u8 {
     debug_assert!(width >= 1 && width <= 32);
     PUSH1 + width - 1
 }
@@ -490,13 +497,13 @@ pub(crate) const fn push(width: u8) -> u8 {
 impl OpDef {
     /// Returns whether this operation halts or unconditionally transfers control.
     #[must_use]
-    pub(crate) const fn is_terminal(self) -> bool {
+    pub const fn is_terminal(self) -> bool {
         self.traits.contains(OpcodeTraits::TERMINAL)
     }
 
     /// Returns whether this operation is available for `evm_version`.
     #[must_use]
-    pub(crate) fn is_available(self, evm_version: EvmVersion) -> bool {
+    pub fn is_available(self, evm_version: EvmVersion) -> bool {
         match self.availability {
             Availability::Legacy => true,
             Availability::Since(version) => evm_version >= version,
@@ -507,37 +514,37 @@ impl OpDef {
 
     /// Returns whether this operation's operands may be swapped without changing its result.
     #[must_use]
-    pub(crate) const fn is_commutative(self) -> bool {
+    pub const fn is_commutative(self) -> bool {
         self.traits.contains(OpcodeTraits::COMMUTATIVE)
     }
 
     /// Returns whether this operation is a pure function of its stack operands.
     #[must_use]
-    pub(crate) const fn is_pure(self) -> bool {
+    pub const fn is_pure(self) -> bool {
         self.traits.contains(OpcodeTraits::PURE)
     }
 
     /// Returns whether this operation only reads the executing call's context.
     #[must_use]
-    pub(crate) const fn is_context_read(self) -> bool {
+    pub const fn is_context_read(self) -> bool {
         self.traits.contains(OpcodeTraits::CONTEXT_READ)
     }
 
     /// Returns whether this operation may write to memory.
     #[must_use]
-    pub(crate) const fn writes_memory(self) -> bool {
+    pub const fn writes_memory(self) -> bool {
         self.traits.contains(OpcodeTraits::WRITES_MEMORY)
     }
 
     /// Returns whether this operation may write to storage or transient storage.
     #[must_use]
-    pub(crate) const fn writes_storage(self) -> bool {
+    pub const fn writes_storage(self) -> bool {
         self.traits.contains(OpcodeTraits::WRITES_STORAGE)
     }
 
     /// Returns whether this operation depends on the gas left.
     #[must_use]
-    pub(crate) const fn observes_gas(self) -> bool {
+    pub const fn observes_gas(self) -> bool {
         self.traits.contains(OpcodeTraits::OBSERVES_GAS)
     }
 
@@ -545,7 +552,7 @@ impl OpDef {
     /// effect and neither transfers control nor observes its code position or the gas left. Code
     /// may move such an operation to another position, such as a shared body or a copied tail.
     #[must_use]
-    pub(crate) const fn is_position_independent(self) -> bool {
+    pub const fn is_position_independent(self) -> bool {
         self.stack_io.is_some()
             && !self.is_terminal()
             && !self.observes_gas()
@@ -555,11 +562,8 @@ impl OpDef {
 
 /// Returns the ISLE declarations of the opcode vocabulary: the primitive
 /// types EVM IR rules use and one constant per opcode byte.
-#[cfg(test)]
 #[must_use]
-pub(crate) fn isle_prelude() -> String {
-    use std::fmt::Write as _;
-
+pub fn isle_prelude() -> String {
     let mut out = String::from(
         ";; Generated from the EVM opcode table by `op::isle_prelude`; do not edit.\n\
          ;; `cargo nextest run -p solar-codegen evm_isle_prelude` checks this file and\n\
@@ -577,21 +581,21 @@ pub(crate) fn isle_prelude() -> String {
 
 /// Returns the DUP opcode for the given depth (1-16).
 #[must_use]
-pub(crate) const fn dup(n: u8) -> u8 {
+pub const fn dup(n: u8) -> u8 {
     debug_assert!(n >= 1 && n <= 16);
     DUP1 + n - 1
 }
 
 /// Returns the SWAP opcode for the given depth (1-16).
 #[must_use]
-pub(crate) const fn swap(n: u8) -> u8 {
+pub const fn swap(n: u8) -> u8 {
     debug_assert!(n >= 1 && n <= 16);
     SWAP1 + n - 1
 }
 
 /// A logical EVM stack operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum StackOp {
+pub enum StackOp {
     /// Duplicate the nth stack element.
     Dup(u8),
     /// Swap the top with the nth stack element below it.
@@ -613,19 +617,19 @@ macro_rules! define_stack_op_schema {
     ) => {
         /// Declarative metadata for a logical EVM stack operation.
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-        pub(crate) struct StackOpDef {
+        pub struct StackOpDef {
             /// Canonical textual mnemonic.
-            pub(crate) mnemonic: &'static str,
+            pub mnemonic: &'static str,
             /// Placeholder opcode used in EVM IR.
-            pub(crate) ir_opcode: u8,
+            pub ir_opcode: u8,
             /// Gas class of one lowered instruction.
-            pub(crate) gas: GasTier,
+            pub gas: GasTier,
         }
 
         impl StackOp {
             /// Returns the generated definition for this logical operation.
             #[must_use]
-            pub(crate) const fn definition(self) -> StackOpDef {
+            pub const fn definition(self) -> StackOpDef {
                 match self {
                     $(
                         $pattern => StackOpDef {
@@ -649,7 +653,7 @@ define_stack_op_schema! {
 
 /// Target-specific lowering of one logical stack operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum StackOpLowering {
+pub enum StackOpLowering {
     /// One opcode with an optional immediate byte.
     Direct(u8, Option<u8>),
     /// Three `SWAP` opcodes implementing a shallow `EXCHANGE`.
@@ -658,16 +662,16 @@ pub(crate) enum StackOpLowering {
 
 /// Exact cost of a lowered stack operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct StackOpMetrics {
-    pub(crate) static_gas: usize,
-    pub(crate) assembled_len: usize,
-    pub(crate) instruction_count: usize,
+pub struct StackOpMetrics {
+    pub static_gas: usize,
+    pub assembled_len: usize,
+    pub instruction_count: usize,
 }
 
 impl StackOp {
     /// Returns the stack depth required to execute this operation.
     #[must_use]
-    pub(crate) const fn required_depth(self) -> usize {
+    pub const fn required_depth(self) -> usize {
         match self {
             Self::Dup(depth) => depth as usize,
             Self::Swap(depth) => depth as usize + 1,
@@ -684,7 +688,7 @@ impl StackOp {
 
     /// Returns this operation's net stack growth.
     #[must_use]
-    pub(crate) const fn net_growth(self) -> isize {
+    pub const fn net_growth(self) -> isize {
         match self {
             Self::Dup(_) => 1,
             Self::Pop => -1,
@@ -694,7 +698,7 @@ impl StackOp {
 
     /// Decodes a one-byte stack opcode.
     #[must_use]
-    pub(crate) const fn from_single_byte_evm_opcode(opcode: u8) -> Option<Self> {
+    pub const fn from_single_byte_evm_opcode(opcode: u8) -> Option<Self> {
         match opcode {
             POP => Some(Self::Pop),
             DUP1..=DUP16 => Some(Self::Dup(opcode - DUP1 + 1)),
@@ -705,7 +709,7 @@ impl StackOp {
 
     /// Returns the one-byte encoding when this operation has one.
     #[must_use]
-    pub(crate) const fn single_byte_evm_opcode(self) -> Option<u8> {
+    pub const fn single_byte_evm_opcode(self) -> Option<u8> {
         match self {
             Self::Dup(n @ 1..=16) => Some(dup(n)),
             Self::Swap(n @ 1..=16) => Some(swap(n)),
@@ -716,13 +720,13 @@ impl StackOp {
 
     /// Returns the placeholder opcode used to represent this operation in EVM IR.
     #[must_use]
-    pub(crate) const fn ir_opcode(self) -> u8 {
+    pub const fn ir_opcode(self) -> u8 {
         self.definition().ir_opcode
     }
 
     /// Returns whether the operands are valid independent of the target EVM version.
     #[must_use]
-    pub(crate) const fn is_valid(self) -> bool {
+    pub const fn is_valid(self) -> bool {
         match self {
             Self::Dup(n) | Self::Swap(n) => n >= 1 && n <= 235,
             Self::Exchange(n, m) => n >= 1 && n < m && (n as u16) + (m as u16) <= 30,
@@ -732,7 +736,7 @@ impl StackOp {
 
     /// Returns the target-specific lowering of this operation.
     #[must_use]
-    pub(crate) fn lowering(self, evm_version: EvmVersion) -> Option<StackOpLowering> {
+    pub fn lowering(self, evm_version: EvmVersion) -> Option<StackOpLowering> {
         if !self.is_valid() {
             return None;
         }
@@ -760,7 +764,7 @@ impl StackOp {
 
     /// Returns the exact cost of this operation after target lowering.
     #[must_use]
-    pub(crate) fn metrics(self, evm_version: EvmVersion) -> Option<StackOpMetrics> {
+    pub fn metrics(self, evm_version: EvmVersion) -> Option<StackOpMetrics> {
         let (assembled_len, instruction_count) = match self.lowering(evm_version)? {
             StackOpLowering::Direct(_, immediate) => (1 + usize::from(immediate.is_some()), 1),
             StackOpLowering::SwapSequence(opcodes) => (opcodes.len(), opcodes.len()),
@@ -775,13 +779,13 @@ impl StackOp {
 
     /// Returns the exact assembled byte length when this operation can be lowered for the target.
     #[must_use]
-    pub(crate) fn assembled_len(self, evm_version: EvmVersion) -> Option<usize> {
+    pub fn assembled_len(self, evm_version: EvmVersion) -> Option<usize> {
         self.metrics(evm_version).map(|metrics| metrics.assembled_len)
     }
 
     /// Returns the `EXCHANGE` represented by a three-swap sequence.
     #[must_use]
-    pub(crate) const fn from_swaps(first: u8, second: u8, third: u8) -> Option<Self> {
+    pub const fn from_swaps(first: u8, second: u8, third: u8) -> Option<Self> {
         if first != third || first == second {
             return None;
         }
@@ -793,7 +797,7 @@ impl StackOp {
     /// Matches a cycle through the top that leaves the top in place, `SWAPa SWAPb1 ... SWAPbj
     /// SWAPa` with at least one inner swap, at the start of `ops`. Returns the equivalent
     /// `EXCHANGE a, b1 ... EXCHANGE a, bj` and the number of operations matched.
-    pub(crate) fn exchange_cycle(
+    pub fn exchange_cycle(
         ops: impl IntoIterator<Item = Self>,
     ) -> Option<(SmallVec<[Self; 4]>, usize)> {
         let mut ops = ops.into_iter();
@@ -813,20 +817,20 @@ impl StackOp {
 
 /// Encodes the immediate used by `DUPN` and `SWAPN`.
 #[must_use]
-pub(crate) const fn encode_stack_depth(n: u8) -> u8 {
+pub const fn encode_stack_depth(n: u8) -> u8 {
     debug_assert!(n >= 17 && n <= 235);
     n.wrapping_add(111)
 }
 
 /// Decodes a valid `DUPN` or `SWAPN` immediate.
 #[must_use]
-pub(crate) const fn decode_stack_depth(immediate: u8) -> Option<u8> {
+pub const fn decode_stack_depth(immediate: u8) -> Option<u8> {
     if immediate > 90 && immediate < 128 { None } else { Some(immediate.wrapping_add(145)) }
 }
 
 /// Encodes the immediate used by `EXCHANGE`.
 #[must_use]
-pub(crate) const fn encode_exchange(n: u8, m: u8) -> u8 {
+pub const fn encode_exchange(n: u8, m: u8) -> u8 {
     debug_assert!(n >= 1 && n < m && (n as u16) + (m as u16) <= 30);
     let (q, r) = if m <= 16 { (n - 1, m - 1) } else { (29 - m, n - 1) };
     (16 * q + r) ^ 143
@@ -834,7 +838,7 @@ pub(crate) const fn encode_exchange(n: u8, m: u8) -> u8 {
 
 /// Decodes a valid `EXCHANGE` immediate.
 #[must_use]
-pub(crate) const fn decode_exchange(immediate: u8) -> Option<(u8, u8)> {
+pub const fn decode_exchange(immediate: u8) -> Option<(u8, u8)> {
     if immediate > 81 && immediate < 128 {
         return None;
     }
@@ -845,7 +849,7 @@ pub(crate) const fn decode_exchange(immediate: u8) -> Option<(u8, u8)> {
 
 /// Returns whether an opcode halts or unconditionally transfers control.
 #[must_use]
-pub(crate) const fn is_terminal(op: u8) -> bool {
+pub const fn is_terminal(op: u8) -> bool {
     match definition(op) {
         Some(definition) => definition.is_terminal(),
         None => false,
@@ -854,7 +858,7 @@ pub(crate) const fn is_terminal(op: u8) -> bool {
 
 /// Returns whether an opcode is available for `evm_version`.
 #[must_use]
-pub(crate) fn is_available(opcode: u8, evm_version: EvmVersion) -> bool {
+pub fn is_available(opcode: u8, evm_version: EvmVersion) -> bool {
     match definition(opcode) {
         Some(definition) => definition.is_available(evm_version),
         None => false,
@@ -863,7 +867,7 @@ pub(crate) fn is_available(opcode: u8, evm_version: EvmVersion) -> bool {
 
 /// Returns whether an opcode's operands may be swapped without changing its result.
 #[must_use]
-pub(crate) const fn is_commutative(op: u8) -> bool {
+pub const fn is_commutative(op: u8) -> bool {
     match definition(op) {
         Some(definition) => definition.is_commutative(),
         None => false,
@@ -872,7 +876,7 @@ pub(crate) const fn is_commutative(op: u8) -> bool {
 
 /// Returns the equivalent binary opcode after swapping its stack operands.
 #[must_use]
-pub(crate) const fn swapped_binary_opcode(opcode: u8) -> Option<u8> {
+pub const fn swapped_binary_opcode(opcode: u8) -> Option<u8> {
     if is_commutative(opcode) {
         return Some(opcode);
     }
@@ -889,7 +893,7 @@ pub(crate) const fn swapped_binary_opcode(opcode: u8) -> Option<u8> {
 /// function of its stack operands alone (no memory, storage, or environment dependency), so two
 /// occurrences with equal operands always produce the same value.
 #[must_use]
-pub(crate) const fn is_pure(op: u8) -> bool {
+pub const fn is_pure(op: u8) -> bool {
     match definition(op) {
         Some(definition) => definition.is_pure(),
         None => false,
@@ -899,7 +903,7 @@ pub(crate) const fn is_pure(op: u8) -> bool {
 /// Returns whether an opcode only reads the executing call's context, with no effect besides its
 /// static gas, so an unused result can be dropped.
 #[must_use]
-pub(crate) const fn is_context_read(op: u8) -> bool {
+pub const fn is_context_read(op: u8) -> bool {
     match definition(op) {
         Some(definition) => definition.is_context_read(),
         None => false,
@@ -912,7 +916,7 @@ pub(crate) const fn is_context_read(op: u8) -> bool {
 /// It includes opcodes that expand memory or warm an account or storage slot because the push does
 /// not affect those changes.
 #[must_use]
-pub(crate) const fn is_unaffected_by_preceding_push(op: u8) -> bool {
+pub const fn is_unaffected_by_preceding_push(op: u8) -> bool {
     match definition(op) {
         Some(definition) => {
             definition.is_position_independent()
@@ -927,7 +931,7 @@ pub(crate) const fn is_unaffected_by_preceding_push(op: u8) -> bool {
 
 /// Returns whether an opcode may write to memory, invalidating cached memory reads.
 #[must_use]
-pub(crate) const fn writes_memory(op: u8) -> bool {
+pub const fn writes_memory(op: u8) -> bool {
     match definition(op) {
         Some(definition) => definition.writes_memory(),
         None => false,
@@ -937,7 +941,7 @@ pub(crate) const fn writes_memory(op: u8) -> bool {
 /// Returns whether an opcode may write to storage or transient storage, invalidating cached
 /// storage reads.
 #[must_use]
-pub(crate) const fn writes_storage(op: u8) -> bool {
+pub const fn writes_storage(op: u8) -> bool {
     match definition(op) {
         Some(definition) => definition.writes_storage(),
         None => false,
@@ -947,14 +951,14 @@ pub(crate) const fn writes_storage(op: u8) -> bool {
 /// Returns whether an opcode reads nothing but its operands and calldata, so it gives the same
 /// result wherever it runs within a transaction's frame.
 #[must_use]
-pub(crate) const fn reads_only_operands_or_calldata(op: u8) -> bool {
+pub const fn reads_only_operands_or_calldata(op: u8) -> bool {
     is_pure(op) || matches!(op, CALLDATALOAD | CALLDATASIZE)
 }
 
 /// Returns whether an opcode is a memory or storage load or store, or `KECCAK256`: an access
 /// whose only effect is on the words it names.
 #[must_use]
-pub(crate) const fn is_plain_access(op: u8) -> bool {
+pub const fn is_plain_access(op: u8) -> bool {
     matches!(op, MLOAD | MSTORE | MSTORE8 | SLOAD | SSTORE | TLOAD | TSTORE | KECCAK256)
 }
 
@@ -1047,13 +1051,5 @@ mod tests {
             table.push('\n');
         }
         snapbox::assert_data_eq!(table, snapbox::file!["op_table.snap"]);
-    }
-
-    #[test]
-    fn evm_isle_prelude_matches_table() {
-        snapbox::assert_data_eq!(
-            isle_prelude(),
-            snapbox::file!["../../../isle/evm-ir/prelude.isle"]
-        );
     }
 }

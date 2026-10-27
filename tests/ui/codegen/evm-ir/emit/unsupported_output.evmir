@@ -1,0 +1,6 @@
+//@ compile-flags: --emit=srcmap
+//~? ERROR: `--emit=srcmap` is not supported for EVM IR input
+
+@module program
+bb0:
+  stop

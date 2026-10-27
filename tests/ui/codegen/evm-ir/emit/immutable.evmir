@@ -1,0 +1,10 @@
+//@ compile-flags: --emit=bin
+//~? ERROR: EVM IR input that pushes immutables has no bytecode to emit
+
+// Only a contract's constructor sets its immutables, and the creation code of EVM IR input only
+// copies the runtime, so the immutable would read zero instead of its value.
+@module program
+bb0:
+  push_immutable 0, 32
+  pop
+  stop

@@ -26,7 +26,7 @@ pub mod ir;
 
 mod layout;
 
-pub mod op;
+pub use solar_evmir::op;
 
 /// What code generation keeps for a whole compilation, on its [`Gcx`](solar_sema::Gcx): the
 /// results of its searches and its plans, which every contract may read and fill.
@@ -40,5 +40,18 @@ impl CodegenState {
     /// Frees the stored plans.
     pub(crate) fn clear_plans(&self) {
         self.plans.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn evm_isle_prelude_matches_table() {
+        snapbox::assert_data_eq!(
+            op::isle_prelude(),
+            snapbox::file!["../../../isle/evm-ir/prelude.isle"]
+        );
     }
 }

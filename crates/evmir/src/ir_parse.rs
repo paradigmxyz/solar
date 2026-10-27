@@ -1,3 +1,5 @@
+//! Shared parser primitives for the textual MIR and EVM IR formats.
+
 use crate::link::{
     CodeKind, ContractCode, Data, DataId, LibraryId, LibraryRelocation, LibraryTable, QualifiedName,
 };
@@ -11,52 +13,52 @@ use solar_interface::{Session, Span, Symbol, source_map::SourceFile, sym};
 use solar_parse::PErr;
 
 /// Shared parser primitives for the textual IR parsers.
-pub(crate) struct Parser<'sess, 'ast> {
-    pub(crate) libraries: LibraryTable,
+pub struct Parser<'sess, 'ast> {
+    pub libraries: LibraryTable,
     parser: solar_parse::Parser<'sess, 'ast, 'ast>,
 }
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
-    pub(crate) fn new(sess: &'sess Session, arena: &'ast Arena, source: &SourceFile) -> Self {
+    pub fn new(sess: &'sess Session, arena: &'ast Arena, source: &SourceFile) -> Self {
         Self {
             parser: solar_parse::Parser::from_source_file(sess, arena, source),
             libraries: LibraryTable::default(),
         }
     }
 
-    pub(crate) fn token(&self) -> Token {
+    pub fn token(&self) -> Token {
         self.parser.token
     }
 
-    pub(crate) fn look_ahead(&self, distance: usize) -> Token {
+    pub fn look_ahead(&self, distance: usize) -> Token {
         self.parser.look_ahead(distance)
     }
 
-    pub(crate) fn bump(&mut self) {
+    pub fn bump(&mut self) {
         self.parser.bump();
     }
 
-    pub(crate) fn is_eof(&self) -> bool {
+    pub fn is_eof(&self) -> bool {
         self.token().kind == TokenKind::Eof
     }
 
-    pub(crate) fn check(&self, kind: TokenKind) -> bool {
+    pub fn check(&self, kind: TokenKind) -> bool {
         self.token().kind == kind
     }
 
-    pub(crate) fn eat(&mut self, kind: TokenKind) -> bool {
+    pub fn eat(&mut self, kind: TokenKind) -> bool {
         self.parser.eat(kind)
     }
 
-    pub(crate) fn expect(&mut self, kind: TokenKind) -> Result<(), PErr<'sess>> {
+    pub fn expect(&mut self, kind: TokenKind) -> Result<(), PErr<'sess>> {
         self.parser.expect(kind).map(drop)
     }
 
-    pub(crate) fn check_keyword(&self, keyword: Symbol) -> bool {
+    pub fn check_keyword(&self, keyword: Symbol) -> bool {
         self.token().is_keyword(keyword)
     }
 
-    pub(crate) fn eat_keyword(&mut self, keyword: Symbol) -> bool {
+    pub fn eat_keyword(&mut self, keyword: Symbol) -> bool {
         if self.check_keyword(keyword) {
             self.bump();
             true
@@ -65,7 +67,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
     }
 
-    pub(crate) fn expect_keyword(&mut self, keyword: Symbol) -> Result<(), PErr<'sess>> {
+    pub fn expect_keyword(&mut self, keyword: Symbol) -> Result<(), PErr<'sess>> {
         if self.eat_keyword(keyword) {
             Ok(())
         } else {
@@ -73,17 +75,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
     }
 
-    pub(crate) fn parse_ident(&mut self) -> Result<Symbol, PErr<'sess>> {
+    pub fn parse_ident(&mut self) -> Result<Symbol, PErr<'sess>> {
         self.parse_ident_opt().ok_or_else(|| self.error("expected identifier"))
     }
 
-    pub(crate) fn parse_ident_opt(&mut self) -> Option<Symbol> {
+    pub fn parse_ident_opt(&mut self) -> Option<Symbol> {
         let TokenKind::Ident(symbol) = self.token().kind else { return None };
         self.bump();
         Some(symbol)
     }
 
-    pub(crate) fn parse_uint(&mut self) -> Result<U256, PErr<'sess>> {
+    pub fn parse_uint(&mut self) -> Result<U256, PErr<'sess>> {
         let TokenKind::Literal(TokenLitKind::Integer, symbol) = self.token().kind else {
             return Err(self.error("expected integer literal"));
         };
@@ -99,7 +101,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(value)
     }
 
-    pub(crate) fn parse_data_id(&mut self) -> Result<(U256, Option<Symbol>), PErr<'sess>> {
+    pub fn parse_data_id(&mut self) -> Result<(U256, Option<Symbol>), PErr<'sess>> {
         if matches!(self.token().kind, TokenKind::Literal(TokenLitKind::Integer, _)) {
             return self.parse_uint().map(|id| (id, None));
         }
@@ -115,7 +117,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok((id, Some(Symbol::intern(base))))
     }
 
-    pub(crate) fn parse_data_ref(&mut self) -> Result<(U256, u32, Span), PErr<'sess>> {
+    pub fn parse_data_ref(&mut self) -> Result<(U256, u32, Span), PErr<'sess>> {
         let id_span = self.token().span;
         let (id, _) = self.parse_data_id()?;
         let mut offset_span = id_span;
@@ -130,7 +132,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok((id, offset, offset_span))
     }
 
-    pub(crate) fn parse_data_bytes(&mut self) -> Result<Bytes, PErr<'sess>> {
+    pub fn parse_data_bytes(&mut self) -> Result<Bytes, PErr<'sess>> {
         let TokenKind::Literal(TokenLitKind::HexStr, bytes) = self.token().kind else {
             return Err(self.error("expected hex string literal"));
         };
@@ -141,7 +143,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses the entries of an `@libraries` section: `L_0: "a.sol:L"`.
-    pub(crate) fn parse_library_declarations(&mut self) -> Result<(), PErr<'sess>> {
+    pub fn parse_library_declarations(&mut self) -> Result<(), PErr<'sess>> {
         while self.check_declaration() {
             let span = self.token().span;
             let (id, _) = self.parse_indexed_name("library")?;
@@ -167,9 +169,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Child_creation_code_0: creation_code "b.sol:Child"
     /// literal_1: hex"..." library_relocations [2: L_0]
     /// ```
-    pub(crate) fn parse_data_declarations(
-        &mut self,
-    ) -> Result<IndexVec<DataId, Data>, PErr<'sess>> {
+    pub fn parse_data_declarations(&mut self) -> Result<IndexVec<DataId, Data>, PErr<'sess>> {
         let mut data = IndexVec::new();
         while self.check_declaration() {
             let span = self.token().span;
@@ -214,7 +214,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses a reference to a declared library: `Name_index`.
-    pub(crate) fn parse_library_ref(&mut self) -> Result<LibraryId, PErr<'sess>> {
+    pub fn parse_library_ref(&mut self) -> Result<LibraryId, PErr<'sess>> {
         let span = self.token().span;
         let (id, name) = self.parse_indexed_name("library")?;
         if id >= self.libraries.len() {
@@ -237,7 +237,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses the operands that follow a data reference in a data size: `[, addend[, aligned]]`.
-    pub(crate) fn parse_data_size_operands(&mut self) -> Result<(u64, bool), PErr<'sess>> {
+    pub fn parse_data_size_operands(&mut self) -> Result<(u64, bool), PErr<'sess>> {
         if !self.eat(TokenKind::Comma) {
             return Ok((0, false));
         }
@@ -266,7 +266,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses optional library relocations following a constant-data declaration.
-    pub(crate) fn parse_data_library_relocations(
+    pub fn parse_data_library_relocations(
         &mut self,
         bytes: &[u8],
     ) -> Result<Vec<LibraryRelocation>, PErr<'sess>> {
@@ -298,7 +298,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses the canonical `lo..hi` source-span bounds syntax.
-    pub(crate) fn parse_span_bounds(&mut self) -> Result<(u32, u32), PErr<'sess>> {
+    pub fn parse_span_bounds(&mut self) -> Result<(u32, u32), PErr<'sess>> {
         if let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.token().kind
             && let Some(lo) = symbol.as_str().strip_suffix('.')
         {
@@ -337,11 +337,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         value.try_into().map_err(|_| self.error(format!("integer `{value}` does not fit in u32")))
     }
 
-    pub(crate) fn error(&self, message: impl Into<String>) -> PErr<'sess> {
+    pub fn error(&self, message: impl Into<String>) -> PErr<'sess> {
         self.error_at(self.token().span, message)
     }
 
-    pub(crate) fn error_at(&self, span: Span, message: impl Into<String>) -> PErr<'sess> {
+    pub fn error_at(&self, span: Span, message: impl Into<String>) -> PErr<'sess> {
         self.parser.dcx().err(message.into()).span(span)
     }
 }
