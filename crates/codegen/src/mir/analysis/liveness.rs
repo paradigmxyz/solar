@@ -21,7 +21,7 @@ use solar_data_structures::{
 use std::collections::VecDeque;
 
 /// Liveness analysis results for a function.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Liveness {
     /// Values live at each block's entry.
     live_in: BitMatrix<BlockId, ValueId>,
@@ -222,6 +222,24 @@ impl Liveness {
     #[must_use]
     pub(crate) fn live_out(&self, block: BlockId) -> BitMatrixRow<'_, ValueId> {
         self.live_out.row(block)
+    }
+
+    /// Makes `value` live in and out of exactly the given blocks.
+    pub(crate) fn set_value_live(
+        &mut self,
+        value: ValueId,
+        live_in: &DenseBitSet<BlockId>,
+        live_out: &DenseBitSet<BlockId>,
+    ) {
+        for block in (0..live_in.domain_size()).map(BlockId::from_usize) {
+            for (matrix, blocks) in [(&mut self.live_in, live_in), (&mut self.live_out, live_out)] {
+                if blocks.contains(block) {
+                    matrix.insert(block, value);
+                } else {
+                    matrix.remove(block, value);
+                }
+            }
+        }
     }
 
     fn last_uses(&self) -> &FxHashMap<(ValueId, BlockId), Option<usize>> {

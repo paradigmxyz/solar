@@ -1735,6 +1735,7 @@ define_mir_ops! {
         side_effects = false,
         category = None
     )]
+    #[builder(heap_floor)]
     #[operand_types(func => Some(smallvec![]))]
     HeapFloor,
     /// Reserve memory and return the previous free-memory pointer.

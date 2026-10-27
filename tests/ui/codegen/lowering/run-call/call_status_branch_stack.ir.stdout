@@ -56,13 +56,9 @@ bb10 [cold]:
   push 28
   revert
 bb7:
-  push 384
-  push 64
-  mstore
   push 4
   calldataload
-  push 64
-  mload
+  push 384
   push 128
   add
   push 64
@@ -110,12 +106,8 @@ bb7:
   dup 1
   return
 bb11:
-  push 128
-  push 64
-  mstore
   push_immutable 0, 20
-  push 64
-  mload
+  push 128
   push 192
   dup 2
   add
@@ -197,12 +189,8 @@ bb14 [continuation]:
   push 0
   return
 bb17:
-  push 128
-  push 64
-  mstore
   push_immutable 0, 20
-  push 64
-  mload
+  push 128
   push 192
   dup 2
   add
@@ -266,12 +254,8 @@ bb20 [continuation]:
   push 0
   return
 bb26:
-  push 128
-  push 64
-  mstore
   push_immutable 0, 20
-  push 64
-  mload
+  push 128
   push 192
   dup 2
   add

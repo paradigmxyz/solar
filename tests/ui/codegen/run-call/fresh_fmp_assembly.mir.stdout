@@ -1,0 +1,78 @@
+// === ROOT/tests/ui/codegen/run-call/fresh_fmp_assembly.sol:Test ===
+@module Test
+@types
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256}
+
+fn @beforeAlloc() -> struct0 [selector=0xd136cbc1, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = not 31
+    v2 = and 95, v1
+    v3 = alloc zeroed checked v2
+    mstore v3, 32
+    v4 = ptrtoint ptr<memory> v3 to i256
+    v5 = insert_value struct0, undef struct0, 0, v0
+    v6 = insert_value struct0, v5, 1, v4
+    ret v6
+}
+
+fn @afterAlloc() -> i256 [selector=0x8942454f, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = not 31
+    v1 = and 95, v0
+    v2 = alloc zeroed checked v1
+    mstore v2, 32
+    v3 = mload v2
+    v4 = lt 0, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
+    v7 = ptradd v2, 32
+    mstore8 v7, v6
+    v8 = mload 64 !metadata(memory=scratch)
+    ret v8
+}
+
+fn @skipped() -> struct0 [selector=0xab55c11f, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = add v0, 64
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = not 31
+    v3 = and 95, v2
+    v4 = alloc zeroed checked v3
+    mstore v4, 32
+    v5 = mload v4
+    v6 = lt 0, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
+    v9 = ptradd v4, 32
+    mstore8 v9, v8
+    v10 = ptrtoint ptr<memory> v4 to i256
+    v11 = ptrtoint ptr<memory> v4 to i256
+    v12 = add v11, 32
+    v13 = mload v12
+    v14 = shr v13, 248
+    v15 = insert_value struct0, undef struct0, 0, v10
+    v16 = insert_value struct0, v15, 1, v14
+    ret v16
+}
+
+fn @scratch() -> struct1 [selector=0x3e6c22d4, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    v2 = mload 64 !metadata(memory=scratch)
+    v3 = not 31
+    v4 = and 95, v3
+    v5 = alloc zeroed checked v4
+    mstore v5, 32
+    v6 = mload 64 !metadata(memory=scratch)
+    v7 = insert_value struct1, undef struct1, 0, v0
+    v8 = insert_value struct1, v7, 1, v2
+    v9 = insert_value struct1, v8, 2, v6
+    ret v9
+}

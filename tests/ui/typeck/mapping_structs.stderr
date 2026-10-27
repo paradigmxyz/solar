@@ -40,6 +40,12 @@ error: types containing mappings cannot be parameter or return types of public f
 LL │     function func_1(S memory) public {}
    ╰╴                    ━
 
+error: types containing mappings cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   │
+LL │     function func_2(S storage) public {}
+   ╰╴                    ━
+
 error: invalid data location `storage`
    ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
    │
@@ -51,13 +57,13 @@ LL │     function func_2(S storage) public {}
 error: types containing mappings cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
    │
-LL │     function func_2(S storage) public {}
-   ╰╴                    ━
+LL │     function func_3() public returns(S memory) {}
+   ╰╴                                     ━
 
 error: types containing mappings cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
    │
-LL │     function func_3() public returns(S memory) {}
+LL │     function func_4() public returns(S storage) {}
    ╰╴                                     ━
 
 error: invalid data location `storage`
@@ -71,13 +77,13 @@ LL │     function func_4() public returns(S storage) {}
 error: types containing mappings cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
    │
-LL │     function func_4() public returns(S storage) {}
-   ╰╴                                     ━
+LL │     function func_nested_1(Nested memory) public {}
+   ╰╴                           ━━━━━━
 
 error: types containing mappings cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
    │
-LL │     function func_nested_1(Nested memory) public {}
+LL │     function func_nested_2(Nested storage) public {}
    ╰╴                           ━━━━━━
 
 error: invalid data location `storage`
@@ -91,13 +97,13 @@ LL │     function func_nested_2(Nested storage) public {}
 error: types containing mappings cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
    │
-LL │     function func_nested_2(Nested storage) public {}
-   ╰╴                           ━━━━━━
+LL │     function func_nested_3() public returns(Nested memory) {}
+   ╰╴                                            ━━━━━━
 
 error: types containing mappings cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
    │
-LL │     function func_nested_3() public returns(Nested memory) {}
+LL │     function func_nested_4() public returns(Nested storage) {}
    ╰╴                                            ━━━━━━
 
 error: invalid data location `storage`
@@ -107,12 +113,6 @@ LL │     function func_nested_4() public returns(Nested storage) {}
    │                                             ━━━━━━━━━━━━━━
    │
    ╰ note: data location must be `memory` or `calldata` for public function return parameter, but got `storage`
-
-error: types containing mappings cannot be parameter or return types of public functions
-   ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
-   │
-LL │     function func_nested_4() public returns(Nested storage) {}
-   ╰╴                                            ━━━━━━
 
 error: type `struct S memory` is only valid in storage because it contains a (nested) mapping
    ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC

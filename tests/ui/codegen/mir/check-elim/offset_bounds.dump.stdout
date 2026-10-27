@@ -7,14 +7,13 @@ fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
     v33 = add v0, 64
     v4 = add v33, 63
     v7 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v57 = mload 64 !metadata(memory=scratch)
-    v58 = add v57, v7
+    v57 = heap_floor !metadata(alloc_ptr)
+    v58 = add v57, v7 !metadata(alloc_ptr)
     v59 = lt v58, v57
     v60 = gt v58, 0xffffffffffffffff
     v61 = or v59, v60
     jumpi v61, bb5, bb4
   bb4:
-    mstore 64, v58 !metadata(memory=scratch)
     v63 = calldatasize
     calldatacopy v57, v63, v7
     mstore v57, v33

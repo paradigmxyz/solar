@@ -1,0 +1,8 @@
+error: block `bb0` continues after its terminator
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_after_terminator.mir:LL:CC
+   │
+LL │     mstore 0, 1
+   ╰╴    ━━━━━━
+
+error: aborting due to 1 previous error
+

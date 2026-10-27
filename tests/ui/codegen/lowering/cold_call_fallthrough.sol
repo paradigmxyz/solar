@@ -6,23 +6,19 @@
 
 // Calls to the non-returning helper make their blocks cold. The backend should
 // lay out each successful continuation as the branch fallthrough after
-// optimization, while the unoptimized revision retains the explicit jumps.
+// optimization, while the unoptimized revision does not mark the call blocks cold.
 contract ColdCallFallthrough {
     // NONE-LABEL: @module ColdCallFallthrough_runtime
     // NONE: eq
-    // NONE-NEXT: push [[NONE_DISPATCH:bb[0-9]+]]
+    // NONE-NEXT: push [[WRAPPER:bb[0-9]+]]
     // NONE-NEXT: jumpi
-    // NONE: [[NONE_DISPATCH]]:
-    // NONE-NEXT: jump [[WRAPPER:bb[0-9]+]]
     // NONE: [[WRAPPER]]:
     // NONE: iszero
-    // NONE-NEXT: push [[NONE_COLD:bb[0-9]+]]
+    // NONE-NEXT: push [[NONE_CALL:bb[0-9]+]]
     // NONE-NEXT: jumpi
-    // NONE-NEXT: jump [[HOT:bb[0-9]+]]
-    // NONE: [[HOT]]:
     // NONE: return
-    // NONE: [[NONE_COLD]]:
-    // NONE: jump
+    // NONE: [[NONE_CALL]]:
+    // NONE-NOT: [cold]
 
     // SIZE-LABEL: @module ColdCallFallthrough_runtime
     // SIZE: eq

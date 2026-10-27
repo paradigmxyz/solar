@@ -323,7 +323,7 @@ impl FunctionMemorySummary {
         space: AddressSpace,
         write: bool,
     ) -> Option<&BTreeSet<U256>> {
-        let index = slot_space_index(space)?;
+        let index = space.slot_index()?;
         let footprint = if write { &self.slot_writes[index] } else { &self.slot_reads[index] };
         (!footprint.unknown).then_some(&footprint.slots)
     }
@@ -358,7 +358,7 @@ impl FunctionMemorySummary {
             let footprint = if write { &mut self.memory_writes } else { &mut self.memory_reads };
             footprint.insert(MemoryRange::export(func, access));
         }
-        if let Some(index) = slot_space_index(space) {
+        if let Some(index) = space.slot_index() {
             let slot = match access {
                 Access::Location(Location::Storage(StorageAlias::Slot(slot)))
                 | Access::Location(Location::Transient(StorageAlias::Slot(slot))) => Some(slot),
@@ -625,14 +625,6 @@ fn merge_call(
     }
 }
 
-const fn slot_space_index(space: AddressSpace) -> Option<usize> {
-    match space {
-        AddressSpace::Storage => Some(0),
-        AddressSpace::Transient => Some(1),
-        _ => None,
-    }
-}
-
 const fn space_index(space: AddressSpace) -> usize {
     match space {
         AddressSpace::Memory => 0,
@@ -816,7 +808,9 @@ fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
     for inst_id in func.instructions() {
         let kind = &func.inst(inst_id).kind;
         let root = match kind {
-            InstKind::Fmp | InstKind::ICall { function: Callee::Function(_), .. } => true,
+            InstKind::Fmp
+            | InstKind::HeapFloor
+            | InstKind::ICall { function: Callee::Function(_), .. } => true,
             InstKind::Load(address, PtrLocation::Memory) => {
                 func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT)
             }
@@ -875,7 +869,10 @@ fn observe_sources(
 /// using transient heap scratch can expose a pointer's position relative to the heap.
 fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
-        InstKind::Fmp | InstKind::SetFmp(_) | InstKind::MappingSlotBytes(..) => true,
+        InstKind::Fmp
+        | InstKind::HeapFloor
+        | InstKind::SetFmp(_)
+        | InstKind::MappingSlotBytes(..) => true,
         InstKind::Load(address, PtrLocation::Memory)
         | InstKind::Store(address, _, PtrLocation::Memory) => {
             func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
@@ -940,6 +937,9 @@ fn is_fmp_derived(
             InstKind::Load(address, PtrLocation::Memory) => {
                 func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
             }
+            // A pointer built from the floor only moves the heap up: the floor is the lowest word
+            // the pointer holds.
+            InstKind::HeapFloor => true,
             InstKind::Add(first, second) => {
                 (is_fmp_derived(func, first, visiting, anchor, supported)
                     && is_nonnegative_offset(func, second))

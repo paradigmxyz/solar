@@ -376,9 +376,6 @@ bb5:
   push 0
   return
 bb8:
-  push 128
-  push 64
-  mstore
   push 100
   calldataload
   push 160
@@ -458,80 +455,76 @@ bb8:
   calldataload
   push 100
   calldataload
-  push 64
-  mload
+  push 128
   swap 3
   dup 4
   add
+  dup 1
   push 64
   mstore
-  swap 7
-  dup 3
+  swap 8
+  dup 4
   mstore
   push 32
-  dup 3
+  dup 4
   add
-  swap 5
-  dup 5
-  dup 7
+  swap 6
+  dup 6
+  dup 8
   calldatacopy
   push 63
-  dup 7
+  dup 8
   add
   push 31
   not
   and
-  push 64
-  mload
-  swap 1
-  dup 2
-  add
-  push 64
-  mstore
-  dup 7
-  dup 2
-  mstore
-  push 32
-  dup 2
+  dup 9
   add
   swap 7
-  dup 5
-  dup 9
-  calldatacopy
+  dup 8
   push 64
-  mload
-  dup 4
-  dup 2
+  mstore
+  dup 1
+  dup 10
+  mstore
+  push 32
+  dup 10
   add
+  swap 5
+  dup 6
+  calldatacopy
+  dup 3
+  dup 8
+  add
+  dup 1
   push 64
   mstore
   dup 3
-  dup 2
+  dup 9
   mstore
   dup 4
   push 32
-  dup 3
+  dup 10
   add
   mstore
-  dup 2
+  dup 9
   push 64
-  dup 3
+  dup 10
   add
   mstore
+  swap 7
   push 96
   add
-  dup 9
+  dup 2
   swap 1
   mstore
-  push 64
-  mload
   push 0xfa06cb96
   push 224
   shl
-  dup 2
+  dup 8
   mstore
   push 4
-  dup 2
+  dup 8
   add
   push 64
   dup 2
@@ -544,43 +537,43 @@ bb8:
   dup 4
   add
   mstore
-  dup 6
+  dup 5
   dup 2
   add
-  swap 5
+  swap 4
   dup 2
   mstore
-  dup 6
+  dup 5
   push 32
   dup 3
   add
   mstore
-  swap 5
+  swap 4
   mload
   dup 1
-  dup 6
+  dup 5
   mstore
   push 5
   shl
-  swap 4
+  swap 3
   push 32
   add
-  dup 5
+  dup 4
   dup 2
   add
-  swap 5
+  swap 4
   swap 2
-  swap 9
+  swap 8
   swap 1
   mcopy
-  dup 4
-  dup 4
+  dup 3
+  dup 3
   sub
   push 64
-  dup 6
+  dup 5
   add
   mstore
-  swap 1
+  swap 7
   mload
   push 31
   dup 2
@@ -589,36 +582,34 @@ bb8:
   not
   and
   push 32
-  dup 5
+  dup 4
   add
   push 0
   dup 3
-  dup 7
+  dup 6
   add
   mstore
   dup 3
   swap 1
-  swap 5
+  swap 4
   mstore
-  dup 4
+  dup 3
   add
+  swap 4
   swap 1
   swap 2
-  swap 8
-  swap 1
-  swap 3
   mcopy
-  swap 6
+  swap 5
   push 0
   not
   push 96
   shr
   and
   swap 1
+  swap 5
   push 96
   add
   mstore
-  pop
   pop
   swap 1
   swap 2

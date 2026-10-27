@@ -23,7 +23,7 @@ fn @fa() [selector=0xa2467f05, abi_wrapper] {
     jumpi v53, bb3, bb5
   bb5:
     v0 = gas
-    v45 = mload 64 !metadata(memory=scratch)
+    v45 = heap_floor !metadata(alloc_ptr)
     mstore v45, 0xe9c7a9a00000000000000000000000000000000000000000000000000000000
     v30 = add v45, 4
     v31 = add v30, 32
@@ -33,8 +33,8 @@ fn @fa() [selector=0xa2467f05, abi_wrapper] {
     v36 = sub v35, v30
     v37 = add v36, 4
     v38 = add v36, 32
-    v46 = mload 64 !metadata(memory=scratch)
-    v47 = add v46, v38
+    v46 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v47 = add v46, v38 !metadata(alloc_ptr)
     mstore 64, v47 !metadata(memory=scratch)
     v5 = extcodesize arg0
     v6 = eq v5, 0
@@ -75,7 +75,7 @@ fn @fb() [selector=0x81fba7cd, abi_wrapper] {
     jumpi v54, bb3, bb5
   bb5:
     v0 = gas
-    v46 = mload 64 !metadata(memory=scratch)
+    v46 = heap_floor !metadata(alloc_ptr)
     mstore v46, 0xf3b450f00000000000000000000000000000000000000000000000000000000
     v30 = add v46, 4
     v31 = add v30, 64
@@ -87,8 +87,8 @@ fn @fb() [selector=0x81fba7cd, abi_wrapper] {
     v37 = sub v35, v30
     v38 = add v37, 4
     v39 = add v37, 32
-    v47 = mload 64 !metadata(memory=scratch)
-    v48 = add v47, v39
+    v47 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v48 = add v47, v39 !metadata(alloc_ptr)
     mstore 64, v48 !metadata(memory=scratch)
     v5 = extcodesize arg0
     v6 = eq v5, 0
@@ -129,7 +129,7 @@ fn @fc() [selector=0xeb19e25e, abi_wrapper] {
     jumpi v107, bb3, bb5
   bb5:
     v0 = gas
-    v99 = mload 64 !metadata(memory=scratch)
+    v99 = heap_floor !metadata(alloc_ptr)
     mstore v99, 0xd6c30fce00000000000000000000000000000000000000000000000000000000
     v30 = add v99, 4
     v31 = add v30, 32
@@ -150,8 +150,8 @@ fn @fc() [selector=0xeb19e25e, abi_wrapper] {
     v87 = sub v39, v30
     v88 = add v87, 4
     v89 = add v87, 32
-    v100 = mload 64 !metadata(memory=scratch)
-    v101 = add v100, v89
+    v100 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v101 = add v100, v89 !metadata(alloc_ptr)
     mstore 64, v101 !metadata(memory=scratch)
     v5 = extcodesize arg0
     v6 = eq v5, 0

@@ -1,0 +1,49 @@
+// === ROOT/tests/ui/codegen/mir/egraph/late_cse_masks.sol:LateCseMasks ===
+@module LateCseMasks
+fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @digest(arg0: i160, arg1: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = zext i160 arg0 to i256
+    mstore v0, v1
+    v2 = ptradd v0, 32
+    mstore v2, arg1
+    v3 = abi_encode [tuple<word<uint160>, word>], scratch, args v0
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
+    v6 = keccak256 v4, v5
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = checked_add uint256, v7, arg1
+    sstore 0, v8 !metadata(storage=slot(0))
+    ret v6
+}
+
+fn @expected(arg0: i160, arg1: i256) -> i256 [pure] {
+  bb0:
+    v0 = zext i160 arg0 to i256
+    v1 = keccak256_packed (uint256 v0, uint256 arg1)
+    ret v1
+}
+
+fn @first(arg0: i160, arg1: i256) -> i1 [selector=0x2845d4e6, abi_params=[address, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @digest, arg0, arg1
+    v1 = icall @expected, arg0, arg1
+    v2 = eq v0, v1
+    ret v2
+}
+
+fn @second(arg0: i160, arg1: i256) -> i1 [selector=0x6cdb32ec, abi_params=[address, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = checked_add uint256, arg1, 1
+    v1 = icall @digest, arg0, v0
+    v2 = checked_add uint256, arg1, 1
+    v3 = icall @expected, arg0, v2
+    v4 = eq v1, v3
+    ret v4
+}

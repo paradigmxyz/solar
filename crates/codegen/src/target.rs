@@ -18,7 +18,10 @@
 
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
-    mir::{BlockId, Function, Op, Terminator, Value, ValueId, memory::EvmMemoryLayout},
+    mir::{
+        BlockId, Function, Op, Terminator, Value, ValueId, analysis::AddressSpace,
+        memory::EvmMemoryLayout,
+    },
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -91,6 +94,9 @@ impl GasTier {
     pub(crate) const COPY_WORD_GAS: u32 = 3;
     /// Gas of a warm account or storage access under EIP-2929.
     pub(crate) const WARM_ACCESS_GAS: u32 = 100;
+    /// Gas of expanding memory by one word, before the quadratic term that small memories do not
+    /// reach.
+    pub(crate) const MEMORY_WORD_GAS: u32 = 3;
     /// The surcharge EIP-2929 adds to a storage write of a cold slot.
     const COLD_SLOAD_GAS: u32 = 2100;
 
@@ -550,6 +556,17 @@ impl Target {
     /// warmth; unknown opcodes are free.
     pub(crate) fn opcode_gas_at(&self, opcode: u8, warmth: Warmth) -> u32 {
         op::definition(opcode).map_or(0, |def| def.gas.gas_at(self.evm_version, warmth))
+    }
+
+    /// Static gas of reading again a location in `space` that an earlier access already touched:
+    /// a warm storage slot, a transient slot, a memory word, or an immutable's pushed constant.
+    pub(crate) fn repeated_read_gas(&self, space: AddressSpace) -> u32 {
+        match space {
+            AddressSpace::Storage => self.opcode_gas_at(op::SLOAD, Warmth::Warm),
+            AddressSpace::Transient => self.opcode_gas(op::TLOAD),
+            AddressSpace::Memory => self.opcode_gas(op::MLOAD),
+            AddressSpace::Immutable => self.opcode_gas(op::PUSH32),
+        }
     }
 
     /// Cost of one opcode with its immediate, before dynamic components.
@@ -1140,6 +1157,15 @@ impl Target {
             transfer_gas.saturating_mul(Self::UNCOUNTED_LOOP_ITERATIONS),
         )
     }
+
+    /// Cost of `words` words of a function's fixed spill frame on each call of an external entry
+    /// that can reach the function. The frames of the functions an entry reaches lie below its
+    /// heap, so each word moves the heap up by one, and every call expands memory over the word
+    /// once its first allocation does, whether or not the function runs. The stores and reloads
+    /// that use the word are priced with the code that runs them.
+    pub(crate) fn frame_words(&self, words: u32) -> Cost {
+        Cost::new(GasTier::MEMORY_WORD_GAS.saturating_mul(words), 0)
+    }
 }
 
 #[cfg(test)]
@@ -1703,5 +1729,15 @@ mod tests {
         let hot =
             Target::with(EvmVersion::Cancun, OptimizationMode::Gas, Target::LOOP_COPY_MIN_RUNS);
         assert_eq!(hot.loop_join_copy_budget(194), u64::MAX);
+    }
+
+    #[test]
+    fn frame_words_cost_memory_expansion() {
+        // A word below the heap costs every call one more word of expansion, and no bytes.
+        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let target = Target::with(EvmVersion::Cancun, optimization, 200);
+            assert_eq!(target.frame_words(0), Cost::ZERO);
+            assert_eq!(target.frame_words(10), Cost::new(30, 0));
+        }
     }
 }

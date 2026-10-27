@@ -80,15 +80,19 @@
 //! Each replan costs time in proportion to the function's size, so a function takes at most
 //! [`HEADER_REPLAN_WORK`] divided by its instruction count replans.
 //!
-//! Optimized functions also try keeping their most expensive repeated immediate on the stack.
-//! The trial materializes it once in the nearest block outside loops that dominates its uses,
-//! then treats it like a live value. A complete replan prices the resulting copies, shuffles,
-//! and edges. It keeps the original spill set and falls back if the constant makes a word
-//! unreachable. The trial must improve the target's runs-weighted objective without increasing
-//! estimated gas or bytes. Gas outside loops must not increase either, so estimated loop trips
-//! cannot fund more setup. Size mode reserves a jump's bytes as a margin: small local savings can
-//! disrupt later outlining. Within the defining block, materialization waits until the first use,
-//! or the terminator if only successors need it. Call-chain overflow retries omit this word.
+//! Optimized functions also try keeping their most expensive repeated immediates on the stack, one
+//! at a time, best first, up to [`MAX_CONSTANT_TRIALS`] trials, each on top of the ones kept.
+//! The trial materializes the immediate once in the nearest block outside loops that dominates its
+//! uses, then treats it like a live value from there through the blocks that block dominates, and
+//! as a fresh push elsewhere. An immediate whose uses sit in separate branches is also tried for
+//! the uses under each branch alone, so the paths that never use it do not carry it. A complete
+//! replan prices the resulting copies, shuffles, and edges. It keeps the original spill set and
+//! falls back if the constant makes a word unreachable. The trial must improve the target's
+//! runs-weighted objective without increasing estimated gas or bytes. Gas outside loops must not
+//! increase either, so estimated loop trips cannot fund more setup. Size mode reserves a jump's
+//! bytes as a margin: small local savings can disrupt later outlining. Within the defining block,
+//! materialization waits until the first use, or the terminator if only successors need it.
+//! Call-chain overflow retries omit this word.
 //!
 //! `-O none` takes the first plan: it plans each function once, with preheader loop layouts and
 //! without the operand copy trials, the result swap or constant retention, so the code may use
@@ -107,6 +111,12 @@
 //! on the stack across them and store them back after. A value live across such a write is
 //! recomputed at each use instead of spilled when stable arithmetic over calldata, constants and
 //! stable reads can rebuild it.
+//!
+//! A function that spills is planned a second time as a copy that computes the cheap values
+//! crossing its crowded stretches again: values that differ by a constant from one live base, and
+//! short operation chains over words live at their uses anyway (see `rebuild`). The copy's plan
+//! replaces the original when it is cheaper under the objective, with each plan charged the
+//! target's price of the frame words it spills, which every call that can reach the function pays.
 //!
 //! A recursive function spills to a fixed frame like any other. A call that can start another
 //! activation of it, one into its own recursive component, would overwrite that frame, so the
@@ -143,6 +153,7 @@ mod cache;
 pub(in crate::backend::evm) use cache::PlanCache;
 mod emit;
 mod plan;
+mod rebuild;
 mod shuffle;
 
 /// One word of the modeled stack.
@@ -294,6 +305,16 @@ struct FunctionPlan {
     calls: Vec<(FunctionId, usize)>,
     cost: Cost,
     non_loop_gas: u32,
+    /// The copy of the function this plan was made for, when it rebuilds values past crowded
+    /// points instead of keeping them on the stack.
+    rebuilt: Option<Box<Function>>,
+}
+
+impl FunctionPlan {
+    /// Words of the function's fixed frame that hold spilled values and the return address.
+    fn spill_words(&self) -> u32 {
+        self.spilled.count() as u32 + u32::from(self.ret_spilled)
+    }
 }
 
 /// Module-wide facts shared by every function plan.
@@ -374,13 +395,19 @@ const HEADER_EXCHANGED_WORDS: usize = 4;
 /// The most plans of a function, times its instructions, that exchanging header words may spend.
 const HEADER_REPLAN_WORK: usize = 2048;
 
+/// The most constants of a function tried for retention on the stack, each trial replanning it.
+const MAX_CONSTANT_TRIALS: usize = 4;
+
+/// The most constants of a function tried for retention when optimizing for size.
+const SIZE_CONSTANT_TRIALS: usize = 1;
+
 impl<'gcx> EvmCodegen<'gcx> {
     /// Emits the runtime: the dispatch entry, the external entries, and the internal functions
     /// they call.
     pub(super) fn emit_runtime(&mut self, module: &Module, call_graph: &CallGraphInfo) {
         let Some(entry) = module.dispatch_entry() else {
             assert!(
-                !module.functions.iter().any(Self::is_external_entry),
+                !module.functions.iter().any(Function::is_runtime_entry),
                 "evm-shaped module with a runtime interface must have a MIR `entry` function"
             );
             return;
@@ -393,7 +420,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .filter(|&(func_id, func)| {
                 Self::is_runtime_function(func)
                     && (func_id == entry
-                        || Self::is_external_entry(func)
+                        || func.is_runtime_entry()
                         || internal_targets.contains(func_id))
             })
             .map(|(func_id, _)| func_id)
@@ -455,7 +482,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut internal = DenseBitSet::new_empty(functions);
         for &func_id in &bodies {
             let func = &module.functions[func_id];
-            if func_id != entry && !Self::is_external_entry(func) {
+            if func_id != entry && !func.is_runtime_entry() {
                 internal.insert(func_id);
                 if call_graph.is_recursive(func_id) {
                     // A recursive activation cannot own a fixed frame.
@@ -676,13 +703,12 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// that may reach the spill area, and `writers` the functions that may make one and return.
     fn analyze(
         &self,
-        module: &Module,
+        func: &Function,
         info: &ModuleInfo,
         func_id: FunctionId,
         hazards: &FxHashSet<InstId>,
         writers: &DenseBitSet<FunctionId>,
     ) -> Analysis {
-        let func = &module.functions[func_id];
         let liveness = Liveness::compute_live_sets(func);
         let cfg = CfgInfo::new(func);
         let loops = LoopAnalyzer::new().analyze_structure(func);
@@ -738,22 +764,31 @@ impl<'gcx> EvmCodegen<'gcx> {
         if let Some(plan) = cache.get(&key) {
             return Ok(plan);
         }
+        let func = &module.functions[func_id];
         let analysis =
-            analysis.get_or_insert_with(|| self.analyze(module, info, func_id, hazards, writers));
-        let plan = self.plan_function_stackified(module, info, func_id, analysis, call_spill)?;
+            analysis.get_or_insert_with(|| self.analyze(func, info, func_id, hazards, writers));
+        let mut plan = self.plan_function_stackified(func, info, func_id, analysis, call_spill)?;
+        // A first plan that spills competes with one that computes cheap values again instead.
+        if call_spill == CallSpill::None
+            && plan.spill_words() != 0
+            && let Some(rebuilt) =
+                self.plan_rebuilt(func, info, func_id, analysis, hazards, writers)
+            && self.prices_lower(info, func_id, &rebuilt, &plan)
+        {
+            plan = rebuilt;
+        }
         cache.insert(key, &plan);
         Ok(plan)
     }
 
     fn plan_function_stackified(
         &self,
-        module: &Module,
+        func: &Function,
         info: &ModuleInfo,
         func_id: FunctionId,
         analysis: &Analysis,
         call_spill: CallSpill,
     ) -> Result<FunctionPlan, Decline> {
-        let func = &module.functions[func_id];
         let internal = info.internal.contains(func_id);
         let target = self.target(info, func_id);
         let mut spilled = DenseBitSet::new_empty(func.num_values());
@@ -781,7 +816,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             SINGLE_SPILL_RESTARTS
         };
         let mut best: Option<FunctionPlan> = None;
-        let mut constant = None;
+        let mut constants = Vec::new();
         // Candidate loop header layouts: as the preheader leaves its stack, by first use in the
         // loop, and then repeatedly as the best plan's latches leave their stacks.
         let mut candidates = vec![FxHashMap::default()];
@@ -797,7 +832,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             tried.push(hints.clone());
             let Planned { plan, mut natural, first_use } = loop {
                 let planner = Planner::new(
-                    module,
+                    func,
                     info,
                     func_id,
                     analysis,
@@ -813,7 +848,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     && call_spill == CallSpill::None
                     && target.optimizes_stack_plans()
                 {
-                    constant = planner.constant_to_retain();
+                    constants = planner.constants_to_retain();
                 }
                 match planner.plan() {
                     Ok(planned) => break planned,
@@ -862,7 +897,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut best = best.expect("at least one plan");
         let replan = |hints: &FxHashMap<BlockId, Layout>| {
             Planner::new(
-                module,
+                func,
                 info,
                 func_id,
                 analysis,
@@ -882,9 +917,32 @@ impl<'gcx> EvmCodegen<'gcx> {
             );
         }
         let hints = FxHashMap::default();
-        if let Some(constant) = constant
-            && let Ok(planner) = Planner::new(
-                module,
+        let mut retained = Vec::new();
+        let dominators = analysis.cfg.dominators();
+        // Size builds keep to one constant: the later outlining and block merging that rebuilt
+        // pushes feed make a second one grow some contracts.
+        let max_trials = if target.optimization().is_size() {
+            SIZE_CONSTANT_TRIALS
+        } else {
+            MAX_CONSTANT_TRIALS
+        };
+        let mut trials = 0;
+        for constant in constants {
+            if trials == max_trials {
+                break;
+            }
+            let (def, value) = constant;
+            // A constant is kept from one block through all it dominates.
+            if retained.iter().any(|&(block, other)| {
+                other == value
+                    && (dominators.dominates(block, def) || dominators.dominates(def, block))
+            }) {
+                continue;
+            }
+            trials += 1;
+            retained.push(constant);
+            if let Ok(planner) = Planner::new(
+                func,
                 info,
                 func_id,
                 analysis,
@@ -893,18 +951,23 @@ impl<'gcx> EvmCodegen<'gcx> {
                 ret_spilled,
                 restarts >= single_spills,
                 &hints,
-            )
-            && let Ok(candidate) = planner.retain_constant(constant).plan()
-            // Creation code pays for every byte it leaves out, so a constant kept on the stack
-            // may cost gas, as long as the deployment gets cheaper.
-            && (target.is_creation()
-                || (target.dominates(candidate.plan.cost, best.cost)
-                    && candidate.plan.non_loop_gas <= best.non_loop_gas))
-            && target.cmp_lifetime(candidate.plan.cost, best.cost).is_lt()
-            && (!target.optimization().is_size()
-                || candidate.plan.cost.bytes.saturating_add(target.jump().bytes) < best.cost.bytes)
-        {
-            best = candidate.plan;
+            ) && let liveness =
+                plan::retention_liveness(func, &analysis.cfg, &analysis.liveness, &retained)
+                && let Ok(candidate) = planner.retain_constants(&retained, &liveness).plan()
+                // Creation code pays for every byte it leaves out, so a constant kept on the
+                // stack may cost gas, as long as the deployment gets cheaper.
+                && (target.is_creation()
+                    || (target.dominates(candidate.plan.cost, best.cost)
+                        && candidate.plan.non_loop_gas <= best.non_loop_gas))
+                && target.cmp_lifetime(candidate.plan.cost, best.cost).is_lt()
+                && (!target.optimization().is_size()
+                    || candidate.plan.cost.bytes.saturating_add(target.jump().bytes)
+                        < best.cost.bytes)
+            {
+                best = candidate.plan;
+            } else {
+                retained.pop();
+            }
         }
         Ok(best)
     }
@@ -955,6 +1018,53 @@ impl<'gcx> EvmCodegen<'gcx> {
             func_id = callee;
         }
         Some(chain)
+    }
+
+    /// Plans the copy of `func` that rebuilds cheap values past its crowded points, when it has
+    /// one; see [`rebuild`].
+    fn plan_rebuilt(
+        &self,
+        func: &Function,
+        info: &ModuleInfo,
+        func_id: FunctionId,
+        analysis: &Analysis,
+        hazards: &FxHashSet<InstId>,
+        writers: &DenseBitSet<FunctionId>,
+    ) -> Option<FunctionPlan> {
+        let target = self.target(info, func_id);
+        if !(target.optimization().is_gas() || target.optimization().is_size()) {
+            return None;
+        }
+        let internal = info.internal.contains(func_id);
+        let rebuilt = rebuild::rebuild_crowded_values(
+            func,
+            internal,
+            &analysis.liveness,
+            &analysis.cfg,
+            &analysis.loops,
+            self.gcx.sess.opts.evm_version.reachable_stack_depth(),
+            usize::from(info.returning.contains(func_id)),
+        )?;
+        let analysis = self.analyze(&rebuilt, info, func_id, hazards, writers);
+        let mut plan = self
+            .plan_function_stackified(&rebuilt, info, func_id, &analysis, CallSpill::None)
+            .ok()?;
+        plan.rebuilt = Some(Box::new(rebuilt));
+        Some(plan)
+    }
+
+    /// Whether plan `a` beats plan `b` under the objective once each pays for the frame words it
+    /// spills, priced as the function's code.
+    fn prices_lower(
+        &self,
+        info: &ModuleInfo,
+        func_id: FunctionId,
+        a: &FunctionPlan,
+        b: &FunctionPlan,
+    ) -> bool {
+        let target = self.target(info, func_id);
+        let priced = |plan: &FunctionPlan| plan.cost + target.frame_words(plan.spill_words());
+        target.cmp(priced(a), priced(b)).is_lt()
     }
 }
 

@@ -1,6 +1,6 @@
-- // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (before copy-elision) ===
-+ // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (after copy-elision) ===
-  @module CopyElision
+- // === ROOT/tests/ui/codegen/mir/memory-dse/write_only_unread_allocations.mir (before memory-dse-unread) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/write_only_unread_allocations.mir (after memory-dse-unread) ===
+  @module WriteOnlyUnreadAllocations
   fn @unread(arg0: i256) -> i256 {
     bb0:
       v0 = alloc zeroed checked 64
@@ -122,7 +122,23 @@
       ret 0
     bb2:
       v2 = alloc 64
-      mstore v2, 7
+-     mstore v2, 7
+      v3 = add v0, 1
+      jump bb1
+  }
+  
+  fn @loop_allocation_copy(arg0: i256) -> i256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v3]
+      v1 = lt v0, arg0
+      jumpi v1, bb2, bb3
+    bb3:
+      ret 0
+    bb2:
+      v2 = alloc 64
+      calldatacopy v2, 4, 32
       v3 = add v0, 1
       jump bb1
   }
@@ -136,9 +152,26 @@
       ret 7
   }
   
-- // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (after dce) ===
-  @module CopyElision
+  fn @deferred_copies() {
+    bb0:
+      v0 = alloc 64 !metadata(deferred_alloc)
+      v1 = ptradd v0, 32
+-     calldatacopy v1, 4, 32
+-     memory_zero v0, 32
+      returndatacopy v1, 0, 32
+      stop
+  }
+  
+  fn @deferred_copy_with_aliasing_read() {
+    bb0:
+      v0 = alloc 64 !metadata(deferred_alloc)
+      calldatacopy v0, 4, 32
+      returndata 128, 32
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/memory-dse/write_only_unread_allocations.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/write_only_unread_allocations.mir (after dce) ===
+  @module WriteOnlyUnreadAllocations
   fn @unread(arg0: i256) -> i256 {
     bb0:
       v0 = alloc zeroed checked 64
@@ -258,7 +291,22 @@
       ret 0
     bb2:
       v2 = alloc 64
-      mstore v2, 7
+      v3 = add v0, 1
+      jump bb1
+  }
+  
+  fn @loop_allocation_copy(arg0: i256) -> i256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v3]
+      v1 = lt v0, arg0
+      jumpi v1, bb2, bb3
+    bb3:
+      ret 0
+    bb2:
+      v2 = alloc 64
+      calldatacopy v2, 4, 32
       v3 = add v0, 1
       jump bb1
   }
@@ -270,5 +318,20 @@
       v2 = ptrtoint ptr<memory> v1 to i256
       returndatacopy v2, 0, 32
       ret 7
+  }
+  
+  fn @deferred_copies() {
+    bb0:
+      v0 = alloc 64 !metadata(deferred_alloc)
+      v1 = ptradd v0, 32
+      returndatacopy v1, 0, 32
+      stop
+  }
+  
+  fn @deferred_copy_with_aliasing_read() {
+    bb0:
+      v0 = alloc 64 !metadata(deferred_alloc)
+      calldatacopy v0, 4, 32
+      returndata 128, 32
   }
   

@@ -91,7 +91,7 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
     v29 = gt v26, 0
     jumpi v29, bb8, bb9
   bb9:
-    v83 = mload 64 !metadata(memory=scratch)
+    v83 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v46 = add v83, 32
     mstore v83, 32
     v49 = mload v82
@@ -174,7 +174,7 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     v29 = gt v26, 0
     jumpi v29, bb8, bb9
   bb9:
-    v116 = mload 64 !metadata(memory=scratch)
+    v116 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v67 = add v116, 32
     mstore v116, 32
     v70 = mload v114
@@ -309,7 +309,7 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
   bb9:
     v108 = add v116, 32
     mcopy v108, v47, v52
-    v117 = mload 64 !metadata(memory=scratch)
+    v117 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v77 = add v117, 96
     mstore v117, v12
     v79 = add v117, 32
@@ -355,15 +355,21 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v7 = add v2, 32
     v8 = add v6, 63
     v9 = lt v8, v6
-    jumpi v9, bb3, bb4
-  bb4:
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v24 = icall @alloc, v11
+    v24 = heap_floor !metadata(alloc_ptr)
+    v25 = add v24, v11 !metadata(alloc_ptr)
+    v26 = lt v25, v24
+    v27 = gt v25, 0xffffffffffffffff
+    v28 = or v26, v27
+    v30 = or v9, v28
+    jumpi v30, bb3, bb5
+  bb5:
+    mstore 64, v25 !metadata(memory=scratch)
     mstore v24, v6
     v13 = sub v0, v7
     v14 = gt v6, v13
-    jumpi v14, bb1, bb5
-  bb5:
+    jumpi v14, bb1, bb4
+  bb4:
     v21 = add v24, 32
     calldatacopy v21, v7, v6
     ret v24
@@ -402,8 +408,8 @@ fn @entry() [entry] {
 
 fn @alloc(arg0: i256) -> i256 {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v2 = add v0, arg0
+    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v2 = add v0, arg0 !metadata(alloc_ptr)
     v3 = lt v2, v0
     v4 = gt v2, 0xffffffffffffffff
     v5 = or v3, v4

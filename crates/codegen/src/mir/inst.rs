@@ -231,6 +231,18 @@ impl InstructionMetadata {
         self.flags.set_preserves_fmp(value);
     }
 
+    /// Returns whether this sum is an allocator bump that does not wrap.
+    #[must_use]
+    pub(crate) fn alloc_ptr(&self) -> bool {
+        self.flags.alloc_ptr()
+    }
+
+    /// Marks the sum of an allocation's pointer and size, which cannot wrap in a program that
+    /// completes, so the sum is not below the pointer.
+    pub(crate) fn set_alloc_ptr(&mut self, value: bool) {
+        self.flags.set_alloc_ptr(value);
+    }
+
     /// Returns whether this copy's source and destination ranges never overlap.
     #[must_use]
     pub(crate) fn disjoint(&self) -> bool {
@@ -257,6 +269,7 @@ impl MetadataFlags {
     const PRESERVES_FMP: u16 = 0b100_0000_0000;
     const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
     const DEBUG_INFO_HANDLED: u16 = 0b1_0000_0000_0000;
+    const ALLOC_PTR: u16 = 0b10_0000_0000_0000;
 
     fn memory_region(self) -> Option<MemoryRegion> {
         match self.0 & Self::MEMORY_MASK {
@@ -327,6 +340,18 @@ impl MetadataFlags {
             self.0 |= Self::PRESERVES_FMP;
         } else {
             self.0 &= !Self::PRESERVES_FMP;
+        }
+    }
+
+    fn alloc_ptr(self) -> bool {
+        self.0 & Self::ALLOC_PTR != 0
+    }
+
+    fn set_alloc_ptr(&mut self, value: bool) {
+        if value {
+            self.0 |= Self::ALLOC_PTR;
+        } else {
+            self.0 &= !Self::ALLOC_PTR;
         }
     }
 
@@ -464,6 +489,22 @@ impl StorageAlias {
         match self {
             Self::Symbolic(value) | Self::Offset { base: value, .. } => Some(value),
             Self::Slot(_) => None,
+        }
+    }
+
+    /// Returns this alias with its symbolic base renamed by `f`.
+    #[must_use]
+    pub(crate) fn map_base(self, f: impl FnOnce(&mut ValueId)) -> Self {
+        match self {
+            Self::Slot(_) => self,
+            Self::Symbolic(mut value) => {
+                f(&mut value);
+                Self::Symbolic(value)
+            }
+            Self::Offset { mut base, offset } => {
+                f(&mut base);
+                Self::Offset { base, offset }
+            }
         }
     }
 
@@ -749,6 +790,7 @@ impl Instruction {
         // %result = old(operands) -> %result = equivalent(new_operands)
         self.kind = kind;
         self.invalidate_operand_metadata();
+        self.metadata.set_alloc_ptr(false);
         if !matches!(self.kind, InstKind::Alloc { .. }) {
             self.metadata.clear_deferred_alloc();
             self.metadata.set_preserves_fmp(false);
@@ -756,7 +798,8 @@ impl Instruction {
     }
 
     /// Visits operands during an equivalence-preserving rewrite and invalidates
-    /// operand-dependent facts only if a value actually changes.
+    /// operand-dependent facts only if a value actually changes. Without an operand change, the
+    /// base of a storage alias is renamed the same way.
     pub(crate) fn rewrite_operands(&mut self, mut f: impl FnMut(&mut ValueId)) {
         let mut changed = false;
         // %result = op(operands) -> %result = op(equivalent_operands)
@@ -767,6 +810,10 @@ impl Instruction {
         });
         if changed {
             self.invalidate_operand_metadata();
+        } else if let Some(alias) = self.metadata.storage_alias() {
+            // sstore slot, value !metadata(storage=offset(old, n))
+            //   -> sstore slot, value !metadata(storage=offset(new, n))
+            self.metadata.set_storage_alias(Some(alias.map_base(&mut f)));
         }
     }
 

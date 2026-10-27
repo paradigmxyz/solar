@@ -74,6 +74,7 @@ bb0:
   lt
   push bb3
   jumpi
+  push 128
   push 4
   calldataload
   push 0
@@ -82,14 +83,12 @@ bb0:
   jump bb6
 bb8 [loop]:
   pop
-  push 64
-  mload
   push 48
   push_data RuntimeChild_creation_code_0
-  dup 3
+  dup 4
   codecopy
   push 48
-  swap 1
+  dup 3
   push 0
   create
   dup 1

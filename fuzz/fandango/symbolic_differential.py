@@ -30,7 +30,11 @@ MAX_RETURNDATA_BYTES = 256
 SYMBOLIC_QUERY_TIMEOUT = 30
 SYMBOLIC_MAX_SOLVER_QUERIES = 10_000
 SYMBOLIC_MAX_CALLDATA_BYTES = 4096
-CALL_GAS = 10_000_000
+SYMBOLIC_MAX_DEPTH = 100_000
+_LOG_OPCODES = {0xA0, 0xA1, 0xA2, 0xA3, 0xA4}
+# CALL, CALLCODE, DELEGATECALL, STATICCALL, CREATE, and CREATE2.
+_INNER_FRAME_OPCODES = {0xF0, 0xF1, 0xF2, 0xF4, 0xF5, 0xFA}
+STATE_MIRROR_ADDRESS = "0x1000000000000000000000000000000000000004"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -56,6 +60,19 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "allow a nonpayable target under the clean zero-storage, single-call model"
         ),
+    )
+    parser.add_argument(
+        "--include-payable",
+        action="store_true",
+        help=(
+            "allow a payable target and send it a symbolic value; every "
+            "account's final balance is compared"
+        ),
+    )
+    parser.add_argument(
+        "--symbolic-caller",
+        action="store_true",
+        help="call the target from a symbolic msg.sender",
     )
     parser.add_argument(
         "--prefix-calldata",
@@ -91,7 +108,12 @@ def main(argv: list[str] | None = None) -> int:
         type=_positive_int,
         default=SYMBOLIC_MAX_CALLDATA_BYTES,
     )
-    parser.add_argument("--max-depth", type=_positive_int)
+    parser.add_argument(
+        "--max-depth",
+        type=_positive_int,
+        default=SYMBOLIC_MAX_DEPTH,
+        help="opcode limit per path; one path runs both compilers' calls",
+    )
     parser.add_argument(
         "--exploration-order",
         choices=("bfs", "dfs"),
@@ -249,7 +271,9 @@ def run(
         args.signature,
         include_view=args.include_view,
         include_stateful=args.include_stateful,
+        include_payable=getattr(args, "include_payable", False),
     )
+    extras = _extra_inputs(function, getattr(args, "symbolic_caller", False))
     if prefix_calldata and function["mutability"] == "pure":
         raise ValueError("prefix calls require a view or nonpayable target")
     input_lengths = _normalize_input_lengths(args.input_length, function["inputs"])
@@ -272,7 +296,7 @@ def run(
         "storage_layout": (
             "zero_init" if function["mutability"] != "pure" else "solidity"
         ),
-        "call_gas": CALL_GAS,
+        "symbolic_inputs": list(extras),
         "dynamic_lengths": list(args.dynamic_lengths),
         "input_lengths": {
             name: list(lengths) for name, lengths in input_lengths.items()
@@ -291,32 +315,39 @@ def run(
         serialized_input + "\n",
         encoding="utf-8",
     )
-    _write_project(
-        project,
-        solc_runtime,
-        solar_runtime,
-        function,
-        args.evm_version,
-        dynamic_lengths=args.dynamic_lengths,
-        input_lengths=input_lengths,
-        prefix_calldata=prefix_calldata,
-        exploration_order=args.exploration_order,
-        max_dynamic_length=max_dynamic_length,
-        max_returndata_bytes=args.max_returndata_bytes,
-    )
-    report = _run_forge(
-        tools["forge"],
-        tools["solc"],
-        tools["solver"],
-        project,
-        args,
-        max_dynamic_length,
-    )
-    result = _classify(
-        report,
-        function["selector"],
-        bounds,
-    )
+    limit = _inner_frame_log_limit(solc_runtime, solar_runtime)
+    if limit:
+        result = {"status": "incomplete", "reason": limit}
+    else:
+        _write_project(
+            project,
+            solc_runtime,
+            solar_runtime,
+            function,
+            args.evm_version,
+            dynamic_lengths=args.dynamic_lengths,
+            input_lengths=input_lengths,
+            prefix_calldata=prefix_calldata,
+            exploration_order=args.exploration_order,
+            max_dynamic_length=max_dynamic_length,
+            max_returndata_bytes=args.max_returndata_bytes,
+            extras=extras,
+        )
+        report = _run_forge(
+            tools["forge"],
+            tools["solc"],
+            tools["solver"],
+            project,
+            args,
+            max_dynamic_length,
+        )
+        result = _classify(
+            report,
+            function["selector"],
+            bounds,
+            inputs=function["inputs"],
+            extras=extras,
+        )
     result.update(
         {
             "schema": SCHEMA,
@@ -632,6 +663,7 @@ def _select_function(
     *,
     include_view: bool = False,
     include_stateful: bool = False,
+    include_payable: bool = False,
 ) -> dict[str, Any]:
     solc_entry = _function_entry(solc_artifact["abi"], signature, "Solc")
     solar_entry = _function_entry(solar_artifact["abi"], signature, "Solar")
@@ -643,6 +675,8 @@ def _select_function(
         allowed.add("view")
     if include_stateful:
         allowed.add("nonpayable")
+    if include_payable:
+        allowed.add("payable")
     if mutability not in allowed:
         choices = ", ".join(sorted(allowed))
         raise ValueError(
@@ -826,6 +860,7 @@ def _write_project(
     prefix_calldata: tuple[str, ...] = (),
     exploration_order: str = "bfs",
     max_returndata_bytes: int = MAX_RETURNDATA_BYTES,
+    extras: tuple[str, ...] = (),
 ) -> None:
     (project / "src").mkdir()
     (project / "test").mkdir()
@@ -833,73 +868,71 @@ def _write_project(
     definitions, declarations = _solidity_parameters(function["inputs"])
     arguments = ", ".join(f"arg{index}" for index in range(len(function["inputs"])))
     encode_arguments = f", {arguments}" if arguments else ""
-    word_checks = "\n".join(
-        (
-            f"        if (retA.length > {offset}) "
-            f"assert(_word(retA, {offset}) == _word(retB, {offset}));"
-        )
-        for offset in range(0, max_returndata_bytes, 32)
-    )
-    prefix_setup = ""
+    prefix_results = ""
     if prefix_calldata:
-        prefix_calls_a = []
-        prefix_calls_b = []
-        for index, calldata in enumerate(prefix_calldata):
-            payload = calldata.removeprefix("0x")
-            prefix_calls_a.extend(
-                (
-                    "        {",
-                    "            (bool ok, bytes memory ret) =",
-                    f'                solcTarget.call{{gas: CALL_GAS}}(hex"{payload}");',
-                    f"            prefixResults[{index}] =",
-                    "                keccak256(abi.encode(ok, ret));",
-                    "        }",
-                )
-            )
-            prefix_calls_b.extend(
-                (
-                    "        {",
-                    "            (bool ok, bytes memory ret) =",
-                    f'                solarTarget.call{{gas: CALL_GAS}}(hex"{payload}");',
-                    f"            assert(prefixResults[{index}] ==",
-                    "                keccak256(abi.encode(ok, ret)));",
-                    "        }",
-                )
-            )
-        prefix_setup = _PREFIX_SETUP_TEMPLATE.format(
-            prefix_count=len(prefix_calldata),
-            prefix_calls_a="\n".join(prefix_calls_a),
-            prefix_calls_b="\n".join(prefix_calls_b),
+        prefix_results = (
+            "        bytes32[] memory prefixResults =\n"
+            f"            new bytes32[]({len(prefix_calldata)});\n"
         )
-    if function.get("mutability") == "nonpayable" or prefix_calldata:
-        template = _STATEFUL_TEST_TEMPLATE
-        suffix_comparison = (
+    log_calls = len(prefix_calldata) + 1
+    prefix_calls_a = []
+    prefix_calls_b = []
+    for index, calldata in enumerate(prefix_calldata):
+        payload = calldata.removeprefix("0x")
+        prefix_calls_a.extend(
             (
-                _VIEW_SUFFIX_TEMPLATE
-                if function.get("mutability") == "view"
-                else _STATEFUL_SUFFIX_TEMPLATE
+                "        {",
+                "            (bool ok, bytes memory ret) =",
+                f'                target.call(hex"{payload}");',
+                f"            prefixResults[{index}] =",
+                "                keccak256(abi.encode(ok, ret));",
+                f"            logsA[{index}] = _committedLogs(ok);",
+                "        }",
             )
-            .format(
-                max_returndata=max_returndata_bytes,
-                word_checks=word_checks,
-            )
-            .rstrip()
         )
-    else:
-        template = _STATELESS_TEST_TEMPLATE
-        suffix_comparison = ""
-    test_source = template.format(
+        prefix_calls_b.extend(
+            (
+                "        {",
+                "            (bool ok, bytes memory ret) =",
+                f'                target.call(hex"{payload}");',
+                f"            assert(prefixResults[{index}] ==",
+                "                keccak256(abi.encode(ok, ret)));",
+                f"            logsB[{index}] = _committedLogs(ok);",
+                "        }",
+            )
+        )
+    mutability = function.get("mutability")
+    call_kind = "call" if mutability in {"nonpayable", "payable"} else "staticcall"
+    extra_types = {"caller": "address", "value": "uint256", "observer": "address"}
+    declarations.extend(f"{extra_types[name]} {name}" for name in extras)
+    sender = "caller" if "caller" in extras else "address(this)"
+    funding = prank = observe_a = observe_b = ""
+    if "value" in extras:
+        call_kind += "{value: value}"
+        funding = f"        vm.deal({sender}, value);\n"
+        observe_a = "        uint256 observedA = observer.balance;\n"
+        observe_b = "        assert(observer.balance == observedA);\n"
+    if "caller" in extras:
+        prank = "        vm.prank(caller);\n"
+    test_source = _TEST_TEMPLATE.format(
         definitions=definitions,
         declarations=", ".join(declarations),
         encode_arguments=encode_arguments,
         selector=function["selector"],
         solc_runtime=solc_runtime.removeprefix("0x"),
         solar_runtime=solar_runtime.removeprefix("0x"),
-        call_gas=CALL_GAS,
+        state_mirror_address=STATE_MIRROR_ADDRESS,
+        call_kind=call_kind,
+        funding=funding,
+        prank=prank,
+        observe_a=observe_a,
+        observe_b=observe_b,
         max_returndata=max_returndata_bytes,
-        prefix_setup=prefix_setup,
-        suffix_comparison=suffix_comparison,
-        word_checks=word_checks,
+        log_calls=log_calls,
+        last_log_call=log_calls - 1,
+        prefix_results=prefix_results,
+        prefix_calls_a="\n".join(prefix_calls_a),
+        prefix_calls_b="\n".join(prefix_calls_b),
     )
     (project / "test" / "SymbolicDifferential.t.sol").write_text(
         test_source,
@@ -1025,6 +1058,9 @@ def _classify(
     report: dict[str, Any],
     target_selector: str,
     expected_bounds: dict[str, Any] | None = None,
+    *,
+    inputs: list[dict[str, Any]] | None = None,
+    extras: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     matches = []
     for suite in report.values():
@@ -1075,10 +1111,14 @@ def _classify(
     artifact_path = artifact.get("path")
     if not isinstance(artifact_path, str) or not artifact_path:
         raise ValueError("Forge emitted an invalid artifact path")
+    calldata, extra_values = _target_calldata(
+        target_selector, wrapper_calldata, inputs or [], extras
+    )
     return {
         "status": "mismatch",
         "counterexample": {
-            "calldata": _target_calldata(target_selector, wrapper_calldata),
+            "calldata": calldata,
+            **extra_values,
             "forge_artifact": artifact_path,
         },
     }
@@ -1127,7 +1167,44 @@ def _validate_bounded_agreement(
         )
 
 
-def _target_calldata(selector: str, wrapper_calldata: Any) -> str:
+def _runtime_opcodes(runtime: str) -> set[int]:
+    """Returns the opcodes of a runtime, skipping PUSH data and trailing metadata."""
+    code = bytes.fromhex(runtime.removeprefix("0x"))
+    if len(code) >= 2:
+        metadata = int.from_bytes(code[-2:]) + 2
+        if metadata < len(code) and 0xA1 <= code[-metadata] <= 0xA6:
+            code = code[:-metadata]
+    opcodes = set()
+    pc = 0
+    while pc < len(code):
+        opcode = code[pc]
+        opcodes.add(opcode)
+        pc += 1 + (opcode - 0x5F if 0x60 <= opcode <= 0x7F else 0)
+    return opcodes
+
+
+def _inner_frame_log_limit(*runtimes: str) -> str | None:
+    """Reports a runtime that can log in an inner frame that later reverts.
+
+    Foundry records the logs of every frame, including inner frames that revert
+    inside a successful call, and attributes no log to a frame, so the harness
+    cannot drop them.
+    """
+    for runtime in runtimes:
+        opcodes = _runtime_opcodes(runtime)
+        if opcodes & _LOG_OPCODES and opcodes & _INNER_FRAME_OPCODES:
+            return (
+                "logs of reverted inner frames cannot be told apart from committed logs"
+            )
+    return None
+
+
+def _target_calldata(
+    selector: str,
+    wrapper_calldata: Any,
+    inputs: list[dict[str, Any]],
+    extras: tuple[str, ...] = (),
+) -> tuple[str, dict[str, str]]:
     if not isinstance(wrapper_calldata, str) or not re.fullmatch(
         r"0x[0-9a-fA-F]{8,}",
         wrapper_calldata,
@@ -1135,7 +1212,62 @@ def _target_calldata(selector: str, wrapper_calldata: Any) -> str:
         raise ValueError("Forge emitted invalid counterexample calldata")
     if len(wrapper_calldata) % 2:
         raise ValueError("Forge emitted odd-length counterexample calldata")
-    return selector + wrapper_calldata[10:]
+    if not extras:
+        return selector + wrapper_calldata[10:], {}
+
+    # The wrapper appends static words after the target's head, so dynamic
+    # head offsets are larger by the size of those words.
+    data = bytes.fromhex(wrapper_calldata[10:])
+    head = []
+    offset = 0
+    for item in inputs:
+        size, dynamic = _abi_head(item)
+        if dynamic:
+            pointer = int.from_bytes(data[offset : offset + 32]) - 32 * len(extras)
+            head.append(pointer.to_bytes(32))
+        else:
+            head.append(data[offset : offset + size])
+        offset += size
+    values = {}
+    for name in extras:
+        word = data[offset : offset + 32]
+        if len(word) != 32:
+            raise ValueError("Forge emitted truncated counterexample calldata")
+        value = int.from_bytes(word)
+        values[name] = (
+            "0x" + word[12:].hex() if name in {"caller", "observer"} else str(value)
+        )
+        offset += 32
+    target = b"".join(head) + data[offset:]
+    return selector + target.hex(), values
+
+
+def _abi_head(item: dict[str, Any]) -> tuple[int, bool]:
+    """Returns the ABI head size of one parameter and whether it is dynamic."""
+    abi_type = item["type"]
+    if abi_type.endswith("]"):
+        start = abi_type.rfind("[")
+        length = abi_type[start + 1 : -1]
+        size, dynamic = _abi_head({**item, "type": abi_type[:start]})
+        if not length or dynamic:
+            return 32, True
+        return size * int(length), False
+    if abi_type == "tuple":
+        sizes = [_abi_head(component) for component in item["components"]]
+        if any(dynamic for _, dynamic in sizes):
+            return 32, True
+        return sum(size for size, _ in sizes), False
+    return 32, abi_type in {"bytes", "string"}
+
+
+def _extra_inputs(function: dict[str, Any], symbolic_caller: bool) -> tuple[str, ...]:
+    """Names the symbolic harness inputs appended after the target's inputs."""
+    extras = ()
+    if symbolic_caller:
+        extras += ("caller",)
+    if function["mutability"] == "payable":
+        extras += ("value", "observer")
+    return extras
 
 
 _FOUNDRY_TOML = """\
@@ -1154,6 +1286,7 @@ code_size_limit = 1000000
 [symbolic]
 exploration_order = "{exploration_order}"
 storage_layout = "{storage_layout}"
+symbolic_call_targets = true
 max_dynamic_length = {max_dynamic_length}
 dynamic_lengths = {{ {input_lengths} }}
 default_array_lengths = [{dynamic_lengths}]
@@ -1161,50 +1294,125 @@ default_bytes_lengths = [{dynamic_lengths}]
 """
 
 
-_PREFIX_SETUP_TEMPLATE = """\
-        bytes32[] memory prefixResults = new bytes32[]({prefix_count});
+_TEST_TEMPLATE = """\
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+interface Vm {{
+    struct Log {{
+        bytes32[] topics;
+        bytes data;
+        address emitter;
+    }}
+
+    function accesses(address target)
+        external
+        returns (bytes32[] memory reads, bytes32[] memory writes);
+    function assume(bool condition) external pure;
+    function deal(address account, uint256 newBalance) external;
+    function getNonce(address account) external view returns (uint64 nonce);
+    function getRecordedLogs() external returns (Log[] memory logs);
+    function load(address target, bytes32 slot) external view returns (bytes32 data);
+    function prank(address msgSender) external;
+    function record() external;
+    function recordLogs() external;
+    function revertToStateAndDelete(uint256 snapshotId) external returns (bool success);
+    function snapshotState() external returns (uint256 snapshotId);
+    function store(address target, bytes32 slot, bytes32 value) external;
+}}
+
+contract SymbolicDifferentialTest {{
+{definitions}
+    Vm private constant vm =
+        Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
+    // Holds Solc's final target storage after its state is rolled back.
+    address private constant STATE_MIRROR = {state_mirror_address};
+    uint256 private constant MAX_DATA_BYTES = {max_returndata};
+    bytes4 private constant TARGET_SELECTOR = bytes4({selector});
+    bytes private constant SOLC_CODE = hex"{solc_runtime}";
+    bytes private constant SOLAR_CODE = hex"{solar_runtime}";
+
+    function checkSymbolicDifferential({declarations}) public {{
+        bytes memory callData =
+            abi.encodeWithSelector(TARGET_SELECTOR{encode_arguments});
+{prefix_results}{funding}
+        // Both runtimes start from the same snapshot, so they run at the same
+        // address with the same nonce, balance, and empty storage.
+        uint256 snapshot = vm.snapshotState();
+        vm.record();
+        vm.recordLogs();
+        Vm.Log[][] memory logsA = new Vm.Log[][]({log_calls});
+        address target = _deploy(SOLC_CODE);
 {prefix_calls_a}
+{prank}        (bool okA, bytes memory retA) =
+            target.{call_kind}(callData);
+        (, bytes32[] memory writesA) = vm.accesses(target);
+        logsA[{last_log_call}] = _committedLogs(okA);
+        bytes32[] memory valuesA = new bytes32[](writesA.length);
+        for (uint256 i; i < writesA.length; ++i) {{
+            valuesA[i] = vm.load(target, writesA[i]);
+        }}
+        uint256 balanceA = target.balance;
+        uint64 nonceA = vm.getNonce(target);
+{observe_a}
+        assert(vm.revertToStateAndDelete(snapshot));
+        for (uint256 i; i < writesA.length; ++i) {{
+            vm.store(STATE_MIRROR, writesA[i], valuesA[i]);
+        }}
+        vm.record();
+        Vm.Log[][] memory logsB = new Vm.Log[][]({log_calls});
+        assert(_deploy(SOLAR_CODE) == target);
 {prefix_calls_b}
-"""
-
-
-_STATELESS_TEST_TEMPLATE = """\
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
-
-interface Vm {{
-    function assume(bool condition) external pure;
-}}
-
-contract SymbolicDifferentialTest {{
-{definitions}
-    Vm private constant vm =
-        Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
-    address private solcTarget;
-    address private solarTarget;
-    // Prevent sequential calls from observing different gas stipends.
-    uint256 private constant CALL_GAS = {call_gas};
-    bytes4 private constant TARGET_SELECTOR = bytes4({selector});
-    bytes private constant SOLC_CODE = hex"{solc_runtime}";
-    bytes private constant SOLAR_CODE = hex"{solar_runtime}";
-
-    function setUp() public {{
-        solcTarget = _deploy(SOLC_CODE);
-        solarTarget = _deploy(SOLAR_CODE);
-    }}
-
-    function checkSymbolicDifferential({declarations}) public {{
-        bytes memory callData =
-            abi.encodeWithSelector(TARGET_SELECTOR{encode_arguments});
-        (bool okA, bytes memory retA) =
-            solcTarget.staticcall{{gas: CALL_GAS}}(callData);
-        (bool okB, bytes memory retB) =
-            solarTarget.staticcall{{gas: CALL_GAS}}(callData);
+{prank}        (bool okB, bytes memory retB) =
+            target.{call_kind}(callData);
+        (, bytes32[] memory writesB) = vm.accesses(target);
+        logsB[{last_log_call}] = _committedLogs(okB);
 
         assert(okA == okB);
-        assert(retA.length == retB.length);
-        vm.assume(retA.length <= {max_returndata});
-{word_checks}
+        _assertSameBytes(retA, retB);
+        for (uint256 i; i < logsA.length; ++i) {{
+            _assertSameLogs(logsA[i], logsB[i]);
+        }}
+        // A slot written by neither runtime still holds its initial zero.
+        for (uint256 i; i < writesA.length; ++i) {{
+            assert(vm.load(STATE_MIRROR, writesA[i]) == vm.load(target, writesA[i]));
+        }}
+        for (uint256 i; i < writesB.length; ++i) {{
+            assert(vm.load(STATE_MIRROR, writesB[i]) == vm.load(target, writesB[i]));
+        }}
+        assert(target.balance == balanceA);
+        assert(vm.getNonce(target) == nonceA);
+{observe_b}    }}
+
+    // Foundry keeps the logs of reverted frames, so a reverted top-level or
+    // prefix call contributes none. The tool does not run runtimes that can
+    // revert an inner frame after a log.
+    function _committedLogs(bool ok) private returns (Vm.Log[] memory logs) {{
+        logs = vm.getRecordedLogs();
+        if (!ok) logs = new Vm.Log[](0);
+    }}
+
+    function _assertSameLogs(
+        Vm.Log[] memory a,
+        Vm.Log[] memory b
+    ) private pure {{
+        assert(a.length == b.length);
+        for (uint256 i; i < a.length; ++i) {{
+            assert(a[i].emitter == b[i].emitter);
+            assert(a[i].topics.length == b[i].topics.length);
+            for (uint256 j; j < a[i].topics.length; ++j) {{
+                assert(a[i].topics[j] == b[i].topics[j]);
+            }}
+            _assertSameBytes(a[i].data, b[i].data);
+        }}
+    }}
+
+    function _assertSameBytes(bytes memory a, bytes memory b) private pure {{
+        assert(a.length == b.length);
+        vm.assume(a.length <= MAX_DATA_BYTES);
+        for (uint256 offset; offset < a.length; offset += 32) {{
+            assert(_word(a, offset) == _word(b, offset));
+        }}
     }}
 
     function _word(
@@ -1229,89 +1437,6 @@ contract SymbolicDifferentialTest {{
         assert(target != address(0));
     }}
 }}
-"""
-
-
-_STATEFUL_TEST_TEMPLATE = """\
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
-
-interface Vm {{
-    function assume(bool condition) external pure;
-}}
-
-contract SymbolicDifferentialTest {{
-{definitions}
-    Vm private constant vm =
-        Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
-    address private solcTarget;
-    address private solarTarget;
-    // Prevent sequential calls from observing different gas stipends.
-    uint256 private constant CALL_GAS = {call_gas};
-    bytes4 private constant TARGET_SELECTOR = bytes4({selector});
-    bytes private constant SOLC_CODE = hex"{solc_runtime}";
-    bytes private constant SOLAR_CODE = hex"{solar_runtime}";
-
-    function setUp() public {{
-        solcTarget = _deploy(SOLC_CODE);
-        solarTarget = _deploy(SOLAR_CODE);
-    }}
-
-    function checkSymbolicDifferential({declarations}) public {{
-        bytes memory callData =
-            abi.encodeWithSelector(TARGET_SELECTOR{encode_arguments});
-{prefix_setup}
-{suffix_comparison}
-    }}
-
-    function _word(
-        bytes memory value,
-        uint256 offset
-    ) private pure returns (uint256 result) {{
-        assembly ("memory-safe") {{
-            result := mload(add(add(value, 0x20), offset))
-        }}
-        uint256 remaining = value.length - offset;
-        if (remaining < 32) result >>= (32 - remaining) * 8;
-    }}
-
-    function _deploy(bytes memory runtime) private returns (address target) {{
-        bytes memory init = abi.encodePacked(
-            hex"63", uint32(runtime.length), hex"601260003963",
-            uint32(runtime.length), hex"6000f3", runtime
-        );
-        assembly ("memory-safe") {{
-            target := create(0, add(init, 0x20), mload(init))
-        }}
-        assert(target != address(0));
-    }}
-}}
-"""
-
-
-_VIEW_SUFFIX_TEMPLATE = """\
-        (bool okA, bytes memory retA) =
-            solcTarget.staticcall{{gas: CALL_GAS}}(callData);
-        (bool okB, bytes memory retB) =
-            solarTarget.staticcall{{gas: CALL_GAS}}(callData);
-
-        assert(okA == okB);
-        assert(retA.length == retB.length);
-        vm.assume(retA.length <= {max_returndata});
-{word_checks}
-"""
-
-
-_STATEFUL_SUFFIX_TEMPLATE = """\
-        (bool okA, bytes memory retA) =
-            solcTarget.call{{gas: CALL_GAS}}(callData);
-        (bool okB, bytes memory retB) =
-            solarTarget.call{{gas: CALL_GAS}}(callData);
-
-        assert(okA == okB);
-        assert(retA.length == retB.length);
-        vm.assume(retA.length <= {max_returndata});
-{word_checks}
 """
 
 

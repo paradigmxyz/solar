@@ -42,6 +42,7 @@ use solar_data_structures::{
 };
 
 mod isle;
+mod mask_uses;
 
 const MAX_CONE: usize = 16;
 
@@ -317,12 +318,14 @@ fn recipe_type(func: &Function, kind: &InstKind, scalar_ty: MirType) -> MirType 
 fn run(func: &mut Function, target: &Target, late: bool) -> bool {
     let branch_only = branch_only_conditions(func);
     let mut uses = None;
+    let mut masks = None;
     let mut changed = false;
     for block in func.blocks.indices().collect::<Vec<_>>() {
         let original = std::mem::take(&mut func.blocks[block].instructions);
         let mut ordered = Vec::with_capacity(original.len());
         let mut seen = FxHashSet::default();
         let mut deleted = FxHashSet::default();
+        let mut added = Vec::new();
         for &inst in &original {
             if !removable(func, func.inst(inst), target) {
                 let instruction = func.inst(inst);
@@ -342,7 +345,8 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
             let is_branch_only =
                 func.inst_result_value(inst).is_some_and(|value| branch_only.contains(&value));
             let mut best = None;
-            for recipe in isle::alternatives(func, &original, &seen, &op, target, late) {
+            for recipe in isle::alternatives(func, &original, &seen, &mut masks, &op, target, late)
+            {
                 if let Some((after, leaves)) = recipe.cost_and_leaves(func, target, is_branch_only)
                 {
                     // Nothing changed before the first count; this block is detached.
@@ -379,7 +383,14 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
                         *count -= 1;
                     });
                 }
+                if let Some(masks) = &mut masks {
+                    masks.remove(func, inst);
+                }
                 let inserted = recipe.materialize(func, inst);
+                if let Some(masks) = &mut masks {
+                    masks.insert(func, inst);
+                    masks.refresh(func, inst);
+                }
                 uses.resize(func.num_values(), 0);
                 for new in inserted.iter().copied().chain(std::iter::once(inst)) {
                     func.inst(new).visit_operands(|operand| {
@@ -391,6 +402,7 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
                 }
                 deleted.extend(dead);
                 seen.extend(inserted.iter().copied());
+                added.extend(inserted.iter().copied());
                 ordered.extend(inserted);
                 changed = true;
             }
@@ -399,6 +411,15 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
         }
         // Earlier producers replaced by recipes no longer occur in the block.
         ordered.retain(|inst| !deleted.contains(inst));
+        // Reattaching the block adds the recipe instructions and drops the deleted producers.
+        if let Some(masks) = &mut masks {
+            for &inst in &added {
+                masks.insert(func, inst);
+            }
+            for &inst in &deleted {
+                masks.remove(func, inst);
+            }
+        }
         func.blocks[block].instructions = ordered;
     }
     changed

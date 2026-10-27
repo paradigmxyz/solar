@@ -1,0 +1,19 @@
+//@ compile-flags: -j8
+// CHECK: "errors": [
+// CHECK: "file": "P1.sol"
+// CHECK: "file": "P1.sol"
+// CHECK: "file": "P2.sol"
+// CHECK: "file": "P8.sol"
+// CHECK: "sources": {}
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi"
+        ]
+      }
+    }
+  }
+}

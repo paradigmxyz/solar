@@ -362,7 +362,9 @@ object identity and field/element accesses where proven; raw pointer or assembly
 accesses must conservatively alias unless a disjointness proof exists. Allocation
 provenance uses shared CFG cycle facts to distinguish joins from loops. Data
 pointers retain a proven lower bound from their object, so writes to allocation
-contents do not appear to reset the free-memory pointer. Raw pointer conversions
+contents do not appear to reset the free-memory pointer. The sum of an allocation's
+pointer and size, marked `alloc_ptr`, keeps the bound of the pointer, since a wrapped
+sum is checked or unreachable. Raw pointer conversions
 still need a proof that they avoid reserved memory. An access beyond a proven
 fresh allocation can overlap other heap objects while retaining its heap region;
 loop allocations lose their distinct site identities after a possible pointer
@@ -710,8 +712,8 @@ short-header path first so packed writes can fall through during growth.
 Semantic checks fold a negated condition into their failure polarity. This lets
 ordinary dead-code cleanup remove the predicate before conversion and exposes
 phi-only short-circuit joins to jump threading. Builtin expansion also runs
-copy elision for buffers whose writes become visible at that boundary; their
-allocation and failure behavior remain intact.
+memory DSE with unread-allocation removal for buffers whose writes become
+visible at that boundary; their allocation and failure behavior remain intact.
 
 Revert outlining runs once per optimization mode. Gas mode shares source and
 builtin payloads before arithmetic expansion, preserving local overflow edges

@@ -47,20 +47,11 @@ bb0:
   sub
   push bb4
   jumpi
-  push 128
-  push 64
-  mstore
   push 0
   sload
   push 0xffffffffffffffffffffffffffffffffffffffff
   and
-  push 64
-  mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
+  push 128
   push 0x3fa4f24500000000000000000000000000000000000000000000000000000000
   dup 2
   mstore
@@ -91,22 +82,13 @@ bb4 [cold]:
   dup 1
   invalid
 bb9:
-  push 128
-  push 64
-  mstore
   push 0
   sload
   push 0xffffffffffffffffffffffffffffffffffffffff
   dup 2
   and
   gas
-  push 64
-  mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
+  push 128
   push 0x3fa4f24500000000000000000000000000000000000000000000000000000000
   dup 2
   mstore
