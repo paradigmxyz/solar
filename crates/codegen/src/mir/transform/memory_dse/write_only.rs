@@ -97,7 +97,7 @@ impl MemoryStoreEliminator {
                 true
             }
             Access::Location(Location::Memory(location)) => {
-                alias.memory_alias(allocation, location).may_alias()
+                alias.memory_alias(func, allocation, location).may_alias()
             }
             _ => false,
         };

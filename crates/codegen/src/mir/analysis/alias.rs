@@ -576,7 +576,7 @@ pub(crate) struct AliasAnalysis {
     /// Values whose derived pointer graph reaches a capturing use.
     escaping_values: RefCell<Option<DenseBitSet<ValueId>>>,
     /// Whether some access may run through a runtime index, which wraps and so may land on any
-    /// object. Unknown until the provenance is built.
+    /// object. Computed on first use.
     wraps: Cell<Option<bool>>,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
 }
@@ -666,21 +666,26 @@ impl AliasAnalysis {
     /// The lazily built provenance snapshot for `func`. Every query passes the
     /// same function the analysis was created for.
     fn provenance(&self, func: &Function) -> &PointerProvenance {
-        let provenance = self.provenance.get_or_init(|| {
+        self.provenance.get_or_init(|| {
             PointerProvenance::new(
                 func,
                 self.call_summaries.as_deref(),
                 Self::instruction_may_reset_fmp_with_summaries,
             )
-        });
-        if self.wraps.get().is_none() {
-            // The scan resolves addresses, which re-enters here; the pessimistic value answers.
-            self.wraps.set(Some(true));
-            if provenance.allocations.values().any(|facts| facts.unique) {
-                self.wraps.set(Some(self.function_may_wrap(func)));
-            }
+        })
+    }
+
+    /// Returns whether some access of `func` may run through a runtime index, cached for the
+    /// life of the snapshot.
+    fn function_wraps(&self, func: &Function) -> bool {
+        if let Some(wraps) = self.wraps.get() {
+            return wraps;
         }
-        provenance
+        // The scan resolves addresses, which may query here again; the pessimistic value answers.
+        self.wraps.set(Some(true));
+        let wraps = self.function_may_wrap(func);
+        self.wraps.set(Some(wraps));
+        wraps
     }
 
     /// Returns whether an access of `func` may run through a runtime index or has an unknown
@@ -1589,6 +1594,7 @@ impl AliasAnalysis {
     #[must_use]
     pub(crate) fn memory_alias(
         &self,
+        func: &Function,
         first: MemoryLocation,
         second: MemoryLocation,
     ) -> AliasResult {
@@ -1601,9 +1607,9 @@ impl AliasAnalysis {
         {
             return AliasResult::NoAlias;
         }
-        if self.wraps.get() == Some(false)
-            && (Self::absolute_below_unique_allocation(first, second)
-                || Self::absolute_below_unique_allocation(second, first))
+        if (Self::absolute_below_unique_allocation(first, second)
+            || Self::absolute_below_unique_allocation(second, first))
+            && !self.function_wraps(func)
         {
             return AliasResult::NoAlias;
         }
