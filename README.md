@@ -73,6 +73,8 @@ and can be installed with the following commands:
     powershell -c "irm https://paradigm.xyz/solar/v0.1.8/install.ps1 | iex"
     ```
 
+Solar is also shipped in [Foundry](https://github.com/foundry-rs/foundry) releases.
+
 You can also use [`cargo binstall`](https://github.com/cargo-bins/cargo-binstall):
 - Latest version:
     ```bash
