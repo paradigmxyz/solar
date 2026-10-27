@@ -54,6 +54,11 @@
 //!   and word-rounding masks, and other runtime sizes have no bound. Functions observing gas keep
 //!   their stores, since the stores pay for memory expansion. Writes the object receives from
 //!   copies and calls stay: only stores are candidates.
+//! - Write-only allocations: an allocation that nothing reads loses every store and copy that fills
+//!   it, which the dead-allocation-store rule above leaves when they are copies, fills, or indexed
+//!   stores. Alias analysis shows that the allocation does not escape, no read may alias it, and
+//!   its writes stay inside it. Its proof scans the whole function, so only `memory-dse-unread`,
+//!   the run after builtin expansion, applies it. See `write_only`.
 //! - Across edges: a constant store equal to the constant a sole predecessor left in the word is
 //!   removed, and a store that the single jump successor overwrites first, with no memory or gas
 //!   observer in between, is removed.
@@ -108,12 +113,22 @@ use std::{
     rc::Rc,
 };
 
+mod write_only;
+
 /// Function pass for local dead memory-store elimination.
-pub(crate) struct MemoryDse;
+pub(crate) enum MemoryDse {
+    /// Every rewrite except the removal of writes into unread allocations.
+    Standard,
+    /// Every rewrite, including the removal of writes into unread allocations.
+    WithUnreadAllocations,
+}
 
 impl MirPass for MemoryDse {
     fn name(&self) -> &'static str {
-        "memory-dse"
+        match self {
+            Self::Standard => "memory-dse",
+            Self::WithUnreadAllocations => "memory-dse-unread",
+        }
     }
 
     fn run_pass(
@@ -122,6 +137,7 @@ impl MirPass for MemoryDse {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let unread_allocations = matches!(self, Self::WithUnreadAllocations);
         let mut selected = DenseBitSet::new_empty(module.functions.len());
         for (func_id, func) in module.functions.iter_enumerated() {
             if has_memory_writes(func) {
@@ -133,16 +149,20 @@ impl MirPass for MemoryDse {
             analyses,
             &selected,
             |func, analyses| {
-                MemoryStoreEliminator::new(Rc::clone(analyses.alias()), Rc::clone(analyses.cfg()))
-                    .run_to_fixpoint(func)
+                MemoryStoreEliminator::new(
+                    Rc::clone(analyses.alias()),
+                    Rc::clone(analyses.cfg()),
+                    unread_allocations,
+                )
+                .run_to_fixpoint(func)
                     != 0
             },
         )
     }
 }
 
-/// Returns whether the function contains a store or fill this pass can remove or forward from, or
-/// an immutable copy it can reuse: every rewrite starts from one of them.
+/// Returns whether the function contains a store, fill, or copy this pass can remove or forward
+/// from, or an immutable copy it can reuse: every rewrite starts from one of them.
 fn has_memory_writes(func: &Function) -> bool {
     func.instructions().any(|inst_id| {
         matches!(
@@ -151,7 +171,9 @@ fn has_memory_writes(func: &Function) -> bool {
                 | InstKind::Store8(..)
                 | InstKind::CodeCopy(..)
                 | InstKind::MemoryZero(..)
-                | InstKind::Copy(.., PtrLocation::Calldata)
+                | InstKind::Copy(.., PtrLocation::Calldata | PtrLocation::Memory)
+                | InstKind::DataCopy(..)
+                | InstKind::ExtCodeCopy(..)
         )
     })
 }
@@ -163,6 +185,8 @@ struct MemoryStoreEliminator {
     /// Number of memory instructions eliminated.
     eliminated_count: usize,
     alias: Rc<AliasAnalysis>,
+    /// Whether to remove the writes into allocations nothing reads.
+    unread_allocations: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -493,8 +517,8 @@ impl BlockScratch {
 
 impl MemoryStoreEliminator {
     /// Creates a new memory optimization pass.
-    fn new(alias: Rc<AliasAnalysis>, cfg: Rc<CfgInfo>) -> Self {
-        Self { cfg, eliminated_count: 0, alias }
+    fn new(alias: Rc<AliasAnalysis>, cfg: Rc<CfgInfo>, unread_allocations: bool) -> Self {
+        Self { cfg, eliminated_count: 0, alias, unread_allocations }
     }
 
     fn run_with_scratch(&mut self, func: &mut Function, scratch: &mut BlockScratch) -> usize {
@@ -780,7 +804,11 @@ impl MemoryStoreEliminator {
         let mut total = 0;
         let mut scratch = BlockScratch::new(func);
         loop {
-            let eliminated = self.run_with_scratch(func, &mut scratch);
+            let mut eliminated = self.run_with_scratch(func, &mut scratch);
+            // Its proof scans the whole function, so it runs once the cheaper rewrites settle.
+            if eliminated == 0 && self.unread_allocations {
+                eliminated = self.remove_write_only_allocation_writes(func);
+            }
             if eliminated == 0 {
                 break;
             }

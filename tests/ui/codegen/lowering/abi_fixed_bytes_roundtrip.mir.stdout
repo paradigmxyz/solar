@@ -1,0 +1,113 @@
+// === ROOT/tests/ui/codegen/lowering/abi_fixed_bytes_roundtrip.sol:AbiFixedBytesRoundtrip ===
+@module AbiFixedBytesRoundtrip
+fn @bare(arg0: i256) -> i256 [selector=0x1cd66b10, pure, abi_params=[bytes12], abi_returns=[word<bytes12>], abi_return_params=[bytes12]] {
+  bb0:
+    ret arg0
+}
+
+fn @roundTrip(arg0: ptr<memory>) -> ptr<memory> [selector=0x8a38dbfb, pure, abi_params=[tuple<bytes12, bytes4, bytes16, uint256>], abi_returns=[tuple<word<bytes12>, word<bytes4>, word<bytes16>, word>], abi_return_params=[tuple<bytes12, bytes4, bytes16, uint256>]] {
+  bb0:
+    v0 = alloc 128
+    v1 = mload arg0
+    v2 = and v1, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v3 = ptradd arg0, 32
+    v4 = mload v3
+    v5 = and v4, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v6 = ptradd arg0, 64
+    v7 = mload v6
+    v8 = and v7, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v9 = ptradd arg0, 96
+    v10 = mload v9
+    mstore v0, v2
+    v11 = ptradd v0, 32
+    mstore v11, v5
+    v12 = ptradd v0, 64
+    mstore v12, v8
+    v13 = ptradd v0, 96
+    mstore v13, v10
+    v14 = alloc 128 !metadata(preserves_fmp)
+    memory_zero v14, 128
+    ret v0
+}
+
+fn @store(arg0: ptr<memory>) -> ptr<memory> [selector=0xf0580f61, abi_params=[tuple<bytes12, bytes4, bytes16, uint256>], abi_returns=[tuple<word<bytes12>, word<bytes4>, word<bytes16>, word>], abi_return_params=[tuple<bytes12, bytes4, bytes16, uint256>]] {
+  bb0:
+    v0 = mload arg0
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = not 0xffffffffffffffffffffffff
+    v3 = and v1, v2
+    v4 = shr v0, 160
+    v5 = and v4, 0xffffffffffffffffffffffff
+    v6 = or v3, v5
+    sstore 0, v6 !metadata(storage=slot(0))
+    v7 = ptradd arg0, 32
+    v8 = mload v7
+    v9 = shl 0xffffffff, 96
+    v10 = sload 0 !metadata(storage=slot(0))
+    v11 = not v9
+    v12 = and v10, v11
+    v13 = shr v8, 224
+    v14 = and v13, 0xffffffff
+    v15 = shl v14, 96
+    v16 = or v12, v15
+    sstore 0, v16 !metadata(storage=slot(0))
+    v17 = ptradd arg0, 64
+    v18 = mload v17
+    v19 = shl 0xffffffffffffffffffffffffffffffff, 128
+    v20 = sload 0 !metadata(storage=slot(0))
+    v21 = not v19
+    v22 = and v20, v21
+    v23 = shr v18, 128
+    v24 = and v23, 0xffffffffffffffffffffffffffffffff
+    v25 = shl v24, 128
+    v26 = or v22, v25
+    sstore 0, v26 !metadata(storage=slot(0))
+    v27 = add 0, 1
+    v28 = ptradd arg0, 96
+    v29 = mload v28
+    sstore v27, v29 !metadata(storage=slot(1))
+    v30 = alloc checked 128
+    v31 = sload 0 !metadata(storage=slot(0))
+    v32 = shl v31, 160
+    mstore v30, v32
+    v33 = sload 0 !metadata(storage=slot(0))
+    v34 = shr v33, 96
+    v35 = shl v34, 224
+    v36 = ptradd v30, 32
+    mstore v36, v35
+    v37 = sload 0 !metadata(storage=slot(0))
+    v38 = shr v37, 128
+    v39 = shl v38, 128
+    v40 = ptradd v30, 64
+    mstore v40, v39
+    v41 = add 0, 1
+    v42 = sload v41 !metadata(storage=slot(1))
+    v43 = ptradd v30, 96
+    mstore v43, v42
+    v44 = alloc 128 !metadata(preserves_fmp)
+    memory_zero v44, 128
+    ret v30
+}
+
+fn @retag(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x1cd7e54c, pure, abi_params=[tuple<bytes12, bytes4, bytes16, uint256>, bytes16], abi_returns=[tuple<word<bytes12>, word<bytes4>, word<bytes16>, word>], abi_return_params=[tuple<bytes12, bytes4, bytes16, uint256>]] {
+  bb0:
+    v0 = alloc 128
+    v1 = mload arg0
+    v2 = and v1, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v3 = ptradd arg0, 32
+    v4 = mload v3
+    v5 = and v4, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v6 = and arg1, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v7 = ptradd arg0, 96
+    v8 = mload v7
+    mstore v0, v2
+    v9 = ptradd v0, 32
+    mstore v9, v5
+    v10 = ptradd v0, 64
+    mstore v10, v6
+    v11 = ptradd v0, 96
+    mstore v11, v8
+    v12 = alloc 128 !metadata(preserves_fmp)
+    memory_zero v12, 128
+    ret v0
+}

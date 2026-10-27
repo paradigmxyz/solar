@@ -8,8 +8,8 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v2 = gas
-    v199 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v200 = add v199, 64
+    v199 = heap_floor !metadata(alloc_ptr)
+    v200 = add v199, 64 !metadata(alloc_ptr)
     mstore 64, v200 !metadata(memory=scratch)
     mstore v199, 0xb3de648b00000000000000000000000000000000000000000000000000000000
     v86 = add v199, 4
@@ -130,8 +130,8 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v2 = gas
-    v76 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v77 = add v76, 64
+    v76 = heap_floor !metadata(alloc_ptr)
+    v77 = add v76, 64 !metadata(alloc_ptr)
     mstore 64, v77 !metadata(memory=scratch)
     mstore v76, 0xb3de648b00000000000000000000000000000000000000000000000000000000
     v58 = add v76, 4

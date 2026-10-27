@@ -47,9 +47,6 @@ bb0:
   sub
   push bb4
   jumpi
-  push 128
-  push 64
-  mstore
   push 0
   sload
   push 0xffffffffffffffffffffffffffffffffffffffff
@@ -57,8 +54,7 @@ bb0:
   push bb12
   jump bb11
 bb11:
-  push 64
-  mload
+  push 128
   push 32
   dup 2
   add
@@ -74,17 +70,10 @@ bb4 [cold]:
   dup 1
   invalid
 bb9:
-  push 64
-  push 128
-  dup 2
-  mstore
   push 0
-  dup 1
   sload
-  swap 2
-  mload
-  push 32
-  add
+  push 0
+  push 160
   mstore
   push bb13
   jump bb11

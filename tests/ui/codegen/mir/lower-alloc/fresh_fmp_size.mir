@@ -1,0 +1,36 @@
+//@compile-flags: -Zmir-pipeline=lower-alloc -Osize
+//@filecheck:
+@module FreshFmpSize
+
+// The size objective reads the slot for a fresh checked allocation, which shares the helper that
+// loads it, but still reads the floor for a fresh `fmp` and an unchecked allocation.
+// CHECK-LABEL: {{^[ +].*}}fn @first{{[( ]}}
+// CHECK: + {{v[0-9]+}} = icall @alloc, arg0
+// CHECK-NOT: heap_floor
+fn @first(arg0: i256) -> i256 [selector=0x10000001] {
+  bb0:
+    v0 = alloc zeroed checked arg0
+    v1 = ptrtoint ptr<memory> v0 to i256
+    ret v1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @second{{[( ]}}
+// CHECK: + {{v[0-9]+}} = icall @alloc, arg0
+// CHECK-NOT: heap_floor
+fn @second(arg0: i256) -> i256 [selector=0x10000002] {
+  bb0:
+    v0 = alloc zeroed checked arg0
+    v1 = ptrtoint ptr<memory> v0 to i256
+    ret v1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @unchecked{{[( ]}}
+// CHECK: + {{v[0-9]+}} = heap_floor
+// CHECK: + {{v[0-9]+}} = heap_floor
+fn @unchecked() -> i256 [selector=0x10000003] {
+  bb0:
+    v0 = fmp
+    v1 = alloc 32
+    v2 = ptrtoint ptr<memory> v1 to i256
+    ret v2
+}

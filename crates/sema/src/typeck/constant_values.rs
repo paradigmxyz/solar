@@ -45,7 +45,7 @@ pub(super) fn check(gcx: Gcx<'_>, units: &[(hir::SourceId, Unit)]) {
             }
         }
     }
-    par_visit_items(units, || AssemblyConstants { gcx, in_assembly: false });
+    par_visit_items(gcx, units, || AssemblyConstants { gcx, in_assembly: false });
 }
 
 /// Checks the value of the base slot `slot` of `contract` if solc's evaluator computes it, or

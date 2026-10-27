@@ -66,6 +66,13 @@ impl PlanCache {
         self.shard(&key).0.write().entry(key.bytes.into()).or_insert_with(|| Arc::new(plan));
     }
 
+    /// Frees every stored plan. Later lookups miss and plan again.
+    pub(in crate::backend::evm) fn clear(&self) {
+        for shard in &self.0 {
+            *shard.0.write() = FxHashMap::default();
+        }
+    }
+
     fn shard(&self, key: &PlanKey) -> &Shard {
         // The shard takes the hash's high bits, as the table indexes by the low ones.
         let hash = FxBuildHasher.hash_one(&key.bytes[..]);
@@ -259,8 +266,12 @@ impl Hasher for PlanKey {
 }
 
 impl FunctionPlan {
-    /// A copy with every callee mapped by `map`, or `None` when `map` has no callee for one.
+    /// A copy with every callee mapped by `map`, or `None` when `map` has no callee for one, or
+    /// when the plan is for a rebuilt copy of the function, whose own calls name its callees.
     fn remap(&self, map: impl Fn(FunctionId) -> Option<FunctionId>) -> Option<Self> {
+        if self.rebuilt.is_some() {
+            return None;
+        }
         let mut blocks = IndexVec::with_capacity(self.blocks.len());
         for block in &self.blocks {
             blocks.push(match block {
@@ -280,6 +291,7 @@ impl FunctionPlan {
                 .collect::<Option<_>>()?,
             cost: self.cost,
             non_loop_gas: self.non_loop_gas,
+            rebuilt: None,
         })
     }
 }

@@ -1,0 +1,229 @@
+{
+  "errors": [
+    {
+      "sourceLocation": {
+        "file": "P1.sol",
+        "start": 26,
+        "end": 42
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "couldn't read Missing1.sol: File import callback not supported",
+      "formattedMessage": "error: couldn't read Missing1.sol: File import callback not supported\n   ╭▸ P1.sol:LL:CC\n   │\nLL │ import \"./Missing1.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "P1.sol",
+        "start": 91,
+        "end": 92
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`",
+      "formattedMessage": "error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`\n   ╭▸ P1.sol:LL:CC\n   │\nLL │     uint x = ;\n   ╰╴             ━ expected one of 10 possible tokens\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "P2.sol",
+        "start": 26,
+        "end": 42
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "couldn't read Missing2.sol: File import callback not supported",
+      "formattedMessage": "error: couldn't read Missing2.sol: File import callback not supported\n   ╭▸ P2.sol:LL:CC\n   │\nLL │ import \"./Missing2.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "P3.sol",
+        "start": 26,
+        "end": 42
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "couldn't read Missing3.sol: File import callback not supported",
+      "formattedMessage": "error: couldn't read Missing3.sol: File import callback not supported\n   ╭▸ P3.sol:LL:CC\n   │\nLL │ import \"./Missing3.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "P3.sol",
+        "start": 108,
+        "end": 109
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`",
+      "formattedMessage": "error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`\n   ╭▸ P3.sol:LL:CC\n   │\nLL │     function g() public { y = ; }\n   ╰╴                              ━ expected one of 10 possible tokens\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "P4.sol",
+        "start": 26,
+        "end": 42
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "couldn't read Missing4.sol: File import callback not supported",
+      "formattedMessage": "error: couldn't read Missing4.sol: File import callback not supported\n   ╭▸ P4.sol:LL:CC\n   │\nLL │ import \"./Missing4.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "P4.sol",
+        "start": 94,
+        "end": 100
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "expected identifier, found keyword `public`",
+      "formattedMessage": "error: expected identifier, found keyword `public`\n   ╭▸ P4.sol:LL:CC\n   │\nLL │     function f( public {}\n   ╰╴                ━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "P4.sol",
+        "start": 101,
+        "end": 102
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "expected one of `)`, `,`, `[`, `calldata`, `constant`, `external`, `immutable`, `indexed`, `internal`, `memory`, `override`, `private`, `public`, `storage`, `transient`, `virtual`, or identifier, found `{`",
+      "formattedMessage": "error: expected one of `)`, `,`, `[`, `calldata`, `constant`, `external`, `immutable`, `indexed`, `internal`, `memory`, `override`, `private`, `public`, `storage`, `transient`, `virtual`, or identifier, found `{`\n   ╭▸ P4.sol:LL:CC\n   │\nLL │     function f( public {}\n   ╰╴                       ━ expected one of 17 possible tokens\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "P5.sol",
+        "start": 26,
+        "end": 42
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "couldn't read Missing5.sol: File import callback not supported",
+      "formattedMessage": "error: couldn't read Missing5.sol: File import callback not supported\n   ╭▸ P5.sol:LL:CC\n   │\nLL │ import \"./Missing5.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "P5.sol",
+        "start": 91,
+        "end": 92
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`",
+      "formattedMessage": "error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`\n   ╭▸ P5.sol:LL:CC\n   │\nLL │     uint x = ;\n   ╰╴             ━ expected one of 10 possible tokens\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "P6.sol",
+        "start": 26,
+        "end": 42
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "couldn't read Missing6.sol: File import callback not supported",
+      "formattedMessage": "error: couldn't read Missing6.sol: File import callback not supported\n   ╭▸ P6.sol:LL:CC\n   │\nLL │ import \"./Missing6.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "P7.sol",
+        "start": 26,
+        "end": 42
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "couldn't read Missing7.sol: File import callback not supported",
+      "formattedMessage": "error: couldn't read Missing7.sol: File import callback not supported\n   ╭▸ P7.sol:LL:CC\n   │\nLL │ import \"./Missing7.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "P7.sol",
+        "start": 108,
+        "end": 109
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`",
+      "formattedMessage": "error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `;`\n   ╭▸ P7.sol:LL:CC\n   │\nLL │     function g() public { y = ; }\n   ╰╴                              ━ expected one of 10 possible tokens\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "P8.sol",
+        "start": 26,
+        "end": 42
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "couldn't read Missing8.sol: File import callback not supported",
+      "formattedMessage": "error: couldn't read Missing8.sol: File import callback not supported\n   ╭▸ P8.sol:LL:CC\n   │\nLL │ import \"./Missing8.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "P8.sol",
+        "start": 94,
+        "end": 100
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "expected identifier, found keyword `public`",
+      "formattedMessage": "error: expected identifier, found keyword `public`\n   ╭▸ P8.sol:LL:CC\n   │\nLL │     function f( public {}\n   ╰╴                ━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "P8.sol",
+        "start": 101,
+        "end": 102
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "expected one of `)`, `,`, `[`, `calldata`, `constant`, `external`, `immutable`, `indexed`, `internal`, `memory`, `override`, `private`, `public`, `storage`, `transient`, `virtual`, or identifier, found `{`",
+      "formattedMessage": "error: expected one of `)`, `,`, `[`, `calldata`, `constant`, `external`, `immutable`, `indexed`, `internal`, `memory`, `override`, `private`, `public`, `storage`, `transient`, `virtual`, or identifier, found `{`\n   ╭▸ P8.sol:LL:CC\n   │\nLL │     function f( public {}\n   ╰╴                       ━ expected one of 17 possible tokens\n\n"
+    }
+  ],
+  "sources": {}
+}

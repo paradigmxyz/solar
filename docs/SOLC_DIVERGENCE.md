@@ -803,7 +803,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   range that the code it runs names, wherever the range lies, when the area,
   its allocations, and its frames would cover it. An entry that runs code
   writing memory at an address computed from calldata, as Seaport lays out a
-  basic order's hashes and event data, also keeps them above `0x2080`.
+  basic order's hashes and event data, also keeps them above `0x2080`. Other
+  entries keep their memory low unless they share those frames or a function
+  that reads the heap floor, which gives them one initial pointer.
 
   A write whose destination the compiler cannot place on the heap, in a frame,
   or below the heap start, such as a copy to a computed destination of any

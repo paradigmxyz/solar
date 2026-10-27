@@ -1,6 +1,22 @@
 error: literal is too large for any integer type
    ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
    │
+LL │     uint256 constant SHR = (1 << 256) >> ONE;
+   │                            ━━━━━━━━━━
+   │
+   ╰ note: the other operand is typed, so the literal must fit an integer type
+
+error: literal is too large for any integer type
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
+LL │     uint256 constant ADD = (1 << 256) + S8;
+   │                            ━━━━━━━━━━
+   │
+   ╰ note: the other operand is typed, so the literal must fit an integer type
+
+error: literal is too large for any integer type
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
 LL │         uint256[(1 << 256) >> ONE] memory shr;
    │                 ━━━━━━━━━━
    │
@@ -51,22 +67,6 @@ error: literal is too large for any integer type
    │
 LL │         uint256[(1 << 256) / S8] memory div;
    │                 ━━━━━━━━━━
-   │
-   ╰ note: the other operand is typed, so the literal must fit an integer type
-
-error: literal is too large for any integer type
-   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
-   │
-LL │     uint256 constant SHR = (1 << 256) >> ONE;
-   │                            ━━━━━━━━━━
-   │
-   ╰ note: the other operand is typed, so the literal must fit an integer type
-
-error: literal is too large for any integer type
-   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
-   │
-LL │     uint256 constant ADD = (1 << 256) + S8;
-   │                            ━━━━━━━━━━
    │
    ╰ note: the other operand is typed, so the literal must fit an integer type
 
