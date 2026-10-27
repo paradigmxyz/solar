@@ -8,6 +8,18 @@ LL │ uint constant fails = 0 / 0;
    │
    ╰ note: attempted to divide by zero
 
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     uint[zero] public zeroArray;
+   ╰╴         ━━━━
+
+error[2643]: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     uint[bigLiteral + 1] public tooBig1;
+   ╰╴         ━━━━━━━━━━━━━━ evaluation of constant value failed here
+
 error[5462]: failed to evaluate constant: attempted to divide by zero
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
@@ -193,18 +205,6 @@ LL │     function tern(uint[(zero > 0) ? 1 : 0] memory) public {}
    │                        ━━━━━━━━━━━━━━━━━━ evaluation of constant value failed here
    │
    ╰ help: array lengths take number literals, integer constants and arithmetic on them
-
-error[1406]: array length must be greater than zero
-   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
-   │
-LL │     uint[zero] public zeroArray;
-   ╰╴         ━━━━
-
-error[2643]: failed to evaluate constant: arithmetic overflow
-   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
-   │
-LL │     uint[bigLiteral + 1] public tooBig1;
-   ╰╴         ━━━━━━━━━━━━━━ evaluation of constant value failed here
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC

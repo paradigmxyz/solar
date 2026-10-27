@@ -19,7 +19,7 @@ use solar_data_structures::{
     map::FxHashMap,
     sync::{self, Mutex, Scope},
 };
-use solar_interface::{Result, Session, error_code};
+use solar_interface::{Result, Session, diagnostics::DeferredDiagnostics, error_code};
 use solar_sema::{
     Gcx,
     hir::{ContractId, VariableId},
@@ -206,6 +206,7 @@ pub fn generate_contract_bytecodes(
         graph: &graph,
         artifacts: IndexVec::from_vec((0..contract_count).map(|_| OnceLock::new()).collect()),
         scheduled: IndexVec::from_vec((0..contract_count).map(|_| Mutex::new(None)).collect()),
+        diagnostics: IndexVec::from_vec((0..contract_count).map(|_| Mutex::default()).collect()),
         remaining_inputs: IndexVec::from_vec(
             graph
                 .dependencies
@@ -228,6 +229,12 @@ pub fn generate_contract_bytecodes(
     // Only code generation reads the plans; free them before the output phase.
     gcx.codegen_state::<CodegenState>().clear_plans();
     let artifacts = jobs.artifacts;
+    // Emit the diagnostics in the order of a sequential run: contracts in source order, each after
+    // the contracts it embeds.
+    let mut diagnostics = jobs.diagnostics;
+    for &contract_id in &graph.order {
+        gcx.dcx().emit_deferred(std::mem::take(diagnostics[contract_id].get_mut()));
+    }
     gcx.dcx().has_errors()?;
 
     let mut generated = FxHashMap::default();
@@ -430,6 +437,8 @@ struct ContractJobs<'a, 'gcx> {
     graph: &'a ContractGraph,
     artifacts: IndexVec<ContractId, OnceLock<ContractArtifact>>,
     scheduled: IndexVec<ContractId, Mutex<Option<ScheduledContract<'gcx>>>>,
+    /// Diagnostics of each contract's jobs, withheld because the jobs run in any order.
+    diagnostics: IndexVec<ContractId, Mutex<DeferredDiagnostics>>,
     /// Unfinished inputs of each contract: its own scheduling and each dependency.
     remaining_inputs: IndexVec<ContractId, AtomicUsize>,
     queue: ContractQueue<'gcx>,
@@ -470,8 +479,27 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
         }
     }
 
-    /// Lowers, optimizes, and schedules a contract whose embedded bytecode stays deferred.
+    /// Runs `job` for `contract_id`, withholding its diagnostics until every job is done.
+    fn defer_diagnostics<R>(&self, contract_id: ContractId, job: impl FnOnce() -> R) -> R {
+        let (result, deferred) = self.gcx.dcx().defer(job);
+        self.diagnostics[contract_id].lock().append(deferred);
+        result
+    }
+
     fn schedule(&self, contract_id: ContractId) -> Result<ScheduledContract<'gcx>> {
+        self.defer_diagnostics(contract_id, || self.schedule_contract(contract_id))
+    }
+
+    fn finish(
+        &self,
+        contract_id: ContractId,
+        scheduled: ScheduledContract<'gcx>,
+    ) -> Result<ContractArtifact> {
+        self.defer_diagnostics(contract_id, || self.finish_contract(contract_id, scheduled))
+    }
+
+    /// Lowers, optimizes, and schedules a contract whose embedded bytecode stays deferred.
+    fn schedule_contract(&self, contract_id: ContractId) -> Result<ScheduledContract<'gcx>> {
         let Self { gcx, captures, graph, .. } = *self;
         let _span = tracing::debug_span!(
             parent: &self.span,
@@ -513,7 +541,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
     }
 
     /// Supplies the embedded bytecode of a scheduled contract and completes its artifact.
-    fn finish(
+    fn finish_contract(
         &self,
         contract_id: ContractId,
         scheduled: ScheduledContract<'gcx>,
