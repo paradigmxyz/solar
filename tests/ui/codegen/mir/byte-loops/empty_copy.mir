@@ -1,0 +1,38 @@
+//@ compile-flags: -Osize -Zmir-pipeline=byte-loops
+//@ filecheck:
+@module EmptyCopy
+
+// Even without constant folding before this pass, an empty copy must not read either
+// buffer's length. Its pointers need not refer to accessible memory.
+// CHECK-LABEL: fn @literal_empty(
+// CHECK: + [[EMPTY:v[0-9]+]] = eq 0, 0
+// CHECK-NEXT: + jumpi [[EMPTY]], [[EXIT:bb[0-9]+]], [[SETUP:bb[0-9]+]]
+// CHECK-NEXT: + [[SETUP]]:
+// CHECK: + {{v[0-9]+}} = mload arg0
+// CHECK: + {{v[0-9]+}} = mload arg1
+fn @literal_empty(arg0: ptr<memory>, arg1: ptr<memory>) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v13]
+    v1 = lt v0, 0
+    jumpi v1, bb2, bb3
+  bb2:
+    v2 = mload arg0
+    v3 = lt v0, v2
+    icall panic_if_zero<0x32>, v3
+    v4 = ptradd arg0, v0
+    v5 = ptradd v4, 32
+    v6 = mload v5
+    v7 = byte 0, v6
+    v8 = mload arg1
+    v9 = lt v0, v8
+    icall panic_if_zero<0x32>, v9
+    v10 = ptradd arg1, v0
+    v11 = ptradd v10, 32
+    mstore8 v11, v7
+    v13 = checked_add uint256, v0, 1
+    jump bb1
+  bb3:
+    ret
+}

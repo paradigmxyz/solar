@@ -1,0 +1,54 @@
+//@ run-call: context()(address,uint256,address,address,uint256,uint256,uint256,uint256,uint256,address,uint256,uint256,uint256,uint256) ; value=5 => 0x2222222222222222222222222222222222222222, 5, 0x659b375d76a8e9a2c68da8818022d6561aa60845, 0x2222222222222222222222222222222222222222, 1, 1, 0, 18446744073709551615, 0, 0x0000000000000000000000000000000000000000, 5, 1, 115792089237316195423570985008687907853269984665640564039457584007913129639930, 0
+
+// The transaction's context and the chain's state, as the EVM sees them during the call.
+@module context
+bb0:
+  caller
+  push 0
+  mstore
+  callvalue
+  push 32
+  mstore
+  address
+  push 64
+  mstore
+  origin
+  push 96
+  mstore
+  chainid
+  push 128
+  mstore
+  timestamp
+  push 160
+  mstore
+  number
+  push 192
+  mstore
+  gaslimit
+  push 224
+  mstore
+  basefee
+  push 256
+  mstore
+  coinbase
+  push 288
+  mstore
+  selfbalance
+  push 320
+  mstore
+  address
+  extcodesize
+  iszero
+  iszero
+  push 352
+  mstore
+  caller
+  balance
+  push 384
+  mstore
+  gasprice
+  push 416
+  mstore
+  push 448
+  push 0
+  return

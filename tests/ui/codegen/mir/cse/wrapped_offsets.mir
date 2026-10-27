@@ -1,0 +1,74 @@
+//@ compile-flags: -Zmir-pipeline=cse
+//@ filecheck: --enable-var-scope
+@module WrappedOffsets
+
+// An arbitrary index can wrap a payload store back into the object's length word.
+// CHECK-LABEL: fn @header
+// CHECK: mstore arg0, 7
+// CHECK: mstore8
+// CHECK: {{^ +}}[[LENGTH:v[0-9]+]] = mload arg0
+// CHECK-NEXT: {{^ +}}ret [[LENGTH]]
+fn @header(arg0: ptr<memory>, arg1: i256) -> i256 {
+  bb0:
+    mstore arg0, 7
+    v0 = ptradd arg0, arg1
+    v1 = ptradd v0, 32
+    mstore8 v1, 0
+    v2 = mload arg0
+    ret v2
+}
+
+// Wrapping can also leave a fresh allocation and overwrite an earlier one.
+// CHECK-LABEL: fn @earlier_allocation
+// CHECK: mstore [[FIRST:v[0-9]+]], 7
+// CHECK: mstore8
+// CHECK: {{^ +}}[[AFTER:v[0-9]+]] = mload [[FIRST]]
+// CHECK-NEXT: {{^ +}}ret [[AFTER]]
+fn @earlier_allocation(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 32
+    v1 = alloc 64
+    mstore v0, 7
+    v2 = ptradd v1, arg0
+    v3 = ptradd v2, 32
+    mstore8 v3, 0
+    v4 = mload v0
+    ret v4
+}
+
+// An indexed write can reset the FMP, so the next allocation may reuse the first one's memory.
+// CHECK-LABEL: fn @reset_fmp
+// CHECK: mstore {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK: alloc 32
+// CHECK: mstore [[FIRST:v[0-9]+]], 7
+// CHECK: mstore {{v[0-9]+}}, 9
+// CHECK: {{^ +}}[[AFTER:v[0-9]+]] = mload [[FIRST]]
+// CHECK-NEXT: {{^ +}}ret [[AFTER]]
+fn @reset_fmp(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 32
+    v1 = ptradd v0, arg0
+    v2 = ptrtoint ptr<memory> v0 to i256
+    mstore v1, v2
+    v3 = alloc 32
+    mstore v0, 7
+    mstore v3, 9
+    v4 = mload v0
+    ret v4
+}
+
+// Keep exact symbolic addresses: adjacent words at the same index remain disjoint.
+// CHECK-LABEL: fn @same_index
+// CHECK: mstore [[ADDRESS:v[0-9]+]], arg2
+// CHECK: mstore {{v[0-9]+}}, 9
+// CHECK: - {{v[0-9]+}} = mload [[ADDRESS]]
+// CHECK: + ret arg2
+fn @same_index(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = ptradd arg0, arg1
+    mstore v0, arg2
+    v1 = ptradd v0, 32
+    mstore v1, 9
+    v2 = mload v0
+    ret v2
+}

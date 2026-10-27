@@ -1,0 +1,209 @@
+// === ROOT/tests/ui/codegen/mir/byte-loops/wrapped_scatter.sol:Test ===
+@module Test
+@phase lowered
+fn @fill() [selector=0xb4f7766b, abi_wrapper, pure] {
+  bb0:
+    v39 = calldataload 68
+    v40 = shl v39, 8
+    v37 = calldatasize
+    v38 = lt v37, 100
+    v59 = zext i1 v38 to i256
+    v60 = or v59, v40
+    v61 = ne v60, 0
+    jumpi v61, bb10, bb11
+  bb11:
+    v42 = icall @decode_calldata_type
+    mstore v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v16 = byte 0, arg2
+    v17 = mul v16, 0x101010101010101010101010101010101010101010101010101010101010101
+    v53 = add v42, arg1
+    v54 = add v53, 32
+    v56 = add v42, 32
+    v23 = lt v54, v56
+    jumpi v23, bb1, bb4
+  bb4:
+    v27 = gt arg1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
+    jumpi v27, bb5, bb7
+  bb7:
+    v31 = mload v54
+    v46 = xor v31, v17
+    v47 = and v46, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v34 = xor v17, v47
+    mstore v54, v34
+    jump bb2
+  bb1:
+    v6 = phi [bb11: 0], [bb6: v15]
+    v7 = lt v6, 2
+    jumpi v7, bb3, bb2
+  bb2:
+    mstore 0, 1
+    returndata 0, 32
+  bb3:
+    v35 = add arg1, v6
+    v36 = lt v35, arg1
+    jumpi v36, bb8, bb9
+  bb9:
+    v9 = mload v42
+    v10 = lt v35, v9
+    jumpi v10, bb6, bb5
+  bb5:
+    tail_call @revert_stub
+  bb6:
+    v50 = add v42, v35
+    v51 = add v50, 32
+    mstore8 v51, v16
+    v15 = add v6, 1
+    jump bb1
+  bb8:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb10:
+    revert 0, 0
+}
+
+fn @scatter() [selector=0xa3efd67d, abi_wrapper, pure] {
+  bb0:
+    v10 = calldatasize
+    v11 = lt v10, 164
+    jumpi v11, bb1, bb2
+  bb2:
+    v12 = icall @decode_calldata_type
+    mstore v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v6 = sub arg4, v12
+    v2 = ne arg4, 0
+    v7 = zext i1 v2 to i256
+    v8 = mul v7, v6
+    v9 = add v12, v8
+    icall @_scatter, v9, arg1, arg2, arg3
+    mstore 0, 1
+    returndata 0, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @_scatter(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory, pure] {
+  bb0:
+    v18 = eq arg3, 0
+    jumpi v18, bb2, bb4
+  bb4:
+    v48 = add arg0, arg1
+    v49 = add v48, 32
+    v51 = add arg0, 32
+    v24 = lt v49, v51
+    jumpi v24, bb1, bb5
+  bb5:
+    v25 = mload arg0
+    v26 = lt v25, arg3
+    v27 = sub v25, arg3
+    v28 = gt arg1, v27
+    v29 = or v26, v28
+    v31 = gt arg3, 32
+    v34 = or v29, v31
+    jumpi v34, bb6, bb9
+  bb9:
+    v35 = lt arg3, 32
+    v36 = select v35, arg3, 32
+    v37 = shl v36, 3
+    v38 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v37
+    v39 = not v38
+    v41 = mload v49
+    v42 = and v41, v38
+    v43 = and arg2, v39
+    v44 = or v42, v43
+    mstore v49, v44
+    jump bb2
+  bb1:
+    v4 = phi [bb4: 0], [bb8: v17]
+    v5 = lt v4, arg3
+    jumpi v5, bb3, bb2
+  bb3:
+    v6 = lt v4, 32
+    jumpi v6, bb7, bb6
+  bb7:
+    v8 = byte v4, arg2
+    v45 = add arg1, v4
+    v46 = lt v45, arg1
+    jumpi v46, bb10, bb11
+  bb11:
+    v11 = mload arg0
+    v12 = lt v45, v11
+    jumpi v12, bb8, bb6
+  bb6:
+    tail_call @revert_stub
+  bb8:
+    v53 = add arg0, v45
+    v54 = add v53, 32
+    mstore8 v54, v8
+    v17 = add v4, 1
+    jump bb1
+  bb10:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb2:
+    ret
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @decode_calldata_type() -> i256 [may_return_memory] {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload 4
+    v2 = add v1, 4
+    v4 = sub v0, 36
+    v5 = gt v1, v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload v2
+    v7 = add v2, 32
+    v8 = add v6, 63
+    v9 = lt v8, v6
+    v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v24 = heap_floor !metadata(alloc_ptr)
+    v25 = add v24, v11 !metadata(alloc_ptr)
+    v26 = lt v25, v24
+    v27 = gt v25, 0xffffffffffffffff
+    v28 = or v26, v27
+    v30 = or v9, v28
+    jumpi v30, bb3, bb5
+  bb5:
+    mstore 64, v25 !metadata(memory=scratch)
+    mstore v24, v6
+    v13 = sub v0, v7
+    v14 = gt v6, v13
+    jumpi v14, bb1, bb4
+  bb4:
+    v21 = add v24, 32
+    calldatacopy v21, v7, v6
+    ret v24
+  bb3:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0xa3efd67d => bb2, 0xb4f7766b => bb3]
+  bb3:
+    tail_call @fill
+  bb2:
+    tail_call @scatter
+  bb4:
+    revert 0, 0
+}

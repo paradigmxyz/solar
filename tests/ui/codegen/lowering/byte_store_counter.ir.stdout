@@ -458,14 +458,14 @@ bb58 [loop] [continuation]:
   calldatasize
   dup 3
   calldatacopy
-  dup 2
+  swap 1
   dup 2
   mstore
   push 32
   dup 2
   add
   push 0
-  dup 6
+  dup 5
   mload
   dup 2
   lt
@@ -473,13 +473,12 @@ bb58 [loop] [continuation]:
   jumpi
   pop
   pop
-  swap 3
-  pop
+  swap 2
   pop
   jump
 bb61 [loop]:
   dup 1
-  dup 7
+  dup 6
   add
   push 32
   add
@@ -494,38 +493,41 @@ bb61 [loop]:
   dup 3
   dup 1
   add
-  dup 7
+  dup 6
+  mload
   dup 2
   lt
   iszero
   push bb64
   jumpi
-  push 1
-  add
-  dup 7
-  gt
   swap 1
   dup 5
   mstore8
-  iszero
-  push bb64
-  jumpi
+  swap 1
   push 15
   and
   push 0x3031323334353637383961626364656600000000000000000000000000000000
-  push 1
-  dup 5
-  push 2
-  add
-  swap 5
-  add
-  swap 2
+  swap 1
   byte
   swap 1
+  push 1
+  add
+  dup 5
+  mload
+  gt
+  iszero
+  push bb64
+  jumpi
+  push 1
+  dup 4
+  push 2
+  add
+  swap 4
+  add
   mstore8
   push 1
   add
-  dup 6
+  dup 5
   mload
   dup 2
   lt
@@ -533,8 +535,7 @@ bb61 [loop]:
   jumpi
   pop
   pop
-  swap 3
-  pop
+  swap 2
   pop
   jump
 bb72 [loop]:

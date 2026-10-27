@@ -1,0 +1,152 @@
+//@ run-call: store(uint256,uint256)(uint256) 0, 1 => 32
+//@ run-call: store(uint256,uint256)(uint256) 33, 1 => 96
+//@ run-call: store(uint256,uint256)(uint256) 4096, 1 => 4128
+//@ run-call: storeByte(uint256,uint256)(bytes32) 1, 0x1234 => 0x0034000000000000000000000000000000000000000000000000000000000000
+//@ run-call: copy(uint256,uint256,uint256)(bytes32,bytes32,uint256) 0, 1, 32 => 0x02030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021, 0x2122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f40, 64
+//@ run-call: copy(uint256,uint256,uint256)(bytes32,bytes32,uint256) 1, 0, 32 => 0x010102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f, 0x2022232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f40, 64
+//@ run-call: copy(uint256,uint256,uint256)(bytes32,bytes32,uint256) 96, 0, 0 => 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20, 0x2122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f40, 64
+//@ run-call: copy(uint256,uint256,uint256)(bytes32,bytes32,uint256) 0, 96, 32 => 0x0000000000000000000000000000000000000000000000000000000000000000, 0x2122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f40, 128
+//@ run-call: hash(uint256)(bytes32) 0 => 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+//@ run-call: hash(uint256)(bytes32) 64 => 0xb74da14078c7293345fc8d63e3963a54d648795d5abcc1f1150f8bdd70f2a5f1
+//@ run-call: hash(uint256)(bytes32) 65 => 0x65257723241b2378ad6760ab5c5fa7e468a8e5e1cad22bb686cd99dd0a9f6e0d
+//@ run-call: load(uint256)(uint256) 4 => 4
+//@ run-call: load(uint256)(uint256) 5 => 1280
+//@ run-call: load(uint256)(uint256) 36 => 0
+//@ run-call: size()(uint256) => 4
+//@ run-call: 0xdeadbeef01 => 0xdeadbeef01
+
+// Memory and calldata: stores, byte stores, copies that overlap or grow memory, hashes, calldata
+// loads past the end, and a fallback that echoes the calldata.
+@module memory
+bb0:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x6ed28ed0
+  eq
+  push bb2
+  jumpi
+  dup 1
+  push 0x6bf7a0d5
+  eq
+  push bb3
+  jumpi
+  dup 1
+  push 0xf5088730
+  eq
+  push bb4
+  jumpi
+  dup 1
+  push 0xb189fd4c
+  eq
+  push bb5
+  jumpi
+  dup 1
+  push 0x99d548aa
+  eq
+  push bb6
+  jumpi
+  dup 1
+  push 0x949d225d
+  eq
+  push bb7
+  jumpi
+  jump bb1
+
+// The fallback returns the calldata.
+bb1:
+  calldatasize
+  push 0
+  push 0
+  calldatacopy
+  calldatasize
+  push 0
+  return
+
+// store(offset, value) returns the memory size after the store.
+bb2:
+  push 36
+  calldataload
+  push 4
+  calldataload
+  mstore
+  msize
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// storeByte(offset, value) returns the first word after storing the low byte of `value`.
+bb3:
+  push 36
+  calldataload
+  push 4
+  calldataload
+  mstore8
+  push 32
+  push 0
+  return
+
+// copy(dest, src, len) copies within the bytes 1 to 64 and returns the first two words and the
+// memory size.
+bb4:
+  push 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+  push 0
+  mstore
+  push 0x2122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f40
+  push 32
+  mstore
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  mcopy
+  msize
+  push 64
+  mstore
+  push 96
+  push 0
+  return
+
+// hash(len) hashes the first `len` bytes of the bytes 1 to 64.
+bb5:
+  push 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+  push 0
+  mstore
+  push 0x2122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f40
+  push 32
+  mstore
+  push 4
+  calldataload
+  push 0
+  keccak256
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// load(offset) returns the calldata word at `offset`.
+bb6:
+  push 4
+  calldataload
+  calldataload
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// size() returns the calldata size.
+bb7:
+  calldatasize
+  push 0
+  mstore
+  push 32
+  push 0
+  return

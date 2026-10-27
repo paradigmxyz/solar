@@ -1,0 +1,15 @@
+//@ run-call: 0x =>
+
+// Reading `codesize` makes the data layout observable, so assembly keeps every data entry after
+// the code, referenced or not. The code must stop before that data instead of running it as
+// instructions: here, as an `invalid` that would revert the storage write.
+@module trailing_data
+@data
+  0: hex"fe"
+bb0:
+  push 1
+  push 0
+  sstore
+  codesize
+  pop
+  stop
