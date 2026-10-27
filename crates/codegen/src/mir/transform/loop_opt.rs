@@ -841,7 +841,7 @@ impl LoopOptimizer {
             && let Some(write) =
                 aa.bare_memory_location(func, write_addr, LocationSize::Const(write_width))
         {
-            match aa.memory_alias(location, write) {
+            match aa.memory_alias(func, location, write) {
                 AliasResult::NoAlias => return false,
                 AliasResult::MustAlias | AliasResult::PartialAlias => return true,
                 AliasResult::MayAlias => {}

@@ -367,6 +367,7 @@ impl FrameSlotPromoter {
     fn external_local_slot_safe(func: &Function, aa: &AliasAnalysis, slot_addr: u64) -> bool {
         if aa
             .memory_alias(
+                func,
                 MemoryLocation::new(MemoryAddress::absolute(slot_addr), LocationSize::Const(32)),
                 MemoryLocation::new(
                     MemoryAddress::absolute(EvmMemoryLayout::HEAP_START),
@@ -438,6 +439,7 @@ impl FrameSlotPromoter {
                     || AliasAnalysis::frame_location(func, offset, FrameMode::Internal, slot_kind)
                         .is_none_or(|location| {
                             aa.memory_alias(
+                                func,
                                 location,
                                 MemoryLocation::new(
                                     MemoryAddress::internal_frame(slot_offset),
@@ -527,6 +529,7 @@ impl FrameSlotPromoter {
             {
                 AliasAnalysis::frame_location(func, offset, mode, kind).is_none_or(|location| {
                     aa.memory_alias(
+                        func,
                         location,
                         MemoryLocation::new(
                             MemoryAddress::absolute(slot_addr),
@@ -649,6 +652,7 @@ impl FrameSlotPromoter {
         }
         let Some(size) = size else { return true };
         aa.memory_alias(
+            func,
             MemoryLocation::new(address, LocationSize::Const(size)),
             MemoryLocation::new(
                 MemoryAddress::internal_frame(slot_offset),
