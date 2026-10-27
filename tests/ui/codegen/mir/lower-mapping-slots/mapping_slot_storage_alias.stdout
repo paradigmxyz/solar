@@ -1,0 +1,16 @@
+- // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_storage_alias.mir (before lower-mapping-slots) ===
++ // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_storage_alias.mir (after lower-mapping-slots) ===
+  @module MappingSlotStorageAlias
+  fn @store(arg0: i256, arg1: i256) {
+    bb0:
+-     v0 = mapping_slot arg0, 7
+-     v1 = add v0, 1
+-     sstore v1, arg1 !metadata(storage=offset(v0, 1))
++     mstore 0, arg0 !metadata(memory=scratch)
++     mstore 32, 7 !metadata(memory=scratch)
++     v2 = keccak256 0, 64 !metadata(memory=scratch)
++     v1 = add v2, 1
++     sstore v1, arg1 !metadata(storage=offset(v2, 1))
+      stop
+  }
+  

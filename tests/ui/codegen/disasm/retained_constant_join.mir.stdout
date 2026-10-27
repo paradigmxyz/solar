@@ -1,0 +1,80 @@
+// === ROOT/tests/ui/codegen/disasm/retained_constant_join.sol:C ===
+@module C
+fn @f(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xbf06dbf1, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = or 0xdeadbeefcafebabe1234567, arg0
+    v1 = xor 0xdeadbeefcafebabe1234567, arg2
+    v2 = lt v0, v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = checked_sub uint256, arg2, 0xdeadbeefcafebabe1234567
+    v4 = xor 0xdeadbeefcafebabe1234567, v3
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v5 = phi [bb1: 0xabcdef0123456789abcdef0123456789abcdef01234567], [bb2: 0xffffffffffffffff]
+    v6 = phi [bb1: arg0], [bb2: v4]
+    v7 = and arg1, 0xffffffffffffffff
+    v8 = ne v7, 0
+    jumpi v8, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v9 = and v5, 0xffffffffffffffff
+    v10 = ne v9, 0
+    jumpi v10, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    jump bb10
+  bb10:
+    v11 = phi [bb7: arg0], [bb12: v11]
+    v12 = phi [bb7: arg1], [bb12: v12]
+    v13 = phi [bb7: arg2], [bb12: v13]
+    v14 = phi [bb7: 0], [bb12: v14]
+    v15 = phi [bb7: v5], [bb12: v15]
+    v16 = phi [bb7: v6], [bb12: v16]
+    v17 = phi [bb7: 0], [bb12: v24]
+    v18 = and v16, 3
+    v19 = checked_add uint256, v18, 1
+    v20 = lt v17, v19
+    jumpi v20, bb13, bb14
+  bb14:
+    jump bb11
+  bb11:
+    jump bb9
+  bb9:
+    v25 = phi [bb11: v11], [bb8: arg0]
+    v26 = phi [bb11: v12], [bb8: arg1]
+    v27 = phi [bb11: v13], [bb8: arg2]
+    v28 = phi [bb11: v14], [bb8: 0]
+    v29 = phi [bb11: v15], [bb8: v5]
+    v30 = phi [bb11: v16], [bb8: v6]
+    jump bb6
+  bb6:
+    v31 = phi [bb9: v25], [bb5: arg0]
+    v32 = phi [bb9: v26], [bb5: arg1]
+    v33 = phi [bb9: v27], [bb5: arg2]
+    v34 = phi [bb9: v28], [bb5: 0]
+    v35 = phi [bb9: v29], [bb5: v5]
+    v36 = phi [bb9: v30], [bb5: v6]
+    ret v34
+  bb13:
+    v21 = shr v13, 7
+    v22 = and v21, 1
+    v23 = eq v22, 1
+    jumpi v23, bb16, bb17
+  bb17:
+    jump bb18
+  bb18:
+    jump bb15
+  bb15:
+    jump bb12
+  bb12:
+    v24 = checked_add uint256, v17, 1
+    jump bb10
+  bb16:
+    icall revert_if<empty>, true
+    invalid
+}

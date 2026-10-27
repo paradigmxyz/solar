@@ -30,7 +30,10 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
-use std::cell::RefCell;
+use std::{
+    cell::{Cell, RefCell},
+    collections::BTreeMap,
+};
 
 /// The modeled stack of a block being planned and the steps that produced it.
 #[derive(Clone, Default)]
@@ -201,8 +204,13 @@ pub(super) struct Planner<'a> {
     conditions: FxHashMap<BlockId, (ValueId, bool)>,
     /// External arguments loaded at the start of a block and kept on the stack.
     arg_defs: FxHashMap<BlockId, SmallVec<[ValueId; 2]>>,
-    /// The constant retained by this trial, with the block that first materializes it.
-    constant_def: Option<(BlockId, ValueId)>,
+    /// The constants retained by this trial, with the blocks that first materialize them.
+    constant_defs: Vec<(BlockId, ValueId)>,
+    /// The blocks in which each retained constant is kept on the stack. The constant is pushed
+    /// fresh at its uses elsewhere.
+    held: FxHashMap<ValueId, DenseBitSet<BlockId>>,
+    /// The block being planned.
+    current: Cell<BlockId>,
     /// Number of operand positions reading each value.
     use_counts: IndexVec<ValueId, u32>,
     /// Blocks that return the results of their last instruction, an internal call, which
@@ -537,7 +545,9 @@ impl<'a> Planner<'a> {
             publish,
             conditions,
             arg_defs,
-            constant_def: None,
+            constant_defs: Vec::new(),
+            held: FxHashMap::default(),
+            current: Cell::new(BlockId::ENTRY),
             use_counts,
             tail_calls,
             args,
@@ -567,6 +577,7 @@ impl<'a> Planner<'a> {
     pub(super) fn plan(mut self) -> Result<Planned, Fail> {
         let cfg = self.cfg;
         for &block in cfg.rpo() {
+            self.current.set(block);
             self.resolve_join(block)?;
             let layout = match self.layouts[block].clone() {
                 Some(layout) => layout,
@@ -611,73 +622,132 @@ impl<'a> Planner<'a> {
         Ok(Planned { plan, natural: self.natural, first_use: self.first_use })
     }
 
-    /// Returns the repeated immediate that saves the most when kept on the stack, with the
-    /// nearest block outside loops that dominates its uses.
+    /// Returns the repeated immediates worth keeping on the stack, the one that saves the most
+    /// first, each with the block that first materializes it. A constant used in separate
+    /// branches comes once for all its uses, from the nearest block outside loops that dominates
+    /// them, and once for each branch of that block with several uses, so a branch that rejects
+    /// the first can still keep the constant.
     ///
-    /// Only one constant is retained. This is a profitability limit, not a stack limit: the plan
-    /// cannot see the later EVM IR pipeline, and keeping more constants traded small size savings
-    /// for large gas losses, such as P256 verification in size mode. Retaining more needs a
-    /// profitability check that accounts for EVM IR.
-    pub(super) fn constant_to_retain(&self) -> Option<(BlockId, ValueId)> {
-        let value = self
-            .remat
-            .iter()
-            .filter_map(|value| {
-                let Value::Immediate(immediate) = self.func.value(value) else { return None };
-                let count = self.use_counts[value];
-                if count < 2 {
-                    return None;
-                }
-                let push = self.target.push(immediate.as_u256()?);
-                // Leave cheap literals to local stack scheduling and EVM IR reuse.
-                if push.bytes <= (self.target.dup() + self.dead_word_removal()).bytes {
-                    return None;
-                }
-                let copies = self.target.dup().times(count - 1);
-                let before = push.times(count);
-                let after = push + copies + self.dead_word_removal();
-                self.target
-                    .cmp_lifetime(after, before)
-                    .is_lt()
-                    .then_some((value, before.saturating_sub(after)))
-            })
-            .max_by(|(_, a), (_, b)| self.target.cmp_lifetime(*a, *b))?
-            .0;
-        let mut definition = None;
-        let mut note = |block| {
-            definition =
-                Some(definition.map_or(block, |other| common_dominator(self.cfg, other, block)));
+    /// This is a profitability ranking, not a stack limit: the plan cannot see the later EVM IR
+    /// pipeline, and keeping many constants traded small size savings for large gas losses, such
+    /// as P256 verification in size mode. The caller keeps a candidate only when a replan
+    /// confirms it.
+    pub(super) fn constants_to_retain(&self) -> Vec<(BlockId, ValueId)> {
+        // Leave cheap literals to local stack scheduling and EVM IR reuse.
+        let mut wide = DenseBitSet::new_empty(self.func.num_values());
+        for value in self.remat.iter() {
+            if matches!(self.func.value(value), Value::Immediate(_))
+                && self.use_counts[value] >= 2
+                && self.remat_costs[value].bytes
+                    > (self.target.dup() + self.dead_word_removal()).bytes
+            {
+                wide.insert(value);
+            }
+        }
+        if wide.is_empty() {
+            return Vec::new();
+        }
+        let mut use_blocks = FxHashMap::<ValueId, SmallVec<[BlockId; 4]>>::default();
+        let mut note = |value: ValueId, block| {
+            if wide.contains(value) {
+                use_blocks.entry(value).or_default().push(block);
+            }
         };
         for (block, data) in self.func.blocks.iter_enumerated() {
             for &inst in &data.instructions {
                 match &self.func.inst(inst).kind {
                     InstKind::Phi(incoming) => {
                         for &(pred, operand) in incoming {
-                            if operand == value {
-                                note(pred);
-                            }
+                            note(operand, pred);
                         }
                     }
-                    kind if kind.operands().contains(&value) => note(block),
-                    _ => {}
+                    kind => kind.visit_operands(|operand| note(operand, block)),
                 }
             }
-            if data.terminator.as_ref().is_some_and(|term| term.operands().contains(&value)) {
-                note(block);
+            if let Some(term) = &data.terminator {
+                term.visit_operands(|operand| note(operand, block));
             }
         }
-        let mut block = definition?;
+        let mut candidates = Vec::new();
+        for value in wide.iter() {
+            let Some(blocks) = use_blocks.get(&value) else { continue };
+            let Some(whole) = self.definition_block(blocks) else { continue };
+            candidates.extend(self.retention_saving(value, whole, blocks));
+            let dominators = self.cfg.dominators();
+            let mut branches = BTreeMap::<BlockId, SmallVec<[BlockId; 4]>>::default();
+            for &block in blocks {
+                // The child of the dominator of all uses that dominates this use.
+                if let Some(&branch) = dominators
+                    .children(whole)
+                    .iter()
+                    .find(|&&child| dominators.dominates(child, block))
+                {
+                    branches.entry(branch).or_default().push(block);
+                }
+            }
+            if branches.len() < 2 && !blocks.contains(&whole) {
+                continue;
+            }
+            for uses in branches.into_values() {
+                // A branch under a loop header climbs back to the dominator of all uses.
+                if let Some(definition) = self.definition_block(&uses)
+                    && definition != whole
+                {
+                    candidates.extend(self.retention_saving(value, definition, &uses));
+                }
+            }
+        }
+        candidates.sort_by(|(_, a), (_, b)| self.target.cmp_lifetime(*a, *b));
+        candidates.into_iter().rev().map(|(candidate, _)| candidate).collect()
+    }
+
+    /// What keeping `value` on the stack from `definition` saves over pushing it at each of its
+    /// uses in `blocks`, when that is worth a replan.
+    fn retention_saving(
+        &self,
+        value: ValueId,
+        definition: BlockId,
+        blocks: &[BlockId],
+    ) -> Option<((BlockId, ValueId), Cost)> {
+        if blocks.len() < 2 {
+            return None;
+        }
+        let price = |cost: Cost, block| if self.gas_mode { self.weigh(cost, block) } else { cost };
+        let push = self.remat_costs[value];
+        let before = blocks.iter().fold(Cost::ZERO, |sum, &block| sum + price(push, block));
+        let copies =
+            blocks.iter().fold(Cost::ZERO, |sum, &block| sum + price(self.target.dup(), block));
+        // The push at the definition replaces the copy of the first use.
+        let after = price(push, definition)
+            + copies.saturating_sub(self.target.dup())
+            + price(self.dead_word_removal(), definition);
+        self.target
+            .cmp_lifetime(after, before)
+            .is_lt()
+            .then_some(((definition, value), before.saturating_sub(after)))
+    }
+
+    /// The nearest block outside loops that dominates every block of `uses`.
+    fn definition_block(&self, uses: &[BlockId]) -> Option<BlockId> {
+        let mut block = uses.iter().copied().reduce(|a, b| common_dominator(self.cfg, a, b))?;
         while self.cfg.cyclic_blocks().contains(block)
             && let Some(idom) = self.cfg.dominators().idom(block)
         {
             block = idom;
         }
-        Some((block, value))
+        Some(block)
     }
 
-    pub(super) fn retain_constant(mut self, definition: (BlockId, ValueId)) -> Self {
-        self.remat.remove(definition.1);
-        self.constant_def = Some(definition);
+    /// Keeps each constant on the stack from its defining block through the blocks that block
+    /// dominates, where `liveness` is [`retention_liveness`] for the same definitions.
+    pub(super) fn retain_constants(
+        mut self,
+        definitions: &[(BlockId, ValueId)],
+        liveness: &'a Liveness,
+    ) -> Self {
+        self.held = held_blocks(self.func, self.cfg, definitions);
+        self.liveness = liveness;
+        self.constant_defs = definitions.to_vec();
         self
     }
 
@@ -702,8 +772,12 @@ impl<'a> Planner<'a> {
     fn plan_body(&mut self, sim: &mut Sim, block: BlockId) -> Result<(), Fail> {
         let func = self.func;
         let early = self.early_branch_phis(block);
-        let mut constant =
-            self.constant_def.filter(|&(def, _)| def == block).map(|(_, value)| value);
+        let mut constants = self
+            .constant_defs
+            .iter()
+            .filter(|&&(def, _)| def == block)
+            .map(|&(_, value)| value)
+            .collect::<SmallVec<[_; 2]>>();
         let mut uses = self.block_uses(block);
         let planned = self.planned_insts(block);
         let optimize = self.target.optimizes_stack_plans();
@@ -712,14 +786,15 @@ impl<'a> Planner<'a> {
         let mut placed = FxHashSet::default();
         for (position, step) in planned.iter().enumerate() {
             let inst = step.inst;
-            if let Some(value) = constant
-                && step.operands.contains(&value)
-            {
+            constants.retain(|&mut value| {
+                if !step.operands.contains(&value) {
+                    return true;
+                }
                 sim.steps.push(Step::Begin(None));
                 // push constant
                 self.fresh(sim, value);
-                constant = None;
-            }
+                false
+            });
             if let Some((early_inst, then_block, else_block)) = early
                 && early_inst == inst
             {
@@ -767,7 +842,7 @@ impl<'a> Planner<'a> {
                 self.place_result(sim, block, &planned, position + 1, &mut uses)?;
             }
         }
-        if let Some(value) = constant {
+        for value in constants {
             sim.steps.push(Step::Begin(None));
             // push constant
             self.fresh(sim, value);
@@ -1010,7 +1085,7 @@ impl<'a> Planner<'a> {
             // Copied values must exist before the chain starts. A spilled value is stored where
             // its instruction runs, so its reload cannot come earlier.
             let available = |operand: &ValueId, start: usize| {
-                self.remat.contains(*operand)
+                self.is_remat(*operand)
                     || def_position.get(operand).is_none_or(|&position| position < start)
             };
             let start = first(&[def]);
@@ -1105,7 +1180,7 @@ impl<'a> Planner<'a> {
         saved.extend(
             self.spilled
                 .iter()
-                .filter(|&value| across.contains(value) && !self.remat.contains(value))
+                .filter(|&value| across.contains(value) && !self.is_remat(value))
                 .map(Victim::Value),
         );
         saved
@@ -1269,15 +1344,21 @@ impl<'a> Planner<'a> {
         self.has_ret && !self.ret_spilled
     }
 
+    /// Whether a value is pushed fresh at each use in the block being planned.
+    fn is_remat(&self, value: ValueId) -> bool {
+        self.remat.contains(value)
+            && !self.held.get(&value).is_some_and(|held| held.contains(self.current.get()))
+    }
+
     fn can_spill(&self, value: ValueId) -> bool {
-        !self.remat.contains(value)
+        !self.is_remat(value)
             && !self.spilled.contains(value)
             && matches!(self.func.value(value), Value::Inst(_) | Value::Arg(_))
     }
 
     /// Pushes a fresh copy of a value that is not kept on the stack.
     fn fresh(&self, sim: &mut Sim, value: ValueId) {
-        if self.spilled.contains(value) && !self.remat.contains(value) {
+        if self.spilled.contains(value) && !self.is_remat(value) {
             sim.cost += StackCosts::DIRECT_LOAD;
             sim.steps.push(Step::Reload(value));
         } else {
@@ -1289,7 +1370,7 @@ impl<'a> Planner<'a> {
     }
 
     fn is_fresh(&self, value: ValueId) -> bool {
-        self.remat.contains(value) || self.spilled.contains(value)
+        self.is_remat(value) || self.spilled.contains(value)
     }
 
     /// Whether a word can be pushed without a stack copy.
@@ -1317,7 +1398,7 @@ impl<'a> Planner<'a> {
     }
 
     fn materialize_cost(&self, value: ValueId) -> Cost {
-        if self.remat.contains(value) {
+        if self.is_remat(value) {
             self.remat_costs[value]
         } else {
             materialize_cost(self.func, self.target, value)
@@ -1392,7 +1473,7 @@ impl<'a> Planner<'a> {
         dying: &dyn Fn(ValueId) -> bool,
     ) -> Result<(), Fail> {
         let (&gas, rest) = ops.split_last().expect("call has a gas operand");
-        if !self.remat.contains(gas) {
+        if !self.is_remat(gas) {
             return self.prepare(sim, ops, dying);
         }
         self.prepare(sim, rest, dying)?;
@@ -2405,6 +2486,7 @@ impl<'a> Planner<'a> {
                     continue;
                 }
                 let mut sim = Sim::new(edge.stack.clone());
+                self.current.set(edge.pred);
                 match self.adopt(&mut sim, edge.pred, join) {
                     Ok(candidate) if !candidates.contains(&candidate) => candidates.push(candidate),
                     Ok(_) => {}
@@ -2413,6 +2495,7 @@ impl<'a> Planner<'a> {
                     }
                 }
             }
+            self.current.set(join);
             for candidate in candidates {
                 let total = self.incoming_cost(&pending, join, &candidate);
                 if best.as_ref().is_none_or(|(best, _)| self.target.cmp(total, *best).is_lt()) {
@@ -2435,6 +2518,8 @@ impl<'a> Planner<'a> {
         }
         let layout = self.layouts[join].clone().unwrap();
         for edge in pending {
+            // The edge's code runs in its predecessor, where a retained constant may not be held.
+            self.current.set(edge.pred);
             let mut sim = Sim::new(edge.stack.clone());
             let target = self.edge_target(edge.pred, join, &layout, sim.height());
             match edge.side {
@@ -2468,6 +2553,7 @@ impl<'a> Planner<'a> {
                 }
             }
         }
+        self.current.set(join);
         Ok(())
     }
 
@@ -2580,6 +2666,18 @@ impl<'a> Planner<'a> {
 
     /// Prices one recorded edge into a candidate join layout.
     fn edge_cost(&self, edge: &Pending, join: BlockId, layout: &Layout) -> Result<Cost, Fail> {
+        let join_block = self.current.replace(edge.pred);
+        let cost = self.edge_cost_in_pred(edge, join, layout);
+        self.current.set(join_block);
+        cost
+    }
+
+    fn edge_cost_in_pred(
+        &self,
+        edge: &Pending,
+        join: BlockId,
+        layout: &Layout,
+    ) -> Result<Cost, Fail> {
         let mut sim = Sim::new(edge.stack.clone());
         let target = self.edge_target(edge.pred, join, layout, sim.height());
         if edge.side.is_none() {
@@ -3249,4 +3347,82 @@ fn leftovers(below: &[Slot], dying: &[ValueId]) -> u32 {
     }
     below.iter().filter(|slot| matches!(slot, Slot::Value(value) if dying.contains(value))).count()
         as u32
+}
+
+/// The liveness of a function when each constant of `definitions` is kept on the stack from its
+/// defining block through the blocks that block dominates: the constant is live where a path
+/// inside that region reaches one of its uses, and nowhere else. A defining block is entered
+/// without it.
+pub(super) fn retention_liveness(
+    func: &Function,
+    cfg: &CfgInfo,
+    liveness: &Liveness,
+    definitions: &[(BlockId, ValueId)],
+) -> Liveness {
+    let mut liveness = liveness.clone();
+    for (&value, held) in &held_blocks(func, cfg, definitions) {
+        let mut used = DenseBitSet::new_empty(func.blocks.len());
+        let mut edge_used = DenseBitSet::new_empty(func.blocks.len());
+        for (block, data) in func.blocks.iter_enumerated() {
+            for &inst in &data.instructions {
+                match &func.inst(inst).kind {
+                    InstKind::Phi(incoming) => {
+                        for &(pred, operand) in incoming {
+                            if operand == value {
+                                edge_used.insert(pred);
+                            }
+                        }
+                    }
+                    kind if kind.operands().contains(&value) => {
+                        used.insert(block);
+                    }
+                    _ => {}
+                }
+            }
+            if data.terminator.as_ref().is_some_and(|term| term.operands().contains(&value)) {
+                used.insert(block);
+            }
+        }
+        let mut live_in = DenseBitSet::new_empty(func.blocks.len());
+        let mut live_out = DenseBitSet::new_empty(func.blocks.len());
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for &block in cfg.rpo().iter().rev() {
+                if !held.contains(block) {
+                    continue;
+                }
+                let mut out = edge_used.contains(block);
+                if let Some(term) = &func.blocks[block].terminator {
+                    term.for_each_successor(|succ| out |= live_in.contains(succ));
+                }
+                changed |= out && live_out.insert(block);
+                if (used.contains(block) || out) && !definitions.contains(&(block, value)) {
+                    changed |= live_in.insert(block);
+                }
+            }
+        }
+        liveness.set_value_live(value, &live_in, &live_out);
+    }
+    liveness
+}
+
+/// The blocks in which each constant of `definitions` is kept on the stack: those dominated by a
+/// block that defines it.
+fn held_blocks(
+    func: &Function,
+    cfg: &CfgInfo,
+    definitions: &[(BlockId, ValueId)],
+) -> FxHashMap<ValueId, DenseBitSet<BlockId>> {
+    let mut held = FxHashMap::<_, DenseBitSet<BlockId>>::default();
+    for &(def, value) in definitions {
+        let blocks = held.entry(value).or_insert_with(|| DenseBitSet::new_empty(func.blocks.len()));
+        let mut pending = vec![def];
+        while let Some(block) = pending.pop() {
+            if blocks.insert(block) {
+                pending.extend_from_slice(cfg.dominators().children(block));
+            }
+        }
+    }
+    held
 }
