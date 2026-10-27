@@ -14,7 +14,8 @@
 //!   or gas observation; a small word-sized zero fill or calldata copy whose every word such a
 //!   write overwrites goes too. Returndata copies stay because their source bounds check can
 //!   revert. Reads over constant ranges, such as hashes, logs, and call inputs, only keep the words
-//!   they cover.
+//!   they cover. A reload of the free-memory-pointer word forwards across every instruction that
+//!   cannot write it, such as a write through a heap pointer.
 //! - Store narrowing: when a later full-word store overwrites the last 31 bytes of a word store
 //!   before any read or gas observation, only the first byte of the earlier store is observable, so
 //!   the backward scan shortens the store to an `mstore8` of that byte. `mstore8` demands only the
@@ -57,9 +58,15 @@
 //!   removed, and a store that the single jump successor overwrites first, with no memory or gas
 //!   observer in between, is removed.
 //! - Across the CFG: a backward liveness dataflow over constant, word-aligned addresses removes a
-//!   full-word store that no path reads before overwriting it. A symbolic or unbounded read, a
-//!   call, a return to the caller, and a tail call make all memory live; revert and return data
-//!   keep only the words they cover, and halts such as `stop` keep none.
+//!   full-word store that no path reads before overwriting it. A read through a pointer with a
+//!   known lower bound, such as a heap pointer plus a constant, keeps every slot from that bound
+//!   up, so the store of a free-memory-pointer bump before an exit that reads the heap is dead. An
+//!   instruction keeps the slots its memory reads may cover; one that only writes memory, such as a
+//!   copy, keeps none. An unbounded read, a gas observer, an instruction that writes memory of
+//!   unknown extent, an internal call, a return to the caller, and a tail call make all memory
+//!   live; revert and return data keep only the words they cover, and halts such as `stop` keep
+//!   none. Liveness runs before block-local forwarding, which replaces a reloaded pointer by the
+//!   stored word.
 //!
 //! NOTE: Codegen does not track which inline assembly is annotated memory-safe, so no block is
 //! treated as unsafe. A `ret` or tail call is assumed to read no dead object of its function.
@@ -174,28 +181,31 @@ type LiveSlots = SmallVec<[u64; 16]>;
 /// Backward memory-liveness lattice over constant word-aligned slots.
 ///
 /// `All` is the conservative top: any address may be observed. `Only` names the
-/// exact slots that may be read before the next full-word overwrite; every
-/// other slot is provably dead if overwritten.
+/// exact slots that may be read before the next full-word overwrite, plus every
+/// slot from `from` up for a read through a pointer whose lower bound is known;
+/// every other slot is provably dead if overwritten. `slots` holds only slots
+/// below `from`, so equal sets compare equal.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum MemLive {
     All,
-    Only(LiveSlots),
+    Only { slots: LiveSlots, from: u64 },
 }
 
 impl MemLive {
     fn empty() -> Self {
-        Self::Only(LiveSlots::new())
+        Self::Only { slots: LiveSlots::new(), from: u64::MAX }
     }
 
     fn contains(&self, addr: u64) -> bool {
         match self {
             Self::All => true,
-            Self::Only(slots) => slots.binary_search(&addr).is_ok(),
+            Self::Only { slots, from } => addr >= *from || slots.binary_search(&addr).is_ok(),
         }
     }
 
     fn add_addr(&mut self, addr: u64) {
-        if let Self::Only(slots) = self
+        if let Self::Only { slots, from } = self
+            && addr < *from
             && let Err(index) = slots.binary_search(&addr)
         {
             if slots.len() >= MEM_LIVE_CAP {
@@ -206,8 +216,17 @@ impl MemLive {
         }
     }
 
+    /// Marks every slot at or above the word containing `addr` as live.
+    fn add_from(&mut self, addr: u64) {
+        if let Self::Only { slots, from } = self {
+            *from = (*from).min(addr / 32 * 32);
+            slots.truncate(slots.partition_point(|&slot| slot < *from));
+        }
+    }
+
     fn kill(&mut self, addr: u64) {
-        if let Self::Only(slots) = self
+        if let Self::Only { slots, from } = self
+            && addr < *from
             && let Ok(index) = slots.binary_search(&addr)
         {
             slots.remove(index);
@@ -218,17 +237,23 @@ impl MemLive {
         match (&mut *self, other) {
             (Self::All, _) => {}
             (this, Self::All) => *this = Self::All,
-            (Self::Only(a), Self::Only(b)) => {
-                if b.is_empty() {
-                    return;
-                }
-                if a.is_empty() {
-                    a.clone_from(b);
-                    return;
+            (Self::Only { slots: a, from: a_from }, Self::Only { slots: b, from: b_from }) => {
+                let from = (*a_from).min(*b_from);
+                if from < *a_from {
+                    *a_from = from;
+                    a.truncate(a.partition_point(|&slot| slot < from));
                 }
                 // Merge two ascending runs. The result stays sorted, so the
                 // lattice value has one canonical representation and equality
                 // is a plain slice comparison.
+                let b = &b[..b.partition_point(|&slot| slot < from)];
+                if b.is_empty() {
+                    return;
+                }
+                if a.is_empty() {
+                    a.extend_from_slice(b);
+                    return;
+                }
                 let mut merged = LiveSlots::with_capacity(a.len() + b.len());
                 let (mut i, mut j) = (0, 0);
                 while i < a.len() && j < b.len() {
@@ -488,6 +513,10 @@ impl MemoryStoreEliminator {
         self.alias().clear_cached_addresses();
         self.remove_unused_internal_frame_stores(func);
 
+        // Liveness runs before block-local forwarding: forwarding replaces a reloaded pointer by
+        // the stored word, whose bound the alias analysis may not know.
+        self.remove_dead_memory_stores(func);
+
         let block_ids = func.blocks.indices();
         let has_precise_reads = func
             .instructions()
@@ -499,7 +528,6 @@ impl MemoryStoreEliminator {
         self.remove_dead_allocation_stores(func);
         self.remove_cross_block_equal_const_stores(func);
         self.remove_cross_block_overwrites(func);
-        self.remove_dead_memory_stores(func);
 
         self.eliminated_count
     }
@@ -607,7 +635,7 @@ impl MemoryStoreEliminator {
         match func.blocks[block].terminator.as_ref() {
             Some(Terminator::Revert { offset, size })
             | Some(Terminator::ReturnData { offset, size }) => {
-                Self::mark_read(func, &mut live, *offset, *size);
+                Self::mark_read(func, &mut live, *offset, func.value_u64(*size));
             }
             // A `return` value may be a memory pointer the caller dereferences,
             // and a tail call forwards memory to its callee: keep all memory live
@@ -647,46 +675,89 @@ impl MemoryStoreEliminator {
                 InstKind::Load(addr, PtrLocation::Memory) => {
                     match self.word_aligned_const(func, *addr) {
                         Some(slot) => live.add_addr(slot),
-                        None => live = MemLive::All,
+                        None => Self::mark_read(func, &mut live, *addr, Some(32)),
                     }
                 }
                 InstKind::Fmp | InstKind::Alloc { .. } => live.add_addr(EvmMemoryLayout::FMP_SLOT),
                 InstKind::SetFmp(_) => live.kill(EvmMemoryLayout::FMP_SLOT),
                 InstKind::Keccak256(offset, size) | InstKind::Log { offset, size, .. } => {
-                    Self::mark_read(func, &mut live, *offset, *size);
+                    Self::mark_read(func, &mut live, *offset, func.value_u64(*size));
                 }
                 // Byte stores never fully define a word (so cannot make an
                 // earlier store dead) and read nothing: leave the set as is.
                 InstKind::Store8(..) => {}
-                // Anything that may read or alias memory we cannot model
-                // precisely: assume it observes everything above.
-                _ if self.is_memory_or_gas_observer(func, inst_id) => live = MemLive::All,
-                _ => {}
+                // Any other instruction observes the memory its ModRef reads name;
+                // a write cannot make an earlier store observable.
+                _ => self.mark_instruction_reads(func, inst_id, &mut live),
             }
         }
 
         live
     }
 
-    /// Marks the word-aligned slots a constant memory read `[offset, offset +
-    /// size)` may observe as live; a non-constant or oversized range widens to
-    /// all-memory-live.
-    fn mark_read(func: &Function, live: &mut MemLive, offset: ValueId, size: ValueId) {
+    /// Marks the slots an instruction other than a store, load, or hash may observe as live.
+    ///
+    /// A gas observer, an internal call, and an instruction with an unknown read or a write of
+    /// unknown extent, which may allocate and so read the free-memory pointer, make all memory
+    /// live.
+    fn mark_instruction_reads(&self, func: &Function, inst_id: InstId, live: &mut MemLive) {
+        let effects = self.alias().instruction_mod_ref(func, inst_id);
+        if effects.observes_gas()
+            || effects.writes_anywhere(AddressSpace::Memory)
+            || matches!(
+                func.inst(inst_id).kind,
+                InstKind::ICall { function: Callee::Function(_), .. }
+            )
+        {
+            *live = MemLive::All;
+            return;
+        }
+        for &access in effects.reads() {
+            match access {
+                Access::Any(AddressSpace::Memory) => *live = MemLive::All,
+                Access::Location(Location::Memory(location)) => {
+                    let bound =
+                        AliasAnalysis::address_lower_bound(func, location.address, location.size);
+                    // Only an absolute address makes the size an exact extent.
+                    let size = location.address.as_absolute().and(location.size.as_const());
+                    Self::mark_range(live, bound, size);
+                }
+                Access::Any(_) | Access::Location(_) => {}
+            }
+        }
+    }
+
+    /// Marks the slots a read through `offset` observes as live: the words of `[offset, offset +
+    /// size)` for constants, otherwise every slot from the word holding the pointer's lower bound.
+    fn mark_read(func: &Function, live: &mut MemLive, offset: ValueId, size: Option<u64>) {
+        let bound = AliasAnalysis::read_lower_bound(func, offset);
+        // The size is exact only from a known start; an empty range reads nothing from any start.
+        let size = size.filter(|&size| size == 0 || func.value_u64(offset).is_some());
+        Self::mark_range(live, bound, size);
+    }
+
+    /// Marks a read starting at `start`, a lower bound unless `size` is known, as observing the
+    /// word-aligned slots it may cover. No bound or a huge range makes all memory live.
+    fn mark_range(live: &mut MemLive, start: Option<u64>, size: Option<u64>) {
         if matches!(live, MemLive::All) {
             return;
         }
-        let (Some(offset), Some(size)) = (func.value_u64(offset), func.value_u64(size)) else {
-            *live = MemLive::All;
-            return;
-        };
-        if size == 0 {
+        if size == Some(0) {
             return;
         }
-        let Some(end) = offset.checked_add(size) else {
+        let Some(start) = start else {
             *live = MemLive::All;
             return;
         };
-        let first = (offset / 32) * 32;
+        let Some(size) = size else {
+            live.add_from(start);
+            return;
+        };
+        let Some(end) = start.checked_add(size) else {
+            *live = MemLive::All;
+            return;
+        };
+        let first = (start / 32) * 32;
         // Bound the walk; a huge read is treated as observing all memory.
         if end.saturating_sub(first) > 32 * 256 {
             *live = MemLive::All;
@@ -1387,8 +1458,16 @@ impl MemoryStoreEliminator {
         scratch.replacements.clear();
         scratch.dead.clear();
 
+        // The free-memory-pointer word lives outside the slot map: a write through a heap pointer
+        // cannot reach it, so only a write that may touch it drops the word.
+        let fmp_key = MemAddrKey(AliasAnalysis::fmp_location().address);
+        let mut fmp_word = None;
+
         for &inst_id in &func.blocks[block_id].instructions {
             let inst = func.inst(inst_id);
+            if fmp_word.is_some() && self.alias().instruction_may_write_fmp(func, inst_id) {
+                fmp_word = None;
+            }
             match &inst.kind {
                 InstKind::Store(addr, value, PtrLocation::Memory) => {
                     if let Some(key) = self.mem_addr_key(func, *addr, 32) {
@@ -1401,10 +1480,12 @@ impl MemoryStoreEliminator {
                             scratch.stored_values.clear();
                             continue;
                         }
-                        scratch.stored_values.insert(
-                            key,
-                            mir_utils::resolve_replacement(*value, &scratch.replacements),
-                        );
+                        let value = mir_utils::resolve_replacement(*value, &scratch.replacements);
+                        if key == fmp_key {
+                            fmp_word = Some(value);
+                        } else {
+                            scratch.stored_values.insert(key, value);
+                        }
                     } else {
                         scratch.stored_values.clear();
                     }
@@ -1413,7 +1494,12 @@ impl MemoryStoreEliminator {
                     let Some(key) = self.mem_addr_key(func, *addr, 32) else {
                         continue;
                     };
-                    let Some(&stored_value) = scratch.stored_values.get(key) else {
+                    let stored_value = if key == fmp_key {
+                        fmp_word
+                    } else {
+                        scratch.stored_values.get(key).copied()
+                    };
+                    let Some(stored_value) = stored_value else {
                         continue;
                     };
                     // A pointer load of a stored word keeps its own type.
@@ -1875,6 +1961,8 @@ impl MemoryStoreEliminator {
                     // An access that may leave its allocation names it by its pointer, and
                     // reaches only the objects above it.
                     MemoryBase::Value(pointer) => self.allocation_site(func, pointer),
+                    // A read at the free-memory pointer may reach any object allocated after it.
+                    MemoryBase::FreeMemory(_) => None,
                 },
                 Access::Any(_) | Access::Location(_) => continue,
             };
