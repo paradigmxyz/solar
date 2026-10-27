@@ -1958,9 +1958,14 @@ impl MemoryStoreEliminator {
                         }
                         None
                     }
-                    // An access that may leave its allocation names it by its pointer, and
-                    // reaches only the objects above it.
+                    // An access that may leave its allocation names it by its pointer, or by
+                    // `FreeMemory` for a unique one, and reaches only the objects above it.
                     MemoryBase::Value(pointer) => self.allocation_site(func, pointer),
+                    MemoryBase::FreeMemory(site)
+                        if matches!(func.inst(site).kind, InstKind::Alloc { .. }) =>
+                    {
+                        Some(site)
+                    }
                     // A read at the free-memory pointer may reach any object allocated after it.
                     MemoryBase::FreeMemory(_) => None,
                 },

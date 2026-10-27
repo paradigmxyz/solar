@@ -124,7 +124,8 @@ use crate::{
         ValueId,
         analysis::{
             Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
-            Location, LocationSize, MemoryAddress, MemoryCallSummaries, MemoryLocation, ModRef,
+            Location, LocationSize, MemoryAddress, MemoryBase, MemoryCallSummaries, MemoryLocation,
+            ModRef,
         },
         pass::{MirPass, run_function_pass_with_alias_and_cfg, run_function_pass_with_cfg},
         utils as mir_utils,
@@ -1512,9 +1513,19 @@ impl<'a> Eliminator<'a> {
         if matches!(written.size, LocationSize::Const(0)) {
             return;
         }
-        let mut written_group = written.address;
-        written_group.offset = 0;
         for (&group, words) in &index.memory_words {
+            // An access beyond the extent of a unique allocation starts at its offset in the
+            // allocation's own words, so the two names share one offset space.
+            let mut written_group = written.address;
+            if let (MemoryBase::Allocation(site), MemoryBase::FreeMemory(fresh))
+            | (MemoryBase::FreeMemory(site), MemoryBase::Allocation(fresh)) =
+                (group.base, written.address.base)
+                && site == fresh
+            {
+                written_group.base = group.base;
+            }
+            let written = MemoryLocation::new(written_group, written.size);
+            written_group.offset = 0;
             if group == written_group {
                 // Alias analysis conservatively treats a word whose end
                 // overflows `u64` as overlapping every access on this base.

@@ -185,19 +185,17 @@ bb12 [continuation]:
   gt
   push bb3
   jumpi
+  dup 3
+  dup 3
   push 32
-  dup 2
-  add
-  swap 3
-  swap 2
-  swap 1
-  swap 3
-  calldatacopy
-  dup 1
-  push 64
   dup 4
   add
+  calldatacopy
+  push 64
+  dup 5
+  add
   mstore
+  pop
   push 96
   dup 5
   add
@@ -286,7 +284,6 @@ bb15 [loop]:
   pop
   pop
   pop
-  mload
   dup 1
   push 0x4189374bc6a7ef9db22d0e5604189374bc6a7ef9db22d0e5604189374bc6a7
   lt
