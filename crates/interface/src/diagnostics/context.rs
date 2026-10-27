@@ -35,6 +35,11 @@ impl DeferredDiagnostics {
         self.0.append(&mut other.0);
     }
 
+    /// Returns whether there are no diagnostics.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     /// Stably sorts the diagnostics by the key `f` computes for each.
     pub fn sort_by_cached_key<K: Ord>(&mut self, f: impl FnMut(&Diag) -> K) {
         self.0.sort_by_cached_key(f);
@@ -422,9 +427,11 @@ impl DiagCtxt {
         I: ParallelIterator,
         R: Send,
     {
-        let (results, batches) = iter.map(|item| self.defer(|| f(item))).unzip::<_, _, _, Vec<_>>();
+        let outputs = iter.map(|item| self.defer(|| f(item))).collect::<Vec<_>>();
+        let mut results = Vec::with_capacity(outputs.len());
         let mut deferred = DeferredDiagnostics::default();
-        for batch in batches {
+        for (result, batch) in outputs {
+            results.push(result);
             deferred.append(batch);
         }
         (results, deferred)

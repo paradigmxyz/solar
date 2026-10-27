@@ -1,0 +1,226 @@
+error: types containing mappings cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f1(S storage) public {}
+   ╰╴                ━
+
+error: invalid data location `storage`
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f1(S storage) public {}
+   │                 ━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` or `calldata` for public function parameter, but got `storage`
+
+error: types containing mappings cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f2(S storage) public {}
+   ╰╴                ━
+
+error: invalid data location `storage`
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f2(S storage) public {}
+   │                 ━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` or `calldata` for public function parameter, but got `storage`
+
+error: types containing mappings cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f3(S storage) public {}
+   ╰╴                ━
+
+error: invalid data location `storage`
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f3(S storage) public {}
+   │                 ━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` or `calldata` for public function parameter, but got `storage`
+
+error: types containing mappings cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f4(S storage) public {}
+   ╰╴                ━
+
+error: invalid data location `storage`
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f4(S storage) public {}
+   │                 ━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` or `calldata` for public function parameter, but got `storage`
+
+error: types containing mappings cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f5(S storage) public {}
+   ╰╴                ━
+
+error: invalid data location `storage`
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f5(S storage) public {}
+   │                 ━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` or `calldata` for public function parameter, but got `storage`
+
+error: types containing mappings cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f6(S storage) public {}
+   ╰╴                ━
+
+error: invalid data location `storage`
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f6(S storage) public {}
+   │                 ━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` or `calldata` for public function parameter, but got `storage`
+
+error: types containing mappings cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f7(S storage) public {}
+   ╰╴                ━
+
+error: invalid data location `storage`
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f7(S storage) public {}
+   │                 ━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` or `calldata` for public function parameter, but got `storage`
+
+error: types containing mappings cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f8(S storage) public {}
+   ╰╴                ━
+
+error: invalid data location `storage`
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f8(S storage) public {}
+   │                 ━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` or `calldata` for public function parameter, but got `storage`
+
+error: types containing mappings cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f9(S storage) public {}
+   ╰╴                ━
+
+error: invalid data location `storage`
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f9(S storage) public {}
+   │                 ━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` or `calldata` for public function parameter, but got `storage`
+
+error: types containing mappings cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f10(S storage) public {}
+   ╰╴                 ━
+
+error: invalid data location `storage`
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f10(S storage) public {}
+   │                  ━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` or `calldata` for public function parameter, but got `storage`
+
+error: types containing mappings cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f11(S storage) public {}
+   ╰╴                 ━
+
+error: invalid data location `storage`
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f11(S storage) public {}
+   │                  ━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` or `calldata` for public function parameter, but got `storage`
+
+error: types containing mappings cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f12(S storage) public {}
+   ╰╴                 ━
+
+error: invalid data location `storage`
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f12(S storage) public {}
+   │                  ━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` or `calldata` for public function parameter, but got `storage`
+
+error: types containing mappings cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f13(S storage) public {}
+   ╰╴                 ━
+
+error: invalid data location `storage`
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f13(S storage) public {}
+   │                  ━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` or `calldata` for public function parameter, but got `storage`
+
+error: types containing mappings cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f14(S storage) public {}
+   ╰╴                 ━
+
+error: invalid data location `storage`
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f14(S storage) public {}
+   │                  ━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` or `calldata` for public function parameter, but got `storage`
+
+error: types containing mappings cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f15(S storage) public {}
+   ╰╴                 ━
+
+error: invalid data location `storage`
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f15(S storage) public {}
+   │                  ━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` or `calldata` for public function parameter, but got `storage`
+
+error: types containing mappings cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f16(S storage) public {}
+   ╰╴                 ━
+
+error: invalid data location `storage`
+   ╭▸ ROOT/tests/ui/typeck/parallel_item_types_ties.sol:LL:CC
+   │
+LL │     function f16(S storage) public {}
+   │                  ━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` or `calldata` for public function parameter, but got `storage`
+
+error: aborting due to 32 previous errors
+

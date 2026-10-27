@@ -34,15 +34,16 @@ pub(crate) fn check(gcx: Gcx<'_>) {
     let dcx = gcx.dcx();
     let mut typeck_results = TypeckResults::default();
     let mut contract_diagnostics = DeferredDiagnostics::default();
-    let mut event_diagnostics = DeferredDiagnostics::default();
+    let mut event_error_diagnostics = DeferredDiagnostics::default();
     let mut unit_diagnostics = DeferredDiagnostics::default();
     parallel!(
         gcx.sess,
         contract_diagnostics =
             dcx.par_defer(gcx.hir.par_contract_ids(), |id| check_contract(gcx, id)).1,
         {
-            event_diagnostics = dcx.par_defer(gcx.hir.par_event_ids(), |id| check_event(gcx, id)).1;
-            event_diagnostics
+            event_error_diagnostics =
+                dcx.par_defer(gcx.hir.par_event_ids(), |id| check_event(gcx, id)).1;
+            event_error_diagnostics
                 .append(dcx.par_defer(gcx.hir.par_error_ids(), |id| check_error(gcx, id)).1);
         },
         {
@@ -71,7 +72,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
         },
     );
     // A sequential run executes the spawned arms before the first.
-    dcx.emit_deferred(event_diagnostics);
+    dcx.emit_deferred(event_error_diagnostics);
     dcx.emit_deferred(unit_diagnostics);
     dcx.emit_deferred(contract_diagnostics);
     gcx.set_typeck_results(typeck_results);
