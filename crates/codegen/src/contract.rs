@@ -49,6 +49,8 @@ pub struct ContractArtifact {
     /// Captured MIR, built under `-O none` when no explicit pipeline is configured and
     /// post-pipeline otherwise.
     pub mir: Option<Module>,
+    /// Textual input to an optional code generation backend.
+    pub backend_ir: Option<String>,
     /// Final deployment-prefix EVM IR immediately before byte emission.
     pub deployment_evm_ir: Option<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.
@@ -415,6 +417,7 @@ struct ScheduledContract<'gcx> {
     /// Code generation waiting for linking, runtime assembly, and deployment code, if the
     /// contract has code.
     codegen: Option<Box<EvmCodegen<'gcx>>>,
+    alternative: bool,
     /// MIR captured before the optimization pipeline.
     built_mir: Option<Module>,
 }
@@ -491,15 +494,21 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             && matches!(gcx.sess.opts.optimization, OptimizationMode::None)
             && gcx.sess.opts.unstable.mir_pipeline.is_none();
         let built_mir = (capture_built && needs_backend).then(|| module.clone());
+        let alternative =
+            needs_backend && gcx.sess.opts.codegen_backend != solar_config::CodegenBackend::Evm;
         let codegen = if needs_backend {
             module.set_debug_info_tracked(captures.debug_info.contains(contract_id));
-            let mut codegen = Box::new(EvmCodegen::new(gcx));
-            codegen.set_capture_mir(capture_mir && !capture_built);
-            codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
-            codegen.set_capture_debug_info(captures.debug_info.contains(contract_id));
-            let scheduled = codegen.schedule_module(&mut module);
-            gcx.dcx().has_errors()?;
-            scheduled.then_some(codegen)
+            if gcx.sess.opts.codegen_backend != solar_config::CodegenBackend::Evm {
+                None
+            } else {
+                let mut codegen = Box::new(EvmCodegen::new(gcx));
+                codegen.set_capture_mir(capture_mir && !capture_built);
+                codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
+                codegen.set_capture_debug_info(captures.debug_info.contains(contract_id));
+                let scheduled = codegen.schedule_module(&mut module);
+                gcx.dcx().has_errors()?;
+                scheduled.then_some(codegen)
+            }
         } else {
             if capture_mir && !capture_built {
                 let _changed = run_pipeline(gcx, &mut module, None);
@@ -507,7 +516,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             }
             None
         };
-        Ok(ScheduledContract { module, codegen, built_mir })
+        Ok(ScheduledContract { module, codegen, alternative, built_mir })
     }
 
     /// Supplies the embedded bytecode of a scheduled contract and completes its artifact.
@@ -523,7 +532,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             contract = %gcx.contract_fully_qualified_name(contract_id)
         )
         .entered();
-        let ScheduledContract { module, codegen, built_mir } = scheduled;
+        let ScheduledContract { mut module, codegen, alternative, built_mir } = scheduled;
         let children = graph.dependencies[contract_id]
             .iter()
             .map(|dependency| {
@@ -558,6 +567,11 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
         let artifact = match codegen {
             Some(mut codegen) => {
                 let artifact = codegen.finish_module(&module, &children);
+                gcx.dcx().has_errors()?;
+                artifact
+            }
+            None if alternative => {
+                let artifact = crate::backend::alternative::compile(gcx, &mut module, &children);
                 gcx.dcx().has_errors()?;
                 artifact
             }
@@ -634,6 +648,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             deployment_link_references,
             runtime_link_references,
             mir,
+            backend_ir: artifact.backend_ir,
             deployment_evm_ir: artifact.deployment_evm_ir,
             runtime_evm_ir: artifact.runtime_evm_ir,
             deployment_debug_info: artifact.deployment_debug_info,
