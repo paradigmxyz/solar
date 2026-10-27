@@ -12,6 +12,10 @@ llm-optimize Storage @move: round 1: rejected at equivalence: storage slot 0x7fb
   on arg0 = 0x1000000000000000000000000000000000000000, arg1 = 0x1e0, free memory pointer 0x1c0, `caller` = 0x1000000000000000000000000000000000000000, storage slot 0x7fb5b859bc32a86610429e8fee7ef15e8d521071b68b56d3b024714ecaf3fddd = 0x1e0
 llm-optimize Storage @move: round 2: nothing cheaper
 llm-optimize Storage @locked: not offered: never sees its `tload` in bb0 come out nonzero in a test that does not revert
+llm-optimize Storage @burn: offered at 58 gas, 29 bytes
+llm-optimize Storage @burn: round 1: rejected at equivalence: the original writes storage slot 0x9, which the candidate never writes; the write fails in a static call even when it stores what the slot held
+  on arg0 = 0x0, free memory pointer 0x260, storage slot 0x9 = 0x9cd40248fc521669d70377be561511b4569212a67b576b3b9c4e8041a6d20108
+llm-optimize Storage @burn: round 2: nothing cheaper
 - // === ROOT/tests/ui/codegen/mir/llm-optimize/storage.mir (before llm-optimize) ===
 + // === ROOT/tests/ui/codegen/mir/llm-optimize/storage.mir (after llm-optimize) ===
   @module Storage
@@ -24,6 +28,7 @@ llm-optimize Storage @locked: not offered: never sees its `tload` in bb0 come ou
       icall @credit, v2, v1
       icall @move, v2, v1
       icall @locked, v1
+      icall @burn, v1
       stop
   }
   
@@ -75,6 +80,17 @@ llm-optimize Storage @locked: not offered: never sees its `tload` in bb0 come ou
       tstore 0, 0
       ret
     bb1:
+      revert 0, 0
+  }
+  
+  fn @burn(arg0: i256) {
+    bb0:
+      v0 = lt arg0, 100
+      jumpi v0, bb1, bb2
+    bb2:
+      ret
+    bb1:
+      sstore 9, arg0
       revert 0, 0
   }
   

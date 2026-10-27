@@ -182,7 +182,7 @@ Each candidate goes through these stages, and the verdict names the one that rej
 4. **Equivalence.** The interpreter runs the original and the candidate on the same inputs. The
    candidate must end the same way (return the same words, revert or return the same data,
    stop, or reach `invalid`), write only memory bytes the original writes, and, when the
-   original returns, leave those bytes the same. When the original ends without reverting, the
+   original returns, leave those bytes the same. When the original returns, reverts, or stops, the
    candidate must also write exactly the storage and transient storage slots the original writes,
    leave each with the same value, and log the same events in the same order. A write fails in a
    static call whatever it stores, so a write the original does not make would fail where the

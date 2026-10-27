@@ -21,7 +21,7 @@ ignored; keep it short.
 - Memory: write only bytes the original writes, and when the function returns, leave them with
   the contents the original leaves. Memory the function does not write holds unknown data, so
   the result must not depend on reading it.
-- Storage and events: when the function returns or ends the call without reverting, write exactly
+- Storage and events: when the function returns, reverts, or stops, write exactly
   the storage and transient storage slots the original writes, even a write that stores the value
   a slot already holds, since any write fails in a static call; leave each of them with the value
   the original leaves, and log the same events, in the same order, with the same topics and data.

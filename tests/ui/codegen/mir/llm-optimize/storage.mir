@@ -2,7 +2,8 @@
 //@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/storage.script
 // Storage, transient storage, logs, and context reads run in the tests, on storage and context
 // derived from each input. A candidate must leave every slot the original writes the same, write
-// no other slot, and log the same events; storage accesses cost what the slots' states cost.
+// no other slot, and log the same events, also when the original reverts, since any write fails
+// in a static call; storage accesses cost what the slots' states cost.
 @module Storage
 @phase lowered
 fn @main() [entry] {
@@ -13,6 +14,7 @@ fn @main() [entry] {
     icall @credit, v2, v1
     icall @move, v2, v1
     icall @locked, v1
+    icall @burn, v1
     stop
 }
 
@@ -63,5 +65,16 @@ fn @locked(arg0: i256) {
     tstore 0, 1
     sstore 5, arg0
     tstore 0, 0
+    ret
+}
+
+fn @burn(arg0: i256) {
+  bb0:
+    v0 = lt arg0, 100
+    jumpi v0, bb1, bb2
+  bb1:
+    sstore 9, arg0
+    revert 0, 0
+  bb2:
     ret
 }

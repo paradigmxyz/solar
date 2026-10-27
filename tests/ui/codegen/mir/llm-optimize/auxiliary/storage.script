@@ -1,7 +1,8 @@
 Candidates for `storage.mir`: for `credit`, one without the event, one that also writes another
 slot, and one logging the new balance without reading it back; for `move`, one that reads the
 receiver's balance before writing the sender's, which differs when the caller pays itself; for
-`locked`, one that keeps the lock and one that drops the lock write no read observes.
+`locked`, one that keeps the lock and one that drops the lock write no read observes; for `burn`,
+one that drops the write before a revert.
 
 --- function credit
 --- candidate
@@ -93,5 +94,17 @@ fn @locked(arg0: i256) {
   bb2:
     sstore 5, arg0
     tstore 0, 0
+    ret
+}
+
+--- function burn
+--- candidate
+fn @burn(arg0: i256) {
+  bb0:
+    v0 = lt arg0, 100
+    jumpi v0, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
     ret
 }

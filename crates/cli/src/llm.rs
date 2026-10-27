@@ -618,20 +618,22 @@ impl Chat for AgentChat {
                 }
                 turn.await
             }
-            .await;
+            .await
+            .map(|result| {
+                let usage = result.usage();
+                let tokens = usage.map_or(0, |usage| usage.total_tokens());
+                let nano_usd = usage
+                    .and_then(|usage| usage.estimated_cost())
+                    .map(|cost| cost.amount().nano_usd());
+                // Recorded while the permit is held, so the next turn's check sees it.
+                budget.record(tokens, nano_usd);
+                Turn { tokens, nano_usd, text: result.into_final_message() }
+            });
             (Some(result), events)
         })?;
         self.events = Some(events);
-        let Some(result) = result else { return Err(LlmError::new(BUDGET_SPENT)) };
-        let result = result.map_err(|error| LlmError::new(error.to_string()))?;
-        let usage = result.usage();
-        Ok(Turn {
-            tokens: usage.map_or(0, |usage| usage.total_tokens()),
-            nano_usd: usage
-                .and_then(|usage| usage.estimated_cost())
-                .map(|cost| cost.amount().nano_usd()),
-            text: result.into_final_message(),
-        })
+        let Some(turn) = result else { return Err(LlmError::new(BUDGET_SPENT)) };
+        turn.map_err(|error| LlmError::new(error.to_string()))
     }
 }
 
@@ -665,28 +667,27 @@ impl Chat for HttpChat {
         let reply = self.transcript.reply_stream();
         let (client, budget, voice) =
             (Arc::clone(&self.client), Arc::clone(shared), Arc::clone(voice));
-        let reply = shared
+        let (reply, usage, nano_usd) = shared
             .run(async move {
                 let _permit = budget.turns.acquire().await;
                 // Other turns may have spent the budget while this one waited for its permit.
                 if !budget.affordable() {
                     return Err(BUDGET_SPENT.to_string());
                 }
-                client
+                let reply = client
                     .send(&body, reply, |delta| voice.stream(&delta), |note| voice.say(note))
-                    .await
+                    .await?;
+                // A reply that is no answer, such as a refusal, still used the tokens it
+                // reports. They are recorded while the permit is held, so the next turn's check
+                // sees them.
+                let usage = Transcript::usage(client.protocol(), &reply);
+                let nano_usd = client.prices.map(|prices| prices.cost(usage));
+                budget.record(usage.total(), nano_usd);
+                Ok((reply, usage, nano_usd))
             })?
             .map_err(LlmError::new)?;
-        // A reply that is no answer, such as a refusal, still used the tokens it reports.
-        let usage = self.transcript.usage(&reply);
-        let nano_usd = self.client.prices.map(|prices| prices.cost(usage));
-        match self.transcript.push_reply(&reply) {
-            Ok(text) => Ok(Turn { text, tokens: usage.total(), nano_usd }),
-            Err(error) => {
-                shared.record(usage.total(), nano_usd);
-                Err(LlmError::new(error))
-            }
-        }
+        let text = self.transcript.push_reply(&reply).map_err(LlmError::new)?;
+        Ok(Turn { text, tokens: usage.total(), nano_usd })
     }
 }
 
@@ -776,7 +777,6 @@ impl Conversation {
         let turn = self.chat.turn(&self.shared, prompt, &self.voice);
         self.voice.flush();
         let Turn { text, tokens, nano_usd } = turn?;
-        self.shared.record(tokens, nano_usd);
         let mut message =
             format!("replied in {:.1} s using {tokens} tokens", start.elapsed().as_secs_f64());
         if let Some(nano_usd) = nano_usd {

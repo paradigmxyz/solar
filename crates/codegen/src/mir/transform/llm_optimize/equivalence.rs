@@ -22,11 +22,11 @@
 //!   original never writes may belong to another function; a scratch word may be one a caller keeps
 //!   across the call.
 //! - When the original returns, the bytes it wrote must end with the same contents.
-//! - When the original returns or ends the call without reverting, the candidate must write exactly
-//!   the persistent and transient storage slots the original writes, each ending with the same
-//!   value, and both must log the same events in the same order. A write fails in a static call
-//!   whatever it stores, so one the original does not make would fail where the original succeeds,
-//!   and one it drops would succeed where the original fails.
+//! - When the original returns, reverts, or stops, the candidate must write exactly the persistent
+//!   and transient storage slots the original writes, each ending with the same value, and both
+//!   must log the same events in the same order. A write fails in a static call whatever it stores,
+//!   so one the original does not make would fail where the original succeeds, and one it drops
+//!   would succeed where the original fails.
 //!
 //! The inputs must also exercise the code. Every reachable block must run to its terminator, every
 //! decision must come out both true and false, and every other value must come out nonzero, on
@@ -571,7 +571,11 @@ impl<'a> Tests<'a> {
                 candidate.memory.word(word)
             )));
         }
-        if matches!(original.outcome, Outcome::Return(_) | Outcome::ReturnData(_) | Outcome::Stop) {
+        // A revert discards these writes, but a write still fails in a static call.
+        if matches!(
+            original.outcome,
+            Outcome::Return(_) | Outcome::ReturnData(_) | Outcome::Stop | Outcome::Revert(_)
+        ) {
             let world = World::new(input, &self.palette);
             let (original, candidate) = (&original.effects, &candidate.effects);
             compare_slots("storage", &original.storage, &candidate.storage, |slot| {

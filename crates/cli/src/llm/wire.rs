@@ -117,10 +117,10 @@ impl Transcript {
     }
 
     /// Returns the tokens `reply` used, whether or not it holds a usable answer.
-    pub(super) fn usage(&self, reply: &Value) -> Usage {
+    pub(super) fn usage(protocol: Protocol, reply: &Value) -> Usage {
         let usage = &reply["usage"];
         let tokens = |field: &str| usage[field].as_u64().unwrap_or(0);
-        match self.protocol {
+        match protocol {
             Protocol::Messages => Usage {
                 input: tokens("input_tokens"),
                 output: tokens("output_tokens"),
@@ -457,7 +457,7 @@ mod tests {
                 "cache_read_input_tokens": 13,
             },
         });
-        let usage = transcript.usage(&reply);
+        let usage = Transcript::usage(Protocol::Messages, &reply);
         let text = transcript.push_reply(&reply).unwrap();
         assert_eq!(text, "ab");
         assert_eq!(usage, Usage { input: 5, output: 7, cache_read: 13, cache_write: 11 });
@@ -537,7 +537,7 @@ mod tests {
         });
         assert!(transcript.push_reply(&refused).is_err());
         assert_eq!(
-            transcript.usage(&refused),
+            Transcript::usage(Protocol::Messages, &refused),
             Usage { input: 3, output: 1, cache_read: 0, cache_write: 0 }
         );
         assert!(transcript.push_reply(&json!({"error": {}})).is_err());
@@ -558,7 +558,7 @@ mod tests {
             }],
             "usage": {"prompt_tokens": 20, "completion_tokens": 7, "prompt_cache_hit_tokens": 16},
         });
-        let usage = transcript.usage(&reply);
+        let usage = Transcript::usage(Protocol::ChatCompletions, &reply);
         let text = transcript.push_reply(&reply).unwrap();
         assert_eq!(text, "a");
         assert_eq!(usage, Usage { input: 4, output: 7, cache_read: 16, cache_write: 0 });
@@ -571,7 +571,7 @@ mod tests {
                 "prompt_tokens_details": {"cached_tokens": 30},
             },
         });
-        let usage = transcript.usage(&reply);
+        let usage = Transcript::usage(Protocol::ChatCompletions, &reply);
         let text = transcript.push_reply(&reply).unwrap();
         assert_eq!(text, "");
         assert_eq!(usage, Usage { input: 0, output: 1, cache_read: 20, cache_write: 0 });
@@ -768,7 +768,7 @@ data: [DONE]
 "#]]
         );
         let mut transcript = Transcript::new(Protocol::ChatCompletions, "m".into(), None);
-        let usage = transcript.usage(&reply);
+        let usage = Transcript::usage(Protocol::ChatCompletions, &reply);
         let text = transcript.push_reply(&reply).unwrap();
         assert_eq!(
             (text.as_str(), usage),
