@@ -18,7 +18,10 @@
 
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
-    mir::{BlockId, Function, Op, Terminator, Value, ValueId, memory::EvmMemoryLayout},
+    mir::{
+        BlockId, Function, Op, Terminator, Value, ValueId, analysis::AddressSpace,
+        memory::EvmMemoryLayout,
+    },
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -550,6 +553,17 @@ impl Target {
     /// warmth; unknown opcodes are free.
     pub(crate) fn opcode_gas_at(&self, opcode: u8, warmth: Warmth) -> u32 {
         op::definition(opcode).map_or(0, |def| def.gas.gas_at(self.evm_version, warmth))
+    }
+
+    /// Static gas of reading again a location in `space` that an earlier access already touched:
+    /// a warm storage slot, a transient slot, a memory word, or an immutable's pushed constant.
+    pub(crate) fn repeated_read_gas(&self, space: AddressSpace) -> u32 {
+        match space {
+            AddressSpace::Storage => self.opcode_gas_at(op::SLOAD, Warmth::Warm),
+            AddressSpace::Transient => self.opcode_gas(op::TLOAD),
+            AddressSpace::Memory => self.opcode_gas(op::MLOAD),
+            AddressSpace::Immutable => self.opcode_gas(op::PUSH32),
+        }
     }
 
     /// Cost of one opcode with its immediate, before dynamic components.

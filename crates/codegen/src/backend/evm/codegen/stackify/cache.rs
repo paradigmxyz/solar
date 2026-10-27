@@ -66,6 +66,13 @@ impl PlanCache {
         self.shard(&key).0.write().entry(key.bytes.into()).or_insert_with(|| Arc::new(plan));
     }
 
+    /// Frees every stored plan. Later lookups miss and plan again.
+    pub(in crate::backend::evm) fn clear(&self) {
+        for shard in &self.0 {
+            *shard.0.write() = FxHashMap::default();
+        }
+    }
+
     fn shard(&self, key: &PlanKey) -> &Shard {
         // The shard takes the hash's high bits, as the table indexes by the low ones.
         let hash = FxBuildHasher.hash_one(&key.bytes[..]);
