@@ -22,8 +22,8 @@
 //@ run-call: 0xdd455ef00000000000000000000000000000000000000000000000000000000000000005000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000040 => 0xb5a11adf3f4c545585de66ee565ba0cab1cbedf12ce19015194e5a2320dec356
 //@ run-call: 0xdfd2c4db000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000003f => 0xb5a11adf3f4c545585de66ee565ba0cab1cbedf12ce19015194e5a2320dec356
 // An edge that proves a calldata-derived address or size, or a value one is computed from,
-// equal to a constant must not turn it into a fixed memory image: spill slots live below the heap, and only a dynamic
-// raw memory access moves them out of the way of the allocation after the guard.
+// equal to a constant folds it into a fixed address or size. Spill slots live below the heap,
+// and the backend must still keep them out of the way of the allocation after the guard.
 contract EdgeEqualityMemory {
     function sized(uint256 a, uint256 flag, uint256) external pure returns (bytes32 result) {
         bytes32 h0 = keccak256(abi.encodePacked(a, uint256(0)));

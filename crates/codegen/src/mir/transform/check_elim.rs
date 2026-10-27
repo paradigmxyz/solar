@@ -50,14 +50,11 @@
 //! counting its reads above the check too: the constant replaces a stack slot and a `DUP` at each
 //! read, but at a single read it costs what the value does and only makes sites that were
 //! identical, such as inlined copies of one guard body, differ for the tail merging after this
-//! pass. Raw memory addresses and sizes, arguments of internal calls, returned values, and the pure
-//! expressions that compute them from a value some branch compares with an immediate keep their
-//! values, wherever the walk finds the comparison: frame and heap layout treat constant addresses
-//! as fixed images, so a constant would move spill slots into the heap, and inlining and
-//! specialization later move a call's constant arguments, and a callee's returned values, into
-//! memory operands. An outer edge's constant wins over a contradicting inner one, whose edge is
-//! dead. Phi operands and terminators keep their values. Removing a redundant mask replaces its
-//! result by its input.
+//! pass. Memory addresses and sizes, call arguments, and returned values take constants like any
+//! other operand: frame layout keeps spill slots clear of a constant address or size, and the
+//! backend protects them from a write it cannot place, so nothing needs to hide them. An outer
+//! edge's constant wins over a contradicting inner one, whose edge is dead. Phi operands and
+//! terminators keep their values. Removing a redundant mask replaces its result by its input.
 //!
 //! Before the dominator walk, a bounded forward analysis carries the intersection
 //! of relational facts and the union of ranges across predecessor edges. Phi
@@ -202,8 +199,8 @@ use crate::{
     backend::evm::op,
     mir::{
         ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionBuilder,
-        FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module,
-        RawMemorySize, Terminator, TypeSize, Value, ValueId, ValueLayout,
+        FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module, Terminator,
+        TypeSize, Value, ValueId, ValueLayout,
         analysis::{
             CallGraphInfo, CfgInfo, aborts, cold_functions,
             integers::{integer_bits, integer_mask, integer_max},
@@ -931,11 +928,6 @@ struct CheckEliminator<'a> {
     scope: Option<BlockId>,
     /// Blocks of the instructions reading each value, built on the first query.
     readers: Option<IndexLists<ValueId, BlockId>>,
-
-    /// Instructions that compute a raw memory address or size, an internal call argument, or a
-    /// returned value from a value a branch compares with an immediate, built when the first
-    /// equality reaches an instruction.
-    memory_feeds: Option<FxHashSet<InstId>>,
     /// Instructions that read an equal value, with the operands that become its constant.
     equality_uses: Vec<(InstId, Replacements)>,
     /// Semantic checked operations proven not to fail, with the plain operation each becomes.
@@ -1005,7 +997,6 @@ impl<'a> CheckEliminator<'a> {
         selected: Option<(&DenseBitSet<BlockId>, &DenseBitSet<FunctionId>)>,
     ) -> usize {
         self.stats = CheckElimStats::default();
-        self.memory_feeds = None;
         self.strict_lower_bounds = None;
         self.relation_index = None;
         self.reverse_index = None;
@@ -1923,21 +1914,6 @@ impl<'a> CheckEliminator<'a> {
             }
         });
         if replaced.is_empty() || matches!(kind, InstKind::Phi(_)) {
-            return;
-        }
-        // Inlining and specialization later move a constant argument into the callee's memory
-        // operands, and a returned value into the caller's.
-        if matches!(kind, InstKind::ICall { function: Callee::Function(_), .. })
-            || self.memory_feeds.get_or_insert_with(|| memory_feeds(func)).contains(&id)
-        {
-            return;
-        }
-        // Frame and heap layout treat constant raw memory addresses and sizes as fixed images.
-        let mut raw_memory = kind.clone();
-        raw_memory.visit_raw_memory_operands_mut(|operand| {
-            replaced.retain(|&mut (from, _)| from != *operand);
-        });
-        if replaced.is_empty() {
             return;
         }
         let evaluates = eval::eval_typed_inst(func, kind, |operand| {
@@ -2991,79 +2967,6 @@ impl<'a> CheckEliminator<'a> {
             self.assume(func, condition, then_block == block, MAX_DEPTH);
         }
     }
-}
-
-/// The instructions that compute a raw memory address or size, an internal call argument, or a
-/// returned value, through pure operations, when a value that a branch compares with an
-/// immediate feeds them. Later passes fold more than constants: a product with a zero, a select
-/// or phi whose arms agree, a callee inlined into its caller. A constant substituted anywhere in
-/// such an expression can make the operand constant, and frame and heap layout treat constant
-/// ones as fixed images. The set does not depend on the walk's scopes or order.
-fn memory_feeds(func: &Function) -> FxHashSet<InstId> {
-    let mut compared = FxHashSet::default();
-    for id in func.instructions() {
-        if let InstKind::Eq(a, b) | InstKind::Ne(a, b) | InstKind::Sub(a, b) | InstKind::Xor(a, b) =
-            func.inst(id).kind
-        {
-            match (func.value_u256(a).is_some(), func.value_u256(b).is_some()) {
-                (true, false) => compared.insert(b),
-                (false, true) => compared.insert(a),
-                _ => false,
-            };
-        }
-    }
-    let mut feeds = FxHashSet::default();
-    if compared.is_empty() {
-        return feeds;
-    }
-    let mut sinks = Vec::new();
-    for id in func.instructions() {
-        let kind = &func.inst(id).kind;
-        kind.visit_raw_memory(|_, address, size| {
-            sinks.push(address);
-            if let RawMemorySize::Value(size) = size {
-                sinks.push(size);
-            }
-        });
-        if let InstKind::ICall { function: Callee::Function(_), args } = kind {
-            sinks.extend(args.iter().copied());
-        }
-    }
-    for block in &func.blocks {
-        if let Some(terminator @ (Terminator::Return { .. } | Terminator::TailCall { .. })) =
-            &block.terminator
-        {
-            terminator.visit_operands(|operand| sinks.push(operand));
-        }
-    }
-    // The sink that last reached each value, one past its index.
-    let mut visited = index_vec![0usize; func.num_values()];
-    let mut expression = Vec::new();
-    let mut pending = Vec::new();
-    for (index, sink) in sinks.into_iter().enumerate() {
-        let mut fed = false;
-        expression.clear();
-        pending.push(sink);
-        while let Some(value) = pending.pop() {
-            if func.value_u256(value).is_some()
-                || std::mem::replace(&mut visited[value], index + 1) > index
-            {
-                continue;
-            }
-            fed |= compared.contains(&value);
-            let Value::Inst(id) = func.value(value) else { continue };
-            let inst = func.inst(*id);
-            if inst.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure) {
-                continue;
-            }
-            expression.push(*id);
-            inst.kind.visit_operands(|operand| pending.push(operand));
-        }
-        if fed {
-            feeds.extend(expression.iter().copied());
-        }
-    }
-    feeds
 }
 
 /// The blocks of the instructions reading each value, phis aside.

@@ -17,11 +17,12 @@ contract EdgeEquality {
         return size * 2 + (32 - size) + 1;
     }
 
-    // The required length is 64, so the stored length takes the constant. The sizes that
-    // reach a raw memory operand stay symbolic.
+    // The required length is 64, so the copy size, the stored length, and the padded sizes
+    // take the constant.
     // CHECK-LABEL: fn @pack
-    // CHECK: mcopy {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: mcopy {{v[0-9]+}}, {{v[0-9]+}}, 64
     // CHECK: mstore {{v[0-9]+}}, 64
+    // CHECK: returndata {{v[0-9]+}}, 160
     function pack(bytes memory data) external pure returns (bytes memory) {
         uint256 size = data.length;
         require(size == 64);

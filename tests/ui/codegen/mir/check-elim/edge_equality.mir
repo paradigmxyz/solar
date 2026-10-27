@@ -199,14 +199,13 @@ fn @unfailing(arg0: i256) {
     returndata 0, 0
 }
 
-// Raw memory addresses and sizes stay symbolic, however often they are read: frame and
-// heap layout treat constant ones as fixed images. A stored value takes the constant.
+// Raw memory addresses and sizes take the constant like any other operand: frame layout
+// keeps spills clear of a constant address or size, and the backend protects them from a
+// write it cannot place.
 // CHECK-LABEL: {{^[ +].*}}fn @raw_memory{{[( ]}}
-// CHECK: - mstore 0, arg0
-// CHECK-NEXT: - mstore 32, arg0
-// CHECK-NEXT: + mstore 0, 64
-// CHECK-NEXT: + mstore 32, 64
-// CHECK-NOT: {{^[-+]}}
+// CHECK: + mstore 64, arg1
+// CHECK: + calldatacopy arg1, arg1, 64
+// CHECK: + mstore 0, 64
 fn @raw_memory(arg0: i256, arg1: i256) {
   bb0:
     v0 = eq arg0, 64
@@ -223,12 +222,10 @@ fn @raw_memory(arg0: i256, arg1: i256) {
     revert 0, 0
 }
 
-// An address computed from the value stays computed: folding it would make a fixed memory
-// image of an address that frame and heap layout see as dynamic.
+// So does the arithmetic that computes an address.
 // CHECK-LABEL: {{^[ +].*}}fn @derived_address{{[( ]}}
-// CHECK: - v2 = add arg0, 1
-// CHECK-NEXT: + v2 = add 128, 1
-// CHECK-NOT: {{^[-+]}}
+// CHECK: + v1 = add 128, 32
+// CHECK: + v2 = add 128, 1
 fn @derived_address(arg0: i256, arg1: i256) {
   bb0:
     v0 = eq arg0, 128
@@ -243,10 +240,9 @@ fn @derived_address(arg0: i256, arg1: i256) {
     revert 0, 0
 }
 
-// Folding after this pass also merges and absorbs: a phi or select whose arms agree, a
-// product with zero. An address fed by the value through any of them keeps the value.
+// A value merged into an address through a phi takes it as well.
 // CHECK-LABEL: {{^[ +].*}}fn @merged_address{{[( ]}}
-// CHECK-NOT: {{^[-+]}}
+// CHECK: + v1 = mul 32, 2
 fn @merged_address(arg0: i256, arg1: i256, arg2: i1) {
   bb0:
     v0 = eq arg0, 32
@@ -265,10 +261,9 @@ fn @merged_address(arg0: i256, arg1: i256, arg2: i1) {
     revert 0, 0
 }
 
-// A call keeps its arguments: inlining or specialization would move a constant into the
-// callee's memory operands, past the guard on this function's own accesses.
+// Call arguments take the constant, which lets the callee specialize.
 // CHECK-LABEL: {{^[ +].*}}fn @call_argument{{[( ]}}
-// CHECK-NOT: {{^[-+]}}
+// CHECK: + icall @write, arg1, 64
 fn @call_argument(arg0: i256, arg1: i256) {
   bb0:
     v0 = eq arg0, 64
@@ -281,9 +276,9 @@ fn @call_argument(arg0: i256, arg1: i256) {
     revert 0, 0
 }
 
-// The expression that computes a call argument keeps its operands too.
+// So does the expression that computes an argument.
 // CHECK-LABEL: {{^[ +].*}}fn @call_derived_argument{{[( ]}}
-// CHECK-NOT: {{^[-+]}}
+// CHECK: + v1 = add 63, 1
 fn @call_derived_argument(arg0: i256, arg1: i256) {
   bb0:
     v0 = eq arg0, 63
@@ -303,10 +298,9 @@ fn @write(arg0: i256, arg1: i256) {
     ret
 }
 
-// A returned expression keeps its operands: the caller may inline the callee and use the
-// result as a raw memory size or address.
+// A returned expression takes the constant.
 // CHECK-LABEL: {{^[ +].*}}fn @returned_value{{[( ]}}
-// CHECK-NOT: {{^[-+]}}
+// CHECK: + v1 = add 63, 1
 fn @returned_value(arg0: i256) -> i256 {
   bb0:
     v0 = eq arg0, 63
