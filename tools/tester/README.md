@@ -85,11 +85,6 @@ returns values, as in `add(uint256,uint256)(uint256) 2, 3 => 5`. A test that
 names a pipeline keeps its output, without the compiler's JSON; one that runs
 none prints nothing.
 
-To look into a disagreement, run the call by hand with
-[solar-evmir-interp](../evmir-interp/README.md): pass it the test's
-`-Zdump=evm-ir-runtime-scheduled` output and the call, and add `--trace` to see
-every operation the interpreter runs.
-
 ## Compiler artifact comparisons
 
 [compiler-diff](../compiler-diff/README.md) handles local or Sourcify

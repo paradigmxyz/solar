@@ -15,7 +15,7 @@ exist. This crate holds:
 - `link`: program data, library identities, and relocatable bytecode, which MIR shares.
 
 The compiler's EVM IR passes and the assembler live in `solar-codegen`, which compiles EVM IR to
-bytecode; `solar-evmir-interp` runs it.
+bytecode.
 
 ```rust,ignore
 use solar_evmir::ir::Module;

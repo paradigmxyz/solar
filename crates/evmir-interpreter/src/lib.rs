@@ -7,7 +7,7 @@
 #![cfg_attr(test, allow(unused_crate_dependencies))]
 
 use alloy_primitives::U256;
-use machine::{Effects, HOST_OPCODES, Layout, Limit, Machine};
+use machine::{Effects, Layout, Limit, Machine};
 use solar_config::EvmVersion;
 use solar_data_structures::map::FxHashMap;
 use solar_evmir::ir::Module;
@@ -15,9 +15,6 @@ use solar_interface::{ColorChoice, Session, source_map::FileName};
 
 mod machine;
 pub use machine::{Halt, Host, Log};
-
-/// The opcodes whose values a run asks its [`Host`] for, such as `CALLER` and `TIMESTAMP`.
-pub const HOST_READS: &[u8] = &HOST_OPCODES;
 
 /// How a run ended.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -46,20 +43,17 @@ pub struct Execution {
 }
 
 /// How a run executes.
-pub struct Options<'a> {
+pub struct Options {
     /// The EVM version the program targets, which decides the opcodes it defines.
     pub evm_version: EvmVersion,
     /// Units of work before the run stops: one per operation and per copied, hashed, logged, or
     /// returned word.
     pub fuel: u64,
-    /// Receives a line for every operation the run executes, with the words it read and the word
-    /// it pushed.
-    pub trace: Option<&'a mut dyn FnMut(&str)>,
 }
 
-impl Default for Options<'_> {
+impl Default for Options {
     fn default() -> Self {
-        Self { evm_version: EvmVersion::default(), fuel: 10_000_000, trace: None }
+        Self { evm_version: EvmVersion::default(), fuel: 10_000_000 }
     }
 }
 
@@ -88,13 +82,12 @@ pub fn transact(
     evm_ir: &str,
     calldata: &[u8],
     host: &mut dyn Host,
-    options: Options<'_>,
+    options: Options,
 ) -> Result<Execution, String> {
     with_module(evm_ir, |module| {
         let machine = Machine::new(module, options.evm_version);
-        let execution =
-            machine.transact(calldata, host, Layout::COMPACT, options.fuel, options.trace);
-        let moved = machine.transact(calldata, host, Layout::MOVED, options.fuel, None);
+        let execution = machine.transact(calldata, host, Layout::COMPACT, options.fuel);
+        let moved = machine.transact(calldata, host, Layout::MOVED, options.fuel);
         if moved != execution {
             let reason = "a result that depends on the code layout".into();
             return execution_from(machine::Outcome::Unsupported(reason), Effects::default());
@@ -216,46 +209,6 @@ mod tests {
 
     fn word(value: u64) -> Vec<u8> {
         U256::from(value).to_be_bytes::<32>().to_vec()
-    }
-
-    #[test]
-    fn traces() {
-        let module = "@module test
-bb0:
-  push 2
-  push 3
-  add
-  dup 1
-  push 0
-  mstore
-  push bb1
-  jump
-bb1:
-  push 32
-  push 0
-  return
-";
-        let mut lines = Vec::new();
-        let mut trace = |line: &str| lines.push(line.to_owned());
-        let options = Options { trace: Some(&mut trace), ..Options::default() };
-        let execution = transact(module, &[], &mut Zero, options).unwrap();
-        assert_eq!(execution.outcome, Outcome::Success(word(5)));
-        snapbox::assert_data_eq!(
-            lines.join("\n"),
-            snapbox::str![[r#"
-bb0: push 2 -> 0x2
-bb0: push 3 -> 0x3
-bb0: add  [0x3, 0x2] -> 0x5
-bb0: dup 1 -> 0x5
-bb0: push 0 -> 0x0
-bb0: mstore  [0x0, 0x5]
-bb0: push bb1 -> 0x1
-bb0: jump  [0x1]
-bb1: push 32 -> 0x20
-bb1: push 0 -> 0x0
-bb1: return  [0x0, 0x20]
-"#]]
-        );
     }
 
     #[test]

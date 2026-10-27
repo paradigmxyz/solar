@@ -8,8 +8,7 @@ block with the transaction's calldata, an empty stack, and zeroed memory, and as
 what the program reads from its context, such as the caller or a storage slot's value before the
 transaction. It takes the module as text: a `.evmir` file, or a module of the runtime EVM IR the
 compiler dumps, as scheduled with `solar -Zdump=evm-ir-runtime-scheduled` or as assembled with
-`-Zdump=evm-ir-runtime`. `parse_dump` splits such a dump into its modules, and `Options::trace`
-receives a line for every operation a run executes.
+`-Zdump=evm-ir-runtime`. `parse_dump` splits such a dump into its modules.
 
 ```rust,ignore
 use alloy_primitives::U256;
@@ -49,5 +48,4 @@ The compiler's UI test runner executes every `run-call` directive in an EVM. Wit
 `SOLAR_RUN_CALL_EVM_IR` set, it also runs the call through `transact` on the runtime EVM IR the
 compiler scheduled for that bytecode, before the EVM IR pipeline, and a test written in EVM IR
 checks each call on its own text. The EVM runs that program after the pipeline and assembly, so a
-disagreement is a bug in an EVM IR pass, the assembler, or the interpreter. The
-`solar-evmir-interp` tool runs EVM IR from the command line.
+disagreement is a bug in an EVM IR pass, the assembler, or the interpreter.

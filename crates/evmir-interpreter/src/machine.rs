@@ -70,18 +70,11 @@ use solar_data_structures::{
     map::FxHashMap,
 };
 use solar_evmir::{
-    ir::{
-        BlockId, Instruction, Module, Terminator, TerminatorKind, display_instruction_operation,
-        display_terminator_operation,
-    },
+    ir::{BlockId, Instruction, Module, Terminator, TerminatorKind},
     link::{DataBytes, DataId},
     op::{self, MAX_STACK_DEPTH, StackOp, WORD_BYTES, eval_opcode},
 };
-use std::{
-    borrow::Cow,
-    fmt::{self, Write as _},
-    ops::Range,
-};
+use std::{borrow::Cow, fmt, ops::Range};
 
 /// Bytes of memory a run may use: growing memory to 16 MiB costs about 538 million gas, more than
 /// any block holds.
@@ -278,14 +271,13 @@ impl<'m> Machine<'m> {
     }
 
     /// Runs a transaction with `calldata` on `layout`, asking `host` for its context, within
-    /// `fuel` units of work. `trace` receives a line for every operation the run executes.
-    pub(crate) fn transact<'t>(
+    /// `fuel` units of work.
+    pub(crate) fn transact(
         &self,
         calldata: &[u8],
         host: &mut dyn Host,
         layout: Layout,
         fuel: u64,
-        trace: Option<&'t mut dyn FnMut(&str)>,
     ) -> Execution {
         let mut run = Run {
             machine: self,
@@ -297,7 +289,6 @@ impl<'m> Machine<'m> {
             memory: Memory::default(),
             effects: Effects::default(),
             fuel,
-            trace,
         };
         let outcome = run.execute();
         let effects = match outcome {
@@ -461,15 +452,8 @@ enum Effect {
     Jump(BlockId),
 }
 
-/// An operation a trace line shows.
-#[derive(Clone, Copy)]
-enum Site<'a> {
-    Instruction(&'a Instruction),
-    Terminator(&'a Terminator),
-}
-
 /// One transaction in progress.
-struct Run<'r, 'm, 't> {
+struct Run<'r, 'm> {
     machine: &'r Machine<'m>,
     image: CodeImage,
     host: &'r mut dyn Host,
@@ -481,10 +465,9 @@ struct Run<'r, 'm, 't> {
     memory: Memory,
     effects: Effects,
     fuel: u64,
-    trace: Option<&'t mut dyn FnMut(&str)>,
 }
 
-impl<'m> Run<'_, 'm, '_> {
+impl<'m> Run<'_, 'm> {
     /// Runs blocks from the entry until the run ends.
     fn execute(&mut self) -> Outcome {
         if self.machine.module.blocks.is_empty() {
@@ -504,7 +487,7 @@ impl<'m> Run<'_, 'm, '_> {
         let module: &'m Module = self.machine.module;
         let body = &module.blocks[block];
         for inst in &body.instructions {
-            if let Some(target) = self.instruction(block, inst)? {
+            if let Some(target) = self.instruction(inst)? {
                 return Ok(target);
             }
         }
@@ -519,24 +502,19 @@ impl<'m> Run<'_, 'm, '_> {
         self.machine.module.next_block(block).ok_or(Outcome::Stop)
     }
 
-    /// Runs one instruction of `block`, returning the block it jumps to, if any.
-    fn instruction(
-        &mut self,
-        block: BlockId,
-        inst: &Instruction,
-    ) -> Result<Option<BlockId>, Outcome> {
+    /// Runs one instruction, returning the block it jumps to, if any.
+    fn instruction(&mut self, inst: &Instruction) -> Result<Option<BlockId>, Outcome> {
         self.burn(1)?;
         if let Some(stack_op) = inst.as_stack_op() {
-            self.stack_op(block, inst, stack_op)?;
+            self.stack_op(stack_op)?;
             return Ok(None);
         }
         if inst.is_encoded_push() {
             let value = self.pushed(inst);
-            self.trace(block, Site::Instruction(inst), &[], value.as_ref().ok().copied());
             self.push(value?)?;
             return Ok(None);
         }
-        self.opcode(block, Site::Instruction(inst), inst.opcode)
+        self.opcode(inst.opcode)
     }
 
     /// Returns the word a push instruction pushes.
@@ -570,23 +548,16 @@ impl<'m> Run<'_, 'm, '_> {
     }
 
     /// Runs a logical stack operation.
-    fn stack_op(
-        &mut self,
-        block: BlockId,
-        inst: &Instruction,
-        stack_op: StackOp,
-    ) -> Result<(), Outcome> {
+    fn stack_op(&mut self, stack_op: StackOp) -> Result<(), Outcome> {
         if !stack_op.is_valid() {
             return Err(unsupported("a stack operation no opcode encodes"));
         }
         // Past the 16th word, only the extended stack opcodes reach, which older targets lack.
         if stack_op.lowering(self.machine.evm_version).is_none() {
-            self.trace(block, Site::Instruction(inst), &[], None);
             return Err(Outcome::Halt(Halt::UndefinedOpcode(stack_op.ir_opcode())));
         }
         let depth = self.stack.len();
         if depth < stack_op.required_depth() {
-            self.trace(block, Site::Instruction(inst), &[], None);
             return Err(Outcome::Halt(Halt::StackUnderflow));
         }
         let top = depth - 1;
@@ -595,7 +566,6 @@ impl<'m> Run<'_, 'm, '_> {
                 let source = depth - usize::from(n);
                 let value = self.stack[source];
                 let code_size = self.code_sizes.contains(source);
-                self.trace(block, Site::Instruction(inst), &[], Some(value));
                 self.push(value)?;
                 if code_size {
                     self.code_sizes.insert(depth);
@@ -603,19 +573,13 @@ impl<'m> Run<'_, 'm, '_> {
             }
             StackOp::Swap(n) => {
                 let other = top - usize::from(n);
-                let words = [self.stack[top], self.stack[other]];
-                self.trace(block, Site::Instruction(inst), &words, None);
                 self.swap(top, other);
             }
             StackOp::Exchange(n, m) => {
                 let (first, second) = (top - usize::from(n), top - usize::from(m));
-                let words = [self.stack[first], self.stack[second]];
-                self.trace(block, Site::Instruction(inst), &words, None);
                 self.swap(first, second);
             }
             StackOp::Pop => {
-                let words = [self.stack[top]];
-                self.trace(block, Site::Instruction(inst), &words, None);
                 self.stack.pop();
                 self.code_sizes.remove(top);
             }
@@ -626,26 +590,19 @@ impl<'m> Run<'_, 'm, '_> {
     /// Runs the terminator of `block`, returning the block control reaches next.
     fn terminator(&mut self, block: BlockId, terminator: &Terminator) -> Result<BlockId, Outcome> {
         self.burn(1)?;
-        let site = Site::Terminator(terminator);
         // Lowering pushes a branch's target, or a table's words, above the stack before it jumps.
         let growth = terminator.kind.lowering_stack_growth(self.machine.module.next_block(block));
         if self.stack.len() + growth > MAX_STACK_DEPTH {
-            self.trace(block, site, &[], None);
             return Err(Outcome::Halt(Halt::StackOverflow));
         }
         match &terminator.kind {
-            TerminatorKind::Jump(target) => {
-                self.trace(block, site, &[], None);
-                Ok(*target)
-            }
+            TerminatorKind::Jump(target) => Ok(*target),
             TerminatorKind::JumpI { then_block, else_block } => {
-                let condition = self.pop(block, site)?;
-                self.trace(block, site, &[condition], None);
+                let condition = self.pop()?;
                 Ok(if condition.is_zero() { *else_block } else { *then_block })
             }
             TerminatorKind::IndexedJump(targets) => {
-                let index = self.pop(block, site)?;
-                self.trace(block, site, &[index], None);
+                let index = self.pop()?;
                 // Lowering emits no bounds check, so the assembled code reads whatever follows
                 // the table.
                 usize::try_from(index)
@@ -654,7 +611,7 @@ impl<'m> Run<'_, 'm, '_> {
                     .copied()
                     .ok_or_else(|| unsupported("an indexed jump outside its table"))
             }
-            &TerminatorKind::Op(opcode) => match self.opcode(block, site, opcode)? {
+            &TerminatorKind::Op(opcode) => match self.opcode(opcode)? {
                 Some(target) => Ok(target),
                 // An opcode that does not end the run falls through, as the assembled code does.
                 None => self.fall_through(block),
@@ -663,18 +620,11 @@ impl<'m> Run<'_, 'm, '_> {
     }
 
     /// Runs `opcode`, returning the block it jumps to, if any.
-    fn opcode(
-        &mut self,
-        block: BlockId,
-        site: Site<'_>,
-        opcode: u8,
-    ) -> Result<Option<BlockId>, Outcome> {
+    fn opcode(&mut self, opcode: u8) -> Result<Option<BlockId>, Outcome> {
         let Some(definition) = op::definition(opcode) else {
-            self.trace(block, site, &[], None);
             return Err(Outcome::Halt(Halt::UndefinedOpcode(opcode)));
         };
         if !definition.is_available(self.machine.evm_version) {
-            self.trace(block, site, &[], None);
             return Err(Outcome::Halt(Halt::UndefinedOpcode(opcode)));
         }
         let Some((inputs, _)) = definition.stack_io else {
@@ -685,7 +635,6 @@ impl<'m> Run<'_, 'm, '_> {
         }
         let inputs = usize::from(inputs);
         if self.stack.len() < inputs {
-            self.trace(block, site, &[], None);
             return Err(Outcome::Halt(Halt::StackUnderflow));
         }
         let start = self.stack.len() - inputs;
@@ -698,9 +647,6 @@ impl<'m> Run<'_, 'm, '_> {
                 || self.code_sizes.contains(start)
                 || self.code_sizes.contains(start + 2)
             {
-                let operands =
-                    self.stack[start..].iter().rev().copied().collect::<SmallVec<[_; 8]>>();
-                self.trace(block, site, &operands, None);
                 return Err(unsupported("observes the code size, which only assembly decides"));
             }
             self.code_sizes.remove(start + 1);
@@ -715,11 +661,6 @@ impl<'m> Run<'_, 'm, '_> {
         } else {
             self.effect(opcode, &operands)
         };
-        let result = match &effect {
-            Ok(Effect::Push(value)) => Some(*value),
-            _ => None,
-        };
-        self.trace(block, site, &operands, result);
         match effect? {
             Effect::Next => Ok(None),
             Effect::Push(value) => {
@@ -850,13 +791,9 @@ impl<'m> Run<'_, 'm, '_> {
     }
 
     /// Pops the top of the stack for the operation at `site`.
-    fn pop(&mut self, block: BlockId, site: Site<'_>) -> Result<U256, Outcome> {
-        let value = self.stack.pop().ok_or_else(|| {
-            self.trace(block, site, &[], None);
-            Outcome::Halt(Halt::StackUnderflow)
-        })?;
+    fn pop(&mut self) -> Result<U256, Outcome> {
+        let value = self.stack.pop().ok_or_else(|| Outcome::Halt(Halt::StackUnderflow))?;
         if self.code_sizes.remove(self.stack.len()) {
-            self.trace(block, site, &[value], None);
             return Err(unsupported("observes the code size, which only assembly decides"));
         }
         Ok(value)
@@ -876,30 +813,6 @@ impl<'m> Run<'_, 'm, '_> {
     fn burn(&mut self, units: u64) -> Result<(), Outcome> {
         self.fuel = self.fuel.checked_sub(units).ok_or(Outcome::Limit(Limit::Fuel))?;
         Ok(())
-    }
-
-    /// Writes a trace line for the operation at `site` of `block`: the operation as EVM IR text
-    /// prints it, the words it read, top first, and the word it pushed.
-    fn trace(&mut self, block: BlockId, site: Site<'_>, operands: &[U256], result: Option<U256>) {
-        let Some(sink) = &mut self.trace else { return };
-        let module = self.machine.module;
-        let mut line = format!("bb{}: ", module.blocks[block].label);
-        let _ = match site {
-            Site::Instruction(inst) => {
-                write!(line, "{}", display_instruction_operation(module, inst))
-            }
-            Site::Terminator(terminator) => {
-                write!(line, "{}", display_terminator_operation(module, terminator))
-            }
-        };
-        if !operands.is_empty() {
-            let words = operands.iter().map(|word| format!("{word:#x}")).collect::<Vec<_>>();
-            let _ = write!(line, "  [{}]", words.join(", "));
-        }
-        if let Some(result) = result {
-            let _ = write!(line, " -> {result:#x}");
-        }
-        sink(&line);
     }
 
     /// Exchanges two stack slots, retaining whether they hold the code size.

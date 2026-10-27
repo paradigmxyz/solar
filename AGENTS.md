@@ -20,7 +20,6 @@ cargo fmt --all                        # Format
 cargo cl                               # Lint
 cargo run -- file.sol                  # Run compiler
 cargo run -- -Zhelp                    # Unstable flags help
-cargo run -p solar-evmir-interp -- f.evmir # Run EVM IR in the EVM IR interpreter
 ```
 
 Filter tests with `cargo tq <mode> <path-substring>` (bless with
@@ -48,7 +47,7 @@ Pipeline: lex -> parse -> sema (AST -> HIR, typeck) -> MIR -> EVM IR -> bytecode
 - `crates/evmir`: the EVM IR data model, text format, and verifier (`ir/`),
   the opcode table and word semantics (`op.rs`, `op/word.rs`), the gas
   schedule (`gas.rs`), and program data shared with MIR (`link.rs`).
-  `crates/evmir-interpreter`: runs EVM IR; `tools/evmir-interp` is its CLI.
+  `crates/evmir-interpreter`: runs EVM IR.
 - `crates/interface`: sources, spans, diagnostics, symbols.
   `crates/data-structures`: index types, bitsets, arena helpers.
   `crates/config`: options and `-Z` flags (`opts.rs`; bless
