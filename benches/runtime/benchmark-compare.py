@@ -1509,7 +1509,7 @@ def matrix_sections(results: list[dict[str, Any]]) -> list[str]:
                     else "n/a"
                 )
             rows.append(
-                f"| {perf_link(markdown_cell(result.get('test_id', '')), str(result.get('test_id', '')))} "
+                f"| {markdown_cell(result.get('test_id', ''))} "
                 f"| {base:,} | " + " | ".join(cells) + " |"
             )
         if not rows:
