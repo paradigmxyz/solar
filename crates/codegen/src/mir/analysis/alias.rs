@@ -441,6 +441,9 @@ struct FreshFmps {
     positions: FxHashMap<InstId, (BlockId, usize)>,
     /// The unique `alloc`s, whose runtime-indexed accesses wrap and so keep no such order.
     allocs: FxHashSet<InstId>,
+    /// Whether the function writes memory through a runtime index, which wraps and may rewind the
+    /// free-memory pointer under the freshness of its allocations.
+    wraps: bool,
 }
 
 impl FreshFmps {
@@ -457,7 +460,7 @@ impl FreshFmps {
             _ => return false,
         };
         // A runtime index wraps, so an indexed access, to either allocation, may land below it.
-        (!self.allocs.contains(&fresh) || !sizes.contains(&LocationSize::Unknown))
+        (!self.allocs.contains(&fresh) || !self.wraps && !sizes.contains(&LocationSize::Unknown))
             && self.precedes(alloc, fresh)
     }
 
@@ -569,10 +572,18 @@ impl PointerProvenance {
                 }
             }
         }
+        let wraps = !allocs.is_empty()
+            && func.instructions().any(|inst| match func.inst(inst).kind {
+                InstKind::ICall { function: Callee::Function(function), .. } => call_summaries
+                    .and_then(|summaries| summaries.get(function))
+                    .is_none_or(|summary| summary.may_wrap_write()),
+                _ => AliasAnalysis::writes_at_indexed_address(func, inst),
+            });
         let fresh_fmps = (!allocs.is_empty()).then(|| FreshFmps {
             dominators: cfg.dominators().clone(),
             positions,
             allocs,
+            wraps,
         });
 
         Self { allocations, fresh_fmps, addresses: RefCell::default() }
@@ -1988,21 +1999,7 @@ impl AliasAnalysis {
         func: &Function,
         inst: InstId,
     ) -> bool {
-        let indexed = |address| Self::address_has_runtime_index(func, address, 8);
-        let address_indexed = match func.inst(inst).kind {
-            InstKind::Store(address, _, PtrLocation::Memory)
-            | InstKind::Store8(address, _)
-            | InstKind::MemoryZero(address, _)
-            | InstKind::Copy(address, ..)
-            | InstKind::DataCopy(_, address, _)
-            | InstKind::CodeCopy(address, ..)
-            | InstKind::ExtCodeCopy(_, address, ..) => indexed(address),
-            InstKind::Call { ret_offset: address, .. }
-            | InstKind::CallCode { ret_offset: address, .. }
-            | InstKind::StaticCall { ret_offset: address, .. }
-            | InstKind::DelegateCall { ret_offset: address, .. } => indexed(address),
-            _ => false,
-        };
+        let address_indexed = Self::writes_at_indexed_address(func, inst);
         address_indexed || {
             self.instruction_mod_ref(func, inst).writes().iter().any(|access| {
                 matches!(
@@ -2018,6 +2015,25 @@ impl AliasAnalysis {
     /// phi: added to a pointer, or through any arithmetic this does not follow. Pointers that
     /// come from an allocation, a load, a call, or an argument, and constant offsets from them,
     /// are not. A chain too deep to follow counts as indexed.
+    /// Returns whether an instruction writes memory at an address computed with a runtime index.
+    fn writes_at_indexed_address(func: &Function, inst: InstId) -> bool {
+        let indexed = |address| Self::address_has_runtime_index(func, address, 8);
+        match func.inst(inst).kind {
+            InstKind::Store(address, _, PtrLocation::Memory)
+            | InstKind::Store8(address, _)
+            | InstKind::MemoryZero(address, _)
+            | InstKind::Copy(address, ..)
+            | InstKind::DataCopy(_, address, _)
+            | InstKind::CodeCopy(address, ..)
+            | InstKind::ExtCodeCopy(_, address, ..) => indexed(address),
+            InstKind::Call { ret_offset: address, .. }
+            | InstKind::CallCode { ret_offset: address, .. }
+            | InstKind::StaticCall { ret_offset: address, .. }
+            | InstKind::DelegateCall { ret_offset: address, .. } => indexed(address),
+            _ => false,
+        }
+    }
+
     fn address_has_runtime_index(func: &Function, address: ValueId, depth: u32) -> bool {
         let Some(depth) = depth.checked_sub(1) else { return true };
         let Value::Inst(inst) = func.value(address) else { return false };
