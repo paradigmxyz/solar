@@ -717,4 +717,9 @@ impl generated::Context for PeepContext<'_> {
         let pair = deep + self.target.opcode(SWAP1);
         self.target.dominates(pair, pair + pair)
     }
+
+    fn cheaper_without_swap(&mut self, opcode: u8) -> bool {
+        let operation = self.target.opcode(opcode);
+        self.target.dominates(operation, self.target.opcode(SWAP1) + operation)
+    }
 }

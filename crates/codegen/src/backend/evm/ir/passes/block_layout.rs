@@ -18,6 +18,10 @@
 //! rather than making every call through it pay another jump. Reference counts estimate frequency;
 //! they are not execution profiles. A predecessor that pushes a continuation counts as one call
 //! site: its incoming branches do not measure uses of a shared stub entry.
+//! When counting those references instead produces a smaller layout, use it: two candidate orders
+//! are priced with their actual label PUSH widths, fallthroughs and landing instructions. Ties keep
+//! the call-site weighting. Deferred data and indexed tables stay with the ordinary estimate, and
+//! a bounded width calculation abandons the alternative if it does not converge.
 //! Other trace edges and gas-mode placement keep their order.
 
 use super::{
@@ -36,6 +40,7 @@ use crate::{
     },
     target::Target,
 };
+use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
@@ -65,27 +70,25 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
         }
     }
 
+    let target = module.target(gcx);
     let preferred = if gcx.sess.opts.optimization.is_size() {
-        shared_return_predecessors(module, &module.target(gcx))
+        shared_return_predecessors(module, &target, true)
     } else {
         FxHashMap::default()
     };
-    append_layout_trace(module, BlockId::ENTRY, &preferred, &mut state.placed, &mut state.order);
-    for cold in [false, true] {
-        for block in module.blocks.indices() {
-            if state.predecessor_counts[block] == 0
-                && is_cold_terminal_block(&module.blocks[block]) == cold
+    build_layout_order(gcx, module, &preferred, &mut state);
+    if gcx.sess.opts.optimization.is_size() {
+        let alternate = shared_return_predecessors(module, &target, false);
+        if alternate != preferred
+            && let Some(size) = encoded_layout_size(module, &state.order, &target)
+        {
+            let mut other = RunState::default();
+            other.reset(module.blocks.len());
+            other.predecessor_counts.clone_from(&state.predecessor_counts);
+            build_layout_order(gcx, module, &alternate, &mut other);
+            if encoded_layout_size(module, &other.order, &target).is_some_and(|bytes| bytes < size)
             {
-                append_layout_trace(module, block, &preferred, &mut state.placed, &mut state.order);
-            }
-        }
-    }
-
-    pack_terminal_traces(gcx, module, &mut state);
-    for cold in [false, true] {
-        for block in module.blocks.indices() {
-            if is_cold_terminal_block(&module.blocks[block]) == cold {
-                append_layout_trace(module, block, &preferred, &mut state.placed, &mut state.order);
+                state.order = other.order;
             }
         }
     }
@@ -96,6 +99,33 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
     // branch -> arm -> join; remaining traces
     remap_block_order(module, &state.order);
     true
+}
+
+fn build_layout_order(
+    gcx: Gcx<'_>,
+    module: &Module,
+    preferred: &FxHashMap<BlockId, BlockId>,
+    state: &mut RunState,
+) {
+    append_layout_trace(module, BlockId::ENTRY, preferred, &mut state.placed, &mut state.order);
+    for cold in [false, true] {
+        for block in module.blocks.indices() {
+            if state.predecessor_counts[block] == 0
+                && is_cold_terminal_block(&module.blocks[block]) == cold
+            {
+                append_layout_trace(module, block, preferred, &mut state.placed, &mut state.order);
+            }
+        }
+    }
+
+    pack_terminal_traces(gcx, module, state);
+    for cold in [false, true] {
+        for block in module.blocks.indices() {
+            if is_cold_terminal_block(&module.blocks[block]) == cold {
+                append_layout_trace(module, block, preferred, &mut state.placed, &mut state.order);
+            }
+        }
+    }
 }
 
 struct RunState {
@@ -475,7 +505,11 @@ fn is_cold_terminal_block(block: &Block) -> bool {
 
 /// Selects a shared return tail's unique highest-weight predecessor. Changing which jump falls
 /// through keeps the number of jumps unchanged; price their estimated executions with the target.
-fn shared_return_predecessors(module: &Module, target: &Target) -> FxHashMap<BlockId, BlockId> {
+fn shared_return_predecessors(
+    module: &Module,
+    target: &Target,
+    cap_call_sites: bool,
+) -> FxHashMap<BlockId, BlockId> {
     let mut incoming = IndexVec::from_vec(vec![0usize; module.blocks.len()]);
     let mut call_sites = DenseBitSet::new_empty(module.blocks.len());
     for (id, block) in module.blocks.iter_enumerated() {
@@ -504,7 +538,8 @@ fn shared_return_predecessors(module: &Module, target: &Target) -> FxHashMap<Blo
         ) {
             continue;
         }
-        let references = if call_sites.contains(block) { 1 } else { incoming[block] };
+        let references =
+            if cap_call_sites && call_sites.contains(block) { 1 } else { incoming[block] };
         let weight = references.saturating_mul(jump_gas);
         candidates
             .entry(*tail)
@@ -523,4 +558,94 @@ fn shared_return_predecessors(module: &Module, target: &Target) -> FxHashMap<Blo
             (unique && weight > jump_gas).then_some((tail, block))
         })
         .collect()
+}
+
+/// Prices an order with the same label-width fixed point as ordinary assembly. The bounded search
+/// only ranks layouts; unknown data, tables, or slow convergence keep the original choice.
+fn encoded_layout_size(module: &Module, order: &[BlockId], target: &Target) -> Option<usize> {
+    // Besides addressing data, its final fallthrough guard depends on the last emitted opcode.
+    // Leave both that guard and data offsets with the assembler.
+    if !module.data.is_empty() {
+        return None;
+    }
+    let mut fixed = IndexVec::from_vec(vec![0usize; module.blocks.len()]);
+    let mut labels = Vec::new();
+    for (position, &block_id) in order.iter().enumerate() {
+        let block = &module.blocks[block_id];
+        for inst in &block.instructions {
+            let size = if let Some(width) = inst.immutable_type_size() {
+                target.opcode(op::push(width.bytes())).bytes
+            } else if inst.is_encoded_push() {
+                match &inst.value {
+                    Some(PushValue::Immediate(value)) => target.encoded_push(*value).bytes,
+                    Some(PushValue::Library(_)) => target.opcode(op::PUSH20).bytes,
+                    Some(PushValue::Block(label)) => {
+                        labels.push((block_id, *label));
+                        continue;
+                    }
+                    _ => return None,
+                }
+            } else if let Some(op) = inst.as_stack_op() {
+                target.stack_op(op)?.bytes
+            } else {
+                target.opcode(inst.opcode).bytes
+            };
+            fixed[block_id] += size as usize;
+        }
+        let next = order.get(position + 1).copied();
+        let kind = &block.terminator.as_ref()?.kind;
+        kind.visit_label_targets(next, |label| labels.push((block_id, label)));
+        let tail = match kind {
+            TerminatorKind::Jump(label) => {
+                if Some(*label) == next {
+                    0
+                } else {
+                    target.opcode(op::JUMP).bytes
+                }
+            }
+            TerminatorKind::JumpI { then_block, else_block } => {
+                target.opcode(op::JUMPI).bytes
+                    + if next == Some(*else_block) {
+                        0
+                    } else if next == Some(*then_block) {
+                        target.opcode(op::ISZERO).bytes
+                    } else {
+                        target.opcode(op::JUMP).bytes
+                    }
+            }
+            TerminatorKind::Op(op::STOP) if next.is_none() && !module.code_follows => 0,
+            TerminatorKind::Op(opcode) => target.opcode(*opcode).bytes,
+            TerminatorKind::IndexedJump(_) => return None,
+        };
+        fixed[block_id] += tail as usize;
+    }
+    let mut addressed = DenseBitSet::new_empty(module.blocks.len());
+    for &(_, label) in &labels {
+        if addressed.insert(label) {
+            fixed[label] += target.opcode(op::JUMPDEST).bytes as usize;
+        }
+    }
+    let mut widths =
+        IndexVec::from_vec(vec![target.encoded_push(U256::ZERO).bytes; module.blocks.len()]);
+    let mut sizes = fixed.clone();
+    // Most contracts converge in two or three rounds. Stop before pricing becomes an unbounded
+    // compile-time cost on chains of labels just below a PUSH-width boundary.
+    for _ in 0..16 {
+        sizes.clone_from(&fixed);
+        for &(block, label) in &labels {
+            sizes[block] += widths[label] as usize;
+        }
+        let mut offset = 0;
+        let mut changed = false;
+        for &block in order {
+            let width = target.encoded_push(U256::from(offset)).bytes;
+            changed |= widths[block] != width;
+            widths[block] = width;
+            offset += sizes[block];
+        }
+        if !changed {
+            return Some(offset);
+        }
+    }
+    None
 }

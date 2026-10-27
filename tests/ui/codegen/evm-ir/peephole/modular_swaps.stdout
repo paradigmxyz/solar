@@ -1,0 +1,32 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/modular_swaps.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/modular_swaps.evmir (after peephole) ===
+  @module ModularSwaps
+  bb0 [stack=3]:
+-   swap 1
+    addmod
+    stop
+  bb1 [stack=3]:
+-   swap 1
+    mulmod
+    stop
+  bb2 [stack=3]:
+    swap 2
+    addmod
+    stop
+  bb3 [stack=3]:
+    swap 2
+    mulmod
+    stop
+  bb4 [stack=3]:
+    dup 2
+    addmod
+    swap 1
+    pop
+    stop
+  bb5 [stack=3]:
+    dup 2
+    mulmod
+    swap 1
+    pop
+    stop
+  

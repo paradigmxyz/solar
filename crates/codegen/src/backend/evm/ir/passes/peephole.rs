@@ -23,6 +23,8 @@
 //! A constant binary operation may move through a three-swap permutation to remove two swaps.
 //! It keeps the operation's operands and their order, changes no memory effects, and never raises
 //! the stack peak; protected instruction boundaries and position-dependent operations reject it.
+//! Modular addition and multiplication discard a swap of their first two operands, while keeping
+//! the modulus in its third stack slot and leaving binary-only rewrites unchanged.
 //!
 //! The separate `late-word` entry point runs only after structural cleanup. It
 //! replaces a low-mask construction with a shorter complement/shift form. A closed
