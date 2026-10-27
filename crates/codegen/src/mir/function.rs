@@ -766,6 +766,27 @@ impl Function {
         }
     }
 
+    /// Drops storage aliases whose base slot no instruction defines any more.
+    ///
+    /// A key naming a deleted value is consistent only until values are renumbered, when it could
+    /// come to name another value. Readers recompute a dropped key from the slot operand.
+    pub(crate) fn drop_dangling_storage_aliases(&mut self) {
+        let mut placed = DenseBitSet::new_empty(self.num_insts());
+        for inst in self.instructions() {
+            placed.insert(inst);
+        }
+        let values = &self.values;
+        for inst in self.instructions.iter_mut() {
+            let base = inst.metadata.storage_alias().and_then(|alias| alias.symbolic_base());
+            if let Some(base) = base
+                && matches!(values[base], Value::Inst(defining) if !placed.contains(defining))
+            {
+                // sstore slot, value !metadata(storage=offset(deleted, n)) -> sstore slot, value
+                inst.metadata.set_storage_alias(None);
+            }
+        }
+    }
+
     /// Returns true if this function is public or external.
     #[must_use]
     pub(crate) fn is_public(&self) -> bool {

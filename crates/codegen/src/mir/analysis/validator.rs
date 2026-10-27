@@ -42,7 +42,7 @@
 use crate::mir::{
     AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId, InstKind,
     MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation, RequireKind,
-    ResultKind, StructId, Terminator, TypeSize, Value, ValueId, analysis::CfgInfo,
+    ResultKind, StorageAlias, StructId, Terminator, TypeSize, Value, ValueId, analysis::CfgInfo,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -161,6 +161,31 @@ impl<'a> Validator<'a> {
                 term.visit_operands(|value| {
                     self.validate_value_reference(func, value, num_args, block);
                 });
+            }
+        }
+        // A storage alias names its base slot like an operand, so the base must stay defined.
+        for (block, body) in func.blocks.iter_enumerated() {
+            for &id in body.instructions.iter().filter(|id| id.index() < func.num_insts()) {
+                let alias = func.inst(id).metadata.storage_alias();
+                let Some(base) = alias.and_then(StorageAlias::symbolic_base) else { continue };
+                let defined = base.index() < func.num_values()
+                    && match func.value(base) {
+                        Value::Inst(defining) => {
+                            defining.index() < func.num_insts() && seen.contains(*defining)
+                        }
+                        Value::Arg(index) => index.index() < num_args,
+                        Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => true,
+                    };
+                if !defined {
+                    self.emit_at_inst(
+                        format_args!(
+                            "storage alias names v{}, which the function does not define",
+                            base.index()
+                        ),
+                        block,
+                        id,
+                    );
+                }
             }
         }
         self.error_count == errors_before

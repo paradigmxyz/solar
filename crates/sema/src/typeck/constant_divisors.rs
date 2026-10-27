@@ -28,7 +28,7 @@ pub(super) fn check(gcx: Gcx<'_>, units: &[(hir::SourceId, Unit)]) {
     if gcx.dcx().has_errors().is_err() {
         return;
     }
-    par_visit_items(units, || Checker { gcx });
+    par_visit_items(gcx, units, || Checker { gcx });
 }
 
 struct Checker<'gcx> {
