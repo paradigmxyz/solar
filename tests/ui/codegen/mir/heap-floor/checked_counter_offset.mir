@@ -1,0 +1,52 @@
+//@compile-flags: -Zmir-pipeline=heap-floor
+//@filecheck:
+@module HeapFloorCheckedCounter
+
+// A write at a heap pointer plus a counter that starts at zero and adds a bounded step with
+// checked arithmetic stays above the heap, so the allocation after it reads the slot as it is.
+// CHECK-LABEL: {{^[ +].*}}fn @checked_counter{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @checked_counter() {
+  bb0:
+    v0 = alloc 4096
+    v1 = ptrtoint ptr<memory> v0 to i256
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb2: v5]
+    v3 = lt v2, 64
+    jumpi v3, bb2, bb3
+  bb2:
+    v4 = add v1, v2
+    mstore v4, 1
+    v5 = checked_add uint256, v2, 32
+    jump bb1
+  bb3:
+    v6 = alloc 32
+    mstore v6, 1
+    ret
+}
+
+// A counter that adds a word the caller chooses may wrap the address around to the slot, so the
+// allocation after the write reads the raised word.
+// CHECK-LABEL: {{^[ +].*}}fn @unbounded_step{{[( ]}}
+// CHECK: + {{v[0-9]+}} = heap_floor
+// CHECK: + mstore 64, {{v[0-9]+}}
+fn @unbounded_step(arg0: i256) {
+  bb0:
+    v0 = alloc 4096
+    v1 = ptrtoint ptr<memory> v0 to i256
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb2: v5]
+    v3 = lt v2, 64
+    jumpi v3, bb2, bb3
+  bb2:
+    v4 = add v1, v2
+    mstore v4, 1
+    v5 = checked_add uint256, v2, arg0
+    jump bb1
+  bb3:
+    v6 = alloc 32
+    mstore v6, 1
+    ret
+}
