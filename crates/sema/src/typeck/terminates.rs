@@ -109,7 +109,7 @@ fn stmt_ends_call(gcx: Gcx<'_>, stmt: &hir::Stmt<'_>) -> Result<bool, Span> {
         // Inline assembly is lowered to the same statements, calling builtins such as `revert`.
         StmtKind::Block(block)
         | StmtKind::UncheckedBlock(block)
-        | StmtKind::AssemblyBlock(block) => block_ends_call(gcx, block.stmts),
+        | StmtKind::AssemblyBlock(block, _) => block_ends_call(gcx, block.stmts),
         StmtKind::If(_, then, else_) => {
             let then = stmt_ends_call(gcx, then)?;
             let else_ = match else_ {

@@ -22,7 +22,7 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{BlockId, Module, TerminatorKind},
+        ir::{BlockId, Module, ModuleTarget, TerminatorKind},
         op,
     },
     target::Cost,

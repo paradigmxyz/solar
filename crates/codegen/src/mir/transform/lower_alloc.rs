@@ -50,7 +50,7 @@ impl MirPass for LowerAlloc {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        let optimization = gcx.sess.opts.optimization;
+        let optimization = module.optimization(gcx);
         let fresh = if optimization == OptimizationMode::None {
             FreshFmpReads::none()
         } else {

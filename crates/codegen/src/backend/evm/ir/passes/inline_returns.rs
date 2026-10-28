@@ -18,7 +18,7 @@
 
 use super::{EvmPass, utils::is_split_point};
 use crate::backend::evm::{
-    ir::{BlockId, Module, TerminatorKind},
+    ir::{BlockId, Module, ModuleTarget, TerminatorKind},
     op,
 };
 use solar_sema::Gcx;

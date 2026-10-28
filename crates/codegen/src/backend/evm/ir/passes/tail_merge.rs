@@ -59,8 +59,8 @@ use super::{
 };
 use crate::backend::evm::{
     ir::{
-        Block, BlockId, BlockTarget, Hotness, Instruction, Metadata, Module, Terminator,
-        TerminatorKind,
+        Block, BlockId, BlockTarget, Hotness, Instruction, Metadata, Module, ModuleTarget,
+        Terminator, TerminatorKind,
     },
     op::{self, StackOp, push_len},
 };

@@ -9,7 +9,7 @@
 use super::EvmPass;
 use crate::{
     backend::evm::{
-        ir::{Instruction, Module},
+        ir::{Instruction, Module, ModuleTarget},
         op::{self, WORD_BYTES},
     },
     target::Target,

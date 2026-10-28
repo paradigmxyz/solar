@@ -1,24 +1,24 @@
 error: `@custom:solar-terminates` must document an internal or private function
    ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
    │
+LL │     /// @custom:solar-terminates
+   │          ━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a function with a body that ends the call on every path
+
+error: `@custom:solar-terminates` must document an internal or private function
+   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
+   │
+LL │     /// @custom:solar-terminates
+   │          ━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a function with a body that ends the call on every path
+
+error: `@custom:solar-terminates` must document an internal or private function
+   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
+   │
 LL │ /// @custom:solar-terminates
    │      ━━━━━━━━━━━━━━━━━━━━━━━
-   │
-   ╰ help: put it on a function with a body that ends the call on every path
-
-error: `@custom:solar-terminates` must document an internal or private function
-   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
-   │
-LL │     /// @custom:solar-terminates
-   │          ━━━━━━━━━━━━━━━━━━━━━━━
-   │
-   ╰ help: put it on a function with a body that ends the call on every path
-
-error: `@custom:solar-terminates` must document an internal or private function
-   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
-   │
-LL │     /// @custom:solar-terminates
-   │          ━━━━━━━━━━━━━━━━━━━━━━━
    │
    ╰ help: put it on a function with a body that ends the call on every path
 

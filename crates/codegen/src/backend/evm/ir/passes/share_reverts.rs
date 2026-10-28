@@ -22,7 +22,10 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
+        ir::{
+            Block, BlockId, Instruction, Module, ModuleTarget, PushValue, Terminator,
+            TerminatorKind,
+        },
         op,
     },
     target::Target,

@@ -28,7 +28,7 @@
 
 use super::EvmPass;
 use crate::backend::evm::{
-    ir::{Instruction, Module},
+    ir::{Instruction, Module, ModuleTarget},
     op::{self, StackOp},
 };
 use solar_config::{EvmVersion, OptimizationMode};

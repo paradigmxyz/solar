@@ -34,7 +34,7 @@
 use super::{EvmPass, compact_pushes::materialize_immediate, utils::MachineInstKey};
 use crate::{
     backend::evm::{
-        ir::{Instruction, Module, PushValue, TerminatorKind},
+        ir::{Instruction, Module, ModuleTarget, PushValue, TerminatorKind},
         op,
     },
     target::Target,

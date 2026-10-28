@@ -28,118 +28,99 @@ fn @run() [selector=0x9cf82c3f, abi_wrapper, pure] {
 fn @f(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) -> i256 [may_return_memory, pure] {
   bb0:
     v26 = xor arg4, arg5
+    v134 = add arg1, 32
     jump bb1
   bb1:
-    v6 = phi [bb0: 0], [bb23: v87]
-    v7 = phi [bb0: 0], [bb23: v30]
+    v6 = phi [bb0: 0], [bb20: v119]
+    v7 = phi [bb0: 0], [bb20: v30]
     v8 = lt v7, arg2
     jumpi v8, bb3, bb2
   bb2:
     ret v6
   bb3:
     v9 = and v7, 7
-    v79 = sub v6, v9
-    v80 = lt v6, v9
-    jumpi v80, bb20, bb21
-  bb21:
+    v109 = sub v6, v9
+    v110 = lt v6, v9
+    jumpi v110, bb16, bb17
+  bb17:
     jump bb4
   bb4:
-    v20 = phi [bb21: 0], [bb5: v81]
+    v20 = phi [bb17: 0], [bb5: v111]
     v21 = lt v20, arg3
     jumpi v21, bb6, bb7
   bb7:
-    jump bb9
-  bb9:
-    v31 = phi [bb7: 0], [bb17: v46]
-    v32 = phi [bb7: 0], [bb17: v34]
-    v33 = lt v32, 32
-    jumpi v33, bb10, bb8
-  bb8:
-    v28 = xor v26, v31
-    v87 = add v6, v28
-    v88 = lt v87, v6
-    jumpi v88, bb20, bb23
-  bb23:
+    v79 = mload arg0
+    v80 = lt v79, 32
+    v81 = sub v79, 32
+    v82 = gt v7, v81
+    v83 = or v80, v82
+    jumpi v83, bb11, bb13
+  bb13:
+    v128 = add arg0, v7
+    v129 = add v128, 32
+    v87 = mload v129
+    v28 = xor v26, v87
+    v119 = add v6, v28
+    v120 = lt v119, v6
+    jumpi v120, bb16, bb20
+  bb20:
     v30 = add v7, 1
     jump bb1
-  bb10:
-    v89 = add v7, v32
-    v36 = mload arg0
-    v37 = lt v89, v36
-    jumpi v37, bb17, bb16
-  bb17:
-    v96 = add arg0, v89
-    v97 = add v96, 32
-    v41 = mload v97
-    v42 = byte 0, v41
-    v43 = shl v42, 248
-    v44 = shl v32, 3
-    v45 = shr v43, v44
-    v46 = or v31, v45
-    v34 = add v32, 1
-    jump bb9
   bb6:
-    v83 = add v6, v20
-    v84 = lt v83, v6
-    v85 = add v79, v20
-    v86 = lt v85, v79
-    v107 = or v84, v86
-    jumpi v107, bb20, bb22
-  bb22:
-    jump bb11
-  bb11:
-    v48 = phi [bb22: 0], [bb18: v63]
-    v49 = phi [bb22: 0], [bb18: v51]
-    v50 = lt v49, 32
-    jumpi v50, bb12, bb13
-  bb13:
-    jump bb14
-  bb14:
-    v65 = phi [bb13: 0], [bb19: v67]
-    v66 = lt v65, 32
-    jumpi v66, bb15, bb5
-  bb5:
-    v81 = add v20, 32
-    jump bb4
-  bb15:
-    v70 = byte v65, v48
-    v93 = add v83, v65
-    v94 = lt v93, v83
-    jumpi v94, bb20, bb25
-  bb25:
-    v73 = mload arg1
-    v74 = lt v93, v73
-    jumpi v74, bb19, bb16
-  bb19:
-    v102 = add arg1, v93
-    v103 = add v102, 32
-    mstore8 v103, v70
-    v67 = add v65, 1
-    jump bb14
+    v113 = add v6, v20
+    v114 = lt v113, v6
+    v115 = add v109, v20
+    v116 = lt v115, v109
+    v138 = or v114, v116
+    jumpi v138, bb16, bb18
+  bb18:
+    v88 = mload arg1
+    v89 = lt v88, 32
+    v90 = sub v88, 32
+    v91 = gt v115, v90
+    v92 = or v89, v91
+    jumpi v92, bb11, bb12
   bb12:
-    v91 = add v85, v49
-    v92 = lt v91, v85
-    jumpi v92, bb20, bb24
-  bb24:
-    v53 = mload arg1
-    v54 = lt v91, v53
-    jumpi v54, bb18, bb16
-  bb16:
+    v122 = add arg1, v115
+    v123 = add v122, 32
+    v96 = mload v123
+    v125 = add arg1, v113
+    v126 = add v125, 32
+    v102 = lt v126, v134
+    jumpi v102, bb8, bb10
+  bb10:
+    v106 = gt v113, v90
+    jumpi v106, bb11, bb15
+  bb15:
+    mstore v126, v96
+    jump bb5
+  bb8:
+    v65 = phi [bb12: 0], [bb14: v67]
+    v66 = lt v65, 32
+    jumpi v66, bb9, bb5
+  bb5:
+    v111 = add v20, 32
+    jump bb4
+  bb9:
+    v70 = byte v65, v96
+    v117 = add v113, v65
+    v118 = lt v117, v113
+    jumpi v118, bb16, bb19
+  bb19:
+    v73 = mload arg1
+    v74 = lt v117, v73
+    jumpi v74, bb14, bb11
+  bb14:
+    v131 = add arg1, v117
+    v132 = add v131, 32
+    mstore8 v132, v70
+    v67 = add v65, 1
+    jump bb8
+  bb11:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb18:
-    v99 = add arg1, v91
-    v100 = add v99, 32
-    v58 = mload v100
-    v59 = byte 0, v58
-    v60 = shl v59, 248
-    v61 = shl v49, 3
-    v62 = shr v60, v61
-    v63 = or v48, v62
-    v51 = add v49, 1
-    jump bb11
-  bb20:
+  bb16:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

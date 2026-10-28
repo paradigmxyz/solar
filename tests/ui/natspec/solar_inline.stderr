@@ -6,12 +6,6 @@ LL │     /// @custom:solar-inline
    │
    ╰ help: put it on an internal, private or public function with a body
 
-error: a function cannot be both `@custom:solar-inline` and `@custom:solar-noinline`
-   ╭▸ ROOT/tests/ui/natspec/solar_inline.sol:LL:CC
-   │
-LL │     /// @custom:solar-inline
-   ╰╴         ━━━━━━━━━━━━━━━━━━━
-
 error: `@custom:solar-noinline` must document a function that internal calls reach
    ╭▸ ROOT/tests/ui/natspec/solar_inline.sol:LL:CC
    │
@@ -19,6 +13,12 @@ LL │     /// @custom:solar-noinline
    │          ━━━━━━━━━━━━━━━━━━━━━
    │
    ╰ help: put it on an internal, private or public function with a body
+
+error: a function cannot be both `@custom:solar-inline` and `@custom:solar-noinline`
+   ╭▸ ROOT/tests/ui/natspec/solar_inline.sol:LL:CC
+   │
+LL │     /// @custom:solar-inline
+   ╰╴         ━━━━━━━━━━━━━━━━━━━
 
 error: aborting due to 3 previous errors
 

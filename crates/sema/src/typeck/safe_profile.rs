@@ -256,7 +256,7 @@ impl<'gcx> Visit<'gcx> for Scan<'gcx> {
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
         match stmt.kind {
             // Assembly is not Solidity, so nothing in it is scanned further.
-            StmtKind::AssemblyBlock(_) => {
+            StmtKind::AssemblyBlock(..) => {
                 self.record(Violation::Assembly, stmt.span);
                 return ControlFlow::Continue(());
             }

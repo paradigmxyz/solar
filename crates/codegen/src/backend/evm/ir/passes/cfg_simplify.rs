@@ -52,7 +52,10 @@ use super::{
     },
 };
 use crate::backend::evm::{
-    ir::{Block, BlockId, Instruction, Metadata, Module, PushValue, Terminator, TerminatorKind},
+    ir::{
+        Block, BlockId, Instruction, Metadata, Module, ModuleTarget, PushValue, Terminator,
+        TerminatorKind,
+    },
     op,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};

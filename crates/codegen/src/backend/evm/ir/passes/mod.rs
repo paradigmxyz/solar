@@ -35,7 +35,7 @@ pub(super) mod utils;
 pub(in crate::backend) use legalize_revert::legalize_revert;
 pub(in crate::backend::evm) use stack_reschedule::SharedSchedules;
 
-use super::Module;
+use super::{Module, ModuleTarget};
 use crate::{
     mir::pass_manager::{
         parse_pass_pipeline, pipeline_output_name, print_pass_diff, should_validate_ir,

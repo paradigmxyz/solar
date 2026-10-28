@@ -5,7 +5,7 @@ use crate::{
     backend::{
         assembler::{ArtifactKind, Assembler, Label, OptimizedProgram, PreparedAssembly},
         evm::{
-            ir::{self, BlockId},
+            ir::{self, BlockId, ModuleTarget},
             op,
         },
     },

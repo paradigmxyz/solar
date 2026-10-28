@@ -2777,7 +2777,7 @@ fn check_reserved_name(sess: &Session, hir: &hir::Hir<'_>, name: Symbol, decl: D
 /// in them.
 fn find_assembly(stmts: &[hir::Stmt<'_>]) -> Option<Span> {
     stmts.iter().find_map(|stmt| match &stmt.kind {
-        hir::StmtKind::AssemblyBlock(_) => Some(stmt.span),
+        hir::StmtKind::AssemblyBlock(..) => Some(stmt.span),
         hir::StmtKind::Block(block)
         | hir::StmtKind::UncheckedBlock(block)
         | hir::StmtKind::Loop(block, _) => find_assembly(block.stmts),

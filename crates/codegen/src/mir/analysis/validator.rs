@@ -40,9 +40,10 @@
 //! ```
 
 use crate::mir::{
-    AbiParamType, AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId, InstKind,
-    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation, RequireKind,
-    ResultKind, StorageAlias, StructId, Terminator, TypeSize, Value, ValueId, analysis::CfgInfo,
+    AbiParamType, AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId,
+    InstKind, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation,
+    RequireKind, ResultKind, StorageAlias, StructId, Terminator, TypeSize, Value, ValueId,
+    analysis::CfgInfo,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;

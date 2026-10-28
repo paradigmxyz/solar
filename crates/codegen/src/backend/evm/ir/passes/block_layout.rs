@@ -24,7 +24,7 @@ use crate::{
             TablePacking, estimated_indexed_jump_terminator_size, indexed_jump_target_width_bound,
         },
         evm::{
-            ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind},
+            ir::{Block, BlockId, Instruction, Module, ModuleTarget, PushValue, TerminatorKind},
             op,
         },
     },

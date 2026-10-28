@@ -40,7 +40,7 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{BlockId, Instruction, Module, TerminatorKind},
+        ir::{BlockId, Instruction, Module, ModuleTarget, TerminatorKind},
         op,
     },
     target::Target,

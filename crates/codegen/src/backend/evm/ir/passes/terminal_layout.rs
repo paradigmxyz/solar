@@ -28,7 +28,7 @@ use super::{
 use crate::backend::{
     assembler::assembly::TablePacking,
     evm::{
-        ir::{BlockId, Module, PushValue, TerminatorKind},
+        ir::{BlockId, Module, ModuleTarget, PushValue, TerminatorKind},
         op,
     },
 };

@@ -44,7 +44,7 @@ use super::{
 use crate::{
     backend::evm::{
         codegen::{StackModel, StackOp, lowered_stack_cost, resynthesize_physical_ops},
-        ir::{Instruction, Module},
+        ir::{Instruction, Module, ModuleTarget},
         op,
     },
     mir::ValueId,
