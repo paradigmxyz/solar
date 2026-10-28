@@ -22,7 +22,7 @@ use solar_data_structures::{
 };
 use solar_interface::{Ident, Symbol, sym};
 use solar_sema::hir::VariableId;
-use std::{borrow::Cow, fmt, sync::Arc};
+use std::{borrow::Cow, fmt, ops::Range, sync::Arc};
 
 /// A named immutable declared by a MIR module.
 #[derive(Clone, Copy, Debug)]
@@ -656,7 +656,7 @@ impl Module {
 
     /// Adds opaque data that must be emitted at the end of the runtime program.
     pub(crate) fn append_runtime_data(&mut self, data: Bytes, name: Option<Symbol>) -> DataId {
-        let trailers = vec![0..data.len()];
+        let trailers = vec![Range { start: 0, end: data.len() }];
         self.add_data_entry(Data { emit_in_runtime: true, trailers, ..Data::new(data, name) })
     }
 
