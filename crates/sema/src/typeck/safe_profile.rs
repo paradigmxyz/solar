@@ -24,7 +24,7 @@
 
 use crate::{
     hir::{self, StmtKind, Visit},
-    ty::{Gcx, traced_functions},
+    ty::{Gcx, Traced, traced_functions},
 };
 use solar_data_structures::{
     Never,
@@ -160,8 +160,8 @@ fn check_contract(gcx: Gcx<'_>, id: hir::ContractId, profile: Profile) {
 struct Findings {
     /// What the profile rejects, in the order the code is reached.
     violations: Vec<Finding>,
-    /// The function that first reached each function the code runs, or `None` for a root.
-    reached: FxIndexMap<hir::FunctionId, Option<hir::FunctionId>>,
+    /// How each function the code runs was first reached.
+    reached: FxIndexMap<hir::FunctionId, Traced>,
 }
 
 /// Something a safe profile rejects.
@@ -198,7 +198,7 @@ impl Findings {
                 Some(contract) => format!("`{}.{name}`", gcx.hir.contract(contract).name),
                 None => format!("`{name}`"),
             });
-            current = self.reached.get(&id).copied().flatten();
+            current = self.reached.get(&id).and_then(|traced| traced.parent);
         }
         names.reverse();
         names.join(" → ")
@@ -210,8 +210,8 @@ fn findings(gcx: Gcx<'_>, id: hir::ContractId) -> Findings {
     let library = gcx.hir.contract(id).kind == hir::ContractKind::Library;
     let reached = traced_functions(gcx, id, library, &|function| is_trusted(gcx, function));
     let mut scan = Scan { gcx, current: None, violations: Vec::new(), seen: FxHashSet::default() };
-    for &function in reached.keys() {
-        if is_trusted(gcx, function) || gcx.hir.function(function).is_yul {
+    for (&function, traced) in &reached {
+        if traced.dispatch_only || is_trusted(gcx, function) || gcx.hir.function(function).is_yul {
             continue;
         }
         scan.current = Some(function);

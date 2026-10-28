@@ -279,3 +279,29 @@ contract SafeConstantCycle {
         return A;
     }
 }
+
+// A helper only trusted code calls is not checked itself, but the overrides its own calls
+// dispatch to are chosen by the safe contract, so they are.
+abstract contract ChainBase {
+    /// @custom:solar-trusted
+    function top() internal {
+        helper();
+    }
+
+    function helper() internal {
+        _hook();
+    }
+
+    function _hook() internal virtual {}
+}
+
+/// @custom:solar-safe
+contract SafeChain is ChainBase {
+    function _hook() internal override {
+        assembly { mstore(0x40, 0) } //~ ERROR: `SafeChain` is tagged `@custom:solar-safe` but runs inline assembly
+    }
+
+    function run() external {
+        top();
+    }
+}

@@ -32,7 +32,8 @@ struct CallGraphBuilder<'gcx, 's> {
     gcx: Gcx<'gcx>,
     contract: hir::ContractId,
     graph: ReferencedItems,
-    worklist: VecDeque<hir::FunctionId>,
+    /// The functions to visit, with whether to visit only the targets their calls dispatch to.
+    worklist: VecDeque<(hir::FunctionId, bool)>,
     visited_constants: DenseBitSet<hir::VariableId>,
     /// The constants whose initializers a stopped body walked, which reaches only what they
     /// dispatch to.
@@ -44,8 +45,18 @@ struct CallGraphBuilder<'gcx, 's> {
     current: Option<hir::FunctionId>,
     /// Whether `current` is a function `stop` accepts.
     stopped: bool,
-    /// The function that first reached each function, or `None` for a root.
-    parents: FxIndexMap<hir::FunctionId, Option<hir::FunctionId>>,
+    /// How each function was first reached.
+    parents: FxIndexMap<hir::FunctionId, Traced>,
+}
+
+/// How a traversal reached a function.
+#[derive(Clone, Copy)]
+pub(crate) struct Traced {
+    /// The function that first reached it, or `None` for a root.
+    pub(crate) parent: Option<hir::FunctionId>,
+    /// Whether only the targets its calls dispatch to were visited, because only a body `stop`
+    /// accepts, or a function reached only from one, calls it.
+    pub(crate) dispatch_only: bool,
 }
 
 impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
@@ -165,8 +176,8 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
     }
 
     fn drain(&mut self) {
-        while let Some(function) = self.worklist.pop_front() {
-            self.stopped = (self.stop)(function);
+        while let Some((function, dispatch_only)) = self.worklist.pop_front() {
+            self.stopped = dispatch_only || (self.stop)(function);
             self.current = Some(function);
             let _ = self.visit_nested_function(function);
             self.current = None;
@@ -176,20 +187,33 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
 
     fn enqueue(&mut self, function: hir::FunctionId) {
         if self.graph.functions.insert(function) {
-            self.parents.entry(function).or_insert(self.current);
-            self.worklist.push_back(function);
+            self.parents
+                .entry(function)
+                .and_modify(|traced| traced.dispatch_only = false)
+                .or_insert(Traced { parent: self.current, dispatch_only: false });
+            self.worklist.push_back((function, false));
+        }
+    }
+
+    /// Visits `function`, which a body `stop` accepts calls directly, only for the targets its
+    /// own calls dispatch to: the contract chose those, not the review that trusted the caller.
+    fn enqueue_dispatch_only(&mut self, function: hir::FunctionId) {
+        if !self.graph.functions.contains(function) && !self.parents.contains_key(&function) {
+            self.parents.insert(function, Traced { parent: self.current, dispatch_only: true });
+            self.worklist.push_back((function, true));
         }
     }
 
     /// Reaches `resolved`, the target a call or reference to `named` dispatches to. A body `stop`
-    /// accepts reaches only the targets the contract chooses, an override or a `super` target
-    /// other than the function it names.
-    fn enqueue_dispatched(&mut self, named: hir::FunctionId, resolved: hir::FunctionId) -> bool {
-        let reached = !self.stopped || resolved != named;
-        if reached {
+    /// accepts reaches the targets the contract chooses, an override or a `super` target other
+    /// than the function it names, and visits the function it names only for what its own calls
+    /// dispatch to.
+    fn enqueue_dispatched(&mut self, named: hir::FunctionId, resolved: hir::FunctionId) {
+        if self.stopped && resolved == named {
+            self.enqueue_dispatch_only(resolved);
+        } else {
             self.enqueue(resolved);
         }
-        reached
     }
 
     fn add_internal_dispatch_target(&mut self, function: hir::FunctionId) {
@@ -333,14 +357,15 @@ pub(super) fn all_items(gcx: Gcx<'_>, id: hir::ContractId) -> ReferencedItems {
 /// The functions the contract `id` runs, found as [`interface_items`] finds them, from its
 /// creation and its interface, or from every function of its bases when `all`, with the function
 /// that first reached each, or `None` for a root. A function `stop` accepts is reached, and its
-/// body reaches only the overrides and `super` targets its calls dispatch to in this contract,
-/// so what else only it reaches is not.
+/// body reaches the overrides and `super` targets its calls dispatch to in this contract. The
+/// functions it calls directly are visited only for what their own calls dispatch to, and are
+/// marked [`Traced::dispatch_only`].
 pub(crate) fn traced_functions(
     gcx: Gcx<'_>,
     id: hir::ContractId,
     all: bool,
     stop: &dyn Fn(hir::FunctionId) -> bool,
-) -> FxIndexMap<hir::FunctionId, Option<hir::FunctionId>> {
+) -> FxIndexMap<hir::FunctionId, Traced> {
     let mut builder = CallGraphBuilder::new(gcx, id, stop);
     if all {
         builder.enter_all();
@@ -353,8 +378,11 @@ pub(crate) fn traced_functions(
     deployed.enter_deployed(&builder.graph);
     deployed.drain();
     let mut parents = builder.parents;
-    for (function, parent) in deployed.parents {
-        parents.entry(function).or_insert(parent);
+    for (function, traced) in deployed.parents {
+        parents
+            .entry(function)
+            .and_modify(|first| first.dispatch_only &= traced.dispatch_only)
+            .or_insert(traced);
     }
     parents
 }
