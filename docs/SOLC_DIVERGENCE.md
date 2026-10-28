@@ -67,6 +67,28 @@ Coverage: `tests/ui/standard-json/debug/ethdebug-output-without-debug-info`,
 `tests/ui/standard-json/debug/ethdebug-with-ast-id` and
 `tests/ui/standard-json/debug/ethdebug-without-ast-id`.
 
+### JSON-003: Compiler identity in metadata and CBOR
+
+Status: intentional.
+
+Difference: contract metadata names the compiler as
+`"compiler": {"name": "solar", "version": "0.8.38+commit.d9f23fbe.solar.0.3.0"}`,
+where solc writes only `"version": "0.8.28+commit.7893614a"`. The version is
+the solc-compatible form that `SOLC_WRAPPER=1 solar --version` prints: the
+emulated solc version, then the Solar commit and version as build metadata.
+The CBOR auxdata carries a `solar` entry instead of `solc`: three version
+bytes for releases, and the long Solar version as text
+(`0.3.0-dev+commit.d9f23fbe`) for other builds, as solc does for prereleases.
+Combined JSON reports the same solc-compatible version.
+
+Rationale: verifiers and other tools gate on solc versions, so the semver core
+stays the language version, while `name`, the `.solar.` build tag and the CBOR
+key tell them which compiler and build to fetch. A `solc` key would make
+solc-only decoders report the wrong compiler.
+
+Coverage: `tests/ui/standard-json/metadata/none/test.jsonc` and
+`tests/ui/standard-json/metadata/options/test.jsonc`.
+
 ## Import Resolution
 
 ### IMPORT-001: Files on disk are one source unit each

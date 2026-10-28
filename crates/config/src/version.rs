@@ -6,6 +6,21 @@ use std::sync::LazyLock;
 #[cfg(feature = "version")]
 pub const SHORT_VERSION: &str = env!("SHORT_VERSION");
 
+/// Solar's version, with a `-dev` suffix unless built from a clean release tag checkout.
+#[cfg(feature = "version")]
+pub const SOLAR_VERSION: &str = env!("SOLAR_VERSION");
+
+/// [`SOLAR_VERSION`] with the commit as build metadata: `0.3.0+commit.d9f23fbe`.
+#[cfg(feature = "version")]
+pub const SOLAR_LONG_VERSION: &str = env!("SOLAR_LONG_VERSION");
+
+/// The solc-compatible version: `0.8.38+commit.d9f23fbe.solar.0.3.0`.
+///
+/// Its semver core is the emulated solc version, so tools that gate on solc versions keep working,
+/// and its build metadata names the Solar build. Metadata and verifiers use this form.
+#[cfg(feature = "version")]
+pub const SOLC_COMPAT_VERSION: &str = env!("SOLC_COMPAT_VERSION");
+
 /// The long version information.
 #[cfg(feature = "version")]
 pub const VERSION: &str = concat!(
@@ -18,6 +33,10 @@ pub const VERSION: &str = concat!(
     env!("LONG_VERSION3"),
     "\n",
     env!("LONG_VERSION4"),
+    "\n",
+    env!("LONG_VERSION5"),
+    "\n",
+    env!("LONG_VERSION6"),
 );
 
 /// The solc-compatible long version information.
@@ -67,6 +86,31 @@ fn solc_version_override() -> Option<&'static str> {
             Some(format!("{prefix}Version: {version}{suffix}"))
         })
         .as_deref()
+}
+
+/// Returns [`SOLAR_VERSION`], or the release version under [`TEST_VERSION_ENV`].
+#[cfg(feature = "version")]
+pub fn solar_version() -> &'static str {
+    if test_version() { SEMVER_VERSION } else { SOLAR_VERSION }
+}
+
+/// Returns [`SOLC_COMPAT_VERSION`], or a fixed commit and the release version under
+/// [`TEST_VERSION_ENV`].
+#[cfg(feature = "version")]
+pub fn solc_compat_version() -> &'static str {
+    static TEST: LazyLock<String> =
+        LazyLock::new(|| format!("{SOLC_SEMVER_VERSION}+commit.00000000.solar.{SEMVER_VERSION}"));
+    if test_version() { &TEST } else { SOLC_COMPAT_VERSION }
+}
+
+/// Setting this to `1` in debug builds replaces the commit and `-dev` suffix in compiler output
+/// with fixed values, so that test snapshots of metadata and bytecode do not change with every
+/// commit.
+pub const TEST_VERSION_ENV: &str = "SOLAR_TEST_VERSION";
+
+#[cfg(feature = "version")]
+fn test_version() -> bool {
+    cfg!(debug_assertions) && std::env::var_os(TEST_VERSION_ENV).is_some_and(|x| x == "1")
 }
 
 /// Returns the solc version that Solar implements, parsed from [`SOLC_SEMVER_VERSION`].
