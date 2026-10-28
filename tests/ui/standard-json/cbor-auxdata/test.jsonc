@@ -1,3 +1,4 @@
+//@ filecheck:
 // `C` embeds `Child`'s trailer through `new Child()` and `type(Child).runtimeCode`.
 // Each of `C`'s bytecodes lists every copy of `Child`'s trailer before its own, in
 // offset order. Offsets point past the `INVALID` byte and do not move when the

@@ -80,9 +80,14 @@ positions from `evm.legacyAssembly` and a second compilation. The parent
 selections and `*` include it, and `evm.legacyAssembly` stays empty.
 
 Rationale: the shape is the Verifier Alliance `cborAuxdata` artifact that
-Sourcify stores, so verifiers can read the positions directly.
+Sourcify stores, so verifiers can read the positions directly. Code generation
+records where it places each trailer, so code or data that repeats a trailer's
+bytes is never reported: verifiers replace the reported bytes with the
+deployed ones, and a reported literal would let deployed code differ from its
+source.
 
-Coverage: `tests/ui/standard-json/cbor-auxdata/test.jsonc`.
+Coverage: `tests/ui/standard-json/cbor-auxdata/test.jsonc` and
+`tests/ui/standard-json/cbor-auxdata-literal.jsonc`.
 
 ## Import Resolution
 

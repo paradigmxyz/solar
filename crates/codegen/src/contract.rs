@@ -28,6 +28,7 @@ use std::{
     cmp::Reverse,
     collections::BinaryHeap,
     mem,
+    ops::Range,
     sync::{
         OnceLock,
         atomic::{AtomicUsize, Ordering},
@@ -47,6 +48,12 @@ pub struct ContractArtifact {
     pub deployment_link_references: Vec<LibraryReference>,
     /// Unresolved library addresses in the runtime bytecode.
     pub runtime_link_references: Vec<LibraryReference>,
+    /// Byte ranges of the [`RuntimeDataFn`] values of this contract and the contracts it embeds
+    /// in the deployment bytecode, in ascending order.
+    pub deployment_trailers: Vec<Range<usize>>,
+    /// Byte ranges of the [`RuntimeDataFn`] values of this contract and the contracts it embeds
+    /// in the runtime bytecode, in ascending order.
+    pub runtime_trailers: Vec<Range<usize>>,
     /// Captured MIR, built under `-O none` when no explicit pipeline is configured and
     /// post-pipeline otherwise.
     pub mir: Option<Module>,
@@ -726,11 +733,13 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
                         bytes: artifact.deployment.clone(),
                         relocations: deployment_relocations,
                         libraries: libraries.clone(),
+                        trailers: artifact.deployment_trailers.clone(),
                     },
                     runtime: RelocatableBytecode {
                         bytes: artifact.runtime.clone(),
                         relocations: runtime_relocations,
                         libraries,
+                        trailers: artifact.runtime_trailers.clone(),
                     },
                 };
                 (crate::link::qualified_name(gcx, dependency), bytecodes)
@@ -779,6 +788,8 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             immutable_references,
             deployment_link_references,
             runtime_link_references,
+            deployment_trailers: artifact.deployment_trailers,
+            runtime_trailers: artifact.runtime_trailers,
             mir,
             deployment_evm_ir: artifact.deployment_evm_ir,
             runtime_evm_ir: artifact.runtime_evm_ir,
