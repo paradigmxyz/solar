@@ -1,10 +1,5 @@
-//@ revisions: gas size
-//@ compile-flags: -Zmir-pipeline=lower-alloc
-//@[gas] compile-flags: -Ogas
-//@[size] compile-flags: -Osize
-//@ filecheck: --match-full-lines
-// Both objectives share cold checked allocations when their free pointer is not fresh.
-// Fresh entry allocations have their own inline checks, covered by fresh_fmp.mir.
+//@compile-flags: -Zmir-pipeline=lower-alloc
+//@filecheck: --match-full-lines
 // CHECK-LABEL:   fn @checked(arg0: i256) -> ptr<memory> {
 // CHECK: +     [[OBJECT:v[0-9]+]] = icall @alloc, arg0
 // CHECK-NOT: +     {{.*}}ptrtoint

@@ -54,17 +54,7 @@ pub(crate) fn copy_data_to_memory(
         builder.memory_zero(start, size);
         return;
     }
-    let separate_tail = (name.is_some() || gcx.sess.opts.optimization.is_size())
-        && padded_size > data.len()
-        && padded_size == data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize);
-    let data = if separate_tail || padded_size == data.len() {
-        Cow::Borrowed(data)
-    } else {
-        let mut padded = Vec::with_capacity(padded_size);
-        padded.extend_from_slice(data);
-        padded.resize(padded_size, 0);
-        Cow::Owned(padded)
-    };
+    let (data, separate_tail) = padded_copy_data(gcx, data, padded_size, name);
     if copy_splat_to_memory(gcx, builder, dest, &data, separate_tail) {
         return;
     }
@@ -83,6 +73,37 @@ pub(crate) fn copy_data_to_memory(
     let data = module.intern_data(data, name);
     let start = dest.at(builder, 0);
     builder.data_copy(data, start, size);
+}
+
+/// Returns whether `copy_data_to_memory` stores the unnamed `data` as words, as it does short
+/// data, instead of copying it from the data section.
+pub(crate) fn stores_data_as_words(gcx: Gcx<'_>, data: &[u8]) -> bool {
+    let padded_size = data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize);
+    let (data, separate_tail) = padded_copy_data(gcx, data, padded_size, None);
+    padded_size <= EvmMemoryLayout::WORD_SIZE as usize
+        || !data_copy_is_profitable_for(gcx, &data, separate_tail)
+}
+
+/// Returns the bytes to copy and whether their tail word is cleared separately, rather than
+/// copied zero-padded.
+fn padded_copy_data<'a>(
+    gcx: Gcx<'_>,
+    data: &'a [u8],
+    padded_size: usize,
+    name: Option<Symbol>,
+) -> (Cow<'a, [u8]>, bool) {
+    let separate_tail = (name.is_some() || gcx.sess.opts.optimization.is_size())
+        && padded_size > data.len()
+        && padded_size == data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize);
+    let data = if separate_tail || padded_size == data.len() {
+        Cow::Borrowed(data)
+    } else {
+        let mut padded = Vec::with_capacity(padded_size);
+        padded.extend_from_slice(data);
+        padded.resize(padded_size, 0);
+        Cow::Owned(padded)
+    };
+    (data, separate_tail)
 }
 
 fn data_copy_is_profitable_for(gcx: Gcx<'_>, data: &[u8], separate_tail: bool) -> bool {

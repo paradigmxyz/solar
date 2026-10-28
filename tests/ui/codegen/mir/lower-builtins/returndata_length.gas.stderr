@@ -1,8 +1,0 @@
-warning[0067]: `msize` is not exact when optimizing
-   ╭▸ ROOT/tests/ui/codegen/mir/lower-builtins/returndata_length.sol:LL:CC
-   │
-LL │             size := msize()
-   │                     ━━━━━
-   │
-   ╰ note: the optimizer does not preserve the exact value
-

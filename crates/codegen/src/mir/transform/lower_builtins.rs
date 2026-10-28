@@ -11,21 +11,17 @@
 //! Payable sends and transfers expand to stipend-limited calls; transfers branch to a semantic
 //! returndata revert on failure, leaving payload expansion to revert lowering. Low-level address
 //! calls expose their bytes input only here and retain explicit gas/value options. Return-data
-//! capture allocates and copies after the call, before any later call can replace the data. A
-//! capture whose bytes are only measured, its length loaded on the one quiet path after it, is
-//! `returndatasize` instead when optimizing. An unoptimized build keeps the copy: its `msize` is
-//! exact, and the copy expands memory.
+//! capture allocates and copies after the call, before any later call can replace the data.
 
 use crate::mir::{
-    AddressCallKind, AllocationSemantics, Builtin, Callee, EffectKind, Function, FunctionBuilder,
-    InstId, InstKind, Instruction, MemoryObjectKind, MirType, Module, PanicCode, PhaseCategory,
-    PtrLocation, ValueId,
+    AddressCallKind, AllocationSemantics, Builtin, Callee, FunctionBuilder, InstKind,
+    MemoryObjectKind, Module, PanicCode, PhaseCategory, PtrLocation, ValueId,
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
     transform::utils::expand_block,
 };
 use alloy_primitives::U256;
-use solar_config::{EvmVersion, OptimizationMode};
+use solar_config::EvmVersion;
 use solar_data_structures::map::FxHashMap;
 
 pub(crate) struct LowerBuiltins;
@@ -88,14 +84,9 @@ impl MirPass for LowerBuiltins {
                 (bytes, helper)
             })
             .collect::<FxHashMap<_, _>>();
-        let evm_version = gcx.sess.opts.evm_version;
-        // Only the optimizer leaves `msize` inexact, so an unoptimized build keeps every capture.
-        let measure = evm_version.supports_returndata()
-            && gcx.sess.opts.optimization != OptimizationMode::None;
         run_function_pass(module, analyses, |func, _| {
-            let measured = measure && measure_returndata(func);
             if !func.instructions().any(|id| is_builtin(&func.inst(id).kind)) {
-                return measured;
+                return false;
             }
             let mut replacements = FxHashMap::default();
             for block in func.blocks.indices() {
@@ -300,111 +291,6 @@ fn lower_address_call(
         AddressCallKind::Static => builder.staticcall(gas, address, offset, size, zero, zero),
         AddressCallKind::Delegate => builder.delegatecall(gas, address, offset, size, zero, zero),
     }
-}
-
-/// Rewrites a return-data capture that is only measured, as `r.length` after
-/// `(bool ok, bytes memory r) = a.call(...)`, to `returndatasize`: nothing reads the copy, so the
-/// allocation and the copy go. Every use of the capture must load its length word after it on the
-/// one path from it, through blocks entered only from the block before, as past a `require(ok)`,
-/// with nothing on the way that writes memory, which might reach the buffer.
-fn measure_returndata(func: &mut Function) -> bool {
-    const MAX_PATH_BLOCKS: usize = 8;
-    let mut captures = Vec::new();
-    for (block, body) in func.blocks.iter_enumerated() {
-        for &inst in &body.instructions {
-            if matches!(
-                func.inst(inst).kind,
-                InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. }
-            ) && let Some(result) = func.inst_result_value(inst)
-            {
-                captures.push((block, inst, result));
-            }
-        }
-    }
-    if captures.is_empty() {
-        return false;
-    }
-    let quiet = |func: &Function, insts: &[InstId]| {
-        insts.iter().all(|&inst| {
-            matches!(
-                func.inst(inst).kind.effect_kind(),
-                EffectKind::Pure | EffectKind::MemoryRead | EffectKind::EnvironmentRead
-            )
-        })
-    };
-    let mut changed = false;
-    for (block, capture, result) in captures {
-        let Some(at) = func.blocks[block].instructions.iter().position(|&inst| inst == capture)
-        else {
-            continue;
-        };
-        // Every use is a length load on the capture's one quiet path.
-        let mut loads = Vec::new();
-        let mut uses = 0;
-        let mut measured = true;
-        for (home, body) in func.blocks.iter_enumerated() {
-            if let Some(terminator) = &body.terminator {
-                terminator.visit_operands(|value| uses += usize::from(value == result));
-            }
-            for (position, &inst) in body.instructions.iter().enumerate() {
-                let kind = &func.inst(inst).kind;
-                let mut here = 0;
-                kind.visit_operands(|value| here += usize::from(value == result));
-                if here == 0 {
-                    continue;
-                }
-                uses += here;
-                if *kind != InstKind::Load(result, PtrLocation::Memory) {
-                    measured = false;
-                    continue;
-                }
-                let on_path = if home == block {
-                    position > at && quiet(func, &body.instructions[at + 1..position])
-                } else {
-                    // Walk back through blocks entered only from the one before.
-                    let mut current = home;
-                    let mut reached = false;
-                    let mut clear = quiet(func, &body.instructions[..position]);
-                    for _ in 0..MAX_PATH_BLOCKS {
-                        let &[previous] = func.blocks[current].predecessors.as_slice() else {
-                            break;
-                        };
-                        if previous == block {
-                            clear &= quiet(func, &func.blocks[block].instructions[at + 1..]);
-                            reached = true;
-                            break;
-                        }
-                        clear &= quiet(func, &func.blocks[previous].instructions);
-                        current = previous;
-                    }
-                    reached && clear
-                };
-                measured &= on_path;
-                loads.push(inst);
-            }
-        }
-        if !measured || uses != loads.len() {
-            continue;
-        }
-        // capture; length = mload capture -> length = returndatasize
-        // The size stands where the capture did and keeps its source location, not its effect.
-        let mut measure = Instruction::new(InstKind::ReturnDataSize, Some(MirType::I256));
-        measure.metadata = func.inst(capture).metadata.debug_context();
-        let (size_inst, size) = func.alloc_value_inst(measure);
-        let mut replacements = FxHashMap::default();
-        for &load in &loads {
-            replacements.insert(func.inst_result_value(load).expect("loads have results"), size);
-        }
-        for body in func.blocks.iter_mut() {
-            body.instructions.retain(|inst| !loads.contains(inst));
-        }
-        let instructions = &mut func.blocks[block].instructions;
-        let position = instructions.iter().position(|&inst| inst == capture).expect("kept");
-        instructions[position] = size_inst;
-        func.replace_uses(&replacements);
-        changed = true;
-    }
-    changed
 }
 
 fn lower_returndata(builder: &mut FunctionBuilder<'_>, evm: EvmVersion) -> ValueId {

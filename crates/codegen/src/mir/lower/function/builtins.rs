@@ -611,12 +611,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 if let Some((callee, encode_args, _)) = value.as_call()
                     && self.cx.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncodePacked)
-                    && let Some(hash) = self.lower_keccak_packed_word_array(*encode_args)
-                {
-                    return Some(hash);
-                }
-                if let Some((callee, encode_args, _)) = value.as_call()
-                    && self.cx.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncodePacked)
                     && let Some(hash) = self.lower_keccak_abi_encode_packed(*encode_args)
                 {
                     return Some(hash);

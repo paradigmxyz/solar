@@ -3,23 +3,17 @@
 //@[size] compile-flags: -Osize -Zdump=mir
 //@ filecheck:
 
-// Literal ABI lowering removes the temporary string allocation. Under both objectives the
-// encoder writes all four event words directly at the heap floor without reloading the FMP.
+// The memory-dse after `lower-alloc` runs under both objectives: the second allocation reuses the
+// free-memory pointer that the first bump left in a value instead of reloading it, and the log
+// reads the encoding from that pointer.
 contract LateAllocationForwarding {
     event Data(uint256 value, string text);
 
     // CHECK-LABEL: fn @emitData
     // CHECK: [[FLOOR:v[0-9]+]] = heap_floor
-    // CHECK-NEXT: [[TAIL:v[0-9]+]] = add [[FLOOR]], 64
-    // CHECK-NEXT: mstore [[FLOOR]], arg0
-    // CHECK-NEXT: [[OFFSET:v[0-9]+]] = add [[FLOOR]], 32
-    // CHECK-NEXT: mstore [[OFFSET]], 64
-    // CHECK-NEXT: mstore [[TAIL]], 11
-    // CHECK-NEXT: [[DATA:v[0-9]+]] = add [[TAIL]], 32
-    // CHECK-NEXT: mstore [[DATA]], 0x68656c6c6f20776f726c64000000000000000000000000000000000000000000
+    // CHECK: [[NEXT:v[0-9]+]] = add [[FLOOR]], 64
     // CHECK-NOT: mload 64
-    // CHECK-NOT: mcopy
-    // CHECK-NEXT: log [[FLOOR]], 128
+    // CHECK: log [[NEXT]], 128
     function emitData(uint256 value) external {
         emit Data(value, "hello world");
     }
