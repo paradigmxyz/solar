@@ -63,8 +63,8 @@
 //! once per block and message rather than once per entry depth.
 
 use super::*;
-use smallvec::SmallVec;
 use crate::op::{self, MAX_STACK_DEPTH};
+use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_data_structures::{
     bit_set::DenseBitSet,

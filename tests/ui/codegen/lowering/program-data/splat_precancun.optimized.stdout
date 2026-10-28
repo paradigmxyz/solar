@@ -144,7 +144,7 @@ bb6 [cold]:
 bb7:
   push bb8
   jump bb16
-bb16:
+bb16 [ret=0, inputs=1, outputs=1]:
   push 128
   push 224
   dup 2
@@ -206,7 +206,7 @@ bb11:
   swap 2
   swap 1
   jump bb19
-bb19:
+bb19 [ret=2, inputs=3, outputs=3]:
   dup 2
   add
   push 64

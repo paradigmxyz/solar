@@ -53,7 +53,7 @@ bb0:
   and
   push bb12
   jump bb11
-bb11:
+bb11 [ret=0, inputs=1, outputs=1]:
   push 128
   push 32
   dup 2

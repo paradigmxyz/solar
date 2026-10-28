@@ -359,7 +359,7 @@ bb16:
 bb17:
   push bb18
   jump bb27
-bb27:
+bb27 [ret=0, inputs=1, outputs=1]:
   push 128
   push 192
   dup 2
@@ -426,7 +426,7 @@ bb19:
 bb20:
   push bb18
   jump bb28
-bb28:
+bb28 [ret=0, inputs=1, outputs=1]:
   push 128
   push 192
   dup 2
