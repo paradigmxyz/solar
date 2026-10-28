@@ -1,15 +1,24 @@
-//@ compile-flags: --revert-strings strip
-// Standard JSON does not inherit the command line's `--revert-strings`, like solc: the
-// reason string stays in the bytecode and the metadata records no `debug` settings.
+//@ compile-flags: --revert-strings strip --evm-version paris --stop-after parsing
+//@ compile-flags: -Zmir-pipeline=none -Zno-resolve-imports
+// Standard JSON does not inherit the command line's options that change output, like solc: the
+// import resolves, compilation runs to the end, the reason string stays in the bytecode, codegen
+// runs the full MIR pipeline, and the metadata records no `debug` settings and the default EVM
+// version.
+// CHECK-NOT: "severity": "error"
 // CHECK: "metadata":
+// CHECK-SAME: B.sol
 // CHECK-NOT: revertStrings
+// CHECK-NOT: paris
 // CHECK: "deployedBytecode": {
 // CHECK: 08c379a0
 {
   "language": "Solidity",
   "sources": {
     "A.sol": {
-      "content": "contract A { function f(uint256 x) external pure returns (uint256) { require(x == 1, \"x must be one\"); return x; } }"
+      "content": "import \"B.sol\"; contract A { function f(uint256 x) external pure returns (uint256) { require(x == ONE, \"x must be one\"); return x; } }"
+    },
+    "B.sol": {
+      "content": "uint256 constant ONE = 1;"
     }
   },
   "settings": {

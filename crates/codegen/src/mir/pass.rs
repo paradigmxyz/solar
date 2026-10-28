@@ -881,6 +881,15 @@ impl ModuleAnalyses {
         if !self.prices_creation {
             return (false, false);
         }
+        // A pass that adds functions, such as `lower-builtins` with its storage helpers, can
+        // preserve analyses, so rebuild the sets when they no longer cover every function.
+        if self
+            .creation_functions
+            .as_ref()
+            .is_some_and(|(creation, _)| creation.domain_size() != module.functions.len())
+        {
+            self.creation_functions = None;
+        }
         let (creation, straight) =
             self.creation_functions.get_or_insert_with(|| module.creation_pricing_functions());
         (creation.contains(func_id), straight.contains(func_id))
