@@ -266,8 +266,12 @@ impl Hasher for PlanKey {
 }
 
 impl FunctionPlan {
-    /// A copy with every callee mapped by `map`, or `None` when `map` has no callee for one.
+    /// A copy with every callee mapped by `map`, or `None` when `map` has no callee for one, or
+    /// when the plan is for a rebuilt copy of the function, whose own calls name its callees.
     fn remap(&self, map: impl Fn(FunctionId) -> Option<FunctionId>) -> Option<Self> {
+        if self.rebuilt.is_some() {
+            return None;
+        }
         let mut blocks = IndexVec::with_capacity(self.blocks.len());
         for block in &self.blocks {
             blocks.push(match block {
@@ -287,6 +291,7 @@ impl FunctionPlan {
                 .collect::<Option<_>>()?,
             cost: self.cost,
             non_loop_gas: self.non_loop_gas,
+            rebuilt: None,
         })
     }
 }

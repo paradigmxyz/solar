@@ -1,0 +1,10 @@
+//@ compile-flags: --emit=bin
+//~? ERROR: EVM IR input that pushes library addresses has no bytecode to emit
+
+@module program
+@libraries
+  L_0: "a.sol:L"
+bb0:
+  push_library L_0
+  pop
+  stop

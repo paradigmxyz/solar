@@ -33,7 +33,6 @@ mod terminal_layout;
 pub(super) mod utils;
 
 pub(in crate::backend) use legalize_revert::legalize_revert;
-pub(super) use peephole::CleanBlocks;
 pub(in crate::backend::evm) use stack_reschedule::SharedSchedules;
 
 use super::Module;
@@ -88,6 +87,32 @@ impl PassCacheKey {
     }
 }
 
+/// Runs one pipeline slot at `-O none` too, for cheap cleanups whose bytecode savings repay their
+/// compile time. Wrap single slots, not every occurrence of a pass.
+struct RunsAtNone<P>(P);
+
+impl<P: EvmPass> EvmPass for RunsAtNone<P> {
+    fn name(&self) -> &'static str {
+        self.0.name()
+    }
+
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
+        gcx.sess.opts.optimization.is_none() || self.0.is_enabled(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        self.0.is_required()
+    }
+
+    fn cache_config(&self) -> u64 {
+        self.0.cache_config()
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        self.0.run_pass(gcx, module)
+    }
+}
+
 /// All EVM IR passes exposed by `-Zevm-ir-pipeline`.
 pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &block_cse::BlockCse,
@@ -122,7 +147,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Normalize and establish the first physical layout.
     &peephole::Peephole::EARLY,
     &coalesce_copies::CoalesceCopies,
-    &cfg_simplify::CfgSimplify::EARLY,
+    &RunsAtNone(cfg_simplify::CfgSimplify::EARLY),
     &data::PackExistingData,
     &peephole::Cleanup(compact_pushes::CompactPushes),
     &block_layout::BlockLayout,
@@ -249,7 +274,7 @@ fn run_passes_inner(
             let cached = unchanged.contains(&cache_key);
             debug_assert!(unchanged.iter().filter(|entry| **entry == cache_key).count() <= 1);
             let target_support_before = (!cached && validate_each && should_validate_ir(gcx))
-                .then(|| super::verify::Verifier::new(gcx).target_support_snapshot(module));
+                .then(|| super::verifier(gcx).target_support_snapshot(module));
             let pass_changed = !cached
                 && tracing::trace_span!("evm_ir_pass", pass = pass_name)
                     .in_scope(|| pass.run_pass(gcx, module));
@@ -323,7 +348,7 @@ fn assert_debug_info_handled(module: &Module, pass_name: &str, when: &str) {
 /// `name` overrides the module name in pass output.
 #[must_use]
 pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
-    super::verify::Verifier::new(gcx).verify_before_pipeline(module);
+    super::verifier(gcx).verify_before_pipeline(module);
     if gcx.dcx().has_errors().is_err() {
         return false;
     }

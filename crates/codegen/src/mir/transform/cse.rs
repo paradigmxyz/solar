@@ -872,7 +872,7 @@ impl CommonSubexprEliminator {
                 continue;
             }
             for clobber in clobbers {
-                self.apply_clobber(cache, clobber);
+                self.apply_clobber(func, cache, clobber);
                 if !cache.has_stateful() {
                     break;
                 }
@@ -1401,7 +1401,7 @@ impl CommonSubexprEliminator {
         expr_cache: &mut ExprCache,
     ) {
         for clobber in clobbers {
-            self.apply_clobber(expr_cache, clobber);
+            self.apply_clobber(func, expr_cache, clobber);
             if !expr_cache.has_stateful() {
                 break;
             }
@@ -1431,10 +1431,12 @@ impl CommonSubexprEliminator {
     }
 
     /// Removes cache entries invalidated by a single clobbering effect.
-    fn apply_clobber(&self, expr_cache: &mut ExprCache, clobber: &Clobber) {
+    fn apply_clobber(&self, func: &Function, expr_cache: &mut ExprCache, clobber: &Clobber) {
         match *clobber {
             Clobber::GasObservation => expr_cache.clear_stateful(),
-            Clobber::Write(write) => expr_cache.retain_stateful(|key, _| self.survives(key, write)),
+            Clobber::Write(write) => {
+                expr_cache.retain_stateful(|key, _| self.survives(func, key, write))
+            }
             Clobber::AccountEnvironment => {
                 expr_cache.retain_stateful(|key, _| !Self::is_account_environment_expr(key));
             }
@@ -1442,7 +1444,7 @@ impl CommonSubexprEliminator {
     }
 
     /// Whether the cached read `key` survives `write`.
-    fn survives(&self, key: &ExprKey, write: Access) -> bool {
+    fn survives(&self, func: &Function, key: &ExprKey, write: Access) -> bool {
         let Some(read) = Self::read_location(key) else {
             // A restoring call's reads are not tracked, so any memory write ends its reuse.
             return !matches!(key, ExprKey::RestoringCall(..))
@@ -1453,7 +1455,7 @@ impl CommonSubexprEliminator {
         }
         match (read, write) {
             (Location::Memory(read), Access::Location(Location::Memory(write))) => {
-                !self.alias().memory_alias(read, write).may_alias()
+                !self.alias().memory_alias(func, read, write).may_alias()
             }
             (_, Access::Location(write)) => {
                 !AliasAnalysis::alias_locations(read, write).may_alias()
@@ -1729,19 +1731,9 @@ impl CommonSubexprEliminator {
         let instruction_count = func.blocks[block_id].instructions.len();
         for index in 0..instruction_count {
             let inst_id = func.blocks[block_id].instructions[index];
-            let inst = func.inst_mut(inst_id);
-            if mir_utils::replace_inst_uses_canonicalized(inst, replacements) != 0 {
-                if mir_utils::is_memory_inst(&inst.kind) {
-                    inst.metadata.set_memory_region(None);
-                }
-                if matches!(
-                    inst.kind,
-                    InstKind::Load(_, PtrLocation::Storage | PtrLocation::Transient)
-                        | InstKind::Store(.., PtrLocation::Storage | PtrLocation::Transient)
-                ) {
-                    inst.metadata.set_storage_alias(None);
-                }
-            }
+            // Replacing an operand drops the facts that depend on it; replacing only the base a
+            // storage alias names keeps the alias, renamed.
+            mir_utils::replace_inst_uses_canonicalized(func.inst_mut(inst_id), replacements);
         }
 
         // Also update terminator if present

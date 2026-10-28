@@ -1,0 +1,41 @@
+// === ROOT/tests/ui/codegen/mir/cse/alloc_wrapped_write.sol:AllocWrappedWrite ===
+@module AllocWrappedWrite
+fn @wrapped(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x89a8e302, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    v1 = mload v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 32
+    mstore v4, arg0
+    v5 = mload v0
+    v6 = lt 0, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v0, 32
+    v9 = mload v8
+    v10 = alloc zeroed checked 64
+    mstore v10, 1
+    v11 = not 0
+    v12 = ptrtoint ptr<memory> v10 to i256
+    mstore v10, v11
+    v13 = mload v10
+    v14 = lt arg2, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = shl arg2, 5
+    v17 = ptradd v10, v16
+    v18 = ptradd v17, 32
+    mstore v18, arg1
+    v19 = mload v0
+    v20 = lt 0, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = ptradd v0, 32
+    v23 = mload v22
+    v24 = checked_add uint256, v23, v9
+    v25 = checked_sub uint256, v24, arg0
+    ret v25
+}

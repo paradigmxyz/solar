@@ -94,9 +94,9 @@ pub fn run_lints(
 
     let registry = suite.registry();
 
-    let sources = targets
-        .par_iter()
-        .map(|(path, file, ast, source_id)| {
+    let dcx = cx.gcx.dcx();
+    let (sources, diagnostics) =
+        dcx.par_defer(targets.par_iter(), |(path, file, ast, source_id)| {
             let source_view = LintSource { session: cx.gcx.sess, path, file, ast };
             let policy = suite.source_policy(source_view);
 
@@ -140,8 +140,8 @@ pub fn run_lints(
             }
 
             ProjectSource { path: (*path).clone(), file: file.clone(), ast, policy }
-        })
-        .collect::<Vec<_>>();
+        });
+    dcx.emit_deferred(diagnostics);
     let result = LintRunResult { visited_sources: sources.len() };
 
     let policy = suite.project_policy();

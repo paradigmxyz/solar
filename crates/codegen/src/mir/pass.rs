@@ -56,6 +56,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &element_cleanup::ElementCleanup,
     &egraph::Egraph,
     &word_sequence::WordSequence::Late,
+    &byte_loops::ByteLoops,
     &byte_run::ByteRunLoads,
     &cse::Cse::Storage,
     &storage_dse::StorageDse,
@@ -65,6 +66,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &loop_reduce::LoopReduce,
     &loop_split::LoopSplit,
     &loop_unroll::LoopUnroll,
+    &loop_version::LoopVersion,
     &merge_aborts::MergeAborts,
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
@@ -79,11 +81,11 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &frame_promotion::FrameSlotPromotion,
     &function_compaction::DeadArgElim,
     &function_compaction::MergeEquivalentFunctions,
-    &memory_dse::MemoryDse,
+    &memory_dse::MemoryDse::Standard,
+    &memory_dse::MemoryDse::WithUnreadAllocations,
     &coalesce_allocs::CoalesceAllocs,
     &static_alloc::DeferAlloc,
     &sroa::Sroa,
-    &copy_elision::CopyElision,
     &dce::Dce,
     &lower_arithmetic::LowerArithmetic,
     &lower_builtins::LowerBuiltins,
@@ -174,6 +176,43 @@ impl<P: MirPass> MirPass for GasOnly<P> {
     }
 }
 
+/// Runs one pipeline slot at `-O none` too, for cheap cleanups whose bytecode savings repay their
+/// compile time. Wrap single slots, not every occurrence of a pass.
+struct RunsAtNone<P>(P);
+
+impl<P> RunsAtNone<P> {
+    const fn new(pass: P) -> Self {
+        Self(pass)
+    }
+}
+
+impl<P: MirPass> MirPass for RunsAtNone<P> {
+    fn name(&self) -> &'static str {
+        self.0.name()
+    }
+
+    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        gcx.sess.opts.optimization.is_none() || self.0.is_enabled(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        self.0.is_required()
+    }
+
+    fn cache_key(&self) -> Option<(&'static str, &'static str)> {
+        self.0.cache_key()
+    }
+
+    fn run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut ModuleAnalyses,
+    ) -> bool {
+        self.0.run_pass(gcx, module, analyses)
+    }
+}
+
 /// The canonical MIR pipeline used by EVM codegen.
 static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // Clamp inline assembly's stores of absolute addresses to the free memory pointer before any
@@ -209,6 +248,9 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &element_cleanup::ElementCleanup,
     &frame_promotion::FrameSlotPromotion,
     &loop_canonicalize::LoopCanonicalize,
+    // Replace byte-at-a-time loops with word operations while checks are single instructions,
+    // before the inliner prices the helpers that spell them.
+    &byte_loops::ByteLoops,
     // Evaluate recurrences before gas-bounded reasoning removes checks that
     // become reachable if a loop is replaced by a constant-time formula.
     &GasOnly::new(dce::Dce),
@@ -219,8 +261,13 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
+    // A loop that stores into one array and reloads another's length gets a copy that reads
+    // the lengths once, behind a run-time test that the stores cannot reach them. It runs on
+    // the threaded graph, where the short-circuit conditions that cover a check dominate it;
+    // the check elimination after memory lowering folds the copy's bounds.
+    &GasOnly::new(loop_version::LoopVersion),
     &sroa::Sroa,
-    &memory_dse::MemoryDse,
+    &memory_dse::MemoryDse::Standard,
     &dce::Dce,
     // Late control-flow rewrites expose scalar simplifications.
     // Thread and clean the CFG first so the rest of this sequence observes the
@@ -254,12 +301,14 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &word_sequence::WordSequence::Early,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
-    &cfg_simplify::CfgSimplify,
+    // Runs at `-O none` too: it removes the empty blocks lowering leaves, which shrinks every
+    // later pass's input and the bytecode.
+    &RunsAtNone::new(cfg_simplify::CfgSimplify),
     // Small pure diamonds become selects once folded conditions are gone.
     &if_convert::IfConvert,
     &frame_promotion::FrameSlotPromotion,
-    &copy_elision::CopyElision,
-    &memory_dse::MemoryDse,
+    // Builtin expansion exposes buffers whose readers are gone.
+    &memory_dse::MemoryDse::WithUnreadAllocations,
     &lower_abi::LowerAbi,
     // ABI lowering exposes canonical-word helpers to the same inlining policy.
     &inline::Inline::Semantic,
@@ -283,17 +332,20 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &egraph::Egraph,
     &word_sequence::WordSequence::Late,
     &cfg_simplify::CfgSimplify,
-    &memory_dse::MemoryDse,
+    &memory_dse::MemoryDse::Standard,
     // Expose callee reads before late CSE.
     &inline::Inline::Semantic,
     &cse::Cse::All,
+    // Forwarding exposes masks on stored words, such as ABI-encoded struct fields. Fold them
+    // while integer types still exist.
+    &egraph::Egraph,
     // Fold checks exposed by forwarding in late CSE. Gas-only: under `-Osize` it grows the
     // corpus's bytecode.
     &GasOnly::new(check_elim::CheckElim),
     &dce::Dce,
     // Forwarding has replaced the reads of allocation headers, which leaves their stores dead
     // while the allocations are still atomic.
-    &memory_dse::MemoryDse,
+    &memory_dse::MemoryDse::Standard,
     &lower_dispatch::LowerDispatch,
     &lower_structs::LowerStructs,
     // Hoisted ABI guards leave empty wrapper entries and unreachable reverts.
@@ -333,8 +385,8 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_alloc::LowerAlloc,
     // Allocation lowering exposes zero fills and free-memory-pointer stores
     // that later stores in the same block can overwrite completely. Keep this
-    // gas-only: late constant-keccak folding can grow bytecode under `-Osize`.
-    &GasOnly::new(memory_dse::MemoryDse),
+    // gas-only.
+    &GasOnly::new(memory_dse::MemoryDse::Standard),
     &lower_memory_zero::LowerMemoryZero,
     // Materialize integer cleanup before word-level extraction and scheduling.
     &lower_integers::LowerIntegers,

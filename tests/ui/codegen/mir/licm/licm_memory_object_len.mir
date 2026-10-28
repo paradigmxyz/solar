@@ -2,14 +2,12 @@
 //@filecheck:
 @module LicmMemoryObjectLen
 
-// Element stores with a runtime index address the payload after the length
-// word, so the length read is loop-invariant and moves to the preheader.
-// CHECK-LABEL: @hoist_len_over_element_stores
-// CHECK: +     [[LEN:v[0-9]+]] = mload arg0
-// CHECK: {{^ +}}jump [[HEADER:bb[0-9]+]]
-// CHECK: {{^ +}}[[HEADER]]:
-// CHECK: -     [[LEN]] = mload arg0
-fn @hoist_len_over_element_stores(arg0: ptr<memory>) {
+// An unbounded element index can wrap into the length word. Keep its load in the loop.
+// CHECK-LABEL: @keep_len_over_element_stores
+// CHECK: {{^ +}}bb1:
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = phi
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = mload arg0
+fn @keep_len_over_element_stores(arg0: ptr<memory>) {
   bb0:
     jump bb1
   bb1:
@@ -28,13 +26,12 @@ fn @hoist_len_over_element_stores(arg0: ptr<memory>) {
     stop
 }
 
-// Byte stores also stay inside the payload of a bytes object.
-// CHECK-LABEL: @hoist_len_over_byte_stores
-// CHECK: +     [[LEN:v[0-9]+]] = mload arg0
-// CHECK: {{^ +}}jump [[HEADER:bb[0-9]+]]
-// CHECK: {{^ +}}[[HEADER]]:
-// CHECK: -     [[LEN]] = mload arg0
-fn @hoist_len_over_byte_stores(arg0: ptr<memory>) {
+// Byte indices can wrap too when assembly forges the length.
+// CHECK-LABEL: @keep_len_over_byte_stores
+// CHECK: {{^ +}}bb1:
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = phi
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = mload arg0
+fn @keep_len_over_byte_stores(arg0: ptr<memory>) {
   bb0:
     jump bb1
   bb1:

@@ -1,0 +1,281 @@
+- // === ROOT/tests/ui/codegen/mir/lower-alloc/fresh_fmp.mir (before lower-alloc) ===
++ // === ROOT/tests/ui/codegen/mir/lower-alloc/fresh_fmp.mir (after lower-alloc) ===
+  @module FreshFmp
+  fn @entry_reads() -> i256 [selector=0x10000001] {
+    bb0:
+-     v0 = fmp
++     v4 = heap_floor !metadata(alloc_ptr)
++     v0 = inttoptr i256 v4 to ptr<memory> !metadata(memory=scratch)
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+-     v2 = alloc 64
++     v5 = heap_floor !metadata(alloc_ptr)
++     v2 = inttoptr i256 v5 to ptr<memory> !metadata(memory=scratch)
++     v6 = add v5, 64 !metadata(alloc_ptr)
++     mstore 64, v6 !metadata(memory=scratch)
+      v3 = ptrtoint ptr<memory> v2 to i256
+      mstore v3, 2
+      ret v3
+  }
+  
+  fn @read_after_alloc() -> i256 [selector=0x10000002] {
+    bb0:
+-     v0 = alloc 32
+-     v1 = fmp
++     v3 = heap_floor !metadata(alloc_ptr)
++     v0 = inttoptr i256 v3 to ptr<memory> !metadata(memory=scratch)
++     v4 = add v3, 32 !metadata(alloc_ptr)
++     mstore 64, v4 !metadata(memory=scratch)
++     v5 = mload 64 !metadata(memory=scratch, alloc_ptr)
++     v1 = inttoptr i256 v5 to ptr<memory> !metadata(memory=scratch)
+      v2 = ptrtoint ptr<memory> v1 to i256
+      ret v2
+  }
+  
+  fn @read_after_slot_store() -> i256 [selector=0x10000003] {
+    bb0:
+      mstore 64, 160
+-     v0 = fmp
++     v2 = mload 64 !metadata(memory=scratch, alloc_ptr)
++     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch)
+      v1 = ptrtoint ptr<memory> v0 to i256
+      ret v1
+  }
+  
+  fn @read_after_unknown_store(arg0: i256) -> i256 [selector=0x10000004] {
+    bb0:
+      mstore arg0, 1
+-     v0 = fmp
++     v2 = mload 64 !metadata(memory=scratch, alloc_ptr)
++     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch)
+      v1 = ptrtoint ptr<memory> v0 to i256
+      ret v1
+  }
+  
+  fn @leaf_reads() -> i256 {
+    bb0:
+-     v0 = fmp
++     v2 = heap_floor !metadata(alloc_ptr)
++     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch)
+      v1 = ptrtoint ptr<memory> v0 to i256
+      ret v1
+  }
+  
+  fn @pure_helper(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 1
+      ret v0
+  }
+  
+  fn @calls_leaf() -> i256 [selector=0x10000005] {
+    bb0:
+      v0 = icall @pure_helper, 1
+      v1 = icall @leaf_reads
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @tail_reads(arg0: i256) {
+    bb0:
+-     v0 = fmp
++     v2 = heap_floor !metadata(alloc_ptr)
++     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch)
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, arg0
+      stop
+  }
+  
+  fn @tail_calls() [selector=0x10000006] {
+    bb0:
+      tail_call @tail_reads, 7
+  }
+  
+  fn @allocator() -> i256 {
+    bb0:
+-     v0 = alloc 32
++     v2 = heap_floor !metadata(alloc_ptr)
++     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch)
++     v3 = add v2, 32 !metadata(alloc_ptr)
++     mstore 64, v3 !metadata(memory=scratch)
+      v1 = ptrtoint ptr<memory> v0 to i256
+      ret v1
+  }
+  
+  fn @read_after_allocating_call() -> i256 [selector=0x10000007] {
+    bb0:
+      v0 = icall @allocator
+-     v1 = fmp
++     v4 = mload 64 !metadata(memory=scratch, alloc_ptr)
++     v1 = inttoptr i256 v4 to ptr<memory> !metadata(memory=scratch)
+      v2 = ptrtoint ptr<memory> v1 to i256
+      v3 = add v0, v2
+      ret v3
+  }
+  
+  fn @shared() -> i256 {
+    bb0:
+-     v0 = fmp
++     v2 = mload 64 !metadata(memory=scratch, alloc_ptr)
++     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch)
+      v1 = ptrtoint ptr<memory> v0 to i256
+      ret v1
+  }
+  
+  fn @shared_early() -> i256 [selector=0x10000008] {
+    bb0:
+      v0 = icall @shared
+      ret v0
+  }
+  
+  fn @shared_late() -> i256 [selector=0x10000009] {
+    bb0:
+      mstore 64, 160
+      v0 = icall @shared
+      ret v0
+  }
+  
+  fn @recursive(arg0: i256) -> i256 {
+    bb0:
+-     v0 = fmp
++     v6 = mload 64 !metadata(memory=scratch, alloc_ptr)
++     v0 = inttoptr i256 v6 to ptr<memory> !metadata(memory=scratch)
+      v1 = ptrtoint ptr<memory> v0 to i256
+      v2 = ne arg0, 0
+      jumpi v2, bb1, bb2
+    bb2:
+      ret v1
+    bb1:
+      v3 = sub arg0, 1
+      v4 = icall @recursive, v3
+      v5 = add v4, v1
+      ret v5
+  }
+  
+  fn @calls_recursive() -> i256 [selector=0x1000000a] {
+    bb0:
+      v0 = icall @recursive, 3
+      ret v0
+  }
+  
+  fn @loop_reads(arg0: i256) -> i256 [selector=0x1000000b] {
+    bb0:
+      jump bb1
+    bb1:
+-     v0 = fmp
++     v4 = mload 64 !metadata(memory=scratch, alloc_ptr)
++     v0 = inttoptr i256 v4 to ptr<memory> !metadata(memory=scratch)
+      v1 = ptrtoint ptr<memory> v0 to i256
+-     v2 = alloc 32
++     v5 = mload 64 !metadata(memory=scratch, alloc_ptr)
++     v2 = inttoptr i256 v5 to ptr<memory> !metadata(memory=scratch)
++     v6 = add v5, 32 !metadata(alloc_ptr)
++     mstore 64, v6 !metadata(memory=scratch)
+      v3 = ne arg0, 0
+      jumpi v3, bb1, bb2
+    bb2:
+      ret v1
+  }
+  
+  fn @read_after_deferred() -> i256 [selector=0x1000000c] {
+    bb0:
+      v0 = alloc 32 !metadata(deferred_alloc)
+-     v1 = fmp
++     v3 = mload 64 !metadata(memory=scratch, alloc_ptr)
++     v1 = inttoptr i256 v3 to ptr<memory> !metadata(memory=scratch)
+      v2 = ptrtoint ptr<memory> v1 to i256
+      ret v2
+  }
+  
+  fn @checked_pair(arg0: i256) -> i256 [selector=0x1000000d] {
+    bb0:
+-     v0 = alloc zeroed checked arg0
+-     v1 = alloc zeroed checked arg0
++     v6 = heap_floor !metadata(alloc_ptr)
++     v0 = inttoptr i256 v6 to ptr<memory> !metadata(memory=scratch)
++     v7 = add v6, arg0 !metadata(alloc_ptr)
++     v8 = lt v7, v6
++     v9 = gt v7, 0xffffffffffffffff
++     v10 = or v8, v9
++     v11 = zext i1 v10 to i256
++     jumpi v10, bb2, bb1
++   bb1:
++     mstore 64, v7 !metadata(memory=scratch)
++     memory_zero v0, arg0
++     v5 = icall @alloc, arg0
++     memory_zero v5, arg0
+      v2 = ptrtoint ptr<memory> v0 to i256
+-     v3 = ptrtoint ptr<memory> v1 to i256
++     v3 = ptrtoint ptr<memory> v5 to i256
+      v4 = add v2, v3
+      ret v4
++   bb2:
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @other_checked(arg0: i256) -> i256 [selector=0x1000000e] {
+    bb0:
+-     v0 = alloc zeroed checked arg0
++     v4 = heap_floor !metadata(alloc_ptr)
++     v0 = inttoptr i256 v4 to ptr<memory> !metadata(memory=scratch)
++     v5 = add v4, arg0 !metadata(alloc_ptr)
++     v6 = lt v5, v4
++     v7 = gt v5, 0xffffffffffffffff
++     v8 = or v6, v7
++     v9 = zext i1 v8 to i256
++     jumpi v8, bb2, bb1
++   bb1:
++     mstore 64, v5 !metadata(memory=scratch)
++     memory_zero v0, arg0
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore 64, 160
+-     v2 = alloc zeroed checked arg0
++     v3 = icall @alloc, arg0
++     memory_zero v3, arg0
+      ret v1
++   bb2:
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @dispatched() [selector=0x1000000f] {
+    bb0:
+-     v0 = fmp
++     v2 = heap_floor !metadata(alloc_ptr)
++     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch)
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      stop
+  }
+  
+  fn @entry() [entry] {
+    bb0:
+-     v0 = fmp
++     v2 = mload 64 !metadata(memory=scratch, alloc_ptr)
++     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch)
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      tail_call @dispatched
++ }
++ 
++ fn @alloc(arg0: i256) -> ptr<memory> {
++   bb0:
++     v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
++     v1 = inttoptr i256 v0 to ptr<memory>
++     v2 = add v0, arg0 !metadata(alloc_ptr)
++     v3 = lt v2, v0
++     v4 = gt v2, 0xffffffffffffffff
++     v5 = or v3, v4
++     v6 = zext i1 v5 to i256
++     jumpi v5, bb1, bb2
++   bb2:
++     mstore 64, v2 !metadata(memory=scratch)
++     ret v1
++   bb1:
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  

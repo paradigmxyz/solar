@@ -1,0 +1,8 @@
+- // === ROOT/tests/ui/codegen/evm-ir/emit/immutable.evmir (before none) ===
++ // === ROOT/tests/ui/codegen/evm-ir/emit/immutable.evmir (after none) ===
+  @module program
+  bb0:
+    push_immutable 0, 32
+    pop
+    stop
+  

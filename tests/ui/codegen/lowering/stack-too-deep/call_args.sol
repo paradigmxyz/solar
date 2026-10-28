@@ -1,25 +1,29 @@
 //@compile-flags: -Zdump=evm-ir-runtime --pretty-json
 //@ filecheck:
+//@ run-call: call 5 => 290
+//@ run-call-fail: call 115792089237316195423570985008687907853269984665640564039457584007913129639917 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 // solc 0.8.30 without --via-ir reports `Stack too deep` for this contract.
 pragma solidity ^0.8.0;
 
 contract StackTooDeepCall {
+    // The twenty arguments differ by constants, so each is computed from `x + 1` where it is
+    // read, and none spills.
     // CHECK-LABEL: @module StackTooDeepCall_runtime
     // CHECK: push 0x2b096926
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK: [[BODY]]:
-    // CHECK: push 1{{$}}
-    // CHECK-NEXT: push 4
+    // CHECK: push 4
     // CHECK-NEXT: calldataload
+    // CHECK-NEXT: push 1
+    // CHECK-NEXT: dup 2
     // CHECK-NEXT: add
-    // CHECK: push 19{{$}}
-    // CHECK-NEXT: push 4
-    // CHECK-NEXT: calldataload
+    // CHECK-NOT: mload
+    // CHECK: push 18{{$}}
+    // CHECK-NEXT: dup {{[0-9]+}}
     // CHECK-NEXT: add
-    // CHECK: mload
-    // CHECK: add
+    // CHECK-NOT: mload
     // CHECK: return
     function call(uint256 x) external pure returns (uint256) {
         return sum(

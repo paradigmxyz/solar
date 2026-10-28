@@ -3,9 +3,9 @@
 @phase lowered
 fn @f() [selector=0x26121ff0, abi_wrapper, pure] {
   bb0:
-    v20 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v20 = heap_floor !metadata(alloc_ptr)
     v21 = add v20, 192 !metadata(alloc_ptr)
-    mstore 64, v21
+    mstore 64, v21 !metadata(memory=scratch)
     v11 = add v20, 32
     mstore v11, 1
     v13 = add v20, 64

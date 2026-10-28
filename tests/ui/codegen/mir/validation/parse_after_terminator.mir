@@ -1,0 +1,15 @@
+//@compile-flags: -Zmir-pipeline=none
+
+@module AfterTerminator
+
+fn @f() {
+  bb0:
+    tail_call @g
+    mstore 0, 1 //~ ERROR: block `bb0` continues after its terminator
+    stop
+}
+
+fn @g() {
+  bb0:
+    stop
+}

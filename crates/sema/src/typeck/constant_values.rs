@@ -45,7 +45,7 @@ pub(super) fn check(gcx: Gcx<'_>, units: &[(hir::SourceId, Unit)]) {
             }
         }
     }
-    par_visit_items(units, || AssemblyConstants { gcx, in_assembly: false });
+    par_visit_items(gcx, units, || AssemblyConstants { gcx, in_assembly: false });
 }
 
 /// Checks the value of the base slot `slot` of `contract` if solc's evaluator computes it, or
@@ -118,7 +118,7 @@ impl<'gcx> Visit<'gcx> for AssemblyConstants<'gcx> {
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
         let previous = self.in_assembly;
-        self.in_assembly |= matches!(stmt.kind, hir::StmtKind::AssemblyBlock(_));
+        self.in_assembly |= matches!(stmt.kind, hir::StmtKind::AssemblyBlock(..));
         let result = self.walk_stmt(stmt);
         self.in_assembly = previous;
         result

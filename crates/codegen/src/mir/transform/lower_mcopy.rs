@@ -397,7 +397,7 @@ fn copy_direction(
     let Some(src_location) = alias.bare_memory_location(func, src, size) else {
         return CopyDirection::Dynamic;
     };
-    if alias.memory_alias(dest_location, src_location) == AliasResult::NoAlias {
+    if alias.memory_alias(func, dest_location, src_location) == AliasResult::NoAlias {
         return CopyDirection::Forward;
     }
     let Some(dest) = alias.memory_address(func, dest) else { return CopyDirection::Dynamic };
