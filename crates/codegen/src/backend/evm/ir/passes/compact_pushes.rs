@@ -58,7 +58,6 @@ const MIN_COMPACT_MASK_WIDTH: u8 = 5;
 
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
-    let is_none = gcx.sess.opts.optimization.is_none();
     let target = module.target(gcx);
     let mut changed = false;
     let mut scratch = Vec::new();
@@ -68,7 +67,8 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
         let block = &module.blocks[block_id];
         // `-O none` runs no inlining, so a loop calls the helpers that hold its hot code; gas
         // builds keep the loop-only rule.
-        let in_loop = (block.metadata.in_loop || (is_none && block.metadata.repeats))
+        let in_loop = (block.metadata.in_loop
+            || (gcx.sess.opts.optimization.is_none() && block.metadata.repeats))
             && !block.metadata.hotness.is_cold();
         let repeated = gcx.sess.opts.optimization.is_size() || block.metadata.hotness.is_cold();
         if !block.instructions.iter().any(|inst| {

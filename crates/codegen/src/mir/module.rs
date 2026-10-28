@@ -446,9 +446,7 @@ impl Module {
         &self,
     ) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
         let creation = self.creation_only_functions();
-        let (looping, repeated) = self.loops_and_repeats(&creation, |id| {
-            self.reachable_from(direct_callees(self.function(id))).contains(id)
-        });
+        let (looping, repeated) = self.loops_and_repeats(&creation, &CallGraphInfo::new(self));
         let mut called_once = creation;
         called_once.subtract(&repeated);
         let mut straight = called_once.clone();
@@ -465,15 +463,14 @@ impl Module {
         domain: &DenseBitSet<FunctionId>,
         call_graph: &CallGraphInfo,
     ) -> DenseBitSet<FunctionId> {
-        self.loops_and_repeats(domain, |id| call_graph.is_recursive(id)).1
+        self.loops_and_repeats(domain, call_graph).1
     }
 
     /// Returns the functions of `domain` with a loop of their own, and those it repeats.
-    /// `is_recursive` tells whether a function calls itself, directly or not.
     fn loops_and_repeats(
         &self,
         domain: &DenseBitSet<FunctionId>,
-        is_recursive: impl Fn(FunctionId) -> bool,
+        call_graph: &CallGraphInfo,
     ) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
         let mut looping = DenseBitSet::new_empty(self.functions.len());
         let mut repeated = DenseBitSet::new_empty(self.functions.len());
@@ -481,7 +478,7 @@ impl Module {
         for id in domain.iter() {
             let func = self.function(id);
             let has_loop = !CfgInfo::new(func).cyclic_blocks().is_empty();
-            let repeats_callees = has_loop || is_recursive(id);
+            let repeats_callees = has_loop || call_graph.is_recursive(id);
             if has_loop {
                 looping.insert(id);
             }

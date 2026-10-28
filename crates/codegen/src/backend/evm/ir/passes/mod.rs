@@ -200,7 +200,8 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Materialize literal-store runs and pack the referenced data pool before final sharing and
     // cleanup.
     &data::PackData,
-    // Data packing can add compactable immediates and local stack shuffles.
+    // Data packing can add compactable immediates and local stack shuffles. This slot also runs
+    // at `-O none`, where it compacts what earlier passes left.
     &RunsAtNone(compact_pushes::CompactPushes),
     &peephole::Peephole::FINAL,
     // Search straight-line code for cheaper stack shuffles once pushes are final.
