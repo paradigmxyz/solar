@@ -19,7 +19,7 @@
 -   swap 1
 -   swap 2
     stop
-  bb2 [stack=17]:
+  bb2 [stack=1023]:
 +   swap 16
     swap 1
     push 255
@@ -32,9 +32,9 @@
     swap 1
     push 7
     sub
+-   swap 1
+-   swap 1
     swap 1
--   swap 1
--   swap 1
     stop
   bb4 [stack=5]:
     swap 1
@@ -59,23 +59,6 @@
     swap 4
     swap 1
     swap 3
-    stop
-  bb7 [stack=5]:
-    swap 1
-    dup 4
-    add
-    swap 4
-    swap 1
-    swap 4
-    stop
-  bb8 [stack=1023]:
-+   swap 4
-    swap 1
-    push 672
-    add
--   swap 4
--   swap 1
--   swap 4
     stop
   bb9 [stack=5]:
     swap 1

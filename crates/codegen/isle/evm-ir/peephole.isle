@@ -71,7 +71,6 @@
 (extern extractor unprotected_last5 unprotected_last5)
 (decl last6 (Inst Inst Inst Inst Inst Inst) Window)
 (extern extractor last6 last6)
-;; A six-instruction window with no protected boundaries.
 (decl unprotected_last6 (Inst Inst Inst Inst Inst Inst) Window)
 (extern extractor unprotected_last6 unprotected_last6)
 ;; `SWAPn POP*n SWAP1 POP`, giving `n`.
@@ -281,9 +280,8 @@
 (rule 70 (peep_exchange (last2 (swap n) (exchange n m))) (rewrite 2 (Edit.StackOps (swap_op m) (swap_op n))))
 (rule 60 (peep_exchange (last2 (swap m) (exchange n m))) (rewrite 2 (Edit.StackOps (swap_op n) (swap_op m))))
 
-;; SWAP1; PUSH c; pure_binop; SWAPn; SWAP1; SWAPn => SWAPn; SWAP1; PUSH c; pure_binop.
-;; For n > 1, both sides apply the operation to the same two words and leave the same stack.
-;; The push and binary operation retain their input order, including noncommutative operations.
+;; SWAP1; PUSH c; pure_binop; SWAPn; SWAP1; SWAPn => SWAPn; SWAP1; PUSH c; pure_binop
+;; For n > 1 both sides apply the operation to the same two words and leave the same stack.
 (rule 50 (peep_swap (unprotected_last6 (swap 1) (push _) (opcode binop)
                                      (swap n) (swap 1) (swap n)))
          (if-let true (is_pure_binop binop))

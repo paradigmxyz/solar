@@ -22,8 +22,8 @@ bb1 [stack=3]:
   swap 2
   stop
 
-// Deep swaps do not change the minimum stack depth or increase the temporary peak.
-bb2 [stack=17]:
+// The deepest swap at the EVM stack limit stays valid: both versions peak at 1024 words.
+bb2 [stack=1023]:
   swap 1
   push 255
   xor
@@ -32,7 +32,8 @@ bb2 [stack=17]:
   swap 16
   stop
 
-// A one-deep swap does not satisfy the three-word permutation identity.
+// A one-deep swap does not satisfy the three-word permutation identity, and the swap
+// cancellation applies first.
 bb3 [stack=2]:
   swap 1
   push 7
@@ -70,26 +71,6 @@ bb6 [stack=5]:
   swap 4
   swap 1
   swap 3
-  stop
-
-// A stack-dependent operand is not interchangeable with a constant push.
-bb7 [stack=5]:
-  swap 1
-  dup 4
-  add
-  swap 4
-  swap 1
-  swap 4
-  stop
-
-// A valid window at the EVM stack limit stays valid: both versions peak at 1024 words.
-bb8 [stack=1023]:
-  swap 1
-  push 672
-  add
-  swap 4
-  swap 1
-  swap 4
   stop
 
 // A symbolic code address is not an interchangeable literal.

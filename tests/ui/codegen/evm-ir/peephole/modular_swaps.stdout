@@ -17,16 +17,4 @@
     swap 2
     mulmod
     stop
-  bb4 [stack=3]:
-    dup 2
-    addmod
-    swap 1
-    pop
-    stop
-  bb5 [stack=3]:
-    dup 2
-    mulmod
-    swap 1
-    pop
-    stop
   

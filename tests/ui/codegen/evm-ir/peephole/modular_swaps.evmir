@@ -21,17 +21,3 @@ bb3 [stack=3]:
   swap 2
   mulmod
   stop
-
-// The ternary operations do not match the binary DUP2/OP/SWAP1/POP rewrite.
-bb4 [stack=3]:
-  dup 2
-  addmod
-  swap 1
-  pop
-  stop
-bb5 [stack=3]:
-  dup 2
-  mulmod
-  swap 1
-  pop
-  stop

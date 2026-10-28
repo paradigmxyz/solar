@@ -21,8 +21,8 @@
 //! preserve protected instruction boundaries, and never treat symbolic label
 //! addresses or immutable placeholders as literal constants.
 //! A pure binary operation with a constant operand moves through a `SWAPn SWAP1 SWAPn`
-//! permutation, which removes two swaps. `ADDMOD` and `MULMOD` drop a preceding `SWAP1`, since
-//! only their first two operands swap.
+//! permutation, which removes two swaps. `ADDMOD` and `MULMOD` drop a preceding `SWAP1`,
+//! since only their first two operands swap.
 //!
 //! The separate `late-word` entry point runs only after structural cleanup. It
 //! replaces a low-mask construction with a shorter complement/shift form. A closed
@@ -338,7 +338,6 @@ enum Edit {
         first: op::StackOp,
         second: op::StackOp,
     },
-    /// SWAP1; PUSH c; binop; SWAPn; SWAP1; SWAPn => SWAPn; SWAP1; PUSH c; binop.
     MoveConstantThroughSwaps,
 }
 
@@ -455,8 +454,7 @@ impl Edit {
             }
             Self::MoveConstantThroughSwaps => {
                 // SWAPn; SWAP1; PUSH c; binop
-                instructions.swap(start, start + 3);
-                instructions[start + 1..start + 5].rotate_right(1);
+                instructions[start..start + 4].rotate_right(1);
                 instructions.truncate(start + 4);
                 // NOTE: The intermediate stack layouts differ even though the final one agrees.
                 for inst in &mut instructions[start..] {
