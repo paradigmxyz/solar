@@ -179,84 +179,110 @@ fn @freshWrapped() [selector=0x42a6a755, abi_wrapper, pure] {
 
 fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
   bb0:
-    v29 = calldatasize
-    v30 = lt v29, 100
-    v31 = calldataload 4
-    v32 = add v31, 4
-    v34 = sub v29, 36
-    v35 = gt v31, v34
-    v36 = calldataload v32
-    v37 = add v32, 32
-    v38 = sub v29, v37
-    v39 = gt v36, v38
-    v40 = or v35, v39
-    v78 = or v30, v40
-    v44 = calldataload 36
-    v45 = add v44, 4
-    v48 = gt v44, v34
-    v79 = or v78, v48
-    jumpi v79, bb9, bb10
-  bb10:
-    v49 = calldataload v45
-    v50 = add v45, 32
-    v51 = add v49, 63
-    v52 = lt v51, v49
-    v54 = and v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v72 = heap_floor !metadata(alloc_ptr)
-    v73 = add v72, v54 !metadata(alloc_ptr)
-    v74 = lt v73, v72
-    v75 = gt v73, 0xffffffffffffffff
-    v76 = or v74, v75
-    v80 = or v52, v76
-    jumpi v80, bb11, bb13
-  bb13:
-    mstore 64, v73 !metadata(memory=scratch)
-    mstore v72, v49
-    v56 = sub v29, v50
-    v57 = gt v49, v56
-    jumpi v57, bb9, bb12
-  bb12:
-    v69 = add v72, 32
-    calldatacopy v69, v50, v49
+    v45 = calldatasize
+    v46 = lt v45, 100
+    v47 = calldataload 4
+    v48 = add v47, 4
+    v50 = sub v45, 36
+    v51 = gt v47, v50
+    v52 = calldataload v48
+    v53 = add v48, 32
+    v54 = sub v45, v53
+    v55 = gt v52, v54
+    v56 = or v51, v55
+    v96 = or v46, v56
+    v60 = calldataload 36
+    v61 = add v60, 4
+    v64 = gt v60, v50
+    v97 = or v96, v64
+    jumpi v97, bb15, bb16
+  bb16:
+    v65 = calldataload v61
+    v66 = add v61, 32
+    v67 = add v65, 63
+    v68 = lt v67, v65
+    v70 = and v67, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v90 = heap_floor !metadata(alloc_ptr)
+    v91 = add v90, v70 !metadata(alloc_ptr)
+    v92 = lt v91, v90
+    v93 = gt v91, 0xffffffffffffffff
+    v94 = or v92, v93
+    v98 = or v68, v94
+    jumpi v98, bb17, bb19
+  bb19:
+    mstore 64, v91 !metadata(memory=scratch)
+    mstore v90, v65
+    v72 = sub v45, v66
+    v73 = gt v65, v72
+    jumpi v73, bb15, bb18
+  bb18:
+    v87 = add v90, 32
+    calldatacopy v87, v66, v65
+    v40 = lt v52, arg2
+    jumpi v40, bb7, bb6
+  bb6:
+    jump bb4
+  bb4:
+    v27 = phi [bb6: 0], [bb11: v39]
+    v28 = lt v27, arg2
+    jumpi v28, bb5, bb2
+  bb5:
+    v30 = add v53, v27
+    v31 = calldataload v30
+    v32 = byte 0, v31
+    v43 = sub v27, 32
+    v44 = lt v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    jumpi v44, bb12, bb14
+  bb14:
+    v34 = mload v87
+    v35 = lt v43, v34
+    jumpi v35, bb11, bb8
+  bb11:
+    v84 = add v87, v43
+    v85 = add v84, 32
+    mstore8 v85, v32
+    v39 = add v27, 1
+    jump bb4
+  bb7:
     jump bb1
   bb1:
-    v6 = phi [bb12: 0], [bb6: v26]
+    v6 = phi [bb7: 0], [bb10: v26]
     v7 = lt v6, arg2
     jumpi v7, bb3, bb2
   bb2:
     mstore 0, 1
     returndata 0, 32
   bb3:
-    v9 = lt v6, v36
-    jumpi v9, bb5, bb4
-  bb5:
-    v14 = add v37, v6
+    v9 = lt v6, v52
+    jumpi v9, bb9, bb8
+  bb9:
+    v14 = add v53, v6
     v15 = calldataload v14
     v16 = byte 0, v15
-    v27 = sub v6, 32
-    v28 = lt v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    jumpi v28, bb7, bb8
+    v41 = sub v6, 32
+    v42 = lt v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    jumpi v42, bb12, bb13
+  bb13:
+    v19 = mload v87
+    v20 = lt v41, v19
+    jumpi v20, bb10, bb8
   bb8:
-    v19 = mload v69
-    v20 = lt v27, v19
-    jumpi v20, bb6, bb4
-  bb4:
     tail_call @revert_stub
-  bb6:
-    v66 = add v69, v27
-    v67 = add v66, 32
-    mstore8 v67, v16
+  bb10:
+    v82 = add v87, v41
+    v83 = add v82, 32
+    mstore8 v83, v16
     v26 = add v6, 1
     jump bb1
-  bb7:
+  bb12:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb11:
+  bb17:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb9:
+  bb15:
     revert 0, 0
 }
 

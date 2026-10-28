@@ -1,0 +1,142 @@
+//@ compile-flags: -Zmir-pipeline=indvar-simplify
+//@ filecheck:
+@module UntestedCounter
+
+// A scan that leaves on the element it reads tests no counter: a pointer stepping beside the
+// update replaces the address, the exit rebuilds the index it returns from how far the pointer
+// moved, and the counter dies.
+// CHECK-LABEL: {{^[ +].*}}fn @scan{{[( ]}}
+// CHECK: + [[START:v[0-9]+]] = add arg0, {{v[0-9]+}}
+// CHECK: - {{v[0-9]+}} = phi [bb0: arg1], [bb1: {{v[0-9]+}}]
+// CHECK: + [[PTR:v[0-9]+]] = phi [bb0: [[START]]], [bb1: [[NEXT:v[0-9]+]]]
+// CHECK-NEXT: + [[NEXT]] = add [[PTR]], 32
+// CHECK-NEXT: + {{v[0-9]+}} = mload [[NEXT]]
+// CHECK: bb2:
+// CHECK: + [[MOVED:v[0-9]+]] = sub [[NEXT]], [[START]]
+// CHECK-NEXT: + [[STEPS:v[0-9]+]] = shr [[MOVED]], 5
+// CHECK-NEXT: + [[INDEX:v[0-9]+]] = add arg1, [[STEPS]]
+// CHECK-NEXT: + ret [[INDEX]]
+fn @scan(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg1], [bb1: v2]
+    v2 = add v1, 1
+    v3 = shl v2, 5
+    v4 = add arg0, v3
+    v5 = mload v4
+    v6 = lt v5, arg2
+    jumpi v6, bb1, bb2
+  bb2:
+    ret v2
+}
+
+// A counter stepping up addresses an array from its end down: the pointer steps down, and the
+// exit adds the steps the pointer moved to the counter's start.
+// CHECK-LABEL: {{^[ +].*}}fn @reverse_scan{{[( ]}}
+// CHECK: + [[PTR:v[0-9]+]] = phi [bb0: [[START:v[0-9]+]]], [bb1: [[NEXT:v[0-9]+]]]
+// CHECK-NEXT: + [[NEXT]] = sub [[PTR]], 32
+// CHECK-NEXT: + {{v[0-9]+}} = mload [[NEXT]]
+// CHECK: bb2:
+// CHECK: + [[MOVED:v[0-9]+]] = sub [[START]], [[NEXT]]
+// CHECK-NEXT: + [[STEPS:v[0-9]+]] = shr [[MOVED]], 5
+// CHECK-NEXT: + [[INDEX:v[0-9]+]] = add arg1, [[STEPS]]
+// CHECK-NEXT: + ret [[INDEX]]
+fn @reverse_scan(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg1], [bb1: v2]
+    v2 = add v1, 1
+    v3 = shl v2, 5
+    v4 = sub arg0, v3
+    v5 = mload v4
+    v6 = lt v5, arg2
+    jumpi v6, bb1, bb2
+  bb2:
+    ret v2
+}
+
+// Two scans toward each other, each starting where its last run stopped and compared through
+// their addresses, as a partition's copy without checks: the enclosing loop carries both
+// pointers instead of the counters, the scan up's counter dies with the enclosing phi that only
+// fed its rebuild, and the scan down's last index is rebuilt from where the enclosing loop
+// entered, on the edge to the join that reads it.
+// CHECK-LABEL: {{^[ +].*}}fn @partition{{[( ]}}
+// CHECK: bb1:
+// CHECK: + [[LOW:v[0-9]+]] = add arg0, {{v[0-9]+}}
+// CHECK: + [[HIGH:v[0-9]+]] = add arg0, {{v[0-9]+}}
+// CHECK: bb2:
+// CHECK-NEXT: - {{v[0-9]+}} = phi [bb1: arg1]
+// CHECK-NEXT: - {{v[0-9]+}} = phi [bb1: arg2]
+// CHECK-NEXT: + [[I:v[0-9]+]] = phi [bb1: [[LOW]]], [bb8: [[UP:v[0-9]+]]]
+// CHECK-NEXT: + [[J:v[0-9]+]] = phi [bb1: [[HIGH]]], [bb8: [[DOWN:v[0-9]+]]]
+// CHECK: + [[UP]] = add {{v[0-9]+}}, 32
+// CHECK: + [[DOWN]] = sub {{v[0-9]+}}, 32
+// CHECK: + {{v[0-9]+}} = lt [[UP]], [[DOWN]]
+// CHECK-NEXT: + jumpi {{v[0-9]+}}, bb8, [[REBUILD:bb[0-9]+]]
+// CHECK-NEXT: + [[REBUILD]]:
+// CHECK-NEXT: + [[MOVED:v[0-9]+]] = sub [[HIGH]], [[DOWN]]
+// CHECK-NEXT: + [[STEPS:v[0-9]+]] = shr [[MOVED]], 5
+// CHECK-NEXT: + [[INDEX:v[0-9]+]] = sub arg2, [[STEPS]]
+// CHECK: + {{v[0-9]+}} = phi [bb0: 0], {{\[}}[[REBUILD]]: [[INDEX]]]
+fn @partition(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 {
+  bb0:
+    v51 = lt arg1, arg2
+    jumpi v51, bb8, bb6
+  bb8:
+    jump bb1
+  bb1:
+    v1 = phi [bb8: arg1], [bb7: v12]
+    v2 = phi [bb8: arg2], [bb7: v22]
+    jump bb2
+  bb2:
+    v11 = phi [bb1: v1], [bb2: v12]
+    v12 = add v11, 1
+    v13 = shl v12, 5
+    v14 = add arg0, v13
+    v15 = mload v14
+    v16 = lt v15, arg3
+    jumpi v16, bb2, bb3
+  bb3:
+    jump bb4
+  bb4:
+    v21 = phi [bb3: v2], [bb4: v22]
+    v22 = sub v21, 1
+    v23 = shl v22, 5
+    v24 = add arg0, v23
+    v25 = mload v24
+    v26 = lt arg3, v25
+    jumpi v26, bb4, bb5
+  bb5:
+    v31 = lt v14, v24
+    jumpi v31, bb7, bb6
+  bb6:
+    v52 = phi [bb0: 0], [bb5: v22]
+    ret v52
+  bb7:
+    v41 = mload v24
+    v42 = mload v14
+    mstore v24, v42
+    mstore v14, v41
+    jump bb1
+}
+
+// A step of exactly `-2^127` bytes has no magnitude to move a pointer by, so the scan stays as it
+// is, with no pointer phi left behind without its input from the latch.
+// CHECK-LABEL: {{^[ +].*}}fn @no_magnitude{{[( ]}}
+// CHECK-NOT: {{^[+-]}}
+fn @no_magnitude(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg1], [bb1: v2]
+    v2 = sub v1, 0x40000000000000000000000000000000
+    v3 = shl v2, 1
+    v4 = add arg0, v3
+    v5 = mload v4
+    v6 = lt v5, arg2
+    jumpi v6, bb1, bb2
+  bb2:
+    ret v2
+}
