@@ -56,6 +56,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &element_cleanup::ElementCleanup,
     &egraph::Egraph,
     &word_sequence::WordSequence::Late,
+    &byte_loops::ByteLoops,
     &byte_run::ByteRunLoads,
     &cse::Cse::Storage,
     &storage_dse::StorageDse,
@@ -246,6 +247,9 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &element_cleanup::ElementCleanup,
     &frame_promotion::FrameSlotPromotion,
     &loop_canonicalize::LoopCanonicalize,
+    // Replace byte-at-a-time loops with word operations while checks are single instructions,
+    // before the inliner prices the helpers that spell them.
+    &byte_loops::ByteLoops,
     // Evaluate recurrences before gas-bounded reasoning removes checks that
     // become reachable if a loop is replaced by a constant-time formula.
     &GasOnly::new(dce::Dce),

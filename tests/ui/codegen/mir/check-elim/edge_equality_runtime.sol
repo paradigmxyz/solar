@@ -17,12 +17,13 @@ contract EdgeEquality {
         return size * 2 + (32 - size) + 1;
     }
 
-    // The required length is 64, so the copy size, the stored length, and the padded sizes
+    // The required length is 64, so the allocation size, the stored length, and the copy size
     // take the constant.
     // CHECK-LABEL: fn @pack
+    // CHECK: add {{v[0-9]+}}, 128
+    // CHECK: mstore {{v[0-9]+}}, 96
     // CHECK: mcopy {{v[0-9]+}}, {{v[0-9]+}}, 64
     // CHECK: mstore {{v[0-9]+}}, 64
-    // CHECK: returndata {{v[0-9]+}}, 160
     function pack(bytes memory data) external pure returns (bytes memory) {
         uint256 size = data.length;
         require(size == 64);

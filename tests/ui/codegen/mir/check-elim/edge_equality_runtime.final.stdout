@@ -25,24 +25,28 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     revert 0, 0
   bb2:
     v41 = add v26, 32
-    v55 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v56 = add v55, 128
-    mstore 64, v56 !metadata(memory=scratch)
-    mstore v55, 96
-    v43 = add v55, 32
+    v56 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v57 = add v56, 128
+    mstore 64, v57 !metadata(memory=scratch)
+    mstore v56, 96
+    v43 = add v56, 32
     mcopy v43, v41, 64
-    v45 = add v55, 64
+    v45 = add v56, 64
     v46 = add v45, 32
     mstore v46, 64
-    v48 = add v55, 96
+    v48 = add v56, 96
     v49 = add v48, 32
     mstore v49, 0
-    v36 = add v43, 96
+    v30 = mload v56
+    v32 = add v30, 31
+    v34 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v36 = add v43, v34
     mstore v36, 0
-    mcopy v45, v43, 96
-    mstore v55, 32
-    mstore v43, 96
-    returndata v55, 160
+    mcopy v45, v43, v30
+    mstore v56, 32
+    mstore v43, v30
+    v38 = add v34, 64
+    returndata v56, v38
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {

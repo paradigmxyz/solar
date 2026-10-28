@@ -731,7 +731,7 @@ impl LoopOptimizer {
         // The hoist candidate's address is loop-invariant, so its extent and affine range hold
         // for every store the loop makes.
         let load = load_width.map(|width| LoadRange {
-            location: aa.bare_access_extent(func, load_addr, LocationSize::Const(width)),
+            location: aa.bare_memory_location(func, load_addr, LocationSize::Const(width)),
             affine: self.affine_range(func, ctx, load_addr, width, None),
         });
         for block_id in &ctx.loop_data.blocks {
@@ -839,9 +839,9 @@ impl LoopOptimizer {
         let aa = self.alias();
         if let Some(location) = load.location
             && let Some(write) =
-                aa.bare_access_extent(func, write_addr, LocationSize::Const(write_width))
+                aa.bare_memory_location(func, write_addr, LocationSize::Const(write_width))
         {
-            match aa.memory_alias(location, write) {
+            match aa.memory_alias(func, location, write) {
                 AliasResult::NoAlias => return false,
                 AliasResult::MustAlias | AliasResult::PartialAlias => return true,
                 AliasResult::MayAlias => {}

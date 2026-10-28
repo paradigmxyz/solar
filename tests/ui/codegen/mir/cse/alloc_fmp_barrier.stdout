@@ -1,0 +1,114 @@
+- // === ROOT/tests/ui/codegen/mir/cse/alloc_fmp_barrier.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/alloc_fmp_barrier.mir (after cse) ===
+  @module AllocFmpBarrier
+  fn @unique_across_alloc(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      v2 = ptradd v0, 32
+      v3 = mload v1
+      v4 = mload v2
+      v5 = alloc zeroed checked arg0
+      mstore 0, arg1
+      mstore 64, arg1
+      mstore 96, arg1
+-     v6 = mload v1
+-     v7 = mload v2
+-     v8 = add v3, v6
+-     v9 = add v8, v7
++     v8 = add v3, v3
++     v9 = add v8, v4
+      v10 = add v9, v4
+      ret v10
+  }
+  
+  fn @store_forwards_across_alloc(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, arg0
+      v2 = alloc 64
+      v3 = ptrtoint ptr<memory> v2 to i256
+      mstore v3, arg1
+      set_fmp v2
+-     v4 = mload v1
+-     ret v4
++     ret arg0
+  }
+  
+  fn @absolute_below_offset(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = ptradd v0, 32
+      v2 = mload v1
+      v3 = ptrtoint ptr<memory> v0 to i256
+      v4 = mload v3
+      mstore 128, arg0
+-     v5 = mload v1
+      mstore 160, arg0
+      v6 = mload v1
+-     v7 = add v2, v5
++     v7 = add v2, v2
+      v8 = add v7, v6
+      v9 = add v8, v4
+      ret v9
+  }
+  
+  fn @store_to_fmp_slot_resets(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
+      v2 = mload v1
+      mstore 64, 128
+      v3 = alloc 32
+      v4 = ptrtoint ptr<memory> v3 to i256
+      mstore v4, arg1
+      v5 = mload v1
+      v6 = add v2, v5
+      ret v6
+  }
+  
+  fn @call_resets(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
+      v2 = mload v1
+      icall @resetter, v0
+      v3 = alloc 32
+      v4 = ptrtoint ptr<memory> v3 to i256
+      mstore v4, arg1
+      v5 = mload v1
+      v6 = add v2, v5
+      ret v6
+  }
+  
+  fn @loop_allocation(arg0: i256, arg1: i256, arg2: i1) -> i256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      v2 = mload v1
+      v3 = alloc zeroed checked arg1
+      v4 = mload v1
+      v5 = add v2, v4
+      jumpi arg2, bb1, bb2
+    bb2:
+      ret v5
+  }
+  
+  fn @raw(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = mload arg0
+      v1 = alloc zeroed checked arg1
+      v2 = mload arg0
+      v3 = add v0, v2
+      ret v3
+  }
+  
+  fn @resetter(arg0: ptr<memory>) {
+    bb0:
+      set_fmp arg0
+      ret
+  }
+  
