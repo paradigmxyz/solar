@@ -33,8 +33,7 @@
 //! availability before applying the retained instruction's clobbers so an identical write does not
 //! invalidate itself.
 //!
-//! Loads at the base of a constant-size allocation stay local unless the cached value already
-//! crosses the block edge.
+//! Loads at allocation bases stay local unless the cached value already crosses the block edge.
 //! Extending their lifetimes can add a spill whose store and reload cost more than the load.
 //! Constant word and semantic length writes seed the same read cache without extending register
 //! lifetimes. Overlapping writes and calls invalidate these entries through the usual alias checks.
@@ -836,7 +835,7 @@ impl CommonSubexprEliminator {
     ) {
         cache.retain_stateful(|key, value| {
             !matches!(key, ExprKey::MLoad(location)
-                if location.address.is_fixed_allocation_base(func))
+                if location.address.is_allocation_base())
                 || func.value_u256(*value).is_some()
                 || ctx
                     .liveness

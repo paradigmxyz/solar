@@ -1165,7 +1165,7 @@ impl<'a> Eliminator<'a> {
             });
         if !needs_phi
             && matches!(key, LoadKey::Memory(address)
-                if address.is_fixed_allocation_base(func))
+                if address.is_allocation_base())
             && incoming.first().is_some_and(|&(_, value)| {
                 !matches!(func.value(value), Value::Immediate(_))
                     && !self
@@ -1288,7 +1288,7 @@ impl<'a> Eliminator<'a> {
     ) -> Option<ValueId> {
         let key = cx.analysis.keys[key_idx];
         let prefer_live = matches!(key, LoadKey::Memory(address)
-            if address.is_fixed_allocation_base(func));
+            if address.is_allocation_base());
         let mut found = None;
         for &inst_id in func.blocks[block].instructions.iter().rev() {
             if let Some((gen_key, source)) = self.gen_key_value(func, inst_id)

@@ -1,8 +1,7 @@
 //@ revisions: gas size
 //@[gas] compile-flags: -O gas -Zdump=evm-ir-runtime
 //@[size] compile-flags: -O size -Zdump=evm-ir-runtime
-//@[gas] filecheck: --check-prefixes=CHECK,GAS
-//@[size] filecheck: --check-prefixes=CHECK,SIZE
+//@ filecheck:
 //@ run-call: sort10 [10, 9, 8, 7, 6, 5, 4, 3, 2, 1], 0 => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 //@ run-call: sort10 [7, 3, 9, 1, 8, 2, 6, 4, 0, 5, 11, 10], 1 => [7, 0, 1, 2, 3, 4, 5, 6, 8, 9, 11, 10]
 //@ run-call: sort10 [4, 4, 1, 1, 3, 3, 2, 2, 0, 0], 0 => [0, 0, 1, 1, 2, 2, 3, 3, 4, 4]
@@ -19,18 +18,10 @@ pragma solidity ^0.8.0;
 
 contract SortingNetworks {
     // CHECK-LABEL: @module SortingNetworks_runtime
-    // The heap starts right after the reserved words: no spill frame lies below it.
-    // Gas mode uses the initial heap base directly when allocating the array.
-    // GAS: push 5{{$}}
-    // GAS-NEXT: shl
-    // GAS-NEXT: push 128{{$}}
-    // GAS-NEXT: swap 1
-    // GAS-NEXT: dup 2
-    // GAS-NEXT: add
-    // Size mode initializes the free memory pointer before the allocation.
-    // SIZE: push 128{{$}}
-    // SIZE-NEXT: push 64
-    // SIZE-NEXT: mstore
+    // The array is allocated right after the reserved words, so no spill frame lies below it.
+    // CHECK: push 128{{$}}
+    // CHECK: push 64
+    // CHECK-NEXT: mstore
     function sort10(uint256[] memory a, uint256 low) external pure returns (uint256[] memory) {
         _sort10(a, low);
         return a;

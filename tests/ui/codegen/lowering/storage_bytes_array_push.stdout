@@ -9,29 +9,29 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v75 = add v74, 4
     v77 = sub v72, 36
     v78 = gt v74, v77
-    v105 = or v73, v78
-    jumpi v105, bb14, bb15
-  bb15:
+    v106 = or v73, v78
+    jumpi v106, bb15, bb16
+  bb16:
     v79 = calldataload v75
     v80 = add v75, 32
     v81 = add v79, 63
     v82 = lt v81, v79
     v84 = and v81, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v99 = heap_floor !metadata(alloc_ptr)
-    v100 = add v99, v84 !metadata(alloc_ptr)
-    v101 = lt v100, v99
-    v102 = gt v100, 0xffffffffffffffff
-    v103 = or v101, v102
-    v106 = or v82, v103
-    jumpi v106, bb16, bb18
-  bb18:
-    mstore 64, v100 !metadata(memory=scratch)
-    mstore v99, v79
+    v100 = heap_floor !metadata(alloc_ptr)
+    v101 = add v100, v84 !metadata(alloc_ptr)
+    v102 = lt v101, v100
+    v103 = gt v101, 0xffffffffffffffff
+    v104 = or v102, v103
+    v107 = or v82, v104
+    jumpi v107, bb17, bb19
+  bb19:
+    mstore 64, v101 !metadata(memory=scratch)
+    mstore v100, v79
     v86 = sub v72, v80
     v87 = gt v79, v86
-    jumpi v87, bb14, bb17
-  bb17:
-    v95 = add v99, 32
+    jumpi v87, bb15, bb18
+  bb18:
+    v95 = add v100, 32
     calldatacopy v95, v80, v79
     v0 = sload 0 !metadata(storage=slot(0))
     v65 = shr v0, 64
@@ -52,39 +52,43 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v13 = eq v7, v12
     jumpi v13, bb4, bb5
   bb5:
+    v15 = mload v100
     v18 = add v11, 31
     v19 = shr v18, 5
-    v20 = add v79, 31
+    v20 = add v15, 31
+    v21 = lt v20, v15
+    jumpi v21, bb2, bb6
+  bb6:
     v22 = shr v20, 5
-    v23 = lt v79, 32
+    v23 = lt v15, 32
     v67 = eq v23, false
     v68 = zext i1 v67 to i256
     v24 = mul v68, v22
-    v25 = gt v11, v79
+    v25 = gt v11, v15
     v26 = and v7, v25
-    jumpi v26, bb6, bb7
-  bb6:
-    icall @clear_storage_words, v4, v24, v19
-    jump bb7
+    jumpi v26, bb7, bb8
   bb7:
-    jumpi v23, bb8, bb9
-  bb9:
-    v70 = not v79
-    v39 = sub v79, v70
+    icall @clear_storage_words, v4, v24, v19
+    jump bb8
+  bb8:
+    jumpi v23, bb9, bb10
+  bb10:
+    v70 = not v15
+    v39 = sub v15, v70
     sstore v4, v39 !metadata(storage=offset(v0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
     mstore 0, v4 !metadata(memory=scratch)
     v93 = keccak256 0, 32 !metadata(memory=scratch)
-    v41 = shr v79, 5
-    jump bb10
-  bb10:
-    v42 = phi [bb9: 0], [bb11: v50]
+    v41 = shr v15, 5
+    jump bb11
+  bb11:
+    v42 = phi [bb10: 0], [bb12: v50]
     v43 = lt v42, v41
-    jumpi v43, bb11, bb12
-  bb12:
-    v51 = and v79, 31
-    v52 = eq v51, 0
-    jumpi v52, bb1, bb13
+    jumpi v43, bb12, bb13
   bb13:
+    v51 = and v15, 31
+    v52 = eq v51, 0
+    jumpi v52, bb1, bb14
+  bb14:
     v53 = shl v41, 5
     v56 = add v95, v53
     v57 = mload v56
@@ -95,21 +99,21 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v64 = add v93, v41
     sstore v64, v63 !metadata(storage=symbolic(v64))
     jump bb1
-  bb11:
+  bb12:
     v44 = shl v42, 5
     v47 = add v95, v44
     v48 = mload v47
     v49 = add v93, v42
     sstore v49, v48 !metadata(storage=symbolic(v49))
     v50 = add v42, 1
-    jump bb10
-  bb8:
+    jump bb11
+  bb9:
     v29 = mload v95
-    v30 = sub 32, v79
+    v30 = sub 32, v15
     v31 = shl v30, 3
     v34 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v31
     v35 = and v29, v34
-    v36 = add v79, v79
+    v36 = add v15, v15
     v37 = or v35, v36
     sstore v4, v37 !metadata(storage=offset(v0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
     jump bb1
@@ -120,11 +124,11 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     tail_call @revert_stub.7
   bb2:
     tail_call @revert_stub.6
-  bb16:
+  bb17:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb14:
+  bb15:
     revert 0, 0
 }
 
@@ -136,6 +140,7 @@ fn @popStr() [selector=0x5d7696c3, abi_wrapper] {
   bb4:
     v2 = sub v0, 1
     sstore 0, v2 !metadata(storage=slot(0))
+    mstore 0, 0 !metadata(memory=scratch)
     v4 = add v2, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
     v5 = sload v4 !metadata(storage=offset(v0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
     v21 = and v5, 1
@@ -248,6 +253,7 @@ fn @load_storage_bytes(arg0: i256) -> i256 [may_return_memory] {
     v39 = or v37, v38
     jumpi v39, bb9, bb8
   bb8:
+    mstore 64, v36 !metadata(memory=scratch)
     mstore v35, v7
     jumpi v3, bb4, bb3
   bb3:

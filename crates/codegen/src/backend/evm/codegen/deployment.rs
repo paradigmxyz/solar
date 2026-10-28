@@ -2,7 +2,7 @@
 
 use super::{
     ArtifactKind, AssembledCode, CallGraphInfo, DenseBitSet, EmbeddedBytecodes, EvmArtifact,
-    EvmCodegen, EvmMemoryLayout, ImmutableEncoding, ImmutableId, ImmutableRef, IndexVec, Module,
+    EvmCodegen, EvmMemoryLayout, ImmutableEncoding, ImmutableId, ImmutableRef, Module,
     OptimizationMode, PendingRuntime, StackOp, U256, WORD_BYTES, immutable_push_type_size,
     immutable_staging_addr, immutable_staging_base, immutable_staging_end, ir, op,
 };
@@ -228,32 +228,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_push(U256::from(copy_base));
         self.asm.emit_op(op::CODECOPY);
 
-        // Normalize patch order independently of runtime block placement. Interleaving each
-        // immutable's references gives the outliner repeated patch sequences with the same
-        // staging addresses, without changing their instruction costs or stack requirements.
-        let mut occurrences =
-            IndexVec::<ImmutableId, usize>::from_vec(vec![0; module.immutable_count()]);
-        let mut patches = Vec::with_capacity(immutable_refs.len());
-        for &reference in immutable_refs {
-            let occurrence = &mut occurrences[reference.id];
-            patches.push((*occurrence, reference.id, reference));
-            *occurrence += 1;
-        }
-        patches.sort_unstable_by_key(|&(occurrence, id, _)| (occurrence, id));
-        let staging_end =
-            immutable_staging_end(self.immutable_staging_base, module.immutable_count());
-        // Logical placeholder bytes are disjoint, and narrow patches preserve neighboring
-        // bytes. Their full MLOAD/MSTORE windows also stay outside immutable staging.
-        //
-        // value = mload staging[r.id]
-        // patch runtime[r.code_offset + 1], encode_immutable(value)
-        for (_, _, r) in patches {
-            let start = copy_base + r.code_offset as u64 + 1;
-            let width = if r.type_size.bytes() == 1 { 1 } else { WORD_BYTES as u64 };
-            debug_assert!(
-                start + width <= self.immutable_staging_base || start >= staging_end,
-                "immutable patch overlaps its staging area"
-            );
+        // Patch each `PUSH<N>` placeholder with its staged immutable value.
+        for r in immutable_refs {
             let encoding = module
                 .immutable_type(r.id)
                 .immutable_encoding()
@@ -266,7 +242,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 ),
                 r.type_size
             );
-            self.emit_immutable_patch(copy_base, r, encoding);
+            self.emit_immutable_patch(copy_base, *r, encoding);
         }
 
         // Return the patched runtime code; the DUP'd length is still on the stack.

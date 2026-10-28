@@ -84,15 +84,15 @@ bb0:
   mload
   push 20
   mstore8
-  push 224
-  mload
-  push 27
-  mstore8
   push 256
   mload
   push 0
   byte
   push 22
+  mstore8
+  push 224
+  mload
+  push 27
   mstore8
   push 0
   return

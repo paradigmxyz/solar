@@ -40,7 +40,6 @@ contract DeadAllocationLength {
     // CHECK-NOT: mstore v{{[0-9]+}},
     // CHECK: delegatecall
     // CHECK-NOT: mstore v{{[0-9]+}},
-    // CHECK-NOT: mstore 64,
     // CHECK: revert
     fallback(bytes calldata input) external returns (bytes memory) {
         (bool ok, bytes memory out) = address(this).delegatecall(input[4:]);

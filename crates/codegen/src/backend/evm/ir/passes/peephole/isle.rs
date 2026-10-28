@@ -709,17 +709,7 @@ impl generated::Context for PeepContext<'_> {
         op::is_pure(opcode) && op::stack_io(opcode) == Some((2, 1))
     }
 
-    fn shorter_swap_braid(&mut self, depth: u8) -> bool {
-        if depth <= 1 {
-            return false;
-        }
-        let Some(deep) = self.target.stack_op(StackOp::Swap(depth)) else { return false };
-        let pair = deep + self.target.opcode(SWAP1);
-        self.target.dominates(pair, pair + pair)
-    }
-
-    fn cheaper_without_swap(&mut self, opcode: u8) -> bool {
-        let operation = self.target.opcode(opcode);
-        self.target.dominates(operation, self.target.opcode(SWAP1) + operation)
+    fn is_deep_swap(&mut self, depth: u8) -> bool {
+        depth > 1
     }
 }

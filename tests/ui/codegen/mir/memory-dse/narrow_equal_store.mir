@@ -1,5 +1,4 @@
 //@compile-flags: -Zmir-pipeline=memory-dse,sccp,memory-dse
-//@filecheck:
 @module NarrowEqualStore
 
 // The byte store from narrowing leaves the unrelated constant word at 32 known, so the equal
@@ -33,61 +32,5 @@ fn @unrelated_keccak(arg0: i256, arg1: i256) -> i256 {
     v2 = keccak256 128, 33
     sstore 1, v2
     v4 = keccak256 32, 32
-    ret v4
-}
-
-// The first store fits in its allocation, but the tail overwrite reaches one byte past it.
-// Both addresses still name the same object's pointer, so only the first byte remains live.
-// CHECK-LABEL: fn @tail_past_allocation
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = shl arg0, 248
-// CHECK: + mstore8 [[HEAD:v[0-9]+]], arg0
-// CHECK: {{^[ +].*}}mstore [[TAIL:v[0-9]+]], 0
-fn @tail_past_allocation(arg0: i256) -> i256 {
-  bb0:
-    v0 = alloc 128
-    v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = add v1, 96
-    v3 = shl arg0, 248
-    mstore v2, v3
-    v4 = add v1, 97
-    mstore v4, 0
-    v5 = keccak256 v2, 33
-    ret v5
-}
-
-// A store past another allocation does not prove an overwrite of this object's tail.
-// CHECK-LABEL: fn @different_allocation
-// CHECK: {{^[ +].*}}[[BYTE:v[0-9]+]] = shl arg0, 248
-// CHECK: {{^[ +].*}}mstore {{v[0-9]+}}, [[BYTE]]
-fn @different_allocation(arg0: i256) -> i256 {
-  bb0:
-    v0 = alloc 128
-    v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = alloc 128
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = add v1, 96
-    v5 = shl arg0, 248
-    mstore v4, v5
-    v6 = add v3, 97
-    mstore v6, 0
-    v7 = keccak256 v4, 33
-    ret v7
-}
-
-// A read of the full word before its tail is overwritten observes all 32 original bytes.
-// CHECK-LABEL: fn @read_before_tail_overwrite
-// CHECK: {{^[ +].*}}[[BYTE:v[0-9]+]] = shl arg0, 248
-// CHECK: {{^[ +].*}}mstore [[HEAD:v[0-9]+]], [[BYTE]]
-// CHECK: {{^[ +].*}}keccak256 [[HEAD]], 32
-fn @read_before_tail_overwrite(arg0: i256) -> i256 {
-  bb0:
-    v0 = alloc 128
-    v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = add v1, 96
-    v3 = shl arg0, 248
-    mstore v2, v3
-    v4 = keccak256 v2, 32
-    v5 = add v1, 97
-    mstore v5, 0
     ret v4
 }

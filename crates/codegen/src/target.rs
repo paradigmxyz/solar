@@ -992,26 +992,6 @@ impl Target {
     pub(crate) fn frame_words(&self, words: u32) -> Cost {
         Cost::new(GasTier::MEMORY_WORD_GAS.saturating_mul(words), 0)
     }
-
-    /// Bytes saved when an outlined body's suffix and return share an existing return tail.
-    /// One copy replaces the suffix, the output rotations and the return jump with a jump to
-    /// the shared tail. Charge its pushed label, jump and additional landing.
-    pub(crate) fn shared_return_tail_savings(&self, suffix_bytes: u32, outputs: u16) -> u32 {
-        suffix_bytes
-            .saturating_add(self.opcode(op::SWAP1).times(u32::from(outputs)).bytes)
-            .saturating_add(self.opcode(op::JUMP).bytes)
-            .saturating_sub(self.jump().bytes)
-    }
-
-    /// A single encoded PUSH, without the arithmetic recipes used for materialized constants.
-    /// Labels and already selected EVM IR immediates use this encoding during assembly.
-    pub(crate) fn encoded_push(&self, value: U256) -> Cost {
-        if value.is_zero() && self.evm_version.has_push0() {
-            self.opcode(op::PUSH0)
-        } else {
-            self.opcode(op::push(value.byte_len().max(1) as u8))
-        }
-    }
 }
 
 #[cfg(test)]
@@ -1633,30 +1613,5 @@ mod tests {
             assert_eq!(target.frame_words(0), Cost::ZERO);
             assert_eq!(target.frame_words(10), Cost::new(30, 0));
         }
-    }
-
-    #[test]
-    fn outlined_return_tails_pay_for_their_jump() {
-        let target = Target::with(EvmVersion::Cancun, OptimizationMode::Size, 200);
-        let suffix = target.dup()
-            + target.opcode(op::ADD)
-            + target.push(U256::from(64))
-            + target.opcode(op::MSTORE);
-        assert_eq!(target.shared_return_tail_savings(suffix.bytes, 1), 2);
-        assert_eq!(target.shared_return_tail_savings(0, 1), 0);
-        assert_eq!(target.shared_return_tail_savings(suffix.bytes, 0), 1);
-    }
-
-    #[test]
-    fn encoded_pushes_keep_their_literal_width() {
-        let paris = Target::with(EvmVersion::Paris, OptimizationMode::Size, 200);
-        let cancun = Target::with(EvmVersion::Cancun, OptimizationMode::Size, 200);
-        assert_eq!(paris.encoded_push(U256::ZERO), paris.opcode(op::PUSH1));
-        assert_eq!(cancun.encoded_push(U256::ZERO), cancun.opcode(op::PUSH0));
-        for (value, opcode) in [(1, op::PUSH1), (255, op::PUSH1), (256, op::PUSH2)] {
-            assert_eq!(cancun.encoded_push(U256::from(value)), cancun.opcode(opcode));
-        }
-        assert_eq!(cancun.encoded_push(U256::MAX), cancun.opcode(op::PUSH32));
-        assert!(cancun.push(U256::MAX).bytes < cancun.encoded_push(U256::MAX).bytes);
     }
 }

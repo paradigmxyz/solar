@@ -47,6 +47,8 @@ fn @aliasedStruct() [selector=0x8c175a3d, abi_wrapper, pure] {
   bb0:
     v12 = icall @decode_calldata_type.9
     v16 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v17 = add v16, 32 !metadata(alloc_ptr)
+    mstore 64, v17 !metadata(memory=scratch)
     mstore v16, 0
     v2 = add v12, 32
     mstore v2, 257

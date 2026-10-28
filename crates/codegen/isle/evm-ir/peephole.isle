@@ -127,11 +127,8 @@
 (extern constructor is_sink is_sink)
 (decl pure is_pure_binop (u8) bool)
 (extern constructor is_pure_binop is_pure_binop)
-(decl pure shorter_swap_braid (u8) bool)
-(extern constructor shorter_swap_braid shorter_swap_braid)
-
-(decl pure cheaper_without_swap (u8) bool)
-(extern constructor cheaper_without_swap cheaper_without_swap)
+(decl pure is_deep_swap (u8) bool)
+(extern constructor is_deep_swap is_deep_swap)
 (decl pure u8_add (u8 u8) u8)
 (extern constructor u8_add u8_add)
 (decl pure swap_op (u8) StackOp)
@@ -204,12 +201,10 @@
 
 ;; SWAP1; ADDMOD => ADDMOD. Only the addends change order; the modulus stays third.
 (rule 219 (peep_op (last2 (opcode $SWAP1) (opcode $ADDMOD)))
-         (if-let true (cheaper_without_swap $ADDMOD))
          (rewrite 2 (Edit.RemoveFirstKeepOne)))
 
 ;; SWAP1; MULMOD => MULMOD. Only the factors change order; the modulus stays third.
 (rule 218 (peep_op (last2 (opcode $SWAP1) (opcode $MULMOD)))
-         (if-let true (cheaper_without_swap $MULMOD))
          (rewrite 2 (Edit.RemoveFirstKeepOne)))
 
 ;; `SWAP1 LT -> GT`, `SWAP1 GT -> LT`, `SWAP1 SLT -> SGT`, or `SWAP1 SGT -> SLT`.
@@ -292,7 +287,7 @@
 (rule 50 (peep_swap (unprotected_last6 (swap 1) (push _) (opcode binop)
                                      (swap n) (swap 1) (swap n)))
          (if-let true (is_pure_binop binop))
-         (if-let true (shorter_swap_braid n))
+         (if-let true (is_deep_swap n))
          (rewrite 6 (Edit.MoveConstantThroughSwaps)))
 
 ;; A bounded window around a closed, one-result shift-count computation.

@@ -120,6 +120,9 @@ bb8:
   push 4
   calldataload
   dup 1
+  push 0x1fe0
+  mstore
+  dup 1
   push bb9
   jump bb22
 bb22:

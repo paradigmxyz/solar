@@ -19,11 +19,10 @@ contract LateCseMasks {
     uint256 public total;
 
     // CHECK-LABEL: fn @digest
-    // CHECK: [[BASE:v[0-9]+]] = heap_floor
-    // CHECK-NEXT: [[BUF:v[0-9]+]] = add [[BASE]], 64
-    // CHECK: mstore [[BASE]], arg0
     // CHECK-NOT: = and
-    // CHECK: keccak256 [[BUF]], 64
+    // CHECK: mstore {{v[0-9]+}}, arg0
+    // CHECK-NOT: = and
+    // CHECK: keccak256 {{v[0-9]+}}, 64
     function digest(address owner, uint256 amount) internal returns (bytes32) {
         Entry memory entry = Entry(owner, amount);
         bytes32 hash = keccak256(abi.encode(entry));

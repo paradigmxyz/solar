@@ -20,11 +20,9 @@
 //! inline conditional jump then disappears with its two pushes. These rules
 //! preserve protected instruction boundaries, and never treat symbolic label
 //! addresses or immutable placeholders as literal constants.
-//! A constant binary operation may move through a three-swap permutation to remove two swaps.
-//! It keeps the operation's operands and their order, changes no memory effects, and never raises
-//! the stack peak; protected instruction boundaries and position-dependent operations reject it.
-//! Modular addition and multiplication discard a swap of their first two operands, while keeping
-//! the modulus in its third stack slot and leaving binary-only rewrites unchanged.
+//! A pure binary operation with a constant operand moves through a `SWAPn SWAP1 SWAPn`
+//! permutation, which removes two swaps. `ADDMOD` and `MULMOD` drop a preceding `SWAP1`, since
+//! only their first two operands swap.
 //!
 //! The separate `late-word` entry point runs only after structural cleanup. It
 //! replaces a low-mask construction with a shorter complement/shift form. A closed

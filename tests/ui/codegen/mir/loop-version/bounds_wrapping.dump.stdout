@@ -44,6 +44,7 @@ fn @wrapped() [selector=0x08a7c76d, abi_wrapper, pure] {
     v12 = or v10, v11
     jumpi v12, bb4, bb3
   bb3:
+    mstore 64, v9 !metadata(memory=scratch)
     v14 = calldatasize
     calldatacopy v8, v14, 64
     mstore v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

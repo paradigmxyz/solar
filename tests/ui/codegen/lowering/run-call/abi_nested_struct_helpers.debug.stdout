@@ -123,13 +123,11 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     v120 = add v22, 64
     mstore v120, v16
     v4 = mload v138
-    v133 = mload v114
-    v9 = mload v133
     v131 = mload v22
     v1 = mload v131
     mstore 0, v1
     mstore 32, v4
-    mstore 64, v9
+    mstore 64, v72
     returndata 0, 96
   bb15:
     mstore 32, 32
