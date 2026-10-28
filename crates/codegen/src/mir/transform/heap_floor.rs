@@ -107,8 +107,8 @@
 //! a whole there, even if they also read it as data, and a word an external function returns as
 //! data is clamped as a whole in each internal caller that reads it as a pointer. A helper that
 //! one entry calls with a clean slot and another with a dirty one keeps its clamp for both, so the
-//! clean calls pay for it; a copy of the helper for the dirty calls would remove that cost but
-//! grows the code without a price from the target model. See CODEGEN-010.
+//! clean calls pay for it; a copy of the helper for the dirty calls would remove that cost, but it
+//! adds code size that the target cost model does not price. See CODEGEN-010.
 
 use crate::mir::{
     AbiType, ArgIdx, BlockId, Callee, CheckedOp, EffectKind, Function, FunctionId, Immediate,
@@ -1449,7 +1449,8 @@ impl<'a> PointerUses<'a> {
         if let Some(&raises) = self.raises_slot.get(&func_id) {
             return raises;
         }
-        // A function in the middle of this search raises nothing yet.
+        // A function in the middle of this search raises nothing yet, so a result that depends on
+        // a cycle may lose a raise, depending on the order of the search.
         self.raises_slot.insert(func_id, false);
         let raises = self.walk_raises_slot(func_id);
         self.raises_slot.insert(func_id, raises);
@@ -1467,20 +1468,16 @@ impl<'a> PointerUses<'a> {
         while let Some(block) = pending.pop() {
             let data = &func.blocks[block];
             let mut written = 0;
-            let mut raised = false;
-            for &inst_id in &data.instructions {
-                raised = match self.effect(func_id, inst_id, &mut written) {
+            let raised = data.instructions.iter().any(|&inst_id| {
+                match self.effect(func_id, inst_id, &mut written) {
                     Effect::None
                     | Effect::ReadsData
                     | Effect::LoadsPointer
                     | Effect::LoadsMixed => false,
                     Effect::Replaces | Effect::ReadsDataAndReplaces | Effect::ReadsPointer => true,
                     Effect::Calls(callee) => self.call_raises_slot(callee),
-                };
-                if raised {
-                    break;
                 }
-            }
+            });
             if raised {
                 continue;
             }

@@ -55,3 +55,44 @@
       ret
   }
   
+  fn @forward(arg0: i256) {
+    bb0:
+      tail_call @hash, arg0
+  }
+  
+  fn @dirty_forward(arg0: i256) [selector=0x33333333] {
+    bb0:
+      mstore arg0, 1
+      icall @forward, arg0
+      v0 = alloc 32
+      mstore v0, arg0
+      ret
+  }
+  
+  fn @countdown(arg0: i256) {
+    bb0:
+      v0 = eq arg0, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      v1 = sub arg0, 1
+      icall @countdown, v1
+      ret
+    bb1:
+      icall @hash, arg0
+      ret
+  }
+  
+  fn @dirty_countdown(arg0: i256) [selector=0x44444444] {
+    bb0:
+      mstore arg0, 1
+      icall @countdown, arg0
++     v1 = mload 64 !metadata(memory=scratch)
++     v2 = heap_floor
++     v3 = lt v1, v2
++     v4 = select v3, v2, v1
++     mstore 64, v4 !metadata(memory=scratch)
+      v0 = alloc 32
+      mstore v0, arg0
+      ret
+  }
+  
