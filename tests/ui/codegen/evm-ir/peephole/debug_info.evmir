@@ -52,3 +52,12 @@ bb4 [stack=5]:
   swap 1 !metadata(span=20..21)
   swap 4 !metadata(invoke=callee@21..25)
   stop
+
+bb5 [stack=5]:
+  swap 1
+  push 7
+  sub
+  swap 4 !metadata(invoke=callee@26..30)
+  swap 1
+  swap 4
+  stop

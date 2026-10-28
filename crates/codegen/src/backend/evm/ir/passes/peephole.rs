@@ -455,14 +455,15 @@ impl Edit {
             }
             Self::MoveConstantThroughSwaps => {
                 // SWAPn; SWAP1; PUSH c; binop
-                instructions[start..start + 4].rotate_right(1);
-                // NOTE: The intermediate stack layouts differ even though the final one agrees.
-                for inst in &mut instructions[start..start + 2] {
-                    inst.metadata.mark_debug_info_dropped();
+                let window = &mut instructions[start..start + 6];
+                for swap in [0, 3, 4, 5] {
+                    let metadata = std::mem::take(&mut window[swap].metadata);
+                    window[2].metadata.absorb_debug_info(&metadata);
                 }
-                let (kept, removed) = instructions[start..start + 6].split_at_mut(4);
-                for inst in removed {
-                    kept[3].metadata.absorb_debug_info(&inst.metadata);
+                window[..4].rotate_right(1);
+                // NOTE: The intermediate stack layouts differ even though the final one agrees.
+                for swap in &mut window[..2] {
+                    swap.metadata.mark_debug_info_dropped();
                 }
                 instructions.truncate(start + 4);
             }
