@@ -1,8 +1,8 @@
 //@ codegen-matrix: standard optimized optimizedSize
 //@[optimized] compile-flags: -Ogas -Zdump=mir
 //@[optimizedSize] compile-flags: -Osize -Zdump=mir
-//@[optimized] filecheck: --check-prefixes=CHECK,GAS
-//@[optimizedSize] filecheck: --check-prefixes=CHECK,SIZE
+//@[optimized] filecheck:
+//@[optimizedSize] filecheck:
 //@ run-call: first 0x0000000000000000000000000000000000001234, 7 => true
 //@ run-call: second 0x0000000000000000000000000000000000001234, 7 => true
 //@ run-call: total => 0
@@ -19,12 +19,11 @@ contract LateCseMasks {
     uint256 public total;
 
     // CHECK-LABEL: fn @digest
-    // GAS: [[BASE:v[0-9]+]] = heap_floor
-    // GAS-NEXT: [[BUF:v[0-9]+]] = add [[BASE]], 64
-    // CHECK: mstore {{v[0-9]+}}, arg0
-    // SIZE: [[BUF:v[0-9]+]] = mload 64
+    // CHECK: [[BASE:v[0-9]+]] = heap_floor
+    // CHECK-NEXT: [[BUF:v[0-9]+]] = add [[BASE]], 64
+    // CHECK: mstore [[BASE]], arg0
     // CHECK-NOT: = and
-    // CHECK: keccak256 {{v[0-9]+}}, 64
+    // CHECK: keccak256 [[BUF]], 64
     function digest(address owner, uint256 amount) internal returns (bytes32) {
         Entry memory entry = Entry(owner, amount);
         bytes32 hash = keccak256(abi.encode(entry));

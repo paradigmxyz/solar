@@ -65,12 +65,16 @@ bb4 [cold]:
   dup 1
   invalid
 bb9:
+  push 128
+  push 64
+  mstore
   push 0
   sload
   push 0
   push 160
   mstore
-  push 128
+  push 64
+  mload
   push 32
   dup 2
   add
