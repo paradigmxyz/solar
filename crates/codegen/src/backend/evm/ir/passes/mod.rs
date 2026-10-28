@@ -150,7 +150,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &RunsAtNone(cfg_simplify::CfgSimplify::EARLY),
     &data::PackExistingData,
     &peephole::Cleanup(compact_pushes::CompactPushes),
-    &block_layout::BlockLayout,
+    &RunsAtNone(block_layout::BlockLayout),
     &share_reverts::ShareReverts,
     // Simplify and merge the explicit control-flow graph.
     &terminal_dedup::TerminalDedup,
@@ -201,7 +201,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // cleanup.
     &data::PackData,
     // Data packing can add compactable immediates and local stack shuffles.
-    &compact_pushes::CompactPushes,
+    &RunsAtNone(compact_pushes::CompactPushes),
     &peephole::Peephole::FINAL,
     // Search straight-line code for cheaper stack shuffles once pushes are final.
     &stack_reschedule::StackReschedule,

@@ -721,11 +721,11 @@ impl Target {
     }
 
     /// Whether a compact recipe for an immediate, `saved_bytes` shorter than its literal push and
-    /// `extra_gas` dearer to run, is the better code. Size builds always take the bytes. Gas builds
-    /// take them when the deposit they save covers the extra gas over the expected executions,
-    /// [`Self::UNCOUNTED_LOOP_ITERATIONS`] times over for a push inside a loop, so a hot loop
-    /// pushes a mask as a literal rather than rebuilding it on every iteration; a tie takes the
-    /// bytes, which cost no more over the deployment's lifetime.
+    /// `extra_gas` dearer to run, is the better code. Size builds always take the bytes. Gas
+    /// and `-O none` builds take them when the deposit they save covers the extra gas over the
+    /// expected executions, [`Self::UNCOUNTED_LOOP_ITERATIONS`] times over for a push inside a
+    /// loop, so a hot loop pushes a mask as a literal rather than rebuilding it on every
+    /// iteration; a tie takes the bytes, which cost no more over the deployment's lifetime.
     ///
     /// The push is priced over at most [`Self::DEFAULT_EXPECTED_EXECUTIONS`]: it runs only on the
     /// calls whose path reaches it, a fraction of the deployment's calls once they spread over its
@@ -739,7 +739,7 @@ impl Target {
         extra_gas: u64,
         in_loop: bool,
     ) -> bool {
-        if !self.optimization.is_gas() {
+        if self.optimization.is_size() {
             return true;
         }
         let iterations = if in_loop { Self::UNCOUNTED_LOOP_ITERATIONS } else { 1 };
@@ -1351,6 +1351,11 @@ mod tests {
         assert!(target.compacts_immediate(1, 0, true));
         let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
         assert!(size.compacts_immediate(12, 8, true));
+        // `-O none` prices the push like a gas build: a loop keeps the literal.
+        let none = Target::with(EvmVersion::Osaka, OptimizationMode::None, 200);
+        assert!(none.compacts_immediate(12, 8, false));
+        assert!(!none.compacts_immediate(12, 8, true));
+        assert!(!none.compacts_immediate(4, 8, false));
         // A tie takes the bytes: `not(31)` in a loop saves 30 bytes, 6,000 gas, for 3 gas ten
         // times over on 200 executions, 6,000.
         assert!(target.compacts_immediate(30, 3, true));
