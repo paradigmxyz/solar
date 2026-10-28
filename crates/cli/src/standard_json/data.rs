@@ -461,6 +461,7 @@ impl<'a> OutputSelection<'a> {
 bitflags::bitflags! {
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub(super) struct OutputSelectionFlags: u64 {
+        // Sorted by output section; add new flags to their section and renumber.
         const AST = 1 << 0;
         const ABI = 1 << 1;
         const METADATA = 1 << 2;
@@ -483,18 +484,18 @@ bitflags::bitflags! {
         const BYTECODE_GENERATED_SOURCES = 1 << 19;
         const BYTECODE_LINK_REFERENCES = 1 << 20;
         const BYTECODE_ETHDEBUG = 1 << 21;
-        const DEPLOYED_BYTECODE_OBJECT = 1 << 22;
-        const DEPLOYED_BYTECODE_OPCODES = 1 << 23;
-        const DEPLOYED_BYTECODE_SOURCE_MAP = 1 << 24;
-        const DEPLOYED_BYTECODE_FUNCTION_DEBUG_DATA = 1 << 25;
-        const DEPLOYED_BYTECODE_GENERATED_SOURCES = 1 << 26;
-        const DEPLOYED_BYTECODE_LINK_REFERENCES = 1 << 27;
-        const DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES = 1 << 28;
-        const DEPLOYED_BYTECODE_ETHDEBUG = 1 << 29;
-        const ETHDEBUG_RESOURCES = 1 << 30;
-        const ETHDEBUG_COMPILATION = 1 << 31;
-        const BYTECODE_CBOR_AUXDATA = 1 << 32;
-        const DEPLOYED_BYTECODE_CBOR_AUXDATA = 1 << 33;
+        const BYTECODE_CBOR_AUXDATA = 1 << 22;
+        const DEPLOYED_BYTECODE_OBJECT = 1 << 23;
+        const DEPLOYED_BYTECODE_OPCODES = 1 << 24;
+        const DEPLOYED_BYTECODE_SOURCE_MAP = 1 << 25;
+        const DEPLOYED_BYTECODE_FUNCTION_DEBUG_DATA = 1 << 26;
+        const DEPLOYED_BYTECODE_GENERATED_SOURCES = 1 << 27;
+        const DEPLOYED_BYTECODE_LINK_REFERENCES = 1 << 28;
+        const DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES = 1 << 29;
+        const DEPLOYED_BYTECODE_ETHDEBUG = 1 << 30;
+        const DEPLOYED_BYTECODE_CBOR_AUXDATA = 1 << 31;
+        const ETHDEBUG_RESOURCES = 1 << 32;
+        const ETHDEBUG_COMPILATION = 1 << 33;
 
         const YUL = Self::IR.bits()
             | Self::IR_AST.bits()
