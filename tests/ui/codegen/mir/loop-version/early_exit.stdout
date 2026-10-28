@@ -84,28 +84,28 @@ fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memo
   bb0:
     v59 = add arg1, 1
     v62 = sub arg0, v59
-    v122 = add arg1, 32
-    v125 = add arg0, 32
+    v123 = add arg1, 32
+    v126 = add arg0, 32
     jump bb1
   bb1:
     v4 = phi [bb0: 0], [bb12: v30]
-    v123 = phi [bb0: v122], [bb12: v124]
-    v126 = phi [bb0: v125], [bb12: v127]
+    v124 = phi [bb0: v123], [bb12: v125]
+    v127 = phi [bb0: v126], [bb12: v128]
     v5 = mload arg0
     v6 = lt v4, v5
     jumpi v6, bb3, bb2
   bb3:
     v10 = shl v4, 5
-    v13 = mload v126
+    v13 = mload v127
     v14 = eq v13, 0
     jumpi v14, bb4, bb5
   bb5:
-    v120 = and v13, 0xffffffffffffffffffffffffffffffff
+    v121 = and v13, 0xffffffffffffffffffffffffffffffff
     v17 = mload arg1
     v18 = lt v4, v17
     jumpi v18, bb11, bb10
   bb11:
-    mstore v123, v120
+    mstore v124, v121
     v23 = shr v13, 128
     v24 = mload arg2
     v25 = lt v4, v24
@@ -117,6 +117,7 @@ fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memo
     v30 = add v4, 1
     v52 = mload arg0
     v53 = mload arg1
+    v54 = mload arg2
     v57 = or arg1, v53
     v58 = shl v53, 5
     v60 = add v58, 31
@@ -127,8 +128,8 @@ fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memo
     v69 = zext i1 v68 to i256
     v70 = or v65, v69
     v72 = or v57, arg2
-    v73 = or v72, v24
-    v74 = shl v24, 5
+    v73 = or v72, v54
+    v74 = shl v54, 5
     v75 = add arg2, 1
     v76 = add v74, 31
     v78 = sub arg0, v75
@@ -142,8 +143,8 @@ fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memo
     v93 = shr v73, 64
     v95 = or v93, v86
     v89 = eq v95, 0
-    v124 = add v123, 32
-    v127 = add v126, 32
+    v125 = add v124, 32
+    v128 = add v127, 32
     jumpi v89, bb9, bb1
   bb9:
     jump bb6
@@ -162,15 +163,15 @@ fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memo
     v39 = eq v38, 0
     jumpi v39, bb4, bb8
   bb8:
-    v121 = and v38, 0xffffffffffffffffffffffffffffffff
+    v122 = and v38, 0xffffffffffffffffffffffffffffffff
     v43 = lt v32, v53
     jumpi v43, bb13, bb10
   bb13:
     v110 = add arg1, v35
     v111 = add v110, 32
-    mstore v111, v121
+    mstore v111, v122
     v46 = shr v38, 128
-    v48 = lt v32, v24
+    v48 = lt v32, v54
     jumpi v48, bb14, bb10
   bb10:
     mstore 32, 50 !metadata(memory=scratch)

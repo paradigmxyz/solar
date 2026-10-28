@@ -33,8 +33,9 @@
 //!
 //! - `mstore (x + (i << 5)) + 32` of a word element, or `mstore8 (x + i) + 32` of a byte, where `x`
 //!   is defined before the loop;
-//! - dominated by a `panic_if_zero<0x32> (lt i, n)` check of the same index, where `n` is `mload x`
-//!   or a value defined before the loop, such as the length a fresh allocation stored.
+//! - dominated by a `panic_if_zero<0x32> (lt i, n)` check of the same index, or an index from which
+//!   right shifts derive it, where `n` is `mload x` or a value defined before the loop, such as the
+//!   length a fresh allocation stored.
 //!
 //! A packed hash the lowering builds in the scratch space, such as `keccak256(abi.encode(a, b))`,
 //! writes only below `0x40` and may sit in the loop as well.
@@ -118,8 +119,12 @@
 //!
 //! A scan is a single-block loop whose one phi is a counter that its update steps by one,
 //! `++i` or `--j`, checked or not, that reads one element of an array at the updated counter,
-//! checks that index only against a bound defined before the loop, computes nothing else with an
-//! effect, and leaves on a condition of the element and values defined before it. The loop
+//! checks that index only against an invariant bound or the array's header, computes nothing else
+//! with an effect, and leaves on a condition of the element and values defined before it. A bound
+//! reloaded in either scan or the enclosing loop may be the array's header when every path to the
+//! partition already accessed it. The test reads it once, requires the array below `2^64`, and
+//! replaces the copy's header loads. With fences below `2^250`, no swap address can wrap into that
+//! header. The loop
 //! qualifies when exactly two scans of one array lie in it, one counting up and one down, each
 //! starting from a phi of its header whose input on the back edge is the scan's own last index;
 //! when a branch on `lt i, j` leaves the loop where it fails and its other edge, the only way
@@ -132,7 +137,7 @@
 //! iteration does.
 //!
 //! Safety, by induction over the iterations. On entry the test establishes `low < high < 2^250`,
-//! `high < n` when the scan up checks against `n`, and that the scan up stops at `a[high]` and
+//! `high < n` for each bound `n` the scans check, and that the scan up stops at `a[high]` and
 //! the scan down at `a[low]`. The loop writes memory only in its latch, after both scans, so in
 //! an iteration the scan up visits indices from `i + 1` and stops at or before its fence `j`, which
 //! lies below `n`; its update cannot wrap and its checks hold. The scan down visits from `j - 1`
@@ -140,8 +145,8 @@
 //! runs only past `i' < j'`; it stores the element that stopped the scan up, which no write has
 //! changed since the scan read it, at `j'`, and the one that stopped the scan down at `i'`, so the
 //! next iteration starts the scan up at `i'` below its fence `j'`, which lies below the last fence
-//! `j` and so below `n`, and the scan down at `j'` above its fence `i'`, each fence an element
-//! that stops its scan. The copy drops the scan up's checks of its index and both scans'
+//! `j` and so below every `n`, and the scan down at `j'` above its fence `i'`, each fence an
+//! element that stops its scan. The copy drops both scans' checks of their indices and both scans'
 //! overflow checks; all others stay, and the copy runs the same instructions otherwise, except
 //! that it compares the addresses of the elements the scans stopped at instead of `i' < j'`:
 //! both lie between the fences, whose indices below `2^250` scale to offsets below `2^255`. Their
@@ -176,6 +181,13 @@
 //! index that stays below `n`: the counter, a right shift of it, the counter plus a constant
 //! behind a loop branch that tests that sum against `n`, or a phi of such indices. A length that a
 //! bounds check on every path to the loop already compares `n` with needs no copy.
+//!
+//! An array's own indexed stores may wrap into its header, so its length can remain a load inside
+//! the loop. For a counted loop that writes one array, the words test first proves its pointer
+//! and length below `2^64`, making those stores non-wrapping. The bounds test then compares `n`
+//! with the guarded length, and the clone reuses that length. The header must already be safe to
+//! read before the loop under the same rule as other word tests; a zero-trip loop never gains a
+//! read of an otherwise untouched pointer. Large forged lengths select the original loop.
 
 use super::loop_split::{LoopCopy, clone_loop, retarget};
 use crate::mir::{
@@ -255,6 +267,8 @@ enum Test {
         words: Vec<(ValueId, Vec<InstId>)>,
         /// The end of the scratch space the loop's packed hashes write, zero if none.
         scratch_end: u64,
+        /// A counted loop's limit and the reloaded length it must stay within.
+        bounds: Option<(ValueId, ValueId)>,
     },
     /// A two-pointer partition's scans stop at their fences before leaving the range their checks
     /// guard.
@@ -293,6 +307,8 @@ struct Scan {
 struct Fence {
     up: Scan,
     down: Scan,
+    /// The array's header loads replaced by a guarded read before the loop.
+    lengths: Vec<InstId>,
     /// The scans' starts on entry into the loop: the first is below the second.
     low: ValueId,
     high: ValueId,
@@ -470,26 +486,44 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
             if defined_in_loop(object) {
                 return None;
             }
-            let bound = checks.get(&index).and_then(|checks| {
-                checks.iter().find_map(|&(check_block, check_position, bound)| {
-                    let dominates = if check_block == block {
-                        check_position < position
-                    } else {
-                        cfg.dominators().dominates(check_block, block)
-                    };
-                    if !dominates {
-                        return None;
-                    }
-                    if !defined_in_loop(bound) {
-                        return Some(Bound::Value(bound));
-                    }
-                    let &InstKind::Load(length, PtrLocation::Memory) = inst_kind(func, bound)?
-                    else {
-                        return None;
-                    };
-                    (length == object).then_some(Bound::Length)
+            let bound_for = |checked| {
+                checks.get(&checked).and_then(|checks| {
+                    checks.iter().find_map(|&(check_block, check_position, bound)| {
+                        let dominates = if check_block == block {
+                            check_position < position
+                        } else {
+                            cfg.dominators().dominates(check_block, block)
+                        };
+                        if !dominates {
+                            return None;
+                        }
+                        if !defined_in_loop(bound) {
+                            return Some(Bound::Value(bound));
+                        }
+                        let &InstKind::Load(length, PtrLocation::Memory) = inst_kind(func, bound)?
+                        else {
+                            return None;
+                        };
+                        (length == object).then_some(Bound::Length)
+                    })
                 })
-            })?;
+            };
+            let mut checked = index;
+            let mut bound = None;
+            for _ in 0..=4 {
+                bound = bound_for(checked);
+                if bound.is_some() {
+                    break;
+                }
+                // A right shift never exceeds its unsigned operand. The check of that operand
+                // must still dominate the store, as required for an exact index above.
+                let Some(&InstKind::Shr(shift, value)) = inst_kind(func, checked) else { break };
+                if func.value_u64(shift).is_none() {
+                    break;
+                }
+                checked = value;
+            }
+            let bound = bound?;
             let entry = Written { object, bound, shift };
             if !written.contains(&entry) {
                 written.push(entry);
@@ -545,8 +579,10 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
             .collect::<Vec<_>>()
     };
     let before = readable(&|load| read_first(func, cfg, l, &blocks, load));
-    let (words, latch) = if pays(&before) {
-        (before, None)
+    let (words, latch, bounds) = if pays(&before) {
+        (before, None, None)
+    } else if let Some(bounds) = reloaded_bounds(func, l, &blocks, &written, &before) {
+        (before, None, Some(bounds))
     } else {
         let &[latch] = &l.back_edges[..] else { return None };
         let after = readable(&|load| {
@@ -557,7 +593,7 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
         if !pays(&after) {
             return None;
         }
-        (after, Some(latch))
+        (after, Some(latch), None)
     };
     version_plan(
         func,
@@ -565,7 +601,7 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
         l,
         preheader,
         blocks,
-        Test::Words { written, words, scratch_end },
+        Test::Words { written, words, scratch_end, bounds },
         latch,
     )
 }
@@ -773,10 +809,35 @@ fn plan_partition(
         let element = func.inst_result_value(scan.load)?;
         scan.condition = exit_condition(func, &loop_insts, scan.test, element)?;
     }
-    if up.bound.is_some_and(in_loop) {
-        return None;
-    }
-    let fence = Fence { up, down, low, high, order };
+    // A header read within the partition cannot be hoisted without proving that its swaps stay
+    // above the header. The fence test proves that for its copy, with a low array address and
+    // bounded indices; the original loop retains its reloads and checks.
+    let reloads_length = [&up, &down].into_iter().any(|scan| scan.bound.is_some_and(in_loop));
+    let lengths = if reloads_length {
+        if !accessed_words(func, cfg, preheader).contains(&array)
+            || [&up, &down].into_iter().any(|scan| {
+                scan.bound.is_some_and(|bound| {
+                    in_loop(bound)
+                        && !matches!(inst_kind(func, bound),
+                            Some(&InstKind::Load(address, PtrLocation::Memory)) if address == array)
+                })
+            })
+        {
+            return None;
+        }
+        loop_insts
+            .iter()
+            .copied()
+            .filter(|&inst| {
+                matches!(func.inst(inst).kind,
+                    InstKind::Load(address, PtrLocation::Memory) if address == array)
+                    && func.inst(inst).result_ty == Some(MirType::I256)
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let fence = Fence { up, down, lengths, low, high, order };
     version_plan(func, cfg, l, preheader, blocks, Test::Fence(Box::new(fence)), None)
 }
 
@@ -828,6 +889,7 @@ fn scan(func: &Function, l: &Loop) -> Option<Scan> {
     };
     // The one element load, at the update, and the checks of that index.
     let mut load = None;
+    let mut header_loads = Vec::new();
     let mut bound = None;
     let mut checks = Vec::new();
     for (position, &inst) in instructions.iter().enumerate() {
@@ -836,7 +898,10 @@ fn scan(func: &Function, l: &Loop) -> Option<Scan> {
         }
         let kind = &func.inst(inst).kind;
         if let InstKind::Load(address, PtrLocation::Memory) = *kind {
-            let (array, index, 5) = element_address(func, address, false)? else { return None };
+            let Some((array, index, 5)) = element_address(func, address, false) else {
+                header_loads.push((inst, address));
+                continue;
+            };
             if load.is_some() || in_loop(array) || index != next {
                 return None;
             }
@@ -845,7 +910,14 @@ fn scan(func: &Function, l: &Loop) -> Option<Scan> {
         }
         if let Some(check) = array_check(kind) {
             let Some(&InstKind::Lt(index, limit)) = inst_kind(func, check) else { return None };
-            if index != next || in_loop(limit) || bound.is_some_and(|bound| bound != limit) {
+            if index != next
+                || (in_loop(limit)
+                    && !matches!(
+                        inst_kind(func, limit),
+                        Some(InstKind::Load(_, PtrLocation::Memory))
+                    ))
+                || bound.is_some_and(|bound| bound != limit)
+            {
                 return None;
             }
             bound = Some(limit);
@@ -861,6 +933,11 @@ fn scan(func: &Function, l: &Loop) -> Option<Scan> {
         }
     }
     let (load, array) = load?;
+    if header_loads.iter().any(|&(inst, address)| {
+        address != array || func.inst(inst).result_ty != Some(MirType::I256)
+    }) {
+        return None;
+    }
     let element = func.inst_result_value(load)?;
     let condition_chain = exit_condition(func, instructions, condition, element)?;
     Some(Scan {
@@ -935,26 +1012,7 @@ fn plan_bounds(func: &Function, cfg: &CfgInfo, l: &Loop) -> Option<Planned> {
         Value::Inst(inst) => loop_insts.contains(inst),
         _ => false,
     };
-    // header: c = phi ...; ...; jumpi (lt c, n), body, exit
-    let Some(Terminator::Branch { condition, then_block, else_block }) =
-        func.blocks[l.header].terminator
-    else {
-        return None;
-    };
-    let &InstKind::Lt(counter, limit) = inst_kind(func, condition)? else { return None };
-    if !l.blocks.contains(then_block)
-        || l.blocks.contains(else_block)
-        || in_loop(limit)
-        || func.value_ty(limit) != Some(MirType::I256)
-    {
-        return None;
-    }
-    let Value::Inst(phi) = *func.value(counter) else { return None };
-    if !func.blocks[l.header].instructions.contains(&phi)
-        || !matches!(func.inst(phi).kind, InstKind::Phi(_))
-    {
-        return None;
-    }
+    let (counter, limit) = counted_limit(func, l, &loop_insts)?;
     let compared = compared_before(func, cfg, preheader, limit);
     let mut lengths = Vec::new();
     for &block in &blocks {
@@ -1254,13 +1312,19 @@ fn apply(func: &mut Function, plan: &Plan) -> Vec<BlockId> {
     let fast = builder.create_block();
     let slow = builder.create_block();
     let replacements = match &plan.test {
-        Test::Words { written, words, scratch_end } => {
-            words_test(&mut builder, written, words, *scratch_end, &copy, fast, slow)
+        Test::Words { written, words, scratch_end, bounds } => {
+            let guarded = if bounds.is_some() { builder.create_block() } else { fast };
+            let replacements =
+                words_test(&mut builder, written, words, *scratch_end, &copy, guarded, slow);
+            if let Some((limit, length)) = bounds {
+                // guarded: short = lt len, n; jumpi short, slow, fast
+                builder.switch_to_block(guarded);
+                let length = replacements[&copy.value(*length)];
+                bounds_test(&mut builder, *limit, &[length], fast, slow);
+            }
+            replacements
         }
-        Test::Fence(fence) => {
-            fence_test(&mut builder, fence, fast, slow);
-            FxHashMap::default()
-        }
+        Test::Fence(fence) => fence_test(&mut builder, fence, &copy, fast, slow),
         Test::Bounds { limit, lengths } => {
             bounds_test(&mut builder, *limit, lengths, fast, slow);
             FxHashMap::default()
@@ -1319,9 +1383,13 @@ fn apply(func: &mut Function, plan: &Plan) -> Vec<BlockId> {
         }
     }
 
+    // The check positions name the original headers, before any cloned length loads are removed.
+    if let Test::Fence(fence) = &plan.test {
+        drop_fenced_checks(func, fence, &copy);
+    }
     match &plan.test {
         // The clone reads the test's words.
-        Test::Words { .. } => {
+        Test::Words { .. } | Test::Fence(_) => {
             func.replace_uses(&replacements);
             for &block in copy.blocks.values() {
                 let replaced = |inst: &InstId| {
@@ -1337,7 +1405,6 @@ fn apply(func: &mut Function, plan: &Plan) -> Vec<BlockId> {
                 func.blocks[block].instructions = instructions;
             }
         }
-        Test::Fence(fence) => drop_fenced_checks(func, fence, &copy),
         // The clone runs the loop as it is; check elimination folds its checks.
         Test::Bounds { .. } => {}
     }
@@ -1517,21 +1584,43 @@ fn words_test(
 }
 
 /// Builds the test that a two-pointer loop's scans start in order, below `2^250` and below the
-/// bound of the scan up's checks, and that each rejects the element the other starts from,
+/// bounds of both scans' checks, and that each rejects the element the other starts from,
 /// branching to `fast` when it holds and to `slow` otherwise.
-fn fence_test(builder: &mut FunctionBuilder<'_>, fence: &Fence, fast: BlockId, slow: BlockId) {
+fn fence_test(
+    builder: &mut FunctionBuilder<'_>,
+    fence: &Fence,
+    copy: &LoopCopy,
+    fast: BlockId,
+    slow: BlockId,
+) -> FxHashMap<ValueId, ValueId> {
+    let mut bounds = FxHashMap::default();
+    if !fence.lengths.is_empty() {
+        // length = mload array
+        let length = builder.load_as(fence.up.array, PtrLocation::Memory, MirType::I256);
+        for &inst in &fence.lengths {
+            if let Some(result) = builder.func().inst_result_value(inst) {
+                bounds.insert(result, length);
+            }
+        }
+    }
     // test: ok = and (and (lt low, high), (lt high, 2^250)), (lt high, bound); jumpi ok, read, slow
     let ordered = builder.lt(fence.low, fence.high);
     let limit = builder.imm(U256::from(1) << FENCE_INDEX_BITS);
     let small = builder.lt(fence.high, limit);
-    let ordered = builder.and(ordered, small);
-    let ok = match fence.up.bound {
-        Some(bound) => {
-            let below = builder.lt(fence.high, bound);
-            builder.and(ordered, below)
-        }
-        None => ordered,
-    };
+    let mut ok = builder.and(ordered, small);
+    for bound in [fence.up.bound, fence.down.bound].into_iter().flatten() {
+        let bound = bounds.get(&bound).copied().unwrap_or(bound);
+        // ok = and ok, (lt high, bound)
+        let below = builder.lt(fence.high, bound);
+        ok = builder.and(ok, below);
+    }
+    if !fence.lengths.is_empty() {
+        // ok = and ok, (lt (ptrtoint array), 2^64)
+        let array = pointer_word(builder, fence.up.array);
+        let limit = builder.imm(U256::from(1) << 64);
+        let low_memory = builder.lt(array, limit);
+        ok = builder.and(ok, low_memory);
+    }
     let read = builder.create_block();
     builder.branch(ok, read, slow);
     // read: up = <exit test of up at a[high]>; down = <exit test of down at a[low]>
@@ -1541,6 +1630,7 @@ fn fence_test(builder: &mut FunctionBuilder<'_>, fence: &Fence, fast: BlockId, s
     let down = fence_continues(builder, &fence.down, fence.low);
     let continues = builder.or(up, down);
     builder.branch(continues, slow, fast);
+    bounds.into_iter().map(|(value, bound)| (copy.value(value), bound)).collect()
 }
 
 /// Appends to the builder's block whether `scan` would read past the element at `index`:
@@ -1583,23 +1673,21 @@ fn fence_continues(builder: &mut FunctionBuilder<'_>, scan: &Scan, index: ValueI
     }
 }
 
-/// Removes from the fast copy the checks the fences make redundant: the scan up's checks of its
-/// index against the bound, and both scans' overflow checks of their updates. The copy compares
-/// the addresses of the elements the scans stopped at instead of their indices: both lie between
-/// fences below `2^250`, where an element's address grows with its index, so the comparisons
-/// agree, and the scans' counters then step only to address elements.
+/// Removes from the fast copy the checks the fences make redundant: both scans' checks of their
+/// indices against their bounds, and both scans' overflow checks of their updates. The copy
+/// compares the addresses of the elements the scans stopped at instead of their indices: both lie
+/// between fences below `2^250`, where an element's address grows with its index, so the
+/// comparisons agree, and the scans' counters then step only to address elements.
 fn drop_fenced_checks(func: &mut Function, fence: &Fence, copy: &LoopCopy) {
     let headers = [&fence.up, &fence.down].map(|scan| copy.blocks[&scan.header]);
     for (scan, block) in [&fence.up, &fence.down].into_iter().zip(headers) {
         // header': ...; panic_if_zero (lt index, bound); ...  =>  header': ...; ...
-        if scan.ascending {
-            let mut position = 0;
-            func.blocks[block].instructions.retain(|_| {
-                let keep = !scan.checks.contains(&position);
-                position += 1;
-                keep
-            });
-        }
+        let mut position = 0;
+        func.blocks[block].instructions.retain(|_| {
+            let keep = !scan.checks.contains(&position);
+            position += 1;
+            keep
+        });
         // header': next = checked_add counter, 1  =>  next = add counter, 1
         let Some(update) = func.inst_result_value(scan.update) else { continue };
         let Value::Inst(cloned) = *func.value(copy.value(update)) else { continue };
@@ -1679,4 +1767,66 @@ fn bounds_test(
     }
     let short = short.expect("a planned bounds test compares a length");
     builder.branch(short, slow, fast);
+}
+
+/// The counter and invariant limit of a loop whose header tests `counter < limit`.
+fn counted_limit(
+    func: &Function,
+    l: &Loop,
+    loop_insts: &FxHashSet<InstId>,
+) -> Option<(ValueId, ValueId)> {
+    let Some(Terminator::Branch { condition, then_block, else_block }) =
+        func.blocks[l.header].terminator
+    else {
+        return None;
+    };
+    let &InstKind::Lt(counter, limit) = inst_kind(func, condition)? else { return None };
+    if !l.blocks.contains(then_block)
+        || l.blocks.contains(else_block)
+        || matches!(func.value(limit), Value::Inst(inst) if loop_insts.contains(inst))
+        || func.value_ty(limit) != Some(MirType::I256)
+    {
+        return None;
+    }
+    let Value::Inst(phi) = *func.value(counter) else { return None };
+    if !func.blocks[l.header].instructions.contains(&phi)
+        || !matches!(func.inst(phi).kind, InstKind::Phi(_))
+    {
+        return None;
+    }
+    Some((counter, limit))
+}
+
+/// A counted loop over one written array can reuse its length after the words test proves that
+/// its stores cannot wrap into its header. The words passed here are already safe to read before
+/// the loop, including when its first trip test fails.
+fn reloaded_bounds(
+    func: &Function,
+    l: &Loop,
+    blocks: &[BlockId],
+    written: &[Written],
+    words: &[(ValueId, Vec<InstId>)],
+) -> Option<(ValueId, ValueId)> {
+    let [written] = written else { return None };
+    let (_, loads) = words.iter().find(|(word, _)| *word == written.object)?;
+    let loop_insts =
+        blocks.iter().flat_map(|&block| func.blocks[block].instructions.iter().copied()).collect();
+    let (counter, limit) = counted_limit(func, l, &loop_insts)?;
+    for &block in blocks {
+        if block == l.header {
+            continue;
+        }
+        for &inst in &func.blocks[block].instructions {
+            let Some(check) = array_check(&func.inst(inst).kind) else { continue };
+            let Some(&InstKind::Lt(index, length)) = inst_kind(func, check) else { continue };
+            if let Value::Inst(load) = func.value(length)
+                && loads.contains(load)
+                && func.value_ty(length) == Some(MirType::I256)
+                && below_limit(func, blocks, counter, limit, index, 0)
+            {
+                return Some((limit, length));
+            }
+        }
+    }
+    None
 }

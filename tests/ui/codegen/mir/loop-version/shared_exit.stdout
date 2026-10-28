@@ -68,8 +68,9 @@ fn @_lastIndices(arg0: i256, arg1: i256) -> i1 [may_return_memory, pure] {
     v67 = add v66, 32
     mstore v67, v8
     v40 = mload arg0
-    v44 = or arg1, v18
-    v45 = shl v18, 5
+    v41 = mload arg1
+    v44 = or arg1, v41
+    v45 = shl v41, 5
     v47 = add v45, 31
     v50 = lt v49, v47
     v57 = shr v44, 64
@@ -78,7 +79,7 @@ fn @_lastIndices(arg0: i256, arg1: i256) -> i1 [may_return_memory, pure] {
     v55 = eq v60, 0
     jumpi v55, bb10, bb3
   bb10:
-    v78 = add arg1, 32
+    v79 = add arg1, 32
     jump bb7
   bb7:
     v24 = phi [bb10: v8], [bb15: v26]
@@ -97,7 +98,7 @@ fn @_lastIndices(arg0: i256, arg1: i256) -> i1 [may_return_memory, pure] {
     jumpi v33, bb5, bb9
   bb9:
     v34 = and v32, 3
-    v36 = lt v34, v18
+    v36 = lt v34, v41
     jumpi v36, bb15, bb11
   bb11:
     mstore 32, 50 !metadata(memory=scratch)
@@ -105,7 +106,7 @@ fn @_lastIndices(arg0: i256, arg1: i256) -> i1 [may_return_memory, pure] {
     revert 28, 36
   bb15:
     v37 = shl v34, 5
-    v73 = add v78, v37
+    v73 = add v79, v37
     mstore v73, v26
     jump bb7
   bb5:

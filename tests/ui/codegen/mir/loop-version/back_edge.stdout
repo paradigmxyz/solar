@@ -13,18 +13,18 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
     v18 = shl arg3, 5
     v114 = add v86, v18
     v115 = add v114, 32
-    v123 = add v85, 32
-    v126 = add v87, 32
+    v124 = add v85, 32
+    v127 = add v87, 32
     jump bb1
   bb1:
     v5 = phi [bb16: 0], [bb9: v29]
-    v124 = phi [bb16: v123], [bb9: v125]
-    v127 = phi [bb16: v126], [bb9: v128]
+    v125 = phi [bb16: v124], [bb9: v126]
+    v128 = phi [bb16: v127], [bb9: v129]
     v6 = mload v85
     v7 = lt v5, v6
     jumpi v7, bb3, bb2
   bb3:
-    v14 = mload v124
+    v14 = mload v125
     v15 = mload v86
     v16 = lt arg3, v15
     jumpi v16, bb8, bb7
@@ -38,13 +38,14 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
     v24 = lt v5, v23
     jumpi v24, bb9, bb7
   bb9:
-    mstore v127, v75
+    mstore v128, v75
     v29 = add v5, 1
     v46 = mload v85
     v47 = mload v86
     v48 = mload v115
-    v52 = or v87, v23
-    v53 = shl v23, 5
+    v49 = mload v87
+    v52 = or v87, v49
+    v53 = shl v49, 5
     v54 = add v87, 1
     v55 = add v53, 31
     v57 = sub v85, v54
@@ -61,8 +62,8 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
     v79 = shr v52, 64
     v81 = or v79, v70
     v73 = eq v81, 0
-    v125 = add v124, 32
-    v128 = add v127, 32
+    v126 = add v125, 32
+    v129 = add v128, 32
     jumpi v73, bb6, bb1
   bb6:
     jump bb4
@@ -92,7 +93,7 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
     v78 = lt v77, v36
     jumpi v78, bb12, bb14
   bb14:
-    v42 = lt v30, v23
+    v42 = lt v30, v49
     jumpi v42, bb11, bb7
   bb7:
     tail_call @revert_stub
@@ -121,18 +122,18 @@ fn @shiftFar() [selector=0x67979c1a, abi_wrapper, pure] {
     v19 = shl arg2, 5
     v114 = add v19, 0x10000000000000020
     v56 = add v87, 1
-    v120 = add v87, 32
-    v123 = add v86, 32
+    v121 = add v86, 32
+    v124 = add v87, 32
     jump bb1
   bb1:
     v6 = phi [bb16: 0], [bb9: v31]
-    v121 = phi [bb16: v120], [bb9: v122]
-    v124 = phi [bb16: v123], [bb9: v125]
+    v122 = phi [bb16: v121], [bb9: v123]
+    v125 = phi [bb16: v124], [bb9: v126]
     v7 = mload v86
     v8 = lt v6, v7
     jumpi v8, bb3, bb2
   bb3:
-    v15 = mload v124
+    v15 = mload v122
     v16 = mload 0x10000000000000000
     v17 = lt arg2, v16
     jumpi v17, bb8, bb7
@@ -146,13 +147,14 @@ fn @shiftFar() [selector=0x67979c1a, abi_wrapper, pure] {
     v26 = lt v6, v25
     jumpi v26, bb9, bb7
   bb9:
-    mstore v121, v76
+    mstore v125, v76
     v31 = add v6, 1
     v48 = mload v86
     v49 = mload 0x10000000000000000
     v50 = mload v114
-    v54 = or v87, v25
-    v55 = shl v25, 5
+    v51 = mload v87
+    v54 = or v87, v51
+    v55 = shl v51, 5
     v57 = add v55, 31
     v59 = sub v86, v56
     v60 = lt v59, v57
@@ -168,8 +170,8 @@ fn @shiftFar() [selector=0x67979c1a, abi_wrapper, pure] {
     v80 = shr v54, 64
     v82 = or v80, v71
     v74 = eq v82, 0
-    v122 = add v121, 32
-    v125 = add v124, 32
+    v123 = add v122, 32
+    v126 = add v125, 32
     jumpi v74, bb6, bb1
   bb6:
     jump bb4
@@ -199,7 +201,7 @@ fn @shiftFar() [selector=0x67979c1a, abi_wrapper, pure] {
     v79 = lt v78, v38
     jumpi v79, bb12, bb14
   bb14:
-    v44 = lt v32, v25
+    v44 = lt v32, v51
     jumpi v44, bb11, bb7
   bb7:
     tail_call @revert_stub

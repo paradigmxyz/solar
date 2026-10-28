@@ -26,15 +26,27 @@ pragma solidity ^0.8.0;
 contract Bounds {
     // A heap's sift loop runs up to the queue's size `e`, while every access checks its index
     // against the length of the array that holds the queue. The copy runs behind
-    // `e <= values.length`, which the loop reads before it starts; the array's own stores compare
-    // with its length word by offset, so they leave it unchanged.
+    // `e <= values.length`, after the pointer and loaded length pass the non-wrapping guard.
+    // The fast copy reuses that length; its stores cannot reach the header and change it.
     // CHECK-LABEL: fn @siftValues(
-    // CHECK: [[SHORT:v[0-9]+]] = lt arg0, arg1
-    // CHECK-NEXT: jumpi [[SHORT]], [[SLOW:bb[0-9]+]], [[FAST:bb[0-9]+]]
+    // CHECK: [[ARRAY:v[0-9]+]] = heap_floor
+    // CHECK: [[BITS:v[0-9]+]] = or [[ARRAY]], [[LENGTH:v[0-9]+]]
+    // CHECK-NEXT: [[HIGH:v[0-9]+]] = shr [[BITS]], 64
+    // CHECK-NEXT: [[SMALL:v[0-9]+]] = eq [[HIGH]], 0
+    // CHECK-NEXT: jumpi [[SMALL]], [[BOUNDS:bb[0-9]+]], [[SLOW:bb[0-9]+]]
+    // CHECK: [[BOUNDS]]:
+    // CHECK-NEXT: [[SHORT:v[0-9]+]] = lt [[LENGTH]], arg1
+    // CHECK-NEXT: jumpi [[SHORT]], [[SLOW]], [[FAST:bb[0-9]+]]
     // CHECK-NEXT: [[FAST]]:
-    // CHECK-NOT: lt {{v[0-9]+}}, arg0
+    // CHECK-NOT: mload [[ARRAY]]
+    // CHECK-NOT: lt {{v[0-9]+}}, [[LENGTH]]
     // CHECK: [[SLOW]]:
-    // CHECK: lt {{v[0-9]+}}, arg0
+    // CHECK-NEXT: jump [[HEADER:bb[0-9]+]]
+    // CHECK: [[HEADER]]:
+    // CHECK: jumpi {{v[0-9]+}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+    // CHECK: [[BODY]]:
+    // CHECK: [[RELOADED:v[0-9]+]] = mload [[ARRAY]]
+    // CHECK: lt {{v[0-9]+}}, [[RELOADED]]
     function siftValues(uint256 m, uint256 e) external pure returns (uint256[] memory values) {
         values = new uint256[](m);
         for (uint256 i; i < m; ++i) {
@@ -59,8 +71,8 @@ contract Bounds {
     }
 
     // With a second array of runtime size, a store into one array may reach the other's length
-    // word once inline assembly has enlarged a length past its allocation, so neither length is
-    // invariant in the loop and it keeps its checks.
+    // word once inline assembly has enlarged a length past its allocation. Versioning must also
+    // prove that the arrays' element stores cannot reach either length word.
     function siftUp(uint256 m, uint256 e)
         external
         pure
