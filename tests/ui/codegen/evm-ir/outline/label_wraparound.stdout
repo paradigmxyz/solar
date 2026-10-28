@@ -4,7 +4,7 @@
   bb4294967295:
 +   push bb2
 +   jump bb0
-+ bb0:
++ bb0 [ret=0, inputs=1, outputs=1]:
     push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef1
 +   swap 1
 +   jump

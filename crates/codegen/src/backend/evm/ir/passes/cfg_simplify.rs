@@ -37,6 +37,12 @@
 //! physical form's `PUSH target; JUMPI` with that `POP` changes what runs after the condition, so
 //! it only applies where `keep_with_next` allows that boundary to be disturbed.
 //!
+//! A block that declares a call effect, the entry of a function or shared body, is absorbed into
+//! its predecessor only if the stack verifier can still follow its returns. The successors of the
+//! absorbed code take over the effect, unless the code pushes a block's address and calls out or
+//! consumes the return address, when the block stays apart; a return through a dynamic jump needs
+//! no successor, since the address is in the merged block.
+//!
 //! Compiler-generated return continuations explicitly declare that their label's numeric identity
 //! is unobservable. Empty continuation thunks can therefore be bypassed even through a pushed
 //! return address. Ordinary address-taken labels remain opaque. The declaration is emitted by call
@@ -55,6 +61,13 @@ use crate::backend::evm::{
     ir::{
         Block, BlockId, Instruction, Metadata, Module, ModuleTarget, PushValue, Terminator,
         TerminatorKind,
+    },
+    op,
+};
+use crate::backend::evm::{
+    ir::{
+        Block, BlockId, CallEffect, Instruction, Metadata, Module, PushValue, StackEffect,
+        Terminator, TerminatorKind, default_terminator_stack_effect,
     },
     op,
 };
@@ -688,6 +701,11 @@ fn coalesce_blocks(
                 break;
             }
 
+            let absorption = absorption(&module.blocks[target]);
+            if matches!(absorption, Absorption::Blocked) {
+                break;
+            }
+
             // predecessor: prefix; jump target
             // target [loop]: suffix => predecessor [loop]: prefix; suffix
             let mut instructions = std::mem::take(&mut module.blocks[target].instructions);
@@ -698,6 +716,16 @@ fn coalesce_blocks(
                 } else if let Some(terminator) = &mut terminator {
                     terminator.metadata.set_function_invoke(function);
                 }
+            }
+            // The effect describes the successor's code, the slot it returns through and its net
+            // stack change, so every other entry into the successor sees the same one, and an
+            // effect the successor already declares is kept.
+            if let Absorption::Passes(effect) = absorption
+                && let Some(terminator) = &terminator
+            {
+                terminator.kind.visit_targets(|next| {
+                    module.blocks[next].metadata.call_effect.get_or_insert(effect);
+                });
             }
             module.blocks[predecessor].metadata.in_loop |= module.blocks[target].metadata.in_loop;
             module.blocks[predecessor].metadata.repeats |= module.blocks[target].metadata.repeats;
@@ -713,6 +741,42 @@ fn coalesce_blocks(
     order.extend(retained.iter());
     retain_blocks(module, order);
     true
+}
+
+/// What absorbing a block into its predecessor does to the block's call effect.
+enum Absorption {
+    /// The block keeps its effect: its code ends the call, returns through a jump to the address
+    /// its predecessor pushed, which the verifier finds in the merged block, or has no effect.
+    Free,
+    /// The successors take the effect over.
+    Passes(CallEffect),
+    /// The code after the block no longer shows where it returns, because it calls out or
+    /// consumes or copies its return address, so the block stays apart.
+    Blocked,
+}
+
+fn absorption(block: &Block) -> Absorption {
+    let Some(effect) = block.metadata.call_effect else { return Absorption::Free };
+    let instructions = &block.instructions;
+    let Some(Terminator { kind, .. }) = &block.terminator else { return Absorption::Blocked };
+    match kind {
+        TerminatorKind::Op(opcode) if *opcode != op::JUMP => return Absorption::Free,
+        TerminatorKind::Op(_) => {
+            let returns_here = effect
+                .after(instructions, StackEffect::new(0, 0))
+                .is_some_and(|effect| effect.ret == 0);
+            return if returns_here { Absorption::Free } else { Absorption::Blocked };
+        }
+        _ => {}
+    }
+    let pushes_address = instructions.iter().enumerate().any(|(at, inst)| {
+        inst.pushed_block().is_some()
+            && !instructions.get(at + 1).is_some_and(|next| next.opcode == op::JUMPI)
+    });
+    let after = default_terminator_stack_effect(kind)
+        .filter(|_| !pushes_address)
+        .and_then(|last| effect.after(instructions, last));
+    after.map_or(Absorption::Blocked, Absorption::Passes)
 }
 
 fn simplify_known_jumps(module: &mut Module) -> bool {

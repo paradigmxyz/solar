@@ -1,0 +1,153 @@
+- // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/continuation_stack_limit.evmir (before compact-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/continuation_stack_limit.evmir (after compact-pushes) ===
+  @module ContinuationStackLimit
+  bb0 [stack=1000]:
+    push bb2
+    jump bb1
+  bb1 [ret=0, inputs=1, outputs=0]:
+    jump
+  bb2 [continuation]:
+-   push 0xffffffffffffffffffffffffffffffffffffffff
++   push 0
++   not
++   push 96
++   shr
+    pop
+    stop
+  bb3 [stack=1022]:
+    push bb5
+    jump bb4
+  bb4 [ret=0, inputs=1, outputs=1]:
+    jump
+  bb5 [continuation]:
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    pop
+    stop
+  bb6 [stack=10]:
+    push bb8
+    push 7
+    jump bb7
+  bb7 [ret=1, inputs=2, outputs=1]:
+    swap 1
+    jump
+  bb8 [continuation]:
+-   push 0xffffffffffffffffffffffffffffffffffffffff
++   push 0
++   not
++   push 96
++   shr
+    pop
+    stop
+  bb9 [stack=1]:
+    push bb11
+    jump bb10
+  bb10 [ret=0, inputs=1, outputs=0]:
+    dup 1
+    push bb13
+    jumpi
+    push bb12
+    jump bb10
+  bb11 [continuation]:
+-   push 0xffffffffffffffffffffffffffffffffffffffff
++   push 0
++   not
++   push 96
++   shr
+    pop
+    stop
+  bb12 [continuation]:
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    pop
+    jump
+  bb13:
+    jump
+  bb14 [stack=3]:
+    push bb16
+    dup 1
+    pop
+    jump bb15
+  bb15 [ret=0, inputs=1, outputs=0]:
+    jump
+  bb16 [continuation]:
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    pop
+    stop
+  bb17 [stack=5]:
+    push bb18
+    push 1
+    swap 1
+    jump
+  bb18 [continuation]:
+-   push 0xffffffffffffffffffffffffffffffffffffffff
++   push 0
++   not
++   push 96
++   shr
+    pop
+    stop
+  bb19 [stack=1021]:
+    push bb21
+    push 1
+    push bb22
+    jumpi
+    pop
+    stop
+  bb20 [stack=0]:
+    push bb21
+    jump bb23
+  bb21 [continuation]:
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    pop
+    stop
+  bb22:
+    push 7
+    push 8
+    swap 2
+    jump
+  bb23 [ret=0, inputs=1, outputs=0]:
+    jump
+  bb24 [stack=1021]:
+    push bb26
+    push 1
+    push bb28
+    jumpi
+    push 3
+    jump bb29
+  bb25 [stack=0]:
+    push bb26
+    push 5
+    jump bb29
+  bb26 [continuation]:
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    pop
+    stop
+  bb28:
+    push 7
+    push 8
+    swap 2
+    jump
+  bb29 [ret=1, inputs=2, outputs=1]:
+    swap 1
+    jump
+  bb30 [stack=1020]:
+    push bb33
+    push 1
+    push bb31
+    jumpi
+    jump bb32
+  bb31:
+    push 7
+    push 8
+    push 1
+    swap 3
+    jumpi
+    stop
+  bb32 [ret=0, inputs=1, outputs=0]:
+    jump
+  bb33 [continuation]:
+    push 0
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    pop
+    pop
+    stop
+  

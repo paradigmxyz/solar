@@ -531,7 +531,7 @@ bb43:
   jumpi
   push bb45
   jump bb72
-bb72:
+bb72 [ret=0, inputs=1, outputs=1]:
   push 4
   calldataload
   push 4

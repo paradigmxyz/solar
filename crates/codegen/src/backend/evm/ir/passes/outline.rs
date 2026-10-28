@@ -45,8 +45,8 @@ use super::{
 use crate::{
     backend::evm::{
         ir::{
-            Block, BlockId, Instruction, Module, ModuleTarget, PushValue, Terminator,
-            TerminatorKind,
+            Block, BlockId, CallEffect, Instruction, Module, ModuleTarget, PushValue, StackEffect,
+            Terminator, TerminatorKind,
         },
         op,
     },
@@ -417,6 +417,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         }
         stub.terminator =
             Some(Terminator::new(TerminatorKind::Op(op::JUMP)).with_debug_info_dropped());
+        stub.metadata.call_effect = stub_call_effect(group.inputs, group.outputs);
         stubs.push(module.add_block(stub));
     }
     let mut edits = OutlineEdits::default();
@@ -616,6 +617,9 @@ fn outline_parametric_machine_runs(
         }
         stub.terminator =
             Some(Terminator::new(TerminatorKind::Op(op::JUMP)).with_debug_info_dropped());
+        stub.metadata.call_effect = u16::try_from(group.parameters.len())
+            .ok()
+            .and_then(|inputs| stub_call_effect(inputs, group.outputs));
         stubs.push(module.add_block(stub));
     }
     let mut edits = FxHashMap::<BlockId, SmallVec<[ParamEdit; 1]>>::default();
@@ -785,6 +789,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             .push(Instruction::stack_op(op::StackOp::Swap(1)).with_debug_info_dropped());
         stub.terminator =
             Some(Terminator::new(TerminatorKind::Op(op::JUMP)).with_debug_info_dropped());
+        stub.metadata.call_effect = stub_call_effect(0, 1);
         let stub = module.add_block(stub);
         for &(block, index) in occurrences {
             edits.entry(block).or_default().push((index, 1, stub, 0));
@@ -843,6 +848,15 @@ fn apply_outline_edits(
     }
 }
 
+/// The call effect of a stub whose body replaces `inputs` words with `outputs` words above the
+/// return address that its site leaves below them.
+fn stub_call_effect(inputs: u16, outputs: u16) -> Option<CallEffect> {
+    Some(CallEffect {
+        ret: u8::try_from(inputs).ok()?,
+        effect: StackEffect::new(u8::try_from(inputs + 1).ok()?, u8::try_from(outputs).ok()?),
+    })
+}
+
 fn split_outline_site(
     module: &mut Module,
     block: BlockId,
@@ -859,6 +873,8 @@ fn split_outline_site(
     let mut continuation = Block::new(continuation_label);
     continuation.metadata = module.blocks[block].metadata;
     continuation.metadata.is_continuation = true;
+    // The call convention belongs to the function's entry block, not to the code after the stub.
+    continuation.metadata.call_effect = None;
     continuation.instructions = module.blocks[block].instructions.split_off(start + len);
     module.blocks[block].instructions.truncate(start);
     continuation.terminator = module.blocks[block].terminator.take();

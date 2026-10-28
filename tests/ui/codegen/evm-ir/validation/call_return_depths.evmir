@@ -1,0 +1,23 @@
+// A call's continuation is entered at the depth its callee returns to, so a continuation that a
+// cycle does not reach has its own bounds and the cycle's second traversal is still cut.
+@module module
+
+bb0:
+  push bb2
+  jump bb1
+
+bb1 [ret=0, inputs=1, outputs=0]:
+  dup 1
+  push bb4
+  jumpi
+  push bb3
+  jump bb1
+
+bb2 [continuation]:
+  stop
+
+bb3 [continuation]:
+  jump
+
+bb4:
+  jump
