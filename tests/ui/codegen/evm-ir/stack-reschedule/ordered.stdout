@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/ordered.evmir (before stack-reschedule) ===
 + // === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/ordered.evmir (after stack-reschedule) ===
   @module module
-  bb0 [loop] [stack=2]:
+  bb0 [loop, stack=2]:
 +   pop
     push 7
     push 0

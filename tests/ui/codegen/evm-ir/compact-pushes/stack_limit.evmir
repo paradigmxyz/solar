@@ -114,9 +114,9 @@ bb11 [stack=1021]:
   jump bb11
 
 // Cold gas-mode blocks also use repeated recipes and need the same guard.
-// CHECK-LABEL: bb13 [cold] [stack=1023]:
+// CHECK-LABEL: bb13 [cold, stack=1023]:
 // CHECK-NEXT: {{^ +}}push 0x3030303030303030303030303030303030303030303030303030303030303030
-bb13 [cold] [stack=1023]:
+bb13 [cold, stack=1023]:
   push 0x3030303030303030303030303030303030303030303030303030303030303030
   pop
   stop

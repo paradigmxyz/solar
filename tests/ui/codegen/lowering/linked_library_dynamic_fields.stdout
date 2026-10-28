@@ -98,7 +98,7 @@ bb1:
   shl
   push bb8
   jump bb25
-bb25:
+bb25 [ret=0, inputs=2, outputs=1]:
   push 64
   mload
   swap 2

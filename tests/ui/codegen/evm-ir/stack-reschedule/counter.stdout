@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/counter.evmir (before stack-reschedule) ===
 + // === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/counter.evmir (after stack-reschedule) ===
   @module module
-  bb0 [loop] [stack=3]:
+  bb0 [loop, stack=3]:
     dup 2
 -   dup 2
 -   add

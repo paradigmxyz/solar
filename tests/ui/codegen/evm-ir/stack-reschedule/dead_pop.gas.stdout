@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/dead_pop.evmir (before stack-reschedule) ===
 + // === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/dead_pop.evmir (after stack-reschedule) ===
   @module module
-  bb0 [loop] [stack=2]:
+  bb0 [loop, stack=2]:
 -   swap 1
 +   pop
     push 2
@@ -21,7 +21,7 @@
     push 0
     mstore
     stop
-  bb2 [loop] [stack=2]:
+  bb2 [loop, stack=2]:
 -   swap 1
 +   pop
     push 1

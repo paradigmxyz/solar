@@ -30,7 +30,7 @@ bb0:
   jumpi
   push bb7
   jump bb13
-bb13:
+bb13 [ret=0, inputs=1, outputs=1]:
   push 36
   calldataload
   push 4
