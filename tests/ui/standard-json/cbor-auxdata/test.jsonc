@@ -1,0 +1,38 @@
+//@ filecheck:
+// `C` embeds `Child`'s trailer through `new Child()` and `type(Child).runtimeCode`.
+// Each of `C`'s bytecodes lists every copy of `Child`'s trailer before its own, in
+// offset order. Offsets point past the `INVALID` byte and do not move when the
+// library placeholder is linked or the immutable is set.
+// CHECK-LABEL: "Child": {
+// CHECK: "cborAuxdata": {
+// CHECK-NEXT: "1": {
+// CHECK-NEXT: "offset": 40,
+// CHECK-NEXT: "value": "[[CHILD:0xa2646970667358221220[0-9a-f]{64}65736f6c617243[0-9a-f]{6}0034]]"
+// CHECK-LABEL: "C": {
+// CHECK: "bytecode": {
+// CHECK: "cborAuxdata": {
+// CHECK-NEXT: "1": {
+// CHECK-NEXT: "offset":
+// CHECK-NEXT: "value": "[[CHILD]]"
+// CHECK: "deployedBytecode": {
+// CHECK: "cborAuxdata": {
+// CHECK-NEXT: "1": {
+// CHECK-NEXT: "offset":
+// CHECK-NEXT: "value": "[[CHILD]]"
+{
+  "language": "Solidity",
+  "sources": {},
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "C": [
+          "evm.bytecode.cborAuxdata",
+          "evm.bytecode.linkReferences",
+          "evm.deployedBytecode.cborAuxdata",
+          "evm.deployedBytecode.immutableReferences"
+        ],
+        "Child": ["evm.deployedBytecode.cborAuxdata"]
+      }
+    }
+  }
+}

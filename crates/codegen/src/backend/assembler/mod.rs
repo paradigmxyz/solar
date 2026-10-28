@@ -19,6 +19,7 @@ use alloy_primitives::U256;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use solar_interface::{Span, Symbol, sym};
 use solar_sema::Gcx;
+use std::ops::Range;
 
 pub(crate) mod assembly;
 
@@ -64,6 +65,8 @@ pub(crate) struct AssembledCode {
     pub immutable_refs: Vec<ImmutableRef>,
     /// Byte offsets of library addresses, including embedded program data.
     pub library_relocations: Vec<LibraryRelocation>,
+    /// Byte ranges of contracts' trailing runtime data, including embedded program data.
+    pub trailers: Vec<Range<usize>>,
     /// Final EVM IR captured immediately before byte emission.
     pub evm_ir: Option<ir::Module>,
     /// Final instruction offsets and source spans.
@@ -521,16 +524,18 @@ impl<'gcx> Assembler<'gcx> {
                     out.emit_op(op::JUMPDEST, source_spans);
                 }
                 AsmInstKind::Data(data) => {
+                    let data = &program.data[data];
                     let base = out.bytecode.len();
-                    out.library_relocations.extend(
-                        program.data[data].library_relocations.iter().map(|reloc| {
-                            LibraryRelocation {
-                                offset: base + reloc.offset,
-                                library: reloc.library,
-                            }
-                        }),
+                    let bytes = data.bytes.linked();
+                    out.library_relocations.extend(data.library_relocations.iter().map(|reloc| {
+                        LibraryRelocation { offset: base + reloc.offset, library: reloc.library }
+                    }));
+                    out.trailers.extend(
+                        data.trailers
+                            .iter()
+                            .map(|trailer| base + trailer.start..base + trailer.end),
                     );
-                    out.bytecode.extend_from_slice(program.data[data].bytes.linked());
+                    out.bytecode.extend_from_slice(bytes);
                 }
             }
         }
@@ -564,6 +569,7 @@ struct BytecodeAssembler<'gcx> {
     bytecode: Vec<u8>,
     immutable_refs: Vec<ImmutableRef>,
     library_relocations: Vec<LibraryRelocation>,
+    trailers: Vec<Range<usize>>,
     debug_info: Option<DebugInfoBuilder>,
     function_invoke: Option<DebugFunction>,
     function_exit: Option<DebugFunctionExit>,
@@ -577,6 +583,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
             bytecode: Vec::new(),
             immutable_refs: Vec::new(),
             library_relocations: Vec::new(),
+            trailers: Vec::new(),
             debug_info: capture_debug_info.then(DebugInfoBuilder::default),
             function_invoke: None,
             function_exit: None,
@@ -678,6 +685,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
             bytecode: self.bytecode,
             immutable_refs: self.immutable_refs,
             library_relocations: self.library_relocations,
+            trailers: self.trailers,
             evm_ir: None,
             debug_info: self.debug_info.map(DebugInfoBuilder::finish),
         }

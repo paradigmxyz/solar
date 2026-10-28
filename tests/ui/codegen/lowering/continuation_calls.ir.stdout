@@ -110,7 +110,7 @@ bb8:
   calldataload
   push bb9
   jump bb32
-bb32 [loop] [ret=0, inputs=3, outputs=1]:
+bb32 [loop, ret=0, inputs=3, outputs=1]:
   swap 1
   push 0
   sub

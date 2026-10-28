@@ -85,7 +85,7 @@ impl Module {
         for data in &mut self.data {
             let DataBytes::Deferred(code) = data.bytes else { continue };
             // d: creation_code|runtime_code C
-            // => d: hex"<code(C)>" library_relocations [..]
+            // => d: hex"<code(C)>" library_relocations [..] trailers [..]
             let bytecode = code.bytecode(bytecodes);
             assert!(
                 u32::try_from(bytecode.bytes.len()).is_ok(),
@@ -93,6 +93,7 @@ impl Module {
             );
             data.bytes = DataBytes::Known(bytecode.bytes.clone());
             data.library_relocations = bytecode.relocations_in(libraries);
+            data.trailers.clone_from(&bytecode.trailers);
             linked = true;
         }
         if linked {

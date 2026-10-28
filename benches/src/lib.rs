@@ -235,11 +235,13 @@ fn ensure_contract_bytecode(
                 libraries: artifact.libraries.clone(),
                 bytes: artifact.deployment.clone().into(),
                 relocations: artifact.deployment_library_relocations.clone(),
+                trailers: artifact.deployment_trailers.clone(),
             },
             runtime: RelocatableBytecode {
                 libraries: artifact.libraries.clone(),
                 bytes: artifact.runtime.clone().into(),
                 relocations: artifact.runtime_library_relocations.clone(),
+                trailers: artifact.runtime_trailers.clone(),
             },
         },
     );

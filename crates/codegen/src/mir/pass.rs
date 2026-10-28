@@ -384,9 +384,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_mcopy::LowerMCopy,
     &lower_alloc::LowerAlloc,
     // Allocation lowering exposes zero fills and free-memory-pointer stores
-    // that later stores in the same block can overwrite completely. Keep this
-    // gas-only.
-    &GasOnly::new(memory_dse::MemoryDse::Standard),
+    // that later stores in the same block can overwrite completely, and word
+    // stores that later loads can forward.
+    &memory_dse::MemoryDse::Standard,
     &lower_memory_zero::LowerMemoryZero,
     // Materialize integer cleanup before word-level extraction and scheduling.
     &lower_integers::LowerIntegers,
@@ -880,6 +880,15 @@ impl ModuleAnalyses {
     fn creation_pricing(&mut self, func_id: FunctionId, module: &Module) -> (bool, bool) {
         if !self.prices_creation {
             return (false, false);
+        }
+        // A pass that adds functions, such as `lower-builtins` with its storage helpers, can
+        // preserve analyses, so rebuild the sets when they no longer cover every function.
+        if self
+            .creation_functions
+            .as_ref()
+            .is_some_and(|(creation, _)| creation.domain_size() != module.functions.len())
+        {
+            self.creation_functions = None;
         }
         let (creation, straight) =
             self.creation_functions.get_or_insert_with(|| module.creation_pricing_functions());

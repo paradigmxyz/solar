@@ -42,5 +42,5 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
       ]
     }
   },
-  "version": "VERSION"
+  "version": "SOLC_VERSION+commit.00000000.solar.VERSION"
 }

@@ -8,8 +8,6 @@
 fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
   bb0:
     v24 = heap_floor !metadata(alloc_ptr)
-    v25 = add v24, 320 !metadata(alloc_ptr)
-    mstore 64, v25 !metadata(memory=scratch)
     mstore v24, 257
     v17 = add v24, 288
     mstore v17, 0
@@ -27,8 +25,6 @@ fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
 fn @subslice() [selector=0xb9ad073e, abi_wrapper, pure] {
   bb0:
     v24 = heap_floor !metadata(alloc_ptr)
-    v25 = add v24, 224 !metadata(alloc_ptr)
-    mstore 64, v25 !metadata(memory=scratch)
     mstore v24, 161
     v17 = add v24, 192
     mstore v17, 0
@@ -262,11 +258,6 @@ bb12 [cold]:
   revert
 bb13:
   push 128
-  push 320
-  dup 2
-  add
-  push 64
-  mstore
   push 257
   dup 2
   mstore
@@ -304,11 +295,6 @@ bb13:
   return
 bb14:
   push 128
-  push 224
-  dup 2
-  add
-  push 64
-  mstore
   push 161
   dup 2
   mstore

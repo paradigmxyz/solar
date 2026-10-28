@@ -259,7 +259,7 @@ bb20:
 bb22 [continuation]:
   push bb23
   jump bb67
-bb67 [loop] [ret=0, inputs=2, outputs=1]:
+bb67 [loop, ret=0, inputs=2, outputs=1]:
   swap 1
   push 32
   dup 2
@@ -331,7 +331,7 @@ bb32:
   push 4
   push bb34
   jump bb74
-bb34 [loop] [continuation]:
+bb34 [loop, continuation]:
   dup 1
   mload
   push 32
@@ -453,7 +453,7 @@ bb49 [loop]:
   push 32
   push 0
   return
-bb58 [loop] [continuation]:
+bb58 [loop, continuation]:
   swap 1
   calldatasize
   dup 3

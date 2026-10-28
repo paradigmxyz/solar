@@ -15,7 +15,7 @@
     push 0x3030303030303030303030303030303030303030303030303030303030303030
 +   swap 1
 +   jump
-+ bb4 [loop] [continuation]:
++ bb4 [loop, continuation]:
     add
     dup 1
     push bb1

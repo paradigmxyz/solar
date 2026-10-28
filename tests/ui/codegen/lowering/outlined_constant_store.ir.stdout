@@ -231,9 +231,9 @@ bb15 [ret=2, inputs=3, outputs=2]:
   swap 1
   swap 2
   jump
-bb16 [cold] [continuation]:
+bb16 [cold, continuation]:
   revert
-bb17 [cold] [continuation]:
+bb17 [cold, continuation]:
   revert
-bb18 [cold] [continuation]:
+bb18 [cold, continuation]:
   revert

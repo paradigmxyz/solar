@@ -20,8 +20,8 @@
     not
     pop
 +   jump
-+ bb3 [loop] [continuation]:
++ bb3 [loop, continuation]:
 +   jump bb1
-+ bb4 [loop] [continuation]:
++ bb4 [loop, continuation]:
     stop
   
