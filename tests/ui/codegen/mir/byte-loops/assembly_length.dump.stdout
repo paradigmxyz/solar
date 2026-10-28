@@ -274,45 +274,39 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
 
 fn @grownPast() [selector=0xd89b44d4, abi_wrapper, pure] {
   bb0:
-    v90 = heap_floor !metadata(alloc_ptr)
-    v91 = add v90, 64 !metadata(alloc_ptr)
-    v92 = lt v91, v90
-    v93 = gt v91, 0xffffffffffffffff
-    v94 = or v92, v93
-    jumpi v94, bb10, bb9
+    v89 = heap_floor !metadata(alloc_ptr)
+    v90 = add v89, 64 !metadata(alloc_ptr)
+    v91 = lt v90, v89
+    v92 = gt v90, 0xffffffffffffffff
+    v93 = or v91, v92
+    jumpi v93, bb10, bb9
   bb9:
-    mstore 64, v91 !metadata(memory=scratch)
-    v96 = calldatasize
-    calldatacopy v90, v96, 64
-    mstore v90, 1
-    v89 = icall @alloc, 96
-    v98 = calldatasize
-    calldatacopy v89, v98, 96
-    mstore v89, 64
-    mstore v90, 200
-    v9 = add v90, 32
+    mstore 64, v90 !metadata(memory=scratch)
+    v95 = calldatasize
+    calldatacopy v89, v95, 64
+    mstore v89, 1
+    v88 = icall @alloc, 96
+    v97 = calldatasize
+    calldatacopy v88, v97, 96
+    mstore v88, 64
+    mstore v89, 200
+    v9 = add v89, 32
     mstore v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    mstore v91, 0x101010101010101010101010101010101010101010101010101010101010101
-    v71 = add v90, 72
-    v73 = add v89, 32
+    mstore v90, 0x101010101010101010101010101010101010101010101010101010101010101
+    v71 = add v89, 72
+    v73 = add v88, 32
     v42 = add v71, 64
     v43 = add v73, 64
     v44 = lt v73, v42
-    v45 = lt v90, v43
+    v45 = lt v89, v43
     v46 = and v44, v45
     v50 = lt v71, v9
     v53 = or v46, v50
     jumpi v53, bb1, bb4
   bb4:
-    v54 = mload v90
-    v55 = lt v54, 64
-    v56 = sub v54, 64
-    v57 = lt v56, 40
-    v58 = or v55, v57
-    v60 = mload v89
+    v60 = mload v88
     v61 = lt v60, 64
-    v64 = or v58, v61
-    jumpi v64, bb5, bb8
+    jumpi v61, bb5, bb8
   bb8:
     mcopy v73, v71, 64
     jump bb2
@@ -321,27 +315,27 @@ fn @grownPast() [selector=0xd89b44d4, abi_wrapper, pure] {
     v16 = lt v15, 64
     jumpi v16, bb3, bb2
   bb2:
-    v34 = add v89, 64
+    v34 = add v88, 64
     v35 = mload v34
     mstore 0, v35 !metadata(memory=scratch)
     returndata 0, 32
   bb3:
     v17 = add v15, 40
-    v18 = mload v90
+    v18 = mload v89
     v19 = lt v17, v18
     jumpi v19, bb6, bb5
   bb6:
-    v77 = add v90, v17
+    v77 = add v89, v17
     v78 = add v77, 32
     v23 = mload v78
     v24 = byte 0, v23
-    v26 = mload v89
+    v26 = mload v88
     v27 = lt v15, v26
     jumpi v27, bb7, bb5
   bb5:
     tail_call @revert_stub.7
   bb7:
-    v80 = add v89, v15
+    v80 = add v88, v15
     v81 = add v80, 32
     mstore8 v81, v24
     v32 = add v15, 1
