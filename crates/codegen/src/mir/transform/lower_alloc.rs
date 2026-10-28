@@ -8,11 +8,14 @@
 //! branches carry those effects. Source metadata stays on the original instruction.
 //!
 //! A checked allocation bumps the pointer only after testing the new end against overflow and
-//! the allocation limit, panicking otherwise. When the target prices one shared `alloc(size)`
-//! helper below expanding the check at every site, as the size objective does for two or more,
-//! the helper owns the pointer load, check, panic, and update, and each site calls it and keeps
-//! its own zeroing. Otherwise, as in gas builds, whose call protocol costs more than the check,
-//! each allocation splits its block around the inline check.
+//! the allocation limit, panicking otherwise. Repeated checks without useful specialization
+//! share one `alloc(size)` helper, which owns the pointer load, check, panic, and update; each
+//! site keeps its own zeroing. A single checked allocation keeps its check inline instead.
+//! Gas builds keep checks inline in control-flow cycles when the target's repeated-execution
+//! cost repays the extra code. Caller frequency is not inferred from the presence of a loop
+//! elsewhere in the caller. Creation-only functions use deployment pricing for that decision.
+//! A constant size at most the allocation limit leaves one check on the old pointer, against
+//! `limit - size`, which also excludes wrapping the pointer bump. Other sites retain sharing.
 //!
 //! A preserving allocation that reserves bytes an encoder already wrote through an
 //! earlier pointer read in the same block reuses that read instead of loading the
@@ -28,8 +31,8 @@
 use crate::{
     mir::{
         AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, EffectKind,
-        Function, FunctionBuilder, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
-        PtrLocation, Value, ValueId,
+        Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, MirType, Module,
+        PanicCode, PtrLocation, Value, ValueId,
         analysis::FreshFmpReads,
         memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
@@ -65,7 +68,12 @@ impl MirPass for LowerAlloc {
     }
 }
 
-fn lower_alloc(gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses, fresh: &FreshFmpReads) -> bool {
+fn lower_alloc(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    fresh: &FreshFmpReads,
+) -> bool {
     let mut changed = share_checked_allocations(gcx, module, analyses, fresh);
     changed |= run_lowering_function_pass(module, analyses, |func, function_analyses| {
         let id = function_analyses.function();
@@ -79,18 +87,19 @@ fn lower_alloc(gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses,
 ///
 /// The helper owns only the pointer load, checked bump, panic, and update.
 /// Callers retain their initialization, so allocation ordering stays intact.
-/// The target decides whether the shared helper beats an inline check at every site.
 fn share_checked_allocations(
     gcx: Gcx<'_>,
     module: &mut Module,
     analyses: &mut ModuleAnalyses,
     fresh: &FreshFmpReads,
 ) -> bool {
+    let inline = inline_loop_allocations(gcx, module, analyses, fresh);
     let count = module
         .functions
         .iter_enumerated()
-        .flat_map(|(id, func)| func.instructions().map(move |inst| (id, inst, func.inst(inst))))
-        .filter(|&(id, inst, instruction)| {
+        .flat_map(|(id, func)| func.instructions().map(move |inst| (id, func, inst)))
+        .filter(|&(id, func, inst)| {
+            let instruction = func.inst(inst);
             matches!(
                 instruction.kind,
                 InstKind::Alloc {
@@ -99,23 +108,20 @@ fn share_checked_allocations(
                 }
             ) && !instruction.metadata.deferred_alloc()
                 && !fresh.contains(id, inst)
+                && !inline.contains(&(id, inst))
         })
         .count();
     if count < 2 {
         return false;
     }
     let function = checked_alloc_helper();
-    let target = Target::new(gcx);
-    let body_bytes = target.code_estimate(&function).bytes;
-    let sites = u32::try_from(count).unwrap_or(u32::MAX);
-    let (shared, expanded) = target.helper_sharing(body_bytes, 1, 1, sites);
-    if !target.cmp(shared, expanded).is_lt() {
-        return false;
-    }
 
     let helper = module.add_function(function);
     run_lowering_function_pass(module, analyses, |func, function_analyses| {
         let func_id = function_analyses.function();
+        if func_id == helper {
+            return false;
+        }
         let mut replacements = FxHashMap::default();
         let blocks = func.blocks.indices();
         for block in blocks {
@@ -130,6 +136,7 @@ fn share_checked_allocations(
                 if semantics.failure != AllocationFailure::Checked
                     || builder.func().inst(inst).metadata.deferred_alloc()
                     || fresh.contains(func_id, inst)
+                    || inline.contains(&(func_id, inst))
                 {
                     builder.func_mut().blocks[block].instructions.push(inst);
                     continue;
@@ -142,8 +149,11 @@ fn share_checked_allocations(
                 replacements.insert(result, object);
             }
         }
-        func.replace_uses_canonicalized(&replacements);
-        true
+        let changed = !replacements.is_empty();
+        if changed {
+            func.replace_uses_canonicalized(&replacements);
+        }
+        changed
     })
 }
 
@@ -387,10 +397,21 @@ fn lower_checked_alloc(
     builder.switch_to_block(block);
     rewrite_as_fmp_read(&mut builder, inst, fresh);
     let next = bump(&mut builder, ptr, size);
-    let bump_overflow = builder.lt(next, ptr);
-    let limit = builder.imm(EvmMemoryLayout::MAX_ALLOCATION_END);
-    let over_limit = builder.gt(next, limit);
-    let invalid = builder.or(bump_overflow, over_limit);
+    let invalid = if let Some(limit) = builder
+        .func()
+        .value_u64(size)
+        .and_then(|size| EvmMemoryLayout::MAX_ALLOCATION_END.checked_sub(size))
+    {
+        // invalid = gt ptr, MAX_ALLOCATION_END - size
+        let limit = builder.imm(limit);
+        builder.gt(ptr, limit)
+    } else {
+        // invalid = or (lt next, ptr), (gt next, MAX_ALLOCATION_END)
+        let bump_overflow = builder.lt(next, ptr);
+        let limit = builder.imm(EvmMemoryLayout::MAX_ALLOCATION_END);
+        let over_limit = builder.gt(next, limit);
+        builder.or(bump_overflow, over_limit)
+    };
     builder.branch(invalid, panic, continuation);
 
     let tail = std::mem::take(&mut builder.func_mut().blocks[continuation].instructions);
@@ -487,4 +508,63 @@ fn mark_alloc_ptr(builder: &mut FunctionBuilder<'_>, value: ValueId) {
 fn store_fmp(builder: &mut FunctionBuilder<'_>, ptr: crate::mir::ValueId) {
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
     builder.store(slot, ptr);
+}
+
+/// Selects repeated allocation sites before adding a helper changes the function domain.
+fn inline_loop_allocations(
+    gcx: Gcx<'_>,
+    module: &Module,
+    analyses: &mut ModuleAnalyses,
+    fresh: &FreshFmpReads,
+) -> FxHashSet<(FunctionId, InstId)> {
+    let mut inline = FxHashSet::default();
+    if !gcx.sess.opts.optimization.is_gas() {
+        return inline;
+    }
+    let candidates = module
+        .functions
+        .iter_enumerated()
+        .filter_map(|(id, func)| {
+            func.instructions()
+                .any(|inst| {
+                    matches!(
+                        func.inst(inst).kind,
+                        InstKind::Alloc {
+                            semantics: AllocationSemantics {
+                                failure: AllocationFailure::Checked,
+                                ..
+                            },
+                            ..
+                        }
+                    ) && !func.inst(inst).metadata.deferred_alloc()
+                        && !fresh.contains(id, inst)
+                })
+                .then_some(id)
+        })
+        .collect::<Vec<_>>();
+    if candidates.is_empty() {
+        return inline;
+    }
+    let creation = module.creation_only_functions();
+    let target = Target::new(gcx);
+    for id in candidates {
+        let func = module.function(id);
+        let cfg = analyses.cfg(id, func);
+        let target = target.priced_for(creation.contains(id));
+        for block in cfg.cyclic_blocks().iter() {
+            for &inst in &func.blocks[block].instructions {
+                if let InstKind::Alloc {
+                    size,
+                    semantics: AllocationSemantics { failure: AllocationFailure::Checked, .. },
+                } = func.inst(inst).kind
+                    && !func.inst(inst).metadata.deferred_alloc()
+                    && !fresh.contains(id, inst)
+                    && target.inline_loop_allocation(func.value_u64(size))
+                {
+                    inline.insert((id, inst));
+                }
+            }
+        }
+    }
+    inline
 }

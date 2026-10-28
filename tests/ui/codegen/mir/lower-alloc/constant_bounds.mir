@@ -1,0 +1,60 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=lower-alloc
+//@ filecheck: --enable-var-scope
+//@ normalize-stdout-test: "(?s).+" -> ""
+
+@module ConstantAllocationBounds
+
+// A constant-size check must bound the old pointer, even if it is a forged word near 2**256.
+// CHECK-LABEL: fn @word(
+// CHECK: + {{v[0-9]+}} = add [[PTR:v[0-9]+]], 32
+// CHECK: + [[FAIL:v[0-9]+]] = gt [[PTR]], 0xffffffffffffffdf
+// CHECK-NOT: + {{v[0-9]+}} = lt
+// CHECK-NOT: + {{v[0-9]+}} = or
+// CHECK: + jumpi [[FAIL]],
+fn @word(arg0: i256) -> ptr<memory> {
+  bb0:
+    mstore 64, arg0
+    v0 = alloc checked 32
+    ret v0
+}
+
+// Fresh entry reads keep these boundary allocations inline even with several sites in the
+// module. A zero-sized allocation still checks the old pointer against the allocation limit.
+// CHECK-LABEL: fn @empty(
+// CHECK: + [[PTR:v[0-9]+]] = heap_floor
+// CHECK: + [[FAIL:v[0-9]+]] = gt [[PTR]], 0xffffffffffffffff
+// CHECK-NOT: + {{v[0-9]+}} = lt
+// CHECK-NOT: + {{v[0-9]+}} = or
+// CHECK: + jumpi [[FAIL]],
+fn @empty() -> ptr<memory> [selector=0x10000001] {
+  bb0:
+    v0 = alloc checked 0
+    ret v0
+}
+
+// An allocation as large as the limit is valid only when the original pointer is zero.
+// CHECK-LABEL: fn @limit(
+// CHECK: + [[PTR:v[0-9]+]] = heap_floor
+// CHECK: + [[FAIL:v[0-9]+]] = gt [[PTR]], 0
+// CHECK-NOT: + {{v[0-9]+}} = lt
+// CHECK-NOT: + {{v[0-9]+}} = or
+// CHECK: + jumpi [[FAIL]],
+fn @limit() -> ptr<memory> [selector=0x10000002] {
+  bb0:
+    v0 = alloc checked 18446744073709551615
+    ret v0
+}
+
+// Larger constants cannot form an unsigned limit-minus-size threshold and retain both checks.
+// CHECK-LABEL: fn @oversized(
+// CHECK: + [[PTR:v[0-9]+]] = heap_floor
+// CHECK: + [[END:v[0-9]+]] = add [[PTR]], 0x10000000000000000
+// CHECK: + [[WRAP:v[0-9]+]] = lt [[END]], [[PTR]]
+// CHECK-NEXT: + [[WIDE:v[0-9]+]] = gt [[END]], 0xffffffffffffffff
+// CHECK-NEXT: + [[FAIL:v[0-9]+]] = or [[WRAP]], [[WIDE]]
+// CHECK-NEXT: + jumpi [[FAIL]],
+fn @oversized() -> ptr<memory> [selector=0x10000003] {
+  bb0:
+    v0 = alloc checked 18446744073709551616
+    ret v0
+}

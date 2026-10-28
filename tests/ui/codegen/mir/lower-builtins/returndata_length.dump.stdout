@@ -11,7 +11,7 @@ fn @echo() [selector=0x6279e43c, abi_wrapper, pure] {
     jumpi v1, bb1, bb2
   bb2:
     v3 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v25 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v25 = heap_floor !metadata(alloc_ptr)
     v26 = add v25, v3 !metadata(alloc_ptr)
     v27 = lt v26, v25
     v28 = gt v26, 0xffffffffffffffff
@@ -43,7 +43,7 @@ fn @measure() [selector=0x1abe4f5a, abi_wrapper] {
   bb0:
     v0: i256 = address
     v1 = gas
-    v22 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v22 = heap_floor !metadata(alloc_ptr)
     v19 = add v22, 32
     mstore v19, 0x6279e43c00000000000000000000000000000000000000000000000000000000
     v21 = add v22, 36
@@ -62,22 +62,22 @@ fn @decoded() [selector=0xf6c9206c, abi_wrapper] {
   bb0:
     v0: i256 = address
     v1 = gas
-    v73 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v74 = add v73, 96 !metadata(alloc_ptr)
-    mstore 64, v74 !metadata(memory=scratch)
-    mstore v73, 36
-    v57 = add v73, 32
+    v68 = heap_floor !metadata(alloc_ptr)
+    v69 = add v68, 96 !metadata(alloc_ptr)
+    mstore 64, v69 !metadata(memory=scratch)
+    mstore v68, 36
+    v57 = add v68, 32
     mstore v57, 0x6279e43c00000000000000000000000000000000000000000000000000000000
-    v59 = add v73, 36
+    v59 = add v68, 36
     mstore v59, arg0
     v10 = call v1, v0, 0, v57, 36, 0, 0
     v11 = returndatasize
     v12 = add v11, 63
     v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v76 = add v74, v15 !metadata(alloc_ptr)
-    mstore 64, v76 !metadata(memory=scratch)
-    mstore v74, v11
-    v61 = add v74, 32
+    v71 = add v69, v15 !metadata(alloc_ptr)
+    mstore 64, v71 !metadata(memory=scratch)
+    mstore v69, v11
+    v61 = add v69, 32
     returndatacopy v61, 0, v11
     v24 = add v61, v11
     v25 = slt v11, 32
@@ -97,14 +97,7 @@ fn @decoded() [selector=0xf6c9206c, abi_wrapper] {
     jumpi v39, bb4, bb5
   bb5:
     v41 = and v38, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v67 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v68 = add v67, v41 !metadata(alloc_ptr)
-    v69 = lt v68, v67
-    v70 = gt v68, 0xffffffffffffffff
-    v71 = or v69, v70
-    jumpi v71, bb4, bb7
-  bb7:
-    mstore 64, v68 !metadata(memory=scratch)
+    v67 = icall @alloc, v41
     mstore v67, v36
     v43 = sub v24, v31
     v44 = gt v36, v43
@@ -126,37 +119,30 @@ fn @allocatedBetween() [selector=0x6b854ea5, abi_wrapper] {
   bb0:
     v0: i256 = address
     v1 = gas
-    v56 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v57 = add v56, 96 !metadata(alloc_ptr)
-    v40 = add v56, 32
+    v51 = heap_floor !metadata(alloc_ptr)
+    v52 = add v51, 96 !metadata(alloc_ptr)
+    mstore 64, v52 !metadata(memory=scratch)
+    v40 = add v51, 32
     mstore v40, 0x6279e43c00000000000000000000000000000000000000000000000000000000
-    v42 = add v56, 36
+    v42 = add v51, 36
     mstore v42, arg0
     v21 = call v1, v0, 0, v40, 36, 0, 0
     v22 = returndatasize
     v23 = add v22, 63
     v26 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v59 = add v57, v26 !metadata(alloc_ptr)
-    mstore v57, v22
-    v44 = add v57, 32
+    v54 = add v52, v26 !metadata(alloc_ptr)
+    mstore 64, v54 !metadata(memory=scratch)
+    mstore v52, v22
+    v44 = add v52, 32
     returndatacopy v44, 0, v22
-    v51 = add v59, 64
-    v52 = lt v51, v59
-    v53 = gt v51, 0xffffffffffffffff
-    v54 = or v52, v53
-    jumpi v54, bb2, bb1
-  bb1:
-    mstore v59, 1
-    v46 = add v59, 32
+    v50 = icall @alloc, 64
+    mstore v50, 1
+    v46 = add v50, 32
     mstore v46, 1
-    v10 = mload v57
+    v10 = mload v52
     mstore 0, v10 !metadata(memory=scratch)
     mstore 32, 1 !metadata(memory=scratch)
     returndata 0, 64
-  bb2:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @sized() [selector=0x04c63cf9, abi_wrapper] {
@@ -164,7 +150,7 @@ fn @sized() [selector=0x04c63cf9, abi_wrapper] {
     v0 = mload 64 !metadata(memory=scratch)
     v1: i256 = address
     v2 = gas
-    v35 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v35 = heap_floor !metadata(alloc_ptr)
     v36 = add v35, 96 !metadata(alloc_ptr)
     mstore 64, v36 !metadata(memory=scratch)
     mstore v35, 36
@@ -229,4 +215,21 @@ fn @entry() [entry] {
     tail_call @sized
   bb1:
     revert 0, 0
+}
+
+fn @alloc(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v2 = add v0, arg0 !metadata(alloc_ptr)
+    v3 = lt v2, v0
+    v4 = gt v2, 0xffffffffffffffff
+    v5 = or v3, v4
+    jumpi v5, bb1, bb2
+  bb2:
+    mstore 64, v2 !metadata(memory=scratch)
+    ret v0
+  bb1:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }

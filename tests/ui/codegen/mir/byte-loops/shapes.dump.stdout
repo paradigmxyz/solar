@@ -1148,18 +1148,16 @@ fn @fillPastWord() [selector=0x36818f65, abi_wrapper, pure] {
   bb14:
     v73 = heap_floor !metadata(alloc_ptr)
     v74 = add v73, 96 !metadata(alloc_ptr)
-    v75 = lt v74, v73
-    v76 = gt v74, 0xffffffffffffffff
-    v77 = or v75, v76
-    jumpi v77, bb16, bb15
+    v75 = gt v73, 0xffffffffffffff9f
+    jumpi v75, bb16, bb15
   bb15:
-    v81 = calldatasize
-    calldatacopy v73, v81, 96
+    v78 = calldatasize
+    calldatacopy v73, v78, 96
     mstore v73, 64
-    v80 = add v74, 0x500 !metadata(alloc_ptr)
-    mstore 64, v80 !metadata(memory=scratch)
-    v82 = calldatasize
-    calldatacopy v74, v82, 0x500
+    v77 = add v74, 0x500 !metadata(alloc_ptr)
+    mstore 64, v77 !metadata(memory=scratch)
+    v79 = calldatasize
+    calldatacopy v74, v79, 0x500
     v29 = mload v73
     v32 = or v73, v29
     v41 = shr v32, 64

@@ -19,27 +19,26 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
     v18 = add v13, 32
     v19 = add v17, 63
     v20 = lt v19, v17
-    jumpi v20, bb5, bb6
-  bb6:
     v22 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v52 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v52 = heap_floor !metadata(alloc_ptr)
     v53 = add v52, v22 !metadata(alloc_ptr)
     v54 = lt v53, v52
     v55 = gt v53, 0xffffffffffffffff
     v56 = or v54, v55
-    jumpi v56, bb5, bb8
-  bb8:
+    v59 = or v20, v56
+    jumpi v59, bb5, bb7
+  bb7:
     mstore v52, v17
     v24 = sub v10, v18
     v25 = gt v17, v24
-    jumpi v25, bb3, bb7
-  bb7:
+    jumpi v25, bb3, bb6
+  bb6:
     v49 = add v52, 32
     calldatacopy v49, v18, v17
     v1 = gt v17, 0
     v4 = gt v17, 1
-    v59 = and v1, v4
-    jumpi v59, bb2, bb1
+    v60 = and v1, v4
+    jumpi v60, bb2, bb1
   bb1:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

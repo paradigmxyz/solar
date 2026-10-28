@@ -1,0 +1,36 @@
+//@ compile-flags: -Zmir-pipeline=lower-abi
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+
+@module LowerAbiScalarValidation
+
+// The checked byte range becomes a cursor and end, so the validation loop neither scales an
+// index nor retains the array base on every iteration. All words contribute to one check.
+// CHECK-LABEL: fn @bytes_array(
+// CHECK: + [[AVAILABLE:v[0-9]+]] = shr {{v[0-9]+}}, 5
+// CHECK-NEXT: + [[OUTSIDE:v[0-9]+]] = gt [[LEN:v[0-9]+]], [[AVAILABLE]]
+// CHECK-NEXT: + jumpi [[OUTSIDE]],
+// CHECK: + [[HAS_WORDS:v[0-9]+]] = ne [[LEN]], 0
+// CHECK-NEXT: + jumpi [[HAS_WORDS]], [[START:bb[0-9]+]], [[DONE:bb[0-9]+]]
+// CHECK: + [[START]]:
+// CHECK: + [[BYTES:v[0-9]+]] = mul [[LEN]], 32
+// CHECK-NEXT: + [[END:v[0-9]+]] = add [[DATA:v[0-9]+]], [[BYTES]]
+// CHECK-NEXT: + jump [[BODY:bb[0-9]+]]
+// CHECK: + [[BODY]]:
+// CHECK: + [[CURSOR:v[0-9]+]] = phi [{{bb[0-9]+}}: [[DATA]]],
+// CHECK-NEXT: + [[FOLDED:v[0-9]+]] = phi [{{bb[0-9]+}}: 0],
+// CHECK-NEXT: + [[WORD:v[0-9]+]] = calldataload [[CURSOR]]
+// CHECK-NEXT: + [[NEXT:v[0-9]+]] = or [[FOLDED]], [[WORD]]
+// CHECK-NEXT: + [[NEXT_CURSOR:v[0-9]+]] = add [[CURSOR]], 32
+// CHECK-NEXT: + [[MORE:v[0-9]+]] = lt [[NEXT_CURSOR]], [[END]]
+// CHECK-NEXT: + jumpi [[MORE]], [[BODY]], [[VALIDATE:bb[0-9]+]]
+// CHECK: + [[VALIDATE]]:
+// CHECK-NEXT: + [[HIGH:v[0-9]+]] = shr [[NEXT]], 8
+// CHECK-NEXT: + {{v[0-9]+}} = eq [[HIGH]], 0
+// CHECK: + jump [[DONE]]
+// CHECK: + [[DONE]]:
+fn @bytes_array(arg0: ptr<memory>) -> i256 [selector=0x43b2375f, abi_params=[array<_, uint8>], abi_returns=[word]] {
+  bb0:
+    v0 = mload arg0
+    ret v0
+}

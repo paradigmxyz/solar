@@ -1,0 +1,56 @@
+//@ revisions: gas size
+//@ compile-flags: -Zmir-pipeline=lower-alloc
+//@[gas] compile-flags: -Ogas
+//@[size] compile-flags: -Osize
+//@[gas] filecheck: --check-prefixes=CHECK,GAS
+//@[size] filecheck: --check-prefixes=CHECK,SIZE
+//@ normalize-stdout-test: "(?s).+" -> ""
+
+@module LoopAllocationPolicy
+
+// Cold allocations keep sharing, even though hot sites below inline the same check.
+// CHECK-LABEL: fn @cold(
+// CHECK: + {{v[0-9]+}} = icall @alloc, arg0
+fn @cold(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = alloc checked arg0
+    ret v0
+}
+
+// CHECK-LABEL: fn @also_cold(
+// CHECK: + {{v[0-9]+}} = icall @alloc, arg0
+fn @also_cold(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = alloc checked arg0
+    ret v0
+}
+
+// Only allocation sites directly in a cycle establish repeated execution for this policy.
+// CHECK-LABEL: fn @loop(
+// GAS: + {{v[0-9]+}} = mload 64
+// SIZE: + {{v[0-9]+}} = icall @alloc, arg0
+fn @loop(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v4]
+    v1 = lt v0, arg1
+    jumpi v1, bb2, bb3
+  bb2:
+    v2 = alloc checked arg0
+    mstore v2, v0
+    v3 = icall @called, arg0
+    mstore v3, v0
+    v4 = add v0, 1
+    jump bb1
+  bb3:
+    ret v0
+}
+
+// CHECK-LABEL: fn @called(
+// CHECK: + {{v[0-9]+}} = icall @alloc, arg0
+fn @called(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = alloc checked arg0
+    ret v0
+}
