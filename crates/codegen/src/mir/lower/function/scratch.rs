@@ -48,6 +48,11 @@
 //! which may execute a scratch block, including recursive calls and function-pointer dispatchers.
 //! Callee summaries also record free pointers captured by stores or calls, even when the callee
 //! returns no value. It does not follow whether assembly reserved memory at the pointer first.
+//! A load at an unknown address may read the free memory pointer, as may an unaligned load that
+//! overlaps its word. Loads from fresh allocation bases are disjoint. A load of the last word
+//! stored at the same address in its block instead carries the stored value's provenance; any
+//! intervening memory write cancels that fact. The length of a static ABI encoding is likewise a
+//! known scalar until another write. These facts only guide validation, not codegen.
 //!
 //! The check runs on the contract's MIR right after lowering, before any pass, once the internal
 //! function pointer dispatchers exist, so every body a call in the block may run is summarized.
@@ -60,8 +65,8 @@
 
 use super::{memory_facts::Analyzed, *};
 use crate::mir::{
-    ArgIdx, Callee, EffectKind, InstId, RawMemorySize, Terminator,
-    analysis::{LocalSummaryCache, MemoryBase, MemoryCallSummaries},
+    AbiEncodeMode, ArgIdx, Callee, EffectKind, InstId, RawMemorySize, Terminator,
+    analysis::{AddressSpace, LocalSummaryCache, MemoryBase, MemoryCallSummaries},
 };
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -174,7 +179,7 @@ pub(in crate::mir::lower) fn check_scratch_regions(
                 {
                     let mut escapes = Vec::new();
                     check_free_pointers(
-                        &function.func,
+                        &function,
                         &uses,
                         &summaries,
                         &saved,
@@ -292,7 +297,7 @@ fn check_region(
     // one that may run after that exit is late, unless the path there reads the pointer again, and
     // so is a store or a call before it that keeps the pointer for code after it to load again.
     if let Some(restore) = restore_position(func, region) {
-        check_free_pointers(func, &uses, summaries, saved, restore, inside, &mut escapes);
+        check_free_pointers(function, &uses, summaries, saved, restore, inside, &mut escapes);
     }
 
     // A call in the block may store a reference to memory it or the block allocated where code
@@ -399,13 +404,25 @@ fn pure_derivation(func: &Function, inst: InstId) -> Option<ValueId> {
     .then_some(result)
 }
 
-/// Whether `inst` reads the free memory pointer.
-fn reads_free_pointer(constants: &mut ConstantWords<'_>, inst: InstId) -> bool {
+/// Whether `inst` may read the free memory pointer.
+fn reads_free_pointer(
+    function: &Analyzed,
+    constants: &mut ConstantWords<'_>,
+    inst: InstId,
+) -> bool {
     let func = constants.func;
     match func.inst(inst).kind {
         InstKind::Fmp => true,
         InstKind::Load(address, PtrLocation::Memory) => {
-            constants.get(address) == Some(U256::from(EvmMemoryLayout::FMP_SLOT))
+            if let Some(address) = constants.get(address) {
+                let start = EvmMemoryLayout::FMP_SLOT;
+                let size = EvmMemoryLayout::WORD_SIZE;
+                address > U256::from(start - size) && address < U256::from(start + size)
+            } else {
+                // Unknown addresses, including wrapping offsets, may reach the FMP word.
+                // Only an unoffset fresh allocation proves otherwise here.
+                function.fresh_start(address).is_none()
+            }
         }
         _ => false,
     }
@@ -589,6 +606,7 @@ impl PointerWrites {
         let mut writes = Self::default();
         writes.other.any = assembly;
         let mut constants = ConstantWords::new(func);
+        let loads = stored_load_values(function);
         let mut free = FxHashSet::default();
         loop {
             let before = free.len();
@@ -596,7 +614,10 @@ impl PointerWrites {
                 let kind = &func.inst(inst).kind;
                 if let Some(result) = func.inst_result_value(inst)
                     && may_hold_pointer(func.value_ty(result))
-                    && (reads_free_pointer(&mut constants, inst)
+                    && (matches!(loads.get(&inst), Some(LoadedWord::Value(value))
+                            if free.contains(value))
+                        || (!loads.contains_key(&inst)
+                            && reads_free_pointer(function, &mut constants, inst))
                         || matches!(kind, InstKind::ICall { function: Callee::Function(callee), .. }
                             if summaries.get(callee).is_some_and(|summary| summary.returns_free))
                         || (kind.effect_kind() == EffectKind::Pure
@@ -763,13 +784,17 @@ impl PointerWrites {
 struct UseSites {
     instructions: FxHashMap<ValueId, Vec<InstId>>,
     terminators: FxHashMap<ValueId, Vec<BlockId>>,
+    loads: FxHashMap<InstId, LoadedWord>,
 }
 
 impl UseSites {
     fn new(function: &Analyzed) -> Self {
         let func = &function.func;
-        let mut uses =
-            Self { instructions: FxHashMap::default(), terminators: FxHashMap::default() };
+        let mut uses = Self {
+            instructions: FxHashMap::default(),
+            terminators: FxHashMap::default(),
+            loads: stored_load_values(function),
+        };
         for (block, data) in func.blocks.iter_enumerated() {
             for &inst in &data.instructions {
                 if func
@@ -780,6 +805,9 @@ impl UseSites {
                 }
                 for operand in func.inst(inst).operands() {
                     uses.instructions.entry(operand).or_default().push(inst);
+                }
+                if let Some(&LoadedWord::Value(stored)) = uses.loads.get(&inst) {
+                    uses.instructions.entry(stored).or_default().push(inst);
                 }
             }
             if let Some(terminator) = &data.terminator {
@@ -839,7 +867,7 @@ fn scratch_callers(
 /// Captures are conservative: they may be reloaded in this function, in a caller, or after a
 /// later invocation of the scratch function. A read after an acyclic boundary is fresh.
 fn check_free_pointers(
-    func: &Function,
+    function: &Analyzed,
     uses: &UseSites,
     summaries: &FxHashMap<FunctionId, PointerWrites>,
     saved: &FxHashSet<ValueId>,
@@ -847,6 +875,7 @@ fn check_free_pointers(
     inside: impl Fn(InstId) -> bool,
     escapes: &mut Vec<(Option<Span>, Escape)>,
 ) {
+    let func = &function.func;
     let mut constants = ConstantWords::new(func);
     let prior = runs_before(func, boundary, None);
     let boundary_inst = func.blocks[boundary.0].instructions[boundary.1];
@@ -867,7 +896,8 @@ fn check_free_pointers(
             if inside(read)
                 || !prior.contains(read)
                 || saved.contains(&pointer)
-                || !(reads_free_pointer(&mut constants, read) || returns_free)
+                || uses.loads.contains_key(&read)
+                || !(reads_free_pointer(function, &mut constants, read) || returns_free)
             {
                 continue;
             }
@@ -883,7 +913,10 @@ fn check_free_pointers(
                     }
                 }
                 for &inst in uses.instructions.get(&value).into_iter().flatten() {
-                    if func.inst(inst).kind.effect_kind() == EffectKind::Pure {
+                    if func.inst(inst).kind.effect_kind() == EffectKind::Pure
+                        || matches!(uses.loads.get(&inst), Some(LoadedWord::Value(stored))
+                            if *stored == value)
+                    {
                         if let Some(result) = func.inst_result_value(inst)
                             && may_hold_pointer(func.value_ty(result))
                             && derived.insert(result)
@@ -1008,6 +1041,54 @@ impl<'a> ConstantWords<'a> {
         }
         self.values[root].flatten()
     }
+}
+
+/// A word whose contents the last memory write establishes.
+#[derive(Clone, Copy)]
+enum LoadedWord {
+    /// The value of a full word store.
+    Value(ValueId),
+    /// The constant header length of a static ABI encoding, which carries no pointer.
+    EncodingLength,
+}
+
+/// The value a word load reads from the last memory write in its block. Following its provenance
+/// avoids treating an ordinary scalar stored and loaded through a runtime pointer as an FMP read.
+/// Exact addresses and matching types suffice; partial writes, calls and other memory writes
+/// discard the previous store, and no fact crosses a block boundary.
+fn stored_load_values(function: &Analyzed) -> FxHashMap<InstId, LoadedWord> {
+    let func = &function.func;
+    let mut loads = FxHashMap::default();
+    for block in &func.blocks {
+        let mut stored = None;
+        for &inst in &block.instructions {
+            let kind = &func.inst(inst).kind;
+            if let InstKind::Load(address, PtrLocation::Memory) = *kind
+                && let Some((destination, value)) = stored
+                && address == destination
+                && func.inst(inst).result_ty
+                    == match value {
+                        LoadedWord::Value(value) => func.value_ty(value),
+                        LoadedWord::EncodingLength => Some(MirType::I256),
+                    }
+            {
+                loads.insert(inst, value);
+            }
+            if function.aa.instruction_mod_ref(func, inst).writes_space(AddressSpace::Memory) {
+                stored = None;
+            }
+            if let InstKind::Store(address, value, PtrLocation::Memory) = *kind {
+                stored = Some((address, LoadedWord::Value(value)));
+            }
+            if let InstKind::AbiEncode { mode: AbiEncodeMode::Bytes, layout, .. } = kind
+                && !layout.types.iter().any(AbiType::is_dynamic)
+                && let Some(object) = func.inst_result_value(inst)
+            {
+                stored = Some((object, LoadedWord::EncodingLength));
+            }
+        }
+    }
+    loads
 }
 
 #[cfg(test)]

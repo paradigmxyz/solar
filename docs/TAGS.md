@@ -117,6 +117,11 @@ may store such a reference where later code can reach it. Values such as hashes,
 read from the memory leave the block freely. After the block, the free memory pointer and `msize`
 can be lower than without the tag.
 
+Assembly outside the block is allowed, but a memory load at an unknown address may read the
+free memory pointer. The compiler tracks that possibility through helper returns and stores
+too, and rejects the tag if the pointer may outlive the block. Use a provably disjoint address,
+consume the pointer before the block, or read it again after the block.
+
 ## `solar-view`
 
 ```solidity

@@ -1,0 +1,146 @@
+error: memory of a `@custom:solar-scratch` block is used after the block
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         assembly { result := mload(add(pointer, 0x20)) }
+   │                              ━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: memory of a `@custom:solar-scratch` block is used after the block
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         assembly { result := mload(add(pointer, 0x20)) }
+   │                              ━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: this call may store a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │ …     forwardStash(slot);
+   │       ━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: this call may store a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │ …     stashStorage(slot);
+   │       ━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ├ note: `stashStorage` contains inline assembly, which may store any word
+   ╰ help: keep only values past the block, or remove the tag
+
+error: memory of a `@custom:solar-scratch` block is used after the block
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         assembly { result := mload(add(pointer, 0x20)) }
+   │                              ━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: memory of a `@custom:solar-scratch` block is used after the block
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         assembly { result := mload(add(pointer, 0x20)) }
+   │                              ━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: memory of a `@custom:solar-scratch` block is used after the block
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         assembly { result := mload(add(pointer, 0x20)) }
+   │                              ━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: memory of a `@custom:solar-scratch` block is used after the block
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         assembly { result := mload(add(pointer, 0x20)) }
+   │                              ━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: memory of a `@custom:solar-scratch` block is used after the block
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         assembly { result := mload(add(pointer, 0x20)) }
+   │                              ━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: memory of a `@custom:solar-scratch` block is used after the block
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         assembly { result := mload(add(pointer, 0x20)) }
+   │                              ━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: memory of a `@custom:solar-scratch` block is used after the block
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         assembly { result := mload(add(pointer, 0x20)) }
+   │                              ━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: aborting due to 11 previous errors
+
