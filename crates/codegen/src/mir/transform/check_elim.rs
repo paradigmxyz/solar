@@ -45,16 +45,18 @@
 //! and encoder size arithmetic below it constant for `sccp` and `egraph`, which a range alone
 //! would not rewrite. Only constants the target prices as cheap to read qualify, so a word-wide
 //! mask or an address never replaces a `DUP`. An instruction takes the constant for every operand
-//! proven equal when that makes it evaluate, the way `sccp` will. Otherwise it takes it only for a
-//! value that at least two instructions in the proving block's subtree read, a passed check's block
-//! counting its reads above the check too: the constant replaces a stack slot and a `DUP` at each
-//! read, but at a single read it costs what the value does and only makes sites that were
-//! identical, such as inlined copies of one guard body, differ for the tail merging after this
-//! pass. Memory addresses and sizes, call arguments, and returned values take constants like any
-//! other operand: frame layout keeps spill slots clear of a constant address or size, and the
-//! backend protects them from a write it cannot place, so nothing needs to hide them. An outer
-//! edge's constant wins over a contradicting inner one, whose edge is dead. Phi operands and
-//! terminators keep their values. Removing a redundant mask replaces its result by its input.
+//! proven equal when that makes it evaluate to a cheap immediate, the way `sccp` will; a wider
+//! result stays symbolic, since a memory size it grew would move the spill area above it on every
+//! path, including those that skip the guard. Otherwise it takes it only for a value that at least
+//! two instructions in the proving block's subtree read, a passed check's block counting its reads
+//! above the check too: the constant replaces a stack slot and a `DUP` at each read, but at a
+//! single read it costs what the value does and only makes sites that were identical, such as
+//! inlined copies of one guard body, differ for the tail merging after this pass. Memory addresses
+//! and sizes, call arguments, and returned values take constants like any other operand: frame
+//! layout keeps spill slots clear of a constant address or size, and the backend protects them from
+//! a write it cannot place, so nothing needs to hide them. An outer edge's constant wins over a
+//! contradicting inner one, whose edge is dead. Phi operands and terminators keep their values.
+//! Removing a redundant mask replaces its result by its input.
 //!
 //! Before the dominator walk, a bounded forward analysis carries the intersection
 //! of relational facts and the union of ranges across predecessor edges. Phi
@@ -1916,14 +1918,26 @@ impl<'a> CheckEliminator<'a> {
         if replaced.is_empty() || matches!(kind, InstKind::Phi(_)) {
             return;
         }
-        let evaluates = eval::eval_typed_inst(func, kind, |operand| {
+        let evaluated = eval::eval_typed_inst(func, kind, |operand| {
             let constant =
                 replaced.iter().find(|&&(from, _)| from == operand).map_or(operand, |&(_, c)| c);
             func.value_u256(constant).ok_or(())
         })
-        .is_ok_and(|value| value.is_some());
-        if !evaluates {
-            replaced.retain(|&mut (operand, _)| self.is_repeated(func, cfg, operand));
+        .ok()
+        .flatten();
+        match evaluated {
+            // A wider result would make every read larger, and a memory range it sizes would
+            // move the spill area above it on every path, including those that skip the guard.
+            Some(value)
+                if !self
+                    .propagate_equalities
+                    .as_ref()
+                    .is_some_and(|t| t.is_cheap_immediate(value)) =>
+            {
+                return;
+            }
+            Some(_) => {}
+            None => replaced.retain(|&mut (operand, _)| self.is_repeated(func, cfg, operand)),
         }
         if !replaced.is_empty() {
             self.equality_uses.push((id, replaced));
