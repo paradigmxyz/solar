@@ -38,9 +38,8 @@
 //! place as well, with the calldata decoders the entries use: offsets resolve against the slice's
 //! base and every read stays below its end, as solc decodes it, so no copy of the encoding into
 //! memory precedes the decode.
-//! A decoded `bytes` object zeroes its last padded word before the length and payload are
-//! written, as the ABI encoder does, so its padding is zero whatever the input and free memory
-//! held.
+//! A decoded `bytes` object clears the word at the end of its payload after the copy, as solc
+//! does, so its padding is zero whatever the input and free memory held.
 //!
 //! Unsupported return layouts fail the preflight checks. The pass reports an error if
 //! any external entry still has an implicit ABI or any `abi_decode` remains afterward.
@@ -1803,27 +1802,24 @@ impl LowerAbiCx {
                 let word = builder.imm(32);
                 let data = builder.add(base, word);
                 builder.switch_to_block(*current);
-                // size = checked_padded_size len
-                // ptr = alloc size
-                // guard the payload range
-                // last = ptradd ptr, size - 32
-                // mstore last, 0
-                // mstore ptr, len
-                // The zero store waits for the range check, so a length past the input reverts
-                // before it expands memory. For an empty payload, last == ptr; write the length
-                // after zeroing it.
-                let size = builder.checked_padded_size(len);
-                let ptr =
-                    builder.alloc(size, crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED);
+                let ptr = builder.alloc_bytes_object(
+                    len,
+                    crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
+                );
                 *current = builder.current_block();
                 Self::guard_bytes_data(builder, data, len, input_end, current, true);
-                let last_offset = builder.sub(size, word);
-                let last = builder.ptradd(ptr, last_offset);
-                let zero = builder.imm(0);
-                builder.store(last, zero);
-                builder.set_memory_len(ptr, len);
                 let source = builder.make_slice(data, len, location);
                 builder.memory_copy_from_slice(ptr, source);
+                // payload = ptradd ptr, 32
+                // tail = ptradd payload, len
+                // mstore tail, 0
+                // After the copy, which may read memory the new object overlaps, and as solc does:
+                // the word at the end of the payload clears its padding, and may end past the
+                // object, in free memory.
+                let payload = builder.memory_data(ptr);
+                let tail = builder.ptradd(payload, len);
+                let zero = builder.imm(0);
+                builder.store(tail, zero);
                 ptr
             }
             crate::mir::AbiParamType::Tuple(fields) => {

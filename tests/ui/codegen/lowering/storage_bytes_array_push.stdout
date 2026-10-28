@@ -9,33 +9,32 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v75 = add v74, 4
     v77 = sub v72, 36
     v78 = gt v74, v77
-    v110 = or v73, v78
-    jumpi v110, bb15, bb16
+    v109 = or v73, v78
+    jumpi v109, bb15, bb16
   bb16:
     v79 = calldataload v75
     v80 = add v75, 32
     v81 = add v79, 63
     v82 = lt v81, v79
     v84 = and v81, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v104 = heap_floor !metadata(alloc_ptr)
-    v105 = add v104, v84 !metadata(alloc_ptr)
-    v106 = lt v105, v104
-    v107 = gt v105, 0xffffffffffffffff
-    v108 = or v106, v107
-    v111 = or v82, v108
-    jumpi v111, bb17, bb19
+    v103 = heap_floor !metadata(alloc_ptr)
+    v104 = add v103, v84 !metadata(alloc_ptr)
+    v105 = lt v104, v103
+    v106 = gt v104, 0xffffffffffffffff
+    v107 = or v105, v106
+    v110 = or v82, v107
+    jumpi v110, bb17, bb19
   bb19:
-    mstore 64, v105 !metadata(memory=scratch)
+    mstore 64, v104 !metadata(memory=scratch)
+    mstore v103, v79
     v86 = sub v72, v80
     v87 = gt v79, v86
     jumpi v87, bb15, bb18
   bb18:
-    v88 = sub v84, 32
-    v97 = add v104, v88
-    mstore v97, 0
-    mstore v104, v79
-    v99 = add v104, 32
-    calldatacopy v99, v80, v79
+    v97 = add v103, 32
+    calldatacopy v97, v80, v79
+    v98 = add v97, v79
+    mstore v98, 0
     v0 = sload 0 !metadata(storage=slot(0))
     v65 = shr v0, 64
     v1 = ne v65, 0
@@ -55,7 +54,7 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v13 = eq v7, v12
     jumpi v13, bb4, bb5
   bb5:
-    v15 = mload v104
+    v15 = mload v103
     v18 = add v11, 31
     v19 = shr v18, 5
     v20 = add v15, 31
@@ -93,7 +92,7 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     jumpi v52, bb1, bb14
   bb14:
     v53 = shl v41, 5
-    v56 = add v99, v53
+    v56 = add v97, v53
     v57 = mload v56
     v58 = sub 32, v51
     v59 = shl v58, 3
@@ -104,14 +103,14 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     jump bb1
   bb12:
     v44 = shl v42, 5
-    v47 = add v99, v44
+    v47 = add v97, v44
     v48 = mload v47
     v49 = add v95, v42
     sstore v49, v48 !metadata(storage=symbolic(v49))
     v50 = add v42, 1
     jump bb11
   bb9:
-    v29 = mload v99
+    v29 = mload v97
     v30 = sub 32, v15
     v31 = shl v30, 3
     v34 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v31

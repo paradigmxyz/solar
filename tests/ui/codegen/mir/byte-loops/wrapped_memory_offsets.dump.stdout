@@ -190,37 +190,36 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
     v54 = sub v45, v53
     v55 = gt v52, v54
     v56 = or v51, v55
-    v100 = or v46, v56
+    v99 = or v46, v56
     v60 = calldataload 36
     v61 = add v60, 4
     v64 = gt v60, v50
-    v101 = or v100, v64
-    jumpi v101, bb15, bb16
+    v100 = or v99, v64
+    jumpi v100, bb15, bb16
   bb16:
     v65 = calldataload v61
     v66 = add v61, 32
     v67 = add v65, 63
     v68 = lt v67, v65
     v70 = and v67, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v94 = heap_floor !metadata(alloc_ptr)
-    v95 = add v94, v70 !metadata(alloc_ptr)
-    v96 = lt v95, v94
-    v97 = gt v95, 0xffffffffffffffff
-    v98 = or v96, v97
-    v102 = or v68, v98
-    jumpi v102, bb17, bb19
+    v93 = heap_floor !metadata(alloc_ptr)
+    v94 = add v93, v70 !metadata(alloc_ptr)
+    v95 = lt v94, v93
+    v96 = gt v94, 0xffffffffffffffff
+    v97 = or v95, v96
+    v101 = or v68, v97
+    jumpi v101, bb17, bb19
   bb19:
-    mstore 64, v95 !metadata(memory=scratch)
+    mstore 64, v94 !metadata(memory=scratch)
+    mstore v93, v65
     v72 = sub v45, v66
     v73 = gt v65, v72
     jumpi v73, bb15, bb18
   bb18:
-    v74 = sub v70, 32
-    v89 = add v94, v74
-    mstore v89, 0
-    mstore v94, v65
-    v91 = add v94, 32
-    calldatacopy v91, v66, v65
+    v89 = add v93, 32
+    calldatacopy v89, v66, v65
+    v90 = add v89, v65
+    mstore v90, 0
     v40 = lt v52, arg2
     jumpi v40, bb7, bb6
   bb6:
@@ -237,11 +236,11 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
     v44 = lt v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     jumpi v44, bb12, bb14
   bb14:
-    v34 = mload v91
+    v34 = mload v89
     v35 = lt v43, v34
     jumpi v35, bb11, bb8
   bb11:
-    v86 = add v91, v43
+    v86 = add v89, v43
     v87 = add v86, 32
     mstore8 v87, v32
     v39 = add v27, 1
@@ -266,13 +265,13 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
     v42 = lt v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     jumpi v42, bb12, bb13
   bb13:
-    v19 = mload v91
+    v19 = mload v89
     v20 = lt v41, v19
     jumpi v20, bb10, bb8
   bb8:
     tail_call @revert_stub
   bb10:
-    v84 = add v91, v41
+    v84 = add v89, v41
     v85 = add v84, 32
     mstore8 v85, v16
     v26 = add v6, 1

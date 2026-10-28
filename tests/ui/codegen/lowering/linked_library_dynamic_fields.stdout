@@ -172,37 +172,33 @@ bb8 [continuation]:
   push 31
   not
   and
-  dup 1
   push bb12
   jump bb25
 bb12 [continuation]:
   dup 3
+  dup 2
+  mstore
+  dup 2
   calldatasize
   sub
-  dup 5
+  dup 4
   gt
   push bb3
   jumpi
   push 32
-  swap 1
-  swap 2
-  sub
   dup 2
+  add
+  dup 4
+  dup 4
+  dup 3
+  calldatacopy
+  swap 1
+  swap 3
   add
   push 0
   swap 1
   mstore
-  dup 3
-  dup 2
-  mstore
-  push 32
-  dup 2
-  add
-  swap 3
-  swap 2
-  swap 1
-  swap 3
-  calldatacopy
+  pop
   dup 1
   push 64
   dup 4

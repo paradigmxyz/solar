@@ -26,23 +26,23 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     jumpi v126, bb6, bb8
   bb8:
     mstore 64, v84 !metadata(memory=scratch)
+    mstore v83, v40
     v47 = sub v33, v41
     v48 = gt v40, v47
     jumpi v48, bb4, bb7
   bb7:
-    v49 = sub v45, 32
-    v78 = add v83, v49
-    mstore v78, 0
-    mstore v83, v40
-    v80 = add v83, 32
-    calldatacopy v80, v41, v40
+    v78 = add v83, 32
+    calldatacopy v78, v41, v40
+    v79 = add v78, v40
+    mstore v79, 0
+    v1 = mload v83
     v2 = mload 64 !metadata(memory=scratch)
     v3 = add v2, 2
-    v4 = add v40, v40
+    v4 = add v1, v1
     mstore v3, v4
     mstore 15, 0x30313233343536373839616263646566 !metadata(memory=scratch)
     v5 = add v3, 32
-    v7 = add v83, v40
+    v7 = add v83, v1
     v120 = sub v7, v83
     v121 = and v120, 1
     v122 = ne v121, 0

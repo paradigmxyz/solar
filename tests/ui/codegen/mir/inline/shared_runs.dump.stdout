@@ -131,25 +131,24 @@ fn @decode_aggregate(arg0: i256) -> i256 [may_return_memory] {
     jumpi v18, bb4, bb5
   bb5:
     v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v40 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v41 = add v40, v20 !metadata(alloc_ptr)
-    v42 = lt v41, v40
-    v43 = gt v41, 0xffffffffffffffff
-    v44 = or v42, v43
-    jumpi v44, bb4, bb7
+    v39 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v40 = add v39, v20 !metadata(alloc_ptr)
+    v41 = lt v40, v39
+    v42 = gt v40, 0xffffffffffffffff
+    v43 = or v41, v42
+    jumpi v43, bb4, bb7
   bb7:
-    mstore 64, v41 !metadata(memory=scratch)
+    mstore 64, v40 !metadata(memory=scratch)
+    mstore v39, v15
     v22 = sub v3, v10
     v23 = gt v15, v22
     jumpi v23, bb1, bb6
   bb6:
-    v24 = sub v20, 32
-    v34 = add v40, v24
-    mstore v34, 0
-    mstore v40, v15
-    v36 = add v40, 32
-    mcopy v36, v10, v15
-    ret v40
+    v34 = add v39, 32
+    mcopy v34, v10, v15
+    v35 = add v34, v15
+    mstore v35, 0
+    ret v39
   bb4:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
