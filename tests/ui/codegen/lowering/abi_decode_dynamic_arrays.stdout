@@ -174,9 +174,9 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     v29 = gt v26, 0
     jumpi v29, bb8, bb9
   bb9:
-    v121 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v67 = add v121, 32
-    mstore v121, 32
+    v116 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v67 = add v116, 32
+    mstore v116, 32
     v70 = mload v114
     mstore v67, v70
     v71 = add v67, 32
@@ -192,8 +192,8 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     v79 = gt v75, 0
     jumpi v79, bb14, bb15
   bb15:
-    v96 = sub v76, v121
-    returndata v121, v96
+    v96 = sub v76, v116
+    returndata v116, v96
   bb14:
     v80 = mload v78
     v81 = sub v76, v71
@@ -227,14 +227,7 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     jumpi v41, bb4, bb11
   bb11:
     v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v115 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v116 = add v115, v43 !metadata(alloc_ptr)
-    v117 = lt v116, v115
-    v118 = gt v116, 0xffffffffffffffff
-    v119 = or v117, v118
-    jumpi v119, bb4, bb16
-  bb16:
-    mstore 64, v116 !metadata(memory=scratch)
+    v115 = icall @alloc, v43
     mstore v115, v38
     v45 = sub v4, v33
     v46 = gt v38, v45

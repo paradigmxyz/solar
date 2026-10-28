@@ -258,7 +258,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // object = bytes(size, len) !preserves_fmp
         let len = builder.data_size(code, 0, false);
         let size = builder.data_size(code, 2 * word - 1, true);
-        let object = Self::alloc_bytes_object(builder, size, len, AllocationSemantics::INTERNAL, true);
+        let object =
+            Self::alloc_bytes_object(builder, size, len, AllocationSemantics::INTERNAL, true);
         let data = builder.memory_data(object);
         // The last data word starts one length word before the padded length. Empty code
         // has no data words, and this clears the length word, which is also zero.

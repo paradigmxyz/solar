@@ -276,16 +276,18 @@ fn @grownPast() [selector=0xd89b44d4, abi_wrapper, pure] {
   bb0:
     v89 = heap_floor !metadata(alloc_ptr)
     v90 = add v89, 64 !metadata(alloc_ptr)
-    v91 = gt v89, 0xffffffffffffffbf
-    jumpi v91, bb10, bb9
+    v91 = lt v90, v89
+    v92 = gt v90, 0xffffffffffffffff
+    v93 = or v91, v92
+    jumpi v93, bb10, bb9
   bb9:
     mstore 64, v90 !metadata(memory=scratch)
-    v92 = calldatasize
-    calldatacopy v89, v92, 64
+    v95 = calldatasize
+    calldatacopy v89, v95, 64
     mstore v89, 1
     v88 = icall @alloc, 96
-    v94 = calldatasize
-    calldatacopy v88, v94, 96
+    v97 = calldatasize
+    calldatacopy v88, v97, 96
     mstore v88, 64
     mstore v89, 200
     v9 = add v89, 32

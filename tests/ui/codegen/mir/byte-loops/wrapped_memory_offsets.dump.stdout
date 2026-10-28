@@ -70,8 +70,10 @@ fn @wordsForward() [selector=0xb2066b6b, abi_wrapper, pure] {
   bb2:
     v42 = heap_floor !metadata(alloc_ptr)
     v43 = add v42, 128 !metadata(alloc_ptr)
-    v44 = gt v42, 0xffffffffffffff7f
-    jumpi v44, bb4, bb3
+    v44 = lt v43, v42
+    v45 = gt v43, 0xffffffffffffffff
+    v46 = or v44, v45
+    jumpi v46, bb4, bb3
   bb3:
     mstore 64, v43 !metadata(memory=scratch)
     mstore v42, 3

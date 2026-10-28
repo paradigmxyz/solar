@@ -41,9 +41,16 @@ bb4 [cold]:
   revert
 bb6:
   push 128
-  push 0xffffffffffffff7f
+  dup 1
   dup 2
-  gt
+  add
+  dup 2
+  dup 2
+  lt
+  swap 1
+  push 0xffffffffffffffff
+  lt
+  or
   push bb8
   jumpi
   dup 1

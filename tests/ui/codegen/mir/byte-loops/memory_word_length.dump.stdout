@@ -9,20 +9,22 @@ fn @copy() [selector=0xf5088730, abi_wrapper, pure] {
   bb17:
     v130 = heap_floor !metadata(alloc_ptr)
     v131 = add v130, 96 !metadata(alloc_ptr)
-    v132 = gt v130, 0xffffffffffffff9f
-    jumpi v132, bb19, bb18
+    v132 = lt v131, v130
+    v133 = gt v131, 0xffffffffffffffff
+    v134 = or v132, v133
+    jumpi v134, bb19, bb18
   bb18:
     mstore 64, v131 !metadata(memory=scratch)
-    v136 = calldatasize
-    calldatacopy v130, v136, 96
+    v142 = calldatasize
+    calldatacopy v130, v142, 96
     mstore v130, 2
-    v134 = add v131, 96
-    v135 = gt v131, 0xffffffffffffff9f
-    jumpi v135, bb19, bb20
+    v137 = add v131, 96
+    v139 = gt v137, 0xffffffffffffffff
+    jumpi v139, bb19, bb20
   bb20:
-    mstore 64, v134 !metadata(memory=scratch)
-    v137 = calldatasize
-    calldatacopy v131, v137, 96
+    mstore 64, v137 !metadata(memory=scratch)
+    v143 = calldatasize
+    calldatacopy v131, v143, 96
     v2 = mload v130
     v3 = gt v2, 0
     jumpi v3, bb7, bb6

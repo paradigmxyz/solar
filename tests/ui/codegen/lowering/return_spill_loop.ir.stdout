@@ -58,9 +58,13 @@ bb7:
   push 64
   dup 2
   add
-  push 0xffffffffffffffbf
+  dup 2
+  dup 2
+  lt
+  push 0xffffffffffffffff
   dup 3
   gt
+  or
   push bb15
   jumpi
   push 64

@@ -630,8 +630,10 @@ fn @_count(arg0: i256) -> i256 [may_return_memory, pure] {
   bb0:
     v77 = heap_floor !metadata(alloc_ptr)
     v78 = add v77, 64 !metadata(alloc_ptr)
-    v79 = gt v77, 0xffffffffffffffbf
-    jumpi v79, bb13, bb12
+    v79 = lt v78, v77
+    v80 = gt v78, 0xffffffffffffffff
+    v81 = or v79, v80
+    jumpi v81, bb13, bb12
   bb12:
     mstore 64, v78 !metadata(memory=scratch)
     mstore v77, 32
