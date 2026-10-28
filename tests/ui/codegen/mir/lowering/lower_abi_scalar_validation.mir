@@ -1,4 +1,4 @@
-//@ compile-flags: -Zmir-pipeline=lower-abi
+//@ compile-flags: -Zmir-pipeline=lower-abi -Zdump=mir
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 

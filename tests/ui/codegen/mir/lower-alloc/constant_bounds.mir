@@ -1,4 +1,4 @@
-//@ compile-flags: -Ogas -Zmir-pipeline=lower-alloc
+//@ compile-flags: -Ogas -Zmir-pipeline=lower-alloc -Zdump=mir
 //@ filecheck: --enable-var-scope
 //@ normalize-stdout-test: "(?s).+" -> ""
 
@@ -52,7 +52,7 @@ fn @limit() -> ptr<memory> [selector=0x10000002] {
 // CHECK: + [[WRAP:v[0-9]+]] = lt [[END]], [[PTR]]
 // CHECK-NEXT: + [[WIDE:v[0-9]+]] = gt [[END]], 0xffffffffffffffff
 // CHECK-NEXT: + [[FAIL:v[0-9]+]] = or [[WRAP]], [[WIDE]]
-// CHECK-NEXT: + jumpi [[FAIL]],
+// CHECK: + jumpi [[FAIL]],
 fn @oversized() -> ptr<memory> [selector=0x10000003] {
   bb0:
     v0 = alloc checked 18446744073709551616

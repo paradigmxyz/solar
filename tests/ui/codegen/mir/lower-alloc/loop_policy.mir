@@ -1,5 +1,5 @@
 //@ revisions: gas size
-//@ compile-flags: -Zmir-pipeline=lower-alloc
+//@ compile-flags: -Zmir-pipeline=lower-alloc -Zdump=mir
 //@[gas] compile-flags: -Ogas
 //@[size] compile-flags: -Osize
 //@[gas] filecheck: --check-prefixes=CHECK,GAS
