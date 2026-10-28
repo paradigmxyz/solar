@@ -335,7 +335,8 @@ struct ModuleInfo {
     returns: IndexVec<FunctionId, usize>,
     /// Parameters of each function.
     params: IndexVec<FunctionId, usize>,
-    /// Functions of creation code that run more than once because a loop or recursion calls them.
+    /// Functions of creation code, and at `-O none` of runtime code too, that run more than once
+    /// because a loop or recursion calls them.
     repeated: DenseBitSet<FunctionId>,
     entry: FunctionId,
     /// Whether `entry` is the runtime dispatch entry, whose switch leaves its selector on the
@@ -571,12 +572,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
-        let repeated = if self.in_constructor {
+        // Runtime code needs the set only at `-O none`, where compact pushes price code by it.
+        let repeated = if self.in_constructor || self.gcx.sess.opts.optimization.is_none() {
             let mut domain = DenseBitSet::new_empty(functions);
             for &func_id in &bodies {
                 domain.insert(func_id);
             }
-            module.repeated_functions(&domain)
+            module.repeated_functions(&domain, call_graph)
         } else {
             DenseBitSet::new_empty(functions)
         };

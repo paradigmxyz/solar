@@ -12,10 +12,12 @@
 //! target supports them. A gas build keeps the literal where the recipe's extra runtime gas
 //! outweighs the deposit of the bytes it saves, as the cost model prices it over the expected
 //! executions and, for a push in a hot loop, over the loop's iterations, so a loop does not
-//! rebuild a mask on every iteration. `Target::push` uses the same selector, so other EVM IR
-//! passes can compare a prospective rewrite with the bytes, static gas, and instructions that
-//! this pass will emit. NOTE: the size-only repeated-pattern recipes are emitted here; the common
-//! cost helper conservatively retains the larger estimate for those constants.
+//! rebuild a mask on every iteration. At `-O none`, a block also counts as in
+//! a loop when its function is called from a loop or by recursion. `Target::push` uses the same
+//! selector, so other EVM IR passes can compare a prospective rewrite with the bytes, static gas,
+//! and instructions that this pass will emit. NOTE: the size-only repeated-pattern recipes are
+//! emitted here; the common cost helper conservatively retains the larger estimate for those
+//! constants.
 //!
 //! Recipe emission recursively selects materializations for child pushes, so one pass reaches a
 //! fixed point. The default pipeline expands recipes once before structural cleanup because tail
@@ -63,7 +65,11 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut entry_depths = None;
     for block_id in module.blocks.indices() {
         let block = &module.blocks[block_id];
-        let in_loop = block.metadata.in_loop && !block.metadata.hotness.is_cold();
+        // `-O none` runs no inlining, so a loop calls the helpers that hold its hot code; gas
+        // builds keep the loop-only rule.
+        let in_loop = (block.metadata.in_loop
+            || (gcx.sess.opts.optimization.is_none() && block.metadata.repeats))
+            && !block.metadata.hotness.is_cold();
         let repeated = target.optimization().is_size() || block.metadata.hotness.is_cold();
         if !block.instructions.iter().any(|inst| {
             inst.concrete_immediate().is_some_and(|value| {
