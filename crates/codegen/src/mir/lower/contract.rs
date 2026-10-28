@@ -307,12 +307,13 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
         &mir_ids,
         &state,
     );
-    // Calls through internal function pointers reach the dispatchers generated above, so the
-    // scratch blocks are checked only once every body a call may run exists. A dispatcher that
-    // reinterprets references for pointers assembly retyped can pass one on as a word, as
-    // inline assembly can.
+    // Calls through internal function pointers reach the dispatchers generated above. Check
+    // scratch blocks once every body a call may run exists. A retyped pointer can pass a word
+    // as a memory reference even when its assembly promises memory safety, so every downstream
+    // body stays conservative in that case.
+    let forged = state.untrusted_assembly || !retyping.is_empty();
     assembly.extend(retyping);
-    function::check_scratch_regions(gcx, &module, &scratch_regions, &assembly);
+    function::check_scratch_regions(gcx, &module, &scratch_regions, &assembly, forged);
 
     if contract.kind == hir::ContractKind::Interface {
         module.is_interface = true;

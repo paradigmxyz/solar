@@ -112,6 +112,9 @@ pub(super) struct LoweringState {
     /// Whether the function being lowered runs inline assembly, which the contract driver claims
     /// for its MIR function.
     pub(super) lowered_assembly: bool,
+    /// Whether any assembly in this contract lacks the explicit memory-safety promise, including
+    /// read-only blocks which may forge references without writing memory.
+    pub(super) untrusted_assembly: bool,
 }
 
 /// Lowers one HIR function into a typed MIR function.

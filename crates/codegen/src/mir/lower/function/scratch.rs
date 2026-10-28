@@ -48,9 +48,10 @@
 //! which may execute a scratch block, including recursive calls and function-pointer dispatchers.
 //! Callee summaries also record free pointers captured by stores or calls, even when the callee
 //! returns no value. It does not follow whether assembly reserved memory at the pointer first.
-//! In a contract that lowered inline assembly, a load at an unknown address may read the free
-//! memory pointer, as may an unaligned load that overlaps its word; without assembly, a typed
-//! read stays inside the object its pointer names. Loads from fresh allocation bases are
+//! In assembly functions, a load at an unknown address may read the free memory pointer, as may
+//! an unaligned load that overlaps its word. Typed reads stay inside valid objects when all
+//! assembly promises memory safety and no function-pointer dispatcher reinterprets references;
+//! otherwise the whole contract stays conservative. Loads from fresh allocation bases are
 //! disjoint. A load of the last word stored at the same disjoint address in its block instead
 //! carries the stored value's provenance; any intervening memory write cancels that fact. Writing
 //! a scalar into the free-pointer slot makes it an allocation address, so forwarding cannot hide
@@ -59,7 +60,12 @@
 //! load. Their pure inputs and aliases are followed from their definitions, including captures
 //! before the installation. Callee summaries carry installed parameters back to their callers.
 //! Copies and calls that may capture its bytes also escape, including through callee summaries.
+//! A byte-range capture through a parameter plus nonnegative u64 constants stays conditional:
+//! a caller can discharge it with an exact bounded compiler allocation above reserved slots.
+//! Dynamic offsets, narrowing casts and captured SSA words keep their conservative treatment.
 //! These facts only guide validation, not codegen.
+//! An unannotated read-only assembly block also keeps the whole contract conservative: it can
+//! forge a reference without writing memory.
 //!
 //! The check runs on the contract's MIR right after lowering, before any pass, once the internal
 //! function pointer dispatchers exist, so every body a call in the block may run is summarized.
@@ -156,6 +162,7 @@ pub(in crate::mir::lower) fn check_scratch_regions(
     module: &Module,
     regions: &[(FunctionId, ScratchRegion)],
     assembly: &FxHashSet<FunctionId>,
+    forged: bool,
 ) {
     if regions.is_empty() {
         return;
@@ -168,6 +175,7 @@ pub(in crate::mir::lower) fn check_scratch_regions(
         &calls,
         assembly,
         &scratch,
+        forged,
         scratch.keys().copied().chain(regions.iter().map(|&(function, _)| function)),
     );
     for (id, func) in module.iter_functions() {
@@ -175,7 +183,7 @@ pub(in crate::mir::lower) fn check_scratch_regions(
         if !scratch.contains_key(&id) && local.clone().next().is_none() {
             continue;
         }
-        let function = Analyzed::new(func, &calls, !assembly.is_empty());
+        let function = Analyzed::new(func, &calls, forged || assembly.contains(&id));
         let saved = local.clone().map(|(_, region)| region.saved).collect::<FxHashSet<_>>();
         for (_, region) in local {
             check_region(gcx, module, &function, &summaries, assembly, &saved, region);
@@ -552,8 +560,8 @@ struct PointerWrites {
     other: Stored,
     /// Whether a return may carry a read of the free memory pointer.
     returns_free: bool,
-    /// Whether the function may capture a free pointer in memory, storage or a call.
-    captures_free: bool,
+    /// Captures of free-pointer values or bytes, conditional on parameters reaching its slot.
+    captures_free: Stored,
     /// Parameters whose values may be installed into the free memory pointer.
     installs_free: SmallVec<[ArgIdx; 2]>,
     /// Unknown installed addresses, conditional on which parameters may reach the FMP slot.
@@ -567,6 +575,7 @@ impl PointerWrites {
         calls: &Arc<MemoryCallSummaries>,
         assembly: &FxHashSet<FunctionId>,
         scratch: &FxHashMap<FunctionId, Span>,
+        forged: bool,
         roots: impl Iterator<Item = FunctionId>,
     ) -> FxHashMap<FunctionId, Self> {
         let mut order = Vec::new();
@@ -588,7 +597,9 @@ impl PointerWrites {
         }
         let analyzed = order
             .iter()
-            .map(|&id| (id, Analyzed::new(module.function(id), calls, !assembly.is_empty())))
+            .map(|&id| {
+                (id, Analyzed::new(module.function(id), calls, forged || assembly.contains(&id)))
+            })
             .collect::<FxHashMap<_, _>>();
         let mut summaries =
             order.iter().map(|&id| (id, Self::default())).collect::<FxHashMap<_, _>>();
@@ -676,16 +687,20 @@ impl PointerWrites {
             matches!(&block.terminator, Some(Terminator::Return { values })
                 if values.iter().any(|value| free.contains(value)))
         });
-        writes.captures_free = func.instructions().any(|inst| {
+        for inst in func.instructions() {
             let kind = &func.inst(inst).kind;
-            captures_free_memory(function, &mut constants, inst)
-                || (kind.effect_kind() != EffectKind::Pure
-                    && kind.operands().iter().any(|value| {
-                        free.contains(value) && captures(&mut constants, inst, *value)
-                    }))
-                || matches!(kind, InstKind::ICall { function: Callee::Function(callee), .. }
-                    if summaries.get(callee).is_some_and(|summary| summary.captures_free))
-        });
+            writes.captures_free.add(&captures_free_memory(
+                function,
+                &mut constants,
+                summaries,
+                inst,
+            ));
+            writes.captures_free.any |= kind.effect_kind() != EffectKind::Pure
+                && kind
+                    .operands()
+                    .iter()
+                    .any(|value| free.contains(value) && captures(&mut constants, inst, *value));
+        }
         // Where a store of `stored` through `address` lands: this call's own memory, a
         // parameter's object, or memory older than the call.
         let record = |writes: &mut Self, address: ValueId, stored: &Stored| {
@@ -938,13 +953,13 @@ fn check_free_pointers(
         if inside(inst) {
             continue;
         }
-        if captures_free_memory(function, &mut constants, inst) {
-            escapes.push((func.inst(inst).metadata.source_span(), Escape::Stored));
-        }
-        if let InstKind::ICall { function: Callee::Function(callee), .. } = func.inst(inst).kind
-            && summaries.get(&callee).is_some_and(|summary| summary.captures_free)
-        {
-            escapes.push((func.inst(inst).metadata.source_span(), Escape::Call(callee)));
+        let captured = captures_free_memory(function, &mut constants, summaries, inst);
+        if captured.any || !captured.params.is_empty() {
+            let escape = match func.inst(inst).kind {
+                InstKind::ICall { function: Callee::Function(callee), .. } => Escape::Call(callee),
+                _ => Escape::Stored,
+            };
+            escapes.push((func.inst(inst).metadata.source_span(), escape));
         }
     }
     let mut pointers = Vec::new();
@@ -1171,11 +1186,12 @@ fn stored_load_values(function: &Analyzed) -> FxHashMap<InstId, LoadedWord> {
 fn captures_free_memory(
     function: &Analyzed,
     constants: &mut ConstantWords<'_>,
+    summaries: &FxHashMap<FunctionId, PointerWrites>,
     inst: InstId,
-) -> bool {
+) -> Stored {
     let kind = &constants.func.inst(inst).kind;
     let mut captures = matches!(kind.effect_kind(), EffectKind::ExternalCall | EffectKind::Create);
-    let mut reads_free = false;
+    let mut reads_free = Stored::default();
     kind.visit_raw_memory(|access, address, size| {
         let size = match size {
             RawMemorySize::Bytes(size) => Some(U256::from(size)),
@@ -1186,12 +1202,32 @@ fn captures_free_memory(
         }
         if access != RawMemoryAccess::Read {
             captures = true;
-        } else {
-            reads_free |= function.overlaps_free_pointer(constants, address, size)
-                && function.fresh_start(address).is_none();
+        } else if function.overlaps_free_pointer(constants, address, size)
+            && function.fresh_start(address).is_none()
+        {
+            reads_free.add(&fmp_access_base(function, constants, address, true));
         }
     });
-    captures && reads_free
+    if !captures {
+        reads_free = Stored::default();
+    }
+    if let InstKind::ICall { function: Callee::Function(callee), args } = kind
+        && let Some(summary) = summaries.get(callee)
+    {
+        reads_free.any |= summary.captures_free.any;
+        for param in &summary.captures_free.params {
+            let Some(&address) = args.get(param.index()) else {
+                reads_free.any = true;
+                continue;
+            };
+            // A bounded compiler allocation cannot wrap to the slot under a nonnegative u64 offset.
+            // Raw ranges extending past the address space fail rather than wrap.
+            if !function.read_start_above_fmp(address) {
+                reads_free.add(&fmp_access_base(function, constants, address, true));
+            }
+        }
+    }
+    reads_free
 }
 
 fn range_overlaps_free_pointer(address: Option<U256>, size: Option<U256>) -> bool {
@@ -1216,9 +1252,9 @@ pub(super) struct Analyzed {
     aa: AliasAnalysis,
     /// The reads of the free memory pointer that no reset of it may precede.
     fresh_fmps: FxHashSet<InstId>,
-    /// Whether the contract lowered inline assembly, the only way to make a pointer to the free
-    /// memory pointer's slot. Without it, a typed access through an address of unknown value
-    /// stays inside the object its pointer names.
+    /// Whether this function may directly or indirectly receive forged memory references. Raw
+    /// assembly stays conservative; typed accesses can trust the explicit memory-safety promise
+    /// only when no unannotated block or reference-retyping dispatcher undermines it.
     forged: bool,
 }
 
@@ -1315,6 +1351,17 @@ impl Analyzed {
             }
         }
         self.overlaps_free_pointer(constants, address, size) && self.fresh_start(base).is_none()
+    }
+
+    /// A bounded compiler allocation starts above reserved slots even if an FMP reset makes it
+    /// alias an older object. Unlike `fresh_start`, this proves only disjointness from the FMP
+    /// slot, not uniqueness. Do not follow offsets: their addition may wrap before the read.
+    fn read_start_above_fmp(&self, address: ValueId) -> bool {
+        self.fresh_start(address).is_some()
+            || matches!(*self.func.value(address), Value::Inst(inst)
+                if matches!(self.func.inst(inst).kind,
+                    InstKind::AbiEncode { mode: AbiEncodeMode::Bytes, .. }
+                        | InstKind::AbiEncodePacked { hash: false, .. }))
     }
 }
 
@@ -1518,7 +1565,7 @@ fn unknown_fmp_write(
         };
         if access != RawMemoryAccess::Read && function.writes_free_pointer(constants, address, size)
         {
-            unknown.add(&fmp_write_base(function, constants, address));
+            unknown.add(&fmp_access_base(function, constants, address, false));
         }
     });
     if let InstKind::ICall { function: Callee::Function(callee), args } = kind
@@ -1532,19 +1579,22 @@ fn unknown_fmp_write(
             };
             // A bounded fresh object cannot wrap to the slot under a constant u64 offset.
             if function.fresh_start(address).is_none() {
-                unknown.add(&fmp_write_base(function, constants, address));
+                unknown.add(&fmp_access_base(function, constants, address, false));
             }
         }
     }
     unknown
 }
 
-/// The parameter a potentially low write offsets by a nonnegative u64 constant. Any other
-/// arithmetic or origin keeps no conditional proof; its write may reach the slot in every caller.
-fn fmp_write_base(
+/// The parameter an access offsets by nonnegative u64 constants. No bound is inferred: a caller
+/// must supply a bounded compiler allocation before the conditional overlap can be discharged.
+/// Other origins or arithmetic keep no conditional proof. Raw read ranges also allow full-width
+/// integer adds.
+fn fmp_access_base(
     function: &Analyzed,
     constants: &mut ConstantWords<'_>,
     mut address: ValueId,
+    integer_offsets: bool,
 ) -> Stored {
     let func = &function.func;
     let mut offset = 0_u64;
@@ -1561,6 +1611,21 @@ fn fmp_write_base(
                         .and_then(|word| u64::try_from(word).ok())
                         .and_then(|delta| offset.checked_add(delta))
                     else {
+                        break;
+                    };
+                    address = base;
+                    offset = next;
+                }
+                InstKind::Add(first, second)
+                    if integer_offsets && func.value_ty(address) == Some(MirType::I256) =>
+                {
+                    let base = constants
+                        .get(second)
+                        .map(|delta| (first, delta))
+                        .or_else(|| constants.get(first).map(|delta| (second, delta)));
+                    let Some((base, next)) = base.and_then(|(base, delta)| {
+                        Some((base, offset.checked_add(u64::try_from(delta).ok()?)?))
+                    }) else {
                         break;
                     };
                     address = base;

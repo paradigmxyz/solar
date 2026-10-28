@@ -275,6 +275,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         .emit();
                 }
                 self.cx.state.lowered_assembly = true;
+                self.cx.state.untrusted_assembly |= !memory_safe;
                 let previous = std::mem::replace(&mut self.in_inline_assembly, true);
                 let previous_writes = std::mem::take(&mut self.assembly_writes_memory);
                 let result = self.lower_block(*block);

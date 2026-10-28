@@ -100,10 +100,13 @@ may store such a reference where later code can reach it. Values such as hashes,
 read from the memory leave the block freely. After the block, the free memory pointer can be lower
 than without the tag.
 
-Assembly outside the block is allowed, but in a contract with inline assembly a memory load at an
-unknown address may read the free memory pointer. The compiler tracks that possibility through
-helper returns and stores too, and rejects the tag if the pointer may outlive the block. Use a
-provably disjoint address, consume the pointer before the block, or read it again after the block.
+Assembly outside the block is allowed. In assembly functions, a memory load at an unknown address
+may read the free memory pointer. Typed helpers can rely on valid object bounds when all assembly
+explicitly promises memory safety and no function-pointer dispatcher reinterprets references.
+Otherwise, unknown loads remain conservative throughout the contract. The compiler tracks possible
+free-pointer reads through helper returns and stores too, and rejects the tag if the pointer may
+outlive the block. Use a provably disjoint address, consume the pointer before the block, or read it
+again after the block.
 Copies and calls that may retain bytes from the free-pointer slot are captures too, even if no
 instruction loads that slot directly. Storing a scalar into the slot and reading it back still
 produces a free pointer; store forwarding does not exempt that read from the lifetime check.
