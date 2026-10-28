@@ -15,7 +15,7 @@ use serde_json::{Map, Value, value::RawValue};
 use solar_config::RevertStrings;
 use solar_data_structures::map::FxBuildHasher;
 use solar_interface::diagnostics::SolcDiagnostic;
-use solar_sema::output::{Documentation, SafetyOutput, StorageLayoutOutput};
+use solar_sema::output::{Documentation, StorageLayoutOutput};
 use std::{
     borrow::{Borrow, Cow},
     fmt,
@@ -333,9 +333,6 @@ pub(super) struct ContractOutput<'gcx> {
     pub(super) storage_layout: Option<StorageLayoutOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) transient_storage_layout: Option<StorageLayoutOutput>,
-    /// The properties `@custom:solar-safe` can require, which solc does not report.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) solar_safety: Option<SafetyOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) evm: Option<EvmOutput>,
     //
@@ -510,8 +507,6 @@ bitflags::bitflags! {
         const DEPLOYED_BYTECODE_CBOR_AUXDATA = 1 << 31;
         const ETHDEBUG_RESOURCES = 1 << 32;
         const ETHDEBUG_COMPILATION = 1 << 33;
-        /// This compiler's `solarSafety`, which only its exact key selects.
-        const SOLAR_SAFETY = 1 << 34;
 
         const YUL = Self::IR.bits()
             | Self::IR_AST.bits()
@@ -549,7 +544,6 @@ bitflags::bitflags! {
             | Self::DEVDOC.bits()
             | Self::STORAGE_LAYOUT.bits()
             | Self::TRANSIENT_STORAGE_LAYOUT.bits()
-            | Self::SOLAR_SAFETY.bits()
             | Self::YUL.bits()
             | Self::EVM.bits()
             | Self::BYTECODE_SOURCE_MAP.bits()
@@ -582,7 +576,6 @@ impl OutputSelectionFlags {
             "devdoc" => Self::DEVDOC,
             "storageLayout" => Self::STORAGE_LAYOUT,
             "transientStorageLayout" => Self::TRANSIENT_STORAGE_LAYOUT,
-            "solarSafety" => Self::SOLAR_SAFETY,
             "ir" => Self::IR,
             "irAst" => Self::IR_AST,
             "irOptimized" => Self::IR_OPTIMIZED,
@@ -915,7 +908,6 @@ impl ContractOutput<'_> {
             && self.devdoc.is_none()
             && self.storage_layout.is_none()
             && self.transient_storage_layout.is_none()
-            && self.solar_safety.is_none()
             && self.evm.is_none()
     }
 }
@@ -1046,7 +1038,6 @@ mod tests {
                 "devdoc",
                 "storageLayout",
                 "transientStorageLayout",
-                "solarSafety",
                 "ir",
                 "irAst",
                 "irOptimized",
@@ -1108,7 +1099,9 @@ mod tests {
                 | OutputSelectionFlags::IR
                 | OutputSelectionFlags::BYTECODE_ETHDEBUG
         );
-        assert!(selection_flags(r#"["unknown", "evm.bytecode.unknown"]"#).is_empty());
+        assert!(
+            selection_flags(r#"["unknown", "evm.bytecode.unknown", "solarSafety"]"#).is_empty()
+        );
     }
 
     #[test]

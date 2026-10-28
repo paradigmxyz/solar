@@ -156,28 +156,25 @@ fn check_contract(gcx: Gcx<'_>, id: hir::ContractId, profile: Profile) {
     }
 }
 
-/// What the code a contract runs does that a safe profile rejects, and the reviewed code it runs.
-pub(crate) struct Findings {
+/// What the code a contract runs does that a safe profile rejects.
+struct Findings {
     /// What the profile rejects, in the order the code is reached.
-    pub(crate) violations: Vec<Finding>,
-    /// The functions tagged `@custom:solar-trusted`, or in a contract tagged so, that the code
-    /// runs, which the profile does not look inside.
-    pub(crate) trusted: Vec<hir::FunctionId>,
+    violations: Vec<Finding>,
     /// The function that first reached each function the code runs, or `None` for a root.
     reached: FxIndexMap<hir::FunctionId, Option<hir::FunctionId>>,
 }
 
 /// Something a safe profile rejects.
-pub(crate) struct Finding {
-    pub(crate) violation: Violation,
-    pub(crate) span: Span,
+struct Finding {
+    violation: Violation,
+    span: Span,
     /// The function whose body it is in.
-    pub(crate) function: hir::FunctionId,
+    function: hir::FunctionId,
 }
 
 /// What a safe profile rejects.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Violation {
+enum Violation {
     /// Inline assembly, which breaks both properties.
     Assembly,
     /// An `unchecked` block.
@@ -209,14 +206,12 @@ impl Findings {
 }
 
 /// Finds what the code the contract `id` runs does that a safe profile rejects.
-pub(crate) fn findings(gcx: Gcx<'_>, id: hir::ContractId) -> Findings {
+fn findings(gcx: Gcx<'_>, id: hir::ContractId) -> Findings {
     let library = gcx.hir.contract(id).kind == hir::ContractKind::Library;
     let reached = traced_functions(gcx, id, library, &|function| is_trusted(gcx, function));
     let mut scan = Scan { gcx, current: None, violations: Vec::new(), seen: FxHashSet::default() };
-    let mut trusted = Vec::new();
     for &function in reached.keys() {
         if is_trusted(gcx, function) {
-            trusted.push(function);
             continue;
         }
         if gcx.hir.function(function).is_yul {
@@ -225,7 +220,7 @@ pub(crate) fn findings(gcx: Gcx<'_>, id: hir::ContractId) -> Findings {
         scan.current = Some(function);
         let _ = scan.visit_nested_function(function);
     }
-    Findings { violations: scan.violations, trusted, reached }
+    Findings { violations: scan.violations, reached }
 }
 
 /// Scans the bodies of the functions a contract runs for what a safe profile rejects.

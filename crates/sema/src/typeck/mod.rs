@@ -25,7 +25,7 @@ mod constant_divisors;
 mod constant_values;
 mod control_flow;
 pub(crate) mod override_checker;
-pub(crate) mod safe_profile;
+mod safe_profile;
 mod solar_view;
 mod terminates;
 mod udvt;

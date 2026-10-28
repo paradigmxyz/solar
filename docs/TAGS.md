@@ -47,9 +47,7 @@ run in frames of their own and are not part of it. A library's code is all of it
 
 `solar-trusted` marks reviewed code: the check does not look inside it, or into what only it
 reaches. A call in trusted code that dispatches to an override or a `super` target is still
-checked, since the contract chose that code, not the review. Standard JSON reports the properties
-of every contract and the trusted functions its code runs in the `solarSafety` output. Code with
-`unchecked` still reports `arithmetic: false`, even when its default `solar-safe` check passes.
+checked, since the contract chose that code, not the review.
 
 ## `solar-inline` and `solar-noinline`
 
