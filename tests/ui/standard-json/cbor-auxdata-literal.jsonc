@@ -4,17 +4,21 @@
 // is listed, and the literal never shares the trailer's bytes.
 // CHECK: "bytecode": {
 // CHECK-NEXT: "cborAuxdata": {
-// CHECK-NEXT: "1": {
+// CHECK-NEXT: "A.sol:A": [
+// CHECK-NEXT: {
 // CHECK-NEXT: "offset": {{[0-9]+}},
 // CHECK-NEXT: "value": "{{0xa165736f6c617243[0-9a-f]{6}000b}}"
 // CHECK-NEXT: }
+// CHECK-NEXT: ]
 // CHECK-NEXT: }
 // CHECK: "deployedBytecode": {
 // CHECK-NEXT: "cborAuxdata": {
-// CHECK-NEXT: "1": {
+// CHECK-NEXT: "A.sol:A": [
+// CHECK-NEXT: {
 // CHECK-NEXT: "offset": {{[0-9]+}},
 // CHECK-NEXT: "value": "{{0xa165736f6c617243[0-9a-f]{6}000b}}"
 // CHECK-NEXT: }
+// CHECK-NEXT: ]
 // CHECK-NEXT: }
 {
   "language": "Solidity",

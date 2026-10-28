@@ -42,7 +42,7 @@ use crate::{
         },
         op::{self, WORD_BYTES},
     },
-    link::LibraryRelocation,
+    link::{LibraryRelocation, Trailer},
     mir::utils::eval,
     target::{Cost, Target},
 };
@@ -52,7 +52,6 @@ use smallvec::SmallVec;
 use solar_data_structures::{index::IndexVec, map::FxHashMap};
 use solar_interface::sym;
 use solar_sema::Gcx;
-use std::ops::Range;
 
 /// Bounds quadratic arbitrary-substring pooling; exact interning remains unbounded.
 const MAX_DATA_SUBSTRING_ENTRIES: usize = 1024;
@@ -644,8 +643,7 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
 
     let mut packed = IndexVec::<DataId, Data>::new();
     let mut sources = IndexVec::<DataId, DataId>::new();
-    let mut exact =
-        FxHashMap::<(Bytes, Vec<LibraryRelocation>, Vec<Range<usize>>), DataId>::default();
+    let mut exact = FxHashMap::<(Bytes, Vec<LibraryRelocation>, Vec<Trailer>), DataId>::default();
     let mut remap = FxHashMap::default();
     for old_id in referenced {
         let data = &module.data[old_id];
@@ -738,9 +736,14 @@ fn find_data(
             && known
                 .trailers
                 .iter()
-                .filter(|trailer| trailer.start < end && trailer.end > offset)
-                .map(|trailer| (trailer.start.checked_sub(offset), trailer.end - offset))
-                .eq(needle.trailers.iter().map(|trailer| (Some(trailer.start), trailer.end)));
+                .filter(|trailer| trailer.range.start < end && trailer.range.end > offset)
+                .map(|trailer| {
+                    let start = trailer.range.start.checked_sub(offset);
+                    (trailer.contract, start, trailer.range.end - offset)
+                })
+                .eq(needle.trailers.iter().map(|trailer| {
+                    (trailer.contract, Some(trailer.range.start), trailer.range.end)
+                }));
         compatible.then(|| DataRef::new(id, data_offset(offset)))
     })
 }

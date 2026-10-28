@@ -12,14 +12,13 @@ use crate::{
         DebugFunction, DebugFunctionExit, DebugInfo, DebugInfoBuilder, DebugSpans, ir, op,
         op::WORD_BYTES,
     },
-    link::{EmbeddedBytecodes, LibraryRelocation, LibraryTable},
+    link::{EmbeddedBytecodes, LibraryRelocation, LibraryTable, Trailer},
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use solar_interface::{Span, Symbol, sym};
 use solar_sema::Gcx;
-use std::ops::Range;
 
 pub(crate) mod assembly;
 
@@ -65,8 +64,8 @@ pub(crate) struct AssembledCode {
     pub immutable_refs: Vec<ImmutableRef>,
     /// Byte offsets of library addresses, including embedded program data.
     pub library_relocations: Vec<LibraryRelocation>,
-    /// Byte ranges of contracts' trailing runtime data, including embedded program data.
-    pub trailers: Vec<Range<usize>>,
+    /// Contracts' trailing runtime data, including embedded program data.
+    pub trailers: Vec<Trailer>,
     /// Final EVM IR captured immediately before byte emission.
     pub evm_ir: Option<ir::Module>,
     /// Final instruction offsets and source spans.
@@ -530,11 +529,7 @@ impl<'gcx> Assembler<'gcx> {
                     out.library_relocations.extend(data.library_relocations.iter().map(|reloc| {
                         LibraryRelocation { offset: base + reloc.offset, library: reloc.library }
                     }));
-                    out.trailers.extend(
-                        data.trailers
-                            .iter()
-                            .map(|trailer| base + trailer.start..base + trailer.end),
-                    );
+                    out.trailers.extend(data.trailers.iter().map(|trailer| trailer.shifted(base)));
                     out.bytecode.extend_from_slice(bytes);
                 }
             }
@@ -569,7 +564,7 @@ struct BytecodeAssembler<'gcx> {
     bytecode: Vec<u8>,
     immutable_refs: Vec<ImmutableRef>,
     library_relocations: Vec<LibraryRelocation>,
-    trailers: Vec<Range<usize>>,
+    trailers: Vec<Trailer>,
     debug_info: Option<DebugInfoBuilder>,
     function_invoke: Option<DebugFunction>,
     function_exit: Option<DebugFunctionExit>,

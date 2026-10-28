@@ -95,18 +95,23 @@ Status: intentional.
 
 Difference: `evm.bytecode.cborAuxdata` and `evm.deployedBytecode.cborAuxdata`
 report every CBOR auxdata trailer in the bytecode, including those of embedded
-contracts, as `{"1": {"offset": N, "value": "0x…"}, …}` in offset order.
-`offset` points at the CBOR map after the `INVALID` byte, and `value` holds the
-map and its two-byte length. solc has no such output; tools recover the
-positions from `evm.legacyAssembly` and a second compilation. The parent
-selections and `*` include it, and `evm.legacyAssembly` stays empty.
+contracts, keyed by the fully qualified name of the contract each trailer
+belongs to: `{"A.sol:Child": [{"offset": N, "value": "0x…"}, …], …}`. A
+contract embedded more than once has one entry per copy. Entries are in offset
+order within each array, and keys in the order of their first entry. `offset`
+points at the CBOR map after the `INVALID` byte, and `value` holds the map and
+its two-byte length. solc has no such output; tools recover the positions from
+`evm.legacyAssembly` and a second compilation. The parent selections and `*`
+include it, and `evm.legacyAssembly` stays empty.
 
-Rationale: the shape is the Verifier Alliance `cborAuxdata` artifact that
-Sourcify stores, so verifiers can read the positions directly. Code generation
-records where it places each trailer, so code or data that repeats a trailer's
-bytes is never reported: verifiers replace the reported bytes with the
-deployed ones, and a reported literal would let deployed code differ from its
-source.
+Rationale: the entries have the shape of the Verifier Alliance `cborAuxdata`
+artifact that Sourcify stores, so verifiers can read the positions directly and
+flatten them into that artifact's numbered entries. The contract names let them
+check each trailer against that contract's metadata hash. Code generation
+records where it places each trailer and whose it is, so code or data that
+repeats a trailer's bytes is never reported: verifiers replace the reported
+bytes with the deployed ones, and a reported literal would let deployed code
+differ from its source.
 
 Coverage: `tests/ui/standard-json/cbor-auxdata/test.jsonc` and
 `tests/ui/standard-json/cbor-auxdata-literal.jsonc`.

@@ -708,23 +708,23 @@ fn make_bytecode_output(
         });
     }
     if output_selection.contains(cbor_auxdata_flag) {
-        // Codegen records where it places each trailer, `INVALID` followed by the CBOR auxdata, so
-        // code or data that only looks like a trailer is never reported.
+        // Codegen records where it places each trailer, `INVALID` followed by the CBOR auxdata, and
+        // which contract it belongs to, so code or data that only looks like a trailer is never
+        // reported.
         let trailers = artifact.map_or(&[][..], |artifact| {
             if deployed { &artifact.runtime_trailers } else { &artifact.deployment_trailers }
         });
-        output.cbor_auxdata = Some(
-            trailers
-                .iter()
-                .enumerate()
-                .map(|(i, trailer)| {
-                    let offset = trailer.start + 1;
-                    let value = &bytecode.expect("trailers imply bytecode")[offset..trailer.end];
-                    let value = alloy_primitives::hex::encode_prefixed(value);
-                    ((i + 1).to_string(), CborAuxdata { offset, value })
-                })
-                .collect(),
-        );
+        let mut by_contract = FxIndexMap::<String, Vec<CborAuxdata>>::default();
+        for trailer in trailers {
+            let offset = trailer.range.start + 1;
+            let value = &bytecode.expect("trailers imply bytecode")[offset..trailer.range.end];
+            let value = alloy_primitives::hex::encode_prefixed(value);
+            by_contract
+                .entry(trailer.contract.as_str().to_string())
+                .or_default()
+                .push(CborAuxdata { offset, value });
+        }
+        output.cbor_auxdata = Some(by_contract);
     }
     if output_selection.contains(link_references_flag) {
         let references = artifact.into_iter().flat_map(|artifact| {

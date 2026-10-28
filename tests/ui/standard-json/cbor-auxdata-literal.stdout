@@ -22,18 +22,22 @@
         "evm": {
           "bytecode": {
             "cborAuxdata": {
-              "1": {
-                "offset": 148,
-                "value": "0xa165736f6c617243000200000b"
-              }
+              "A.sol:A": [
+                {
+                  "offset": 148,
+                  "value": "0xa165736f6c617243000200000b"
+                }
+              ]
             }
           },
           "deployedBytecode": {
             "cborAuxdata": {
-              "1": {
-                "offset": 131,
-                "value": "0xa165736f6c617243000200000b"
-              }
+              "A.sol:A": [
+                {
+                  "offset": 131,
+                  "value": "0xa165736f6c617243000200000b"
+                }
+              ]
             }
           }
         }

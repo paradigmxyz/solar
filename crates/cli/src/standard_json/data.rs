@@ -385,7 +385,7 @@ pub(super) struct BytecodeOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) immutable_references: Option<FxIndexMap<String, Vec<OffsetLength>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) cbor_auxdata: Option<FxIndexMap<String, CborAuxdata>>,
+    pub(super) cbor_auxdata: Option<FxIndexMap<String, Vec<CborAuxdata>>>,
     //
     // Not supported.
     // #[serde(skip_serializing_if = "Option::is_none")]
@@ -406,7 +406,7 @@ pub(super) struct OffsetLength {
     pub(super) length: usize,
 }
 
-/// A CBOR auxdata occurrence, in the shape of the Verifier Alliance `cborAuxdata` artifact.
+/// A CBOR auxdata occurrence, like an entry of the Verifier Alliance `cborAuxdata` artifact.
 #[derive(Debug, Serialize)]
 pub(super) struct CborAuxdata {
     /// Byte offset of the CBOR map, after the `INVALID` byte that precedes it.

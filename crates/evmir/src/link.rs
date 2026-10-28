@@ -25,8 +25,8 @@ pub struct Data {
     pub emit_in_runtime: bool,
     /// Identities and byte offsets of unresolved library addresses in this data.
     pub library_relocations: Vec<LibraryRelocation>,
-    /// Byte ranges of contracts' trailing runtime data in this embedded bytecode.
-    pub trailers: Vec<Range<usize>>,
+    /// Contracts' trailing runtime data in this embedded bytecode.
+    pub trailers: Vec<Trailer>,
 }
 
 impl Data {
@@ -213,14 +213,30 @@ impl LibraryRelocation {
     }
 }
 
+/// A contract's trailing runtime data, `INVALID` and the CBOR auxdata, at a byte range in code or
+/// program data.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Trailer {
+    /// The fully qualified name of the contract whose metadata the trailer encodes.
+    pub contract: QualifiedName,
+    pub range: Range<usize>,
+}
+
+impl Trailer {
+    /// Returns this trailer moved `base` bytes later.
+    pub fn shifted(&self, base: usize) -> Self {
+        Self { contract: self.contract, range: base + self.range.start..base + self.range.end }
+    }
+}
+
 /// Bytecode and the library addresses that must be linked before execution.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct RelocatableBytecode {
     pub libraries: LibraryTable,
     pub bytes: Bytes,
     pub relocations: Vec<LibraryRelocation>,
-    /// Byte ranges of the trailing runtime data of this contract and the contracts it embeds.
-    pub trailers: Vec<Range<usize>>,
+    /// The trailing runtime data of this contract and the contracts it embeds.
+    pub trailers: Vec<Trailer>,
 }
 
 impl RelocatableBytecode {
