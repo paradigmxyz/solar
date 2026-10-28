@@ -1,24 +1,28 @@
 //@compile-flags: -Zdump=evm-ir-runtime --pretty-json
 //@ filecheck:
+//@ run-call: sum 5 => 341
+//@ run-call-fail: sum 115792089237316195423570985008687907853269984665640564039457584007913129639915 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 // solc 0.8.30 without --via-ir reports `Stack too deep` for this contract.
 pragma solidity ^0.8.0;
 
 contract StackTooDeepLocals {
+    // The twenty-two locals differ by constants, so each is computed from `x + 1` where it is
+    // read, and none spills.
     // CHECK-LABEL: @module StackTooDeepLocals_runtime
     // CHECK: push 0x188b85b4
     // CHECK: eq
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]
     // CHECK: [[BODY]]:
-    // CHECK: push 1
-    // CHECK-NEXT: push 4
+    // CHECK: push 4
     // CHECK-NEXT: calldataload
+    // CHECK-NEXT: push 1
+    // CHECK-NEXT: dup 2
     // CHECK-NEXT: add
-    // CHECK: push 21
-    // CHECK-NEXT: push 4
-    // CHECK-NEXT: calldataload
+    // CHECK-NOT: mload
+    // CHECK: push 20{{$}}
+    // CHECK-NEXT: dup {{[0-9]+}}
     // CHECK-NEXT: add
-    // CHECK: mload
-    // CHECK: add
+    // CHECK-NOT: mload
     // CHECK: return
     function sum(uint256 x) external pure returns (uint256) {
         uint256 a0 = x + 0;

@@ -125,6 +125,8 @@ solar-cli = { version = "=0.2.0", path = "crates/cli", default-features = false 
 solar-codegen = { version = "=0.2.0", path = "crates/codegen", default-features = false }
 solar-config = { version = "=0.2.0", path = "crates/config", default-features = false }
 solar-data-structures = { version = "=0.2.0", path = "crates/data-structures", default-features = false }
+solar-evmir = { version = "=0.2.0", path = "crates/evmir", default-features = false }
+solar-evmir-interpreter = { version = "=0.2.0", path = "crates/evmir-interpreter", default-features = false }
 solar-interface = { version = "=0.2.0", path = "crates/interface", default-features = false }
 solar-lint = { version = "=0.2.0", path = "crates/lint", default-features = false }
 solar-lsp = { version = "=0.2.0", path = "crates/lsp", default-features = false }

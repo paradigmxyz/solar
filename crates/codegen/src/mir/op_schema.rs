@@ -1204,9 +1204,9 @@ define_mir_ops! {
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
     #[operand_types(func => None)]
     IntToPtr(operand0: ValueId),
-    /// Offset a pointer by an unsigned byte count, keeping its location and provenance. Like an
-    /// LLVM `getelementptr inbounds nuw`, the sum does not wrap: semantic lowering emits it only
-    /// for addresses inside the object, so a runtime offset leaves the pointer at or after `ptr`.
+    /// Offset a pointer by an unsigned byte count, keeping its location type. The sum wraps at
+    /// 256 bits: a forged object pointer or length can admit an index outside the allocation.
+    /// The operation alone proves neither bounds nor disjointness from other objects.
     #[mir_op(mnemonic = "ptradd", result = Pointer, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some(PhaseCategory::PointerArithmetic))]
     #[operand_types(func => Some(smallvec![typing::pointer(func, *ptr), MirType::I256]))]
@@ -1735,6 +1735,7 @@ define_mir_ops! {
         side_effects = false,
         category = None
     )]
+    #[builder(heap_floor)]
     #[operand_types(func => Some(smallvec![]))]
     HeapFloor,
     /// Reserve memory and return the previous free-memory pointer.

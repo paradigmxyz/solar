@@ -57,9 +57,6 @@ bb7:
   push 0
   return
 bb8:
-  push 128
-  push 64
-  mstore
   push 4
   calldataload
   push 36
@@ -108,22 +105,20 @@ bb8:
   lt
   push bb34
   jumpi
-  push 64
-  mload
-  swap 1
+  push 128
+  dup 5
   dup 2
-  add
-  push 64
-  mstore
-  dup 4
-  dup 2
-  mstore
   push 32
-  dup 2
   add
   swap 3
-  swap 1
+  dup 3
+  add
+  push 64
+  mstore
+  dup 2
+  mstore
   swap 3
+  swap 1
   calldatacopy
   push 32
   dup 2
@@ -167,9 +162,6 @@ bb11 [loop]:
   push 0
   return
 bb18:
-  push 128
-  push 64
-  mstore
   push 4
   calldataload
   push 36
@@ -212,18 +204,13 @@ bb18:
   jumpi
   push 32
   dup 2
+  dup 2
   add
-  push 32
-  gt
+  lt
   push bb34
   jumpi
-  push 64
-  mload
-  push 32
-  add
   swap 1
-  swap 2
-  swap 1
+  push 160
   calldatacopy
   push 0
   mstore
@@ -322,41 +309,42 @@ bb23:
   calldatacopy
   dup 3
   dup 5
-  mstore
   push 32
-  dup 5
   add
-  swap 3
+  swap 5
+  mstore
+  dup 3
   swap 2
-  swap 3
+  swap 4
   calldatacopy
+  swap 1
   mload
-  dup 1
+  dup 2
+  dup 2
   push 0x1999999999999999999999999999999999999999999999999999999999999999
   lt
   push bb31
   jumpi
   push 10
-  mul
   push 4
   calldataload
-  swap 1
-  dup 2
+  swap 3
+  mul
+  dup 3
   add
-  swap 1
-  dup 2
-  lt
-  push bb31
-  jumpi
-  swap 1
-  mload
-  dup 1
-  push 0x28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f
+  swap 2
+  dup 3
   lt
   push bb31
   jumpi
   push 100
   mul
+  swap 2
+  push 0x28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f
+  lt
+  push bb31
+  jumpi
+  swap 1
   dup 2
   add
   swap 1

@@ -10,9 +10,9 @@
 extern crate tracing;
 
 use indexmap as _;
-use rayon::prelude::*;
+use solar_data_structures::map::FxHashMap;
 use solar_interface::{
-    Result, Session,
+    BytePos, Result, Session,
     config::{CompilerStage, DumpKind},
 };
 use std::ops::ControlFlow;
@@ -94,7 +94,7 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
     compiler.gcx_mut().sources.topo_sort();
 
     debug_span!("all_ast_passes").in_scope(|| {
-        gcx.sources.par_asts().for_each(|ast| {
+        gcx.dcx().par_for_each(gcx.sources.par_asts(), |ast| {
             ast_passes::run(gcx.sess, ast);
         });
     });
@@ -126,7 +126,8 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
 
     // Lower HIR types.
     debug_span!("item_types").in_scope(|| {
-        gcx.hir.par_item_ids().for_each(|id| {
+        let dcx = gcx.dcx();
+        let (_, mut diagnostics) = dcx.par_defer(gcx.hir.par_item_ids(), |id| {
             let _ = gcx.type_of_item(id);
             match id {
                 hir::ItemId::Struct(id) => {
@@ -138,6 +139,29 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
             }
             natspec::validate_item_docs(gcx, id);
         });
+        // These queries are cached, so the item that first needs one reports its diagnostics, and
+        // which item that is depends on the schedule. Report in source order instead, and order
+        // diagnostics at the same place by message.
+        if !diagnostics.is_empty() {
+            let source_ranks = gcx
+                .hir
+                .source_ids()
+                .enumerate()
+                .map(|(rank, id)| (gcx.hir.source(id).file.start_pos, rank))
+                .collect::<FxHashMap<_, _>>();
+            let source_map = gcx.sess.source_map();
+            diagnostics.sort_by_cached_key(|diagnostic| {
+                let message = diagnostic.messages.first().map(|(message, _)| message.as_str());
+                let Some(span) = diagnostic.span.primary_span() else {
+                    return (usize::MAX, 0, 0, message.map(str::to_owned));
+                };
+                let file = source_map.lookup_source_file(span.lo());
+                let rank = source_ranks.get(&file.start_pos).copied().unwrap_or(usize::MAX);
+                let offset = |pos: BytePos| pos.to_u32() - file.start_pos.to_u32();
+                (rank, offset(span.lo()), offset(span.hi()), message.map(str::to_owned))
+            });
+        }
+        dcx.emit_deferred(diagnostics);
     });
 
     typeck::check(gcx);

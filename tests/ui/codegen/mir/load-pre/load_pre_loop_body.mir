@@ -1,16 +1,13 @@
 //@ compile-flags: -Zmir-pipeline=load-pre
 //@ filecheck:
-// A loop body that reloads a word only the preheader writes reads the value the
-// header holds on entry: the preheader's store on the first iteration and the
-// body's own load around the backedge. The reload becomes the header's phi even
-// though the body is no join. Element stores at a runtime index start past the
-// length word of a runtime-sized allocation, so they leave it available.
+// A loop body can reuse a preheader store through a header phi only if no backedge store
+// may clobber it. Runtime element indices can wrap back into the length word, so those
+// writes keep the load. A direct length store still forwards its new value.
 @module LoadPreLoopBody
 
 // CHECK-LABEL: {{^[ +].*}}fn @fill{{[( ]}}
-// CHECK: + [[LENGTH:v[0-9]+]] = phi [bb0: arg0], [bb3: [[LENGTH]]]
-// CHECK-NOT: {{^[ +].*}} = mload
-// CHECK: {{^[ +].*}} = lt {{v[0-9]+}}, [[LENGTH]]
+// CHECK: {{^ +}}[[LENGTH:v[0-9]+]] = mload
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = lt {{v[0-9]+}}, [[LENGTH]]
 fn @fill(arg0: i256) -> ptr<memory> {
   bb0:
     v1 = add arg0, 1
@@ -68,12 +65,10 @@ fn @rewrites_length(arg0: i256) -> ptr<memory> {
     ret v3
 }
 
-// `msize` is not a store, so a body that reads it before the reload still
-// forwards the length around the backedge.
+// `msize` does not write, but the runtime-indexed store still clobbers the length.
 // CHECK-LABEL: {{^[ +].*}}fn @reads_msize{{[( ]}}
-// CHECK: + [[LENGTH:v[0-9]+]] = phi [bb0: arg0], [bb3: [[LENGTH]]]
-// CHECK-NOT: {{^[ +].*}} = mload
 // CHECK: {{^[ +].*}} = msize
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = mload
 fn @reads_msize(arg0: i256) -> i256 {
   bb0:
     v1 = add arg0, 1

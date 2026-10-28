@@ -11,21 +11,21 @@
     lt
     push bb2
     jumpi
-    jump bb5
+    jump bb6
   bb2 [loop]:
     dup 1
     push 1
     and
-    push bb3
+    push bb4
     jumpi
     push 7
     pop
-    jump bb4
-  bb3 [loop]:
+    jump bb5
+  bb4 [loop]:
     push 9
     pop
-    jump bb4
-  bb4 [loop]:
+    jump bb5
+  bb5 [loop]:
     selfbalance
     pop
     push 1
@@ -36,8 +36,8 @@
 +   lt
 +   push bb2
 +   jumpi
-+   jump bb5
-  bb5:
++   jump bb6
+  bb6:
     pop
     pop
     stop

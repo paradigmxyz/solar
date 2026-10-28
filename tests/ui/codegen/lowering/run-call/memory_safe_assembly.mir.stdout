@@ -1,0 +1,217 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/memory_safe_assembly.sol:MemorySafeAssembly ===
+@module MemorySafeAssembly
+fn @bump(arg0: i256, arg1: i256) -> i256 [selector=0xa4da02fa, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 0)
+    v1 = keccak256_packed (uint256 arg0, uint256 1)
+    v2 = keccak256_packed (uint256 arg0, uint256 2)
+    v3 = keccak256_packed (uint256 arg0, uint256 3)
+    v4 = keccak256_packed (uint256 arg0, uint256 4)
+    v5 = keccak256_packed (uint256 arg0, uint256 5)
+    v6 = keccak256_packed (uint256 arg0, uint256 6)
+    v7 = keccak256_packed (uint256 arg0, uint256 7)
+    v8 = keccak256_packed (uint256 arg0, uint256 8)
+    v9 = keccak256_packed (uint256 arg0, uint256 9)
+    v10 = keccak256_packed (uint256 arg0, uint256 10)
+    v11 = keccak256_packed (uint256 arg0, uint256 11)
+    v12 = keccak256_packed (uint256 arg0, uint256 12)
+    v13 = keccak256_packed (uint256 arg0, uint256 13)
+    v14 = keccak256_packed (uint256 arg0, uint256 14)
+    v15 = keccak256_packed (uint256 arg0, uint256 15)
+    v16 = keccak256_packed (uint256 arg0, uint256 16)
+    v17 = keccak256_packed (uint256 arg0, uint256 17)
+    v18 = keccak256_packed (uint256 arg0, uint256 18)
+    v19 = keccak256_packed (uint256 arg0, uint256 19)
+    v20 = keccak256_packed (uint256 arg0, uint256 20)
+    v21 = keccak256_packed (uint256 arg0, uint256 21)
+    v22 = keccak256_packed (uint256 arg0, uint256 22)
+    v23 = keccak256_packed (uint256 arg0, uint256 23)
+    v24 = mload 64 !metadata(memory=scratch)
+    v25 = add v24, 96
+    mstore 64, v25 !metadata(memory=scratch)
+    mstore v24, arg1
+    v26 = mul arg1, 2
+    v27 = add v24, 32
+    mstore v27, v26
+    v28 = add v24, 32
+    v29 = mload v28
+    v30 = mload v24
+    v31 = add v30, v29
+    v32 = xor v0, v1
+    v33 = xor v32, v2
+    v34 = xor v33, v3
+    v35 = xor v34, v4
+    v36 = xor v35, v5
+    v37 = xor v36, v6
+    v38 = xor v37, v7
+    v39 = xor v38, v8
+    v40 = xor v39, v9
+    v41 = xor v40, v10
+    v42 = xor v41, v11
+    v43 = xor v42, v12
+    v44 = xor v43, v13
+    v45 = xor v44, v14
+    v46 = xor v45, v15
+    v47 = xor v46, v16
+    v48 = xor v47, v17
+    v49 = xor v48, v18
+    v50 = xor v49, v19
+    v51 = xor v50, v20
+    v52 = xor v51, v21
+    v53 = xor v52, v22
+    v54 = xor v53, v23
+    v55 = shl v31, 0
+    v56 = xor v54, v55
+    ret v56
+}
+
+fn @throughLoaded(arg0: i256, arg1: i256) -> i256 [selector=0xf8085a08, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 0)
+    v1 = keccak256_packed (uint256 arg0, uint256 1)
+    v2 = keccak256_packed (uint256 arg0, uint256 2)
+    v3 = keccak256_packed (uint256 arg0, uint256 3)
+    v4 = keccak256_packed (uint256 arg0, uint256 4)
+    v5 = keccak256_packed (uint256 arg0, uint256 5)
+    v6 = keccak256_packed (uint256 arg0, uint256 6)
+    v7 = keccak256_packed (uint256 arg0, uint256 7)
+    v8 = keccak256_packed (uint256 arg0, uint256 8)
+    v9 = keccak256_packed (uint256 arg0, uint256 9)
+    v10 = keccak256_packed (uint256 arg0, uint256 10)
+    v11 = keccak256_packed (uint256 arg0, uint256 11)
+    v12 = keccak256_packed (uint256 arg0, uint256 12)
+    v13 = keccak256_packed (uint256 arg0, uint256 13)
+    v14 = keccak256_packed (uint256 arg0, uint256 14)
+    v15 = keccak256_packed (uint256 arg0, uint256 15)
+    v16 = keccak256_packed (uint256 arg0, uint256 16)
+    v17 = keccak256_packed (uint256 arg0, uint256 17)
+    v18 = keccak256_packed (uint256 arg0, uint256 18)
+    v19 = keccak256_packed (uint256 arg0, uint256 19)
+    v20 = keccak256_packed (uint256 arg0, uint256 20)
+    v21 = keccak256_packed (uint256 arg0, uint256 21)
+    v22 = keccak256_packed (uint256 arg0, uint256 22)
+    v23 = keccak256_packed (uint256 arg0, uint256 23)
+    v24 = alloc zeroed checked 160
+    mstore v24, 4
+    v25 = not 31
+    v26 = and 127, v25
+    v27 = alloc zeroed checked v26
+    mstore v27, 64
+    v28 = ptrtoint ptr<memory> v24 to i256
+    v29 = add v28, 32
+    v30 = mul arg1, 32
+    v31 = add v29, v30
+    mstore v31, 7
+    v32 = mul arg1, 32
+    v33 = add v29, v32
+    v34 = mload v33
+    v35 = ptrtoint ptr<memory> v27 to i256
+    v36 = add v35, 32
+    mstore v36, v34
+    v37 = xor v0, v1
+    v38 = xor v37, v2
+    v39 = xor v38, v3
+    v40 = xor v39, v4
+    v41 = xor v40, v5
+    v42 = xor v41, v6
+    v43 = xor v42, v7
+    v44 = xor v43, v8
+    v45 = xor v44, v9
+    v46 = xor v45, v10
+    v47 = xor v46, v11
+    v48 = xor v47, v12
+    v49 = xor v48, v13
+    v50 = xor v49, v14
+    v51 = xor v50, v15
+    v52 = xor v51, v16
+    v53 = xor v52, v17
+    v54 = xor v53, v18
+    v55 = xor v54, v19
+    v56 = xor v55, v20
+    v57 = xor v56, v21
+    v58 = xor v57, v22
+    v59 = xor v58, v23
+    v60 = mload v24
+    v61 = lt arg1, v60
+    v62 = eq v61, false
+    icall panic_if<0x32>, v62
+    v63 = shl arg1, 5
+    v64 = ptradd v24, v63
+    v65 = ptradd v64, 32
+    v66 = mload v65
+    v67 = shl v66, 0
+    v68 = xor v59, v67
+    v69 = mload v27
+    v70 = shl v69, 0
+    v71 = xor v68, v70
+    ret v71
+}
+
+fn @legacyComment(arg0: i256, arg1: i256) -> i256 [selector=0xec3964b9, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 0)
+    v1 = keccak256_packed (uint256 arg0, uint256 1)
+    v2 = keccak256_packed (uint256 arg0, uint256 2)
+    v3 = keccak256_packed (uint256 arg0, uint256 3)
+    v4 = keccak256_packed (uint256 arg0, uint256 4)
+    v5 = keccak256_packed (uint256 arg0, uint256 5)
+    v6 = keccak256_packed (uint256 arg0, uint256 6)
+    v7 = keccak256_packed (uint256 arg0, uint256 7)
+    v8 = keccak256_packed (uint256 arg0, uint256 8)
+    v9 = keccak256_packed (uint256 arg0, uint256 9)
+    v10 = keccak256_packed (uint256 arg0, uint256 10)
+    v11 = keccak256_packed (uint256 arg0, uint256 11)
+    v12 = keccak256_packed (uint256 arg0, uint256 12)
+    v13 = keccak256_packed (uint256 arg0, uint256 13)
+    v14 = keccak256_packed (uint256 arg0, uint256 14)
+    v15 = keccak256_packed (uint256 arg0, uint256 15)
+    v16 = keccak256_packed (uint256 arg0, uint256 16)
+    v17 = keccak256_packed (uint256 arg0, uint256 17)
+    v18 = keccak256_packed (uint256 arg0, uint256 18)
+    v19 = keccak256_packed (uint256 arg0, uint256 19)
+    v20 = keccak256_packed (uint256 arg0, uint256 20)
+    v21 = keccak256_packed (uint256 arg0, uint256 21)
+    v22 = keccak256_packed (uint256 arg0, uint256 22)
+    v23 = keccak256_packed (uint256 arg0, uint256 23)
+    v24 = alloc zeroed checked 160
+    mstore v24, 4
+    v25 = mul arg1, 32
+    v26 = ptrtoint ptr<memory> v24 to i256
+    v27 = add v26, 32
+    v28 = add v27, v25
+    mstore v28, 9
+    v29 = xor v0, v1
+    v30 = xor v29, v2
+    v31 = xor v30, v3
+    v32 = xor v31, v4
+    v33 = xor v32, v5
+    v34 = xor v33, v6
+    v35 = xor v34, v7
+    v36 = xor v35, v8
+    v37 = xor v36, v9
+    v38 = xor v37, v10
+    v39 = xor v38, v11
+    v40 = xor v39, v12
+    v41 = xor v40, v13
+    v42 = xor v41, v14
+    v43 = xor v42, v15
+    v44 = xor v43, v16
+    v45 = xor v44, v17
+    v46 = xor v45, v18
+    v47 = xor v46, v19
+    v48 = xor v47, v20
+    v49 = xor v48, v21
+    v50 = xor v49, v22
+    v51 = xor v50, v23
+    v52 = mload v24
+    v53 = lt arg1, v52
+    v54 = eq v53, false
+    icall panic_if<0x32>, v54
+    v55 = shl arg1, 5
+    v56 = ptradd v24, v55
+    v57 = ptradd v56, 32
+    v58 = mload v57
+    v59 = shl v58, 0
+    v60 = xor v51, v59
+    ret v60
+}

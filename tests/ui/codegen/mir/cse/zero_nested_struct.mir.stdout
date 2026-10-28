@@ -1,0 +1,58 @@
+// === ROOT/tests/ui/codegen/mir/cse/zero_nested_struct.sol:ZeroNested ===
+@module ZeroNested
+fn @get(arg0: i160) -> ptr<memory> [selector=0xc2bc2efc, pure, abi_params=[address], abi_returns=[tuple<tuple<word>, word<uint128>, word<uint128>, word<uint128>, word<uint40>, word<uint16>, word<uint160>, word<uint8>>], abi_return_params=[tuple<tuple<uint256>, uint128, uint128, uint128, uint40, uint16, address, uint8>]] {
+  bb0:
+    v0 = trunc i160 arg0 to i16
+    v1 = alloc 256 !metadata(preserves_fmp)
+    memory_zero v1, 256
+    v2 = alloc 32 !metadata(preserves_fmp)
+    mstore v2, 0
+    v3 = ptrtoint ptr<memory> v2 to i256
+    mstore v1, v3
+    v4 = zext i16 v0 to i256
+    v5 = ptradd v1, 160
+    mstore v5, v4
+    ret v1
+}
+
+fn @fill(arg0: i160, arg1: i256) -> ptr<memory> [selector=0x9d200c3f, pure, abi_params=[address, uint256], abi_returns=[tuple<tuple<word>, word<uint128>, word<uint128>, word<uint128>, word<uint40>, word<uint16>, word<uint160>, word<uint8>>], abi_return_params=[tuple<tuple<uint256>, uint128, uint128, uint128, uint40, uint16, address, uint8>]] {
+  bb0:
+    v0 = alloc 256 !metadata(preserves_fmp)
+    memory_zero v0, 256
+    v1 = alloc 32 !metadata(preserves_fmp)
+    mstore v1, 0
+    v2 = ptrtoint ptr<memory> v1 to i256
+    mstore v0, v2
+    v3 = mload v0, ptr<memory>
+    mstore v3, arg1
+    v4 = trunc i256 arg1 to i128
+    v5 = zext i128 v4 to i256
+    v6 = ptradd v0, 32
+    mstore v6, v5
+    v7 = checked_add uint256, arg1, 1
+    v8 = trunc i256 v7 to i128
+    v9 = zext i128 v8 to i256
+    v10 = ptradd v0, 64
+    mstore v10, v9
+    v11 = checked_add uint256, arg1, 2
+    v12 = trunc i256 v11 to i128
+    v13 = zext i128 v12 to i256
+    v14 = ptradd v0, 96
+    mstore v14, v13
+    v15 = trunc i256 arg1 to i40
+    v16 = zext i40 v15 to i256
+    v17 = ptradd v0, 128
+    mstore v17, v16
+    v18 = trunc i160 arg0 to i16
+    v19 = zext i16 v18 to i256
+    v20 = ptradd v0, 160
+    mstore v20, v19
+    v21 = zext i160 arg0 to i256
+    v22 = ptradd v0, 192
+    mstore v22, v21
+    v23 = trunc i256 arg1 to i8
+    v24 = zext i8 v23 to i256
+    v25 = ptradd v0, 224
+    mstore v25, v24
+    ret v0
+}

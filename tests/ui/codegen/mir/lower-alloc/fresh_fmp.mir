@@ -1,0 +1,264 @@
+//@compile-flags: -Zmir-pipeline=lower-alloc
+//@filecheck:
+@module FreshFmp
+
+// A read in an external entry, before anything may write the slot, takes the heap floor, and so
+// does the pointer read of the allocation after it. Writes through a pointer derived from the
+// floor lie above the slot and keep the reads fresh. The bump still stores the pointer.
+// CHECK-LABEL: {{^[ +].*}}fn @entry_reads{{[( ]}}
+// CHECK: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + {{v[0-9]+}} = inttoptr i256 [[FLOOR]] to ptr<memory>
+// CHECK: mstore {{v[0-9]+}}, 1
+// CHECK: + [[ALLOC_FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + {{v[0-9]+}} = inttoptr i256 [[ALLOC_FLOOR]] to ptr<memory>
+// CHECK: + [[END:v[0-9]+]] = add [[ALLOC_FLOOR]], 64
+// CHECK: + mstore 64, [[END]]
+// CHECK-NOT: mload 64
+fn @entry_reads() -> i256 [selector=0x10000001] {
+  bb0:
+    v0 = fmp
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v1, 1
+    v2 = alloc 64
+    v3 = ptrtoint ptr<memory> v2 to i256
+    mstore v3, 2
+    ret v3
+}
+
+// A read after an allocation sees the bumped pointer.
+// CHECK-LABEL: {{^[ +].*}}fn @read_after_alloc{{[( ]}}
+// CHECK: + [[FIRST:v[0-9]+]] = heap_floor
+// CHECK: + mstore 64, {{v[0-9]+}}
+// CHECK: + {{v[0-9]+}} = mload 64
+// CHECK-NOT: heap_floor
+fn @read_after_alloc() -> i256 [selector=0x10000002] {
+  bb0:
+    v0 = alloc 32
+    v1 = fmp
+    v2 = ptrtoint ptr<memory> v1 to i256
+    ret v2
+}
+
+// A read after assembly stored the slot sees that word.
+// CHECK-LABEL: {{^[ +].*}}fn @read_after_slot_store{{[( ]}}
+// CHECK: mstore 64, 160
+// CHECK: + {{v[0-9]+}} = mload 64
+// CHECK-NOT: heap_floor
+fn @read_after_slot_store() -> i256 [selector=0x10000003] {
+  bb0:
+    mstore 64, 160
+    v0 = fmp
+    v1 = ptrtoint ptr<memory> v0 to i256
+    ret v1
+}
+
+// A write through a pointer that may lie below the heap may cover the slot.
+// CHECK-LABEL: {{^[ +].*}}fn @read_after_unknown_store{{[( ]}}
+// CHECK: + {{v[0-9]+}} = mload 64
+// CHECK-NOT: heap_floor
+fn @read_after_unknown_store(arg0: i256) -> i256 [selector=0x10000004] {
+  bb0:
+    mstore arg0, 1
+    v0 = fmp
+    v1 = ptrtoint ptr<memory> v0 to i256
+    ret v1
+}
+
+// A function called only at fresh points of an entry reads the floor. A call that writes no
+// memory leaves the next call site fresh.
+// CHECK-LABEL: {{^[ +].*}}fn @leaf_reads{{[( ]}}
+// CHECK: + [[LEAF:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + {{v[0-9]+}} = inttoptr i256 [[LEAF]] to ptr<memory>
+// CHECK-NOT: mload 64
+fn @leaf_reads() -> i256 {
+  bb0:
+    v0 = fmp
+    v1 = ptrtoint ptr<memory> v0 to i256
+    ret v1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @pure_helper{{[( ]}}
+fn @pure_helper(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @calls_leaf{{[( ]}}
+fn @calls_leaf() -> i256 [selector=0x10000005] {
+  bb0:
+    v0 = icall @pure_helper, 1
+    v1 = icall @leaf_reads
+    v2 = add v0, v1
+    ret v2
+}
+
+// A tail call is a call site too.
+// CHECK-LABEL: {{^[ +].*}}fn @tail_reads{{[( ]}}
+// CHECK: + [[TAIL:v[0-9]+]] = heap_floor
+// CHECK-NOT: mload 64
+fn @tail_reads(arg0: i256) {
+  bb0:
+    v0 = fmp
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v1, arg0
+    stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @tail_calls{{[( ]}}
+fn @tail_calls() [selector=0x10000006] {
+  bb0:
+    tail_call @tail_reads, 7
+}
+
+// A callee that allocates leaves the slot written for the reads after the call.
+// CHECK-LABEL: {{^[ +].*}}fn @allocator{{[( ]}}
+// CHECK: + [[ALLOCATOR:v[0-9]+]] = heap_floor
+fn @allocator() -> i256 {
+  bb0:
+    v0 = alloc 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    ret v1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @read_after_allocating_call{{[( ]}}
+// CHECK: {{v[0-9]+}} = icall @allocator
+// CHECK: + {{v[0-9]+}} = mload 64
+fn @read_after_allocating_call() -> i256 [selector=0x10000007] {
+  bb0:
+    v0 = icall @allocator
+    v1 = fmp
+    v2 = ptrtoint ptr<memory> v1 to i256
+    v3 = add v0, v2
+    ret v3
+}
+
+// A function with one call site after a write reads the slot, and so does its other caller's
+// callee, which no longer has only fresh call sites.
+// CHECK-LABEL: {{^[ +].*}}fn @shared{{[( ]}}
+// CHECK: + {{v[0-9]+}} = mload 64
+// CHECK-NOT: heap_floor
+fn @shared() -> i256 {
+  bb0:
+    v0 = fmp
+    v1 = ptrtoint ptr<memory> v0 to i256
+    ret v1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @shared_early{{[( ]}}
+fn @shared_early() -> i256 [selector=0x10000008] {
+  bb0:
+    v0 = icall @shared
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @shared_late{{[( ]}}
+fn @shared_late() -> i256 [selector=0x10000009] {
+  bb0:
+    mstore 64, 160
+    v0 = icall @shared
+    ret v0
+}
+
+// A recursive function runs again after its own allocations.
+// CHECK-LABEL: {{^[ +].*}}fn @recursive{{[( ]}}
+// CHECK: + {{v[0-9]+}} = mload 64
+// CHECK-NOT: heap_floor
+fn @recursive(arg0: i256) -> i256 {
+  bb0:
+    v0 = fmp
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v5 = ne arg0, 0
+    jumpi v5, bb1, bb2
+  bb1:
+    v2 = sub arg0, 1
+    v3 = icall @recursive, v2
+    v4 = add v3, v1
+    ret v4
+  bb2:
+    ret v1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @calls_recursive{{[( ]}}
+fn @calls_recursive() -> i256 [selector=0x1000000a] {
+  bb0:
+    v0 = icall @recursive, 3
+    ret v0
+}
+
+// A loop that allocates reads the bumped pointer from its second iteration on.
+// CHECK-LABEL: {{^[ +].*}}fn @loop_reads{{[( ]}}
+// CHECK: + {{v[0-9]+}} = mload 64
+// CHECK-NOT: heap_floor
+fn @loop_reads(arg0: i256) -> i256 [selector=0x1000000b] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = fmp
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = alloc 32
+    v3 = ne arg0, 0
+    jumpi v3, bb1, bb2
+  bb2:
+    ret v1
+}
+
+// A deferred allocation may bump the pointer at run time.
+// CHECK-LABEL: {{^[ +].*}}fn @read_after_deferred{{[( ]}}
+// CHECK: + {{v[0-9]+}} = mload 64
+// CHECK-NOT: heap_floor
+fn @read_after_deferred() -> i256 [selector=0x1000000c] {
+  bb0:
+    v0 = alloc 32 !metadata(deferred_alloc)
+    v1 = fmp
+    v2 = ptrtoint ptr<memory> v1 to i256
+    ret v2
+}
+
+// A fresh checked allocation checks inline, and the allocation after it calls the helper.
+// CHECK-LABEL: {{^[ +].*}}fn @checked_pair{{[( ]}}
+// CHECK: + [[CHECKED:v[0-9]+]] = heap_floor
+// CHECK: + {{v[0-9]+}} = icall @alloc
+// CHECK-LABEL: {{^[ +].*}}fn @other_checked{{[( ]}}
+// CHECK: + {{v[0-9]+}} = icall @alloc
+fn @checked_pair(arg0: i256) -> i256 [selector=0x1000000d] {
+  bb0:
+    v0 = alloc zeroed checked arg0
+    v1 = alloc zeroed checked arg0
+    v2 = ptrtoint ptr<memory> v0 to i256
+    v3 = ptrtoint ptr<memory> v1 to i256
+    v4 = add v2, v3
+    ret v4
+}
+
+fn @other_checked(arg0: i256) -> i256 [selector=0x1000000e] {
+  bb0:
+    v0 = alloc zeroed checked arg0
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore 64, 160
+    v2 = alloc zeroed checked arg0
+    ret v1
+}
+
+// The dispatch entry tail-calls an external entry, whose reads stay fresh, but is not an entry
+// itself: its own read loads the slot.
+// CHECK-LABEL: {{^[ +].*}}fn @dispatched{{[( ]}}
+// CHECK: + {{v[0-9]+}} = heap_floor
+fn @dispatched() [selector=0x1000000f] {
+  bb0:
+    v0 = fmp
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v1, 1
+    stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @entry{{[( ]}}
+// CHECK: + {{v[0-9]+}} = mload 64
+// CHECK-NOT: heap_floor
+fn @entry() [entry] {
+  bb0:
+    v0 = fmp
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v1, 1
+    tail_call @dispatched
+}

@@ -489,9 +489,6 @@ bb37 [continuation]:
   and
   jump bb82
 bb39:
-  push 128
-  push 64
-  mstore
   push 36
   calldatasize
   lt
@@ -503,8 +500,7 @@ bb39:
   lt
   push bb11
   jumpi
-  push 64
-  mload
+  push 128
   push 64
   dup 2
   add
@@ -559,9 +555,6 @@ bb84:
   swap 1
   return
 bb43:
-  push 128
-  push 64
-  mstore
   push 36
   calldatasize
   lt
@@ -584,8 +577,7 @@ bb86:
   sub
   mul
   add
-  push 64
-  mload
+  push 128
   push 64
   dup 2
   add
@@ -599,9 +591,6 @@ bb86:
   swap 1
   jump bb84
 bb46:
-  push 128
-  push 64
-  mstore
   push 36
   calldatasize
   lt

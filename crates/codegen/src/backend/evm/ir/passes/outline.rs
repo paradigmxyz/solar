@@ -45,7 +45,7 @@ use super::{
 use crate::{
     backend::evm::{
         ir::{
-            Block, BlockId, CallEffect, Instruction, Module, PushValue, StackEffect, Terminator,
+            Block, BlockId, CallEffect, Instruction, Module, ModuleTarget, PushValue, StackEffect, Terminator,
             TerminatorKind,
         },
         op,

@@ -50,6 +50,41 @@ and complex setup.
 Both use the EVM version from `--evm-version`. Calls to `test*` functions first
 run a zero-argument `setUp()` if the contract defines one.
 
+## EVM IR interpreter check
+
+With `SOLAR_RUN_CALL_EVM_IR` set, every `run-call` and `run-call-fail` directive
+also runs through the EVM IR interpreter (`solar_evmir_interpreter`)
+on the runtime EVM IR of the called contract as stack scheduling emitted it,
+before the EVM IR pipeline, which the runner obtains by compiling the test again
+with `-Zdump=evm-ir-runtime-scheduled`. The interpreter starts from the storage,
+balances, and code the EVM had just before the call, and must end the same way,
+return the same data, emit the same logs, and write the same storage. The EVM ran
+that program after the EVM IR pipeline and assembly, so a disagreement fails the
+test: it is a bug in an EVM IR pass, the assembler, or the interpreter. Calls the
+interpreter cannot run are skipped: calls to other contracts, contract creation,
+`gas`, immutables, results that depend on where the assembler places code, and
+deployed code that is not the compiled runtime. So are calls that run out of gas
+or stack, which the interpreter does not model or the pipeline may change.
+
+`SOLAR_RUN_CALL_EVM_IR=1` reports only disagreements and harness faults, such as a
+failed dump. Any other value names a file that receives one line per call,
+`checked`, `skipped` with the reason, `mismatch`, or `failed`:
+
+```console
+SOLAR_RUN_CALL_EVM_IR=target/run-call-evm-ir.log TESTER_MODE=ui cargo test -p solar-compiler --test tests
+```
+
+A test written in EVM IR, such as those in `tests/ui/codegen/evm-ir/interp/`,
+exists to run its calls both ways, so its directives are always checked, on the
+test's own text, and a call the interpreter cannot run fails the test instead of
+being skipped. The runner compiles the program, after the test's
+`-Zevm-ir-pipeline`, as the runtime code of a contract named after the file and
+the module, whose creation code only deploys it. EVM IR has no ABI, so a
+directive names the function by its signature, followed by its outputs when it
+returns values, as in `add(uint256,uint256)(uint256) 2, 3 => 5`. A test that
+names a pipeline keeps its output, without the compiler's JSON; one that runs
+none prints nothing.
+
 ## Compiler artifact comparisons
 
 [compiler-diff](../compiler-diff/README.md) handles local or Sourcify

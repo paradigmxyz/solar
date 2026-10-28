@@ -3,12 +3,15 @@
 //@[dump] filecheck:
 //@ run-call: copyHigh => 0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000f4f1833d
 
-// A copy of the calldata 64 bytes into a buffer 64 bytes longer keeps no bounds check: every
-// `calldatasize` read equals the one the loop is bounded by, and the destination index
-// `64 + k` stays below `n + 64` while `k < n`, since that sum cannot wrap.
+// The fast copy uses calldata's stable size. The fallback loop keeps its length load and
+// bounds check when alias analysis cannot prove that indexed stores miss the header.
 contract OffsetBounds {
     // CHECK-LABEL: fn @copyHigh(
-    // CHECK-NOT: mstore 32, 50
+    // CHECK: calldatacopy
+    // CHECK: [[LENGTH:v[0-9]+]] = mload
+    // CHECK-NEXT: {{v[0-9]+}} = lt {{v[0-9]+}}, [[LENGTH]]
+    // CHECK-NEXT: jumpi
+    // CHECK: mstore 32, 50
     // CHECK: {{^}}}{{$}}
     function copyHigh() external pure returns (bytes memory d) {
         uint256 n = msg.data.length;

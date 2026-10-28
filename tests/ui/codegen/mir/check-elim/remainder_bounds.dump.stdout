@@ -49,32 +49,31 @@ fn @pickDown() [selector=0xe4bcb1d7, abi_wrapper, pure] {
     v26 = calldataload v22
     v27 = add v22, 32
     v28 = gt v26, 0x7fffffffffffffe
-    jumpi v28, bb8, bb9
-  bb9:
     v29 = add v26, 1
     v30 = shl v29, 5
-    v49 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v49 = heap_floor !metadata(alloc_ptr)
     v50 = add v49, v30 !metadata(alloc_ptr)
     v51 = lt v50, v49
     v52 = gt v50, 0xffffffffffffffff
     v53 = or v51, v52
-    jumpi v53, bb8, bb11
-  bb11:
+    v57 = or v28, v53
+    jumpi v57, bb8, bb10
+  bb10:
     mstore 64, v50 !metadata(memory=scratch)
     mstore v49, v26
     v32 = shl v26, 5
     v33 = sub v19, v27
     v34 = shr v33, 5
     v35 = gt v26, v34
-    jumpi v35, bb6, bb10
-  bb10:
+    jumpi v35, bb6, bb9
+  bb9:
     v46 = add v49, 32
     calldatacopy v46, v27, v32
     v55 = add v49, 32
     jump bb1
   bb1:
-    v3 = phi [bb10: 0], [bb5: v17]
-    v4 = phi [bb10: v26], [bb5: v16]
+    v3 = phi [bb9: 0], [bb5: v17]
+    v4 = phi [bb9: v26], [bb5: v16]
     v5 = gt v4, 1
     jumpi v5, bb3, bb2
   bb2:

@@ -58,7 +58,10 @@ use super::{
     },
 };
 use crate::backend::evm::{
-    ir::{Block, BlockId, Hotness, Instruction, Metadata, Module, Terminator, TerminatorKind},
+    ir::{
+        Block, BlockId, BlockTarget, Hotness, Instruction, Metadata, Module, Terminator,
+        TerminatorKind,
+    },
     op::{self, StackOp, push_len},
 };
 use solar_data_structures::{

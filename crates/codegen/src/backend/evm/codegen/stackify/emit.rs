@@ -145,7 +145,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.body = Body::External;
     }
 
-    fn emit_stackified_body(&mut self, func_id: FunctionId, func: &Function, plan: FunctionPlan) {
+    fn emit_stackified_body(
+        &mut self,
+        func_id: FunctionId,
+        func: &Function,
+        mut plan: FunctionPlan,
+    ) {
+        // The plan may be for a copy that rebuilds values at their uses.
+        let rebuilt = plan.rebuilt.take();
+        let func = rebuilt.as_deref().unwrap_or(func);
         // Spill slots: the spilled values in value order, then the return address.
         self.spill_slots.clear();
         self.spill_slots.extend(plan.spilled.iter().zip(0..));

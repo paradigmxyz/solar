@@ -1,0 +1,100 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=byte-loops
+//@ filecheck:
+@module FreshLength
+
+// A length written after the allocation's block can shorten the destination. Keep the
+// zeroing and check the current destination length before taking the bulk-copy path.
+// CHECK-LABEL: fn @changed_length(
+// CHECK: {{^ +}}[[DEST:v[0-9]+]] = alloc zeroed checked
+// CHECK: + {{v[0-9]+}} = mload [[DEST]]
+// CHECK: + icall panic_if<0x32>
+// CHECK: + mcopy
+fn @changed_length(arg0: ptr<memory>, arg1: i256) -> ptr<memory> {
+  bb0:
+    v0 = mload arg0
+    v1 = add v0, 63
+    v2 = lt v1, v0
+    icall panic_if<0x41>, v2
+    v4 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v5 = alloc zeroed checked v4
+    mstore v5, v0
+    jump bb1
+  bb1:
+    mstore v5, arg1
+    jump bb2
+  bb2:
+    jump bb3
+  bb3:
+    v6 = phi [bb2: 0], [bb4: v18]
+    v7 = lt v6, v0
+    jumpi v7, bb4, bb5
+  bb4:
+    v8 = mload arg0
+    v9 = lt v6, v8
+    icall panic_if_zero<0x32>, v9
+    v10 = ptradd arg0, v6
+    v11 = ptradd v10, 32
+    v12 = mload v11
+    v13 = byte 0, v12
+    v14 = mload v5
+    v15 = lt v6, v14
+    icall panic_if_zero<0x32>, v15
+    v16 = ptradd v5, v6
+    v17 = ptradd v16, 32
+    mstore8 v17, v13
+    v18 = checked_add uint256, v6, 1
+    jump bb3
+  bb5:
+    v19 = ptrtoint ptr<memory> v5 to i256
+    v20 = add v19, 32
+    v21 = add v20, v0
+    mstore v21, 0
+    ret v5
+}
+
+// Writing the same length in a later block preserves the fresh-destination proof.
+// CHECK-LABEL: fn @same_length(
+// CHECK: + {{v[0-9]+}} = alloc checked
+// CHECK: + mcopy
+fn @same_length(arg0: ptr<memory>) -> ptr<memory> {
+  bb0:
+    v0 = mload arg0
+    v1 = add v0, 63
+    v2 = lt v1, v0
+    icall panic_if<0x41>, v2
+    v4 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v5 = alloc zeroed checked v4
+    mstore v5, v0
+    jump bb1
+  bb1:
+    mstore v5, v0
+    jump bb2
+  bb2:
+    jump bb3
+  bb3:
+    v6 = phi [bb2: 0], [bb4: v18]
+    v7 = lt v6, v0
+    jumpi v7, bb4, bb5
+  bb4:
+    v8 = mload arg0
+    v9 = lt v6, v8
+    icall panic_if_zero<0x32>, v9
+    v10 = ptradd arg0, v6
+    v11 = ptradd v10, 32
+    v12 = mload v11
+    v13 = byte 0, v12
+    v14 = mload v5
+    v15 = lt v6, v14
+    icall panic_if_zero<0x32>, v15
+    v16 = ptradd v5, v6
+    v17 = ptradd v16, 32
+    mstore8 v17, v13
+    v18 = checked_add uint256, v6, 1
+    jump bb3
+  bb5:
+    v19 = ptrtoint ptr<memory> v5 to i256
+    v20 = add v19, 32
+    v21 = add v20, v0
+    mstore v21, 0
+    ret v5
+}

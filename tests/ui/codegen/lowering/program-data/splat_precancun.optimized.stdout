@@ -6,9 +6,9 @@
 
 fn @data() -> i256 [may_return_memory, pure] {
   bb0:
-    v8 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v8 = heap_floor !metadata(alloc_ptr)
     v9 = add v8, 224 !metadata(alloc_ptr)
-    mstore 64, v9
+    mstore 64, v9 !metadata(memory=scratch)
     mstore v8, 161
     v4 = add v8, 192
     mstore v4, 0
@@ -43,9 +43,9 @@ fn @paddingIsZero() [selector=0x06793283, abi_wrapper, pure] {
 
 fn @shortHash() [selector=0x0c6b2786, abi_wrapper, pure] {
   bb0:
-    v11 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v11 = heap_floor !metadata(alloc_ptr)
     v12 = add v11, 96 !metadata(alloc_ptr)
-    mstore 64, v12
+    mstore 64, v12 !metadata(memory=scratch)
     v8 = add v11, 32
     mstore v8, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
     v10 = add v11, 64
@@ -57,9 +57,9 @@ fn @shortHash() [selector=0x0c6b2786, abi_wrapper, pure] {
 
 fn @fullWordsHash() [selector=0x58653188, abi_wrapper, pure] {
   bb0:
-    v22 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v22 = heap_floor !metadata(alloc_ptr)
     v23 = add v22, 128 !metadata(alloc_ptr)
-    mstore 64, v23
+    mstore 64, v23 !metadata(memory=scratch)
     v10 = add v22, 32
     mstore v10, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
     v12 = add v22, 64
@@ -142,14 +142,10 @@ bb6 [cold]:
   dup 1
   revert
 bb7:
-  push 128
-  push 64
-  mstore
   push bb8
   jump bb16
-bb16 [ret=0, inputs=1, outputs=1]:
-  push 64
-  mload
+bb16:
+  push 128
   push 224
   dup 2
   add
@@ -189,9 +185,6 @@ bb17 [loop]:
   push 0
   return
 bb9:
-  push 128
-  push 64
-  mstore
   push bb10
   jump bb16
 bb10 [continuation]:
@@ -208,13 +201,12 @@ bb10 [continuation]:
   jump bb17
 bb11:
   push 128
-  push 64
-  mstore
-  push bb20
-  push 128
   push 96
+  push bb20
+  swap 2
+  swap 1
   jump bb19
-bb19 [ret=2, inputs=3, outputs=3]:
+bb19:
   dup 2
   add
   push 64
@@ -229,11 +221,9 @@ bb19 [ret=2, inputs=3, outputs=3]:
   jump
 bb12:
   push 128
-  push 64
-  mstore
-  push bb21
-  push 128
   dup 1
+  push bb21
+  swap 2
   jump bb19
 bb15 [loop]:
   dup 1
