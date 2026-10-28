@@ -276,22 +276,30 @@ bb41:
   not
   and
   push 128
-  swap 1
+  dup 2
   dup 2
   add
-  swap 2
+  swap 3
   dup 2
-  dup 4
+  dup 5
   lt
   push 0xffffffffffffffff
-  dup 5
+  dup 6
   gt
   or
   or
   push bb15
   jumpi
-  swap 1
+  swap 2
   push 64
+  mstore
+  push 32
+  swap 1
+  sub
+  dup 2
+  add
+  push 0
+  swap 1
   mstore
   dup 3
   dup 2

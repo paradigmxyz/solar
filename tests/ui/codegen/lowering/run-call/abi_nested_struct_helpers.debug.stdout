@@ -12,40 +12,42 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
   bb2:
     v15 = calldataload 4
     v16 = add v15, 4
-    v95 = shr v15, 64
-    v17 = ne v95, 0
+    v99 = shr v15, 64
+    v17 = ne v99, 0
     jumpi v17, bb3, bb4
   bb4:
     v18 = sub v13, 4
     v19 = gt v15, v18
     v20 = sub v13, v16
     v21 = lt v20, 64
-    v140 = or v19, v21
-    jumpi v140, bb5, bb6
+    v150 = or v19, v21
+    jumpi v150, bb5, bb6
   bb6:
-    v22 = alloc 96 !metadata(deferred_alloc)
+    v144 = heap_floor !metadata(alloc_ptr)
+    v145 = add v144, 96
+    mstore 64, v145
     v23 = calldataload v16
     v24 = add v16, v23
-    v97 = shr v23, 64
-    v25 = ne v97, 0
+    v101 = shr v23, 64
+    v25 = ne v101, 0
     jumpi v25, bb7, bb8
   bb8:
     v27 = gt v23, v20
     v28 = sub v13, v24
     v29 = lt v28, 64
-    v141 = or v27, v29
-    jumpi v141, bb5, bb9
+    v151 = or v27, v29
+    jumpi v151, bb5, bb9
   bb9:
-    v136 = mload 64 !metadata(alloc_ptr)
-    v137 = add v136, 96
-    mstore 64, v137
+    v146 = mload 64 !metadata(alloc_ptr)
+    v147 = add v146, 96
+    mstore 64, v147
     v31 = calldataload v24
-    mstore v136, v31
+    mstore v146, v31
     v32 = add v24, 32
     v33 = calldataload v32
     v34 = add v24, v33
-    v99 = shr v33, 64
-    v35 = ne v99, 0
+    v103 = shr v33, 64
+    v35 = ne v103, 0
     jumpi v35, bb7, bb10
   bb10:
     v36 = add v34, 32
@@ -58,76 +60,84 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     jumpi v41, bb13, bb14
   bb14:
     v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v134 = icall @alloc, v43
-    mstore v134, v38
-    v45 = sub v13, v36
-    v46 = gt v38, v45
-    jumpi v46, bb15, bb16
+    v142 = icall @alloc, v43
+    v45 = sub v43, 32
+    v110 = add v142, v45
+    mstore v110, 0
+    mstore v142, v38
+    v47 = sub v13, v36
+    v48 = gt v38, v47
+    jumpi v48, bb15, bb16
   bb16:
-    v106 = add v134, 32
-    calldatacopy v106, v36, v38
-    v108 = add v136, 32
-    mstore v108, v134
-    v110 = add v136, 64
-    mstore v110, v24
-    mstore v22, v136
-    v56 = add v16, 32
-    v57 = calldataload v56
-    v58 = add v16, v57
-    v101 = shr v57, 64
-    v59 = ne v101, 0
-    jumpi v59, bb7, bb17
+    v112 = add v142, 32
+    calldatacopy v112, v36, v38
+    v114 = add v146, 32
+    mstore v114, v142
+    v116 = add v146, 64
+    mstore v116, v24
+    mstore v144, v146
+    v58 = add v16, 32
+    v59 = calldataload v58
+    v60 = add v16, v59
+    v105 = shr v59, 64
+    v61 = ne v105, 0
+    jumpi v61, bb7, bb17
   bb17:
-    v61 = gt v57, v20
-    v62 = sub v13, v58
-    v63 = lt v62, 64
-    v142 = or v61, v63
-    jumpi v142, bb5, bb18
+    v63 = gt v59, v20
+    v64 = sub v13, v60
+    v65 = lt v64, 64
+    v152 = or v63, v65
+    jumpi v152, bb5, bb18
   bb18:
-    v138 = mload 64 !metadata(alloc_ptr)
-    v139 = add v138, 96
-    mstore 64, v139
-    v65 = calldataload v58
-    mstore v138, v65
-    v66 = add v58, 32
-    v67 = calldataload v66
-    v68 = add v58, v67
-    v103 = shr v67, 64
-    v69 = ne v103, 0
-    jumpi v69, bb7, bb19
+    v148 = mload 64 !metadata(alloc_ptr)
+    v149 = add v148, 96
+    mstore 64, v149
+    v67 = calldataload v60
+    mstore v148, v67
+    v68 = add v60, 32
+    v69 = calldataload v68
+    v70 = add v60, v69
+    v107 = shr v69, 64
+    v71 = ne v107, 0
+    jumpi v71, bb7, bb19
   bb19:
-    v70 = add v68, 32
-    v71 = gt v70, v13
-    jumpi v71, bb11, bb20
+    v72 = add v70, 32
+    v73 = gt v72, v13
+    jumpi v73, bb11, bb20
   bb20:
-    v72 = calldataload v68
-    v74 = add v72, 63
-    v75 = lt v74, v72
-    jumpi v75, bb13, bb21
+    v74 = calldataload v70
+    v76 = add v74, 63
+    v77 = lt v76, v74
+    jumpi v77, bb13, bb21
   bb21:
-    v77 = and v74, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v135 = icall @alloc, v77
-    mstore v135, v72
-    v79 = sub v13, v70
-    v80 = gt v72, v79
-    jumpi v80, bb15, bb22
+    v79 = and v76, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v143 = icall @alloc, v79
+    v81 = sub v79, 32
+    v118 = add v143, v81
+    mstore v118, 0
+    mstore v143, v74
+    v83 = sub v13, v72
+    v84 = gt v74, v83
+    jumpi v84, bb15, bb22
   bb22:
-    v112 = add v135, 32
-    calldatacopy v112, v70, v72
-    v114 = add v138, 32
-    mstore v114, v135
-    v116 = add v138, 64
-    mstore v116, v58
-    v118 = add v22, 32
-    mstore v118, v138
-    v120 = add v22, 64
-    mstore v120, v16
-    v4 = mload v138
-    v131 = mload v22
-    v1 = mload v131
+    v120 = add v143, 32
+    calldatacopy v120, v72, v74
+    v122 = add v148, 32
+    mstore v122, v143
+    v124 = add v148, 64
+    mstore v124, v60
+    v126 = add v144, 32
+    mstore v126, v148
+    v128 = add v144, 64
+    mstore v128, v16
+    v4 = mload v148
+    v141 = mload v122
+    v9 = mload v141
+    v139 = mload v144
+    v1 = mload v139
     mstore 0, v1
     mstore 32, v4
-    mstore 64, v72
+    mstore 64, v9
     returndata 0, 96
   bb15:
     mstore 32, 32
@@ -185,8 +195,8 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
   bb7:
     v37 = calldataload 4
     v38 = add v37, 4
-    v142 = shr v37, 64
-    v39 = ne v142, 0
+    v146 = shr v37, 64
+    v39 = ne v146, 0
     jumpi v39, bb8, bb9
   bb9:
     v40 = add v38, 32
@@ -199,8 +209,8 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
   bb13:
     v45 = add v42, 1
     v46 = shl v45, 5
-    v195 = icall @alloc, v46
-    mstore v195, v42
+    v203 = icall @alloc, v46
+    mstore v203, v42
     v49 = sub v35, v40
     v50 = shr v49, 5
     v52 = gt v42, v50
@@ -208,13 +218,13 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
   bb15:
     jump bb16
   bb16:
-    v53 = phi [bb15: v42], [bb35: v138]
-    v54 = phi [bb15: v40], [bb35: v139]
-    v55 = phi [bb15: 0], [bb35: v140]
+    v53 = phi [bb15: v42], [bb35: v142]
+    v54 = phi [bb15: v40], [bb35: v143]
+    v55 = phi [bb15: 0], [bb35: v144]
     v56 = gt v53, 0
     jumpi v56, bb17, bb18
   bb18:
-    v29 = mload v195
+    v29 = mload v203
     jump bb1
   bb1:
     v1 = phi [bb18: 0], [bb5: v33]
@@ -226,22 +236,22 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     returndata 0, 32
   bb3:
     v8 = shl v2, 5
-    v157 = add v195, v8
-    v158 = add v157, 32
-    v182 = mload v158
-    v183 = mload v182
-    v13 = mload v183
-    v160 = add v182, 32
-    v184 = mload v160
-    v162 = add v184, 32
-    v185 = mload v162
-    v25 = mload v185
+    v161 = add v203, v8
+    v162 = add v161, 32
+    v190 = mload v162
+    v191 = mload v190
+    v13 = mload v191
+    v164 = add v190, 32
+    v192 = mload v164
+    v166 = add v192, 32
+    v193 = mload v166
+    v25 = mload v193
     v31 = add v13, v25
     v32 = lt v31, v13
     v33 = add v1, v31
     v34 = lt v33, v1
-    v205 = or v32, v34
-    jumpi v205, bb4, bb5
+    v213 = or v32, v34
+    jumpi v213, bb4, bb5
   bb5:
     v28 = add v2, 1
     jump bb1
@@ -252,41 +262,41 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
   bb17:
     v57 = calldataload v54
     v58 = add v40, v57
-    v146 = shr v57, 64
-    v59 = ne v146, 0
+    v150 = shr v57, 64
+    v59 = ne v150, 0
     jumpi v59, bb10, bb19
   bb19:
     v61 = gt v57, v49
     v62 = sub v35, v58
     v63 = lt v62, 64
-    v206 = or v61, v63
-    jumpi v206, bb20, bb21
+    v214 = or v61, v63
+    jumpi v214, bb20, bb21
   bb21:
-    v198 = mload 64 !metadata(alloc_ptr)
-    v199 = add v198, 96
-    mstore 64, v199
+    v206 = mload 64 !metadata(alloc_ptr)
+    v207 = add v206, 96
+    mstore 64, v207
     v65 = calldataload v58
     v66 = add v58, v65
-    v148 = shr v65, 64
-    v67 = ne v148, 0
+    v152 = shr v65, 64
+    v67 = ne v152, 0
     jumpi v67, bb22, bb23
   bb23:
     v69 = gt v65, v62
     v70 = sub v35, v66
     v71 = lt v70, 64
-    v207 = or v69, v71
-    jumpi v207, bb20, bb24
+    v215 = or v69, v71
+    jumpi v215, bb20, bb24
   bb24:
-    v200 = mload 64 !metadata(alloc_ptr)
-    v201 = add v200, 96
-    mstore 64, v201
+    v208 = mload 64 !metadata(alloc_ptr)
+    v209 = add v208, 96
+    mstore 64, v209
     v73 = calldataload v66
-    mstore v200, v73
+    mstore v208, v73
     v74 = add v66, 32
     v75 = calldataload v74
     v76 = add v66, v75
-    v150 = shr v75, 64
-    v77 = ne v150, 0
+    v154 = shr v75, 64
+    v77 = ne v154, 0
     jumpi v77, bb22, bb25
   bb25:
     v78 = add v76, 32
@@ -299,77 +309,83 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     jumpi v83, bb12, bb27
   bb27:
     v85 = and v82, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v196 = icall @alloc, v85
-    mstore v196, v80
-    v87 = sub v35, v78
-    v88 = gt v80, v87
-    jumpi v88, bb28, bb29
+    v204 = icall @alloc, v85
+    v87 = sub v85, 32
+    v168 = add v204, v87
+    mstore v168, 0
+    mstore v204, v80
+    v89 = sub v35, v78
+    v90 = gt v80, v89
+    jumpi v90, bb28, bb29
   bb29:
-    v164 = add v196, 32
-    calldatacopy v164, v78, v80
-    v166 = add v200, 32
-    mstore v166, v196
-    v168 = add v200, 64
-    mstore v168, v66
-    mstore v198, v200
-    v98 = add v58, 32
-    v99 = calldataload v98
-    v100 = add v58, v99
-    v152 = shr v99, 64
-    v101 = ne v152, 0
-    jumpi v101, bb22, bb30
+    v170 = add v204, 32
+    calldatacopy v170, v78, v80
+    v172 = add v208, 32
+    mstore v172, v204
+    v174 = add v208, 64
+    mstore v174, v66
+    mstore v206, v208
+    v100 = add v58, 32
+    v101 = calldataload v100
+    v102 = add v58, v101
+    v156 = shr v101, 64
+    v103 = ne v156, 0
+    jumpi v103, bb22, bb30
   bb30:
-    v103 = gt v99, v62
-    v104 = sub v35, v100
-    v105 = lt v104, 64
-    v208 = or v103, v105
-    jumpi v208, bb20, bb31
+    v105 = gt v101, v62
+    v106 = sub v35, v102
+    v107 = lt v106, 64
+    v216 = or v105, v107
+    jumpi v216, bb20, bb31
   bb31:
-    v202 = mload 64 !metadata(alloc_ptr)
-    v203 = add v202, 96
-    mstore 64, v203
-    v107 = calldataload v100
-    mstore v202, v107
-    v108 = add v100, 32
-    v109 = calldataload v108
-    v110 = add v100, v109
-    v154 = shr v109, 64
-    v111 = ne v154, 0
-    jumpi v111, bb22, bb32
+    v210 = mload 64 !metadata(alloc_ptr)
+    v211 = add v210, 96
+    mstore 64, v211
+    v109 = calldataload v102
+    mstore v210, v109
+    v110 = add v102, 32
+    v111 = calldataload v110
+    v112 = add v102, v111
+    v158 = shr v111, 64
+    v113 = ne v158, 0
+    jumpi v113, bb22, bb32
   bb32:
-    v112 = add v110, 32
-    v113 = gt v112, v35
-    jumpi v113, bb10, bb33
+    v114 = add v112, 32
+    v115 = gt v114, v35
+    jumpi v115, bb10, bb33
   bb33:
-    v114 = calldataload v110
-    v116 = add v114, 63
-    v117 = lt v116, v114
-    jumpi v117, bb12, bb34
+    v116 = calldataload v112
+    v118 = add v116, 63
+    v119 = lt v118, v116
+    jumpi v119, bb12, bb34
   bb34:
-    v119 = and v116, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v197 = icall @alloc, v119
-    mstore v197, v114
-    v121 = sub v35, v112
-    v122 = gt v114, v121
-    jumpi v122, bb28, bb35
+    v121 = and v118, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v205 = icall @alloc, v121
+    v123 = sub v121, 32
+    v176 = add v205, v123
+    mstore v176, 0
+    mstore v205, v116
+    v125 = sub v35, v114
+    v126 = gt v116, v125
+    jumpi v126, bb28, bb35
   bb35:
-    v170 = add v197, 32
-    calldatacopy v170, v112, v114
-    v172 = add v202, 32
-    mstore v172, v197
-    v174 = add v202, 64
-    mstore v174, v100
-    v176 = add v198, 32
-    mstore v176, v202
-    v178 = add v198, 64
-    mstore v178, v58
-    v134 = shl v55, 5
-    v180 = add v195, v134
-    v181 = add v180, 32
-    mstore v181, v198
-    v138 = sub v53, 1
-    v139 = add v54, 32
-    v140 = add v55, 1
+    v178 = add v205, 32
+    calldatacopy v178, v114, v116
+    v180 = add v210, 32
+    mstore v180, v205
+    v182 = add v210, 64
+    mstore v182, v102
+    v184 = add v206, 32
+    mstore v184, v210
+    v186 = add v206, 64
+    mstore v186, v58
+    v138 = shl v55, 5
+    v188 = add v203, v138
+    v189 = add v188, 32
+    mstore v189, v206
+    v142 = sub v53, 1
+    v143 = add v54, 32
+    v144 = add v55, 1
     jump bb16
   bb28:
     mstore 32, 32

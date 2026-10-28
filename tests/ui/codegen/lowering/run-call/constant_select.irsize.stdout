@@ -133,6 +133,7 @@ bb15:
   push 31
   not
   and
+  dup 1
   push bb18
   jump bb81
 bb81:
@@ -157,6 +158,15 @@ bb81:
   mstore
   jump
 bb18 [continuation]:
+  push 32
+  swap 1
+  swap 2
+  sub
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
   dup 3
   dup 2
   mstore
