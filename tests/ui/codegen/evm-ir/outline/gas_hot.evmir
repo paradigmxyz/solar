@@ -94,6 +94,6 @@ bb2 [loop]:
   pop
   stop
 
-// CHECK: [[OUTLINE]]:
+// CHECK: [[OUTLINE]] {{\[ret=.*\]}}:
 // CHECK-COUNT-12: push 1
 // CHECK: jump

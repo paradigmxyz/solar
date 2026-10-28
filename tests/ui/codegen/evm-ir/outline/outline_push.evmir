@@ -5,7 +5,7 @@
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: + push [[RET0:bb[0-9]+]]
 // CHECK: + jump [[OUTLINE:bb[0-9]+]]
-// CHECK: + [[OUTLINE]]:
+// CHECK: + [[OUTLINE]] {{\[ret=.*\]}}:
 // CHECK: {{^[ +].*}}push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef1
 // CHECK: + swap 1
 // CHECK: + jump

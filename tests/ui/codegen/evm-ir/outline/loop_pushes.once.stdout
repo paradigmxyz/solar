@@ -11,11 +11,11 @@
 + bb2:
 +   push bb7
 +   jump bb3
-+ bb3:
++ bb3 [ret=0, inputs=1, outputs=1]:
     push 0x3030303030303030303030303030303030303030303030303030303030303030
 +   swap 1
 +   jump
-+ bb4 [loop] [continuation]:
++ bb4 [loop, continuation]:
     add
     dup 1
     push bb1

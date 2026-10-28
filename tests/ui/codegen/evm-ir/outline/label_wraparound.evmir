@@ -6,7 +6,7 @@
 // CHECK-LABEL: {{^[ +].*}}bb4294967295:
 // CHECK: + push bb{{[0-9]+}}
 // CHECK: + jump bb0
-// CHECK: + bb0:
+// CHECK: + bb0 {{\[ret=.*\]}}:
 bb4294967295:
   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef1
   pop
