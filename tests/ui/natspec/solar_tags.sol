@@ -61,4 +61,8 @@ contract Test {
     /// @custom:solar-trusted
     //~^ ERROR: `@custom:solar-trusted` must document a function, a modifier, a contract, or a library
     event E();
+
+    /// @custom:solar-terminates
+    //~^ ERROR: unknown tag `@custom:solar-terminates`
+    function stop() internal pure { revert(); }
 }

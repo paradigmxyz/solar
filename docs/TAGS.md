@@ -90,6 +90,9 @@ block ends normally, so later allocations reuse the block's memory. A `return`, 
 `continue` out of the block keeps the memory allocated. The block cannot contain inline
 assembly, nor run a function body with it through a modifier's `_`.
 
+Some temporary ABI buffers already reuse memory automatically. The tag extends reuse to a whole
+block, including allocations in its callees; the compiler does not infer that scope yet.
+
 Reuse is only correct while nothing after the block still refers to that memory, so the compiler
 rejects every reference to it that later code could reach: a variable used after the block, a
 `return`, a store into memory the block did not allocate or into storage, and a call whose callee
@@ -98,9 +101,9 @@ read from the memory leave the block freely. After the block, the free memory po
 than without the tag.
 
 Assembly outside the block is allowed, but in a contract with inline assembly a memory load at an
-unknown address may read the free memory pointer. The compiler tracks that possibility through helper returns and stores
-too, and rejects the tag if the pointer may outlive the block. Use a provably disjoint address,
-consume the pointer before the block, or read it again after the block.
+unknown address may read the free memory pointer. The compiler tracks that possibility through
+helper returns and stores too, and rejects the tag if the pointer may outlive the block. Use a
+provably disjoint address, consume the pointer before the block, or read it again after the block.
 Copies and calls that may retain bytes from the free-pointer slot are captures too, even if no
 instruction loads that slot directly. Storing a scalar into the slot and reading it back still
 produces a free pointer; store forwarding does not exempt that read from the lifetime check.

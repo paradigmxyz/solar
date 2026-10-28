@@ -87,5 +87,14 @@ LL │     /// @custom:solar-trusted
    │
    ╰ help: put it on the reviewed code a `@custom:solar-safe` contract runs
 
-error: aborting due to 10 previous errors
+error: unknown tag `@custom:solar-terminates`
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │     /// @custom:solar-terminates
+   │          ━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-` tags are requirements this compiler checks
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-scratch`, and `@custom:solar-trusted`
+
+error: aborting due to 11 previous errors
 
