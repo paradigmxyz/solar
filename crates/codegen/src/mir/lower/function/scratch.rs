@@ -50,9 +50,11 @@
 //! returns no value. It does not follow whether assembly reserved memory at the pointer first.
 //! A load at an unknown address may read the free memory pointer, as may an unaligned load that
 //! overlaps its word. Loads from fresh allocation bases are disjoint. A load of the last word
-//! stored at the same address in its block instead carries the stored value's provenance; any
-//! intervening memory write cancels that fact. The length of a static ABI encoding is likewise a
-//! known scalar until another write. These facts only guide validation, not codegen.
+//! stored at the same disjoint address in its block instead carries the stored value's provenance;
+//! any intervening memory write cancels that fact. Writing a scalar into the free-pointer slot
+//! makes it an allocation address, so forwarding cannot hide a possible read of that slot.
+//! Copies and calls that may capture its bytes also escape, including through callee summaries.
+//! These facts only guide validation, not codegen.
 //!
 //! The check runs on the contract's MIR right after lowering, before any pass, once the internal
 //! function pointer dispatchers exist, so every body a call in the block may run is summarized.
@@ -65,7 +67,7 @@
 
 use super::{memory_facts::Analyzed, *};
 use crate::mir::{
-    AbiEncodeMode, ArgIdx, Callee, EffectKind, InstId, RawMemorySize, Terminator,
+    AbiEncodeMode, ArgIdx, Callee, EffectKind, InstId, RawMemoryAccess, RawMemorySize, Terminator,
     analysis::{AddressSpace, LocalSummaryCache, MemoryBase, MemoryCallSummaries},
 };
 use solar_data_structures::{
@@ -414,15 +416,11 @@ fn reads_free_pointer(
     match func.inst(inst).kind {
         InstKind::Fmp => true,
         InstKind::Load(address, PtrLocation::Memory) => {
-            if let Some(address) = constants.get(address) {
-                let start = EvmMemoryLayout::FMP_SLOT;
-                let size = EvmMemoryLayout::WORD_SIZE;
-                address > U256::from(start - size) && address < U256::from(start + size)
-            } else {
-                // Unknown addresses, including wrapping offsets, may reach the FMP word.
-                // Only an unoffset fresh allocation proves otherwise here.
-                function.fresh_start(address).is_none()
-            }
+            overlaps_free_pointer(
+                constants,
+                address,
+                RawMemorySize::Bytes(EvmMemoryLayout::WORD_SIZE),
+            ) && function.fresh_start(address).is_none()
         }
         _ => false,
     }
@@ -636,11 +634,11 @@ impl PointerWrites {
         });
         writes.captures_free = func.instructions().any(|inst| {
             let kind = &func.inst(inst).kind;
-            (kind.effect_kind() != EffectKind::Pure
-                && kind
-                    .operands()
-                    .iter()
-                    .any(|value| free.contains(value) && captures(&mut constants, inst, *value)))
+            captures_free_memory(function, &mut constants, inst)
+                || (kind.effect_kind() != EffectKind::Pure
+                    && kind.operands().iter().any(|value| {
+                        free.contains(value) && captures(&mut constants, inst, *value)
+                    }))
                 || matches!(kind, InstKind::ICall { function: Callee::Function(callee), .. }
                     if summaries.get(callee).is_some_and(|summary| summary.captures_free))
         });
@@ -880,8 +878,13 @@ fn check_free_pointers(
     let prior = runs_before(func, boundary, None);
     let boundary_inst = func.blocks[boundary.0].instructions[boundary.1];
     for inst in prior.iter() {
-        if !inside(inst)
-            && let InstKind::ICall { function: Callee::Function(callee), .. } = func.inst(inst).kind
+        if inside(inst) {
+            continue;
+        }
+        if captures_free_memory(function, &mut constants, inst) {
+            escapes.push((func.inst(inst).metadata.source_span(), Escape::Stored));
+        }
+        if let InstKind::ICall { function: Callee::Function(callee), .. } = func.inst(inst).kind
             && summaries.get(&callee).is_some_and(|summary| summary.captures_free)
         {
             escapes.push((func.inst(inst).metadata.source_span(), Escape::Call(callee)));
@@ -1053,12 +1056,13 @@ enum LoadedWord {
 }
 
 /// The value a word load reads from the last memory write in its block. Following its provenance
-/// avoids treating an ordinary scalar stored and loaded through a runtime pointer as an FMP read.
-/// Exact addresses and matching types suffice; partial writes, calls and other memory writes
-/// discard the previous store, and no fact crosses a block boundary.
+/// avoids treating a stored scalar as a new pointer. The address must be disjoint from the FMP
+/// word: a scalar stored there becomes the allocation address. Partial writes, calls and other
+/// memory writes discard the previous store, and no fact crosses a block boundary.
 fn stored_load_values(function: &Analyzed) -> FxHashMap<InstId, LoadedWord> {
     let func = &function.func;
     let mut loads = FxHashMap::default();
+    let mut constants = ConstantWords::new(func);
     for block in &func.blocks {
         let mut stored = None;
         for &inst in &block.instructions {
@@ -1071,6 +1075,8 @@ fn stored_load_values(function: &Analyzed) -> FxHashMap<InstId, LoadedWord> {
                         LoadedWord::Value(value) => func.value_ty(value),
                         LoadedWord::EncodingLength => Some(MirType::I256),
                     }
+                && (matches!(value, LoadedWord::EncodingLength)
+                    || !reads_free_pointer(function, &mut constants, inst))
             {
                 loads.insert(inst, value);
             }
@@ -1089,6 +1095,60 @@ fn stored_load_values(function: &Analyzed) -> FxHashMap<InstId, LoadedWord> {
         }
     }
     loads
+}
+
+/// Raw copies and calls may retain the FMP bytes without ever loading them into an SSA value.
+/// Calls can retain their input in returndata or external state even with an empty output range.
+/// Hashes and other read-only operations do not carry the pointer into accessible memory.
+fn captures_free_memory(
+    function: &Analyzed,
+    constants: &mut ConstantWords<'_>,
+    inst: InstId,
+) -> bool {
+    let kind = &constants.func.inst(inst).kind;
+    let mut captures = matches!(kind.effect_kind(), EffectKind::ExternalCall | EffectKind::Create);
+    let mut reads_free = false;
+    kind.visit_raw_memory(|access, address, size| {
+        let size = match size {
+            RawMemorySize::Bytes(size) => Some(U256::from(size)),
+            RawMemorySize::Value(size) => constants.get(size),
+        };
+        if size == Some(U256::ZERO) {
+            return;
+        }
+        if access != RawMemoryAccess::Read {
+            captures = true;
+        } else {
+            reads_free |= range_overlaps_free_pointer(constants.get(address), size)
+                && function.fresh_start(address).is_none();
+        }
+    });
+    captures && reads_free
+}
+
+/// Raw memory ranges do not wrap; an access past the address space fails instead. Unknown
+/// addresses may touch the FMP word, and zero-length accesses do not inspect their address.
+fn overlaps_free_pointer(
+    constants: &mut ConstantWords<'_>,
+    address: ValueId,
+    size: RawMemorySize,
+) -> bool {
+    let size = match size {
+        RawMemorySize::Bytes(size) => Some(U256::from(size)),
+        RawMemorySize::Value(size) => constants.get(size),
+    };
+    range_overlaps_free_pointer(constants.get(address), size)
+}
+
+fn range_overlaps_free_pointer(address: Option<U256>, size: Option<U256>) -> bool {
+    if size == Some(U256::ZERO) {
+        return false;
+    }
+    let Some(address) = address else { return true };
+    let start = U256::from(EvmMemoryLayout::FMP_SLOT);
+    let end = start + U256::from(EvmMemoryLayout::WORD_SIZE);
+    // Compare the distance to the slot rather than adding a possibly wrapping size.
+    address < end && (address >= start || size.is_none_or(|size| size > start - address))
 }
 
 #[cfg(test)]
@@ -1141,5 +1201,29 @@ mod tests {
         assert_eq!(constants.get(wrapped), Some(U256::ZERO));
         assert_eq!(constants.get(word), Some(U256::MAX >> 96));
         assert_eq!(constants.get(unknown), None);
+    }
+
+    #[test]
+    fn free_pointer_overlap_handles_empty_and_huge_ranges() {
+        for (address, size, overlaps) in [
+            (Some(0_u64), Some(64_u64), false),
+            (Some(0), Some(65), true),
+            (Some(32), Some(32), false),
+            (Some(33), Some(32), true),
+            (Some(64), Some(0), false),
+            (Some(95), Some(1), true),
+            (Some(96), Some(1), false),
+            (Some(0), None, true),
+            (Some(96), None, false),
+            (None, Some(0), false),
+            (None, Some(1), true),
+        ] {
+            assert_eq!(
+                range_overlaps_free_pointer(address.map(U256::from), size.map(U256::from)),
+                overlaps
+            );
+        }
+        assert!(range_overlaps_free_pointer(Some(U256::ZERO), Some(U256::MAX)));
+        assert!(!range_overlaps_free_pointer(Some(U256::MAX), Some(U256::MAX)));
     }
 }

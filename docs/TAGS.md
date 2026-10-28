@@ -121,6 +121,9 @@ Assembly outside the block is allowed, but a memory load at an unknown address m
 free memory pointer. The compiler tracks that possibility through helper returns and stores
 too, and rejects the tag if the pointer may outlive the block. Use a provably disjoint address,
 consume the pointer before the block, or read it again after the block.
+Copies and calls that may retain bytes from the free-pointer slot are captures too, even if no
+instruction loads that slot directly. Storing a scalar into the slot and reading it back still
+produces a free pointer; store forwarding does not exempt that read from the lifetime check.
 
 ## `solar-view`
 

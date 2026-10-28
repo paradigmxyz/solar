@@ -117,7 +117,7 @@ contract Test {
         uint256 pointer;
         assembly {
             mstore(slot, 0)
-            mcopy(slot, 0x40, 0x20)
+            mcopy(slot, 0x40, 0x20) //~ ERROR: this stores a reference to memory of a `@custom:solar-scratch` block
             pointer := mload(slot)
         }
         /// @custom:solar-scratch
@@ -134,7 +134,7 @@ contract Test {
     function callInvalidatesStoredValue(uint256 slot) external pure returns (uint256 result) {
         uint256 pointer;
         assembly { mstore(slot, 0) }
-        copyPointer(slot);
+        copyPointer(slot); //~ ERROR: this call may store a reference to memory of a `@custom:solar-scratch` block
         assembly { pointer := mload(slot) }
         /// @custom:solar-scratch
         { bytes memory temporary = abi.encode(uint256(101)); }

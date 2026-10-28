@@ -27,13 +27,14 @@ contract Test {
         same = first == second;
     }
 
-    // The dynamic pointer is used only before the block. The loaded scalar follows its store,
-    // rather than becoming another possible free pointer just because its address is unknown.
+    // The dynamic pointer is used only before the block. Forward a scalar through a disjoint
+    // slot; forwarding through an unknown address might instead read the FMP word.
     function consumedBefore(uint256 slot, uint256 x) external pure returns (uint256 result) {
         assembly {
             let pointer := mload(slot)
             mstore(pointer, x)
-            result := mload(pointer)
+            mstore(0, x)
+            result := mload(0)
             mstore(0x40, add(pointer, 32))
         }
         /// @custom:solar-scratch
@@ -62,7 +63,8 @@ contract Test {
         assembly {
             let pointer := mload(slot)
             mstore(pointer, x)
-            result := mload(pointer)
+            mstore(0, x)
+            result := mload(0)
             mstore(0x40, add(pointer, 32))
         }
     }

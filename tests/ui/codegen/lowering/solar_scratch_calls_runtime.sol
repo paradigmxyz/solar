@@ -32,7 +32,8 @@ contract Test {
         assembly {
             let pointer := mload(0x40)
             mstore(pointer, x)
-            result := mload(pointer)
+            mstore(0, x)
+            result := mload(0)
             mstore(0x40, add(pointer, 0x20))
         }
         require(temporary(x) != bytes32(0));
@@ -114,7 +115,8 @@ contract Test {
             assembly {
                 let pointer := mload(0x40)
                 mstore(pointer, word)
-                loaded := mload(pointer)
+                mstore(0, word)
+                loaded := mload(0)
             }
             require(temporary(word) != bytes32(0));
             result += loaded;

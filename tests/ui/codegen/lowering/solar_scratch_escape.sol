@@ -248,7 +248,7 @@ contract Test {
     // A pointer read after the block, or used only before it, as a block in a loop reads it again
     // before every use, refers to no memory the block reuses, and nor does one that only sets the
     // free memory pointer, which the block reads when it starts.
-    function freePointerAround(uint256 n) external pure returns (uint256 r) {
+    function freePointerAround(uint256 n) external pure returns (uint256 r) { //~ ERROR: memory of a `@custom:solar-scratch` block is used after the block
         uint256 before;
         assembly {
             before := mload(0x40)
@@ -265,12 +265,12 @@ contract Test {
             }
             /// @custom:solar-scratch
             {
-                r += abi.encode(i, r).length;
+                r += abi.encode(i, r).length; //~ ERROR: memory of a `@custom:solar-scratch` block is used after the block
             }
             uint256 next;
             assembly {
                 next := mload(0x40)
-                mstore(next, r)
+                mstore(next, r) //~ ERROR: memory of a `@custom:solar-scratch` block is used after the block
                 r := add(r, mload(next))
             }
         }

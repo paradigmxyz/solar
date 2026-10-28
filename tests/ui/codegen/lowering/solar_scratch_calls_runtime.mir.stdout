@@ -34,7 +34,8 @@ fn @readBeforeCall(arg0: i256) -> i256 [selector=0x84e117a0, pure, abi_params=[u
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, arg0
-    v1 = mload v0
+    mstore 0, arg0 !metadata(memory=scratch)
+    v1 = mload 0 !metadata(memory=scratch)
     v2 = add v0, 32
     mstore 64, v2 !metadata(memory=scratch)
     v3 = icall @temporary, arg0
@@ -185,7 +186,8 @@ fn @refreshedInLoop(arg0: i256) -> i256 [selector=0x53c6d1b0, pure, abi_params=[
     v4 = checked_add uint256, v0, v2
     v5 = mload 64 !metadata(memory=scratch)
     mstore v5, v4
-    v6 = mload v5
+    mstore 0, v4 !metadata(memory=scratch)
+    v6 = mload 0 !metadata(memory=scratch)
     v7 = icall @temporary, v4
     v8 = ne v7, 0
     v9 = eq v8, false

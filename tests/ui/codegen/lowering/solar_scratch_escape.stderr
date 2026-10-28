@@ -214,5 +214,49 @@ LL │         /// @custom:solar-scratch
    │              ━━━━━━━━━━━━━━━━━━━━
    ╰ help: keep only values past the block, or remove the tag
 
-error: aborting due to 16 previous errors
+error: memory of a `@custom:solar-scratch` block is used after the block
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │ ┏     function freePointerAround(uint256 n) external pure returns (uint256 r) {
+LL │ ┃         uint256 before;
+LL │ ┃         assembly {
+LL │ ┃             before := mload(0x40)
+   ‡ ┃
+LL │ ┃     }
+   │ ┗━━━━━┛
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │             /// @custom:solar-scratch
+   │                  ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: memory of a `@custom:solar-scratch` block is used after the block
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │                 r += abi.encode(i, r).length;
+   │                      ━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │             /// @custom:solar-scratch
+   │                  ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: memory of a `@custom:solar-scratch` block is used after the block
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │                 mstore(next, r)
+   │                 ━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │             /// @custom:solar-scratch
+   │                  ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: aborting due to 19 previous errors
 
