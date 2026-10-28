@@ -197,6 +197,15 @@ impl Target {
     /// it: a contract built around a loop or two, a sixth of EIP-170's limit.
     pub(crate) const SMALL_CODE_BYTES: u64 = 4_096;
 
+    /// The optimizer runs from which loop unrolling and peeling pay under [`Tune::Jit`], the
+    /// default 200: a JIT compiles the copies to straight-line machine code, so an unrolled loop
+    /// ran 5% fewer instructions at 3.5% more bytes on the runtime corpus.
+    pub(crate) const JIT_LOOP_UNROLL_MIN_RUNS: u64 = Self::DEFAULT_EXPECTED_EXECUTIONS;
+    /// The most words a loop may carry across its back edge to be unrolled or peeled under
+    /// [`Tune::Jit`]: a JIT keeps a 256-bit word in four registers, and a loop that carries more
+    /// spills them to the stack on every iteration, as an unrolled sum over an array did.
+    pub(crate) const JIT_MAX_UNROLLED_LOOP_WORDS: usize = 3;
+
     /// The model of the session's EVM version, objective, and optimizer runs.
     pub(crate) fn new(gcx: Gcx<'_>) -> Self {
         let opts = &gcx.sess.opts;
@@ -287,6 +296,21 @@ impl Target {
     /// Whether the build expects enough executions to copy loop bodies for runtime gas.
     pub(crate) fn copies_loops(&self) -> bool {
         self.expected_executions >= Self::LOOP_COPY_MIN_RUNS
+    }
+
+    /// Whether the build expects enough executions to unroll and peel loops for runtime gas:
+    /// from [`Self::LOOP_COPY_MIN_RUNS`] on, or from [`Self::JIT_LOOP_UNROLL_MIN_RUNS`] under
+    /// [`Tune::Jit`].
+    pub(crate) fn unrolls_loops(&self) -> bool {
+        let min_runs =
+            if self.is_jit() { Self::JIT_LOOP_UNROLL_MIN_RUNS } else { Self::LOOP_COPY_MIN_RUNS };
+        self.expected_executions >= min_runs
+    }
+
+    /// Whether a loop carrying `words` words across its back edge may be unrolled or peeled:
+    /// always, except under [`Tune::Jit`], which allows [`Self::JIT_MAX_UNROLLED_LOOP_WORDS`].
+    pub(crate) fn unrolls_loop_carrying(&self, words: usize) -> bool {
+        !self.is_jit() || words <= Self::JIT_MAX_UNROLLED_LOOP_WORDS
     }
 
     /// Whether copying a loop block whose code costs `copy`, entered on `paths` paths, into a loop
@@ -657,7 +681,12 @@ impl Target {
     /// cannot resolve the pick, and one unresolved jump makes it drop every jump it resolved in
     /// the contract.
     pub(crate) const fn packs_wide_jump_tables(&self, requested: bool) -> bool {
-        requested && !matches!(self.tune, Tune::Jit)
+        requested && !self.is_jit()
+    }
+
+    /// Whether the code is tuned for a bytecode JIT.
+    const fn is_jit(&self) -> bool {
+        matches!(self.tune, Tune::Jit)
     }
 
     /// Whether the engine pays for the dispatch of each executed instruction.
@@ -1354,6 +1383,26 @@ mod tests {
         assert!(!target(Target::LOOP_COPY_MIN_RUNS - 1).copies_loops());
         assert!(target(Target::LOOP_COPY_MIN_RUNS).copies_loops());
         assert!(target(u64::from(u32::MAX)).copies_loops());
+    }
+
+    #[test]
+    fn jit_unrolls_loops_from_the_default_runs() {
+        let target =
+            |runs, tune| Target::with(EvmVersion::Osaka, OptimizationMode::Gas, runs).tuned(tune);
+        for tune in [Tune::None, Tune::Interpreter] {
+            assert!(!target(Target::DEFAULT_EXPECTED_EXECUTIONS, tune).unrolls_loops());
+            assert!(target(Target::LOOP_COPY_MIN_RUNS, tune).unrolls_loops());
+            assert!(target(Target::DEFAULT_EXPECTED_EXECUTIONS, tune).unrolls_loop_carrying(9));
+        }
+        let jit = |runs| target(runs, Tune::Jit);
+        assert!(!jit(Target::JIT_LOOP_UNROLL_MIN_RUNS - 1).unrolls_loops());
+        assert!(jit(Target::DEFAULT_EXPECTED_EXECUTIONS).unrolls_loops());
+        assert!(jit(Target::LOOP_COPY_MIN_RUNS).unrolls_loops());
+        // Loop copies other than unrolling and peeling still wait for the many runs.
+        assert!(!jit(Target::DEFAULT_EXPECTED_EXECUTIONS).copies_loops());
+        let words = Target::JIT_MAX_UNROLLED_LOOP_WORDS;
+        assert!(jit(200).unrolls_loop_carrying(words));
+        assert!(!jit(200).unrolls_loop_carrying(words + 1));
     }
 
     #[test]
