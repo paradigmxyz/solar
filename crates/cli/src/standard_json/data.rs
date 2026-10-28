@@ -1099,7 +1099,9 @@ mod tests {
                 | OutputSelectionFlags::IR
                 | OutputSelectionFlags::BYTECODE_ETHDEBUG
         );
-        assert!(selection_flags(r#"["unknown", "evm.bytecode.unknown"]"#).is_empty());
+        assert!(
+            selection_flags(r#"["unknown", "evm.bytecode.unknown", "solarSafety"]"#).is_empty()
+        );
     }
 
     #[test]
