@@ -52,6 +52,7 @@ use smallvec::SmallVec;
 use solar_data_structures::{index::IndexVec, map::FxHashMap};
 use solar_interface::sym;
 use solar_sema::Gcx;
+use std::ops::Range;
 
 /// Bounds quadratic arbitrary-substring pooling; exact interning remains unbounded.
 const MAX_DATA_SUBSTRING_ENTRIES: usize = 1024;
@@ -179,10 +180,11 @@ impl Improvement {
 
 impl DataPool {
     fn new(data: &IndexVec<DataId, Data>) -> Self {
-        // Relocated and deferred bytes are not final, so constants never share them.
+        // Relocated and deferred bytes are not final, and verifiers replace trailers, so constants
+        // never share them.
         let literals = || {
             data.iter_enumerated().filter_map(|(id, data)| {
-                data.library_relocations.is_empty().then_some(())?;
+                (data.library_relocations.is_empty() && data.trailers.is_empty()).then_some(())?;
                 Some((id, data.bytes.known()?.clone()))
             })
         };
@@ -642,14 +644,15 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
 
     let mut packed = IndexVec::<DataId, Data>::new();
     let mut sources = IndexVec::<DataId, DataId>::new();
-    let mut exact = FxHashMap::<(Bytes, Vec<LibraryRelocation>), DataId>::default();
+    let mut exact =
+        FxHashMap::<(Bytes, Vec<LibraryRelocation>, Vec<Range<usize>>), DataId>::default();
     let mut remap = FxHashMap::default();
     for old_id in referenced {
         let data = &module.data[old_id];
         // Deferred bytes are not known yet, so they are never shared.
         let key = (data.bytes.known())
             .filter(|_| !data.emit_in_runtime)
-            .map(|bytes| (bytes.clone(), data.library_relocations.clone()));
+            .map(|bytes| (bytes.clone(), data.library_relocations.clone(), data.trailers.clone()));
         let data_ref = if let Some(key) = &key
             && let Some(&id) = exact.get(key)
         {
@@ -730,7 +733,14 @@ fn find_data(
             .copied()
             .filter(|reloc| reloc.offset < end && reloc.offset + 20 > offset)
             .map(|reloc| (reloc.offset.checked_sub(offset), reloc.library))
-            .eq(needle.library_relocations.iter().map(|reloc| (Some(reloc.offset), reloc.library)));
+            .eq(needle.library_relocations.iter().map(|reloc| (Some(reloc.offset), reloc.library)))
+            // Verifiers replace trailer bytes, so shared bytes must cover the same trailers.
+            && known
+                .trailers
+                .iter()
+                .filter(|trailer| trailer.start < end && trailer.end > offset)
+                .map(|trailer| (trailer.start.checked_sub(offset), trailer.end - offset))
+                .eq(needle.trailers.iter().map(|trailer| (Some(trailer.start), trailer.end)));
         compatible.then(|| DataRef::new(id, data_offset(offset)))
     })
 }

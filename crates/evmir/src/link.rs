@@ -3,7 +3,7 @@
 use alloy_primitives::{Bytes, U256};
 use solar_data_structures::{fmt::FmtIteratorExt, index::IndexVec, map::FxHashMap, newtype_index};
 use solar_interface::{Symbol, sym};
-use std::fmt;
+use std::{fmt, ops::Range};
 
 newtype_index! {
     /// An index into a module's library table.
@@ -25,6 +25,8 @@ pub struct Data {
     pub emit_in_runtime: bool,
     /// Identities and byte offsets of unresolved library addresses in this data.
     pub library_relocations: Vec<LibraryRelocation>,
+    /// Byte ranges of contracts' trailing runtime data in this embedded bytecode.
+    pub trailers: Vec<Range<usize>>,
 }
 
 impl Data {
@@ -35,6 +37,7 @@ impl Data {
             name,
             emit_in_runtime: false,
             library_relocations: Vec::new(),
+            trailers: Vec::new(),
         }
     }
 
@@ -216,6 +219,8 @@ pub struct RelocatableBytecode {
     pub libraries: LibraryTable,
     pub bytes: Bytes,
     pub relocations: Vec<LibraryRelocation>,
+    /// Byte ranges of the trailing runtime data of this contract and the contracts it embeds.
+    pub trailers: Vec<Range<usize>>,
 }
 
 impl RelocatableBytecode {

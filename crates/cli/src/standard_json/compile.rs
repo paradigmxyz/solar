@@ -2,11 +2,11 @@
 
 use super::{
     data::{
-        BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, DebugInfoComponent,
-        DebugSettings, EthdebugOutput, EvmOutput, FxIndexMap, MetadataHash, MetadataSettings,
-        OffsetLength, OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings,
-        SourceOutput, StandardJsonReadCallback, optimizer_settings, print_standard_json_stats,
-        strip_json_comments,
+        BytecodeOutput, CborAuxdata, CompilerInput, CompilerOutput, ContractOutput,
+        DebugInfoComponent, DebugSettings, EthdebugOutput, EvmOutput, FxIndexMap, MetadataHash,
+        MetadataSettings, OffsetLength, OutputSelection, OutputSelectionFlags, ReadCallbackResult,
+        Settings, SourceOutput, StandardJsonReadCallback, optimizer_settings,
+        print_standard_json_stats, strip_json_comments,
     },
     metadata::{Metadata, source_name},
 };
@@ -580,7 +580,8 @@ fn make_contract_output<'gcx>(
         | OutputSelectionFlags::BYTECODE_OPCODES
         | OutputSelectionFlags::BYTECODE_SOURCE_MAP
         | OutputSelectionFlags::BYTECODE_LINK_REFERENCES
-        | OutputSelectionFlags::BYTECODE_ETHDEBUG;
+        | OutputSelectionFlags::BYTECODE_ETHDEBUG
+        | OutputSelectionFlags::BYTECODE_CBOR_AUXDATA;
     if output_selection.intersects(bytecode_outputs) {
         evm.bytecode = Some(make_bytecode_output(
             gcx,
@@ -597,7 +598,8 @@ fn make_contract_output<'gcx>(
         | OutputSelectionFlags::DEPLOYED_BYTECODE_SOURCE_MAP
         | OutputSelectionFlags::DEPLOYED_BYTECODE_LINK_REFERENCES
         | OutputSelectionFlags::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES
-        | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_CBOR_AUXDATA;
     if output_selection.intersects(deployed_bytecode_outputs) {
         evm.deployed_bytecode = Some(make_bytecode_output(
             gcx,
@@ -650,6 +652,11 @@ fn make_bytecode_output(
     } else {
         OutputSelectionFlags::BYTECODE_ETHDEBUG
     };
+    let cbor_auxdata_flag = if deployed {
+        OutputSelectionFlags::DEPLOYED_BYTECODE_CBOR_AUXDATA
+    } else {
+        OutputSelectionFlags::BYTECODE_CBOR_AUXDATA
+    };
     let bytecode =
         artifact.map(|artifact| if deployed { &artifact.runtime } else { &artifact.deployment });
 
@@ -685,6 +692,25 @@ fn make_bytecode_output(
             }
             _ => String::new(),
         });
+    }
+    if output_selection.contains(cbor_auxdata_flag) {
+        // Codegen records where it places each trailer, `INVALID` followed by the CBOR auxdata, so
+        // code or data that only looks like a trailer is never reported.
+        let trailers = artifact.map_or(&[][..], |artifact| {
+            if deployed { &artifact.runtime_trailers } else { &artifact.deployment_trailers }
+        });
+        output.cbor_auxdata = Some(
+            trailers
+                .iter()
+                .enumerate()
+                .map(|(i, trailer)| {
+                    let offset = trailer.start + 1;
+                    let value = &bytecode.expect("trailers imply bytecode")[offset..trailer.end];
+                    let value = alloy_primitives::hex::encode_prefixed(value);
+                    ((i + 1).to_string(), CborAuxdata { offset, value })
+                })
+                .collect(),
+        );
     }
     if output_selection.contains(link_references_flag) {
         let references = artifact.into_iter().flat_map(|artifact| {
