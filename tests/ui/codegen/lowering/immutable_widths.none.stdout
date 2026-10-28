@@ -91,7 +91,10 @@ bb6:
   push 64
   mstore
   push_immutable 7, 32
-  push 0xffffffffffffffffffffffffffffffffffffffff
+  push 0
+  not
+  push 96
+  shr
   and
   push 0
   mstore
