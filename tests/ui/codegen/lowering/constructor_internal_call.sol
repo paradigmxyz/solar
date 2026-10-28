@@ -19,7 +19,7 @@ contract ConstructorICall {
     // EVMIR-NEXT: push [[CTOR_CONT:bb[0-9]+]]
     // EVMIR-NEXT: jump [[HELPER:bb[0-9]+]]
     // The nonzero path falls through from the helper test into its recursive call.
-    // EVMIR: [[HELPER]]:
+    // EVMIR: [[HELPER]]{{( \[.*\])?}}:
     // EVMIR: iszero
     // EVMIR-NEXT: push [[BASE:bb[0-9]+]]
     // EVMIR-NEXT: jumpi

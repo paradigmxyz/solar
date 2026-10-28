@@ -94,7 +94,7 @@ bb7:
   swap 1
   push bb10
   jump bb33
-bb33:
+bb33 [ret=0, inputs=3, outputs=1]:
   push 64
   mload
   push 128
@@ -247,7 +247,7 @@ bb22:
   calldataload
   push bb24
   jump bb41
-bb41:
+bb41 [ret=0, inputs=1, outputs=1]:
   push 4
   calldatasize
   push 36
