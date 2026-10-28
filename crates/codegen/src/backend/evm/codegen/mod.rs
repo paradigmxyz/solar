@@ -44,6 +44,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 use solar_sema::Gcx;
+use std::ops::Range;
 
 mod stack;
 pub(super) use stack::{
@@ -365,6 +366,10 @@ pub struct EvmArtifact {
     pub deployment_library_relocations: Vec<LibraryRelocation>,
     /// Library address offsets in the runtime bytecode.
     pub runtime_library_relocations: Vec<LibraryRelocation>,
+    /// Byte ranges of trailing runtime data in the deployment bytecode.
+    pub deployment_trailers: Vec<Range<usize>>,
+    /// Byte ranges of trailing runtime data in the runtime bytecode.
+    pub runtime_trailers: Vec<Range<usize>>,
     /// Immutable placeholders in the runtime bytecode.
     pub(crate) immutable_references: Vec<ImmutableRef>,
     /// Final deployment-prefix EVM IR immediately before byte emission.

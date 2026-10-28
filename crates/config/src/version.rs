@@ -102,14 +102,14 @@ pub fn solc_compat_version() -> &'static str {
 pub const TEST_SOLC_COMPAT_VERSION: &str =
     concat!(env!("SOLC_SEMVER_VERSION"), "+commit.00000000.solar.", env!("CARGO_PKG_VERSION"));
 
-/// Setting this to `1` in debug builds replaces the commit and `-dev` suffix in compiler output
-/// with fixed values, so that test snapshots of metadata and bytecode do not change with every
-/// commit.
+/// Setting this to `1` replaces the commit and `-dev` suffix in compiler output with fixed values,
+/// so that test snapshots of metadata and bytecode do not change with every commit or build
+/// profile.
 pub const TEST_VERSION_ENV: &str = "SOLAR_TEST_VERSION";
 
 #[cfg(feature = "version")]
 fn test_version() -> bool {
-    cfg!(debug_assertions) && std::env::var_os(TEST_VERSION_ENV).is_some_and(|x| x == "1")
+    std::env::var_os(TEST_VERSION_ENV).is_some_and(|x| x == "1")
 }
 
 /// Returns the solc version that Solar implements, parsed from [`SOLC_SEMVER_VERSION`].

@@ -11,7 +11,6 @@ import hashlib
 import importlib.util
 import json
 import re
-import shlex
 import shutil
 import socket
 import subprocess
@@ -32,6 +31,19 @@ ANVIL_HARDFORK = "osaka"
 EXPECTED_UI_FAILURE_RE = re.compile(r"//~[\^v|?]*\s*(?:ERROR|ICE)(?::|\b)")
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
 BYTECODE_RE = re.compile(r"(?:[0-9a-f]{2})*")
+# Standard JSON ignores output-changing command-line flags, so the wrapper also
+# passes the variant's flags through `settings.solar.unstable`.
+WRAPPER_TEMPLATE = """\
+import json, os, subprocess, sys
+
+command = {command!r}
+args = sys.argv[1:]
+if "--standard-json" not in args:
+    os.execv(command[0], command + args)
+data = json.load(sys.stdin)
+data.setdefault("settings", {{}}).setdefault("solar", {{}})["unstable"] = {unstable!r}
+sys.exit(subprocess.run(command + args, input=json.dumps(data), text=True).returncode)
+"""
 GROWTH_SWEEP_CASE_COUNTS = {"synthetic": 54, "ui-gas": 155, "ci-gas": 12}
 GROWTH_SWEEP_TEST_IDS_SHA256 = {
     "synthetic": "2a8114a7f300165d8d2e5a3518549aabdc820a2d5432274dc23eb210d3102138",
@@ -595,15 +607,12 @@ def compiler_specs(
     wrapper_dir.mkdir(parents=True, exist_ok=True)
     for variant in variants:
         wrapper = wrapper_dir / f"solar-{optimization}-{variant.compiler_id}"
-        command = " ".join(
-            shlex.quote(value)
-            for value in (
-                str(solar),
-                f"-O{optimization}",
-                *variant.flags,
-            )
+        command = [str(solar), f"-O{optimization}", *variant.flags]
+        unstable = [flag.removeprefix("-Z") for flag in variant.flags]
+        wrapper.write_text(
+            f"#!{sys.executable}\n"
+            + WRAPPER_TEMPLATE.format(command=command, unstable=unstable)
         )
-        wrapper.write_text(f'#!/bin/sh\nexec {command} "$@"\n')
         wrapper.chmod(0o755)
         specs.append(
             bench.CompilerSpec(

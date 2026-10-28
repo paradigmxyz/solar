@@ -106,6 +106,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             bytecode: runtime_bytecode,
             immutable_refs,
             library_relocations: runtime_library_relocations,
+            trailers: runtime_trailers,
             evm_ir: runtime_evm_ir,
             debug_info: runtime_debug_info,
         } = self.asm.assemble_linked(
@@ -120,6 +121,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             Symbol::intern(&format!("{}_{}", module.name.name, CodeKind::Runtime.keyword()));
         let runtime_data = ir::Data {
             library_relocations: runtime_library_relocations.clone(),
+            trailers: runtime_trailers.clone(),
             ..ir::Data::new(runtime_bytecode.clone(), Some(runtime_name))
         };
 
@@ -178,6 +180,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             runtime: runtime_bytecode.into(),
             deployment_library_relocations: deploy_code.library_relocations,
             runtime_library_relocations,
+            deployment_trailers: deploy_code.trailers,
+            runtime_trailers,
             immutable_references: immutable_refs,
             deployment_evm_ir: deploy_code.evm_ir,
             runtime_evm_ir,
