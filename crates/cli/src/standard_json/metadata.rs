@@ -5,7 +5,7 @@ use alloy_primitives::{Bytes, keccak256};
 use rayon::prelude::*;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
-use solar_config::{RevertStrings, version::SEMVER_VERSION};
+use solar_config::{RevertStrings, version};
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::IndexVec,
@@ -146,7 +146,7 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
     let (optimizer_enabled, optimizer_runs) =
         optimizer_settings(metadata.settings.optimizer.as_ref());
     let mut value = json!({
-        "compiler": { "version": SEMVER_VERSION },
+        "compiler": { "name": "solar", "version": version::solc_compat_version() },
         "language": "Solidity",
         "output": {
             "abi": gcx.contract_abi(contract_id),
@@ -222,12 +222,33 @@ const fn cbor_bytes_len(key_len: usize, value_len: usize) -> usize {
     key_header_len + key_len + value_header_len + value_len
 }
 
-const fn cbor_metadata_len(hash: MetadataHash) -> usize {
+fn cbor_metadata_len(hash: MetadataHash) -> usize {
     let hash_entry_len = match hash.cbor_value_len() {
         Some(value_len) => cbor_bytes_len(hash.name().len(), value_len),
         None => 0,
     };
-    1 + hash_entry_len + cbor_bytes_len("solar".len(), 3) + 2
+    1 + hash_entry_len + solar_cbor_entry().len() + 2
+}
+
+/// Returns the encoded `solar` CBOR entry.
+///
+/// Like solc's `solc` entry, releases store `[major, minor, patch]` as bytes, and other builds,
+/// including `-dev` ones, store their long version as text.
+fn solar_cbor_entry() -> &'static [u8] {
+    static ENTRY: LazyLock<Vec<u8>> = LazyLock::new(|| {
+        let version = semver::Version::parse(version::solar_version())
+            .expect("package version must be semver");
+        let mut entry = Vec::new();
+        if version.pre.is_empty() {
+            let value = [version.major as u8, version.minor as u8, version.patch as u8];
+            push_cbor_bytes(&mut entry, "solar", &value);
+        } else {
+            push_cbor_value(&mut entry, 0x60, b"solar");
+            push_cbor_value(&mut entry, 0x60, version::SHORT_VERSION.as_bytes());
+        }
+        entry
+    });
+    &ENTRY
 }
 
 fn push_cbor_metadata(output: &mut Vec<u8>, metadata: &str, hash: MetadataHash) {
@@ -245,12 +266,7 @@ fn push_cbor_metadata(output: &mut Vec<u8>, metadata: &str, hash: MetadataHash) 
             output.push(0xa1);
         }
     }
-    let version = semver::Version::parse(SEMVER_VERSION).expect("package version must be semver");
-    push_cbor_bytes(
-        output,
-        "solar",
-        &[version.major as u8, version.minor as u8, version.patch as u8],
-    );
+    output.extend(solar_cbor_entry());
 
     let length = u16::try_from(output.len() - start).expect("contract metadata CBOR is too large");
     output.extend(length.to_be_bytes());

@@ -4,5 +4,5 @@
       "bin": "34600d5760188060115f395ff35b5f5ffd346014575f3560e01c806326121ff003601457005b5f5ffd"
     }
   },
-  "version": "VERSION"
+  "version": "SOLC_VERSION+commit.00000000.solar.VERSION"
 }

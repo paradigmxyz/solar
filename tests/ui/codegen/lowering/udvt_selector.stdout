@@ -6,7 +6,7 @@
       }
     }
   },
-  "version": "VERSION"
+  "version": "SOLC_VERSION+commit.00000000.solar.VERSION"
 }
 // === ROOT/tests/ui/codegen/lowering/udvt_selector.sol:UdvtSelector (runtime) ===
 @module UdvtSelector_runtime

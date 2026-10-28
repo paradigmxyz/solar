@@ -15,11 +15,10 @@
 // Without `MCOPY`, memory copies lower to word loops: whole-word lengths skip
 // the partial-word merge, and a partial tail changes exactly the copied bytes.
 // Returning a fresh array encodes it in place, a backward whole-word copy.
-// In size mode, the forward byte copies of ABI encoding share one helper, which
-// needs no runtime direction check, even for an object that assembly allocates.
-// Concatenation of bounded heap literals uses the same forward helper.
-// Once assembly moves the free memory pointer back, a new object can overlap a
-// live one, and the copy between them must check its direction at runtime.
+// In size mode, the copies of ABI encoding, concatenation, and fresh arrays share
+// one helper, even for an object that assembly allocates. Once assembly moves
+// the free memory pointer back, a new object can overlap a live one, so the
+// helper checks its direction at runtime.
 // Concatenation clears the word after its result, as solc does, so the byte
 // past the copy reads zero.
 contract PreCancunMemoryCopies {
@@ -33,7 +32,7 @@ contract PreCancunMemoryCopies {
     }
 
     // SHARED-LABEL: fn @bytesTail(
-    // SHARED: icall @[[FORWARD:mcopy_words[.0-9]*]],
+    // SHARED: icall @[[HELPER:mcopy_words[.0-9]*]],
     function bytesTail() external pure returns (bool) {
         bytes memory payload = new bytes(33);
         for (uint256 i; i < 33; ++i) {
@@ -48,8 +47,8 @@ contract PreCancunMemoryCopies {
     }
 
     // SHARED-LABEL: fn @concat(
-    // SHARED: icall @[[FORWARD]], {{v[0-9]+}}, {{v[0-9]+}}, 33
-    // SHARED: icall @[[FORWARD]], {{v[0-9]+}}, {{v[0-9]+}}, 2
+    // SHARED: icall @[[HELPER]], {{v[0-9]+}}, {{v[0-9]+}}, 33
+    // SHARED: icall @[[HELPER]], {{v[0-9]+}}, {{v[0-9]+}}, 2
     function concat() external pure returns (bool) {
         bytes memory first = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021";
         bytes memory second = hex"2223";
@@ -60,7 +59,7 @@ contract PreCancunMemoryCopies {
     }
 
     // SHARED-LABEL: fn @assembled(
-    // SHARED: icall @[[FORWARD]],
+    // SHARED: icall @[[HELPER]],
     function assembled() external pure returns (bool) {
         bytes memory payload;
         bytes32 expected;
@@ -125,7 +124,7 @@ contract PreCancunMemoryCopies {
         return keccak256(abi.encode(payload, payload));
     }
 
-    // SHARED: {{^}}fn @[[FORWARD]](
-    // SHARED-NOT: lt arg1, arg0
+    // SHARED: {{^}}fn @[[HELPER]](
+    // SHARED: lt arg1, arg0
     // SHARED: ret
 }

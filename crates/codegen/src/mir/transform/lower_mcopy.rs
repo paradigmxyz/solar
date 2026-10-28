@@ -18,10 +18,11 @@
 //! repeated bytes.
 //! Constructor-reachable sites remain inline because their ABI output may
 //! occupy the free-memory pointer where an internal call would stage its frame.
-//! Copies through raw or symbolic memory bases also remain inline because the
-//! helper's argument frame could overlap either copied range, unless the copy
-//! is marked `disjoint`: ABI encoding copies from heap objects into heap
-//! output, clear of every frame.
+//! Copies between Solidity memory objects, whatever their bases, may call the helper: its frame
+//! lies below the initial free memory pointer, which only assembly that names constant addresses
+//! reaches (CODEGEN-009). Pointers computed from constants or calldata alone, and ranges that
+//! leave the scratch space, remain inline. Copies marked `disjoint` may call it too: ABI
+//! encoding copies from heap objects into heap output, which no frame overlaps.
 //!
 //! Copies marked `disjoint`, such as ABI encoding's copies of source data into
 //! its output, run forward. Constant lengths of at most one word also copy
@@ -45,8 +46,8 @@
 
 use crate::{
     mir::{
-        BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction, MirType,
-        Module, PtrLocation, Value, ValueId,
+        BlockId, EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
+        MirType, Module, PtrLocation, Value, ValueId,
         analysis::{AliasAnalysis, AliasResult, CallGraphInfo, MemoryBase, MemoryCallSummaries},
         memory::EvmMemoryLayout,
         pass::MirPass,
@@ -55,7 +56,10 @@ use crate::{
     target::{Cost, Target},
 };
 use solar_config::OptimizationMode;
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 use std::{collections::BTreeMap, sync::Arc};
@@ -308,7 +312,16 @@ fn lower_function(
     }
 }
 
-/// Returns whether a helper call frame is provably disjoint from both copy ranges.
+/// Returns whether a helper call frame does not overlap either copy range.
+///
+/// Static frames lie between the scratch space and the initial free memory pointer, and only
+/// assembly that names constant addresses there can reach them (CODEGEN-009). This pass runs
+/// only where `mcopy` is not an opcode, so every copy is the compiler's own, between Solidity
+/// memory objects. A pointer qualifies unless constants or calldata alone compute it, or it
+/// names a constant range that leaves the scratch space.
+///
+/// The caller's frame is live, so the helper's frame does not overlap it; and heap objects,
+/// call results, and allocations start at or above the initial free memory pointer.
 fn copy_helper_eligible(func: &Function, alias: Option<&AliasAnalysis>, inst: InstId) -> bool {
     let Some(alias) = alias else { return false };
     let InstKind::Copy(dest, src, len, PtrLocation::Memory) = func.inst(inst).kind else {
@@ -316,18 +329,46 @@ fn copy_helper_eligible(func: &Function, alias: Option<&AliasAnalysis>, inst: In
     };
     let size = alias.location_size(func, len);
     [dest, src].into_iter().all(|pointer| {
-        alias
-            .bare_memory_location(func, pointer, size)
-            .is_some_and(|location| helper_owned_base(location.address.base))
+        let Some(location) = alias.bare_memory_location(func, pointer, size) else {
+            return false;
+        };
+        let address = location.address;
+        let scratch = address.base == MemoryBase::Absolute
+            && size
+                .as_const()
+                .and_then(|size| address.offset.checked_add(size))
+                .is_some_and(|end| end <= EvmMemoryLayout::HEAP_START);
+        scratch || !is_constant_address(func, pointer)
     })
 }
 
-/// Returns whether a base belongs to compiler-managed memory outside a callee's frame.
-fn helper_owned_base(base: MemoryBase) -> bool {
-    matches!(
-        base,
-        MemoryBase::InternalFrame | MemoryBase::Allocation(_) | MemoryBase::DynamicAllocation(_)
-    )
+/// Returns whether a pointer is computed from constants and calldata alone, so that it can name
+/// any static address.
+///
+/// Every pure operation passes constants through, so an operation added later cannot hide a
+/// constant. Anything else, such as a load, a call result, an allocation, or a frame address, is
+/// not constant.
+fn is_constant_address(func: &Function, pointer: ValueId) -> bool {
+    let mut pending = vec![pointer];
+    let mut seen = FxHashSet::default();
+    while let Some(value) = pending.pop() {
+        if !seen.insert(value) {
+            continue;
+        }
+        let inst = match func.value(value) {
+            Value::Immediate(_) => continue,
+            Value::Inst(inst) => func.inst(*inst),
+            _ => return false,
+        };
+        match &inst.kind {
+            InstKind::Load(.., PtrLocation::Calldata) | InstKind::CalldataSize => {}
+            InstKind::Select(_, lhs, rhs) => pending.extend([*lhs, *rhs]),
+            InstKind::InternalFrameAddr(_) => return false,
+            kind if kind.op_def().effect == EffectKind::Pure => pending.extend(kind.operands()),
+            _ => return false,
+        }
+    }
+    true
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
