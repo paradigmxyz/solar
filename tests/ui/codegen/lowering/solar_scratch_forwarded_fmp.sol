@@ -19,7 +19,7 @@ contract Test {
     function runtimeSlot(uint256 slot, uint256 base) external pure returns (uint256 result) {
         uint256 pointer;
         assembly {
-            mstore(slot, base)
+            mstore(slot, base) //~ ERROR: this stores a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
             pointer := mload(slot)
         }
         /// @custom:solar-scratch
@@ -33,7 +33,7 @@ contract Test {
         assembly {
             mstore(64, 0)
             let slot := add(64, 1)
-            mstore(slot, shl(8, 0x400))
+            mstore(slot, shl(8, 0x400)) //~ ERROR: this stores a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
             pointer := shr(8, mload(slot))
         }
         /// @custom:solar-scratch
@@ -55,7 +55,7 @@ contract Test {
     }
 
     function returnedThroughWrapper(uint256 base) external pure returns (uint256 result) {
-        uint256 pointer = forwardReset(base);
+        uint256 pointer = forwardReset(base); //~ ERROR: this call may store a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
         /// @custom:solar-scratch
         { bytes memory temporary = abi.encode(uint256(101)); }
         bytes memory next = abi.encode(uint256(103));
@@ -87,7 +87,7 @@ contract Test {
     function callerKeeps(uint256 slot, uint256 base) external pure returns (uint256 result) {
         uint256 pointer;
         assembly {
-            mstore(slot, base)
+            mstore(slot, base) //~ ERROR: this stores a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
             pointer := mload(slot)
         }
         require(temporary() != bytes32(0));

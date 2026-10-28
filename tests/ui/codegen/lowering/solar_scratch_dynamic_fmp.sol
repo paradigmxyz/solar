@@ -76,7 +76,7 @@ contract Test {
         uint256 pointer;
         assembly {
             let original := mload(slot)
-            mstore(0x40, original)
+            mstore(0x40, original) //~ ERROR: this stores a reference to memory of a `@custom:solar-scratch` block
             pointer := mload(0x40)
         }
         /// @custom:solar-scratch
@@ -94,7 +94,7 @@ contract Test {
     }
 
     function returnedForwardedLoad(uint256 slot) external pure returns (uint256 result) {
-        uint256 pointer = readForwarded(slot);
+        uint256 pointer = readForwarded(slot); //~ ERROR: this call may store a reference to memory of a `@custom:solar-scratch` block
         /// @custom:solar-scratch
         { bytes memory temporary = abi.encode(uint256(101)); }
         bytes memory next = abi.encode(uint256(103));
@@ -116,7 +116,7 @@ contract Test {
     function copyInvalidatesStoredValue(uint256 slot) external pure returns (uint256 result) {
         uint256 pointer;
         assembly {
-            mstore(slot, 0)
+            mstore(slot, 0) //~ ERROR: this stores a reference to memory of a `@custom:solar-scratch` block
             mcopy(slot, 0x40, 0x20) //~ ERROR: this stores a reference to memory of a `@custom:solar-scratch` block
             pointer := mload(slot)
         }
@@ -133,7 +133,7 @@ contract Test {
 
     function callInvalidatesStoredValue(uint256 slot) external pure returns (uint256 result) {
         uint256 pointer;
-        assembly { mstore(slot, 0) }
+        assembly { mstore(slot, 0) } //~ ERROR: this stores a reference to memory of a `@custom:solar-scratch` block
         copyPointer(slot); //~ ERROR: this call may store a reference to memory of a `@custom:solar-scratch` block
         assembly { pointer := mload(slot) }
         /// @custom:solar-scratch
@@ -146,8 +146,8 @@ contract Test {
     function byteInvalidatesStoredValue(uint256 slot) external pure returns (uint256 result) {
         uint256 pointer;
         assembly {
-            mstore(slot, 0)
-            mstore8(add(slot, 31), 128)
+            mstore(slot, 0) //~ ERROR: this stores a reference to memory of a `@custom:solar-scratch` block
+            mstore8(add(slot, 31), 128) //~ ERROR: this stores a reference to memory of a `@custom:solar-scratch` block
             pointer := mload(slot)
         }
         /// @custom:solar-scratch

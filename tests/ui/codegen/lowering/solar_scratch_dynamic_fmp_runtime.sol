@@ -28,14 +28,16 @@ contract Test {
     }
 
     // The dynamic pointer is used only before the block. Forward a scalar through a disjoint
-    // slot; forwarding through an unknown address might instead read the FMP word.
+    // slot; forwarding through an unknown address might instead read the FMP word. Reserve the
+    // word using an exact FMP snapshot, since an arbitrary loaded word is not a proven base.
     function consumedBefore(uint256 slot, uint256 x) external pure returns (uint256 result) {
         assembly {
+            let free := mload(0x40)
             let pointer := mload(slot)
             mstore(pointer, x)
             mstore(0, x)
             result := mload(0)
-            mstore(0x40, add(pointer, 32))
+            mstore(0x40, add(free, 32))
         }
         /// @custom:solar-scratch
         { require(keccak256(abi.encode(x)) != bytes32(0)); }
@@ -61,11 +63,12 @@ contract Test {
     /// @custom:solar-noinline
     function storedScalar(uint256 slot, uint256 x) internal pure returns (uint256 result) {
         assembly {
+            let free := mload(0x40)
             let pointer := mload(slot)
             mstore(pointer, x)
             mstore(0, x)
             result := mload(0)
-            mstore(0x40, add(pointer, 32))
+            mstore(0x40, add(free, 32))
         }
     }
 

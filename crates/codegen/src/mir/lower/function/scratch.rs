@@ -48,15 +48,26 @@
 //! which may execute a scratch block, including recursive calls and function-pointer dispatchers.
 //! Callee summaries also record free pointers captured by stores or calls, even when the callee
 //! returns no value. It does not follow whether assembly reserved memory at the pointer first.
-//! In a contract that lowered inline assembly, a load at an unknown address may read the free
-//! memory pointer, as may an unaligned load that overlaps its word; without assembly, a typed
-//! read stays inside the object its pointer names. Loads from fresh allocation bases are
+//! In assembly functions, a load at an unknown address may read the free memory pointer, as may
+//! an unaligned load that overlaps its word. Typed reads stay inside valid objects when all
+//! assembly promises memory safety and no function-pointer dispatcher reinterprets references;
+//! otherwise the whole contract stays conservative. Loads from fresh allocation bases are
 //! disjoint. A load of the last word stored at the same disjoint address in its block instead
 //! carries the stored value's provenance; any intervening memory write cancels that fact. Writing
 //! a scalar into the free-pointer slot makes it an allocation address, so forwarding cannot hide
 //! a possible read of that slot.
+//! Values installed into that slot are allocation addresses too, even without a subsequent
+//! load. Their pure inputs and aliases are followed from their definitions, including captures
+//! before the installation. Callee summaries carry installed parameters back to their callers.
+//! A non-forwarded reload or opaque call result can hide an older alias; installing one prevents
+//! reuse unless the origin is an exact FMP read whose earlier installations are also checked.
 //! Copies and calls that may capture its bytes also escape, including through callee summaries.
+//! A byte-range capture through a parameter plus nonnegative u64 constants stays conditional:
+//! a caller can discharge it with an exact bounded compiler allocation above reserved slots.
+//! Dynamic offsets, narrowing casts and captured SSA words keep their conservative treatment.
 //! These facts only guide validation, not codegen.
+//! An unannotated read-only assembly block also keeps the whole contract conservative: it can
+//! forge a reference without writing memory.
 //!
 //! The check runs on the contract's MIR right after lowering, before any pass, once the internal
 //! function pointer dispatchers exist, so every body a call in the block may run is summarized.
@@ -153,6 +164,7 @@ pub(in crate::mir::lower) fn check_scratch_regions(
     module: &Module,
     regions: &[(FunctionId, ScratchRegion)],
     assembly: &FxHashSet<FunctionId>,
+    forged: bool,
 ) {
     if regions.is_empty() {
         return;
@@ -164,6 +176,8 @@ pub(in crate::mir::lower) fn check_scratch_regions(
         module,
         &calls,
         assembly,
+        &scratch,
+        forged,
         scratch.keys().copied().chain(regions.iter().map(|&(function, _)| function)),
     );
     for (id, func) in module.iter_functions() {
@@ -171,7 +185,7 @@ pub(in crate::mir::lower) fn check_scratch_regions(
         if !scratch.contains_key(&id) && local.clone().next().is_none() {
             continue;
         }
-        let function = Analyzed::new(func, &calls, !assembly.is_empty());
+        let function = Analyzed::new(func, &calls, forged || assembly.contains(&id));
         let saved = local.clone().map(|(_, region)| region.saved).collect::<FxHashSet<_>>();
         for (_, region) in local {
             check_region(gcx, module, &function, &summaries, assembly, &saved, region);
@@ -435,7 +449,7 @@ fn reads_free_pointer(
 fn runs_after(
     func: &Function,
     (from_block, from): (BlockId, usize),
-    (barrier_block, barrier): (BlockId, usize),
+    barrier: Option<(BlockId, usize)>,
 ) -> (DenseBitSet<InstId>, DenseBitSet<BlockId>) {
     let mut instructions = DenseBitSet::new_empty(func.num_insts());
     let mut terminators = DenseBitSet::new_empty(func.blocks.len());
@@ -443,11 +457,9 @@ fn runs_after(
     let mut stack = vec![(from_block, from + 1)];
     while let Some((block, start)) = stack.pop() {
         let data = &func.blocks[block];
-        let end = if block == barrier_block && start <= barrier {
-            barrier
-        } else {
-            data.instructions.len()
-        };
+        let end = barrier
+            .filter(|&(barrier_block, barrier)| block == barrier_block && start <= barrier)
+            .map_or(data.instructions.len(), |(_, barrier)| barrier);
         for &inst in &data.instructions[start..end] {
             instructions.insert(inst);
         }
@@ -550,8 +562,12 @@ struct PointerWrites {
     other: Stored,
     /// Whether a return may carry a read of the free memory pointer.
     returns_free: bool,
-    /// Whether the function may capture a free pointer in memory, storage or a call.
-    captures_free: bool,
+    /// Captures of free-pointer values or bytes, conditional on parameters reaching its slot.
+    captures_free: Stored,
+    /// Parameters whose values may be installed into the free memory pointer.
+    installs_free: SmallVec<[ArgIdx; 2]>,
+    /// Unknown installed addresses, conditional on which parameters may reach the FMP slot.
+    unknown_fmp: Stored,
 }
 
 impl PointerWrites {
@@ -560,6 +576,8 @@ impl PointerWrites {
         module: &Module,
         calls: &Arc<MemoryCallSummaries>,
         assembly: &FxHashSet<FunctionId>,
+        scratch: &FxHashMap<FunctionId, Span>,
+        forged: bool,
         roots: impl Iterator<Item = FunctionId>,
     ) -> FxHashMap<FunctionId, Self> {
         let mut order = Vec::new();
@@ -581,7 +599,9 @@ impl PointerWrites {
         }
         let analyzed = order
             .iter()
-            .map(|&id| (id, Analyzed::new(module.function(id), calls, !assembly.is_empty())))
+            .map(|&id| {
+                (id, Analyzed::new(module.function(id), calls, forged || assembly.contains(&id)))
+            })
             .collect::<FxHashMap<_, _>>();
         let mut summaries =
             order.iter().map(|&id| (id, Self::default())).collect::<FxHashMap<_, _>>();
@@ -589,7 +609,12 @@ impl PointerWrites {
         loop {
             let mut changed = false;
             for &id in &order {
-                let summary = Self::of(&analyzed[&id], assembly.contains(&id), &summaries);
+                let summary = Self::of(
+                    &analyzed[&id],
+                    assembly.contains(&id),
+                    scratch.contains_key(&id),
+                    &summaries,
+                );
                 if summaries[&id] != summary {
                     summaries.insert(id, summary);
                     changed = true;
@@ -603,13 +628,47 @@ impl PointerWrites {
 
     /// Summarizes a function given the summaries of its callees, and whether its code came from
     /// inline assembly.
-    fn of(function: &Analyzed, assembly: bool, summaries: &FxHashMap<FunctionId, Self>) -> Self {
+    fn of(
+        function: &Analyzed,
+        assembly: bool,
+        scratch: bool,
+        summaries: &FxHashMap<FunctionId, Self>,
+    ) -> Self {
         let func = &function.func;
         let mut writes = Self::default();
         writes.other.any = assembly;
         let mut constants = ConstantWords::new(func);
         let loads = stored_load_values(function);
-        let mut free = FxHashSet::default();
+        // A later reset cannot hide an installation that an earlier scratch block reclaimed.
+        let reaching = if scratch {
+            DenseBitSet::new_filled(func.num_insts())
+        } else {
+            reaching_fmp_writes(function, &mut constants, None)
+        };
+        for inst in reaching.iter() {
+            writes.unknown_fmp.add(&unknown_fmp_write(
+                function,
+                &mut constants,
+                summaries,
+                &loads,
+                inst,
+            ));
+        }
+        let mut free = installed_free_pointers(
+            function,
+            &mut constants,
+            summaries,
+            &loads,
+            func.instructions(),
+        );
+        writes.installs_free = free
+            .iter()
+            .filter_map(|&value| match *func.value(value) {
+                Value::Arg(index) => Some(index),
+                _ => None,
+            })
+            .collect();
+        writes.installs_free.sort_unstable();
         loop {
             let before = free.len();
             for inst in func.instructions() {
@@ -636,16 +695,20 @@ impl PointerWrites {
             matches!(&block.terminator, Some(Terminator::Return { values })
                 if values.iter().any(|value| free.contains(value)))
         });
-        writes.captures_free = func.instructions().any(|inst| {
+        for inst in func.instructions() {
             let kind = &func.inst(inst).kind;
-            captures_free_memory(function, &mut constants, inst)
-                || (kind.effect_kind() != EffectKind::Pure
-                    && kind.operands().iter().any(|value| {
-                        free.contains(value) && captures(&mut constants, inst, *value)
-                    }))
-                || matches!(kind, InstKind::ICall { function: Callee::Function(callee), .. }
-                    if summaries.get(callee).is_some_and(|summary| summary.captures_free))
-        });
+            writes.captures_free.add(&captures_free_memory(
+                function,
+                &mut constants,
+                summaries,
+                inst,
+            ));
+            writes.captures_free.any |= kind.effect_kind() != EffectKind::Pure
+                && kind
+                    .operands()
+                    .iter()
+                    .any(|value| free.contains(value) && captures(&mut constants, inst, *value));
+        }
         // Where a store of `stored` through `address` lands: this call's own memory, a
         // parameter's object, or memory older than the call.
         let record = |writes: &mut Self, address: ValueId, stored: &Stored| {
@@ -875,68 +938,98 @@ fn check_free_pointers(
     let mut constants = ConstantWords::new(func);
     let prior = runs_before(func, boundary, None);
     let boundary_inst = func.blocks[boundary.0].instructions[boundary.1];
+    let reaching = reaching_fmp_writes(function, &mut constants, Some(boundary));
+    for inst in reaching.iter().filter(|&inst| !inside(inst)).chain(std::iter::once(boundary_inst))
+    {
+        let unknown = unknown_fmp_write(function, &mut constants, summaries, &uses.loads, inst);
+        if unknown.any || !unknown.params.is_empty() {
+            let escape = match func.inst(inst).kind {
+                InstKind::ICall { function: Callee::Function(callee), .. } => Escape::Call(callee),
+                _ => Escape::Stored,
+            };
+            escapes.push((func.inst(inst).metadata.source_span(), escape));
+        }
+    }
+    let installed = installed_free_pointers(
+        function,
+        &mut constants,
+        summaries,
+        &uses.loads,
+        prior.iter().filter(|&inst| !inside(inst)).chain(std::iter::once(boundary_inst)),
+    );
     for inst in prior.iter() {
         if inside(inst) {
             continue;
         }
-        if captures_free_memory(function, &mut constants, inst) {
-            escapes.push((func.inst(inst).metadata.source_span(), Escape::Stored));
-        }
-        if let InstKind::ICall { function: Callee::Function(callee), .. } = func.inst(inst).kind
-            && summaries.get(&callee).is_some_and(|summary| summary.captures_free)
-        {
-            escapes.push((func.inst(inst).metadata.source_span(), Escape::Call(callee)));
+        let captured = captures_free_memory(function, &mut constants, summaries, inst);
+        if captured.any || !captured.params.is_empty() {
+            let escape = match func.inst(inst).kind {
+                InstKind::ICall { function: Callee::Function(callee), .. } => Escape::Call(callee),
+                _ => Escape::Stored,
+            };
+            escapes.push((func.inst(inst).metadata.source_span(), escape));
         }
     }
+    let mut pointers = Vec::new();
     for (block, data) in func.blocks.iter_enumerated() {
         for (index, &read) in data.instructions.iter().enumerate() {
             let Some(pointer) = func.inst_result_value(read) else { continue };
             let returns_free = matches!(&func.inst(read).kind,
                 InstKind::ICall { function: Callee::Function(callee), .. }
                     if summaries.get(callee).is_some_and(|summary| summary.returns_free));
-            if inside(read)
-                || !prior.contains(read)
-                || saved.contains(&pointer)
-                || uses.loads.contains_key(&read)
-                || !(reads_free_pointer(function, &mut constants, read) || returns_free)
+            if !installed.contains(&pointer)
+                && (inside(read)
+                    || !prior.contains(read)
+                    || saved.contains(&pointer)
+                    || uses.loads.contains_key(&read)
+                    || !(reads_free_pointer(function, &mut constants, read) || returns_free))
             {
                 continue;
             }
-            let (later, later_terminators) = runs_after(func, boundary, (block, index));
-            let earlier = runs_before(func, boundary, Some((block, index)));
-            let mut derived = FxHashSet::from_iter([pointer]);
-            let mut stack = vec![pointer];
-            while let Some(value) = stack.pop() {
-                for &block in uses.terminators.get(&value).into_iter().flatten() {
-                    if later_terminators.contains(block) {
-                        let span = func.blocks[block].terminator_metadata.source_span();
-                        escapes.push((span, Escape::Outlives));
-                    }
+            pointers.push((pointer, (!installed.contains(&pointer)).then_some((block, index))));
+        }
+    }
+    pointers.extend(
+        installed
+            .into_iter()
+            .filter(|&value| !matches!(func.value(value), Value::Inst(_)))
+            .map(|value| (value, None)),
+    );
+    for (pointer, definition) in pointers {
+        let (later, later_terminators) = runs_after(func, boundary, definition);
+        let earlier = runs_before(func, boundary, definition);
+        let mut derived = FxHashSet::from_iter([pointer]);
+        let mut stack = vec![pointer];
+        while let Some(value) = stack.pop() {
+            for &block in uses.terminators.get(&value).into_iter().flatten() {
+                if later_terminators.contains(block) {
+                    let span = func.blocks[block].terminator_metadata.source_span();
+                    escapes.push((span, Escape::Outlives));
                 }
-                for &inst in uses.instructions.get(&value).into_iter().flatten() {
-                    if func.inst(inst).kind.effect_kind() == EffectKind::Pure
-                        || matches!(uses.loads.get(&inst), Some(LoadedWord::Value(stored))
-                            if *stored == value)
+            }
+            for &inst in uses.instructions.get(&value).into_iter().flatten() {
+                if func.inst(inst).kind.effect_kind() == EffectKind::Pure
+                    || matches!(uses.loads.get(&inst), Some(LoadedWord::Value(stored))
+                        if *stored == value)
+                {
+                    if let Some(result) = func.inst_result_value(inst)
+                        && may_hold_pointer(func.value_ty(result))
+                        && derived.insert(result)
                     {
-                        if let Some(result) = func.inst_result_value(inst)
-                            && may_hold_pointer(func.value_ty(result))
-                            && derived.insert(result)
-                        {
-                            stack.push(result);
-                        }
-                    } else if inst == boundary_inst && captures(&mut constants, inst, value) {
-                        escapes.push((func.inst(inst).metadata.source_span(), Escape::Passed));
-                    } else if later.contains(inst) {
-                        escapes.push((func.inst(inst).metadata.source_span(), Escape::Outlives));
-                    } else if earlier.contains(inst) && captures(&mut constants, inst, value) {
-                        let escape = match func.inst(inst).kind {
-                            InstKind::ICall { function: Callee::Function(callee), .. } => {
-                                Escape::Call(callee)
-                            }
-                            _ => Escape::Stored,
-                        };
-                        escapes.push((func.inst(inst).metadata.source_span(), escape));
+                        stack.push(result);
                     }
+                } else if inst == boundary_inst && captures(&mut constants, inst, value) {
+                    escapes.push((func.inst(inst).metadata.source_span(), Escape::Passed));
+                } else if later.contains(inst) {
+                    escapes.push((func.inst(inst).metadata.source_span(), Escape::Outlives));
+                } else if earlier.contains(inst) && captures(&mut constants, inst, value) {
+                    let escape = match func.inst(inst).kind {
+                        InstKind::ICall { function: Callee::Function(callee), .. } => {
+                            Escape::Call(callee)
+                        }
+                        _ => Escape::Stored,
+                    };
+                    escapes.push((func.inst(inst).metadata.source_span(), escape));
                 }
             }
         }
@@ -1101,11 +1194,12 @@ fn stored_load_values(function: &Analyzed) -> FxHashMap<InstId, LoadedWord> {
 fn captures_free_memory(
     function: &Analyzed,
     constants: &mut ConstantWords<'_>,
+    summaries: &FxHashMap<FunctionId, PointerWrites>,
     inst: InstId,
-) -> bool {
+) -> Stored {
     let kind = &constants.func.inst(inst).kind;
     let mut captures = matches!(kind.effect_kind(), EffectKind::ExternalCall | EffectKind::Create);
-    let mut reads_free = false;
+    let mut reads_free = Stored::default();
     kind.visit_raw_memory(|access, address, size| {
         let size = match size {
             RawMemorySize::Bytes(size) => Some(U256::from(size)),
@@ -1116,12 +1210,32 @@ fn captures_free_memory(
         }
         if access != RawMemoryAccess::Read {
             captures = true;
-        } else {
-            reads_free |= function.overlaps_free_pointer(constants, address, size)
-                && function.fresh_start(address).is_none();
+        } else if function.overlaps_free_pointer(constants, address, size)
+            && function.fresh_start(address).is_none()
+        {
+            reads_free.add(&fmp_access_base(function, constants, address, true));
         }
     });
-    captures && reads_free
+    if !captures {
+        reads_free = Stored::default();
+    }
+    if let InstKind::ICall { function: Callee::Function(callee), args } = kind
+        && let Some(summary) = summaries.get(callee)
+    {
+        reads_free.any |= summary.captures_free.any;
+        for param in &summary.captures_free.params {
+            let Some(&address) = args.get(param.index()) else {
+                reads_free.any = true;
+                continue;
+            };
+            // A bounded compiler allocation cannot wrap to the slot under a nonnegative u64 offset.
+            // Raw ranges extending past the address space fail rather than wrap.
+            if !function.read_start_above_fmp(address) {
+                reads_free.add(&fmp_access_base(function, constants, address, true));
+            }
+        }
+    }
+    reads_free
 }
 
 fn range_overlaps_free_pointer(address: Option<U256>, size: Option<U256>) -> bool {
@@ -1146,9 +1260,9 @@ pub(super) struct Analyzed {
     aa: AliasAnalysis,
     /// The reads of the free memory pointer that no reset of it may precede.
     fresh_fmps: FxHashSet<InstId>,
-    /// Whether the contract lowered inline assembly, the only way to make a pointer to the free
-    /// memory pointer's slot. Without it, a typed access through an address of unknown value
-    /// stays inside the object its pointer names.
+    /// Whether this function may directly or indirectly receive forged memory references. Raw
+    /// assembly stays conservative; typed accesses can trust the explicit memory-safety promise
+    /// only when no unannotated block or reference-retyping dispatcher undermines it.
     forged: bool,
 }
 
@@ -1210,6 +1324,53 @@ impl Analyzed {
         }
         pointer
     }
+
+    /// Whether a raw write can install an allocation address. The heap-floor pass clamps a
+    /// direct FMP load used as a memory address above reserved slots, even after an assembly
+    /// reset. An offset from that load can wrap, so only unoffset loads and casts qualify.
+    /// Constant offsets from fresh allocations stay above reserved slots; dynamic ones can wrap.
+    fn writes_free_pointer(
+        &self,
+        constants: &mut ConstantWords<'_>,
+        address: ValueId,
+        size: Option<U256>,
+    ) -> bool {
+        let mut base = address;
+        let mut offset = 0_u64;
+        while let Value::Inst(inst) = *self.func.value(base) {
+            match self.func.inst(inst).kind {
+                InstKind::IntToPtr(value) | InstKind::PtrToInt(value, 256) => base = value,
+                InstKind::PtrAdd(value, delta) => {
+                    let Some(next) =
+                        self.func.value_u64(delta).and_then(|delta| offset.checked_add(delta))
+                    else {
+                        break;
+                    };
+                    offset = next;
+                    base = value;
+                }
+                InstKind::Load(slot, PtrLocation::Memory)
+                    if offset == 0
+                        && self.func.value_u64(slot) == Some(EvmMemoryLayout::FMP_SLOT) =>
+                {
+                    return false;
+                }
+                _ => break,
+            }
+        }
+        self.overlaps_free_pointer(constants, address, size) && self.fresh_start(base).is_none()
+    }
+
+    /// A bounded compiler allocation starts above reserved slots even if an FMP reset makes it
+    /// alias an older object. Unlike `fresh_start`, this proves only disjointness from the FMP
+    /// slot, not uniqueness. Do not follow offsets: their addition may wrap before the read.
+    fn read_start_above_fmp(&self, address: ValueId) -> bool {
+        self.fresh_start(address).is_some()
+            || matches!(*self.func.value(address), Value::Inst(inst)
+                if matches!(self.func.inst(inst).kind,
+                    InstKind::AbiEncode { mode: AbiEncodeMode::Bytes, .. }
+                        | InstKind::AbiEncodePacked { hash: false, .. }))
+    }
 }
 
 /// The reads of the free memory pointer in `func` that no instruction that may reset it precedes
@@ -1256,6 +1417,270 @@ fn fresh_fmps(func: &Function, aa: &AliasAnalysis) -> FxHashSet<InstId> {
         }
     }
     fresh
+}
+
+/// Values installed as allocation addresses by raw stores or internal calls. Follow pure inputs
+/// and forwarded loads backwards too: an alias may predate the store and need not reload the FMP.
+/// A full-word constant below the heap start is raised before allocation by the heap-floor pass;
+/// partial writes and values whose origins cannot be traced are rejected by `unknown_fmp_write`.
+fn installed_free_pointers(
+    function: &Analyzed,
+    constants: &mut ConstantWords<'_>,
+    summaries: &FxHashMap<FunctionId, PointerWrites>,
+    loads: &FxHashMap<InstId, LoadedWord>,
+    instructions: impl Iterator<Item = InstId>,
+) -> FxHashSet<ValueId> {
+    let func = &function.func;
+    let mut stack = Vec::new();
+    for inst in instructions {
+        match &func.inst(inst).kind {
+            InstKind::Store(address, value, PtrLocation::Memory) => {
+                if constants.get(*address) == Some(U256::from(EvmMemoryLayout::FMP_SLOT))
+                    && constants
+                        .get(*value)
+                        .is_none_or(|word| word >= U256::from(EvmMemoryLayout::HEAP_START))
+                {
+                    stack.push(*value);
+                }
+            }
+            InstKind::ICall { function: Callee::Function(callee), args } => {
+                stack.extend(summaries.get(callee).into_iter().flat_map(|summary| {
+                    summary
+                        .installs_free
+                        .iter()
+                        .filter_map(|index| args.get(index.index()))
+                        .copied()
+                }))
+            }
+            _ => {}
+        }
+    }
+    installed_pointer_sources(function, constants, loads, stack).0
+}
+
+/// The inputs and aliases of installed values, and whether any origin remains unaccounted for.
+/// A non-forwarded load can recover an older word whose aliases are absent from this SSA chain.
+/// Only an exact FMP read is known to carry the existing installation's provenance; a load that
+/// merely may read it is not enough. Opaque call returns may likewise recover hidden words, even
+/// without arguments. Still follow their arguments to retain any known aliases and diagnostics.
+fn installed_pointer_sources(
+    function: &Analyzed,
+    constants: &mut ConstantWords<'_>,
+    loads: &FxHashMap<InstId, LoadedWord>,
+    mut stack: Vec<ValueId>,
+) -> (FxHashSet<ValueId>, bool) {
+    let func = &function.func;
+    let mut installed = FxHashSet::default();
+    let mut unresolved = false;
+    while let Some(value) = stack.pop() {
+        if !installed.insert(value) {
+            continue;
+        }
+        let Value::Inst(inst) = *func.value(value) else { continue };
+        if let Some(loaded) = loads.get(&inst) {
+            stack.extend(match *loaded {
+                LoadedWord::Value(stored) => Some(stored),
+                LoadedWord::EncodingLength => None,
+            });
+        } else if func.inst(inst).kind.effect_kind() == EffectKind::Pure {
+            stack.extend(func.inst(inst).operands());
+        } else if let InstKind::ICall { function: Callee::Function(_), args } =
+            &func.inst(inst).kind
+        {
+            // A returned word may forward an argument without reading the FMP itself.
+            stack.extend(args);
+            unresolved = true;
+        } else if !matches!(func.inst(inst).kind, InstKind::Fmp)
+            && !matches!(func.inst(inst).kind, InstKind::Load(address, PtrLocation::Memory)
+                if constants.get(address) == Some(U256::from(EvmMemoryLayout::FMP_SLOT))
+                    && func.inst(inst).result_ty == Some(MirType::I256))
+        {
+            unresolved = true;
+        }
+    }
+    (installed, unresolved)
+}
+
+/// Instructions whose unknown FMP write may reach `boundary`, or a function exit. A definite
+/// full-word replacement kills earlier writes, except those read to compute its replacement.
+/// Partial writes, allocation bumps and scratch restores retain the original provenance.
+fn reaching_fmp_writes(
+    function: &Analyzed,
+    constants: &mut ConstantWords<'_>,
+    boundary: Option<(BlockId, usize)>,
+) -> DenseBitSet<InstId> {
+    let func = &function.func;
+    let mut predecessors: IndexVec<BlockId, Vec<BlockId>> =
+        index_vec![Vec::new(); func.blocks.len()];
+    let mut positions = index_vec![None; func.num_insts()];
+    for (block, data) in func.blocks.iter_enumerated() {
+        for (index, &inst) in data.instructions.iter().enumerate() {
+            positions[inst] = Some((block, index));
+        }
+        for successor in data.terminator.iter().flat_map(Terminator::successors) {
+            predecessors[successor].push(block);
+        }
+    }
+    let mut stack = match boundary {
+        Some(boundary) => vec![boundary],
+        None => func
+            .blocks
+            .iter_enumerated()
+            .filter(|(_, block)| {
+                block.terminator.iter().flat_map(Terminator::successors).next().is_none()
+            })
+            .map(|(block, data)| (block, data.instructions.len()))
+            .collect(),
+    };
+    let mut reaching = DenseBitSet::new_empty(func.num_insts());
+    let mut visited = DenseBitSet::new_empty(func.blocks.len());
+    let mut sources = FxHashSet::default();
+    while let Some((block, end)) = stack.pop() {
+        let mut replaced = false;
+        for &inst in func.blocks[block].instructions[..end].iter().rev() {
+            reaching.insert(inst);
+            if let InstKind::Store(address, value, PtrLocation::Memory) = func.inst(inst).kind
+                && constants.get(address) == Some(U256::from(EvmMemoryLayout::FMP_SLOT))
+            {
+                let mut values = vec![value];
+                while let Some(value) = values.pop() {
+                    if !sources.insert(value) {
+                        continue;
+                    }
+                    let Value::Inst(read) = *func.value(value) else { continue };
+                    let kind = &func.inst(read).kind;
+                    if kind.effect_kind() == EffectKind::Pure {
+                        values.extend(kind.operands());
+                    } else if reads_free_pointer(function, constants, read)
+                        || matches!(kind, InstKind::ICall { function: Callee::Function(_), .. })
+                    {
+                        let Some((block, index)) = positions[read] else { continue };
+                        // Calls can install the value they return as well as read the old slot.
+                        let end = index + usize::from(matches!(kind, InstKind::ICall { .. }));
+                        stack.push((block, end));
+                    }
+                }
+                replaced = true;
+                break;
+            }
+        }
+        if !replaced {
+            for &predecessor in &predecessors[block] {
+                if visited.insert(predecessor) {
+                    stack.push((predecessor, func.blocks[predecessor].instructions.len()));
+                }
+            }
+        }
+    }
+    reaching
+}
+
+/// A write whose installed FMP value is unknown. A callee's write through a parameter is harmless
+/// when the caller passes a fresh object; otherwise keep the destination's parameter provenance.
+/// Full aligned word stores have explicit value roots unless a non-forwarded reload or opaque
+/// result hides their origins. Partial stores and copies never have explicit value roots.
+fn unknown_fmp_write(
+    function: &Analyzed,
+    constants: &mut ConstantWords<'_>,
+    summaries: &FxHashMap<FunctionId, PointerWrites>,
+    loads: &FxHashMap<InstId, LoadedWord>,
+    inst: InstId,
+) -> Stored {
+    let func = &function.func;
+    let kind = &func.inst(inst).kind;
+    let mut unknown = Stored::default();
+    if let InstKind::Store(address, value, PtrLocation::Memory) = *kind
+        && constants.get(address) == Some(U256::from(EvmMemoryLayout::FMP_SLOT))
+    {
+        if constants.get(value).is_none_or(|word| word >= U256::from(EvmMemoryLayout::HEAP_START)) {
+            unknown.any = installed_pointer_sources(function, constants, loads, vec![value]).1;
+        }
+        return unknown;
+    }
+    kind.visit_raw_memory(|access, address, size| {
+        let size = match size {
+            RawMemorySize::Bytes(size) => Some(U256::from(size)),
+            RawMemorySize::Value(size) => constants.get(size),
+        };
+        if access != RawMemoryAccess::Read && function.writes_free_pointer(constants, address, size)
+        {
+            unknown.add(&fmp_access_base(function, constants, address, false));
+        }
+    });
+    if let InstKind::ICall { function: Callee::Function(callee), args } = kind
+        && let Some(summary) = summaries.get(callee)
+    {
+        unknown.any |= summary.unknown_fmp.any;
+        for param in &summary.installs_free {
+            unknown.any |= args.get(param.index()).is_none_or(|&value| {
+                installed_pointer_sources(function, constants, loads, vec![value]).1
+            });
+        }
+        for param in &summary.unknown_fmp.params {
+            let Some(&address) = args.get(param.index()) else {
+                unknown.any = true;
+                continue;
+            };
+            // A bounded fresh object cannot wrap to the slot under a constant u64 offset.
+            if function.fresh_start(address).is_none() {
+                unknown.add(&fmp_access_base(function, constants, address, false));
+            }
+        }
+    }
+    unknown
+}
+
+/// The parameter an access offsets by nonnegative u64 constants. No bound is inferred: a caller
+/// must supply a bounded compiler allocation before the conditional overlap can be discharged.
+/// Other origins or arithmetic keep no conditional proof. Raw read ranges also allow full-width
+/// integer adds.
+fn fmp_access_base(
+    function: &Analyzed,
+    constants: &mut ConstantWords<'_>,
+    mut address: ValueId,
+    integer_offsets: bool,
+) -> Stored {
+    let func = &function.func;
+    let mut offset = 0_u64;
+    loop {
+        match *func.value(address) {
+            Value::Arg(param) => {
+                return Stored { params: SmallVec::from_slice(&[param]), any: false };
+            }
+            Value::Inst(inst) => match func.inst(inst).kind {
+                InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => address = value,
+                InstKind::PtrAdd(base, delta) => {
+                    let Some(next) = constants
+                        .get(delta)
+                        .and_then(|word| u64::try_from(word).ok())
+                        .and_then(|delta| offset.checked_add(delta))
+                    else {
+                        break;
+                    };
+                    address = base;
+                    offset = next;
+                }
+                InstKind::Add(first, second)
+                    if integer_offsets && func.value_ty(address) == Some(MirType::I256) =>
+                {
+                    let base = constants
+                        .get(second)
+                        .map(|delta| (first, delta))
+                        .or_else(|| constants.get(first).map(|delta| (second, delta)));
+                    let Some((base, next)) = base.and_then(|(base, delta)| {
+                        Some((base, offset.checked_add(u64::try_from(delta).ok()?)?))
+                    }) else {
+                        break;
+                    };
+                    address = base;
+                    offset = next;
+                }
+                _ => break,
+            },
+            _ => break,
+        }
+    }
+    Stored { params: SmallVec::new(), any: true }
 }
 
 #[cfg(test)]
