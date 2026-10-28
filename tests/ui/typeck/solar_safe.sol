@@ -343,3 +343,18 @@ contract SafeShared is SharedBase {
         shared();
     }
 }
+
+// The base arguments in the inheritance list of a trusted contract are reviewed with it too.
+contract ArgBase {
+    constructor(uint256) {}
+}
+
+function argWord() pure returns (uint256 w) {
+    assembly { w := 1 }
+}
+
+/// @custom:solar-trusted
+abstract contract TrustedArgs is ArgBase(argWord()) {}
+
+/// @custom:solar-safe
+contract SafeTrustedArgs is TrustedArgs {}

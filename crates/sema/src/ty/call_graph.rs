@@ -106,13 +106,13 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
                     let _ = this.visit_expr(initializer);
                 }
             }
-            this.stopped = false;
             if let Some(constructor) = base.ctor {
                 this.enqueue(constructor);
             }
             for inheritance in base.bases_args {
                 let _ = this.visit_modifier(inheritance);
             }
+            this.stopped = false;
         }
     }
 
