@@ -7,6 +7,16 @@
       "component": "general",
       "severity": "error",
       "errorCode": null,
+      "message": "invalid `settings.solar.unstable`: unexpected argument '-Zbogus' found",
+      "formattedMessage": "error: invalid `settings.solar.unstable`: unexpected argument '-Zbogus' found\n\n"
+    },
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
       "message": "invalid EVM version `Byzantium`",
       "formattedMessage": "error: invalid EVM version `Byzantium`\n\n"
     },

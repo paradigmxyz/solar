@@ -258,18 +258,21 @@ fn compilation_identity_covers_revert_strings_and_metadata() {
     // Resources-only requests must name the same effective compilation as
     // program requests, including settings outside CompileOpts.
     let mut identities = Vec::new();
-    for metadata in [
-        json!({"appendCBOR": false, "bytecodeHash": "none"}),
-        json!({"bytecodeHash": "none"}),
-        json!({"bytecodeHash": "ipfs"}),
-        json!({"bytecodeHash": "ipfs", "useLiteralContent": true}),
+    for settings in [
+        json!({"metadata": {"appendCBOR": false, "bytecodeHash": "none"}}),
+        json!({"metadata": {"bytecodeHash": "none"}}),
+        json!({"metadata": {"bytecodeHash": "ipfs"}}),
+        json!({"metadata": {"bytecodeHash": "ipfs", "useLiteralContent": true}}),
+        json!({"metadata": {"bytecodeHash": "ipfs"}, "solar": {"unstable": ["tune=none"]}}),
     ] {
         let mut ids = Vec::new();
         for selectors in [json!(["ethdebug.resources"]), json!(["evm.bytecode.ethdebug"])] {
+            let mut settings = settings.clone();
+            settings["outputSelection"] = json!({"*": {"*": selectors}});
             let input = json!({
                 "language": "Solidity",
                 "sources": {"C.sol": {"content": "contract C {}"}},
-                "settings": {"metadata": metadata, "outputSelection": {"*": {"*": selectors}}}
+                "settings": settings
             });
             let mut bytes = Vec::new();
             solar::cli::standard_json::compile_standard_json(
