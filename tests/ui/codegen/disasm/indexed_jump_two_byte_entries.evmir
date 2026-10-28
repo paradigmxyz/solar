@@ -1,14 +1,17 @@
-//@ revisions: stride wide
+//@ revisions: stride wide jit
 //@ compile-flags: -Zevm-ir-pipeline=none -O none -Zdump=disasm-runtime
 //@[wide] compile-flags: -Zpack-wide-jump-tables
+//@[jit] compile-flags: -Ztune=jit
 //@[stride] filecheck: --check-prefix=STRIDE
 //@[wide] filecheck: --check-prefix=WIDE
+//@[jit] filecheck: --check-prefix=STRIDE
 
 // Every target sits past 255 bytes, so absolute entries need two bytes. By default
 // two-byte entries are never packed into a word: the shift and mask that pick one are
 // opaque to jump analysis, so the table stays outlined as equal-width entry stubs.
 // `-Zpack-wide-jump-tables` packs all ten entries into one `PUSH20` and picks one with
-// a shift and a mask.
+// a shift and a mask. `-Ztune=jit` keeps the stride table even with the flag, because a
+// bytecode JIT cannot resolve that pick.
 @module two_byte_entries
 
 // STRIDE-LABEL: // === two_byte_entries (runtime) ===

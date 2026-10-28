@@ -652,6 +652,14 @@ impl Target {
         cost
     }
 
+    /// Whether indexed jump tables may pack entries wider than one byte into words and pick them
+    /// with a shift and a mask, when `requested` by `-Zpack-wide-jump-tables`. A bytecode JIT
+    /// cannot resolve the pick, and one unresolved jump makes it drop every jump it resolved in
+    /// the contract.
+    pub(crate) const fn packs_wide_jump_tables(&self, requested: bool) -> bool {
+        requested && !matches!(self.tune, Tune::Jit)
+    }
+
     /// Whether the engine pays for the dispatch of each executed instruction.
     const fn charges_dispatch(&self) -> bool {
         matches!(self.tune, Tune::Interpreter)
@@ -1297,9 +1305,20 @@ mod tests {
     }
 
     #[test]
+    fn jit_never_packs_wide_jump_tables() {
+        let model = |tune| Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200).tuned(tune);
+        for tune in [Tune::None, Tune::Interpreter] {
+            assert!(model(tune).packs_wide_jump_tables(true));
+            assert!(!model(tune).packs_wide_jump_tables(false));
+        }
+        assert!(!model(Tune::Jit).packs_wide_jump_tables(true));
+        assert!(!model(Tune::Jit).packs_wide_jump_tables(false));
+    }
+
+    #[test]
     fn every_tune_selects_the_fewest_bytes() {
         let address_mask = (U256::ONE << 160) - U256::ONE;
-        for tune in [Tune::None, Tune::Interpreter] {
+        for tune in [Tune::None, Tune::Interpreter, Tune::Jit] {
             for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
                 let target = Target::with(EvmVersion::Osaka, optimization, 200).tuned(tune);
                 // `PUSH0; NOT; PUSH1 0x60; SHR` against `PUSH20 0xff..ff`.
