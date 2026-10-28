@@ -158,6 +158,13 @@ bb81:
   mstore
   jump
 bb18 [continuation]:
+  dup 3
+  calldatasize
+  sub
+  dup 5
+  gt
+  push bb11
+  jumpi
   push 32
   swap 1
   swap 2
@@ -170,13 +177,6 @@ bb18 [continuation]:
   dup 3
   dup 2
   mstore
-  dup 2
-  calldatasize
-  sub
-  dup 4
-  gt
-  push bb11
-  jumpi
   push 32
   dup 2
   add

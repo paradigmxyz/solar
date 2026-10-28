@@ -139,14 +139,14 @@ fn @decode_aggregate(arg0: i256) -> i256 [may_return_memory] {
     jumpi v44, bb4, bb7
   bb7:
     mstore 64, v41 !metadata(memory=scratch)
-    v22 = sub v20, 32
-    v34 = add v40, v22
+    v22 = sub v3, v10
+    v23 = gt v15, v22
+    jumpi v23, bb1, bb6
+  bb6:
+    v24 = sub v20, 32
+    v34 = add v40, v24
     mstore v34, 0
     mstore v40, v15
-    v24 = sub v3, v10
-    v25 = gt v15, v24
-    jumpi v25, bb1, bb6
-  bb6:
     v36 = add v40, 32
     mcopy v36, v10, v15
     ret v40

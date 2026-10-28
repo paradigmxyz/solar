@@ -63,14 +63,14 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     jumpi v276, bb10, bb29
   bb29:
     mstore 64, v263 !metadata(memory=scratch)
-    v172 = sub v170, 32
-    v241 = add v262, v172
+    v172 = sub v158, v166
+    v173 = gt v165, v172
+    jumpi v173, bb25, bb27
+  bb27:
+    v174 = sub v170, 32
+    v241 = add v262, v174
     mstore v241, 0
     mstore v262, v165
-    v174 = sub v158, v166
-    v175 = gt v165, v174
-    jumpi v175, bb25, bb27
-  bb27:
     v243 = add v262, 32
     calldatacopy v243, v166, v165
     v1 = div v165, 3

@@ -153,14 +153,14 @@ fn @decode_calldata_type.2(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     jumpi v49, bb4, bb7
   bb7:
     mstore 64, v46 !metadata(memory=scratch)
-    v22 = sub v20, 32
-    v35 = add v45, v22
+    v22 = sub v0, v16
+    v23 = gt v15, v22
+    jumpi v23, bb1, bb6
+  bb6:
+    v24 = sub v20, 32
+    v35 = add v45, v24
     mstore v35, 0
     mstore v45, v15
-    v24 = sub v0, v16
-    v25 = gt v15, v24
-    jumpi v25, bb1, bb6
-  bb6:
     v37 = add v45, 32
     calldatacopy v37, v16, v15
     v39 = add v51, 32

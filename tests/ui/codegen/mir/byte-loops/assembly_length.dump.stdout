@@ -29,14 +29,14 @@ fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
     jumpi v156, bb16, bb18
   bb18:
     mstore 64, v147 !metadata(memory=scratch)
-    v89 = sub v87, 32
-    v134 = add v146, v89
+    v89 = sub v75, v83
+    v90 = gt v82, v89
+    jumpi v90, bb14, bb17
+  bb17:
+    v91 = sub v87, 32
+    v134 = add v146, v91
     mstore v134, 0
     mstore v146, v82
-    v91 = sub v75, v83
-    v92 = gt v82, v91
-    jumpi v92, bb14, bb17
-  bb17:
     v136 = add v146, 32
     calldatacopy v136, v83, v82
     icall @_dirty

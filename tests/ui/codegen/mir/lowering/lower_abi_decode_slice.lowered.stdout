@@ -80,14 +80,14 @@
 +     v20 = not 31
 +     v21 = and v18, v20
 +     v22 = alloc checked v21
-+     v23 = sub v21, 32
-+     v24 = ptradd v22, v23
-+     mstore v24, 0
-+     mstore v22, v16
-+     v25 = sub v4, v17
-+     v26 = gt v16, v25
-+     jumpi v26, bb1, bb6
++     v23 = sub v4, v17
++     v24 = gt v16, v23
++     jumpi v24, bb1, bb6
 +   bb6:
++     v25 = sub v21, 32
++     v26 = ptradd v22, v25
++     mstore v26, 0
++     mstore v22, v16
 +     v27 = inttoptr i256 v17 to ptr<memory>
 +     v28 = make_memory_slice v27, v16
 +     v29 = ptradd v22, 32

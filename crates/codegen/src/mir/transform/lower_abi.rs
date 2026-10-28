@@ -1805,20 +1805,23 @@ impl LowerAbiCx {
                 builder.switch_to_block(*current);
                 // size = checked_padded_size len
                 // ptr = alloc size
+                // guard the payload range
                 // last = ptradd ptr, size - 32
                 // mstore last, 0
                 // mstore ptr, len
-                // For an empty payload, last == ptr; write the length after zeroing it.
+                // The zero store waits for the range check, so a length past the input reverts
+                // before it expands memory. For an empty payload, last == ptr; write the length
+                // after zeroing it.
                 let size = builder.checked_padded_size(len);
                 let ptr =
                     builder.alloc(size, crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED);
+                *current = builder.current_block();
+                Self::guard_bytes_data(builder, data, len, input_end, current, true);
                 let last_offset = builder.sub(size, word);
                 let last = builder.ptradd(ptr, last_offset);
                 let zero = builder.imm(0);
                 builder.store(last, zero);
                 builder.set_memory_len(ptr, len);
-                *current = builder.current_block();
-                Self::guard_bytes_data(builder, data, len, input_end, current, true);
                 let source = builder.make_slice(data, len, location);
                 builder.memory_copy_from_slice(ptr, source);
                 ptr

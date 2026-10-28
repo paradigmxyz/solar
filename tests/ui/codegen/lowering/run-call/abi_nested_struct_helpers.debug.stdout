@@ -61,14 +61,14 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
   bb14:
     v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v142 = icall @alloc, v43
-    v45 = sub v43, 32
-    v110 = add v142, v45
+    v45 = sub v13, v36
+    v46 = gt v38, v45
+    jumpi v46, bb15, bb16
+  bb16:
+    v47 = sub v43, 32
+    v110 = add v142, v47
     mstore v110, 0
     mstore v142, v38
-    v47 = sub v13, v36
-    v48 = gt v38, v47
-    jumpi v48, bb15, bb16
-  bb16:
     v112 = add v142, 32
     calldatacopy v112, v36, v38
     v114 = add v146, 32
@@ -112,14 +112,14 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
   bb21:
     v79 = and v76, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v143 = icall @alloc, v79
-    v81 = sub v79, 32
-    v118 = add v143, v81
+    v81 = sub v13, v72
+    v82 = gt v74, v81
+    jumpi v82, bb15, bb22
+  bb22:
+    v83 = sub v79, 32
+    v118 = add v143, v83
     mstore v118, 0
     mstore v143, v74
-    v83 = sub v13, v72
-    v84 = gt v74, v83
-    jumpi v84, bb15, bb22
-  bb22:
     v120 = add v143, 32
     calldatacopy v120, v72, v74
     v122 = add v148, 32
@@ -310,14 +310,14 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
   bb27:
     v85 = and v82, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v204 = icall @alloc, v85
-    v87 = sub v85, 32
-    v168 = add v204, v87
+    v87 = sub v35, v78
+    v88 = gt v80, v87
+    jumpi v88, bb28, bb29
+  bb29:
+    v89 = sub v85, 32
+    v168 = add v204, v89
     mstore v168, 0
     mstore v204, v80
-    v89 = sub v35, v78
-    v90 = gt v80, v89
-    jumpi v90, bb28, bb29
-  bb29:
     v170 = add v204, 32
     calldatacopy v170, v78, v80
     v172 = add v208, 32
@@ -361,14 +361,14 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
   bb34:
     v121 = and v118, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v205 = icall @alloc, v121
-    v123 = sub v121, 32
-    v176 = add v205, v123
+    v123 = sub v35, v114
+    v124 = gt v116, v123
+    jumpi v124, bb28, bb35
+  bb35:
+    v125 = sub v121, 32
+    v176 = add v205, v125
     mstore v176, 0
     mstore v205, v116
-    v125 = sub v35, v114
-    v126 = gt v116, v125
-    jumpi v126, bb28, bb35
-  bb35:
     v178 = add v205, 32
     calldatacopy v178, v114, v116
     v180 = add v210, 32

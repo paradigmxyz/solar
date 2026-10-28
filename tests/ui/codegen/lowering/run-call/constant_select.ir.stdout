@@ -197,6 +197,13 @@ bb16 [loop]:
   swap 2
   push 64
   mstore
+  dup 3
+  calldatasize
+  sub
+  dup 5
+  gt
+  push bb12
+  jumpi
   push 32
   swap 1
   sub
@@ -208,13 +215,6 @@ bb16 [loop]:
   dup 3
   dup 2
   mstore
-  dup 2
-  calldatasize
-  sub
-  dup 4
-  gt
-  push bb12
-  jumpi
   push 32
   add
   dup 3

@@ -176,6 +176,13 @@ bb8 [continuation]:
   push bb12
   jump bb25
 bb12 [continuation]:
+  dup 3
+  calldatasize
+  sub
+  dup 5
+  gt
+  push bb3
+  jumpi
   push 32
   swap 1
   swap 2
@@ -188,13 +195,6 @@ bb12 [continuation]:
   dup 3
   dup 2
   mstore
-  dup 2
-  calldatasize
-  sub
-  dup 4
-  gt
-  push bb3
-  jumpi
   push 32
   dup 2
   add

@@ -225,14 +225,14 @@ fn @decode_aggregate.4(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb5:
     v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v38 = icall @alloc, v20
-    v22 = sub v20, 32
-    v32 = add v38, v22
+    v22 = sub v3, v10
+    v23 = gt v15, v22
+    jumpi v23, bb1, bb6
+  bb6:
+    v24 = sub v20, 32
+    v32 = add v38, v24
     mstore v32, 0
     mstore v38, v15
-    v24 = sub v3, v10
-    v25 = gt v15, v24
-    jumpi v25, bb1, bb6
-  bb6:
     v34 = add v38, 32
     mcopy v34, v10, v15
     ret v38
@@ -269,14 +269,14 @@ fn @decode_aggregate.5(arg0: i256) -> struct0 [may_return_memory, return_abi=[i2
   bb5:
     v23 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v45 = icall @alloc, v23
-    v25 = sub v23, 32
-    v39 = add v45, v25
+    v25 = sub v3, v13
+    v26 = gt v18, v25
+    jumpi v26, bb1, bb6
+  bb6:
+    v27 = sub v23, 32
+    v39 = add v45, v27
     mstore v39, 0
     mstore v45, v18
-    v27 = sub v3, v13
-    v28 = gt v18, v27
-    jumpi v28, bb1, bb6
-  bb6:
     v41 = add v45, 32
     mcopy v41, v13, v18
     ret v5, v45

@@ -211,14 +211,14 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
     jumpi v102, bb17, bb19
   bb19:
     mstore 64, v95 !metadata(memory=scratch)
-    v72 = sub v70, 32
-    v89 = add v94, v72
+    v72 = sub v45, v66
+    v73 = gt v65, v72
+    jumpi v73, bb15, bb18
+  bb18:
+    v74 = sub v70, 32
+    v89 = add v94, v74
     mstore v89, 0
     mstore v94, v65
-    v74 = sub v45, v66
-    v75 = gt v65, v74
-    jumpi v75, bb15, bb18
-  bb18:
     v91 = add v94, 32
     calldatacopy v91, v66, v65
     v40 = lt v52, arg2
