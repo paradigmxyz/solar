@@ -170,6 +170,9 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
     if opts.revert_strings != RevertStrings::Default {
         value["settings"]["debug"] = json!({ "revertStrings": opts.revert_strings.to_string() });
     }
+    if !metadata.settings.solar.unstable.is_empty() {
+        value["settings"]["solar"] = json!({ "unstable": metadata.settings.solar.unstable });
+    }
     serde_json::to_string(&value).expect("contract metadata must serialize")
 }
 

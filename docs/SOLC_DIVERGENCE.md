@@ -67,6 +67,26 @@ Coverage: `tests/ui/standard-json/debug/ethdebug-output-without-debug-info`,
 `tests/ui/standard-json/debug/ethdebug-with-ast-id` and
 `tests/ui/standard-json/debug/ethdebug-without-ast-id`.
 
+### JSON-005: `settings.solar` takes code generation flags
+
+Status: intentional.
+
+Difference: `solar` reads `settings.solar.unstable`, a list of unstable code
+generation flags written like `-Z` flags without the prefix, such as
+`["mir-pipeline=none"]`, and records it in each contract's metadata. `solc`
+rejects the unknown `settings.solar` key. Like `solc`, `solar` ignores the
+command line's `--evm-version` and code generation `-Z` flags in Standard JSON
+mode.
+
+Rationale: the Standard JSON input and the compiler version alone must
+determine the output, so that verifiers such as Sourcify can rebuild a
+contract from its metadata. Flags that only change diagnostics or debugging
+output still come from the command line.
+
+Coverage: `tests/ui/standard-json/codegen-error.jsonc`,
+`tests/ui/standard-json/debug/cli-flag-ignored/test.jsonc` and
+`tests/ui/standard-json/metadata/options/test.jsonc`.
+
 ## Import Resolution
 
 ### IMPORT-001: Files on disk are one source unit each

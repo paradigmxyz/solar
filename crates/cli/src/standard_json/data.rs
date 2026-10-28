@@ -93,6 +93,8 @@ pub(super) struct Settings<'a> {
     pub(super) libraries: Libraries<'a>,
     #[serde(default, deserialize_with = "deserialize_present")]
     pub(super) debug: Option<DebugSettings>,
+    #[serde(default)]
+    pub(super) solar: SolarSettings,
     //
     // Not supported.
     // #[serde(borrow, default)]
@@ -103,6 +105,16 @@ pub(super) struct Settings<'a> {
     // via_ir: Option<bool>,
     // #[serde(default)]
     // via_ssa_cfg: Option<bool>,
+}
+
+/// The Solar-only `settings.solar` object.
+#[derive(Debug, Default, Deserialize)]
+pub(super) struct SolarSettings {
+    /// Unstable code generation flags, written like `-Z` flags without the prefix, such as
+    /// `mir-pipeline=none`. The command line's code generation flags do not apply to Standard
+    /// JSON, so the input alone determines the output.
+    #[serde(default)]
+    pub(super) unstable: Vec<String>,
 }
 
 /// The solc Standard JSON `settings.debug` object.

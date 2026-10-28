@@ -257,13 +257,7 @@ impl CompileOpts {
         }
 
         if !self._unstable.is_empty() {
-            let hack = self._unstable.iter().map(|s| format!("--{s}"));
-            let args = std::iter::once(String::new()).chain(hack);
-            self.unstable = UnstableOpts::try_parse_from(args).map_err(|e| {
-                override_clap_message(e, |s| {
-                    s.replace("solar-config", "solar").replace("error:", "").replace("--", "-Z")
-                })
-            })?;
+            self.unstable = UnstableOpts::try_parse_flags(&self._unstable)?;
         }
 
         Ok(())
@@ -491,6 +485,69 @@ pub struct UnstableOpts {
     #[cfg(test)]
     #[cfg_attr(feature = "clap", arg(long))]
     pub test_value: Option<usize>,
+}
+
+impl UnstableOpts {
+    /// Parses unstable flags written without their `-Z` prefix, such as `mir-pipeline=none`.
+    #[cfg(feature = "clap")]
+    pub fn try_parse_flags(
+        flags: impl IntoIterator<Item = impl AsRef<str>>,
+    ) -> Result<Self, clap::Error> {
+        let hack = flags.into_iter().map(|s| format!("--{}", s.as_ref()));
+        let args = std::iter::once(String::new()).chain(hack);
+        Self::try_parse_from(args).map_err(|e| {
+            override_clap_message(e, |s| {
+                s.replace("solar-config", "solar").replace("error:", "").replace("--", "-Z")
+            })
+        })
+    }
+
+    /// Replaces the options that change generated code with those of `other`.
+    pub fn set_codegen_options(&mut self, other: &Self) {
+        // List every field so that new options must be sorted into code generation or not.
+        let Self {
+            mir_pipeline,
+            evm_ir_pipeline,
+            codegen_all_functions,
+            switch_lowering,
+            switch_max_gas_code_growth,
+            switch_max_bit_slice_gas_code_growth,
+            tune,
+            pack_wide_jump_tables,
+            ui_testing: _,
+            track_diagnostics: _,
+            parse_yul: _,
+            no_resolve_imports: _,
+            recover_incomplete_input: _,
+            dump: _,
+            ast_stats: _,
+            hir_stats: _,
+            standard_json_stats: _,
+            span_visitor: _,
+            print_max_storage_sizes: _,
+            print_natspec: _,
+            print_after_each: _,
+            pass_diff: _,
+            validate_ir: _,
+            time_passes: _,
+            assert_planned_edge_spill_home: _,
+            forget_gcx: _,
+            help: _,
+            _non_exhaustive: _,
+            #[cfg(test)]
+                test_bool: _,
+            #[cfg(test)]
+                test_value: _,
+        } = other;
+        self.mir_pipeline.clone_from(mir_pipeline);
+        self.evm_ir_pipeline.clone_from(evm_ir_pipeline);
+        self.codegen_all_functions = *codegen_all_functions;
+        self.switch_lowering = *switch_lowering;
+        self.switch_max_gas_code_growth = *switch_max_gas_code_growth;
+        self.switch_max_bit_slice_gas_code_growth = *switch_max_bit_slice_gas_code_growth;
+        self.tune = *tune;
+        self.pack_wide_jump_tables = *pack_wide_jump_tables;
+    }
 }
 
 #[cfg(all(test, feature = "clap"))]

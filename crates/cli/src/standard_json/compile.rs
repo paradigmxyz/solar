@@ -19,7 +19,7 @@ use serde_json::json;
 use solar_codegen::{ContractArtifact, ContractSelection, ImmutableReference, RuntimeDataFn};
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, LibraryAddress,
-    OptimizationMode, RevertStrings,
+    OptimizationMode, RevertStrings, UnstableOpts,
 };
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{
@@ -210,6 +210,7 @@ fn compile(
         metadata,
         libraries,
         debug,
+        solar,
     } = &settings;
 
     if !metadata.append_cbor
@@ -235,6 +236,19 @@ fn compile(
     }
 
     opts.import_remappings = parsed_remappings;
+    // Like solc, Standard JSON takes code generation settings only from its input, so that the
+    // input and the compiler version determine the output: the command line's `--evm-version` and
+    // code generation `-Z` flags do not apply, and `settings.solar.unstable` replaces the latter.
+    opts.evm_version = EvmVersion::default();
+    match UnstableOpts::try_parse_flags(&solar.unstable) {
+        Ok(unstable) => opts.unstable.set_codegen_options(&unstable),
+        Err(e) => {
+            let e = e.to_string();
+            let message = e.lines().next().unwrap_or_default();
+            let message = message.trim().trim_start_matches("error:").trim();
+            dcx.err(format!("invalid `settings.solar.unstable`: {message}")).emit();
+        }
+    }
     if let Some(version) = evm_version.as_deref() {
         match EvmVersion::from_str(version) {
             Ok(version) => opts.evm_version = version,
