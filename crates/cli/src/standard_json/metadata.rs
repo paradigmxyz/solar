@@ -227,25 +227,28 @@ fn cbor_metadata_len(hash: MetadataHash) -> usize {
         Some(value_len) => cbor_bytes_len(hash.name().len(), value_len),
         None => 0,
     };
-    1 + hash_entry_len + cbor_bytes_len("solar".len(), solar_cbor_value().1.len()) + 2
+    1 + hash_entry_len + solar_cbor_entry().len() + 2
 }
 
-/// Returns the CBOR major type and payload of the `solar` entry.
+/// Returns the encoded `solar` CBOR entry.
 ///
-/// Like solc's `solc` entry, releases store `[major, minor, patch]` as bytes, and other builds
-/// store their long version as text, so bytecode from a development build never claims to be a
-/// release.
-fn solar_cbor_value() -> (u8, &'static [u8]) {
-    static VALUE: LazyLock<(u8, Vec<u8>)> = LazyLock::new(|| {
+/// Like solc's `solc` entry, releases store `[major, minor, patch]` as bytes, and other builds,
+/// including `-dev` ones, store their long version as text.
+fn solar_cbor_entry() -> &'static [u8] {
+    static ENTRY: LazyLock<Vec<u8>> = LazyLock::new(|| {
         let version = semver::Version::parse(version::solar_version())
             .expect("package version must be semver");
+        let mut entry = Vec::new();
         if version.pre.is_empty() {
-            (0x40, vec![version.major as u8, version.minor as u8, version.patch as u8])
+            let value = [version.major as u8, version.minor as u8, version.patch as u8];
+            push_cbor_bytes(&mut entry, "solar", &value);
         } else {
-            (0x60, version::SOLAR_LONG_VERSION.as_bytes().to_vec())
+            push_cbor_value(&mut entry, 0x60, b"solar");
+            push_cbor_value(&mut entry, 0x60, version::SHORT_VERSION.as_bytes());
         }
+        entry
     });
-    (VALUE.0, &VALUE.1)
+    &ENTRY
 }
 
 fn push_cbor_metadata(output: &mut Vec<u8>, metadata: &str, hash: MetadataHash) {
@@ -263,9 +266,7 @@ fn push_cbor_metadata(output: &mut Vec<u8>, metadata: &str, hash: MetadataHash) 
             output.push(0xa1);
         }
     }
-    let (kind, value) = solar_cbor_value();
-    push_cbor_value(output, 0x60, b"solar");
-    push_cbor_value(output, kind, value);
+    output.extend(solar_cbor_entry());
 
     let length = u16::try_from(output.len() - start).expect("contract metadata CBOR is too large");
     output.extend(length.to_be_bytes());

@@ -2,17 +2,14 @@
 
 use std::sync::LazyLock;
 
-/// The short version information.
+/// The short version information: [`SOLAR_VERSION`] with the commit as build metadata, such as
+/// `0.3.0+commit.d9f23fbe`.
 #[cfg(feature = "version")]
 pub const SHORT_VERSION: &str = env!("SHORT_VERSION");
 
 /// Solar's version, with a `-dev` suffix unless built from a clean release tag checkout.
 #[cfg(feature = "version")]
 pub const SOLAR_VERSION: &str = env!("SOLAR_VERSION");
-
-/// [`SOLAR_VERSION`] with the commit as build metadata: `0.3.0+commit.d9f23fbe`.
-#[cfg(feature = "version")]
-pub const SOLAR_LONG_VERSION: &str = env!("SOLAR_LONG_VERSION");
 
 /// The solc-compatible version: `0.8.38+commit.d9f23fbe.solar.0.3.0`.
 ///
@@ -98,10 +95,12 @@ pub fn solar_version() -> &'static str {
 /// [`TEST_VERSION_ENV`].
 #[cfg(feature = "version")]
 pub fn solc_compat_version() -> &'static str {
-    static TEST: LazyLock<String> =
-        LazyLock::new(|| format!("{SOLC_SEMVER_VERSION}+commit.00000000.solar.{SEMVER_VERSION}"));
-    if test_version() { &TEST } else { SOLC_COMPAT_VERSION }
+    if test_version() { TEST_SOLC_COMPAT_VERSION } else { SOLC_COMPAT_VERSION }
 }
+
+/// The solc-compatible version that compiler output reports under [`TEST_VERSION_ENV`].
+pub const TEST_SOLC_COMPAT_VERSION: &str =
+    concat!(env!("SOLC_SEMVER_VERSION"), "+commit.00000000.solar.", env!("CARGO_PKG_VERSION"));
 
 /// Setting this to `1` in debug builds replaces the commit and `-dev` suffix in compiler output
 /// with fixed values, so that test snapshots of metadata and bytecode do not change with every

@@ -216,13 +216,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     for &(pattern, replacement) in filters {
         config.filter(pattern, replacement);
     }
-    let solc_compat_version = format!(
-        "{}+commit.00000000.solar.{}",
-        solar_config::version::SOLC_SEMVER_VERSION,
-        env!("CARGO_PKG_VERSION")
-    )
-    .replace('.', r"\.")
-    .replace('+', r"\+");
+    let solc_compat_version = regex::escape(solar_config::version::TEST_SOLC_COMPAT_VERSION);
     let stdout_filters: &[(&str, &str)] = &[
         (&solc_compat_version, "SOLC_VERSION+commit.00000000.solar.VERSION"),
         (r"\\\\", "/"),

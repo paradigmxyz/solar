@@ -25,8 +25,9 @@ fn emit_version(solc_version: &str) -> Result<(), Box<dyn std::error::Error>> {
     // Release profiles keep tracking HEAD, so their version matches the checkout.
     let track_head = env::var("PROFILE")? != "debug";
     let git = smolgen::Gitcl::builder()
-        .describe(true, true, None)
-        .dirty(true)
+        .describe(true, false, None)
+        // Untracked files do not change the build, so they must not make a release build `-dev`.
+        .dirty(false)
         .sha(false)
         .vcs_info_fallback(true)
         .rerun_on_head_change(track_head)
@@ -42,32 +43,33 @@ fn emit_version(solc_version: &str) -> Result<(), Box<dyn std::error::Error>> {
     // solc uses 8 hex digits, and tools match `commit\.[0-9a-f]{8}`.
     let sha_short = sha.get(..8).unwrap_or(&sha);
 
-    let is_dirty = vergen_env("VERGEN_GIT_DIRTY") == "true";
-    let is_dev = is_dirty || !is_release_describe(&vergen_env("VERGEN_GIT_DESCRIBE"));
+    let version = env::var("CARGO_PKG_VERSION").unwrap();
+
+    // `git describe --tags` prints the tag only on a tagged commit. Builds without Git metadata,
+    // such as from a published crate, report unknown and come from a release.
+    let describe = vergen_env("VERGEN_GIT_DESCRIBE");
+    let is_release_checkout = describe == VERSION_UNKNOWN || describe == format!("v{version}");
+    let is_dev = vergen_env("VERGEN_GIT_DIRTY") == "true" || !is_release_checkout;
     let version_suffix = if is_dev { "-dev" } else { "" };
 
-    let version = env::var("CARGO_PKG_VERSION").unwrap();
     let version_suffixed = format!("{version}{version_suffix}");
     println!("cargo:rustc-env=SOLAR_VERSION={version_suffixed}");
 
     let solar_long_version = format!("{version_suffixed}+commit.{sha_short}");
-    println!("cargo:rustc-env=SOLAR_LONG_VERSION={solar_long_version}");
+    println!("cargo:rustc-env=SHORT_VERSION={solar_long_version}");
 
     let solc_compat_version = format!("{solc_version}+commit.{sha_short}.solar.{version_suffixed}");
     println!("cargo:rustc-env=SOLC_COMPAT_VERSION={solc_compat_version}");
 
     let timestamp = env::var("VERGEN_BUILD_TIMESTAMP").unwrap();
 
-    println!("cargo:rustc-env=SHORT_VERSION={solar_long_version}");
-
     // The profile is the directory above `build`: `target/[<triple>/]<profile>/build/...`.
     let out_dir = env::var("OUT_DIR").unwrap();
-    let components = out_dir.split(std::path::MAIN_SEPARATOR).collect::<Vec<_>>();
-    let profile = components
-        .iter()
-        .rposition(|&c| c == "build")
-        .and_then(|i| i.checked_sub(1))
-        .map_or(VERSION_UNKNOWN, |i| components[i]);
+    let profile = out_dir
+        .rsplit(std::path::MAIN_SEPARATOR)
+        .skip_while(|&c| c != "build")
+        .nth(1)
+        .unwrap_or(VERSION_UNKNOWN);
 
     let mut cargo_features = env::var("VERGEN_CARGO_FEATURES").unwrap();
     let ignore = ["clap", "version", "serde"];
@@ -101,27 +103,6 @@ fn emit_version(solc_version: &str) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
-}
-
-/// Returns whether `git describe --always --tags --dirty` output names a release tag checkout.
-///
-/// On a tag it prints the tag (`v0.2.0`), after it `v0.2.0-856-gd9f23fbed`, and without reachable
-/// tags (shallow clones) only the abbreviated SHA. Builds without Git metadata, such as from a
-/// published crate, report unknown and come from a release.
-#[cfg(feature = "version")]
-fn is_release_describe(describe: &str) -> bool {
-    if describe == VERSION_UNKNOWN {
-        return true;
-    }
-    let describe = describe.strip_suffix("-dirty").unwrap_or(describe);
-    let mut parts = describe.rsplitn(3, '-');
-    let after_tag = matches!(
-        (parts.next(), parts.next(), parts.next()),
-        (Some(sha), Some(count), Some(_))
-            if sha.strip_prefix('g').is_some_and(|sha| sha.bytes().all(|b| b.is_ascii_hexdigit()))
-                && count.bytes().all(|b| b.is_ascii_digit())
-    );
-    describe.starts_with('v') && !after_tag
 }
 
 #[cfg(feature = "version")]
