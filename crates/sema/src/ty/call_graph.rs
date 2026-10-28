@@ -39,8 +39,9 @@ struct CallGraphBuilder<'gcx, 's> {
     /// dispatch to.
     stopped_constants: DenseBitSet<hir::VariableId>,
     direct_callee: Option<hir::ExprId>,
-    /// Whether the traversal enters a function's body only for the targets its calls dispatch to.
-    stop: &'s dyn Fn(hir::FunctionId) -> bool,
+    /// Whether the traversal enters the body of a function, or the state variable initializers of
+    /// a contract, only for the targets their calls dispatch to.
+    stop: &'s dyn Fn(hir::ItemId) -> bool,
     /// The function whose body is being visited, if any.
     current: Option<hir::FunctionId>,
     /// Whether `current` is a function `stop` accepts.
@@ -63,7 +64,7 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
     fn new(
         gcx: Gcx<'gcx>,
         contract: hir::ContractId,
-        stop: &'s dyn Fn(hir::FunctionId) -> bool,
+        stop: &'s dyn Fn(hir::ItemId) -> bool,
     ) -> Self {
         Self {
             gcx,
@@ -93,8 +94,9 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
         let gcx = self.gcx;
         let contract = self.contract;
         let this = self;
-        for &base in gcx.hir.contract(contract).linearized_bases.iter().rev() {
-            let base = gcx.hir.contract(base);
+        for &base_id in gcx.hir.contract(contract).linearized_bases.iter().rev() {
+            let base = gcx.hir.contract(base_id);
+            this.stopped = (this.stop)(hir::ItemId::Contract(base_id));
             for variable in base.variables() {
                 let variable = gcx.hir.variable(variable);
                 if variable.is_state_variable()
@@ -104,6 +106,7 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
                     let _ = this.visit_expr(initializer);
                 }
             }
+            this.stopped = false;
             if let Some(constructor) = base.ctor {
                 this.enqueue(constructor);
             }
@@ -153,8 +156,9 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
         for modifier in contract.linearized_bases_args.iter().flatten() {
             let _ = this.visit_modifier(modifier);
         }
-        for &base in contract.linearized_bases {
-            let base = gcx.hir.contract(base);
+        for &base_id in contract.linearized_bases {
+            let base = gcx.hir.contract(base_id);
+            this.stopped = (this.stop)(hir::ItemId::Contract(base_id));
             for variable in base.variables() {
                 let variable = gcx.hir.variable(variable);
                 if variable.is_state_variable()
@@ -164,6 +168,7 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
                     let _ = this.visit_expr(initializer);
                 }
             }
+            this.stopped = false;
             for function in base.all_functions() {
                 this.enqueue(function);
             }
@@ -177,7 +182,7 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
 
     fn drain(&mut self) {
         while let Some((function, dispatch_only)) = self.worklist.pop_front() {
-            self.stopped = dispatch_only || (self.stop)(function);
+            self.stopped = dispatch_only || (self.stop)(hir::ItemId::Function(function));
             self.current = Some(function);
             let _ = self.visit_nested_function(function);
             self.current = None;
@@ -187,10 +192,13 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
 
     fn enqueue(&mut self, function: hir::FunctionId) {
         if self.graph.functions.insert(function) {
-            self.parents
-                .entry(function)
-                .and_modify(|traced| traced.dispatch_only = false)
-                .or_insert(Traced { parent: self.current, dispatch_only: false });
+            let traced = Traced { parent: self.current, dispatch_only: false };
+            // A function first reached through a trusted body takes the path of the body that
+            // reaches it in full.
+            let first = self.parents.entry(function).or_insert(traced);
+            if first.dispatch_only {
+                *first = traced;
+            }
             self.worklist.push_back((function, false));
         }
     }
@@ -364,7 +372,7 @@ pub(crate) fn traced_functions(
     gcx: Gcx<'_>,
     id: hir::ContractId,
     all: bool,
-    stop: &dyn Fn(hir::FunctionId) -> bool,
+    stop: &dyn Fn(hir::ItemId) -> bool,
 ) -> FxIndexMap<hir::FunctionId, Traced> {
     let mut builder = CallGraphBuilder::new(gcx, id, stop);
     if all {
@@ -379,10 +387,10 @@ pub(crate) fn traced_functions(
     deployed.drain();
     let mut parents = builder.parents;
     for (function, traced) in deployed.parents {
-        parents
-            .entry(function)
-            .and_modify(|first| first.dispatch_only &= traced.dispatch_only)
-            .or_insert(traced);
+        let first = parents.entry(function).or_insert(traced);
+        if first.dispatch_only && !traced.dispatch_only {
+            *first = traced;
+        }
     }
     parents
 }

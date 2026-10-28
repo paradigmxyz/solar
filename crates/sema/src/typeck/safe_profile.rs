@@ -208,7 +208,11 @@ impl Findings {
 /// Finds what the code the contract `id` runs does that a safe profile rejects.
 fn findings(gcx: Gcx<'_>, id: hir::ContractId) -> Findings {
     let library = gcx.hir.contract(id).kind == hir::ContractKind::Library;
-    let reached = traced_functions(gcx, id, library, &|function| is_trusted(gcx, function));
+    let reached = traced_functions(gcx, id, library, &|item| match item {
+        hir::ItemId::Function(function) => is_trusted(gcx, function),
+        hir::ItemId::Contract(contract) => is_tagged_trusted(gcx, gcx.hir.contract(contract).doc),
+        _ => false,
+    });
     let mut scan = Scan { gcx, current: None, violations: Vec::new(), seen: FxHashSet::default() };
     for (&function, traced) in &reached {
         if traced.dispatch_only || is_trusted(gcx, function) || gcx.hir.function(function).is_yul {

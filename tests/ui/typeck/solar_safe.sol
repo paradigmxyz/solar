@@ -305,3 +305,41 @@ contract SafeChain is ChainBase {
         top();
     }
 }
+
+// The state variable initializers of a trusted contract are reviewed with it, so the helpers
+// they call are not checked.
+/// @custom:solar-trusted
+abstract contract TrustedInit {
+    uint256 internal value = word();
+
+    function word() internal pure returns (uint256 w) {
+        assembly { w := 1 }
+    }
+}
+
+/// @custom:solar-safe
+contract SafeTrustedInit is TrustedInit {}
+
+// A helper that both trusted and untrusted code call is checked, and its path names the
+// untrusted caller.
+abstract contract SharedBase {
+    /// @custom:solar-trusted
+    function top() internal pure {
+        shared();
+    }
+
+    function shared() internal pure {
+        assembly { mstore(0x40, 0) } //~ ERROR: `SafeShared` is tagged `@custom:solar-safe` but runs inline assembly
+    }
+}
+
+/// @custom:solar-safe
+contract SafeShared is SharedBase {
+    function a() external pure {
+        top();
+    }
+
+    function b() external pure {
+        shared();
+    }
+}

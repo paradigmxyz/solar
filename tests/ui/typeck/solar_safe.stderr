@@ -229,7 +229,7 @@ note: the tag is here
    │
 LL │ /// @custom:solar-safe arithmetic
    │      ━━━━━━━━━━━━━━━━━
-   ├ note: it runs this through `SafeConstant.reviewed` → `wrapped`
+   ├ note: it runs this through `SafeConstant.open` → `wrapped`
    ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
 
 error: `SafeConstantOverride` is tagged `@custom:solar-safe` but runs an `unchecked` block
@@ -260,5 +260,19 @@ LL │ /// @custom:solar-safe
    ├ note: it runs this through `SafeChain.run` → `ChainBase.top` → `ChainBase.helper` → `SafeChain._hook`
    ╰ help: write it without assembly, or review it and tag its function `@custom:solar-trusted`
 
-error: aborting due to 22 previous errors
+error: `SafeShared` is tagged `@custom:solar-safe` but runs inline assembly
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         assembly { mstore(0x40, 0) }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `SafeShared.b` → `SharedBase.shared`
+   ╰ help: write it without assembly, or review it and tag its function `@custom:solar-trusted`
+
+error: aborting due to 23 previous errors
 
