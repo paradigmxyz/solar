@@ -1430,11 +1430,10 @@ impl AliasAnalysis {
                 }
             }
             InstKind::AbiEncode { .. } => {
-                let InstKind::AbiEncode { args, layout, mode, .. } = kind else { unreachable!() };
-                // An encoding into memory allocates at the free memory pointer.
-                if *mode != crate::mir::AbiEncodeMode::Scratch {
-                    effects.read(Access::Location(Location::Memory(Self::fmp_location())));
-                }
+                let InstKind::AbiEncode { args, layout, .. } = kind else { unreachable!() };
+                // Scratch encodings also read the free memory pointer for their destination,
+                // even though they do not reserve the output.
+                effects.read(Access::Location(Location::Memory(Self::fmp_location())));
                 for (&arg, ty) in args.iter().zip(layout.types.iter()) {
                     if Self::abi_type_reads_memory(ty) {
                         read_memory(&mut effects, arg, SizeOperand::Unknown);
@@ -2548,7 +2547,29 @@ impl AliasAnalysis {
                 .then_some(lower)
             }
             InstKind::PtrAdd(base, offset) => {
-                func.value_u64(*offset).and_then(|offset| bound(*base)?.checked_add(offset))
+                let offset = func.value_u64(*offset)?;
+                let lower = bound(*base)?.checked_add(offset)?;
+                // Pointer offsets wrap just like word additions. A lower bound for the base
+                // alone cannot exclude reaching reserved memory after wraparound.
+                let no_wrap = match proofs {
+                    Some(proofs) => {
+                        proofs.constant_offset_no_wrap(func, *base, offset)
+                            || proofs.constant_add_after_access(
+                                func,
+                                value,
+                                before.unwrap_or(*inst),
+                            )
+                    }
+                    None => {
+                        Self::constant_offset_no_wrap(func, *base, offset)
+                            || Self::constant_add_after_access_at(
+                                func,
+                                value,
+                                before.unwrap_or(*inst),
+                            )
+                    }
+                };
+                no_wrap.then_some(lower)
             }
             InstKind::ExtractValue {
                 ty: MirType::Slice(PtrLocation::Memory),
@@ -2669,7 +2690,12 @@ impl AliasAnalysis {
             // even for a compiler-owned allocation. Such writes may reset the FMP as well.
             InstKind::PtrAdd(base, offset) => {
                 let offset = func.value_u64(*offset)?;
-                Self::lower_bound(func, *base, depth + 1, trusted)?.checked_add(offset)
+                Self::lower_bound(func, *base, depth + 1, trusted)?.checked_add(offset).filter(
+                    |_| {
+                        Self::constant_offset_no_wrap(func, *base, offset)
+                            || Self::constant_add_after_access(func, value)
+                    },
+                )
             }
             InstKind::ExtractValue {
                 ty: MirType::Slice(_),
@@ -2813,11 +2839,22 @@ impl AliasAnalysis {
     /// Canonical addresses describe modular equality, so a lower bound for the base alone
     /// cannot rule out a sum wrapping into reserved memory.
     pub(crate) fn constant_offset_no_wrap(func: &Function, base: ValueId, offset: u64) -> bool {
-        offset == 0
-            || super::integers::unsigned_bounds(func, base)
-                .1
-                .checked_add(U256::from(offset))
-                .is_some()
+        if offset == 0 {
+            return true;
+        }
+        let base = Self::memory_address_value(func, base);
+        if let Value::Inst(inst) = *func.value(base)
+            && let InstKind::Alloc { size, semantics } = func.inst(inst).kind
+        {
+            // Checked allocations cap their end at MAX_ALLOCATION_END, so their base plus a
+            // u64 offset cannot wrap. Other allocations prove only their own bump valid.
+            if semantics.failure == AllocationFailure::Checked
+                || func.value_u64(size).is_some_and(|size| offset <= size)
+            {
+                return true;
+            }
+        }
+        super::integers::unsigned_bounds(func, base).1.checked_add(U256::from(offset)).is_some()
     }
 
     /// Whether a constant word addition follows an access that bounds its base below `2^64`.
@@ -2833,19 +2870,7 @@ impl AliasAnalysis {
     /// Like [`Self::constant_add_after_access`], using accesses before `user` rather than before
     /// the addition. The address may have been computed before the access bounds its base.
     fn constant_add_after_access_at(func: &Function, value: ValueId, user: InstId) -> bool {
-        if super::integers::integer_bits(func, value) != 256 {
-            return false;
-        }
-        let Value::Inst(add) = *func.value(value) else { return false };
-        let InstKind::Add(first, second) = func.inst(add).kind else { return false };
-        let base = if func.value_u64(second).is_some() {
-            first
-        } else if func.value_u64(first).is_some() {
-            second
-        } else {
-            return false;
-        };
-        let base = Self::memory_address_value(func, base);
+        let Some(base) = Self::constant_add_base(func, value) else { return false };
         let mut budget = 256usize;
         for block in &func.blocks {
             let mut accessed = false;
@@ -2877,6 +2902,25 @@ impl AliasAnalysis {
             }
         }
         value
+    }
+
+    /// The base of a word-sized addition or pointer offset by a nonnegative `u64` constant.
+    fn constant_add_base(func: &Function, value: ValueId) -> Option<ValueId> {
+        let Value::Inst(inst) = *func.value(value) else { return None };
+        let base = match func.inst(inst).kind {
+            InstKind::Add(first, second) if super::integers::integer_bits(func, value) == 256 => {
+                if func.value_u64(second).is_some() {
+                    first
+                } else if func.value_u64(first).is_some() {
+                    second
+                } else {
+                    return None;
+                }
+            }
+            InstKind::PtrAdd(base, offset) if func.value_u64(offset).is_some() => base,
+            _ => return None,
+        };
+        Some(Self::memory_address_value(func, base))
     }
 }
 
@@ -2970,19 +3014,7 @@ impl ReadBounds {
     }
 
     fn constant_add_after_access(&self, func: &Function, value: ValueId, user: InstId) -> bool {
-        if super::integers::integer_bits(func, value) != 256 {
-            return false;
-        }
-        let Value::Inst(add) = *func.value(value) else { return false };
-        let InstKind::Add(first, second) = func.inst(add).kind else { return false };
-        let base = if func.value_u64(second).is_some() {
-            first
-        } else if func.value_u64(first).is_some() {
-            second
-        } else {
-            return false;
-        };
-        let base = AliasAnalysis::memory_address_value(func, base);
+        let Some(base) = AliasAnalysis::constant_add_base(func, value) else { return false };
         let accesses = self.accesses.get_or_init(|| MemoryAccessOrder::new(func));
         let Some(&(block, index)) = accesses.positions[user].as_ref() else { return false };
         accesses.first[block].get(&base).is_some_and(|&access| access < index)
