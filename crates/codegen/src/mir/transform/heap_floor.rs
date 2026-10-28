@@ -592,18 +592,14 @@ fn module_heap_addresses(
         .map(|func| HeapShape::new(func, trust_types))
         .collect::<IndexVec<FunctionId, HeapShape<'_>>>();
     // A function's words depend only on its parameters and the returns of its callees, so only the
-    // functions that either changed need another look.
+    // functions whose parameters or callee returns changed need another look.
     let mut heap = index_vec![DenseBitSet::<ValueId>::new_empty(0); module.functions.len()];
     let mut stale = DenseBitSet::<FunctionId>::new_filled(module.functions.len());
     while !stale.is_empty() {
         let fresh = stale.iter().collect::<Vec<_>>();
         stale.clear();
         for &func_id in &fresh {
-            heap[func_id] = shapes[func_id].heap_addresses(
-                &module.functions[func_id],
-                &params[func_id],
-                &returns,
-            );
+            heap[func_id] = shapes[func_id].heap_addresses(&params[func_id], &returns);
         }
         let mut returning = fresh.clone();
         while let Some(func_id) = returning.pop() {
@@ -647,6 +643,7 @@ fn module_heap_addresses(
 /// What decides which words of a function are heap pointers, found once for the function: the
 /// parameters and returns of other functions settle the rest.
 struct HeapShape<'a> {
+    func: &'a Function,
     /// The words that may be heap pointers whatever the parameters and returns are.
     base: DenseBitSet<ValueId>,
     /// The values of the parameters.
@@ -663,6 +660,7 @@ struct HeapShape<'a> {
 impl<'a> HeapShape<'a> {
     fn new(func: &'a Function, trust_types: bool) -> Self {
         let mut base = DenseBitSet::new_empty(func.num_values());
+        let empty = base.clone();
         let mut args = Vec::new();
         for index in 0..func.num_values() {
             let value = ValueId::new(index);
@@ -688,7 +686,9 @@ impl<'a> HeapShape<'a> {
                     results.push((value, callee, by_type));
                 } else if may_compute_heap_address(func, inst, trust_types) {
                     base.insert(value);
-                    if depends_on_operands(&instruction.kind) {
+                    // An instruction that refuses an empty set of heap pointers depends on its
+                    // operands.
+                    if !computes_heap_address(func, &instruction.kind, &empty) {
                         derived.push((inst, value));
                     }
                 }
@@ -697,7 +697,7 @@ impl<'a> HeapShape<'a> {
                 calls.push((*function, &args[..]));
             }
         }
-        Self { base, args, results, derived, calls }
+        Self { func, base, args, results, derived, calls }
     }
 
     /// Returns the words `func` computes from heap pointers, with the parameters `params` marks as
@@ -708,7 +708,6 @@ impl<'a> HeapShape<'a> {
     /// whose inputs are not drops out until none does.
     fn heap_addresses(
         &self,
-        func: &Function,
         params: &DenseBitSet<ArgIdx>,
         returns: &DenseBitSet<FunctionId>,
     ) -> DenseBitSet<ValueId> {
@@ -730,7 +729,7 @@ impl<'a> HeapShape<'a> {
             changed = false;
             for &(inst, value) in &self.derived {
                 if heap.contains(value)
-                    && !computes_heap_address(func, &func.inst(inst).kind, &heap)
+                    && !computes_heap_address(self.func, &self.func.inst(inst).kind, &heap)
                 {
                     heap.remove(value);
                     changed = true;
@@ -821,24 +820,6 @@ fn may_compute_heap_address(func: &Function, inst: InstId, trust_types: bool) ->
         }
         _ => instruction.result_ty == Some(MirType::MEMPTR),
     }
-}
-
-/// Whether [`computes_heap_address`] can refuse an instruction, depending on its operands.
-///
-/// NOTE: Keep the arms in step with [`computes_heap_address`].
-fn depends_on_operands(kind: &InstKind) -> bool {
-    matches!(
-        kind,
-        InstKind::Add(..)
-            | InstKind::PtrAdd(..)
-            | InstKind::Select(..)
-            | InstKind::Phi(..)
-            | InstKind::Zext(..)
-            | InstKind::IntToPtr(..)
-            | InstKind::PtrToInt(..)
-            | InstKind::ExtractValue { ty: MirType::Slice(_), index: MirType::SLICE_PTR_FIELD, .. }
-            | InstKind::MakeSlice { location: PtrLocation::Memory, .. }
-    )
 }
 
 /// Whether an instruction computes a heap pointer from operands that `heap` holds: one plus a
