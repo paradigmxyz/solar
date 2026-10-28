@@ -16,7 +16,8 @@
 //! The decode's result fields are calldata slices for the views and the usual words for value
 //! types; ABI lowering validates each view as the copying decode validates the copy, and replays
 //! the allocation checks the copies would make, so every input fails where it would. No memory is
-//! allocated, so the free memory pointer can be lower after the declaration than after the copies.
+//! copied. Functions that decode a view reserve the copies' space so nested allocation checks
+//! account for earlier decodes. Other view decodes leave the free memory pointer unchanged.
 
 use super::*;
 

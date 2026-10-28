@@ -696,8 +696,9 @@ misspelled or misplaced tag must not silently go unchecked. Other compilers
 still read the tags as documentation, and no tag changes what the code
 computes. A scratch block only changes where later allocations go: the free
 memory pointer and `msize` can be lower after it. A view decode fails exactly
-where the copying decode fails, replaying its allocation checks, and allocates
-nothing, so the free memory pointer can be lower after it.
+where the copying decode fails, replaying its allocation checks without copying
+the payload. Functions that decode a view reserve the copies' space to preserve
+nested allocation checks; other view decodes leave the free memory pointer unchanged.
 
 Coverage: `tests/ui/natspec/solar_tags.sol`, `tests/ui/natspec/solar_inline.sol`,
 `tests/ui/natspec/solar_optimize.sol`, `tests/ui/typeck/solar_safe.sol`,

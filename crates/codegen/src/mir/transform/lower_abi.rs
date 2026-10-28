@@ -40,6 +40,11 @@
 //! memory precedes the decode.
 //! Fresh bytes objects clear only their allocated tail padding after copying the payload;
 //! neither dirty input padding nor previously used free memory becomes output padding.
+//! When a decode consumes a calldata view, all view decodes in its function reserve their
+//! copies' space without copying the payload. Nested allocation checks then see the preceding
+//! reservations, including sibling fields and earlier loop iterations. Using the actual free
+//! memory pointer also preserves intervening allocations and explicit pointer resets. Functions
+//! without nested view decodes replay each tuple's checks without advancing the pointer.
 //!
 //! Unsupported return layouts fail the preflight checks. The pass reports an error if
 //! any external entry still has an implicit ABI or any `abi_decode` remains afterward.
@@ -673,6 +678,7 @@ impl LowerAbiCx {
             // The result fields of the decodes whose `bytes` and `string` values are views.
             let view_fields = decode_view_fields(module, func_id);
             let func = module.function_mut(func_id);
+            let reserve_views = decodes_view(func, &view_fields);
             let mut replacements = FxHashMap::default();
             let mut builder = self.builder(func);
             let blocks = builder.func().blocks.indices();
@@ -694,9 +700,13 @@ impl LowerAbiCx {
                     if builder.func().value_slice_location(data) == Some(PtrLocation::Calldata) {
                         let layout = layout.clone();
                         let fields = view_fields.get(&inst).map(Vec::as_slice);
-                        let Some(values) =
-                            decode_calldata_tuple(&mut builder, data, layout.as_ref(), fields)
-                        else {
+                        let Some(values) = decode_calldata_tuple(
+                            &mut builder,
+                            data,
+                            layout.as_ref(),
+                            fields,
+                            reserve_views,
+                        ) else {
                             return false;
                         };
                         if let Some(result) = result {
@@ -2737,6 +2747,7 @@ fn decode_calldata_tuple(
     data: ValueId,
     layout: &AbiParamLayout,
     fields: Option<&[MirType]>,
+    reserve_views: bool,
 ) -> Option<Vec<ValueId>> {
     let head_size = layout.checked_head_size()?;
     // base = ptrtoint (extract_value data, 0)
@@ -2781,6 +2792,13 @@ fn decode_calldata_tuple(
                 DecodeOptions::new(false, input_end).checked(),
             )
         };
+        if reserve_views && let Some(next) = virtual_fmp.take() {
+            // next_ptr = inttoptr next to ptr<memory>
+            // set_fmp next_ptr
+            builder.switch_to_block(current);
+            let next = builder.cast(next, MirType::MEMPTR);
+            builder.set_fmp(next);
+        }
         values.push(value);
         head_offset = head_offset
             .checked_add(ty.checked_head_size().expect("ABI head size exceeds u64 range"))?;
@@ -4241,4 +4259,32 @@ fn copy_calldata_member(
     let length = builder.load(position, PtrLocation::Calldata);
     let data = builder.calldata_tail_data(tail, position, 32, length, end, stride);
     copy_calldata_value(builder, ty, data, Some(length))
+}
+
+/// Whether any decode's input depends on a view decode. Walk each SSA value at most once,
+/// including tuple projections and loop phis. Reserving every view's space in such a function
+/// keeps earlier independent views and repeated decodes in the same allocation history too.
+fn decodes_view(func: &Function, views: &FxHashMap<InstId, Vec<MirType>>) -> bool {
+    if views.is_empty() {
+        return false;
+    }
+    let mut pending = func
+        .instructions()
+        .filter_map(|inst| match func.inst(inst).kind {
+            InstKind::AbiDecode { data, .. } => Some(data),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let mut visited = DenseBitSet::new_empty(func.num_values());
+    while let Some(value) = pending.pop() {
+        if !visited.insert(value) {
+            continue;
+        }
+        let Value::Inst(inst) = func.value(value) else { continue };
+        if views.contains_key(inst) {
+            return true;
+        }
+        func.inst(*inst).kind.visit_operands(|operand| pending.push(operand));
+    }
+    false
 }

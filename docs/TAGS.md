@@ -134,8 +134,9 @@ and `string` variable of the declaration a view of its bytes where the decode fi
 calldata, which cannot change. The decode validates its input exactly as the copying decode does,
 including the checks of the allocations the copies would make, so every input fails where it
 would: `Panic(0x41)` for a length that could not be allocated, and a revert for an offset or a
-length past the input. No memory is allocated, so the free memory pointer can be lower after the
-declaration than after the copies.
+length past the input. The payload stays in calldata. In functions that decode a view again,
+the copies' space is reserved so nested allocation checks account for earlier decodes. Other
+view decodes leave the free memory pointer unchanged.
 
 A view can only be read in place, so no use can tell it from the copy: its `.length`, an index
 read, `keccak256`, `abi.decode`, and the encodings that copy their arguments into their output
