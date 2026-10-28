@@ -37,6 +37,10 @@
 //!
 //! Outlining runs before late CFG/CSE/DCE cleanup, which removes jump thunks and redundancies
 //! exposed by sharing; assembly remains responsible only for final label offsets and push widths.
+//! In size mode, a marginal run can also repay its stub by sharing an identical return suffix
+//! with a stub already selected in this pass. Its estimate includes the extra jump and landing
+//! that the following tail-merge pass introduces; gas mode never relies on this credit. The
+//! search checks at most the 64 most recently selected stubs to bound its compile-time cost.
 
 use super::{
     EvmPass,
@@ -336,7 +340,14 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                 + target.opcode(op::JUMP).bytes) as usize;
         let site_size = transfer_size + usize::from(first.inputs) * shuffle_size;
         if free.len() * run_size <= free.len() * site_size + stub_size {
-            continue;
+            let saved = if is_size {
+                shared_return_tail_savings(gcx, &target, run, first, &chosen)
+            } else {
+                0
+            };
+            if free.len() * run_size <= (free.len() * site_size + stub_size).saturating_sub(saved) {
+                continue;
+            }
         }
         // repeated run at each site
         // =>
@@ -1185,4 +1196,41 @@ impl RunState {
         let labels = self.labels.get_or_insert_with(|| FreshLabels::new(module));
         labels.take(count)
     }
+}
+
+/// Credits only identical, splittable suffixes of already-selected stubs with the same stack
+/// convention. The normal pipeline's later tail merge can share their body and return sequence.
+fn shared_return_tail_savings(
+    gcx: Gcx<'_>,
+    target: &Target,
+    body: &[Instruction],
+    site: Site,
+    chosen: &[ChosenGroup],
+) -> usize {
+    chosen
+        .iter()
+        .rev()
+        .take(64)
+        .filter(|group| group.inputs == site.inputs && group.outputs == site.outputs)
+        .map(|group| {
+            let mut common = body
+                .iter()
+                .rev()
+                .zip(group.body.iter().rev())
+                .take_while(|(a, b)| MachineInstKey::new(a) == MachineInstKey::new(b))
+                .count();
+            while common != 0
+                && (!is_split_point(body, body.len() - common)
+                    || !is_split_point(&group.body, group.body.len() - common))
+            {
+                common -= 1;
+            }
+            if common == 0 {
+                return 0;
+            }
+            let bytes = lower_bound(gcx, &body[body.len() - common..]);
+            target.shared_return_tail_savings(bytes as u32, site.outputs) as usize
+        })
+        .max()
+        .unwrap_or(0)
 }

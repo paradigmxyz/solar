@@ -1,0 +1,101 @@
+- // === ROOT/tests/ui/codegen/mir/memory-dse/constant_ptr_offset_wrap.mir (before memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/constant_ptr_offset_wrap.mir (after memory-dse) ===
+  @module ConstantPointerOffsetWrap
+  fn @wrapped_read(arg0: i256) {
+    bb0:
+      mstore 64, 0xffffffffffffffe0
+      mstore 56, arg0
+      mstore 32, 7
+      v0 = mload 64
+      v1 = inttoptr i256 v0 to ptr<memory>
+      v2 = ptradd v1, 64
+      v3 = mload v2
+      mstore 128, v3
+      returndata 128, 32
+  }
+  
+  fn @wrapped_copy(arg0: i256) {
+    bb0:
+      mstore 64, 0xffffffffffffffe0
+      mstore 56, arg0
+      mstore 32, 7
+      v0 = mload 64
+      v1 = inttoptr i256 v0 to ptr<memory>
+      v2 = ptradd v1, 64
+      mcopy 128, v2, 32
+      returndata 128, 32
+  }
+  
+  fn @bounded_cast(arg0: i1) {
+    bb0:
+-     mstore 32, 7
+      v0 = select arg0, 128, 256
+      v1 = inttoptr i256 v0 to ptr<memory>
+      v2 = ptradd v1, 32
+      returndata v2, 32
+  }
+  
+  fn @accessed_base() {
+    bb0:
+-     mstore 32, 7
+      v0 = mload 64
+      v1 = inttoptr i256 v0 to ptr<memory>
+      v2 = ptradd v1, 64
+      v3 = mload v0
+      v4 = mload v2
+      v5 = add v3, v4
+      mstore 128, v5
+      returndata 128, 32
+  }
+  
+  fn @zero_length_access() {
+    bb0:
+      mstore 32, 7
+      v0 = mload 64
+      calldatacopy v0, 0, 0
+      v1 = inttoptr i256 v0 to ptr<memory>
+      v2 = ptradd v1, 64
+      returndata v2, 32
+  }
+  
+  fn @access_on_other_arm(arg0: i1) {
+    bb0:
+      mstore 32, 7
+      v0 = mload 64
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      v1 = mload v0
+-     mstore 160, v1
+      jump bb3
+    bb3:
+      v2 = inttoptr i256 v0 to ptr<memory>
+      v3 = ptradd v2, 64
+      returndata v3, 32
+  }
+  
+  fn @checked_allocation(arg0: i256) {
+    bb0:
+-     mstore 32, 7
+      v0 = alloc checked arg0
+      v1 = ptradd v0, 64
+      returndata v1, 32
+  }
+  
+  fn @allocation_end() {
+    bb0:
+-     mstore 32, 7
+      v0 = alloc 64
+      v1 = ptradd v0, 64
+      returndata v1, 32
+  }
+  
+  fn @beyond_allocation() {
+    bb0:
+      mstore 32, 7
+      v0 = alloc 64
+      v1 = ptradd v0, 65
+      returndata v1, 32
+  }
+  

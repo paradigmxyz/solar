@@ -6,8 +6,12 @@
 //! back to the type range. A shared query budget bounds work across phi inputs. Address and affine
 //! analyses use the same no-wrap proof before treating modular arithmetic as an ordinary offset.
 
-use crate::mir::{
-    Callee, Function, FunctionId, InstKind, MirType, Module, Terminator, Value, ValueId,
+use crate::{
+    backend::evm::op,
+    mir::{
+        Callee, Function, FunctionId, InstKind, MirType, Module, Terminator, Value, ValueId,
+        memory::EvmMemoryLayout,
+    },
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
@@ -54,6 +58,11 @@ fn bounds_with(
     let Value::Inst(id) = func.value(value) else { return full };
     let mut bounds = |value| bounds_with(func, value, depth, budget, known);
     match &func.inst(*id).kind {
+        // Runtime floors fit in u64. `emit_constructor_heap_start` computes
+        // align32(fixed_end + args_size) + heap_guard: three u64 values and at most 31 bytes
+        // of padding fit in 66 bits. The argument copy must succeed before MIR executes.
+        // This bounds the compiler's floor, not a free-memory-pointer slot that assembly writes.
+        InstKind::HeapFloor => (U256::from(EvmMemoryLayout::HEAP_START), integer_mask(66)),
         InstKind::Zext(value) => bounds(*value),
         InstKind::Trunc(value, _) => {
             let range = bounds(*value);
@@ -150,6 +159,17 @@ pub(crate) fn unsigned_bounds_with_returns(
             return None;
         };
         returns.get(&callee).map(|&max| (U256::ZERO, max))
+    };
+    bounds_with(func, value, 8, &mut 64, &known)
+}
+
+/// Like [`unsigned_bounds`], bounding the result of an operation whose opcode is declared narrower
+/// than a word, as `calldatasize` is.
+pub(crate) fn unsigned_bounds_with_opcodes(func: &Function, value: ValueId) -> (U256, U256) {
+    let known = |value| {
+        let Value::Inst(inst) = func.value(value) else { return None };
+        let bits = op::definition(func.inst(*inst).kind.evm_opcode()?)?.result_bits;
+        (bits < 256).then(|| (U256::ZERO, integer_mask(u32::from(bits))))
     };
     bounds_with(func, value, 8, &mut 64, &known)
 }

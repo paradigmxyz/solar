@@ -276,15 +276,15 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
   bb5:
     v28 = add v25, 1
     v29 = shl v28, 5
-    v115 = icall @alloc, v29
-    mstore v115, v25
+    v114 = icall @alloc, v29
+    mstore v114, v25
     v31 = shl v25, 5
     v32 = sub v10, v20
     v33 = shr v32, 5
     v34 = gt v25, v33
     jumpi v34, bb1, bb6
   bb6:
-    v106 = add v115, 32
+    v106 = add v114, 32
     mcopy v106, v20, v31
     v41 = add v104, 64
     v42 = mload v41
@@ -301,39 +301,38 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
     jumpi v55, bb4, bb8
   bb8:
     v57 = and v54, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v116 = icall @alloc, v57
-    mstore v116, v52
+    v115 = icall @alloc, v57
+    mstore v115, v52
     v59 = sub v10, v47
     v60 = gt v52, v59
     jumpi v60, bb1, bb9
   bb9:
-    v108 = add v116, 32
+    v108 = add v115, 32
     mcopy v108, v47, v52
-    v117 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v77 = add v117, 96
-    mstore v117, v12
-    v79 = add v117, 32
+    v116 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v77 = add v116, 96
+    mstore v116, v12
+    v79 = add v116, 32
     mstore v79, 96
-    v82 = mload v115
+    v82 = mload v114
     mstore v77, v82
     v83 = shl v82, 5
     v84 = add v77, 32
     v86 = add v84, v83
     mcopy v84, v106, v83 !metadata(disjoint)
-    v90 = sub v86, v117
-    v88 = add v117, 64
+    v90 = sub v86, v116
+    v88 = add v116, 64
     mstore v88, v90
-    v91 = mload v116
-    v93 = add v91, 31
+    v93 = add v52, 31
     v94 = and v93, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v95 = add v86, 32
     v96 = add v86, v94
     mstore v96, 0
-    mstore v86, v91
+    mstore v86, v52
     v98 = add v95, v94
-    mcopy v95, v108, v91 !metadata(disjoint)
-    v100 = sub v98, v117
-    returndata v117, v100
+    mcopy v95, v108, v52 !metadata(disjoint)
+    v100 = sub v98, v116
+    returndata v116, v100
   bb4:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

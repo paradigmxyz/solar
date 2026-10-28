@@ -35,6 +35,11 @@ bb5:
   return
 bb6:
   push 128
+  push 160
+  dup 2
+  add
+  push 64
+  mstore
   push 32
   dup 2
   add
@@ -65,7 +70,7 @@ bb6:
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Factory (runtime) ===
 @module Factory_runtime
 @data
-  Child_creation_code_0: hex"34600d5760cd8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602a575b5f5ffd5b60075f5260205ff35b60806020810181604d82395f828201528181604084015e6020825281905260c090f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+  Child_creation_code_0: hex"34600d5760d48060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602a575b5f5ffd5b60075f5260205ff35b608060a081016040526020810181605482395f828201528181604084015e6020825281905260c090f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 
 bb0:
   callvalue
@@ -108,11 +113,11 @@ bb6:
   push 64
   mstore
   push 128
-  push 222
+  push 229
   push_data Child_creation_code_0
   dup 3
   codecopy
-  push 222
+  push 229
   swap 1
   push 0
   create
@@ -150,11 +155,11 @@ bb18:
   push 64
   mstore
   push 128
-  push 222
+  push 229
   push_data Child_creation_code_0
   dup 3
   codecopy
-  push 222
+  push 229
   swap 1
   push 0
   create
@@ -163,11 +168,11 @@ bb18:
   push bb26
   jumpi
   push 128
-  push 222
+  push 229
   push_data Child_creation_code_0
   dup 3
   codecopy
-  push 222
+  push 229
   swap 1
   push 0
   create

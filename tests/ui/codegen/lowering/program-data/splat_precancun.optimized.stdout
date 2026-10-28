@@ -44,6 +44,8 @@ fn @paddingIsZero() [selector=0x06793283, abi_wrapper, pure] {
 fn @shortHash() [selector=0x0c6b2786, abi_wrapper, pure] {
   bb0:
     v11 = heap_floor !metadata(alloc_ptr)
+    v12 = add v11, 96 !metadata(alloc_ptr)
+    mstore 64, v12 !metadata(memory=scratch)
     v8 = add v11, 32
     mstore v8, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
     v10 = add v11, 64
@@ -198,10 +200,17 @@ bb10 [continuation]:
   iszero
   jump bb17
 bb11:
-  push bb20
   push 128
+  push 96
+  push bb20
+  swap 2
+  swap 1
   jump bb19
-bb19 [ret=1, inputs=2, outputs=3]:
+bb19 [ret=2, inputs=3, outputs=3]:
+  dup 2
+  add
+  push 64
+  mstore
   push 32
   dup 2
   add
@@ -213,11 +222,8 @@ bb19 [ret=1, inputs=2, outputs=3]:
 bb12:
   push 128
   dup 1
-  add
-  push 64
-  mstore
   push bb21
-  push 128
+  swap 2
   jump bb19
 bb15 [loop]:
   dup 1

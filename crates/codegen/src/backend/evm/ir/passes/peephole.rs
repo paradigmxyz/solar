@@ -21,10 +21,6 @@
 //! preserve protected instruction boundaries, and never treat symbolic label
 //! addresses or immutable placeholders as literal constants.
 //!
-//! A pure binary operation with a constant operand moves through a `SWAPn SWAP1 SWAPn`
-//! permutation, which removes two swaps. `ADDMOD` and `MULMOD` drop a preceding `SWAP1`,
-//! since only their first two operands swap.
-//!
 //! The separate `late-word` entry point runs only after structural cleanup. It
 //! replaces a low-mask construction with a shorter complement/shift form. A closed
 //! count window cannot read the surrounding stack; a protected-base window may
@@ -339,7 +335,6 @@ enum Edit {
         first: op::StackOp,
         second: op::StackOp,
     },
-    MoveConstantThroughSwaps,
 }
 
 impl Edit {
@@ -452,20 +447,6 @@ impl Edit {
                 instructions[start] = Instruction::stack_op(first).with_debug_info_dropped();
                 instructions[start + 1] = Instruction::stack_op(second).with_debug_info_dropped();
                 instructions.truncate(start + 2);
-            }
-            Self::MoveConstantThroughSwaps => {
-                // SWAPn; SWAP1; PUSH c; binop
-                let window = &mut instructions[start..start + 6];
-                for swap in [0, 3, 4, 5] {
-                    let metadata = std::mem::take(&mut window[swap].metadata);
-                    window[2].metadata.absorb_debug_info(&metadata);
-                }
-                window[..4].rotate_right(1);
-                // NOTE: The intermediate stack layouts differ even though the final one agrees.
-                for swap in &mut window[..2] {
-                    swap.metadata.mark_debug_info_dropped();
-                }
-                instructions.truncate(start + 4);
             }
         }
     }

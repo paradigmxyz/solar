@@ -139,10 +139,11 @@ bb8 [continuation]:
   swap 2
   swap 1
   calldatacopy
-  dup 3
   push 32
-  dup 4
+  dup 3
   add
+  swap 3
+  dup 4
   mstore
   push 64
   dup 5
@@ -184,17 +185,19 @@ bb12 [continuation]:
   gt
   push bb3
   jumpi
-  dup 3
-  dup 3
   push 32
+  dup 2
+  add
+  swap 3
+  swap 2
+  swap 1
+  swap 3
+  calldatacopy
+  dup 1
+  push 64
   dup 4
   add
-  calldatacopy
-  push 64
-  dup 5
-  add
   mstore
-  pop
   push 96
   dup 5
   add
@@ -216,83 +219,88 @@ bb12 [continuation]:
   mstore
   swap 2
   mload
-  dup 4
-  mload
-  push 32
-  dup 6
-  add
-  swap 6
-  pop
-  push 0
-  swap 1
-  swap 6
   swap 3
-  swap 5
-  jump bb15
-bb19 [loop]:
+  mload
   dup 1
   mload
+  push 32
   dup 3
+  add
+  push 0
+  swap 7
+  pop
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  jump bb15
+bb19 [loop]:
+  dup 4
+  mload
+  dup 2
   lt
   iszero
   push bb21
   jumpi
-  dup 4
+  dup 2
   mload
-  swap 2
+  swap 1
   push 1
   add
   dup 1
-  dup 4
+  dup 3
   mul
-  swap 3
+  swap 2
   dup 2
-  dup 5
+  dup 4
   div
   eq
   iszero
-  swap 3
-  dup 5
+  swap 2
+  dup 9
   add
-  swap 5
+  swap 3
   push 32
   add
-  swap 4
-  dup 6
+  swap 8
+  dup 4
   lt
   swap 1
-  swap 3
+  swap 2
   or
-  swap 4
-  swap 3
-  swap 4
+  swap 7
+  swap 2
+  swap 7
   push bb22
   jumpi
   jump bb15
 bb15 [loop]:
-  dup 7
   dup 3
+  dup 2
   lt
   push bb19
   jumpi
   pop
   pop
+  pop
+  pop
+  mload
   dup 1
-  dup 5
   push 0x4189374bc6a7ef9db22d0e5604189374bc6a7ef9db22d0e5604189374bc6a7
   lt
   push bb22
   jumpi
-  swap 4
   push 0x3e8
   mul
+  dup 3
   add
-  swap 3
-  dup 4
+  swap 2
+  dup 3
   lt
   push bb22
   jumpi
-  pop
   push 0
   mstore
   dup 1
