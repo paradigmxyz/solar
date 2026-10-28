@@ -38,8 +38,8 @@
 //! place as well, with the calldata decoders the entries use: offsets resolve against the slice's
 //! base and every read stays below its end, as solc decodes it, so no copy of the encoding into
 //! memory precedes the decode.
-//! A decoded `bytes` object clears the word at the end of its payload after the copy, as solc
-//! does, so its padding is zero whatever the input and free memory held.
+//! A decoded `bytes` object clears its padding bytes after the copy, so they are zero whatever
+//! the input and free memory held; the clear stays inside the object.
 //!
 //! Unsupported return layouts fail the preflight checks. The pass reports an error if
 //! any external entry still has an implicit ABI or any `abi_decode` remains afterward.
@@ -1812,14 +1812,17 @@ impl LowerAbiCx {
                 builder.memory_copy_from_slice(ptr, source);
                 // payload = ptradd ptr, 32
                 // tail = ptradd payload, len
-                // mstore tail, 0
-                // After the copy, which may read memory the new object overlaps, and as solc does:
-                // the word at the end of the payload clears its padding, and may end past the
-                // object, in free memory.
+                // padding = and (sub 0, len), 31
+                // memory_zero tail, padding
+                // After the copy, which may read memory the new object overlaps. The clear stays
+                // inside the object: it spans the padding bytes only.
                 let payload = builder.memory_data(ptr);
                 let tail = builder.ptradd(payload, len);
                 let zero = builder.imm(0);
-                builder.store(tail, zero);
+                let negative_len = builder.sub(zero, len);
+                let mask = builder.imm(EvmMemoryLayout::WORD_SIZE - 1);
+                let padding = builder.and(negative_len, mask);
+                builder.memory_zero(tail, padding);
                 ptr
             }
             crate::mir::AbiParamType::Tuple(fields) => {

@@ -1340,17 +1340,20 @@ fn @decode_calldata_type.21(arg0: i256) -> i256 [may_return_memory] {
     jumpi v9, bb3, bb4
   bb4:
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v27 = icall @alloc, v11
-    mstore v27, v6
+    v29 = icall @alloc, v11
+    mstore v29, v6
     v13 = sub v0, v7
     v14 = gt v6, v13
     jumpi v14, bb1, bb5
   bb5:
-    v23 = add v27, 32
-    calldatacopy v23, v7, v6
-    v24 = add v23, v6
-    mstore v24, 0
-    ret v27
+    v25 = add v29, 32
+    calldatacopy v25, v7, v6
+    v22 = sub 0, v6
+    v23 = and v22, 31
+    v30 = calldatasize
+    v26 = add v25, v6
+    calldatacopy v26, v30, v23
+    ret v29
   bb3:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
