@@ -32,8 +32,8 @@ bb2 [stack=1023]:
   swap 16
   stop
 
-// A one-deep swap does not satisfy the three-word permutation identity, and the swap
-// cancellation applies first.
+// A one-deep swap does not satisfy the three-word permutation identity; the swap
+// cancellation rule also removes it first.
 bb3 [stack=2]:
   swap 1
   push 7
@@ -73,8 +73,8 @@ bb6 [stack=5]:
   swap 3
   stop
 
-// A symbolic code address is not an interchangeable literal.
-bb9 [stack=5]:
+// A symbolic code address is conservatively not treated as a literal.
+bb7 [stack=5]:
   swap 1
   push bb0
   add

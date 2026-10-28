@@ -1,0 +1,32 @@
+//@ compile-flags: -Zevm-ir-pipeline=peephole
+//@ run-call: f(uint256,uint256,uint256,uint256)(uint256,uint256,uint256,uint256) 1, 2, 3, 4 => 5, 4, 3, 1
+//@ run-call: f(uint256,uint256,uint256,uint256)(uint256,uint256,uint256,uint256) 9, 7, 0, 5 => 0, 5, 0, 9
+
+// Computes `(7 - b, d, c, a)`: the subtraction keeps its operand order across the deeper swaps.
+@module constant_swaps_run
+bb0:
+  push 100
+  calldataload
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  swap 1
+  push 7
+  sub
+  swap 3
+  swap 1
+  swap 3
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  mstore
+  push 96
+  mstore
+  push 128
+  push 0
+  return

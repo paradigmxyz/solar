@@ -60,7 +60,7 @@
     swap 1
     swap 3
     stop
-  bb9 [stack=5]:
+  bb7 [stack=5]:
     swap 1
     push bb0
     add

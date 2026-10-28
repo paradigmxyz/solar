@@ -20,6 +20,7 @@
 //! inline conditional jump then disappears with its two pushes. These rules
 //! preserve protected instruction boundaries, and never treat symbolic label
 //! addresses or immutable placeholders as literal constants.
+//!
 //! A pure binary operation with a constant operand moves through a `SWAPn SWAP1 SWAPn`
 //! permutation, which removes two swaps. `ADDMOD` and `MULMOD` drop a preceding `SWAP1`,
 //! since only their first two operands swap.
@@ -455,11 +456,15 @@ impl Edit {
             Self::MoveConstantThroughSwaps => {
                 // SWAPn; SWAP1; PUSH c; binop
                 instructions[start..start + 4].rotate_right(1);
-                instructions.truncate(start + 4);
                 // NOTE: The intermediate stack layouts differ even though the final one agrees.
-                for inst in &mut instructions[start..] {
+                for inst in &mut instructions[start..start + 2] {
                     inst.metadata.mark_debug_info_dropped();
                 }
+                let (kept, removed) = instructions[start..start + 6].split_at_mut(4);
+                for inst in removed {
+                    kept[3].metadata.absorb_debug_info(&inst.metadata);
+                }
+                instructions.truncate(start + 4);
             }
         }
     }
