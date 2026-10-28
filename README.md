@@ -30,7 +30,7 @@ forge test --use solar
 ```
 
 Run `forge lsp` in your project for editor support: diagnostics, hover, completion, go to
-definition and rename. The [VS Code and Zed clients](https://github.com/foundry-rs/foundry/pull/16730)
+definition and rename. The [VS Code and Zed clients](https://github.com/foundry-rs/foundry/tree/master/editors)
 are maintained in Foundry.
 
 > [!CAUTION]
@@ -42,22 +42,24 @@ are maintained in Foundry.
 On six real-world projects, builds were **about 100× faster on average** than solc's via-IR pipeline,
 reaching **159×** on Morpho Blue.
 
-![Whole-project build times: 76–159× faster than solc via-IR across six projects](assets/build-time.png)
+![Whole-project build times with solc forced to via-IR: 76–159× faster across six projects](assets/build-time.png)
 
-Measured at [commit `0303bb7d`](https://github.com/paradigmxyz/solar/commit/0303bb7d) against
-solc 0.8.38, targeting Cancun. Build times are the median of five runs on an AMD EPYC 9254
-(24 cores), using our default eight threads and one for solc.
+We forced via-IR on every project for solc, though most of these projects build without it by
+default. We picked six of the nine whole-project cases in our benchmark suite that solc compiles;
+Seaport, Solmate and Solarray are not shown. With each project's own settings, from the same CI
+run, we were **44× faster on average** over the six and **34×** over all nine.
 
-Across our runtime corpus, using each project's own compiler settings, the generated contracts
-used **5% less gas**, cost **26% less gas to deploy** and had **29% smaller bytecode** on average
-than those compiled with solc.
-See the [results](https://www.getfoundry.sh/perf/solar/?head=0303bb7d#benchmarks) and
+We measured on `main` at [commit `0303bb7d`](https://github.com/paradigmxyz/solar/commit/0303bb7d606a50ef158e34669b5851f47a1e054e)
+against solc 0.8.38, targeting Cancun. This is newer than the releases and the compiler bundled
+with Foundry, so [build from source](#standalone-compiler) to reproduce it. Build times are the
+median of five runs on an AMD EPYC 9254 (24 cores), using our default eight threads; solc is
+single-threaded.
+
+Across the 15 real-world contracts in our runtime corpus (via-IR at 200 runs, unless a case pins
+its project's settings), the generated contracts used **5% less gas**, cost **26% less gas to
+deploy** and had **29% smaller bytecode** on average than those compiled with solc.
+See the [results](https://www.getfoundry.sh/perf/solar/?head=0303bb7d606a50ef158e34669b5851f47a1e054e#benchmarks) and
 [benchmark instructions](benches/runtime/README.md) for inputs, settings and how to reproduce them.
-
-With our compiler, [Safe Solady](https://github.com/paradigmxyz/solady/tree/feat/safe-solady-natspec)
-used **19% less gas per test** than the original library compiled with solc, measured as a
-geometric mean over Solady's own tests. Most code is plain, checked Solidity; assembly and
-`unchecked` remain in small functions tagged for review.
 
 ## How it works
 
@@ -101,10 +103,10 @@ cargo install --git https://github.com/paradigmxyz/solar --locked
 Compile a contract:
 
 ```bash
-solar Counter.sol -Ogas --emit=abi,bin
+solar Counter.sol --emit=abi,bin
 
 # Compile a file with a Foundry project's remappings.
-solar $(forge remappings) src/Contract.sol -Ogas --emit=bin
+solar $(forge remappings) src/Contract.sol --emit=bin
 
 solar --help
 ```

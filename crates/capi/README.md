@@ -20,7 +20,6 @@ Download `solar-wasm.tar.gz` from a [release](https://github.com/paradigmxyz/sol
 or build it from the repository root:
 
 ```bash
-rustup target add wasm32-unknown-unknown
 scripts/wasm/dist-wasm.sh
 ```
 
@@ -60,7 +59,7 @@ const output = solar.compile(JSON.stringify({
 ### Separate wasm file
 
 Use `soljson-wrapper.js` from the archive, or [`soljson.js`](soljson.js) from
-source, to load the wasm through `Module.wasmBinary`:
+source, to load the wasm through `Module.wasmBinary`, then call `compile` as above:
 
 ```js
 const fs = require("node:fs");
@@ -70,21 +69,6 @@ globalThis.Module = {
 };
 const solar = require("./soljson-wrapper.js");
 delete globalThis.Module;
-
-const output = solar.compile(JSON.stringify({
-  language: "Solidity",
-  sources: {
-    "A.sol": { content: 'import "B.sol"; contract A is B {}' },
-  },
-  settings: { outputSelection: { "*": { "*": ["abi"] } } },
-}), {
-  import(path) {
-    if (path === "B.sol") {
-      return { contents: "contract B {}" };
-    }
-    return { error: `source not found: ${path}` };
-  },
-});
 ```
 
 In browsers, serve `solar.wasm` and `soljson-wrapper.js`, fetch the wasm bytes,
