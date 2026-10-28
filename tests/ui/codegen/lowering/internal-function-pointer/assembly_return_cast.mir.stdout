@@ -8,7 +8,7 @@
 fn @decodePair(arg0: i256, arg1: i256) -> struct0 [selector=0xabce00be, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @_toPairReturnType, 11
-    v1 = icall @internal_dispatcher_asm_p_uint256_r_memorystruct_refs_wmwwe, v0, 4
+    v1 = icall @internal_dispatcher_asm_p_uint256_r_memorystruct, v0, 4
     v2 = mload v1
     v3 = ptradd v1, 32
     v4 = mload v3
@@ -20,7 +20,7 @@ fn @decodePair(arg0: i256, arg1: i256) -> struct0 [selector=0xabce00be, pure, ab
 fn @decodePairLater(arg0: i256, arg1: i256) -> i256 [selector=0x4186506d, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @_toPairReturnType, 11
-    v1 = icall @internal_dispatcher_asm_p_uint256_r_memorystruct_refs_wmwwe, v0, 4
+    v1 = icall @internal_dispatcher_asm_p_uint256_r_memorystruct, v0, 4
     v2 = mload v1
     v3 = checked_mul uint256, v2, 10
     v4 = ptradd v1, 32
@@ -35,7 +35,7 @@ fn @decodePairField(arg0: i256, arg1: i256) -> struct0 [selector=0x3c031c90, pur
     mstore v0, 11
     v1 = icall @_toPairDecoder, v0
     v2 = mload v1
-    v3 = icall @internal_dispatcher_asm_p_uint256_r_memorystruct_refs_wmwwe, v2, 4
+    v3 = icall @internal_dispatcher_asm_p_uint256_r_memorystruct, v2, 4
     v4 = mload v3
     v5 = ptradd v3, 32
     v6 = mload v5
@@ -58,14 +58,14 @@ fn @sumPair(arg0: i256, arg1: i256) -> i256 [selector=0xc766468d, pure, abi_para
     mstore v1, arg0
     v2 = ptradd v1, 32
     mstore v2, arg1
-    v3 = icall @internal_dispatcher_asm_p_memorystruct_r_uint256_refs_mwwew, v0, v1
+    v3 = icall @internal_dispatcher_asm_p_memorystruct_r_uint256, v0, v1
     ret v3
 }
 
 fn @swapArrays(arg0: ptr<memory>, arg1: ptr<memory>) -> struct1 [selector=0x6568294d, pure, abi_params=[array<_, uint256>, array<_, uint256>], abi_returns=[word, memory_array<word>, memory_array<word>], abi_return_params=[uint256, array<_, uint256>, array<_, uint256>]] {
   bb0:
     v0 = icall @_toArrayTypes, 14
-    v1 = icall @internal_dispatcher_asm_p_memoryarray_memoryarray_r_uint256_memoryarray_memoryarray_refs_mwemwewmwemwe, v0, arg0, arg1
+    v1 = icall @internal_dispatcher_asm_p_memoryarray_memoryarray_r_uint256_memoryarray_memoryarray, v0, arg0, arg1
     v2 = extract_value struct1, v1, 0
     v3 = extract_value struct1, v1, 1
     v4 = extract_value struct1, v1, 2
@@ -82,7 +82,7 @@ fn @applyPair(arg0: i256, arg1: i256) -> i256 [selector=0x91b58050, pure, abi_pa
     mstore v1, arg0
     v2 = ptradd v1, 32
     mstore v2, arg1
-    v3 = icall @internal_dispatcher_asm_p_memorystruct_function_r_uint256_refs_mwweww, v0, v1, 16
+    v3 = icall @internal_dispatcher_asm_p_memorystruct_function_r_uint256, v0, v1, 16
     ret v3
 }
 
@@ -221,7 +221,7 @@ fn @_toArrayTypes(arg0: i256) -> i256 [pure] {
     ret arg0
 }
 
-fn @internal_dispatcher_asm_p_uint256_r_memorystruct_refs_wmwwe(arg0: i256, arg1: i256) -> ptr<memory> [function_pointer_dispatcher] {
+fn @internal_dispatcher_asm_p_uint256_r_memorystruct(arg0: i256, arg1: i256) -> ptr<memory> [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 11
     jumpi v0, bb1, bb2
@@ -291,7 +291,7 @@ fn @internal_dispatcher_asm_p_uint256_r_memorybytes(arg0: i256, arg1: i256) -> p
     ret v2
 }
 
-fn @internal_dispatcher_asm_p_memorystruct_r_uint256_refs_mwwew(arg0: i256, arg1: ptr<memory>) -> i256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_asm_p_memorystruct_r_uint256(arg0: i256, arg1: ptr<memory>) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 11
     jumpi v0, bb1, bb2
@@ -324,7 +324,7 @@ fn @internal_dispatcher_asm_p_memorystruct_r_uint256_refs_mwwew(arg0: i256, arg1
     ret v2
 }
 
-fn @internal_dispatcher_asm_p_memoryarray_memoryarray_r_uint256_memoryarray_memoryarray_refs_mwemwewmwemwe(arg0: i256, arg1: ptr<memory>, arg2: ptr<memory>) -> struct1 [function_pointer_dispatcher] {
+fn @internal_dispatcher_asm_p_memoryarray_memoryarray_r_uint256_memoryarray_memoryarray(arg0: i256, arg1: ptr<memory>, arg2: ptr<memory>) -> struct1 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 14
     jumpi v0, bb1, bb2
@@ -346,7 +346,7 @@ fn @internal_dispatcher_asm_p_memoryarray_memoryarray_r_uint256_memoryarray_memo
     ret v11
 }
 
-fn @internal_dispatcher_asm_p_memorystruct_function_r_uint256_refs_mwweww(arg0: i256, arg1: ptr<memory>, arg2: i256) -> i256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_asm_p_memorystruct_function_r_uint256(arg0: i256, arg1: ptr<memory>, arg2: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 15
     jumpi v0, bb1, bb2
