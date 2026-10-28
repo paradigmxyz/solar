@@ -67,6 +67,71 @@ Coverage: `tests/ui/standard-json/debug/ethdebug-output-without-debug-info`,
 `tests/ui/standard-json/debug/ethdebug-with-ast-id` and
 `tests/ui/standard-json/debug/ethdebug-without-ast-id`.
 
+### JSON-003: Compiler identity in metadata and CBOR
+
+Status: intentional.
+
+Difference: contract metadata names the compiler as
+`"compiler": {"name": "solar", "version": "0.8.38+commit.d9f23fbe.solar.0.3.0"}`,
+where solc writes only `"version": "0.8.28+commit.7893614a"`. The version is
+the solc-compatible form that `SOLC_WRAPPER=1 solar --version` prints: the
+emulated solc version, then the Solar commit and version as build metadata.
+The CBOR auxdata carries a `solar` entry instead of `solc`: three version
+bytes for releases, and the long Solar version as text
+(`0.3.0-dev+commit.d9f23fbe`) for other builds, as solc does for prereleases.
+Combined JSON reports the same solc-compatible version.
+
+Rationale: verifiers and other tools gate on solc versions, so the semver core
+stays the language version, while `name`, the `.solar.` build tag and the CBOR
+key tell them which compiler and build to fetch. A `solc` key would make
+solc-only decoders report the wrong compiler.
+
+Coverage: `tests/ui/standard-json/metadata/none/test.jsonc` and
+`tests/ui/standard-json/metadata/options/test.jsonc`.
+
+### JSON-004: CBOR auxdata positions
+
+Status: intentional.
+
+Difference: `evm.bytecode.cborAuxdata` and `evm.deployedBytecode.cborAuxdata`
+report every CBOR auxdata trailer in the bytecode, including those of embedded
+contracts, as `{"1": {"offset": N, "value": "0x…"}, …}` in offset order.
+`offset` points at the CBOR map after the `INVALID` byte, and `value` holds the
+map and its two-byte length. solc has no such output; tools recover the
+positions from `evm.legacyAssembly` and a second compilation. The parent
+selections and `*` include it, and `evm.legacyAssembly` stays empty.
+
+Rationale: the shape is the Verifier Alliance `cborAuxdata` artifact that
+Sourcify stores, so verifiers can read the positions directly. Code generation
+records where it places each trailer, so code or data that repeats a trailer's
+bytes is never reported: verifiers replace the reported bytes with the
+deployed ones, and a reported literal would let deployed code differ from its
+source.
+
+Coverage: `tests/ui/standard-json/cbor-auxdata/test.jsonc` and
+`tests/ui/standard-json/cbor-auxdata-literal.jsonc`.
+
+### JSON-005: `settings.solar` takes unstable flags
+
+Status: intentional.
+
+Difference: `solar` reads `settings.solar.unstable`, a list of unstable flags
+that change output, written like `-Z` flags without the prefix, such as
+`["tune=interpreter"]`, and records it in each contract's metadata. It ignores
+other flags in the list. `solc` rejects the unknown `settings.solar` key. Like
+`solc`, `solar` ignores the command line's `--evm-version` in Standard JSON
+mode, and it also ignores `--stop-after`, `--revert-strings` and the `-Z`
+flags that change output.
+
+Rationale: the Standard JSON input and the compiler version alone must
+determine the output, so that verifiers such as Sourcify can rebuild a
+contract from its metadata. Flags that only change diagnostics or debugging
+output still come from the command line.
+
+Coverage: `tests/ui/standard-json/codegen-error.jsonc`,
+`tests/ui/standard-json/debug/cli-flag-ignored/test.jsonc` and
+`tests/ui/standard-json/metadata/options/test.jsonc`.
+
 ## Import Resolution
 
 ### IMPORT-001: Files on disk are one source unit each

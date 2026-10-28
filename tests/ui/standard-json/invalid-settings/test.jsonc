@@ -1,5 +1,7 @@
 // CHECK: "errors": [
 // CHECK: "severity": "error"
+// CHECK: "message": "invalid `settings.solar.unstable`: unexpected argument '-Zbogus' found"
+// CHECK: "severity": "error"
 // CHECK: "message": "invalid EVM version `Byzantium`"
 // CHECK: "severity": "error"
 // CHECK: "message": "invalid compiler stage `semantic`"
@@ -15,6 +17,9 @@
   "settings": {
     "evmVersion": "Byzantium",
     "stopAfter": "semantic",
+    "solar": {
+      "unstable": ["bogus"]
+    },
     "outputSelection": {
       "*": {
         "*": [
