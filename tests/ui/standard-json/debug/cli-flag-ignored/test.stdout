@@ -12,20 +12,17 @@
     }
   ],
   "sources": {
-    "B.sol": {
-      "id": 0
-    },
     "A.sol": {
-      "id": 1
+      "id": 0
     }
   },
   "contracts": {
     "A.sol": {
       "A": {
-        "metadata": "{\"compiler\":{\"version\":\"VERSION\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"x\",\"type\":\"uint256\"}],\"name\":\"f\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"pure\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"A.sol\":\"A\"},\"evmVersion\":\"osaka\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"A.sol\":{\"keccak256\":\"0x9c0bdb1f57921c523d9ff6d865eb52e46896dcd9f47667a03404d4ce9bc5f693\",\"urls\":[\"bzz-raw://2aa93dce0634754d3eb6ae0a252d23f2ab66542a35b55fe5aed1d038add20fc7\",\"dweb:/ipfs/QmQMdHjGQ419EwmgPAaajaUT6hiiJqKtPsLvfN4iH8jeXG\"]},\"B.sol\":{\"keccak256\":\"0x2970789adbf44983e4458c6a687567d2aeb2e90d0c54526e06e4664baeb1c489\",\"urls\":[\"bzz-raw://d2a88ea335225d591c8977314b65cca688fb854dc33ee71fbda59c71ef01f18e\",\"dweb:/ipfs/QmfXbZjHy8h8ZxGnq3oLcpkKWEz5dcYEsCtcYMPuTJHU2o\"]}},\"version\":1}",
+        "metadata": "{\"compiler\":{\"name\":\"solar\",\"version\":\"SOLC_VERSION+commit.00000000.solar.VERSION\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"x\",\"type\":\"uint256\"}],\"name\":\"f\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"pure\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"A.sol\":\"A\"},\"evmVersion\":\"osaka\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"A.sol\":{\"keccak256\":\"0xe8332c065ae4cc6a93390bb3b5f87d5b1eda7bdcc95d8a2fda3cf3cb1d34f8e4\",\"urls\":[\"bzz-raw://de1efcea475e6bb68b1c1620775f2813f39968663f5b4dab4e54e72ad4305f6e\",\"dweb:/ipfs/QmXVdA7XTQg7gr2jRELVRDn1bqwjgEcQJBNheCHCxvDLKJ\"]}},\"version\":1}",
         "evm": {
           "deployedBytecode": {
-            "object": "346013575f3560e01c8063b3de648b146017575b5f5ffd5b608060405260243610607157600435600181146068577f78206d757374206265206f6e6500000000000000000000000000000000000000600d60206020526040526060526308c379a05f526064601cfd5b5f525f6020035ff35b5f5ffdfea2646970667358221220823843c80b46373b2d61e81abb85349cb92fa24b457e288f96e85279bf10e36c65736f6c6172430002000034"
+            "object": "346013575f3560e01c8063b3de648b146017575b5f5ffd5b608060405260243610607157600435600181146068577f78206d757374206265206f6e6500000000000000000000000000000000000000600d60206020526040526060526308c379a05f526064601cfd5b5f525f6020035ff35b5f5ffdfea2646970667358221220bbb2d6400274c0956a1be74d3643c9e2bbf1757e5bf4e8119fba6416f4de93b965736f6c6172430002000034"
           }
         }
       }

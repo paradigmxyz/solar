@@ -1,0 +1,42 @@
+// === ROOT/tests/ui/codegen/mir/memory-dse/late_allocation_forwarding.sol:LateAllocationForwarding ===
+@module LateAllocationForwarding
+@phase lowered
+fn @emitData() [selector=0xf46547ab, abi_wrapper] {
+  bb0:
+    v5 = calldatasize
+    v6 = lt v5, 36
+    jumpi v6, bb1, bb2
+  bb2:
+    v31 = heap_floor !metadata(alloc_ptr)
+    v32 = add v31, 64 !metadata(alloc_ptr)
+    mstore v31, 11
+    v27 = add v31, 32
+    mstore v27, 0x68656c6c6f20776f726c64000000000000000000000000000000000000000000
+    v9 = add v31, 128
+    mstore v32, arg0
+    v11 = add v31, 96
+    mstore v11, 64
+    v18 = add v9, 32
+    mstore v18, 0
+    mstore v9, 11
+    mcopy v18, v27, 11 !metadata(disjoint)
+    log v32, 128, 0xe15782e942419ae2c56a2762c7694c0baa10a9dd3a34f5233623ccec5a47b729
+    stop
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xf46547ab => bb2]
+  bb2:
+    tail_call @emitData
+  bb3:
+    revert 0, 0
+}

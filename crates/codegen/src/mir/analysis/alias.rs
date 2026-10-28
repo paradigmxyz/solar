@@ -431,11 +431,11 @@ enum AddressState {
 }
 
 /// The order of unique allocations relative to the free-memory-pointer reads and unique
-/// allocations no reset precedes.
+/// allocations that neither a reset nor a wrapped write precedes.
 ///
-/// No path from the entry to such a read or `alloc` `P` resets the pointer, so every unique
-/// `alloc` that executes before `P` ends at or below the pointer `P` returns, and an access at a
-/// nonnegative offset from `P` cannot reach it.
+/// No path from the entry to such a read or `alloc` `P` resets the pointer or may write through a
+/// wrapped index, so every unique `alloc` that executes before `P` ends at or below the pointer `P`
+/// returns, and an access at a nonnegative offset from `P` cannot reach it.
 #[derive(Clone, Debug)]
 struct FreshFmps {
     dominators: DominatorTree,
@@ -495,6 +495,7 @@ impl PointerProvenance {
         func: &Function,
         call_summaries: Option<&MemoryCallSummaries>,
         may_reset_fmp: impl Fn(&Function, InstId, Option<&MemoryCallSummaries>) -> bool,
+        may_wrap_write: impl Fn(&Function, InstId, Option<&MemoryCallSummaries>) -> bool,
     ) -> Self {
         if func.blocks.is_empty() {
             return Self::default();
@@ -529,26 +530,52 @@ impl PointerProvenance {
 
         // `poisoned[block]` means at least one path into the block may have
         // recycled the FMP. The monotone OR lattice handles joins and loops.
-        let mut reachable = DenseBitSet::new_empty(func.blocks.len());
-        let mut poisoned = DenseBitSet::new_empty(func.blocks.len());
-        let mut worklist = VecDeque::from([BlockId::ENTRY]);
-        reachable.insert(BlockId::ENTRY);
-        while let Some(block) = worklist.pop_front() {
-            let out = poisoned.contains(block) || first_resets[block].is_some();
-            let Some(terminator) = &func.blocks[block].terminator else { continue };
-            for successor in terminator.successors() {
-                let mut changed = reachable.insert(successor);
-                if out {
-                    changed |= poisoned.insert(successor);
-                }
-                if changed {
-                    worklist.push_back(successor);
+        let poison = |first_resets: &IndexVec<BlockId, Option<usize>>| {
+            let mut reachable = DenseBitSet::new_empty(func.blocks.len());
+            let mut poisoned = DenseBitSet::new_empty(func.blocks.len());
+            let mut worklist = VecDeque::from([BlockId::ENTRY]);
+            reachable.insert(BlockId::ENTRY);
+            while let Some(block) = worklist.pop_front() {
+                let out = poisoned.contains(block) || first_resets[block].is_some();
+                let Some(terminator) = &func.blocks[block].terminator else { continue };
+                for successor in terminator.successors() {
+                    let mut changed = reachable.insert(successor);
+                    if out {
+                        changed |= poisoned.insert(successor);
+                    }
+                    if changed {
+                        worklist.push_back(successor);
+                    }
                 }
             }
-        }
+            (reachable, poisoned)
+        };
+        let (reachable, poisoned) = poison(&first_resets);
+        // A write through a wrapped runtime index may land on the FMP word, so it ends the
+        // freshness of the reads after it.
+        // NOTE: Allocations keep their uniqueness, which assumes that an access based on an
+        // allocation stays inside it.
+        let first_rewinds = func
+            .blocks
+            .iter()
+            .zip(&first_resets)
+            .map(|(block, &reset)| {
+                let wrap = block
+                    .instructions
+                    .iter()
+                    .position(|&inst| may_wrap_write(func, inst, call_summaries));
+                reset.into_iter().chain(wrap).min()
+            })
+            .collect::<IndexVec<BlockId, _>>();
+        let read_poisoned = if first_rewinds.iter().any(Option::is_some) {
+            poison(&first_rewinds).1
+        } else {
+            poisoned.clone()
+        };
 
         let mut allocations = FxHashMap::default();
-        // The unique `alloc`s and the free-memory-pointer reads that no reset precedes.
+        // The unique `alloc`s and the free-memory-pointer reads that neither a reset nor a wrapped
+        // write precedes.
         let mut positions = FxHashMap::default();
         let mut allocs = FxHashSet::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
@@ -567,20 +594,16 @@ impl PointerProvenance {
                         allocs.insert(inst_id);
                     }
                 } else if matches!(func.inst(inst_id).kind, InstKind::Fmp)
-                    && entry_fresh
-                    && first_resets[block_id].is_none_or(|first| index < first)
+                    && reachable.contains(block_id)
+                    && !read_poisoned.contains(block_id)
+                    && first_rewinds[block_id].is_none_or(|first| index < first)
                 {
                     positions.insert(inst_id, (block_id, index));
                 }
             }
         }
         let wraps = !allocs.is_empty()
-            && func.instructions().any(|inst| match func.inst(inst).kind {
-                InstKind::ICall { function: Callee::Function(function), .. } => call_summaries
-                    .and_then(|summaries| summaries.get(function))
-                    .is_none_or(|summary| summary.may_wrap_write()),
-                _ => AliasAnalysis::writes_at_indexed_address(func, inst),
-            });
+            && func.instructions().any(|inst| may_wrap_write(func, inst, call_summaries));
         let fresh_fmps = (!allocs.is_empty()).then(|| FreshFmps {
             dominators: cfg.dominators().clone(),
             positions,
@@ -701,6 +724,7 @@ impl AliasAnalysis {
                 func,
                 self.call_summaries.as_deref(),
                 Self::instruction_may_reset_fmp_with_summaries,
+                Self::instruction_may_wrap_write_with_summaries,
             )
         })
     }
@@ -2052,11 +2076,13 @@ impl AliasAnalysis {
     #[must_use]
     pub(crate) fn instruction_may_wrap_write(&self, func: &Function, inst: InstId) -> bool {
         match func.inst(inst).kind {
-            InstKind::ICall { function: Callee::Function(function), .. } => self
-                .call_summaries
-                .as_deref()
-                .and_then(|summaries| summaries.get(function))
-                .is_none_or(|summary| summary.may_wrap_write()),
+            InstKind::ICall { function: Callee::Function(_), .. } => {
+                Self::instruction_may_wrap_write_with_summaries(
+                    func,
+                    inst,
+                    self.call_summaries.as_deref(),
+                )
+            }
             _ => self.instruction_writes_through_runtime_index(func, inst),
         }
     }
@@ -2097,6 +2123,22 @@ impl AliasAnalysis {
             | InstKind::StaticCall { ret_offset: address, .. }
             | InstKind::DelegateCall { ret_offset: address, .. } => indexed(address),
             _ => false,
+        }
+    }
+
+    /// Like [`Self::instruction_may_wrap_write`], without the writes of unknown extent, which
+    /// need the provenance this feeds. Such a write starts at its address and cannot wrap
+    /// around without a length no gas can pay for.
+    fn instruction_may_wrap_write_with_summaries(
+        func: &Function,
+        inst: InstId,
+        call_summaries: Option<&MemoryCallSummaries>,
+    ) -> bool {
+        match func.inst(inst).kind {
+            InstKind::ICall { function: Callee::Function(function), .. } => call_summaries
+                .and_then(|summaries| summaries.get(function))
+                .is_none_or(|summary| summary.may_wrap_write()),
+            _ => Self::writes_at_indexed_address(func, inst),
         }
     }
 

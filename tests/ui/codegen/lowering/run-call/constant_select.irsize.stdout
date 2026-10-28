@@ -502,12 +502,11 @@ bb39:
   push 64
   dup 2
   add
-  push 64
-  mstore
   push 4
-  dup 2
+  dup 3
   mstore
   push 32
+  dup 3
   add
   push 0xe2179b8e
   push 224
@@ -522,14 +521,12 @@ bb39:
   sub
   mul
   add
-  jump bb84
-bb84:
   dup 2
   mstore
-  push 64
-  mload
-  push 32
-  dup 2
+  swap 2
+  jump bb84
+bb84:
+  push 96
   add
   push 32
   dup 3
@@ -579,13 +576,15 @@ bb86:
   push 64
   dup 2
   add
-  push 64
-  mstore
   push 4
-  dup 2
+  dup 3
   mstore
   push 32
+  dup 3
   add
+  swap 3
+  dup 4
+  mstore
   swap 1
   jump bb84
 bb46:

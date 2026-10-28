@@ -384,9 +384,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_mcopy::LowerMCopy,
     &lower_alloc::LowerAlloc,
     // Allocation lowering exposes zero fills and free-memory-pointer stores
-    // that later stores in the same block can overwrite completely. Keep this
-    // gas-only.
-    &GasOnly::new(memory_dse::MemoryDse::Standard),
+    // that later stores in the same block can overwrite completely, and word
+    // stores that later loads can forward.
+    &memory_dse::MemoryDse::Standard,
     &lower_memory_zero::LowerMemoryZero,
     // Materialize integer cleanup before word-level extraction and scheduling.
     &lower_integers::LowerIntegers,

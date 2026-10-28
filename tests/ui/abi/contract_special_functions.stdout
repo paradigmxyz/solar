@@ -77,5 +77,5 @@
       "hashes": {}
     }
   },
-  "version": "VERSION"
+  "version": "SOLC_VERSION+commit.00000000.solar.VERSION"
 }

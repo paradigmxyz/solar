@@ -171,13 +171,13 @@ pub(crate) fn make_ethdebug_compilation(
         })
         .collect::<Vec<_>>();
 
-    let version = solar_config::version::SEMVER_VERSION.to_owned();
+    let version = solar_config::version::solar_version().to_owned();
     let mut identity = String::from("ethdebug-solar-compilation-v1");
     // A compilation ID names the complete source-to-bytecode context, not only
     // the source files. Include every code-generation setting that can change
     // instruction offsets or operations so programs cannot cross-reference a
     // different artifact accidentally.
-    append_length_prefixed(&mut identity, solar_config::version::SHORT_VERSION);
+    append_length_prefixed(&mut identity, solar_config::version::solc_compat_version());
     append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.language));
     append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.evm_version));
     append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.optimization));

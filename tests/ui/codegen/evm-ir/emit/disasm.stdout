@@ -11,4 +11,4 @@
 PUSH1 0x01
 PUSH0
 SSTORE
-{"contracts":{"ROOT/tests/ui/codegen/evm-ir/emit/disasm.evmir:program":{"bin-runtime":"60015f55"}},"version":"VERSION"}
+{"contracts":{"ROOT/tests/ui/codegen/evm-ir/emit/disasm.evmir:program":{"bin-runtime":"60015f55"}},"version":"SOLC_VERSION+commit.00000000.solar.VERSION"}
