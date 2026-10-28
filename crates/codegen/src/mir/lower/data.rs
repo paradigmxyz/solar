@@ -77,6 +77,8 @@ pub(crate) fn copy_data_to_memory(
 
 /// Returns whether `copy_data_to_memory` stores the unnamed `data` as words, as it does short
 /// data, instead of copying it from the data section.
+// NOTE: This does not model the all-zero and `-Osize` splat branches of `copy_data_to_memory`,
+// which also leave no data copy; callers lose an optimization there, not correctness.
 pub(crate) fn stores_data_as_words(gcx: Gcx<'_>, data: &[u8]) -> bool {
     let padded_size = data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize);
     let (data, separate_tail) = padded_copy_data(gcx, data, padded_size, None);

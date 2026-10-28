@@ -1867,12 +1867,8 @@ impl LowerAbiCx {
 
     /// Validates the `len` scalar words at `data`, whose range the caller has checked.
     ///
-    /// A validator that only requires some bits to be zero accepts every word exactly when it
-    /// accepts their bitwise OR, so the loop folds the words and one check follows it. The revert
-    /// is the same, and the words are only read, so it does not matter that it comes after them.
-    /// The checked range proves that its byte length and end cannot wrap. Carrying the current
-    /// address to that end avoids scaling an element index on every iteration. Empty arrays
-    /// need neither address setup nor a check of their zero accumulator.
+    /// Folds the words of a zero-bits validator with OR and checks once after the loop, which
+    /// reverts the same way; other validators check each element.
     fn validate_scalar_array(
         builder: &mut FunctionBuilder<'_>,
         data: ValueId,
