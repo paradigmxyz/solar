@@ -962,6 +962,7 @@ impl MemoryStoreEliminator {
             if !reads.iter().any(|&(read_offset, read_size)| {
                 self.alias()
                     .memory_alias(
+                        func,
                         MemoryLocation::new(
                             MemoryAddress::internal_frame(offset),
                             LocationSize::Const(32),
@@ -1187,7 +1188,11 @@ impl MemoryStoreEliminator {
                 overwritten.retain(|key| {
                     !self
                         .alias()
-                        .memory_alias(MemoryLocation::new(key.0, LocationSize::Const(32)), location)
+                        .memory_alias(
+                            func,
+                            MemoryLocation::new(key.0, LocationSize::Const(32)),
+                            location,
+                        )
                         .may_alias()
                 });
             }
@@ -1227,6 +1232,7 @@ impl MemoryStoreEliminator {
                 !self
                     .alias()
                     .memory_alias(
+                        func,
                         MemoryLocation::new(key.0, LocationSize::Const(32)),
                         MemoryLocation::new(
                             MemoryAddress::absolute(read_offset),

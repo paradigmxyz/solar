@@ -32,7 +32,9 @@
 use super::MemoryStoreEliminator;
 use crate::mir::{
     Function, InstId, InstKind, MirType, PtrLocation, RawMemoryAccess, Terminator, Value, ValueId,
-    analysis::{Access, AddressSpace, AliasAnalysis, Location, MemoryBase, MemoryLocation},
+    analysis::{
+        Access, AddressSpace, AliasAnalysis, Location, LocationSize, MemoryBase, MemoryLocation,
+    },
     memory::EvmMemoryLayout,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashSet};
@@ -88,8 +90,14 @@ impl MemoryStoreEliminator {
         let own_fmp_read = allocation.address.base == MemoryBase::Allocation(alloc_inst);
         let reads_allocation = |access: Access| match access {
             Access::Any(AddressSpace::Memory) => true,
+            // A runtime-indexed access wraps, and so may land in any object.
+            Access::Location(Location::Memory(location))
+                if location.size == LocationSize::Unknown =>
+            {
+                true
+            }
             Access::Location(Location::Memory(location)) => {
-                alias.memory_alias(allocation, location).may_alias()
+                alias.memory_alias(func, allocation, location).may_alias()
             }
             _ => false,
         };
