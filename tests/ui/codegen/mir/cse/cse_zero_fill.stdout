@@ -104,21 +104,22 @@
       ret v2
   }
   
-  fn @keep_after_reserved_store(arg0: i256) -> i256 {
+  fn @fold_past_reserved_store(arg0: i256) -> i256 {
     bb0:
       v0 = alloc 96
       memory_zero v0, 96
       mstore 96, arg0
       v1 = ptradd v0, 32
-      v2 = mload v1
-      ret v2
+-     v2 = mload v1
+-     ret v2
++     ret 0
   }
   
   fn @keep_after_straddling_copy() -> i256 {
     bb0:
       v0 = alloc 96
       memory_zero v0, 96
-      calldatacopy 120, 0, 40
+      calldatacopy 120, 0, 48
       v1 = ptradd v0, 32
       v2 = mload v1
       ret v2

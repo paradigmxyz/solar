@@ -586,18 +586,25 @@ fn module_heap_addresses(
             returns.insert(func_id);
         }
     }
-    loop {
-        let heap = module
-            .functions
-            .iter_enumerated()
-            .map(|(func_id, func)| {
-                function_heap_addresses(func, &params[func_id], &returns, trust_types)
-            })
-            .collect::<IndexVec<FunctionId, _>>();
-        let mut changed = false;
-        for (func_id, func) in module.functions.iter_enumerated() {
+    let shapes = module
+        .functions
+        .iter()
+        .map(|func| HeapShape::new(func, trust_types))
+        .collect::<IndexVec<FunctionId, HeapShape<'_>>>();
+    // A function's words depend only on its parameters and the returns of its callees, so only the
+    // functions whose parameters or callee returns changed need another look.
+    let mut heap = index_vec![DenseBitSet::<ValueId>::new_empty(0); module.functions.len()];
+    let mut stale = DenseBitSet::<FunctionId>::new_filled(module.functions.len());
+    while !stale.is_empty() {
+        let fresh = stale.iter().collect::<Vec<_>>();
+        stale.clear();
+        for &func_id in &fresh {
+            heap[func_id] = shapes[func_id].heap_addresses(&params[func_id], &returns);
+        }
+        let mut returning = fresh.clone();
+        while let Some(func_id) = returning.pop() {
             if returns.contains(func_id)
-                && func.blocks.iter().any(|block| match &block.terminator {
+                && module.functions[func_id].blocks.iter().any(|block| match &block.terminator {
                     Some(Terminator::Return { values }) => {
                         values.first().is_none_or(|&value| !heap[func_id].contains(value))
                     }
@@ -607,83 +614,130 @@ fn module_heap_addresses(
                 })
             {
                 returns.remove(func_id);
-                changed = true;
-            }
-        }
-        let mut pass = |caller: FunctionId, callee: FunctionId, args: &[ValueId]| {
-            for (index, &arg) in args.iter().enumerate() {
-                if !heap[caller].contains(arg)
-                    && index < params[callee].domain_size()
-                    && params[callee].remove(ArgIdx::new(index))
-                {
-                    changed = true;
-                }
-            }
-        };
-        for (caller, func) in module.functions.iter_enumerated() {
-            for inst in func.instructions() {
-                if let InstKind::ICall { function: Callee::Function(callee), args } =
-                    &func.inst(inst).kind
-                {
-                    pass(caller, *callee, args);
-                }
-            }
-            for block in &func.blocks {
-                if let Some(Terminator::TailCall { function, args }) = &block.terminator {
-                    pass(caller, *function, args);
+                for site in &call_sites[func_id] {
+                    match *site {
+                        CallSite::Call(caller, ..) => {
+                            stale.insert(caller);
+                        }
+                        CallSite::Tail(caller) => returning.push(caller),
+                    }
                 }
             }
         }
-        if !changed {
-            return heap;
-        }
-    }
-}
-
-/// Returns the words `func` computes from heap pointers, with the parameters `params` marks as
-/// holding one and the results of calls to the functions `returns` holds: the free memory pointer,
-/// allocations, and memory objects, a word that adds a constant or another heap pointer to one, the
-/// address of such an object's data, a field, or an element at a constant index, and a choice
-/// between such words. Every candidate starts as a heap pointer, and one whose inputs are not drops
-/// out until none does.
-fn function_heap_addresses(
-    func: &Function,
-    params: &DenseBitSet<ArgIdx>,
-    returns: &DenseBitSet<FunctionId>,
-    trust_types: bool,
-) -> DenseBitSet<ValueId> {
-    let mut heap = DenseBitSet::new_empty(func.num_values());
-    for index in 0..func.num_values() {
-        let value = ValueId::new(index);
-        let candidate = match *func.value(value) {
-            Value::Arg(index) => params.contains(index),
-            Value::Inst(inst) => match func.inst(inst).kind {
-                InstKind::ICall { function: Callee::Function(callee), .. } => {
-                    returns.contains(callee)
-                        || trust_types && func.inst(inst).result_ty == Some(MirType::MEMPTR)
+        for caller in fresh {
+            for &(callee, args) in &shapes[caller].calls {
+                for (index, &arg) in args.iter().enumerate() {
+                    if !heap[caller].contains(arg)
+                        && index < params[callee].domain_size()
+                        && params[callee].remove(ArgIdx::new(index))
+                    {
+                        stale.insert(callee);
+                    }
                 }
-                _ => may_compute_heap_address(func, inst, trust_types),
-            },
-            _ => false,
-        };
-        if candidate {
-            heap.insert(value);
-        }
-    }
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for inst in func.instructions() {
-            if let Some(value) = func.inst_result_value(inst)
-                && heap.contains(value)
-                && !computes_heap_address(func, &func.inst(inst).kind, &heap)
-            {
-                heap.remove(value);
-                changed = true;
             }
         }
     }
     heap
+}
+
+/// What decides which words of a function are heap pointers, found once for the function: the
+/// parameters and returns of other functions settle the rest.
+struct HeapShape<'a> {
+    func: &'a Function,
+    /// The words that may be heap pointers whatever the parameters and returns are.
+    base: DenseBitSet<ValueId>,
+    /// The values of the parameters.
+    args: Vec<(ValueId, ArgIdx)>,
+    /// The results of internal calls, with their callees and whether their type alone makes them
+    /// heap pointers.
+    results: Vec<(ValueId, FunctionId, bool)>,
+    /// The candidates in `base` that drop out when their operands are not heap pointers.
+    derived: Vec<(InstId, ValueId)>,
+    /// The internal calls and tail calls the function makes, with their arguments.
+    calls: Vec<(FunctionId, &'a [ValueId])>,
+}
+
+impl<'a> HeapShape<'a> {
+    fn new(func: &'a Function, trust_types: bool) -> Self {
+        let mut base = DenseBitSet::new_empty(func.num_values());
+        let empty = base.clone();
+        let mut args = Vec::new();
+        for index in 0..func.num_values() {
+            let value = ValueId::new(index);
+            if let Value::Arg(arg) = *func.value(value) {
+                args.push((value, arg));
+            }
+        }
+        let mut results = Vec::new();
+        let mut derived = Vec::new();
+        let mut calls = Vec::new();
+        for block in &func.blocks {
+            for &inst in &block.instructions {
+                let instruction = func.inst(inst);
+                if let InstKind::ICall { function: Callee::Function(callee), args } =
+                    &instruction.kind
+                {
+                    calls.push((*callee, &args[..]));
+                }
+                let Some(value) = func.inst_result_value(inst) else { continue };
+                if let InstKind::ICall { function: Callee::Function(callee), .. } = instruction.kind
+                {
+                    let by_type = trust_types && instruction.result_ty == Some(MirType::MEMPTR);
+                    results.push((value, callee, by_type));
+                } else if may_compute_heap_address(func, inst, trust_types) {
+                    base.insert(value);
+                    // An instruction that refuses an empty set of heap pointers depends on its
+                    // operands.
+                    if !computes_heap_address(func, &instruction.kind, &empty) {
+                        derived.push((inst, value));
+                    }
+                }
+            }
+            if let Some(Terminator::TailCall { function, args }) = &block.terminator {
+                calls.push((*function, &args[..]));
+            }
+        }
+        Self { func, base, args, results, derived, calls }
+    }
+
+    /// Returns the words `func` computes from heap pointers, with the parameters `params` marks as
+    /// holding one and the results of calls to the functions `returns` holds: the free memory
+    /// pointer, allocations, and memory objects, a word that adds a constant or another heap
+    /// pointer to one, the address of such an object's data, a field, or an element at a constant
+    /// index, and a choice between such words. Every candidate starts as a heap pointer, and one
+    /// whose inputs are not drops out until none does.
+    fn heap_addresses(
+        &self,
+        params: &DenseBitSet<ArgIdx>,
+        returns: &DenseBitSet<FunctionId>,
+    ) -> DenseBitSet<ValueId> {
+        let mut heap = self.base.clone();
+        for &(value, arg) in &self.args {
+            if params.contains(arg) {
+                heap.insert(value);
+            }
+        }
+        for &(value, callee, by_type) in &self.results {
+            if by_type || returns.contains(callee) {
+                heap.insert(value);
+            }
+        }
+        // Only the derived words can drop out; the others are heap pointers whatever their
+        // operands.
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for &(inst, value) in &self.derived {
+                if heap.contains(value)
+                    && !computes_heap_address(self.func, &self.func.inst(inst).kind, &heap)
+                {
+                    heap.remove(value);
+                    changed = true;
+                }
+            }
+        }
+        heap
+    }
 }
 
 /// The words [`may_be_low`] looks at before it gives up and says the word may be low, so that
@@ -1070,6 +1124,8 @@ struct PointerUses<'a> {
     /// The calls and extractions in callers that clamp a word planned functions return, with their
     /// functions and blocks.
     caller_roots: Vec<(FunctionId, BlockId, InstId)>,
+    /// The stretches the clamp placement has walked for any store, which add their clamps once.
+    walked: FxHashSet<Walk>,
 }
 
 impl<'a> PointerUses<'a> {
@@ -1087,6 +1143,7 @@ impl<'a> PointerUses<'a> {
             load_reads: FxHashMap::default(),
             load_roots: FxIndexMap::default(),
             caller_roots: Vec::new(),
+            walked: FxHashSet::default(),
         }
     }
 
@@ -1246,9 +1303,8 @@ impl<'a> PointerUses<'a> {
         clamps: &mut FxIndexSet<Clamp>,
     ) {
         let mut pending = vec![Walk { func: func_id, block, start, returns: Returns::ToCallers }];
-        let mut walked = FxHashSet::default();
         while let Some(walk) = pending.pop() {
-            if walked.insert(walk) {
+            if self.walked.insert(walk) {
                 self.clamp_in_block(walk, &mut pending, clamps);
             }
         }
@@ -1411,7 +1467,7 @@ impl<'a> PointerUses<'a> {
             // The compiler's own pointer reads and allocations, and the builtins and semantic
             // operations whose lowering may allocate or encode at the pointer.
             InstKind::Fmp | InstKind::Alloc { .. } => Effect::ReadsPointer,
-            _ if inst.unlowered_reason(func).is_some() && lowered_reads_pointer(&inst.kind) => {
+            _ if lowered_reads_pointer(&inst.kind) && inst.unlowered_reason(func).is_some() => {
                 Effect::ReadsPointer
             }
             _ => {

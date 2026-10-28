@@ -56,6 +56,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &element_cleanup::ElementCleanup,
     &egraph::Egraph,
     &word_sequence::WordSequence::Late,
+    &byte_loops::ByteLoops,
     &byte_run::ByteRunLoads,
     &cse::Cse::Storage,
     &storage_dse::StorageDse,
@@ -65,6 +66,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &loop_reduce::LoopReduce,
     &loop_split::LoopSplit,
     &loop_unroll::LoopUnroll,
+    &loop_version::LoopVersion,
     &merge_aborts::MergeAborts,
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
@@ -246,6 +248,9 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &element_cleanup::ElementCleanup,
     &frame_promotion::FrameSlotPromotion,
     &loop_canonicalize::LoopCanonicalize,
+    // Replace byte-at-a-time loops with word operations while checks are single instructions,
+    // before the inliner prices the helpers that spell them.
+    &byte_loops::ByteLoops,
     // Evaluate recurrences before gas-bounded reasoning removes checks that
     // become reachable if a loop is replaced by a constant-time formula.
     &GasOnly::new(dce::Dce),
@@ -256,6 +261,11 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
+    // A loop that stores into one array and reloads another's length gets a copy that reads
+    // the lengths once, behind a run-time test that the stores cannot reach them. It runs on
+    // the threaded graph, where the short-circuit conditions that cover a check dominate it;
+    // the check elimination after memory lowering folds the copy's bounds.
+    &GasOnly::new(loop_version::LoopVersion),
     &sroa::Sroa,
     &memory_dse::MemoryDse::Standard,
     &dce::Dce,

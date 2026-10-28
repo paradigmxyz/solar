@@ -963,6 +963,7 @@ impl MemoryStoreEliminator {
             if !reads.iter().any(|&(read_offset, read_size)| {
                 self.alias()
                     .memory_alias(
+                        func,
                         MemoryLocation::new(
                             MemoryAddress::internal_frame(offset),
                             LocationSize::Const(32),
@@ -1188,7 +1189,11 @@ impl MemoryStoreEliminator {
                 overwritten.retain(|key| {
                     !self
                         .alias()
-                        .memory_alias(MemoryLocation::new(key.0, LocationSize::Const(32)), location)
+                        .memory_alias(
+                            func,
+                            MemoryLocation::new(key.0, LocationSize::Const(32)),
+                            location,
+                        )
                         .may_alias()
                 });
             }
@@ -1228,6 +1233,7 @@ impl MemoryStoreEliminator {
                 !self
                     .alias()
                     .memory_alias(
+                        func,
                         MemoryLocation::new(key.0, LocationSize::Const(32)),
                         MemoryLocation::new(
                             MemoryAddress::absolute(read_offset),
@@ -2083,9 +2089,14 @@ impl MemoryStoreEliminator {
                         }
                         None
                     }
-                    // An access that may leave its allocation names it by its pointer, and
-                    // reaches only the objects above it.
+                    // An access that may leave its allocation names it by its pointer, or by
+                    // `FreeMemory` for a unique one, and reaches only the objects above it.
                     MemoryBase::Value(pointer) => self.allocation_site(func, pointer),
+                    MemoryBase::FreeMemory(site)
+                        if matches!(func.inst(site).kind, InstKind::Alloc { .. }) =>
+                    {
+                        Some(site)
+                    }
                     // A read at the free-memory pointer may reach any object allocated after it.
                     MemoryBase::FreeMemory(_) => None,
                 },

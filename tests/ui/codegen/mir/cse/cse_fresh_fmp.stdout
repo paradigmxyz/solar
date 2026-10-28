@@ -23,9 +23,8 @@
       v3 = ptradd v2, arg2
       v4 = ptrtoint ptr<memory> v3 to i256
       mstore v4, arg1
--     v5 = mload v1
--     ret v5
-+     ret arg0
+      v5 = mload v1
+      ret v5
   }
   
   fn @allocation_in_dominator(arg0: i256, arg1: i256, arg2: i1) -> i256 {

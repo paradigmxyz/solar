@@ -38,8 +38,6 @@ fn @makeArray() [selector=0x9510f212, abi_wrapper, pure] {
     v31 = heap_floor !metadata(alloc_ptr)
     v32 = add v31, 192 !metadata(alloc_ptr)
     mstore 64, v32 !metadata(memory=scratch)
-    v33 = calldatasize
-    calldatacopy v31, v33, 96
     v30 = add v31, 96
     mstore v30, arg0
     v6 = add arg0, 1

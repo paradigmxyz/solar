@@ -1,0 +1,22 @@
+// === ROOT/tests/ui/codegen/mir/lower-builtins/packed_hash_scratch.sol:PackedHashScratch ===
+@module PackedHashScratch
+fn @threeItems(arg0: i256, arg1: i160) -> i256 [selector=0x6e13fa5d, pure, abi_params=[uint256, address], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint32 i32 0xee9853bb, uint160 arg1)
+    ret v0
+}
+
+fn @twoItems(arg0: i256, arg1: i160) -> i256 [selector=0x658c946c, pure, abi_params=[uint256, address], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = zext i160 arg1 to i256
+    v1 = or 0xee9853bb0000000000000000000000000000000000000000, v0
+    v2 = trunc i256 v1 to i192
+    v3 = keccak256_packed (uint256 arg0, uint192 v2)
+    ret v3
+}
+
+fn @tooLong(arg0: i256, arg1: i256, arg2: i32) -> i256 [selector=0x70126c55, pure, abi_params=[uint256, uint256, uint32], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 arg1, uint32 arg2)
+    ret v0
+}

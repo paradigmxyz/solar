@@ -22,12 +22,12 @@ fn @write_at_fresh_fmp(arg0: i256, arg1: i256) -> i256 {
     ret v7
 }
 
+// A runtime offset from the FMP can wrap into an earlier allocation.
 // CHECK-LABEL: @write_past_fresh_fmp
 // CHECK:       mstore [[ADDR:v[0-9]+]], arg0
 // CHECK:       mstore {{v[0-9]+}}, arg1
-// CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
-// CHECK: -     ret {{v[0-9]+}}
-// CHECK: +     ret arg0
+// CHECK: {{^ +}}[[AFTER:v[0-9]+]] = mload [[ADDR]]
+// CHECK-NEXT: {{^ +}}ret [[AFTER]]
 fn @write_past_fresh_fmp(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v10 = alloc 32

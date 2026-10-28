@@ -63,18 +63,18 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v178 = add v177, 4
     v180 = sub v175, 36
     v181 = gt v177, v180
-    v235 = or v176, v181
+    v237 = or v176, v181
     v182 = calldataload v178
     v183 = add v178, 32
     v184 = sub v175, v183
     v185 = shr v184, 5
     v186 = gt v182, v185
-    v236 = or v235, v186
-    jumpi v236, bb5, bb30
+    v238 = or v237, v186
+    jumpi v238, bb5, bb30
   bb30:
-    v233 = heap_floor !metadata(alloc_ptr)
-    v234 = add v233, 64
-    mstore 64, v234
+    v235 = heap_floor !metadata(alloc_ptr)
+    v236 = add v235, 64
+    mstore 64, v236
     v3 = shl v182, 5
     v10 = calldatasize
     v12 = sub v10, v183
@@ -95,10 +95,10 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v25 = lt v24, v182
     jumpi v25, bb2, bb3
   bb3:
-    mstore v233, arg0
-    v191 = add v233, 32
+    mstore v235, arg0
+    v191 = add v235, 32
     mstore v191, v229
-    v70 = icall @encodeFirst.body, v233
+    v70 = icall @encodeFirst.body, v235
     v193 = add v70, 32
     v106 = mload v70
     v108 = add v193, v106
@@ -110,12 +110,14 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v115 = gt v110, v106
     v116 = sub v108, v112
     v117 = lt v116, 64
-    v239 = or v115, v117
-    jumpi v239, bb5, bb20
+    v241 = or v115, v117
+    jumpi v241, bb5, bb20
   bb20:
-    v118 = alloc 64 !metadata(deferred_alloc)
+    v233 = mload 64 !metadata(alloc_ptr)
+    v234 = add v233, 64
+    mstore 64, v234
     v119 = mload v112
-    mstore v118, v119
+    mstore v233, v119
     v120 = add v112, 32
     v121 = mload v120
     v122 = add v112, v121
@@ -146,9 +148,9 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v142 = gt v139, 0
     jumpi v142, bb25, bb26
   bb26:
-    v208 = add v118, 32
+    v208 = add v233, 32
     mstore v208, v227
-    v72 = mload v118
+    v72 = mload v233
     v75 = mload v227
     v76 = gt v75, 0
     jumpi v76, bb12, bb11
@@ -231,9 +233,9 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v34 = add v183, v32
     v38 = sub v12, 31
     v39 = slt v32, v38
-    v237 = eq v39, false
-    v238 = or v31, v237
-    jumpi v238, bb5, bb8
+    v239 = eq v39, false
+    v240 = or v31, v239
+    jumpi v240, bb5, bb8
   bb8:
     v41 = calldataload v34
     v42 = calldatasize
