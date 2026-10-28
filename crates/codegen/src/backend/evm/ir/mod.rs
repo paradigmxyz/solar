@@ -84,6 +84,7 @@ pub fn into_bytecode(gcx: Gcx<'_>, module: Module) -> solar_interface::Result<Re
         libraries: assembled.evm_ir.expect("EVM IR capture requested").libraries,
         bytes: assembled.bytecode.into(),
         relocations: assembled.library_relocations,
+        trailers: assembled.trailers,
     })
 }
 
