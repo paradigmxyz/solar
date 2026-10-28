@@ -1,6 +1,6 @@
-- // === ROOT/tests/ui/codegen/mir/heap-floor/dirty_entry.mir (before heap-floor) ===
-+ // === ROOT/tests/ui/codegen/mir/heap-floor/dirty_entry.mir (after heap-floor) ===
-  @module HeapFloorDirtyEntry
+- // === ROOT/tests/ui/codegen/mir/heap-floor/raised_by_callee.mir (before heap-floor) ===
++ // === ROOT/tests/ui/codegen/mir/heap-floor/raised_by_callee.mir (after heap-floor) ===
+  @module HeapFloorRaisedByCallee
   fn @hash(arg0: i256) {
     bb0:
       v0 = mload arg0
@@ -34,24 +34,6 @@
       ret
   }
   
-  fn @forward(arg0: i256) {
-    bb0:
-      tail_call @hash, arg0
-  }
-  
-  fn @countdown(arg0: i256) {
-    bb0:
-      v0 = eq arg0, 0
-      jumpi v0, bb1, bb2
-    bb2:
-      v1 = sub arg0, 1
-      icall @countdown, v1
-      ret
-    bb1:
-      icall @hash, arg0
-      ret
-  }
-  
   fn @dirty_twice(arg0: i256) [selector=0x11111111] {
     bb0:
       mstore arg0, 1
@@ -70,29 +52,6 @@
 +     mstore 64, v4 !metadata(memory=scratch)
       v0 = alloc 32
       mstore v0, arg0
-      ret
-  }
-  
-  fn @dirty_forward(arg0: i256) [selector=0x33333333] {
-    bb0:
-      mstore arg0, 1
-      icall @forward, arg0
-      ret
-  }
-  
-  fn @dirty_countdown(arg0: i256) [selector=0x44444444] {
-    bb0:
-      mstore arg0, 1
-      icall @countdown, arg0
-      ret
-  }
-  
-  fn @clean(arg0: i256, arg1: i1) [selector=0x55555555] {
-    bb0:
-      icall @twice, arg0
-      icall @maybe, arg0, arg1
-      icall @forward, arg0
-      icall @countdown, arg0
       ret
   }
   
