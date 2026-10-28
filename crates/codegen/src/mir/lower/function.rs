@@ -41,12 +41,9 @@ mod memory_values;
 mod modifiers;
 mod operators;
 mod raw_scalars;
-mod scratch;
 mod statements;
 mod storage_values;
 mod values;
-
-pub(super) use scratch::{ScratchRegion, check_scratch_regions};
 
 /// Shared inputs for one contract's function lowering.
 pub(super) struct LoweringContext<'gcx, 'ctx> {
@@ -106,15 +103,6 @@ pub(super) struct LoweringState {
     pub(super) helpers: FxHashMap<Symbol, FunctionId>,
     raw_scalars: FxHashSet<VariableId>,
     raw_pointer_types: FxHashSet<MirType>,
-    /// The `@custom:solar-scratch` blocks of the function being lowered, which the contract
-    /// driver claims for its MIR function.
-    pub(super) scratch_regions: Vec<ScratchRegion>,
-    /// Whether the function being lowered runs inline assembly, which the contract driver claims
-    /// for its MIR function.
-    pub(super) lowered_assembly: bool,
-    /// Whether any assembly in this contract lacks the explicit memory-safety promise, including
-    /// read-only blocks which may forge references without writing memory.
-    pub(super) untrusted_assembly: bool,
 }
 
 /// Lowers one HIR function into a typed MIR function.
@@ -248,9 +236,6 @@ struct FunctionLowerer<'gcx, 'ctx> {
     /// Whether the inline assembly lowered so far may write memory: a store, a copy, a call with
     /// a return buffer, or an assignment to a memory reference.
     assembly_writes_memory: bool,
-    /// The tags of the `@custom:solar-scratch` blocks the code being lowered runs inside,
-    /// innermost last, including those a modifier's `_` runs the function's body in.
-    open_scratch: Vec<Span>,
 }
 
 /// The lowered `{gas: ..., value: ...}` options of an external call.
@@ -378,29 +363,16 @@ impl BuiltinArgCount {
 pub(super) struct InternalFunctionPointerShape {
     params: Vec<crate::mir::ValueLayout>,
     returns: Vec<crate::mir::ValueLayout>,
-    references: Vec<ReferenceShape>,
 }
 
 impl InternalFunctionPointerShape {
-    fn from_ty(gcx: Gcx<'_>, function: &TyFn<'_>) -> Self {
+    fn from_ty(function: &TyFn<'_>) -> Self {
         Self {
             params: function
                 .parameters
                 .iter()
                 .map(|&ty| types::TypeLowerer::value_layout(ty))
                 .collect(),
-            // Only the scratch check tells a memory reference from a word, so code without the
-            // tag keeps its dispatchers.
-            references: if gcx.hir.has_solar_scratch() {
-                function
-                    .parameters
-                    .iter()
-                    .chain(function.returns)
-                    .map(|&ty| ReferenceShape::of(gcx, ty, &mut FxHashSet::default()))
-                    .collect()
-            } else {
-                Vec::new()
-            },
             returns: function
                 .returns
                 .iter()
@@ -425,7 +397,6 @@ impl InternalFunctionPointerShape {
             .copied()
             .map(canonicalize))
             && self.returns == target.returns
-            && self.references == target.references
     }
 
     /// Returns whether a pointer of this shape can hold a `target` function retyped by inline
@@ -448,31 +419,14 @@ impl InternalFunctionPointerShape {
     fn helper_name(&self, from_assembly: bool) -> Symbol {
         let params = self.params.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
         let returns = self.returns.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
-        let mut suffix = format!(
+        let suffix = format!(
             "{}p_{}_r_{}",
             if from_assembly { "asm_" } else { "" },
             if params.is_empty() { "none" } else { &params },
             if returns.is_empty() { "none" } else { &returns },
         );
-        // The word layout alone does not distinguish arrays of pointers from arrays of words.
-        if self
-            .references
-            .iter()
-            .any(|shape| matches!(shape, ReferenceShape::Memory(fields) if !fields.is_empty()))
-        {
-            suffix.push_str("_refs_");
-            for shape in &self.references {
-                shape.append_key(&mut suffix);
-            }
-        }
         // `slice<calldata>` -> `slice_calldata`, keeping the name an identifier.
         helper_name(sym::internal_dispatcher, suffix.replace('<', "_").replace('>', ""))
-    }
-
-    /// Returns whether a call of `target` through a pointer of this shape reinterprets a memory
-    /// reference as a word of another type, or such a word as a reference.
-    fn reinterprets_reference(&self, target: &Self) -> bool {
-        self.references != target.references
     }
 }
 
@@ -498,7 +452,7 @@ impl InternalFunctionPointerRegistry {
             let TyKind::Fn(function) = gcx.type_of_item(function_id.into()).kind else {
                 return false;
             };
-            let candidate = InternalFunctionPointerShape::from_ty(gcx, function);
+            let candidate = InternalFunctionPointerShape::from_ty(function);
             !shape.is_assembly_cast_compatible_with(&candidate)
                 && shape.is_word_compatible_with(&candidate)
         })
@@ -557,7 +511,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             unchecked: false,
             in_inline_assembly: false,
             assembly_writes_memory: false,
-            open_scratch: Vec::new(),
         }
     }
 
@@ -1080,21 +1033,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 }
 
-/// Builds the bodies of the internal function pointer dispatchers. Returns the dispatchers that
-/// reinterpret a memory reference as a word of another type, or such a word as a reference, which
-/// only a pointer that inline assembly retyped can reach.
 pub(super) fn generate_internal_function_pointer_dispatchers(
     gcx: Gcx<'_>,
     module: &mut Module,
     function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
     state: &LoweringState,
-) -> Vec<FunctionId> {
+) {
     let dispatchers = module
         .iter_functions()
         .filter(|(_, function)| function.attributes.is_function_pointer_dispatcher)
         .map(|(id, _)| (state.pointer_registry.dispatchers[&id].clone(), id))
         .collect::<Vec<_>>();
-    let mut retyping = Vec::new();
     for (InternalFunctionPointerDispatch { shape, from_assembly }, dispatcher) in dispatchers {
         let mut candidates = state
             .pointer_registry
@@ -1104,7 +1053,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 let TyKind::Fn(function) = gcx.type_of_item(function_id.into()).kind else {
                     return None;
                 };
-                let candidate_shape = InternalFunctionPointerShape::from_ty(gcx, function);
+                let candidate_shape = InternalFunctionPointerShape::from_ty(function);
                 (shape.is_assembly_cast_compatible_with(&candidate_shape)
                     || (from_assembly
                         && state.pointer_registry.assembly_exposed.contains(&function_id)
@@ -1119,12 +1068,6 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
             })
             .collect::<Vec<_>>();
         candidates.sort_by_key(|(function_id, _, _)| function_id.index());
-        if candidates
-            .iter()
-            .any(|(_, _, candidate_shape)| shape.reinterprets_reference(candidate_shape))
-        {
-            retyping.push(dispatcher);
-        }
 
         let reserved = module.function(dispatcher);
         let mut function = Function::new(Ident::new(reserved.name.symbol, reserved.name_span));
@@ -1225,7 +1168,6 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
         }
         *module.function_mut(dispatcher) = function;
     }
-    retyping
 }
 
 fn arithmetic_kind(ty: Ty<'_>) -> Option<ArithmeticKind> {
@@ -1289,56 +1231,5 @@ fn is_literal_operation(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> bool {
     match &expr.kind {
         ExprKind::Binary(lhs, op, rhs) if op.kind.is_cmp() => is_literal(lhs) && is_literal(rhs),
         _ => is_literal(expr),
-    }
-}
-
-/// The memory references a function parameter or return contains, recursively. Scalar widths
-/// do not affect pointer escape; nested reference-versus-word distinctions do.
-#[derive(Clone, PartialEq, Eq, Hash)]
-enum ReferenceShape {
-    Word,
-    Memory(Vec<Self>),
-    Recursive(hir::StructId),
-}
-
-impl ReferenceShape {
-    fn of(gcx: Gcx<'_>, ty: Ty<'_>, visiting: &mut FxHashSet<hir::StructId>) -> Self {
-        match ty.kind {
-            TyKind::Ref(inner, DataLocation::Memory) => Self::of(gcx, inner, visiting),
-            TyKind::Ref(..) => Self::Word,
-            TyKind::DynArray(element) | TyKind::Array(element, _) => {
-                Self::Memory(vec![Self::of(gcx, element, visiting)])
-            }
-            TyKind::Struct(id) => {
-                if !visiting.insert(id) {
-                    return Self::Recursive(id);
-                }
-                let fields = gcx
-                    .struct_field_types(id)
-                    .iter()
-                    .map(|&ty| Self::of(gcx, ty, visiting))
-                    .collect();
-                visiting.remove(&id);
-                Self::Memory(fields)
-            }
-            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                Self::Memory(Vec::new())
-            }
-            _ => Self::Word,
-        }
-    }
-
-    fn append_key(&self, key: &mut String) {
-        match self {
-            Self::Word => key.push('w'),
-            Self::Memory(fields) => {
-                key.push('m');
-                for field in fields {
-                    field.append_key(key);
-                }
-                key.push('e');
-            }
-            Self::Recursive(id) => key.push_str(&format!("r{}_", id.index())),
-        }
     }
 }

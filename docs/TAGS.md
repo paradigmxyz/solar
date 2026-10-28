@@ -15,7 +15,6 @@ divergence entry is [TYPECK-022](SOLC_DIVERGENCE.md#typeck-022-customsolar--tags
 | `solar-inline` | a function that internal calls reach | Inline every internal call of it where inlining is legal. |
 | `solar-noinline` | a function that internal calls reach | Never inline it. |
 | `solar-optimize gas` or `size` | a non-abstract contract or a library | Optimize its code for this objective instead of the build's. |
-| `solar-scratch` | a `{ ... }` or `unchecked { ... }` block | Later code reuses the memory the block allocates. |
 
 ## `solar-safe` and `solar-trusted`
 
@@ -73,47 +72,3 @@ contract Factory { ... }
 Optimized builds compile the contract's code for the named objective, `gas` or `size`, instead of
 the one the build selects. Builds with `-O none` stay unoptimized. The tag names exactly one
 objective, and a contract has at most one.
-
-## `solar-scratch`
-
-```solidity
-bytes32 digest;
-/// @custom:solar-scratch
-{
-    bytes memory encoded = abi.encode(a, b);
-    digest = keccak256(encoded);
-}
-```
-
-The compiler reads the free memory pointer when the block starts and writes it back when the
-block ends normally, so later allocations reuse the block's memory. A `return`, `break`, or
-`continue` out of the block keeps the memory allocated. The block cannot contain inline
-assembly, nor run a function body with it through a modifier's `_`.
-
-Some temporary ABI buffers already reuse memory automatically. The tag extends reuse to a whole
-block, including allocations in its callees; the compiler does not infer that scope yet.
-
-Reuse is only correct while nothing after the block still refers to that memory, so the compiler
-rejects every reference to it that later code could reach: a variable used after the block, a
-`return`, a store into memory the block did not allocate or into storage, and a call whose callee
-may store such a reference where later code can reach it. Values such as hashes, lengths, and words
-read from the memory leave the block freely. After the block, the free memory pointer can be lower
-than without the tag.
-
-Assembly outside the block is allowed. In assembly functions, a memory load at an unknown address
-may read the free memory pointer. Typed helpers can rely on valid object bounds when all assembly
-explicitly promises memory safety and no function-pointer dispatcher reinterprets references.
-Otherwise, unknown loads remain conservative throughout the contract. The compiler tracks possible
-free-pointer reads through helper returns and stores too, and rejects the tag if the pointer may
-outlive the block. Use a provably disjoint address, consume the pointer before the block, or read it
-again after the block.
-Copies and calls that may retain bytes from the free-pointer slot are captures too, even if no
-instruction loads that slot directly. Storing a scalar into the slot and reading it back still
-produces a free pointer; store forwarding does not exempt that read from the lifetime check.
-The same check follows values installed into the free-pointer slot, even if code keeps the
-original value without loading the slot again. Partial writes and copies that may install an
-unknown pointer prevent reuse. Writes through helper parameters remain allowed when the caller
-passes a fresh object that cannot reach the slot.
-An installation from a reload or call whose origins cannot be traced also prevents reuse: it may
-recover a word that still has aliases elsewhere. Allocator advances from an exact FMP read remain
-supported.

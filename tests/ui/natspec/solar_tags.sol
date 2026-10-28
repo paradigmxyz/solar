@@ -11,28 +11,13 @@ contract Test {
         /// @custom:solar-inline
         //~^ ERROR: `@custom:solar-inline` must document a function that internal calls reach
         x = b.length;
-        /// @custom:solar-scratch
-        {
-            x += abi.encode(x).length;
-        }
-        /// @custom:solar-scratch
-        unchecked {
-            x += abi.encode(x).length;
-        }
-        /// @custom:solar-scratch
-        //~^ ERROR: `@custom:solar-scratch` must document a block statement
+        /// @custom:solar-optimize size
+        //~^ ERROR: `@custom:solar-optimize` must document a non-abstract contract or a library
         x += 1;
-        /// @custom:solar-scratch
-        //~^ ERROR: `@custom:solar-scratch` must document a block statement
+        /// @custom:solar-safe
+        //~^ ERROR: `@custom:solar-safe` must document a contract or a library
         for (uint256 i; i < 2; ++i) {
             x += abi.encode(i).length;
-        }
-        /// @custom:solar-scratch
-        {
-            assembly {
-                //~^ ERROR: a `@custom:solar-scratch` block cannot contain inline assembly
-                x := add(x, 1)
-            }
         }
         /// @custom:unrelated
         uint256 y = 2;
@@ -48,7 +33,7 @@ contract Test {
     }
 
     /// @custom:solar-scratch
-    //~^ ERROR: `@custom:solar-scratch` must document a block statement
+    //~^ ERROR: unknown tag `@custom:solar-scratch`
     function i() internal pure {}
 
     /// @custom:solar-trusted

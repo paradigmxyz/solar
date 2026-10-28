@@ -925,8 +925,6 @@ pub(crate) enum SolarTag {
     /// `@custom:solar-optimize <gas|size>`: optimized builds of the contract optimize its code for
     /// this objective instead of the one the build selects.
     Optimize,
-    /// `@custom:solar-scratch`: the memory the block allocates is reused after it.
-    Scratch,
     /// A `solar-` tag this compiler does not define.
     Unknown,
 }
@@ -940,7 +938,6 @@ impl SolarTag {
             sym::solar_dash_safe => Some(Self::Safe),
             sym::solar_dash_trusted => Some(Self::Trusted),
             sym::solar_dash_optimize => Some(Self::Optimize),
-            sym::solar_dash_scratch => Some(Self::Scratch),
             _ => name.as_str().starts_with("solar-").then_some(Self::Unknown),
         }
     }
@@ -981,19 +978,13 @@ pub(crate) fn report_misplaced_solar_tag(
                  `@custom:solar-optimize size`",
             )
             .emit(),
-        SolarTag::Scratch => dcx
-            .err("`@custom:solar-scratch` must document a block statement")
-            .span(span)
-            .help("put it on a `{ ... }` block whose allocations do not outlive it")
-            .emit(),
         SolarTag::Unknown => dcx
             .err(format!("unknown tag `@custom:{name}`"))
             .span(span)
             .note("`@custom:solar-` tags are requirements this compiler checks")
             .help(
                 "the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, \
-                 `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-scratch`, \
-                 and `@custom:solar-trusted`",
+                 `@custom:solar-optimize`, `@custom:solar-safe`, and `@custom:solar-trusted`",
             )
             .emit(),
     }

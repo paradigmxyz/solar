@@ -13,7 +13,7 @@ LL │ /// @custom:solar-saef
    │      ━━━━━━━━━━━━━━━━━
    │
    ├ note: `@custom:solar-` tags are requirements this compiler checks
-   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-scratch`, and `@custom:solar-trusted`
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-optimize`, `@custom:solar-safe`, and `@custom:solar-trusted`
 
 error: `@custom:solar-inline` must document a function that internal calls reach
    ╭▸ ROOT/tests/ui/natspec/solar_tags_unlowered.sol:LL:CC
@@ -38,15 +38,15 @@ LL │             /// @custom:solar-saef
    │                  ━━━━━━━━━━━━━━━━━
    │
    ├ note: `@custom:solar-` tags are requirements this compiler checks
-   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-scratch`, and `@custom:solar-trusted`
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-optimize`, `@custom:solar-safe`, and `@custom:solar-trusted`
 
-error: `@custom:solar-scratch` must document a block statement
+error: `@custom:solar-optimize` must document a non-abstract contract or a library
    ╭▸ ROOT/tests/ui/natspec/solar_tags_unlowered.sol:LL:CC
    │
-LL │             /// @custom:solar-scratch
-   │                  ━━━━━━━━━━━━━━━━━━━━
+LL │             /// @custom:solar-optimize size
+   │                  ━━━━━━━━━━━━━━━━━━━━━
    │
-   ╰ help: put it on a `{ ... }` block whose allocations do not outlive it
+   ╰ help: put it on the contract or library whose code to optimize, naming the objective: `@custom:solar-optimize size`
 
 error: `@custom:solar-safe` must document a contract or a library
    ╭▸ ROOT/tests/ui/natspec/solar_tags_unlowered.sol:LL:CC

@@ -1244,7 +1244,6 @@ symbols! {
         solar_dash_noinline: "solar-noinline",
         solar_dash_optimize: "solar-optimize",
         solar_dash_safe: "solar-safe",
-        solar_dash_scratch: "solar-scratch",
         solar_dash_trusted: "solar-trusted",
         solidity,
         span,

@@ -22,8 +22,8 @@ contract Test {
             /// @custom:solar-saef
             //~^ ERROR: unknown tag `@custom:solar-saef`
             let x := 1
-            /// @custom:solar-scratch
-            //~^ ERROR: `@custom:solar-scratch` must document a block statement
+            /// @custom:solar-optimize size
+            //~^ ERROR: `@custom:solar-optimize` must document a non-abstract contract or a library
             { pop(x) }
             /// @custom:solar-safe
             //~^ ERROR: `@custom:solar-safe` must document a contract or a library

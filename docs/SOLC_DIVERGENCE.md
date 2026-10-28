@@ -668,31 +668,21 @@ Status: intentional.
 
 Difference: `solc` reads every `@custom:` NatSpec tag as documentation. `solar`
 reserves the `solar-` names: an unknown `@custom:solar-` tag, or one
-documenting something it cannot apply to, such as a statement other than a
-block, is an error. `@custom:solar-safe` on a contract or a library is an error
+documenting something it cannot apply to, such as a statement, is an error. `@custom:solar-safe` on a contract or a library is an error
 when the code it runs, outside functions tagged `@custom:solar-trusted` or in
 contracts tagged so, uses inline assembly. `unchecked` blocks are allowed
 unless the tag explicitly requests the `arithmetic` property.
 `@custom:solar-optimize` documents a non-abstract contract or a library and
 names exactly one objective, `gas` or `size`, which optimized builds use for
-its code instead of the build's. `@custom:solar-scratch` documents a `{ ... }` or
-`unchecked { ... }` block that runs no inline assembly, including a function
-body a modifier's `_` runs in it. The memory the block allocates is reused once
-the block ends normally, so a reference to it that code after the block could
-still use is an error: one used after the block, returned, stored into older
-memory or storage, or passed to a call that may store it there.
-[TAGS.md](TAGS.md) describes each tag.
+its code instead of the build's. [TAGS.md](TAGS.md) describes each tag.
 
 Rationale: a tag states a requirement this compiler checks or relies on, so a
 misspelled or misplaced tag must not silently go unchecked. Other compilers
 still read the tags as documentation, and no tag changes what the code
-computes. A scratch block only changes where later allocations go: the free
-memory pointer can be lower after it.
+computes.
 
 Coverage: `tests/ui/natspec/solar_tags.sol`, `tests/ui/natspec/solar_inline.sol`,
-`tests/ui/natspec/solar_optimize.sol`, `tests/ui/typeck/solar_safe.sol`,
-`tests/ui/codegen/lowering/solar_scratch_escape.sol` and
-`tests/ui/codegen/lowering/solar_scratch_runtime.sol`.
+`tests/ui/natspec/solar_optimize.sol` and `tests/ui/typeck/solar_safe.sol`.
 
 ## Contract-Level Checks
 
