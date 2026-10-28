@@ -236,17 +236,19 @@ fn compile(
     }
 
     opts.import_remappings = parsed_remappings;
-    // Like solc, Standard JSON takes code generation settings only from its input, so that the
-    // input and the compiler version determine the output: the command line's `--evm-version` and
-    // code generation `-Z` flags do not apply, and `settings.solar.unstable` replaces the latter.
+    // Like solc, Standard JSON takes the settings that change its output only from its input, so
+    // that the input and the compiler version determine the output: the command line's
+    // `--evm-version`, `--stop-after`, `--revert-strings` and `-Z` flags that change output do not
+    // apply, and `settings.solar.unstable` replaces the latter.
     opts.evm_version = EvmVersion::default();
+    opts.stop_after = None;
+    opts.revert_strings = RevertStrings::Default;
     match UnstableOpts::try_parse_flags(&solar.unstable) {
-        Ok(unstable) => opts.unstable.set_codegen_options(&unstable),
+        Ok(unstable) => opts.unstable.set_output_options(unstable),
         Err(e) => {
-            let e = e.to_string();
-            let message = e.lines().next().unwrap_or_default();
-            let message = message.trim().trim_start_matches("error:").trim();
-            dcx.err(format!("invalid `settings.solar.unstable`: {message}")).emit();
+            let message = e.to_string();
+            let message = message.lines().next().unwrap_or_default().trim_start_matches("error:");
+            dcx.err(format!("invalid `settings.solar.unstable`: {}", message.trim())).emit();
         }
     }
     if let Some(version) = evm_version.as_deref() {
@@ -273,9 +275,6 @@ fn compile(
             }
         }
     }
-    // Like solc, Standard JSON never inherits the command line's `--revert-strings`; only
-    // `settings.debug.revertStrings` selects a non-default mode.
-    opts.revert_strings = RevertStrings::Default;
     if let Some(debug) = debug {
         apply_debug_settings(&dcx, opts, debug);
     }
@@ -397,9 +396,10 @@ fn compile(
                 let compilation_requested = !global_ethdebug.is_empty()
                     || contract_output_requested(gcx, output_selection, ethdebug_outputs);
                 let compilation = compilation_requested.then(|| {
-                    // Metadata settings affect the CBOR trailer independently of
-                    // the code-generation options stored in the session.
-                    let metadata_identity = alloy_primitives::keccak256(format!("{metadata:?}"));
+                    // Metadata settings and `settings.solar` affect the CBOR trailer
+                    // independently of the code-generation options stored in the session.
+                    let metadata_identity =
+                        alloy_primitives::keccak256(format!("{metadata:?}{:?}", solar.unstable));
                     make_ethdebug_compilation(gcx, Some(metadata_identity))
                 });
                 let compilation_id = compilation.as_ref().map(EthdebugCompilation::id);

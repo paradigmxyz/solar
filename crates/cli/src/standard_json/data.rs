@@ -110,9 +110,8 @@ pub(super) struct Settings<'a> {
 /// The Solar-only `settings.solar` object.
 #[derive(Debug, Default, Deserialize)]
 pub(super) struct SolarSettings {
-    /// Unstable code generation flags, written like `-Z` flags without the prefix, such as
-    /// `mir-pipeline=none`. The command line's code generation flags do not apply to Standard
-    /// JSON, so the input alone determines the output.
+    /// Unstable flags that change output, written like `-Z` flags without the prefix, such as
+    /// `tune=interpreter`. Other flags are ignored.
     #[serde(default)]
     pub(super) unstable: Vec<String>,
 }

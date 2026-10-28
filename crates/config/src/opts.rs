@@ -490,10 +490,8 @@ pub struct UnstableOpts {
 impl UnstableOpts {
     /// Parses unstable flags written without their `-Z` prefix, such as `mir-pipeline=none`.
     #[cfg(feature = "clap")]
-    pub fn try_parse_flags(
-        flags: impl IntoIterator<Item = impl AsRef<str>>,
-    ) -> Result<Self, clap::Error> {
-        let hack = flags.into_iter().map(|s| format!("--{}", s.as_ref()));
+    pub fn try_parse_flags(flags: &[String]) -> Result<Self, clap::Error> {
+        let hack = flags.iter().map(|s| format!("--{s}"));
         let args = std::iter::once(String::new()).chain(hack);
         Self::try_parse_from(args).map_err(|e| {
             override_clap_message(e, |s| {
@@ -502,10 +500,13 @@ impl UnstableOpts {
         })
     }
 
-    /// Replaces the options that change generated code with those of `other`.
-    pub fn set_codegen_options(&mut self, other: &Self) {
-        // List every field so that new options must be sorted into code generation or not.
+    /// Replaces the options that change compiler output, such as generated code, with those of
+    /// `other`.
+    pub fn set_output_options(&mut self, other: Self) {
+        // List every field so that new options must be sorted into changing output or not.
         let Self {
+            parse_yul,
+            no_resolve_imports,
             mir_pipeline,
             evm_ir_pipeline,
             codegen_all_functions,
@@ -516,8 +517,6 @@ impl UnstableOpts {
             pack_wide_jump_tables,
             ui_testing: _,
             track_diagnostics: _,
-            parse_yul: _,
-            no_resolve_imports: _,
             recover_incomplete_input: _,
             dump: _,
             ast_stats: _,
@@ -539,14 +538,16 @@ impl UnstableOpts {
             #[cfg(test)]
                 test_value: _,
         } = other;
-        self.mir_pipeline.clone_from(mir_pipeline);
-        self.evm_ir_pipeline.clone_from(evm_ir_pipeline);
-        self.codegen_all_functions = *codegen_all_functions;
-        self.switch_lowering = *switch_lowering;
-        self.switch_max_gas_code_growth = *switch_max_gas_code_growth;
-        self.switch_max_bit_slice_gas_code_growth = *switch_max_bit_slice_gas_code_growth;
-        self.tune = *tune;
-        self.pack_wide_jump_tables = *pack_wide_jump_tables;
+        self.parse_yul = parse_yul;
+        self.no_resolve_imports = no_resolve_imports;
+        self.mir_pipeline = mir_pipeline;
+        self.evm_ir_pipeline = evm_ir_pipeline;
+        self.codegen_all_functions = codegen_all_functions;
+        self.switch_lowering = switch_lowering;
+        self.switch_max_gas_code_growth = switch_max_gas_code_growth;
+        self.switch_max_bit_slice_gas_code_growth = switch_max_bit_slice_gas_code_growth;
+        self.tune = tune;
+        self.pack_wide_jump_tables = pack_wide_jump_tables;
     }
 }
 

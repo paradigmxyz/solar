@@ -67,16 +67,17 @@ Coverage: `tests/ui/standard-json/debug/ethdebug-output-without-debug-info`,
 `tests/ui/standard-json/debug/ethdebug-with-ast-id` and
 `tests/ui/standard-json/debug/ethdebug-without-ast-id`.
 
-### JSON-005: `settings.solar` takes code generation flags
+### JSON-005: `settings.solar` takes unstable flags
 
 Status: intentional.
 
-Difference: `solar` reads `settings.solar.unstable`, a list of unstable code
-generation flags written like `-Z` flags without the prefix, such as
-`["mir-pipeline=none"]`, and records it in each contract's metadata. `solc`
-rejects the unknown `settings.solar` key. Like `solc`, `solar` ignores the
-command line's `--evm-version` and code generation `-Z` flags in Standard JSON
-mode.
+Difference: `solar` reads `settings.solar.unstable`, a list of unstable flags
+that change output, written like `-Z` flags without the prefix, such as
+`["tune=interpreter"]`, and records it in each contract's metadata. It ignores
+other flags in the list. `solc` rejects the unknown `settings.solar` key. Like
+`solc`, `solar` ignores the command line's `--evm-version` in Standard JSON
+mode, and it also ignores `--stop-after`, `--revert-strings` and the `-Z`
+flags that change output.
 
 Rationale: the Standard JSON input and the compiler version alone must
 determine the output, so that verifiers such as Sourcify can rebuild a
