@@ -42,7 +42,7 @@ impl EvmPass for TailDuplicate {
         if !module.optimization.is_gas() {
             return false;
         }
-        let target = module.target(gcx);
+        let target = module.runtime_target(gcx);
         // Bound the removed transfer by its smallest encoding: even a non-entry label can
         // resolve to zero when the entry block falls through without emitting instructions.
         let transfer = target.push(U256::ZERO) + target.opcode(op::JUMP);

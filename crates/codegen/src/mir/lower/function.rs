@@ -386,12 +386,18 @@ impl InternalFunctionPointerShape {
                 .iter()
                 .map(|&ty| types::TypeLowerer::value_layout(ty))
                 .collect(),
-            references: function
-                .parameters
-                .iter()
-                .chain(function.returns)
-                .map(|&ty| ReferenceShape::of(gcx, ty, &mut FxHashSet::default()))
-                .collect(),
+            // Only the scratch check tells a memory reference from a word, so code without the
+            // tag keeps its dispatchers.
+            references: if gcx.hir.has_solar_scratch() {
+                function
+                    .parameters
+                    .iter()
+                    .chain(function.returns)
+                    .map(|&ty| ReferenceShape::of(gcx, ty, &mut FxHashSet::default()))
+                    .collect()
+            } else {
+                Vec::new()
+            },
             returns: function
                 .returns
                 .iter()

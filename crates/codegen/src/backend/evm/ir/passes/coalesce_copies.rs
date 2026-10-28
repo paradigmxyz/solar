@@ -38,7 +38,7 @@ impl EvmPass for CoalesceCopies {
 const COPY_INSTRUCTIONS: usize = 4;
 
 fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
-    let target = module.target(gcx);
+    let target = module.runtime_target(gcx);
     let mut groups = 0usize;
     let mut words = 0usize;
     for block in &mut module.blocks {

@@ -41,11 +41,19 @@ pub(crate) trait ModuleTarget {
     /// The cost model of this module's code: the objective its contract selects, with the
     /// creation model for creation code, which the runtime artifact follows.
     fn target(&self, gcx: Gcx<'_>) -> Target;
+
+    /// The cost model of this module's code as runtime code, for code that may run many times,
+    /// wherever it is.
+    fn runtime_target(&self, gcx: Gcx<'_>) -> Target;
 }
 
 impl ModuleTarget for Module {
     fn target(&self, gcx: Gcx<'_>) -> Target {
-        Target::new(gcx, self.optimization).priced_for(self.code_follows)
+        self.runtime_target(gcx).priced_for(self.code_follows)
+    }
+
+    fn runtime_target(&self, gcx: Gcx<'_>) -> Target {
+        Target::new(gcx, self.optimization)
     }
 }
 

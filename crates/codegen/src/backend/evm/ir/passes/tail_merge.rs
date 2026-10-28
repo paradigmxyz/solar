@@ -593,7 +593,7 @@ fn suffix_size(gcx: Gcx<'_>, module: &Module, block_id: BlockId, common: usize) 
             .iter()
             .map(|inst| match inst.as_stack_op() {
                 Some(StackOp::Exchange(_, ..=16)) => 3,
-                _ => instruction_size_lower_bound(module.target(gcx), inst),
+                _ => instruction_size_lower_bound(module.runtime_target(gcx), inst),
             })
             .sum::<usize>()
 }

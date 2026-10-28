@@ -231,7 +231,7 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
     });
 
     let creation = module.target(gcx);
-    let runtime = Target::new(gcx, module.optimization);
+    let runtime = module.runtime_target(gcx);
     let target_of = |rewrites: &[Rewrite]| {
         if rewrites.iter().any(|rewrite| rewrite.repeats) { runtime } else { creation }
     };

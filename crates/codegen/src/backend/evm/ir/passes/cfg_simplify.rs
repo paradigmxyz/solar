@@ -254,7 +254,7 @@ fn inline_shared_return_thunks(
             || body
                 .instructions
                 .iter()
-                .map(|inst| instruction_size_lower_bound(module.target(gcx), inst))
+                .map(|inst| instruction_size_lower_bound(module.runtime_target(gcx), inst))
                 .sum::<usize>()
                 > 7
             || offset.concrete_immediate().is_none()

@@ -122,7 +122,7 @@ fn may_share_pushes(gcx: Gcx<'_>, module: &Module) -> bool {
 /// is possible only if two starts have equal prefixes, which hashes can rule out. The screen
 /// shares the outliner's candidate budget and gives up, answering yes, once it is spent.
 fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
-    let target = module.target(gcx);
+    let target = module.runtime_target(gcx);
     if !target.optimization().is_gas() {
         return true;
     }
@@ -351,7 +351,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             let saved_bytes = free.len() * (run_size - site_size) - stub_size;
             // Sites that may run more than once pay the transfer gas at the runtime price.
             let target = if repeats(module, free.iter().map(|site| site.block)) {
-                Target::new(gcx, module.optimization)
+                module.runtime_target(gcx)
             } else {
                 target
             };
@@ -447,7 +447,7 @@ fn outline_parametric_machine_runs(
     const MAX_RUN_LENGTH: usize = 64;
     const MAX_PARAMETERS: usize = 8;
 
-    let target = module.target(gcx);
+    let target = module.runtime_target(gcx);
     let hashes = RunHashes::new(module, ParamInstKey::new);
     let mut metrics = vec![None; hashes.ids.len()];
     for (block_id, block) in module.blocks.iter_enumerated() {
@@ -745,7 +745,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             // Sites that may run more than once pay the transfer gas at the runtime price.
             let (target, transfer_gas) =
                 if repeats(module, occurrences.iter().map(|&(block, _)| block)) {
-                    let runtime = Target::new(gcx, module.optimization);
+                    let runtime = module.runtime_target(gcx);
                     (runtime, push_share_costs(&runtime).2)
                 } else {
                     (target, transfer_gas)

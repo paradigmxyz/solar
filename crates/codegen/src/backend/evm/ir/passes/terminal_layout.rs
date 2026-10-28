@@ -161,7 +161,7 @@ fn has_small_fixed_layout(gcx: Gcx<'_>, module: &Module) -> bool {
     if !module.data.is_empty() {
         return false;
     }
-    let target = module.target(gcx);
+    let target = module.runtime_target(gcx);
     let packing = TablePacking::new(&gcx.sess.opts, module.optimization);
     let mut upper_bound = 0usize;
     for block in &module.blocks {

@@ -334,6 +334,11 @@ impl<'hir> Hir<'hir> {
         HirBuilder::new(arena, next_id)
     }
 
+    /// Returns whether a `@custom:solar-scratch` tag documents any block.
+    pub fn has_solar_scratch(&self) -> bool {
+        !self.solar_scratch.is_empty()
+    }
+
     /// Returns the span of the `@custom:solar-scratch` tag on the block that spans `block`.
     pub fn solar_scratch(&self, block: Span) -> Option<Span> {
         self.solar_scratch.iter().find(|&&(scratch, _)| scratch == block).map(|&(_, span)| span)
