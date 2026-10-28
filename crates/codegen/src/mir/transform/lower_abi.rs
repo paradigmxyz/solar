@@ -2653,6 +2653,10 @@ fn decode_calldata_tuple(
     data: ValueId,
     layout: &AbiParamLayout,
 ) -> Option<Vec<ValueId>> {
+    // TODO: Infer calldata views before this lowering for non-mutating, non-escaping decode
+    // results. Preserve decode failures, their order, and observable allocation effects; keep
+    // the copy otherwise. This would optimize ordinary Solidity without a tag. Explicit
+    // `bytes calldata` results need separate language support; solc decodes references to memory.
     let head_size = layout.checked_head_size()?;
     // base = ptrtoint (extract_value data, 0)
     // length = extract_value data, 1

@@ -95,6 +95,8 @@ pub(in crate::mir::lower) struct ScratchRegion {
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Lowers a block tagged `@custom:solar-scratch`, whose allocations the code after it reuses.
     pub(super) fn lower_scratch_block(&mut self, block: hir::Block<'_>, tag: Span) -> Option<()> {
+        // TODO: Infer reusable memory regions in MIR without a tag when escape and allocation
+        // observations prove it safe. Retain allocations when the proof is incomplete.
         // A variable without an initializer gets its default value where it is first used, and
         // it outlives the block, so the defaults are made before the block starts.
         let mut pending = self

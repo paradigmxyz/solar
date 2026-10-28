@@ -198,8 +198,8 @@ impl Target {
     pub(crate) const SMALL_CODE_BYTES: u64 = 4_096;
 
     /// The model of the session's EVM version and optimizer runs for code optimized for
-    /// `optimization`, its objective after any `@custom:solar-optimize` tag (see
-    /// [`OptimizationMode::select`]).
+    /// `optimization`, resolved by [`OptimizationMode::select`] after any
+    /// `@custom:solar-optimize` tag.
     pub(crate) fn new(gcx: Gcx<'_>, optimization: OptimizationMode) -> Self {
         let opts = &gcx.sess.opts;
         let expected_executions = Self::optimizer_runs(optimization, opts.optimizer_runs);
