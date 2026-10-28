@@ -59,6 +59,8 @@
 //! Values installed into that slot are allocation addresses too, even without a subsequent
 //! load. Their pure inputs and aliases are followed from their definitions, including captures
 //! before the installation. Callee summaries carry installed parameters back to their callers.
+//! A non-forwarded reload or opaque call result can hide an older alias; installing one prevents
+//! reuse unless the origin is an exact FMP read whose earlier installations are also checked.
 //! Copies and calls that may capture its bytes also escape, including through callee summaries.
 //! A byte-range capture through a parameter plus nonnegative u64 constants stays conditional:
 //! a caller can discharge it with an exact bounded compiler allocation above reserved slots.
@@ -644,7 +646,13 @@ impl PointerWrites {
             reaching_fmp_writes(function, &mut constants, None)
         };
         for inst in reaching.iter() {
-            writes.unknown_fmp.add(&unknown_fmp_write(function, &mut constants, summaries, inst));
+            writes.unknown_fmp.add(&unknown_fmp_write(
+                function,
+                &mut constants,
+                summaries,
+                &loads,
+                inst,
+            ));
         }
         let mut free = installed_free_pointers(
             function,
@@ -933,7 +941,7 @@ fn check_free_pointers(
     let reaching = reaching_fmp_writes(function, &mut constants, Some(boundary));
     for inst in reaching.iter().filter(|&inst| !inside(inst)).chain(std::iter::once(boundary_inst))
     {
-        let unknown = unknown_fmp_write(function, &mut constants, summaries, inst);
+        let unknown = unknown_fmp_write(function, &mut constants, summaries, &uses.loads, inst);
         if unknown.any || !unknown.params.is_empty() {
             let escape = match func.inst(inst).kind {
                 InstKind::ICall { function: Callee::Function(callee), .. } => Escape::Call(callee),
@@ -1414,7 +1422,7 @@ fn fresh_fmps(func: &Function, aa: &AliasAnalysis) -> FxHashSet<InstId> {
 /// Values installed as allocation addresses by raw stores or internal calls. Follow pure inputs
 /// and forwarded loads backwards too: an alias may predate the store and need not reload the FMP.
 /// A full-word constant below the heap start is raised before allocation by the heap-floor pass;
-/// partial and unknown writes are instead rejected by `unknown_fmp_write`.
+/// partial writes and values whose origins cannot be traced are rejected by `unknown_fmp_write`.
 fn installed_free_pointers(
     function: &Analyzed,
     constants: &mut ConstantWords<'_>,
@@ -1447,14 +1455,33 @@ fn installed_free_pointers(
             _ => {}
         }
     }
+    installed_pointer_sources(function, constants, loads, stack).0
+}
+
+/// The inputs and aliases of installed values, and whether any origin remains unaccounted for.
+/// A non-forwarded load can recover an older word whose aliases are absent from this SSA chain.
+/// Only an exact FMP read is known to carry the existing installation's provenance; a load that
+/// merely may read it is not enough. Opaque call returns may likewise recover hidden words, even
+/// without arguments. Still follow their arguments to retain any known aliases and diagnostics.
+fn installed_pointer_sources(
+    function: &Analyzed,
+    constants: &mut ConstantWords<'_>,
+    loads: &FxHashMap<InstId, LoadedWord>,
+    mut stack: Vec<ValueId>,
+) -> (FxHashSet<ValueId>, bool) {
+    let func = &function.func;
     let mut installed = FxHashSet::default();
+    let mut unresolved = false;
     while let Some(value) = stack.pop() {
         if !installed.insert(value) {
             continue;
         }
         let Value::Inst(inst) = *func.value(value) else { continue };
-        if let Some(&LoadedWord::Value(stored)) = loads.get(&inst) {
-            stack.push(stored);
+        if let Some(loaded) = loads.get(&inst) {
+            stack.extend(match *loaded {
+                LoadedWord::Value(stored) => Some(stored),
+                LoadedWord::EncodingLength => None,
+            });
         } else if func.inst(inst).kind.effect_kind() == EffectKind::Pure {
             stack.extend(func.inst(inst).operands());
         } else if let InstKind::ICall { function: Callee::Function(_), args } =
@@ -1462,9 +1489,16 @@ fn installed_free_pointers(
         {
             // A returned word may forward an argument without reading the FMP itself.
             stack.extend(args);
+            unresolved = true;
+        } else if !matches!(func.inst(inst).kind, InstKind::Fmp)
+            && !matches!(func.inst(inst).kind, InstKind::Load(address, PtrLocation::Memory)
+                if constants.get(address) == Some(U256::from(EvmMemoryLayout::FMP_SLOT))
+                    && func.inst(inst).result_ty == Some(MirType::I256))
+        {
+            unresolved = true;
         }
     }
-    installed
+    (installed, unresolved)
 }
 
 /// Instructions whose unknown FMP write may reach `boundary`, or a function exit. A definite
@@ -1543,19 +1577,24 @@ fn reaching_fmp_writes(
 
 /// A write whose installed FMP value is unknown. A callee's write through a parameter is harmless
 /// when the caller passes a fresh object; otherwise keep the destination's parameter provenance.
-/// Full aligned word stores have explicit value roots instead. Partial stores and copies do not.
+/// Full aligned word stores have explicit value roots unless a non-forwarded reload or opaque
+/// result hides their origins. Partial stores and copies never have explicit value roots.
 fn unknown_fmp_write(
     function: &Analyzed,
     constants: &mut ConstantWords<'_>,
     summaries: &FxHashMap<FunctionId, PointerWrites>,
+    loads: &FxHashMap<InstId, LoadedWord>,
     inst: InstId,
 ) -> Stored {
     let func = &function.func;
     let kind = &func.inst(inst).kind;
     let mut unknown = Stored::default();
-    if let InstKind::Store(address, _, PtrLocation::Memory) = *kind
+    if let InstKind::Store(address, value, PtrLocation::Memory) = *kind
         && constants.get(address) == Some(U256::from(EvmMemoryLayout::FMP_SLOT))
     {
+        if constants.get(value).is_none_or(|word| word >= U256::from(EvmMemoryLayout::HEAP_START)) {
+            unknown.any = installed_pointer_sources(function, constants, loads, vec![value]).1;
+        }
         return unknown;
     }
     kind.visit_raw_memory(|access, address, size| {
@@ -1572,6 +1611,11 @@ fn unknown_fmp_write(
         && let Some(summary) = summaries.get(callee)
     {
         unknown.any |= summary.unknown_fmp.any;
+        for param in &summary.installs_free {
+            unknown.any |= args.get(param.index()).is_none_or(|&value| {
+                installed_pointer_sources(function, constants, loads, vec![value]).1
+            });
+        }
         for param in &summary.unknown_fmp.params {
             let Some(&address) = args.get(param.index()) else {
                 unknown.any = true;

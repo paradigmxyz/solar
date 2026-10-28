@@ -64,6 +64,19 @@ LL │         /// @custom:solar-scratch
    │              ━━━━━━━━━━━━━━━━━━━━
    ╰ help: keep only values past the block, or remove the tag
 
+error: this stores a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │             mstore(0x40, original)
+   │             ━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
 error: memory of a `@custom:solar-scratch` block is used after the block
    ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
    │
@@ -75,6 +88,20 @@ note: the memory this block allocates is reused after it
    │
 LL │         /// @custom:solar-scratch
    │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: this call may store a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         uint256 pointer = readForwarded(slot);
+   │                           ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_dynamic_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ├ note: `readForwarded` contains inline assembly, which may store any word
    ╰ help: keep only values past the block, or remove the tag
 
 error: memory of a `@custom:solar-scratch` block is used after the block
@@ -221,5 +248,5 @@ LL │         /// @custom:solar-scratch
    │              ━━━━━━━━━━━━━━━━━━━━
    ╰ help: keep only values past the block, or remove the tag
 
-error: aborting due to 17 previous errors
+error: aborting due to 19 previous errors
 

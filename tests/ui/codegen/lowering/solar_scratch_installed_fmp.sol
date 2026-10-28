@@ -132,7 +132,7 @@ contract Test {
 
     function forwardedInstall(uint256 base) external pure returns (uint256 result) {
         uint256 pointer = identity(base); //~ ERROR: this call may store a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
-        assembly { mstore(0x40, pointer) }
+        assembly { mstore(0x40, pointer) } //~ ERROR: this stores a reference to memory of a `@custom:solar-scratch` block
         /// @custom:solar-scratch
         { bytes memory encoded = abi.encode(uint256(101)); }
         bytes memory next = abi.encode(uint256(103));
@@ -214,7 +214,7 @@ contract Test {
                 return result;
             }
             retained = base;
-            assembly { mstore(0x40, base) } //~ ERROR: memory of a `@custom:solar-scratch` block is used after the block
+            assembly { mstore(0x40, base) } //~ ERROR: this stores a reference to memory of a `@custom:solar-scratch` block
             /// @custom:solar-scratch
             { bytes memory encoded = abi.encode(uint256(101)); }
             bytes memory next = abi.encode(uint256(103));

@@ -76,7 +76,7 @@ contract Test {
         uint256 pointer;
         assembly {
             let original := mload(slot)
-            mstore(0x40, original)
+            mstore(0x40, original) //~ ERROR: this stores a reference to memory of a `@custom:solar-scratch` block
             pointer := mload(0x40)
         }
         /// @custom:solar-scratch
@@ -94,7 +94,7 @@ contract Test {
     }
 
     function returnedForwardedLoad(uint256 slot) external pure returns (uint256 result) {
-        uint256 pointer = readForwarded(slot);
+        uint256 pointer = readForwarded(slot); //~ ERROR: this call may store a reference to memory of a `@custom:solar-scratch` block
         /// @custom:solar-scratch
         { bytes memory temporary = abi.encode(uint256(101)); }
         bytes memory next = abi.encode(uint256(103));

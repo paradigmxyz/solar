@@ -1,0 +1,133 @@
+error: this stores a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │             mstore(0x40, mload(0))
+   │             ━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: this stores a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │             mstore(0x40, mload(slot))
+   │             ━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: this stores a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │             mstore(0x40, mload(0))
+   │             ━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: this stores a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │             mstore(0x40, add(mload(0), 32))
+   │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: this call may store a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │         installReloaded(base);
+   │         ━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ├ note: `installReloaded` contains inline assembly, which may store any word
+   ╰ help: keep only values past the block, or remove the tag
+
+error: this call may store a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │         installThroughWrapper(pointer);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: this stores a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │             mstore(0x40, pointer)
+   │             ━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: this stores a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │             mstore(0x40, pointer)
+   │             ━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: this stores a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │             mstore(0x40, mload(slot))
+   │             ━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: this stores a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │             mstore(0x40, pointer)
+   │             ━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_reloaded_fmp.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: aborting due to 10 previous errors
+

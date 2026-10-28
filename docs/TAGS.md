@@ -114,3 +114,6 @@ The same check follows values installed into the free-pointer slot, even if code
 original value without loading the slot again. Partial writes and copies that may install an
 unknown pointer prevent reuse. Writes through helper parameters remain allowed when the caller
 passes a fresh object that cannot reach the slot.
+An installation from a reload or call whose origins cannot be traced also prevents reuse: it may
+recover a word that still has aliases elsewhere. Allocator advances from an exact FMP read remain
+supported.

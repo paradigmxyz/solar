@@ -1,6 +1,7 @@
 //@ codegen-matrix: standard
 //@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: untagged 65536 => true, 101
+//@ run-call: untaggedReload 65536 => true, 101
 //@ run-call: consumed 65536 => true
 //@ run-call: disjointStore 101 => 101
 
@@ -13,6 +14,20 @@ contract Test {
             bytes memory encoded = abi.encode(uint256(101));
             first = keccak256(encoded);
         }
+        bytes memory next = abi.encode(uint256(103));
+        different = first != keccak256(next);
+        assembly { result := mload(add(base, 32)) }
+    }
+
+    // A memory round trip does not hide the first encoding's payload from the retained base.
+    function untaggedReload(uint256 base) external pure returns (bool different, uint256 result) {
+        assembly {
+            mstore(0, base)
+            mstore(32, 0)
+            mstore(64, mload(0))
+        }
+        bytes32 first;
+        { bytes memory encoded = abi.encode(uint256(101)); first = keccak256(encoded); }
         bytes memory next = abi.encode(uint256(103));
         different = first != keccak256(next);
         assembly { result := mload(add(base, 32)) }
