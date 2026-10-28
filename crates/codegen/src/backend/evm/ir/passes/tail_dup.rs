@@ -82,8 +82,8 @@ impl EvmPass for TailDup {
         "tail-dup"
     }
 
-    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
-        module.optimization(gcx).is_gas()
+    fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
+        module.optimization.is_gas()
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {

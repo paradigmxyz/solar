@@ -1,4 +1,4 @@
-//@ codegen-matrix: standard
+//@ compile-flags: -Ogas --emit=bin
 
 // A small arithmetic DAG must not expand into an exponential expression tree while checking
 // scratch lifetimes. Both the load and the store use the same computed FMP address: the store

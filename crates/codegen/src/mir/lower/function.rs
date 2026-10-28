@@ -37,7 +37,6 @@ mod entry;
 mod expressions;
 mod indexing;
 mod lvalues;
-mod memory_facts;
 mod memory_values;
 mod modifiers;
 mod operators;
@@ -46,7 +45,6 @@ mod scratch;
 mod statements;
 mod storage_values;
 mod values;
-mod views;
 
 pub(super) use scratch::{ScratchRegion, check_scratch_regions};
 
@@ -250,8 +248,6 @@ struct FunctionLowerer<'gcx, 'ctx> {
     /// The tags of the `@custom:solar-scratch` blocks the code being lowered runs inside,
     /// innermost last, including those a modifier's `_` runs the function's body in.
     open_scratch: Vec<Span>,
-    /// The `@custom:solar-view` variables, whose values are calldata slices.
-    views: FxHashSet<VariableId>,
 }
 
 /// The lowered `{gas: ..., value: ...}` options of an external call.
@@ -553,7 +549,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             in_inline_assembly: false,
             assembly_writes_memory: false,
             open_scratch: Vec::new(),
-            views: FxHashSet::default(),
         }
     }
 

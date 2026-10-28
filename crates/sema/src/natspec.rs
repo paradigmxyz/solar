@@ -547,7 +547,6 @@ impl<'gcx> Resolver<'gcx> {
         Some(item)
     }
 
-    #[cold]
     /// Reports a `solar-` tag on an item it cannot document, or beside its opposite.
     fn check_solar_tag(
         &self,
@@ -572,7 +571,6 @@ impl<'gcx> Resolver<'gcx> {
                 gcx.hir.contract(id).kind,
                 hir::ContractKind::Contract | hir::ContractKind::Library
             ),
-            (SolarTag::Terminates, _) => terminates_applies(gcx, item_id),
             _ => false,
         };
         if !applies {
@@ -626,6 +624,7 @@ impl<'gcx> Resolver<'gcx> {
         }
     }
 
+    #[cold]
     fn emit_forbidden_tag_warning(&self, tag_name: &str, tag_span: Span, item_id: hir::ItemId) {
         let item_desc = self.gcx.hir.item(item_id).description();
         self.gcx
@@ -926,13 +925,8 @@ pub(crate) enum SolarTag {
     /// `@custom:solar-optimize <gas|size>`: optimized builds of the contract optimize its code for
     /// this objective instead of the one the build selects.
     Optimize,
-    /// `@custom:solar-terminates`: the function ends the call on every path.
-    Terminates,
     /// `@custom:solar-scratch`: the memory the block allocates is reused after it.
     Scratch,
-    /// `@custom:solar-view`: the declaration's `bytes` and `string` values are read where an
-    /// `abi.decode` finds them in calldata, with no copy.
-    View,
     /// A `solar-` tag this compiler does not define.
     Unknown,
 }
@@ -946,9 +940,7 @@ impl SolarTag {
             sym::solar_dash_safe => Some(Self::Safe),
             sym::solar_dash_trusted => Some(Self::Trusted),
             sym::solar_dash_optimize => Some(Self::Optimize),
-            sym::solar_dash_terminates => Some(Self::Terminates),
             sym::solar_dash_scratch => Some(Self::Scratch),
-            sym::solar_dash_view => Some(Self::View),
             _ => name.as_str().starts_with("solar-").then_some(Self::Unknown),
         }
     }
@@ -989,23 +981,10 @@ pub(crate) fn report_misplaced_solar_tag(
                  `@custom:solar-optimize size`",
             )
             .emit(),
-        SolarTag::Terminates => dcx
-            .err("`@custom:solar-terminates` must document an internal or private function")
-            .span(span)
-            .help("put it on a function with a body that ends the call on every path")
-            .emit(),
         SolarTag::Scratch => dcx
             .err("`@custom:solar-scratch` must document a block statement")
             .span(span)
             .help("put it on a `{ ... }` block whose allocations do not outlive it")
-            .emit(),
-        SolarTag::View => dcx
-            .err("`@custom:solar-view` must document a variable declaration")
-            .span(span)
-            .help(
-                "put it on a declaration initialized by `abi.decode` of calldata `bytes`: \
-                 `(bytes memory payload) = abi.decode(data, (bytes));`",
-            )
             .emit(),
         SolarTag::Unknown => dcx
             .err(format!("unknown tag `@custom:{name}`"))
@@ -1014,7 +993,7 @@ pub(crate) fn report_misplaced_solar_tag(
             .help(
                 "the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, \
                  `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-scratch`, \
-                 `@custom:solar-terminates`, `@custom:solar-trusted`, and `@custom:solar-view`",
+                 and `@custom:solar-trusted`",
             )
             .emit(),
     }
@@ -1096,16 +1075,6 @@ pub(crate) fn solar_tag_content(docs: &[ast::DocComment<'_>], span: Span) -> Str
         }
     }
     content
-}
-
-/// Whether `@custom:solar-terminates` can document `item`: an internal or private function with a
-/// body, which a caller reaches only through an internal call.
-pub(crate) fn terminates_applies(gcx: Gcx<'_>, item: hir::ItemId) -> bool {
-    let hir::ItemId::Function(id) = item else { return false };
-    let function = gcx.hir.function(id);
-    function.kind == hir::FunctionKind::Function
-        && matches!(function.visibility, hir::Visibility::Internal | hir::Visibility::Private)
-        && function.body.is_some()
 }
 
 /// Rejects reserved tags on syntax which has no documented HIR item or Solidity statement.

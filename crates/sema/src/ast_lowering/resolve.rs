@@ -1117,24 +1117,7 @@ impl<'gcx> ResolveContext<'gcx> {
                                 .span_note(natspec.span, "the tag is here")
                                 .emit();
                         } else if self.hir.solar_scratch(block.span).is_none() {
-                            let tag = hir::SolarStmtTag::Scratch(block.span);
-                            self.hir.solar_tags.push((tag, natspec.span));
-                        }
-                    }
-                    (
-                        SolarTag::View,
-                        ast::StmtKind::DeclSingle(_),
-                        hir::StmtKind::DeclSingle(id),
-                    ) => {
-                        self.hir.solar_tags.push((hir::SolarStmtTag::View(*id), natspec.span));
-                    }
-                    (
-                        SolarTag::View,
-                        ast::StmtKind::DeclMulti(..),
-                        hir::StmtKind::DeclMulti(ids, _),
-                    ) if ids.iter().any(Option::is_some) => {
-                        for &id in ids.iter().flatten() {
-                            self.hir.solar_tags.push((hir::SolarStmtTag::View(id), natspec.span));
+                            self.hir.solar_scratch.push((block.span, natspec.span));
                         }
                     }
                     _ => {

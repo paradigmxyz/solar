@@ -70,7 +70,7 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
         }
     }
 
-    let packing = TablePacking::new(&gcx.sess.opts, module.optimization(gcx));
+    let packing = TablePacking::new(&gcx.sess.opts, module.optimization);
     pack_terminal_traces(module.target(gcx), packing, module, &mut state);
     for cold in [false, true] {
         for block in module.blocks.indices() {

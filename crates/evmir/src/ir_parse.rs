@@ -9,7 +9,9 @@ use solar_ast::{
     token::{BinOpToken, Delimiter, Token, TokenKind, TokenLitKind},
 };
 use solar_data_structures::index::IndexVec;
-use solar_interface::{Session, Span, Symbol, source_map::SourceFile, sym};
+use solar_interface::{
+    Session, Span, Symbol, config::OptimizationMode, kw, source_map::SourceFile, sym,
+};
 use solar_parse::PErr;
 
 /// Shared parser primitives for the textual IR parsers.
@@ -343,5 +345,27 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     pub fn error_at(&self, span: Span, message: impl Into<String>) -> PErr<'sess> {
         self.parser.dcx().err(message.into()).span(span)
+    }
+
+    /// Returns the objective of the session's build, which a module without `@optimize` uses.
+    pub fn optimization(&self) -> OptimizationMode {
+        self.parser.sess.opts.optimization
+    }
+
+    /// Parses the objective an `@optimize` line names and returns the objective it selects in
+    /// this build.
+    pub fn parse_optimize_objective(&mut self) -> Result<OptimizationMode, PErr<'sess>> {
+        let objective_span = self.token().span;
+        let selected = match self.parse_ident()? {
+            kw::Gas => OptimizationMode::Gas,
+            sym::size => OptimizationMode::Size,
+            objective => {
+                return Err(self.error_at(
+                    objective_span,
+                    format!("unknown optimization objective `{objective}`"),
+                ));
+            }
+        };
+        Ok(self.optimization().select(Some(selected)))
     }
 }

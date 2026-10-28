@@ -37,21 +37,22 @@ note: the tag is here
 LL │         /// @custom:solar-scratch
    ╰╴             ━━━━━━━━━━━━━━━━━━━━
 
-error: `@custom:solar-view` must document a variable declaration
+error: `@custom:solar-trusted` must document a function, a modifier, a contract, or a library
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
    │
-LL │         /// @custom:solar-view
-   │              ━━━━━━━━━━━━━━━━━
+LL │         /// @custom:solar-trusted
+   │              ━━━━━━━━━━━━━━━━━━━━
    │
-   ╰ help: put it on a declaration initialized by `abi.decode` of calldata `bytes`: `(bytes memory payload) = abi.decode(data, (bytes));`
+   ╰ help: put it on the reviewed code a `@custom:solar-safe` contract runs
 
-error: `@custom:solar-view` must document a variable declaration
+error: unknown tag `@custom:solar-view`
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
    │
 LL │         /// @custom:solar-view
    │              ━━━━━━━━━━━━━━━━━
    │
-   ╰ help: put it on a declaration initialized by `abi.decode` of calldata `bytes`: `(bytes memory payload) = abi.decode(data, (bytes));`
+   ├ note: `@custom:solar-` tags are requirements this compiler checks
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-scratch`, and `@custom:solar-trusted`
 
 error: unknown tag `@custom:solar-saef`
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
@@ -60,15 +61,7 @@ LL │ /// @custom:solar-saef
    │      ━━━━━━━━━━━━━━━━━
    │
    ├ note: `@custom:solar-` tags are requirements this compiler checks
-   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-scratch`, `@custom:solar-terminates`, `@custom:solar-trusted`, and `@custom:solar-view`
-
-error: `@custom:solar-view` must document a variable declaration
-   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
-   │
-LL │     /// @custom:solar-view
-   │          ━━━━━━━━━━━━━━━━━
-   │
-   ╰ help: put it on a declaration initialized by `abi.decode` of calldata `bytes`: `(bytes memory payload) = abi.decode(data, (bytes));`
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-scratch`, and `@custom:solar-trusted`
 
 error: `@custom:solar-scratch` must document a block statement
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
@@ -94,5 +87,5 @@ LL │     /// @custom:solar-trusted
    │
    ╰ help: put it on the reviewed code a `@custom:solar-safe` contract runs
 
-error: aborting due to 11 previous errors
+error: aborting due to 10 previous errors
 

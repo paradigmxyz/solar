@@ -40,10 +40,9 @@
 //! ```
 
 use crate::mir::{
-    AbiParamType, AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId,
-    InstKind, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation,
-    RequireKind, ResultKind, StorageAlias, StructId, Terminator, TypeSize, Value, ValueId,
-    analysis::CfgInfo,
+    AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId, InstKind,
+    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation, RequireKind,
+    ResultKind, StorageAlias, StructId, Terminator, TypeSize, Value, ValueId, analysis::CfgInfo,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -912,16 +911,7 @@ impl<'a> Validator<'a> {
                             );
                         }
                     }
-                    InstKind::AbiDecode { data, layout } => {
-                        // A `bytes` field decoded from calldata may be a view, the calldata slice
-                        // of its bytes.
-                        let views = func.value_slice_location(*data) == Some(PtrLocation::Calldata);
-                        let field_matches = |field: MirType, abi: &AbiParamType| {
-                            field == abi.mir_type()
-                                || (views
-                                    && matches!(abi, AbiParamType::Bytes)
-                                    && field == MirType::Slice(PtrLocation::Calldata))
-                        };
+                    InstKind::AbiDecode { layout, .. } => {
                         let valid = match inst.result_ty {
                             Some(MirType::Struct(ty)) => {
                                 module.struct_types.get(ty).is_some_and(|ty| {
@@ -930,12 +920,10 @@ impl<'a> Validator<'a> {
                                             .fields
                                             .iter()
                                             .zip(&layout.types)
-                                            .all(|(&field, abi)| field_matches(field, abi))
+                                            .all(|(&field, abi)| field == abi.mir_type())
                                 })
                             }
-                            Some(ty) => {
-                                layout.types.len() == 1 && field_matches(ty, &layout.types[0])
-                            }
+                            Some(ty) => layout.types.len() == 1 && ty == layout.types[0].mir_type(),
                             None => layout.types.is_empty(),
                         };
                         if !valid {

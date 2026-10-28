@@ -1,7 +1,6 @@
 - // === ROOT/tests/ui/codegen/evm-ir/loop-layout/optimize_tag.evmir (before loop-layout) ===
 + // === ROOT/tests/ui/codegen/evm-ir/loop-layout/optimize_tag.evmir (after loop-layout) ===
   @module OptimizeTag
-  @optimize size
   bb0:
     push 0
     push bb2

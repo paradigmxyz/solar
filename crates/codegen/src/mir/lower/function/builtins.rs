@@ -627,10 +627,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let length = self.builder.slice_len(encoded);
                     return Some(self.builder.keccak256(pointer, length));
                 }
-                if let Some(view) = self.view_slice(value) {
-                    // hash = keccak256 of the view's calldata, copied past the free memory pointer
-                    return Some(self.builder.keccak256_bytes(view));
-                }
                 let value_ty = self.cx.gcx.type_of_expr(value.id)?;
                 let memory_ty = value_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
                 let span = value.span;

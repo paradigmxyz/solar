@@ -1,4 +1,4 @@
-//@ codegen-matrix: standard
+//@ compile-flags: -Ogas --emit=bin
 
 // Copying the free-pointer bytes captures them even without an SSA load from slot 0x40.
 contract Test {

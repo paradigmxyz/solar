@@ -355,7 +355,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         immutable_refs: &[ImmutableRef],
     ) {
         self.asm.clear();
-        self.asm.set_optimize(module.optimize);
+        self.asm.set_optimization(module.optimization);
         self.asm.set_artifact_kind(ArtifactKind::Constructor);
         self.asm.set_evm_ir_name(module.name.name);
         self.asm.load_data(module);

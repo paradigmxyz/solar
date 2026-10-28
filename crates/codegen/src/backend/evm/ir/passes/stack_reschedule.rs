@@ -102,7 +102,7 @@ use super::{EvmPass, utils::is_split_point};
 use crate::{
     backend::evm::{
         CodegenState,
-        ir::{BlockId, BlockTarget, Instruction, Module, ModuleTarget, TerminatorKind},
+        ir::{BlockId, BlockTarget, Instruction, Module, TerminatorKind},
         op::{self, StackOp},
     },
     target::{Cost, Target},
@@ -191,7 +191,7 @@ impl EvmPass for StackReschedule {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let code_follows = module.code_follows;
-        let optimization = module.optimization(gcx);
+        let optimization = module.optimization;
         let mut halts = DenseBitSet::new_empty(module.blocks.len());
         for id in module.blocks.indices() {
             if aborts_without_stack(module, id) {

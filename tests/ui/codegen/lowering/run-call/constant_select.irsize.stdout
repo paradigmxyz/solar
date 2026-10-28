@@ -170,23 +170,11 @@ bb18 [continuation]:
   push 32
   dup 2
   add
-  dup 4
-  dup 4
-  dup 3
-  calldatacopy
-  dup 4
-  add
-  calldatasize
-  swap 4
-  push 0
-  sub
-  push 31
-  and
+  swap 3
   swap 2
-  swap 4
   swap 1
+  swap 3
   calldatacopy
-  pop
   push bb20
   push 0
   sload

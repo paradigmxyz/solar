@@ -40,7 +40,7 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{BlockId, Instruction, Module, ModuleTarget, TerminatorKind},
+        ir::{BlockId, Instruction, Module, TerminatorKind},
         op,
     },
     target::Target,
@@ -57,7 +57,7 @@ impl EvmPass for LoopLayout {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        if !module.optimization(gcx).is_gas() {
+        if !module.optimization.is_gas() {
             return false;
         }
         BlockLayout.run_pass(gcx, module) | place_loop_latches(module)

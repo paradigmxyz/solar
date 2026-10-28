@@ -994,19 +994,6 @@ impl Target {
     }
 }
 
-/// The objective code is optimized for: the build's, unless its source selects one with
-/// `@custom:solar-optimize`. A selection only picks what an optimized build optimizes for, so code
-/// built with `-O none` stays unoptimized.
-pub(crate) fn objective(
-    build: OptimizationMode,
-    selected: Option<OptimizationMode>,
-) -> OptimizationMode {
-    match (build, selected) {
-        (OptimizationMode::None, _) | (_, None) => build,
-        (_, Some(selected)) => selected,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1626,15 +1613,5 @@ mod tests {
             assert_eq!(target.frame_words(0), Cost::ZERO);
             assert_eq!(target.frame_words(10), Cost::new(30, 0));
         }
-    }
-
-    #[test]
-    fn tags_select_the_objective_of_optimized_builds() {
-        let (none, gas, size) =
-            (OptimizationMode::None, OptimizationMode::Gas, OptimizationMode::Size);
-        assert_eq!(objective(gas, None), gas);
-        assert_eq!(objective(gas, Some(size)), size);
-        assert_eq!(objective(size, Some(gas)), gas);
-        assert_eq!(objective(none, Some(size)), none);
     }
 }

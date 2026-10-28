@@ -44,7 +44,7 @@ use super::{
 use crate::{
     backend::evm::{
         codegen::{StackModel, StackOp, lowered_stack_cost, resynthesize_physical_ops},
-        ir::{Instruction, Module, ModuleTarget},
+        ir::{Instruction, Module},
         op,
     },
     mir::ValueId,
@@ -78,7 +78,7 @@ impl EvmPass for StackNormalize {
     }
 
     fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
-        !matches!(module.optimization(gcx), OptimizationMode::None)
+        !matches!(module.optimization, OptimizationMode::None)
             && (!self.exchanges || gcx.sess.opts.evm_version.has_extended_stack_ops())
     }
 

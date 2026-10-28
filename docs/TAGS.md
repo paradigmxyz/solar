@@ -15,9 +15,7 @@ divergence entry is [TYPECK-022](SOLC_DIVERGENCE.md#typeck-022-customsolar--tags
 | `solar-inline` | a function that internal calls reach | Inline every internal call of it where inlining is legal. |
 | `solar-noinline` | a function that internal calls reach | Never inline it. |
 | `solar-optimize gas` or `size` | a non-abstract contract or a library | Optimize its code for this objective instead of the build's. |
-| `solar-terminates` | an internal or private function | Every path ends the call. |
 | `solar-scratch` | a `{ ... }` or `unchecked { ... }` block | Later code reuses the memory the block allocates. |
-| `solar-view` | a declaration initialized by `abi.decode` of calldata `bytes` | Its `bytes` and `string` values are read where they are, with no copy. |
 
 ## `solar-safe` and `solar-trusted`
 
@@ -47,9 +45,7 @@ run in frames of their own and are not part of it. A library's code is all of it
 
 `solar-trusted` marks reviewed code: the check does not look inside it, or into what only it
 reaches. A call in trusted code that dispatches to an override or a `super` target is still
-checked, since the contract chose that code, not the review. Standard JSON reports the properties
-of every contract and the trusted functions its code runs in the `solarSafety` output. Code with
-`unchecked` still reports `arithmetic: false`, even when its default `solar-safe` check passes.
+checked, since the contract chose that code, not the review.
 
 ## `solar-inline` and `solar-noinline`
 
@@ -78,22 +74,6 @@ Optimized builds compile the contract's code for the named objective, `gas` or `
 the one the build selects. Builds with `-O none` stay unoptimized. The tag names exactly one
 objective, and a contract has at most one.
 
-## `solar-terminates`
-
-```solidity
-/// @custom:solar-terminates
-function fail(uint256 code) internal pure {
-    revert Failed(code);
-}
-```
-
-The tag documents an internal or private function with a body and requires that every path
-through it ends the call. A statement ends it when it reverts, calls a builtin that reverts or
-halts, calls a non-virtual function with the tag, or is a block, or an `if` with an `else`, whose
-parts all do. Loops and `try` never count, a `return` is an error, and the function cannot take
-modifiers. The optimizer finds functions that cannot return on its own; the tag makes the
-property a checked part of the function's contract.
-
 ## `solar-scratch`
 
 ```solidity
@@ -114,43 +94,13 @@ Reuse is only correct while nothing after the block still refers to that memory,
 rejects every reference to it that later code could reach: a variable used after the block, a
 `return`, a store into memory the block did not allocate or into storage, and a call whose callee
 may store such a reference where later code can reach it. Values such as hashes, lengths, and words
-read from the memory leave the block freely. After the block, the free memory pointer and `msize`
-can be lower than without the tag.
+read from the memory leave the block freely. After the block, the free memory pointer can be lower
+than without the tag.
 
-Assembly outside the block is allowed, but a memory load at an unknown address may read the
-free memory pointer. The compiler tracks that possibility through helper returns and stores
+Assembly outside the block is allowed, but in a contract with inline assembly a memory load at an
+unknown address may read the free memory pointer. The compiler tracks that possibility through helper returns and stores
 too, and rejects the tag if the pointer may outlive the block. Use a provably disjoint address,
 consume the pointer before the block, or read it again after the block.
 Copies and calls that may retain bytes from the free-pointer slot are captures too, even if no
 instruction loads that slot directly. Storing a scalar into the slot and reading it back still
 produces a free pointer; store forwarding does not exempt that read from the lifetime check.
-
-## `solar-view`
-
-```solidity
-function handle(bytes calldata data) external {
-    /// @custom:solar-view
-    (uint256 id, bytes memory payload) = abi.decode(data, (uint256, bytes));
-    bytes32 digest = keccak256(payload);
-    bytes1 kind = payload[0];
-    ...
-}
-```
-
-Every compiler gives `payload` a copy of its bytes. With the tag, this compiler makes each `bytes`
-and `string` variable of the declaration a view of its bytes where the decode finds them in
-calldata, which cannot change. The decode validates its input exactly as the copying decode does,
-including the checks of the allocations the copies would make, so every input fails where it
-would: `Panic(0x41)` for a length that could not be allocated, and a revert for an offset or a
-length past the input. The payload stays in calldata. In functions that decode a view again,
-the copies' space is reserved so nested allocation checks account for earlier decodes. Other
-view decodes leave the free memory pointer unchanged.
-
-A view can only be read in place, so no use can tell it from the copy: its `.length`, an index
-read, `keccak256`, `abi.decode`, and the encodings that copy their arguments into their output
-(`abi.encode` and its variants, `abi.encodePacked`, `bytes.concat` and `string.concat`), also
-through a conversion between `bytes` and `string`. A tagged `abi.decode` of a view makes views of
-the same calldata. Any other use, such as an assignment, a write through the view, a return, a
-call, event, or error argument, or inline assembly, is an error at the use. The decoded types may
-be value types, `bytes`, and `string`, and the data must be `bytes` in calldata or a view.
-

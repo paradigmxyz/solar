@@ -106,8 +106,8 @@ impl MirPass for Inline {
         }
     }
 
-    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
-        module.optimization(gcx) != solar_config::OptimizationMode::None
+    fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
+        module.optimization != solar_config::OptimizationMode::None
     }
 
     fn run_pass(

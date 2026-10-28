@@ -304,6 +304,17 @@ impl OptimizationMode {
     pub const fn is_none(self) -> bool {
         matches!(self, Self::None)
     }
+
+    /// Returns the objective code is optimized for when `self` is the build's and `selected` the
+    /// one its source selects, as `@custom:solar-optimize` does. A selection only picks what an
+    /// optimized build optimizes for, so a build with `-O none` stays unoptimized.
+    #[inline]
+    pub const fn select(self, selected: Option<Self>) -> Self {
+        match (self, selected) {
+            (Self::None, _) | (_, None) => self,
+            (_, Some(selected)) => selected,
+        }
+    }
 }
 
 str_enum! {
@@ -614,6 +625,15 @@ mod tests {
 
     #[cfg(not(feature = "serde"))]
     use serde_json as _;
+
+    #[test]
+    fn selection_picks_the_objective_of_optimized_builds() {
+        use OptimizationMode::{Gas, None, Size};
+        assert_eq!(Gas.select(Option::None), Gas);
+        assert_eq!(Gas.select(Some(Size)), Size);
+        assert_eq!(Size.select(Some(Gas)), Gas);
+        assert_eq!(None.select(Some(Size)), None);
+    }
 
     #[test]
     fn string_enum() {

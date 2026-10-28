@@ -47,7 +47,7 @@ impl EvmPass for TerminalLayout {
             return false;
         }
         let mut order = module.blocks.indices().collect::<Vec<_>>();
-        if !module.optimization(gcx).is_gas() {
+        if !module.optimization.is_gas() {
             if !place_stop_last(module, &mut order) {
                 return false;
             }
@@ -162,7 +162,7 @@ fn has_small_fixed_layout(gcx: Gcx<'_>, module: &Module) -> bool {
         return false;
     }
     let target = module.target(gcx);
-    let packing = TablePacking::new(&gcx.sess.opts, module.optimization(gcx));
+    let packing = TablePacking::new(&gcx.sess.opts, module.optimization);
     let mut upper_bound = 0usize;
     for block in &module.blocks {
         if block.instructions.iter().any(|inst| {

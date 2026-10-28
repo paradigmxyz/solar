@@ -1,4 +1,4 @@
-//@ codegen-matrix: standard
+//@ compile-flags: -Ogas --emit=bin
 
 // A runtime slot can be 0x40. The local lifetime check and callee summaries must treat its
 // loaded value as a possible free memory pointer before scratch memory is reused.

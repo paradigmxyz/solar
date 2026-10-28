@@ -225,10 +225,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let data_expr = &args[0];
         let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
         let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-        // `abi_decode` reads a calldata slice in place, so calldata and its views need no copy.
-        let data = if let Some(view) = self.view_slice(data_expr) {
-            view
-        } else if lies_in_calldata(data_ty) {
+        // `abi_decode` reads a calldata slice in place, so calldata needs no copy.
+        let data = if lies_in_calldata(data_ty) {
             self.lower_expr(data_expr)?
         } else {
             let data = self.lower_typed_expr(data_expr, memory_ty)?;
@@ -244,7 +242,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(CallResult::Value(self.builder.abi_decode(layout, data, result_ty)))
     }
 
-    pub(super) fn lower_abi_decode_layout(
+    fn lower_abi_decode_layout(
         &mut self,
         data: ValueId,
         types: &[Ty<'gcx>],

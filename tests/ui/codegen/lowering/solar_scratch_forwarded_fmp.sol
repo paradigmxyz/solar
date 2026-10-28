@@ -1,4 +1,4 @@
-//@ codegen-matrix: standard
+//@ compile-flags: -Ogas --emit=bin
 
 // Storing a scalar into the FMP word makes the reloaded scalar a free pointer. Sharing the
 // slot expression ensures store forwarding sees the same address value for both accesses.

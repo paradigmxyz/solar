@@ -92,7 +92,7 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let pushes = may_share_pushes(gcx, module);
     let runs = pushes || may_share_machine_runs(gcx, module);
     (runs && outline_machine_runs(gcx, module, &mut state))
-        | (module.optimization(gcx).is_size()
+        | (module.optimization.is_size()
             && outline_parametric_machine_runs(gcx, module, &mut state))
         | (pushes && outline_repeated_pushes(gcx, module, &mut state))
 }
@@ -102,7 +102,7 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
 /// A share of `n` pushes, each at most a `PUSH32` and its immediate, saves fewer than
 /// `n * (PUSH32 bytes - site bytes)` bytes, while its transfers cost `n` times the transfer gas.
 fn may_share_pushes(gcx: Gcx<'_>, module: &Module) -> bool {
-    if !module.optimization(gcx).is_gas() {
+    if !module.optimization.is_gas() {
         return true;
     }
     let target = module.target(gcx);
@@ -351,7 +351,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             let saved_bytes = free.len() * (run_size - site_size) - stub_size;
             // Sites that may run more than once pay the transfer gas at the runtime price.
             let target = if repeats(module, free.iter().map(|site| site.block)) {
-                Target::new(gcx, module.optimization(gcx))
+                Target::new(gcx, module.optimization)
             } else {
                 target
             };
@@ -745,7 +745,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             // Sites that may run more than once pay the transfer gas at the runtime price.
             let (target, transfer_gas) =
                 if repeats(module, occurrences.iter().map(|&(block, _)| block)) {
-                    let runtime = Target::new(gcx, module.optimization(gcx));
+                    let runtime = Target::new(gcx, module.optimization);
                     (runtime, push_share_costs(&runtime).2)
                 } else {
                     (target, transfer_gas)

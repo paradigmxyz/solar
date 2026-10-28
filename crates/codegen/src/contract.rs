@@ -678,7 +678,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             captures.runtime_data.filter(|_| needs_backend).map(|data| data(contract_id));
         append_runtime_data(&mut module, runtime_data.as_ref());
         let capture_built = capture_mir
-            && matches!(module.optimization(gcx), OptimizationMode::None)
+            && matches!(module.optimization, OptimizationMode::None)
             && gcx.sess.opts.unstable.mir_pipeline.is_none();
         let built_mir = (capture_built && needs_backend).then(|| module.clone());
         let codegen = if needs_backend {

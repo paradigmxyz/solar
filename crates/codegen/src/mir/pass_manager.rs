@@ -101,8 +101,8 @@ pub trait MirPass: Sync {
     }
 
     /// Returns whether this pass is enabled with the current compiler flags and MIR phase.
-    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
-        self.is_required() || !matches!(module.optimization(gcx), OptimizationMode::None)
+    fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
+        self.is_required() || !matches!(module.optimization, OptimizationMode::None)
     }
 
     /// Returns whether this pass must run independently of the optimization level.
@@ -177,7 +177,7 @@ pub(crate) fn run_passes_inner(
             } else {
                 // A queued contract job needs the workers more than this pass does.
                 let parallel = gcx.sess.is_parallel_codegen() && !gcx.sess.has_queued_jobs();
-                analyses.begin_pass(module.optimization(gcx).is_gas(), parallel);
+                analyses.begin_pass(module.optimization.is_gas(), parallel);
                 // A pass that edits the module, reported or not, outdates the check, unless the
                 // pass itself advanced the phase after its last edit.
                 let lowered_checked = std::mem::take(&mut module.lowered_checked);

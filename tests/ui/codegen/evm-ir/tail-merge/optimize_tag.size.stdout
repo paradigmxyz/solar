@@ -1,7 +1,6 @@
 - // === ROOT/tests/ui/codegen/evm-ir/tail-merge/optimize_tag.evmir (before tail-merge) ===
 + // === ROOT/tests/ui/codegen/evm-ir/tail-merge/optimize_tag.evmir (after tail-merge) ===
   @module OptimizeTag
-  @optimize size
   bb0:
     push 0
     calldataload

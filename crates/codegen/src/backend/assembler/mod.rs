@@ -202,9 +202,9 @@ impl<'gcx> Assembler<'gcx> {
         }
     }
 
-    /// Sets the objective the source module's `@custom:solar-optimize` tag selects.
-    pub(crate) fn set_optimize(&mut self, optimize: Option<OptimizationMode>) {
-        self.program.optimize = optimize;
+    /// Sets the objective the program's code is optimized for.
+    pub(crate) fn set_optimization(&mut self, optimization: OptimizationMode) {
+        self.program.optimization = optimization;
     }
 
     /// Clears all emitted instructions and local identifiers.

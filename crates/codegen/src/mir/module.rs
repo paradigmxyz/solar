@@ -128,9 +128,9 @@ pub struct Module {
     /// Whether the last full `lowered` check still describes this module: no change since
     /// `advance_phase` passed it.
     pub(super) lowered_checked: bool,
-    /// The objective the contract's `@custom:solar-optimize` tag selects, which replaces the
-    /// build's in optimized builds.
-    pub(crate) optimize: Option<OptimizationMode>,
+    /// The objective this module's code is optimized for: the build's, or the one the contract's
+    /// `@custom:solar-optimize` tag selects.
+    pub(crate) optimization: OptimizationMode,
     /// Instructions `@custom:solar-inline` clones have added, which the inliner bounds over all
     /// of its runs.
     pub(crate) tagged_inline_growth: usize,
@@ -197,7 +197,7 @@ impl Module {
             phase: MirPhase::Semantic,
             debug_info_tracked: false,
             lowered_checked: false,
-            optimize: None,
+            optimization: OptimizationMode::default(),
             tagged_inline_growth: 0,
         }
     }
@@ -213,14 +213,9 @@ impl Module {
         self.unsafe_assembly = unsafe_assembly;
     }
 
-    /// Returns the objective this module's code is optimized for.
-    pub(crate) fn optimization(&self, gcx: Gcx<'_>) -> OptimizationMode {
-        target::objective(gcx.sess.opts.optimization, self.optimize)
-    }
-
     /// Returns the cost model of this module's code.
     pub(crate) fn target(&self, gcx: Gcx<'_>) -> target::Target {
-        target::Target::new(gcx, self.optimization(gcx))
+        target::Target::new(gcx, self.optimization)
     }
 
     /// Enables or disables source debug information auditing for optimization passes.
@@ -693,9 +688,6 @@ impl Module {
             }
             if self.is_library {
                 writeln!(f, "@library")?;
-            }
-            if let Some(optimize) = self.optimize {
-                writeln!(f, "@optimize {optimize}")?;
             }
             if !self.struct_types.is_empty() {
                 writeln!(f, "@types")?;

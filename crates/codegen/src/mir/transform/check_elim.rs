@@ -337,12 +337,12 @@ impl MirPass for LateCheckElim {
 
     fn run_pass(
         &self,
-        gcx: solar_sema::Gcx<'_>,
+        _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let cold = cold_functions(module);
-        let gas = module.optimization(gcx).is_gas();
+        let gas = module.optimization.is_gas();
         run_function_pass_with_cfg(module, analyses, |func, analyses| {
             let selected = gas.then(|| analyses.cfg().cyclic_blocks());
             if selected.is_some_and(DenseBitSet::is_empty) {
@@ -541,7 +541,7 @@ fn runtime_immutable_bounds(
             };
             let width = immutable_push_type_size(
                 encoding,
-                module.optimization(gcx),
+                module.optimization,
                 gcx.sess.opts.evm_version.has_bitwise_shifting(),
             )
             .bits();

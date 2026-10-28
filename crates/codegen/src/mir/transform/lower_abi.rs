@@ -38,13 +38,6 @@
 //! place as well, with the calldata decoders the entries use: offsets resolve against the slice's
 //! base and every read stays below its end, as solc decodes it, so no copy of the encoding into
 //! memory precedes the decode.
-//! Fresh bytes objects clear only their allocated tail padding after copying the payload;
-//! neither dirty input padding nor previously used free memory becomes output padding.
-//! When a decode consumes a calldata view, all view decodes in its function reserve their
-//! copies' space without copying the payload. Nested allocation checks then see the preceding
-//! reservations, including sibling fields and earlier loop iterations. Using the actual free
-//! memory pointer also preserves intervening allocations and explicit pointer resets. Functions
-//! without nested view decodes replay each tuple's checks without advancing the pointer.
 //!
 //! Unsupported return layouts fail the preflight checks. The pass reports an error if
 //! any external entry still has an implicit ABI or any `abi_decode` remains afterward.
@@ -109,7 +102,7 @@ impl MirPass for LowerAbi {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let gas = module.optimization(gcx).is_gas();
+        let gas = module.optimization.is_gas();
         let changed =
             LowerAbiCx { revert_strings: gcx.sess.opts.revert_strings, ..Default::default() }.run(
                 module,
@@ -675,10 +668,7 @@ impl LowerAbiCx {
         }
 
         for func_id in decode_functions.iter() {
-            // The result fields of the decodes whose `bytes` and `string` values are views.
-            let view_fields = decode_view_fields(module, func_id);
             let func = module.function_mut(func_id);
-            let reserve_views = decodes_view(func, &view_fields);
             let mut replacements = FxHashMap::default();
             let mut builder = self.builder(func);
             let blocks = builder.func().blocks.indices();
@@ -699,18 +689,13 @@ impl LowerAbiCx {
                     let result = builder.func().inst_result_value(inst);
                     if builder.func().value_slice_location(data) == Some(PtrLocation::Calldata) {
                         let layout = layout.clone();
-                        let fields = view_fields.get(&inst).map(Vec::as_slice);
-                        let Some(values) = decode_calldata_tuple(
-                            &mut builder,
-                            data,
-                            layout.as_ref(),
-                            fields,
-                            reserve_views,
-                        ) else {
+                        let Some(values) =
+                            decode_calldata_tuple(&mut builder, data, layout.as_ref())
+                        else {
                             return false;
                         };
                         if let Some(result) = result {
-                            let value = pack_decoded(&mut builder, result, values, &layout, fields);
+                            let value = pack_decoded(&mut builder, result, values, &layout);
                             replacements.insert(result, value);
                         }
                         continue;
@@ -751,9 +736,7 @@ impl LowerAbiCx {
                         return false;
                     };
                     let Some(result) = result else { continue };
-                    // Type checking only accepts views of calldata.
-                    debug_assert!(!view_fields.contains_key(&inst), "a view decoded from memory");
-                    let value = pack_decoded(&mut builder, result, values, layout, None);
+                    let value = pack_decoded(&mut builder, result, values, layout);
                     replacements.insert(result, value);
                 }
                 super::lower_abi_encode::move_terminator(
@@ -1826,17 +1809,6 @@ impl LowerAbiCx {
                 Self::guard_bytes_data(builder, data, len, input_end, current, true);
                 let source = builder.make_slice(data, len, location);
                 builder.memory_copy_from_slice(ptr, source);
-                // payload = ptradd ptr, 32
-                // tail = ptradd payload, len
-                // padding = and (sub 0, len), 31
-                // memory_zero tail, padding
-                let payload = builder.memory_data(ptr);
-                let tail = builder.ptradd(payload, len);
-                let zero = builder.imm(0);
-                let negative_len = builder.sub(zero, len);
-                let mask = builder.imm(EvmMemoryLayout::WORD_SIZE - 1);
-                let padding = builder.and(negative_len, mask);
-                builder.memory_zero(tail, padding);
                 ptr
             }
             crate::mir::AbiParamType::Tuple(fields) => {
@@ -2131,68 +2103,6 @@ impl LowerAbiCx {
         let invalid = builder.or(head_invalid, tail_invalid);
         *current = builder.revert_if(invalid, RevertReason::InvalidCalldataArrayOffset);
         (base, data, len)
-    }
-
-    /// Decodes the `bytes` at `head` of a calldata tuple at `tuple_base` as a view: the checks the
-    /// copying decode makes, in its order and with its revert reasons, and the calldata slice of
-    /// the bytes instead of a copy. The copy's allocation is replayed against `virtual_fmp`, the
-    /// free memory pointer the copies before it would have advanced, so a length that cannot be
-    /// allocated panics as the copy does, before the length is checked against the input.
-    fn decode_calldata_bytes_view(
-        builder: &mut FunctionBuilder<'_>,
-        head: ValueId,
-        tuple_base: ValueId,
-        input_end: ValueId,
-        current: &mut BlockId,
-        virtual_fmp: &mut Option<ValueId>,
-    ) -> ValueId {
-        let ty = AbiParamType::Bytes;
-        Self::guard_input_range(
-            builder,
-            head,
-            32,
-            input_end,
-            current,
-            RevertReason::TupleDataTooShort,
-        );
-        let offset = Self::load_input_word(builder, head, false);
-        let base = Self::guard_input_offset(
-            builder,
-            tuple_base,
-            offset,
-            input_end,
-            false,
-            &ty,
-            current,
-            RevertReason::InvalidTupleOffset,
-            false,
-        );
-        // len = calldataload base
-        // size = checked_padded_size len
-        // next = fmp + size
-        // if next < fmp || next > MAX_ALLOCATION_END { panic 0x41 }
-        builder.switch_to_block(*current);
-        let len = Self::load_input_word(builder, base, false);
-        let data = builder.add_u64_offset(base, 32);
-        let size = builder.checked_padded_size(len);
-        let fmp = match *virtual_fmp {
-            Some(fmp) => fmp,
-            None => {
-                let fmp = builder.fmp();
-                builder.cast(fmp, MirType::I256)
-            }
-        };
-        let next = builder.add(fmp, size);
-        let wrapped = builder.lt(next, fmp);
-        let limit = builder.imm(EvmMemoryLayout::MAX_ALLOCATION_END);
-        let over_limit = builder.gt(next, limit);
-        let invalid = builder.or(wrapped, over_limit);
-        builder.panic_if(invalid, crate::mir::PanicCode::MemoryAllocationOverflow);
-        *virtual_fmp = Some(next);
-        *current = builder.current_block();
-        Self::guard_bytes_data(builder, data, len, input_end, current, true);
-        builder.switch_to_block(*current);
-        builder.make_slice(data, len, PtrLocation::Calldata)
     }
 
     fn decode_static_calldata_argument(
@@ -2738,16 +2648,10 @@ fn decode_input(builder: &mut FunctionBuilder<'_>, data: ValueId) -> (ValueId, V
 /// calldata: offsets resolve against the slice's base, every read stays below the slice's end, and
 /// dynamic values are copied into memory. Reading the slice directly spares the copy of the whole
 /// encoding into memory that decoding a memory object needs.
-///
-/// With `fields`, a `@custom:solar-view` decode's result field types, each `bytes` field that is a
-/// calldata slice is a view: [`LowerAbiCx::decode_calldata_bytes_view`] checks it as the copy is
-/// checked and keeps it where it is.
 fn decode_calldata_tuple(
     builder: &mut FunctionBuilder<'_>,
     data: ValueId,
     layout: &AbiParamLayout,
-    fields: Option<&[MirType]>,
-    reserve_views: bool,
 ) -> Option<Vec<ValueId>> {
     let head_size = layout.checked_head_size()?;
     // base = ptrtoint (extract_value data, 0)
@@ -2762,24 +2666,10 @@ fn decode_calldata_tuple(
     let mut values = Vec::with_capacity(layout.types.len());
     let static_layout = layout.types.iter().all(|ty| !ty.is_dynamic());
     let mut head_offset = 0_u64;
-    // The free memory pointer the copies of the views would have advanced.
-    let mut virtual_fmp = None;
-    for (index, ty) in layout.types.iter().enumerate() {
+    for ty in &layout.types {
         builder.switch_to_block(current);
         let head = builder.add_u64_offset(base, head_offset);
-        let view = matches!(ty, AbiParamType::Bytes)
-            && fields.and_then(|fields| fields.get(index))
-                == Some(&MirType::Slice(PtrLocation::Calldata));
-        let value = if view {
-            LowerAbiCx::decode_calldata_bytes_view(
-                builder,
-                head,
-                base,
-                input_end,
-                &mut current,
-                &mut virtual_fmp,
-            )
-        } else if static_layout {
+        let value = if static_layout {
             LowerAbiCx::decode_static_calldata_argument(builder, ty, head, &mut current)
         } else {
             LowerAbiCx::decode_aggregate_argument(
@@ -2792,13 +2682,6 @@ fn decode_calldata_tuple(
                 DecodeOptions::new(false, input_end).checked(),
             )
         };
-        if reserve_views && let Some(next) = virtual_fmp.take() {
-            // next_ptr = inttoptr next to ptr<memory>
-            // set_fmp next_ptr
-            builder.switch_to_block(current);
-            let next = builder.cast(next, MirType::MEMPTR);
-            builder.set_fmp(next);
-        }
         values.push(value);
         head_offset = head_offset
             .checked_add(ty.checked_head_size().expect("ABI head size exceeds u64 range"))?;
@@ -2807,44 +2690,19 @@ fn decode_calldata_tuple(
     Some(values)
 }
 
-/// The result field types of each `abi_decode` in `func_id` that decodes a `bytes` field as a
-/// calldata slice, a `@custom:solar-view`.
-fn decode_view_fields(module: &Module, func_id: FunctionId) -> FxHashMap<InstId, Vec<MirType>> {
-    let func = module.function(func_id);
-    let mut fields = FxHashMap::default();
-    for inst in func.instructions() {
-        let InstKind::AbiDecode { .. } = func.inst(inst).kind else { continue };
-        let types = match func.inst(inst).result_ty {
-            Some(MirType::Struct(id)) => module.struct_types[id].fields.to_vec(),
-            Some(ty) => vec![ty],
-            None => continue,
-        };
-        if types.contains(&MirType::Slice(PtrLocation::Calldata)) {
-            fields.insert(inst, types);
-        }
-    }
-    fields
-}
-
 /// Builds an ABI decode's result from its decoded words: one field, or a struct of all of them.
-/// `fields` are a view decode's field types, whose views are already calldata slices.
 fn pack_decoded(
     builder: &mut FunctionBuilder<'_>,
     result: ValueId,
     values: Vec<ValueId>,
     layout: &AbiParamLayout,
-    fields: Option<&[MirType]>,
 ) -> ValueId {
     // field = cast decoded word to the declared field type
     // result = insert_value(undef, field0), ...
     let values = values
         .into_iter()
         .zip(&layout.types)
-        .enumerate()
-        .map(|(index, (value, ty))| {
-            let field = fields.and_then(|fields| fields.get(index)).copied();
-            builder.cast(value, field.unwrap_or_else(|| ty.mir_type()))
-        })
+        .map(|(value, ty)| builder.cast(value, ty.mir_type()))
         .collect::<Vec<_>>();
     if let Some(MirType::Struct(id)) = builder.func().value_ty(result) {
         builder.make_struct(id, values)
@@ -4259,32 +4117,4 @@ fn copy_calldata_member(
     let length = builder.load(position, PtrLocation::Calldata);
     let data = builder.calldata_tail_data(tail, position, 32, length, end, stride);
     copy_calldata_value(builder, ty, data, Some(length))
-}
-
-/// Whether any decode's input depends on a view decode. Walk each SSA value at most once,
-/// including tuple projections and loop phis. Reserving every view's space in such a function
-/// keeps earlier independent views and repeated decodes in the same allocation history too.
-fn decodes_view(func: &Function, views: &FxHashMap<InstId, Vec<MirType>>) -> bool {
-    if views.is_empty() {
-        return false;
-    }
-    let mut pending = func
-        .instructions()
-        .filter_map(|inst| match func.inst(inst).kind {
-            InstKind::AbiDecode { data, .. } => Some(data),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let mut visited = DenseBitSet::new_empty(func.num_values());
-    while let Some(value) = pending.pop() {
-        if !visited.insert(value) {
-            continue;
-        }
-        let Value::Inst(inst) = func.value(value) else { continue };
-        if views.contains_key(inst) {
-            return true;
-        }
-        func.inst(*inst).kind.visit_operands(|operand| pending.push(operand));
-    }
-    false
 }

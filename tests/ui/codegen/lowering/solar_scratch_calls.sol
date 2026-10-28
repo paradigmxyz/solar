@@ -1,4 +1,4 @@
-//@ codegen-matrix: standard
+//@ compile-flags: -Ogas --emit=bin
 
 // Scratch checks run before inlining. References held by callers and helpers must be checked
 // even when the function containing the block never reads or returns those references.

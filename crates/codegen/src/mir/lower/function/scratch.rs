@@ -48,11 +48,13 @@
 //! which may execute a scratch block, including recursive calls and function-pointer dispatchers.
 //! Callee summaries also record free pointers captured by stores or calls, even when the callee
 //! returns no value. It does not follow whether assembly reserved memory at the pointer first.
-//! A load at an unknown address may read the free memory pointer, as may an unaligned load that
-//! overlaps its word. Loads from fresh allocation bases are disjoint. A load of the last word
-//! stored at the same disjoint address in its block instead carries the stored value's provenance;
-//! any intervening memory write cancels that fact. Writing a scalar into the free-pointer slot
-//! makes it an allocation address, so forwarding cannot hide a possible read of that slot.
+//! In a contract that lowered inline assembly, a load at an unknown address may read the free
+//! memory pointer, as may an unaligned load that overlaps its word; without assembly, a typed
+//! read stays inside the object its pointer names. Loads from fresh allocation bases are
+//! disjoint. A load of the last word stored at the same disjoint address in its block instead
+//! carries the stored value's provenance; any intervening memory write cancels that fact. Writing
+//! a scalar into the free-pointer slot makes it an allocation address, so forwarding cannot hide
+//! a possible read of that slot.
 //! Copies and calls that may capture its bytes also escape, including through callee summaries.
 //! These facts only guide validation, not codegen.
 //!
@@ -60,15 +62,15 @@
 //! function pointer dispatchers exist, so every body a call in the block may run is summarized.
 //! It only reads the MIR: code without the tag lowers as before.
 //!
-//! NOTE: reading `msize` after the block sees the memory the block used, as it would without
-//! reuse. Callee returns are followed to a fixed point, including computed free-pointer reads
+//! NOTE: Callee returns are followed to a fixed point, including computed free-pointer reads
 //! and integer casts. Assembly can also derive pointers from unrelated objects past their ends;
 //! such arithmetic does not establish allocation provenance.
 
-use super::{memory_facts::Analyzed, *};
+use super::*;
 use crate::mir::{
     AbiEncodeMode, ArgIdx, Callee, EffectKind, InstId, RawMemoryAccess, RawMemorySize, Terminator,
-    analysis::{AddressSpace, LocalSummaryCache, MemoryBase, MemoryCallSummaries},
+    analysis::{AddressSpace, AliasAnalysis, LocalSummaryCache, MemoryBase, MemoryCallSummaries},
+    transform::cfg_simplify::simplify_trivial_phis,
 };
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -167,7 +169,7 @@ pub(in crate::mir::lower) fn check_scratch_regions(
         if !scratch.contains_key(&id) && local.clone().next().is_none() {
             continue;
         }
-        let function = Analyzed::new(func, &calls);
+        let function = Analyzed::new(func, &calls, !assembly.is_empty());
         let saved = local.clone().map(|(_, region)| region.saved).collect::<FxHashSet<_>>();
         for (_, region) in local {
             check_region(gcx, module, &function, &summaries, assembly, &saved, region);
@@ -416,10 +418,10 @@ fn reads_free_pointer(
     match func.inst(inst).kind {
         InstKind::Fmp => true,
         InstKind::Load(address, PtrLocation::Memory) => {
-            overlaps_free_pointer(
+            function.overlaps_free_pointer(
                 constants,
                 address,
-                RawMemorySize::Bytes(EvmMemoryLayout::WORD_SIZE),
+                Some(U256::from(EvmMemoryLayout::WORD_SIZE)),
             ) && function.fresh_start(address).is_none()
         }
         _ => false,
@@ -577,7 +579,7 @@ impl PointerWrites {
         }
         let analyzed = order
             .iter()
-            .map(|&id| (id, Analyzed::new(module.function(id), calls)))
+            .map(|&id| (id, Analyzed::new(module.function(id), calls, !assembly.is_empty())))
             .collect::<FxHashMap<_, _>>();
         let mut summaries =
             order.iter().map(|&id| (id, Self::default())).collect::<FxHashMap<_, _>>();
@@ -795,12 +797,6 @@ impl UseSites {
         };
         for (block, data) in func.blocks.iter_enumerated() {
             for &inst in &data.instructions {
-                if func
-                    .inst_result_value(inst)
-                    .is_some_and(|result| function.resolve(result) != result)
-                {
-                    continue;
-                }
                 for operand in func.inst(inst).operands() {
                     uses.instructions.entry(operand).or_default().push(inst);
                 }
@@ -1119,25 +1115,11 @@ fn captures_free_memory(
         if access != RawMemoryAccess::Read {
             captures = true;
         } else {
-            reads_free |= range_overlaps_free_pointer(constants.get(address), size)
+            reads_free |= function.overlaps_free_pointer(constants, address, size)
                 && function.fresh_start(address).is_none();
         }
     });
     captures && reads_free
-}
-
-/// Raw memory ranges do not wrap; an access past the address space fails instead. Unknown
-/// addresses may touch the FMP word, and zero-length accesses do not inspect their address.
-fn overlaps_free_pointer(
-    constants: &mut ConstantWords<'_>,
-    address: ValueId,
-    size: RawMemorySize,
-) -> bool {
-    let size = match size {
-        RawMemorySize::Bytes(size) => Some(U256::from(size)),
-        RawMemorySize::Value(size) => constants.get(size),
-    };
-    range_overlaps_free_pointer(constants.get(address), size)
 }
 
 fn range_overlaps_free_pointer(address: Option<U256>, size: Option<U256>) -> bool {
@@ -1149,6 +1131,129 @@ fn range_overlaps_free_pointer(address: Option<U256>, size: Option<U256>) -> boo
     let end = start + U256::from(EvmMemoryLayout::WORD_SIZE);
     // Compare the distance to the slot rather than adding a possibly wrapping size.
     address < end && (address >= start || size.is_none_or(|size| size > start - address))
+}
+
+/// A function prepared for the scratch check: a copy whose trivial phis are resolved, with its
+/// alias analysis.
+///
+/// Lowering gives a loop header a phi for every variable in scope, including the ones the loop
+/// never assigns. The alias analysis cannot see through a phi that merges a pointer with
+/// itself, so every write through such a variable would reach anything.
+pub(super) struct Analyzed {
+    func: Function,
+    aa: AliasAnalysis,
+    /// The reads of the free memory pointer that no reset of it may precede.
+    fresh_fmps: FxHashSet<InstId>,
+    /// Whether the contract lowered inline assembly, the only way to make a pointer to the free
+    /// memory pointer's slot. Without it, a typed access through an address of unknown value
+    /// stays inside the object its pointer names.
+    forged: bool,
+}
+
+impl Analyzed {
+    fn new(func: &Function, calls: &Arc<MemoryCallSummaries>, forged: bool) -> Self {
+        let mut func = func.clone();
+        simplify_trivial_phis(&mut func);
+        let aa = AliasAnalysis::with_call_summaries(&func, Arc::clone(calls));
+        let fresh_fmps = fresh_fmps(&func, &aa);
+        Self { func, aa, fresh_fmps, forged }
+    }
+
+    /// Whether an access of `size` bytes at `address` may touch the free memory pointer's slot.
+    /// Raw memory ranges do not wrap; an access past the address space fails instead, and
+    /// zero-length accesses do not inspect their address.
+    fn overlaps_free_pointer(
+        &self,
+        constants: &mut ConstantWords<'_>,
+        address: ValueId,
+        size: Option<U256>,
+    ) -> bool {
+        let address = constants.get(address);
+        (address.is_some() || self.forged) && range_overlaps_free_pointer(address, size)
+    }
+
+    /// The instruction `value` is the result of, when no object that exists before it runs lies
+    /// at or past `value`: a fresh allocation, or a read of the free memory pointer that no reset
+    /// of it may precede.
+    ///
+    /// The alias analysis bases a write past a fresh allocation's known extent, or anywhere past
+    /// the free memory pointer, on that value. Such a write may reach objects allocated after the
+    /// instruction, but none that existed before it.
+    fn fresh_start(&self, value: ValueId) -> Option<InstId> {
+        let Value::Inst(inst) = *self.func.value(value) else { return None };
+        if self.fresh_fmps.contains(&inst) {
+            return Some(inst);
+        }
+        match self.aa.memory_address(&self.func, value)?.base {
+            MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) if site == inst => {
+                Some(site)
+            }
+            _ => None,
+        }
+    }
+
+    /// The object `pointer` points into: the pointer it offsets, through every `ptradd` and
+    /// pointer cast.
+    ///
+    /// Lowering emits `ptradd` only for addresses inside the object its base points to, so the
+    /// base names the object a store through `pointer` writes.
+    fn object(&self, mut pointer: ValueId) -> ValueId {
+        while let Value::Inst(inst) = *self.func.value(pointer) {
+            pointer = match self.func.inst(inst).kind {
+                InstKind::PtrAdd(base, _)
+                | InstKind::IntToPtr(base)
+                | InstKind::PtrToInt(base, 256) => base,
+                _ => break,
+            };
+        }
+        pointer
+    }
+}
+
+/// The reads of the free memory pointer in `func` that no instruction that may reset it precedes
+/// on any path.
+fn fresh_fmps(func: &Function, aa: &AliasAnalysis) -> FxHashSet<InstId> {
+    let mut fresh = FxHashSet::default();
+    if !func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::Fmp)) {
+        return fresh;
+    }
+    let mut resets = DenseBitSet::new_empty(func.blocks.len());
+    for (id, block) in func.blocks.iter_enumerated() {
+        if block.instructions.iter().any(|&inst| aa.instruction_may_reset_fmp(func, inst)) {
+            resets.insert(id);
+        }
+    }
+    // Blocks some path into which may reset the free memory pointer.
+    let mut reached = DenseBitSet::new_empty(func.blocks.len());
+    let mut poisoned = DenseBitSet::new_empty(func.blocks.len());
+    let mut worklist = vec![BlockId::ENTRY];
+    reached.insert(BlockId::ENTRY);
+    while let Some(block) = worklist.pop() {
+        let out = poisoned.contains(block) || resets.contains(block);
+        let Some(terminator) = &func.blocks[block].terminator else { continue };
+        for successor in terminator.successors() {
+            let mut changed = reached.insert(successor);
+            if out {
+                changed |= poisoned.insert(successor);
+            }
+            if changed {
+                worklist.push(successor);
+            }
+        }
+    }
+    for (block, data) in func.blocks.iter_enumerated() {
+        if !reached.contains(block) {
+            continue;
+        }
+        let mut reset = poisoned.contains(block);
+        for &inst in &data.instructions {
+            if !reset && matches!(func.inst(inst).kind, InstKind::Fmp) {
+                fresh.insert(inst);
+            }
+            reset |= aa.instruction_may_reset_fmp(func, inst);
+        }
+    }
+    fresh
 }
 
 #[cfg(test)]

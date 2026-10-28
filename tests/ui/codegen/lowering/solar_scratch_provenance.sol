@@ -1,4 +1,4 @@
-//@ codegen-matrix: standard
+//@ compile-flags: -Ogas --emit=bin
 
 contract Test {
     function computed() external pure returns (uint256 result) {

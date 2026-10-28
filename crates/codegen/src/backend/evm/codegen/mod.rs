@@ -218,9 +218,9 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Clears state that belongs to one lowered MIR module.
     fn reset_for_module(&mut self, module: &Module) {
-        self.optimization = module.optimization(self.gcx);
+        self.optimization = module.optimization;
         self.asm.clear();
-        self.asm.set_optimize(module.optimize);
+        self.asm.set_optimization(module.optimization);
         self.reset_artifact(module);
         self.cold_functions.clear_to(module.functions.len());
         self.empty_stop_functions.clear_to(module.functions.len());

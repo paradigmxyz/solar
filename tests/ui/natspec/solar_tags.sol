@@ -7,8 +7,6 @@
 //~^ ERROR: unknown tag `@custom:solar-saef`
 /// @custom:unrelated
 contract Test {
-    /// @custom:solar-view
-    //~^ ERROR: `@custom:solar-view` must document a variable declaration
     function f(bytes memory b) public pure returns (uint256 x) {
         /// @custom:solar-inline
         //~^ ERROR: `@custom:solar-inline` must document a function that internal calls reach
@@ -39,13 +37,13 @@ contract Test {
         /// @custom:unrelated
         uint256 y = 2;
         x += y;
-        /// @custom:solar-view
-        //~^ ERROR: `@custom:solar-view` must document a variable declaration
+        /// @custom:solar-trusted
+        //~^ ERROR: `@custom:solar-trusted` must document a function, a modifier, a contract, or a library
         {
             x += 1;
         }
         /// @custom:solar-view
-        //~^ ERROR: `@custom:solar-view` must document a variable declaration
+        //~^ ERROR: unknown tag `@custom:solar-view`
         (x, ) = (1, 2);
     }
 

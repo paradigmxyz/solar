@@ -10,7 +10,7 @@ use crate::{
         evm::op::{self, StackOp},
     },
     link::{EmbeddedBytecodes, LibraryTable, RelocatableBytecode},
-    target::{self, Target},
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_config::OptimizationMode;
@@ -38,21 +38,14 @@ pub(in crate::backend) use passes::{
 
 /// The cost model of a module's code.
 pub(crate) trait ModuleTarget {
-    /// The objective this program's code is optimized for.
-    fn optimization(&self, gcx: Gcx<'_>) -> OptimizationMode;
-
     /// The cost model of this module's code: the objective its contract selects, with the
     /// creation model for creation code, which the runtime artifact follows.
     fn target(&self, gcx: Gcx<'_>) -> Target;
 }
 
 impl ModuleTarget for Module {
-    fn optimization(&self, gcx: Gcx<'_>) -> OptimizationMode {
-        target::objective(gcx.sess.opts.optimization, self.optimize)
-    }
-
     fn target(&self, gcx: Gcx<'_>) -> Target {
-        Target::new(gcx, self.optimization(gcx)).priced_for(self.code_follows)
+        Target::new(gcx, self.optimization).priced_for(self.code_follows)
     }
 }
 
@@ -118,6 +111,7 @@ pub fn into_deployable_bytecode(
     let name = module.name;
     let runtime = deployable(gcx, assemble_legalized(gcx, module)?)?;
     let mut deployment = Module::new(name);
+    deployment.optimization = gcx.sess.opts.optimization;
     deployment.code_follows = true;
     let runtime_data = deployment.data.push(Data::new(runtime.clone().into(), None));
     let mut block = Block::new(0);

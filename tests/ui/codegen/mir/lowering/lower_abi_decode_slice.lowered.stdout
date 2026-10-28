@@ -91,11 +91,6 @@
 +     v28 = extract_value slice<memory>, v26, 0
 +     v29 = extract_value slice<memory>, v26, 1
 +     mcopy v27, v28, v29
-+     v30 = ptradd v22, 32
-+     v31 = ptradd v30, v16
-+     v32 = sub 0, v16
-+     v33 = and v32, 31
-+     memory_zero v31, v33
 +     ret v22
 +   bb4:
 +     mstore 32, 65 !metadata(memory=scratch)

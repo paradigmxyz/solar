@@ -39,7 +39,7 @@ impl EvmPass for TailDuplicate {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        if !module.optimization(gcx).is_gas() {
+        if !module.optimization.is_gas() {
             return false;
         }
         let target = module.target(gcx);

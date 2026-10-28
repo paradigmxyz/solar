@@ -53,8 +53,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet, StdEntry},
 };
 use solar_interface::{
-    BytePos, ByteSymbol, Ident, Result, Session, Span, Symbol, config::OptimizationMode, kw,
-    source_map::SourceFile, sym,
+    BytePos, ByteSymbol, Ident, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym,
 };
 use solar_parse::{PErr, PResult};
 use solar_sema::hir;
@@ -206,6 +205,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let module_name = self.parser.parse_ident()?;
         let module_ident = Ident::with_dummy_span(module_name);
         let mut module = Module::new(module_ident);
+        module.optimization = self.parser.optimization();
         let mut function_refs = Vec::new();
         while self.parser.eat(TokenKind::At) {
             let attr = self.parser.parse_ident()?;
@@ -219,19 +219,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     })?;
                 }
                 kw::Library => module.is_library = true,
-                sym::optimize => {
-                    let objective_span = self.parser.token().span;
-                    module.optimize = Some(match self.parser.parse_ident()? {
-                        kw::Gas => OptimizationMode::Gas,
-                        sym::size => OptimizationMode::Size,
-                        objective => {
-                            return Err(self.parser.error_at(
-                                objective_span,
-                                format!("unknown optimization objective `{objective}`"),
-                            ));
-                        }
-                    });
-                }
+                sym::optimize => module.optimization = self.parser.parse_optimize_objective()?,
                 sym::types => self.parse_type_declarations()?,
                 sym::libraries => self.parser.parse_library_declarations()?,
                 sym::data => {
@@ -1746,35 +1734,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         .parser
                         .error("ABI decode requires bytes or a memory or calldata slice"));
                 }
-                let mut fields =
-                    layout.types.iter().map(AbiParamType::mir_type).collect::<Vec<_>>();
-                // `, views i, j`: the `bytes` fields decoded as calldata slices of their bytes.
-                if self.parser.eat(TokenKind::Comma) {
-                    let group = self.parser.parse_ident()?;
-                    if group != sym::views {
-                        return Err(self
-                            .parser
-                            .error(format!("unexpected ABI decode operand group `{group}`")));
-                    }
-                    if data_ty != Some(MirType::Slice(PtrLocation::Calldata)) {
-                        return Err(self.parser.error("ABI decode views require a calldata slice"));
-                    }
-                    loop {
-                        let index = self.parser.parse_uint()?;
-                        let field = usize::try_from(index)
-                            .ok()
-                            .filter(|&index| {
-                                matches!(layout.types.get(index), Some(AbiParamType::Bytes))
-                            })
-                            .ok_or_else(|| {
-                                self.parser.error("an ABI decode view must be a `bytes` field")
-                            })?;
-                        fields[field] = MirType::Slice(PtrLocation::Calldata);
-                        if !self.parser.eat(TokenKind::Comma) {
-                            break;
-                        }
-                    }
-                }
+                let fields = layout.types.iter().map(AbiParamType::mir_type).collect::<Vec<_>>();
                 let result_ty = match fields.as_slice() {
                     [] => None,
                     [ty] => Some(*ty),

@@ -97,11 +97,11 @@ impl MirPass for Licm {
 
     fn run_pass(
         &self,
-        gcx: solar_sema::Gcx<'_>,
+        _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let hoist_cheap = module.optimization(gcx).is_gas();
+        let hoist_cheap = module.optimization.is_gas();
         let mut selected = DenseBitSet::new_empty(module.functions.len());
         for (id, func) in module.functions.iter_enumerated() {
             if func.blocks.is_empty() {

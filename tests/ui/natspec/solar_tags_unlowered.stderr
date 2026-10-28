@@ -13,7 +13,7 @@ LL │ /// @custom:solar-saef
    │      ━━━━━━━━━━━━━━━━━
    │
    ├ note: `@custom:solar-` tags are requirements this compiler checks
-   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-scratch`, `@custom:solar-terminates`, `@custom:solar-trusted`, and `@custom:solar-view`
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-scratch`, and `@custom:solar-trusted`
 
 error: `@custom:solar-inline` must document a function that internal calls reach
    ╭▸ ROOT/tests/ui/natspec/solar_tags_unlowered.sol:LL:CC
@@ -38,7 +38,7 @@ LL │             /// @custom:solar-saef
    │                  ━━━━━━━━━━━━━━━━━
    │
    ├ note: `@custom:solar-` tags are requirements this compiler checks
-   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-scratch`, `@custom:solar-terminates`, `@custom:solar-trusted`, and `@custom:solar-view`
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-scratch`, and `@custom:solar-trusted`
 
 error: `@custom:solar-scratch` must document a block statement
    ╭▸ ROOT/tests/ui/natspec/solar_tags_unlowered.sol:LL:CC

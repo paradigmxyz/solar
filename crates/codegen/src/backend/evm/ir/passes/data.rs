@@ -70,8 +70,8 @@ impl EvmPass for PackExistingData {
         "pack-existing-data"
     }
 
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let optimization = module.optimization(gcx);
+    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+        let optimization = module.optimization;
         pack_existing_data(module, optimization.is_gas() || optimization.is_size())
     }
 }
@@ -88,7 +88,7 @@ impl EvmPass for PackData {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let optimization = module.optimization(gcx);
+        let optimization = module.optimization;
         if !(optimization.is_gas() || optimization.is_size()) {
             return pack_existing_data(module, false);
         }
@@ -231,7 +231,7 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
     });
 
     let creation = module.target(gcx);
-    let runtime = Target::new(gcx, module.optimization(gcx));
+    let runtime = Target::new(gcx, module.optimization);
     let target_of = |rewrites: &[Rewrite]| {
         if rewrites.iter().any(|rewrite| rewrite.repeats) { runtime } else { creation }
     };
@@ -800,7 +800,7 @@ fn data_references_and_runs(gcx: Gcx<'_>, module: &Module) -> (DataReferences, R
         }
         if index >= next_run_start && last_store.is_some_and(|last| index <= last) {
             let block = &module.blocks[block_id];
-            let target = block.target(gcx, module.optimization(gcx), module.code_follows);
+            let target = block.target(gcx, module.optimization, module.code_follows);
             if let Some((data, mut rewrite)) = find_run(&target, block_id, instructions, index) {
                 rewrite.repeats = !block.runs_once();
                 next_run_start = rewrite.end;

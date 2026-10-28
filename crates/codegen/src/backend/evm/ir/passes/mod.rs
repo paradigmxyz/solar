@@ -35,7 +35,7 @@ pub(super) mod utils;
 pub(in crate::backend) use legalize_revert::legalize_revert;
 pub(in crate::backend::evm) use stack_reschedule::SharedSchedules;
 
-use super::{Module, ModuleTarget};
+use super::Module;
 use crate::{
     mir::pass_manager::{
         parse_pass_pipeline, pipeline_output_name, print_pass_diff, should_validate_ir,
@@ -55,8 +55,8 @@ pub trait EvmPass: Any + Sync {
     fn name(&self) -> &'static str;
 
     /// Returns whether this pass is enabled with the current compiler flags.
-    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
-        self.is_required() || !matches!(module.optimization(gcx), OptimizationMode::None)
+    fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
+        self.is_required() || !matches!(module.optimization, OptimizationMode::None)
     }
 
     /// Returns whether this pass must run independently of the optimization level.

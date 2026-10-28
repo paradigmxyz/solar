@@ -73,9 +73,9 @@ pub struct Module {
     debug_info_tracked: bool,
     /// Block contents in which an earlier peephole run found nothing to rewrite.
     pub peephole_clean: CleanBlocks,
-    /// The objective the source contract's `@custom:solar-optimize` tag selects, which replaces
-    /// the build's in optimized builds.
-    pub optimize: Option<OptimizationMode>,
+    /// The objective this module's code is optimized for: the build's, or the one the source
+    /// contract's `@custom:solar-optimize` tag selects.
+    pub optimization: OptimizationMode,
 }
 
 impl Module {
@@ -137,7 +137,7 @@ impl Module {
             code_follows: false,
             debug_info_tracked: false,
             peephole_clean: CleanBlocks::default(),
-            optimize: None,
+            optimization: OptimizationMode::default(),
         }
     }
 
@@ -149,7 +149,7 @@ impl Module {
         self.code_follows = false;
         self.debug_info_tracked = false;
         self.peephole_clean.clear();
-        self.optimize = None;
+        self.optimization = OptimizationMode::default();
     }
 
     /// Enables source debug information auditing for optimization passes.

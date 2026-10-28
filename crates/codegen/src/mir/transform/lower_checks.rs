@@ -67,7 +67,7 @@ impl MirPass for LowerChecks {
             }
         }
         let helper = needs_helper.then(|| create_short_string_helper(module, &helper_context));
-        let optimized = !matches!(module.optimization(gcx), OptimizationMode::None);
+        let optimized = !matches!(module.optimization, OptimizationMode::None);
         let mut changed = false;
         // Long strings intern their data in the module while a function is rewritten.
         let mut functions = std::mem::take(&mut module.functions);

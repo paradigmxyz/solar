@@ -27,7 +27,7 @@ impl EvmPass for CoalesceCopies {
 
     fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
         gcx.sess.opts.evm_version.has_mcopy()
-            && !matches!(module.optimization(gcx), OptimizationMode::None)
+            && !matches!(module.optimization, OptimizationMode::None)
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
