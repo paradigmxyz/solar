@@ -1,5 +1,20 @@
-//@compile-flags: -Ogas -Zmir-pipeline=heap-floor
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=heap-floor
+//@[gas] filecheck: --check-prefix=GAS
+//@[size] compile-flags: -Osize -Zmir-pipeline=heap-floor
+//@[size] filecheck: --check-prefix=SIZE
 @module HeapFloorDirtyEntry
+
+// A helper that reads the slot as data through its parameter and then allocates is clamped inside,
+// for the calls that enter it with a word written through the parameter. Under `-Ogas` an external
+// function that never wrote the slot keeps calling the body without the clamp, and the writers
+// call a copy that holds it. Under `-Osize` the clamp stays in the one body.
+// GAS-LABEL: {{^[ +].*}}fn @hash.0(
+// GAS-NOT: heap_floor
+// GAS-LABEL: {{^[ +].*}}fn @twice.1(
+// GAS-NOT: heap_floor
+// SIZE-LABEL: {{^[ +].*}}fn @hash(
+// SIZE: + {{v[0-9]+}} = heap_floor
 
 fn @hash(arg0: i256) {
   bb0:
@@ -9,23 +24,108 @@ fn @hash(arg0: i256) {
     ret
 }
 
+// A helper whose callee raises the slot needs no clamp of its own after the call.
 fn @twice(arg0: i256) {
   bb0:
     icall @hash, arg0
-    v1 = alloc 32
-    mstore v1, arg0
+    v0 = alloc 32
+    mstore v0, arg0
     ret
 }
 
-fn @dirty(arg0: i256) [selector=0x11111111] {
+// A callee that raises the slot on one path only leaves the caller's allocation clamped.
+fn @maybe(arg0: i256, arg1: i1) {
+  bb0:
+    jumpi arg1, bb1, bb2
+  bb1:
+    icall @hash, arg0
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    ret
+}
+
+// The copy of a function that tail calls the helper tail calls the helper's copy.
+fn @forward(arg0: i256) {
+  bb0:
+    tail_call @hash, arg0
+}
+
+// A copy of a recursive function calls itself.
+fn @countdown(arg0: i256) {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb1:
+    icall @hash, arg0
+    ret
+  bb2:
+    v1 = sub arg0, 1
+    icall @countdown, v1
+    ret
+}
+
+// GAS-LABEL: {{^[ +].*}}fn @dirty_twice(
+// GAS: + icall @[[$TWICE:twice\.[0-9]+]], arg0
+// SIZE-LABEL: {{^[ +].*}}fn @dirty_twice(
+// SIZE: {{^ +}}icall @twice, arg0
+fn @dirty_twice(arg0: i256) [selector=0x11111111] {
   bb0:
     mstore arg0, 1
     icall @twice, arg0
     ret
 }
 
-fn @clean(arg0: i256) [selector=0x22222222] {
+// GAS-LABEL: {{^[ +].*}}fn @dirty_maybe(
+// GAS: + icall @[[$MAYBE:maybe\.[0-9]+]], arg0, arg1
+// GAS-NEXT: + {{v[0-9]+}} = mload 64
+// GAS: + {{v[0-9]+}} = heap_floor
+fn @dirty_maybe(arg0: i256, arg1: i1) [selector=0x22222222] {
   bb0:
-    icall @twice, arg0
+    mstore arg0, 1
+    icall @maybe, arg0, arg1
+    v0 = alloc 32
+    mstore v0, arg0
     ret
 }
+
+// GAS-LABEL: {{^[ +].*}}fn @dirty_forward(
+// GAS: + icall @[[$FORWARD:forward\.[0-9]+]], arg0
+fn @dirty_forward(arg0: i256) [selector=0x33333333] {
+  bb0:
+    mstore arg0, 1
+    icall @forward, arg0
+    ret
+}
+
+// GAS-LABEL: {{^[ +].*}}fn @dirty_countdown(
+// GAS: + icall @[[$COUNTDOWN:countdown\.[0-9]+]], arg0
+fn @dirty_countdown(arg0: i256) [selector=0x44444444] {
+  bb0:
+    mstore arg0, 1
+    icall @countdown, arg0
+    ret
+}
+
+fn @clean(arg0: i256, arg1: i1) [selector=0x55555555] {
+  bb0:
+    icall @twice, arg0
+    icall @maybe, arg0, arg1
+    icall @forward, arg0
+    icall @countdown, arg0
+    ret
+}
+
+// GAS: {{^[ +].*}}fn @[[$TWICE]](
+// GAS: + icall @[[$HASH:hash\.[0-9]+]], arg0
+// GAS-NOT: heap_floor
+// GAS: {{^[ +].*}}fn @[[$MAYBE]](
+// GAS: + icall @[[$HASH]], arg0
+// GAS: {{^[ +].*}}fn @[[$FORWARD]](
+// GAS: + tail_call @[[$HASH]], arg0
+// GAS: {{^[ +].*}}fn @[[$COUNTDOWN]](
+// GAS: + icall @[[$COUNTDOWN]], {{v[0-9]+}}
+// GAS: + icall @[[$HASH]], arg0
+// GAS: {{^[ +].*}}fn @[[$HASH]](
+// GAS: + {{v[0-9]+}} = heap_floor

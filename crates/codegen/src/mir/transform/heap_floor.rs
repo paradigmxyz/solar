@@ -85,10 +85,10 @@
 //! Those clamps inside a callee only matter to a call that enters it where the slot may hold a word
 //! below the floor, a dirty slot. Other code, such as an external function that never wrote the
 //! slot, calls the same helper clean and would pay for them on every call. Under `-Ogas` a helper
-//! that some caller calls clean keeps its clamp-free body for that caller, and the calls from
-//! where the slot is dirty go to a copy that holds the clamps, as do the calls inside the copy
-//! that enter another such helper dirty. The external entries, which the dispatcher enters clean,
-//! and `-Osize` take their clamps in place.
+//! that some caller calls clean keeps its body without them for that caller, and the calls from
+//! where the slot is dirty go to a copy that holds them, as do the calls inside the copy that
+//! enter another such helper dirty. The clamps of an assembly load of the slot stay in both. The
+//! external entries, which the dispatcher enters clean, and `-Osize` take their clamps in place.
 //!
 //! The pass runs first, on semantic MIR, so the passes that forward the slot's stored value to
 //! its loads or delete its dead stores see the clamped value. Codegen is too late to clamp: load
@@ -158,13 +158,13 @@ impl MirPass for HeapFloor {
         let mut copies = FxHashMap::default();
         if !entry_clamps.is_empty() && gcx.sess.opts.optimization.is_gas() {
             for func_id in functions_to_copy(module, &entry_clamps, &dirty_calls) {
+                // fn @f -> fn @f, fn @f.copy
                 let mut copy = module.functions[func_id].clone();
                 copy.name.disambiguator = None;
                 copies.insert(func_id, module.add_function(copy));
             }
         }
-        // The versions of a function that every execution takes clamps in, and the one that runs
-        // where the slot is dirty at its entry.
+        // Every version of a function, and the version that runs with a dirty slot.
         let versions = |func_id| std::iter::once(func_id).chain(copies.get(&func_id).copied());
         let dirty = |func_id| copies.get(&func_id).copied().unwrap_or(func_id);
         for &clamp in &clamps {
@@ -181,10 +181,7 @@ impl MirPass for HeapFloor {
                 }
             }
         }
-        for &clamp in &entry_clamps {
-            let Clamp::Slot(func_id, block, before) = clamp else {
-                unreachable!("only a slot clamp waits for a dirty entry")
-            };
+        for &(func_id, block, before) in &entry_clamps {
             clamp_slot(&mut module.functions[dirty(func_id)], block, before);
         }
         for (func_id, plan) in &loads {
@@ -192,12 +189,13 @@ impl MirPass for HeapFloor {
                 clamp_loads(&mut module.functions[version], plan);
             }
         }
+        // icall @f, args -> icall @f.copy, args
         for call in &dirty_calls {
             let Some(&callee) = copies.get(&call.callee) else { continue };
             if call.entry {
-                call.redirect(&mut module.functions[dirty(call.caller)], callee);
+                call.redirect(&mut module.functions[dirty(call.site.0)], callee);
             } else {
-                for version in versions(call.caller) {
+                for version in versions(call.site.0) {
                     call.redirect(&mut module.functions[version], callee);
                 }
             }
@@ -215,11 +213,15 @@ enum Clamp {
     Slot(FunctionId, BlockId, Option<InstId>),
 }
 
+/// A [`Clamp::Slot`]'s function, block, and instruction.
+type SlotClamp = (FunctionId, BlockId, Option<InstId>);
+
 /// Finds where to clamp the words that stores of values not proven to be heap pointers, and writes
 /// through computed addresses, leave in the free memory pointer's slot: at the store when every
 /// read of the word reads the pointer, and at each pointer read when some read takes the word as
 /// data, or the writer may not write the slot at all. The loads to clamp come with a plan for
-/// each function, which covers all of the function's loads at once.
+/// each function, which covers all of the function's loads at once. The clamps in a function that a
+/// call enters with a dirty slot, and the calls that do, come apart from the rest.
 fn floor_clamps(module: &Module) -> Analysis {
     let mut uses = PointerUses::new(module);
     let mut clamps = FxIndexSet::default();
@@ -269,7 +271,8 @@ fn floor_clamps(module: &Module) -> Analysis {
         }
     }
     let mut entry_clamps = std::mem::take(&mut uses.entry_clamps);
-    entry_clamps.retain(|clamp| !clamps.contains(clamp));
+    entry_clamps
+        .retain(|&(func_id, block, before)| !clamps.contains(&Clamp::Slot(func_id, block, before)));
     Analysis {
         clamps,
         entry_clamps,
@@ -282,21 +285,21 @@ fn floor_clamps(module: &Module) -> Analysis {
 struct Analysis {
     /// The clamps that every execution of their function takes.
     clamps: FxIndexSet<Clamp>,
-    /// The clamps that only an execution entered with a dirty slot needs, because a caller's
-    /// write or store leaves a word there that the function reads as the pointer.
-    entry_clamps: FxIndexSet<Clamp>,
+    /// The slot clamps that only an execution entered with a dirty slot needs, because a
+    /// caller's write or store leaves a word there that the function reads as the pointer.
+    entry_clamps: FxIndexSet<SlotClamp>,
     /// The plans for each function's loads.
     loads: Vec<(FunctionId, LoadClamps)>,
     /// The calls that enter a function with a dirty slot.
     dirty_calls: Vec<DirtyCall>,
 }
 
+/// A call instruction, or the tail call that ends a block: its function, block, and instruction.
+type CallSiteRef = (FunctionId, BlockId, Option<InstId>);
+
 /// A call that the placement walked into the callee of, with the slot's word still dirty.
 struct DirtyCall {
-    caller: FunctionId,
-    block: BlockId,
-    /// The call instruction, or none for the tail call that ends the block.
-    inst: Option<InstId>,
+    site: CallSiteRef,
     callee: FunctionId,
     /// Whether the caller itself was entered with a dirty slot, so that only its dirty version
     /// makes this call with one.
@@ -304,14 +307,15 @@ struct DirtyCall {
 }
 
 impl DirtyCall {
-    /// Makes the call, in `caller`, to `callee`.
+    /// Points the call in `caller`, a version of the call's function, at `callee`.
     fn redirect(&self, caller: &mut Function, callee: FunctionId) {
-        let function = match self.inst {
+        let (_, block, inst) = self.site;
+        let function = match inst {
             Some(inst) => match &mut caller.inst_mut(inst).kind {
                 InstKind::ICall { function: Callee::Function(function), .. } => function,
                 _ => unreachable!("a dirty call is an internal call"),
             },
-            None => match caller.blocks[self.block].terminator.as_mut() {
+            None => match caller.blocks[block].terminator.as_mut() {
                 Some(Terminator::TailCall { function, .. }) => function,
                 _ => unreachable!("a dirty tail call ends its block"),
             },
@@ -326,15 +330,13 @@ impl DirtyCall {
 /// place.
 fn functions_to_copy(
     module: &Module,
-    entry_clamps: &FxIndexSet<Clamp>,
+    entry_clamps: &FxIndexSet<SlotClamp>,
     dirty_calls: &[DirtyCall],
 ) -> FxIndexSet<FunctionId> {
     let copyable = |func_id: FunctionId| !module.functions[func_id].is_external_entry();
     let mut dirty = FxIndexSet::default();
-    for &clamp in entry_clamps {
-        if let Clamp::Slot(func_id, ..) = clamp
-            && copyable(func_id)
-        {
+    for &(func_id, ..) in entry_clamps {
+        if copyable(func_id) {
             dirty.insert(func_id);
         }
     }
@@ -342,47 +344,48 @@ fn functions_to_copy(
     while changed {
         changed = false;
         for call in dirty_calls {
-            if call.entry && copyable(call.caller) && dirty.contains(&call.callee) {
-                changed |= dirty.insert(call.caller);
+            let caller = call.site.0;
+            if call.entry && copyable(caller) && dirty.contains(&call.callee) {
+                changed |= dirty.insert(caller);
             }
         }
     }
     if dirty.is_empty() {
         return FxIndexSet::default();
     }
-    // A call at these sites runs with a dirty slot in every version of its function, or, when the
-    // call is the dirty version's, in a function no clean caller reaches.
-    let mut every_version = FxHashSet::default();
-    let mut dirty_version = FxHashSet::default();
+    // Whether a call runs with a dirty slot only in its function's dirty version, by site.
+    let mut dirty_sites = FxHashMap::default();
     for call in dirty_calls {
-        let site = (call.caller, call.block, call.inst);
-        if call.entry { &mut dirty_version } else { &mut every_version }.insert(site);
+        *dirty_sites.entry(call.site).or_insert(true) &= call.entry;
     }
+    let mut calls = Vec::new();
+    for (caller, func) in module.functions.iter_enumerated() {
+        for (block, data) in func.blocks.iter_enumerated() {
+            for &inst in &data.instructions {
+                if let InstKind::ICall { function: Callee::Function(callee), .. } =
+                    func.inst(inst).kind
+                {
+                    calls.push(((caller, block, Some(inst)), callee));
+                }
+            }
+            if let Some(&Terminator::TailCall { function, .. }) = data.terminator.as_ref() {
+                calls.push(((caller, block, None), function));
+            }
+        }
+    }
+    // A function needs a copy while some call to it is clean: no dirty call, or one of a dirty
+    // version whose function has a copy, as the original still makes the call clean.
     let mut copies = FxIndexSet::default();
     changed = true;
     while changed {
         changed = false;
-        for (caller, func) in module.functions.iter_enumerated() {
-            for (block, data) in func.blocks.iter_enumerated() {
-                let calls =
-                    data.instructions.iter().filter_map(|&inst| match func.inst(inst).kind {
-                        InstKind::ICall { function: Callee::Function(callee), .. } => {
-                            Some((Some(inst), callee))
-                        }
-                        _ => None,
-                    });
-                let tail = match data.terminator.as_ref() {
-                    Some(&Terminator::TailCall { function, .. }) => Some((None, function)),
-                    _ => None,
-                };
-                for (inst, callee) in calls.chain(tail) {
-                    let site = (caller, block, inst);
-                    let dirty_call = every_version.contains(&site)
-                        || dirty_version.contains(&site) && !copies.contains(&caller);
-                    if dirty.contains(&callee) && !dirty_call {
-                        changed |= copies.insert(callee);
-                    }
-                }
+        for &(site, callee) in &calls {
+            let dirty_call = match dirty_sites.get(&site) {
+                Some(&dirty_version) => !dirty_version || !copies.contains(&site.0),
+                None => false,
+            };
+            if dirty.contains(&callee) && !dirty_call {
+                changed |= copies.insert(callee);
             }
         }
     }
@@ -1291,7 +1294,7 @@ struct PointerUses<'a> {
     /// The stretches the clamp placement has walked for any store, which add their clamps once.
     walked: FxHashSet<Walk>,
     /// The clamps the walks add in functions that a call entered with a dirty slot.
-    entry_clamps: FxIndexSet<Clamp>,
+    entry_clamps: FxIndexSet<SlotClamp>,
     /// The calls the walks enter functions through.
     dirty_calls: Vec<DirtyCall>,
     /// Whether each function raises or replaces the slot's word on every path that returns, once
@@ -1486,8 +1489,12 @@ impl<'a> PointerUses<'a> {
 
     /// Adds `clamp` for the walk that found it: among the clamps of every execution, or among
     /// those of an execution entered with a dirty slot.
-    fn add_clamp(&mut self, clamps: &mut FxIndexSet<Clamp>, entry: bool, clamp: Clamp) {
-        if entry { &mut self.entry_clamps } else { clamps }.insert(clamp);
+    fn add_clamp(&mut self, clamps: &mut FxIndexSet<Clamp>, entry: bool, clamp: SlotClamp) {
+        if entry {
+            self.entry_clamps.insert(clamp);
+        } else {
+            clamps.insert(Clamp::Slot(clamp.0, clamp.1, clamp.2));
+        }
     }
 
     /// Clamps the pointer reads of one stretch of a block, queueing the stretches it reaches.
@@ -1512,7 +1519,7 @@ impl<'a> PointerUses<'a> {
                 }
                 // The compiler takes the slot's word as the pointer from here on.
                 Effect::ReadsPointer => {
-                    self.add_clamp(clamps, entry, Clamp::Slot(func_id, block, Some(inst_id)));
+                    self.add_clamp(clamps, entry, (func_id, block, Some(inst_id)));
                     return;
                 }
                 Effect::Calls(callee) => {
@@ -1521,30 +1528,12 @@ impl<'a> PointerUses<'a> {
                         let data_after =
                             flow.returned && self.data_after(func_id, block, index + 1, returns);
                         if flow.reads.data || data_after {
-                            pending.push(Walk {
-                                func: callee,
-                                block: BlockId::ENTRY,
-                                start: 0,
-                                returns: Returns::ToCall { data_after },
-                            });
-                            self.dirty_calls.push(DirtyCall {
-                                caller: func_id,
-                                block,
-                                inst: Some(inst_id),
-                                callee,
-                                entry,
-                            });
-                            // The callee raises the slot before it returns, so the reads after
-                            // the call see a raised word.
-                            if self.raises_slot(callee) {
+                            let site = (func_id, block, Some(inst_id));
+                            if self.enter_dirty(pending, site, callee, entry, data_after) {
                                 return;
                             }
                         } else {
-                            self.add_clamp(
-                                clamps,
-                                entry,
-                                Clamp::Slot(func_id, block, Some(inst_id)),
-                            );
+                            self.add_clamp(clamps, entry, (func_id, block, Some(inst_id)));
                             return;
                         }
                     }
@@ -1570,24 +1559,12 @@ impl<'a> PointerUses<'a> {
                 if flow.reads.pointer {
                     let data_after = flow.returned && self.data_after_return(func_id, returns);
                     if flow.reads.data || data_after {
-                        pending.push(Walk {
-                            func: function,
-                            block: BlockId::ENTRY,
-                            start: 0,
-                            returns: Returns::ToCall { data_after },
-                        });
-                        self.dirty_calls.push(DirtyCall {
-                            caller: func_id,
-                            block,
-                            inst: None,
-                            callee: function,
-                            entry,
-                        });
-                        if self.raises_slot(function) {
+                        let site = (func_id, block, None);
+                        if self.enter_dirty(pending, site, function, entry, data_after) {
                             return;
                         }
                     } else {
-                        self.add_clamp(clamps, entry, Clamp::Slot(func_id, block, None));
+                        self.add_clamp(clamps, entry, (func_id, block, None));
                         return;
                     }
                 }
@@ -1596,11 +1573,32 @@ impl<'a> PointerUses<'a> {
                 }
             }
             None => {
-                self.add_clamp(clamps, entry, Clamp::Slot(func_id, block, None));
+                self.add_clamp(clamps, entry, (func_id, block, None));
             }
             // Execution ends.
             Some(_) => {}
         }
+    }
+
+    /// Queues the walk of `callee` from its entry, which the call at `site` enters with a dirty
+    /// slot, and returns whether the callee raises the slot on every path that returns, so that
+    /// the reads after the call see a raised word.
+    fn enter_dirty(
+        &mut self,
+        pending: &mut Vec<Walk>,
+        site: CallSiteRef,
+        callee: FunctionId,
+        entry: bool,
+        data_after: bool,
+    ) -> bool {
+        pending.push(Walk {
+            func: callee,
+            block: BlockId::ENTRY,
+            start: 0,
+            returns: Returns::ToCall { data_after },
+        });
+        self.dirty_calls.push(DirtyCall { site, callee, entry });
+        self.raises_slot(callee)
     }
 
     /// Goes on after a return from `func_id` at the end of `block`.
@@ -1647,6 +1645,8 @@ impl<'a> PointerUses<'a> {
         raises
     }
 
+    /// Walks the paths of `func_id` as [`Self::flow_from`] does, but ends a path where it raises
+    /// the slot, instead of following the word on to its later reads.
     fn walk_raises_slot(&mut self, func_id: FunctionId) -> bool {
         let module = self.module;
         let func = &module.functions[func_id];

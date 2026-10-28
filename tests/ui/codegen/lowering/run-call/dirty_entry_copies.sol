@@ -4,7 +4,9 @@
 
 // A helper that hashes a memory object and allocates from the free memory pointer is called with
 // a clean slot first and then after assembly moves the pointer below the heap. The call after the
-// reset runs the helper's copy that raises the pointer, while the first runs the one without.
+// reset runs the helper's copy that raises the pointer, while the first runs the one without. The
+// hashes live across the second call spill below the heap, where an allocation at the reset
+// pointer would overwrite them.
 contract DirtyEntryCopies {
     function cleanThenReset(uint256 a) external pure returns (bytes32 result) {
         bytes[] memory list = new bytes[](1);

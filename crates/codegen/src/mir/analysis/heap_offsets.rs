@@ -123,7 +123,7 @@ fn offset_bound(
             let mut step = 0;
             for &(_, edge) in incoming {
                 match advance(func, edge, value, visiting, steps) {
-                    Some(advance) => step = step.max(advance),
+                    Some(delta) => step = step.max(delta),
                     None => start = start.max(offset_bound(func, edge, visiting, steps)?),
                 }
             }
@@ -160,8 +160,8 @@ fn advance(
     };
     *steps = steps.checked_sub(1)?;
     [(a, b), (b, a)].into_iter().find_map(|(counter, step)| {
-        let advance = advance(func, counter, phi, visiting, steps)?;
-        advance.checked_add(offset_bound(func, step, visiting, steps)?)
+        let before = advance(func, counter, phi, visiting, steps)?;
+        before.checked_add(offset_bound(func, step, visiting, steps)?)
     })
 }
 
