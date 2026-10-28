@@ -373,6 +373,8 @@ pub(super) struct BytecodeOutput {
     pub(super) link_references: Option<FxIndexMap<String, FxIndexMap<String, Vec<OffsetLength>>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) immutable_references: Option<FxIndexMap<String, Vec<OffsetLength>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) cbor_auxdata: Option<FxIndexMap<String, CborAuxdata>>,
     //
     // Not supported.
     // #[serde(skip_serializing_if = "Option::is_none")]
@@ -391,6 +393,15 @@ pub(super) struct EthdebugOutput {
 pub(super) struct OffsetLength {
     pub(super) start: usize,
     pub(super) length: usize,
+}
+
+/// A CBOR auxdata occurrence, in the shape of the Verifier Alliance `cborAuxdata` artifact.
+#[derive(Debug, Serialize)]
+pub(super) struct CborAuxdata {
+    /// Byte offset of the CBOR map, after the `INVALID` byte that precedes it.
+    pub(super) offset: usize,
+    /// The CBOR map and its two-byte length, as `0x`-prefixed hex.
+    pub(super) value: String,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -482,6 +493,8 @@ bitflags::bitflags! {
         const DEPLOYED_BYTECODE_ETHDEBUG = 1 << 29;
         const ETHDEBUG_RESOURCES = 1 << 30;
         const ETHDEBUG_COMPILATION = 1 << 31;
+        const BYTECODE_CBOR_AUXDATA = 1 << 32;
+        const DEPLOYED_BYTECODE_CBOR_AUXDATA = 1 << 33;
 
         const YUL = Self::IR.bits()
             | Self::IR_AST.bits()
@@ -492,14 +505,16 @@ bitflags::bitflags! {
             | Self::BYTECODE_SOURCE_MAP.bits()
             | Self::BYTECODE_FUNCTION_DEBUG_DATA.bits()
             | Self::BYTECODE_GENERATED_SOURCES.bits()
-            | Self::BYTECODE_LINK_REFERENCES.bits();
+            | Self::BYTECODE_LINK_REFERENCES.bits()
+            | Self::BYTECODE_CBOR_AUXDATA.bits();
         const DEPLOYED_BYTECODE = Self::DEPLOYED_BYTECODE_OBJECT.bits()
             | Self::DEPLOYED_BYTECODE_OPCODES.bits()
             | Self::DEPLOYED_BYTECODE_SOURCE_MAP.bits()
             | Self::DEPLOYED_BYTECODE_FUNCTION_DEBUG_DATA.bits()
             | Self::DEPLOYED_BYTECODE_GENERATED_SOURCES.bits()
             | Self::DEPLOYED_BYTECODE_LINK_REFERENCES.bits()
-            | Self::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES.bits();
+            | Self::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES.bits()
+            | Self::DEPLOYED_BYTECODE_CBOR_AUXDATA.bits();
         const EVM = Self::ASSEMBLY.bits()
             | Self::LEGACY_ASSEMBLY.bits()
             | Self::METHOD_IDENTIFIERS.bits()
@@ -566,6 +581,7 @@ impl OutputSelectionFlags {
             "evm.bytecode.generatedSources" => Self::BYTECODE_GENERATED_SOURCES,
             "evm.bytecode.linkReferences" => Self::BYTECODE_LINK_REFERENCES,
             "evm.bytecode.ethdebug" => Self::BYTECODE_ETHDEBUG,
+            "evm.bytecode.cborAuxdata" => Self::BYTECODE_CBOR_AUXDATA,
             "evm.deployedBytecode" => Self::DEPLOYED_BYTECODE,
             "evm.deployedBytecode.object" => Self::DEPLOYED_BYTECODE_OBJECT,
             "evm.deployedBytecode.opcodes" => Self::DEPLOYED_BYTECODE_OPCODES,
@@ -577,6 +593,7 @@ impl OutputSelectionFlags {
                 Self::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES
             }
             "evm.deployedBytecode.ethdebug" => Self::DEPLOYED_BYTECODE_ETHDEBUG,
+            "evm.deployedBytecode.cborAuxdata" => Self::DEPLOYED_BYTECODE_CBOR_AUXDATA,
             "ethdebug.resources" => Self::ETHDEBUG_RESOURCES,
             "ethdebug.compilation" => Self::ETHDEBUG_COMPILATION,
             _ => Self::empty(),
@@ -1024,6 +1041,7 @@ mod tests {
                 "evm.bytecode.generatedSources",
                 "evm.bytecode.linkReferences",
                 "evm.bytecode.ethdebug",
+                "evm.bytecode.cborAuxdata",
                 "evm.deployedBytecode.object",
                 "evm.deployedBytecode.opcodes",
                 "evm.deployedBytecode.sourceMap",
@@ -1032,6 +1050,7 @@ mod tests {
                 "evm.deployedBytecode.linkReferences",
                 "evm.deployedBytecode.immutableReferences",
                 "evm.deployedBytecode.ethdebug",
+                "evm.deployedBytecode.cborAuxdata",
                 "ethdebug.resources",
                 "ethdebug.compilation"
             ]"#,

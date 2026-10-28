@@ -9,6 +9,7 @@ use solar_config::{RevertStrings, version::SEMVER_VERSION};
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::IndexVec,
+    map::FxHashSet,
 };
 use solar_sema::{
     Gcx,
@@ -45,6 +46,8 @@ pub(super) struct Metadata<'a, 'input, 'gcx> {
     gcx: Gcx<'gcx>,
     settings: &'a Settings<'input>,
     contracts: IndexVec<ContractId, OnceLock<String>>,
+    runtime_data: IndexVec<ContractId, OnceLock<Bytes>>,
+    cbor_auxdata: OnceLock<CborAuxdataSet>,
     sources: IndexVec<SourceId, OnceLock<Value>>,
     referenced_sources: IndexVec<SourceId, OnceLock<Vec<SourceId>>>,
 }
@@ -54,10 +57,20 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
     pub(super) fn new(gcx: Gcx<'gcx>, settings: &'a Settings<'input>) -> Self {
         let contracts =
             std::iter::repeat_n(OnceLock::new(), gcx.hir.contract_ids().len()).collect();
+        let runtime_data =
+            std::iter::repeat_n(OnceLock::new(), gcx.hir.contract_ids().len()).collect();
         let sources = std::iter::repeat_n(OnceLock::new(), gcx.hir.source_ids().len()).collect();
         let referenced_sources =
             std::iter::repeat_n(OnceLock::new(), gcx.hir.source_ids().len()).collect();
-        Self { gcx, settings, contracts, sources, referenced_sources }
+        Self {
+            gcx,
+            settings,
+            contracts,
+            runtime_data,
+            cbor_auxdata: OnceLock::new(),
+            sources,
+            referenced_sources,
+        }
     }
 
     /// Computes the metadata of `contracts` in parallel, hashing each referenced source once.
@@ -86,6 +99,44 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
     }
 
     pub(super) fn runtime_data(&self, contract_id: ContractId) -> Bytes {
+        self.runtime_data[contract_id].get_or_init(|| self.make_runtime_data(contract_id)).clone()
+    }
+
+    /// Returns the offset and bytes of every CBOR auxdata trailer in `bytecode`, in order.
+    ///
+    /// Must only be called after code generation, which appends the runtime data of every
+    /// contract it builds. Matching whole trailers, which contain the metadata hash, rather than
+    /// parsing CBOR at every `INVALID` byte keeps code and data that only look like CBOR out of the
+    /// result. Embedded contracts carry their own trailers, so a bytecode can contain several.
+    pub(super) fn find_cbor_auxdata<'b>(&self, bytecode: &'b [u8]) -> Vec<(usize, &'b [u8])> {
+        let set = self.cbor_auxdata.get_or_init(|| {
+            let mut set = CborAuxdataSet::default();
+            for data in self.runtime_data.iter().filter_map(OnceLock::get) {
+                if !data.is_empty()
+                    && set.values.insert(data.clone())
+                    && !set.lengths.contains(&data.len())
+                {
+                    set.lengths.push(data.len());
+                }
+            }
+            set
+        });
+        let mut found = Vec::new();
+        let mut i = 0;
+        while let Some(pos) = bytecode[i..].iter().position(|&b| b == INVALID) {
+            let start = i + pos;
+            i = start + 1;
+            if let Some(&len) = set.lengths.iter().find(|&&len| {
+                bytecode.get(start..start + len).is_some_and(|data| set.values.contains(data))
+            }) {
+                found.push((start + 1, &bytecode[start + 1..start + len]));
+                i = start + len;
+            }
+        }
+        found
+    }
+
+    fn make_runtime_data(&self, contract_id: ContractId) -> Bytes {
         let settings = self.settings.metadata;
         if !settings.append_cbor {
             return Bytes::new();
@@ -110,6 +161,13 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
         self.referenced_sources[source_id]
             .get_or_init(|| collect_referenced_sources(self.gcx, source_id))
     }
+}
+
+/// The distinct runtime data of a compilation, each `INVALID` followed by a CBOR auxdata trailer.
+#[derive(Default)]
+struct CborAuxdataSet {
+    values: FxHashSet<Bytes>,
+    lengths: Vec<usize>,
 }
 
 fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> String {

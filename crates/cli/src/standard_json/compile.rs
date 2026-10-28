@@ -2,11 +2,11 @@
 
 use super::{
     data::{
-        BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, DebugInfoComponent,
-        DebugSettings, EthdebugOutput, EvmOutput, FxIndexMap, MetadataHash, MetadataSettings,
-        OffsetLength, OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings,
-        SourceOutput, StandardJsonReadCallback, optimizer_settings, print_standard_json_stats,
-        strip_json_comments,
+        BytecodeOutput, CborAuxdata, CompilerInput, CompilerOutput, ContractOutput,
+        DebugInfoComponent, DebugSettings, EthdebugOutput, EvmOutput, FxIndexMap, MetadataHash,
+        MetadataSettings, OffsetLength, OutputSelection, OutputSelectionFlags, ReadCallbackResult,
+        Settings, SourceOutput, StandardJsonReadCallback, optimizer_settings,
+        print_standard_json_stats, strip_json_comments,
     },
     metadata::{Metadata, source_name},
 };
@@ -580,9 +580,10 @@ fn make_contract_output<'gcx>(
         | OutputSelectionFlags::BYTECODE_OPCODES
         | OutputSelectionFlags::BYTECODE_SOURCE_MAP
         | OutputSelectionFlags::BYTECODE_LINK_REFERENCES
-        | OutputSelectionFlags::BYTECODE_ETHDEBUG;
+        | OutputSelectionFlags::BYTECODE_ETHDEBUG
+        | OutputSelectionFlags::BYTECODE_CBOR_AUXDATA;
     if output_selection.intersects(bytecode_outputs) {
-        evm.bytecode = Some(make_bytecode_output(
+        let mut bytecode = make_bytecode_output(
             gcx,
             contract_id,
             artifact,
@@ -590,16 +591,24 @@ fn make_contract_output<'gcx>(
             compilation_id,
             source_map_encoder,
             false,
-        ));
+        );
+        if output_selection.contains(OutputSelectionFlags::BYTECODE_CBOR_AUXDATA) {
+            bytecode.cbor_auxdata = Some(make_cbor_auxdata(
+                artifact.map(|artifact| &artifact.deployment[..]),
+                metadata,
+            ));
+        }
+        evm.bytecode = Some(bytecode);
     }
     let deployed_bytecode_outputs = OutputSelectionFlags::DEPLOYED_BYTECODE_OBJECT
         | OutputSelectionFlags::DEPLOYED_BYTECODE_OPCODES
         | OutputSelectionFlags::DEPLOYED_BYTECODE_SOURCE_MAP
         | OutputSelectionFlags::DEPLOYED_BYTECODE_LINK_REFERENCES
         | OutputSelectionFlags::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES
-        | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_CBOR_AUXDATA;
     if output_selection.intersects(deployed_bytecode_outputs) {
-        evm.deployed_bytecode = Some(make_bytecode_output(
+        let mut bytecode = make_bytecode_output(
             gcx,
             contract_id,
             artifact,
@@ -607,13 +616,35 @@ fn make_contract_output<'gcx>(
             compilation_id,
             source_map_encoder,
             true,
-        ));
+        );
+        if output_selection.contains(OutputSelectionFlags::DEPLOYED_BYTECODE_CBOR_AUXDATA) {
+            bytecode.cbor_auxdata =
+                Some(make_cbor_auxdata(artifact.map(|artifact| &artifact.runtime[..]), metadata));
+        }
+        evm.deployed_bytecode = Some(bytecode);
     }
     if !evm.is_empty() {
         output.evm = Some(evm);
     }
 
     output
+}
+
+/// Lists the CBOR auxdata trailers in `bytecode`, keyed from `"1"` in offset order.
+fn make_cbor_auxdata(
+    bytecode: Option<&[u8]>,
+    metadata: Option<&Metadata<'_, '_, '_>>,
+) -> FxIndexMap<String, CborAuxdata> {
+    let (Some(bytecode), Some(metadata)) = (bytecode, metadata) else { return Default::default() };
+    metadata
+        .find_cbor_auxdata(bytecode)
+        .into_iter()
+        .enumerate()
+        .map(|(i, (offset, value))| {
+            let value = format!("0x{}", alloy_primitives::hex::encode(value));
+            ((i + 1).to_string(), CborAuxdata { offset, value })
+        })
+        .collect()
 }
 
 fn make_bytecode_output(

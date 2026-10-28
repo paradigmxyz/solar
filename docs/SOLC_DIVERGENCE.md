@@ -67,6 +67,23 @@ Coverage: `tests/ui/standard-json/debug/ethdebug-output-without-debug-info`,
 `tests/ui/standard-json/debug/ethdebug-with-ast-id` and
 `tests/ui/standard-json/debug/ethdebug-without-ast-id`.
 
+### JSON-004: CBOR auxdata positions
+
+Status: intentional.
+
+Difference: `evm.bytecode.cborAuxdata` and `evm.deployedBytecode.cborAuxdata`
+report every CBOR auxdata trailer in the bytecode, including those of embedded
+contracts, as `{"1": {"offset": N, "value": "0x…"}, …}` in offset order.
+`offset` points at the CBOR map after the `INVALID` byte, and `value` holds the
+map and its two-byte length. solc has no such output; tools recover the
+positions from `evm.legacyAssembly` and a second compilation. The parent
+selections and `*` include it, and `evm.legacyAssembly` stays empty.
+
+Rationale: the shape is the Verifier Alliance `cborAuxdata` artifact that
+Sourcify stores, so verifiers can read the positions directly.
+
+Coverage: `tests/ui/standard-json/cbor-auxdata/test.jsonc`.
+
 ## Import Resolution
 
 ### IMPORT-001: Files on disk are one source unit each
