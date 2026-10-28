@@ -1,5 +1,8 @@
 //@ compile-flags: -O none -Zdump=disasm-runtime
 //@ filecheck: --implicit-check-not=PUSH16
+//@ run-call: once 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0xffffffffffffffffffffffffffffffff
+//@ run-call: looped 3 => 3
+//@ run-call: entry 2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0xffffffffffffffffffffffffffffff
 
 // `-O none` runs `compact-pushes` with gas pricing: a mask outside every loop becomes a shifted
 // `PUSH0 NOT`, while a mask in a function that a loop calls stays a literal, which it would
