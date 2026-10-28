@@ -4,7 +4,7 @@
 
 // The operations keep their origins, the new stack operations carry none, and the origins of
 // the replaced ones move to the run's last instruction.
-// CHECK-LABEL: {{^[ +].*}}bb0 [loop] [stack=2]:
+// CHECK-LABEL: {{^[ +].*}}bb0 [loop, stack=2]:
 // CHECK: +   pop{{$}}
 // CHECK: push 2 !metadata(span=3..4)
 // CHECK: add !metadata(span=5..6)

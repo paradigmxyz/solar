@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/debug_info.evmir (before stack-reschedule) ===
 + // === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/debug_info.evmir (after stack-reschedule) ===
   @module DebugInfo
-  bb0 [loop] [stack=2]:
+  bb0 [loop, stack=2]:
 -   swap 1 !metadata(span=1..2)
 +   pop
     push 2 !metadata(span=3..4)

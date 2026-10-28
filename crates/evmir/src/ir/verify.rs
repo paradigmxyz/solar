@@ -10,9 +10,17 @@
 //! that pushes a return address and jumps to the callee's first block, and a return is a dynamic
 //! `jump` through that address, which carries no static target. The walk therefore sees a
 //! recursive function as an ordinary cycle whose modeled stack height grows by the return address
-//! on every round, and a concrete-depth walk that follows it never converges. A block reached only
-//! through such a jump, the continuation a call returns to, has no modeled entry depth at all and
-//! only the shape check covers it.
+//! on every round, and a concrete-depth walk that follows it never converges. The continuation a
+//! call returns to is reached only through that dynamic jump, so it gets an edge of its own. A
+//! block that ends with a jump to code declaring a [`CallEffect`] has pushed the continuation's
+//! address in the slot that code returns to, which the walk finds by following the block's pushed
+//! addresses through its stack operations. It enters the continuation at the stack the block ends
+//! with, less the words the call consumes and plus the words it leaves. A block that returns
+//! through a jump to an address it pushed itself, as a function inlined into its caller does,
+//! enters that address's block at the stack after the jump. A recursive call closes a cycle
+//! through the callee, which is cut as any other, and the continuation edge is an ordinary
+//! forward edge. An address that is pushed in any other way, or copied, has no modeled entry
+//! depth, and only the shape check covers its block.
 //!
 //! The walk instead propagates a range of entry depths per block and checks each bound where it
 //! is the worst case. Operand availability (`dup`, `swap`, `pop`, and every instruction's inputs)
@@ -56,6 +64,7 @@
 
 use super::*;
 use crate::op::{self, MAX_STACK_DEPTH};
+use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -169,7 +178,7 @@ impl<'a> Verifier<'a> {
 
     pub fn verify_module(&self, module: &Module) {
         if self.verify_module_shape(module) {
-            self.verify_stack_ops(module);
+            self.verify_stack_ops(module, &label_flows(module));
         }
     }
 
@@ -438,7 +447,11 @@ impl<'a> Verifier<'a> {
     ///
     /// See the module documentation for the bounds the walk propagates and for why only the
     /// post-cycle maximum stops at a cycle-closing edge.
-    fn verify_stack_ops(&self, module: &Module) -> IndexVec<BlockId, EntryDepths> {
+    fn verify_stack_ops(
+        &self,
+        module: &Module,
+        flows: &IndexVec<BlockId, LabelFlow>,
+    ) -> IndexVec<BlockId, EntryDepths> {
         let mut reported = ReportedErrors::default();
         // The entry block starts with an empty stack unless it declares a depth, and any other
         // block that declares one is also entered at it.
@@ -450,7 +463,7 @@ impl<'a> Verifier<'a> {
                 depth.or((block_id == BlockId::ENTRY).then_some(0)).map(|depth| (block_id, depth))
             })
             .collect::<Vec<_>>();
-        let cycle_edges = cycle_edges(module, roots.iter().map(|&(block_id, _)| block_id));
+        let cycle_edges = cycle_edges(module, flows, roots.iter().map(|&(block_id, _)| block_id));
         let mut entry_depths = index_vec![EntryDepths::default(); module.blocks.len()];
         let mut pending = Vec::with_capacity(roots.len());
         for (block_id, depth) in roots {
@@ -515,6 +528,12 @@ impl<'a> Verifier<'a> {
                 continue;
             }
             term.kind.visit_targets(|target| physical_targets.push((target, stack)));
+            for &(continuation, effect) in &flows[block_id].returns {
+                if let Ok(returned) = self.apply_call_return(&mut reported, block_id, effect, stack)
+                {
+                    physical_targets.push((continuation, returned));
+                }
+            }
             for (target, depth) in physical_targets {
                 let out = bounds.across(cycle_edges.contains(&(block_id, target)));
                 let raised = entry_depths[target].merge(depth, out);
@@ -547,6 +566,29 @@ impl<'a> Verifier<'a> {
         }
         *stack = *stack - inputs + usize::from(effect.outputs);
         self.ensure_stack_limit(reported, block_id, name, *stack)
+    }
+
+    /// Returns the stack depth a call returns at, `stack` being the depth at its entry.
+    fn apply_call_return(
+        &self,
+        reported: &mut ReportedErrors,
+        block_id: BlockId,
+        effect: StackEffect,
+        stack: usize,
+    ) -> Result<usize, ErrorGuaranteed> {
+        let (inputs, outputs) = (usize::from(effect.inputs), usize::from(effect.outputs));
+        let Some(returned) = (stack + outputs).checked_sub(inputs) else {
+            return Err(self.error_in_block_once(
+                reported,
+                block_id,
+                format_args!(
+                    "`call return` drops {} stack words but only {stack} are available",
+                    inputs - outputs
+                ),
+            ));
+        };
+        self.ensure_stack_limit(reported, block_id, "call return", returned)?;
+        Ok(returned)
     }
 
     fn apply_physical_stack_op(
@@ -738,15 +780,17 @@ impl<'a> Verifier<'a> {
     /// Returns upper entry depths proved by the direct-edge stack walk.
     ///
     /// The walk's finite cycle traversal is a candidate bound, not a proof: check that every
-    /// direct edge preserves it, including backedges. Growing cycles and pushed labels that
-    /// can be entered through unmodeled dynamic jumps, together with their successors, remain
-    /// unknown. Unknown bounds must not justify increasing a block's stack peak.
+    /// direct edge preserves it, including backedges. Growing cycles, which include every
+    /// recursive call and the continuations after it, and pushed labels that can be entered
+    /// through unmodeled dynamic jumps, together with their successors, remain unknown. Unknown
+    /// bounds must not justify increasing a block's stack peak.
     pub fn stack_entry_upper_bounds(
         module: &Module,
         evm_version: EvmVersion,
     ) -> IndexVec<BlockId, Option<usize>> {
         let dcx = DiagCtxt::with_silent_emitter(None);
-        let depths = Verifier::for_evm_version(&dcx, evm_version).verify_stack_ops(module);
+        let flows = label_flows(module);
+        let depths = Verifier::for_evm_version(&dcx, evm_version).verify_stack_ops(module, &flows);
         if dcx.has_errors().is_err() {
             return index_vec![None; module.blocks.len()];
         }
@@ -783,14 +827,20 @@ impl<'a> Verifier<'a> {
                 stack =
                     stack.saturating_sub(usize::from(effect.inputs)) + usize::from(effect.outputs);
                 term.kind.visit_targets(|target| check_edge(target, stack));
+                for &(continuation, effect) in &flows[block_id].returns {
+                    let returned = (stack + usize::from(effect.outputs))
+                        .saturating_sub(usize::from(effect.inputs));
+                    check_edge(continuation, returned);
+                }
             }
         }
-        for block in &module.blocks {
+        for (block_id, block) in module.blocks.iter_enumerated() {
             for (at, inst) in block.instructions.iter().enumerate() {
                 if let Some(target) = inst.pushed_block()
                     && !block.instructions.get(at + 1).is_some_and(|next| {
                         matches!(next.as_evm_opcode(), Some(op::JUMP | op::JUMPI))
                     })
+                    && !flows[block_id].accounted.contains(&at)
                 {
                     pending.push(target);
                 }
@@ -800,7 +850,7 @@ impl<'a> Verifier<'a> {
         while let Some(block_id) = pending.pop() {
             if unknown.insert(block_id) {
                 upper[block_id] = None;
-                direct_successors(&module.blocks[block_id], &mut pending);
+                direct_successors(&flows[block_id], &module.blocks[block_id], &mut pending);
             }
         }
         upper
@@ -889,12 +939,165 @@ impl Bounds {
     }
 }
 
+/// The addresses of blocks that a block pushes and the calls that consume them.
+///
+/// A call pushes the address of the block it returns to, the continuation, and then jumps into
+/// code whose [`CallEffect`] says how it returns: through a dynamic jump to the word at a fixed
+/// position, at a known stack depth. That jump carries no static target, so the continuation
+/// would have no edge and no entry depth. This follows the pushed addresses through the stack
+/// operations of the block instead, so that where the block ends with a jump to such code the
+/// word at the return position names the continuation.
+#[derive(Default)]
+struct LabelFlow {
+    /// The continuations the block's terminator calls into, with the effect of that call.
+    returns: SmallVec<[(BlockId, StackEffect); 1]>,
+    /// The pushes, by instruction index, of addresses that a call consumes.
+    ///
+    /// Any other pushed address may be copied, stored, or carried into a successor, and so can
+    /// enter its block at a depth the walk does not model.
+    accounted: SmallVec<[usize; 2]>,
+}
+
+/// Follows the addresses a block pushes to the call that consumes them.
+fn label_flow(module: &Module, block: &Block, may_return: &DenseBitSet<BlockId>) -> LabelFlow {
+    /// A pushed address on the stack: its position from the block's entry height, the block it
+    /// names, and the index of the instruction that pushed it.
+    struct Word {
+        slot: isize,
+        block: BlockId,
+        push: usize,
+    }
+
+    fn swap_slots(words: &mut [Word], a: isize, b: isize) {
+        for word in words {
+            if word.slot == a {
+                word.slot = b;
+            } else if word.slot == b {
+                word.slot = a;
+            }
+        }
+    }
+
+    let mut flow = LabelFlow::default();
+    let mut words = SmallVec::<[Word; 4]>::new();
+    let mut height = 0isize;
+    for (at, inst) in block.instructions.iter().enumerate() {
+        if let Some(label) = inst.pushed_block() {
+            // More addresses than the stack holds is rejected by the walk; do not scan them.
+            if words.len() >= MAX_STACK_DEPTH {
+                return LabelFlow::default();
+            }
+            words.push(Word { slot: height, block: label, push: at });
+            height += 1;
+            continue;
+        }
+        // A branch that can reach a dynamic jump may take the addresses below its operands there,
+        // where they are entered at another depth.
+        if inst.opcode == op::JUMPI
+            && at
+                .checked_sub(1)
+                .and_then(|previous| block.instructions[previous].pushed_block())
+                .is_none_or(|taken| may_return.contains(taken))
+        {
+            words.clear();
+        }
+        let slot_of = |words: &[Word], slot: isize| words.iter().position(|w| w.slot == slot);
+        match inst.as_stack_op() {
+            Some(op::StackOp::Dup(n)) => {
+                // A copy can reach anywhere, so the address is no longer followed.
+                if let Some(index) = slot_of(&words, height - isize::from(n)) {
+                    words.swap_remove(index);
+                }
+                height += 1;
+            }
+            Some(op::StackOp::Swap(n)) => {
+                swap_slots(&mut words, height - 1, height - 1 - isize::from(n));
+            }
+            Some(op::StackOp::Exchange(n, m)) => {
+                swap_slots(&mut words, height - 1 - isize::from(n), height - 1 - isize::from(m));
+            }
+            Some(op::StackOp::Pop) => {
+                // A branch earlier in the block may have returned through the word.
+                if let Some(index) = slot_of(&words, height - 1) {
+                    words.swap_remove(index);
+                }
+                height -= 1;
+            }
+            None => {
+                let effect = inst.stack_effect();
+                let floor = height - isize::from(effect.inputs);
+                words.retain(|word| word.slot < floor);
+                height = floor + isize::from(effect.outputs);
+            }
+        }
+    }
+    match block.terminator.as_ref().map(|term| &term.kind) {
+        Some(TerminatorKind::Jump(target))
+            if let Some(call) = module.blocks[*target].metadata.call_effect
+                && let Some(index) =
+                    words.iter().position(|w| w.slot == height - 1 - isize::from(call.ret)) =>
+        {
+            let word = words.swap_remove(index);
+            flow.returns.push((word.block, call.effect));
+            flow.accounted.push(word.push);
+        }
+        // A function inlined into its caller returns through a jump to the address the caller
+        // pushed. A push directly before the jump is left to the shape check, as it is a branch.
+        Some(TerminatorKind::Op(op::JUMP))
+            if let Some(index) = words.iter().position(|w| w.slot == height - 1)
+                && words[index].push + 1 != block.instructions.len() =>
+        {
+            let word = words.swap_remove(index);
+            flow.returns.push((word.block, StackEffect::new(0, 0)));
+            flow.accounted.push(word.push);
+        }
+        _ => {}
+    }
+    flow
+}
+
+fn label_flows(module: &Module) -> IndexVec<BlockId, LabelFlow> {
+    // The blocks from which a dynamic jump or branch is reachable. A call reaches its callee, whose
+    // return is one, so the calls' own return edges are not needed.
+    let mut predecessors = index_vec![Vec::new(); module.blocks.len()];
+    let mut may_return = DenseBitSet::new_empty(module.blocks.len());
+    let mut pending = Vec::new();
+    let mut successors = Vec::new();
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        let dynamic_branch = block.instructions.iter().enumerate().any(|(at, inst)| {
+            inst.opcode == op::JUMPI
+                && !at
+                    .checked_sub(1)
+                    .is_some_and(|previous| block.instructions[previous].pushed_block().is_some())
+        });
+        if dynamic_branch
+            || matches!(
+                block.terminator.as_ref().map(|term| &term.kind),
+                Some(TerminatorKind::Op(op::JUMP))
+            )
+        {
+            pending.push(block_id);
+        }
+        successors.clear();
+        direct_successors(&LabelFlow::default(), block, &mut successors);
+        for &target in &successors {
+            predecessors[target].push(block_id);
+        }
+    }
+    while let Some(block_id) = pending.pop() {
+        if may_return.insert(block_id) {
+            pending.extend(predecessors[block_id].iter().copied());
+        }
+    }
+    module.blocks.iter().map(|block| label_flow(module, block, &may_return)).collect()
+}
+
 /// Appends every direct control-flow successor of `block`, in walk order.
 ///
 /// The `push bbN; jumpi` pair is a physical conditional branch inside a block, so its target is
-/// an edge as well. Dynamic jumps through a stack value, which is how an internal function
-/// returns, carry no target and therefore no edge.
-fn direct_successors(block: &Block, out: &mut Vec<BlockId>) {
+/// an edge as well, and so is the continuation of a call. Dynamic jumps through a stack value,
+/// which is how an internal function returns, carry no target and therefore no edge.
+fn direct_successors(flow: &LabelFlow, block: &Block, out: &mut Vec<BlockId>) {
     for (index, inst) in block.instructions.iter().enumerate() {
         if inst.opcode == op::JUMPI
             && let Some(target) =
@@ -906,6 +1109,7 @@ fn direct_successors(block: &Block, out: &mut Vec<BlockId>) {
     if let Some(term) = &block.terminator {
         term.kind.visit_targets(|target| out.push(target));
     }
+    out.extend(flow.returns.iter().map(|&(continuation, _)| continuation));
 }
 
 /// Returns the edges that close a cycle in a depth-first walk from the entry block.
@@ -914,6 +1118,7 @@ fn direct_successors(block: &Block, out: &mut Vec<BlockId>) {
 /// reachable from the entry are classified; the walk never leaves that region either.
 fn cycle_edges(
     module: &Module,
+    flows: &IndexVec<BlockId, LabelFlow>,
     roots: impl IntoIterator<Item = BlockId>,
 ) -> FxHashSet<(BlockId, BlockId)> {
     /// Depth-first states: not yet reached, on the current path, and fully walked.
@@ -936,7 +1141,7 @@ fn cycle_edges(
         }
         path.push((root, 0));
         states[root] = State::OnPath;
-        direct_successors(&module.blocks[root], &mut successors);
+        direct_successors(&flows[root], &module.blocks[root], &mut successors);
         while let Some(&(block_id, start)) = path.last() {
             if successors.len() == start {
                 states[block_id] = State::Done;
@@ -948,7 +1153,7 @@ fn cycle_edges(
                 State::Unseen => {
                     states[target] = State::OnPath;
                     path.push((target, successors.len()));
-                    direct_successors(&module.blocks[target], &mut successors);
+                    direct_successors(&flows[target], &module.blocks[target], &mut successors);
                 }
                 State::OnPath => {
                     edges.insert((block_id, target));

@@ -40,7 +40,7 @@ bb0:
   and
   push bb10
   jump bb1
-bb1:
+bb1 [ret=0, inputs=2, outputs=1]:
   dup 2
   iszero
   push bb7
