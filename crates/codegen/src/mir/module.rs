@@ -662,7 +662,8 @@ impl Module {
         name: Option<Symbol>,
         contract: QualifiedName,
     ) -> DataId {
-        let trailers = vec![Trailer { contract, range: 0..data.len() }];
+        let trailers =
+            vec![Trailer { contracts: smallvec::smallvec![contract], range: 0..data.len() }];
         self.add_data_entry(Data { emit_in_runtime: true, trailers, ..Data::new(data, name) })
     }
 

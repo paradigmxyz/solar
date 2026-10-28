@@ -1,6 +1,7 @@
 //! Program data, library identities, and relocatable bytecode shared by MIR and the backend.
 
 use alloy_primitives::{Bytes, U256};
+use smallvec::SmallVec;
 use solar_data_structures::{fmt::FmtIteratorExt, index::IndexVec, map::FxHashMap, newtype_index};
 use solar_interface::{Symbol, sym};
 use std::{fmt, ops::Range};
@@ -217,15 +218,17 @@ impl LibraryRelocation {
 /// program data.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Trailer {
-    /// The fully qualified name of the contract whose metadata the trailer encodes.
-    pub contract: QualifiedName,
+    /// The fully qualified names of the contracts whose metadata the trailer encodes: more than
+    /// one when byte-identical copies of different contracts share storage.
+    pub contracts: SmallVec<[QualifiedName; 1]>,
     pub range: Range<usize>,
 }
 
 impl Trailer {
     /// Returns this trailer moved `base` bytes later.
     pub fn shifted(&self, base: usize) -> Self {
-        Self { contract: self.contract, range: base + self.range.start..base + self.range.end }
+        let range = base + self.range.start..base + self.range.end;
+        Self { contracts: self.contracts.clone(), range }
     }
 }
 

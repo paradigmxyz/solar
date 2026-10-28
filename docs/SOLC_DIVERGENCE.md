@@ -97,7 +97,9 @@ Difference: `evm.bytecode.cborAuxdata` and `evm.deployedBytecode.cborAuxdata`
 report every CBOR auxdata trailer in the bytecode, including those of embedded
 contracts, keyed by the fully qualified name of the contract each trailer
 belongs to: `{"A.sol:Child": [{"offset": N, "value": "0x…"}, …], …}`. A
-contract embedded more than once has one entry per copy. Entries are in offset
+contract embedded more than once has one entry per copy. When contracts have
+byte-identical code and trailers, as with `bytecodeHash: none`, they share one
+copy, listed under each of them at the same offset. Entries are in offset
 order within each array, and keys in the order of their first entry. `offset`
 points at the CBOR map after the `INVALID` byte, and `value` holds the map and
 its two-byte length. solc has no such output; tools recover the positions from
@@ -113,7 +115,8 @@ repeats a trailer's bytes is never reported: verifiers replace the reported
 bytes with the deployed ones, and a reported literal would let deployed code
 differ from its source.
 
-Coverage: `tests/ui/standard-json/cbor-auxdata/test.jsonc` and
+Coverage: `tests/ui/standard-json/cbor-auxdata/test.jsonc`,
+`tests/ui/standard-json/cbor-auxdata-shared.jsonc` and
 `tests/ui/standard-json/cbor-auxdata-literal.jsonc`.
 
 ### JSON-005: `settings.solar` takes unstable flags

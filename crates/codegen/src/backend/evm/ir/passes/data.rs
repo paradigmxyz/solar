@@ -52,6 +52,7 @@ use smallvec::SmallVec;
 use solar_data_structures::{index::IndexVec, map::FxHashMap};
 use solar_interface::sym;
 use solar_sema::Gcx;
+use std::ops::Range;
 
 /// Bounds quadratic arbitrary-substring pooling; exact interning remains unbounded.
 const MAX_DATA_SUBSTRING_ENTRIES: usize = 1024;
@@ -643,14 +644,15 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
 
     let mut packed = IndexVec::<DataId, Data>::new();
     let mut sources = IndexVec::<DataId, DataId>::new();
-    let mut exact = FxHashMap::<(Bytes, Vec<LibraryRelocation>, Vec<Trailer>), DataId>::default();
+    let mut exact =
+        FxHashMap::<(Bytes, Vec<LibraryRelocation>, Vec<Range<usize>>), DataId>::default();
     let mut remap = FxHashMap::default();
     for old_id in referenced {
         let data = &module.data[old_id];
         // Deferred bytes are not known yet, so they are never shared.
         let key = (data.bytes.known())
             .filter(|_| !data.emit_in_runtime)
-            .map(|bytes| (bytes.clone(), data.library_relocations.clone(), data.trailers.clone()));
+            .map(|bytes| (bytes.clone(), data.library_relocations.clone(), trailer_ranges(data)));
         let data_ref = if let Some(key) = &key
             && let Some(&id) = exact.get(key)
         {
@@ -674,6 +676,7 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
         if packed[data_ref.id].name.is_none() {
             packed[data_ref.id].name = data.name;
         }
+        add_trailer_owners(&mut packed[data_ref.id], &data.trailers, data_ref.offset as usize);
         remap.insert(old_id, data_ref);
     }
 
@@ -737,15 +740,33 @@ fn find_data(
                 .trailers
                 .iter()
                 .filter(|trailer| trailer.range.start < end && trailer.range.end > offset)
-                .map(|trailer| {
-                    let start = trailer.range.start.checked_sub(offset);
-                    (trailer.contract, start, trailer.range.end - offset)
-                })
-                .eq(needle.trailers.iter().map(|trailer| {
-                    (trailer.contract, Some(trailer.range.start), trailer.range.end)
-                }));
+                .map(|trailer| (trailer.range.start.checked_sub(offset), trailer.range.end - offset))
+                .eq(needle.trailers.iter().map(|trailer| (Some(trailer.range.start), trailer.range.end)));
         compatible.then(|| DataRef::new(id, data_offset(offset)))
     })
+}
+
+fn trailer_ranges(data: &Data) -> Vec<Range<usize>> {
+    data.trailers.iter().map(|trailer| trailer.range.clone()).collect()
+}
+
+/// Records the owners of `trailers`, which start `offset` bytes into `shared`, on the trailers of
+/// `shared` that cover the same bytes. Owners never affect sharing, so contracts with
+/// byte-identical code keep one copy.
+fn add_trailer_owners(shared: &mut Data, trailers: &[Trailer], offset: usize) {
+    for trailer in trailers {
+        let trailer = trailer.shifted(offset);
+        let shared = shared
+            .trailers
+            .iter_mut()
+            .find(|shared| shared.range == trailer.range)
+            .expect("shared data covers the same trailers");
+        for contract in trailer.contracts {
+            if !shared.contracts.contains(&contract) {
+                shared.contracts.push(contract);
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy)]

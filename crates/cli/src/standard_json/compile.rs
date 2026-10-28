@@ -719,10 +719,12 @@ fn make_bytecode_output(
             let offset = trailer.range.start + 1;
             let value = &bytecode.expect("trailers imply bytecode")[offset..trailer.range.end];
             let value = alloy_primitives::hex::encode_prefixed(value);
-            by_contract
-                .entry(trailer.contract.as_str().to_string())
-                .or_default()
-                .push(CborAuxdata { offset, value });
+            for contract in &trailer.contracts {
+                by_contract
+                    .entry(contract.as_str().to_string())
+                    .or_default()
+                    .push(CborAuxdata { offset, value: value.clone() });
+            }
         }
         output.cbor_auxdata = Some(by_contract);
     }
