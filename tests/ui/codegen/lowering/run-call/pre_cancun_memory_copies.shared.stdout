@@ -4,8 +4,6 @@
 fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
   bb0:
     v44 = icall @alloc, 128
-    v47 = calldatasize
-    calldatacopy v44, v47, 128
     mstore v44, 3
     v36 = add v44, 32
     mstore v36, 1
@@ -57,10 +55,7 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     v56 = lt v55, v53
     jumpi v56, bb8, bb9
   bb9:
-    v58 = and v55, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v73 = mload 64 !metadata(alloc_ptr)
-    v74 = add v73, v58 !metadata(alloc_ptr)
-    mstore 64, v74
     mstore v73, v53
     v20 = add v73, 128
     v21 = mload v20
@@ -151,8 +146,7 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
     v4 = add v0, 128
     mstore 64, v4
     v6 = keccak256 v1, 70
-    v39 = mload 64 !metadata(alloc_ptr)
-    v18 = add v39, 32
+    v18 = add v4, 32
     v19 = add v18, 64
     mstore v18, 64
     v21 = mload v0
@@ -171,10 +165,7 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
     v33 = lt v32, v30
     jumpi v33, bb1, bb2
   bb2:
-    v35 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v40 = mload 64 !metadata(alloc_ptr)
-    v41 = add v40, v35 !metadata(alloc_ptr)
-    mstore 64, v41
     mstore v40, v30
     v10 = add v40, 128
     v11 = keccak256 v10, 70
@@ -191,8 +182,6 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
 fn @recycled() [selector=0xa163996f, abi_wrapper, pure] {
   bb0:
     v45 = icall @alloc, 96
-    v49 = calldatasize
-    calldatacopy v45, v49, 96
     mstore v45, 64
     v4 = add v45, 32
     mstore v4, 0x1111111111111111111111111111111111111111111111111111111111111111
@@ -244,7 +233,6 @@ fn @fresh() [selector=0xb466b76f, abi_wrapper, pure] {
 fn @freshEmpty() [selector=0x2f9cb906, abi_wrapper, pure] {
   bb0:
     v13 = icall @alloc, 32
-    mstore v13, 0
     mstore v13, 32
     v11 = add v13, 32
     mstore v11, 0
@@ -254,8 +242,6 @@ fn @freshEmpty() [selector=0x2f9cb906, abi_wrapper, pure] {
 fn @recycledTail() [selector=0x52eea5e4, abi_wrapper, pure] {
   bb0:
     v44 = icall @alloc, 96
-    v48 = calldatasize
-    calldatacopy v44, v48, 96
     mstore v44, 63
     v4 = add v44, 32
     mstore v4, 0x1111111111111111111111111111111111111111111111111111111111111111

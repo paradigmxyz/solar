@@ -204,13 +204,20 @@ bb18:
   jumpi
   push 32
   dup 2
-  dup 2
   add
-  lt
+  push 32
+  gt
   push bb34
   jumpi
+  push 128
+  dup 4
+  dup 2
+  mstore
+  push 32
+  add
   swap 1
-  push 160
+  swap 2
+  swap 1
   calldatacopy
   push 0
   mstore
