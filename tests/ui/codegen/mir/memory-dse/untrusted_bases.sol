@@ -39,7 +39,9 @@ contract UntrustedBases {
         assembly {
             mstore(0, 0xabc)
             calldatacopy(0x40, 4, 0x20)
-            r := keccak256(mload(0x40), 0x20)
+            // Keep the slot's word as data across heap-floor pointer clamping.
+            mstore(0x20, mload(0x40))
+            r := keccak256(mload(0x20), 0x20)
             mstore(0, 0)
             mstore(0x40, 0x80)
         }

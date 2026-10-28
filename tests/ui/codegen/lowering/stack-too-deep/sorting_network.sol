@@ -21,7 +21,7 @@ contract SortingNetworks {
     // CHECK-LABEL: @module SortingNetworks_runtime
     // The heap starts right after the reserved words: no spill frame lies below it.
     // Gas mode uses the initial heap base directly when allocating the array.
-    // GAS: push 5
+    // GAS: push 5{{$}}
     // GAS-NEXT: shl
     // GAS-NEXT: push 128{{$}}
     // GAS-NEXT: swap 1

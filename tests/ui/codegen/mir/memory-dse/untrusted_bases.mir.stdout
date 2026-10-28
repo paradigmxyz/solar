@@ -30,9 +30,11 @@ fn @copiedFreePointer(arg0: i256) -> i1 [selector=0x6af2de9e, pure, abi_params=[
     mstore 0, 0xabc !metadata(memory=scratch)
     calldatacopy 64, 4, 32 !metadata(memory=scratch)
     v0 = mload 64 !metadata(memory=scratch)
-    v1 = keccak256 v0, 32
+    mstore 32, v0 !metadata(memory=scratch)
+    v1 = mload 32 !metadata(memory=scratch)
+    v2 = keccak256 v1, 32
     mstore 0, 0 !metadata(memory=scratch)
     mstore 64, 128 !metadata(memory=scratch)
-    v2 = eq v1, 0x1f212fbb8f3ed578556c57cd51f8754656c7f723c2931b8f5e136c46bb23c2cf
-    ret v2
+    v3 = eq v2, 0x1f212fbb8f3ed578556c57cd51f8754656c7f723c2931b8f5e136c46bb23c2cf
+    ret v3
 }

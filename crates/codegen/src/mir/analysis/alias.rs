@@ -10,16 +10,13 @@
 //! header, another allocation, or reserved memory.
 //!
 //! An access keeps its allocation's identity while it stays inside the object: within the
-//! allocation's constant size, within the first word of a checked allocation, a Solidity object
-//! that always reserves one, or at a runtime index into an object of constant size, which `ptradd`
-//! keeps inside. An index into an object of runtime size is checked against a length word that
-//! inline assembly can enlarge past the allocation. That access, and any other that may leave a
-//! unique allocation, keeps no disjointness from other objects, but it shares the allocation's
-//! pointer and compares with its other accesses by offset. An
-//! access at the end of an object's payload, `p + 32 + len` in plain additions for a length
-//! stored into `p` before, as a zero word stored to pad a fresh result is, starts past the
-//! object's length word and may leave the object, when `len` is provably below `2^255`, so that
-//! the sum cannot wrap around onto the length word.
+//! allocation's constant size or the first word of a checked allocation, which reserves a
+//! header. Other accesses may leave the object and keep no disjointness from other objects,
+//! but constant offsets still separate accesses to the same pointer. Runtime indices retain
+//! their symbolic values, since forged lengths can admit offsets that wrap onto the header.
+//! An access at the end of an object's payload, `p + 32 + len`, starts past its length word
+//! when `len` is provably below `2^255` and an earlier length store bounds `p`. Such an access
+//! may leave the object but cannot wrap around onto its length word.
 
 use super::{CfgInfo, DominatorTree, MemoryCallSummaries};
 use crate::mir::{
@@ -100,9 +97,7 @@ pub(crate) enum MemoryBase {
     DynamicAllocation(InstId),
     /// A symbolic MIR value.
     Value(ValueId),
-    /// The pointer one fresh instruction returns, which no reset of the free-memory pointer
-    /// precedes: a free-memory-pointer read, or a unique `alloc` accessed beyond its proven
-    /// extent. Accesses start at their offset and never go below it.
+    /// The result of one free-memory-pointer read that no reset of the pointer can precede.
     FreeMemory(InstId),
 }
 
@@ -478,15 +473,11 @@ impl FreshFmps {
             (
                 MemoryBase::Allocation(alloc),
                 MemoryBase::FreeMemory(fresh) | MemoryBase::UnboundedAllocation(fresh),
-            ) => {
-                (alloc, fresh, [first.size, second.size])
-            }
+            ) => (alloc, fresh, [first.size, second.size]),
             (
                 MemoryBase::FreeMemory(fresh) | MemoryBase::UnboundedAllocation(fresh),
                 MemoryBase::Allocation(alloc),
-            ) => {
-                (alloc, fresh, [second.size, first.size])
-            }
+            ) => (alloc, fresh, [second.size, first.size]),
             _ => return false,
         };
         // A runtime index wraps, so an indexed access, to either allocation, may land below it.
@@ -888,10 +879,9 @@ impl AliasAnalysis {
         address
     }
 
-    /// Returns the memory an access at `address` may touch. Unlike [`Self::memory_location`],
-    /// which names the accessed word, this covers everything at or after `base + k` for an address
-    /// `ptradd (ptradd base, index), k` with a runtime index: `ptradd` does not wrap, so the
-    /// access stays inside the base's object.
+    /// Returns the memory an access at `address` may touch. A proved payload-end address
+    /// covers everything from the first payload byte upward; other addresses retain their
+    /// symbolic runtime indices and access sizes, as in [`Self::memory_location`].
     fn access_extent(
         &self,
         func: &Function,
@@ -908,28 +898,9 @@ impl AliasAnalysis {
         }
     }
 
-    /// Returns the memory an access at `address` may touch, without instruction metadata, as
-    /// [`Self::access_extent`] does.
-    #[must_use]
-    pub(crate) fn bare_access_extent(
-        &self,
-        func: &Function,
-        address: ValueId,
-        size: LocationSize,
-    ) -> Option<MemoryLocation> {
-        let (base, unknown_extent) = self.access_base(func, address)?;
-        if unknown_extent {
-            Some(MemoryLocation::new(base, LocationSize::Unknown))
-        } else {
-            Self::bounded_memory_location(func, base, size)
-        }
-    }
-
-    /// Returns a canonical access address and whether its extent is unknown. For an address
-    /// `ptradd (ptradd base, index), k` with a runtime index and constant `ptradd`s around it,
-    /// this returns `base + k` with an unknown extent; ordinary addresses retain their size.
-    /// The end of an object's payload, `p + 32 + len` for a length stored into `p`, is `p + 32`
-    /// in the same way, though an access there may leave the object.
+    /// Returns a canonical access address and whether its extent is unknown. The end of an
+    /// object's payload, `p + 32 + len`, has a proved lower bound at `p + 32` even when the exact
+    /// length is unknown. Other addresses retain their runtime indices, which may wrap.
     fn access_base(&self, func: &Function, address: ValueId) -> Option<(MemoryAddress, bool)> {
         if let Some(object) = Self::payload_end(func, address) {
             let base =
@@ -942,32 +913,7 @@ impl AliasAnalysis {
             };
             return Some((base, true));
         }
-        // The canonical address of the chain is the runtime-indexed `ptradd` plus `k`.
-        let address = self.memory_address(func, address)?;
-        let MemoryBase::Value(indexed) = address.base else { return Some((address, false)) };
-        let Value::Inst(inst) = func.value(indexed) else { return Some((address, false)) };
-        let InstKind::PtrAdd(base, index) = func.inst(*inst).kind else {
-            return Some((address, false));
-        };
-        if func.value_u64(index).is_some() {
-            return Some((address, false));
-        }
-        let base = self.memory_address(func, base)?.checked_add(address.offset)?;
-        // NOTE: `ptradd` keeps the access inside its object, but the bounds check of an
-        // object of runtime size reads its length word, which inline assembly can enlarge past
-        // the allocation, so an indexed access may reach the next object. It is named by the
-        // allocation's pointer value, as a direct access that may leave a unique allocation
-        // is, which keeps no disjointness from other objects but compares with the
-        // allocation's other accesses by offset, so indexed stores leave the header words.
-        let base = match base.base {
-            MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst)
-                if Self::allocation_size(func, inst).is_none() =>
-            {
-                Self::unbounded_allocation(func, base, inst)?
-            }
-            _ => base,
-        };
-        Some((base, true))
+        Some((self.memory_address(func, address)?, false))
     }
 
     /// Creates a memory location without instruction metadata.
@@ -1343,7 +1289,7 @@ impl AliasAnalysis {
             ))));
         }
         let read_memory = |effects: &mut ModRef, address, size| {
-            if let Some(location) = self.memory_location(
+            if let Some(location) = self.access_extent(
                 func,
                 inst_id,
                 resolve(address),
@@ -1369,7 +1315,7 @@ impl AliasAnalysis {
             }
         };
         let write_memory = |effects: &mut ModRef, address, size| {
-            if let Some(location) = self.memory_location(
+            if let Some(location) = self.access_extent(
                 func,
                 inst_id,
                 resolve(address),

@@ -107,8 +107,9 @@
 
 use crate::{
     mir::{
-        AllocationFailure, BasicBlock, BlockId, Callee, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MangledSymbol, MemoryRegion,
-        MirType, Module, PtrLocation, RawMemoryAccess, Terminator, Value, ValueId,
+        AllocationFailure, BasicBlock, BlockId, Callee, EffectKind, Function, FunctionId,
+        Immediate, InstId, InstKind, MangledSymbol, MemoryRegion, MirType, Module, PtrLocation,
+        RawMemoryAccess, Terminator, Value, ValueId,
         analysis::{
             Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
             MemoryAddress, MemoryBase, MemoryCallSummaries, MemoryLocation, ModRef, ReadBounds,
@@ -169,9 +170,17 @@ impl MirPass for MemoryDse {
             return false;
         }
         let free_pointer = free_pointer_trusted(module);
-        let terminal = Arc::new(terminal_liveness(module, analyses, free_pointer));
+        let terminal =
+            Arc::new(terminal_liveness(module, analyses, Target::new(gcx), free_pointer));
         let summaries = analyses.call_summaries(module);
-        let returns = Arc::new(return_facts(module, analyses, &summaries, &terminal, free_pointer));
+        let returns = Arc::new(return_facts(
+            module,
+            analyses,
+            &summaries,
+            &terminal,
+            Target::new(gcx),
+            free_pointer,
+        ));
         run_selected_function_pass_with_alias_and_cfg(
             module,
             analyses,
@@ -199,6 +208,7 @@ impl MirPass for MemoryDse {
 fn terminal_liveness(
     module: &Module,
     analyses: &mut ModuleAnalyses,
+    target: Target,
     free_pointer: bool,
 ) -> FxHashMap<FunctionId, MemLive> {
     let mut terminal = FxHashMap::default();
@@ -221,6 +231,7 @@ fn terminal_liveness(
         let eliminator = MemoryStoreEliminator::new(
             Rc::new(AliasAnalysis::new(func)),
             analyses.cfg(id, func),
+            target,
             false,
         )
         .with_free_pointer(free_pointer);
@@ -265,6 +276,7 @@ fn return_facts(
     analyses: &mut ModuleAnalyses,
     summaries: &Arc<MemoryCallSummaries>,
     terminal: &Arc<FxHashMap<FunctionId, MemLive>>,
+    target: Target,
     free_pointer: bool,
 ) -> ReturnFacts {
     let mut facts = ReturnFacts::default();
@@ -371,6 +383,7 @@ fn return_facts(
             let eliminator = MemoryStoreEliminator::new(
                 Rc::new(AliasAnalysis::empty_with_summaries(Arc::clone(summaries))),
                 analyses.cfg(caller, func),
+                target,
                 false,
             )
             .with_free_pointer(free_pointer)

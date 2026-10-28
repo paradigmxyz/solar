@@ -9,7 +9,9 @@ contract Test {
             mstore(0x40, shl(64, 1))
             mstore(0, 7)
             mstore(0x38, 0)
-            result := mload(mload(0x40))
+            // Keep the slot's word as data across heap-floor pointer clamping.
+            mstore(0x20, mload(0x40))
+            result := mload(mload(0x20))
             mstore(0x40, free)
         }
     }

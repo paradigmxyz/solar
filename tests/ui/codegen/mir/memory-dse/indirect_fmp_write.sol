@@ -9,7 +9,9 @@ contract Test {
             let free := mload(0x40)
             mstore(0, 7)
             mstore(offset, 0)
-            result := mload(mload(0x40))
+            // Keep the slot's word as data across heap-floor pointer clamping.
+            mstore(0x20, mload(0x40))
+            result := mload(mload(0x20))
             mstore(0x40, free)
         }
     }
