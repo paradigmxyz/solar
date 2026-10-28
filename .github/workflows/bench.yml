@@ -416,15 +416,14 @@ jobs:
       - name: Build the benchmark targets
         run: >-
           cargo codspeed build -m simulation --profile profiling
-          -p solar-bench -p solar-lsp
-          --bench criterion --bench lsp --bench lsp_diagnostic
-          --features solar-lsp/bench
+          -p solar-bench
+          --bench criterion
       - name: Run the benchmarks
         uses: CodSpeedHQ/action@821a40cd6c80e3cfe387caf55668287addd808da # v5.5.0
         with:
           run: >-
             cargo codspeed run -m simulation
-            -p solar-bench -p solar-lsp
-            --bench criterion --bench lsp --bench lsp_diagnostic
+            -p solar-bench
+            --bench criterion
           mode: simulation
           token: ${{ secrets.CODSPEED_TOKEN }}

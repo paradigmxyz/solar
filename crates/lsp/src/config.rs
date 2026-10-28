@@ -599,7 +599,7 @@ impl Config {
         Ok(self.apply_workspace_discovery(result))
     }
 
-    #[cfg(any(test, feature = "bench"))]
+    #[cfg(test)]
     pub(crate) fn discover_workspaces(
         &self,
         cancellation: &IndexingCancellation,
@@ -920,7 +920,7 @@ fn workspace_roots_from_initialize(
         .collect()
 }
 
-#[cfg(any(test, feature = "bench"))]
+#[cfg(test)]
 pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabilities, Config) {
     negotiate_capabilities_with_pull_diagnostic_data(params, false, &LaunchConfig::default())
 }
