@@ -1,0 +1,31 @@
+//@compile-flags: -Ogas -Zmir-pipeline=heap-floor
+@module HeapFloorDirtyEntry
+
+fn @hash(arg0: i256) {
+  bb0:
+    v0 = mload arg0
+    v1 = alloc 32
+    mstore v1, v0
+    ret
+}
+
+fn @twice(arg0: i256) {
+  bb0:
+    icall @hash, arg0
+    v1 = alloc 32
+    mstore v1, arg0
+    ret
+}
+
+fn @dirty(arg0: i256) [selector=0x11111111] {
+  bb0:
+    mstore arg0, 1
+    icall @twice, arg0
+    ret
+}
+
+fn @clean(arg0: i256) [selector=0x22222222] {
+  bb0:
+    icall @twice, arg0
+    ret
+}

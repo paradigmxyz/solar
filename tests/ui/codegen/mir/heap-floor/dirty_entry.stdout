@@ -1,0 +1,58 @@
+- // === ROOT/tests/ui/codegen/mir/heap-floor/dirty_entry.mir (before heap-floor) ===
++ // === ROOT/tests/ui/codegen/mir/heap-floor/dirty_entry.mir (after heap-floor) ===
+  @module HeapFloorDirtyEntry
+- fn @hash(arg0: i256) {
++ fn @hash.0(arg0: i256) {
+    bb0:
+      v0 = mload arg0
+      v1 = alloc 32
+      mstore v1, v0
+      ret
+  }
+  
+- fn @twice(arg0: i256) {
++ fn @twice.1(arg0: i256) {
+    bb0:
+-     icall @hash, arg0
++     icall @hash.0, arg0
+      v0 = alloc 32
+      mstore v0, arg0
+      ret
+  }
+  
+  fn @dirty(arg0: i256) [selector=0x11111111] {
+    bb0:
+      mstore arg0, 1
+-     icall @twice, arg0
++     icall @twice.4, arg0
+      ret
+  }
+  
+  fn @clean(arg0: i256) [selector=0x22222222] {
+    bb0:
+-     icall @twice, arg0
++     icall @twice.1, arg0
++     ret
++ }
++ 
++ fn @twice.4(arg0: i256) {
++   bb0:
++     icall @hash.5, arg0
++     v0 = alloc 32
++     mstore v0, arg0
++     ret
++ }
++ 
++ fn @hash.5(arg0: i256) {
++   bb0:
++     v0 = mload arg0
++     v2 = mload 64 !metadata(memory=scratch)
++     v3 = heap_floor
++     v4 = lt v2, v3
++     v5 = select v4, v3, v2
++     mstore 64, v5 !metadata(memory=scratch)
++     v1 = alloc 32
++     mstore v1, v0
+      ret
+  }
+  
