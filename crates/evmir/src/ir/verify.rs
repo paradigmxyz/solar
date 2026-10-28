@@ -1057,17 +1057,25 @@ fn label_flow(module: &Module, block: &Block, may_return: &DenseBitSet<BlockId>)
 }
 
 fn label_flows(module: &Module) -> IndexVec<BlockId, LabelFlow> {
-    // The blocks from which a dynamic jump is reachable. A call reaches its callee, whose return
-    // is one, so the calls' own return edges are not needed.
+    // The blocks from which a dynamic jump or branch is reachable. A call reaches its callee, whose
+    // return is one, so the calls' own return edges are not needed.
     let mut predecessors = index_vec![Vec::new(); module.blocks.len()];
     let mut may_return = DenseBitSet::new_empty(module.blocks.len());
     let mut pending = Vec::new();
     let mut successors = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
-        if matches!(
-            block.terminator.as_ref().map(|term| &term.kind),
-            Some(TerminatorKind::Op(op::JUMP))
-        ) {
+        let dynamic_branch = block.instructions.iter().enumerate().any(|(at, inst)| {
+            inst.opcode == op::JUMPI
+                && !at
+                    .checked_sub(1)
+                    .is_some_and(|previous| block.instructions[previous].pushed_block().is_some())
+        });
+        if dynamic_branch
+            || matches!(
+                block.terminator.as_ref().map(|term| &term.kind),
+                Some(TerminatorKind::Op(op::JUMP))
+            )
+        {
             pending.push(block_id);
         }
         successors.clear();
