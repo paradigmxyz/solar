@@ -401,7 +401,7 @@ impl MirInliner {
                     // The price of its sites was for the body it had.
                     consumed_everywhere.remove(&caller_id);
                     if always {
-                        module.tagged_inline_growth += summary.instruction_count;
+                        module.tagged_inline_growth += Self::tagged_size(&summary);
                     }
                     if call_counts.get(&site.callee) == Some(&1) {
                         stats.consumed.push(site.callee);
@@ -737,8 +737,15 @@ impl MirInliner {
     /// tagged clones, this one included, fit their budget.
     fn always_inline(module: &Module, callee: MirFunctionId, summary: &MirInlineSummary) -> bool {
         module.function(callee).attributes.always_inline
-            && module.tagged_inline_growth.saturating_add(summary.instruction_count)
+            && module.tagged_inline_growth.saturating_add(Self::tagged_size(summary))
                 <= Self::TAGGED_BUDGET
+    }
+
+    /// What a tagged clone adds to the module: its instructions and its blocks. A block's
+    /// terminator is not an instruction, so counting blocks lets empty helpers that call each
+    /// other spend the budget too.
+    fn tagged_size(summary: &MirInlineSummary) -> usize {
+        summary.instruction_count + summary.block_count
     }
 }
 
