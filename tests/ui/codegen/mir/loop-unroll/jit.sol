@@ -16,9 +16,10 @@
 // at 200 runs. The loop that carries five words stays rolled, because a JIT keeps a word in four
 // registers and spills the words of a wider loop to the stack on every iteration. Each unrolled
 // loop adds a main loop whose header has the same phis as the original: with `many` as the
-// reference, counting phis shows which loops unrolled (`few` 2 + `many` 5 = 7, `few` unrolled
-// 2 + 2 + 5 = 9, both unrolled 2 + 2 + 5 + 5 = 14).
-// NONE-COUNT-7: = phi
+// reference, counting phis shows which loops unrolled (`few` 2 + `many` 5 + `eight` 5 = 12, `few` unrolled
+// 2 + 2 + 5 = 9, `many` unrolled as well 2 + 2 + 5 + 5 = 14). `eight` runs eight times, so it unrolls
+// completely and leaves no loop to carry its five words; it adds 5 phis while rolled.
+// NONE-COUNT-12: = phi
 // NONE-NOT: phi
 // JIT-COUNT-9: = phi
 // JIT-NOT: phi
@@ -28,6 +29,17 @@ contract JitLoops {
     function few(uint256 n) external pure returns (uint256 sum) {
         unchecked {
             for (uint256 i; i < n; ++i) sum += i * 3;
+        }
+    }
+
+    function eight() external pure returns (uint256 a, uint256 b, uint256 c, uint256 d) {
+        unchecked {
+            for (uint256 i; i < 8; ++i) {
+                a += i;
+                b ^= a;
+                c += b;
+                d ^= c + i;
+            }
         }
     }
 

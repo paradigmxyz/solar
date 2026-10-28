@@ -150,6 +150,8 @@ every ranking uses, gas for `none` and gas plus a dispatch charge per executed
 instruction for `interpreter`. `jit` emits no jump a bytecode JIT cannot resolve, because one
 unresolved jump makes it drop every resolution in the contract: `Target::packs_wide_jump_tables`
 keeps the shifted pick of packed wide jump tables off even with `-Zpack-wide-jump-tables`.
+`jit` also unrolls and peels loops from the default 200 runs, except loops that carry more than
+three words across the back edge (`Target::unrolls_loops`, `Target::unrolls_loop_carrying`).
 Creation code has its own model, `Target::priced_for(true)`, under the gas
 objective. It runs once per deployment, and the deployment transaction pays
 calldata gas (`byte_gas`: 16 per byte, 68 before Istanbul) for each byte instead

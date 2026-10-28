@@ -1,7 +1,7 @@
 //@ revisions: stride wide jit
 //@ compile-flags: -Zevm-ir-pipeline=none -O none -Zdump=disasm-runtime
 //@[wide] compile-flags: -Zpack-wide-jump-tables
-//@[jit] compile-flags: -Ztune=jit
+//@[jit] compile-flags: -Ztune=jit -Zpack-wide-jump-tables
 //@[stride] filecheck: --check-prefix=STRIDE
 //@[wide] filecheck: --check-prefix=WIDE
 //@[jit] filecheck: --check-prefix=STRIDE

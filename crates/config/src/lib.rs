@@ -284,7 +284,7 @@ str_enum! {
         /// Tune for an interpreter, which spends time on every executed instruction.
         Interpreter,
         /// Tune for a bytecode JIT, which resolves jump targets statically: emit no jump the JIT
-        /// cannot resolve.
+        /// cannot resolve, and unroll small loops from the default optimizer runs.
         Jit,
     }
 }
