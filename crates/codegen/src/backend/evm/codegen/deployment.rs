@@ -152,6 +152,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             copy_base,
             &immutable_refs,
         );
+        if self.gcx.dcx().has_errors().is_err() {
+            return EvmArtifact::default();
+        }
         self.asm.optimize();
         let deploy_code = self.asm.assemble_linked(
             bytecodes,

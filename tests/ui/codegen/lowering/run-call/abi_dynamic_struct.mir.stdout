@@ -672,3 +672,184 @@ fn @zeroNestedDynamicAggregateAfterScratch() -> i256 [selector=0x84af5c73, pure,
     v10 = add v1, 1
     jump bb1
 }
+
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_dynamic_struct.sol:WideCalldataEncoding ===
+@module WideCalldataEncoding
+@immutables
+  factory: address
+  codePart1: uint256
+  codePart2: uint256
+  firstLength: uint256
+  secondLength: uint256
+
+fn @factory() -> i160 [selector=0xc45a0155, view, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
+  bb0:
+    v0 = loadimmutable factory
+    ret v0
+}
+
+fn @codePart1() -> i256 [selector=0xad17d51d, view, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
+  bb0:
+    v0 = loadimmutable codePart1
+    ret v0
+}
+
+fn @codePart2() -> i256 [selector=0xd1dca5f5, view, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
+  bb0:
+    v0 = loadimmutable codePart2
+    ret v0
+}
+
+fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
+  bb0:
+    v0 = address
+    storeimmutable factory, v0
+    v1 = caller
+    v2 = zext i160 v1 to i256
+    storeimmutable codePart1, v2
+    v3 = caller
+    v4 = zext i160 v3 to i256
+    storeimmutable codePart2, v4
+    storeimmutable firstLength, arg0
+    storeimmutable secondLength, arg0
+    ret
+}
+
+fn @deploy(arg0: slice<calldata>, arg1: i160) -> i256 [selector=0xea6715b4, abi_params=[tuple<bytes, bytes, bytes32, bytes, bytes, bytes, uint256, uint256, uint256, uint256, address, address, bytes32, uint16, uint32, uint256, address, uint256, uint256, address, uint256, uint256, uint256, uint256>, address], abi_returns=[word<uint160>], abi_return_params=[address]] {
+  bb0:
+    v0 = caller
+    v1 = loadimmutable factory
+    v2 = ne v0, v1
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v3 = loadimmutable firstLength
+    v4 = loadimmutable secondLength
+    v5 = checked_add uint256, v3, v4
+    v6 = add v5, 63
+    v7 = lt v6, v5
+    icall panic_if<0x41>, v7
+    v8 = not 31
+    v9 = and v6, v8
+    v10 = alloc zeroed checked v9
+    mstore v10, v5
+    v11 = loadimmutable codePart1
+    v12 = loadimmutable codePart2
+    v13 = loadimmutable firstLength
+    v14 = loadimmutable secondLength
+    v15 = ptrtoint ptr<memory> v10 to i256
+    v16 = add v15, 32
+    extcodecopy v11, v16, 1, v13
+    v17 = ptrtoint ptr<memory> v10 to i256
+    v18 = add v17, 32
+    v19 = add v18, v13
+    extcodecopy v12, v19, 1, v14
+    v20 = zext i160 arg1 to i256
+    v21 = abi_encode [tuple<calldata_bytes, calldata_bytes, word, calldata_bytes, calldata_bytes, calldata_bytes, word, word, word, word, word<uint160>, word<uint160>, word, word<uint16>, word<uint32>, word, word<uint160>, word, word, word<uint160>, word, word, word, word>, word<uint160>], object, args arg0, v20
+    v22 = abi_encode_packed (bytes v10, bytes v21)
+    v23 = ptrtoint ptr<memory> v22 to i256
+    v24 = mload v22
+    v25 = ptrtoint ptr<memory> v22 to i256
+    v26 = add v25, 32
+    v27 = create 0, v26, v24
+    v28 = zext i160 v27 to i256
+    v29 = eq v27, i160 0
+    jumpi v29, bb4, bb5
+  bb5:
+    jump bb6
+  bb6:
+    ret v28
+  bb4:
+    icall require<custom_error []>, false, 0x3011642500000000000000000000000000000000000000000000000000000000
+    invalid
+  bb1:
+    icall require<custom_error []>, false, 0xc6d42ae00000000000000000000000000000000000000000000000000000000
+    invalid
+}
+
+fn @check() -> i256 [selector=0x919840ad, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 768 !metadata(preserves_fmp)
+    memory_zero v0, 768
+    mstore v0, 96
+    v1 = ptradd v0, 32
+    mstore v1, 96
+    v2 = ptradd v0, 96
+    mstore v2, 96
+    v3 = ptradd v0, 128
+    mstore v3, 96
+    v4 = ptradd v0, 160
+    mstore v4, 96
+    v5 = alloc 64 !metadata(preserves_fmp)
+    mstore v5, 3
+    v6 = ptradd v5, 32
+    mstore v6, 0x6361740000000000000000000000000000000000000000000000000000000000
+    v7 = ptrtoint ptr<memory> v5 to i256
+    mstore v0, v7
+    v8 = alloc 64 !metadata(preserves_fmp)
+    mstore v8, 3
+    v9 = ptradd v8, 32
+    mstore v9, 0x4341540000000000000000000000000000000000000000000000000000000000
+    v10 = ptrtoint ptr<memory> v8 to i256
+    v11 = ptradd v0, 32
+    mstore v11, v10
+    v12 = alloc 64 !metadata(preserves_fmp)
+    mstore v12, 3
+    v13 = ptradd v12, 32
+    mstore v13, 0x6f6e650000000000000000000000000000000000000000000000000000000000
+    v14 = ptrtoint ptr<memory> v12 to i256
+    v15 = ptradd v0, 96
+    mstore v15, v14
+    v16 = alloc 64 !metadata(preserves_fmp)
+    mstore v16, 3
+    v17 = ptradd v16, 32
+    mstore v17, 0x7265640000000000000000000000000000000000000000000000000000000000
+    v18 = ptrtoint ptr<memory> v16 to i256
+    v19 = ptradd v0, 128
+    mstore v19, v18
+    v20 = alloc 64 !metadata(preserves_fmp)
+    mstore v20, 4
+    v21 = ptradd v20, 32
+    mstore v21, 0x626c756500000000000000000000000000000000000000000000000000000000
+    v22 = ptrtoint ptr<memory> v20 to i256
+    v23 = ptradd v0, 160
+    mstore v23, v22
+    v24 = ptradd v0, 192
+    mstore v24, 7
+    v25 = ptradd v0, 544
+    mstore v25, 11
+    v26 = ptradd v0, 736
+    mstore v26, 13
+    v27 = address
+    v28 = gas
+    v29 = abi_encode [tuple<memory_bytes, memory_bytes, word, memory_bytes, memory_bytes, memory_bytes, word, word, word, word, word<uint160>, word<uint160>, word, word<uint16>, word<uint32>, word, word<uint160>, word, word, word<uint160>, word, word, word, word>, word<uint160>], selector 0xea6715b400000000000000000000000000000000000000000000000000000000, args v0, 17
+    v30 = extract_value slice<memory>, v29, 0
+    v31 = extract_value slice<memory>, v29, 1
+    v32 = zext i160 v27 to i256
+    v33 = call v28, v32, 0, v30, v31, 0, 32
+    jumpi v33, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v34 = returndatasize
+    v35 = lt v34, 32
+    icall revert_if<tuple_data_too_short>, v35
+    v36 = add 0, 0
+    v37 = mload v36
+    v38 = shr v37, 160
+    v39 = eq v38, 0
+    v40 = eq v39, false
+    icall revert_if<empty>, v40
+    v41 = trunc i256 v37 to i160
+    v42 = eq v41, i160 0
+    jumpi v42, bb3, bb4
+  bb4:
+    jump bb5
+  bb3:
+    jump bb5
+  bb5:
+    v43 = phi [bb3: i8 0], [bb4: i8 1]
+    v44 = zext i8 v43 to i256
+    ret v44
+}
