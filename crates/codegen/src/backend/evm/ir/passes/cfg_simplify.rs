@@ -59,15 +59,8 @@ use super::{
 };
 use crate::backend::evm::{
     ir::{
-        Block, BlockId, Instruction, Metadata, Module, ModuleTarget, PushValue, Terminator,
-        TerminatorKind,
-    },
-    op,
-};
-use crate::backend::evm::{
-    ir::{
-        Block, BlockId, CallEffect, Instruction, Metadata, Module, PushValue, StackEffect,
-        Terminator, TerminatorKind, default_terminator_stack_effect,
+        Block, BlockId, CallEffect, Instruction, Metadata, Module, ModuleTarget, PushValue,
+        StackEffect, Terminator, TerminatorKind, default_terminator_stack_effect,
     },
     op,
 };
