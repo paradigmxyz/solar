@@ -680,9 +680,8 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             runtime_data.as_ref(),
             crate::link::qualified_name(gcx, contract_id),
         );
-        let capture_built = capture_mir
-            && !module.runs_objective(|objective| !objective.is_none())
-            && gcx.sess.opts.unstable.mir_pipeline.is_none();
+        let capture_built =
+            capture_mir && !module.is_optimized() && gcx.sess.opts.unstable.mir_pipeline.is_none();
         let built_mir = (capture_built && needs_backend).then(|| module.clone());
         let codegen = if needs_backend {
             module.set_debug_info_tracked(captures.debug_info.contains(contract_id));

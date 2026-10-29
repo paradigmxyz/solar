@@ -15,11 +15,10 @@
 //! tradeoff: one exit computation can replace repeated backedge stack cleanup.
 
 use crate::mir::{
-    BlockId, Function, FunctionId, InstKind, Instruction, Module, Terminator, Value,
-    pass::{MirPass, ModuleAnalyses},
+    BlockId, Function, InstKind, Instruction, Module, Terminator, Value,
+    pass::{MirPass, ModuleAnalyses, run_function_pass},
 };
 use solar_config::OptimizationMode;
-use solar_data_structures::index::IndexVec;
 use solar_sema::Gcx;
 
 pub(crate) struct LoopExitRemat;
@@ -29,27 +28,12 @@ impl MirPass for LoopExitRemat {
         "loop-exit-remat"
     }
 
-    fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
-        module.runs_objective(OptimizationMode::is_gas)
-    }
-
     fn runs_on(&self, objective: OptimizationMode) -> bool {
         objective.is_gas()
     }
 
     fn run_pass(&self, _: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        let selected = module
-            .functions
-            .indices()
-            .map(|id| analyses.runs_on(module, id))
-            .collect::<IndexVec<FunctionId, _>>();
-        let mut changed = false;
-        for (id, func) in module.functions.iter_mut_enumerated() {
-            if selected[id] {
-                changed |= run(func);
-            }
-        }
-        changed
+        run_function_pass(module, analyses, |func, _| run(func))
     }
 }
 

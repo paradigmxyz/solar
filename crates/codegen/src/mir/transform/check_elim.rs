@@ -404,6 +404,10 @@ impl MirPass for ImmutableCheckElim {
         "immutable-check-elim"
     }
 
+    fn is_contract_wide(&self) -> bool {
+        true
+    }
+
     fn run_pass(
         &self,
         gcx: solar_sema::Gcx<'_>,

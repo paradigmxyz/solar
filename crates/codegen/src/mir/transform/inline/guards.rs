@@ -18,12 +18,14 @@
 
 use crate::{
     mir::{
-        BlockId, EffectKind, Function, FunctionId, InstKind, Instruction, MirType, Module,
-        Terminator, Value, ValueId, analysis::CfgInfo,
+        BlockId, EffectKind, Function, InstKind, Instruction, MirType, Module, Terminator, Value,
+        ValueId, analysis::CfgInfo,
     },
     target::Target,
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_config::OptimizationMode;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_sema::Gcx;
 
 struct Guard {
     function: Function,
@@ -31,8 +33,8 @@ struct Guard {
     returns_if: bool,
 }
 
-pub(super) fn inline_guards(module: &mut Module, targets: &IndexVec<FunctionId, Target>) -> bool {
-    if !targets.iter().any(|target| target.optimization().is_gas()) {
+pub(super) fn inline_guards(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    if !module.runs_objective(OptimizationMode::is_gas) {
         return false;
     }
     let guards = module
@@ -44,9 +46,10 @@ pub(super) fn inline_guards(module: &mut Module, targets: &IndexVec<FunctionId, 
         return false;
     }
     let mut changed = false;
+    let module_objective = module.optimization;
     for (caller, func) in module.functions.iter_mut_enumerated() {
-        let target = &targets[caller];
         // A clone joins its caller's code, so the caller's objective prices it.
+        let target = &Target::new(gcx, func.attributes.optimization.unwrap_or(module_objective));
         if !target.optimization().is_gas() {
             continue;
         }

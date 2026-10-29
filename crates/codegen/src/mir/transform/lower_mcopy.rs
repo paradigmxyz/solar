@@ -101,14 +101,13 @@ impl MirPass for LowerMCopy {
         }
 
         let target = module.target(gcx);
-        let summaries = module
-            .runs_objective(|objective| !objective.is_none())
-            .then(|| analyses.call_summaries(module));
+        let summaries = module.is_optimized().then(|| analyses.call_summaries(module));
         let sites = module
             .functions
             .iter_enumerated()
             .map(|(id, func)| {
-                copy_sites(func, !constructor_reachable.contains(id), summaries.as_ref())
+                let summaries = summaries.as_ref().filter(|_| !module.objective(id).is_none());
+                copy_sites(func, !constructor_reachable.contains(id), summaries)
             })
             .collect::<IndexVec<FunctionId, _>>();
 

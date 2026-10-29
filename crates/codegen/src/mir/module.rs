@@ -235,9 +235,9 @@ impl Module {
         target::Target::new(gcx, self.objective_of(func))
     }
 
-    /// Returns the cost model of `func`'s code.
-    pub(crate) fn function_target(&self, gcx: Gcx<'_>, func: FunctionId) -> target::Target {
-        target::Target::new(gcx, self.objective(func))
+    /// Returns whether any of the module's code is optimized.
+    pub(crate) fn is_optimized(&self) -> bool {
+        self.runs_objective(|objective| !objective.is_none())
     }
 
     /// Returns whether code compiled for some objective satisfies `wanted`: the contract's own

@@ -338,13 +338,15 @@ impl LowerAbiCx {
         }
 
         let mut body_of_wrapper = FxHashMap::default();
+        let no_canonical_return_calls = FxHashSet::default();
         for id in targets {
+            let gas_mode = module.objective(id).is_gas();
             if let Some(body_id) = self.wrap_function(
                 module,
                 id,
                 internally_called.contains(id),
-                module.objective(id).is_gas(),
-                &canonical_return_calls,
+                gas_mode,
+                if gas_mode { &canonical_return_calls } else { &no_canonical_return_calls },
             ) {
                 body_of_wrapper.insert(id, body_id);
             }

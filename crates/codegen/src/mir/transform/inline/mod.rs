@@ -118,11 +118,6 @@ impl MirPass for Inline {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let target = module.target(gcx);
-        let targets = module
-            .functions
-            .indices()
-            .map(|id| module.function_target(gcx, id))
-            .collect::<IndexVec<MirFunctionId, _>>();
         let physical = matches!(self, Self::Physical) || module.phase >= MirPhase::Lowered;
         let tagged_only = matches!(self, Self::Tagged);
         if tagged_only && !module.functions.iter().any(|function| function.attributes.always_inline)
@@ -134,16 +129,9 @@ impl MirPass for Inline {
             let calls = analyses.fresh_call_summaries(module);
             let straight_line = module.creation_pricing_functions().1;
             let shared_runs = target.optimization().is_size().then(|| SharedRuns::new(module));
-            let stats = MirInliner {
-                target,
-                targets: &targets,
-                physical,
-                tagged_only,
-                calls,
-                straight_line,
-                shared_runs,
-            }
-            .run(module, analyses);
+            let stats =
+                MirInliner { target, physical, tagged_only, calls, straight_line, shared_runs }
+                    .run(gcx, module, analyses);
             for &caller in &stats.modified {
                 analyses.invalidate_local_summary(caller);
             }
@@ -160,7 +148,7 @@ impl MirPass for Inline {
         }
         let mut edited_later = false;
         if physical && !tagged_only {
-            edited_later = guards::inline_guards(module, &targets);
+            edited_later = guards::inline_guards(gcx, module);
             if !target.optimization().is_none() && dispatch::inline_dispatch(module, &target) {
                 let _ = super::cfg_simplify::FunctionDce.run_pass(gcx, module, analyses);
                 edited_later = true;
@@ -181,6 +169,10 @@ impl MirPass for SpecializeFunctionPointers {
         "specialize-function-pointers"
     }
 
+    fn is_contract_wide(&self) -> bool {
+        true
+    }
+
     fn run_pass(
         &self,
         _gcx: Gcx<'_>,
@@ -196,12 +188,11 @@ impl MirPass for SpecializeFunctionPointers {
 /// This pass clones small internal/private callees into their callers. Each
 /// inline expansion gets a fresh internal-frame range so copied local slots do
 /// not overlap caller locals.
-struct MirInliner<'a> {
+struct MirInliner {
     /// The cost model of the contract, which summarizes callee bodies and prices what spans
-    /// functions, such as the code the backend shares between them.
+    /// functions, such as the code the backend shares between them. A call is priced by its
+    /// caller's own.
     target: Target,
-    /// The cost model of each function's code, which prices the calls it makes.
-    targets: &'a IndexVec<MirFunctionId, Target>,
     physical: bool,
     /// Clone only `@custom:solar-inline` callees.
     tagged_only: bool,
@@ -213,7 +204,7 @@ struct MirInliner<'a> {
     shared_runs: Option<SharedRuns>,
 }
 
-impl MirInliner<'_> {
+impl MirInliner {
     /// A hot leaf shared by more call sites than this stays a call: every
     /// clone deposits the whole body again.
     const MAX_HOT_LEAF_CALL_SITES: usize = 8;
@@ -280,9 +271,14 @@ struct MirInlineSummary {
     is_scalar: bool,
 }
 
-impl MirInliner<'_> {
+impl MirInliner {
     /// Runs the inliner over the whole module.
-    fn run(&mut self, module: &mut Module, analyses: &ModuleAnalyses) -> MirInlineStats {
+    fn run(
+        &mut self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        analyses: &ModuleAnalyses,
+    ) -> MirInlineStats {
         let mut stats = MirInlineStats::default();
 
         let call_graph = CallGraphInfo::new(module);
@@ -327,7 +323,7 @@ impl MirInliner<'_> {
                 continue;
             }
             // A clone joins its caller's code, so the caller's objective prices the call.
-            let caller_target = self.targets[caller_id];
+            let caller_target = module.target_of(gcx, module.function(caller_id));
             let mut loop_costs = block_loop_costs(module.function(caller_id));
             // Bound how much each caller may grow from inlining so a function
             // calling many internal helpers (e.g. a large verifier) cannot

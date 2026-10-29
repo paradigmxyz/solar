@@ -97,25 +97,27 @@ objective its contract already has changes nothing.
 What follows a function's objective:
 
 - The MIR passes that rewrite one function at a time, such as loop unrolling, hoisting, check
-  elimination, and the stack-based cost models they use, run on the function for its objective
-  and skip it when its objective does not run them.
+  elimination, and the cost models they use, run on the function for its objective and skip it
+  when its objective does not run them.
 - A call is inlined by the objective of its caller. A function cloned into a caller with another
   objective joins the caller's code, so the caller's objective optimizes the clone, whatever the
   objective of the function it came from.
-- The code of an external function's ABI wrapper, the lowering of its source, and its stack
-  scheduling, block layout, and the EVM IR decisions that price a block (stack rescheduling, tail
-  merging, push compaction) in the backend.
+- The code of an external function's ABI wrapper and the lowering of its source.
+- The backend's stack scheduling of the function and its choice of constants' encodings. In a
+  contract built optimized, the EVM IR decisions that price a block, such as stack rescheduling
+  and the priced part of tail merging, use it too.
 
 What stays with the objective of the contract, since it concerns several functions at once:
 
 - The dispatcher, the helpers that several functions share (ABI encoders and decoders, revert
   stubs, memory allocation and copy helpers), and the layout of immutables.
-- The passes that rewrite functions together: specialization, dead-argument elimination,
-  merging of equivalent functions, revert outlining, call, element and allocation cleanup,
-  read-only evaluation, and deferred allocation. They run when the objective of the contract runs
-  them.
+- The passes that rewrite functions together: specialization, function-pointer specialization,
+  dead-argument elimination, merging of equivalent functions, revert outlining, no-return call
+  ends, call, element and allocation cleanup, read-only evaluation, deferred allocation, and
+  immutable check elimination. They run when the objective of the contract runs them.
 - The EVM IR passes of the module as a whole, such as block layout, outlining, and tail
   duplication, and the assembler's jump table packing. The contract's objective enables them.
 
 So in a contract built unoptimized, a tagged function gets the function-local MIR passes,
-inlining into its code, and its backend decisions, but not the contract-wide passes above.
+inlining into its code, and its stack scheduling and constant encodings, but not the
+contract-wide passes above.

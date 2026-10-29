@@ -1182,11 +1182,7 @@ fn run_parallel_function_pass(
         }
     }
     let summaries = first_missing.map(|_| analyses.call_summaries(module));
-    let objectives = module
-        .functions
-        .indices()
-        .map(|id| module.objective(id))
-        .collect::<IndexVec<FunctionId, _>>();
+    let module_objective = module.optimization;
 
     let tasks = module
         .functions
@@ -1202,7 +1198,8 @@ fn run_parallel_function_pass(
                     |alias| Rc::into_inner(alias).expect("alias snapshot is unshared"),
                 )
             });
-            (id, func, alias, cfg, pricing[id], objectives[id])
+            let objective = func.attributes.optimization.unwrap_or(module_objective);
+            (id, func, alias, cfg, pricing[id], objective)
         })
         .collect::<Vec<_>>();
     let results = sync::par_try_map(

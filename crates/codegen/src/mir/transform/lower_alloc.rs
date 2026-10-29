@@ -32,7 +32,6 @@ use crate::mir::{
     pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
     transform::utils::redirect_successor_predecessors,
 };
-use solar_config::OptimizationMode;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
@@ -50,16 +49,7 @@ impl MirPass for LowerAlloc {
     }
 
     fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        // The memory facts span functions, so they are computed once any of them is optimized.
-        let fresh = if !module.runs_objective(|objective| !objective.is_none()) {
-            FreshFmpReads::none()
-        } else {
-            FreshFmpReads::new(
-                module,
-                || analyses.call_summaries(module),
-                module.runs_objective(OptimizationMode::is_gas),
-            )
-        };
+        let fresh = FreshFmpReads::new(module, || analyses.call_summaries(module));
         lower_alloc(module, analyses, &fresh)
     }
 }
