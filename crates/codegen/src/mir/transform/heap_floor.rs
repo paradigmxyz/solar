@@ -79,7 +79,8 @@
 //!
 //! A callee that also reads the slot as data is entered and clamped inside. A helper that stores
 //! a scratch word thus keeps it for a caller that hashes it, while a caller that allocates from it
-//! clamps it on its own path.
+//! clamps it on its own path. When the callee clamps or replaces the slot on every path that
+//! returns, the caller's walk ends at the call, since the reads after it find a raised word.
 //!
 //! The pass runs first, on semantic MIR, so the passes that forward the slot's stored value to
 //! its loads or delete its dead stores see the clamped value. Codegen is too late to clamp: load
@@ -104,7 +105,10 @@
 //! such as an encoding takes. Writes replace the word only when one block covers all of its bytes.
 //! A loaded word passed to a callee or returned to callers that read it as a pointer is clamped as
 //! a whole there, even if they also read it as data, and a word an external function returns as
-//! data is clamped as a whole in each internal caller that reads it as a pointer. See CODEGEN-010.
+//! data is clamped as a whole in each internal caller that reads it as a pointer. A helper that
+//! one entry calls with a clean slot and another with a dirty one keeps its clamp for both, so the
+//! clean calls pay for it; a copy of the helper for the dirty calls would remove that cost, but it
+//! adds code size that the target cost model does not price. See CODEGEN-010.
 
 use crate::mir::{
     AbiType, ArgIdx, BlockId, Callee, CheckedOp, EffectKind, Function, FunctionId, Immediate,
@@ -1126,6 +1130,9 @@ struct PointerUses<'a> {
     caller_roots: Vec<(FunctionId, BlockId, InstId)>,
     /// The stretches the clamp placement has walked for any store, which add their clamps once.
     walked: FxHashSet<Walk>,
+    /// Whether each function raises or replaces the slot's word on every path that returns, once
+    /// known.
+    raises_slot: FxHashMap<FunctionId, bool>,
 }
 
 impl<'a> PointerUses<'a> {
@@ -1144,6 +1151,7 @@ impl<'a> PointerUses<'a> {
             load_roots: FxIndexMap::default(),
             caller_roots: Vec::new(),
             walked: FxHashSet::default(),
+            raises_slot: FxHashMap::default(),
         }
     }
 
@@ -1346,6 +1354,11 @@ impl<'a> PointerUses<'a> {
                                 start: 0,
                                 returns: Returns::ToCall { data_after },
                             });
+                            // The callee raises the slot before it returns, so the reads after
+                            // the call see a raised word.
+                            if self.raises_slot(callee) {
+                                return;
+                            }
                         } else {
                             clamps.insert(Clamp::Slot(func_id, block, Some(inst_id)));
                             return;
@@ -1379,6 +1392,9 @@ impl<'a> PointerUses<'a> {
                             start: 0,
                             returns: Returns::ToCall { data_after },
                         });
+                        if self.raises_slot(function) {
+                            return;
+                        }
                     } else {
                         clamps.insert(Clamp::Slot(func_id, block, None));
                         return;
@@ -1420,6 +1436,79 @@ impl<'a> PointerUses<'a> {
             start: index + 1,
             returns: Returns::ToCallers,
         }));
+    }
+
+    /// Returns whether every path that returns from `func_id` has raised the slot's word to the
+    /// heap floor, or replaced it, on the way: where the placement walks into the function, it
+    /// clamps the first pointer read of each path, and a path that reads none ends the walk with
+    /// the word still in the slot.
+    ///
+    /// A call that reads the slot only as the pointer counts as a raise too, and so does a call to
+    /// a function that raises it. A cycle of calls counts as no raise.
+    fn raises_slot(&mut self, func_id: FunctionId) -> bool {
+        if let Some(&raises) = self.raises_slot.get(&func_id) {
+            return raises;
+        }
+        // A function in the middle of this search raises nothing yet, so a result that depends on
+        // a cycle may lose a raise, depending on the order of the search.
+        self.raises_slot.insert(func_id, false);
+        let raises = self.walk_raises_slot(func_id);
+        self.raises_slot.insert(func_id, raises);
+        raises
+    }
+
+    /// Walks the paths of `func_id` as [`Self::flow_from`] does, but ends a path where it raises
+    /// the slot, instead of following the word on to its later reads.
+    fn walk_raises_slot(&mut self, func_id: FunctionId) -> bool {
+        let module = self.module;
+        let func = &module.functions[func_id];
+        let mut visited = DenseBitSet::new_empty(func.blocks.len());
+        visited.insert(BlockId::ENTRY);
+        let mut pending = vec![BlockId::ENTRY];
+        while let Some(block) = pending.pop() {
+            let data = &func.blocks[block];
+            let mut written = 0;
+            let raised = data.instructions.iter().any(|&inst_id| {
+                match self.effect(func_id, inst_id, &mut written) {
+                    Effect::None
+                    | Effect::ReadsData
+                    | Effect::LoadsPointer
+                    | Effect::LoadsMixed => false,
+                    Effect::Replaces | Effect::ReadsDataAndReplaces | Effect::ReadsPointer => true,
+                    Effect::Calls(callee) => self.call_raises_slot(callee),
+                }
+            });
+            if raised {
+                continue;
+            }
+            match data.terminator.as_ref() {
+                Some(
+                    terminator @ (Terminator::Jump(_)
+                    | Terminator::Branch { .. }
+                    | Terminator::Switch { .. }),
+                ) => terminator.for_each_successor(|successor| {
+                    if visited.insert(successor) {
+                        pending.push(successor);
+                    }
+                }),
+                Some(Terminator::Return { .. }) => return false,
+                Some(&Terminator::TailCall { function, .. }) => {
+                    if !self.call_raises_slot(function) {
+                        return false;
+                    }
+                }
+                // A block without a terminator is clamped before its end, and execution ends at
+                // the others.
+                None | Some(_) => {}
+            }
+        }
+        true
+    }
+
+    /// Returns whether a call to `callee` raises the slot's word, or never returns with it.
+    fn call_raises_slot(&mut self, callee: FunctionId) -> bool {
+        let flow = self.entry_flow(callee);
+        !flow.returned || flow.reads.pointer && self.raises_slot(callee)
     }
 
     /// Returns whether the slot's bytes may be read as data from instruction `start` of `block`
