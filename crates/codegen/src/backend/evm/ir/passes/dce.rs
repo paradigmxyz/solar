@@ -153,30 +153,20 @@ fn eliminate_in_block(
         let walked = &instructions[..=last_pop];
         let mut start = 0;
         while start < last_pop {
-            let Some(StackOp::Dup(depth)) = instructions[start].as_stack_op() else {
-                start += 1;
-                continue;
-            };
-            if StackOp::Dup(depth).assembled_len(evm_version).is_none() {
-                start += 1;
-                continue;
-            }
-
-            let candidate = if depth == 1 {
-                better_candidate(
-                    find_candidate(walked, start, depth, Ghost::Original, evm_version),
+            if let Some(StackOp::Dup(depth)) = instructions[start].as_stack_op()
+                && StackOp::Dup(depth).assembled_len(evm_version).is_some()
+                && let Some(candidate) = better_candidate(
+                    (depth == 1)
+                        .then(|| find_candidate(walked, start, depth, Ghost::Original, evm_version))
+                        .flatten(),
                     find_candidate(walked, start, depth, Ghost::Duplicate, evm_version),
                 )
+            {
+                start = candidate.end;
+                edits.extend(candidate.edits);
             } else {
-                find_candidate(walked, start, depth, Ghost::Duplicate, evm_version)
-            };
-            let Some(candidate) = candidate else {
                 start += 1;
-                continue;
-            };
-
-            start = candidate.end;
-            edits.extend(candidate.edits);
+            }
         }
         if edits.is_empty() {
             return changed;
@@ -211,6 +201,7 @@ impl Slot {
 }
 
 struct Candidate {
+    evm_version: EvmVersion,
     end: usize,
     edits: SmallVec<[Edit; 4]>,
     /// Static gas and bytes the edits save, negative when they cost more.
@@ -220,22 +211,22 @@ struct Candidate {
 
 impl Candidate {
     fn new(start: usize, depth: u8, evm_version: EvmVersion) -> Self {
-        let mut candidate =
-            Self { end: start + 1, edits: SmallVec::new(), gas_saved: 0, size_saved: 0 };
-        candidate.replace(start, StackOp::Dup(depth), Replacement::new(), evm_version);
+        let mut candidate = Self {
+            evm_version,
+            end: start + 1,
+            edits: SmallVec::new(),
+            gas_saved: 0,
+            size_saved: 0,
+        };
+        candidate.replace(start, StackOp::Dup(depth), Replacement::new());
         candidate
     }
 
-    fn replace(
-        &mut self,
-        index: usize,
-        old: StackOp,
-        replacement: Replacement,
-        evm_version: EvmVersion,
-    ) {
+    fn replace(&mut self, index: usize, old: StackOp, replacement: Replacement) {
         if replacement.as_slice() == [old] {
             return;
         }
+        let evm_version = self.evm_version;
         let cost = |stack_op: StackOp| {
             let metrics = stack_op.metrics(evm_version).unwrap();
             (metrics.static_gas as isize, metrics.assembled_len as isize)
@@ -287,7 +278,7 @@ fn find_candidate(
         let stack_op = inst.as_stack_op();
         match stack_op {
             Some(StackOp::Pop) if slots.last().is_some_and(|slot| slot.is_ghost) => {
-                candidate.replace(index, StackOp::Pop, Replacement::new(), evm_version);
+                candidate.replace(index, StackOp::Pop, Replacement::new());
                 candidate.end = index + 1;
                 return candidate.is_profitable().then_some(candidate);
             }
@@ -304,25 +295,20 @@ fn find_candidate(
                     physical_depth(&slots, slots.len() - depth)
                 };
                 let replacement = StackOp::Dup(u8::try_from(physical_depth).ok()?);
-                candidate.replace(
-                    index,
-                    StackOp::Dup(depth as u8),
-                    smallvec![replacement],
-                    evm_version,
-                );
+                candidate.replace(index, StackOp::Dup(depth as u8), smallvec![replacement]);
                 slots.push(Slot { aliases_copy: selected.aliases_copy, is_ghost: false });
             }
             Some(StackOp::Swap(depth)) => {
                 let mut replacement = Replacement::new();
                 retarget_swap(&mut slots, depth, max_stack_access, &mut replacement)?;
-                candidate.replace(index, StackOp::Swap(depth), replacement, evm_version);
+                candidate.replace(index, StackOp::Swap(depth), replacement);
             }
             Some(StackOp::Exchange(n, m)) => {
                 let mut replacement = Replacement::new();
                 for depth in [n, m, n] {
                     retarget_swap(&mut slots, depth, max_stack_access, &mut replacement)?;
                 }
-                candidate.replace(index, StackOp::Exchange(n, m), replacement, evm_version);
+                candidate.replace(index, StackOp::Exchange(n, m), replacement);
             }
             None => {
                 if inst.as_evm_opcode().is_some_and(is_analysis_boundary) {
