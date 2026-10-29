@@ -482,9 +482,16 @@ fn instruction_sequence(instructions: &[Instruction]) -> impl fmt::Display + '_ 
             if index != 0 {
                 f.write_str(" ")?;
             }
-            match inst.concrete_immediate() {
-                Some(value) => write!(f, "push {value:#x}")?,
-                None => write!(f, "{}", inst.mnemonic())?,
+            if inst.immutable_push().is_some() {
+                f.write_str("push_immutable")?;
+            } else if let Some(value) = inst.concrete_immediate() {
+                write!(f, "push {value:#x}")?;
+            } else if inst.is_encoded_push() {
+                f.write_str("push_ref")?;
+            } else if let Some(mnemonic) = inst.as_evm_opcode().and_then(op::mnemonic) {
+                f.write_str(mnemonic)?;
+            } else {
+                write!(f, "{}", inst.mnemonic())?;
             }
         }
         Ok(())
