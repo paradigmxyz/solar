@@ -1367,8 +1367,8 @@ impl LowerAbiCx {
                         helpers: (!constructor).then_some(helpers),
                         ..DecodeOptions::new(constructor, input_end).bounded()
                     };
-                    if uses.is_empty() && location != AbiParamLocation::Memory {
-                        if ty.is_dynamic() {
+                    if uses.is_empty() {
+                        if ty.is_dynamic() && location != AbiParamLocation::Memory {
                             // validate_dynamic_aggregate(head, tuple_base, input_end)
                             Self::validate_dynamic_aggregate_argument(
                                 &mut builder,
@@ -1379,6 +1379,27 @@ impl LowerAbiCx {
                                 constructor,
                                 &mut current,
                             );
+                        } else if location == AbiParamLocation::Memory {
+                            if !constructor
+                                && arg_type == MirType::MEMPTR
+                                && let Some(&helper) = self.aggregate_type_helpers.get(ty)
+                            {
+                                // value = icall @decode_calldata_type, head[, tuple_base]
+                                let args = calldata_type_helper_args(ty, head, tuple_base);
+                                let value = builder.icall(helper, args, arg_type);
+                                logical_values[index] = Some(value);
+                            } else {
+                                let value = Self::decode_aggregate_argument(
+                                    &mut builder,
+                                    ty,
+                                    arg_type,
+                                    head,
+                                    tuple_base,
+                                    &mut current,
+                                    decode_options,
+                                );
+                                logical_values[index] = Some(value);
+                            }
                         }
                     } else {
                         let value = if !constructor
@@ -1624,7 +1645,7 @@ impl LowerAbiCx {
                     Self::aggregate_short_reason(ty, to_calldata),
                 );
             }
-            return Self::decode_static_argument(builder, ty, base, current, PtrLocation::Calldata);
+            return Self::decode_static_calldata_argument(builder, ty, base, current);
         }
         match ty {
             AbiParamType::Scalar(_) | AbiParamType::Enum { .. } => {
@@ -2010,6 +2031,29 @@ impl LowerAbiCx {
         });
     }
 
+    fn decode_static_memory_argument(
+        builder: &mut FunctionBuilder<'_>,
+        ty: &AbiParamType,
+        head: ValueId,
+        current: &mut BlockId,
+    ) -> ValueId {
+        builder.switch_to_block(*current);
+        if let Some(validator) = ty.word_validator() {
+            let value = builder.load(head, PtrLocation::Memory);
+            let valid = validator.condition(builder, value);
+            *current = builder.revert_if_zero(valid, RevertReason::Empty);
+            return Self::normalize_abi_word(builder, ty, value);
+        }
+        if matches!(ty, AbiParamType::Scalar(_)) {
+            return builder.load(head, PtrLocation::Memory);
+        }
+        let value = Self::decode_aggregate(builder, ty, head, |builder, ty, head, current| {
+            Self::decode_static_memory_argument(builder, ty, head, current)
+        });
+        *current = builder.current_block();
+        value
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn decode_calldata_bytes_slice_values(
         builder: &mut FunctionBuilder<'_>,
@@ -2063,38 +2107,34 @@ impl LowerAbiCx {
         (base, data, len)
     }
 
-    /// Decodes a static value at `head` in `location`, reverting once if any of its words is not
-    /// canonical.
-    fn decode_static_argument(
+    fn decode_static_calldata_argument(
         builder: &mut FunctionBuilder<'_>,
         ty: &AbiParamType,
         head: ValueId,
         current: &mut BlockId,
-        location: PtrLocation,
     ) -> ValueId {
         builder.switch_to_block(*current);
         let mut valid = builder.imm(1);
-        let value = Self::decode_static_value(builder, ty, head, &mut valid, location);
+        let value = Self::decode_static_calldata_value(builder, ty, head, &mut valid);
         let invalid = builder.eq_zero(valid);
         *current = builder.revert_if(invalid, RevertReason::Empty);
         value
     }
 
-    fn decode_static_value(
+    fn decode_static_calldata_value(
         builder: &mut FunctionBuilder<'_>,
         ty: &AbiParamType,
         head: ValueId,
         valid: &mut ValueId,
-        location: PtrLocation,
     ) -> ValueId {
         if let Some(validator) = ty.word_validator() {
-            let value = builder.load(head, location);
+            let value = builder.load(head, PtrLocation::Calldata);
             let condition = validator.condition(builder, value);
             *valid = builder.and(*valid, condition);
             return Self::normalize_abi_word(builder, ty, value);
         }
         if matches!(ty, AbiParamType::Scalar(_)) {
-            return builder.load(head, location);
+            return builder.load(head, PtrLocation::Calldata);
         }
         if let AbiParamType::FixedArray { element, len } = ty
             && Self::is_scalar_or_enum(element)
@@ -2108,12 +2148,11 @@ impl LowerAbiCx {
                     let offset = builder.mul(index, stride);
                     let element_head = builder.add(head, offset);
                     let mut current = builder.current_block();
-                    Self::decode_static_argument(
+                    Self::decode_static_calldata_argument(
                         builder,
                         element,
                         element_head,
                         &mut current,
-                        location,
                     );
                     builder.switch_to_block(current);
                 });
@@ -2121,12 +2160,12 @@ impl LowerAbiCx {
             let byte_length = builder.imm(
                 len.checked_mul(EvmMemoryLayout::WORD_SIZE).expect("checked static ABI array size"),
             );
-            let source = builder.make_slice(head, byte_length, location);
+            let source = builder.make_slice(head, byte_length, PtrLocation::Calldata);
             builder.memory_copy_to_object(object, source);
             return object;
         }
         Self::decode_aggregate(builder, ty, head, |builder, ty, head, current| {
-            Self::decode_static_argument(builder, ty, head, current, location)
+            Self::decode_static_calldata_argument(builder, ty, head, current)
         })
     }
 
@@ -2572,8 +2611,11 @@ fn decode_tuple(
         builder.switch_to_block(current);
         let head = builder.add_u64_offset(base, head_offset);
         let value = if static_layout {
-            let location = if calldata { PtrLocation::Calldata } else { PtrLocation::Memory };
-            LowerAbiCx::decode_static_argument(builder, ty, head, &mut current, location)
+            if calldata {
+                LowerAbiCx::decode_static_calldata_argument(builder, ty, head, &mut current)
+            } else {
+                LowerAbiCx::decode_static_memory_argument(builder, ty, head, &mut current)
+            }
         } else {
             LowerAbiCx::decode_aggregate_argument(
                 builder,
@@ -3966,13 +4008,8 @@ fn copy_calldata_value(
         _ => {
             // value = decode_static(position)
             let mut current = builder.current_block();
-            let value = LowerAbiCx::decode_static_argument(
-                builder,
-                ty,
-                position,
-                &mut current,
-                PtrLocation::Calldata,
-            );
+            let value =
+                LowerAbiCx::decode_static_calldata_argument(builder, ty, position, &mut current);
             builder.switch_to_block(current);
             value
         }
