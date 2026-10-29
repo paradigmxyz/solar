@@ -184,13 +184,16 @@ impl CfgInfo {
             let dominators = self.dominators();
             let mut frontiers = index_vec![Vec::new(); self.successors.len()];
             for block in self.successors.indices().filter(|&block| self.is_reachable(block)) {
-                let preds =
-                    self.predecessors(block).iter().filter(|&&pred| self.is_reachable(pred));
-                let Some(idom) = dominators.idom(block) else { continue };
-                if preds.clone().nth(1).is_none() {
+                let preds = SmallVec::<[_; 4]>::from_iter(
+                    self.predecessors(block)
+                        .iter()
+                        .copied()
+                        .filter(|&pred| self.is_reachable(pred)),
+                );
+                let Some(idom) = dominators.idom(block).filter(|_| preds.len() >= 2) else {
                     continue;
-                }
-                for &pred in preds {
+                };
+                for pred in preds {
                     let mut runner = pred;
                     while runner != idom {
                         if frontiers[runner].last() != Some(&block) {

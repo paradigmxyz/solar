@@ -362,12 +362,7 @@ impl LoopAnalyzer {
 
     fn find_invariant_instructions(&self, func: &Function, loop_info: &mut Loop) {
         let mut invariant_values = DenseBitSet::new_empty(func.num_values());
-        let mut loop_insts = DenseBitSet::new_empty(func.num_insts());
-        for block in &loop_info.blocks {
-            for &inst_id in &func.blocks[block].instructions {
-                loop_insts.insert(inst_id);
-            }
-        }
+        let loop_insts = loop_info.instructions(func);
         for block in &loop_info.blocks {
             for &inst_id in &func.blocks[block].instructions {
                 func.inst(inst_id).kind.visit_operands(|operand| {
