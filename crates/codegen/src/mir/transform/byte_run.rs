@@ -116,17 +116,20 @@ fn run_function(func: &mut Function) -> (bool, bool) {
     }
     let uses = super::egraph::use_counts(func);
     let mut changed = false;
+    // A side-effecting instruction may store into the range being read, so
+    // only instructions since the last one can take part in a run.
+    let mut window = FxHashSet::default();
+    let mut leaves = Vec::new();
     for block in func.blocks.indices().collect::<Vec<_>>() {
-        // A side-effecting instruction may store into the range being read, so
-        // only instructions since the last one can take part in a run.
-        let mut window = FxHashSet::default();
+        window.clear();
         for index in 0..func.blocks[block].instructions.len() {
             let inst = func.blocks[block].instructions[index];
             if func.inst(inst).kind.has_side_effects() {
                 window.clear();
                 continue;
             }
-            if matches!(func.inst(inst).kind, InstKind::Or(..)) && fuse(func, inst, &window, &uses)
+            if matches!(func.inst(inst).kind, InstKind::Or(..))
+                && fuse(func, inst, &window, &uses, &mut leaves)
             {
                 changed = true;
             }
@@ -146,11 +149,12 @@ fn fuse(
     root: InstId,
     window: &FxHashSet<InstId>,
     uses: &IndexVec<ValueId, u32>,
+    leaves: &mut Vec<Leaf>,
 ) -> bool {
     let Some(result) = func.inst_result_value(root) else { return false };
-    let mut leaves = Vec::new();
+    leaves.clear();
     let mut nodes = 0;
-    if !collect(func, result, 0, window, uses, true, &mut leaves, &mut nodes) {
+    if !collect(func, result, 0, window, uses, true, leaves, &mut nodes) {
         return false;
     }
     let run = leaves.len();
@@ -293,12 +297,16 @@ fn address_key(func: &Function, address: ValueId) -> Option<(Vec<ValueId>, u64)>
 /// Points every group of neighbouring byte extractions at one word read.
 fn share_reads(func: &mut Function) -> bool {
     let mut changed = false;
+    let mut groups: Vec<Vec<(u64, InstId, ValueId)>> = Vec::new();
+    let mut bases: Vec<Vec<ValueId>> = Vec::new();
+    // Instructions since the last side effect.
+    let mut window = FxHashSet::default();
+    let mut instructions = Vec::new();
     for block in func.blocks.indices().collect::<Vec<_>>() {
-        let mut groups: Vec<Vec<(u64, InstId, ValueId)>> = Vec::new();
-        let mut bases: Vec<Vec<ValueId>> = Vec::new();
-        // Instructions since the last side effect.
-        let mut window = FxHashSet::default();
-        let instructions = func.blocks[block].instructions.clone();
+        groups.clear();
+        bases.clear();
+        window.clear();
+        instructions.clone_from(&func.blocks[block].instructions);
         for &inst in &instructions {
             // A store may change what a later read sees, so a group cannot
             // span one.
