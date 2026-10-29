@@ -502,4 +502,16 @@ impl AbiWordValidator {
             Self::EnumRange(_) => word,
         }
     }
+
+    /// Returns a validator that accepts a word exactly when its masked-off bits are zero, as a
+    /// canonical boolean's are above the lowest, or `None` when canonicality is not a mask. Such a
+    /// validator accepts every one of some words exactly when it accepts their bitwise OR.
+    #[must_use]
+    pub(crate) fn zero_bits(self) -> Option<Self> {
+        match self {
+            Self::Unsigned(_) | Self::LeftAligned(_) => Some(self),
+            Self::Bool => Some(Self::Unsigned(1)),
+            Self::SignExtend(_) | Self::EnumRange(_) => None,
+        }
+    }
 }

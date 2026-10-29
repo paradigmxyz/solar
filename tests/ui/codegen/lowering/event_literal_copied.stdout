@@ -1,0 +1,40 @@
+// === ROOT/tests/ui/codegen/lowering/event_literal_copied.sol:EventLiteralCopied ===
+@module EventLiteralCopied
+@phase lowered
+@data
+  literal_0: hex"7374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c57616400000000000000"
+
+fn @copied() [selector=0xa2e8f7e5, abi_wrapper] {
+  bb0:
+    v29 = heap_floor !metadata(alloc_ptr)
+    v30 = add v29, 192 !metadata(alloc_ptr)
+    mstore v29, 153
+    v25 = add v29, 32
+    datacopy literal_0, v25, 160
+    v7 = add v29, 256
+    mstore v30, 64
+    v14 = add v7, 32
+    v15 = add v7, 160
+    mstore v15, 0
+    mstore v7, 153
+    mcopy v14, v25, 153 !metadata(disjoint)
+    v19 = add v29, 224
+    mstore v19, 1
+    log v30, 256, 0x1fc1ee74e64a4613da0ebad7aa1e41655ed6a50b1e27ec21849a5cd4db9381dd
+    stop
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xa2e8f7e5 => bb2]
+  bb2:
+    tail_call @copied
+  bb3:
+    revert 0, 0
+}

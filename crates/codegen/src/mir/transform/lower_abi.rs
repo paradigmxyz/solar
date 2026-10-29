@@ -29,6 +29,10 @@
 //! Calldata aggregates that repeat across parameters, or dynamic tuples that repeat anywhere
 //! inside them, decode through shared helpers; tuple helpers take the base of their enclosing
 //! tuple so enclosing decoders can call them for nested values.
+//! Scalar arrays whose canonicality requires zero bits fold their words with OR and validate
+//! once after the loop. Their checked source range supplies a non-wrapping end for a word
+//! cursor. An empty array skips the cursor setup and validation; signed and enum validators
+//! still check each element separately.
 //!
 //! Each `abi_decode` reads a bytes object or a memory slice in place. A slice's pointer is the
 //! base and its length is checked against the head size, so a constant-length slice, such as an
@@ -1876,6 +1880,10 @@ impl LowerAbiCx {
         }
     }
 
+    /// Validates the `len` scalar words at `data`, whose range the caller has checked.
+    ///
+    /// Folds the words of a zero-bits validator with OR and checks once after the loop, which
+    /// reverts the same way; other validators check each element.
     fn validate_scalar_array(
         builder: &mut FunctionBuilder<'_>,
         data: ValueId,
@@ -1886,6 +1894,46 @@ impl LowerAbiCx {
     ) {
         let word = builder.imm(32);
         builder.switch_to_block(*current);
+        if let Some(validator) = element.word_validator().and_then(AbiWordValidator::zero_bits) {
+            // jumpi (ne len, 0), start, done
+            // start: bytes = mul len, 32
+            // end = add data, bytes
+            // jump body
+            // body: cursor = phi [start: data], [body: next_cursor]
+            // folded = phi [start: 0], [body: next]
+            // next = or folded, (load cursor)
+            // next_cursor = add cursor, 32
+            // jumpi (lt next_cursor, end), body, validate
+            // validate: revert_if_zero (valid next)
+            // jump done
+            let zero = builder.imm(0);
+            let start = builder.create_block();
+            let body = builder.create_block();
+            let validate = builder.create_block();
+            let done = builder.create_block();
+            let has_words = builder.ne_zero(len);
+            builder.branch(has_words, start, done);
+            builder.switch_to_block(start);
+            let bytes = builder.mul(len, word);
+            let end = builder.add(data, bytes);
+            builder.jump(body);
+            builder.switch_to_block(body);
+            let cursor = builder.phi(vec![(start, data)]);
+            let folded = builder.phi(vec![(start, zero)]);
+            let value = Self::load_input_word(builder, cursor, options.constructor);
+            let next = builder.or(folded, value);
+            let next_cursor = builder.add(cursor, word);
+            let more = builder.lt(next_cursor, end);
+            builder.branch(more, body, validate);
+            builder.add_phi_incoming(cursor, body, next_cursor);
+            builder.add_phi_incoming(folded, body, next);
+            builder.switch_to_block(validate);
+            Self::validate_abi_word(builder, next, validator);
+            builder.jump(done);
+            builder.switch_to_block(done);
+            *current = builder.current_block();
+            return;
+        }
         builder.counted_loop(len, |builder, index| {
             let offset = builder.mul(index, word);
             let position = builder.add(data, offset);
