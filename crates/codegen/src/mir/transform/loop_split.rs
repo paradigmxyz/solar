@@ -134,15 +134,8 @@ fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
     if loops.all_loops().any(|other| other.header != l.header && l.blocks.contains(other.header)) {
         return None;
     }
-    let mut loop_insts = DenseBitSet::new_empty(func.num_insts());
-    let mut instructions = 0;
-    for block in l.blocks.iter() {
-        for &inst in &func.blocks[block].instructions {
-            loop_insts.insert(inst);
-            instructions += 1;
-        }
-    }
-    if instructions > MAX_LOOP_INSTRUCTIONS {
+    let loop_insts = l.instructions(func);
+    if loop_insts.count() > MAX_LOOP_INSTRUCTIONS {
         return None;
     }
     let defined_in_loop = |value| match func.value(value) {

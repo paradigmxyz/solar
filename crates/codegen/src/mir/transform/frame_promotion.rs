@@ -22,7 +22,6 @@ use crate::mir::{
 };
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
-    index::{IndexVec, index_vec},
     map::FxHashMap,
 };
 
@@ -809,13 +808,11 @@ impl<'a> SlotSsaBuilder<'a> {
         func: &Function,
         live_in: &DenseBitSet<BlockId>,
     ) -> DenseBitSet<BlockId> {
-        let frontiers = self.compute_dominance_frontiers(func);
         let mut phi_blocks = DenseBitSet::new_empty(func.blocks.len());
         let mut worklist = sorted_blocks(&self.info.def_blocks);
 
         while let Some(block) = worklist.pop() {
-            let Some(frontier) = frontiers.get(block) else { continue };
-            for &frontier_block in frontier {
+            for &frontier_block in self.cfg.dominance_frontier(block) {
                 if !live_in.contains(frontier_block) || !phi_blocks.insert(frontier_block) {
                     continue;
                 }
@@ -824,42 +821,6 @@ impl<'a> SlotSsaBuilder<'a> {
         }
 
         phi_blocks
-    }
-
-    fn compute_dominance_frontiers(&self, func: &Function) -> IndexVec<BlockId, Vec<BlockId>> {
-        let mut frontiers = index_vec![Vec::new(); func.blocks.len()];
-        for block in func.blocks.indices() {
-            if !self.cfg.is_reachable(block) {
-                continue;
-            }
-
-            let preds: Vec<_> = func.blocks[block]
-                .predecessors
-                .iter()
-                .copied()
-                .filter(|&pred| self.cfg.is_reachable(pred))
-                .collect();
-            if preds.len() < 2 {
-                continue;
-            }
-
-            let Some(idom) = self.cfg.dominators().idom(block) else { continue };
-            for mut runner in preds {
-                while runner != idom {
-                    if !frontiers[runner].contains(&block) {
-                        frontiers[runner].push(block);
-                    }
-
-                    let Some(next) = self.cfg.dominators().idom(runner) else { break };
-                    if next == runner {
-                        break;
-                    }
-                    runner = next;
-                }
-            }
-        }
-
-        frontiers
     }
 
     fn run(&mut self, func: &mut Function) -> bool {
