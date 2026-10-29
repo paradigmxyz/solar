@@ -104,13 +104,12 @@ impl MirPass for StorageDse {
                     cfg: Rc::clone(analyses.cfg()),
                     reverting: &reverting,
                 };
-                // Rounds only remove stores, so one annotation serves them all. It changes
-                // metadata only, which is not reported as a change.
+                // Annotating changes metadata only, which is not reported as a change.
                 if func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient)
                 {
                     analyses.note_unreported_edit();
                 }
-                eliminator.run_to_fixpoint(func)
+                eliminator.run(func)
             },
         )
     }
@@ -119,7 +118,7 @@ impl MirPass for StorageDse {
 /// All-path dead storage-store elimination pass.
 struct StorageStoreEliminator<'a> {
     alias: Rc<AliasAnalysis>,
-    /// Storage DSE removes instructions only, so one CFG snapshot serves every round.
+    /// Storage DSE removes instructions only, so one CFG snapshot serves both phases.
     cfg: Rc<CfgInfo>,
     /// Functions whose every path reverts, so a tail call to one discards storage writes.
     reverting: &'a DenseBitSet<FunctionId>,
@@ -129,19 +128,14 @@ struct StorageStoreEliminator<'a> {
 type StoredValues = FxHashMap<Location, ValueId>;
 
 impl StorageStoreEliminator<'_> {
-    /// Runs one round: dead stores, then equal stores. Returns whether it removed any.
-    fn run_round(
-        &self,
-        func: &mut Function,
-        dead: &mut DenseBitSet<InstId>,
-        incoming: &mut IndexVec<BlockId, Overwritten>,
-    ) -> bool {
+    /// Removes dead stores, then equal stores. Returns whether it removed any.
+    fn run(&self, func: &mut Function) -> bool {
         let cfg = &*self.cfg;
-        incoming.iter_mut().for_each(Overwritten::clear);
+        let mut incoming = index_vec![Overwritten::none(); func.blocks.len()];
         loop {
             let mut changed = false;
             for &block in cfg.rpo().iter().rev() {
-                let mut facts = self.successor_facts(func, incoming, block);
+                let mut facts = self.successor_facts(func, &incoming, block);
                 self.transfer_reverse(func, block, &mut facts, None);
                 if incoming[block] != facts {
                     incoming[block] = facts;
@@ -152,25 +146,14 @@ impl StorageStoreEliminator<'_> {
                 break;
             }
         }
-        dead.clear();
+        let mut dead = DenseBitSet::new_empty(func.num_insts());
         for &block in cfg.rpo() {
-            let mut facts = self.successor_facts(func, incoming, block);
-            self.transfer_reverse(func, block, &mut facts, Some(dead));
+            let mut facts = self.successor_facts(func, &incoming, block);
+            self.transfer_reverse(func, block, &mut facts, Some(&mut dead));
         }
         // sstore slot, old; ...; sstore slot, new => ...; sstore slot, new
-        let removed_dead = Self::remove_dead(func, dead);
-        self.remove_equal_stores(func, dead) | removed_dead
-    }
-
-    /// Runs storage DSE to a fixed point. Returns whether it removed any store.
-    fn run_to_fixpoint(&self, func: &mut Function) -> bool {
-        let mut dead = DenseBitSet::new_empty(func.num_insts());
-        let mut incoming = index_vec![Overwritten::none(); func.blocks.len()];
-        let mut changed = false;
-        while self.run_round(func, &mut dead, &mut incoming) {
-            changed = true;
-        }
-        changed
+        let removed_dead = Self::remove_dead(func, &dead);
+        self.remove_equal_stores(func, &mut dead) | removed_dead
     }
 
     /// Removes the `dead` instructions. Returns whether there were any.
