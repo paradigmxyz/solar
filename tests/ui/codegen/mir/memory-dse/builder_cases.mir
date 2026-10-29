@@ -38,6 +38,40 @@ fn @disjoint_keccak() {
     ret
 }
 
+// CHECK-LABEL: @disjoint_create
+// CHECK: -     mstore [[STORE_ADDR:[0-9]+]], 0
+// CHECK:       create 0, 0, 32
+// CHECK:       mstore [[STORE_ADDR]], 1
+fn @disjoint_create() {
+  bb0:
+    mstore 128, 0
+    v0 = create 0, 0, 32
+    mstore 128, 1
+    ret
+}
+
+// CHECK-LABEL: @byte_store_between_overwrites
+// CHECK: -     mstore [[STORE_ADDR:[0-9]+]], 0
+// CHECK:       mstore8 200, 1
+// CHECK:       mstore [[STORE_ADDR]], 1
+fn @byte_store_between_overwrites() {
+  bb0:
+    mstore 128, 0
+    mstore8 200, 1
+    mstore 128, 1
+    ret
+}
+
+// CHECK-LABEL: @equal_free_pointer_store
+// CHECK: -     mstore 64, v0
+fn @equal_free_pointer_store(arg0: i256) {
+  bb0:
+    mstore 64, arg0
+    v0 = mload 64
+    mstore 64, v0
+    ret
+}
+
 // CHECK-LABEL: @overlapping_keccak
 // CHECK: {{^ +}}mstore [[STORE_ADDR:[0-9]+]], 0
 // CHECK: {{^ +}}{{v[0-9]+}} = keccak256 {{[0-9]+}}, {{[0-9]+}}

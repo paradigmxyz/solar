@@ -16,9 +16,9 @@
 //!   into a constant range overwrites before any read or gas observation; a small word-sized zero
 //!   fill or calldata copy whose every word such a write overwrites goes too. Returndata copies
 //!   stay because their source bounds check can revert. Reads over constant ranges, such as hashes,
-//!   logs, and call inputs, only keep the words they cover. A reload of the free-memory-pointer
-//!   word forwards across every instruction that cannot write it, such as a write through a heap
-//!   pointer.
+//!   logs, creations, and call inputs, only keep the words they cover. A reload of the
+//!   free-memory-pointer word forwards across every instruction that cannot write it, such as a
+//!   write through a heap pointer.
 //! - Store narrowing: when a later full-word store overwrites the last 31 bytes of a word store
 //!   before any read or gas observation, only the first byte of the earlier store is observable, so
 //!   the backward scan shortens the store to an `mstore8` of that byte. `mstore8` demands only the
@@ -94,9 +94,10 @@
 //!
 //! Keys come from alias analysis, which canonicalizes an address as a base plus a constant offset.
 //! Allocation-based keys require the complete access range to fit; wider accesses may overlap
-//! adjacent allocations. Every other instruction is classified through its shared ModRef effects:
-//! a possible write invalidates the remembered words it may overlap, and only the explicit writes
-//! above count as definite overwrites. The pass runs late in semantic optimization and again in
+//! adjacent allocations. Every other instruction is classified through its raw memory ranges and
+//! shared ModRef effects: a write of constant ranges invalidates the remembered words they may
+//! overlap, any other possible write invalidates all of them, and only the explicit writes above
+//! count as definite overwrites. The pass runs late in semantic optimization and again in
 //! lowering, after ABI and aggregate lowering expose word stores. Another run follows the CSE that
 //! forwards the length words of `bytes` objects, while allocations are still atomic, so the dead
 //! allocation stores go before allocation lowering turns the object into free-memory-pointer
@@ -463,8 +464,9 @@ fn has_memory_writes(func: &Function) -> bool {
     // Return data copies stay out: their source bounds check can revert.
     func.instructions().any(|inst| {
         let kind = &func.inst(inst).kind;
-        !matches!(kind, InstKind::Copy(.., PtrLocation::Returndata))
-            && raw_ranges(kind).iter().any(|&(access, ..)| access == RawMemoryAccess::Write)
+        let mut writes = false;
+        kind.visit_raw_memory(|access, _, _| writes |= access == RawMemoryAccess::Write);
+        writes && !matches!(kind, InstKind::Copy(.., PtrLocation::Returndata))
     })
 }
 
@@ -1612,7 +1614,7 @@ impl MemoryStoreEliminator {
         if has_keccak && mstores != 0 {
             self.fold_constant_keccak(func, block_id, scratch);
         }
-        if mstores >= 2 || has_load && mstores != 0 {
+        if mstores != 0 && (mstores >= 2 || has_load) {
             self.forward_loads(func, block_id, scratch);
         }
         if memory_writes < 2 {
@@ -1624,7 +1626,6 @@ impl MemoryStoreEliminator {
 
         for &inst_id in func.blocks[block_id].instructions.iter().rev() {
             let inst = func.inst(inst_id);
-            let ranges = raw_ranges(&inst.kind);
             match &inst.kind {
                 InstKind::Store(addr, value, PtrLocation::Memory) => {
                     if let Some(key) = self.mem_addr_key(func, *addr, 32) {
@@ -1662,44 +1663,50 @@ impl MemoryStoreEliminator {
                 InstKind::SetFmp(_) => {
                     scratch.overwritten.insert(AliasAnalysis::fmp_location().address);
                 }
-                // A fill or copy that is the only range the instruction accesses.
-                _ if let [(RawMemoryAccess::Write, dest, size)] = ranges[..] => {
-                    if self.insert_full_word_overwritten_range(
-                        func,
-                        &mut scratch.overwritten,
-                        dest,
-                        size,
-                    ) && matches!(
-                        inst.kind,
-                        InstKind::MemoryZero(..) | InstKind::Copy(.., PtrLocation::Calldata)
-                    ) {
-                        scratch.dead.insert(inst_id);
-                        self.eliminated_count += 1;
-                    }
-                }
-                // Keccak, logs, creations, and calls only *read* memory. A call reads its whole
-                // input, but it only copies `min(ret_size, returndatasize())` bytes into the
-                // output area. The rest remains unchanged, so the output cannot prove that an
-                // earlier store is dead. A read over a constant range observes only the stores
-                // that fall in it, so a later overwrite of a disjoint slot still kills its
-                // earlier store. Modelling the range (instead of clearing) lets a return-value
-                // slot's dead default-init survive the mapping-hash keccaks and event logs that
-                // sit between it and its real store.
-                _ if !ranges.is_empty()
-                    && ranges.iter().all(|&(access, ..)| access != RawMemoryAccess::Write) =>
-                {
-                    for &(access, offset, size) in &ranges {
-                        if access == RawMemoryAccess::Read {
-                            self.retain_overwritten_disjoint_from_read(
-                                func,
-                                &mut scratch.overwritten,
-                                offset,
-                                size,
-                            );
+                // A byte store reads nothing and overwrites no whole word.
+                InstKind::Store8(..) => {}
+                _ => {
+                    let ranges = raw_ranges(&inst.kind);
+                    if let [(RawMemoryAccess::Write, dest, size)] = ranges[..] {
+                        // A fill or copy that is the only range the instruction accesses.
+                        if self.insert_full_word_overwritten_range(
+                            func,
+                            &mut scratch.overwritten,
+                            dest,
+                            size,
+                        ) && matches!(
+                            inst.kind,
+                            InstKind::MemoryZero(..) | InstKind::Copy(.., PtrLocation::Calldata)
+                        ) {
+                            scratch.dead.insert(inst_id);
+                            self.eliminated_count += 1;
                         }
+                    } else if !ranges.is_empty()
+                        && ranges.iter().all(|&(access, ..)| access != RawMemoryAccess::Write)
+                    {
+                        // Keccak, logs, creations, and calls only *read* memory. A call reads its
+                        // whole input, but it only copies `min(ret_size, returndatasize())` bytes
+                        // into the output area. The rest remains unchanged, so the output cannot
+                        // prove that an earlier store is dead. A read over a constant range
+                        // observes only the stores that fall in it, so a later overwrite of a
+                        // disjoint slot still kills its earlier store. Modelling the range
+                        // (instead of clearing) lets a return-value slot's dead default-init
+                        // survive the mapping-hash keccaks and event logs that sit between it and
+                        // its real store.
+                        for &(access, offset, size) in &ranges {
+                            if access == RawMemoryAccess::Read {
+                                self.retain_overwritten_disjoint_from_read(
+                                    func,
+                                    &mut scratch.overwritten,
+                                    offset,
+                                    size,
+                                );
+                            }
+                        }
+                    } else {
+                        self.apply_memory_effects(func, inst_id, &mut scratch.overwritten);
                     }
                 }
-                _ => self.apply_memory_effects(func, inst_id, &mut scratch.overwritten),
             }
         }
 
@@ -2074,6 +2081,7 @@ impl MemoryStoreEliminator {
             if inst.kind.effect_kind() == EffectKind::Pure {
                 continue;
             }
+            let prior_fmp = fmp_word;
             if fmp_word.is_some()
                 && self.alias.instruction_may_write_fmp(func, inst_id, &self.read_bounds)
             {
@@ -2085,12 +2093,15 @@ impl MemoryStoreEliminator {
                         let value = mir_utils::resolve_replacement(*value, &scratch.replacements);
                         // A store of the word's known value changes nothing.
                         let known = if key == fmp_key {
-                            fmp_word
+                            prior_fmp
                         } else {
                             scratch.stored_values.get(key).copied()
                         };
                         if known == Some(value) {
                             scratch.dead.insert(inst_id);
+                            if key == fmp_key {
+                                fmp_word = known;
+                            }
                             continue;
                         }
                         scratch.stored_values.invalidate(key, 32);
@@ -2134,8 +2145,10 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        func.replace_uses_canonicalized(&scratch.replacements);
-        self.uses = None;
+        if !scratch.replacements.is_empty() {
+            func.replace_uses_canonicalized(&scratch.replacements);
+            self.uses = None;
+        }
         self.eliminated_count += scratch.dead.count();
         func.blocks[block_id].instructions.retain(|&id| !scratch.dead.contains(id));
     }
@@ -2798,10 +2811,8 @@ impl AllocWalk<'_> {
         let kind = &func.inst(inst).kind;
         // Every raw memory range is an address operand: its reads and its constant-width stores
         // are recorded, and other writes only count as uses.
-        let mut raw = false;
         let mut addresses = 0;
         kind.visit_raw_memory(|access, address, size| {
-            raw = true;
             addresses += is(address);
             match (access, size) {
                 (RawMemoryAccess::Read, size) => {
@@ -2813,31 +2824,38 @@ impl AllocWalk<'_> {
                 _ => {}
             }
         });
-        if raw {
-            return Some(addresses);
-        }
-        Some(match *kind {
-            InstKind::PtrAdd(base, offset) if base == value => {
-                let next = match func.value_u64(offset) {
-                    Some(offset) => AllocPointer { offset: at.offset.checked_add(offset)?, ..at },
-                    None => AllocPointer { runtime_index: true, ..at },
-                };
-                self.derive(inst, next);
-                1
-            }
-            InstKind::Add(base, offset) | InstKind::Add(offset, base)
-                if base == value
-                    && let Some(offset) = func.value_u64(offset) =>
-            {
-                self.derive(inst, AllocPointer { offset: at.offset.checked_add(offset)?, ..at });
-                1
-            }
-            InstKind::PtrToInt(operand, 256) | InstKind::IntToPtr(operand) if operand == value => {
-                self.derive(inst, at);
-                1
-            }
-            _ => 0,
-        })
+        Some(
+            addresses
+                + match *kind {
+                    InstKind::PtrAdd(base, offset) if base == value => {
+                        let next = match func.value_u64(offset) {
+                            Some(offset) => {
+                                AllocPointer { offset: at.offset.checked_add(offset)?, ..at }
+                            }
+                            None => AllocPointer { runtime_index: true, ..at },
+                        };
+                        self.derive(inst, next);
+                        1
+                    }
+                    InstKind::Add(base, offset) | InstKind::Add(offset, base)
+                        if base == value
+                            && let Some(offset) = func.value_u64(offset) =>
+                    {
+                        self.derive(
+                            inst,
+                            AllocPointer { offset: at.offset.checked_add(offset)?, ..at },
+                        );
+                        1
+                    }
+                    InstKind::PtrToInt(operand, 256) | InstKind::IntToPtr(operand)
+                        if operand == value =>
+                    {
+                        self.derive(inst, at);
+                        1
+                    }
+                    _ => 0,
+                },
+        )
     }
 
     /// As [`Self::inst_addresses`], for a terminator.
