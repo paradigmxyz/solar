@@ -610,8 +610,8 @@ const MEM_LIVE_CAP: usize = 64;
 
 /// Live slot set, kept sorted ascending. `MEM_LIVE_CAP` bounds the length, so a
 /// sorted vector beats hashing on every operation the dataflow performs:
-/// membership and insertion are binary searches, and the join is a linear merge
-/// instead of a rehash of the smaller side. Almost all block-entry sets have zero to four
+/// membership and insertion are binary searches, and the join is a sort and
+/// dedup of two short runs. Almost all block-entry sets have zero to four
 /// slots; larger sets spill without changing the analysis limit.
 type LiveSlots = SmallVec<[u64; 4]>;
 
@@ -1906,8 +1906,8 @@ impl MemoryStoreEliminator {
                 continue;
             }
 
-            let last = func.blocks[pred].instructions.iter().rev();
-            if let Some((store, key)) = self.first_cross_block_store(func, last)
+            let pred_insts = func.blocks[pred].instructions.iter().rev();
+            if let Some((store, key)) = self.first_cross_block_store(func, pred_insts)
                 && self
                     .first_cross_block_store(func, func.blocks[succ].instructions.iter())
                     .is_some_and(|(_, succ_key)| succ_key == key)
@@ -1930,8 +1930,13 @@ impl MemoryStoreEliminator {
             InstKind::Store(addr, _, PtrLocation::Memory) => {
                 Some(self.mem_addr_key(func, addr, 32).map(|key| (inst_id, key)))
             }
-            _ if self.is_memory_or_gas_observer(func, inst_id) => Some(None),
-            _ => None,
+            _ => {
+                let effects = self.alias.instruction_mod_ref(func, inst_id);
+                (effects.reads_space(AddressSpace::Memory)
+                    || effects.writes_space(AddressSpace::Memory)
+                    || effects.observes_gas())
+                .then_some(None)
+            }
         })?
     }
 
@@ -2142,16 +2147,6 @@ impl MemoryStoreEliminator {
                         scratch.dead.insert(inst_id);
                     }
                 }
-                InstKind::Store8(addr, _)
-                    if !self.remove_overlapping_write_range(
-                        func,
-                        &mut scratch.stored_values,
-                        *addr,
-                        1,
-                    ) =>
-                {
-                    scratch.stored_values.clear();
-                }
                 InstKind::MemoryZero(dest, size)
                 | InstKind::Copy(dest, _, size, PtrLocation::Calldata | PtrLocation::Returndata)
                 | InstKind::DataCopy(_, dest, size)
@@ -2161,12 +2156,9 @@ impl MemoryStoreEliminator {
                         scratch.stored_values.clear();
                         continue;
                     };
-                    if !self.remove_overlapping_write_range(
-                        func,
-                        &mut scratch.stored_values,
-                        *dest,
-                        size,
-                    ) {
+                    if let Some(write) = self.mem_addr_key(func, *dest, size) {
+                        scratch.stored_values.invalidate(write, size);
+                    } else {
                         scratch.stored_values.clear();
                     }
                 }
@@ -2256,30 +2248,14 @@ impl MemoryStoreEliminator {
         Some(bytes)
     }
 
-    fn overlaps(a: MemoryAddress, b: MemoryAddress) -> bool {
-        AliasAnalysis::memory_alias_locations(
-            MemoryLocation::new(a, LocationSize::Const(32)),
-            MemoryLocation::new(b, LocationSize::Const(32)),
-        )
-        .may_alias()
-    }
-
     fn remove_overlapping_set(set: &mut FxHashSet<MemoryAddress>, key: MemoryAddress) {
-        set.retain(|&stored| !Self::overlaps(stored, key));
-    }
-
-    fn remove_overlapping_write_range<T>(
-        &self,
-        func: &Function,
-        map: &mut SlotMap<T>,
-        dest: ValueId,
-        size: u64,
-    ) -> bool {
-        let Some(write) = self.mem_addr_key(func, dest, size) else {
-            return false;
-        };
-        map.invalidate(write, size);
-        true
+        set.retain(|&stored| {
+            !AliasAnalysis::memory_alias_locations(
+                MemoryLocation::new(stored, LocationSize::Const(32)),
+                MemoryLocation::new(key, LocationSize::Const(32)),
+            )
+            .may_alias()
+        });
     }
 
     /// Marks the words of a constant range of whole words overwritten, and returns whether the
@@ -2323,13 +2299,6 @@ impl MemoryStoreEliminator {
             _ => return false,
         };
         overwritten.contains(&key)
-    }
-
-    fn is_memory_or_gas_observer(&self, func: &Function, inst_id: InstId) -> bool {
-        let effects = self.alias.instruction_mod_ref(func, inst_id);
-        effects.reads_space(AddressSpace::Memory)
-            || effects.writes_space(AddressSpace::Memory)
-            || effects.observes_gas()
     }
 
     fn has_frame_observer(func: &Function) -> bool {
