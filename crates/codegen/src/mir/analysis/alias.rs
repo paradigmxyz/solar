@@ -2185,30 +2185,20 @@ impl AliasAnalysis {
                     self.call_summaries.as_deref(),
                 )
             }
-            _ => self.instruction_writes_through_runtime_index(func, inst),
+            _ => {
+                !func.inst(inst).kind.effect_kind().is_read_only()
+                    && Self::instruction_writes_through_runtime_index_with(
+                        func,
+                        inst,
+                        &self.instruction_mod_ref(func, inst),
+                    )
+            }
         }
     }
 
     /// Returns whether an instruction itself writes memory at an address computed with a runtime
-    /// index, directly or through a select or phi, or with a write of unknown extent.
-    #[must_use]
-    pub(crate) fn instruction_writes_through_runtime_index(
-        &self,
-        func: &Function,
-        inst: InstId,
-    ) -> bool {
-        if func.inst(inst).kind.effect_kind().is_read_only() {
-            return false;
-        }
-        Self::instruction_writes_through_runtime_index_with(
-            func,
-            inst,
-            &self.instruction_mod_ref(func, inst),
-        )
-    }
-
-    /// Like [`Self::instruction_writes_through_runtime_index`], for an instruction whose
-    /// [`Self::instruction_mod_ref`] effects the caller already holds.
+    /// index, directly or through a select or phi, or with a write of unknown extent. `effects`
+    /// are the [`Self::instruction_mod_ref`] effects of `inst`.
     #[must_use]
     pub(crate) fn instruction_writes_through_runtime_index_with(
         func: &Function,

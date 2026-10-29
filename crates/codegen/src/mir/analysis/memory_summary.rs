@@ -688,6 +688,7 @@ fn local_summary(
                 for &access in effects.writes() {
                     summary.record_access(func, access, true);
                 }
+                // Skip the queries once the flag is set.
                 summary.may_reset_fmp =
                     summary.may_reset_fmp || aa.instruction_may_reset_fmp(func, inst_id);
                 summary.may_wrap_write = summary.may_wrap_write
