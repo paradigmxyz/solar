@@ -11,8 +11,10 @@
 //! - **Constant(v)**: known compile-time constant
 //! - **Bottom** (⊥): overdefined (not a constant)
 //!
-//! After reaching a fixed point, the rewrite phase replaces constant values
-//! with immediates and rewrites branches with known-constant conditions.
+//! After reaching a fixed point, the rewrite phase replaces constant results with immediates,
+//! folds branches and switches with one distinct executable successor into jumps, and
+//! invalidates blocks that are never executable. Functions without a local constant seed are
+//! skipped.
 
 use crate::mir::{
     BlockId, Function, Immediate, InstId, InstKind, Module, Terminator, Value, ValueId,
@@ -392,8 +394,6 @@ fn rewrite(
     executable_blocks: &DenseBitSet<BlockId>,
     executable_edges: &FxHashSet<(BlockId, BlockId)>,
 ) -> usize {
-    let mut changes = 0;
-
     // Phase 1: Replace instructions whose results are constant with
     // immediate values, and remove the instruction from the block.
     let mut const_values = FxHashMap::default();
@@ -414,13 +414,21 @@ fn rewrite(
             let imm_vid = func.alloc_value(Value::Immediate(imm));
             const_values.insert(vid, imm_vid);
             dead_insts.insert(inst_id);
-            changes += 1;
         }
     }
 
-    // Phase 2: Collect branch rewrites BEFORE operand replacement, because
-    // replacement may allocate new ValueIds that don't have lattice entries.
-    let mut control_rewrites = Vec::new();
+    // Phase 2: Remove dead (folded) instructions from blocks.
+    // %v = op ... -> removed
+    for block in func.blocks.iter_mut() {
+        block.instructions.retain(|&id| !dead_insts.contains(id));
+    }
+
+    // Phase 3: Replace all uses of folded values with immediates.
+    // use %v -> use constant
+    func.replace_uses(&const_values);
+
+    // Phase 4: Fold branches and switches with one distinct executable successor.
+    let mut changes = const_values.len();
     for block_id in func.blocks.indices() {
         if !executable_blocks.contains(block_id) {
             continue;
@@ -430,33 +438,18 @@ fn rewrite(
         else {
             continue;
         };
-
-        // Fold when exactly one distinct successor is executable.
         let mut targets =
             term.successors().into_iter().filter(|&to| executable_edges.contains(&(block_id, to)));
         if let Some(target) = targets.next()
             && targets.all(|other| other == target)
         {
-            control_rewrites.push((block_id, target));
+            // branch/switch ..., target, ... -> jump target
+            fold_terminator_to_jump(func, block_id, target);
+            changes += 1;
         }
     }
 
-    // Phase 3: Remove dead (folded) instructions from blocks.
-    for block in func.blocks.iter_mut() {
-        block.instructions.retain(|&id| !dead_insts.contains(id));
-    }
-
-    // Phase 4: Replace all uses of folded values with immediates.
-    func.replace_uses(&const_values);
-
-    // Phase 5: Apply branch/switch rewrites.
-    changes += control_rewrites.len();
-    for (block_id, target) in control_rewrites {
-        // branch/switch ..., target, ... -> jump target
-        fold_terminator_to_jump(func, block_id, target);
-    }
-
-    // Phase 6: Mark non-executable blocks as invalid.
+    // Phase 5: Mark non-executable blocks as invalid.
     changes + invalidate_unreachable_blocks(func, executable_blocks)
 }
 
@@ -512,8 +505,7 @@ fn can_change(func: &Function) -> bool {
     }
 
     let mut reachable = DenseBitSet::new_empty(func.blocks.len());
-    let mut pending = Vec::new();
-    pending.push(BlockId::ENTRY);
+    let mut pending = vec![BlockId::ENTRY];
     while let Some(block) = pending.pop() {
         if reachable.insert(block)
             && let Some(terminator) = &func.blocks[block].terminator

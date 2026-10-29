@@ -81,9 +81,7 @@ fn evaluate(func: &Function) -> Option<Vec<U256>> {
     let mut env = FxHashMap::default();
     let mut current = BlockId::ENTRY;
     let mut predecessor = None;
-    let mut fuel = DEFAULT_FUEL;
-    while fuel != 0 {
-        fuel -= 1;
+    for _ in 0..DEFAULT_FUEL {
         let block = &func.blocks[current];
 
         let mut phis = SmallVec::<[(ValueId, U256); 2]>::new();
@@ -169,8 +167,7 @@ fn rewrite_to_return(func: &mut Function, values: &[U256]) {
     for block in origins {
         metadata.merge_debug_context(&block.terminator_metadata);
     }
-    let block_ids = func.blocks.indices();
-    for block_id in block_ids {
+    for block_id in func.blocks.indices() {
         let block = &mut func.blocks[block_id];
         block.instructions.clear();
         block.predecessors.clear();
