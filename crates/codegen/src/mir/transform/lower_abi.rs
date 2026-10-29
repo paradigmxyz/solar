@@ -67,8 +67,9 @@
 //! passes read the same predicate, `DispatchCallvalue`. Otherwise each rejecting
 //! wrapper starts with its own check, a guard block that becomes the entry and falls through into
 //! the body, so a selector case pays no extra jump. A rejecting constructor always carries its
-//! own check, since no dispatch switch precedes it, and libraries never check, because a
-//! `DELEGATECALL` sees the caller's value.
+//! own check, since no dispatch switch precedes it. Library wrappers never check, because a
+//! `DELEGATECALL` sees the caller's value; `lower-dispatch` guards their non-view entries against
+//! direct calls instead.
 //!
 //! A `revert_returndata` terminator, which forwards a failed external call's revert data,
 //! becomes `returndatacopy` of the whole returndata followed by a revert of its size. Before
@@ -353,12 +354,12 @@ impl LowerAbiCx {
 
         let mut body_of_wrapper = FxHashMap::default();
         let no_canonical_return_calls = FxHashSet::default();
-        // Most external functions are never called internally. Only those
-        // that are need a second, parameterized body; cloning every wrapper
-        // needlessly grows the MIR consumed by all subsequent lowering and
-        // backend passes.
         for id in targets {
             let gas_mode = module.objective(id).is_gas();
+            // Most external functions are never called internally. Only those
+            // that are need a second, parameterized body; cloning every wrapper
+            // needlessly grows the MIR consumed by all subsequent lowering and
+            // backend passes.
             if let Some(body_id) = self.wrap_function(
                 module,
                 id,
