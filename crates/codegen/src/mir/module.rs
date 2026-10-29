@@ -6,7 +6,7 @@ use super::{
     Terminator, ValueId,
 };
 use crate::{
-    link::{ContractCode, LibraryTable},
+    link::{ContractCode, LibraryTable, QualifiedName, Trailer},
     mir::{
         analysis::{CallGraphInfo, CfgInfo, direct_callees},
         pass_manager::should_validate_ir,
@@ -23,7 +23,7 @@ use solar_data_structures::{
 };
 use solar_interface::{Ident, Symbol, config::OptimizationMode, sym};
 use solar_sema::{Gcx, hir::VariableId};
-use std::{borrow::Cow, fmt, ops::Range, sync::Arc};
+use std::{borrow::Cow, fmt, sync::Arc};
 
 /// A named immutable declared by a MIR module.
 #[derive(Clone, Copy, Debug)]
@@ -669,9 +669,16 @@ impl Module {
         self.add_data_entry(Data::new(data, name))
     }
 
-    /// Adds opaque data that must be emitted at the end of the runtime program.
-    pub(crate) fn append_runtime_data(&mut self, data: Bytes, name: Option<Symbol>) -> DataId {
-        let trailers = vec![Range { start: 0, end: data.len() }];
+    /// Adds `contract`'s trailing runtime data, which must be emitted at the end of the runtime
+    /// program.
+    pub(crate) fn append_runtime_data(
+        &mut self,
+        data: Bytes,
+        name: Option<Symbol>,
+        contract: QualifiedName,
+    ) -> DataId {
+        let trailers =
+            vec![Trailer { contracts: smallvec::smallvec![contract], range: 0..data.len() }];
         self.add_data_entry(Data { emit_in_runtime: true, trailers, ..Data::new(data, name) })
     }
 

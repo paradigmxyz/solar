@@ -29,10 +29,12 @@
             "sourceMap": ":::-:0;;;;;;;;;;;;;",
             "linkReferences": {},
             "cborAuxdata": {
-              "1": {
-                "offset": 43,
-                "value": "0xa26469706673582212209ea67083fe3c0e53eaca1eae7fc8ddeefdaa162fcac3af96345ff2e4fa1e46b765736f6c6172430002000034"
-              }
+              "A.sol:C": [
+                {
+                  "offset": 43,
+                  "value": "0xa26469706673582212209ea67083fe3c0e53eaca1eae7fc8ddeefdaa162fcac3af96345ff2e4fa1e46b765736f6c6172430002000034"
+                }
+              ]
             }
           },
           "deployedBytecode": {
@@ -42,10 +44,12 @@
             "linkReferences": {},
             "immutableReferences": {},
             "cborAuxdata": {
-              "1": {
-                "offset": 26,
-                "value": "0xa26469706673582212209ea67083fe3c0e53eaca1eae7fc8ddeefdaa162fcac3af96345ff2e4fa1e46b765736f6c6172430002000034"
-              }
+              "A.sol:C": [
+                {
+                  "offset": 26,
+                  "value": "0xa26469706673582212209ea67083fe3c0e53eaca1eae7fc8ddeefdaa162fcac3af96345ff2e4fa1e46b765736f6c6172430002000034"
+                }
+              ]
             }
           }
         }
