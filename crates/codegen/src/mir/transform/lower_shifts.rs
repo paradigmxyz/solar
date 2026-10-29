@@ -67,11 +67,12 @@ impl MirPass for LowerShifts {
             let repeated = analyses.runtime_target(gcx);
             let cyclic = analyses.cfg().cyclic_blocks();
             let mut changed = false;
+            // Shifts by the same amount share one computed factor within a block.
+            let mut factors = FxHashMap::default();
             for block in blocks {
                 let target = if cyclic.contains(block) { &repeated } else { &once };
                 let mut builder = FunctionBuilder::new(func);
-                // Shifts by the same amount share one computed factor within a block.
-                let mut factors = FxHashMap::default();
+                factors.clear();
                 expand_block(&mut builder, block, |builder, inst| {
                     if let Some(kind) = lower_shift(builder, target, &mut factors, inst) {
                         builder.func_mut().inst_mut(inst).replace_kind(kind);

@@ -25,8 +25,9 @@
 //! selects the phi successor. This pass isolates only those copies in a single-successor block.
 
 use crate::mir::{
-    Function, Immediate, InstKind, MirPhase, MirType, Module, Value, ValueId, analysis::Liveness,
-    pass::MirPass, transform::cfg_simplify::end_nonreturning_calls, utils::split_edge,
+    Function, Immediate, InstId, InstKind, MirPhase, MirType, Module, Value, ValueId,
+    analysis::Liveness, pass::MirPass, transform::cfg_simplify::end_nonreturning_calls,
+    utils::split_edge,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use std::cell::LazyCell;
@@ -54,8 +55,11 @@ impl MirPass for LowerEvmShaped {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         end_nonreturning_calls(module, true);
+        let mut replacements = FxHashMap::default();
+        let mut casts = DenseBitSet::new_empty(0);
+        let mut instructions = Vec::new();
         for func in &mut module.functions {
-            erase_pointer_types(func);
+            erase_pointer_types(func, &mut replacements, &mut casts, &mut instructions);
             split_clobbering_phi_edges(func);
         }
         if let Err(error) = module.advance_phase(gcx, MirPhase::Lowered) {
@@ -67,7 +71,12 @@ impl MirPass for LowerEvmShaped {
 
 /// Retypes every pointer as the word it holds and drops the casts between the two, so the backend
 /// sees one value for each address.
-fn erase_pointer_types(func: &mut Function) {
+fn erase_pointer_types(
+    func: &mut Function,
+    replacements: &mut FxHashMap<ValueId, ValueId>,
+    casts: &mut DenseBitSet<InstId>,
+    instructions: &mut Vec<InstId>,
+) {
     let word = |ty: MirType| if ty.is_pointer() { MirType::I256 } else { ty };
     for index in func.arg_indices() {
         let ty = func.arg_ty(index);
@@ -89,9 +98,11 @@ fn erase_pointer_types(func: &mut Function) {
             _ => {}
         }
     }
-    let mut replacements = FxHashMap::default();
-    let mut casts = DenseBitSet::new_empty(func.num_insts());
-    for inst in func.instructions().collect::<Vec<_>>() {
+    replacements.clear();
+    casts.clear_to(func.num_insts());
+    instructions.clear();
+    instructions.extend(func.instructions());
+    for &inst in &*instructions {
         let narrow_operand = match func.inst(inst).kind {
             InstKind::IntToPtr(operand) => func.value_ty(operand) != Some(MirType::I256),
             _ => false,
@@ -119,7 +130,7 @@ fn erase_pointer_types(func: &mut Function) {
     if casts.is_empty() {
         return;
     }
-    func.replace_uses_canonicalized(&replacements);
+    func.replace_uses_canonicalized(replacements);
     for block in &mut func.blocks {
         block.instructions.retain(|inst| !casts.contains(*inst));
     }
