@@ -2676,7 +2676,8 @@ impl<'a> CheckEliminator<'a> {
         // Offsets keep an order: `x + c < y + d` follows from `x < y` when `c <= d` and
         // `y + d` cannot wrap, as a copy's destination index `k + offset` against the
         // destination's length `n + offset` while `k < n`.
-        if let (Some((x, c)), Some((y, d))) = (constant_offset(func, a), constant_offset(func, b))
+        let offset_a = constant_offset(func, a);
+        if let (Some((x, c)), Some((y, d))) = (offset_a, constant_offset(func, b))
             && c <= d
             && self
                 .range_of(func, y, depth)
@@ -2736,7 +2737,7 @@ impl<'a> CheckEliminator<'a> {
         // below: `x + b < n` follows from `x + a < n` when `b <= a` and
         // `x + a` cannot wrap, which covers the lookahead guards and the
         // original bound of a loop split to run while `i + K < n`.
-        let (base, offset) = offsets_of(func, a).first().copied().unwrap_or((a, U256::ZERO));
+        let (base, offset) = offset_a.unwrap_or((a, U256::ZERO));
         if self.has_larger_offset_bound(func, base, offset, b, depth) {
             return Some(true);
         }
