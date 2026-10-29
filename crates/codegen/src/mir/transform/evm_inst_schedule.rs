@@ -45,6 +45,7 @@
 //! [Vyper Venom's DFT pass]: https://github.com/vyperlang/vyper/blob/730a2d36f1fca90be059c75681de5c942560ce0b/vyper/venom/passes/dft.py
 //! [solx's EVM single-use-expression pass]: https://github.com/NomicFoundation/solx-llvm/blob/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/Target/EVM/EVMSingleUseExpression.cpp
 
+use super::word_sequence::is_pure;
 use crate::mir::{
     BlockId, EffectKind, Function, InstId, InstKind, Instruction, Module, Terminator, Value,
     ValueId,
@@ -96,7 +97,7 @@ impl EvmInstSchedule {
                     continue;
                 }
 
-                let consumer = Self::stack_input_order(&inst.kind);
+                let consumer = Self::stack_input_order(inst.kind.operands());
                 Self::schedule_segment(
                     func,
                     &original[segment_start..index],
@@ -112,7 +113,7 @@ impl EvmInstSchedule {
             let terminator_inputs = func.blocks[block_id]
                 .terminator
                 .as_ref()
-                .map(Self::terminator_stack_input_order)
+                .map(|term| Self::stack_input_order(term.operands()))
                 .unwrap_or_default();
             Self::schedule_segment(
                 func,
@@ -133,9 +134,7 @@ impl EvmInstSchedule {
 
         changed
     }
-}
 
-impl EvmInstSchedule {
     /// Moves each pure instruction whose single user follows a barrier in the same block to just
     /// before that user, when every word it reads stays live past the user anyway: its result no
     /// longer occupies the stack across the barrier, and no operand lives longer. A pure
@@ -179,10 +178,9 @@ impl EvmInstSchedule {
         for index in (0..len).rev() {
             let inst_id = instructions[index];
             let inst = func.inst(inst_id);
-            if inst.kind.effect_kind() != EffectKind::Pure
+            if !is_pure(inst)
                 || matches!(inst.kind, InstKind::Phi(_))
                 || inst.kind.effects().control.any()
-                || inst.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure)
             {
                 continue;
             }
@@ -281,14 +279,8 @@ impl EvmInstSchedule {
 
     /// Returns operands in the order their producers should run for EVM emission: deepest stack
     /// input first and the eventual top-of-stack input last.
-    fn stack_input_order(kind: &InstKind) -> SmallVec<[ValueId; 8]> {
-        let mut operands = kind.operands();
-        operands.reverse();
-        operands
-    }
-
-    fn terminator_stack_input_order(term: &Terminator) -> SmallVec<[ValueId; 8]> {
-        let mut operands = SmallVec::from_iter(term.operands());
+    fn stack_input_order(operands: impl IntoIterator<Item = ValueId>) -> SmallVec<[ValueId; 8]> {
+        let mut operands = SmallVec::from_iter(operands);
         operands.reverse();
         operands
     }
@@ -311,7 +303,7 @@ impl EvmInstSchedule {
             if !shared_results.contains(inst_id) {
                 continue;
             }
-            let inputs = Self::stack_input_order(&func.inst(inst_id).kind);
+            let inputs = Self::stack_input_order(func.inst(inst_id).kind.operands());
             Self::schedule_single_use_segment(
                 func,
                 &segment[island_start..index],
@@ -498,15 +490,14 @@ impl EvmInstSchedule {
             }
 
             scratch.work.push((inst_id, true));
-            let inputs = Self::stack_input_order(&func.inst(inst_id).kind);
-            for value in inputs.iter().rev() {
-                if let Value::Inst(dependency) = func.value(*value)
+            func.inst(inst_id).kind.visit_operands(|value| {
+                if let Value::Inst(dependency) = func.value(value)
                     && scratch.members.contains(*dependency)
                     && !scratch.visited.contains(*dependency)
                 {
                     scratch.work.push((*dependency, false));
                 }
-            }
+            });
         }
     }
 }
