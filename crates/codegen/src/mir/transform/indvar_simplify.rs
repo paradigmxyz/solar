@@ -105,7 +105,7 @@
 //! - recognize checked unsigned updates at every width and retain their failure checks.
 //! - add only one scaled address counter when the original update must stay live.
 
-use super::egraph::max_bits_with_args;
+use super::{egraph::max_bits_with_args, loop_opt::carried_words};
 use crate::{
     mir::{
         ArithmeticKind, BlockId, CheckedOp, Function, FunctionBuilder, Immediate, InstId, InstKind,
@@ -399,7 +399,8 @@ impl IndVarSimplifier {
                 });
             }
         }
-        let carried = Self::carried_words(func, loop_data, &self.in_loop, &mut self.seen);
+        let carried =
+            carried_words(func, loop_data, |inst| self.in_loop.contains(inst), &mut self.seen);
         let update_value = func.inst_result_value(iv.update_inst);
         let mut candidates: FxHashMap<AddressKey, Vec<ValueId>> = FxHashMap::default();
         let mut offset_shared = FxHashSet::default();
@@ -839,11 +840,8 @@ impl IndVarSimplifier {
         }
         for (key, values) in &members[1..] {
             let Some(offset) = key.constant.checked_sub(primary.constant) else { continue };
-            let Some(magnitude) = offset.checked_abs() else { continue };
-            let Some(magnitude) = self.offset_value(func, magnitude) else { continue };
             for &value in values {
-                let Value::Inst(inst) = *func.value(value) else { continue };
-                func.inst_mut(inst).kind = offset_kind(stepped, magnitude, offset >= 0);
+                self.rewrite_sibling(func, value, stepped, offset);
             }
         }
         func.replace_uses(&replacements);
@@ -1439,39 +1437,6 @@ impl IndVarSimplifier {
                 .any(|&operand| Self::depends_on(func, in_loop, operand, target, depth + 1))
     }
 
-    /// The words the backend carries through the loop: the header's phis and
-    /// the instruction results defined outside that the loop reads.
-    fn carried_words(
-        func: &Function,
-        loop_data: &Loop,
-        in_loop: &DenseBitSet<InstId>,
-        seen: &mut DenseBitSet<ValueId>,
-    ) -> usize {
-        let header = &func.blocks[loop_data.header];
-        let mut count = header
-            .instructions
-            .iter()
-            .filter(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-            .count();
-        seen.clear_to(func.num_values());
-        for block in loop_data.blocks.iter() {
-            let block = &func.blocks[block];
-            for operand in block
-                .instructions
-                .iter()
-                .filter(|&&inst_id| !matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-                .flat_map(|&inst_id| func.inst(inst_id).kind.operands())
-                .chain(block.terminator.iter().flat_map(Terminator::operands))
-            {
-                let Value::Inst(inst_id) = func.value(operand) else { continue };
-                if !in_loop.contains(*inst_id) && seen.insert(operand) {
-                    count += 1;
-                }
-            }
-        }
-        count
-    }
-
     fn additive_step(
         &self,
         func: &Function,
@@ -1547,19 +1512,7 @@ impl IndVarSimplifier {
         }
 
         // preheader: start = base + sum(invariant * scale) + init * scale + constant
-        // A constant start folds into the offset; a loop-invariant start such as an
-        // enclosing counter is scaled in the preheader like an invariant term.
-        let initial = if let Some(init) = self.value_i128(func, iv.init) {
-            let mut value = key.base;
-            for term in &key.invariants {
-                let scaled = self.scale_value(func, preheader, term.value, term.scale)?;
-                value = Some(self.add_values(func, preheader, value, scaled));
-            }
-            let offset = key.constant.checked_add(init.checked_mul(key.scale)?)?;
-            self.add_signed_offset(func, preheader, value?, offset)?
-        } else {
-            self.pointer_at(func, preheader, key, iv.init)?
-        };
+        let initial = self.pointer_at(func, preheader, key, iv.init)?;
         let (phi_inst, phi_value) = func.alloc_value_inst(
             Instruction::new(InstKind::Phi(vec![(preheader, initial)]), Some(MirType::I256))
                 .with_debug_info_dropped(),
@@ -1617,14 +1570,6 @@ impl IndVarSimplifier {
         let initial = if carried.is_some() {
             // Replaced by the carried phi below.
             iv.init
-        } else if let Some(init) = self.value_i128(func, iv.init) {
-            let mut value = previous.base;
-            for term in &previous.invariants {
-                let scaled = self.scale_value(func, preheader, term.value, term.scale)?;
-                value = Some(self.add_values(func, preheader, value, scaled));
-            }
-            let offset = previous.constant.checked_add(init.checked_mul(previous.scale)?)?;
-            self.add_signed_offset(func, preheader, value?, offset)?
         } else {
             self.pointer_at(func, preheader, &previous, iv.init)?
         };
