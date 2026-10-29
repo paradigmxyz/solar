@@ -325,7 +325,7 @@ struct GlobalCseContext<'a> {
     /// Where each side effect's clobbers sit in `block_clobbers`.
     side_effect_clobbers: &'a SideEffectClobbers,
     cfg: &'a CfgInfo,
-    /// Compute liveness and loop membership only for a reused load on a cycle.
+    /// Compute definitions and loop membership only for a reused load on a cycle.
     reuse: Option<OnceCell<MemoryReuseFacts>>,
     /// The values the clobber summaries read, built for the first merged memory read.
     summary_inputs: OnceCell<DenseBitSet<ValueId>>,
