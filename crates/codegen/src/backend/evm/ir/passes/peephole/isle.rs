@@ -441,6 +441,10 @@ impl generated::Context for PeepContext<'_> {
         self.tail().map(|[a, b, c, d, e, f]| (a, b, c, d, e, f))
     }
 
+    fn unprotected_last6(&mut self, _: Window) -> Option<(Inst, Inst, Inst, Inst, Inst, Inst)> {
+        self.unprotected_tail().map(|[a, b, c, d, e, f]| (a, b, c, d, e, f))
+    }
+
     fn swap_pop_chain(&mut self, _: Window) -> Option<u8> {
         let instructions = self.instructions;
         if instructions.last()?.as_stack_op() != Some(StackOp::Pop) || instructions.len() < 2 {
@@ -670,6 +674,14 @@ impl generated::Context for PeepContext<'_> {
     fn is_sink(&mut self, opcode: u8) -> bool {
         // A taken `JUMPI` leaves the stack to its target, which may read the word below.
         op::stack_io(opcode) == Some((2, 0)) && !op::is_terminal(opcode) && opcode != JUMPI
+    }
+
+    fn is_pure_binop(&mut self, opcode: u8) -> bool {
+        op::is_pure(opcode) && op::stack_io(opcode) == Some((2, 1))
+    }
+
+    fn is_deep_swap(&mut self, depth: u8) -> bool {
+        depth > 1
     }
 
     fn u8_add(&mut self, a: u8, b: u8) -> u8 {

@@ -220,23 +220,28 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v8 = add v6, 63
     v9 = lt v8, v6
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v24 = heap_floor !metadata(alloc_ptr)
-    v25 = add v24, v11 !metadata(alloc_ptr)
-    v26 = lt v25, v24
-    v27 = gt v25, 0xffffffffffffffff
-    v28 = or v26, v27
-    v30 = or v9, v28
-    jumpi v30, bb3, bb5
+    v29 = heap_floor !metadata(alloc_ptr)
+    v30 = add v29, v11 !metadata(alloc_ptr)
+    v31 = lt v30, v29
+    v32 = gt v30, 0xffffffffffffffff
+    v33 = or v31, v32
+    v36 = or v9, v33
+    jumpi v36, bb3, bb5
   bb5:
-    mstore 64, v25 !metadata(memory=scratch)
-    mstore v24, v6
+    mstore 64, v30 !metadata(memory=scratch)
+    mstore v29, v6
     v13 = sub v0, v7
     v14 = gt v6, v13
     jumpi v14, bb1, bb4
   bb4:
-    v21 = add v24, 32
-    calldatacopy v21, v7, v6
-    ret v24
+    v25 = add v29, 32
+    calldatacopy v25, v7, v6
+    v22 = sub 0, v6
+    v23 = and v22, 31
+    v35 = calldatasize
+    v26 = add v25, v6
+    calldatacopy v26, v35, v23
+    ret v29
   bb3:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

@@ -24,19 +24,23 @@
 //! the stride table; a table may still pack when the final offsets fit one byte.
 
 use super::{Program, lower};
-use crate::backend::{
-    assembler::{Assembler, Label},
-    evm::{
-        ir::{
-            self, BlockId, ImmediateMaterialization, ImmediateMaterializationOp,
-            immediate_materialization_len,
+use crate::{
+    backend::{
+        assembler::{Assembler, Label},
+        evm::{
+            ir::{
+                self, BlockId, ImmediateMaterialization, ImmediateMaterializationOp,
+                immediate_materialization_len,
+            },
+            op::{self, WORD_BYTES, push_len},
         },
-        op::{self, WORD_BYTES, push_len},
     },
+    target::Target,
 };
 use alloy_primitives::U256;
-use solar_config::{CompileOpts, EvmVersion, OptimizationMode};
+use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::index::{IndexVec, index_vec};
+use solar_sema::Gcx;
 
 fn push_immediate(
     assembler: &mut Assembler<'_>,
@@ -62,8 +66,13 @@ pub(in crate::backend) struct TablePacking {
 
 impl TablePacking {
     /// The encodings of a build for `optimization`, the objective of the module being lowered.
-    pub(in crate::backend) fn new(opts: &CompileOpts, optimization: OptimizationMode) -> Self {
-        Self { two_words: optimization.is_size(), wide: opts.unstable.pack_wide_jump_tables }
+    pub(in crate::backend) fn new(gcx: Gcx<'_>, optimization: OptimizationMode) -> Self {
+        let opts = &gcx.sess.opts;
+        Self {
+            two_words: optimization.is_size(),
+            wide: Target::new(gcx, optimization)
+                .packs_wide_jump_tables(opts.unstable.pack_wide_jump_tables),
+        }
     }
 }
 

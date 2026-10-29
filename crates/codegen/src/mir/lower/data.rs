@@ -55,17 +55,7 @@ pub(crate) fn copy_data_to_memory(
         return;
     }
     let target = module.target(gcx);
-    let separate_tail = (name.is_some() || target.optimization().is_size())
-        && padded_size > data.len()
-        && padded_size == data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize);
-    let data = if separate_tail || padded_size == data.len() {
-        Cow::Borrowed(data)
-    } else {
-        let mut padded = Vec::with_capacity(padded_size);
-        padded.extend_from_slice(data);
-        padded.resize(padded_size, 0);
-        Cow::Owned(padded)
-    };
+    let (data, separate_tail) = padded_copy_data(target, data, padded_size, name);
     if copy_splat_to_memory(target, builder, dest, &data, separate_tail) {
         return;
     }
@@ -199,4 +189,38 @@ fn is_repeated_word(data: &[u8]) -> bool {
     }
     let (word, rest) = data.split_at(word_size);
     rest.chunks(word_size).all(|chunk| chunk == &word[..chunk.len()])
+}
+
+/// Returns whether `copy_data_to_memory` stores the unnamed `data` as words, as it does short
+/// data, instead of copying it from the data section.
+// NOTE: This does not model the `-Osize` splat branch of `copy_data_to_memory`, which also leaves
+// no data copy; callers lose an optimization there, not correctness.
+pub(crate) fn stores_data_as_words(target: Target, data: &[u8]) -> bool {
+    let padded_size = data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize);
+    let (data, separate_tail) = padded_copy_data(target, data, padded_size, None);
+    padded_size <= EvmMemoryLayout::WORD_SIZE as usize
+        || data.iter().any(|&byte| byte != 0)
+            && !data_copy_is_profitable_for(target, &data, separate_tail)
+}
+
+/// Returns the bytes to copy and whether their tail word is cleared separately, rather than
+/// copied zero-padded.
+fn padded_copy_data<'a>(
+    target: Target,
+    data: &'a [u8],
+    padded_size: usize,
+    name: Option<Symbol>,
+) -> (Cow<'a, [u8]>, bool) {
+    let separate_tail = (name.is_some() || target.optimization().is_size())
+        && padded_size > data.len()
+        && padded_size == data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize);
+    let data = if separate_tail || padded_size == data.len() {
+        Cow::Borrowed(data)
+    } else {
+        let mut padded = Vec::with_capacity(padded_size);
+        padded.extend_from_slice(data);
+        padded.resize(padded_size, 0);
+        Cow::Owned(padded)
+    };
+    (data, separate_tail)
 }

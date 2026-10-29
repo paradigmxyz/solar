@@ -437,7 +437,7 @@ pub struct UnstableOpts {
     pub switch_max_bit_slice_gas_code_growth: Option<usize>,
 
     /// Tune generated code for an execution engine (default: `none`; values: `none`,
-    /// `interpreter`).
+    /// `interpreter`, `jit`).
     #[cfg_attr(
         feature = "clap",
         arg(

@@ -322,7 +322,17 @@ struct Full {
 
 /// Whether the build trades code size for runtime gas by copying loop bodies.
 fn copies_loops(target: &Target) -> bool {
-    target.optimization().is_gas() && target.copies_loops()
+    target.optimization().is_gas() && target.unrolls_loops()
+}
+
+/// Whether the target allows unrolling or peeling a loop that carries this many words across its
+/// back edge: every header phi except a flag.
+fn carries_few_words(func: &Function, header: BlockId, latch: BlockId, target: &Target) -> bool {
+    let words = header_phis(func, header, latch)
+        .into_iter()
+        .filter(|&(phi, _)| func.value_ty(phi) != Some(MirType::I1))
+        .count();
+    target.unrolls_loop_carrying(words)
 }
 
 /// The most iterations a loop may run to be unrolled completely, whatever its pricing.
@@ -631,6 +641,9 @@ fn plan(
     }
     let shape = shape(func, loops, l, cold)?;
     let Shape { preheader, latch, body, exit, ref loop_insts, .. } = shape;
+    if !carries_few_words(func, l.header, latch, target) {
+        return None;
+    }
     // The stack planner spills a word the body reads from before the loop, and the copies
     // measured slower than the original loop, unless the body only compares against it, as the
     // header compares the counter with its bound: a hoisted product limit is such a word.
@@ -997,6 +1010,9 @@ fn plan_peel(
         return None;
     }
     let shape = shape(func, loops, l, cold)?;
+    if !carries_few_words(func, l.header, shape.latch, target) {
+        return None;
+    }
     let tests: Vec<_> = l
         .blocks
         .iter()

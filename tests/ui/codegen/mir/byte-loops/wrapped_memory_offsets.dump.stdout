@@ -190,34 +190,39 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
     v54 = sub v45, v53
     v55 = gt v52, v54
     v56 = or v51, v55
-    v96 = or v46, v56
+    v102 = or v46, v56
     v60 = calldataload 36
     v61 = add v60, 4
     v64 = gt v60, v50
-    v97 = or v96, v64
-    jumpi v97, bb15, bb16
+    v103 = or v102, v64
+    jumpi v103, bb15, bb16
   bb16:
     v65 = calldataload v61
     v66 = add v61, 32
     v67 = add v65, 63
     v68 = lt v67, v65
     v70 = and v67, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v90 = heap_floor !metadata(alloc_ptr)
-    v91 = add v90, v70 !metadata(alloc_ptr)
-    v92 = lt v91, v90
-    v93 = gt v91, 0xffffffffffffffff
-    v94 = or v92, v93
-    v98 = or v68, v94
-    jumpi v98, bb17, bb19
+    v95 = heap_floor !metadata(alloc_ptr)
+    v96 = add v95, v70 !metadata(alloc_ptr)
+    v97 = lt v96, v95
+    v98 = gt v96, 0xffffffffffffffff
+    v99 = or v97, v98
+    v104 = or v68, v99
+    jumpi v104, bb17, bb19
   bb19:
-    mstore 64, v91 !metadata(memory=scratch)
-    mstore v90, v65
+    mstore 64, v96 !metadata(memory=scratch)
+    mstore v95, v65
     v72 = sub v45, v66
     v73 = gt v65, v72
     jumpi v73, bb15, bb18
   bb18:
-    v87 = add v90, 32
-    calldatacopy v87, v66, v65
+    v91 = add v95, 32
+    calldatacopy v91, v66, v65
+    v81 = sub 0, v65
+    v82 = and v81, 31
+    v101 = calldatasize
+    v92 = add v91, v65
+    calldatacopy v92, v101, v82
     v40 = lt v52, arg2
     jumpi v40, bb7, bb6
   bb6:
@@ -234,13 +239,13 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
     v44 = lt v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     jumpi v44, bb12, bb14
   bb14:
-    v34 = mload v87
+    v34 = mload v91
     v35 = lt v43, v34
     jumpi v35, bb11, bb8
   bb11:
-    v84 = add v87, v43
-    v85 = add v84, 32
-    mstore8 v85, v32
+    v88 = add v91, v43
+    v89 = add v88, 32
+    mstore8 v89, v32
     v39 = add v27, 1
     jump bb4
   bb7:
@@ -263,15 +268,15 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
     v42 = lt v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     jumpi v42, bb12, bb13
   bb13:
-    v19 = mload v87
+    v19 = mload v91
     v20 = lt v41, v19
     jumpi v20, bb10, bb8
   bb8:
     tail_call @revert_stub
   bb10:
-    v82 = add v87, v41
-    v83 = add v82, 32
-    mstore8 v83, v16
+    v86 = add v91, v41
+    v87 = add v86, 32
+    mstore8 v87, v16
     v26 = add v6, 1
     jump bb1
   bb12:
