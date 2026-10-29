@@ -8,9 +8,8 @@
 //!
 //! An adjacent cold revert with a payload can use the same rewrite when inversion removes an
 //! existing `ISZERO`, exchanges `EQ` and `SUB`, or adjusts a constant comparison without
-//! increasing its cost.
-//! Keep its own target and payload; successful execution then falls through
-//! without the inversion or a continuation label after block layout.
+//! increasing its cost. It keeps its own target and payload; successful execution then falls
+//! through without the inversion or a continuation label after block layout.
 //!
 //! Inverting the branch can need an extra `ISZERO` before the branch target, which runs between
 //! the condition and the jump. That boundary must be one `keep_with_next` allows to be disturbed,
@@ -22,10 +21,7 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{
-            Block, BlockId, Instruction, Module, ModuleTarget, PushValue, Terminator,
-            TerminatorKind,
-        },
+        ir::{Block, BlockId, Instruction, Module, ModuleTarget, Terminator, TerminatorKind},
         op,
     },
     target::Target,
@@ -64,6 +60,9 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
     for (block_id, block) in module.blocks.iter_mut_enumerated() {
         let Some(term) = &block.terminator else { continue };
         let TerminatorKind::Jump(revert) = term.kind else { continue };
+        if revert.index() != block_id.index() + 1 {
+            continue;
+        }
         let is_empty = empty_reverts.contains(revert);
         let Some(target_revert) =
             (if is_empty { shared } else { cold_reverts.contains(revert).then_some(revert) })
@@ -71,10 +70,9 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
             continue;
         };
         let [.., target, jumpi] = block.instructions.as_slice() else { continue };
-        let Some(PushValue::Block(continuation)) = target.value else { continue };
+        let Some(continuation) = target.pushed_block() else { continue };
         if jumpi.as_evm_opcode() != Some(op::JUMPI)
             || !target.is_encoded_push()
-            || revert.index() != block_id.index() + 1
             || continuation.index() != revert.index() + 1
         {
             continue;
@@ -83,9 +81,9 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
         // before the branch target. Dropping and inserting change what runs at that boundary, so
         // both need a boundary `keep_with_next` allows to be disturbed.
         let condition_end = block.instructions.len() - 2;
-        let before = condition_end.checked_sub(1).map(|index| &block.instructions[index]);
-        let is_iszero = before.is_some_and(|inst| inst.opcode == op::ISZERO);
-        let inverse = before.filter(|inst| !inst.keeps_with_next()).and_then(|inst| {
+        let prev = condition_end.checked_sub(1).map(|index| &block.instructions[index]);
+        let is_iszero = prev.is_some_and(|inst| inst.opcode == op::ISZERO);
+        let inverse = prev.filter(|inst| !inst.keeps_with_next()).and_then(|inst| {
             match inst.as_evm_opcode()? {
                 op::EQ => Some(op::SUB),
                 op::SUB => Some(op::EQ),
@@ -161,11 +159,8 @@ fn preserves_shared_revert_low_address(target: Target, module: &Module, shared: 
     let mut shared_end = 0;
     let mut total = 0;
     for (block_id, block) in module.blocks.iter_enumerated() {
-        references += block
-            .instructions
-            .iter()
-            .filter(|inst| matches!(inst.value, Some(PushValue::Block(target)) if target == shared))
-            .count();
+        references +=
+            block.instructions.iter().filter(|inst| inst.pushed_block() == Some(shared)).count();
         total += block_size(block);
         if block_id == shared {
             shared_end = total;

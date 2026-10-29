@@ -12,8 +12,8 @@
 //! A terminal suffix covering the representative's whole body reuses its block and label when
 //! there are no nested shared tails. Nested tails keep their placement
 //! to preserve fallthrough paths. Other address-taken entries keep their jump stubs.
-//! Gas mode indexes non-loop tails first, so loop paths can reuse them regardless of block order.
-//! In gas mode, loop-only paths do not create sharing groups.
+//! Gas mode indexes non-loop tails first, so loop paths can reuse them regardless of block order,
+//! and loop-only paths do not create sharing groups.
 //! Replacement jumps retain the suffix's entry location before its origins are merged, so
 //! single-origin source maps do not lose both callers' locations on a shared body.
 //! In gas mode, hot sharing must repay its transfer over the optimizer run count.
@@ -152,8 +152,8 @@ impl RunState {
             } else {
                 block.metadata.in_loop
             };
-            let matched = self.longest_common_tail(module, block, keep_branches);
-            if let Some((representative, common)) = matched
+            if let Some((representative, common)) =
+                self.longest_common_tail(module, block, keep_branches)
                 && is_profitable(gcx, module, block_id, representative, common)
             {
                 self.merges.push(Merge { representative, block: block_id, common });
@@ -305,17 +305,22 @@ impl RunState {
         }
         let Self { merges, group_indices, commons, tails, opaque_labels, .. } = self;
         merges.sort_by_key(|merge| group_indices[&merge.representative]);
-        let mut label_count = 0;
-        for sites in merges.chunk_by(|a, b| a.representative == b.representative) {
-            collect_commons(sites, commons);
-            label_count += commons.len();
-        }
+        let label_count = merges
+            .chunk_by(|a, b| a.representative == b.representative)
+            .map(|sites| {
+                collect_commons(sites, commons);
+                commons.len()
+            })
+            .sum();
         let Some(labels) = labels.take(label_count) else { return false };
         let mut labels = labels.into_iter();
         for sites in merges.chunk_by(|a, b| a.representative == b.representative) {
             let representative_id = sites[0].representative;
+            collect_commons(sites, commons);
+            let &max_common = commons.last().expect("merge group must have a site");
             let representative = &module.blocks[representative_id];
-            let instructions = representative.instructions.clone();
+            let len = representative.instructions.len();
+            let suffix = representative.instructions[len - max_common..].to_vec();
             let terminator = representative.terminator.clone();
             let metadata = representative.metadata;
             let max_hot_common = sites
@@ -326,16 +331,14 @@ impl RunState {
             let any_site = |module: &Module, common: usize, flag: fn(&Block) -> bool| {
                 sites.iter().any(|site| site.common >= common && flag(&module.blocks[site.block]))
             };
-            collect_commons(sites, commons);
 
             tails.clear();
             let mut previous_common = 0;
-            let mut previous_tail = None;
             for &common in commons.iter() {
                 preserve_split_control_target(
                     module,
                     representative_id,
-                    instructions.len() - common,
+                    len - common,
                     opaque_labels,
                 );
                 let mut tail = Block::new(labels.next().expect("reserved one label per tail"));
@@ -349,9 +352,8 @@ impl RunState {
                 {
                     tail.metadata.hotness = Hotness::Hot;
                 }
-                tail.instructions = instructions
-                    [instructions.len() - common..instructions.len() - previous_common]
-                    .to_vec();
+                tail.instructions =
+                    suffix[max_common - common..max_common - previous_common].to_vec();
                 if track_debug_info {
                     for instruction in &mut tail.instructions {
                         instruction.metadata.take_function_invoke();
@@ -367,16 +369,16 @@ impl RunState {
                         }
                     }
                 }
-                tail.terminator = previous_tail.map_or_else(
+                tail.terminator = tails.last().map_or_else(
                     || terminator.clone(),
-                    |target| {
+                    |&target| {
                         Some(
                             Terminator::new(TerminatorKind::Jump(target)).with_debug_info_dropped(),
                         )
                     },
                 );
                 if track_debug_info
-                    && previous_tail.is_none()
+                    && tails.is_empty()
                     && let Some(tail_terminator) = &mut tail.terminator
                 {
                     tail_terminator.metadata.take_function_invoke();
@@ -389,7 +391,7 @@ impl RunState {
                 // whole_body: suffix => whole_body: shared_suffix
                 // Shared entries drop path-specific invocation events.
                 let tail = if commons.len() == 1
-                    && common == instructions.len()
+                    && common == len
                     && terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
                 {
                     tail.label = module.blocks[representative_id].label;
@@ -400,18 +402,14 @@ impl RunState {
                 };
                 tails.push(tail);
                 previous_common = common;
-                previous_tail = Some(tail);
             }
 
-            let (&max_common, &max_tail) =
-                (commons.last().zip(tails.last())).expect("merge group must have a tail");
+            let &max_tail = tails.last().expect("merge group must have a tail");
             if max_tail != representative_id {
                 let representative_debug =
                     suffix_debug_info(&module.blocks[representative_id], max_common);
                 // prefix; suffix !metadata(origin) => prefix; jump tail !metadata(origin)
-                module.blocks[representative_id]
-                    .instructions
-                    .truncate(instructions.len() - max_common);
+                module.blocks[representative_id].instructions.truncate(len - max_common);
                 let mut terminator =
                     Terminator::new(TerminatorKind::Jump(max_tail)).with_debug_info_dropped();
                 terminator.metadata.copy_debug_info_from(&representative_debug);
@@ -541,7 +539,7 @@ fn is_profitable(
     let target = block.target(gcx, module.optimization, creation);
     let transfer = target.opcode(op::PUSH2) + target.opcode(op::JUMP) + target.opcode(op::JUMPDEST);
     let transfer_bytes = transfer.bytes as usize;
-    let suffix_size = suffix_size(gcx, module, block_id, common);
+    let suffix_size = suffix_size(gcx, module, block_id, block, common);
     suffix_size > transfer_bytes
         && (!module.optimization.is_gas()
             || (block.metadata.hotness.is_cold() && representative.metadata.hotness.is_cold())
@@ -557,8 +555,13 @@ fn is_candidate(block: &Block) -> bool {
     })
 }
 
-fn suffix_size(gcx: Gcx<'_>, module: &Module, block_id: BlockId, common: usize) -> usize {
-    let block = &module.blocks[block_id];
+fn suffix_size(
+    gcx: Gcx<'_>,
+    module: &Module,
+    block_id: BlockId,
+    block: &Block,
+    common: usize,
+) -> usize {
     let terminator = &block.terminator.as_ref().expect("candidate must have a terminator").kind;
     let terminator_size = match *terminator {
         TerminatorKind::Jump(target) if target.index() == block_id.index() + 1 => 0,
