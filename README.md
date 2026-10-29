@@ -28,12 +28,6 @@ Blazingly fast, modular and contributor friendly Solidity compiler, written in R
 - 💻 Simple and hackable code base
 - 🔄 Compatibility with the latest Solidity language breaking version (0.8.*)
 
-<p align="center">
-    <picture align="center">
-        <img alt="Terminal screenshot showing Solar is 40x faster than solc at generating ABI using hyperfine" src="/assets/benchmark.png">
-    </picture>
-</p>
-
 ## Performance
 
 On six real-world projects, builds were **about 100× faster on average** than solc's via-IR pipeline,
@@ -56,6 +50,16 @@ its project's settings), the generated contracts used **5% less gas**, cost **26
 deploy** and had **29% smaller bytecode** than those compiled with solc, as geometric means.
 See the [results](https://www.getfoundry.sh/perf/solar/?head=0303bb7d606a50ef158e34669b5851f47a1e054e#benchmarks) and
 [benchmark instructions](benches/runtime/README.md) for inputs, settings and how to reproduce them.
+
+## How it works
+
+![Compiler pipeline: Solidity → AST → HIR → MIR → EVM IR → bytecode, with optimization passes on MIR and EVM IR](assets/pipeline.png)
+
+MIR keeps Solidity types and operations, so passes can remove redundant checks, inline functions
+and avoid repeated storage and memory accesses. EVM IR handles stack operations, block layout,
+tail merging and peephole rewrites before assembly.
+
+See the [MIR reference](docs/MIR.md) and [codegen guide](docs/CODEGEN.md) to work on the compiler.
 
 ## Getting started
 
