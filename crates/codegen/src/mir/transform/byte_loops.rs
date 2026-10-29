@@ -607,11 +607,8 @@ fn bounds_check(
         if outside_length(func, l, buffer, len) {
             return Some((inst, Some(len)));
         }
-        let Value::Inst(len_inst) = *func.value(len) else { return None };
         let matches = match buffer {
-            Buffer::Memory(object) => {
-                func.inst(len_inst).kind == InstKind::Load(object, PtrLocation::Memory)
-            }
+            Buffer::Memory(object) => is_length_load(func, len, object),
             Buffer::Calldata(slice) => slice_length(func, slice, len),
         };
         matches.then_some((inst, None))
@@ -628,29 +625,31 @@ fn outside_length(func: &Function, l: &Loop, buffer: Buffer, len: ValueId) -> bo
     match buffer {
         Buffer::Memory(object) => {
             let source = through_trivial_phis(func, len);
-            let loaded = matches!(*func.value(source), Value::Inst(load)
-                if func.inst(load).kind == InstKind::Load(object, PtrLocation::Memory));
-            loaded || stored_length(func, object) == Some(source)
+            is_length_load(func, source, object) || stored_length(func, object) == Some(source)
         }
         Buffer::Calldata(slice) => slice_length(func, slice, len),
     }
 }
 
+/// Whether `len` is a load of the length word of the memory object `object`.
+fn is_length_load(func: &Function, len: ValueId, object: ValueId) -> bool {
+    func.value_inst_kind(len) == Some(&InstKind::Load(object, PtrLocation::Memory))
+}
+
 /// Whether `len` is the length field of the calldata slice `slice`.
 fn slice_length(func: &Function, slice: ValueId, len: ValueId) -> bool {
-    matches!(*func.value(len), Value::Inst(inst) if matches!(
-        func.inst(inst).kind,
-        InstKind::ExtractValue { aggregate, index, .. }
+    matches!(
+        func.value_inst_kind(len),
+        Some(&InstKind::ExtractValue { aggregate, index, .. })
             if aggregate == slice && index == MirType::SLICE_LEN_FIELD
-    ))
+    )
 }
 
 /// The value `value` stands for once phis whose inputs are only themselves and one other value
 /// are looked through.
 fn through_trivial_phis(func: &Function, mut value: ValueId) -> ValueId {
     for _ in 0..8 {
-        let Value::Inst(inst) = *func.value(value) else { break };
-        let InstKind::Phi(incoming) = &func.inst(inst).kind else { break };
+        let Some(InstKind::Phi(incoming)) = func.value_inst_kind(value) else { break };
         let mut others = incoming.iter().map(|&(_, input)| input).filter(|&input| input != value);
         let Some(first) = others.next() else { break };
         if others.any(|other| other != first) {
@@ -1185,10 +1184,9 @@ fn length_unchanged(
 /// Whether `size` is `(len + 1) * 32`, the bytes a dynamic array of `len` words reserves: its
 /// length word and its elements.
 fn word_array_size(func: &Function, size: ValueId, len: ValueId) -> bool {
-    let Value::Inst(mul) = *func.value(size) else { return false };
-    let (a, b) = match func.inst(mul).kind {
-        InstKind::Mul(a, b)
-        | InstKind::CheckedBinary { op: CheckedOp::Mul, lhs: a, rhs: b, .. } => (a, b),
+    let (a, b) = match func.value_inst_kind(size) {
+        Some(&InstKind::Mul(a, b))
+        | Some(&InstKind::CheckedBinary { op: CheckedOp::Mul, lhs: a, rhs: b, .. }) => (a, b),
         _ => return false,
     };
     let words = match (func.value_u64(a), func.value_u64(b)) {
@@ -1196,10 +1194,9 @@ fn word_array_size(func: &Function, size: ValueId, len: ValueId) -> bool {
         (Some(32), _) => b,
         _ => return false,
     };
-    let Value::Inst(add) = *func.value(words) else { return false };
-    let (x, y) = match func.inst(add).kind {
-        InstKind::Add(x, y)
-        | InstKind::CheckedBinary { op: CheckedOp::Add, lhs: x, rhs: y, .. } => (x, y),
+    let (x, y) = match func.value_inst_kind(words) {
+        Some(&InstKind::Add(x, y))
+        | Some(&InstKind::CheckedBinary { op: CheckedOp::Add, lhs: x, rhs: y, .. }) => (x, y),
         _ => return false,
     };
     (func.value_u64(y) == Some(1) && same_value(func, x, len, 2))
@@ -1319,15 +1316,15 @@ fn fresh_destination(
 fn range_fits(func: &Function, offset: Option<ValueId>, bound: ValueId, len: ValueId) -> bool {
     match offset.filter(|&offset| func.value_u64(offset) != Some(0)) {
         None => same_value(func, bound, len, 2),
-        Some(offset) => matches!(*func.value(bound), Value::Inst(inst) if matches!(
-            func.inst(inst).kind,
-            InstKind::CheckedBinary {
+        Some(offset) => matches!(
+            func.value_inst_kind(bound),
+            Some(&InstKind::CheckedBinary {
                 op: CheckedOp::Sub,
                 arithmetic: ArithmeticKind::Unsigned(256),
                 lhs,
                 rhs,
-            } if same_value(func, lhs, len, 2) && same_value(func, rhs, offset, 2)
-        )),
+            }) if same_value(func, lhs, len, 2) && same_value(func, rhs, offset, 2)
+        ),
     }
 }
 
@@ -1382,14 +1379,12 @@ fn length_before(
 /// buffer allocated in words and cut to its length by a trusted `mstore(b, len)` allocates.
 fn bytes_size(func: &Function, size: ValueId, len: ValueId) -> bool {
     let words = |value| {
-        let Value::Inst(and) = *func.value(value) else { return None };
-        let InstKind::And(a, b) = func.inst(and).kind else { return None };
+        let Some(&InstKind::And(a, b)) = func.value_inst_kind(value) else { return None };
         let mask = |mask| func.value_u256(mask) == Some(!U256::from(31));
         if mask(b) { Some(a) } else { mask(a).then_some(b) }
     };
     let plus = |value, constant| {
-        let Value::Inst(add) = *func.value(value) else { return None };
-        let InstKind::Add(x, y) = func.inst(add).kind else { return None };
+        let Some(&InstKind::Add(x, y)) = func.value_inst_kind(value) else { return None };
         if func.value_u64(y) == Some(constant) {
             Some(x)
         } else {
@@ -1404,22 +1399,12 @@ fn bytes_size(func: &Function, size: ValueId, len: ValueId) -> bool {
 /// Whether `address` is `object + 32 + len` in either association, the end of the object's
 /// first `len` bytes, with `len` itself or the object's length word.
 fn payload_end(func: &Function, address: ValueId, object: ValueId, len: ValueId) -> bool {
-    let add = |value| match *func.value(value) {
-        Value::Inst(inst) => match func.inst(inst).kind {
-            InstKind::Add(a, b) => Some((a, b)),
-            _ => None,
-        },
+    let add = |value| match func.value_inst_kind(value) {
+        Some(&InstKind::Add(a, b)) => Some((a, b)),
         _ => None,
     };
-    let base = |value| {
-        matches!(*func.value(value), Value::Inst(inst)
-            if func.inst(inst).kind == InstKind::PtrToInt(object, 256))
-    };
-    let length = |value| {
-        same_value(func, value, len, 2)
-            || matches!(*func.value(value), Value::Inst(inst)
-                if func.inst(inst).kind == InstKind::Load(object, PtrLocation::Memory))
-    };
+    let base = |value| func.value_inst_kind(value) == Some(&InstKind::PtrToInt(object, 256));
+    let length = |value| same_value(func, value, len, 2) || is_length_load(func, value, object);
     let Some((a, b)) = add(address) else { return false };
     [(a, b), (b, a)].into_iter().any(|(inner, outer)| {
         add(inner).is_some_and(|(c, d)| {
@@ -1439,10 +1424,12 @@ fn same_value(func: &Function, a: ValueId, b: ValueId, depth: u32) -> bool {
     if a == b || func.value_u256(a).is_some_and(|value| func.value_u256(b) == Some(value)) {
         return true;
     }
-    let (&Value::Inst(x), &Value::Inst(y)) = (func.value(a), func.value(b)) else { return false };
+    let (Some(x), Some(y)) = (func.value_inst_kind(a), func.value_inst_kind(b)) else {
+        return false;
+    };
     let Some(depth) = depth.checked_sub(1) else { return false };
     let same = |a, b| same_value(func, a, b, depth);
-    match (&func.inst(x).kind, &func.inst(y).kind) {
+    match (x, y) {
         (
             &InstKind::CheckedBinary { op, arithmetic, lhs, rhs },
             &InstKind::CheckedBinary { op: op2, arithmetic: arithmetic2, lhs: lhs2, rhs: rhs2 },

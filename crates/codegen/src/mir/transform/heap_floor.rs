@@ -466,8 +466,8 @@ fn word_fields(
     let mut fields = SmallVec::new();
     let mut inserted = SmallVec::<[u32; 4]>::new();
     loop {
-        let Value::Inst(inst) = *func.value(value) else { return None };
-        let InstKind::InsertValue { aggregate, index, value: field, .. } = func.inst(inst).kind
+        let Some(&InstKind::InsertValue { aggregate, index, value: field, .. }) =
+            func.value_inst_kind(value)
         else {
             return None;
         };
@@ -757,7 +757,7 @@ fn walk_may_be_low(
     if heap.contains(address) {
         return false;
     }
-    let Value::Inst(inst) = *func.value(address) else { return true };
+    let Some(kind) = func.value_inst_kind(address) else { return true };
     if !visiting.insert(address) {
         return false;
     }
@@ -767,7 +767,7 @@ fn walk_may_be_low(
     };
     *steps = remaining;
     let mut low = |value| walk_may_be_low(func, heap, value, max_step_back, visiting, steps);
-    let result = match &func.inst(inst).kind {
+    let result = match kind {
         InstKind::Add(..) | InstKind::PtrAdd(..) | InstKind::Sub(..) => {
             let bases = pointer_bases(func, address, max_step_back);
             bases.is_empty() || bases.into_iter().all(low)
@@ -1864,8 +1864,8 @@ impl<'a> PointerUses<'a> {
             if !needed.insert(value) || roots.contains(&value) {
                 continue;
             }
-            if let Value::Inst(definition) = *func.value(value) {
-                func.inst(definition).visit_operands(|operand| {
+            if let Some(kind) = func.value_inst_kind(value) {
+                kind.visit_operands(|operand| {
                     if derived.contains(&operand) {
                         pending.push(operand);
                     }
@@ -1887,16 +1887,18 @@ impl<'a> PointerUses<'a> {
             .filter(|&value| {
                 needed.contains(value)
                     && (raw.contains(value)
-                        || matches!(*func.value(value), Value::Inst(inst)
-                            if matches!(func.inst(inst).kind, InstKind::CheckedBinary { .. })))
+                        || matches!(
+                            func.value_inst_kind(value),
+                            Some(InstKind::CheckedBinary { .. })
+                        ))
             })
             .collect::<Vec<_>>();
         while let Some(value) = pending.pop() {
             if !copied.insert(value) || roots.contains(&value) {
                 continue;
             }
-            if let Value::Inst(definition) = *func.value(value) {
-                func.inst(definition).visit_operands(|operand| {
+            if let Some(kind) = func.value_inst_kind(value) {
+                kind.visit_operands(|operand| {
                     if needed.contains(operand) {
                         pending.push(operand);
                     }
