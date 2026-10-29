@@ -73,38 +73,17 @@ fn lower_function(func: &mut Function) -> bool {
     for block in func.blocks.indices() {
         let mut builder = FunctionBuilder::new(func);
         expand_block(&mut builder, block, |builder, inst| {
-            match builder.func().inst(inst).kind {
-                InstKind::PtrAdd(ptr, offset) => {
-                    // address = add (ptrtoint ptr), offset
-                    // result = inttoptr address
-                    let base = builder.cast(ptr, MirType::I256);
-                    let address = builder.add(base, offset);
-                    if let Value::Inst(add) = *builder.func().value(address) {
-                        builder.func_mut().inst_mut(add).metadata.set_checked_object_offset();
-                    }
-                    builder.func_mut().inst_mut(inst).kind = InstKind::IntToPtr(address);
-                }
-                ref kind
-                    if kind.evm_opcode().is_some()
-                        && !kind.scalar_types_match(
-                            builder.func(),
-                            builder.func().inst(inst).result_ty,
-                        ) =>
-                {
-                    // scalar_operand = zext scalar_operand to i256
-                    let mut kind = kind.clone();
-                    kind.visit_operands_mut(|value| {
-                        if matches!(
-                            builder.func().value_ty(*value),
-                            Some(MirType::Int(bits)) if bits.get() < 256
-                        ) {
-                            *value = builder.cast_word(*value);
-                        }
-                    });
-                    builder.func_mut().inst_mut(inst).kind = kind;
-                }
-                _ => {}
+            let InstKind::PtrAdd(ptr, offset) = builder.func().inst(inst).kind else {
+                return false;
+            };
+            // address = add (ptrtoint ptr), offset
+            // result = inttoptr address
+            let base = builder.cast(ptr, MirType::I256);
+            let address = builder.add(base, offset);
+            if let Value::Inst(add) = *builder.func().value(address) {
+                builder.func_mut().inst_mut(add).metadata.set_checked_object_offset();
             }
+            builder.func_mut().inst_mut(inst).kind = InstKind::IntToPtr(address);
             false
         });
     }
