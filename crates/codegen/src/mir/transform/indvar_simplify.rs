@@ -1060,7 +1060,8 @@ impl IndVarSimplifier {
         addresses: &FxHashSet<ValueId>,
         visited: &mut DenseBitSet<ValueId>,
     ) -> Option<ExitReads> {
-        let mut pending = vec![iv];
+        let mut pending = Vec::new();
+        pending.push(iv);
         visited.clear_to(func.num_values());
         while let Some(value) = pending.pop() {
             if !visited.insert(value) {
