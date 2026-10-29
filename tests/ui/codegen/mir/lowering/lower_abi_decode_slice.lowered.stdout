@@ -13,6 +13,9 @@
 +     jumpi v5, bb1, bb2
 +   bb2:
 +     v6 = mload v1
++     v7 = eq 1, 0
++     jumpi v7, bb1, bb3
++   bb3:
 +     ret v6
 +   bb1:
 +     revert 0, 0
@@ -114,12 +117,21 @@
 +   bb2:
 +     v3 = alloc 64
 +     v4 = mload arg0
++     v5 = eq 1, 0
++     jumpi v5, bb1, bb3
++   bb3:
 +     mstore v3, v4
-+     v5 = ptrtoint ptr<memory> arg0 to i256
-+     v6 = add v5, 32
-+     v7 = mload v6
-+     v8 = ptradd v3, 32
-+     mstore v8, v7
++     v6 = ptrtoint ptr<memory> arg0 to i256
++     v7 = add v6, 32
++     v8 = mload v7
++     v9 = eq 1, 0
++     jumpi v9, bb1, bb4
++   bb4:
++     v10 = ptradd v3, 32
++     mstore v10, v8
++     v11 = eq 1, 0
++     jumpi v11, bb1, bb5
++   bb5:
 +     ret v3
 +   bb1:
 +     revert 0, 0
