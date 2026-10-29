@@ -13,8 +13,9 @@
 //! The pass matches the OR tree at its root. Every leaf must be one byte of
 //! one word read, `byte(0, mload(a))`, the addresses must share one base and
 //! cover a consecutive constant range, and each leaf's accumulated shift must
-//! be the one its position in that range implies. The root is then rewritten to a single shift of
-//! the lowest address's word and the interior nodes become dead.
+//! be the one its position in that range implies. The root is then rewritten
+//! to a single shift of the lowest address's word and the interior nodes
+//! become dead.
 //!
 //! # Safety
 //!
@@ -213,7 +214,8 @@ fn collect(
             if amount % 8 != 0 {
                 return false;
             }
-            collect(func, inner, shift + amount, window, uses, false, leaves, nodes)
+            let Some(shift) = shift.checked_add(amount) else { return false };
+            collect(func, inner, shift, window, uses, false, leaves, nodes)
         }
         InstKind::Byte(..) => {
             let Some((load, word)) = byte_load(func, inst) else { return false };
