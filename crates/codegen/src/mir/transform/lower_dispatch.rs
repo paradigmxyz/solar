@@ -4,12 +4,12 @@
 //! creates an ordinary MIR function named `entry` while the module stays semantic.
 //!
 //! The synthesized `entry` function reads the selector from the first calldata
-//! word (`shr 224`, or a division by `2**224` before Constantinople) and
-//! switches on it to one argument-free `tail_call` per external wrapper. It is
-//! meant to run after [`super::lower_abi::LowerAbi`], which turns external
-//! functions into the argument-free self-decoding wrappers this switch routes
-//! to; that is why it only routes selector-bearing functions that take no MIR
-//! arguments. Empty calldata goes to `receive` when there is one, and a selector
+//! word (`shr 224`; `lower-shifts` later rewrites the shift for EVM versions
+//! without `SHR`) and switches on it to one argument-free `tail_call` per
+//! external wrapper. It is meant to run after [`super::lower_abi::LowerAbi`],
+//! which turns external functions into the argument-free self-decoding
+//! wrappers this switch routes to; that is why it only routes selector-bearing functions that take
+//! no MIR arguments. Empty calldata goes to `receive` when there is one, and a selector
 //! miss goes to `fallback` or reverts. Calldata shorter than four bytes is
 //! zero-padded by `calldataload`, so it is sent to the default target first
 //! only when some selector ends in a zero byte and could match it.
@@ -55,12 +55,6 @@ use solar_interface::{Ident, sym};
 /// Materializes selector routing through explicit ABI wrappers.
 pub(crate) struct LowerDispatch;
 
-struct EntryOptions {
-    hoist_callvalue: bool,
-    minimum_calldata: Option<u64>,
-    revert_strings: RevertStrings,
-}
-
 impl MirPass for LowerDispatch {
     fn name(&self) -> &'static str {
         "lower-dispatch"
@@ -92,7 +86,6 @@ impl MirPass for LowerDispatch {
         if module.dispatch_entry().is_none() {
             analyses
                 .fail(gcx.dcx().err("`lower-dispatch` cannot route this entry signature").emit());
-            return changed;
         }
         changed
     }
@@ -161,11 +154,9 @@ fn lower_dispatch(module: &mut Module, revert_strings: RevertStrings) -> bool {
         &routes,
         receive,
         fallback,
-        EntryOptions {
-            hoist_callvalue,
-            minimum_calldata: common_calldata_guard.as_ref().map(|(minimum, _)| *minimum),
-            revert_strings,
-        },
+        hoist_callvalue,
+        common_calldata_guard.as_ref().map(|(minimum, _)| *minimum),
+        revert_strings,
     );
     true
 }
@@ -181,9 +172,10 @@ fn build_entry(
     routes: &[(u32, FunctionId)],
     receive: Option<FunctionId>,
     fallback: Option<FunctionId>,
-    options: EntryOptions,
+    hoist_callvalue: bool,
+    minimum_calldata: Option<u64>,
+    revert_strings: RevertStrings,
 ) {
-    let EntryOptions { hoist_callvalue, minimum_calldata, revert_strings } = options;
     // `CALLDATALOAD(0)` right-pads short calldata with zeroes before the
     // selector extraction. A short input can therefore match a selector
     // only when its final byte is zero; guard all short inputs if any
