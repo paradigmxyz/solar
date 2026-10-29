@@ -688,9 +688,12 @@ fn local_summary(
                 for &access in effects.writes() {
                     summary.record_access(func, access, true);
                 }
-                summary.may_reset_fmp |= aa.instruction_may_reset_fmp(func, inst_id);
-                summary.may_wrap_write |=
-                    aa.instruction_writes_through_runtime_index(func, inst_id);
+                summary.may_reset_fmp =
+                    summary.may_reset_fmp || aa.instruction_may_reset_fmp(func, inst_id);
+                summary.may_wrap_write = summary.may_wrap_write
+                    || AliasAnalysis::instruction_writes_through_runtime_index_with(
+                        func, inst_id, &effects,
+                    );
                 summary.may_recycle_fmp |= instruction_may_recycle_fmp(func, inst_id);
             }
             summary.may_observe_fmp |= instruction_observes_fmp(func, inst_id);
