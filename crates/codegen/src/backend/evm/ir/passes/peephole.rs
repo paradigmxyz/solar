@@ -38,7 +38,7 @@
 use super::{EvmPass, compact_pushes::materialize_immediate, utils::MachineInstKey};
 use crate::{
     backend::evm::{
-        ir::{Instruction, Module, ModuleTarget, PushValue, TerminatorKind},
+        ir::{Instruction, Module, ModuleTarget, TerminatorKind},
         op,
     },
     target::Target,
@@ -56,13 +56,19 @@ mod isle;
 
 pub(super) use isle::invert_comparison;
 
-pub(super) struct Peephole {
-    final_cleanup: bool,
+/// The rule set a run applies. The final rules extend the early ones; the late rules are separate.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Rules {
+    Early,
+    Final,
+    Late,
 }
 
+pub(super) struct Peephole(Rules);
+
 impl Peephole {
-    pub(super) const EARLY: Self = Self { final_cleanup: false };
-    pub(super) const FINAL: Self = Self { final_cleanup: true };
+    pub(super) const EARLY: Self = Self(Rules::Early);
+    pub(super) const FINAL: Self = Self(Rules::Final);
 }
 
 impl EvmPass for Peephole {
@@ -71,11 +77,11 @@ impl EvmPass for Peephole {
     }
 
     fn cache_config(&self) -> u64 {
-        u64::from(self.final_cleanup)
+        u64::from(self.0 == Rules::Final)
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module(gcx, module, false, self.final_cleanup)
+        optimize_module(gcx, module, self.0)
     }
 }
 
@@ -88,7 +94,7 @@ impl EvmPass for LateWord {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module(gcx, module, true, false)
+        optimize_module(gcx, module, Rules::Late)
     }
 }
 
@@ -143,14 +149,15 @@ fn clean_key(instructions: &[Instruction]) -> (u32, u64) {
     (instructions.len() as u32, hasher.finish())
 }
 
-fn optimize_module(gcx: Gcx<'_>, module: &mut Module, late: bool, final_cleanup: bool) -> bool {
+fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
     let target = module.runtime_target(gcx);
+    let final_cleanup = rules == Rules::Final;
     let mut changed = false;
     let mut scratch = Vec::new();
     let clean = &mut module.peephole_clean;
     for block in &mut module.blocks {
         // The late rules are separate from the cached early and final ones.
-        let key = (!late).then(|| clean_key(&block.instructions));
+        let key = (rules != Rules::Late).then(|| clean_key(&block.instructions));
         let recorded = key.and_then(|key| clean.get(key));
         let skip = recorded.is_some_and(|recorded_final| recorded_final || !final_cleanup);
         let early_clean = final_cleanup && recorded == Some(false);
@@ -159,13 +166,9 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, late: bool, final_cleanup:
         let rewrites = if skip {
             0
         } else {
-            optimize(
-                target,
+            Driver { target, rules, block: block.label }.run(
                 &mut block.instructions,
                 &mut scratch,
-                block.label,
-                late,
-                final_cleanup,
                 early_clean,
             )
         };
@@ -208,87 +211,80 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, late: bool, final_cleanup:
     changed
 }
 
-fn optimize(
+/// Applies the rules of one run to the blocks it visits.
+#[derive(Clone, Copy)]
+struct Driver {
     target: Target,
-    instructions: &mut Vec<Instruction>,
-    scratch: &mut Vec<Instruction>,
+    rules: Rules,
     block: u32,
-    late: bool,
-    final_cleanup: bool,
-    early_clean: bool,
-) -> usize {
-    // Inspect the original prefix without copying instructions. Until the first
-    // rewrite, this is exactly the optimized prefix the streaming matcher sees.
-    // The early rules match no prefix of an early-clean block, so only the final
-    // rules can supply its first rewrite.
-    let first = (1..=instructions.len()).find_map(|end| {
-        let mut context =
-            isle::PeepContext::new(&instructions[..end], target).with_final_cleanup(final_cleanup);
-        if early_clean { context.final_rewrite() } else { context.select(late) }
-            .map(|rewrite| (end, rewrite))
-    });
-    let Some((end, isle::Rewrite { skip, edit })) = first else { return 0 };
+}
 
-    // unchanged prefix; matched suffix => unchanged prefix; replacement
-    // Resume the streaming matcher at the first changed tail, including cascades.
-    scratch.clear();
-    scratch.extend(instructions.drain(end..));
-    rewrite(target, instructions, usize::from(skip), edit, block);
-    let mut rewrites = 1;
-    while try_peephole(target, instructions, block, late, final_cleanup) {
-        rewrites += 1;
-    }
-    for inst in scratch.drain(..) {
-        instructions.push(inst);
-        while try_peephole(target, instructions, block, late, final_cleanup) {
+impl Driver {
+    fn run(
+        self,
+        instructions: &mut Vec<Instruction>,
+        scratch: &mut Vec<Instruction>,
+        early_clean: bool,
+    ) -> usize {
+        // Inspect the original prefix without copying instructions. Until the first
+        // rewrite, this is exactly the optimized prefix the streaming matcher sees.
+        // The early rules match no prefix of an early-clean block, so only the final
+        // rules can supply its first rewrite.
+        let first = (1..=instructions.len()).find_map(|end| {
+            let mut context = isle::PeepContext::new(&instructions[..end], self.target, self.rules);
+            if early_clean { context.final_rewrite() } else { context.select() }
+                .map(|rewrite| (end, rewrite))
+        });
+        let Some((end, first)) = first else { return 0 };
+
+        // unchanged prefix; matched suffix => unchanged prefix; replacement
+        // Resume the streaming matcher at the first changed tail, including cascades.
+        scratch.clear();
+        scratch.extend(instructions.drain(end..));
+        self.rewrite(instructions, first);
+        let mut rewrites = 1;
+        while self.step(instructions) {
             rewrites += 1;
         }
+        for inst in scratch.drain(..) {
+            instructions.push(inst);
+            while self.step(instructions) {
+                rewrites += 1;
+            }
+        }
+        rewrites
     }
-    rewrites
-}
 
-fn try_peephole(
-    target: Target,
-    instructions: &mut Vec<Instruction>,
-    block: u32,
-    late: bool,
-    final_cleanup: bool,
-) -> bool {
-    let Some(isle::Rewrite { skip, edit }) =
-        isle::PeepContext::new(instructions, target).with_final_cleanup(final_cleanup).select(late)
-    else {
-        return false;
-    };
-    rewrite(target, instructions, usize::from(skip), edit, block)
-}
-
-// Keep trace formatting out of the hot matcher's stack frame.
-#[inline(never)]
-fn rewrite(
-    target: Target,
-    instructions: &mut Vec<Instruction>,
-    skip: usize,
-    edit: Edit,
-    block: u32,
-) -> bool {
-    let start = instructions.len() - skip;
-    let input = tracing::enabled!(target: TRACE_TARGET, tracing::Level::TRACE)
-        .then(|| instructions[start..].to_vec());
-    edit.apply(target, instructions, start);
-    if let Some(input) = input {
-        trace!(
-            target: TRACE_TARGET,
-            block,
-            input = %format_args!("\"{}\"", InstructionSequence(&input)),
-            output = %format_args!("\"{}\"", InstructionSequence(&instructions[start..])),
-            "rewrite"
-        );
+    fn step(self, instructions: &mut Vec<Instruction>) -> bool {
+        let Some(rewrite) = isle::PeepContext::new(instructions, self.target, self.rules).select()
+        else {
+            return false;
+        };
+        self.rewrite(instructions, rewrite);
+        true
     }
-    true
+
+    // Keep trace formatting out of the hot matcher's stack frame.
+    #[inline(never)]
+    fn rewrite(self, instructions: &mut Vec<Instruction>, rewrite: isle::Rewrite) {
+        let start = instructions.len() - usize::from(rewrite.skip);
+        let input = tracing::enabled!(target: TRACE_TARGET, tracing::Level::TRACE)
+            .then(|| instructions[start..].to_vec());
+        rewrite.edit.apply(self.target, instructions, start);
+        if let Some(input) = input {
+            trace!(
+                target: TRACE_TARGET,
+                block = self.block,
+                input = %format_args!("\"{}\"", instruction_sequence(&input)),
+                output = %format_args!("\"{}\"", instruction_sequence(&instructions[start..])),
+                "rewrite"
+            );
+        }
+    }
 }
 
 /// An edit of the last instructions of a block, applied from `start`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 enum Edit {
     /// Keep the first `len` instructions of the window.
     Keep {
@@ -314,10 +310,8 @@ enum Edit {
     OverwriteTwo {
         opcode: u8,
     },
-    /// Merge a swap-and-pop chain into one swap of `depth` and its pops.
-    MergeSwapPop {
-        depth: u8,
-    },
+    /// Merge a swap-and-pop chain into one swap that is one deeper, and its pops.
+    MergeSwapPop,
     /// Drop a swap whose permuted words are all discarded by the pops that follow.
     DropDiscardedSwap,
     /// Replace an evaluated constant expression with its materialized result.
@@ -335,39 +329,37 @@ enum Edit {
     },
     DropNonzeroTest,
     EqIszeroJumpi,
-    StackOps {
-        first: op::StackOp,
-        second: op::StackOp,
+    SwapPair {
+        first: u8,
+        second: u8,
     },
     MoveConstantThroughSwaps,
 }
 
 impl Edit {
     fn apply(self, target: Target, instructions: &mut Vec<Instruction>, start: usize) {
+        let not = || Instruction::opcode(op::NOT).with_debug_info_dropped();
         match self {
             Self::LowMaskWithSwap => {
                 // push 0; not; protected_count; shl; not
                 // NOTE: Changed constants and arithmetic have no exact source checkpoint.
                 instructions.truncate(instructions.len() - 3);
                 instructions[start] = Instruction::push_value(U256::ZERO).with_debug_info_dropped();
-                instructions
-                    .insert(start + 1, Instruction::opcode(op::NOT).with_debug_info_dropped());
-                instructions.push(Instruction::opcode(op::NOT).with_debug_info_dropped());
+                instructions.insert(start + 1, not());
+                instructions.push(not());
             }
             Self::LowMask => {
                 // push 0; not; closed_count; shl; not
                 // NOTE: The changed constants and operations have different meanings;
                 // their original source checkpoints cannot describe the replacement.
                 instructions[start] = Instruction::push_value(U256::ZERO).with_debug_info_dropped();
-                instructions[start + 1] = Instruction::opcode(op::NOT).with_debug_info_dropped();
-                *instructions.last_mut().expect("matched subtraction") =
-                    Instruction::opcode(op::NOT).with_debug_info_dropped();
+                instructions[start + 1] = not();
+                *instructions.last_mut().expect("matched subtraction") = not();
             }
             Self::Keep { len } => instructions.truncate(start + usize::from(len)),
             Self::OverwritePush0 => {
-                let metadata = std::mem::take(&mut instructions[start].metadata);
-                instructions[start] = Instruction::push_value(U256::ZERO);
-                instructions[start].metadata = metadata;
+                instructions[start]
+                    .replace_preserving_metadata(Instruction::push_value(U256::ZERO));
             }
             Self::DropDiscardedSwap => {
                 instructions.remove(start);
@@ -386,30 +378,34 @@ impl Edit {
             }
             Self::RemoveFirstOverwrite { opcode } => {
                 instructions.remove(start);
-                overwrite_raw(&mut instructions[start], opcode);
+                overwrite(&mut instructions[start], opcode);
             }
             Self::SwapOverwrite { opcode } => {
                 instructions.swap(start, start + 1);
-                overwrite_raw(&mut instructions[start], opcode);
+                overwrite(&mut instructions[start], opcode);
             }
             Self::OverwriteOne { opcode } => {
-                overwrite_raw(&mut instructions[start], opcode);
+                overwrite(&mut instructions[start], opcode);
                 instructions.truncate(start + 1);
             }
             Self::OverwriteTwo { opcode } => {
-                overwrite_raw(&mut instructions[start], op::SWAP1);
-                overwrite_raw(&mut instructions[start + 1], opcode);
+                overwrite(&mut instructions[start], op::SWAP1);
+                overwrite(&mut instructions[start + 1], opcode);
                 instructions.truncate(start + 2);
             }
-            Self::MergeSwapPop { depth } => {
+            Self::MergeSwapPop => {
+                // SWAPn POP*n SWAP1 POP has n + 3 instructions.
                 let end = instructions.len();
-                overwrite_stack_op(&mut instructions[start], op::StackOp::Swap(depth));
-                overwrite_raw(&mut instructions[end - 2], op::POP);
+                let depth = (end - start - 2) as u8;
+                instructions[start]
+                    .replace_preserving_metadata(Instruction::stack_op(op::StackOp::Swap(depth)));
+                overwrite(&mut instructions[end - 2], op::POP);
                 instructions.truncate(end - 1);
             }
             Self::ConsumeStoredValue { depth } => {
                 // SWAP(n-1); PUSH address; MSTORE
-                overwrite_stack_op(&mut instructions[start], op::StackOp::Swap(depth));
+                instructions[start]
+                    .replace_preserving_metadata(Instruction::stack_op(op::StackOp::Swap(depth)));
                 let (retained, removed) = instructions[start..].split_at_mut(3);
                 for inst in removed {
                     retained[2].metadata.absorb_debug_info(&inst.metadata);
@@ -420,37 +416,33 @@ impl Edit {
                 // PUSH c; independent operands; compare; ISZERO
                 // => PUSH adjusted; independent operands; opposite compare
                 instructions[start].replace_preserving_metadata(Instruction::push_value(value));
-                let iszero = instructions.pop().expect("matched ISZERO");
-                let comparison = instructions.last_mut().expect("matched comparison");
-                overwrite_raw(comparison, opcode);
-                comparison.metadata.absorb_debug_info(&iszero.metadata);
+                fuse_iszero(instructions, opcode);
             }
             Self::ZeroLessIszero => {
                 // PUSH 0; LT; ISZERO => ISZERO
                 instructions.remove(start);
-                let iszero = instructions.pop().expect("matched ISZERO");
-                let comparison = instructions.last_mut().expect("matched comparison");
-                overwrite_raw(comparison, op::ISZERO);
-                comparison.metadata.absorb_debug_info(&iszero.metadata);
+                fuse_iszero(instructions, op::ISZERO);
             }
             Self::ReloadStoredValue => {
                 instructions.swap(start, start + 3);
                 instructions.swap(start + 1, start + 2);
-                overwrite_raw(&mut instructions[start], op::DUP1);
+                overwrite(&mut instructions[start], op::DUP1);
                 instructions.truncate(start + 3);
             }
             Self::DropNonzeroTest => {
                 instructions.drain(start..start + 2);
-                overwrite_raw(&mut instructions[start + 1], op::JUMPI);
+                overwrite(&mut instructions[start + 1], op::JUMPI);
             }
             Self::EqIszeroJumpi => {
-                overwrite_raw(&mut instructions[start], op::SUB);
+                overwrite(&mut instructions[start], op::SUB);
                 instructions.remove(start + 1);
-                overwrite_raw(&mut instructions[start + 2], op::JUMPI);
+                overwrite(&mut instructions[start + 2], op::JUMPI);
             }
-            Self::StackOps { first, second } => {
-                instructions[start] = Instruction::stack_op(first).with_debug_info_dropped();
-                instructions[start + 1] = Instruction::stack_op(second).with_debug_info_dropped();
+            Self::SwapPair { first, second } => {
+                for (inst, depth) in instructions[start..].iter_mut().zip([first, second]) {
+                    *inst =
+                        Instruction::stack_op(op::StackOp::Swap(depth)).with_debug_info_dropped();
+                }
                 instructions.truncate(start + 2);
             }
             Self::MoveConstantThroughSwaps => {
@@ -471,43 +463,30 @@ impl Edit {
     }
 }
 
-fn overwrite_raw(inst: &mut Instruction, opcode: u8) {
+fn overwrite(inst: &mut Instruction, opcode: u8) {
     debug_assert!(inst.as_evm_opcode().is_some());
-    let metadata = std::mem::take(&mut inst.metadata);
-    *inst = Instruction::opcode(opcode);
-    inst.metadata = metadata;
+    inst.replace_preserving_metadata(Instruction::opcode(opcode));
 }
 
-fn overwrite_stack_op(inst: &mut Instruction, stack_op: op::StackOp) {
-    let metadata = std::mem::take(&mut inst.metadata);
-    *inst = Instruction::stack_op(stack_op);
-    inst.metadata = metadata;
+/// Replaces the comparison before the trailing `ISZERO` with `opcode`, merging its debug info.
+fn fuse_iszero(instructions: &mut Vec<Instruction>, opcode: u8) {
+    let iszero = instructions.pop().expect("matched ISZERO");
+    let comparison = instructions.last_mut().expect("matched comparison");
+    overwrite(comparison, opcode);
+    comparison.metadata.absorb_debug_info(&iszero.metadata);
 }
 
-fn is_block_push(inst: &Instruction) -> bool {
-    inst.is_encoded_push() && matches!(inst.value, Some(PushValue::Block(_)))
-}
-
-struct InstructionSequence<'a>(&'a [Instruction]);
-
-impl fmt::Display for InstructionSequence<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (index, inst) in self.0.iter().enumerate() {
+fn instruction_sequence(instructions: &[Instruction]) -> impl fmt::Display + '_ {
+    fmt::from_fn(move |f| {
+        for (index, inst) in instructions.iter().enumerate() {
             if index != 0 {
                 f.write_str(" ")?;
             }
-            if inst.immutable_push().is_some() {
-                f.write_str("push_immutable")?;
-            } else if let Some(value) = inst.concrete_immediate() {
-                write!(f, "push {value:#x}")?;
-            } else if inst.is_encoded_push() {
-                f.write_str("push_ref")?;
-            } else if let Some(mnemonic) = inst.as_evm_opcode().and_then(op::mnemonic) {
-                f.write_str(mnemonic)?;
-            } else {
-                write!(f, "{}", inst.mnemonic())?;
+            match inst.concrete_immediate() {
+                Some(value) => write!(f, "push {value:#x}")?,
+                None => write!(f, "{}", inst.mnemonic())?,
             }
         }
         Ok(())
-    }
+    })
 }
