@@ -1469,7 +1469,10 @@ pub enum StmtKind<'hir> {
     UncheckedBlock(Block<'hir>),
 
     /// An inline assembly block: `assembly { ... }`.
-    AssemblyBlock(Block<'hir>),
+    ///
+    /// The flag tells whether the block promises memory safety, with the `"memory-safe"` dialect
+    /// flag or the `@solidity memory-safe-assembly` comment. Yul functions inherit it.
+    AssemblyBlock(Block<'hir>, bool),
 
     /// An emit statement: `emit Foo.bar(42);`.
     ///

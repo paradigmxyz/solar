@@ -98,7 +98,7 @@ bb1:
   shl
   push bb8
   jump bb25
-bb25:
+bb25 [ret=0, inputs=2, outputs=1]:
   push 64
   mload
   swap 2
@@ -188,11 +188,23 @@ bb12 [continuation]:
   push 32
   dup 2
   add
-  swap 3
-  swap 2
-  swap 1
-  swap 3
+  dup 4
+  dup 4
+  dup 3
   calldatacopy
+  dup 4
+  add
+  calldatasize
+  swap 4
+  push 0
+  sub
+  push 31
+  and
+  swap 2
+  swap 4
+  swap 1
+  calldatacopy
+  pop
   dup 1
   push 64
   dup 4
@@ -376,9 +388,6 @@ bb5:
   push 0
   return
 bb8:
-  push 128
-  push 64
-  mstore
   push 100
   calldataload
   push 160
@@ -458,8 +467,7 @@ bb8:
   calldataload
   push 100
   calldataload
-  push 64
-  mload
+  push 128
   swap 3
   dup 4
   add
@@ -603,16 +611,11 @@ bb8:
   swap 1
   swap 2
   mcopy
-  swap 5
-  push 0
-  not
-  push 96
-  shr
-  and
-  swap 1
-  swap 5
   push 96
   add
+  swap 5
+  swap 1
+  swap 5
   mstore
   pop
   swap 1

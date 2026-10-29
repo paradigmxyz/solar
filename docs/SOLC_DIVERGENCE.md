@@ -67,6 +67,71 @@ Coverage: `tests/ui/standard-json/debug/ethdebug-output-without-debug-info`,
 `tests/ui/standard-json/debug/ethdebug-with-ast-id` and
 `tests/ui/standard-json/debug/ethdebug-without-ast-id`.
 
+### JSON-003: Compiler identity in metadata and CBOR
+
+Status: intentional.
+
+Difference: contract metadata names the compiler as
+`"compiler": {"name": "solar", "version": "0.8.38+commit.d9f23fbe.solar.0.3.0"}`,
+where solc writes only `"version": "0.8.28+commit.7893614a"`. The version is
+the solc-compatible form that `SOLC_WRAPPER=1 solar --version` prints: the
+emulated solc version, then the Solar commit and version as build metadata.
+The CBOR auxdata carries a `solar` entry instead of `solc`: three version
+bytes for releases, and the long Solar version as text
+(`0.3.0-dev+commit.d9f23fbe`) for other builds, as solc does for prereleases.
+Combined JSON reports the same solc-compatible version.
+
+Rationale: verifiers and other tools gate on solc versions, so the semver core
+stays the language version, while `name`, the `.solar.` build tag and the CBOR
+key tell them which compiler and build to fetch. A `solc` key would make
+solc-only decoders report the wrong compiler.
+
+Coverage: `tests/ui/standard-json/metadata/none/test.jsonc` and
+`tests/ui/standard-json/metadata/options/test.jsonc`.
+
+### JSON-004: CBOR auxdata positions
+
+Status: intentional.
+
+Difference: `evm.bytecode.cborAuxdata` and `evm.deployedBytecode.cborAuxdata`
+report every CBOR auxdata trailer in the bytecode, including those of embedded
+contracts, as `{"1": {"offset": N, "value": "0x…"}, …}` in offset order.
+`offset` points at the CBOR map after the `INVALID` byte, and `value` holds the
+map and its two-byte length. solc has no such output; tools recover the
+positions from `evm.legacyAssembly` and a second compilation. The parent
+selections and `*` include it, and `evm.legacyAssembly` stays empty.
+
+Rationale: the shape is the Verifier Alliance `cborAuxdata` artifact that
+Sourcify stores, so verifiers can read the positions directly. Code generation
+records where it places each trailer, so code or data that repeats a trailer's
+bytes is never reported: verifiers replace the reported bytes with the
+deployed ones, and a reported literal would let deployed code differ from its
+source.
+
+Coverage: `tests/ui/standard-json/cbor-auxdata/test.jsonc` and
+`tests/ui/standard-json/cbor-auxdata-literal.jsonc`.
+
+### JSON-005: `settings.solar` takes unstable flags
+
+Status: intentional.
+
+Difference: `solar` reads `settings.solar.unstable`, a list of unstable flags
+that change output, written like `-Z` flags without the prefix, such as
+`["tune=interpreter"]`, and records it in each contract's metadata. It ignores
+other flags in the list. `solc` rejects the unknown `settings.solar` key. Like
+`solc`, `solar` ignores the command line's `--evm-version` in Standard JSON
+mode, and it also ignores `--stop-after`, `--revert-strings` and the `-Z`
+flags that change output.
+
+Rationale: the Standard JSON input and the compiler version alone must
+determine the output, so that verifiers such as Sourcify can rebuild a
+contract from its metadata. Flags that only change diagnostics or debugging
+output still come from the command line.
+
+Coverage: `tests/ui/standard-json/codegen-error.jsonc`,
+`tests/ui/standard-json/debug/cli-flag-ignored/test.jsonc` and
+`tests/ui/standard-json/metadata/options/test.jsonc`.
+
 ## Import Resolution
 
 ### IMPORT-001: Files on disk are one source unit each
@@ -770,7 +835,11 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   can reach. Inline assembly that stores data at constant addresses in that
   range, instead of allocating through the free memory pointer, can have it
   overwritten by any internal call, including the helpers the compiler
-  generates for ABI encoding and pre-Cancun memory copies.
+  generates for ABI encoding and pre-Cancun memory copies. Those copies may
+  call one shared helper, unless a pointer is computed from constants or
+  calldata alone, so a memory object that assembly places in that range through
+  any other computation can be overwritten by the helper's frame before the
+  copy reads it.
 - Rationale: The Solidity documentation counts only scratch space, memory
   allocated through the free memory pointer, and memory past the free memory
   pointer within one assembly block as memory-safe. Static frames make internal
@@ -778,42 +847,87 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   them.
 - Coverage: `tests/ui/codegen/lowering/run-call/pre_cancun_memory_copies.sol`
   encodes an object that assembly allocates through the shared copy helper.
+  `tests/ui/codegen/lowering/run-call/mcopy_call_results.sol` copies call
+  results through it, and
+  `tests/ui/codegen/lowering/run-call/mcopy_shared_helper_raw.sol` keeps a
+  constant address inline. `tests/ui/codegen/mir/lower-mcopy/helper_eligibility.mir`
+  pins which copies may call it.
 
 ### CODEGEN-010: Assembly cannot hand compiler-owned memory to the heap
 
 - ID: CODEGEN-010
 - Status: intentional
-- Difference: When inline assembly stores a value computed from constants
-  and calldata into the free memory pointer slot, every later read of the
-  slot as the pointer sees at least the initial free memory pointer: an
-  allocation, or an `mload` whose word addresses memory. After
-  `mstore(0x40, 0x80)`, such a read sees `0x80` under `solc` and the initial
-  pointer here. A word that is also read as data, such as one hashed in
-  scratch memory, or loaded and then compared, hashed, encoded, stored, or
-  used as a key, stays in the slot for those reads, and only the pointer
-  reads see the raised value. Each external function
-  that runs code writing memory at an absolute address computed from calldata,
-  as Seaport lays out a basic order's hashes and event data, keeps its spill
-  slots and the frames it reaches above `0x2080`, and above the constant
-  ranges assembly names there in the functions it runs or that an external
-  function sharing those frames runs. This costs memory expansion gas; other
-  external functions keep their memory low unless they share those frames, or
-  a recursive helper places every frame above all external functions.
+- Difference: When inline assembly leaves a word in the free memory pointer
+  slot that is not provably a heap pointer, every later read of the slot as the
+  pointer sees at least the initial free memory pointer: an allocation, or an
+  `mload` whose word addresses memory. After `mstore(0x40, 0x80)`, such a read
+  sees `0x80` under `solc` and the initial pointer here. The word is a
+  constant, a word that calldata, memory, a parameter, or a call result
+  supplies, or one that a store through a computed address, a copy, or a byte
+  store leaves there. A pointer from the heap is proven, also when moved by an
+  offset that cannot wrap the address space, or stepped back from by a
+  constant outside a loop. A word that is also read as data, such as one hashed
+  in scratch memory, or loaded and then compared, hashed, encoded, stored, or
+  used as a key, stays in the slot for those reads, and only the pointer reads
+  see the raised value. The raise is `max(word, heap floor)`, where the heap
+  floor is resolved when frames are placed, so a pass that later folds the
+  word, as inlining does for a helper's argument, cannot remove it.
+
+  Each entry places its spill slots and frames clear of every fixed memory
+  range that the code it runs names, wherever the range lies, when the area,
+  its allocations, and its frames would cover it. An entry that runs code
+  writing memory at an address computed from calldata, as Seaport lays out a
+  basic order's hashes and event data, also keeps them above `0x2080`. Other
+  entries keep their memory low unless they share those frames or a function
+  that reads the heap floor, which gives them one initial pointer.
+
+  A write whose destination the compiler cannot place on the heap, in a frame,
+  or below the heap start, such as a copy to a computed destination of any
+  length, a store through one, or a call that returns data to one, keeps the
+  values that are live across it out of the spill area. A call result counts as
+  a heap pointer only when every return of its callee is one, and a word loaded
+  from memory never does. The constructor's spill area lies above its staging
+  area and not above fixed ranges, so a write to one above that area counts as
+  such a write there. This costs memory expansion gas and code size.
+
+  All of this applies only to a contract with inline assembly that does not
+  promise memory safety. As under `solc`, an assembly block marked memory-safe,
+  with the `"memory-safe"` dialect flag or the `@solidity memory-safe-assembly`
+  comment, promises to touch only scratch space, memory it allocates by bumping
+  the free memory pointer, and memory the program allocated. A contract whose
+  assembly is all marked, or that has none, has no write the compiler cannot
+  place, so it keeps the code it had before these rules: it trusts the type of a
+  memory reference, a word loaded from a memory object, and a call result as
+  heap pointers, and raises only constants and calldata words stored into the
+  free memory pointer slot. Such a block cannot store a low address into an
+  object's field without breaking its promise. An unmarked block that writes no
+  memory (no `mstore`, `mstore8`, copy, or call, and no assignment to a memory
+  reference) breaks no promise either, so it does not count.
 - Rationale: The spill slots and internal-call frames below the initial free
   memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack, so
   the next allocation after a lowered pointer, or the absolute layout itself,
   would replace them. Raising only the pointer reads keeps the stored value for
   code that uses the slot as scratch, such as an error argument before a revert
   or a hash input before the pointer is restored. A pointer derived from the
-  heap already lies above the initial one, and an absolute pointer that reaches
-  the store through a parameter, memory, or a call keeps its value. The
-  `heap-floor` pass documents how it tells pointer reads from data reads. A
-  layout that grows past `0x2080`, or one indexed by a loop counter alone, can
-  still reach the compiler's memory; Seaport's basic orders with about 40 or
-  more additional recipients do.
+  heap already lies above the initial one. The `heap-floor` pass documents how
+  it tells pointer reads from data reads. Writes the compiler cannot place are
+  assumed to reach the spill area, because no later pass can tell where an
+  input or a call will point them. Spill stores after a write at an address that
+  calldata computes can still overwrite what it laid out when the layout grows
+  past `0x2080`, or is indexed by a loop counter alone; Seaport's basic orders
+  with about 40 or more additional recipients do.
+  The compiler checks a memory object's element and field offsets against the
+  object's bounds and trusts them, so assembly that forges a length can make a
+  checked access wrap below the object, which both compilers allow.
 - Coverage: `tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol`,
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_routes.sol`,
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
+  `tests/ui/codegen/lowering/run-call/constructor_constant_write_spills.sol`,
+  `tests/ui/codegen/lowering/run-call/folded_guard_spills.sol`,
+  `tests/ui/codegen/lowering/run-call/folded_hazard_spills.sol`,
+  `tests/ui/codegen/lowering/run-call/folded_operand_spills.sol`,
+  `tests/ui/codegen/lowering/run-call/folded_tail_call_spills.sol`,
+  `tests/ui/codegen/lowering/run-call/spill_write_provenance.sol`,
   `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
   `cargo tq foundry-external seaport`, whose runner keeps
   `PreAndPostFulfillmentCheckTest::testBasicStateful(uint8,uint8)` at 38

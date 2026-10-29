@@ -1,6 +1,7 @@
 //! Statement-level HIR to MIR lowering.
 
 use super::*;
+use crate::mir::lower::data::stores_data_as_words;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_stmt(&mut self, stmt: &hir::Stmt<'_>) -> Option<()> {
@@ -255,9 +256,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             StmtKind::Revert(expr) => self.lower_revert_payload(expr)?,
-            StmtKind::AssemblyBlock(block) => {
+            StmtKind::AssemblyBlock(block, memory_safe) => {
                 let previous = std::mem::replace(&mut self.in_inline_assembly, true);
+                let previous_writes = std::mem::take(&mut self.assembly_writes_memory);
                 let result = self.lower_block(*block);
+                // A block that writes no memory cannot break the promise.
+                if !memory_safe && self.assembly_writes_memory {
+                    self.cx.module.set_unsafe_assembly(true);
+                }
+                self.assembly_writes_memory = previous_writes;
                 self.in_inline_assembly = previous;
                 result?;
             }
@@ -526,7 +533,31 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             args.span,
             "event argument",
             |this, index, argument| {
-                let parameter_ty = this.cx.gcx.type_of_item(event.parameters[index].into());
+                let parameter = event.parameters[index];
+                let parameter_ty = this.cx.gcx.type_of_item(parameter.into());
+                // A literal stored as words in the event's data needs no object of its own: the
+                // encoder writes its words.
+                if !this.cx.gcx.hir.variable(parameter).indexed
+                    && matches!(
+                        parameter_ty.peel_refs().kind,
+                        TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+                    )
+                    && let ExprKind::Lit(lit) =
+                        this.peel_bytes_conversion(argument).peel_parens().kind
+                    && let LitKind::Str(_, bytes, _) = &lit.kind
+                    && !bytes.as_byte_str().is_empty()
+                    && stores_data_as_words(this.cx.gcx, bytes.as_byte_str())
+                {
+                    let value = Self::build_bytes_literal(
+                        this.cx.gcx,
+                        this.cx.module,
+                        &mut this.builder,
+                        bytes.as_byte_str(),
+                        AllocationSemantics::INTERNAL,
+                        false,
+                    )?;
+                    return Some((argument, value));
+                }
                 let value = this.lower_typed_expr(argument, parameter_ty)?;
                 Some((argument, value))
             },
@@ -623,6 +654,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             (self.builder.imm(0), self.builder.imm(32 * data_values.len() as u64))
         } else {
+            // The log reads the data at once, so it stays unreserved past the free memory
+            // pointer, as with solc.
             let layout = Arc::new(AbiLayout::new(data_types.into_boxed_slice()));
             let encoded =
                 self.builder.abi_encode_scratch(layout, None, data_values.into_boxed_slice());

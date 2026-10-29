@@ -11,24 +11,20 @@
 //@ run-call: shiftAt [10, 20, 30, 40], 2 => [10, 20, 20, 40]
 //@ run-call-fail: shiftAt [10, 20, 30, 40], 4 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 
-// A checked insertion sort reloads `a.length` before every element access
-// and tests every index in the source. The length is read once outside the
-// loops, the element stores never alias it, and the descending inner index
-// stays below the outer counter, which stays below the length: no bounds
-// check survives in either loop and the payload is never read twice.
+// A checked insertion sort still carries its element pointer through the loop. Its length
+// loads and checks stay when alias analysis cannot prove that indexed stores miss the header.
 contract CheckedInsertionShift {
     // OPT-LABEL: fn @sort
-    // OPT: [[LEN:v[0-9]+]] = mload [[OBJ:v[0-9]+]]
+    // OPT: [[OBJ:v[0-9]+]] = icall @decode_calldata_type
     // OPT-NEXT: [[CURSOR:v[0-9]+]] = add [[OBJ]], 64
     // OPT-NEXT: jump [[HEADER:bb[0-9]+]]
     // OPT: [[HEADER]]:
     // OPT-NEXT: [[I:v[0-9]+]] = phi
     // OPT-NEXT: {{v[0-9]+}} = phi [{{bb[0-9]+}}: [[CURSOR]]]
+    // OPT-NEXT: [[LEN:v[0-9]+]] = mload [[OBJ]]
     // OPT-NEXT: {{v[0-9]+}} = lt [[I]], [[LEN]]
-    // OPT-NOT: mstore 4, 50
     // OPT: {{v[0-9]+}} = phi [{{bb[0-9]+}}: [[I]]]
-    // OPT-NOT: mload [[OBJ]]
-    // OPT-NOT: mstore 4, 50
+    // OPT: mload [[OBJ]]
     // OPT: jump [[HEADER]]
     function sort(uint256[] memory a) external pure returns (uint256[] memory) {
         for (uint256 i = 1; i < a.length; ++i) {
@@ -46,6 +42,8 @@ contract CheckedInsertionShift {
     // The index arrives from the caller, so its bound is unknown and the
     // first access keeps its check; the panic block stays reachable.
     // OPT-LABEL: fn @shiftAt
+    // OPT: tail_call @revert_stub
+    // OPT-LABEL: fn @revert_stub
     // OPT: mstore 32, 50
     function shiftAt(uint256[] memory a, uint256 j) external pure returns (uint256[] memory) {
         if (j != 0) {

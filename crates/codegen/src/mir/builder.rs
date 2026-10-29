@@ -1124,7 +1124,12 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Loads a word as a pointer when `ty` is one, and as a word otherwise.
-    fn load_as(&mut self, address: ValueId, location: PtrLocation, ty: MirType) -> ValueId {
+    pub(crate) fn load_as(
+        &mut self,
+        address: ValueId,
+        location: PtrLocation,
+        ty: MirType,
+    ) -> ValueId {
         let result = if ty == MirType::MEMPTR { ty } else { MirType::I256 };
         let address = self.access_address(address);
         // result = mload|calldataload|returndataload address

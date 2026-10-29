@@ -1,0 +1,110 @@
+// === ROOT/tests/ui/codegen/mir/egraph/late_cse_masks.sol:LateCseMasks ===
+@module LateCseMasks
+@phase lowered
+fn @total() [selector=0x2ddbd13a, abi_wrapper, view] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    mstore 0, v0
+    returndata 0, 32
+}
+
+fn @digest(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v25 = heap_floor !metadata(alloc_ptr)
+    v26 = add v25, 64 !metadata(alloc_ptr)
+    mstore 64, v26
+    mstore v25, arg0
+    v21 = add v25, 32
+    mstore v21, arg1
+    mstore v26, arg0
+    v15 = add v26, 32
+    mstore v15, arg1
+    v6 = keccak256 v26, 64
+    v7 = sload 0 !metadata(storage=slot(0))
+    v9 = add v7, arg1
+    v10 = lt v9, v7
+    jumpi v10, bb1, bb2
+  bb2:
+    sstore 0, v9 !metadata(storage=slot(0))
+    ret v6
+  bb1:
+    tail_call @revert_stub
+}
+
+fn @first() [selector=0x2845d4e6, abi_wrapper] {
+  bb0:
+    v5 = calldataload 4
+    v6 = shr v5, 160
+    v3 = calldatasize
+    v4 = lt v3, 68
+    v14 = zext i1 v4 to i256
+    v15 = or v14, v6
+    v16 = ne v15, 0
+    jumpi v16, bb1, bb2
+  bb2:
+    v0 = icall @digest, arg0, arg1
+    mstore 0, arg0
+    mstore 32, arg1
+    v12 = keccak256 0, 64
+    v2 = eq v0, v12
+    v9 = zext i1 v2 to i256
+    mstore 0, v9
+    returndata 0, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @second() [selector=0x6cdb32ec, abi_wrapper] {
+  bb0:
+    v11 = calldataload 4
+    v12 = shr v11, 160
+    v9 = calldatasize
+    v10 = lt v9, 68
+    v20 = zext i1 v10 to i256
+    v21 = or v20, v12
+    v22 = ne v21, 0
+    jumpi v22, bb3, bb4
+  bb4:
+    v5 = add arg1, 1
+    v6 = eq v5, 0
+    jumpi v6, bb1, bb2
+  bb2:
+    v1 = icall @digest, arg0, v5
+    mstore 0, arg0
+    mstore 32, v5
+    v18 = keccak256 0, 64
+    v4 = eq v1, v18
+    v15 = zext i1 v4 to i256
+    mstore 0, v15
+    returndata 0, 32
+  bb1:
+    tail_call @revert_stub
+  bb3:
+    revert 0, 0
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb5, [0x2845d4e6 => bb2, 0x2ddbd13a => bb3, 0x6cdb32ec => bb4]
+  bb4:
+    tail_call @second
+  bb3:
+    tail_call @total
+  bb2:
+    tail_call @first
+  bb5:
+    revert 0, 0
+}

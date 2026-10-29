@@ -4,8 +4,6 @@ bb0:
   callvalue
   push bb3
   jumpi
-  jump bb1
-bb1:
   push 0
   calldataload
   push 224
@@ -13,11 +11,9 @@ bb1:
   dup 1
   push 0xd9171e32
   eq
-  push bb2
+  push bb4
   jumpi
   jump bb3
-bb2:
-  jump bb4
 bb3 [cold]:
   push 0
   push 0
@@ -31,15 +27,11 @@ bb4:
   lt
   push bb8
   jumpi
-  jump bb5
-bb5:
   push 4
   calldataload
   dup 1
   push bb7
   jumpi
-  jump bb6
-bb6 [cold]:
   push 18
   push 32
   mstore

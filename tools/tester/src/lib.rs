@@ -159,7 +159,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
             },
             out_dir_flag: None,
             input_file_flag: None,
-            envs: vec![],
+            envs: vec![(solar_config::version::TEST_VERSION_ENV.into(), Some("1".into()))],
             cfg_flag: None,
         },
         output_conflict_handling: ui_test::error_on_output_conflict,
@@ -216,7 +216,9 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     for &(pattern, replacement) in filters {
         config.filter(pattern, replacement);
     }
+    let solc_compat_version = regex::escape(solar_config::version::TEST_SOLC_COMPAT_VERSION);
     let stdout_filters: &[(&str, &str)] = &[
+        (&solc_compat_version, "SOLC_VERSION+commit.00000000.solar.VERSION"),
         (r"\\\\", "/"),
         (r"\\/", "/"),
         //
@@ -341,6 +343,7 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
         if path.with_extension("stdout").exists() {
             config.comment_defaults.base().add_custom(FileCheck::NAME, FileCheck::default());
         }
+        retain_requested_threads(config, src);
         if path.file_name().is_some_and(|name| name == "test.jsonc") {
             standard_json::configure_directory_fixture(config, path, cfg.tmp_dir);
         }
@@ -361,14 +364,38 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
         let line = line.trim_start();
         line.starts_with("//@") && line.contains("-Zdump=mir")
     }) || has_codegen_matrix;
-    if matches!(cfg.mode, Mode::Ui) && src.lines().any(run_call::is_directive) {
-        if has_mir_dump {
-            configure_run_call_stdout(config, src);
-        } else {
-            config.program.args.push("--emit=abi,bin".into());
-            config.stdout_filter(RUN_CALL_STDOUT_FILTER_PATTERN, "");
+    if src.lines().any(run_call::is_directive) {
+        match cfg.mode {
+            Mode::Ui if has_mir_dump => configure_run_call_stdout(config, src),
+            Mode::Ui => {
+                config.program.args.push("--emit=abi,bin".into());
+                config.stdout_filter(RUN_CALL_STDOUT_FILTER_PATTERN, "");
+            }
+            // An EVM IR test that runs a pipeline keeps its output and drops only the compiler's
+            // JSON; one that runs none would only print itself back.
+            Mode::EvmIr => {
+                config.program.args.push("--emit=abi,bin".into());
+                let pattern = if src.contains("-Zevm-ir-pipeline") {
+                    RUN_CALL_DUMP_STDOUT_FILTER_PATTERN
+                } else {
+                    RUN_CALL_STDOUT_FILTER_PATTERN
+                };
+                config.stdout_filter(pattern, "");
+            }
+            _ => {}
         }
     }
+    retain_requested_threads(config, src);
+    if src.lines().any(|line| {
+        let line = line.trim_start();
+        line.starts_with("//@") && line.contains("compile-flags") && line.contains("-Zvalidate-ir")
+    }) {
+        config.program.args.retain(|arg| arg != "-Zvalidate-ir=true");
+    }
+}
+
+/// Drops the default `-j1` when the test passes its own thread count.
+fn retain_requested_threads(config: &mut ui_test::Config, src: &str) {
     if src.lines().any(|line| {
         let line = line.trim_start();
         line.starts_with("//@")
@@ -376,12 +403,6 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
             && (line.contains("-j") || line.contains("--threads"))
     }) {
         config.program.args.retain(|arg| arg != "-j1");
-    }
-    if src.lines().any(|line| {
-        let line = line.trim_start();
-        line.starts_with("//@") && line.contains("compile-flags") && line.contains("-Zvalidate-ir")
-    }) {
-        config.program.args.retain(|arg| arg != "-Zvalidate-ir=true");
     }
 }
 

@@ -15,15 +15,24 @@
 //! A preserving allocation that reserves bytes an encoder already wrote through an
 //! earlier pointer read in the same block reuses that read instead of loading the
 //! pointer again, as long as only writes addressed from the read word come between.
+//!
+//! A read that returns the entry's initial pointer, because nothing before it may write the
+//! slot (see [`FreshFmpReads`]), takes the heap floor, which codegen knows, instead of loading
+//! the slot. Its allocation still stores the bumped pointer. An entry whose only reads of the
+//! slot are such reads then needs no initialization of it. Under the gas objective, a fresh
+//! checked allocation keeps its own inline check rather than calling the shared helper, as the
+//! helper loads the slot; the size objective keeps the call.
 
 use crate::mir::{
     AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, EffectKind,
     Function, FunctionBuilder, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
     PtrLocation, Value, ValueId,
+    analysis::FreshFmpReads,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
     transform::utils::redirect_successor_predecessors,
 };
+use solar_config::OptimizationMode;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
@@ -40,14 +49,23 @@ impl MirPass for LowerAlloc {
         true
     }
 
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        lower_alloc(module, analyses)
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+        let optimization = gcx.sess.opts.optimization;
+        let fresh = if optimization == OptimizationMode::None {
+            FreshFmpReads::none()
+        } else {
+            FreshFmpReads::new(module, || analyses.call_summaries(module), optimization.is_gas())
+        };
+        lower_alloc(module, analyses, &fresh)
     }
 }
 
-fn lower_alloc(module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-    let mut changed = share_checked_allocations(module, analyses);
-    changed |= run_lowering_function_pass(module, analyses, |func, _| lower_function(func));
+fn lower_alloc(module: &mut Module, analyses: &mut ModuleAnalyses, fresh: &FreshFmpReads) -> bool {
+    let mut changed = share_checked_allocations(module, analyses, fresh);
+    changed |= run_lowering_function_pass(module, analyses, |func, function_analyses| {
+        let id = function_analyses.function();
+        lower_function(func, |inst| fresh.contains(id, inst))
+    });
     changed
 }
 
@@ -56,19 +74,24 @@ fn lower_alloc(module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
 ///
 /// The helper owns only the pointer load, checked bump, panic, and update.
 /// Callers retain their initialization, so allocation ordering stays intact.
-fn share_checked_allocations(module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+fn share_checked_allocations(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    fresh: &FreshFmpReads,
+) -> bool {
     let count = module
         .functions
-        .iter()
-        .flat_map(|func| func.instructions().map(|inst| func.inst(inst)))
-        .filter(|inst| {
+        .iter_enumerated()
+        .flat_map(|(id, func)| func.instructions().map(move |inst| (id, inst, func.inst(inst))))
+        .filter(|&(id, inst, instruction)| {
             matches!(
-                inst.kind,
+                instruction.kind,
                 InstKind::Alloc {
                     semantics: AllocationSemantics { failure: AllocationFailure::Checked, .. },
                     ..
                 }
-            ) && !inst.metadata.deferred_alloc()
+            ) && !instruction.metadata.deferred_alloc()
+                && !fresh.contains(id, inst)
         })
         .count();
     if count < 2 {
@@ -76,7 +99,8 @@ fn share_checked_allocations(module: &mut Module, analyses: &mut ModuleAnalyses)
     }
 
     let helper = create_checked_alloc(module);
-    run_lowering_function_pass(module, analyses, |func, _| {
+    run_lowering_function_pass(module, analyses, |func, function_analyses| {
+        let func_id = function_analyses.function();
         let mut replacements = FxHashMap::default();
         let blocks = func.blocks.indices();
         for block in blocks {
@@ -90,6 +114,7 @@ fn share_checked_allocations(module: &mut Module, analyses: &mut ModuleAnalyses)
                 };
                 if semantics.failure != AllocationFailure::Checked
                     || builder.func().inst(inst).metadata.deferred_alloc()
+                    || fresh.contains(func_id, inst)
                 {
                     builder.func_mut().blocks[block].instructions.push(inst);
                     continue;
@@ -137,7 +162,7 @@ fn create_checked_alloc(module: &mut Module) -> crate::mir::FunctionId {
     module.add_function(function)
 }
 
-fn lower_function(func: &mut Function) -> bool {
+fn lower_function(func: &mut Function, is_fresh: impl Fn(InstId) -> bool) -> bool {
     let has_abstract_memory = func.instructions().any(|inst| {
         matches!(func.inst(inst).kind, InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. })
     });
@@ -161,7 +186,7 @@ fn lower_function(func: &mut Function) -> bool {
             });
         if let Some((position, inst)) = checked {
             let result = func.inst_result_value(inst).expect("allocation must produce a value");
-            lower_checked_alloc(func, block, position, inst, result);
+            lower_checked_alloc(func, block, position, inst, result, is_fresh(inst));
             changed = true;
         }
         block_index += 1;
@@ -182,7 +207,7 @@ fn lower_function(func: &mut Function) -> bool {
             match builder.func().inst(inst).kind {
                 InstKind::Fmp => {
                     changed = true;
-                    rewrite_as_fmp_load(&mut builder, inst);
+                    rewrite_as_fmp_read(&mut builder, inst, is_fresh(inst));
                     builder.func_mut().blocks[block].instructions.push(inst);
                     peek.start(builder.func(), inst);
                 }
@@ -223,7 +248,7 @@ fn lower_function(func: &mut Function) -> bool {
                         .func()
                         .inst_result_value(inst)
                         .expect("allocation must produce a value");
-                    rewrite_as_fmp_load(&mut builder, inst);
+                    rewrite_as_fmp_read(&mut builder, inst, is_fresh(inst));
                     builder.func_mut().blocks[block].instructions.push(inst);
                     let next = bump(&mut builder, ptr, size);
                     store_fmp(&mut builder, next);
@@ -324,6 +349,7 @@ fn lower_checked_alloc(
     position: usize,
     inst: InstId,
     ptr: ValueId,
+    fresh: bool,
 ) {
     let InstKind::Alloc { size, semantics } = func.inst(inst).kind else { unreachable!() };
     debug_assert_eq!(semantics.failure, AllocationFailure::Checked);
@@ -344,7 +370,7 @@ fn lower_checked_alloc(
     let panic = func.alloc_block();
     let mut builder = FunctionBuilder::new(func);
     builder.switch_to_block(block);
-    rewrite_as_fmp_load(&mut builder, inst);
+    rewrite_as_fmp_read(&mut builder, inst, fresh);
     let next = bump(&mut builder, ptr, size);
     let bump_overflow = builder.lt(next, ptr);
     let limit = builder.imm(EvmMemoryLayout::MAX_ALLOCATION_END);
@@ -373,9 +399,9 @@ fn initialize(
     }
 }
 
-fn rewrite_as_fmp_load(builder: &mut FunctionBuilder<'_>, inst: crate::mir::InstId) {
-    let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
-    // ptr = mload 64
+/// Reads the pointer from its slot, or the heap floor when nothing wrote the slot before `inst`.
+fn rewrite_as_fmp_read(builder: &mut FunctionBuilder<'_>, inst: crate::mir::InstId, fresh: bool) {
+    // ptr = mload 64 | heap_floor
     // object = inttoptr ptr
     let kind = if builder.func().inst(inst).result_ty.is_some_and(crate::mir::MirType::is_pointer) {
         let block = builder.current_block();
@@ -383,14 +409,21 @@ fn rewrite_as_fmp_load(builder: &mut FunctionBuilder<'_>, inst: crate::mir::Inst
         if attached {
             builder.func_mut().blocks[block].instructions.pop();
         }
-        let ptr = builder.load(slot, PtrLocation::Memory);
+        let ptr = if fresh {
+            builder.heap_floor()
+        } else {
+            let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
+            builder.load(slot, PtrLocation::Memory)
+        };
         mark_alloc_ptr(builder, ptr);
         if attached {
             builder.func_mut().blocks[block].instructions.push(inst);
         }
         InstKind::IntToPtr(ptr)
+    } else if fresh {
+        InstKind::HeapFloor
     } else {
-        InstKind::Load(slot, PtrLocation::Memory)
+        InstKind::Load(builder.imm(EvmMemoryLayout::FMP_SLOT), PtrLocation::Memory)
     };
     let is_load = matches!(kind, InstKind::Load(..));
     let instruction = builder.func_mut().inst_mut(inst);

@@ -33,7 +33,7 @@ bb5:
   mstore
   push bb6
   jump bb11
-bb11:
+bb11 [ret=0, inputs=1, outputs=1]:
   push 4
   calldataload
   push 4
@@ -63,8 +63,7 @@ bb6 [continuation]:
   swap 1
   push 32
   add
-  push 64
-  mload
+  push 128
   dup 3
   dup 3
   dup 3
@@ -107,8 +106,7 @@ bb9 [continuation]:
   swap 1
   push 32
   add
-  push 64
-  mload
+  push 128
   swap 2
   push 0x707265
   push 232

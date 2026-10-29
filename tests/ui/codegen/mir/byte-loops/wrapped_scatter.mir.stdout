@@ -1,0 +1,94 @@
+// === ROOT/tests/ui/codegen/mir/byte-loops/wrapped_scatter.sol:Test ===
+@module Test
+fn @fill(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i1 [selector=0xb4f7766b, pure, abi_params=[bytes, uint256, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = not 0
+    v1 = ptrtoint ptr<memory> arg0 to i256
+    mstore arg0, v0
+    jump bb1
+  bb1:
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = phi [bb0: arg1], [bb3: v3]
+    v4 = phi [bb0: arg2], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v5]
+    v6 = phi [bb0: 0], [bb3: v15]
+    v7 = lt v6, 2
+    jumpi v7, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret true
+  bb4:
+    v8 = checked_add uint256, v3, v6
+    v9 = mload v2
+    v10 = lt v8, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = byte 0, v4
+    v13 = ptradd v2, v8
+    v14 = ptradd v13, 32
+    mstore8 v14, v12
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v15 = checked_add uint256, v6, 1
+    jump bb1
+}
+
+fn @scatter(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i1 [selector=0xa3efd67d, pure, abi_params=[bytes, uint256, bytes32, uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = not 0
+    v1 = ptrtoint ptr<memory> arg0 to i256
+    mstore arg0, v0
+    v2 = ne arg4, 0
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = ptrtoint ptr<memory> arg0 to i256
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v4 = phi [bb1: arg4], [bb2: v3]
+    v5 = inttoptr i256 v4 to ptr<memory>
+    icall @_scatter, v5, arg1, arg2, arg3
+    ret true
+}
+
+fn @_scatter(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256) [pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: arg2], [bb3: v2]
+    v3 = phi [bb0: arg3], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v17]
+    v5 = lt v4, v3
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret
+  bb4:
+    v6 = lt v4, 32
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = byte v4, v2
+    v9 = shl v8, 248
+    v10 = checked_add uint256, v1, v4
+    v11 = mload v0
+    v12 = lt v10, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = byte 0, v9
+    v15 = ptradd v0, v10
+    v16 = ptradd v15, 32
+    mstore8 v16, v14
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v17 = checked_add uint256, v4, 1
+    jump bb1
+}

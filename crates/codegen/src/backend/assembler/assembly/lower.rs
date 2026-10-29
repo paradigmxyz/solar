@@ -16,25 +16,47 @@ use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 impl Assembler<'_> {
     /// Runs the EVM IR pipeline over the emitted program and keeps the result for
     /// [`Self::prepare_linked`].
+    pub(in crate::backend) fn optimize(&mut self) {
+        let _scheduled = self.optimize_capturing(false);
+    }
+
+    /// Runs [`Self::optimize`], first returning a copy of the program as stack scheduling emitted
+    /// it when `capture_scheduled` is set.
     #[tracing::instrument(
         name = "evm_ir_pipeline",
         level = "debug",
         skip_all,
         fields(program = %self.program.name()),
     )]
-    pub(in crate::backend) fn optimize(&mut self) {
+    pub(in crate::backend) fn optimize_capturing(
+        &mut self,
+        capture_scheduled: bool,
+    ) -> Option<ir::Module> {
+        let (mut program, labels) = self.finish_evm_ir()?;
+        let scheduled = capture_scheduled.then(|| program.clone());
+        let failed = !self.run_pipeline(&mut program, true);
+        self.optimized = Some(OptimizedProgram { program, labels, failed });
+        scheduled
+    }
+
+    /// Legalizes the emitted program for the target without the EVM IR pipeline, which already
+    /// ran on it, and keeps the result for [`Self::prepare_linked`].
+    pub(in crate::backend) fn legalize(&mut self) {
         let Some((mut program, labels)) = self.finish_evm_ir() else { return };
-        let failed = !self.run_pipeline(&mut program);
+        let failed = !self.run_pipeline(&mut program, false);
         self.optimized = Some(OptimizedProgram { program, labels, failed });
     }
 
-    /// Runs the EVM IR pipeline and legalization, returning whether neither reported an error.
-    fn run_pipeline(&mut self, program: &mut ir::Module) -> bool {
+    /// Runs the EVM IR pipeline when `passes` is set, then legalization, returning whether neither
+    /// reported an error.
+    fn run_pipeline(&mut self, program: &mut ir::Module, passes: bool) -> bool {
         let input_is_valid = cfg!(debug_assertions) && ir::verify::Verifier::is_valid(program);
         let errors_before = self.gcx.dcx().err_count();
         let gcx = self.gcx;
         let succeeded = || gcx.dcx().err_count() == errors_before;
-        let _changed = ir::run_pipeline(self.gcx, program, None);
+        if passes {
+            let _changed = ir::run_pipeline(self.gcx, program, None);
+        }
         if !succeeded() {
             return false;
         }
@@ -46,7 +68,7 @@ impl Assembler<'_> {
         if !succeeded() {
             return false;
         }
-        ir::verify::Verifier::new(self.gcx).verify_after_legalization(program);
+        ir::verifier(self.gcx).verify_after_legalization(program);
         succeeded()
     }
 
@@ -148,15 +170,15 @@ pub(in crate::backend) fn lower_evm_ir(
     let (mut indexed_jump_lowerings, mut tables) = indexed_jump::materialize_tables_with_metadata(
         module,
         assembler.gcx.sess.opts.evm_version,
-        TablePacking::new(&assembler.gcx.sess.opts),
+        TablePacking::new(assembler.gcx),
     );
     indexed_jump::initialize_indexed_jump_widths(
         &mut indexed_jump_lowerings,
         &tables,
         assembler.gcx.sess.opts.evm_version,
-        TablePacking::new(&assembler.gcx.sess.opts),
+        TablePacking::new(assembler.gcx),
     );
-    let data_layout_is_observable = module.data_layout_is_observable();
+    let data_layout_is_observable = ir::data_layout_is_observable(module);
     for _ in 0..=32 {
         let program = lower_evm_ir_once(
             assembler,
@@ -178,7 +200,7 @@ pub(in crate::backend) fn lower_evm_ir(
             labels,
             &label_offsets,
             assembler.gcx.sess.opts.evm_version,
-            TablePacking::new(&assembler.gcx.sess.opts),
+            TablePacking::new(assembler.gcx),
         ) {
             return program;
         }
@@ -274,11 +296,17 @@ fn lower_evm_ir_once(
             }
         }
     }
+    // An observable layout keeps every data entry in place; otherwise only referenced data goes.
+    let emitted_data = if data_layout_is_observable {
+        module.data.indices().collect::<Vec<_>>()
+    } else {
+        referenced_data.iter().collect()
+    };
     // Keep opaque data unreachable from physical fallthrough, including malformed internal IR.
     let ends_with_terminal = program.instructions.last().is_some_and(
         |inst| matches!(inst.kind(), AsmInstKind::Op(opcode) if op::is_terminal(opcode)),
     );
-    if !referenced_data.is_empty() && !ends_with_terminal {
+    if !emitted_data.is_empty() && !ends_with_terminal {
         let spans = module
             .blocks
             .last()
@@ -296,14 +324,8 @@ fn lower_evm_ir_once(
     }
     program.data.clone_from(&module.data);
     program.set_source_span(None);
-    if data_layout_is_observable {
-        for data in module.data.indices() {
-            program.append_data(data);
-        }
-    } else {
-        for data in referenced_data.iter() {
-            program.append_data(data);
-        }
+    for data in emitted_data {
+        program.append_data(data);
     }
     program
 }

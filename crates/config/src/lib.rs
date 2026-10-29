@@ -283,6 +283,9 @@ str_enum! {
         None,
         /// Tune for an interpreter, which spends time on every executed instruction.
         Interpreter,
+        /// Tune for a bytecode JIT, which resolves jump targets statically: emit no jump the JIT
+        /// cannot resolve, and unroll small loops from the default optimizer runs.
+        Jit,
     }
 }
 
@@ -297,6 +300,12 @@ impl OptimizationMode {
     #[inline]
     pub const fn is_gas(self) -> bool {
         matches!(self, Self::Gas)
+    }
+
+    /// Returns whether only the required passes run (`-O none`).
+    #[inline]
+    pub const fn is_none(self) -> bool {
+        matches!(self, Self::None)
     }
 }
 
@@ -357,6 +366,7 @@ impl Dump {
                     | DumpKind::MirCfg
                     | DumpKind::EvmIr
                     | DumpKind::EvmIrRuntime
+                    | DumpKind::EvmIrRuntimeScheduled
                     | DumpKind::DisasmDeploy
                     | DumpKind::DisasmRuntime
             )
@@ -399,6 +409,8 @@ str_enum! {
         EvmIr,
         /// Print runtime EVM IR.
         EvmIrRuntime,
+        /// Print runtime EVM IR as stack scheduling emits it, before the EVM IR pipeline.
+        EvmIrRuntimeScheduled,
         /// Print deployment bytecode disassembly.
         DisasmDeploy,
         /// Print runtime bytecode disassembly.

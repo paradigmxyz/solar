@@ -19,238 +19,21 @@
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
     mir::{
-        BlockId, Function, Op, Terminator, Value, ValueId, analysis::AddressSpace,
+        BlockId, Function, InstId, Op, Terminator, Value, ValueId, analysis::AddressSpace,
         memory::EvmMemoryLayout,
     },
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode, Tune};
+use solar_evmir::gas::since;
 use solar_sema::Gcx;
 use std::{cmp::Ordering, ops};
 
 mod stack;
 pub(crate) use stack::StackCosts;
 
-/// The gas class of an opcode in the fork schedule.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum GasTier {
-    /// Halting instructions.
-    Zero,
-    /// `JUMPDEST`.
-    Jumpdest,
-    /// Environment reads, `POP`, `PUSH0`.
-    Base,
-    /// Arithmetic, comparisons, memory words, pushes, `DUP`, `SWAP`.
-    VeryLow,
-    /// Multiplication, division, `SIGNEXTEND`, `SELFBALANCE`, `CLZ`.
-    Low,
-    /// `ADDMOD`, `MULMOD`, `JUMP`.
-    Mid,
-    /// `JUMPI`.
-    High,
-    /// `EXP`, plus a per-byte exponent charge.
-    Exp,
-    /// `KECCAK256`, plus a per-word charge.
-    Keccak,
-    /// Memory copies, plus a per-word charge.
-    Copy,
-    /// `BLOCKHASH`.
-    BlockHash,
-    /// `BALANCE`, repriced by EIP-150, EIP-1884, and EIP-2929.
-    Balance,
-    /// `EXTCODESIZE` and `EXTCODECOPY`, repriced by EIP-150 and EIP-2929.
-    ExtCode,
-    /// `EXTCODEHASH`, repriced by EIP-1884 and EIP-2929.
-    ExtCodeHash,
-    /// `SLOAD`, repriced by EIP-150, EIP-1884, and EIP-2929.
-    SLoad,
-    /// `SSTORE` of a cold slot that changes its value.
-    SStore,
-    /// `TLOAD` and `TSTORE`.
-    Transient,
-    /// `LOGn`, plus a per-byte data charge.
-    Log(u8),
-    /// Contract creation.
-    Create,
-    /// Message calls to a cold account.
-    Call,
-    /// `SELFDESTRUCT`, priced by EIP-150.
-    SelfDestruct,
-}
-
-/// Whether an account or storage slot was already touched in the transaction.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Warmth {
-    /// The first access in the transaction, at the full price.
-    Cold,
-    /// An access after an earlier one, at the reduced price EIP-2929 charges;
-    /// earlier schedules do not distinguish the two.
-    Warm,
-}
-
-impl GasTier {
-    /// Gas charged by one copy opcode per copied word.
-    pub(crate) const COPY_WORD_GAS: u32 = 3;
-    /// Gas of a warm account or storage access under EIP-2929.
-    pub(crate) const WARM_ACCESS_GAS: u32 = 100;
-    /// The surcharge EIP-2929 adds to a storage write of a cold slot.
-    const COLD_SLOAD_GAS: u32 = 2100;
-
-    /// Gas charged on `evm_version` before dynamic components for an access of
-    /// the given warmth. Warmth only reprices account and storage accesses,
-    /// and only since Berlin.
-    pub(crate) const fn gas_at(self, evm_version: EvmVersion, warmth: Warmth) -> u32 {
-        if !matches!(warmth, Warmth::Warm) || !since(evm_version, EvmVersion::Berlin) {
-            return self.gas(evm_version);
-        }
-        match self {
-            Self::Balance | Self::ExtCode | Self::ExtCodeHash | Self::SLoad | Self::Call => {
-                Self::WARM_ACCESS_GAS
-            }
-            Self::SStore => self.gas(evm_version) - Self::COLD_SLOAD_GAS,
-            _ => self.gas(evm_version),
-        }
-    }
-
-    /// Gas charged on `evm_version` before dynamic components.
-    pub(crate) const fn gas(self, evm_version: EvmVersion) -> u32 {
-        match self {
-            Self::Zero => 0,
-            Self::Jumpdest => 1,
-            Self::Base => 2,
-            Self::VeryLow | Self::Copy => 3,
-            Self::Low => 5,
-            Self::Mid => 8,
-            Self::High | Self::Exp => 10,
-            Self::Keccak => 30,
-            Self::BlockHash => 20,
-            Self::Balance => {
-                if since(evm_version, EvmVersion::Berlin) {
-                    2600
-                } else if since(evm_version, EvmVersion::Istanbul) {
-                    700
-                } else if since(evm_version, EvmVersion::TangerineWhistle) {
-                    400
-                } else {
-                    20
-                }
-            }
-            Self::ExtCode => {
-                if since(evm_version, EvmVersion::Berlin) {
-                    2600
-                } else if since(evm_version, EvmVersion::TangerineWhistle) {
-                    700
-                } else {
-                    20
-                }
-            }
-            Self::ExtCodeHash => {
-                if since(evm_version, EvmVersion::Berlin) {
-                    2600
-                } else if since(evm_version, EvmVersion::Istanbul) {
-                    700
-                } else {
-                    400
-                }
-            }
-            Self::SLoad => {
-                if since(evm_version, EvmVersion::Berlin) {
-                    2100
-                } else if since(evm_version, EvmVersion::Istanbul) {
-                    800
-                } else if since(evm_version, EvmVersion::TangerineWhistle) {
-                    200
-                } else {
-                    50
-                }
-            }
-            Self::SStore => 5000,
-            Self::Transient => 100,
-            Self::Log(topics) => 375 + 375 * topics as u32,
-            Self::Create => 32000,
-            Self::Call => {
-                if since(evm_version, EvmVersion::Berlin) {
-                    2600
-                } else if since(evm_version, EvmVersion::TangerineWhistle) {
-                    700
-                } else {
-                    40
-                }
-            }
-            Self::SelfDestruct => {
-                if since(evm_version, EvmVersion::TangerineWhistle) {
-                    5000
-                } else {
-                    0
-                }
-            }
-        }
-    }
-
-    /// Gas charged per unit of runtime-sized work: exponent bytes, hashed or
-    /// copied words, and logged bytes.
-    pub(crate) const fn dynamic_gas(self, evm_version: EvmVersion) -> u32 {
-        match self {
-            Self::Exp => {
-                if since(evm_version, EvmVersion::SpuriousDragon) {
-                    50
-                } else {
-                    10
-                }
-            }
-            Self::Keccak => 6,
-            Self::Copy => Self::COPY_WORD_GAS,
-            Self::Log(_) => 8,
-            _ => 0,
-        }
-    }
-
-    /// The stack argument that sizes the dynamic work: the exponent of
-    /// `EXP`, the byte length of a hash or a log, the last argument of a copy.
-    const fn sizing_argument(self, arguments: usize) -> Option<usize> {
-        match self {
-            Self::Exp | Self::Keccak | Self::Log(_) => Some(1),
-            Self::Copy => arguments.checked_sub(1),
-            _ => None,
-        }
-    }
-
-    /// Units of dynamic work for `arguments`, in stack order with immediates
-    /// resolved: exponent bytes, hashed or copied words, or logged bytes. One
-    /// unit when the size is not known statically.
-    fn dynamic_units(self, arguments: &[Option<U256>]) -> u32 {
-        let Some(size) = self.sizing_argument(arguments.len()).and_then(|index| arguments[index])
-        else {
-            return u32::from(self.sizing_argument(arguments.len()).is_some());
-        };
-        let units = match self {
-            Self::Exp => U256::from(size.bit_len().div_ceil(8)),
-            Self::Keccak | Self::Copy => size.div_ceil(U256::from(32)),
-            Self::Log(_) => size,
-            _ => U256::ZERO,
-        };
-        u32::try_from(units).unwrap_or(u32::MAX)
-    }
-
-    /// Gas of a tier priced the same on every EVM version, usable in constants.
-    pub(crate) const fn fixed_gas(self) -> u32 {
-        match self {
-            Self::Balance
-            | Self::ExtCode
-            | Self::ExtCodeHash
-            | Self::SLoad
-            | Self::Call
-            | Self::SelfDestruct => panic!("tier is priced per EVM version"),
-            _ => self.gas(EvmVersion::Homestead),
-        }
-    }
-}
-
-/// Returns whether `evm_version` includes the `fork` schedule.
-const fn since(evm_version: EvmVersion, fork: EvmVersion) -> bool {
-    evm_version as u8 >= fork as u8
-}
+pub(crate) use solar_evmir::gas::{GasTier, Warmth};
 
 /// Encoded size of an opcode including its immediate bytes.
 const fn opcode_bytes(opcode: u8) -> u32 {
@@ -414,6 +197,15 @@ impl Target {
     /// it: a contract built around a loop or two, a sixth of EIP-170's limit.
     pub(crate) const SMALL_CODE_BYTES: u64 = 4_096;
 
+    /// The optimizer runs from which loop unrolling and peeling pay under [`Tune::Jit`], the
+    /// default 200: a JIT compiles the copies to straight-line machine code, so an unrolled loop
+    /// ran 5% fewer instructions at 3.5% more bytes on the runtime corpus.
+    pub(crate) const JIT_LOOP_UNROLL_MIN_RUNS: u64 = Self::DEFAULT_EXPECTED_EXECUTIONS;
+    /// The most words a loop may carry across its back edge to be unrolled or peeled under
+    /// [`Tune::Jit`]: a JIT keeps a 256-bit word in four registers, and a loop that carries more
+    /// spills them to the stack on every iteration, as an unrolled sum over an array did.
+    pub(crate) const JIT_MAX_UNROLLED_LOOP_WORDS: usize = 3;
+
     /// The model of the session's EVM version, objective, and optimizer runs.
     pub(crate) fn new(gcx: Gcx<'_>) -> Self {
         let opts = &gcx.sess.opts;
@@ -506,6 +298,21 @@ impl Target {
         self.expected_executions >= Self::LOOP_COPY_MIN_RUNS
     }
 
+    /// Whether the build expects enough executions to unroll and peel loops for runtime gas:
+    /// from [`Self::LOOP_COPY_MIN_RUNS`] on, or from [`Self::JIT_LOOP_UNROLL_MIN_RUNS`] under
+    /// [`Tune::Jit`].
+    pub(crate) fn unrolls_loops(&self) -> bool {
+        let min_runs =
+            if self.is_jit() { Self::JIT_LOOP_UNROLL_MIN_RUNS } else { Self::LOOP_COPY_MIN_RUNS };
+        self.expected_executions >= min_runs
+    }
+
+    /// Whether a loop carrying `words` words across its back edge may be unrolled or peeled:
+    /// always, except under [`Tune::Jit`], which allows [`Self::JIT_MAX_UNROLLED_LOOP_WORDS`].
+    pub(crate) fn unrolls_loop_carrying(&self, words: usize) -> bool {
+        !self.is_jit() || words <= Self::JIT_MAX_UNROLLED_LOOP_WORDS
+    }
+
     /// Whether copying a loop block whose code costs `copy`, entered on `paths` paths, into a loop
     /// block that jumps to it pays. In gas builds the copy saves the jump's label push, `JUMP` and
     /// `JUMPDEST` on each iteration through the edge: [`Self::UNCOUNTED_LOOP_ITERATIONS`] per
@@ -542,6 +349,18 @@ impl Target {
         } else {
             code_bytes / Self::LOOP_JOIN_COPY_SHARE
         }
+    }
+
+    /// Whether a loop rewritten into one copy keeps an optional test of its length before the
+    /// copy's setup, which then runs only for a nonzero length, as the loop body did. A test
+    /// required to avoid new memory accesses on an empty copy must stay regardless of this cost.
+    ///
+    /// The test is one branch on every copy. The setup it skips for an empty copy holds the
+    /// range checks with their panic branch, any overlap test, and the copy instruction, several
+    /// times the branch, and no longer masks its checks with a nonzero length. Gas builds take
+    /// that trade; size builds keep the branch's bytes.
+    pub(crate) fn tests_empty_copies(&self) -> bool {
+        self.optimization.is_gas()
     }
 
     /// Static gas of one opcode; unknown opcodes are free.
@@ -834,22 +653,40 @@ impl Target {
     /// Estimated code of the instructions of one block with the pushes of their immediates,
     /// without its terminator.
     pub(crate) fn block_instructions_estimate(&self, func: &Function, block: BlockId) -> Cost {
-        let block = &func.blocks[block];
-        let mut cost = Cost::ZERO;
-        for &inst in &block.instructions {
-            let kind = &func.inst(inst).kind;
-            let immediate = |value| match func.value(value) {
-                Value::Immediate(immediate) => immediate.as_u256(),
-                _ => None,
-            };
-            cost += self.op(&kind.op(), immediate);
-            kind.visit_operands(|operand| {
-                if let Some(value) = immediate(operand) {
-                    cost += self.push(value);
-                }
-            });
-        }
+        func.blocks[block]
+            .instructions
+            .iter()
+            .map(|&inst| self.instruction_estimate(func, inst))
+            .sum()
+    }
+
+    /// Estimated code of one instruction: its operation and the pushes of its immediate operands.
+    pub(crate) fn instruction_estimate(&self, func: &Function, inst: InstId) -> Cost {
+        let kind = &func.inst(inst).kind;
+        let immediate = |value| match func.value(value) {
+            Value::Immediate(immediate) => immediate.as_u256(),
+            _ => None,
+        };
+        let mut cost = self.op(&kind.op(), immediate);
+        kind.visit_operands(|operand| {
+            if let Some(value) = immediate(operand) {
+                cost += self.push(value);
+            }
+        });
         cost
+    }
+
+    /// Whether indexed jump tables may pack entries wider than one byte into words and pick them
+    /// with a shift and a mask, when `requested` by `-Zpack-wide-jump-tables`. A bytecode JIT
+    /// cannot resolve the pick, and one unresolved jump makes it drop every jump it resolved in
+    /// the contract.
+    pub(crate) const fn packs_wide_jump_tables(&self, requested: bool) -> bool {
+        requested && !self.is_jit()
+    }
+
+    /// Whether the code is tuned for a bytecode JIT.
+    const fn is_jit(&self) -> bool {
+        matches!(self.tune, Tune::Jit)
     }
 
     /// Whether the engine pays for the dispatch of each executed instruction.
@@ -921,11 +758,11 @@ impl Target {
     }
 
     /// Whether a compact recipe for an immediate, `saved_bytes` shorter than its literal push and
-    /// `extra_gas` dearer to run, is the better code. Size builds always take the bytes. Gas builds
-    /// take them when the deposit they save covers the extra gas over the expected executions,
-    /// [`Self::UNCOUNTED_LOOP_ITERATIONS`] times over for a push inside a loop, so a hot loop
-    /// pushes a mask as a literal rather than rebuilding it on every iteration; a tie takes the
-    /// bytes, which cost no more over the deployment's lifetime.
+    /// `extra_gas` dearer to run, is the better code. Size builds always take the bytes. Gas
+    /// and `-O none` builds take them when the deposit they save covers the extra gas over the
+    /// expected executions, [`Self::UNCOUNTED_LOOP_ITERATIONS`] times over for a push inside a
+    /// loop, so a hot loop pushes a mask as a literal rather than rebuilding it on every
+    /// iteration; a tie takes the bytes, which cost no more over the deployment's lifetime.
     ///
     /// The push is priced over at most [`Self::DEFAULT_EXPECTED_EXECUTIONS`]: it runs only on the
     /// calls whose path reaches it, a fraction of the deployment's calls once they spread over its
@@ -939,7 +776,7 @@ impl Target {
         extra_gas: u64,
         in_loop: bool,
     ) -> bool {
-        if !self.optimization.is_gas() {
+        if self.optimization.is_size() {
             return true;
         }
         let iterations = if in_loop { Self::UNCOUNTED_LOOP_ITERATIONS } else { 1 };
@@ -1129,6 +966,35 @@ impl Target {
         }
     }
 
+    /// Whether a `KECCAK256` over constant words, whose result `uses` operands read, becomes the
+    /// immediate `hash` at each use. `keccak` is the hash with its operands and `stores` the
+    /// constant stores the fold leaves dead, which only they read. The hash saves gas on every
+    /// execution but costs a `PUSH32` per use where the result would stay on the stack and be
+    /// duplicated, so it needs the stores to pay for those bytes. Inside a loop, the gas saved
+    /// on [`Self::UNCOUNTED_LOOP_ITERATIONS`] iterations may repay the deposit of the bytes
+    /// instead.
+    pub(crate) fn folds_constant_keccak(
+        &self,
+        hash: U256,
+        keccak: Cost,
+        stores: Cost,
+        uses: u32,
+        in_loop: bool,
+    ) -> bool {
+        let kept = keccak + stores + self.dup().times(uses.saturating_sub(1));
+        let folded = self.push(hash).times(uses);
+        let gas_saving = i64::from(self.runtime_gas(kept)) - i64::from(self.runtime_gas(folded));
+        let byte_saving = i64::from(kept.bytes) - i64::from(folded.bytes);
+        self.improves(gas_saving, byte_saving)
+            || in_loop
+                && self.optimization.is_gas()
+                && gas_saving > 0
+                && !self.deposit_repays_gas(
+                    byte_saving.unsigned_abs(),
+                    gas_saving.unsigned_abs() * Self::UNCOUNTED_LOOP_ITERATIONS,
+                )
+    }
+
     /// Whether one shared copy of a terminal block, entered by a jump from each of `sites`,
     /// takes fewer bytes than a copy at every site. When optimizing for size, a copy no larger
     /// than a jump to and from a shared body stays with the backend, whose terminal-block sharing
@@ -1153,6 +1019,15 @@ impl Target {
             saved_bytes,
             transfer_gas.saturating_mul(Self::UNCOUNTED_LOOP_ITERATIONS),
         )
+    }
+
+    /// Cost of `words` words of a function's fixed spill frame on each call of an external entry
+    /// that can reach the function. The frames of the functions an entry reaches lie below its
+    /// heap, so each word moves the heap up by one, and every call expands memory over the word
+    /// once its first allocation does, whether or not the function runs. The stores and reloads
+    /// that use the word are priced with the code that runs them.
+    pub(crate) fn frame_words(&self, words: u32) -> Cost {
+        Cost::new(GasTier::MEMORY_WORD_GAS.saturating_mul(words), 0)
     }
 }
 
@@ -1459,9 +1334,20 @@ mod tests {
     }
 
     #[test]
+    fn jit_never_packs_wide_jump_tables() {
+        let model = |tune| Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200).tuned(tune);
+        for tune in [Tune::None, Tune::Interpreter] {
+            assert!(model(tune).packs_wide_jump_tables(true));
+            assert!(!model(tune).packs_wide_jump_tables(false));
+        }
+        assert!(!model(Tune::Jit).packs_wide_jump_tables(true));
+        assert!(!model(Tune::Jit).packs_wide_jump_tables(false));
+    }
+
+    #[test]
     fn every_tune_selects_the_fewest_bytes() {
         let address_mask = (U256::ONE << 160) - U256::ONE;
-        for tune in [Tune::None, Tune::Interpreter] {
+        for tune in [Tune::None, Tune::Interpreter, Tune::Jit] {
             for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
                 let target = Target::with(EvmVersion::Osaka, optimization, 200).tuned(tune);
                 // `PUSH0; NOT; PUSH1 0x60; SHR` against `PUSH20 0xff..ff`.
@@ -1500,6 +1386,26 @@ mod tests {
     }
 
     #[test]
+    fn jit_unrolls_loops_from_the_default_runs() {
+        let target =
+            |runs, tune| Target::with(EvmVersion::Osaka, OptimizationMode::Gas, runs).tuned(tune);
+        for tune in [Tune::None, Tune::Interpreter] {
+            assert!(!target(Target::DEFAULT_EXPECTED_EXECUTIONS, tune).unrolls_loops());
+            assert!(target(Target::LOOP_COPY_MIN_RUNS, tune).unrolls_loops());
+            assert!(target(Target::DEFAULT_EXPECTED_EXECUTIONS, tune).unrolls_loop_carrying(9));
+        }
+        let jit = |runs| target(runs, Tune::Jit);
+        assert!(!jit(Target::JIT_LOOP_UNROLL_MIN_RUNS - 1).unrolls_loops());
+        assert!(jit(Target::DEFAULT_EXPECTED_EXECUTIONS).unrolls_loops());
+        assert!(jit(Target::LOOP_COPY_MIN_RUNS).unrolls_loops());
+        // Loop copies other than unrolling and peeling still wait for the many runs.
+        assert!(!jit(Target::DEFAULT_EXPECTED_EXECUTIONS).copies_loops());
+        let words = Target::JIT_MAX_UNROLLED_LOOP_WORDS;
+        assert!(jit(200).unrolls_loop_carrying(words));
+        assert!(!jit(200).unrolls_loop_carrying(words + 1));
+    }
+
+    #[test]
     fn compact_immediates_repay_their_gas() {
         // `type(uint128).max`: `PUSH16` is 17 bytes for 3 gas, `PUSH0 NOT PUSH1 128 SHR` 5 bytes
         // for 11: 12 bytes deposit 2,400 gas against 8 gas on 200 executions, 1,600, or 16,000
@@ -1513,6 +1419,11 @@ mod tests {
         assert!(target.compacts_immediate(1, 0, true));
         let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
         assert!(size.compacts_immediate(12, 8, true));
+        // `-O none` prices the push like a gas build: a loop keeps the literal.
+        let none = Target::with(EvmVersion::Osaka, OptimizationMode::None, 200);
+        assert!(none.compacts_immediate(12, 8, false));
+        assert!(!none.compacts_immediate(12, 8, true));
+        assert!(!none.compacts_immediate(4, 8, false));
         // A tie takes the bytes: `not(31)` in a loop saves 30 bytes, 6,000 gas, for 3 gas ten
         // times over on 200 executions, 6,000.
         assert!(target.compacts_immediate(30, 3, true));
@@ -1717,5 +1628,63 @@ mod tests {
         let hot =
             Target::with(EvmVersion::Cancun, OptimizationMode::Gas, Target::LOOP_COPY_MIN_RUNS);
         assert_eq!(hot.loop_join_copy_budget(194), u64::MAX);
+    }
+
+    #[test]
+    fn empty_copies_are_tested_for_gas() {
+        let target = |optimization| Target::with(EvmVersion::Cancun, optimization, 200);
+        assert!(target(OptimizationMode::Gas).tests_empty_copies());
+        assert!(!target(OptimizationMode::Size).tests_empty_copies());
+        // The setup an empty copy skips costs more than the branch that tests it.
+        let gas = target(OptimizationMode::Gas);
+        let setup =
+            gas.opcode(op::LT).times(2) + gas.opcode(op::OR) + gas.branch() + gas.opcode(op::MCOPY);
+        assert!(setup.gas > (gas.opcode(op::ISZERO) + gas.branch()).gas);
+    }
+
+    #[test]
+    fn constant_keccaks_fold_when_their_dead_stores_pay_for_the_hash() {
+        let hash = U256::from_be_bytes(alloy_primitives::keccak256([0; 64]).0);
+        let word = U256::from_be_bytes(alloy_primitives::keccak256([1]).0);
+        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let target = Target::with(EvmVersion::Osaka, optimization, 200);
+            // `keccak256 0, 64`.
+            let keccak = target.push(U256::from(64))
+                + target.push(U256::ZERO)
+                + target.opcode_with_immediates(
+                    op::KECCAK256,
+                    &[Some(U256::ZERO), Some(U256::from(64))],
+                );
+            let store = |word: U256, address: u64| {
+                target.push(word) + target.push(U256::from(address)) + target.opcode(op::MSTORE)
+            };
+            let small = store(U256::from(7), 0) + store(U256::from(5), 32);
+            let full = store(word, 0) + store(word, 32);
+            // The hash costs 29 bytes more than the instruction, whatever gas it saves.
+            assert!(!target.folds_constant_keccak(hash, keccak, Cost::ZERO, 1, false));
+            assert!(!target.folds_constant_keccak(hash, keccak, small, 1, false));
+            // Dead stores of full words repay it once, but not a second use.
+            assert!(target.folds_constant_keccak(hash, keccak, store(word, 0), 1, false));
+            assert!(target.folds_constant_keccak(hash, keccak, full, 2, false));
+            assert!(!target.folds_constant_keccak(hash, keccak, full, 3, false));
+            // A hash nothing reads is dead whatever the stores.
+            assert!(target.folds_constant_keccak(hash, keccak, Cost::ZERO, 0, false));
+            // A short hash costs fewer bytes than the instruction and wins on its own.
+            assert!(target.folds_constant_keccak(U256::from(1), keccak, Cost::ZERO, 1, false));
+            // A loop repays the bytes with the gas of its iterations, when optimizing for gas.
+            assert_eq!(
+                target.folds_constant_keccak(hash, keccak, Cost::ZERO, 1, true),
+                optimization.is_gas()
+            );
+        }
+    }
+    #[test]
+    fn frame_words_cost_memory_expansion() {
+        // A word below the heap costs every call one more word of expansion, and no bytes.
+        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let target = Target::with(EvmVersion::Cancun, optimization, 200);
+            assert_eq!(target.frame_words(0), Cost::ZERO);
+            assert_eq!(target.frame_words(10), Cost::new(30, 0));
+        }
     }
 }

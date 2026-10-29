@@ -1,0 +1,27 @@
+// `settings.solar.unstable` applies unstable code generation flags from the input.
+// CHECK: "message": "EVM codegen requires MIR in the `lowered` phase, stopped at `semantic`"
+// CHECK: "sources": {
+// CHECK-NEXT: "A.sol": {
+// CHECK-NEXT: "id": 0
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract Dependency { function ping() external {} } contract UnusedDependency {} function createDependency() returns (Dependency) { return new Dependency(); } contract Selected { function create() external { createDependency(); } function unused() private { new UnusedDependency(); } } contract Unselected { function create() external { new Unselected(); } }"
+    }
+  },
+  "settings": {
+    "solar": {
+      "unstable": ["mir-pipeline=none"]
+    },
+    "outputSelection": {
+      "A.sol": {
+        "Selected": [
+          "evm.bytecode.object",
+          "evm.deployedBytecode.object"
+        ]
+      }
+    }
+  }
+}

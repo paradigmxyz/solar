@@ -8,7 +8,7 @@ use super::{
 use crate::{
     link::{ContractCode, LibraryTable},
     mir::{
-        analysis::{CfgInfo, direct_callees},
+        analysis::{CallGraphInfo, CfgInfo, direct_callees},
         pass_manager::should_validate_ir,
     },
 };
@@ -22,7 +22,7 @@ use solar_data_structures::{
 };
 use solar_interface::{Ident, Symbol, sym};
 use solar_sema::hir::VariableId;
-use std::{borrow::Cow, fmt, sync::Arc};
+use std::{borrow::Cow, fmt, ops::Range, sync::Arc};
 
 /// A named immutable declared by a MIR module.
 #[derive(Clone, Copy, Debug)]
@@ -114,6 +114,12 @@ pub struct Module {
     /// caller's value, and guards its non-view external functions with
     /// [`Self::library_deploy_address`].
     pub(crate) is_library: bool,
+    /// Whether the module may contain inline assembly that does not promise memory safety, whose
+    /// writes the compiler cannot place.
+    ///
+    /// Textual MIR may hold raw memory operations, so it counts as unsafe. Lowering Solidity
+    /// clears the bit and sets it again for every assembly block that lacks the promise.
+    unsafe_assembly: bool,
     /// The lowering phase this module is in.
     pub(super) phase: MirPhase,
     /// Whether passes must account for every instruction's source debug information.
@@ -180,10 +186,22 @@ impl Module {
             libraries: LibraryTable::default(),
             is_interface: false,
             is_library: false,
+            unsafe_assembly: true,
             phase: MirPhase::Semantic,
             debug_info_tracked: false,
             lowered_checked: false,
         }
+    }
+
+    /// Returns whether the module may contain inline assembly that does not promise memory safety.
+    #[must_use]
+    pub(crate) const fn has_unsafe_assembly(&self) -> bool {
+        self.unsafe_assembly
+    }
+
+    /// Records whether the module may contain inline assembly that does not promise memory safety.
+    pub(crate) fn set_unsafe_assembly(&mut self, unsafe_assembly: bool) {
+        self.unsafe_assembly = unsafe_assembly;
     }
 
     /// Enables or disables source debug information auditing for optimization passes.
@@ -428,7 +446,7 @@ impl Module {
         &self,
     ) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
         let creation = self.creation_only_functions();
-        let (looping, repeated) = self.loops_and_repeats(&creation);
+        let (looping, repeated) = self.loops_and_repeats(&creation, &CallGraphInfo::new(self));
         let mut called_once = creation;
         called_once.subtract(&repeated);
         let mut straight = called_once.clone();
@@ -443,14 +461,16 @@ impl Module {
     pub(crate) fn repeated_functions(
         &self,
         domain: &DenseBitSet<FunctionId>,
+        call_graph: &CallGraphInfo,
     ) -> DenseBitSet<FunctionId> {
-        self.loops_and_repeats(domain).1
+        self.loops_and_repeats(domain, call_graph).1
     }
 
     /// Returns the functions of `domain` with a loop of their own, and those it repeats.
     fn loops_and_repeats(
         &self,
         domain: &DenseBitSet<FunctionId>,
+        call_graph: &CallGraphInfo,
     ) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
         let mut looping = DenseBitSet::new_empty(self.functions.len());
         let mut repeated = DenseBitSet::new_empty(self.functions.len());
@@ -458,8 +478,7 @@ impl Module {
         for id in domain.iter() {
             let func = self.function(id);
             let has_loop = !CfgInfo::new(func).cyclic_blocks().is_empty();
-            let repeats_callees =
-                has_loop || self.reachable_from(direct_callees(func)).contains(id);
+            let repeats_callees = has_loop || call_graph.is_recursive(id);
             if has_loop {
                 looping.insert(id);
             }
@@ -633,16 +652,13 @@ impl Module {
     }
 
     pub(crate) fn add_data(&mut self, data: Bytes, name: Option<Symbol>) -> DataId {
-        self.push_data(data, name, false)
+        self.add_data_entry(Data::new(data, name))
     }
 
     /// Adds opaque data that must be emitted at the end of the runtime program.
     pub(crate) fn append_runtime_data(&mut self, data: Bytes, name: Option<Symbol>) -> DataId {
-        self.push_data(data, name, true)
-    }
-
-    fn push_data(&mut self, data: Bytes, name: Option<Symbol>, emit_in_runtime: bool) -> DataId {
-        self.add_data_entry(Data { emit_in_runtime, ..Data::new(data, name) })
+        let trailers = vec![Range { start: 0, end: data.len() }];
+        self.add_data_entry(Data { emit_in_runtime: true, trailers, ..Data::new(data, name) })
     }
 
     /// Returns an iterator over all functions.

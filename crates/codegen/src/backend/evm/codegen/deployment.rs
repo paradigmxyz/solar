@@ -83,11 +83,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         // First schedule the runtime code and run its EVM IR pipeline. Only final
         // assembly waits for the bytecode of contracts it embeds.
         self.schedule_runtime_code(&lowered, &call_graph);
-        self.asm.optimize();
+        let scheduled_evm_ir = self.asm.optimize_capturing(self.capture_scheduled_evm_ir);
         if self.gcx.dcx().has_errors().is_err() {
             return false;
         }
-        self.pending_runtime = Some(PendingRuntime { call_graph });
+        self.pending_runtime = Some(PendingRuntime { call_graph, scheduled_evm_ir });
         true
     }
 
@@ -98,7 +98,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         module: &Module,
         bytecodes: &EmbeddedBytecodes,
     ) -> EvmArtifact {
-        let PendingRuntime { call_graph } =
+        let PendingRuntime { call_graph, scheduled_evm_ir } =
             self.pending_runtime.take().expect("module must be scheduled first");
         debug_assert_eq!(module.phase(), MirPhase::Lowered);
         let mut libraries = module.libraries.clone();
@@ -106,6 +106,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             bytecode: runtime_bytecode,
             immutable_refs,
             library_relocations: runtime_library_relocations,
+            trailers: runtime_trailers,
             evm_ir: runtime_evm_ir,
             debug_info: runtime_debug_info,
         } = self.asm.assemble_linked(
@@ -120,6 +121,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             Symbol::intern(&format!("{}_{}", module.name.name, CodeKind::Runtime.keyword()));
         let runtime_data = ir::Data {
             library_relocations: runtime_library_relocations.clone(),
+            trailers: runtime_trailers.clone(),
             ..ir::Data::new(runtime_bytecode.clone(), Some(runtime_name))
         };
 
@@ -178,9 +180,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             runtime: runtime_bytecode.into(),
             deployment_library_relocations: deploy_code.library_relocations,
             runtime_library_relocations,
+            deployment_trailers: deploy_code.trailers,
+            runtime_trailers,
             immutable_references: immutable_refs,
             deployment_evm_ir: deploy_code.evm_ir,
             runtime_evm_ir,
+            runtime_scheduled_evm_ir: scheduled_evm_ir,
             deployment_debug_info: deploy_code.debug_info,
             runtime_debug_info,
         }

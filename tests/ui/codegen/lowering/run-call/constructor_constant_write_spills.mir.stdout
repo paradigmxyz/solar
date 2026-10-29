@@ -1,0 +1,64 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_constant_write_spills.sol:ConstructorConstantWriteSpills ===
+@module ConstructorConstantWriteSpills
+fn @r() -> i256 [selector=0x6c8ae38c, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor() [constructor, payable] {
+  bb0:
+    v0 = callvalue
+    v1 = checked_add uint256, v0, 5
+    v2 = keccak256_packed (uint256 v1, uint256 0)
+    v3 = keccak256_packed (uint256 v1, uint256 1)
+    v4 = keccak256_packed (uint256 v1, uint256 2)
+    v5 = keccak256_packed (uint256 v1, uint256 3)
+    v6 = keccak256_packed (uint256 v1, uint256 4)
+    v7 = keccak256_packed (uint256 v1, uint256 5)
+    v8 = keccak256_packed (uint256 v1, uint256 6)
+    v9 = keccak256_packed (uint256 v1, uint256 7)
+    v10 = keccak256_packed (uint256 v1, uint256 8)
+    v11 = keccak256_packed (uint256 v1, uint256 9)
+    v12 = keccak256_packed (uint256 v1, uint256 10)
+    v13 = keccak256_packed (uint256 v1, uint256 11)
+    v14 = keccak256_packed (uint256 v1, uint256 12)
+    v15 = keccak256_packed (uint256 v1, uint256 13)
+    v16 = keccak256_packed (uint256 v1, uint256 14)
+    v17 = keccak256_packed (uint256 v1, uint256 15)
+    v18 = keccak256_packed (uint256 v1, uint256 16)
+    v19 = keccak256_packed (uint256 v1, uint256 17)
+    v20 = keccak256_packed (uint256 v1, uint256 18)
+    v21 = keccak256_packed (uint256 v1, uint256 19)
+    v22 = keccak256_packed (uint256 v1, uint256 20)
+    v23 = keccak256_packed (uint256 v1, uint256 21)
+    v24 = keccak256_packed (uint256 v1, uint256 22)
+    v25 = keccak256_packed (uint256 v1, uint256 23)
+    v26 = calldatasize
+    calldatacopy 128, v26, 0x400
+    v27 = xor v2, v3
+    v28 = xor v27, v4
+    v29 = xor v28, v5
+    v30 = xor v29, v6
+    v31 = xor v30, v7
+    v32 = xor v31, v8
+    v33 = xor v32, v9
+    v34 = xor v33, v10
+    v35 = xor v34, v11
+    v36 = xor v35, v12
+    v37 = xor v36, v13
+    v38 = xor v37, v14
+    v39 = xor v38, v15
+    v40 = xor v39, v16
+    v41 = xor v40, v17
+    v42 = xor v41, v18
+    v43 = xor v42, v19
+    v44 = xor v43, v20
+    v45 = xor v44, v21
+    v46 = xor v45, v22
+    v47 = xor v46, v23
+    v48 = xor v47, v24
+    v49 = xor v48, v25
+    sstore 0, v49 !metadata(storage=slot(0))
+    ret
+}

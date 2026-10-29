@@ -1,0 +1,5 @@
+warning[5574]: contract code size is 24587 bytes and exceeds 24576 bytes
+   │
+   ├ note: the limit was introduced in spuriousDragon
+   ╰ note: this contract may not be deployable on Mainnet
+

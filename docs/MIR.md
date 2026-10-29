@@ -26,12 +26,13 @@ pointer types: every pointer becomes the word it holds, and the casts between
 the two disappear. A field or element access is a `ptradd` and an access at the
 result; analyses decompose an address through its `ptradd` chain.
 
-`ptradd p, n` addresses `n` bytes into the object `p` points into and keeps
-its type. Like an LLVM `getelementptr inbounds nuw`, it does not wrap: semantic
-lowering emits it only for addresses inside the object, so alias analysis
-places an access at a runtime offset at or after `p`, and assembly's raw
-arithmetic uses `add` on words instead. A fixed array or struct has no length
-word, so field or element `i` is the word at `ptradd v0, 32 * i`, and at
+`ptradd p, n` adds an unsigned byte offset to `p` and keeps its pointer type.
+The sum wraps at 256 bits, just as the lowered EVM `ADD` does. Assembly can
+forge object pointers or lengths, so an index that passes a length check can
+still leave the allocation or wrap below its header. Alias analysis must prove
+bounds separately before assuming either ordering or allocation disjointness.
+Assembly's raw arithmetic uses `add` on words instead. A fixed array or struct
+has no length word, so field or element `i` is the word at `ptradd v0, 32 * i`, and at
 `ptradd v0, shl i, 5` for a runtime index. A dynamic memory object (`bytes`,
 `string`, `T[] memory`) is a `ptr<memory>` to its length word, which assembly can
 read and rewrite: `mload v0` reads the length, the payload starts at `ptradd v0, 32`, and
@@ -712,8 +713,8 @@ short-header path first so packed writes can fall through during growth.
 Semantic checks fold a negated condition into their failure polarity. This lets
 ordinary dead-code cleanup remove the predicate before conversion and exposes
 phi-only short-circuit joins to jump threading. Builtin expansion also runs
-copy elision for buffers whose writes become visible at that boundary; their
-allocation and failure behavior remain intact.
+memory DSE with unread-allocation removal for buffers whose writes become
+visible at that boundary; their allocation and failure behavior remain intact.
 
 Revert outlining runs once per optimization mode. Gas mode shares source and
 builtin payloads before arithmetic expansion, preserving local overflow edges

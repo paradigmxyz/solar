@@ -132,7 +132,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             let Some(plan) = plans[func_id].take() else { continue };
             let func = &module.functions[func_id];
             self.asm.repeating_code = info.repeated.contains(func_id);
-            self.asm.define_label(self.function_labels[&func_id]);
+            let label = self.function_labels[&func_id];
+            match info.call_effect(func_id) {
+                Some(effect) => self.asm.define_function_label(label, effect),
+                None => self.asm.define_label(label),
+            }
             self.mark_debug_function_invoke(func);
             self.body = Body::Internal(func_id);
             self.emit_stackified_body(func_id, func, plan);
@@ -141,7 +145,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.body = Body::External;
     }
 
-    fn emit_stackified_body(&mut self, func_id: FunctionId, func: &Function, plan: FunctionPlan) {
+    fn emit_stackified_body(
+        &mut self,
+        func_id: FunctionId,
+        func: &Function,
+        mut plan: FunctionPlan,
+    ) {
+        // The plan may be for a copy that rebuilds values at their uses.
+        let rebuilt = plan.rebuilt.take();
+        let func = rebuilt.as_deref().unwrap_or(func);
         // Spill slots: the spilled values in value order, then the return address.
         self.spill_slots.clear();
         self.spill_slots.extend(plan.spilled.iter().zip(0..));

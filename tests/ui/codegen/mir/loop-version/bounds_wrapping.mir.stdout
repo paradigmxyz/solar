@@ -1,0 +1,78 @@
+// === ROOT/tests/ui/codegen/mir/loop-version/bounds_wrapping.sol:BoundsWrapping ===
+@module BoundsWrapping
+fn @empty(arg0: i256) -> i256 [selector=0xf3a3e4fe, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = shl 1, 64
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: v0], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v13]
+    v5 = lt v4, v1
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret 7
+  bb4:
+    v6 = mload v3
+    v7 = lt v4, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = shl v4, 5
+    v10 = inttoptr i256 v3 to ptr<memory>
+    v11 = ptradd v10, v9
+    v12 = ptradd v11, 32
+    mstore v12, 0
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v13 = checked_add uint256, v4, 1
+    jump bb1
+}
+
+fn @wrapped(arg0: i256, arg1: i256) -> i256 [selector=0x08a7c76d, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    v1 = not 0
+    v2 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, v1
+    v3 = icall @_write, v0, arg0, arg1
+    ret v3
+}
+
+fn @_write(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 [pure] {
+  bb0:
+    v0 = mload arg0
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: arg1], [bb3: v2]
+    v3 = phi [bb0: arg2], [bb3: v3]
+    v4 = phi [bb0: v0], [bb3: v4]
+    v5 = phi [bb0: arg1], [bb3: v13]
+    v6 = lt v5, v3
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v4
+  bb4:
+    v7 = mload v1
+    v8 = lt v5, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = shl v5, 5
+    v11 = ptradd v1, v10
+    v12 = ptradd v11, 32
+    mstore v12, 0
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v13 = checked_add uint256, v5, 1
+    jump bb1
+}

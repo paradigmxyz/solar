@@ -10,7 +10,7 @@ operation (the text parser uses it for every operation built from value
 operands alone), and a `FunctionBuilder` method per variant marked
 `#[builder(name)]` or `#[builder(name, void)]`. Write custom text syntax or a
 custom builder only for an attribute the generic forms cannot express.
-Declare EVM opcodes the same way in `backend/evm/op.rs`, with traits and
+Declare EVM opcodes the same way in `crates/evmir/src/op.rs`, with traits and
 availability per row; `op_table.snap` snapshots the table. Add operations to
 these tables only; never add a parallel `match` that classifies them.
 
@@ -71,7 +71,11 @@ replacement on the right:
 
 `cargo check -p solar-codegen` checks rule types and overlaps. Add pass UI
 tests per the [test layout](../AGENTS.md#codegen--mir-pass-tests); rules that
-affect execution also need runtime or differential tests. The offline
+affect execution also need runtime or differential tests. A `run-call` in a
+`.evmir` test is both: the runner checks the call's result in an EVM and runs
+the call on the test's own text in the EVM IR interpreter, which must agree with
+the bytecode the pass's output assembles to (see the
+[tester guide](../tools/tester/README.md#evm-ir-interpreter-check)). The offline
 word-rule checker, its Lean model and proofs, and their tests live in
 `scripts/evm-rules/` (see its [guide](../scripts/evm-rules/README.md) for
 commands and coverage limits). The checker must reject unsupported semantics,
@@ -127,11 +131,12 @@ schedule; the pass never prices or matches instructions itself.
 ## Target Cost Model
 
 The target cost model in `crates/codegen/src/target.rs` prices every choice
-between equivalent code shapes. Each opcode row in `backend/evm/op.rs` has a
-`gas(tier)` column. `GasTier::gas` resolves a tier to the selected EVM
-version's static gas across the fork schedule (EIP-150, EIP-1884, EIP-2929,
-and later repricings), `dynamic_gas` gives the per-word or per-byte part, and
-`op_table.snap` snapshots the resolved schedule. `GasTier::fixed_gas` serves
+between equivalent code shapes. Each opcode row in `crates/evmir/src/op.rs` has
+a `gas(tier)` column, and `crates/evmir/src/gas.rs` holds the schedule:
+`GasTier::gas` resolves a tier to the selected EVM version's static gas across
+the fork schedule (EIP-150, EIP-1884, EIP-2929, and later repricings),
+`dynamic_gas` gives the per-word or per-byte part, and `op_table.snap`
+snapshots the resolved schedule. `GasTier::fixed_gas` serves
 version-independent tiers in constants.
 
 `Target::new(gcx)` builds the model from the session's EVM version,
@@ -142,7 +147,11 @@ operands, and counting executed instructions), push materialization cost, deposi
 (`objective_key`, `cmp`, `improves`).
 `-Ztune` selects the execution engine: `Target::runtime_gas` is the one runtime price
 every ranking uses, gas for `none` and gas plus a dispatch charge per executed
-instruction for `interpreter`.
+instruction for `interpreter`. `jit` emits no jump a bytecode JIT cannot resolve, because one
+unresolved jump makes it drop every resolution in the contract: `Target::packs_wide_jump_tables`
+keeps the shifted pick of packed wide jump tables off even with `-Zpack-wide-jump-tables`.
+`jit` also unrolls and peels loops from the default 200 runs, except loops that carry more than
+three words across the back edge (`Target::unrolls_loops`, `Target::unrolls_loop_carrying`).
 Creation code has its own model, `Target::priced_for(true)`, under the gas
 objective. It runs once per deployment, and the deployment transaction pays
 calldata gas (`byte_gas`: 16 per byte, 68 before Istanbul) for each byte instead

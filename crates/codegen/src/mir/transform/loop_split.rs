@@ -35,8 +35,8 @@
 
 use crate::{
     mir::{
-        BlockId, Function, Immediate, InstKind, Instruction, MirType, Module, Terminator, Value,
-        ValueId,
+        BlockId, Function, Immediate, InstKind, Instruction, MirType, Module, StorageAlias,
+        Terminator, Value, ValueId,
         analysis::{Loop, LoopAnalyzer, LoopInfo},
         pass::{MirPass, run_function_pass},
         utils::rebuild_predecessors,
@@ -319,7 +319,10 @@ impl LoopCopy {
     }
 }
 
-/// Clones every loop block with its instructions, keeping edges that leave the loop.
+/// Clones every loop block with its instructions, keeping edges that leave the loop. A clone keeps
+/// its original's metadata, which states facts about the instruction itself, such as an
+/// allocation whose address inline assembly observes, with the values a storage alias names
+/// renamed to their clones.
 pub(super) fn clone_loop(func: &mut Function, blocks: &[BlockId]) -> LoopCopy {
     let mut copy = LoopCopy { blocks: FxHashMap::default(), values: FxHashMap::default() };
     for &block in blocks {
@@ -331,7 +334,7 @@ pub(super) fn clone_loop(func: &mut Function, blocks: &[BlockId]) -> LoopCopy {
         for inst in originals {
             let original = func.inst(inst);
             let mut instruction = Instruction::new(original.kind.clone(), original.result_ty);
-            instruction.metadata.copy_debug_context(&original.metadata);
+            instruction.metadata = original.metadata.clone();
             let cloned = if let Some(result) = func.inst_result_value(inst) {
                 let (cloned, cloned_result) = func.alloc_value_inst(instruction);
                 copy.values.insert(result, cloned_result);
@@ -346,15 +349,25 @@ pub(super) fn clone_loop(func: &mut Function, blocks: &[BlockId]) -> LoopCopy {
     for &block in blocks {
         let clone = copy.blocks[&block];
         for inst in func.blocks[clone].instructions.clone() {
-            let kind = &mut func.inst_mut(inst).kind;
-            if let InstKind::Phi(incoming) = kind {
+            let instruction = func.inst_mut(inst);
+            if let InstKind::Phi(incoming) = &mut instruction.kind {
                 for (from, _) in incoming.iter_mut() {
                     if let Some(&clone_from) = copy.blocks.get(from) {
                         *from = clone_from;
                     }
                 }
             }
-            kind.visit_operands_mut(|value| *value = copy.value(*value));
+            instruction.kind.visit_operands_mut(|value| *value = copy.value(*value));
+            if let Some(alias) = instruction.metadata.storage_alias() {
+                let alias = match alias {
+                    StorageAlias::Slot(slot) => StorageAlias::Slot(slot),
+                    StorageAlias::Symbolic(value) => StorageAlias::Symbolic(copy.value(value)),
+                    StorageAlias::Offset { base, offset } => {
+                        StorageAlias::Offset { base: copy.value(base), offset }
+                    }
+                };
+                instruction.metadata.set_storage_alias(Some(alias));
+            }
         }
         let (mut terminator, metadata) = {
             let body = &func.blocks[block];

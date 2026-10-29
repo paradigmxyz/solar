@@ -1,0 +1,6 @@
+error: EVM IR input that pushes immutables has no bytecode to emit
+   │
+   ╰ note: its creation code only copies the runtime, so every immutable would read zero
+
+error: aborting due to 1 previous error
+

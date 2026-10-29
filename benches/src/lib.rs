@@ -215,7 +215,7 @@ fn ensure_contract_bytecode(
     contract_id: solar::sema::hir::ContractId,
     bytecodes: &mut codegen::EmbeddedBytecodes,
 ) -> Result {
-    let key = codegen::QualifiedName::of_contract(gcx, contract_id);
+    let key = codegen::qualified_name(gcx, contract_id);
     if bytecodes.contains_key(&key) {
         return Ok(());
     }
@@ -235,11 +235,13 @@ fn ensure_contract_bytecode(
                 libraries: artifact.libraries.clone(),
                 bytes: artifact.deployment.clone().into(),
                 relocations: artifact.deployment_library_relocations.clone(),
+                trailers: artifact.deployment_trailers.clone(),
             },
             runtime: RelocatableBytecode {
                 libraries: artifact.libraries.clone(),
                 bytes: artifact.runtime.clone().into(),
                 relocations: artifact.runtime_library_relocations.clone(),
+                trailers: artifact.runtime_trailers.clone(),
             },
         },
     );

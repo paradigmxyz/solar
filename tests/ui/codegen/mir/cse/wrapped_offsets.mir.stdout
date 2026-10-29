@@ -1,0 +1,91 @@
+// === ROOT/tests/ui/codegen/mir/cse/wrapped_offsets.sol:WrappedOffsets ===
+@module WrappedOffsets
+fn @copy(arg0: slice<calldata>, arg1: ptr<memory>, arg2: i256) -> i1 [selector=0x1337a7c8, pure, abi_params=[bytes, bytes, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = not 0
+    v1 = ptrtoint ptr<memory> arg1 to i256
+    mstore arg1, v0
+    jump bb1
+  bb1:
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = phi [bb0: arg1], [bb3: v3]
+    v4 = phi [bb0: arg2], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v5]
+    v6 = phi [bb0: 0], [bb3: v25]
+    v7 = lt v6, v4
+    jumpi v7, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret true
+  bb4:
+    v8 = extract_value slice<calldata>, v2, 1
+    v9 = lt v6, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = extract_value slice<calldata>, v2, 0
+    v12 = extract_value slice<calldata>, v2, 0
+    v13 = ptrtoint ptr<calldata> v12 to i256
+    v14 = add v13, v6
+    v15 = calldataload v14
+    v16 = byte 0, v15
+    v17 = shl v16, 248
+    v18 = checked_add uint256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0, v6
+    v19 = mload v3
+    v20 = lt v18, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = byte 0, v17
+    v23 = ptradd v3, v18
+    v24 = ptradd v23, 32
+    mstore8 v24, v22
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v25 = checked_add uint256, v6, 1
+    jump bb1
+}
+
+fn @reset() -> i256 [selector=0xd826f88f, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    v1 = not 0
+    v2 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, v1
+    v3 = ptrtoint ptr<memory> v0 to i256
+    v4 = ptrtoint ptr<memory> v0 to i256
+    v5 = add v4, 32
+    v6 = sub 64, v5
+    v7 = shr v6, 5
+    v8 = mload v0
+    v9 = lt v7, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = shl v7, 5
+    v12 = ptradd v0, v11
+    v13 = ptradd v12, 32
+    mstore v13, v3
+    v14 = alloc zeroed checked 64
+    mstore v14, 1
+    v15 = mload v0
+    v16 = lt 0, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = ptradd v0, 32
+    mstore v18, 7
+    v19 = mload v14
+    v20 = lt 0, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = ptradd v14, 32
+    mstore v22, 9
+    v23 = mload v0
+    v24 = lt 0, v23
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = ptradd v0, 32
+    v27 = mload v26
+    ret v27
+}

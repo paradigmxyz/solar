@@ -1,0 +1,13 @@
+// A call cannot drop more words than the stack holds.
+//~? ERROR: EVM IR verification failed: block 0: `call return` drops 5 stack words but only 1 are available
+@module module
+
+bb0:
+  push bb2
+  jump bb1
+
+bb1 [ret=0, inputs=5, outputs=0]:
+  jump
+
+bb2 [continuation]:
+  stop

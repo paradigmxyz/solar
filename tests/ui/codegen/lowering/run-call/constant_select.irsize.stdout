@@ -135,7 +135,7 @@ bb15:
   and
   push bb18
   jump bb81
-bb81:
+bb81 [ret=0, inputs=2, outputs=1]:
   push 64
   mload
   swap 2
@@ -170,11 +170,23 @@ bb18 [continuation]:
   push 32
   dup 2
   add
-  swap 3
-  swap 2
-  swap 1
-  swap 3
+  dup 4
+  dup 4
+  dup 3
   calldatacopy
+  dup 4
+  add
+  calldatasize
+  swap 4
+  push 0
+  sub
+  push 31
+  and
+  swap 2
+  swap 4
+  swap 1
+  calldatacopy
+  pop
   push bb20
   push 0
   sload
@@ -238,6 +250,8 @@ bb18 [continuation]:
   iszero
   push bb70
   jumpi
+  jump bb58
+bb58 [ret=4, inputs=7, outputs=1]:
   dup 3
   push bb59
   push 0
@@ -249,7 +263,7 @@ bb18 [continuation]:
   dup 3
   add
   jump bb73
-bb73 [loop]:
+bb73 [loop, ret=1, inputs=4, outputs=0]:
   dup 4
   dup 4
   lt
@@ -393,7 +407,7 @@ bb31:
   jumpi
   push bb33
   jump bb78
-bb78:
+bb78 [ret=0, inputs=1, outputs=1]:
   push 4
   calldataload
   push 4
@@ -487,9 +501,6 @@ bb37 [continuation]:
   and
   jump bb82
 bb39:
-  push 128
-  push 64
-  mstore
   push 36
   calldatasize
   lt
@@ -501,17 +512,15 @@ bb39:
   lt
   push bb11
   jumpi
-  push 64
-  mload
+  push 128
   push 64
   dup 2
   add
-  push 64
-  mstore
   push 4
-  dup 2
+  dup 3
   mstore
   push 32
+  dup 3
   add
   push 0xe2179b8e
   push 224
@@ -526,14 +535,12 @@ bb39:
   sub
   mul
   add
-  jump bb84
-bb84:
   dup 2
   mstore
-  push 64
-  mload
-  push 32
-  dup 2
+  swap 2
+  jump bb84
+bb84:
+  push 96
   add
   push 32
   dup 3
@@ -557,9 +564,6 @@ bb84:
   swap 1
   return
 bb43:
-  push 128
-  push 64
-  mstore
   push 36
   calldatasize
   lt
@@ -582,24 +586,22 @@ bb86:
   sub
   mul
   add
-  push 64
-  mload
+  push 128
   push 64
   dup 2
   add
-  push 64
-  mstore
   push 4
-  dup 2
+  dup 3
   mstore
   push 32
+  dup 3
   add
+  swap 3
+  dup 4
+  mstore
   swap 1
   jump bb84
 bb46:
-  push 128
-  push 64
-  mstore
   push 36
   calldatasize
   lt

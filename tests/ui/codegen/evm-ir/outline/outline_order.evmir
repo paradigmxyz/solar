@@ -10,7 +10,7 @@
 // CHECK: + jump [[OUTLINE]]
 // CHECK: + bb2:
 // CHECK: {{^[ +].*}}push 2
-// CHECK: + [[OUTLINE]]:
+// CHECK: + [[OUTLINE]] {{\[ret=.*\]}}:
 // CHECK: {{^[ +].*}}push 1
 // CHECK: {{^[ +].*}}push 12
 // CHECK: + jump

@@ -11,7 +11,7 @@ fn @text(arg0: ptr<memory>) [selector=0x174e6c98, abi_params=[bytes], abi_return
 
 fn @literal() [selector=0x1373185e, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = alloc 64 !metadata(preserves_fmp)
+    v0 = alloc 64
     mstore v0, 5
     v1 = ptradd v0, 32
     mstore v1, 0x736f6c6172000000000000000000000000000000000000000000000000000000

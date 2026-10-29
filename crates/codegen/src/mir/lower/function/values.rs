@@ -490,6 +490,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 source_ty: source_ty?,
                                 span: rhs.span,
                             }
+                        } else if let Some(target_ty) = self.type_of_expr_or_variable(lhs)
+                            && let Some(value) = self.lower_fixed_bytes_literal(target_ty, rhs)
+                        {
+                            // A literal for fixed bytes is the target's word already, as in a
+                            // single assignment, rather than a string object to convert.
+                            TupleAssignmentRhs::Materialized {
+                                value,
+                                source_ty: Some(target_ty),
+                                span: rhs.span,
+                            }
                         } else {
                             TupleAssignmentRhs::Materialized {
                                 value: self.lower_expr(rhs)?,

@@ -2,13 +2,13 @@
 //@ filecheck:
 @module AllocationExtent
 
-// Initialization touches only the new allocation, even when its size is dynamic. Without a
-// lower-bound proof for the allocation, the FMP write may still alias its header.
+// Initialization touches only the new allocation, even when its size is dynamic. The first
+// allocation is unique, so it lies above the heap start and the FMP write cannot alias its header.
 // CHECK-LABEL: fn @fresh
 // CHECK: {{^ +}}[[LEN:v[0-9]+]] = mload
 // CHECK: alloc zeroed checked arg0
-// CHECK: {{^ +}}[[SECOND:v[0-9]+]] = mload
-// CHECK: add [[LEN]], [[SECOND]]
+// CHECK: - {{v[0-9]+}} = mload
+// CHECK: + {{v[0-9]+}} = add [[LEN]], [[LEN]]
 fn @fresh(arg0: i256) -> i256 {
   bb0:
     v0 = alloc 64

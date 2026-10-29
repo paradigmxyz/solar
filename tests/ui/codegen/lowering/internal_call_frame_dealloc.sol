@@ -10,13 +10,13 @@ contract ICallFrameDealloc {
     // CHECK: push 0xb3de648b
     // CHECK: eq
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]
-    // CHECK: [[BODY]]:
+    // CHECK: [[BODY]]{{( \[.*\])?}}:
     // CHECK: calldataload
     // CHECK-NEXT: dup 1
     // CHECK-NEXT: push [[FIRST_RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[SUM:bb[0-9]+]]
     // The recursive call path falls through from the zero test.
-    // CHECK: [[SUM]]:
+    // CHECK: [[SUM]]{{( \[.*\])?}}:
     // CHECK-NEXT: dup 2
     // CHECK-NEXT: iszero
     // CHECK-NEXT: push [[BASE:bb[0-9]+]]

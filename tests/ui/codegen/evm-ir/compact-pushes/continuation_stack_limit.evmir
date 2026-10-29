@@ -1,0 +1,211 @@
+//@ revisions: size gas
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=compact-pushes
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=compact-pushes
+//@ filecheck:
+@module ContinuationStackLimit
+
+// A call returns to its continuation with the stack its entry had, less the words it consumes and
+// plus the words it leaves, so the continuation has room for a two-word recipe.
+// CHECK-LABEL: bb2 [continuation]:
+// CHECK: + push 0
+// CHECK-NEXT: + not
+// CHECK-NEXT: + push 96
+// CHECK-NEXT: + shr
+bb0 [stack=1000]:
+  push bb2
+  jump bb1
+
+bb1 [ret=0, inputs=1, outputs=0]:
+  jump
+
+bb2 [continuation]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+// A call that leaves a result returns at 1023 words, with room for one more.
+// CHECK-LABEL: bb5 [continuation]:
+// CHECK-NEXT: {{^ +}}push 0xffffffffffffffffffffffffffffffffffffffff
+bb3 [stack=1022]:
+  push bb5
+  jump bb4
+
+bb4 [ret=0, inputs=1, outputs=1]:
+  jump
+
+bb5 [continuation]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+// The return address below the arguments of a shared body is found through its swaps.
+// CHECK-LABEL: bb8 [continuation]:
+// CHECK: + push 0
+// CHECK-NEXT: + not
+bb6 [stack=10]:
+  push bb8
+  push 7
+  jump bb7
+
+bb7 [ret=1, inputs=2, outputs=1]:
+  swap 1
+  jump
+
+bb8 [continuation]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+// The depth of a recursive function's continuation is not bounded: each round leaves a return
+// address, so its entry depth is a second traversal of the cycle. The continuation of a call
+// from outside the cycle keeps its depth.
+// CHECK-LABEL: bb11 [continuation]:
+// CHECK: + push 0
+// CHECK-NEXT: + not
+// CHECK-LABEL: bb12 [continuation]:
+// CHECK-NEXT: {{^ +}}push 0xffffffffffffffffffffffffffffffffffffffff
+bb9 [stack=1]:
+  push bb11
+  jump bb10
+
+bb10 [ret=0, inputs=1, outputs=0]:
+  dup 1
+  push bb13
+  jumpi
+  push bb12
+  jump bb10
+
+bb11 [continuation]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+bb12 [continuation]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  jump
+
+bb13:
+  jump
+
+// A pushed address that is copied can be entered from elsewhere, so its depth is unknown.
+// CHECK-LABEL: bb16 [continuation]:
+// CHECK-NEXT: {{^ +}}push 0xffffffffffffffffffffffffffffffffffffffff
+bb14 [stack=3]:
+  push bb16
+  dup 1
+  pop
+  jump bb15
+
+bb15 [ret=0, inputs=1, outputs=0]:
+  jump
+
+bb16 [continuation]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+// A function inlined into its caller returns through the caller's pushed address.
+// CHECK-LABEL: bb18 [continuation]:
+// CHECK: + push 0
+// CHECK-NEXT: + not
+bb17 [stack=5]:
+  push bb18
+  push 1
+  swap 1
+  jump
+
+bb18 [continuation]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+// A popped address may already have been returned through by a branch, so it is not followed.
+// CHECK-LABEL: bb21 [continuation]:
+// CHECK-NEXT: {{^ +}}push 0xffffffffffffffffffffffffffffffffffffffff
+bb19 [stack=1021]:
+  push bb21
+  push 1
+  push bb22
+  jumpi
+  pop
+  stop
+
+bb20 [stack=0]:
+  push bb21
+  jump bb23
+
+bb21 [continuation]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+bb22:
+  push 7
+  push 8
+  swap 2
+  jump
+
+bb23 [ret=0, inputs=1, outputs=0]:
+  jump
+
+// A branch that can return through an address below its operands enters its block at another
+// depth, so the call that also consumes the address does not bound it.
+// CHECK-LABEL: bb26 [continuation]:
+// CHECK-NEXT: {{^ +}}push 0xffffffffffffffffffffffffffffffffffffffff
+bb24 [stack=1021]:
+  push bb26
+  push 1
+  push bb28
+  jumpi
+  push 3
+  jump bb29
+
+bb25 [stack=0]:
+  push bb26
+  push 5
+  jump bb29
+
+bb26 [continuation]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+bb28:
+  push 7
+  push 8
+  swap 2
+  jump
+
+bb29 [ret=1, inputs=2, outputs=1]:
+  swap 1
+  jump
+
+// A conditional jump through a word on the stack can also return through the address, so a branch
+// that can reach one keeps the address from the call that consumes it afterwards.
+// CHECK-LABEL: bb33 [continuation]:
+// CHECK: {{^ +}}push 0xffffffffffffffffffffffffffffffffffffffff
+bb30 [stack=1020]:
+  push bb33
+  push 1
+  push bb31
+  jumpi
+  jump bb32
+
+bb31:
+  push 7
+  push 8
+  push 1
+  swap 3
+  jumpi
+  stop
+
+bb32 [ret=0, inputs=1, outputs=0]:
+  jump
+
+bb33 [continuation]:
+  push 0
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  pop
+  stop

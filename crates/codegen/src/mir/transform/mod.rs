@@ -1,12 +1,12 @@
 //! Optimization and transformation passes for the Solar compiler.
 
+pub(crate) mod byte_loops;
 pub(crate) mod byte_run;
 pub(crate) mod call_cleanup;
 pub(crate) mod cfg_simplify;
 pub(crate) mod check_elim;
 pub(crate) mod coalesce_allocs;
 pub(super) mod const_fold;
-pub(crate) mod copy_elision;
 pub(crate) mod cse;
 pub(crate) mod dce;
 pub(crate) mod egraph;
@@ -25,6 +25,7 @@ pub(crate) mod loop_opt;
 pub(crate) mod loop_reduce;
 pub(crate) mod loop_split;
 pub(crate) mod loop_unroll;
+pub(crate) mod loop_version;
 pub(crate) mod lower_abi;
 pub(crate) mod lower_abi_encode;
 pub(crate) mod lower_alloc;

@@ -7,15 +7,18 @@
 //!   identical dominating copy loaded and becomes an `mstore` of it.
 //! - Frame stores: a store to an internal-frame word that no instruction or terminator of the
 //!   function can read is removed, unless the function makes internal calls or observes gas.
-//! - Within each block: `keccak256` over words that constant stores fully define folds to its hash;
-//!   an `mload` reads the value of the latest store to the same canonical word; a store of the
-//!   value the word already holds is removed; and a backward scan removes a full-word store that a
-//!   later full-word store, `memory_zero`, or copy into a constant range overwrites before any read
-//!   or gas observation; a small word-sized zero fill or calldata copy whose every word such a
-//!   write overwrites goes too. Returndata copies stay because their source bounds check can
-//!   revert. Reads over constant ranges, such as hashes, logs, and call inputs, only keep the words
-//!   they cover. A reload of the free-memory-pointer word forwards across every instruction that
-//!   cannot write it, such as a write through a heap pointer.
+//! - Within each block: `keccak256` over words that constant stores fully define folds to its hash
+//!   when that is cheaper: the hash is a `PUSH32` at each use, where the result stays on the stack,
+//!   so the fold must repay those bytes with the stores it leaves dead, found by running the
+//!   liveness dataflow below without the hash; an `mload` reads the value of the latest store to
+//!   the same canonical word; a store of the value the word already holds is removed; and a
+//!   backward scan removes a full-word store that a later full-word store, `memory_zero`, or copy
+//!   into a constant range overwrites before any read or gas observation; a small word-sized zero
+//!   fill or calldata copy whose every word such a write overwrites goes too. Returndata copies
+//!   stay because their source bounds check can revert. Reads over constant ranges, such as hashes,
+//!   logs, and call inputs, only keep the words they cover. A reload of the free-memory-pointer
+//!   word forwards across every instruction that cannot write it, such as a write through a heap
+//!   pointer.
 //! - Store narrowing: when a later full-word store overwrites the last 31 bytes of a word store
 //!   before any read or gas observation, only the first byte of the earlier store is observable, so
 //!   the backward scan shortens the store to an `mstore8` of that byte. `mstore8` demands only the
@@ -54,6 +57,11 @@
 //!   and word-rounding masks, and other runtime sizes have no bound. Functions observing gas keep
 //!   their stores, since the stores pay for memory expansion. Writes the object receives from
 //!   copies and calls stay: only stores are candidates.
+//! - Write-only allocations: an allocation that nothing reads loses every store and copy that fills
+//!   it, which the dead-allocation-store rule above leaves when they are copies, fills, or indexed
+//!   stores. Alias analysis shows that the allocation does not escape, no read may alias it, and
+//!   its writes stay inside it. Its proof scans the whole function, so only `memory-dse-unread`,
+//!   the run after builtin expansion, applies it. See `write_only`.
 //! - Across edges: a constant store equal to the constant a sole predecessor left in the word is
 //!   removed, and a store that the single jump successor overwrites first, with no memory or gas
 //!   observer in between, is removed.
@@ -82,19 +90,24 @@
 //! lowering, after ABI and aggregate lowering expose word stores. Another run follows the CSE that
 //! forwards the length words of `bytes` objects, while allocations are still atomic, so the dead
 //! allocation stores go before allocation lowering turns the object into free-memory-pointer
-//! traffic. A final `-Ogas` run after allocation lowering removes fills that only become explicit
-//! there, before memory-zero lowering turns them into copies or loops.
+//! traffic. A final run after allocation lowering removes fills that only become explicit there,
+//! before memory-zero lowering turns them into copies or loops, and forwards the free-memory
+//! pointer and the stores that allocation lowering exposes to the loads that read them. It runs
+//! under both objectives, since the forwarded words shrink the code.
 
-use crate::mir::{
-    AllocationFailure, BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryRegion,
-    MirType, Module, PtrLocation, Terminator, Value, ValueId,
-    analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
-        MemoryAddress, MemoryBase, MemoryLocation, ModRef,
+use crate::{
+    mir::{
+        AllocationFailure, BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryRegion,
+        MirType, Module, PtrLocation, Terminator, Value, ValueId,
+        analysis::{
+            Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
+            MemoryAddress, MemoryBase, MemoryLocation, ModRef, integers::no_wrap_with,
+        },
+        memory::EvmMemoryLayout,
+        pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
+        utils as mir_utils,
     },
-    memory::EvmMemoryLayout,
-    pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
-    utils as mir_utils,
+    target::Target,
 };
 use alloy_primitives::{U256, keccak256};
 use smallvec::SmallVec;
@@ -105,23 +118,35 @@ use solar_data_structures::{
 };
 use std::{
     collections::{BTreeMap, VecDeque},
+    mem,
     rc::Rc,
 };
 
+mod write_only;
+
 /// Function pass for local dead memory-store elimination.
-pub(crate) struct MemoryDse;
+pub(crate) enum MemoryDse {
+    /// Every rewrite except the removal of writes into unread allocations.
+    Standard,
+    /// Every rewrite, including the removal of writes into unread allocations.
+    WithUnreadAllocations,
+}
 
 impl MirPass for MemoryDse {
     fn name(&self) -> &'static str {
-        "memory-dse"
+        match self {
+            Self::Standard => "memory-dse",
+            Self::WithUnreadAllocations => "memory-dse-unread",
+        }
     }
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let unread_allocations = matches!(self, Self::WithUnreadAllocations);
         let mut selected = DenseBitSet::new_empty(module.functions.len());
         for (func_id, func) in module.functions.iter_enumerated() {
             if has_memory_writes(func) {
@@ -133,16 +158,21 @@ impl MirPass for MemoryDse {
             analyses,
             &selected,
             |func, analyses| {
-                MemoryStoreEliminator::new(Rc::clone(analyses.alias()), Rc::clone(analyses.cfg()))
-                    .run_to_fixpoint(func)
+                MemoryStoreEliminator::new(
+                    Rc::clone(analyses.alias()),
+                    Rc::clone(analyses.cfg()),
+                    analyses.target(gcx),
+                    unread_allocations,
+                )
+                .run_to_fixpoint(func)
                     != 0
             },
         )
     }
 }
 
-/// Returns whether the function contains a store or fill this pass can remove or forward from, or
-/// an immutable copy it can reuse: every rewrite starts from one of them.
+/// Returns whether the function contains a store, fill, or copy this pass can remove or forward
+/// from, or an immutable copy it can reuse: every rewrite starts from one of them.
 fn has_memory_writes(func: &Function) -> bool {
     func.instructions().any(|inst_id| {
         matches!(
@@ -151,7 +181,9 @@ fn has_memory_writes(func: &Function) -> bool {
                 | InstKind::Store8(..)
                 | InstKind::CodeCopy(..)
                 | InstKind::MemoryZero(..)
-                | InstKind::Copy(.., PtrLocation::Calldata)
+                | InstKind::Copy(.., PtrLocation::Calldata | PtrLocation::Memory)
+                | InstKind::DataCopy(..)
+                | InstKind::ExtCodeCopy(..)
         )
     })
 }
@@ -163,6 +195,15 @@ struct MemoryStoreEliminator {
     /// Number of memory instructions eliminated.
     eliminated_count: usize,
     alias: Rc<AliasAnalysis>,
+    target: Target,
+    /// Memory live at the entry of each block as of the start of the round, built when the first
+    /// fold candidate needs it. Rewrites of the round only remove reads, so it stays conservative.
+    live_in: Option<IndexVec<BlockId, MemLive>>,
+    /// Operand uses of every value, built when a fold candidate needs them and dropped when a
+    /// rewrite may add uses.
+    uses: Option<IndexVec<ValueId, u32>>,
+    /// Whether to remove the writes into allocations nothing reads.
+    unread_allocations: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -460,6 +501,12 @@ struct BlockScratch {
     stored_words: SlotMap<U256>,
     replacements: FxHashMap<ValueId, ValueId>,
     dead: DenseBitSet<InstId>,
+    /// Stores that the hashes folded so far in the block leave dead, and, while pricing a
+    /// candidate, those they leave dead with it.
+    fold_dead: DenseBitSet<InstId>,
+    fold_dead_with_candidate: DenseBitSet<InstId>,
+    /// Whether `fold_dead` describes the block being folded.
+    fold_dead_ready: bool,
     /// Word stores of the current block that the backward scan narrows: store, address, and byte.
     narrowed: Vec<(InstId, ValueId, TopByte)>,
 }
@@ -481,6 +528,9 @@ impl BlockScratch {
             stored_words: SlotMap::default(),
             replacements: FxHashMap::default(),
             dead: DenseBitSet::new_empty(func.num_insts()),
+            fold_dead: DenseBitSet::new_empty(func.num_insts()),
+            fold_dead_with_candidate: DenseBitSet::new_empty(func.num_insts()),
+            fold_dead_ready: false,
             narrowed: Vec::new(),
         }
     }
@@ -493,12 +543,27 @@ impl BlockScratch {
 
 impl MemoryStoreEliminator {
     /// Creates a new memory optimization pass.
-    fn new(alias: Rc<AliasAnalysis>, cfg: Rc<CfgInfo>) -> Self {
-        Self { cfg, eliminated_count: 0, alias }
+    fn new(
+        alias: Rc<AliasAnalysis>,
+        cfg: Rc<CfgInfo>,
+        target: Target,
+        unread_allocations: bool,
+    ) -> Self {
+        Self {
+            cfg,
+            eliminated_count: 0,
+            alias,
+            target,
+            live_in: None,
+            uses: None,
+            unread_allocations,
+        }
     }
 
     fn run_with_scratch(&mut self, func: &mut Function, scratch: &mut BlockScratch) -> usize {
         self.eliminated_count = 0;
+        self.live_in = None;
+        self.uses = None;
 
         // Every rewrite needs a store or an immutable copy to act on; functions without one skip
         // the whole scan and never build the alias snapshot.
@@ -564,42 +629,16 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        // Backward fixpoint: live_in[b] = transfer(b, ∪ live_in[succ(b)]).
-        //
-        // The transfer is monotone over a lattice of bounded height
-        // (`MEM_LIVE_CAP` slots, topped by `All`), so a worklist seeded in
-        // postorder reaches the same least fixpoint as a full round-robin sweep
-        // while touching each block only when one of its successors actually
-        // moved. Postorder puts successors before predecessors, which is the
-        // direction information flows here.
-        let cfg = &*self.cfg;
-        let mut live_in = index_vec![MemLive::empty(); func.blocks.len()];
-        let mut worklist = cfg.rpo().iter().rev().copied().collect::<VecDeque<_>>();
-        self.eliminated_count += mir_utils::invalidate_unreachable_blocks(func, cfg.reachable());
-        let mut queued = DenseBitSet::new_empty(func.blocks.len());
-        for &block_id in &worklist {
-            queued.insert(block_id);
-        }
-        while let Some(block_id) = worklist.pop_front() {
-            queued.remove(block_id);
-            let out = Self::live_out(func, block_id, &live_in);
-            let new_in = self.transfer_block(func, block_id, out, &mut None);
-            if live_in[block_id] != new_in {
-                live_in[block_id] = new_in;
-                for &pred in &func.blocks[block_id].predecessors {
-                    if queued.insert(pred) {
-                        worklist.push_back(pred);
-                    }
-                }
-            }
-        }
+        self.eliminated_count +=
+            mir_utils::invalidate_unreachable_blocks(func, self.cfg.reachable());
+        let live_in = self.memory_live_in(func);
 
         // Collect dead stores using the stabilized live-out of each block.
         let mut dead = DenseBitSet::new_empty(func.num_insts());
-        for &block_id in cfg.rpo() {
+        for &block_id in self.cfg.rpo() {
             let out = Self::live_out(func, block_id, &live_in);
             let mut collector = Some(&mut dead);
-            self.transfer_block(func, block_id, out, &mut collector);
+            self.transfer_block(func, block_id, out, &mut collector, None);
         }
 
         if dead.is_empty() {
@@ -609,6 +648,39 @@ impl MemoryStoreEliminator {
         for block in func.blocks.iter_mut() {
             block.instructions.retain(|&id| !dead.contains(id));
         }
+    }
+
+    /// Solves the backward memory liveness over the reachable blocks and returns the slots live at
+    /// the entry of each.
+    fn memory_live_in(&self, func: &Function) -> IndexVec<BlockId, MemLive> {
+        // Backward fixpoint: live_in[b] = transfer(b, ∪ live_in[succ(b)]).
+        //
+        // The transfer is monotone over a lattice of bounded height
+        // (`MEM_LIVE_CAP` slots, topped by `All`), so a worklist seeded in
+        // postorder reaches the same least fixpoint as a full round-robin sweep
+        // while touching each block only when one of its successors actually
+        // moved. Postorder puts successors before predecessors, which is the
+        // direction information flows here.
+        let mut live_in = index_vec![MemLive::empty(); func.blocks.len()];
+        let mut worklist = self.cfg.rpo().iter().rev().copied().collect::<VecDeque<_>>();
+        let mut queued = DenseBitSet::new_empty(func.blocks.len());
+        for &block_id in &worklist {
+            queued.insert(block_id);
+        }
+        while let Some(block_id) = worklist.pop_front() {
+            queued.remove(block_id);
+            let out = Self::live_out(func, block_id, &live_in);
+            let new_in = self.transfer_block(func, block_id, out, &mut None, None);
+            if live_in[block_id] != new_in {
+                live_in[block_id] = new_in;
+                for &pred in &func.blocks[block_id].predecessors {
+                    if queued.insert(pred) {
+                        worklist.push_back(pred);
+                    }
+                }
+            }
+        }
+        live_in
     }
 
     fn live_out(func: &Function, block: BlockId, live_in: &IndexVec<BlockId, MemLive>) -> MemLive {
@@ -623,13 +695,15 @@ impl MemoryStoreEliminator {
 
     /// Runs the backward transfer over one block's terminator and instructions,
     /// returning the live set at block entry. When `dead` is `Some`, records the
-    /// full-word constant stores found dead against the flowing live set.
+    /// full-word constant stores found dead against the flowing live set. The hashes in `folded`
+    /// read nothing.
     fn transfer_block(
         &self,
         func: &Function,
         block: BlockId,
         mut live: MemLive,
         dead: &mut Option<&mut DenseBitSet<InstId>>,
+        folded: Option<&DenseBitSet<InstId>>,
     ) -> MemLive {
         // Terminator first: it executes after every instruction in the block.
         match func.blocks[block].terminator.as_ref() {
@@ -680,6 +754,8 @@ impl MemoryStoreEliminator {
                 }
                 InstKind::Fmp | InstKind::Alloc { .. } => live.add_addr(EvmMemoryLayout::FMP_SLOT),
                 InstKind::SetFmp(_) => live.kill(EvmMemoryLayout::FMP_SLOT),
+                InstKind::Keccak256(..)
+                    if folded.is_some_and(|folded| folded.contains(inst_id)) => {}
                 InstKind::Keccak256(offset, size) | InstKind::Log { offset, size, .. } => {
                     Self::mark_read(func, &mut live, *offset, func.value_u64(*size));
                 }
@@ -763,10 +839,9 @@ impl MemoryStoreEliminator {
             *live = MemLive::All;
             return;
         }
-        let mut word = first;
-        while word < end {
+        // `step_by` stops at the end of the address space, where `word += 32` would wrap.
+        for word in (first..end).step_by(32) {
             live.add_addr(word);
-            word += 32;
         }
     }
 
@@ -780,7 +855,11 @@ impl MemoryStoreEliminator {
         let mut total = 0;
         let mut scratch = BlockScratch::new(func);
         loop {
-            let eliminated = self.run_with_scratch(func, &mut scratch);
+            let mut eliminated = self.run_with_scratch(func, &mut scratch);
+            // Its proof scans the whole function, so it runs once the cheaper rewrites settle.
+            if eliminated == 0 && self.unread_allocations {
+                eliminated = self.remove_write_only_allocation_writes(func);
+            }
             if eliminated == 0 {
                 break;
             }
@@ -884,6 +963,7 @@ impl MemoryStoreEliminator {
             if !reads.iter().any(|&(read_offset, read_size)| {
                 self.alias()
                     .memory_alias(
+                        func,
                         MemoryLocation::new(
                             MemoryAddress::internal_frame(offset),
                             LocationSize::Const(32),
@@ -1109,7 +1189,11 @@ impl MemoryStoreEliminator {
                 overwritten.retain(|key| {
                     !self
                         .alias()
-                        .memory_alias(MemoryLocation::new(key.0, LocationSize::Const(32)), location)
+                        .memory_alias(
+                            func,
+                            MemoryLocation::new(key.0, LocationSize::Const(32)),
+                            location,
+                        )
                         .may_alias()
                 });
             }
@@ -1149,6 +1233,7 @@ impl MemoryStoreEliminator {
                 !self
                     .alias()
                     .memory_alias(
+                        func,
                         MemoryLocation::new(key.0, LocationSize::Const(32)),
                         MemoryLocation::new(
                             MemoryAddress::absolute(read_offset),
@@ -1354,6 +1439,7 @@ impl MemoryStoreEliminator {
         scratch.stored_words.clear();
         scratch.replacements.clear();
         scratch.dead.clear();
+        scratch.fold_dead_ready = false;
 
         for index in 0..func.blocks[block_id].instructions.len() {
             let inst_id = func.blocks[block_id].instructions[index];
@@ -1384,10 +1470,11 @@ impl MemoryStoreEliminator {
                     let Some(result) = func.inst_result_value(inst_id) else {
                         continue;
                     };
-                    let hash = keccak256(&bytes);
-                    let replacement = func.alloc_value(Value::Immediate(Immediate::I256(
-                        U256::from_be_bytes(hash.0),
-                    )));
+                    let hash = U256::from_be_bytes(keccak256(&bytes).0);
+                    if !self.folds_keccak(func, block_id, inst_id, result, hash, scratch) {
+                        continue;
+                    }
+                    let replacement = func.alloc_value(Value::Immediate(Immediate::I256(hash)));
                     scratch.replacements.insert(result, replacement);
                     scratch.dead.insert(inst_id);
                     self.eliminated_count += 1;
@@ -1405,6 +1492,49 @@ impl MemoryStoreEliminator {
 
         scratch.replace_uses(func);
         func.blocks[block_id].instructions.retain(|&id| !scratch.dead.contains(id));
+    }
+
+    /// Whether the hash `keccak` computes, which equals the constant `hash`, is cheaper as an
+    /// immediate. The stores it leaves dead are credited: the stores that no longer have a reader
+    /// once `keccak` and the hashes already folded in the block go. The stores the folded hashes
+    /// leave dead are scanned once per block and again with each candidate.
+    fn folds_keccak(
+        &mut self,
+        func: &Function,
+        block: BlockId,
+        keccak: InstId,
+        result: ValueId,
+        hash: U256,
+        scratch: &mut BlockScratch,
+    ) -> bool {
+        let live_in = self.live_in.take().unwrap_or_else(|| self.memory_live_in(func));
+        let out = Self::live_out(func, block, &live_in);
+        self.live_in = Some(live_in);
+        if !scratch.fold_dead_ready {
+            scratch.fold_dead.clear();
+            let dead = &mut Some(&mut scratch.fold_dead);
+            self.transfer_block(func, block, out.clone(), dead, Some(&scratch.dead));
+            scratch.fold_dead_ready = true;
+        }
+        scratch.dead.insert(keccak);
+        scratch.fold_dead_with_candidate.clear();
+        let dead = &mut Some(&mut scratch.fold_dead_with_candidate);
+        self.transfer_block(func, block, out, dead, Some(&scratch.dead));
+        scratch.dead.remove(keccak);
+        let stores = scratch
+            .fold_dead_with_candidate
+            .iter()
+            .filter(|&store| !scratch.fold_dead.contains(store))
+            .map(|store| self.target.instruction_estimate(func, store))
+            .sum();
+        let keccak_cost = self.target.instruction_estimate(func, keccak);
+        let uses = self.uses.get_or_insert_with(|| super::egraph::use_counts(func))[result];
+        let in_loop = self.cfg.cyclic_blocks().contains(block);
+        let folds = self.target.folds_constant_keccak(hash, keccak_cost, stores, uses, in_loop);
+        if folds {
+            mem::swap(&mut scratch.fold_dead, &mut scratch.fold_dead_with_candidate);
+        }
+        folds
     }
 
     fn remove_equal_stores(
@@ -1563,6 +1693,7 @@ impl MemoryStoreEliminator {
         }
 
         scratch.replace_uses(func);
+        self.uses = None;
         self.eliminated_count += scratch.dead.count();
         func.blocks[block_id].instructions.retain(|&id| !scratch.dead.contains(id));
     }
@@ -1875,8 +2006,8 @@ impl MemoryStoreEliminator {
         let mut dead = DenseBitSet::new_empty(func.num_insts());
         for (alloc, access, exposed) in candidates {
             let (alloc_block, alloc_index) = positions[&alloc];
-            // A write that wraps may rewind the free-memory pointer, which freshness ignores, and
-            // put any object over an earlier one.
+            // A write that wraps may rewind the free-memory pointer and put any object over an
+            // earlier one, which allocation uniqueness ignores.
             if exposed && wrapping_writes {
                 continue;
             }
@@ -1958,9 +2089,14 @@ impl MemoryStoreEliminator {
                         }
                         None
                     }
-                    // An access that may leave its allocation names it by its pointer, and
-                    // reaches only the objects above it.
+                    // An access that may leave its allocation names it by its pointer, or by
+                    // `FreeMemory` for a unique one, and reaches only the objects above it.
                     MemoryBase::Value(pointer) => self.allocation_site(func, pointer),
+                    MemoryBase::FreeMemory(site)
+                        if matches!(func.inst(site).kind, InstKind::Alloc { .. }) =>
+                    {
+                        Some(site)
+                    }
                     // A read at the free-memory pointer may reach any object allocated after it.
                     MemoryBase::FreeMemory(_) => None,
                 },
@@ -2258,9 +2394,8 @@ impl AllocWalk<'_> {
         }
     }
 
-    /// A lower bound of the size of an infallible allocation, whose size arithmetic has been
-    /// proven not to wrap: constants, sums, and masks that clear low bits, such as the rounding
-    /// of a length to whole words.
+    /// A lower bound of the size of an infallible allocation: constants, sums that provably do not
+    /// wrap, and masks that clear low bits, such as the rounding of a length to whole words.
     fn size_lower_bound(func: &Function, size: ValueId, depth: u32) -> u64 {
         if let Some(size) = func.value_u256(size) {
             return crate::mir::utils::u256_to_u64(size).unwrap_or(u64::MAX);
@@ -2270,16 +2405,14 @@ impl AllocWalk<'_> {
         };
         let bound = |value| Self::size_lower_bound(func, value, depth);
         match func.inst(*inst).kind {
-            // A constant that does not fit a word count is a wrapped subtraction, such as
-            // `add x, 2^256 - 32` for `x - 32`, which lowers the sum.
+            // A sum is at least the sum of its bounds only when it does not wrap: a wrapped
+            // subtraction, such as `add x, 2^256 - 32` for `x - 32` or `add (sub 0, n), 32`,
+            // lowers it.
             InstKind::Add(a, b)
-                if [a, b]
-                    .iter()
-                    .any(|&v| func.value_u64(v).is_none() && func.value_u256(v).is_some()) =>
+                if no_wrap_with(func, size, &|value| Self::environment_size(func, value)) =>
             {
-                0
+                bound(a).saturating_add(bound(b))
             }
-            InstKind::Add(a, b) => bound(a).saturating_add(bound(b)),
             // `and x, mask` is monotonic in `x` when the mask only clears low bits.
             InstKind::And(x, mask) | InstKind::And(mask, x)
                 if let Some(mask) = func.value_u256(mask)
@@ -2289,6 +2422,17 @@ impl AllocWalk<'_> {
             }
             _ => 0,
         }
+    }
+
+    /// The range of `value` when it reads the size of calldata, return data, or code, which gas
+    /// keeps far below 2^64 bytes.
+    fn environment_size(func: &Function, value: ValueId) -> Option<(U256, U256)> {
+        let Value::Inst(inst) = func.value(value) else { return None };
+        matches!(
+            func.inst(*inst).kind,
+            InstKind::CalldataSize | InstKind::ReturnDataSize | InstKind::CodeSize
+        )
+        .then_some((U256::ZERO, U256::from(u64::MAX)))
     }
 
     /// Follows the result of `inst`, a pointer derived from `at`.
