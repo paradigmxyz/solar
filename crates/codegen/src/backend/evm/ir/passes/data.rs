@@ -42,7 +42,7 @@ use crate::{
         },
         op::{self, WORD_BYTES},
     },
-    link::LibraryRelocation,
+    link::{LibraryRelocation, Trailer},
     mir::utils::eval,
     target::{Cost, Target},
 };
@@ -652,7 +652,7 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
         // Deferred bytes are not known yet, so they are never shared.
         let key = (data.bytes.known())
             .filter(|_| !data.emit_in_runtime)
-            .map(|bytes| (bytes.clone(), data.library_relocations.clone(), data.trailers.clone()));
+            .map(|bytes| (bytes.clone(), data.library_relocations.clone(), trailer_ranges(data)));
         let data_ref = if let Some(key) = &key
             && let Some(&id) = exact.get(key)
         {
@@ -676,6 +676,7 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
         if packed[data_ref.id].name.is_none() {
             packed[data_ref.id].name = data.name;
         }
+        add_trailer_owners(&mut packed[data_ref.id], &data.trailers, data_ref.offset as usize);
         remap.insert(old_id, data_ref);
     }
 
@@ -738,11 +739,34 @@ fn find_data(
             && known
                 .trailers
                 .iter()
-                .filter(|trailer| trailer.start < end && trailer.end > offset)
-                .map(|trailer| (trailer.start.checked_sub(offset), trailer.end - offset))
-                .eq(needle.trailers.iter().map(|trailer| (Some(trailer.start), trailer.end)));
+                .filter(|trailer| trailer.range.start < end && trailer.range.end > offset)
+                .map(|trailer| (trailer.range.start.checked_sub(offset), trailer.range.end - offset))
+                .eq(needle.trailers.iter().map(|trailer| (Some(trailer.range.start), trailer.range.end)));
         compatible.then(|| DataRef::new(id, data_offset(offset)))
     })
+}
+
+fn trailer_ranges(data: &Data) -> Vec<Range<usize>> {
+    data.trailers.iter().map(|trailer| trailer.range.clone()).collect()
+}
+
+/// Records the owners of `trailers`, which start `offset` bytes into `shared`, on the trailers of
+/// `shared` that cover the same bytes. Owners never affect sharing, so contracts with
+/// byte-identical code keep one copy.
+fn add_trailer_owners(shared: &mut Data, trailers: &[Trailer], offset: usize) {
+    for trailer in trailers {
+        let trailer = trailer.shifted(offset);
+        let shared = shared
+            .trailers
+            .iter_mut()
+            .find(|shared| shared.range == trailer.range)
+            .expect("shared data covers the same trailers");
+        for contract in trailer.contracts {
+            if !shared.contracts.contains(&contract) {
+                shared.contracts.push(contract);
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy)]

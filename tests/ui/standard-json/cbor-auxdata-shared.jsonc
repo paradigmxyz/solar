@@ -1,0 +1,40 @@
+//@ filecheck:
+// With `bytecodeHash: none`, `A` and `B` have byte-identical runtime code and trailers, so `C`
+// keeps one copy for both. The shared trailer is listed under each owner at the same offset.
+// CHECK-LABEL: "C": {
+// CHECK: "cborAuxdata": {
+// CHECK-NEXT: "A.sol:A": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "offset": [[SHARED:[0-9]+]],
+// CHECK-NEXT: "value": "[[TRAILER:0xa165736f6c617243[0-9a-f]{6}000b]]"
+// CHECK-NEXT: }
+// CHECK-NEXT: ],
+// CHECK-NEXT: "A.sol:B": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "offset": [[SHARED]],
+// CHECK-NEXT: "value": "[[TRAILER]]"
+// CHECK-NEXT: }
+// CHECK-NEXT: ],
+// CHECK-NEXT: "A.sol:C": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "offset":
+// CHECK-NEXT: "value": "[[TRAILER]]"
+// CHECK-NEXT: }
+// CHECK-NEXT: ]
+// CHECK-NEXT: }
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A { uint256 public x = 1; } contract B { uint256 public x = 1; } contract C { function a() external pure returns (bytes memory) { return type(A).runtimeCode; } function b() external pure returns (bytes memory) { return type(B).runtimeCode; } }"
+    }
+  },
+  "settings": {
+    "metadata": { "bytecodeHash": "none" },
+    "outputSelection": {
+      "*": {
+        "C": ["evm.deployedBytecode.cborAuxdata", "evm.deployedBytecode.object"]
+      }
+    }
+  }
+}
