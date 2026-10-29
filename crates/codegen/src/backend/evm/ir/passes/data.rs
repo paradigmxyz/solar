@@ -216,6 +216,7 @@ fn materialize_data(
     let mut pool = DataPool::new(&module.data);
     let mut prepared = Vec::<(Rewrite, Option<DataRef>)>::new();
     let mut rejected = Vec::<(NeedleFinder, Vec<Rewrite>)>::new();
+    let mut absorbed = Vec::new();
     for (data, rewrites) in groups {
         if data.iter().all(|&byte| byte == 0) {
             // Zero fills need no data, so each site stands alone.
@@ -235,7 +236,7 @@ fn materialize_data(
             improvement.bytes -= data.len() as i64;
         }
         let mut repeats = any_repeats(&rewrites);
-        let mut absorbed = Vec::new();
+        absorbed.clear();
         for (index, (contained, contained_rewrites)) in
             rejected.iter_mut().take(MAX_DATA_SUBSTRING_ENTRIES).enumerate()
         {
@@ -256,7 +257,7 @@ fn materialize_data(
 
         let data_ref = existing.unwrap_or_else(|| pool.push(module, data));
         prepared.extend(rewrites.into_iter().map(|rewrite| (rewrite, Some(data_ref))));
-        for (index, offset) in absorbed.into_iter().rev() {
+        for (index, offset) in absorbed.drain(..).rev() {
             let (_, rewrites) = rejected.swap_remove(index);
             let offset =
                 data_ref.offset.checked_add(data_offset(offset)).expect("data offset overflow");
@@ -298,6 +299,7 @@ fn materialize_data(
 /// Finds the literal-store runs of every block, grouped by the bytes they write.
 fn find_runs(gcx: Gcx<'_>, module: &Module) -> FxHashMap<Bytes, Vec<Rewrite>> {
     let mut groups = FxHashMap::<_, Vec<_>>::default();
+    let mut scratch = RunScratch::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         // A run ends at a store, so no run starts after the last one.
         let Some(last_store) = block
@@ -310,7 +312,8 @@ fn find_runs(gcx: Gcx<'_>, module: &Module) -> FxHashMap<Bytes, Vec<Rewrite>> {
         let target = block.target(gcx, module.optimization, module.code_follows);
         let mut start = 0;
         while start <= last_store {
-            let Some((data, mut rewrite)) = find_run(&target, block_id, &block.instructions, start)
+            let Some((data, mut rewrite)) =
+                find_run(&target, block_id, &block.instructions, start, &mut scratch)
             else {
                 start += 1;
                 continue;
@@ -331,10 +334,11 @@ fn find_run(
     block: BlockId,
     instructions: &[Instruction],
     start: usize,
+    scratch: &mut RunScratch,
 ) -> Option<(Bytes, Rewrite)> {
-    let mut best = scan_run(target, block, instructions, start)?;
+    let mut best = scan_run(target, block, instructions, start, scratch)?;
     for later in start + 1..best.first_store {
-        if let Some(run) = scan_run(target, block, instructions, later)
+        if let Some(run) = scan_run(target, block, instructions, later, scratch)
             && run.rewrite.end == best.rewrite.end
             && run.data == best.data
             && run.rewrite.saves_at_least(&best.rewrite, target)
@@ -363,6 +367,15 @@ impl RunWord {
     }
 }
 
+/// The buffers of a run scan, reused across scans.
+#[derive(Default)]
+struct RunScratch {
+    stack: Vec<RunWord>,
+    stores: Vec<(u64, U256, bool)>,
+    ranges: Vec<(u64, u64)>,
+    extras: Vec<RunWord>,
+}
+
 /// Stores of constants to one base address that a single copy can replace.
 struct Run {
     rewrite: Rewrite,
@@ -388,19 +401,21 @@ fn scan_run(
     block: BlockId,
     instructions: &[Instruction],
     start: usize,
+    scratch: &mut RunScratch,
 ) -> Option<Run> {
     if !is_split_point(instructions, start) {
         return None;
     }
-    let mut stack = Vec::<RunWord>::new();
+    let RunScratch { stack, stores, ranges, extras } = scratch;
+    stack.clear();
+    stores.clear();
+    ranges.clear();
+    extras.clear();
     let mut inputs = 0;
     let mut old = Cost::ZERO;
     let mut base = None;
     let mut first_store = None;
-    let mut stores = Vec::<(u64, U256, bool)>::new();
-    let mut ranges = Vec::<(u64, u64)>::new();
     let mut best = None;
-    let mut extras = Vec::new();
     let ensure = |stack: &mut Vec<RunWord>, inputs: &mut usize, depth: usize| {
         while stack.len() < depth {
             stack.insert(0, RunWord::input(*inputs));
@@ -418,14 +433,14 @@ fn scan_run(
         }
         if let Some(stack_op) = inst.as_stack_op() {
             let Some(cost) = target.stack_op(stack_op) else { break };
-            ensure(&mut stack, &mut inputs, stack_op.required_depth());
-            apply_stack_op(&mut stack, stack_op);
+            ensure(stack, &mut inputs, stack_op.required_depth());
+            apply_stack_op(stack, stack_op);
             old += cost;
             continue;
         }
         let opcode = inst.opcode;
         if matches!(opcode, op::MSTORE | op::MSTORE8) {
-            ensure(&mut stack, &mut inputs, 2);
+            ensure(stack, &mut inputs, 2);
             let address = stack.pop().unwrap();
             let value = stack.pop().unwrap();
             let width = if opcode == op::MSTORE { WORD_BYTES as u64 } else { 1 };
@@ -438,7 +453,7 @@ fn scan_run(
             }
             first_store.get_or_insert(index);
             stores.push((offset, value.offset, opcode == op::MSTORE));
-            insert_range(&mut ranges, (offset, offset + width));
+            insert_range(ranges, (offset, offset + width));
             old += target.opcode(opcode);
             let end = index + 1;
             let kept = stack
@@ -458,8 +473,8 @@ fn scan_run(
         }
         let Some((input_count, 1)) = op::stack_io(opcode) else { break };
         let input_count = usize::from(input_count);
-        ensure(&mut stack, &mut inputs, input_count);
-        let operands = stack.split_off(stack.len() - input_count);
+        ensure(stack, &mut inputs, input_count);
+        let operands = stack.drain(stack.len() - input_count..).collect::<SmallVec<[_; 3]>>();
         let arguments = operands.iter().rev().map(|word| word.offset).collect::<SmallVec<[_; 3]>>();
         let result = match operands[..] {
             [a, b] if opcode == op::ADD && a.slot.xor(b.slot).is_some() => {
@@ -493,7 +508,7 @@ fn scan_run(
     }
     let zero = data.iter().all(|&byte| byte == 0);
     let destination = RunWord { slot: base.flatten(), offset: U256::from(low) };
-    let tail = copy_tail(destination, zero, inputs, kept, &extras);
+    let tail = copy_tail(destination, zero, inputs, kept, extras);
     // Reserve PUSH3 for an unresolved data address.
     let source = if zero { target.opcode(op::CALLDATASIZE) } else { target.opcode(op::PUSH3) };
     let mut new = target.push(U256::from(data.len())) + source + target.copied_words(data.len());
