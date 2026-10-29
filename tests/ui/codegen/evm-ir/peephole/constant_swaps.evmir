@@ -1,0 +1,84 @@
+//@ compile-flags: -Zevm-ir-pipeline=peephole
+
+@module ConstantSwaps
+
+// The constant addition consumes the same input word after the two remaining swaps.
+bb0 [stack=5]:
+  swap 1
+  push 672
+  add
+  swap 4
+  swap 1
+  swap 4
+  stop
+
+// Noncommutative operands keep their order: this computes 7 minus the second stack word.
+bb1 [stack=3]:
+  swap 1
+  push 7
+  sub
+  swap 2
+  swap 1
+  swap 2
+  stop
+
+// The deepest swap at the EVM stack limit stays valid: both versions peak at 1024 words.
+bb2 [stack=1023]:
+  swap 1
+  push 255
+  xor
+  swap 16
+  swap 1
+  swap 16
+  stop
+
+// A one-deep swap does not satisfy the three-word permutation identity; the swap
+// cancellation rule also removes it first.
+bb3 [stack=2]:
+  swap 1
+  push 7
+  sub
+  swap 1
+  swap 1
+  swap 1
+  stop
+
+// Memory operations are excluded even when they consume two words and produce one.
+bb4 [stack=5]:
+  swap 1
+  push 32
+  keccak256
+  swap 4
+  swap 1
+  swap 4
+  stop
+
+// Position-dependent operations are not a pure binary computation.
+bb5 [stack=5]:
+  swap 1
+  push 672
+  pc
+  swap 4
+  swap 1
+  swap 4
+  stop
+
+// Different swap depths do not satisfy the permutation identity.
+bb6 [stack=5]:
+  swap 1
+  push 672
+  add
+  swap 4
+  swap 1
+  swap 3
+  stop
+
+// A symbolic code address is conservatively not treated as a literal.
+bb7 [stack=5]:
+  swap 1
+  push bb0
+  add
+  swap 4
+  swap 1
+  swap 4
+  stop

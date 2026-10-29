@@ -29,6 +29,10 @@
 //! Calldata aggregates that repeat across parameters, or dynamic tuples that repeat anywhere
 //! inside them, decode through shared helpers; tuple helpers take the base of their enclosing
 //! tuple so enclosing decoders can call them for nested values.
+//! Scalar arrays whose canonicality requires zero bits fold their words with OR and validate
+//! once after the loop. Their checked source range supplies a non-wrapping end for a word
+//! cursor. An empty array skips the cursor setup and validation; signed and enum validators
+//! still check each element separately.
 //!
 //! Each `abi_decode` reads a bytes object or a memory slice in place. A slice's pointer is the
 //! base and its length is checked against the head size, so a constant-length slice, such as an
@@ -38,6 +42,8 @@
 //! place as well, with the calldata decoders the entries use: offsets resolve against the slice's
 //! base and every read stays below its end, as solc decodes it, so no copy of the encoding into
 //! memory precedes the decode.
+//! A decoded `bytes` object clears its padding bytes after the copy, so they are zero whatever
+//! the input and free memory held; the clear stays inside the object.
 //!
 //! Unsupported return layouts fail the preflight checks. The pass reports an error if
 //! any external entry still has an implicit ABI or any `abi_decode` remains afterward.
@@ -1808,6 +1814,19 @@ impl LowerAbiCx {
                 Self::guard_bytes_data(builder, data, len, input_end, current, true);
                 let source = builder.make_slice(data, len, location);
                 builder.memory_copy_from_slice(ptr, source);
+                // payload = ptradd ptr, 32
+                // tail = ptradd payload, len
+                // padding = and (sub 0, len), 31
+                // memory_zero tail, padding
+                // After the copy, which may read memory the new object overlaps. The clear stays
+                // inside the object: it spans the padding bytes only.
+                let payload = builder.memory_data(ptr);
+                let tail = builder.ptradd(payload, len);
+                let zero = builder.imm(0);
+                let negative_len = builder.sub(zero, len);
+                let mask = builder.imm(EvmMemoryLayout::WORD_SIZE - 1);
+                let padding = builder.and(negative_len, mask);
+                builder.memory_zero(tail, padding);
                 ptr
             }
             crate::mir::AbiParamType::Tuple(fields) => {
@@ -1861,6 +1880,10 @@ impl LowerAbiCx {
         }
     }
 
+    /// Validates the `len` scalar words at `data`, whose range the caller has checked.
+    ///
+    /// Folds the words of a zero-bits validator with OR and checks once after the loop, which
+    /// reverts the same way; other validators check each element.
     fn validate_scalar_array(
         builder: &mut FunctionBuilder<'_>,
         data: ValueId,
@@ -1871,6 +1894,46 @@ impl LowerAbiCx {
     ) {
         let word = builder.imm(32);
         builder.switch_to_block(*current);
+        if let Some(validator) = element.word_validator().and_then(AbiWordValidator::zero_bits) {
+            // jumpi (ne len, 0), start, done
+            // start: bytes = mul len, 32
+            // end = add data, bytes
+            // jump body
+            // body: cursor = phi [start: data], [body: next_cursor]
+            // folded = phi [start: 0], [body: next]
+            // next = or folded, (load cursor)
+            // next_cursor = add cursor, 32
+            // jumpi (lt next_cursor, end), body, validate
+            // validate: revert_if_zero (valid next)
+            // jump done
+            let zero = builder.imm(0);
+            let start = builder.create_block();
+            let body = builder.create_block();
+            let validate = builder.create_block();
+            let done = builder.create_block();
+            let has_words = builder.ne_zero(len);
+            builder.branch(has_words, start, done);
+            builder.switch_to_block(start);
+            let bytes = builder.mul(len, word);
+            let end = builder.add(data, bytes);
+            builder.jump(body);
+            builder.switch_to_block(body);
+            let cursor = builder.phi(vec![(start, data)]);
+            let folded = builder.phi(vec![(start, zero)]);
+            let value = Self::load_input_word(builder, cursor, options.constructor);
+            let next = builder.or(folded, value);
+            let next_cursor = builder.add(cursor, word);
+            let more = builder.lt(next_cursor, end);
+            builder.branch(more, body, validate);
+            builder.add_phi_incoming(cursor, body, next_cursor);
+            builder.add_phi_incoming(folded, body, next);
+            builder.switch_to_block(validate);
+            Self::validate_abi_word(builder, next, validator);
+            builder.jump(done);
+            builder.switch_to_block(done);
+            *current = builder.current_block();
+            return;
+        }
         builder.counted_loop(len, |builder, index| {
             let offset = builder.mul(index, word);
             let position = builder.add(data, offset);

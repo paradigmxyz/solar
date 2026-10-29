@@ -8,7 +8,7 @@ use super::{
 use crate::{
     link::{ContractCode, LibraryTable, QualifiedName, Trailer},
     mir::{
-        analysis::{CfgInfo, direct_callees},
+        analysis::{CallGraphInfo, CfgInfo, direct_callees},
         pass_manager::should_validate_ir,
     },
 };
@@ -446,7 +446,7 @@ impl Module {
         &self,
     ) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
         let creation = self.creation_only_functions();
-        let (looping, repeated) = self.loops_and_repeats(&creation);
+        let (looping, repeated) = self.loops_and_repeats(&creation, &CallGraphInfo::new(self));
         let mut called_once = creation;
         called_once.subtract(&repeated);
         let mut straight = called_once.clone();
@@ -461,14 +461,16 @@ impl Module {
     pub(crate) fn repeated_functions(
         &self,
         domain: &DenseBitSet<FunctionId>,
+        call_graph: &CallGraphInfo,
     ) -> DenseBitSet<FunctionId> {
-        self.loops_and_repeats(domain).1
+        self.loops_and_repeats(domain, call_graph).1
     }
 
     /// Returns the functions of `domain` with a loop of their own, and those it repeats.
     fn loops_and_repeats(
         &self,
         domain: &DenseBitSet<FunctionId>,
+        call_graph: &CallGraphInfo,
     ) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
         let mut looping = DenseBitSet::new_empty(self.functions.len());
         let mut repeated = DenseBitSet::new_empty(self.functions.len());
@@ -476,8 +478,7 @@ impl Module {
         for id in domain.iter() {
             let func = self.function(id);
             let has_loop = !CfgInfo::new(func).cyclic_blocks().is_empty();
-            let repeats_callees =
-                has_loop || self.reachable_from(direct_callees(func)).contains(id);
+            let repeats_callees = has_loop || call_graph.is_recursive(id);
             if has_loop {
                 looping.insert(id);
             }
