@@ -293,15 +293,13 @@ fn lower_function(
         }
     }
     if !casts.is_empty() {
+        let mut instructions = Vec::new();
         for block in func.blocks.iter_mut() {
             if block.instructions.iter().any(|inst| casts.contains_key(inst)) {
-                let instructions = std::mem::take(&mut block.instructions);
-                block.instructions = instructions
-                    .into_iter()
-                    .flat_map(|inst| {
-                        casts.remove(&inst).unwrap_or_default().into_iter().chain([inst])
-                    })
-                    .collect();
+                instructions.extend(block.instructions.drain(..).flat_map(|inst| {
+                    casts.remove(&inst).unwrap_or_default().into_iter().chain([inst])
+                }));
+                std::mem::swap(&mut block.instructions, &mut instructions);
             }
         }
     }
