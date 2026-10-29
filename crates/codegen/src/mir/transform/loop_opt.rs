@@ -160,6 +160,12 @@ impl LoopOptContext<'_> {
     fn loop_block(&self, inst: InstId) -> Option<BlockId> {
         self.inst_blocks[inst].filter(|&block| self.loop_data.blocks.contains(block))
     }
+
+    /// Whether the loop block holding `inst` dominates every back edge.
+    fn dominates_backedges(&self, inst: InstId) -> bool {
+        let Some(block) = self.loop_block(inst) else { return false };
+        self.loop_data.back_edges.iter().all(|&latch| self.dominators.dominates(block, latch))
+    }
 }
 
 /// Minimum estimated gas saved per iteration before an instruction is considered a LICM root.
@@ -214,7 +220,7 @@ impl LoopOptimizer {
             // Outer loops first, so a sum an inner loop shares with its outer loop is rewritten
             // with the outer loop's view of the index.
             let mut nest = loops.iter().collect::<Vec<_>>();
-            nest.sort_by_key(|loop_data| std::cmp::Reverse(loop_data.blocks.count()));
+            nest.sort_by_key(|loop_data| Reverse(loop_data.blocks.count()));
             for loop_data in nest {
                 self.hoisted +=
                     reassociate_invariant_offsets(func, loop_data, &loops, cfg.dominators());
@@ -652,7 +658,7 @@ impl LoopOptimizer {
         self.licm_profit(func, inst_id) >= MIN_LICM_PROFIT
             || (ctx.loop_data.trip_count.is_some_and(|trip_count| trip_count > 1)
                 && self.is_affine_address_base_used_in_loop(func, inst_id, ctx))
-            || (self.inst_dominates_loop_backedges(inst_id, ctx)
+            || (ctx.dominates_backedges(inst_id)
                 && (self.is_affine_address_base_used_in_loop(func, inst_id, ctx)
                     || self.is_cheap_invariant_arithmetic(func, inst_id)))
     }
@@ -679,11 +685,6 @@ impl LoopOptimizer {
                     || mod_ref.writes_space(AddressSpace::Storage)
             })
         })
-    }
-
-    fn inst_dominates_loop_backedges(&self, inst_id: InstId, ctx: LoopOptContext<'_>) -> bool {
-        let Some(inst_block) = ctx.loop_block(inst_id) else { return false };
-        ctx.loop_data.back_edges.iter().all(|&latch| ctx.dominators.dominates(inst_block, latch))
     }
 
     fn loop_may_mutate_memory_range(

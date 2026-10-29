@@ -823,8 +823,11 @@ impl IndVarSimplifier {
         }
         for (key, values) in &members[1..] {
             let Some(offset) = key.constant.checked_sub(primary.constant) else { continue };
+            let Some(magnitude) = offset.checked_abs() else { continue };
+            let Some(magnitude) = self.offset_value(func, magnitude) else { continue };
             for &value in values {
-                self.rewrite_sibling(func, value, stepped, offset);
+                let Value::Inst(inst) = *func.value(value) else { continue };
+                func.inst_mut(inst).kind = offset_kind(stepped, magnitude, offset >= 0);
             }
         }
         func.replace_uses(&replacements);
