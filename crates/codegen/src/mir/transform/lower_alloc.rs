@@ -172,12 +172,12 @@ fn lower_function(func: &mut Function, is_fresh: impl Fn(InstId) -> bool) -> boo
         block_index += 1;
     }
 
-    let blocks = func.blocks.indices();
-    for block in blocks {
+    let mut peek = FmpPeek::default();
+    for block in func.blocks.indices() {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
-        let mut peek = FmpPeek::default();
+        peek.clear();
         for inst in instructions {
             // Allocations and pointer updates move the pointer past any earlier read.
             let moves_fmp = matches!(
