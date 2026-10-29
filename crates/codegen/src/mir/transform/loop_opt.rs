@@ -168,6 +168,27 @@ impl LoopOptContext<'_> {
     }
 }
 
+/// Sets and lists that each loop clears and refills instead of reallocating.
+struct Scratch {
+    selected: DenseBitSet<InstId>,
+    closure_set: DenseBitSet<InstId>,
+    visiting: DenseBitSet<InstId>,
+    closure: Vec<InstId>,
+    values: DenseBitSet<ValueId>,
+}
+
+impl Scratch {
+    fn new() -> Self {
+        Self {
+            selected: DenseBitSet::new_empty(0),
+            closure_set: DenseBitSet::new_empty(0),
+            visiting: DenseBitSet::new_empty(0),
+            closure: Vec::new(),
+            values: DenseBitSet::new_empty(0),
+        }
+    }
+}
+
 /// Minimum estimated gas saved per iteration before an instruction is considered a LICM root.
 const MIN_LICM_PROFIT: u16 = 3;
 
@@ -204,17 +225,27 @@ impl LoopOptimizer {
         }
 
         let loops = loop_info.loops.values().cloned().collect::<Vec<_>>();
+        let mut scratch = Scratch::new();
         for loop_data in &loops {
             // The product's limit runs before the loop, so whatever in the loop checks the gas
             // left would see what the limit cost before the first check paid for it.
             if !self.loop_checks_gas_left(func, loop_data) {
-                self.hoisted += reduce_product_checks(func, loop_data, &loops, self.hoist_cheap);
+                self.hoisted += reduce_product_checks(
+                    func,
+                    loop_data,
+                    &loops,
+                    self.hoist_cheap,
+                    &mut scratch.values,
+                );
             }
         }
         let inst_blocks = func.inst_block_table();
         let mut carried = loops
             .iter()
-            .map(|loop_data| (loop_data.header, Self::carried_words(func, loop_data, &inst_blocks)))
+            .map(|loop_data| {
+                let words = Self::carried_words(func, loop_data, &inst_blocks, &mut scratch.values);
+                (loop_data.header, words)
+            })
             .collect::<FxHashMap<_, _>>();
         if self.hoist_cheap {
             // Outer loops first, so a sum an inner loop shares with its outer loop is rewritten
@@ -227,7 +258,7 @@ impl LoopOptimizer {
             }
         }
         for loop_data in &loops {
-            self.apply_licm(func, loop_data, cfg.dominators(), &loops, &mut carried);
+            self.apply_licm(func, loop_data, cfg.dominators(), &loops, &mut carried, &mut scratch);
         }
 
         self.hoisted
@@ -240,6 +271,7 @@ impl LoopOptimizer {
         func: &Function,
         loop_data: &Loop,
         inst_blocks: &IndexVec<InstId, Option<BlockId>>,
+        seen: &mut DenseBitSet<ValueId>,
     ) -> usize {
         let header = &func.blocks[loop_data.header];
         let mut count = header
@@ -247,7 +279,7 @@ impl LoopOptimizer {
             .iter()
             .filter(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
             .count();
-        let mut seen = DenseBitSet::new_empty(func.num_values());
+        seen.clear_to(func.num_values());
         let mut visit = |operand| {
             if Self::is_carried_operand(func, loop_data, inst_blocks, operand)
                 && seen.insert(operand)
@@ -299,6 +331,7 @@ impl LoopOptimizer {
         closure: &[InstId],
         closure_set: &DenseBitSet<InstId>,
         inst_blocks: &IndexVec<InstId, Option<BlockId>>,
+        released: &mut DenseBitSet<ValueId>,
     ) -> isize {
         let reads_outside_closure = |value: ValueId, block: BlockId| {
             let block = &func.blocks[block];
@@ -314,7 +347,7 @@ impl LoopOptimizer {
                 delta += 1;
             }
         }
-        let mut released = DenseBitSet::new_empty(func.num_values());
+        released.clear_to(func.num_values());
         for operand in closure.iter().flat_map(|&inst_id| func.inst(inst_id).kind.operands()) {
             if Self::is_carried_operand(func, inner, inst_blocks, operand)
                 && !released.contains(operand)
@@ -334,6 +367,7 @@ impl LoopOptimizer {
         dominators: &DominatorTree,
         loops: &[Loop],
         carried: &mut FxHashMap<BlockId, usize>,
+        scratch: &mut Scratch,
     ) {
         let Some(preheader) = loop_data.preheader else { return };
         if loop_data.invariant_insts.is_empty()
@@ -367,15 +401,15 @@ impl LoopOptimizer {
             (Reverse(self.licm_profit(func, inst_id)), inst_id.index())
         });
 
-        let mut selected = DenseBitSet::new_empty(func.num_insts());
-        let mut closure = Vec::new();
-        let mut closure_set = DenseBitSet::new_empty(func.num_insts());
-        let mut visiting = DenseBitSet::new_empty(func.num_insts());
+        let Scratch { selected, closure_set, visiting, closure, values } = scratch;
+        selected.clear_to(func.num_insts());
+        closure_set.clear_to(func.num_insts());
+        visiting.clear_to(func.num_insts());
+        closure.clear();
         for root in roots {
             closure.clear();
             visiting.clear();
-            if !self.collect_hoist_closure(func, root, ctx, &selected, &mut visiting, &mut closure)
-            {
+            if !self.collect_hoist_closure(func, root, ctx, selected, visiting, closure) {
                 continue;
             }
 
@@ -387,7 +421,7 @@ impl LoopOptimizer {
             // carries the closure's results from now on. A hoist that only pays through the
             // backend's residency must keep every one of them within the carry budget.
             closure_set.clear();
-            for &inst_id in &closure {
+            for &inst_id in closure.iter() {
                 closure_set.insert(inst_id);
             }
             let Some(root_block) = inst_blocks.get(root).copied().flatten() else { continue };
@@ -399,7 +433,14 @@ impl LoopOptimizer {
                 .map(|inner| {
                     (
                         inner.header,
-                        Self::carried_delta(func, inner, &closure, &closure_set, &inst_blocks),
+                        Self::carried_delta(
+                            func,
+                            inner,
+                            closure,
+                            closure_set,
+                            &inst_blocks,
+                            values,
+                        ),
                     )
                 })
                 .collect::<Vec<_>>();
@@ -414,7 +455,7 @@ impl LoopOptimizer {
                 let count = carried.get_mut(&header).expect("every loop has a carried count");
                 *count = count.saturating_add_signed(delta);
             }
-            for &inst_id in &closure {
+            for &inst_id in closure.iter() {
                 selected.insert(inst_id);
             }
         }
@@ -423,7 +464,8 @@ impl LoopOptimizer {
             return;
         }
 
-        let ordered = self.topological_sort_instructions(func, &selected);
+        visiting.clear();
+        let ordered = self.topological_sort_instructions(func, selected, visiting);
 
         for inst_id in ordered {
             // An enclosing loop's earlier hoist may have already moved the
@@ -998,9 +1040,9 @@ impl LoopOptimizer {
         &self,
         func: &Function,
         inst_set: &DenseBitSet<InstId>,
+        visited: &mut DenseBitSet<InstId>,
     ) -> Vec<InstId> {
         let mut result = Vec::new();
-        let mut visited = DenseBitSet::new_empty(func.num_insts());
 
         fn visit(
             func: &Function,
@@ -1025,7 +1067,7 @@ impl LoopOptimizer {
         }
 
         for inst_id in inst_set.iter() {
-            visit(func, inst_id, inst_set, &mut visited, &mut result);
+            visit(func, inst_id, inst_set, visited, &mut result);
         }
 
         result
@@ -1064,6 +1106,7 @@ fn reduce_product_checks(
     loop_data: &Loop,
     loops: &[Loop],
     gas: bool,
+    seen: &mut DenseBitSet<ValueId>,
 ) -> usize {
     let Some(preheader) = loop_data.preheader else { return 0 };
     let inst_blocks = func.inst_block_table();
@@ -1100,7 +1143,7 @@ fn reduce_product_checks(
                 .filter(|inner| {
                     loop_data.blocks.contains(inner.header) && inner.blocks.contains(block)
                 })
-                .map(|inner| LoopOptimizer::carried_words(func, inner, &inst_blocks))
+                .map(|inner| LoopOptimizer::carried_words(func, inner, &inst_blocks, seen))
                 .max()
                 .unwrap_or_default();
             let worst = worst.entry(y).or_default();

@@ -178,6 +178,12 @@ struct IndVarSimplifier {
     /// the block, the join, and the rebuild's instructions, which move onto that edge once every
     /// loop is visited.
     rebuild_moves: Vec<(BlockId, BlockId, Vec<InstId>)>,
+    /// The loop's instructions, cleared and refilled for each counter.
+    in_loop: DenseBitSet<InstId>,
+    /// The values the loop's non-address instructions and terminators read.
+    read_by_non_address: DenseBitSet<ValueId>,
+    /// Values already counted or visited by one scan.
+    seen: DenseBitSet<ValueId>,
 }
 
 /// Reads of a counter phi after its loop, which the counter's pointer rebuilds once the
@@ -260,7 +266,15 @@ impl IndVarSimplifier {
     /// Creates a new induction-variable simplifier.
     #[must_use]
     fn new(alias: Rc<AliasAnalysis>) -> Self {
-        Self { changed: false, alias, exit_splits: Vec::new(), rebuild_moves: Vec::new() }
+        Self {
+            changed: false,
+            alias,
+            exit_splits: Vec::new(),
+            rebuild_moves: Vec::new(),
+            in_loop: DenseBitSet::new_empty(0),
+            read_by_non_address: DenseBitSet::new_empty(0),
+            seen: DenseBitSet::new_empty(0),
+        }
     }
 
     /// Runs induction-variable simplification once over `func` and returns whether it changed.
@@ -367,25 +381,25 @@ impl IndVarSimplifier {
 
         let scev = ScalarEvolution::analyze(func, loop_data);
         // The loop's instructions, and the values its other instructions read.
-        let mut in_loop = DenseBitSet::new_empty(func.num_insts());
-        let mut read_by_non_address = DenseBitSet::new_empty(func.num_values());
+        self.in_loop.clear_to(func.num_insts());
+        self.read_by_non_address.clear_to(func.num_values());
         for block in loop_data.blocks.iter() {
             for &inst_id in &func.blocks[block].instructions {
-                in_loop.insert(inst_id);
+                self.in_loop.insert(inst_id);
                 let kind = &func.inst(inst_id).kind;
                 if !Self::is_address_builder(kind) {
                     kind.visit_operands(|operand| {
-                        read_by_non_address.insert(operand);
+                        self.read_by_non_address.insert(operand);
                     });
                 }
             }
             if let Some(term) = &func.blocks[block].terminator {
                 term.visit_operands(|operand| {
-                    read_by_non_address.insert(operand);
+                    self.read_by_non_address.insert(operand);
                 });
             }
         }
-        let carried = Self::carried_words(func, loop_data, &in_loop);
+        let carried = Self::carried_words(func, loop_data, &self.in_loop, &mut self.seen);
         let update_value = func.inst_result_value(iv.update_inst);
         let mut candidates: FxHashMap<AddressKey, Vec<ValueId>> = FxHashMap::default();
         let mut offset_shared = FxHashSet::default();
@@ -405,11 +419,11 @@ impl IndVarSimplifier {
                     continue;
                 }
                 let Some(delta) = key.scale.checked_mul(step) else { continue };
-                if delta == 0 || !read_by_non_address.contains(value) {
+                if delta == 0 || !self.read_by_non_address.contains(value) {
                     continue;
                 }
                 if update_value
-                    .is_some_and(|update| Self::depends_on(func, &in_loop, value, update, 0))
+                    .is_some_and(|update| Self::depends_on(func, &self.in_loop, value, update, 0))
                 {
                     offset_shared.insert(value);
                 }
@@ -439,7 +453,7 @@ impl IndVarSimplifier {
         // With the counter free once every address is a pointer, an ascending pointer
         // that cannot wrap takes over the exit test and the counter dies; that credit
         // is weighed across all families at once.
-        let exit_test = Self::counter_exit_test(func, loop_data, &in_loop, iv.value);
+        let exit_test = Self::counter_exit_test(func, loop_data, &self.in_loop, iv.value);
         // A loop that leaves on what it reads, with no test of its counter, keeps the counter
         // only to address elements and to tell the code after it where it stopped.
         if exit_test.is_none()
@@ -472,6 +486,7 @@ impl IndVarSimplifier {
                     test.condition,
                     iv.update_inst,
                     &addresses,
+                    &mut self.seen,
                 )
             })
             .filter(|reads| reads.is_empty() || func.value_ty(iv.value) == Some(MirType::I256));
@@ -633,10 +648,11 @@ impl IndVarSimplifier {
 
     /// Removes the loop's pure address arithmetic whose results nothing reads any more,
     /// following each removal to the operands it leaves unread.
-    fn remove_dead_address_arithmetic(&self, func: &mut Function, loop_data: &Loop) {
+    fn remove_dead_address_arithmetic(&mut self, func: &mut Function, loop_data: &Loop) {
         let mut uses = super::egraph::use_counts(func);
         // The loop's instructions, less those removed below.
-        let mut in_loop = DenseBitSet::new_empty(func.num_insts());
+        let in_loop = &mut self.in_loop;
+        in_loop.clear_to(func.num_insts());
         let mut pending = Vec::new();
         for block in loop_data.blocks.iter() {
             for &inst_id in &func.blocks[block].instructions {
@@ -1042,9 +1058,10 @@ impl IndVarSimplifier {
         condition: InstId,
         update: InstId,
         addresses: &FxHashSet<ValueId>,
+        visited: &mut DenseBitSet<ValueId>,
     ) -> Option<ExitReads> {
         let mut pending = vec![iv];
-        let mut visited = DenseBitSet::new_empty(func.num_values());
+        visited.clear_to(func.num_values());
         while let Some(value) = pending.pop() {
             if !visited.insert(value) {
                 continue;
@@ -1423,14 +1440,19 @@ impl IndVarSimplifier {
 
     /// The words the backend carries through the loop: the header's phis and
     /// the instruction results defined outside that the loop reads.
-    fn carried_words(func: &Function, loop_data: &Loop, in_loop: &DenseBitSet<InstId>) -> usize {
+    fn carried_words(
+        func: &Function,
+        loop_data: &Loop,
+        in_loop: &DenseBitSet<InstId>,
+        seen: &mut DenseBitSet<ValueId>,
+    ) -> usize {
         let header = &func.blocks[loop_data.header];
         let mut count = header
             .instructions
             .iter()
             .filter(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
             .count();
-        let mut seen = DenseBitSet::new_empty(func.num_values());
+        seen.clear_to(func.num_values());
         for block in loop_data.blocks.iter() {
             let block = &func.blocks[block];
             for operand in block
