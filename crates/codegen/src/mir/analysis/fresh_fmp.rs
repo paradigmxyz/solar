@@ -42,15 +42,18 @@ pub(crate) struct FreshFmpReads {
 }
 
 impl FreshFmpReads {
-    /// Finds the fresh reads of every function of `module`, those of checked allocations too when
-    /// `checked` holds.
+    /// Finds the fresh reads of every optimized function of `module`, those of checked allocations
+    /// too in a function optimized for gas.
     #[must_use]
     pub(crate) fn new(
         module: &Module,
         summaries: impl FnOnce() -> Arc<MemoryCallSummaries>,
-        checked: bool,
     ) -> Self {
-        if !module.functions.iter().any(|func| has_read(func, checked)) {
+        let wanted = |func: &Function| {
+            let objective = module.objective_of(func);
+            !objective.is_none() && has_read(func, objective.is_gas())
+        };
+        if !module.functions.iter().any(wanted) {
             return Self::none();
         }
         let summaries = summaries();
@@ -59,8 +62,9 @@ impl FreshFmpReads {
             .functions
             .iter_enumerated()
             .map(|(id, func)| {
-                if has_read(func, checked) && analysis.entered_fresh(id) {
+                if wanted(func) && analysis.entered_fresh(id) {
                     let freshness = analysis.freshness(id);
+                    let checked = module.objective_of(func).is_gas();
                     func.instructions()
                         .filter(|&inst| {
                             is_read(func, inst, checked) && freshness.insts.contains(&inst)

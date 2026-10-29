@@ -171,6 +171,10 @@ impl MirPass for NoreturnCalls {
         "noreturn-calls"
     }
 
+    fn is_contract_wide(&self) -> bool {
+        true
+    }
+
     fn run_pass(
         &self,
         _gcx: solar_sema::Gcx<'_>,

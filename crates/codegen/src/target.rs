@@ -206,12 +206,13 @@ impl Target {
     /// spills them to the stack on every iteration, as an unrolled sum over an array did.
     pub(crate) const JIT_MAX_UNROLLED_LOOP_WORDS: usize = 3;
 
-    /// The model of the session's EVM version, objective, and optimizer runs.
-    pub(crate) fn new(gcx: Gcx<'_>) -> Self {
+    /// The model of the session's EVM version and optimizer runs for code optimized for
+    /// `optimization`, resolved by [`OptimizationMode::select`] after any
+    /// `@custom:solar-optimize` tag.
+    pub(crate) fn new(gcx: Gcx<'_>, optimization: OptimizationMode) -> Self {
         let opts = &gcx.sess.opts;
-        let expected_executions = Self::optimizer_runs(opts.optimization, opts.optimizer_runs);
-        Self::with(opts.evm_version, opts.optimization, expected_executions)
-            .tuned(opts.unstable.tune)
+        let expected_executions = Self::optimizer_runs(optimization, opts.optimizer_runs);
+        Self::with(opts.evm_version, optimization, expected_executions).tuned(opts.unstable.tune)
     }
 
     /// Resolves the run count used by enabled lifetime-aware optimizations.
@@ -252,6 +253,19 @@ impl Target {
             return self;
         }
         Self { expected_executions: 1, creation: true, ..self }
+    }
+
+    /// Whether a bare `@custom:solar-inline` admits a clone that adds `added_bytes` and removes
+    /// `removed_bytes`, whatever gas it saves. The gas objective lets such a function add as many
+    /// bytes again as the call protocol it removes, past what profitability accepts; size admits
+    /// only a clone that does not grow the code, and `-O none` inlines nothing.
+    pub(crate) fn inline_hint_admits(&self, added_bytes: usize, removed_bytes: usize) -> bool {
+        let allowed = if self.optimization.is_gas() {
+            removed_bytes.saturating_mul(2)
+        } else {
+            removed_bytes
+        };
+        !self.optimization.is_none() && added_bytes <= allowed
     }
 
     /// Whether the model prices creation code, which only the gas objective does.
@@ -1648,6 +1662,18 @@ mod tests {
         let hot =
             Target::with(EvmVersion::Cancun, OptimizationMode::Gas, Target::LOOP_COPY_MIN_RUNS);
         assert_eq!(hot.loop_join_copy_budget(194), u64::MAX);
+    }
+
+    #[test]
+    fn inline_hint_admits_growth_only_for_gas() {
+        let target = |optimization| Target::with(EvmVersion::Cancun, optimization, 200);
+        let gas = target(OptimizationMode::Gas);
+        assert!(gas.inline_hint_admits(20, 10));
+        assert!(!gas.inline_hint_admits(21, 10));
+        let size = target(OptimizationMode::Size);
+        assert!(size.inline_hint_admits(10, 10));
+        assert!(!size.inline_hint_admits(11, 10));
+        assert!(!target(OptimizationMode::None).inline_hint_admits(0, 10));
     }
 
     #[test]

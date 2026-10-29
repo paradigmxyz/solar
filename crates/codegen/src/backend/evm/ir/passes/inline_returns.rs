@@ -17,12 +17,9 @@
 //! The default pipeline cleans up stack identities exposed by the copied return.
 
 use super::{EvmPass, utils::is_split_point};
-use crate::{
-    backend::evm::{
-        ir::{BlockId, Module, TerminatorKind},
-        op,
-    },
-    target::Target,
+use crate::backend::evm::{
+    ir::{BlockId, Module, ModuleTarget, TerminatorKind},
+    op,
 };
 use solar_sema::Gcx;
 
@@ -34,8 +31,8 @@ impl EvmPass for InlineReturns {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let target = Target::new(gcx);
-        let address_bytes = if gcx.sess.opts.optimization.is_gas() {
+        let target = module.runtime_target(gcx);
+        let address_bytes = if module.optimization.is_gas() {
             target.opcode(op::PUSH1).bytes
         } else {
             target.label_push().bytes

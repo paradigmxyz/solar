@@ -72,7 +72,7 @@ use crate::mir::{
     transform::cfg_simplify::remove_unreachable_blocks,
 };
 use alloy_primitives::U256;
-use solar_config::{EvmVersion, RevertStrings};
+use solar_config::{EvmVersion, OptimizationMode, RevertStrings};
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::IndexVec,
@@ -108,11 +108,12 @@ impl MirPass for LowerAbi {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let gas = module.runs_objective(OptimizationMode::is_gas);
         let changed =
             LowerAbiCx { revert_strings: gcx.sess.opts.revert_strings, ..Default::default() }.run(
                 module,
                 gcx.sess.opts.evm_version,
-                gcx.sess.opts.optimization.is_gas(),
+                gas,
             );
         if !module.has_explicit_abi()
             || module.functions.iter().any(|func| {
@@ -337,13 +338,15 @@ impl LowerAbiCx {
         }
 
         let mut body_of_wrapper = FxHashMap::default();
+        let no_canonical_return_calls = FxHashSet::default();
         for id in targets {
+            let gas_mode = module.objective(id).is_gas();
             if let Some(body_id) = self.wrap_function(
                 module,
                 id,
                 internally_called.contains(id),
                 gas_mode,
-                &canonical_return_calls,
+                if gas_mode { &canonical_return_calls } else { &no_canonical_return_calls },
             ) {
                 body_of_wrapper.insert(id, body_id);
             }

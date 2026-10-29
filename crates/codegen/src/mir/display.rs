@@ -316,6 +316,15 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
         if func.attributes.is_function_pointer_dispatcher {
             write_function_attribute(f, &mut first, "function_pointer_dispatcher")?;
         }
+        if func.attributes.always_inline {
+            write_function_attribute(f, &mut first, "always_inline")?;
+        }
+        if func.attributes.inline_hint {
+            write_function_attribute(f, &mut first, "inline_hint")?;
+        }
+        if let Some(optimization) = func.attributes.optimization {
+            write_function_attribute(f, &mut first, format_args!("optimize={optimization}"))?;
+        }
         if func.attributes.is_receive {
             write_function_attribute(f, &mut first, "receive")?;
         }

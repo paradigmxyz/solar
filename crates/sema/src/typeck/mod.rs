@@ -25,6 +25,7 @@ mod constant_divisors;
 mod constant_values;
 mod control_flow;
 pub(crate) mod override_checker;
+mod safe_profile;
 mod udvt;
 mod view_pure_checker;
 
@@ -89,6 +90,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
     // solc's `StaticAnalyzer` runs before its `ViewPureChecker`.
     constant_divisors::check(gcx, &units);
     view_pure_checker::check(gcx);
+    safe_profile::check(gcx);
 }
 
 fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {

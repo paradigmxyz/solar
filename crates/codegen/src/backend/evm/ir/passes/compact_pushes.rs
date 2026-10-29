@@ -33,7 +33,7 @@ use super::EvmPass;
 use crate::{
     backend::evm::{
         codegen::MAX_STACK_DEPTH,
-        ir::{Instruction, Metadata, Module, ModuleTarget, verify::Verifier},
+        ir::{Instruction, Metadata, Module, verify::Verifier},
         op::{self, WORD_BYTES},
     },
     target::{Cost, Target},
@@ -58,19 +58,21 @@ const MIN_COMPACT_MASK_WIDTH: u8 = 5;
 
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
-    let target = module.target(gcx);
     let mut changed = false;
     let mut scratch = Vec::new();
     let mut limits = Vec::new();
     let mut entry_depths = None;
     for block_id in module.blocks.indices() {
         let block = &module.blocks[block_id];
+        // A block's function may select an objective other than the contract's.
+        let target = Target::new(gcx, block.metadata.optimization.unwrap_or(module.optimization))
+            .priced_for(module.code_follows);
         // `-O none` runs no inlining, so a loop calls the helpers that hold its hot code; gas
         // builds keep the loop-only rule.
         let in_loop = (block.metadata.in_loop
-            || (gcx.sess.opts.optimization.is_none() && block.metadata.repeats))
+            || (module.optimization.is_none() && block.metadata.repeats))
             && !block.metadata.hotness.is_cold();
-        let repeated = gcx.sess.opts.optimization.is_size() || block.metadata.hotness.is_cold();
+        let repeated = target.optimization().is_size() || block.metadata.hotness.is_cold();
         if !block.instructions.iter().any(|inst| {
             inst.concrete_immediate().is_some_and(|value| {
                 !matches!(select_recipe(evm_version, value, repeated).recipe, CompactPush::Literal)

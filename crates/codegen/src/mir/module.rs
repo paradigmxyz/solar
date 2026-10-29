@@ -11,6 +11,7 @@ use crate::{
         analysis::{CallGraphInfo, CfgInfo, direct_callees},
         pass_manager::should_validate_ir,
     },
+    target,
 };
 use alloy_primitives::Bytes;
 use smallvec::SmallVec;
@@ -20,8 +21,8 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use solar_interface::{Ident, Symbol, sym};
-use solar_sema::hir::VariableId;
+use solar_interface::{Ident, Symbol, config::OptimizationMode, sym};
+use solar_sema::{Gcx, hir::VariableId};
 use std::{borrow::Cow, fmt, sync::Arc};
 
 /// A named immutable declared by a MIR module.
@@ -127,6 +128,12 @@ pub struct Module {
     /// Whether the last full `lowered` check still describes this module: no change since
     /// `advance_phase` passed it.
     pub(super) lowered_checked: bool,
+    /// The objective this module's code is optimized for: the build's, or the one the contract's
+    /// `@custom:solar-optimize` tag selects. A function's own tag may select another.
+    pub(crate) optimization: OptimizationMode,
+    /// Instructions `@custom:solar-inline` clones have added, which the inliner bounds over all
+    /// of its runs.
+    pub(crate) tagged_inline_growth: usize,
 }
 
 impl Module {
@@ -190,6 +197,8 @@ impl Module {
             phase: MirPhase::Semantic,
             debug_info_tracked: false,
             lowered_checked: false,
+            optimization: OptimizationMode::default(),
+            tagged_inline_growth: 0,
         }
     }
 
@@ -202,6 +211,40 @@ impl Module {
     /// Records whether the module may contain inline assembly that does not promise memory safety.
     pub(crate) fn set_unsafe_assembly(&mut self, unsafe_assembly: bool) {
         self.unsafe_assembly = unsafe_assembly;
+    }
+
+    /// Returns the cost model of this module's code: the contract's objective, which a function
+    /// without a tag of its own and every decision about the module as a whole use.
+    pub(crate) fn target(&self, gcx: Gcx<'_>) -> target::Target {
+        target::Target::new(gcx, self.optimization)
+    }
+
+    /// Returns the objective `func`'s code is optimized for: its own tag's, else the contract's.
+    pub(crate) fn objective(&self, func: FunctionId) -> OptimizationMode {
+        self.objective_of(&self.functions[func])
+    }
+
+    /// Returns the objective `func`'s code is optimized for, for a function this module has not
+    /// yet received.
+    pub(crate) fn objective_of(&self, func: &Function) -> OptimizationMode {
+        func.attributes.optimization.unwrap_or(self.optimization)
+    }
+
+    /// Returns the cost model of `func`'s code, for a function this module has not yet received.
+    pub(crate) fn target_of(&self, gcx: Gcx<'_>, func: &Function) -> target::Target {
+        target::Target::new(gcx, self.objective_of(func))
+    }
+
+    /// Returns whether any of the module's code is optimized.
+    pub(crate) fn is_optimized(&self) -> bool {
+        self.runs_objective(|objective| !objective.is_none())
+    }
+
+    /// Returns whether code compiled for some objective satisfies `wanted`: the contract's own
+    /// code, or the code of a function whose tag selects another objective.
+    pub(crate) fn runs_objective(&self, wanted: impl Fn(OptimizationMode) -> bool) -> bool {
+        wanted(self.optimization)
+            || self.functions.iter().any(|func| func.attributes.optimization.is_some_and(&wanted))
     }
 
     /// Enables or disables source debug information auditing for optimization passes.

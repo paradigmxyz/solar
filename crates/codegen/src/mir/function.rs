@@ -7,6 +7,7 @@ use super::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
+use solar_config::OptimizationMode;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     fmt::FmtIteratorExt,
@@ -862,6 +863,15 @@ pub(crate) struct FunctionAttributes {
     pub(crate) is_function_pointer_dispatcher: bool,
     /// Never clone this function into multiple callers.
     pub(crate) no_inline: bool,
+    /// Clone this function into every caller where inlining is legal, whatever it costs, as its
+    /// `@custom:solar-inline always` tag requires.
+    pub(crate) always_inline: bool,
+    /// Favor cloning this function into its callers, as its bare `@custom:solar-inline` tag
+    /// asks, within the inliner's legality and stack budgets.
+    pub(crate) inline_hint: bool,
+    /// The objective its `@custom:solar-optimize` tag selects for this function's code, instead
+    /// of its module's.
+    pub(crate) optimization: Option<OptimizationMode>,
     /// Proved upper bound, in bits, on the words each array parameter can
     /// hold while this function reads it, recorded by element cleanup for
     /// the ABI return proofs that run after the element masks are gone.
@@ -883,6 +893,9 @@ impl Default for FunctionAttributes {
             may_return_memory: false,
             is_function_pointer_dispatcher: false,
             no_inline: false,
+            always_inline: false,
+            inline_hint: false,
+            optimization: None,
             array_element_bits: FxHashMap::default(),
             array_return_element_bits: None,
         }

@@ -96,7 +96,7 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let pushes = may_share_pushes(gcx, module);
     let runs = pushes || may_share_machine_runs(gcx, module);
     (runs && outline_machine_runs(gcx, module, &mut state))
-        | (gcx.sess.opts.optimization.is_size()
+        | (module.optimization.is_size()
             && outline_parametric_machine_runs(gcx, module, &mut state))
         | (pushes && outline_repeated_pushes(gcx, module, &mut state))
 }
@@ -106,7 +106,7 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
 /// A share of `n` pushes, each at most a `PUSH32` and its immediate, saves fewer than
 /// `n * (PUSH32 bytes - site bytes)` bytes, while its transfers cost `n` times the transfer gas.
 fn may_share_pushes(gcx: Gcx<'_>, module: &Module) -> bool {
-    if !gcx.sess.opts.optimization.is_gas() {
+    if !module.optimization.is_gas() {
         return true;
     }
     let target = module.target(gcx);
@@ -126,7 +126,8 @@ fn may_share_pushes(gcx: Gcx<'_>, module: &Module) -> bool {
 /// is possible only if two starts have equal prefixes, which hashes can rule out. The screen
 /// shares the outliner's candidate budget and gives up, answering yes, once it is spent.
 fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
-    if !gcx.sess.opts.optimization.is_gas() {
+    let target = module.runtime_target(gcx);
+    if !target.optimization().is_gas() {
         return true;
     }
     let target = module.target(gcx);
@@ -145,7 +146,8 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
         }
         metrics.clear();
         metrics.extend(block.instructions.iter().map(|inst| {
-            shared_body_effect(inst).map(|effect| (effect, instruction_size_lower_bound(gcx, inst)))
+            shared_body_effect(inst)
+                .map(|effect| (effect, instruction_size_lower_bound(target, inst)))
         }));
         let mut remaining = metrics.iter().flatten().map(|&(_, size)| size).sum::<usize>();
         for start in 0..metrics.len() {
@@ -246,10 +248,10 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     let transfer_size = transfer_size(&target);
     let shuffle_size = target.opcode(op::SWAP1).bytes as usize;
 
-    let is_size = gcx.sess.opts.optimization.is_size();
+    let is_size = target.optimization().is_size();
     let mut metrics = vec![None; hashes.ids.len()];
     for (block_id, block) in module.blocks.iter_enumerated() {
-        if gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop {
+        if target.optimization().is_gas() && block.metadata.in_loop {
             continue;
         }
         // Overlapping candidate windows revisit each instruction. Decode its stack
@@ -259,7 +261,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             if hashes.repeats(block_id, index)
                 && let Some(effect) = shared_body_effect(inst)
             {
-                metrics[first + index] = Some((effect, instruction_size_lower_bound(gcx, inst)));
+                metrics[first + index] = Some((effect, instruction_size_lower_bound(target, inst)));
             }
         }
     }
@@ -333,18 +335,15 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         let first = free[0];
         // Profitability reads only opcodes and values, so copy the body once it is chosen.
         let run = &module.blocks[first.block].instructions[first.start..first.start + first.len];
-        let run_size = lower_bound(gcx, run);
+        let run_size = lower_bound(target, run);
         let stub_size = run_size
             + (target.opcode(op::JUMPDEST).bytes
                 + target.opcode(op::SWAP1).bytes * u32::from(first.outputs)
                 + target.opcode(op::JUMP).bytes) as usize;
         let site_size = transfer_size + usize::from(first.inputs) * shuffle_size;
         if free.len() * run_size <= free.len() * site_size + stub_size {
-            let saved = if is_size {
-                shared_return_tail_savings(gcx, &target, run, first, &chosen)
-            } else {
-                0
-            };
+            let saved =
+                if is_size { shared_return_tail_savings(&target, run, first, &chosen) } else { 0 };
             if free.len() * run_size <= (free.len() * site_size + stub_size).saturating_sub(saved) {
                 continue;
             }
@@ -356,11 +355,11 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         // Charge the transfer gas at the requested execution count against
         // the deposited bytes saved by sharing. Static occurrence counts do
         // not make the calls cold, even when every site is outside a loop.
-        if gcx.sess.opts.optimization.is_gas() {
+        if target.optimization().is_gas() {
             let saved_bytes = free.len() * (run_size - site_size) - stub_size;
             // Sites that may run more than once pay the transfer gas at the runtime price.
             let target = if repeats(module, free.iter().map(|site| site.block)) {
-                Target::new(gcx)
+                module.runtime_target(gcx)
             } else {
                 target
             };
@@ -457,6 +456,7 @@ fn outline_parametric_machine_runs(
     const MAX_RUN_LENGTH: usize = 64;
     const MAX_PARAMETERS: usize = 8;
 
+    let target = module.runtime_target(gcx);
     let hashes = RunHashes::new(module, ParamInstKey::new);
     let mut metrics = vec![None; hashes.ids.len()];
     for (block_id, block) in module.blocks.iter_enumerated() {
@@ -557,7 +557,7 @@ fn outline_parametric_machine_runs(
             .iter()
             .map(|site| {
                 lower_bound(
-                    gcx,
+                    target,
                     &module.blocks[site.block].instructions[site.start..site.start + site.len],
                 )
             })
@@ -569,7 +569,7 @@ fn outline_parametric_machine_runs(
                     .iter()
                     .map(|&index| {
                         instruction_size_lower_bound(
-                            gcx,
+                            target,
                             &module.blocks[site.block].instructions[site.start + index],
                         )
                     })
@@ -580,7 +580,7 @@ fn outline_parametric_machine_runs(
         // taken longest first, and without it a barely profitable long group can claim sites
         // that a shorter group shares better.
         let site_size = (if free.len() >= 4 { 7 } else { 8 }) + parameters.len();
-        let stub_size = 1 + lower_bound(gcx, &stub_body) + usize::from(first.outputs) + 1;
+        let stub_size = 1 + lower_bound(target, &stub_body) + usize::from(first.outputs) + 1;
         if inline_size < parameter_bytes + free.len() * site_size + stub_size + 2 {
             continue;
         }
@@ -726,7 +726,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     let mut sites = FxHashMap::<U256, SmallVec<[(BlockId, usize); 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         let in_loop = block.metadata.in_loop;
-        if gcx.sess.opts.optimization.is_gas() && in_loop {
+        if target.optimization().is_gas() && in_loop {
             continue;
         }
         for (index, inst) in block.instructions.iter().enumerate() {
@@ -757,7 +757,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             // Sites that may run more than once pay the transfer gas at the runtime price.
             let (target, transfer_gas) =
                 if repeats(module, occurrences.iter().map(|&(block, _)| block)) {
-                    let runtime = Target::new(gcx);
+                    let runtime = module.runtime_target(gcx);
                     (runtime, push_share_costs(&runtime).2)
                 } else {
                     (target, transfer_gas)
@@ -767,7 +767,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             let saved_bytes = inline.saturating_sub(outlined);
             (occurrences.len() >= 2
                 && inline >= outlined + MIN_SAVING
-                && (!gcx.sess.opts.optimization.is_gas()
+                && (!target.optimization().is_gas()
                     || target.deposit_repays_gas(
                         saved_bytes as u64,
                         occurrences.len() as u64 * u64::from(transfer_gas),
@@ -920,8 +920,8 @@ fn shared_body_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
     Some((u16::from(inputs), u16::from(inputs), u16::from(outputs)))
 }
 
-fn lower_bound(gcx: Gcx<'_>, instructions: &[Instruction]) -> usize {
-    instructions.iter().map(|inst| instruction_size_lower_bound(gcx, inst)).sum()
+fn lower_bound(target: Target, instructions: &[Instruction]) -> usize {
+    instructions.iter().map(|inst| instruction_size_lower_bound(target, inst)).sum()
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1201,7 +1201,6 @@ impl RunState {
 /// Credits only identical, splittable suffixes of already-selected stubs with the same stack
 /// convention. The normal pipeline's later tail merge can share their body and return sequence.
 fn shared_return_tail_savings(
-    gcx: Gcx<'_>,
     target: &Target,
     body: &[Instruction],
     site: Site,
@@ -1228,7 +1227,7 @@ fn shared_return_tail_savings(
             if common == 0 {
                 return 0;
             }
-            let bytes = lower_bound(gcx, &body[body.len() - common..]);
+            let bytes = lower_bound(*target, &body[body.len() - common..]);
             target.shared_return_tail_savings(bytes as u32, site.outputs) as usize
         })
         .max()

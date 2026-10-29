@@ -170,17 +170,11 @@ impl MirPass for MemoryDse {
             return false;
         }
         let free_pointer = free_pointer_trusted(module);
-        let terminal =
-            Arc::new(terminal_liveness(module, analyses, Target::new(gcx), free_pointer));
+        let target = module.target(gcx);
+        let terminal = Arc::new(terminal_liveness(module, analyses, target, free_pointer));
         let summaries = analyses.call_summaries(module);
-        let returns = Arc::new(return_facts(
-            module,
-            analyses,
-            &summaries,
-            &terminal,
-            Target::new(gcx),
-            free_pointer,
-        ));
+        let returns =
+            Arc::new(return_facts(module, analyses, &summaries, &terminal, target, free_pointer));
         run_selected_function_pass_with_alias_and_cfg(
             module,
             analyses,

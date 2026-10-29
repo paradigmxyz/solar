@@ -796,7 +796,7 @@ fn @fillPastWord(arg0: i256) -> ptr<memory> [selector=0x36818f65, pure, abi_para
     jump bb1
 }
 
-fn @_copy(arg0: ptr<memory>, arg1: i256, arg2: ptr<memory>, arg3: i256, arg4: i256) [pure] {
+fn @_copy(arg0: ptr<memory>, arg1: i256, arg2: ptr<memory>, arg3: i256, arg4: i256) [always_inline, pure] {
   bb0:
     jump bb1
   bb1:

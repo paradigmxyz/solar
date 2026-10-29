@@ -37,7 +37,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.record_runtime_entry_reachability(call_graph, entry);
         self.emitting_entry = info.emitting_entry;
         let plan = plans[entry].take().expect("entry plan");
+        self.enter_function(module, &module.functions[entry]);
         self.emit_stackified_body(entry, &module.functions[entry], plan);
+        self.leave_function(module);
         self.emitting_entry = false;
         self.runtime_entry_funcs.push(entry);
 
@@ -46,10 +48,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 continue;
             }
             let Some(plan) = plans[func_id].take() else { continue };
+            self.enter_function(module, func);
             self.asm.define_label(self.function_labels[&func_id]);
             self.mark_debug_function_invoke(func);
             self.emit_entry_free_memory_start(module, call_graph, func_id);
             self.emit_stackified_body(func_id, func, plan);
+            self.leave_function(module);
             self.runtime_entry_funcs.push(func_id);
         }
 
@@ -80,14 +84,16 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_op(op::JUMP);
         }
         self.emit_internal_bodies(module, info, &mut plans);
+        let func = &module.functions[constructor];
+        self.enter_function(module, func);
         if !info.internal.is_empty() {
             self.asm.define_label(constructor_label);
         }
-        let func = &module.functions[constructor];
         self.mark_debug_function_invoke(func);
         self.body = Body::Constructor(constructor);
         let plan = plans[constructor].take().expect("constructor plan");
         self.emit_stackified_body(constructor, func, plan);
+        self.leave_function(module);
         self.body = Body::External;
 
         self.pack_scalar_static_frames(module);
@@ -131,6 +137,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for func_id in info.internal.iter() {
             let Some(plan) = plans[func_id].take() else { continue };
             let func = &module.functions[func_id];
+            self.enter_function(module, func);
             self.asm.repeating_code = info.repeated.contains(func_id);
             let label = self.function_labels[&func_id];
             match info.call_effect(func_id) {
@@ -140,9 +147,22 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.mark_debug_function_invoke(func);
             self.body = Body::Internal(func_id);
             self.emit_stackified_body(func_id, func, plan);
+            self.leave_function(module);
         }
         self.asm.repeating_code = false;
         self.body = Body::External;
+    }
+
+    /// Starts emitting `func`, whose own objective prices its code and marks its blocks, its
+    /// first label's included, when its tag selects one.
+    fn enter_function(&mut self, module: &Module, func: &Function) {
+        self.optimization = func.attributes.optimization.unwrap_or(module.optimization);
+        self.asm.block_optimization = func.attributes.optimization;
+    }
+
+    fn leave_function(&mut self, module: &Module) {
+        self.optimization = module.optimization;
+        self.asm.block_optimization = None;
     }
 
     fn emit_stackified_body(

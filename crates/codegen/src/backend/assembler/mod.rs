@@ -17,7 +17,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
-use solar_interface::{Span, Symbol, sym};
+use solar_interface::{Span, Symbol, config::OptimizationMode, sym};
 use solar_sema::Gcx;
 
 pub(crate) mod assembly;
@@ -126,6 +126,9 @@ pub(crate) struct Assembler<'gcx> {
     /// Whether the code being emitted may run more than once, as the creation code that a loop
     /// calls does: its blocks are marked `repeats`.
     pub(in crate::backend) repeating_code: bool,
+    /// The objective of the function being emitted when it differs from the module's: its blocks
+    /// are marked with it.
+    pub(in crate::backend) block_optimization: Option<OptimizationMode>,
     /// Unresolved block references emitted as push operands.
     /// Ordered by (block, instruction); EVM IR construction uses binary search.
     pub(in crate::backend) label_relocations: Vec<(ir::BlockId, usize, Label)>,
@@ -186,6 +189,7 @@ impl<'gcx> Assembler<'gcx> {
             cold_labels: GrowableBitSet::new_empty(),
             loop_labels: GrowableBitSet::new_empty(),
             repeating_code: false,
+            block_optimization: None,
             label_relocations: Vec::new(),
             deferred_relocations: Vec::new(),
             indexed_jump_relocations: Vec::new(),
@@ -201,6 +205,11 @@ impl<'gcx> Assembler<'gcx> {
         }
     }
 
+    /// Sets the objective the program's code is optimized for.
+    pub(crate) fn set_optimization(&mut self, optimization: OptimizationMode) {
+        self.program.optimization = optimization;
+    }
+
     /// Clears all emitted instructions and local identifiers.
     pub(crate) fn clear(&mut self) {
         self.artifact_kind = ArtifactKind::Runtime;
@@ -214,6 +223,7 @@ impl<'gcx> Assembler<'gcx> {
         self.cold_labels.clear();
         self.loop_labels.clear();
         self.repeating_code = false;
+        self.block_optimization = None;
         self.label_relocations.clear();
         self.deferred_relocations.clear();
         self.indexed_jump_relocations.clear();

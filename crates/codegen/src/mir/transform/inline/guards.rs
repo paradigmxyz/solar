@@ -23,7 +23,9 @@ use crate::{
     },
     target::Target,
 };
+use solar_config::OptimizationMode;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_sema::Gcx;
 
 struct Guard {
     function: Function,
@@ -31,8 +33,8 @@ struct Guard {
     returns_if: bool,
 }
 
-pub(super) fn inline_guards(module: &mut Module, target: &Target) -> bool {
-    if !target.optimization().is_gas() {
+pub(super) fn inline_guards(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    if !module.runs_objective(OptimizationMode::is_gas) {
         return false;
     }
     let guards = module
@@ -44,7 +46,13 @@ pub(super) fn inline_guards(module: &mut Module, target: &Target) -> bool {
         return false;
     }
     let mut changed = false;
+    let module_objective = module.optimization;
     for (caller, func) in module.functions.iter_mut_enumerated() {
+        // A clone joins its caller's code, so the caller's objective prices it.
+        let target = &Target::new(gcx, func.attributes.optimization.unwrap_or(module_objective));
+        if !target.optimization().is_gas() {
+            continue;
+        }
         let mut sites = Vec::new();
         for (block, body) in func.blocks.iter_enumerated() {
             for (index, &inst) in body.instructions.iter().enumerate() {

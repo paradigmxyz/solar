@@ -41,7 +41,7 @@ contract ElementCleanupUnalignedStore {
         return uint256(a[1]) + (uint256(a[0]) << 56);
     }
 
-    /// @custom:solar-noinline
+    /// @custom:solar-inline never
     function _lower(uint8[] memory b) private pure {
         uint256 old;
         assembly {

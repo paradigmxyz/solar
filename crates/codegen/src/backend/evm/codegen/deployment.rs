@@ -51,10 +51,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         for func in &mut module.functions {
             changed |= Self::split_phi_critical_edges(func);
         }
-        if !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if !matches!(self.optimization, OptimizationMode::None) {
             for func in &mut module.functions {
                 changed |= func.canonicalize_argument_uses() != 0;
-                if matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size) {
+                if matches!(self.optimization, OptimizationMode::Size) {
                     changed |= func.canonicalize_immediate_uses() != 0;
                 }
             }
@@ -74,7 +74,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.heap_prefix = Self::heap_prefix_offsets(module);
         // The switch planner prices tail calls to empty bodies as shared terminals.
         self.empty_stop_functions = Self::empty_stop_functions(module);
-        self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        self.cold_functions = if matches!(self.optimization, OptimizationMode::None) {
             DenseBitSet::new_empty(module.functions.len())
         } else {
             cold_functions(module)
@@ -261,7 +261,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             debug_assert_eq!(
                 immutable_push_type_size(
                     encoding,
-                    self.gcx.sess.opts.optimization,
+                    self.module_optimization,
                     self.gcx.sess.opts.evm_version.has_bitwise_shifting(),
                 ),
                 r.type_size
@@ -334,9 +334,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let encoding = self.immutable_encodings[id];
+        // The layout of an immutable is the contract's, whatever the objective of the function
+        // that reads it.
         let type_size = immutable_push_type_size(
             encoding,
-            self.gcx.sess.opts.optimization,
+            self.module_optimization,
             self.gcx.sess.opts.evm_version.has_bitwise_shifting(),
         );
         let byte_width = type_size.bytes();
@@ -379,6 +381,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         immutable_refs: &[ImmutableRef],
     ) {
         self.asm.clear();
+        self.asm.set_optimization(module.optimization);
         self.asm.set_artifact_kind(ArtifactKind::Constructor);
         self.asm.set_evm_ir_name(module.name.name);
         self.asm.load_data(module);

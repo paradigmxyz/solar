@@ -239,10 +239,9 @@ impl MirPass for CheckElim {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let target = Target::new(gcx);
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass(module, analyses, |func, analyses| {
             let mut eliminator = CheckEliminator::new(None);
-            eliminator.propagate_equalities = Some(target);
+            eliminator.propagate_equalities = Some(analyses.runtime_target(gcx));
             eliminator.run(func) != 0
         })
     }
@@ -263,66 +262,70 @@ impl MirPass for IntegerCleanup {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let target = Target::new(gcx);
-        let cleanup = |func: &mut Function, immutable_ranges: Option<&FxHashMap<_, _>>| {
-            if immutable_ranges.is_none()
-                && !func
-                    .blocks
-                    .iter()
-                    .any(|block| matches!(block.terminator, Some(Terminator::Branch { .. })))
-            {
-                return false;
-            }
-            let shifted_high_masks = shifted_high_mask_inputs(func);
-            if shifted_high_masks.is_empty()
-                && !func.instructions().any(|id| {
-                    let kind = &func.inst(id).kind;
-                    low_mask_input(func, kind).is_some()
-                        || widened_nonzero_test(func, kind).is_some()
-                        || compares_with_immediate(func, kind, &target)
-                })
-            {
-                return false;
-            }
-            let cfg = CfgInfo::new(func);
-            let removed = invalidate_unreachable_blocks(func, cfg.reachable());
-            let mut eliminator = CheckEliminator {
-                collect_masks: true,
-                shifted_high_masks,
-                propagate_equalities: Some(target),
-                immutable_ranges,
-                ..Default::default()
+        let cleanup =
+            |func: &mut Function, target: Target, immutable_ranges: Option<&FxHashMap<_, _>>| {
+                if immutable_ranges.is_none()
+                    && !func
+                        .blocks
+                        .iter()
+                        .any(|block| matches!(block.terminator, Some(Terminator::Branch { .. })))
+                {
+                    return false;
+                }
+                let shifted_high_masks = shifted_high_mask_inputs(func);
+                if shifted_high_masks.is_empty()
+                    && !func.instructions().any(|id| {
+                        let kind = &func.inst(id).kind;
+                        low_mask_input(func, kind).is_some()
+                            || widened_nonzero_test(func, kind).is_some()
+                            || compares_with_immediate(func, kind, &target)
+                    })
+                {
+                    return false;
+                }
+                let cfg = CfgInfo::new(func);
+                let removed = invalidate_unreachable_blocks(func, cfg.reachable());
+                let mut eliminator = CheckEliminator {
+                    collect_masks: true,
+                    shifted_high_masks,
+                    propagate_equalities: Some(target),
+                    immutable_ranges,
+                    ..Default::default()
+                };
+                let facts = index_vec![Facts::default(); func.blocks.len()];
+                let _ = eliminator.collect_folds(func, &cfg, &facts, &[], &mut Vec::new(), None);
+                let propagated = eliminator.apply_equalities(func) != 0;
+                if eliminator.redundant_masks.is_empty() {
+                    return removed != 0 || propagated;
+                }
+                let mut replacements = FxHashMap::default();
+                let mut dead = DenseBitSet::new_empty(func.num_insts());
+                for &(id, value) in &eliminator.redundant_masks {
+                    replacements.insert(func.inst_result_value(id).unwrap(), value);
+                    dead.insert(id);
+                }
+                func.replace_uses_canonicalized(&replacements);
+                for block in &mut func.blocks {
+                    block.instructions.retain(|&id| !dead.contains(id));
+                }
+                true
             };
-            let facts = index_vec![Facts::default(); func.blocks.len()];
-            let _ = eliminator.collect_folds(func, &cfg, &facts, &[], &mut Vec::new(), None);
-            let propagated = eliminator.apply_equalities(func) != 0;
-            if eliminator.redundant_masks.is_empty() {
-                return removed != 0 || propagated;
-            }
-            let mut replacements = FxHashMap::default();
-            let mut dead = DenseBitSet::new_empty(func.num_insts());
-            for &(id, value) in &eliminator.redundant_masks {
-                replacements.insert(func.inst_result_value(id).unwrap(), value);
-                dead.insert(id);
-            }
-            func.replace_uses_canonicalized(&replacements);
-            for block in &mut func.blocks {
-                block.instructions.retain(|&id| !dead.contains(id));
-            }
-            true
-        };
         let bounds = runtime_immutable_bounds(module, gcx);
         if bounds.is_empty() {
-            return run_function_pass(module, analyses, |func, _| cleanup(func, None));
+            return run_function_pass(module, analyses, |func, analyses| {
+                cleanup(func, analyses.runtime_target(gcx), None)
+            });
         }
         let runtime = runtime_only_functions(module);
         let mut others = DenseBitSet::new_filled(module.functions.len());
         others.subtract(&runtime);
-        let mut changed = run_selected_function_pass(module, analyses, &runtime, |func, _| {
-            cleanup(func, Some(&bounds))
+        let mut changed =
+            run_selected_function_pass(module, analyses, &runtime, |func, analyses| {
+                cleanup(func, analyses.runtime_target(gcx), Some(&bounds))
+            });
+        changed |= run_selected_function_pass(module, analyses, &others, |func, analyses| {
+            cleanup(func, analyses.runtime_target(gcx), None)
         });
-        changed |=
-            run_selected_function_pass(module, analyses, &others, |func, _| cleanup(func, None));
         changed
     }
 }
@@ -343,8 +346,8 @@ impl MirPass for LateCheckElim {
     ) -> bool {
         let cold = cold_functions(module);
         run_function_pass_with_cfg(module, analyses, |func, analyses| {
-            let selected =
-                gcx.sess.opts.optimization.is_gas().then(|| analyses.cfg().cyclic_blocks());
+            let gas = analyses.runtime_target(gcx).optimization().is_gas();
+            let selected = gas.then(|| analyses.cfg().cyclic_blocks());
             if selected.is_some_and(DenseBitSet::is_empty) {
                 return false;
             }
@@ -399,6 +402,10 @@ pub(crate) struct ImmutableCheckElim;
 impl MirPass for ImmutableCheckElim {
     fn name(&self) -> &'static str {
         "immutable-check-elim"
+    }
+
+    fn is_contract_wide(&self) -> bool {
+        true
     }
 
     fn run_pass(
@@ -541,7 +548,7 @@ fn runtime_immutable_bounds(
             };
             let width = immutable_push_type_size(
                 encoding,
-                gcx.sess.opts.optimization,
+                module.optimization,
                 gcx.sess.opts.evm_version.has_bitwise_shifting(),
             )
             .bits();

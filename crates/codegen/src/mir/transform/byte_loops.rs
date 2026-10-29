@@ -160,23 +160,20 @@
 //! NOTE: The replacement summarizes every iteration of the loop, so its instructions carry no
 //! source location rather than an arbitrary iteration's checkpoint.
 
-use crate::{
-    mir::{
-        AllocationInitialization, ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function,
-        FunctionBuilder, InstId, InstKind, MirType, Module, PanicCode, PtrLocation, RevertKind,
-        Terminator, Value, ValueId,
-        analysis::{
-            AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, Loop, LoopAnalyzer,
-            MemoryBase, MemoryLocation,
-        },
-        memory::EvmMemoryLayout,
-        pass::{MirPass, ModuleAnalyses, run_function_pass},
-        utils::{
-            fold_terminator_to_jump, invalidate_unreachable_block, rebuild_predecessors,
-            replace_inst_uses, replace_terminator_uses,
-        },
+use crate::mir::{
+    AllocationInitialization, ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function,
+    FunctionBuilder, InstId, InstKind, MirType, Module, PanicCode, PtrLocation, RevertKind,
+    Terminator, Value, ValueId,
+    analysis::{
+        AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, Loop, LoopAnalyzer,
+        MemoryBase, MemoryLocation,
     },
-    target::Target,
+    memory::EvmMemoryLayout,
+    pass::{MirPass, ModuleAnalyses, run_function_pass},
+    utils::{
+        fold_terminator_to_jump, invalidate_unreachable_block, rebuild_predecessors,
+        replace_inst_uses, replace_terminator_uses,
+    },
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -201,8 +198,9 @@ impl MirPass for ByteLoops {
         module: &mut Module,
         analyses: &mut ModuleAnalyses,
     ) -> bool {
-        let tests_empty_copies = Target::new(gcx).tests_empty_copies();
-        run_function_pass(module, analyses, |func, _| run_function(func, tests_empty_copies))
+        run_function_pass(module, analyses, |func, analyses| {
+            run_function(func, analyses.runtime_target(gcx).tests_empty_copies())
+        })
     }
 }
 

@@ -133,7 +133,9 @@ pub(super) fn inline_dispatch(module: &mut Module, target: &Target) -> bool {
 }
 
 fn eligible(func: &Function) -> bool {
+    // A wrapper with an objective of its own keeps its code out of the dispatcher's.
     !func.attributes.no_inline
+        && func.attributes.optimization.is_none()
         && func.attributes.state_mutability == StateMutability::Pure
         && func.internal_frame_size == 0
         && func.params.is_empty()

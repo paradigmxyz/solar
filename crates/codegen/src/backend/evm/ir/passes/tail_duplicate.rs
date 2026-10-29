@@ -22,10 +22,10 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{BlockId, Module, TerminatorKind},
+        ir::{BlockId, Module, ModuleTarget, TerminatorKind},
         op,
     },
-    target::{Cost, Target},
+    target::Cost,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
@@ -39,10 +39,10 @@ impl EvmPass for TailDuplicate {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        if !gcx.sess.opts.optimization.is_gas() {
+        if !module.optimization.is_gas() {
             return false;
         }
-        let target = Target::new(gcx);
+        let target = module.runtime_target(gcx);
         // Bound the removed transfer by its smallest encoding: even a non-entry label can
         // resolve to zero when the entry block falls through without emitting instructions.
         let transfer = target.push(U256::ZERO) + target.opcode(op::JUMP);
@@ -58,7 +58,7 @@ impl EvmPass for TailDuplicate {
                 prefix_bytes += block
                     .instructions
                     .iter()
-                    .map(|inst| instruction_size_lower_bound(gcx, inst))
+                    .map(|inst| instruction_size_lower_bound(target, inst))
                     .sum::<usize>();
                 continue;
             }

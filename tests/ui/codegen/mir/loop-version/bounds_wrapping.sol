@@ -38,7 +38,7 @@ contract BoundsWrapping {
     // CHECK: jumpi
     // CHECK: [[SHORT:v[0-9]+]] = lt [[LENGTH]], arg2
     // CHECK-NEXT: jumpi [[SHORT]]
-    /// @custom:solar-noinline
+    /// @custom:solar-inline never
     function _write(uint256[] memory a, uint256 start, uint256 end)
         private pure returns (uint256 length)
     {

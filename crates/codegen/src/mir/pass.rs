@@ -29,6 +29,7 @@ use crate::{
 };
 use either::Either;
 use smallvec::SmallVec;
+use solar_config::OptimizationMode;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap, sync};
 use solar_interface::diagnostics::ErrorGuaranteed;
 use solar_sema::Gcx;
@@ -39,6 +40,7 @@ pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes, run_pass
 /// All known MIR passes exposed by `-Zmir-pipeline`.
 static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::Inline::Semantic,
+    &inline::Inline::Tagged,
     &if_convert::IfConvert,
     &inline::SpecializeFunctionPointers,
     &specialize::Specialize,
@@ -128,7 +130,15 @@ impl<P: MirPass> MirPass for SizeOnly<P> {
     }
 
     fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_size() && self.0.is_enabled(gcx, module)
+        self.covers(module) && self.0.is_enabled(gcx, module)
+    }
+
+    fn is_contract_wide(&self) -> bool {
+        self.0.is_contract_wide()
+    }
+
+    fn runs_on(&self, objective: OptimizationMode) -> bool {
+        objective.is_size() && self.0.runs_on(objective)
     }
 
     fn is_required(&self) -> bool {
@@ -159,7 +169,15 @@ impl<P: MirPass> MirPass for GasOnly<P> {
     }
 
     fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_gas() && self.0.is_enabled(gcx, module)
+        self.covers(module) && self.0.is_enabled(gcx, module)
+    }
+
+    fn is_contract_wide(&self) -> bool {
+        self.0.is_contract_wide()
+    }
+
+    fn runs_on(&self, objective: OptimizationMode) -> bool {
+        objective.is_gas() && self.0.runs_on(objective)
     }
 
     fn is_required(&self) -> bool {
@@ -192,7 +210,15 @@ impl<P: MirPass> MirPass for RunsAtNone<P> {
     }
 
     fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_none() || self.0.is_enabled(gcx, module)
+        self.covers(module) || self.0.is_enabled(gcx, module)
+    }
+
+    fn is_contract_wide(&self) -> bool {
+        self.0.is_contract_wide()
+    }
+
+    fn runs_on(&self, objective: OptimizationMode) -> bool {
+        objective.is_none() || self.0.runs_on(objective)
     }
 
     fn is_required(&self) -> bool {
@@ -228,6 +254,9 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // memory passes. Only the phis: merging blocks this early hides the
     // short-circuit shapes jump threading recognizes after check elimination.
     &cfg_simplify::SimplifyTrivialPhis,
+    // `@custom:solar-inline always` helpers join their callers before any pass reads
+    // a loop, an object, or a bound through the call.
+    &inline::Inline::Tagged,
     &sccp::Sccp,
     &pure_eval::PureEval,
     &egraph::Egraph,
@@ -607,7 +636,7 @@ fn run_function_pass_with_cache(
     };
     let mut changed = false;
     for func_id in functions {
-        if module.functions[func_id].blocks.is_empty() {
+        if module.functions[func_id].blocks.is_empty() || !analyses.runs_on(module, func_id) {
             continue;
         }
         changed |=
@@ -709,6 +738,8 @@ pub(crate) struct FunctionAnalyses {
     creation_only: bool,
     /// Whether, besides, the function has no loop of its own.
     straight_line_creation: bool,
+    /// The objective the function's code is optimized for.
+    optimization: OptimizationMode,
 }
 
 impl FunctionAnalyses {
@@ -731,14 +762,20 @@ impl FunctionAnalyses {
     /// recursion calls is priced as such whether or not it loops, because the transform
     /// multiplies by trip counts.
     pub(crate) fn loop_aware_target(&self, gcx: Gcx<'_>) -> Target {
-        Target::new(gcx).priced_for(self.creation_only)
+        self.runtime_target(gcx).priced_for(self.creation_only)
+    }
+
+    /// The cost model of runtime code under the module's objective, for code that a loop may run
+    /// many times, wherever it is.
+    pub(crate) fn runtime_target(&self, gcx: Gcx<'_>) -> Target {
+        Target::new(gcx, self.optimization)
     }
 
     /// The cost model for a transform that ranks code shapes without weighing blocks by how
     /// often they run: creation code is priced as such only when every instruction runs a
     /// bounded number of times, so without loops, recursion, or a looping caller.
     pub(crate) fn target(&self, gcx: Gcx<'_>) -> Target {
-        Target::new(gcx).priced_for(self.straight_line_creation)
+        Target::new(gcx, self.optimization).priced_for(self.straight_line_creation)
     }
 
     /// Records an edit that the transform does not report as a change, such as removing dead
@@ -795,6 +832,10 @@ pub struct ModuleAnalyses {
     /// Whether the running pass prices creation code differently, which only the gas objective
     /// does.
     prices_creation: bool,
+    /// Whether the running pass runs on code optimized for no objective, gas, and size, in that
+    /// order. Function-local runners skip the functions whose objective it excludes. Unset, every
+    /// function runs.
+    objective_gate: Option<[bool; 3]>,
     /// The creation-only functions that no loop or recursion calls, and the subset without loops
     /// of their own. A pass that adds or removes calls and functions without preserving the
     /// analyses drops them.
@@ -807,13 +848,28 @@ impl ModuleAnalyses {
         self.error = Some(error);
     }
 
-    pub(crate) fn begin_pass(&mut self, prices_creation: bool, parallel: bool) {
+    pub(crate) fn begin_pass(
+        &mut self,
+        prices_creation: bool,
+        parallel: bool,
+        objective_gate: [bool; 3],
+    ) {
+        self.objective_gate = Some(objective_gate);
         self.parallel = parallel;
         self.unreported_edit = false;
         self.preserved_by_pass = false;
         self.call_summaries_preserved = false;
         self.local_summaries_preserved = false;
         self.prices_creation = prices_creation;
+    }
+
+    /// Returns whether the running pass runs on `func`, whose code is optimized for its module's
+    /// or its own tag's objective.
+    pub(crate) fn runs_on(&self, module: &Module, func: FunctionId) -> bool {
+        let objective = module.objective(func);
+        self.objective_gate.is_none_or(|gate| {
+            gate[usize::from(objective.is_gas()) + 2 * usize::from(objective.is_size())]
+        })
     }
 
     pub(crate) fn finish_pass(&mut self, changed: bool) {
@@ -872,6 +928,7 @@ impl ModuleAnalyses {
             unreported_edit: Cell::new(false),
             creation_only,
             straight_line_creation,
+            optimization: module.objective(func_id),
         }
     }
 
@@ -1083,6 +1140,7 @@ fn run_parallel_function_pass(
     let mut work = 0;
     for (id, func) in module.functions.iter_enumerated() {
         if !func.blocks.is_empty()
+            && analyses.runs_on(module, id)
             && selected.is_none_or(|selected| selected.contains(id))
             && !cache_key.is_some_and(|key| analyses.function_cached(key, id, functions))
         {
@@ -1124,6 +1182,7 @@ fn run_parallel_function_pass(
         }
     }
     let summaries = first_missing.map(|_| analyses.call_summaries(module));
+    let module_objective = module.optimization;
 
     let tasks = module
         .functions
@@ -1139,13 +1198,14 @@ fn run_parallel_function_pass(
                     |alias| Rc::into_inner(alias).expect("alias snapshot is unshared"),
                 )
             });
-            (id, func, alias, cfg, pricing[id])
+            let objective = func.attributes.optimization.unwrap_or(module_objective);
+            (id, func, alias, cfg, pricing[id], objective)
         })
         .collect::<Vec<_>>();
     let results = sync::par_try_map(
         true,
         tasks,
-        |(id, func, alias, cfg, (creation_only, straight_line_creation))| {
+        |(id, func, alias, cfg, (creation_only, straight_line_creation), optimization)| {
             let bundle = FunctionAnalyses {
                 function: id,
                 alias: alias.map(Rc::new),
@@ -1153,6 +1213,7 @@ fn run_parallel_function_pass(
                 unreported_edit: Cell::new(false),
                 creation_only,
                 straight_line_creation,
+                optimization,
             };
             let insts_before = func.num_insts();
             let changed = run(func, &bundle);

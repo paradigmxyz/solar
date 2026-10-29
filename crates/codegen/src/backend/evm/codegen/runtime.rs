@@ -29,6 +29,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             "EVM codegen requires MIR in the final phase"
         );
         self.asm.clear();
+        self.asm.set_optimization(module.optimization);
         self.asm.set_artifact_kind(ArtifactKind::Runtime);
         self.asm.set_evm_ir_name(module.name.name);
         self.asm.load_data(module);

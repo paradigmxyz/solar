@@ -55,6 +55,10 @@ impl MirPass for CoalesceAllocs {
         "coalesce-allocs"
     }
 
+    fn is_contract_wide(&self) -> bool {
+        true
+    }
+
     fn run_pass(
         &self,
         gcx: Gcx<'_>,
@@ -62,7 +66,7 @@ impl MirPass for CoalesceAllocs {
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let mut changed = false;
-        let target = Target::new(gcx);
+        let target = module.target(gcx);
         for func in module.functions.iter_mut() {
             if !func.blocks.is_empty() && coalesce_function(func, &target) {
                 super::lower_memory_objects::normalize_pointer_operands(func);

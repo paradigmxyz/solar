@@ -59,8 +59,8 @@ use super::{
 };
 use crate::backend::evm::{
     ir::{
-        Block, BlockId, CallEffect, Instruction, Metadata, Module, PushValue, StackEffect,
-        Terminator, TerminatorKind, default_terminator_stack_effect,
+        Block, BlockId, CallEffect, Instruction, Metadata, Module, ModuleTarget, PushValue,
+        StackEffect, Terminator, TerminatorKind, default_terminator_stack_effect,
     },
     op,
 };
@@ -94,7 +94,7 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
     let mut state = RunState::default();
     state.reserve(module.blocks.len());
     let mut changed =
-        gcx.sess.opts.optimization.is_gas() && rotate_loop_exits(module, &mut state.references);
+        module.optimization.is_gas() && rotate_loop_exits(module, &mut state.references);
     // Later rounds only add `POP`s or move instructions of already truncated blocks.
     changed |= truncate_after_terminal(module);
     loop {
@@ -109,11 +109,10 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
             &mut state.order,
         );
         let inlined = thread_shared_jumps
-            && gcx.sess.opts.optimization.is_gas()
+            && module.optimization.is_gas()
             && inline_shared_return_thunks(gcx, module, &mut state.references);
-        let branches = thread_shared_jumps
-            && gcx.sess.opts.optimization.is_size()
-            && expose_shared_branches(module);
+        let branches =
+            thread_shared_jumps && module.optimization.is_size() && expose_shared_branches(module);
         let swept = remove_unreachable_blocks(
             module,
             &mut state.reachable,
@@ -261,7 +260,7 @@ fn inline_shared_return_thunks(
             || body
                 .instructions
                 .iter()
-                .map(|inst| instruction_size_lower_bound(gcx, inst))
+                .map(|inst| instruction_size_lower_bound(module.runtime_target(gcx), inst))
                 .sum::<usize>()
                 > 7
             || offset.concrete_immediate().is_none()

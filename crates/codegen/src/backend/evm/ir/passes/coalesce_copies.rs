@@ -9,7 +9,7 @@
 use super::EvmPass;
 use crate::{
     backend::evm::{
-        ir::{Instruction, Module},
+        ir::{Instruction, Module, ModuleTarget},
         op::{self, WORD_BYTES},
     },
     target::Target,
@@ -25,9 +25,9 @@ impl EvmPass for CoalesceCopies {
         "coalesce-copies"
     }
 
-    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
         gcx.sess.opts.evm_version.has_mcopy()
-            && !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
+            && !matches!(module.optimization, OptimizationMode::None)
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
@@ -38,6 +38,7 @@ impl EvmPass for CoalesceCopies {
 const COPY_INSTRUCTIONS: usize = 4;
 
 fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    let target = module.runtime_target(gcx);
     let mut groups = 0usize;
     let mut words = 0usize;
     for block in &mut module.blocks {
@@ -67,7 +68,7 @@ fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
             }
 
             let length = U256::from(count * WORD_BYTES);
-            if !profitable(gcx, source, destination, length, count) {
+            if !profitable(target, source, destination, length, count) {
                 index += COPY_INSTRUCTIONS;
                 continue;
             }
@@ -116,8 +117,7 @@ fn ranges_disjoint(source: U256, destination: U256, words: usize) -> bool {
     source_end <= destination || destination_end <= source
 }
 
-fn profitable(gcx: Gcx<'_>, source: U256, destination: U256, length: U256, words: usize) -> bool {
-    let target = Target::new(gcx);
+fn profitable(target: Target, source: U256, destination: U256, length: U256, words: usize) -> bool {
     // push source; mload; push destination; mstore, for each word
     let mut old = (target.opcode(op::MLOAD) + target.opcode(op::MSTORE)).times(words as u32);
     for index in 0..words {

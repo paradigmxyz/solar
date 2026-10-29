@@ -670,6 +670,32 @@ and rejecting the code would only block programs we compile correctly.
 Coverage:
 `tests/ui/codegen/lowering/run-call/yul_multi_assignment_duplicate_targets.sol`.
 
+### TYPECK-022: `@custom:solar-` tags are requirements
+
+Status: intentional.
+
+Difference: `solc` reads every `@custom:` NatSpec tag as documentation. `solar`
+reserves the `solar-` names: an unknown `@custom:solar-` tag, or one
+documenting something it cannot apply to, such as a statement, is an error. `@custom:solar-safe` on a contract or a library is an error
+when the code it runs, outside functions tagged `@custom:solar-trusted` or in
+contracts tagged so, uses inline assembly. `unchecked` blocks are allowed
+unless the tag explicitly requests the `arithmetic` property.
+`@custom:solar-optimize` documents a non-abstract contract, a library, or a
+function with a body and names exactly one objective, `gas` or `size`, which
+its code uses instead of the build's, in an `-O none` build too.
+`@custom:solar-inline [always|never]` asks the inliner to favor, always clone,
+or never clone a function. [TAGS.md](TAGS.md) describes each tag.
+
+Rationale: a tag states a requirement this compiler checks or relies on, so a
+misspelled or misplaced tag must not silently go unchecked. Other compilers
+still read the tags as documentation, and no tag changes what the code
+computes.
+
+Coverage: `tests/ui/natspec/solar_tags.sol`, `tests/ui/natspec/solar_inline.sol`,
+`tests/ui/natspec/solar_optimize.sol`, `tests/ui/typeck/solar_safe.sol`,
+`tests/ui/codegen/mir/optimize-function/` and
+`tests/ui/codegen/mir/inline/solar_inline_forms.sol`.
+
 ## Contract-Level Checks
 
 ### CONTRACT-001: Base slots that solc does not evaluate
@@ -734,7 +760,10 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   decoder control-flow subgraphs, so these large wrappers retain duplicated
   validation and materialization code. The external artifact audit exempts
   only these named contracts while continuing to enforce artifact presence
-  and EIP-170 parity for the rest of the corpus.
+  and EIP-170 parity for the rest of the corpus. A contract that must fit can
+  be built with `-O size`, or documented `@custom:solar-optimize size`, which
+  compiles its code as a `-O size` build would while the rest of the build
+  keeps its objective; other compilers read the tag as documentation.
 - Coverage: `cargo tq foundry-external seaport`; the exact exemptions live in
   `SEAPORT_CODE_SIZE_SKIPS` in `tools/tester/src/foundry/external.rs`.
 

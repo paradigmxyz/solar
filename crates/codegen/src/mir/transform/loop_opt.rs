@@ -101,7 +101,6 @@ impl MirPass for Licm {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let hoist_cheap = gcx.sess.opts.optimization.is_gas();
         let mut selected = DenseBitSet::new_empty(module.functions.len());
         for (id, func) in module.functions.iter_enumerated() {
             if func.blocks.is_empty() {
@@ -117,7 +116,7 @@ impl MirPass for Licm {
             &selected,
             |func, analyses| {
                 let mut optimizer = LoopOptimizer {
-                    hoist_cheap,
+                    hoist_cheap: analyses.runtime_target(gcx).optimization().is_gas(),
                     alias: Rc::clone(analyses.alias()),
                     hoisted: 0,
                     annotated_aliases: false,

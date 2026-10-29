@@ -38,7 +38,7 @@
 use super::{EvmPass, compact_pushes::materialize_immediate, utils::MachineInstKey};
 use crate::{
     backend::evm::{
-        ir::{Instruction, Module, PushValue, TerminatorKind},
+        ir::{Instruction, Module, ModuleTarget, PushValue, TerminatorKind},
         op,
     },
     target::Target,
@@ -144,7 +144,7 @@ fn clean_key(instructions: &[Instruction]) -> (u32, u64) {
 }
 
 fn optimize_module(gcx: Gcx<'_>, module: &mut Module, late: bool, final_cleanup: bool) -> bool {
-    let target = Target::new(gcx);
+    let target = module.runtime_target(gcx);
     let mut changed = false;
     let mut scratch = Vec::new();
     let clean = &mut module.peephole_clean;
