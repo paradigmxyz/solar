@@ -133,11 +133,11 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &outline::Outline,
     &terminal_dedup::TerminalDedup,
     &tail_merge::TailMerge,
-    &tail_copy::TailDup,
+    &tail_copy::CopyLoopBlocks,
     &block_layout::BlockLayout,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,
-    &tail_copy::TailDuplicate,
+    &tail_copy::CopyJoins,
 ];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
@@ -210,7 +210,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Peephole::FINAL,
     &peephole::Cleanup(tail_copy::InlineReturns),
     // Copy loop joins only after the last tail merge, which would share the copies again.
-    &peephole::Cleanup(tail_copy::TailDup),
+    &peephole::Cleanup(tail_copy::CopyLoopBlocks),
     &cfg_simplify::CfgSimplify::FINAL,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,
@@ -218,7 +218,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::LateWord,
     // Introduce `EXCHANGE` only after every peephole has seen the plain swaps.
     &stack_normalize::StackNormalize::FINAL,
-    &tail_copy::TailDuplicate,
+    &tail_copy::CopyJoins,
 ];
 
 /// Finds an EVM IR pass by command-line name.

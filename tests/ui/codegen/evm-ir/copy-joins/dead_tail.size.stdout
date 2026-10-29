@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/tail-duplicate/dead_tail.evmir (before tail-duplicate) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/tail-duplicate/dead_tail.evmir (after tail-duplicate) ===
+- // === ROOT/tests/ui/codegen/evm-ir/copy-joins/dead_tail.evmir (before copy-joins) ===
++ // === ROOT/tests/ui/codegen/evm-ir/copy-joins/dead_tail.evmir (after copy-joins) ===
   @module DeadTail
   bb0:
     push 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0

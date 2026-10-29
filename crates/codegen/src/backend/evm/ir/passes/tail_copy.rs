@@ -1,19 +1,19 @@
-//! Copy a block's code into the blocks that jump to it: `tail-dup`, `tail-duplicate`, and
+//! Copy a block's code into the blocks that jump to it: `copy-loop-blocks`, `copy-joins`, and
 //! `inline-returns`.
 //!
 //! A transfer to a shared block costs a pushed label, a `JUMP`, and the target's `JUMPDEST`.
 //! Each pass replaces a block's explicit jump to another block, its tail, with the tail's
 //! instructions and terminator, so the path runs straight on and the transfer is gone. The three
-//! passes differ in which tails qualify and in what the copy must repay: `tail-dup` copies hot
-//! loop blocks, including their branches and fallthroughs, before the final layout;
-//! `tail-duplicate` copies straight-line joins that end in a jump, after the final layout; and
+//! passes differ in which tails qualify and in what the copy must repay: `copy-loop-blocks` copies
+//! hot loop blocks, including their branches and fallthroughs, before the final layout;
+//! `copy-joins` copies straight-line joins that end in a jump, after the final layout; and
 //! `inline-returns` copies terminal tails no larger than the jump to them.
 //!
 //! A tail qualifies for a caller only when the caller ends with an explicit `Jump` to it at a
 //! split point, and the tail is neither the entry block, the caller itself, nor the caller's
 //! fallthrough, whose transfer may cost fewer bytes. A copy takes whole blocks, so
 //! `keep_with_next` boundaries stay intact. The original tail stays for its other predecessors;
-//! CFG cleanup removes it once no jump reaches it, and `tail-duplicate` removes it itself.
+//! CFG cleanup removes it once no jump reaches it, and `copy-joins` removes it itself.
 //!
 //! Only position-independent code is copied, so a copy runs on the same stack as the tail did:
 //! a block's entry stack is the same from every predecessor. Immediate pushes, physical stack
@@ -28,7 +28,7 @@
 //! rewrite; recording one on the caller's last instruction could overwrite that instruction's
 //! own transition. Debug origins never affect eligibility.
 //!
-//! # `tail-dup`: loop blocks
+//! # `copy-loop-blocks`: loop blocks
 //!
 //! A loop body that branches joins its paths again before the next iteration: each path ends
 //! with a jump to a shared block, often a latch that advances the loop's words and jumps back to
@@ -76,7 +76,7 @@
 //! back together, and before the final CFG cleanup and loop layout, which remove the blocks the
 //! copies replaced and pick the loop's fallthroughs.
 //!
-//! # `tail-duplicate`: joins after layout
+//! # `copy-joins`: joins after layout
 //!
 //! When both the incoming and outgoing jumps are explicit, copying a straight-line join into its
 //! predecessor removes one destination push, jump, and label entry per execution. The outgoing
@@ -103,7 +103,7 @@
 //! would use. Across the benchmark corpus this price shrank runtime code by 1,126 bytes, with 244
 //! contracts smaller and 3 larger by 21.
 //!
-//! Beyond the shared rules, only immediate pushes and the computations `tail-duplicate` copies
+//! Beyond the shared rules, only immediate pushes and the computations `copy-joins` copies
 //! qualify. The rewrite removes transfer gas independently of execution frequency. It runs after
 //! sharing, which can create these tiny tails. The default pipeline cleans up stack identities
 //! exposed by the copied return.
@@ -124,11 +124,11 @@ use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;
 use std::cmp::Ordering;
 
-pub(super) struct TailDup;
+pub(super) struct CopyLoopBlocks;
 
-impl EvmPass for TailDup {
+impl EvmPass for CopyLoopBlocks {
     fn name(&self) -> &'static str {
-        "tail-dup"
+        "copy-loop-blocks"
     }
 
     fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
@@ -173,11 +173,11 @@ impl EvmPass for TailDup {
     }
 }
 
-pub(super) struct TailDuplicate;
+pub(super) struct CopyJoins;
 
-impl EvmPass for TailDuplicate {
+impl EvmPass for CopyJoins {
     fn name(&self) -> &'static str {
-        "tail-duplicate"
+        "copy-joins"
     }
 
     fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
