@@ -88,13 +88,15 @@ struct Cse {
     known_stores: FxHashMap<u64, usize>,
     const_exprs: FxHashMap<usize, u64>,
     gas_observed: bool,
+    /// Scratch stack of the pre-screen, reused across blocks.
+    screen_stack: Vec<FingerprintValue>,
     changed: bool,
 }
 
 impl Cse {
     /// Rebuilds `instructions` and returns whether the rebuild removed or regenerated any.
     fn regenerate(&mut self, instructions: &mut Vec<Instruction>) -> bool {
-        if !may_regenerate(instructions, self.evm_version) {
+        if !may_regenerate(instructions, self.evm_version, &mut self.screen_stack) {
             return false;
         }
         self.stack.clear();
@@ -341,14 +343,18 @@ impl Cse {
 /// When a block addresses one constant memory word more than once, it also follows the known
 /// constant-address stores and reports the first store or load that the rebuild could forward.
 /// Until then, the rebuild sees the same state.
-fn may_regenerate(instructions: &[Instruction], evm_version: EvmVersion) -> bool {
+fn may_regenerate(
+    instructions: &[Instruction],
+    evm_version: EvmVersion,
+    stack: &mut Vec<FingerprintValue>,
+) -> bool {
     let track_memory = has_repeated_const_memory_addr(instructions);
     if !track_memory && !has_repeated_candidate_opcode(instructions, evm_version) {
         return false;
     }
 
     let stack_access_limit = evm_version.reachable_stack_depth();
-    let mut stack = Vec::<FingerprintValue>::new();
+    stack.clear();
     let mut next_fresh = 0usize;
     let mut memory_epoch = 0u64;
     let mut storage_epoch = 0u64;
@@ -381,23 +387,23 @@ fn may_regenerate(instructions: &[Instruction], evm_version: EvmVersion) -> bool
             match stack_op {
                 StackOp::Dup(depth) => {
                     let depth = usize::from(depth);
-                    ensure_hash_depth(&mut stack, depth, &mut next_fresh);
+                    ensure_hash_depth(stack, depth, &mut next_fresh);
                     let value = stack[stack.len() - depth];
                     stack.push(FingerprintValue { span: None, ..value });
                 }
                 StackOp::Swap(depth) => {
                     let depth = usize::from(depth);
-                    ensure_hash_depth(&mut stack, depth + 1, &mut next_fresh);
+                    ensure_hash_depth(stack, depth + 1, &mut next_fresh);
                     let top = stack.len() - 1;
                     stack.swap(top, top - depth);
                 }
                 StackOp::Exchange(n, m) => {
-                    ensure_hash_depth(&mut stack, usize::from(m) + 1, &mut next_fresh);
+                    ensure_hash_depth(stack, usize::from(m) + 1, &mut next_fresh);
                     let top = stack.len() - 1;
                     stack.swap(top - usize::from(n), top - usize::from(m));
                 }
                 StackOp::Pop => {
-                    ensure_hash_depth(&mut stack, 1, &mut next_fresh);
+                    ensure_hash_depth(stack, 1, &mut next_fresh);
                     stack.pop();
                 }
             }
@@ -407,7 +413,7 @@ fn may_regenerate(instructions: &[Instruction], evm_version: EvmVersion) -> bool
         if track_memory {
             match opcode {
                 op::MSTORE | op::MSTORE8 => {
-                    ensure_hash_depth(&mut stack, 2, &mut next_fresh);
+                    ensure_hash_depth(stack, 2, &mut next_fresh);
                     let address = stack[stack.len() - 1].address;
                     let value = stack[stack.len() - 2].expr;
                     match address {
@@ -426,7 +432,7 @@ fn may_regenerate(instructions: &[Instruction], evm_version: EvmVersion) -> bool
                     }
                 }
                 op::MLOAD => {
-                    ensure_hash_depth(&mut stack, 1, &mut next_fresh);
+                    ensure_hash_depth(stack, 1, &mut next_fresh);
                     if let Some(address) = stack[stack.len() - 1].address
                         && known_stores.iter().any(|&(slot, _)| slot == address)
                     {
@@ -439,7 +445,7 @@ fn may_regenerate(instructions: &[Instruction], evm_version: EvmVersion) -> bool
         }
 
         if let Some((inputs, read_epoch)) = expression_inputs(opcode, memory_epoch, storage_epoch) {
-            ensure_hash_depth(&mut stack, inputs, &mut next_fresh);
+            ensure_hash_depth(stack, inputs, &mut next_fresh);
             let operands = stack.drain(stack.len() - inputs..).collect::<SmallVec<[_; 3]>>();
             let mut operand_exprs =
                 operands.iter().map(|value| value.expr).collect::<SmallVec<[u64; 3]>>();
@@ -469,7 +475,7 @@ fn may_regenerate(instructions: &[Instruction], evm_version: EvmVersion) -> bool
         }
         let effect = inst.stack_effect();
         let inputs = usize::from(effect.inputs);
-        ensure_hash_depth(&mut stack, inputs, &mut next_fresh);
+        ensure_hash_depth(stack, inputs, &mut next_fresh);
         stack.truncate(stack.len() - inputs);
         for _ in 0..effect.outputs {
             stack.push(FingerprintValue {

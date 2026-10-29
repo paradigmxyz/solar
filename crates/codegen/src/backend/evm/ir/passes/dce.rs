@@ -125,8 +125,10 @@ fn is_discardable_tail_instruction(inst: &Instruction) -> bool {
 fn eliminate_dead_stack_copies(module: &mut Module, evm_version: EvmVersion) -> bool {
     let mut changed = false;
     let mut edits = Vec::new();
+    let mut scratch = Vec::new();
     for block in &mut module.blocks {
-        changed |= eliminate_in_block(&mut block.instructions, &mut edits, evm_version);
+        changed |=
+            eliminate_in_block(&mut block.instructions, &mut edits, &mut scratch, evm_version);
     }
     changed
 }
@@ -134,6 +136,7 @@ fn eliminate_dead_stack_copies(module: &mut Module, evm_version: EvmVersion) -> 
 fn eliminate_in_block(
     instructions: &mut Vec<Instruction>,
     edits: &mut Vec<Edit>,
+    scratch: &mut Vec<Instruction>,
     evm_version: EvmVersion,
 ) -> bool {
     let mut changed = false;
@@ -168,7 +171,7 @@ fn eliminate_in_block(
         }
 
         changed = true;
-        apply_edits(instructions, edits);
+        apply_edits(instructions, edits, scratch);
     }
 }
 
@@ -383,11 +386,14 @@ fn push_swap(ops: &mut Replacement, depth: usize) {
     }
 }
 
-fn apply_edits(instructions: &mut Vec<Instruction>, edits: &[Edit]) {
-    let old = std::mem::take(instructions);
-    instructions.reserve(old.len());
+fn apply_edits(
+    instructions: &mut Vec<Instruction>,
+    edits: &[Edit],
+    scratch: &mut Vec<Instruction>,
+) {
+    std::mem::swap(instructions, scratch);
     let mut edits = edits.iter().peekable();
-    for (index, inst) in old.into_iter().enumerate() {
+    for (index, inst) in scratch.drain(..).enumerate() {
         if let Some(edit) = edits.next_if(|edit| edit.index == index) {
             instructions.extend(edit.replacement.iter().map(|&stack_op| {
                 let mut replacement = Instruction::stack_op(stack_op);
