@@ -80,7 +80,7 @@ use crate::{
         immutable::immutable_push_type_size,
         memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses},
-        transform::utils::redirect_successor_predecessors,
+        transform::utils::{frame_prefix, redirect_successor_predecessors},
         utils::rebuild_predecessors,
     },
     target::{Cost, Target},
@@ -1948,18 +1948,11 @@ fn inline_call_impl(
     let caller_frame_prefix = if caller_is_external {
         0
     } else {
-        let signature_slots = caller.params.len().checked_add(caller.return_components().len())?;
-        let signature_size =
-            u64::try_from(signature_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
-        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE.checked_add(signature_size)?
+        frame_prefix(caller.params.len().checked_add(caller.return_components().len())?)?
     };
     let frame_base = caller_frame_prefix.checked_add(caller.internal_frame_size)?;
-    let callee_signature_slots =
-        callee.params.len().checked_add(callee.return_components().len())?;
-    let callee_signature_size =
-        u64::try_from(callee_signature_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
     let callee_frame_prefix =
-        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE.checked_add(callee_signature_size)?;
+        frame_prefix(callee.params.len().checked_add(callee.return_components().len())?)?;
     caller.internal_frame_size =
         caller.internal_frame_size.checked_add(callee.internal_frame_size)?;
 
