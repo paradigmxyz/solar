@@ -97,26 +97,25 @@ impl ValueUsers {
         let mut inst_blocks = index_vec![BlockId::MAX; func.num_insts()];
         let mut instructions = index_vec![Vec::new(); func.num_values()];
         let mut terminators = index_vec![Vec::new(); func.num_values()];
+        // An instruction or terminator lists its operands together, so repeats are adjacent.
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 inst_blocks[inst_id] = block_id;
                 func.inst(inst_id).kind.visit_operands(|operand| {
-                    instructions[operand].push(inst_id);
+                    let users = &mut instructions[operand];
+                    if users.last() != Some(&inst_id) {
+                        users.push(inst_id);
+                    }
                 });
             }
             if let Some(terminator) = &block.terminator {
                 terminator.visit_operands(|operand| {
-                    terminators[operand].push(block_id);
+                    let users = &mut terminators[operand];
+                    if users.last() != Some(&block_id) {
+                        users.push(block_id);
+                    }
                 });
             }
-        }
-        for users in &mut instructions {
-            users.sort_unstable();
-            users.dedup();
-        }
-        for users in &mut terminators {
-            users.sort_unstable();
-            users.dedup();
         }
         Self { inst_blocks, instructions, terminators }
     }
