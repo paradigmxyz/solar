@@ -77,7 +77,7 @@ use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
 };
-use std::rc::Rc;
+use std::{cmp::Reverse, rc::Rc};
 
 /// Most words a loop may carry after a below-threshold hoist or, in size mode, a product check's
 /// hoisted bound. The count is the header's phis plus the values defined outside the loop that
@@ -149,7 +149,17 @@ struct LoadRange {
 struct LoopOptContext<'a> {
     loop_data: &'a Loop,
     scev: &'a ScalarEvolution,
-    analyzer: &'a LoopAnalyzer,
+    dominators: &'a DominatorTree,
+    inst_blocks: &'a IndexVec<InstId, Option<BlockId>>,
+    /// The loop's blocks from which it can actually exit.
+    exiting: &'a [BlockId],
+}
+
+impl LoopOptContext<'_> {
+    /// The loop block holding `inst`, if the loop holds it.
+    fn loop_block(&self, inst: InstId) -> Option<BlockId> {
+        self.inst_blocks[inst].filter(|&block| self.loop_data.blocks.contains(block))
+    }
 }
 
 /// Minimum estimated gas saved per iteration before an instruction is considered a LICM root.
@@ -211,7 +221,7 @@ impl LoopOptimizer {
             }
         }
         for loop_data in &loops {
-            self.apply_licm(func, loop_data, &analyzer, &loops, &mut carried);
+            self.apply_licm(func, loop_data, cfg.dominators(), &loops, &mut carried);
         }
 
         self.hoisted
@@ -311,25 +321,31 @@ impl LoopOptimizer {
         delta
     }
 
-    fn alias(&self) -> &AliasAnalysis {
-        &self.alias
-    }
-
     fn apply_licm(
         &mut self,
         func: &mut Function,
         loop_data: &Loop,
-        analyzer: &LoopAnalyzer,
+        dominators: &DominatorTree,
         loops: &[Loop],
         carried: &mut FxHashMap<BlockId, usize>,
     ) {
         let Some(preheader) = loop_data.preheader else { return };
-        if loop_data.invariant_insts.is_empty() || self.loop_observes_gas(func, loop_data) {
+        if loop_data.invariant_insts.is_empty()
+            || self.loop_contains(func, loop_data, InstKind::observes_gas)
+        {
             return;
         }
 
         let scev = ScalarEvolution::analyze(func, loop_data);
-        let ctx = LoopOptContext { loop_data, scev: &scev, analyzer };
+        let inst_blocks = func.inst_block_table();
+        let exiting = Self::live_exiting_blocks(func, loop_data);
+        let ctx = LoopOptContext {
+            loop_data,
+            scev: &scev,
+            dominators,
+            inst_blocks: &inst_blocks,
+            exiting: &exiting,
+        };
         let mut roots: Vec<InstId> = loop_data
             .invariant_insts
             .iter()
@@ -341,13 +357,10 @@ impl LoopOptimizer {
         if roots.is_empty() {
             return;
         }
-        roots.sort_unstable_by(|&a, &b| {
-            self.licm_profit(func, b)
-                .cmp(&self.licm_profit(func, a))
-                .then_with(|| a.index().cmp(&b.index()))
+        roots.sort_unstable_by_key(|&inst_id| {
+            (Reverse(self.licm_profit(func, inst_id)), inst_id.index())
         });
 
-        let inst_blocks = func.inst_block_table();
         let mut selected = DenseBitSet::new_empty(func.num_insts());
         let mut closure = Vec::new();
         let mut closure_set = DenseBitSet::new_empty(func.num_insts());
@@ -410,16 +423,8 @@ impl LoopOptimizer {
             // An enclosing loop's earlier hoist may have already moved the
             // instruction out of these blocks; pushing it again would schedule
             // the same instruction in two blocks.
-            let mut removed = false;
-            for block_id in &loop_data.blocks {
-                let block = &mut func.blocks[block_id];
-                if let Some(pos) = block.instructions.iter().position(|&id| id == inst_id) {
-                    block.instructions.remove(pos);
-                    removed = true;
-                    break;
-                }
-            }
-            if removed {
+            if let Some(block) = ctx.loop_block(inst_id) {
+                func.blocks[block].instructions.retain(|&id| id != inst_id);
                 func.blocks[preheader].instructions.push(inst_id);
                 self.hoisted += 1;
             }
@@ -451,7 +456,7 @@ impl LoopOptimizer {
         let inst = func.inst(inst_id);
         for operand in inst.kind.operands() {
             if let Value::Inst(dep_inst) = func.value(operand)
-                && self.inst_in_loop(func, *dep_inst, ctx.loop_data)
+                && ctx.loop_block(*dep_inst).is_some()
                 && !self.collect_hoist_closure(func, *dep_inst, ctx, selected, visiting, out)
             {
                 return false;
@@ -541,18 +546,12 @@ impl LoopOptimizer {
         ctx: LoopOptContext<'_>,
     ) -> bool {
         let loop_data = ctx.loop_data;
-        let Some(inst_block) = loop_data
-            .blocks
-            .iter()
-            .find(|&block| func.blocks[block].instructions.contains(&inst_id))
-        else {
-            return false;
-        };
+        let Some(inst_block) = ctx.loop_block(inst_id) else { return false };
 
         // Semantic checks and calls can exit without a CFG edge. The candidate must execute
         // before each such operation, including those earlier in its own block.
         for block_id in &loop_data.blocks {
-            if block_id != inst_block && ctx.analyzer.dominates(inst_block, block_id) {
+            if block_id != inst_block && ctx.dominators.dominates(inst_block, block_id) {
                 continue;
             }
             if func.blocks[block_id]
@@ -565,27 +564,26 @@ impl LoopOptimizer {
             }
         }
 
-        let exiting = self.live_exiting_blocks(func, loop_data);
         // No live exit means the loop only terminates by running out of gas,
         // which consumes the entire gas budget regardless of what executes
         // beforehand, so any placement is observationally equivalent.
-        if exiting.is_empty() {
+        if ctx.exiting.is_empty() {
             return true;
         }
-        if exiting.iter().all(|&block| ctx.analyzer.dominates(inst_block, block)) {
+        if ctx.exiting.iter().all(|&block| ctx.dominators.dominates(inst_block, block)) {
             return true;
         }
 
         loop_data.trip_count.is_some_and(|trip| trip >= 1)
-            && exiting.len() == 1
-            && loop_data.back_edges.iter().all(|&latch| ctx.analyzer.dominates(inst_block, latch))
+            && ctx.exiting.len() == 1
+            && loop_data.back_edges.iter().all(|&latch| ctx.dominators.dominates(inst_block, latch))
     }
 
     /// Returns the in-loop blocks from which the loop can actually exit.
     ///
     /// Branches whose condition is a constant that always picks the in-loop successor cannot
     /// leave the loop and are ignored.
-    fn live_exiting_blocks(&self, func: &Function, loop_data: &Loop) -> Vec<BlockId> {
+    fn live_exiting_blocks(func: &Function, loop_data: &Loop) -> Vec<BlockId> {
         let mut exiting = Vec::new();
         for block_id in &loop_data.blocks {
             let Some(term) = &func.blocks[block_id].terminator else { continue };
@@ -623,10 +621,6 @@ impl LoopOptimizer {
         })
     }
 
-    fn inst_in_loop(&self, func: &Function, inst_id: InstId, loop_data: &Loop) -> bool {
-        loop_data.blocks.iter().any(|block| func.blocks[block].instructions.contains(&inst_id))
-    }
-
     fn licm_profit(&self, func: &Function, inst_id: InstId) -> u16 {
         match func.inst(inst_id).kind {
             InstKind::Load(_, PtrLocation::Storage | PtrLocation::Transient) => 100,
@@ -656,9 +650,9 @@ impl LoopOptimizer {
         ctx: LoopOptContext<'_>,
     ) -> bool {
         self.licm_profit(func, inst_id) >= MIN_LICM_PROFIT
-            || (self.loop_has_known_multiple_iterations(ctx.loop_data)
+            || (ctx.loop_data.trip_count.is_some_and(|trip_count| trip_count > 1)
                 && self.is_affine_address_base_used_in_loop(func, inst_id, ctx))
-            || (self.inst_dominates_loop_backedges(func, inst_id, ctx.loop_data, ctx.analyzer)
+            || (self.inst_dominates_loop_backedges(inst_id, ctx)
                 && (self.is_affine_address_base_used_in_loop(func, inst_id, ctx)
                     || self.is_cheap_invariant_arithmetic(func, inst_id)))
     }
@@ -673,25 +667,10 @@ impl LoopOptimizer {
             && func.inst_result_value(inst_id).is_some()
     }
 
-    fn loop_has_known_multiple_iterations(&self, loop_data: &Loop) -> bool {
-        loop_data.trip_count.is_some_and(|trip_count| trip_count > 1)
-    }
-
-    fn loop_observes_gas(&self, func: &Function, loop_data: &Loop) -> bool {
-        for block_id in &loop_data.blocks {
-            for &inst_id in &func.blocks[block_id].instructions {
-                if func.inst(inst_id).kind.observes_gas() {
-                    return true;
-                }
-            }
-        }
-        false
-    }
-
     /// Whether the loop checks the gas left: a `gas` reading or a call that observes it, or a
     /// persistent storage write, which fails when its sentry finds 2300 gas or less.
     fn loop_checks_gas_left(&self, func: &Function, loop_data: &Loop) -> bool {
-        let aa = self.alias();
+        let aa = &self.alias;
         loop_data.blocks.iter().any(|block_id| {
             func.blocks[block_id].instructions.iter().any(|&inst_id| {
                 let mod_ref = aa.instruction_mod_ref(func, inst_id);
@@ -702,21 +681,9 @@ impl LoopOptimizer {
         })
     }
 
-    fn inst_dominates_loop_backedges(
-        &self,
-        func: &Function,
-        inst_id: InstId,
-        loop_data: &Loop,
-        analyzer: &LoopAnalyzer,
-    ) -> bool {
-        let Some(inst_block) = loop_data
-            .blocks
-            .iter()
-            .find(|&block| func.blocks[block].instructions.contains(&inst_id))
-        else {
-            return false;
-        };
-        loop_data.back_edges.iter().all(|&latch| analyzer.dominates(inst_block, latch))
+    fn inst_dominates_loop_backedges(&self, inst_id: InstId, ctx: LoopOptContext<'_>) -> bool {
+        let Some(inst_block) = ctx.loop_block(inst_id) else { return false };
+        ctx.loop_data.back_edges.iter().all(|&latch| ctx.dominators.dominates(inst_block, latch))
     }
 
     fn loop_may_mutate_memory_range(
@@ -726,7 +693,7 @@ impl LoopOptimizer {
         load_addr: ValueId,
         load_width: Option<u64>,
     ) -> bool {
-        let aa = self.alias();
+        let aa = &self.alias;
         // The hoist candidate's address is loop-invariant, so its extent and affine range hold
         // for every store the loop makes.
         let load = load_width.map(|width| LoadRange {
@@ -767,9 +734,8 @@ impl LoopOptimizer {
         load_slot: ValueId,
         location: PtrLocation,
     ) -> bool {
-        let aa = self.alias();
-        let Some(load_alias) =
-            self.storage_alias_for_loop_value(func, load_inst, load_slot, ctx.loop_data)
+        let aa = &self.alias;
+        let Some(load_alias) = self.storage_alias_for_loop_value(func, load_inst, load_slot, ctx)
         else {
             return true;
         };
@@ -783,7 +749,7 @@ impl LoopOptimizer {
                 match &func.inst(inst_id).kind {
                     InstKind::Store(slot, _, store_location) if *store_location == location => {
                         let Some(store_alias) =
-                            self.storage_alias_for_loop_value(func, inst_id, *slot, ctx.loop_data)
+                            self.storage_alias_for_loop_value(func, inst_id, *slot, ctx)
                         else {
                             return true;
                         };
@@ -814,7 +780,7 @@ impl LoopOptimizer {
         loop_data: &Loop,
         load_id: ImmutableId,
     ) -> bool {
-        let aa = self.alias();
+        let aa = &self.alias;
         let load = Location::Immutable(load_id);
         loop_data.blocks.iter().any(|block_id| {
             func.blocks[block_id]
@@ -835,7 +801,7 @@ impl LoopOptimizer {
         write_block: BlockId,
     ) -> bool {
         let Some(load) = load else { return true };
-        let aa = self.alias();
+        let aa = &self.alias;
         if let Some(location) = load.location
             && let Some(write) =
                 aa.bare_memory_location(func, write_addr, LocationSize::Const(write_width))
@@ -937,11 +903,11 @@ impl LoopOptimizer {
         func: &Function,
         inst_id: InstId,
         value: ValueId,
-        loop_data: &Loop,
+        ctx: LoopOptContext<'_>,
     ) -> Option<StorageAlias> {
-        let alias = self.alias().storage_alias(func, inst_id, value);
+        let alias = self.alias.storage_alias(func, inst_id, value);
         if let Some(base) = alias.symbolic_base()
-            && self.value_defined_in_loop(func, base, loop_data)
+            && Self::value_defined_in_loop(func, base, ctx)
         {
             return None;
         }
@@ -949,12 +915,12 @@ impl LoopOptimizer {
     }
 
     fn can_use_storage_alias_for_licm(&self, alias: StorageAlias, loop_data: &Loop) -> bool {
-        matches!(alias, StorageAlias::Slot(_)) || self.loop_has_known_multiple_iterations(loop_data)
+        matches!(alias, StorageAlias::Slot(_)) || loop_data.trip_count.is_some_and(|trip| trip > 1)
     }
 
-    fn value_defined_in_loop(&self, func: &Function, value: ValueId, loop_data: &Loop) -> bool {
+    fn value_defined_in_loop(func: &Function, value: ValueId, ctx: LoopOptContext<'_>) -> bool {
         match func.value(value) {
-            Value::Inst(inst_id) => self.inst_in_loop(func, *inst_id, loop_data),
+            Value::Inst(inst_id) => ctx.loop_block(*inst_id).is_some(),
             Value::Undef(_) | Value::Error(_) => true,
             Value::Arg(_) | Value::Immediate(_) => false,
         }
@@ -1016,7 +982,7 @@ impl LoopOptimizer {
         }
 
         let Value::Inst(inst_id) = func.value(value) else { return false };
-        if !self.inst_in_loop(func, *inst_id, ctx.loop_data) {
+        if ctx.loop_block(*inst_id).is_none() {
             return false;
         }
         func.inst(*inst_id)
@@ -1068,7 +1034,7 @@ impl LoopOptimizer {
     /// no other observer or clobber of scratch in the whole function, including calls; retain
     /// the existing must-execute proof so zero-trip loops do not acquire a hash.
     fn slot_hash_scratch_is_private(&self, func: &Function, candidate: InstId) -> bool {
-        let aa = self.alias();
+        let aa = &self.alias;
         let scratch = Location::Memory(MemoryLocation::new(
             MemoryAddress::absolute(0),
             LocationSize::Const(crate::mir::memory::EvmMemoryLayout::FMP_SLOT),
@@ -1268,17 +1234,7 @@ fn reassociate_invariant_offsets(
     };
     // An affine index is `indvar-simplify`'s, which steps a pointer instead.
     let scev = ScalarEvolution::analyze(func, loop_data);
-    let mut readers = FxHashMap::<ValueId, usize>::default();
-    for block in &func.blocks {
-        for &inst in &block.instructions {
-            func.inst(inst)
-                .kind
-                .visit_operands(&mut |value| *readers.entry(value).or_default() += 1);
-        }
-        if let Some(term) = &block.terminator {
-            term.visit_operands(&mut |value| *readers.entry(value).or_default() += 1);
-        }
-    }
+    let readers = super::egraph::use_counts(func);
     // The sum `outer = (x + y) + c` with its single-reader inner sum, as `(x, c, outer, inner, y)`.
     let split = |outer: InstId| {
         let InstKind::Add(first, second) = func.inst(outer).kind else { return None };
@@ -1287,7 +1243,7 @@ fn reassociate_invariant_offsets(
             .find(|&(sum, c)| func.value_u256(c).is_some() && func.value_u256(sum).is_none())?;
         let Value::Inst(inner) = *func.value(sum) else { return None };
         let InstKind::Add(a, b) = func.inst(inner).kind else { return None };
-        (readers.get(&sum).copied() == Some(1)
+        (readers[sum] == 1
             && func.value_ty(sum) == Some(MirType::I256)
             && func.inst(outer).result_ty == Some(MirType::I256))
         .then_some((a, b, c, inner))
