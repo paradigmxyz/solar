@@ -213,7 +213,10 @@ use crate::{
             integers::{integer_bits, integer_mask, integer_max},
         },
         immutable::immutable_push_type_size,
-        pass::{MirPass, run_function_pass_with_cfg, run_selected_function_pass},
+        pass::{
+            FunctionAnalyses, MirPass, run_function_pass, run_function_pass_with_cfg,
+            run_selected_function_pass,
+        },
         utils::{IndexLists, eval, fold_terminator_to_jump, invalidate_unreachable_blocks},
     },
     target::Target,
@@ -241,12 +244,13 @@ impl MirPass for CheckElim {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass_with_cfg(module, analyses, |func, analyses| {
+        run_function_pass(module, analyses, |func, analyses| {
             let eliminator = CheckEliminator {
                 propagate_equalities: Some(analyses.runtime_target(gcx)),
                 ..Default::default()
             };
-            eliminator.run(func, analyses.cfg(), None) != 0
+            let cfg = CfgInfo::new(func);
+            eliminator.run(func, &cfg, None) != 0
         })
     }
 }
@@ -268,12 +272,12 @@ impl MirPass for IntegerCleanup {
     ) -> bool {
         let bounds = runtime_immutable_bounds(module, gcx);
         let runtime = (!bounds.is_empty()).then(|| runtime_only_functions(module));
-        run_function_pass_with_cfg(module, analyses, |func, analyses| {
+        let cleanup = |func: &mut Function, analyses: &FunctionAnalyses| {
             let immutable_ranges = runtime
                 .as_ref()
                 .is_some_and(|runtime| runtime.contains(analyses.function()))
                 .then_some(&bounds);
-            let (cfg, target) = (analyses.cfg(), analyses.runtime_target(gcx));
+            let target = analyses.runtime_target(gcx);
             if immutable_ranges.is_none()
                 && !func
                     .blocks
@@ -293,6 +297,7 @@ impl MirPass for IntegerCleanup {
             {
                 return false;
             }
+            let cfg = CfgInfo::new(func);
             let removed = invalidate_unreachable_blocks(func, cfg.reachable());
             let mut eliminator = CheckEliminator {
                 collect_masks: true,
@@ -302,7 +307,7 @@ impl MirPass for IntegerCleanup {
                 ..Default::default()
             };
             let facts = index_vec![Facts::default(); func.blocks.len()];
-            let _ = eliminator.collect_folds(func, cfg, &facts, &[], &mut Vec::new(), None);
+            let _ = eliminator.collect_folds(func, &cfg, &facts, &[], &mut Vec::new(), None);
             let propagated = eliminator.apply_equalities(func) != 0;
             if eliminator.redundant_masks.is_empty() {
                 return removed != 0 || propagated;
@@ -318,7 +323,14 @@ impl MirPass for IntegerCleanup {
                 block.instructions.retain(|&id| !dead.contains(id));
             }
             true
-        })
+        };
+        // Only the immutable bound case has ever requested the CFG snapshot, which decides what
+        // survives an edit in the analysis caches.
+        if runtime.is_some() {
+            run_function_pass_with_cfg(module, analyses, cleanup)
+        } else {
+            run_function_pass(module, analyses, cleanup)
+        }
     }
 }
 
