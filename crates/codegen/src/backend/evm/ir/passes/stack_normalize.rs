@@ -5,10 +5,10 @@
 //! into maximal canonical stack-op runs of at most 24 instructions, symbolically computes the run's
 //! input and output layouts, and asks the shared stack shuffler to synthesize an equivalent run.
 //! Results are cached by input sequence because generated code often repeats the same shuffle.
-//! A bounded per-thread cache also retains these pure results across modules and pass
-//! invocations. It stores only physical operations, never value identities or metadata,
-//! and clears on an EVM-version change. Each rewrite still transfers the current
-//! instructions' debug metadata at its original site.
+//! A bounded per-thread cache retains these pure results across modules and pass invocations,
+//! with one table per EVM version and `EXCHANGE` mode. It stores only physical operations,
+//! never value identities or metadata. Each rewrite still transfers the current instructions'
+//! debug metadata at its original site.
 //!
 //! A replacement must be lowerable on the selected EVM version and must weakly improve encoded
 //! bytes, static gas, and instruction count while strictly improving at least one. The Pareto
