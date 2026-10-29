@@ -27,3 +27,9 @@ contract C {
         return type(Child).runtimeCode;
     }
 }
+
+contract D {
+    function make() external returns (address) {
+        return address(new C());
+    }
+}

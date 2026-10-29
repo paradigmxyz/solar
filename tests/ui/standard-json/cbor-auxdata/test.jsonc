@@ -1,24 +1,82 @@
 //@ filecheck:
-// `C` embeds `Child`'s trailer through `new Child()` and `type(Child).runtimeCode`.
-// Each of `C`'s bytecodes lists every copy of `Child`'s trailer before its own, in
-// offset order. Offsets point past the `INVALID` byte and do not move when the
-// library placeholder is linked or the immutable is set.
+// Each trailer is listed under the contract it belongs to, in offset order. `C` embeds
+// `Child` twice, through `new Child()` and `type(Child).runtimeCode`, so `Child` has two
+// entries before `C`'s own; `D` embeds `C` and keeps the owners of `C`'s trailers.
+// Offsets point past the `INVALID` byte and do not move when the library placeholder is
+// linked or the immutable is set.
 // CHECK-LABEL: "Child": {
 // CHECK: "cborAuxdata": {
-// CHECK-NEXT: "1": {
+// CHECK-NEXT: "A.sol:Child": [
+// CHECK-NEXT: {
 // CHECK-NEXT: "offset": 40,
 // CHECK-NEXT: "value": "[[CHILD:0xa2646970667358221220[0-9a-f]{64}65736f6c617243[0-9a-f]{6}0034]]"
+// CHECK-NEXT: }
+// CHECK-NEXT: ]
+// CHECK-NEXT: }
 // CHECK-LABEL: "C": {
 // CHECK: "bytecode": {
 // CHECK: "cborAuxdata": {
-// CHECK-NEXT: "1": {
+// CHECK-NEXT: "A.sol:Child": [
+// CHECK-NEXT: {
 // CHECK-NEXT: "offset":
 // CHECK-NEXT: "value": "[[CHILD]]"
+// CHECK-NEXT: },
+// CHECK-NEXT: {
+// CHECK-NEXT: "offset":
+// CHECK-NEXT: "value": "[[CHILD]]"
+// CHECK-NEXT: }
+// CHECK-NEXT: ],
+// CHECK-NEXT: "A.sol:C": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "offset":
+// CHECK-NEXT: "value": "[[C:0xa2646970667358221220[0-9a-f]{64}65736f6c617243[0-9a-f]{6}0034]]"
+// CHECK-NEXT: }
+// CHECK-NEXT: ]
+// CHECK-NEXT: }
 // CHECK: "deployedBytecode": {
 // CHECK: "cborAuxdata": {
-// CHECK-NEXT: "1": {
+// CHECK-NEXT: "A.sol:Child": [
+// CHECK-NEXT: {
 // CHECK-NEXT: "offset":
 // CHECK-NEXT: "value": "[[CHILD]]"
+// CHECK-NEXT: },
+// CHECK-NEXT: {
+// CHECK-NEXT: "offset":
+// CHECK-NEXT: "value": "[[CHILD]]"
+// CHECK-NEXT: }
+// CHECK-NEXT: ],
+// CHECK-NEXT: "A.sol:C": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "offset":
+// CHECK-NEXT: "value": "[[C]]"
+// CHECK-NEXT: }
+// CHECK-NEXT: ]
+// CHECK-NEXT: }
+// CHECK-LABEL: "D": {
+// CHECK: "cborAuxdata": {
+// CHECK-NEXT: "A.sol:Child": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "offset":
+// CHECK-NEXT: "value": "[[CHILD]]"
+// CHECK-NEXT: },
+// CHECK-NEXT: {
+// CHECK-NEXT: "offset":
+// CHECK-NEXT: "value": "[[CHILD]]"
+// CHECK-NEXT: }
+// CHECK-NEXT: ],
+// CHECK-NEXT: "A.sol:C": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "offset":
+// CHECK-NEXT: "value": "[[C]]"
+// CHECK-NEXT: }
+// CHECK-NEXT: ],
+// CHECK-NEXT: "A.sol:D": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "offset":
+// CHECK-NEXT: "value": "{{0xa2646970667358221220[0-9a-f]{64}65736f6c617243[0-9a-f]{6}0034}}"
+// CHECK-NEXT: }
+// CHECK-NEXT: ]
+// CHECK-NEXT: }
 {
   "language": "Solidity",
   "sources": {},
@@ -31,7 +89,8 @@
           "evm.deployedBytecode.cborAuxdata",
           "evm.deployedBytecode.immutableReferences"
         ],
-        "Child": ["evm.deployedBytecode.cborAuxdata"]
+        "Child": ["evm.deployedBytecode.cborAuxdata"],
+        "D": ["evm.deployedBytecode.cborAuxdata"]
       }
     }
   }
