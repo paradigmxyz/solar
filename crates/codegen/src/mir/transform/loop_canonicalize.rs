@@ -9,9 +9,9 @@
 //! preheader: the outside value when every outside predecessor passes the same
 //! one, or a new phi in the preheader that merges them.
 //!
-//! The pass reanalyzes the loops after each insertion and stops when no loop
-//! lacks a preheader. It skips a loop when some header phi has no input for an
-//! outside predecessor. It runs before the semantic loop passes.
+//! The pass analyzes the loops once and inserts a preheader for each loop that
+//! lacks one. It skips a loop when some header phi has no input for an outside
+//! predecessor. It runs before the semantic loop passes.
 
 use crate::mir::{
     BlockId, Function, InstId, InstKind, Instruction, Module, Terminator, ValueId,
@@ -38,26 +38,26 @@ impl MirPass for LoopCanonicalize {
     }
 }
 
-/// Inserts preheaders until every loop that can take one has one.
+/// Inserts a preheader for every loop that lacks one and can take one.
+///
+/// A preheader changes only its loop's header phis and the terminators of that loop's outside
+/// predecessors, so one analysis serves every insertion.
 fn canonicalize(func: &mut Function) -> bool {
-    let mut changed = false;
-    loop {
-        let loop_info = LoopAnalyzer::new().analyze_structure(func);
-        let Some((header, outside_preds)) = loop_info
-            .loops
-            .values()
-            .filter(|loop_data| loop_data.preheader.is_none())
-            .find_map(|loop_data| {
-                let outside_preds = outside_predecessors(func, loop_data);
-                (!outside_preds.is_empty() && phis_cover(func, loop_data.header, &outside_preds))
-                    .then_some((loop_data.header, outside_preds))
-            })
-        else {
-            return changed;
-        };
-        insert_preheader(func, header, &outside_preds);
-        changed = true;
+    let loop_info = LoopAnalyzer::new().analyze_structure(func);
+    let work = loop_info
+        .loops
+        .values()
+        .filter(|loop_data| loop_data.preheader.is_none())
+        .filter_map(|loop_data| {
+            let outside_preds = outside_predecessors(func, loop_data);
+            (!outside_preds.is_empty() && phis_cover(func, loop_data.header, &outside_preds))
+                .then_some((loop_data.header, outside_preds))
+        })
+        .collect::<Vec<_>>();
+    for (header, outside_preds) in &work {
+        insert_preheader(func, *header, outside_preds);
     }
+    !work.is_empty()
 }
 
 fn outside_predecessors(func: &Function, loop_data: &Loop) -> Vec<BlockId> {
