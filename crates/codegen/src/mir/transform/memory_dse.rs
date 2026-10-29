@@ -1609,11 +1609,8 @@ impl MemoryStoreEliminator {
         if has_keccak && mstores != 0 {
             self.fold_constant_keccak(func, block_id, scratch);
         }
-        if has_load && mstores != 0 {
+        if mstores >= 2 || has_load && mstores != 0 {
             self.forward_loads(func, block_id, scratch);
-        }
-        if mstores >= 2 {
-            self.remove_equal_stores(func, block_id, scratch);
         }
         if memory_writes < 2 {
             return;
@@ -2054,47 +2051,6 @@ impl MemoryStoreEliminator {
         folds
     }
 
-    fn remove_equal_stores(
-        &mut self,
-        func: &mut Function,
-        block_id: BlockId,
-        scratch: &mut BlockScratch,
-    ) {
-        scratch.stored_values.clear();
-        scratch.dead.clear();
-
-        for &inst_id in &func.blocks[block_id].instructions {
-            let inst = func.inst(inst_id);
-            match &inst.kind {
-                InstKind::Store(addr, value, PtrLocation::Memory) => {
-                    let Some(key) = self.mem_addr_key(func, *addr, 32) else {
-                        scratch.stored_values.clear();
-                        continue;
-                    };
-
-                    if scratch.stored_values.get(key).is_some_and(|&stored| stored == *value) {
-                        scratch.dead.insert(inst_id);
-                        self.eliminated_count += 1;
-                        continue;
-                    }
-
-                    scratch.stored_values.invalidate(key, 32);
-                    scratch.stored_values.insert(key, *value);
-                }
-                _ if self.can_mutate_memory(func, inst_id) => {
-                    self.invalidate_writes(func, &inst.kind, &mut scratch.stored_values);
-                }
-                _ => {}
-            }
-        }
-
-        if scratch.dead.is_empty() {
-            return;
-        }
-
-        func.blocks[block_id].instructions.retain(|&id| !scratch.dead.contains(id));
-    }
-
     fn forward_loads(
         &mut self,
         func: &mut Function,
@@ -2123,8 +2079,18 @@ impl MemoryStoreEliminator {
             match &inst.kind {
                 InstKind::Store(addr, value, PtrLocation::Memory) => {
                     if let Some(key) = self.mem_addr_key(func, *addr, 32) {
-                        scratch.stored_values.invalidate(key, 32);
                         let value = mir_utils::resolve_replacement(*value, &scratch.replacements);
+                        // A store of the word's known value changes nothing.
+                        let known = if key == fmp_key {
+                            fmp_word
+                        } else {
+                            scratch.stored_values.get(key).copied()
+                        };
+                        if known == Some(value) {
+                            scratch.dead.insert(inst_id);
+                            continue;
+                        }
+                        scratch.stored_values.invalidate(key, 32);
                         if key == fmp_key {
                             fmp_word = Some(value);
                         } else {
