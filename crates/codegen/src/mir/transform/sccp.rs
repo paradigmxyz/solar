@@ -438,10 +438,16 @@ fn rewrite(
         else {
             continue;
         };
-        let mut targets =
-            term.successors().into_iter().filter(|&to| executable_edges.contains(&(block_id, to)));
-        if let Some(target) = targets.next()
-            && targets.all(|other| other == target)
+        let mut target = None;
+        let mut mixed = false;
+        term.for_each_successor(|to| {
+            if executable_edges.contains(&(block_id, to)) {
+                mixed |= target.is_some_and(|target| target != to);
+                target = target.or(Some(to));
+            }
+        });
+        if let Some(target) = target
+            && !mixed
         {
             // branch/switch ..., target, ... -> jump target
             fold_terminator_to_jump(func, block_id, target);

@@ -79,12 +79,12 @@ fn is_side_effect_free(func: &Function) -> bool {
 
 fn evaluate(func: &Function) -> Option<Vec<U256>> {
     let mut env = FxHashMap::default();
+    let mut phis = SmallVec::<[(ValueId, U256); 2]>::new();
     let mut current = BlockId::ENTRY;
     let mut predecessor = None;
     for _ in 0..DEFAULT_FUEL {
         let block = &func.blocks[current];
 
-        let mut phis = SmallVec::<[(ValueId, U256); 2]>::new();
         for &inst_id in &block.instructions {
             let inst = func.inst(inst_id);
             if let InstKind::Phi(incoming) = &inst.kind {
@@ -93,7 +93,7 @@ fn evaluate(func: &Function) -> Option<Vec<U256>> {
                 phis.push((func.inst_result_value(inst_id)?, value_const(func, &env, *value)?));
             }
         }
-        env.extend(phis);
+        env.extend(phis.drain(..));
 
         for &inst_id in &block.instructions {
             let inst = func.inst(inst_id);

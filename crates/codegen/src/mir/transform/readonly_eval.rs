@@ -86,14 +86,16 @@ impl MirPass for ReadonlyEval {
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
         let mut changed = false;
+        let mut values = FxHashMap::default();
+        let mut dead = DenseBitSet::<InstId>::new_empty(0);
         for id in module.functions.indices() {
             let replacements = find_calls(module, id);
             if replacements.is_empty() {
                 continue;
             }
             let func = module.function_mut(id);
-            let mut values = FxHashMap::default();
-            let mut dead = DenseBitSet::<InstId>::new_empty(func.num_insts());
+            values.clear();
+            dead.clear_to(func.num_insts());
             // result = icall readonly(args); use result => use constant
             // icall checked_void(known_successful_args) => empty
             for (inst, result) in replacements {
@@ -132,9 +134,11 @@ fn find_calls(module: &Module, id: FunctionId) -> Vec<(InstId, EvaluatedReturn)>
     let alias = has_allocation.then(|| AliasAnalysis::new(func));
     let mut folded = Vec::new();
     let mut fuel = MAX_FUEL;
+    let mut memory = Memory::default();
+    let mut env = Environment::default();
     for block in &func.blocks {
-        let mut memory = Memory::default();
-        let mut env = Environment::default();
+        memory.clear();
+        env.clear();
         for &inst in &block.instructions {
             if fuel == 0 {
                 return folded;
