@@ -41,8 +41,13 @@ use crate::{
     target::Target,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+    map::FxHashMap,
+};
 use solar_sema::Gcx;
+use std::ops::Range;
 
 pub(super) struct BlockLayout;
 
@@ -60,284 +65,240 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
     if module.blocks.len() <= 1 {
         return false;
     }
-    let mut state = RunState::default();
-    state.reset(module.blocks.len());
+    let mut has_predecessor = DenseBitSet::new_empty(module.blocks.len());
     for block in module.blocks.indices() {
-        if let Some(target) = layout_successor(module, block)
-            && target.index() < state.predecessor_counts.len()
-        {
-            state.predecessor_counts[target] += 1;
+        if let Some(target) = layout_successor(module, block) {
+            has_predecessor.insert(target);
         }
     }
 
-    let target = module.target(gcx);
-    let preferred = if module.optimization.is_size() {
-        shared_return_predecessors(module, &target, true)
+    let est = SizeEstimator::new(gcx, module);
+    let target = est.target.priced_for(module.code_follows);
+    let [preferred, alternate] = if module.optimization.is_size() {
+        shared_return_predecessors(module, &target)
     } else {
-        FxHashMap::default()
+        Default::default()
     };
-    build_layout_order(gcx, module, &preferred, &mut state);
-    if module.optimization.is_size() {
-        let alternate = shared_return_predecessors(module, &target, false);
-        if alternate != preferred
-            && let Some(size) = encoded_layout_size(module, &state.order, &target)
-        {
-            let mut other = RunState::default();
-            other.reset(module.blocks.len());
-            other.predecessor_counts.clone_from(&state.predecessor_counts);
-            build_layout_order(gcx, module, &alternate, &mut other);
-            if encoded_layout_size(module, &other.order, &target).is_some_and(|bytes| bytes < size)
-            {
-                state.order = other.order;
-            }
+    let mut order = build_layout_order(est, module, &has_predecessor, &preferred);
+    if alternate != preferred
+        && let Some(size) = encoded_layout_size(module, &order, &target)
+    {
+        let other = build_layout_order(est, module, &has_predecessor, &alternate);
+        if encoded_layout_size(module, &other, &target).is_some_and(|bytes| bytes < size) {
+            order = other;
         }
     }
 
-    if state.order.iter().copied().eq(module.blocks.indices()) {
+    if order.is_sorted() {
         return false;
     }
     // branch -> arm -> join; remaining traces
-    remap_block_order(module, &state.order);
+    remap_block_order(module, &order);
     true
 }
 
 fn build_layout_order(
-    gcx: Gcx<'_>,
+    est: SizeEstimator,
     module: &Module,
+    has_predecessor: &DenseBitSet<BlockId>,
     preferred: &FxHashMap<BlockId, BlockId>,
-    state: &mut RunState,
-) {
-    append_layout_trace(module, BlockId::ENTRY, preferred, &mut state.placed, &mut state.order);
-    for cold in [false, true] {
-        for block in module.blocks.indices() {
-            if state.predecessor_counts[block] == 0
-                && is_cold_terminal_block(&module.blocks[block]) == cold
-            {
-                append_layout_trace(module, block, preferred, &mut state.placed, &mut state.order);
-            }
-        }
-    }
-
-    let packing = TablePacking::new(gcx, module.optimization);
-    pack_terminal_traces(module.runtime_target(gcx), packing, module, state);
-    for cold in [false, true] {
-        for block in module.blocks.indices() {
-            if is_cold_terminal_block(&module.blocks[block]) == cold {
-                append_layout_trace(module, block, preferred, &mut state.placed, &mut state.order);
-            }
-        }
-    }
+) -> Vec<BlockId> {
+    let blocks = module.blocks.len();
+    let mut layout = Layout {
+        module,
+        preferred,
+        placed: DenseBitSet::new_empty(blocks),
+        order: Vec::with_capacity(blocks),
+    };
+    layout.append_trace(BlockId::ENTRY);
+    layout.append_roots(Some(has_predecessor));
+    pack_terminal_traces(est, module, &mut layout.order);
+    layout.append_roots(None);
+    layout.order
 }
 
-struct RunState {
-    predecessor_counts: IndexVec<BlockId, usize>,
-    order: Vec<BlockId>,
+struct Layout<'a> {
+    module: &'a Module,
+    preferred: &'a FxHashMap<BlockId, BlockId>,
     placed: DenseBitSet<BlockId>,
-    references: IndexVec<BlockId, usize>,
-    candidates: Vec<Candidate>,
-    picked: DenseBitSet<BlockId>,
-    picked_order: Vec<BlockId>,
+    order: Vec<BlockId>,
 }
 
-impl Default for RunState {
-    fn default() -> Self {
-        Self {
-            predecessor_counts: IndexVec::new(),
-            order: Vec::new(),
-            placed: DenseBitSet::new_empty(0),
-            references: IndexVec::new(),
-            candidates: Vec::new(),
-            picked: DenseBitSet::new_empty(0),
-            picked_order: Vec::new(),
+impl Layout<'_> {
+    /// Places hot traces, then cold terminal ones, starting from the blocks that no trace
+    /// reaches (all blocks when `has_predecessor` is `None`).
+    fn append_roots(&mut self, has_predecessor: Option<&DenseBitSet<BlockId>>) {
+        for cold in [false, true] {
+            for block in self.module.blocks.indices() {
+                if has_predecessor.is_none_or(|set| !set.contains(block))
+                    && is_cold_terminal_block(&self.module.blocks[block]) == cold
+                {
+                    self.append_trace(block);
+                }
+            }
         }
     }
-}
 
-impl RunState {
-    fn reset(&mut self, blocks: usize) {
-        self.predecessor_counts.clear();
-        self.predecessor_counts.resize(blocks, 0);
-        self.order.clear();
-        if self.order.capacity() < blocks {
-            self.order.reserve(blocks);
+    fn append_trace(&mut self, mut block: BlockId) {
+        while self.placed.insert(block) {
+            self.order.push(block);
+            let Some(target) = layout_successor(self.module, block) else { return };
+            if self
+                .preferred
+                .get(&target)
+                .is_some_and(|&pred| pred != block && !self.placed.contains(pred))
+                && ends_at_split_point(&self.module.blocks[block])
+            {
+                return;
+            }
+            block = target;
         }
-        self.placed.clear_to(blocks);
-        self.picked.clear_to(blocks);
-        self.references.clear();
-        self.references.resize(blocks, 0);
-        self.candidates.clear();
-        self.picked_order.clear();
     }
 }
 
 struct Candidate {
-    position: usize,
-    end: usize,
+    range: Range<usize>,
     size: usize,
     references: usize,
 }
 
-fn pack_terminal_traces(
-    target: Target,
-    packing: TablePacking,
-    module: &Module,
-    state: &mut RunState,
-) {
-    let Some(first_terminal) = state.order.iter().enumerate().position(|(position, &block)| {
-        is_physical_terminal_boundary(&module.blocks[block], state.order.get(position + 1).copied())
+fn pack_terminal_traces(est: SizeEstimator, module: &Module, order: &mut Vec<BlockId>) {
+    let Some(first_terminal) = (0..order.len()).find(|&position| {
+        is_physical_terminal_boundary(
+            &module.blocks[order[position]],
+            order.get(position + 1).copied(),
+        )
     }) else {
         return;
     };
     let insert_at = first_terminal + 1;
-    block_reference_counts(module, &state.order, &mut state.references);
-    let insert_offset: usize = state.order[..insert_at]
-        .iter()
-        .enumerate()
-        .map(|(index, &block)| {
-            estimated_block_size(
-                target,
-                packing,
-                &module.blocks[block],
-                state.order.get(index + 1).copied(),
-                state.references[block] != 0,
-                module.code_follows,
-            )
-        })
-        .sum();
+    let mut references = index_vec![0usize; module.blocks.len()];
+    block_reference_counts(module, order, &mut references);
+    let placement = Placement { est, module, order, references };
+    let insert_offset: usize =
+        (0..insert_at).map(|position| placement.size(position, usize::MAX)).sum();
     if insert_offset >= 0xff {
         return;
     }
 
+    let mut candidates = Vec::new();
     let mut position = insert_at;
     let mut offset = insert_offset;
-    while position < state.order.len() {
+    while position < order.len() {
         let start = position;
         let mut size = 0;
         let mut references = 0;
         loop {
-            let block = state.order[position];
-            let next = state.order.get(position + 1).copied();
+            let block = order[position];
             let block_offset = offset + size;
             // Past the first 256 bytes, only whether a trace fits in 32 bytes matters.
             let limit = if offset > 0xff { 32usize.saturating_sub(size) } else { usize::MAX };
-            size += estimated_block_size_up_to(
-                target,
-                packing,
-                &module.blocks[block],
-                next,
-                state.references[block] != 0,
-                module.code_follows,
-                limit,
-            );
-            references += state.references[block];
+            size += placement.size(position, limit);
+            references += placement.references[block];
             position += 1;
-            if is_physical_terminal_boundary(&module.blocks[block], next) {
+            if is_physical_terminal_boundary(&module.blocks[block], order.get(position).copied()) {
                 if is_terminal_block(&module.blocks[block])
                     && size <= 32
                     && references >= 2
                     && (position == start + 1
-                        || (block_offset > 0xff && state.references[block] >= 4))
+                        || (block_offset > 0xff && placement.references[block] >= 4))
                 {
-                    state.candidates.push(Candidate {
-                        position: start,
-                        end: position,
-                        size,
-                        references,
-                    });
+                    candidates.push(Candidate { range: start..position, size, references });
                 }
                 break;
             }
-            if position == state.order.len() {
+            if position == order.len() {
                 break;
             }
         }
         offset += size;
     }
-    state.candidates.sort_unstable_by(|a, b| {
+    candidates.sort_unstable_by(|a, b| {
         (b.references * a.size)
             .cmp(&(a.references * b.size))
             .then(b.references.cmp(&a.references))
-            .then(a.position.cmp(&b.position))
+            .then(a.range.start.cmp(&b.range.start))
     });
-    let mut budget = terminal_packing_budget(target, packing, module, state, insert_offset);
-    for candidate in &state.candidates {
+    let mut budget = terminal_packing_budget(&placement, insert_offset);
+    let mut picked = DenseBitSet::new_empty(module.blocks.len());
+    let mut picked_order = Vec::new();
+    for candidate in candidates {
         if candidate.size <= budget {
             budget -= candidate.size;
             // trace_head; ...; terminal
-            for &block in &state.order[candidate.position..candidate.end] {
-                state.picked.insert(block);
-                state.picked_order.push(block);
+            for &block in &order[candidate.range] {
+                picked.insert(block);
+                picked_order.push(block);
             }
         }
     }
-    if state.picked_order.is_empty() {
+    if picked_order.is_empty() {
         return;
     }
     // entry_trace; selected_traces; other_traces
-    state.order.retain(|block| !state.picked.contains(*block));
-    state.order.splice(insert_at..insert_at, state.picked_order.drain(..));
+    order.retain(|&block| !picked.contains(block));
+    order.splice(insert_at..insert_at, picked_order);
+}
+
+/// A partial layout with the references that decide which of its blocks need a label.
+struct Placement<'a> {
+    est: SizeEstimator,
+    module: &'a Module,
+    order: &'a [BlockId],
+    references: IndexVec<BlockId, usize>,
+}
+
+impl Placement<'_> {
+    /// Returns [`SizeEstimator::block`] for the block at `position`.
+    fn size(&self, position: usize, limit: usize) -> usize {
+        let block = self.order[position];
+        self.est.block(
+            &self.module.blocks[block],
+            self.order.get(position + 1).copied(),
+            self.references[block] != 0,
+            limit,
+        )
+    }
 }
 
 // Reserve space for tables whose absolute targets fit in one-byte entries. Widening
 // such a table replaces the BYTE pick with a larger stride table.
-fn terminal_packing_budget(
-    target: Target,
-    packing: TablePacking,
-    module: &Module,
-    state: &RunState,
-    insert_offset: usize,
-) -> usize {
-    let mut budget = 0xff_usize.saturating_sub(insert_offset);
-    if module.blocks.iter().any(|block| {
-        matches!(
-            block.terminator.as_ref().map(|term| &term.kind),
-            Some(TerminatorKind::IndexedJump(_))
-        )
-    }) {
-        let mut offsets = IndexVec::from_vec(vec![usize::MAX; module.blocks.len()]);
-        let mut offset = 0;
-        for (position, &block_id) in state.order.iter().enumerate() {
-            // Offsets only grow, and targets from here on cannot fit in one-byte entries.
-            if offset >= 0xff {
-                break;
-            }
-            offsets[block_id] = offset;
-            let block = &module.blocks[block_id];
-            let next = state.order.get(position + 1).copied();
-            offset += estimated_block_size(
-                target,
-                packing,
-                block,
-                next,
-                state.references[block_id] != 0,
-                module.code_follows,
-            );
-            if let Some(kind @ TerminatorKind::IndexedJump(targets)) =
-                block.terminator.as_ref().map(|term| &term.kind)
-                && targets.len() <= 32
-            {
-                offset -=
-                    estimated_terminator_size(target, packing, kind, next, module.code_follows);
-                offset += estimated_indexed_jump_terminator_size(
-                    targets.len(),
-                    1,
-                    target.evm_version(),
-                    packing,
-                );
-            }
+fn terminal_packing_budget(placement: &Placement<'_>, insert_offset: usize) -> usize {
+    let Placement { est, module, order, .. } = *placement;
+    let budget = 0xff_usize.saturating_sub(insert_offset);
+    if !module.blocks.iter().any(|block| one_byte_table(block).is_some()) {
+        return budget;
+    }
+    let mut offsets = index_vec![usize::MAX; module.blocks.len()];
+    let mut offset = 0;
+    for (position, &block_id) in order.iter().enumerate() {
+        // Offsets only grow, and targets from here on cannot fit in one-byte entries.
+        if offset >= 0xff {
+            break;
         }
-        for block in &module.blocks {
-            if let Some(TerminatorKind::IndexedJump(targets)) =
-                block.terminator.as_ref().map(|term| &term.kind)
-                && targets.len() <= 32
-                && let Some(last) = targets.iter().map(|&destination| offsets[destination]).max()
-                && (insert_offset..0xff).contains(&last)
-            {
-                budget = budget.min(0xfe - last);
-            }
+        offsets[block_id] = offset;
+        offset += placement.size(position, usize::MAX);
+        if let Some(targets) = one_byte_table(&module.blocks[block_id]) {
+            offset = offset - est.indexed_jump(targets.len(), false)
+                + est.indexed_jump(targets.len(), true);
         }
     }
-    budget
+    module
+        .blocks
+        .iter()
+        .filter_map(|block| {
+            let last =
+                one_byte_table(block)?.iter().map(|&destination| offsets[destination]).max()?;
+            (insert_offset..0xff).contains(&last).then(|| 0xfe - last)
+        })
+        .fold(budget, usize::min)
+}
+
+fn one_byte_table(block: &Block) -> Option<&[BlockId]> {
+    match terminator_kind(block) {
+        Some(TerminatorKind::IndexedJump(targets)) if targets.len() <= 32 => Some(targets),
+        _ => None,
+    }
 }
 
 fn block_reference_counts(
@@ -360,134 +321,145 @@ fn block_reference_counts(
     }
 }
 
-pub(super) fn estimated_block_size(
-    target: Target,
+/// Estimates block sizes for layout decisions with a runtime cost model.
+#[derive(Clone, Copy)]
+pub(super) struct SizeEstimator {
+    pub(super) target: Target,
     packing: TablePacking,
-    block: &Block,
-    next: Option<BlockId>,
-    addressed: bool,
     code_follows: bool,
-) -> usize {
-    estimated_block_size_up_to(target, packing, block, next, addressed, code_follows, usize::MAX)
 }
 
-/// Returns [`estimated_block_size`] when it is at most `limit`, and otherwise some larger size.
-fn estimated_block_size_up_to(
-    target: Target,
-    packing: TablePacking,
-    block: &Block,
-    next: Option<BlockId>,
-    addressed: bool,
-    code_follows: bool,
-    limit: usize,
-) -> usize {
-    let mut size = usize::from(addressed)
-        + block.terminator.as_ref().map_or(0, |term| {
-            estimated_terminator_size(target, packing, &term.kind, next, code_follows)
-        });
-    for inst in &block.instructions {
-        if size > limit {
-            break;
+impl SizeEstimator {
+    pub(super) fn new(gcx: Gcx<'_>, module: &Module) -> Self {
+        Self {
+            target: module.runtime_target(gcx),
+            packing: TablePacking::new(gcx, module.optimization),
+            code_follows: module.code_follows,
         }
-        size += estimated_instruction_size(target, inst);
     }
-    size
-}
 
-fn estimated_instruction_size(target: Target, inst: &Instruction) -> usize {
-    if let Some(size) = inst.immutable_type_size() {
-        target.opcode(op::push(size.bytes())).bytes as usize
-    } else if inst.is_encoded_push() {
-        match &inst.value {
-            Some(PushValue::Immediate(value)) => target.push(*value).bytes as usize,
-            Some(PushValue::Library(_)) => target.opcode(op::PUSH20).bytes as usize,
-            Some(PushValue::Block(_)) => target.label_push().bytes as usize,
-            // Data follows the code, so assume its offsets need a third byte.
-            Some(PushValue::Data(_)) => target.opcode(op::PUSH3).bytes as usize,
-            Some(PushValue::DataSize(size)) => target.push(size.bound()).bytes as usize,
-            _ => 1,
-        }
-    } else if let Some(stack_op) = inst.as_stack_op() {
-        stack_op
-            .assembled_len(target.evm_version())
-            .expect("block layout only runs on target-compatible stack operations")
-    } else {
-        1
-    }
-}
-
-fn estimated_terminator_size(
-    target: Target,
-    packing: TablePacking,
-    kind: &TerminatorKind,
-    next: Option<BlockId>,
-    code_follows: bool,
-) -> usize {
-    let model = target;
-    let jump = (model.label_push() + model.opcode(op::JUMP)).bytes as usize;
-    let branch = (model.label_push() + model.opcode(op::JUMPI)).bytes as usize;
-    match kind {
-        TerminatorKind::Jump(destination) => usize::from(Some(*destination) != next) * jump,
-        TerminatorKind::Op(op::STOP) => usize::from(next.is_some() || code_follows),
-        TerminatorKind::JumpI { then_block, else_block } => {
-            if Some(*else_block) == next {
-                branch
-            } else if Some(*then_block) == next {
-                model.opcode(op::ISZERO).bytes as usize + branch
-            } else {
-                branch + jump
+    /// Returns the estimated size of `block` when it is at most `limit`, and otherwise some
+    /// larger size.
+    pub(super) fn block(
+        self,
+        block: &Block,
+        next: Option<BlockId>,
+        addressed: bool,
+        limit: usize,
+    ) -> usize {
+        let mut size = usize::from(addressed)
+            + terminator_kind(block).map_or(0, |kind| self.terminator(kind, next));
+        for inst in &block.instructions {
+            if size > limit {
+                break;
             }
+            size += self.instruction(inst);
         }
-        TerminatorKind::IndexedJump(targets) => {
-            // This pass does not know whether the module is runtime or initcode,
-            // so use the larger bound. Final assembly resolves the exact width.
-            let target_width = indexed_jump_target_width_bound(target.evm_version(), true);
-            estimated_indexed_jump_terminator_size(
-                targets.len(),
-                target_width as u8,
-                target.evm_version(),
-                packing,
-            )
-        }
-        TerminatorKind::Op(opcode) => model.opcode(*opcode).bytes as usize,
+        size
     }
+
+    fn instruction(self, inst: &Instruction) -> usize {
+        let target = self.target;
+        if let Some(size) = inst.immutable_type_size() {
+            target.opcode(op::push(size.bytes())).bytes as usize
+        } else if inst.is_encoded_push() {
+            match &inst.value {
+                Some(PushValue::Immediate(value)) => target.push(*value).bytes as usize,
+                Some(PushValue::Library(_)) => target.opcode(op::PUSH20).bytes as usize,
+                Some(PushValue::Block(_)) => target.label_push().bytes as usize,
+                // Data follows the code, so assume its offsets need a third byte.
+                Some(PushValue::Data(_)) => target.opcode(op::PUSH3).bytes as usize,
+                Some(PushValue::DataSize(size)) => target.push(size.bound()).bytes as usize,
+                _ => 1,
+            }
+        } else if let Some(stack_op) = inst.as_stack_op() {
+            stack_op
+                .assembled_len(target.evm_version())
+                .expect("block layout only runs on target-compatible stack operations")
+        } else {
+            1
+        }
+    }
+
+    fn terminator(self, kind: &TerminatorKind, next: Option<BlockId>) -> usize {
+        let target = self.target;
+        let transfer = |opcode| (target.label_push() + target.opcode(opcode)).bytes as usize;
+        let (jump, branch) = (transfer(op::JUMP), transfer(op::JUMPI));
+        match kind {
+            TerminatorKind::Jump(destination) => usize::from(Some(*destination) != next) * jump,
+            TerminatorKind::Op(op::STOP) => usize::from(next.is_some() || self.code_follows),
+            TerminatorKind::JumpI { then_block, else_block } => {
+                if Some(*else_block) == next {
+                    branch
+                } else if Some(*then_block) == next {
+                    target.opcode(op::ISZERO).bytes as usize + branch
+                } else {
+                    branch + jump
+                }
+            }
+            TerminatorKind::IndexedJump(targets) => self.indexed_jump(targets.len(), false),
+            TerminatorKind::Op(opcode) => target.opcode(*opcode).bytes as usize,
+        }
+    }
+
+    /// The size of a table of `targets` entries, with one-byte entries or, as this pass does not
+    /// know whether the module is runtime or initcode, the larger bound. Final assembly resolves
+    /// the exact width.
+    fn indexed_jump(self, targets: usize, one_byte: bool) -> usize {
+        let evm_version = self.target.evm_version();
+        let width = if one_byte { 1 } else { indexed_jump_target_width_bound(evm_version, true) };
+        estimated_indexed_jump_terminator_size(targets, width as u8, evm_version, self.packing)
+    }
+}
+
+pub(super) fn terminator_kind(block: &Block) -> Option<&TerminatorKind> {
+    block.terminator.as_ref().map(|term| &term.kind)
+}
+
+/// The target of a block ending in an unconditional jump.
+pub(super) fn jump_target(block: &Block) -> Option<BlockId> {
+    match terminator_kind(block) {
+        Some(&TerminatorKind::Jump(target)) => Some(target),
+        _ => None,
+    }
+}
+
+/// Visits the block's terminator targets and the targets of its physical `PUSH target; JUMPI`
+/// pairs.
+pub(super) fn visit_successors(block: &Block, mut visit: impl FnMut(BlockId)) {
+    if let Some(kind) = terminator_kind(block) {
+        kind.visit_targets(&mut visit);
+    }
+    jumpi_targets(block).for_each(visit);
+}
+
+/// Whether the end of the block is a legal place to split it from its successor.
+pub(super) fn ends_at_split_point(block: &Block) -> bool {
+    is_split_point(&block.instructions, block.instructions.len())
+}
+
+/// The targets of the block's physical `PUSH target; JUMPI` pairs, in instruction order.
+pub(super) fn jumpi_targets(block: &Block) -> impl Iterator<Item = BlockId> + '_ {
+    block
+        .instructions
+        .windows(2)
+        .filter(|pair| pair[1].as_evm_opcode() == Some(op::JUMPI))
+        .filter_map(|pair| pair[0].pushed_block())
 }
 
 fn is_terminal_block(block: &Block) -> bool {
-    block.terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
+    terminator_kind(block).is_some_and(is_terminal_boundary)
 }
 
 pub(super) fn is_physical_terminal_boundary(block: &Block, next: Option<BlockId>) -> bool {
-    block.terminator.as_ref().is_some_and(|term| {
-        is_terminal_boundary(&term.kind)
-            || matches!(term.kind, TerminatorKind::Jump(target) if Some(target) != next)
+    terminator_kind(block).is_some_and(|kind| {
+        is_terminal_boundary(kind)
+            || matches!(kind, TerminatorKind::Jump(target) if Some(*target) != next)
     })
 }
 
-fn append_layout_trace(
-    module: &Module,
-    mut block: BlockId,
-    preferred: &FxHashMap<BlockId, BlockId>,
-    placed: &mut DenseBitSet<BlockId>,
-    order: &mut Vec<BlockId>,
-) {
-    while block.index() < module.blocks.len() && placed.insert(block) {
-        order.push(block);
-        let Some(target) = layout_successor(module, block) else { return };
-        if preferred.get(&target).is_some_and(|&pred| pred != block && !placed.contains(pred))
-            && is_split_point(
-                &module.blocks[block].instructions,
-                module.blocks[block].instructions.len(),
-            )
-        {
-            return;
-        }
-        block = target;
-    }
-}
-
 pub(super) fn layout_successor(module: &Module, block: BlockId) -> Option<BlockId> {
-    match &module.blocks[block].terminator.as_ref()?.kind {
+    match terminator_kind(&module.blocks[block])? {
         TerminatorKind::Jump(target) => Some(*target),
         TerminatorKind::JumpI { then_block, else_block }
             if !module.blocks[block].metadata.in_loop
@@ -501,28 +473,25 @@ pub(super) fn layout_successor(module: &Module, block: BlockId) -> Option<BlockI
 }
 
 pub(super) fn triangle_arm(module: &Module, arm: BlockId, join: BlockId) -> bool {
+    let block = &module.blocks[arm];
     arm != join
-        && module.blocks.get(arm).is_some_and(|block| {
-            !block.metadata.hotness.is_cold()
-                && !block.metadata.in_loop
-                && matches!(block.terminator.as_ref().map(|term| &term.kind),
-                    Some(TerminatorKind::Jump(target)) if *target == join)
-        })
+        && !block.metadata.hotness.is_cold()
+        && !block.metadata.in_loop
+        && jump_target(block) == Some(join)
 }
 
 fn is_cold_terminal_block(block: &Block) -> bool {
-    block.metadata.hotness.is_cold()
-        && block.terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
+    block.metadata.hotness.is_cold() && is_terminal_block(block)
 }
 
-/// Selects a shared return tail's unique highest-weight predecessor. Changing which jump falls
-/// through keeps the number of jumps unchanged; price their estimated executions with the target.
+/// Selects each shared return tail's unique highest-weight predecessor, once with call sites
+/// capped at one reference and once counting all references. Changing which jump falls through
+/// keeps the number of jumps unchanged; price their estimated executions with the target.
 fn shared_return_predecessors(
     module: &Module,
     target: &Target,
-    cap_call_sites: bool,
-) -> FxHashMap<BlockId, BlockId> {
-    let mut incoming = IndexVec::from_vec(vec![0usize; module.blocks.len()]);
+) -> [FxHashMap<BlockId, BlockId>; 2] {
+    let mut incoming = index_vec![0usize; module.blocks.len()];
     let mut call_sites = DenseBitSet::new_empty(module.blocks.len());
     for (id, block) in module.blocks.iter_enumerated() {
         for inst in &block.instructions {
@@ -538,38 +507,36 @@ fn shared_return_predecessors(
         }
     }
     let jump_gas = target.runtime_gas(target.jump()) as usize;
-    let mut candidates = FxHashMap::<BlockId, (BlockId, usize, bool)>::default();
+    let mut candidates = <[FxHashMap<_, (BlockId, usize, bool)>; 2]>::default();
     for (block, data) in module.blocks.iter_enumerated() {
-        let Some(TerminatorKind::Jump(tail)) = data.terminator.as_ref().map(|term| &term.kind)
-        else {
-            continue;
-        };
-        if !matches!(
-            module.blocks[*tail].terminator.as_ref().map(|term| &term.kind),
-            Some(TerminatorKind::Op(op::JUMP))
-        ) {
-            continue;
+        if let Some(tail) = jump_target(data)
+            && matches!(terminator_kind(&module.blocks[tail]), Some(TerminatorKind::Op(op::JUMP)))
+        {
+            for (candidates, cap_call_sites) in candidates.iter_mut().zip([true, false]) {
+                let references =
+                    if cap_call_sites && call_sites.contains(block) { 1 } else { incoming[block] };
+                let weight = references.saturating_mul(jump_gas);
+                candidates
+                    .entry(tail)
+                    .and_modify(|best| {
+                        if weight > best.1 {
+                            *best = (block, weight, true);
+                        } else if weight == best.1 {
+                            best.2 = false;
+                        }
+                    })
+                    .or_insert((block, weight, true));
+            }
         }
-        let references =
-            if cap_call_sites && call_sites.contains(block) { 1 } else { incoming[block] };
-        let weight = references.saturating_mul(jump_gas);
-        candidates
-            .entry(*tail)
-            .and_modify(|best| {
-                if weight > best.1 {
-                    *best = (block, weight, true);
-                } else if weight == best.1 {
-                    best.2 = false;
-                }
-            })
-            .or_insert((block, weight, true));
     }
-    candidates
-        .into_iter()
-        .filter_map(|(tail, (block, weight, unique))| {
-            (unique && weight > jump_gas).then_some((tail, block))
-        })
-        .collect()
+    candidates.map(|candidates| {
+        candidates
+            .into_iter()
+            .filter_map(|(tail, (block, weight, unique))| {
+                (unique && weight > jump_gas).then_some((tail, block))
+            })
+            .collect()
+    })
 }
 
 /// Prices an order with the same label-width fixed point as ordinary assembly. The bounded search
@@ -580,7 +547,7 @@ fn encoded_layout_size(module: &Module, order: &[BlockId], target: &Target) -> O
     if !module.data.is_empty() {
         return None;
     }
-    let mut fixed = IndexVec::from_vec(vec![0usize; module.blocks.len()]);
+    let mut fixed = index_vec![0usize; module.blocks.len()];
     let mut labels = Vec::new();
     for (position, &block_id) in order.iter().enumerate() {
         let block = &module.blocks[block_id];
@@ -637,9 +604,8 @@ fn encoded_layout_size(module: &Module, order: &[BlockId], target: &Target) -> O
             fixed[label] += target.opcode(op::JUMPDEST).bytes as usize;
         }
     }
-    let mut widths =
-        IndexVec::from_vec(vec![target.encoded_push(U256::ZERO).bytes; module.blocks.len()]);
-    let mut sizes = fixed.clone();
+    let mut widths = index_vec![target.encoded_push(U256::ZERO).bytes; module.blocks.len()];
+    let mut sizes = IndexVec::new();
     // Most contracts converge in two or three rounds. Stop before pricing becomes an unbounded
     // compile-time cost on chains of labels just below a PUSH-width boundary.
     for _ in 0..16 {
