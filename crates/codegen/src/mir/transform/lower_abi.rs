@@ -686,8 +686,8 @@ impl LowerAbiCx {
             }
         }
 
+        let mut replacements = FxHashMap::default();
         for func_id in decode_functions.iter() {
-            let mut replacements = FxHashMap::default();
             let mut builder = self.builder(module.function_mut(func_id));
             let blocks = builder.func().blocks.indices();
             for block in blocks {
@@ -751,6 +751,7 @@ impl LowerAbiCx {
                 });
             }
             builder.func_mut().replace_uses_canonicalized(&replacements);
+            replacements.clear();
         }
     }
 
@@ -3004,6 +3005,7 @@ fn is_canonical_return_function(
         calls.visiting.remove(&key);
         return true;
     }
+    let mut value_visiting = FxHashSet::default();
     let result = func.return_components() == [ty.mir_type()]
         && func
             .blocks
@@ -3011,7 +3013,7 @@ fn is_canonical_return_function(
             .any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
         && func.blocks.iter().all(|block| {
             let Some(Terminator::Return { values }) = &block.terminator else { return true };
-            let mut value_visiting = FxHashSet::default();
+            value_visiting.clear();
             values.len() == 1
                 && is_canonical_return_value_inner(
                     func,
