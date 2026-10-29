@@ -433,7 +433,7 @@ fn simplify_degenerate_terminators(func: &mut Function) -> bool {
                     Terminator::Jump(*then_block)
                 }
                 Terminator::Switch { value, default, cases }
-                    if cases.last().is_some_and(|(_, target)| target == default) =>
+                    if cases.last().is_none_or(|(_, target)| target == default) =>
                 {
                     let len = cases
                         .iter()
@@ -917,10 +917,10 @@ pub(super) fn end_nonreturning_calls(module: &mut Module, tail_calls: bool) -> b
                 func.blocks[block_id].instructions.truncate(position);
                 replace_terminator(func, block_id, terminator);
                 func.blocks[block_id].terminator_metadata = metadata;
-            } else if !end_block_after(func, block_id, position) {
-                continue;
+                function_changed = true;
+            } else {
+                function_changed |= end_block_after(func, block_id, position);
             }
-            function_changed = true;
         }
         if function_changed {
             let _ = remove_unreachable_blocks(func);

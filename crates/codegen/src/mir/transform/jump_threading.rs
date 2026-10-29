@@ -101,17 +101,13 @@ fn forwarder_final_targets(func: &Function) -> IndexVec<BlockId, Option<BlockId>
         .blocks
         .iter_enumerated()
         .map(|(block_id, block)| {
-            if block.predecessors.is_empty() {
-                None
-            } else {
-                empty_forwarder_target(func, block_id)
-            }
+            empty_forwarder_target(func, block_id).filter(|_| !block.predecessors.is_empty())
         })
         .collect::<IndexVec<_, _>>();
     let mut visited = DenseBitSet::new_empty(func.blocks.len());
-    next.iter_enumerated()
-        .map(|(start, &first)| {
-            first?;
+    next.indices()
+        .map(|start| {
+            next[start]?;
             visited.clear();
             let mut current = start;
             while let Some(target) = next[current] {

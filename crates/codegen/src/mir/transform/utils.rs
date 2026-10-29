@@ -146,6 +146,7 @@ pub(super) fn redirect_edge(
     if !terminator.has_successor(old) {
         return false;
     }
+    // pred: jump/branch/switch old -> new
     terminator.for_each_successor_mut(|target| {
         if *target == old {
             *target = new;
