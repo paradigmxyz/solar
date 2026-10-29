@@ -94,8 +94,7 @@ struct Cse {
 impl Cse {
     /// Rebuilds `instructions` and returns whether the rebuild removed or regenerated any.
     fn regenerate(&mut self, instructions: &mut Vec<Instruction>) -> bool {
-        let track_memory = has_repeated_const_memory_addr(instructions);
-        if !may_regenerate(instructions, self.evm_version, track_memory) {
+        if !may_regenerate(instructions, self.evm_version) {
             return false;
         }
         self.stack.clear();
@@ -339,13 +338,11 @@ impl Cse {
 /// the target's `DUP` reach. This lightweight symbolic execution avoids rebuilding blocks that
 /// merely repeat opcodes with different operands, which is common in already-optimized EVM IR.
 ///
-/// With `track_memory`, it also follows the known constant-address stores and reports the first
-/// store or load that the rebuild could forward. Until then, the rebuild sees the same state.
-fn may_regenerate(
-    instructions: &[Instruction],
-    evm_version: EvmVersion,
-    track_memory: bool,
-) -> bool {
+/// When a block addresses one constant memory word more than once, it also follows the known
+/// constant-address stores and reports the first store or load that the rebuild could forward.
+/// Until then, the rebuild sees the same state.
+fn may_regenerate(instructions: &[Instruction], evm_version: EvmVersion) -> bool {
+    let track_memory = has_repeated_const_memory_addr(instructions);
     if !track_memory && !has_repeated_candidate_opcode(instructions, evm_version) {
         return false;
     }
@@ -382,24 +379,24 @@ fn may_regenerate(
         let opcode = inst.opcode;
         if let Some(stack_op) = inst.as_stack_op() {
             match stack_op {
-                op::StackOp::Dup(depth) => {
+                StackOp::Dup(depth) => {
                     let depth = usize::from(depth);
                     ensure_hash_depth(&mut stack, depth, &mut next_fresh);
                     let value = stack[stack.len() - depth];
                     stack.push(FingerprintValue { span: None, ..value });
                 }
-                op::StackOp::Swap(depth) => {
+                StackOp::Swap(depth) => {
                     let depth = usize::from(depth);
                     ensure_hash_depth(&mut stack, depth + 1, &mut next_fresh);
                     let top = stack.len() - 1;
                     stack.swap(top, top - depth);
                 }
-                op::StackOp::Exchange(n, m) => {
+                StackOp::Exchange(n, m) => {
                     ensure_hash_depth(&mut stack, usize::from(m) + 1, &mut next_fresh);
                     let top = stack.len() - 1;
                     stack.swap(top - usize::from(n), top - usize::from(m));
                 }
-                op::StackOp::Pop => {
+                StackOp::Pop => {
                     ensure_hash_depth(&mut stack, 1, &mut next_fresh);
                     stack.pop();
                 }
@@ -414,18 +411,17 @@ fn may_regenerate(
                     let address = stack[stack.len() - 1].address;
                     let value = stack[stack.len() - 2].expr;
                     match address {
-                        Some(address) if opcode == op::MSTORE => {
-                            if known_stores.contains(&(address, value)) {
+                        Some(address) => {
+                            if opcode == op::MSTORE && known_stores.contains(&(address, value)) {
                                 return true;
                             }
                             known_stores.retain(|&mut (slot, _)| {
                                 slot.abs_diff(address) >= op::WORD_BYTES as u64
                             });
-                            known_stores.push((address, value));
+                            if opcode == op::MSTORE {
+                                known_stores.push((address, value));
+                            }
                         }
-                        Some(address) => known_stores.retain(|&mut (slot, _)| {
-                            slot.abs_diff(address) >= op::WORD_BYTES as u64
-                        }),
                         None => known_stores.clear(),
                     }
                 }
@@ -444,10 +440,7 @@ fn may_regenerate(
 
         if let Some((inputs, read_epoch)) = expression_inputs(opcode, memory_epoch, storage_epoch) {
             ensure_hash_depth(&mut stack, inputs, &mut next_fresh);
-            let mut operands = SmallVec::<[FingerprintValue; 3]>::new();
-            for _ in 0..inputs {
-                operands.push(stack.pop().expect("stack depth was extended"));
-            }
+            let operands = stack.drain(stack.len() - inputs..).collect::<SmallVec<[_; 3]>>();
             let mut operand_exprs =
                 operands.iter().map(|value| value.expr).collect::<SmallVec<[u64; 3]>>();
             if op::is_commutative(opcode) {

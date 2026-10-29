@@ -68,10 +68,7 @@ fn cleanup_dead_stack_tails(module: &mut Module) -> bool {
 }
 
 fn block_ignores_entry_stack(block: &Block) -> bool {
-    let Some(Terminator { kind, implicit_stop: false, .. }) = &block.terminator else {
-        return false;
-    };
-    let Some((inputs, _)) = halting_stack_io(kind) else { return false };
+    let Some(operands) = block.terminator.as_ref().and_then(halting_inputs) else { return false };
     let mut depth = 0usize;
     for inst in &block.instructions {
         if inst.as_evm_opcode().is_some_and(is_analysis_boundary) {
@@ -84,18 +81,14 @@ fn block_ignores_entry_stack(block: &Block) -> bool {
         }
         depth = depth - inputs + outputs;
     }
-    depth >= usize::from(inputs)
+    depth >= operands
 }
 
 fn halting_terminal_tail_range(
     instructions: &[Instruction],
     terminator: &Terminator,
 ) -> Option<std::ops::Range<usize>> {
-    if terminator.implicit_stop {
-        return None;
-    }
-    let (inputs, _) = halting_stack_io(&terminator.kind)?;
-    let operands = instructions.len().checked_sub(usize::from(inputs))?;
+    let operands = instructions.len().checked_sub(halting_inputs(terminator)?)?;
     if !instructions[operands..].iter().all(Instruction::is_encoded_push) {
         return None;
     }
@@ -103,10 +96,13 @@ fn halting_terminal_tail_range(
     Some(start..operands)
 }
 
-/// The stack effect of a terminal opcode that halts, which every one but a computed `JUMP` does.
-fn halting_stack_io(kind: &TerminatorKind) -> Option<(u8, u8)> {
-    let TerminatorKind::Op(opcode) = *kind else { return None };
-    (opcode != op::JUMP).then(|| op::stack_io(opcode)).flatten()
+/// The operand count of a halting terminal opcode, which every one but a computed `JUMP` is.
+fn halting_inputs(terminator: &Terminator) -> Option<usize> {
+    let TerminatorKind::Op(opcode) = terminator.kind else { return None };
+    if terminator.implicit_stop || opcode == op::JUMP {
+        return None;
+    }
+    op::stack_io(opcode).map(|(inputs, _)| usize::from(inputs))
 }
 
 fn discardable_tail_start(instructions: &[Instruction]) -> Option<usize> {
@@ -155,12 +151,11 @@ fn eliminate_in_block(
         while start < last_pop {
             if let Some(StackOp::Dup(depth)) = instructions[start].as_stack_op()
                 && StackOp::Dup(depth).assembled_len(evm_version).is_some()
-                && let Some(candidate) = better_candidate(
-                    (depth == 1)
-                        .then(|| find_candidate(walked, start, depth, Ghost::Original, evm_version))
-                        .flatten(),
-                    find_candidate(walked, start, depth, Ghost::Duplicate, evm_version),
-                )
+                // The last maximum wins a tie, so the original value is the preferred ghost.
+                && let Some(candidate) = [Ghost::Duplicate, Ghost::Original]
+                    .into_iter()
+                    .filter_map(|ghost| find_candidate(walked, start, depth, ghost, evm_version))
+                    .max_by_key(|candidate| (candidate.gas_saved, candidate.size_saved))
             {
                 start = candidate.end;
                 edits.extend(candidate.edits);
@@ -177,7 +172,7 @@ fn eliminate_in_block(
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 enum Ghost {
     /// Omit the value produced by the candidate `DUPn`.
     Duplicate,
@@ -263,6 +258,9 @@ fn find_candidate(
     ghost: Ghost,
     evm_version: EvmVersion,
 ) -> Option<Candidate> {
+    if ghost == Ghost::Original && duplicate_depth != 1 {
+        return None;
+    }
     let max_stack_access = evm_version.reachable_stack_depth();
     let mut slots = Slots::from_elem(Slot::OTHER, usize::from(duplicate_depth));
     slots[0] = Slot::COPY;
@@ -341,17 +339,9 @@ fn physical_depth(slots: &[Slot], selected: usize) -> usize {
 }
 
 fn nearest_alias_depth(slots: &[Slot], max_stack_access: usize) -> Option<usize> {
-    let mut depth = 0;
-    for slot in slots.iter().rev() {
-        if slot.is_ghost {
-            continue;
-        }
-        depth += 1;
-        if slot.aliases_copy {
-            return (depth <= max_stack_access).then_some(depth);
-        }
-    }
-    None
+    let depth =
+        slots.iter().rev().filter(|slot| !slot.is_ghost).position(|slot| slot.aliases_copy)? + 1;
+    (depth <= max_stack_access).then_some(depth)
 }
 
 fn retarget_swap(
@@ -391,14 +381,6 @@ fn push_swap(ops: &mut Replacement, depth: usize) {
     } else {
         ops.push(swap);
     }
-}
-
-fn better_candidate(left: Option<Candidate>, right: Option<Candidate>) -> Option<Candidate> {
-    let score = |candidate: &Candidate| (candidate.gas_saved, candidate.size_saved);
-    [left, right]
-        .into_iter()
-        .flatten()
-        .reduce(|left, right| if score(&right) > score(&left) { right } else { left })
 }
 
 fn apply_edits(instructions: &mut Vec<Instruction>, edits: &[Edit]) {
