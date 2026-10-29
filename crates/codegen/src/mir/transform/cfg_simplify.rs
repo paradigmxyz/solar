@@ -628,28 +628,32 @@ fn fold_target_phis_for_merge(
 }
 
 /// Eliminates empty blocks that only contain an unconditional jump.
-///
-/// One forward sweep; a block it exposes behind the sweep is left to the next round of
-/// [`run_to_fixpoint`].
 fn eliminate_empty_blocks(func: &mut Function) -> bool {
     // Only a forwarder consults the CFG. Eliminating one contracts it into its target, which
     // changes neither reachability nor dominance among the other blocks, so one snapshot
-    // answers every block; the eliminated block is never a forwarder again.
+    // answers every round; the eliminated block is never a forwarder again.
     let snapshot = OnceCell::new();
-    let cfg = |func: &Function| snapshot.get_or_init(|| CfgInfo::new(func));
     let mut changed = false;
-    for block_id in func.blocks.indices() {
-        if empty_forwarder_target(func, block_id).is_none()
-            || (func.blocks[block_id].predecessors.is_empty() && cfg(func).is_reachable(block_id))
-        {
-            continue;
-        }
+    let mut eliminated = true;
+    while eliminated {
+        eliminated = false;
 
-        if !is_loop_preheader_forwarder(func, block_id, cfg(func))
-            && forwarder_elimination_preserves_phis(func, block_id)
-        {
-            eliminate_forwarder(func, block_id);
-            changed = true;
+        let cfg = || snapshot.get_or_init(|| CfgInfo::new(func));
+        for block_id in func.blocks.indices() {
+            if empty_forwarder_target(func, block_id).is_none()
+                || (func.blocks[block_id].predecessors.is_empty() && cfg().is_reachable(block_id))
+            {
+                continue;
+            }
+
+            if !is_loop_preheader_forwarder(func, block_id, cfg())
+                && forwarder_elimination_preserves_phis(func, block_id)
+            {
+                eliminate_forwarder(func, block_id);
+                eliminated = true;
+                changed = true;
+                break;
+            }
         }
     }
     changed
