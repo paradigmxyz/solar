@@ -116,6 +116,7 @@ use solar_sema::Gcx;
 use std::{
     collections::{BinaryHeap, hash_map::Entry},
     hash::{BuildHasher, Hash, Hasher},
+    ops::Range,
 };
 
 /// Words the search may grow the stack by above the run's entry and exit heights.
@@ -197,6 +198,7 @@ impl EvmPass for StackReschedule {
             }
         }
         let mut buffers = Buffers::default();
+        let mut placed = DenseBitSet::new_empty(0);
         let shared = &gcx.codegen_state::<CodegenState>().schedules;
         let mut changed = false;
         for block in &mut module.blocks {
@@ -209,8 +211,14 @@ impl EvmPass for StackReschedule {
             } else {
                 BLOCK_BUDGET
             };
-            let mut rescheduler =
-                Rescheduler { target, budget, halts: &halts, buffers: &mut buffers, shared };
+            let mut rescheduler = Rescheduler {
+                target,
+                budget,
+                halts: &halts,
+                buffers: &mut buffers,
+                placed: &mut placed,
+                shared,
+            };
             changed |= rescheduler.reschedule_block(&mut block.instructions);
         }
         changed
@@ -338,22 +346,22 @@ struct Rescheduler<'a> {
     budget: Budget,
     halts: &'a DenseBitSet<BlockId>,
     buffers: &'a mut Buffers,
+    /// The positions of a run that `emit` has placed, reused across runs.
+    placed: &'a mut DenseBitSet<usize>,
     shared: &'a SharedSchedules,
 }
 
 impl Rescheduler<'_> {
     fn reschedule_block(&mut self, instructions: &mut Vec<Instruction>) -> bool {
-        let mut replacements = Vec::new();
-        let mut operations_before = Vec::new();
         let mut start = 0;
         while start < instructions.len() {
             // A run continues through checks that branch to a block aborting without the stack.
             let mut end = start;
-            let mut cuts = SmallVec::<[usize; 8]>::new();
+            self.buffers.cuts.clear();
             loop {
                 if is_branch_pair(instructions, end, self.halts) {
                     end += 2;
-                    cuts.push(end);
+                    self.buffers.cuts.push(end);
                 } else if end < instructions.len()
                     && schedulable(&instructions[end])
                     && is_split_point(instructions, end)
@@ -368,9 +376,10 @@ impl Rescheduler<'_> {
                 start += 1;
                 continue;
             }
-            cuts.push(end);
+            self.buffers.cuts.push(end);
             // Search windows of at most the budget's operations, cut after the checks.
             let mut count = 0;
+            let operations_before = &mut self.buffers.operations_before;
             operations_before.clear();
             operations_before.push(0);
             operations_before.extend(instructions[start..end].iter().map(|inst| {
@@ -378,16 +387,18 @@ impl Rescheduler<'_> {
                 count
             }));
             // A run with too few operations has no schedule, nor does any window of it.
-            if operations_before[end - start] < self.budget.min_operations {
+            if self.buffers.operations_before[end - start] < self.budget.min_operations {
                 start = end;
                 continue;
             }
-            let operations = |from: usize, to: usize| {
-                operations_before[to - start] - operations_before[from - start]
-            };
             let mut window_start = start;
             while window_start < end {
                 // The last cut that fits, or the first one when none does.
+                let operations = |from: usize, to: usize| {
+                    let before = &self.buffers.operations_before;
+                    before[to - start] - before[from - start]
+                };
+                let cuts = &self.buffers.cuts;
                 let later = cuts.partition_point(|&cut| cut <= window_start);
                 let fitting = cuts[later..].partition_point(|&cut| {
                     operations(window_start, cut) <= self.budget.operations
@@ -396,18 +407,29 @@ impl Rescheduler<'_> {
                 if let Some(replacement) =
                     self.best_schedule(&instructions[window_start..window_end])
                 {
-                    replacements.push((window_start..window_end, replacement));
+                    self.buffers.replacements.push((window_start..window_end, replacement));
                 }
                 window_start = window_end;
             }
             start = end;
         }
-        let changed = !replacements.is_empty();
-        // prefix; window; suffix -> prefix; schedule; suffix
-        for (window, replacement) in replacements.into_iter().rev() {
-            instructions.splice(window, replacement);
+        let Buffers { replacements, rebuilt, .. } = &mut *self.buffers;
+        if replacements.is_empty() {
+            return false;
         }
-        changed
+        // prefix; window; suffix -> prefix; schedule; suffix
+        rebuilt.clear();
+        let mut old = instructions.drain(..);
+        let mut cursor = 0;
+        for (window, replacement) in replacements.drain(..) {
+            rebuilt.extend(old.by_ref().take(window.start - cursor));
+            old.by_ref().take(window.len()).for_each(drop);
+            rebuilt.extend(replacement);
+            cursor = window.end;
+        }
+        rebuilt.extend(old);
+        std::mem::swap(instructions, rebuilt);
+        true
     }
 
     /// The cheaper of the schedule that spans a window's checks and the one that splits at them,
@@ -443,7 +465,7 @@ impl Rescheduler<'_> {
         }
         let summary = summarize(run, self.target, self.budget, self.halts)?;
         let moves = search(&summary, self.target, self.budget, self.buffers, self.shared)?;
-        emit(run, &summary, &moves)
+        emit(run, &summary, &moves, self.placed)
     }
 
     /// Schedules the runs between a window's checks and gas-dependent accesses separately, keeping
@@ -558,6 +580,14 @@ struct Buffers {
     open: Queue,
     /// Remaining-operation facts, independent of stack order, keyed by performed operations.
     pending: FxHashMap<u16, Pending>,
+    /// Start of each cut of the run being windowed: after its checks, and at its end.
+    cuts: Vec<usize>,
+    /// Operations before each instruction of that run.
+    operations_before: Vec<usize>,
+    /// The windows of the block to replace, with their schedules.
+    replacements: Vec<(Range<usize>, Vec<Instruction>)>,
+    /// The block's instructions with the windows replaced.
+    rebuilt: Vec<Instruction>,
     /// Dense operand words in pop order, reused across searches.
     operands: Vec<SmallVec<[usize; 3]>>,
 }
@@ -829,7 +859,7 @@ fn search(
     if word_count > 64 || height > MAX_HEIGHT {
         return None;
     }
-    let Buffers { arena, best, open, pending, operands } = buffers;
+    let Buffers { arena, best, open, pending, operands, .. } = buffers;
     let all_done = ((1u32 << operation_count) - 1) as u16;
     operands.clear();
     operands.extend(run.operations.iter().map(|operation| {
@@ -1225,12 +1255,17 @@ fn search(
 }
 
 /// Builds the instructions of a schedule, after replaying it against the run's summary.
-fn emit(run: &[Instruction], summary: &Run, moves: &[Move]) -> Option<Vec<Instruction>> {
+fn emit(
+    run: &[Instruction],
+    summary: &Run,
+    moves: &[Move],
+    placed: &mut DenseBitSet<usize>,
+) -> Option<Vec<Instruction>> {
     let mut stack: SmallVec<[Word; 24]> =
         (0..summary.entry).map(|depth| Word::Entry(depth as u8)).collect();
     let mut performed = 0u32;
     let mut instructions = Vec::with_capacity(moves.len());
-    let mut placed = DenseBitSet::<usize>::new_empty(run.len());
+    placed.clear_to(run.len());
     for &step in moves {
         match step {
             // operands -> op, or swapped operands -> swapped op
