@@ -55,7 +55,10 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     v56 = lt v55, v53
     jumpi v56, bb8, bb9
   bb9:
+    v58 = and v55, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v73 = mload 64 !metadata(alloc_ptr)
+    v74 = add v73, v58 !metadata(alloc_ptr)
+    mstore 64, v74
     mstore v73, v53
     v20 = add v73, 128
     v21 = mload v20

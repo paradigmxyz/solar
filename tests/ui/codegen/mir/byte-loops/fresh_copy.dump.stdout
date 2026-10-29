@@ -388,11 +388,6 @@ fn @overlapRest() [selector=0x4dafe7dc, abi_wrapper, pure] {
     v1 = add v9, arg2
     mstore 64, v1 !metadata(memory=scratch)
     v2 = icall @_rest, v9, arg1
-    v3 = mload 64 !metadata(memory=scratch)
-    v4 = heap_floor
-    v5 = lt v3, v4
-    v6 = select v5, v4, v3
-    mstore 64, v6 !metadata(memory=scratch)
     v13 = mload v2
     v24 = add v2, 32
     v15 = add v13, 31
@@ -417,11 +412,6 @@ fn @lengthWordCovered() [selector=0x06bd068d, abi_wrapper, pure] {
     v2 = add v1, 32
     mstore v2, 0x101010101010101010101010101010101010101010101010101010101010101
     v4 = icall @_count, v1, 32
-    v5 = mload 64 !metadata(memory=scratch)
-    v6 = heap_floor
-    v7 = lt v5, v6
-    v8 = select v7, v6, v5
-    mstore 64, v8 !metadata(memory=scratch)
     v12 = mload v4
     v23 = add v4, 32
     v14 = add v12, 31
@@ -628,14 +618,7 @@ fn @_count(arg0: i256, arg1: i256) -> i256 [may_return_memory, pure] {
     jumpi v1, bb8, bb9
   bb9:
     v3 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v77 = heap_floor !metadata(alloc_ptr)
-    v78 = add v77, v3 !metadata(alloc_ptr)
-    v79 = lt v78, v77
-    v80 = gt v78, 0xffffffffffffffff
-    v81 = or v79, v80
-    jumpi v81, bb16, bb15
-  bb15:
-    mstore 64, v78 !metadata(memory=scratch)
+    v77 = icall @alloc, v3
     mstore v77, arg1
     v30 = eq arg1, 0
     jumpi v30, bb2, bb4
@@ -643,7 +626,8 @@ fn @_count(arg0: i256, arg1: i256) -> i256 [may_return_memory, pure] {
     v60 = add arg0, 32
     v62 = add v77, 32
     v34 = add v60, arg1
-    v39 = lt arg0, v78
+    v64 = add v77, v3
+    v39 = lt arg0, v64
     v40 = lt v77, v34
     v41 = and v39, v40
     jumpi v41, bb6, bb5
@@ -656,8 +640,8 @@ fn @_count(arg0: i256, arg1: i256) -> i256 [may_return_memory, pure] {
     jump bb2
   bb6:
     v45 = sub v3, 32
-    v83 = calldatasize
-    calldatacopy v62, v83, v45
+    v78 = calldatasize
+    calldatacopy v62, v78, v45
     v52 = add v62, arg1
     v53 = lt v62, v34
     v54 = lt arg0, v52
@@ -700,10 +684,6 @@ fn @_count(arg0: i256, arg1: i256) -> i256 [may_return_memory, pure] {
     v29 = add v28, v26
     mstore v29, 0
     ret v77
-  bb16:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
   bb8:
     tail_call @revert_stub.10
 }

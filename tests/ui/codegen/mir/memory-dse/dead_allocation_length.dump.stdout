@@ -82,6 +82,7 @@ fn @relay() [selector=0x8f0d6f17, abi_wrapper] {
     v50 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v72 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v73 = add v72, v50 !metadata(alloc_ptr)
+    mstore 64, v73 !metadata(memory=scratch)
     mstore v72, v46
     v65 = add v72, 32
     v9 = call v1, v0, 0, v65, v46, 0, 0
