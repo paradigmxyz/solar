@@ -396,9 +396,7 @@ fn apply_edits(
     for (index, inst) in scratch.drain(..).enumerate() {
         if let Some(edit) = edits.next_if(|edit| edit.index == index) {
             instructions.extend(edit.replacement.iter().map(|&stack_op| {
-                let mut replacement = Instruction::stack_op(stack_op);
-                replacement.metadata.copy_source_debug_from(&inst.metadata);
-                replacement
+                Instruction::stack_op(stack_op).with_source_debug(&inst.metadata)
             }));
         } else {
             instructions.push(inst);

@@ -113,8 +113,8 @@ impl Cse {
         // Once gas is observed, every read of memory or storage is a new expression.
         if self.gas_observed {
             match opcode {
-                op::MLOAD | op::KECCAK256 => self.memory_epoch = self.memory_epoch.wrapping_add(1),
-                op::SLOAD | op::TLOAD => self.storage_epoch = self.storage_epoch.wrapping_add(1),
+                op::MLOAD | op::KECCAK256 => self.memory_epoch += 1,
+                op::SLOAD | op::TLOAD => self.storage_epoch += 1,
                 _ => {}
             }
         }
@@ -158,9 +158,8 @@ impl Cse {
             if let Some(start) = start
                 && let Some(depth) = self.reachable_depth(expr)
             {
-                // The removed interval contains at least one pure opcode (gas >= DUPn) plus
-                // another instruction. It is therefore strictly smaller and cannot cost more
-                // runtime gas than the DUPn.
+                // The removed interval holds at least two instructions, so it costs at least
+                // 4 gas and 2 bytes, and a `DUPn` costs at most 3 gas and 2 bytes.
                 self.out.truncate(start);
                 self.emit_dup(depth, expr, inst.metadata);
             } else {
@@ -173,11 +172,11 @@ impl Cse {
         let origin = self.out.len();
         self.out.push(inst);
         if op::writes_memory(opcode) {
-            self.memory_epoch = self.memory_epoch.wrapping_add(1);
+            self.memory_epoch += 1;
             self.known_stores.clear();
         }
         if op::writes_storage(opcode) {
-            self.storage_epoch = self.storage_epoch.wrapping_add(1);
+            self.storage_epoch += 1;
         }
         let inputs = usize::from(stack_effect.inputs);
         self.ensure_depth(inputs);
@@ -263,7 +262,7 @@ impl Cse {
             }
             None => self.known_stores.clear(),
         }
-        self.memory_epoch = self.memory_epoch.wrapping_add(1);
+        self.memory_epoch += 1;
         self.out.push(inst);
     }
 
