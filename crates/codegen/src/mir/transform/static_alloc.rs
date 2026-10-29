@@ -191,8 +191,19 @@ fn eligible_static_allocations(
     }
     let uses = ValueUses::new(func);
     // The bounded-use proof rejects every unrecognized use, so it also proves non-escape.
-    candidates
-        .retain(|candidate| candidate_uses_are_safe(func, candidate, &uses, calls, summaries));
+    let mut derived = FxHashMap::default();
+    let mut pending = Vec::new();
+    candidates.retain(|candidate| {
+        candidate_uses_are_safe(
+            func,
+            candidate,
+            &uses,
+            calls,
+            summaries,
+            &mut derived,
+            &mut pending,
+        )
+    });
     candidates
 }
 
@@ -228,12 +239,15 @@ fn candidate_uses_are_safe(
     uses: &ValueUses,
     calls: &CallGraphInfo,
     summaries: &MemoryCallSummaries,
+    derived: &mut FxHashMap<ValueId, u64>,
+    pending: &mut Vec<ValueId>,
 ) -> bool {
     // In-bounds address derivations from the pointer, to a fixpoint so
     // definition order does not matter.
-    let mut derived: FxHashMap<ValueId, u64> = FxHashMap::default();
+    derived.clear();
     derived.insert(cand.ptr, 0);
-    let mut pending = vec![cand.ptr];
+    pending.clear();
+    pending.push(cand.ptr);
     while let Some(value) = pending.pop() {
         for &inst_id in &uses.instructions[value] {
             let Some(result) = func.inst_result_value(inst_id) else { continue };
@@ -286,7 +300,7 @@ fn candidate_uses_are_safe(
 
     // Every use of every derived address must be a bounded memory access.
     let in_range = |off: u64, len: u64| off.checked_add(len).is_some_and(|end| end <= cand.size);
-    for (&operand, &off) in &derived {
+    for (&operand, &off) in derived.iter() {
         for &inst_id in &uses.instructions[operand] {
             if inst_id == cand.alloc {
                 continue;

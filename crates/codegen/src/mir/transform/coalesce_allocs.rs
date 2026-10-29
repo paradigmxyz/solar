@@ -88,9 +88,9 @@ struct Member {
 fn coalesce_function(func: &mut Function, target: &Target) -> bool {
     let proofs = ReadBounds::default();
     let mut groups = Vec::new();
+    let mut bounds = GroupBounds::default();
     for block in func.blocks.indices() {
         let mut group = Vec::<Member>::new();
-        let mut bounds = GroupBounds::default();
         for &inst_id in &func.blocks[block].instructions {
             if let Some(member) = fusable_alloc(func, inst_id) {
                 let compatible = group.last().is_none_or(|last| {
@@ -116,6 +116,7 @@ fn coalesce_function(func: &mut Function, target: &Target) -> bool {
         }
         if !group.is_empty() {
             groups.push((block, group));
+            bounds.clear();
         }
     }
     let mut changed = false;
