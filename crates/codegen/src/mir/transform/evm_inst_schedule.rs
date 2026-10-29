@@ -238,10 +238,10 @@ impl EvmInstSchedule {
         }
         // Emit each kept instruction after the instructions sunk in front of it, in order, and
         // each of those after the ones sunk in front of it in turn.
-        attached.iter_mut().for_each(SmallVec::clear);
         if attached.len() <= len {
             attached.resize_with(len + 1, SmallVec::new);
         }
+        attached[..=len].iter_mut().for_each(SmallVec::clear);
         for (index, user) in target.iter().enumerate() {
             if let Some(user) = *user {
                 attached[user].push(index);
