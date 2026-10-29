@@ -34,11 +34,15 @@ pub(crate) fn invert_comparison(
     let comparison = &instructions[end];
     let opcode = comparison.as_evm_opcode()?;
     let opposite = flipped_comparison(opcode)?;
+    if comparison.keeps_with_next() {
+        return None;
+    }
     for start in (end.saturating_sub(MAX_STACK_WINDOW - 2)..end).rev() {
-        if !is_unprotected(instructions, start) {
+        let pushed = &instructions[start];
+        if pushed.keeps_with_next() || !is_split_point(instructions, start) {
             break;
         }
-        if let Some(value) = instructions[start].concrete_immediate()
+        if let Some(value) = pushed.concrete_immediate()
             && let Some(depth @ 0..=1) = protected_word_depth(&instructions[start + 1..end])
         {
             // Bias signed bounds into unsigned order before checking for overflow.
@@ -149,13 +153,12 @@ fn apply_effect(depth: usize, StackEffect { inputs, outputs }: StackEffect) -> O
     Some(depth.checked_sub(usize::from(inputs))? + usize::from(outputs))
 }
 
-/// Returns whether the sequence of pushes and stack operations leaves the stack as it found it.
+/// Returns whether a sequence of only pushes and stack operations leaves the stack as it found
+/// it.
 fn is_noop_stack_sequence(instructions: &[Instruction]) -> bool {
-    let depth = instructions.iter().try_fold(0usize, |depth, inst| {
-        // Only pushes and stack operations may appear.
-        symbolic_stack_op(inst)?;
-        apply_effect(depth, inst.stack_effect())
-    });
+    let depth = instructions
+        .iter()
+        .try_fold(0usize, |depth, inst| apply_effect(depth, inst.stack_effect()));
     depth == Some(0)
 }
 
