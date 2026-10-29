@@ -204,7 +204,7 @@ fn test(
 
 /// The word a condition compares with zero, and whether the condition holds when it is nonzero.
 fn zero_test(func: &Function, condition: ValueId) -> Option<(ValueId, bool)> {
-    let (a, b, nonzero) = match *inst_kind(func, condition)? {
+    let (a, b, nonzero) = match *func.value_inst_kind(condition)? {
         InstKind::Eq(a, b) => (a, b, false),
         InstKind::Ne(a, b) => (a, b, true),
         _ => return None,
@@ -221,7 +221,7 @@ fn zero_test(func: &Function, condition: ValueId) -> Option<(ValueId, bool)> {
 
 /// The boolean that `condition` negates, when it is `eq c, false` for an `i1` word `c`.
 fn negated_boolean(func: &Function, condition: ValueId) -> Option<ValueId> {
-    let &InstKind::Eq(a, b) = inst_kind(func, condition)? else { return None };
+    let &InstKind::Eq(a, b) = func.value_inst_kind(condition)? else { return None };
     let zero = |value| func.value_u256(value).is_some_and(|v| v.is_zero());
     let inner = if zero(b) {
         a
@@ -337,7 +337,7 @@ fn mergeable(
 /// `x < k` fails when `x > k - 1`, and `x > k` when `x < k + 1`.
 fn complement(func: &Function, condition: ValueId) -> Option<Compare> {
     let literal = |value| func.value_u256(value);
-    let (word, below, k) = match *inst_kind(func, condition)? {
+    let (word, below, k) = match *func.value_inst_kind(condition)? {
         InstKind::Lt(word, k) | InstKind::Gt(k, word) if literal(word).is_none() => {
             (word, true, literal(k)?)
         }
@@ -468,16 +468,9 @@ fn append_compare(func: &mut Function, block: BlockId, compare: Compare) -> Valu
     append(func, block, kind)
 }
 
-fn inst_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
-    match func.value(value) {
-        Value::Inst(inst) => Some(&func.inst(*inst).kind),
-        _ => None,
-    }
-}
-
 /// The word `sum` adds to `base`, when it is `add base, addend`.
 fn addend(func: &Function, sum: ValueId, base: ValueId) -> Option<ValueId> {
-    match *inst_kind(func, sum)? {
+    match *func.value_inst_kind(sum)? {
         InstKind::Add(a, b) if a == base => Some(b),
         InstKind::Add(a, b) if b == base => Some(a),
         _ => None,
@@ -496,11 +489,11 @@ fn fused_wrap(
     let wrap = match wraps.get(&first) {
         Some(&wrap) => wrap,
         None => {
-            let &InstKind::Lt(sum, base) = inst_kind(func, first)? else { return None };
+            let &InstKind::Lt(sum, base) = func.value_inst_kind(first)? else { return None };
             Wrap { sum, base, bound: upper_bound(func, addend(func, sum, base)?, 8)? }
         }
     };
-    let &InstKind::Lt(next, sum) = inst_kind(func, second)? else { return None };
+    let &InstKind::Lt(next, sum) = func.value_inst_kind(second)? else { return None };
     if sum != wrap.sum {
         return None;
     }
@@ -516,7 +509,7 @@ fn upper_bound(func: &Function, value: ValueId, depth: usize) -> Option<U256> {
         return Some(constant);
     }
     let depth = depth.checked_sub(1)?;
-    match *inst_kind(func, value)? {
+    match *func.value_inst_kind(value)? {
         InstKind::Add(a, b) => {
             upper_bound(func, a, depth)?.checked_add(upper_bound(func, b, depth)?)
         }
@@ -559,7 +552,7 @@ fn counter_step(func: &Function, phi: ValueId, mut next: ValueId) -> Option<U256
         if next == phi {
             return (!step.is_zero()).then_some(step);
         }
-        let &InstKind::Add(a, b) = inst_kind(func, next)? else { return None };
+        let &InstKind::Add(a, b) = func.value_inst_kind(next)? else { return None };
         let (rest, literal) = match (func.value_u256(a), func.value_u256(b)) {
             (None, Some(literal)) => (a, literal),
             (Some(literal), None) => (b, literal),

@@ -841,7 +841,7 @@ impl<'a> Builder<'a> {
         let mut aggregate = self.resolve(aggregate);
         for _ in 0..16 {
             let InstKind::InsertValue { ty: inserted_ty, aggregate: base, index: field, value } =
-                *defining_kind(self.func, aggregate)?
+                *self.func.value_inst_kind(aggregate)?
             else {
                 return None;
             };
@@ -1435,17 +1435,10 @@ fn same_value(func: &Function, a: ValueId, b: ValueId) -> bool {
         }
 }
 
-fn defining_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
-    match func.value(value) {
-        Value::Inst(inst_id) => Some(&func.inst(*inst_id).kind),
-        _ => None,
-    }
-}
-
 /// Returns `x` when `value` computes `gt(x, 0)` or `lt(0, x)`, both of which
 /// are the unsigned nonzero test.
 fn nonzero_test_operand(func: &Function, value: ValueId) -> Option<ValueId> {
-    match *defining_kind(func, value)? {
+    match *func.value_inst_kind(value)? {
         InstKind::Gt(a, b) if is_zero(func, b) => Some(a),
         InstKind::Lt(a, b) if is_zero(func, a) => Some(b),
         _ => None,
@@ -1453,7 +1446,7 @@ fn nonzero_test_operand(func: &Function, value: ValueId) -> Option<ValueId> {
 }
 
 fn zero_test_operand(func: &Function, value: ValueId) -> Option<ValueId> {
-    match *defining_kind(func, value)? {
+    match *func.value_inst_kind(value)? {
         InstKind::Eq(inner, zero) if is_zero(func, zero) => Some(inner),
         _ => None,
     }

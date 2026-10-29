@@ -11,7 +11,7 @@
 //! edge: an operand is live out of the predecessor it flows from and is not live into
 //! the merge block, which only sees the phi result.
 
-use crate::mir::{BlockId, Function, InstKind, Terminator, Value, ValueId, analysis::CfgInfo};
+use crate::mir::{BlockId, Function, InstKind, Value, ValueId, analysis::CfgInfo};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::{BitMatrix, BitMatrixRow, DenseBitSet},
@@ -32,9 +32,6 @@ pub(crate) struct Liveness {
     /// This tracks the last use of a value *within* each block where it's used.
     /// `None` when only the live sets were computed.
     last_use_in_block: Option<FxHashMap<(ValueId, BlockId), Option<usize>>>,
-    /// Number of values in the function.
-    #[allow(dead_code)]
-    num_values: usize,
 }
 
 impl Liveness {
@@ -68,8 +65,6 @@ impl Liveness {
             .map(|_| SmallVec::<[(BlockId, ValueId); 4]>::new())
             .collect::<IndexVec<BlockId, _>>();
 
-        let mut operand_buf = SmallVec::<[ValueId; 8]>::new();
-
         for (block_id, block) in func.blocks.iter_enumerated() {
             // Process instructions in forward order to compute upward-exposed uses and defs
             for &inst_id in &block.instructions {
@@ -93,13 +88,11 @@ impl Liveness {
 
             // Process terminator uses
             if let Some(term) = &block.terminator {
-                operand_buf.clear();
-                collect_terminator_uses(term, &mut operand_buf);
-                for &operand in &operand_buf {
+                term.visit_operands(|operand| {
                     if !block_defs.contains(block_id, operand) {
                         block_uses.insert(block_id, operand);
                     }
-                }
+                });
             }
         }
 
@@ -151,7 +144,7 @@ impl Liveness {
         // Compute last use locations per block
         // For each value, track the last instruction index where it's used within each block.
         if !tracks_last_uses {
-            return Self { live_in, live_out, last_use_in_block: None, num_values };
+            return Self { live_in, live_out, last_use_in_block: None };
         }
         let mut last_use_in_block = FxHashMap::default();
         // A phi operand is used when its predecessor transfers control, so it
@@ -164,12 +157,10 @@ impl Liveness {
         for (block_id, block) in func.blocks.iter_enumerated() {
             // Check terminator uses - these are the last use in this block
             if let Some(term) = &block.terminator {
-                operand_buf.clear();
-                collect_terminator_uses(term, &mut operand_buf);
-                for &operand in &operand_buf {
+                term.visit_operands(|operand| {
                     // Terminator is represented by None for inst_idx
                     last_use_in_block.entry((operand, block_id)).or_insert(None);
-                }
+                });
             }
 
             // Check instruction uses in reverse order
@@ -185,7 +176,7 @@ impl Liveness {
             }
         }
 
-        Self { live_in, live_out, last_use_in_block: Some(last_use_in_block), num_values }
+        Self { live_in, live_out, last_use_in_block: Some(last_use_in_block) }
     }
 
     /// Returns whether every computed value is consumed in its defining block and the
@@ -264,9 +255,4 @@ impl Liveness {
             None => false,
         }
     }
-}
-
-/// Collects all value uses from a terminator.
-fn collect_terminator_uses(term: &Terminator, out: &mut SmallVec<[ValueId; 8]>) {
-    out.extend(term.operands());
 }

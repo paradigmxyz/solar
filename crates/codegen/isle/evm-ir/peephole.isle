@@ -1,6 +1,5 @@
 ;; Types used by the EVM IR window extractors.
 (type U256 (primitive U256))
-(type StackOp (primitive StackOp))
 
 ;; Local peephole optimization over scheduled EVM IR.
 ;;
@@ -41,13 +40,13 @@
   (SwapOverwrite (opcode u8))
   (OverwriteOne (opcode u8))
   (OverwriteTwo (opcode u8))
-  (MergeSwapPop (depth u8))
+  (MergeSwapPop)
   (InvertComparison (value U256) (opcode u8))
   (ZeroLessIszero)
   (ReloadStoredValue)
   (DropNonzeroTest)
   (EqIszeroJumpi)
-  (StackOps (first StackOp) (second StackOp))
+  (SwapPair (first u8) (second u8))
   (MoveConstantThroughSwaps)
 ))
 
@@ -73,10 +72,10 @@
 (extern extractor last6 last6)
 (decl unprotected_last6 (Inst Inst Inst Inst Inst Inst) Window)
 (extern extractor unprotected_last6 unprotected_last6)
-;; `SWAPn POP*n SWAP1 POP`, giving `n`.
+;; `SWAPn POP*n SWAP1 POP`, giving the window length.
 (decl swap_pop_chain (u8) Window)
 (extern extractor swap_pop_chain swap_pop_chain)
-;; `SWAPn POP*(n+1)`, giving the number of pops.
+;; `SWAPn POP*(n+1)`, giving the window length.
 (decl swap_discard_chain (u8) Window)
 (extern extractor swap_discard_chain swap_discard_chain)
 ;; A `DUPn` that duplicates a known zero, on a target that has `PUSH0`.
@@ -128,10 +127,6 @@
 (extern constructor is_pure_binop is_pure_binop)
 (decl pure is_deep_swap (u8) bool)
 (extern constructor is_deep_swap is_deep_swap)
-(decl pure u8_add (u8 u8) u8)
-(extern constructor u8_add u8_add)
-(decl pure swap_op (u8) StackOp)
-(extern constructor swap_op swap_op)
 (decl pure u256_is_zero (U256) bool)
 (extern constructor u256_is_zero u256_is_zero)
 (decl pure u256_is_one (U256) bool)
@@ -226,12 +221,10 @@
          (rewrite 3 (Edit.OverwriteTwo opcode)))
 
 ;; `SWAPn POP*n SWAP1 POP -> SWAP(n+1) POP*(n+1)`.
-(rule 170 (peep_pop (swap_pop_chain depth))
-         (rewrite (u8_add depth 3) (Edit.MergeSwapPop (u8_add depth 1))))
+(rule 170 (peep_pop (swap_pop_chain len)) (rewrite len (Edit.MergeSwapPop)))
 
 ;; `SWAPn POP*(n+1) -> POP*(n+1)` because every permuted value is discarded.
-(rule 165 (peep_pop (swap_discard_chain pops))
-          (rewrite (u8_add pops 1) (Edit.DropDiscardedSwap)))
+(rule 165 (peep_pop (swap_discard_chain len)) (rewrite len (Edit.DropDiscardedSwap)))
 
 ;; `DUP1 PUSH x MSTORE DUP1 PUSH x MSTORE -> DUP1 PUSH x MSTORE`.
 (rule 160 (peep_op (last6 (opcode $DUP1) (push a) (opcode $MSTORE)
@@ -275,10 +268,10 @@
 ;; `EXCHANGE n, m SWAPm -> SWAPm SWAPn`.
 ;; `SWAPn EXCHANGE n, m -> SWAPm SWAPn`.
 ;; `SWAPm EXCHANGE n, m -> SWAPn SWAPm`.
-(rule 90 (peep_swap (last2 (exchange n m) (swap n))) (rewrite 2 (Edit.StackOps (swap_op n) (swap_op m))))
-(rule 80 (peep_swap (last2 (exchange n m) (swap m))) (rewrite 2 (Edit.StackOps (swap_op m) (swap_op n))))
-(rule 70 (peep_exchange (last2 (swap n) (exchange n m))) (rewrite 2 (Edit.StackOps (swap_op m) (swap_op n))))
-(rule 60 (peep_exchange (last2 (swap m) (exchange n m))) (rewrite 2 (Edit.StackOps (swap_op n) (swap_op m))))
+(rule 90 (peep_swap (last2 (exchange n m) (swap n))) (rewrite 2 (Edit.SwapPair n m)))
+(rule 80 (peep_swap (last2 (exchange n m) (swap m))) (rewrite 2 (Edit.SwapPair m n)))
+(rule 70 (peep_exchange (last2 (swap n) (exchange n m))) (rewrite 2 (Edit.SwapPair m n)))
+(rule 60 (peep_exchange (last2 (swap m) (exchange n m))) (rewrite 2 (Edit.SwapPair n m)))
 
 ;; SWAP1; PUSH c; pure_binop; SWAPn; SWAP1; SWAPn => SWAPn; SWAP1; PUSH c; pure_binop
 ;; For n > 1 both sides apply the operation to the same two words and leave the same stack.

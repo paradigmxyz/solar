@@ -575,17 +575,20 @@ impl PointerProvenance {
         // freshness of the reads after it.
         // NOTE: Allocations keep their uniqueness, which assumes that an access based on an
         // allocation stays inside it.
-        let first_rewinds = func
+        let first_wraps = func
             .blocks
             .iter()
-            .zip(&first_resets)
-            .map(|(block, &reset)| {
-                let wrap = block
+            .map(|block| {
+                block
                     .instructions
                     .iter()
-                    .position(|&inst| may_wrap_write(func, inst, call_summaries));
-                reset.into_iter().chain(wrap).min()
+                    .position(|&inst| may_wrap_write(func, inst, call_summaries))
             })
+            .collect::<IndexVec<BlockId, _>>();
+        let first_rewinds = first_resets
+            .iter()
+            .zip(&first_wraps)
+            .map(|(&reset, &wrap)| reset.into_iter().chain(wrap).min())
             .collect::<IndexVec<BlockId, _>>();
         let read_poisoned = if first_rewinds.iter().any(Option::is_some) {
             poison(&first_rewinds).1
@@ -622,8 +625,7 @@ impl PointerProvenance {
                 }
             }
         }
-        let wraps = !allocs.is_empty()
-            && func.instructions().any(|inst| may_wrap_write(func, inst, call_summaries));
+        let wraps = !allocs.is_empty() && first_wraps.iter().any(Option::is_some);
         let fresh_fmps = (!allocs.is_empty()).then(|| FreshFmps {
             dominators: cfg.dominators().clone(),
             positions,
@@ -2183,31 +2185,35 @@ impl AliasAnalysis {
                     self.call_summaries.as_deref(),
                 )
             }
-            _ => self.instruction_writes_through_runtime_index(func, inst),
+            _ => {
+                !func.inst(inst).kind.effect_kind().is_read_only()
+                    && Self::instruction_writes_through_runtime_index_with(
+                        func,
+                        inst,
+                        &self.instruction_mod_ref(func, inst),
+                    )
+            }
         }
     }
 
     /// Returns whether an instruction itself writes memory at an address computed with a runtime
-    /// index, directly or through a select or phi, or with a write of unknown extent.
+    /// index, directly or through a select or phi, or with a write of unknown extent. `effects`
+    /// are the [`Self::instruction_mod_ref`] effects of `inst`.
     #[must_use]
-    pub(crate) fn instruction_writes_through_runtime_index(
-        &self,
+    pub(crate) fn instruction_writes_through_runtime_index_with(
         func: &Function,
         inst: InstId,
+        effects: &ModRef,
     ) -> bool {
-        if func.inst(inst).kind.effect_kind().is_read_only() {
-            return false;
-        }
-        let address_indexed = Self::writes_at_indexed_address(func, inst);
-        address_indexed || {
-            self.instruction_mod_ref(func, inst).writes().iter().any(|access| {
-                matches!(
-                    access,
-                    Access::Location(Location::Memory(location))
-                        if location.size == LocationSize::Unknown
-                )
-            })
-        }
+        !func.inst(inst).kind.effect_kind().is_read_only()
+            && (Self::writes_at_indexed_address(func, inst)
+                || effects.writes().iter().any(|access| {
+                    matches!(
+                        access,
+                        Access::Location(Location::Memory(location))
+                            if location.size == LocationSize::Unknown
+                    )
+                }))
     }
 
     /// Returns whether an instruction writes memory at an address computed with a runtime index.
@@ -2873,20 +2879,21 @@ impl AliasAnalysis {
         let Some(base) = Self::constant_add_base(func, value) else { return false };
         let mut budget = 256usize;
         for block in &func.blocks {
-            let mut accessed = false;
-            for &inst in &block.instructions {
-                let Some(remaining) = budget.checked_sub(1) else { return false };
-                budget = remaining;
-                if inst == user {
-                    return accessed;
-                }
-                if !accessed {
+            let searched = &block.instructions[..block.instructions.len().min(budget)];
+            if let Some(at) = searched.iter().position(|&inst| inst == user) {
+                return searched[..at].iter().any(|&inst| {
+                    let mut accessed = false;
                     func.inst(inst).kind.visit_raw_memory(|access, address, size| {
                         accessed |= access != RawMemoryAccess::PartialWrite
                             && size.constant(func).is_some_and(|size| size != 0)
                             && Self::memory_address_value(func, address) == base;
                     });
-                }
+                    accessed
+                });
+            }
+            budget -= searched.len();
+            if budget == 0 {
+                return false;
             }
         }
         false
