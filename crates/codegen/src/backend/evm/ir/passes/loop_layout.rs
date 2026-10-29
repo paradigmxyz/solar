@@ -121,10 +121,9 @@ fn place_loop_latches(module: &mut Module) -> bool {
 /// Scratch space for deciding whether to move latches, reused across loops.
 struct LoopFlow {
     predecessors: Option<IndexVec<BlockId, SmallVec<[BlockId; 2]>>>,
-    reachable: DenseBitSet<BlockId>,
+    visited: DenseBitSet<BlockId>,
     pending: Vec<BlockId>,
     body: DenseBitSet<BlockId>,
-    seen: DenseBitSet<BlockId>,
     frontier: FxHashMap<BlockId, u64>,
     current: Vec<(BlockId, u64)>,
     /// The mass each block sends back to the header.
@@ -136,10 +135,9 @@ impl LoopFlow {
         let blocks = module.blocks.len();
         Self {
             predecessors: None,
-            reachable: DenseBitSet::new_empty(blocks),
+            visited: DenseBitSet::new_empty(blocks),
             pending: Vec::new(),
             body: DenseBitSet::new_empty(blocks),
-            seen: DenseBitSet::new_empty(blocks),
             frontier: FxHashMap::default(),
             current: Vec::new(),
             weights: FxHashMap::default(),
@@ -156,24 +154,24 @@ impl LoopFlow {
         latch: BlockId,
         preheader: BlockId,
     ) -> bool {
-        self.reachable.clear();
+        self.visited.clear();
         self.pending.clear();
         self.pending.push(header);
-        let mut visited = 0;
+        let mut count = 0;
         while let Some(block) = self.pending.pop() {
-            if !self.reachable.insert(block) {
+            if !self.visited.insert(block) {
                 continue;
             }
-            visited += 1;
-            if visited > 256 {
+            count += 1;
+            if count > 256 {
                 return false;
             }
             visit_successors(&module.blocks[block], |target| self.pending.push(target));
         }
-        if !self.reachable.contains(latch) {
+        if !self.visited.contains(latch) {
             return false;
         }
-        if !self.reachable.contains(preheader) {
+        if !self.visited.contains(preheader) {
             return true;
         }
         let predecessors = self.predecessors.get_or_insert_with(|| {
@@ -194,7 +192,7 @@ impl LoopFlow {
     /// [`taken_share`]. Header returns stop propagation; bounded inner-loop rounds approximate
     /// their exit probability without an unbounded fixed point.
     fn backedge_weights(&mut self, module: &Module, header: BlockId) {
-        let Self { body, seen, frontier, current, weights, .. } = self;
+        let Self { body, visited: seen, frontier, current, weights, .. } = self;
         frontier.clear();
         frontier.insert(header, 1u64 << 32);
         weights.clear();

@@ -172,9 +172,8 @@ fn pack_terminal_traces(est: SizeEstimator, module: &Module, order: &mut Vec<Blo
         return;
     };
     let insert_at = first_terminal + 1;
-    let mut references = index_vec![0usize; module.blocks.len()];
-    block_reference_counts(module, order, &mut references);
-    let placement = Placement { est, module, order, references };
+    let placement =
+        Placement { est, module, order, references: block_reference_counts(module, order) };
     let insert_offset: usize =
         (0..insert_at).map(|position| placement.size(position, usize::MAX)).sum();
     if insert_offset >= 0xff {
@@ -301,16 +300,13 @@ fn one_byte_table(block: &Block) -> Option<&[BlockId]> {
     }
 }
 
-fn block_reference_counts(
-    module: &Module,
-    order: &[BlockId],
-    references: &mut IndexVec<BlockId, usize>,
-) {
+fn block_reference_counts(module: &Module, order: &[BlockId]) -> IndexVec<BlockId, usize> {
+    let mut references = index_vec![0usize; module.blocks.len()];
     for (position, &block_id) in order.iter().enumerate() {
         let block = &module.blocks[block_id];
         for inst in &block.instructions {
-            if let Some(PushValue::Block(block)) = &inst.value {
-                references[*block] += 1;
+            if let Some(target) = inst.pushed_block() {
+                references[target] += 1;
             }
         }
         if let Some(term) = &block.terminator {
@@ -319,6 +315,7 @@ fn block_reference_counts(
             });
         }
     }
+    references
 }
 
 /// Estimates block sizes for layout decisions with a runtime cost model.
