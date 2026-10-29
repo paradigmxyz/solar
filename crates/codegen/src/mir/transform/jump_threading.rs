@@ -5,14 +5,15 @@
 //!
 //! ## Optimizations performed:
 //!
-//! 1. **JUMP to JUMP threading**: If block A jumps to block B, and B only contains an unconditional
-//!    jump to C, rewrite A to jump directly to C.
+//! 1. **JUMP to JUMP threading**: If block A jumps to block B, and B is an empty forwarder that
+//!    only jumps to C, rewrite A to jump directly to C.
 //!
-//! 2. **JUMPI to JUMP threading**: If a conditional branch targets a block that only contains an
-//!    unconditional jump, thread through to the final target.
+//! 2. **JUMPI to JUMP threading**: If a conditional branch or switch targets an empty forwarder,
+//!    thread through to the final target.
 //!
-//! 3. **Empty block elimination**: Blocks containing only a JUMPDEST and JUMP are eliminated by
-//!    updating all references to point to the final target.
+//! A chain of forwarders resolves to its last block, stopping at the first block it visits twice.
+//! Threading never enters a target with phis, which would need new phi inputs. The forwarders
+//! themselves stay for later CFG cleanup to remove.
 //!
 //! Threading can leave a phi-only branch block with one predecessor. When that predecessor
 //! jumps unconditionally and no phi result escapes, move the branch onto the predecessor and
@@ -21,12 +22,13 @@
 //! inputs stay unchanged. Constant incoming edges also bypass a phi followed by
 //! an equality or inequality with zero, provided no result escapes the block.
 
+use super::{cfg_simplify::empty_forwarder_target, utils::redirect_edge};
 use crate::mir::{
     BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
     pass::{MirPass, run_function_pass},
     utils::replace_terminator,
 };
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 
 /// Function pass for jump threading.
 pub(crate) struct JumpThreading;
@@ -42,465 +44,293 @@ impl MirPass for JumpThreading {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| JumpThreader.run_to_fixpoint(func) != 0)
+        run_function_pass(module, analyses, |func, _| run_to_fixpoint(func))
     }
 }
 
-/// Jump threading optimization pass.
-struct JumpThreader;
-
-impl JumpThreader {
-    /// Runs jump threading on a function.
-    /// Returns the number of MIR mutations performed.
-    fn run(&mut self, func: &mut Function) -> usize {
-        let mut changed = 0;
-
-        // Build a map of blocks that are "forwarders" - blocks that only jump unconditionally
-        let forwarders = self.find_forwarder_blocks(func);
-
-        if !forwarders.is_empty() {
-            // Resolve the final target for each forwarder (following chains)
-            let final_targets = self.resolve_final_targets(&forwarders, func.blocks.len());
-
-            // Update all terminators to use final targets
-            changed += self.thread_jumps(func, &final_targets);
-        }
-
-        changed += self.thread_phi_constant_edges(func);
-        changed += self.fold_single_predecessor_phi_branches(func);
-        changed
+/// Runs jump threading until no more changes and returns whether anything changed.
+fn run_to_fixpoint(func: &mut Function) -> bool {
+    let mut changed = false;
+    while run(func) {
+        changed = true;
     }
+    changed
+}
 
-    /// Runs jump threading iteratively until no more changes and returns the number of rewrites.
-    fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
-        let mut total = 0;
-        loop {
-            let changed = self.run(func);
-            if changed == 0 {
-                return total;
-            }
-            total += changed;
+/// Runs one round of jump threading on a function.
+fn run(func: &mut Function) -> bool {
+    let mut changed = thread_jumps(func);
+    changed |= thread_phi_constant_edges(func);
+    changed |= fold_single_predecessor_phi_branches(func);
+    changed
+}
+
+/// Rewrites every edge into a forwarder chain to enter the end of the chain instead.
+fn thread_jumps(func: &mut Function) -> bool {
+    let final_targets = forwarder_final_targets(func);
+    let mut threaded = false;
+    for block_id in func.blocks.indices() {
+        let Some(term) = &func.blocks[block_id].terminator else { continue };
+        let mut changes = false;
+        term.for_each_successor(|target| {
+            changes |= threaded_target(func, &final_targets, target).is_some();
+        });
+        if !changes {
+            continue;
         }
-    }
-
-    /// Finds blocks that only contain an unconditional jump (forwarder blocks).
-    fn find_forwarder_blocks(&self, func: &Function) -> FxHashMap<BlockId, BlockId> {
-        let mut forwarders = FxHashMap::default();
-
-        for (block_id, block) in func.blocks.iter_enumerated() {
-            if block.predecessors.is_empty() {
-                continue;
-            }
-
-            // Only fully empty blocks are forwarders: bypassing a block that
-            // contains a phi would sever the phi's incoming edges.
-            if !block.instructions.is_empty() {
-                continue;
-            }
-
-            // Check if terminator is an unconditional jump
-            if let Some(Terminator::Jump(target)) = &block.terminator {
-                // Don't thread self-loops
-                if *target != block_id {
-                    forwarders.insert(block_id, *target);
-                }
-            }
-        }
-
-        forwarders
-    }
-
-    /// Resolves chains of forwarders to find the final target.
-    fn resolve_final_targets(
-        &self,
-        forwarders: &FxHashMap<BlockId, BlockId>,
-        block_count: usize,
-    ) -> FxHashMap<BlockId, BlockId> {
-        let mut final_targets = FxHashMap::default();
-
-        for &block_id in forwarders.keys() {
-            let final_target = self.follow_chain(block_id, forwarders, block_count);
-            if final_target != block_id {
-                final_targets.insert(block_id, final_target);
-            }
-        }
-
-        final_targets
-    }
-
-    /// Follows a chain of forwarders to find the final non-forwarder target.
-    fn follow_chain(
-        &self,
-        start: BlockId,
-        forwarders: &FxHashMap<BlockId, BlockId>,
-        block_count: usize,
-    ) -> BlockId {
-        let mut visited = DenseBitSet::new_empty(block_count);
-        let mut current = start;
-
-        while let Some(&next) = forwarders.get(&current) {
-            if !visited.insert(current) {
-                break;
-            }
-            current = next;
-        }
-
-        current
-    }
-
-    /// Updates all terminators to use the final targets. Returns the number of rewritten
-    /// terminators.
-    fn thread_jumps(
-        &self,
-        func: &mut Function,
-        final_targets: &FxHashMap<BlockId, BlockId>,
-    ) -> usize {
-        let mut threaded = 0;
-        let block_ids = func.blocks.indices();
-        for block_id in block_ids {
-            let Some(mut term) = func.blocks[block_id].terminator.clone() else {
-                continue;
-            };
-            threaded += usize::from(Self::thread_terminator(func, &mut term, final_targets));
-            // jump/branch/switch through forwarders -> their final targets
-            replace_terminator(func, block_id, term);
-        }
-        threaded
-    }
-
-    /// Threads a single terminator's targets. Returns whether any target changed.
-    fn thread_terminator(
-        func: &Function,
-        term: &mut Terminator,
-        final_targets: &FxHashMap<BlockId, BlockId>,
-    ) -> bool {
-        match term {
-            Terminator::Jump(target) => {
-                let Some(final_target) = Self::threaded_target(func, *target, final_targets) else {
-                    return false;
-                };
+        let mut term = term.clone();
+        term.for_each_successor_mut(|target| {
+            if let Some(final_target) = threaded_target(func, &final_targets, *target) {
                 *target = final_target;
-                true
             }
-
-            Terminator::Branch { then_block, else_block, .. } => {
-                let mut changed = false;
-                if let Some(final_target) = Self::threaded_target(func, *then_block, final_targets)
-                {
-                    *then_block = final_target;
-                    changed = true;
-                }
-                if let Some(final_target) = Self::threaded_target(func, *else_block, final_targets)
-                {
-                    *else_block = final_target;
-                    changed = true;
-                }
-                changed
-            }
-
-            Terminator::Switch { default, cases, .. } => {
-                let mut changed = false;
-                if let Some(final_target) = Self::threaded_target(func, *default, final_targets) {
-                    *default = final_target;
-                    changed = true;
-                }
-                for (_, target) in cases.iter_mut() {
-                    if let Some(final_target) = Self::threaded_target(func, *target, final_targets)
-                    {
-                        *target = final_target;
-                        changed = true;
-                    }
-                }
-                changed
-            }
-
-            Terminator::Return { .. }
-            | Terminator::Revert { .. }
-            | Terminator::RevertReturndata
-            | Terminator::ReturnData { .. }
-            | Terminator::Stop
-            | Terminator::SelfDestruct { .. }
-            | Terminator::TailCall { .. }
-            | Terminator::Invalid => false,
-        }
+        });
+        // jump/branch/switch through forwarders -> their final targets
+        replace_terminator(func, block_id, term);
+        threaded = true;
     }
+    threaded
+}
 
-    fn threaded_target(
-        func: &Function,
-        target: BlockId,
-        final_targets: &FxHashMap<BlockId, BlockId>,
-    ) -> Option<BlockId> {
-        let final_target = final_targets.get(&target).copied()?;
-        (!func.block_has_phi(final_target)).then_some(final_target)
-    }
-
-    fn block_results_have_external_uses(func: &Function, block_id: BlockId) -> bool {
-        let mut results = DenseBitSet::new_empty(func.num_values());
-        for &inst in &func.blocks[block_id].instructions {
-            if let Some(result) = func.inst_result_value(inst) {
-                results.insert(result);
+/// Resolves each block that forwards to another block to the end of its forwarder chain.
+///
+/// A block that is not a forwarder, or whose chain ends where it began, has no entry.
+fn forwarder_final_targets(func: &Function) -> IndexVec<BlockId, Option<BlockId>> {
+    // Only a block with predecessors forwards: bypassing a block that contains a phi would sever
+    // the phi's incoming edges, so only fully empty blocks qualify.
+    let next = func
+        .blocks
+        .iter_enumerated()
+        .map(|(block_id, block)| {
+            if block.predecessors.is_empty() {
+                None
+            } else {
+                empty_forwarder_target(func, block_id)
             }
-        }
-        if results.is_empty() {
-            return false;
-        }
-
-        let external = |operand| results.contains(operand);
-        func.blocks.iter_enumerated().any(|(other_block, block)| {
-            other_block != block_id
-                && (block
-                    .instructions
-                    .iter()
-                    .any(|&inst_id| func.inst(inst_id).kind.any_operand(external))
-                    || block.terminator.as_ref().is_some_and(|term| term.any_operand(external)))
         })
+        .collect::<IndexVec<_, _>>();
+    let mut visited = DenseBitSet::new_empty(func.blocks.len());
+    next.iter_enumerated()
+        .map(|(start, &first)| {
+            first?;
+            visited.clear();
+            let mut current = start;
+            while let Some(target) = next[current] {
+                if !visited.insert(current) {
+                    break;
+                }
+                current = target;
+            }
+            (current != start).then_some(current)
+        })
+        .collect()
+}
+
+fn threaded_target(
+    func: &Function,
+    final_targets: &IndexVec<BlockId, Option<BlockId>>,
+    target: BlockId,
+) -> Option<BlockId> {
+    final_targets[target].filter(|&final_target| !func.block_has_phi(final_target))
+}
+
+fn block_results_have_external_uses(func: &Function, block_id: BlockId) -> bool {
+    let mut results = DenseBitSet::new_empty(func.num_values());
+    for &inst in &func.blocks[block_id].instructions {
+        if let Some(result) = func.inst_result_value(inst) {
+            results.insert(result);
+        }
+    }
+    if results.is_empty() {
+        return false;
     }
 
-    fn thread_phi_constant_edges(&mut self, func: &mut Function) -> usize {
-        let mut rewrites = Vec::new();
-        let block_ids = func.blocks.indices();
+    let external = |operand| results.contains(operand);
+    func.blocks.iter_enumerated().any(|(other_block, block)| {
+        other_block != block_id
+            && (block
+                .instructions
+                .iter()
+                .any(|&inst_id| func.inst(inst_id).kind.any_operand(external))
+                || block.terminator.as_ref().is_some_and(|term| term.any_operand(external)))
+    })
+}
 
-        for block_id in block_ids {
-            if !func.block_has_only_phis(block_id) {
-                let Some(Terminator::Branch { condition, .. }) = func.blocks[block_id].terminator
-                else {
-                    continue;
-                };
-                if Self::branch_zero_test(func, condition).is_none()
-                    || !func.blocks[block_id].instructions.iter().all(|&inst| {
-                        matches!(func.inst(inst).kind, InstKind::Phi(_))
-                            || func.inst_result_value(inst) == Some(condition)
-                    })
-                {
-                    continue;
-                }
-            }
-            let Some(term) = &func.blocks[block_id].terminator else {
-                continue;
-            };
-            let predecessors = func.blocks[block_id].predecessors.clone();
-            if predecessors.is_empty() {
-                continue;
-            }
+fn thread_phi_constant_edges(func: &mut Function) -> bool {
+    let mut rewrites = Vec::new();
+    let block_ids = func.blocks.indices();
 
-            let start = rewrites.len();
-            for pred in predecessors {
-                if pred == block_id || Self::successor_count(func, pred, block_id) != 1 {
-                    continue;
-                }
-                let Some(target) = self.phi_constant_target_for_pred(func, block_id, term, pred)
-                else {
-                    continue;
-                };
-                if target == block_id || func.block_has_phi(target) {
-                    continue;
-                }
-                rewrites.push((pred, block_id, target));
-            }
-            // Only a block with a threadable edge needs the whole-function use scan.
-            if rewrites.len() != start && Self::block_results_have_external_uses(func, block_id) {
-                rewrites.truncate(start);
-            }
-        }
-
-        let mut threaded = 0;
-        for (pred, old_target, new_target) in rewrites {
-            if Self::replace_successor(func, pred, old_target, new_target) {
-                threaded += 1;
-            }
-        }
-
-        threaded
-    }
-
-    fn fold_single_predecessor_phi_branches(&mut self, func: &mut Function) -> usize {
-        let mut folded = 0;
-        for block in func.blocks.indices() {
-            if !func.block_has_phi(block) || !func.block_has_only_phis(block) {
-                continue;
-            }
-            let [pred] = func.blocks[block].predecessors.as_slice() else { continue };
-            let pred = *pred;
-            if pred == block
-                || !matches!(func.blocks[pred].terminator, Some(Terminator::Jump(target)) if target == block)
-            {
-                continue;
-            }
-            let Some(mut term @ Terminator::Branch { .. }) = func.blocks[block].terminator.clone()
+    for block_id in block_ids {
+        if !func.block_has_only_phis(block_id) {
+            let Some(Terminator::Branch { condition, .. }) = func.blocks[block_id].terminator
             else {
                 continue;
             };
-            if term.successors().iter().any(|&target| func.block_has_phi(target)) {
-                continue;
-            }
-            let mut replacements = FxHashMap::default();
-            for &id in &func.blocks[block].instructions {
-                let InstKind::Phi(incoming) = &func.inst(id).kind else { unreachable!() };
-                if let [(incoming_pred, value)] = incoming.as_slice()
-                    && *incoming_pred == pred
-                    && let Some(result) = func.inst_result_value(id)
-                {
-                    replacements.insert(result, *value);
-                }
-            }
-            if replacements.len() != func.blocks[block].instructions.len()
-                || replacements.values().any(|value| replacements.contains_key(value))
-                || Self::block_results_have_external_uses(func, block)
+            if branch_zero_test(func, condition).is_none()
+                || !func.blocks[block_id].instructions.iter().all(|&inst| {
+                    matches!(func.inst(inst).kind, InstKind::Phi(_))
+                        || func.inst_result_value(inst) == Some(condition)
+                })
             {
                 continue;
             }
-            // pred: jump block -> branch selected_phi_input, then, else
-            // block: phi inputs; branch -> invalid
-            let Terminator::Branch { condition, .. } = &mut term else { unreachable!() };
-            if let Some(&replacement) = replacements.get(condition) {
-                *condition = replacement;
-            }
-            let context = func.blocks[block].terminator_metadata.debug_context();
-            func.replace_uses(&replacements);
-            func.blocks[block].instructions.clear();
-            replace_terminator(func, block, Terminator::Invalid);
-            replace_terminator(func, pred, term);
-            func.blocks[pred].terminator_metadata.merge_debug_context(&context);
-            folded += 1;
         }
-        folded
-    }
+        let Some(term) = &func.blocks[block_id].terminator else {
+            continue;
+        };
+        let predecessors = &func.blocks[block_id].predecessors;
+        if predecessors.is_empty() {
+            continue;
+        }
 
-    fn phi_constant_target_for_pred(
-        &self,
-        func: &Function,
-        block_id: BlockId,
-        term: &Terminator,
-        pred: BlockId,
-    ) -> Option<BlockId> {
-        match term {
-            Terminator::Branch { condition, then_block, else_block } => {
-                let (value, invert) =
-                    Self::branch_zero_test(func, *condition).unwrap_or((*condition, false));
-                let incoming = Self::incoming_value_for_pred(func, block_id, value, pred)?;
-                let truth = !func.value_u256(incoming)?.is_zero() ^ invert;
-                Some(if truth { *then_block } else { *else_block })
+        let start = rewrites.len();
+        for &pred in predecessors {
+            if pred == block_id || successor_count(func, pred, block_id) != 1 {
+                continue;
             }
-            Terminator::Switch { value, default, cases } => {
-                let incoming = Self::incoming_value_for_pred(func, block_id, *value, pred)?;
-                let value = func.value_u256(incoming)?;
-                for (case, target) in cases {
-                    if func.value_u256(*case)? == value {
-                        return Some(*target);
-                    }
-                }
-                Some(*default)
+            let Some(target) = phi_constant_target_for_pred(func, block_id, term, pred) else {
+                continue;
+            };
+            if target == block_id || func.block_has_phi(target) {
+                continue;
             }
-            _ => None,
+            rewrites.push((pred, block_id, target));
+        }
+        // Only a block with a threadable edge needs the whole-function use scan.
+        if rewrites.len() != start && block_results_have_external_uses(func, block_id) {
+            rewrites.truncate(start);
         }
     }
 
-    fn branch_zero_test(func: &Function, condition: ValueId) -> Option<(ValueId, bool)> {
-        let Value::Inst(inst) = func.value(condition) else { return None };
-        let instruction = func.inst(*inst);
-        if instruction
-            .metadata
-            .effect()
-            .is_some_and(|effect| effect != instruction.kind.effect_kind())
+    let mut threaded = false;
+    for (pred, old_target, new_target) in rewrites {
+        // pred -> old_target -> new_target => pred -> new_target
+        threaded |= redirect_edge(func, pred, old_target, new_target);
+    }
+    threaded
+}
+
+fn fold_single_predecessor_phi_branches(func: &mut Function) -> bool {
+    let mut folded = false;
+    for block in func.blocks.indices() {
+        if !func.block_has_phi(block) || !func.block_has_only_phis(block) {
+            continue;
+        }
+        let [pred] = func.blocks[block].predecessors.as_slice() else { continue };
+        let pred = *pred;
+        if pred == block
+            || !matches!(func.blocks[pred].terminator, Some(Terminator::Jump(target)) if target == block)
         {
-            return None;
+            continue;
         }
-        let (InstKind::Eq(a, b) | InstKind::Ne(a, b)) = instruction.kind else { return None };
-        let value = if func.value_u64(a) == Some(0) {
-            b
-        } else if func.value_u64(b) == Some(0) {
-            a
-        } else {
-            return None;
+        let Some(mut term @ Terminator::Branch { .. }) = func.blocks[block].terminator.clone()
+        else {
+            continue;
         };
-        Some((value, matches!(instruction.kind, InstKind::Eq(..))))
-    }
-
-    fn incoming_value_for_pred(
-        func: &Function,
-        block_id: BlockId,
-        value: ValueId,
-        pred: BlockId,
-    ) -> Option<ValueId> {
-        let Value::Inst(inst_id) = func.value(value) else {
-            return Some(value);
-        };
-        if !func.blocks[block_id].instructions.contains(inst_id) {
-            return None;
+        if term.successors().iter().any(|&target| func.block_has_phi(target)) {
+            continue;
         }
-        let InstKind::Phi(incoming) = &func.inst(*inst_id).kind else {
-            return None;
-        };
-        incoming.iter().find_map(|(incoming_block, incoming_value)| {
-            (*incoming_block == pred).then_some(*incoming_value)
-        })
+        let mut replacements = FxHashMap::default();
+        for &id in &func.blocks[block].instructions {
+            let InstKind::Phi(incoming) = &func.inst(id).kind else { unreachable!() };
+            if let [(incoming_pred, value)] = incoming.as_slice()
+                && *incoming_pred == pred
+                && let Some(result) = func.inst_result_value(id)
+            {
+                replacements.insert(result, *value);
+            }
+        }
+        if replacements.len() != func.blocks[block].instructions.len()
+            || replacements.values().any(|value| replacements.contains_key(value))
+            || block_results_have_external_uses(func, block)
+        {
+            continue;
+        }
+        // pred: jump block -> branch selected_phi_input, then, else
+        // block: phi inputs; branch -> invalid
+        let Terminator::Branch { condition, .. } = &mut term else { unreachable!() };
+        if let Some(&replacement) = replacements.get(condition) {
+            *condition = replacement;
+        }
+        let context = func.blocks[block].terminator_metadata.debug_context();
+        func.replace_uses(&replacements);
+        func.blocks[block].instructions.clear();
+        replace_terminator(func, block, Terminator::Invalid);
+        replace_terminator(func, pred, term);
+        func.blocks[pred].terminator_metadata.merge_debug_context(&context);
+        folded = true;
     }
+    folded
+}
 
-    fn successor_count(func: &Function, pred: BlockId, target: BlockId) -> usize {
-        func.blocks[pred]
-            .terminator
-            .as_ref()
-            .map(|term| term.successors().into_iter().filter(|&succ| succ == target).count())
-            .unwrap_or_default()
-    }
-
-    fn replace_successor(
-        func: &mut Function,
-        pred: BlockId,
-        old_target: BlockId,
-        new_target: BlockId,
-    ) -> bool {
-        let Some(mut term) = func.blocks[pred].terminator.clone() else {
-            return false;
-        };
-        let changed = match &mut term {
-            Terminator::Jump(target) => {
-                if *target == old_target {
-                    *target = new_target;
-                    true
-                } else {
-                    false
+fn phi_constant_target_for_pred(
+    func: &Function,
+    block_id: BlockId,
+    term: &Terminator,
+    pred: BlockId,
+) -> Option<BlockId> {
+    match term {
+        Terminator::Branch { condition, then_block, else_block } => {
+            let (value, invert) = branch_zero_test(func, *condition).unwrap_or((*condition, false));
+            let incoming = incoming_value_for_pred(func, block_id, value, pred)?;
+            let truth = !func.value_u256(incoming)?.is_zero() ^ invert;
+            Some(if truth { *then_block } else { *else_block })
+        }
+        Terminator::Switch { value, default, cases } => {
+            let incoming = incoming_value_for_pred(func, block_id, *value, pred)?;
+            let value = func.value_u256(incoming)?;
+            for (case, target) in cases {
+                if func.value_u256(*case)? == value {
+                    return Some(*target);
                 }
             }
-            Terminator::Branch { then_block, else_block, .. } => {
-                let mut changed = false;
-                if *then_block == old_target {
-                    *then_block = new_target;
-                    changed = true;
-                }
-                if *else_block == old_target {
-                    *else_block = new_target;
-                    changed = true;
-                }
-                changed
-            }
-            Terminator::Switch { default, cases, .. } => {
-                let mut changed = false;
-                if *default == old_target {
-                    *default = new_target;
-                    changed = true;
-                }
-                for (_, target) in cases {
-                    if *target == old_target {
-                        *target = new_target;
-                        changed = true;
-                    }
-                }
-                changed
-            }
-            Terminator::Return { .. }
-            | Terminator::Revert { .. }
-            | Terminator::RevertReturndata
-            | Terminator::ReturnData { .. }
-            | Terminator::Stop
-            | Terminator::SelfDestruct { .. }
-            | Terminator::TailCall { .. }
-            | Terminator::Invalid => false,
-        };
-        if changed {
-            // pred -> old_target -> new_target => pred -> new_target
-            replace_terminator(func, pred, term);
+            Some(*default)
         }
-        changed
+        _ => None,
     }
+}
+
+fn branch_zero_test(func: &Function, condition: ValueId) -> Option<(ValueId, bool)> {
+    let Value::Inst(inst) = func.value(condition) else { return None };
+    let instruction = func.inst(*inst);
+    if instruction.metadata.effect().is_some_and(|effect| effect != instruction.kind.effect_kind())
+    {
+        return None;
+    }
+    let (InstKind::Eq(a, b) | InstKind::Ne(a, b)) = instruction.kind else { return None };
+    let value = if func.value_u64(a) == Some(0) {
+        b
+    } else if func.value_u64(b) == Some(0) {
+        a
+    } else {
+        return None;
+    };
+    Some((value, matches!(instruction.kind, InstKind::Eq(..))))
+}
+
+fn incoming_value_for_pred(
+    func: &Function,
+    block_id: BlockId,
+    value: ValueId,
+    pred: BlockId,
+) -> Option<ValueId> {
+    let Value::Inst(inst_id) = func.value(value) else {
+        return Some(value);
+    };
+    if !func.blocks[block_id].instructions.contains(inst_id) {
+        return None;
+    }
+    let InstKind::Phi(incoming) = &func.inst(*inst_id).kind else {
+        return None;
+    };
+    incoming.iter().find_map(|(incoming_block, incoming_value)| {
+        (*incoming_block == pred).then_some(*incoming_value)
+    })
+}
+
+fn successor_count(func: &Function, pred: BlockId, target: BlockId) -> usize {
+    func.blocks[pred]
+        .terminator
+        .as_ref()
+        .map(|term| term.successors().into_iter().filter(|&succ| succ == target).count())
+        .unwrap_or_default()
 }
