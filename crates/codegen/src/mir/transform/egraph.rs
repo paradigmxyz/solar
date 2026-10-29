@@ -84,7 +84,7 @@ use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap, newtype_index};
-use std::rc::Rc;
+use std::{mem, rc::Rc};
 
 mod isle;
 pub(super) use isle::{is_bool_value, max_bits_with_args};
@@ -384,6 +384,8 @@ struct Builder<'a> {
     liveness: Option<Liveness>,
     /// Instructions merged into another class or deleted as no-ops.
     dead: DenseBitSet<InstId>,
+    /// Scratch for the alternatives one rule match builds, reused across instructions.
+    alternatives: Vec<Op>,
     /// Per-class search budget selected from the function's active size.
     max_nodes: usize,
     /// Alternate operand definitions exposed to each rule match.
@@ -418,6 +420,7 @@ impl<'a> Builder<'a> {
             uses,
             liveness: None,
             dead,
+            alternatives: Vec::new(),
             max_nodes,
             max_operand_views,
             changed: 0,
@@ -538,7 +541,7 @@ impl<'a> Builder<'a> {
         let mut nodes = SmallVec::from_buf([op]);
         let mut simplified = SmallVec::<[Simplified; 2]>::from_slice(&[Simplified::Pending]);
         let mut frontier = 0;
-        let mut alternatives = Vec::new();
+        let mut alternatives = mem::take(&mut self.alternatives);
         let mut node_limit = self.max_nodes.min(BASE_MAX_NODES);
         let mut view_limit = self.max_operand_views.min(BASE_MAX_OPERAND_VIEWS);
         let mut expanded = false;
@@ -595,6 +598,7 @@ impl<'a> Builder<'a> {
             }
             break;
         }
+        self.alternatives = alternatives;
         // %result = any equivalent node => the dominating class leader
         // Number every alternative, so later instructions can reuse a rewrite
         // immediately. Scope every insertion, including simplified classes,
@@ -746,7 +750,7 @@ impl<'a> Builder<'a> {
         let result_ty = self.func.inst(inst_id).result_ty;
         let mut current = op.map_values(|value| self.resolve(value));
         let mut rewritten = false;
-        let mut alternatives = Vec::new();
+        let mut alternatives = mem::take(&mut self.alternatives);
         for _ in 0..self.max_nodes {
             alternatives.clear();
             let canonical_op = canonical_operands(self.func, current);
@@ -762,6 +766,7 @@ impl<'a> Builder<'a> {
             current = next;
             rewritten = true;
         }
+        self.alternatives = alternatives;
         if !rewritten {
             return;
         }

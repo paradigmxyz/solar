@@ -587,7 +587,7 @@ struct CandidateCx<'a> {
     analysis: &'a Analysis,
     eliminated_keys: &'a FxHashSet<(Key, BlockId)>,
     inserted_insts: &'a GrowableBitSet<InstId>,
-    locate_cache: FxHashMap<(BlockId, usize), Option<ValueId>>,
+    locate_cache: &'a mut FxHashMap<(BlockId, usize), Option<ValueId>>,
 }
 
 /// Keys a forward scan from a join's entry has seen killed or loaded.
@@ -597,6 +597,29 @@ struct LoadScan {
     blocked: KeySet,
     /// Keys whose first load the scan has already found.
     taken: KeySet,
+}
+
+/// The loads and scratch state of the walk below one join, reused across joins.
+struct LoadWalk {
+    /// The loads found, as `(block, load, key)`.
+    found: Vec<(BlockId, InstId, usize)>,
+    /// The scan of the join's own block.
+    scan: LoadScan,
+    /// The blocks still to walk, with the scan at their entry.
+    stack: Vec<(BlockId, LoadScan)>,
+}
+
+impl LoadWalk {
+    fn new(key_count: usize) -> Self {
+        Self {
+            found: Vec::new(),
+            scan: LoadScan {
+                blocked: KeySet::new_empty(key_count),
+                taken: KeySet::new_empty(key_count),
+            },
+            stack: Vec::new(),
+        }
+    }
 }
 
 impl<'a> Eliminator<'a> {
@@ -614,16 +637,18 @@ impl<'a> Eliminator<'a> {
         let mut rewrites = 0usize;
         let mut eliminated_keys = FxHashSet::default();
         let mut inserted_insts = GrowableBitSet::with_capacity(func.num_insts());
+        let mut locate_cache = FxHashMap::default();
 
         while rewrites < rewrite_limit {
             self.liveness.take();
             self.gas.take();
             let Some(analysis) = self.compute_analysis(func) else { break };
+            locate_cache.clear();
             let mut cx = CandidateCx {
                 analysis: &analysis,
                 eliminated_keys: &eliminated_keys,
                 inserted_insts: &inserted_insts,
-                locate_cache: FxHashMap::default(),
+                locate_cache: &mut locate_cache,
             };
             let batch = self.collect_candidates(func, &mut cx, rewrite_limit - rewrites);
             if batch.is_empty() {
@@ -738,9 +763,10 @@ impl<'a> Eliminator<'a> {
         // holds keys killed at any point.
         let mut gens = index_vec![KeySet::new_empty(key_count); func.blocks.len()];
         let mut kills = index_vec![None; func.blocks.len()];
+        let mut kill_set = KeySet::new_empty(key_count);
         for &block in rpo {
             let gen_set = &mut gens[block];
-            let mut kill_set = KeySet::new_empty(key_count);
+            kill_set.clear();
             for &inst_id in &func.blocks[block].instructions {
                 if func.inst(inst_id).kind.has_side_effects() {
                     let effects = self.alias().instruction_mod_ref(func, inst_id);
@@ -759,7 +785,7 @@ impl<'a> Eliminator<'a> {
                 }
             }
             if !kill_set.is_empty() {
-                kills[block] = Some(kill_set);
+                kills[block] = Some(kill_set.clone());
             }
         }
 
@@ -773,30 +799,33 @@ impl<'a> Eliminator<'a> {
                 KeySet::new_filled(key_count)
             });
         }
+        let mut out = KeySet::new_empty(key_count);
         loop {
             let mut changed = false;
             for &block in rpo {
-                let mut acc: Option<KeySet> = None;
-                for &pred in &func.blocks[block].predecessors {
-                    // Unreachable predecessors never execute and cannot
-                    // contribute a path.
-                    let Some(out) = &outs[pred] else { continue };
-                    match &mut acc {
-                        Some(acc) => {
-                            acc.intersect(out);
+                // Unreachable predecessors never execute and cannot
+                // contribute a path.
+                let mut pred_outs =
+                    func.blocks[block].predecessors.iter().filter_map(|&pred| outs[pred].as_ref());
+                let in_set = ins[block].get_or_insert_with(|| KeySet::new_empty(key_count));
+                match pred_outs.next() {
+                    Some(first) => {
+                        in_set.clone_from(first);
+                        for pred_out in pred_outs {
+                            in_set.intersect(pred_out);
                         }
-                        None => acc = Some(out.clone()),
                     }
+                    None => in_set.clear(),
                 }
-                let in_set = acc.unwrap_or_else(|| KeySet::new_empty(key_count));
-                let mut out = in_set.clone();
+                out.clone_from(in_set);
                 if let Some(kill) = &kills[block] {
                     out.subtract(kill);
                 }
                 out.union(&gens[block]);
-                ins[block] = Some(in_set);
-                if outs[block].as_ref() != Some(&out) {
-                    outs[block] = Some(out);
+                if let Some(old) = &mut outs[block]
+                    && *old != out
+                {
+                    old.clone_from(&out);
                     changed = true;
                 }
             }
@@ -817,6 +846,7 @@ impl<'a> Eliminator<'a> {
         limit: usize,
     ) -> Vec<Candidate> {
         let mut batch = Batch::new(func);
+        let mut walk = LoadWalk::new(cx.analysis.keys.len());
         'targets: for target in func.blocks.indices() {
             let predecessors = &func.blocks[target].predecessors;
             if !cx.analysis.cfg.is_reachable(target) || predecessors.len() < 2 {
@@ -848,7 +878,8 @@ impl<'a> Eliminator<'a> {
                 continue;
             }
 
-            for (load_block, inst, key_idx) in self.join_loads(func, cx.analysis, target) {
+            self.join_loads(func, cx.analysis, target, &mut walk);
+            for &(load_block, inst, key_idx) in &walk.found {
                 if batch.candidates.len() >= limit {
                     break 'targets;
                 }
@@ -876,10 +907,10 @@ impl<'a> Eliminator<'a> {
         batch.candidates
     }
 
-    /// Returns the loads of the join `target` that may start a candidate, as `(block, load, key)`
-    /// in program order: the first load of each key in `target` that no kill of that key
-    /// precedes, then, below `target`, the first load of each key in the blocks that `target`
-    /// reaches through single-predecessor blocks alone.
+    /// Collects in `walk.found` the loads of the join `target` that may start a candidate, as
+    /// `(block, load, key)` in program order: the first load of each key in `target` that no kill
+    /// of that key precedes, then, below `target`, the first load of each key in the blocks that
+    /// `target` reaches through single-predecessor blocks alone.
     ///
     /// A load below `target` reads the value the key has at `target`'s entry when no kill of the
     /// key precedes it on the way from `target`'s entry and `target` holds no load of it. It is
@@ -894,21 +925,23 @@ impl<'a> Eliminator<'a> {
         func: &Function,
         analysis: &Analysis,
         target: BlockId,
-    ) -> Vec<(BlockId, InstId, usize)> {
-        let key_count = analysis.keys.len();
-        let mut scan =
-            LoadScan { blocked: KeySet::new_empty(key_count), taken: KeySet::new_empty(key_count) };
-        let mut found = Vec::new();
-        if !self.scan_first_loads(func, analysis, target, &mut scan, &mut found) {
-            return found;
+        walk: &mut LoadWalk,
+    ) {
+        let LoadWalk { found, scan, stack } = walk;
+        found.clear();
+        stack.clear();
+        scan.blocked.clear();
+        scan.taken.clear();
+        if !self.scan_first_loads(func, analysis, target, scan, found) {
+            return;
         }
-        let mut stack = vec![(target, scan)];
+        stack.push((target, scan.clone()));
         let mut visited = 0;
         while let Some((block, scan)) = stack.pop() {
             let Some(terminator) = &func.blocks[block].terminator else { continue };
             for successor in terminator.successors() {
                 if visited >= Self::MAX_DESCENDANT_BLOCKS {
-                    return found;
+                    return;
                 }
                 if successor == target
                     || func.blocks[successor].predecessors.as_slice() != [block]
@@ -918,12 +951,11 @@ impl<'a> Eliminator<'a> {
                 }
                 visited += 1;
                 let mut scan = scan.clone();
-                if self.scan_first_loads(func, analysis, successor, &mut scan, &mut found) {
+                if self.scan_first_loads(func, analysis, successor, &mut scan, found) {
                     stack.push((successor, scan));
                 }
             }
         }
-        found
     }
 
     /// The most single-predecessor blocks [`Self::join_loads`] scans below one join.
