@@ -28,7 +28,7 @@ Blazingly fast, modular and contributor friendly Solidity compiler, written in R
 - 💻 Simple and hackable code base
 - 🔄 Compatibility with the latest Solidity language breaking version (0.8.*)
 
-## Performance
+### Performance
 
 On six real-world projects, builds were **about 100× faster on average** than solc's via-IR pipeline,
 reaching **159×** on Morpho Blue.
@@ -51,7 +51,7 @@ deploy** and had **29% smaller bytecode** than those compiled with solc, as geom
 See the [results](https://www.getfoundry.sh/perf/solar/?head=0303bb7d606a50ef158e34669b5851f47a1e054e#benchmarks) and
 [benchmark instructions](benches/runtime/README.md) for inputs, settings and how to reproduce them.
 
-## How it works
+### How it works
 
 ![Compiler pipeline: Solidity → AST → HIR → MIR → EVM IR → bytecode, with optimization passes on MIR and EVM IR](assets/pipeline.png)
 
@@ -84,6 +84,14 @@ You can see examples of how to use Solar as a library in the [examples](/example
 
 ### Binary usage
 
+Install [Foundry](https://getfoundry.sh/introduction/installation/), then choose the compiler with `--use solar`:
+
+```bash
+foundryup
+forge build --use solar
+forge test --use solar
+```
+
 Pre-built binaries are available for macOS, Linux and Windows on the [releases page](https://github.com/paradigmxyz/solar/releases)
 and can be installed with the following commands:
 - On macOS and Linux:
@@ -99,8 +107,6 @@ and can be installed with the following commands:
     curl -LsSf https://paradigm.xyz/solar/v0.2.0/install.sh | sh
     powershell -c "irm https://paradigm.xyz/solar/v0.2.0/install.ps1 | iex"
     ```
-
-Solar is also shipped in [Foundry](https://github.com/foundry-rs/foundry) releases.
 
 You can also use [`cargo binstall`](https://github.com/cargo-bins/cargo-binstall):
 - Latest version:
