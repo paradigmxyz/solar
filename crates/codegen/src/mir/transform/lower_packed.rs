@@ -26,8 +26,8 @@
 
 use crate::mir::{
     AbiType, AbiWordValidator, AllocationSemantics, BlockId, EffectKind, Function, FunctionBuilder,
-    InstKind, MemoryObjectLayout, MirType, PackedArraySource, PackedPart, PanicCode, PtrLocation,
-    Value, ValueId, ValueLayout, memory::EvmMemoryLayout, packed_element_bytes,
+    InstKind, MemoryObjectLayout, MirType, PackedArraySource, PackedPart, PtrLocation, Value,
+    ValueId, ValueLayout, memory::EvmMemoryLayout, packed_element_bytes,
 };
 use alloy_primitives::{Bytes, U256};
 
@@ -375,10 +375,8 @@ impl PackedEncoder<'_, '_> {
                     AbiType::Word(Some(validator)) => {
                         if let AbiWordValidator::EnumRange(variants) = validator {
                             // valid = element < variant_count
-                            // panic_if_zero(valid, enum_conversion)
-                            let variants = self.builder.imm(*variants);
-                            let valid = self.builder.lt(element_value, variants);
-                            self.builder.panic_if_zero(valid, PanicCode::EnumConversion);
+                            // panic_if(valid == 0, enum_conversion)
+                            self.builder.validate_enum_value(*variants, element_value);
                         }
                         validator.cleanup(self.builder, element_value)
                     }
