@@ -9,30 +9,35 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v75 = add v74, 4
     v77 = sub v72, 36
     v78 = gt v74, v77
-    v106 = or v73, v78
-    jumpi v106, bb15, bb16
+    v112 = or v73, v78
+    jumpi v112, bb15, bb16
   bb16:
     v79 = calldataload v75
     v80 = add v75, 32
     v81 = add v79, 63
     v82 = lt v81, v79
     v84 = and v81, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v100 = heap_floor !metadata(alloc_ptr)
-    v101 = add v100, v84 !metadata(alloc_ptr)
-    v102 = lt v101, v100
-    v103 = gt v101, 0xffffffffffffffff
-    v104 = or v102, v103
-    v107 = or v82, v104
-    jumpi v107, bb17, bb19
+    v105 = heap_floor !metadata(alloc_ptr)
+    v106 = add v105, v84 !metadata(alloc_ptr)
+    v107 = lt v106, v105
+    v108 = gt v106, 0xffffffffffffffff
+    v109 = or v107, v108
+    v113 = or v82, v109
+    jumpi v113, bb17, bb19
   bb19:
-    mstore 64, v101 !metadata(memory=scratch)
-    mstore v100, v79
+    mstore 64, v106 !metadata(memory=scratch)
+    mstore v105, v79
     v86 = sub v72, v80
     v87 = gt v79, v86
     jumpi v87, bb15, bb18
   bb18:
-    v95 = add v100, 32
-    calldatacopy v95, v80, v79
+    v99 = add v105, 32
+    calldatacopy v99, v80, v79
+    v95 = sub 0, v79
+    v96 = and v95, 31
+    v111 = calldatasize
+    v100 = add v99, v79
+    calldatacopy v100, v111, v96
     v0 = sload 0 !metadata(storage=slot(0))
     v65 = shr v0, 64
     v1 = ne v65, 0
@@ -52,7 +57,7 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v13 = eq v7, v12
     jumpi v13, bb4, bb5
   bb5:
-    v15 = mload v100
+    v15 = mload v105
     v18 = add v11, 31
     v19 = shr v18, 5
     v20 = add v15, 31
@@ -77,7 +82,7 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v39 = sub v15, v70
     sstore v4, v39 !metadata(storage=offset(v0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
     mstore 0, v4 !metadata(memory=scratch)
-    v93 = keccak256 0, 32 !metadata(memory=scratch)
+    v97 = keccak256 0, 32 !metadata(memory=scratch)
     v41 = shr v15, 5
     jump bb11
   bb11:
@@ -90,25 +95,25 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     jumpi v52, bb1, bb14
   bb14:
     v53 = shl v41, 5
-    v56 = add v95, v53
+    v56 = add v99, v53
     v57 = mload v56
     v58 = sub 32, v51
     v59 = shl v58, 3
     v62 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v59
     v63 = and v57, v62
-    v64 = add v93, v41
+    v64 = add v97, v41
     sstore v64, v63 !metadata(storage=symbolic(v64))
     jump bb1
   bb12:
     v44 = shl v42, 5
-    v47 = add v95, v44
+    v47 = add v99, v44
     v48 = mload v47
-    v49 = add v93, v42
+    v49 = add v97, v42
     sstore v49, v48 !metadata(storage=symbolic(v49))
     v50 = add v42, 1
     jump bb11
   bb9:
-    v29 = mload v95
+    v29 = mload v99
     v30 = sub 32, v15
     v31 = shl v30, 3
     v34 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v31
