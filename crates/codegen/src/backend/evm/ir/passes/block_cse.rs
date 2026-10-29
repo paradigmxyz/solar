@@ -28,9 +28,8 @@ use crate::backend::evm::{
 };
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
-use solar_data_structures::map::{FxHashMap, FxHasher};
+use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
-use std::hash::{Hash, Hasher};
 
 pub(super) struct BlockCse;
 
@@ -65,14 +64,6 @@ struct StackValue {
     origin: Option<usize>,
 }
 
-#[derive(Clone, Copy)]
-struct FingerprintValue {
-    expr: u64,
-    span: Option<(usize, usize)>,
-    /// The constant memory address this value holds, when known.
-    address: Option<u64>,
-}
-
 /// The symbolic walk over one block, writing the rebuilt instructions to `out`.
 #[derive(Default)]
 struct Cse {
@@ -88,17 +79,12 @@ struct Cse {
     known_stores: FxHashMap<u64, usize>,
     const_exprs: FxHashMap<usize, u64>,
     gas_observed: bool,
-    /// Scratch stack of the pre-screen, reused across blocks.
-    screen_stack: Vec<FingerprintValue>,
     changed: bool,
 }
 
 impl Cse {
     /// Rebuilds `instructions` and returns whether the rebuild removed or regenerated any.
     fn regenerate(&mut self, instructions: &mut Vec<Instruction>) -> bool {
-        if !may_regenerate(instructions, self.evm_version, &mut self.screen_stack) {
-            return false;
-        }
         self.stack.clear();
         self.expressions.clear();
         self.known_stores.clear();
@@ -334,250 +320,6 @@ impl Cse {
         self.next_expr += 1;
         self.next_expr - 1
     }
-}
-
-/// Returns whether a block computes an expression while an equal expression remains within
-/// the target's `DUP` reach. This lightweight symbolic execution avoids rebuilding blocks that
-/// merely repeat opcodes with different operands, which is common in already-optimized EVM IR.
-///
-/// When a block addresses one constant memory word more than once, it also follows the known
-/// constant-address stores and reports the first store or load that the rebuild could forward.
-/// Until then, the rebuild sees the same state.
-fn may_regenerate(
-    instructions: &[Instruction],
-    evm_version: EvmVersion,
-    stack: &mut Vec<FingerprintValue>,
-) -> bool {
-    let track_memory = has_repeated_const_memory_addr(instructions);
-    if !track_memory && !has_repeated_candidate_opcode(instructions, evm_version) {
-        return false;
-    }
-
-    let stack_access_limit = evm_version.reachable_stack_depth();
-    stack.clear();
-    let mut next_fresh = 0usize;
-    let mut memory_epoch = 0u64;
-    let mut storage_epoch = 0u64;
-    let mut known_stores = SmallVec::<[(u64, u64); 8]>::new();
-
-    for (inst_idx, inst) in instructions.iter().enumerate() {
-        if inst.is_encoded_push() {
-            let Some(value) = inst.value else {
-                stack.push(FingerprintValue {
-                    expr: fresh_hash(&mut next_fresh),
-                    span: None,
-                    address: None,
-                });
-                continue;
-            };
-            let expr = push_fingerprint(inst.opcode, inst.encoding, value);
-            if inst.is_duplicable_push(evm_version)
-                && stack.iter().rev().take(stack_access_limit).any(|existing| existing.expr == expr)
-            {
-                return true;
-            }
-            let address =
-                inst.concrete_immediate().and_then(|immediate| u64::try_from(immediate).ok());
-            stack.push(FingerprintValue { expr, span: Some((inst_idx, inst_idx + 1)), address });
-            continue;
-        }
-
-        let opcode = inst.opcode;
-        if let Some(stack_op) = inst.as_stack_op() {
-            match stack_op {
-                StackOp::Dup(depth) => {
-                    let depth = usize::from(depth);
-                    ensure_hash_depth(stack, depth, &mut next_fresh);
-                    let value = stack[stack.len() - depth];
-                    stack.push(FingerprintValue { span: None, ..value });
-                }
-                StackOp::Swap(depth) => {
-                    let depth = usize::from(depth);
-                    ensure_hash_depth(stack, depth + 1, &mut next_fresh);
-                    let top = stack.len() - 1;
-                    stack.swap(top, top - depth);
-                }
-                StackOp::Exchange(n, m) => {
-                    ensure_hash_depth(stack, usize::from(m) + 1, &mut next_fresh);
-                    let top = stack.len() - 1;
-                    stack.swap(top - usize::from(n), top - usize::from(m));
-                }
-                StackOp::Pop => {
-                    ensure_hash_depth(stack, 1, &mut next_fresh);
-                    stack.pop();
-                }
-            }
-            continue;
-        }
-
-        if track_memory {
-            match opcode {
-                op::MSTORE | op::MSTORE8 => {
-                    ensure_hash_depth(stack, 2, &mut next_fresh);
-                    let address = stack[stack.len() - 1].address;
-                    let value = stack[stack.len() - 2].expr;
-                    match address {
-                        Some(address) => {
-                            if opcode == op::MSTORE && known_stores.contains(&(address, value)) {
-                                return true;
-                            }
-                            known_stores.retain(|&mut (slot, _)| {
-                                slot.abs_diff(address) >= op::WORD_BYTES as u64
-                            });
-                            if opcode == op::MSTORE {
-                                known_stores.push((address, value));
-                            }
-                        }
-                        None => known_stores.clear(),
-                    }
-                }
-                op::MLOAD => {
-                    ensure_hash_depth(stack, 1, &mut next_fresh);
-                    if let Some(address) = stack[stack.len() - 1].address
-                        && known_stores.iter().any(|&(slot, _)| slot == address)
-                    {
-                        return true;
-                    }
-                }
-                _ if op::writes_memory(opcode) => known_stores.clear(),
-                _ => {}
-            }
-        }
-
-        if let Some((inputs, read_epoch)) = expression_inputs(opcode, memory_epoch, storage_epoch) {
-            ensure_hash_depth(stack, inputs, &mut next_fresh);
-            let operands = stack.drain(stack.len() - inputs..).collect::<SmallVec<[_; 3]>>();
-            let mut operand_exprs =
-                operands.iter().map(|value| value.expr).collect::<SmallVec<[u64; 3]>>();
-            if op::is_commutative(opcode) {
-                operand_exprs.sort_unstable();
-            }
-            let expr = operation_fingerprint(opcode, read_epoch, &operand_exprs);
-            let closed_span = closed_span_start(operands.iter().map(|value| value.span), inst_idx);
-            if closed_span.is_some()
-                && stack.iter().rev().take(stack_access_limit).any(|existing| existing.expr == expr)
-            {
-                return true;
-            }
-            stack.push(FingerprintValue {
-                expr,
-                span: closed_span.map(|start| (start, inst_idx + 1)),
-                address: None,
-            });
-            continue;
-        }
-
-        if op::writes_memory(opcode) {
-            memory_epoch = memory_epoch.wrapping_add(1);
-        }
-        if op::writes_storage(opcode) {
-            storage_epoch = storage_epoch.wrapping_add(1);
-        }
-        let effect = inst.stack_effect();
-        let inputs = usize::from(effect.inputs);
-        ensure_hash_depth(stack, inputs, &mut next_fresh);
-        stack.truncate(stack.len() - inputs);
-        for _ in 0..effect.outputs {
-            stack.push(FingerprintValue {
-                expr: fresh_hash(&mut next_fresh),
-                span: None,
-                address: None,
-            });
-        }
-    }
-    false
-}
-
-/// Returns whether two instructions could possibly intern to the same expression. Equal
-/// expressions necessarily have the same opcode, so this allocation-free screen rejects most
-/// already-optimized blocks before symbolic execution.
-fn has_repeated_candidate_opcode(instructions: &[Instruction], evm_version: EvmVersion) -> bool {
-    // An inline 256-bit set over the opcode domain, keeping the screen allocation-free.
-    let mut seen = [0u64; 4];
-    for inst in instructions {
-        let candidate = if inst.is_encoded_push() {
-            inst.is_duplicable_push(evm_version)
-        } else {
-            expression_inputs(inst.opcode, 0, 0).is_some()
-        };
-        if candidate {
-            let opcode = usize::from(inst.opcode);
-            let bit = 1u64 << (opcode % 64);
-            if seen[opcode / 64] & bit != 0 {
-                return true;
-            }
-            seen[opcode / 64] |= bit;
-        }
-    }
-    false
-}
-
-fn push_fingerprint(opcode: u8, encoding: u8, value: PushValue) -> u64 {
-    let mut hasher = FxHasher::default();
-    (opcode, encoding, value).hash(&mut hasher);
-    hasher.finish()
-}
-
-fn operation_fingerprint(opcode: u8, epoch: Option<u64>, operands: &[u64]) -> u64 {
-    let mut hasher = FxHasher::default();
-    (opcode, epoch, operands).hash(&mut hasher);
-    hasher.finish()
-}
-
-fn fresh_hash(next_fresh: &mut usize) -> u64 {
-    let id = *next_fresh;
-    *next_fresh += 1;
-    // A distinct namespace from `operation_fingerprint` so fresh values never collide with a real
-    // expression fingerprint.
-    let mut hasher = FxHasher::default();
-    ("fresh", id).hash(&mut hasher);
-    hasher.finish()
-}
-
-fn ensure_hash_depth(stack: &mut Vec<FingerprintValue>, depth: usize, next_fresh: &mut usize) {
-    let missing = depth.saturating_sub(stack.len());
-    if missing != 0 {
-        stack.splice(
-            0..0,
-            (0..missing).map(|_| FingerprintValue {
-                expr: fresh_hash(next_fresh),
-                span: None,
-                address: None,
-            }),
-        );
-    }
-}
-
-/// Returns whether a block addresses the same constant memory word from more
-/// than one store or from a store and a load, the shapes the known-store
-/// model can simplify.
-fn has_repeated_const_memory_addr(instructions: &[Instruction]) -> bool {
-    let mut stores = SmallVec::<[u64; 8]>::new();
-    let mut loads = SmallVec::<[u64; 8]>::new();
-    for pair in instructions.windows(2) {
-        let [producer, consumer] = pair else { continue };
-        let Some(address) =
-            producer.concrete_immediate().and_then(|value| u64::try_from(value).ok())
-        else {
-            continue;
-        };
-        match consumer.opcode {
-            op::MSTORE => {
-                if stores.contains(&address) || loads.contains(&address) {
-                    return true;
-                }
-                stores.push(address);
-            }
-            op::MLOAD => {
-                if stores.contains(&address) {
-                    return true;
-                }
-                loads.push(address);
-            }
-            _ => {}
-        }
-    }
-    false
 }
 
 /// Returns the start of the instruction interval that produced exactly the `spans`, when they are
