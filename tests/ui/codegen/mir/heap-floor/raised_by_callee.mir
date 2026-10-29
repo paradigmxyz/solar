@@ -1,0 +1,112 @@
+//@compile-flags: -Zmir-pipeline=heap-floor
+//@filecheck:
+@module HeapFloorRaisedByCallee
+
+// A helper that reads the slot as data through its parameter and then allocates is clamped inside.
+// CHECK-LABEL: {{^[ +].*}}fn @hash{{[( ]}}
+// CHECK: + {{v[0-9]+}} = heap_floor
+fn @hash(arg0: i256) {
+  bb0:
+    v0 = mload arg0
+    v1 = alloc 32
+    mstore v1, v0
+    ret
+}
+
+// A callee that raises the slot on every path leaves the caller's allocation unclamped.
+// CHECK-LABEL: {{^[ +].*}}fn @twice{{[( ]}}
+// CHECK-NOT: heap_floor
+fn @twice(arg0: i256) {
+  bb0:
+    icall @hash, arg0
+    v0 = alloc 32
+    mstore v0, arg0
+    ret
+}
+
+// A helper that calls `@hash` on one path only does not raise the slot on every path.
+// CHECK-LABEL: {{^[ +].*}}fn @maybe{{[( ]}}
+// CHECK-NOT: heap_floor
+fn @maybe(arg0: i256, arg1: i1) {
+  bb0:
+    jumpi arg1, bb1, bb2
+  bb1:
+    icall @hash, arg0
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    ret
+}
+
+// A dirty entry that calls a helper that raises the slot adds no clamp.
+// CHECK-LABEL: {{^[ +].*}}fn @dirty_twice{{[( ]}}
+// CHECK-NOT: heap_floor
+fn @dirty_twice(arg0: i256) [selector=0x11111111] {
+  bb0:
+    mstore arg0, 1
+    icall @twice, arg0
+    ret
+}
+
+// A caller that allocates after a callee that raises the slot on one path only is clamped.
+// CHECK-LABEL: {{^[ +].*}}fn @dirty_maybe{{[( ]}}
+// CHECK: icall @maybe, arg0, arg1
+// CHECK-NEXT: + {{v[0-9]+}} = mload 64
+// CHECK: + {{v[0-9]+}} = heap_floor
+fn @dirty_maybe(arg0: i256, arg1: i1) [selector=0x22222222] {
+  bb0:
+    mstore arg0, 1
+    icall @maybe, arg0, arg1
+    v0 = alloc 32
+    mstore v0, arg0
+    ret
+}
+
+// A tail call to a callee that raises the slot raises it too.
+// CHECK-LABEL: {{^[ +].*}}fn @forward{{[( ]}}
+// CHECK-NOT: heap_floor
+fn @forward(arg0: i256) {
+  bb0:
+    tail_call @hash, arg0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @dirty_forward{{[( ]}}
+// CHECK-NOT: heap_floor
+fn @dirty_forward(arg0: i256) [selector=0x33333333] {
+  bb0:
+    mstore arg0, 1
+    icall @forward, arg0
+    v0 = alloc 32
+    mstore v0, arg0
+    ret
+}
+
+// A cycle of calls counts as no raise, so the caller of a recursive helper keeps its clamp.
+// CHECK-LABEL: {{^[ +].*}}fn @countdown{{[( ]}}
+// CHECK-NOT: heap_floor
+fn @countdown(arg0: i256) {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb1:
+    icall @hash, arg0
+    ret
+  bb2:
+    v1 = sub arg0, 1
+    icall @countdown, v1
+    ret
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @dirty_countdown{{[( ]}}
+// CHECK: icall @countdown, arg0
+// CHECK-NEXT: + {{v[0-9]+}} = mload 64
+// CHECK: + {{v[0-9]+}} = heap_floor
+fn @dirty_countdown(arg0: i256) [selector=0x44444444] {
+  bb0:
+    mstore arg0, 1
+    icall @countdown, arg0
+    v0 = alloc 32
+    mstore v0, arg0
+    ret
+}
