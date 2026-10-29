@@ -306,15 +306,9 @@ type PhiKey = (Vec<(BlockId, ValueId)>, Option<MirType>);
 /// A class of equal values rooted at one instruction.
 struct Class {
     /// Equivalent nodes; the first is the instruction as written.
-    nodes: Nodes,
+    nodes: SmallVec<[Op; 1]>,
     /// The instruction defining the class representative.
     home: InstId,
-}
-
-/// Inline storage for the overwhelmingly common single-node class.
-enum Nodes {
-    One(Op),
-    Many(Vec<Op>),
 }
 
 newtype_index! {
@@ -357,29 +351,6 @@ enum Simplified {
 impl Simplified {
     fn from_value(value: Option<ValueId>) -> Self {
         value.map_or(Self::Unchanged, Self::Value)
-    }
-}
-
-impl Nodes {
-    fn as_slice(&self) -> &[Op] {
-        match self {
-            Self::One(node) => std::slice::from_ref(node),
-            Self::Many(nodes) => nodes,
-        }
-    }
-
-    fn len(&self) -> usize {
-        self.as_slice().len()
-    }
-
-    fn push(&mut self, node: Op) {
-        match self {
-            Self::One(first) => {
-                let first = *first;
-                *self = Self::Many(vec![first, node]);
-            }
-            Self::Many(nodes) => nodes.push(node),
-        }
     }
 }
 
@@ -564,7 +535,8 @@ impl<'a> Builder<'a> {
 
         // Grow the class with every equivalent node the rules reach, breadth
         // first, then look for a value it already equals.
-        let mut nodes = Nodes::One(op);
+        let evm = self.target.evm_version();
+        let mut nodes = SmallVec::from_buf([op]);
         let mut simplified = SmallVec::<[Simplified; 2]>::from_slice(&[Simplified::Pending]);
         let mut frontier = 0;
         let mut alternatives = Vec::new();
@@ -579,29 +551,18 @@ impl<'a> Builder<'a> {
                 frontier += 1;
                 alternatives.clear();
                 let kind = current.into_kind().expect("nodes are complete instructions");
-                let folded = if may_const_fold(self.func, &current) {
-                    const_fold(self.func, &kind, ty)
-                } else {
-                    None
-                };
+                let folded = fold_node(self.func, &current, &kind, ty);
                 if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
                     let (operands, truncated) = self.operand_views(&current, view_limit);
                     views_truncated |= truncated;
                     for view in matching_views(&current, &operands) {
-                        isle::RuleContext::new(self.func, self.target.evm_version())
-                            .with_block(block)
-                            .with_uses(&self.uses)
-                            .with_target(self.target)
+                        self.rule_context(block)
                             .with_views(view)
                             .rewrite(&current, &mut alternatives);
                     }
-                    simplified[current_index] = Simplified::from_value(folded.or_else(|| {
-                        matching_views(&current, &operands).find_map(|view| {
-                            isle::RuleContext::new(self.func, self.target.evm_version())
-                                .with_views(view)
-                                .simplify(&current)
-                        })
-                    }));
+                    simplified[current_index] = Simplified::from_value(
+                        folded.or_else(|| simplify_views(self.func, evm, &current, &operands)),
+                    );
                 } else {
                     simplified[current_index] = Simplified::from_value(folded);
                 }
@@ -654,20 +615,10 @@ impl<'a> Builder<'a> {
                 Simplified::Unchanged => None,
                 Simplified::Pending => {
                     let kind = node.into_kind().expect("nodes are complete instructions");
-                    let folded = if may_const_fold(self.func, node) {
-                        const_fold(self.func, &kind, ty)
-                    } else {
-                        None
-                    };
+                    let folded = fold_node(self.func, node, &kind, ty);
                     if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
                         let (operands, _) = self.operand_views(node, view_limit);
-                        folded.or_else(|| {
-                            matching_views(node, &operands).find_map(|view| {
-                                isle::RuleContext::new(self.func, self.target.evm_version())
-                                    .with_views(view)
-                                    .simplify(node)
-                            })
-                        })
+                        folded.or_else(|| simplify_views(self.func, evm, node, &operands))
                     } else {
                         folded
                     }
@@ -696,6 +647,14 @@ impl<'a> Builder<'a> {
         } else {
             self.classes.insert(result, Class { nodes, home: inst_id });
         }
+    }
+
+    /// The rewrite-rule context for a root in `block`.
+    fn rule_context(&mut self, block: BlockId) -> isle::RuleContext<'_> {
+        isle::RuleContext::new(self.func, self.target.evm_version())
+            .with_block(block)
+            .with_uses(&self.uses)
+            .with_target(self.target)
     }
 
     /// Only existing equivalent nodes are exposed; no new SSA values or code
@@ -800,11 +759,7 @@ impl<'a> Builder<'a> {
         for _ in 0..self.max_nodes {
             alternatives.clear();
             let canonical_op = canonical_operands(self.func, current);
-            isle::RuleContext::new(self.func, self.target.evm_version())
-                .with_block(block)
-                .with_uses(&self.uses)
-                .with_target(self.target)
-                .rewrite(&canonical_op, &mut alternatives);
+            self.rule_context(block).rewrite(&canonical_op, &mut alternatives);
             let Some(next) = alternatives.iter().find_map(|next| {
                 let next = next.map_values(|value| self.resolve(value));
                 next.into_kind()
@@ -931,7 +886,7 @@ impl<'a> Builder<'a> {
                     .iter()
                     .rev()
                     .copied()
-                    .min_by_key(|node| CostKey(target, costs.node(class, node)))
+                    .min_by_key(|node| target.objective_key(costs.node(class, node)))
                     .expect("a class holds its own node")
             };
             cheapest.push((class.home, best));
@@ -1001,7 +956,7 @@ impl<'a> Builder<'a> {
                     break;
                 };
                 let inner = resolve_replacement(inner, &self.merged);
-                if func.value_ty(inner) != Some(crate::mir::MirType::I1) {
+                if func.value_ty(inner) != Some(MirType::I1) {
                     break;
                 }
                 let Some(Terminator::Branch { condition, then_block, else_block }) =
@@ -1120,12 +1075,7 @@ fn optimistic_phi_leaders(
     let mut leaders = FxHashMap::default();
     // Only a cycle carries a value back into its own phi; elsewhere the
     // dominator walk numbers every phi over already numbered operands.
-    let has_loop_phi = cfg.cyclic_blocks().iter().any(|block| {
-        func.blocks[block]
-            .instructions
-            .iter()
-            .any(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-    });
+    let has_loop_phi = cfg.cyclic_blocks().iter().any(|block| func.block_has_phi(block));
     if !has_loop_phi {
         return leaders;
     }
@@ -1339,6 +1289,28 @@ fn const_fold(func: &mut Function, kind: &InstKind, ty: Option<MirType>) -> Opti
         .flatten()?;
     let immediate = Immediate::for_type(ty, value);
     Some(func.alloc_value(Value::Immediate(immediate)))
+}
+
+/// Returns the value `node` folds to when its operands allow it, as [`const_fold`] on `kind`.
+fn fold_node(
+    func: &mut Function,
+    node: &Op,
+    kind: &InstKind,
+    ty: Option<MirType>,
+) -> Option<ValueId> {
+    if may_const_fold(func, node) { const_fold(func, kind, ty) } else { None }
+}
+
+/// Returns the value `node` equals through a `simplify` rule, trying the bounded operand views
+/// of [`matching_views`].
+fn simplify_views(
+    func: &mut Function,
+    evm: EvmVersion,
+    node: &Op,
+    operands: &[(ValueId, Op)],
+) -> Option<ValueId> {
+    matching_views(node, operands)
+        .find_map(|view| isle::RuleContext::new(func, evm).with_views(view).simplify(node))
 }
 
 /// Match paired complement rules without multiplying unrestricted child classes.
@@ -1560,30 +1532,6 @@ impl Costs<'_> {
                     class.nodes.as_slice().iter().all(|node| operands_of(node).contains(&input))
                 })
         })
-    }
-}
-
-/// A cost ordered under the target objective.
-#[derive(Clone, Copy)]
-struct CostKey<'a>(&'a Target, Cost);
-
-impl PartialEq for CostKey<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.cmp(other) == std::cmp::Ordering::Equal
-    }
-}
-
-impl Eq for CostKey<'_> {}
-
-impl PartialOrd for CostKey<'_> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for CostKey<'_> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.cmp(self.1, other.1)
     }
 }
 

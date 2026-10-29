@@ -136,7 +136,7 @@ use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
-    index::IndexVec,
+    index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
 use std::{cell::OnceCell, collections::BTreeMap, mem, rc::Rc, sync::Arc};
@@ -183,22 +183,6 @@ impl MirPass for Pre {
     }
 }
 
-/// Statistics for PRE.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-struct PreStats {
-    /// Number of join-block instructions replaced by phis or available values.
-    eliminated: usize,
-    /// Number of compensating instructions inserted into predecessors.
-    inserted: usize,
-}
-
-impl PreStats {
-    /// Returns the total number of MIR edits made by this pass.
-    const fn total(self) -> usize {
-        self.eliminated + self.inserted
-    }
-}
-
 /// Redundancy eliminator for pure expressions and memory-dependent reads.
 #[derive(Debug)]
 struct Eliminator<'a> {
@@ -209,7 +193,6 @@ struct Eliminator<'a> {
     gas: OnceCell<GasObservations>,
     /// Shared CFG snapshot for the availability dataflow.
     cfg: Option<Rc<CfgInfo>>,
-    stats: PreStats,
     target: &'a Target,
 }
 
@@ -228,7 +211,21 @@ enum LoadKey {
     Slot(Location),
     /// A 32-byte memory read at a canonical address.
     Memory(MemoryAddress),
-    Keccak(MemoryAddress, KeccakSize),
+    /// A `keccak256` of a memory range.
+    Keccak(MemoryLocation),
+}
+
+impl LoadKey {
+    /// Returns the location a write must miss for the read to keep its value.
+    fn location(self) -> Location {
+        match self {
+            Self::Slot(location) => location,
+            Self::Memory(address) => {
+                Location::Memory(MemoryLocation::new(address, LocationSize::Const(32)))
+            }
+            Self::Keccak(location) => Location::Memory(location),
+        }
+    }
 }
 
 /// The most copies of a pure expression one rewrite inserts; this bounds code growth at joins with
@@ -256,13 +253,6 @@ struct ExprKey {
 enum OperandKey {
     Value(ValueId),
     Immediate(Immediate),
-}
-
-/// The size of a keccak read: a known constant or the canonical size operand.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum KeccakSize {
-    Const(u64),
-    Dyn(ValueId),
 }
 
 /// Where a gen's value comes from.
@@ -357,12 +347,9 @@ impl PreCostModel<'_> {
                 self.target.repeated_read_gas(location.address_space()) as i64
             }
             LoadKey::Memory(_) => self.target.repeated_read_gas(AddressSpace::Memory) as i64,
-            LoadKey::Keccak(_, size) => {
+            LoadKey::Keccak(location) => {
                 // A dynamic size is priced as a two-word mapping key.
-                let size = match size {
-                    KeccakSize::Const(size) => size,
-                    KeccakSize::Dyn(_) => 64,
-                };
+                let size = location.size.as_const().unwrap_or(64);
                 let arguments = [None, Some(U256::from(size))];
                 self.target.opcode_with_immediates(op::KECCAK256, &arguments).gas as i64
             }
@@ -410,11 +397,11 @@ struct Analysis {
 struct Availability {
     /// Per-block keys killed at any point in the block; only blocks that kill
     /// something have an entry.
-    kills: FxHashMap<BlockId, KeySet>,
-    /// Availability at block entry, over all paths from the entry block.
-    ins: FxHashMap<BlockId, KeySet>,
-    /// Availability at block exit.
-    outs: FxHashMap<BlockId, KeySet>,
+    kills: IndexVec<BlockId, Option<KeySet>>,
+    /// Availability at block entry, over all paths from the entry block; reachable blocks only.
+    ins: IndexVec<BlockId, Option<KeySet>>,
+    /// Availability at block exit; reachable blocks only.
+    outs: IndexVec<BlockId, Option<KeySet>>,
 }
 
 #[derive(Default)]
@@ -504,7 +491,7 @@ impl KillIndex {
                     address.offset = 0;
                     this.memory_words.entry(address).or_default().insert(offset, idx);
                 }
-                LoadKey::Keccak(_, _) => {
+                LoadKey::Keccak(_) => {
                     this.memory.push(idx);
                     this.keccak.push(idx);
                 }
@@ -534,25 +521,15 @@ impl Analysis {
     /// Returns true if any block on a CFG path from `from` to `to` (excluding
     /// `from` itself, whose effects the caller scans directly) may kill `key`.
     fn path_kills_key(&self, from: BlockId, to: BlockId, key_idx: usize) -> bool {
-        let block_kills = &self.availability.kills;
-        if block_kills.is_empty() {
-            return false;
-        }
-        let Some(reachable_from) = self.cfg.transitive_reachability(from) else { return true };
-        for (&mid, kills) in block_kills {
-            if mid == from || !kills.contains(key_idx) {
-                continue;
-            }
-            if reachable_from.contains(mid)
-                && self
-                    .cfg
-                    .transitive_reachability(mid)
-                    .is_some_and(|reachable| reachable.contains(to))
-            {
-                return true;
-            }
-        }
-        false
+        let reaches = |a: BlockId, b: BlockId| {
+            self.cfg.transitive_reachability(a).is_some_and(|reachable| reachable.contains(b))
+        };
+        self.availability.kills.iter_enumerated().any(|(mid, kills)| {
+            mid != from
+                && kills.as_ref().is_some_and(|kills| kills.contains(key_idx))
+                && reaches(from, mid)
+                && reaches(mid, to)
+        })
     }
 }
 
@@ -624,14 +601,7 @@ struct LoadScan {
 
 impl<'a> Eliminator<'a> {
     fn new(target: &'a Target, cfg: Option<Rc<CfgInfo>>, reads: Option<ReadAnalyses>) -> Self {
-        Self {
-            reads,
-            liveness: OnceCell::new(),
-            gas: OnceCell::new(),
-            cfg,
-            stats: PreStats::default(),
-            target,
-        }
+        Self { reads, liveness: OnceCell::new(), gas: OnceCell::new(), cfg, target }
     }
 
     /// Runs PRE to a fixed point under the rewrite budget. Returns whether it changed `func`.
@@ -680,7 +650,7 @@ impl<'a> Eliminator<'a> {
             }
         }
 
-        self.stats.total() != 0
+        rewrites != 0
     }
 
     fn alias(&self) -> &AliasAnalysis {
@@ -732,7 +702,7 @@ impl<'a> Eliminator<'a> {
         cfg: &CfgInfo,
     ) -> (Vec<LoadKey>, FxHashMap<LoadKey, usize>) {
         let mut keys = Vec::new();
-        let mut key_index: FxHashMap<LoadKey, usize> = FxHashMap::default();
+        let mut key_index = FxHashMap::default();
         if self.reads.is_none() {
             return (keys, key_index);
         }
@@ -766,10 +736,10 @@ impl<'a> Eliminator<'a> {
 
         // Per-block summaries: GEN holds keys genned after the last kill, KILL
         // holds keys killed at any point.
-        let mut gens = FxHashMap::default();
-        let mut kills = FxHashMap::default();
+        let mut gens = index_vec![KeySet::new_empty(key_count); func.blocks.len()];
+        let mut kills = index_vec![None; func.blocks.len()];
         for &block in rpo {
-            let mut gen_set = KeySet::new_empty(key_count);
+            let gen_set = &mut gens[block];
             let mut kill_set = KeySet::new_empty(key_count);
             for &inst_id in &func.blocks[block].instructions {
                 if func.inst(inst_id).kind.has_side_effects() {
@@ -789,24 +759,20 @@ impl<'a> Eliminator<'a> {
                 }
             }
             if !kill_set.is_empty() {
-                kills.insert(block, kill_set);
+                kills[block] = Some(kill_set);
             }
-            gens.insert(block, gen_set);
         }
 
         // Availability fixpoint with optimistic initialization.
-        let mut ins: FxHashMap<BlockId, KeySet> = FxHashMap::default();
-        let mut outs: FxHashMap<BlockId, KeySet> = rpo
-            .iter()
-            .map(|&block| {
-                let out = if func.blocks[block].predecessors.is_empty() {
-                    gens[&block].clone()
-                } else {
-                    KeySet::new_filled(key_count)
-                };
-                (block, out)
-            })
-            .collect();
+        let mut ins = index_vec![None; func.blocks.len()];
+        let mut outs = index_vec![None; func.blocks.len()];
+        for &block in rpo {
+            outs[block] = Some(if func.blocks[block].predecessors.is_empty() {
+                gens[block].clone()
+            } else {
+                KeySet::new_filled(key_count)
+            });
+        }
         loop {
             let mut changed = false;
             for &block in rpo {
@@ -814,7 +780,7 @@ impl<'a> Eliminator<'a> {
                 for &pred in &func.blocks[block].predecessors {
                     // Unreachable predecessors never execute and cannot
                     // contribute a path.
-                    let Some(out) = outs.get(&pred) else { continue };
+                    let Some(out) = &outs[pred] else { continue };
                     match &mut acc {
                         Some(acc) => {
                             acc.intersect(out);
@@ -824,13 +790,13 @@ impl<'a> Eliminator<'a> {
                 }
                 let in_set = acc.unwrap_or_else(|| KeySet::new_empty(key_count));
                 let mut out = in_set.clone();
-                if let Some(kill) = kills.get(&block) {
+                if let Some(kill) = &kills[block] {
                     out.subtract(kill);
                 }
-                out.union(&gens[&block]);
-                ins.insert(block, in_set);
-                if outs.get(&block) != Some(&out) {
-                    outs.insert(block, out);
+                out.union(&gens[block]);
+                ins[block] = Some(in_set);
+                if outs[block].as_ref() != Some(&out) {
+                    outs[block] = Some(out);
                     changed = true;
                 }
             }
@@ -882,12 +848,7 @@ impl<'a> Eliminator<'a> {
                 continue;
             }
 
-            let loads = self
-                .first_loads(func, cx.analysis, target)
-                .into_iter()
-                .map(|(inst, key_idx)| (target, inst, key_idx))
-                .chain(self.descendant_loads(func, cx.analysis, target));
-            for (load_block, inst, key_idx) in loads {
+            for (load_block, inst, key_idx) in self.join_loads(func, cx.analysis, target) {
                 if batch.candidates.len() >= limit {
                     break 'targets;
                 }
@@ -915,35 +876,20 @@ impl<'a> Eliminator<'a> {
         batch.candidates
     }
 
-    /// Returns, in program order, the first load of each key in `target` that
-    /// no kill of that key precedes.
+    /// Returns the loads of the join `target` that may start a candidate, as `(block, load, key)`
+    /// in program order: the first load of each key in `target` that no kill of that key
+    /// precedes, then, below `target`, the first load of each key in the blocks that `target`
+    /// reaches through single-predecessor blocks alone.
     ///
-    /// Gas observations and calls end or restrict the scan: a
-    /// partial-redundancy insertion moves the read to a predecessor's end, so
-    /// it must not cross a gas observation or call (any space) in the join prefix.
-    fn first_loads(
-        &self,
-        func: &Function,
-        analysis: &Analysis,
-        target: BlockId,
-    ) -> Vec<(InstId, usize)> {
-        let key_count = analysis.keys.len();
-        let mut scan =
-            LoadScan { blocked: KeySet::new_empty(key_count), taken: KeySet::new_empty(key_count) };
-        let mut found = Vec::new();
-        self.scan_first_loads(func, analysis, target, &mut scan, &mut found);
-        found
-    }
-
-    /// Returns the first load of each key in the blocks below `target` that `target` reaches
-    /// through single-predecessor blocks alone, as `(block, load, key)`, when no kill of that key
-    /// precedes it on the way from `target`'s entry and `target` holds no load of it.
+    /// A load below `target` reads the value the key has at `target`'s entry when no kill of the
+    /// key precedes it on the way from `target`'s entry and `target` holds no load of it. It is
+    /// then fully redundant when that value is available on every predecessor.
     ///
-    /// Such a load reads the value the key has at `target`'s entry, so it is fully redundant
-    /// when that value is available on every predecessor. The walk applies the scan of
-    /// [`Self::first_loads`] to every block: it crosses no gas observation or call, and it visits
-    /// at most [`Self::MAX_DESCENDANT_BLOCKS`] blocks.
-    fn descendant_loads(
+    /// Gas observations and calls end or restrict every scan: a partial-redundancy insertion
+    /// moves the read to a predecessor's end, so it must not cross a gas observation or call (any
+    /// space) in the join prefix. The walk below `target` starts only when `target` has none, and
+    /// visits at most [`Self::MAX_DESCENDANT_BLOCKS`] blocks.
+    fn join_loads(
         &self,
         func: &Function,
         analysis: &Analysis,
@@ -953,8 +899,8 @@ impl<'a> Eliminator<'a> {
         let mut scan =
             LoadScan { blocked: KeySet::new_empty(key_count), taken: KeySet::new_empty(key_count) };
         let mut found = Vec::new();
-        if !self.scan_first_loads(func, analysis, target, &mut scan, &mut Vec::new()) {
-            return Vec::new();
+        if !self.scan_first_loads(func, analysis, target, &mut scan, &mut found) {
+            return found;
         }
         let mut stack = vec![(target, scan)];
         let mut visited = 0;
@@ -972,11 +918,7 @@ impl<'a> Eliminator<'a> {
                 }
                 visited += 1;
                 let mut scan = scan.clone();
-                let mut loads = Vec::new();
-                let transparent =
-                    self.scan_first_loads(func, analysis, successor, &mut scan, &mut loads);
-                found.extend(loads.into_iter().map(|(inst, key)| (successor, inst, key)));
-                if transparent {
+                if self.scan_first_loads(func, analysis, successor, &mut scan, &mut found) {
                     stack.push((successor, scan));
                 }
             }
@@ -984,7 +926,7 @@ impl<'a> Eliminator<'a> {
         found
     }
 
-    /// The most single-predecessor blocks [`Self::descendant_loads`] scans below one join.
+    /// The most single-predecessor blocks [`Self::join_loads`] scans below one join.
     const MAX_DESCENDANT_BLOCKS: usize = 16;
 
     /// Returns the join whose candidates may include the loads in `block`: `block` itself when
@@ -1016,7 +958,7 @@ impl<'a> Eliminator<'a> {
         analysis: &Analysis,
         block: BlockId,
         scan: &mut LoadScan,
-        found: &mut Vec<(InstId, usize)>,
+        found: &mut Vec<(BlockId, InstId, usize)>,
     ) -> bool {
         let LoadScan { blocked, taken } = scan;
         for &inst_id in &func.blocks[block].instructions {
@@ -1028,7 +970,7 @@ impl<'a> Eliminator<'a> {
                     && !blocked.contains(idx)
                     && taken.insert(idx)
                 {
-                    found.push((inst_id, idx));
+                    found.push((block, inst_id, idx));
                 }
                 continue;
             }
@@ -1125,7 +1067,7 @@ impl<'a> Eliminator<'a> {
         let mut incoming = Vec::with_capacity(predecessors.len());
         let mut insertions = Vec::new();
         for &pred in predecessors {
-            if cx.analysis.availability.outs.get(&pred).is_some_and(|out| out.contains(key_idx))
+            if cx.analysis.availability.outs[pred].as_ref().is_some_and(|out| out.contains(key_idx))
                 && let Some(value) = self.locate_value(func, cx, pred, key_idx)
             {
                 incoming.push((pred, value));
@@ -1153,12 +1095,15 @@ impl<'a> Eliminator<'a> {
             insertions.push(pred);
         }
 
-        let loop_carried = Self::is_loop_carried_rewrite(
-            cx.analysis.cfg.dominators(),
-            target,
-            &incoming,
-            &insertions,
-        );
+        // An incoming edge from a block `target` dominates is a backedge; the rest enter the loop
+        // or the diamond from above.
+        let dominators = cx.analysis.cfg.dominators();
+        let backedge_incoming =
+            incoming.iter().any(|&(pred, _)| dominators.dominates(target, pred));
+        let entry_incoming = incoming.iter().any(|&(pred, _)| !dominators.dominates(target, pred));
+        let entry_insertions = insertions.iter().all(|&pred| !dominators.dominates(target, pred));
+        let loop_carried =
+            backedge_incoming && (entry_incoming || !insertions.is_empty()) && entry_insertions;
         let needs_phi = !insertions.is_empty()
             || incoming.first().is_none_or(|&(_, first)| {
                 first == result || incoming.iter().any(|&(_, value)| value != first)
@@ -1201,21 +1146,12 @@ impl<'a> Eliminator<'a> {
             {
                 return None;
             }
-            // Insertions must be structurally safe; profitability is decided
-            // by `PreCostModel` above.
-            let loop_insertion = incoming
-                .iter()
-                .all(|&(pred, _)| cx.analysis.cfg.dominators().dominates(target, pred))
-                && insertions
-                    .iter()
-                    .all(|&pred| !cx.analysis.cfg.dominators().dominates(target, pred));
-            let diamond_insertion = Self::is_non_cyclic_diamond_insertion(
-                cx.analysis.cfg.dominators(),
-                target,
-                &incoming,
-                &insertions,
-            );
-            if !(loop_insertion || diamond_insertion) || insertions.len() > incoming.len() {
+            // Insertions must be structurally safe, entering from above a loop or a diamond;
+            // profitability is decided by `PreCostModel` above.
+            if !entry_insertions
+                || (backedge_incoming && entry_incoming)
+                || insertions.len() > incoming.len()
+            {
                 return None;
             }
         }
@@ -1233,33 +1169,6 @@ impl<'a> Eliminator<'a> {
                 .map(|pred| (pred, instruction.kind.clone()))
                 .collect(),
         })
-    }
-
-    fn is_loop_carried_rewrite(
-        dominators: &DominatorTree,
-        target: BlockId,
-        incoming: &[(BlockId, ValueId)],
-        insertions: &[BlockId],
-    ) -> bool {
-        let has_backedge_incoming =
-            incoming.iter().any(|&(pred, _)| dominators.dominates(target, pred));
-        let has_entry_edge = incoming.iter().any(|&(pred, _)| !dominators.dominates(target, pred))
-            || !insertions.is_empty();
-        has_backedge_incoming
-            && has_entry_edge
-            && insertions.iter().all(|&pred| !dominators.dominates(target, pred))
-    }
-
-    fn is_non_cyclic_diamond_insertion(
-        dominators: &DominatorTree,
-        target: BlockId,
-        incoming: &[(BlockId, ValueId)],
-        insertions: &[BlockId],
-    ) -> bool {
-        !incoming.is_empty()
-            && !insertions.is_empty()
-            && incoming.iter().all(|&(pred, _)| !dominators.dominates(target, pred))
-            && insertions.iter().all(|&pred| !dominators.dominates(target, pred))
     }
 
     /// Locates the concrete value of `key` at the end of `block`, walking the
@@ -1323,7 +1232,9 @@ impl<'a> Eliminator<'a> {
         // The block is transparent for the key: the value at its end is the
         // value at its entry, which the dataflow must prove available on all
         // paths before the dominator walk may locate it.
-        if !cx.analysis.availability.ins.get(&block).is_some_and(|in_set| in_set.contains(key_idx))
+        if !cx.analysis.availability.ins[block]
+            .as_ref()
+            .is_some_and(|in_set| in_set.contains(key_idx))
         {
             return None;
         }
@@ -1371,7 +1282,6 @@ impl<'a> Eliminator<'a> {
             func.blocks[edge].instructions.push(new_inst);
             incoming.push((edge, value));
             inserted_insts.insert(new_inst);
-            self.stats.inserted += 1;
         }
         incoming.sort_by_key(|(block, _)| block.index());
 
@@ -1405,7 +1315,6 @@ impl<'a> Eliminator<'a> {
         func.replace_uses(&insts.iter().map(|&(_, result)| (result, replacement)).collect());
         let removed = insts.iter().map(|&(inst_id, _)| inst_id).collect::<FxHashSet<_>>();
         func.blocks[block].instructions.retain(|inst_id| !removed.contains(inst_id));
-        self.stats.eliminated += insts.len();
     }
 
     // ----- Keys, gens, and kills -----
@@ -1435,14 +1344,9 @@ impl<'a> Eliminator<'a> {
             InstKind::Store(addr, value, PtrLocation::Memory) => self
                 .mem_addr(func, inst_id, addr, LocationSize::Const(32))
                 .map(|addr| (LoadKey::Memory(addr), GenSource::Stored(value))),
-            InstKind::Keccak256(offset, size) => {
-                let addr = self.mem_addr(func, inst_id, offset, aa.location_size(func, size))?;
-                let size = match func.value_u64(size) {
-                    Some(size) => KeccakSize::Const(size),
-                    None => KeccakSize::Dyn(size),
-                };
-                Some((LoadKey::Keccak(addr, size), GenSource::LoadResult))
-            }
+            InstKind::Keccak256(offset, size) => aa
+                .memory_location(func, inst_id, offset, aa.location_size(func, size))
+                .map(|location| (LoadKey::Keccak(location), GenSource::LoadResult)),
             _ => None,
         }
     }
@@ -1456,24 +1360,7 @@ impl<'a> Eliminator<'a> {
 
     #[must_use]
     fn effects_kill_key(&self, effects: &ModRef, key: LoadKey) -> bool {
-        if effects.observes_gas() {
-            return true;
-        }
-        let aa = self.alias();
-        match key {
-            LoadKey::Slot(location) => effects.may_write(aa, location),
-            LoadKey::Memory(address) => effects.may_write(
-                aa,
-                Location::Memory(MemoryLocation::new(address, LocationSize::Const(32))),
-            ),
-            LoadKey::Keccak(address, size) => {
-                let size = match size {
-                    KeccakSize::Const(size) => LocationSize::Const(size),
-                    KeccakSize::Dyn(size) => LocationSize::Dynamic(size),
-                };
-                effects.may_write(aa, Location::Memory(MemoryLocation::new(address, size)))
-            }
-        }
+        effects.observes_gas() || effects.may_write(self.alias(), key.location())
     }
 
     fn for_each_killed_key(
@@ -1563,15 +1450,7 @@ impl<'a> Eliminator<'a> {
             }
         }
         for &idx in &index.keccak {
-            let key = match keys[idx] {
-                LoadKey::Keccak(address, KeccakSize::Const(size)) => {
-                    MemoryLocation::new(address, LocationSize::Const(size))
-                }
-                LoadKey::Keccak(address, KeccakSize::Dyn(size)) => {
-                    MemoryLocation::new(address, LocationSize::Dynamic(size))
-                }
-                _ => unreachable!(),
-            };
+            let LoadKey::Keccak(key) = keys[idx] else { unreachable!() };
             if AliasAnalysis::memory_alias_locations(written, key).may_alias() {
                 kill(idx);
             }
