@@ -116,21 +116,15 @@ pub fn lookup_pass(name: &str) -> Option<&'static dyn MirPass> {
     ALL_PASSES.iter().copied().find(|pass| pass.name() == name)
 }
 
-/// Restricts one pipeline slot to the gas objective (`SIZE == false`) or to the size objective
-/// (`SIZE == true`). The pass keeps its own name; the cache key follows the wrapper's type, so
-/// the slot caches apart from the bare pass.
-struct OnlyFor<P, const SIZE: bool>(P);
+struct SizeOnly<P>(P);
 
-type GasOnly<P> = OnlyFor<P, false>;
-type SizeOnly<P> = OnlyFor<P, true>;
-
-impl<P, const SIZE: bool> OnlyFor<P, SIZE> {
+impl<P> SizeOnly<P> {
     const fn new(pass: P) -> Self {
         Self(pass)
     }
 }
 
-impl<P: MirPass, const SIZE: bool> MirPass for OnlyFor<P, SIZE> {
+impl<P: MirPass> MirPass for SizeOnly<P> {
     fn name(&self) -> &'static str {
         self.0.name()
     }
@@ -144,7 +138,46 @@ impl<P: MirPass, const SIZE: bool> MirPass for OnlyFor<P, SIZE> {
     }
 
     fn runs_on(&self, objective: OptimizationMode) -> bool {
-        (if SIZE { objective.is_size() } else { objective.is_gas() }) && self.0.runs_on(objective)
+        objective.is_size() && self.0.runs_on(objective)
+    }
+
+    fn is_required(&self) -> bool {
+        self.0.is_required()
+    }
+
+    fn run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut ModuleAnalyses,
+    ) -> bool {
+        self.0.run_pass(gcx, module, analyses)
+    }
+}
+
+struct GasOnly<P>(P);
+
+impl<P> GasOnly<P> {
+    const fn new(pass: P) -> Self {
+        Self(pass)
+    }
+}
+
+impl<P: MirPass> MirPass for GasOnly<P> {
+    fn name(&self) -> &'static str {
+        self.0.name()
+    }
+
+    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        self.covers(module) && self.0.is_enabled(gcx, module)
+    }
+
+    fn is_contract_wide(&self) -> bool {
+        self.0.is_contract_wide()
+    }
+
+    fn runs_on(&self, objective: OptimizationMode) -> bool {
+        objective.is_gas() && self.0.runs_on(objective)
     }
 
     fn is_required(&self) -> bool {
@@ -992,7 +1025,7 @@ impl ModuleAnalyses {
         let cached =
             self.local_no_change.entry(key).or_insert_with(|| DenseBitSet::new_empty(functions));
         if cached.domain_size() != functions {
-            *cached = DenseBitSet::new_empty(functions);
+            cached.clear_to(functions);
         }
         cached
     }
