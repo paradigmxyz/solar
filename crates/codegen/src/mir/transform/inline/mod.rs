@@ -22,8 +22,9 @@
 //! After memory lowering, frame allocation and multi-word return staging cannot
 //! be introduced again. At this stage the pass also partially clones returning
 //! guards in loops and moves eligible external wrappers into the dispatcher.
-//! These use the same cost comparison, but need distinct rewrites because they
-//! retain the slow-path call or preserve an external exit, respectively.
+//! Guard cloning uses the same cost comparison but retains the slow-path call. A
+//! dispatcher move needs no comparison, since it only removes call protocol and
+//! preserves each external exit.
 //!
 //! Profitability compares the call protocol a clone removes, weighted by expected
 //! executions and, for statically counted loops, by iteration count, with the
@@ -1078,13 +1079,14 @@ fn summarize_function(
                 }
                 _ => {}
             }
-            all_scalar_ops &= is_terminal_call(module, kind)
-                || matches!(
-                    kind.effect_kind(),
+            let effect = kind.effect_kind();
+            all_scalar_ops = all_scalar_ops
+                && (matches!(
+                    effect,
                     EffectKind::Pure | EffectKind::MemoryRead | EffectKind::EnvironmentRead
-                );
+                ) || is_terminal_call(module, kind));
             summary.has_state_effect |= matches!(
-                kind.effect_kind(),
+                effect,
                 EffectKind::StorageWrite
                     | EffectKind::TransientWrite
                     | EffectKind::ImmutableWrite
@@ -1402,7 +1404,7 @@ fn abi_layout_has_loops(layout: &AbiLayout) -> bool {
 
 /// The cost of emitting the opcodes `codes` in order.
 fn seq(target: &Target, codes: &[u8]) -> Cost {
-    codes.iter().map(|&code| target.opcode(code)).fold(Cost::ZERO, Cost::plus)
+    codes.iter().map(|&code| target.opcode(code)).sum()
 }
 
 /// Estimated code of an operation the later lowerings expand, as the opcode sequence they
