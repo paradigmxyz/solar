@@ -3,13 +3,15 @@
 //! Keeping `storeimmutable` semantic through the optimization pipeline lets
 //! immutable-aware passes reason about assignments without treating the
 //! backend staging area as arbitrary memory. This pass expands assignments
-//! only after those optimizations have finished.
+//! after `readonly-eval` has evaluated known allocation words, and before `lower-mcopy`,
+//! `lower-alloc`, and the word-level passes, which then treat the stores as ordinary memory writes.
 //!
 //! Each assignment becomes a word store to the immutable's constructor-memory home, which the
 //! backend copies into the deployed code's placeholders. Only functions unreachable from the
 //! runtime entry, selectors, receive, and fallback are rewritten: an assignment left in runtime
 //! code stays semantic and fails the lowered-phase check rather than writing memory there.
 
+use super::utils::expand_block;
 use crate::mir::{
     EffectKind, FunctionBuilder, InstKind, MemoryRegion, Module, PtrLocation,
     immutable::{immutable_staging_addr, immutable_staging_base},
@@ -47,25 +49,25 @@ impl MirPass for LowerImmutables {
                 continue;
             }
             for block in func.blocks.indices() {
-                let instructions = std::mem::take(&mut func.blocks[block].instructions);
                 let mut builder = FunctionBuilder::new(func);
-                builder.switch_to_block(block);
-                for inst_id in instructions {
-                    if let InstKind::StoreImmutable(id, value) = builder.func().inst(inst_id).kind {
-                        // word = zext integer or ptrtoint pointer to i256
-                        // store staging_address, word
-                        let metadata = builder.func().inst(inst_id).metadata.debug_context();
-                        builder.set_debug_context(&metadata);
-                        let value = builder.cast_word(value);
-                        let addr = builder.imm(immutable_staging_addr(staging_base, id));
-                        let inst = builder.func_mut().inst_mut(inst_id);
-                        inst.kind = InstKind::Store(addr, value, PtrLocation::Memory);
-                        inst.metadata.set_effect(Some(EffectKind::MemoryWrite));
-                        inst.metadata.set_memory_region(Some(MemoryRegion::Unknown));
-                        changed = true;
-                    }
-                    builder.func_mut().blocks[block].instructions.push(inst_id);
-                }
+                expand_block(&mut builder, block, |builder, inst_id| {
+                    let InstKind::StoreImmutable(id, value) = builder.func().inst(inst_id).kind
+                    else {
+                        return false;
+                    };
+                    // word = zext integer or ptrtoint pointer to i256
+                    // store staging_address, word
+                    let metadata = builder.func().inst(inst_id).metadata.debug_context();
+                    builder.set_debug_context(&metadata);
+                    let value = builder.cast_word(value);
+                    let addr = builder.imm(immutable_staging_addr(staging_base, id));
+                    let inst = builder.func_mut().inst_mut(inst_id);
+                    inst.kind = InstKind::Store(addr, value, PtrLocation::Memory);
+                    inst.metadata.set_effect(Some(EffectKind::MemoryWrite));
+                    inst.metadata.set_memory_region(Some(MemoryRegion::Unknown));
+                    changed = true;
+                    false
+                });
             }
         }
         changed
