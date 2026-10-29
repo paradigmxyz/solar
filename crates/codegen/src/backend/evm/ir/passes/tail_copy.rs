@@ -4,7 +4,10 @@
 //! A transfer to a shared block costs a pushed label, a `JUMP`, and the target's `JUMPDEST`.
 //! Each pass replaces a block's explicit jump to another block, its tail, with the tail's
 //! instructions and terminator, so the path runs straight on and the transfer is gone. The three
-//! passes differ in which tails qualify and in what the copy must repay.
+//! passes differ in which tails qualify and in what the copy must repay: `tail-dup` copies hot
+//! loop blocks, including their branches and fallthroughs, before the final layout;
+//! `tail-duplicate` copies straight-line joins that end in a jump, after the final layout; and
+//! `inline-returns` copies terminal tails no larger than the jump to them.
 //!
 //! A tail qualifies for a caller only when the caller ends with an explicit `Jump` to it at a
 //! split point, and the tail is neither the entry block, the caller itself, nor the caller's
@@ -382,17 +385,18 @@ fn loop_candidate(
         return None;
     }
     // The copy's own transfer must not cost more on each iteration than the tail's does.
+    let jump = target.label_push() + target.opcode(op::JUMP);
     let ending = match tail.terminator.as_ref()?.kind {
+        // The copy jumps where the tail falls through, which must leave the loop, and must push
+        // that jump's label no higher than the path through the tail already reaches.
         TerminatorKind::Jump(next) if Some(next) == module.next_block(callee) => {
-            // The copy jumps where the tail falls through, which must leave the loop, and must
-            // push that jump's label no higher than the path through the tail already reaches.
             let next = &module.blocks[next];
             if next.metadata.in_loop || !label_fits_path(tail, next) {
                 return None;
             }
-            target.label_push() + target.opcode(op::JUMP)
+            jump
         }
-        TerminatorKind::Jump(_) => target.label_push() + target.opcode(op::JUMP),
+        TerminatorKind::Jump(_) => jump,
         // A tail that tests the loop runs on every iteration, whatever it does on exit.
         TerminatorKind::Op(opcode) if continues_loop(module, tail) => target.opcode(opcode),
         // A terminal tail runs once per call, which `inline-returns` already weighs.
@@ -420,6 +424,7 @@ fn continues_loop(module: &Module, block: &Block) -> bool {
 /// The module's code bytes, of which its copies may add a share.
 fn code_bytes(target: Target, module: &Module) -> u64 {
     let landing = u64::from(target.opcode(op::JUMPDEST).bytes);
+    let jump = target.label_push() + target.opcode(op::JUMP);
     module
         .blocks
         .iter()
@@ -427,7 +432,7 @@ fn code_bytes(target: Target, module: &Module) -> u64 {
             let body =
                 block.instructions.iter().map(|inst| u64::from(instruction_bytes(target, inst)));
             let end = block.terminator.as_ref().map_or(0, |term| match &term.kind {
-                TerminatorKind::Jump(_) => (target.label_push() + target.opcode(op::JUMP)).bytes,
+                TerminatorKind::Jump(_) => jump.bytes,
                 TerminatorKind::JumpI { .. } => {
                     (target.label_push() + target.opcode(op::JUMPI)).bytes
                 }
