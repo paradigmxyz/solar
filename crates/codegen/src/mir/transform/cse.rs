@@ -107,7 +107,7 @@ use solar_data_structures::{
     map::FxHashMap,
 };
 use solar_sema::hir::StateMutability;
-use std::{cell::OnceCell, cmp::Ordering, ops::Range, rc::Rc, sync::Arc};
+use std::{cell::OnceCell, ops::Range, rc::Rc, sync::Arc};
 
 /// Function pass for local common subexpression elimination.
 pub(crate) enum Cse {
@@ -290,10 +290,12 @@ enum CastKey {
     IntToPtr,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+/// Derived order: immediates, then values by index, then frame constants, so that a commutative
+/// expression puts its constant operand first.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum OperandKey {
-    Value(ValueId),
     Immediate(Immediate),
+    Value(ValueId),
     /// A read that returns the same word throughout the call, such as `calldatasize` or
     /// `caller`, keyed by its kind so that expressions over different reads match.
     FrameConstant(&'static str),
@@ -1067,8 +1069,12 @@ impl CommonSubexprEliminator {
         let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);
         match *kind {
             InstKind::Store(addr, stored, PtrLocation::Memory) if !self.storage_only => {
-                let key =
-                    self.alias().memory_location(func, inst_id, value(addr), LocationSize::Const(32))?;
+                let key = self.alias().memory_location(
+                    func,
+                    inst_id,
+                    value(addr),
+                    LocationSize::Const(32),
+                )?;
                 Some((ExprKey::MLoad(key), value(stored)))
             }
             InstKind::Store(
@@ -1303,8 +1309,12 @@ impl CommonSubexprEliminator {
             )),
 
             InstKind::Load(addr, PtrLocation::Memory) => {
-                let key =
-                    self.alias().memory_location(func, inst_id, value(*addr), LocationSize::Const(32))?;
+                let key = self.alias().memory_location(
+                    func,
+                    inst_id,
+                    value(*addr),
+                    LocationSize::Const(32),
+                )?;
                 Some(ExprKey::MLoad(key))
             }
             InstKind::Fmp => Some(ExprKey::MLoad(AliasAnalysis::fmp_location())),
@@ -1633,23 +1643,7 @@ impl CommonSubexprEliminator {
     }
 
     fn ordered_pair(a: OperandKey, b: OperandKey) -> (OperandKey, OperandKey) {
-        if Self::cmp_operand_key(&a, &b).is_gt() { (b, a) } else { (a, b) }
-    }
-
-    fn cmp_operand_key(a: &OperandKey, b: &OperandKey) -> Ordering {
-        match (a, b) {
-            (OperandKey::Immediate(a), OperandKey::Immediate(b)) => Self::cmp_immediate(a, b),
-            (OperandKey::Immediate(_), OperandKey::Value(_)) => Ordering::Less,
-            (OperandKey::Value(_), OperandKey::Immediate(_)) => Ordering::Greater,
-            (OperandKey::Value(a), OperandKey::Value(b)) => a.index().cmp(&b.index()),
-            (OperandKey::FrameConstant(a), OperandKey::FrameConstant(b)) => a.cmp(b),
-            (OperandKey::FrameConstant(_), _) => Ordering::Greater,
-            (_, OperandKey::FrameConstant(_)) => Ordering::Less,
-        }
-    }
-
-    fn cmp_immediate(a: &Immediate, b: &Immediate) -> Ordering {
-        a.cmp(b)
+        if a > b { (b, a) } else { (a, b) }
     }
 }
 
