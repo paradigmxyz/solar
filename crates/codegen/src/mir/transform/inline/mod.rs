@@ -313,6 +313,7 @@ impl MirInliner {
             .filter(|&id| reachable.is_empty() || reachable.contains(id))
             .collect::<Vec<_>>();
         caller_ids.sort_by_key(|&caller| summaries[caller].is_function_pointer_dispatcher);
+        let mut loop_costs = IndexVec::new();
         for caller_id in caller_ids {
             // Leaf bodies cannot contain an inline candidate, and code the running slot does not
             // optimize keeps its calls.
@@ -321,7 +322,7 @@ impl MirInliner {
             }
             // A clone joins its caller's code, so the caller's objective prices the call.
             let caller_target = module.target_of(gcx, module.function(caller_id));
-            let mut loop_costs = block_loop_costs(module.function(caller_id));
+            block_loop_costs(module.function(caller_id), &mut loop_costs);
             // Bound how much each caller may grow from inlining so a function
             // calling many internal helpers (e.g. a large verifier) cannot
             // balloon past the deployable code-size limit.
@@ -433,7 +434,7 @@ impl MirInliner {
                     // The clone split the call block, so the loop membership
                     // of the calls that followed it must be recomputed before
                     // they are weighed.
-                    loop_costs = block_loop_costs(module.function(caller_id));
+                    block_loop_costs(module.function(caller_id), &mut loop_costs);
                     summaries[caller_id] = summarize_function(
                         &self.target,
                         module,
@@ -1178,8 +1179,10 @@ fn has_back_edge(func: &Function) -> bool {
 fn scalar_stack_peak(func: &Function) -> usize {
     let liveness = Liveness::compute_live_sets(func);
     let mut peak = 0;
+    let mut live = DenseBitSet::new_empty(func.num_values());
     for (block, body) in func.blocks.iter_enumerated() {
-        let mut live = DenseBitSet::from(liveness.live_out(block));
+        live.clear();
+        live.union(&liveness.live_out(block));
         if let Some(term) = &body.terminator {
             term.visit_operands(|value| {
                 live.insert(value);
@@ -1652,13 +1655,12 @@ struct LoopCost {
     counted: bool,
 }
 
-fn block_loop_costs(func: &Function) -> IndexVec<BlockId, LoopCost> {
+/// Fills `costs` with the loop cost of each block of `func`.
+fn block_loop_costs(func: &Function, costs: &mut IndexVec<BlockId, LoopCost>) {
     let mut analyzer = LoopAnalyzer::new();
     let loop_info = analyzer.analyze_trip_counts(func);
-    let mut costs = IndexVec::from_vec(vec![
-        LoopCost { depth: 0, executions: 1, counted: true };
-        func.blocks.len()
-    ]);
+    costs.raw.clear();
+    costs.raw.resize(func.blocks.len(), LoopCost { depth: 0, executions: 1, counted: true });
     for loop_data in loop_info.all_loops() {
         let counted = loop_data.trip_count.filter(|_| {
             loop_data.trip_guard_is_header
@@ -1684,7 +1686,6 @@ fn block_loop_costs(func: &Function) -> IndexVec<BlockId, LoopCost> {
             }
         }
     }
-    costs
 }
 
 fn specialize_function_pointers(module: &mut Module) -> usize {
@@ -2107,7 +2108,7 @@ impl<'a> InlineCloner<'a> {
 
         for (callee_block, block) in self.callee.blocks.iter_enumerated() {
             let caller_block = self.block_map[callee_block];
-            let mut instructions = Vec::with_capacity(block.instructions.len());
+            self.caller.blocks[caller_block].instructions.reserve(block.instructions.len());
             for &inst_id in &block.instructions {
                 let inst = self.callee.inst(inst_id);
                 let mut instruction = Instruction::new(inst.kind.clone(), inst.result_ty);
@@ -2119,9 +2120,8 @@ impl<'a> InlineCloner<'a> {
                 } else {
                     self.caller.alloc_inst(instruction)
                 };
-                instructions.push(new_inst);
+                self.caller.blocks[caller_block].instructions.push(new_inst);
             }
-            self.caller.blocks[caller_block].instructions = instructions;
         }
 
         for (callee_block, block) in self.callee.blocks.iter_enumerated() {
@@ -2412,7 +2412,7 @@ fn forward_inline_return_loads(
 
 fn prune_phi_incoming_to_predecessors(func: &mut Function) {
     for block_id in func.blocks.indices() {
-        let predecessors = func.blocks[block_id].predecessors.clone();
+        let predecessors = std::mem::take(&mut func.blocks[block_id].predecessors);
         let instruction_count = func.blocks[block_id].instructions.len();
         for index in 0..instruction_count {
             let inst_id = func.blocks[block_id].instructions[index];
@@ -2420,5 +2420,6 @@ fn prune_phi_incoming_to_predecessors(func: &mut Function) {
                 incoming.retain(|(pred, _)| predecessors.contains(pred));
             }
         }
+        func.blocks[block_id].predecessors = predecessors;
     }
 }
