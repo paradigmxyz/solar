@@ -23,6 +23,7 @@
 //! function or one of the two bodies being compared. Matching all other instructions, operands
 //! and CFG edges closes that pairwise equivalence proof, including mutual recursion.
 
+use super::utils::{frame_prefix, is_internal_body};
 use crate::mir::{
     ArgIdx, Callee, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
     StorageAlias, Terminator, Value, ValueId,
@@ -32,7 +33,7 @@ use crate::mir::{
 };
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    index::IndexVec,
+    index::{IndexVec, index_vec},
     map::{FxHashMap, FxHasher},
 };
 use std::hash::{Hash, Hasher};
@@ -218,16 +219,6 @@ impl MirPass for MergeEquivalentFunctions {
     }
 }
 
-/// Returns whether `func` has a private MIR signature that direct callers may rewrite.
-fn is_internal_body(module: &Module, func_id: FunctionId, func: &Function) -> bool {
-    func.selector.is_none()
-        && !func.is_public()
-        && !func.attributes.is_constructor
-        && !func.attributes.is_fallback
-        && !func.attributes.is_receive
-        && module.dispatch_entry() != Some(func_id)
-}
-
 fn has_rewritable_signature(
     module: &Module,
     func_id: FunctionId,
@@ -246,17 +237,8 @@ fn has_rewritable_signature(
 /// those accesses do not identify which signature component they refer to, so changing that
 /// function's signature would be ambiguous.
 fn frame_offsets_are_local(func: &Function) -> bool {
-    let Some(signature_slots) = func.params.len().checked_add(func.return_components().len())
-    else {
-        return false;
-    };
-    let Some(signature_size) = u64::try_from(signature_slots)
-        .ok()
-        .and_then(|slots| slots.checked_mul(EvmMemoryLayout::WORD_SIZE))
-    else {
-        return false;
-    };
-    let Some(local_start) = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE.checked_add(signature_size)
+    let Some(local_start) =
+        func.params.len().checked_add(func.return_components().len()).and_then(frame_prefix)
     else {
         return false;
     };
@@ -292,11 +274,7 @@ fn rebase_frame_offsets(func: &mut Function, removed_slots: u64) {
         return;
     }
     let shift = removed_slots * EvmMemoryLayout::WORD_SIZE;
-    let local_start = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-        .checked_add(
-            ((func.params.len() + func.return_components().len()) as u64)
-                * EvmMemoryLayout::WORD_SIZE,
-        )
+    let local_start = frame_prefix(func.params.len() + func.return_components().len())
         .expect("MIR frame prefix overflow");
     let old_local_start = local_start.checked_add(shift).expect("MIR frame prefix overflow");
     let local_end = (func.internal_frame_size != 0).then(|| {
@@ -337,14 +315,8 @@ fn prune_unused_args(module: &mut Module) -> usize {
     let mut dependents = module
         .functions
         .iter()
-        .map(|func| {
-            let mut args = IndexVec::with_capacity(func.params.len());
-            for _ in &func.params {
-                args.push(Vec::<(FunctionId, ArgIdx)>::new());
-            }
-            args
-        })
-        .collect::<IndexVec<FunctionId, IndexVec<ArgIdx, _>>>();
+        .map(|func| index_vec![Vec::new(); func.params.len()])
+        .collect::<IndexVec<FunctionId, _>>();
 
     // Record direct uses and argument-forwarding dependencies in one scan. A dependency points
     // from the callee argument whose liveness is required to the caller argument that supplies it.
@@ -396,9 +368,6 @@ fn prune_unused_args(module: &mut Module) -> usize {
             }
         }
     }
-    if live.iter().all(|args| args.count() == args.domain_size()) {
-        return 0;
-    }
 
     let removed = live.iter().map(|args| args.domain_size() - args.count()).sum();
     if removed == 0 {
@@ -415,26 +384,14 @@ fn prune_unused_args(module: &mut Module) -> usize {
                 &mut inst.kind
             {
                 let old_len = args.len();
-                *args = args
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, &arg)| {
-                        live[*function].contains(ArgIdx::new(index)).then_some(arg)
-                    })
-                    .collect();
+                *args = live_args(args, &live[*function]).collect();
                 removed_call_operands += old_len - args.len();
             }
         });
         for block in &mut func.blocks {
             if let Some(Terminator::TailCall { function, args }) = &mut block.terminator {
                 let old_len = args.len();
-                *args = args
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, &arg)| {
-                        live[*function].contains(ArgIdx::new(index)).then_some(arg)
-                    })
-                    .collect();
+                *args = live_args(args, &live[*function]).collect();
                 removed_call_operands += old_len - args.len();
             }
         }
@@ -473,6 +430,16 @@ fn prune_unused_args(module: &mut Module) -> usize {
         "pruned unused internal arguments"
     );
     removed
+}
+
+/// Keeps the call operands whose callee parameter is live.
+fn live_args<'a>(
+    args: &'a [ValueId],
+    live: &'a DenseBitSet<ArgIdx>,
+) -> impl Iterator<Item = ValueId> + 'a {
+    args.iter()
+        .enumerate()
+        .filter_map(|(index, &arg)| live.contains(ArgIdx::new(index)).then_some(arg))
 }
 
 fn mark_arg_live(func: &Function, value: ValueId, live: &mut DenseBitSet<ArgIdx>) -> bool {
@@ -540,11 +507,10 @@ fn prune_unused_returns(module: &mut Module, returning: &DenseBitSet<FunctionId>
     }
     // A result is required (`live`) for every function except the candidates whose result the
     // fixed point may still discard.
-    let mut live = DenseBitSet::new_empty(module.functions.len());
-    live.insert_all();
-    for func_id in candidates.iter() {
-        live.remove(func_id);
-    }
+    let mut live = DenseBitSet::new_filled(module.functions.len());
+    live.subtract(&candidates);
+
+    let uses = module.functions.iter().map(ValueUses::new).collect::<IndexVec<FunctionId, _>>();
 
     // Tail calls forward their caller's result contract. Direct calls require a result only when
     // its SSA value has a material use. A return in a candidate whose own result is still dead is
@@ -562,7 +528,7 @@ fn prune_unused_returns(module: &mut Module, returning: &DenseBitSet<FunctionId>
                     continue;
                 }
                 let Some(result) = caller.inst_result_value(inst_id) else { continue };
-                if has_material_use(caller, result, live.contains(caller_id)) {
+                if uses[caller_id].is_material(result, live.contains(caller_id)) {
                     live.insert(function);
                     changed = true;
                 }
@@ -600,12 +566,8 @@ fn prune_unused_returns(module: &mut Module, returning: &DenseBitSet<FunctionId>
         }
     }
 
-    let mut removed_set = DenseBitSet::new_empty(module.functions.len());
-    for func_id in candidates.iter() {
-        if !live.contains(func_id) {
-            removed_set.insert(func_id);
-        }
-    }
+    let mut removed_set = candidates;
+    removed_set.subtract(&live);
     if removed_set.is_empty() {
         return 0;
     }
@@ -689,18 +651,53 @@ fn returned_value_dependencies_are_pure(func: &Function) -> bool {
     })
 }
 
-fn has_material_use(func: &Function, value: ValueId, function_result_live: bool) -> bool {
-    if func.instructions().any(|inst_id| func.inst(inst_id).kind.operands().contains(&value)) {
-        return true;
-    }
-    func.blocks.iter().any(|block| {
-        block.terminator.as_ref().is_some_and(|term| match term {
-            Terminator::Return { values } if !function_result_live => {
-                values.contains(&value) && values.len() != 1
+/// How the values of one function are used, to decide whether a call result is material.
+struct ValueUses {
+    /// Operands of instructions and of terminators other than `ret`.
+    used: DenseBitSet<ValueId>,
+    /// Operands of any `ret`.
+    returned: DenseBitSet<ValueId>,
+    /// Operands of a `ret` that does not return exactly one value.
+    returned_in_tuple: DenseBitSet<ValueId>,
+}
+
+impl ValueUses {
+    fn new(func: &Function) -> Self {
+        let mut uses = Self {
+            used: DenseBitSet::new_empty(func.num_values()),
+            returned: DenseBitSet::new_empty(func.num_values()),
+            returned_in_tuple: DenseBitSet::new_empty(func.num_values()),
+        };
+        for block in &func.blocks {
+            for &inst in &block.instructions {
+                func.inst(inst).kind.visit_operands(|value| {
+                    uses.used.insert(value);
+                });
             }
-            _ => term.operands().contains(&value),
-        })
-    })
+            match &block.terminator {
+                Some(Terminator::Return { values }) => {
+                    for &value in values {
+                        uses.returned.insert(value);
+                        if values.len() != 1 {
+                            uses.returned_in_tuple.insert(value);
+                        }
+                    }
+                }
+                Some(term) => term.visit_operands(|value| {
+                    uses.used.insert(value);
+                }),
+                None => {}
+            }
+        }
+        uses
+    }
+
+    /// Returns whether discarding `value` loses a use. While the function's own result is dead,
+    /// returning `value` alone is not a use.
+    fn is_material(&self, value: ValueId, function_result_live: bool) -> bool {
+        let returned = if function_result_live { &self.returned } else { &self.returned_in_tuple };
+        self.used.contains(value) || returned.contains(value)
+    }
 }
 
 /// A source-independent operand identity used for alpha-equivalence.
@@ -764,7 +761,10 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
     loop {
         let mut groups = FxHashMap::<u64, Vec<FunctionId>>::default();
         for (func_id, func) in module.functions.iter_enumerated() {
-            if !merged.contains(func_id) && is_merge_candidate(module, func_id, func) {
+            if !merged.contains(func_id)
+                && !func.blocks.is_empty()
+                && is_internal_body(module, func_id, func)
+            {
                 groups.entry(equivalence_bucket(func)).or_default().push(func_id);
             }
         }
@@ -844,10 +844,6 @@ fn merge_function_debug_origins(
         }
         target.blocks[block].terminator_metadata.merge_debug_context(&terminator);
     }
-}
-
-fn is_merge_candidate(module: &Module, func_id: FunctionId, func: &Function) -> bool {
-    !func.blocks.is_empty() && is_internal_body(module, func_id, func)
 }
 
 /// Cheaply partitions functions before the exact pairwise alpha-equivalence check.
@@ -1033,11 +1029,9 @@ fn equivalent_terminator_payload(
 ) -> bool {
     let mut lhs = lhs.clone();
     let mut rhs = rhs.clone();
-    let zero = ValueId::from_usize(0);
-    let lhs_replacements = lhs.operands().into_iter().map(|value| (value, zero)).collect();
-    let rhs_replacements = rhs.operands().into_iter().map(|value| (value, zero)).collect();
-    crate::mir::utils::replace_terminator_uses(&mut lhs, &lhs_replacements);
-    crate::mir::utils::replace_terminator_uses(&mut rhs, &rhs_replacements);
+    for term in [&mut lhs, &mut rhs] {
+        term.visit_operands_mut(|value| *value = ValueId::from_usize(0));
+    }
     if let (
         Terminator::TailCall { function: lhs_target, .. },
         Terminator::TailCall { function: rhs_target, .. },

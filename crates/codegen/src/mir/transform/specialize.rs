@@ -22,14 +22,17 @@
 //! specialized parameters. Run after function-pointer specialization and before dead-argument
 //! elimination.
 
+use super::utils::is_internal_body;
 use crate::mir::{
-    ArgIdx, FunctionId, Immediate, InstId, InstKind, Module, Terminator, Value,
+    ArgIdx, Callee, Function, FunctionId, Immediate, InstId, InstKind, Module, Terminator, Value,
+    ValueId,
     analysis::CallGraphInfo,
     pass::{MirPass, ModuleAnalyses},
     transform::{cfg_simplify, check_elim, dce, egraph, sccp},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
+    bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
@@ -85,10 +88,8 @@ fn specialize_round(
 ) -> bool {
     let graph = CallGraphInfo::new(module);
     let target = module.target(gcx);
-    let mut sites: IndexVec<FunctionId, Vec<CallSite>> =
-        index_vec![Vec::new(); module.functions.len()];
-    let mut tail_called =
-        solar_data_structures::bit_set::DenseBitSet::new_empty(module.functions.len());
+    let mut sites = index_vec![Vec::new(); module.functions.len()];
+    let mut tail_called = DenseBitSet::new_empty(module.functions.len());
     // A caller that no entry reaches, such as a wrapper an inliner consumed,
     // is deleted by the function-level DCE that follows and never runs, so
     // its arguments constrain nothing.
@@ -98,9 +99,8 @@ fn specialize_round(
             continue;
         }
         for inst in func.instructions() {
-            if let InstKind::ICall {
-                function: crate::mir::Callee::Function(function), args, ..
-            } = &func.inst(inst).kind
+            if let InstKind::ICall { function: Callee::Function(function), args, .. } =
+                &func.inst(inst).kind
             {
                 let constants = args
                     .iter()
@@ -128,13 +128,8 @@ fn specialize_round(
             || graph.is_recursive(callee)
             || tail_called.contains(callee)
             || body.params.len() != body.arg_indices().count()
-            || body.is_public()
-            || body.selector.is_some()
-            || body.attributes.is_constructor
-            || body.attributes.is_fallback
-            || body.attributes.is_receive
+            || !is_internal_body(module, callee, body)
             || body.attributes.no_inline
-            || module.dispatch_entry() == Some(callee)
         {
             continue;
         }
@@ -163,15 +158,7 @@ fn specialize_round(
             if constants.is_empty() {
                 continue;
             }
-            let func = module.function_mut(callee);
-            let mut replacements = FxHashMap::default();
-            for (index, immediate) in &constants {
-                let value = func.alloc_value(Value::Immediate(immediate.clone()));
-                for &arg in &uses[*index] {
-                    replacements.insert(arg, value);
-                }
-            }
-            func.replace_uses_canonicalized(&replacements);
+            substitute(module.function_mut(callee), &constants, &uses);
             changed = true;
             continue;
         }
@@ -201,15 +188,8 @@ fn specialize_round(
         }
         let mut candidate = body.clone();
         let uses = candidate.arg_uses();
-        let mut replacements = FxHashMap::default();
-        for (index, immediate) in &constants {
-            let value = candidate.alloc_value(Value::Immediate(immediate.clone()));
-            for &arg in &uses[*index] {
-                replacements.insert(arg, value);
-            }
-        }
         // helper(argK, ...) => shared_helper(constantK, ...)
-        candidate.replace_uses_canonicalized(&replacements);
+        substitute(&mut candidate, &constants, &uses);
         let mut trial = Module::new(module.name);
         trial.optimization = module.optimization;
         let trial_id = trial.add_function(candidate);
@@ -245,7 +225,7 @@ fn specialize_round(
             continue;
         }
 
-        let mut candidate = candidate.clone();
+        let mut candidate = trial.functions.swap_remove(trial_id);
         // Keep sharing when a clone would exceed the call protocol it removes.
         candidate.attributes.no_inline = new.bytes > new_call.bytes;
         let specialized = if all_calls {
@@ -260,9 +240,7 @@ fn specialize_round(
             let site = &calls[index];
             let instruction = module.functions[site.caller].inst_mut(site.inst);
             let mut kind = instruction.kind.clone();
-            if let InstKind::ICall { function: crate::mir::Callee::Function(function), .. } =
-                &mut kind
-            {
+            if let InstKind::ICall { function: Callee::Function(function), .. } = &mut kind {
                 *function = specialized;
             }
             instruction.replace_kind(kind);
@@ -270,4 +248,20 @@ fn specialize_round(
         changed = true;
     }
     changed
+}
+
+/// Replaces uses of each constant parameter in `func` with the constant itself.
+fn substitute(
+    func: &mut Function,
+    constants: &[(ArgIdx, Immediate)],
+    uses: &IndexVec<ArgIdx, Vec<ValueId>>,
+) {
+    let mut replacements = FxHashMap::default();
+    for (index, immediate) in constants {
+        let value = func.alloc_value(Value::Immediate(immediate.clone()));
+        for &arg in &uses[*index] {
+            replacements.insert(arg, value);
+        }
+    }
+    func.replace_uses_canonicalized(&replacements);
 }

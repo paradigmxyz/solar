@@ -1,7 +1,8 @@
 //! Shared utilities for MIR transforms.
 
 use crate::mir::{
-    BlockId, Function, FunctionBuilder, InstId, InstKind, Terminator, memory::EvmMemoryLayout,
+    BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Module, Terminator,
+    memory::EvmMemoryLayout,
 };
 use solar_sema::hir::StateMutability;
 
@@ -85,14 +86,8 @@ pub(super) fn rebase_frame_offsets(func: &Function, slots: usize) -> Option<Vec<
     if old_slots == slots {
         return Some(Vec::new());
     }
-    let base = |slots| {
-        u64::try_from(slots)
-            .ok()?
-            .checked_mul(EvmMemoryLayout::WORD_SIZE)?
-            .checked_add(EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE)
-    };
-    let old_base = base(old_slots)?;
-    let new_base = base(slots)?;
+    let old_base = frame_prefix(old_slots)?;
+    let new_base = frame_prefix(slots)?;
     let mut offsets = Vec::new();
     for inst in func.instructions() {
         if let InstKind::InternalFrameAddr(offset) = func.inst(inst).kind {
@@ -130,4 +125,18 @@ pub(super) fn expand_block(
     if end != block {
         redirect_successor_predecessors(builder.func_mut(), block, end);
     }
+}
+
+/// Returns whether `func` has a private MIR signature that direct callers may rewrite.
+pub(super) fn is_internal_body(module: &Module, id: FunctionId, func: &Function) -> bool {
+    !func.is_external_entry() && !func.is_public() && module.dispatch_entry() != Some(id)
+}
+
+/// Returns the offset of the locals region of an internal frame whose signature has `slots`
+/// parameter and result words: the frame header plus one word per slot.
+pub(super) fn frame_prefix(slots: usize) -> Option<u64> {
+    u64::try_from(slots)
+        .ok()?
+        .checked_mul(EvmMemoryLayout::WORD_SIZE)?
+        .checked_add(EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE)
 }
