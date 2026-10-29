@@ -7,10 +7,7 @@
 [![Actions Status](https://github.com/paradigmxyz/solar/workflows/CI/badge.svg)](https://github.com/paradigmxyz/solar/actions)
 [![Telegram Chat](https://img.shields.io/endpoint?color=neon&logo=telegram&label=chat&url=https%3A%2F%2Ftg.sumanjay.workers.dev%2Fparadigm%5Fsolar)][tg-url]
 
-A fast, optimizing Solidity compiler written in Rust.
-
-We compile Solidity 0.8.x to EVM bytecode, with detailed diagnostics and a modular Rust API.
-The compiler ships with Foundry and powers its Solidity language server.
+Blazingly fast, modular and contributor friendly Solidity compiler, written in Rust.
 
 <p align="center">
     <picture align="center">
@@ -18,26 +15,20 @@ The compiler ships with Foundry and powers its Solidity language server.
     </picture>
 </p>
 
-## Getting started
+## Features and Goals
 
-Update [Foundry](https://getfoundry.sh/introduction/installation/), then choose the compiler with
-`--use solar`:
-
-```bash
-foundryup
-forge build --use solar
-forge test --use solar
-```
-
-Run `forge lsp` in your project for editor support: diagnostics, hover, completion, go to
-definition and rename. The [VS Code and Zed clients](https://github.com/foundry-rs/foundry/tree/master/editors)
-are maintained in Foundry.
-
-> [!CAUTION]
-> Code generation is under active development.
+> [!WARNING]
+> Solar is under active development and is not yet feature complete.
+> Use it to speed up your development workflows and tooling.
 > Please do not use it in production environments.
 
-## Performance
+- ⚡ Instant compiles and low memory usage ([benchmarks](./benches))
+- 🔍 Expressive and useful diagnostics
+- 🧩 Modular, library-based architecture
+- 💻 Simple and hackable code base
+- 🔄 Compatibility with the latest Solidity language breaking version (0.8.*)
+
+### Performance
 
 On six real-world projects, builds were **about 100× faster on average** than solc's via-IR pipeline,
 reaching **159×** on Morpho Blue.
@@ -50,7 +41,7 @@ result, and Seaport, Solmate and Solarray are not shown. With each project's own
 the same CI run, we were **44× faster on average** over the six and **34×** over all nine.
 
 We measured on `main` at [commit `0303bb7d`](https://github.com/paradigmxyz/solar/commit/0303bb7d606a50ef158e34669b5851f47a1e054e)
-against solc 0.8.38, targeting Cancun. [Build from source](#standalone-compiler) to match it.
+against solc 0.8.38, targeting Cancun. [Build from source](#binary-usage) to match it.
 Build times are the median of five runs on an AMD EPYC 9254 (24 cores), using our default eight
 threads; solc is single-threaded.
 
@@ -60,7 +51,7 @@ deploy** and had **29% smaller bytecode** than those compiled with solc, as geom
 See the [results](https://www.getfoundry.sh/perf/solar/?head=0303bb7d606a50ef158e34669b5851f47a1e054e#benchmarks) and
 [benchmark instructions](benches/runtime/README.md) for inputs, settings and how to reproduce them.
 
-## How it works
+### How it works
 
 ![Compiler pipeline: Solidity → AST → HIR → MIR → EVM IR → bytecode, with optimization passes on MIR and EVM IR](assets/pipeline.png)
 
@@ -70,71 +61,141 @@ tail merging and peephole rewrites before assembly.
 
 See the [MIR reference](docs/MIR.md) and [codegen guide](docs/CODEGEN.md) to work on the compiler.
 
-## Standalone compiler
+## Getting started
 
-Pre-built binaries for macOS, Linux and Windows are on the
-[releases page](https://github.com/paradigmxyz/solar/releases).
+Solar is available through a command-line interface, or as a Rust library.
 
-On macOS and Linux:
+### Library usage
 
-```bash
-curl -LsSf https://paradigm.xyz/solar/install.sh | sh
+You can add Solar to your Rust project by adding the following to your `Cargo.toml`:
+
+```toml
+[dependencies]
+solar = { version = "=0.2.0", package = "solar-compiler", default-features = false }
 ```
 
-On Windows:
-
-```powershell
-powershell -c "irm https://paradigm.xyz/solar/install.ps1 | iex"
-```
-
-Or install with [`cargo binstall`](https://github.com/cargo-bins/cargo-binstall):
+Or through the CLI:
 
 ```bash
-cargo binstall solar-compiler
+cargo add "solar-compiler@=0.2.0" --rename solar --no-default-features
 ```
 
-To build the latest development version from source:
+You can see examples of how to use Solar as a library in the [examples](/examples) directory.
+
+### Binary usage
+
+Install [Foundry](https://getfoundry.sh/introduction/installation/), then choose the compiler with `--use solar`:
 
 ```bash
-cargo install --git https://github.com/paradigmxyz/solar --locked
+foundryup
+forge build --use solar
+forge test --use solar
 ```
 
-Compile a contract:
+Pre-built binaries are available for macOS, Linux and Windows on the [releases page](https://github.com/paradigmxyz/solar/releases)
+and can be installed with the following commands:
+- On macOS and Linux:
+    ```bash
+    curl -LsSf https://paradigm.xyz/solar/install.sh | sh
+    ```
+- On Windows:
+    ```powershell
+    powershell -c "irm https://paradigm.xyz/solar/install.ps1 | iex"
+    ```
+- For a specific version:
+    ```bash
+    curl -LsSf https://paradigm.xyz/solar/v0.2.0/install.sh | sh
+    powershell -c "irm https://paradigm.xyz/solar/v0.2.0/install.ps1 | iex"
+    ```
+
+You can also use [`cargo binstall`](https://github.com/cargo-bins/cargo-binstall):
+- Latest version:
+    ```bash
+    cargo binstall solar-compiler
+    ```
+- For a specific version:
+    ```bash
+    cargo binstall solar-compiler@0.2.0
+    ```
+
+Or build Solar from source:
+- From crates.io:
+    ```bash
+    cargo install solar-compiler --locked
+    ```
+- From GitHub:
+    ```bash
+    cargo install --git https://github.com/paradigmxyz/solar --locked
+    ```
+- From a Git checkout:
+    ```bash
+    git clone https://github.com/paradigmxyz/solar
+    cd solar
+    cargo install --locked --path crates/solar
+    ```
+
+Once installed, check out the available options:
 
 ```bash
-solar Counter.sol --emit=abi,bin
+solar -h
+```
+
+Here's a few examples:
+
+```bash
+# Compile a single file and emit ABI to stdout.
+solar Counter.sol --emit abi
+
+# Compile a contract through standard input (`-` file).
+echo "contract C {}" | solar -
+solar - <<EOF
+contract HelloWorld {
+    function helloWorld() external pure returns (string memory) {
+        return "Hello, World!";
+    }
+}
+EOF
 
 # Compile a file with a Foundry project's remappings.
-solar $(forge remappings) src/Contract.sol --emit=bin
-
-solar --help
+solar $(forge re) src/Contract.sol
 ```
 
-## Library and API usage
+### Editor integrations
 
-Add the Rust library:
+The VS Code and Zed clients are maintained by [Foundry](https://github.com/foundry-rs/foundry/tree/master/editors).
+Use [`forge lsp`](https://github.com/foundry-rs/foundry/pull/16730) to launch
+Foundry's editor integration. This repository continues to provide the Solar
+LSP server used by Foundry.
 
-```bash
-cargo add solar-compiler --rename solar --no-default-features
-```
+### C API, WASM, and JavaScript usage
 
-Pin the resulting version with `=` in `Cargo.toml`: versioning tracks binary compatibility,
-not the Rust API. See the [examples](examples) for embedding the compiler.
+The [`solar-capi`](/crates/capi/README.md) crate exposes the compiler through a
+Solidity-compatible C API, a WebAssembly build and a soljson-compatible
+JavaScript wrapper. See its README for the C API and for how to download or
+build the wasm distribution and use it from JavaScript.
 
-For C, WebAssembly and JavaScript, [`solar-capi`](crates/capi/README.md) provides a Solidity-compatible
-C API and a `soljson.js` wrapper. Both accept Standard JSON input and return Standard JSON output.
+## Semver Compatibility
 
-We target the latest stable Rust release. The minimum supported Rust version may change at any time.
+Solar's versioning tracks compatibility for the binaries, not the API.
+If using this as a library, be sure to pin the version with a `=` version requirement operator.
+
+## Supported Rust Versions (MSRV)
+
+Solar always aims to stay up-to-date with the latest stable Rust release.
+
+The Minimum Supported Rust Version (MSRV) may be updated at any time, so we can take advantage of new features and improvements in Rust.
 
 ## Contributing
 
-See the [contributing guidelines](CONTRIBUTING.md) for building, testing and working on the compiler.
-Upcoming work is tracked in the [roadmap](https://github.com/paradigmxyz/solar/issues/1).
+Contributions are welcome and highly appreciated. To get started, check out the
+[**contributing guidelines**](/CONTRIBUTING.md).
 
 ## Support
 
-If a project fails to compile or behaves differently from solc, [open an issue](https://github.com/paradigmxyz/solar/issues/new)
-or ask on [Telegram][tg-url].
+Having trouble? Check out the existing issues on [**GitHub**](https://github.com/paradigmxyz/solar/issues),
+or feel free to [**open a new one**](https://github.com/paradigmxyz/solar/issues/new).
+
+You can also ask for help on [Telegram][tg-url].
 
 [tg-url]: https://t.me/paradigm_solar
 
