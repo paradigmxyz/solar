@@ -1,23 +1,22 @@
 //! Materialize and pack program data.
 //!
-//! `pack-existing-data` interns equal data objects and pools contained byte strings without
-//! changing code. `pack-data` also replaces runs of constant memory stores with one copy each. A
-//! run is found by symbolically executing pushes, stack operations, constant expressions (folded
-//! with the MIR evaluator), and constant `MSTORE` and `MSTORE8`s to one base: a stack word plus
-//! constant offsets, or absolute addresses. Stores may come in any order and overlap, but must
-//! fill one contiguous range, since a copy would overwrite any gap. The copy takes the window's
-//! place and rebuilds the stack the window left: it pops consumed inputs or pushes the constants
-//! and address words the window produced. Among starts that write the same bytes to the same end,
-//! the cheapest wins. Zero runs copy from past the end of calldata and need no data; other runs
-//! copy from the data pool. The pass prices each run with the `Target` cost model and groups equal
-//! byte strings so every site of a group shares one entry, accepting a group when its total saving
-//! improves the objective; under `-Ogas` that means less runtime gas and no more bytes, since
-//! static sites have no execution frequency to repay code growth. Creation code that runs once
-//! may trade gas for bytes at the calldata price of its model, but blocks that may run more than
-//! once keep the runtime model. Rejected groups can still ride along as substrings of an accepted
-//! entry.
+//! `pack-data` interns equal data objects, pools contained byte strings, and replaces runs of
+//! constant memory stores with one copy each. A run is found by symbolically executing pushes,
+//! stack operations, constant expressions (folded with the MIR evaluator), and constant `MSTORE`
+//! and `MSTORE8`s to one base: a stack word plus constant offsets, or absolute addresses. Stores
+//! may come in any order and overlap, but must fill one contiguous range, since a copy would
+//! overwrite any gap. The copy takes the window's place and rebuilds the stack the window left: it
+//! pops consumed inputs or pushes the constants and address words the window produced. Among starts
+//! that write the same bytes to the same end, the cheapest wins. Zero runs copy from past the end
+//! of calldata and need no data; other runs copy from the data pool. The pass prices each run with
+//! the `Target` cost model and groups equal byte strings so every site of a group shares one entry,
+//! accepting a group when its total saving improves the objective; under `-Ogas` that means less
+//! runtime gas and no more bytes, since static sites have no execution frequency to repay code
+//! growth. Creation code that runs once may trade gas for bytes at the calldata price of its model,
+//! but blocks that may run more than once keep the runtime model. Rejected groups can still ride
+//! along as substrings of an accepted entry.
 //!
-//! Both passes leave a module alone when `CODESIZE` can observe the changed data layout, or when
+//! The pass leaves a module alone when `CODESIZE` can observe the changed data layout, or when
 //! a data address may reach anything but a `CODECOPY` that stays inside its entry. The scan tracks
 //! each block's stack and follows addresses through a few unconditional jumps, since shared tails
 //! can move a copy into another block. Pooling uses bounded substring search to avoid quadratic
@@ -29,9 +28,9 @@
 //!
 //! Deferred contract bytecode stays opaque in the pipeline: each deferred entry keeps its own
 //! storage, and a `push_data_size` counts as a reference that bounds a copy of its entry's exact
-//! length. Final assembly links the bytes in, folds the sizes into literals, and runs
-//! `pack-existing-data` once more so linked bytecode can share storage, such as runtime code
-//! inside the creation code that contains it.
+//! length. Final assembly links the bytes in, folds the sizes into literals, and packs the
+//! existing data once more, without store runs, so linked bytecode can share storage, such as
+//! runtime code inside the creation code that contains it.
 
 use super::{EvmPass, utils::is_split_point};
 use crate::{
@@ -66,19 +65,6 @@ const MAX_RUN_INSTRUCTIONS: usize = 256;
 
 /// Bounds the unconditional jumps followed from a block to find where its data addresses are used.
 const MAX_DATA_JUMP_HOPS: usize = 4;
-
-pub(super) struct PackExistingData;
-
-impl EvmPass for PackExistingData {
-    fn name(&self) -> &'static str {
-        "pack-existing-data"
-    }
-
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let optimization = module.optimization;
-        pack_existing_data(module, optimization.is_gas() || optimization.is_size())
-    }
-}
 
 pub(super) struct PackData;
 
@@ -601,8 +587,9 @@ fn apply_stack_op<T: Copy>(stack: &mut Vec<T>, stack_op: op::StackOp) {
 }
 
 /// Shares storage between data entries after deferred data is linked in.
-pub(in crate::backend) fn pack_linked_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
-    PackExistingData.run_pass(gcx, module)
+pub(in crate::backend) fn pack_linked_data(module: &mut Module) -> bool {
+    let optimization = module.optimization;
+    pack_existing_data(module, optimization.is_gas() || optimization.is_size())
 }
 
 fn pack_existing_data(module: &mut Module, allow_subslices: bool) -> bool {

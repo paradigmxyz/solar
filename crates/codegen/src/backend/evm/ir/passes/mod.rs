@@ -148,7 +148,6 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Peephole::EARLY,
     &coalesce_copies::CoalesceCopies,
     &RunsAtNone(cfg_simplify::CfgSimplify::EARLY),
-    &data::PackExistingData,
     &peephole::Cleanup(compact_pushes::CompactPushes),
     &RunsAtNone(block_layout::BlockLayout),
     &share_reverts::ShareReverts,
