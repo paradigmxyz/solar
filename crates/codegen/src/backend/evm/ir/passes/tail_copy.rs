@@ -10,18 +10,20 @@
 //! split point, and the tail is neither the entry block, the caller itself, nor the caller's
 //! fallthrough, whose transfer may cost fewer bytes. A copy takes whole blocks, so
 //! `keep_with_next` boundaries stay intact. The original tail stays for its other predecessors;
-//! CFG cleanup removes it once no jump reaches it.
+//! CFG cleanup removes it once no jump reaches it, and `tail-duplicate` removes it itself.
 //!
 //! Only position-independent code is copied, so a copy runs on the same stack as the tail did:
 //! a block's entry stack is the same from every predecessor. Immediate pushes, physical stack
-//! operations, and opcodes that observe neither their position nor the gas left qualify.
+//! operations, and opcodes that observe neither their position nor the gas left qualify; the
+//! straight-line passes narrow the opcodes further.
 //! Immutable and library placeholders, which the assembler patches by site, stay where they are,
 //! and so do opcodes the target lacks, whose new uses the checks between passes reject.
 //!
-//! NOTE: A copy keeps its instructions' source locations and function events, but drops the
-//! checkpoints of the removed transfer and of the tail's `JUMPDEST`, which no longer run on that
-//! path. Keeping an executable jump for them would defeat the rewrite; recording one on the
-//! caller's last instruction could overwrite that instruction's own transition.
+//! NOTE: A copy keeps its instructions' source locations and function events, but not the
+//! checkpoints of the removed transfer or the function entry event of the tail's `JUMPDEST`,
+//! which no longer run on that path. Keeping an executable jump for them would defeat the
+//! rewrite; recording one on the caller's last instruction could overwrite that instruction's
+//! own transition. Debug origins never affect eligibility.
 //!
 //! # `tail-dup`: loop blocks
 //!
@@ -85,7 +87,6 @@
 //! Straight-line loop joins qualify, but no branches are copied: header tests and loop rotation
 //! remain with loop layout. Block order and existing label identities stay intact. A tail left
 //! without references is removed, and assembly omits labels whose last reference disappears.
-//! Debug origins remain on the copied operations and never affect eligibility.
 //!
 //! Copies start beyond the one-byte address range, using an instruction-only lower bound on the
 //! prefix size, so they cannot widen the labels and indexed tables packed by block layout.
@@ -100,9 +101,9 @@
 //! contracts smaller and 3 larger by 21.
 //!
 //! Beyond the shared rules, only immediate pushes and the computations `tail-duplicate` copies
-//! qualify. The rewrite removes transfer gas independently of execution frequency and does not
-//! depend on debug metadata. It runs after sharing, which can create these tiny tails. The
-//! default pipeline cleans up stack identities exposed by the copied return.
+//! qualify. The rewrite removes transfer gas independently of execution frequency. It runs after
+//! sharing, which can create these tiny tails. The default pipeline cleans up stack identities
+//! exposed by the copied return.
 
 use super::{
     EvmPass,
@@ -135,7 +136,6 @@ impl EvmPass for TailDup {
         let target = module.target(gcx);
         let mut budget = target.loop_join_copy_budget(code_bytes(target, module));
         let mut changed = false;
-        // A latch's copy ends with the latch's jump to the header, which the next round copies.
         for _ in 0..MAX_ROUNDS {
             let paths = incoming_paths(module);
             let mut candidates = module
@@ -151,17 +151,13 @@ impl EvmPass for TailDup {
             candidates.sort_by(|a, b| by_gas_per_byte((a.2, a.3), (b.2, b.3)).then(a.0.cmp(&b.0)));
             // Every copy of a round takes its block as the round found it, so a block grown by
             // one copy still qualifies for the others.
-            let copies = candidates
-                .into_iter()
-                .filter(|&(_, _, added, _)| {
-                    let fits = added <= budget;
-                    if fits {
-                        budget -= added;
-                    }
-                    fits
-                })
-                .map(|(caller, callee, ..)| (caller, tail_body(module, callee)))
-                .collect::<Vec<_>>();
+            let mut copies = Vec::new();
+            for (caller, callee, added, _) in candidates {
+                if added <= budget {
+                    budget -= added;
+                    copies.push((caller, tail_body(module, callee)));
+                }
+            }
             if copies.is_empty() {
                 break;
             }
@@ -192,24 +188,17 @@ impl EvmPass for TailDuplicate {
         let saved = Cost { bytes: 0, ..transfer + target.opcode(op::JUMPDEST) };
         let added = (target.label_push() + target.opcode(op::JUMP)).bytes - transfer.bytes;
         let mut prefix_bytes = 0;
-        let first_caller = module
-            .blocks
-            .iter()
-            .take_while(|block| {
-                let within = prefix_bytes <= usize::from(u8::MAX);
-                if within {
-                    prefix_bytes += (block.instructions.iter())
-                        .map(|inst| instruction_size_lower_bound(target, inst))
-                        .sum::<usize>();
-                }
-                within
-            })
-            .count();
         let mut references = IndexVec::new();
         count_block_references(module, &mut references);
         let mut duplicated = DenseBitSet::new_empty(module.blocks.len());
         let mut changed = false;
-        for caller in module.blocks.indices().skip(first_caller) {
+        for caller in module.blocks.indices() {
+            if prefix_bytes <= usize::from(u8::MAX) {
+                prefix_bytes += (module.blocks[caller].instructions.iter())
+                    .map(|inst| instruction_size_lower_bound(target, inst))
+                    .sum::<usize>();
+                continue;
+            }
             let Some(callee) = jump_callee(module, caller) else { continue };
             let tail = &module.blocks[callee];
             let Some(&TerminatorKind::Jump(successor)) = tail.terminator.as_ref().map(|t| &t.kind)
@@ -235,18 +224,19 @@ impl EvmPass for TailDuplicate {
             append_tail(module, caller, tail);
             changed = true;
         }
-        if changed {
-            // Remove duplicated tails left without references.
-            let order = module
-                .blocks
-                .indices()
-                .filter(|&block| !(duplicated.contains(block) && references[block] == 0))
-                .collect::<Vec<_>>();
-            if order.len() < module.blocks.len() {
-                retain_blocks(module, &order);
-            }
+        if !changed {
+            return false;
         }
-        changed
+        // Remove duplicated tails left without references.
+        let order = module
+            .blocks
+            .indices()
+            .filter(|&block| !(duplicated.contains(block) && references[block] == 0))
+            .collect::<Vec<_>>();
+        if order.len() < module.blocks.len() {
+            retain_blocks(module, &order);
+        }
+        true
     }
 }
 
@@ -336,6 +326,7 @@ fn instruction_cost(
     loop_block: bool,
     after_label: bool,
 ) -> Option<Cost> {
+    // Immutable and library pushes have no concrete immediate and no address, so they stay.
     if inst.is_encoded_push() {
         if let Some(value) = inst.concrete_immediate() {
             return Some(target.push(value));
