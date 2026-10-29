@@ -28,7 +28,7 @@ use crate::mir::{
     Function, Immediate, InstKind, MirPhase, MirType, Module, Value, ValueId, analysis::Liveness,
     pass::MirPass, transform::cfg_simplify::end_nonreturning_calls, utils::split_edge,
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use std::cell::LazyCell;
 
 /// Shapes call edges and checks the final MIR phase transition.
@@ -53,26 +53,16 @@ impl MirPass for LowerEvmShaped {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let changed = lower_evm_shaped(module);
+        end_nonreturning_calls(module, true);
+        for func in &mut module.functions {
+            erase_pointer_types(func);
+            split_clobbering_phi_edges(func);
+        }
         if let Err(error) = module.advance_phase(gcx, MirPhase::Lowered) {
             analyses.fail(error);
         }
-        changed
+        true
     }
-}
-
-fn lower_evm_shaped(module: &mut Module) -> bool {
-    if module.phase() != MirPhase::Semantic {
-        return false;
-    }
-
-    end_nonreturning_calls(module, true);
-    for func in &mut module.functions {
-        erase_pointer_types(func);
-        split_clobbering_phi_edges(func);
-    }
-
-    true
 }
 
 /// Retypes every pointer as the word it holds and drops the casts between the two, so the backend
@@ -100,7 +90,7 @@ fn erase_pointer_types(func: &mut Function) {
         }
     }
     let mut replacements = FxHashMap::default();
-    let mut casts = FxHashSet::default();
+    let mut casts = DenseBitSet::new_empty(func.num_insts());
     for inst in func.instructions().collect::<Vec<_>>() {
         let narrow_operand = match func.inst(inst).kind {
             InstKind::IntToPtr(operand) => func.value_ty(operand) != Some(MirType::I256),
@@ -131,7 +121,7 @@ fn erase_pointer_types(func: &mut Function) {
     }
     func.replace_uses_canonicalized(&replacements);
     for block in &mut func.blocks {
-        block.instructions.retain(|inst| !casts.contains(inst));
+        block.instructions.retain(|inst| !casts.contains(*inst));
     }
 }
 
