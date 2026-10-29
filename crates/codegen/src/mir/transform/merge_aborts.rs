@@ -19,11 +19,11 @@
 //! when `x > k - 1`, and that complement replaces it where it was. In loops any other such test
 //! turns into its negation, `eq c, false`, as a checked product of two words does, which aborts
 //! unless one factor is zero or the quotient gives back the other. In builds that copy loops, a
-//! branch on `eq c, false` for a boolean `c` is a test of `c` with its edges swapped and merges as
-//! `c`, as a checked product by a word does: it aborts unless the factor's comparison with the
-//! hoisted limit, `gt x, limit`, fails, and that comparison joins the additions' checks with no
-//! `iszero`. Merges repeat along a chain, so a run of checks, such as the overflow checks of an
-//! unrolled loop's copies, branches once.
+//! branch on `eq c, false` for a boolean `c` is a test of `c` with its edges swapped and merges
+//! as `c`, as a checked product by a word does: it aborts unless the factor's comparison with
+//! the hoisted limit, `gt x, limit`, fails, and that comparison joins the additions' checks with
+//! no `iszero`. Merges repeat along a chain, so a run of checks, such as the overflow checks of
+//! an unrolled loop's copies, branches once.
 //!
 //! Two tests that an addition wrapped, `s1 < s0` for `s1 = s0 + a1` and then
 //! `s2 < s1` for `s2 = s1 + a2`, combine into `s2 < s0` instead when `a1 + a2`
@@ -45,25 +45,20 @@
 //! Aborting blocks merge when they do the same, as the panic calls that an
 //! unrolled loop's copies clone do; the merged test enters the second one.
 //!
-//! Profitability: every merge saves a conditional jump and its pushed label for
-//! an `and` or `or`, priced by the target. A zero test of a word that aborts
-//! when the word is nonzero, as a non-payable entry's `ne callvalue, 0` or an
-//! address check's `ne (shr 160, x), 0` does, joins outside loops as the word
-//! itself: `c = ne (or w, zext c2), 0`, which a branch reads for free as it read
-//! `w`, so the entry's value check and calldata size check branch once. Other
-//! zero tests of words stay apart: a branch reads the word for free, and a
-//! loop's latch also takes its back edge on it, as an increment's overflow
-//! check `eq (add i, 1), 0` does, while the merged test would pay an `iszero`
-//! for the word, another to turn the latch around, and the shuffles that keep
-//! the first condition next to it. A negated
-//! test pays its `iszero` only in loops, where the saved jump repeats, in size builds too. A
-//! boolean's negation
-//! merges as the boolean only in builds that copy loops, where every copy of a
-//! body repeats the saving: in a single body the condition stays live across
-//! the next check, and the scheduler answered with more shuffles than the saved
-//! jump. Runs late, after the final loop passes, check elimination and the CFG
-//! cleanup that joins each copy's blocks, so the tests it merges are the ones
-//! that remain.
+//! Profitability: every merge saves a conditional jump and its pushed label for an `and` or `or`,
+//! priced by the target. A zero test of a word that aborts when the word is nonzero, as a
+//! non-payable entry's `ne callvalue, 0` or an address check's `ne (shr 160, x), 0` does, joins
+//! outside loops as the word itself: `c = ne (or w, zext c2), 0`, which a branch reads for free as
+//! it read `w`, so the entry's value check and calldata size check branch once. Other zero tests of
+//! words stay apart: a branch reads the word for free, and a loop's latch also takes its back edge
+//! on it, as an increment's overflow check `eq (add i, 1), 0` does, while the merged test would pay
+//! an `iszero` for the word, another to turn the latch around, and the shuffles that keep the first
+//! condition next to it. A negated test pays its `iszero` only in loops, where the saved jump
+//! repeats, in size builds too. A boolean's negation merges as the boolean only in builds that copy
+//! loops, where every copy of a body repeats the saving: in a single body the condition stays live
+//! across the next check, and the scheduler answered with more shuffles than the saved jump. Runs
+//! late, after the final loop passes, check elimination and the CFG cleanup that joins each copy's
+//! blocks, so the tests it merges are the ones that remain.
 
 use crate::{
     backend::evm::op,
@@ -72,7 +67,7 @@ use crate::{
         MirType, Module, Terminator, Value, ValueId,
         analysis::{CfgInfo, aborts, cold_functions},
         pass::{MirPass, run_function_pass},
-        utils::rebuild_predecessors,
+        utils::{rebuild_predecessors, replace_terminator},
     },
     target::Target,
 };
@@ -119,13 +114,11 @@ struct Compare {
 }
 
 /// Which of two tests that abort on different edges turns around, so both abort when their
-/// conditions hold: into its complement when it compares a word with a literal, or else into its
-/// negation.
+/// conditions hold: into the complement when it compares a word with a literal, or else (`None`)
+/// into its negation.
 enum Flip {
-    First(Compare),
-    Second(Compare),
-    NegateFirst,
-    NegateSecond,
+    First(Option<Compare>),
+    Second(Option<Compare>),
 }
 
 /// A test on a block's way out: its condition, the aborting block, the continuation, and
@@ -144,14 +137,14 @@ fn merge_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: &
     let mut changed = false;
     let mut wraps = FxHashMap::default();
     // Merges remove only edges into aborting blocks, which lie on no cycle.
-    let cyclic = CfgInfo::new(func).cyclic_blocks().clone();
+    let cfg = CfgInfo::new(func);
+    let cyclic = cfg.cyclic_blocks();
     // Each sweep follows every chain of tests forward from its first block; a later sweep picks
     // up chains whose head a merge further down only now completed.
     loop {
         let mut merged = false;
-        for index in 0..func.blocks.len() {
-            let mut block = BlockId::from_usize(index);
-            while let Some((first, second, flip)) = mergeable(func, block, cold, &cyclic, target) {
+        for mut block in func.blocks.indices() {
+            while let Some((first, second, flip)) = mergeable(func, block, cold, cyclic, target) {
                 let next = first.next;
                 merge(func, block, first, second, flip, &mut wraps);
                 merged = true;
@@ -204,32 +197,15 @@ fn test(
 
 /// The word a condition compares with zero, and whether the condition holds when it is nonzero.
 fn zero_test(func: &Function, condition: ValueId) -> Option<(ValueId, bool)> {
-    let (a, b, nonzero) = match *func.value_inst_kind(condition)? {
-        InstKind::Eq(a, b) => (a, b, false),
-        InstKind::Ne(a, b) => (a, b, true),
-        _ => return None,
-    };
-    let zero = |value| func.value_u256(value).is_some_and(|v| v.is_zero());
-    if zero(b) {
-        Some((a, nonzero))
-    } else if zero(a) {
-        Some((b, nonzero))
-    } else {
-        None
-    }
+    let kind = func.value_inst_kind(condition)?;
+    kind.nonzero_test_operand(func)
+        .map(|word| (word, true))
+        .or_else(|| kind.zero_test_operand(func).map(|word| (word, false)))
 }
 
 /// The boolean that `condition` negates, when it is `eq c, false` for an `i1` word `c`.
 fn negated_boolean(func: &Function, condition: ValueId) -> Option<ValueId> {
-    let &InstKind::Eq(a, b) = func.value_inst_kind(condition)? else { return None };
-    let zero = |value| func.value_u256(value).is_some_and(|v| v.is_zero());
-    let inner = if zero(b) {
-        a
-    } else if zero(a) {
-        b
-    } else {
-        return None;
-    };
+    let inner = func.value_inst_kind(condition)?.zero_test_operand(func)?;
     (func.value_ty(inner) == Some(MirType::I1)).then_some(inner)
 }
 
@@ -312,14 +288,10 @@ fn mergeable(
     let flip = match (first.aborts_when_true, second.aborts_when_true) {
         (true, true) | (false, false) => None,
         _ if !cyclic.contains(block) => return None,
-        (false, true) => {
-            Some(complement(func, first.condition).map_or(Flip::NegateFirst, Flip::First))
-        }
-        (true, false) => {
-            Some(complement(func, second.condition).map_or(Flip::NegateSecond, Flip::Second))
-        }
+        (false, true) => Some(Flip::First(complement(func, first.condition))),
+        (true, false) => Some(Flip::Second(complement(func, second.condition))),
     };
-    let added = if matches!(flip, Some(Flip::NegateFirst | Flip::NegateSecond)) {
+    let added = if matches!(flip, Some(Flip::First(None) | Flip::Second(None))) {
         target.opcode(op::OR) + target.opcode(op::ISZERO)
     } else {
         target.opcode(op::OR)
@@ -378,25 +350,16 @@ fn merge(
     // A complement replaces its test where the test was, as the original condition was:
     // b1: c1' = gt x, k - 1 | lt x, k + 1
     // b2: c2' = gt y, l - 1 | lt y, l + 1
+    // Otherwise the test turns into its negation:
+    // b1: c1' = eq c1, false
+    // b2: c2' = eq c2, false
     match flip {
         Some(Flip::First(compare)) => {
-            first.condition = append_compare(func, predecessor, compare);
+            first.condition = flipped(func, predecessor, first.condition, compare);
             first.aborts_when_true = true;
         }
         Some(Flip::Second(compare)) => {
-            second.condition = append_compare(func, block, compare);
-            second.aborts_when_true = true;
-        }
-        // b1: c1' = eq c1, false
-        Some(Flip::NegateFirst) => {
-            let no = func.alloc_value(Value::Immediate(Immediate::I1(false)));
-            first.condition = append(func, predecessor, InstKind::Eq(first.condition, no));
-            first.aborts_when_true = true;
-        }
-        // b2: c2' = eq c2, false
-        Some(Flip::NegateSecond) => {
-            let no = func.alloc_value(Value::Immediate(Immediate::I1(false)));
-            second.condition = append(func, block, InstKind::Eq(second.condition, no));
+            second.condition = flipped(func, block, second.condition, compare);
             second.aborts_when_true = true;
         }
         None => {}
@@ -437,24 +400,31 @@ fn merge(
         //     jumpi c, b3, abort
         append(func, block, InstKind::And(first.condition, second.condition))
     };
-    let (terminator, metadata) = func.blocks[block].take_terminator();
-    let Some(Terminator::Branch { .. }) = terminator else {
-        unreachable!("the continuation ends with its test")
-    };
     let (then_block, else_block) = if second.aborts_when_true {
         (second.abort, second.next)
     } else {
         (second.next, second.abort)
     };
-    func.blocks[block].set_terminator(
-        Terminator::Branch { condition: combined, then_block, else_block },
-        metadata,
-    );
+    func.blocks[block].terminator =
+        Some(Terminator::Branch { condition: combined, then_block, else_block });
 
     // b1: ...; jump b2
-    let (_, metadata) = func.blocks[predecessor].take_terminator();
-    func.blocks[predecessor].set_terminator(Terminator::Jump(block), metadata);
-    func.blocks[first.abort].predecessors.retain(|from| *from != predecessor);
+    replace_terminator(func, predecessor, Terminator::Jump(block));
+}
+
+/// Appends the turned-around form of a test's condition: the complement `compare`, or the
+/// negation when there is none.
+fn flipped(
+    func: &mut Function,
+    block: BlockId,
+    condition: ValueId,
+    compare: Option<Compare>,
+) -> ValueId {
+    if let Some(compare) = compare {
+        return append_compare(func, block, compare);
+    }
+    let no = func.alloc_value(Value::Immediate(Immediate::I1(false)));
+    append(func, block, InstKind::Eq(condition, no))
 }
 
 /// Appends a comparison of a word with a literal and returns its result.
