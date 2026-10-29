@@ -53,6 +53,10 @@ impl MirPass for DeadArgElim {
         "dead-arg-elim"
     }
 
+    fn is_contract_wide(&self) -> bool {
+        true
+    }
+
     fn run_pass(
         &self,
         _gcx: solar_sema::Gcx<'_>,
@@ -198,6 +202,10 @@ pub(crate) struct MergeEquivalentFunctions;
 impl MirPass for MergeEquivalentFunctions {
     fn name(&self) -> &'static str {
         "merge-equivalent-functions"
+    }
+
+    fn is_contract_wide(&self) -> bool {
+        true
     }
 
     fn run_pass(
@@ -984,6 +992,9 @@ fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
         && lhs.attributes.is_function_pointer_dispatcher
             == rhs.attributes.is_function_pointer_dispatcher
         && lhs.attributes.no_inline == rhs.attributes.no_inline
+        && lhs.attributes.always_inline == rhs.attributes.always_inline
+        && lhs.attributes.inline_hint == rhs.attributes.inline_hint
+        && lhs.attributes.optimization == rhs.attributes.optimization
         // A proved element width is part of what callers rely on: merging a body
         // whose address array is proved canonical into one that is not would make
         // its callers re-clean every returned element.

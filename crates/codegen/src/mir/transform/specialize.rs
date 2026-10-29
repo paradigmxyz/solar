@@ -51,6 +51,10 @@ impl MirPass for Specialize {
         "specialize"
     }
 
+    fn is_contract_wide(&self) -> bool {
+        true
+    }
+
     fn run_pass(
         &self,
         gcx: solar_sema::Gcx<'_>,

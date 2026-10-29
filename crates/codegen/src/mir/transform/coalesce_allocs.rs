@@ -36,6 +36,10 @@ impl MirPass for CoalesceAllocs {
         "coalesce-allocs"
     }
 
+    fn is_contract_wide(&self) -> bool {
+        true
+    }
+
     fn run_pass(
         &self,
         _gcx: Gcx<'_>,

@@ -59,14 +59,16 @@ impl ModuleTarget for Module {
 
 /// The cost model of a block's code.
 pub(crate) trait BlockTarget {
-    /// The cost model of this block: the creation model for creation code, which the runtime
-    /// artifact follows (`code_follows`), unless the block may run more than once.
+    /// The cost model of this block: its function's objective, else `optimization`, the module's,
+    /// with the creation model for creation code, which the runtime artifact follows
+    /// (`code_follows`), unless the block may run more than once.
     fn target(&self, gcx: Gcx<'_>, optimization: OptimizationMode, code_follows: bool) -> Target;
 }
 
 impl BlockTarget for Block {
     fn target(&self, gcx: Gcx<'_>, optimization: OptimizationMode, code_follows: bool) -> Target {
-        Target::new(gcx, optimization).priced_for(code_follows && self.runs_once())
+        Target::new(gcx, self.metadata.optimization.unwrap_or(optimization))
+            .priced_for(code_follows && self.runs_once())
     }
 }
 

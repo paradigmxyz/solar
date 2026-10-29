@@ -129,7 +129,7 @@ pub struct Module {
     /// `advance_phase` passed it.
     pub(super) lowered_checked: bool,
     /// The objective this module's code is optimized for: the build's, or the one the contract's
-    /// `@custom:solar-optimize` tag selects.
+    /// `@custom:solar-optimize` tag selects. A function's own tag may select another.
     pub(crate) optimization: OptimizationMode,
     /// Instructions `@custom:solar-inline` clones have added, which the inliner bounds over all
     /// of its runs.
@@ -213,9 +213,38 @@ impl Module {
         self.unsafe_assembly = unsafe_assembly;
     }
 
-    /// Returns the cost model of this module's code.
+    /// Returns the cost model of this module's code: the contract's objective, which a function
+    /// without a tag of its own and every decision about the module as a whole use.
     pub(crate) fn target(&self, gcx: Gcx<'_>) -> target::Target {
         target::Target::new(gcx, self.optimization)
+    }
+
+    /// Returns the objective `func`'s code is optimized for: its own tag's, else the contract's.
+    pub(crate) fn objective(&self, func: FunctionId) -> OptimizationMode {
+        self.objective_of(&self.functions[func])
+    }
+
+    /// Returns the objective `func`'s code is optimized for, for a function this module has not
+    /// yet received.
+    pub(crate) fn objective_of(&self, func: &Function) -> OptimizationMode {
+        func.attributes.optimization.unwrap_or(self.optimization)
+    }
+
+    /// Returns the cost model of `func`'s code, for a function this module has not yet received.
+    pub(crate) fn target_of(&self, gcx: Gcx<'_>, func: &Function) -> target::Target {
+        target::Target::new(gcx, self.objective_of(func))
+    }
+
+    /// Returns the cost model of `func`'s code.
+    pub(crate) fn function_target(&self, gcx: Gcx<'_>, func: FunctionId) -> target::Target {
+        target::Target::new(gcx, self.objective(func))
+    }
+
+    /// Returns whether code compiled for some objective satisfies `wanted`: the contract's own
+    /// code, or the code of a function whose tag selects another objective.
+    pub(crate) fn runs_objective(&self, wanted: impl Fn(OptimizationMode) -> bool) -> bool {
+        wanted(self.optimization)
+            || self.functions.iter().any(|func| func.attributes.optimization.is_some_and(&wanted))
     }
 
     /// Enables or disables source debug information auditing for optimization passes.

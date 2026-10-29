@@ -102,7 +102,30 @@ pub trait MirPass: Sync {
 
     /// Returns whether this pass is enabled with the current compiler flags and MIR phase.
     fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
-        self.is_required() || !matches!(module.optimization, OptimizationMode::None)
+        self.covers(module)
+    }
+
+    /// Returns whether this pass runs on any of the module's code: a function-local pass on a
+    /// function with an objective of its own, a contract-wide pass only on a contract whose own
+    /// objective runs it.
+    fn covers(&self, module: &Module) -> bool {
+        if self.is_contract_wide() {
+            self.runs_on(module.optimization)
+        } else {
+            module.runs_objective(|objective| self.runs_on(objective))
+        }
+    }
+
+    /// Returns whether this pass rewrites functions together rather than one at a time, so that
+    /// it follows the contract's objective, not that of a function with its own.
+    fn is_contract_wide(&self) -> bool {
+        false
+    }
+
+    /// Returns whether this pass runs on code optimized for `objective`: a function-local pass
+    /// skips the functions it does not.
+    fn runs_on(&self, objective: OptimizationMode) -> bool {
+        self.is_required() || !objective.is_none()
     }
 
     /// Returns whether this pass must run independently of the optimization level.
@@ -177,7 +200,12 @@ pub(crate) fn run_passes_inner(
             } else {
                 // A queued contract job needs the workers more than this pass does.
                 let parallel = gcx.sess.is_parallel_codegen() && !gcx.sess.has_queued_jobs();
-                analyses.begin_pass(module.optimization.is_gas(), parallel);
+                analyses.begin_pass(
+                    module.runs_objective(OptimizationMode::is_gas),
+                    parallel,
+                    [OptimizationMode::None, OptimizationMode::Gas, OptimizationMode::Size]
+                        .map(|objective| pass.runs_on(objective)),
+                );
                 // A pass that edits the module, reported or not, outdates the check, unless the
                 // pass itself advanced the phase after its last edit.
                 let lowered_checked = std::mem::take(&mut module.lowered_checked);

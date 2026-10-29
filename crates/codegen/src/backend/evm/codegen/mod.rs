@@ -161,7 +161,7 @@ pub struct EvmCodegen<'gcx> {
     capture_scheduled_evm_ir: bool,
     capture_debug_info: bool,
     /// The objective of the module being generated, which its `@custom:solar-optimize` tag may
-    /// select.
+    /// select, or of the function being emitted, which its own tag may select.
     optimization: OptimizationMode,
 }
 

@@ -69,7 +69,7 @@ contract Test {
     // CHECK-NEXT: jumpi [[EMPTY]]
     // CHECK: mload
     // CHECK: mcopy
-    /// @custom:solar-noinline
+    /// @custom:solar-inline never
     function _memoryCopy(bytes memory source, bytes memory destination, uint256 count) private pure {
         for (uint256 k; k < count; ++k) {
             destination[k] = source[k];
@@ -81,7 +81,7 @@ contract Test {
     // CHECK-NEXT: jumpi [[EMPTY]]
     // CHECK: mload
     // CHECK: calldatacopy
-    /// @custom:solar-noinline
+    /// @custom:solar-inline never
     function _calldataCopy(bytes calldata source, bytes memory destination, uint256 count) private pure {
         for (uint256 k; k < count; ++k) {
             destination[k] = source[k];
@@ -93,7 +93,7 @@ contract Test {
     // CHECK-NEXT: jumpi [[EMPTY]]
     // CHECK: mload
     // CHECK: mcopy
-    /// @custom:solar-noinline
+    /// @custom:solar-inline never
     function _downCopy(bytes memory source, bytes memory destination, uint256 count) private pure {
         for (uint256 k = count; k > 0; --k) {
             destination[k - 1] = source[k - 1];
@@ -105,7 +105,7 @@ contract Test {
     // CHECK-NEXT: jumpi [[EMPTY]]
     // CHECK: mload
     // CHECK: mcopy
-    /// @custom:solar-noinline
+    /// @custom:solar-inline never
     function _freshCopy(bytes memory source, uint256 count) private pure returns (bytes memory result) {
         result = new bytes(count);
         for (uint256 k; k < count; ++k) {

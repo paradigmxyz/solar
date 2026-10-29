@@ -559,7 +559,7 @@ impl<'gcx> Resolver<'gcx> {
         let gcx = self.gcx;
         let code_contract = |id| gcx.hir.contract(id).kind != hir::ContractKind::Interface;
         let applies = match (tag, item_id) {
-            (SolarTag::Inline | SolarTag::NoInline, hir::ItemId::Function(id)) => {
+            (SolarTag::Inline, hir::ItemId::Function(id)) => {
                 let function = gcx.hir.function(id);
                 function.kind == hir::FunctionKind::Function
                     && function.body.is_some()
@@ -571,49 +571,47 @@ impl<'gcx> Resolver<'gcx> {
                 gcx.hir.contract(id).kind,
                 hir::ContractKind::Contract | hir::ContractKind::Library
             ),
+            (SolarTag::Optimize, hir::ItemId::Function(id)) => {
+                let function = gcx.hir.function(id);
+                function.kind == hir::FunctionKind::Function && function.body.is_some()
+            }
             _ => false,
         };
         if !applies {
             let _ = report_misplaced_solar_tag(gcx.dcx(), tag, name, tag_span);
             return;
         }
-        if tag == SolarTag::Optimize {
-            self.check_solar_optimize(docs, tag_span);
+        match tag {
+            SolarTag::Optimize => self.check_solar_optimize(docs, tag_span),
+            SolarTag::Inline => self.check_solar_inline(docs, tag_span),
+            _ => {}
         }
-        if tag == SolarTag::Inline {
-            let both = docs.iter().flat_map(|doc| doc.natspec.iter()).any(|natspec| {
-                matches!(natspec.kind, ast::NatSpecKind::Custom { name }
-                    if SolarTag::from_custom(name.name) == Some(SolarTag::NoInline))
-            });
-            if both {
-                gcx.dcx()
-                    .err("a function cannot be both `@custom:solar-inline` and `@custom:solar-noinline`")
-                    .span(tag_span)
-                    .emit();
-            }
+    }
+
+    /// Reports a `@custom:solar-inline` tag whose argument is not `always` or `never`, or that
+    /// follows another on the same function.
+    fn check_solar_inline(&self, docs: &[ast::DocComment<'gcx>], tag_span: Span) {
+        let Some(natspec) = self.first_duplicate_free_tag(docs, sym::solar_dash_inline, tag_span)
+        else {
+            return;
+        };
+        if inline_tag(docs, natspec).is_none() {
+            self.gcx
+                .dcx()
+                .err("`@custom:solar-inline` takes no argument, `always` or `never`")
+                .span(tag_span)
+                .help("write `@custom:solar-inline always` to clone every legal call")
+                .emit();
         }
     }
 
     /// Reports a `@custom:solar-optimize` tag that does not name one objective, or that follows
     /// another on the same item.
     fn check_solar_optimize(&self, docs: &[ast::DocComment<'gcx>], tag_span: Span) {
-        let mut tags = docs.iter().flat_map(|doc| doc.natspec.iter()).filter(|natspec| {
-            matches!(natspec.kind, ast::NatSpecKind::Custom { name }
-                if name.name == sym::solar_dash_optimize)
-        });
-        let Some(natspec) = tags.clone().find(|natspec| natspec.span == tag_span) else { return };
-        if let Some(first) = tags.next()
-            && first.span != tag_span
-        {
-            self.gcx
-                .dcx()
-                .err("duplicate `@custom:solar-optimize` tag")
-                .span(tag_span)
-                .span_note(first.span, "the first tag is here")
-                .help("keep one tag naming the objective")
-                .emit();
+        let Some(natspec) = self.first_duplicate_free_tag(docs, sym::solar_dash_optimize, tag_span)
+        else {
             return;
-        }
+        };
         if optimize_objective(docs, natspec).is_none() {
             self.gcx
                 .dcx()
@@ -622,6 +620,33 @@ impl<'gcx> Resolver<'gcx> {
                 .help("write `@custom:solar-optimize size` to optimize this code for size")
                 .emit();
         }
+    }
+
+    /// Returns the tag at `tag_span`, unless another `name` tag precedes it on the same item, which
+    /// it reports as a duplicate.
+    fn first_duplicate_free_tag<'a>(
+        &self,
+        docs: &'a [ast::DocComment<'gcx>],
+        name: Symbol,
+        tag_span: Span,
+    ) -> Option<&'a ast::NatSpecItem> {
+        let mut tags = docs.iter().flat_map(|doc| doc.natspec.iter()).filter(|natspec| {
+            matches!(natspec.kind, ast::NatSpecKind::Custom { name: tag } if tag.name == name)
+        });
+        let natspec = tags.clone().find(|natspec| natspec.span == tag_span)?;
+        if let Some(first) = tags.next()
+            && first.span != tag_span
+        {
+            self.gcx
+                .dcx()
+                .err(format!("duplicate `@custom:{name}` tag"))
+                .span(tag_span)
+                .span_note(first.span, "the first tag is here")
+                .help(format!("keep one `@custom:{name}` tag"))
+                .emit();
+            return None;
+        }
+        Some(natspec)
     }
 
     #[cold]
@@ -912,18 +937,16 @@ impl<'gcx> Resolver<'gcx> {
 /// requirement that silently goes unchecked.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SolarTag {
-    /// `@custom:solar-inline`: every internal call of the function is inlined where inlining is
-    /// legal, whatever it costs.
+    /// `@custom:solar-inline [always|never]`: the inliner favors the function, always clones it
+    /// where legal, or never clones it.
     Inline,
-    /// `@custom:solar-noinline`: no internal call of the function is inlined.
-    NoInline,
     /// `@custom:solar-safe`: the code the contract runs has no inline assembly, with checked
     /// arithmetic available as an explicit property.
     Safe,
     /// `@custom:solar-trusted`: reviewed code a `@custom:solar-safe` contract may run.
     Trusted,
-    /// `@custom:solar-optimize <gas|size>`: optimized builds of the contract optimize its code for
-    /// this objective instead of the one the build selects.
+    /// `@custom:solar-optimize <gas|size>`: the code of the contract or function is optimized for
+    /// this objective instead of the one the build selects, even in an `-O none` build.
     Optimize,
     /// A `solar-` tag this compiler does not define.
     Unknown,
@@ -934,7 +957,6 @@ impl SolarTag {
     pub(crate) fn from_custom(name: Symbol) -> Option<Self> {
         match name {
             sym::solar_dash_inline => Some(Self::Inline),
-            sym::solar_dash_noinline => Some(Self::NoInline),
             sym::solar_dash_safe => Some(Self::Safe),
             sym::solar_dash_trusted => Some(Self::Trusted),
             sym::solar_dash_optimize => Some(Self::Optimize),
@@ -952,7 +974,7 @@ pub(crate) fn report_misplaced_solar_tag(
     span: Span,
 ) -> ErrorGuaranteed {
     match tag {
-        SolarTag::Inline | SolarTag::NoInline => dcx
+        SolarTag::Inline => dcx
             .err(format!("`@custom:{name}` must document a function that internal calls reach"))
             .span(span)
             .help("put it on an internal, private or public function with a body")
@@ -971,11 +993,14 @@ pub(crate) fn report_misplaced_solar_tag(
             .help("put it on the reviewed code a `@custom:solar-safe` contract runs")
             .emit(),
         SolarTag::Optimize => dcx
-            .err("`@custom:solar-optimize` must document a non-abstract contract or a library")
+            .err(
+                "`@custom:solar-optimize` must document a non-abstract contract, a library, or a \
+                 function with a body",
+            )
             .span(span)
             .help(
-                "put it on the contract or library whose code to optimize, naming the objective: \
-                 `@custom:solar-optimize size`",
+                "put it on the contract, library or function whose code to optimize, naming the \
+                 objective: `@custom:solar-optimize size`",
             )
             .emit(),
         SolarTag::Unknown => dcx
@@ -983,8 +1008,8 @@ pub(crate) fn report_misplaced_solar_tag(
             .span(span)
             .note("`@custom:solar-` tags are requirements this compiler checks")
             .help(
-                "the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, \
-                 `@custom:solar-optimize`, `@custom:solar-safe`, and `@custom:solar-trusted`",
+                "the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, \
+                 `@custom:solar-safe`, and `@custom:solar-trusted`",
             )
             .emit(),
     }
@@ -993,13 +1018,23 @@ pub(crate) fn report_misplaced_solar_tag(
 /// The `@custom:solar-*` tags that document an item.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SolarTags {
-    /// `@custom:solar-inline`.
-    pub inline: bool,
-    /// `@custom:solar-noinline`.
-    pub noinline: bool,
-    /// The objective a `@custom:solar-optimize` tag names, which optimized builds of a contract's
-    /// code use instead of the build's.
+    /// What a `@custom:solar-inline` tag asks of the inliner.
+    pub inline: Option<InlineTag>,
+    /// The objective a `@custom:solar-optimize` tag names, which the code it documents uses
+    /// instead of the build's.
     pub optimize: Option<OptimizationMode>,
+}
+
+/// What a `@custom:solar-inline` tag asks of the inliner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InlineTag {
+    /// `@custom:solar-inline`: the inliner favors the function, within its legality and stack
+    /// budgets.
+    Hint,
+    /// `@custom:solar-inline always`: every legal internal call clones the function.
+    Always,
+    /// `@custom:solar-inline never`: no internal call clones the function.
+    Never,
 }
 
 /// Returns the `@custom:solar-*` tags of `item`'s own documentation.
@@ -1009,8 +1044,9 @@ pub(crate) fn solar_tags(gcx: Gcx<'_>, item: hir::ItemId) -> SolarTags {
     for natspec in gcx.natspec_doc_comments(doc) {
         if let ast::NatSpecKind::Custom { name } = natspec.kind {
             match SolarTag::from_custom(name.name) {
-                Some(SolarTag::Inline) => tags.inline = true,
-                Some(SolarTag::NoInline) => tags.noinline = true,
+                Some(SolarTag::Inline) if tags.inline.is_none() => {
+                    tags.inline = inline_tag(&gcx.hir.doc(doc).ast_comments, natspec);
+                }
                 Some(SolarTag::Optimize) if tags.optimize.is_none() => {
                     tags.optimize = optimize_objective(&gcx.hir.doc(doc).ast_comments, natspec);
                 }
@@ -1019,6 +1055,19 @@ pub(crate) fn solar_tags(gcx: Gcx<'_>, item: hir::ItemId) -> SolarTags {
         }
     }
     tags
+}
+
+/// Returns what a `@custom:solar-inline` tag asks for, when it has no argument or exactly
+/// `always` or `never`.
+fn inline_tag(docs: &[ast::DocComment<'_>], natspec: &ast::NatSpecItem) -> Option<InlineTag> {
+    let content = solar_tag_content(docs, natspec.span);
+    let mut words = content.split_whitespace();
+    match (words.next(), words.next()) {
+        (None, _) => Some(InlineTag::Hint),
+        (Some("always"), None) => Some(InlineTag::Always),
+        (Some("never"), None) => Some(InlineTag::Never),
+        _ => None,
+    }
 }
 
 /// Returns the objective a `@custom:solar-optimize` tag names, when it names exactly `gas` or

@@ -198,8 +198,9 @@ impl MirPass for ByteLoops {
         module: &mut Module,
         analyses: &mut ModuleAnalyses,
     ) -> bool {
-        let tests_empty_copies = module.target(gcx).tests_empty_copies();
-        run_function_pass(module, analyses, |func, _| run_function(func, tests_empty_copies))
+        run_function_pass(module, analyses, |func, analyses| {
+            run_function(func, analyses.runtime_target(gcx).tests_empty_copies())
+        })
     }
 }
 

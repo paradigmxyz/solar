@@ -36,13 +36,18 @@
 //! twelve words, leaving headroom for operand staging. This bounds spills but does
 //! not promise the scheduler emits none.
 //!
-//! A callee documented `@custom:solar-inline` skips every profitability test, the stack
+//! A callee documented `@custom:solar-inline always` skips every profitability test, the stack
 //! estimate below included: each call where cloning is legal is cloned, while the module's
 //! tagged clones fit a budget of their own over all runs. Tagged helpers that call each other
 //! would otherwise multiply without limit; past the budget, tagged calls are weighed like any
-//! other.
-//! `@custom:solar-noinline` marks a function no-inline. The `inline-tagged` variant clones only
-//! such callees, and runs first in the semantic pipeline: a helper that spells a word operation
+//! other. A bare `@custom:solar-inline` only favors its callee: it skips the shape and
+//! profitability tests, which `Target::inline_hint_admits` replaces with a bound on the bytes the
+//! clone adds, but keeps the growth and stack budgets. `@custom:solar-inline never` marks a
+//! function no-inline.
+//!
+//! Each call is priced by the objective of its caller, since a clone joins the caller's code.
+//! The `inline-tagged` variant clones only `always` callees, and runs first in the semantic
+//! pipeline: a helper that spells a word operation
 //! as a byte loop then meets the caller's objects, so `byte-loops` can tell a fresh destination
 //! from an argument, and constant arguments reach the loop bounds.
 //!
@@ -73,7 +78,7 @@ use crate::{
         },
         immutable::immutable_push_type_size,
         memory::EvmMemoryLayout,
-        pass::MirPass,
+        pass::{MirPass, ModuleAnalyses},
         utils::{rebuild_predecessors, replace_terminator_uses_canonicalized, resolve_replacement},
     },
     target::{Cost, Target},
@@ -106,10 +111,6 @@ impl MirPass for Inline {
         }
     }
 
-    fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
-        module.optimization != solar_config::OptimizationMode::None
-    }
-
     fn run_pass(
         &self,
         gcx: Gcx<'_>,
@@ -117,6 +118,11 @@ impl MirPass for Inline {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let target = module.target(gcx);
+        let targets = module
+            .functions
+            .indices()
+            .map(|id| module.function_target(gcx, id))
+            .collect::<IndexVec<MirFunctionId, _>>();
         let physical = matches!(self, Self::Physical) || module.phase >= MirPhase::Lowered;
         let tagged_only = matches!(self, Self::Tagged);
         if tagged_only && !module.functions.iter().any(|function| function.attributes.always_inline)
@@ -127,10 +133,17 @@ impl MirPass for Inline {
         for _ in 0..4 {
             let calls = analyses.fresh_call_summaries(module);
             let straight_line = module.creation_pricing_functions().1;
-            let shared_runs = (!target.optimization().is_gas()).then(|| SharedRuns::new(module));
-            let stats =
-                MirInliner { target, physical, tagged_only, calls, straight_line, shared_runs }
-                    .run(module);
+            let shared_runs = target.optimization().is_size().then(|| SharedRuns::new(module));
+            let stats = MirInliner {
+                target,
+                targets: &targets,
+                physical,
+                tagged_only,
+                calls,
+                straight_line,
+                shared_runs,
+            }
+            .run(module, analyses);
             for &caller in &stats.modified {
                 analyses.invalidate_local_summary(caller);
             }
@@ -147,8 +160,8 @@ impl MirPass for Inline {
         }
         let mut edited_later = false;
         if physical && !tagged_only {
-            edited_later = guards::inline_guards(module, &target);
-            if dispatch::inline_dispatch(module, &target) {
+            edited_later = guards::inline_guards(module, &targets);
+            if !target.optimization().is_none() && dispatch::inline_dispatch(module, &target) {
                 let _ = super::cfg_simplify::FunctionDce.run_pass(gcx, module, analyses);
                 edited_later = true;
             }
@@ -183,8 +196,12 @@ impl MirPass for SpecializeFunctionPointers {
 /// This pass clones small internal/private callees into their callers. Each
 /// inline expansion gets a fresh internal-frame range so copied local slots do
 /// not overlap caller locals.
-struct MirInliner {
+struct MirInliner<'a> {
+    /// The cost model of the contract, which summarizes callee bodies and prices what spans
+    /// functions, such as the code the backend shares between them.
     target: Target,
+    /// The cost model of each function's code, which prices the calls it makes.
+    targets: &'a IndexVec<MirFunctionId, Target>,
     physical: bool,
     /// Clone only `@custom:solar-inline` callees.
     tagged_only: bool,
@@ -196,7 +213,7 @@ struct MirInliner {
     shared_runs: Option<SharedRuns>,
 }
 
-impl MirInliner {
+impl MirInliner<'_> {
     /// A hot leaf shared by more call sites than this stays a call: every
     /// clone deposits the whole body again.
     const MAX_HOT_LEAF_CALL_SITES: usize = 8;
@@ -263,9 +280,9 @@ struct MirInlineSummary {
     is_scalar: bool,
 }
 
-impl MirInliner {
+impl MirInliner<'_> {
     /// Runs the inliner over the whole module.
-    fn run(&mut self, module: &mut Module) -> MirInlineStats {
+    fn run(&mut self, module: &mut Module, analyses: &ModuleAnalyses) -> MirInlineStats {
         let mut stats = MirInlineStats::default();
 
         let call_graph = CallGraphInfo::new(module);
@@ -302,10 +319,15 @@ impl MirInliner {
             summaries.get(caller).is_some_and(|summary| summary.is_function_pointer_dispatcher)
         });
         for caller_id in caller_ids {
-            // Leaf bodies cannot contain an inline candidate.
-            if !summaries.get(&caller_id).is_some_and(|summary| summary.has_icall) {
+            // Leaf bodies cannot contain an inline candidate, and code the running slot does not
+            // optimize keeps its calls.
+            if !summaries.get(&caller_id).is_some_and(|summary| summary.has_icall)
+                || !analyses.runs_on(module, caller_id)
+            {
                 continue;
             }
+            // A clone joins its caller's code, so the caller's objective prices the call.
+            let caller_target = self.targets[caller_id];
             let mut loop_costs = block_loop_costs(module.function(caller_id));
             // Bound how much each caller may grow from inlining so a function
             // calling many internal helpers (e.g. a large verifier) cannot
@@ -330,8 +352,8 @@ impl MirInliner {
                     None
                 }
                 .unwrap_or_else(|| call_counts.get(&site.callee).copied().unwrap_or_default());
-                // `@custom:solar-inline` skips the growth and stack budgets, as every other test,
-                // while the module's tagged clones fit their own.
+                // `@custom:solar-inline always` skips the growth and stack budgets, as every other
+                // test, while the module's tagged clones fit their own.
                 let always = Self::always_inline(module, site.callee, &summary);
                 let grew_too_much = !always
                     && summaries.get(&caller_id).is_some_and(|s| {
@@ -349,13 +371,14 @@ impl MirInliner {
                     continue;
                 }
                 let preferred = preferred_large_call_sites.get(&site.callee).copied();
-                let consume_all = consumed_everywhere.contains(&site.callee);
+                let consume_all = caller_target.optimization().is_size()
+                    && consumed_everywhere.contains(&site.callee);
                 let inlineable = self.is_inlineable(
                     module,
                     caller_id,
                     site,
                     summary,
-                    Pricing { target: self.target, call_count, consume_all },
+                    Pricing { target: caller_target, call_count, consume_all },
                     preferred,
                 );
                 // Creation code carries its own copy of every callee, so a callee that only this
@@ -366,7 +389,7 @@ impl MirInliner {
                     && self.straight_line.contains(caller_id)
                     && artifact_counts.is_some_and(|counts| {
                         let creation = Pricing {
-                            target: self.target.priced_for(true),
+                            target: caller_target.priced_for(true),
                             call_count: counts[0],
                             consume_all: false,
                         };
@@ -546,7 +569,7 @@ impl MirInliner {
         let single_call = call_count == 1;
         // Inlining every call site removes the callee, as it does for a sole-use helper.
         let sole = single_call || consume_all;
-        let gas = self.target.optimization().is_gas();
+        let gas = target.optimization().is_gas();
         let hot = gas
             && site.loop_depth > 0
             && summary.is_scalar
@@ -561,6 +584,9 @@ impl MirInliner {
         // `@custom:solar-inline` asks for every legal clone, whatever it costs, the spills a
         // body with phis may add included, while the module's tagged budget lasts.
         let always = Self::always_inline(module, site.callee, &summary);
+        // A bare `@custom:solar-inline` favors the function: legality and the stack budget still
+        // apply, but the shape and profitability tests give way to a growth allowance.
+        let hinted = module.function(site.callee).attributes.inline_hint;
         if self.tagged_only && !always {
             return false;
         }
@@ -570,7 +596,9 @@ impl MirInliner {
                 && !can_specialize_dispatcher)
             || summary.is_entry_point
             || summary.is_constructor
-            || (summary.has_phi && !always && !(summary.phi_stack_peak.is_some() && (sole || hot)))
+            || (summary.has_phi
+                && !always
+                && !(summary.phi_stack_peak.is_some() && (sole || hot || hinted)))
             || summary.has_unsupported_terminator
             || summary.return_count == 0
             || (self.physical
@@ -587,6 +615,13 @@ impl MirInliner {
         }
         if always {
             return true;
+        }
+        if hinted {
+            let (inlined_bytes, removed_bytes) =
+                self.clone_bytes(module, target, summary, site, single_call);
+            if target.inline_hint_admits(inlined_bytes, removed_bytes) {
+                return true;
+            }
         }
 
         let has_reference_return = module
@@ -652,8 +687,8 @@ impl MirInliner {
             && site.loop_depth == 0
             && summary.has_state_effect
             && summary.estimated_code_size
-                > estimated_icall_code_size(&self.target, site)
-                    + estimated_internal_return_code_size(&self.target, summary, site)
+                > estimated_icall_code_size(&target, site)
+                    + estimated_internal_return_code_size(&target, summary, site)
         {
             return false;
         }
@@ -677,20 +712,8 @@ impl MirInliner {
         site: CallSite,
         single_call: bool,
     ) -> bool {
-        let mut inlined_bytes = summary.estimated_code_size;
-        let mut removed_bytes = estimated_icall_code_size(&target, site);
-        if single_call {
-            // Consuming the callee leaves the code the backend shares with other functions
-            // emitted again.
-            inlined_bytes += self
-                .shared_runs
-                .as_ref()
-                .map_or(0, |runs| runs.shared_bytes(&target, module, site.callee));
-            removed_bytes = removed_bytes.saturating_add(
-                summary.estimated_code_size
-                    + estimated_internal_return_code_size(&target, summary, site),
-            );
-        }
+        let (inlined_bytes, removed_bytes) =
+            self.clone_bytes(module, target, summary, site, single_call);
         let loop_executions = if !target.optimization().is_gas() {
             1
         } else if site.loop_depth > 0 && !site.loop_counted {
@@ -705,6 +728,33 @@ impl MirInliner {
             estimated_icall_savings(&target, site, summary),
             loop_executions,
         )
+    }
+
+    /// The bytes a clone of the callee adds at `site`, and the bytes it removes: the call
+    /// protocol, and the callee itself when this is its only call.
+    fn clone_bytes(
+        &self,
+        module: &Module,
+        target: Target,
+        summary: MirInlineSummary,
+        site: CallSite,
+        single_call: bool,
+    ) -> (usize, usize) {
+        let mut inlined_bytes = summary.estimated_code_size;
+        let mut removed_bytes = estimated_icall_code_size(&target, site);
+        if single_call {
+            // Consuming the callee leaves the code the backend shares with other functions
+            // emitted again.
+            inlined_bytes += self
+                .shared_runs
+                .as_ref()
+                .map_or(0, |runs| runs.shared_bytes(&target, module, site.callee));
+            removed_bytes = removed_bytes.saturating_add(
+                summary.estimated_code_size
+                    + estimated_internal_return_code_size(&target, summary, site),
+            );
+        }
+        (inlined_bytes, removed_bytes)
     }
 
     fn shares_storage_read(&self, module: &Module, caller: MirFunctionId, site: CallSite) -> bool {

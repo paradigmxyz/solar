@@ -18,12 +18,12 @@
 
 use crate::{
     mir::{
-        BlockId, EffectKind, Function, InstKind, Instruction, MirType, Module, Terminator, Value,
-        ValueId, analysis::CfgInfo,
+        BlockId, EffectKind, Function, FunctionId, InstKind, Instruction, MirType, Module,
+        Terminator, Value, ValueId, analysis::CfgInfo,
     },
     target::Target,
 };
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 
 struct Guard {
     function: Function,
@@ -31,8 +31,8 @@ struct Guard {
     returns_if: bool,
 }
 
-pub(super) fn inline_guards(module: &mut Module, target: &Target) -> bool {
-    if !target.optimization().is_gas() {
+pub(super) fn inline_guards(module: &mut Module, targets: &IndexVec<FunctionId, Target>) -> bool {
+    if !targets.iter().any(|target| target.optimization().is_gas()) {
         return false;
     }
     let guards = module
@@ -45,6 +45,11 @@ pub(super) fn inline_guards(module: &mut Module, target: &Target) -> bool {
     }
     let mut changed = false;
     for (caller, func) in module.functions.iter_mut_enumerated() {
+        let target = &targets[caller];
+        // A clone joins its caller's code, so the caller's objective prices it.
+        if !target.optimization().is_gas() {
+            continue;
+        }
         let mut sites = Vec::new();
         for (block, body) in func.blocks.iter_enumerated() {
             for (index, &inst) in body.instructions.iter().enumerate() {

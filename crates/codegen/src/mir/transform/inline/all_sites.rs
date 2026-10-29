@@ -35,7 +35,7 @@ const MAX_SITES: usize = 8;
 /// The callees whose inlining at every call site leaves the bytecode smaller. Empty unless the
 /// objective is size.
 pub(super) fn consumed_everywhere(
-    inliner: &MirInliner,
+    inliner: &MirInliner<'_>,
     module: &Module,
     summaries: &FxHashMap<FunctionId, MirInlineSummary>,
     call_counts: &FxHashMap<FunctionId, usize>,
@@ -157,7 +157,7 @@ fn is_arithmetic_leaf(module: &Module, func: &Function) -> bool {
 /// that never returns, and the jumps between its blocks. A conditional branch costs one jump,
 /// the other edge falling through, and a return costs none, since the code after the call
 /// follows the copy.
-fn body_bytes(inliner: &MirInliner, module: &Module, func: &Function) -> u32 {
+fn body_bytes(inliner: &MirInliner<'_>, module: &Module, func: &Function) -> u32 {
     let target = &inliner.target;
     let mut bytes = 0;
     for block in func.blocks.indices() {

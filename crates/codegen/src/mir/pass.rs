@@ -130,7 +130,15 @@ impl<P: MirPass> MirPass for SizeOnly<P> {
     }
 
     fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        module.optimization.is_size() && self.0.is_enabled(gcx, module)
+        self.covers(module) && self.0.is_enabled(gcx, module)
+    }
+
+    fn is_contract_wide(&self) -> bool {
+        self.0.is_contract_wide()
+    }
+
+    fn runs_on(&self, objective: OptimizationMode) -> bool {
+        objective.is_size() && self.0.runs_on(objective)
     }
 
     fn is_required(&self) -> bool {
@@ -161,7 +169,15 @@ impl<P: MirPass> MirPass for GasOnly<P> {
     }
 
     fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        module.optimization.is_gas() && self.0.is_enabled(gcx, module)
+        self.covers(module) && self.0.is_enabled(gcx, module)
+    }
+
+    fn is_contract_wide(&self) -> bool {
+        self.0.is_contract_wide()
+    }
+
+    fn runs_on(&self, objective: OptimizationMode) -> bool {
+        objective.is_gas() && self.0.runs_on(objective)
     }
 
     fn is_required(&self) -> bool {
@@ -194,7 +210,15 @@ impl<P: MirPass> MirPass for RunsAtNone<P> {
     }
 
     fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_none() || self.0.is_enabled(gcx, module)
+        self.covers(module) || self.0.is_enabled(gcx, module)
+    }
+
+    fn is_contract_wide(&self) -> bool {
+        self.0.is_contract_wide()
+    }
+
+    fn runs_on(&self, objective: OptimizationMode) -> bool {
+        objective.is_none() || self.0.runs_on(objective)
     }
 
     fn is_required(&self) -> bool {
@@ -230,7 +254,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // memory passes. Only the phis: merging blocks this early hides the
     // short-circuit shapes jump threading recognizes after check elimination.
     &cfg_simplify::SimplifyTrivialPhis,
-    // `@custom:solar-inline` helpers join their callers before any pass reads
+    // `@custom:solar-inline always` helpers join their callers before any pass reads
     // a loop, an object, or a bound through the call.
     &inline::Inline::Tagged,
     &sccp::Sccp,
@@ -612,7 +636,7 @@ fn run_function_pass_with_cache(
     };
     let mut changed = false;
     for func_id in functions {
-        if module.functions[func_id].blocks.is_empty() {
+        if module.functions[func_id].blocks.is_empty() || !analyses.runs_on(module, func_id) {
             continue;
         }
         changed |=
@@ -714,7 +738,7 @@ pub(crate) struct FunctionAnalyses {
     creation_only: bool,
     /// Whether, besides, the function has no loop of its own.
     straight_line_creation: bool,
-    /// The objective the module's code is optimized for.
+    /// The objective the function's code is optimized for.
     optimization: OptimizationMode,
 }
 
@@ -808,6 +832,10 @@ pub struct ModuleAnalyses {
     /// Whether the running pass prices creation code differently, which only the gas objective
     /// does.
     prices_creation: bool,
+    /// Whether the running pass runs on code optimized for no objective, gas, and size, in that
+    /// order. Function-local runners skip the functions whose objective it excludes. Unset, every
+    /// function runs.
+    objective_gate: Option<[bool; 3]>,
     /// The creation-only functions that no loop or recursion calls, and the subset without loops
     /// of their own. A pass that adds or removes calls and functions without preserving the
     /// analyses drops them.
@@ -820,13 +848,28 @@ impl ModuleAnalyses {
         self.error = Some(error);
     }
 
-    pub(crate) fn begin_pass(&mut self, prices_creation: bool, parallel: bool) {
+    pub(crate) fn begin_pass(
+        &mut self,
+        prices_creation: bool,
+        parallel: bool,
+        objective_gate: [bool; 3],
+    ) {
+        self.objective_gate = Some(objective_gate);
         self.parallel = parallel;
         self.unreported_edit = false;
         self.preserved_by_pass = false;
         self.call_summaries_preserved = false;
         self.local_summaries_preserved = false;
         self.prices_creation = prices_creation;
+    }
+
+    /// Returns whether the running pass runs on `func`, whose code is optimized for its module's
+    /// or its own tag's objective.
+    pub(crate) fn runs_on(&self, module: &Module, func: FunctionId) -> bool {
+        let objective = module.objective(func);
+        self.objective_gate.is_none_or(|gate| {
+            gate[usize::from(objective.is_gas()) + 2 * usize::from(objective.is_size())]
+        })
     }
 
     pub(crate) fn finish_pass(&mut self, changed: bool) {
@@ -885,7 +928,7 @@ impl ModuleAnalyses {
             unreported_edit: Cell::new(false),
             creation_only,
             straight_line_creation,
-            optimization: module.optimization,
+            optimization: module.objective(func_id),
         }
     }
 
@@ -1097,6 +1140,7 @@ fn run_parallel_function_pass(
     let mut work = 0;
     for (id, func) in module.functions.iter_enumerated() {
         if !func.blocks.is_empty()
+            && analyses.runs_on(module, id)
             && selected.is_none_or(|selected| selected.contains(id))
             && !cache_key.is_some_and(|key| analyses.function_cached(key, id, functions))
         {
@@ -1138,7 +1182,11 @@ fn run_parallel_function_pass(
         }
     }
     let summaries = first_missing.map(|_| analyses.call_summaries(module));
-    let optimization = module.optimization;
+    let objectives = module
+        .functions
+        .indices()
+        .map(|id| module.objective(id))
+        .collect::<IndexVec<FunctionId, _>>();
 
     let tasks = module
         .functions
@@ -1154,13 +1202,13 @@ fn run_parallel_function_pass(
                     |alias| Rc::into_inner(alias).expect("alias snapshot is unshared"),
                 )
             });
-            (id, func, alias, cfg, pricing[id])
+            (id, func, alias, cfg, pricing[id], objectives[id])
         })
         .collect::<Vec<_>>();
     let results = sync::par_try_map(
         true,
         tasks,
-        |(id, func, alias, cfg, (creation_only, straight_line_creation))| {
+        |(id, func, alias, cfg, (creation_only, straight_line_creation), optimization)| {
             let bundle = FunctionAnalyses {
                 function: id,
                 alias: alias.map(Rc::new),

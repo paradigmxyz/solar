@@ -52,8 +52,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             Builtin::AbiDecode => return self.lower_abi_decode(args),
             Builtin::YulMsize
-                if self.cx.gcx.sess.opts.optimization.is_gas()
-                    || self.cx.gcx.sess.opts.optimization.is_size() =>
+                if self.cx.module.objective_of(self.builder.func()).is_gas()
+                    || self.cx.module.objective_of(self.builder.func()).is_size() =>
             {
                 self.cx
                     .gcx

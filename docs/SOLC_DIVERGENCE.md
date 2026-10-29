@@ -680,9 +680,11 @@ documenting something it cannot apply to, such as a statement, is an error. `@cu
 when the code it runs, outside functions tagged `@custom:solar-trusted` or in
 contracts tagged so, uses inline assembly. `unchecked` blocks are allowed
 unless the tag explicitly requests the `arithmetic` property.
-`@custom:solar-optimize` documents a non-abstract contract or a library and
-names exactly one objective, `gas` or `size`, which optimized builds use for
-its code instead of the build's. [TAGS.md](TAGS.md) describes each tag.
+`@custom:solar-optimize` documents a non-abstract contract, a library, or a
+function with a body and names exactly one objective, `gas` or `size`, which
+its code uses instead of the build's, in an `-O none` build too.
+`@custom:solar-inline [always|never]` asks the inliner to favor, always clone,
+or never clone a function. [TAGS.md](TAGS.md) describes each tag.
 
 Rationale: a tag states a requirement this compiler checks or relies on, so a
 misspelled or misplaced tag must not silently go unchecked. Other compilers
@@ -690,7 +692,9 @@ still read the tags as documentation, and no tag changes what the code
 computes.
 
 Coverage: `tests/ui/natspec/solar_tags.sol`, `tests/ui/natspec/solar_inline.sol`,
-`tests/ui/natspec/solar_optimize.sol` and `tests/ui/typeck/solar_safe.sol`.
+`tests/ui/natspec/solar_optimize.sol`, `tests/ui/typeck/solar_safe.sol`,
+`tests/ui/codegen/mir/optimize-function/` and
+`tests/ui/codegen/mir/inline/solar_inline_forms.sol`.
 
 ## Contract-Level Checks
 

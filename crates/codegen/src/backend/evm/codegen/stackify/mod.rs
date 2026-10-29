@@ -150,6 +150,7 @@ use crate::{
 use cache::PlanKey;
 use plan::{Planned, Planner};
 use smallvec::SmallVec;
+use solar_config::OptimizationMode;
 use solar_data_structures::sync;
 
 mod cache;
@@ -338,6 +339,8 @@ struct ModuleInfo {
     /// Functions of creation code, and at `-O none` of runtime code too, that run more than once
     /// because a loop or recursion calls them.
     repeated: DenseBitSet<FunctionId>,
+    /// The objective of each function whose tag selects one other than the contract's.
+    objectives: IndexVec<FunctionId, Option<OptimizationMode>>,
     entry: FunctionId,
     /// Whether `entry` is the runtime dispatch entry, whose switch leaves its selector on the
     /// stack.
@@ -468,7 +471,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// so loops inside the function stay priced as creation code, though the choices inside one
     /// block compare unweighted costs.
     fn target(&self, info: &ModuleInfo, func_id: FunctionId) -> Target {
-        self.runtime_target().priced_for(self.in_constructor && !info.repeated.contains(func_id))
+        Target::new(self.gcx, info.objectives[func_id].unwrap_or(self.optimization))
+            .priced_for(self.in_constructor && !info.repeated.contains(func_id))
     }
 
     fn report_decline(&self, module: &Module, decline: Decline) {
@@ -573,7 +577,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         // Runtime code needs the set only at `-O none`, where compact pushes price code by it.
-        let repeated = if self.in_constructor || self.gcx.sess.opts.optimization.is_none() {
+        let repeated = if self.in_constructor || module.optimization.is_none() {
             let mut domain = DenseBitSet::new_empty(functions);
             for &func_id in &bodies {
                 domain.insert(func_id);
@@ -589,6 +593,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             components,
             returns: module.functions.iter().map(|func| func.return_components().len()).collect(),
             params: module.functions.iter().map(|func| func.params.len()).collect(),
+            objectives: module.functions.iter().map(|func| func.attributes.optimization).collect(),
             entry,
             emitting_entry,
         };

@@ -54,7 +54,7 @@ pub(crate) fn copy_data_to_memory(
         builder.memory_zero(start, size);
         return;
     }
-    let target = module.target(gcx);
+    let target = module.target_of(gcx, builder.func());
     let (data, separate_tail) = padded_copy_data(target, data, padded_size, name);
     if copy_splat_to_memory(target, builder, dest, &data, separate_tail) {
         return;

@@ -54,7 +54,7 @@ fn compile(dir: &Path, source: &str, mode: &str) -> Value {
 }
 
 #[test]
-fn tag_selects_the_objective_of_optimized_builds() {
+fn tag_selects_the_objective_of_every_build() {
     let dir = tempfile::tempdir().expect("create directory");
     let dir = dir.path();
     let tagged = |objective: &str| format!("/// @custom:solar-optimize {objective}\n{SOURCE}");
@@ -62,6 +62,7 @@ fn tag_selects_the_objective_of_optimized_builds() {
     assert_ne!(plain("gas"), plain("size"));
     assert_eq!(compile(dir, &tagged("size"), "gas"), plain("size"));
     assert_eq!(compile(dir, &tagged("gas"), "size"), plain("gas"));
-    // The tag picks what an optimized build optimizes for; `-O none` still optimizes nothing.
-    assert_eq!(compile(dir, &tagged("size"), "none"), plain("none"));
+    // The tag optimizes the code even in a `-O none` build.
+    assert_eq!(compile(dir, &tagged("size"), "none"), plain("size"));
+    assert_eq!(compile(dir, &tagged("gas"), "none"), plain("gas"));
 }

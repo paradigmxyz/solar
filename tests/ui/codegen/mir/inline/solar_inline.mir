@@ -2,7 +2,7 @@
 //@ filecheck:
 @module SolarInline
 
-// `always_inline`, which `@custom:solar-inline` sets, clones a callee into
+// `always_inline`, which `@custom:solar-inline always` sets, clones a callee into
 // every caller although no cost test would: the body is large and each call
 // runs at most once.
 // CHECK-LABEL: fn @tagged

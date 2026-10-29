@@ -145,7 +145,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.body = Body::External;
     }
 
-    fn emit_stackified_body(
+    /// Emits a function's blocks, which its own objective prices and marks when its tag selects
+    /// one.
+    fn emit_stackified_body(&mut self, func_id: FunctionId, func: &Function, plan: FunctionPlan) {
+        let objective = func.attributes.optimization;
+        let module_objective = self.optimization;
+        self.optimization = objective.unwrap_or(module_objective);
+        self.asm.block_optimization = objective;
+        self.emit_stackified_blocks(func_id, func, plan);
+        self.optimization = module_objective;
+        self.asm.block_optimization = None;
+    }
+
+    fn emit_stackified_blocks(
         &mut self,
         func_id: FunctionId,
         func: &Function,

@@ -659,6 +659,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     builder.func_mut().attributes.is_function_pointer_dispatcher = true;
                 }
                 sym::always_inline => builder.func_mut().attributes.always_inline = true,
+                sym::inline_hint => builder.func_mut().attributes.inline_hint = true,
+                sym::optimize => {
+                    self.parser.expect(TokenKind::Eq)?;
+                    let objective = self.parser.parse_optimize_objective()?;
+                    builder.func_mut().attributes.optimization = Some(objective);
+                }
                 kw::Constructor => builder.func_mut().attributes.is_constructor = true,
                 kw::Receive => builder.func_mut().attributes.is_receive = true,
                 kw::Fallback => builder.func_mut().attributes.is_fallback = true,

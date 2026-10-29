@@ -50,11 +50,15 @@ impl MirPass for LowerAlloc {
     }
 
     fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        let optimization = module.optimization;
-        let fresh = if optimization == OptimizationMode::None {
+        // The memory facts span functions, so they are computed once any of them is optimized.
+        let fresh = if !module.runs_objective(|objective| !objective.is_none()) {
             FreshFmpReads::none()
         } else {
-            FreshFmpReads::new(module, || analyses.call_summaries(module), optimization.is_gas())
+            FreshFmpReads::new(
+                module,
+                || analyses.call_summaries(module),
+                module.runs_objective(OptimizationMode::is_gas),
+            )
         };
         lower_alloc(module, analyses, &fresh)
     }

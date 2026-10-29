@@ -8,11 +8,11 @@
 /// @custom:unrelated
 contract Test {
     function f(bytes memory b) public pure returns (uint256 x) {
-        /// @custom:solar-inline
+        /// @custom:solar-inline always
         //~^ ERROR: `@custom:solar-inline` must document a function that internal calls reach
         x = b.length;
         /// @custom:solar-optimize size
-        //~^ ERROR: `@custom:solar-optimize` must document a non-abstract contract or a library
+        //~^ ERROR: `@custom:solar-optimize` must document a non-abstract contract, a library, or a function with a body
         x += 1;
         /// @custom:solar-safe
         //~^ ERROR: `@custom:solar-safe` must document a contract or a library

@@ -97,7 +97,7 @@ impl<P: EvmPass> EvmPass for RunsAtNone<P> {
     }
 
     fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_none() || self.0.is_enabled(gcx, module)
+        module.optimization.is_none() || self.0.is_enabled(gcx, module)
     }
 
     fn is_required(&self) -> bool {

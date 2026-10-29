@@ -1,18 +1,18 @@
 //@ compile-flags: -Ogas -Zdump=mir
 //@ filecheck:
 
-// `@custom:solar-inline` asks for every legal clone, so a tagged helper inlines even where many
+// `@custom:solar-inline always` asks for every legal clone, so a tagged helper inlines even where many
 // caller words survive the call or the caller has grown: the stack and growth budgets that keep
 // untagged helpers shared do not apply. `byte-loops` then turns the helper's loop into one load.
 library L {
-    /// @custom:solar-inline
+    /// @custom:solar-inline always
     function _readBytes32(bytes memory b, uint256 offset) internal pure returns (bytes32 r) {
         for (uint256 k; k < 32; ++k) {
             r |= bytes32(b[offset + k]) >> (k << 3);
         }
     }
 
-    /// @custom:solar-inline
+    /// @custom:solar-inline always
     function _writeBytes32(bytes memory b, uint256 offset, bytes32 value) internal pure {
         for (uint256 k; k < 32; ++k) {
             b[offset + k] = value[k];

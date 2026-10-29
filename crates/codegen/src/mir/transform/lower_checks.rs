@@ -27,7 +27,7 @@ use crate::mir::{
     transform::utils::expand_block,
 };
 use alloy_primitives::U256;
-use solar_config::{OptimizationMode, RevertStrings};
+use solar_config::RevertStrings;
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 use std::sync::Arc;
@@ -67,11 +67,11 @@ impl MirPass for LowerChecks {
             }
         }
         let helper = needs_helper.then(|| create_short_string_helper(module, &helper_context));
-        let optimized = !matches!(module.optimization, OptimizationMode::None);
         let mut changed = false;
         // Long strings intern their data in the module while a function is rewritten.
         let mut functions = std::mem::take(&mut module.functions);
         for function in &mut functions {
+            let optimized = !module.objective_of(function).is_none();
             changed |= lower_function(
                 gcx,
                 module,

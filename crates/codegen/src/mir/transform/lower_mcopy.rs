@@ -55,7 +55,6 @@ use crate::{
     },
     target::{Cost, Target},
 };
-use solar_config::OptimizationMode;
 use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
@@ -102,7 +101,8 @@ impl MirPass for LowerMCopy {
         }
 
         let target = module.target(gcx);
-        let summaries = (module.optimization != OptimizationMode::None)
+        let summaries = module
+            .runs_objective(|objective| !objective.is_none())
             .then(|| analyses.call_summaries(module));
         let sites = module
             .functions

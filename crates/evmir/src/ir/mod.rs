@@ -231,6 +231,9 @@ pub struct BlockMetadata {
     /// its own function: it belongs to creation code that a loop or recursion calls. Pricing
     /// treats such blocks as runtime code.
     pub repeats: bool,
+    /// The objective this block's code is optimized for when it differs from its module's: the
+    /// source function's `@custom:solar-optimize` tag.
+    pub optimization: Option<OptimizationMode>,
     /// This label's address is used only for control transfer, never as an observable word.
     /// Hidden return targets and branches separated from their pushed labels by sharing carry
     /// this property. References may be redirected to an

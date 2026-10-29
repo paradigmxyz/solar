@@ -1,24 +1,56 @@
 error: `@custom:solar-inline` must document a function that internal calls reach
    ╭▸ ROOT/tests/ui/natspec/solar_inline.sol:LL:CC
    │
-LL │     /// @custom:solar-inline
+LL │     /// @custom:solar-inline always
    │          ━━━━━━━━━━━━━━━━━━━
    │
    ╰ help: put it on an internal, private or public function with a body
 
-error: `@custom:solar-noinline` must document a function that internal calls reach
+error: `@custom:solar-inline` must document a function that internal calls reach
+   ╭▸ ROOT/tests/ui/natspec/solar_inline.sol:LL:CC
+   │
+LL │     /// @custom:solar-inline never
+   │          ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on an internal, private or public function with a body
+
+error: `@custom:solar-inline` takes no argument, `always` or `never`
+   ╭▸ ROOT/tests/ui/natspec/solar_inline.sol:LL:CC
+   │
+LL │     /// @custom:solar-inline sometimes
+   │          ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: write `@custom:solar-inline always` to clone every legal call
+
+error: `@custom:solar-inline` takes no argument, `always` or `never`
+   ╭▸ ROOT/tests/ui/natspec/solar_inline.sol:LL:CC
+   │
+LL │     /// @custom:solar-inline always never
+   │          ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: write `@custom:solar-inline always` to clone every legal call
+
+error: duplicate `@custom:solar-inline` tag
+   ╭▸ ROOT/tests/ui/natspec/solar_inline.sol:LL:CC
+   │
+LL │     /// @custom:solar-inline never
+   │          ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the first tag is here
+   ╭▸ ROOT/tests/ui/natspec/solar_inline.sol:LL:CC
+   │
+LL │     /// @custom:solar-inline always
+   │          ━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep one `@custom:solar-inline` tag
+
+error: unknown tag `@custom:solar-noinline`
    ╭▸ ROOT/tests/ui/natspec/solar_inline.sol:LL:CC
    │
 LL │     /// @custom:solar-noinline
    │          ━━━━━━━━━━━━━━━━━━━━━
    │
-   ╰ help: put it on an internal, private or public function with a body
+   ├ note: `@custom:solar-` tags are requirements this compiler checks
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, and `@custom:solar-trusted`
 
-error: a function cannot be both `@custom:solar-inline` and `@custom:solar-noinline`
-   ╭▸ ROOT/tests/ui/natspec/solar_inline.sol:LL:CC
-   │
-LL │     /// @custom:solar-inline
-   ╰╴         ━━━━━━━━━━━━━━━━━━━
-
-error: aborting due to 3 previous errors
+error: aborting due to 6 previous errors
 

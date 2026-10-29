@@ -309,13 +309,13 @@ impl OptimizationMode {
     }
 
     /// Returns the objective code is optimized for when `self` is the build's and `selected` the
-    /// one its source selects, as `@custom:solar-optimize` does. A selection only picks what an
-    /// optimized build optimizes for, so a build with `-O none` stays unoptimized.
+    /// one its source selects, as `@custom:solar-optimize` does. A selection wins over the build's
+    /// objective, `-O none` included.
     #[inline]
     pub const fn select(self, selected: Option<Self>) -> Self {
-        match (self, selected) {
-            (Self::None, _) | (_, None) => self,
-            (_, Some(selected)) => selected,
+        match selected {
+            Some(selected) => selected,
+            None => self,
         }
     }
 }
@@ -630,12 +630,13 @@ mod tests {
     use serde_json as _;
 
     #[test]
-    fn selection_picks_the_objective_of_optimized_builds() {
+    fn selection_picks_the_objective_of_any_build() {
         use OptimizationMode::{Gas, None, Size};
         assert_eq!(Gas.select(Option::None), Gas);
         assert_eq!(Gas.select(Some(Size)), Size);
         assert_eq!(Size.select(Some(Gas)), Gas);
-        assert_eq!(None.select(Some(Size)), None);
+        assert_eq!(None.select(Some(Size)), Size);
+        assert_eq!(None.select(Option::None), None);
     }
 
     #[test]

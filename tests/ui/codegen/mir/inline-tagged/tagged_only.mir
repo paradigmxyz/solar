@@ -5,7 +5,7 @@
 //@[inline] filecheck: --check-prefix=INLINE
 @module TaggedOnly
 
-// `inline-tagged` clones only `always_inline` callees, which `@custom:solar-inline`
+// `inline-tagged` clones only `always_inline` callees, which `@custom:solar-inline always`
 // marks; a leaf the cost-based `inline` pass clones stays a call.
 // TAGGED-LABEL: fn @caller
 // TAGGED: - {{v[0-9]+}} = icall @always

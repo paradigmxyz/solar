@@ -113,7 +113,7 @@ pub(super) fn lower(
 ) -> Option<Function> {
     let gcx = context.gcx;
     let hir_function = gcx.hir.function(id);
-    let mut mir = contract::declaration(gcx, id, hir_function);
+    let mut mir = contract::declaration(gcx, id, hir_function, context.module.optimization);
     if !expose_selector {
         mir.selector = None;
     }
