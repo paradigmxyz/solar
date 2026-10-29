@@ -29,7 +29,7 @@
 //! scans. It runs when the cheaper rewrites settle, and the fixpoint then continues, so removing a
 //! copy that read one allocation lets the next round remove the writes into that allocation.
 
-use super::{MemoryStoreEliminator, remove_dead};
+use super::{BlockScratch, MemoryStoreEliminator, remove_dead};
 use crate::mir::{
     BlockId, Function, InstId, InstKind, MirType, PtrLocation, RawMemoryAccess, Terminator, Value,
     ValueId,
@@ -45,7 +45,11 @@ use std::cell::OnceCell;
 
 impl MemoryStoreEliminator {
     /// Removes the writes into allocations that nothing reads and returns how many.
-    pub(super) fn remove_write_only_allocation_writes(&mut self, func: &mut Function) -> usize {
+    pub(super) fn remove_write_only_allocation_writes(
+        &mut self,
+        func: &mut Function,
+        scratch: &mut BlockScratch,
+    ) -> usize {
         let allocations: Vec<_> = func
             .instructions()
             .filter_map(|inst| match func.inst(inst).kind {
@@ -57,8 +61,9 @@ impl MemoryStoreEliminator {
             return 0;
         }
 
-        let uses = WriteOnlyUses::new(func);
-        let mut dead = DenseBitSet::new_empty(func.num_insts());
+        let mut uses = WriteOnlyUses::new(func);
+        let dead = &mut scratch.dead;
+        dead.clear();
         for (alloc, size, object) in allocations {
             if let Some(writes) = uses.write_only_writes(func, object)
                 && let Some(address) = self.alias.memory_address(func, object)
@@ -78,7 +83,7 @@ impl MemoryStoreEliminator {
             }
         }
 
-        remove_dead(func, &dead)
+        remove_dead(func, dead)
     }
 
     fn allocation_may_be_read(
@@ -124,6 +129,10 @@ struct WriteOnlyUses {
     users: IndexLists<ValueId, InstId>,
     /// Values used by terminators.
     terminator_uses: DenseBitSet<ValueId>,
+    /// Scratch of [`Self::write_only_writes`], reused across allocations.
+    derived: DenseBitSet<ValueId>,
+    seen: DenseBitSet<InstId>,
+    worklist: Vec<ValueId>,
     /// The block of each instruction, built when a guarded element store needs it.
     inst_blocks: OnceCell<IndexVec<InstId, Option<BlockId>>>,
 }
@@ -145,19 +154,26 @@ impl WriteOnlyUses {
         Self {
             users: IndexLists::new(func.num_values(), pairs.iter().copied()),
             terminator_uses,
+            derived: DenseBitSet::new_empty(func.num_values()),
+            seen: DenseBitSet::new_empty(func.num_insts()),
+            worklist: Vec::new(),
             inst_blocks: OnceCell::new(),
         }
     }
 
     /// If every access to the allocation writes it, returns the write
     /// instructions to remove; returns `None` if the allocation is read.
-    fn write_only_writes(&self, func: &Function, object: ValueId) -> Option<Vec<InstId>> {
+    fn write_only_writes(&mut self, func: &Function, object: ValueId) -> Option<Vec<InstId>> {
         // Address values derived from the allocation. Follow only indexed uses
         // instead of rescanning every instruction for each derived value.
-        let mut derived = DenseBitSet::new_empty(func.num_values());
+        let derived = &mut self.derived;
+        derived.clear();
         derived.insert(object);
-        let mut worklist = vec![object];
-        let mut seen = DenseBitSet::new_empty(func.num_insts());
+        let worklist = &mut self.worklist;
+        worklist.clear();
+        worklist.push(object);
+        let seen = &mut self.seen;
+        seen.clear();
         while let Some(value) = worklist.pop() {
             for &inst_id in self.users.get(value) {
                 if !seen.insert(inst_id) {

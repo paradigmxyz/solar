@@ -297,8 +297,9 @@ fn return_facts(
     let returning = module.returning_functions();
     // A bound found once never changes. A failed proof can change only when a callee gains a
     // bound, so revisit just those callers, with every round still using the previous facts.
+    let mut found = Vec::new();
     while !pending.is_empty() {
-        let mut found = Vec::new();
+        found.clear();
         for id in pending.iter() {
             let func = &module.functions[id];
             let call = |function: FunctionId| facts.bounds.get(&function).copied();
@@ -329,7 +330,7 @@ fn return_facts(
         }
         pending.clear();
         facts.bounds.extend(found.iter().copied());
-        for (callee, _) in found {
+        for &(callee, _) in &found {
             for caller in calls[callee]
                 .iter()
                 .map(|&(caller, _, _)| caller)
@@ -416,6 +417,7 @@ fn return_facts(
     for id in tracked.iter() {
         live.insert(id, MemLive::empty());
     }
+    let mut next = FxHashMap::default();
     for round in 0..RETURN_LIVENESS_ROUNDS {
         let snapshot = Arc::new(ReturnFacts {
             live: live
@@ -424,7 +426,7 @@ fn return_facts(
                 .collect(),
             bounds: facts.bounds.clone(),
         });
-        let mut next = live.clone();
+        next.clone_from(&live);
         for (caller, eliminator, blocks, callees, live_blocks) in &mut callers {
             let func = &module.functions[*caller];
             // Only this caller's return liveness can change its transfer between rounds. Its
@@ -450,7 +452,7 @@ fn return_facts(
             facts.live = snapshot.live.clone();
             return facts;
         }
-        live = next;
+        mem::swap(&mut live, &mut next);
     }
     facts
 }
@@ -640,6 +642,13 @@ impl MemLive {
         Self { slots: LiveSlots::new(), from: Some(0), ranges: SmallVec::new() }
     }
 
+    /// Makes every address live, reusing the allocations.
+    fn set_all(&mut self) {
+        self.slots.clear();
+        self.ranges.clear();
+        self.from = Some(0);
+    }
+
     fn is_all(&self) -> bool {
         self.from == Some(0)
     }
@@ -659,7 +668,7 @@ impl MemLive {
         }
         if let Err(index) = self.slots.binary_search(&addr) {
             if self.slots.len() >= MEM_LIVE_CAP {
-                *self = Self::all();
+                self.set_all();
                 return;
             }
             self.slots.insert(index, addr);
@@ -707,7 +716,7 @@ impl MemLive {
         merged.dedup();
         merged.retain(|&mut addr| !self.covers(addr));
         if merged.len() > MEM_LIVE_CAP {
-            *self = Self::all();
+            self.set_all();
         } else {
             self.slots = merged;
         }
@@ -720,7 +729,7 @@ impl MemLive {
         }
         if let Err(index) = self.ranges.binary_search(&(offset, size)) {
             if self.ranges.len() == 8 {
-                *self = Self::all();
+                self.set_all();
             } else {
                 self.ranges.insert(index, (offset, size));
             }
@@ -976,15 +985,15 @@ impl MemoryStoreEliminator {
         // Reuse one provenance snapshot across fixpoint iterations: removing
         // stores keeps the allocation facts conservative, so only the
         // value-address memo is dropped per iteration.
-        self.reuse_redundant_immutable_copies(func);
+        self.reuse_redundant_immutable_copies(func, scratch);
         self.alias.clear_cached_addresses();
-        self.remove_unused_internal_frame_stores(func);
-        self.read_bounds = ReadBounds::default();
+        self.remove_unused_internal_frame_stores(func, scratch);
+        self.read_bounds.clear();
 
         // Liveness runs before block-local forwarding: forwarding replaces a reloaded pointer by
         // the stored word, whose bound the alias analysis may not know.
-        self.remove_dead_memory_stores(func);
-        self.read_bounds = ReadBounds::default();
+        self.remove_dead_memory_stores(func, scratch);
+        self.read_bounds.clear();
 
         let block_ids = func.blocks.indices();
         for block_id in block_ids {
@@ -994,12 +1003,12 @@ impl MemoryStoreEliminator {
             // in other blocks. Rebuild only after a rewrite removes or changes instructions.
             if self.eliminated_count != before {
                 self.alias.clear_cached_addresses();
-                self.read_bounds = ReadBounds::default();
+                self.read_bounds.clear();
             }
         }
-        self.remove_dead_allocation_stores(func);
-        self.remove_cross_block_equal_const_stores(func);
-        self.remove_cross_block_overwrites(func);
+        self.remove_dead_allocation_stores(func, scratch);
+        self.remove_cross_block_equal_const_stores(func, scratch);
+        self.remove_cross_block_overwrites(func, scratch);
 
         self.eliminated_count
     }
@@ -1020,7 +1029,7 @@ impl MemoryStoreEliminator {
     /// lower bound of its address on, or all memory without one; a call keeps what its callee may
     /// read; a `return` keeps what the callers may read after their calls; and gas observations
     /// keep all memory. Each only ever keeps a store, never drops a live one.
-    fn remove_dead_memory_stores(&mut self, func: &mut Function) {
+    fn remove_dead_memory_stores(&mut self, func: &mut Function, scratch: &mut BlockScratch) {
         if !func.instructions().any(|inst_id| {
             matches!(func.inst(inst_id).kind, InstKind::Store(addr, _, PtrLocation::Memory) if self.word_aligned_const(func, addr).is_some())
         }) {
@@ -1032,14 +1041,15 @@ impl MemoryStoreEliminator {
         let live_in = self.liveness(func);
 
         // Collect dead stores using the stabilized live-out of each block.
-        let mut dead = DenseBitSet::new_empty(func.num_insts());
+        let dead = &mut scratch.dead;
+        dead.clear();
         for &block_id in self.cfg.rpo() {
             let out = Self::live_out(func, block_id, &live_in);
-            let mut collector = Some(&mut dead);
+            let mut collector = Some(&mut *dead);
             self.transfer_block(func, block_id, out, &mut collector, None);
         }
 
-        self.eliminated_count += remove_dead(func, &dead);
+        self.eliminated_count += remove_dead(func, dead);
     }
 
     /// The memory live into each block, by a backward fixpoint:
@@ -1291,13 +1301,13 @@ impl MemoryStoreEliminator {
     fn mark_effects(&self, func: &Function, inst_id: InstId, live: &mut MemLive) {
         let effects = self.alias.instruction_mod_ref(func, inst_id);
         if effects.observes_gas() {
-            *live = MemLive::all();
+            live.set_all();
             return;
         }
         for &access in effects.reads() {
             match access {
                 Access::Any(AddressSpace::Memory) => {
-                    *live = MemLive::all();
+                    live.set_all();
                     return;
                 }
                 Access::Location(Location::Memory(location)) => {
@@ -1316,7 +1326,7 @@ impl MemoryStoreEliminator {
     fn mark_location(&self, func: &Function, live: &mut MemLive, location: MemoryLocation) {
         let offset = location.address.offset;
         if location.size == LocationSize::Unknown {
-            *live = MemLive::all();
+            live.set_all();
             return;
         }
         let bound = match location.address.base {
@@ -1344,7 +1354,7 @@ impl MemoryStoreEliminator {
         };
         match bound {
             Some(bound) => live.add_from(bound),
-            None => *live = MemLive::all(),
+            None => live.set_all(),
         }
     }
 
@@ -1372,7 +1382,7 @@ impl MemoryStoreEliminator {
             Some(bound) => live.add_from(bound),
             None => {
                 if !self.mark_wrapping_read(func, live, address, size) {
-                    *live = MemLive::all();
+                    live.set_all();
                 }
             }
         }
@@ -1438,7 +1448,7 @@ impl MemoryStoreEliminator {
             let mut eliminated = self.run_with_scratch(func, &mut scratch);
             // Its proof scans the whole function, so it runs once the cheaper rewrites settle.
             if eliminated == 0 && self.unread_allocations {
-                eliminated = self.remove_write_only_allocation_writes(func);
+                eliminated = self.remove_write_only_allocation_writes(func, &mut scratch);
             }
             if eliminated == 0 {
                 break;
@@ -1449,7 +1459,11 @@ impl MemoryStoreEliminator {
         total
     }
 
-    fn reuse_redundant_immutable_copies(&mut self, func: &mut Function) {
+    fn reuse_redundant_immutable_copies(
+        &mut self,
+        func: &mut Function,
+        scratch: &mut BlockScratch,
+    ) {
         let has_candidate = func.blocks.iter().any(|block| {
             block.instructions.windows(2).any(|window| {
                 matches!(func.inst(window[0]).kind, InstKind::CodeCopy(_, _, _))
@@ -1462,8 +1476,10 @@ impl MemoryStoreEliminator {
 
         let cfg = &*self.cfg;
         let mut cached: FxHashMap<ImmutableCopyKey, CachedImmutableCopy> = FxHashMap::default();
-        let mut replacements = FxHashMap::default();
-        let mut dead = DenseBitSet::new_empty(func.num_insts());
+        let replacements = &mut scratch.replacements;
+        replacements.clear();
+        let dead = &mut scratch.dead;
+        dead.clear();
 
         let block_ids = func.blocks.indices();
         for block_id in block_ids {
@@ -1507,11 +1523,15 @@ impl MemoryStoreEliminator {
             }
         }
 
-        func.replace_uses_canonicalized(&replacements);
-        remove_dead(func, &dead);
+        func.replace_uses_canonicalized(replacements);
+        remove_dead(func, dead);
     }
 
-    fn remove_unused_internal_frame_stores(&mut self, func: &mut Function) {
+    fn remove_unused_internal_frame_stores(
+        &mut self,
+        func: &mut Function,
+        scratch: &mut BlockScratch,
+    ) {
         let has_candidate = func.instructions().any(|inst_id| {
             matches!(func.inst(inst_id).kind, InstKind::Store(addr, _, PtrLocation::Memory) if self.internal_frame_offset(func, addr).is_some())
         });
@@ -1525,7 +1545,8 @@ impl MemoryStoreEliminator {
         let Some(reads) = self.internal_frame_read_ranges(func) else {
             return;
         };
-        let mut dead = DenseBitSet::new_empty(func.num_insts());
+        let dead = &mut scratch.dead;
+        dead.clear();
 
         for inst_id in func.instructions() {
             let InstKind::Store(addr, _, PtrLocation::Memory) = func.inst(inst_id).kind else {
@@ -1553,7 +1574,7 @@ impl MemoryStoreEliminator {
             }
         }
 
-        self.eliminated_count += remove_dead(func, &dead);
+        self.eliminated_count += remove_dead(func, dead);
     }
 
     fn process_block(
@@ -1814,7 +1835,11 @@ impl MemoryStoreEliminator {
     /// Only constant address and constant value are tracked, so availability
     /// needs no SSA reasoning: a single-predecessor block inherits its
     /// predecessor's exit constants, and a store matching one is dead.
-    fn remove_cross_block_equal_const_stores(&mut self, func: &mut Function) {
+    fn remove_cross_block_equal_const_stores(
+        &mut self,
+        func: &mut Function,
+        scratch: &mut BlockScratch,
+    ) {
         if !has_two_memory_stores(func) {
             return;
         }
@@ -1829,7 +1854,8 @@ impl MemoryStoreEliminator {
         };
 
         let mut exit: FxHashMap<BlockId, FxHashMap<u64, U256>> = FxHashMap::default();
-        let mut dead = DenseBitSet::new_empty(func.num_insts());
+        let dead = &mut scratch.dead;
+        dead.clear();
 
         // Block index order approximates reverse postorder for this builder,
         // so a single predecessor is usually already computed; when it is not,
@@ -1890,15 +1916,16 @@ impl MemoryStoreEliminator {
             exit.insert(block_id, known);
         }
 
-        remove_dead(func, &dead);
+        remove_dead(func, dead);
     }
 
-    fn remove_cross_block_overwrites(&mut self, func: &mut Function) {
+    fn remove_cross_block_overwrites(&mut self, func: &mut Function, scratch: &mut BlockScratch) {
         if !has_two_memory_stores(func) {
             return;
         }
 
-        let mut dead = DenseBitSet::new_empty(func.num_insts());
+        let dead = &mut scratch.dead;
+        dead.clear();
 
         for pred in func.blocks.indices() {
             let Some(Terminator::Jump(succ)) = func.blocks[pred].terminator else { continue };
@@ -1916,7 +1943,7 @@ impl MemoryStoreEliminator {
             }
         }
 
-        self.eliminated_count += remove_dead(func, &dead);
+        self.eliminated_count += remove_dead(func, dead);
     }
 
     /// The first full-word memory store reached from one end of a block, with its address, unless
@@ -2393,7 +2420,7 @@ impl MemoryStoreEliminator {
     /// the store dies with it.
     ///
     /// Removing a write can lower memory expansion, so functions observing gas keep their stores.
-    fn remove_dead_allocation_stores(&mut self, func: &mut Function) {
+    fn remove_dead_allocation_stores(&mut self, func: &mut Function, scratch: &mut BlockScratch) {
         let allocations: Vec<_> = func
             .instructions()
             .filter(|&inst| matches!(func.inst(inst).kind, InstKind::Alloc { .. }))
@@ -2473,7 +2500,8 @@ impl MemoryStoreEliminator {
             }
         }
 
-        let mut dead = DenseBitSet::new_empty(func.num_insts());
+        let dead = &mut scratch.dead;
+        dead.clear();
         for (alloc, access, exposed) in candidates {
             let (alloc_block, alloc_index) = positions[&alloc];
             // A write that wraps may rewind the free-memory pointer and put any object over an
@@ -2506,7 +2534,7 @@ impl MemoryStoreEliminator {
             }
         }
 
-        self.eliminated_count += remove_dead(func, &dead);
+        self.eliminated_count += remove_dead(func, dead);
     }
 
     /// Records the reads in `effects` that may touch a heap object other than through the
@@ -2685,7 +2713,7 @@ impl MemoryStoreEliminator {
     /// Unresolved exact reads have no useful bound, so forgetting them keeps every slot live.
     fn summarize_live(live: &mut MemLive) {
         if !live.ranges.is_empty() {
-            *live = MemLive::all();
+            live.set_all();
         }
     }
 
