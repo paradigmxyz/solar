@@ -7,7 +7,10 @@
 [![Actions Status](https://github.com/paradigmxyz/solar/workflows/CI/badge.svg)](https://github.com/paradigmxyz/solar/actions)
 [![Telegram Chat](https://img.shields.io/endpoint?color=neon&logo=telegram&label=chat&url=https%3A%2F%2Ftg.sumanjay.workers.dev%2Fparadigm%5Fsolar)][tg-url]
 
-Blazingly fast, modular and contributor friendly Solidity compiler, written in Rust.
+A fast, optimizing Solidity compiler written in Rust.
+
+We compile Solidity 0.8.x to EVM bytecode, with detailed diagnostics and a modular Rust API.
+The compiler ships with Foundry and powers its Solidity language server.
 
 <p align="center">
     <picture align="center">
@@ -15,18 +18,24 @@ Blazingly fast, modular and contributor friendly Solidity compiler, written in R
     </picture>
 </p>
 
-## Features and Goals
+## Quick start
 
-> [!WARNING]
-> Solar is under active development and is not yet feature complete.
-> Use it to speed up your development workflows and tooling.
+Update [Foundry](https://getfoundry.sh/introduction/installation/), then choose the compiler with
+`--use solar`:
+
+```bash
+foundryup
+forge build --use solar
+forge test --use solar
+```
+
+Run `forge lsp` in your project for editor support: diagnostics, hover, completion, go to
+definition and rename. The [VS Code and Zed clients](https://github.com/foundry-rs/foundry/tree/master/editors)
+are maintained in Foundry.
+
+> [!CAUTION]
+> Code generation is under active development.
 > Please do not use it in production environments.
-
-- ⚡ Instant compiles and low memory usage ([benchmarks](./benches))
-- 🔍 Expressive and useful diagnostics
-- 🧩 Modular, library-based architecture
-- 💻 Simple and hackable code base
-- 🔄 Compatibility with the latest Solidity language breaking version (0.8.*)
 
 ## Performance
 
@@ -153,13 +162,6 @@ EOF
 # Compile a file with a Foundry project's remappings.
 solar $(forge re) src/Contract.sol
 ```
-
-### Editor integrations
-
-The VS Code and Zed clients are maintained by [Foundry](https://github.com/foundry-rs/foundry/tree/master/editors).
-Use [`forge lsp`](https://github.com/foundry-rs/foundry/pull/16730) to launch
-Foundry's editor integration. This repository continues to provide the Solar
-LSP server used by Foundry.
 
 ### C API, WASM, and JavaScript usage
 
