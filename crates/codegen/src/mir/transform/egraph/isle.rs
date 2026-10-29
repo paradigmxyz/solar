@@ -122,7 +122,7 @@ impl<'a> RuleContext<'a> {
         let value = match *op {
             // Inverting a comparison folds its bound at the input width.
             Op::Eq { a, .. } | Op::Ne { a, .. }
-                if let Some(kind) = defining_kind(self.func, a)
+                if let Some(kind) = self.func.value_inst_kind(a)
                     && matches!(
                         kind,
                         InstKind::Lt(..) | InstKind::Gt(..) | InstKind::SLt(..) | InstKind::SGt(..)
@@ -132,8 +132,8 @@ impl<'a> RuleContext<'a> {
             }
             // Boolean combinations can fold bounds of their compared integers.
             Op::Or { a, b }
-                if let Some(InstKind::Eq(x, _)) = defining_kind(self.func, a)
-                    && let Some(InstKind::Eq(y, _)) = defining_kind(self.func, b)
+                if let Some(InstKind::Eq(x, _)) = self.func.value_inst_kind(a)
+                    && let Some(InstKind::Eq(y, _)) = self.func.value_inst_kind(b)
                     && self.func.value_ty(*x) == self.func.value_ty(*y) =>
             {
                 *x
@@ -153,13 +153,6 @@ impl<'a> RuleContext<'a> {
 
     fn has_const(&self, value: ValueId, expected: U256) -> bool {
         self.func.value_u256(value) == Some(expected)
-    }
-}
-
-fn defining_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
-    match func.value(value) {
-        MirValue::Inst(inst_id) => Some(&func.inst(*inst_id).kind),
-        _ => None,
     }
 }
 
@@ -207,7 +200,7 @@ fn max_bits_with_budget(
     if depth == 0 {
         return width;
     }
-    let Some(kind) = defining_kind(func, value) else { return width };
+    let Some(kind) = func.value_inst_kind(value) else { return width };
     if let Some(definition) = kind.evm_opcode().and_then(op::definition)
         && definition.result_bits < 256
     {
@@ -298,7 +291,7 @@ fn has_known_sign_bit(func: &Function, value: ValueId) -> bool {
         let bits = func.value_ty(value).and_then(MirType::integer_bits).unwrap_or(256);
         return constant.bit((bits - 1) as usize);
     }
-    match defining_kind(func, value) {
+    match func.value_inst_kind(value) {
         Some(InstKind::Or(a, b)) => has_known_sign_bit(func, *a) || has_known_sign_bit(func, *b),
         Some(InstKind::Sar(_, value)) => has_known_sign_bit(func, *value),
         _ => false,
@@ -339,7 +332,7 @@ impl generated::Context for RuleContext<'_> {
             .flatten()
             .find(|&&(operand, _)| operand == value)
             .map(|&(_, op)| op)
-            .or_else(|| defining_kind(self.func, value).map(InstKind::op))
+            .or_else(|| self.func.value_inst_kind(value).map(InstKind::op))
             .filter(|op| {
                 matches!(
                     op,
@@ -408,11 +401,11 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn current_address(&mut self, value: Value) -> Option<()> {
-        let value = match defining_kind(self.func, value) {
+        let value = match self.func.value_inst_kind(value) {
             Some(InstKind::Zext(inner)) => *inner,
             _ => value,
         };
-        matches!(defining_kind(self.func, value), Some(InstKind::Address)).then_some(())
+        matches!(self.func.value_inst_kind(value), Some(InstKind::Address)).then_some(())
     }
 
     fn is_zero_or_one(&mut self, value: Value) -> bool {

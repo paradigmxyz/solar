@@ -29,13 +29,12 @@ use crate::{
         EffectKind, Function, FunctionBuilder, InstKind, MirType, Module, PtrLocation, Terminator,
         analysis::CallGraphInfo, memory::EvmMemoryLayout,
     },
-    target::Target,
 };
 use solar_ast::StateMutability;
 
 const MAX_DISPATCH_INSTRUCTIONS: usize = 512;
 
-pub(super) fn inline_dispatch(module: &mut Module, target: &Target) -> bool {
+pub(super) fn inline_dispatch(module: &mut Module) -> bool {
     let Some(entry_id) = module.dispatch_entry() else { return false };
     if module.is_library
         || module
@@ -97,11 +96,6 @@ pub(super) fn inline_dispatch(module: &mut Module, target: &Target) -> bool {
     }
     let argument_count =
         routes.iter().map(|&id| module.function(id).arg_indices().count()).max().unwrap_or(0);
-    let saved = target.jump().times(routes.len() as u32);
-    if !super::profitable(target, 0, saved.bytes as usize, u64::from(target.runtime_gas(saved)), 1)
-    {
-        return false;
-    }
     // switch selector, cases
     //   => input0 = calldataload 4; input1 = calldataload 36; ...
     //      switch selector, cases[inputN/argN]

@@ -13,6 +13,7 @@
 //! that internal frame offsets depend on are final, and before mapping-slot and memory-object
 //! lowering.
 
+use super::utils::expand_block;
 use crate::mir::{
     FrameMode, FrameSlotKind, Function, FunctionBuilder, InstKind, Module, PtrLocation,
     memory::EvmMemoryLayout, pass::MirPass,
@@ -54,28 +55,25 @@ fn lower_function(func: &mut Function) -> bool {
     }
 
     let mut replacements = FxHashMap::default();
-    let blocks = func.blocks.indices();
 
-    for block in blocks {
-        let instructions = std::mem::take(&mut func.blocks[block].instructions);
+    for block in func.blocks.indices() {
         let mut builder = FunctionBuilder::new(func);
-        builder.switch_to_block(block);
-
-        for inst in instructions {
-            match builder.func().inst(inst).kind.clone() {
+        expand_block(&mut builder, block, |builder, inst| {
+            match builder.func().inst(inst).kind {
                 InstKind::FrameLoad { offset, mode, kind } => {
-                    let address = frame_address(&mut builder, offset, mode);
+                    let address = frame_address(builder, offset, mode);
                     let value = match kind {
                         FrameSlotKind::Word => builder.load(address, PtrLocation::Memory),
-                        FrameSlotKind::Slice(location) if mode != FrameMode::MultiReturn => {
+                        FrameSlotKind::Slice(location) => {
+                            assert!(
+                                mode != FrameMode::MultiReturn,
+                                "multi-return buffers contain words"
+                            );
                             let ptr = builder.load(address, PtrLocation::Memory);
                             let len_address =
                                 builder.add_u64_offset(address, EvmMemoryLayout::WORD_SIZE);
                             let len = builder.load(len_address, PtrLocation::Memory);
                             builder.make_slice(ptr, len, location)
-                        }
-                        FrameSlotKind::Slice(_) => {
-                            unreachable!("multi-return buffers contain words")
                         }
                     };
                     let old = builder
@@ -85,15 +83,17 @@ fn lower_function(func: &mut Function) -> bool {
                     replacements.insert(old, value);
                 }
                 InstKind::FrameStore { offset, mode, kind, value } => {
-                    let address = frame_address(&mut builder, offset, mode);
+                    let address = frame_address(builder, offset, mode);
                     match kind {
                         FrameSlotKind::Word => {
-                            if mode == FrameMode::MultiReturn {
-                                debug_assert_eq!(offset, 0);
-                            }
+                            debug_assert!(mode != FrameMode::MultiReturn || offset == 0);
                             builder.store(address, value);
                         }
-                        FrameSlotKind::Slice(_) if mode != FrameMode::MultiReturn => {
+                        FrameSlotKind::Slice(_) => {
+                            assert!(
+                                mode != FrameMode::MultiReturn,
+                                "multi-return buffers contain words"
+                            );
                             let ptr = builder.slice_ptr(value);
                             let len = builder.slice_len(value);
                             builder.store(address, ptr);
@@ -101,14 +101,12 @@ fn lower_function(func: &mut Function) -> bool {
                                 builder.add_u64_offset(address, EvmMemoryLayout::WORD_SIZE);
                             builder.store(len_address, len);
                         }
-                        FrameSlotKind::Slice(_) => {
-                            unreachable!("multi-return buffers contain words")
-                        }
                     }
                 }
-                _ => builder.func_mut().blocks[block].instructions.push(inst),
+                _ => return false,
             }
-        }
+            true
+        });
     }
 
     func.replace_uses_canonicalized(&replacements);

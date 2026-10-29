@@ -4,6 +4,10 @@ use crate::mir::{
     BlockId, Function, FunctionBuilder, InstId, InstKind, Terminator, memory::EvmMemoryLayout,
     utils::replace_terminator,
 };
+use crate::mir::{
+    BlockId, Function, FunctionBuilder, InstId, InstKind, Terminator, ValueId,
+    memory::EvmMemoryLayout, utils::IndexLists,
+};
 use solar_sema::hir::StateMutability;
 
 /// Whether an external entry must reject nonzero callvalue.
@@ -154,4 +158,25 @@ pub(super) fn redirect_edge(
     });
     replace_terminator(func, pred, terminator);
     true
+}
+
+/// A reader of a value: an instruction, or a block's terminator.
+#[derive(Clone, Copy)]
+pub(super) enum User {
+    Inst(InstId),
+    Terminator(BlockId),
+}
+
+/// The instructions and terminators that read each value of a function.
+pub(super) fn value_users(func: &Function) -> IndexLists<ValueId, User> {
+    let mut pairs = Vec::new();
+    for (block, data) in func.blocks.iter_enumerated() {
+        for &inst in &data.instructions {
+            func.inst(inst).visit_operands(|operand| pairs.push((operand, User::Inst(inst))));
+        }
+        if let Some(terminator) = &data.terminator {
+            terminator.visit_operands(|operand| pairs.push((operand, User::Terminator(block))));
+        }
+    }
+    IndexLists::new(func.num_values(), pairs.iter().copied())
 }
