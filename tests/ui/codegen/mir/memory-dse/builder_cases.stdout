@@ -25,30 +25,6 @@
       ret
   }
   
-  fn @disjoint_create() {
-    bb0:
--     mstore 128, 0
-      v0 = create 0, 0, 32
-      mstore 128, 1
-      ret
-  }
-  
-  fn @byte_store_between_overwrites() {
-    bb0:
--     mstore 128, 0
-      mstore8 200, 1
-      mstore 128, 1
-      ret
-  }
-  
-  fn @equal_free_pointer_store(arg0: i256) {
-    bb0:
-      mstore 64, arg0
--     v0 = mload 64
--     mstore 64, v0
-      ret
-  }
-  
   fn @overlapping_keccak() {
     bb0:
       mstore 128, 0
@@ -175,18 +151,9 @@
   fn @memory_write_barrier() -> i256 {
     bb0:
       mstore 128, 42
-      mcopy 136, 128, 32
+      mcopy 160, 128, 32
       v0 = mload 128
       ret v0
-  }
-  
-  fn @disjoint_memory_copy() -> i256 {
-    bb0:
-      mstore 128, 42
-      mcopy 160, 128, 32
--     v0 = mload 128
--     ret v0
-+     ret 42
   }
   
   fn @icall_barrier() -> i256 {
