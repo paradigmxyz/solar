@@ -588,8 +588,10 @@ struct MemoryStoreEliminator {
     eliminated_count: usize,
     alias: Rc<AliasAnalysis>,
     target: Target,
-    /// Memory live at the entry of each block as of the start of the round, built when the first
-    /// fold candidate needs it. Rewrites of the round only remove reads, so it stays conservative.
+    /// Memory live at the entry of each block as of the start of the round, kept from the removal
+    /// of dead stores or built when the first fold candidate needs it. Removing a dead store keeps
+    /// the words live, and other rewrites of the round only remove reads, so it stays
+    /// conservative.
     live_in: Option<IndexVec<BlockId, MemLive>>,
     /// Operand uses of every value, built when a fold candidate needs them and dropped when a
     /// rewrite may add uses.
@@ -1051,6 +1053,7 @@ impl MemoryStoreEliminator {
         }
 
         self.eliminated_count += remove_dead(func, dead);
+        self.live_in = Some(live_in);
     }
 
     /// The memory live into each block, by a backward fixpoint:
