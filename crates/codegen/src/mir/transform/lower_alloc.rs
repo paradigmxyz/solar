@@ -333,7 +333,7 @@ fn lower_checked_alloc(
 
     // The allocation leaves the block; its rewrite is appended after the pointer read.
     let tail = func.blocks[block].instructions.split_off(position + 1);
-    func.blocks[block].instructions.pop();
+    func.blocks[block].instructions.truncate(position);
     let (old_terminator, metadata) = func.blocks[block].take_terminator();
 
     // continuation: tail; old_terminator !metadata(original block)
