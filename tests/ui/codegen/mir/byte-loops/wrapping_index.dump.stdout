@@ -22,7 +22,6 @@ fn @uncheckedDown() [selector=0x0a3fd26a, abi_wrapper, pure] {
     v76 = or v74, v75
     jumpi v76, bb10, bb9
   bb9:
-    mstore 64, v73 !metadata(memory=scratch)
     v78 = calldatasize
     calldatacopy v72, v78, v3
     mstore v72, arg2
@@ -84,7 +83,6 @@ fn @checkedDown() [selector=0xc6510b18, abi_wrapper, pure] {
     v74 = or v72, v73
     jumpi v74, bb12, bb11
   bb11:
-    mstore 64, v71 !metadata(memory=scratch)
     v76 = calldatasize
     calldatacopy v70, v76, v3
     mstore v70, arg2
@@ -151,7 +149,6 @@ fn @mixedDown() [selector=0xcbd040ed, abi_wrapper, pure] {
     v68 = or v66, v67
     jumpi v68, bb14, bb13
   bb13:
-    mstore 64, v65 !metadata(memory=scratch)
     v70 = calldatasize
     calldatacopy v64, v70, v3
     mstore v64, arg2
@@ -231,7 +228,6 @@ fn @sourceFirst() [selector=0x032c601e, abi_wrapper, pure] {
     v70 = or v68, v69
     jumpi v70, bb14, bb13
   bb13:
-    mstore 64, v67 !metadata(memory=scratch)
     v72 = calldatasize
     calldatacopy v66, v72, v3
     mstore v66, arg3
@@ -313,7 +309,6 @@ fn @destinationFirst() [selector=0x5072325f, abi_wrapper, pure] {
     v72 = or v70, v71
     jumpi v72, bb14, bb13
   bb13:
-    mstore 64, v69 !metadata(memory=scratch)
     v74 = calldatasize
     calldatacopy v68, v74, v3
     mstore v68, arg3
@@ -395,7 +390,6 @@ fn @wrappedCopy() [selector=0xbd307fab, abi_wrapper, pure] {
     v84 = or v82, v83
     jumpi v84, bb12, bb11
   bb11:
-    mstore 64, v81 !metadata(memory=scratch)
     v86 = calldatasize
     calldatacopy v80, v86, v9
     mstore v80, arg1
@@ -514,7 +508,6 @@ fn @wrappedArray() [selector=0x20a8a4e4, abi_wrapper, pure] {
     v131 = or v129, v130
     jumpi v131, bb18, bb17
   bb17:
-    mstore 64, v128 !metadata(memory=scratch)
     v133 = calldatasize
     calldatacopy v127, v133, v15
     mstore v127, arg3
