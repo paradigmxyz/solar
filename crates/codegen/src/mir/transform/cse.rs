@@ -463,7 +463,7 @@ impl CommonSubexprEliminator {
         self.alias().clear_cached_addresses();
         self.process_global_pure(func, cfg, scratch);
 
-        // Process each block independently (local CSE)
+        // Process each block independently (local CSE).
         let block_ids = func.blocks.indices();
         let liveness = OnceCell::new();
         for block_id in block_ids {
@@ -1031,7 +1031,7 @@ impl CommonSubexprEliminator {
         scratch: &mut Scratch,
     ) {
         // Map from expression key to the ValueId that computed it, and from ValueId to its
-        // replacement ValueId
+        // replacement ValueId.
         let Scratch { removed: to_remove, replacements, cache: expr_cache, clobbers } = scratch;
         expr_cache.clear();
         replacements.clear();
