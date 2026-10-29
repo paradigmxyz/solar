@@ -186,8 +186,7 @@ fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
         return None;
     }
 
-    let blocks: Vec<BlockId> = l.blocks.iter().collect();
-    if !side_exits(func, &blocks, &l.blocks, l.header).is_empty() {
+    if !side_exits(func, &l.blocks, l.header).is_empty() {
         // Both copies reach the exit blocks: only phis may use loop values there.
         for (block, body) in func.blocks.iter_enumerated() {
             if l.blocks.contains(block) {
@@ -224,7 +223,7 @@ fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
 
 fn apply(func: &mut Function, split: &Split) {
     let blocks: Vec<BlockId> = split.blocks.iter().collect();
-    let side_exits = side_exits(func, &blocks, &split.blocks, split.header);
+    let side_exits = side_exits(func, &split.blocks, split.header);
     let copy = clone_loop(func, &blocks);
     let main_header = copy.blocks[&split.header];
     let mapped = |value: ValueId| copy.value(value);
@@ -350,14 +349,13 @@ pub(super) fn clone_loop(func: &mut Function, blocks: &[BlockId]) -> LoopCopy {
 /// The edges that leave the loop from a block other than its header.
 pub(super) fn side_exits(
     func: &Function,
-    blocks: &[BlockId],
     loop_blocks: &DenseBitSet<BlockId>,
     header: BlockId,
 ) -> Vec<(BlockId, BlockId)> {
-    blocks
+    loop_blocks
         .iter()
-        .filter(|&&block| block != header)
-        .flat_map(|&block| {
+        .filter(|&block| block != header)
+        .flat_map(|block| {
             let terminator = func.blocks[block].terminator.as_ref().expect("terminated");
             terminator
                 .successors()
@@ -434,7 +432,7 @@ pub(super) fn branch(
 /// Sends a block's edges to `from` to `to` instead.
 pub(super) fn redirect(func: &mut Function, block: BlockId, from: BlockId, to: BlockId) {
     let (terminator, metadata) = func.blocks[block].take_terminator();
-    let mut terminator = terminator.expect("loop blocks are terminated");
+    let mut terminator = terminator.expect("the block is terminated");
     retarget(&mut terminator, |successor| if successor == from { to } else { successor });
     func.blocks[block].set_terminator(terminator, metadata);
 }

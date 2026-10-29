@@ -456,7 +456,7 @@ fn plan<'a>(
     l: &'a Loop,
     body: &Body,
 ) -> Option<Planned<'a>> {
-    let Body { preheader, ref blocks, .. } = *body;
+    let (preheader, blocks) = (body.preheader, &body.blocks);
     let defined_in_loop = |value: ValueId| body.defines(func, value);
 
     // Checks of the loop by index: (check block, position, bound).
@@ -708,7 +708,7 @@ fn plan_partition<'a>(
     l: &'a Loop,
     body: &Body,
 ) -> Option<Planned<'a>> {
-    let Body { preheader, ref blocks, .. } = *body;
+    let (preheader, blocks) = (body.preheader, &body.blocks);
     let &[latch] = l.back_edges.as_slice() else { return None };
     let in_loop = |value: ValueId| body.defines(func, value);
     // The two scans, each starting at a phi of the header.
@@ -1029,7 +1029,7 @@ fn plan_bounds<'a>(
     l: &'a Loop,
     body: &Body,
 ) -> Option<Planned<'a>> {
-    let Body { preheader, ref blocks, .. } = *body;
+    let (preheader, blocks) = (body.preheader, &body.blocks);
     let in_loop = |value: ValueId| body.defines(func, value);
     let (counter, limit) = counted_limit(func, l, body)?;
     let compared = compared_before(func, cfg, preheader, limit);
@@ -1425,20 +1425,21 @@ fn apply(func: &mut Function, plan: &Plan<'_>) -> Vec<BlockId> {
                 instructions.into_iter().partition(|inst| new_phis.contains(inst));
             func.blocks[exit].instructions = phis.into_iter().chain(rest).collect();
         }
-        let clone_blocks: FxHashSet<BlockId> = copy.blocks.values().copied().collect();
+        // Blocks the pass added, such as the copy and the test, are not behind the loop.
+        let added = plan.cfg.num_blocks();
         // The exit block each block behind the loop lies behind, in the function the plan saw.
         let owners: FxHashMap<BlockId, BlockId> = func
             .blocks
             .indices()
-            .take(plan.cfg.num_blocks())
+            .take(added)
             .filter(|&block| !plan.in_loop(block))
             .filter_map(|block| Some((block, owning_exit(plan.cfg, exits, block)?)))
             .collect();
         let merged_at = |value: ValueId, reader: BlockId| {
             owners.get(&reader).and_then(|&exit| merged.get(&(value, exit)).copied())
         };
-        for block in func.blocks.indices() {
-            if plan.in_loop(block) || clone_blocks.contains(&block) {
+        for block in func.blocks.indices().take(added) {
+            if plan.in_loop(block) {
                 continue;
             }
             for index in 0..func.blocks[block].instructions.len() {
@@ -1450,7 +1451,7 @@ fn apply(func: &mut Function, plan: &Plan<'_>) -> Vec<BlockId> {
                 let kind = &mut func.inst_mut(inst).kind;
                 if let InstKind::Phi(incoming) = kind {
                     for (from, value) in incoming.iter_mut() {
-                        if is_exit_phi && (plan.in_loop(*from) || clone_blocks.contains(from)) {
+                        if is_exit_phi && (plan.in_loop(*from) || from.index() >= added) {
                             continue;
                         }
                         if let Some(phi) = merged_at(*value, *from) {

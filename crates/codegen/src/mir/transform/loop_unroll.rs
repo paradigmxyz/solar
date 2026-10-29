@@ -1237,7 +1237,7 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
     add_exit_phis(func, &unroll.exit_phis);
     let blocks: Vec<BlockId> = unroll.blocks.iter().collect();
     // Edges that leave the loop from its body, before any terminator changes.
-    let side_exits = side_exits(func, &blocks, &unroll.blocks, unroll.header);
+    let side_exits = side_exits(func, &unroll.blocks, unroll.header);
     let copies: Vec<LoopCopy> = (0..unroll.factor).map(|_| clone_loop(func, &blocks)).collect();
     let header_phis = header_phis(func, unroll.header, unroll.latch);
     let first = &copies[0];
@@ -1326,9 +1326,9 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
             MainTest::AheadBeyond(offset) => (Some(offset), false),
             _ => (None, true),
         };
-        // main_header: ahead = add word_1, offset              when the test adds an offset
-        //              jumpi (lt ahead, bound), body_1, header  when the loop enters below
-        //              jumpi (gt ahead, bound), header, body_1  when it leaves beyond
+        // main_header: ahead = add word_1, offset
+        //              jumpi (lt ahead, bound), body_1, header
+        //              jumpi (gt ahead, bound), header, body_1
         let mut word = first.value(unroll.word);
         if let Some(offset) = offset {
             let offset = func.alloc_value(Value::Immediate(Immediate::I256(offset)));
@@ -1425,6 +1425,8 @@ fn merge_entry(
     header_phis: &[(ValueId, ValueId)],
 ) {
     let (copy_header, copy_latch) = (copy.blocks[&header], copy.blocks[&latch]);
+    // enter: merged = phi [copy_header: state'], [copy_latch: next']
+    // header: state = phi [enter: merged], [latch: next]
     for &(phi, latch_value) in header_phis {
         edit_phi(func, copy.value(phi), |incoming| {
             incoming.retain(|&(from, _)| from != copy_latch);
@@ -1455,7 +1457,7 @@ fn merge_entry(
 fn peel(func: &mut Function, peel: &Peel) {
     let blocks: Vec<BlockId> = peel.blocks.iter().collect();
     // Edges that leave the loop from its body, before any terminator changes.
-    let side_exits = side_exits(func, &blocks, &peel.blocks, peel.header);
+    let side_exits = side_exits(func, &peel.blocks, peel.header);
     let copy = clone_loop(func, &blocks);
     let header_phis = header_phis(func, peel.header, peel.latch);
     let first_header = copy.blocks[&peel.header];
@@ -1495,7 +1497,7 @@ fn peel(func: &mut Function, peel: &Peel) {
 fn unroll_fully(func: &mut Function, full: &Full) {
     let blocks: Vec<BlockId> = full.blocks.iter().collect();
     // Edges that leave the loop from its body, before any terminator changes.
-    let side_exits = side_exits(func, &blocks, &full.blocks, full.header);
+    let side_exits = side_exits(func, &full.blocks, full.header);
     let header_phis = header_phis(func, full.header, full.latch);
     let copies: Vec<LoopCopy> = (0..full.trips).map(|_| clone_loop(func, &blocks)).collect();
 
