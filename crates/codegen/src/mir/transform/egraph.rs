@@ -535,7 +535,6 @@ impl<'a> Builder<'a> {
 
         // Grow the class with every equivalent node the rules reach, breadth
         // first, then look for a value it already equals.
-        let evm = self.target.evm_version();
         let mut nodes = SmallVec::from_buf([op]);
         let mut simplified = SmallVec::<[Simplified; 2]>::from_slice(&[Simplified::Pending]);
         let mut frontier = 0;
@@ -547,11 +546,11 @@ impl<'a> Builder<'a> {
             let mut views_truncated = false;
             while frontier < nodes.len() && nodes.len() < node_limit {
                 let current_index = frontier;
-                let current = nodes.as_slice()[current_index];
+                let current = nodes[current_index];
                 frontier += 1;
                 alternatives.clear();
                 let kind = current.into_kind().expect("nodes are complete instructions");
-                let folded = fold_node(self.func, &current, &kind, ty);
+                let folded = self.fold_node(&current, &kind, ty);
                 if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
                     let (operands, truncated) = self.operand_views(&current, view_limit);
                     views_truncated |= truncated;
@@ -561,7 +560,7 @@ impl<'a> Builder<'a> {
                             .rewrite(&current, &mut alternatives);
                     }
                     simplified[current_index] = Simplified::from_value(
-                        folded.or_else(|| simplify_views(self.func, evm, &current, &operands)),
+                        folded.or_else(|| self.simplify_views(&current, &operands)),
                     );
                 } else {
                     simplified[current_index] = Simplified::from_value(folded);
@@ -569,7 +568,7 @@ impl<'a> Builder<'a> {
                 for next in alternatives.drain(..) {
                     let next = next.map_values(|value| self.resolve(value));
                     let next = canonical_operands(self.func, next);
-                    if !nodes.as_slice().contains(&next)
+                    if !nodes.contains(&next)
                         && nodes.len() < node_limit
                         && next
                             .into_kind()
@@ -601,7 +600,7 @@ impl<'a> Builder<'a> {
         // immediately. Scope every insertion, including simplified classes,
         // to the same dominator subtree as the original expression.
         let mut leader = None;
-        for (node_index, node) in nodes.as_slice().iter().enumerate() {
+        for (node_index, node) in nodes.iter().enumerate() {
             // The search leaves the memo unchanged, so the original node's failed
             // probe still holds.
             if node_index > 0
@@ -615,10 +614,10 @@ impl<'a> Builder<'a> {
                 Simplified::Unchanged => None,
                 Simplified::Pending => {
                     let kind = node.into_kind().expect("nodes are complete instructions");
-                    let folded = fold_node(self.func, node, &kind, ty);
+                    let folded = self.fold_node(node, &kind, ty);
                     if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
                         let (operands, _) = self.operand_views(node, view_limit);
-                        folded.or_else(|| simplify_views(self.func, evm, node, &operands))
+                        folded.or_else(|| self.simplify_views(node, &operands))
                     } else {
                         folded
                     }
@@ -633,7 +632,7 @@ impl<'a> Builder<'a> {
             }
         }
 
-        for (node_index, &node) in nodes.as_slice().iter().enumerate() {
+        for (node_index, &node) in nodes.iter().enumerate() {
             // The original node was keyed above.
             let key = if node_index == 0 { key } else { (canonical(node), ty) };
             let previous = self.memo.insert(key, leader.unwrap_or(result));
@@ -649,14 +648,6 @@ impl<'a> Builder<'a> {
         }
     }
 
-    /// The rewrite-rule context for a root in `block`.
-    fn rule_context(&mut self, block: BlockId) -> isle::RuleContext<'_> {
-        isle::RuleContext::new(self.func, self.target.evm_version())
-            .with_block(block)
-            .with_uses(&self.uses)
-            .with_target(self.target)
-    }
-
     /// Only existing equivalent nodes are exposed; no new SSA values or code
     /// motion are needed to match through an operand's alternative spelling.
     fn operand_views(
@@ -667,7 +658,7 @@ impl<'a> Builder<'a> {
         let mut views = SmallVec::new();
         for operand in operands_of(node) {
             if let Some(class) = self.classes.get(operand) {
-                for &alternative in class.nodes.as_slice().iter().skip(1) {
+                for &alternative in class.nodes.iter().skip(1) {
                     let view = (operand, alternative);
                     if !views.contains(&view) {
                         if views.len() == limit {
@@ -693,7 +684,7 @@ impl<'a> Builder<'a> {
     ) -> Option<ValueId> {
         let leader = self.resolve(*self.memo.get(&key)?);
         if let Some(class) = self.classes.get(leader)
-            && (key != original || canonical(class.nodes.as_slice()[0]) != key.0)
+            && (key != original || canonical(class.nodes[0]) != key.0)
             && !self
                 .liveness
                 .get_or_insert_with(|| Liveness::compute(self.func))
@@ -878,11 +869,10 @@ impl<'a> Builder<'a> {
             let best = if class.nodes.len() == 1 {
                 // No selection is needed. Dependencies still get priced lazily
                 // if another class with alternatives needs this class's cost.
-                class.nodes.as_slice()[0]
+                class.nodes[0]
             } else {
                 class
                     .nodes
-                    .as_slice()
                     .iter()
                     .rev()
                     .copied()
@@ -997,6 +987,29 @@ impl<'a> Builder<'a> {
                 self.changed += 1;
             }
         }
+    }
+
+    /// The rewrite-rule context for a root in `block`.
+    fn rule_context(&mut self, block: BlockId) -> isle::RuleContext<'_> {
+        isle::RuleContext::new(self.func, self.target.evm_version())
+            .with_block(block)
+            .with_uses(&self.uses)
+            .with_target(self.target)
+    }
+
+    /// Returns the value `node` folds to when its operands allow it, as [`const_fold`] on `kind`.
+    fn fold_node(&mut self, node: &Op, kind: &InstKind, ty: Option<MirType>) -> Option<ValueId> {
+        if may_const_fold(self.func, node) { const_fold(self.func, kind, ty) } else { None }
+    }
+
+    /// Returns the value `node` equals through a `simplify` rule, trying the bounded operand views
+    /// of [`matching_views`].
+    fn simplify_views(&mut self, node: &Op, operands: &[(ValueId, Op)]) -> Option<ValueId> {
+        matching_views(node, operands).find_map(|view| {
+            isle::RuleContext::new(self.func, self.target.evm_version())
+                .with_views(view)
+                .simplify(node)
+        })
     }
 }
 
@@ -1291,28 +1304,6 @@ fn const_fold(func: &mut Function, kind: &InstKind, ty: Option<MirType>) -> Opti
     Some(func.alloc_value(Value::Immediate(immediate)))
 }
 
-/// Returns the value `node` folds to when its operands allow it, as [`const_fold`] on `kind`.
-fn fold_node(
-    func: &mut Function,
-    node: &Op,
-    kind: &InstKind,
-    ty: Option<MirType>,
-) -> Option<ValueId> {
-    if may_const_fold(func, node) { const_fold(func, kind, ty) } else { None }
-}
-
-/// Returns the value `node` equals through a `simplify` rule, trying the bounded operand views
-/// of [`matching_views`].
-fn simplify_views(
-    func: &mut Function,
-    evm: EvmVersion,
-    node: &Op,
-    operands: &[(ValueId, Op)],
-) -> Option<ValueId> {
-    matching_views(node, operands)
-        .find_map(|view| isle::RuleContext::new(func, evm).with_views(view).simplify(node))
-}
-
 /// Match paired complement rules without multiplying unrestricted child classes.
 fn matching_views<'a>(
     node: &Op,
@@ -1464,7 +1455,6 @@ impl Costs<'_> {
         let target = self.target;
         let cost = class
             .nodes
-            .as_slice()
             .iter()
             .map(|node| self.node(class, node))
             .min_by(|a, b| target.cmp(*a, *b))
@@ -1480,8 +1470,7 @@ impl Costs<'_> {
             operands.clear();
             operands.push(value);
         }
-        let original =
-            (node != &class.nodes.as_slice()[0]).then(|| operands_of(&class.nodes.as_slice()[0]));
+        let original = (node != &class.nodes[0]).then(|| operands_of(&class.nodes[0]));
         // An operand shared with other users is computed regardless of this
         // choice; an immediate is pushed at every use.
         let func = self.func;
@@ -1529,7 +1518,7 @@ impl Costs<'_> {
         original.iter().any(|&value| {
             self.shared_displaced(value, operands)
                 && self.classes.get(value).is_some_and(|class| {
-                    class.nodes.as_slice().iter().all(|node| operands_of(node).contains(&input))
+                    class.nodes.iter().all(|node| operands_of(node).contains(&input))
                 })
         })
     }
