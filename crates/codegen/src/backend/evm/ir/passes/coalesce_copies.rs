@@ -41,52 +41,51 @@ fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let target = module.runtime_target(gcx);
     let mut groups = 0usize;
     let mut words = 0usize;
+    let mut edits = Vec::new();
     for block in &mut module.blocks {
-        let mut edits = Vec::new();
+        edits.clear();
         let mut index = 0;
         while index + COPY_INSTRUCTIONS <= block.instructions.len() {
-            let Some((source, destination)) = word_copy(&block.instructions[index..]) else {
+            let Some((source, destination)) = word_copy(&block.instructions, index) else {
                 index += 1;
                 continue;
             };
 
-            let mut count = 1usize;
-            while let Some(next) = index.checked_add(count * COPY_INSTRUCTIONS)
-                && let Some((next_source, next_destination)) =
-                    block.instructions.get(next..).and_then(word_copy)
-                && let Some(expected_source) = source.checked_add(U256::from(count * WORD_BYTES))
-                && let Some(expected_destination) =
-                    destination.checked_add(U256::from(count * WORD_BYTES))
-                && next_source == expected_source
-                && next_destination == expected_destination
-            {
-                count += 1;
-            }
-            if count < 2 || !ranges_disjoint(source, destination, count) {
-                index += COPY_INSTRUCTIONS;
-                continue;
-            }
-
+            let count = 1
+                + (1..)
+                    .take_while(|&next| {
+                        let offset = U256::from(next * WORD_BYTES);
+                        source.checked_add(offset).zip(destination.checked_add(offset)).is_some_and(
+                            |expected| {
+                                word_copy(&block.instructions, index + next * COPY_INSTRUCTIONS)
+                                    == Some(expected)
+                            },
+                        )
+                    })
+                    .count();
             let length = U256::from(count * WORD_BYTES);
-            if !profitable(target, source, destination, length, count) {
+            if count < 2
+                || !ranges_disjoint(source, destination, length)
+                || !profitable(target, source, destination, length, count)
+            {
                 index += COPY_INSTRUCTIONS;
                 continue;
             }
 
-            let metadata = block.instructions[index].metadata.clone();
+            let metadata = &block.instructions[index].metadata;
             let replacement = [
                 Instruction::push_value(length),
                 Instruction::push_value(source),
                 Instruction::push_value(destination),
                 Instruction::opcode(op::MCOPY),
             ]
-            .map(|inst| inst.with_source_debug(&metadata));
+            .map(|inst| inst.with_source_debug(metadata));
             edits.push((index, count * COPY_INSTRUCTIONS, replacement));
             groups += 1;
             words += count;
             index += count * COPY_INSTRUCTIONS;
         }
-        for (start, len, replacement) in edits.into_iter().rev() {
+        for (start, len, replacement) in edits.drain(..).rev() {
             block.instructions.splice(start..start + len, replacement);
         }
     }
@@ -102,19 +101,18 @@ fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
     groups != 0
 }
 
-fn word_copy(instructions: &[Instruction]) -> Option<(U256, U256)> {
-    let [source, load, destination, store, ..] = instructions else { return None };
+fn word_copy(instructions: &[Instruction], at: usize) -> Option<(U256, U256)> {
+    let [source, load, destination, store, ..] = instructions.get(at..)? else { return None };
     if load.opcode != op::MLOAD || store.opcode != op::MSTORE {
         return None;
     }
     Some((source.concrete_immediate()?, destination.concrete_immediate()?))
 }
 
-fn ranges_disjoint(source: U256, destination: U256, words: usize) -> bool {
-    let length = U256::from(words * WORD_BYTES);
-    let Some(source_end) = source.checked_add(length) else { return false };
-    let Some(destination_end) = destination.checked_add(length) else { return false };
-    source_end <= destination || destination_end <= source
+fn ranges_disjoint(source: U256, destination: U256, length: U256) -> bool {
+    source.checked_add(length).zip(destination.checked_add(length)).is_some_and(
+        |(source_end, destination_end)| source_end <= destination || destination_end <= source,
+    )
 }
 
 fn profitable(target: Target, source: U256, destination: U256, length: U256, words: usize) -> bool {
