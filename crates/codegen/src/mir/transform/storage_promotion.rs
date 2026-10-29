@@ -26,7 +26,10 @@ use crate::mir::{
     utils as mir_utils,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 
 /// Function pass for loop-carried storage scalar promotion.
 pub(crate) struct StorageScalarPromotion;
@@ -59,7 +62,7 @@ impl MirPass for StorageScalarPromotion {
 }
 
 /// A storage slot to keep in a memory temporary across one loop.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct Candidate {
     slot_value: ValueId,
     slot: StorageAlias,
@@ -127,7 +130,7 @@ fn find_candidates(func: &Function, loop_data: &Loop) -> Option<(BlockId, Vec<Ca
     // example two symbolic mapping slots whose keys happen to be equal).
     // Promoting them to separate memory temps would desynchronize loads
     // and stores, so require every pair to be provably disjoint.
-    let aliases: Vec<StorageAlias> = stores.keys().copied().collect();
+    let aliases = stores.keys().copied().collect::<Vec<_>>();
     if aliases.iter().enumerate().any(|(i, a)| aliases[i + 1..].iter().any(|b| a.may_alias(*b))) {
         return None;
     }
@@ -159,7 +162,7 @@ fn find_candidates(func: &Function, loop_data: &Loop) -> Option<(BlockId, Vec<Ca
         };
         candidates.push(candidate);
     }
-    candidates.sort_unstable_by_key(|candidate| candidate.init_store.map(|inst| inst.index()));
+    candidates.sort_unstable_by_key(|candidate| candidate.init_store);
 
     if !loop_storage_accesses_are_safe(func, &rewrite_blocks, &candidates) {
         return None;
@@ -256,10 +259,7 @@ fn loop_storage_accesses_are_safe(
         for &inst_id in &func.blocks[block_id].instructions {
             match &func.inst(inst_id).kind {
                 InstKind::Load(slot, PtrLocation::Storage) => {
-                    let alias = func.storage_alias(inst_id, *slot);
-                    if !is_candidate(candidates, alias)
-                        && candidates.iter().any(|candidate| candidate.slot.may_alias(alias))
-                    {
+                    if clobbers_candidate(candidates, func.storage_alias(inst_id, *slot)) {
                         return false;
                     }
                 }
@@ -277,6 +277,12 @@ fn loop_storage_accesses_are_safe(
 
 fn is_candidate(candidates: &[Candidate], alias: StorageAlias) -> bool {
     candidates.iter().any(|candidate| candidate.slot == alias)
+}
+
+/// Whether an access to `alias` may touch a candidate slot without being one of them.
+fn clobbers_candidate(candidates: &[Candidate], alias: StorageAlias) -> bool {
+    !is_candidate(candidates, alias)
+        && candidates.iter().any(|candidate| candidate.slot.may_alias(alias))
 }
 
 /// Returns the last preheader store to `slot` and its slot value.
@@ -349,10 +355,7 @@ fn preheader_tail_is_safe_for_candidates(
         match &func.inst(inst_id).kind {
             InstKind::Load(load_slot, PtrLocation::Storage)
             | InstKind::Store(load_slot, _, PtrLocation::Storage) => {
-                let alias = func.storage_alias(inst_id, *load_slot);
-                if !is_candidate(candidates, alias)
-                    && candidates.iter().any(|candidate| candidate.slot.may_alias(alias))
-                {
+                if clobbers_candidate(candidates, func.storage_alias(inst_id, *load_slot)) {
                     return false;
                 }
             }
@@ -370,33 +373,32 @@ fn preheader_tail_is_safe_for_candidates(
 
 /// Rewrites the loop to use memory temporaries and flushes them on every clean exit.
 fn promote(func: &mut Function, loop_data: &Loop, preheader: BlockId, candidates: &[Candidate]) {
-    let temps: FxHashMap<StorageAlias, ValueId> =
-        candidates.iter().map(|candidate| (candidate.slot, allocate_temp_addr(func))).collect();
+    let temps = candidates
+        .iter()
+        .map(|candidate| (candidate.slot, allocate_temp_addr(func)))
+        .collect::<FxHashMap<_, _>>();
+    rewrite_preheader(func, preheader, candidates, &temps);
+
     // A lone slot without a preheader store is flushed only if the loop stored it, which
     // `(dirty_addr, dirty_value)` tracks.
-    let dirty = matches!(candidates, [Candidate { init_store: None, .. }]).then(|| {
-        (
-            allocate_temp_addr(func),
-            func.alloc_value(Value::Immediate(Immediate::I256(U256::from(1)))),
-        )
-    });
-
-    rewrite_preheader(func, preheader, candidates, &temps);
-    if let Some((dirty_addr, _)) = dirty
-        && let [candidate] = candidates
-    {
+    let dirty = if let [candidate @ Candidate { init_store: None, .. }] = candidates {
+        let dirty_addr = allocate_temp_addr(func);
+        let dirty_value = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
         // [v = sload slot; mstore temp, v;] mstore dirty_addr, 0
-        let mut seed = Vec::new();
         if candidate.needs_initial_load {
             let (load_inst, load_value) =
                 alloc_load(func, candidate.slot_value, PtrLocation::Storage);
-            seed.push(load_inst);
-            seed.push(alloc_store(func, temps[&candidate.slot], load_value, PtrLocation::Memory));
+            let store_inst =
+                alloc_store(func, temps[&candidate.slot], load_value, PtrLocation::Memory);
+            func.blocks[preheader].instructions.extend([load_inst, store_inst]);
         }
         let false_word = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
-        seed.push(alloc_store(func, dirty_addr, false_word, PtrLocation::Memory));
-        func.blocks[preheader].instructions.extend(seed);
-    }
+        let dirty_store = alloc_store(func, dirty_addr, false_word, PtrLocation::Memory);
+        func.blocks[preheader].instructions.push(dirty_store);
+        Some((dirty_addr, dirty_value))
+    } else {
+        None
+    };
 
     for block_id in promotion_block_ids(func, loop_data) {
         // Rollback exits never flush, so their rewritten stores do not
@@ -405,21 +407,14 @@ fn promote(func: &mut Function, loop_data: &Loop, preheader: BlockId, candidates
         let mut index = 0;
         while index < func.blocks[block_id].instructions.len() {
             let inst_id = func.blocks[block_id].instructions[index];
-            let replacement = match &func.inst(inst_id).kind {
-                InstKind::Load(slot, PtrLocation::Storage) => temps
-                    .get(&func.storage_alias(inst_id, *slot))
-                    .map(|&temp| InstKind::Load(temp, PtrLocation::Memory)),
-                InstKind::Store(slot, value, PtrLocation::Storage) => temps
-                    .get(&func.storage_alias(inst_id, *slot))
-                    .map(|&temp| InstKind::Store(temp, *value, PtrLocation::Memory)),
-                _ => None,
-            };
-
-            if let Some(new_kind) = replacement {
-                let is_store = matches!(new_kind, InstKind::Store(..));
-                func.inst_mut(inst_id).kind = new_kind;
-                func.inst_mut(inst_id).metadata.set_storage_alias(None);
-                if is_store && let Some((dirty_addr, dirty_value)) = dirty {
+            if let InstKind::Load(slot, PtrLocation::Storage)
+            | InstKind::Store(slot, _, PtrLocation::Storage) = &func.inst(inst_id).kind
+                && let Some(&temp) = temps.get(&func.storage_alias(inst_id, *slot))
+            {
+                retarget_to_temp(func, inst_id, temp);
+                if let Some((dirty_addr, dirty_value)) = dirty
+                    && matches!(func.inst(inst_id).kind, InstKind::Store(..))
+                {
                     let dirty_store =
                         alloc_store(func, dirty_addr, dirty_value, PtrLocation::Memory);
                     func.blocks[block_id].instructions.insert(index + 1, dirty_store);
@@ -458,35 +453,34 @@ fn rewrite_preheader(
     candidates: &[Candidate],
     temps: &FxHashMap<StorageAlias, ValueId>,
 ) {
-    let mut init_positions = FxHashMap::<StorageAlias, usize>::default();
-    for candidate in candidates {
-        if let Some(init_store) = candidate.init_store
-            && let InstKind::Store(_, init, PtrLocation::Storage) = &func.inst(init_store).kind
-        {
-            let init_pos = func.blocks[preheader]
-                .instructions
-                .iter()
-                .position(|&inst_id| inst_id == init_store)
-                .expect("candidate init store should be in the preheader");
-            init_positions.insert(candidate.slot, init_pos);
-            func.inst_mut(init_store).kind =
-                InstKind::Store(temps[&candidate.slot], *init, PtrLocation::Memory);
-            func.inst_mut(init_store).metadata.set_storage_alias(None);
-        }
-    }
-
+    let mut seeded = FxHashSet::<StorageAlias>::default();
     for pos in 0..func.blocks[preheader].instructions.len() {
         let inst_id = func.blocks[preheader].instructions[pos];
-        if let InstKind::Load(load_slot, PtrLocation::Storage) = &func.inst(inst_id).kind {
-            let alias = func.storage_alias(inst_id, *load_slot);
-            if let Some(&init_pos) = init_positions.get(&alias)
-                && pos > init_pos
-            {
-                func.inst_mut(inst_id).kind = InstKind::Load(temps[&alias], PtrLocation::Memory);
-                func.inst_mut(inst_id).metadata.set_storage_alias(None);
-            }
+        let temp = if let Some(candidate) =
+            candidates.iter().find(|candidate| candidate.init_store == Some(inst_id))
+        {
+            seeded.insert(candidate.slot);
+            Some(temps[&candidate.slot])
+        } else if let InstKind::Load(slot, PtrLocation::Storage) = &func.inst(inst_id).kind {
+            let alias = func.storage_alias(inst_id, *slot);
+            seeded.contains(&alias).then(|| temps[&alias])
+        } else {
+            None
+        };
+        if let Some(temp) = temp {
+            retarget_to_temp(func, inst_id, temp);
         }
     }
+}
+
+/// Turns a storage load or store into the same access to the memory temporary `temp`.
+fn retarget_to_temp(func: &mut Function, inst_id: InstId, temp: ValueId) {
+    let inst = func.inst_mut(inst_id);
+    if let InstKind::Load(addr, location) | InstKind::Store(addr, _, location) = &mut inst.kind {
+        *addr = temp;
+        *location = PtrLocation::Memory;
+    }
+    inst.metadata.set_storage_alias(None);
 }
 
 /// Allocates `load addr` with the debug info dropped.
