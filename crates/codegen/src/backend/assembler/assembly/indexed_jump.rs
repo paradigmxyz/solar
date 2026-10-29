@@ -24,19 +24,23 @@
 //! the stride table; a table may still pack when the final offsets fit one byte.
 
 use super::{Program, lower};
-use crate::backend::{
-    assembler::{Assembler, Label},
-    evm::{
-        ir::{
-            self, BlockId, ImmediateMaterialization, ImmediateMaterializationOp,
-            immediate_materialization_len,
+use crate::{
+    backend::{
+        assembler::{Assembler, Label},
+        evm::{
+            ir::{
+                self, BlockId, ImmediateMaterialization, ImmediateMaterializationOp,
+                immediate_materialization_len,
+            },
+            op::{self, WORD_BYTES, push_len},
         },
-        op::{self, WORD_BYTES, push_len},
     },
+    target::Target,
 };
 use alloy_primitives::U256;
-use solar_config::{CompileOpts, EvmVersion};
+use solar_config::EvmVersion;
 use solar_data_structures::index::{IndexVec, index_vec};
+use solar_sema::Gcx;
 
 fn push_immediate(
     assembler: &mut Assembler<'_>,
@@ -61,8 +65,12 @@ pub(in crate::backend) struct TablePacking {
 }
 
 impl TablePacking {
-    pub(in crate::backend) fn new(opts: &CompileOpts) -> Self {
-        Self { two_words: opts.optimization.is_size(), wide: opts.unstable.pack_wide_jump_tables }
+    pub(in crate::backend) fn new(gcx: Gcx<'_>) -> Self {
+        let opts = &gcx.sess.opts;
+        Self {
+            two_words: opts.optimization.is_size(),
+            wide: Target::new(gcx).packs_wide_jump_tables(opts.unstable.pack_wide_jump_tables),
+        }
     }
 }
 

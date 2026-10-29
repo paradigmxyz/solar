@@ -73,7 +73,7 @@ Options:
           Override the per-switch bit-slice table growth limit for benchmarking
 
       -Ztune <TUNE>
-          Tune generated code for an execution engine (default: `none`; values: `none`, `interpreter`)
+          Tune generated code for an execution engine (default: `none`; values: `none`, `interpreter`, `jit`)
 
       -Zpack-wide-jump-tables
           Pack indexed jump table entries wider than one byte into words and pick them with a shift and a mask. Off by default: jump analysis in bytecode JITs cannot resolve the pick
