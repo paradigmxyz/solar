@@ -23,6 +23,7 @@ pub(crate) struct CfgInfo {
     rpo: OnceCell<Vec<BlockId>>,
     cyclic_blocks: OnceCell<DenseBitSet<BlockId>>,
     dominators: OnceCell<DominatorTree>,
+    dominance_frontiers: OnceCell<IndexVec<BlockId, Vec<BlockId>>>,
     reachability: OnceCell<BitMatrix<BlockId, BlockId>>,
 }
 
@@ -44,6 +45,7 @@ impl CfgInfo {
             rpo: OnceCell::new(),
             cyclic_blocks: OnceCell::new(),
             dominators: OnceCell::new(),
+            dominance_frontiers: OnceCell::new(),
             reachability: OnceCell::new(),
         }
     }
@@ -172,6 +174,39 @@ impl CfgInfo {
     #[must_use]
     pub(crate) fn dominators(&self) -> &DominatorTree {
         self.dominators.get_or_init(|| DominatorTree::compute(self.all_predecessors(), self.rpo()))
+    }
+
+    /// Returns the dominance frontier of `block`: the join blocks where its dominance ends, in
+    /// ascending block order. Unreachable blocks have an empty frontier.
+    #[must_use]
+    pub(crate) fn dominance_frontier(&self, block: BlockId) -> &[BlockId] {
+        let frontiers = self.dominance_frontiers.get_or_init(|| {
+            let dominators = self.dominators();
+            let mut frontiers = index_vec![Vec::new(); self.successors.len()];
+            for block in self.successors.indices().filter(|&block| self.is_reachable(block)) {
+                let preds =
+                    self.predecessors(block).iter().filter(|&&pred| self.is_reachable(pred));
+                let Some(idom) = dominators.idom(block) else { continue };
+                if preds.clone().nth(1).is_none() {
+                    continue;
+                }
+                for &pred in preds {
+                    let mut runner = pred;
+                    while runner != idom {
+                        if frontiers[runner].last() != Some(&block) {
+                            frontiers[runner].push(block);
+                        }
+                        let Some(next) = dominators.idom(runner) else { break };
+                        if next == runner {
+                            break;
+                        }
+                        runner = next;
+                    }
+                }
+            }
+            frontiers
+        });
+        frontiers.get(block).map_or(&[], Vec::as_slice)
     }
 
     /// Returns the blocks reachable from `block` through at least one CFG edge, or `None`

@@ -46,6 +46,42 @@ pub(crate) struct Loop {
     pub trip_guard_is_header: bool,
 }
 
+impl Loop {
+    /// Returns the instructions of all blocks in the loop.
+    pub(crate) fn instructions(&self, func: &Function) -> DenseBitSet<InstId> {
+        let mut insts = DenseBitSet::new_empty(func.num_insts());
+        for block in &self.blocks {
+            for &inst in &func.blocks[block].instructions {
+                insts.insert(inst);
+            }
+        }
+        insts
+    }
+
+    /// Returns true if `value` is the result of an instruction in the loop.
+    pub(crate) fn defines(&self, func: &Function, value: ValueId) -> bool {
+        let Value::Inst(inst) = *func.value(value) else { return false };
+        self.blocks.iter().any(|block| func.blocks[block].instructions.contains(&inst))
+    }
+
+    /// Returns true if an instruction or terminator outside the loop reads `value`.
+    pub(crate) fn escapes(&self, func: &Function, value: ValueId) -> bool {
+        func.blocks.iter_enumerated().any(|(block, contents)| {
+            if self.blocks.contains(block) {
+                return false;
+            }
+            let mut found = false;
+            for &inst in &contents.instructions {
+                func.inst(inst).kind.visit_operands(|operand| found |= operand == value);
+            }
+            if let Some(term) = &contents.terminator {
+                term.visit_operands(|operand| found |= operand == value);
+            }
+            found
+        })
+    }
+}
+
 /// An induction variable in a loop.
 #[derive(Clone, Debug)]
 pub(crate) struct InductionVariable {
