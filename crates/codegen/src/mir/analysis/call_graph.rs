@@ -1,7 +1,7 @@
 //! Module-level call graph facts for MIR.
 
 use crate::mir::{Callee, Function, FunctionId, InstKind, Module, Terminator};
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, graph::sccs, map::FxHashMap};
 use std::collections::VecDeque;
 
 /// Module-level internal-call graph facts.
@@ -64,8 +64,9 @@ impl CallGraphInfo {
             }
         }
 
-        let reachable_from_entries =
-            Self::reachable_from_roots_in_graph(&callees, &entry_functions);
+        let mut reachable_from_entries =
+            reachable_in_graph(&callees, &entry_functions, function_count);
+        reachable_from_entries.union(&entry_functions);
         let recursive_functions = Self::recursive_functions_in_graph(&callees, function_count);
 
         Self { callees, reachable_from_entries, recursive_functions }
@@ -113,19 +114,7 @@ impl CallGraphInfo {
         &self,
         roots: impl IntoIterator<Item = FunctionId>,
     ) -> DenseBitSet<FunctionId> {
-        let mut reachable = DenseBitSet::new_empty(self.reachable_from_entries.domain_size());
-        let mut worklist: VecDeque<_> = roots.into_iter().collect();
-
-        while let Some(func) = worklist.pop_front() {
-            let Some(callees) = self.callees.get(&func) else { continue };
-            for callee in callees {
-                if reachable.insert(callee) {
-                    worklist.push_back(callee);
-                }
-            }
-        }
-
-        reachable
+        reachable_in_graph(&self.callees, roots, self.reachable_from_entries.domain_size())
     }
 
     /// Collects direct call targets, including tail calls, without building graph analyses.
@@ -140,101 +129,44 @@ impl CallGraphInfo {
         callees
     }
 
-    fn reachable_from_roots_in_graph(
-        callees: &FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
-        roots: &DenseBitSet<FunctionId>,
-    ) -> DenseBitSet<FunctionId> {
-        let mut reachable = DenseBitSet::new_empty(roots.domain_size());
-        let mut worklist = VecDeque::new();
-        for root in roots {
-            reachable.insert(root);
-            worklist.push_back(root);
-        }
-
-        while let Some(func) = worklist.pop_front() {
-            let Some(callees) = callees.get(&func) else { continue };
-            for callee in callees {
-                if reachable.insert(callee) {
-                    worklist.push_back(callee);
-                }
-            }
-        }
-
-        reachable
-    }
-
     fn recursive_functions_in_graph(
         callees: &FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
         function_count: usize,
     ) -> DenseBitSet<FunctionId> {
-        // Find strongly connected components with Kosaraju's algorithm. The previous search
-        // started a fresh DFS at every function, making repeated call-graph analyses quadratic on
-        // large modules even when their call graph was sparse.
-        let mut reverse = IndexVec::<FunctionId, Vec<FunctionId>>::with_capacity(function_count);
-        for _ in 0..function_count {
-            reverse.push(Vec::new());
-        }
-        for (&caller, direct_callees) in callees {
-            for callee in direct_callees {
-                reverse[callee].push(caller);
-            }
-        }
-
-        let mut visited = DenseBitSet::new_empty(function_count);
-        let mut finish_order = Vec::with_capacity(function_count);
-        for root in (0..function_count).map(FunctionId::from_usize) {
-            if visited.contains(root) {
-                continue;
-            }
-            let mut stack = Vec::new();
-            stack.push((root, false));
-            while let Some((func, expanded)) = stack.pop() {
-                if expanded {
-                    finish_order.push(func);
-                    continue;
-                }
-                // Mark a node when its DFS frame is entered, not when the parent discovers it.
-                // Pre-marking all siblings can violate postorder when one sibling reaches another.
-                if !visited.insert(func) {
-                    continue;
-                }
-                stack.push((func, true));
-                if let Some(direct_callees) = callees.get(&func) {
-                    for callee in direct_callees {
-                        if !visited.contains(callee) {
-                            stack.push((callee, false));
-                        }
-                    }
-                }
-            }
-        }
-
-        let mut assigned = DenseBitSet::new_empty(function_count);
         let mut recursive = DenseBitSet::new_empty(function_count);
-        for root in finish_order.into_iter().rev() {
-            if !assigned.insert(root) {
-                continue;
-            }
-            let mut component = Vec::new();
-            let mut stack = Vec::new();
-            stack.push(root);
-            while let Some(func) = stack.pop() {
-                component.push(func);
-                for &caller in &reverse[func] {
-                    if assigned.insert(caller) {
-                        stack.push(caller);
-                    }
-                }
-            }
-            if component.len() > 1 || callees.get(&root).is_some_and(|direct| direct.contains(root))
-            {
-                for func in component {
+        let components = sccs(function_count, |func| callees.get(&func).into_iter().flatten());
+        for scc in components {
+            // A component is recursive with several functions or one function that calls itself.
+            if scc.len() > 1 || callees.get(&scc[0]).is_some_and(|direct| direct.contains(scc[0])) {
+                for func in scc {
                     recursive.insert(func);
                 }
             }
         }
         recursive
     }
+}
+
+/// Returns the functions reachable from `roots` through `callees`; a root is included only when
+/// another function in the set calls it.
+fn reachable_in_graph(
+    callees: &FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
+    roots: impl IntoIterator<Item = FunctionId>,
+    function_count: usize,
+) -> DenseBitSet<FunctionId> {
+    let mut reachable = DenseBitSet::new_empty(function_count);
+    let mut worklist: VecDeque<_> = roots.into_iter().collect();
+
+    while let Some(func) = worklist.pop_front() {
+        let Some(callees) = callees.get(&func) else { continue };
+        for callee in callees {
+            if reachable.insert(callee) {
+                worklist.push_back(callee);
+            }
+        }
+    }
+
+    reachable
 }
 
 /// Returns the functions `func` calls directly, then those it tail-calls, with repeats.

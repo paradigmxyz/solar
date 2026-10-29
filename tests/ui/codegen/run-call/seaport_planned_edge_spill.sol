@@ -16,7 +16,6 @@
 // longer skips every order, and `probe` folds the per-order hashes the loop
 // writes. Its results match solc for 0, 1, 2 and 5 orders at osaka and
 // homestead, both optimized and unoptimized.
-// `-Zassert-planned-edge-spill-home` turns the condition back into a panic.
 interface AmountDerivationErrors {
     /**
      */
