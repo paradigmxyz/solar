@@ -116,10 +116,7 @@ impl MirPass for LowerAbiEncode {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        if !module.functions.iter().any(|func| {
-            func.instructions()
-                .any(|inst| matches!(func.inst(inst).kind, InstKind::AbiEncode { .. }))
-        }) {
+        if !module.functions.iter().any(has_abi_encode) {
             return false;
         }
         let revert_strings = gcx.sess.opts.revert_strings;
@@ -264,7 +261,7 @@ fn synthesize_tuple_helpers(
                     continue;
                 };
                 if destructive_returns[func_id].contains(&inst)
-                    || (*mode == AbiEncodeMode::Scratch && ends_function(&block.terminator))
+                    || (*mode == AbiEncodeMode::Scratch && ends_function(block.terminator.as_ref()))
                 {
                     continue;
                 }
@@ -313,9 +310,13 @@ fn synthesize_tuple_helpers(
     }
 }
 
+fn has_abi_encode(func: &Function) -> bool {
+    func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::AbiEncode { .. }))
+}
+
 /// Whether a block returns or reverts. The backend's terminal-block sharing already merges
 /// identical copies of a scratch encoding in such a block, so those stay expanded.
-fn ends_function(terminator: &Option<Terminator>) -> bool {
+fn ends_function(terminator: Option<&Terminator>) -> bool {
     matches!(terminator, Some(Terminator::Revert { .. } | Terminator::ReturnData { .. }))
 }
 
@@ -578,9 +579,7 @@ fn lower_function(
     revert_strings: RevertStrings,
     destructive_returns: &FxHashSet<InstId>,
 ) -> bool {
-    let has_encodes =
-        func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::AbiEncode { .. }));
-    if !has_encodes {
+    if !has_abi_encode(func) {
         return false;
     }
     let mut helpers = helpers.clone();
@@ -608,7 +607,7 @@ fn lower_function(
         {
             continue;
         }
-        let terminal = ends_function(&func.blocks[block].terminator);
+        let terminal = ends_function(func.blocks[block].terminator.as_ref());
         let mut builder = FunctionBuilder::new(func).with_revert_strings(revert_strings);
         expand_block(&mut builder, block, |builder, inst| {
             let InstKind::AbiEncode { mode, selector, args, layout } =
@@ -702,7 +701,7 @@ fn plan_destructive_terminal_returns(
 /// Finds encodes used only by the two projections of an immediate
 /// `returndata`. Destructive encoding is safe only in this terminal shape.
 fn terminal_return_encodes(func: &Function) -> FxHashSet<InstId> {
-    if !func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::AbiEncode { .. })) {
+    if !has_abi_encode(func) {
         return FxHashSet::default();
     }
     let uses = use_counts(func);
