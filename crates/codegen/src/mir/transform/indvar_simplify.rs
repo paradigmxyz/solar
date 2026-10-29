@@ -178,7 +178,7 @@ struct IndVarSimplifier {
     /// the block, the join, and the rebuild's instructions, which move onto that edge once every
     /// loop is visited.
     rebuild_moves: Vec<(BlockId, BlockId, Vec<InstId>)>,
-    /// The loop's instructions, cleared and refilled for each counter.
+    /// The loop's instructions, refilled by each user.
     in_loop: DenseBitSet<InstId>,
     /// The values the loop's non-address instructions and terminators read.
     read_by_non_address: DenseBitSet<ValueId>,
@@ -1203,7 +1203,7 @@ impl IndVarSimplifier {
                 .count();
             let body = func.blocks[block].instructions.split_off(phis);
             let counter = rebuild(self, func, block);
-            func.blocks[block].instructions.extend(body.iter().copied());
+            func.blocks[block].instructions.extend_from_slice(&body);
             for &inst_id in &body {
                 func.inst_mut(inst_id).kind.visit_operands_mut(|operand| {
                     if *operand == iv.value {

@@ -26,10 +26,10 @@
 //! root as well: the backend carries a preheader value on the stack through the loop or
 //! rebuilds it at its uses, so hoisting only widens its choice. Those below-threshold hoists
 //! are held to a budget of loop-carried words, the header's phis plus the values the loop reads
-//! from outside, computed per loop of the nest containing the instruction and updated as roots
-//! are accepted: past the budget, the backend's layouts spill loop values to frame slots, and a
-//! hoisted base costs more in reloads of the words it displaces than its in-loop recomputation
-//! saved. At most a fixed number of instructions leave one loop.
+//! from outside, less nullary rematerializable reads, computed per loop of the nest containing the
+//! instruction and updated as roots are accepted: past the budget, the backend's layouts spill loop
+//! values to frame slots, and a hoisted base costs more in reloads of the words it displaces than
+//! its in-loop recomputation saved. At most a fixed number of instructions leave one loop.
 //!
 //! The pass runs once on the semantic MIR and once more after memory lowering,
 //! which materializes each element access as `add base, 32` plus an index term inside the
@@ -158,7 +158,7 @@ struct LoopOptContext<'a> {
 impl LoopOptContext<'_> {
     /// The loop block holding `inst`, if the loop holds it.
     fn loop_block(&self, inst: InstId) -> Option<BlockId> {
-        self.inst_blocks[inst].filter(|&block| self.loop_data.blocks.contains(block))
+        loop_block(self.inst_blocks, self.loop_data, inst)
     }
 
     /// Whether the loop block holding `inst` dominates every back edge.
@@ -350,7 +350,6 @@ impl LoopOptimizer {
         selected.clear_to(func.num_insts());
         closure_set.clear_to(func.num_insts());
         visiting.clear_to(func.num_insts());
-        closure.clear();
         for root in roots {
             closure.clear();
             visiting.clear();
@@ -728,7 +727,7 @@ impl LoopOptimizer {
             return true;
         };
         let Some(load) = Location::slot(location, load_alias) else { return true };
-        if !self.can_use_storage_alias_for_licm(load_alias, ctx.loop_data) {
+        if !Self::can_use_storage_alias_for_licm(load_alias, ctx.loop_data) {
             return true;
         }
 
@@ -741,7 +740,7 @@ impl LoopOptimizer {
                         else {
                             return true;
                         };
-                        if !self.can_use_storage_alias_for_licm(store_alias, ctx.loop_data) {
+                        if !Self::can_use_storage_alias_for_licm(store_alias, ctx.loop_data) {
                             return true;
                         }
                         let Some(store) = Location::slot(location, store_alias) else {
@@ -902,7 +901,7 @@ impl LoopOptimizer {
         Some(alias)
     }
 
-    fn can_use_storage_alias_for_licm(&self, alias: StorageAlias, loop_data: &Loop) -> bool {
+    fn can_use_storage_alias_for_licm(alias: StorageAlias, loop_data: &Loop) -> bool {
         matches!(alias, StorageAlias::Slot(_)) || loop_data.trip_count.is_some_and(|trip| trip > 1)
     }
 
@@ -1043,12 +1042,21 @@ impl LoopOptimizer {
     }
 }
 
-/// The membership test of `loop_data` for instructions, by their blocks in `inst_blocks`.
+/// The block of `loop_data` holding `inst`, by the blocks in `inst_blocks`.
+fn loop_block(
+    inst_blocks: &IndexVec<InstId, Option<BlockId>>,
+    loop_data: &Loop,
+    inst: InstId,
+) -> Option<BlockId> {
+    inst_blocks.get(inst).copied().flatten().filter(|&block| loop_data.blocks.contains(block))
+}
+
+/// The membership test of `loop_data` for instructions.
 fn in_loop_fn<'a>(
     inst_blocks: &'a IndexVec<InstId, Option<BlockId>>,
     loop_data: &'a Loop,
 ) -> impl Fn(InstId) -> bool + 'a {
-    |inst| inst_blocks.get(inst).copied().flatten().is_some_and(|b| loop_data.blocks.contains(b))
+    |inst| loop_block(inst_blocks, loop_data, inst).is_some()
 }
 
 /// The words the backend carries through a loop: the header's phis and the values defined
