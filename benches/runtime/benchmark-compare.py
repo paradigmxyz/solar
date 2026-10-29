@@ -1488,7 +1488,7 @@ def matrix_ratios(
 
 
 def matrix_sections(results: list[dict[str, Any]]) -> list[str]:
-    """One collapsible benchmark-by-compiler table per metric; runtime gas starts open."""
+    """A collapsed section holding one collapsed benchmark-by-compiler table per metric."""
     compilers = matrix_compilers(results)
     lines = []
     for metric, title in MATRIX_METRICS.items() if compilers else ():
@@ -1527,7 +1527,7 @@ def matrix_sections(results: list[dict[str, Any]]) -> list[str]:
         lines.extend(
             [
                 "",
-                "<details open>" if metric == "total_gas" else "<details>",
+                "<details>",
                 f"<summary>{title}</summary>",
                 "",
                 "| bench | solar | " + " | ".join(compilers) + " |",
@@ -1541,10 +1541,12 @@ def matrix_sections(results: list[dict[str, Any]]) -> list[str]:
     if lines:
         lines[:0] = [
             "",
-            "### Compilers vs `solar`",
+            "<details>",
+            "<summary>Compilers vs <code>solar</code></summary>",
             "",
             "Each cell is the value and its difference from `solar`; ✅ where `solar` is ahead.",
         ]
+        lines.extend(["", "</details>"])
     return lines
 
 
@@ -1912,7 +1914,6 @@ def pr_comment(
                     *changed,
                 ]
             )
-    lines.extend(matrix_sections(results or []))
     if any(row["issues"] for row in comparison["rows"]):
         lines.extend(
             [
@@ -1924,6 +1925,7 @@ def pr_comment(
         lines.extend(
             ["", f"> ⚠️ This branch is behind `{base_ref}`; results may be stale."]
         )
+    lines.extend(matrix_sections(results or []))
     button = "![View benchmark overview](https://img.shields.io/badge/View_benchmark_overview-2563eb?style=for-the-badge)"
     link = perf_link(button)
     if link == button:

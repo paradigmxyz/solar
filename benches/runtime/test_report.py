@@ -357,7 +357,7 @@ class ReportFormattingTests(unittest.TestCase):
             report,
         )
 
-    def test_pr_comment_has_a_switchable_table_per_metric(self):
+    def test_pr_comment_collapses_the_compiler_matrix_after_the_base_comparison(self):
         def compilers(**gas):
             return {
                 name: {
@@ -391,8 +391,17 @@ class ReportFormattingTests(unittest.TestCase):
 
         comment = benchmark.pr_comment(comparison, True, False, "main", results)
 
+        self.assertNotIn("<details open>", comment)
+        self.assertLess(
+            comment.index("### Overview"),
+            comment.index("<summary>Compilers vs <code>solar</code></summary>"),
+        )
+        self.assertLess(
+            comment.index("Some benchmarks have incomplete"),
+            comment.index("<summary>Compilers vs <code>solar</code></summary>"),
+        )
         self.assertIn(
-            "<details open>\n<summary>runtime gas</summary>\n\n"
+            "<details>\n<summary>runtime gas</summary>\n\n"
             "| bench | solar | solar-size | solc | solc-legacy |\n"
             "| --- | ---: | ---: | ---: | ---: |\n",
             comment,
