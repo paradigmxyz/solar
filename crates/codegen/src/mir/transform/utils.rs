@@ -1,12 +1,9 @@
 //! Shared utilities for MIR transforms.
 
 use crate::mir::{
-    BlockId, Function, FunctionBuilder, InstId, InstKind, Terminator, memory::EvmMemoryLayout,
-    utils::replace_terminator,
-};
-use crate::mir::{
     BlockId, Function, FunctionBuilder, InstId, InstKind, Terminator, ValueId,
-    memory::EvmMemoryLayout, utils::IndexLists,
+    memory::EvmMemoryLayout,
+    utils::{IndexLists, replace_terminator},
 };
 use solar_sema::hir::StateMutability;
 
