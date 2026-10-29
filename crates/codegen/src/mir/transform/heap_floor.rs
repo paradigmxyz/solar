@@ -110,6 +110,7 @@
 //! clean calls pay for it; a copy of the helper for the dirty calls would remove that cost, but it
 //! adds code size that the target cost model does not price. See CODEGEN-010.
 
+use super::utils::{User, value_users};
 use crate::mir::{
     AbiType, ArgIdx, BlockId, Callee, CheckedOp, EffectKind, Function, FunctionId, Immediate,
     InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion, MirType, Module, PtrLocation,
@@ -524,20 +525,6 @@ fn lowered_reads_pointer(kind: &InstKind) -> bool {
         )
 }
 
-/// The instructions and terminators that read each value of a function.
-fn value_users(func: &Function) -> IndexLists<ValueId, User> {
-    let mut pairs = Vec::new();
-    for (block, data) in func.blocks.iter_enumerated() {
-        for &inst in &data.instructions {
-            func.inst(inst).visit_operands(|operand| pairs.push((operand, User::Inst(inst))));
-        }
-        if let Some(terminator) = &data.terminator {
-            terminator.visit_operands(|operand| pairs.push((operand, User::Terminator(block))));
-        }
-    }
-    IndexLists::new(func.num_values(), pairs.iter().copied())
-}
-
 /// Returns the results of `calls`, with their functions.
 fn call_results<'a>(
     module: &'a Module,
@@ -949,13 +936,6 @@ enum UseSite {
     Args(InstId, SmallVec<[usize; 2]>),
     /// The arguments at these positions of a tail call, or every operand of another terminator.
     Terminator(BlockId, Option<SmallVec<[usize; 2]>>),
-}
-
-/// A reader of a value: an instruction, or a block's terminator.
-#[derive(Clone, Copy)]
-enum User {
-    Inst(InstId),
-    Terminator(BlockId),
 }
 
 impl UseSite {

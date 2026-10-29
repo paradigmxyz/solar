@@ -1,7 +1,8 @@
 //! Shared utilities for MIR transforms.
 
 use crate::mir::{
-    BlockId, Function, FunctionBuilder, InstId, InstKind, Terminator, memory::EvmMemoryLayout,
+    BlockId, Function, FunctionBuilder, InstId, InstKind, Terminator, ValueId,
+    memory::EvmMemoryLayout, utils::IndexLists,
 };
 use solar_sema::hir::StateMutability;
 
@@ -130,4 +131,25 @@ pub(super) fn expand_block(
     if end != block {
         redirect_successor_predecessors(builder.func_mut(), block, end);
     }
+}
+
+/// A reader of a value: an instruction, or a block's terminator.
+#[derive(Clone, Copy)]
+pub(super) enum User {
+    Inst(InstId),
+    Terminator(BlockId),
+}
+
+/// The instructions and terminators that read each value of a function.
+pub(super) fn value_users(func: &Function) -> IndexLists<ValueId, User> {
+    let mut pairs = Vec::new();
+    for (block, data) in func.blocks.iter_enumerated() {
+        for &inst in &data.instructions {
+            func.inst(inst).visit_operands(|operand| pairs.push((operand, User::Inst(inst))));
+        }
+        if let Some(terminator) = &data.terminator {
+            terminator.visit_operands(|operand| pairs.push((operand, User::Terminator(block))));
+        }
+    }
+    IndexLists::new(func.num_values(), pairs.iter().copied())
 }

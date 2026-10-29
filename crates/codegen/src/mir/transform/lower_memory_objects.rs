@@ -19,13 +19,14 @@
 //! Unsupported layouts and address spaces retain their operations for the
 //! subsequent phase checks.
 
+use super::utils::expand_block;
 use crate::mir::{
     AllocationSemantics, Function, FunctionBuilder, Immediate, InstId, InstKind, MirType, Module,
     PtrLocation, Value,
     pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
 };
 use alloy_primitives::U256;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_sema::Gcx;
 
 /// Lowers semantic object layouts under the selected physical memory policy.
@@ -70,44 +71,21 @@ fn lower_function(func: &mut Function) -> bool {
     // unreachable definitions -> removed blocks and phi inputs
     let _ = super::cfg_simplify::remove_unreachable_blocks(func);
     for block in func.blocks.indices() {
-        let instructions = std::mem::take(&mut func.blocks[block].instructions);
         let mut builder = FunctionBuilder::new(func);
-        builder.switch_to_block(block);
-        for inst in instructions {
-            match builder.func().inst(inst).kind {
-                InstKind::PtrAdd(ptr, offset) => {
-                    // address = add (ptrtoint ptr), offset
-                    // result = inttoptr address
-                    let base = builder.cast(ptr, MirType::I256);
-                    let address = builder.add(base, offset);
-                    if let Value::Inst(add) = *builder.func().value(address) {
-                        builder.func_mut().inst_mut(add).metadata.set_checked_object_offset();
-                    }
-                    builder.func_mut().inst_mut(inst).kind = InstKind::IntToPtr(address);
-                }
-                ref kind
-                    if kind.evm_opcode().is_some()
-                        && !kind.scalar_types_match(
-                            builder.func(),
-                            builder.func().inst(inst).result_ty,
-                        ) =>
-                {
-                    // scalar_operand = zext scalar_operand to i256
-                    let mut kind = kind.clone();
-                    kind.visit_operands_mut(|value| {
-                        if matches!(
-                            builder.func().value_ty(*value),
-                            Some(MirType::Int(bits)) if bits.get() < 256
-                        ) {
-                            *value = builder.cast_word(*value);
-                        }
-                    });
-                    builder.func_mut().inst_mut(inst).kind = kind;
-                }
-                _ => {}
+        expand_block(&mut builder, block, |builder, inst| {
+            let InstKind::PtrAdd(ptr, offset) = builder.func().inst(inst).kind else {
+                return false;
+            };
+            // address = add (ptrtoint ptr), offset
+            // result = inttoptr address
+            let base = builder.cast(ptr, MirType::I256);
+            let address = builder.add(base, offset);
+            if let Value::Inst(add) = *builder.func().value(address) {
+                builder.func_mut().inst_mut(add).metadata.set_checked_object_offset();
             }
-            builder.func_mut().blocks[block].instructions.push(inst);
-        }
+            builder.func_mut().inst_mut(inst).kind = InstKind::IntToPtr(address);
+            false
+        });
     }
 
     fold_word_casts(func);
@@ -181,8 +159,12 @@ fn remove_unused_pointer_casts(func: &mut Function) {
 /// allocation per argument; one bump for the whole group keeps the same
 /// disjoint ranges while removing repeated free-memory-pointer updates.
 fn coalesce_constant_allocations(func: &mut Function) {
+    // The member each address belongs to, and whether it is an integer cast of the member, which
+    // only addresses its header word.
+    let mut owners = FxHashMap::default();
+    let mut allocations = Vec::new();
     for block in func.blocks.indices() {
-        let instructions = func.blocks[block].instructions.clone();
+        let instructions = std::mem::take(&mut func.blocks[block].instructions);
         let mut position = 0;
         while position < instructions.len() {
             let inst_id = instructions[position];
@@ -191,12 +173,10 @@ fn coalesce_constant_allocations(func: &mut Function) {
                 continue;
             };
 
-            let mut allocations = Vec::new();
+            allocations.clear();
             allocations.push((inst_id, first, false));
-            // The member each address belongs to, and whether it is an integer cast of the
-            // member, which only addresses its header word.
-            let mut owners = IndexVec::from_vec(vec![None; func.num_values()]);
-            owners[first.result] = Some((0, false));
+            owners.clear();
+            owners.insert(first.result, (0, false));
             let mut scan = position + 1;
             while scan < instructions.len() {
                 let next_id = instructions[scan];
@@ -206,17 +186,18 @@ fn coalesce_constant_allocations(func: &mut Function) {
                     }
                     let index = allocations.len();
                     allocations.push((next_id, allocation, false));
-                    owners[allocation.result] = Some((index, false));
+                    owners.insert(allocation.result, (index, false));
                     scan += 1;
                     continue;
                 }
 
-                let member =
-                    |value: crate::mir::ValueId| owners[value].filter(|&(_, header)| !header);
+                let member = |value: crate::mir::ValueId| {
+                    owners.get(&value).copied().filter(|&(_, header)| !header)
+                };
                 let derived = match func.inst(next_id).kind {
                     InstKind::Store(address, .., PtrLocation::Memory)
                     | InstKind::Store8(address, ..) => {
-                        let Some((owner, _)) = owners[address] else { break };
+                        let Some(&(owner, _)) = owners.get(&address) else { break };
                         allocations[owner].2 = true;
                         scan += 1;
                         continue;
@@ -230,7 +211,7 @@ fn coalesce_constant_allocations(func: &mut Function) {
                 else {
                     break;
                 };
-                owners[result] = Some(derived);
+                owners.insert(result, derived);
                 scan += 1;
             }
 
@@ -273,6 +254,7 @@ fn coalesce_constant_allocations(func: &mut Function) {
             }
             position = scan;
         }
+        func.blocks[block].instructions = instructions;
     }
 }
 
@@ -301,41 +283,41 @@ fn constant_allocation(func: &Function, inst_id: crate::mir::InstId) -> Option<C
 /// word operands, and a word result cast back to the pointer it stands for.
 pub(super) fn normalize_pointer_operands(func: &mut Function) {
     for block in func.blocks.indices() {
-        let instructions = std::mem::take(&mut func.blocks[block].instructions);
         let mut builder = FunctionBuilder::new(func);
-        builder.switch_to_block(block);
-        for id in instructions {
-            let inst = builder.func().inst(id).clone();
+        expand_block(&mut builder, block, |builder, id| {
+            let inst = builder.func().inst(id);
             // Late word passes match addresses as integer arithmetic, so a pointer address becomes
             // its word here too; `lower-evm-shaped` erases the remaining casts.
             let mut pointer_operand = false;
             inst.kind.visit_operands(|value| {
                 pointer_operand |= builder.func().value_ty(value).is_some_and(MirType::is_pointer);
             });
-            if inst.kind.evm_opcode().is_some()
-                && (pointer_operand
-                    || !inst.kind.scalar_types_match(builder.func(), inst.result_ty))
+            if inst.kind.evm_opcode().is_none()
+                || (!pointer_operand
+                    && inst.kind.scalar_types_match(builder.func(), inst.result_ty))
             {
-                builder.set_debug_context(&inst.metadata);
-                let mut kind = inst.kind;
-                // integer_operand = ptrtoint pointer_operand to i256
-                kind.visit_operands_mut(|value| *value = builder.cast(*value, MirType::I256));
-                if inst.result_ty.is_some_and(MirType::is_pointer) {
-                    // integer_result = opcode integer_operands
-                    // pointer_result = inttoptr integer_result to ptr<memory>
-                    let value = builder.emit_inst(kind, Some(MirType::I256));
-                    if let Value::Inst(emitted) = *builder.func().value(value) {
-                        builder.func_mut().inst_mut(emitted).metadata = inst.metadata.clone();
-                    }
-                    let instruction = builder.func_mut().inst_mut(id);
-                    instruction.kind = InstKind::IntToPtr(value);
-                    instruction.metadata.set_effect(None);
-                    instruction.metadata.set_memory_region(None);
-                } else {
-                    builder.func_mut().inst_mut(id).kind = kind;
-                }
+                return false;
             }
-            builder.func_mut().blocks[block].instructions.push(id);
-        }
+            let inst = inst.clone();
+            builder.set_debug_context(&inst.metadata);
+            let mut kind = inst.kind;
+            // integer_operand = ptrtoint pointer_operand to i256
+            kind.visit_operands_mut(|value| *value = builder.cast(*value, MirType::I256));
+            if inst.result_ty.is_some_and(MirType::is_pointer) {
+                // integer_result = opcode integer_operands
+                // pointer_result = inttoptr integer_result to ptr<memory>
+                let value = builder.emit_inst(kind, Some(MirType::I256));
+                if let Value::Inst(emitted) = *builder.func().value(value) {
+                    builder.func_mut().inst_mut(emitted).metadata = inst.metadata;
+                }
+                let instruction = builder.func_mut().inst_mut(id);
+                instruction.kind = InstKind::IntToPtr(value);
+                instruction.metadata.set_effect(None);
+                instruction.metadata.set_memory_region(None);
+            } else {
+                builder.func_mut().inst_mut(id).kind = kind;
+            }
+            false
+        });
     }
 }

@@ -338,12 +338,12 @@ fn plan(func: &Function, l: &Loop) -> Option<Plan> {
     // Values computed in the body die with the loop, so nothing after it may read them.
     for &inst in &lp.insts {
         if let Some(value) = func.inst_result_value(inst)
-            && escapes(func, l, value)
+            && l.escapes(func, value)
         {
             return None;
         }
     }
-    if escapes(func, l, lp.test) {
+    if l.escapes(func, lp.test) {
         return None;
     }
     let keeps_loop = matches!(shape, Shape::Copy { overlap: Overlap::Guarded, .. })
@@ -442,7 +442,7 @@ fn counted(func: &Function, l: &Loop) -> Option<Counted> {
         }
         limit
     };
-    if !defined_outside(func, l, bound) {
+    if l.defines(func, bound) {
         return None;
     }
     let insts: Vec<_> =
@@ -539,7 +539,7 @@ fn index(
     if !wrapping {
         insts.push(inst);
     }
-    defined_outside(func, l, offset).then_some((Some(offset), wrapping, insts))
+    (!l.defines(func, offset)).then_some((Some(offset), wrapping, insts))
 }
 
 /// Matches the memory byte address `object + idx + 32` in either association. Returns the
@@ -622,7 +622,7 @@ fn bounds_check(
 /// length an allocation stored, or a load of the length word that the loop passes hoisted,
 /// possibly behind trivial loop phis; for a calldata slice, its length field.
 fn outside_length(func: &Function, l: &Loop, buffer: Buffer, len: ValueId) -> bool {
-    if !defined_outside(func, l, len) {
+    if l.defines(func, len) {
         return false;
     }
     match buffer {
@@ -732,7 +732,7 @@ fn checked_access(
     used: &mut Vec<InstId>,
 ) -> Option<Access> {
     let (Buffer::Memory(object) | Buffer::Calldata(object)) = buffer;
-    if !defined_outside(func, l, object) {
+    if l.defines(func, object) {
         return None;
     }
     let (offset, wrapping, index_insts) = index(func, l, lp, idx)?;
@@ -836,16 +836,16 @@ fn scatter(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
     // every index.
     let stored = match body_def(func, lp, byte) {
         Some((_, &InstKind::Byte(position, value)))
-            if position == lp.counter && defined_outside(func, l, value) =>
+            if position == lp.counter && !l.defines(func, value) =>
         {
             Scattered::Word(value)
         }
         Some((_, &InstKind::Byte(position, value)))
-            if defined_outside(func, l, position) && defined_outside(func, l, value) =>
+            if !l.defines(func, position) && !l.defines(func, value) =>
         {
             Scattered::Fill(Some(position), value)
         }
-        None if defined_outside(func, l, byte) => Scattered::Fill(None, byte),
+        None if !l.defines(func, byte) => Scattered::Fill(None, byte),
         _ => return None,
     };
     let (object, idx) = memory_address(func, lp, ptr)?;
@@ -907,7 +907,7 @@ fn copy(func: &Function, aa: &AliasAnalysis, l: &Loop, lp: &Counted) -> Option<S
     let mut used = vec![lp.step, store];
     used.extend_from_slice(&read);
     let (dst, dst_idx) = memory_address(func, lp, dst_ptr)?;
-    if !defined_outside(func, l, dst) {
+    if l.defines(func, dst) {
         return None;
     }
     let steps = used.len();
@@ -1060,7 +1060,7 @@ fn word_copy(func: &Function, aa: &AliasAnalysis, l: &Loop, lp: &Counted) -> Opt
     };
     src.shift = 5;
     let (dst, dst_idx) = word_address(func, lp, dst_ptr)?;
-    if !defined_outside(func, l, dst) {
+    if l.defines(func, dst) {
         return None;
     }
     let (dst, dst_checked) = destination(func, l, lp, dst, dst_idx, 5, &mut used)?;
@@ -2142,11 +2142,6 @@ fn replace_after_loop(
     }
 }
 
-fn defined_outside(func: &Function, l: &Loop, value: ValueId) -> bool {
-    let Value::Inst(inst) = *func.value(value) else { return true };
-    !l.blocks.iter().any(|block| func.blocks[block].instructions.contains(&inst))
-}
-
 /// Renames the entry edge `from` of the loop `header` to `to` in its phis, for a `to` that
 /// enters the loop in place of `from`.
 fn enter_from(func: &mut Function, header: BlockId, from: BlockId, to: BlockId) {
@@ -2160,22 +2155,6 @@ fn enter_from(func: &mut Function, header: BlockId, from: BlockId, to: BlockId) 
             }
         }
     }
-}
-
-fn escapes(func: &Function, l: &Loop, value: ValueId) -> bool {
-    func.blocks.iter_enumerated().any(|(block, contents)| {
-        if l.blocks.contains(block) {
-            return false;
-        }
-        let mut found = false;
-        for &inst in &contents.instructions {
-            func.inst(inst).kind.visit_operands(|operand| found |= operand == value);
-        }
-        if let Some(term) = &contents.terminator {
-            term.visit_operands(|operand| found |= operand == value);
-        }
-        found
-    })
 }
 
 /// Tests whether a memory access's offset moves its effective address below its object's data

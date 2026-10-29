@@ -743,6 +743,24 @@ pub(crate) struct FunctionAnalyses {
 }
 
 impl FunctionAnalyses {
+    fn new(
+        function: FunctionId,
+        alias: Option<Rc<AliasAnalysis>>,
+        cfg: Option<Rc<CfgInfo>>,
+        (creation_only, straight_line_creation): (bool, bool),
+        optimization: OptimizationMode,
+    ) -> Self {
+        Self {
+            function,
+            alias,
+            cfg,
+            unreported_edit: Cell::new(false),
+            creation_only,
+            straight_line_creation,
+            optimization,
+        }
+    }
+
     /// Returns the id of the function the running transform edits.
     pub(crate) fn function(&self) -> FunctionId {
         self.function
@@ -914,22 +932,16 @@ impl ModuleAnalyses {
         module: &Module,
         requirements: FunctionAnalysisRequirements,
     ) -> FunctionAnalyses {
-        let (creation_only, straight_line_creation) = self.creation_pricing(func_id, module);
-        FunctionAnalyses {
-            function: func_id,
-            alias: requirements.alias().then(|| {
-                if let Some(alias) = self.alias.get(&func_id) {
-                    return Rc::clone(alias);
-                }
-                let summaries = self.call_summaries(module);
-                self.alias_with_summaries(func_id, summaries)
-            }),
-            cfg: requirements.cfg().then(|| self.cfg(func_id, &module.functions[func_id])),
-            unreported_edit: Cell::new(false),
-            creation_only,
-            straight_line_creation,
-            optimization: module.objective(func_id),
-        }
+        let pricing = self.creation_pricing(func_id, module);
+        let alias = requirements.alias().then(|| {
+            if let Some(alias) = self.alias.get(&func_id) {
+                return Rc::clone(alias);
+            }
+            let summaries = self.call_summaries(module);
+            self.alias_with_summaries(func_id, summaries)
+        });
+        let cfg = requirements.cfg().then(|| self.cfg(func_id, &module.functions[func_id]));
+        FunctionAnalyses::new(func_id, alias, cfg, pricing, module.objective(func_id))
     }
 
     /// Returns whether a function is creation-only and whether, besides, it has no loop, when
@@ -1007,13 +1019,19 @@ impl ModuleAnalyses {
         }
     }
 
-    fn function_cached(&mut self, key: TypeId, func_id: FunctionId, functions: usize) -> bool {
+    /// Returns the bodies on which the pass `key` last reported no change, emptied when the
+    /// module's function count changed.
+    fn no_change(&mut self, key: TypeId, functions: usize) -> &mut DenseBitSet<FunctionId> {
         let cached =
             self.local_no_change.entry(key).or_insert_with(|| DenseBitSet::new_empty(functions));
         if cached.domain_size() != functions {
-            *cached = DenseBitSet::new_empty(functions);
+            cached.clear_to(functions);
         }
-        cached.contains(func_id)
+        cached
+    }
+
+    fn function_cached(&mut self, key: TypeId, func_id: FunctionId, functions: usize) -> bool {
+        self.no_change(key, functions).contains(func_id)
     }
 
     fn record_function_result(
@@ -1031,14 +1049,7 @@ impl ModuleAnalyses {
                 }
             }
         } else if let Some(key) = cache_key {
-            let cached = self
-                .local_no_change
-                .entry(key)
-                .or_insert_with(|| DenseBitSet::new_empty(functions));
-            if cached.domain_size() != functions {
-                *cached = DenseBitSet::new_empty(functions);
-            }
-            cached.insert(func_id);
+            self.no_change(key, functions).insert(func_id);
         }
     }
 
@@ -1202,19 +1213,15 @@ fn run_parallel_function_pass(
             (id, func, alias, cfg, pricing[id], objective)
         })
         .collect::<Vec<_>>();
-    let results = sync::par_try_map(
-        true,
-        tasks,
-        |(id, func, alias, cfg, (creation_only, straight_line_creation), optimization)| {
-            let bundle = FunctionAnalyses {
-                function: id,
-                alias: alias.map(Rc::new),
-                cfg: cfg.map(Rc::new),
-                unreported_edit: Cell::new(false),
-                creation_only,
-                straight_line_creation,
+    let results =
+        sync::par_try_map(true, tasks, |(id, func, alias, cfg, pricing, optimization)| {
+            let bundle = FunctionAnalyses::new(
+                id,
+                alias.map(Rc::new),
+                cfg.map(Rc::new),
+                pricing,
                 optimization,
-            };
+            );
             let insts_before = func.num_insts();
             let changed = run(func, &bundle);
             let (keep_alias, keep_cfg) = match &bundle.cfg {
@@ -1238,9 +1245,8 @@ fn run_parallel_function_pass(
                     alias,
                 },
             ))
-        },
-    )
-    .unwrap_or_else(|never| match never {});
+        })
+        .unwrap_or_else(|never| match never {});
     for (id, outcome) in results {
         if outcome.unreported_edit {
             analyses.local_summaries.invalidate(id);
