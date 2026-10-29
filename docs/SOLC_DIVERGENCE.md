@@ -936,7 +936,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/lowering/run-call/folded_operand_spills.sol`,
   `tests/ui/codegen/lowering/run-call/folded_tail_call_spills.sol`,
   `tests/ui/codegen/lowering/run-call/spill_write_provenance.sol`,
-  `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
+  `tests/ui/codegen/mir/heap-floor/checked_counter_offset.mir`,
+  `tests/ui/codegen/mir/heap-floor/heap_floor.mir`,
+  `tests/ui/codegen/mir/heap-floor/raised_by_callee.mir`, and Seaport's own suite in
   `cargo tq foundry-external seaport`, whose runner keeps
   `PreAndPostFulfillmentCheckTest::testBasicStateful(uint8,uint8)` at 38
   additional recipients or fewer; 39 already fail.
