@@ -13,9 +13,6 @@
 //! runs in size mode, where it shrank runtime code across the benchmark corpus with one contract
 //! growing by one byte.
 //!
-//! Non-expanding edits compact instructions in place; edits that add stack operations use a
-//! reusable scratch buffer.
-//!
 //! This is a post-scheduling cleanup. It removes duplicated stack values within one block, then
 //! removes a trailing stack computation before a halting terminal, including across an
 //! unconditional edge to a block that never reads its incoming stack. The computation may use pure
@@ -129,21 +126,11 @@ fn is_discardable_tail_instruction(inst: &Instruction) -> bool {
 }
 
 /// Removes stack copies that are eventually discarded without being consumed.
-///
-/// The pass symbolically executes each straight-line candidate while omitting
-/// one occurrence introduced by a `DUPn`. Physical stack operations are
-/// retargeted to the compressed stack, including rotations when a `SWAPn`
-/// moves the omitted occurrence. Ordinary instructions remain safe as long as
-/// they do not consume it. A rewrite is applied only when the omitted
-/// occurrence reaches a `POP` and the resulting sequence improves either gas
-/// or size without regressing the other.
 fn eliminate_dead_stack_copies(module: &mut Module, evm_version: EvmVersion) -> bool {
     let mut changed = false;
     let mut edits = Vec::new();
-    let mut scratch = Vec::new();
     for block in &mut module.blocks {
-        changed |=
-            eliminate_in_block(&mut block.instructions, &mut edits, &mut scratch, evm_version) != 0;
+        changed |= eliminate_in_block(&mut block.instructions, &mut edits, evm_version);
     }
     changed
 }
@@ -151,10 +138,9 @@ fn eliminate_dead_stack_copies(module: &mut Module, evm_version: EvmVersion) -> 
 fn eliminate_in_block(
     instructions: &mut Vec<Instruction>,
     edits: &mut Vec<Edit>,
-    scratch: &mut Vec<Instruction>,
     evm_version: EvmVersion,
-) -> usize {
-    let mut rewrites = 0;
+) -> bool {
+    let mut changed = false;
     loop {
         edits.clear();
         // A candidate ends at a `POP`, so no candidate starts at or after the last one, and
@@ -162,7 +148,7 @@ fn eliminate_in_block(
         let Some(last_pop) =
             instructions.iter().rposition(|inst| inst.as_stack_op() == Some(StackOp::Pop))
         else {
-            return rewrites;
+            return changed;
         };
         let walked = &instructions[..=last_pop];
         let mut start = 0;
@@ -176,7 +162,6 @@ fn eliminate_in_block(
                 continue;
             }
 
-            let depth = usize::from(depth);
             let candidate = if depth == 1 {
                 better_candidate(
                     find_candidate(walked, start, depth, Ghost::Original, evm_version),
@@ -192,13 +177,13 @@ fn eliminate_in_block(
 
             start = candidate.end;
             edits.extend(candidate.edits);
-            rewrites += 1;
         }
         if edits.is_empty() {
-            return rewrites;
+            return changed;
         }
 
-        apply_edits(instructions, edits, scratch);
+        changed = true;
+        apply_edits(instructions, edits);
     }
 }
 
@@ -228,19 +213,16 @@ impl Slot {
 struct Candidate {
     end: usize,
     edits: SmallVec<[Edit; 4]>,
-    old_cost: Cost,
-    new_cost: Cost,
+    /// Static gas and bytes the edits save, negative when they cost more.
+    gas_saved: isize,
+    size_saved: isize,
 }
 
 impl Candidate {
-    fn new(start: usize, stack_op: StackOp, evm_version: EvmVersion) -> Self {
-        let mut candidate = Self {
-            end: start + 1,
-            edits: SmallVec::new(),
-            old_cost: Cost::default(),
-            new_cost: Cost::default(),
-        };
-        candidate.replace(start, stack_op, Replacement::new(), evm_version);
+    fn new(start: usize, depth: u8, evm_version: EvmVersion) -> Self {
+        let mut candidate =
+            Self { end: start + 1, edits: SmallVec::new(), gas_saved: 0, size_saved: 0 };
+        candidate.replace(start, StackOp::Dup(depth), Replacement::new(), evm_version);
         candidate
     }
 
@@ -254,45 +236,24 @@ impl Candidate {
         if replacement.as_slice() == [old] {
             return;
         }
-        self.old_cost += Cost::of_stack_op(old, evm_version);
+        let cost = |stack_op: StackOp| {
+            let metrics = stack_op.metrics(evm_version).unwrap();
+            (metrics.static_gas as isize, metrics.assembled_len as isize)
+        };
+        let (gas, size) = cost(old);
+        self.gas_saved += gas;
+        self.size_saved += size;
         for &stack_op in &replacement {
-            self.new_cost += Cost::of_stack_op(stack_op, evm_version);
+            let (gas, size) = cost(stack_op);
+            self.gas_saved -= gas;
+            self.size_saved -= size;
         }
         self.edits.push(Edit { index, replacement });
     }
 
+    /// A rewrite must improve bytes or static gas without making the other worse.
     fn is_profitable(&self) -> bool {
-        self.new_cost.size <= self.old_cost.size
-            && self.new_cost.gas <= self.old_cost.gas
-            && self.new_cost != self.old_cost
-    }
-
-    fn gas_savings(&self) -> usize {
-        self.old_cost.gas - self.new_cost.gas
-    }
-
-    fn size_savings(&self) -> usize {
-        self.old_cost.size - self.new_cost.size
-    }
-}
-
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
-struct Cost {
-    size: usize,
-    gas: usize,
-}
-
-impl Cost {
-    fn of_stack_op(stack_op: StackOp, evm_version: EvmVersion) -> Self {
-        let metrics = stack_op.metrics(evm_version).unwrap();
-        Self { size: metrics.assembled_len, gas: metrics.static_gas }
-    }
-}
-
-impl std::ops::AddAssign for Cost {
-    fn add_assign(&mut self, rhs: Self) {
-        self.size += rhs.size;
-        self.gas += rhs.gas;
+        self.gas_saved >= 0 && self.size_saved >= 0 && self.gas_saved + self.size_saved > 0
     }
 }
 
@@ -307,20 +268,19 @@ struct Edit {
 fn find_candidate(
     instructions: &[Instruction],
     start: usize,
-    duplicate_depth: usize,
+    duplicate_depth: u8,
     ghost: Ghost,
     evm_version: EvmVersion,
 ) -> Option<Candidate> {
     let max_stack_access = evm_version.reachable_stack_depth();
-    let mut slots = Slots::from_elem(Slot::OTHER, duplicate_depth);
+    let mut slots = Slots::from_elem(Slot::OTHER, usize::from(duplicate_depth));
     slots[0] = Slot::COPY;
     slots.push(Slot::GHOST);
     if matches!(ghost, Ghost::Original) {
         slots.swap(0, 1);
     }
 
-    let start_op = instructions[start].as_stack_op()?;
-    let mut candidate = Candidate::new(start, start_op, evm_version);
+    let mut candidate = Candidate::new(start, duplicate_depth, evm_version);
 
     let mut index = start + 1;
     while let Some(inst) = instructions.get(index) {
@@ -419,93 +379,49 @@ fn retarget_swap(
     let top = slots.len() - 1;
     let selected = slots.len() - stack_depth;
 
-    let selected_is_ghost = slots[selected].is_ghost;
-    let top_is_ghost = slots[top].is_ghost;
-    if !selected_is_ghost && !top_is_ghost {
-        let depth = physical_depth(slots, selected);
-        if !(2..=max_stack_access + 1).contains(&depth) {
-            return None;
-        }
-        push_simplified_stack_op(replacement, StackOp::Swap(u8::try_from(depth - 1).unwrap()));
-    } else {
-        let live = slots[selected..=top].iter().filter(|slot| !slot.is_ghost).count();
+    let live = physical_depth(slots, selected);
+    if slots[selected].is_ghost || slots[top].is_ghost {
         if live > max_stack_access {
             return None;
         }
-        if selected_is_ghost {
-            for depth in (1..live).rev() {
-                push_simplified_stack_op(replacement, StackOp::Swap(u8::try_from(depth).unwrap()));
-            }
-        } else {
-            for depth in 1..live {
-                push_simplified_stack_op(replacement, StackOp::Swap(u8::try_from(depth).unwrap()));
-            }
+        for step in 1..live {
+            push_swap(replacement, if slots[selected].is_ghost { live - step } else { step });
         }
+    } else {
+        if !(2..=max_stack_access + 1).contains(&live) {
+            return None;
+        }
+        push_swap(replacement, live - 1);
     }
     slots.swap(selected, top);
     Some(())
 }
 
-fn push_simplified_stack_op(ops: &mut Replacement, stack_op: StackOp) {
-    if ops.last() == Some(&stack_op) && matches!(stack_op, StackOp::Swap(_)) {
+/// Appends `swapN`, cancelling an identical swap before it.
+fn push_swap(ops: &mut Replacement, depth: usize) {
+    let swap = StackOp::Swap(u8::try_from(depth).unwrap());
+    if ops.last() == Some(&swap) {
         ops.pop();
-        return;
+    } else {
+        ops.push(swap);
     }
-    ops.push(stack_op);
 }
 
 fn better_candidate(left: Option<Candidate>, right: Option<Candidate>) -> Option<Candidate> {
-    match (left, right) {
-        (Some(left), Some(right)) => {
-            let left_score = (left.gas_savings(), left.size_savings());
-            let right_score = (right.gas_savings(), right.size_savings());
-            Some(if right_score > left_score { right } else { left })
-        }
-        (candidate @ Some(_), None) | (None, candidate @ Some(_)) => candidate,
-        (None, None) => None,
-    }
+    let score = |candidate: &Candidate| (candidate.gas_saved, candidate.size_saved);
+    [left, right]
+        .into_iter()
+        .flatten()
+        .reduce(|left, right| if score(&right) > score(&left) { right } else { left })
 }
 
-fn apply_edits(
-    instructions: &mut Vec<Instruction>,
-    edits: &[Edit],
-    scratch: &mut Vec<Instruction>,
-) {
-    if edits.iter().all(|edit| edit.replacement.len() <= 1) {
-        let mut edits = edits.iter().peekable();
-        let mut index = 0;
-        // dupN; ...; pop -> ...
-        // stack_op -> replacement_op
-        instructions.retain_mut(|inst| {
-            let at = index;
-            index += 1;
-            if edits.peek().is_some_and(|edit| edit.index == at) {
-                let edit = edits.next().unwrap();
-                if let Some(&stack_op) = edit.replacement.first() {
-                    let mut replacement = Instruction::stack_op(stack_op);
-                    replacement.metadata.copy_source_debug_from(&inst.metadata);
-                    *inst = replacement;
-                    true
-                } else {
-                    false
-                }
-            } else {
-                true
-            }
-        });
-        return;
-    }
-    scratch.clear();
-    std::mem::swap(instructions, scratch);
-    let new_len = scratch.len() + edits.iter().map(|edit| edit.replacement.len()).sum::<usize>()
-        - edits.len();
-    instructions.reserve(new_len);
-
+fn apply_edits(instructions: &mut Vec<Instruction>, edits: &[Edit]) {
+    let old = std::mem::take(instructions);
+    instructions.reserve(old.len());
     let mut edits = edits.iter().peekable();
-    for (index, inst) in scratch.drain(..).enumerate() {
-        if edits.peek().is_some_and(|edit| edit.index == index) {
-            let edit = edits.next().unwrap();
-            instructions.extend(edit.replacement.iter().copied().map(|stack_op| {
+    for (index, inst) in old.into_iter().enumerate() {
+        if let Some(edit) = edits.next_if(|edit| edit.index == index) {
+            instructions.extend(edit.replacement.iter().map(|&stack_op| {
                 let mut replacement = Instruction::stack_op(stack_op);
                 replacement.metadata.copy_source_debug_from(&inst.metadata);
                 replacement
