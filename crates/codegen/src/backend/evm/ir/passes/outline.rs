@@ -14,12 +14,12 @@
 //! or gas observations. Profitability includes the shared body,
 //! per-site call sequence, continuation labels, and target-dependent push widths. Constant
 //! recipes charge call/return gas against deposited bytes using the requested optimizer run count
-//! in gas mode. Gas mode never outlines a site inside a loop: static duplicate counts cannot
-//! justify adding two jumps to every dynamic iteration. Sites are selected without overlap, and
-//! new blocks and labels are installed through the normal EVM IR CFG representation.
+//! in gas mode. Sites are selected without overlap, and new blocks and labels are installed
+//! through the normal EVM IR CFG representation.
 //!
-//! Gas mode keeps computations and immediate pushes in known loop blocks inline,
-//! since each outlined site adds call and return jumps on every iteration. Size mode shares a
+//! Gas mode keeps computations and immediate pushes in known loop blocks inline, since each
+//! outlined site adds call and return jumps on every iteration and static duplicate counts cannot
+//! justify that. Size mode shares a
 //! push inside a loop only when the bytes it saves there repay those jumps over the expected
 //! executions, at the target's estimate of a loop's iterations per execution, so a constant that
 //! enough other code repeats does not slow down every iteration of an unrelated loop.
@@ -48,9 +48,10 @@ use super::{
 };
 use crate::{
     backend::evm::{
+        DebugFunction,
         ir::{
-            Block, BlockId, CallEffect, Instruction, Module, ModuleTarget, PushValue, StackEffect,
-            Terminator, TerminatorKind,
+            Block, BlockId, CallEffect, Instruction, Module, ModuleTarget, StackEffect, Terminator,
+            TerminatorKind,
         },
         op,
     },
@@ -80,9 +81,6 @@ impl EvmPass for Outline {
 
 const MIN_MACHINE_RUN: usize = 3;
 const MAX_MACHINE_RUN_CANDIDATES: usize = 2_000_000;
-
-type BlockEdits = SmallVec<[(usize, usize, BlockId, u16); 1]>;
-type OutlineEdits = FxHashMap<BlockId, BlockEdits>;
 
 fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
     tracing::trace!(
@@ -126,8 +124,7 @@ fn may_share_pushes(gcx: Gcx<'_>, module: &Module) -> bool {
 /// is possible only if two starts have equal prefixes, which hashes can rule out. The screen
 /// shares the outliner's candidate budget and gives up, answering yes, once it is spent.
 fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
-    let target = module.runtime_target(gcx);
-    if !target.optimization().is_gas() {
+    if !module.optimization.is_gas() {
         return true;
     }
     let target = module.target(gcx);
@@ -159,16 +156,16 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
             if !is_split_point(&block.instructions, start) {
                 continue;
             }
-            let mut delta = 0i32;
+            let mut stack = StackDelta::default();
             let mut run_size = 0usize;
             for (end, &metric) in metrics.iter().enumerate().skip(start) {
-                let Some(((reads, pops, pushes), size)) = metric else { break };
-                if i32::from(reads) > delta {
+                let Some((effect, size)) = metric else { break };
+                stack.apply(effect);
+                if stack.inputs > 0 {
                     break;
                 }
                 let Some(left) = budget.checked_sub(1) else { return true };
                 budget = left;
-                delta = delta - i32::from(pops) + i32::from(pushes);
                 run_size += size;
                 if profitable(run_size) {
                     let mut hasher = FxHasher::default();
@@ -243,29 +240,21 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     if repeated_instructions == 0 || repeated_instructions > MAX_MACHINE_RUN_CANDIDATES {
         return false;
     }
-    let max_run_length = max_machine_run_length(repeated_instructions);
+    let max_run_length = (MIN_MACHINE_RUN - 1 + MAX_MACHINE_RUN_CANDIDATES / repeated_instructions)
+        .max(MIN_MACHINE_RUN);
     let target = module.target(gcx);
     let transfer_size = transfer_size(&target);
     let shuffle_size = target.opcode(op::SWAP1).bytes as usize;
 
+    let is_gas = target.optimization().is_gas();
     let is_size = target.optimization().is_size();
-    let mut metrics = vec![None; hashes.ids.len()];
-    for (block_id, block) in module.blocks.iter_enumerated() {
-        if target.optimization().is_gas() && block.metadata.in_loop {
-            continue;
+    let metrics = hashes.metrics(module, |block, inst| {
+        if is_gas && block.metadata.in_loop {
+            return None;
         }
-        // Overlapping candidate windows revisit each instruction. Decode its stack
-        // effect and select its push size once.
-        let first = hashes.starts[block_id];
-        for (index, inst) in block.instructions.iter().enumerate() {
-            if hashes.repeats(block_id, index)
-                && let Some(effect) = shared_body_effect(inst)
-            {
-                metrics[first + index] = Some((effect, instruction_size_lower_bound(target, inst)));
-            }
-        }
-    }
-    let mut groups = repeated_runs(
+        shared_body_effect(inst).map(|effect| (effect, instruction_size_lower_bound(target, inst)))
+    });
+    let groups = repeated_runs(
         module,
         &hashes,
         &metrics,
@@ -279,59 +268,17 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         },
         |&(stack, run_size), block, start, len| {
             let (inputs, outputs) = (stack.inputs, stack.outputs());
-            let closed = inputs == 0 && (0..=16).contains(&outputs);
-            let open_size_run =
-                is_size && (0..=16).contains(&inputs) && (0..=16).contains(&outputs);
             // Price both address pushes at PUSH2, plus the jump, continuation label, and
             // input shuffles. Runs no larger than this site cannot pass the shared stub's
             // profitability check regardless of occurrence count, so do not intern them.
             let can_amortize = run_size > transfer_size + inputs as usize * shuffle_size;
             (can_amortize
-                && (closed || open_size_run)
+                && outputs <= 16
                 && is_split_point(&module.blocks[block].instructions, start + len))
             .then_some(Site { block, start, len, inputs: inputs as u16, outputs: outputs as u16 })
         },
     );
-
-    if groups.is_empty() {
-        return false;
-    }
-    groups.sort_unstable_by_key(|(key, sites)| {
-        let first = sites[0];
-        (std::cmp::Reverse(key.ids.len()), first.block.index(), first.start)
-    });
-    let mut claimed = FxHashMap::<BlockId, DenseBitSet<usize>>::default();
-    let mut chosen = Vec::new();
-    for (_, sites) in groups {
-        let mut free = SmallVec::<[Site; 2]>::new();
-        for site in sites {
-            let end = site.start + site.len;
-            let instruction_count = module.blocks[site.block].instructions.len();
-            let claimed = claimed
-                .entry(site.block)
-                .or_insert_with(|| DenseBitSet::new_empty(instruction_count));
-            if claimed.contains_any(site.start..end) {
-                continue;
-            }
-            // `claimed` only carries sites fixed by earlier groups; this group's sites are marked
-            // below, after the profitability check, so it cannot catch two occurrences of the same
-            // run that overlap each other. Periodic runs produce exactly that — window `[0, L)` and
-            // window `[p, p + L)` are byte-identical when the period `p < L` divides the pattern,
-            // so both land here. Two overlapping occurrences cannot both be replaced,
-            // and the descending-order edit application would split the block at a
-            // stale index (panicking in `split_off`), so keep every chosen site
-            // pairwise disjoint.
-            if free
-                .iter()
-                .any(|f| f.block == site.block && f.start < end && site.start < f.start + f.len)
-            {
-                continue;
-            }
-            free.push(site);
-        }
-        if free.len() < 2 {
-            continue;
-        }
+    let chosen = choose_groups(&hashes, groups, |free, chosen| {
         let first = free[0];
         // Profitability reads only opcodes and values, so copy the body once it is chosen.
         let run = &module.blocks[first.block].instructions[first.start..first.start + first.len];
@@ -340,13 +287,15 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             + (target.opcode(op::JUMPDEST).bytes
                 + target.opcode(op::SWAP1).bytes * u32::from(first.outputs)
                 + target.opcode(op::JUMP).bytes) as usize;
-        let site_size = transfer_size + usize::from(first.inputs) * shuffle_size;
-        if free.len() * run_size <= free.len() * site_size + stub_size {
-            let saved =
-                if is_size { shared_return_tail_savings(&target, run, first, &chosen) } else { 0 };
-            if free.len() * run_size <= (free.len() * site_size + stub_size).saturating_sub(saved) {
-                continue;
-            }
+        let outlined_size =
+            free.len() * (transfer_size + usize::from(first.inputs) * shuffle_size) + stub_size;
+        let saved = if is_size && free.len() * run_size <= outlined_size {
+            shared_return_tail_savings(&target, run, first, chosen)
+        } else {
+            0
+        };
+        if free.len() * run_size <= outlined_size.saturating_sub(saved) {
+            return None;
         }
         // repeated run at each site
         // =>
@@ -355,8 +304,8 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         // Charge the transfer gas at the requested execution count against
         // the deposited bytes saved by sharing. Static occurrence counts do
         // not make the calls cold, even when every site is outside a loop.
-        if target.optimization().is_gas() {
-            let saved_bytes = free.len() * (run_size - site_size) - stub_size;
+        if is_gas {
+            let saved_bytes = run_size * free.len() - outlined_size;
             // Sites that may run more than once pay the transfer gas at the runtime price.
             let target = if repeats(module, free.iter().map(|site| site.block)) {
                 module.runtime_target(gcx)
@@ -369,80 +318,22 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             if !target
                 .deposit_repays_gas(saved_bytes as u64, free.len() as u64 * u64::from(transfer_gas))
             {
-                if matches!(run.get(..3), Some([value, address, store])
-                    if value.is_encoded_push() && address.is_encoded_push()
-                        && matches!(store.opcode, op::MSTORE | op::MSTORE8))
-                    && let Some(PushValue::Immediate(value)) = run[0].value
+                if let [value, address, store, ..] = run
+                    && address.is_encoded_push()
+                    && matches!(store.opcode, op::MSTORE | op::MSTORE8)
+                    && let Some(value) = value.concrete_immediate()
                 {
                     state.inline_store_literals.insert(value);
                 }
-                continue;
+                return None;
             }
         }
         let mut body = run.to_vec();
         merge_site_source_spans(module, &mut body, &free);
         clear_function_invokes(&mut body);
-        for site in &free {
-            claimed
-                .get_mut(&site.block)
-                .expect("candidate block has a claimed-site set")
-                .insert_range(site.start..site.start + site.len);
-        }
-        chosen.push(ChosenGroup {
-            body,
-            sites: free,
-            inputs: first.inputs,
-            outputs: first.outputs,
-        });
-    }
-    if chosen.is_empty() {
-        return false;
-    }
-
-    let outlined_sites = chosen.iter().map(|group| group.sites.len()).sum::<usize>();
-    let Some(labels) = state.labels(module, chosen.len() + outlined_sites) else { return false };
-    let mut labels = labels.into_iter();
-    let removed_body_instructions =
-        chosen.iter().map(|group| (group.sites.len() - 1) * group.body.len()).sum::<usize>();
-    tracing::debug!(
-        target: "solar::codegen::evm_ir::outline",
-        module = %module.name,
-        outlined_groups = chosen.len(),
-        outlined_sites,
-        removed_body_instructions,
-        "outlined repeated machine instruction runs"
-    );
-
-    let mut stubs = Vec::with_capacity(chosen.len());
-    for group in &chosen {
-        let mut stub = Block::new(labels.next().expect("reserved one label per outline stub"));
-        stub.metadata.repeats = repeats(module, group.sites.iter().map(|site| site.block));
-        stub.instructions = group.body.clone();
-        for depth in 1..=group.outputs {
-            stub.instructions.push(
-                Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_info_dropped(),
-            );
-        }
-        stub.terminator =
-            Some(Terminator::new(TerminatorKind::Op(op::JUMP)).with_debug_info_dropped());
-        stub.metadata.call_effect = stub_call_effect(group.inputs, group.outputs);
-        stubs.push(module.add_block(stub));
-    }
-    let mut edits = OutlineEdits::default();
-    for (group, stub) in chosen.into_iter().zip(stubs) {
-        for site in group.sites {
-            edits.entry(site.block).or_default().push((site.start, site.len, stub, group.inputs));
-        }
-    }
-    apply_outline_edits(module, edits, &mut labels);
-    debug_assert!(labels.next().is_none());
-    true
-}
-
-fn max_machine_run_length(repeated_instructions: usize) -> usize {
-    debug_assert_ne!(repeated_instructions, 0);
-    debug_assert!(repeated_instructions <= MAX_MACHINE_RUN_CANDIDATES);
-    (MIN_MACHINE_RUN - 1 + MAX_MACHINE_RUN_CANDIDATES / repeated_instructions).max(MIN_MACHINE_RUN)
+        Some(Group { body, sites: free, parameters: Vec::new() })
+    });
+    install_groups(module, state, chosen)
 }
 
 /// Outlines closed computations that differ only in a bounded number of immediate pushes.
@@ -457,20 +348,13 @@ fn outline_parametric_machine_runs(
     const MAX_PARAMETERS: usize = 8;
 
     let target = module.runtime_target(gcx);
-    let hashes = RunHashes::new(module, ParamInstKey::new);
-    let mut metrics = vec![None; hashes.ids.len()];
-    for (block_id, block) in module.blocks.iter_enumerated() {
-        // Overlapping candidate windows revisit each instruction, so classify it once.
-        let first = hashes.starts[block_id];
-        for (index, inst) in block.instructions.iter().enumerate() {
-            if hashes.repeats(block_id, index)
-                && let Some(effect) = shared_body_effect(inst)
-            {
-                metrics[first + index] = Some((effect, parameterizable_push(inst)));
-            }
-        }
-    }
-    let mut groups = repeated_runs(
+    let hashes = RunHashes::new(module, |inst| {
+        inst.concrete_immediate().is_none().then(|| MachineInstKey::new(inst))
+    });
+    let metrics = hashes.metrics(module, |_, inst| {
+        shared_body_effect(inst).map(|effect| (effect, inst.concrete_immediate().is_some()))
+    });
+    let groups = repeated_runs(
         module,
         &hashes,
         &metrics,
@@ -484,178 +368,52 @@ fn outline_parametric_machine_runs(
         },
         |&(stack, immediate_pushes), block, start, len| {
             let outputs = stack.outputs();
-            ((0..=16).contains(&outputs)
+            (outputs <= 16
                 && immediate_pushes != 0
                 && is_split_point(&module.blocks[block].instructions, start + len))
             .then_some(Site { block, start, len, inputs: 0, outputs: outputs as u16 })
         },
     );
-    if groups.is_empty() {
-        return false;
-    }
-    groups.sort_unstable_by_key(|(key, sites)| {
-        let first = sites[0];
-        (std::cmp::Reverse(key.ids.len()), first.block.index(), first.start)
-    });
-
-    let mut claimed = FxHashMap::<BlockId, DenseBitSet<usize>>::default();
-    let mut chosen = Vec::new();
-    for (_, sites) in groups {
-        let mut free = SmallVec::<[Site; 2]>::new();
-        for site in sites {
-            let end = site.start + site.len;
-            let instruction_count = module.blocks[site.block].instructions.len();
-            let claimed = claimed
-                .entry(site.block)
-                .or_insert_with(|| DenseBitSet::new_empty(instruction_count));
-            if claimed.contains_any(site.start..end)
-                || free.iter().any(|other| {
-                    other.block == site.block
-                        && other.start < end
-                        && site.start < other.start + other.len
+    let chosen =
+        choose_groups(&hashes, groups, |free, _| {
+            let first = free[0];
+            let run =
+                |site: &Site| &module.blocks[site.block].instructions[site.start..][..site.len];
+            // Sites share a run key, so an instruction that differs between them is an immediate
+            // push at every site.
+            let parameters = (0..first.len)
+                .filter(|&index| {
+                    free[1..].iter().any(|site| {
+                        MachineInstKey::new(&run(site)[index])
+                            != MachineInstKey::new(&run(&first)[index])
+                    })
                 })
-            {
-                continue;
-            }
-            free.push(site);
-        }
-        if free.len() < 2 {
-            continue;
-        }
-
-        let first = free[0];
-        let first_body =
-            &module.blocks[first.block].instructions[first.start..first.start + first.len];
-        let mut parameters = Vec::new();
-        for (index, first_inst) in first_body.iter().enumerate() {
-            let differs = free.iter().skip(1).any(|site| {
-                MachineInstKey::new(&module.blocks[site.block].instructions[site.start + index])
-                    != MachineInstKey::new(first_inst)
-            });
-            if differs {
-                if !parameterizable_push(first_inst)
-                    || free.iter().any(|site| {
-                        !parameterizable_push(
-                            &module.blocks[site.block].instructions[site.start + index],
-                        )
-                    })
-                {
-                    parameters.clear();
-                    break;
-                }
-                parameters.push(index);
-            }
-        }
-        if parameters.is_empty() || parameters.len() > MAX_PARAMETERS {
-            continue;
-        }
-        let mut merged_body = first_body.to_vec();
-        merge_site_source_spans(module, &mut merged_body, &free);
-        clear_function_invokes(&mut merged_body);
-        let Some(stub_body) = parameterize_body(&merged_body, &parameters) else { continue };
-        let inline_size = free
-            .iter()
-            .map(|site| {
-                lower_bound(
-                    target,
-                    &module.blocks[site.block].instructions[site.start..site.start + site.len],
-                )
-            })
-            .sum::<usize>();
-        let parameter_bytes = free
-            .iter()
-            .map(|site| {
-                parameters
-                    .iter()
-                    .map(|&index| {
-                        instruction_size_lower_bound(
-                            target,
-                            &module.blocks[site.block].instructions[site.start + index],
-                        )
-                    })
-                    .sum::<usize>()
-            })
-            .sum::<usize>();
-        // The byte per parameter pays for no emitted instruction. It is a margin: groups are
-        // taken longest first, and without it a barely profitable long group can claim sites
-        // that a shorter group shares better.
-        let site_size = (if free.len() >= 4 { 7 } else { 8 }) + parameters.len();
-        let stub_size = 1 + lower_bound(target, &stub_body) + usize::from(first.outputs) + 1;
-        if inline_size < parameter_bytes + free.len() * site_size + stub_size + 2 {
-            continue;
-        }
-
-        for site in &free {
-            claimed
-                .get_mut(&site.block)
-                .expect("candidate block has a claimed-site set")
-                .insert_range(site.start..site.start + site.len);
-        }
-        chosen.push(ParamChosenGroup {
-            body: stub_body,
-            sites: free,
-            parameters,
-            outputs: first.outputs,
-        });
-    }
-    if chosen.is_empty() {
-        return false;
-    }
-
-    let outlined_sites = chosen.iter().map(|group| group.sites.len()).sum::<usize>();
-    let Some(labels) = state.labels(module, chosen.len() + outlined_sites) else { return false };
-    let mut labels = labels.into_iter();
-    tracing::debug!(
-        target: "solar::codegen::evm_ir::outline",
-        module = %module.name,
-        outlined_groups = chosen.len(),
-        outlined_sites,
-        "outlined parameterized machine instruction runs"
-    );
-
-    let mut stubs = Vec::with_capacity(chosen.len());
-    for group in &chosen {
-        let mut stub = Block::new(labels.next().expect("reserved one label per outline stub"));
-        stub.metadata.repeats = repeats(module, group.sites.iter().map(|site| site.block));
-        stub.instructions = group.body.clone();
-        for depth in 1..=group.outputs {
-            stub.instructions.push(
-                Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_info_dropped(),
-            );
-        }
-        stub.terminator =
-            Some(Terminator::new(TerminatorKind::Op(op::JUMP)).with_debug_info_dropped());
-        stub.metadata.call_effect = u16::try_from(group.parameters.len())
-            .ok()
-            .and_then(|inputs| stub_call_effect(inputs, group.outputs));
-        stubs.push(module.add_block(stub));
-    }
-    let mut edits = FxHashMap::<BlockId, SmallVec<[ParamEdit; 1]>>::default();
-    for (group, stub) in chosen.into_iter().zip(stubs) {
-        for site in group.sites {
-            let source = &module.blocks[site.block].instructions;
-            let mut parameters = group
-                .parameters
-                .iter()
-                .rev()
-                .map(|&index| source[site.start + index].clone())
                 .collect::<Vec<_>>();
-            clear_function_invokes(&mut parameters);
-            edits.entry(site.block).or_default().push(ParamEdit {
-                start: site.start,
-                len: site.len,
-                stub,
-                parameters,
-            });
-        }
-    }
-    apply_parametric_outline_edits(module, edits, &mut labels);
-    debug_assert!(labels.next().is_none());
-    true
-}
-
-fn parameterizable_push(inst: &Instruction) -> bool {
-    inst.concrete_immediate().is_some()
+            if parameters.is_empty() || parameters.len() > MAX_PARAMETERS {
+                return None;
+            }
+            let mut body = run(&first).to_vec();
+            merge_site_source_spans(module, &mut body, &free);
+            clear_function_invokes(&mut body);
+            let body = parameterize_body(&body, &parameters)?;
+            let inline_size = free.iter().map(|site| lower_bound(target, run(site))).sum::<usize>();
+            let parameter_bytes = free
+                .iter()
+                .flat_map(|site| {
+                    parameters
+                        .iter()
+                        .map(move |&index| instruction_size_lower_bound(target, &run(site)[index]))
+                })
+                .sum::<usize>();
+            // The byte per parameter pays for no emitted instruction. It is a margin: groups are
+            // taken longest first, and without it a barely profitable long group can claim sites
+            // that a shorter group shares better.
+            let site_size = (if free.len() >= 4 { 7 } else { 8 }) + parameters.len();
+            let stub_size = 1 + lower_bound(target, &body) + usize::from(first.outputs) + 1;
+            (inline_size >= parameter_bytes + free.len() * site_size + stub_size + 2)
+                .then(|| Group { body, sites: free, parameters })
+        });
+    install_groups(module, state, chosen)
 }
 
 fn parameterize_body(body: &[Instruction], parameters: &[usize]) -> Option<Vec<Instruction>> {
@@ -667,11 +425,7 @@ fn parameterize_body(body: &[Instruction], parameters: &[usize]) -> Option<Vec<I
             if depth > 16 {
                 return None;
             }
-            for swap in 1..=depth {
-                result.push(
-                    Instruction::stack_op(op::StackOp::Swap(swap as u8)).with_debug_info_dropped(),
-                );
-            }
+            result.extend((1..=depth).map(swap));
             delta += 1;
             continue;
         }
@@ -685,45 +439,10 @@ fn parameterize_body(body: &[Instruction], parameters: &[usize]) -> Option<Vec<I
     Some(result)
 }
 
-fn apply_parametric_outline_edits(
-    module: &mut Module,
-    mut edits: FxHashMap<BlockId, SmallVec<[ParamEdit; 1]>>,
-    labels: &mut impl Iterator<Item = u32>,
-) {
-    let mut blocks: Vec<_> = edits.keys().copied().collect();
-    blocks.sort_unstable();
-    for block in blocks {
-        let block_edits = edits.get_mut(&block).expect("edit block came from the map");
-        block_edits.sort_unstable_by_key(|edit| std::cmp::Reverse(edit.start));
-        let mut next_start = module.blocks[block].instructions.len();
-        for edit in block_edits.iter() {
-            let end = edit.start.checked_add(edit.len).expect("outline edit range overflow");
-            assert!(edit.len != 0 && end <= next_start, "outline edits overlap or exceed block");
-            next_start = edit.start;
-        }
-        for edit in block_edits.iter() {
-            let label = labels.next().expect("reserved one label per outline site");
-            split_parametric_outline_site(module, block, edit, label);
-        }
-    }
-}
-
-fn split_parametric_outline_site(
-    module: &mut Module,
-    block: BlockId,
-    edit: &ParamEdit,
-    continuation_label: u32,
-) {
-    // prefix; push continuation; parameters; jump stub
-    // continuation: suffix; original terminator
-    split_outline_site(module, block, edit.start, edit.len, edit.stub, 0, continuation_label);
-    module.blocks[block].instructions.extend_from_slice(&edit.parameters);
-}
-
 fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
     let target = module.target(gcx);
     let (site_bytes, body_bytes, transfer_gas) = push_share_costs(&target);
-    let mut sites = FxHashMap::<U256, SmallVec<[(BlockId, usize); 2]>>::default();
+    let mut sites = FxHashMap::<U256, SmallVec<[Site; 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         let in_loop = block.metadata.in_loop;
         if target.optimization().is_gas() && in_loop {
@@ -740,67 +459,144 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
                         u64::from(transfer_gas),
                     ))
             {
-                sites.entry(value).or_default().push((block_id, index));
+                sites.entry(value).or_default().push(Site {
+                    block: block_id,
+                    start: index,
+                    len: 1,
+                    inputs: 0,
+                    outputs: 1,
+                });
             }
         }
     }
 
     const MIN_SAVING: usize = 8;
-    let mut values: Vec<_> = sites
-        .iter()
-        .filter_map(|(&value, occurrences)| {
-            // Do not recreate the rejected store outline as a literal-returning call.
-            if state.inline_store_literals.contains(&value) {
-                return None;
-            }
-            let push_size = target.push(value).bytes as usize;
-            // Sites that may run more than once pay the transfer gas at the runtime price.
-            let (target, transfer_gas) =
-                if repeats(module, occurrences.iter().map(|&(block, _)| block)) {
-                    let runtime = module.runtime_target(gcx);
-                    (runtime, push_share_costs(&runtime).2)
-                } else {
-                    (target, transfer_gas)
-                };
-            let inline = occurrences.len() * push_size;
-            let outlined = occurrences.len() * site_bytes + push_size + body_bytes;
-            let saved_bytes = inline.saturating_sub(outlined);
-            (occurrences.len() >= 2
-                && inline >= outlined + MIN_SAVING
-                && (!target.optimization().is_gas()
-                    || target.deposit_repays_gas(
-                        saved_bytes as u64,
-                        occurrences.len() as u64 * u64::from(transfer_gas),
-                    )))
-            .then_some((value, push_size))
+    sites.retain(|value, occurrences| {
+        // Do not recreate the rejected store outline as a literal-returning call.
+        if occurrences.len() < 2 || state.inline_store_literals.contains(value) {
+            return false;
+        }
+        let push_size = target.push(*value).bytes as usize;
+        // Sites that may run more than once pay the transfer gas at the runtime price.
+        let (target, transfer_gas) = if repeats(module, occurrences.iter().map(|site| site.block)) {
+            let runtime = module.runtime_target(gcx);
+            (runtime, push_share_costs(&runtime).2)
+        } else {
+            (target, transfer_gas)
+        };
+        let inline = occurrences.len() * push_size;
+        let outlined = occurrences.len() * site_bytes + push_size + body_bytes;
+        let saved_bytes = inline.saturating_sub(outlined);
+        inline >= outlined + MIN_SAVING
+            && (!target.optimization().is_gas()
+                || target.deposit_repays_gas(
+                    saved_bytes as u64,
+                    occurrences.len() as u64 * u64::from(transfer_gas),
+                ))
+    });
+    let mut sites = sites.into_iter().collect::<Vec<_>>();
+    sites.sort_unstable_by_key(|&(value, _)| value);
+    let groups = sites
+        .into_iter()
+        .map(|(value, sites)| {
+            let mut body = vec![Instruction::push_value(value).with_debug_info_dropped()];
+            merge_site_source_spans(module, &mut body, &sites);
+            Group { body, sites, parameters: Vec::new() }
         })
         .collect();
-    if values.is_empty() {
+    install_groups(module, state, groups)
+}
+
+/// Returns the groups to outline, longest runs first. Each takes the sites of a run that no
+/// earlier group claimed and that are pairwise disjoint, and `build` prices the group.
+///
+/// Periodic runs produce occurrences that overlap each other: window `[0, L)` and window
+/// `[p, p + L)` are byte-identical when the period `p < L` divides the pattern. Two overlapping
+/// occurrences cannot both be replaced, and the descending-order edit application would split the
+/// block at a stale index, so every chosen site is pairwise disjoint.
+fn choose_groups(
+    hashes: &RunHashes,
+    mut groups: Vec<(RunSlice<'_>, SmallVec<[Site; 2]>)>,
+    mut build: impl FnMut(SmallVec<[Site; 2]>, &[Group]) -> Option<Group>,
+) -> Vec<Group> {
+    groups.sort_unstable_by_key(|(key, sites)| {
+        (std::cmp::Reverse(key.ids.len()), sites[0].block.index(), sites[0].start)
+    });
+    // The instructions of chosen sites, by flat index.
+    let mut claimed = DenseBitSet::new_empty(hashes.ids.len());
+    let flat = |site: &Site| {
+        let first = hashes.starts[site.block] + site.start;
+        first..first + site.len
+    };
+    let mut chosen = Vec::new();
+    for (_, sites) in groups {
+        let mut free = SmallVec::<[Site; 2]>::new();
+        for site in sites {
+            let end = site.start + site.len;
+            if claimed.contains_any(flat(&site))
+                || free.iter().any(|other| {
+                    other.block == site.block
+                        && other.start < end
+                        && site.start < other.start + other.len
+                })
+            {
+                continue;
+            }
+            free.push(site);
+        }
+        if free.len() < 2 {
+            continue;
+        }
+        if let Some(group) = build(free, &chosen) {
+            for site in &group.sites {
+                claimed.insert_range(flat(site));
+            }
+            chosen.push(group);
+        }
+    }
+    chosen
+}
+
+/// Adds one stub block per group and replaces each site with a call to it.
+fn install_groups(module: &mut Module, state: &mut RunState, groups: Vec<Group>) -> bool {
+    if groups.is_empty() {
         return false;
     }
-    values.sort_unstable();
-    let site_count = values.iter().map(|(value, _)| sites[value].len()).sum::<usize>();
-    let Some(labels) = state.labels(module, values.len() + site_count) else { return false };
-    let mut labels = labels.into_iter();
+    let outlined_sites = groups.iter().map(|group| group.sites.len()).sum::<usize>();
+    let labels = state.labels.get_or_insert_with(|| FreshLabels::new(module));
+    let Some(mut labels) = labels.take(groups.len() + outlined_sites).map(Vec::into_iter) else {
+        return false;
+    };
+    tracing::debug!(
+        target: "solar::codegen::evm_ir::outline",
+        module = %module.name,
+        outlined_groups = groups.len(),
+        outlined_sites,
+        "outlined repeated instruction runs"
+    );
 
-    let mut edits = OutlineEdits::default();
-    for (value, _) in values {
-        let occurrences = &sites[&value];
-        let mut stub = Block::new(labels.next().expect("reserved one label per push stub"));
-        stub.metadata.repeats = repeats(module, occurrences.iter().map(|&(block, _)| block));
-        let mut push = Instruction::push_value(value).with_debug_info_dropped();
-        for &(block, index) in occurrences {
-            push.metadata.merge_source_spans(&module.blocks[block].instructions[index].metadata);
-        }
-        stub.instructions.push(push);
-        stub.instructions
-            .push(Instruction::stack_op(op::StackOp::Swap(1)).with_debug_info_dropped());
+    let mut edits = Vec::with_capacity(outlined_sites);
+    for group in groups {
+        let Site { inputs, outputs, .. } = group.sites[0];
+        let mut stub = Block::new(labels.next().expect("reserved one label per outline stub"));
+        stub.metadata.repeats = repeats(module, group.sites.iter().map(|site| site.block));
+        stub.instructions = group.body;
+        stub.instructions.extend((1..=usize::from(outputs)).map(swap));
         stub.terminator =
             Some(Terminator::new(TerminatorKind::Op(op::JUMP)).with_debug_info_dropped());
-        stub.metadata.call_effect = stub_call_effect(0, 1);
+        stub.metadata.call_effect =
+            stub_call_effect(usize::from(inputs) + group.parameters.len(), outputs);
         let stub = module.add_block(stub);
-        for &(block, index) in occurrences {
-            edits.entry(block).or_default().push((index, 1, stub, 0));
+        for site in group.sites {
+            let source = &module.blocks[site.block].instructions[site.start..];
+            let mut parameters = group
+                .parameters
+                .iter()
+                .rev()
+                .map(|&index| source[index].clone())
+                .collect::<Vec<_>>();
+            clear_function_invokes(&mut parameters);
+            edits.push(Edit { site, stub, parameters });
         }
     }
     apply_outline_edits(module, edits, &mut labels);
@@ -824,59 +620,50 @@ fn clear_function_invokes(instructions: &mut [Instruction]) {
     }
 }
 
-fn range_function_invoke(
-    instructions: &[Instruction],
-) -> Option<crate::backend::evm::DebugFunction> {
+fn range_function_invoke(instructions: &[Instruction]) -> Option<DebugFunction> {
     let mut functions =
         instructions.iter().filter_map(|instruction| instruction.metadata.function_invoke());
     let function = functions.next()?;
     functions.all(|other| other == function).then_some(function)
 }
 
+fn swap(depth: usize) -> Instruction {
+    Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_info_dropped()
+}
+
+/// Splits each site's block, applying a block's edits from its last site to its first so earlier
+/// indices stay valid.
 fn apply_outline_edits(
     module: &mut Module,
-    mut edits: OutlineEdits,
+    mut edits: Vec<Edit>,
     labels: &mut impl Iterator<Item = u32>,
 ) {
-    let mut blocks: Vec<_> = edits.keys().copied().collect();
-    blocks.sort_unstable();
-    for block in blocks {
-        let block_edits = edits.get_mut(&block).expect("edit block came from the map");
-        block_edits.sort_unstable_by_key(|(start, ..)| std::cmp::Reverse(*start));
-        let mut next_start = module.blocks[block].instructions.len();
-        for &(start, len, ..) in block_edits.iter() {
-            let end = start.checked_add(len).expect("outline edit range overflow");
-            assert!(len != 0 && end <= next_start, "outline edits overlap or exceed their block");
-            next_start = start;
-        }
-        for &(start, len, stub, inputs) in block_edits.iter() {
-            let label = labels.next().expect("reserved one label per outline site");
-            split_outline_site(module, block, start, len, stub, inputs, label);
-        }
+    edits.sort_unstable_by_key(|edit| (edit.site.block, std::cmp::Reverse(edit.site.start)));
+    assert!(
+        edits.windows(2).all(|pair| pair[0].site.block != pair[1].site.block
+            || pair[1].site.start + pair[1].site.len <= pair[0].site.start),
+        "outline edits overlap"
+    );
+    for edit in &edits {
+        let label = labels.next().expect("reserved one label per outline site");
+        split_outline_site(module, edit, label);
     }
 }
 
 /// The call effect of a stub whose body replaces `inputs` words with `outputs` words above the
 /// return address that its site leaves below them.
-fn stub_call_effect(inputs: u16, outputs: u16) -> Option<CallEffect> {
+fn stub_call_effect(inputs: usize, outputs: u16) -> Option<CallEffect> {
     Some(CallEffect {
         ret: u8::try_from(inputs).ok()?,
         effect: StackEffect::new(u8::try_from(inputs + 1).ok()?, u8::try_from(outputs).ok()?),
     })
 }
 
-fn split_outline_site(
-    module: &mut Module,
-    block: BlockId,
-    start: usize,
-    len: usize,
-    stub: BlockId,
-    inputs: u16,
-    continuation_label: u32,
-) {
+fn split_outline_site(module: &mut Module, edit: &Edit, continuation_label: u32) {
+    let Site { block, start, len, inputs, .. } = edit.site;
     let function_invoke =
         range_function_invoke(&module.blocks[block].instructions[start..start + len]);
-    // prefix; push continuation; rotate return below inputs; jump stub
+    // prefix; push continuation; rotate return below inputs; push parameters; jump stub
     // continuation: suffix; original terminator
     let mut continuation = Block::new(continuation_label);
     continuation.metadata = module.blocks[block].metadata;
@@ -887,15 +674,11 @@ fn split_outline_site(
     module.blocks[block].instructions.truncate(start);
     continuation.terminator = module.blocks[block].terminator.take();
     let continuation = module.add_block(continuation);
-    module.blocks[block]
-        .instructions
-        .push(Instruction::push_block(continuation).with_debug_info_dropped());
-    for depth in (1..=inputs).rev() {
-        module.blocks[block]
-            .instructions
-            .push(Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_info_dropped());
-    }
-    let mut terminator = Terminator::new(TerminatorKind::Jump(stub)).with_debug_info_dropped();
+    let instructions = &mut module.blocks[block].instructions;
+    instructions.push(Instruction::push_block(continuation).with_debug_info_dropped());
+    instructions.extend((1..=usize::from(inputs)).rev().map(swap));
+    instructions.extend_from_slice(&edit.parameters);
+    let mut terminator = Terminator::new(TerminatorKind::Jump(edit.stub)).with_debug_info_dropped();
     if let Some(function) = function_invoke {
         terminator.metadata.set_function_invoke(function);
     }
@@ -933,23 +716,18 @@ struct Site {
     outputs: u16,
 }
 
-struct ChosenGroup {
-    body: Vec<Instruction>,
-    sites: SmallVec<[Site; 2]>,
-    inputs: u16,
-    outputs: u16,
-}
-
-struct ParamChosenGroup {
+/// A run to outline: the stub body and the sites it replaces, which share one stack convention. A
+/// site pushes the continuation, rotates it below its `inputs` words, then pushes the
+/// `parameters`, which are body indices whose immediates each site passes as stack arguments
+/// instead.
+struct Group {
     body: Vec<Instruction>,
     sites: SmallVec<[Site; 2]>,
     parameters: Vec<usize>,
-    outputs: u16,
 }
 
-struct ParamEdit {
-    start: usize,
-    len: usize,
+struct Edit {
+    site: Site,
     stub: BlockId,
     parameters: Vec<Instruction>,
 }
@@ -966,9 +744,10 @@ struct ParamEdit {
 /// prefixes, which hold one more entry, at `starts[b] + b`.
 struct RunHashes {
     ids: Vec<usize>,
+    /// The module-wide occurrence count of each interned instruction ID.
+    counts: Vec<u32>,
     starts: IndexVec<BlockId, usize>,
     prefixes: Vec<u64>,
-    repeats: DenseBitSet<usize>,
     powers: Vec<u64>,
 }
 
@@ -982,11 +761,14 @@ impl RunHashes {
         let mut counts = Vec::<u32>::new();
         let mut hashes = Vec::new();
         let mut ids = Vec::with_capacity(total);
+        let mut prefixes = Vec::with_capacity(total + module.blocks.len());
         let mut starts = IndexVec::with_capacity(module.blocks.len());
         let mut longest = 0;
         for block in &module.blocks {
             starts.push(ids.len());
             longest = longest.max(block.instructions.len());
+            let mut last = 0u64;
+            prefixes.push(last);
             for inst in &block.instructions {
                 let key = key(inst);
                 let id = *interned.entry(key).or_insert_with(|| {
@@ -998,19 +780,6 @@ impl RunHashes {
                 }) as usize;
                 counts[id] += 1;
                 ids.push(id);
-            }
-        }
-
-        let mut prefixes = Vec::with_capacity(total + module.blocks.len());
-        let mut repeats = DenseBitSet::new_empty(total);
-        let mut id_iter = ids.iter().enumerate();
-        for block in &module.blocks {
-            let mut last = 0u64;
-            prefixes.push(last);
-            for (index, &id) in id_iter.by_ref().take(block.instructions.len()) {
-                if counts[id] >= 2 {
-                    repeats.insert(index);
-                }
                 last = last.wrapping_mul(Self::BASE).wrapping_add(hashes[id]);
                 prefixes.push(last);
             }
@@ -1022,18 +791,37 @@ impl RunHashes {
             powers.push(powers[index].wrapping_mul(Self::BASE));
         }
 
-        Self { ids, starts, prefixes, repeats, powers }
+        Self { ids, counts, starts, prefixes, powers }
     }
 
     /// Whether this instruction occurs more than once in the module. A run that
     /// contains an instruction occurring exactly once can never occur twice, so
     /// it can never be outlined.
     fn repeats(&self, block: BlockId, index: usize) -> bool {
-        self.repeats.contains(self.starts[block] + index)
+        self.counts[self.ids[self.starts[block] + index]] >= 2
     }
 
     fn repeated_count(&self) -> usize {
-        self.repeats.count()
+        self.ids.iter().filter(|&&id| self.counts[id] >= 2).count()
+    }
+
+    /// Returns `metric` of each repeated instruction by flat index, `None` for any other.
+    /// Overlapping candidate windows revisit each instruction, so classify it once.
+    fn metrics<M: Copy>(
+        &self,
+        module: &Module,
+        metric: impl Fn(&Block, &Instruction) -> Option<M>,
+    ) -> Vec<Option<M>> {
+        let mut metrics = vec![None; self.ids.len()];
+        for (block_id, block) in module.blocks.iter_enumerated() {
+            let first = self.starts[block_id];
+            for (index, inst) in block.instructions.iter().enumerate() {
+                if self.repeats(block_id, index) {
+                    metrics[first + index] = metric(block, inst);
+                }
+            }
+        }
+        metrics
     }
 
     /// Hashes the `len` instructions from flat index `first` of `block`.
@@ -1144,13 +932,11 @@ fn repeated_runs<'h, M: Copy, S: Copy + Default>(
             }
         }
         walks.retain_mut(|walk| {
-            let Some(metric) =
-                (walk.len < walk.max_len).then(|| metrics[walk.first + walk.len]).flatten()
-            else {
-                return false;
-            };
-            walk.len += 1;
-            step(&mut walk.state, metric)
+            walk.len < walk.max_len
+                && metrics[walk.first + walk.len].is_some_and(|metric| {
+                    walk.len += 1;
+                    step(&mut walk.state, metric)
+                })
         });
     }
     groups.into_iter().filter(|(_, sites)| sites.len() >= 2).collect()
@@ -1168,34 +954,10 @@ impl Hash for RunSlice<'_> {
     }
 }
 
-/// A normalized instruction identity that ignores ordinary immediate-push values.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-enum ParamInstKey {
-    ImmediatePush,
-    Exact(MachineInstKey),
-}
-
-impl ParamInstKey {
-    fn new(inst: &Instruction) -> Self {
-        if parameterizable_push(inst) {
-            Self::ImmediatePush
-        } else {
-            Self::Exact(MachineInstKey::new(inst))
-        }
-    }
-}
-
 #[derive(Default)]
 struct RunState {
     inline_store_literals: FxHashSet<U256>,
     labels: Option<FreshLabels>,
-}
-
-impl RunState {
-    fn labels(&mut self, module: &Module, count: usize) -> Option<Vec<u32>> {
-        let labels = self.labels.get_or_insert_with(|| FreshLabels::new(module));
-        labels.take(count)
-    }
 }
 
 /// Credits only identical, splittable suffixes of already-selected stubs with the same stack
@@ -1204,31 +966,28 @@ fn shared_return_tail_savings(
     target: &Target,
     body: &[Instruction],
     site: Site,
-    chosen: &[ChosenGroup],
+    chosen: &[Group],
 ) -> usize {
     chosen
         .iter()
         .rev()
         .take(64)
-        .filter(|group| group.inputs == site.inputs && group.outputs == site.outputs)
-        .map(|group| {
-            let mut common = body
+        .filter(|group| {
+            group.sites[0].inputs == site.inputs && group.sites[0].outputs == site.outputs
+        })
+        .filter_map(|group| {
+            let common = body
                 .iter()
                 .rev()
                 .zip(group.body.iter().rev())
                 .take_while(|(a, b)| MachineInstKey::new(a) == MachineInstKey::new(b))
                 .count();
-            while common != 0
-                && (!is_split_point(body, body.len() - common)
-                    || !is_split_point(&group.body, group.body.len() - common))
-            {
-                common -= 1;
-            }
-            if common == 0 {
-                return 0;
-            }
+            let common = (1..=common).rev().find(|&common| {
+                is_split_point(body, body.len() - common)
+                    && is_split_point(&group.body, group.body.len() - common)
+            })?;
             let bytes = lower_bound(*target, &body[body.len() - common..]);
-            target.shared_return_tail_savings(bytes as u32, site.outputs) as usize
+            Some(target.shared_return_tail_savings(bytes as u32, site.outputs) as usize)
         })
         .max()
         .unwrap_or(0)
