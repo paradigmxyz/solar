@@ -17,7 +17,7 @@ Blazingly fast, modular and contributor friendly Solidity compiler, written in R
 
 ## Features and Goals
 
-> [!CAUTION]
+> [!WARNING]
 > Solar is under active development and is not yet feature complete.
 > Use it to speed up your development workflows and tooling.
 > Please do not use it in production environments.
