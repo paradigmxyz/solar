@@ -129,8 +129,13 @@ fn threaded_target(
     final_targets[target].filter(|&final_target| !func.block_has_phi(final_target))
 }
 
-fn block_results_have_external_uses(func: &Function, block_id: BlockId) -> bool {
-    let mut results = DenseBitSet::new_empty(func.num_values());
+/// Whether another block uses a result of `block_id`. `results` is scratch space.
+fn block_results_have_external_uses(
+    func: &Function,
+    block_id: BlockId,
+    results: &mut DenseBitSet<ValueId>,
+) -> bool {
+    results.clear();
     for &inst in &func.blocks[block_id].instructions {
         if let Some(result) = func.inst_result_value(inst) {
             results.insert(result);
@@ -153,6 +158,7 @@ fn block_results_have_external_uses(func: &Function, block_id: BlockId) -> bool 
 
 fn thread_phi_constant_edges(func: &mut Function) -> bool {
     let mut rewrites = Vec::new();
+    let mut results = DenseBitSet::new_empty(func.num_values());
     let block_ids = func.blocks.indices();
 
     for block_id in block_ids {
@@ -192,7 +198,8 @@ fn thread_phi_constant_edges(func: &mut Function) -> bool {
             rewrites.push((pred, block_id, target));
         }
         // Only a block with a threadable edge needs the whole-function use scan.
-        if rewrites.len() != start && block_results_have_external_uses(func, block_id) {
+        if rewrites.len() != start && block_results_have_external_uses(func, block_id, &mut results)
+        {
             rewrites.truncate(start);
         }
     }
@@ -207,6 +214,8 @@ fn thread_phi_constant_edges(func: &mut Function) -> bool {
 
 fn fold_single_predecessor_phi_branches(func: &mut Function) -> bool {
     let mut folded = false;
+    let mut replacements = FxHashMap::default();
+    let mut results = DenseBitSet::new_empty(func.num_values());
     for block in func.blocks.indices() {
         if !func.block_has_phi(block) || !func.block_has_only_phis(block) {
             continue;
@@ -225,7 +234,7 @@ fn fold_single_predecessor_phi_branches(func: &mut Function) -> bool {
         if term.successors().iter().any(|&target| func.block_has_phi(target)) {
             continue;
         }
-        let mut replacements = FxHashMap::default();
+        replacements.clear();
         for &id in &func.blocks[block].instructions {
             let InstKind::Phi(incoming) = &func.inst(id).kind else { unreachable!() };
             if let [(incoming_pred, value)] = incoming.as_slice()
@@ -237,7 +246,7 @@ fn fold_single_predecessor_phi_branches(func: &mut Function) -> bool {
         }
         if replacements.len() != func.blocks[block].instructions.len()
             || replacements.values().any(|value| replacements.contains_key(value))
-            || block_results_have_external_uses(func, block)
+            || block_results_have_external_uses(func, block, &mut results)
         {
             continue;
         }

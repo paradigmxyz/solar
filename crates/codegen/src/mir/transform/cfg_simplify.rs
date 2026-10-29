@@ -255,11 +255,12 @@ fn deduplicate_terminal_blocks(func: &mut Function) -> bool {
     }
     let mut kept = FxHashMap::default();
     let mut merges = Vec::new();
+    let mut local_defs = FxHashMap::default();
     for block_id in func.blocks.indices() {
         if shape(block_id).is_none_or(|shape| shapes[&shape] < 2) {
             continue;
         }
-        let Some(canon) = canonicalize_terminal_block(func, block_id) else {
+        let Some(canon) = canonicalize_terminal_block(func, block_id, &mut local_defs) else {
             continue;
         };
         let keep = *kept.entry(canon).or_insert(block_id);
@@ -268,41 +269,48 @@ fn deduplicate_terminal_blocks(func: &mut Function) -> bool {
         }
     }
 
+    let mut origins = Vec::new();
     for &(dup, keep) in &merges {
         // duplicate instructions; terminal -> shared instructions; terminal
         // Merge debug origins without changing the structural equivalence key.
-        let origins = func.blocks[keep]
-            .instructions
-            .iter()
-            .zip(&func.blocks[dup].instructions)
-            .map(|(&target, &source)| (target, func.inst(source).metadata.debug_context()))
-            .collect::<Vec<_>>();
-        for (target, metadata) in origins {
+        origins.clear();
+        origins.extend(
+            func.blocks[keep]
+                .instructions
+                .iter()
+                .zip(&func.blocks[dup].instructions)
+                .map(|(&target, &source)| (target, func.inst(source).metadata.debug_context())),
+        );
+        for (target, metadata) in origins.drain(..) {
             func.inst_mut(target).metadata.merge_debug_context(&metadata);
         }
         let metadata = func.blocks[dup].terminator_metadata.debug_context();
         func.blocks[keep].terminator_metadata.merge_debug_context(&metadata);
-        let predecessors = func.blocks[dup].predecessors.to_vec();
-        for pred in predecessors {
+        for pred in std::mem::take(&mut func.blocks[dup].predecessors) {
             redirect_edge(func, pred, dup, keep);
         }
         func.blocks[dup].instructions.clear();
         func.blocks[dup].set_generated_terminator(Terminator::Invalid);
-        func.blocks[dup].predecessors.clear();
     }
     !merges.is_empty()
 }
 
 /// Builds the alpha-equivalence key of a terminal block, or `None` if the
 /// block is not a dedup candidate.
-fn canonicalize_terminal_block(func: &Function, block_id: BlockId) -> Option<CanonBlock> {
+///
+/// `local_defs` is scratch space for the block-local definition positions.
+fn canonicalize_terminal_block(
+    func: &Function,
+    block_id: BlockId,
+    local_defs: &mut FxHashMap<ValueId, usize>,
+) -> Option<CanonBlock> {
     let block = &func.blocks[block_id];
     let term = block.terminator.as_ref()?;
     if matches!(term, Terminator::Invalid) || term.has_successors() {
         return None;
     }
 
-    let mut local_defs: FxHashMap<ValueId, usize> = FxHashMap::default();
+    local_defs.clear();
     for (position, &inst_id) in block.instructions.iter().enumerate() {
         if let Some(result) = func.inst_result_value(inst_id) {
             local_defs.insert(result, position);
@@ -346,9 +354,10 @@ fn canonicalize_terminal_block(func: &Function, block_id: BlockId) -> Option<Can
 fn simplify_trivial_phis(func: &mut Function) -> bool {
     let mut candidates = Vec::new();
     let mut raw = FxHashMap::default();
+    let mut same_block_phi_results = DenseBitSet::new_empty(func.num_values());
 
     for block_id in func.blocks.indices() {
-        let mut same_block_phi_results = None;
+        let mut collected = false;
         for &inst_id in &func.blocks[block_id].instructions {
             let InstKind::Phi(incoming) = &func.inst(inst_id).kind else {
                 continue;
@@ -356,10 +365,19 @@ fn simplify_trivial_phis(func: &mut Function) -> bool {
             let Some(phi_value) = func.inst_result_value(inst_id) else {
                 continue;
             };
-            let same_block_phi_results =
-                same_block_phi_results.get_or_insert_with(|| func.block_phi_results(block_id));
+            if !collected {
+                same_block_phi_results.clear();
+                for &id in &func.blocks[block_id].instructions {
+                    if matches!(func.inst(id).kind, InstKind::Phi(_))
+                        && let Some(result) = func.inst_result_value(id)
+                    {
+                        same_block_phi_results.insert(result);
+                    }
+                }
+                collected = true;
+            }
             let Some(replacement) =
-                trivial_phi_replacement(incoming, phi_value, same_block_phi_results)
+                trivial_phi_replacement(incoming, phi_value, &same_block_phi_results)
             else {
                 continue;
             };
@@ -570,12 +588,8 @@ fn can_merge(func: &Function, block_id: BlockId) -> Option<BlockId> {
 /// Merges block_id with target, appending target's instructions and terminator to block_id.
 fn do_merge(func: &mut Function, block_id: BlockId, target: BlockId) {
     let phi_replacements = fold_target_phis_for_merge(func, block_id, target);
-    let target_instructions = func.blocks[target]
-        .instructions
-        .iter()
-        .copied()
-        .filter(|&inst_id| !matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-        .collect::<Vec<_>>();
+    let mut target_instructions = std::mem::take(&mut func.blocks[target].instructions);
+    target_instructions.retain(|&inst_id| !matches!(func.inst(inst_id).kind, InstKind::Phi(_)));
     let (terminator, metadata) = func.blocks[target].take_terminator();
     let terminator = terminator.expect("merged block must have a terminator");
 
@@ -584,7 +598,6 @@ fn do_merge(func: &mut Function, block_id: BlockId, target: BlockId) {
     func.blocks[block_id].set_terminator(terminator, metadata);
     redirect_successor_predecessors(func, target, block_id);
 
-    func.blocks[target].instructions.clear();
     func.blocks[target].terminator = Some(Terminator::Invalid);
     func.blocks[target].predecessors.clear();
 
@@ -705,7 +718,7 @@ fn forwarder_elimination_preserves_phis(func: &Function, block_id: BlockId) -> b
 fn eliminate_forwarder(func: &mut Function, block_id: BlockId) {
     let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator else { return };
 
-    let predecessors = func.blocks[block_id].predecessors.to_vec();
+    let predecessors = std::mem::take(&mut func.blocks[block_id].predecessors);
     redirect_target_phi_incoming(func, block_id, target, &predecessors);
     for pred in predecessors {
         redirect_edge(func, pred, block_id, target);
@@ -719,6 +732,7 @@ fn redirect_target_phi_incoming(
     target: BlockId,
     new_preds: &[BlockId],
 ) {
+    let mut rewritten = Vec::new();
     let instruction_count = func.blocks[target].instructions.len();
     for index in 0..instruction_count {
         let inst_id = func.blocks[target].instructions[index];
@@ -726,26 +740,19 @@ fn redirect_target_phi_incoming(
             continue;
         };
 
-        let mut rewritten = Vec::with_capacity(incoming.len() + new_preds.len());
+        // The safety check guarantees colliding entries carry equal values;
+        // keep the first entry per predecessor block.
+        rewritten.clear();
         for &(pred, value) in incoming.iter() {
-            if pred == old_pred {
-                rewritten.extend(new_preds.iter().map(|&new_pred| (new_pred, value)));
-            } else {
-                rewritten.push((pred, value));
+            let preds = if pred == old_pred { new_preds } else { std::slice::from_ref(&pred) };
+            for &pred in preds {
+                if !rewritten.iter().any(|&(other, _)| other == pred) {
+                    rewritten.push((pred, value));
+                }
             }
         }
-        // The safety check guarantees colliding entries carry equal values;
-        // keep one entry per predecessor block.
-        let mut seen = Vec::with_capacity(rewritten.len());
-        rewritten.retain(|&(pred, _)| {
-            if seen.contains(&pred) {
-                false
-            } else {
-                seen.push(pred);
-                true
-            }
-        });
-        *incoming = rewritten;
+        incoming.clear();
+        incoming.extend_from_slice(&rewritten);
     }
 }
 
