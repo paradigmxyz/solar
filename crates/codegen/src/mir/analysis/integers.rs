@@ -63,7 +63,9 @@ fn bounds_with(
         // of padding fit in 66 bits. The argument copy must succeed before MIR executes.
         // This bounds the compiler's floor, not a free-memory-pointer slot that assembly writes.
         InstKind::HeapFloor => (U256::from(EvmMemoryLayout::HEAP_START), integer_mask(66)),
-        InstKind::Zext(value) => bounds(*value),
+        InstKind::Zext(value) | InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => {
+            bounds(*value)
+        }
         InstKind::Trunc(value, _) => {
             let range = bounds(*value);
             if range.1 <= max { range } else { full }

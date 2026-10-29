@@ -420,7 +420,6 @@ fn @sliceCalldata() [selector=0xa10bf2ab, abi_wrapper, pure] {
     v77 = or v75, v76
     jumpi v77, bb10, bb9
   bb9:
-    mstore 64, v74 !metadata(memory=scratch)
     v79 = calldatasize
     calldatacopy v73, v79, v3
     mstore v73, arg2
@@ -1014,7 +1013,6 @@ fn @wordsFromCalldata() [selector=0xd35cf802, abi_wrapper, pure] {
     v92 = or v90, v91
     jumpi v92, bb8, bb7
   bb7:
-    mstore 64, v89 !metadata(memory=scratch)
     v94 = calldatasize
     calldatacopy v88, v94, v11
     mstore v88, v55

@@ -17,8 +17,10 @@
 //! An instruction may write the slot when it allocates, moves the pointer, writes memory through
 //! an address that may lie below the heap or covers the slot, or calls a function whose memory
 //! summary may do any of these. Stores and copies through a pointer derived from the free memory
-//! pointer or an allocation lie at or above the heap floor and cannot reach the slot. Everything
-//! else is judged by its `ModRef` effects.
+//! pointer or an allocation lie at or above the heap floor and cannot reach the slot, also when a
+//! constant offset moves them: no write has changed the pointer yet, so it is the entry's initial
+//! one, and a constant below `2^64` added to it cannot wrap. Everything else is judged by its
+//! `ModRef` effects.
 //!
 //! The analysis does not see raw loads of the slot: the compiler reads the pointer only through
 //! `fmp` and `alloc`, and memory-safe assembly that loads the slot keeps its read.
@@ -26,7 +28,7 @@
 use super::{AliasAnalysis, CallGraphInfo, CfgInfo, Location, MemoryCallSummaries};
 use crate::mir::{
     AllocationFailure, BlockId, Callee, EffectKind, Function, FunctionId, InstId, InstKind, Module,
-    PtrLocation, Terminator,
+    PtrLocation, Terminator, Value, ValueId,
 };
 use solar_data_structures::{
     index::{IndexVec, index_vec},
@@ -265,6 +267,40 @@ fn has_read(func: &Function, checked: bool) -> bool {
     func.instructions().any(|inst| is_read(func, inst, checked))
 }
 
+/// Whether `inst` writes memory through the initial pointer plus constants, which stays at or
+/// above the heap floor.
+fn writes_above_initial_pointer(func: &Function, inst: InstId) -> bool {
+    match func.inst(inst).kind {
+        InstKind::Store(address, _, PtrLocation::Memory)
+        | InstKind::Store8(address, _)
+        | InstKind::Copy(address, ..)
+        | InstKind::MemoryZero(address, _)
+        | InstKind::DataCopy(_, address, _)
+        | InstKind::CodeCopy(address, ..)
+        | InstKind::ExtCodeCopy(_, address, ..) => is_initial_pointer_plus_constants(func, address),
+        _ => false,
+    }
+}
+
+/// Whether `value` is an `fmp` or `alloc` pointer moved by constant offsets below `2^64`.
+fn is_initial_pointer_plus_constants(func: &Function, value: ValueId) -> bool {
+    let Value::Inst(inst) = func.value(value) else { return false };
+    let small = |offset: ValueId| func.value_u64(offset).is_some();
+    match func.inst(*inst).kind {
+        InstKind::Fmp | InstKind::Alloc { .. } => true,
+        InstKind::PtrToInt(pointer, 256) | InstKind::IntToPtr(pointer) => {
+            is_initial_pointer_plus_constants(func, pointer)
+        }
+        InstKind::Add(base, offset) | InstKind::PtrAdd(base, offset) if small(offset) => {
+            is_initial_pointer_plus_constants(func, base)
+        }
+        InstKind::Add(offset, base) if small(offset) => {
+            is_initial_pointer_plus_constants(func, base)
+        }
+        _ => false,
+    }
+}
+
 /// Whether `inst` may write the free memory pointer's slot.
 fn may_write_slot(func: &Function, alias: &AliasAnalysis, inst: InstId) -> bool {
     match &func.inst(inst).kind {
@@ -281,7 +317,9 @@ fn may_write_slot(func: &Function, alias: &AliasAnalysis, inst: InstId) -> bool 
         | InstKind::CallCode { .. }
         | InstKind::StaticCall { .. }
         | InstKind::DelegateCall { .. }
-        | InstKind::SetFmp(_) => alias.instruction_may_reset_fmp(func, inst),
+        | InstKind::SetFmp(_) => {
+            !writes_above_initial_pointer(func, inst) && alias.instruction_may_reset_fmp(func, inst)
+        }
         // Reads and pure operations write no memory; skip their provenance queries.
         kind if matches!(
             kind.effect_kind(),

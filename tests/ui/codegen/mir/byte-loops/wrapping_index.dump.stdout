@@ -22,7 +22,6 @@ fn @uncheckedDown() [selector=0x0a3fd26a, abi_wrapper, pure] {
     v76 = or v74, v75
     jumpi v76, bb10, bb9
   bb9:
-    mstore 64, v73 !metadata(memory=scratch)
     v78 = calldatasize
     calldatacopy v72, v78, v3
     mstore v72, arg2
@@ -84,7 +83,6 @@ fn @checkedDown() [selector=0xc6510b18, abi_wrapper, pure] {
     v74 = or v72, v73
     jumpi v74, bb12, bb11
   bb11:
-    mstore 64, v71 !metadata(memory=scratch)
     v76 = calldatasize
     calldatacopy v70, v76, v3
     mstore v70, arg2
