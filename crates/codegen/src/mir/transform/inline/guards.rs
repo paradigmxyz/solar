@@ -19,7 +19,7 @@
 use crate::{
     mir::{
         BlockId, EffectKind, Function, InstKind, Instruction, MirType, Module, Terminator, Value,
-        ValueId, analysis::CfgInfo,
+        ValueId, analysis::CfgInfo, transform::utils::redirect_successor_predecessors,
     },
     target::Target,
 };
@@ -125,10 +125,7 @@ fn returning_guard(func: &Function) -> Option<Guard> {
         || func.internal_frame_size != 0
         || func.attributes.no_inline
         || func.is_public()
-        || func.selector.is_some()
-        || func.attributes.is_constructor
-        || func.attributes.is_receive
-        || func.attributes.is_fallback
+        || func.is_external_entry()
         || func.instructions().take(65).count() > 64
     {
         return None;
@@ -223,7 +220,6 @@ fn split_guard(caller: &mut Function, block: BlockId, index: usize, guard: &Guar
     let continuation = caller.alloc_block();
     let call = caller.alloc_block();
     let (terminator, metadata) = caller.blocks[block].take_terminator();
-    let successors = terminator.as_ref().map(Terminator::successors).unwrap_or_default();
     // continuation: suffix; original_terminator
     caller.blocks[continuation].instructions =
         caller.blocks[block].instructions.split_off(index + 1);
@@ -244,20 +240,5 @@ fn split_guard(caller: &mut Function, block: BlockId, index: usize, guard: &Guar
     caller.blocks[call].predecessors.push(block);
     caller.blocks[continuation].predecessors.extend([block, call]);
     // successor: phi [..., block: value] => phi [..., continuation: value]
-    for successor in successors {
-        for pred in &mut caller.blocks[successor].predecessors {
-            if *pred == block {
-                *pred = continuation;
-            }
-        }
-        for source in caller.blocks[successor].instructions.clone() {
-            if let InstKind::Phi(incoming) = &mut caller.inst_mut(source).kind {
-                for (pred, _) in incoming {
-                    if *pred == block {
-                        *pred = continuation;
-                    }
-                }
-            }
-        }
-    }
+    redirect_successor_predecessors(caller, block, continuation);
 }
