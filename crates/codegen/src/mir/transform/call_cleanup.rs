@@ -362,9 +362,11 @@ pub(super) fn infer_arguments_with(
     calls.retain(|call| eligible.contains(call.callee));
 
     let mut facts = ArgumentBits::default();
+    let mut next = ArgumentBits::default();
+    let mut seen = DenseBitSet::new_empty(module.functions.len());
     for _ in 0..MAX_ROUNDS {
-        let mut next = ArgumentBits::default();
-        let mut seen = DenseBitSet::new_empty(module.functions.len());
+        next.clear();
+        seen.clear();
         for call in &calls {
             let first = seen.insert(call.callee);
             let caller = &module.functions[call.caller];
@@ -385,7 +387,7 @@ pub(super) fn infer_arguments_with(
         if next == facts {
             break;
         }
-        facts = next;
+        std::mem::swap(&mut facts, &mut next);
     }
     facts
 }

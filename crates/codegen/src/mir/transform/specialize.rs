@@ -122,6 +122,7 @@ fn specialize_round(
         }
     }
     let mut changed = false;
+    let mut groups = FxHashMap::<Constants, Vec<usize>>::default();
     for (callee, calls) in sites.iter_enumerated() {
         let body = module.function(callee);
         if calls.is_empty()
@@ -164,14 +165,14 @@ fn specialize_round(
         }
         let mut selected: Vec<_> = (0..calls.len()).collect();
         if constants.is_empty() {
-            let mut groups = FxHashMap::<Constants, Vec<usize>>::default();
+            groups.clear();
             for (index, site) in calls.iter().enumerate() {
                 if !site.constants.is_empty() {
                     groups.entry(site.constants.clone()).or_default().push(index);
                 }
             }
             let Some((key, indices)) = groups
-                .into_iter()
+                .drain()
                 .filter(|(_, sites)| sites.len() >= 2)
                 .max_by(|a, b| a.1.len().cmp(&b.1.len()).then_with(|| b.1[0].cmp(&a.1[0])))
             else {

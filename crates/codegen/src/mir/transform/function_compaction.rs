@@ -96,19 +96,21 @@ fn forward_returned_values(module: &mut Module, size: bool) -> usize {
         return 0;
     }
     let mut forwarded = 0;
+    let mut calls = Vec::new();
+    let mut used = DenseBitSet::new_empty(0);
+    let mut constant_uses = DenseBitSet::new_empty(0);
+    let mut replacements = FxHashMap::default();
     for func in &mut module.functions {
-        let calls = func
-            .instructions()
-            .filter(|&inst| {
-                matches!(func.inst(inst).kind, InstKind::ICall { function: Callee::Function(function), .. }
-                if returned.contains_key(&function))
-            })
-            .collect::<Vec<_>>();
+        calls.clear();
+        calls.extend(func.instructions().filter(|&inst| {
+            matches!(func.inst(inst).kind, InstKind::ICall { function: Callee::Function(function), .. }
+            if returned.contains_key(&function))
+        }));
         if calls.is_empty() {
             continue;
         }
-        let mut used = DenseBitSet::new_empty(func.num_values());
-        let mut constant_uses = DenseBitSet::new_empty(func.num_values());
+        used.clear_to(func.num_values());
+        constant_uses.clear_to(func.num_values());
         for block in &func.blocks {
             for &inst in &block.instructions {
                 let kind = &func.inst(inst).kind;
@@ -128,8 +130,8 @@ fn forward_returned_values(module: &mut Module, size: bool) -> usize {
                 });
             }
         }
-        let mut replacements = FxHashMap::default();
-        for inst in calls {
+        replacements.clear();
+        for &inst in &calls {
             let Some(result) = func.inst_result_value(inst).filter(|&value| used.contains(value))
             else {
                 continue;
@@ -397,6 +399,7 @@ fn prune_unused_args(module: &mut Module) -> usize {
         }
     }
 
+    let mut remap = IndexVec::<ArgIdx, Option<ArgIdx>>::new();
     let function_ids = module.functions.indices();
     for func_id in function_ids {
         if live[func_id].count() == live[func_id].domain_size() {
@@ -405,7 +408,7 @@ fn prune_unused_args(module: &mut Module) -> usize {
         let func = module.function_mut(func_id);
 
         let old_params = func.params.clone();
-        let mut remap = IndexVec::<ArgIdx, Option<ArgIdx>>::with_capacity(old_params.len());
+        remap.clear();
         let mut new_params = IndexVec::with_capacity(old_params.len());
         for (index, &ty) in old_params.iter_enumerated() {
             remap.push(live[func_id].contains(index).then(|| new_params.push(ty)));
@@ -570,17 +573,16 @@ fn prune_unused_returns(module: &mut Module, returning: &DenseBitSet<FunctionId>
         return 0;
     }
 
+    let mut calls = Vec::new();
     for func in &mut module.functions {
-        let calls = func
-            .instructions()
-            .filter(|&inst_id| {
-                matches!(
-                    func.inst(inst_id).kind,
-                    InstKind::ICall { function: Callee::Function(function), .. } if removed_set.contains(function)
-                )
-            })
-            .collect::<Vec<_>>();
-        for inst_id in calls {
+        calls.clear();
+        calls.extend(func.instructions().filter(|&inst_id| {
+            matches!(
+                func.inst(inst_id).kind,
+                InstKind::ICall { function: Callee::Function(function), .. } if removed_set.contains(function)
+            )
+        }));
+        for &inst_id in &calls {
             func.remove_inst_result(inst_id);
         }
     }
@@ -720,9 +722,12 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
     let mut merged = DenseBitSet::new_empty(module.functions.len());
     let mut total = 0;
     let mut merged_instructions = 0usize;
+    let mut groups = FxHashMap::<u64, Vec<FunctionId>>::default();
+    let mut replacements = FxHashMap::default();
+    let mut representatives = Vec::new();
 
     loop {
-        let mut groups = FxHashMap::<u64, Vec<FunctionId>>::default();
+        groups.clear();
         for (func_id, func) in module.functions.iter_enumerated() {
             if !merged.contains(func_id)
                 && !func.blocks.is_empty()
@@ -732,9 +737,9 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
             }
         }
 
-        let mut replacements = FxHashMap::default();
+        replacements.clear();
         for candidates in groups.values() {
-            let mut representatives = Vec::new();
+            representatives.clear();
             for &candidate in candidates {
                 if let Some(&representative) = representatives.iter().find(|&&representative| {
                     equivalent_functions(
