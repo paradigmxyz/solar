@@ -705,12 +705,12 @@ fn byte_read(
     if func.value_u64(position) != Some(0) {
         return None;
     }
-    let (buffer, idx) = match body_def(func, lp, word)?.1 {
-        &InstKind::Load(ptr, PtrLocation::Memory) => {
+    let (buffer, idx) = match *body_def(func, lp, word)?.1 {
+        InstKind::Load(ptr, PtrLocation::Memory) => {
             let (object, idx) = memory_address(func, lp, ptr)?;
             (Buffer::Memory(object), idx)
         }
-        &InstKind::Load(address, PtrLocation::Calldata) => {
+        InstKind::Load(address, PtrLocation::Calldata) => {
             let (slice, idx) = calldata_address(func, lp, address)?;
             (Buffer::Calldata(slice), idx)
         }
@@ -1046,12 +1046,12 @@ fn word_copy(func: &Function, aa: &AliasAnalysis, l: &Loop, lp: &Counted) -> Opt
         return None;
     };
     let mut used = vec![lp.step, store];
-    let mut src = match body_def(func, lp, value)?.1 {
-        &InstKind::Load(src_ptr, PtrLocation::Memory) => {
+    let mut src = match *body_def(func, lp, value)?.1 {
+        InstKind::Load(src_ptr, PtrLocation::Memory) => {
             let (src_object, src_idx) = word_address(func, lp, src_ptr)?;
             checked_access(func, l, lp, Buffer::Memory(src_object), src_idx, &mut used)?
         }
-        &InstKind::Load(address, PtrLocation::Calldata) => {
+        InstKind::Load(address, PtrLocation::Calldata) => {
             let (slice, src_idx) = calldata_word_address(func, lp, address, &mut used)?;
             checked_access(func, l, lp, Buffer::Calldata(slice), src_idx, &mut used)?
         }
