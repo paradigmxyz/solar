@@ -499,7 +499,9 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     let groups = sites
         .into_iter()
         .map(|(value, sites)| {
-            let mut body = vec![Instruction::push_value(value).with_debug_info_dropped()];
+            // The stub appends its output swap to the body.
+            let mut body = Vec::with_capacity(2);
+            body.push(Instruction::push_value(value).with_debug_info_dropped());
             merge_site_source_spans(module, &mut body, &sites);
             Group { body, sites, parameters: Vec::new() }
         })
