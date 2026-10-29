@@ -18,7 +18,7 @@ The compiler ships with Foundry and powers its Solidity language server.
     </picture>
 </p>
 
-## Quick start
+## Getting started
 
 Update [Foundry](https://getfoundry.sh/introduction/installation/), then choose the compiler with
 `--use solar`:
@@ -50,7 +50,7 @@ result, and Seaport, Solmate and Solarray are not shown. With each project's own
 the same CI run, we were **44× faster on average** over the six and **34×** over all nine.
 
 We measured on `main` at [commit `0303bb7d`](https://github.com/paradigmxyz/solar/commit/0303bb7d606a50ef158e34669b5851f47a1e054e)
-against solc 0.8.38, targeting Cancun. [Build from source](#binary-usage) to match it.
+against solc 0.8.38, targeting Cancun. [Build from source](#standalone-compiler) to match it.
 Build times are the median of five runs on an AMD EPYC 9254 (24 cores), using our default eight
 threads; solc is single-threaded.
 
@@ -70,128 +70,77 @@ tail merging and peephole rewrites before assembly.
 
 See the [MIR reference](docs/MIR.md) and [codegen guide](docs/CODEGEN.md) to work on the compiler.
 
-## Getting started
+## Standalone compiler
 
-Solar is available through a command-line interface, or as a Rust library.
+Pre-built binaries for macOS, Linux and Windows are on the
+[releases page](https://github.com/paradigmxyz/solar/releases).
 
-### Library usage
+On macOS and Linux:
 
-You can add Solar to your Rust project by adding the following to your `Cargo.toml`:
+```bash
+curl -LsSf https://paradigm.xyz/solar/install.sh | sh
+```
+
+On Windows:
+
+```powershell
+powershell -c "irm https://paradigm.xyz/solar/install.ps1 | iex"
+```
+
+Or install with [`cargo binstall`](https://github.com/cargo-bins/cargo-binstall):
+
+```bash
+cargo binstall solar-compiler
+```
+
+To build the latest development version from source:
+
+```bash
+cargo install --git https://github.com/paradigmxyz/solar --locked
+```
+
+Compile a contract:
+
+```bash
+solar Counter.sol --emit=abi,bin
+
+# Compile a file with a Foundry project's remappings.
+solar $(forge remappings) src/Contract.sol --emit=bin
+
+solar --help
+```
+
+## Library and API usage
+
+Add the Rust library:
+
+```bash
+cargo add "solar-compiler@=0.2.0" --rename solar --no-default-features
+```
+
+Or add it to `Cargo.toml`:
 
 ```toml
 [dependencies]
 solar = { version = "=0.2.0", package = "solar-compiler", default-features = false }
 ```
 
-Or through the CLI:
+Pin the version with `=`: versioning tracks binary compatibility, not the Rust API.
+See the [examples](examples) for embedding the compiler.
 
-```bash
-cargo add "solar-compiler@=0.2.0" --rename solar --no-default-features
-```
+For C, WebAssembly and JavaScript, [`solar-capi`](crates/capi/README.md) provides a Solidity-compatible
+C API and a `soljson.js` wrapper. Both accept Standard JSON input and return Standard JSON output.
 
-You can see examples of how to use Solar as a library in the [examples](/examples) directory.
-
-### Binary usage
-
-Pre-built binaries are available for macOS, Linux and Windows on the [releases page](https://github.com/paradigmxyz/solar/releases)
-and can be installed with the following commands:
-- On macOS and Linux:
-    ```bash
-    curl -LsSf https://paradigm.xyz/solar/install.sh | sh
-    ```
-- On Windows:
-    ```powershell
-    powershell -c "irm https://paradigm.xyz/solar/install.ps1 | iex"
-    ```
-- For a specific version:
-    ```bash
-    curl -LsSf https://paradigm.xyz/solar/v0.2.0/install.sh | sh
-    powershell -c "irm https://paradigm.xyz/solar/v0.2.0/install.ps1 | iex"
-    ```
-
-Solar is also shipped in [Foundry](https://github.com/foundry-rs/foundry) releases.
-
-You can also use [`cargo binstall`](https://github.com/cargo-bins/cargo-binstall):
-- Latest version:
-    ```bash
-    cargo binstall solar-compiler
-    ```
-- For a specific version:
-    ```bash
-    cargo binstall solar-compiler@0.2.0
-    ```
-
-Or build Solar from source:
-- From crates.io:
-    ```bash
-    cargo install solar-compiler --locked
-    ```
-- From GitHub:
-    ```bash
-    cargo install --git https://github.com/paradigmxyz/solar --locked
-    ```
-- From a Git checkout:
-    ```bash
-    git clone https://github.com/paradigmxyz/solar
-    cd solar
-    cargo install --locked --path crates/solar
-    ```
-
-Once installed, check out the available options:
-
-```bash
-solar -h
-```
-
-Here's a few examples:
-
-```bash
-# Compile a single file and emit ABI to stdout.
-solar Counter.sol --emit abi
-
-# Compile a contract through standard input (`-` file).
-echo "contract C {}" | solar -
-solar - <<EOF
-contract HelloWorld {
-    function helloWorld() external pure returns (string memory) {
-        return "Hello, World!";
-    }
-}
-EOF
-
-# Compile a file with a Foundry project's remappings.
-solar $(forge re) src/Contract.sol
-```
-
-### C API, WASM, and JavaScript usage
-
-The [`solar-capi`](/crates/capi/README.md) crate exposes the compiler through a
-Solidity-compatible C API, a WebAssembly build and a soljson-compatible
-JavaScript wrapper. See its README for the C API and for how to download or
-build the wasm distribution and use it from JavaScript.
-
-## Semver Compatibility
-
-Solar's versioning tracks compatibility for the binaries, not the API.
-If using this as a library, be sure to pin the version with a `=` version requirement operator.
-
-## Supported Rust Versions (MSRV)
-
-Solar always aims to stay up-to-date with the latest stable Rust release.
-
-The Minimum Supported Rust Version (MSRV) may be updated at any time, so we can take advantage of new features and improvements in Rust.
+We target the latest stable Rust release. The minimum supported Rust version may change at any time.
 
 ## Contributing
 
-Contributions are welcome and highly appreciated. To get started, check out the
-[**contributing guidelines**](/CONTRIBUTING.md).
+See the [contributing guidelines](CONTRIBUTING.md) for building, testing and working on the compiler.
 
 ## Support
 
-Having trouble? Check out the existing issues on [**GitHub**](https://github.com/paradigmxyz/solar/issues),
-or feel free to [**open a new one**](https://github.com/paradigmxyz/solar/issues/new).
-
-You can also ask for help on [Telegram][tg-url].
+If a project fails to compile or behaves differently from solc, [open an issue](https://github.com/paradigmxyz/solar/issues/new)
+or ask on [Telegram][tg-url].
 
 [tg-url]: https://t.me/paradigm_solar
 
