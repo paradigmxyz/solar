@@ -311,7 +311,7 @@ fn terminal_packing_budget(
                     targets.len(),
                     1,
                     gcx.sess.opts.evm_version,
-                    TablePacking::new(&gcx.sess.opts),
+                    TablePacking::new(gcx),
                 );
             }
         }
@@ -434,7 +434,7 @@ fn estimated_terminator_size(
                 targets.len(),
                 target_width as u8,
                 gcx.sess.opts.evm_version,
-                TablePacking::new(&gcx.sess.opts),
+                TablePacking::new(gcx),
             )
         }
         TerminatorKind::Op(opcode) => model.opcode(*opcode).bytes as usize,

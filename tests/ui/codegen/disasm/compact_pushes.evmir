@@ -4,7 +4,7 @@
 //@[gas] compile-flags: -Zevm-ir-pipeline=default -O gas --evm-version shanghai -Zdump=disasm-runtime
 //@[gas] filecheck: --check-prefix=COMPACT
 //@[none] compile-flags: -Zevm-ir-pipeline=default -O none --evm-version shanghai -Zdump=disasm-runtime
-//@[none] filecheck: --check-prefix=NONE --implicit-check-not=NOT
+//@[none] filecheck: --check-prefix=NONE
 //@[berlin] compile-flags: -Zevm-ir-pipeline=default -O size --evm-version berlin -Zdump=disasm-runtime
 //@[berlin] filecheck: --check-prefix=BERLIN --implicit-check-not=PUSH0
 
@@ -28,7 +28,17 @@
 // COMPACT-NEXT: SHL
 
 // NONE-LABEL: // === compact_pushes (runtime) ===
-// NONE-NEXT: PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// NONE-NEXT: PUSH0
+// NONE-NEXT: NOT
+// NONE-NEXT: PUSH0
+// NONE-NEXT: NOT
+// NONE-NEXT: PUSH1 0x60
+// NONE-NEXT: SHR
+// NONE: PUSH1 0x1f
+// NONE-NEXT: NOT
+// NONE: PUSH4 0x35ea6a75
+// NONE-NEXT: PUSH1 0xe0
+// NONE-NEXT: SHL
 
 // BERLIN-LABEL: // === compact_pushes (runtime) ===
 // BERLIN-NEXT: PUSH1 0x00

@@ -131,32 +131,42 @@ fn @freshCopy() [selector=0x602d1e17, abi_wrapper, pure] {
     jumpi v23, bb3, bb4
   bb4:
     v25 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v56 = icall @alloc, v25
-    mstore v56, v20
+    v61 = icall @alloc, v25
+    mstore v61, v20
     v27 = sub v13, v21
     v28 = gt v20, v27
     jumpi v28, bb1, bb5
   bb5:
-    v48 = add v56, 32
-    calldatacopy v48, v21, v20
-    v9 = sub arg1, v56
+    v52 = add v61, 32
+    calldatacopy v52, v21, v20
+    v36 = sub 0, v20
+    v37 = and v36, 31
+    v62 = calldatasize
+    v53 = add v52, v20
+    calldatacopy v53, v62, v37
+    v9 = sub arg1, v61
     v0 = ne arg1, 0
     v10 = zext i1 v0 to i256
     v11 = mul v10, v9
-    v12 = add v56, v11
+    v12 = add v61, v11
     v4 = icall @_freshCopy, v12, arg2
-    v37 = mload v4
-    v50 = add v4, 32
-    v39 = add v37, 31
-    v41 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v43 = add v50, v41
-    mstore v43, 0
-    v52 = add v4, 64
-    mcopy v52, v50, v37
+    v5 = mload 64 !metadata(memory=scratch)
+    v6 = heap_floor
+    v7 = lt v5, v6
+    v8 = select v7, v6, v5
+    mstore 64, v8 !metadata(memory=scratch)
+    v41 = mload v4
+    v55 = add v4, 32
+    v43 = add v41, 31
+    v45 = and v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v47 = add v55, v45
+    mstore v47, 0
+    v57 = add v4, 64
+    mcopy v57, v55, v41
     mstore v4, 32
-    mstore v50, v37
-    v45 = add v41, 64
-    returndata v4, v45
+    mstore v55, v41
+    v49 = add v45, 64
+    returndata v4, v49
   bb3:
     mstore 32, 65
     mstore 0, 0x4e487b71

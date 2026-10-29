@@ -46,4 +46,25 @@
 +   push 128
 +   mstore !metadata(invoke=callee@16..20)
     stop
+  bb4 [stack=5]:
+-   swap 1 !metadata(span=16..17)
++   swap 4
++   swap 1
+    push 7 !metadata(span=17..18)
+-   sub !metadata(span=18..19)
+-   swap 4 !metadata(span=19..20)
+-   swap 1 !metadata(span=20..21)
+-   swap 4 !metadata(invoke=callee@21..25)
++   sub !metadata(spans=[18..19, 16..17, 19..20, 20..21], invoke=callee@21..25)
+    stop
+  bb5 [stack=5]:
++   swap 4
+    swap 1
+    push 7
+-   sub
+-   swap 4 !metadata(invoke=callee@26..30)
+-   swap 1
+-   swap 4
++   sub !metadata(invoke=callee@26..30)
+    stop
   

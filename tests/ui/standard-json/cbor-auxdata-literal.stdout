@@ -23,7 +23,7 @@
           "bytecode": {
             "cborAuxdata": {
               "1": {
-                "offset": 148,
+                "offset": 133,
                 "value": "0xa165736f6c617243000200000b"
               }
             }
@@ -31,7 +31,7 @@
           "deployedBytecode": {
             "cborAuxdata": {
               "1": {
-                "offset": 131,
+                "offset": 116,
                 "value": "0xa165736f6c617243000200000b"
               }
             }
