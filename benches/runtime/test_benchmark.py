@@ -728,6 +728,49 @@ class FailureHandlingTests(unittest.TestCase):
             self.assertEqual(error.exception.code, 2)
             self.assertTrue(stderr.getvalue().endswith(f"error: {message}\n"))
 
+    def test_variants_are_labelled_by_name_and_ordered_after_solar(self) -> None:
+        case = benchmark.TEST_CASES[0]
+        names = ("solx", "solc-legacy", "solc", "solar-size", "solar")
+        entry = {
+            "test_id": case.test_id,
+            "suite": case.suite,
+            "compilers": {name: {"status": "ok"} for name in names},
+        }
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(
+                benchmark, "find_binary", side_effect=lambda path, _: Path(path)
+            ),
+            mock.patch.object(benchmark, "binary_version", return_value=("1.0", "")),
+            mock.patch.object(
+                benchmark, "run_test_case", return_value=entry
+            ) as run_case,
+        ):
+            output = Path(directory) / "results.json"
+            benchmark.main(
+                [
+                    "--solc",
+                    "solc",
+                    "--solc-legacy",
+                    "--solar-size",
+                    "--solar",
+                    "solar",
+                    "--tests",
+                    case.test_id,
+                    "--output",
+                    str(output),
+                ]
+            )
+            document = json.loads(output.read_text())
+
+        labels = {spec.compiler_id: spec.label for spec in run_case.call_args.args[1]}
+        self.assertEqual(labels["solc-legacy"], "solc-legacy 1.0")
+        self.assertEqual(labels["solar-size"], "solar-size 1.0")
+        self.assertEqual(
+            list(document["results"][0]["compilers"]),
+            ["solar", "solar-size", "solc", "solc-legacy", "solx"],
+        )
+
     def check_unexpected_test_error(self, flags, compilers) -> None:
         test_id = benchmark.TEST_CASES[0].test_id
         with (

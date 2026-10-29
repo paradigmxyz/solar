@@ -1928,6 +1928,17 @@ def prepare_input(
     return compiler_input(test_case, evm_version, optimizer_runs)
 
 
+def order_compilers(compilers: dict[str, Any]) -> dict[str, Any]:
+    """Orders compiler results solar, solar-size, solc, solc-legacy, then the rest."""
+    order = ("solar", "solar-size", "solc", "solc-legacy")
+    return dict(
+        sorted(
+            compilers.items(),
+            key=lambda item: order.index(item[0]) if item[0] in order else len(order),
+        )
+    )
+
+
 def merge_reference_compiler(
     entry: dict[str, Any],
     references: dict[tuple[str, str], dict[str, Any]],
@@ -2506,7 +2517,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         specs.append(
             CompilerSpec(
                 "solc-legacy",
-                f"solc {solc_version} legacy",
+                f"solc-legacy {solc_version}",
                 solc,
                 "solc-legacy",
                 via_ir=False,
@@ -2548,7 +2559,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         specs.append(
             CompilerSpec(
                 "solar-size",
-                f"solar {solar_version} size",
+                f"solar-size {solar_version}",
                 solar,
                 "solar",
                 optimizer_runs=1,
@@ -2757,6 +2768,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     )
             if args.gas and merged_specs:
                 compare_runtime_results(result, (*merged_specs, *specs))
+            result["compilers"] = order_compilers(result["compilers"])
             results.append(result)
         if current_suite is not None and suite_started is not None:
             timings[current_suite] = (

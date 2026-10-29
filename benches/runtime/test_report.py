@@ -349,12 +349,28 @@ class ReportFormattingTests(unittest.TestCase):
             }
         report = benchmark.codegen_report([current], [current])
         self.assertIn(
-            "| bench | gas (vs main) | solc | solc-legacy | solar-size | size (vs main) | solc | solc-legacy | solar-size |",
+            "| bench | gas (vs main) | solar-size | solc | solc-legacy | size (vs main) | solar-size | solc | solc-legacy |",
             report,
         )
         self.assertIn(
-            "| test | n/a (n/a) | n/a (n/a) | 10 (n/a) | 10 (n/a) | n/a (n/a) | n/a (n/a) | 20B (n/a) | 20B (n/a) |",
+            "| test | n/a (n/a) | 10 (n/a) | n/a (n/a) | 10 (n/a) | n/a (n/a) | 20B (n/a) | n/a (n/a) | 20B (n/a) |",
             report,
+        )
+
+    def test_reference_columns_follow_solar_size_solc_solc_legacy(self):
+        compilers = {
+            name: {"status": "ok"}
+            for name in ("oksolc", "solc-legacy", "solc", "solar", "solar-size", "solx")
+        }
+        results = [{"test_id": "a", "suite": "repository", "compilers": compilers}]
+
+        self.assertEqual(
+            benchmark.reference_compiler_ids(results),
+            ["solar-size", "solc", "solc-legacy", "oksolc", "solx"],
+        )
+        self.assertEqual(
+            benchmark.matrix_compilers(results),
+            ["solar-size", "solc", "solc-legacy", "oksolc", "solx"],
         )
 
     def test_pr_comment_collapses_the_compiler_matrix_after_the_base_comparison(self):

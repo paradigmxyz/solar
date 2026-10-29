@@ -1429,11 +1429,22 @@ def compiler_ids(results: list[dict[str, Any]]) -> list[str]:
     return ids
 
 
+COMPILER_ORDER = ("solar-size", "solc", "solc-legacy")
+
+
+def compiler_rank(name: str) -> int:
+    return COMPILER_ORDER.index(name) if name in COMPILER_ORDER else len(COMPILER_ORDER)
+
+
 def reference_compiler_ids(results: list[dict[str, Any]]) -> list[str]:
-    return [
-        "solc",
-        *(name for name in compiler_ids(results) if name not in ("solar", "solc")),
-    ]
+    """The compilers compared with `solar`: solar-size, solc, solc-legacy, then the rest."""
+    return sorted(
+        [
+            "solc",
+            *(name for name in compiler_ids(results) if name not in ("solar", "solc")),
+        ],
+        key=compiler_rank,
+    )
 
 
 MATRIX_METRICS = {
@@ -1443,16 +1454,12 @@ MATRIX_METRICS = {
     "deploy_gas": "creation gas",
     "bytecode_size": "creation bytes",
 }
-MATRIX_ORDER = ("solar-size", "solc", "solc-legacy", "solx", "oksolc")
 
 
 def matrix_compilers(results: list[dict[str, Any]]) -> list[str]:
     """The compilers compared with `solar`, ours first, then solc and the rest."""
     return sorted(
-        (name for name in compiler_ids(results) if name != "solar"),
-        key=lambda name: (
-            MATRIX_ORDER.index(name) if name in MATRIX_ORDER else len(MATRIX_ORDER)
-        ),
+        (name for name in compiler_ids(results) if name != "solar"), key=compiler_rank
     )
 
 
