@@ -107,7 +107,7 @@ use solar_data_structures::{
     map::FxHashMap,
 };
 use solar_sema::hir::StateMutability;
-use std::{cell::OnceCell, ops::Range, rc::Rc, sync::Arc};
+use std::{cell::OnceCell, mem, ops::Range, rc::Rc, sync::Arc};
 
 /// Function pass for local common subexpression elimination.
 pub(crate) enum Cse {
@@ -331,6 +331,9 @@ struct GlobalCseContext<'a> {
     summary_inputs: OnceCell<DenseBitSet<ValueId>>,
     replacements: &'a mut FxHashMap<ValueId, ValueId>,
     dead: &'a mut DenseBitSet<InstId>,
+    /// Blocks with a path to the child of the edge `filter_inherited_cache` is filtering.
+    reaching_child: DenseBitSet<BlockId>,
+    pending: Vec<BlockId>,
 }
 
 impl GlobalCseContext<'_> {
@@ -382,6 +385,11 @@ impl ExprCache {
         !self.stateful.is_empty()
     }
 
+    fn clear(&mut self) {
+        Rc::make_mut(&mut self.pure).clear();
+        self.clear_stateful();
+    }
+
     fn clear_stateful(&mut self) {
         Rc::make_mut(&mut self.stateful).clear();
     }
@@ -395,6 +403,17 @@ impl ExprCache {
             Rc::make_mut(&mut self.stateful).retain(|key, value| keep(key, value));
         }
     }
+}
+
+/// Buffers one CSE run reuses across its blocks and fixpoint rounds.
+struct Scratch {
+    /// Instructions removed from their block. Every instruction sits in one block, so one set
+    /// serves the dominator-scoped walk and each local block.
+    removed: DenseBitSet<InstId>,
+    replacements: FxHashMap<ValueId, ValueId>,
+    /// The local walk's cache, cleared per block.
+    cache: ExprCache,
+    clobbers: Vec<Clobber>,
 }
 
 /// The summary index and clobber range of each side-effecting instruction.
@@ -436,22 +455,20 @@ impl CommonSubexprEliminator {
         self.gas.as_ref().expect("CSE gas observations are initialized")
     }
 
-    fn run_with_cfg(&mut self, func: &mut Function, cfg: &CfgInfo) {
+    fn run_with_cfg(&mut self, func: &mut Function, cfg: &CfgInfo, scratch: &mut Scratch) {
         if !self.storage_only {
             self.sink_redundant_phi_expressions(func, cfg);
         }
 
         self.alias().clear_cached_addresses();
-        self.process_global_pure(func, cfg);
+        self.process_global_pure(func, cfg, scratch);
 
-        // Process each block independently (local CSE). Every instruction sits in one block, so
-        // the removal set can serve all of them.
+        // Process each block independently (local CSE)
         let block_ids = func.blocks.indices();
         let liveness = OnceCell::new();
-        let mut to_remove = DenseBitSet::new_empty(func.num_insts());
         for block_id in block_ids {
             self.alias().clear_cached_addresses();
-            self.process_block(func, block_id, &liveness, &mut to_remove);
+            self.process_block(func, block_id, &liveness, scratch);
         }
     }
 
@@ -470,10 +487,16 @@ impl CommonSubexprEliminator {
         self.refresh_alias(func);
         self.zero_word = (!self.storage_only).then(|| Self::zero_word(func)).flatten();
         self.gas = Some(GasObservations::new(func, cfg, self.alias()));
+        let mut scratch = Scratch {
+            removed: DenseBitSet::new_empty(0),
+            replacements: FxHashMap::default(),
+            cache: ExprCache::default(),
+            clobbers: Vec::new(),
+        };
         loop {
             let (before, merged) = (self.eliminated_count, self.eliminated_settled);
             self.alias().clear_cached_addresses();
-            self.run_with_cfg(func, cfg);
+            self.run_with_cfg(func, cfg, &mut scratch);
             if self.eliminated_count - self.eliminated_settled != before - merged {
                 continue;
             }
@@ -492,7 +515,7 @@ impl CommonSubexprEliminator {
         self.eliminated_count + removed
     }
 
-    fn process_global_pure(&mut self, func: &mut Function, cfg: &CfgInfo) {
+    fn process_global_pure(&mut self, func: &mut Function, cfg: &CfgInfo, scratch: &mut Scratch) {
         let has_path_sensitive_expr = func
             .instructions()
             .any(|inst_id| Self::is_path_sensitive_kind(&func.inst(inst_id).kind));
@@ -502,8 +525,8 @@ impl CommonSubexprEliminator {
             Default::default()
         };
         let reuse = (!block_clobbers.is_empty()).then(OnceCell::new);
-        let mut replacements = FxHashMap::default();
-        let mut dead = DenseBitSet::new_empty(func.num_insts());
+        scratch.removed.clear_to(func.num_insts());
+        scratch.replacements.clear();
         let mut ctx = GlobalCseContext {
             liveness: OnceCell::new(),
             use_liveness: OnceCell::new(),
@@ -512,18 +535,20 @@ impl CommonSubexprEliminator {
             cfg,
             reuse,
             summary_inputs: OnceCell::new(),
-            replacements: &mut replacements,
-            dead: &mut dead,
+            replacements: &mut scratch.replacements,
+            dead: &mut scratch.removed,
+            reaching_child: DenseBitSet::new_empty(func.blocks.len()),
+            pending: Vec::new(),
         };
 
-        self.process_global_blocks(func, &mut ctx);
+        self.process_global_blocks(func, &mut ctx, &mut scratch.clobbers);
 
         // Replacing an operand drops the facts that depend on it; replacing only the base a
         // storage alias names keeps the alias, renamed.
-        func.replace_uses_canonicalized(&replacements);
-        if !dead.is_empty() {
+        func.replace_uses_canonicalized(&scratch.replacements);
+        if !scratch.removed.is_empty() {
             for block in func.blocks.iter_mut() {
-                block.instructions.retain(|&id| !dead.contains(id));
+                block.instructions.retain(|&id| !scratch.removed.contains(id));
             }
         }
     }
@@ -655,7 +680,12 @@ impl CommonSubexprEliminator {
         })
     }
 
-    fn process_global_blocks(&mut self, func: &Function, ctx: &mut GlobalCseContext<'_>) {
+    fn process_global_blocks(
+        &mut self,
+        func: &Function,
+        ctx: &mut GlobalCseContext<'_>,
+        clobbers: &mut Vec<Clobber>,
+    ) {
         let mut worklist = Vec::new();
         worklist.push((BlockId::ENTRY, ExprCache::default()));
         while let Some((block_id, mut cache)) = worklist.pop() {
@@ -712,12 +742,12 @@ impl CommonSubexprEliminator {
                                 .iter()
                                 .any(|operand| ctx.replacements.contains_key(operand)))
                     {
-                        let clobbers = &ctx.block_clobbers[*summary].1[range.clone()];
+                        let summarized = &ctx.block_clobbers[*summary].1[range.clone()];
                         self.apply_side_effect(
                             func,
                             inst_id,
                             kind,
-                            clobbers,
+                            summarized,
                             ctx.replacements,
                             &mut cache,
                         );
@@ -727,6 +757,7 @@ impl CommonSubexprEliminator {
                             inst_id,
                             kind,
                             ctx.replacements,
+                            clobbers,
                             &mut cache,
                         );
                     }
@@ -821,7 +852,7 @@ impl CommonSubexprEliminator {
         parent: BlockId,
         child: BlockId,
         cache: &mut ExprCache,
-        ctx: &GlobalCseContext<'_>,
+        ctx: &mut GlobalCseContext<'_>,
     ) {
         cache.retain_stateful(|key, value| {
             !matches!(key, ExprKey::MLoad(location)
@@ -839,13 +870,12 @@ impl CommonSubexprEliminator {
         // Blocks with a path to `child` that avoids `parent`. Every such block is
         // dominated by `parent`, so the walk stays within its dominator subtree
         // and every block it finds is reachable from `parent`.
-        let mut reaching_child = DenseBitSet::new_empty(func.blocks.len());
-        let mut pending = Vec::new();
-        pending.push(child);
-        while let Some(block) = pending.pop() {
+        ctx.reaching_child.clear();
+        ctx.pending.push(child);
+        while let Some(block) = ctx.pending.pop() {
             for &pred in &func.blocks[block].predecessors {
-                if pred != parent && reaching_child.insert(pred) {
-                    pending.push(pred);
+                if pred != parent && ctx.reaching_child.insert(pred) {
+                    ctx.pending.push(pred);
                 }
             }
         }
@@ -854,7 +884,7 @@ impl CommonSubexprEliminator {
                 break;
             }
             // Clobbers in `parent` itself were already applied while processing it sequentially.
-            if *mid == parent || !reaching_child.contains(*mid) {
+            if *mid == parent || !ctx.reaching_child.contains(*mid) {
                 continue;
             }
             for clobber in clobbers {
@@ -875,9 +905,10 @@ impl CommonSubexprEliminator {
         let no_replacements = FxHashMap::default();
         let mut summaries = Vec::new();
         let mut side_effects = FxHashMap::default();
+        let mut clobbers = Vec::new();
+        let mut spans = Vec::new();
         for (block_id, block) in func.blocks.iter_enumerated() {
-            let mut clobbers = Vec::new();
-            let mut spans = Vec::new();
+            spans.clear();
             for &inst_id in &block.instructions {
                 let kind = &func.inst(inst_id).kind;
                 if self.gas().observes(inst_id) {
@@ -892,8 +923,8 @@ impl CommonSubexprEliminator {
             if !clobbers.is_empty() {
                 let summary = summaries.len();
                 side_effects
-                    .extend(spans.into_iter().map(|(inst_id, range)| (inst_id, (summary, range))));
-                summaries.push((block_id, clobbers));
+                    .extend(spans.drain(..).map(|(inst_id, range)| (inst_id, (summary, range))));
+                summaries.push((block_id, mem::take(&mut clobbers)));
             }
         }
         (summaries, side_effects)
@@ -997,13 +1028,13 @@ impl CommonSubexprEliminator {
         func: &mut Function,
         block_id: BlockId,
         liveness: &OnceCell<Liveness>,
-        to_remove: &mut DenseBitSet<InstId>,
+        scratch: &mut Scratch,
     ) {
-        // Map from expression key to the ValueId that computed it
-        let mut expr_cache = ExprCache::default();
-
-        // Map from ValueId to its replacement ValueId
-        let mut replacements = FxHashMap::default();
+        // Map from expression key to the ValueId that computed it, and from ValueId to its
+        // replacement ValueId
+        let Scratch { removed: to_remove, replacements, cache: expr_cache, clobbers } = scratch;
+        expr_cache.clear();
+        replacements.clear();
 
         let mut gas_observed = self.gas().at_entry(block_id);
 
@@ -1022,7 +1053,7 @@ impl CommonSubexprEliminator {
             }
 
             let candidate = self
-                .make_expr_key(func, inst_id, kind, &replacements)
+                .make_expr_key(func, inst_id, kind, replacements)
                 .filter(|key| !gas_observed || !Self::is_path_sensitive_expr(key))
                 .zip(func.inst_result_value(inst_id));
             if let Some((key, result)) = &candidate
@@ -1040,7 +1071,14 @@ impl CommonSubexprEliminator {
                 continue;
             }
             if kind.has_side_effects() {
-                self.update_for_side_effect(func, inst_id, kind, &replacements, &mut expr_cache);
+                self.update_for_side_effect(
+                    func,
+                    inst_id,
+                    kind,
+                    replacements,
+                    clobbers,
+                    expr_cache,
+                );
             }
             if let Some((key, result)) = candidate {
                 expr_cache.insert(key, result);
@@ -1048,7 +1086,7 @@ impl CommonSubexprEliminator {
         }
 
         // Apply replacements everywhere: the eliminated result may be used in dominated blocks.
-        func.replace_uses_canonicalized(&replacements);
+        func.replace_uses_canonicalized(replacements);
 
         // Remove eliminated instructions
         let block = func.block_mut(block_id);
@@ -1375,11 +1413,12 @@ impl CommonSubexprEliminator {
         inst_id: InstId,
         kind: &InstKind,
         replacements: &FxHashMap<ValueId, ValueId>,
+        clobbers: &mut Vec<Clobber>,
         expr_cache: &mut ExprCache,
     ) {
-        let mut clobbers = Vec::new();
-        self.side_effect_clobbers(func, inst_id, kind, replacements, &mut clobbers);
-        self.apply_side_effect(func, inst_id, kind, &clobbers, replacements, expr_cache);
+        clobbers.clear();
+        self.side_effect_clobbers(func, inst_id, kind, replacements, clobbers);
+        self.apply_side_effect(func, inst_id, kind, clobbers, replacements, expr_cache);
     }
 
     fn apply_side_effect(
