@@ -106,6 +106,8 @@ impl MirPass for ElementCleanup {
             }
         }
         let mut changed = false;
+        let mut replacements = FxHashMap::default();
+        let mut dead = DenseBitSet::new_empty(0);
         for (id, func) in module.functions.iter_mut_enumerated() {
             let reading = transitive[id];
             if reading >= FULL_WIDTH {
@@ -146,8 +148,8 @@ impl MirPass for ElementCleanup {
                 }
             }
             let uses = super::egraph::use_counts(func);
-            let mut replacements = FxHashMap::default();
-            let mut dead = DenseBitSet::new_empty(func.num_insts());
+            replacements.clear();
+            dead.clear_to(func.num_insts());
             for inst in func.instructions() {
                 if let Some((element, bits)) = masked_element(func, inst)
                     && let Value::Inst(load) = func.value(element)

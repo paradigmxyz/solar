@@ -130,13 +130,18 @@ type StoredValues = FxHashMap<Location, ValueId>;
 
 impl StorageStoreEliminator<'_> {
     /// Runs one round: dead stores, then equal stores. Returns whether it removed any.
-    fn run_round(&self, func: &mut Function, dead: &mut DenseBitSet<InstId>) -> bool {
+    fn run_round(
+        &self,
+        func: &mut Function,
+        dead: &mut DenseBitSet<InstId>,
+        incoming: &mut IndexVec<BlockId, Overwritten>,
+    ) -> bool {
         let cfg = &*self.cfg;
-        let mut incoming = index_vec![Overwritten::none(); func.blocks.len()];
+        incoming.iter_mut().for_each(Overwritten::clear);
         loop {
             let mut changed = false;
             for &block in cfg.rpo().iter().rev() {
-                let mut facts = self.successor_facts(func, &incoming, block);
+                let mut facts = self.successor_facts(func, incoming, block);
                 self.transfer_reverse(func, block, &mut facts, None);
                 if incoming[block] != facts {
                     incoming[block] = facts;
@@ -149,7 +154,7 @@ impl StorageStoreEliminator<'_> {
         }
         dead.clear();
         for &block in cfg.rpo() {
-            let mut facts = self.successor_facts(func, &incoming, block);
+            let mut facts = self.successor_facts(func, incoming, block);
             self.transfer_reverse(func, block, &mut facts, Some(dead));
         }
         // sstore slot, old; ...; sstore slot, new => ...; sstore slot, new
@@ -160,8 +165,9 @@ impl StorageStoreEliminator<'_> {
     /// Runs storage DSE to a fixed point. Returns whether it removed any store.
     fn run_to_fixpoint(&self, func: &mut Function) -> bool {
         let mut dead = DenseBitSet::new_empty(func.num_insts());
+        let mut incoming = index_vec![Overwritten::none(); func.blocks.len()];
         let mut changed = false;
-        while self.run_round(func, &mut dead) {
+        while self.run_round(func, &mut dead, &mut incoming) {
             changed = true;
         }
         changed
@@ -431,7 +437,7 @@ impl Overwritten {
     }
 
     fn clear(&mut self) {
-        *self = Self::none();
+        self.slots.iter_mut().for_each(Slots::clear);
     }
 
     fn intersect(&mut self, other: &Self) {
@@ -476,7 +482,10 @@ impl Slots {
     }
 
     fn clear(&mut self) {
-        *self = Self::none();
+        match self {
+            Self::All => *self = Self::none(),
+            Self::Set(slots) => slots.clear(),
+        }
     }
 
     fn intersect(&mut self, other: &Self) {
