@@ -1,0 +1,50 @@
+// === ROOT/tests/ui/codegen/lowering/abi_decode_bytes_overlap.sol:DecodeBytesOverlap ===
+@module DecodeBytesOverlap
+fn @rewound() -> i1 [selector=0xaa555c23, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = not 31
+    v1 = and 159, v0
+    v2 = alloc zeroed checked v1
+    mstore v2, 96
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: v2], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v17]
+    v6 = lt v5, 96
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v18 = abi_encode [memory_bytes], object, args v4
+    v19 = ptrtoint ptr<memory> v18 to i256
+    mstore 64, v19 !metadata(memory=scratch)
+    v20 = abi_decode [bytes], v18
+    v21 = ptradd v20, 32
+    v22 = mload v20
+    v23 = keccak256 v21, v22
+    v24 = ptradd v4, 32
+    v25 = mload v4
+    v26 = keccak256 v24, v25
+    v27 = eq v23, v26
+    ret v27
+  bb4:
+    v7 = checked_add uint256, v5, 1
+    v8 = trunc i256 v7 to i8
+    v9 = zext i8 v8 to i256
+    v10 = shl v9, 248
+    v11 = mload v4
+    v12 = lt v5, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = byte 0, v10
+    v15 = ptradd v4, v5
+    v16 = ptradd v15, 32
+    mstore8 v16, v14
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v17 = checked_add uint256, v5, 1
+    jump bb1
+}

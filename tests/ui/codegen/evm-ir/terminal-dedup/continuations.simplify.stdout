@@ -11,12 +11,12 @@
   bb2:
     push bb4
     jump bb5
-  bb3 [continuation] [invoke=first@1..10]:
+  bb3 [continuation, invoke=first@1..10]:
 -   push 1 !metadata(span=1..3, invoke=first@1..10)
 +   push 1 !metadata(spans=[1..3, 11..13])
     add
     jump bb6
-  bb4 [continuation] [invoke=second@11..20]:
+  bb4 [continuation, invoke=second@11..20]:
 -   push 1 !metadata(span=11..13, invoke=second@11..20)
 -   add
 -   jump bb6
@@ -59,11 +59,11 @@
 -   push bb4
 +   push bb3
     jump bb5
-  bb3 [continuation] [invoke=first@1..10]:
+  bb3 [continuation, invoke=first@1..10]:
     push 1 !metadata(spans=[1..3, 11..13])
     add
 -   jump bb6
-- bb4 [continuation] [invoke=second@11..20]:
+- bb4 [continuation, invoke=second@11..20]:
 -   jump bb3
 - bb5:
 -   push 9

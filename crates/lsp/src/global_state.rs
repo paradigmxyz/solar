@@ -403,9 +403,6 @@ pub(crate) struct GlobalState {
     diagnostics: Arc<RwLock<DiagnosticStore>>,
     import_completion_cache: Mutex<ImportCompletionCache>,
     last_vfs_path: Option<(Url, Arc<VfsPath>)>,
-    /// Keep scheduled benchmark analyses on the same compiler thread policy as CPU benchmarks.
-    #[cfg(any(test, feature = "bench"))]
-    benchmark_threads: Option<solar_config::Threads>,
 }
 
 pub(crate) struct AnalysisRevision {
@@ -456,8 +453,6 @@ impl GlobalState {
             diagnostics: Arc::new(Default::default()),
             import_completion_cache: Mutex::new(ImportCompletionCache::default()),
             last_vfs_path: None,
-            #[cfg(any(test, feature = "bench"))]
-            benchmark_threads: None,
             config,
             launch_config: crate::LaunchConfig::default(),
         }
@@ -1652,8 +1647,6 @@ impl GlobalState {
             flycheck_versions: self.flycheck_versions.clone(),
             symbol_tables: self.symbol_tables.clone(),
             diagnostics: self.diagnostics.clone(),
-            #[cfg(any(test, feature = "bench"))]
-            benchmark_threads: self.benchmark_threads,
         }
     }
 
@@ -2330,9 +2323,6 @@ pub(crate) struct GlobalStateSnapshot {
     flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
     symbol_tables: Arc<ArcSwap<SymbolTables>>,
     diagnostics: Arc<RwLock<DiagnosticStore>>,
-    /// Override compiler parallelism only in benchmark snapshots.
-    #[cfg(any(test, feature = "bench"))]
-    benchmark_threads: Option<solar_config::Threads>,
 }
 
 impl GlobalStateSnapshot {
@@ -2439,7 +2429,7 @@ impl GlobalStateSnapshot {
         })
     }
 
-    #[cfg(any(test, feature = "bench"))]
+    #[cfg(test)]
     fn analysis_batches(&self, disk_paths: Vec<PathBuf>) -> Vec<AnalysisBatch> {
         self.analysis_batches_cancellable(disk_paths, &IndexingCancellation::default())
             .map(|(batches, _)| batches)
@@ -2476,12 +2466,6 @@ impl GlobalStateSnapshot {
             .iter()
             .map(|workspace| AnalysisBatch::new(workspace.compile_opts().clone()))
             .collect::<Vec<_>>();
-        #[cfg(any(test, feature = "bench"))]
-        if let Some(threads) = self.benchmark_threads {
-            for batch in &mut batches {
-                batch.opts.threads = threads;
-            }
-        }
         let source_map = SourceMap::empty();
         let mut source_files_complete = true;
         let mut load_file = |batch: &mut AnalysisBatch, path: &Path, missing_is_complete: bool| {
@@ -2807,7 +2791,7 @@ impl AnalysisBatch {
         Self { opts, ..Default::default() }
     }
 
-    #[cfg(any(test, feature = "bench"))]
+    #[cfg(test)]
     fn from_files(opts: CompileOpts, files: impl IntoIterator<Item = (PathBuf, String)>) -> Self {
         let mut batch = Self::new(opts);
         for (path, contents) in files {
@@ -2862,26 +2846,14 @@ impl AnalysisBatch {
     }
 }
 
-#[cfg(any(test, feature = "bench"))]
+#[cfg(test)]
 fn analyze(batch: AnalysisBatch) -> AnalysisResult {
     analyze_cancellable(batch, &IndexingCancellation::default())
         .expect("fresh analysis cancellation cannot be cancelled")
         .result
 }
 
-#[cfg(any(test, feature = "bench"))]
-fn analyze_with_source_map(batch: AnalysisBatch, source_map: Arc<SourceMap>) -> AnalysisResult {
-    analyze_cancellable_with_source_map(
-        batch,
-        source_map,
-        ImportPathTracker::default(),
-        &IndexingCancellation::default(),
-    )
-    .expect("fresh analysis cancellation cannot be cancelled")
-    .result
-}
-
-#[cfg(any(test, feature = "bench"))]
+#[cfg(test)]
 fn analyze_cancellable(
     batch: AnalysisBatch,
     cancellation: &IndexingCancellation,
@@ -3040,11 +3012,6 @@ fn analyze_cancellable_with_source_map(
         })
     })
 }
-
-/// Access to prepared, fully analyzed in-memory projects for benchmarks and tests.
-#[cfg(any(test, feature = "bench"))]
-#[cfg_attr(all(test, not(feature = "bench")), allow(dead_code, unreachable_pub))]
-pub(crate) mod benchmark;
 #[cfg(test)]
 #[path = "tests/mod.rs"]
 mod tests;

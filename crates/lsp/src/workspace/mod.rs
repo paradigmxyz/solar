@@ -500,7 +500,7 @@ impl Workspace {
         policy.excludes_source_directory(workspace_root, source_root, path)
     }
 
-    #[cfg(any(test, feature = "bench"))]
+    #[cfg(test)]
     pub(crate) fn load_foundry(path: PathBuf) -> Result<Self, WorkspaceError> {
         Self::load_foundry_inner(path, None, &mut FoundryConfigContext::default())
     }

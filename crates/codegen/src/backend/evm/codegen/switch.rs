@@ -1869,7 +1869,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                             .then(|| Target::new(self.gcx).expected_executions()),
                         default,
                         table_target_width: self.asm.indexed_jump_target_width_bound(),
-                        pack_wide_jump_tables: self.gcx.sess.opts.unstable.pack_wide_jump_tables,
+                        pack_wide_jump_tables: Target::new(self.gcx).packs_wide_jump_tables(
+                            self.gcx.sess.opts.unstable.pack_wide_jump_tables,
+                        ),
                         max_gas_code_growth: if lifetime_priced {
                             usize::MAX
                         } else {

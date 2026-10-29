@@ -8,7 +8,7 @@
 // The last step stays below the check: above it, the path that reverts would pay for it. The
 // block's shuffles and pushes drop from 20 to 16, and the code before the check from 75 gas to
 // 63.
-// CHECK-LABEL: {{^[ +].*}}bb0 [loop] [stack=3]:
+// CHECK-LABEL: {{^[ +].*}}bb0 [loop, stack=3]:
 // CHECK: {{^[ +] *(lt|gt)$}}
 // CHECK-NEXT: push bb1
 // CHECK-NEXT: jumpi

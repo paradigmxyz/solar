@@ -1,0 +1,37 @@
+// === ROOT/tests/ui/codegen/evm-ir/peephole/modular_swaps_runtime.sol:ModularSwaps ===
+@module ModularSwaps
+@types
+  struct0: {i256, i256}
+
+fn @addMul(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0xac96ed62, pure, abi_params=[uint256, uint256, uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = icall checked_mulmod<>, arg0, arg1, arg3
+    v1 = icall checked_addmod<>, v0, arg2, arg3
+    v2 = icall checked_mulmod<>, arg0, arg1, arg3
+    v3 = icall checked_addmod<>, arg2, v2, arg3
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
+}
+
+fn @mulAdd(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0xeea6e1b2, pure, abi_params=[uint256, uint256, uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = icall checked_addmod<>, arg0, arg1, arg3
+    v1 = icall checked_mulmod<>, v0, arg2, arg3
+    v2 = icall checked_addmod<>, arg0, arg1, arg3
+    v3 = icall checked_mulmod<>, arg2, v2, arg3
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
+}
+
+fn @mulMul(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0xfa1e0951, pure, abi_params=[uint256, uint256, uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = icall checked_mulmod<>, arg0, arg1, arg3
+    v1 = icall checked_mulmod<>, v0, arg2, arg3
+    v2 = icall checked_mulmod<>, arg0, arg1, arg3
+    v3 = icall checked_mulmod<>, arg2, v2, arg3
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
+}

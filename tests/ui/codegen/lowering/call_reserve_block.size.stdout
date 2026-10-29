@@ -54,7 +54,7 @@ bb0:
   push bb12
   push 128
   jump bb11
-bb11:
+bb11 [ret=1, inputs=2, outputs=1]:
   push 0x3fa4f24500000000000000000000000000000000000000000000000000000000
   dup 2
   mstore

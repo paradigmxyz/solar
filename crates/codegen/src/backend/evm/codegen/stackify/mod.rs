@@ -140,7 +140,10 @@ use super::{
     StackOp, Terminator, Value, ValueId, index_vec, select::rematerializable_nullary_value,
 };
 use crate::{
-    backend::evm::CodegenState,
+    backend::evm::{
+        CodegenState,
+        ir::{CallEffect, StackEffect},
+    },
     mir::{ArgIdx, Callee, analysis::LoopInfo},
     target::{Cost, Target},
 };
@@ -332,12 +335,26 @@ struct ModuleInfo {
     returns: IndexVec<FunctionId, usize>,
     /// Parameters of each function.
     params: IndexVec<FunctionId, usize>,
-    /// Functions of creation code that run more than once because a loop or recursion calls them.
+    /// Functions of creation code, and at `-O none` of runtime code too, that run more than once
+    /// because a loop or recursion calls them.
     repeated: DenseBitSet<FunctionId>,
     entry: FunctionId,
     /// Whether `entry` is the runtime dispatch entry, whose switch leaves its selector on the
     /// stack.
     emitting_entry: bool,
+}
+
+impl ModuleInfo {
+    /// How a call to `func` returns: the arguments sit below the return address, which the
+    /// function replaces with its results. A function that never returns has no effect.
+    fn call_effect(&self, func: FunctionId) -> Option<CallEffect> {
+        if !self.returning.contains(func) {
+            return None;
+        }
+        let inputs = u8::try_from(self.params[func] + 1).ok()?;
+        let outputs = u8::try_from(self.returns[func]).ok()?;
+        Some(CallEffect { ret: 0, effect: StackEffect::new(inputs, outputs) })
+    }
 }
 
 /// Facts about one function that every planning attempt shares.
@@ -555,12 +572,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
-        let repeated = if self.in_constructor {
+        // Runtime code needs the set only at `-O none`, where compact pushes price code by it.
+        let repeated = if self.in_constructor || self.gcx.sess.opts.optimization.is_none() {
             let mut domain = DenseBitSet::new_empty(functions);
             for &func_id in &bodies {
                 domain.insert(func_id);
             }
-            module.repeated_functions(&domain)
+            module.repeated_functions(&domain, call_graph)
         } else {
             DenseBitSet::new_empty(functions)
         };

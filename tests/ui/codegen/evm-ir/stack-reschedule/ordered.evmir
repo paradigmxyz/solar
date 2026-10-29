@@ -4,7 +4,7 @@
 
 // Memory accesses keep their order while the pure work around them moves, and nothing
 // crosses a `GAS` read, which ends the run.
-// CHECK-LABEL: {{^[ +].*}}bb0 [loop] [stack=2]:
+// CHECK-LABEL: {{^[ +].*}}bb0 [loop, stack=2]:
 // CHECK: mstore
 // CHECK: mload
 // CHECK: gas

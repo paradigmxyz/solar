@@ -10,8 +10,6 @@ use async_lsp::{
     ClientSocket, LspService, ResponseError, client_monitor::ClientProcessMonitorLayer,
     router::Router, tracing::TracingLayer,
 };
-#[cfg(test)]
-use criterion as _;
 use lsp_types::{notification as notif, request as req};
 use normalize_path::NormalizePath;
 use serde_json as _;
@@ -345,60 +343,6 @@ mod type_hierarchy;
 mod utils;
 mod vfs;
 mod workspace;
-
-/// Benchmark-only access to prepared LSP projects and opaque analysis snapshots.
-#[cfg(feature = "bench")]
-#[doc(hidden)]
-pub use global_state::benchmark::{
-    BenchmarkAnalysis, BenchmarkCallHierarchyRequests, BenchmarkCodeActionRequests,
-    BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit, BenchmarkError,
-    BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments, BenchmarkPendingRequests,
-    BenchmarkProject, BenchmarkRenameRequests, BenchmarkRepeatedAnalysis, BenchmarkRequest,
-    BenchmarkResponse, BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests,
-    BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
-};
-
-/// Checks whether a source position belongs to a parsed import path.
-#[cfg(feature = "bench")]
-#[doc(hidden)]
-pub fn benchmark_import_path_at(source: &str, cursor: usize) -> bool {
-    import_resolution::import_path_at(source, cursor).is_some()
-}
-
-/// Runs the folding-range kernel for Criterion benchmarks.
-#[cfg(feature = "bench")]
-#[doc(hidden)]
-pub fn benchmark_folding_ranges(source: String) -> Vec<lsp_types::FoldingRange> {
-    folding_range::folding_ranges(source)
-}
-
-/// Runs the open-document folding-range kernel for Criterion benchmarks.
-#[cfg(feature = "bench")]
-#[doc(hidden)]
-pub fn benchmark_folding_ranges_from_rope(source: crop::Rope) -> Vec<lsp_types::FoldingRange> {
-    folding_range::folding_ranges_from_rope(source)
-}
-
-/// Converts repeated compiler diagnostics for a source file for Criterion benchmarks.
-#[cfg(feature = "bench")]
-#[doc(hidden)]
-pub fn benchmark_diagnostic_conversion(
-    source: String,
-    diagnostic_count: usize,
-    cached: bool,
-) -> usize {
-    proto::benchmark_diagnostic_conversion(source, diagnostic_count, cached)
-}
-
-/// Runs the selection-range kernel for Criterion benchmarks.
-#[cfg(feature = "bench")]
-#[doc(hidden)]
-pub fn benchmark_selection_ranges(
-    source: String,
-    positions: &[lsp_types::Position],
-) -> Option<Vec<lsp_types::SelectionRange>> {
-    selection_range::selection_ranges(source, positions)
-}
 
 #[cfg(test)]
 mod test_support;

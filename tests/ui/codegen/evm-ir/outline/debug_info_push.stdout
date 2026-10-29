@@ -7,7 +7,7 @@
 -   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef !metadata(span=11..15, invoke=second@11..20)
 +   push bb3
 +   jump bb1 !metadata(invoke=first@1..10)
-+ bb1:
++ bb1 [ret=0, inputs=1, outputs=1]:
 +   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef !metadata(spans=[1..5, 11..15])
 +   swap 1
 +   jump

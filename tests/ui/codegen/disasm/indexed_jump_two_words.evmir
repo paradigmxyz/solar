@@ -1,23 +1,34 @@
+//@ revisions: wide jit
 //@ compile-flags: -Zevm-ir-pipeline=none -O size -Zpack-wide-jump-tables -Zdump=disasm-runtime
-//@ filecheck:
+//@[jit] compile-flags: -Ztune=jit
+//@[wide] filecheck: --check-prefix=WIDE
+//@[jit] filecheck: --check-prefix=JIT
 
 // With `-Zpack-wide-jump-tables`, 33 one-byte entries do not fit one word, so the
 // size-optimized table splits them across two words and selects one without a branch.
+// `-Ztune=jit` keeps the stride table.
 @module two_words
 
-// CHECK-LABEL: // === two_words (runtime) ===
-// CHECK-NEXT: PUSH1 0x01
-// CHECK-NEXT: DUP1
-// CHECK-NEXT: PUSH1 0x05
-// CHECK-NEXT: SHR
-// CHECK-NEXT: DUP1
-// CHECK-NEXT: PUSH1
-// CHECK-NEXT: MUL
-// CHECK-NEXT: SWAP1
-// CHECK-NEXT: ISZERO
-// CHECK-NEXT: PUSH32
-// CHECK-NEXT: MUL
-// CHECK-NEXT: ADD
+// WIDE-LABEL: // === two_words (runtime) ===
+// WIDE-NEXT: PUSH1 0x01
+// WIDE-NEXT: DUP1
+// WIDE-NEXT: PUSH1 0x05
+// WIDE-NEXT: SHR
+// WIDE-NEXT: DUP1
+// WIDE-NEXT: PUSH1
+// WIDE-NEXT: MUL
+// WIDE-NEXT: SWAP1
+// WIDE-NEXT: ISZERO
+// WIDE-NEXT: PUSH32
+// WIDE-NEXT: MUL
+// WIDE-NEXT: ADD
+// JIT-LABEL: // === two_words (runtime) ===
+// JIT-NEXT: PUSH1 0x01
+// JIT-NEXT: PUSH1 0x04
+// JIT-NEXT: MUL
+// JIT-NEXT: PUSH2
+// JIT-NEXT: ADD
+// JIT-NEXT: JUMP ; unknown
 bb0:
   push 1
   indexed_jump bb1, bb2, bb3, bb4, bb5, bb6, bb7, bb8, bb9, bb10, bb11, bb12, bb13, bb14, bb15, bb16, bb17, bb18, bb19, bb20, bb21, bb22, bb23, bb24, bb25, bb26, bb27, bb28, bb29, bb30, bb31, bb32, bb33

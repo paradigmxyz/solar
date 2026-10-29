@@ -59,7 +59,7 @@
     pop
     stop
 - bb2 [loop]:
-+ bb3:
++ bb3 [ret=0, inputs=1, outputs=0]:
     push 1
     pop
     push 1

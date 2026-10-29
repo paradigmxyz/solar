@@ -19,7 +19,7 @@
 // CHECK-NEXT: + push [[RET2:bb[0-9]+]]
 // CHECK-NEXT: + swap 1
 // CHECK-NEXT: + jump [[STUB]]
-// CHECK: + [[STUB]]:
+// CHECK: + [[STUB]] {{\[ret=.*\]}}:
 // CHECK-COUNT-20: {{^[ +].*}}not
 // CHECK-NEXT: + swap 1
 // CHECK-NEXT: + jump

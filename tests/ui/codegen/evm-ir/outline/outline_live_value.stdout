@@ -16,7 +16,7 @@
 +   push bb6
 +   swap 1
 +   jump bb3
-+ bb3:
++ bb3 [ret=1, inputs=2, outputs=1]:
     not
     not
     not

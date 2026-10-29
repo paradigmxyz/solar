@@ -197,6 +197,15 @@ impl Target {
     /// it: a contract built around a loop or two, a sixth of EIP-170's limit.
     pub(crate) const SMALL_CODE_BYTES: u64 = 4_096;
 
+    /// The optimizer runs from which loop unrolling and peeling pay under [`Tune::Jit`], the
+    /// default 200: a JIT compiles the copies to straight-line machine code, so an unrolled loop
+    /// ran 5% fewer instructions at 3.5% more bytes on the runtime corpus.
+    pub(crate) const JIT_LOOP_UNROLL_MIN_RUNS: u64 = Self::DEFAULT_EXPECTED_EXECUTIONS;
+    /// The most words a loop may carry across its back edge to be unrolled or peeled under
+    /// [`Tune::Jit`]: a JIT keeps a 256-bit word in four registers, and a loop that carries more
+    /// spills them to the stack on every iteration, as an unrolled sum over an array did.
+    pub(crate) const JIT_MAX_UNROLLED_LOOP_WORDS: usize = 3;
+
     /// The model of the session's EVM version, objective, and optimizer runs.
     pub(crate) fn new(gcx: Gcx<'_>) -> Self {
         let opts = &gcx.sess.opts;
@@ -287,6 +296,21 @@ impl Target {
     /// Whether the build expects enough executions to copy loop bodies for runtime gas.
     pub(crate) fn copies_loops(&self) -> bool {
         self.expected_executions >= Self::LOOP_COPY_MIN_RUNS
+    }
+
+    /// Whether the build expects enough executions to unroll and peel loops for runtime gas:
+    /// from [`Self::LOOP_COPY_MIN_RUNS`] on, or from [`Self::JIT_LOOP_UNROLL_MIN_RUNS`] under
+    /// [`Tune::Jit`].
+    pub(crate) fn unrolls_loops(&self) -> bool {
+        let min_runs =
+            if self.is_jit() { Self::JIT_LOOP_UNROLL_MIN_RUNS } else { Self::LOOP_COPY_MIN_RUNS };
+        self.expected_executions >= min_runs
+    }
+
+    /// Whether a loop carrying `words` words across its back edge may be unrolled or peeled:
+    /// always, except under [`Tune::Jit`], which allows [`Self::JIT_MAX_UNROLLED_LOOP_WORDS`].
+    pub(crate) fn unrolls_loop_carrying(&self, words: usize) -> bool {
+        !self.is_jit() || words <= Self::JIT_MAX_UNROLLED_LOOP_WORDS
     }
 
     /// Whether copying a loop block whose code costs `copy`, entered on `paths` paths, into a loop
@@ -652,6 +676,19 @@ impl Target {
         cost
     }
 
+    /// Whether indexed jump tables may pack entries wider than one byte into words and pick them
+    /// with a shift and a mask, when `requested` by `-Zpack-wide-jump-tables`. A bytecode JIT
+    /// cannot resolve the pick, and one unresolved jump makes it drop every jump it resolved in
+    /// the contract.
+    pub(crate) const fn packs_wide_jump_tables(&self, requested: bool) -> bool {
+        requested && !self.is_jit()
+    }
+
+    /// Whether the code is tuned for a bytecode JIT.
+    const fn is_jit(&self) -> bool {
+        matches!(self.tune, Tune::Jit)
+    }
+
     /// Whether the engine pays for the dispatch of each executed instruction.
     const fn charges_dispatch(&self) -> bool {
         matches!(self.tune, Tune::Interpreter)
@@ -721,11 +758,11 @@ impl Target {
     }
 
     /// Whether a compact recipe for an immediate, `saved_bytes` shorter than its literal push and
-    /// `extra_gas` dearer to run, is the better code. Size builds always take the bytes. Gas builds
-    /// take them when the deposit they save covers the extra gas over the expected executions,
-    /// [`Self::UNCOUNTED_LOOP_ITERATIONS`] times over for a push inside a loop, so a hot loop
-    /// pushes a mask as a literal rather than rebuilding it on every iteration; a tie takes the
-    /// bytes, which cost no more over the deployment's lifetime.
+    /// `extra_gas` dearer to run, is the better code. Size builds always take the bytes. Gas
+    /// and `-O none` builds take them when the deposit they save covers the extra gas over the
+    /// expected executions, [`Self::UNCOUNTED_LOOP_ITERATIONS`] times over for a push inside a
+    /// loop, so a hot loop pushes a mask as a literal rather than rebuilding it on every
+    /// iteration; a tie takes the bytes, which cost no more over the deployment's lifetime.
     ///
     /// The push is priced over at most [`Self::DEFAULT_EXPECTED_EXECUTIONS`]: it runs only on the
     /// calls whose path reaches it, a fraction of the deployment's calls once they spread over its
@@ -739,7 +776,7 @@ impl Target {
         extra_gas: u64,
         in_loop: bool,
     ) -> bool {
-        if !self.optimization.is_gas() {
+        if self.optimization.is_size() {
             return true;
         }
         let iterations = if in_loop { Self::UNCOUNTED_LOOP_ITERATIONS } else { 1 };
@@ -1297,9 +1334,20 @@ mod tests {
     }
 
     #[test]
+    fn jit_never_packs_wide_jump_tables() {
+        let model = |tune| Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200).tuned(tune);
+        for tune in [Tune::None, Tune::Interpreter] {
+            assert!(model(tune).packs_wide_jump_tables(true));
+            assert!(!model(tune).packs_wide_jump_tables(false));
+        }
+        assert!(!model(Tune::Jit).packs_wide_jump_tables(true));
+        assert!(!model(Tune::Jit).packs_wide_jump_tables(false));
+    }
+
+    #[test]
     fn every_tune_selects_the_fewest_bytes() {
         let address_mask = (U256::ONE << 160) - U256::ONE;
-        for tune in [Tune::None, Tune::Interpreter] {
+        for tune in [Tune::None, Tune::Interpreter, Tune::Jit] {
             for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
                 let target = Target::with(EvmVersion::Osaka, optimization, 200).tuned(tune);
                 // `PUSH0; NOT; PUSH1 0x60; SHR` against `PUSH20 0xff..ff`.
@@ -1338,6 +1386,26 @@ mod tests {
     }
 
     #[test]
+    fn jit_unrolls_loops_from_the_default_runs() {
+        let target =
+            |runs, tune| Target::with(EvmVersion::Osaka, OptimizationMode::Gas, runs).tuned(tune);
+        for tune in [Tune::None, Tune::Interpreter] {
+            assert!(!target(Target::DEFAULT_EXPECTED_EXECUTIONS, tune).unrolls_loops());
+            assert!(target(Target::LOOP_COPY_MIN_RUNS, tune).unrolls_loops());
+            assert!(target(Target::DEFAULT_EXPECTED_EXECUTIONS, tune).unrolls_loop_carrying(9));
+        }
+        let jit = |runs| target(runs, Tune::Jit);
+        assert!(!jit(Target::JIT_LOOP_UNROLL_MIN_RUNS - 1).unrolls_loops());
+        assert!(jit(Target::DEFAULT_EXPECTED_EXECUTIONS).unrolls_loops());
+        assert!(jit(Target::LOOP_COPY_MIN_RUNS).unrolls_loops());
+        // Loop copies other than unrolling and peeling still wait for the many runs.
+        assert!(!jit(Target::DEFAULT_EXPECTED_EXECUTIONS).copies_loops());
+        let words = Target::JIT_MAX_UNROLLED_LOOP_WORDS;
+        assert!(jit(200).unrolls_loop_carrying(words));
+        assert!(!jit(200).unrolls_loop_carrying(words + 1));
+    }
+
+    #[test]
     fn compact_immediates_repay_their_gas() {
         // `type(uint128).max`: `PUSH16` is 17 bytes for 3 gas, `PUSH0 NOT PUSH1 128 SHR` 5 bytes
         // for 11: 12 bytes deposit 2,400 gas against 8 gas on 200 executions, 1,600, or 16,000
@@ -1351,6 +1419,11 @@ mod tests {
         assert!(target.compacts_immediate(1, 0, true));
         let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
         assert!(size.compacts_immediate(12, 8, true));
+        // `-O none` prices the push like a gas build: a loop keeps the literal.
+        let none = Target::with(EvmVersion::Osaka, OptimizationMode::None, 200);
+        assert!(none.compacts_immediate(12, 8, false));
+        assert!(!none.compacts_immediate(12, 8, true));
+        assert!(!none.compacts_immediate(4, 8, false));
         // A tie takes the bytes: `not(31)` in a loop saves 30 bytes, 6,000 gas, for 3 gas ten
         // times over on 200 executions, 6,000.
         assert!(target.compacts_immediate(30, 3, true));
