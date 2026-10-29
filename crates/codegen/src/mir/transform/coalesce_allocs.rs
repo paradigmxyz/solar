@@ -86,16 +86,9 @@ struct Member {
 }
 
 fn coalesce_function(func: &mut Function, target: &Target) -> bool {
-    let has_allocs =
-        func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::Alloc { .. }));
-    if !has_allocs {
-        return false;
-    }
-
     let proofs = ReadBounds::default();
     let mut groups = Vec::new();
-    let blocks = func.blocks.indices();
-    for block in blocks {
+    for block in func.blocks.indices() {
         let mut group = Vec::<Member>::new();
         let mut bounds = GroupBounds::default();
         for &inst_id in &func.blocks[block].instructions {
@@ -103,11 +96,7 @@ fn coalesce_function(func: &mut Function, target: &Target) -> bool {
                 let compatible = group.last().is_none_or(|last| {
                     last.semantics.initialization == member.semantics.initialization
                 });
-                if !compatible {
-                    groups.push((block, std::mem::take(&mut group)));
-                    bounds.clear();
-                }
-                if !bounds.push(&member) {
+                if !compatible || !bounds.push(&member) {
                     groups.push((block, std::mem::take(&mut group)));
                     bounds.clear();
                     assert!(bounds.push(&member));
@@ -130,8 +119,8 @@ fn coalesce_function(func: &mut Function, target: &Target) -> bool {
         }
     }
     let mut changed = false;
-    for (block, mut group) in groups {
-        changed |= flush_group(func, block, &mut group);
+    for (block, group) in groups {
+        changed |= flush_group(func, block, group);
     }
     changed
 }
@@ -214,8 +203,7 @@ fn range_avoids_fmp(
 }
 
 /// Rewrites a collected group into one fused allocation plus constant offsets.
-fn flush_group(func: &mut Function, block: BlockId, group: &mut Vec<Member>) -> bool {
-    let members = std::mem::take(group);
+fn flush_group(func: &mut Function, block: BlockId, members: Vec<Member>) -> bool {
     if members.len() < 2 {
         return false;
     }
@@ -275,13 +263,18 @@ fn flush_group(func: &mut Function, block: BlockId, group: &mut Vec<Member>) -> 
     // member = alloc/add ...
     // word = ptrtoint member to i256
     // memory_zero word, size
-    for (member, zero_insts) in members.iter().zip(zero_insts) {
-        let position = func.blocks[block]
-            .instructions
-            .iter()
-            .position(|&inst| inst == member.inst)
-            .expect("coalesced allocation disappeared from its block");
-        func.blocks[block].instructions.splice(position + 1..position + 1, zero_insts);
+    if zeroed {
+        let mut zeros = members.iter().map(|member| member.inst).zip(zero_insts).peekable();
+        let old = std::mem::take(&mut func.blocks[block].instructions);
+        let instructions = &mut func.blocks[block].instructions;
+        instructions.reserve(old.len() + members.len());
+        for inst in old {
+            instructions.push(inst);
+            if let Some((_, zeroing)) = zeros.next_if(|&(member, _)| member == inst) {
+                instructions.extend(zeroing);
+            }
+        }
+        assert!(zeros.next().is_none(), "coalesced allocation disappeared from its block");
     }
     true
 }

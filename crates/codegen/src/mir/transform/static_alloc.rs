@@ -19,8 +19,8 @@
 //! - allocations marked as source-visible FMP advances are never placed statically.
 
 use crate::mir::{
-    ArgIdx, BlockId, Callee, Function, FunctionId, InstId, InstKind, MirType, Module, PtrLocation,
-    Terminator, ValueId,
+    AllocationSemantics, ArgIdx, BlockId, Callee, Function, FunctionId, InstId, InstKind, MirType,
+    Module, PtrLocation, Terminator, ValueId,
     analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, MemoryCallSummaries},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
@@ -53,14 +53,6 @@ impl MirPass for DeferAlloc {
         let summaries = analyses.call_summaries(module);
         let mut candidates = Vec::new();
         for (func_id, func) in module.functions.iter_enumerated() {
-            if !func.instructions().any(|inst_id| {
-                matches!(
-                    func.inst(inst_id).kind,
-                    InstKind::Alloc { semantics: crate::mir::AllocationSemantics::INTERNAL, .. }
-                )
-            }) {
-                continue;
-            }
             let eligible = eligible_static_allocations(func_id, func, &calls, &summaries);
             candidates.extend(eligible.into_iter().map(|candidate| (func_id, candidate.alloc)));
         }
@@ -77,22 +69,12 @@ impl MirPass for DeferAlloc {
     }
 }
 
-fn is_entry(func: &Function) -> bool {
-    !func.attributes.is_constructor
-        && (func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback)
-}
-
-fn fmp_write_has_future_observer(func: &Function, cfg: &CfgInfo, inst_id: InstId) -> bool {
-    let Some((block, position)) = func.blocks.iter_enumerated().find_map(|(block, block_data)| {
-        block_data
-            .instructions
-            .iter()
-            .position(|&candidate| candidate == inst_id)
-            .map(|position| (block, position))
-    }) else {
-        return true;
-    };
-
+fn fmp_write_has_future_observer(
+    func: &Function,
+    cfg: &CfgInfo,
+    block: BlockId,
+    position: usize,
+) -> bool {
     if func.blocks[block].instructions[position + 1..]
         .iter()
         .any(|&inst| instruction_observes_fmp(func, inst))
@@ -150,12 +132,12 @@ fn eligible_static_allocations(
     calls: &CallGraphInfo,
     summaries: &MemoryCallSummaries,
 ) -> Vec<StaticAllocCandidate> {
-    if !is_entry(func)
+    if !func.is_runtime_entry()
         || calls.is_recursive(func_id)
         || !func.instructions().any(|inst_id| {
             matches!(
                 func.inst(inst_id).kind,
-                InstKind::Alloc { semantics: crate::mir::AllocationSemantics::INTERNAL, .. }
+                InstKind::Alloc { semantics: AllocationSemantics::INTERNAL, .. }
             )
         })
     {
@@ -168,11 +150,14 @@ fn eligible_static_allocations(
     // only direct writes from source lowering can appear here. Keep the
     // placement conservative when a later operation can observe the write.
     let aa = AliasAnalysis::new(func);
-    if func.instructions().any(|inst_id| {
-        let kind = &func.inst(inst_id).kind;
-        let bad = !matches!(kind, InstKind::ICall { function: Callee::Function(_), .. })
-            && aa.instruction_may_reset_fmp(func, inst_id);
-        bad && fmp_write_has_future_observer(func, &cfg, inst_id)
+    if func.blocks.iter_enumerated().any(|(block, data)| {
+        data.instructions.iter().enumerate().any(|(position, &inst_id)| {
+            !matches!(
+                func.inst(inst_id).kind,
+                InstKind::ICall { function: Callee::Function(_), .. }
+            ) && aa.instruction_may_reset_fmp(func, inst_id)
+                && fmp_write_has_future_observer(func, &cfg, block, position)
+        })
     }) {
         return Vec::new();
     }
@@ -183,7 +168,7 @@ fn eligible_static_allocations(
             let InstKind::Alloc { size, semantics } = func.inst(alloc).kind else {
                 continue;
             };
-            if semantics != crate::mir::AllocationSemantics::INTERNAL
+            if semantics != AllocationSemantics::INTERNAL
                 || func.inst(alloc).metadata.preserves_fmp()
             {
                 continue;
@@ -248,29 +233,26 @@ fn candidate_uses_are_safe(
     // definition order does not matter.
     let mut derived: FxHashMap<ValueId, u64> = FxHashMap::default();
     derived.insert(cand.ptr, 0);
-    let mut pending = Vec::new();
-    pending.push(cand.ptr);
+    let mut pending = vec![cand.ptr];
     while let Some(value) = pending.pop() {
         for &inst_id in &uses.instructions[value] {
             let Some(result) = func.inst_result_value(inst_id) else { continue };
             if derived.contains_key(&result) {
                 continue;
             }
-            let kind = func.inst(inst_id).kind.clone();
-            let offset = match kind {
+            let kind = &func.inst(inst_id).kind;
+            let offset = match *kind {
                 InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) => {
                     derived.get(&base).copied()
                 }
-                InstKind::Add(a, b) => {
-                    let (base, offset) = if derived.contains_key(&a) { (a, b) } else { (b, a) };
-                    let (Some(base_offset), Some(offset)) =
-                        (derived.get(&base).copied(), func.value_u64(offset))
-                    else {
-                        return false;
-                    };
-                    base_offset.checked_add(offset)
-                }
-                InstKind::PtrAdd(base, offset) => {
+                InstKind::Add(a, b) | InstKind::PtrAdd(a, b) => {
+                    // Either `add` operand may be the pointer; `ptradd` takes it first.
+                    let (base, offset) =
+                        if matches!(kind, InstKind::Add(..)) && !derived.contains_key(&a) {
+                            (b, a)
+                        } else {
+                            (a, b)
+                        };
                     let (Some(base_offset), Some(offset)) =
                         (derived.get(&base).copied(), func.value_u64(offset))
                     else {
@@ -309,14 +291,13 @@ fn candidate_uses_are_safe(
             if inst_id == cand.alloc {
                 continue;
             }
-            let kind = func.inst(inst_id).kind.clone();
-            let ok = match kind {
-                InstKind::Load(addr, PtrLocation::Memory) => operand == addr && in_range(off, 32),
+            let ok = match &func.inst(inst_id).kind {
+                InstKind::Load(addr, PtrLocation::Memory) => operand == *addr && in_range(off, 32),
                 InstKind::Store(addr, value, PtrLocation::Memory) => {
-                    operand == addr && !derived.contains_key(&value) && in_range(off, 32)
+                    operand == *addr && !derived.contains_key(value) && in_range(off, 32)
                 }
                 InstKind::Store8(addr, value) => {
-                    operand == addr && !derived.contains_key(&value) && in_range(off, 1)
+                    operand == *addr && !derived.contains_key(value) && in_range(off, 1)
                 }
                 InstKind::Keccak256(addr, size)
                 | InstKind::Log { offset: addr, size, .. }
@@ -324,11 +305,11 @@ fn candidate_uses_are_safe(
                 | InstKind::Copy(addr, _, size, PtrLocation::Calldata | PtrLocation::Returndata)
                 | InstKind::DataCopy(_, addr, size)
                 | InstKind::CodeCopy(addr, _, size) => {
-                    operand == addr && func.value_u64(size).is_some_and(|len| in_range(off, len))
+                    operand == *addr && func.value_u64(*size).is_some_and(|len| in_range(off, len))
                 }
                 InstKind::Copy(dest, src, size, PtrLocation::Memory) => {
-                    (operand == dest || operand == src)
-                        && func.value_u64(size).is_some_and(|len| in_range(off, len))
+                    (operand == *dest || operand == *src)
+                        && func.value_u64(*size).is_some_and(|len| in_range(off, len))
                 }
                 // In-bounds derivations were collected above; anything
                 // else consuming an address is an escape.
@@ -350,7 +331,7 @@ fn candidate_uses_are_safe(
                     ..
                 } => true,
                 InstKind::ICall { function: Callee::Function(function), args, .. } => {
-                    call_use_is_safe(function, &args, operand, calls, summaries)
+                    call_use_is_safe(*function, args, operand, calls, summaries)
                 }
                 _ => false,
             };
@@ -399,5 +380,4 @@ fn call_use_is_safe(
             !summary.captures_param(index)
                 && !(summary.may_observe_fmp() && summary.observes_param(index))
         })
-        && args.contains(&operand)
 }

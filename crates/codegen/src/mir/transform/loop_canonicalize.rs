@@ -14,12 +14,11 @@
 //! outside predecessor. It runs before the semantic loop passes.
 
 use crate::mir::{
-    BlockId, Function, InstKind, Instruction, Module, Terminator, ValueId,
+    BlockId, Function, InstId, InstKind, Instruction, Module, Terminator, ValueId,
     analysis::{Loop, LoopAnalyzer},
     pass::{MirPass, run_function_pass},
     utils::replace_terminator,
 };
-use solar_data_structures::bit_set::DenseBitSet;
 
 /// Function pass for loop canonicalization.
 pub(crate) struct LoopCanonicalize;
@@ -44,13 +43,16 @@ fn canonicalize(func: &mut Function) -> bool {
     let mut changed = false;
     loop {
         let loop_info = LoopAnalyzer::new().analyze_structure(func);
-        let Some((header, outside_preds)) = loop_info.loops.values().find_map(|loop_data| {
-            let outside_preds = outside_predecessors(func, loop_data);
-            (loop_data.preheader.is_none()
-                && !outside_preds.is_empty()
-                && phis_cover(func, loop_data.header, &outside_preds))
-            .then_some((loop_data.header, outside_preds))
-        }) else {
+        let Some((header, outside_preds)) = loop_info
+            .loops
+            .values()
+            .filter(|loop_data| loop_data.preheader.is_none())
+            .find_map(|loop_data| {
+                let outside_preds = outside_predecessors(func, loop_data);
+                (!outside_preds.is_empty() && phis_cover(func, loop_data.header, &outside_preds))
+                    .then_some((loop_data.header, outside_preds))
+            })
+        else {
             return changed;
         };
         insert_preheader(func, header, &outside_preds);
@@ -59,12 +61,11 @@ fn canonicalize(func: &mut Function) -> bool {
 }
 
 fn outside_predecessors(func: &Function, loop_data: &Loop) -> Vec<BlockId> {
-    let mut seen = DenseBitSet::new_empty(func.blocks.len());
     func.blocks[loop_data.header]
         .predecessors
         .iter()
         .copied()
-        .filter(|&pred| !loop_data.blocks.contains(pred) && seen.insert(pred))
+        .filter(|&pred| !loop_data.blocks.contains(pred))
         .collect()
 }
 
@@ -115,7 +116,7 @@ fn insert_preheader(func: &mut Function, header: BlockId, outside_preds: &[Block
 /// predecessor passes the same one, or a new preheader phi merging them.
 fn preheader_value(
     func: &mut Function,
-    header_phi: crate::mir::InstId,
+    header_phi: InstId,
     incoming: Vec<(BlockId, ValueId)>,
     preheader: BlockId,
 ) -> ValueId {
