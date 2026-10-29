@@ -163,6 +163,9 @@ pub struct EvmCodegen<'gcx> {
     /// The objective of the module being generated, which its `@custom:solar-optimize` tag may
     /// select, or of the function being emitted, which its own tag may select.
     optimization: OptimizationMode,
+    /// The objective of the module being generated, which the layout of its immutables follows
+    /// in every function.
+    module_optimization: OptimizationMode,
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -212,12 +215,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             capture_scheduled_evm_ir: false,
             capture_debug_info: false,
             optimization: gcx.sess.opts.optimization,
+            module_optimization: gcx.sess.opts.optimization,
         }
     }
 
     /// Clears state that belongs to one lowered MIR module.
     fn reset_for_module(&mut self, module: &Module) {
         self.optimization = module.optimization;
+        self.module_optimization = module.optimization;
         self.asm.clear();
         self.asm.set_optimization(module.optimization);
         self.reset_artifact(module);

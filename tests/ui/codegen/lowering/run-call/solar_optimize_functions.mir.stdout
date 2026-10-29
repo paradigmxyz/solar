@@ -1,6 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/solar_optimize_functions.sol:Mixed ===
 @module Mixed
 @phase lowered
+@types
+  struct0: {i256, i256}
+
+@immutables
+  tag: bytes4
+  delta: int16
+
 fn @sum() [selector=0x188b85b4, abi_wrapper, pure] {
   bb0:
     v11 = calldatasize
@@ -153,6 +160,37 @@ fn @share() [selector=0xc3d9c4b4, abi_wrapper, optimize=size, pure] {
     revert 0, 0
 }
 
+fn @tagged() [selector=0xb176f8e0, abi_wrapper, optimize=size, view] {
+  bb0:
+    v0 = loadimmutable tag
+    v8: i256 = loadimmutable delta
+    v5 = signextend 1, v8
+    mstore 0, v0 !metadata(memory=scratch)
+    mstore 32, v5 !metadata(memory=scratch)
+    returndata 0, 64
+}
+
+fn @tagged_gas() [selector=0xa163b8fc, abi_wrapper, optimize=gas, view] {
+  bb0:
+    v0 = loadimmutable tag
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @constructor() [abi_wrapper, constructor] {
+  bb0:
+    v1 = callvalue
+    v2 = ne v1, 0
+    jumpi v2, bb2, bb1
+  bb1:
+    v0 = and 0x1122334400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 192, v0
+    mstore 224, 0xfffb
+    ret
+  bb2:
+    revert 0, 0
+}
+
 fn @small.body(arg0: i256) -> i256 [optimize=size, pure] {
   bb0:
     jump bb1
@@ -180,23 +218,27 @@ fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
-    jumpi v1, bb8, bb1
+    jumpi v1, bb10, bb1
   bb1:
     v2 = calldataload 0
     v3 = shr v2, 224
-    switch v3, default bb8, [0x188b85b4 => bb2, 0x75d838c3 => bb3, 0xa96f1c69 => bb4, 0xaf5dbb36 => bb5, 0xc1685ae2 => bb6, 0xc3d9c4b4 => bb7]
-  bb7:
+    switch v3, default bb10, [0x188b85b4 => bb2, 0x75d838c3 => bb3, 0xa163b8fc => bb4, 0xa96f1c69 => bb5, 0xaf5dbb36 => bb6, 0xb176f8e0 => bb7, 0xc1685ae2 => bb8, 0xc3d9c4b4 => bb9]
+  bb9:
     tail_call @share
-  bb6:
+  bb8:
     tail_call @viaInline
-  bb5:
+  bb7:
+    tail_call @tagged
+  bb6:
     tail_call @fast
-  bb4:
+  bb5:
     tail_call @pattern
+  bb4:
+    tail_call @tagged_gas
   bb3:
     tail_call @small
   bb2:
     tail_call @sum
-  bb8:
+  bb10:
     revert 0, 0
 }

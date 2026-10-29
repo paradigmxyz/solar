@@ -237,7 +237,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             debug_assert_eq!(
                 immutable_push_type_size(
                     encoding,
-                    self.optimization,
+                    self.module_optimization,
                     self.gcx.sess.opts.evm_version.has_bitwise_shifting(),
                 ),
                 r.type_size
@@ -310,9 +310,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let encoding = self.immutable_encodings[id];
+        // The layout of an immutable is the contract's, whatever the objective of the function
+        // that reads it.
         let type_size = immutable_push_type_size(
             encoding,
-            self.optimization,
+            self.module_optimization,
             self.gcx.sess.opts.evm_version.has_bitwise_shifting(),
         );
         let byte_width = type_size.bytes();

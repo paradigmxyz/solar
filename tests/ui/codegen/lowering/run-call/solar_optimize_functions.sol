@@ -6,10 +6,15 @@
 //@ run-call: pattern => 0x0101010101010101010101010101010101010101010101010101010101010101
 //@ run-call-fail: share 0 => Panic(18)
 //@ run-call: share 3 => 33
+//@ run-call: tagged => 0x11223344, -5
+//@ run-call: tagged_gas => 0x11223344
 
 // A function tagged `@custom:solar-optimize` is compiled for its own objective in every build,
 // the unoptimized one included, and computes the same results as untagged code.
 contract Mixed {
+    bytes4 immutable tag = 0x11223344;
+    int16 immutable delta = -5;
+
     function sum(uint256 n) external pure returns (uint256 total) {
         for (uint256 i = 1; i <= n; i++) {
             total += i;
@@ -48,5 +53,17 @@ contract Mixed {
     /// @custom:solar-optimize size
     function share(uint256 parts) external pure returns (uint256) {
         return 100 / parts;
+    }
+
+    // Immutables keep the layout of the contract, whatever the objective of the function that
+    // reads them.
+    /// @custom:solar-optimize size
+    function tagged() external view returns (bytes4, int16) { //~ WARN: function state mutability can be restricted to pure
+        return (tag, delta);
+    }
+
+    /// @custom:solar-optimize gas
+    function tagged_gas() external view returns (bytes4) { //~ WARN: function state mutability can be restricted to pure
+        return tag;
     }
 }
