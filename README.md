@@ -34,6 +34,29 @@ Blazingly fast, modular and contributor friendly Solidity compiler, written in R
     </picture>
 </p>
 
+## Performance
+
+On six real-world projects, builds were **about 100× faster on average** than solc's via-IR pipeline,
+reaching **159×** on Morpho Blue.
+
+![Whole-project build times with solc forced to via-IR: 76–159× faster across six projects](assets/build-time.png)
+
+We forced via-IR on every project for solc, though most of these projects build without it by
+default. We picked six of the ten whole-project cases in our benchmark suite: v4-core has no solc
+result, and Seaport, Solmate and Solarray are not shown. With each project's own settings, from
+the same CI run, we were **44× faster on average** over the six and **34×** over all nine.
+
+We measured on `main` at [commit `0303bb7d`](https://github.com/paradigmxyz/solar/commit/0303bb7d606a50ef158e34669b5851f47a1e054e)
+against solc 0.8.38, targeting Cancun. [Build from source](#binary-usage) to match it.
+Build times are the median of five runs on an AMD EPYC 9254 (24 cores), using our default eight
+threads; solc is single-threaded.
+
+Across the 15 real-world contracts in our runtime corpus (via-IR at 200 runs, unless a case pins
+its project's settings), the generated contracts used **5% less gas**, cost **26% less gas to
+deploy** and had **29% smaller bytecode** than those compiled with solc, as geometric means.
+See the [results](https://www.getfoundry.sh/perf/solar/?head=0303bb7d606a50ef158e34669b5851f47a1e054e#benchmarks) and
+[benchmark instructions](benches/runtime/README.md) for inputs, settings and how to reproduce them.
+
 ## Getting started
 
 Solar is available through a command-line interface, or as a Rust library.
