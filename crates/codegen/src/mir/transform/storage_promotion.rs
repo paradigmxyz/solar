@@ -167,13 +167,9 @@ fn find_candidates(func: &Function, loop_data: &Loop) -> Option<(BlockId, Vec<Ca
     if !loop_storage_accesses_are_safe(func, &rewrite_blocks, &candidates) {
         return None;
     }
-    let tail_is_safe = match candidates.as_slice() {
-        [Candidate { init_store: None, .. }] => true,
-        [Candidate { init_store: Some(init_store), slot, .. }] => {
-            preheader_tail_is_safe(func, preheader, *init_store, slot)
-        }
-        _ => preheader_tail_is_safe_for_candidates(func, preheader, &candidates),
-    };
+    // A lone uninitialized slot has no preheader store, so its tail is unconstrained.
+    let tail_is_safe =
+        candidates[0].init_store.is_none() || preheader_tail_is_safe(func, preheader, &candidates);
     tail_is_safe.then_some((preheader, candidates))
 }
 
@@ -303,43 +299,7 @@ fn find_preheader_init_store(
     })
 }
 
-fn preheader_tail_is_safe(
-    func: &Function,
-    preheader: BlockId,
-    init_store: InstId,
-    slot: &StorageAlias,
-) -> bool {
-    let Some(init_pos) =
-        func.blocks[preheader].instructions.iter().position(|&inst_id| inst_id == init_store)
-    else {
-        return false;
-    };
-
-    for &inst_id in &func.blocks[preheader].instructions[init_pos + 1..] {
-        match &func.inst(inst_id).kind {
-            InstKind::Load(load_slot, PtrLocation::Storage) => {
-                let alias = func.storage_alias(inst_id, *load_slot);
-                if alias != *slot && slot.may_alias(alias) {
-                    return false;
-                }
-            }
-            InstKind::Store(.., PtrLocation::Memory)
-            | InstKind::Store8(..)
-            | InstKind::Copy(_, _, _, PtrLocation::Memory)
-            | InstKind::DataCopy(_, _, _) => {}
-            kind if kind.has_side_effects() || kind.observes_gas() => return false,
-            _ => {}
-        }
-    }
-
-    true
-}
-
-fn preheader_tail_is_safe_for_candidates(
-    func: &Function,
-    preheader: BlockId,
-    candidates: &[Candidate],
-) -> bool {
+fn preheader_tail_is_safe(func: &Function, preheader: BlockId, candidates: &[Candidate]) -> bool {
     let Some(first_init) = candidates
         .iter()
         .filter_map(|candidate| candidate.init_store)
