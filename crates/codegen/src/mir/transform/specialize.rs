@@ -188,7 +188,6 @@ fn specialize_round(
         }
         let mut candidate = body.clone();
         let uses = candidate.arg_uses();
-        // helper(argK, ...) => shared_helper(constantK, ...)
         substitute(&mut candidate, &constants, &uses);
         let mut trial = Module::new(module.name);
         trial.optimization = module.optimization;
@@ -257,6 +256,7 @@ fn substitute(
     uses: &IndexVec<ArgIdx, Vec<ValueId>>,
 ) {
     let mut replacements = FxHashMap::default();
+    // helper(argK, ...) => helper(constantK, ...)
     for (index, immediate) in constants {
         let value = func.alloc_value(Value::Immediate(immediate.clone()));
         for &arg in &uses[*index] {

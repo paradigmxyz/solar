@@ -510,8 +510,6 @@ fn prune_unused_returns(module: &mut Module, returning: &DenseBitSet<FunctionId>
     let mut live = DenseBitSet::new_filled(module.functions.len());
     live.subtract(&candidates);
 
-    let uses = module.functions.iter().map(ValueUses::new).collect::<IndexVec<FunctionId, _>>();
-
     // Tail calls forward their caller's result contract. Direct calls require a result only when
     // its SSA value has a material use. A return in a candidate whose own result is still dead is
     // not a material use, which lets discarded forwarding chains collapse to a fixed point.
@@ -528,7 +526,7 @@ fn prune_unused_returns(module: &mut Module, returning: &DenseBitSet<FunctionId>
                     continue;
                 }
                 let Some(result) = caller.inst_result_value(inst_id) else { continue };
-                if uses[caller_id].is_material(result, live.contains(caller_id)) {
+                if has_material_use(caller, result, live.contains(caller_id)) {
                     live.insert(function);
                     changed = true;
                 }
@@ -651,53 +649,18 @@ fn returned_value_dependencies_are_pure(func: &Function) -> bool {
     })
 }
 
-/// How the values of one function are used, to decide whether a call result is material.
-struct ValueUses {
-    /// Operands of instructions and of terminators other than `ret`.
-    used: DenseBitSet<ValueId>,
-    /// Operands of any `ret`.
-    returned: DenseBitSet<ValueId>,
-    /// Operands of a `ret` that does not return exactly one value.
-    returned_in_tuple: DenseBitSet<ValueId>,
-}
-
-impl ValueUses {
-    fn new(func: &Function) -> Self {
-        let mut uses = Self {
-            used: DenseBitSet::new_empty(func.num_values()),
-            returned: DenseBitSet::new_empty(func.num_values()),
-            returned_in_tuple: DenseBitSet::new_empty(func.num_values()),
-        };
-        for block in &func.blocks {
-            for &inst in &block.instructions {
-                func.inst(inst).kind.visit_operands(|value| {
-                    uses.used.insert(value);
-                });
-            }
-            match &block.terminator {
-                Some(Terminator::Return { values }) => {
-                    for &value in values {
-                        uses.returned.insert(value);
-                        if values.len() != 1 {
-                            uses.returned_in_tuple.insert(value);
-                        }
-                    }
-                }
-                Some(term) => term.visit_operands(|value| {
-                    uses.used.insert(value);
-                }),
-                None => {}
-            }
-        }
-        uses
+fn has_material_use(func: &Function, value: ValueId, function_result_live: bool) -> bool {
+    if func.instructions().any(|inst_id| func.inst(inst_id).kind.operands().contains(&value)) {
+        return true;
     }
-
-    /// Returns whether discarding `value` loses a use. While the function's own result is dead,
-    /// returning `value` alone is not a use.
-    fn is_material(&self, value: ValueId, function_result_live: bool) -> bool {
-        let returned = if function_result_live { &self.returned } else { &self.returned_in_tuple };
-        self.used.contains(value) || returned.contains(value)
-    }
+    func.blocks.iter().any(|block| {
+        block.terminator.as_ref().is_some_and(|term| match term {
+            Terminator::Return { values } if !function_result_live => {
+                values.contains(&value) && values.len() != 1
+            }
+            _ => term.operands().contains(&value),
+        })
+    })
 }
 
 /// A source-independent operand identity used for alpha-equivalence.
