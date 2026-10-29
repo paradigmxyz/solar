@@ -189,7 +189,7 @@
 //! read before the loop under the same rule as other word tests; a zero-trip loop never gains a
 //! read of an otherwise untouched pointer. Large forged lengths select the original loop.
 
-use super::loop_split::{LoopCopy, clone_loop, inst_kind, redirect};
+use super::loop_split::{LoopCopy, clone_loop, redirect};
 use crate::mir::{
     ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionBuilder,
     InstId, InstKind, Instruction, MirType, Module, PanicCode, PtrLocation, RevertKind, Terminator,
@@ -331,27 +331,22 @@ struct Fence {
 }
 
 /// The blocks and instructions of a loop small enough to version.
-struct Body<'a> {
+struct Body {
     preheader: BlockId,
     blocks: Vec<BlockId>,
-    insts: &'a DenseBitSet<InstId>,
+    insts: DenseBitSet<InstId>,
 }
 
-impl<'a> Body<'a> {
-    /// Collects the loop's instructions in `insts`, or `None` when it has no preheader or holds
-    /// more than [`MAX_LOOP_INSTRUCTIONS`].
-    fn new(func: &Function, l: &Loop, insts: &'a mut DenseBitSet<InstId>) -> Option<Self> {
+impl Body {
+    /// `None` when the loop has no preheader or holds more than [`MAX_LOOP_INSTRUCTIONS`].
+    fn new(func: &Function, l: &Loop) -> Option<Self> {
         let preheader = l.preheader?;
-        let blocks: Vec<BlockId> = l.blocks.iter().collect();
-        insts.clear_to(func.num_insts());
-        let mut count = 0;
-        for &block in &blocks {
-            for &inst in &func.blocks[block].instructions {
-                insts.insert(inst);
-                count += 1;
-            }
-        }
-        (count <= MAX_LOOP_INSTRUCTIONS).then_some(Self { preheader, blocks, insts })
+        let insts = l.instructions(func);
+        (insts.count() <= MAX_LOOP_INSTRUCTIONS).then(|| Self {
+            preheader,
+            blocks: l.blocks.iter().collect(),
+            insts,
+        })
     }
 
     fn defines(&self, func: &Function, value: ValueId) -> bool {
@@ -375,7 +370,6 @@ fn version_function(func: &mut Function) -> bool {
     // Headers of loops whose shared exits were split. A loop asks once: a second request means
     // the split did not give it exits of its own, and it is left alone.
     let mut split = FxHashSet::default();
-    let mut insts = DenseBitSet::new_empty(0);
     loop {
         let loops = LoopAnalyzer::new().analyze_structure(func);
         if loops.all_loops().next().is_none() {
@@ -389,7 +383,7 @@ fn version_function(func: &mut Function) -> bool {
         let accesses = OnceCell::new();
         let Some(planned) =
             candidates.into_iter().filter(|l| !done.contains(&l.header)).find_map(|l| {
-                let body = Body::new(func, l, &mut insts)?;
+                let body = Body::new(func, l)?;
                 plan(func, &cfg, &aa, l, &body)
                     .or_else(|| plan_partition(func, &cfg, &aa, &loops, &accesses, l, &body))
                     .or_else(|| plan_bounds(func, &cfg, l, &body))
@@ -443,15 +437,15 @@ fn element_address(
     address: ValueId,
     byte: bool,
 ) -> Option<(ValueId, ValueId, u8)> {
-    let &InstKind::PtrAdd(inner, header) = inst_kind(func, address)? else { return None };
+    let &InstKind::PtrAdd(inner, header) = func.value_inst_kind(address)? else { return None };
     if func.value_u64(header) != Some(32) {
         return None;
     }
-    let &InstKind::PtrAdd(object, offset) = inst_kind(func, inner)? else { return None };
+    let &InstKind::PtrAdd(object, offset) = func.value_inst_kind(inner)? else { return None };
     if byte {
         return Some((object, offset, 0));
     }
-    let &InstKind::Shl(shift, index) = inst_kind(func, offset)? else { return None };
+    let &InstKind::Shl(shift, index) = func.value_inst_kind(offset)? else { return None };
     (func.value_u64(shift) == Some(5)).then_some((object, index, 5))
 }
 
@@ -460,7 +454,7 @@ fn plan<'a>(
     cfg: &'a CfgInfo,
     aa: &AliasAnalysis,
     l: &'a Loop,
-    body: &Body<'_>,
+    body: &Body,
 ) -> Option<Planned<'a>> {
     let Body { preheader, ref blocks, .. } = *body;
     let defined_in_loop = |value: ValueId| body.defines(func, value);
@@ -470,7 +464,9 @@ fn plan<'a>(
     for &block in blocks {
         for (position, &inst) in func.blocks[block].instructions.iter().enumerate() {
             let Some(condition) = array_check(&func.inst(inst).kind) else { continue };
-            let Some(&InstKind::Lt(index, bound)) = inst_kind(func, condition) else { continue };
+            let Some(&InstKind::Lt(index, bound)) = func.value_inst_kind(condition) else {
+                continue;
+            };
             checks.entry(index).or_default().push((block, position, bound));
         }
     }
@@ -536,7 +532,8 @@ fn plan<'a>(
                         if !defined_in_loop(bound) {
                             return Some(Bound::Value(bound));
                         }
-                        let &InstKind::Load(length, PtrLocation::Memory) = inst_kind(func, bound)?
+                        let &InstKind::Load(length, PtrLocation::Memory) =
+                            func.value_inst_kind(bound)?
                         else {
                             return None;
                         };
@@ -553,7 +550,9 @@ fn plan<'a>(
                 }
                 // A right shift never exceeds its unsigned operand. The check of that operand
                 // must still dominate the store, as required for an exact index above.
-                let Some(&InstKind::Shr(shift, value)) = inst_kind(func, checked) else { break };
+                let Some(&InstKind::Shr(shift, value)) = func.value_inst_kind(checked) else {
+                    break;
+                };
                 if func.value_u64(shift).is_none() {
                     break;
                 }
@@ -576,7 +575,7 @@ fn plan<'a>(
         |word: ValueId| scratch_end != 0 || written.iter().any(|written| written.object != word);
     let pays = |words: &[(ValueId, Vec<InstId>)]| {
         let read = |word: ValueId| words.iter().any(|&(read, _)| read == word);
-        let length_of = |bound: ValueId| match inst_kind(func, bound) {
+        let length_of = |bound: ValueId| match func.value_inst_kind(bound) {
             Some(&InstKind::Load(word, PtrLocation::Memory))
                 if defined_in_loop(bound) && read(word) =>
             {
@@ -589,7 +588,7 @@ fn plan<'a>(
                 branch != block
                     && cfg.dominators().dominates(branch, block)
                     && matches!(func.blocks[branch].terminator, Some(Terminator::Branch { condition, .. })
-                        if matches!(inst_kind(func, condition), Some(&InstKind::Lt(i, b))
+                        if matches!(func.value_inst_kind(condition), Some(&InstKind::Lt(i, b))
                             if i == index && length_of(b) == Some(word)))
             })
         };
@@ -707,7 +706,7 @@ fn plan_partition<'a>(
     loops: &LoopInfo,
     accesses: &OnceCell<Accesses>,
     l: &'a Loop,
-    body: &Body<'_>,
+    body: &Body,
 ) -> Option<Planned<'a>> {
     let Body { preheader, ref blocks, .. } = *body;
     let &[latch] = l.back_edges.as_slice() else { return None };
@@ -839,7 +838,7 @@ fn plan_partition<'a>(
             || [&up, &down].into_iter().any(|scan| {
                 scan.bound.is_some_and(|bound| {
                     in_loop(bound)
-                        && !matches!(inst_kind(func, bound),
+                        && !matches!(func.value_inst_kind(bound),
                             Some(&InstKind::Load(address, PtrLocation::Memory)) if address == array)
                 })
             })
@@ -930,11 +929,13 @@ fn scan(func: &Function, l: &Loop) -> Option<Scan> {
             continue;
         }
         if let Some(check) = array_check(kind) {
-            let Some(&InstKind::Lt(index, limit)) = inst_kind(func, check) else { return None };
+            let Some(&InstKind::Lt(index, limit)) = func.value_inst_kind(check) else {
+                return None;
+            };
             if index != next
                 || (in_loop(limit)
                     && !matches!(
-                        inst_kind(func, limit),
+                        func.value_inst_kind(limit),
                         Some(InstKind::Load(_, PtrLocation::Memory))
                     ))
                 || bound.is_some_and(|bound| bound != limit)
@@ -1026,7 +1027,7 @@ fn plan_bounds<'a>(
     func: &Function,
     cfg: &'a CfgInfo,
     l: &'a Loop,
-    body: &Body<'_>,
+    body: &Body,
 ) -> Option<Planned<'a>> {
     let Body { preheader, ref blocks, .. } = *body;
     let in_loop = |value: ValueId| body.defines(func, value);
@@ -1040,7 +1041,7 @@ fn plan_bounds<'a>(
         }
         for &inst in &func.blocks[block].instructions {
             let Some(check) = array_check(&func.inst(inst).kind) else { continue };
-            let Some(&InstKind::Lt(index, length)) = inst_kind(func, check) else { continue };
+            let Some(&InstKind::Lt(index, length)) = func.value_inst_kind(check) else { continue };
             if length == limit
                 || func.value_ty(length) != Some(MirType::I256)
                 || in_loop(length)
@@ -1074,7 +1075,7 @@ fn compared_before(
     for block in cfg.dominators().self_and_dominators(preheader) {
         for &inst in &func.blocks[block].instructions {
             if let Some(check) = array_check(&func.inst(inst).kind)
-                && let Some(&InstKind::Lt(index, length)) = inst_kind(func, check)
+                && let Some(&InstKind::Lt(index, length)) = func.value_inst_kind(check)
                 && index == limit
             {
                 compared.insert(length);
@@ -1103,7 +1104,7 @@ fn below_limit(
     if depth == MAX_DEPTH {
         return false;
     }
-    match inst_kind(func, index) {
+    match func.value_inst_kind(index) {
         Some(&InstKind::Shr(shift, value)) => {
             func.value_u64(shift).is_some()
                 && below_limit(func, blocks, counter, limit, value, depth + 1)
@@ -1112,12 +1113,12 @@ fn below_limit(
             let constant = |x: ValueId, k: ValueId| x == counter && func.value_u64(k).is_some();
             let sum = |value: ValueId| {
                 value == index
-                    || matches!(inst_kind(func, value), Some(&InstKind::Add(x, y))
+                    || matches!(func.value_inst_kind(value), Some(&InstKind::Add(x, y))
                         if (x, y) == (a, b) || (x, y) == (b, a))
             };
             (constant(a, b) || constant(b, a)) && blocks.iter().any(|&block| {
                 matches!(func.blocks[block].terminator, Some(Terminator::Branch { condition, .. })
-                        if matches!(inst_kind(func, condition), Some(&InstKind::Lt(x, n))
+                        if matches!(func.value_inst_kind(condition), Some(&InstKind::Lt(x, n))
                             if n == limit && sum(x)))
             })
         }
@@ -1201,7 +1202,7 @@ fn version_plan<'a>(
     func: &Function,
     cfg: &'a CfgInfo,
     l: &'a Loop,
-    body: &Body<'_>,
+    body: &Body,
     test: Test,
     latch: Option<BlockId>,
 ) -> Option<Planned<'a>> {
@@ -1744,13 +1745,13 @@ fn bounds_test(
 }
 
 /// The counter and invariant limit of a loop whose header tests `counter < limit`.
-fn counted_limit(func: &Function, l: &Loop, body: &Body<'_>) -> Option<(ValueId, ValueId)> {
+fn counted_limit(func: &Function, l: &Loop, body: &Body) -> Option<(ValueId, ValueId)> {
     let Some(Terminator::Branch { condition, then_block, else_block }) =
         func.blocks[l.header].terminator
     else {
         return None;
     };
-    let &InstKind::Lt(counter, limit) = inst_kind(func, condition)? else { return None };
+    let &InstKind::Lt(counter, limit) = func.value_inst_kind(condition)? else { return None };
     if !l.blocks.contains(then_block)
         || l.blocks.contains(else_block)
         || body.defines(func, limit)
@@ -1773,7 +1774,7 @@ fn counted_limit(func: &Function, l: &Loop, body: &Body<'_>) -> Option<(ValueId,
 fn reloaded_bounds(
     func: &Function,
     l: &Loop,
-    body: &Body<'_>,
+    body: &Body,
     written: &[Written],
     words: &[(ValueId, Vec<InstId>)],
 ) -> Option<(ValueId, ValueId)> {
@@ -1787,7 +1788,7 @@ fn reloaded_bounds(
         }
         for &inst in &func.blocks[block].instructions {
             let Some(check) = array_check(&func.inst(inst).kind) else { continue };
-            let Some(&InstKind::Lt(index, length)) = inst_kind(func, check) else { continue };
+            let Some(&InstKind::Lt(index, length)) = func.value_inst_kind(check) else { continue };
             if let Value::Inst(load) = func.value(length)
                 && loads.contains(load)
                 && func.value_ty(length) == Some(MirType::I256)

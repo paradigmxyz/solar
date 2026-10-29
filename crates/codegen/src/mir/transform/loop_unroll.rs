@@ -181,7 +181,7 @@
 //! cloned tests the copies no longer read.
 
 use super::loop_split::{
-    LoopCopy, add_exit_inputs, branch, clone_loop, inst_kind, jump, redirect, side_exits,
+    LoopCopy, add_exit_inputs, branch, clone_loop, jump, redirect, side_exits,
 };
 use crate::{
     backend::evm::op,
@@ -427,7 +427,7 @@ fn continues_to(
 /// Whether the backend rebuilds a word where it is read instead of keeping it live: a calldata
 /// word at a fixed offset or a stable environment read.
 fn rebuilt_at_use(func: &Function, value: ValueId) -> bool {
-    let Some(kind) = inst_kind(func, value) else { return true };
+    let Some(kind) = func.value_inst_kind(value) else { return true };
     match kind {
         InstKind::Zext(inner) => rebuilt_at_use(func, *inner),
         InstKind::Load(offset, PtrLocation::Calldata) => func.value_u256(*offset).is_some(),
@@ -466,12 +466,7 @@ fn shape(
     if loops.all_loops().any(|other| other.header != l.header && l.blocks.contains(other.header)) {
         return None;
     }
-    let mut loop_insts = DenseBitSet::new_empty(func.num_insts());
-    for block in l.blocks.iter() {
-        for &inst in &func.blocks[block].instructions {
-            loop_insts.insert(inst);
-        }
-    }
+    let loop_insts = l.instructions(func);
     // Only a straight-line body gains: every branch inside it continues the loop on one arm
     // and leaves it on the other, to an abort such as an arithmetic panic or to a side exit
     // such as a search's match.
@@ -737,7 +732,7 @@ fn counter(func: &Function, l: &Loop, shape: &Shape) -> Option<Counter> {
     let reaches =
         |a, b| if defined_in_loop(a) { (Test::Reaches, a, b) } else { (Test::Reaches, b, a) };
     let is_zero = |value| func.value_u256(value).is_some_and(|value| value.is_zero());
-    let (test, word, bound) = match (inst_kind(func, condition)?, enters_on_true) {
+    let (test, word, bound) = match (func.value_inst_kind(condition)?, enters_on_true) {
         // A word above zero has not reached it.
         (&InstKind::Gt(word, zero), true) | (&InstKind::Lt(zero, word), true) if is_zero(zero) => {
             (Test::Reaches, word, zero)
@@ -754,7 +749,7 @@ fn counter(func: &Function, l: &Loop, shape: &Shape) -> Option<Counter> {
     if defined_in_loop(bound) {
         return None;
     }
-    let counter = match inst_kind(func, word) {
+    let counter = match func.value_inst_kind(word) {
         Some(&InstKind::PtrToInt(pointer, _)) => pointer,
         _ => word,
     };
@@ -779,12 +774,12 @@ fn counter(func: &Function, l: &Loop, shape: &Shape) -> Option<Counter> {
         }
     }
     let (start, next) = (start?, next?);
-    let advance = match inst_kind(func, next)? {
+    let advance = match func.value_inst_kind(next)? {
         &InstKind::IntToPtr(advance) if counter != word => advance,
         _ if counter == word => next,
         _ => return None,
     };
-    let step = match *inst_kind(func, advance)? {
+    let step = match *func.value_inst_kind(advance)? {
         InstKind::Add(a, b) => match (func.value_u256(a), func.value_u256(b)) {
             (_, Some(step)) if a == word => step,
             (Some(step), _) if b == word => step,
@@ -936,7 +931,7 @@ fn plan_reverse(
     if !l.blocks.contains(then_block) || l.blocks.contains(else_block) {
         return None;
     }
-    let (counter, bound) = match *inst_kind(func, condition)? {
+    let (counter, bound) = match *func.value_inst_kind(condition)? {
         InstKind::Lt(counter, bound) | InstKind::Gt(bound, counter) => (counter, bound),
         _ => return None,
     };
@@ -948,9 +943,7 @@ fn plan_reverse(
     if !func.blocks[l.header].instructions.contains(&phi) {
         return None;
     }
-    if let Value::Inst(inst) = func.value(bound)
-        && l.blocks.iter().any(|block| func.blocks[block].instructions.contains(inst))
-    {
+    if l.defines(func, bound) {
         return None;
     }
     let InstKind::Phi(incoming) = &func.inst(phi).kind else { return None };
@@ -963,7 +956,7 @@ fn plan_reverse(
     if !func.value_u256(start).is_some_and(|start| start.is_zero()) {
         return None;
     }
-    match *inst_kind(func, next)? {
+    match *func.value_inst_kind(next)? {
         InstKind::Add(a, b) | InstKind::Add(b, a)
             if a == counter && func.value_u256(b) == Some(U256::from(1)) => {}
         _ => return None,
@@ -1134,13 +1127,13 @@ fn edit_phi(func: &mut Function, phi: ValueId, edit: impl FnOnce(&mut Vec<(Block
 
 /// The value a header phi takes on entry from `preheader`.
 fn entry_value(func: &Function, phi: ValueId, preheader: BlockId) -> Option<ValueId> {
-    let InstKind::Phi(incoming) = inst_kind(func, phi)? else { return None };
+    let InstKind::Phi(incoming) = func.value_inst_kind(phi)? else { return None };
     incoming.iter().find_map(|&(from, value)| (from == preheader).then_some(value))
 }
 
 /// The operand of `sum = add a, b` other than `start`.
 fn addend(func: &Function, sum: ValueId, start: ValueId) -> Option<ValueId> {
-    match *inst_kind(func, sum)? {
+    match *func.value_inst_kind(sum)? {
         InstKind::Add(a, b) if a == start => Some(b),
         InstKind::Add(a, b) if b == start => Some(a),
         _ => None,
@@ -1149,7 +1142,7 @@ fn addend(func: &Function, sum: ValueId, start: ValueId) -> Option<ValueId> {
 
 /// `m` when `value` is `shl m, bits`.
 fn shifted_left(func: &Function, value: ValueId, bits: usize) -> Option<ValueId> {
-    let &InstKind::Shl(count, shifted) = inst_kind(func, value)? else { return None };
+    let &InstKind::Shl(count, shifted) = func.value_inst_kind(value)? else { return None };
     (func.value_u256(count) == Some(U256::from(bits))).then_some(shifted)
 }
 

@@ -104,16 +104,9 @@ fn split_function(func: &mut Function) -> bool {
     changed
 }
 
-pub(super) fn inst_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
-    match func.value(value) {
-        Value::Inst(inst) => Some(&func.inst(*inst).kind),
-        _ => None,
-    }
-}
-
 /// `value = base + literal`, as the base and the literal's value.
 fn literal_offset(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
-    let &InstKind::Add(a, b) = inst_kind(func, value)? else { return None };
+    let &InstKind::Add(a, b) = func.value_inst_kind(value)? else { return None };
     match (func.value_u256(a), func.value_u256(b)) {
         (_, Some(offset)) => Some((a, offset)),
         (Some(offset), _) => Some((b, offset)),
@@ -145,7 +138,7 @@ fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
 
     // header: counter = phi [preheader: start], [latch: counter + step]
     //         jumpi (lt counter, bound), body, exit
-    let &InstKind::Lt(counter, bound) = inst_kind(func, condition)? else { return None };
+    let &InstKind::Lt(counter, bound) = func.value_inst_kind(condition)? else { return None };
     if defined_in_loop(bound) {
         return None;
     }
