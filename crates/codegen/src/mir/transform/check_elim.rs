@@ -1000,8 +1000,12 @@ struct CheckEliminator<'a> {
     difference_index: Option<DifferenceIndex>,
     /// Depth of the sum-bound lemma, which asks relational questions of its own.
     sum_depth: usize,
-    /// Values above a strict edge, shared by queries in the same fact scope.
-    strict_lower_bounds: Option<GrowableBitSet<ValueId>>,
+    /// Values above a strict edge, shared by queries in the same fact scope, once
+    /// `strict_bounds_valid`.
+    strict_lower_bounds: GrowableBitSet<ValueId>,
+    strict_bounds_valid: bool,
+    /// Scratch for building `strict_lower_bounds`.
+    strict_pending: Vec<ValueId>,
     /// Counting header phis with constant start and step, bounded by the
     /// distance any affordable number of iterations can travel.
     trip_bounds: FxHashMap<ValueId, Range>,
@@ -1186,7 +1190,7 @@ impl<'a> CheckEliminator<'a> {
                         };
                     }
                     if self.relation_undo.len() > relation_mark {
-                        self.strict_lower_bounds = None;
+                        self.strict_bounds_valid = false;
                     }
                     while self.relation_undo.len() > relation_mark {
                         let relation = self.relation_undo.pop().expect("checked len");
@@ -1412,7 +1416,7 @@ impl<'a> CheckEliminator<'a> {
             if bounds.is_empty() {
                 break;
             }
-            self.obligations = bound_obligations(func, cfg, definitions, &bounds);
+            bound_obligations(func, cfg, definitions, &bounds, &mut self.obligations);
             self.failed_bounds.clear();
             let mut assumed = facts.clone();
             for bound in &bounds {
@@ -1445,7 +1449,7 @@ impl<'a> CheckEliminator<'a> {
     fn invalidate_indexes(&mut self) {
         self.relation_index = None;
         self.reverse_index = None;
-        self.strict_lower_bounds = None;
+        self.strict_bounds_valid = false;
     }
 
     /// Checks the obligations of the bounds under proof that fall on `block`, in the scope at its
@@ -1545,6 +1549,9 @@ impl<'a> CheckEliminator<'a> {
         cx.universal_relations.clone_from(&self.universal_relations);
         let mut pending = cfg.reachable().clone();
         let mut visited = DenseBitSet::new_empty(func.blocks.len());
+        let mut phis = Vec::new();
+        let mut phi_ranges = Vec::new();
+        let mut phi_candidates = Vec::<Relation>::new();
         for _ in 0..MAX_ROUNDS {
             let mut changed = false;
             for &block in cfg.rpo() {
@@ -1555,30 +1562,31 @@ impl<'a> CheckEliminator<'a> {
                 // A phi of this join stays below a value defined before it when every input
                 // does on its edge, as `i = from < n ? from : n - 1` stays below `n`. Bounds an
                 // edge states of an input are the candidates; every edge must prove them.
-                let phis: Vec<_> = func.blocks[block]
-                    .instructions
-                    .iter()
-                    .filter_map(|&inst| {
-                        let InstKind::Phi(incoming) = &func.inst(inst).kind else { return None };
-                        let value = func.inst_result_value(inst)?;
-                        relevant.contains(value).then_some((value, incoming))
-                    })
-                    .collect();
+                phis.clear();
+                phis.extend(func.blocks[block].instructions.iter().filter_map(|&inst| {
+                    let InstKind::Phi(incoming) = &func.inst(inst).kind else { return None };
+                    let value = func.inst_result_value(inst)?;
+                    relevant.contains(value).then_some((value, incoming))
+                }));
                 let joins = func.blocks[block].predecessors.len() > 1;
-                let mut phi_candidates = Vec::<Relation>::new();
+                phi_candidates.clear();
                 if block != BlockId::ENTRY {
                     for &pred in &func.blocks[block].predecessors {
                         cx.enter_edge(func, block, pred, &exits[pred]);
                         // Evaluate all inputs before assigning any phi: loop
                         // phis describe a simultaneous parallel assignment.
-                        let phi_ranges: Vec<_> = phis
-                            .iter()
-                            .filter_map(|&(value, incoming)| {
-                                let &(_, input) =
-                                    incoming.iter().find(|&&(from, _)| from == pred)?;
-                                Some((value, input, cx.range_of(func, input, MAX_DEPTH)))
-                            })
-                            .collect();
+                        phi_ranges.clear();
+                        for &(value, incoming) in &phis {
+                            if let Some(&(_, input)) =
+                                incoming.iter().find(|&&(from, _)| from == pred)
+                            {
+                                phi_ranges.push((
+                                    value,
+                                    input,
+                                    cx.range_of(func, input, MAX_DEPTH),
+                                ));
+                            }
+                        }
                         for value in consumed_conditions.get(&pred).into_iter().flatten() {
                             cx.ranges.remove(value);
                         }
@@ -1612,7 +1620,7 @@ impl<'a> CheckEliminator<'a> {
                             let (a, b) = relation.operands();
                             available(a) && available(b)
                         });
-                        for (value, _, range) in phi_ranges {
+                        for &(value, _, range) in &phi_ranges {
                             if range != Range::FULL {
                                 cx.ranges.insert(value, range);
                             }
@@ -1685,7 +1693,7 @@ impl<'a> CheckEliminator<'a> {
                 }
                 cx.ranges.clone_from(&entry.ranges);
                 cx.relations.clone_from(&entry.relations);
-                cx.strict_lower_bounds = None;
+                cx.strict_bounds_valid = false;
                 cx.range_undo.clear();
                 cx.relation_undo.clear();
                 for &inst in &func.blocks[block].instructions {
@@ -2029,7 +2037,7 @@ impl<'a> CheckEliminator<'a> {
 
     fn add_relation(&mut self, func: &Function, relation: Relation) {
         if self.relations.insert(relation) {
-            self.strict_lower_bounds = None;
+            self.strict_bounds_valid = false;
             self.relation_undo.push(relation);
             if let (Some(active), Some(index)) = (&mut self.active_relations, &self.relation_index)
             {
@@ -2202,40 +2210,39 @@ impl<'a> CheckEliminator<'a> {
                 .as_ref()
                 .is_some_and(|active| active.nonzero.contains(value));
         }
-        if self.strict_lower_bounds.is_none() {
-            let mut nonzero = GrowableBitSet::with_capacity(func.num_values());
-            let mut pending = Vec::new();
+        if !self.strict_bounds_valid {
+            self.strict_lower_bounds.clear();
+            self.strict_pending.clear();
             for &fact in &self.relations {
                 if let Relation::Lt(_, bound) = fact
-                    && nonzero.insert(bound)
+                    && self.strict_lower_bounds.insert(bound)
                 {
-                    pending.push(bound);
+                    self.strict_pending.push(bound);
                 }
             }
-            if pending.is_empty() {
-                self.strict_lower_bounds = Some(nonzero);
-                return false;
-            }
-            self.ensure_relation_index(func);
-            let index = self.relation_index.as_ref().expect("relation index was just built");
-            // A strict edge makes its upper endpoint nonzero. Propagate that fact through
-            // active orderings once per scope instead of searching backward for every value.
-            while let Some(current) = pending.pop() {
-                for &fact in index.get(&current).into_iter().flatten() {
-                    if !self.relations.contains(&fact) && !self.universal_relations.contains(&fact)
-                    {
-                        continue;
-                    }
-                    if let Some((next, _)) = fact.step(current, false, false)
-                        && nonzero.insert(next)
-                    {
-                        pending.push(next);
+            if !self.strict_pending.is_empty() {
+                self.ensure_relation_index(func);
+                let index = self.relation_index.as_ref().expect("relation index was just built");
+                // A strict edge makes its upper endpoint nonzero. Propagate that fact through
+                // active orderings once per scope instead of searching backward for every value.
+                while let Some(current) = self.strict_pending.pop() {
+                    for &fact in index.get(&current).into_iter().flatten() {
+                        if !self.relations.contains(&fact)
+                            && !self.universal_relations.contains(&fact)
+                        {
+                            continue;
+                        }
+                        if let Some((next, _)) = fact.step(current, false, false)
+                            && self.strict_lower_bounds.insert(next)
+                        {
+                            self.strict_pending.push(next);
+                        }
                     }
                 }
             }
-            self.strict_lower_bounds = Some(nonzero);
+            self.strict_bounds_valid = true;
         }
-        self.strict_lower_bounds.as_ref().unwrap().contains(value)
+        self.strict_lower_bounds.contains(value)
     }
 
     fn has_relation(&mut self, func: &Function, relation: Relation) -> bool {
@@ -2904,7 +2911,7 @@ impl<'a> CheckEliminator<'a> {
     fn enter_edge(&mut self, func: &Function, block: BlockId, pred: BlockId, exit: &Facts) {
         self.ranges.clone_from(&exit.ranges);
         self.relations.clone_from(&exit.relations);
-        self.strict_lower_bounds = None;
+        self.strict_bounds_valid = false;
         self.range_undo.clear();
         self.relation_undo.clear();
         if let Some(Terminator::Branch { condition, then_block, else_block }) =
@@ -3313,6 +3320,7 @@ fn header_bound_candidates(
             .is_some_and(|block| block != header && dominators.dominates(block, header)),
         _ => true,
     };
+    let mut found = SmallVec::<[(ValueId, bool); 4]>::new();
     for (header, value, incoming) in header_phis(func, cfg, relevant) {
         if monotone.iter().any(|phi| phi.value == value) {
             continue;
@@ -3323,7 +3331,7 @@ fn header_bound_candidates(
         if incoming.iter().all(|&(_, incoming)| incoming == value || incoming == initial) {
             continue;
         }
-        let mut found = SmallVec::<[(ValueId, bool); 4]>::new();
+        found.clear();
         if !func.value_u256(initial).is_some_and(|initial| initial.is_zero()) {
             found.extend([(initial, true), (initial, false)]);
         }
@@ -3341,7 +3349,7 @@ fn header_bound_candidates(
                 }
             }
         }
-        for (limit, upper) in found {
+        for &(limit, upper) in &found {
             if bounds.len() == MAX_HEADER_BOUNDS {
                 return bounds;
             }
@@ -3364,24 +3372,30 @@ fn bound_obligations(
     cfg: &CfgInfo,
     definitions: &IndexVec<InstId, Option<BlockId>>,
     bounds: &[HeaderBound],
-) -> Vec<BoundObligation> {
+    obligations: &mut Vec<BoundObligation>,
+) {
     const MAX_JOIN_DEPTH: usize = 4;
     let dominators = cfg.dominators();
-    let mut obligations = Vec::new();
+    obligations.clear();
+    let mut kept = FxIndexSet::default();
+    let mut expanded = FxHashSet::default();
+    let mut pending = Vec::new();
     for (bound, &HeaderBound { header, value: phi, limit, .. }) in bounds.iter().enumerate() {
         let Some(InstKind::Phi(incoming)) = inst_kind(func, phi) else { continue };
-        let mut kept = FxIndexSet::default();
-        let mut expanded = FxHashSet::default();
+        kept.clear();
+        expanded.clear();
         for &(block, value) in incoming {
             if !dominators.dominates(header, block) && value != limit {
                 kept.insert((block, value));
             }
         }
-        let mut pending: Vec<_> = incoming
-            .iter()
-            .filter(|&&(block, _)| dominators.dominates(header, block))
-            .map(|&(block, value)| (block, value, 0))
-            .collect();
+        pending.clear();
+        pending.extend(
+            incoming
+                .iter()
+                .filter(|&&(block, _)| dominators.dominates(header, block))
+                .map(|&(block, value)| (block, value, 0)),
+        );
         while let Some((block, value, depth)) = pending.pop() {
             if value == phi {
                 continue;
@@ -3400,14 +3414,13 @@ fn bound_obligations(
             }
             kept.insert((block, value));
         }
-        obligations.extend(kept.into_iter().map(|(block, value)| BoundObligation {
+        obligations.extend(kept.drain(..).map(|(block, value)| BoundObligation {
             bound,
             block,
             value,
         }));
     }
     obligations.sort_by_key(|obligation| obligation.block);
-    obligations
 }
 
 /// Finds the midpoints feeding branches: `(a + b) / 2` and `(a + b) >> 1`, and the ordered
@@ -3778,7 +3791,8 @@ mod tests {
             let limit =
                 func.inst_result_value(func.blocks[BlockId::ENTRY].instructions[0]).unwrap();
             let bound = HeaderBound { header, value: phi, limit, upper: true };
-            let obligations = bound_obligations(func, &cfg, &func.inst_block_table(), &[bound]);
+            let mut obligations = Vec::new();
+            bound_obligations(func, &cfg, &func.inst_block_table(), &[bound], &mut obligations);
             // The entry's zero, and the body's value at the end of each path into the first join,
             // however many paths reach that join.
             assert_eq!(obligations.len(), fan + 1);
