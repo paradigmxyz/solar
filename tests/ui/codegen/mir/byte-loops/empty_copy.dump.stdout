@@ -150,11 +150,6 @@ fn @freshCopy() [selector=0x602d1e17, abi_wrapper, pure] {
     v11 = mul v10, v9
     v12 = add v61, v11
     v4 = icall @_freshCopy, v12, arg2
-    v5 = mload 64 !metadata(memory=scratch)
-    v6 = heap_floor
-    v7 = lt v5, v6
-    v8 = select v7, v6, v5
-    mstore 64, v8 !metadata(memory=scratch)
     v41 = mload v4
     v55 = add v4, 32
     v43 = add v41, 31
