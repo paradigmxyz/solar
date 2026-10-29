@@ -147,8 +147,8 @@ impl CallGraphInfo {
     }
 }
 
-/// Returns the functions reachable from `roots` through `callees`; a root is included only when
-/// another function in the set calls it.
+/// Returns the functions reachable from `roots` through `callees`; a root is included only if a
+/// path leads back to it.
 fn reachable_in_graph(
     callees: &FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
     roots: impl IntoIterator<Item = FunctionId>,
