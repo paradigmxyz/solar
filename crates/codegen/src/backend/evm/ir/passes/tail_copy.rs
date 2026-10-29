@@ -177,10 +177,11 @@ impl EvmPass for TailDuplicate {
         "tail-duplicate"
     }
 
+    fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
+        module.optimization.is_gas()
+    }
+
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        if !module.optimization.is_gas() {
-            return false;
-        }
         let target = module.runtime_target(gcx);
         // Bound the removed transfer by its smallest encoding: even a non-entry label can
         // resolve to zero when the entry block falls through without emitting instructions.
