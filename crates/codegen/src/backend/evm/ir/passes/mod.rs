@@ -74,7 +74,7 @@ trait EvmPass: Any + Sync {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 struct PassCacheKey {
     type_id: TypeId,
     name: &'static str,
