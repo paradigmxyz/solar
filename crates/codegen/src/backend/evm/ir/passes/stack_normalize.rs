@@ -5,10 +5,10 @@
 //! into maximal canonical stack-op runs of at most 24 instructions, symbolically computes the run's
 //! input and output layouts, and asks the shared stack shuffler to synthesize an equivalent run.
 //! Results are cached by input sequence because generated code often repeats the same shuffle.
-//! A bounded per-thread cache also retains these pure results across modules and pass
-//! invocations. It stores only physical operations, never value identities or metadata,
-//! and clears on an EVM-version change. Each rewrite still transfers the current
-//! instructions' debug metadata at its original site.
+//! A bounded per-thread cache retains these pure results across modules and pass invocations,
+//! with one table per EVM version and `EXCHANGE` mode. It stores only physical operations,
+//! never value identities or metadata. Each rewrite still transfers the current instructions'
+//! debug metadata at its original site.
 //!
 //! A replacement must be lowerable on the selected EVM version and must weakly improve encoded
 //! bytes, static gas, and instruction count while strictly improving at least one. The Pareto
@@ -84,10 +84,9 @@ impl EvmPass for StackNormalize {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let mut changed = false;
-        let mut normalizer = Normalizer::default();
-        let key = (gcx.sess.opts.evm_version, self.exchanges);
+        let mut normalizer = Normalizer::new((gcx.sess.opts.evm_version, self.exchanges));
         for block in &mut module.blocks {
-            changed |= normalizer.run(&mut block.instructions, key);
+            changed |= normalizer.run(&mut block.instructions);
         }
         changed
     }
@@ -118,34 +117,8 @@ const MAX_SHARED_NORMALIZATIONS: usize = 4096;
 type NormalizationKey = (EvmVersion, bool);
 
 thread_local! {
-    static SHARED_NORMALIZATIONS: RefCell<SharedNormalizations> = RefCell::default();
-}
-
-#[derive(Default)]
-struct SharedNormalizations {
-    evm_version: Option<EvmVersion>,
-    /// Entries without and with `EXCHANGE` in the output.
-    entries: [NormalizationCache; 2],
-}
-
-impl SharedNormalizations {
-    fn get(&mut self, input: &StackRun, key: NormalizationKey) -> Option<StackRun> {
-        let (evm_version, exchanges) = key;
-        if self.evm_version != Some(evm_version) {
-            self.entries.iter_mut().for_each(NormalizationCache::clear);
-            self.evm_version = Some(evm_version);
-        }
-        let entries = &mut self.entries[usize::from(exchanges)];
-        if let Some(output) = entries.get(input) {
-            return output.clone();
-        }
-        let output = compute_normalization(input, &[], key);
-        if entries.len() == MAX_SHARED_NORMALIZATIONS {
-            entries.clear();
-        }
-        entries.insert(input.clone(), output.clone());
-        output
-    }
+    static SHARED_NORMALIZATIONS: RefCell<FxHashMap<NormalizationKey, NormalizationCache>> =
+        RefCell::default();
 }
 
 struct Normalization {
@@ -157,22 +130,19 @@ struct Normalization {
     consumer: Option<u8>,
 }
 
-#[derive(Default)]
 struct Normalizer {
-    cache: NormalizationCache,
+    key: NormalizationKey,
     scratch: Vec<Instruction>,
     normalizations: Vec<Normalization>,
 }
 
 impl Normalizer {
-    fn run(&mut self, instructions: &mut Vec<Instruction>, key: NormalizationKey) -> bool {
-        self.normalizations.clear();
-        if !instructions
-            .windows(2)
-            .any(|window| window.iter().all(|inst| inst.as_stack_op().is_some()))
-        {
-            return false;
-        }
+    fn new(key: NormalizationKey) -> Self {
+        Self { key, scratch: Vec::new(), normalizations: Vec::new() }
+    }
+
+    fn run(&mut self, instructions: &mut Vec<Instruction>) -> bool {
+        let (evm_version, exchanges) = self.key;
         let mut input = StackRun::new();
         let mut cursor = 0;
         while cursor < instructions.len() {
@@ -180,7 +150,7 @@ impl Normalizer {
             while cursor < instructions.len() && instructions[cursor].as_stack_op().is_some() {
                 cursor += 1;
             }
-            if cursor == run_start {
+            if cursor - run_start < 2 {
                 cursor += 1;
                 continue;
             }
@@ -209,25 +179,20 @@ impl Normalizer {
                     end == cursor
                         && !instructions[start..end].iter().any(Instruction::keeps_with_next)
                 });
-                if input.len() >= 2 {
-                    let mut best = normalization(&input, equal, key, &mut self.cache)
-                        .map(|output| (output, None));
-                    if let Some(consumer) = consumer {
-                        // run; consumer => run; swap 1; mirrored consumer
-                        let cost = lowered_stack_cost(
-                            best.as_ref().map_or(&input, |(output, _)| output),
-                            key.0,
-                        );
-                        input.push(StackOp::Swap(1));
-                        if let Some(output) = normalization(&input, equal, key, &mut self.cache)
-                            && improves(lowered_stack_cost(&output, key.0), cost)
-                        {
-                            best = Some((output, Some(consumer)));
-                        }
+                let mut best = normalization(&input, equal, self.key).map(|output| (output, None));
+                if let Some(consumer) = consumer {
+                    // run; consumer => run; swap 1; mirrored consumer
+                    let cost =
+                        lowered_stack_cost(best.as_ref().map_or(&input, |(o, _)| o), evm_version);
+                    input.push(StackOp::Swap(1));
+                    if let Some(output) = normalization(&input, equal, self.key)
+                        && improves(lowered_stack_cost(&output, evm_version), cost)
+                    {
+                        best = Some((output, Some(consumer)));
                     }
-                    if let Some((output, consumer)) = best {
-                        self.normalizations.push(Normalization { start, end, output, consumer });
-                    }
+                }
+                if let Some((output, consumer)) = best {
+                    self.normalizations.push(Normalization { start, end, output, consumer });
                 }
                 start = end;
             }
@@ -247,84 +212,77 @@ impl Normalizer {
         self.scratch.clear();
         std::mem::swap(instructions, &mut self.scratch);
         instructions.reserve(self.scratch.len());
-        let mut source = self.scratch.drain(..).enumerate().peekable();
+        let mut source = self.scratch.drain(..);
+        let mut consumed = 0;
         for normalization in self.normalizations.drain(..) {
-            while source.peek().is_some_and(|&(index, _)| index < normalization.start) {
-                instructions.push(source.next().unwrap().1);
-            }
+            instructions.extend(source.by_ref().take(normalization.start - consumed));
+            consumed = normalization.end;
             let run = source
                 .by_ref()
                 .take(normalization.end - normalization.start)
-                .map(|(_, inst)| inst)
                 .collect::<SmallVec<[_; MAX_STACK_RUN_LEN]>>();
-            let input = run.iter().filter_map(Instruction::as_stack_op).collect::<StackRun>();
-            // Folded cycles keep the debug information of the swaps they replace, and untouched
-            // operations keep their own.
-            if key.1
-                && let Some(origins) = fold_origins(&input, &normalization.output)
-            {
-                let mut run = run.into_iter();
-                for (op, origin) in normalization.output.into_iter().zip(origins) {
-                    let mut replacement = Instruction::stack_op(op);
-                    let mut replaced = run.by_ref().take(usize::from(origin));
-                    if let Some(mut inst) = replaced.next() {
-                        replacement.metadata = std::mem::take(&mut inst.metadata);
-                    }
-                    for inst in replaced {
-                        replacement.metadata.absorb_debug_info(&inst.metadata);
-                    }
-                    instructions.push(replacement);
-                }
-                continue;
-            }
-            // Other replacements take the replaced operations' debug information positionally;
-            // a longer output repeats the last original's, a shorter one absorbs the leftovers.
-            let mut original = run.into_iter();
+            // The final instance's folded cycles keep the debug information of the swaps they
+            // replace. Other replacements take the replaced operations' debug information
+            // positionally: a longer output repeats the last original's, and a shorter one
+            // absorbs the leftovers into its last operation.
+            let origins = exchanges
+                .then(|| {
+                    let input =
+                        run.iter().filter_map(Instruction::as_stack_op).collect::<StackRun>();
+                    fold_origins(&input, &normalization.output)
+                })
+                .flatten()
+                .unwrap_or_else(|| {
+                    (0..normalization.output.len())
+                        .map(|index| u8::from(index < run.len()))
+                        .collect()
+                });
+            let mut run = run.into_iter();
             let first = instructions.len();
-            for op in normalization.output {
+            for (op, origin) in normalization.output.into_iter().zip(origins) {
                 let mut replacement = Instruction::stack_op(op);
-                match original.next() {
-                    Some(mut inst) => {
-                        replacement.metadata = std::mem::take(&mut inst.metadata);
-                    }
-                    None => match instructions.last() {
-                        Some(last) if instructions.len() > first => {
-                            replacement.metadata.copy_source_debug_from(&last.metadata);
-                        }
-                        _ => replacement.metadata.mark_debug_info_dropped(),
-                    },
+                let mut replaced = run.by_ref().take(usize::from(origin));
+                if let Some(mut inst) = replaced.next() {
+                    replacement.metadata = std::mem::take(&mut inst.metadata);
+                } else if let Some(last) = instructions.get(first..).and_then(<[_]>::last) {
+                    replacement.metadata.copy_source_debug_from(&last.metadata);
+                } else {
+                    replacement.metadata.mark_debug_info_dropped();
+                }
+                for inst in replaced {
+                    replacement.metadata.absorb_debug_info(&inst.metadata);
                 }
                 instructions.push(replacement);
             }
-            for inst in original {
+            for inst in run {
                 if let Some(last) = instructions.last_mut() {
                     last.metadata.absorb_debug_info(&inst.metadata);
                 }
             }
         }
-        instructions.extend(source.map(|(_, inst)| inst));
+        instructions.extend(source);
         true
     }
 }
 
-fn normalization(
-    input: &StackRun,
-    equal: &[u8],
-    key: NormalizationKey,
-    cache: &mut NormalizationCache,
-) -> Option<StackRun> {
-    // Runs right after equal constant pushes skip these caches; the shuffler still caches its
-    // exact searches.
+fn normalization(input: &StackRun, equal: &[u8], key: NormalizationKey) -> Option<StackRun> {
+    // Runs right after equal constant pushes skip the cache; the shuffler still caches its exact
+    // searches.
     if !equal.is_empty() {
         return compute_normalization(input, equal, key);
     }
-    if let Some(output) = cache.get(input) {
-        output.clone()
-    } else {
-        let output = SHARED_NORMALIZATIONS.with_borrow_mut(|shared| shared.get(input, key));
+    SHARED_NORMALIZATIONS.with_borrow_mut(|shared| {
+        let cache = shared.entry(key).or_default();
+        if let Some(output) = cache.get(input) {
+            return output.clone();
+        }
+        let output = compute_normalization(input, &[], key);
+        if cache.len() == MAX_SHARED_NORMALIZATIONS {
+            cache.clear();
+        }
         cache.insert(input.clone(), output.clone());
         output
-    }
+    })
 }
 
 /// For each word a run at `start` finds on the stack, the shallowest word that holds the same
@@ -451,12 +409,8 @@ fn remove_redundant_permutations(
     let mut index = 0;
     let mut removed = remove.iter().copied().peekable();
     instructions.retain(|_| {
-        let keep = removed.peek().copied() != Some(index);
-        if !keep {
-            removed.next();
-        }
         index += 1;
-        keep
+        removed.next_if_eq(&(index - 1)).is_none()
     });
     true
 }
