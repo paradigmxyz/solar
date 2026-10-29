@@ -50,7 +50,7 @@ use std::any::{Any, TypeId};
 pub use crate::mir::pass_manager::pipeline_label;
 
 /// A streamlined trait for an EVM IR transformation pass.
-pub trait EvmPass: Any + Sync {
+trait EvmPass: Any + Sync {
     /// Command-line and pipeline name.
     fn name(&self) -> &'static str;
 
@@ -100,10 +100,6 @@ impl<P: EvmPass> EvmPass for RunsAtNone<P> {
         module.optimization.is_none() || self.0.is_enabled(gcx, module)
     }
 
-    fn is_required(&self) -> bool {
-        self.0.is_required()
-    }
-
     fn cache_config(&self) -> u64 {
         self.0.cache_config()
     }
@@ -114,7 +110,7 @@ impl<P: EvmPass> EvmPass for RunsAtNone<P> {
 }
 
 /// All EVM IR passes exposed by `-Zevm-ir-pipeline`.
-pub static ALL_PASSES: &[&dyn EvmPass] = &[
+static ALL_PASSES: &[&dyn EvmPass] = &[
     &block_cse::BlockCse,
     &peephole::Peephole::FINAL,
     &peephole::LateWord,
@@ -224,33 +220,16 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
 ];
 
 /// Finds an EVM IR pass by command-line name.
-pub fn lookup_pass(name: &str) -> Option<&'static dyn EvmPass> {
+fn lookup_pass(name: &str) -> Option<&'static dyn EvmPass> {
     ALL_PASSES.iter().copied().find(|pass| pass.name() == name)
 }
 
 /// Runs an EVM IR pass pipeline.
 #[must_use]
-pub fn run_passes(
+fn run_passes(
     gcx: Gcx<'_>,
     module: &mut Module,
     passes: &[&dyn EvmPass],
-    name: Option<&str>,
-) -> bool {
-    run_passes_inner(gcx, module, passes, true, name)
-}
-
-/// Runs EVM IR passes without validating after each pass.
-#[must_use]
-pub fn run_passes_no_validate(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn EvmPass]) -> bool {
-    run_passes_inner(gcx, module, passes, false, None)
-}
-
-#[must_use]
-fn run_passes_inner(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    passes: &[&dyn EvmPass],
-    validate_each: bool,
     name: Option<&str>,
 ) -> bool {
     let output_name =
@@ -274,7 +253,7 @@ fn run_passes_inner(
             let cache_key = PassCacheKey::new(*pass);
             let cached = unchanged.contains(&cache_key);
             debug_assert!(unchanged.iter().filter(|entry| **entry == cache_key).count() <= 1);
-            let target_support_before = (!cached && validate_each && should_validate_ir(gcx))
+            let target_support_before = (!cached && should_validate_ir(gcx))
                 .then(|| super::verifier(gcx).target_support_snapshot(module));
             let pass_changed = !cached
                 && tracing::trace_span!("evm_ir_pass", pass = pass_name)
