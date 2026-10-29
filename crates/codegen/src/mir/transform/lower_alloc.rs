@@ -25,12 +25,12 @@
 
 use crate::mir::{
     AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, EffectKind,
-    Function, FunctionBuilder, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
-    PtrLocation, Value, ValueId,
+    Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, MirType, Module,
+    PanicCode, PtrLocation, Value, ValueId,
     analysis::FreshFmpReads,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
-    transform::utils::redirect_successor_predecessors,
+    transform::utils::{expand_block, redirect_successor_predecessors},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{Ident, sym};
@@ -76,16 +76,10 @@ fn share_checked_allocations(
     let count = module
         .functions
         .iter_enumerated()
-        .flat_map(|(id, func)| func.instructions().map(move |inst| (id, inst, func.inst(inst))))
-        .filter(|&(id, inst, instruction)| {
-            matches!(
-                instruction.kind,
-                InstKind::Alloc {
-                    semantics: AllocationSemantics { failure: AllocationFailure::Checked, .. },
-                    ..
-                }
-            ) && !instruction.metadata.deferred_alloc()
-                && !fresh.contains(id, inst)
+        .flat_map(|(id, func)| {
+            func.instructions().filter(move |&inst| {
+                checked_alloc(func, inst).is_some() && !fresh.contains(id, inst)
+            })
         })
         .count();
     if count < 2 {
@@ -96,37 +90,38 @@ fn share_checked_allocations(
     run_lowering_function_pass(module, analyses, |func, function_analyses| {
         let func_id = function_analyses.function();
         let mut replacements = FxHashMap::default();
-        let blocks = func.blocks.indices();
-        for block in blocks {
-            let instructions = std::mem::take(&mut func.blocks[block].instructions);
+        for block in func.blocks.indices() {
             let mut builder = FunctionBuilder::new(func);
-            builder.switch_to_block(block);
-            for inst in instructions {
-                let InstKind::Alloc { size, semantics } = builder.func().inst(inst).kind else {
-                    builder.func_mut().blocks[block].instructions.push(inst);
-                    continue;
+            expand_block(&mut builder, block, |builder, inst| {
+                let Some((size, semantics)) = checked_alloc(builder.func(), inst) else {
+                    return false;
                 };
-                if semantics.failure != AllocationFailure::Checked
-                    || builder.func().inst(inst).metadata.deferred_alloc()
-                    || fresh.contains(func_id, inst)
-                {
-                    builder.func_mut().blocks[block].instructions.push(inst);
-                    continue;
+                if fresh.contains(func_id, inst) {
+                    return false;
                 }
                 let result =
                     builder.func().inst_result_value(inst).expect("allocation has a result");
                 // object = icall checked_alloc size
                 let object = builder.icall(helper, vec![size], MirType::MEMPTR);
-                initialize(&mut builder, object, size, semantics.initialization);
+                initialize(builder, object, size, semantics.initialization);
                 replacements.insert(result, object);
-            }
+                true
+            });
         }
         func.replace_uses_canonicalized(&replacements);
         true
     })
 }
 
-fn create_checked_alloc(module: &mut Module) -> crate::mir::FunctionId {
+/// The size and semantics of `inst` if it is a checked allocation that lowering expands.
+fn checked_alloc(func: &Function, inst: InstId) -> Option<(ValueId, AllocationSemantics)> {
+    let instruction = func.inst(inst);
+    let InstKind::Alloc { size, semantics } = instruction.kind else { return None };
+    (semantics.failure == AllocationFailure::Checked && !instruction.metadata.deferred_alloc())
+        .then_some((size, semantics))
+}
+
+fn create_checked_alloc(module: &mut Module) -> FunctionId {
     let mut function = Function::new(Ident::with_dummy_span(sym::alloc));
     {
         let mut builder = FunctionBuilder::new(&mut function);
@@ -137,11 +132,7 @@ fn create_checked_alloc(module: &mut Module) -> crate::mir::FunctionId {
         let free = builder.load(slot, PtrLocation::Memory);
         mark_alloc_ptr(&mut builder, free);
         let ptr = builder.cast(free, MirType::MEMPTR);
-        let next = bump(&mut builder, ptr, size);
-        let bump_overflow = builder.lt(next, ptr);
-        let limit = builder.imm(EvmMemoryLayout::MAX_ALLOCATION_END);
-        let over_limit = builder.gt(next, limit);
-        let invalid = builder.or(bump_overflow, over_limit);
+        let (next, invalid) = bump_checked(&mut builder, ptr, size);
         let panic = builder.create_block();
         let continuation = builder.create_block();
         builder.branch(invalid, panic, continuation);
@@ -168,19 +159,14 @@ fn lower_function(func: &mut Function, is_fresh: impl Fn(InstId) -> bool) -> boo
     let mut block_index = 0;
     while block_index < func.blocks.len() {
         let block = BlockId::from_usize(block_index);
-        let checked =
-            func.blocks[block].instructions.iter().copied().enumerate().find(|(_, inst)| {
-                matches!(
-                    func.inst(*inst).kind,
-                    InstKind::Alloc {
-                        semantics: AllocationSemantics { failure: AllocationFailure::Checked, .. },
-                        ..
-                    }
-                ) && !func.inst(*inst).metadata.deferred_alloc()
-            });
+        let checked = func.blocks[block]
+            .instructions
+            .iter()
+            .copied()
+            .enumerate()
+            .find(|&(_, inst)| checked_alloc(func, inst).is_some());
         if let Some((position, inst)) = checked {
-            let result = func.inst_result_value(inst).expect("allocation must produce a value");
-            lower_checked_alloc(func, block, position, inst, result, is_fresh(inst));
+            lower_checked_alloc(func, block, position, inst, is_fresh(inst));
             changed = true;
         }
         block_index += 1;
@@ -202,7 +188,6 @@ fn lower_function(func: &mut Function, is_fresh: impl Fn(InstId) -> bool) -> boo
                 InstKind::Fmp => {
                     changed = true;
                     rewrite_as_fmp_read(&mut builder, inst, is_fresh(inst));
-                    builder.func_mut().blocks[block].instructions.push(inst);
                     peek.start(builder.func(), inst);
                 }
                 InstKind::Alloc { size, semantics }
@@ -243,7 +228,6 @@ fn lower_function(func: &mut Function, is_fresh: impl Fn(InstId) -> bool) -> boo
                         .inst_result_value(inst)
                         .expect("allocation must produce a value");
                     rewrite_as_fmp_read(&mut builder, inst, is_fresh(inst));
-                    builder.func_mut().blocks[block].instructions.push(inst);
                     let next = bump(&mut builder, ptr, size);
                     store_fmp(&mut builder, next);
                     initialize(&mut builder, ptr, size, semantics.initialization);
@@ -342,20 +326,18 @@ fn lower_checked_alloc(
     block: BlockId,
     position: usize,
     inst: InstId,
-    ptr: ValueId,
     fresh: bool,
 ) {
-    let InstKind::Alloc { size, semantics } = func.inst(inst).kind else { unreachable!() };
-    debug_assert_eq!(semantics.failure, AllocationFailure::Checked);
+    let (size, semantics) = checked_alloc(func, inst).expect("checked allocation");
+    let ptr = func.inst_result_value(inst).expect("allocation must produce a value");
 
-    let mut instructions = std::mem::take(&mut func.blocks[block].instructions);
-    let tail = instructions.split_off(position + 1);
-    func.blocks[block].instructions = instructions;
+    // The allocation leaves the block; its rewrite is appended after the pointer read.
+    let tail = func.blocks[block].instructions.split_off(position + 1);
+    func.blocks[block].instructions.pop();
     let (old_terminator, metadata) = func.blocks[block].take_terminator();
 
     // continuation: tail; old_terminator !metadata(original block)
     let continuation = func.alloc_block();
-    func.blocks[continuation].instructions = tail;
     if let Some(terminator) = old_terminator {
         func.blocks[continuation].set_terminator(terminator, metadata);
     }
@@ -365,14 +347,9 @@ fn lower_checked_alloc(
     let mut builder = FunctionBuilder::new(func);
     builder.switch_to_block(block);
     rewrite_as_fmp_read(&mut builder, inst, fresh);
-    let next = bump(&mut builder, ptr, size);
-    let bump_overflow = builder.lt(next, ptr);
-    let limit = builder.imm(EvmMemoryLayout::MAX_ALLOCATION_END);
-    let over_limit = builder.gt(next, limit);
-    let invalid = builder.or(bump_overflow, over_limit);
+    let (next, invalid) = bump_checked(&mut builder, ptr, size);
     builder.branch(invalid, panic, continuation);
 
-    let tail = std::mem::take(&mut builder.func_mut().blocks[continuation].instructions);
     builder.switch_to_block(continuation);
     store_fmp(&mut builder, next);
     initialize(&mut builder, ptr, size, semantics.initialization);
@@ -393,16 +370,12 @@ fn initialize(
     }
 }
 
-/// Reads the pointer from its slot, or the heap floor when nothing wrote the slot before `inst`.
-fn rewrite_as_fmp_read(builder: &mut FunctionBuilder<'_>, inst: crate::mir::InstId, fresh: bool) {
+/// Rewrites the detached `inst` to read the pointer from its slot, or the heap floor when nothing
+/// wrote the slot before it, and appends it to the current block after any pointer read it needs.
+fn rewrite_as_fmp_read(builder: &mut FunctionBuilder<'_>, inst: InstId, fresh: bool) {
     // ptr = mload 64 | heap_floor
     // object = inttoptr ptr
-    let kind = if builder.func().inst(inst).result_ty.is_some_and(crate::mir::MirType::is_pointer) {
-        let block = builder.current_block();
-        let attached = builder.func().blocks[block].instructions.last() == Some(&inst);
-        if attached {
-            builder.func_mut().blocks[block].instructions.pop();
-        }
+    let kind = if builder.func().inst(inst).result_ty.is_some_and(MirType::is_pointer) {
         let ptr = if fresh {
             builder.heap_floor()
         } else {
@@ -410,9 +383,6 @@ fn rewrite_as_fmp_read(builder: &mut FunctionBuilder<'_>, inst: crate::mir::Inst
             builder.load(slot, PtrLocation::Memory)
         };
         mark_alloc_ptr(builder, ptr);
-        if attached {
-            builder.func_mut().blocks[block].instructions.push(inst);
-        }
         InstKind::IntToPtr(ptr)
     } else if fresh {
         InstKind::HeapFloor
@@ -426,13 +396,11 @@ fn rewrite_as_fmp_read(builder: &mut FunctionBuilder<'_>, inst: crate::mir::Inst
     instruction.metadata.set_preserves_fmp(false);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
     instruction.metadata.set_alloc_ptr(is_load);
+    let block = builder.current_block();
+    builder.func_mut().blocks[block].instructions.push(inst);
 }
 
-fn rewrite_as_fmp_store(
-    builder: &mut FunctionBuilder<'_>,
-    inst: crate::mir::InstId,
-    ptr: crate::mir::ValueId,
-) {
+fn rewrite_as_fmp_store(builder: &mut FunctionBuilder<'_>, inst: InstId, ptr: ValueId) {
     // word = ptrtoint ptr to i256
     // set_fmp ptr -> mstore 64, word
     let ptr = builder.cast(ptr, MirType::I256);
@@ -454,6 +422,20 @@ fn bump(builder: &mut FunctionBuilder<'_>, ptr: ValueId, size: ValueId) -> Value
     next
 }
 
+/// Emits `ptr + size` and whether it wrapped or passes the allocation limit.
+fn bump_checked(
+    builder: &mut FunctionBuilder<'_>,
+    ptr: ValueId,
+    size: ValueId,
+) -> (ValueId, ValueId) {
+    let next = bump(builder, ptr, size);
+    // invalid = next < ptr || next > limit
+    let bump_overflow = builder.lt(next, ptr);
+    let limit = builder.imm(EvmMemoryLayout::MAX_ALLOCATION_END);
+    let over_limit = builder.gt(next, limit);
+    (next, builder.or(bump_overflow, over_limit))
+}
+
 /// Marks the instruction that defines `value` as a word the allocator produced, a heap pointer
 /// whatever assembly stored in the free-memory-pointer slot.
 fn mark_alloc_ptr(builder: &mut FunctionBuilder<'_>, value: ValueId) {
@@ -463,7 +445,7 @@ fn mark_alloc_ptr(builder: &mut FunctionBuilder<'_>, value: ValueId) {
     }
 }
 
-fn store_fmp(builder: &mut FunctionBuilder<'_>, ptr: crate::mir::ValueId) {
+fn store_fmp(builder: &mut FunctionBuilder<'_>, ptr: ValueId) {
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
     builder.store(slot, ptr);
 }
