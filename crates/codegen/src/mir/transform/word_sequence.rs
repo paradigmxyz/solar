@@ -332,14 +332,16 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
     let branch_only = branch_only_conditions(func, &uses);
     let mut masks = None;
     let mut changed = false;
+    let mut ordered = Vec::new();
     let mut seen = FxHashSet::default();
     let mut deleted = FxHashSet::default();
+    let mut added = Vec::new();
     for block in func.blocks.indices() {
         let original = std::mem::take(&mut func.blocks[block].instructions);
-        let mut ordered = Vec::with_capacity(original.len());
+        ordered.clear();
         seen.clear();
         deleted.clear();
-        let mut added = Vec::new();
+        added.clear();
         for &inst in &original {
             if !removable(func, func.inst(inst), target) {
                 let instruction = func.inst(inst);
@@ -418,7 +420,7 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
                 masks.remove(func, inst);
             }
         }
-        func.blocks[block].instructions = ordered;
+        func.blocks[block].instructions = std::mem::replace(&mut ordered, original);
     }
     changed
 }
