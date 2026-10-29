@@ -8,11 +8,12 @@
 //! without `SHR`) and switches on it to one argument-free `tail_call` per
 //! external wrapper. It is meant to run after [`super::lower_abi::LowerAbi`],
 //! which turns external functions into the argument-free self-decoding
-//! wrappers this switch routes to; that is why it only routes selector-bearing functions that take
-//! no MIR arguments. Empty calldata goes to `receive` when there is one, and a selector
-//! miss goes to `fallback` or reverts. Calldata shorter than four bytes is
-//! zero-padded by `calldataload`, so it is sent to the default target first
-//! only when some selector ends in a zero byte and could match it.
+//! wrappers this switch routes to; that is why it only routes
+//! selector-bearing functions that take no MIR arguments. Empty calldata goes
+//! to `receive` when there is one, and a selector miss goes to `fallback` or
+//! reverts. Calldata shorter than four bytes is zero-padded by `calldataload`,
+//! so it is sent to the default target first only when some selector ends in
+//! a zero byte and could match it.
 //!
 //! When every external entry rejects Ether, `entry` checks `callvalue` once;
 //! otherwise `lower-abi` has already put the check into each rejecting

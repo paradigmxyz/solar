@@ -22,8 +22,8 @@
 //!
 //! Every function ends by folding projections in one scan: a `make_slice` is replaced by its
 //! pointer, its `extract_value` projections by the pointer or length word, and a projection of an
-//! undefined slice by an undefined component. Folding exposes no new projection of a slice,
-//! because the operands of `make_slice` are not slices, so one scan reaches the fixed point.
+//! undefined slice by an undefined component. In valid MIR the operands of `make_slice` are a
+//! pointer and a length, not slices, so folding exposes no new projection and one scan is enough.
 
 use crate::mir::{
     ArgIdx, BlockId, Callee, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
