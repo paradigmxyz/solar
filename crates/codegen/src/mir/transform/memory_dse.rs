@@ -109,7 +109,7 @@ use crate::{
     mir::{
         AllocationFailure, BasicBlock, BlockId, Callee, EffectKind, Function, FunctionId,
         Immediate, InstId, InstKind, MangledSymbol, MemoryRegion, MirType, Module, PtrLocation,
-        RawMemoryAccess, Terminator, Value, ValueId,
+        RawMemoryAccess, RawMemorySize, Terminator, Value, ValueId,
         analysis::{
             Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
             MemoryAddress, MemoryBase, MemoryCallSummaries, MemoryLocation, ModRef, ReadBounds,
@@ -460,18 +460,19 @@ fn return_facts(
 /// Returns whether the function contains a store, fill, or copy this pass can remove or forward
 /// from, or an immutable copy it can reuse: every rewrite starts from one of them.
 fn has_memory_writes(func: &Function) -> bool {
-    func.instructions().any(|inst_id| {
-        matches!(
-            func.inst(inst_id).kind,
-            InstKind::Store(.., PtrLocation::Memory)
-                | InstKind::Store8(..)
-                | InstKind::CodeCopy(..)
-                | InstKind::MemoryZero(..)
-                | InstKind::Copy(.., PtrLocation::Calldata | PtrLocation::Memory)
-                | InstKind::DataCopy(..)
-                | InstKind::ExtCodeCopy(..)
-        )
+    // Return data copies stay out: their source bounds check can revert.
+    func.instructions().any(|inst| {
+        let kind = &func.inst(inst).kind;
+        !matches!(kind, InstKind::Copy(.., PtrLocation::Returndata))
+            && raw_ranges(kind).iter().any(|&(access, ..)| access == RawMemoryAccess::Write)
     })
+}
+
+/// The raw memory ranges `kind` accesses, reads before writes.
+fn raw_ranges(kind: &InstKind) -> SmallVec<[(RawMemoryAccess, ValueId, RawMemorySize); 2]> {
+    let mut ranges = SmallVec::new();
+    kind.visit_raw_memory(|access, address, size| ranges.push((access, address, size)));
+    ranges
 }
 
 /// Whether nothing in the module can leave a word below the heap in the free memory pointer's
@@ -1623,6 +1624,7 @@ impl MemoryStoreEliminator {
 
         for &inst_id in func.blocks[block_id].instructions.iter().rev() {
             let inst = func.inst(inst_id);
+            let ranges = raw_ranges(&inst.kind);
             match &inst.kind {
                 InstKind::Store(addr, value, PtrLocation::Memory) => {
                     if let Some(key) = self.mem_addr_key(func, *addr, 32) {
@@ -1660,16 +1662,13 @@ impl MemoryStoreEliminator {
                 InstKind::SetFmp(_) => {
                     scratch.overwritten.insert(AliasAnalysis::fmp_location().address);
                 }
-                InstKind::MemoryZero(dest, size)
-                | InstKind::Copy(dest, _, size, PtrLocation::Calldata | PtrLocation::Returndata)
-                | InstKind::DataCopy(_, dest, size)
-                | InstKind::CodeCopy(dest, _, size)
-                | InstKind::ExtCodeCopy(_, dest, _, size) => {
+                // A fill or copy that is the only range the instruction accesses.
+                _ if let [(RawMemoryAccess::Write, dest, size)] = ranges[..] => {
                     if self.insert_full_word_overwritten_range(
                         func,
                         &mut scratch.overwritten,
-                        *dest,
-                        *size,
+                        dest,
+                        size,
                     ) && matches!(
                         inst.kind,
                         InstKind::MemoryZero(..) | InstKind::Copy(.., PtrLocation::Calldata)
@@ -1678,34 +1677,27 @@ impl MemoryStoreEliminator {
                         self.eliminated_count += 1;
                     }
                 }
-                InstKind::Call { args_offset, args_size, .. }
-                | InstKind::CallCode { args_offset, args_size, .. }
-                | InstKind::StaticCall { args_offset, args_size, .. }
-                | InstKind::DelegateCall { args_offset, args_size, .. } => {
-                    // A call reads its whole input, but it only copies
-                    // `min(ret_size, returndatasize())` bytes into the output
-                    // area. The rest remains unchanged, so the output cannot
-                    // prove that an earlier store is dead.
-                    self.retain_overwritten_disjoint_from_read(
-                        func,
-                        &mut scratch.overwritten,
-                        *args_offset,
-                        *args_size,
-                    );
-                }
-                // Keccak and logs only *read* memory. A read over a constant
-                // range observes only the stores that fall in it, so a later
-                // overwrite of a disjoint slot still kills its earlier store.
-                // Modelling the range (instead of clearing) lets a return-value
-                // slot's dead default-init survive the mapping-hash keccaks and
-                // event logs that sit between it and its real store.
-                kind if let Some((offset, size)) = Self::constant_range_read(kind) => {
-                    self.retain_overwritten_disjoint_from_read(
-                        func,
-                        &mut scratch.overwritten,
-                        offset,
-                        size,
-                    );
+                // Keccak, logs, creations, and calls only *read* memory. A call reads its whole
+                // input, but it only copies `min(ret_size, returndatasize())` bytes into the
+                // output area. The rest remains unchanged, so the output cannot prove that an
+                // earlier store is dead. A read over a constant range observes only the stores
+                // that fall in it, so a later overwrite of a disjoint slot still kills its
+                // earlier store. Modelling the range (instead of clearing) lets a return-value
+                // slot's dead default-init survive the mapping-hash keccaks and event logs that
+                // sit between it and its real store.
+                _ if !ranges.is_empty()
+                    && ranges.iter().all(|&(access, ..)| access != RawMemoryAccess::Write) =>
+                {
+                    for &(access, offset, size) in &ranges {
+                        if access == RawMemoryAccess::Read {
+                            self.retain_overwritten_disjoint_from_read(
+                                func,
+                                &mut scratch.overwritten,
+                                offset,
+                                size,
+                            );
+                        }
+                    }
                 }
                 _ => self.apply_memory_effects(func, inst_id, &mut scratch.overwritten),
             }
@@ -1780,15 +1772,6 @@ impl MemoryStoreEliminator {
         }
     }
 
-    fn constant_range_read(kind: &InstKind) -> Option<(ValueId, ValueId)> {
-        match kind {
-            InstKind::Keccak256(offset, size) | InstKind::Log { offset, size, .. } => {
-                Some((*offset, *size))
-            }
-            _ => None,
-        }
-    }
-
     /// Keeps only the overwritten slots a constant-range memory read cannot
     /// observe. A slot provably outside `[offset, offset + size)` survives; a
     /// non-constant range or a symbolic slot is assumed observed (dropped),
@@ -1798,9 +1781,9 @@ impl MemoryStoreEliminator {
         func: &Function,
         overwritten: &mut FxHashSet<MemoryAddress>,
         offset: ValueId,
-        size: ValueId,
+        size: RawMemorySize,
     ) {
-        let (Some(read_offset), Some(read_size)) = (func.value_u64(offset), func.value_u64(size))
+        let (Some(read_offset), Some(read_size)) = (func.value_u64(offset), size.constant(func))
         else {
             overwritten.clear();
             return;
@@ -1991,13 +1974,6 @@ impl MemoryStoreEliminator {
                         scratch.stored_words.insert(key, value);
                     }
                 }
-                InstKind::Store8(addr, _) => {
-                    if let Some(key) = self.mem_addr_key(func, *addr, 1) {
-                        scratch.stored_words.invalidate(key, 1);
-                    } else {
-                        scratch.stored_words.clear();
-                    }
-                }
                 InstKind::Keccak256(offset, size) => {
                     let Some(bytes) =
                         Self::constant_memory_bytes(func, &scratch.stored_words, *offset, *size)
@@ -2017,7 +1993,11 @@ impl MemoryStoreEliminator {
                     self.eliminated_count += 1;
                 }
                 _ if self.can_mutate_memory(func, inst_id) => {
-                    scratch.stored_words.clear();
+                    self.invalidate_writes(
+                        func,
+                        &func.inst(inst_id).kind,
+                        &mut scratch.stored_words,
+                    );
                 }
                 _ => {}
             }
@@ -2102,7 +2082,7 @@ impl MemoryStoreEliminator {
                     scratch.stored_values.insert(key, *value);
                 }
                 _ if self.can_mutate_memory(func, inst_id) => {
-                    scratch.stored_values.clear();
+                    self.invalidate_writes(func, &inst.kind, &mut scratch.stored_values);
                 }
                 _ => {}
             }
@@ -2174,23 +2154,8 @@ impl MemoryStoreEliminator {
                         scratch.dead.insert(inst_id);
                     }
                 }
-                InstKind::MemoryZero(dest, size)
-                | InstKind::Copy(dest, _, size, PtrLocation::Calldata | PtrLocation::Returndata)
-                | InstKind::DataCopy(_, dest, size)
-                | InstKind::CodeCopy(dest, _, size)
-                | InstKind::ExtCodeCopy(_, dest, _, size) => {
-                    let Some(size) = func.value_u64(*size) else {
-                        scratch.stored_values.clear();
-                        continue;
-                    };
-                    if let Some(write) = self.mem_addr_key(func, *dest, size) {
-                        scratch.stored_values.invalidate(write, size);
-                    } else {
-                        scratch.stored_values.clear();
-                    }
-                }
                 _ if self.can_mutate_memory(func, inst_id) => {
-                    scratch.stored_values.clear();
+                    self.invalidate_writes(func, &inst.kind, &mut scratch.stored_values);
                 }
                 _ => {}
             }
@@ -2285,6 +2250,31 @@ impl MemoryStoreEliminator {
         });
     }
 
+    /// Drops the entries of `map` that the memory write `kind` may change: those overlapping its
+    /// ranges when it only writes constant ranges in full, every entry otherwise.
+    fn invalidate_writes<T>(&self, func: &Function, kind: &InstKind, map: &mut SlotMap<T>) {
+        let ranges = raw_ranges(kind);
+        let mut exact = ranges.iter().any(|&(access, ..)| access == RawMemoryAccess::Write);
+        for &(access, address, size) in &ranges {
+            match access {
+                RawMemoryAccess::Read => {}
+                RawMemoryAccess::Write => {
+                    if let Some(size) = size.constant(func)
+                        && let Some(write) = self.mem_addr_key(func, address, size)
+                    {
+                        map.invalidate(write, size);
+                    } else {
+                        exact = false;
+                    }
+                }
+                RawMemoryAccess::PartialWrite => exact = false,
+            }
+        }
+        if !exact {
+            map.clear();
+        }
+    }
+
     /// Marks the words of a constant range of whole words overwritten, and returns whether the
     /// range is nonempty and every word was already overwritten. Any other range clears the set.
     fn insert_full_word_overwritten_range(
@@ -2292,9 +2282,9 @@ impl MemoryStoreEliminator {
         func: &Function,
         overwritten: &mut FxHashSet<MemoryAddress>,
         dest: ValueId,
-        size: ValueId,
+        size: RawMemorySize,
     ) -> bool {
-        func.value_u64(size)
+        size.constant(func)
             .filter(|&size| size % 32 == 0 && size <= 4096)
             .and_then(|size| {
                 let base = self.mem_addr_key(func, dest, size)?;
@@ -2728,7 +2718,7 @@ impl MemoryStoreEliminator {
                 let address = AliasAnalysis::memory_address_value(func, address);
                 live.ranges.retain(|&mut (offset, length)| {
                     address != offset
-                        || !(size == crate::mir::RawMemorySize::Value(length)
+                        || !(size == RawMemorySize::Value(length)
                             || size
                                 .constant(func)
                                 .is_some_and(|n| func.value_u64(length) == Some(n)))
@@ -2836,42 +2826,28 @@ impl AllocWalk<'_> {
     ) -> Option<usize> {
         let func = self.func;
         let is = |address| usize::from(address == value);
-        Some(match func.inst(inst).kind {
-            InstKind::Load(address, PtrLocation::Memory) => {
-                self.read(address == value, at, block, index, Some(32));
-                is(address)
+        let kind = &func.inst(inst).kind;
+        // Every raw memory range is an address operand: its reads and its constant-width stores
+        // are recorded, and other writes only count as uses.
+        let mut raw = false;
+        let mut addresses = 0;
+        kind.visit_raw_memory(|access, address, size| {
+            raw = true;
+            addresses += is(address);
+            match (access, size) {
+                (RawMemoryAccess::Read, size) => {
+                    self.read(address == value, at, block, index, size.constant(func));
+                }
+                (RawMemoryAccess::Write, RawMemorySize::Bytes(width)) => {
+                    self.store(address == value, at, inst, block, index, width);
+                }
+                _ => {}
             }
-            InstKind::Keccak256(address, len)
-            | InstKind::Log { offset: address, size: len, .. }
-            | InstKind::Create(_, address, len)
-            | InstKind::Create2(_, address, len, _) => {
-                self.read(address == value, at, block, index, func.value_u64(len));
-                is(address)
-            }
-            InstKind::Call { args_offset, args_size, ret_offset, .. }
-            | InstKind::CallCode { args_offset, args_size, ret_offset, .. }
-            | InstKind::StaticCall { args_offset, args_size, ret_offset, .. }
-            | InstKind::DelegateCall { args_offset, args_size, ret_offset, .. } => {
-                self.read(args_offset == value, at, block, index, func.value_u64(args_size));
-                is(args_offset) + is(ret_offset)
-            }
-            InstKind::Copy(dest, source, len, PtrLocation::Memory) => {
-                self.read(source == value, at, block, index, func.value_u64(len));
-                is(dest) + is(source)
-            }
-            InstKind::Store(address, _, PtrLocation::Memory) => {
-                self.store(address == value, at, inst, block, index, 32);
-                is(address)
-            }
-            InstKind::Store8(address, _) => {
-                self.store(address == value, at, inst, block, index, 1);
-                is(address)
-            }
-            InstKind::MemoryZero(address, _)
-            | InstKind::Copy(address, _, _, PtrLocation::Calldata | PtrLocation::Returndata)
-            | InstKind::DataCopy(_, address, _)
-            | InstKind::CodeCopy(address, ..)
-            | InstKind::ExtCodeCopy(_, address, ..) => is(address),
+        });
+        if raw {
+            return Some(addresses);
+        }
+        Some(match *kind {
             InstKind::PtrAdd(base, offset) if base == value => {
                 let next = match func.value_u64(offset) {
                     Some(offset) => AllocPointer { offset: at.offset.checked_add(offset)?, ..at },

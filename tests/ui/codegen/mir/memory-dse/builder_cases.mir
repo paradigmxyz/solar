@@ -230,6 +230,16 @@ fn @forward_through_pure_op() -> i256 {
 fn @memory_write_barrier() -> i256 {
   bb0:
     mstore 128, 42
+    mcopy 136, 128, 32
+    v0 = mload 128
+    ret v0
+}
+
+// CHECK-LABEL: @disjoint_memory_copy
+// CHECK: ret 42
+fn @disjoint_memory_copy() -> i256 {
+  bb0:
+    mstore 128, 42
     mcopy 160, 128, 32
     v0 = mload 128
     ret v0

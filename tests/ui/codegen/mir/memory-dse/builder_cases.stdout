@@ -151,9 +151,18 @@
   fn @memory_write_barrier() -> i256 {
     bb0:
       mstore 128, 42
-      mcopy 160, 128, 32
+      mcopy 136, 128, 32
       v0 = mload 128
       ret v0
+  }
+  
+  fn @disjoint_memory_copy() -> i256 {
+    bb0:
+      mstore 128, 42
+      mcopy 160, 128, 32
+-     v0 = mload 128
+-     ret v0
++     ret 42
   }
   
   fn @icall_barrier() -> i256 {
