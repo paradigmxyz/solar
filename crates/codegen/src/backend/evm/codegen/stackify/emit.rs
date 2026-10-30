@@ -173,9 +173,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         mut plan: FunctionPlan,
     ) {
         let func = &module.functions[func_id];
-        // The plan may be for a copy that rebuilds values at their uses.
-        let rebuilt = plan.rebuilt.take();
-        let func = rebuilt.as_deref().unwrap_or(func);
+        // NOTE: The records name instructions of the function the dump prints, so they come from
+        // `func` even when the plan is for a rebuilt copy. Rebuilding adds and removes only pure
+        // instructions, so the buffer loads, and the values bound to the extra results, are the
+        // same in both.
         if self.capture_mir {
             for (block_id, block) in func.blocks.iter_enumerated() {
                 for (index, &inst) in block.instructions.iter().enumerate() {
@@ -211,6 +212,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
+        // The plan may be for a copy that rebuilds values at their uses.
+        let rebuilt = plan.rebuilt.take();
+        let func = rebuilt.as_deref().unwrap_or(func);
         // Spill slots: the spilled values in value order, then the return address.
         self.spill_slots.clear();
         self.spill_slots.extend(plan.spilled.iter().zip(0..));
