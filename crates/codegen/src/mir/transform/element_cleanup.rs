@@ -46,7 +46,6 @@ use crate::mir::{
     analysis::direct_callees,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
-    utils,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -107,6 +106,8 @@ impl MirPass for ElementCleanup {
             }
         }
         let mut changed = false;
+        let mut replacements = FxHashMap::default();
+        let mut dead = DenseBitSet::new_empty(0);
         for (id, func) in module.functions.iter_mut_enumerated() {
             let reading = transitive[id];
             if reading >= FULL_WIDTH {
@@ -147,13 +148,13 @@ impl MirPass for ElementCleanup {
                 }
             }
             let uses = super::egraph::use_counts(func);
-            let mut replacements = FxHashMap::default();
-            let mut dead = DenseBitSet::new_empty(func.num_insts());
+            replacements.clear();
+            dead.clear_to(func.num_insts());
             for inst in func.instructions() {
                 if let Some((element, bits)) = masked_element(func, inst)
                     && let Value::Inst(load) = func.value(element)
                     && let Some(object) = word_element_object(func, *load)
-                    && objects.get(&object).is_some_and(|&origin| origin.max(reading) <= bits)
+                    && covers(&objects, object, reading, bits)
                     && let Some(result) = func.inst_result_value(inst)
                 {
                     // zext iN (trunc i256 element to iN) to i256 -> element
@@ -172,16 +173,9 @@ impl MirPass for ElementCleanup {
                 // result = and element, mask; use result -> use element
                 // NOTE: Removed cleanup instructions lose their debug checkpoints;
                 // their source locations must not be assigned to the load.
-                func.for_each_instruction_mut(|_, inst| {
-                    inst.rewrite_operands(|value| {
-                        *value = utils::resolve_replacement(*value, &replacements);
-                    });
-                });
+                func.replace_uses_canonicalized(&replacements);
                 for block in &mut func.blocks {
                     block.instructions.retain(|&inst| !dead.contains(inst));
-                    if let Some(term) = &mut block.terminator {
-                        utils::replace_terminator_uses_canonicalized(term, &replacements);
-                    }
                 }
                 changed = true;
             }
@@ -261,7 +255,13 @@ fn clean_element(
     let InstKind::Trunc(element, bits) = func.inst(trunc).kind else { return None };
     let Value::Inst(load) = *func.value(element) else { return None };
     let object = word_element_object(func, load)?;
-    objects.get(&object).is_some_and(|&origin| origin.max(reading) <= bits).then_some(element)
+    covers(objects, object, reading, bits).then_some(element)
+}
+
+/// Whether every word of the array `object` fits `bits`, given the width `reading` of what the
+/// function's callees store.
+fn covers(objects: &FxHashMap<ValueId, u32>, object: ValueId, reading: u32, bits: u32) -> bool {
+    objects.get(&object).is_some_and(|&origin| origin.max(reading) <= bits)
 }
 
 /// The array a word element load or store accesses: a `ptr<memory>` object at a word-aligned
@@ -509,27 +509,19 @@ fn transitive_bounds(
 fn validated_width(func: &Function, index: ArgIdx) -> u32 {
     let element = match func.abi_params.as_ref().and_then(|layout| layout.types.get(index.index()))
     {
-        Some(AbiParamType::DynamicArray(element)) => element,
-        Some(AbiParamType::FixedArray { element, .. }) => element,
+        Some(AbiParamType::DynamicArray(element) | AbiParamType::FixedArray { element, .. }) => {
+            element
+        }
         _ => return FULL_WIDTH,
     };
-    match **element {
-        AbiParamType::Scalar(ty) => match AbiWordValidator::from_layout(ty) {
-            Some(AbiWordValidator::Unsigned(bits)) => u32::from(bits),
-            // A full-width element has no mask to remove.
-            None => FULL_WIDTH,
-            _ => FULL_WIDTH,
-        },
-        _ => FULL_WIDTH,
+    // A full-width element has no mask to remove.
+    if let AbiParamType::Scalar(ty) = **element
+        && let Some(AbiWordValidator::Unsigned(bits)) = AbiWordValidator::from_layout(ty)
+    {
+        u32::from(bits)
+    } else {
+        FULL_WIDTH
     }
-}
-
-fn externally_callable(func: &Function) -> bool {
-    func.selector.is_some()
-        || func.is_public()
-        || func.attributes.is_constructor
-        || func.attributes.is_receive
-        || func.attributes.is_fallback
 }
 
 /// The widest word each pointer parameter's array elements may hold on entry:
@@ -544,12 +536,12 @@ fn param_bounds(
             if ty != MirType::MEMPTR {
                 continue;
             }
-            let entry = if !externally_callable(func) {
-                0
-            } else if func.selector.is_some() {
+            let entry = if func.selector.is_some() {
                 validated_width(func, index)
-            } else {
+            } else if func.is_external_entry() || func.is_public() {
                 UNKNOWN_ORIGIN
+            } else {
+                0
             };
             bounds.insert((id, index), entry);
         }
@@ -604,10 +596,17 @@ fn object_bounds(
     let mut bounds = FxHashMap::default();
     for index in 0..func.num_values() {
         let value = ValueId::new(index);
-        if let Value::Arg(arg) = func.value(value)
-            && let Some(&bound) = params.get(&(id, *arg))
-        {
-            bounds.insert(value, bound);
+        match func.value(value) {
+            Value::Arg(arg) => {
+                if let Some(&bound) = params.get(&(id, *arg)) {
+                    bounds.insert(value, bound);
+                }
+            }
+            // The canonical empty array lives at the zero slot and holds no elements.
+            Value::Immediate(_) if func.value_u64(value) == Some(EvmMemoryLayout::ZERO_SLOT) => {
+                bounds.insert(value, 0);
+            }
+            _ => {}
         }
     }
     let mut phis = Vec::new();
@@ -635,13 +634,6 @@ fn object_bounds(
                 phis.push((result, incoming.iter().map(|&(_, value)| value).collect::<Vec<_>>()));
             }
             _ => {}
-        }
-    }
-    // The canonical empty array lives at the zero slot and holds no elements.
-    for index in 0..func.num_values() {
-        let value = ValueId::new(index);
-        if func.value_u64(value) == Some(EvmMemoryLayout::ZERO_SLOT) {
-            bounds.insert(value, 0);
         }
     }
     // A phi holds whatever its widest incoming array holds.

@@ -186,7 +186,6 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Cleanup(dce::Dce),
     &peephole::Cleanup(stack_normalize::StackNormalize::EARLY),
     &block_layout::BlockLayout,
-    &share_reverts::ShareReverts,
     &cfg_simplify::CfgSimplify::FINAL,
     &block_layout::BlockLayout,
     // Materialize literal-store runs and pack the referenced data pool before final sharing and

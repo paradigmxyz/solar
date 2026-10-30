@@ -22,10 +22,14 @@ use crate::mir::{
     analysis::{AddressSpace, AliasAnalysis, Loop, LoopAnalyzer},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
+    transform::utils::redirect_successor_predecessors,
     utils as mir_utils,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 
 /// Function pass for loop-carried storage scalar promotion.
 pub(crate) struct StorageScalarPromotion;
@@ -42,962 +46,525 @@ impl MirPass for StorageScalarPromotion {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, analyses| {
-            let mut promoter = StorageScalarPromoter::new();
-            let stats = promoter.run(func);
-            let changed = stats.loops_promoted + stats.loads_promoted + stats.stores_promoted != 0;
-            if promoter.annotated_aliases {
-                analyses.note_unreported_edit();
-            }
-            changed
-        })
-    }
-}
-
-/// Statistics from storage scalar promotion.
-#[derive(Clone, Debug, Default)]
-struct StoragePromotionStats {
-    /// Number of loops promoted.
-    loops_promoted: usize,
-    /// Number of storage loads rewritten to memory loads.
-    loads_promoted: usize,
-    /// Number of storage stores rewritten to memory stores.
-    stores_promoted: usize,
-}
-
-/// Promotes loop-carried storage values to memory-backed scalars.
-#[derive(Debug, Default)]
-struct StorageScalarPromoter {
-    stats: StoragePromotionStats,
-    /// Whether storage-alias annotation changed metadata, which is not reported as a change.
-    annotated_aliases: bool,
-}
-
-#[derive(Clone, Debug)]
-struct Candidate {
-    slot_value: ValueId,
-    slot: StorageAlias,
-    preheader: BlockId,
-    init_store: Option<InstId>,
-    needs_initial_load: bool,
-}
-
-#[derive(Clone, Debug)]
-struct PromotedCandidate {
-    candidate: Candidate,
-    temp_addr: ValueId,
-    dirty_addr: Option<ValueId>,
-    dirty_value: Option<ValueId>,
-}
-
-impl StorageScalarPromoter {
-    /// Creates a new storage scalar promotion pass.
-    fn new() -> Self {
-        Self::default()
-    }
-
-    /// Runs the pass on one function.
-    fn run(&mut self, func: &mut Function) -> &StoragePromotionStats {
-        self.stats = StoragePromotionStats::default();
-
-        // The pass currently introduces absolute low-memory temporaries, so it
-        // only handles externally callable runtime entries.
-        if func.selector.is_none() {
-            return &self.stats;
-        }
-
-        self.annotated_aliases |=
-            func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
-
-        // Promoting a loop can split its exit blocks and relocate the final
-        // stores into new blocks, which invalidates the block sets of every
-        // enclosing loop. Recompute loop info after each successful promotion
-        // so later promotions reason about an accurate CFG. This terminates:
-        // each promotion rewrites all of its loop's storage stores to memory
-        // stores and only inserts new storage stores outside that loop.
-        loop {
-            let mut analyzer = LoopAnalyzer::new();
-            let loop_info = analyzer.analyze_structure(func);
-            let loops: Vec<Loop> = loop_info.all_loops().cloned().collect();
-
-            let mut promoted = false;
-            for loop_data in loops {
-                if let Some(candidates) = self.find_initialized_candidates(func, &loop_data) {
-                    self.promote_initialized_candidates(func, &loop_data, &candidates);
-                } else if let Some(candidate) = self.find_candidate(func, &loop_data) {
-                    self.promote_loop(func, &loop_data, &candidate);
-                } else {
-                    continue;
-                }
-                promoted = true;
-                break;
-            }
-            if !promoted {
-                break;
-            }
-        }
-
-        &self.stats
-    }
-
-    fn find_candidate(&self, func: &Function, loop_data: &Loop) -> Option<Candidate> {
-        let preheader = loop_data.preheader?;
-        if loop_data.exit_blocks.is_empty() || !self.has_isolated_promotable_exits(func, loop_data)
-        {
-            return None;
-        }
-        if !self.promotion_effects_are_safe(func, loop_data) {
-            return None;
-        }
-
-        let mut slot: Option<StorageAlias> = None;
-        let mut slot_value: Option<ValueId> = None;
-        let mut saw_loop_store = false;
-
-        for block_id in &loop_data.blocks {
-            for &inst_id in &func.blocks[block_id].instructions {
-                if let InstKind::Store(store_slot, _, PtrLocation::Storage) =
-                    &func.inst(inst_id).kind
-                {
-                    let store_key =
-                        self.storage_alias_for_loop_value(func, *store_slot, loop_data)?;
-                    match slot {
-                        Some(existing) if existing != store_key => return None,
-                        Some(_) => {}
-                        None => {
-                            slot = Some(store_key);
-                            slot_value = Some(*store_slot);
-                        }
-                    }
-                    saw_loop_store = true;
-                }
-            }
-        }
-
-        if !saw_loop_store {
-            return None;
-        }
-
-        let (slot, slot_value) = (slot?, slot_value?);
-        let rewrite_blocks = self.promotion_block_ids(func, loop_data);
-        if !self.loop_storage_accesses_are_safe(func, &rewrite_blocks, &slot) {
-            return None;
-        }
-        let saw_loop_load = rewrite_blocks.iter().any(|&block_id| {
-            func.blocks[block_id].instructions.iter().any(|&inst_id| {
-                matches!(
-                    &func.inst(inst_id).kind,
-                    InstKind::Load(load_slot, PtrLocation::Storage)
-                        if self.storage_alias(func, inst_id, *load_slot) == slot
-                )
-            })
-        });
-        let init_store = self.find_preheader_init_store(func, preheader, &slot);
-        if let Some(init_store) = init_store
-            && !self.preheader_tail_is_safe(func, preheader, init_store, &slot)
-        {
-            return None;
-        }
-        let slot_value = if let Some(init_store) = init_store {
-            self.store_slot(func, init_store)?
-        } else if self.value_defined_in_loop(func, slot_value, loop_data) {
-            return None;
-        } else {
-            slot_value
-        };
-        let needs_initial_load = init_store.is_none() && saw_loop_load;
-
-        Some(Candidate { slot_value, slot, preheader, init_store, needs_initial_load })
-    }
-
-    fn find_initialized_candidates(
-        &self,
-        func: &Function,
-        loop_data: &Loop,
-    ) -> Option<Vec<Candidate>> {
-        let preheader = loop_data.preheader?;
-        if loop_data.exit_blocks.is_empty() || !self.has_isolated_promotable_exits(func, loop_data)
-        {
-            return None;
-        }
-        if !self.promotion_effects_are_safe(func, loop_data) {
-            return None;
-        }
-
-        let mut stores: FxHashMap<StorageAlias, ValueId> = FxHashMap::default();
-        for block_id in &loop_data.blocks {
-            for &inst_id in &func.blocks[block_id].instructions {
-                if let InstKind::Store(store_slot, _, PtrLocation::Storage) =
-                    &func.inst(inst_id).kind
-                {
-                    let store_key =
-                        self.storage_alias_for_loop_value(func, *store_slot, loop_data)?;
-                    stores.entry(store_key).or_insert(*store_slot);
-                }
-            }
-        }
-
-        if stores.len() <= 1 {
-            return None;
-        }
-
-        // Distinct alias keys can still name the same runtime slot (for
-        // example two symbolic mapping slots whose keys happen to be equal).
-        // Promoting them to separate memory temps would desynchronize loads
-        // and stores, so require every pair to be provably disjoint.
-        let keys: Vec<StorageAlias> = stores.keys().copied().collect();
-        if keys
-            .iter()
-            .enumerate()
-            .any(|(i, a)| keys[i + 1..].iter().any(|b| self.storage_may_alias(*a, *b)))
-        {
-            return None;
-        }
-
-        let mut candidates = Vec::with_capacity(stores.len());
-        for (slot, _) in stores {
-            let init_store = self.find_preheader_init_store(func, preheader, &slot)?;
-            let slot_value = self.store_slot(func, init_store)?;
-            candidates.push(Candidate {
-                slot_value,
-                slot,
-                preheader,
-                init_store: Some(init_store),
-                needs_initial_load: false,
-            });
-        }
-        candidates.sort_unstable_by_key(|candidate| candidate.init_store.map(|inst| inst.index()));
-
-        let rewrite_blocks = self.promotion_block_ids(func, loop_data);
-        if !self.loop_storage_accesses_are_safe_for_candidates(func, &rewrite_blocks, &candidates) {
-            return None;
-        }
-        if !self.preheader_tail_is_safe_for_candidates(func, preheader, &candidates) {
-            return None;
-        }
-
-        Some(candidates)
-    }
-
-    fn has_isolated_promotable_exits(&self, func: &Function, loop_data: &Loop) -> bool {
-        loop_data.exit_blocks.iter().all(|&exit| {
-            func.blocks[exit].predecessors.iter().all(|&pred| loop_data.blocks.contains(pred))
-                && if self.exit_rolls_back(func, exit) {
-                    self.rollback_exit_has_no_observable_effects(func, exit)
-                } else {
-                    !matches!(func.blocks[exit].terminator, Some(Terminator::SelfDestruct { .. }))
-                }
-        })
-    }
-
-    /// Returns true if the exit block ends by rolling back all storage writes
-    /// of the frame, which makes skipping the promoted-value flush sound.
-    fn exit_rolls_back(&self, func: &Function, exit: BlockId) -> bool {
-        func.blocks[exit].terminator.as_ref().is_some_and(Terminator::reverts)
-    }
-
-    /// A rollback exit must not contain calls (a callee could observe the
-    /// unflushed slot and leak that observation into the revert data) or
-    /// other instructions whose results escape the rolled-back frame.
-    fn rollback_exit_has_no_observable_effects(&self, func: &Function, exit: BlockId) -> bool {
-        func.blocks[exit].instructions.iter().all(|&inst_id| {
-            let kind = &func.inst(inst_id).kind;
-            !matches!(
-                kind.effect_kind(),
-                EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
-            ) && !kind.observes_gas()
-        })
-    }
-
-    /// Blocks whose storage accesses are checked and rewritten by promotion:
-    /// the loop body plus rollback exits, whose reads of the promoted slot
-    /// must observe the memory temp instead of the stale storage value.
-    fn promotion_block_ids(&self, func: &Function, loop_data: &Loop) -> Vec<BlockId> {
-        let mut blocks: Vec<BlockId> = loop_data.blocks.iter().collect();
-        blocks.extend(
-            loop_data.exit_blocks.iter().copied().filter(|&exit| self.exit_rolls_back(func, exit)),
-        );
-        blocks
-    }
-
-    fn promotion_effects_are_safe(&self, func: &Function, loop_data: &Loop) -> bool {
-        let alias = AliasAnalysis::new(func);
-        for block_id in self.promotion_block_ids(func, loop_data) {
-            if loop_data.blocks.contains(block_id)
-                && matches!(
-                    func.blocks[block_id].terminator,
-                    Some(
-                        Terminator::Return { .. }
-                            | Terminator::Revert { .. }
-                            | Terminator::RevertReturndata
-                            | Terminator::ReturnData { .. }
-                            | Terminator::Stop
-                            | Terminator::SelfDestruct { .. }
-                            | Terminator::Invalid
-                    )
-                )
-            {
+            // The pass currently introduces absolute low-memory temporaries, so it
+            // only handles externally callable runtime entries.
+            if func.selector.is_none() {
                 return false;
             }
 
-            for &inst_id in &func.blocks[block_id].instructions {
-                let inst = func.inst(inst_id);
-                if inst.kind.observes_gas() {
-                    return false;
-                }
-                match &inst.kind {
-                    InstKind::Load(_, PtrLocation::Storage)
-                    | InstKind::Store(_, _, PtrLocation::Storage) => {}
-                    InstKind::Store(_, _, PtrLocation::Transient)
-                    | InstKind::Call { .. }
-                    | InstKind::CallCode { .. }
-                    | InstKind::StaticCall { .. }
-                    | InstKind::DelegateCall { .. }
-                    | InstKind::ICall { function: Callee::Function(_), .. }
-                    | InstKind::Create(_, _, _)
-                    | InstKind::Create2(_, _, _, _) => return false,
-                    _ => {
-                        let effects = alias.instruction_mod_ref(func, inst_id);
-                        if effects.reads_space(AddressSpace::Storage)
-                            || effects.writes_space(AddressSpace::Storage)
-                        {
-                            return false;
-                        }
-                    }
-                }
+            // Annotating aliases changes metadata only, which is not reported as a change.
+            if func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage) {
+                analyses.note_unreported_edit();
             }
-        }
-        true
-    }
-
-    fn loop_storage_accesses_are_safe(
-        &self,
-        func: &Function,
-        blocks: &[BlockId],
-        candidate: &StorageAlias,
-    ) -> bool {
-        for &block_id in blocks {
-            for &inst_id in &func.blocks[block_id].instructions {
-                match &func.inst(inst_id).kind {
-                    InstKind::Load(slot, PtrLocation::Storage) => {
-                        let alias = self.storage_alias(func, inst_id, *slot);
-                        if alias != *candidate && self.storage_may_alias(*candidate, alias) {
-                            return false;
-                        }
-                    }
-                    InstKind::Store(slot, _, PtrLocation::Storage) => {
-                        let alias = self.storage_alias(func, inst_id, *slot);
-                        if alias != *candidate {
-                            return false;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-        true
-    }
-
-    fn loop_storage_accesses_are_safe_for_candidates(
-        &self,
-        func: &Function,
-        blocks: &[BlockId],
-        candidates: &[Candidate],
-    ) -> bool {
-        for &block_id in blocks {
-            for &inst_id in &func.blocks[block_id].instructions {
-                match &func.inst(inst_id).kind {
-                    InstKind::Load(slot, PtrLocation::Storage) => {
-                        let alias = self.storage_alias(func, inst_id, *slot);
-                        if self.candidate_index(candidates, &alias).is_none()
-                            && candidates
-                                .iter()
-                                .any(|candidate| self.storage_may_alias(candidate.slot, alias))
-                        {
-                            return false;
-                        }
-                    }
-                    InstKind::Store(slot, _, PtrLocation::Storage) => {
-                        let alias = self.storage_alias(func, inst_id, *slot);
-                        if self.candidate_index(candidates, &alias).is_none() {
-                            return false;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-        true
-    }
-
-    fn find_preheader_init_store(
-        &self,
-        func: &Function,
-        preheader: BlockId,
-        slot: &StorageAlias,
-    ) -> Option<InstId> {
-        func.blocks[preheader].instructions.iter().rev().copied().find(|&inst_id| {
-            matches!(
-                &func.inst(inst_id).kind,
-                InstKind::Store(store_slot, _, PtrLocation::Storage)
-                    if self.storage_alias(func, inst_id, *store_slot) == *slot
-            )
+            promote_loops(func)
         })
     }
+}
 
-    fn store_slot(&self, func: &Function, inst_id: InstId) -> Option<ValueId> {
+/// A storage slot to keep in a memory temporary across one loop.
+#[derive(Debug)]
+struct Candidate {
+    slot_value: ValueId,
+    slot: StorageAlias,
+    /// The last preheader store to the slot, whose value seeds the temporary. Only a lone
+    /// candidate lacks one; its flush is then guarded by a dirty flag.
+    init_store: Option<InstId>,
+    /// Whether the temporary must be loaded from storage in the preheader.
+    needs_initial_load: bool,
+}
+
+/// Promotes loops until none qualifies; returns whether any was promoted.
+fn promote_loops(func: &mut Function) -> bool {
+    let mut changed = false;
+
+    // Promoting a loop can split its exit blocks and relocate the final
+    // stores into new blocks, which invalidates the block sets of every
+    // enclosing loop. Recompute loop info after each successful promotion
+    // so later promotions reason about an accurate CFG. This terminates:
+    // each promotion rewrites all of its loop's storage stores to memory
+    // stores and only inserts new storage stores outside that loop.
+    loop {
+        let loop_info = LoopAnalyzer::new().analyze_structure(func);
+        let Some((loop_data, preheader, candidates)) =
+            loop_info.all_loops().find_map(|loop_data| {
+                let (preheader, candidates) = find_candidates(func, loop_data)?;
+                Some((loop_data, preheader, candidates))
+            })
+        else {
+            return changed;
+        };
+        promote(func, loop_data, preheader, &candidates);
+        changed = true;
+    }
+}
+
+fn find_candidates(func: &Function, loop_data: &Loop) -> Option<(BlockId, Vec<Candidate>)> {
+    let preheader = loop_data.preheader?;
+    if loop_data.exit_blocks.is_empty()
+        || !has_isolated_promotable_exits(func, loop_data)
+        || !promotion_effects_are_safe(func, loop_data)
+    {
+        return None;
+    }
+
+    let inst_blocks = func.inst_block_table();
+    let mut stores = FxHashMap::<StorageAlias, ValueId>::default();
+    for block_id in &loop_data.blocks {
+        for &inst_id in &func.blocks[block_id].instructions {
+            if let InstKind::Store(store_slot, _, PtrLocation::Storage) = &func.inst(inst_id).kind {
+                let alias = StorageAlias::for_value(func, *store_slot);
+                if let Some(base) = alias.symbolic_base()
+                    && value_defined_in_loop(func, &inst_blocks, base, loop_data)
+                {
+                    return None;
+                }
+                stores.entry(alias).or_insert(*store_slot);
+            }
+        }
+    }
+    if stores.is_empty() {
+        return None;
+    }
+
+    // Distinct alias keys can still name the same runtime slot (for
+    // example two symbolic mapping slots whose keys happen to be equal).
+    // Promoting them to separate memory temps would desynchronize loads
+    // and stores, so require every pair to be provably disjoint.
+    let aliases = stores.keys().copied().collect::<Vec<_>>();
+    if aliases.iter().enumerate().any(|(i, a)| aliases[i + 1..].iter().any(|b| a.may_alias(*b))) {
+        return None;
+    }
+
+    let rewrite_blocks = promotion_block_ids(func, loop_data);
+    let lone = stores.len() == 1;
+    let mut candidates = Vec::with_capacity(stores.len());
+    for (slot, slot_value) in stores {
+        let candidate = match find_preheader_init_store(func, preheader, &slot) {
+            Some((init_store, slot_value)) => Candidate {
+                slot_value,
+                slot,
+                init_store: Some(init_store),
+                needs_initial_load: false,
+            },
+            None if lone && !value_defined_in_loop(func, &inst_blocks, slot_value, loop_data) => {
+                let needs_initial_load = rewrite_blocks.iter().any(|&block_id| {
+                    func.blocks[block_id].instructions.iter().any(|&inst_id| {
+                        matches!(
+                            &func.inst(inst_id).kind,
+                            InstKind::Load(load_slot, PtrLocation::Storage)
+                                if func.storage_alias(inst_id, *load_slot) == slot
+                        )
+                    })
+                });
+                Candidate { slot_value, slot, init_store: None, needs_initial_load }
+            }
+            None => return None,
+        };
+        candidates.push(candidate);
+    }
+    candidates.sort_unstable_by_key(|candidate| candidate.init_store);
+
+    if !loop_storage_accesses_are_safe(func, &rewrite_blocks, &candidates) {
+        return None;
+    }
+    // A lone uninitialized slot has no preheader store, so its tail is unconstrained.
+    let tail_is_safe =
+        candidates[0].init_store.is_none() || preheader_tail_is_safe(func, preheader, &candidates);
+    tail_is_safe.then_some((preheader, candidates))
+}
+
+fn has_isolated_promotable_exits(func: &Function, loop_data: &Loop) -> bool {
+    loop_data.exit_blocks.iter().all(|&exit| {
+        func.blocks[exit].predecessors.iter().all(|&pred| loop_data.blocks.contains(pred))
+            && if exit_rolls_back(func, exit) {
+                rollback_exit_has_no_observable_effects(func, exit)
+            } else {
+                !matches!(func.blocks[exit].terminator, Some(Terminator::SelfDestruct { .. }))
+            }
+    })
+}
+
+/// Returns true if the exit block ends by rolling back all storage writes
+/// of the frame, which makes skipping the promoted-value flush sound.
+fn exit_rolls_back(func: &Function, exit: BlockId) -> bool {
+    func.blocks[exit].terminator.as_ref().is_some_and(Terminator::reverts)
+}
+
+/// A rollback exit must not contain calls (a callee could observe the
+/// unflushed slot and leak that observation into the revert data) or
+/// other instructions whose results escape the rolled-back frame.
+fn rollback_exit_has_no_observable_effects(func: &Function, exit: BlockId) -> bool {
+    func.blocks[exit].instructions.iter().all(|&inst_id| {
+        let kind = &func.inst(inst_id).kind;
+        !matches!(
+            kind.effect_kind(),
+            EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
+        ) && !kind.observes_gas()
+    })
+}
+
+/// Blocks whose storage accesses are checked and rewritten by promotion:
+/// the loop body plus rollback exits, whose reads of the promoted slot
+/// must observe the memory temp instead of the stale storage value.
+fn promotion_block_ids(func: &Function, loop_data: &Loop) -> Vec<BlockId> {
+    let mut blocks: Vec<BlockId> = loop_data.blocks.iter().collect();
+    blocks
+        .extend(loop_data.exit_blocks.iter().copied().filter(|&exit| exit_rolls_back(func, exit)));
+    blocks
+}
+
+fn promotion_effects_are_safe(func: &Function, loop_data: &Loop) -> bool {
+    let alias = AliasAnalysis::new(func);
+    for block_id in promotion_block_ids(func, loop_data) {
+        for &inst_id in &func.blocks[block_id].instructions {
+            let inst = func.inst(inst_id);
+            if inst.kind.observes_gas() {
+                return false;
+            }
+            match &inst.kind {
+                InstKind::Load(_, PtrLocation::Storage)
+                | InstKind::Store(_, _, PtrLocation::Storage) => {}
+                InstKind::Store(_, _, PtrLocation::Transient)
+                | InstKind::Call { .. }
+                | InstKind::CallCode { .. }
+                | InstKind::StaticCall { .. }
+                | InstKind::DelegateCall { .. }
+                | InstKind::ICall { function: Callee::Function(_), .. }
+                | InstKind::Create(_, _, _)
+                | InstKind::Create2(_, _, _, _) => return false,
+                _ => {
+                    let effects = alias.instruction_mod_ref(func, inst_id);
+                    if effects.reads_space(AddressSpace::Storage)
+                        || effects.writes_space(AddressSpace::Storage)
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    true
+}
+
+fn loop_storage_accesses_are_safe(
+    func: &Function,
+    blocks: &[BlockId],
+    candidates: &[Candidate],
+) -> bool {
+    for &block_id in blocks {
+        for &inst_id in &func.blocks[block_id].instructions {
+            match &func.inst(inst_id).kind {
+                InstKind::Load(slot, PtrLocation::Storage) => {
+                    if clobbers_candidate(candidates, func.storage_alias(inst_id, *slot)) {
+                        return false;
+                    }
+                }
+                InstKind::Store(slot, _, PtrLocation::Storage)
+                    if !is_candidate(candidates, func.storage_alias(inst_id, *slot)) =>
+                {
+                    return false;
+                }
+                _ => {}
+            }
+        }
+    }
+    true
+}
+
+fn is_candidate(candidates: &[Candidate], alias: StorageAlias) -> bool {
+    candidates.iter().any(|candidate| candidate.slot == alias)
+}
+
+/// Whether an access to `alias` may touch a candidate slot without being one of them.
+fn clobbers_candidate(candidates: &[Candidate], alias: StorageAlias) -> bool {
+    !is_candidate(candidates, alias)
+        && candidates.iter().any(|candidate| candidate.slot.may_alias(alias))
+}
+
+/// Returns the last preheader store to `slot` and its slot value.
+fn find_preheader_init_store(
+    func: &Function,
+    preheader: BlockId,
+    slot: &StorageAlias,
+) -> Option<(InstId, ValueId)> {
+    func.blocks[preheader].instructions.iter().rev().find_map(|&inst_id| {
         match func.inst(inst_id).kind {
-            InstKind::Store(slot, _, PtrLocation::Storage) => Some(slot),
+            InstKind::Store(store_slot, _, PtrLocation::Storage)
+                if func.storage_alias(inst_id, store_slot) == *slot =>
+            {
+                Some((inst_id, store_slot))
+            }
             _ => None,
         }
-    }
+    })
+}
 
-    fn preheader_tail_is_safe(
-        &self,
-        func: &Function,
-        preheader: BlockId,
-        init_store: InstId,
-        slot: &StorageAlias,
-    ) -> bool {
-        let Some(init_pos) =
-            func.blocks[preheader].instructions.iter().position(|&inst_id| inst_id == init_store)
-        else {
-            return false;
-        };
+fn preheader_tail_is_safe(func: &Function, preheader: BlockId, candidates: &[Candidate]) -> bool {
+    let Some(first_init) = candidates
+        .iter()
+        .filter_map(|candidate| candidate.init_store)
+        .filter_map(|inst_id| {
+            func.blocks[preheader].instructions.iter().position(|&candidate| candidate == inst_id)
+        })
+        .min()
+    else {
+        return false;
+    };
 
-        for &inst_id in &func.blocks[preheader].instructions[init_pos + 1..] {
-            match &func.inst(inst_id).kind {
-                InstKind::Load(load_slot, PtrLocation::Storage) => {
-                    let alias = self.storage_alias(func, inst_id, *load_slot);
-                    if alias != *slot && self.storage_may_alias(*slot, alias) {
-                        return false;
-                    }
+    for &inst_id in &func.blocks[preheader].instructions[first_init + 1..] {
+        match &func.inst(inst_id).kind {
+            InstKind::Load(load_slot, PtrLocation::Storage)
+            | InstKind::Store(load_slot, _, PtrLocation::Storage) => {
+                if clobbers_candidate(candidates, func.storage_alias(inst_id, *load_slot)) {
+                    return false;
                 }
-                InstKind::Store(.., PtrLocation::Memory)
-                | InstKind::Store8(..)
-                | InstKind::Copy(_, _, _, PtrLocation::Memory)
-                | InstKind::DataCopy(_, _, _) => {}
-                kind if kind.has_side_effects() || kind.observes_gas() => return false,
-                _ => {}
             }
+            InstKind::Store(.., PtrLocation::Memory)
+            | InstKind::Store8(..)
+            | InstKind::Copy(_, _, _, PtrLocation::Memory)
+            | InstKind::DataCopy(_, _, _) => {}
+            kind if kind.has_side_effects() || kind.observes_gas() => return false,
+            _ => {}
         }
-
-        true
     }
 
-    fn preheader_tail_is_safe_for_candidates(
-        &self,
-        func: &Function,
-        preheader: BlockId,
-        candidates: &[Candidate],
-    ) -> bool {
-        let Some(first_init) = candidates
-            .iter()
-            .filter_map(|candidate| candidate.init_store)
-            .filter_map(|inst_id| {
-                func.blocks[preheader]
-                    .instructions
-                    .iter()
-                    .position(|&candidate| candidate == inst_id)
-            })
-            .min()
-        else {
-            return false;
-        };
+    true
+}
 
-        for &inst_id in &func.blocks[preheader].instructions[first_init + 1..] {
-            match &func.inst(inst_id).kind {
-                InstKind::Load(load_slot, PtrLocation::Storage)
-                | InstKind::Store(load_slot, _, PtrLocation::Storage) => {
-                    let alias = self.storage_alias(func, inst_id, *load_slot);
-                    if self.candidate_index(candidates, &alias).is_none()
-                        && candidates
-                            .iter()
-                            .any(|candidate| self.storage_may_alias(candidate.slot, alias))
-                    {
-                        return false;
-                    }
-                }
-                InstKind::Store(.., PtrLocation::Memory)
-                | InstKind::Store8(..)
-                | InstKind::Copy(_, _, _, PtrLocation::Memory)
-                | InstKind::DataCopy(_, _, _) => {}
-                kind if kind.has_side_effects() || kind.observes_gas() => return false,
-                _ => {}
-            }
+/// Rewrites the loop to use memory temporaries and flushes them on every clean exit.
+fn promote(func: &mut Function, loop_data: &Loop, preheader: BlockId, candidates: &[Candidate]) {
+    let temps = candidates
+        .iter()
+        .map(|candidate| (candidate.slot, allocate_temp_addr(func)))
+        .collect::<FxHashMap<_, _>>();
+    rewrite_preheader(func, preheader, candidates, &temps);
+
+    // A lone slot without a preheader store is flushed only if the loop stored it, which
+    // `(dirty_addr, dirty_value)` tracks.
+    let dirty = if let [candidate @ Candidate { init_store: None, .. }] = candidates {
+        let dirty_addr = allocate_temp_addr(func);
+        let dirty_value = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
+        // [v = sload slot; mstore temp, v;] mstore dirty_addr, 0
+        if candidate.needs_initial_load {
+            let (load_inst, load_value) =
+                alloc_load(func, candidate.slot_value, PtrLocation::Storage);
+            let store_inst =
+                alloc_store(func, temps[&candidate.slot], load_value, PtrLocation::Memory);
+            func.blocks[preheader].instructions.extend([load_inst, store_inst]);
         }
+        let false_word = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
+        let dirty_store = alloc_store(func, dirty_addr, false_word, PtrLocation::Memory);
+        func.blocks[preheader].instructions.push(dirty_store);
+        Some((dirty_addr, dirty_value))
+    } else {
+        None
+    };
 
-        true
-    }
-
-    fn promote_initialized_candidates(
-        &mut self,
-        func: &mut Function,
-        loop_data: &Loop,
-        candidates: &[Candidate],
-    ) {
-        let promoted: Vec<_> = candidates
-            .iter()
-            .cloned()
-            .map(|candidate| PromotedCandidate {
-                candidate,
-                temp_addr: self.allocate_temp_addr(func),
-                dirty_addr: None,
-                dirty_value: None,
-            })
-            .collect();
-
-        let rewrite_blocks = self.promotion_block_ids(func, loop_data);
-        self.rewrite_preheader_multi(func, &promoted);
-        self.rewrite_loop_body_multi(func, &rewrite_blocks, &promoted);
-
-        for &exit in &loop_data.exit_blocks {
-            if self.exit_rolls_back(func, exit) {
-                continue;
-            }
-            for promoted in &promoted {
-                self.insert_final_store(
-                    func,
-                    exit,
-                    promoted.candidate.slot_value,
-                    promoted.temp_addr,
-                );
-            }
-        }
-
-        self.stats.loops_promoted += 1;
-    }
-
-    fn rewrite_preheader_multi(&mut self, func: &mut Function, promoted: &[PromotedCandidate]) {
-        let Some(preheader) = promoted.first().map(|candidate| candidate.candidate.preheader)
-        else {
-            return;
-        };
-
-        let mut temps: FxHashMap<StorageAlias, (ValueId, usize)> = FxHashMap::default();
-        for candidate in promoted {
-            if let Some(init_store) = candidate.candidate.init_store
-                && let InstKind::Store(_, init, PtrLocation::Storage) = &func.inst(init_store).kind
+    for block_id in promotion_block_ids(func, loop_data) {
+        // Rollback exits never flush, so their rewritten stores do not
+        // need to update the dirty flag.
+        let dirty = dirty.filter(|_| loop_data.blocks.contains(block_id));
+        let mut index = 0;
+        while index < func.blocks[block_id].instructions.len() {
+            let inst_id = func.blocks[block_id].instructions[index];
+            if let InstKind::Load(slot, PtrLocation::Storage)
+            | InstKind::Store(slot, _, PtrLocation::Storage) = &func.inst(inst_id).kind
+                && let Some(&temp) = temps.get(&func.storage_alias(inst_id, *slot))
             {
-                let init_pos = func.blocks[preheader]
-                    .instructions
-                    .iter()
-                    .position(|&inst_id| inst_id == init_store)
-                    .expect("candidate init store should be in the preheader");
-                temps.insert(candidate.candidate.slot, (candidate.temp_addr, init_pos));
-                func.inst_mut(init_store).kind =
-                    InstKind::Store(candidate.temp_addr, *init, PtrLocation::Memory);
-                func.inst_mut(init_store).metadata.set_storage_alias(None);
-                self.stats.stores_promoted += 1;
-            }
-        }
-
-        let instruction_count = func.blocks[preheader].instructions.len();
-        for pos in 0..instruction_count {
-            let inst_id = func.blocks[preheader].instructions[pos];
-            if let InstKind::Load(load_slot, PtrLocation::Storage) = &func.inst(inst_id).kind {
-                let alias = self.storage_alias(func, inst_id, *load_slot);
-                if let Some(&(temp_addr, init_pos)) = temps.get(&alias)
-                    && pos > init_pos
+                retarget_to_temp(func, inst_id, temp);
+                if let Some((dirty_addr, dirty_value)) = dirty
+                    && matches!(func.inst(inst_id).kind, InstKind::Store(..))
                 {
-                    func.inst_mut(inst_id).kind = InstKind::Load(temp_addr, PtrLocation::Memory);
-                    func.inst_mut(inst_id).metadata.set_storage_alias(None);
-                    self.stats.loads_promoted += 1;
+                    let dirty_store =
+                        alloc_store(func, dirty_addr, dirty_value, PtrLocation::Memory);
+                    func.blocks[block_id].instructions.insert(index + 1, dirty_store);
+                    index += 1;
                 }
             }
+            index += 1;
         }
     }
 
-    fn rewrite_loop_body_multi(
-        &mut self,
-        func: &mut Function,
-        blocks: &[BlockId],
-        promoted: &[PromotedCandidate],
-    ) {
-        let temps: FxHashMap<StorageAlias, ValueId> =
-            promoted.iter().map(|promoted| (promoted.candidate.slot, promoted.temp_addr)).collect();
-
-        for &block_id in blocks {
-            let instruction_count = func.blocks[block_id].instructions.len();
-            for index in 0..instruction_count {
-                let inst_id = func.blocks[block_id].instructions[index];
-                let replacement = match &func.inst(inst_id).kind {
-                    InstKind::Load(slot, PtrLocation::Storage) => {
-                        let alias = self.storage_alias(func, inst_id, *slot);
-                        temps
-                            .get(&alias)
-                            .copied()
-                            .map(|temp| InstKind::Load(temp, PtrLocation::Memory))
-                    }
-                    InstKind::Store(slot, value, PtrLocation::Storage) => {
-                        let alias = self.storage_alias(func, inst_id, *slot);
-                        temps
-                            .get(&alias)
-                            .copied()
-                            .map(|temp| InstKind::Store(temp, *value, PtrLocation::Memory))
-                    }
-                    _ => None,
-                };
-
-                if let Some(new_kind) = replacement {
-                    match new_kind {
-                        InstKind::Load(..) => self.stats.loads_promoted += 1,
-                        InstKind::Store(..) => self.stats.stores_promoted += 1,
-                        _ => {}
-                    }
-                    func.inst_mut(inst_id).kind = new_kind;
-                    func.inst_mut(inst_id).metadata.set_storage_alias(None);
-                }
-            }
+    for &exit in &loop_data.exit_blocks {
+        if exit_rolls_back(func, exit) {
+            continue;
         }
-    }
-
-    fn promote_loop(&mut self, func: &mut Function, loop_data: &Loop, candidate: &Candidate) {
-        let temp_addr = self.allocate_temp_addr(func);
-        let dirty_addr = candidate.init_store.is_none().then(|| self.allocate_temp_addr(func));
-        let dirty_value = dirty_addr.map(|_| self.bool_word(func, true));
-        let promoted =
-            PromotedCandidate { candidate: candidate.clone(), temp_addr, dirty_addr, dirty_value };
-
-        self.rewrite_preheader(func, &promoted);
-
-        for block_id in self.promotion_block_ids(func, loop_data) {
-            // Rollback exits never flush, so their rewritten stores do not
-            // need to update the dirty flag.
-            let track_dirty = loop_data.blocks.contains(block_id);
-            let mut index = 0;
-            while index < func.blocks[block_id].instructions.len() {
-                let inst_id = func.blocks[block_id].instructions[index];
-                let replacement = match &func.inst(inst_id).kind {
-                    InstKind::Load(slot, PtrLocation::Storage)
-                        if self.storage_alias(func, inst_id, *slot) == candidate.slot =>
-                    {
-                        Some(InstKind::Load(temp_addr, PtrLocation::Memory))
-                    }
-                    InstKind::Store(slot, value, PtrLocation::Storage)
-                        if self.storage_alias(func, inst_id, *slot) == candidate.slot =>
-                    {
-                        Some(InstKind::Store(temp_addr, *value, PtrLocation::Memory))
-                    }
-                    _ => None,
-                };
-
-                if let Some(new_kind) = replacement {
-                    match new_kind {
-                        InstKind::Load(..) => self.stats.loads_promoted += 1,
-                        InstKind::Store(..) => self.stats.stores_promoted += 1,
-                        _ => {}
-                    }
-                    func.inst_mut(inst_id).kind = new_kind;
-                    func.inst_mut(inst_id).metadata.set_storage_alias(None);
-                    if track_dirty
-                        && let (Some(dirty_addr), Some(dirty_value)) =
-                            (promoted.dirty_addr, promoted.dirty_value)
-                        && matches!(func.inst(inst_id).kind, InstKind::Store(..))
-                    {
-                        let dirty_store = self.alloc_void_inst(
-                            func,
-                            InstKind::Store(dirty_addr, dirty_value, PtrLocation::Memory),
-                        );
-                        func.blocks[block_id].instructions.insert(index + 1, dirty_store);
-                        index += 1;
-                    }
-                }
-                index += 1;
-            }
-        }
-
-        for &exit in &loop_data.exit_blocks {
-            if self.exit_rolls_back(func, exit) {
-                continue;
-            }
-            if let Some(dirty_addr) = promoted.dirty_addr {
-                self.insert_conditional_final_store(
+        for candidate in candidates {
+            let temp_addr = temps[&candidate.slot];
+            match dirty {
+                Some((dirty_addr, _)) => insert_conditional_final_store(
                     func,
                     exit,
                     candidate.slot_value,
                     temp_addr,
                     dirty_addr,
-                );
-            } else {
-                self.insert_final_store(func, exit, candidate.slot_value, temp_addr);
-            }
-        }
-
-        self.stats.loops_promoted += 1;
-    }
-
-    fn rewrite_preheader(&mut self, func: &mut Function, promoted: &PromotedCandidate) {
-        let candidate = &promoted.candidate;
-        match candidate.init_store {
-            Some(init_store) => {
-                if let InstKind::Store(_, init, PtrLocation::Storage) = &func.inst(init_store).kind
-                {
-                    func.inst_mut(init_store).kind =
-                        InstKind::Store(promoted.temp_addr, *init, PtrLocation::Memory);
-                    func.inst_mut(init_store).metadata.set_storage_alias(None);
-                    self.stats.stores_promoted += 1;
-                }
-
-                let init_pos = func.blocks[candidate.preheader]
-                    .instructions
-                    .iter()
-                    .position(|&inst_id| inst_id == init_store)
-                    .expect("candidate init store should be in the preheader");
-                let instruction_count = func.blocks[candidate.preheader].instructions.len();
-                for index in init_pos + 1..instruction_count {
-                    let inst_id = func.blocks[candidate.preheader].instructions[index];
-                    if let InstKind::Load(load_slot, PtrLocation::Storage) =
-                        &func.inst(inst_id).kind
-                        && self.storage_alias(func, inst_id, *load_slot) == candidate.slot
-                    {
-                        func.inst_mut(inst_id).kind =
-                            InstKind::Load(promoted.temp_addr, PtrLocation::Memory);
-                        func.inst_mut(inst_id).metadata.set_storage_alias(None);
-                        self.stats.loads_promoted += 1;
-                    }
-                }
-            }
-            None => {
-                let insert_pos = func.blocks[candidate.preheader].instructions.len();
-                let mut inserted = 0;
-
-                if candidate.needs_initial_load {
-                    let (load_inst, load_value) = self.alloc_inst_value(
-                        func,
-                        InstKind::Load(candidate.slot_value, PtrLocation::Storage),
-                        MirType::I256,
-                    );
-                    let store_inst = self.alloc_void_inst(
-                        func,
-                        InstKind::Store(promoted.temp_addr, load_value, PtrLocation::Memory),
-                    );
-                    func.blocks[candidate.preheader]
-                        .instructions
-                        .insert(insert_pos + inserted, load_inst);
-                    inserted += 1;
-                    func.blocks[candidate.preheader]
-                        .instructions
-                        .insert(insert_pos + inserted, store_inst);
-                    inserted += 1;
-                }
-
-                if let Some(dirty_addr) = promoted.dirty_addr {
-                    let false_word = self.bool_word(func, false);
-                    let dirty_store = self.alloc_void_inst(
-                        func,
-                        InstKind::Store(dirty_addr, false_word, PtrLocation::Memory),
-                    );
-                    func.blocks[candidate.preheader]
-                        .instructions
-                        .insert(insert_pos + inserted, dirty_store);
-                }
+                ),
+                None => insert_final_store(func, exit, candidate.slot_value, temp_addr),
             }
         }
     }
+}
 
-    fn insert_final_store(
-        &mut self,
-        func: &mut Function,
-        exit: BlockId,
-        slot_value: ValueId,
-        temp_addr: ValueId,
-    ) {
-        let (load_inst, load_value) = func.alloc_value_inst(
-            Instruction::new(InstKind::Load(temp_addr, PtrLocation::Memory), Some(MirType::I256))
-                .with_debug_info_dropped(),
-        );
-        let store_inst = func.alloc_inst(
-            Instruction::new(InstKind::Store(slot_value, load_value, PtrLocation::Storage), None)
-                .with_debug_info_dropped(),
-        );
-
-        let insert_pos = func.blocks[exit]
-            .instructions
-            .iter()
-            .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-            .count();
-        func.blocks[exit].instructions.insert(insert_pos, store_inst);
-        func.blocks[exit].instructions.insert(insert_pos, load_inst);
-    }
-
-    fn insert_conditional_final_store(
-        &mut self,
-        func: &mut Function,
-        exit: BlockId,
-        slot_value: ValueId,
-        temp_addr: ValueId,
-        dirty_addr: ValueId,
-    ) {
-        let continuation = func.alloc_block();
-        let store_block = func.alloc_block();
-
-        let old_instructions = std::mem::take(&mut func.blocks[exit].instructions);
-        let (old_terminator, terminator_metadata) = func.blocks[exit].take_terminator();
-        let old_successors =
-            old_terminator.as_ref().map(Terminator::successors).unwrap_or_default();
-
-        // Keep existing exit phis in place; only the non-phi tail moves behind the dirty check.
-        let split_pos = old_instructions
-            .iter()
-            .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-            .count();
-        let mut exit_instructions = old_instructions[..split_pos].to_vec();
-        let continuation_instructions = old_instructions[split_pos..].to_vec();
-
-        let (dirty_load_inst, dirty_value) = func.alloc_value_inst(
-            Instruction::new(InstKind::Load(dirty_addr, PtrLocation::Memory), Some(MirType::I256))
-                .with_debug_info_dropped(),
-        );
-        exit_instructions.push(dirty_load_inst);
-        // dirty_bool = ne dirty_word, 0
-        let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
-        let (normalize, dirty_value) = func.alloc_value_inst(
-            Instruction::new(InstKind::Ne(dirty_value, zero), Some(MirType::I1))
-                .with_debug_info_dropped(),
-        );
-        exit_instructions.push(normalize);
-
-        // dirty = mload dirty_addr
-        // jumpi dirty, store_block, continuation !metadata(intentionally dropped)
-        func.blocks[exit].instructions = exit_instructions;
-        func.blocks[exit].set_generated_terminator(Terminator::Branch {
-            condition: dirty_value,
-            then_block: store_block,
-            else_block: continuation,
-        });
-
-        let (load_inst, load_value) = func.alloc_value_inst(
-            Instruction::new(InstKind::Load(temp_addr, PtrLocation::Memory), Some(MirType::I256))
-                .with_debug_info_dropped(),
-        );
-        let store_inst = func.alloc_inst(
-            Instruction::new(InstKind::Store(slot_value, load_value, PtrLocation::Storage), None)
-                .with_debug_info_dropped(),
-        );
-
-        func.blocks[store_block].predecessors.push(exit);
-        func.blocks[store_block].instructions.push(load_inst);
-        func.blocks[store_block].instructions.push(store_inst);
-        func.blocks[store_block].set_generated_terminator(Terminator::Jump(continuation));
-
-        func.blocks[continuation].predecessors.push(exit);
-        func.blocks[continuation].predecessors.push(store_block);
-        // continuation: remaining_instructions; old_terminator !metadata(exit)
-        func.blocks[continuation].instructions = continuation_instructions;
-        if let Some(terminator) = old_terminator {
-            func.blocks[continuation].set_terminator(terminator, terminator_metadata);
-        }
-
-        self.redirect_successor_phi_incoming(func, exit, continuation, &old_successors);
-        for successor in old_successors {
-            for pred in &mut func.blocks[successor].predecessors {
-                if *pred == exit {
-                    *pred = continuation;
-                }
-            }
-        }
-    }
-
-    // NOTE: The temporary is an absolute address in the entry's local region, and `lower-abi`
-    // copies it into `f.body` when the entry has internal callers. It still cannot overwrite a
-    // live word there:
-    // - Every entry places its spill area, and the shared region of static helper frames, above
-    //   each constant low-memory range in the functions it reaches, so above this address too.
-    // - The other words of an entry's local region are its own temporaries, live only inside the
-    //   call-free loops promoted here, and the inliner's return staging buffers, read right after
-    //   the inlined return. Neither is live across a call to `f.body`, and promoted loops get no
-    //   code inlined later because they had no calls to inline.
-    // - No inliner after this pass takes a callee with a frame: all check `internal_frame_size` or
-    //   need a single block, which a promoted loop never is. So the address never moves into a
-    //   caller whose frame rebasing, which rewrites only `internal_frame_addr`, would miss it.
-    fn allocate_temp_addr(&self, func: &mut Function) -> ValueId {
-        let frame_offset = func.internal_frame_size.max(func.external_static_return_size);
-        let temp_addr = EvmMemoryLayout::HEAP_START + frame_offset;
-        func.internal_frame_size = func.internal_frame_size.max(frame_offset + 32);
-        func.alloc_value(Value::Immediate(Immediate::I256(U256::from(temp_addr))))
-    }
-
-    fn redirect_successor_phi_incoming(
-        &self,
-        func: &mut Function,
-        old_pred: BlockId,
-        new_pred: BlockId,
-        successors: &[BlockId],
-    ) {
-        for &successor in successors {
-            for idx in 0..func.blocks[successor].instructions.len() {
-                let inst_id = func.blocks[successor].instructions[idx];
-                if !matches!(func.inst(inst_id).kind, InstKind::Phi(_)) {
-                    break;
-                }
-                let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind else {
-                    continue;
-                };
-                for (pred, _) in incoming {
-                    if *pred == old_pred {
-                        *pred = new_pred;
-                    }
-                }
-            }
-        }
-    }
-
-    fn bool_word(&self, func: &mut Function, value: bool) -> ValueId {
-        func.alloc_value(Value::Immediate(Immediate::I256(U256::from(value))))
-    }
-
-    fn alloc_inst_value(
-        &self,
-        func: &mut Function,
-        kind: InstKind,
-        ty: MirType,
-    ) -> (InstId, ValueId) {
-        func.alloc_value_inst(Instruction::new(kind, Some(ty)).with_debug_info_dropped())
-    }
-
-    /// Allocates an instruction that produces no value, so no result [`Value`]
-    /// entry is created for it.
-    fn alloc_void_inst(&self, func: &mut Function, kind: InstKind) -> InstId {
-        func.alloc_inst(Instruction::new(kind, None).with_debug_info_dropped())
-    }
-
-    fn storage_alias_for_loop_value(
-        &self,
-        func: &Function,
-        value: ValueId,
-        loop_data: &Loop,
-    ) -> Option<StorageAlias> {
-        let alias = StorageAlias::for_value(func, value);
-        if let Some(base) = alias.symbolic_base()
-            && self.value_defined_in_loop(func, base, loop_data)
+/// Turns each preheader store into a store to its temporary, and the later preheader loads of
+/// that slot into loads from it.
+fn rewrite_preheader(
+    func: &mut Function,
+    preheader: BlockId,
+    candidates: &[Candidate],
+    temps: &FxHashMap<StorageAlias, ValueId>,
+) {
+    let mut seeded = FxHashSet::<StorageAlias>::default();
+    for pos in 0..func.blocks[preheader].instructions.len() {
+        let inst_id = func.blocks[preheader].instructions[pos];
+        let temp = if let Some(candidate) =
+            candidates.iter().find(|candidate| candidate.init_store == Some(inst_id))
         {
-            return None;
-        }
-        Some(alias)
-    }
-
-    fn value_defined_in_loop(&self, func: &Function, value: ValueId, loop_data: &Loop) -> bool {
-        match func.value(value) {
-            Value::Inst(inst_id) => loop_data
-                .blocks
-                .iter()
-                .any(|block_id| func.blocks[block_id].instructions.contains(inst_id)),
-            Value::Undef(_) | Value::Error(_) => true,
-            Value::Arg(_) | Value::Immediate(_) => false,
+            seeded.insert(candidate.slot);
+            Some(temps[&candidate.slot])
+        } else if let InstKind::Load(slot, PtrLocation::Storage) = &func.inst(inst_id).kind {
+            let alias = func.storage_alias(inst_id, *slot);
+            seeded.contains(&alias).then(|| temps[&alias])
+        } else {
+            None
+        };
+        if let Some(temp) = temp {
+            retarget_to_temp(func, inst_id, temp);
         }
     }
+}
 
-    fn candidate_index(&self, candidates: &[Candidate], alias: &StorageAlias) -> Option<usize> {
-        candidates.iter().position(|candidate| candidate.slot == *alias)
+/// Turns a storage load or store into the same access to the memory temporary `temp`.
+fn retarget_to_temp(func: &mut Function, inst_id: InstId, temp: ValueId) {
+    let inst = func.inst_mut(inst_id);
+    if let InstKind::Load(addr, location) | InstKind::Store(addr, _, location) = &mut inst.kind {
+        *addr = temp;
+        *location = PtrLocation::Memory;
+    }
+    inst.metadata.set_storage_alias(None);
+}
+
+/// Allocates `load addr` with the debug info dropped.
+fn alloc_load(func: &mut Function, addr: ValueId, location: PtrLocation) -> (InstId, ValueId) {
+    func.alloc_value_inst(
+        Instruction::new(InstKind::Load(addr, location), Some(MirType::I256))
+            .with_debug_info_dropped(),
+    )
+}
+
+/// Allocates `store addr, value` with the debug info dropped.
+fn alloc_store(
+    func: &mut Function,
+    addr: ValueId,
+    value: ValueId,
+    location: PtrLocation,
+) -> InstId {
+    func.alloc_inst(
+        Instruction::new(InstKind::Store(addr, value, location), None).with_debug_info_dropped(),
+    )
+}
+
+/// Allocates `v = mload temp_addr; sstore slot_value, v`.
+fn alloc_flush(func: &mut Function, slot_value: ValueId, temp_addr: ValueId) -> [InstId; 2] {
+    let (load_inst, load_value) = alloc_load(func, temp_addr, PtrLocation::Memory);
+    [load_inst, alloc_store(func, slot_value, load_value, PtrLocation::Storage)]
+}
+
+fn insert_final_store(func: &mut Function, exit: BlockId, slot_value: ValueId, temp_addr: ValueId) {
+    let flush = alloc_flush(func, slot_value, temp_addr);
+    let insert_pos = func.blocks[exit]
+        .instructions
+        .iter()
+        .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+        .count();
+    func.blocks[exit].instructions.splice(insert_pos..insert_pos, flush);
+}
+
+fn insert_conditional_final_store(
+    func: &mut Function,
+    exit: BlockId,
+    slot_value: ValueId,
+    temp_addr: ValueId,
+    dirty_addr: ValueId,
+) {
+    let continuation = func.alloc_block();
+    let store_block = func.alloc_block();
+
+    let old_instructions = std::mem::take(&mut func.blocks[exit].instructions);
+    let (old_terminator, terminator_metadata) = func.blocks[exit].take_terminator();
+
+    // Keep existing exit phis in place; only the non-phi tail moves behind the dirty check.
+    let split_pos = old_instructions
+        .iter()
+        .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+        .count();
+    let mut exit_instructions = old_instructions[..split_pos].to_vec();
+    let continuation_instructions = old_instructions[split_pos..].to_vec();
+
+    let (dirty_load_inst, dirty_value) = alloc_load(func, dirty_addr, PtrLocation::Memory);
+    exit_instructions.push(dirty_load_inst);
+    // dirty_bool = ne dirty_word, 0
+    let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
+    let (normalize, dirty_value) = func.alloc_value_inst(
+        Instruction::new(InstKind::Ne(dirty_value, zero), Some(MirType::I1))
+            .with_debug_info_dropped(),
+    );
+    exit_instructions.push(normalize);
+
+    // dirty = mload dirty_addr
+    // jumpi dirty, store_block, continuation !metadata(intentionally dropped)
+    func.blocks[exit].instructions = exit_instructions;
+    func.blocks[exit].set_generated_terminator(Terminator::Branch {
+        condition: dirty_value,
+        then_block: store_block,
+        else_block: continuation,
+    });
+
+    let flush = alloc_flush(func, slot_value, temp_addr);
+    func.blocks[store_block].predecessors.push(exit);
+    func.blocks[store_block].instructions.extend(flush);
+    func.blocks[store_block].set_generated_terminator(Terminator::Jump(continuation));
+
+    func.blocks[continuation].predecessors.push(exit);
+    func.blocks[continuation].predecessors.push(store_block);
+    // continuation: remaining_instructions; old_terminator !metadata(exit)
+    func.blocks[continuation].instructions = continuation_instructions;
+    if let Some(terminator) = old_terminator {
+        func.blocks[continuation].set_terminator(terminator, terminator_metadata);
     }
 
-    fn storage_alias(&self, func: &Function, inst_id: InstId, slot: ValueId) -> StorageAlias {
-        func.storage_alias(inst_id, slot)
-    }
+    redirect_successor_predecessors(func, exit, continuation);
+}
 
-    fn storage_may_alias(&self, first: StorageAlias, second: StorageAlias) -> bool {
-        // Storage-only aliasing does not depend on pointer provenance, but the
-        // shared analysis still owns the comparison API.
-        first == second || first.may_alias(second)
+// NOTE: The temporary is an absolute address in the entry's local region, and `lower-abi`
+// copies it into `f.body` when the entry has internal callers. It still cannot overwrite a
+// live word there:
+// - Every entry places its spill area, and the shared region of static helper frames, above each
+//   constant low-memory range in the functions it reaches, so above this address too.
+// - The other words of an entry's local region are its own temporaries, live only inside the
+//   call-free loops promoted here, and the inliner's return staging buffers, read right after the
+//   inlined return. Neither is live across a call to `f.body`, and promoted loops get no code
+//   inlined later because they had no calls to inline.
+// - No inliner after this pass takes a callee with a frame: all check `internal_frame_size` or need
+//   a single block, which a promoted loop never is. So the address never moves into a caller whose
+//   frame rebasing, which rewrites only `internal_frame_addr`, would miss it.
+fn allocate_temp_addr(func: &mut Function) -> ValueId {
+    let frame_offset = func.internal_frame_size.max(func.external_static_return_size);
+    let temp_addr = EvmMemoryLayout::HEAP_START + frame_offset;
+    func.internal_frame_size = func.internal_frame_size.max(frame_offset + 32);
+    func.alloc_value(Value::Immediate(Immediate::I256(U256::from(temp_addr))))
+}
+
+fn value_defined_in_loop(
+    func: &Function,
+    inst_blocks: &IndexVec<InstId, Option<BlockId>>,
+    value: ValueId,
+    loop_data: &Loop,
+) -> bool {
+    match func.value(value) {
+        Value::Inst(inst_id) => {
+            inst_blocks[*inst_id].is_some_and(|block_id| loop_data.blocks.contains(block_id))
+        }
+        Value::Undef(_) | Value::Error(_) => true,
+        Value::Arg(_) | Value::Immediate(_) => false,
     }
 }
