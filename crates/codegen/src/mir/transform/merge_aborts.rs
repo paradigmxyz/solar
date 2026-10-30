@@ -431,22 +431,25 @@ fn mergeable(
 /// word fits and when it does not, which is `x > 2^k - 1` and `x < 2^k` in either spelling.
 fn complement(func: &Function, condition: ValueId) -> Option<Compare> {
     let literal = |value| func.value_u256(value);
-    if let Some(test) = BitWidthTest::of(func, condition) {
-        return Some(if test.fits {
+    let compare = if let Some(test) = BitWidthTest::of(func, condition) {
+        if test.fits {
             Compare { word: test.word, below: false, literal: test.limit() }
         } else {
             Compare { word: test.word, below: true, literal: test.limit() + U256::ONE }
-        });
-    }
-    Some(match *func.value_inst_kind(condition)? {
-        InstKind::Lt(word, k) | InstKind::Gt(k, word) if literal(word).is_none() => {
-            Compare { word, below: false, literal: literal(k)?.checked_sub(U256::ONE)? }
         }
-        InstKind::Gt(word, k) | InstKind::Lt(k, word) if literal(word).is_none() => {
-            Compare { word, below: true, literal: literal(k)?.checked_add(U256::ONE)? }
+    } else {
+        match *func.value_inst_kind(condition)? {
+            InstKind::Lt(word, k) | InstKind::Gt(k, word) if literal(word).is_none() => {
+                Compare { word, below: false, literal: literal(k)?.checked_sub(U256::ONE)? }
+            }
+            InstKind::Gt(word, k) | InstKind::Lt(k, word) if literal(word).is_none() => {
+                Compare { word, below: true, literal: literal(k)?.checked_add(U256::ONE)? }
+            }
+            _ => return None,
         }
-        _ => return None,
-    })
+    };
+    // The comparison is built with an `i256` literal, which only an `i256` word may meet.
+    (func.value_ty(compare.word) == Some(MirType::I256)).then_some(compare)
 }
 
 /// Appends a compiler-generated instruction to a block and returns its result.
