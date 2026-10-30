@@ -2477,9 +2477,9 @@ impl AliasAnalysis {
             InstKind::PtrAdd(base, step)
             | InstKind::Add(base, step)
             | InstKind::Add(step, base)
-                if Self::step_back(func, *step).is_some() =>
+                if let Some(back) = Self::step_back(func, *step) =>
             {
-                bound(*base)?.checked_sub(Self::step_back(func, *step)?)
+                bound(*base)?.checked_sub(back)
             }
             InstKind::Add(first, second) => {
                 let lower = func
@@ -2573,10 +2573,10 @@ impl AliasAnalysis {
         }
     }
 
-    /// The size of the step back that a constant word adds, as a pointer stepped back by `32`
-    /// adds `2^256 - 32`, when it fits in 64 bits.
+    /// The distance a constant word steps a pointer back, as `2^256 - 32` steps back `32`, when
+    /// it fits in 64 bits.
     fn step_back(func: &Function, value: ValueId) -> Option<u64> {
-        let step = U256::ZERO.wrapping_sub(func.value_u256(value)?);
+        let step = func.value_u256(value)?.wrapping_neg();
         u64::try_from(step).ok().filter(|&step| step != 0)
     }
 

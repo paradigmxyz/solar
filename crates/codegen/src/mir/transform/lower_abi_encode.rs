@@ -70,7 +70,8 @@
 //! where the preceding word wraps; the site then tests the pointer and sends
 //! such an object to the copying encoder. The cost model decides whether that
 //! guarded form beats the copy alone (`Target::guards_zero_copy_return`); it
-//! keeps both encodings, so it pays for gas, not for size.
+//! keeps both encodings, so it pays for gas, not for size, and its site is left out of
+//! the shared helpers.
 //!
 //! Shared helpers. Encodings of one shape at two or more sites can call one
 //! `encode_abi_tuple` helper when the cost model ranks the call protocol below
@@ -687,7 +688,7 @@ fn plan_zero_copy_terminal_returns(
             let Some(object) = zero_copy_return_object(func, layout, args) else { continue };
             if fresh_memory_object(func, object, &fresh) {
                 plan[func_id].insert(inst, ZeroCopyReturn::Unguarded);
-            } else if target.guards_zero_copy_return(is_word_array(layout)) {
+            } else if target.guards_zero_copy_return() {
                 plan[func_id].insert(inst, ZeroCopyReturn::Guarded);
             }
         }
@@ -797,6 +798,7 @@ fn zero_copy_return_object(
     (word_array_or_bytes && func.value_ty(*object) == Some(MirType::MEMPTR)).then_some(*object)
 }
 
+/// Whether an accepted zero-copy layout is an array rather than a byte string.
 fn is_word_array(layout: &AbiLayout) -> bool {
     matches!(&*layout.types, [AbiType::DynamicArray { .. }])
 }
@@ -812,7 +814,7 @@ fn encode_zero_copy_return(
     helpers: &EncodeHelpers,
 ) -> ValueId {
     let [object] = args else { unreachable!() };
-    if let ZeroCopyReturn::Unguarded = form {
+    if matches!(form, ZeroCopyReturn::Unguarded) {
         let (start, total) = write_head_before_object(builder, layout, *object);
         return builder.make_slice(start, total, PtrLocation::Memory);
     }
@@ -874,7 +876,7 @@ fn write_head_before_object(
 
     // before: [word, length, payload...]
     // => [32, length, payload...]
-    let back = builder.imm(U256::ZERO.wrapping_sub(U256::from(32)));
+    let back = builder.imm(-32);
     let start = builder.ptradd(object, back);
     let offset = builder.imm(32);
     builder.store(start, offset);

@@ -843,38 +843,31 @@ impl Target {
         self.cmp(guarded, looped).is_lt()
     }
 
-    /// Whether a terminal return of an arbitrary memory object, a full-word array when
-    /// `is_array` and a byte string otherwise, tests the pointer and writes its tuple offset
-    /// in the word before the object, with the copying encoder as the fallback for a pointer
-    /// below one word, rather than running the copying encoder alone. One word of payload is
-    /// priced, the least a copy can cost, so every longer payload saves more. The guarded form
-    /// keeps the copying encoder's bytes and adds its own, so it ranks by deployment lifetime
-    /// and wins only where the gas of the copy it skips repays them: never under the size
-    /// objective, and under the gas objective once the contract is expected to run enough.
-    pub(crate) fn guards_zero_copy_return(&self, is_array: bool) -> bool {
+    /// Whether a terminal return of an arbitrary memory byte string tests the pointer and writes
+    /// its tuple offset in the word before the object, with the copying encoder as the fallback
+    /// for a pointer below one word, rather than running the copying encoder alone. A word array
+    /// costs less in both shapes, and one word of payload is priced, the least a copy can cost,
+    /// so the answer holds for arrays and for every longer payload. The guarded form keeps the
+    /// copying encoder's bytes and adds its own, so it ranks by deployment lifetime and wins only
+    /// where the gas of the copy it skips repays them: never under the size objective, and under
+    /// the gas objective once the contract is expected to run enough.
+    pub(crate) fn guards_zero_copy_return(&self) -> bool {
         let word = U256::from(op::WORD_BYTES);
         let mask = U256::from(op::WORD_BYTES - 1);
         let load = self.dup() + self.opcode(op::MLOAD);
         let store = self.push(word) + self.dup() + self.opcode(op::MSTORE);
-        // len = mload object; extent = len << 5, or (len + 31) & ~31
-        let extent = if is_array {
-            load + self.push(U256::from(5)) + self.opcode(op::SHL)
-        } else {
-            load + self.push(mask)
-                + self.opcode(op::ADD)
-                + self.push(mask)
-                + self.opcode(op::NOT)
-                + self.opcode(op::AND)
-        };
-        // mstore data + len, 0 zeroes a byte string's padding.
-        let padding = if is_array {
-            Cost::ZERO
-        } else {
-            self.push(word)
-                + (self.dup() + self.opcode(op::ADD)).times(2)
-                + self.push(U256::ZERO)
-                + self.opcode(op::MSTORE)
-        };
+        // len = mload object; extent = (len + 31) & ~31
+        let extent = load
+            + self.push(mask)
+            + self.opcode(op::ADD)
+            + self.push(mask)
+            + self.opcode(op::NOT)
+            + self.opcode(op::AND);
+        // mstore data + len, 0 zeroes the padding.
+        let padding = self.push(word)
+            + (self.dup() + self.opcode(op::ADD)).times(2)
+            + self.push(U256::ZERO)
+            + self.opcode(op::MSTORE);
         // mstore object - 32, 32; total = extent + 64
         let head = self.push(word) + self.dup() + self.opcode(op::SUB) + store;
         let total = self.push(U256::from(2 * op::WORD_BYTES)) + self.opcode(op::ADD);
@@ -1592,16 +1585,13 @@ mod tests {
         for version in [EvmVersion::Paris, EvmVersion::Cancun, EvmVersion::Osaka] {
             // The guarded form keeps the copying encoder, so it only adds bytes.
             let size = Target::with(version, OptimizationMode::Size, 200);
-            assert!(!size.guards_zero_copy_return(true));
-            assert!(!size.guards_zero_copy_return(false));
+            assert!(!size.guards_zero_copy_return());
             // Its gas saving, even for one word, repays those bytes over 200 executions but not
             // over one.
             let gas = Target::with(version, OptimizationMode::Gas, 200);
-            assert!(gas.guards_zero_copy_return(true));
-            assert!(gas.guards_zero_copy_return(false));
+            assert!(gas.guards_zero_copy_return());
             let once = Target::with(version, OptimizationMode::Gas, 1);
-            assert!(!once.guards_zero_copy_return(true));
-            assert!(!once.guards_zero_copy_return(false));
+            assert!(!once.guards_zero_copy_return());
         }
     }
 
