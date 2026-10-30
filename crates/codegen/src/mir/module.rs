@@ -467,9 +467,8 @@ impl Module {
         )
     }
 
-    /// Returns the functions that neither artifact roots, which only ad-hoc MIR has, and the
-    /// functions they reach through calls. No one knows where they run. `constructor` and
-    /// `runtime` are the sets the two artifacts reach.
+    /// Returns the functions that neither `constructor` nor `runtime` contains, and the functions
+    /// they reach through calls. Only ad-hoc MIR has them, and no one knows where they run.
     #[must_use]
     pub(crate) fn unrooted_reachable_functions(
         &self,
@@ -483,8 +482,7 @@ impl Module {
     }
 
     /// Returns the functions that run only during deployment: the constructor and the functions
-    /// it reaches through calls, less those the runtime also reaches and those that no artifact
-    /// roots.
+    /// it reaches through calls, less those the runtime also reaches and the unrooted ones.
     #[must_use]
     pub(crate) fn creation_only_functions(&self) -> DenseBitSet<FunctionId> {
         let constructor = self.constructor_reachable_functions();
