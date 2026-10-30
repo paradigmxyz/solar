@@ -845,7 +845,7 @@
 +     mstore v18, v15
 +     v19 = add v7, 1
 +     jump bb3
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -895,7 +895,7 @@
 +     mstore v20, v17
 +     v21 = add v9, 1
 +     jump bb3
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -932,7 +932,7 @@
 +     v3 = extract_value slice<memory>, v2, 0
 +     v4 = extract_value slice<memory>, v2, 1
 +     returndata v3, v4
-+   bb2:
++   bb2 [cold]:
 +     revert 0, 0
   }
   
@@ -1002,7 +1002,7 @@
 +     mstore v21, v18
 +     v22 = add v12, 1
 +     jump bb4
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1051,7 +1051,7 @@
 +     mstore v21, v18
 +     v22 = add v12, 1
 +     jump bb4
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1161,7 +1161,7 @@
 +     mstore v39, v36
 +     v40 = add v29, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1245,7 +1245,7 @@
 +     mstore v39, v36
 +     v40 = add v29, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1355,7 +1355,7 @@
 +     mstore v39, v36
 +     v40 = add v29, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1439,7 +1439,7 @@
 +     mstore v39, v36
 +     v40 = add v29, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1635,7 +1635,7 @@
 +     mstore v39, v36
 +     v40 = add v29, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1719,7 +1719,7 @@
 +     mstore v39, v36
 +     v40 = add v29, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1803,7 +1803,7 @@
 +     mstore v39, v36
 +     v40 = add v29, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1892,7 +1892,7 @@
 +     v11 = add 128, 32
 +     v12 = sub v11, 128
 +     returndata 128, v12
-+   bb4:
++   bb4 [cold]:
 +     revert 0, 0
   }
   
@@ -1930,7 +1930,7 @@
 +     v10 = add 128, 32
 +     v11 = sub v10, 128
 +     returndata 128, v11
-+   bb4:
++   bb4 [cold]:
 +     revert 0, 0
   }
   
@@ -1990,7 +1990,7 @@
 +     mstore v22, v19
 +     v23 = add v13, 1
 +     jump bb4
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -2040,7 +2040,7 @@
 +     mstore v21, v18
 +     v22 = add v12, 1
 +     jump bb4
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -2107,7 +2107,7 @@
 +     mstore v13, v11
 +     v14 = add v6, 1
 +     jump bb5
-+   bb2:
++   bb2 [cold]:
 +     revert 0, 0
   }
   
@@ -2210,11 +2210,11 @@
 +     mstore v25, v22
 +     v26 = add v16, 1
 +     jump bb8
-+   bb5:
++   bb5 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
-+   bb2:
++   bb2 [cold]:
 +     revert 0, 0
   }
   
@@ -2261,7 +2261,7 @@
 +     mstore v21, v18
 +     v22 = add v12, 1
 +     jump bb4
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -2320,7 +2320,7 @@
       mstore v18, v15
       v19 = add v7, 1
       jump bb3
-    bb1:
+    bb1 [cold]:
       mstore 32, 65 !metadata(memory=scratch)
       mstore 0, 0x4e487b71 !metadata(memory=scratch)
       revert 28, 36
@@ -2372,7 +2372,7 @@
       mstore v20, v17
       v21 = add v9, 1
       jump bb3
-    bb1:
+    bb1 [cold]:
       mstore 32, 65 !metadata(memory=scratch)
       mstore 0, 0x4e487b71 !metadata(memory=scratch)
       revert 28, 36
@@ -2421,7 +2421,7 @@
 +     mstore v21, v18
 +     v22 = add v12, 1
 +     jump bb4
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -2451,7 +2451,7 @@
 +     v9 = add 128, 32
 +     v10 = sub v9, 128
 +     returndata 128, v10
-+   bb2:
++   bb2 [cold]:
 +     revert 0, 0
   }
   

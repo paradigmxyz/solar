@@ -9,7 +9,7 @@
       jumpi v0, bb1, bb2
     bb2:
       ret arg0
-    bb1:
+    bb1 [cold]:
       revert 0, 0
   }
   
@@ -31,7 +31,7 @@
       jumpi v0, bb2, bb3
     bb3:
       ret arg0
-    bb2:
+    bb2 [cold]:
       revert 0, 0
   }
   

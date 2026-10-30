@@ -27,7 +27,7 @@ fn @signed() [selector=0x24401e82, abi_wrapper, pure] {
     mstore v17, v0
     mstore 0, v14 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -63,7 +63,7 @@ fn @kept() [selector=0xc57c8563, abi_wrapper, pure] {
     mcopy v27, v38, v23 !metadata(memory=heap, disjoint)
     v32 = sub v30, v44
     returndata v44, v32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -84,7 +84,7 @@ fn @narrow() [selector=0x3e18eba5, abi_wrapper, pure] {
     mstore v16, v2
     mstore 0, v13 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -113,7 +113,7 @@ fn @whole() [selector=0xbbbb2e8a, abi_wrapper, pure] {
     v3 = keccak256 v9, v1
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -137,7 +137,7 @@ fn @tooLong() [selector=0x3db8dd3c, abi_wrapper, pure] {
     v17 = keccak256 v28, v16
     mstore 0, v17 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -157,7 +157,7 @@ fn @forged() [selector=0xd1caa6e6, abi_wrapper, pure] {
     v12 = keccak256 v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     mstore 0, v12 !metadata(memory=scratch)
     returndata 0, 32
-  bb2:
+  bb2 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -199,11 +199,11 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v26 = add v25, v6
     calldatacopy v26, v35, v23
     ret v29
-  bb3:
+  bb3 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -230,6 +230,6 @@ fn @entry() [entry] {
     tail_call @tooLong
   bb2:
     tail_call @signed
-  bb9:
+  bb9 [cold]:
     revert 0, 0
 }

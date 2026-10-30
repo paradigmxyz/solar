@@ -7,7 +7,7 @@ fn @noisy(arg0: i256) -> i256 {
     ret v0
 }
 
-fn @entry() [entry] {
-  bb0:
+fn @entry() [entry, cold] {
+  bb0 [cold]:
     revert 0, 0
 }

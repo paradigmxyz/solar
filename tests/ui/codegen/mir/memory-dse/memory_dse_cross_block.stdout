@@ -41,7 +41,7 @@
     bb0:
 -     mstore 0, 1
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       mstore 0, 2
       revert 0, 32
     bb1:

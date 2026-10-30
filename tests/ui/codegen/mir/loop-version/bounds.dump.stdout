@@ -141,7 +141,7 @@ fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
     mstore v181, v159
     v163 = add v161, 64
     returndata v203, v163
-  bb33:
+  bb33 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -161,7 +161,7 @@ fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
   bb7:
     v54 = lt v50, v43
     jumpi v54, bb32, bb27
-  bb27:
+  bb27 [cold]:
     tail_call @revert_stub.4
   bb32:
     v56 = shl v50, 5
@@ -193,13 +193,13 @@ fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
     v135 = add v126, 1
     v216 = add v215, 32
     jump bb20
-  bb38:
+  bb38 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb24:
+  bb24 [cold]:
     tail_call @revert_stub.3
-  bb35:
+  bb35 [cold]:
     revert 0, 0
 }
 
@@ -435,7 +435,7 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     mcopy v285, v301, v284 !metadata(disjoint)
     v289 = sub v287, v370
     returndata v370, v289
-  bb42:
+  bb42 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -491,7 +491,7 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     v209 = mod v208, 11
     v211 = lt v206, v220
     jumpi v211, bb41, bb26
-  bb26:
+  bb26 [cold]:
     tail_call @revert_stub.4
   bb41:
     mstore v385, v209
@@ -500,13 +500,13 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     v383 = add v382, 32
     v386 = add v385, 32
     jump bb19
-  bb47:
+  bb47 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb23:
+  bb23 [cold]:
     tail_call @revert_stub.3
-  bb44:
+  bb44 [cold]:
     revert 0, 0
 }
 
@@ -559,16 +559,16 @@ fn @literalInLoop() [selector=0xb0bfff29, abi_wrapper, pure] {
     v30 = mload v26
     v117 = add v116, 32
     jump bb3
-  bb6:
+  bb6 [cold]:
     v115 = add v107, 128
     jump bb1
-  bb1:
+  bb1 [cold]:
     v113 = phi [bb6: v107], [bb8: v114]
     v5 = lt v113, v115
     jumpi v5, bb8, bb7
-  bb7:
+  bb7 [cold]:
     tail_call @revert_stub.4
-  bb8:
+  bb8 [cold]:
     v9 = mload v113
     v104 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v105 = add v104, 64
@@ -591,19 +591,19 @@ fn @literalInLoop() [selector=0xb0bfff29, abi_wrapper, pure] {
     mstore v111, 128
     v114 = add v113, 32
     jump bb1
-  bb9:
+  bb9 [cold]:
     revert 0, 0
 }
 
-fn @revert_stub.3() {
-  bb0:
+fn @revert_stub.3() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub.4() {
-  bb0:
+fn @revert_stub.4() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -624,6 +624,6 @@ fn @entry() [entry] {
     tail_call @literalInLoop
   bb2:
     tail_call @siftValues
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }

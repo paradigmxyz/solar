@@ -39,7 +39,7 @@
       jumpi v0, bb1, bb2
     bb2:
       ret arg1
-    bb1:
+    bb1 [cold]:
       revert 0, 0
   }
   

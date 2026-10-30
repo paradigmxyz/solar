@@ -18,7 +18,7 @@
       jumpi arg1, bb2, bb6
     bb6:
       ret v2
-    bb4:
+    bb4 [cold]:
       revert 0, 0
   }
   

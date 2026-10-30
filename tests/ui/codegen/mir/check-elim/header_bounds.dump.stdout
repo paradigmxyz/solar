@@ -42,7 +42,7 @@ fn @search() [selector=0xd43fc471, abi_wrapper, pure] {
     mstore 0, 1
     mstore 32, v37 !metadata(memory=scratch)
     returndata 0, 64
-  bb7:
+  bb7 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -142,7 +142,7 @@ fn @consume() [selector=0x15847e62, abi_wrapper, pure] {
   bb10:
     v44 = add v3, 1
     jump bb3
-  bb9:
+  bb9 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -155,7 +155,7 @@ fn @consume() [selector=0x15847e62, abi_wrapper, pure] {
     v46 = phi [bb10: v44], [bb8: v3]
     v85 = add v84, 32
     jump bb1
-  bb7:
+  bb7 [cold]:
     revert 0, 0
 }
 
@@ -184,7 +184,7 @@ fn @probe() [selector=0x6012072a, abi_wrapper, pure] {
     v9 = shr v20, 1
     v11 = lt v9, v0
     jumpi v11, bb5, bb4
-  bb4:
+  bb4 [cold]:
     tail_call @revert_stub
   bb5:
     v13 = shl v9, 5
@@ -200,14 +200,14 @@ fn @probe() [selector=0x6012072a, abi_wrapper, pure] {
   bb9:
     v19 = add v6, 1
     jump bb1
-  bb6:
+  bb6 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -246,11 +246,11 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v22 = add v25, 32
     calldatacopy v22, v7, v12
     ret v25
-  bb3:
+  bb3 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -275,6 +275,6 @@ fn @entry() [entry] {
     tail_call @probe
   bb3:
     tail_call @consume
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

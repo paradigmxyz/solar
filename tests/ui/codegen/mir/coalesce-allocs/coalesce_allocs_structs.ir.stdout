@@ -25,11 +25,11 @@ fn @combine() [selector=0xd9171e32, abi_wrapper, pure] {
   bb2:
     mstore 0, v21 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -44,6 +44,6 @@ fn @entry() [entry] {
     switch v3, default bb3, [0xd9171e32 => bb2]
   bb2:
     tail_call @combine
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }

@@ -27,24 +27,24 @@ fn @echo() [selector=0x624fbfdc, abi_wrapper, pure] {
     calldatacopy v27, v12, v11
     v32 = sub v30, v38
     returndata v38, v32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
-fn @fail() [selector=0x132e4f3c, abi_wrapper, pure] {
-  bb0:
+fn @fail() [selector=0x132e4f3c, abi_wrapper, cold, pure] {
+  bb0 [cold]:
     v0 = calldatasize
     v1 = lt v0, 36
     jumpi v1, bb1, bb2
-  bb2:
+  bb2 [cold]:
     mstore 0, arg0
     revert 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
-fn @halt() [selector=0x5ed7ca5b, abi_wrapper, pure] {
-  bb0:
+fn @halt() [selector=0x5ed7ca5b, abi_wrapper, cold, pure] {
+  bb0 [cold]:
     revert 0, 0
 }
 
@@ -102,11 +102,11 @@ fn @relay() [selector=0x8f0d6f17, abi_wrapper] {
     mstore v67, v10
     v60 = add v56, 64
     returndata v73, v60
-  bb4:
+  bb4 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -131,7 +131,7 @@ fn @decode_calldata_slice() -> i256 {
     jumpi v10, bb1, bb2
   bb2:
     ret v2
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -152,11 +152,11 @@ fn @fallback.body(arg0: i256, arg1: i256) {
     v41 = add v46, 32
     returndatacopy v41, 0, v26
     jumpi v25, bb2, bb1
-  bb1:
+  bb1 [cold]:
     revert v41, v26
   bb2:
     returndata v41, v26
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -173,12 +173,12 @@ fn @entry() [entry] {
     tail_call @relay
   bb4:
     tail_call @echo
-  bb3:
+  bb3 [cold]:
     tail_call @halt
-  bb2:
+  bb2 [cold]:
     tail_call @fail
   bb6:
     tail_call @fallback
-  bb7:
+  bb7 [cold]:
     revert 0, 0
 }

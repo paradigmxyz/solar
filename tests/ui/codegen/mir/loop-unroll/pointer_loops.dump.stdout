@@ -115,11 +115,11 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     mstore8 v29, v120
     v121 = add v11, 4
     jump bb1
-  bb6:
+  bb6 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -186,11 +186,11 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v61 = add v16, v60
     v62 = add v8, 64
     jump bb1
-  bb6:
+  bb6 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -226,7 +226,7 @@ fn @stepThree() [selector=0xbf2eba92, abi_wrapper, pure] {
     v22 = add v9, v10
     v23 = add v10, 3
     jump bb1
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -245,6 +245,6 @@ fn @entry() [entry] {
     tail_call @stepThree
   bb2:
     tail_call @sumWords
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }

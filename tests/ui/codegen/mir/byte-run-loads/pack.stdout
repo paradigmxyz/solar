@@ -132,11 +132,11 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v26 = add v25, v6
     calldatacopy v26, v35, v23
     ret v29
-  bb3:
+  bb3 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -163,6 +163,6 @@ fn @entry() [entry] {
     tail_call @gapped
   bb3:
     tail_call @three
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

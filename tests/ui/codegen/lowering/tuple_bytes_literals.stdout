@@ -45,7 +45,7 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
     v4 = gt v0, 1
     v67 = and v1, v4
     jumpi v67, bb2, bb1
-  bb1:
+  bb1 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -63,11 +63,11 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
     mstore v53, v0
     v46 = add v42, 64
     returndata v58, v46
-  bb5:
+  bb5 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -91,6 +91,6 @@ fn @entry() [entry] {
     tail_call @words
   bb2:
     tail_call @prefix
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }

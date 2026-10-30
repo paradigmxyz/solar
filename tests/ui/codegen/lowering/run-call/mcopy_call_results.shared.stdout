@@ -71,9 +71,9 @@ fn @message() [selector=0x91fdccfd, abi_wrapper, pure] {
     mstore v79, v68
     v76 = add v72, 64
     returndata v118, v76
-  bb1:
+  bb1 [cold]:
     tail_call @revert_stub.5
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -107,9 +107,9 @@ fn @overlapping() [selector=0x206097d8, abi_wrapper, pure] {
     mstore 0, v4
     mstore 32, v7
     returndata 0, 64
-  bb1:
+  bb1 [cold]:
     tail_call @revert_stub.5
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -135,7 +135,7 @@ fn @padding(arg0: i256) -> i256 [may_return_memory, pure] {
     v9 = mload v21
     v10 = lt v7, v9
     jumpi v10, bb7, bb6
-  bb6:
+  bb6 [cold]:
     tail_call @revert_stub.6
   bb7:
     v17 = add v21, v7
@@ -143,7 +143,7 @@ fn @padding(arg0: i256) -> i256 [may_return_memory, pure] {
     mstore8 v18, 97
     v15 = add v7, 1
     jump bb1
-  bb4:
+  bb4 [cold]:
     tail_call @revert_stub.5
 }
 
@@ -171,14 +171,14 @@ fn @counting(arg0: i256) -> i256 [may_return_memory, pure] {
     v13 = mload v25
     v14 = lt v7, v13
     jumpi v14, bb7, bb6
-  bb6:
+  bb6 [cold]:
     tail_call @revert_stub.6
   bb7:
     v21 = add v25, v7
     v22 = add v21, 32
     mstore8 v22, v28
     jump bb1
-  bb4:
+  bb4 [cold]:
     tail_call @revert_stub.5
 }
 
@@ -212,7 +212,7 @@ fn @digits(arg0: i256) -> i256 [may_return_memory, pure] {
     v25 = mload v42
     v26 = lt v24, v25
     jumpi v26, bb8, bb7
-  bb7:
+  bb7 [cold]:
     tail_call @revert_stub.6
   bb8:
     v38 = add v42, v24
@@ -226,15 +226,15 @@ fn @digits(arg0: i256) -> i256 [may_return_memory, pure] {
     jump bb1
 }
 
-fn @revert_stub.5() {
-  bb0:
+fn @revert_stub.5() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub.6() {
-  bb0:
+fn @revert_stub.6() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -253,7 +253,7 @@ fn @entry() [entry] {
     tail_call @message
   bb2:
     tail_call @overlapping
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -341,7 +341,7 @@ fn @alloc(arg0: i256) -> i256 {
   bb2:
     mstore 64, v2 !metadata(memory=scratch)
     ret v0
-  bb1:
+  bb1 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71
     revert 28, 36

@@ -19,7 +19,7 @@
     bb3:
       v5 = add v1, 4
       jump bb1
-    bb4:
+    bb4 [cold]:
       revert 0, 0
   }
   
@@ -40,7 +40,7 @@
     bb3:
       v5 = add v1, 4
       jump bb1
-    bb4:
+    bb4 [cold]:
       revert 0, 0
   }
   
@@ -69,7 +69,7 @@
     bb5:
       v8 = add v0, 1
       jump bb1
-    bb6:
+    bb6 [cold]:
       revert 0, 0
   }
   
@@ -94,7 +94,7 @@
       v7 = phi [bb2: v5]
       v8 = add v0, 1
       jump bb1
-    bb4:
+    bb4 [cold]:
       revert 0, 0
   }
   
@@ -123,7 +123,7 @@
       v7 = eq v6, 0
       v8 = add v3, 1
       jumpi v7, bb6, bb3
-    bb6:
+    bb6 [cold]:
       revert 0, 0
   }
   
@@ -147,7 +147,7 @@
       v7 = phi [bb2: v5]
       v8 = add v0, 1
       jump bb1
-    bb4:
+    bb4 [cold]:
       revert 0, 0
   }
   

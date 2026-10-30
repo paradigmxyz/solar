@@ -112,11 +112,11 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v22 = add v25, 32
     calldatacopy v22, v7, v12
     ret v25
-  bb3:
+  bb3 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -137,6 +137,6 @@ fn @entry() [entry] {
     tail_call @sumPastEnd
   bb3:
     tail_call @sumWords
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

@@ -12,7 +12,7 @@
 // CHECK: [[REJECTED:v[0-9]+]] = or [[VALUE]], [[SHORT_WORD]]
 // CHECK: [[COND:v[0-9]+]] = ne [[REJECTED]], 0
 // CHECK: jumpi [[COND]], [[REJECT:bb[0-9]+]],
-// CHECK: [[REJECT]]:
+// CHECK: [[REJECT]] [cold]:
 // CHECK-NEXT: revert 0, 0
 fn @a() [selector=0x00000001, abi_wrapper] {
   bb0:

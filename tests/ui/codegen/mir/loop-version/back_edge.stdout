@@ -95,7 +95,7 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
   bb14:
     v42 = lt v30, v49
     jumpi v42, bb11, bb7
-  bb7:
+  bb7 [cold]:
     tail_call @revert_stub
   bb11:
     v111 = add v87, v33
@@ -103,11 +103,11 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
     mstore v112, v77
     v45 = add v30, 1
     jump bb4
-  bb12:
+  bb12 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb15:
+  bb15 [cold]:
     revert 0, 0
 }
 
@@ -203,7 +203,7 @@ fn @shiftFar() [selector=0x67979c1a, abi_wrapper, pure] {
   bb14:
     v44 = lt v32, v51
     jumpi v44, bb11, bb7
-  bb7:
+  bb7 [cold]:
     tail_call @revert_stub
   bb11:
     v111 = add v87, v35
@@ -211,16 +211,16 @@ fn @shiftFar() [selector=0x67979c1a, abi_wrapper, pure] {
     mstore v112, v78
     v47 = add v32, 1
     jump bb4
-  bb12:
+  bb12 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb15:
+  bb15 [cold]:
     revert 0, 0
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -260,11 +260,11 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v22 = add v25, 32
     calldatacopy v22, v7, v12
     ret v25
-  bb3:
+  bb3 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -281,6 +281,6 @@ fn @entry() [entry] {
     tail_call @shiftFar
   bb2:
     tail_call @shift
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }

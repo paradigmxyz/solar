@@ -53,7 +53,7 @@ fn @fa() [selector=0xa2467f05, abi_wrapper] {
   bb4:
     v8 = call v0, arg0, 0, v187, v174, 0, 0
     jumpi v8, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v9 = returndatasize
     returndatacopy 0, 0, v9 !metadata(memory=abi_return)
     v10 = returndatasize
@@ -207,7 +207,7 @@ fn @fa() [selector=0xa2467f05, abi_wrapper] {
     v190 = add v189, 64
     v192 = add v191, 64
     jump bb14
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -265,7 +265,7 @@ fn @fb() [selector=0x81fba7cd, abi_wrapper] {
   bb4:
     v8 = call v0, arg0, 0, v188, v175, 0, 0
     jumpi v8, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v9 = returndatasize
     returndatacopy 0, 0, v9 !metadata(memory=abi_return)
     v10 = returndatasize
@@ -419,7 +419,7 @@ fn @fb() [selector=0x81fba7cd, abi_wrapper] {
     v191 = add v190, 64
     v193 = add v192, 64
     jump bb14
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -475,7 +475,7 @@ fn @fc() [selector=0xeb19e25e, abi_wrapper] {
   bb4:
     v8 = call v0, arg0, 0, v113, v104, 0, 0
     jumpi v8, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v9 = returndatasize
     returndatacopy 0, 0, v9 !metadata(memory=abi_return)
     v10 = returndatasize
@@ -548,7 +548,7 @@ fn @fc() [selector=0xeb19e25e, abi_wrapper] {
     v116 = add v115, 64
     v118 = add v117, 64
     jump bb13
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -571,6 +571,6 @@ fn @entry() [entry] {
     tail_call @fa
   bb3:
     tail_call @fb
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

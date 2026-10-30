@@ -155,6 +155,6 @@ fn @entry() [entry] {
     v17 = phi [bb23: v80], [bb6: v23]
     mstore 0, v17
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

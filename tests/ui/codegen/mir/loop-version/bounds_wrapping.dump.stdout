@@ -19,7 +19,7 @@ fn @empty() [selector=0xf3a3e4fe, abi_wrapper, pure] {
     v6 = mload 0x10000000000000000
     v7 = lt v4, v6
     jumpi v7, bb5, bb4
-  bb4:
+  bb4 [cold]:
     tail_call @revert_stub
   bb5:
     v9 = shl v4, 5
@@ -27,7 +27,7 @@ fn @empty() [selector=0xf3a3e4fe, abi_wrapper, pure] {
     mstore v18, 0
     v13 = add v4, 1
     jump bb1
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }
 
@@ -50,11 +50,11 @@ fn @wrapped() [selector=0x08a7c76d, abi_wrapper, pure] {
     v3 = icall @_write, v8, arg0, arg1
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
-  bb4:
+  bb4 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -99,7 +99,7 @@ fn @_write(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, pure]
     v7 = mload arg0
     v8 = lt v5, v7
     jumpi v8, bb10, bb9
-  bb9:
+  bb9 [cold]:
     tail_call @revert_stub
   bb10:
     mstore v47, 0
@@ -108,8 +108,8 @@ fn @_write(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, pure]
     jump bb1
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -128,6 +128,6 @@ fn @entry() [entry] {
     tail_call @empty
   bb2:
     tail_call @wrapped
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }

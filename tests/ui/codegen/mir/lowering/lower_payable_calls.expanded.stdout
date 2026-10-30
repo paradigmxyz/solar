@@ -27,7 +27,7 @@
 +     v4 = zext i160 arg1 to i256 !metadata(span=30..40, modifier_depth=3)
 +     v5 = call v3, v4, arg2, 0, 0, 0, 0 !metadata(span=30..40, modifier_depth=3)
 +     jumpi v5, bb5, bb4 !metadata(span=30..40, modifier_depth=3)
-+   bb4:
++   bb4 [cold]:
 +     revert_returndata !metadata(span=30..40, modifier_depth=3)
 +   bb5:
 +     v6 = eq 0, 0
@@ -40,7 +40,7 @@
 +     v13 = zext i160 arg1 to i256
 +     v14 = call v12, v13, 1, 0, 0, 0, 0
 +     jumpi v14, bb7, bb6
-+   bb6:
++   bb6 [cold]:
 +     revert_returndata
 +   bb7:
       jump bb3

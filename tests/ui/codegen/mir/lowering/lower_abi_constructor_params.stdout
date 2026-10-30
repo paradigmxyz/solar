@@ -58,9 +58,9 @@
 +     mstore v22, v20
 +     v23 = add v16, 1
 +     jump bb8
-+   bb3:
++   bb3 [cold]:
 +     revert 0, 0
-+   bb11:
++   bb11 [cold]:
 +     revert 0, 0
   }
   

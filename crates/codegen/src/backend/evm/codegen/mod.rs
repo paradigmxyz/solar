@@ -76,14 +76,8 @@ pub struct EvmCodegen<'gcx> {
     block_labels: FxHashMap<BlockId, Label>,
     /// Function labels for direct internal calls.
     function_labels: FxHashMap<FunctionId, Label>,
-    /// Functions whose reachable exits all abort. Calls to these functions
-    /// make their containing block cold as well.
-    cold_functions: DenseBitSet<FunctionId>,
     /// Functions consisting only of an empty block terminated by `stop`.
     empty_stop_functions: DenseBitSet<FunctionId>,
-    /// Cold blocks in the function currently being emitted: blocks that abort or only lead to
-    /// such blocks, and under the gas objective, blocks with no path to a normal exit.
-    cold_blocks: DenseBitSet<BlockId>,
     /// Exact per-function spill area sizes, in bytes, recorded after emission.
     function_spill_sizes: FxHashMap<FunctionId, u64>,
     /// Functions that are themselves members of a recursive call cycle. A
@@ -180,9 +174,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             ret_spill_slot: None,
             block_labels: FxHashMap::default(),
             function_labels: FxHashMap::default(),
-            cold_functions: DenseBitSet::new_empty(0),
             empty_stop_functions: DenseBitSet::new_empty(0),
-            cold_blocks: DenseBitSet::new_empty(0),
             function_spill_sizes: FxHashMap::default(),
             recursive_frame_functions: DenseBitSet::new_empty(0),
             spill_addr_consts: FxHashMap::default(),
@@ -226,7 +218,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.clear();
         self.asm.set_optimization(module.optimization);
         self.reset_artifact(module);
-        self.cold_functions.clear_to(module.functions.len());
         self.empty_stop_functions.clear_to(module.functions.len());
         self.heap_pointer_return_functions.clear_to(module.functions.len());
         self.immutable_encodings.clear();
@@ -247,7 +238,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.ret_spill_slot = None;
         self.block_labels.clear();
         self.function_labels.clear();
-        self.cold_blocks.clear_to(0);
         self.function_spill_sizes.clear();
         self.recursive_frame_functions.clear_to(functions);
         self.spill_addr_consts.clear();

@@ -31,7 +31,7 @@ fn @lastIndicesIn() [selector=0x16134912, abi_wrapper, pure] {
     mcopy v24, v32, v23 !metadata(memory=heap, disjoint)
     v28 = sub v26, v36
     returndata v36, v28
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -125,7 +125,7 @@ fn @_lastIndicesIn(arg0: i256, arg1: i256, arg2: i256) -> i1 [may_return_memory,
     v49 = and v80, 3
     v51 = lt v49, v57
     jumpi v51, bb15, bb9
-  bb9:
+  bb9 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -134,7 +134,7 @@ fn @_lastIndicesIn(arg0: i256, arg1: i256, arg2: i256) -> i1 [may_return_memory,
     v104 = add v115, v52
     mstore v104, v35
     jump bb5
-  bb16:
+  bb16 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -177,11 +177,11 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v22 = add v25, 32
     calldatacopy v22, v7, v12
     ret v25
-  bb3:
+  bb3 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -196,6 +196,6 @@ fn @entry() [entry] {
     switch v3, default bb3, [0x16134912 => bb2]
   bb2:
     tail_call @lastIndicesIn
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }

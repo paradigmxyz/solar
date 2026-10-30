@@ -119,7 +119,7 @@
       jumpi arg0, bb1, bb2
     bb2:
       jumpi arg1, bb3, bb4
-    bb4:
+    bb4 [cold]:
       revert 0, 0
     bb3:
       sstore 1, arg2

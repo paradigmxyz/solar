@@ -125,15 +125,15 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
   bb1:
     sstore 0, v2 !metadata(storage=slot(0))
     stop
-  bb4:
+  bb4 [cold]:
     tail_call @revert_stub.7
-  bb2:
+  bb2 [cold]:
     tail_call @revert_stub.6
-  bb17:
+  bb17 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb15:
+  bb15 [cold]:
     revert 0, 0
 }
 
@@ -178,9 +178,9 @@ fn @popStr() [selector=0x5d7696c3, abi_wrapper] {
     v19 = add v16, 1
     v20 = add v17, 1
     jump bb5
-  bb7:
+  bb7 [cold]:
     tail_call @revert_stub.7
-  bb3:
+  bb3 [cold]:
     mstore 32, 49 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -195,7 +195,7 @@ fn @blobAt() [selector=0x8f236983, abi_wrapper, view] {
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = lt arg0, v0
     jumpi v1, bb2, bb1
-  bb1:
+  bb1 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -215,7 +215,7 @@ fn @blobAt() [selector=0x8f236983, abi_wrapper, view] {
     mstore v22, v11
     v19 = add v15, 64
     returndata v5, v19
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -229,7 +229,7 @@ fn @pushEmpty() [selector=0x19d30117, abi_wrapper] {
     v2 = add v0, 1
     sstore 2, v2 !metadata(storage=slot(2))
     stop
-  bb1:
+  bb1 [cold]:
     tail_call @revert_stub.6
 }
 
@@ -283,11 +283,11 @@ fn @load_storage_bytes(arg0: i256) -> i256 [may_return_memory] {
     v42 = add v41, 1
     v45 = add v44, 32
     jump bb6
-  bb9:
+  bb9 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     tail_call @revert_stub.7
 }
 
@@ -311,15 +311,15 @@ fn @clear_storage_words(arg0: i256, arg1: i256, arg2: i256) {
     jump bb1
 }
 
-fn @revert_stub.6() {
-  bb0:
+fn @revert_stub.6() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub.7() {
-  bb0:
+fn @revert_stub.7() [cold] {
+  bb0 [cold]:
     mstore 32, 34 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -342,6 +342,6 @@ fn @entry() [entry] {
     tail_call @popStr
   bb2:
     tail_call @pushEmpty
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }

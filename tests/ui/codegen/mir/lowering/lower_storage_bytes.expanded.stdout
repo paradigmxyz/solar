@@ -16,7 +16,7 @@
 +     jumpi v8, bb1, bb2 !metadata(span=10..20, modifier_depth=1)
 +   bb2:
       ret v0
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 34 !metadata(memory=scratch, span=10..20, modifier_depth=1)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=10..20, modifier_depth=1)
 +     revert 28, 36 !metadata(span=10..20, modifier_depth=1)
@@ -73,11 +73,11 @@
 +     mstore v26, v23 !metadata(span=20..30, modifier_depth=2)
 +     v27 = add v20, 1 !metadata(span=20..30, modifier_depth=2)
 +     jump bb8 !metadata(span=20..30, modifier_depth=2)
-+   bb3:
++   bb3 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch, span=20..30, modifier_depth=2)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=20..30, modifier_depth=2)
 +     revert 28, 36 !metadata(span=20..30, modifier_depth=2)
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 34 !metadata(memory=scratch, span=20..30, modifier_depth=2)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=20..30, modifier_depth=2)
 +     revert 28, 36 !metadata(span=20..30, modifier_depth=2)
@@ -141,11 +141,11 @@
 +     mstore v27, v24
 +     v28 = add v21, 1
 +     jump bb11
-+   bb6:
++   bb6 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
-+   bb4:
++   bb4 [cold]:
 +     mstore 32, 34 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -278,11 +278,11 @@
 -     v0 = phi [bb1: 1], [bb2: 2]
 +     v0 = phi [bb12: 1], [bb2: 2]
       ret v0
-+   bb6:
++   bb6 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch, span=40..50, modifier_depth=4)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=40..50, modifier_depth=4)
 +     revert 28, 36 !metadata(span=40..50, modifier_depth=4)
-+   bb4:
++   bb4 [cold]:
 +     mstore 32, 34 !metadata(memory=scratch, span=40..50, modifier_depth=4)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=40..50, modifier_depth=4)
 +     revert 28, 36 !metadata(span=40..50, modifier_depth=4)
@@ -344,7 +344,7 @@
 +   bb14:
 +     sstore arg1, 0 !metadata(storage=symbolic(arg1))
       jump bb3
-+   bb8:
++   bb8 [cold]:
 +     mstore 32, 34 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -377,7 +377,7 @@
 -     v0 = phi [bb1: 1], [bb2: 2]
 +     v0 = phi [bb7: 1], [bb14: 2]
       ret v0
-+   bb4:
++   bb4 [cold]:
 +     mstore 32, 34 !metadata(memory=scratch, span=50..60, modifier_depth=5)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=50..60, modifier_depth=5)
 +     revert 28, 36 !metadata(span=50..60, modifier_depth=5)
@@ -442,7 +442,7 @@
 +   bb4:
 +     sstore arg0, 0x7800000000000000000000000000000000000000000000000000000000000002 !metadata(storage=symbolic(arg0))
 +     ret
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 34 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36

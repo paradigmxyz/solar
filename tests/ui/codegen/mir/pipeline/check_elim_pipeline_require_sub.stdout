@@ -9,7 +9,7 @@ fn @guarded(arg0: i256, arg1: i256) {
     v3 = sub arg0, arg1
     mstore 128, v3
     returndata 128, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -21,13 +21,13 @@ fn @unguarded(arg0: i256, arg1: i256) {
   bb2:
     mstore 128, v0
     returndata 128, 32
-  bb1:
+  bb1 [cold]:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @entry() [entry] {
-  bb0:
+fn @entry() [entry, cold] {
+  bb0 [cold]:
     revert 0, 0
 }

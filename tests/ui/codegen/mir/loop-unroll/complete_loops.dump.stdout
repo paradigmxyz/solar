@@ -34,7 +34,7 @@ fn @u32(arg0: i256, arg1: i256) -> struct0 [pure, return_abi=[i256, i256]] {
     v73 = lt 3, arg1
     v81 = and v80, v73
     jumpi v81, bb2, bb1
-  bb1:
+  bb1 [cold]:
     tail_call @revert_stub
   bb2:
     v74 = add arg0, 3
@@ -57,7 +57,7 @@ fn @u16(arg0: i256, arg1: i256, arg2: i256) -> struct1 [pure, return_abi=[i256, 
     v54 = lt v46, arg1
     v61 = and v41, v54
     jumpi v61, bb2, bb1
-  bb1:
+  bb1 [cold]:
     tail_call @revert_stub
   bb2:
     v59 = add v46, 1
@@ -92,7 +92,7 @@ fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
     mstore 0, v27
     mstore 32, v31
     returndata 0, 64
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -119,16 +119,16 @@ fn @sum4() [selector=0x0540a714, abi_wrapper, pure] {
   bb4:
     mstore 0, v110
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb2:
+  bb2 [cold]:
     revert 0, 0
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -147,6 +147,6 @@ fn @entry() [entry] {
     tail_call @decode
   bb2:
     tail_call @sum4
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }

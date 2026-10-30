@@ -40,7 +40,7 @@
 +     tail_call @pay
 +   bb6:
 +     tail_call @fb
-+   bb7:
++   bb7 [cold]:
 +     revert 0, 0
   }
   

@@ -23,7 +23,7 @@
 +     v3 = add 32, 32
 +     v4 = sub v3, 0
 +     returndata 0, v4
-+   bb2:
++   bb2 [cold]:
 +     revert 0, 0
   }
   
@@ -83,7 +83,7 @@
 +     mstore 0, v7 !metadata(memory=scratch)
 +     v8 = sub 32, 0
 +     returndata 0, v8
-+   bb2:
++   bb2 [cold]:
 +     revert 0, 0
   }
   

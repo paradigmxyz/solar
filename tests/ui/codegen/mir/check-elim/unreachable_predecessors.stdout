@@ -9,7 +9,7 @@
 -     v1 = phi [bb0: arg0], [bb3: 100]
 -     v2 = lt v1, 10
 -     jumpi v2, bb2, bb4
-    bb4:
+    bb4 [cold]:
       revert 0, 0
 +   bb1:
 +     v1 = phi [bb0: arg0]
@@ -17,8 +17,9 @@
 +     jump bb2
     bb2:
       ret v1
-    bb3:
+-   bb3:
 -     jump bb1
++   bb3 [cold]:
 +     invalid
   }
   

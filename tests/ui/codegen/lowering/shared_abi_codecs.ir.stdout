@@ -24,7 +24,7 @@ fn @encodeFirst() [selector=0xe9a7b169, abi_wrapper, pure] {
     mcopy v17, v26, v13 !metadata(memory=heap, disjoint)
     v22 = sub v20, v29
     returndata v29, v22
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -51,7 +51,7 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
     mcopy v17, v26, v13 !metadata(memory=heap, disjoint)
     v22 = sub v20, v29
     returndata v29, v22
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -175,7 +175,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v93 = mload v220
     v94 = gt v93, 0
     jumpi v94, bb15, bb11
-  bb11:
+  bb11 [cold]:
     mstore 32, 50
     mstore 0, 0x4e487b71
     revert 28, 36
@@ -188,7 +188,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
   bb18:
     mstore 0, v101
     returndata 0, 32
-  bb16:
+  bb16 [cold]:
     tail_call @revert_stub
   bb25:
     v143 = mload v140
@@ -261,16 +261,16 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     mstore v198, v231
     v67 = add v24, 1
     jump bb1
-  bb4:
+  bb4 [cold]:
     mstore 32, 65
     mstore 0, 0x4e487b71
     revert 28, 36
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -359,11 +359,11 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v54 = add v26, 32
     v55 = add v27, 1
     jump bb7
-  bb4:
+  bb4 [cold]:
     mstore 32, 65
     mstore 0, 0x4e487b71
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -435,7 +435,7 @@ fn @encode_abi_tuple(arg0: i256) -> i256 [may_return_memory] {
     mstore 64, v29
     mstore v28, v16
     ret v28
-  bb1:
+  bb1 [cold]:
     mstore 32, 65
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -456,7 +456,7 @@ fn @entry() [entry] {
     tail_call @encodeSecond
   bb2:
     tail_call @roundTrip
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }
 
@@ -471,7 +471,7 @@ fn @alloc(arg0: i256) -> i256 {
   bb2:
     mstore 64, v2 !metadata(memory=scratch)
     ret v0
-  bb1:
+  bb1 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

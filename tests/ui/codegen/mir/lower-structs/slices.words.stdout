@@ -163,14 +163,14 @@
   fn @checked_slice(arg0: slice<calldata>, arg1: i1) -> slice<calldata> {
     bb0:
       jumpi arg1, bb1, bb2
-    bb2:
+    bb2 [cold]:
       tail_call @revert_stub
     bb1:
       ret arg0
   }
   
-  fn @revert_stub() {
-    bb0:
+  fn @revert_stub() [cold] {
+    bb0 [cold]:
       revert 0, 0
   }
   
@@ -355,14 +355,14 @@
   fn @checked_slice(arg0: slice<calldata>, arg1: i1) -> slice<calldata> {
     bb0:
       jumpi arg1, bb1, bb2
-    bb2:
+    bb2 [cold]:
       tail_call @revert_stub
     bb1:
       ret arg0
   }
   
-  fn @revert_stub() {
-    bb0:
+  fn @revert_stub() [cold] {
+    bb0 [cold]:
       revert 0, 0
   }
   
@@ -567,7 +567,7 @@
     bb0:
 -     jumpi arg1, bb1, bb2
 +     jumpi arg2, bb1, bb2
-    bb2:
+    bb2 [cold]:
       tail_call @revert_stub
     bb1:
 -     ret arg0
@@ -576,8 +576,8 @@
 +     ret v1, arg1
   }
   
-  fn @revert_stub() {
-    bb0:
+  fn @revert_stub() [cold] {
+    bb0 [cold]:
       revert 0, 0
   }
   

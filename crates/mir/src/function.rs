@@ -16,6 +16,7 @@ use solar_data_structures::{
     map::{FxHashMap, StdEntry},
 };
 use solar_interface::{Ident, Span, Symbol};
+use solar_ir::Hotness;
 use std::fmt;
 
 /// A function in the MIR.
@@ -875,6 +876,9 @@ pub struct FunctionAttributes {
     /// The objective its `@custom:solar-optimize` tag selects for this function's code, instead
     /// of its module's.
     pub optimization: Option<OptimizationMode>,
+    /// Whether every reachable exit aborts, so calls to this function are rare. Computed by the
+    /// hotness analysis, which every pass keeps fresh.
+    pub hotness: Hotness,
     /// Proved upper bound, in bits, on the words each array parameter can
     /// hold while this function reads it, recorded by element cleanup for
     /// the ABI return proofs that run after the element masks are gone.
@@ -899,6 +903,7 @@ impl Default for FunctionAttributes {
             always_inline: false,
             inline_hint: false,
             optimization: None,
+            hotness: Hotness::Hot,
             array_element_bits: FxHashMap::default(),
             array_return_element_bits: None,
         }

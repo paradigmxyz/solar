@@ -8,7 +8,7 @@
 //! summaries and other module state.
 
 use crate::{
-    mir::{Module, pass::ModuleAnalyses, should_validate_ir, validate},
+    mir::{Module, analysis::HotnessAnalysis, pass::ModuleAnalyses, should_validate_ir, validate},
     timing::PassTimer,
 };
 use solar_config::OptimizationMode;
@@ -146,6 +146,9 @@ pub(crate) fn run_passes_inner(
     let mut changed = false;
     let mut analyses = ModuleAnalyses::default();
     let mut unchanged = Vec::new();
+    // Parsed or lowered MIR carries no trustworthy hotness.
+    let mut hotness = HotnessAnalysis::new();
+    hotness.run(gcx, module);
     for pass in passes {
         let pass_name = pass.name();
         let before =
@@ -187,6 +190,7 @@ pub(crate) fn run_passes_inner(
                     for func in module.functions.iter_mut() {
                         func.drop_dangling_storage_aliases();
                     }
+                    hotness.run(gcx, module);
                 }
                 pass_changed
             };

@@ -5,7 +5,7 @@
     bb0:
 -     icall require<long_string hex"636a7178454c535a362d676e75424950573320646b7279464d54303761686f7643">, arg0
 +     jumpi arg0, bb2, bb1
-+   bb1:
++   bb1 [cold]:
 +     v0 = fmp
 +     v1 = ptradd v0, 68
 +     mstore v1, 0x636a7178454c535a362d676e75424950573320646b7279464d54303761686f76

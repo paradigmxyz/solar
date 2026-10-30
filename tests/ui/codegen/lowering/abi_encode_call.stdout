@@ -29,7 +29,7 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     mstore v17, 68
     mcopy v24, v33, 68 !metadata(disjoint)
     returndata v39, 160
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -59,7 +59,7 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
     v17 = zext i1 v7 to i256
     mstore 0, v17 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -80,6 +80,6 @@ fn @entry() [entry] {
     tail_call @asValue
   bb2:
     tail_call @viaCall
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }

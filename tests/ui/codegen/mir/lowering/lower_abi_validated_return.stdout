@@ -206,7 +206,7 @@
 +     mstore v18, v15
 +     v19 = add v7, 1
 +     jump bb3
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -334,7 +334,7 @@
 +     v10 = add 128, 32
 +     v11 = sub v10, 128
 +     returndata 128, v11
-+   bb2:
++   bb2 [cold]:
 +     revert 0, 0
   }
   
@@ -370,7 +370,7 @@
       mstore v18, v15
       v19 = add v7, 1
       jump bb3
-    bb1:
+    bb1 [cold]:
       mstore 32, 65 !metadata(memory=scratch)
       mstore 0, 0x4e487b71 !metadata(memory=scratch)
       revert 28, 36

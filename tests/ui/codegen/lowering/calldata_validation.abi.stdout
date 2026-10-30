@@ -17,7 +17,7 @@ fn @vUint8() [selector=0xd5f6949e, abi_wrapper, pure] {
     mstore 0, v5 !metadata(memory=scratch)
     v6 = sub 32, 0
     returndata 0, v6
-  bb2:
+  bb2 [cold]:
     revert 0, 0
 }
 
@@ -40,7 +40,7 @@ fn @vInt16() [selector=0xe9697b4d, abi_wrapper, pure] {
     mstore 0, v7 !metadata(memory=scratch)
     v8 = sub 32, 0
     returndata 0, v8
-  bb2:
+  bb2 [cold]:
     revert 0, 0
 }
 
@@ -60,7 +60,7 @@ fn @vBool() [selector=0x18a11c47, abi_wrapper, pure] {
     mstore 0, v4 !metadata(memory=scratch)
     v5 = sub 32, 0
     returndata 0, v5
-  bb2:
+  bb2 [cold]:
     revert 0, 0
 }
 
@@ -81,7 +81,7 @@ fn @vAddress() [selector=0x23347413, abi_wrapper, pure] {
     mstore 0, v5 !metadata(memory=scratch)
     v6 = sub 32, 0
     returndata 0, v6
-  bb2:
+  bb2 [cold]:
     revert 0, 0
 }
 
@@ -101,7 +101,7 @@ fn @vBytes4() [selector=0x2c920949, abi_wrapper, pure] {
     mstore 0, arg0 !metadata(memory=scratch)
     v5 = sub 32, 0
     returndata 0, v5
-  bb2:
+  bb2 [cold]:
     revert 0, 0
 }
 
@@ -129,11 +129,11 @@ fn @vEnum() [selector=0x5aa5e60a, abi_wrapper, pure] {
     mstore 0, v9
     v11 = sub 32, 0
     returndata 0, v11
-  bb5:
+  bb5 [cold]:
     mstore 32, 33 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb2:
+  bb2 [cold]:
     revert 0, 0
 }
 
@@ -155,7 +155,7 @@ fn @vWidened() [selector=0x3d71ddd7, abi_wrapper, pure] {
     mstore 0, v6 !metadata(memory=scratch)
     v7 = sub 32, 0
     returndata 0, v7
-  bb2:
+  bb2 [cold]:
     revert 0, 0
 }
 
@@ -184,7 +184,7 @@ fn @vMulti() [selector=0x403ecab4, abi_wrapper, pure] {
     mstore 0, v2 !metadata(memory=scratch)
     v12 = sub 32, 0
     returndata 0, v12
-  bb2:
+  bb2 [cold]:
     revert 0, 0
 }
 
@@ -201,6 +201,6 @@ fn @vFull() [selector=0x76fef307, abi_wrapper, pure] {
     mstore 0, v1 !metadata(memory=scratch)
     v4 = sub 32, 0
     returndata 0, v4
-  bb2:
+  bb2 [cold]:
     revert 0, 0
 }

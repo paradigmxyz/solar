@@ -20,7 +20,7 @@
 +     mstore 0, v5 !metadata(memory=scratch)
 +     v6 = sub 32, 0
 +     returndata 0, v6
-+   bb2:
++   bb2 [cold]:
 +     revert 0, 0
   }
   

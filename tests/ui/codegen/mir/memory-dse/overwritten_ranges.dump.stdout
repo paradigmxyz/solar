@@ -58,11 +58,11 @@ fn @allocated() [selector=0x6649a3b9, abi_wrapper, pure] {
     mstore v25, 32
     mstore v21, 2
     returndata v25, 128
-  bb4:
+  bb4 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -85,6 +85,6 @@ fn @entry() [entry] {
     tail_call @allocated
   bb2:
     tail_call @overwritten
-  bb7:
+  bb7 [cold]:
     revert 0, 0
 }

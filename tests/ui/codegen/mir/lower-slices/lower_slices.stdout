@@ -13,7 +13,7 @@
       v0 = icall @len, arg0
       mstore 128, v0
       returndata 128, 32
-+   bb2:
++   bb2 [cold]:
 +     revert 0, 0
   }
   
@@ -64,7 +64,7 @@
       v0 = icall @len, arg0
       mstore 128, v0
       returndata 128, 32
-    bb2:
+    bb2 [cold]:
       revert 0, 0
   }
   

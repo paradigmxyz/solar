@@ -155,7 +155,7 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
   bb4:
     v23 = icall @try_decode_error_message, v67, v41
     jumpi v23, bb5, bb6
-  bb6:
+  bb6 [cold]:
     revert v67, v41
   bb5:
     v27 = sub v41, 4
@@ -238,11 +238,11 @@ fn @decode_aggregate.4(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v35 = add v34, v15
     calldatacopy v35, v40, v32
     ret v39
-  bb4:
+  bb4 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -284,11 +284,11 @@ fn @decode_aggregate.5(arg0: i256) -> struct0 [may_return_memory, return_abi=[i2
     v42 = add v41, v18
     calldatacopy v42, v47, v35
     ret v5, v46
-  bb4:
+  bb4 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -309,7 +309,7 @@ fn @entry() [entry] {
     tail_call @full
   bb3:
     tail_call @rethrows
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -324,7 +324,7 @@ fn @alloc(arg0: i256) -> i256 {
   bb2:
     mstore 64, v2 !metadata(memory=scratch)
     ret v0
-  bb1:
+  bb1 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

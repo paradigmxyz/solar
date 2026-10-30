@@ -24,9 +24,9 @@
       returndata 0, 0
   }
   
-- fn @pair_caller() -> struct0 {
-+ fn @pair_caller() -> struct0 [return_abi=[i256, i256]] {
-    bb0:
+- fn @pair_caller() -> struct0 [cold] {
++ fn @pair_caller() -> struct0 [cold, return_abi=[i256, i256]] {
+    bb0 [cold]:
 -     v0 = icall @pair_fail, 29
 +     v2 = icall @pair_fail, 29
 +     v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
@@ -41,9 +41,9 @@
 +     ret v2, v5
   }
   
-- fn @pair_fail(arg0: i256) -> struct0 {
-+ fn @pair_fail(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
-    bb0:
+- fn @pair_fail(arg0: i256) -> struct0 [cold] {
++ fn @pair_fail(arg0: i256) -> struct0 [cold, return_abi=[i256, i256]] {
+    bb0 [cold]:
       mstore 0, arg0
       revert 0, 32
   }
@@ -74,8 +74,8 @@
       returndata 0, 0
   }
   
-  fn @pair_caller() -> struct0 [return_abi=[i256, i256]] {
-    bb0:
+  fn @pair_caller() -> struct0 [cold, return_abi=[i256, i256]] {
+    bb0 [cold]:
       v2 = icall @pair_fail, 29
 -     v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
 -     v4 = add v3, 32
@@ -88,8 +88,8 @@
       ret v2, v5
   }
   
-  fn @pair_fail(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
-    bb0:
+  fn @pair_fail(arg0: i256) -> struct0 [cold, return_abi=[i256, i256]] {
+    bb0 [cold]:
       mstore 0, arg0
       revert 0, 32
   }
@@ -122,8 +122,8 @@
       returndata 0, 0
   }
   
-  fn @pair_caller() -> struct0 [return_abi=[i256, i256]] {
-    bb0:
+  fn @pair_caller() -> struct0 [cold, return_abi=[i256, i256]] {
+    bb0 [cold]:
 -     v2 = icall @pair_fail, 29
 -     v6 = mload 32 !metadata(memory=scratch)
 -     v4 = add v6, 32
@@ -135,8 +135,8 @@
 +     tail_call @pair_fail, 29
   }
   
-  fn @pair_fail(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
-    bb0:
+  fn @pair_fail(arg0: i256) -> struct0 [cold, return_abi=[i256, i256]] {
+    bb0 [cold]:
       mstore 0, arg0
       revert 0, 32
   }

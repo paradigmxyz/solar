@@ -26,7 +26,7 @@ fn @digest(arg0: i256, arg1: i256) -> i256 {
   bb2:
     sstore 0, v9 !metadata(storage=slot(0))
     ret v6
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -51,7 +51,7 @@ fn @first() [selector=0x2845d4e6, abi_wrapper] {
     v13 = zext i1 v2 to i256
     mstore 0, v13 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -78,11 +78,11 @@ fn @second() [selector=0x6cdb32ec, abi_wrapper] {
     v19 = zext i1 v4 to i256
     mstore 0, v19 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -101,6 +101,6 @@ fn @entry() [entry] {
     tail_call @total
   bb2:
     tail_call @first
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }

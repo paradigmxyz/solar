@@ -1,14 +1,14 @@
 //! Deployment bytecode, constructor arguments, and immutable patching.
 
 use super::{
-    ArtifactKind, AssembledCode, CallGraphInfo, DenseBitSet, EmbeddedBytecodes, EvmArtifact,
-    EvmCodegen, EvmMemoryLayout, ImmutableEncoding, ImmutableId, ImmutableRef, IndexVec, Module,
+    ArtifactKind, AssembledCode, CallGraphInfo, EmbeddedBytecodes, EvmArtifact, EvmCodegen,
+    EvmMemoryLayout, ImmutableEncoding, ImmutableId, ImmutableRef, IndexVec, Module,
     OptimizationMode, PendingRuntime, StackOp, U256, WORD_BYTES, immutable_push_type_size,
     immutable_staging_addr, immutable_staging_base, immutable_staging_end, ir, op,
 };
 use crate::{
     link::{CodeKind, LibraryTable},
-    mir::{MirPhase, analysis::cold_functions, should_validate_ir},
+    mir::{MirPhase, analysis::HotnessAnalysis, should_validate_ir},
 };
 use alloy_primitives::Bytes;
 use solar_interface::Symbol;
@@ -48,9 +48,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         // replace values still live on a sibling edge, so give each such edge
         // its own block.
         let mut changed = false;
-        for func in &mut module.functions {
-            changed |= Self::split_phi_critical_edges(func);
+        let mut hotness = HotnessAnalysis::new();
+        for function in module.functions.indices() {
+            if Self::split_phi_critical_edges(&mut module.functions[function]) {
+                changed = true;
+                // An edge block is as cold as the rules of its function's objective make it.
+                hotness.run_function(self.gcx, module, function);
+            }
         }
+        debug_assert!(hotness.is_current(self.gcx, module), "stale MIR hotness");
         if !matches!(self.optimization, OptimizationMode::None) {
             for func in &mut module.functions {
                 changed |= func.canonicalize_argument_uses() != 0;
@@ -75,11 +81,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.heap_prefix = Self::heap_prefix_offsets(module);
         // The switch planner prices tail calls to empty bodies as shared terminals.
         self.empty_stop_functions = Self::empty_stop_functions(module);
-        self.cold_functions = if matches!(self.optimization, OptimizationMode::None) {
-            DenseBitSet::new_empty(module.functions.len())
-        } else {
-            cold_functions(module)
-        };
 
         // First schedule the runtime code and run its EVM IR pipeline. Only final
         // assembly waits for the bytecode of contracts it embeds.

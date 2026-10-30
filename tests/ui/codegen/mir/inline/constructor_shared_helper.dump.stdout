@@ -32,9 +32,9 @@ fn @constructor() [abi_wrapper, constructor] {
   bb6:
     sstore 0, 0x102030000000000000000000000000000000000000000000000000000000006 !metadata(storage=slot(0))
     ret
-  bb3:
+  bb3 [cold]:
     tail_call @revert_stub.6
-  bb2:
+  bb2 [cold]:
     revert 0, 0
 }
 
@@ -76,7 +76,7 @@ fn @f() [selector=0x26121ff0, abi_wrapper] {
     v77 = add v74, 1
     v78 = add v75, 1
     jump bb5
-  bb3:
+  bb3 [cold]:
     tail_call @revert_stub.6
 }
 
@@ -95,7 +95,7 @@ fn @g() [selector=0xe2179b8e, abi_wrapper, view] {
   bb6:
     v7 = gt v27, 1
     jumpi v7, bb4, bb3
-  bb3:
+  bb3 [cold]:
     tail_call @revert_stub.5
   bb4:
     jumpi v23, bb1, bb2
@@ -107,7 +107,7 @@ fn @g() [selector=0xe2179b8e, abi_wrapper, view] {
     v19 = byte 1, v15
     mstore 0, v19
     returndata 0, 32
-  bb5:
+  bb5 [cold]:
     tail_call @revert_stub.6
 }
 
@@ -131,15 +131,15 @@ fn @clear_storage_words(arg0: i256, arg1: i256, arg2: i256) {
     jump bb1
 }
 
-fn @revert_stub.5() {
-  bb0:
+fn @revert_stub.5() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub.6() {
-  bb0:
+fn @revert_stub.6() [cold] {
+  bb0 [cold]:
     mstore 32, 34 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -158,6 +158,6 @@ fn @entry() [entry] {
     tail_call @g
   bb2:
     tail_call @f
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }

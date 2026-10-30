@@ -76,6 +76,6 @@ fn @entry() [entry] {
     tail_call @copied
   bb2:
     tail_call @zeros
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }

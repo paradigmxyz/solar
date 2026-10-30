@@ -28,13 +28,13 @@ fn @loadSome() [selector=0x982de5a7, abi_wrapper, pure] {
     v33 = not v32
     v34 = and v28, v33
     jump bb1
-  bb3:
+  bb3 [cold]:
     tail_call @revert_stub
   bb1:
     v3 = phi [bb6: 0], [bb4: v34]
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }
 
@@ -90,7 +90,7 @@ fn @storeSome() [selector=0x26843d1f, abi_wrapper, pure] {
     v12 = mload v50
     v13 = lt v46, v12
     jumpi v13, bb8, bb6
-  bb6:
+  bb6 [cold]:
     tail_call @revert_stub
   bb8:
     v74 = add v50, v46
@@ -98,7 +98,7 @@ fn @storeSome() [selector=0x26843d1f, abi_wrapper, pure] {
     mstore8 v75, v9
     v18 = add v5, 1
     jump bb1
-  bb10:
+  bb10 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -115,7 +115,7 @@ fn @storeSome() [selector=0x26843d1f, abi_wrapper, pure] {
     mstore v65, v54
     v62 = add v58, 64
     returndata v50, v62
-  bb12:
+  bb12 [cold]:
     revert 0, 0
 }
 
@@ -128,7 +128,7 @@ fn @loadNowhere() [selector=0x620282bd, abi_wrapper, pure] {
     v1 = icall @_loadSome, arg0, arg1
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -141,7 +141,7 @@ fn @storeNowhere() [selector=0x5a29af63, abi_wrapper, pure] {
     icall @_storeSome, arg0, arg1, arg2
     mstore 0, arg2 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -163,7 +163,7 @@ fn @_loadSome(arg0: i256, arg1: i256) -> i256 [may_return_memory, pure] {
     v26 = not v25
     v27 = and v21, v26
     jump bb1
-  bb3:
+  bb3 [cold]:
     tail_call @revert_stub
   bb1:
     v2 = phi [bb0: 0], [bb4: v27]
@@ -193,14 +193,14 @@ fn @_storeSome(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
     v32 = or v30, v31
     mstore v34, v32
     jump bb1
-  bb3:
+  bb3 [cold]:
     tail_call @revert_stub
   bb1:
     ret
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -242,11 +242,11 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v26 = add v25, v6
     calldatacopy v26, v35, v23
     ret v29
-  bb3:
+  bb3 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -267,6 +267,6 @@ fn @entry() [entry] {
     tail_call @storeNowhere
   bb2:
     tail_call @storeSome
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }

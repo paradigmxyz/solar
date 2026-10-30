@@ -27,7 +27,7 @@ fn @bytesForward() [selector=0x79571ebe, abi_wrapper, pure] {
     mstore v26, v15
     v23 = add v19, 64
     returndata v34, v23
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -58,7 +58,7 @@ fn @bytesBackward() [selector=0x3704b700, abi_wrapper, pure] {
     mstore v27, v16
     v24 = add v20, 64
     returndata v35, v24
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -95,11 +95,11 @@ fn @wordsForward() [selector=0xb2066b6b, abi_wrapper, pure] {
     mstore v32, v25
     v29 = add v27, 64
     returndata v42, v29
-  bb4:
+  bb4 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -139,7 +139,7 @@ fn @bytesIntoHeader() [selector=0x10ca09ba, abi_wrapper, pure] {
   bb5:
     mstore 0, 1
     returndata 0, 32
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }
 
@@ -168,7 +168,7 @@ fn @freshWrapped() [selector=0x42a6a755, abi_wrapper, pure] {
     mstore v28, v17
     v25 = add v21, 64
     returndata v7, v25
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -265,7 +265,7 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
     v19 = mload v91
     v20 = lt v41, v19
     jumpi v20, bb10, bb8
-  bb8:
+  bb8 [cold]:
     tail_call @revert_stub
   bb10:
     v86 = add v91, v41
@@ -273,15 +273,15 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
     mstore8 v87, v16
     v26 = add v6, 1
     jump bb1
-  bb12:
+  bb12 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb17:
+  bb17 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb15:
+  bb15 [cold]:
     revert 0, 0
 }
 
@@ -350,7 +350,7 @@ fn @_copyBytes(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
     v17 = mload arg1
     v18 = lt v69, v17
     jumpi v18, bb8, bb6
-  bb6:
+  bb6 [cold]:
     tail_call @revert_stub
   bb8:
     v85 = add arg1, v69
@@ -358,7 +358,7 @@ fn @_copyBytes(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
     mstore8 v86, v14
     v23 = add v5, 1
     jump bb1
-  bb10:
+  bb10 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -436,7 +436,7 @@ fn @_copyBytesDown(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [
     v19 = mload arg1
     v20 = lt v18, v19
     jumpi v20, bb8, bb6
-  bb6:
+  bb6 [cold]:
     tail_call @revert_stub
   bb8:
     v81 = add arg1, v18
@@ -444,7 +444,7 @@ fn @_copyBytesDown(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [
     mstore8 v82, v15
     v25 = sub v5, 1
     jump bb1
-  bb9:
+  bb9 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -523,7 +523,7 @@ fn @_copyWords(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
     v16 = mload arg1
     v17 = lt v77, v16
     jumpi v17, bb8, bb6
-  bb6:
+  bb6 [cold]:
     tail_call @revert_stub
   bb8:
     v19 = shl v77, 5
@@ -532,7 +532,7 @@ fn @_copyWords(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
     mstore v95, v14
     v22 = add v5, 1
     jump bb1
-  bb10:
+  bb10 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -614,7 +614,7 @@ fn @_freshBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, 
     v20 = mload v103
     v21 = lt v9, v20
     jumpi v21, bb12, bb10
-  bb10:
+  bb10 [cold]:
     tail_call @revert_stub
   bb12:
     v96 = add v103, v9
@@ -622,7 +622,7 @@ fn @_freshBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, 
     mstore8 v97, v18
     v26 = add v9, 1
     jump bb1
-  bb15:
+  bb15 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -631,7 +631,7 @@ fn @_freshBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, 
     v29 = add v28, arg2
     mstore v29, 0
     ret v103
-  bb8:
+  bb8 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -679,7 +679,7 @@ fn @_copyBytesSelf(arg0: i256, arg1: i256) [may_return_memory, pure] {
   bb11:
     v14 = lt v51, v4
     jumpi v14, bb8, bb6
-  bb6:
+  bb6 [cold]:
     tail_call @revert_stub
   bb8:
     v62 = add arg0, v51
@@ -687,7 +687,7 @@ fn @_copyBytesSelf(arg0: i256, arg1: i256) [may_return_memory, pure] {
     mstore8 v63, v10
     v19 = add v2, 1
     jump bb1
-  bb10:
+  bb10 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -695,8 +695,8 @@ fn @_copyBytesSelf(arg0: i256, arg1: i256) [may_return_memory, pure] {
     ret
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -727,7 +727,7 @@ fn @entry() [entry] {
     tail_call @bytesBackward
   bb2:
     tail_call @bytesIntoHeader
-  bb8:
+  bb8 [cold]:
     revert 0, 0
 }
 
@@ -742,7 +742,7 @@ fn @alloc(arg0: i256) -> i256 {
   bb2:
     mstore 64, v2 !metadata(memory=scratch)
     ret v0
-  bb1:
+  bb1 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

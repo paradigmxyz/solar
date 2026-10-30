@@ -12,7 +12,7 @@
       jumpi v3, bb3, bb2
     bb2:
       ret v2
-    bb3:
+    bb3 [cold]:
       revert 0, 0
   }
   

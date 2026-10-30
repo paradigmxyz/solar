@@ -208,7 +208,7 @@
 +     v3 = ptrtoint ptr<memory> v5 to i256
       v4 = add v2, v3
       ret v4
-+   bb2:
++   bb2 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -234,7 +234,7 @@
 +     v3 = icall @alloc, arg0
 +     memory_zero v3, arg0
       ret v1
-+   bb2:
++   bb2 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -273,7 +273,7 @@
 +   bb2:
 +     mstore 64, v2 !metadata(memory=scratch)
 +     ret v1
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36

@@ -234,6 +234,18 @@ impl Module {
             || self.functions.iter().any(|func| func.attributes.optimization.is_some_and(&wanted))
     }
 
+    /// Returns the functions whose hotness attribute is cold.
+    #[must_use]
+    pub fn cold_functions(&self) -> DenseBitSet<FunctionId> {
+        let mut cold = DenseBitSet::new_empty(self.functions.len());
+        for (id, func) in self.functions.iter_enumerated() {
+            if func.attributes.hotness.is_cold() {
+                cold.insert(id);
+            }
+        }
+        cold
+    }
+
     /// Enables or disables source debug information auditing for optimization passes.
     pub fn set_debug_info_tracked(&mut self, tracked: bool) {
         self.debug_info_tracked = tracked;

@@ -42,7 +42,7 @@ use super::{egraph::max_bits_with_args, utils};
 use crate::mir::{
     ArgIdx, Callee, Function, FunctionId, Immediate, InstId, InstKind, Instruction, MirType,
     Module, Terminator, Value, ValueId,
-    analysis::{Liveness, cold_functions},
+    analysis::Liveness,
     pass::{MirPass, ModuleAnalyses},
 };
 use alloy_primitives::U256;
@@ -290,7 +290,6 @@ fn normalized_word(
 
 /// Proves raw-word return widths without assuming facts about recursive calls.
 pub(super) fn infer_returns(module: &Module) -> ReturnBits {
-    let cold = cold_functions(module);
     module
         .functions
         .iter_enumerated()
@@ -300,7 +299,7 @@ pub(super) fn infer_returns(module: &Module) -> ReturnBits {
             if func.return_components() != [MirType::I256]
                 || func.blocks.iter().any(|block| {
                     matches!(block.terminator, Some(Terminator::TailCall { function, .. })
-                        if !cold.contains(function))
+                        if !module.functions[function].attributes.hotness.is_cold())
                 })
             {
                 return None;

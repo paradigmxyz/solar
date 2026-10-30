@@ -13,14 +13,14 @@
       v1 = ne arg1, 0
 -     jumpi v1, bb3, bb4
 -   bb4:
--     stop
 +     jumpi v1, bb1, bb3
-    bb3:
++   bb3:
+      stop
+-   bb3 [cold]:
 -     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
 -     mstore 4, 17
 -     revert 0, 36
-+     stop
-    bb1:
+    bb1 [cold]:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 17
       revert 0, 36
@@ -35,11 +35,11 @@
       jumpi v1, bb3, bb4
     bb4:
       stop
-    bb3:
+    bb3 [cold]:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 18
       revert 0, 36
-    bb1:
+    bb1 [cold]:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 17
       revert 0, 36
@@ -54,11 +54,11 @@
       jumpi v1, bb3, bb4
     bb4:
       stop
-    bb3:
+    bb3 [cold]:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 17
       revert 0, 32
-    bb1:
+    bb1 [cold]:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 17
       revert 0, 36
@@ -72,14 +72,14 @@
       v2 = ne arg1, 0
 -     jumpi v2, bb3, bb4
 -   bb4:
--     stop
 +     jumpi v2, bb1, bb3
-    bb3:
++   bb3:
+      stop
+-   bb3 [cold]:
 -     v3 = add arg0, 1
 -     mstore 0, v3
 -     revert 0, 32
-+     stop
-    bb1:
+    bb1 [cold]:
       v1 = add arg0, 1
       mstore 0, v1
       revert 0, 32
@@ -94,10 +94,10 @@
       jumpi v1, bb3, bb4
     bb4:
       stop
-    bb3:
+    bb3 [cold]:
       mstore 0, arg1
       revert 0, 32
-    bb1:
+    bb1 [cold]:
       mstore 0, arg0
       revert 0, 32
   }
@@ -111,12 +111,12 @@
       jumpi v2, bb3, bb4
     bb4:
       stop
-    bb3:
+    bb3 [cold]:
       v3 = ptradd arg2, 32
       v4 = mload v3
       mstore 0, v4
       revert 0, 32
-    bb1:
+    bb1 [cold]:
       v1 = mload arg2
       mstore 0, v1
       revert 0, 32

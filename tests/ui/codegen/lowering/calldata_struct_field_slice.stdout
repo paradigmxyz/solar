@@ -2,8 +2,8 @@
 @module ERC4337Utils
 @phase lowered
 @library
-fn @entry() [entry] {
-  bb0:
+fn @entry() [entry, cold] {
+  bb0 [cold]:
     revert 0, 0
 }
 
@@ -57,7 +57,7 @@ fn @factory.0() [selector=0x1af91295, abi_wrapper, pure] {
     v34 = phi [bb6: 0], [bb2: v33]
     mstore 0, v34
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -117,7 +117,7 @@ fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
     v28 = phi [bb6: 0], [bb7: v54]
     mstore 0, v28
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -163,7 +163,7 @@ fn @midWord.2() [selector=0xbb6106d2, abi_wrapper, pure] {
     v27 = calldataload v16
     mstore 0, v27
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -186,6 +186,6 @@ fn @entry() [entry] {
     tail_call @tailHash.1
   bb3:
     tail_call @factory.0
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
