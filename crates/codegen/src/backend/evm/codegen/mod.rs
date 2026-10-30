@@ -81,8 +81,8 @@ pub struct EvmCodegen<'gcx> {
     cold_functions: DenseBitSet<FunctionId>,
     /// Functions consisting only of an empty block terminated by `stop`.
     empty_stop_functions: DenseBitSet<FunctionId>,
-    /// Cold blocks in the function currently being emitted, including blocks
-    /// that only forward control to other cold blocks.
+    /// Cold blocks in the function currently being emitted: blocks that abort or only lead to
+    /// such blocks, and under the gas objective, blocks with no path to a normal exit.
     cold_blocks: DenseBitSet<BlockId>,
     /// Exact per-function spill area sizes, in bytes, recorded after emission.
     function_spill_sizes: FxHashMap<FunctionId, u64>,
