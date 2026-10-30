@@ -25,8 +25,7 @@ pub(crate) use passes::compact_pushes;
 
 pub(crate) use passes::compact_pushes::immediate_materialization_cost;
 pub use passes::{
-    ALL_PASSES, EvmPass, lookup_pass, pipeline_label, run_passes, run_passes_no_validate,
-    run_pipeline,
+    ALL_PASSES, EvmPass, lookup_pass, run_passes, run_passes_no_validate, run_pipeline,
 };
 pub(in crate::backend) use passes::{
     compact_pushes::{
