@@ -1,0 +1,24 @@
+- // === ROOT/tests/ui/codegen/mir/lower-alloc/allocation_check.mir (before lower-alloc) ===
++ // === ROOT/tests/ui/codegen/mir/lower-alloc/allocation_check.mir (after lower-alloc) ===
+  @module AllocationCheck
+  fn @checked(arg0: i256) -> ptr<memory> {
+    bb0:
+-     v0 = alloc zeroed checked arg0 !metadata(preserves_fmp)
++     v1 = mload 64 !metadata(memory=scratch, alloc_ptr)
++     v0 = inttoptr i256 v1 to ptr<memory> !metadata(memory=scratch)
++     v2 = add v1, arg0 !metadata(alloc_ptr)
++     v3 = lt v2, v1
++     v4 = gt v2, 0xffffffffffffffff
++     v5 = or v3, v4
++     v6 = zext i1 v5 to i256
++     jumpi v5, bb2, bb1
++   bb1:
++     mstore 64, v2 !metadata(memory=scratch)
++     memory_zero v0, arg0
+      ret v0
++   bb2:
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  

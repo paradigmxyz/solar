@@ -133,16 +133,18 @@ fn @_copy(arg0: i256) -> i256 [may_return_memory, view] {
     v10 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v76 = heap_floor !metadata(alloc_ptr)
     v77 = add v76, v10 !metadata(alloc_ptr)
+    v79 = shr v77, 64
     v78 = lt v77, v76
-    v79 = gt v77, 0xffffffffffffffff
-    v80 = or v78, v79
-    jumpi v80, bb13, bb12
+    v80 = zext i1 v78 to i256
+    v81 = or v80, v79
+    v82 = ne v81, 0
+    jumpi v82, bb13, bb12
   bb12:
     mstore 64, v77 !metadata(memory=scratch)
-    v82 = calldatasize
-    calldatacopy v76, v82, v10
+    v83 = calldatasize
+    calldatacopy v76, v83, v10
     mstore v76, v55
-    v83 = and arg0, 255
+    v84 = and arg0, 255
     jump bb1
   bb1:
     v15 = phi [bb12: 0], [bb6: v49]
@@ -165,7 +167,7 @@ fn @_copy(arg0: i256) -> i256 [may_return_memory, view] {
     v34 = shl v32, 3
     v35 = shr v33, v34
     v37 = and v35, 255
-    v68 = mul v37, v83
+    v68 = mul v37, v84
     v69 = gt v68, 255
     jumpi v69, bb10, bb11
   bb11:

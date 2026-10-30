@@ -180,7 +180,7 @@ fn lower_function(func: &mut Function, target: Target, is_fresh: impl Fn(InstId)
             // ptr = mload 64 | heap_floor
             rewrite_as_fmp_read(builder, inst, is_fresh(inst));
             // next = add ptr, size
-            // invalid = next < ptr || next > limit
+            // invalid = next < ptr || next > limit, as `bump_checked` emits it
             let (next, invalid) = bump_checked(builder, ptr, size);
             // branch invalid, panic, continuation
             builder.branch(invalid, panic, continuation);
@@ -410,16 +410,28 @@ fn bump(builder: &mut FunctionBuilder<'_>, ptr: ValueId, size: ValueId) -> Value
 }
 
 /// Emits `ptr + size` and whether it wrapped or passes the allocation limit.
+///
+/// When the target reads a shifted word for free, the check is one word zero test,
+/// `(zext(next < ptr) | (next >> 64)) != 0`, which a branch reads without materializing a
+/// boolean. Otherwise it is `(next < ptr) | (next > limit)`.
 fn bump_checked(
     builder: &mut FunctionBuilder<'_>,
     ptr: ValueId,
     size: ValueId,
 ) -> (ValueId, ValueId) {
     let next = bump(builder, ptr, size);
-    // invalid = next < ptr || next > limit
+    // bump_overflow = next < ptr
     let bump_overflow = builder.lt(next, ptr);
-    let over_limit =
-        builder.exceeds_bits(next, EvmMemoryLayout::MAX_ALLOCATION_END_BITS, ConditionUse::VALUE);
+    let bits = EvmMemoryLayout::MAX_ALLOCATION_END_BITS;
+    if let Some(high) = builder.shifted_exceeding_bits(next, bits, ConditionUse::BRANCH) {
+        // wrapped = zext bump_overflow to i256
+        // invalid = ne (or wrapped, high), 0
+        let wrapped = builder.cast_word(bump_overflow);
+        let any = builder.or(wrapped, high);
+        return (next, builder.ne_zero(any));
+    }
+    // invalid = bump_overflow | next > limit
+    let over_limit = builder.exceeds_bits(next, bits, ConditionUse::VALUE);
     (next, builder.or(bump_overflow, over_limit))
 }
 

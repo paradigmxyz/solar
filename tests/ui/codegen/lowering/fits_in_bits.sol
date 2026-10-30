@@ -10,7 +10,8 @@
 // or `x >> k != 0`. The builder prices both and emits the cheaper one for how the condition is
 // read. A check that aborts on a word with a bit above `k` reads the shifted word for free, a
 // materialized boolean pays `ISZERO`s, and the comparison pays the push of its limit. So a
-// narrowing check is always the shift; a fit that an `and` combines is the comparison for a short
+// narrowing check is the shift once the limit costs more bytes than the shift count, from 16 bits
+// on, and a tie keeps the comparison; a fit that an `and` combines is the comparison for a short
 // limit, and the shift where the limit costs more bytes, in size builds from 16 bits on and in gas
 // builds from 32. Without shifts the comparison is the only form.
 contract FitsInBits {
@@ -45,12 +46,14 @@ contract FitsInBits {
         return a + b;
     }
 
-    // The allocation end is combined with the wrap test of the bump, a boolean in an `or`: the
-    // comparison against a literal push in a gas build, the shift where it saves bytes.
+    // The allocation end and the wrap test of the bump are one word zero test where the target
+    // reads a shifted word for free, and an `or` of two booleans without shifts.
     // GAS-LABEL: fn @alloc{{[( ]}}
-    // GAS: gt {{v[0-9]+}}, 0xffffffffffffffff
+    // GAS: [[HIGH:v[0-9]+]] = shr {{v[0-9]+}}, 64
+    // GAS: or {{v[0-9]+}}, [[HIGH]]
     // SIZE-LABEL: fn @alloc.3{{[( ]}}
-    // SIZE: shr {{v[0-9]+}}, 64
+    // SIZE: [[HIGH:v[0-9]+]] = shr {{v[0-9]+}}, 64
+    // SIZE: or {{v[0-9]+}}, [[HIGH]]
     // LEGACY-LABEL: fn @alloc{{[( ]}}
     // LEGACY: gt {{v[0-9]+}}, 0xffffffffffffffff
     function alloc(uint256 n) external pure returns (uint256) {

@@ -144,14 +144,12 @@ bb26:
   swap 1
   dup 2
   add
-  dup 2
-  dup 2
-  lt
-  dup 2
+  dup 1
   push 64
   shr
-  iszero
-  iszero
+  dup 3
+  dup 3
+  lt
   or
   swap 1
   swap 3

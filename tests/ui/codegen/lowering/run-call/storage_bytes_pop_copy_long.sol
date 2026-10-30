@@ -4,11 +4,9 @@
 //@[ir] filecheck: --check-prefix=SHORT
 //@[ir] normalize-stdout-test: "(?s).+" -> ""
 // SHORT-LABEL: @module StorageBytesPopCopyLong
-// SHORT: push 5{{[[:space:]]+}}shr
-// SHORT-NEXT: dup 1
+// SHORT: push 31{{[[:space:]]+}}dup 2{{[[:space:]]+}}gt
 // SHORT-NEXT: push bb{{[0-9]+}}
 // SHORT-NEXT: jumpi
-// SHORT-NEXT: pop
 // SHORT-NEXT: push 31
 // SHORT-NEXT: dup 2
 // SHORT-NEXT: eq

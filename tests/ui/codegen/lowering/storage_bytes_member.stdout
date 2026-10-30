@@ -662,8 +662,8 @@ bb61:
   push 160
   gt
   swap 1
-  push 0xffffffffffffffff
-  lt
+  push 64
+  shr
   or
   push bb69
   jumpi

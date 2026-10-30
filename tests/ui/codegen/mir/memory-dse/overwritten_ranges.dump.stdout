@@ -45,10 +45,12 @@ fn @allocated() [selector=0x6649a3b9, abi_wrapper, pure] {
   bb2:
     v26 = heap_floor !metadata(alloc_ptr)
     v27 = add v26, 96 !metadata(alloc_ptr)
+    v29 = shr v27, 64
     v28 = lt v27, v26
-    v29 = gt v27, 0xffffffffffffffff
-    v30 = or v28, v29
-    jumpi v30, bb4, bb3
+    v30 = zext i1 v28 to i256
+    v31 = or v30, v29
+    v32 = ne v31, 0
+    jumpi v32, bb4, bb3
   bb3:
     mstore v26, 2
     v20 = add v26, 32

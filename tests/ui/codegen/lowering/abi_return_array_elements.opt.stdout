@@ -141,11 +141,11 @@ fn @decode_calldata_type.8() -> i256 [may_return_memory] {
     v11 = shl v10, 5
     v37 = heap_floor !metadata(alloc_ptr)
     v38 = add v37, v11 !metadata(alloc_ptr)
+    v40 = shr v38, 64
     v39 = lt v38, v37
-    v40 = gt v38, 0xffffffffffffffff
-    v41 = or v39, v40
-    v43 = zext i1 v41 to i256
-    v44 = or v8, v43
+    v41 = zext i1 v39 to i256
+    v42 = or v41, v40
+    v44 = or v8, v42
     v45 = ne v44, 0
     jumpi v45, bb3, bb9
   bb9:
@@ -202,11 +202,11 @@ fn @decode_calldata_type.9() -> i256 [may_return_memory] {
     v11 = shl v10, 5
     v36 = heap_floor !metadata(alloc_ptr)
     v37 = add v36, v11 !metadata(alloc_ptr)
+    v39 = shr v37, 64
     v38 = lt v37, v36
-    v39 = gt v37, 0xffffffffffffffff
-    v40 = or v38, v39
-    v42 = zext i1 v40 to i256
-    v43 = or v8, v42
+    v40 = zext i1 v38 to i256
+    v41 = or v40, v39
+    v43 = or v8, v41
     v44 = ne v43, 0
     jumpi v44, bb3, bb9
   bb9:

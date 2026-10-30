@@ -188,10 +188,10 @@ fn @alloc.3(arg0: i256) -> ptr<memory> {
     v2 = add v0, arg0 !metadata(alloc_ptr)
     v3 = lt v2, v0
     v4 = shr v2, 64
-    v5 = ne v4, 0
-    v6 = or v3, v5
-    v7 = zext i1 v6 to i256
-    jumpi v6, bb1, bb2
+    v5 = zext i1 v3 to i256
+    v6 = or v5, v4
+    v7 = ne v6, 0
+    jumpi v7, bb1, bb2
   bb2:
     mstore 64, v2 !metadata(memory=scratch)
     ret v1

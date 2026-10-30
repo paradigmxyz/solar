@@ -7,12 +7,11 @@
 // external parameters.
 // Like solc via-ir, every value-type argument word must be its canonical ABI
 // encoding or the call reverts with empty revert data (`revert(0, 0)`):
-// - uintN: high bits zero (a check aborts on `shr(bits, word) != 0`)
+// - uintN, address/contract, bool: no bit at or above the width; the check aborts on
+//   `shr(bits, word) != 0` or on `word > 2^bits - 1`, whichever the cost model prices lower
 // - intN: word equals its sign extension (`eq(word, signextend(N/8-1, word))`)
-// - address/contract: top 96 bits zero
-// - bool: no bit above the lowest (a check aborts on `shr(1, word) != 0`)
 // - bytesN: low 32-N bytes zero (`iszero(shl(bits, word))`)
-// - enum: word < member count (a check aborts on `gt(word, count - 1)`)
+// - enum: word < member count (the check aborts on `word > count - 1`)
 // Full-word types (uint256, int256, bytes32) need no canonicalization
 // validator, but still need the short-calldata guard. The validators read the
 // raw word through the semantic calldata-slice boundary so optimization
@@ -26,8 +25,7 @@ contract CalldataValidation {
 
     // CHECK-LABEL: fn @vUint8{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: [[HIGH:v[0-9]+]] = shr [[RAW]], 8
-    // CHECK: ne [[HIGH]], 0
+    // CHECK: gt [[RAW]], 255
     function vUint8(uint8 x) external pure returns (uint8) {
         return x;
     }
@@ -42,8 +40,7 @@ contract CalldataValidation {
 
     // CHECK-LABEL: fn @vBool{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: [[HIGH:v[0-9]+]] = shr [[RAW]], 1
-    // CHECK: ne [[HIGH]], 0
+    // CHECK: gt [[RAW]], 1
     function vBool(bool x) external pure returns (bool) {
         return x;
     }
@@ -74,7 +71,7 @@ contract CalldataValidation {
     // The ABI wrapper validates the narrow input, so widening needs no mask.
     // CHECK-LABEL: fn @vWidened{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: {{v[0-9]+}} = shr [[RAW]], 8
+    // CHECK: gt [[RAW]], 255
     // CHECK-NOT: = and arg0
     // CHECK: [[WIDE:v[0-9]+]] = zext i8 arg0 to i16
     // CHECK: [[WORD:v[0-9]+]] = zext i16 [[WIDE]] to i256

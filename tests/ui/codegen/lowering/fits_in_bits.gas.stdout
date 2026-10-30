@@ -28,10 +28,11 @@ fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
     v51 = inttoptr i256 v70 to ptr<memory> !metadata(memory=scratch)
     v71 = add v70, v50 !metadata(alloc_ptr)
     v72 = lt v71, v70
-    v73 = gt v71, 0xffffffffffffffff
-    v74 = or v72, v73
-    v75 = zext i1 v74 to i256
-    jumpi v74, bb15, bb14
+    v73 = shr v71, 64
+    v74 = zext i1 v72 to i256
+    v75 = or v74, v73
+    v76 = ne v75, 0
+    jumpi v76, bb15, bb14
   bb14:
     mstore 64, v71 !metadata(memory=scratch)
     mstore v51, v45
@@ -186,10 +187,11 @@ fn @alloc() [selector=0x191ac2d2, abi_wrapper, pure] {
     v12 = inttoptr i256 v17 to ptr<memory> !metadata(memory=scratch)
     v18 = add v17, v9 !metadata(alloc_ptr)
     v19 = lt v18, v17
-    v20 = gt v18, 0xffffffffffffffff
-    v21 = or v19, v20
-    v22 = zext i1 v21 to i256
-    jumpi v21, bb5, bb4
+    v20 = shr v18, 64
+    v21 = zext i1 v19 to i256
+    v22 = or v21, v20
+    v23 = ne v22, 0
+    jumpi v23, bb5, bb4
   bb4:
     mstore 64, v18 !metadata(memory=scratch)
     memory_zero v12, v9

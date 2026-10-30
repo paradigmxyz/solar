@@ -23,8 +23,7 @@ contract AbiDecodeDynamicArrays {
     // ADDA: = ne {{v[0-9]+}}, 0
     // ADDA-NOT: {{(^|[^a-z_])}}mcopy {{[^cr]}}
     // ADDA: returndata
-    // ADDA: [[HIGH:v[0-9]+]] = shr {{v[0-9]+}}, 1
-    // ADDA-NEXT: [[INVALID:v[0-9]+]] = ne [[HIGH]], 0
+    // ADDA: [[INVALID:v[0-9]+]] = gt {{v[0-9]+}}, 1
     // ADDA-NEXT: jumpi [[INVALID]], {{bb[0-9]+}}, {{bb[0-9]+}}
     function bools(bytes memory b) public pure returns (bool[] memory) {
         return abi.decode(b, (bool[]));

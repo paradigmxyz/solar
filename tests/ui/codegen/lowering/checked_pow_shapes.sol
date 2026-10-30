@@ -37,7 +37,7 @@ contract CheckedPowShapes {
     // CHECK-LABEL: fn @upow8{{[( ]}}
     // CHECK: phi [bb0: 1]
     // CHECK-NOT: div
-    // CHECK: shr {{v[0-9]+}}, 8
+    // CHECK: gt {{v[0-9]+}}, 255
     // CHECK: mstore 32, 17
     function upow8(uint8 a, uint8 b) public pure returns (uint8) {
         return a ** b;

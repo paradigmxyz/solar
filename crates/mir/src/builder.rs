@@ -1332,18 +1332,39 @@ impl<'a> FunctionBuilder<'a> {
         self.gt(word, limit)
     }
 
+    /// Emits the shifted word `word >> bits`, which is nonzero exactly when `word` has a bit at or
+    /// above `bits`, when the pricing prefers the shift to a comparison for how `read` uses the
+    /// test, and `None` otherwise. A caller that combines several tests in one word zero test
+    /// takes the shifted words.
+    pub fn shifted_exceeding_bits(
+        &mut self,
+        word: ValueId,
+        bits: u32,
+        read: ConditionUse,
+    ) -> Option<ValueId> {
+        self.bit_tests
+            .as_ref()?
+            .shifts_bits_test(bits, false, read)
+            .then(|| self.shift_word(word, bits))
+    }
+
+    /// Emits `word >> bits`.
+    fn shift_word(&mut self, word: ValueId, bits: u32) -> ValueId {
+        let word = if self.func.value_ty(word) == Some(MirType::I256) {
+            word
+        } else {
+            self.cast_word(word)
+        };
+        let count = self.imm(bits);
+        self.shr(word, count)
+    }
+
     fn bits_test(&mut self, word: ValueId, bits: u32, fits: bool, read: ConditionUse) -> ValueId {
         if self.bit_tests.as_ref().is_some_and(|pricing| pricing.shifts_bits_test(bits, fits, read))
         {
             // high = shr word, bits
             // result = eq high, 0 | ne high, 0
-            let word = if self.func.value_ty(word) == Some(MirType::I256) {
-                word
-            } else {
-                self.cast_word(word)
-            };
-            let count = self.imm(bits);
-            let high = self.shr(word, count);
+            let high = self.shift_word(word, bits);
             return if fits { self.eq_zero(high) } else { self.ne_zero(high) };
         }
         // result = lt word, 2^bits | gt word, 2^bits - 1

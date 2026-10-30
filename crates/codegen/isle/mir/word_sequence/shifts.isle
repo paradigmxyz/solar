@@ -37,3 +37,32 @@
       (if-let false (u256_same a b))
       (if-let false (u256_ge a b)) (if-let count (imm (u256_sub b a))) (if-let shifted (make (Op.Shl count x))) (if-let mask (imm (u256_shl b (u256_shr a (u256_max)))))
       (sequence (Op.And shifted mask)))
+
+;; (x >> a) & (MAX >> s) => (x << (s - a)) >> s.
+;; Requires: optimizing for gas, x is 256 bits, a is constant, the mask is a constant (MAX >> s)
+;; that no other instruction reads, a < s < 256. Size builds keep the masks, which the
+;; pairs made larger.
+(rule (sequence_rewrite (Op.And (shr (iconst a) (and x (integer_bits 256))) (iconst m)))
+      (if-let true (late_word_sequence))
+      (if-let false (optimize_for_size))
+      (if-let s (low_mask_shift m))
+      (if-let true (unshared_mask m))
+      (if-let false (u256_ge a s))
+      (if-let count (imm (u256_sub s a)))
+      (if-let width (imm s))
+      (if-let high (make (Op.Shl count x)))
+      (sequence (Op.Shr width high)))
+
+;; (x & (MAX >> s)) << b => (x << s) >> (s - b).
+;; Requires: optimizing for gas, x is 256 bits, b is constant, the mask is a constant (MAX >> s)
+;; that no other instruction reads, b < s < 256.
+(rule (sequence_rewrite (Op.Shl (iconst b) (band (and x (integer_bits 256)) (iconst m))))
+      (if-let true (late_word_sequence))
+      (if-let false (optimize_for_size))
+      (if-let s (low_mask_shift m))
+      (if-let true (unshared_mask m))
+      (if-let false (u256_ge b s))
+      (if-let width (imm s))
+      (if-let count (imm (u256_sub s b)))
+      (if-let high (make (Op.Shl width x)))
+      (sequence (Op.Shr count high)))

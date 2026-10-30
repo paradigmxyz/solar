@@ -25,8 +25,7 @@
 // CHECK-NEXT: + [[MORE:v[0-9]+]] = lt [[NEXT_CURSOR]], [[END]]
 // CHECK-NEXT: + jumpi [[MORE]], [[BODY]], [[VALIDATE:bb[0-9]+]]
 // CHECK: + [[VALIDATE]]:
-// CHECK-NEXT: + [[HIGH:v[0-9]+]] = shr [[NEXT]], 8
-// CHECK-NEXT: + {{v[0-9]+}} = ne [[HIGH]], 0
+// CHECK-NEXT: + {{v[0-9]+}} = gt [[NEXT]], 255
 // CHECK: + jump [[DONE]]
 // CHECK: + [[DONE]]:
 fn @bytes_array(arg0: ptr<memory>) -> i256 [selector=0x43b2375f, abi_params=[array<_, uint8>], abi_returns=[word]] {

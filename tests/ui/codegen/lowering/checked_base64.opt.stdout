@@ -616,11 +616,14 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v29 = heap_floor !metadata(alloc_ptr)
     v30 = add v29, v11 !metadata(alloc_ptr)
+    v32 = shr v30, 64
     v31 = lt v30, v29
-    v32 = gt v30, 0xffffffffffffffff
-    v33 = or v31, v32
-    v36 = or v9, v33
-    jumpi v36, bb3, bb5
+    v33 = zext i1 v31 to i256
+    v34 = or v33, v32
+    v37 = zext i1 v9 to i256
+    v38 = or v37, v34
+    v39 = ne v38, 0
+    jumpi v39, bb3, bb5
   bb5:
     mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v6
@@ -632,9 +635,9 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     calldatacopy v25, v7, v6
     v22 = sub 0, v6
     v23 = and v22, 31
-    v35 = calldatasize
+    v36 = calldatasize
     v26 = add v25, v6
-    calldatacopy v26, v35, v23
+    calldatacopy v26, v36, v23
     ret v29
   bb3:
     mstore 32, 65 !metadata(memory=scratch)
@@ -673,10 +676,12 @@ fn @alloc(arg0: i256) -> i256 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v0, arg0 !metadata(alloc_ptr)
+    v4 = shr v2, 64
     v3 = lt v2, v0
-    v4 = gt v2, 0xffffffffffffffff
-    v5 = or v3, v4
-    jumpi v5, bb1, bb2
+    v5 = zext i1 v3 to i256
+    v6 = or v5, v4
+    v7 = ne v6, 0
+    jumpi v7, bb1, bb2
   bb2:
     mstore 64, v2 !metadata(memory=scratch)
     ret v0

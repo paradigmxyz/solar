@@ -39,13 +39,15 @@ fn @wrapped() [selector=0x08a7c76d, abi_wrapper, pure] {
   bb2:
     v8 = heap_floor !metadata(alloc_ptr)
     v9 = add v8, 64 !metadata(alloc_ptr)
+    v11 = shr v9, 64
     v10 = lt v9, v8
-    v11 = gt v9, 0xffffffffffffffff
-    v12 = or v10, v11
-    jumpi v12, bb4, bb3
+    v12 = zext i1 v10 to i256
+    v13 = or v12, v11
+    v14 = ne v13, 0
+    jumpi v14, bb4, bb3
   bb3:
-    v14 = calldatasize
-    calldatacopy v8, v14, 64
+    v15 = calldatasize
+    calldatacopy v8, v15, 64
     mstore v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v3 = icall @_write, v8, arg0, arg1
     mstore 0, v3 !metadata(memory=scratch)

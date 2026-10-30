@@ -53,6 +53,66 @@ fn @three_words(arg0: i256, arg1: i256, arg2: i256) {
     revert 0, 0
 }
 
+// A signed `intN` range check that aborts when it fails is a zero test of a word too: a nonzero
+// `x ^ signextend(b, x)`. The checks of parameters branch once, with the address check.
+// CHECK-LABEL: {{^[ +].*}}fn @signed_check{{[( ]}}
+// CHECK: + [[SIGNED:v[0-9]+]] = xor arg1, [[EXTENDED:v[0-9]+]]
+// CHECK-NEXT: + [[BOTH:v[0-9]+]] = or {{v[0-9]+}}, [[SIGNED]]
+// CHECK-NEXT: + [[TEST:v[0-9]+]] = ne [[BOTH]], 0
+// CHECK-NEXT: + jumpi [[TEST]], bb3, bb2
+fn @signed_check(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = shr arg0, 160
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = signextend 2, arg1
+    v3 = eq arg1, v2
+    jumpi v3, bb2, bb3
+  bb2:
+    ret arg1
+  bb3:
+    revert 0, 0
+}
+
+// A signed check next to a test that aborts on its false edge stays a comparison, and the two
+// combine with `and`.
+// CHECK-LABEL: {{^[ +].*}}fn @signed_after{{[( ]}}
+// CHECK: + [[BOTH:v[0-9]+]] = and {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK-LABEL: {{^[ +].*}}fn @range_loop{{[( ]}}
+fn @signed_after(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = lt arg0, 3
+    jumpi v0, bb1, bb3
+  bb1:
+    v1 = signextend 0, arg1
+    v2 = eq arg1, v1
+    jumpi v2, bb2, bb3
+  bb2:
+    stop
+  bb3:
+    revert 0, 0
+}
+
+// In a loop, a range check keeps turning around into its complement.
+// CHECK-NOT: = shr {{v[0-9]+}}, 2
+// CHECK: + [[COMPLEMENT:v[0-9]+]] = gt {{v[0-9]+}}, 3
+// CHECK: + {{v[0-9]+}} = or [[COMPLEMENT]], {{v[0-9]+}}
+fn @range_loop(arg0: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v4]
+    v1 = lt v0, 4
+    jumpi v1, bb2, bb3
+  bb2:
+    v2 = gt v0, 100
+    v4 = add v0, 1
+    jumpi v2, bb3, bb1
+  bb3:
+    revert 0, 0
+}
+
 // A test that aborts when its word is zero would pay an `iszero`, so it stays.
 // CHECK-LABEL: {{^[ +].*}}fn @aborts_on_zero{{[( ]}}
 // CHECK-NOT: {{^\+}}
