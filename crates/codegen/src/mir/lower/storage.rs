@@ -35,8 +35,9 @@ pub(super) struct StorageLocation {
     pub(super) size: TypeSize,
     pub(super) encoding: StorageEncoding,
     transient: bool,
-    /// The dictionary of a handle field of a struct documented `@custom:solar-handle`, which
-    /// keeps one plus the index of the field's value in the dictionary, or zero for zero.
+    /// The dictionary of a handle field of a struct documented `@custom:solar-storage handle`,
+    /// which keeps one plus the index of the field's value in the dictionary, or zero for
+    /// zero.
     pub(super) handle: Option<VariableId>,
 }
 
@@ -154,11 +155,11 @@ impl StorageLocation {
     }
 }
 
-/// The layout of a storage array documented `@custom:solar-inline`. While the array holds at most
-/// `capacity` elements, they lie in its own slot, element `i` at byte `i * size` as in the first
-/// word of the standard data area, and the slot's top byte holds the length. An array that grows
-/// past `capacity` moves to the standard layout, whose length never reaches the top byte, so a
-/// nonzero top byte marks the inline form, and an empty array reads the same in both.
+/// The layout of a storage array documented `@custom:solar-storage inline`. While the array holds
+/// at most `capacity` elements, they lie in its own slot, element `i` at byte `i * size` as in the
+/// first word of the standard data area, and the slot's top byte holds the length. An array that
+/// grows past `capacity` moves to the standard layout, whose length never reaches the top byte, so
+/// a nonzero top byte marks the inline form, and an empty array reads the same in both.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct InlineArray {
     /// How many elements fit below the length byte.
@@ -195,26 +196,27 @@ impl<'gcx> StorageLayout<'gcx> {
         self.builder.locations.get(&id).copied()
     }
 
-    /// The slot whose hash with a key locates the record of the `@custom:solar-fuse` group of the
-    /// mapping `id`, and where the mapping's value lies in the record, relative to its start.
+    /// The slot whose hash with a key locates the record of the `@custom:solar-storage fuse` group
+    /// of the mapping `id`, and where the mapping's value lies in the record, relative to its
+    /// start.
     pub(super) fn fused(&self, id: VariableId) -> Option<(U256, StorageLocation)> {
         self.builder.fused.get(&id).copied()
     }
 
-    /// Whether the mapping `id` is documented `@custom:solar-bitmap`: the value for key `k` is bit
-    /// `k % 256` of the word at `keccak256((k / 256) . slot)`.
+    /// Whether the mapping `id` is documented `@custom:solar-storage bitmap`: the value for key `k`
+    /// is bit `k % 256` of the word at `keccak256((k / 256) . slot)`.
     pub(super) fn is_bitmap(&self, id: VariableId) -> bool {
         self.builder.bitmaps.contains(&id)
     }
 
-    /// The layout of the storage array documented `@custom:solar-inline` at `slot`. Such an
+    /// The layout of the storage array documented `@custom:solar-storage inline` at `slot`. Such an
     /// array is reached only through its state variable, so its slot is always this constant.
     pub(super) fn inline_array_at(&self, slot: U256) -> Option<InlineArray> {
         self.builder.inline_arrays.get(&slot).copied()
     }
 
-    /// The dictionary of the struct field `field`, if `@custom:solar-handle` makes it a handle
-    /// field.
+    /// The dictionary of the struct field `field`, if `@custom:solar-storage handle` makes it a
+    /// handle field.
     pub(super) fn handle_dictionary(&self, field: VariableId) -> Option<VariableId> {
         self.builder.handles.get(&field).copied()
     }
@@ -354,13 +356,15 @@ impl<'gcx> StorageLayout<'gcx> {
 struct StorageBuilder<'gcx> {
     gcx: Gcx<'gcx>,
     locations: FxHashMap<VariableId, StorageLocation>,
-    /// The record slot and value location of every mapping in a `@custom:solar-fuse` group.
+    /// The record slot and value location of every mapping in a `@custom:solar-storage fuse`
+    /// group.
     fused: FxHashMap<VariableId, (U256, StorageLocation)>,
-    /// The layout of every storage array documented `@custom:solar-inline`, by its slot.
+    /// The layout of every storage array documented `@custom:solar-storage inline`, by its slot.
     inline_arrays: FxHashMap<U256, InlineArray>,
-    /// The mappings documented `@custom:solar-bitmap`.
+    /// The mappings documented `@custom:solar-storage bitmap`.
     bitmaps: FxHashSet<VariableId>,
-    /// The dictionary of every struct field that `@custom:solar-handle` makes a handle field.
+    /// The dictionary of every struct field that `@custom:solar-storage handle` makes a handle
+    /// field.
     handles: FxHashMap<VariableId, VariableId>,
     field_types: IndexVec<StructId, OnceLock<&'gcx [Ty<'gcx>]>>,
     field_locations: RefCell<FxHashMap<StructId, Option<Box<[StorageLocation]>>>>,
@@ -478,8 +482,8 @@ impl<'gcx> StorageBuilder<'gcx> {
         StorageLayout { builder: self }
     }
 
-    /// Records the layout of the contract's storage arrays documented `@custom:solar-inline`
-    /// whose elements leave room for the length byte.
+    /// Records the layout of the contract's storage arrays documented `@custom:solar-storage
+    /// inline` whose elements leave room for the length byte.
     fn inline_arrays(&mut self, contract_id: ContractId) {
         let contract = self.gcx.hir.contract(contract_id);
         for &base in contract.linearized_bases.iter() {
@@ -500,9 +504,10 @@ impl<'gcx> StorageBuilder<'gcx> {
         }
     }
 
-    /// Lays out the records of the `@custom:solar-fuse` groups of the contract's mappings: the
-    /// values of a group's mappings for one key follow each other like a struct's fields, in
-    /// declaration order, at `keccak256(key . slot)` with the slot of the group's first mapping.
+    /// Lays out the records of the `@custom:solar-storage fuse` groups of the contract's mappings:
+    /// the values of a group's mappings for one key follow each other like a struct's fields,
+    /// in declaration order, at `keccak256(key . slot)` with the slot of the group's first
+    /// mapping.
     fn fuse_mappings(&mut self, contract_id: ContractId) {
         let contract = self.gcx.hir.contract(contract_id);
         let mut groups = FxIndexMap::<(ContractId, Symbol), Vec<(VariableId, Ty<'gcx>)>>::default();

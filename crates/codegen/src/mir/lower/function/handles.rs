@@ -1,7 +1,7 @@
-//! `@custom:solar-handle` fields: struct fields kept as indexes into a dictionary.
+//! `@custom:solar-storage handle` fields: struct fields kept as indexes into a dictionary.
 //!
-//! A handle field of a struct documented `@custom:solar-handle <field> <dictionary>` keeps, in
-//! place of its value, its handle: one plus the index of the value in the dictionary, a storage
+//! A handle field of a struct documented `@custom:solar-storage handle <field> <dictionary>` keeps,
+//! in place of its value, its handle: one plus the index of the value in the dictionary, a storage
 //! array of the field's type, or zero for the value zero. A dictionary has fewer than 2^64
 //! elements, so the storage layout gives the handle the 9 bytes of a `uint72`, which pack with the
 //! struct's other fields where the value would take a word of its own.

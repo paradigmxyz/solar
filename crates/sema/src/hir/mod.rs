@@ -1,6 +1,10 @@
 //! High-level intermediate representation (HIR).
 
-use crate::{builtins::Builtin, ty::Gcx};
+use crate::{
+    builtins::Builtin,
+    natspec::{StorageTag, solar_tag_content},
+    ty::Gcx,
+};
 use derive_more::derive::From;
 use either::Either;
 use rayon::prelude::*;
@@ -330,57 +334,52 @@ impl<'hir> Hir<'hir> {
         HirBuilder::new(arena, next_id)
     }
 
-    /// Returns the group the `@custom:solar-fuse` tag on a state variable's declaration names,
-    /// or an empty name when it names none, with the tag's span.
+    /// Returns the group the `@custom:solar-storage fuse` directive names, or an empty name
+    /// when it names none, with the directive's span.
     pub fn solar_fuse(&self, id: VariableId) -> Option<(Symbol, Span)> {
-        let doc = self.doc(self.variable(id).doc);
-        doc.ast_comments.iter().flat_map(|comment| comment.natspec.iter()).find_map(|natspec| {
-            let ast::NatSpecKind::Custom { name } = natspec.kind else { return None };
-            if name.name != sym::solar_dash_fuse {
+        self.storage_tags(self.variable(id).doc).find_map(|(layout, arguments, span)| {
+            if layout != StorageTag::Fuse {
                 return None;
             }
-            let group = natspec.content().split_whitespace().next();
-            Some((group.map_or(kw::Empty, Symbol::intern), natspec.span))
+            let group = arguments.split_whitespace().next();
+            Some((group.map_or(kw::Empty, Symbol::intern), span))
         })
     }
 
-    /// Returns the span of the `@custom:solar-inline` tag on a state variable's declaration.
+    /// Returns the span of a state variable's `@custom:solar-storage inline` directive.
     pub fn solar_inline(&self, id: VariableId) -> Option<Span> {
-        self.variable_tag(id, sym::solar_dash_inline)
+        self.storage_tag_span(id, StorageTag::Inline)
     }
 
-    /// Returns the span of the `@custom:solar-bitmap` tag on a state variable's declaration.
+    /// Returns the span of a state variable's `@custom:solar-storage bitmap` directive.
     pub fn solar_bitmap(&self, id: VariableId) -> Option<Span> {
-        self.variable_tag(id, sym::solar_dash_bitmap)
+        self.storage_tag_span(id, StorageTag::Bitmap)
     }
 
-    /// Returns the field and the dictionary each `@custom:solar-handle` tag on a struct's
-    /// declaration names, or `None` for a tag that does not name exactly those two, with the
-    /// tag's span.
+    /// Returns the field and dictionary each `@custom:solar-storage handle` directive names,
+    /// or `None` when it does not name exactly those two, with the directive's span.
     pub fn solar_handle_tags(
         &self,
         id: StructId,
     ) -> impl Iterator<Item = (Option<(Symbol, Symbol)>, Span)> + '_ {
-        let doc = self.doc(self.strukt(id).doc);
-        doc.ast_comments.iter().flat_map(|comment| comment.natspec.iter()).filter_map(|natspec| {
-            let ast::NatSpecKind::Custom { name } = natspec.kind else { return None };
-            if name.name != sym::solar_dash_handle {
+        self.storage_tags(self.strukt(id).doc).filter_map(|(layout, arguments, span)| {
+            if layout != StorageTag::Handle {
                 return None;
             }
-            let mut words = natspec.content().split_whitespace();
+            let mut words = arguments.split_whitespace();
             let names = match (words.next(), words.next(), words.next()) {
                 (Some(field), Some(dictionary), None) => {
                     Some((Symbol::intern(field), Symbol::intern(dictionary)))
                 }
                 _ => None,
             };
-            Some((names, natspec.span))
+            Some((names, span))
         })
     }
 
     /// Returns the handle fields of a struct with their dictionaries: the field each
-    /// `@custom:solar-handle` tag on the struct's declaration names, and the state variable of
-    /// the struct's contract that the tag names.
+    /// `@custom:solar-storage handle` directive on the struct's declaration names, and the state
+    /// variable of the struct's contract that the tag names.
     pub fn solar_handles(
         &self,
         id: StructId,
@@ -400,12 +399,24 @@ impl<'hir> Hir<'hir> {
         })
     }
 
-    /// Returns the span of the custom tag `tag` on a state variable's declaration.
-    fn variable_tag(&self, id: VariableId, tag: Symbol) -> Option<Span> {
-        let doc = self.doc(self.variable(id).doc);
-        doc.ast_comments.iter().flat_map(|comment| comment.natspec.iter()).find_map(|natspec| {
-            matches!(natspec.kind, ast::NatSpecKind::Custom { name } if name.name == tag)
-                .then_some(natspec.span)
+    /// Returns the span of a state variable's directive for `layout`.
+    fn storage_tag_span(&self, id: VariableId, layout: StorageTag) -> Option<Span> {
+        self.storage_tags(self.variable(id).doc)
+            .find_map(|(kind, _, span)| (kind == layout).then_some(span))
+    }
+
+    /// Returns each storage directive's layout, arguments and span.
+    fn storage_tags(&self, id: DocId) -> impl Iterator<Item = (StorageTag, String, Span)> + '_ {
+        let doc = self.doc(id);
+        doc.ast_comments.iter().flat_map(|comment| comment.natspec.iter()).filter_map(|natspec| {
+            if !matches!(natspec.kind,
+                ast::NatSpecKind::Custom { name } if name.name == sym::solar_dash_storage)
+            {
+                return None;
+            }
+            let content = solar_tag_content(&doc.ast_comments, natspec.span);
+            let (layout, arguments) = StorageTag::parse(&content)?;
+            Some((layout, arguments.to_owned(), natspec.span))
         })
     }
 }

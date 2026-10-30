@@ -1,11 +1,11 @@
-// Arrays documented `@custom:solar-inline` appear in the storage layout under
+// Arrays documented `@custom:solar-storage inline` appear in the storage layout under
 // `inline`, with the entries `storage` gives them.
 contract Lists {
     uint256 total;
-    /// @custom:solar-inline
+    /// @custom:solar-storage inline
     uint64[] small;
     uint64[] plain;
-    /// @custom:solar-inline
+    /// @custom:solar-storage inline
     bytes3[] codes;
 }
 

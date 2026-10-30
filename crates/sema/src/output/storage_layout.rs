@@ -17,29 +17,30 @@ pub struct StorageLayoutOutput {
     pub storage: Vec<StorageLayoutEntry>,
     /// `solc` emits `null` rather than an empty object when no storage types are present.
     pub types: Option<FxIndexMap<String, StorageLayoutType>>,
-    /// The records of the mapping groups documented `@custom:solar-fuse <group>`, keyed by the
-    /// slot of each group's first mapping, whose hash with a key locates the group's record for
-    /// that key as a mapping's slot locates its value. Each member is the value one mapping
-    /// keeps in the record, with its slot relative to the record's start. `solc` has no such
-    /// field, so it is left out when empty.
+    /// The records of the mapping groups documented `@custom:solar-storage fuse <group>`, keyed by
+    /// the slot of each group's first mapping, whose hash with a key locates the group's
+    /// record for that key as a mapping's slot locates its value. Each member is the value one
+    /// mapping keeps in the record, with its slot relative to the record's start. `solc` has
+    /// no such field, so it is left out when empty.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fused: Option<FxIndexMap<String, Vec<StorageLayoutEntry>>>,
-    /// The arrays documented `@custom:solar-inline`, as `storage` lists them. While such an array
-    /// has at most `31 / size` elements of `size` bytes, its slot holds them, element `i` at byte
-    /// `i * size`, and its length in the top byte; a longer array has the standard layout, whose
-    /// length leaves the top byte zero. `solc` has no such field, so it is left out when empty.
+    /// The arrays documented `@custom:solar-storage inline`, as `storage` lists them. While such
+    /// an array has at most `31 / size` elements of `size` bytes, its slot holds them, element
+    /// `i` at byte `i * size`, and its length in the top byte; a longer array has the standard
+    /// layout, whose length leaves the top byte zero. `solc` has no such field, so it is left
+    /// out when empty.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub inline: Option<Vec<StorageLayoutEntry>>,
-    /// The mappings documented `@custom:solar-bitmap`, as `storage` lists them. The value for key
-    /// `k` is bit `k % 256` of the word at `keccak256((k / 256) . slot)`. `solc` has no such
-    /// field, so it is left out when empty.
+    /// The mappings documented `@custom:solar-storage bitmap`, as `storage` lists them. The value
+    /// for key `k` is bit `k % 256` of the word at `keccak256((k / 256) . slot)`. `solc` has
+    /// no such field, so it is left out when empty.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bitmaps: Option<Vec<StorageLayoutEntry>>,
-    /// The handle fields of the structs documented `@custom:solar-handle <field> <dictionary>`
-    /// that the contract stores, keyed by the struct's type. `types` lists a handle field as
-    /// `uint72`: it keeps one plus the index of the field's value in its dictionary, the storage
-    /// array this lists as `storage` does, or zero for the value zero. `solc` has no such field,
-    /// so it is left out when empty.
+    /// The handle fields of the structs documented `@custom:solar-storage handle <field>
+    /// <dictionary>` that the contract stores, keyed by the struct's type. `types` lists a
+    /// handle field as `uint72`: it keeps one plus the index of the field's value in its
+    /// dictionary, the storage array this lists as `storage` does, or zero for the value zero.
+    /// `solc` has no such field, so it is left out when empty.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub handles: Option<FxIndexMap<String, Vec<StorageLayoutHandle>>>,
 }
@@ -55,7 +56,7 @@ pub struct StorageLayoutEntry {
     pub r#type: String,
 }
 
-/// A handle field of a struct documented `@custom:solar-handle`.
+/// A handle field of a struct documented `@custom:solar-storage handle`.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StorageLayoutHandle {

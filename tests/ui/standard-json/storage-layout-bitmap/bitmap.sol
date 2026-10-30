@@ -1,8 +1,8 @@
-// Mappings documented `@custom:solar-bitmap` appear in the storage layout under
+// Mappings documented `@custom:solar-storage bitmap` appear in the storage layout under
 // `bitmaps`, with the entries `storage` gives them.
 contract Claims {
     uint256 total;
-    /// @custom:solar-bitmap
+    /// @custom:solar-storage bitmap
     mapping(uint256 => bool) claimed;
     mapping(uint256 => bool) plain;
 }
