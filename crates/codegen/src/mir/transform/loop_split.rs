@@ -104,16 +104,9 @@ fn split_function(func: &mut Function) -> bool {
     changed
 }
 
-fn inst_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
-    match func.value(value) {
-        Value::Inst(inst) => Some(&func.inst(*inst).kind),
-        _ => None,
-    }
-}
-
 /// `value = base + literal`, as the base and the literal's value.
 fn literal_offset(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
-    let &InstKind::Add(a, b) = inst_kind(func, value)? else { return None };
+    let &InstKind::Add(a, b) = func.value_inst_kind(value)? else { return None };
     match (func.value_u256(a), func.value_u256(b)) {
         (_, Some(offset)) => Some((a, offset)),
         (Some(offset), _) => Some((b, offset)),
@@ -145,7 +138,7 @@ fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
 
     // header: counter = phi [preheader: start], [latch: counter + step]
     //         jumpi (lt counter, bound), body, exit
-    let &InstKind::Lt(counter, bound) = inst_kind(func, condition)? else { return None };
+    let &InstKind::Lt(counter, bound) = func.value_inst_kind(condition)? else { return None };
     if defined_in_loop(bound) {
         return None;
     }
@@ -186,26 +179,14 @@ fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
     }
     // The counter travels at most `step << MAX_TRIP_COUNT_BITS` from its
     // start, so `counter + lookahead` never wraps.
-    let travel = if let Some(trips) = l.trip_count {
-        step.checked_mul(U256::from(trips))?
-    } else {
-        step.checked_shl(Target::MAX_TRIP_COUNT_BITS)?
-    };
+    let travel = step.checked_shl(Target::MAX_TRIP_COUNT_BITS)?;
     if start.checked_add(travel)?.checked_add(lookahead)?
         > crate::mir::analysis::integers::integer_max(func, counter)
     {
         return None;
     }
 
-    let mut body_exit = false;
-    for block in l.blocks.iter() {
-        for successor in func.blocks[block].terminator.as_ref()?.successors() {
-            if !l.blocks.contains(successor) && !(block == l.header && successor == else_block) {
-                body_exit = true;
-            }
-        }
-    }
-    if body_exit {
+    if !side_exits(func, &l.blocks, l.header).is_empty() {
         // Both copies reach the exit blocks: only phis may use loop values there.
         for (block, body) in func.blocks.iter_enumerated() {
             if l.blocks.contains(block) {
@@ -242,7 +223,7 @@ fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
 
 fn apply(func: &mut Function, split: &Split) {
     let blocks: Vec<BlockId> = split.blocks.iter().collect();
-    let side_exits = side_exits(func, &blocks, &split.blocks, split.header);
+    let side_exits = side_exits(func, &split.blocks, split.header);
     let copy = clone_loop(func, &blocks);
     let main_header = copy.blocks[&split.header];
     let mapped = |value: ValueId| copy.value(value);
@@ -261,15 +242,7 @@ fn apply(func: &mut Function, split: &Split) {
             .with_debug_info_dropped(),
     );
     func.blocks[main_header].instructions.extend([add, lt]);
-    let (_, metadata) = func.blocks[main_header].take_terminator();
-    func.blocks[main_header].set_terminator(
-        Terminator::Branch {
-            condition,
-            then_block: copy.blocks[&split.body],
-            else_block: split.header,
-        },
-        metadata,
-    );
+    branch(func, main_header, condition, copy.blocks[&split.body], split.header);
 
     // header: v = phi [main_header: v'], [latch: next]
     for inst in func.blocks[split.header].instructions.clone() {
@@ -285,15 +258,7 @@ fn apply(func: &mut Function, split: &Split) {
     }
 
     // preheader: ... jump main_header
-    let (terminator, metadata) = func.blocks[split.preheader].take_terminator();
-    let mut terminator = terminator.expect("the preheader is terminated");
-    retarget(
-        &mut terminator,
-        |successor| {
-            if successor == split.header { main_header } else { successor }
-        },
-    );
-    func.blocks[split.preheader].set_terminator(terminator, metadata);
+    redirect(func, split.preheader, split.header, main_header);
 
     add_exit_inputs(func, &side_exits, std::slice::from_ref(&copy));
 
@@ -322,9 +287,9 @@ pub(super) fn clone_loop(func: &mut Function, blocks: &[BlockId]) -> LoopCopy {
         copy.blocks.insert(block, func.alloc_block());
     }
     for &block in blocks {
-        let originals = func.blocks[block].instructions.clone();
+        let originals = std::mem::take(&mut func.blocks[block].instructions);
         let mut instructions = Vec::with_capacity(originals.len());
-        for inst in originals {
+        for &inst in &originals {
             let original = func.inst(inst);
             let mut instruction = Instruction::new(original.kind.clone(), original.result_ty);
             instruction.metadata = original.metadata.clone();
@@ -337,11 +302,13 @@ pub(super) fn clone_loop(func: &mut Function, blocks: &[BlockId]) -> LoopCopy {
             };
             instructions.push(cloned);
         }
+        func.blocks[block].instructions = originals;
         func.blocks[copy.blocks[&block]].instructions = instructions;
     }
     for &block in blocks {
         let clone = copy.blocks[&block];
-        for inst in func.blocks[clone].instructions.clone() {
+        let instructions = std::mem::take(&mut func.blocks[clone].instructions);
+        for &inst in &instructions {
             let instruction = func.inst_mut(inst);
             if let InstKind::Phi(incoming) = &mut instruction.kind {
                 for (from, _) in incoming.iter_mut() {
@@ -362,6 +329,7 @@ pub(super) fn clone_loop(func: &mut Function, blocks: &[BlockId]) -> LoopCopy {
                 instruction.metadata.set_storage_alias(Some(alias));
             }
         }
+        func.blocks[clone].instructions = instructions;
         let (mut terminator, metadata) = {
             let body = &func.blocks[block];
             (
@@ -381,14 +349,13 @@ pub(super) fn clone_loop(func: &mut Function, blocks: &[BlockId]) -> LoopCopy {
 /// The edges that leave the loop from a block other than its header.
 pub(super) fn side_exits(
     func: &Function,
-    blocks: &[BlockId],
     loop_blocks: &DenseBitSet<BlockId>,
     header: BlockId,
 ) -> Vec<(BlockId, BlockId)> {
-    blocks
+    loop_blocks
         .iter()
-        .filter(|&&block| block != header)
-        .flat_map(|&block| {
+        .filter(|&block| block != header)
+        .flat_map(|block| {
             let terminator = func.blocks[block].terminator.as_ref().expect("terminated");
             terminator
                 .successors()
@@ -439,4 +406,33 @@ pub(super) fn retarget(terminator: &mut Terminator, map: impl Fn(BlockId) -> Blo
         }
         _ => {}
     }
+}
+
+/// Ends a block with a jump, keeping its terminator's source context.
+pub(super) fn jump(func: &mut Function, block: BlockId, target: BlockId) {
+    let (_, metadata) = func.blocks[block].take_terminator();
+    func.blocks[block].set_terminator(Terminator::Jump(target), metadata);
+}
+
+/// Ends a block with a branch, keeping its terminator's source context.
+pub(super) fn branch(
+    func: &mut Function,
+    block: BlockId,
+    condition: ValueId,
+    then: BlockId,
+    other: BlockId,
+) {
+    let (_, metadata) = func.blocks[block].take_terminator();
+    func.blocks[block].set_terminator(
+        Terminator::Branch { condition, then_block: then, else_block: other },
+        metadata,
+    );
+}
+
+/// Sends a block's edges to `from` to `to` instead.
+pub(super) fn redirect(func: &mut Function, block: BlockId, from: BlockId, to: BlockId) {
+    let (terminator, metadata) = func.blocks[block].take_terminator();
+    let mut terminator = terminator.expect("the block is terminated");
+    retarget(&mut terminator, |successor| if successor == from { to } else { successor });
+    func.blocks[block].set_terminator(terminator, metadata);
 }
