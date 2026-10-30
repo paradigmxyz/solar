@@ -121,15 +121,13 @@ fn @structFields() -> struct1 [selector=0x94c60039, pure, abi_params=[], abi_ret
     mstore 0, 1 !metadata(memory=scratch)
     mstore 32, 2 !metadata(memory=scratch)
     mstore 64, 3 !metadata(memory=scratch)
-    v3 = add 0, 64
-    v4 = mload v3
-    v5 = add 0, 32
-    v6 = mload v5
-    v7 = mload 0 !metadata(memory=scratch)
-    v8 = insert_value struct1, undef struct1, 0, v4
-    v9 = insert_value struct1, v8, 1, v6
-    v10 = insert_value struct1, v9, 2, v7
-    ret v10
+    v3 = mload 64 !metadata(memory=scratch)
+    v4 = mload 32 !metadata(memory=scratch)
+    v5 = mload 0 !metadata(memory=scratch)
+    v6 = insert_value struct1, undef struct1, 0, v3
+    v7 = insert_value struct1, v6, 1, v4
+    v8 = insert_value struct1, v7, 2, v5
+    ret v8
 }
 
 fn @shortString() -> ptr<memory> [selector=0x2f9c7ab1, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

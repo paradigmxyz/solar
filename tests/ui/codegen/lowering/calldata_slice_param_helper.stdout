@@ -24,9 +24,9 @@ fn @lastWord2() [selector=0x97f495a8, abi_wrapper, pure] {
     v4 = eq v29, 0
     jumpi v4, bb1, bb2
   bb2:
-    v35 = add v28, 33
+    v34 = add v28, 33
     v20 = sub v29, 33
-    v23 = add v35, v20
+    v23 = add v34, v20
     v24 = calldataload v23
     v11 = xor v17, v24
     mstore 0, v11 !metadata(memory=scratch)

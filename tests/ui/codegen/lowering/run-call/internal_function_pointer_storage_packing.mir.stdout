@@ -3,83 +3,41 @@
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffff
-    v2 = and v0, v1
-    v3 = and 2, 0xffffffffffffffff
-    v4 = or v2, v3
-    sstore 0, v4 !metadata(storage=slot(0))
-    v5 = shl 0xffffffffffffffff, 64
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = not v5
-    v8 = and v6, v7
-    v9 = and 0x1122334455667788, 0xffffffffffffffff
-    v10 = shl v9, 64
-    v11 = or v8, v10
-    sstore 0, v11 !metadata(storage=slot(0))
-    v12 = lt 0, 4
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    v14 = div 0, 4
-    v15 = add 1, v14
-    v16 = mod 0, 4
-    v17 = mul v16, 8
-    v18 = mul v17, 8
-    v19 = shl 0xffffffffffffffff, v18
-    v20 = sload v15 !metadata(storage=offset(v14, 1))
-    v21 = not v19
-    v22 = and v20, v21
-    v23 = and 2, 0xffffffffffffffff
-    v24 = shl v23, v18
-    v25 = or v22, v24
-    sstore v15, v25 !metadata(storage=offset(v14, 1))
-    v26 = lt 1, 4
-    v27 = eq v26, false
-    icall panic_if<0x32>, v27
-    v28 = div 1, 4
-    v29 = add 1, v28
-    v30 = mod 1, 4
-    v31 = mul v30, 8
-    v32 = mul v31, 8
-    v33 = shl 0xffffffffffffffff, v32
-    v34 = sload v29 !metadata(storage=offset(v28, 1))
-    v35 = not v33
-    v36 = and v34, v35
-    v37 = and 3, 0xffffffffffffffff
-    v38 = shl v37, v32
-    v39 = or v36, v38
-    sstore v29, v39 !metadata(storage=offset(v28, 1))
-    v40 = lt 2, 4
-    v41 = eq v40, false
-    icall panic_if<0x32>, v41
-    v42 = div 2, 4
-    v43 = add 1, v42
-    v44 = mod 2, 4
-    v45 = mul v44, 8
-    v46 = mul v45, 8
-    v47 = shl 0xffffffffffffffff, v46
-    v48 = sload v43 !metadata(storage=offset(v42, 1))
-    v49 = not v47
-    v50 = and v48, v49
-    v51 = and 4, 0xffffffffffffffff
-    v52 = shl v51, v46
-    v53 = or v50, v52
-    sstore v43, v53 !metadata(storage=offset(v42, 1))
-    v54 = lt 3, 4
-    v55 = eq v54, false
-    icall panic_if<0x32>, v55
-    v56 = div 3, 4
-    v57 = add 1, v56
-    v58 = mod 3, 4
-    v59 = mul v58, 8
-    v60 = mul v59, 8
-    v61 = shl 0xffffffffffffffff, v60
-    v62 = sload v57 !metadata(storage=offset(v56, 1))
-    v63 = not v61
-    v64 = and v62, v63
-    v65 = and 5, 0xffffffffffffffff
-    v66 = shl v65, v60
-    v67 = or v64, v66
-    sstore v57, v67 !metadata(storage=offset(v56, 1))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v2 = or v1, 2
+    sstore 0, v2 !metadata(storage=slot(0))
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = and v3, 0xffffffffffffffffffffffffffffffff0000000000000000ffffffffffffffff
+    v5 = or v4, 0x11223344556677880000000000000000
+    sstore 0, v5 !metadata(storage=slot(0))
+    v6 = lt 0, 4
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = sload 1 !metadata(storage=slot(1))
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v10 = or v9, 2
+    sstore 1, v10 !metadata(storage=slot(1))
+    v11 = lt 1, 4
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = sload 1 !metadata(storage=slot(1))
+    v14 = and v13, 0xffffffffffffffffffffffffffffffff0000000000000000ffffffffffffffff
+    v15 = or v14, 0x30000000000000000
+    sstore 1, v15 !metadata(storage=slot(1))
+    v16 = lt 2, 4
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = sload 1 !metadata(storage=slot(1))
+    v19 = and v18, 0xffffffffffffffff0000000000000000ffffffffffffffffffffffffffffffff
+    v20 = or v19, 0x400000000000000000000000000000000
+    sstore 1, v20 !metadata(storage=slot(1))
+    v21 = lt 3, 4
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = sload 1 !metadata(storage=slot(1))
+    v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v25 = or v24, 0x5000000000000000000000000000000000000000000000000
+    sstore 1, v25 !metadata(storage=slot(1))
     ret
 }
 

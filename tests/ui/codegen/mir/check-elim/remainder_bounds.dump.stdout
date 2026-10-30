@@ -9,14 +9,14 @@ fn @pick() [selector=0x9d6a1cd3, abi_wrapper, pure] {
     v21 = add v20, 4
     v23 = sub v18, 36
     v24 = gt v20, v23
-    v33 = or v19, v24
+    v32 = or v19, v24
     v25 = calldataload v21
     v26 = add v21, 32
     v27 = sub v18, v26
     v28 = shr v27, 5
     v29 = gt v25, v28
-    v34 = or v33, v29
-    jumpi v34, bb3, bb4
+    v33 = or v32, v29
+    jumpi v33, bb3, bb4
   bb4:
     v16 = ne v25, 0
     jumpi v16, bb2, bb1
@@ -43,33 +43,33 @@ fn @pickDown() [selector=0xe4bcb1d7, abi_wrapper, pure] {
     v22 = add v21, 4
     v24 = sub v19, 36
     v25 = gt v21, v24
-    v56 = or v20, v25
-    jumpi v56, bb6, bb7
+    v55 = or v20, v25
+    jumpi v55, bb6, bb7
   bb7:
     v26 = calldataload v22
     v27 = add v22, 32
     v28 = gt v26, 0x7fffffffffffffe
     v29 = add v26, 1
     v30 = shl v29, 5
-    v49 = heap_floor !metadata(alloc_ptr)
-    v50 = add v49, v30 !metadata(alloc_ptr)
-    v51 = lt v50, v49
-    v52 = gt v50, 0xffffffffffffffff
-    v53 = or v51, v52
-    v57 = or v28, v53
-    jumpi v57, bb8, bb10
+    v48 = heap_floor !metadata(alloc_ptr)
+    v49 = add v48, v30 !metadata(alloc_ptr)
+    v50 = lt v49, v48
+    v51 = gt v49, 0xffffffffffffffff
+    v52 = or v50, v51
+    v56 = or v28, v52
+    jumpi v56, bb8, bb10
   bb10:
-    mstore 64, v50 !metadata(memory=scratch)
-    mstore v49, v26
+    mstore 64, v49 !metadata(memory=scratch)
+    mstore v48, v26
     v32 = shl v26, 5
     v33 = sub v19, v27
     v34 = shr v33, 5
     v35 = gt v26, v34
     jumpi v35, bb6, bb9
   bb9:
-    v46 = add v49, 32
-    calldatacopy v46, v27, v32
-    v55 = add v49, 32
+    v45 = add v48, 32
+    calldatacopy v45, v27, v32
+    v54 = add v48, 32
     jump bb1
   bb1:
     v3 = phi [bb9: 0], [bb5: v17]
@@ -83,8 +83,8 @@ fn @pickDown() [selector=0xe4bcb1d7, abi_wrapper, pure] {
     v6 = shr arg1, v4
     v7 = mod v6, v4
     v11 = shl v7, 5
-    v44 = add v55, v11
-    v14 = mload v44
+    v43 = add v54, v11
+    v14 = mload v43
     v17 = add v3, v14
     v18 = lt v17, v3
     jumpi v18, bb4, bb5

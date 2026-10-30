@@ -97,84 +97,81 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v32 = returndatasize
     v33 = lt v32, 64
     icall revert_if<tuple_data_too_short>, v33
-    v34 = ptrtoint ptr<memory> v28 to i256
-    v35 = add v34, 0
-    v36 = mload v35
-    v37 = ptrtoint ptr<memory> v28 to i256
-    v38 = add v37, 32
-    v39 = mload v38
-    v40 = insert_value struct0, undef struct0, 0, v36
-    v41 = insert_value struct0, v40, 1, v39
-    v42 = extract_value struct0, v41, 0
-    v43 = extract_value struct0, v41, 1
-    v44 = alloc zeroed checked 64
-    mstore v44, 1
+    v34 = mload v28
+    v35 = ptrtoint ptr<memory> v28 to i256
+    v36 = add v35, 32
+    v37 = mload v36
+    v38 = insert_value struct0, undef struct0, 0, v34
+    v39 = insert_value struct0, v38, 1, v37
+    v40 = extract_value struct0, v39, 0
+    v41 = extract_value struct0, v39, 1
+    v42 = alloc zeroed checked 64
+    mstore v42, 1
     jump bb6
   bb6:
-    v45 = phi [bb5: 0], [bb7: v52]
-    v46 = lt v45, 1
-    jumpi v46, bb7, bb8
+    v43 = phi [bb5: 0], [bb7: v50]
+    v44 = lt v43, 1
+    jumpi v44, bb7, bb8
   bb8:
-    v53 = alloc 160
-    mstore v53, 1
-    v54 = ptradd v53, 32
-    mstore v54, 2
-    v55 = ptradd v53, 64
-    mstore v55, 3
-    v56 = ptradd v53, 96
-    mstore v56, 4
-    v57 = ptradd v53, 128
-    mstore v57, 5
-    v58 = mload v44
-    v59 = lt 0, v58
-    v60 = eq v59, false
-    icall panic_if<0x32>, v60
-    v61 = ptrtoint ptr<memory> v53 to i256
-    v62 = ptradd v44, 32
-    mstore v62, v61
-    v63 = eq v42, 2
-    jumpi v63, bb9, bb10
+    v51 = alloc 160
+    mstore v51, 1
+    v52 = ptradd v51, 32
+    mstore v52, 2
+    v53 = ptradd v51, 64
+    mstore v53, 3
+    v54 = ptradd v51, 96
+    mstore v54, 4
+    v55 = ptradd v51, 128
+    mstore v55, 5
+    v56 = mload v42
+    v57 = lt 0, v56
+    v58 = eq v57, false
+    icall panic_if<0x32>, v58
+    v59 = ptrtoint ptr<memory> v51 to i256
+    v60 = ptradd v42, 32
+    mstore v60, v59
+    v61 = eq v40, 2
+    jumpi v61, bb9, bb10
   bb10:
     jump bb11
   bb9:
-    v64 = eq v43, v24
+    v62 = eq v41, v24
     jump bb11
   bb11:
-    v65 = phi [bb9: v64], [bb10: false]
-    jumpi v65, bb12, bb13
+    v63 = phi [bb9: v62], [bb10: false]
+    jumpi v63, bb12, bb13
   bb13:
     jump bb14
   bb12:
-    v66 = address
-    v67 = gas
-    v68 = abi_encode [memory_array<tuple<word, word, word, word, word>>], selector 0x68057f1e00000000000000000000000000000000000000000000000000000000, args v44
-    v69 = extract_value slice<memory>, v68, 0
-    v70 = extract_value slice<memory>, v68, 1
-    v71 = zext i160 v66 to i256
-    v72 = staticcall v67, v71, v69, v70, 0, 32
-    jumpi v72, bb16, bb15
+    v64 = address
+    v65 = gas
+    v66 = abi_encode [memory_array<tuple<word, word, word, word, word>>], selector 0x68057f1e00000000000000000000000000000000000000000000000000000000, args v42
+    v67 = extract_value slice<memory>, v66, 0
+    v68 = extract_value slice<memory>, v66, 1
+    v69 = zext i160 v64 to i256
+    v70 = staticcall v65, v69, v67, v68, 0, 32
+    jumpi v70, bb16, bb15
   bb15:
     revert_returndata
   bb16:
-    v73 = returndatasize
-    v74 = lt v73, 32
-    icall revert_if<tuple_data_too_short>, v74
-    v75 = add 0, 0
-    v76 = mload v75
-    v77 = eq v76, 6
+    v71 = returndatasize
+    v72 = lt v71, 32
+    icall revert_if<tuple_data_too_short>, v72
+    v73 = mload 0 !metadata(memory=scratch)
+    v74 = eq v73, 6
     jump bb14
   bb14:
-    v78 = phi [bb16: v77], [bb13: false]
-    ret v78
+    v75 = phi [bb16: v74], [bb13: false]
+    ret v75
   bb7:
-    v47 = alloc 160 !metadata(preserves_fmp)
-    memory_zero v47, 160
-    v48 = shl v45, 5
-    v49 = ptradd v44, v48
-    v50 = ptradd v49, 32
-    v51 = ptrtoint ptr<memory> v47 to i256
-    mstore v50, v51
-    v52 = add v45, 1
+    v45 = alloc 160 !metadata(preserves_fmp)
+    memory_zero v45, 160
+    v46 = shl v43, 5
+    v47 = ptradd v42, v46
+    v48 = ptradd v47, 32
+    v49 = ptrtoint ptr<memory> v45 to i256
+    mstore v48, v49
+    v50 = add v43, 1
     jump bb6
   bb2:
     v3 = shl v1, 5

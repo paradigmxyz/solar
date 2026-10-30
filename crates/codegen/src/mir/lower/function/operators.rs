@@ -27,7 +27,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return value;
         }
         let mask = self.builder.imm(U256::MAX << (256 - usize::from(bytes) * 8));
-        self.builder.and(value, mask)
+        self.builder.and_folded(value, mask)
     }
 
     pub(super) fn binary(

@@ -203,72 +203,71 @@ fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_retur
     v19 = mload v0
     jump bb4
   bb4:
-    v20 = phi [bb3: 0], [bb5: v35]
-    v21 = phi [bb3: 0], [bb5: v33]
+    v20 = phi [bb3: 0], [bb5: v34]
+    v21 = phi [bb3: 0], [bb5: v32]
     v22 = lt v20, v19
     jumpi v22, bb5, bb6
   bb6:
-    v36 = mul v21, 32
-    v37 = eq 32, 0
-    v38 = div v36, 32
-    v39 = eq v38, v21
-    v40 = or v37, v39
-    v41 = zext i1 v40 to i256
-    v42 = eq v41, 0
-    icall panic_if<0x41>, v42
-    v43 = add 32, v36
-    v44 = lt v43, 32
-    icall panic_if<0x41>, v44
-    v45 = alloc v43
-    mstore v45, v36
-    v46 = mload v0
+    v35 = mul v21, 32
+    v36 = eq 32, 0
+    v37 = div v35, 32
+    v38 = eq v37, v21
+    v39 = or v36, v38
+    v40 = zext i1 v39 to i256
+    v41 = eq v40, 0
+    icall panic_if<0x41>, v41
+    v42 = add 32, v35
+    v43 = lt v42, 32
+    icall panic_if<0x41>, v43
+    v44 = alloc v42
+    mstore v44, v35
+    v45 = mload v0
     jump bb7
   bb7:
-    v47 = phi [bb6: 0], [bb11: v72]
-    v48 = phi [bb6: 0], [bb11: v71]
-    v49 = lt v47, v46
-    jumpi v49, bb8, bb9
+    v46 = phi [bb6: 0], [bb11: v70]
+    v47 = phi [bb6: 0], [bb11: v69]
+    v48 = lt v46, v45
+    jumpi v48, bb8, bb9
   bb9:
-    v73 = ptradd v45, 32
-    v74 = mload v45
-    v75 = keccak256 v73, v74
-    log 0, 0, 0xe9d28597fb984e7305318ffadc229c4d310bb7cf174b53aff9316f6e3cc105e8, v18, v75
-    v76 = alloc 64 !metadata(preserves_fmp)
-    mstore v76, 5
-    v77 = ptradd v76, 32
-    mstore v77, 0x776f726c64000000000000000000000000000000000000000000000000000000
-    ret v76
+    v71 = ptradd v44, 32
+    v72 = mload v44
+    v73 = keccak256 v71, v72
+    log 0, 0, 0xe9d28597fb984e7305318ffadc229c4d310bb7cf174b53aff9316f6e3cc105e8, v18, v73
+    v74 = alloc 64 !metadata(preserves_fmp)
+    mstore v74, 5
+    v75 = ptradd v74, 32
+    mstore v75, 0x776f726c64000000000000000000000000000000000000000000000000000000
+    ret v74
   bb8:
-    v50 = shl v47, 5
-    v51 = ptradd v0, v50
-    v52 = ptradd v51, 32
+    v49 = shl v46, 5
+    v50 = ptradd v0, v49
+    v51 = ptradd v50, 32
+    v52 = mload v51
     v53 = mload v52
-    v54 = mload v53
-    v55 = add v54, 31
-    v56 = lt v55, v54
-    icall panic_if<0x41>, v56
-    v57 = not 31
-    v58 = and v55, v57
-    v59 = eq v58, 0
-    jumpi v59, bb11, bb10
+    v54 = add v53, 31
+    v55 = lt v54, v53
+    icall panic_if<0x41>, v55
+    v56 = and v54, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v57 = eq v56, 0
+    jumpi v57, bb11, bb10
   bb10:
-    v60 = sub v58, 32
-    v61 = add v48, v60
-    v62 = ptradd v45, v61
-    v63 = ptradd v62, 32
-    mstore v63, 0
+    v58 = sub v56, 32
+    v59 = add v47, v58
+    v60 = ptradd v44, v59
+    v61 = ptradd v60, 32
+    mstore v61, 0
     jump bb11
   bb11:
-    v64 = add v53, 32
-    v65 = inttoptr i256 v64 to ptr<memory>
-    v66 = make_memory_slice v65, v54
-    v67 = ptradd v45, v48
-    v68 = ptradd v67, 32
-    v69 = extract_value slice<memory>, v66, 0
-    v70 = extract_value slice<memory>, v66, 1
-    mcopy v68, v69, v70
-    v71 = add v48, v58
-    v72 = add v47, 1
+    v62 = add v52, 32
+    v63 = inttoptr i256 v62 to ptr<memory>
+    v64 = make_memory_slice v63, v53
+    v65 = ptradd v44, v47
+    v66 = ptradd v65, 32
+    v67 = extract_value slice<memory>, v64, 0
+    v68 = extract_value slice<memory>, v64, 1
+    mcopy v66, v67, v68
+    v69 = add v47, v56
+    v70 = add v46, 1
     jump bb7
   bb5:
     v23 = shl v20, 5
@@ -279,13 +278,12 @@ fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_retur
     v28 = add v27, 31
     v29 = lt v28, v27
     icall panic_if<0x41>, v29
-    v30 = not 31
-    v31 = and v28, v30
-    v32 = div v31, 32
-    v33 = add v21, v32
-    v34 = lt v33, v21
-    icall panic_if<0x41>, v34
-    v35 = add v20, 1
+    v30 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v31 = div v30, 32
+    v32 = add v21, v31
+    v33 = lt v32, v21
+    icall panic_if<0x41>, v33
+    v34 = add v20, 1
     jump bb4
   bb2:
     v3 = shl v1, 5

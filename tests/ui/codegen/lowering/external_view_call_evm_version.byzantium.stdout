@@ -13,9 +13,8 @@ fn @read(arg0: i160) -> i256 [selector=0xa087a87e, view, abi_params=[address], a
     v3 = returndatasize
     v4 = lt v3, 32
     icall revert_if<tuple_data_too_short>, v4
-    v5 = add 0, 0
-    v6 = mload v5
-    ret v6
+    v5 = mload 0 !metadata(memory=scratch)
+    ret v5
 }
 
 fn @readPointer(arg0: i256) -> i256 [selector=0x92528617, view, abi_params=[function], abi_returns=[word], abi_return_params=[uint256]] {
@@ -34,7 +33,6 @@ fn @readPointer(arg0: i256) -> i256 [selector=0x92528617, view, abi_params=[func
     v6 = returndatasize
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7
-    v8 = add 0, 0
-    v9 = mload v8
-    ret v9
+    v8 = mload 0 !metadata(memory=scratch)
+    ret v8
 }

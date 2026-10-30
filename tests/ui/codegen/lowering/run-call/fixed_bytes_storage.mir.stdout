@@ -6,47 +6,26 @@
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = shl 0xffff, 16
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = not v0
-    v3 = and v1, v2
-    v4 = shr 0xbbcc000000000000000000000000000000000000000000000000000000000000, 240
-    v5 = and v4, 0xffff
-    v6 = shl v5, 16
-    v7 = or v3, v6
-    sstore 0, v7 !metadata(storage=slot(0))
-    v8 = sload 0 !metadata(storage=slot(0))
-    v9 = not 255
-    v10 = and v8, v9
-    v11 = shr 0xaa00000000000000000000000000000000000000000000000000000000000000, 248
-    v12 = and v11, 255
-    v13 = or v10, v12
-    sstore 0, v13 !metadata(storage=slot(0))
-    v14 = shl 255, 8
-    v15 = sload 0 !metadata(storage=slot(0))
-    v16 = not v14
-    v17 = and v15, v16
-    v18 = and 17, 255
-    v19 = shl v18, 8
-    v20 = or v17, v19
-    sstore 0, v20 !metadata(storage=slot(0))
-    v21 = shl 255, 32
-    v22 = sload 0 !metadata(storage=slot(0))
-    v23 = not v21
-    v24 = and v22, v23
-    v25 = and 254, 255
-    v26 = shl v25, 32
-    v27 = or v24, v26
-    sstore 0, v27 !metadata(storage=slot(0))
-    v28 = shl 0xffffff, 40
-    v29 = sload 0 !metadata(storage=slot(0))
-    v30 = not v28
-    v31 = and v29, v30
-    v32 = shr 0xddeeff0000000000000000000000000000000000000000000000000000000000, 232
-    v33 = and v32, 0xffffff
-    v34 = shl v33, 40
-    v35 = or v31, v34
-    sstore 0, v35 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000ffff
+    v2 = or v1, 0xbbcc0000
+    sstore 0, v2 !metadata(storage=slot(0))
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v5 = or v4, 170
+    sstore 0, v5 !metadata(storage=slot(0))
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v8 = or v7, 0x1100
+    sstore 0, v8 !metadata(storage=slot(0))
+    v9 = sload 0 !metadata(storage=slot(0))
+    v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffff00ffffffff
+    v11 = or v10, 0xfe00000000
+    sstore 0, v11 !metadata(storage=slot(0))
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffff000000ffffffffff
+    v14 = or v13, 0xddeeff0000000000
+    sstore 0, v14 !metadata(storage=slot(0))
     ret
 }
 

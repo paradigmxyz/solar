@@ -21,99 +21,55 @@ fn @preserveNeighbors() -> struct1 [selector=0xf110cb82, abi_params=[], abi_retu
     v0 = lt 6, 7
     v1 = eq v0, false
     icall panic_if<0x32>, v1
-    v2 = div 6, 3
-    v3 = add 0, v2
-    v4 = mod 6, 3
-    v5 = mul v4, 9
-    v6 = mul v5, 8
-    v7 = shl 0xffffffffffffffffff, v6
-    v8 = sload v3 !metadata(storage=symbolic(v2))
-    v9 = not v7
-    v10 = and v8, v9
-    v11 = shr 0x60000000000000000000000000000000000000000000000, 184
-    v12 = and v11, 0xffffffffffffffffff
-    v13 = shl v12, v6
-    v14 = or v10, v13
-    sstore v3, v14 !metadata(storage=symbolic(v2))
+    v2 = sload 2 !metadata(storage=slot(2))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffff000000000000000000
+    v4 = or v3, 6
+    sstore 2, v4 !metadata(storage=slot(2))
     sstore 3, 11 !metadata(storage=slot(3))
-    v15 = lt 2, 3
+    v5 = lt 2, 3
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = sload 6 !metadata(storage=slot(6))
+    v8 = and v7, 0xffffffffffffffffffffffffffffff0000000000000000000000000000000000
+    v9 = or v8, 3
+    sstore 6, v9 !metadata(storage=slot(6))
+    sstore 7, 12 !metadata(storage=slot(7))
+    v10 = lt 2, 3
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = sload 9 !metadata(storage=slot(9))
+    v13 = and v12, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v14 = or v13, 3
+    sstore 9, v14 !metadata(storage=slot(9))
+    sstore 10, 13 !metadata(storage=slot(10))
+    v15 = lt 6, 7
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = div 2, 1
-    v18 = add 4, v17
-    v19 = mod 2, 1
-    v20 = mul v19, 17
-    v21 = mul v20, 8
-    v22 = shl 0xffffffffffffffffffffffffffffffffff, v21
-    v23 = sload v18 !metadata(storage=offset(v17, 4))
-    v24 = not v22
-    v25 = and v23, v24
-    v26 = shr 0x3000000000000000000000000000000, 120
-    v27 = and v26, 0xffffffffffffffffffffffffffffffffff
-    v28 = shl v27, v21
-    v29 = or v25, v28
-    sstore v18, v29 !metadata(storage=offset(v17, 4))
-    sstore 7, 12 !metadata(storage=slot(7))
-    v30 = lt 2, 3
-    v31 = eq v30, false
-    icall panic_if<0x32>, v31
-    v32 = div 2, 2
-    v33 = add 8, v32
-    v34 = mod 2, 2
-    v35 = mul v34, 16
-    v36 = mul v35, 8
-    v37 = shl 0xffffffffffffffffffffffffffffffff, v36
-    v38 = sload v33 !metadata(storage=offset(v32, 8))
-    v39 = not v37
-    v40 = and v38, v39
-    v41 = and 3, 0xffffffffffffffffffffffffffffffff
-    v42 = shl v41, v36
-    v43 = or v40, v42
-    sstore v33, v43 !metadata(storage=offset(v32, 8))
-    sstore 10, 13 !metadata(storage=slot(10))
-    v44 = lt 6, 7
-    v45 = eq v44, false
-    icall panic_if<0x32>, v45
-    v46 = div 6, 3
-    v47 = add 0, v46
-    v48 = mod 6, 3
-    v49 = mul v48, 9
-    v50 = sload v47 !metadata(storage=symbolic(v46))
-    v51 = mul v49, 8
-    v52 = shr v50, v51
-    v53 = shl v52, 184
-    v54 = sload 3 !metadata(storage=slot(3))
-    v55 = lt 2, 3
-    v56 = eq v55, false
-    icall panic_if<0x32>, v56
-    v57 = div 2, 1
-    v58 = add 4, v57
-    v59 = mod 2, 1
-    v60 = mul v59, 17
-    v61 = sload v58 !metadata(storage=offset(v57, 4))
-    v62 = mul v60, 8
-    v63 = shr v61, v62
-    v64 = shl v63, 120
-    v65 = sload 7 !metadata(storage=slot(7))
-    v66 = lt 2, 3
-    v67 = eq v66, false
-    icall panic_if<0x32>, v67
-    v68 = div 2, 2
-    v69 = add 8, v68
-    v70 = mod 2, 2
-    v71 = mul v70, 16
-    v72 = sload v69 !metadata(storage=offset(v68, 8))
-    v73 = mul v71, 8
-    v74 = shr v72, v73
-    v75 = trunc i256 v74 to i128
-    v76 = sload 10 !metadata(storage=slot(10))
-    v77 = insert_value struct1, undef struct1, 0, v53
-    v78 = insert_value struct1, v77, 1, v54
-    v79 = insert_value struct1, v78, 2, v64
-    v80 = insert_value struct1, v79, 3, v65
-    v81 = insert_value struct1, v80, 4, v75
-    v82 = insert_value struct1, v81, 5, v76
-    ret v82
+    v17 = sload 2 !metadata(storage=slot(2))
+    v18 = shr v17, 0
+    v19 = shl v18, 184
+    v20 = sload 3 !metadata(storage=slot(3))
+    v21 = lt 2, 3
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = sload 6 !metadata(storage=slot(6))
+    v24 = shr v23, 0
+    v25 = shl v24, 120
+    v26 = sload 7 !metadata(storage=slot(7))
+    v27 = lt 2, 3
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = sload 9 !metadata(storage=slot(9))
+    v30 = shr v29, 0
+    v31 = trunc i256 v30 to i128
+    v32 = sload 10 !metadata(storage=slot(10))
+    v33 = insert_value struct1, undef struct1, 0, v19
+    v34 = insert_value struct1, v33, 1, v20
+    v35 = insert_value struct1, v34, 2, v25
+    v36 = insert_value struct1, v35, 3, v26
+    v37 = insert_value struct1, v36, 4, v31
+    v38 = insert_value struct1, v37, 5, v32
+    ret v38
 }
 
 fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], abi_returns=[word<uint72>, word<uint72>, word<uint72>, word], abi_return_params=[uint72, uint72, uint72, bytes32]] {
@@ -133,106 +89,96 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     v25 = lt 9, 10
     v26 = eq v25, false
     icall panic_if<0x32>, v26
-    v27 = add 11, 9
-    sstore v27, 0x2000000000000000000000000000000000000000000000000 !metadata(storage=slot(20))
-    v28 = lt 8, 10
-    v29 = eq v28, false
-    icall panic_if<0x32>, v29
-    v30 = add 11, 8
-    sstore v30, 0x2000000000000000000000000000000000000000000000000 !metadata(storage=slot(19))
-    v31 = alloc checked 224
+    sstore 20, 0x2000000000000000000000000000000000000000000000000 !metadata(storage=slot(20))
+    v27 = lt 8, 10
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    sstore 19, 0x2000000000000000000000000000000000000000000000000 !metadata(storage=slot(19))
+    v29 = alloc checked 224
     jump bb7
   bb7:
-    v32 = phi [bb2: 0], [bb12: v49]
-    v33 = lt v32, 3
-    jumpi v33, bb8, bb9
+    v30 = phi [bb2: 0], [bb12: v47]
+    v31 = lt v30, 3
+    jumpi v31, bb8, bb9
   bb9:
-    v50 = ptrtoint ptr<memory> v31 to i256
+    v48 = ptrtoint ptr<memory> v29 to i256
     jump bb13
   bb13:
-    v51 = phi [bb9: 0], [bb18: v58]
-    v52 = lt v51, 10
-    jumpi v52, bb14, bb15
+    v49 = phi [bb9: 0], [bb18: v56]
+    v50 = lt v49, 10
+    jumpi v50, bb14, bb15
   bb15:
-    v59 = lt 6, 7
-    v60 = eq v59, false
-    icall panic_if<0x32>, v60
-    v61 = div 6, 3
-    v62 = add 0, v61
-    v63 = mod 6, 3
-    v64 = mul v63, 9
-    v65 = sload v62 !metadata(storage=symbolic(v61))
-    v66 = mul v64, 8
-    v67 = shr v65, v66
-    v68 = shl v67, 184
-    v69 = shr v68, 184
-    v70 = trunc i256 v69 to i72
-    v71 = lt 1, 10
-    v72 = eq v71, false
-    icall panic_if<0x32>, v72
-    v73 = add 11, 1
-    v74 = sload v73 !metadata(storage=slot(12))
-    v75 = and v74, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
-    v76 = shr v75, 184
-    v77 = trunc i256 v76 to i72
-    v78 = lt 6, 10
-    v79 = eq v78, false
-    icall panic_if<0x32>, v79
-    v80 = add 11, 6
-    v81 = sload v80 !metadata(storage=slot(17))
-    v82 = and v81, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
-    v83 = shr v82, 184
-    v84 = trunc i256 v83 to i72
-    v85 = lt 9, 10
-    v86 = eq v85, false
-    icall panic_if<0x32>, v86
-    v87 = add 11, 9
-    v88 = sload v87 !metadata(storage=slot(20))
-    v89 = insert_value struct2, undef struct2, 0, v70
-    v90 = insert_value struct2, v89, 1, v77
-    v91 = insert_value struct2, v90, 2, v84
-    v92 = insert_value struct2, v91, 3, v88
-    ret v92
+    v57 = lt 6, 7
+    v58 = eq v57, false
+    icall panic_if<0x32>, v58
+    v59 = sload 2 !metadata(storage=slot(2))
+    v60 = shr v59, 0
+    v61 = shl v60, 184
+    v62 = shr v61, 184
+    v63 = trunc i256 v62 to i72
+    v64 = lt 1, 10
+    v65 = eq v64, false
+    icall panic_if<0x32>, v65
+    v66 = sload 12 !metadata(storage=slot(12))
+    v67 = and v66, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
+    v68 = shr v67, 184
+    v69 = trunc i256 v68 to i72
+    v70 = lt 6, 10
+    v71 = eq v70, false
+    icall panic_if<0x32>, v71
+    v72 = sload 17 !metadata(storage=slot(17))
+    v73 = and v72, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
+    v74 = shr v73, 184
+    v75 = trunc i256 v74 to i72
+    v76 = lt 9, 10
+    v77 = eq v76, false
+    icall panic_if<0x32>, v77
+    v78 = sload 20 !metadata(storage=slot(20))
+    v79 = insert_value struct2, undef struct2, 0, v63
+    v80 = insert_value struct2, v79, 1, v69
+    v81 = insert_value struct2, v80, 2, v75
+    v82 = insert_value struct2, v81, 3, v78
+    ret v82
   bb14:
-    v53 = add 11, v51
-    v54 = lt v51, 7
-    jumpi v54, bb16, bb17
+    v51 = add 11, v49
+    v52 = lt v49, 7
+    jumpi v52, bb16, bb17
   bb17:
-    sstore v53, 0 !metadata(storage=offset(v51, 11))
+    sstore v51, 0 !metadata(storage=offset(v49, 11))
     jump bb18
   bb16:
-    v55 = shl v51, 5
-    v56 = ptradd v31, v55
-    v57 = mload v56
-    sstore v53, v57 !metadata(storage=offset(v51, 11))
+    v53 = shl v49, 5
+    v54 = ptradd v29, v53
+    v55 = mload v54
+    sstore v51, v55 !metadata(storage=offset(v49, 11))
     jump bb18
   bb18:
-    v58 = add v51, 1
+    v56 = add v49, 1
     jump bb13
   bb8:
-    v34 = add 0, v32
-    v35 = sload v34 !metadata(storage=symbolic(v32))
-    v36 = mul v32, 3
-    v37 = sub 7, v36
-    v38 = lt v37, 3
-    v39 = select v38, v37, 3
+    v32 = add 0, v30
+    v33 = sload v32 !metadata(storage=symbolic(v30))
+    v34 = mul v30, 3
+    v35 = sub 7, v34
+    v36 = lt v35, 3
+    v37 = select v36, v35, 3
     jump bb10
   bb10:
-    v40 = phi [bb8: 0], [bb11: v48]
-    v41 = lt v40, v39
-    jumpi v41, bb11, bb12
+    v38 = phi [bb8: 0], [bb11: v46]
+    v39 = lt v38, v37
+    jumpi v39, bb11, bb12
   bb12:
-    v49 = add v32, 1
+    v47 = add v30, 1
     jump bb7
   bb11:
-    v42 = mul v40, 72
-    v43 = shr v35, v42
-    v44 = shl v43, 184
-    v45 = add v36, v40
-    v46 = shl v45, 5
-    v47 = ptradd v31, v46
-    mstore v47, v44
-    v48 = add v40, 1
+    v40 = mul v38, 72
+    v41 = shr v33, v40
+    v42 = shl v41, 184
+    v43 = add v34, v38
+    v44 = shl v43, 5
+    v45 = ptradd v29, v44
+    mstore v45, v42
+    v46 = add v38, 1
     jump bb10
   bb4:
     v6 = trunc i256 v4 to i72

@@ -28,14 +28,14 @@ fn @use() [selector=0x01bd03f7, abi_wrapper, pure] {
     v11 = sub v2, v10
     v12 = gt v9, v11
     v13 = or v8, v12
-    v26 = or v3, v13
-    jumpi v26, bb1, bb2
+    v25 = or v3, v13
+    jumpi v25, bb1, bb2
   bb2:
     v0 = icall @unwrap, v10, v9
-    v21 = mload 32 !metadata(memory=scratch)
-    v22 = add v21, 32
-    v23 = mload v22
-    mstore 0, v23
+    v20 = mload 32 !metadata(memory=scratch)
+    v21 = add v20, 32
+    v22 = mload v21
+    mstore 0, v22
     returndata 0, 32
   bb1:
     revert 0, 0

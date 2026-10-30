@@ -18,14 +18,13 @@ fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[uint256, uint2
     v0 = add arg0, 63
     v1 = lt v0, arg0
     icall panic_if<0x41>, v1
-    v2 = not 31
-    v3 = and v0, v2
-    v4 = alloc zeroed checked v3
-    mstore v4, arg0
-    v5 = ptradd v4, 32
-    v6 = mload v4
-    v7 = keccak256 v5, v6
-    sstore 0, v7 !metadata(storage=slot(0))
+    v2 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = alloc zeroed checked v2
+    mstore v3, arg0
+    v4 = ptradd v3, 32
+    v5 = mload v3
+    v6 = keccak256 v4, v5
+    sstore 0, v6 !metadata(storage=slot(0))
     sstore 1, arg1 !metadata(storage=slot(1))
     ret
 }

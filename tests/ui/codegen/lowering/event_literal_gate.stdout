@@ -6,21 +6,21 @@
 
 fn @copied() [selector=0xa2e8f7e5, abi_wrapper] {
   bb0:
-    v29 = heap_floor !metadata(alloc_ptr)
-    v30 = add v29, 192 !metadata(alloc_ptr)
-    mstore v29, 153
-    v25 = add v29, 32
-    datacopy literal_0, v25, 160
-    v7 = add v29, 256
-    mstore v30, 64
-    v14 = add v7, 32
-    v15 = add v7, 160
-    mstore v15, 0
+    v28 = heap_floor !metadata(alloc_ptr)
+    v29 = add v28, 192 !metadata(alloc_ptr)
+    mstore v28, 153
+    v24 = add v28, 32
+    datacopy literal_0, v24, 160
+    v7 = add v28, 256
+    mstore v29, 64
+    v13 = add v7, 32
+    v14 = add v7, 160
+    mstore v14, 0
     mstore v7, 153
-    mcopy v14, v25, 153 !metadata(disjoint)
-    v19 = add v29, 224
-    mstore v19, 1
-    log v30, 256, 0x1fc1ee74e64a4613da0ebad7aa1e41655ed6a50b1e27ec21849a5cd4db9381dd
+    mcopy v13, v24, 153 !metadata(disjoint)
+    v18 = add v28, 224
+    mstore v18, 1
+    log v29, 256, 0x1fc1ee74e64a4613da0ebad7aa1e41655ed6a50b1e27ec21849a5cd4db9381dd
     stop
 }
 
@@ -42,22 +42,22 @@ fn @stored() [selector=0xe582dd31, abi_wrapper] {
 
 fn @zeros() [selector=0x4cd212eb, abi_wrapper] {
   bb0:
-    v29 = heap_floor !metadata(alloc_ptr)
-    v30 = add v29, 96 !metadata(alloc_ptr)
-    mstore v29, 40
-    v25 = add v29, 32
-    v32 = calldatasize
-    calldatacopy v25, v32, 64
-    v7 = add v29, 160
-    mstore v30, 64
-    v14 = add v7, 32
-    v15 = add v7, 64
-    mstore v15, 0
+    v28 = heap_floor !metadata(alloc_ptr)
+    v29 = add v28, 96 !metadata(alloc_ptr)
+    mstore v28, 40
+    v24 = add v28, 32
+    v31 = calldatasize
+    calldatacopy v24, v31, 64
+    v7 = add v28, 160
+    mstore v29, 64
+    v13 = add v7, 32
+    v14 = add v7, 64
+    mstore v14, 0
     mstore v7, 40
-    mcopy v14, v25, 40 !metadata(disjoint)
-    v19 = add v29, 128
-    mstore v19, 1
-    log v30, 160, 0x1fc1ee74e64a4613da0ebad7aa1e41655ed6a50b1e27ec21849a5cd4db9381dd
+    mcopy v13, v24, 40 !metadata(disjoint)
+    v18 = add v28, 128
+    mstore v18, 1
+    log v29, 160, 0x1fc1ee74e64a4613da0ebad7aa1e41655ed6a50b1e27ec21849a5cd4db9381dd
     stop
 }
 

@@ -6,32 +6,27 @@
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
-    v4 = or v2, v3
-    sstore 0, v4 !metadata(storage=slot(0))
-    v5 = add 0, 1
-    v6 = sload v5 !metadata(storage=slot(1))
-    v7 = gt v6, 0xffffffffffffffff
-    icall panic_if<0x41>, v7
-    v8 = add v6, 1
-    v9 = storage_array_data_slot v5
-    v10 = div v6, 8
-    v11 = add v9, v10
-    v12 = mod v6, 8
-    v13 = mul v12, 4
-    v14 = mul v13, 8
-    v15 = shl 0xffffffff, v14
-    v16 = sload v11 !metadata(storage=symbolic(v11))
-    v17 = not v15
-    v18 = and v16, v17
-    v19 = shr 0x1234567800000000000000000000000000000000000000000000000000000000, 224
-    v20 = and v19, 0xffffffff
-    v21 = shl v20, v14
-    v22 = or v18, v21
-    sstore v11, v22 !metadata(storage=symbolic(v11))
-    sstore v5, v8 !metadata(storage=slot(1))
+    v1 = and v0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v2 = or v1, 0x1234
+    sstore 0, v2 !metadata(storage=slot(0))
+    v3 = sload 1 !metadata(storage=slot(1))
+    v4 = gt v3, 0xffffffffffffffff
+    icall panic_if<0x41>, v4
+    v5 = add v3, 1
+    v6 = storage_array_data_slot 1
+    v7 = div v3, 8
+    v8 = add v6, v7
+    v9 = mod v3, 8
+    v10 = mul v9, 4
+    v11 = mul v10, 8
+    v12 = shl 0xffffffff, v11
+    v13 = sload v8 !metadata(storage=symbolic(v8))
+    v14 = not v12
+    v15 = and v13, v14
+    v16 = shl 0x12345678, v11
+    v17 = or v15, v16
+    sstore v8, v17 !metadata(storage=symbolic(v8))
+    sstore 1, v5 !metadata(storage=slot(1))
     ret
 }
 
@@ -42,25 +37,24 @@ fn @readCopy() -> struct0 [selector=0x3af23521, view, abi_params=[], abi_returns
     v2 = trunc i256 v1 to i160
     v3 = zext i160 v2 to i256
     mstore v0, v3
-    v4 = add 0, 1
-    v5 = icall @load_storage_packed_array_4_2, v4
-    v6 = ptrtoint ptr<memory> v5 to i256
-    v7 = ptradd v0, 32
-    mstore v7, v6
-    v8 = mload v0
-    v9 = trunc i256 v8 to i160
-    v10 = ptradd v0, 32
-    v11 = mload v10, ptr<memory>
-    v12 = mload v11
-    v13 = lt 0, v12
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = ptradd v11, 32
-    v16 = mload v15
-    v17 = and v16, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v18 = insert_value struct0, undef struct0, 0, v9
-    v19 = insert_value struct0, v18, 1, v17
-    ret v19
+    v4 = icall @load_storage_packed_array_4_2, 1
+    v5 = ptrtoint ptr<memory> v4 to i256
+    v6 = ptradd v0, 32
+    mstore v6, v5
+    v7 = mload v0
+    v8 = trunc i256 v7 to i160
+    v9 = ptradd v0, 32
+    v10 = mload v9, ptr<memory>
+    v11 = mload v10
+    v12 = lt 0, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = ptradd v10, 32
+    v15 = mload v14
+    v16 = and v15, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v17 = insert_value struct0, undef struct0, 0, v8
+    v18 = insert_value struct0, v17, 1, v16
+    ret v18
 }
 
 fn @readDirect() -> struct0 [selector=0x28da8d5d, view, abi_params=[], abi_returns=[word<uint160>, word<bytes4>], abi_return_params=[address, bytes4]] {
@@ -70,25 +64,24 @@ fn @readDirect() -> struct0 [selector=0x28da8d5d, view, abi_params=[], abi_retur
     v2 = trunc i256 v1 to i160
     v3 = zext i160 v2 to i256
     mstore v0, v3
-    v4 = add 0, 1
-    v5 = icall @load_storage_packed_array_4_2, v4
-    v6 = ptrtoint ptr<memory> v5 to i256
-    v7 = ptradd v0, 32
-    mstore v7, v6
-    v8 = mload v0
-    v9 = trunc i256 v8 to i160
-    v10 = ptradd v0, 32
-    v11 = mload v10, ptr<memory>
-    v12 = mload v11
-    v13 = lt 0, v12
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = ptradd v11, 32
-    v16 = mload v15
-    v17 = and v16, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v18 = insert_value struct0, undef struct0, 0, v9
-    v19 = insert_value struct0, v18, 1, v17
-    ret v19
+    v4 = icall @load_storage_packed_array_4_2, 1
+    v5 = ptrtoint ptr<memory> v4 to i256
+    v6 = ptradd v0, 32
+    mstore v6, v5
+    v7 = mload v0
+    v8 = trunc i256 v7 to i160
+    v9 = ptradd v0, 32
+    v10 = mload v9, ptr<memory>
+    v11 = mload v10
+    v12 = lt 0, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = ptradd v10, 32
+    v15 = mload v14
+    v16 = and v15, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v17 = insert_value struct0, undef struct0, 0, v8
+    v18 = insert_value struct0, v17, 1, v16
+    ret v18
 }
 
 fn @load_storage_packed_array_4_2(arg0: i256) -> ptr<memory> {

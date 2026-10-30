@@ -41,9 +41,8 @@ fn @direct() -> i256 [selector=0x222b1407, abi_params=[], abi_returns=[word], ab
     v2 = returndatasize
     v3 = lt v2, 32
     icall revert_if<tuple_data_too_short>, v3
-    v4 = add 0, 0
-    v5 = mload v4
-    ret v5
+    v4 = mload 0 !metadata(memory=scratch)
+    ret v4
 }
 
 fn @viewCall() -> i256 [selector=0x33fd44fa, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -58,30 +57,24 @@ fn @viewCall() -> i256 [selector=0x33fd44fa, view, abi_params=[], abi_returns=[w
     v2 = returndatasize
     v3 = lt v2, 32
     icall revert_if<tuple_data_too_short>, v3
-    v4 = add 0, 0
-    v5 = mload v4
-    ret v5
+    v4 = mload 0 !metadata(memory=scratch)
+    ret v4
 }
 
 fn @pointer() -> i256 [selector=0x2f5f3b3c, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = and 0, 0xffffffff
-    v1 = shl v0, 224
-    v2 = shr 0, 32
-    v3 = gas
-    v4 = shr v1, 224
-    mstore 0, v4 !metadata(memory=scratch)
-    v5 = call v3, v2, 0, 28, 4, 0, 32
-    jumpi v5, bb2, bb1
+    v0 = gas
+    mstore 0, 0 !metadata(memory=scratch)
+    v1 = call v0, 0, 0, 28, 4, 0, 32
+    jumpi v1, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v6 = returndatasize
-    v7 = lt v6, 32
-    icall revert_if<tuple_data_too_short>, v7
-    v8 = add 0, 0
-    v9 = mload v8
-    ret v9
+    v2 = returndatasize
+    v3 = lt v2, 32
+    icall revert_if<tuple_data_too_short>, v3
+    v4 = mload 0 !metadata(memory=scratch)
+    ret v4
 }
 
 fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -125,17 +118,13 @@ fn @directNoReturn() [selector=0xda4f8e3a, abi_params=[], abi_returns=[], abi_re
 
 fn @pointerNoReturn() [selector=0xcf820bfc, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = and 0, 0xffffffff
-    v1 = shl v0, 224
-    v2 = shr 0, 32
-    v3 = gas
-    v4 = shr v1, 224
-    mstore 0, v4 !metadata(memory=scratch)
-    v5 = extcodesize v2
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = call v3, v2, 0, 28, 4, 0, 0
-    jumpi v7, bb2, bb1
+    v0 = gas
+    mstore 0, 0 !metadata(memory=scratch)
+    v1 = extcodesize 0
+    v2 = eq v1, 0
+    icall revert_if<target_contract_has_no_code>, v2
+    v3 = call v0, 0, 0, 28, 4, 0, 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -164,9 +153,8 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    ret v10
+    v9 = mload 0 !metadata(memory=scratch)
+    ret v9
 }
 
 fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {

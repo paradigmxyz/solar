@@ -1977,7 +1977,7 @@ mod tests {
         builder.icall(forward, Vec::new(), MirType::I256);
         let slot = builder.imm(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
         let buffer = builder.load(slot, PtrLocation::Memory);
-        let address = builder.add_u64_offset(buffer, 64);
+        let address = builder.add_offset(buffer, 64);
         let result = builder.load(address, PtrLocation::Memory);
         builder.ret([result]);
         let caller = module.add_function(caller);

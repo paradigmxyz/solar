@@ -13,8 +13,7 @@
       v0 = add arg0, 1
 -     ret v0
 +     mstore 0, v0 !metadata(memory=scratch)
-+     v3 = sub 32, 0
-+     returndata 0, v3
++     returndata 0, 32
 +   bb2:
 +     revert 0, 0
   }
@@ -32,8 +31,7 @@
 +   bb1:
 +     v0 = icall @pub.body, arg0
 +     mstore 0, v0 !metadata(memory=scratch)
-+     v3 = sub 32, 0
-+     returndata 0, v3
++     returndata 0, 32
 +   bb2:
 +     revert 0, 0
   }
@@ -149,16 +147,14 @@
 +   bb0:
 +     v3 = icall @sliceBody.body
 +     mstore 0, v3 !metadata(memory=scratch)
-+     v4 = sub 32, 0
-+     returndata 0, v4
++     returndata 0, 32
 + }
 + 
 + fn @sliceCaller() [selector=0x0a0a0a0c, abi_wrapper] {
 +   bb0:
 +     v0 = icall @sliceBody.body
 +     mstore 0, v0 !metadata(memory=scratch)
-+     v1 = sub 32, 0
-+     returndata 0, v1
++     returndata 0, 32
 + }
 + 
 + fn @pub.body(arg0: i256) -> i256 {

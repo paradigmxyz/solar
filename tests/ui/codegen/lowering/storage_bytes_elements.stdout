@@ -30,23 +30,13 @@ fn @poke() [selector=0x18178358, abi_params=[], abi_returns=[], abi_return_param
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = shr 5, 5
-    v11 = add v9, v10
     jump bb3
   bb3:
-    v12 = phi [bb1: v11], [bb2: 0]
-    v13 = and 5, 31
-    v14 = sub 31, v13
-    v15 = mul v14, 8
-    v16 = shl 255, v15
-    v17 = sload v12 !metadata(storage=symbolic(v12))
-    v18 = not v16
-    v19 = and v17, v18
-    v20 = shr 0xaa00000000000000000000000000000000000000000000000000000000000000, 248
-    v21 = and v20, 255
-    v22 = shl v21, v15
-    v23 = or v19, v22
-    sstore v12, v23 !metadata(storage=symbolic(v12))
+    v10 = phi [bb1: v9], [bb2: 0]
+    v11 = sload v10 !metadata(storage=symbolic(v10))
+    v12 = and v11, 0xffffffffff00ffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v13 = or v12, 0xaa0000000000000000000000000000000000000000000000000000
+    sstore v10, v13 !metadata(storage=symbolic(v10))
     ret
 }
 

@@ -2,22 +2,20 @@
 @module StorageBytesHashing
 fn @mappingEmpty() -> i1 [selector=0x20f98002, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = not 31
-    v1 = and 63, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 0
-    v3 = mapping_slot 0, 0
-    icall @store_storage_bytes, v3, v2
-    v4 = mapping_slot 0, 0
-    v5 = icall @load_storage_bytes, v4
-    v6 = ptradd v5, 32
-    v7 = mload v5
-    v8 = keccak256 v6, v7
-    v9 = ptradd v2, 32
-    v10 = mload v2
-    v11 = keccak256 v9, v10
-    v12 = eq v8, v11
-    ret v12
+    v0 = alloc zeroed checked 32
+    mstore v0, 0
+    v1 = mapping_slot 0, 0
+    icall @store_storage_bytes, v1, v0
+    v2 = mapping_slot 0, 0
+    v3 = icall @load_storage_bytes, v2
+    v4 = ptradd v3, 32
+    v5 = mload v3
+    v6 = keccak256 v4, v5
+    v7 = ptradd v0, 32
+    v8 = mload v0
+    v9 = keccak256 v7, v8
+    v10 = eq v6, v9
+    ret v10
 }
 
 fn @mappingLong(arg0: i256, arg1: i256) -> i1 [selector=0xa4972bce, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {

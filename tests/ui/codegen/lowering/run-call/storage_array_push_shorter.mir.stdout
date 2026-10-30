@@ -32,41 +32,34 @@ fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_retu
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = storage_array_data_slot 0
-    v22 = mul 0, 3
-    v23 = add v21, v22
-    v24 = lt 0, 3
-    v25 = eq v24, false
-    icall panic_if<0x32>, v25
-    v26 = add v23, 0
-    v27 = sload v26 !metadata(storage=symbolic(v23))
-    v28 = sload 0 !metadata(storage=slot(0))
-    v29 = lt 0, v28
+    v22 = lt 0, 3
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = sload v21 !metadata(storage=symbolic(v21))
+    v25 = sload 0 !metadata(storage=slot(0))
+    v26 = lt 0, v25
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = storage_array_data_slot 0
+    v29 = lt 1, 3
     v30 = eq v29, false
     icall panic_if<0x32>, v30
-    v31 = storage_array_data_slot 0
-    v32 = mul 0, 3
-    v33 = add v31, v32
-    v34 = lt 1, 3
+    v31 = add v28, 1
+    v32 = sload v31 !metadata(storage=offset(v28, 1))
+    v33 = sload 0 !metadata(storage=slot(0))
+    v34 = lt 0, v33
     v35 = eq v34, false
     icall panic_if<0x32>, v35
-    v36 = add v33, 1
-    v37 = sload v36 !metadata(storage=offset(v33, 1))
-    v38 = sload 0 !metadata(storage=slot(0))
-    v39 = lt 0, v38
-    v40 = eq v39, false
-    icall panic_if<0x32>, v40
-    v41 = storage_array_data_slot 0
-    v42 = mul 0, 3
-    v43 = add v41, v42
-    v44 = lt 2, 3
-    v45 = eq v44, false
-    icall panic_if<0x32>, v45
-    v46 = add v43, 2
-    v47 = sload v46 !metadata(storage=offset(v43, 2))
-    v48 = insert_value struct0, undef struct0, 0, v27
-    v49 = insert_value struct0, v48, 1, v37
-    v50 = insert_value struct0, v49, 2, v47
-    ret v50
+    v36 = storage_array_data_slot 0
+    v37 = lt 2, 3
+    v38 = eq v37, false
+    icall panic_if<0x32>, v38
+    v39 = add v36, 2
+    v40 = sload v39 !metadata(storage=offset(v36, 2))
+    v41 = insert_value struct0, undef struct0, 0, v24
+    v42 = insert_value struct0, v41, 1, v32
+    v43 = insert_value struct0, v42, 2, v40
+    ret v43
   bb2:
     v12 = add v9, v10
     v13 = lt v10, 2
@@ -110,41 +103,34 @@ fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_ret
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = storage_array_data_slot 0
-    v20 = mul 0, 3
-    v21 = add v19, v20
-    v22 = lt 0, 3
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = add v21, 0
-    v25 = sload v24 !metadata(storage=symbolic(v21))
-    v26 = sload 0 !metadata(storage=slot(0))
-    v27 = lt 0, v26
+    v20 = lt 0, 3
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = sload v19 !metadata(storage=symbolic(v19))
+    v23 = sload 0 !metadata(storage=slot(0))
+    v24 = lt 0, v23
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = storage_array_data_slot 0
+    v27 = lt 1, 3
     v28 = eq v27, false
     icall panic_if<0x32>, v28
-    v29 = storage_array_data_slot 0
-    v30 = mul 0, 3
-    v31 = add v29, v30
-    v32 = lt 1, 3
+    v29 = add v26, 1
+    v30 = sload v29 !metadata(storage=offset(v26, 1))
+    v31 = sload 0 !metadata(storage=slot(0))
+    v32 = lt 0, v31
     v33 = eq v32, false
     icall panic_if<0x32>, v33
-    v34 = add v31, 1
-    v35 = sload v34 !metadata(storage=offset(v31, 1))
-    v36 = sload 0 !metadata(storage=slot(0))
-    v37 = lt 0, v36
-    v38 = eq v37, false
-    icall panic_if<0x32>, v38
-    v39 = storage_array_data_slot 0
-    v40 = mul 0, 3
-    v41 = add v39, v40
-    v42 = lt 2, 3
-    v43 = eq v42, false
-    icall panic_if<0x32>, v43
-    v44 = add v41, 2
-    v45 = sload v44 !metadata(storage=offset(v41, 2))
-    v46 = insert_value struct0, undef struct0, 0, v25
-    v47 = insert_value struct0, v46, 1, v35
-    v48 = insert_value struct0, v47, 2, v45
-    ret v48
+    v34 = storage_array_data_slot 0
+    v35 = lt 2, 3
+    v36 = eq v35, false
+    icall panic_if<0x32>, v36
+    v37 = add v34, 2
+    v38 = sload v37 !metadata(storage=offset(v34, 2))
+    v39 = insert_value struct0, undef struct0, 0, v22
+    v40 = insert_value struct0, v39, 1, v30
+    v41 = insert_value struct0, v40, 2, v38
+    ret v41
   bb2:
     v10 = add v7, v8
     v11 = lt v8, 2
@@ -188,41 +174,34 @@ fn @pushNarrowMemory() -> struct0 [selector=0xedb7ea7a, abi_params=[], abi_retur
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = storage_array_data_slot 0
-    v20 = mul 0, 3
-    v21 = add v19, v20
-    v22 = lt 0, 3
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = add v21, 0
-    v25 = sload v24 !metadata(storage=symbolic(v21))
-    v26 = sload 0 !metadata(storage=slot(0))
-    v27 = lt 0, v26
+    v20 = lt 0, 3
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = sload v19 !metadata(storage=symbolic(v19))
+    v23 = sload 0 !metadata(storage=slot(0))
+    v24 = lt 0, v23
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = storage_array_data_slot 0
+    v27 = lt 1, 3
     v28 = eq v27, false
     icall panic_if<0x32>, v28
-    v29 = storage_array_data_slot 0
-    v30 = mul 0, 3
-    v31 = add v29, v30
-    v32 = lt 1, 3
+    v29 = add v26, 1
+    v30 = sload v29 !metadata(storage=offset(v26, 1))
+    v31 = sload 0 !metadata(storage=slot(0))
+    v32 = lt 0, v31
     v33 = eq v32, false
     icall panic_if<0x32>, v33
-    v34 = add v31, 1
-    v35 = sload v34 !metadata(storage=offset(v31, 1))
-    v36 = sload 0 !metadata(storage=slot(0))
-    v37 = lt 0, v36
-    v38 = eq v37, false
-    icall panic_if<0x32>, v38
-    v39 = storage_array_data_slot 0
-    v40 = mul 0, 3
-    v41 = add v39, v40
-    v42 = lt 2, 3
-    v43 = eq v42, false
-    icall panic_if<0x32>, v43
-    v44 = add v41, 2
-    v45 = sload v44 !metadata(storage=offset(v41, 2))
-    v46 = insert_value struct0, undef struct0, 0, v25
-    v47 = insert_value struct0, v46, 1, v35
-    v48 = insert_value struct0, v47, 2, v45
-    ret v48
+    v34 = storage_array_data_slot 0
+    v35 = lt 2, 3
+    v36 = eq v35, false
+    icall panic_if<0x32>, v36
+    v37 = add v34, 2
+    v38 = sload v37 !metadata(storage=offset(v34, 2))
+    v39 = insert_value struct0, undef struct0, 0, v22
+    v40 = insert_value struct0, v39, 1, v30
+    v41 = insert_value struct0, v40, 2, v38
+    ret v41
   bb2:
     v10 = add v7, v8
     v11 = lt v8, 2

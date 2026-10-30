@@ -11,15 +11,15 @@ fn @patch() [selector=0x7f603a02, abi_wrapper, pure] {
     v17 = lt v16, 2
     jumpi v17, bb5, bb3
   bb5:
-    v21 = heap_floor !metadata(alloc_ptr)
-    v20 = add v21, 32
-    mstore v20, 0x4142000000000000000000000000000000000000000000000000000000000000
+    v20 = heap_floor !metadata(alloc_ptr)
+    v19 = add v20, 32
+    mstore v19, 0x4142000000000000000000000000000000000000000000000000000000000000
     jumpi arg0, bb1, bb2
   bb1:
-    mstore8 v20, 45
+    mstore8 v19, 45
     jump bb2
   bb2:
-    v11 = mload v20
+    v11 = mload v19
     v12 = byte 0, v11
     v13 = shl v12, 248
     mstore 0, v13 !metadata(memory=scratch)
@@ -31,11 +31,11 @@ fn @patch() [selector=0x7f603a02, abi_wrapper, pure] {
 fn @store() [selector=0x975057e7, abi_wrapper] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v2 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v5 = or v2, 45
-    sstore 0, v5 !metadata(storage=slot(0))
-    v7 = shl v5, 248
-    mstore 0, v7 !metadata(memory=scratch)
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v2 = or v1, 45
+    sstore 0, v2 !metadata(storage=slot(0))
+    v4 = shl v2, 248
+    mstore 0, v4 !metadata(memory=scratch)
     returndata 0, 32
 }
 

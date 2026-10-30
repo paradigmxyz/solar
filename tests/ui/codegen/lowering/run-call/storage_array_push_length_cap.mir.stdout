@@ -26,20 +26,19 @@ fn @grow() -> struct0 [selector=0x5298948e, abi_params=[], abi_returns=[word, wo
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = storage_array_data_slot 1
-    v14 = add v13, 0
-    v15 = sload v14 !metadata(storage=symbolic(v13))
-    v16 = sload 1 !metadata(storage=slot(1))
-    v17 = lt 1, v16
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = storage_array_data_slot 1
-    v20 = add v19, 1
-    v21 = sload v20 !metadata(storage=offset(v19, 1))
-    v22 = sload 1 !metadata(storage=slot(1))
-    v23 = insert_value struct0, undef struct0, 0, v15
-    v24 = insert_value struct0, v23, 1, v21
-    v25 = insert_value struct0, v24, 2, v22
-    ret v25
+    v14 = sload v13 !metadata(storage=symbolic(v13))
+    v15 = sload 1 !metadata(storage=slot(1))
+    v16 = lt 1, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = storage_array_data_slot 1
+    v19 = add v18, 1
+    v20 = sload v19 !metadata(storage=offset(v18, 1))
+    v21 = sload 1 !metadata(storage=slot(1))
+    v22 = insert_value struct0, undef struct0, 0, v14
+    v23 = insert_value struct0, v22, 1, v20
+    v24 = insert_value struct0, v23, 2, v21
+    ret v24
 }
 
 fn @wrapOntoOwner() -> i256 [selector=0x428ae2e7, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

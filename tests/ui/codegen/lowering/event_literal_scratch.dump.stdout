@@ -8,10 +8,10 @@ fn @logged() [selector=0xf3f1126a, abi_wrapper] {
     jumpi v15, bb4, bb5
   bb5:
     v0 = mload 64 !metadata(memory=scratch)
-    v33 = heap_floor !metadata(alloc_ptr)
-    v19 = add v33, 64
-    v22 = add v19, 32
-    v26 = add v33, 32
+    v32 = heap_floor !metadata(alloc_ptr)
+    v18 = add v32, 64
+    v21 = add v18, 32
+    v25 = add v32, 32
     jump bb1
   bb1:
     v4 = phi [bb5: 0], [bb3: v11]
@@ -23,11 +23,11 @@ fn @logged() [selector=0xf3f1126a, abi_wrapper] {
     mstore 0, v13 !metadata(memory=scratch)
     returndata 0, 32
   bb3:
-    mstore v33, 64
-    mstore v19, 17
-    mstore v22, 0x7374616e646172644e6f726d616c576164000000000000000000000000000000
-    mstore v26, v4
-    log v33, 128, 0x1fc1ee74e64a4613da0ebad7aa1e41655ed6a50b1e27ec21849a5cd4db9381dd
+    mstore v32, 64
+    mstore v18, 17
+    mstore v21, 0x7374616e646172644e6f726d616c576164000000000000000000000000000000
+    mstore v25, v4
+    log v32, 128, 0x1fc1ee74e64a4613da0ebad7aa1e41655ed6a50b1e27ec21849a5cd4db9381dd
     v11 = add v4, 1
     jump bb1
   bb4:

@@ -23,11 +23,10 @@ fn @reentrant(arg0: i256) -> i256 [selector=0x7d8540f9, abi_params=[uint256], ab
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
-    v6 = add 0, 0
-    v7 = mload v6
-    v8 = checked_add uint256, arg0, 1
-    tstore 0, v8
-    ret v7
+    v6 = mload 0 !metadata(memory=scratch)
+    v7 = checked_add uint256, arg0, 1
+    tstore 0, v7
+    ret v6
 }
 
 fn @clearedAfterCall(arg0: i256) -> i256 [selector=0x15bda24f, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -46,11 +45,10 @@ fn @clearedAfterCall(arg0: i256) -> i256 [selector=0x15bda24f, abi_params=[uint2
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
-    v6 = add 0, 0
-    v7 = mload v6
+    v6 = mload 0 !metadata(memory=scratch)
     tstore 1, 2
     tstore 0, 0
-    ret v7
+    ret v6
 }
 
 fn @afterReturn(arg0: i1) -> i256 [selector=0x888a9e3c, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
@@ -61,21 +59,20 @@ fn @afterReturn(arg0: i1) -> i256 [selector=0x888a9e3c, abi_params=[bool], abi_r
     jump bb3
   bb3:
     tstore 1, 2
-    v8 = address
-    v9 = gas
+    v7 = address
+    v8 = gas
     mstore 0, 0x14ee0c6f !metadata(memory=scratch)
-    v10 = zext i160 v8 to i256
-    v11 = staticcall v9, v10, 28, 4, 0, 32
-    jumpi v11, bb7, bb6
+    v9 = zext i160 v7 to i256
+    v10 = staticcall v8, v9, 28, 4, 0, 32
+    jumpi v10, bb7, bb6
   bb6:
     revert_returndata
   bb7:
-    v12 = returndatasize
-    v13 = lt v12, 32
-    icall revert_if<tuple_data_too_short>, v13
-    v14 = add 0, 0
-    v15 = mload v14
-    ret v15
+    v11 = returndatasize
+    v12 = lt v11, 32
+    icall revert_if<tuple_data_too_short>, v12
+    v13 = mload 0 !metadata(memory=scratch)
+    ret v13
   bb1:
     v0 = address
     v1 = gas
@@ -89,9 +86,8 @@ fn @afterReturn(arg0: i1) -> i256 [selector=0x888a9e3c, abi_params=[bool], abi_r
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
-    v6 = add 0, 0
-    v7 = mload v6
-    ret v7
+    v6 = mload 0 !metadata(memory=scratch)
+    ret v6
 }
 
 fn @dropped(arg0: i256) [selector=0x49571f93, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {

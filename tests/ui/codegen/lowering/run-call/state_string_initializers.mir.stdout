@@ -38,11 +38,9 @@ fn @constructor() [constructor] {
     mstore v3, 0x4e45524332300000000000000000000000000000000000000000000000000000
     icall @store_storage_bytes, 1, v2
     v4 = sload 2 !metadata(storage=slot(2))
-    v5 = not 255
-    v6 = and v4, v5
-    v7 = and 18, 255
-    v8 = or v6, v7
-    sstore 2, v8 !metadata(storage=slot(2))
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v6 = or v5, 18
+    sstore 2, v6 !metadata(storage=slot(2))
     ret
 }
 
@@ -119,15 +117,14 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
     v17 = returndatasize
     v18 = lt v17, 32
     icall revert_if<tuple_data_too_short>, v18
-    v19 = add 0, 0
-    v20 = mload v19
-    v21 = shr v20, 8
-    v22 = eq v21, 0
-    v23 = eq v22, false
-    icall revert_if<empty>, v23
-    v24 = trunc i256 v20 to i8
-    v25 = insert_value struct0, undef struct0, 0, v8
-    v26 = insert_value struct0, v25, 1, v13
-    v27 = insert_value struct0, v26, 2, v24
-    ret v27
+    v19 = mload 0 !metadata(memory=scratch)
+    v20 = shr v19, 8
+    v21 = eq v20, 0
+    v22 = eq v21, false
+    icall revert_if<empty>, v22
+    v23 = trunc i256 v19 to i8
+    v24 = insert_value struct0, undef struct0, 0, v8
+    v25 = insert_value struct0, v24, 1, v13
+    v26 = insert_value struct0, v25, 2, v23
+    ret v26
 }

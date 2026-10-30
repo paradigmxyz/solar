@@ -161,34 +161,33 @@ fn @order() -> struct0 [selector=0xbf15071d, view, abi_params=[], abi_returns=[w
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = storage_array_data_slot 0
-    v4 = add v3, 0
-    v5 = sload v4 !metadata(storage=symbolic(v3))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = lt 1, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    v9 = storage_array_data_slot 0
-    v10 = add v9, 1
-    v11 = sload v10 !metadata(storage=offset(v9, 1))
-    v12 = sload 0 !metadata(storage=slot(0))
-    v13 = lt 2, v12
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = storage_array_data_slot 0
-    v16 = add v15, 2
-    v17 = sload v16 !metadata(storage=offset(v15, 2))
-    v18 = sload 0 !metadata(storage=slot(0))
-    v19 = lt 3, v18
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = storage_array_data_slot 0
-    v22 = add v21, 3
-    v23 = sload v22 !metadata(storage=offset(v21, 3))
-    v24 = insert_value struct0, undef struct0, 0, v5
-    v25 = insert_value struct0, v24, 1, v11
-    v26 = insert_value struct0, v25, 2, v17
-    v27 = insert_value struct0, v26, 3, v23
-    ret v27
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = storage_array_data_slot 0
+    v9 = add v8, 1
+    v10 = sload v9 !metadata(storage=offset(v8, 1))
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = lt 2, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = storage_array_data_slot 0
+    v15 = add v14, 2
+    v16 = sload v15 !metadata(storage=offset(v14, 2))
+    v17 = sload 0 !metadata(storage=slot(0))
+    v18 = lt 3, v17
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = storage_array_data_slot 0
+    v21 = add v20, 3
+    v22 = sload v21 !metadata(storage=offset(v20, 3))
+    v23 = insert_value struct0, undef struct0, 0, v4
+    v24 = insert_value struct0, v23, 1, v10
+    v25 = insert_value struct0, v24, 2, v16
+    v26 = insert_value struct0, v25, 3, v22
+    ret v26
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:InitializationBase ===

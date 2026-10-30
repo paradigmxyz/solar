@@ -38,10 +38,10 @@ fn @first() [selector=0x2845d4e6, abi_wrapper] {
     v10 = shr v9, 160
     v7 = calldatasize
     v8 = lt v7, 68
-    v15 = zext i1 v8 to i256
-    v16 = or v15, v10
-    v17 = ne v16, 0
-    jumpi v17, bb1, bb2
+    v14 = zext i1 v8 to i256
+    v15 = or v14, v10
+    v16 = ne v15, 0
+    jumpi v16, bb1, bb2
   bb2:
     v0 = icall @digest, arg0, arg1
     mstore 0, arg0
@@ -61,10 +61,10 @@ fn @second() [selector=0x6cdb32ec, abi_wrapper] {
     v16 = shr v15, 160
     v13 = calldatasize
     v14 = lt v13, 68
-    v21 = zext i1 v14 to i256
-    v22 = or v21, v16
-    v23 = ne v22, 0
-    jumpi v23, bb3, bb4
+    v20 = zext i1 v14 to i256
+    v21 = or v20, v16
+    v22 = ne v21, 0
+    jumpi v22, bb3, bb4
   bb4:
     v9 = add arg1, 1
     v10 = eq v9, 0

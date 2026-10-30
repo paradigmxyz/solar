@@ -15,20 +15,19 @@
 +     v8 = sub v6, v7
 +     mstore v4, v8
 +     v9 = mload v0
-+     v10 = not 31
-+     v11 = add v9, 31
-+     v12 = and v11, v10
-+     v13 = add v6, 32
-+     v14 = add v6, v12
-+     mstore v14, 0
++     v10 = add v9, 31
++     v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v12 = add v6, 32
++     v13 = add v6, v11
++     mstore v13, 0
 +     mstore v6, v9
-+     v15 = ptradd v0, 32
-+     v16 = add v13, v12
-+     mcopy v13, v15, v9 !metadata(memory=heap, disjoint)
-+     v17 = ptrtoint ptr<memory> v4 to i256
-+     v18 = sub v16, v17
-+     v19 = add v18, 0
-+     v20 = make_memory_slice v4, v19
++     v14 = ptradd v0, 32
++     v15 = add v12, v11
++     mcopy v12, v14, v9 !metadata(memory=heap, disjoint)
++     v16 = ptrtoint ptr<memory> v4 to i256
++     v17 = sub v15, v16
++     v18 = add v17, 0
++     v19 = make_memory_slice v4, v18
       v3 = mload v0
       ret v3
   }

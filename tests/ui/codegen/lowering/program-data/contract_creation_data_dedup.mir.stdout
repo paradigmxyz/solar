@@ -44,9 +44,8 @@ fn @first() -> i256 [selector=0x3df4ddf4, abi_params=[], abi_returns=[word], abi
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    ret v10
+    v9 = mload 0 !metadata(memory=scratch)
+    ret v9
 }
 
 fn @second() -> i256 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -71,9 +70,8 @@ fn @second() -> i256 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word], ab
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    ret v10
+    v9 = mload 0 !metadata(memory=scratch)
+    ret v9
 }
 
 fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -107,21 +105,19 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
     v11 = returndatasize
     v12 = lt v11, 32
     icall revert_if<tuple_data_too_short>, v12
-    v13 = add 0, 0
-    v14 = mload v13
-    v15 = gas
+    v13 = mload 0 !metadata(memory=scratch)
+    v14 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
-    v16 = zext i160 v6 to i256
-    v17 = staticcall v15, v16, 28, 4, 0, 32
-    jumpi v17, bb8, bb7
+    v15 = zext i160 v6 to i256
+    v16 = staticcall v14, v15, 28, 4, 0, 32
+    jumpi v16, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v18 = returndatasize
-    v19 = lt v18, 32
-    icall revert_if<tuple_data_too_short>, v19
-    v20 = add 0, 0
-    v21 = mload v20
-    v22 = checked_add uint256, v14, v21
-    ret v22
+    v17 = returndatasize
+    v18 = lt v17, 32
+    icall revert_if<tuple_data_too_short>, v18
+    v19 = mload 0 !metadata(memory=scratch)
+    v20 = checked_add uint256, v13, v19
+    ret v20
 }

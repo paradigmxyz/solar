@@ -62,23 +62,22 @@
 +     v5 = sub v3, v4
 +     mstore v1, v5
 +     v6 = extract_value slice<calldata>, arg0, 1
-+     v7 = not 31
-+     v8 = add v6, 31
-+     v9 = and v8, v7
-+     v10 = add v3, 32
-+     v11 = add v3, v9
-+     mstore v11, 0
++     v7 = add v6, 31
++     v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v9 = add v3, 32
++     v10 = add v3, v8
++     mstore v10, 0
 +     mstore v3, v6
-+     v12 = extract_value slice<calldata>, arg0, 0
-+     v13 = add v10, v9
-+     calldatacopy v10, v12, v6 !metadata(memory=heap)
-+     v14 = ptrtoint ptr<memory> v1 to i256
-+     v15 = sub v13, v14
-+     v16 = add v15, 0
-+     v17 = add v15, 0
-+     v18 = alloc v17 !metadata(preserves_fmp)
-+     v19 = make_memory_slice v18, v16
-+     ret v19
++     v11 = extract_value slice<calldata>, arg0, 0
++     v12 = add v9, v8
++     calldatacopy v9, v11, v6 !metadata(memory=heap)
++     v13 = ptrtoint ptr<memory> v1 to i256
++     v14 = sub v12, v13
++     v15 = add v14, 0
++     v16 = add v14, 0
++     v17 = alloc v16 !metadata(preserves_fmp)
++     v18 = make_memory_slice v17, v15
++     ret v18
   }
   
   fn @nested_dynamic_array(arg0: ptr<memory>) -> slice<memory> {
@@ -142,35 +141,34 @@
 +     v4 = ptrtoint ptr<memory> v1 to i256
 +     v5 = sub v3, v4
 +     mstore v1, v5
-+     v6 = mul 2, 32
-+     v7 = add v3, v6
-+     v8 = ptrtoint ptr<memory> arg0 to i256
++     v6 = add v3, 64
++     v7 = ptrtoint ptr<memory> arg0 to i256
 +     jump bb1
 +   bb1:
-+     v9 = phi [bb0: 2], [bb2: v19]
-+     v10 = phi [bb0: v7], [bb2: v18]
-+     v11 = phi [bb0: v3], [bb2: v20]
-+     v12 = phi [bb0: v8], [bb2: v21]
-+     v13 = gt v9, 0
-+     jumpi v13, bb2, bb3
++     v8 = phi [bb0: 2], [bb2: v18]
++     v9 = phi [bb0: v6], [bb2: v17]
++     v10 = phi [bb0: v3], [bb2: v19]
++     v11 = phi [bb0: v7], [bb2: v20]
++     v12 = gt v8, 0
++     jumpi v12, bb2, bb3
 +   bb3:
-+     v22 = ptrtoint ptr<memory> v1 to i256
-+     v23 = sub v10, v22
-+     v24 = add v23, 0
-+     v25 = add v23, 0
-+     v26 = alloc v25 !metadata(preserves_fmp)
-+     v27 = make_memory_slice v26, v24
-+     ret v27
++     v21 = ptrtoint ptr<memory> v1 to i256
++     v22 = sub v9, v21
++     v23 = add v22, 0
++     v24 = add v22, 0
++     v25 = alloc v24 !metadata(preserves_fmp)
++     v26 = make_memory_slice v25, v23
++     ret v26
 +   bb2:
-+     v14 = mload v12
-+     v15 = sub v10, v3
-+     mstore v11, v15
-+     v16 = inttoptr i256 v10 to ptr<memory>
-+     v17 = icall @encode_abi_array, v14, v16
-+     v18 = add v10, v17
-+     v19 = sub v9, 1
++     v13 = mload v11
++     v14 = sub v9, v3
++     mstore v10, v14
++     v15 = inttoptr i256 v9 to ptr<memory>
++     v16 = icall @encode_abi_array, v13, v15
++     v17 = add v9, v16
++     v18 = sub v8, 1
++     v19 = add v10, 32
 +     v20 = add v11, 32
-+     v21 = add v12, 32
 +     jump bb1
   }
   
@@ -187,23 +185,22 @@
 +     v7 = sub v5, v6
 +     mstore v3, v7
 +     v8 = extract_value slice<returndata>, v1, 1
-+     v9 = not 31
-+     v10 = add v0, 31
-+     v11 = and v10, v9
-+     v12 = add v5, 32
-+     v13 = add v5, v11
-+     mstore v13, 0
++     v9 = add v0, 31
++     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v11 = add v5, 32
++     v12 = add v5, v10
++     mstore v12, 0
 +     mstore v5, v0
-+     v14 = extract_value slice<returndata>, v1, 0
-+     v15 = add v12, v11
-+     returndatacopy v12, ptr<returndata> 0, v0
-+     v16 = ptrtoint ptr<memory> v3 to i256
-+     v17 = sub v15, v16
-+     v18 = add v17, 0
-+     v19 = add v17, 0
-+     v20 = alloc v19 !metadata(preserves_fmp)
-+     v21 = make_memory_slice v20, v18
-+     ret v21
++     v13 = extract_value slice<returndata>, v1, 0
++     v14 = add v11, v10
++     returndatacopy v11, ptr<returndata> 0, v0
++     v15 = ptrtoint ptr<memory> v3 to i256
++     v16 = sub v14, v15
++     v17 = add v16, 0
++     v18 = add v16, 0
++     v19 = alloc v18 !metadata(preserves_fmp)
++     v20 = make_memory_slice v19, v17
++     ret v20
   }
   
   fn @returndata_words(arg0: i256) -> slice<memory> {

@@ -72,17 +72,15 @@ fn @nestedDynamicDefaults() -> struct1 [selector=0xd34386dc, pure, abi_params=[]
     v10 = add v9, 64
     v11 = mload v10
     v12 = icall @freeMemoryPointer
-    v13 = not 31
-    v14 = and 64, v13
-    v15 = alloc zeroed checked v14
-    mstore v15, 1
-    v16 = ptrtoint ptr<memory> v15 to i256
-    v17 = eq v16, v12
-    v18 = insert_value struct1, undef struct1, 0, v5
-    v19 = insert_value struct1, v18, 1, v8
-    v20 = insert_value struct1, v19, 2, v11
-    v21 = insert_value struct1, v20, 3, v17
-    ret v21
+    v13 = alloc zeroed checked 64
+    mstore v13, 1
+    v14 = ptrtoint ptr<memory> v13 to i256
+    v15 = eq v14, v12
+    v16 = insert_value struct1, undef struct1, 0, v5
+    v17 = insert_value struct1, v16, 1, v8
+    v18 = insert_value struct1, v17, 2, v11
+    v19 = insert_value struct1, v18, 3, v15
+    ret v19
 }
 
 fn @defaultBytesReturn() -> ptr<memory> [selector=0x2a63b10a, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

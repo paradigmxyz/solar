@@ -9,48 +9,47 @@ fn @copyHigh() -> ptr<memory> [selector=0xf4f1833d, pure, abi_params=[], abi_ret
     v4 = add v3, 63
     v5 = lt v4, v3
     icall panic_if<0x41>, v5
-    v6 = not 31
-    v7 = and v4, v6
-    v8 = alloc zeroed checked v7
-    mstore v8, v3
+    v6 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v7 = alloc zeroed checked v6
+    mstore v7, v3
     jump bb1
   bb1:
-    v9 = phi [bb0: v8], [bb3: v9]
-    v10 = phi [bb0: v2], [bb3: v10]
-    v11 = phi [bb0: 0], [bb3: v32]
-    v12 = lt v11, v10
-    jumpi v12, bb4, bb5
+    v8 = phi [bb0: v7], [bb3: v8]
+    v9 = phi [bb0: v2], [bb3: v9]
+    v10 = phi [bb0: 0], [bb3: v31]
+    v11 = lt v10, v9
+    jumpi v11, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v9
+    ret v8
   bb4:
-    v13 = calldatasize
-    v14 = make_calldata_slice ptr<calldata> 0, v13
-    v15 = extract_value slice<calldata>, v14, 1
-    v16 = lt v11, v15
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    v18 = extract_value slice<calldata>, v14, 0
-    v19 = extract_value slice<calldata>, v14, 0
-    v20 = ptrtoint ptr<calldata> v19 to i256
-    v21 = add v20, v11
-    v22 = calldataload v21
-    v23 = byte 0, v22
-    v24 = shl v23, 248
-    v25 = checked_add uint256, 64, v11
-    v26 = mload v9
-    v27 = lt v25, v26
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = byte 0, v24
-    v30 = ptradd v9, v25
-    v31 = ptradd v30, 32
-    mstore8 v31, v29
+    v12 = calldatasize
+    v13 = make_calldata_slice ptr<calldata> 0, v12
+    v14 = extract_value slice<calldata>, v13, 1
+    v15 = lt v10, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = extract_value slice<calldata>, v13, 0
+    v18 = extract_value slice<calldata>, v13, 0
+    v19 = ptrtoint ptr<calldata> v18 to i256
+    v20 = add v19, v10
+    v21 = calldataload v20
+    v22 = byte 0, v21
+    v23 = shl v22, 248
+    v24 = checked_add uint256, 64, v10
+    v25 = mload v8
+    v26 = lt v24, v25
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = byte 0, v23
+    v29 = ptradd v8, v24
+    v30 = ptradd v29, 32
+    mstore8 v30, v28
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v32 = checked_add uint256, v11, 1
+    v31 = checked_add uint256, v10, 1
     jump bb1
 }

@@ -25,8 +25,7 @@ fn @sum() [selector=0x188b85b4, abi_wrapper, pure] {
     jumpi v4, bb3, bb4
   bb4:
     mstore 0, v1 !metadata(memory=scratch)
-    v13 = sub 32, 0
-    returndata 0, v13
+    returndata 0, 32
   bb3:
     v9 = add v1, v2
     v10 = lt v9, v1
@@ -128,8 +127,7 @@ fn @viaInline() [selector=0xc1685ae2, abi_wrapper, pure] {
   bb1:
     v0 = icall @twice, arg0
     mstore 0, v0 !metadata(memory=scratch)
-    v3 = sub 32, 0
-    returndata 0, v3
+    returndata 0, 32
   bb2:
     revert 0, 0
 }
@@ -163,8 +161,8 @@ fn @share() [selector=0xc3d9c4b4, abi_wrapper, optimize=size, pure] {
 fn @tagged() [selector=0xb176f8e0, abi_wrapper, optimize=size, view] {
   bb0:
     v0 = loadimmutable tag
-    v8: i256 = loadimmutable delta
-    v5 = signextend 1, v8
+    v6: i256 = loadimmutable delta
+    v5 = signextend 1, v6
     mstore 0, v0 !metadata(memory=scratch)
     mstore 32, v5 !metadata(memory=scratch)
     returndata 0, 64
@@ -179,12 +177,11 @@ fn @tagged_gas() [selector=0xa163b8fc, abi_wrapper, optimize=gas, view] {
 
 fn @constructor() [abi_wrapper, constructor] {
   bb0:
-    v1 = callvalue
-    v2 = ne v1, 0
-    jumpi v2, bb2, bb1
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb2, bb1
   bb1:
-    v0 = and 0x1122334400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 192, v0
+    mstore 192, 0x1122334400000000000000000000000000000000000000000000000000000000
     mstore 224, 0xfffb
     ret
   bb2:

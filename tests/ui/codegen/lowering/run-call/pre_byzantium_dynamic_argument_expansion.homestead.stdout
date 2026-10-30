@@ -69,38 +69,36 @@ fn @plainCall() -> i256 [selector=0x707bf9ed, abi_params=[], abi_returns=[word],
   bb3:
     revert_returndata
   bb4:
-    v18 = ptrtoint ptr<memory> v9 to i256
-    v19 = add v18, 0
-    v20 = mload v19
-    v21 = ptrtoint ptr<memory> v9 to i256
-    v22 = add v21, 32
-    v23 = mload v22
-    v24 = ptrtoint ptr<memory> v9 to i256
-    v25 = add v24, 64
-    v26 = mload v25
-    v27 = ptrtoint ptr<memory> v9 to i256
-    v28 = add v27, 96
-    v29 = mload v28
-    v30 = ptrtoint ptr<memory> v9 to i256
-    v31 = add v30, 128
-    v32 = mload v31
-    v33 = ptrtoint ptr<memory> v9 to i256
-    v34 = add v33, 160
-    v35 = mload v34
-    v36 = insert_value struct0, undef struct0, 0, v20
-    v37 = insert_value struct0, v36, 1, v23
-    v38 = insert_value struct0, v37, 2, v26
-    v39 = insert_value struct0, v38, 3, v29
-    v40 = insert_value struct0, v39, 4, v32
-    v41 = insert_value struct0, v40, 5, v35
-    v42 = extract_value struct0, v41, 0
-    v43 = extract_value struct0, v41, 1
-    v44 = extract_value struct0, v41, 2
-    v45 = extract_value struct0, v41, 3
-    v46 = extract_value struct0, v41, 4
-    v47 = extract_value struct0, v41, 5
-    v48 = checked_add uint256, v42, v47
-    ret v48
+    v18 = mload v9
+    v19 = ptrtoint ptr<memory> v9 to i256
+    v20 = add v19, 32
+    v21 = mload v20
+    v22 = ptrtoint ptr<memory> v9 to i256
+    v23 = add v22, 64
+    v24 = mload v23
+    v25 = ptrtoint ptr<memory> v9 to i256
+    v26 = add v25, 96
+    v27 = mload v26
+    v28 = ptrtoint ptr<memory> v9 to i256
+    v29 = add v28, 128
+    v30 = mload v29
+    v31 = ptrtoint ptr<memory> v9 to i256
+    v32 = add v31, 160
+    v33 = mload v32
+    v34 = insert_value struct0, undef struct0, 0, v18
+    v35 = insert_value struct0, v34, 1, v21
+    v36 = insert_value struct0, v35, 2, v24
+    v37 = insert_value struct0, v36, 3, v27
+    v38 = insert_value struct0, v37, 4, v30
+    v39 = insert_value struct0, v38, 5, v33
+    v40 = extract_value struct0, v39, 0
+    v41 = extract_value struct0, v39, 1
+    v42 = extract_value struct0, v39, 2
+    v43 = extract_value struct0, v39, 3
+    v44 = extract_value struct0, v39, 4
+    v45 = extract_value struct0, v39, 5
+    v46 = checked_add uint256, v40, v45
+    ret v46
 }
 
 fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -140,29 +138,27 @@ fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], a
   bb6:
     jump bb5
   bb3:
-    v18 = ptrtoint ptr<memory> v9 to i256
-    v19 = add v18, 0
-    v20 = mload v19
-    v21 = ptrtoint ptr<memory> v9 to i256
-    v22 = add v21, 32
-    v23 = mload v22
-    v24 = ptrtoint ptr<memory> v9 to i256
-    v25 = add v24, 64
-    v26 = mload v25
-    v27 = ptrtoint ptr<memory> v9 to i256
-    v28 = add v27, 96
-    v29 = mload v28
-    v30 = ptrtoint ptr<memory> v9 to i256
-    v31 = add v30, 128
-    v32 = mload v31
-    v33 = ptrtoint ptr<memory> v9 to i256
-    v34 = add v33, 160
-    v35 = mload v34
-    v36 = checked_add uint256, v20, v35
+    v18 = mload v9
+    v19 = ptrtoint ptr<memory> v9 to i256
+    v20 = add v19, 32
+    v21 = mload v20
+    v22 = ptrtoint ptr<memory> v9 to i256
+    v23 = add v22, 64
+    v24 = mload v23
+    v25 = ptrtoint ptr<memory> v9 to i256
+    v26 = add v25, 96
+    v27 = mload v26
+    v28 = ptrtoint ptr<memory> v9 to i256
+    v29 = add v28, 128
+    v30 = mload v29
+    v31 = ptrtoint ptr<memory> v9 to i256
+    v32 = add v31, 160
+    v33 = mload v32
+    v34 = checked_add uint256, v18, v33
     jump bb5
   bb5:
-    v37 = phi [bb3: v36], [bb6: 7]
-    ret v37
+    v35 = phi [bb3: v34], [bb6: 7]
+    ret v35
 }
 
 fn @stringCall() -> i256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -197,36 +193,34 @@ fn @stringCall() -> i256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word]
   bb3:
     revert_returndata
   bb4:
-    v18 = ptrtoint ptr<memory> v9 to i256
-    v19 = add v18, 0
-    v20 = mload v19
-    v21 = ptrtoint ptr<memory> v9 to i256
-    v22 = add v21, 32
-    v23 = mload v22
-    v24 = ptrtoint ptr<memory> v9 to i256
-    v25 = add v24, 64
-    v26 = mload v25
-    v27 = ptrtoint ptr<memory> v9 to i256
-    v28 = add v27, 96
-    v29 = mload v28
-    v30 = ptrtoint ptr<memory> v9 to i256
-    v31 = add v30, 128
-    v32 = mload v31
-    v33 = ptrtoint ptr<memory> v9 to i256
-    v34 = add v33, 160
-    v35 = mload v34
-    v36 = insert_value struct0, undef struct0, 0, v20
-    v37 = insert_value struct0, v36, 1, v23
-    v38 = insert_value struct0, v37, 2, v26
-    v39 = insert_value struct0, v38, 3, v29
-    v40 = insert_value struct0, v39, 4, v32
-    v41 = insert_value struct0, v40, 5, v35
-    v42 = extract_value struct0, v41, 0
-    v43 = extract_value struct0, v41, 1
-    v44 = extract_value struct0, v41, 2
-    v45 = extract_value struct0, v41, 3
-    v46 = extract_value struct0, v41, 4
-    v47 = extract_value struct0, v41, 5
-    v48 = checked_add uint256, v42, v47
-    ret v48
+    v18 = mload v9
+    v19 = ptrtoint ptr<memory> v9 to i256
+    v20 = add v19, 32
+    v21 = mload v20
+    v22 = ptrtoint ptr<memory> v9 to i256
+    v23 = add v22, 64
+    v24 = mload v23
+    v25 = ptrtoint ptr<memory> v9 to i256
+    v26 = add v25, 96
+    v27 = mload v26
+    v28 = ptrtoint ptr<memory> v9 to i256
+    v29 = add v28, 128
+    v30 = mload v29
+    v31 = ptrtoint ptr<memory> v9 to i256
+    v32 = add v31, 160
+    v33 = mload v32
+    v34 = insert_value struct0, undef struct0, 0, v18
+    v35 = insert_value struct0, v34, 1, v21
+    v36 = insert_value struct0, v35, 2, v24
+    v37 = insert_value struct0, v36, 3, v27
+    v38 = insert_value struct0, v37, 4, v30
+    v39 = insert_value struct0, v38, 5, v33
+    v40 = extract_value struct0, v39, 0
+    v41 = extract_value struct0, v39, 1
+    v42 = extract_value struct0, v39, 2
+    v43 = extract_value struct0, v39, 3
+    v44 = extract_value struct0, v39, 4
+    v45 = extract_value struct0, v39, 5
+    v46 = checked_add uint256, v40, v45
+    ret v46
 }

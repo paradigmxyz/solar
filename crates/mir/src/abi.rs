@@ -492,7 +492,7 @@ impl AbiWordValidator {
             Self::Unsigned(_) | Self::LeftAligned(_) => {
                 let mask = self.canonical_mask().expect("masked validator has a mask");
                 let mask = builder.imm(mask);
-                builder.and(word, mask)
+                builder.and_folded(word, mask)
             }
             Self::SignExtend(byte_index) => {
                 let byte_index = builder.imm(byte_index);

@@ -22,9 +22,7 @@
 +     v2 = lt v1, 1
 +     jumpi v2, bb2, bb3
 +   bb3:
-+     v10 = add 128, 32
-+     v11 = sub v10, 128
-+     returndata 128, v11
++     returndata 128, 32
 +   bb2:
 +     v3 = shl v1, 5
 +     v4 = ptradd v0, v3

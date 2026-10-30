@@ -822,20 +822,19 @@ fn @structRvalue(arg0: i256) -> struct3 [selector=0xda0335a1, abi_params=[uint25
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = storage_array_data_slot 8
-    v15 = add v14, 0
-    v16 = sload v15 !metadata(storage=symbolic(v14))
-    v17 = sload 8 !metadata(storage=slot(8))
-    v18 = lt 1, v17
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = storage_array_data_slot 8
-    v21 = add v20, 1
-    v22 = sload v21 !metadata(storage=offset(v20, 1))
-    v23 = sload 8 !metadata(storage=slot(8))
-    v24 = insert_value struct3, undef struct3, 0, v16
-    v25 = insert_value struct3, v24, 1, v22
-    v26 = insert_value struct3, v25, 2, v23
-    ret v26
+    v15 = sload v14 !metadata(storage=symbolic(v14))
+    v16 = sload 8 !metadata(storage=slot(8))
+    v17 = lt 1, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = storage_array_data_slot 8
+    v20 = add v19, 1
+    v21 = sload v20 !metadata(storage=offset(v19, 1))
+    v22 = sload 8 !metadata(storage=slot(8))
+    v23 = insert_value struct3, undef struct3, 0, v15
+    v24 = insert_value struct3, v23, 1, v21
+    v25 = insert_value struct3, v24, 2, v22
+    ret v25
 }
 
 fn @nestedRvalue(arg0: i256) -> struct3 [selector=0x32226b25, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
@@ -868,17 +867,16 @@ fn @nestedRvalue(arg0: i256) -> struct3 [selector=0x32226b25, abi_params=[uint25
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = storage_array_data_slot 9
-    v20 = add v19, 0
-    v21 = sload v20 !metadata(storage=symbolic(v19))
-    v22 = lt 1, v21
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = storage_array_data_slot v20
-    v25 = add v24, 1
-    v26 = sload v25 !metadata(storage=offset(v24, 1))
-    v27 = sload 9 !metadata(storage=slot(9))
-    v28 = insert_value struct3, undef struct3, 0, v15
-    v29 = insert_value struct3, v28, 1, v26
-    v30 = insert_value struct3, v29, 2, v27
-    ret v30
+    v20 = sload v19 !metadata(storage=symbolic(v19))
+    v21 = lt 1, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = storage_array_data_slot v19
+    v24 = add v23, 1
+    v25 = sload v24 !metadata(storage=offset(v23, 1))
+    v26 = sload 9 !metadata(storage=slot(9))
+    v27 = insert_value struct3, undef struct3, 0, v15
+    v28 = insert_value struct3, v27, 1, v25
+    v29 = insert_value struct3, v28, 2, v26
+    ret v29
 }

@@ -3,33 +3,33 @@
 @phase lowered
 fn @fill() [selector=0xb4f7766b, abi_wrapper, pure] {
   bb0:
-    v39 = calldataload 68
-    v40 = shl v39, 8
-    v37 = calldatasize
-    v38 = lt v37, 100
-    v59 = zext i1 v38 to i256
-    v60 = or v59, v40
-    v61 = ne v60, 0
-    jumpi v61, bb10, bb11
+    v38 = calldataload 68
+    v39 = shl v38, 8
+    v36 = calldatasize
+    v37 = lt v36, 100
+    v57 = zext i1 v37 to i256
+    v58 = or v57, v39
+    v59 = ne v58, 0
+    jumpi v59, bb10, bb11
   bb11:
-    v42 = icall @decode_calldata_type
-    mstore v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v41 = icall @decode_calldata_type
+    mstore v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v16 = byte 0, arg2
     v17 = mul v16, 0x101010101010101010101010101010101010101010101010101010101010101
-    v53 = add v42, arg1
-    v54 = add v53, 32
-    v56 = add v42, 32
-    v23 = lt v54, v56
+    v51 = add v41, arg1
+    v52 = add v51, 32
+    v54 = add v41, 32
+    v23 = lt v52, v54
     jumpi v23, bb1, bb4
   bb4:
     v27 = gt arg1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
     jumpi v27, bb5, bb7
   bb7:
-    v31 = mload v54
-    v46 = xor v31, v17
-    v47 = and v46, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v34 = xor v17, v47
-    mstore v54, v34
+    v30 = mload v52
+    v44 = xor v30, v17
+    v45 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v33 = xor v17, v45
+    mstore v52, v33
     jump bb2
   bb1:
     v6 = phi [bb11: 0], [bb6: v15]
@@ -39,19 +39,19 @@ fn @fill() [selector=0xb4f7766b, abi_wrapper, pure] {
     mstore 0, 1
     returndata 0, 32
   bb3:
-    v35 = add arg1, v6
-    v36 = lt v35, arg1
-    jumpi v36, bb8, bb9
+    v34 = add arg1, v6
+    v35 = lt v34, arg1
+    jumpi v35, bb8, bb9
   bb9:
-    v9 = mload v42
-    v10 = lt v35, v9
+    v9 = mload v41
+    v10 = lt v34, v9
     jumpi v10, bb6, bb5
   bb5:
     tail_call @revert_stub
   bb6:
-    v50 = add v42, v35
-    v51 = add v50, 32
-    mstore8 v51, v16
+    v48 = add v41, v34
+    v49 = add v48, 32
+    mstore8 v49, v16
     v15 = add v6, 1
     jump bb1
   bb8:
@@ -165,29 +165,29 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v7 = add v2, 32
     v8 = add v6, 63
     v9 = lt v8, v6
-    v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v29 = heap_floor !metadata(alloc_ptr)
-    v30 = add v29, v11 !metadata(alloc_ptr)
-    v31 = lt v30, v29
-    v32 = gt v30, 0xffffffffffffffff
-    v33 = or v31, v32
-    v36 = or v9, v33
-    jumpi v36, bb3, bb5
+    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v28 = heap_floor !metadata(alloc_ptr)
+    v29 = add v28, v10 !metadata(alloc_ptr)
+    v30 = lt v29, v28
+    v31 = gt v29, 0xffffffffffffffff
+    v32 = or v30, v31
+    v35 = or v9, v32
+    jumpi v35, bb3, bb5
   bb5:
-    mstore 64, v30 !metadata(memory=scratch)
-    mstore v29, v6
-    v13 = sub v0, v7
-    v14 = gt v6, v13
-    jumpi v14, bb1, bb4
+    mstore 64, v29 !metadata(memory=scratch)
+    mstore v28, v6
+    v12 = sub v0, v7
+    v13 = gt v6, v12
+    jumpi v13, bb1, bb4
   bb4:
-    v25 = add v29, 32
-    calldatacopy v25, v7, v6
-    v22 = sub 0, v6
-    v23 = and v22, 31
-    v35 = calldatasize
-    v26 = add v25, v6
-    calldatacopy v26, v35, v23
-    ret v29
+    v24 = add v28, 32
+    calldatacopy v24, v7, v6
+    v21 = sub 0, v6
+    v22 = and v21, 31
+    v34 = calldatasize
+    v25 = add v24, v6
+    calldatacopy v25, v34, v22
+    ret v28
   bb3:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

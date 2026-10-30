@@ -21,63 +21,57 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v1 = lt 0, 1
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = mul 0, 10
-    v4 = add v0, v3
-    v5 = lt 5, 10
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    v7 = add v4, 5
-    v8 = sload v7 !metadata(storage=offset(v4, 5))
+    v3 = lt 5, 10
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = add v0, 5
+    v6 = sload v5 !metadata(storage=offset(v0, 5))
     jump bb1
   bb1:
-    v9 = phi [bb0: v8], [bb3: v9]
-    v10 = phi [bb0: 0], [bb3: v10]
-    v11 = phi [bb0: 0], [bb3: v11]
-    v12 = phi [bb0: 1], [bb3: v22]
-    v13 = phi [bb0: v0], [bb3: v13]
-    v14 = lt v12, 10
-    jumpi v14, bb4, bb5
+    v7 = phi [bb0: v6], [bb3: v7]
+    v8 = phi [bb0: 0], [bb3: v8]
+    v9 = phi [bb0: 0], [bb3: v9]
+    v10 = phi [bb0: 1], [bb3: v18]
+    v11 = phi [bb0: v0], [bb3: v11]
+    v12 = lt v10, 10
+    jumpi v12, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v23 = sload 0 !metadata(storage=slot(0))
-    v24 = lt 0, 1
-    v25 = eq v24, false
-    icall panic_if<0x32>, v25
-    v26 = mul 0, 10
-    v27 = add v13, v26
+    v19 = sload 0 !metadata(storage=slot(0))
+    v20 = lt 0, 1
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
     jump bb7
   bb7:
-    v28 = phi [bb2: 0], [bb8: v31]
-    v29 = lt v28, 10
-    jumpi v29, bb8, bb9
+    v22 = phi [bb2: 0], [bb8: v25]
+    v23 = lt v22, 10
+    jumpi v23, bb8, bb9
   bb9:
-    v32 = sload 0 !metadata(storage=slot(0))
-    v33 = insert_value struct0, undef struct0, 0, v9
-    v34 = insert_value struct0, v33, 1, v23
-    v35 = insert_value struct0, v34, 2, v32
-    ret v35
+    v26 = sload 0 !metadata(storage=slot(0))
+    v27 = insert_value struct0, undef struct0, 0, v7
+    v28 = insert_value struct0, v27, 1, v19
+    v29 = insert_value struct0, v28, 2, v26
+    ret v29
   bb8:
-    v30 = add v27, v28
-    sstore v30, 0 !metadata(storage=symbolic(v30))
-    v31 = add v28, 1
+    v24 = add v11, v22
+    sstore v24, 0 !metadata(storage=symbolic(v24))
+    v25 = add v22, 1
     jump bb7
   bb4:
-    v15 = lt 0, 1
+    v13 = lt 0, 1
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = lt v10, 10
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = mul 0, 10
-    v18 = add v13, v17
-    v19 = lt v12, 10
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = add v18, v12
-    sstore v21, v12 !metadata(storage=symbolic(v21))
+    v17 = add v11, v10
+    sstore v17, v10 !metadata(storage=symbolic(v17))
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v22 = checked_add uint256, v12, 1
+    v18 = checked_add uint256, v10, 1
     jump bb1
 }
 

@@ -13,58 +13,55 @@ fn @f() -> struct0 [view] {
 fn @declared() -> i256 [selector=0xfd2ed72a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 11 !metadata(storage=slot(0))
-    v0 = add 0, 1
-    sstore v0, 22 !metadata(storage=slot(1))
-    v1 = icall @f
-    v2 = extract_value struct0, v1, 0
-    v3 = extract_value struct0, v1, 1
-    v4 = alloc checked 64
-    v5 = sload v3 !metadata(storage=symbolic(v3))
-    mstore v4, v5
-    v6 = add v3, 1
-    v7 = sload v6 !metadata(storage=offset(v3, 1))
-    v8 = ptradd v4, 32
-    mstore v8, v7
+    sstore 1, 22 !metadata(storage=slot(1))
+    v0 = icall @f
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = alloc checked 64
+    v4 = sload v2 !metadata(storage=symbolic(v2))
+    mstore v3, v4
+    v5 = add v2, 1
+    v6 = sload v5 !metadata(storage=offset(v2, 1))
+    v7 = ptradd v3, 32
+    mstore v7, v6
     sstore 0, 99 !metadata(storage=slot(0))
-    v9 = checked_mul uint256, v2, 0x3e8
-    v10 = mload v4
-    v11 = checked_mul uint256, v10, 10
-    v12 = checked_add uint256, v9, v11
-    v13 = ptradd v4, 32
-    v14 = mload v13
-    v15 = checked_add uint256, v12, v14
-    ret v15
+    v8 = checked_mul uint256, v1, 0x3e8
+    v9 = mload v3
+    v10 = checked_mul uint256, v9, 10
+    v11 = checked_add uint256, v8, v10
+    v12 = ptradd v3, 32
+    v13 = mload v12
+    v14 = checked_add uint256, v11, v13
+    ret v14
 }
 
 fn @assigned() -> i256 [selector=0xadb4d990, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 11 !metadata(storage=slot(0))
-    v0 = add 0, 1
-    sstore v0, 22 !metadata(storage=slot(1))
-    v1 = alloc 64
-    mstore v1, 1
-    v2 = ptradd v1, 32
-    mstore v2, 2
-    v3 = icall @f
-    v4 = extract_value struct0, v3, 0
-    v5 = extract_value struct0, v3, 1
-    v6 = alloc checked 64
-    v7 = sload v5 !metadata(storage=symbolic(v5))
-    mstore v6, v7
-    v8 = add v5, 1
-    v9 = sload v8 !metadata(storage=offset(v5, 1))
-    v10 = ptradd v6, 32
-    mstore v10, v9
-    sstore 2, v4 !metadata(storage=slot(2))
-    v11 = add 0, 1
-    sstore v11, 77 !metadata(storage=slot(1))
-    v12 = sload 2 !metadata(storage=slot(2))
-    v13 = checked_mul uint256, v12, 0x2710
-    v14 = mload v6
-    v15 = checked_mul uint256, v14, 100
-    v16 = checked_add uint256, v13, v15
-    v17 = ptradd v6, 32
-    v18 = mload v17
-    v19 = checked_add uint256, v16, v18
-    ret v19
+    sstore 1, 22 !metadata(storage=slot(1))
+    v0 = alloc 64
+    mstore v0, 1
+    v1 = ptradd v0, 32
+    mstore v1, 2
+    v2 = icall @f
+    v3 = extract_value struct0, v2, 0
+    v4 = extract_value struct0, v2, 1
+    v5 = alloc checked 64
+    v6 = sload v4 !metadata(storage=symbolic(v4))
+    mstore v5, v6
+    v7 = add v4, 1
+    v8 = sload v7 !metadata(storage=offset(v4, 1))
+    v9 = ptradd v5, 32
+    mstore v9, v8
+    sstore 2, v3 !metadata(storage=slot(2))
+    sstore 1, 77 !metadata(storage=slot(1))
+    v10 = sload 2 !metadata(storage=slot(2))
+    v11 = checked_mul uint256, v10, 0x2710
+    v12 = mload v5
+    v13 = checked_mul uint256, v12, 100
+    v14 = checked_add uint256, v11, v13
+    v15 = ptradd v5, 32
+    v16 = mload v15
+    v17 = checked_add uint256, v14, v16
+    ret v17
 }

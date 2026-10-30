@@ -70,10 +70,9 @@ fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word],
     v2 = returndatasize
     v3 = lt v2, 32
     icall revert_if<tuple_data_too_short>, v3
-    v4 = add 0, 0
-    v5 = mload v4
-    v6 = sload v5 !metadata(storage=symbolic(v5))
-    ret v6
+    v4 = mload 0 !metadata(memory=scratch)
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    ret v5
 }
 
 fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -89,17 +88,16 @@ fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     v2 = returndatasize
     v3 = lt v2, 32
     icall revert_if<tuple_data_too_short>, v3
-    v4 = add 0, 0
-    v5 = mload v4
-    v6 = sload v5 !metadata(storage=symbolic(v5))
-    validate_storage_bytes v6
-    v7 = and v6, 1
-    v8 = eq v7, 1
-    v9 = sub 0, v7
-    v10 = or 127, v9
-    v11 = shr v6, 1
-    v12 = and v11, v10
-    ret v12
+    v4 = mload 0 !metadata(memory=scratch)
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    validate_storage_bytes v5
+    v6 = and v5, 1
+    v7 = eq v6, 1
+    v8 = sub 0, v6
+    v9 = or 127, v8
+    v10 = shr v5, 1
+    v11 = and v10, v9
+    ret v11
 }
 
 fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -115,10 +113,9 @@ fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[wor
     v2 = returndatasize
     v3 = lt v2, 32
     icall revert_if<tuple_data_too_short>, v3
-    v4 = add 0, 0
-    v5 = mload v4
-    v6 = sload v5 !metadata(storage=symbolic(v5))
-    ret v6
+    v4 = mload 0 !metadata(memory=scratch)
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    ret v5
 }
 
 fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
@@ -135,20 +132,18 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     v5 = returndatasize
     v6 = lt v5, 64
     icall revert_if<tuple_data_too_short>, v6
-    v7 = ptrtoint ptr<memory> v1 to i256
-    v8 = add v7, 0
-    v9 = mload v8
-    v10 = ptrtoint ptr<memory> v1 to i256
-    v11 = add v10, 32
-    v12 = mload v11
-    v13 = insert_value struct0, undef struct0, 0, v9
-    v14 = insert_value struct0, v13, 1, v12
-    v15 = extract_value struct0, v14, 0
-    v16 = extract_value struct0, v14, 1
-    v17 = sload v16 !metadata(storage=symbolic(v16))
-    v18 = insert_value struct0, undef struct0, 0, v15
-    v19 = insert_value struct0, v18, 1, v17
-    ret v19
+    v7 = mload v1
+    v8 = ptrtoint ptr<memory> v1 to i256
+    v9 = add v8, 32
+    v10 = mload v9
+    v11 = insert_value struct0, undef struct0, 0, v7
+    v12 = insert_value struct0, v11, 1, v10
+    v13 = extract_value struct0, v12, 0
+    v14 = extract_value struct0, v12, 1
+    v15 = sload v14 !metadata(storage=symbolic(v14))
+    v16 = insert_value struct0, undef struct0, 0, v13
+    v17 = insert_value struct0, v16, 1, v15
+    ret v17
 }
 
 fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -164,14 +159,13 @@ fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
     v2 = returndatasize
     v3 = lt v2, 32
     icall revert_if<tuple_data_too_short>, v3
-    v4 = add 0, 0
-    v5 = mload v4
-    v6 = lt 2, 3
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = add v5, 2
-    v9 = sload v8 !metadata(storage=offset(v5, 2))
-    ret v9
+    v4 = mload 0 !metadata(memory=scratch)
+    v5 = lt 2, 3
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = add v4, 2
+    v8 = sload v7 !metadata(storage=offset(v4, 2))
+    ret v8
 }
 
 fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -187,11 +181,10 @@ fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[uint256
     v2 = returndatasize
     v3 = lt v2, 32
     icall revert_if<tuple_data_too_short>, v3
-    v4 = add 0, 0
-    v5 = mload v4
-    v6 = mapping_slot arg0, v5
-    v7 = sload v6 !metadata(storage=symbolic(v6))
-    ret v7
+    v4 = mload 0 !metadata(memory=scratch)
+    v5 = mapping_slot arg0, v4
+    v6 = sload v5 !metadata(storage=symbolic(v5))
+    ret v6
 }
 
 fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
@@ -241,8 +234,7 @@ fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v2 = returndatasize
     v3 = lt v2, 32
     icall revert_if<tuple_data_too_short>, v3
-    v4 = add 0, 0
-    v5 = mload v4
-    v6 = sload v5 !metadata(storage=symbolic(v5))
-    ret v6
+    v4 = mload 0 !metadata(memory=scratch)
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    ret v5
 }

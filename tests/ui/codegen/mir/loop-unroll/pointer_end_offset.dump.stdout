@@ -9,21 +9,21 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v4 = shl v3, 5
     v6 = add v22, v4
     v7 = add v6, 32
-    v37 = and v3, 1
-    v38 = ne v37, 0
-    jumpi v38, bb4, bb5
+    v36 = and v3, 1
+    v37 = ne v36, 0
+    jumpi v37, bb4, bb5
   bb4:
-    v28 = mload v1
-    v29 = add 0, v28
-    v30 = add v1, 32
+    v27 = mload v1
+    v28 = add 0, v27
+    v29 = add v1, 32
     jump bb5
   bb5:
-    v39 = phi [bb0: 0], [bb4: v29]
-    v40 = phi [bb0: v1], [bb4: v30]
+    v38 = phi [bb0: 0], [bb4: v28]
+    v39 = phi [bb0: v1], [bb4: v29]
     jump bb1
   bb1:
-    v9 = phi [bb5: v39], [bb3: v35]
-    v10 = phi [bb5: v40], [bb3: v36]
+    v9 = phi [bb5: v38], [bb3: v34]
+    v10 = phi [bb5: v39], [bb3: v35]
     v14 = ne v10, v7
     jumpi v14, bb3, bb2
   bb2:
@@ -33,9 +33,9 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v17 = mload v10
     v18 = add v9, v17
     v19 = add v10, 32
-    v34 = mload v19
-    v35 = add v18, v34
-    v36 = add v10, 64
+    v33 = mload v19
+    v34 = add v18, v33
+    v35 = add v10, 64
     jump bb1
 }
 
@@ -47,23 +47,23 @@ fn @sumPastEnd() [selector=0x7d3da1e5, abi_wrapper, pure] {
     v4 = shl v3, 5
     v6 = add v22, v4
     v7 = add v6, 64
-    v37 = sub v7, v1
-    v38 = shr v37, 5
-    v39 = and v38, 1
-    v40 = ne v39, 0
-    jumpi v40, bb4, bb5
+    v36 = sub v7, v1
+    v37 = shr v36, 5
+    v38 = and v37, 1
+    v39 = ne v38, 0
+    jumpi v39, bb4, bb5
   bb4:
-    v28 = mload v1
-    v29 = add 0, v28
-    v30 = add v1, 32
+    v27 = mload v1
+    v28 = add 0, v27
+    v29 = add v1, 32
     jump bb5
   bb5:
-    v41 = phi [bb0: 0], [bb4: v29]
-    v42 = phi [bb0: v1], [bb4: v30]
+    v40 = phi [bb0: 0], [bb4: v28]
+    v41 = phi [bb0: v1], [bb4: v29]
     jump bb1
   bb1:
-    v9 = phi [bb5: v41], [bb3: v35]
-    v10 = phi [bb5: v42], [bb3: v36]
+    v9 = phi [bb5: v40], [bb3: v34]
+    v10 = phi [bb5: v41], [bb3: v35]
     v14 = ne v10, v7
     jumpi v14, bb3, bb2
   bb2:
@@ -73,9 +73,9 @@ fn @sumPastEnd() [selector=0x7d3da1e5, abi_wrapper, pure] {
     v17 = mload v10
     v18 = add v9, v17
     v19 = add v10, 32
-    v34 = mload v19
-    v35 = add v18, v34
-    v36 = add v10, 64
+    v33 = mload v19
+    v34 = add v18, v33
+    v35 = add v10, 64
     jump bb1
 }
 

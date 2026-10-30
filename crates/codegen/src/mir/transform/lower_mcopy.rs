@@ -673,10 +673,10 @@ fn emit_partial_copy(
     // jump continuation
     let word_size = builder.imm(32);
     let thirty_one = builder.imm(31);
-    let partial = builder.and(len, thirty_one);
-    let gap = builder.sub(word_size, partial);
+    let partial = builder.and_folded(len, thirty_one);
+    let gap = builder.sub_folded(word_size, partial);
     let three = builder.imm(3);
-    let shift = builder.shl(gap, three);
+    let shift = builder.shl_folded(gap, three);
     let src_tail_ptr = builder.add(src, partial_offset);
     let src_word = builder.load(src_tail_ptr, PtrLocation::Memory);
     let dest_tail_ptr = builder.add(dest, partial_offset);

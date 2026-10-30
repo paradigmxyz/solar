@@ -22,23 +22,22 @@
 +     v9 = sub v7, v8
 +     mstore v5, v9
 +     v10 = mload v0
-+     v11 = not 31
-+     v12 = add v10, 31
-+     v13 = and v12, v11
-+     v14 = add v7, 32
-+     v15 = add v7, v13
-+     mstore v15, 0
++     v11 = add v10, 31
++     v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v13 = add v7, 32
++     v14 = add v7, v12
++     mstore v14, 0
 +     mstore v7, v10
-+     v16 = ptradd v0, 32
-+     v17 = add v14, v13
-+     mcopy v14, v16, v10 !metadata(memory=heap, disjoint)
-+     v18 = ptrtoint ptr<memory> v5 to i256
-+     v19 = sub v17, v18
-+     v20 = add v19, 0
-+     v21 = add v19, 0
-+     v22 = alloc v21 !metadata(preserves_fmp)
-+     v23 = make_memory_slice v22, v20
-+     ret v23
++     v15 = ptradd v0, 32
++     v16 = add v13, v12
++     mcopy v13, v15, v10 !metadata(memory=heap, disjoint)
++     v17 = ptrtoint ptr<memory> v5 to i256
++     v18 = sub v16, v17
++     v19 = add v18, 0
++     v20 = add v18, 0
++     v21 = alloc v20 !metadata(preserves_fmp)
++     v22 = make_memory_slice v21, v19
++     ret v22
   }
   
   fn @overlapping(arg0: i256) -> slice<memory> {
@@ -62,23 +61,22 @@
 +     v11 = sub v9, v10
 +     mstore v7, v11
 +     v12 = mload v0
-+     v13 = not 31
-+     v14 = add v12, 31
-+     v15 = and v14, v13
-+     v16 = add v9, 32
-+     v17 = add v9, v15
-+     mstore v17, 0
++     v13 = add v12, 31
++     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v15 = add v9, 32
++     v16 = add v9, v14
++     mstore v16, 0
 +     mstore v9, v12
-+     v18 = ptradd v0, 32
-+     v19 = add v16, v15
-+     mcopy v16, v18, v12 !metadata(memory=heap, disjoint)
-+     v20 = ptrtoint ptr<memory> v7 to i256
-+     v21 = sub v19, v20
-+     v22 = add v21, 0
-+     v23 = add v21, 0
-+     v24 = alloc v23 !metadata(preserves_fmp)
-+     v25 = make_memory_slice v24, v22
-+     ret v25
++     v17 = ptradd v0, 32
++     v18 = add v15, v14
++     mcopy v15, v17, v12 !metadata(memory=heap, disjoint)
++     v19 = ptrtoint ptr<memory> v7 to i256
++     v20 = sub v18, v19
++     v21 = add v20, 0
++     v22 = add v20, 0
++     v23 = alloc v22 !metadata(preserves_fmp)
++     v24 = make_memory_slice v23, v21
++     ret v24
   }
   
   fn @preserved() -> slice<memory> {

@@ -9,20 +9,14 @@ fn @constructor() [constructor] {
     sstore v0, 7 !metadata(storage=symbolic(v0))
     v1 = add v0, 1
     v2 = sload v1 !metadata(storage=offset(v0, 1))
-    v3 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v4 = and v2, v3
-    v5 = and 7, 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = or v4, v5
-    sstore v1, v6 !metadata(storage=offset(v0, 1))
-    v7 = add v0, 1
-    v8 = shl 255, 160
-    v9 = sload v7 !metadata(storage=offset(v0, 1))
-    v10 = not v8
-    v11 = and v9, v10
-    v12 = and 1, 255
-    v13 = shl v12, 160
-    v14 = or v11, v13
-    sstore v7, v14 !metadata(storage=offset(v0, 1))
+    v3 = and v2, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v4 = or v3, 7
+    sstore v1, v4 !metadata(storage=offset(v0, 1))
+    v5 = add v0, 1
+    v6 = sload v5 !metadata(storage=offset(v0, 1))
+    v7 = and v6, 0xffffffffffffffffffffff00ffffffffffffffffffffffffffffffffffffffff
+    v8 = or v7, 0x10000000000000000000000000000000000000000
+    sstore v5, v8 !metadata(storage=offset(v0, 1))
     ret
 }
 

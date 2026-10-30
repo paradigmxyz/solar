@@ -88,12 +88,11 @@ fn @emptyLiteral() -> i256 [selector=0x298b653f, pure, abi_params=[], abi_return
 
 fn @encoded(arg0: i256) -> ptr<memory> [selector=0xdbafcb80, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = shl 0x12345678, 224
-    v1 = icall @encodedWord
-    v2 = alloc 32
-    mstore v2, 0
-    v3 = abi_encode [memory_bytes, word, memory_bytes], object, selector v0, args v1, arg0, v2
-    ret v3
+    v0 = icall @encodedWord
+    v1 = alloc 32
+    mstore v1, 0
+    v2 = abi_encode [memory_bytes, word, memory_bytes], object, selector 0x1234567800000000000000000000000000000000000000000000000000000000, args v0, arg0, v1
+    ret v2
 }
 
 fn @literal() -> ptr<memory> [pure] {

@@ -74,12 +74,11 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
+    v9 = mload 0 !metadata(memory=scratch)
     jump bb5
   bb5:
-    v11 = phi [bb3: v10], [bb6: 7]
-    ret v11
+    v10 = phi [bb3: v9], [bb6: 7]
+    ret v10
 }
 
 fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -111,17 +110,15 @@ fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], a
     v10 = returndatasize
     v11 = lt v10, 64
     icall revert_if<tuple_data_too_short>, v11
-    v12 = ptrtoint ptr<memory> v6 to i256
-    v13 = add v12, 0
-    v14 = mload v13
-    v15 = ptrtoint ptr<memory> v6 to i256
-    v16 = add v15, 32
-    v17 = mload v16
-    v18 = checked_add uint256, v14, v17
+    v12 = mload v6
+    v13 = ptrtoint ptr<memory> v6 to i256
+    v14 = add v13, 32
+    v15 = mload v14
+    v16 = checked_add uint256, v12, v15
     jump bb5
   bb5:
-    v19 = phi [bb3: v18], [bb6: 7]
-    ret v19
+    v17 = phi [bb3: v16], [bb6: 7]
+    ret v17
 }
 
 fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -233,12 +230,11 @@ fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word],
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
+    v9 = mload 0 !metadata(memory=scratch)
     jump bb5
   bb5:
-    v11 = phi [bb3: v10], [bb6: 7]
-    ret v11
+    v10 = phi [bb3: v9], [bb6: 7]
+    ret v10
 }
 
 fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -274,12 +270,11 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     v13 = returndatasize
     v14 = lt v13, 32
     icall revert_if<tuple_data_too_short>, v14
-    v15 = add 0, 0
-    v16 = mload v15
+    v15 = mload 0 !metadata(memory=scratch)
     jump bb5
   bb5:
-    v17 = phi [bb3: v16], [bb6: 7]
-    ret v17
+    v16 = phi [bb3: v15], [bb6: 7]
+    ret v16
 }
 
 fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -321,12 +316,11 @@ fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], ab
     v2 = returndatasize
     v3 = lt v2, 32
     icall revert_if<tuple_data_too_short>, v3
-    v4 = add 0, 0
-    v5 = mload v4
+    v4 = mload 0 !metadata(memory=scratch)
     jump bb3
   bb3:
-    v6 = phi [bb1: v5], [bb4: 7]
-    ret v6
+    v5 = phi [bb1: v4], [bb4: 7]
+    ret v5
 }
 
 fn @noCodeNoReturn() -> i256 [selector=0xac1b26c4, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

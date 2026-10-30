@@ -49,7 +49,6 @@ fn @forward(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x4
     v31 = returndatasize
     v32 = lt v31, 32
     icall revert_if<tuple_data_too_short>, v32
-    v33 = add 0, 0
-    v34 = mload v33
-    ret v34
+    v33 = mload 0 !metadata(memory=scratch)
+    ret v33
 }

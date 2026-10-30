@@ -44,64 +44,49 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     jump bb5
   bb3:
     v18 = storage_array_data_slot 0
-    v19 = shr 0, 5
-    v20 = add v18, v19
     jump bb5
   bb5:
-    v21 = phi [bb3: v20], [bb4: 0]
-    v22 = and 0, 31
-    v23 = sub 31, v22
-    v24 = mul v23, 8
-    v25 = shl 255, v24
-    v26 = sload v21 !metadata(storage=symbolic(v21))
-    v27 = not v25
-    v28 = and v26, v27
-    v29 = shr 0xff00000000000000000000000000000000000000000000000000000000000000, 248
-    v30 = and v29, 255
-    v31 = shl v30, v24
-    v32 = or v28, v31
-    sstore v21, v32 !metadata(storage=symbolic(v21))
-    v33 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v33
-    v34 = and v33, 1
-    v35 = eq v34, 1
-    v36 = sub 0, v34
-    v37 = or 127, v36
-    v38 = shr v33, 1
-    v39 = and v38, v37
-    v40 = lt 0, v39
-    v41 = eq v40, false
-    icall panic_if<0x32>, v41
-    jumpi v35, bb6, bb7
+    v19 = phi [bb3: v18], [bb4: 0]
+    v20 = sload v19 !metadata(storage=symbolic(v19))
+    v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v22 = or v21, 0xff00000000000000000000000000000000000000000000000000000000000000
+    sstore v19, v22 !metadata(storage=symbolic(v19))
+    v23 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v23
+    v24 = and v23, 1
+    v25 = eq v24, 1
+    v26 = sub 0, v24
+    v27 = or 127, v26
+    v28 = shr v23, 1
+    v29 = and v28, v27
+    v30 = lt 0, v29
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    jumpi v25, bb6, bb7
   bb7:
     jump bb8
   bb6:
-    v42 = storage_array_data_slot 0
-    v43 = shr 0, 5
-    v44 = add v42, v43
+    v32 = storage_array_data_slot 0
     jump bb8
   bb8:
-    v45 = phi [bb6: v44], [bb7: 0]
-    v46 = and 0, 31
-    v47 = sub 31, v46
-    v48 = sload v45 !metadata(storage=symbolic(v45))
-    v49 = mul v47, 8
-    v50 = shr v48, v49
-    v51 = shl v50, 248
-    v52 = shr v51, 248
-    v53 = trunc i256 v52 to i8
-    v54 = zext i8 v53 to i256
-    v55 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v55
-    v56 = and v55, 1
-    v57 = eq v56, 1
-    v58 = sub 0, v56
-    v59 = or 127, v58
-    v60 = shr v55, 1
-    v61 = and v60, v59
-    v62 = insert_value struct0, undef struct0, 0, v54
-    v63 = insert_value struct0, v62, 1, v61
-    ret v63
+    v33 = phi [bb6: v32], [bb7: 0]
+    v34 = sload v33 !metadata(storage=symbolic(v33))
+    v35 = shr v34, 248
+    v36 = shl v35, 248
+    v37 = shr v36, 248
+    v38 = trunc i256 v37 to i8
+    v39 = zext i8 v38 to i256
+    v40 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v40
+    v41 = and v40, 1
+    v42 = eq v41, 1
+    v43 = sub 0, v41
+    v44 = or 127, v43
+    v45 = shr v40, 1
+    v46 = and v45, v44
+    v47 = insert_value struct0, undef struct0, 0, v39
+    v48 = insert_value struct0, v47, 1, v46
+    ret v48
 }
 
 fn @g() -> i256 [selector=0xe2179b8e, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -122,19 +107,14 @@ fn @g() -> i256 [selector=0xe2179b8e, view, abi_params=[], abi_returns=[word], a
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = shr 1, 5
-    v11 = add v9, v10
     jump bb3
   bb3:
-    v12 = phi [bb1: v11], [bb2: 0]
-    v13 = and 1, 31
-    v14 = sub 31, v13
-    v15 = sload v12 !metadata(storage=symbolic(v12))
-    v16 = mul v14, 8
-    v17 = shr v15, v16
-    v18 = shl v17, 248
-    v19 = shr v18, 248
-    v20 = trunc i256 v19 to i8
-    v21 = zext i8 v20 to i256
-    ret v21
+    v10 = phi [bb1: v9], [bb2: 0]
+    v11 = sload v10 !metadata(storage=symbolic(v10))
+    v12 = shr v11, 240
+    v13 = shl v12, 248
+    v14 = shr v13, 248
+    v15 = trunc i256 v14 to i8
+    v16 = zext i8 v15 to i256
+    ret v16
 }

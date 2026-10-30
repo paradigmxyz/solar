@@ -863,8 +863,7 @@ fn write_head_before_object(
     } else {
         let thirty_one = builder.imm(31);
         let rounded = builder.add(length, thirty_one);
-        let mask = builder.not(thirty_one);
-        let padded = builder.and(rounded, mask);
+        let padded = builder.mask_padded_size(rounded);
         // object: [length, bytes..., stale padding]
         // => [length, bytes..., zero padding]
         let source = builder.memory_data(object);
@@ -880,7 +879,7 @@ fn write_head_before_object(
     let start = builder.ptradd(object, back);
     let offset = builder.imm(32);
     builder.store(start, offset);
-    let total = builder.add_u64_offset(extent, 64);
+    let total = builder.add_offset(extent, 64);
     (start, total)
 }
 
@@ -962,7 +961,7 @@ fn lower_encode(
         if let Some(selector) = selector {
             builder.store(buffer, selector);
         }
-        let dest = offset_ptr(builder, buffer, selector_size);
+        let dest = builder.add_offset(buffer, selector_size);
         encode_tuple(builder, args, &layout.types, dest, AbiValueSource::Scalar, helpers);
         let total = builder.imm(total_size);
         return builder.make_slice(buffer, total, PtrLocation::Memory);
@@ -987,7 +986,7 @@ fn lower_encode(
         if let Some(selector) = selector {
             builder.store(buffer, selector);
         }
-        let dest = offset_ptr(builder, buffer, selector_size);
+        let dest = builder.add_offset(buffer, selector_size);
         encode_tuple(builder, args, &layout.types, dest, AbiValueSource::Scalar, helpers);
         let total = builder.imm(total_size);
         return builder.make_slice(buffer, total, PtrLocation::Memory);
@@ -998,10 +997,10 @@ fn lower_encode(
     let allocation_base = builder.fmp();
     let header_size = if mode == AbiEncodeMode::Bytes { 32 } else { 0 };
     if let Some(selector) = selector {
-        let buffer = offset_ptr(builder, allocation_base, header_size);
+        let buffer = builder.add_offset(allocation_base, header_size);
         builder.store(buffer, selector);
     }
-    let dest = offset_ptr(builder, allocation_base, header_size + selector_size);
+    let dest = builder.add_offset(allocation_base, header_size + selector_size);
     let encoded_size =
         encode_tuple(builder, args, &layout.types, dest, AbiValueSource::Scalar, helpers);
     // The encoding is a whole number of words, so only the selector needs padding.
@@ -1078,12 +1077,15 @@ pub(crate) fn encode_static_tuple(
     types: &[AbiType],
     dest: ValueId,
 ) -> ValueId {
-    let mut head = dest;
+    let mut size = 0;
     for (&value, ty) in values.iter().zip(types) {
+        // head = add dest, size
+        let head = builder.add_offset(dest, size);
         encode_static_impl(builder, ty, value, head, false, AbiValueSource::Scalar);
-        head = offset_ptr(builder, head, ty.head_size());
+        size += ty.head_size();
     }
-    builder.sub(head, dest)
+    // size = head bytes written
+    builder.imm(size)
 }
 
 fn encode_static_impl(
@@ -1115,7 +1117,7 @@ fn encode_static_impl(
                     allow_slice_fast_path,
                     AbiValueSource::Memory,
                 );
-                field_head = offset_ptr(builder, field_head, field.head_size());
+                field_head = builder.add_offset(field_head, field.head_size());
             }
         }
         AbiType::FixedArray { element, len, .. } => {
@@ -1183,7 +1185,7 @@ fn encode_tuple(
     if !types.iter().any(AbiType::is_dynamic) {
         let mut head_offset = 0;
         for (&value, ty) in values.iter().zip(types) {
-            let head = offset_ptr(builder, dest, head_offset);
+            let head = builder.add_offset(dest, head_offset);
             encode_static_impl(builder, ty, value, head, true, source);
             head_offset += ty.head_size();
         }
@@ -1194,7 +1196,7 @@ fn encode_tuple(
     let mut tail = builder.add(dest, head_size_value);
     let mut head_offset = 0;
     for (&value, ty) in values.iter().zip(types) {
-        let head_addr = offset_ptr(builder, dest, head_offset);
+        let head_addr = builder.add_offset(dest, head_offset);
         tail = encode_value(
             builder,
             ty,
@@ -1241,10 +1243,10 @@ fn encode_static_slice(
             let mut source_offset = 0;
             let mut head = head_addr;
             for field in fields {
-                let source_word = offset_ptr(builder, source, source_offset);
+                let source_word = builder.add_offset(source, source_offset);
                 encode_static_slice(builder, field, source_word, head, location, validate);
                 source_offset += field.head_size();
-                head = offset_ptr(builder, head, field.head_size());
+                head = builder.add_offset(head, field.head_size());
             }
         }
         AbiType::FixedArray { block_copy: true, .. } if location == PtrLocation::Calldata => {
@@ -1413,7 +1415,7 @@ fn encode_calldata_body(
             // encode_calldata_elements(element, slice_ptr(value), length, dest + 32)
             let length = builder.slice_len(value);
             builder.store(dest, length);
-            let area = builder.add_u64_offset(dest, 32);
+            let area = builder.add_offset(dest, 32);
             let base = builder.slice_ptr(value);
             encode_calldata_elements(builder, element, base, length, area, helpers)
         }
@@ -1489,8 +1491,8 @@ fn encode_memory_array_elements(
         }
     };
     let element_head_size = builder.imm(element.head_size());
-    let head_bytes = builder.mul(len, element_head_size);
-    let initial_tail = builder.add(element_area, head_bytes);
+    let head_bytes = builder.mul_folded(len, element_head_size);
+    let initial_tail = builder.add_folded(element_area, head_bytes);
     let source_cursor = match layout {
         MemoryObjectLayout::FixedArray { .. } => builder.cast(value, MirType::I256),
         _ => builder.memory_data(value),
@@ -1548,13 +1550,13 @@ fn encode_calldata_tuple(
     dest: ValueId,
     helpers: &EncodeHelpers,
 ) -> ValueId {
-    let head_size = fields.iter().map(AbiType::head_size).sum();
-    let mut tail = offset_ptr(builder, dest, head_size);
+    let head_size = fields.iter().map(AbiType::head_size).sum::<u64>();
+    let mut tail = builder.add_offset(dest, head_size);
     let mut offset = 0;
     for field in fields {
         // tail = encode field at dest + offset from base + offset
-        let source_head = offset_ptr(builder, base, offset);
-        let head_addr = offset_ptr(builder, dest, offset);
+        let source_head = builder.add_offset(base, offset);
+        let head_addr = builder.add_offset(dest, offset);
         let field_dest = AbiValueDest { head_addr, tuple_base: dest, tail };
         tail = encode_calldata_element(builder, field, source_head, base, field_dest, helpers);
         offset += field.head_size();
@@ -1646,8 +1648,8 @@ fn encode_calldata_elements(
     helpers: &EncodeHelpers,
 ) -> ValueId {
     let stride = builder.imm(element.head_size());
-    let head_bytes = builder.mul(length, stride);
-    let initial_tail = builder.add(area, head_bytes);
+    let head_bytes = builder.mul_folded(length, stride);
+    let initial_tail = builder.add_folded(area, head_bytes);
     if !element.is_dynamic() {
         // for index in 0..length: encode_static(element, base + index * stride)
         let encode_each = |builder: &mut FunctionBuilder<'_>| {
@@ -1829,7 +1831,7 @@ fn encode_bytes(
     {
         let length = builder.imm(bytes.len() as u64);
         builder.store(dest, length);
-        let data = builder.add_u64_offset(dest, 32);
+        let data = builder.add_offset(dest, 32);
         for (index, chunk) in bytes.chunks(32).enumerate() {
             let mut padded = [0_u8; 32];
             padded[..chunk.len()].copy_from_slice(chunk);
@@ -1848,9 +1850,8 @@ fn encode_bytes(
     };
     let word = builder.imm(32);
     let thirty_one = builder.imm(31);
-    let mask = builder.not(thirty_one);
     let rounded = builder.add(len, thirty_one);
-    let padded = builder.and(rounded, mask);
+    let padded = builder.mask_padded_size(rounded);
     let data_dest = builder.add(dest, word);
 
     // last = dest + padded
@@ -2133,13 +2134,5 @@ fn remove_literal_objects(
     }
     for block in &mut func.blocks {
         block.instructions.retain(|inst| !removed.contains(inst));
-    }
-}
-
-fn offset_ptr(builder: &mut FunctionBuilder<'_>, base: ValueId, offset: u64) -> ValueId {
-    if offset != 0 && builder.func().value_u256(base).is_some_and(|base| base.is_zero()) {
-        builder.imm(offset)
-    } else {
-        builder.add_u64_offset(base, offset)
     }
 }

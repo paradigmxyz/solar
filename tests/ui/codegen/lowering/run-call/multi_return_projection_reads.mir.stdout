@@ -18,7 +18,7 @@ fn @constructor() [constructor] {
     v6 = mapping_slot 1, 0
     jump bb1
   bb1:
-    v7 = phi [bb0: 0], [bb6: v33]
+    v7 = phi [bb0: 0], [bb6: v32]
     v8 = lt v7, 4
     jumpi v8, bb2, bb3
   bb3:
@@ -36,10 +36,9 @@ fn @constructor() [constructor] {
     v27 = sload v10 !metadata(storage=symbolic(v10))
     v28 = not v26
     v29 = and v27, v28
-    v30 = and 0, 0xffffffffffffffffffffffffffffffffffffffff
-    v31 = shl v30, v25
-    v32 = or v29, v31
-    sstore v10, v32 !metadata(storage=symbolic(v10))
+    v30 = shl 0, v25
+    v31 = or v29, v30
+    sstore v10, v31 !metadata(storage=symbolic(v10))
     jump bb6
   bb4:
     v14 = shl v7, 5
@@ -56,7 +55,7 @@ fn @constructor() [constructor] {
     sstore v10, v24 !metadata(storage=symbolic(v10))
     jump bb6
   bb6:
-    v33 = add v7, 1
+    v32 = add v7, 1
     jump bb1
 }
 
@@ -148,52 +147,35 @@ fn @resolve(arg0: i256) -> struct0 [view] {
     v1 = lt 0, 4
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = div 0, 1
-    v4 = add v0, v3
-    v5 = mod 0, 1
-    v6 = mul v5, 20
-    v7 = sload v4 !metadata(storage=symbolic(v4))
-    v8 = mul v6, 8
-    v9 = shr v7, v8
-    v10 = trunc i256 v9 to i160
-    v11 = lt 1, 4
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = div 1, 1
-    v14 = add v0, v13
-    v15 = mod 1, 1
-    v16 = mul v15, 20
-    v17 = sload v14 !metadata(storage=symbolic(v14))
-    v18 = mul v16, 8
-    v19 = shr v17, v18
-    v20 = trunc i256 v19 to i160
-    v21 = lt 2, 4
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = div 2, 1
-    v24 = add v0, v23
-    v25 = mod 2, 1
-    v26 = mul v25, 20
-    v27 = sload v24 !metadata(storage=symbolic(v24))
-    v28 = mul v26, 8
-    v29 = shr v27, v28
-    v30 = trunc i256 v29 to i160
-    v31 = lt 3, 4
-    v32 = eq v31, false
-    icall panic_if<0x32>, v32
-    v33 = div 3, 1
-    v34 = add v0, v33
-    v35 = mod 3, 1
-    v36 = mul v35, 20
-    v37 = sload v34 !metadata(storage=symbolic(v34))
-    v38 = mul v36, 8
-    v39 = shr v37, v38
-    v40 = trunc i256 v39 to i160
-    v41 = insert_value struct0, undef struct0, 0, v10
-    v42 = insert_value struct0, v41, 1, v20
-    v43 = insert_value struct0, v42, 2, v30
-    v44 = insert_value struct0, v43, 3, v40
-    ret v44
+    v3 = sload v0 !metadata(storage=symbolic(v0))
+    v4 = shr v3, 0
+    v5 = trunc i256 v4 to i160
+    v6 = lt 1, 4
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = add v0, 1
+    v9 = sload v8 !metadata(storage=offset(v0, 1))
+    v10 = shr v9, 0
+    v11 = trunc i256 v10 to i160
+    v12 = lt 2, 4
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = add v0, 2
+    v15 = sload v14 !metadata(storage=offset(v0, 2))
+    v16 = shr v15, 0
+    v17 = trunc i256 v16 to i160
+    v18 = lt 3, 4
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = add v0, 3
+    v21 = sload v20 !metadata(storage=offset(v0, 3))
+    v22 = shr v21, 0
+    v23 = trunc i256 v22 to i160
+    v24 = insert_value struct0, undef struct0, 0, v5
+    v25 = insert_value struct0, v24, 1, v11
+    v26 = insert_value struct0, v25, 2, v17
+    v27 = insert_value struct0, v26, 3, v23
+    ret v27
 }
 
 fn @mix(arg0: i256, arg1: i160, arg2: i256) -> i256 {

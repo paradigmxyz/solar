@@ -57,43 +57,43 @@ fn @sum() [selector=0xa20eed08, abi_wrapper, pure] {
     v48 = sub v39, v47
     v49 = gt v46, v48
     v50 = or v45, v49
-    v152 = or v40, v50
-    jumpi v152, bb4, bb5
+    v151 = or v40, v50
+    jumpi v151, bb4, bb5
   bb5:
     v37 = lt v46, 4
     jumpi v37, bb2, bb1
   bb1:
-    v117 = add v47, 0
-    v118 = calldataload v117
-    v119 = byte 0, v118
-    v120 = or 0, v119
-    v125 = shl v120, 8
-    v126 = and v125, 0xffffffff
-    v127 = add v47, 1
-    v128 = calldataload v127
-    v129 = byte 0, v128
-    v130 = or v126, v129
-    v135 = shl v130, 8
-    v136 = and v135, 0xffffffff
-    v137 = add v47, 2
-    v138 = calldataload v137
-    v139 = byte 0, v138
-    v140 = or v136, v139
-    v145 = shl v140, 8
-    v146 = and v145, 0xffffffff
-    v147 = add v47, 3
-    v148 = calldataload v147
-    v149 = byte 0, v148
-    v150 = or v146, v149
-    mstore 0, v150
+    v116 = add v47, 0
+    v117 = calldataload v116
+    v118 = byte 0, v117
+    v119 = or 0, v118
+    v124 = shl v119, 8
+    v125 = and v124, 0xffffffff
+    v126 = add v47, 1
+    v127 = calldataload v126
+    v128 = byte 0, v127
+    v129 = or v125, v128
+    v134 = shl v129, 8
+    v135 = and v134, 0xffffffff
+    v136 = add v47, 2
+    v137 = calldataload v136
+    v138 = byte 0, v137
+    v139 = or v135, v138
+    v144 = shl v139, 8
+    v145 = and v144, 0xffffffff
+    v146 = add v47, 3
+    v147 = calldataload v146
+    v148 = byte 0, v147
+    v149 = or v145, v148
+    mstore 0, v149
     returndata 0, 32
   bb2:
-    v73 = lt 0, v46
-    v84 = lt 1, v46
-    v153 = and v73, v84
-    v95 = lt 2, v46
-    v154 = and v153, v95
-    jumpi v154, bb6, bb3
+    v72 = lt 0, v46
+    v83 = lt 1, v46
+    v152 = and v72, v83
+    v94 = lt 2, v46
+    v153 = and v152, v94
+    jumpi v153, bb6, bb3
   bb6:
     jump bb3
   bb3:
@@ -135,19 +135,18 @@ fn @slow() [selector=0xaa8bda2d, abi_wrapper, pure] {
   bb1:
     jump bb2
   bb2:
-    v1 = phi [bb1: 0], [bb8: v40]
+    v1 = phi [bb1: 0], [bb8: v39]
     v2 = phi [bb1: 0], [bb8: v23]
     v3 = lt v2, 4
     jumpi v3, bb3, bb4
   bb4:
-    v37 = and v1, 0xffffffff
+    v36 = and v1, 0xffffffff
     mstore 0, v1
-    v33 = sub 32, 0
-    returndata 0, v33
+    returndata 0, 32
   bb3:
-    v34 = and v1, 0xffffffff
-    v35 = shl v34, 8
-    v36 = and v35, 0xffffffff
+    v33 = and v1, 0xffffffff
+    v34 = shl v33, 8
+    v35 = and v34, 0xffffffff
     v7 = lt v2, v28
     v8 = eq v7, false
     jumpi v8, bb5, bb6
@@ -157,9 +156,9 @@ fn @slow() [selector=0xaa8bda2d, abi_wrapper, pure] {
     v14 = byte 0, v13
     v15 = shl v14, 248
     v16 = shr v15, 248
-    v38 = and v16, 255
-    v39 = or v36, v38
-    v40 = and v39, 0xffffffff
+    v37 = and v16, 255
+    v38 = or v35, v37
+    v39 = and v38, 0xffffffff
     v23 = add v2, 1
     v24 = lt v23, v2
     jumpi v24, bb7, bb8
@@ -183,37 +182,37 @@ fn @fast() [selector=0xe256fef5, abi_wrapper, optimize=gas, pure] {
     v37 = lt v42, 4
     jumpi v37, bb2, bb1
   bb1:
-    v109 = add v43, 0
-    v110 = calldataload v109
-    v111 = byte 0, v110
-    v112 = or 0, v111
-    v117 = shl v112, 7
-    v118 = and v117, 0xffffffff
-    v119 = add v43, 1
-    v120 = calldataload v119
-    v121 = byte 0, v120
-    v122 = or v118, v121
-    v127 = shl v122, 7
-    v128 = and v127, 0xffffffff
-    v129 = add v43, 2
-    v130 = calldataload v129
-    v131 = byte 0, v130
-    v132 = or v128, v131
-    v137 = shl v132, 7
-    v138 = and v137, 0xffffffff
-    v139 = add v43, 3
-    v140 = calldataload v139
-    v141 = byte 0, v140
-    v142 = or v138, v141
-    mstore 0, v142
+    v108 = add v43, 0
+    v109 = calldataload v108
+    v110 = byte 0, v109
+    v111 = or 0, v110
+    v116 = shl v111, 7
+    v117 = and v116, 0xffffffff
+    v118 = add v43, 1
+    v119 = calldataload v118
+    v120 = byte 0, v119
+    v121 = or v117, v120
+    v126 = shl v121, 7
+    v127 = and v126, 0xffffffff
+    v128 = add v43, 2
+    v129 = calldataload v128
+    v130 = byte 0, v129
+    v131 = or v127, v130
+    v136 = shl v131, 7
+    v137 = and v136, 0xffffffff
+    v138 = add v43, 3
+    v139 = calldataload v138
+    v140 = byte 0, v139
+    v141 = or v137, v140
+    mstore 0, v141
     returndata 0, 32
   bb2:
-    v65 = lt 0, v42
-    v76 = lt 1, v42
-    v144 = and v65, v76
-    v87 = lt 2, v42
-    v145 = and v144, v87
-    jumpi v145, bb4, bb3
+    v64 = lt 0, v42
+    v75 = lt 1, v42
+    v143 = and v64, v75
+    v86 = lt 2, v42
+    v144 = and v143, v86
+    jumpi v144, bb4, bb3
   bb4:
     jump bb3
   bb3:

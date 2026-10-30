@@ -9,37 +9,37 @@ fn @gasCaller() [selector=0x3dd81fa2, abi_wrapper, pure] {
     v38 = lt v43, 4
     jumpi v38, bb2, bb1
   bb1:
-    v110 = add v44, 0
-    v111 = calldataload v110
-    v112 = byte 0, v111
-    v113 = or 0, v112
-    v118 = shl v113, 8
-    v119 = and v118, 0xffffffff
-    v120 = add v44, 1
-    v121 = calldataload v120
-    v122 = byte 0, v121
-    v123 = or v119, v122
-    v128 = shl v123, 8
-    v129 = and v128, 0xffffffff
-    v130 = add v44, 2
-    v131 = calldataload v130
-    v132 = byte 0, v131
-    v133 = or v129, v132
-    v138 = shl v133, 8
-    v139 = and v138, 0xffffffff
-    v140 = add v44, 3
-    v141 = calldataload v140
-    v142 = byte 0, v141
-    v143 = or v139, v142
-    mstore 0, v143
+    v109 = add v44, 0
+    v110 = calldataload v109
+    v111 = byte 0, v110
+    v112 = or 0, v111
+    v117 = shl v112, 8
+    v118 = and v117, 0xffffffff
+    v119 = add v44, 1
+    v120 = calldataload v119
+    v121 = byte 0, v120
+    v122 = or v118, v121
+    v127 = shl v122, 8
+    v128 = and v127, 0xffffffff
+    v129 = add v44, 2
+    v130 = calldataload v129
+    v131 = byte 0, v130
+    v132 = or v128, v131
+    v137 = shl v132, 8
+    v138 = and v137, 0xffffffff
+    v139 = add v44, 3
+    v140 = calldataload v139
+    v141 = byte 0, v140
+    v142 = or v138, v141
+    mstore 0, v142
     returndata 0, 32
   bb2:
-    v66 = lt 0, v43
-    v77 = lt 1, v43
-    v145 = and v66, v77
-    v88 = lt 2, v43
-    v146 = and v145, v88
-    jumpi v146, bb4, bb3
+    v65 = lt 0, v43
+    v76 = lt 1, v43
+    v144 = and v65, v76
+    v87 = lt 2, v43
+    v145 = and v144, v87
+    jumpi v145, bb4, bb3
   bb4:
     jump bb3
   bb3:
@@ -53,7 +53,7 @@ fn @sizeCaller() [selector=0x955e9bc9, abi_wrapper, optimize=size, pure] {
     v28 = add v26, 32
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb5: v37]
+    v1 = phi [bb0: 0], [bb5: v36]
     v2 = phi [bb0: 0], [bb5: v5]
     v3 = lt v2, 4
     jumpi v3, bb3, bb2
@@ -61,8 +61,8 @@ fn @sizeCaller() [selector=0x955e9bc9, abi_wrapper, optimize=size, pure] {
     mstore 0, v1
     returndata 0, 32
   bb3:
-    v34 = shl v1, 7
-    v35 = and v34, 0xffffffff
+    v33 = shl v1, 7
+    v34 = and v33, 0xffffffff
     v10 = lt v2, v27
     jumpi v10, bb5, bb4
   bb4:
@@ -71,7 +71,7 @@ fn @sizeCaller() [selector=0x955e9bc9, abi_wrapper, optimize=size, pure] {
     v15 = add v28, v2
     v16 = calldataload v15
     v17 = byte 0, v16
-    v37 = or v35, v17
+    v36 = or v34, v17
     v5 = add v2, 1
     jump bb1
 }

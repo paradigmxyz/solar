@@ -17,15 +17,14 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x15cfcc01, pure, abi_para
     v10 = add v9, 63
     v11 = lt v10, v9
     icall panic_if<0x41>, v11
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc v13
-    mstore v14, v9
-    v15 = ptradd v14, 32
-    v16 = extract_value slice<calldata>, v1, 0
-    v17 = extract_value slice<calldata>, v1, 1
-    calldatacopy v15, v16, v17
-    ret v14
+    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = alloc v12
+    mstore v13, v9
+    v14 = ptradd v13, 32
+    v15 = extract_value slice<calldata>, v1, 0
+    v16 = extract_value slice<calldata>, v1, 1
+    calldatacopy v14, v15, v16
+    ret v13
 }
 
 fn @f2(arg0: slice<calldata>) -> ptr<memory> [selector=0xdc0ee233, pure, abi_params=[array<2, array<_, array<2, uint256>>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -45,15 +44,14 @@ fn @f2(arg0: slice<calldata>) -> ptr<memory> [selector=0xdc0ee233, pure, abi_par
     v10 = add v9, 63
     v11 = lt v10, v9
     icall panic_if<0x41>, v11
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc v13
-    mstore v14, v9
-    v15 = ptradd v14, 32
-    v16 = extract_value slice<calldata>, v1, 0
-    v17 = extract_value slice<calldata>, v1, 1
-    calldatacopy v15, v16, v17
-    ret v14
+    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = alloc v12
+    mstore v13, v9
+    v14 = ptradd v13, 32
+    v15 = extract_value slice<calldata>, v1, 0
+    v16 = extract_value slice<calldata>, v1, 1
+    calldatacopy v14, v15, v16
+    ret v13
 }
 
 fn @g() -> ptr<memory> [selector=0xe2179b8e, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

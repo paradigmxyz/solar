@@ -16,11 +16,9 @@ fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_para
     sstore v5, 2 !metadata(storage=offset(v3, 1))
     v6 = add v4, 2
     v7 = sload v6 !metadata(storage=offset(v3, 2))
-    v8 = not 255
-    v9 = and v7, v8
-    v10 = and 1, 255
-    v11 = or v9, v10
-    sstore v6, v11 !metadata(storage=offset(v3, 2))
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v9 = or v8, 1
+    sstore v6, v9 !metadata(storage=offset(v3, 2))
     ret
 }
 
@@ -54,26 +52,20 @@ fn @testConstantIndex() -> struct0 [selector=0xb6aa0fa8, abi_params=[], abi_retu
     v0 = lt 3, 4
     v1 = eq v0, false
     icall panic_if<0x32>, v1
-    v2 = mul 3, 3
-    v3 = add 0, v2
-    sstore v3, 1 !metadata(storage=symbolic(v2))
-    v4 = add v3, 1
-    sstore v4, 2 !metadata(storage=offset(v2, 1))
-    v5 = add v3, 2
-    v6 = sload v5 !metadata(storage=offset(v2, 2))
-    v7 = not 255
-    v8 = and v6, v7
-    v9 = and 1, 255
-    v10 = or v8, v9
-    sstore v5, v10 !metadata(storage=offset(v2, 2))
-    v11 = icall @read, 9
-    v12 = extract_value struct0, v11, 0
-    v13 = extract_value struct0, v11, 1
-    v14 = extract_value struct0, v11, 2
-    v15 = insert_value struct0, undef struct0, 0, v12
-    v16 = insert_value struct0, v15, 1, v13
-    v17 = insert_value struct0, v16, 2, v14
-    ret v17
+    sstore 9, 1 !metadata(storage=slot(9))
+    sstore 10, 2 !metadata(storage=slot(10))
+    v2 = sload 11 !metadata(storage=slot(11))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v4 = or v3, 1
+    sstore 11, v4 !metadata(storage=slot(11))
+    v5 = icall @read, 9
+    v6 = extract_value struct0, v5, 0
+    v7 = extract_value struct0, v5, 1
+    v8 = extract_value struct0, v5, 2
+    v9 = insert_value struct0, undef struct0, 0, v6
+    v10 = insert_value struct0, v9, 1, v7
+    v11 = insert_value struct0, v10, 2, v8
+    ret v11
 }
 
 fn @testFromMemory() -> struct0 [selector=0xfebd1e0e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
@@ -101,19 +93,18 @@ fn @testFromMemory() -> struct0 [selector=0xfebd1e0e, abi_params=[], abi_returns
     v14 = ptradd v0, 64
     v15 = mload v14
     v16 = sload v13 !metadata(storage=offset(v7, 2))
-    v17 = not 255
-    v18 = and v16, v17
-    v19 = and v15, 255
-    v20 = or v18, v19
-    sstore v13, v20 !metadata(storage=offset(v7, 2))
-    v21 = icall @read, 6
-    v22 = extract_value struct0, v21, 0
-    v23 = extract_value struct0, v21, 1
-    v24 = extract_value struct0, v21, 2
-    v25 = insert_value struct0, undef struct0, 0, v22
-    v26 = insert_value struct0, v25, 1, v23
-    v27 = insert_value struct0, v26, 2, v24
-    ret v27
+    v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v18 = and v15, 255
+    v19 = or v17, v18
+    sstore v13, v19 !metadata(storage=offset(v7, 2))
+    v20 = icall @read, 6
+    v21 = extract_value struct0, v20, 0
+    v22 = extract_value struct0, v20, 1
+    v23 = extract_value struct0, v20, 2
+    v24 = insert_value struct0, undef struct0, 0, v21
+    v25 = insert_value struct0, v24, 1, v22
+    v26 = insert_value struct0, v25, 2, v23
+    ret v26
 }
 
 fn @testNested() -> struct0 [selector=0xfbd4b8cc, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
@@ -135,19 +126,17 @@ fn @testNested() -> struct0 [selector=0xfbd4b8cc, abi_params=[], abi_returns=[wo
     sstore v10, 9 !metadata(storage=offset(v9, 1))
     v11 = add v9, 2
     v12 = sload v11 !metadata(storage=offset(v9, 2))
-    v13 = not 255
-    v14 = and v12, v13
-    v15 = and 1, 255
-    v16 = or v14, v15
-    sstore v11, v16 !metadata(storage=offset(v9, 2))
-    v17 = icall @read, 21
-    v18 = extract_value struct0, v17, 0
-    v19 = extract_value struct0, v17, 1
-    v20 = extract_value struct0, v17, 2
-    v21 = insert_value struct0, undef struct0, 0, v18
-    v22 = insert_value struct0, v21, 1, v19
-    v23 = insert_value struct0, v22, 2, v20
-    ret v23
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v14 = or v13, 1
+    sstore v11, v14 !metadata(storage=offset(v9, 2))
+    v15 = icall @read, 21
+    v16 = extract_value struct0, v15, 0
+    v17 = extract_value struct0, v15, 1
+    v18 = extract_value struct0, v15, 2
+    v19 = insert_value struct0, undef struct0, 0, v16
+    v20 = insert_value struct0, v19, 1, v17
+    v21 = insert_value struct0, v20, 2, v18
+    ret v21
 }
 
 fn @constructor() [constructor] {

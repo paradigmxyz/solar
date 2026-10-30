@@ -11,12 +11,11 @@ fn @constructor() [constructor] {
     v2 = address
     v3 = eq v1, v2
     v4 = sload 0 !metadata(storage=slot(0))
-    v5 = not 255
-    v6 = and v4, v5
-    v7 = zext i1 v3 to i256
-    v8 = and v7, 255
-    v9 = or v6, v8
-    sstore 0, v9 !metadata(storage=slot(0))
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v6 = zext i1 v3 to i256
+    v7 = and v6, 255
+    v8 = or v5, v7
+    sstore 0, v8 !metadata(storage=slot(0))
     ret
 }
 
@@ -69,8 +68,7 @@ fn @addValue(arg0: i160, arg1: i256) -> i256 [pure] {
     v3 = returndatasize
     v4 = lt v3, 32
     icall revert_if<tuple_data_too_short>, v4
-    v5 = add 0, 0
-    v6 = mload v5
-    v7 = checked_add uint256, v6, arg1
-    ret v7
+    v5 = mload 0 !metadata(memory=scratch)
+    v6 = checked_add uint256, v5, arg1
+    ret v6
 }

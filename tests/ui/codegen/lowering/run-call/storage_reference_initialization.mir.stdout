@@ -8,13 +8,12 @@ fn @yulBind(arg0: i256) -> struct0 [selector=0xd5bd9082, abi_params=[uint256], a
   bb0:
     sstore 42, arg0 !metadata(storage=slot(42))
     v0 = checked_add uint256, arg0, 1
-    v1 = add 42, 1
-    sstore v1, v0 !metadata(storage=slot(43))
-    v2 = sload 42 !metadata(storage=slot(42))
-    v3 = icall @readB, 42
-    v4 = insert_value struct0, undef struct0, 0, v2
-    v5 = insert_value struct0, v4, 1, v3
-    ret v5
+    sstore 43, v0 !metadata(storage=slot(43))
+    v1 = sload 42 !metadata(storage=slot(42))
+    v2 = icall @readB, 42
+    v3 = insert_value struct0, undef struct0, 0, v1
+    v4 = insert_value struct0, v3, 1, v2
+    ret v4
 }
 
 fn @branchBind(arg0: i1, arg1: i256) -> struct1 [selector=0x3ccc3db5, abi_params=[bool, uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {

@@ -18,7 +18,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb3: v2]
-    v3 = phi [bb0: 0], [bb3: v31]
+    v3 = phi [bb0: 0], [bb3: v29]
     v4 = phi [bb0: v0], [bb3: v4]
     v5 = phi [bb0: v1], [bb3: v5]
     v6 = lt v3, 3
@@ -26,148 +26,138 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
   bb5:
     jump bb2
   bb2:
+    v30 = lt 0, 1
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
     v32 = lt 0, 1
     v33 = eq v32, false
     icall panic_if<0x32>, v33
-    v34 = mul 0, 9
-    v35 = add v4, v34
-    v36 = lt 0, 1
-    v37 = eq v36, false
-    icall panic_if<0x32>, v37
-    v38 = mul 0, 9
-    v39 = add v5, v38
-    v40 = alloc checked 96
+    v34 = alloc checked 96
     jump bb7
   bb7:
-    v41 = phi [bb2: 0], [bb8: v56]
-    v42 = lt v41, 3
-    jumpi v42, bb8, bb9
+    v35 = phi [bb2: 0], [bb8: v50]
+    v36 = lt v35, 3
+    jumpi v36, bb8, bb9
   bb9:
-    v57 = ptrtoint ptr<memory> v40 to i256
+    v51 = ptrtoint ptr<memory> v34 to i256
     jump bb10
   bb10:
-    v58 = phi [bb9: 0], [bb15: v83]
-    v59 = lt v58, 3
-    jumpi v59, bb11, bb12
+    v52 = phi [bb9: 0], [bb15: v77]
+    v53 = lt v52, 3
+    jumpi v53, bb11, bb12
   bb12:
     jump bb16
   bb16:
-    v84 = phi [bb12: v2], [bb18: v121]
-    v85 = phi [bb12: v3], [bb18: v85]
-    v86 = phi [bb12: 0], [bb18: v122]
-    v87 = phi [bb12: v4], [bb18: v87]
-    v88 = phi [bb12: v5], [bb18: v88]
-    v89 = lt v86, 3
-    jumpi v89, bb19, bb20
+    v78 = phi [bb12: v2], [bb18: v109]
+    v79 = phi [bb12: v3], [bb18: v79]
+    v80 = phi [bb12: 0], [bb18: v110]
+    v81 = phi [bb12: v4], [bb18: v81]
+    v82 = phi [bb12: v5], [bb18: v82]
+    v83 = lt v80, 3
+    jumpi v83, bb19, bb20
   bb20:
     jump bb17
   bb17:
-    ret v84
+    ret v78
   bb19:
-    v90 = lt 0, 1
-    v91 = eq v90, false
-    icall panic_if<0x32>, v91
-    v92 = mul 0, 9
-    v93 = add v88, v92
-    v94 = lt v86, 3
-    v95 = eq v94, false
-    icall panic_if<0x32>, v95
-    v96 = mul v86, 3
-    v97 = add v93, v96
-    v98 = sload v97 !metadata(storage=symbolic(v97))
-    v99 = lt 0, 1
-    v100 = eq v99, false
-    icall panic_if<0x32>, v100
-    v101 = mul 0, 9
-    v102 = add v88, v101
-    v103 = lt v86, 3
-    v104 = eq v103, false
-    icall panic_if<0x32>, v104
-    v105 = mul v86, 3
-    v106 = add v102, v105
-    v107 = add v106, 1
-    v108 = sload v107 !metadata(storage=offset(v106, 1))
-    v109 = checked_add uint256, v98, v108
-    v110 = lt 0, 1
-    v111 = eq v110, false
-    icall panic_if<0x32>, v111
-    v112 = mul 0, 9
-    v113 = add v88, v112
-    v114 = lt v86, 3
-    v115 = eq v114, false
-    icall panic_if<0x32>, v115
-    v116 = mul v86, 3
-    v117 = add v113, v116
-    v118 = add v117, 2
-    v119 = sload v118 !metadata(storage=offset(v117, 2))
-    v120 = checked_add uint256, v109, v119
-    v121 = checked_add uint256, v84, v120
+    v84 = lt 0, 1
+    v85 = eq v84, false
+    icall panic_if<0x32>, v85
+    v86 = lt v80, 3
+    v87 = eq v86, false
+    icall panic_if<0x32>, v87
+    v88 = mul v80, 3
+    v89 = add v82, v88
+    v90 = sload v89 !metadata(storage=symbolic(v89))
+    v91 = lt 0, 1
+    v92 = eq v91, false
+    icall panic_if<0x32>, v92
+    v93 = lt v80, 3
+    v94 = eq v93, false
+    icall panic_if<0x32>, v94
+    v95 = mul v80, 3
+    v96 = add v82, v95
+    v97 = add v96, 1
+    v98 = sload v97 !metadata(storage=offset(v96, 1))
+    v99 = checked_add uint256, v90, v98
+    v100 = lt 0, 1
+    v101 = eq v100, false
+    icall panic_if<0x32>, v101
+    v102 = lt v80, 3
+    v103 = eq v102, false
+    icall panic_if<0x32>, v103
+    v104 = mul v80, 3
+    v105 = add v82, v104
+    v106 = add v105, 2
+    v107 = sload v106 !metadata(storage=offset(v105, 2))
+    v108 = checked_add uint256, v99, v107
+    v109 = checked_add uint256, v78, v108
     jump bb21
   bb21:
     jump bb18
   bb18:
-    v122 = checked_add uint256, v86, 1
+    v110 = checked_add uint256, v80, 1
     jump bb16
   bb11:
-    v60 = mul v58, 3
-    v61 = add v39, v60
-    v62 = lt v58, 3
-    jumpi v62, bb13, bb14
+    v54 = mul v52, 3
+    v55 = add v5, v54
+    v56 = lt v52, 3
+    jumpi v56, bb13, bb14
   bb14:
-    v73 = alloc 96
-    mstore v73, 0
-    v74 = ptradd v73, 32
-    mstore v74, 0
-    v75 = ptradd v73, 64
-    mstore v75, 0
-    v76 = mload v73
-    sstore v61, v76 !metadata(storage=symbolic(v61))
-    v77 = add v61, 1
-    v78 = ptradd v73, 32
-    v79 = mload v78
-    sstore v77, v79 !metadata(storage=offset(v61, 1))
-    v80 = add v61, 2
-    v81 = ptradd v73, 64
-    v82 = mload v81
-    sstore v80, v82 !metadata(storage=offset(v61, 2))
+    v67 = alloc 96
+    mstore v67, 0
+    v68 = ptradd v67, 32
+    mstore v68, 0
+    v69 = ptradd v67, 64
+    mstore v69, 0
+    v70 = mload v67
+    sstore v55, v70 !metadata(storage=symbolic(v55))
+    v71 = add v55, 1
+    v72 = ptradd v67, 32
+    v73 = mload v72
+    sstore v71, v73 !metadata(storage=offset(v55, 1))
+    v74 = add v55, 2
+    v75 = ptradd v67, 64
+    v76 = mload v75
+    sstore v74, v76 !metadata(storage=offset(v55, 2))
     jump bb15
   bb13:
-    v63 = shl v58, 5
-    v64 = ptradd v40, v63
-    v65 = mload v64
+    v57 = shl v52, 5
+    v58 = ptradd v34, v57
+    v59 = mload v58
+    v60 = mload v59
+    sstore v55, v60 !metadata(storage=symbolic(v55))
+    v61 = add v55, 1
+    v62 = add v59, 32
+    v63 = mload v62
+    sstore v61, v63 !metadata(storage=offset(v55, 1))
+    v64 = add v55, 2
+    v65 = add v59, 64
     v66 = mload v65
-    sstore v61, v66 !metadata(storage=symbolic(v61))
-    v67 = add v61, 1
-    v68 = add v65, 32
-    v69 = mload v68
-    sstore v67, v69 !metadata(storage=offset(v61, 1))
-    v70 = add v61, 2
-    v71 = add v65, 64
-    v72 = mload v71
-    sstore v70, v72 !metadata(storage=offset(v61, 2))
+    sstore v64, v66 !metadata(storage=offset(v55, 2))
     jump bb15
   bb15:
-    v83 = add v58, 1
+    v77 = add v52, 1
     jump bb10
   bb8:
-    v43 = mul v41, 3
-    v44 = add v35, v43
-    v45 = alloc checked 96
-    v46 = sload v44 !metadata(storage=symbolic(v44))
-    mstore v45, v46
-    v47 = add v44, 1
-    v48 = sload v47 !metadata(storage=offset(v44, 1))
-    v49 = ptradd v45, 32
-    mstore v49, v48
-    v50 = add v44, 2
-    v51 = sload v50 !metadata(storage=offset(v44, 2))
-    v52 = ptradd v45, 64
-    mstore v52, v51
-    v53 = ptrtoint ptr<memory> v45 to i256
-    v54 = shl v41, 5
-    v55 = ptradd v40, v54
-    mstore v55, v53
-    v56 = add v41, 1
+    v37 = mul v35, 3
+    v38 = add v4, v37
+    v39 = alloc checked 96
+    v40 = sload v38 !metadata(storage=symbolic(v38))
+    mstore v39, v40
+    v41 = add v38, 1
+    v42 = sload v41 !metadata(storage=offset(v38, 1))
+    v43 = ptradd v39, 32
+    mstore v43, v42
+    v44 = add v38, 2
+    v45 = sload v44 !metadata(storage=offset(v38, 2))
+    v46 = ptradd v39, 64
+    mstore v46, v45
+    v47 = ptrtoint ptr<memory> v39 to i256
+    v48 = shl v35, 5
+    v49 = ptradd v34, v48
+    mstore v49, v47
+    v50 = add v35, 1
     jump bb7
   bb4:
     v7 = alloc 96
@@ -185,27 +175,25 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v16 = lt 0, 1
     v17 = eq v16, false
     icall panic_if<0x32>, v17
-    v18 = mul 0, 9
-    v19 = add v4, v18
-    v20 = lt v3, 3
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = mul v3, 3
-    v23 = add v19, v22
-    v24 = mload v7
-    sstore v23, v24 !metadata(storage=symbolic(v23))
-    v25 = add v23, 1
-    v26 = ptradd v7, 32
-    v27 = mload v26
-    sstore v25, v27 !metadata(storage=offset(v23, 1))
-    v28 = add v23, 2
-    v29 = ptradd v7, 64
-    v30 = mload v29
-    sstore v28, v30 !metadata(storage=offset(v23, 2))
+    v18 = lt v3, 3
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = mul v3, 3
+    v21 = add v4, v20
+    v22 = mload v7
+    sstore v21, v22 !metadata(storage=symbolic(v21))
+    v23 = add v21, 1
+    v24 = ptradd v7, 32
+    v25 = mload v24
+    sstore v23, v25 !metadata(storage=offset(v21, 1))
+    v26 = add v21, 2
+    v27 = ptradd v7, 64
+    v28 = mload v27
+    sstore v26, v28 !metadata(storage=offset(v21, 2))
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v31 = checked_add uint256, v3, 1
+    v29 = checked_add uint256, v3, 1
     jump bb1
 }

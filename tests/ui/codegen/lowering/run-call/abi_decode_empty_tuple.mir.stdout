@@ -64,13 +64,11 @@ fn @decodeCalldataLength(arg0: i256) -> i256 [selector=0x616430c5, pure, abi_par
 
 fn @decodeMemoryLength(arg0: i256) -> i256 [selector=0xc96a44ab, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = not 31
-    v1 = and 63, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 0
-    v3 = ptrtoint ptr<memory> v2 to i256
-    mstore v2, arg0
-    abi_decode [], v2
+    v0 = alloc zeroed checked 32
+    mstore v0, 0
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, arg0
+    abi_decode [], v0
     ret 4
 }
 

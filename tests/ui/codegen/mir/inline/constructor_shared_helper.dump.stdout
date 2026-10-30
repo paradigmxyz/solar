@@ -41,40 +41,40 @@ fn @constructor() [abi_wrapper, constructor] {
 fn @f() [selector=0x26121ff0, abi_wrapper] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v64 = and v0, 1
-    v65 = eq v64, 1
-    v66 = sub 0, v64
-    v67 = or v66, 127
-    v68 = shr v0, 1
-    v69 = and v68, v67
-    v70 = lt v69, 32
-    v71 = eq v65, v70
-    jumpi v71, bb3, bb4
+    v49 = and v0, 1
+    v50 = eq v49, 1
+    v51 = sub 0, v49
+    v52 = or v51, 127
+    v53 = shr v0, 1
+    v54 = and v53, v52
+    v55 = lt v54, 32
+    v56 = eq v50, v55
+    jumpi v56, bb3, bb4
   bb4:
-    v7 = add v69, 31
+    v7 = add v54, 31
     v8 = shr v7, 5
-    jumpi v65, bb1, bb2
+    jumpi v50, bb1, bb2
   bb1:
-    v119 = sub 0, v8
+    v102 = sub 0, v8
     jump bb5
   bb5:
-    v74 = phi [bb1: v119], [bb6: v77]
-    v75 = phi [bb1: 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563], [bb6: v78]
-    v76 = ne v74, 0
-    jumpi v76, bb6, bb2
+    v59 = phi [bb1: v102], [bb6: v62]
+    v60 = phi [bb1: 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563], [bb6: v63]
+    v61 = ne v59, 0
+    jumpi v61, bb6, bb2
   bb2:
     sstore 0, 0 !metadata(storage=slot(0))
     sstore 0, 0x102030000000000000000000000000000000000000000000000000000000006 !metadata(storage=slot(0))
     sstore 0, 0xff02030000000000000000000000000000000000000000000000000000000006 !metadata(storage=slot(0))
-    v48 = sload 0
-    v50 = shr v48, 248
-    mstore 0, v50
+    v34 = sload 0
+    v35 = shr v34, 248
+    mstore 0, v35
     mstore 32, 3
     returndata 0, 64
   bb6:
-    sstore v75, 0 !metadata(storage=symbolic(v75))
-    v77 = add v74, 1
-    v78 = add v75, 1
+    sstore v60, 0 !metadata(storage=symbolic(v60))
+    v62 = add v59, 1
+    v63 = add v60, 1
     jump bb5
   bb3:
     tail_call @revert_stub.6
@@ -83,29 +83,29 @@ fn @f() [selector=0x26121ff0, abi_wrapper] {
 fn @g() [selector=0xe2179b8e, abi_wrapper, view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v22 = and v0, 1
-    v23 = eq v22, 1
-    v24 = sub 0, v22
-    v25 = or v24, 127
-    v26 = shr v0, 1
-    v27 = and v26, v25
-    v28 = lt v27, 32
-    v29 = eq v23, v28
-    jumpi v29, bb5, bb6
+    v17 = and v0, 1
+    v18 = eq v17, 1
+    v19 = sub 0, v17
+    v20 = or v19, 127
+    v21 = shr v0, 1
+    v22 = and v21, v20
+    v23 = lt v22, 32
+    v24 = eq v18, v23
+    jumpi v24, bb5, bb6
   bb6:
-    v7 = gt v27, 1
+    v7 = gt v22, 1
     jumpi v7, bb4, bb3
   bb3:
     tail_call @revert_stub.5
   bb4:
-    jumpi v23, bb1, bb2
+    jumpi v18, bb1, bb2
   bb1:
     jump bb2
   bb2:
-    v12 = phi [bb1: 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563], [bb4: 0]
-    v15 = sload v12 !metadata(storage=symbolic(v12))
-    v19 = byte 1, v15
-    mstore 0, v19
+    v10 = phi [bb1: 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563], [bb4: 0]
+    v11 = sload v10 !metadata(storage=symbolic(v10))
+    v14 = byte 1, v11
+    mstore 0, v14
     returndata 0, 32
   bb5:
     tail_call @revert_stub.6

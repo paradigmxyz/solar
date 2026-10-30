@@ -356,10 +356,8 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                             let base =
                                 builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
                             for (index, &ty) in types.iter().enumerate().skip(1) {
-                                let offset = builder.add_u64_offset(
-                                    base,
-                                    index as u64 * EvmMemoryLayout::WORD_SIZE,
-                                );
+                                let offset = builder
+                                    .add_offset(base, index as u64 * EvmMemoryLayout::WORD_SIZE);
                                 outputs.push(builder.emit_inst(
                                     InstKind::Load(offset, PtrLocation::Memory),
                                     Some(ty),

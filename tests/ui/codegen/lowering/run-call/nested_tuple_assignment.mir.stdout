@@ -103,24 +103,22 @@ fn @sliceChoice(arg0: i1) -> struct2 [selector=0xdc4067fd, view, abi_params=[boo
     v12 = returndatasize
     v13 = lt v12, 64
     icall revert_if<tuple_data_too_short>, v13
-    v14 = ptrtoint ptr<memory> v8 to i256
-    v15 = add v14, 0
-    v16 = mload v15
-    v17 = ptrtoint ptr<memory> v8 to i256
-    v18 = add v17, 32
-    v19 = mload v18
-    v20 = signextend 1, v19
-    v21 = eq v19, v20
-    v22 = eq v21, false
-    icall revert_if<empty>, v22
-    v23 = trunc i256 v19 to i16
-    v24 = insert_value struct2, undef struct2, 0, v16
-    v25 = insert_value struct2, v24, 1, v23
-    v26 = extract_value struct2, v25, 0
-    v27 = extract_value struct2, v25, 1
-    v28 = insert_value struct2, undef struct2, 0, v26
-    v29 = insert_value struct2, v28, 1, v27
-    ret v29
+    v14 = mload v8
+    v15 = ptrtoint ptr<memory> v8 to i256
+    v16 = add v15, 32
+    v17 = mload v16
+    v18 = signextend 1, v17
+    v19 = eq v17, v18
+    v20 = eq v19, false
+    icall revert_if<empty>, v20
+    v21 = trunc i256 v17 to i16
+    v22 = insert_value struct2, undef struct2, 0, v14
+    v23 = insert_value struct2, v22, 1, v21
+    v24 = extract_value struct2, v23, 0
+    v25 = extract_value struct2, v23, 1
+    v26 = insert_value struct2, undef struct2, 0, v24
+    v27 = insert_value struct2, v26, 1, v25
+    ret v27
 }
 
 fn @slicePair(arg0: i1, arg1: slice<calldata>, arg2: slice<calldata>) -> struct2 [selector=0xe745f2b2, pure, abi_params=[bool, bytes, bytes], abi_returns=[word, word<int16>], abi_return_params=[uint256, int16]] {
@@ -213,31 +211,28 @@ fn @assignedCallStorage() -> struct3 [selector=0xac1ea202, abi_params=[], abi_re
     v2 = extract_value struct4, v0, 1
     v3 = sext i8 v1 to i16
     v4 = zext i8 v2 to i16
-    v5 = shl 0xffff, 16
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = not v5
-    v8 = and v6, v7
-    v9 = zext i16 v4 to i256
-    v10 = and v9, 0xffff
-    v11 = shl v10, 16
-    v12 = or v8, v11
-    sstore 0, v12 !metadata(storage=slot(0))
-    v13 = sload 0 !metadata(storage=slot(0))
-    v14 = not 0xffff
-    v15 = and v13, v14
-    v16 = zext i16 v3 to i256
-    v17 = and v16, 0xffff
-    v18 = or v15, v17
-    sstore 0, v18 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000ffff
+    v7 = zext i16 v4 to i256
+    v8 = and v7, 0xffff
+    v9 = shl v8, 16
+    v10 = or v6, v9
+    sstore 0, v10 !metadata(storage=slot(0))
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
+    v13 = zext i16 v3 to i256
+    v14 = and v13, 0xffff
+    v15 = or v12, v14
+    sstore 0, v15 !metadata(storage=slot(0))
+    v16 = sload 0 !metadata(storage=slot(0))
+    v17 = signextend 1, v16
+    v18 = trunc i256 v17 to i16
     v19 = sload 0 !metadata(storage=slot(0))
-    v20 = signextend 1, v19
+    v20 = shr v19, 16
     v21 = trunc i256 v20 to i16
-    v22 = sload 0 !metadata(storage=slot(0))
-    v23 = shr v22, 16
-    v24 = trunc i256 v23 to i16
-    v25 = insert_value struct3, undef struct3, 0, v21
-    v26 = insert_value struct3, v25, 1, v24
-    ret v26
+    v22 = insert_value struct3, undef struct3, 0, v18
+    v23 = insert_value struct3, v22, 1, v21
+    ret v23
 }
 
 fn @assign() -> struct5 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {

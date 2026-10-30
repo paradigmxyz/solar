@@ -28,16 +28,15 @@
 +     v8 = lt v7, v6 !metadata(span=30..40, modifier_depth=3)
 +     jumpi v8, bb1, bb2 !metadata(span=30..40, modifier_depth=3)
 +   bb2:
-+     v9 = not 31 !metadata(span=30..40, modifier_depth=3)
-+     v10 = and v7, v9 !metadata(span=30..40, modifier_depth=3)
-+     v11 = alloc v10 !metadata(span=30..40, modifier_depth=3)
-+     mstore v11, v6 !metadata(span=30..40, modifier_depth=3)
-+     v12 = make_returndata_slice ptr<returndata> 0, v6 !metadata(span=30..40, modifier_depth=3)
-+     v13 = ptradd v11, 32 !metadata(span=30..40, modifier_depth=3)
-+     v14 = extract_value slice<returndata>, v12, 0 !metadata(span=30..40, modifier_depth=3)
-+     v15 = extract_value slice<returndata>, v12, 1 !metadata(span=30..40, modifier_depth=3)
-+     returndatacopy v13, v14, v15 !metadata(span=30..40, modifier_depth=3)
-+     ret v11
++     v9 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0 !metadata(span=30..40, modifier_depth=3)
++     v10 = alloc v9 !metadata(span=30..40, modifier_depth=3)
++     mstore v10, v6 !metadata(span=30..40, modifier_depth=3)
++     v11 = make_returndata_slice ptr<returndata> 0, v6 !metadata(span=30..40, modifier_depth=3)
++     v12 = ptradd v10, 32 !metadata(span=30..40, modifier_depth=3)
++     v13 = extract_value slice<returndata>, v11, 0 !metadata(span=30..40, modifier_depth=3)
++     v14 = extract_value slice<returndata>, v11, 1 !metadata(span=30..40, modifier_depth=3)
++     returndatacopy v12, v13, v14 !metadata(span=30..40, modifier_depth=3)
++     ret v10
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch, span=30..40, modifier_depth=3)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=30..40, modifier_depth=3)

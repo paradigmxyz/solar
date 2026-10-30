@@ -60,23 +60,22 @@ fn @encodeSelector(arg0: i256) -> i256 [selector=0xe234433f, pure, abi_params=[b
 
 fn @encodeLocalSelector() -> i256 [selector=0x0e6d4a3f, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
-    v0 = shl 0x12345678, 224
-    v1 = alloc 64 !metadata(preserves_fmp)
-    mstore v1, 3
-    v2 = ptradd v1, 32
-    mstore v2, 0x6162630000000000000000000000000000000000000000000000000000000000
-    v3 = ptrtoint ptr<memory> v1 to i256
-    v4 = abi_encode [memory_bytes], object, selector v0, args v1
-    v5 = ptradd v4, 32
-    v6 = mload v5
-    v7 = mload v4
-    v8 = lt v7, 4
-    v9 = sub 4, v7
-    v10 = mul 8, v9
-    v11 = shl 0xffffffff00000000000000000000000000000000000000000000000000000000, v10
-    v12 = select v8, v11, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v13 = and v6, v12
-    ret v13
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 3
+    v1 = ptradd v0, 32
+    mstore v1, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v2 = ptrtoint ptr<memory> v0 to i256
+    v3 = abi_encode [memory_bytes], object, selector 0x1234567800000000000000000000000000000000000000000000000000000000, args v0
+    v4 = ptradd v3, 32
+    v5 = mload v4
+    v6 = mload v3
+    v7 = lt v6, 4
+    v8 = sub 4, v6
+    v9 = mul 8, v8
+    v10 = shl 0xffffffff00000000000000000000000000000000000000000000000000000000, v9
+    v11 = select v7, v10, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v12 = and v5, v11
+    ret v12
 }
 
 fn @orByte(arg0: i256, arg1: i256) -> i256 [pure] {

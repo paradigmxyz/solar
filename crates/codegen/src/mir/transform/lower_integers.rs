@@ -271,7 +271,7 @@ fn clean(builder: &mut FunctionBuilder<'_>, value: ValueId, bits: u32) -> ValueI
         let zero = builder.imm(0);
         builder.ne(value, zero)
     } else {
-        builder.and(value, mask)
+        builder.and_folded(value, mask)
     }
 }
 

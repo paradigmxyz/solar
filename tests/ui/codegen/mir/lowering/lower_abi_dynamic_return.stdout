@@ -1454,14 +1454,10 @@
 -     ret v0
 +     v2 = mload v0
 +     mstore 128, v2
-+     v3 = add 128, 32
-+     v4 = ptradd v0, 32
-+     v5 = mload v4
-+     mstore v3, v5
-+     v6 = add v3, 32
-+     v7 = add 128, 64
-+     v8 = sub v7, 128
-+     returndata 128, v8
++     v3 = ptradd v0, 32
++     v4 = mload v3
++     mstore 160, v4
++     returndata 128, 64
   }
   
   fn @dirtyAddressAliases() -> ptr<memory> {
@@ -1823,10 +1819,7 @@
 +     mstore v2, v4
 +     v5 = mload v2
 +     mstore 128, v5
-+     v6 = add 128, 32
-+     v7 = add 128, 32
-+     v8 = sub v7, 128
-+     returndata 128, v8
++     returndata 128, 32
   }
   
 - fn @givesPartlyZeroedTuple() -> ptr<memory> [selector=0x0dead00d, abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint8, uint8>]] {
@@ -1847,14 +1840,10 @@
 +     mstore v8, v7
 +     v9 = mload v2
 +     mstore 128, v9
-+     v10 = add 128, 32
-+     v11 = ptradd v2, 32
-+     v12 = mload v11
-+     mstore v10, v12
-+     v13 = add v10, 32
-+     v14 = add 128, 64
-+     v15 = sub v14, 128
-+     returndata 128, v15
++     v10 = ptradd v2, 32
++     v11 = mload v10
++     mstore 160, v11
++     returndata 128, 64
   }
   
 - fn @givesConditionallyZeroedTuple(arg0: i1) -> ptr<memory> [selector=0x0dead00e, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
@@ -1888,10 +1877,7 @@
 +     mstore v6, v8
 +     v9 = mload v6
 +     mstore 128, v9
-+     v10 = add 128, 32
-+     v11 = add 128, 32
-+     v12 = sub v11, 128
-+     returndata 128, v12
++     returndata 128, 32
 +   bb4:
 +     revert 0, 0
   }
@@ -1926,10 +1912,7 @@
 +     mstore v5, v7
 +     v8 = mload v5
 +     mstore 128, v8
-+     v9 = add 128, 32
-+     v10 = add 128, 32
-+     v11 = sub v10, 128
-+     returndata 128, v11
++     returndata 128, 32
 +   bb4:
 +     revert 0, 0
   }
@@ -2085,9 +2068,7 @@
 +     v16 = lt v15, 1
 +     jumpi v16, bb9, bb10
 +   bb10:
-+     v23 = add 128, 32
-+     v24 = sub v23, 128
-+     returndata 128, v24
++     returndata 128, 32
 +   bb9:
 +     v17 = shl v15, 5
 +     v18 = ptradd v5, v17
@@ -2282,10 +2263,7 @@
 +     mstore v3, v5
 +     v6 = mload v3
 +     mstore 128, v6
-+     v7 = add 128, 32
-+     v8 = add 128, 32
-+     v9 = sub v8, 128
-+     returndata 128, v9
++     returndata 128, 32
   }
   
   fn @canonicalStorageAddresses(arg0: i256) -> ptr<memory> {
@@ -2447,10 +2425,7 @@
 -     ret v0
 +     v7 = mload v0
 +     mstore 128, v7
-+     v8 = add 128, 32
-+     v9 = add 128, 32
-+     v10 = sub v9, 128
-+     returndata 128, v10
++     returndata 128, 32
 +   bb2:
 +     revert 0, 0
   }

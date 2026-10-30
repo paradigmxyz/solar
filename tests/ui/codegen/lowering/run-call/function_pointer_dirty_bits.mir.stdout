@@ -25,15 +25,14 @@ fn @comparison() -> i1 [selector=0xaae103ad, view, abi_params=[], abi_returns=[w
     v15 = and v12, 0xffffffff
     v16 = or v15, v14
     v17 = and v16, 0xffffffff
-    v18 = not 0xffffffff
-    v19 = and v12, v18
-    v20 = or v19, v17
-    v21 = address
-    v22 = zext i160 v21 to i256
-    v23 = shl v22, 32
-    v24 = or v23, 0xe2179b8e
-    v25 = eq v24, v20
-    ret v25
+    v18 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
+    v19 = or v18, v17
+    v20 = address
+    v21 = zext i160 v20 to i256
+    v22 = shl v21, 32
+    v23 = or v22, 0xe2179b8e
+    v24 = eq v23, v19
+    ret v24
 }
 
 fn @abiEncoding() -> i1 [selector=0xe9e87e69, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -56,21 +55,20 @@ fn @abiEncoding() -> i1 [selector=0xe9e87e69, view, abi_params=[], abi_returns=[
     v15 = and v12, 0xffffffff
     v16 = or v15, v14
     v17 = and v16, 0xffffffff
-    v18 = not 0xffffffff
-    v19 = and v12, v18
-    v20 = or v19, v17
-    v21 = abi_encode [function], scratch, args v20
-    v22 = extract_value slice<memory>, v21, 0
-    v23 = extract_value slice<memory>, v21, 1
-    v24 = keccak256 v22, v23
-    v25 = address
-    v26 = zext i160 v25 to i256
-    v27 = shl v26, 32
-    v28 = or v27, 0xe2179b8e
-    v29 = abi_encode [function], scratch, args v28
-    v30 = extract_value slice<memory>, v29, 0
-    v31 = extract_value slice<memory>, v29, 1
-    v32 = keccak256 v30, v31
-    v33 = eq v24, v32
-    ret v33
+    v18 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
+    v19 = or v18, v17
+    v20 = abi_encode [function], scratch, args v19
+    v21 = extract_value slice<memory>, v20, 0
+    v22 = extract_value slice<memory>, v20, 1
+    v23 = keccak256 v21, v22
+    v24 = address
+    v25 = zext i160 v24 to i256
+    v26 = shl v25, 32
+    v27 = or v26, 0xe2179b8e
+    v28 = abi_encode [function], scratch, args v27
+    v29 = extract_value slice<memory>, v28, 0
+    v30 = extract_value slice<memory>, v28, 1
+    v31 = keccak256 v29, v30
+    v32 = eq v23, v31
+    ret v32
 }

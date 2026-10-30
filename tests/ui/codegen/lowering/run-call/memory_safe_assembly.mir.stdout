@@ -93,58 +93,56 @@ fn @throughLoaded(arg0: i256, arg1: i256) -> i256 [selector=0xf8085a08, pure, ab
     v23 = keccak256_packed (uint256 arg0, uint256 23)
     v24 = alloc zeroed checked 160
     mstore v24, 4
-    v25 = not 31
-    v26 = and 127, v25
-    v27 = alloc zeroed checked v26
-    mstore v27, 64
-    v28 = ptrtoint ptr<memory> v24 to i256
-    v29 = add v28, 32
+    v25 = alloc zeroed checked 96
+    mstore v25, 64
+    v26 = ptrtoint ptr<memory> v24 to i256
+    v27 = add v26, 32
+    v28 = mul arg1, 32
+    v29 = add v27, v28
+    mstore v29, 7
     v30 = mul arg1, 32
-    v31 = add v29, v30
-    mstore v31, 7
-    v32 = mul arg1, 32
-    v33 = add v29, v32
-    v34 = mload v33
-    v35 = ptrtoint ptr<memory> v27 to i256
-    v36 = add v35, 32
-    mstore v36, v34
-    v37 = xor v0, v1
-    v38 = xor v37, v2
-    v39 = xor v38, v3
-    v40 = xor v39, v4
-    v41 = xor v40, v5
-    v42 = xor v41, v6
-    v43 = xor v42, v7
-    v44 = xor v43, v8
-    v45 = xor v44, v9
-    v46 = xor v45, v10
-    v47 = xor v46, v11
-    v48 = xor v47, v12
-    v49 = xor v48, v13
-    v50 = xor v49, v14
-    v51 = xor v50, v15
-    v52 = xor v51, v16
-    v53 = xor v52, v17
-    v54 = xor v53, v18
-    v55 = xor v54, v19
-    v56 = xor v55, v20
-    v57 = xor v56, v21
-    v58 = xor v57, v22
-    v59 = xor v58, v23
-    v60 = mload v24
-    v61 = lt arg1, v60
-    v62 = eq v61, false
-    icall panic_if<0x32>, v62
-    v63 = shl arg1, 5
-    v64 = ptradd v24, v63
-    v65 = ptradd v64, 32
-    v66 = mload v65
-    v67 = shl v66, 0
-    v68 = xor v59, v67
-    v69 = mload v27
-    v70 = shl v69, 0
-    v71 = xor v68, v70
-    ret v71
+    v31 = add v27, v30
+    v32 = mload v31
+    v33 = ptrtoint ptr<memory> v25 to i256
+    v34 = add v33, 32
+    mstore v34, v32
+    v35 = xor v0, v1
+    v36 = xor v35, v2
+    v37 = xor v36, v3
+    v38 = xor v37, v4
+    v39 = xor v38, v5
+    v40 = xor v39, v6
+    v41 = xor v40, v7
+    v42 = xor v41, v8
+    v43 = xor v42, v9
+    v44 = xor v43, v10
+    v45 = xor v44, v11
+    v46 = xor v45, v12
+    v47 = xor v46, v13
+    v48 = xor v47, v14
+    v49 = xor v48, v15
+    v50 = xor v49, v16
+    v51 = xor v50, v17
+    v52 = xor v51, v18
+    v53 = xor v52, v19
+    v54 = xor v53, v20
+    v55 = xor v54, v21
+    v56 = xor v55, v22
+    v57 = xor v56, v23
+    v58 = mload v24
+    v59 = lt arg1, v58
+    v60 = eq v59, false
+    icall panic_if<0x32>, v60
+    v61 = shl arg1, 5
+    v62 = ptradd v24, v61
+    v63 = ptradd v62, 32
+    v64 = mload v63
+    v65 = shl v64, 0
+    v66 = xor v57, v65
+    v67 = mload v25
+    v68 = shl v67, 0
+    v69 = xor v66, v68
+    ret v69
 }
 
 fn @legacyComment(arg0: i256, arg1: i256) -> i256 [selector=0xec3964b9, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {

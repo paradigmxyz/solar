@@ -35,25 +35,23 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = storage_array_data_slot v2
-    v17 = add v16, 0
-    v18 = sload v17 !metadata(storage=symbolic(v16))
-    v19 = gt v18, 0xffffffffffffffff
-    icall panic_if<0x41>, v19
-    v20 = add v18, 1
-    v21 = storage_array_data_slot v17
-    v22 = add v21, v18
-    sstore v22, 9 !metadata(storage=symbolic(v22))
-    sstore v17, v20 !metadata(storage=symbolic(v16))
-    v23 = sload v1 !metadata(storage=symbolic(v1))
-    v24 = sload v2 !metadata(storage=symbolic(v2))
-    v25 = checked_add uint256, v23, v24
-    v26 = sload v2 !metadata(storage=symbolic(v2))
-    v27 = lt 0, v26
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = storage_array_data_slot v2
-    v30 = add v29, 0
-    v31 = sload v30 !metadata(storage=symbolic(v29))
-    v32 = checked_add uint256, v25, v31
-    ret v32
+    v17 = sload v16 !metadata(storage=symbolic(v16))
+    v18 = gt v17, 0xffffffffffffffff
+    icall panic_if<0x41>, v18
+    v19 = add v17, 1
+    v20 = storage_array_data_slot v16
+    v21 = add v20, v17
+    sstore v21, 9 !metadata(storage=symbolic(v21))
+    sstore v16, v19 !metadata(storage=symbolic(v16))
+    v22 = sload v1 !metadata(storage=symbolic(v1))
+    v23 = sload v2 !metadata(storage=symbolic(v2))
+    v24 = checked_add uint256, v22, v23
+    v25 = sload v2 !metadata(storage=symbolic(v2))
+    v26 = lt 0, v25
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = storage_array_data_slot v2
+    v29 = sload v28 !metadata(storage=symbolic(v28))
+    v30 = checked_add uint256, v24, v29
+    ret v30
 }

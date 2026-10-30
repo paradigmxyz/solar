@@ -24,40 +24,31 @@ fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word],
 fn @packed(arg0: i8, arg1: i16) -> i256 [selector=0x80c8f910, abi_params=[uint8, uint16], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 255
-    v2 = and v0, v1
-    v3 = zext i8 arg0 to i256
-    v4 = and v3, 255
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = shl 0xffff, 8
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = not v6
-    v9 = and v7, v8
-    v10 = zext i16 arg1 to i256
-    v11 = and v10, 0xffff
-    v12 = shl v11, 8
-    v13 = or v9, v12
-    sstore 0, v13 !metadata(storage=slot(0))
-    v14 = sload 0 !metadata(storage=slot(0))
-    ret v14
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v2 = zext i8 arg0 to i256
+    v3 = and v2, 255
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000ff
+    v7 = zext i16 arg1 to i256
+    v8 = and v7, 0xffff
+    v9 = shl v8, 8
+    v10 = or v6, v9
+    sstore 0, v10 !metadata(storage=slot(0))
+    v11 = sload 0 !metadata(storage=slot(0))
+    ret v11
 }
 
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 255
-    v2 = and v0, v1
-    v3 = and 18, 255
-    v4 = or v2, v3
-    sstore 0, v4 !metadata(storage=slot(0))
-    v5 = shl 0xffff, 8
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = not v5
-    v8 = and v6, v7
-    v9 = and 52, 0xffff
-    v10 = shl v9, 8
-    v11 = or v8, v10
-    sstore 0, v11 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v2 = or v1, 18
+    sstore 0, v2 !metadata(storage=slot(0))
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000ff
+    v5 = or v4, 0x3400
+    sstore 0, v5 !metadata(storage=slot(0))
     ret
 }

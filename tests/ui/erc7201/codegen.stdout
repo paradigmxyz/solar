@@ -35,16 +35,15 @@ fn @calldataParam(arg0: slice<calldata>) -> i256 [selector=0x7d4a24fb, pure, abi
     v8 = add v7, 63
     v9 = lt v8, v7
     icall panic_if<0x41>, v9
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc v11
-    mstore v12, v7
-    v13 = ptradd v12, 32
-    v14 = extract_value slice<calldata>, arg0, 0
-    v15 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v13, v14, v15
-    v16 = icall erc7201<>, v12
-    ret v16
+    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v11 = alloc v10
+    mstore v11, v7
+    v12 = ptradd v11, 32
+    v13 = extract_value slice<calldata>, arg0, 0
+    v14 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v12, v13, v14
+    v15 = icall erc7201<>, v11
+    ret v15
 }
 
 fn @storageValue() -> i256 [selector=0xa977a973, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

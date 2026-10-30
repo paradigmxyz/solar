@@ -14,12 +14,11 @@ fn @constructor() [constructor] {
     v0 = icall @freeMemoryStarted
     v1 = ne v0, 0
     v2 = sload 0 !metadata(storage=slot(0))
-    v3 = not 255
-    v4 = and v2, v3
-    v5 = zext i1 v1 to i256
-    v6 = and v5, 255
-    v7 = or v4, v6
-    sstore 0, v7 !metadata(storage=slot(0))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v4 = zext i1 v1 to i256
+    v5 = and v4, 255
+    v6 = or v3, v5
+    sstore 0, v6 !metadata(storage=slot(0))
     ret
 }
 
@@ -46,12 +45,11 @@ fn @constructor() [constructor] {
     v0 = icall @freeMemoryStarted
     v1 = ne v0, 0
     v2 = sload 0 !metadata(storage=slot(0))
-    v3 = not 255
-    v4 = and v2, v3
-    v5 = zext i1 v1 to i256
-    v6 = and v5, 255
-    v7 = or v4, v6
-    sstore 0, v7 !metadata(storage=slot(0))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v4 = zext i1 v1 to i256
+    v5 = and v4, 255
+    v6 = or v3, v5
+    sstore 0, v6 !metadata(storage=slot(0))
     jump bb1
   bb1:
     sstore 1, 1 !metadata(storage=slot(1))
@@ -93,12 +91,11 @@ fn @constructor() [constructor] {
     v0 = icall @freeMemoryStarted
     v1 = ne v0, 0
     v2 = sload 0 !metadata(storage=slot(0))
-    v3 = not 255
-    v4 = and v2, v3
-    v5 = zext i1 v1 to i256
-    v6 = and v5, 255
-    v7 = or v4, v6
-    sstore 0, v7 !metadata(storage=slot(0))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v4 = zext i1 v1 to i256
+    v5 = and v4, 255
+    v6 = or v3, v5
+    sstore 0, v6 !metadata(storage=slot(0))
     jump bb2
   bb2:
     jump bb1
@@ -138,12 +135,11 @@ fn @record() {
     v0 = icall @freeMemoryStarted
     v1 = ne v0, 0
     v2 = sload 0 !metadata(storage=slot(0))
-    v3 = not 255
-    v4 = and v2, v3
-    v5 = zext i1 v1 to i256
-    v6 = and v5, 255
-    v7 = or v4, v6
-    sstore 0, v7 !metadata(storage=slot(0))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v4 = zext i1 v1 to i256
+    v5 = and v4, 255
+    v6 = or v3, v5
+    sstore 0, v6 !metadata(storage=slot(0))
     ret
 }
 

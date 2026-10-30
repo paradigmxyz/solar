@@ -63,27 +63,26 @@ fn @mixedBytes(arg0: slice<calldata>) -> struct2 [selector=0x48f52f2f, pure, abi
     v14 = add v13, 63
     v15 = lt v14, v13
     icall panic_if<0x41>, v15
-    v16 = not 31
-    v17 = and v14, v16
-    v18 = alloc v17
-    mstore v18, v13
-    v19 = extract_value slice<calldata>, v12, 0
-    v20 = extract_value slice<calldata>, v12, 1
-    v21 = calldatasize
-    v22 = gt v20, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v22
-    v23 = sub v21, v20
-    v24 = ptrtoint ptr<calldata> v19 to i256
-    v25 = sgt v24, v23
-    icall revert_if<calldata_tail_too_short>, v25
-    v26 = ptradd v18, 32
-    v27 = extract_value slice<calldata>, v12, 0
-    v28 = extract_value slice<calldata>, v12, 1
-    calldatacopy v26, v27, v28
-    v29 = insert_value struct2, undef struct2, 0, v4
-    v30 = insert_value struct2, v29, 1, v7
-    v31 = insert_value struct2, v30, 2, v18
-    ret v31
+    v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v17 = alloc v16
+    mstore v17, v13
+    v18 = extract_value slice<calldata>, v12, 0
+    v19 = extract_value slice<calldata>, v12, 1
+    v20 = calldatasize
+    v21 = gt v19, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v21
+    v22 = sub v20, v19
+    v23 = ptrtoint ptr<calldata> v18 to i256
+    v24 = sgt v23, v22
+    icall revert_if<calldata_tail_too_short>, v24
+    v25 = ptradd v17, 32
+    v26 = extract_value slice<calldata>, v12, 0
+    v27 = extract_value slice<calldata>, v12, 1
+    calldatacopy v25, v26, v27
+    v28 = insert_value struct2, undef struct2, 0, v4
+    v29 = insert_value struct2, v28, 1, v7
+    v30 = insert_value struct2, v29, 2, v17
+    ret v30
 }
 
 fn @mixedString(arg0: slice<calldata>) -> struct4 [selector=0x9824992c, pure, abi_params=[bytes], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
@@ -104,26 +103,25 @@ fn @mixedString(arg0: slice<calldata>) -> struct4 [selector=0x9824992c, pure, ab
     v13 = add v12, 63
     v14 = lt v13, v12
     icall panic_if<0x41>, v14
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc v16
-    mstore v17, v12
-    v18 = extract_value slice<calldata>, v11, 0
-    v19 = extract_value slice<calldata>, v11, 1
-    v20 = calldatasize
-    v21 = gt v19, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v21
-    v22 = sub v20, v19
-    v23 = ptrtoint ptr<calldata> v18 to i256
-    v24 = sgt v23, v22
-    icall revert_if<calldata_tail_too_short>, v24
-    v25 = ptradd v17, 32
-    v26 = extract_value slice<calldata>, v11, 0
-    v27 = extract_value slice<calldata>, v11, 1
-    calldatacopy v25, v26, v27
-    v28 = insert_value struct4, undef struct4, 0, v5
-    v29 = insert_value struct4, v28, 1, v17
-    ret v29
+    v15 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v16 = alloc v15
+    mstore v16, v12
+    v17 = extract_value slice<calldata>, v11, 0
+    v18 = extract_value slice<calldata>, v11, 1
+    v19 = calldatasize
+    v20 = gt v18, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v20
+    v21 = sub v19, v18
+    v22 = ptrtoint ptr<calldata> v17 to i256
+    v23 = sgt v22, v21
+    icall revert_if<calldata_tail_too_short>, v23
+    v24 = ptradd v16, 32
+    v25 = extract_value slice<calldata>, v11, 0
+    v26 = extract_value slice<calldata>, v11, 1
+    calldatacopy v24, v25, v26
+    v27 = insert_value struct4, undef struct4, 0, v5
+    v28 = insert_value struct4, v27, 1, v16
+    ret v28
 }
 
 fn @returned(arg0: slice<calldata>) -> slice<calldata> [selector=0x39dbde69, pure, abi_params=[array<_, uint256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
@@ -188,10 +186,9 @@ fn @slot() -> i256 [selector=0x1a88bc66, abi_params=[], abi_returns=[word], abi_
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = storage_array_data_slot v7
-    v12 = add v11, 0
-    v13 = sload v12 !metadata(storage=symbolic(v11))
-    v14 = checked_add uint256, v13, v6
-    ret v14
+    v12 = sload v11 !metadata(storage=symbolic(v11))
+    v13 = checked_add uint256, v12, v6
+    ret v13
 }
 
 fn @functionPointer() -> struct5 [selector=0xbd108928, view, abi_params=[], abi_returns=[word<uint160>, word<bytes4>], abi_return_params=[address, bytes4]] {
@@ -204,21 +201,20 @@ fn @functionPointer() -> struct5 [selector=0xbd108928, view, abi_params=[], abi_
     v5 = extract_value struct1, v4, 0
     v6 = extract_value struct1, v4, 1
     v7 = and v6, 0xffffffff
-    v8 = not 0xffffffff
-    v9 = and v3, v8
-    v10 = or v9, v7
-    v11 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
-    v12 = shl v11, 32
-    v13 = and v10, 0xffffffff
-    v14 = or v12, v13
-    v15 = shr v14, 32
-    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
-    v17 = trunc i256 v16 to i160
-    v18 = and v14, 0xffffffff
-    v19 = shl v18, 224
-    v20 = insert_value struct5, undef struct5, 0, v17
-    v21 = insert_value struct5, v20, 1, v19
-    ret v21
+    v8 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
+    v9 = or v8, v7
+    v10 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = shl v10, 32
+    v12 = and v9, 0xffffffff
+    v13 = or v11, v12
+    v14 = shr v13, 32
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = trunc i256 v15 to i160
+    v17 = and v13, 0xffffffff
+    v18 = shl v17, 224
+    v19 = insert_value struct5, undef struct5, 0, v16
+    v20 = insert_value struct5, v19, 1, v18
+    ret v20
 }
 
 fn @shift.7(arg0: i256, arg1: i256) -> struct1 {

@@ -20,9 +20,8 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[uint256], abi_return
     v11 = returndatasize
     v12 = lt v11, 32
     icall revert_if<tuple_data_too_short>, v12
-    v13 = add 0, 0
-    v14 = mload v13
-    ret v14
+    v13 = mload 0 !metadata(memory=scratch)
+    ret v13
 }
 
 fn @f2(arg0: i256) -> i256 [selector=0xbf3724af, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -52,9 +51,8 @@ fn @eval(arg0: i256, arg1: i256) -> i256 [selector=0xc61581a0, abi_params=[funct
     v6 = returndatasize
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7
-    v8 = add 0, 0
-    v9 = mload v8
-    ret v9
+    v8 = mload 0 !metadata(memory=scratch)
+    ret v8
 }
 
 fn @increment(arg0: i256) -> i256 [selector=0x7cf5dab0, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {

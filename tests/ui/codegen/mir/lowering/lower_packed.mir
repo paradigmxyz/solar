@@ -12,12 +12,11 @@ fn @mixed(arg0: i16, arg1: ptr<memory>) -> ptr<memory> {
     ret v0
 }
 
-// Fixed bytes share a word with their neighbours: their low bytes are masked and the word is
-// shifted down to its offset.
+// Fixed bytes share a word with their neighbours: a literal has its low bytes masked and is
+// shifted down to its offset at compile time.
 // CHECK-LABEL: fn @hash(
-// CHECK: [[FIXED:v[0-9]+]] = and 0xcdef000000000000000000000000000000000000000000000000000000000000, 0xffff000000000000000000000000000000000000000000000000000000000000
-// CHECK: [[SHIFTED:v[0-9]+]] = shr [[FIXED]], 24
-// CHECK: [[WORD:v[0-9]+]] = or {{v[0-9]+}}, [[SHIFTED]]
+// CHECK-NOT: = and 0xcdef
+// CHECK: [[WORD:v[0-9]+]] = or {{v[0-9]+}}, 0xcdef000000000000000000000000000000000000000000000000000000
 // CHECK-NEXT: mstore 0, [[WORD]]
 // CHECK-NOT: mstore
 // CHECK: keccak256 0, 5

@@ -6,17 +6,15 @@ fn @bytesForward(arg0: i256) -> ptr<memory> [selector=0x79571ebe, pure, abi_para
     mstore v0, 3
     v1 = ptradd v0, 32
     mstore v1, 0x1122330000000000000000000000000000000000000000000000000000000000
-    v2 = not 31
-    v3 = and 63, v2
-    v4 = alloc zeroed checked v3
-    mstore v4, 0
-    v5 = not 0
-    v6 = ptrtoint ptr<memory> v4 to i256
-    mstore v4, v5
-    v7 = ptrtoint ptr<memory> v4 to i256
-    v8 = ptrtoint ptr<memory> v0 to i256
-    v9 = sub v8, v7
-    icall @_copyBytes, v4, v0, v9, 1, arg0
+    v2 = alloc zeroed checked 32
+    mstore v2, 0
+    v3 = not 0
+    v4 = ptrtoint ptr<memory> v2 to i256
+    mstore v2, v3
+    v5 = ptrtoint ptr<memory> v2 to i256
+    v6 = ptrtoint ptr<memory> v0 to i256
+    v7 = sub v6, v5
+    icall @_copyBytes, v2, v0, v7, 1, arg0
     ret v0
 }
 
@@ -26,18 +24,16 @@ fn @bytesBackward(arg0: i256) -> ptr<memory> [selector=0x3704b700, pure, abi_par
     mstore v0, 3
     v1 = ptradd v0, 32
     mstore v1, 0x1122330000000000000000000000000000000000000000000000000000000000
-    v2 = not 31
-    v3 = and 63, v2
-    v4 = alloc zeroed checked v3
-    mstore v4, 0
-    v5 = not 0
-    v6 = ptrtoint ptr<memory> v4 to i256
-    mstore v4, v5
-    v7 = ptrtoint ptr<memory> v4 to i256
-    v8 = ptrtoint ptr<memory> v0 to i256
-    v9 = add v8, 1
-    v10 = sub v9, v7
-    icall @_copyBytesDown, v4, v0, v10, 0, arg0
+    v2 = alloc zeroed checked 32
+    mstore v2, 0
+    v3 = not 0
+    v4 = ptrtoint ptr<memory> v2 to i256
+    mstore v2, v3
+    v5 = ptrtoint ptr<memory> v2 to i256
+    v6 = ptrtoint ptr<memory> v0 to i256
+    v7 = add v6, 1
+    v8 = sub v7, v5
+    icall @_copyBytesDown, v2, v0, v8, 0, arg0
     ret v0
 }
 
@@ -82,26 +78,24 @@ fn @bytesIntoHeader(arg0: i256, arg1: i1) -> i1 [selector=0x10ca09ba, pure, abi_
     mstore v0, 2
     v1 = ptradd v0, 32
     mstore v1, 0x102000000000000000000000000000000000000000000000000000000000000
-    v2 = not 31
-    v3 = and 65, v2
-    v4 = alloc zeroed checked v3
-    mstore v4, 2
+    v2 = alloc zeroed checked 64
+    mstore v2, 2
     jumpi arg1, bb1, bb2
   bb2:
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v5 = phi [bb1: v0], [bb2: v4]
-    v6 = not 0
-    v7 = ptrtoint ptr<memory> v5 to i256
-    mstore v5, v6
+    v3 = phi [bb1: v0], [bb2: v2]
+    v4 = not 0
+    v5 = ptrtoint ptr<memory> v3 to i256
+    mstore v3, v4
     jumpi arg1, bb4, bb5
   bb5:
-    icall @_copyBytes, v0, v5, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0, arg0
+    icall @_copyBytes, v0, v3, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0, arg0
     jump bb6
   bb4:
-    icall @_copyBytesSelf, v5, arg0
+    icall @_copyBytesSelf, v3, arg0
     jump bb6
   bb6:
     ret true
@@ -307,51 +301,50 @@ fn @_freshBytes(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [pure]
     v0 = add arg2, 63
     v1 = lt v0, arg2
     icall panic_if<0x41>, v1
-    v2 = not 31
-    v3 = and v0, v2
-    v4 = alloc zeroed checked v3
-    mstore v4, arg2
+    v2 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = alloc zeroed checked v2
+    mstore v3, arg2
     jump bb1
   bb1:
-    v5 = phi [bb0: arg0], [bb3: v5]
-    v6 = phi [bb0: arg1], [bb3: v6]
-    v7 = phi [bb0: arg2], [bb3: v7]
-    v8 = phi [bb0: v4], [bb3: v8]
-    v9 = phi [bb0: 0], [bb3: v26]
-    v10 = lt v9, v7
-    jumpi v10, bb4, bb5
+    v4 = phi [bb0: arg0], [bb3: v4]
+    v5 = phi [bb0: arg1], [bb3: v5]
+    v6 = phi [bb0: arg2], [bb3: v6]
+    v7 = phi [bb0: v3], [bb3: v7]
+    v8 = phi [bb0: 0], [bb3: v25]
+    v9 = lt v8, v6
+    jumpi v9, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v27 = ptrtoint ptr<memory> v8 to i256
-    v28 = add v27, 32
-    v29 = add v28, v7
-    mstore v29, 0
-    ret v8
+    v26 = ptrtoint ptr<memory> v7 to i256
+    v27 = add v26, 32
+    v28 = add v27, v6
+    mstore v28, 0
+    ret v7
   bb4:
-    v11 = checked_add uint256, v6, v9
-    v12 = mload v5
-    v13 = lt v11, v12
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = ptradd v5, v11
-    v16 = ptradd v15, 32
-    v17 = mload v16
-    v18 = byte 0, v17
-    v19 = shl v18, 248
-    v20 = mload v8
-    v21 = lt v9, v20
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = byte 0, v19
-    v24 = ptradd v8, v9
-    v25 = ptradd v24, 32
-    mstore8 v25, v23
+    v10 = checked_add uint256, v5, v8
+    v11 = mload v4
+    v12 = lt v10, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = ptradd v4, v10
+    v15 = ptradd v14, 32
+    v16 = mload v15
+    v17 = byte 0, v16
+    v18 = shl v17, 248
+    v19 = mload v7
+    v20 = lt v8, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = byte 0, v18
+    v23 = ptradd v7, v8
+    v24 = ptradd v23, 32
+    mstore8 v24, v22
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v26 = checked_add uint256, v9, 1
+    v25 = checked_add uint256, v8, 1
     jump bb1
 }
 

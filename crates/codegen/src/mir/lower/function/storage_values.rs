@@ -233,7 +233,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let argument = args.argument_for_parameter(index, Some(names.as_slice()))?;
                     let field_ty = self.cx.gcx.type_of_item(field.into());
                     let location = self.cx.storage.field_location(struct_id, index)?;
-                    let slot = self.add_storage_offset(access.slot, location.slot);
+                    let slot = self.builder.add_offset(access.slot, location.slot);
                     self.store_constant_storage_value(
                         field_ty,
                         StorageAccess { slot, location, offset: None },
@@ -280,7 +280,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .position(|&field| field == id)?;
                 let base = self.storage_access(receiver)?;
                 let location = self.cx.storage.field_location(struct_id, field)?;
-                let slot = self.add_storage_offset(base.slot, location.slot);
+                let slot = self.builder.add_offset(base.slot, location.slot);
                 Some(StorageAccess { slot, location, offset: None })
             }
             ExprKind::Index(receiver, Some(index)) => {
@@ -509,8 +509,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // }
         self.builder.switch_to_block(transition_block);
         let data_slot = self.builder.storage_array_data_slot(slot);
-        let byte_mask = self.builder.imm(0xff);
-        let keep_mask = self.builder.not(byte_mask);
+        // keep_mask = !0xff
+        let keep_mask = self.builder.imm(!U256::from(0xff));
         let moved = self.builder.and(data, keep_mask);
         self.builder.sstore(data_slot, moved);
         let header = self.builder.long_storage_bytes_header(new_length);
@@ -702,8 +702,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // }
         self.builder.switch_to_block(transition_block);
         let data_slot = self.builder.storage_array_data_slot(slot);
-        let byte_mask = self.builder.imm(0xff);
-        let keep_mask = self.builder.not(byte_mask);
+        // keep_mask = !0xff
+        let keep_mask = self.builder.imm(!U256::from(0xff));
         let moved = self.builder.and(data, keep_mask);
         let zero = self.builder.imm(0);
         let byte = self.builder.byte(zero, value);
@@ -887,13 +887,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // slot = slot_base + index / elements_per_slot
             // offset = (index % elements_per_slot) * element_bytes
             let bytes = u64::from(size.bytes());
-            let per_slot_value = self.builder.imm(32 / bytes);
+            let per_slot = U256::from(32 / bytes);
+            let location = StorageLocation::packed_word(size, encoding);
+            if let Some(index) = self.builder.func().value_u256(index) {
+                // slot = add slot_base, imm index / elements_per_slot
+                // offset = imm index % elements_per_slot * element_bytes
+                let slot = self.builder.add_offset(slot_base, index / per_slot);
+                let offset = self.builder.imm(index % per_slot * U256::from(bytes));
+                return Some(StorageAccess { slot, location, offset: Some(offset) });
+            }
+            let per_slot_value = self.builder.imm(per_slot);
             let slot_delta = self.builder.div(index, per_slot_value);
             let slot = self.builder.add(slot_base, slot_delta);
             let index_in_slot = self.builder.mod_(index, per_slot_value);
             let byte_size = self.builder.imm(bytes);
             let offset = self.builder.mul(index_in_slot, byte_size);
-            let location = StorageLocation::packed_word(size, encoding);
             return Some(StorageAccess { slot, location, offset: Some(offset) });
         }
         // slot = slot_base + index * element_slots
@@ -908,21 +916,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         index: ValueId,
         element_slots: U256,
     ) -> ValueId {
+        if let Some(index) = self.builder.func().value_u256(index) {
+            // slot = add base_slot, imm index * element_slots
+            return self.builder.add_offset(base_slot, index.wrapping_mul(element_slots));
+        }
         if element_slots == U256::ONE {
             self.builder.add(base_slot, index)
         } else {
             let stride = self.builder.imm(element_slots);
             let offset = self.builder.mul(index, stride);
             self.builder.add(base_slot, offset)
-        }
-    }
-
-    pub(super) fn add_storage_offset(&mut self, slot: ValueId, offset: U256) -> ValueId {
-        if offset.is_zero() {
-            slot
-        } else {
-            let offset = self.builder.imm(offset);
-            self.builder.add(slot, offset)
         }
     }
 
@@ -1017,7 +1020,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 for (index, &field) in self.cx.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
                     let field_ty = self.cx.gcx.type_of_item(field.into());
                     let location = self.cx.storage.field_location(struct_id, index)?;
-                    let field_slot = self.add_storage_offset(slot, location.slot);
+                    let field_slot = self.builder.add_offset(slot, location.slot);
                     let value = self.load_storage_value(
                         field_ty,
                         StorageAccess { slot: field_slot, location, offset: None },
@@ -1192,9 +1195,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(body);
         let value = self.load_storage_object(element, element_slot, Span::DUMMY)?;
         self.builder.memory_store_element(object, layout, index, value);
-        let next_index = self.builder.add_u64_offset(index, 1);
+        let next_index = self.builder.add_offset(index, 1);
         let element_slots = self.cx.storage.element_slots(element, Span::DUMMY);
-        let next_slot = self.add_storage_offset(element_slot, element_slots);
+        let next_slot = self.builder.add_offset(element_slot, element_slots);
         let backedge = self.builder.current_block();
         self.builder.jump(header);
         self.builder.add_phi_incoming(index, backedge, next_index);
@@ -1482,7 +1485,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(body);
         let access = self.storage_array_element_access(slot, index, element, true, span)?;
         self.clear_storage_access(element, access, span)?;
-        let next = self.builder.add_u64_offset(index, 1);
+        let next = self.builder.add_offset(index, 1);
         let backedge = self.builder.current_block();
         self.builder.jump(header);
         self.builder.add_phi_incoming(index, backedge, next);
@@ -1570,7 +1573,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (index, &field) in self.cx.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
             let field_ty = self.cx.gcx.type_of_item(field.into());
             let location = self.cx.storage.field_location(struct_id, index)?;
-            let field_slot = self.add_storage_offset(slot, location.slot);
+            let field_slot = self.builder.add_offset(slot, location.slot);
             let value = self.builder.memory_load_field(object, index as u64);
             let source_field = self.cx.gcx.hir.strukt(source_struct_id).fields[index];
             let source_field_ty = self.cx.gcx.type_of_item(source_field.into());
@@ -1722,7 +1725,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (index, &field) in self.cx.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
             let field_ty = self.cx.gcx.type_of_item(field.into());
             let location = self.cx.storage.field_location(struct_id, index)?;
-            let field_slot = self.add_storage_offset(slot, location.slot);
+            let field_slot = self.builder.add_offset(slot, location.slot);
             if location.size.bits() < 256 {
                 if cleared_packed_slot != Some(location.slot) {
                     self.builder.sstore(field_slot, zero);
@@ -1893,8 +1896,11 @@ fn long_storage_bytes_byte_slot(
     // word_slot = storage_array_data_slot(slot) + index / 32
     let data_slot = builder.storage_array_data_slot(slot);
     let word_shift = builder.imm(5);
-    let word_index = builder.shr(index, word_shift);
-    builder.add(data_slot, word_index)
+    let word_index = builder.shr_folded(index, word_shift);
+    match builder.func().value_u256(word_index) {
+        Some(word_index) => builder.add_offset(data_slot, word_index),
+        None => builder.add(data_slot, word_index),
+    }
 }
 
 /// The packed access for byte `index` of a storage `bytes` value inside
@@ -1907,8 +1913,8 @@ fn storage_bytes_byte_access_at(
 ) -> StorageAccess {
     // offset = 31 - index % 32
     let last_byte = builder.imm(31);
-    let index_in_word = builder.and(index, last_byte);
-    let offset = builder.sub(last_byte, index_in_word);
+    let index_in_word = builder.and_folded(index, last_byte);
+    let offset = builder.sub_folded(last_byte, index_in_word);
     let location =
         StorageLocation::packed_word(TypeSize::new_int_bits(8), StorageEncoding::FixedBytes);
     StorageAccess { slot: word_slot, location, offset: Some(offset) }

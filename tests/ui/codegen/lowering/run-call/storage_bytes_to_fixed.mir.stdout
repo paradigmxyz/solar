@@ -251,31 +251,30 @@ fn @arrayElement() -> i256 [selector=0x050651a8, abi_params=[], abi_returns=[wor
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = storage_array_data_slot 3
-    v11 = add v10, 0
-    v12 = sload v11 !metadata(storage=symbolic(v10))
-    validate_storage_bytes v12
-    v13 = and v12, 1
-    v14 = eq v13, 1
-    v15 = sub 0, v13
-    v16 = or 127, v15
-    v17 = shr v12, 1
-    v18 = and v17, v16
-    jumpi v14, bb1, bb2
+    v11 = sload v10 !metadata(storage=symbolic(v10))
+    validate_storage_bytes v11
+    v12 = and v11, 1
+    v13 = eq v12, 1
+    v14 = sub 0, v12
+    v15 = or 127, v14
+    v16 = shr v11, 1
+    v17 = and v16, v15
+    jumpi v13, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v19 = storage_array_data_slot v11
-    v20 = sload v19 !metadata(storage=symbolic(v19))
+    v18 = storage_array_data_slot v10
+    v19 = sload v18 !metadata(storage=symbolic(v18))
     jump bb3
   bb3:
-    v21 = phi [bb1: v20], [bb2: v12]
-    v22 = lt v18, 2
-    v23 = sub 2, v18
-    v24 = mul 8, v23
-    v25 = shl 0xffff000000000000000000000000000000000000000000000000000000000000, v24
-    v26 = select v22, v25, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v27 = and v21, v26
-    ret v27
+    v20 = phi [bb1: v19], [bb2: v11]
+    v21 = lt v17, 2
+    v22 = sub 2, v17
+    v23 = mul 8, v22
+    v24 = shl 0xffff000000000000000000000000000000000000000000000000000000000000, v23
+    v25 = select v21, v24, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v26 = and v20, v25
+    ret v26
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {

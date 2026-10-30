@@ -702,20 +702,19 @@ fn @divideSigned8(arg0: i8, arg1: i8) -> i8 [selector=0x2b62e651, pure, abi_para
 fn @boundary8(arg0: i8, arg1: i8) -> struct0 [selector=0x72dae872, abi_params=[uint8, uint8], abi_returns=[word<uint8>, word<uint8>], abi_return_params=[uint8, uint8]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 255
-    v2 = and v0, v1
-    v3 = zext i8 arg0 to i256
-    v4 = and v3, 255
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i8
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v2 = zext i8 arg0 to i256
+    v3 = and v2, 255
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i8
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop8(arg0: i256) -> i256 [selector=0xe47315dc, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -1230,20 +1229,19 @@ fn @divideSigned16(arg0: i16, arg1: i16) -> i16 [selector=0x1a2b9f43, pure, abi_
 fn @boundary16(arg0: i16, arg1: i16) -> struct0 [selector=0x06c48ca9, abi_params=[uint16, uint16], abi_returns=[word<uint16>, word<uint16>], abi_return_params=[uint16, uint16]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffff
-    v2 = and v0, v1
-    v3 = zext i16 arg0 to i256
-    v4 = and v3, 0xffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i16
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
+    v2 = zext i16 arg0 to i256
+    v3 = and v2, 0xffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i16
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop16(arg0: i256) -> i256 [selector=0x11b70492, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -1572,20 +1570,19 @@ fn @divideSigned24(arg0: i24, arg1: i24) -> i24 [selector=0xe63d38a3, pure, abi_
 fn @boundary24(arg0: i24, arg1: i24) -> struct0 [selector=0xc2f49690, abi_params=[uint24, uint24], abi_returns=[word<uint24>, word<uint24>], abi_return_params=[uint24, uint24]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffff
-    v2 = and v0, v1
-    v3 = zext i24 arg0 to i256
-    v4 = and v3, 0xffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i24
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff000000
+    v2 = zext i24 arg0 to i256
+    v3 = and v2, 0xffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i24
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop24(arg0: i256) -> i256 [selector=0x2ad132a7, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -1927,20 +1924,19 @@ fn @divideSigned32(arg0: i32, arg1: i32) -> i32 [selector=0xc2846aed, pure, abi_
 fn @boundary32(arg0: i32, arg1: i32) -> struct0 [selector=0xafd07c6f, abi_params=[uint32, uint32], abi_returns=[word<uint32>, word<uint32>], abi_return_params=[uint32, uint32]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffff
-    v2 = and v0, v1
-    v3 = zext i32 arg0 to i256
-    v4 = and v3, 0xffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i32
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
+    v2 = zext i32 arg0 to i256
+    v3 = and v2, 0xffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i32
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop32(arg0: i256) -> i256 [selector=0x3a0b7acf, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -2269,20 +2265,19 @@ fn @divideSigned40(arg0: i40, arg1: i40) -> i40 [selector=0xd66ae9af, pure, abi_
 fn @boundary40(arg0: i40, arg1: i40) -> struct0 [selector=0x581ff533, abi_params=[uint40, uint40], abi_returns=[word<uint40>, word<uint40>], abi_return_params=[uint40, uint40]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffff
-    v2 = and v0, v1
-    v3 = zext i40 arg0 to i256
-    v4 = and v3, 0xffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i40
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000000
+    v2 = zext i40 arg0 to i256
+    v3 = and v2, 0xffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i40
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop40(arg0: i256) -> i256 [selector=0xf171d24d, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -2611,20 +2606,19 @@ fn @divideSigned48(arg0: i48, arg1: i48) -> i48 [selector=0xa1843369, pure, abi_
 fn @boundary48(arg0: i48, arg1: i48) -> struct0 [selector=0xb0b9e28e, abi_params=[uint48, uint48], abi_returns=[word<uint48>, word<uint48>], abi_return_params=[uint48, uint48]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffff
-    v2 = and v0, v1
-    v3 = zext i48 arg0 to i256
-    v4 = and v3, 0xffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i48
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000
+    v2 = zext i48 arg0 to i256
+    v3 = and v2, 0xffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i48
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop48(arg0: i256) -> i256 [selector=0x1238dc36, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -2953,20 +2947,19 @@ fn @divideSigned56(arg0: i56, arg1: i56) -> i56 [selector=0x0a6f7ecb, pure, abi_
 fn @boundary56(arg0: i56, arg1: i56) -> struct0 [selector=0xe3891274, abi_params=[uint56, uint56], abi_returns=[word<uint56>, word<uint56>], abi_return_params=[uint56, uint56]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i56 arg0 to i256
-    v4 = and v3, 0xffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i56
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffff00000000000000
+    v2 = zext i56 arg0 to i256
+    v3 = and v2, 0xffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i56
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop56(arg0: i256) -> i256 [selector=0xff142831, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -3295,20 +3288,19 @@ fn @divideSigned64(arg0: i64, arg1: i64) -> i64 [selector=0x82f0ff84, pure, abi_
 fn @boundary64(arg0: i64, arg1: i64) -> struct0 [selector=0xac1de8c0, abi_params=[uint64, uint64], abi_returns=[word<uint64>, word<uint64>], abi_return_params=[uint64, uint64]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i64 arg0 to i256
-    v4 = and v3, 0xffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i64
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v2 = zext i64 arg0 to i256
+    v3 = and v2, 0xffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i64
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop64(arg0: i256) -> i256 [selector=0x0817d234, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -3637,20 +3629,19 @@ fn @divideSigned72(arg0: i72, arg1: i72) -> i72 [selector=0x08205ce8, pure, abi_
 fn @boundary72(arg0: i72, arg1: i72) -> struct0 [selector=0x982041d5, abi_params=[uint72, uint72], abi_returns=[word<uint72>, word<uint72>], abi_return_params=[uint72, uint72]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i72 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i72
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffff000000000000000000
+    v2 = zext i72 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i72
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop72(arg0: i256) -> i256 [selector=0x1b98e095, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -3979,20 +3970,19 @@ fn @divideSigned80(arg0: i80, arg1: i80) -> i80 [selector=0x4a45fae4, pure, abi_
 fn @boundary80(arg0: i80, arg1: i80) -> struct0 [selector=0xefc03e9c, abi_params=[uint80, uint80], abi_returns=[word<uint80>, word<uint80>], abi_return_params=[uint80, uint80]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i80 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i80
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffff00000000000000000000
+    v2 = zext i80 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i80
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop80(arg0: i256) -> i256 [selector=0x90864004, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -4321,20 +4311,19 @@ fn @divideSigned88(arg0: i88, arg1: i88) -> i88 [selector=0x7c15949a, pure, abi_
 fn @boundary88(arg0: i88, arg1: i88) -> struct0 [selector=0x53187ee2, abi_params=[uint88, uint88], abi_returns=[word<uint88>, word<uint88>], abi_return_params=[uint88, uint88]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i88 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i88
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffff0000000000000000000000
+    v2 = zext i88 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i88
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop88(arg0: i256) -> i256 [selector=0x85a819cf, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -4663,20 +4652,19 @@ fn @divideSigned96(arg0: i96, arg1: i96) -> i96 [selector=0xef578087, pure, abi_
 fn @boundary96(arg0: i96, arg1: i96) -> struct0 [selector=0x128c88da, abi_params=[uint96, uint96], abi_returns=[word<uint96>, word<uint96>], abi_return_params=[uint96, uint96]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i96 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i96
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
+    v2 = zext i96 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i96
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop96(arg0: i256) -> i256 [selector=0x0d4d2a76, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -5005,20 +4993,19 @@ fn @divideSigned104(arg0: i104, arg1: i104) -> i104 [selector=0x36d13dcf, pure, 
 fn @boundary104(arg0: i104, arg1: i104) -> struct0 [selector=0x81fa8a1e, abi_params=[uint104, uint104], abi_returns=[word<uint104>, word<uint104>], abi_return_params=[uint104, uint104]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i104 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i104
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffff00000000000000000000000000
+    v2 = zext i104 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i104
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop104(arg0: i256) -> i256 [selector=0xe9293ec9, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -5347,20 +5334,19 @@ fn @divideSigned112(arg0: i112, arg1: i112) -> i112 [selector=0x845903c0, pure, 
 fn @boundary112(arg0: i112, arg1: i112) -> struct0 [selector=0xb6abd1f7, abi_params=[uint112, uint112], abi_returns=[word<uint112>, word<uint112>], abi_return_params=[uint112, uint112]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i112 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i112
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffff0000000000000000000000000000
+    v2 = zext i112 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i112
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop112(arg0: i256) -> i256 [selector=0xd4f1a015, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -5689,20 +5675,19 @@ fn @divideSigned120(arg0: i120, arg1: i120) -> i120 [selector=0x84992d68, pure, 
 fn @boundary120(arg0: i120, arg1: i120) -> struct0 [selector=0xe199fb63, abi_params=[uint120, uint120], abi_returns=[word<uint120>, word<uint120>], abi_return_params=[uint120, uint120]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i120 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i120
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffff000000000000000000000000000000
+    v2 = zext i120 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i120
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop120(arg0: i256) -> i256 [selector=0x98e67b4b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -6031,20 +6016,19 @@ fn @divideSigned128(arg0: i128, arg1: i128) -> i128 [selector=0x5342fdae, pure, 
 fn @boundary128(arg0: i128, arg1: i128) -> struct0 [selector=0x27f1480b, abi_params=[uint128, uint128], abi_returns=[word<uint128>, word<uint128>], abi_return_params=[uint128, uint128]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i128 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i128
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v2 = zext i128 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i128
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop128(arg0: i256) -> i256 [selector=0x7009af6a, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -6373,20 +6357,19 @@ fn @divideSigned136(arg0: i136, arg1: i136) -> i136 [selector=0x676ba8c7, pure, 
 fn @boundary136(arg0: i136, arg1: i136) -> struct0 [selector=0x58ee07cc, abi_params=[uint136, uint136], abi_returns=[word<uint136>, word<uint136>], abi_return_params=[uint136, uint136]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i136 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i136
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffffffffff0000000000000000000000000000000000
+    v2 = zext i136 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i136
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop136(arg0: i256) -> i256 [selector=0xf7fb7ae7, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -6715,20 +6698,19 @@ fn @divideSigned144(arg0: i144, arg1: i144) -> i144 [selector=0x4a572146, pure, 
 fn @boundary144(arg0: i144, arg1: i144) -> struct0 [selector=0x2ce49517, abi_params=[uint144, uint144], abi_returns=[word<uint144>, word<uint144>], abi_return_params=[uint144, uint144]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i144 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i144
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffffffff000000000000000000000000000000000000
+    v2 = zext i144 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i144
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop144(arg0: i256) -> i256 [selector=0xbe4b4cba, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -7057,20 +7039,19 @@ fn @divideSigned152(arg0: i152, arg1: i152) -> i152 [selector=0x9f2a874d, pure, 
 fn @boundary152(arg0: i152, arg1: i152) -> struct0 [selector=0x8e0733bf, abi_params=[uint152, uint152], abi_returns=[word<uint152>, word<uint152>], abi_return_params=[uint152, uint152]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i152 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i152
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffffff00000000000000000000000000000000000000
+    v2 = zext i152 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i152
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop152(arg0: i256) -> i256 [selector=0x705c5cdc, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -7399,20 +7380,19 @@ fn @divideSigned160(arg0: i160, arg1: i160) -> i160 [selector=0xe9d65d58, pure, 
 fn @boundary160(arg0: i160, arg1: i160) -> struct0 [selector=0x3e316e99, abi_params=[uint160, uint160], abi_returns=[word<uint160>, word<uint160>], abi_return_params=[uint160, uint160]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i160 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i160
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v2 = zext i160 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i160
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop160(arg0: i256) -> i256 [selector=0x5b2f7e90, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -7741,20 +7721,19 @@ fn @divideSigned168(arg0: i168, arg1: i168) -> i168 [selector=0x452c69c9, pure, 
 fn @boundary168(arg0: i168, arg1: i168) -> struct0 [selector=0x815d71b6, abi_params=[uint168, uint168], abi_returns=[word<uint168>, word<uint168>], abi_return_params=[uint168, uint168]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i168 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i168
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffffff000000000000000000000000000000000000000000
+    v2 = zext i168 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i168
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop168(arg0: i256) -> i256 [selector=0x8c2b7776, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -8083,20 +8062,19 @@ fn @divideSigned176(arg0: i176, arg1: i176) -> i176 [selector=0x6467a4ff, pure, 
 fn @boundary176(arg0: i176, arg1: i176) -> struct0 [selector=0xfd03fe19, abi_params=[uint176, uint176], abi_returns=[word<uint176>, word<uint176>], abi_return_params=[uint176, uint176]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i176 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i176
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffffff00000000000000000000000000000000000000000000
+    v2 = zext i176 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i176
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop176(arg0: i256) -> i256 [selector=0xba58f8b5, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -8425,20 +8403,19 @@ fn @divideSigned184(arg0: i184, arg1: i184) -> i184 [selector=0x6ccac4f0, pure, 
 fn @boundary184(arg0: i184, arg1: i184) -> struct0 [selector=0x229bbf28, abi_params=[uint184, uint184], abi_returns=[word<uint184>, word<uint184>], abi_return_params=[uint184, uint184]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i184 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i184
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
+    v2 = zext i184 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i184
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop184(arg0: i256) -> i256 [selector=0xa13b5ce0, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -8767,20 +8744,19 @@ fn @divideSigned192(arg0: i192, arg1: i192) -> i192 [selector=0x67fce378, pure, 
 fn @boundary192(arg0: i192, arg1: i192) -> struct0 [selector=0x8b48efed, abi_params=[uint192, uint192], abi_returns=[word<uint192>, word<uint192>], abi_return_params=[uint192, uint192]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i192 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i192
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffffff000000000000000000000000000000000000000000000000
+    v2 = zext i192 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i192
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop192(arg0: i256) -> i256 [selector=0x7c3c3982, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -9109,20 +9085,19 @@ fn @divideSigned200(arg0: i200, arg1: i200) -> i200 [selector=0xff8f32eb, pure, 
 fn @boundary200(arg0: i200, arg1: i200) -> struct0 [selector=0x5f59c72f, abi_params=[uint200, uint200], abi_returns=[word<uint200>, word<uint200>], abi_return_params=[uint200, uint200]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i200 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i200
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffffff00000000000000000000000000000000000000000000000000
+    v2 = zext i200 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i200
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop200(arg0: i256) -> i256 [selector=0xf835b59e, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -9451,20 +9426,19 @@ fn @divideSigned208(arg0: i208, arg1: i208) -> i208 [selector=0xa8a7eefd, pure, 
 fn @boundary208(arg0: i208, arg1: i208) -> struct0 [selector=0xd18bf272, abi_params=[uint208, uint208], abi_returns=[word<uint208>, word<uint208>], abi_return_params=[uint208, uint208]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i208 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i208
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffffff0000000000000000000000000000000000000000000000000000
+    v2 = zext i208 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i208
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop208(arg0: i256) -> i256 [selector=0x62e7bee4, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -9793,20 +9767,19 @@ fn @divideSigned216(arg0: i216, arg1: i216) -> i216 [selector=0xf5cfabd8, pure, 
 fn @boundary216(arg0: i216, arg1: i216) -> struct0 [selector=0x2067b8ce, abi_params=[uint216, uint216], abi_returns=[word<uint216>, word<uint216>], abi_return_params=[uint216, uint216]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i216 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i216
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffffff000000000000000000000000000000000000000000000000000000
+    v2 = zext i216 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i216
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop216(arg0: i256) -> i256 [selector=0xb6ee3da2, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -10135,20 +10108,19 @@ fn @divideSigned224(arg0: i224, arg1: i224) -> i224 [selector=0xe1818915, pure, 
 fn @boundary224(arg0: i224, arg1: i224) -> struct0 [selector=0x78bb3566, abi_params=[uint224, uint224], abi_returns=[word<uint224>, word<uint224>], abi_return_params=[uint224, uint224]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i224 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i224
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v2 = zext i224 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i224
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop224(arg0: i256) -> i256 [selector=0x0211f6f7, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -10477,20 +10449,19 @@ fn @divideSigned232(arg0: i232, arg1: i232) -> i232 [selector=0x918f0e7f, pure, 
 fn @boundary232(arg0: i232, arg1: i232) -> struct0 [selector=0x56280fca, abi_params=[uint232, uint232], abi_returns=[word<uint232>, word<uint232>], abi_return_params=[uint232, uint232]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i232 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i232
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffffff0000000000000000000000000000000000000000000000000000000000
+    v2 = zext i232 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i232
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop232(arg0: i256) -> i256 [selector=0xb38a5766, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -10819,20 +10790,19 @@ fn @divideSigned240(arg0: i240, arg1: i240) -> i240 [selector=0xf779ea9f, pure, 
 fn @boundary240(arg0: i240, arg1: i240) -> struct0 [selector=0x86405e17, abi_params=[uint240, uint240], abi_returns=[word<uint240>, word<uint240>], abi_return_params=[uint240, uint240]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i240 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i240
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v2 = zext i240 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i240
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop240(arg0: i256) -> i256 [selector=0x9d82cce1, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -11161,20 +11131,19 @@ fn @divideSigned248(arg0: i248, arg1: i248) -> i248 [selector=0x15d99ffa, pure, 
 fn @boundary248(arg0: i248, arg1: i248) -> struct0 [selector=0xba40a4f5, abi_params=[uint248, uint248], abi_returns=[word<uint248>, word<uint248>], abi_return_params=[uint248, uint248]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i248 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = trunc i256 v6 to i248
-    v8 = icall @identity, v7, arg1
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v2 = zext i248 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i248
+    v7 = icall @identity, v6, arg1
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @loop248(arg0: i256) -> i256 [selector=0x11cba137, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {

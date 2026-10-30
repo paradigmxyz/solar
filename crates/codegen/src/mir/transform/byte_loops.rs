@@ -1576,7 +1576,7 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
             let address = address.unwrap_or_else(|| memory_data_address(&mut builder, &access));
             let stored = match leading_mask(&mut builder, lp.bound, literal, 32) {
                 Some(mask) => {
-                    let keep = builder.not(mask);
+                    let keep = builder.not_folded(mask);
                     let old = builder.load(address, PtrLocation::Memory);
                     let old = builder.and(old, keep);
                     let new = builder.and(value, mask);

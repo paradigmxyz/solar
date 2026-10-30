@@ -13,14 +13,12 @@ fn @addTwo(arg0: i256) -> i256 [selector=0xcae57913, pure, abi_params=[uint256],
 
 fn @store(arg0: i256) [selector=0xf018a0a7, abi_params=[function], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, 64
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = not v0
-    v3 = and v1, v2
-    v4 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v5 = shl v4, 64
-    v6 = or v3, v5
-    sstore 0, v6 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffff
+    v2 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v3 = shl v2, 64
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
     ret
 }
 
@@ -41,55 +39,52 @@ fn @eval(arg0: i256) -> i256 [selector=0xd54e4ce7, abi_params=[function], abi_re
     v6 = returndatasize
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7
-    v8 = add 0, 0
-    v9 = mload v8
-    ret v9
+    v8 = mload 0 !metadata(memory=scratch)
+    ret v8
 }
 
 fn @t() -> i256 [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffff
-    v2 = and v0, v1
-    v3 = and 3, 0xffffffffffffffff
-    v4 = or v2, v3
-    sstore 0, v4 !metadata(storage=slot(0))
-    v5 = address
-    v6 = gas
-    v7 = datasize ExternalFunctionPointerHigherOrderTarget_creation_code_0
-    v8 = fmp
-    datacopy ExternalFunctionPointerHigherOrderTarget_creation_code_0, v8, v7
-    v9 = create 0, v8, v7
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v2 = or v1, 3
+    sstore 0, v2 !metadata(storage=slot(0))
+    v3 = address
+    v4 = gas
+    v5 = datasize ExternalFunctionPointerHigherOrderTarget_creation_code_0
+    v6 = fmp
+    datacopy ExternalFunctionPointerHigherOrderTarget_creation_code_0, v6, v5
+    v7 = create 0, v6, v5
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = zext i160 v9 to i256
-    v12 = shl v11, 32
-    v13 = or v12, 0xcae57913
+    v9 = zext i160 v7 to i256
+    v10 = shl v9, 32
+    v11 = or v10, 0xcae57913
     mstore 0, 0xf018a0a7 !metadata(memory=scratch)
-    v14 = shl v13, 64
-    mstore 32, v14 !metadata(memory=scratch)
-    v15 = zext i160 v5 to i256
-    v16 = extcodesize v15
-    v17 = eq v16, 0
-    icall revert_if<target_contract_has_no_code>, v17
-    v18 = zext i160 v5 to i256
-    v19 = call v6, v18, 0, 28, 36, 0, 0
-    jumpi v19, bb4, bb3
+    v12 = shl v11, 64
+    mstore 32, v12 !metadata(memory=scratch)
+    v13 = zext i160 v3 to i256
+    v14 = extcodesize v13
+    v15 = eq v14, 0
+    icall revert_if<target_contract_has_no_code>, v15
+    v16 = zext i160 v3 to i256
+    v17 = call v4, v16, 0, 28, 36, 0, 0
+    jumpi v17, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v20 = sload 0 !metadata(storage=slot(0))
-    v21 = trunc i256 v20 to i64
-    v22 = zext i64 v21 to i256
-    v23 = sload 0 !metadata(storage=slot(0))
-    v24 = shr v23, 64
-    v25 = trunc i256 v24 to i192
-    v26 = zext i192 v25 to i256
-    v27 = icall @internal_dispatcher_p_function_r_uint256, v22, v26
-    ret v27
+    v18 = sload 0 !metadata(storage=slot(0))
+    v19 = trunc i256 v18 to i64
+    v20 = zext i64 v19 to i256
+    v21 = sload 0 !metadata(storage=slot(0))
+    v22 = shr v21, 64
+    v23 = trunc i256 v22 to i192
+    v24 = zext i192 v23 to i256
+    v25 = icall @internal_dispatcher_p_function_r_uint256, v20, v24
+    ret v25
 }
 
 fn @internal_dispatcher_p_function_r_uint256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {

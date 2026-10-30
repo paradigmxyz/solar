@@ -56,13 +56,12 @@ fn @directOne() -> struct0 [selector=0x6aec8241, abi_params=[], abi_returns=[wor
     v8 = returndatasize
     v9 = lt v8, 32
     icall revert_if<tuple_data_too_short>, v9
-    v10 = add 0, 0
-    v11 = mload v10
-    v12 = mload 64 !metadata(memory=scratch)
-    v13 = sub v12, v4
-    v14 = insert_value struct0, undef struct0, 0, v13
-    v15 = insert_value struct0, v14, 1, v11
-    ret v15
+    v10 = mload 0 !metadata(memory=scratch)
+    v11 = mload 64 !metadata(memory=scratch)
+    v12 = sub v11, v4
+    v13 = insert_value struct0, undef struct0, 0, v12
+    v14 = insert_value struct0, v13, 1, v10
+    ret v14
 }
 
 fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
@@ -94,13 +93,12 @@ fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[wo
     v14 = returndatasize
     v15 = lt v14, 32
     icall revert_if<tuple_data_too_short>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    v18 = mload 64 !metadata(memory=scratch)
-    v19 = sub v18, v7
-    v20 = insert_value struct0, undef struct0, 0, v19
-    v21 = insert_value struct0, v20, 1, v17
-    ret v21
+    v16 = mload 0 !metadata(memory=scratch)
+    v17 = mload 64 !metadata(memory=scratch)
+    v18 = sub v17, v7
+    v19 = insert_value struct0, undef struct0, 0, v18
+    v20 = insert_value struct0, v19, 1, v16
+    ret v20
 }
 
 fn @directTwo() -> struct1 [selector=0x5ffbc6a1, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
@@ -128,22 +126,20 @@ fn @directTwo() -> struct1 [selector=0x5ffbc6a1, abi_params=[], abi_returns=[wor
     v11 = returndatasize
     v12 = lt v11, 64
     icall revert_if<tuple_data_too_short>, v12
-    v13 = ptrtoint ptr<memory> v7 to i256
-    v14 = add v13, 0
-    v15 = mload v14
-    v16 = ptrtoint ptr<memory> v7 to i256
-    v17 = add v16, 32
-    v18 = mload v17
-    v19 = insert_value struct0, undef struct0, 0, v15
-    v20 = insert_value struct0, v19, 1, v18
-    v21 = extract_value struct0, v20, 0
-    v22 = extract_value struct0, v20, 1
-    v23 = mload 64 !metadata(memory=scratch)
-    v24 = sub v23, v4
-    v25 = insert_value struct1, undef struct1, 0, v24
-    v26 = insert_value struct1, v25, 1, v21
-    v27 = insert_value struct1, v26, 2, v22
-    ret v27
+    v13 = mload v7
+    v14 = ptrtoint ptr<memory> v7 to i256
+    v15 = add v14, 32
+    v16 = mload v15
+    v17 = insert_value struct0, undef struct0, 0, v13
+    v18 = insert_value struct0, v17, 1, v16
+    v19 = extract_value struct0, v18, 0
+    v20 = extract_value struct0, v18, 1
+    v21 = mload 64 !metadata(memory=scratch)
+    v22 = sub v21, v4
+    v23 = insert_value struct1, undef struct1, 0, v22
+    v24 = insert_value struct1, v23, 1, v19
+    v25 = insert_value struct1, v24, 2, v20
+    ret v25
 }
 
 fn @pointerTwo() -> struct1 [selector=0x48c1a795, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
@@ -176,18 +172,16 @@ fn @pointerTwo() -> struct1 [selector=0x48c1a795, abi_params=[], abi_returns=[wo
     v16 = returndatasize
     v17 = lt v16, 64
     icall revert_if<tuple_data_too_short>, v17
-    v18 = ptrtoint ptr<memory> v13 to i256
-    v19 = add v18, 0
-    v20 = mload v19
-    v21 = ptrtoint ptr<memory> v13 to i256
-    v22 = add v21, 32
-    v23 = mload v22
-    v24 = mload 64 !metadata(memory=scratch)
-    v25 = sub v24, v7
-    v26 = insert_value struct1, undef struct1, 0, v25
-    v27 = insert_value struct1, v26, 1, v20
-    v28 = insert_value struct1, v27, 2, v23
-    ret v28
+    v18 = mload v13
+    v19 = ptrtoint ptr<memory> v13 to i256
+    v20 = add v19, 32
+    v21 = mload v20
+    v22 = mload 64 !metadata(memory=scratch)
+    v23 = sub v22, v7
+    v24 = insert_value struct1, undef struct1, 0, v23
+    v25 = insert_value struct1, v24, 1, v18
+    v26 = insert_value struct1, v25, 2, v21
+    ret v26
 }
 
 fn @directShort() -> struct0 [selector=0x4a8b977e, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
@@ -214,19 +208,17 @@ fn @directShort() -> struct0 [selector=0x4a8b977e, abi_params=[], abi_returns=[w
     v10 = returndatasize
     v11 = lt v10, 64
     icall revert_if<tuple_data_too_short>, v11
-    v12 = ptrtoint ptr<memory> v6 to i256
-    v13 = add v12, 0
-    v14 = mload v13
-    v15 = ptrtoint ptr<memory> v6 to i256
-    v16 = add v15, 32
-    v17 = mload v16
-    v18 = insert_value struct0, undef struct0, 0, v14
-    v19 = insert_value struct0, v18, 1, v17
-    v20 = extract_value struct0, v19, 0
-    v21 = extract_value struct0, v19, 1
-    v22 = insert_value struct0, undef struct0, 0, v20
-    v23 = insert_value struct0, v22, 1, v21
-    ret v23
+    v12 = mload v6
+    v13 = ptrtoint ptr<memory> v6 to i256
+    v14 = add v13, 32
+    v15 = mload v14
+    v16 = insert_value struct0, undef struct0, 0, v12
+    v17 = insert_value struct0, v16, 1, v15
+    v18 = extract_value struct0, v17, 0
+    v19 = extract_value struct0, v17, 1
+    v20 = insert_value struct0, undef struct0, 0, v18
+    v21 = insert_value struct0, v20, 1, v19
+    ret v21
 }
 
 fn @pointerShort() -> struct0 [selector=0xc6a7045a, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
@@ -258,15 +250,13 @@ fn @pointerShort() -> struct0 [selector=0xc6a7045a, abi_params=[], abi_returns=[
     v15 = returndatasize
     v16 = lt v15, 64
     icall revert_if<tuple_data_too_short>, v16
-    v17 = ptrtoint ptr<memory> v12 to i256
-    v18 = add v17, 0
-    v19 = mload v18
-    v20 = ptrtoint ptr<memory> v12 to i256
-    v21 = add v20, 32
-    v22 = mload v21
-    v23 = insert_value struct0, undef struct0, 0, v19
-    v24 = insert_value struct0, v23, 1, v22
-    ret v24
+    v17 = mload v12
+    v18 = ptrtoint ptr<memory> v12 to i256
+    v19 = add v18, 32
+    v20 = mload v19
+    v21 = insert_value struct0, undef struct0, 0, v17
+    v22 = insert_value struct0, v21, 1, v20
+    ret v22
 }
 
 fn @directInvalidBool() -> i1 [selector=0x78cd2593, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -291,13 +281,12 @@ fn @directInvalidBool() -> i1 [selector=0x78cd2593, abi_params=[], abi_returns=[
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    v11 = lt v10, 2
-    v12 = eq v11, false
-    icall revert_if<empty>, v12
-    v13 = ne v10, 0
-    ret v13
+    v9 = mload 0 !metadata(memory=scratch)
+    v10 = lt v9, 2
+    v11 = eq v10, false
+    icall revert_if<empty>, v11
+    v12 = ne v9, 0
+    ret v12
 }
 
 fn @pointerInvalidBool() -> i1 [selector=0xa0f03ea6, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -328,11 +317,10 @@ fn @pointerInvalidBool() -> i1 [selector=0xa0f03ea6, abi_params=[], abi_returns=
     v13 = returndatasize
     v14 = lt v13, 32
     icall revert_if<tuple_data_too_short>, v14
-    v15 = add 0, 0
-    v16 = mload v15
-    v17 = lt v16, 2
-    v18 = eq v17, false
-    icall revert_if<empty>, v18
-    v19 = ne v16, 0
-    ret v19
+    v15 = mload 0 !metadata(memory=scratch)
+    v16 = lt v15, 2
+    v17 = eq v16, false
+    icall revert_if<empty>, v17
+    v18 = ne v15, 0
+    ret v18
 }

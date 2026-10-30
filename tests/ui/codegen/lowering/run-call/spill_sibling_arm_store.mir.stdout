@@ -40,60 +40,58 @@ fn @settle() [selector=0x11da60b4, payable, abi_params=[], abi_returns=[], abi_r
 fn @run(arg0: i128) -> i256 [selector=0x96c07422, abi_params=[int128], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i128 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 2 !metadata(storage=slot(2))
-    v7 = trunc i256 v6 to i160
-    v8 = sload 0 !metadata(storage=slot(0))
-    v9 = signextend 15, v8
-    v10 = trunc i256 v9 to i128
-    v11 = ne v10, i128 0
-    jumpi v11, bb1, bb2
+    v1 = and v0, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v2 = zext i128 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 2 !metadata(storage=slot(2))
+    v6 = trunc i256 v5 to i160
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = signextend 15, v7
+    v9 = trunc i256 v8 to i128
+    v10 = ne v9, i128 0
+    jumpi v10, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v12 = sload 0 !metadata(storage=slot(0))
-    v13 = signextend 15, v12
-    v14 = trunc i256 v13 to i128
-    icall @_settleOrTake, v7, v14
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = signextend 15, v11
+    v13 = trunc i256 v12 to i128
+    icall @_settleOrTake, v6, v13
     jump bb3
   bb3:
-    v15 = sload 0 !metadata(storage=slot(0))
-    v16 = shr v15, 128
-    v17 = signextend 15, v16
-    v18 = trunc i256 v17 to i128
-    v19 = ne v18, i128 0
-    jumpi v19, bb4, bb5
+    v14 = sload 0 !metadata(storage=slot(0))
+    v15 = shr v14, 128
+    v16 = signextend 15, v15
+    v17 = trunc i256 v16 to i128
+    v18 = ne v17, i128 0
+    jumpi v18, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v20 = sload 0 !metadata(storage=slot(0))
-    v21 = shr v20, 128
-    v22 = signextend 15, v21
-    v23 = trunc i256 v22 to i128
-    icall @_settleOrTake, v7, v23
+    v19 = sload 0 !metadata(storage=slot(0))
+    v20 = shr v19, 128
+    v21 = signextend 15, v20
+    v22 = trunc i256 v21 to i128
+    icall @_settleOrTake, v6, v22
     jump bb6
   bb6:
-    v24 = sload 2 !metadata(storage=slot(2))
-    v25 = trunc i256 v24 to i160
-    v26 = gas
+    v23 = sload 2 !metadata(storage=slot(2))
+    v24 = trunc i256 v23 to i160
+    v25 = gas
     mstore 0, 0x47799da8 !metadata(memory=scratch)
-    v27 = zext i160 v25 to i256
-    v28 = staticcall v26, v27, 28, 4, 0, 32
-    jumpi v28, bb8, bb7
+    v26 = zext i160 v24 to i256
+    v27 = staticcall v25, v26, 28, 4, 0, 32
+    jumpi v27, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v29 = returndatasize
-    v30 = lt v29, 32
-    icall revert_if<tuple_data_too_short>, v30
-    v31 = add 0, 0
-    v32 = mload v31
-    ret v32
+    v28 = returndatasize
+    v29 = lt v28, 32
+    icall revert_if<tuple_data_too_short>, v29
+    v30 = mload 0 !metadata(memory=scratch)
+    ret v30
 }
 
 fn @_settleOrTake(arg0: i160, arg1: i128) {
@@ -180,20 +178,19 @@ fn @settle(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
     v16 = returndatasize
     v17 = lt v16, 32
     icall revert_if<tuple_data_too_short>, v17
-    v18 = add 0, 0
-    v19 = mload v18
-    v20 = lt v19, 2
-    v21 = eq v20, false
-    icall revert_if<empty>, v21
-    v22 = gas
+    v18 = mload 0 !metadata(memory=scratch)
+    v19 = lt v18, 2
+    v20 = eq v19, false
+    icall revert_if<empty>, v20
+    v21 = gas
     mstore 0, 0x11da60b4 !metadata(memory=scratch)
-    v23 = zext i160 arg1 to i256
-    v24 = extcodesize v23
-    v25 = eq v24, 0
-    icall revert_if<target_contract_has_no_code>, v25
-    v26 = zext i160 arg1 to i256
-    v27 = call v22, v26, 0, 28, 4, 0, 0
-    jumpi v27, bb12, bb11
+    v22 = zext i160 arg1 to i256
+    v23 = extcodesize v22
+    v24 = eq v23, 0
+    icall revert_if<target_contract_has_no_code>, v24
+    v25 = zext i160 arg1 to i256
+    v26 = call v21, v25, 0, 28, 4, 0, 0
+    jumpi v26, bb12, bb11
   bb11:
     revert_returndata
   bb12:
@@ -243,11 +240,10 @@ fn @constructor() [constructor] {
     revert_returndata
   bb2:
     v4 = sload 2 !metadata(storage=slot(2))
-    v5 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = and v4, v5
-    v7 = zext i160 v2 to i256
-    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = or v6, v8
-    sstore 2, v9 !metadata(storage=slot(2))
+    v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v6 = zext i160 v2 to i256
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = or v5, v7
+    sstore 2, v8 !metadata(storage=slot(2))
     ret
 }

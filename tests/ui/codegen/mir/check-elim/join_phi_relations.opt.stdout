@@ -14,14 +14,14 @@ fn @lastIndexOf() [selector=0x46c1da7f, abi_wrapper, pure] {
     v22 = zext i1 v2 to i256
     v23 = mul v22, v21
     v24 = add v3, v23
-    v34 = shl v24, 5
-    v35 = add v27, v34
-    v36 = add v35, 32
+    v32 = shl v24, 5
+    v33 = add v27, v32
+    v34 = add v33, 32
     jump bb3
   bb3:
     v10 = phi [bb2: v24], [bb6: v20]
-    v37 = phi [bb2: v36], [bb6: v38]
-    v17 = mload v37
+    v35 = phi [bb2: v34], [bb6: v36]
+    v17 = mload v35
     v18 = ne v17, arg1
     jumpi v18, bb5, bb4
   bb4:
@@ -32,7 +32,7 @@ fn @lastIndexOf() [selector=0x46c1da7f, abi_wrapper, pure] {
     jumpi v19, bb1, bb6
   bb6:
     v20 = sub v10, 1
-    v38 = sub v37, 32
+    v36 = sub v35, 32
     jump bb3
   bb1:
     mstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(memory=scratch)
@@ -51,13 +51,13 @@ fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
     v21 = zext i1 v2 to i256
     v22 = mul v21, v20
     v23 = add v0, v22
-    v33 = shl v23, 5
-    v34 = add v26, v33
-    v35 = add v34, 32
+    v31 = shl v23, 5
+    v32 = add v26, v31
+    v33 = add v32, 32
     jump bb3
   bb3:
     v9 = phi [bb2: v23], [bb6: v19]
-    v36 = phi [bb2: v35], [bb6: v37]
+    v34 = phi [bb2: v33], [bb6: v35]
     v11 = lt v9, v0
     jumpi v11, bb8, bb7
   bb7:
@@ -65,7 +65,7 @@ fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb8:
-    v16 = mload v36
+    v16 = mload v34
     v17 = ne v16, arg1
     jumpi v17, bb5, bb4
   bb4:
@@ -76,7 +76,7 @@ fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
     jumpi v18, bb1, bb6
   bb6:
     v19 = sub v9, 1
-    v37 = sub v36, 32
+    v35 = sub v34, 32
     jump bb3
   bb1:
     mstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(memory=scratch)

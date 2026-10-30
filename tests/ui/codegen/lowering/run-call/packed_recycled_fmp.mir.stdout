@@ -2,40 +2,36 @@
 @module PackedRecycledFmp
 fn @payload() -> ptr<memory> [selector=0xa878f858, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = not 31
-    v1 = and 95, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 32
-    v3 = ptrtoint ptr<memory> v2 to i256
-    mstore 64, v3 !metadata(memory=scratch)
-    v4 = alloc 64 !metadata(preserves_fmp)
-    mstore v4, 2
-    v5 = ptradd v4, 32
-    mstore v5, 0x1111000000000000000000000000000000000000000000000000000000000000
-    v6 = shl 0xabcd, 240
-    v7 = ptrtoint ptr<memory> v2 to i256
-    v8 = add v7, 32
-    mstore v8, v6
-    v9 = abi_encode_packed (bytes v4, data hex"22")
-    ret v9
+    v0 = alloc zeroed checked 64
+    mstore v0, 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = alloc 64 !metadata(preserves_fmp)
+    mstore v2, 2
+    v3 = ptradd v2, 32
+    mstore v3, 0x1111000000000000000000000000000000000000000000000000000000000000
+    v4 = shl 0xabcd, 240
+    v5 = ptrtoint ptr<memory> v0 to i256
+    v6 = add v5, 32
+    mstore v6, v4
+    v7 = abi_encode_packed (bytes v2, data hex"22")
+    ret v7
 }
 
 fn @length() -> ptr<memory> [selector=0x1f7b6d32, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = not 31
-    v1 = and 95, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 32
-    v3 = ptrtoint ptr<memory> v2 to i256
-    mstore 64, v3 !metadata(memory=scratch)
-    v4 = alloc 64 !metadata(preserves_fmp)
-    mstore v4, 4
-    v5 = ptradd v4, 32
-    mstore v5, 0x1122334400000000000000000000000000000000000000000000000000000000
-    v6 = ptrtoint ptr<memory> v2 to i256
-    mstore v2, 2
-    v7 = abi_encode_packed (bytes v4, data hex"55")
-    ret v7
+    v0 = alloc zeroed checked 64
+    mstore v0, 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = alloc 64 !metadata(preserves_fmp)
+    mstore v2, 4
+    v3 = ptradd v2, 32
+    mstore v3, 0x1122334400000000000000000000000000000000000000000000000000000000
+    v4 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, 2
+    v5 = abi_encode_packed (bytes v2, data hex"55")
+    ret v5
 }
 
 fn @overlap() -> i256 [selector=0xea9e4070, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

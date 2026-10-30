@@ -33,22 +33,21 @@ fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
     v10 = add v9, 63
     v11 = lt v10, v9
     icall panic_if<0x41>, v11
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc v13
-    mstore v14, v9
-    v15 = extract_value slice<calldata>, v8, 0
-    v16 = extract_value slice<calldata>, v8, 1
-    v17 = calldatasize
-    v18 = gt v16, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v18
-    v19 = sub v17, v16
-    v20 = ptrtoint ptr<calldata> v15 to i256
-    v21 = sgt v20, v19
-    icall revert_if<calldata_tail_too_short>, v21
-    v22 = ptradd v14, 32
-    v23 = extract_value slice<calldata>, v8, 0
-    v24 = extract_value slice<calldata>, v8, 1
-    calldatacopy v22, v23, v24
-    ret v14
+    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = alloc v12
+    mstore v13, v9
+    v14 = extract_value slice<calldata>, v8, 0
+    v15 = extract_value slice<calldata>, v8, 1
+    v16 = calldatasize
+    v17 = gt v15, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v17
+    v18 = sub v16, v15
+    v19 = ptrtoint ptr<calldata> v14 to i256
+    v20 = sgt v19, v18
+    icall revert_if<calldata_tail_too_short>, v20
+    v21 = ptradd v13, 32
+    v22 = extract_value slice<calldata>, v8, 0
+    v23 = extract_value slice<calldata>, v8, 1
+    calldatacopy v21, v22, v23
+    ret v13
 }

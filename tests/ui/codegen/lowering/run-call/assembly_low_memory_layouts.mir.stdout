@@ -181,15 +181,13 @@ fn @bufferAboveHeap(arg0: i256, arg1: i256) -> i256 [selector=0x52cf10d7, pure, 
     v1 = icall @_lay, arg0
     jump bb3
   bb3:
-    v2 = not 31
-    v3 = and 0x43f, v2
-    v4 = alloc zeroed checked v3
-    mstore v4, 0x400
-    v5 = ptrtoint ptr<memory> v4 to i256
-    v6 = mload v4
-    v7 = mload 0x2400
-    v8 = add v7, v6
-    ret v8
+    v2 = alloc zeroed checked 0x420
+    mstore v2, 0x400
+    v3 = ptrtoint ptr<memory> v2 to i256
+    v4 = mload v2
+    v5 = mload 0x2400
+    v6 = add v5, v4
+    ret v6
 }
 
 fn @zeroLengthCopy(arg0: i256) -> i256 [selector=0x634ce2de, view, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -310,14 +308,12 @@ fn @hashScratch.9(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xe6a
     mstore 64, v1 !metadata(memory=scratch)
     v2 = keccak256 0, 96 !metadata(memory=scratch)
     mstore 64, v0 !metadata(memory=scratch)
-    v3 = not 31
-    v4 = and 68, v3
-    v5 = alloc zeroed checked v4
-    mstore v5, 5
-    v6 = mload v5
-    v7 = insert_value struct0, undef struct0, 0, v2
-    v8 = insert_value struct0, v7, 1, v6
-    ret v8
+    v3 = alloc zeroed checked 64
+    mstore v3, 5
+    v4 = mload v3
+    v5 = insert_value struct0, undef struct0, 0, v2
+    v6 = insert_value struct0, v5, 1, v4
+    ret v6
 }
 
 fn @hashInHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd93f5115, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -628,42 +624,39 @@ fn @hashLowObject(arg0: i256) -> struct0 [selector=0x32d84f21, pure, abi_params=
     v0 = calldataload 4
     mstore 64, v0 !metadata(memory=scratch)
     mstore 32, 32 !metadata(memory=scratch)
-    v1 = add 32, 32
-    v2 = mload 32 !metadata(memory=scratch)
-    v3 = keccak256 v1, v2
-    v4 = insert_value struct0, undef struct0, 0, v3
-    v5 = insert_value struct0, v4, 1, 1
-    ret v5
+    v1 = mload 32 !metadata(memory=scratch)
+    v2 = keccak256 64, v1 !metadata(memory=scratch)
+    v3 = insert_value struct0, undef struct0, 0, v2
+    v4 = insert_value struct0, v3, 1, 1
+    ret v4
 }
 
 fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[uint256], abi_returns=[word<uint8>, word], abi_return_params=[uint8, uint256]] {
   bb0:
-    v0 = not 31
-    v1 = and 64, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 1
-    v3 = not 0
-    v4 = ptrtoint ptr<memory> v2 to i256
-    mstore v2, v3
-    v5 = calldataload 4
-    mstore 64, v5 !metadata(memory=scratch)
-    v6 = ptrtoint ptr<memory> v2 to i256
-    v7 = add v6, 32
-    v8 = sub 95, v7
-    v9 = mload v2
-    v10 = lt v8, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = ptradd v2, v8
-    v13 = ptradd v12, 32
-    v14 = mload v13
-    v15 = byte 0, v14
-    v16 = shl v15, 248
-    v17 = shr v16, 248
-    v18 = trunc i256 v17 to i8
-    v19 = insert_value struct1, undef struct1, 0, v18
-    v20 = insert_value struct1, v19, 1, 1
-    ret v20
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    v1 = not 0
+    v2 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, v1
+    v3 = calldataload 4
+    mstore 64, v3 !metadata(memory=scratch)
+    v4 = ptrtoint ptr<memory> v0 to i256
+    v5 = add v4, 32
+    v6 = sub 95, v5
+    v7 = mload v0
+    v8 = lt v6, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = ptradd v0, v6
+    v11 = ptradd v10, 32
+    v12 = mload v11
+    v13 = byte 0, v12
+    v14 = shl v13, 248
+    v15 = shr v14, 248
+    v16 = trunc i256 v15 to i8
+    v17 = insert_value struct1, undef struct1, 0, v16
+    v18 = insert_value struct1, v17, 1, 1
+    ret v18
 }
 
 fn @wordAtSlot(arg0: i256) -> struct0 [selector=0xcec0252a, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
@@ -771,12 +764,11 @@ fn @allocateAfterHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x
     v0 = add arg2, 63
     v1 = lt v0, arg2
     icall panic_if<0x41>, v1
-    v2 = not 31
-    v3 = and v0, v2
-    v4 = alloc zeroed checked v3
-    mstore v4, arg2
-    v5 = mload v4
-    ret v5
+    v2 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = alloc zeroed checked v2
+    mstore v3, arg2
+    v4 = mload v3
+    ret v4
 }
 
 fn @hashAroundCheckedAdd(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xe3ce866b, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {

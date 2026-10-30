@@ -21,10 +21,8 @@ fn @read(arg0: i160) -> i256 [selector=0xa087a87e, view, abi_params=[address], a
   bb1:
     revert_returndata
   bb2:
-    v13 = ptrtoint ptr<memory> v4 to i256
-    v14 = add v13, 0
-    v15 = mload v14
-    ret v15
+    v13 = mload v4
+    ret v13
 }
 
 fn @readPointer(arg0: i256) -> i256 [selector=0x92528617, view, abi_params=[function], abi_returns=[word], abi_return_params=[uint256]] {
@@ -49,8 +47,6 @@ fn @readPointer(arg0: i256) -> i256 [selector=0x92528617, view, abi_params=[func
   bb1:
     revert_returndata
   bb2:
-    v14 = ptrtoint ptr<memory> v7 to i256
-    v15 = add v14, 0
-    v16 = mload v15
-    ret v16
+    v14 = mload v7
+    ret v14
 }

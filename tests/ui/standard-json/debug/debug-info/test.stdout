@@ -22,7 +22,7 @@
         "metadata": "{\"compiler\":{\"name\":\"solar\",\"version\":\"SOLC_VERSION+commit.00000000.solar.VERSION\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"x\",\"type\":\"uint256\"}],\"name\":\"f\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"pure\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"A.sol\":\"A\"},\"evmVersion\":\"osaka\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"A.sol\":{\"keccak256\":\"0xe8332c065ae4cc6a93390bb3b5f87d5b1eda7bdcc95d8a2fda3cf3cb1d34f8e4\",\"urls\":[\"bzz-raw://de1efcea475e6bb68b1c1620775f2813f39968663f5b4dab4e54e72ad4305f6e\",\"dweb:/ipfs/QmXVdA7XTQg7gr2jRELVRDn1bqwjgEcQJBNheCHCxvDLKJ\"]}},\"version\":1}",
         "evm": {
           "deployedBytecode": {
-            "object": "346013575f3560e01c8063b3de648b146017575b5f5ffd5b608060405260243610606157600435600181146058576c78206d757374206265206f6e6560981b600d60206020526040526060526308c379a05f526064601cfd5b5f525f6020035ff35b5f5ffdfea2646970667358221220bbb2d6400274c0956a1be74d3643c9e2bbf1757e5bf4e8119fba6416f4de93b965736f6c6172430002000034"
+            "object": "346013575f3560e01c8063b3de648b146017575b5f5ffd5b60243610605a57600435600181146053576c78206d757374206265206f6e6560981b600d60206020526040526060526308c379a05f526064601cfd5b5f5260205ff35b5f5ffdfea2646970667358221220bbb2d6400274c0956a1be74d3643c9e2bbf1757e5bf4e8119fba6416f4de93b965736f6c6172430002000034"
           }
         }
       }

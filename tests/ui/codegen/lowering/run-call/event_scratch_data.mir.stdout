@@ -56,15 +56,13 @@ fn @aliased() -> i256 [selector=0x1d15e393, abi_params=[], abi_returns=[word], a
     mstore v1, 0
     mstore 0, 1 !metadata(memory=scratch)
     mstore 32, 2 !metadata(memory=scratch)
-    v2 = add 0, 32
-    v3 = mload v2
-    v4 = mload 0 !metadata(memory=scratch)
-    mstore 0, v3 !metadata(memory=scratch)
-    mstore 32, v4 !metadata(memory=scratch)
+    v2 = mload 32 !metadata(memory=scratch)
+    v3 = mload 0 !metadata(memory=scratch)
+    mstore 0, v2 !metadata(memory=scratch)
+    mstore 32, v3 !metadata(memory=scratch)
     log 0, 64, 0xce34f015a0e20f2b0daf980b28ed50729e87b993e4d30cca4c3f4da05acbd0ac
-    v5 = add 0, 32
-    v6 = mload v5
-    ret v6
+    v4 = mload 32 !metadata(memory=scratch)
+    ret v4
 }
 
 fn @threeWords(arg0: i256) -> i256 [selector=0x72877259, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -131,50 +129,48 @@ fn @threeWordsKeepsHeap(arg0: i256) -> i256 [selector=0x09952c7c, abi_params=[ui
 
 fn @dynamicKeepsHeap(arg0: i256) -> i256 [selector=0xb0d4547e, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = not 31
-    v1 = and 103, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 40
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = add v3, 32
-    mstore v4, 51
-    v5 = mload 64 !metadata(memory=scratch)
-    v6 = checked_add uint256, arg0, 1
-    v7 = abi_encode [word, memory_bytes, word], scratch, args arg0, v2, v6
-    v8 = extract_value slice<memory>, v7, 0
-    v9 = extract_value slice<memory>, v7, 1
-    log v8, v9, 0x6167286408797e7cc4d2fa056cc382e79c6cf5ef1999509b1f89ff65bfcc7d9f
-    v10 = mload 64 !metadata(memory=scratch)
-    v11 = ptrtoint ptr<memory> v2 to i256
-    v12 = add v11, 32
-    v13 = mload v12
-    v14 = eq v10, v5
-    jumpi v14, bb1, bb2
+    v0 = alloc zeroed checked 96
+    mstore v0, 40
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, 32
+    mstore v2, 51
+    v3 = mload 64 !metadata(memory=scratch)
+    v4 = checked_add uint256, arg0, 1
+    v5 = abi_encode [word, memory_bytes, word], scratch, args arg0, v0, v4
+    v6 = extract_value slice<memory>, v5, 0
+    v7 = extract_value slice<memory>, v5, 1
+    log v6, v7, 0x6167286408797e7cc4d2fa056cc382e79c6cf5ef1999509b1f89ff65bfcc7d9f
+    v8 = mload 64 !metadata(memory=scratch)
+    v9 = ptrtoint ptr<memory> v0 to i256
+    v10 = add v9, 32
+    v11 = mload v10
+    v12 = eq v8, v3
+    jumpi v12, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v15 = eq v13, 51
+    v13 = eq v11, 51
     jump bb3
   bb3:
-    v16 = phi [bb1: v15], [bb2: false]
-    jumpi v16, bb4, bb5
+    v14 = phi [bb1: v13], [bb2: false]
+    jumpi v14, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v17 = mload v2
-    v18 = eq v17, 40
+    v15 = mload v0
+    v16 = eq v15, 40
     jump bb6
   bb6:
-    v19 = phi [bb4: v18], [bb5: false]
-    jumpi v19, bb7, bb8
+    v17 = phi [bb4: v16], [bb5: false]
+    jumpi v17, bb7, bb8
   bb8:
     jump bb9
   bb7:
     jump bb9
   bb9:
-    v20 = phi [bb7: i8 1], [bb8: i8 0]
-    v21 = zext i8 v20 to i256
-    ret v21
+    v18 = phi [bb7: i8 1], [bb8: i8 0]
+    v19 = zext i8 v18 to i256
+    ret v19
 }
 
 fn @literalReused() -> i256 [selector=0x8af397d5, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

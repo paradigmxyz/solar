@@ -42,19 +42,13 @@ fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_par
 
 fn @pointer() [selector=0x2f5f3b3c, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = shl 0, 32
-    v1 = or v0, 0x5dfc2e4a
-    v2 = and v1, 0xffffffff
-    v3 = shl v2, 224
-    v4 = shr v1, 32
-    v5 = gas
-    v6 = shr v3, 224
-    mstore 0, v6 !metadata(memory=scratch)
-    v7 = extcodesize v4
-    v8 = eq v7, 0
-    icall revert_if<target_contract_has_no_code>, v8
-    v9 = call v5, v4, 0, 28, 4, 0, 0
-    jumpi v9, bb2, bb1
+    v0 = gas
+    mstore 0, 0x5dfc2e4a !metadata(memory=scratch)
+    v1 = extcodesize 0
+    v2 = eq v1, 0
+    icall revert_if<target_contract_has_no_code>, v2
+    v3 = call v0, 0, 0, 28, 4, 0, 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -100,19 +94,13 @@ fn @tryDirect() [selector=0x45eca8af, abi_params=[], abi_returns=[], abi_return_
 
 fn @tryPointer() [selector=0xce20ef7a, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = shl 0, 32
-    v1 = or v0, 0x5dfc2e4a
-    v2 = and v1, 0xffffffff
-    v3 = shl v2, 224
-    v4 = shr v1, 32
-    v5 = gas
-    v6 = shr v3, 224
-    mstore 0, v6 !metadata(memory=scratch)
-    v7 = extcodesize v4
-    v8 = eq v7, 0
-    icall revert_if<target_contract_has_no_code>, v8
-    v9 = call v5, v4, 0, 28, 4, 0, 0
-    jumpi v9, bb1, bb2
+    v0 = gas
+    mstore 0, 0x5dfc2e4a !metadata(memory=scratch)
+    v1 = extcodesize 0
+    v2 = eq v1, 0
+    icall revert_if<target_contract_has_no_code>, v2
+    v3 = call v0, 0, 0, 28, 4, 0, 0
+    jumpi v3, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:

@@ -12,12 +12,11 @@ fn @set(arg0: ptr<memory>, arg1: i160) [selector=0xa815ff15, abi_params=[bytes, 
   bb0:
     v0 = mapping_slot_bytes arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
-    v2 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = and v1, v2
-    v4 = zext i160 arg1 to i256
-    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = or v3, v5
-    sstore v0, v6 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v3 = zext i160 arg1 to i256
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = or v2, v4
+    sstore v0, v5 !metadata(storage=symbolic(v0))
     ret
 }
 
@@ -131,12 +130,10 @@ fn @setThenAlloc(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x8fc72899
   bb0:
     v0 = mapping_slot_bytes arg0, 0
     sstore v0, arg1 !metadata(storage=symbolic(v0))
-    v1 = not 31
-    v2 = and 95, v1
-    v3 = alloc zeroed checked v2
-    mstore v3, 32
-    v4 = mload v3
-    ret v4
+    v1 = alloc zeroed checked 64
+    mstore v1, 32
+    v2 = mload v1
+    ret v2
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {

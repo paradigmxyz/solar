@@ -15,35 +15,31 @@ fn @foo() -> i256 [selector=0xc2985578, abi_params=[], abi_returns=[word], abi_r
     jump bb2
   bb2:
     v4 = sload 0 !metadata(storage=slot(0))
-    v5 = not 255
-    v6 = and v4, v5
-    v7 = and 0, 255
-    v8 = or v6, v7
-    sstore 0, v8 !metadata(storage=slot(0))
-    v9 = sload 0 !metadata(storage=slot(0))
-    v10 = trunc i256 v9 to i8
-    v11 = ne v10, i8 0
-    jumpi v11, bb7, bb8
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v6 = or v5, 0
+    sstore 0, v6 !metadata(storage=slot(0))
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = trunc i256 v7 to i8
+    v9 = ne v8, i8 0
+    jumpi v9, bb7, bb8
   bb8:
     jump bb9
   bb7:
     jump bb9
   bb9:
-    v12 = phi [bb7: 1], [bb8: 0]
+    v10 = phi [bb7: 1], [bb8: 0]
     jump bb6
   bb6:
     jump bb1
   bb1:
-    ret v12
+    ret v10
 }
 
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 255
-    v2 = and v0, v1
-    v3 = and 1, 255
-    v4 = or v2, v3
-    sstore 0, v4 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v2 = or v1, 1
+    sstore 0, v2 !metadata(storage=slot(0))
     ret
 }

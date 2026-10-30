@@ -92,26 +92,23 @@ fn @ctorNested() -> struct0 [selector=0x23c43244, view, abi_params=[], abi_retur
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = storage_array_data_slot 1
-    v4 = add v3, 0
-    v5 = sload v4 !metadata(storage=symbolic(v3))
-    v6 = lt 0, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = storage_array_data_slot v4
-    v9 = add v8, 0
-    v10 = sload v9 !metadata(storage=symbolic(v8))
-    v11 = sload 1 !metadata(storage=slot(1))
-    v12 = lt 0, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    v14 = storage_array_data_slot 1
-    v15 = add v14, 0
-    v16 = sload v15 !metadata(storage=symbolic(v14))
-    v17 = sload 0 !metadata(storage=slot(0))
-    v18 = insert_value struct0, undef struct0, 0, v10
-    v19 = insert_value struct0, v18, 1, v16
-    v20 = insert_value struct0, v19, 2, v17
-    ret v20
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    v5 = lt 0, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = storage_array_data_slot v3
+    v8 = sload v7 !metadata(storage=symbolic(v7))
+    v9 = sload 1 !metadata(storage=slot(1))
+    v10 = lt 0, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = storage_array_data_slot 1
+    v13 = sload v12 !metadata(storage=symbolic(v12))
+    v14 = sload 0 !metadata(storage=slot(0))
+    v15 = insert_value struct0, undef struct0, 0, v8
+    v16 = insert_value struct0, v15, 1, v13
+    v17 = insert_value struct0, v16, 2, v14
+    ret v17
 }
 
 fn @runtimeNested(arg0: i256) -> struct1 [selector=0x916a6a26, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
@@ -225,22 +222,21 @@ fn @storageToStorage() -> struct0 [selector=0xdb07d74b, abi_params=[], abi_retur
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = storage_array_data_slot 2
-    v23 = add v22, 0
-    v24 = sload v23 !metadata(storage=symbolic(v22))
-    v25 = sload 2 !metadata(storage=slot(2))
-    v26 = lt 1, v25
-    v27 = eq v26, false
-    icall panic_if<0x32>, v27
-    v28 = storage_array_data_slot 2
-    v29 = add v28, 1
-    v30 = sload v29 !metadata(storage=offset(v28, 1))
-    v31 = checked_add uint256, v30, 1
-    v32 = sload 2 !metadata(storage=slot(2))
-    v33 = checked_add uint256, v32, 1
-    v34 = insert_value struct0, undef struct0, 0, v24
-    v35 = insert_value struct0, v34, 1, v31
-    v36 = insert_value struct0, v35, 2, v33
-    ret v36
+    v23 = sload v22 !metadata(storage=symbolic(v22))
+    v24 = sload 2 !metadata(storage=slot(2))
+    v25 = lt 1, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = storage_array_data_slot 2
+    v28 = add v27, 1
+    v29 = sload v28 !metadata(storage=offset(v27, 1))
+    v30 = checked_add uint256, v29, 1
+    v31 = sload 2 !metadata(storage=slot(2))
+    v32 = checked_add uint256, v31, 1
+    v33 = insert_value struct0, undef struct0, 0, v23
+    v34 = insert_value struct0, v33, 1, v30
+    v35 = insert_value struct0, v34, 2, v32
+    ret v35
   bb7:
     v12 = shl v10, 5
     v13 = ptradd v0, v12

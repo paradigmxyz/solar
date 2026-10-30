@@ -35,15 +35,14 @@ fn @bytesChain(arg0: slice<calldata>) -> ptr<memory> [selector=0x2007c472, pure,
     v26 = add v25, 63
     v27 = lt v26, v25
     icall panic_if<0x41>, v27
-    v28 = not 31
-    v29 = and v26, v28
-    v30 = alloc v29
-    mstore v30, v25
-    v31 = ptradd v30, 32
-    v32 = extract_value slice<calldata>, v17, 0
-    v33 = extract_value slice<calldata>, v17, 1
-    calldatacopy v31, v32, v33
-    ret v30
+    v28 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v29 = alloc v28
+    mstore v29, v25
+    v30 = ptradd v29, 32
+    v31 = extract_value slice<calldata>, v17, 0
+    v32 = extract_value slice<calldata>, v17, 1
+    calldatacopy v30, v31, v32
+    ret v29
 }
 
 fn @arrChain(arg0: slice<calldata>) -> i256 [selector=0x65df4193, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
