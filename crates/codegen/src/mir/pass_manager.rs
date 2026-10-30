@@ -123,12 +123,6 @@ pub trait MirPass: Sync {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool;
 }
 
-/// Runs a sequence of MIR passes without validating after each pass.
-#[must_use]
-pub fn run_passes_no_validate(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn MirPass]) -> bool {
-    run_passes_inner(gcx, module, passes, false, None).0
-}
-
 /// Runs a sequence of MIR passes, checking each changed result when verification is enabled.
 #[must_use]
 pub fn run_passes(
@@ -137,7 +131,7 @@ pub fn run_passes(
     passes: &[&dyn MirPass],
     name: Option<&str>,
 ) -> bool {
-    run_passes_inner(gcx, module, passes, true, name).0
+    run_passes_inner(gcx, module, passes, name).0
 }
 
 #[must_use]
@@ -145,7 +139,6 @@ pub(crate) fn run_passes_inner(
     gcx: Gcx<'_>,
     module: &mut Module,
     passes: &[&dyn MirPass],
-    validate_each: bool,
     name: Option<&str>,
 ) -> (bool, Option<ErrorGuaranteed>) {
     let output_name = if gcx.sess.opts.unstable.pass_diff || gcx.sess.opts.unstable.print_after_each
@@ -213,7 +206,7 @@ pub(crate) fn run_passes_inner(
             }
             assert_debug_info_handled(module, pass_name, "after");
 
-            if pass_changed && validate_each && should_validate_ir(gcx) {
+            if pass_changed && should_validate_ir(gcx) {
                 validate_module_after_pass(module, pass_name);
             }
         }

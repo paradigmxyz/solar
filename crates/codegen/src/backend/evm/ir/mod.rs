@@ -24,6 +24,7 @@ pub(in crate::backend::evm) use passes::SharedSchedules;
 pub(crate) use passes::compact_pushes;
 
 pub(crate) use passes::compact_pushes::immediate_materialization_cost;
+pub use passes::run_pipeline;
 pub(in crate::backend) use passes::{
     compact_pushes::{
         ImmediateMaterialization, ImmediateMaterializationOp, immediate_materialization_len,
@@ -31,7 +32,6 @@ pub(in crate::backend) use passes::{
     data::pack_linked_data,
     legalize_revert,
 };
-pub use passes::{pipeline_label, run_pipeline};
 
 /// The cost model of a module's code.
 pub(crate) trait ModuleTarget {

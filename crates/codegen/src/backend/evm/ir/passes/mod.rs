@@ -45,8 +45,6 @@ use solar_interface::diagnostics::DiagCtxt;
 use solar_sema::Gcx;
 use std::any::{Any, TypeId};
 
-pub use crate::mir::pass_manager::pipeline_label;
-
 /// A streamlined trait for an EVM IR transformation pass.
 trait EvmPass: Any + Sync {
     /// Command-line and pipeline name.

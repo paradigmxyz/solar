@@ -10,6 +10,7 @@ use crate::mir::{BlockId, Function, utils::IndexLists};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::{BitMatrix, BitMatrixRow, DenseBitSet},
+    graph::sccs,
     index::{IndexVec, index_vec},
 };
 use std::{cell::OnceCell, collections::BinaryHeap};
@@ -88,50 +89,13 @@ impl CfgInfo {
     #[must_use]
     pub(crate) fn cyclic_blocks(&self) -> &DenseBitSet<BlockId> {
         self.cyclic_blocks.get_or_init(|| {
-            let block_count = self.successors.len();
-            let predecessors = self.all_predecessors();
-
-            let mut visited = DenseBitSet::new_empty(block_count);
-            let mut finish_order = Vec::with_capacity(block_count);
-            let mut stack = Vec::new();
-            for start in self.successors.indices() {
-                if !visited.insert(start) {
-                    continue;
-                }
-                stack.push((start, 0usize));
-                while let Some((block, next)) = stack.last_mut() {
-                    if let Some(&successor) = self.successors[*block].get(*next) {
-                        *next += 1;
-                        if visited.insert(successor) {
-                            stack.push((successor, 0));
-                        }
-                    } else {
-                        finish_order.push(*block);
-                        stack.pop();
-                    }
-                }
-            }
-
-            let mut assigned = DenseBitSet::new_empty(block_count);
-            let mut cyclic = DenseBitSet::new_empty(block_count);
-            let (mut component, mut scc_stack) = (Vec::new(), Vec::new());
-            for start in finish_order.into_iter().rev() {
-                if !assigned.insert(start) {
-                    continue;
-                }
-                component.clear();
-                component.push(start);
-                scc_stack.push(start);
-                while let Some(block) = scc_stack.pop() {
-                    for &predecessor in predecessors.get(block) {
-                        if assigned.insert(predecessor) {
-                            component.push(predecessor);
-                            scc_stack.push(predecessor);
-                        }
-                    }
-                }
-                if component.len() > 1 || self.successors[start].contains(&start) {
-                    for &block in &component {
+            let mut cyclic = DenseBitSet::new_empty(self.successors.len());
+            for scc in
+                sccs(self.successors.len(), |block: BlockId| self.successors[block].iter().copied())
+            {
+                // A component is cyclic with several blocks or one block that branches to itself.
+                if scc.len() > 1 || self.successors[scc[0]].contains(&scc[0]) {
+                    for block in scc {
                         cyclic.insert(block);
                     }
                 }
