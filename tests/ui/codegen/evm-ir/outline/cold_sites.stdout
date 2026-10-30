@@ -16,15 +16,15 @@
 -   push 15
 -   mstore
 -   jump bb3
-+   push bb9
-+   jump bb8
++   push bb16
++   jump bb14
   bb3 [cold]:
 -   push 0x3a3b3c3d3e3f404142434445464748
 -   push 15
 -   mstore
 -   jump bb4
-+   push bb10
-+   jump bb8
++   push bb17
++   jump bb14
   bb4:
     push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
     pop
@@ -34,30 +34,88 @@
     pop
     jump bb6
   bb6 [cold]:
-+   push bb12
-+   jump bb11
-+ bb7 [cold]:
-+   push bb13
-+   jump bb11
-+ bb8 [ret=0, inputs=1, outputs=0]:
+-   push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210
+-   pop
+-   jump bb7
++   push bb25
++   jump bb24
+  bb7 [cold]:
+-   push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210
+-   pop
+-   jump bb8
++   push bb26
++   jump bb24
+  bb8:
+-   push 0x4a4b4c4d4e4f505152535455565758
+-   push 15
+-   mstore
+-   jump bb9
++   push bb18
++   jump bb15
+  bb9 [cold]:
+-   push 0x4a4b4c4d4e4f505152535455565758
+-   push 15
+-   mstore
+-   jump bb10
++   push bb19
++   jump bb15
+  bb10 [cold]:
+-   push 0x4a4b4c4d4e4f505152535455565758
+-   push 15
+-   mstore
+-   jump bb11
++   push bb20
++   jump bb15
+  bb11 [cold]:
+-   push 0x4a4b4c4d4e4f505152535455565758
+-   push 15
+-   mstore
+-   jump bb12
++   push bb21
++   jump bb15
+  bb12 [cold]:
+-   push 0x4a4b4c4d4e4f505152535455565758
++   push bb22
++   jump bb15
++ bb13 [cold]:
++   push bb23
++   jump bb15
++ bb14 [ret=0, inputs=1, outputs=0]:
 +   push 0x3a3b3c3d3e3f404142434445464748
-+   push 15
-+   mstore
+    push 15
+    mstore
+-   jump bb13
+- bb13 [cold]:
 +   jump
-+ bb9 [cold, continuation]:
++ bb15 [ret=0, inputs=1, outputs=0]:
+    push 0x4a4b4c4d4e4f505152535455565758
+    push 15
+    mstore
++   jump
++ bb16 [cold, continuation]:
 +   jump bb3
-+ bb10 [cold, continuation]:
++ bb17 [cold, continuation]:
 +   jump bb4
-+ bb11 [ret=0, inputs=1, outputs=1]:
-    push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210
++ bb18 [continuation]:
++   jump bb9
++ bb19 [cold, continuation]:
++   jump bb10
++ bb20 [cold, continuation]:
++   jump bb11
++ bb21 [cold, continuation]:
++   jump bb12
++ bb22 [cold, continuation]:
++   jump bb13
++ bb23 [cold, continuation]:
+    stop
++ bb24 [ret=0, inputs=1, outputs=1]:
++   push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210
 +   swap 1
 +   jump
-+ bb12 [cold, continuation]:
-    pop
-    jump bb7
-- bb7 [cold]:
--   push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210
-+ bb13 [cold, continuation]:
-    pop
-    stop
++ bb25 [cold, continuation]:
++   pop
++   jump bb7
++ bb26 [cold, continuation]:
++   pop
++   jump bb8
   

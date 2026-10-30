@@ -63,4 +63,44 @@ bb6 [cold]:
 bb7 [cold]:
   push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210
   pop
+  jump bb8
+
+// A share with one hot site pays the transfer gas of that site alone, so five cold stores
+// repay it, and the hot one is shared with them.
+// CHECK-LABEL: bb8:
+// CHECK: push [[RET8:bb[0-9]+]]
+// CHECK-NEXT: jump [[MIXED:bb[0-9]+]]
+bb8:
+  push 0x4a4b4c4d4e4f505152535455565758
+  push 15
+  mstore
+  jump bb9
+
+// CHECK-LABEL: bb9 [cold]:
+// CHECK: push [[RET9:bb[0-9]+]]
+// CHECK-NEXT: jump [[MIXED]]
+bb9 [cold]:
+  push 0x4a4b4c4d4e4f505152535455565758
+  push 15
+  mstore
+  jump bb10
+bb10 [cold]:
+  push 0x4a4b4c4d4e4f505152535455565758
+  push 15
+  mstore
+  jump bb11
+bb11 [cold]:
+  push 0x4a4b4c4d4e4f505152535455565758
+  push 15
+  mstore
+  jump bb12
+bb12 [cold]:
+  push 0x4a4b4c4d4e4f505152535455565758
+  push 15
+  mstore
+  jump bb13
+bb13 [cold]:
+  push 0x4a4b4c4d4e4f505152535455565758
+  push 15
+  mstore
   stop
