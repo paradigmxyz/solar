@@ -82,11 +82,27 @@ fn @range_checks(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     revert 0, 0
 }
 
-// A limit that is not a power of two has no shift that tests it.
+// A range check next to a test that aborts on its false edge stays a comparison, and the two
+// combine with `and`, whether or not the other limit is a power of two.
 // CHECK-LABEL: {{^[ +].*}}fn @not_a_range{{[( ]}}
-// CHECK-NOT: {{^\+}}
+// CHECK: + [[BOTH:v[0-9]+]] = and {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK-LABEL: {{^[ +].*}}fn @range_after{{[( ]}}
+// CHECK: + [[BOTH:v[0-9]+]] = and {{v[0-9]+}}, {{v[0-9]+}}
 // CHECK-LABEL: {{^[ +].*}}fn @range_loop{{[( ]}}
 fn @not_a_range(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = lt arg0, 3
+    jumpi v0, bb1, bb3
+  bb1:
+    v1 = lt arg1, 5
+    jumpi v1, bb2, bb3
+  bb2:
+    stop
+  bb3:
+    revert 0, 0
+}
+
+fn @range_after(arg0: i256, arg1: i256) {
   bb0:
     v0 = lt arg0, 3
     jumpi v0, bb1, bb3

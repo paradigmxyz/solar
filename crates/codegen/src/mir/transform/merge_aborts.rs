@@ -49,24 +49,23 @@
 //! priced by the target. A zero test of a word that aborts when the word is nonzero, as a
 //! non-payable entry's `ne callvalue, 0` or an address check's `ne (shr 160, x), 0` does, joins
 //! outside loops as the word itself: `c = ne (or w, zext c2), 0`, which a branch reads for free as
-//! it read `w`, so the entry's value check and calldata size check branch once. An ABI range check
-//! that aborts when it fails is a zero test of a word too, and joins as that word outside loops: a
-//! failing `lt x, 2^k`, as a `bool` parameter's check is, leaves a nonzero `shr k, x`, and a
-//! failing `eq x, signextend(b, x)`, as a signed `intN` parameter's check is, leaves a nonzero
-//! `xor x, signextend(b, x)`. The shift or the exclusive or replaces the comparison it stands for,
-//! at the price the target gives the pair, and the checks of a function's parameters branch once
-//! with the address checks and the calldata size check. The shift needs the target's shift
-//! opcodes. In loops such a test still turns around into its complement or its negation, which
-//! costs no `iszero` for a comparison with a literal. Other zero tests of
-//! words stay apart: a branch reads the word for free, and a loop's latch also takes its back edge
-//! on it, as an increment's overflow check `eq (add i, 1), 0` does, while the merged test would pay
-//! an `iszero` for the word, another to turn the latch around, and the shuffles that keep the first
-//! condition next to it. A negated test pays its `iszero` only in loops, where the saved jump
-//! repeats, in size builds too. A boolean's negation merges as the boolean only in builds that copy
-//! loops, where every copy of a body repeats the saving: in a single body the condition stays live
-//! across the next check, and the scheduler answered with more shuffles than the saved jump. Runs
-//! late, after the final loop passes, check elimination and the CFG cleanup that joins each copy's
-//! blocks, so the tests it merges are the ones that remain.
+//! it read `w`, so the entry's value check and calldata size check branch once.
+//!
+//! An ABI range check that aborts when it fails joins outside loops as the word that is nonzero
+//! when it fails: `shr k, x` for `lt x, 2^k`, as a `bool` or `uintN` parameter's check is (this
+//! needs the target's shift opcodes), and `xor x, signextend(b, x)` for `eq x, signextend(b, x)`,
+//! as an `intN` parameter's check is. The word replaces the comparison, and the target prices
+//! both. Next to a test that aborts on its false edge, such as an enum's `lt x, 3`, it stays a
+//! comparison and the two combine with `and`; in loops it turns around as above. Other zero tests
+//! of words stay apart: a branch reads the word for free, and a loop's latch also takes its back
+//! edge on it, as an increment's overflow check `eq (add i, 1), 0` does, while the merged test
+//! would pay an `iszero` for the word, another to turn the latch around, and the shuffles that keep
+//! the first condition next to it. A negated test pays its `iszero` only in loops, where the saved
+//! jump repeats, in size builds too. A boolean's negation merges as the boolean only in builds that
+//! copy loops, where every copy of a body repeats the saving: in a single body the condition stays
+//! live across the next check, and the scheduler answered with more shuffles than the saved jump.
+//! Runs late, after the final loop passes, check elimination and the CFG cleanup that joins each
+//! copy's blocks, so the tests it merges are the ones that remain.
 
 use crate::{
     backend::evm::op,
@@ -142,15 +141,33 @@ enum Word {
 
 impl Word {
     /// The cost of the instruction that makes the word, and of the comparison it replaces.
-    fn price(self, target: &Target) -> Option<(Cost, Cost)> {
+    fn price(self, target: &Target) -> (Cost, Cost) {
         match self {
-            Self::Itself => None,
-            Self::Shr { bits, .. } => Some((
+            Self::Itself => (Cost::ZERO, Cost::ZERO),
+            Self::Shr { bits, .. } => (
                 target.push(U256::from(bits)) + target.opcode(op::SHR),
                 target.push(U256::ONE << bits) + target.opcode(op::LT),
-            )),
-            Self::Xor(..) => Some((target.opcode(op::XOR), target.opcode(op::EQ))),
+            ),
+            Self::Xor(..) => (target.opcode(op::XOR), target.opcode(op::EQ)),
         }
+    }
+
+    /// Whether the word stands for a comparison, rather than being the tested word itself.
+    fn is_range(self) -> bool {
+        !matches!(self, Self::Itself)
+    }
+}
+
+impl Test {
+    /// Whether the test aborts on its false edge and merges as a boolean.
+    fn is_plain_false(&self) -> bool {
+        self.word.is_none() && !self.aborts_when_true
+    }
+
+    /// Turns a range word back into the comparison it came from, which aborts on its false edge.
+    fn restore_comparison(&mut self) {
+        self.word = None;
+        self.aborts_when_true = false;
     }
 }
 
@@ -162,7 +179,8 @@ struct Test {
     next: BlockId,
     aborts_when_true: bool,
     /// The word that is nonzero when the test aborts, when it merges as a word rather than as a
-    /// boolean. Such a test aborts when `condition` holds, as the word is nonzero.
+    /// boolean. Such a test counts as aborting when true, as the word is nonzero; `condition`
+    /// then goes unused unless the test turns back into a comparison.
     word: Option<Word>,
 }
 
@@ -250,8 +268,8 @@ fn range_word(func: &Function, condition: ValueId, target: &Target) -> Option<Wo
     let (operand, word) = match *func.value_inst_kind(condition)? {
         InstKind::Lt(word, limit) | InstKind::Gt(limit, word) => {
             let limit = func.value_u256(limit)?;
-            if limit.count_ones() != 1
-                || limit == U256::ONE
+            if limit <= U256::ONE
+                || !limit.is_power_of_two()
                 || !target.evm_version().has_bitwise_shifting()
             {
                 return None;
@@ -333,7 +351,7 @@ fn mergeable(
     cyclic: &DenseBitSet<BlockId>,
     target: &Target,
 ) -> Option<(Test, Test, Option<Flip>)> {
-    let first = test(func, block, cold, cyclic, target)?;
+    let mut first = test(func, block, cold, cyclic, target)?;
     // Another edge into the continuation may leave only the first test's own aborting block,
     // when that block calls a function that never returns and this test alone enters it. The
     // merge removes that entrance, so the first test's condition still dominates the merged
@@ -346,7 +364,14 @@ fn mergeable(
     }) {
         return None;
     }
-    let second = test(func, first.next, cold, cyclic, target)?;
+    let mut second = test(func, first.next, cold, cyclic, target)?;
+    // A range word joins only a test that aborts when it holds. Next to one that aborts on its
+    // false edge, both stay comparisons and combine with `and`.
+    if first.word.is_some_and(Word::is_range) && second.is_plain_false() {
+        first.restore_comparison();
+    } else if second.word.is_some_and(Word::is_range) && first.is_plain_false() {
+        second.restore_comparison();
+    }
     if !same_abort(func, first.abort, second.abort, cold)
         || !continuation
             .instructions
@@ -378,24 +403,24 @@ fn mergeable(
             Some(complement(func, second.condition).map_or(Flip::Negate, Flip::Complement))
         }
     };
-    let added = if matches!(flip, Some(Flip::Negate)) {
+    let mut added = if matches!(flip, Some(Flip::Negate)) {
         target.opcode(op::OR) + target.opcode(op::ISZERO)
     } else {
         target.opcode(op::OR)
     };
-    let saved = target.label_push() + target.opcode(op::JUMPI);
+    let mut saved = target.label_push() + target.opcode(op::JUMPI);
     // A word made from a comparison's operands also replaces that comparison.
-    let (mut gas, mut bytes) = (
-        i64::from(target.runtime_gas(saved)) - i64::from(target.runtime_gas(added)),
-        i64::from(saved.bytes) - i64::from(added.bytes),
-    );
-    for (word, replaced) in
-        [first.word, second.word].into_iter().flatten().filter_map(|word| word.price(target))
+    for (word, replaced) in [first.word, second.word].into_iter().flatten().map(|w| w.price(target))
     {
-        gas += i64::from(target.runtime_gas(replaced)) - i64::from(target.runtime_gas(word));
-        bytes += i64::from(replaced.bytes) - i64::from(word.bytes);
+        added += word;
+        saved += replaced;
     }
-    target.improves(gas, bytes).then_some((first, second, flip))
+    target
+        .improves(
+            i64::from(target.runtime_gas(saved)) - i64::from(target.runtime_gas(added)),
+            i64::from(saved.bytes) - i64::from(added.bytes),
+        )
+        .then_some((first, second, flip))
 }
 
 /// The comparison that holds exactly when an unsigned comparison of a word with a literal fails:
@@ -454,12 +479,14 @@ fn merge(
         test.aborts_when_true = true;
     }
     let combined = if first.word.is_some() || second.word.is_some() {
-        // w1 = zext i1 c1 to i256 | shr bits, x | xor a, b (unless c1 is already a word)
-        // w2 = zext i1 c2 to i256 | shr bits, x | xor a, b (unless c2 is already a word)
+        // w1 = zext i1 c1 to i256 (unless c1 is already a word)
+        //      | shr bits, x (for a range check c1 of x)
+        //      | xor a, b (for a range check c1 of a and b)
+        // w2 = the same for c2
         // w = or w1, w2
         // c = ne w, 0
         // jumpi c, abort, b3
-        let mut widen = |test: &Test| match test.word {
+        let mut as_word = |test: &Test| match test.word {
             Some(Word::Itself) => test.condition,
             Some(Word::Shr { word, bits }) => {
                 let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(bits))));
@@ -468,7 +495,7 @@ fn merge(
             Some(Word::Xor(a, b)) => append_typed(func, block, InstKind::Xor(a, b), MirType::I256),
             None => append_typed(func, block, InstKind::Zext(test.condition), MirType::I256),
         };
-        let (a, b) = (widen(&first), widen(&second));
+        let (a, b) = (as_word(&first), as_word(&second));
         let word = append_typed(func, block, InstKind::Or(a, b), MirType::I256);
         let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
         append(func, block, InstKind::Ne(word, zero))

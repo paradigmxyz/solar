@@ -78,10 +78,29 @@
   fn @not_a_range(arg0: i256, arg1: i256) {
     bb0:
       v0 = lt arg0, 3
-      jumpi v0, bb1, bb3
+-     jumpi v0, bb1, bb3
++     jump bb1
+    bb1:
+      v1 = lt arg1, 5
+-     jumpi v1, bb2, bb3
++     v2 = and v0, v1
++     jumpi v2, bb2, bb3
+    bb3:
+      revert 0, 0
+    bb2:
+      stop
+  }
+  
+  fn @range_after(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = lt arg0, 3
+-     jumpi v0, bb1, bb3
++     jump bb1
     bb1:
       v1 = lt arg1, 8
-      jumpi v1, bb2, bb3
+-     jumpi v1, bb2, bb3
++     v2 = and v0, v1
++     jumpi v2, bb2, bb3
     bb3:
       revert 0, 0
     bb2:
