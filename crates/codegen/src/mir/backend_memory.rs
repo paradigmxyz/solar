@@ -221,7 +221,11 @@ impl StackReturn {
         else {
             return Err("backend stack return does not name an internal call".into());
         };
-        if self.extras.len() + 1 != module.functions[*callee].return_components().len() {
+        let callee = module
+            .functions
+            .get(*callee)
+            .ok_or("backend stack return calls an unknown function")?;
+        if self.extras.len() + 1 != callee.return_components().len() {
             return Err("backend stack return has the wrong arity".into());
         }
         if !self.elided.is_empty() {
