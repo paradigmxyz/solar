@@ -6,6 +6,7 @@
 
 use super::{Recipe, Temporary, mask_uses::MaskUses, widest_int_operand};
 use crate::{
+    backend::evm::op,
     mir::{
         Function, InstId, InstKind, MirType, Op, Value as MirValue, ValueId,
         analysis::integers::integer_mask,
@@ -225,7 +226,22 @@ impl generated::Context for Context<'_> {
     }
 
     fn compared_mask(&mut self, value: Value, mask: U256) -> bool {
-        // An equality with a constant that the mask keeps can compare the shifted value instead.
-        self.masks().compared(value, mask)
+        // An equality with a constant that the mask keeps can compare the shifted value instead,
+        // which must save at least the bytes that `(x >> s) << s` costs over `x & mask`.
+        let shift = U256::from(mask.trailing_zeros());
+        let target = self.target;
+        let saved = self
+            .masks()
+            .compared(value, mask)
+            .map(|c| {
+                let (wide, narrow) = (target.push(c).bytes, target.push(c >> shift).bytes);
+                wide.saturating_sub(narrow)
+            })
+            .sum::<u32>();
+        let [and, shr, shl] = [op::AND, op::SHR, op::SHL].map(|opcode| target.opcode(opcode).bytes);
+        let (dup, push_mask, push_shift) =
+            (target.dup().bytes, target.push(mask).bytes, target.push(shift).bytes);
+        // x & mask => (x >> s) << s
+        saved + and + push_mask + dup >= shr + shl + 2 * push_shift + 2 * dup
     }
 }

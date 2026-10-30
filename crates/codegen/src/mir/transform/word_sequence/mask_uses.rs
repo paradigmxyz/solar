@@ -44,15 +44,16 @@ impl MaskUses {
         self.uses.get(&mask).is_none_or(|&uses| uses <= 1)
     }
 
-    /// Whether an equality compares `value & mask` with a constant that the mask keeps.
-    pub(super) fn compared(&self, value: ValueId, mask: U256) -> bool {
-        self.masked.get(&(value, mask)).is_some_and(|results| {
-            results.iter().any(|result| {
-                self.compared
-                    .get(result)
-                    .is_some_and(|constants| constants.iter().any(|&c| c & mask == c))
-            })
-        })
+    /// The constants that an equality compares with `value & mask` and the mask keeps.
+    pub(super) fn compared(&self, value: ValueId, mask: U256) -> impl Iterator<Item = U256> {
+        self.masked
+            .get(&(value, mask))
+            .into_iter()
+            .flatten()
+            .filter_map(|result| self.compared.get(result))
+            .flatten()
+            .copied()
+            .filter(move |&c| c & mask == c)
     }
 
     /// Adds an instruction with its current kind.

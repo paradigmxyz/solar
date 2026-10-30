@@ -14,6 +14,8 @@
 //! effects, block edges or gas observations. Recipe and producer-cone sizes are
 //! bounded independently of function size. This is a local tree estimate, not
 //! a proof of scheduled cost; gas and size corpus measurements remain required.
+//! An enabling recipe is accepted without being cheaper: its rule guard shows that it pays for
+//! the rewrite it exposes to a later pass.
 //! Scalar selects can also be roots: their arithmetic recipes preserve zero/nonzero
 //! conditions, while pointer and aggregate selects retain their provenance.
 //! Shared integer casts can move outside a select when their source widths match;
