@@ -279,6 +279,13 @@ impl Target {
         Self { optimization: OptimizationMode::Size, ..self }
     }
 
+    /// The gas a call to shared code adds to a site's execution, `gas` unless `cold` code is
+    /// priced differently by [`Self::priced_for_cold`]: a cold site is ranked by bytes alone,
+    /// so it pays nothing.
+    pub(crate) fn site_gas(self, cold: bool, gas: u32) -> u32 {
+        if self.priced_for_cold(cold) == self { gas } else { 0 }
+    }
+
     /// Whether a bare `@custom:solar-inline` admits a clone that adds `added_bytes` and removes
     /// `removed_bytes`, whatever gas it saves. The gas objective lets such a function add as many
     /// bytes again as the call protocol it removes, past what profitability accepts; size admits
@@ -1645,6 +1652,10 @@ mod tests {
         assert_eq!(gas.priced_for_cold(false), gas);
         assert_eq!(size.priced_for_cold(true), size);
         assert_eq!(none.priced_for_cold(true), none);
+        assert_eq!(gas.site_gas(false, 7), 7);
+        assert_eq!(gas.site_gas(true, 7), 0);
+        assert_eq!(size.site_gas(true, 7), 7);
+        assert_eq!(none.site_gas(true, 7), 7);
     }
 
     #[test]

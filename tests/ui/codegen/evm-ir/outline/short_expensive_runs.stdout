@@ -29,19 +29,19 @@
     dup 1
     push 4
     stop
-  bb5 [cold]:
+  bb5:
     push 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     push 192
     mstore
     push 5
     stop
-  bb6 [cold]:
+  bb6:
     push 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     push 192
     mstore
     push 6
     stop
-  bb7 [cold]:
+  bb7:
     push 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
     pop
     push 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
