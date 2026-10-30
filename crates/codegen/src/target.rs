@@ -812,11 +812,11 @@ impl Target {
         }
     }
 
-    /// Whether code that cannot reach a normal exit counts as cold, and so do the code after a
-    /// call and the edges into cold blocks. Marking it moves failure loops and the code around
-    /// them out of line, which saves gas on the paths that succeed. The move saves no bytes, and
-    /// the layout it changes can widen jump labels, so a size build leaves that code in place
-    /// and moves only the blocks that abort.
+    /// Whether code that cannot reach a normal exit counts as cold, as do the code after a call
+    /// and the edges into cold blocks. Marking it moves failure loops and the code around them
+    /// out of line, which saves gas on the paths that succeed. The move saves no bytes, and the
+    /// layout it changes can widen jump labels, so a size build leaves that code in place and
+    /// moves only the blocks that abort or lead only to aborts.
     pub(crate) const fn marks_failure_paths_cold(&self) -> bool {
         self.optimization.is_gas()
     }
@@ -1591,14 +1591,6 @@ mod tests {
     }
 
     #[test]
-    fn failure_paths_are_cold_for_gas_only() {
-        let target = |optimization| Target::with(EvmVersion::Osaka, optimization, 200);
-        assert!(target(OptimizationMode::Gas).marks_failure_paths_cold());
-        assert!(!target(OptimizationMode::Size).marks_failure_paths_cold());
-        assert!(!target(OptimizationMode::None).marks_failure_paths_cold());
-    }
-
-    #[test]
     fn terminal_copy_sharing() {
         let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
@@ -1774,5 +1766,13 @@ mod tests {
         }
         assert_eq!(cancun.encoded_push(U256::MAX), cancun.opcode(op::PUSH32));
         assert!(cancun.push(U256::MAX).bytes < cancun.encoded_push(U256::MAX).bytes);
+    }
+
+    #[test]
+    fn failure_paths_are_cold_for_gas_only() {
+        let target = |optimization| Target::with(EvmVersion::Osaka, optimization, 200);
+        assert!(target(OptimizationMode::Gas).marks_failure_paths_cold());
+        assert!(!target(OptimizationMode::Size).marks_failure_paths_cold());
+        assert!(!target(OptimizationMode::None).marks_failure_paths_cold());
     }
 }

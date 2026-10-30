@@ -1,6 +1,8 @@
-//@ codegen-matrix: standard ir
+//@ codegen-matrix: standard ir ir-size
 //@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@[ir] filecheck:
+//@[ir-size] compile-flags: -Osize -Zdump=evm-ir-runtime
+//@[ir-size] filecheck: --check-prefix=SIZE
 //@ normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: check 5, 3 => 6
 //@ run-call-fail: check 11, 3 => 0xea10261a000000000000000000000000000000000000000000000000000000000000000b00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000003030a110000000000000000000000000000000000000000000000000000000000
@@ -12,6 +14,10 @@
 // CHECK: bb{{[0-9]+}} [loop]:
 // CHECK: bb{{[0-9]+}} [cold, loop]:
 // CHECK: bb{{[0-9]+}} [cold, continuation]:
+//
+// A size build moves only the blocks that lead to aborts.
+// SIZE-NOT: [cold, loop]
+// SIZE-NOT: [cold, continuation]
 //
 // `check` reverts after calling `describe`, so the code after the call is a cold continuation.
 // `alwaysFails` only leaves its loop into reverts, so the loop and the blocks before it are cold.
