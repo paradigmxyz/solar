@@ -46,6 +46,9 @@ impl OpcodeTraits {
     /// unused result can be dropped. Account, storage and memory reads are not context reads:
     /// they warm what they touch or expand memory.
     pub const CONTEXT_READ: Self = Self(1 << 6);
+    /// The operation runs another frame, so the executing call's return data buffer afterwards
+    /// holds that frame's output: every call and create.
+    pub const SETS_RETURNDATA: Self = Self(1 << 7);
 
     /// Returns the union of two property sets.
     pub const fn union(self, other: Self) -> Self {
@@ -470,13 +473,13 @@ opcodes! {
     0xe6 => DUPN => dupn => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
     0xe7 => SWAPN => swapn => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
     0xe8 => EXCHANGE => exchange => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
-    0xf0 => CREATE => create => stack_io(3, 1) => traits(WRITES_STORAGE | OBSERVES_GAS) => gas(create) => available(legacy) => result_bits(160);
-    0xf1 => CALL => call => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
-    0xf2 => CALLCODE => callcode => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
+    0xf0 => CREATE => create => stack_io(3, 1) => traits(WRITES_STORAGE | OBSERVES_GAS | SETS_RETURNDATA) => gas(create) => available(legacy) => result_bits(160);
+    0xf1 => CALL => call => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS | SETS_RETURNDATA) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
+    0xf2 => CALLCODE => callcode => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS | SETS_RETURNDATA) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
     0xf3 => RETURN => r#return => stack_io(2, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
-    0xf4 => DELEGATECALL => delegatecall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
-    0xf5 => CREATE2 => create2 => stack_io(4, 1) => traits(WRITES_STORAGE | OBSERVES_GAS) => gas(create) => available(since Constantinople) => result_bits(160);
-    0xfa => STATICCALL => staticcall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS) => gas(call) => available(since Byzantium) => result_bits(1) => input_bits(256, 160);
+    0xf4 => DELEGATECALL => delegatecall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS | SETS_RETURNDATA) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
+    0xf5 => CREATE2 => create2 => stack_io(4, 1) => traits(WRITES_STORAGE | OBSERVES_GAS | SETS_RETURNDATA) => gas(create) => available(since Constantinople) => result_bits(160);
+    0xfa => STATICCALL => staticcall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS | SETS_RETURNDATA) => gas(call) => available(since Byzantium) => result_bits(1) => input_bits(256, 160);
     0xfd => REVERT => revert => stack_io(2, 0) => traits(TERMINAL) => gas(zero) => available(since Byzantium);
     0xfe => INVALID => invalid => stack_io(0, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
     0xff => SELFDESTRUCT => selfdestruct => stack_io(1, 0) => traits(TERMINAL) => gas(selfdestruct) => available(legacy) => input_bits(160);
@@ -528,6 +531,12 @@ impl OpDef {
     #[must_use]
     pub const fn is_context_read(self) -> bool {
         self.traits.contains(OpcodeTraits::CONTEXT_READ)
+    }
+
+    /// Returns whether this operation replaces the executing call's return data buffer.
+    #[must_use]
+    pub const fn sets_returndata(self) -> bool {
+        self.traits.contains(OpcodeTraits::SETS_RETURNDATA)
     }
 
     /// Returns whether this operation may write to memory.
@@ -900,6 +909,16 @@ pub const fn is_pure(op: u8) -> bool {
     }
 }
 
+/// Returns whether an opcode runs another frame and so replaces the return data buffer: every
+/// call and create.
+#[must_use]
+pub const fn sets_returndata(op: u8) -> bool {
+    match definition(op) {
+        Some(definition) => definition.sets_returndata(),
+        None => false,
+    }
+}
+
 /// Returns whether an opcode only reads the executing call's context, with no effect besides its
 /// static gas, so an unused result can be dropped.
 #[must_use]
@@ -1041,6 +1060,7 @@ mod tests {
                 ("terminal", def.is_terminal()),
                 ("observes_gas", def.observes_gas()),
                 ("context_read", def.is_context_read()),
+                ("sets_returndata", def.sets_returndata()),
             ];
             for (name, set) in traits {
                 if set {

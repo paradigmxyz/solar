@@ -1,0 +1,67 @@
+//@ compile-flags: -Zmir-pipeline=check-elim
+//@ filecheck:
+@module ZextConditionFacts
+
+// A zero word test of `zext(next < ptr) | (next >> 64)` leaves both operands zero on the false
+// edge: `next` did not wrap past `ptr` and fits in 64 bits.
+// CHECK-LABEL: fn @allocation_check
+// CHECK: - jumpi v5, bb3, bb2
+// CHECK: + jump bb2
+// CHECK: - jumpi v6, bb3, bb4
+// CHECK: + jump bb4
+fn @allocation_check(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, arg1
+    v1 = zext i1 v0 to i256
+    v2 = shr arg0, 64
+    v3 = or v1, v2
+    v4 = ne v3, 0
+    jumpi v4, bb2, bb1
+  bb1:
+    v5 = lt arg0, arg1
+    jumpi v5, bb2, bb3
+  bb3:
+    v6 = gt arg0, 0xffffffffffffffff
+    jumpi v6, bb2, bb4
+  bb2:
+    ret 0
+  bb4:
+    ret 1
+}
+
+// A widened nonzero test that is true says its source is nonzero.
+// CHECK-LABEL: fn @true_edge
+// CHECK: - jumpi arg0, bb2, bb3
+// CHECK: + jump bb2
+fn @true_edge(arg0: i1) -> i256 {
+  bb0:
+    v0 = zext i1 arg0 to i256
+    v1 = ne v0, 0
+    jumpi v1, bb1, bb3
+  bb1:
+    jumpi arg0, bb2, bb3
+  bb2:
+    ret 1
+  bb3:
+    ret 0
+}
+
+// A true `or` says nothing about its operands.
+// CHECK-LABEL: fn @or_true
+// CHECK: jumpi v5
+fn @or_true(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, arg1
+    v1 = zext i1 v0 to i256
+    v2 = shr arg0, 64
+    v3 = or v1, v2
+    v4 = ne v3, 0
+    jumpi v4, bb1, bb2
+  bb1:
+    v5 = lt arg0, arg1
+    jumpi v5, bb2, bb3
+  bb2:
+    ret 0
+  bb3:
+    ret 1
+}

@@ -4,7 +4,7 @@ bb0:
   callvalue
   push bb8
   jumpi
-  push 0
+  returndatasize
   calldataload
   push 224
   shr
@@ -40,8 +40,8 @@ bb0:
   jumpi
   jump bb8
 bb8 [cold]:
-  push 0
-  dup 1
+  returndatasize
+  returndatasize
   revert
 bb33 [cold]:
   push 65
@@ -50,7 +50,7 @@ bb37 [cold]:
   push 32
   mstore
   push 0x4e487b71
-  push 0
+  returndatasize
   mstore
   push 36
   push 28
@@ -75,10 +75,10 @@ bb35:
   shl
   jump bb34
 bb34:
-  push 0
+  returndatasize
   mstore
   push 32
-  push 0
+  returndatasize
   return
 bb20:
   push 36
@@ -147,8 +147,6 @@ bb26:
   dup 2
   push 64
   shr
-  iszero
-  iszero
   or
   push bb33
   jumpi

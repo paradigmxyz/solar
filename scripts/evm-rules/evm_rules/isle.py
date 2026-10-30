@@ -365,7 +365,10 @@ class Context:
                 )
             shift = Expr("sub", (Expr.const(256), self.integer_width))
             return Expr("and", (values[1], Expr("shr", (shift, Expr.const(MASK)))))
-        if name in ("imm", "u256", "resident", "make", "sequence") and len(values) == 1:
+        if (
+            name in ("imm", "u256", "resident", "make", "sequence", "enabling_sequence")
+            and len(values) == 1
+        ):
             if name == "resident":
                 self.contracts.add(
                     "resident: available value has the matched expression's word semantics"
@@ -503,6 +506,22 @@ class Context:
             return Expr(
                 "sub", (Expr.const(31), Expr("shr", (Expr.const(3), values[0])))
             )
+        if name == "low_mask_shift" and len(values) == 1:
+            shift = self.fresh()
+            self.assumptions.extend(
+                [
+                    Cond("ugt", (shift, Expr.const(0))),
+                    Cond("ult", (shift, Expr.const(256))),
+                    Cond(
+                        "eq",
+                        (
+                            values[0],
+                            Expr("shr", (shift, self.constructor(("u256_max",)))),
+                        ),
+                    ),
+                ]
+            )
+            return shift
         if name == "power_of_two_shift" and len(values) == 1:
             shift = self.fresh()
             self.assumptions.extend(

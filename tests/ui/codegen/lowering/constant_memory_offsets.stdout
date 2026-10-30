@@ -48,8 +48,8 @@ bb6:
   dup 2
   lt
   swap 1
-  push 0xffffffffffffffff
-  lt
+  push 64
+  shr
   or
   push bb8
   jumpi

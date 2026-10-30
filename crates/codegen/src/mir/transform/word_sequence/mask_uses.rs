@@ -26,7 +26,7 @@ pub(super) struct MaskUses {
     outers: FxHashMap<ValueId, Vec<InstId>>,
     /// The results of `x & m` by `(x, m)`.
     masked: FxHashMap<(ValueId, U256), Vec<ValueId>>,
-    /// The constants compared by `Eq` and `Ne` with each other operand.
+    /// The constants compared by `Eq` with each other operand.
     compared: FxHashMap<ValueId, Vec<U256>>,
 }
 
@@ -44,15 +44,16 @@ impl MaskUses {
         self.uses.get(&mask).is_none_or(|&uses| uses <= 1)
     }
 
-    /// Whether an equality compares `value & mask` with a constant that the mask keeps.
-    pub(super) fn compared(&self, value: ValueId, mask: U256) -> bool {
-        self.masked.get(&(value, mask)).is_some_and(|results| {
-            results.iter().any(|result| {
-                self.compared
-                    .get(result)
-                    .is_some_and(|constants| constants.iter().any(|&c| c & mask == c))
-            })
-        })
+    /// The constants that an equality compares with `value & mask` and the mask keeps.
+    pub(super) fn compared(&self, value: ValueId, mask: U256) -> impl Iterator<Item = U256> {
+        self.masked
+            .get(&(value, mask))
+            .into_iter()
+            .flatten()
+            .filter_map(|result| self.compared.get(result))
+            .flatten()
+            .copied()
+            .filter(move |&c| c & mask == c)
     }
 
     /// Adds an instruction with its current kind.
@@ -74,7 +75,7 @@ impl MaskUses {
                     }
                 }
             }
-            InstKind::Eq(a, b) | InstKind::Ne(a, b) => {
+            InstKind::Eq(a, b) => {
                 for (operand, constant) in [(a, b), (b, a)] {
                     if let Some(constant) = func.value_u256(constant) {
                         self.compared.entry(operand).or_default().push(constant);
@@ -111,7 +112,7 @@ impl MaskUses {
                     }
                 }
             }
-            InstKind::Eq(a, b) | InstKind::Ne(a, b) => {
+            InstKind::Eq(a, b) => {
                 for (operand, constant) in [(a, b), (b, a)] {
                     if let Some(constant) = func.value_u256(constant) {
                         swap_remove(self.compared.get_mut(&operand), &constant);

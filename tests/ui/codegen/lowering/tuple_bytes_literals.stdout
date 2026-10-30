@@ -20,49 +20,50 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
     v19 = add v17, 63
     v20 = lt v19, v17
     v22 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v58 = heap_floor !metadata(alloc_ptr)
-    v59 = add v58, v22 !metadata(alloc_ptr)
-    v60 = lt v59, v58
-    v61 = gt v59, 0xffffffffffffffff
+    v57 = heap_floor !metadata(alloc_ptr)
+    v58 = add v57, v22 !metadata(alloc_ptr)
+    v59 = lt v58, v57
+    v60 = zext i1 v59 to i256
+    v61 = shr v58, 64
     v62 = or v60, v61
-    v66 = or v20, v62
-    jumpi v66, bb5, bb7
+    v66 = zext i1 v20 to i256
+    v67 = or v66, v62
+    v68 = ne v67, 0
+    jumpi v68, bb5, bb7
   bb7:
-    mstore v58, v17
+    mstore v57, v17
     v24 = sub v10, v18
     v25 = gt v17, v24
     jumpi v25, bb3, bb6
   bb6:
-    v53 = add v58, 32
+    v53 = add v57, 32
     calldatacopy v53, v18, v17
     v33 = sub 0, v17
     v34 = and v33, 31
     v64 = calldatasize
     v54 = add v53, v17
     calldatacopy v54, v64, v34
-    v0 = mload v58
+    v0 = mload v57
     v1 = gt v0, 0
     v4 = gt v0, 1
-    v67 = and v1, v4
-    jumpi v67, bb2, bb1
+    v69 = and v1, v4
+    jumpi v69, bb2, bb1
   bb1:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
-    v49 = add v58, 33
+    v49 = add v57, 33
     mstore8 v49, 120
     mstore8 v53, 48
-    v40 = add v0, 31
-    v42 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v44 = add v53, v42
+    v39 = add v0, 31
+    v41 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v44 = add v53, v0
     mstore v44, 0
-    v51 = add v58, 64
-    mcopy v51, v53, v0
-    mstore v58, 32
-    mstore v53, v0
-    v46 = add v42, 64
-    returndata v58, v46
+    v51 = sub v57, 32
+    mstore v51, 32
+    v46 = add v41, 64
+    returndata v51, v46
   bb5:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

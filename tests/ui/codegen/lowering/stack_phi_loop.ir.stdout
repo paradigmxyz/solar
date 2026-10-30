@@ -79,7 +79,7 @@ bb11 [loop]:
   swap 2
   dup 3
   lt
-  push bb44
+  push bb24
   jumpi
   push 1
   add
@@ -114,7 +114,7 @@ bb23 [loop]:
   swap 2
   dup 3
   lt
-  push bb44
+  push bb24
   jumpi
   jump bb17
 bb17 [loop]:
@@ -141,7 +141,7 @@ bb21 [loop]:
   swap 3
   dup 4
   lt
-  push bb44
+  push bb24
   jumpi
   push 1
   add
@@ -159,7 +159,7 @@ bb19 [loop]:
   push 32
   push 0
   return
-bb44 [cold]:
+bb24 [cold]:
   push 17
   push 32
   mstore
@@ -206,7 +206,7 @@ bb33 [loop]:
   swap 3
   dup 4
   lt
-  push bb44
+  push bb24
   jumpi
   push 1
   add
@@ -261,15 +261,14 @@ bb41 [loop]:
   swap 1
   dup 4
   lt
-  push bb44
-  jumpi
-  dup 5
-  dup 2
+  dup 6
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb44
+  or
+  push bb24
   jumpi
   push 1
   shr

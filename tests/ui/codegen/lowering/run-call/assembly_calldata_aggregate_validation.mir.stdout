@@ -4,36 +4,32 @@ fn @encodeArray(arg0: slice<calldata>) -> i256 [pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = mul v0, 32
-    v2 = eq 32, 0
-    v3 = div v1, 32
-    v4 = eq v3, v0
-    v5 = or v2, v4
-    v6 = zext i1 v5 to i256
-    v7 = eq v6, 0
-    icall panic_if<0x41>, v7
-    v8 = extract_value slice<calldata>, arg0, 1
-    v9 = extract_value slice<calldata>, arg0, 0
+    v2 = shr v0, 251
+    v3 = ne v2, 0
+    icall panic_if<0x41>, v3
+    v4 = extract_value slice<calldata>, arg0, 1
+    v5 = extract_value slice<calldata>, arg0, 0
     jump bb1
   bb1:
-    v10 = phi [bb0: 0], [bb2: v19]
-    v11 = lt v10, v8
-    jumpi v11, bb2, bb3
+    v6 = phi [bb0: 0], [bb2: v15]
+    v7 = lt v6, v4
+    jumpi v7, bb2, bb3
   bb3:
-    v20 = abi_encode [calldata_array<word<uint160>>], scratch, args arg0
-    v21 = extract_value slice<memory>, v20, 0
-    v22 = extract_value slice<memory>, v20, 1
-    v23 = keccak256 v21, v22
-    ret v23
+    v16 = abi_encode [calldata_array<word<uint160>>], scratch, args arg0
+    v17 = extract_value slice<memory>, v16, 0
+    v18 = extract_value slice<memory>, v16, 1
+    v19 = keccak256 v17, v18
+    ret v19
   bb2:
-    v12 = mul v10, 32
-    v13 = ptrtoint ptr<calldata> v9 to i256
-    v14 = add v13, v12
-    v15 = calldataload v14
-    v16 = shr v15, 160
-    v17 = eq v16, 0
-    v18 = eq v17, false
-    icall revert_if<empty>, v18
-    v19 = add v10, 1
+    v8 = mul v6, 32
+    v9 = ptrtoint ptr<calldata> v5 to i256
+    v10 = add v9, v8
+    v11 = calldataload v10
+    v12 = shr v11, 160
+    v13 = eq v12, 0
+    v14 = eq v13, false
+    icall revert_if<empty>, v14
+    v15 = add v6, 1
     jump bb1
 }
 
@@ -63,36 +59,32 @@ fn @logArray(arg0: slice<calldata>) {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = mul v0, 32
-    v2 = eq 32, 0
-    v3 = div v1, 32
-    v4 = eq v3, v0
-    v5 = or v2, v4
-    v6 = zext i1 v5 to i256
-    v7 = eq v6, 0
-    icall panic_if<0x41>, v7
-    v8 = extract_value slice<calldata>, arg0, 1
-    v9 = extract_value slice<calldata>, arg0, 0
+    v2 = shr v0, 251
+    v3 = ne v2, 0
+    icall panic_if<0x41>, v3
+    v4 = extract_value slice<calldata>, arg0, 1
+    v5 = extract_value slice<calldata>, arg0, 0
     jump bb1
   bb1:
-    v10 = phi [bb0: 0], [bb2: v19]
-    v11 = lt v10, v8
-    jumpi v11, bb2, bb3
+    v6 = phi [bb0: 0], [bb2: v15]
+    v7 = lt v6, v4
+    jumpi v7, bb2, bb3
   bb3:
-    v20 = abi_encode [calldata_array<word<uint160>>], scratch, args arg0
-    v21 = extract_value slice<memory>, v20, 0
-    v22 = extract_value slice<memory>, v20, 1
-    log v21, v22, 0x2aa35d9b9d09e8315cc54a1b8fa10720a071241f46216976f18b6c83d90783a3
+    v16 = abi_encode [calldata_array<word<uint160>>], scratch, args arg0
+    v17 = extract_value slice<memory>, v16, 0
+    v18 = extract_value slice<memory>, v16, 1
+    log v17, v18, 0x2aa35d9b9d09e8315cc54a1b8fa10720a071241f46216976f18b6c83d90783a3
     ret
   bb2:
-    v12 = mul v10, 32
-    v13 = ptrtoint ptr<calldata> v9 to i256
-    v14 = add v13, v12
-    v15 = calldataload v14
-    v16 = shr v15, 160
-    v17 = eq v16, 0
-    v18 = eq v17, false
-    icall revert_if<empty>, v18
-    v19 = add v10, 1
+    v8 = mul v6, 32
+    v9 = ptrtoint ptr<calldata> v5 to i256
+    v10 = add v9, v8
+    v11 = calldataload v10
+    v12 = shr v11, 160
+    v13 = eq v12, 0
+    v14 = eq v13, false
+    icall revert_if<empty>, v14
+    v15 = add v6, 1
     jump bb1
 }
 
@@ -105,36 +97,32 @@ fn @arrayDirect(arg0: i256) -> i256 [selector=0x1bc4b3c7, pure, abi_params=[uint
     v4 = make_calldata_slice v3, 1
     v5 = extract_value slice<calldata>, v4, 1
     v6 = mul v5, 32
-    v7 = eq 32, 0
-    v8 = div v6, 32
-    v9 = eq v8, v5
-    v10 = or v7, v9
-    v11 = zext i1 v10 to i256
-    v12 = eq v11, 0
-    icall panic_if<0x41>, v12
-    v13 = extract_value slice<calldata>, v4, 1
-    v14 = extract_value slice<calldata>, v4, 0
+    v7 = shr v5, 251
+    v8 = ne v7, 0
+    icall panic_if<0x41>, v8
+    v9 = extract_value slice<calldata>, v4, 1
+    v10 = extract_value slice<calldata>, v4, 0
     jump bb1
   bb1:
-    v15 = phi [bb0: 0], [bb2: v24]
-    v16 = lt v15, v13
-    jumpi v16, bb2, bb3
+    v11 = phi [bb0: 0], [bb2: v20]
+    v12 = lt v11, v9
+    jumpi v12, bb2, bb3
   bb3:
-    v25 = abi_encode [calldata_array<word<uint160>>], scratch, args v4
-    v26 = extract_value slice<memory>, v25, 0
-    v27 = extract_value slice<memory>, v25, 1
-    v28 = keccak256 v26, v27
-    ret v28
+    v21 = abi_encode [calldata_array<word<uint160>>], scratch, args v4
+    v22 = extract_value slice<memory>, v21, 0
+    v23 = extract_value slice<memory>, v21, 1
+    v24 = keccak256 v22, v23
+    ret v24
   bb2:
-    v17 = mul v15, 32
-    v18 = ptrtoint ptr<calldata> v14 to i256
-    v19 = add v18, v17
-    v20 = calldataload v19
-    v21 = shr v20, 160
-    v22 = eq v21, 0
-    v23 = eq v22, false
-    icall revert_if<empty>, v23
-    v24 = add v15, 1
+    v13 = mul v11, 32
+    v14 = ptrtoint ptr<calldata> v10 to i256
+    v15 = add v14, v13
+    v16 = calldataload v15
+    v17 = shr v16, 160
+    v18 = eq v17, 0
+    v19 = eq v18, false
+    icall revert_if<empty>, v19
+    v20 = add v11, 1
     jump bb1
 }
 
@@ -204,36 +192,32 @@ fn @enumArray(arg0: i256) -> i256 [selector=0xd6447683, pure, abi_params=[uint25
     v4 = make_calldata_slice v3, 1
     v5 = extract_value slice<calldata>, v4, 1
     v6 = mul v5, 32
-    v7 = eq 32, 0
-    v8 = div v6, 32
-    v9 = eq v8, v5
-    v10 = or v7, v9
-    v11 = zext i1 v10 to i256
-    v12 = eq v11, 0
-    icall panic_if<0x41>, v12
-    v13 = extract_value slice<calldata>, v4, 1
-    v14 = extract_value slice<calldata>, v4, 0
+    v7 = shr v5, 251
+    v8 = ne v7, 0
+    icall panic_if<0x41>, v8
+    v9 = extract_value slice<calldata>, v4, 1
+    v10 = extract_value slice<calldata>, v4, 0
     jump bb1
   bb1:
-    v15 = phi [bb0: 0], [bb2: v24]
-    v16 = lt v15, v13
-    jumpi v16, bb2, bb3
+    v11 = phi [bb0: 0], [bb2: v20]
+    v12 = lt v11, v9
+    jumpi v12, bb2, bb3
   bb3:
-    v25 = abi_encode [calldata_array<word<enum 2>>], scratch, args v4
-    v26 = extract_value slice<memory>, v25, 0
-    v27 = extract_value slice<memory>, v25, 1
-    v28 = keccak256 v26, v27
-    ret v28
+    v21 = abi_encode [calldata_array<word<enum 2>>], scratch, args v4
+    v22 = extract_value slice<memory>, v21, 0
+    v23 = extract_value slice<memory>, v21, 1
+    v24 = keccak256 v22, v23
+    ret v24
   bb2:
-    v17 = mul v15, 32
-    v18 = ptrtoint ptr<calldata> v14 to i256
-    v19 = add v18, v17
-    v20 = calldataload v19
-    v21 = shr v20, 1
-    v22 = eq v21, 0
-    v23 = eq v22, false
-    icall revert_if<empty>, v23
-    v24 = add v15, 1
+    v13 = mul v11, 32
+    v14 = ptrtoint ptr<calldata> v10 to i256
+    v15 = add v14, v13
+    v16 = calldataload v15
+    v17 = shr v16, 1
+    v18 = eq v17, 0
+    v19 = eq v18, false
+    icall revert_if<empty>, v19
+    v20 = add v11, 1
     jump bb1
 }
 
@@ -246,36 +230,32 @@ fn @packed(arg0: i256) -> i256 [selector=0x977eca9c, pure, abi_params=[uint256],
     v4 = make_calldata_slice v3, 1
     v5 = extract_value slice<calldata>, v4, 1
     v6 = mul v5, 32
-    v7 = eq 32, 0
-    v8 = div v6, 32
-    v9 = eq v8, v5
-    v10 = or v7, v9
-    v11 = zext i1 v10 to i256
-    v12 = eq v11, 0
-    icall panic_if<0x41>, v12
-    v13 = extract_value slice<calldata>, v4, 1
-    v14 = extract_value slice<calldata>, v4, 0
+    v7 = shr v5, 251
+    v8 = ne v7, 0
+    icall panic_if<0x41>, v8
+    v9 = extract_value slice<calldata>, v4, 1
+    v10 = extract_value slice<calldata>, v4, 0
     jump bb1
   bb1:
-    v15 = phi [bb0: 0], [bb2: v24]
-    v16 = lt v15, v13
-    jumpi v16, bb2, bb3
+    v11 = phi [bb0: 0], [bb2: v20]
+    v12 = lt v11, v9
+    jumpi v12, bb2, bb3
   bb3:
-    v25 = abi_encode_packed (array<word<uint160>> calldata v4)
-    v26 = ptradd v25, 32
-    v27 = mload v25
-    v28 = keccak256 v26, v27
-    ret v28
+    v21 = abi_encode_packed (array<word<uint160>> calldata v4)
+    v22 = ptradd v21, 32
+    v23 = mload v21
+    v24 = keccak256 v22, v23
+    ret v24
   bb2:
-    v17 = mul v15, 32
-    v18 = ptrtoint ptr<calldata> v14 to i256
-    v19 = add v18, v17
-    v20 = calldataload v19
-    v21 = shr v20, 160
-    v22 = eq v21, 0
-    v23 = eq v22, false
-    icall revert_if<empty>, v23
-    v24 = add v15, 1
+    v13 = mul v11, 32
+    v14 = ptrtoint ptr<calldata> v10 to i256
+    v15 = add v14, v13
+    v16 = calldataload v15
+    v17 = shr v16, 160
+    v18 = eq v17, 0
+    v19 = eq v18, false
+    icall revert_if<empty>, v19
+    v20 = add v11, 1
     jump bb1
 }
 
@@ -288,36 +268,32 @@ fn @logged(arg0: i256) -> i256 [selector=0xf3f1126a, abi_params=[uint256], abi_r
     v4 = make_calldata_slice v3, 1
     v5 = extract_value slice<calldata>, v4, 1
     v6 = mul v5, 32
-    v7 = eq 32, 0
-    v8 = div v6, 32
-    v9 = eq v8, v5
-    v10 = or v7, v9
-    v11 = zext i1 v10 to i256
-    v12 = eq v11, 0
-    icall panic_if<0x41>, v12
-    v13 = extract_value slice<calldata>, v4, 1
-    v14 = extract_value slice<calldata>, v4, 0
+    v7 = shr v5, 251
+    v8 = ne v7, 0
+    icall panic_if<0x41>, v8
+    v9 = extract_value slice<calldata>, v4, 1
+    v10 = extract_value slice<calldata>, v4, 0
     jump bb1
   bb1:
-    v15 = phi [bb0: 0], [bb2: v24]
-    v16 = lt v15, v13
-    jumpi v16, bb2, bb3
+    v11 = phi [bb0: 0], [bb2: v20]
+    v12 = lt v11, v9
+    jumpi v12, bb2, bb3
   bb3:
-    v25 = abi_encode [calldata_array<word<uint160>>], scratch, args v4
-    v26 = extract_value slice<memory>, v25, 0
-    v27 = extract_value slice<memory>, v25, 1
-    log v26, v27, 0x2aa35d9b9d09e8315cc54a1b8fa10720a071241f46216976f18b6c83d90783a3
+    v21 = abi_encode [calldata_array<word<uint160>>], scratch, args v4
+    v22 = extract_value slice<memory>, v21, 0
+    v23 = extract_value slice<memory>, v21, 1
+    log v22, v23, 0x2aa35d9b9d09e8315cc54a1b8fa10720a071241f46216976f18b6c83d90783a3
     ret 1
   bb2:
-    v17 = mul v15, 32
-    v18 = ptrtoint ptr<calldata> v14 to i256
-    v19 = add v18, v17
-    v20 = calldataload v19
-    v21 = shr v20, 160
-    v22 = eq v21, 0
-    v23 = eq v22, false
-    icall revert_if<empty>, v23
-    v24 = add v15, 1
+    v13 = mul v11, 32
+    v14 = ptrtoint ptr<calldata> v10 to i256
+    v15 = add v14, v13
+    v16 = calldataload v15
+    v17 = shr v16, 160
+    v18 = eq v17, 0
+    v19 = eq v18, false
+    icall revert_if<empty>, v19
+    v20 = add v11, 1
     jump bb1
 }
 
@@ -342,56 +318,48 @@ fn @loggedIndexed(arg0: i256) -> i256 [selector=0x1d045b60, abi_params=[uint256]
     v5 = extract_value slice<calldata>, v4, 1
     v6 = extract_value slice<calldata>, v4, 0
     v7 = mul v5, 32
-    v8 = eq 32, 0
-    v9 = div v7, 32
-    v10 = eq v9, v5
-    v11 = or v8, v10
-    v12 = zext i1 v11 to i256
-    v13 = eq v12, 0
-    icall panic_if<0x41>, v13
-    v14 = calldatasize
-    v15 = ptrtoint ptr<calldata> v6 to i256
-    v16 = sub v14, v15
-    v17 = slt v16, v7
-    icall revert_if<calldata_tail_too_short>, v17
-    v18 = mul v5, 32
-    v19 = eq 32, 0
-    v20 = div v18, 32
-    v21 = eq v20, v5
-    v22 = or v19, v21
-    v23 = zext i1 v22 to i256
-    v24 = eq v23, 0
-    icall panic_if<0x41>, v24
-    v25 = add 32, v18
-    v26 = lt v25, 32
-    icall panic_if<0x41>, v26
-    v27 = alloc v25
-    mstore v27, v5
+    v8 = shr v5, 251
+    v9 = ne v8, 0
+    icall panic_if<0x41>, v9
+    v10 = calldatasize
+    v11 = ptrtoint ptr<calldata> v6 to i256
+    v12 = sub v10, v11
+    v13 = slt v12, v7
+    icall revert_if<calldata_tail_too_short>, v13
+    v14 = mul v5, 32
+    v15 = shr v5, 251
+    v16 = ne v15, 0
+    icall panic_if<0x41>, v16
+    v17 = add 32, v14
+    v18 = lt v17, 32
+    icall panic_if<0x41>, v18
+    v19 = alloc v17
+    mstore v19, v5
     jump bb1
   bb1:
-    v28 = phi [bb0: 0], [bb2: v40]
-    v29 = lt v28, v5
-    jumpi v29, bb2, bb3
+    v20 = phi [bb0: 0], [bb2: v32]
+    v21 = lt v20, v5
+    jumpi v21, bb2, bb3
   bb3:
-    v41 = abi_encode_packed (array<word<uint160>> memoryarray<1> v27)
-    v42 = ptradd v41, 32
-    v43 = mload v41
-    v44 = keccak256 v42, v43
-    log 0, 0, 0xecd6fa5826ee9847bd5c2a2e99cbf8c38cf52eaec15f0dde51e42cab0e5c4dce, v44
+    v33 = abi_encode_packed (array<word<uint160>> memoryarray<1> v19)
+    v34 = ptradd v33, 32
+    v35 = mload v33
+    v36 = keccak256 v34, v35
+    log 0, 0, 0xecd6fa5826ee9847bd5c2a2e99cbf8c38cf52eaec15f0dde51e42cab0e5c4dce, v36
     ret 3
   bb2:
-    v30 = mul v28, 32
-    v31 = ptrtoint ptr<calldata> v6 to i256
-    v32 = add v31, v30
-    v33 = calldataload v32
-    v34 = shr v33, 160
-    v35 = eq v34, 0
-    v36 = eq v35, false
-    icall revert_if<empty>, v36
-    v37 = shl v28, 5
-    v38 = ptradd v27, v37
-    v39 = ptradd v38, 32
-    mstore v39, v33
-    v40 = add v28, 1
+    v22 = mul v20, 32
+    v23 = ptrtoint ptr<calldata> v6 to i256
+    v24 = add v23, v22
+    v25 = calldataload v24
+    v26 = shr v25, 160
+    v27 = eq v26, 0
+    v28 = eq v27, false
+    icall revert_if<empty>, v28
+    v29 = shl v20, 5
+    v30 = ptradd v19, v29
+    v31 = ptradd v30, 32
+    mstore v31, v25
+    v32 = add v20, 1
     jump bb1
 }

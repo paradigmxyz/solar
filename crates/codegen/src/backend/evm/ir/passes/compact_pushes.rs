@@ -2,11 +2,14 @@
 //!
 //! A literal `PUSHn` is not always the shortest way to construct a 256-bit constant. For each
 //! concrete immediate, this pass compares the literal encoding with a fixed set of equivalent
-//! recipes: `PUSH0; NOT` for an all-ones word, `NOT` of a shorter inverse, and shift-based forms
-//! for masks or values with trailing zero bytes. It then emits the recipe with the fewest encoded
-//! bytes, whatever the tune, keeping the literal on ties so the pass never increases code size. In
-//! size builds and cold blocks, division of the all-ones word and multiplication also synthesize
-//! repeated byte patterns. Gas-mode hot blocks retain the existing shift and inverse recipes.
+//! recipes: `PUSH0; NOT` for an all-ones word, shifted left or right by any amount for a high or
+//! low mask, `NOT` of a shorter inverse, and a shift of a shorter value with trailing zero bytes.
+//! It then emits the recipe with the fewest encoded bytes, whatever the tune, keeping the literal
+//! on ties so the pass never increases code size. In size builds and cold blocks, division of the
+//! all-ones word and multiplication also synthesize repeated byte patterns. Gas-mode hot blocks
+//! retain the existing shift and inverse recipes.
+//! In gas builds the cost model prices a cold block like a size build,
+//! [`Target::priced_for_cold`], so extra gas does not keep a literal there.
 //!
 //! Selection accounts for the active EVM version: `PUSH0` and shift opcodes are used only when the
 //! target supports them. A gas build keeps the literal where the recipe's extra runtime gas
@@ -81,7 +84,9 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
         if candidates.is_empty() {
             continue;
         }
-        let target = Target::new(gcx, optimization).priced_for(module.code_follows);
+        let target = Target::new(gcx, optimization)
+            .priced_for_cold(block.metadata.hotness.is_cold())
+            .priced_for(module.code_follows);
         // `-O none` runs no inlining, so a loop calls the helpers that hold its hot code; gas
         // builds keep the loop-only rule.
         let in_loop = (block.metadata.in_loop
@@ -254,6 +259,11 @@ pub(crate) fn immediate_materialization(evm_version: EvmVersion, value: U256) ->
     select_recipe(evm_version, value, false).cost
 }
 
+/// Returns the cost of pushing `value` as one literal `PUSHn`.
+pub(crate) fn literal_push(evm_version: EvmVersion, value: U256) -> Cost {
+    literal_cost(push_width(evm_version, value))
+}
+
 /// Returns the byte length and gas cost of the selected immediate materialization.
 pub(crate) fn immediate_materialization_cost(
     evm_version: EvmVersion,
@@ -326,7 +336,7 @@ fn select_compact(
         consider(&[zero, not]);
     }
 
-    let shift = (WORD_BYTES - usize::from(width)) * 8;
+    let shift = value.leading_zeros();
     if evm_version.has_bitwise_shifting() && value == U256::MAX >> shift {
         consider(&[zero, not, Step::Immediate(U256::from(shift)), shr]);
     }
@@ -365,6 +375,12 @@ fn select_compact(
         consider(&[Step::Immediate(value >> shift), Step::Immediate(U256::from(shift)), shl]);
     }
 
+    // `MAX << s` for any `s`. Considered last so a tie keeps the cheaper recipes above.
+    let shift = value.trailing_zeros();
+    if evm_version.has_bitwise_shifting() && value == U256::MAX << shift {
+        consider(&[zero, not, Step::Immediate(U256::from(shift)), shl]);
+    }
+
     best
 }
 
@@ -389,11 +405,13 @@ mod tests {
     #[test]
     fn selected_cost_matches_emitted_instructions() {
         let mut values = vec![U256::ZERO, U256::ONE, U256::MAX, U256::from(0x1234_5678_9abc_u64)];
-        for bits in [40usize, 64, 160, 248, 255] {
+        for bits in [1usize, 40, 64, 160, 248, 255] {
             values.extend([
                 U256::ONE << bits,
                 (U256::ONE << bits) - U256::ONE,
                 !(U256::ONE << bits),
+                U256::MAX << bits,
+                U256::MAX >> bits,
             ]);
         }
         for evm_version in [EvmVersion::Paris, EvmVersion::Osaka] {
@@ -410,6 +428,17 @@ mod tests {
                 let cost = Target::with(evm_version, OptimizationMode::Gas, 200).push(value);
                 assert_eq!(cost, emitted, "{value} on {evm_version}");
             }
+        }
+    }
+
+    /// A mask shifted by any amount costs `PUSH0 NOT PUSH1 s SHL|SHR`: five bytes and eleven gas.
+    #[test]
+    fn shifted_masks_cost_one_shift() {
+        for value in [U256::MAX << 160, U256::MAX << 100, U256::MAX >> 1, U256::MAX >> 129] {
+            let cost = immediate_materialization(EvmVersion::Osaka, value);
+            assert_eq!((cost.bytes, cost.gas), (5, 11), "{value}");
+            let cost = immediate_materialization(EvmVersion::Paris, value);
+            assert_eq!((cost.bytes, cost.gas), (6, 12), "{value} on paris");
         }
     }
 }
