@@ -125,7 +125,7 @@ pub struct Module {
     debug_info_tracked: bool,
     /// Whether the last full `lowered` check still describes this module: no change since
     /// `advance_phase` passed it.
-    pub lowered_checked: bool,
+    lowered_checked: bool,
     /// The objective this module's code is optimized for: the build's, or the one the contract's
     /// `@custom:solar-optimize` tag selects. A function's own tag may select another.
     pub optimization: OptimizationMode,
@@ -275,6 +275,16 @@ impl Module {
     /// Records that the module changed since its last full `lowered` check.
     pub fn invalidate_lowered_check(&mut self) {
         self.lowered_checked = false;
+    }
+
+    /// Clears the record of the last full `lowered` check and returns whether it still held.
+    pub fn take_lowered_check(&mut self) -> bool {
+        std::mem::take(&mut self.lowered_checked)
+    }
+
+    /// Restores a check recorded by `take_lowered_check`, for a module left unchanged since.
+    pub fn restore_lowered_check(&mut self, checked: bool) {
+        self.lowered_checked |= checked;
     }
 
     /// Checks backend legality and borrows the module without permitting further rewrites.

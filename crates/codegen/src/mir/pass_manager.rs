@@ -173,11 +173,12 @@ pub(crate) fn run_passes_inner(
                 );
                 // A pass that edits the module, reported or not, outdates the check, unless the
                 // pass itself advanced the phase after its last edit.
-                let lowered_checked = std::mem::take(&mut module.lowered_checked);
+                let lowered_checked = module.take_lowered_check();
                 let pass_changed = tracing::trace_span!("mir_pass", pass = pass_name)
                     .in_scope(|| pass.run_pass(gcx, module, &mut analyses));
-                module.lowered_checked |=
-                    lowered_checked && !pass_changed && !analyses.unreported_edit;
+                module.restore_lowered_check(
+                    lowered_checked && !pass_changed && !analyses.unreported_edit,
+                );
                 analyses.finish_pass(pass_changed);
                 if pass_changed || analyses.unreported_edit {
                     // Passes rename the storage alias bases they replace, but not the ones they
