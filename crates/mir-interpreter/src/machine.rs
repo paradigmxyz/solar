@@ -15,9 +15,9 @@
 //! clean bits their types promise because every operation computes them as the backend's
 //! instructions do. The schema names opcodes by mnemonic, which the interpreter looks up in the
 //! EVM IR opcode table; pure opcodes compute with the table's word semantics, as the compiler's
-//! constant folding and the EVM IR interpreter do. Casts, comparisons, and checked arithmetic
-//! evaluate through [`eval_semantics`]. `select` picks an operand, and the phis at the start of a
-//! block read their incoming values for the edge taken, all before any of them is assigned.
+//! constant folding and the EVM IR interpreter do. Casts keep or clear bits, `select` picks an
+//! operand, and the phis at the start of a block read their incoming values for the edge taken,
+//! all before any of them is assigned.
 //!
 //! Memory is byte-addressed EVM memory, on which the memory opcodes run: `MLOAD`, `MSTORE`,
 //! `MSTORE8`, `MCOPY`, `KECCAK256`, and `MSIZE`. An access with a nonzero length grows memory to
@@ -29,8 +29,8 @@
 //! value the callee returns. The backend passes further results through a buffer of its own that
 //! the word at `0x20` points to, so a function run alone may not call a callee returning several
 //! values. A transaction uses the backend placements recorded in final MIR for each callee.
-//! `revert`, `returndata`, `stop`,
-//! and `invalid` end the whole execution wherever they run, as they end the transaction.
+//! `revert`, `returndata`, `stop`, and `invalid` end the whole execution wherever they run, as they
+//! end the transaction.
 //!
 //! A transaction follows the backend's conventions for external entries: the free memory pointer
 //! starts at the heap start the host reports, and argument `i` of an external entry is the calldata
@@ -45,18 +45,17 @@
 //! call depth. Memory ends at [`MEMORY_LIMIT`], past which the EVM runs out of gas under any block
 //! gas limit. Exceeding a limit ends the run with [`Outcome::Limit`]. Operations the interpreter
 //! does not model end it with [`Outcome::Unsupported`]: opcodes on storage, calldata, code, the
-//! environment, external calls, logs, allocations, and operations that declare no
-//! semantics, such as frame addresses and every semantic operation. A run with a host also runs
-//! the storage, transient storage, and log opcodes and the context reads its host answers. A
-//! transaction also runs the calldata and
-//! return data opcodes and places the allocations the backend would place, but not `gas`, calls,
-//! or contract creation. It runs `msize` only once memory reaches the end of the frames and spill
-//! slots the backend records for the entries it entered, since the backend writes them without
-//! MIR showing it. The interpreter relies on the validator only for the existence of the
-//! instructions, values, and blocks a function names, and checks the rest as it runs, so a value
-//! used before its definition or a phi missing an edge also ends a run as unsupported.
+//! environment, external calls, logs, allocations, and operations that declare no semantics, such
+//! as frame addresses and every semantic operation. A run with a host also runs the storage,
+//! transient storage, and log opcodes and the context reads its host answers. A transaction also
+//! runs the calldata and return data opcodes and places the allocations the backend would place,
+//! but not `gas`, calls, or contract creation. It runs `msize` only once memory reaches the end of
+//! the frames and spill slots the backend records for the entries it entered, since the backend
+//! writes them without MIR showing it. The interpreter relies on the validator only for the
+//! existence of the instructions, values, and blocks a function names, and checks the rest as it
+//! runs, so a value used before its definition or a phi missing an edge also ends a run as
+//! unsupported.
 
-use crate::eval::eval_semantics;
 use alloy_primitives::{U256, keccak256};
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
@@ -601,7 +600,7 @@ impl<'a> Run<'_, 'a, '_> {
         self.burn(1)?;
         let instruction = body.inst(inst);
         let mnemonic = instruction.kind.op_def().mnemonic;
-        // Only lowered operations run; the arms below and `eval_semantics` decide the rest.
+        // Only lowered operations run; the arms below decide the rest.
         if instruction.unlowered_reason(body).is_some() {
             return ControlFlow::Break(Outcome::Unsupported(mnemonic));
         }
@@ -657,13 +656,13 @@ impl<'a> Run<'_, 'a, '_> {
                 let size = frame.read(size)?;
                 self.allocate(frame.function, inst, size)?
             }
-            semantics => match eval_semantics(semantics, |value| frame.word(value).ok_or(())) {
-                Ok(Some(word)) => word,
-                Ok(None) => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
-                Err(()) => {
-                    return ControlFlow::Break(Outcome::Unsupported("value without a definition"));
-                }
-            },
+            Semantics::Word(value) => frame.read(value)?,
+            Semantics::LowBits(value, bits @ 1..=256) => {
+                frame.read(value)? & (U256::MAX >> (256 - bits))
+            }
+            Semantics::NotEqual(a, b) => U256::from(frame.read(a)? != frame.read(b)?),
+            // Sign extensions, checked arithmetic, and builtin calls are semantic operations.
+            _ => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
         };
         let Some(value) = instruction.result() else {
             return ControlFlow::Break(Outcome::Unsupported("result without a value"));

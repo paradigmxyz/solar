@@ -24,7 +24,7 @@
 //! `#[commutative(lhs, rhs)]` generates the trait and canonicalizes exactly that
 //! operand pair, leaving attributes and any remaining operands untouched.
 //! `#[semantics(...)]` states what the operation computes, in the vocabulary of
-//! [`Semantics`]; [`InstKind::semantics`] returns it for interpreters and folding.
+//! [`Semantics`]; [`InstKind::semantics`] returns it for the MIR interpreter.
 
 use alloy_primitives::Bytes;
 use solar_ir::link::LibraryId;

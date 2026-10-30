@@ -59,8 +59,8 @@ pub enum Semantics<'a> {
     /// fit the arithmetic type or its divisor is zero.
     Checked(CheckedOp, ArithmeticKind, ValueId, ValueId),
     /// The address of a fresh memory region of the operand's size, with these initialization and
-    /// failure rules. Lowering bumps the free memory pointer for
-    /// it, except for the allocations it defers to the backend, which places them in its layout.
+    /// failure rules. Lowering bumps the free memory pointer for it, except for the allocations it
+    /// defers to the backend, which places them in its layout.
     Allocate(ValueId, AllocationSemantics),
     /// The constant data at the reference, copied to memory at the first operand for the second
     /// operand's byte count.
@@ -149,8 +149,8 @@ pub(super) mod declare {
 }
 
 /// Returns one instruction of every operation whose declared semantics name an opcode, with
-/// each pointer location and topic count, for tests that check the declarations against the
-/// opcode table and instruction selection.
+/// each pointer location and topic count. Only tests use it: they check the declarations against
+/// the opcode table and instruction selection.
 pub fn opcode_samples() -> Vec<InstKind> {
     let operands = |count: usize| (0..count).map(ValueId::from_usize).collect::<Vec<_>>();
     let mut kinds = InstKind::DECLARED_SEMANTICS
@@ -195,5 +195,16 @@ mod tests {
             writeln!(table, "{mnemonic}: {semantics}").unwrap();
         }
         snapbox::assert_data_eq!(table, snapbox::file!["semantics.snap"]);
+    }
+
+    #[test]
+    fn opcode_samples_cover_every_opcode_declaration() {
+        let sampled =
+            opcode_samples().iter().map(|kind| kind.op_def().mnemonic).collect::<Vec<_>>();
+        for (mnemonic, semantics) in InstKind::DECLARED_SEMANTICS {
+            if semantics.starts_with("opcode") || semantics.starts_with("log") {
+                assert!(sampled.contains(mnemonic), "{mnemonic}");
+            }
+        }
     }
 }

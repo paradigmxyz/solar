@@ -15,17 +15,24 @@ use std::fmt;
 /// The backend's chosen lowering of a deferred allocation.
 #[derive(Clone, Copy, Debug)]
 pub enum AllocationPlacement {
+    /// The allocation lives at this fixed address.
     Static(U256),
+    /// The allocation bumps the free memory pointer by this many bytes.
     Dynamic(U256),
 }
 
 /// Runtime layout decisions, captured only for final MIR execution.
 #[derive(Clone, Debug, Default)]
 pub struct BackendMemory {
+    /// The placement of each deferred allocation.
     pub allocations: FxHashMap<(FunctionId, InstId), AllocationPlacement>,
+    /// The address of the buffer each function publishes its further results to.
     pub returns: FxHashMap<FunctionId, U256>,
+    /// The calls whose further results stay on the stack instead of passing through the buffer.
     pub stack_returns: FxHashMap<(FunctionId, InstId), StackReturn>,
+    /// The free memory pointer each runtime entry starts with.
     pub entry_heaps: FxHashMap<FunctionId, U256>,
+    /// The heap floor each function's `heap_floor` reads.
     pub heap_floors: FxHashMap<FunctionId, U256>,
     /// The end of the frames and spill slots a runtime entry reaches, which the backend writes
     /// without MIR showing it.
@@ -35,7 +42,9 @@ pub struct BackendMemory {
 /// Buffer protocol instructions replaced by stack-returned results.
 #[derive(Clone, Debug)]
 pub struct StackReturn {
+    /// The buffer reads after the call that the backend removed, in order.
     pub elided: Vec<InstId>,
+    /// The value each further result binds, if the function uses it.
     pub extras: Vec<Option<ValueId>>,
 }
 

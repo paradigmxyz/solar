@@ -37,7 +37,7 @@ events, calldata, and return data are the EVM's. A final dump also records the m
 the backend chose, such as deferred allocations, multi-return buffers, heap starts, and the end of
 its frames, so pointers and `msize` match the bytecode. The interpreter models one contract: calls,
 contract creation, and `gas` end a run as unsupported, and so does a module the compiler dumped
-before lowering it, as `-O none` does.
+before lowering it, as `-O none -Zdump=mir` does.
 
 The compiler's UI test runner executes every `run-call` directive in an EVM. In a test written in
 lowered MIR, it also runs the call through `transact` on the MIR the compiler lowered to that

@@ -168,7 +168,8 @@ impl ContractSelection {
 ///
 /// Contracts in `contracts` retain bytecode in the returned artifact.
 /// Contracts in `capture_mir` retain built MIR under `-O none` when no explicit pipeline is
-/// configured and `-Zdump=mir-final` is absent, and final MIR otherwise.
+/// configured and final MIR otherwise, and, with `-Zdump=mir-final`, the final MIR in
+/// `final_mir`.
 /// Contracts in `capture_evm_ir` retain their final EVM IR in the returned artifact.
 /// Values returned by `runtime_data` are emitted as trailing runtime program data.
 /// Contracts in `capture_debug_info` retain final instruction locations.
@@ -726,7 +727,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             gcx.dcx().has_errors()?;
             scheduled.then_some(codegen)
         } else {
-            if capture_mir && (!capture_built || final_mir) {
+            if capture_mir && !capture_built {
                 let _changed = run_pipeline(gcx, &mut module, None);
                 gcx.dcx().has_errors()?;
             }

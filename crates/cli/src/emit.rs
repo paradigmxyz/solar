@@ -235,7 +235,7 @@ fn emit_mir_input_artifacts(gcx: Gcx<'_>, file: &str, mut module: Module) -> Res
     if !emit_contract && dump.is_none() {
         return Ok(());
     }
-    let name = format!("{}:{}", file.replace('\\', "/"), module.name());
+    let name = format!("{}:{}", file.replace('\\', "/"), module.name);
     let artifact = if emit_bin || emit_bin_runtime || dump.is_some() {
         let artifact = generate_mir_input_bytecode(gcx, &mut module)?;
         if !artifact.deployment_library_relocations.is_empty()
@@ -314,7 +314,7 @@ fn emit_evm_ir_input_artifacts(gcx: Gcx<'_>, file: &str, module: ir::Module) -> 
     if !(emit_abi || emit_hashes || emit_bin || emit_bin_runtime) {
         return Ok(());
     }
-    let name = format!("{}:{}", file.replace('\\', "/"), module.name());
+    let name = format!("{}:{}", file.replace('\\', "/"), module.name);
     let bytecode = if emit_bin || emit_bin_runtime {
         Some(ir::into_deployable_bytecode(gcx, module)?)
     } else {
@@ -344,7 +344,7 @@ fn emit_evm_ir_input_artifacts(gcx: Gcx<'_>, file: &str, module: ir::Module) -> 
 
 fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: ir::Module) -> Result {
     let dump = gcx.sess.opts.unstable.dump.as_ref().expect("dump options should be present");
-    let name = module.name();
+    let name = module.name;
     let bytecode = ir::into_bytecode(gcx, module)?;
     let mut writer = console_writer(gcx.sess.opts.color);
     if dump.kinds.contains(&DumpKind::DisasmDeploy) {

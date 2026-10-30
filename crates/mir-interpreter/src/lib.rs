@@ -13,7 +13,6 @@ use solar_data_structures::map::FxHashMap;
 use solar_interface::{ColorChoice, Session, source_map::FileName};
 use solar_mir::{MirPhase, Module};
 
-mod eval;
 mod machine;
 pub use machine::{Host, Log};
 
@@ -145,7 +144,9 @@ fn with_module(
             return Err(format!("unparsable MIR: {}", diagnostics.unwrap_or_default()));
         };
         if module.phase() != MirPhase::Lowered {
-            return Err("the MIR was dumped before lowering, as `-O none` dumps it".into());
+            return Err(
+                "the MIR was dumped before lowering, as `-O none -Zdump=mir` dumps it".into()
+            );
         }
         // Run only what the backend would compile.
         if module.as_lowered(&sess, true).is_err() {
@@ -276,7 +277,7 @@ fn @twice(arg0: i256) -> i256 {
             modules.iter().map(|module| &module.name[..]).collect::<Vec<_>>(),
             ["a.sol:A", "a.sol:B"]
         );
-        assert!(!modules[1].mir.contains("contracts"));
+        assert_eq!(modules[1].mir, "@module B\n");
         // A file without headers is one module, named by its `@module` line.
         let modules = parse_dump(MODULE);
         assert_eq!(modules.len(), 1);

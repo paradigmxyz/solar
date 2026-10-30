@@ -21,4 +21,4 @@ mod paths;
 mod standard_json;
 
 #[cfg(feature = "cli")]
-mod mir_interpreter;
+mod mir_final;
