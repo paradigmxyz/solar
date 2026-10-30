@@ -24,13 +24,13 @@
 //! helper loads the slot; the size objective keeps the call.
 
 use crate::mir::{
-    AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, EffectKind,
-    Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, MirType, Module,
-    PanicCode, PtrLocation, Value, ValueId,
+    AllocationFailure, AllocationInitialization, AllocationSemantics, EffectKind, Function,
+    FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
+    PtrLocation, Value, ValueId,
     analysis::FreshFmpReads,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
-    transform::utils::{expand_block, redirect_successor_predecessors},
+    transform::utils::expand_block,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{Ident, sym};
@@ -156,20 +156,32 @@ fn lower_function(func: &mut Function, is_fresh: impl Fn(InstId) -> bool) -> boo
     }
 
     let mut changed = false;
-    let mut block_index = 0;
-    while block_index < func.blocks.len() {
-        let block = BlockId::from_usize(block_index);
-        let checked = func.blocks[block]
-            .instructions
-            .iter()
-            .copied()
-            .enumerate()
-            .find(|&(_, inst)| checked_alloc(func, inst).is_some());
-        if let Some((position, inst)) = checked {
-            lower_checked_alloc(func, block, position, inst, is_fresh(inst));
+    for block in func.blocks.indices() {
+        let mut builder = FunctionBuilder::new(func);
+        expand_block(&mut builder, block, |builder, inst| {
+            let Some((size, semantics)) = checked_alloc(builder.func(), inst) else {
+                return false;
+            };
             changed = true;
-        }
-        block_index += 1;
+            let ptr =
+                builder.func().inst_result_value(inst).expect("allocation must produce a value");
+            // ptr = fmp read; next = ptr + size; invalid = next < ptr || next > limit
+            // branch invalid, panic, continuation
+            // continuation: mstore 64, next; initialize ptr; rest of the block
+            let continuation = builder.create_block();
+            let panic = builder.create_block();
+            rewrite_as_fmp_read(builder, inst, is_fresh(inst));
+            let (next, invalid) = bump_checked(builder, ptr, size);
+            builder.branch(invalid, panic, continuation);
+
+            builder.switch_to_block(panic);
+            builder.panic(PanicCode::MemoryAllocationOverflow);
+
+            builder.switch_to_block(continuation);
+            store_fmp(builder, next);
+            initialize(builder, ptr, size, semantics.initialization);
+            true
+        });
     }
 
     let mut peek = FmpPeek::default();
@@ -319,44 +331,6 @@ impl FmpPeek {
             self.derived.insert(result);
         }
     }
-}
-
-fn lower_checked_alloc(
-    func: &mut Function,
-    block: BlockId,
-    position: usize,
-    inst: InstId,
-    fresh: bool,
-) {
-    let (size, semantics) = checked_alloc(func, inst).expect("checked allocation");
-    let ptr = func.inst_result_value(inst).expect("allocation must produce a value");
-
-    // The allocation leaves the block; its rewrite is appended after the pointer read.
-    let tail = func.blocks[block].instructions.split_off(position + 1);
-    func.blocks[block].instructions.truncate(position);
-    let (old_terminator, metadata) = func.blocks[block].take_terminator();
-
-    // continuation: tail; old_terminator !metadata(original block)
-    let continuation = func.alloc_block();
-    if let Some(terminator) = old_terminator {
-        func.blocks[continuation].set_terminator(terminator, metadata);
-    }
-    redirect_successor_predecessors(func, block, continuation);
-
-    let panic = func.alloc_block();
-    let mut builder = FunctionBuilder::new(func);
-    builder.switch_to_block(block);
-    rewrite_as_fmp_read(&mut builder, inst, fresh);
-    let (next, invalid) = bump_checked(&mut builder, ptr, size);
-    builder.branch(invalid, panic, continuation);
-
-    builder.switch_to_block(continuation);
-    store_fmp(&mut builder, next);
-    initialize(&mut builder, ptr, size, semantics.initialization);
-    builder.func_mut().blocks[continuation].instructions.extend(tail);
-
-    builder.switch_to_block(panic);
-    builder.panic(PanicCode::MemoryAllocationOverflow);
 }
 
 fn initialize(
