@@ -2472,6 +2472,15 @@ impl AliasAnalysis {
             InstKind::InternalFrameAddr(offset) => Some(Self::frame_lower_bound(*offset)),
             InstKind::ICall { function: Callee::Function(function), .. } => call(*function),
             InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => bound(*value),
+            // A constant step back from a bounded address stays at or above the bound less the
+            // step, which cannot underflow.
+            InstKind::PtrAdd(base, step)
+            | InstKind::Add(base, step)
+            | InstKind::Add(step, base)
+                if Self::step_back(func, *step).is_some() =>
+            {
+                bound(*base)?.checked_sub(Self::step_back(func, *step)?)
+            }
             InstKind::Add(first, second) => {
                 let lower = func
                     .value_u64(*second)
@@ -2562,6 +2571,13 @@ impl AliasAnalysis {
             InstKind::Select(_, first, second) => Some(bound(*first)?.min(bound(*second)?)),
             _ => None,
         }
+    }
+
+    /// The size of the step back that a constant word adds, as a pointer stepped back by `32`
+    /// adds `2^256 - 32`, when it fits in 64 bits.
+    fn step_back(func: &Function, value: ValueId) -> Option<u64> {
+        let step = U256::ZERO.wrapping_sub(func.value_u256(value)?);
+        u64::try_from(step).ok().filter(|&step| step != 0)
     }
 
     /// Returns a conservative lower bound for a compiler-owned pointer.

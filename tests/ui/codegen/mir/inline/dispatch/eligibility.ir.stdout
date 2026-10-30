@@ -135,26 +135,24 @@ fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
     v36 = sub v27, v35
     v37 = shr v36, 5
     v38 = gt v34, v37
-    v58 = or v33, v38
+    v56 = or v33, v38
     v2 = shl v34, 5
     v12 = slt v36, v2
-    v59 = or v58, v12
-    jumpi v59, bb2, bb3
+    v57 = or v56, v12
+    jumpi v57, bb2, bb3
   bb3:
     v20 = add v2, 32
     v21 = lt v20, 32
     jumpi v21, bb1, bb4
   bb4:
-    v56 = heap_floor !metadata(alloc_ptr)
-    mstore v56, v34
-    v51 = add v56, 32
-    calldatacopy v51, v35, v2
-    v53 = add v56, 64
-    mcopy v53, v51, v2
-    mstore v56, 32
-    mstore v51, v34
-    v48 = add v2, 64
-    returndata v56, v48
+    v54 = heap_floor !metadata(alloc_ptr)
+    mstore v54, v34
+    v50 = add v54, 32
+    calldatacopy v50, v35, v2
+    v52 = sub v54, 32
+    mstore v52, 32
+    v47 = add v2, 64
+    returndata v52, v47
   bb1:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

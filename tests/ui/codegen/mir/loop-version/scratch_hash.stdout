@@ -9,42 +9,39 @@ fn @level() [selector=0x223559c3, abi_wrapper, pure] {
     v4 = add v3, 4
     v6 = sub v1, 36
     v7 = gt v3, v6
-    v47 = or v2, v7
-    jumpi v47, bb1, bb2
+    v43 = or v2, v7
+    jumpi v43, bb1, bb2
   bb2:
     v8 = calldataload v4
     v9 = add v4, 32
     v10 = gt v8, 0x7fffffffffffffe
     v11 = add v8, 1
     v12 = shl v11, 5
-    v41 = heap_floor !metadata(alloc_ptr)
-    v42 = add v41, v12 !metadata(alloc_ptr)
-    v43 = lt v42, v41
-    v44 = gt v42, 0xffffffffffffffff
-    v45 = or v43, v44
-    v48 = or v10, v45
-    jumpi v48, bb3, bb5
+    v37 = heap_floor !metadata(alloc_ptr)
+    v38 = add v37, v12 !metadata(alloc_ptr)
+    v39 = lt v38, v37
+    v40 = gt v38, 0xffffffffffffffff
+    v41 = or v39, v40
+    v44 = or v10, v41
+    jumpi v44, bb3, bb5
   bb5:
-    mstore 64, v42 !metadata(memory=scratch)
-    mstore v41, v8
+    mstore 64, v38 !metadata(memory=scratch)
+    mstore v37, v8
     v14 = shl v8, 5
     v15 = sub v1, v9
     v16 = shr v15, 5
     v17 = gt v8, v16
     jumpi v17, bb1, bb4
   bb4:
-    v33 = add v41, 32
-    calldatacopy v33, v9, v14
-    v0 = icall @_level, v41
+    v32 = add v37, 32
+    calldatacopy v32, v9, v14
+    v0 = icall @_level, v37
     v26 = mload v0
-    v35 = add v0, 32
-    v28 = shl v26, 5
-    v37 = add v0, 64
-    mcopy v37, v35, v28
-    mstore v0, 32
-    mstore v35, v26
-    v30 = add v28, 64
-    returndata v0, v30
+    v27 = shl v26, 5
+    v34 = sub v0, 32
+    mstore v34, 32
+    v29 = add v27, 64
+    returndata v34, v29
   bb3:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -59,14 +56,11 @@ fn @scratchLevel() [selector=0xdb649139, abi_wrapper, pure] {
     mstore 32, 1 !metadata(memory=scratch)
     v0 = icall @_level, 0
     v4 = mload v0
-    v11 = add v0, 32
-    v6 = shl v4, 5
-    v13 = add v0, 64
-    mcopy v13, v11, v6
-    mstore v0, 32
-    mstore v11, v4
-    v8 = add v6, 64
-    returndata v0, v8
+    v5 = shl v4, 5
+    v10 = sub v0, 32
+    mstore v10, 32
+    v7 = add v5, 64
+    returndata v10, v7
 }
 
 fn @_level(arg0: i256) -> i256 [may_return_memory, pure] {

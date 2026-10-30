@@ -34,30 +34,30 @@ bb5:
   push 0
   return
 bb6:
+  push 160
+  push 64
+  mstore
+  push 160
   push 128
+  dup 2
+  mstore
   push 32
   dup 2
   add
-  dup 2
+  push 128
   push_data literal_0
   dup 3
   codecopy
+  push 128
+  add
   push 0
-  dup 3
-  dup 3
-  add
-  mstore
-  dup 2
-  dup 2
-  push 64
-  dup 5
-  add
-  mcopy
-  push 32
-  dup 3
-  mstore
-  dup 2
   swap 1
+  mstore
+  push 32
+  swap 1
+  sub
+  push 32
+  dup 2
   mstore
   push 192
   swap 1
@@ -65,7 +65,7 @@ bb6:
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_args_data_dedup.sol:FactoryWithArgs (runtime) ===
 @module FactoryWithArgs_runtime
 @data
-  ChildWithArg_creation_code_0: hex"61013438038061013460e03960e001601f01601f191660405260e0806101343803019060200111341760445760e05160c05260ec80604860e03960c0516101035260e0f35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f858146049575b5f5ffd5b7f00000000000000000000000000000000000000000000000000000000000000005f5260205ff35b60806020810181606c82395f828201528181604084015e6020825281905260c090f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+  ChildWithArg_creation_code_0: hex"61013938038061013960e03960e001601f01601f191660405260e0806101393803019060200111341760445760e05160c05260f180604860e03960c0516101035260e0f35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f858146049575b5f5ffd5b7f00000000000000000000000000000000000000000000000000000000000000005f5260205ff35b60a060405260a060808152602081016080607182396080015f9052602090036020815260c090f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
 
 bb0:
   callvalue
@@ -118,17 +118,17 @@ bb6:
   mstore
   push 64
   mload
-  push 308
+  push 313
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 32
   dup 3
-  push 308
+  push 313
   dup 4
   add
   mcopy
-  push 340
+  push 345
   swap 1
   push 0
   create
@@ -178,18 +178,18 @@ bb12:
   mstore
   push 64
   mload
-  push 308
+  push 313
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 32
   dup 3
-  push 308
+  push 313
   dup 4
   add
   mcopy
   push 1
-  push 340
+  push 345
   dup 3
   push 0
   create2
@@ -211,18 +211,18 @@ bb18:
   push 3
   dup 2
   mstore
-  push 308
+  push 313
   push_data ChildWithArg_creation_code_0
   dup 4
   codecopy
   push 32
   dup 2
-  push 308
+  push 313
   dup 5
   add
   mcopy
   pop
-  push 340
+  push 345
   swap 1
   push 0
   create
@@ -247,18 +247,18 @@ bb18:
   push 4
   dup 2
   mstore
-  push 308
+  push 313
   push_data ChildWithArg_creation_code_0
   dup 4
   codecopy
   push 32
   dup 2
-  push 308
+  push 313
   dup 5
   add
   mcopy
   pop
-  push 340
+  push 345
   swap 1
   push 0
   create
