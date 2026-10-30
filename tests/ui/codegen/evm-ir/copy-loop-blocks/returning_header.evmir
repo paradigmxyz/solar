@@ -1,7 +1,7 @@
 //@ revisions: gas budget size
-//@[gas] compile-flags: -Ogas --optimize-runs 10000 -Zevm-ir-pipeline=tail-dup
-//@[budget] compile-flags: -Ogas -Zevm-ir-pipeline=tail-dup
-//@[size] compile-flags: -Osize -Zevm-ir-pipeline=tail-dup
+//@[gas] compile-flags: -Ogas --optimize-runs 10000 -Zevm-ir-pipeline=copy-loop-blocks
+//@[budget] compile-flags: -Ogas -Zevm-ir-pipeline=copy-loop-blocks
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=copy-loop-blocks
 //@[gas] filecheck: --check-prefix=GAS
 // A loop header that tests each element and returns once an element fails runs on every
 // iteration, though it ends the call: its conditional jump continues the loop. Gas builds copy it

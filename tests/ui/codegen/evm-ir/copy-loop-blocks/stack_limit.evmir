@@ -1,4 +1,4 @@
-//@ compile-flags: -Ogas --optimize-runs 10000 -Zevm-ir-pipeline=tail-dup -Zvalidate-ir=true
+//@ compile-flags: -Ogas --optimize-runs 10000 -Zevm-ir-pipeline=copy-loop-blocks -Zvalidate-ir=true
 // A copy of a block that falls through out of its loop ends with a jump of its own, whose label
 // push must stay within the stack the path already reaches. All three loops run at the stack
 // limit. The first exit ends at its highest stack and falls into a block that pushes nothing, so
