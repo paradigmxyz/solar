@@ -1798,6 +1798,7 @@ impl<'a> CheckEliminator<'a> {
                 } else {
                     self.narrow(x, Range::new(U256::ZERO, bound - U256::from(1)));
                 }
+                self.narrow_summand(func, x, depth);
             }
             _ => {}
         }
