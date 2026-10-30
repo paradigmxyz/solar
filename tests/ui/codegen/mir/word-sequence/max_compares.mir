@@ -24,8 +24,8 @@ fn @gt_branch(arg0: i256) -> i256 {
     ret 2
 }
 
-// A value that is not a branch condition pays `iszero` for either test, which a pushed all-ones
-// word does not exceed.
+// As values, `lt`, `eq` and `ne` keep the pushed all-ones word, which `iszero` does not undercut;
+// `gt` against MAX - 1 pays a full-width push, so it still rewrites.
 fn @eq_value(arg0: i256) -> i1 {
   bb0:
     v0 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -40,6 +40,18 @@ fn @ne_branch(arg0: i256) -> i256 {
     ret 1
   bb2:
     ret 2
+}
+
+fn @lt_value(arg0: i256) -> i1 {
+  bb0:
+    v0 = lt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    ret v0
+}
+
+fn @gt_value(arg0: i256) -> i1 {
+  bb0:
+    v0 = gt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    ret v0
 }
 
 fn @ne_value(arg0: i256) -> i1 {
