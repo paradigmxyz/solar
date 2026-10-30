@@ -91,3 +91,13 @@ bb9:
   push 32
   add
   stop
+
+// The literal survives a pop of the word above it.
+bb10:
+  push 128
+  calldatasize
+  pop
+  dup 1
+  push 32
+  add
+  stop

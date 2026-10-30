@@ -78,4 +78,13 @@
     push 32
     add
     stop
+  bb10:
+    push 128
+    calldatasize
+    pop
+-   dup 1
+-   push 32
+-   add
++   push 160
+    stop
   

@@ -201,6 +201,16 @@ fn protected_word_depth(instructions: &[Instruction]) -> Option<usize> {
     Some(above)
 }
 
+/// Returns where the word at stack position `depth` sits after a permutation that swaps the words
+/// at positions `first` and `second`.
+fn permute(depth: usize, first: usize, second: usize) -> usize {
+    match depth {
+        _ if depth == first => second,
+        _ if depth == second => first,
+        _ => depth,
+    }
+}
+
 /// Context the rules run against: the instructions of one block so far.
 pub(super) struct PeepContext<'a> {
     instructions: &'a [Instruction],
@@ -323,13 +333,7 @@ impl<'a> PeepContext<'a> {
         let (lhs_value, rhs_value) = (self.operand_literal(lhs)?, self.operand_literal(rhs)?);
         let result = eval::eval_opcode(opcode, &[rhs_value, lhs_value])?;
         let target = self.target;
-        let operand = |index: usize, value| {
-            if self.instructions[index].is_encoded_push() {
-                target.push(value)
-            } else {
-                target.dup()
-            }
-        };
+        let operand = |index, value| if is_dup(index) { target.dup() } else { target.push(value) };
         // lhs; rhs; opcode => materialize evaluated word
         let input = operand(lhs, lhs_value)
             + operand(rhs, rhs_value)
@@ -364,21 +368,9 @@ impl<'a> PeepContext<'a> {
                 Some(StackOp::Dup(source)) => {
                     depth = if depth == 0 { usize::from(source - 1) } else { depth - 1 };
                 }
-                Some(StackOp::Swap(swapped)) => {
-                    let swapped = usize::from(swapped);
-                    depth = match depth {
-                        0 => swapped,
-                        _ if depth == swapped => 0,
-                        _ => depth,
-                    };
-                }
+                Some(StackOp::Swap(swapped)) => depth = permute(depth, 0, usize::from(swapped)),
                 Some(StackOp::Exchange(first, second)) => {
-                    let (first, second) = (usize::from(first), usize::from(second));
-                    depth = match depth {
-                        _ if depth == first => second,
-                        _ if depth == second => first,
-                        _ => depth,
-                    };
+                    depth = permute(depth, usize::from(first), usize::from(second));
                 }
                 Some(StackOp::Pop) => depth += 1,
                 None => {
