@@ -455,6 +455,11 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub pack_wide_jump_tables: bool,
 
+    /// Assert instead of logging when a value is live across a planned stack edge into an
+    /// already-emitted block without a spill home.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub assert_planned_edge_spill_home: bool,
+
     /// Leak the compiler context instead of dropping it after compilation.
     /// The `solar` binary sets this to skip teardown before exiting; library callers should leave
     /// it unset so that each compilation frees its arenas and thread pool.
@@ -524,6 +529,7 @@ impl UnstableOpts {
             pass_diff: _,
             validate_ir: _,
             time_passes: _,
+            assert_planned_edge_spill_home: _,
             forget_gcx: _,
             help: _,
             _non_exhaustive: _,
