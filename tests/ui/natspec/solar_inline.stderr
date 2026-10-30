@@ -1,18 +1,18 @@
-error: `@custom:solar-inline` must document a function that internal calls reach
+error: `@custom:solar-inline` must document a function that internal calls reach or a dynamic storage array state variable
    ╭▸ ROOT/tests/ui/natspec/solar_inline.sol:LL:CC
    │
 LL │     /// @custom:solar-inline always
    │          ━━━━━━━━━━━━━━━━━━━
    │
-   ╰ help: put it on an internal, private or public function with a body
+   ╰ help: put it on an internal, private or public function with a body, or a state variable such as `uint64[] list;`
 
-error: `@custom:solar-inline` must document a function that internal calls reach
+error: `@custom:solar-inline` must document a function that internal calls reach or a dynamic storage array state variable
    ╭▸ ROOT/tests/ui/natspec/solar_inline.sol:LL:CC
    │
 LL │     /// @custom:solar-inline never
    │          ━━━━━━━━━━━━━━━━━━━
    │
-   ╰ help: put it on an internal, private or public function with a body
+   ╰ help: put it on an internal, private or public function with a body, or a state variable such as `uint64[] list;`
 
 error: `@custom:solar-inline` takes no argument, `always` or `never`
    ╭▸ ROOT/tests/ui/natspec/solar_inline.sol:LL:CC
@@ -50,7 +50,7 @@ LL │     /// @custom:solar-noinline
    │          ━━━━━━━━━━━━━━━━━━━━━
    │
    ├ note: `@custom:solar-` tags are requirements this compiler checks
-   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, and `@custom:solar-trusted`
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-trusted`, `@custom:solar-fuse`, `@custom:solar-bitmap`, and `@custom:solar-handle`
 
 error: aborting due to 6 previous errors
 

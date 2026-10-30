@@ -1,10 +1,10 @@
-error: `@custom:solar-inline` must document a dynamic storage array state variable
+error: `@custom:solar-inline` must document a function that internal calls reach or a dynamic storage array state variable
    ╭▸ ROOT/tests/ui/typeck/solar_inline.sol:LL:CC
    │
 LL │     /// @custom:solar-inline
    │          ━━━━━━━━━━━━━━━━━━━
    │
-   ╰ help: put it on a state variable such as `uint64[] list;`
+   ╰ help: put it on an internal, private or public function with a body, or a state variable such as `uint64[] list;`
 
 error: the elements of an inline array must be value types narrower than a word
    ╭▸ ROOT/tests/ui/typeck/solar_inline.sol:LL:CC

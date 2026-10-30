@@ -659,7 +659,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             self.lower_inline_array_push(base.slot, value, array, element, expr.span)?;
             // A plain `push()` appends a zero element, which is its value.
-            return Some(self.builder.imm(U256::ZERO));
+            return Some(if argument.is_none() && capture_value {
+                CallResult::Value(self.builder.imm(U256::ZERO))
+            } else {
+                CallResult::Void
+            });
         }
         // element_slot = storage_array_element_slot(array_slot, old_length)
         // store(element_slot, argument | default)
@@ -815,7 +819,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(array) = self.inline_array_at(base.slot) {
             // inline_array_pop(array_slot)
             self.lower_inline_array_pop(base.slot, array, element, expr.span)?;
-            return Some(self.builder.imm(0));
+            return Some(());
         }
 
         // if length == 0 { panic(EmptyArrayPop) }

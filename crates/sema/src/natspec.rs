@@ -577,7 +577,8 @@ impl<'gcx> Resolver<'gcx> {
             }
             (SolarTag::Fuse | SolarTag::Bitmap, hir::ItemId::Variable(id)) => {
                 let variable = gcx.hir.variable(id);
-                variable.is_state_variable() && matches!(variable.ty.kind, hir::TypeKind::Mapping(_))
+                variable.is_state_variable()
+                    && matches!(variable.ty.kind, hir::TypeKind::Mapping(_))
             }
             (SolarTag::Inline, hir::ItemId::Variable(id)) => {
                 let variable = gcx.hir.variable(id);

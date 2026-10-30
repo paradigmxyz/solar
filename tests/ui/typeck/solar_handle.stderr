@@ -1,16 +1,16 @@
 error: `@custom:solar-handle` must document a struct declared in a contract
    ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
    │
-LL │     /// @custom:solar-handle marketId markets
-   │          ━━━━━━━━━━━━━━━━━━━
+LL │ /// @custom:solar-handle id ids
+   │      ━━━━━━━━━━━━━━━━━━━
    │
    ╰ help: put it on a struct of the contract that keeps the dictionary: `@custom:solar-handle marketId markets`
 
 error: `@custom:solar-handle` must document a struct declared in a contract
    ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
    │
-LL │ /// @custom:solar-handle id ids
-   │      ━━━━━━━━━━━━━━━━━━━
+LL │     /// @custom:solar-handle marketId markets
+   │          ━━━━━━━━━━━━━━━━━━━
    │
    ╰ help: put it on a struct of the contract that keeps the dictionary: `@custom:solar-handle marketId markets`
 
