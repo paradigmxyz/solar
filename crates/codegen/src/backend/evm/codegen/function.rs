@@ -101,36 +101,43 @@ impl<'gcx> EvmCodegen<'gcx> {
         changed
     }
 
-    /// Finds blocks that abort directly or can only reach other cold blocks.
+    /// Finds the blocks that abort directly or have no path to a normal exit.
+    ///
+    /// Backward reachability from the blocks that leave the function without
+    /// aborting (return, stop, selfdestruct, or a tail call to a function that
+    /// can return), over blocks that do not abort, marks the hot blocks. Every
+    /// other block is cold, including loops whose only exits lead to aborts.
+    /// `-O none` marks only the blocks that abort directly.
     pub(super) fn collect_cold_blocks(&self, func: &Function) -> DenseBitSet<BlockId> {
-        let mut cold = DenseBitSet::new_empty(func.blocks.len());
-        let mut worklist = Vec::new();
-        for block_id in func.blocks.indices() {
-            if self.block_aborts(func, block_id) {
-                cold.insert(block_id);
-                worklist.push(block_id);
-            }
-        }
+        let aborts = |block_id| self.block_aborts(func, block_id);
         if matches!(self.optimization, OptimizationMode::None) {
+            let mut cold = DenseBitSet::new_empty(func.blocks.len());
+            for block_id in func.blocks.indices().filter(|&block_id| aborts(block_id)) {
+                cold.insert(block_id);
+            }
             return cold;
         }
 
+        let mut hot = DenseBitSet::new_empty(func.blocks.len());
+        let mut worklist = Vec::new();
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            let exits = block.terminator.as_ref().is_none_or(|term| term.successors().is_empty());
+            if exits && !aborts(block_id) {
+                hot.insert(block_id);
+                worklist.push(block_id);
+            }
+        }
         while let Some(block_id) = worklist.pop() {
             for &predecessor in &func.blocks[block_id].predecessors {
-                if cold.contains(predecessor) {
-                    continue;
-                }
-                let Some(term) = func.blocks[predecessor].terminator.as_ref() else {
-                    continue;
-                };
-                let successors = term.successors();
-                if !successors.is_empty()
-                    && successors.iter().all(|&successor| cold.contains(successor))
-                {
-                    cold.insert(predecessor);
+                if !hot.contains(predecessor) && !aborts(predecessor) {
+                    hot.insert(predecessor);
                     worklist.push(predecessor);
                 }
             }
+        }
+        let mut cold = DenseBitSet::new_filled(func.blocks.len());
+        for block_id in hot.iter() {
+            cold.remove(block_id);
         }
         cold
     }
@@ -161,6 +168,15 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn new_function_label(&mut self, function: FunctionId) -> Label {
         let label = self.asm.new_label();
         if self.cold_functions.contains(function) {
+            self.asm.mark_label_cold(label);
+        }
+        label
+    }
+
+    /// Creates the label of an edge trampoline, cold when its target is.
+    pub(super) fn new_trampoline_label(&mut self, target: BlockId) -> Label {
+        let label = self.asm.new_label();
+        if self.block_is_cold(target) {
             self.asm.mark_label_cold(label);
         }
         label
