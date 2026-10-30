@@ -209,7 +209,7 @@ use crate::{
         FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module,
         RawMemorySize, Terminator, TypeSize, Value, ValueId, ValueLayout,
         analysis::{
-            CallGraphInfo, CfgInfo, aborts, cold_functions,
+            CfgInfo, aborts, cold_functions,
             integers::{integer_bits, integer_mask, integer_max},
         },
         immutable::immutable_push_type_size,
@@ -515,21 +515,8 @@ fn narrow_immutable_layouts(module: &mut Module) -> bool {
 
 /// Excludes every constructor-reachable helper, including recursive and tail-call edges.
 fn runtime_only_functions(module: &Module) -> DenseBitSet<FunctionId> {
-    let graph = CallGraphInfo::new(module);
-    let mut runtime = DenseBitSet::new_empty(module.functions.len());
-    let mut constructor = runtime.clone();
-    for (id, func) in module.functions.iter_enumerated() {
-        if func.attributes.is_constructor {
-            constructor.insert(id);
-        } else if func.is_runtime_entry() || module.dispatch_entry() == Some(id) {
-            runtime.insert(id);
-        }
-    }
-    for roots in [&mut runtime, &mut constructor] {
-        let reachable = graph.reachable_callees_from(roots.iter());
-        roots.union(&reachable);
-    }
-    runtime.subtract(&constructor);
+    let mut runtime = module.runtime_reachable_functions();
+    runtime.subtract(&module.constructor_reachable_functions());
     runtime
 }
 
