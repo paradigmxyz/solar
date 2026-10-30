@@ -947,7 +947,7 @@ impl LoopOptimizer {
         value: ValueId,
         ctx: LoopOptContext<'_>,
     ) -> Option<StorageAlias> {
-        let alias = self.alias.storage_alias(func, inst_id, value);
+        let alias = func.storage_alias(inst_id, value);
         if let Some(base) = alias.symbolic_base()
             && Self::value_defined_in_loop(func, base, ctx)
         {

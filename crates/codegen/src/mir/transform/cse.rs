@@ -1120,12 +1120,7 @@ impl CommonSubexprEliminator {
                 stored,
                 location @ (PtrLocation::Storage | PtrLocation::Transient),
             ) => {
-                let alias = self.alias().storage_alias_after_replacements(
-                    func,
-                    inst_id,
-                    slot,
-                    replacements,
-                );
+                let alias = func.storage_alias_after_replacements(inst_id, slot, replacements);
                 Some((ExprKey::SlotLoad(Location::slot(location, alias)?), value(stored)))
             }
             _ => None,
@@ -1200,10 +1195,7 @@ impl CommonSubexprEliminator {
             (
                 ExprKey::SlotLoad(read),
                 InstKind::Load(slot, location @ (PtrLocation::Storage | PtrLocation::Transient)),
-            ) => {
-                Location::slot(*location, self.alias().storage_alias(func, def, *slot))
-                    == Some(*read)
-            }
+            ) => Location::slot(*location, func.storage_alias(def, *slot)) == Some(*read),
             _ => false,
         };
         loaded
@@ -1380,12 +1372,7 @@ impl CommonSubexprEliminator {
             }
 
             InstKind::Load(slot, location @ (PtrLocation::Storage | PtrLocation::Transient)) => {
-                let alias = self.alias().storage_alias_after_replacements(
-                    func,
-                    inst_id,
-                    *slot,
-                    replacements,
-                );
+                let alias = func.storage_alias_after_replacements(inst_id, *slot, replacements);
                 Location::slot(*location, alias).map(ExprKey::SlotLoad)
             }
 

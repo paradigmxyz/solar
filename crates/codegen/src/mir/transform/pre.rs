@@ -1415,14 +1415,14 @@ impl<'a> Eliminator<'a> {
         let aa = self.alias();
         match func.inst(inst_id).kind {
             InstKind::Load(slot, location @ (PtrLocation::Storage | PtrLocation::Transient)) => {
-                Location::slot(location, aa.storage_alias(func, inst_id, slot))
+                Location::slot(location, func.storage_alias(inst_id, slot))
                     .map(|slot| (LoadKey::Slot(slot), GenSource::LoadResult))
             }
             InstKind::Store(
                 slot,
                 value,
                 location @ (PtrLocation::Storage | PtrLocation::Transient),
-            ) => Location::slot(location, aa.storage_alias(func, inst_id, slot))
+            ) => Location::slot(location, func.storage_alias(inst_id, slot))
                 .map(|slot| (LoadKey::Slot(slot), GenSource::Stored(value))),
             // Stored words are integers, so a pointer load keeps its own type.
             InstKind::Load(addr, PtrLocation::Memory)
