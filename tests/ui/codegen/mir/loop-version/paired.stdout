@@ -48,14 +48,11 @@ fn @sameArray() [selector=0xb6752e08, abi_wrapper, pure] {
     v2 = icall @decode_calldata_type, 4
     icall @_sortPairs, v2, v2
     v6 = mload v2
-    v13 = add v2, 32
-    v8 = shl v6, 5
-    v15 = add v2, 64
-    mcopy v15, v13, v8
-    mstore v2, 32
-    mstore v13, v6
-    v10 = add v8, 64
-    returndata v2, v10
+    v7 = shl v6, 5
+    v12 = sub v2, 32
+    mstore v12, 32
+    v9 = add v7, 64
+    returndata v12, v9
   bb1 [cold]:
     revert 0, 0
 }
@@ -70,14 +67,11 @@ fn @overlapping() [selector=0xb7239436, abi_wrapper, pure] {
     v1 = add v5, 96
     icall @_sortPairs, v1, v5
     v9 = mload v5
-    v16 = add v5, 32
-    v11 = shl v9, 5
-    v18 = add v5, 64
-    mcopy v18, v16, v11
-    mstore v5, 32
-    mstore v16, v9
-    v13 = add v11, 64
-    returndata v5, v13
+    v10 = shl v9, 5
+    v15 = sub v5, 32
+    mstore v15, 32
+    v12 = add v10, 64
+    returndata v15, v12
   bb1 [cold]:
     revert 0, 0
 }

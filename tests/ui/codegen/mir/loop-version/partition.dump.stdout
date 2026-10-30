@@ -19,14 +19,11 @@ fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
     jump bb2
   bb2:
     v9 = mload v5
-    v16 = add v5, 32
-    v11 = shl v9, 5
-    v18 = add v5, 64
-    mcopy v18, v16, v11
-    mstore v5, 32
-    mstore v16, v9
-    v13 = add v11, 64
-    returndata v5, v13
+    v10 = shl v9, 5
+    v15 = sub v5, 32
+    mstore v15, 32
+    v12 = add v10, 64
+    returndata v15, v12
   bb3 [cold]:
     revert 0, 0
 }

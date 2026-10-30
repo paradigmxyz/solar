@@ -12,26 +12,26 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
     v15 = ne v11, v7
     jumpi v15, bb8, bb10
   bb10:
-    v91 = heap_floor !metadata(alloc_ptr)
-    v92 = add v91, v9 !metadata(alloc_ptr)
-    v93 = lt v92, v91
-    v94 = gt v92, 0xffffffffffffffff
-    v95 = or v93, v94
-    jumpi v95, bb17, bb16
+    v87 = heap_floor !metadata(alloc_ptr)
+    v88 = add v87, v9 !metadata(alloc_ptr)
+    v89 = lt v88, v87
+    v90 = gt v88, 0xffffffffffffffff
+    v91 = or v89, v90
+    jumpi v91, bb17, bb16
   bb16:
-    v97 = calldatasize
-    calldatacopy v91, v97, v9
-    mstore v91, arg0
-    v41 = or v91, arg0
+    v93 = calldatasize
+    calldatacopy v87, v93, v9
+    mstore v87, arg0
+    v41 = or v87, arg0
     v64 = shr v41, 64
     v45 = eq v64, 0
     jumpi v45, bb7, bb6
   bb6:
-    v98 = add v91, 32
+    v94 = add v87, 32
     jump bb1
   bb1:
     v19 = phi [bb6: 0], [bb12: v28]
-    v99 = phi [bb6: v98], [bb12: v100]
+    v95 = phi [bb6: v94], [bb12: v96]
     v20 = lt v19, arg0
     jumpi v20, bb3, bb2
   bb3:
@@ -42,40 +42,37 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
     v54 = or v51, v53
     jumpi v54, bb14, bb13
   bb14:
-    v22 = mload v91
+    v22 = mload v87
     v23 = lt v19, v22
     jumpi v23, bb12, bb11
   bb11 [cold]:
     tail_call @revert_stub.3
   bb12:
-    mstore v99, v50
+    mstore v95, v50
     v28 = add v19, 1
-    v100 = add v99, 32
+    v96 = add v95, 32
     jump bb1
   bb7:
-    v101 = add v91, 32
+    v97 = add v87, 32
     jump bb18
   bb18:
-    v104 = phi [bb7: 0], [bb23: v142]
-    v105 = phi [bb7: v101], [bb23: v143]
-    v144 = add v104, 3
-    v145 = lt v144, arg0
-    jumpi v145, bb19, bb4
+    v100 = phi [bb7: 0], [bb23: v138]
+    v101 = phi [bb7: v97], [bb23: v139]
+    v140 = add v100, 3
+    v141 = lt v140, arg0
+    jumpi v141, bb19, bb4
   bb4:
-    v29 = phi [bb18: v104], [bb15: v37]
-    v102 = phi [bb18: v105], [bb15: v103]
+    v29 = phi [bb18: v100], [bb15: v37]
+    v98 = phi [bb18: v101], [bb15: v99]
     v30 = lt v29, arg0
     jumpi v30, bb5, bb2
   bb2:
-    v71 = mload v91
-    v78 = add v91, 32
-    v73 = shl v71, 5
-    v80 = add v91, 64
-    mcopy v80, v78, v73
-    mstore v91, 32
-    mstore v78, v71
-    v75 = add v73, 64
-    returndata v91, v75
+    v71 = mload v87
+    v72 = shl v71, 5
+    v77 = sub v87, 32
+    mstore v77, 32
+    v74 = add v72, 64
+    returndata v77, v74
   bb5:
     v57 = mul v29, v29
     v58 = eq v29, 0
@@ -84,55 +81,55 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
     v61 = or v58, v60
     jumpi v61, bb15, bb13
   bb15:
-    mstore v102, v57
+    mstore v98, v57
     v37 = add v29, 1
-    v103 = add v102, 32
+    v99 = add v98, 32
     jump bb4
   bb19:
-    v107 = mul v104, v104
-    v108 = eq v104, 0
-    v109 = div v107, v104
-    v110 = eq v109, v104
-    v111 = or v108, v110
-    jumpi v111, bb20, bb13
+    v103 = mul v100, v100
+    v104 = eq v100, 0
+    v105 = div v103, v100
+    v106 = eq v105, v100
+    v107 = or v104, v106
+    jumpi v107, bb20, bb13
   bb20:
-    mstore v105, v107
-    v112 = add v104, 1
-    v113 = add v105, 32
-    v117 = mul v112, v112
-    v118 = eq v112, 0
-    v119 = div v117, v112
-    v120 = eq v119, v112
-    v121 = or v118, v120
-    jumpi v121, bb21, bb13
+    mstore v101, v103
+    v108 = add v100, 1
+    v109 = add v101, 32
+    v113 = mul v108, v108
+    v114 = eq v108, 0
+    v115 = div v113, v108
+    v116 = eq v115, v108
+    v117 = or v114, v116
+    jumpi v117, bb21, bb13
   bb21:
-    mstore v113, v117
-    v122 = add v112, 1
-    v123 = add v105, 64
-    v127 = mul v122, v122
-    v128 = eq v122, 0
-    v129 = div v127, v122
-    v130 = eq v129, v122
-    v131 = or v128, v130
-    jumpi v131, bb22, bb13
+    mstore v109, v113
+    v118 = add v108, 1
+    v119 = add v101, 64
+    v123 = mul v118, v118
+    v124 = eq v118, 0
+    v125 = div v123, v118
+    v126 = eq v125, v118
+    v127 = or v124, v126
+    jumpi v127, bb22, bb13
   bb22:
-    mstore v123, v127
-    v132 = add v122, 1
-    v133 = add v105, 96
-    v137 = mul v132, v132
-    v138 = eq v132, 0
-    v139 = div v137, v132
-    v140 = eq v139, v132
-    v141 = or v138, v140
-    jumpi v141, bb23, bb13
+    mstore v119, v123
+    v128 = add v118, 1
+    v129 = add v101, 96
+    v133 = mul v128, v128
+    v134 = eq v128, 0
+    v135 = div v133, v128
+    v136 = eq v135, v128
+    v137 = or v134, v136
+    jumpi v137, bb23, bb13
   bb13 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb23:
-    mstore v133, v137
-    v142 = add v132, 1
-    v143 = add v105, 128
+    mstore v129, v133
+    v138 = add v128, 1
+    v139 = add v101, 128
     jump bb18
   bb17 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
@@ -163,40 +160,37 @@ fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
     v64 = phi [bb0: 0], [bb5: 1], [bb6: v69]
     v8 = add v64, 1
     v10 = shl v8, 5
-    v95 = heap_floor !metadata(alloc_ptr)
-    v96 = add v95, v10 !metadata(alloc_ptr)
-    v97 = lt v96, v95
-    v98 = gt v96, 0xffffffffffffffff
-    v99 = or v97, v98
-    jumpi v99, bb8, bb7
+    v91 = heap_floor !metadata(alloc_ptr)
+    v92 = add v91, v10 !metadata(alloc_ptr)
+    v93 = lt v92, v91
+    v94 = gt v92, 0xffffffffffffffff
+    v95 = or v93, v94
+    jumpi v95, bb8, bb7
   bb7:
-    v101 = calldatasize
-    calldatacopy v95, v101, v10
-    mstore v95, v64
-    v105 = add v95, 32
+    v97 = calldatasize
+    calldatacopy v91, v97, v10
+    mstore v91, v64
+    v101 = add v91, 32
     jump bb2
   bb2:
     v33 = phi [bb7: 0], [bb3: v43]
-    v106 = phi [bb7: v105], [bb3: v107]
+    v102 = phi [bb7: v101], [bb3: v103]
     v34 = lt v33, v64
     jumpi v34, bb3, bb1
   bb1:
-    v75 = mload v95
-    v82 = add v95, 32
-    v77 = shl v75, 5
-    v84 = add v95, 64
-    mcopy v84, v82, v77
-    mstore v95, 32
-    mstore v82, v75
-    v79 = add v77, 64
-    returndata v95, v79
+    v75 = mload v91
+    v76 = shl v75, 5
+    v81 = sub v91, 32
+    mstore v81, 32
+    v78 = add v76, 64
+    returndata v81, v78
   bb3:
     v35 = shl v33, 5
     v36 = shr arg0, v35
     v37 = and v36, 0xffffffff
-    mstore v106, v37
+    mstore v102, v37
     v43 = add v33, 1
-    v107 = add v106, 32
+    v103 = add v102, 32
     jump bb2
   bb8 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
