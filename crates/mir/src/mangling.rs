@@ -6,24 +6,24 @@ use std::fmt;
 
 newtype_index! {
     /// A numeric symbol disambiguator.
-    pub(crate) struct Disambiguator;
+    pub struct Disambiguator;
 }
 
 /// A symbol with an optional numeric disambiguator.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct MangledSymbol {
-    pub(crate) symbol: Symbol,
-    pub(crate) disambiguator: Option<Disambiguator>,
+pub struct MangledSymbol {
+    pub symbol: Symbol,
+    pub disambiguator: Option<Disambiguator>,
 }
 
 impl MangledSymbol {
     /// Creates an undisambiguated symbol.
-    pub(crate) const fn new(symbol: Symbol) -> Self {
+    pub const fn new(symbol: Symbol) -> Self {
         Self { symbol, disambiguator: None }
     }
 
     /// Creates a symbol with a numeric disambiguator.
-    pub(crate) const fn disambiguated(symbol: Symbol, disambiguator: Disambiguator) -> Self {
+    pub const fn disambiguated(symbol: Symbol, disambiguator: Disambiguator) -> Self {
         Self { symbol, disambiguator: Some(disambiguator) }
     }
 }

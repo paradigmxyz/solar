@@ -24,8 +24,8 @@
 //! `#[commutative(lhs, rhs)]` generates the trait and canonicalizes exactly that
 //! operand pair, leaving attributes and any remaining operands untouched.
 
-use crate::link::LibraryId;
 use alloy_primitives::Bytes;
+use solar_evmir::link::LibraryId;
 
 use super::{
     AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AddressCallKind, AllocationSemantics,
@@ -35,13 +35,12 @@ use super::{
     ValueLayout, typing,
 };
 use smallvec::{Array, SmallVec, smallvec};
-#[cfg(test)]
 use std::fmt::Write as _;
 
 /// The semantic operation family that a phase does not admit, named in phase-boundary
 /// diagnostics. Each family has one required pass that removes it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum PhaseCategory {
+pub enum PhaseCategory {
     AbiDecoding,
     AbiEncoding,
     AbiValidation,
@@ -87,7 +86,7 @@ impl std::fmt::Display for PhaseCategory {
 
 /// A compact set of MIR phases in which an operation is structurally valid.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct PhaseSet(u8);
+pub struct PhaseSet(u8);
 
 const _: () = assert!(
     (MirPhase::Lowered as u32 + 1) < u8::BITS,
@@ -96,51 +95,51 @@ const _: () = assert!(
 
 impl PhaseSet {
     /// Semantic representation, before the lowered word-only boundary.
-    pub(crate) const SEMANTIC: Self = Self::through(MirPhase::Semantic);
+    pub const SEMANTIC: Self = Self::through(MirPhase::Semantic);
     /// All phases currently defined by MIR.
-    pub(crate) const ALL: Self = Self::through(MirPhase::Lowered);
+    pub const ALL: Self = Self::through(MirPhase::Lowered);
     /// Creates a set containing every phase up to and including `phase`.
     const fn through(phase: MirPhase) -> Self {
         Self((1u8 << (phase as u8 + 1)) - 1)
     }
 
     /// Returns whether this operation is valid in `phase`.
-    pub(crate) const fn contains(self, phase: MirPhase) -> bool {
+    pub const fn contains(self, phase: MirPhase) -> bool {
         self.0 & (1u8 << phase as u8) != 0
     }
 }
 
 /// Declarative operation properties used by analyses and rewrites.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct OpTraits(u16);
+pub struct OpTraits(u16);
 
 impl OpTraits {
     /// No additional operation traits.
-    pub(crate) const NONE: Self = Self(0);
+    pub const NONE: Self = Self(0);
     /// The operation's binary operands may be exchanged by the scheduler.
-    pub(crate) const REORDERABLE: Self = Self(1 << 0);
+    pub const REORDERABLE: Self = Self(1 << 0);
     /// The operation is cheap and stable enough to rematerialize when its
     /// operands can themselves be rebuilt from stable leaves.
-    pub(crate) const REMATERIALIZABLE: Self = Self(1 << 1);
+    pub const REMATERIALIZABLE: Self = Self(1 << 1);
     /// The declared operand pair may be exchanged without changing the result.
-    pub(crate) const COMMUTATIVE: Self = Self(1 << 3);
+    pub const COMMUTATIVE: Self = Self(1 << 3);
     /// The operation is a root of at least one local e-graph rewrite rule.
-    pub(crate) const EGRAPH_REWRITE: Self = Self(1 << 4);
+    pub const EGRAPH_REWRITE: Self = Self(1 << 4);
 
     /// Returns the union of two property sets.
-    pub(crate) const fn union(self, other: Self) -> Self {
+    pub const fn union(self, other: Self) -> Self {
         Self(self.0 | other.0)
     }
 
     /// Returns whether this set contains `trait_`.
-    pub(crate) const fn contains(self, trait_: Self) -> bool {
+    pub const fn contains(self, trait_: Self) -> bool {
         self.0 & trait_.0 == trait_.0
     }
 }
 
 /// The value an operation produces, when the operation alone determines it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum ResultKind {
+pub enum ResultKind {
     /// The operation produces no value.
     None,
     /// A 256-bit integer.
@@ -164,7 +163,7 @@ pub(crate) enum ResultKind {
 impl ResultKind {
     /// Returns the result type used when the textual form carries none.
     #[must_use]
-    pub(crate) const fn default_type(self) -> Option<MirType> {
+    pub const fn default_type(self) -> Option<MirType> {
         match self {
             Self::None | Self::Custom => None,
             Self::I256 | Self::Integer | Self::Word => Some(MirType::I256),
@@ -176,13 +175,13 @@ impl ResultKind {
 
     /// Returns whether operations of this kind always produce a value.
     #[must_use]
-    pub(crate) const fn produces_value(self) -> bool {
+    pub const fn produces_value(self) -> bool {
         !matches!(self, Self::None)
     }
 
     /// Checks the exact result type; scalar conversions require explicit instructions. A pointer
     /// result admits the word it holds, as lowering erases pointer types.
-    pub(crate) fn admits_type(self, ty: MirType) -> bool {
+    pub fn admits_type(self, ty: MirType) -> bool {
         if matches!(self, Self::I160 | Self::MemPtr | Self::Pointer) && ty == MirType::I256 {
             true
         } else if self == Self::Integer {
@@ -198,7 +197,7 @@ impl ResultKind {
 
 /// How an operation accesses a raw memory range at an address.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum RawMemoryAccess {
+pub enum RawMemoryAccess {
     /// The operation reads the range.
     Read,
     /// The operation writes the whole range.
@@ -209,7 +208,7 @@ pub(crate) enum RawMemoryAccess {
 
 /// The size of a raw memory range.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum RawMemorySize {
+pub enum RawMemorySize {
     /// A fixed number of bytes.
     Bytes(u64),
     /// The number of bytes an operand holds.
@@ -218,7 +217,7 @@ pub(crate) enum RawMemorySize {
 
 impl RawMemorySize {
     /// Returns the size in bytes when it is a constant.
-    pub(crate) fn constant(self, func: &Function) -> Option<u64> {
+    pub fn constant(self, func: &Function) -> Option<u64> {
         match self {
             Self::Bytes(bytes) => Some(bytes),
             Self::Value(size) => func.value_u64(size),
@@ -227,11 +226,10 @@ impl RawMemorySize {
 }
 
 /// Instruction field types, classified as value operands or attributes.
-pub(crate) trait Operands {
+pub trait Operands {
     /// Copyable projection of the field seen by rewrite rules.
     type View: Copy;
     /// ISLE type name of the projection.
-    #[cfg(test)]
     const ISLE_TYPE: &'static str;
 
     /// Appends every value operand held by this field in canonical order.
@@ -258,7 +256,6 @@ pub(crate) trait Operands {
 
 impl Operands for ValueId {
     type View = Self;
-    #[cfg(test)]
     const ISLE_TYPE: &'static str = "Value";
 
     #[inline]
@@ -301,7 +298,6 @@ impl Operands for ValueId {
 
 impl Operands for Option<ValueId> {
     type View = Self;
-    #[cfg(test)]
     const ISLE_TYPE: &'static str = "OptionValue";
 
     #[inline]
@@ -347,7 +343,6 @@ impl Operands for Option<ValueId> {
 
 impl Operands for Box<[ValueId]> {
     type View = ();
-    #[cfg(test)]
     const ISLE_TYPE: &'static str = "Unit";
 
     #[inline]
@@ -385,7 +380,6 @@ impl Operands for Box<[ValueId]> {
 
 impl Operands for Vec<(BlockId, ValueId)> {
     type View = ();
-    #[cfg(test)]
     const ISLE_TYPE: &'static str = "Unit";
 
     #[inline]
@@ -423,7 +417,6 @@ impl Operands for Vec<(BlockId, ValueId)> {
 
 impl Operands for Box<[PackedPart]> {
     type View = ();
-    #[cfg(test)]
     const ISLE_TYPE: &'static str = "Unit";
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
         out.extend(self.iter().filter_map(PackedPart::value));
@@ -447,36 +440,36 @@ impl Operands for Box<[PackedPart]> {
 
 /// The indexed topics of a log, at most four.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct LogTopics {
+pub struct LogTopics {
     len: u8,
     values: [ValueId; 4],
 }
 
 impl LogTopics {
     /// The most topics a log carries.
-    pub(crate) const MAX: usize = 4;
+    pub const MAX: usize = 4;
 
     /// Collects topics, returning `None` when there are more than [`Self::MAX`].
-    pub(crate) fn new(topics: &[ValueId]) -> Option<Self> {
+    pub fn new(topics: &[ValueId]) -> Option<Self> {
         let mut values = [ValueId::new(0); Self::MAX];
         values.get_mut(..topics.len())?.copy_from_slice(topics);
         Some(Self { len: topics.len() as u8, values })
     }
 
     /// The topics in order.
-    pub(crate) fn as_slice(&self) -> &[ValueId] {
+    pub fn as_slice(&self) -> &[ValueId] {
         &self.values[..usize::from(self.len)]
     }
 
     /// The number of topics.
-    pub(crate) fn len(&self) -> usize {
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> usize {
         usize::from(self.len)
     }
 }
 
 impl Operands for LogTopics {
     type View = Self;
-    #[cfg(test)]
     const ISLE_TYPE: &'static str = "LogTopics";
 
     #[inline]
@@ -524,7 +517,6 @@ macro_rules! attributes {
         $(
             impl Operands for $ty {
                 type View = Self;
-                #[cfg(test)]
                 const ISLE_TYPE: &'static str = stringify!($ty);
 
                 #[inline]
@@ -567,7 +559,6 @@ macro_rules! opaque_attributes {
         $(
             impl Operands for $ty {
                 type View = ();
-                #[cfg(test)]
                 const ISLE_TYPE: &'static str = "Unit";
 
                 #[inline]
@@ -608,9 +599,9 @@ macro_rules! opaque_attributes {
 macro_rules! builder_method {
     ($inst:ident::$variant:ident; []; ($($operand:ident)*); {$($field:ident)*}) => {};
     ($inst:ident::$variant:ident; [$name:ident]; (); {}) => {
-        impl crate::mir::FunctionBuilder<'_> {
+        impl crate::FunctionBuilder<'_> {
             #[doc = concat!("Emits `", stringify!($name), "`.")]
-            pub(crate) fn $name(&mut self) -> ValueId {
+            pub fn $name(&mut self) -> ValueId {
                 let kind = $inst::$variant;
                 let ty = kind.op_def().result.default_type();
                 // %result = op()
@@ -619,9 +610,9 @@ macro_rules! builder_method {
         }
     };
     ($inst:ident::$variant:ident; [$name:ident]; ($($operand:ident)+); {}) => {
-        impl crate::mir::FunctionBuilder<'_> {
+        impl crate::FunctionBuilder<'_> {
             #[doc = concat!("Emits `", stringify!($name), "`.")]
-            pub(crate) fn $name(&mut self $(, $operand: ValueId)+) -> ValueId {
+            pub fn $name(&mut self $(, $operand: ValueId)+) -> ValueId {
                 let kind = $inst::$variant($($operand),+);
                 let ty = kind.op_def().result.default_type();
                 // %result = op(operands)
@@ -630,9 +621,9 @@ macro_rules! builder_method {
         }
     };
     ($inst:ident::$variant:ident; [$name:ident, void]; ($($operand:ident)+); {}) => {
-        impl crate::mir::FunctionBuilder<'_> {
+        impl crate::FunctionBuilder<'_> {
             #[doc = concat!("Emits `", stringify!($name), "`.")]
-            pub(crate) fn $name(&mut self $(, $operand: ValueId)+) {
+            pub fn $name(&mut self $(, $operand: ValueId)+) {
                 // op(operands)
                 self.emit_void_inst($inst::$variant($($operand),+));
             }
@@ -643,7 +634,6 @@ macro_rules! builder_method {
 /// Returns the ISLE term name of an operation: the lower-cased variant name,
 /// with the bitwise operations named as in Cranelift because `and` is an ISLE
 /// keyword.
-#[cfg(test)]
 fn isle_op_name(variant: &str) -> String {
     match variant {
         "And" => "band".into(),
@@ -742,7 +732,7 @@ macro_rules! define_mir_ops {
     ) => {
         /// The kind of a MIR instruction.
         #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-        pub(crate) enum $inst_name {
+        pub enum $inst_name {
             $(
                 $(#[doc = $doc])*
                 $variant
@@ -753,28 +743,28 @@ macro_rules! define_mir_ops {
 
         /// Generated metadata for one MIR operation.
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-        pub(crate) struct OpDef {
+        pub struct OpDef {
             /// Canonical textual operation name.
-            pub(crate) mnemonic: &'static str,
+            pub mnemonic: &'static str,
             /// Value produced by the operation.
-            pub(crate) result: ResultKind,
+            pub result: ResultKind,
             /// Phases in which this operation is valid.
-            pub(crate) phases: PhaseSet,
+            pub phases: PhaseSet,
             /// Conservative effect classification.
-            pub(crate) effect: EffectKind,
+            pub effect: EffectKind,
             /// Declarative operation properties.
-            pub(crate) traits: OpTraits,
+            pub traits: OpTraits,
             /// Whether the operation must remain observable to DCE.
-            pub(crate) has_side_effects: bool,
+            pub has_side_effects: bool,
             /// Diagnostic category used when a phase boundary is violated.
-            pub(crate) phase_category: Option<PhaseCategory>,
+            pub phase_category: Option<PhaseCategory>,
         }
 
         impl $inst_name {
             /// Returns the schema's exact operand signature, or `None` when result or module
             /// information is required by the dedicated type checker.
             #[allow(unused_variables)]
-            pub(crate) fn operand_types(&self, function: &Function) -> Option<SmallVec<[MirType; 8]>> {
+            pub fn operand_types(&self, function: &Function) -> Option<SmallVec<[MirType; 8]>> {
                 match self {
                     $(
                         Self::$variant
@@ -790,7 +780,7 @@ macro_rules! define_mir_ops {
             /// Returns the declarative definition for this operation.
             #[inline]
             #[must_use]
-            pub(crate) const fn op_def(&self) -> &'static OpDef {
+            pub const fn op_def(&self) -> &'static OpDef {
                 match self {
                     $(
                         Self::$variant $( ( $( ignore_field!($operand) ),+ ) )? $( { $( $field: _ ),+ } )? => {
@@ -815,7 +805,7 @@ macro_rules! define_mir_ops {
             /// Collects every value operand in canonical order.
             ///
             /// This is the canonical operand list for liveness and scheduling.
-            pub(crate) fn collect_operands<A: Array<Item = ValueId>>(
+            pub fn collect_operands<A: Array<Item = ValueId>>(
                 &self,
                 out: &mut SmallVec<A>,
             ) {
@@ -831,7 +821,7 @@ macro_rules! define_mir_ops {
 
             /// Visits every value operand in canonical order, without collecting them.
             #[inline]
-            pub(crate) fn visit_operands(&self, mut f: impl FnMut(ValueId)) {
+            pub fn visit_operands(&self, mut f: impl FnMut(ValueId)) {
                 self.visit_operands_dyn(&mut f);
             }
 
@@ -849,7 +839,7 @@ macro_rules! define_mir_ops {
             }
 
             /// Visits every value operand mutably, in canonical order.
-            pub(crate) fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
+            pub fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
                 match self {
                     $(
                         Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
@@ -864,7 +854,7 @@ macro_rules! define_mir_ops {
             /// size, reads before writes. Operations that reach memory only through
             /// slices, frames, or the free memory pointer have none.
             #[allow(unused_variables)]
-            pub(crate) fn visit_raw_memory(
+            pub fn visit_raw_memory(
                 &self,
                 mut f: impl FnMut(RawMemoryAccess, ValueId, RawMemorySize),
             ) {
@@ -884,7 +874,7 @@ macro_rules! define_mir_ops {
             /// Visits the offset and size operands of the raw memory ranges the operation
             /// accesses, mutably.
             #[allow(unused_variables)]
-            pub(crate) fn visit_raw_memory_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
+            pub fn visit_raw_memory_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
                 match self {
                     $(
                         Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
@@ -902,7 +892,7 @@ macro_rules! define_mir_ops {
             /// Returns the arity and constructor of an operation that is built
             /// from value operands alone, by textual mnemonic.
             #[must_use]
-            pub(crate) fn operand_only(
+            pub fn operand_only(
                 mnemonic: &str,
             ) -> Option<(usize, fn(&[ValueId]) -> Self)> {
                 match mnemonic {
@@ -915,7 +905,7 @@ macro_rules! define_mir_ops {
 
             /// Returns the rewrite-rule view of this instruction.
             #[must_use]
-            pub(crate) fn op(&self) -> Op {
+            pub fn op(&self) -> Op {
                 match self {
                     $(
                         Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => Op::$variant
@@ -927,7 +917,7 @@ macro_rules! define_mir_ops {
 
             /// Returns the diagnostic category of an operation that `phase` does not admit.
             #[must_use]
-            pub(crate) fn phase_violation(
+            pub fn phase_violation(
                 &self,
                 phase: MirPhase,
                 metadata: &InstructionMetadata,
@@ -1000,7 +990,7 @@ macro_rules! define_mir_ops {
         /// Value operands keep their identity, attributes are carried by value,
         /// and variable-length payloads are elided.
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-        pub(crate) enum Op {
+        pub enum Op {
             $(
                 $variant
                 $( { $( $operand: <$operand_ty as Operands>::View ),+ } )?
@@ -1010,7 +1000,7 @@ macro_rules! define_mir_ops {
 
         impl Op {
             /// Returns the declared result kind without rebuilding an instruction.
-            pub(crate) const fn result_kind(self) -> ResultKind {
+            pub const fn result_kind(self) -> ResultKind {
                 match self {
                     $(
                         Self::$variant $( { $( $operand: _ ),+ } )? $( { $( $field: _ ),+ } )? => ResultKind::$result,
@@ -1019,7 +1009,7 @@ macro_rules! define_mir_ops {
             }
 
             /// Returns the first value operand retained by the rewrite view.
-            pub(crate) fn first_operand(self) -> Option<ValueId> {
+            pub fn first_operand(self) -> Option<ValueId> {
                 let mut first = None;
                 let _ = self.map_values(|value| {
                     first.get_or_insert(value);
@@ -1030,12 +1020,12 @@ macro_rules! define_mir_ops {
 
             /// Orders each declared commutative pair for value-numbering keys.
             /// Other operands, including a modular operation's modulus, stay in place.
-            pub(crate) fn canonicalize_commutative(self) -> Self {
+            pub fn canonicalize_commutative(self) -> Self {
                 self.canonicalize_commutative_by_key(|value| value.index())
             }
 
             /// Orders only the declared commutative pair by the caller's key.
-            pub(crate) fn canonicalize_commutative_by_key<K: Ord>(
+            pub fn canonicalize_commutative_by_key<K: Ord>(
                 self,
                 mut key: impl FnMut(ValueId) -> K,
             ) -> Self {
@@ -1059,7 +1049,6 @@ macro_rules! define_mir_ops {
             }
 
             /// Every operation with its field names and ISLE types, in declaration order.
-            #[cfg(test)]
             const FIELDS: &'static [(&'static str, &'static [(&'static str, &'static str)])] = &[
                 $(
                     (stringify!($variant), &[
@@ -1071,7 +1060,7 @@ macro_rules! define_mir_ops {
 
             /// Rebuilds the instruction, unless a payload was elided from the view.
             #[must_use]
-            pub(crate) fn into_kind(self) -> Option<$inst_name> {
+            pub fn into_kind(self) -> Option<$inst_name> {
                 Some(match self {
                     $(
                         Self::$variant $( { $( $operand ),+ } )? $( { $( $field ),+ } )? => $inst_name::$variant
@@ -1083,7 +1072,7 @@ macro_rules! define_mir_ops {
 
             /// Applies `f` to every value operand.
             #[must_use]
-            pub(crate) fn map_values(self, mut f: impl FnMut(ValueId) -> ValueId) -> Self {
+            pub fn map_values(self, mut f: impl FnMut(ValueId) -> ValueId) -> Self {
                 match self {
                     $(
                         Self::$variant $( { $( $operand ),+ } )? $( { $( $field ),+ } )? => Self::$variant
@@ -1101,8 +1090,7 @@ impl Op {
     /// `Op` enum, and one extractor per operation matching the instruction
     /// that defines a value.
     #[must_use]
-    #[cfg(test)]
-    pub(crate) fn isle_prelude() -> String {
+    pub fn isle_prelude() -> String {
         let mut out = String::from(
             ";; Generated from the MIR operation schema by `Op::isle_prelude`; do not edit.\n\
              ;; `cargo nextest run -p solar-codegen isle_prelude` checks this file and\n\
@@ -1134,8 +1122,7 @@ impl Op {
 
     /// Returns value-definition extractors for rules that inspect MIR operands.
     #[must_use]
-    #[cfg(test)]
-    pub(crate) fn isle_extractors() -> String {
+    pub fn isle_extractors() -> String {
         let mut out = String::from(
             ";; Generated from the MIR operation schema by `Op::isle_extractors`; do not edit.\n\
              ;; `cargo nextest run -p solar-codegen isle_prelude` checks this file and\n\
@@ -2624,18 +2611,4 @@ define_mir_ops! {
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     SignExtend(byte: ValueId, value: ValueId),
 }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn isle_prelude_matches_schema() {
-        snapbox::assert_data_eq!(Op::isle_prelude(), snapbox::file!["../../isle/mir/prelude.isle"]);
-        snapbox::assert_data_eq!(
-            Op::isle_extractors(),
-            snapbox::file!["../../isle/mir/extractors.isle"]
-        );
-    }
 }

@@ -3,17 +3,17 @@
 //! Includes DOT format CFG generation for visualization.
 
 use super::{
-    BasicBlock, BlockId, EffectKind, FrameMode, FrameSlotKind, Function, FunctionId, Immediate,
-    InstId, InstKind, InstructionMetadata, MemoryRegion, MirType, Module, StorageAlias, Terminator,
-    Value, ValueId,
+    BasicBlock, BlockId, EffectKind, FrameMode, FrameSlotKind, Function, FunctionId, HirExprId,
+    Immediate, InstId, InstKind, InstructionMetadata, MemoryRegion, MirType, Module, StorageAlias,
+    Terminator, Value, ValueId,
 };
-use crate::mir::{Builtin, Callee, RequireKind, analysis::CfgInfo};
+use crate::{Builtin, Callee, RequireKind, analysis::CfgInfo};
 use arrayvec::ArrayVec;
+use solar_ast::StateMutability;
 use solar_data_structures::{
     fmt::FmtIteratorExt,
     map::{FxHashMap, FxHashSet},
 };
-use solar_sema::hir;
 use std::fmt;
 
 /// Displays a DOT format CFG for a function.
@@ -332,10 +332,10 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
             write_function_attribute(f, &mut first, "fallback")?;
         }
         match func.attributes.state_mutability {
-            hir::StateMutability::Pure => write_function_attribute(f, &mut first, "pure")?,
-            hir::StateMutability::View => write_function_attribute(f, &mut first, "view")?,
-            hir::StateMutability::Payable => write_function_attribute(f, &mut first, "payable")?,
-            hir::StateMutability::NonPayable => {}
+            StateMutability::Pure => write_function_attribute(f, &mut first, "pure")?,
+            StateMutability::View => write_function_attribute(f, &mut first, "view")?,
+            StateMutability::Payable => write_function_attribute(f, &mut first, "payable")?,
+            StateMutability::NonPayable => {}
         }
         if let Some(components) = func.return_abi() {
             write_function_attribute(
@@ -476,20 +476,20 @@ fn display_inst_kind<'a>(
             write!(
                 f,
                 "datacopy {}",
-                crate::utils::display_data_ref(name, id.id.index(), id.offset)
+                solar_evmir::link::display_data_ref(name, id.id.index(), id.offset)
             )?;
             write!(f, ", {}, {}", display_val(*dest, func), display_val(*size, func))
         }
         InstKind::DataSize(size) => {
             let name = module.and_then(|module| module.data[size.data].name);
-            write!(f, "datasize {}", crate::utils::display_data_size(name, *size))
+            write!(f, "datasize {}", solar_evmir::link::display_data_size(name, *size))
         }
         InstKind::Alloc { size, semantics } => {
             write!(f, "alloc ")?;
-            if semantics.initialization == crate::mir::AllocationInitialization::Zeroed {
+            if semantics.initialization == crate::AllocationInitialization::Zeroed {
                 write!(f, "zeroed ")?;
             }
-            if semantics.failure == crate::mir::AllocationFailure::Checked {
+            if semantics.failure == crate::AllocationFailure::Checked {
                 write!(f, "checked ")?;
             }
             write!(f, "{}", display_val(*size, func))
@@ -772,7 +772,7 @@ fn display_metadata<'a>(
     enum MetadataField<'a> {
         Storage(StorageAlias, &'a Function),
         Memory(MemoryRegion),
-        Hir(hir::ExprId),
+        Hir(HirExprId),
         Span { lo: u32, hi: u32 },
         Spans(&'a InstructionMetadata),
         ModifierDepth(u32),

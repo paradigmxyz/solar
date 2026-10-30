@@ -7,7 +7,7 @@ use std::{cmp::Ordering, fmt, num::NonZeroU32};
 
 /// An SSA value in the MIR.
 #[derive(Clone, Debug)]
-pub(crate) enum Value {
+pub enum Value {
     /// Result of an instruction.
     Inst(InstId),
     /// Function argument.
@@ -28,7 +28,7 @@ pub(crate) enum Value {
 impl Value {
     /// Returns this value as an immediate, if it is one.
     #[must_use]
-    pub(crate) const fn as_immediate(&self) -> Option<&Immediate> {
+    pub const fn as_immediate(&self) -> Option<&Immediate> {
         match self {
             Self::Immediate(imm) => Some(imm),
             _ => None,
@@ -38,7 +38,7 @@ impl Value {
 
 /// An immediate constant value.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum Immediate {
+pub enum Immediate {
     /// A one-bit integer constant.
     I1(bool),
     /// An integer constant with an explicit bit width.
@@ -55,7 +55,7 @@ impl Immediate {
     /// Integer values must fit their declared width; booleans must be zero or one.
     /// Types without a scalar or pointer payload use `i256`.
     #[must_use]
-    pub(crate) fn for_type(ty: Option<MirType>, value: U256) -> Self {
+    pub fn for_type(ty: Option<MirType>, value: U256) -> Self {
         match ty {
             Some(MirType::I1) => {
                 assert!(value <= U256::ONE, "boolean immediate must be zero or one");
@@ -76,7 +76,7 @@ impl Immediate {
 
     /// Returns the type of this immediate.
     #[must_use]
-    pub(crate) const fn ty(&self) -> MirType {
+    pub const fn ty(&self) -> MirType {
         match self {
             Self::I1(_) => MirType::I1,
             Self::I256(_) => MirType::I256,
@@ -87,7 +87,7 @@ impl Immediate {
 
     /// Returns the value as a U256, if applicable.
     #[must_use]
-    pub(crate) fn as_u256(&self) -> Option<U256> {
+    pub fn as_u256(&self) -> Option<U256> {
         match self {
             Self::I1(b) => Some(U256::from(*b as u64)),
             Self::I256(v) | Self::Int(v, _) | Self::Pointer(v, _) => Some(*v),

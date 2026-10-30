@@ -6,12 +6,12 @@ use solar_interface::{ByteSymbol, Symbol, sym};
 /// Word arguments of a custom error staged in scratch memory. The payload spans
 /// `[28, 32 * (words + 1))`; a longer one would end above the heap start at `0x80`, and a
 /// constant memory range there moves the spill area of every entry reaching it.
-pub(crate) const MAX_SCRATCH_ERROR_WORDS: usize = 3;
+pub const MAX_SCRATCH_ERROR_WORDS: usize = 3;
 
 /// Solidity's built-in `Panic(uint256)` error codes.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(crate) enum PanicCode {
+pub enum PanicCode {
     Assert = 0x01,
     ArithmeticOverflowUnderflow = 0x11,
     DivisionByZero = 0x12,
@@ -24,7 +24,7 @@ pub(crate) enum PanicCode {
 }
 
 impl PanicCode {
-    pub(crate) const fn from_u64(value: u64) -> Option<Self> {
+    pub const fn from_u64(value: u64) -> Option<Self> {
         Some(match value {
             0x01 => Self::Assert,
             0x11 => Self::ArithmeticOverflowUnderflow,
@@ -39,7 +39,7 @@ impl PanicCode {
         })
     }
 
-    pub(crate) const fn as_u64(self) -> u64 {
+    pub const fn as_u64(self) -> u64 {
         self as u64
     }
 }
@@ -51,7 +51,7 @@ impl PanicCode {
 /// attaches to the corresponding check, so a failing transaction explains which internal check
 /// rejected it.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(crate) enum RevertReason {
+pub enum RevertReason {
     /// Empty data in every mode: `require` and `revert()` without a message, stripped messages,
     /// and checks solc never attaches a message to, such as decoded ABI word validators.
     Empty,
@@ -103,7 +103,7 @@ pub(crate) enum RevertReason {
 }
 
 impl RevertReason {
-    pub(crate) const fn name(self) -> Symbol {
+    pub const fn name(self) -> Symbol {
         match self {
             Self::Empty => sym::empty,
             Self::EtherSentToNonPayable => sym::ether_sent_to_non_payable,
@@ -131,7 +131,7 @@ impl RevertReason {
         }
     }
 
-    pub(crate) fn from_name(name: Symbol) -> Option<Self> {
+    pub fn from_name(name: Symbol) -> Option<Self> {
         Some(match name {
             sym::empty => Self::Empty,
             sym::ether_sent_to_non_payable => Self::EtherSentToNonPayable,
@@ -161,7 +161,7 @@ impl RevertReason {
     }
 
     /// The message solc attaches to this check with `--revert-strings debug`, if any.
-    pub(crate) const fn message(self) -> Option<&'static str> {
+    pub const fn message(self) -> Option<&'static str> {
         Some(match self {
             Self::Empty => return None,
             Self::EtherSentToNonPayable => "Ether sent to non-payable function",
@@ -197,7 +197,7 @@ impl RevertReason {
 ///
 /// [`FunctionBuilder::check_calldata_tail_offset`]: super::FunctionBuilder::check_calldata_tail_offset
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum CalldataTail {
+pub enum CalldataTail {
     /// The calldata tail messages, used when HIR lowering accesses or copies calldata.
     Access,
     /// The "Invalid calldata access" messages, used when the encoder copies `bytes[]`.
@@ -207,7 +207,7 @@ pub(crate) enum CalldataTail {
 }
 
 impl CalldataTail {
-    pub(crate) const fn offset_reason(self) -> RevertReason {
+    pub const fn offset_reason(self) -> RevertReason {
         match self {
             Self::Access => RevertReason::InvalidCalldataTailOffset,
             Self::Encode => RevertReason::InvalidCalldataAccessOffset,
@@ -215,7 +215,7 @@ impl CalldataTail {
         }
     }
 
-    pub(crate) const fn length_reason(self) -> RevertReason {
+    pub const fn length_reason(self) -> RevertReason {
         match self {
             Self::Access => RevertReason::InvalidCalldataTailLength,
             Self::Encode => RevertReason::InvalidCalldataAccessLength,
@@ -223,7 +223,7 @@ impl CalldataTail {
         }
     }
 
-    pub(crate) const fn stride_reason(self) -> RevertReason {
+    pub const fn stride_reason(self) -> RevertReason {
         match self {
             Self::Access => RevertReason::CalldataTailTooShort,
             Self::Encode => RevertReason::InvalidCalldataAccessStride,
@@ -233,14 +233,14 @@ impl CalldataTail {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(crate) enum RevertKind {
+pub enum RevertKind {
     Panic(PanicCode),
     Reason(RevertReason),
 }
 
 /// Evaluated arguments of a Solidity revert payload; encoding occurs only on failure.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum RevertPayload {
+pub enum RevertPayload {
     ShortString { length: ValueId, data: ValueId },
     LongString(ByteSymbol),
     EmptyString,

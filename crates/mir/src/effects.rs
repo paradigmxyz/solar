@@ -6,27 +6,25 @@
 //! requires dependence and profitability proofs; a memory read may expand EVM memory.
 
 use super::{EffectKind, InstKind};
-use crate::mir::{AddressCallKind, Builtin, Callee, PtrLocation};
+use crate::{AddressCallKind, Builtin, Callee, PtrLocation};
 
 /// Control behavior that must survive even when an operation's result is unused.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct ControlEffects {
-    pub(crate) may_revert: bool,
-    pub(crate) may_diverge: bool,
-    pub(crate) may_terminate: bool,
+pub struct ControlEffects {
+    pub may_revert: bool,
+    pub may_diverge: bool,
+    pub may_terminate: bool,
 }
 
 impl ControlEffects {
-    pub(crate) const NONE: Self =
-        Self { may_revert: false, may_diverge: false, may_terminate: false };
-    pub(crate) const UNKNOWN: Self =
-        Self { may_revert: true, may_diverge: true, may_terminate: true };
+    pub const NONE: Self = Self { may_revert: false, may_diverge: false, may_terminate: false };
+    pub const UNKNOWN: Self = Self { may_revert: true, may_diverge: true, may_terminate: true };
 
-    pub(crate) const fn any(self) -> bool {
+    pub const fn any(self) -> bool {
         self.may_revert || self.may_diverge || self.may_terminate
     }
 
-    pub(crate) fn merge(&mut self, other: Self) {
+    pub fn merge(&mut self, other: Self) {
         self.may_revert |= other.may_revert;
         self.may_diverge |= other.may_diverge;
         self.may_terminate |= other.may_terminate;
@@ -35,10 +33,10 @@ impl ControlEffects {
 
 /// Derived instruction properties, never stored alongside every instruction.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct InstructionEffects {
-    pub(crate) control: ControlEffects,
-    pub(crate) observable: bool,
-    pub(crate) expands_memory: bool,
+pub struct InstructionEffects {
+    pub control: ControlEffects,
+    pub observable: bool,
+    pub expands_memory: bool,
     observes_execution: bool,
     has_identity: bool,
     idempotent_write: bool,
@@ -46,12 +44,12 @@ pub(crate) struct InstructionEffects {
 
 impl InstructionEffects {
     /// Whether removing an unused operation could remove required behavior.
-    pub(crate) const fn must_execute(self) -> bool {
+    pub const fn must_execute(self) -> bool {
         self.observable || self.control.any()
     }
 
     /// Whether equal operands and unchanged read/write dependencies allow sharing a result.
-    pub(crate) const fn can_common(self) -> bool {
+    pub const fn can_common(self) -> bool {
         (!self.observable || self.idempotent_write)
             && !self.control.any()
             && !self.observes_execution
@@ -59,20 +57,20 @@ impl InstructionEffects {
     }
 
     /// Whether motion still needs an execution guarantee or a more specific safety proof.
-    pub(crate) const fn can_speculate(self) -> bool {
+    pub const fn can_speculate(self) -> bool {
         self.can_common() && !self.observable && !self.expands_memory
     }
 
     /// Whether the result reads the state of execution, such as remaining gas or memory size,
     /// so two evaluations with the same operands can differ.
-    pub(crate) const fn observes_execution(self) -> bool {
+    pub const fn observes_execution(self) -> bool {
         self.observes_execution
     }
 }
 
 impl InstKind {
     /// Whether this operation reads remaining gas, directly or during builtin expansion.
-    pub(crate) const fn observes_gas(&self) -> bool {
+    pub const fn observes_gas(&self) -> bool {
         matches!(
             self,
             Self::Gas
@@ -88,7 +86,7 @@ impl InstKind {
 
     /// Whether this operation reads account state, a balance or deployed code, which
     /// [`may_change_account_state`](Self::may_change_account_state) operations can change.
-    pub(crate) const fn reads_account_state(&self) -> bool {
+    pub const fn reads_account_state(&self) -> bool {
         matches!(
             self,
             Self::ExtCodeSize(_) | Self::ExtCodeHash(_) | Self::Balance(_) | Self::SelfBalance
@@ -97,7 +95,7 @@ impl InstKind {
 
     /// Whether this operation can move value or deploy or destroy code. Static calls cannot:
     /// the static context forbids value transfers, `CREATE`, and `SELFDESTRUCT`.
-    pub(crate) const fn may_change_account_state(&self) -> bool {
+    pub const fn may_change_account_state(&self) -> bool {
         matches!(
             self.effect_kind(),
             EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
@@ -115,7 +113,7 @@ impl InstKind {
     }
 
     /// Returns context-free effects; use alias and call summaries for resource footprints.
-    pub(crate) const fn effects(&self) -> InstructionEffects {
+    pub const fn effects(&self) -> InstructionEffects {
         let control = match self {
             Self::ICall {
                 function: Callee::Builtin(Builtin::ReturndataBytes | Builtin::Transfer),

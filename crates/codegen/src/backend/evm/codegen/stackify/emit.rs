@@ -7,7 +7,8 @@ use crate::{
         evm::{
             DebugFunctionExit,
             codegen::{
-                Body, EvmCodegen, StackOp, select::rematerializable_nullary_value,
+                Body, EvmCodegen, StackOp,
+                select::{InstKindOpcode, rematerializable_nullary_value},
                 values::gas_minus,
             },
             op::{self, WORD_BYTES},

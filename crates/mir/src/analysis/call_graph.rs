@@ -1,12 +1,12 @@
 //! Module-level call graph facts for MIR.
 
-use crate::mir::{Callee, Function, FunctionId, InstKind, Module, Terminator};
+use crate::{Callee, Function, FunctionId, InstKind, Module, Terminator};
 use solar_data_structures::{bit_set::DenseBitSet, graph::sccs, map::FxHashMap};
 use std::collections::VecDeque;
 
 /// Module-level internal-call graph facts.
 #[derive(Clone, Debug)]
-pub(crate) struct CallGraphInfo {
+pub struct CallGraphInfo {
     callees: FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
     reachable_from_entries: DenseBitSet<FunctionId>,
     recursive_functions: DenseBitSet<FunctionId>,
@@ -15,7 +15,7 @@ pub(crate) struct CallGraphInfo {
 impl CallGraphInfo {
     /// Computes call graph facts for `module`.
     #[must_use]
-    pub(crate) fn new(module: &Module) -> Self {
+    pub fn new(module: &Module) -> Self {
         let function_count = module.functions.len();
         let mut callees = FxHashMap::default();
         let mut entry_functions = DenseBitSet::new_empty(function_count);
@@ -44,19 +44,19 @@ impl CallGraphInfo {
 
     /// Returns all functions reachable from entry functions.
     #[must_use]
-    pub(crate) fn reachable_from_entries(&self) -> &DenseBitSet<FunctionId> {
+    pub fn reachable_from_entries(&self) -> &DenseBitSet<FunctionId> {
         &self.reachable_from_entries
     }
 
     /// Returns true if `func` is directly or indirectly recursive.
     #[must_use]
-    pub(crate) fn is_recursive(&self, func: FunctionId) -> bool {
+    pub fn is_recursive(&self, func: FunctionId) -> bool {
         self.recursive_functions.contains(func)
     }
 
     /// Returns the strongly connected recursive component containing `root`.
     #[must_use]
-    pub(crate) fn recursive_component(&self, root: FunctionId) -> DenseBitSet<FunctionId> {
+    pub fn recursive_component(&self, root: FunctionId) -> DenseBitSet<FunctionId> {
         let mut component = DenseBitSet::new_empty(self.reachable_from_entries.domain_size());
         if !self.is_recursive(root) {
             return component;
@@ -74,13 +74,13 @@ impl CallGraphInfo {
     }
 
     /// Returns the functions `func` calls or tail-calls directly, in ascending order.
-    pub(crate) fn callees(&self, func: FunctionId) -> impl Iterator<Item = FunctionId> + '_ {
+    pub fn callees(&self, func: FunctionId) -> impl Iterator<Item = FunctionId> + '_ {
         self.callees.get(&func).into_iter().flatten()
     }
 
     /// Returns functions reachable from `roots` through MIR call edges.
     #[must_use]
-    pub(crate) fn reachable_callees_from(
+    pub fn reachable_callees_from(
         &self,
         roots: impl IntoIterator<Item = FunctionId>,
     ) -> DenseBitSet<FunctionId> {
@@ -88,7 +88,7 @@ impl CallGraphInfo {
     }
 
     /// Collects direct call targets, including tail calls, without building graph analyses.
-    pub(crate) fn collect_internal_callees(
+    pub fn collect_internal_callees(
         func: &Function,
         function_count: usize,
     ) -> DenseBitSet<FunctionId> {
@@ -143,7 +143,7 @@ fn reachable_in_graph(
 ///
 /// Tail calls transfer control to another function body: for reachability and recursion
 /// purposes they are call edges.
-pub(crate) fn direct_callees(func: &Function) -> impl Iterator<Item = FunctionId> + '_ {
+pub fn direct_callees(func: &Function) -> impl Iterator<Item = FunctionId> + '_ {
     let calls = func.instructions().filter_map(|inst| match func.inst(inst).kind {
         InstKind::ICall { function: Callee::Function(function), .. } => Some(function),
         _ => None,

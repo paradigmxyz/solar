@@ -8,7 +8,7 @@ use std::marker::PhantomData;
 
 /// Per-index lists stored contiguously in index order.
 #[derive(Clone, Debug)]
-pub(crate) struct IndexLists<I, T> {
+pub struct IndexLists<I, T> {
     /// The list of index `i` is `items[starts[i]..starts[i + 1]]`.
     starts: Vec<u32>,
     items: Vec<T>,
@@ -17,7 +17,7 @@ pub(crate) struct IndexLists<I, T> {
 
 impl<I: Idx, T: Copy> IndexLists<I, T> {
     /// Groups `(index, item)` pairs over `len` indices, keeping each index's items in pair order.
-    pub(crate) fn new(len: usize, pairs: impl Iterator<Item = (I, T)> + Clone) -> Self {
+    pub fn new(len: usize, pairs: impl Iterator<Item = (I, T)> + Clone) -> Self {
         let mut starts = vec![0u32; len + 1];
         for (index, _) in pairs.clone() {
             starts[index.index() + 1] += 1;
@@ -46,7 +46,7 @@ impl<I: Idx, T: Copy> IndexLists<I, T> {
     }
 
     /// Returns the list of `index`, or an empty list outside the domain.
-    pub(crate) fn get(&self, index: I) -> &[T] {
+    pub fn get(&self, index: I) -> &[T] {
         match self.starts.get(index.index()..index.index() + 2) {
             Some(&[start, end]) => &self.items[start as usize..end as usize],
             _ => &[],

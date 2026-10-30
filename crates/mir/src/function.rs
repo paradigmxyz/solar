@@ -7,6 +7,7 @@ use super::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
+use solar_ast::{StateMutability, Visibility};
 use solar_config::OptimizationMode;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -15,46 +16,45 @@ use solar_data_structures::{
     map::{FxHashMap, StdEntry},
 };
 use solar_interface::{Ident, Span, Symbol};
-use solar_sema::hir::{StateMutability, Visibility};
 use std::fmt;
 
 /// A function in the MIR.
 #[derive(Clone, Debug)]
-pub(crate) struct Function {
+pub struct Function {
     /// Function name used by codegen.
-    pub(crate) name: MangledSymbol,
+    pub name: MangledSymbol,
     /// Source span of the function name.
-    pub(crate) name_span: Span,
+    pub name_span: Span,
     /// Source span of the complete function declaration.
-    pub(crate) declaration_span: Span,
+    pub declaration_span: Span,
     /// Source-language identifier retained independently of the MIR symbol.
-    pub(crate) debug_identifier: Option<Symbol>,
+    pub debug_identifier: Option<Symbol>,
     /// Function selector (4 bytes, for external functions).
-    pub(crate) selector: Option<[u8; 4]>,
+    pub selector: Option<[u8; 4]>,
     /// Function attributes.
-    pub(crate) attributes: FunctionAttributes,
+    pub attributes: FunctionAttributes,
     /// Parameter types.
-    pub(crate) params: IndexVec<ArgIdx, MirType>,
+    pub params: IndexVec<ArgIdx, MirType>,
     /// The function's single logical result, or `void`.
     return_type: MirType,
     /// Components selected by internal ABI lowering. The logical result stays intact.
     return_abi: Option<Box<[MirType]>>,
     /// ABI layout of values returned by an external entry before `lower-abi`
     /// materializes returndata encoding.
-    pub(crate) abi_returns: Option<AbiLayoutRef>,
+    pub abi_returns: Option<AbiLayoutRef>,
     /// ABI return shape with scalar type information retained until `lower-abi`.
-    pub(crate) abi_return_params: Option<AbiParamLayout>,
+    pub abi_return_params: Option<AbiParamLayout>,
     /// ABI input layout retained until `lower-abi` materializes aggregate parameters.
-    pub(crate) abi_params: Option<AbiParamLayout>,
+    pub abi_params: Option<AbiParamLayout>,
     /// Source locations for the ABI parameters retained until `lower-abi`.
-    pub(crate) abi_param_locations: Option<Box<[AbiParamLocation]>>,
+    pub abi_param_locations: Option<Box<[AbiParamLocation]>>,
     /// Bytes reserved for lowered local memory slots.
     ///
     /// Internal-call functions place these in the internal frame; external entries
     /// reserve the same space in their low-memory scratch layout.
-    pub(crate) internal_frame_size: u64,
+    pub internal_frame_size: u64,
     /// Bytes reserved for the low-memory external ABI return buffer.
-    pub(crate) external_static_return_size: u64,
+    pub external_static_return_size: u64,
     /// All values allocated in this function.
     ///
     /// Values remain allocated after their uses or defining instruction are removed, so this is
@@ -72,13 +72,13 @@ pub(crate) struct Function {
     /// [`Self::inst`] or [`Self::inst_mut`] for ID-based access.
     instructions: IndexVec<InstId, Instruction>,
     /// All basic blocks in this function. This is never empty; block zero is the entry.
-    pub(crate) blocks: IndexVec<BlockId, BasicBlock>,
+    pub blocks: IndexVec<BlockId, BasicBlock>,
 }
 
 impl Function {
     /// Creates a new function.
     #[must_use]
-    pub(crate) fn new(name: Ident) -> Self {
+    pub fn new(name: Ident) -> Self {
         let mut blocks = IndexVec::new();
         let entry = blocks.push(BasicBlock::new());
         debug_assert_eq!(entry, BlockId::ENTRY);
@@ -107,18 +107,18 @@ impl Function {
     }
 
     /// Returns the function's single logical result type.
-    pub(crate) fn return_type(&self) -> MirType {
+    pub fn return_type(&self) -> MirType {
         self.return_type
     }
 
     /// Sets the single logical result before selecting its internal ABI.
-    pub(crate) fn set_return_type(&mut self, ty: MirType) {
+    pub fn set_return_type(&mut self, ty: MirType) {
         self.return_type = ty;
         self.return_abi = None;
     }
 
     /// Selects the components delivered by the internal calling convention.
-    pub(crate) fn set_return_abi(&mut self, components: impl Into<Box<[MirType]>>) {
+    pub fn set_return_abi(&mut self, components: impl Into<Box<[MirType]>>) {
         let components = components.into();
         self.return_abi = if (self.return_type == MirType::Void && components.is_empty())
             || (self.return_type != MirType::Void && components.as_ref() == [self.return_type])
@@ -130,12 +130,12 @@ impl Function {
     }
 
     /// Returns the selected internal ABI, if lowering has materialized it.
-    pub(crate) fn return_abi(&self) -> Option<&[MirType]> {
+    pub fn return_abi(&self) -> Option<&[MirType]> {
         self.return_abi.as_deref()
     }
 
     /// Returns the logical value before ABI lowering, then its physical components.
-    pub(crate) fn return_components(&self) -> &[MirType] {
+    pub fn return_components(&self) -> &[MirType] {
         self.return_abi.as_deref().unwrap_or_else(|| {
             if self.return_type == MirType::Void {
                 &[]
@@ -146,7 +146,7 @@ impl Function {
     }
 
     /// Returns whether this function is an external ABI entry.
-    pub(crate) fn is_external_entry(&self) -> bool {
+    pub fn is_external_entry(&self) -> bool {
         self.selector.is_some()
             || self.attributes.is_constructor
             || self.attributes.is_receive
@@ -155,31 +155,31 @@ impl Function {
 
     /// Returns whether the runtime dispatches to this function: an external entry other than the
     /// constructor.
-    pub(crate) fn is_runtime_entry(&self) -> bool {
+    pub fn is_runtime_entry(&self) -> bool {
         self.is_external_entry() && !self.attributes.is_constructor
     }
 
     /// Returns the value for the given ID.
     #[must_use]
-    pub(crate) fn value(&self, id: ValueId) -> &Value {
+    pub fn value(&self, id: ValueId) -> &Value {
         &self.values[id]
     }
 
     /// Returns a mutable reference to the value for the given ID.
     #[must_use]
-    pub(crate) fn value_mut(&mut self, id: ValueId) -> &mut Value {
+    pub fn value_mut(&mut self, id: ValueId) -> &mut Value {
         &mut self.values[id]
     }
 
     /// Returns the size of the allocated value ID domain.
     #[must_use]
-    pub(crate) fn num_values(&self) -> usize {
+    pub fn num_values(&self) -> usize {
         self.values.len()
     }
 
     /// Returns the type of a value, if it has one.
     #[must_use]
-    pub(crate) fn value_ty(&self, id: ValueId) -> Option<MirType> {
+    pub fn value_ty(&self, id: ValueId) -> Option<MirType> {
         match self.value(id) {
             Value::Inst(inst) => self.inst(*inst).result_ty,
             Value::Arg(index) => Some(self.arg_ty(*index)),
@@ -191,7 +191,7 @@ impl Function {
 
     /// Returns the kind of the instruction that defines a value, if an instruction does.
     #[must_use]
-    pub(crate) fn value_inst_kind(&self, id: ValueId) -> Option<&InstKind> {
+    pub fn value_inst_kind(&self, id: ValueId) -> Option<&InstKind> {
         match self.value(id) {
             Value::Inst(inst) => Some(&self.inst(*inst).kind),
             _ => None,
@@ -200,7 +200,7 @@ impl Function {
 
     /// Returns the slice location of a value, if it is slice-typed.
     #[must_use]
-    pub(crate) fn value_slice_location(&self, id: ValueId) -> Option<PtrLocation> {
+    pub fn value_slice_location(&self, id: ValueId) -> Option<PtrLocation> {
         match self.value_ty(id) {
             Some(MirType::Slice(location)) => Some(location),
             _ => None,
@@ -209,7 +209,7 @@ impl Function {
 
     /// Whether `value` is a word loaded from a memory object, which may hold a memory reference.
     #[must_use]
-    pub(crate) fn memory_object_load(&self, value: ValueId) -> bool {
+    pub fn memory_object_load(&self, value: ValueId) -> bool {
         matches!(self.value(value), Value::Inst(inst) if matches!(
             self.inst(*inst).kind,
             InstKind::Load(address, PtrLocation::Memory)
@@ -221,7 +221,7 @@ impl Function {
 
     /// Returns the element index of a word offset `shl index, 5`.
     #[must_use]
-    pub(crate) fn word_index(&self, offset: ValueId) -> Option<ValueId> {
+    pub fn word_index(&self, offset: ValueId) -> Option<ValueId> {
         let Value::Inst(inst) = self.value(offset) else { return None };
         match self.inst(*inst).kind {
             InstKind::Shl(shift, index)
@@ -239,7 +239,7 @@ impl Function {
     /// Returns the object and length of a store to an object's length word:
     /// `mstore object, len`, also through a pointer cast.
     #[must_use]
-    pub(crate) fn memory_length_store(&self, inst: InstId) -> Option<(ValueId, ValueId)> {
+    pub fn memory_length_store(&self, inst: InstId) -> Option<(ValueId, ValueId)> {
         let InstKind::Store(address, len, PtrLocation::Memory) = self.inst(inst).kind else {
             return None;
         };
@@ -254,7 +254,7 @@ impl Function {
     /// Resolves an address to the object it points into and its byte offset from the object
     /// start, through pointer casts, constant additions, and memory slices of the object.
     #[must_use]
-    pub(crate) fn object_address(&self, mut value: ValueId) -> Option<(ValueId, u64)> {
+    pub fn object_address(&self, mut value: ValueId) -> Option<(ValueId, u64)> {
         let mut offset = 0_u64;
         for _ in 0..self.num_values() {
             let Value::Inst(inst) = self.value(value) else { break };
@@ -281,7 +281,7 @@ impl Function {
 
     /// Returns the constant byte size of the allocation that defines `value`.
     #[must_use]
-    pub(crate) fn alloc_size(&self, value: ValueId) -> Option<u64> {
+    pub fn alloc_size(&self, value: ValueId) -> Option<u64> {
         let Value::Inst(inst) = self.value(value) else { return None };
         let InstKind::Alloc { size, .. } = self.inst(*inst).kind else { return None };
         self.value_u64(size)
@@ -291,7 +291,7 @@ impl Function {
     /// offsets around it, to the object it points into, the byte offset of word zero from the
     /// object start, and the index.
     #[must_use]
-    pub(crate) fn element_address(&self, address: ValueId) -> Option<(ValueId, u64, ValueId)> {
+    pub fn element_address(&self, address: ValueId) -> Option<(ValueId, u64, ValueId)> {
         let (address, outer) = self.object_address(address)?;
         let Value::Inst(inst) = self.value(address) else { return None };
         let InstKind::PtrAdd(base, offset) = self.inst(*inst).kind else { return None };
@@ -303,7 +303,7 @@ impl Function {
     /// Resolves the address of a word access to the object it reaches, the word-aligned byte offset
     /// of the word (of word zero for a runtime index), and the index, if any.
     #[must_use]
-    pub(crate) fn word_access(&self, address: ValueId) -> Option<(ValueId, u64, Option<ValueId>)> {
+    pub fn word_access(&self, address: ValueId) -> Option<(ValueId, u64, Option<ValueId>)> {
         let (object, offset, index) = match self.element_address(address) {
             Some((object, offset, index)) => (object, offset, Some(index)),
             None => {
@@ -317,7 +317,7 @@ impl Function {
     /// Returns whether an instruction only derives an address from another one, as
     /// [`Self::object_address`] follows.
     #[must_use]
-    pub(crate) fn is_object_derivation(&self, inst: InstId) -> bool {
+    pub fn is_object_derivation(&self, inst: InstId) -> bool {
         match self.inst(inst).kind {
             InstKind::PtrToInt(_, 256)
             | InstKind::IntToPtr(_)
@@ -334,12 +334,12 @@ impl Function {
 
     /// Returns the type of an argument.
     #[must_use]
-    pub(crate) fn arg_ty(&self, index: ArgIdx) -> MirType {
+    pub fn arg_ty(&self, index: ArgIdx) -> MirType {
         self.arg_types[index]
     }
 
     /// Updates an argument's retained type and its callable parameter type, if present.
-    pub(crate) fn set_arg_ty(&mut self, index: ArgIdx, ty: MirType) {
+    pub fn set_arg_ty(&mut self, index: ArgIdx, ty: MirType) {
         self.arg_types[index] = ty;
         if let Some(param) = self.params.get_mut(index) {
             *param = ty;
@@ -347,7 +347,7 @@ impl Function {
     }
 
     /// Returns all argument indexes.
-    pub(crate) fn arg_indices(&self) -> impl Iterator<Item = ArgIdx> + use<> {
+    pub fn arg_indices(&self) -> impl Iterator<Item = ArgIdx> + use<> {
         self.arg_types.indices()
     }
 
@@ -355,7 +355,7 @@ impl Function {
     ///
     /// Each operand occurrence is retained, including operands in terminators.
     #[must_use]
-    pub(crate) fn arg_uses(&self) -> IndexVec<ArgIdx, Vec<ValueId>> {
+    pub fn arg_uses(&self) -> IndexVec<ArgIdx, Vec<ValueId>> {
         let mut uses = IndexVec::with_capacity(self.arg_types.len());
         for _ in self.arg_types.indices() {
             uses.push(Vec::new());
@@ -370,19 +370,19 @@ impl Function {
 
     /// Returns an immediate value as U256.
     #[must_use]
-    pub(crate) fn value_u256(&self, id: ValueId) -> Option<U256> {
+    pub fn value_u256(&self, id: ValueId) -> Option<U256> {
         self.value(id).as_immediate()?.as_u256()
     }
 
     /// Returns an immediate value as u64 when lossless.
     #[must_use]
-    pub(crate) fn value_u64(&self, id: ValueId) -> Option<u64> {
+    pub fn value_u64(&self, id: ValueId) -> Option<u64> {
         self.value_u256(id).and_then(super::utils::u256_to_u64)
     }
 
     /// Returns whether the instruction stores a full word to the free-memory-pointer slot.
     #[must_use]
-    pub(crate) fn is_fmp_slot_store(&self, id: InstId) -> bool {
+    pub fn is_fmp_slot_store(&self, id: InstId) -> bool {
         matches!(
             self.inst(id).kind,
             InstKind::Store(ptr, _, PtrLocation::Memory)
@@ -392,13 +392,13 @@ impl Function {
 
     /// Returns whether the block stores a full word to the free-memory-pointer slot.
     #[must_use]
-    pub(crate) fn block_stores_fmp_slot(&self, block: &BasicBlock) -> bool {
+    pub fn block_stores_fmp_slot(&self, block: &BasicBlock) -> bool {
         block.instructions.iter().any(|&id| self.is_fmp_slot_store(id))
     }
 
     /// Returns a possibly replaced immediate value as U256.
     #[must_use]
-    pub(crate) fn value_u256_after_replacements(
+    pub fn value_u256_after_replacements(
         &self,
         id: ValueId,
         replacements: &FxHashMap<ValueId, ValueId>,
@@ -408,24 +408,24 @@ impl Function {
 
     /// Returns the instruction for the given ID.
     #[must_use]
-    pub(crate) fn inst(&self, id: InstId) -> &Instruction {
+    pub fn inst(&self, id: InstId) -> &Instruction {
         &self.instructions[id]
     }
 
     /// Returns a mutable reference to the instruction for the given ID.
     #[must_use]
-    pub(crate) fn inst_mut(&mut self, id: InstId) -> &mut Instruction {
+    pub fn inst_mut(&mut self, id: InstId) -> &mut Instruction {
         &mut self.instructions[id]
     }
 
     /// Returns the size of the allocated instruction ID domain.
     #[must_use]
-    pub(crate) fn num_insts(&self) -> usize {
+    pub fn num_insts(&self) -> usize {
         self.instructions.len()
     }
 
     /// Returns the IDs of all active instructions in block order.
-    pub(crate) fn instructions(&self) -> impl Iterator<Item = InstId> + '_ {
+    pub fn instructions(&self) -> impl Iterator<Item = InstId> + '_ {
         self.blocks.iter().flat_map(|block| block.instructions.iter().copied())
     }
 
@@ -433,7 +433,7 @@ impl Function {
     ///
     /// Each instruction yields its operands followed by its result, if any. Terminator operands
     /// follow the instructions in their block. A value is yielded once for every occurrence.
-    pub(crate) fn live_values(&self) -> impl Iterator<Item = ValueId> + '_ {
+    pub fn live_values(&self) -> impl Iterator<Item = ValueId> + '_ {
         LiveValues { func: self, block: BlockId::ENTRY, inst: 0, values: SmallVec::new(), next: 0 }
     }
 
@@ -442,7 +442,7 @@ impl Function {
     /// Codegen calls this after the canonical pass pipeline and final phase check. Keep this
     /// limited to replacing immediate uses with an equal immediate unless the caller adds
     /// another validation boundary.
-    pub(crate) fn canonicalize_immediate_uses(&mut self) -> usize {
+    pub fn canonicalize_immediate_uses(&mut self) -> usize {
         let mut canonical = FxHashMap::<Immediate, ValueId>::default();
         let mut replacements = FxHashMap::default();
         for value in self.live_values() {
@@ -482,7 +482,7 @@ impl Function {
     /// lowered operand occurrences denote the same physical word, which is
     /// required for carrying an argument through stack layouts without first
     /// materializing a memory home.
-    pub(crate) fn canonicalize_argument_uses(&mut self) -> usize {
+    pub fn canonicalize_argument_uses(&mut self) -> usize {
         if self.arg_types.is_empty() {
             return 0;
         }
@@ -519,7 +519,7 @@ impl Function {
     }
 
     /// Calls `f` for every active instruction in block order.
-    pub(crate) fn for_each_instruction_mut(&mut self, mut f: impl FnMut(InstId, &mut Instruction)) {
+    pub fn for_each_instruction_mut(&mut self, mut f: impl FnMut(InstId, &mut Instruction)) {
         let blocks = &self.blocks;
         let instructions = &mut self.instructions;
         for block in blocks {
@@ -531,7 +531,7 @@ impl Function {
 
     /// Returns an instruction's position among allocated value-producing instructions.
     #[must_use]
-    pub(crate) fn inst_result_index(&self, id: InstId) -> Option<usize> {
+    pub fn inst_result_index(&self, id: InstId) -> Option<usize> {
         self.instructions
             .iter_enumerated()
             .filter(|(_, inst)| inst.result_ty.is_some())
@@ -540,7 +540,7 @@ impl Function {
 
     /// Returns the value produced by the given instruction, if it has one.
     #[must_use]
-    pub(crate) fn inst_result_value(&self, id: InstId) -> Option<ValueId> {
+    pub fn inst_result_value(&self, id: InstId) -> Option<ValueId> {
         self.instructions[id].result()
     }
 
@@ -548,7 +548,7 @@ impl Function {
     ///
     /// The allocated value remains in the arena as an undefined value because IDs are stable for
     /// the lifetime of a function. Callers must prove that the result has no remaining active uses.
-    pub(crate) fn remove_inst_result(&mut self, id: InstId) -> Option<ValueId> {
+    pub fn remove_inst_result(&mut self, id: InstId) -> Option<ValueId> {
         let ty = self.instructions[id].result_ty.take()?;
         let result = self.instructions[id]
             .set_result(None)
@@ -559,7 +559,7 @@ impl Function {
 
     /// Returns the block containing each placed instruction, indexed by instruction.
     #[must_use]
-    pub(crate) fn inst_block_table(&self) -> IndexVec<InstId, Option<BlockId>> {
+    pub fn inst_block_table(&self) -> IndexVec<InstId, Option<BlockId>> {
         let mut inst_blocks = IndexVec::from_vec(vec![None; self.instructions.len()]);
         for (block_id, block) in self.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
@@ -571,7 +571,7 @@ impl Function {
 
     /// Returns true if the block contains any phi instruction.
     #[must_use]
-    pub(crate) fn block_has_phi(&self, block: BlockId) -> bool {
+    pub fn block_has_phi(&self, block: BlockId) -> bool {
         self.blocks[block]
             .instructions
             .iter()
@@ -580,7 +580,7 @@ impl Function {
 
     /// Returns true if every instruction in the block is a phi instruction.
     #[must_use]
-    pub(crate) fn block_has_only_phis(&self, block: BlockId) -> bool {
+    pub fn block_has_only_phis(&self, block: BlockId) -> bool {
         self.blocks[block]
             .instructions
             .iter()
@@ -589,7 +589,7 @@ impl Function {
 
     /// Returns the result values produced by phi instructions in the block.
     #[must_use]
-    pub(crate) fn block_phi_results(&self, block: BlockId) -> DenseBitSet<ValueId> {
+    pub fn block_phi_results(&self, block: BlockId) -> DenseBitSet<ValueId> {
         let mut results = DenseBitSet::new_empty(self.num_values());
         for &inst_id in &self.blocks[block].instructions {
             if matches!(self.instructions[inst_id].kind, InstKind::Phi(_))
@@ -603,17 +603,17 @@ impl Function {
 
     /// Returns the basic block for the given ID.
     #[must_use]
-    pub(crate) fn block(&self, id: BlockId) -> &BasicBlock {
+    pub fn block(&self, id: BlockId) -> &BasicBlock {
         &self.blocks[id]
     }
 
     /// Returns a mutable reference to the basic block.
-    pub(crate) fn block_mut(&mut self, id: BlockId) -> &mut BasicBlock {
+    pub fn block_mut(&mut self, id: BlockId) -> &mut BasicBlock {
         &mut self.blocks[id]
     }
 
     /// Allocates a new value.
-    pub(crate) fn alloc_value(&mut self, value: Value) -> ValueId {
+    pub fn alloc_value(&mut self, value: Value) -> ValueId {
         assert!(
             !matches!(value, Value::Inst(_)),
             "instruction results must be allocated with their instruction"
@@ -622,7 +622,7 @@ impl Function {
     }
 
     /// Adds a parameter and allocates its argument value.
-    pub(crate) fn alloc_param(&mut self, ty: MirType) -> ValueId {
+    pub fn alloc_param(&mut self, ty: MirType) -> ValueId {
         let index = self.params.push(ty);
         let arg_index = self.arg_types.push(ty);
         assert_eq!(arg_index, index, "parameter and argument type indexes must match");
@@ -630,25 +630,25 @@ impl Function {
     }
 
     /// Adds a retained argument type and allocates its value without changing the signature.
-    pub(crate) fn alloc_implicit_arg(&mut self, ty: MirType) -> ValueId {
+    pub fn alloc_implicit_arg(&mut self, ty: MirType) -> ValueId {
         let index = self.arg_types.push(ty);
         self.alloc_arg(index)
     }
 
     /// Allocates a value referring to an existing argument.
-    pub(crate) fn alloc_arg(&mut self, index: ArgIdx) -> ValueId {
+    pub fn alloc_arg(&mut self, index: ArgIdx) -> ValueId {
         let _ = self.arg_ty(index);
         self.alloc_value(Value::Arg(index))
     }
 
     /// Replaces both the callable parameters and their retained type table.
-    pub(crate) fn set_params(&mut self, params: IndexVec<ArgIdx, MirType>) {
+    pub fn set_params(&mut self, params: IndexVec<ArgIdx, MirType>) {
         self.arg_types = params.clone();
         self.params = params;
     }
 
     /// Allocates a value-producing instruction and its result value.
-    pub(crate) fn alloc_value_inst(&mut self, mut inst: Instruction) -> (InstId, ValueId) {
+    pub fn alloc_value_inst(&mut self, mut inst: Instruction) -> (InstId, ValueId) {
         assert!(inst.result_ty.is_some(), "value-producing instruction must have a result type");
 
         let inst_id = self.instructions.next_idx();
@@ -662,11 +662,7 @@ impl Function {
     }
 
     /// Allocates a value-producing instruction for a preallocated undefined result value.
-    pub(crate) fn alloc_inst_with_result(
-        &mut self,
-        mut inst: Instruction,
-        result: ValueId,
-    ) -> InstId {
+    pub fn alloc_inst_with_result(&mut self, mut inst: Instruction, result: ValueId) -> InstId {
         assert!(inst.result_ty.is_some(), "value-producing instruction must have a result type");
         assert!(
             matches!(self.values[result], Value::Undef(_)),
@@ -682,19 +678,19 @@ impl Function {
     }
 
     /// Allocates an instruction that produces no value.
-    pub(crate) fn alloc_inst(&mut self, mut inst: Instruction) -> InstId {
+    pub fn alloc_inst(&mut self, mut inst: Instruction) -> InstId {
         assert!(inst.result_ty.is_none(), "value-producing instruction must allocate its result");
         inst.set_result(None);
         self.instructions.push(inst)
     }
 
     /// Allocates a new basic block.
-    pub(crate) fn alloc_block(&mut self) -> BlockId {
+    pub fn alloc_block(&mut self) -> BlockId {
         self.blocks.push(BasicBlock::new())
     }
 
     /// Replaces all value uses according to a one-step replacement map.
-    pub(crate) fn replace_uses(&mut self, replacements: &FxHashMap<ValueId, ValueId>) {
+    pub fn replace_uses(&mut self, replacements: &FxHashMap<ValueId, ValueId>) {
         if replacements.is_empty() {
             return;
         }
@@ -710,10 +706,7 @@ impl Function {
     }
 
     /// Replaces all value uses according to a canonicalized replacement map.
-    pub(crate) fn replace_uses_canonicalized(
-        &mut self,
-        replacements: &FxHashMap<ValueId, ValueId>,
-    ) {
+    pub fn replace_uses_canonicalized(&mut self, replacements: &FxHashMap<ValueId, ValueId>) {
         if replacements.is_empty() {
             return;
         }
@@ -730,10 +723,7 @@ impl Function {
 
     /// Annotates storage-alias metadata for state-access instructions and returns whether any
     /// metadata changed.
-    pub(crate) fn annotate_storage_aliases(
-        &mut self,
-        scope: super::utils::StorageAliasScope,
-    ) -> bool {
+    pub fn annotate_storage_aliases(&mut self, scope: super::utils::StorageAliasScope) -> bool {
         let inst_ids: Vec<_> = self.instructions().collect();
         let mut changed = false;
         for inst_id in inst_ids {
@@ -758,7 +748,7 @@ impl Function {
 
     /// Returns stored storage-alias metadata, or computes a conservative alias key.
     #[must_use]
-    pub(crate) fn storage_alias(&self, inst_id: InstId, slot: ValueId) -> StorageAlias {
+    pub fn storage_alias(&self, inst_id: InstId, slot: ValueId) -> StorageAlias {
         self.inst(inst_id)
             .metadata
             .storage_alias()
@@ -767,7 +757,7 @@ impl Function {
 
     /// Returns storage-alias metadata after applying value replacements.
     #[must_use]
-    pub(crate) fn storage_alias_after_replacements(
+    pub fn storage_alias_after_replacements(
         &self,
         inst_id: InstId,
         slot: ValueId,
@@ -786,7 +776,7 @@ impl Function {
     ///
     /// A key naming a deleted value is consistent only until values are renumbered, when it could
     /// come to name another value. Readers recompute a dropped key from the slot operand.
-    pub(crate) fn drop_dangling_storage_aliases(&mut self) {
+    pub fn drop_dangling_storage_aliases(&mut self) {
         let mut placed = DenseBitSet::new_empty(self.num_insts());
         for inst in self.instructions() {
             placed.insert(inst);
@@ -805,7 +795,7 @@ impl Function {
 
     /// Returns true if this function is public or external.
     #[must_use]
-    pub(crate) fn is_public(&self) -> bool {
+    pub fn is_public(&self) -> bool {
         matches!(self.attributes.visibility, Visibility::Public | Visibility::External)
     }
 }
@@ -849,45 +839,45 @@ impl Iterator for LiveValues<'_> {
 
 /// Function attributes.
 #[derive(Clone, Debug)]
-pub(crate) struct FunctionAttributes {
+pub struct FunctionAttributes {
     /// Visibility modifier.
-    pub(crate) visibility: Visibility,
+    pub visibility: Visibility,
     /// State mutability.
-    pub(crate) state_mutability: StateMutability,
+    pub state_mutability: StateMutability,
     /// Whether the external entry decodes its own ABI inputs and encodes its outputs.
-    pub(crate) is_abi_wrapper: bool,
+    pub is_abi_wrapper: bool,
     /// Whether this is a constructor.
-    pub(crate) is_constructor: bool,
+    pub is_constructor: bool,
     /// Whether this is a fallback function.
-    pub(crate) is_fallback: bool,
+    pub is_fallback: bool,
     /// Whether this is a receive function.
-    pub(crate) is_receive: bool,
+    pub is_receive: bool,
     /// Whether the original signature may reference caller-visible memory.
     ///
     /// Dead-result elimination and memory lowering can erase reference types, but must preserve
     /// the original signature's frame-lifetime constraint. The backend uses this sticky bit to
     /// avoid reclaiming memory that may have escaped through inline assembly.
-    pub(crate) may_return_memory: bool,
+    pub may_return_memory: bool,
     /// Whether this function dispatches an internal function-pointer shape.
-    pub(crate) is_function_pointer_dispatcher: bool,
+    pub is_function_pointer_dispatcher: bool,
     /// Never clone this function into multiple callers.
-    pub(crate) no_inline: bool,
+    pub no_inline: bool,
     /// Clone this function into every caller where inlining is legal, whatever it costs, as its
     /// `@custom:solar-inline always` tag requires.
-    pub(crate) always_inline: bool,
+    pub always_inline: bool,
     /// Favor cloning this function into its callers, as its bare `@custom:solar-inline` tag
     /// asks, within the inliner's legality and stack budgets.
-    pub(crate) inline_hint: bool,
+    pub inline_hint: bool,
     /// The objective its `@custom:solar-optimize` tag selects for this function's code, instead
     /// of its module's.
-    pub(crate) optimization: Option<OptimizationMode>,
+    pub optimization: Option<OptimizationMode>,
     /// Proved upper bound, in bits, on the words each array parameter can
     /// hold while this function reads it, recorded by element cleanup for
     /// the ABI return proofs that run after the element masks are gone.
-    pub(crate) array_element_bits: FxHashMap<ArgIdx, u32>,
+    pub array_element_bits: FxHashMap<ArgIdx, u32>,
     /// The widest word the single array this function returns can hold, when element
     /// cleanup proved one. Its caller can re-encode the array without cleaning it.
-    pub(crate) array_return_element_bits: Option<u32>,
+    pub array_return_element_bits: Option<u32>,
 }
 
 impl Default for FunctionAttributes {

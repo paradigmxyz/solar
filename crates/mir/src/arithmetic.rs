@@ -4,13 +4,13 @@ use super::ValueLayout;
 use solar_ast::TypeSize;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum ArithmeticKind {
+pub enum ArithmeticKind {
     Unsigned(u16),
     Signed(u16),
 }
 
 impl ArithmeticKind {
-    pub(crate) fn ty(self) -> ValueLayout {
+    pub fn ty(self) -> ValueLayout {
         match self {
             Self::Unsigned(bits) => ValueLayout::UInt(TypeSize::new_int_bits(bits)),
             Self::Signed(bits) => ValueLayout::Int(TypeSize::new_int_bits(bits)),
@@ -20,7 +20,7 @@ impl ArithmeticKind {
 
 /// Wrapping division still rejects zero; signed minimum divided by -1 wraps.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum CheckedOp {
+pub enum CheckedOp {
     Add,
     Sub,
     Mul,
@@ -31,7 +31,7 @@ pub(crate) enum CheckedOp {
 }
 
 impl CheckedOp {
-    pub(crate) const fn name(self) -> &'static str {
+    pub const fn name(self) -> &'static str {
         match self {
             Self::Add => "checked_add",
             Self::Sub => "checked_sub",

@@ -2,17 +2,10 @@
 
 use super::{
     AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, Data, DataBytes, DataId, DataRef,
-    Disambiguator, Function, FunctionId, ImmutableId, MangledSymbol, MirType, StructId, StructType,
-    Terminator, ValueId,
+    Disambiguator, Function, FunctionId, HirVariableId, ImmutableId, MangledSymbol, MirType,
+    StructId, StructType, Terminator, ValueId,
 };
-use crate::{
-    link::{ContractCode, LibraryTable, QualifiedName, Trailer},
-    mir::{
-        analysis::{CallGraphInfo, CfgInfo, direct_callees},
-        pass_manager::should_validate_ir,
-    },
-    target,
-};
+use crate::analysis::{CallGraphInfo, CfgInfo, direct_callees};
 use alloy_primitives::Bytes;
 use smallvec::SmallVec;
 use solar_data_structures::{
@@ -21,19 +14,24 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use solar_interface::{Ident, Symbol, config::OptimizationMode, sym};
-use solar_sema::{Gcx, hir::VariableId};
+use solar_evmir::link::{ContractCode, LibraryTable, QualifiedName, Trailer};
+use solar_interface::{Ident, Session, Symbol, config::OptimizationMode, sym};
 use std::{borrow::Cow, fmt, sync::Arc};
+
+/// Returns whether pass managers should validate IR after each pass.
+pub fn should_validate_ir(sess: &Session) -> bool {
+    sess.opts.unstable.validate_ir.unwrap_or(cfg!(debug_assertions))
+}
 
 /// A named immutable declared by a MIR module.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Immutable {
+pub struct Immutable {
     /// The source-level name used by textual MIR.
-    pub(crate) name: Ident,
+    pub name: Ident,
     /// The immutable's MIR type.
-    pub(crate) ty: super::ValueLayout,
+    pub ty: super::ValueLayout,
     /// The source variable, when this module was lowered from Solidity.
-    pub(crate) variable_id: Option<VariableId>,
+    pub variable_id: Option<HirVariableId>,
 }
 
 /// The representation contract of a MIR module.
@@ -63,7 +61,7 @@ impl MirPhase {
 
     /// Looks up a phase by its textual name.
     #[must_use]
-    pub(crate) fn by_name(name: Symbol) -> Option<Self> {
+    pub fn by_name(name: Symbol) -> Option<Self> {
         Some(match name {
             sym::semantic => Self::Semantic,
             sym::lowered => Self::Lowered,
@@ -73,7 +71,7 @@ impl MirPhase {
 }
 
 /// An immutable MIR view whose backend representation has been checked.
-pub(crate) struct LoweredModule<'a>(&'a Module);
+pub struct LoweredModule<'a>(&'a Module);
 
 impl std::ops::Deref for LoweredModule<'_> {
     type Target = Module;
@@ -86,35 +84,35 @@ impl std::ops::Deref for LoweredModule<'_> {
 /// A MIR module representing a compiled contract.
 #[derive(Clone, Debug)]
 pub struct Module {
-    pub(crate) libraries: LibraryTable,
+    pub libraries: LibraryTable,
     /// Module/contract name.
-    pub(crate) name: Ident,
+    pub name: Ident,
     /// Fixed aggregate types, with nested types declared before their users.
-    pub(crate) struct_types: IndexVec<StructId, StructType>,
+    pub struct_types: IndexVec<StructId, StructType>,
     /// All functions in this module.
-    pub(crate) functions: IndexVec<FunctionId, Function>,
+    pub functions: IndexVec<FunctionId, Function>,
     /// The synthesized runtime dispatch entry, if this module has one.
     dispatch_entry: Option<FunctionId>,
     /// Most recently added function for each name before disambiguation.
-    pub(crate) function_name_index: FxHashMap<Symbol, FunctionId>,
+    pub function_name_index: FxHashMap<Symbol, FunctionId>,
     /// Canonical ABI layouts referenced by semantic encoding operations.
-    pub(crate) abi_layouts: Vec<AbiLayoutRef>,
+    pub abi_layouts: Vec<AbiLayoutRef>,
     /// Canonical ABI input layouts referenced by decode instructions.
-    pub(crate) abi_param_layouts: Vec<AbiParamLayoutRef>,
+    pub abi_param_layouts: Vec<AbiParamLayoutRef>,
     /// Named immutable declarations indexed by their stable MIR identifiers.
     immutables: IndexVec<ImmutableId, Immutable>,
     /// Constant byte strings embedded in generated code.
-    pub(crate) data: IndexVec<DataId, Data>,
+    pub data: IndexVec<DataId, Data>,
     /// Exact data lookup used before the final subslice-packing pass.
     data_index: FxHashMap<Bytes, DataId>,
     /// Whether this is an interface (no bytecode generation).
-    pub(crate) is_interface: bool,
+    pub is_interface: bool,
     /// Whether this module was lowered from a library.
     ///
     /// Library runtime code never checks `callvalue`, since a `DELEGATECALL` sees the
     /// caller's value, and guards its non-view external functions with
     /// [`Self::library_deploy_address`].
-    pub(crate) is_library: bool,
+    pub is_library: bool,
     /// Whether the module may contain inline assembly that does not promise memory safety, whose
     /// writes the compiler cannot place.
     ///
@@ -122,23 +120,23 @@ pub struct Module {
     /// clears the bit and sets it again for every assembly block that lacks the promise.
     unsafe_assembly: bool,
     /// The lowering phase this module is in.
-    pub(super) phase: MirPhase,
+    pub phase: MirPhase,
     /// Whether passes must account for every instruction's source debug information.
     debug_info_tracked: bool,
     /// Whether the last full `lowered` check still describes this module: no change since
     /// `advance_phase` passed it.
-    pub(super) lowered_checked: bool,
+    pub lowered_checked: bool,
     /// The objective this module's code is optimized for: the build's, or the one the contract's
     /// `@custom:solar-optimize` tag selects. A function's own tag may select another.
-    pub(crate) optimization: OptimizationMode,
+    pub optimization: OptimizationMode,
     /// Instructions `@custom:solar-inline` clones have added, which the inliner bounds over all
     /// of its runs.
-    pub(crate) tagged_inline_growth: usize,
+    pub tagged_inline_growth: usize,
 }
 
 impl Module {
     /// Interns a structural value type within this module.
-    pub(crate) fn intern_struct(&mut self, fields: impl Into<Box<[MirType]>>) -> MirType {
+    pub fn intern_struct(&mut self, fields: impl Into<Box<[MirType]>>) -> MirType {
         let fields = fields.into();
         if let Some((id, _)) =
             self.struct_types.iter_enumerated().find(|(_, ty)| ty.fields == fields)
@@ -149,7 +147,7 @@ impl Module {
     }
 
     /// Represents a function's logical outputs as zero, one, or one struct value.
-    pub(crate) fn intern_return_type(&mut self, fields: Vec<MirType>) -> Option<MirType> {
+    pub fn intern_return_type(&mut self, fields: Vec<MirType>) -> Option<MirType> {
         match fields.as_slice() {
             [] => None,
             [ty] => Some(*ty),
@@ -158,7 +156,7 @@ impl Module {
     }
 
     /// Returns whether a value can contain a reference to caller-visible memory.
-    pub(crate) fn type_may_reference_memory(&self, ty: MirType) -> bool {
+    pub fn type_may_reference_memory(&self, ty: MirType) -> bool {
         match ty {
             MirType::Struct(id) => self.struct_types[id]
                 .fields
@@ -178,7 +176,7 @@ impl Module {
 
     /// Creates a new module.
     #[must_use]
-    pub(crate) fn new(name: Ident) -> Self {
+    pub fn new(name: Ident) -> Self {
         Self {
             name,
             functions: IndexVec::new(),
@@ -204,57 +202,46 @@ impl Module {
 
     /// Returns whether the module may contain inline assembly that does not promise memory safety.
     #[must_use]
-    pub(crate) const fn has_unsafe_assembly(&self) -> bool {
+    pub const fn has_unsafe_assembly(&self) -> bool {
         self.unsafe_assembly
     }
 
     /// Records whether the module may contain inline assembly that does not promise memory safety.
-    pub(crate) fn set_unsafe_assembly(&mut self, unsafe_assembly: bool) {
+    pub fn set_unsafe_assembly(&mut self, unsafe_assembly: bool) {
         self.unsafe_assembly = unsafe_assembly;
     }
 
-    /// Returns the cost model of this module's code: the contract's objective, which a function
-    /// without a tag of its own and every decision about the module as a whole use.
-    pub(crate) fn target(&self, gcx: Gcx<'_>) -> target::Target {
-        target::Target::new(gcx, self.optimization)
-    }
-
     /// Returns the objective `func`'s code is optimized for: its own tag's, else the contract's.
-    pub(crate) fn objective(&self, func: FunctionId) -> OptimizationMode {
+    pub fn objective(&self, func: FunctionId) -> OptimizationMode {
         self.objective_of(&self.functions[func])
     }
 
     /// Returns the objective `func`'s code is optimized for, for a function this module has not
     /// yet received.
-    pub(crate) fn objective_of(&self, func: &Function) -> OptimizationMode {
+    pub fn objective_of(&self, func: &Function) -> OptimizationMode {
         func.attributes.optimization.unwrap_or(self.optimization)
     }
 
-    /// Returns the cost model of `func`'s code, for a function this module has not yet received.
-    pub(crate) fn target_of(&self, gcx: Gcx<'_>, func: &Function) -> target::Target {
-        target::Target::new(gcx, self.objective_of(func))
-    }
-
     /// Returns whether any of the module's code is optimized.
-    pub(crate) fn is_optimized(&self) -> bool {
+    pub fn is_optimized(&self) -> bool {
         self.runs_objective(|objective| !objective.is_none())
     }
 
     /// Returns whether code compiled for some objective satisfies `wanted`: the contract's own
     /// code, or the code of a function whose tag selects another objective.
-    pub(crate) fn runs_objective(&self, wanted: impl Fn(OptimizationMode) -> bool) -> bool {
+    pub fn runs_objective(&self, wanted: impl Fn(OptimizationMode) -> bool) -> bool {
         wanted(self.optimization)
             || self.functions.iter().any(|func| func.attributes.optimization.is_some_and(&wanted))
     }
 
     /// Enables or disables source debug information auditing for optimization passes.
-    pub(crate) fn set_debug_info_tracked(&mut self, tracked: bool) {
+    pub fn set_debug_info_tracked(&mut self, tracked: bool) {
         self.debug_info_tracked = tracked;
     }
 
     /// Returns whether optimization passes must account for source debug information.
     #[must_use]
-    pub(crate) const fn debug_info_is_tracked(&self) -> bool {
+    pub const fn debug_info_is_tracked(&self) -> bool {
         self.debug_info_tracked
     }
 
@@ -267,18 +254,18 @@ impl Module {
     /// Checks the destination representation before advancing the phase.
     ///
     /// Release builds check only the phase contract, unless `-Zvalidate-ir` is set.
-    pub(crate) fn advance_phase(
+    pub fn advance_phase(
         &mut self,
-        gcx: solar_sema::Gcx<'_>,
+        sess: &Session,
         phase: MirPhase,
     ) -> solar_interface::Result<()> {
         assert!(phase >= self.phase, "MIR phase cannot regress");
-        crate::mir::analysis::validate_phase(
-            gcx.dcx(),
+        crate::analysis::validate_phase(
+            &sess.dcx,
             self,
             phase,
-            gcx.sess.is_parallel_codegen(),
-            should_validate_ir(gcx),
+            sess.is_parallel_codegen(),
+            should_validate_ir(sess),
         )?;
         self.phase = phase;
         self.lowered_checked = phase == MirPhase::Lowered;
@@ -286,7 +273,7 @@ impl Module {
     }
 
     /// Records that the module changed since its last full `lowered` check.
-    pub(crate) fn invalidate_lowered_check(&mut self) {
+    pub fn invalidate_lowered_check(&mut self) {
         self.lowered_checked = false;
     }
 
@@ -295,12 +282,12 @@ impl Module {
     /// Skips the check when `advance_phase` passed it and nothing changed the module since,
     /// unless `recheck` is set. Without `recheck`, the check covers only the phase contract.
     /// Targets without shift opcodes always check that no shift is left.
-    pub(crate) fn as_lowered(
+    pub fn as_lowered(
         &self,
-        gcx: solar_sema::Gcx<'_>,
+        sess: &Session,
         recheck: bool,
     ) -> solar_interface::Result<LoweredModule<'_>> {
-        let dcx = gcx.dcx();
+        let dcx = &sess.dcx;
         if self.phase != MirPhase::Lowered {
             return Err(dcx
                 .err(format!(
@@ -311,29 +298,29 @@ impl Module {
                 .emit());
         }
         if recheck || !self.lowered_checked {
-            crate::mir::analysis::validate_phase(
+            crate::analysis::validate_phase(
                 dcx,
                 self,
                 MirPhase::Lowered,
-                gcx.sess.is_parallel_codegen(),
+                sess.is_parallel_codegen(),
                 recheck,
             )?;
         }
-        if !gcx.sess.opts.evm_version.has_bitwise_shifting() {
-            crate::mir::analysis::validate_legal_shifts(dcx, self)?;
+        if !sess.opts.evm_version.has_bitwise_shifting() {
+            crate::analysis::validate_legal_shifts(dcx, self)?;
         }
         Ok(LoweredModule(self))
     }
 
     /// Returns whether all external entries have an explicit ABI implementation.
-    pub(crate) fn has_explicit_abi(&self) -> bool {
+    pub fn has_explicit_abi(&self) -> bool {
         self.functions
             .iter()
             .all(|func| !func.is_external_entry() || func.attributes.is_abi_wrapper)
     }
 
     /// Returns whether a live value or function signature still uses an SSA struct.
-    pub(crate) fn has_struct_values(&self) -> bool {
+    pub fn has_struct_values(&self) -> bool {
         self.has_value_type(|ty| matches!(ty, MirType::Struct(_)))
     }
 
@@ -372,7 +359,7 @@ impl Module {
     /// Propagate direct returns backwards over tail-call edges. Cycles without a return stay
     /// nonreturning. Unreachable returns and invalid tail targets count conservatively; this
     /// query does not prove reachability or replace validation of call targets.
-    pub(crate) fn returning_functions(&self) -> DenseBitSet<FunctionId> {
+    pub fn returning_functions(&self) -> DenseBitSet<FunctionId> {
         let mut callers = index_vec![Vec::new(); self.functions.len()];
         let mut returning = DenseBitSet::new_empty(self.functions.len());
         let mut worklist = Vec::new();
@@ -406,7 +393,7 @@ impl Module {
     }
 
     /// Adds a function to the module.
-    pub(crate) fn add_function(&mut self, function: Function) -> FunctionId {
+    pub fn add_function(&mut self, function: Function) -> FunctionId {
         let symbol = function.name.symbol;
         let function = self.functions.push(function);
         if let Some(duplicate) = self.function_name_index.insert(symbol, function) {
@@ -425,12 +412,12 @@ impl Module {
 
     /// Returns the synthesized runtime dispatch entry, if present.
     #[must_use]
-    pub(crate) const fn dispatch_entry(&self) -> Option<FunctionId> {
+    pub const fn dispatch_entry(&self) -> Option<FunctionId> {
         self.dispatch_entry
     }
 
     /// Records the synthesized runtime dispatch entry.
-    pub(crate) fn set_dispatch_entry(&mut self, entry: FunctionId) {
+    pub fn set_dispatch_entry(&mut self, entry: FunctionId) {
         assert!(
             self.dispatch_entry.replace(entry).is_none(),
             "module already has a dispatch entry"
@@ -438,14 +425,14 @@ impl Module {
     }
 
     /// Updates the dispatch entry after remapping function IDs.
-    pub(crate) fn remap_dispatch_entry(&mut self, entry: Option<FunctionId>) {
+    pub fn remap_dispatch_entry(&mut self, entry: Option<FunctionId>) {
         self.dispatch_entry = entry;
     }
 
     /// Returns the functions that the runtime entry, a selector, `receive`, or `fallback`
     /// reaches through calls.
     #[must_use]
-    pub(crate) fn runtime_reachable_functions(&self) -> DenseBitSet<FunctionId> {
+    pub fn runtime_reachable_functions(&self) -> DenseBitSet<FunctionId> {
         let roots = self.dispatch_entry().into_iter().chain(
             self.functions
                 .iter_enumerated()
@@ -456,7 +443,7 @@ impl Module {
 
     /// Returns the constructor and the functions it reaches through calls.
     #[must_use]
-    pub(crate) fn constructor_reachable_functions(&self) -> DenseBitSet<FunctionId> {
+    pub fn constructor_reachable_functions(&self) -> DenseBitSet<FunctionId> {
         self.reachable_from(
             self.functions
                 .iter_enumerated()
@@ -467,7 +454,7 @@ impl Module {
     /// Checks the phase contract for helpers that require runtime static frames.
     /// Constructor ABI staging may already occupy the free-memory pointer, so
     /// these helpers must not be reachable through any constructor call chain.
-    pub(crate) fn assert_runtime_helpers(&self, helpers: impl IntoIterator<Item = FunctionId>) {
+    pub fn assert_runtime_helpers(&self, helpers: impl IntoIterator<Item = FunctionId>) {
         if cfg!(debug_assertions) {
             let helpers = helpers.into_iter().collect::<Vec<_>>();
             if helpers.is_empty() {
@@ -487,7 +474,7 @@ impl Module {
     /// Returns the functions that neither `constructor` nor `runtime` contains, and the functions
     /// they reach through calls. Only ad-hoc MIR has them, and no one knows where they run.
     #[must_use]
-    pub(crate) fn unrooted_reachable_functions(
+    pub fn unrooted_reachable_functions(
         &self,
         constructor: &DenseBitSet<FunctionId>,
         runtime: &DenseBitSet<FunctionId>,
@@ -501,7 +488,7 @@ impl Module {
     /// Returns the functions that run only during deployment: the constructor and the functions
     /// it reaches through calls, less those the runtime also reaches and the unrooted ones.
     #[must_use]
-    pub(crate) fn creation_only_functions(&self) -> DenseBitSet<FunctionId> {
+    pub fn creation_only_functions(&self) -> DenseBitSet<FunctionId> {
         let constructor = self.constructor_reachable_functions();
         let runtime = self.runtime_reachable_functions();
         let mut creation = constructor.clone();
@@ -516,9 +503,7 @@ impl Module {
     /// second set, and for the whole of the first when a transform weighs the function's own
     /// loops.
     #[must_use]
-    pub(crate) fn creation_pricing_functions(
-        &self,
-    ) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
+    pub fn creation_pricing_functions(&self) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
         let creation = self.creation_only_functions();
         let (looping, repeated) = self.loops_and_repeats(&creation, &CallGraphInfo::new(self));
         let mut called_once = creation;
@@ -532,7 +517,7 @@ impl Module {
     /// are recursive, or because a function with a loop, or a recursive one, calls them
     /// directly or not.
     #[must_use]
-    pub(crate) fn repeated_functions(
+    pub fn repeated_functions(
         &self,
         domain: &DenseBitSet<FunctionId>,
         call_graph: &CallGraphInfo,
@@ -589,17 +574,17 @@ impl Module {
 
     /// Returns the function for the given ID.
     #[must_use]
-    pub(crate) fn function(&self, id: FunctionId) -> &Function {
+    pub fn function(&self, id: FunctionId) -> &Function {
         &self.functions[id]
     }
 
     /// Returns a mutable reference to the function.
-    pub(crate) fn function_mut(&mut self, id: FunctionId) -> &mut Function {
+    pub fn function_mut(&mut self, id: FunctionId) -> &mut Function {
         &mut self.functions[id]
     }
 
     /// Interns an ABI layout and returns its canonical shared reference.
-    pub(crate) fn intern_abi_layout(&mut self, layout: AbiLayout) -> AbiLayoutRef {
+    pub fn intern_abi_layout(&mut self, layout: AbiLayout) -> AbiLayoutRef {
         if let Some(existing) =
             self.abi_layouts.iter().find(|existing| existing.as_ref() == &layout)
         {
@@ -611,7 +596,7 @@ impl Module {
     }
 
     /// Interns an ABI input layout and returns its canonical shared reference.
-    pub(crate) fn intern_abi_param_layout(&mut self, layout: AbiParamLayout) -> AbiParamLayoutRef {
+    pub fn intern_abi_param_layout(&mut self, layout: AbiParamLayout) -> AbiParamLayoutRef {
         if let Some(existing) =
             self.abi_param_layouts.iter().find(|existing| existing.as_ref() == &layout)
         {
@@ -623,41 +608,41 @@ impl Module {
     }
 
     /// Adds a named immutable and returns its stable identifier.
-    pub(crate) fn add_immutable(
+    pub fn add_immutable(
         &mut self,
         name: Ident,
         ty: super::ValueLayout,
-        variable_id: Option<VariableId>,
+        variable_id: Option<HirVariableId>,
     ) -> ImmutableId {
         self.immutables.push(Immutable { name, ty, variable_id })
     }
 
     /// Returns an immutable declaration.
     #[must_use]
-    pub(crate) fn immutable(&self, id: ImmutableId) -> &Immutable {
+    pub fn immutable(&self, id: ImmutableId) -> &Immutable {
         &self.immutables[id]
     }
 
     /// Returns a mutable immutable declaration.
-    pub(crate) fn immutable_mut(&mut self, id: ImmutableId) -> &mut Immutable {
+    pub fn immutable_mut(&mut self, id: ImmutableId) -> &mut Immutable {
         &mut self.immutables[id]
     }
 
     /// Returns an immutable declaration if the identifier is allocated.
     #[must_use]
-    pub(crate) fn get_immutable(&self, id: ImmutableId) -> Option<&Immutable> {
+    pub fn get_immutable(&self, id: ImmutableId) -> Option<&Immutable> {
         self.immutables.get(id)
     }
 
     /// Returns an immutable's MIR type.
     #[must_use]
-    pub(crate) fn immutable_type(&self, id: ImmutableId) -> super::ValueLayout {
+    pub fn immutable_type(&self, id: ImmutableId) -> super::ValueLayout {
         self.immutable(id).ty
     }
 
     /// Returns an immutable's MIR type if the identifier is allocated.
     #[must_use]
-    pub(crate) fn get_immutable_type(&self, id: ImmutableId) -> Option<super::ValueLayout> {
+    pub fn get_immutable_type(&self, id: ImmutableId) -> Option<super::ValueLayout> {
         self.get_immutable(id).map(|immutable| immutable.ty)
     }
 
@@ -668,7 +653,7 @@ impl Module {
     /// through `DELEGATECALL`. It is never a source variable, and is the only immutable a
     /// library declares. Textual MIR drops source variables, so a contract's own immutable of
     /// the same name is told apart by the module not being a library.
-    pub(crate) fn library_deploy_address(&self) -> Option<ImmutableId> {
+    pub fn library_deploy_address(&self) -> Option<ImmutableId> {
         if !self.is_library {
             return None;
         }
@@ -683,17 +668,17 @@ impl Module {
 
     /// Returns the number of immutable declarations.
     #[must_use]
-    pub(crate) fn immutable_count(&self) -> usize {
+    pub fn immutable_count(&self) -> usize {
         self.immutables.len()
     }
 
     /// Returns an iterator over all immutable declarations.
-    pub(crate) fn iter_immutables(&self) -> impl Iterator<Item = (ImmutableId, &Immutable)> {
+    pub fn iter_immutables(&self) -> impl Iterator<Item = (ImmutableId, &Immutable)> {
         self.immutables.iter_enumerated()
     }
 
     /// Adds a data entry, interning its bytes when they are plain literal data.
-    pub(crate) fn add_data_entry(&mut self, data: Data) -> DataId {
+    pub fn add_data_entry(&mut self, data: Data) -> DataId {
         let bytes = data.bytes.known().filter(|_| data.library_relocations.is_empty()).cloned();
         let id = self.data.push(data);
         if let Some(bytes) = bytes {
@@ -703,7 +688,7 @@ impl Module {
     }
 
     /// Interns another contract's bytecode, which final assembly links in.
-    pub(crate) fn intern_contract_code(&mut self, code: ContractCode, name: Symbol) -> DataId {
+    pub fn intern_contract_code(&mut self, code: ContractCode, name: Symbol) -> DataId {
         let existing =
             self.data.iter_enumerated().find(|(_, data)| data.bytes == DataBytes::Deferred(code));
         match existing {
@@ -713,7 +698,7 @@ impl Module {
     }
 
     /// Interns constant data and returns its stable identifier.
-    pub(crate) fn intern_data(&mut self, data: Cow<'_, [u8]>, name: Option<Symbol>) -> DataRef {
+    pub fn intern_data(&mut self, data: Cow<'_, [u8]>, name: Option<Symbol>) -> DataRef {
         let name = name.unwrap_or(sym::literal);
         if let Some(&id) = self.data_index.get(data.as_ref()) {
             if self.data[id].name.is_none_or(|old| old == sym::literal) {
@@ -725,13 +710,13 @@ impl Module {
         DataRef::new(id, 0)
     }
 
-    pub(crate) fn add_data(&mut self, data: Bytes, name: Option<Symbol>) -> DataId {
+    pub fn add_data(&mut self, data: Bytes, name: Option<Symbol>) -> DataId {
         self.add_data_entry(Data::new(data, name))
     }
 
     /// Adds `contract`'s trailing runtime data, which must be emitted at the end of the runtime
     /// program.
-    pub(crate) fn append_runtime_data(
+    pub fn append_runtime_data(
         &mut self,
         data: Bytes,
         name: Option<Symbol>,
@@ -743,7 +728,7 @@ impl Module {
     }
 
     /// Returns an iterator over all functions.
-    pub(crate) fn iter_functions(&self) -> impl Iterator<Item = (FunctionId, &Function)> {
+    pub fn iter_functions(&self) -> impl Iterator<Item = (FunctionId, &Function)> {
         self.functions.iter_enumerated()
     }
 
@@ -764,7 +749,7 @@ impl Module {
                 }
                 writeln!(f)?;
             }
-            write!(f, "{}", crate::link::display_declarations(&self.libraries, &self.data))?;
+            write!(f, "{}", solar_evmir::link::display_declarations(&self.libraries, &self.data))?;
             if !self.immutables.is_empty() {
                 writeln!(f, "@immutables")?;
                 for (id, immutable) in self.iter_immutables() {

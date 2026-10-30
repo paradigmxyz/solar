@@ -1,16 +1,17 @@
 //! MIR instructions.
 
-use super::{Function, InstKind, MirPhase, MirType, PhaseCategory, PtrLocation, Value, ValueId};
-use crate::mir::{Builtin, Callee};
+use super::{
+    Function, HirExprId, InstKind, MirPhase, MirType, PhaseCategory, PtrLocation, Value, ValueId,
+};
+use crate::{Builtin, Callee};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_interface::Span;
-use solar_sema::hir;
 use std::fmt;
 
 /// Extra information attached to a MIR instruction by lowering or analysis passes.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub(crate) struct InstructionMetadata {
+pub struct InstructionMetadata {
     /// Proven storage alias key for `sload`/`sstore` instructions.
     storage_alias: Option<Box<StorageAlias>>,
     /// Source span that produced this instruction, when the lowerer can preserve it.
@@ -20,16 +21,16 @@ pub(crate) struct InstructionMetadata {
     /// Legacy source-map modifier nesting depth for this instruction.
     modifier_depth: u32,
     /// HIR expression that produced this instruction, when the lowerer can preserve it.
-    hir_expr: Option<hir::ExprId>,
+    hir_expr: Option<HirExprId>,
     /// Loop nesting depth attached by loop-aware analyses.
-    pub(crate) loop_depth: u16,
+    pub loop_depth: u16,
     /// Packed optional memory region, effect kind, and boolean flags.
     flags: MetadataFlags,
 }
 
 impl InstructionMetadata {
     /// Empty instruction metadata.
-    pub(crate) const EMPTY: Self = Self {
+    pub const EMPTY: Self = Self {
         storage_alias: None,
         hir_expr: None,
         source_span: Span::DUMMY,
@@ -41,41 +42,41 @@ impl InstructionMetadata {
 
     /// Returns the proven storage alias key.
     #[must_use]
-    pub(crate) fn storage_alias(&self) -> Option<StorageAlias> {
+    pub fn storage_alias(&self) -> Option<StorageAlias> {
         self.storage_alias.as_deref().copied()
     }
 
     /// Sets the proven storage alias key.
-    pub(crate) fn set_storage_alias(&mut self, alias: Option<StorageAlias>) {
+    pub fn set_storage_alias(&mut self, alias: Option<StorageAlias>) {
         self.storage_alias = alias.map(Box::new);
     }
 
     /// Returns the HIR expression that produced this instruction.
     #[must_use]
-    pub(crate) fn hir_expr(&self) -> Option<hir::ExprId> {
+    pub fn hir_expr(&self) -> Option<HirExprId> {
         self.hir_expr
     }
 
     /// Sets the HIR expression that produced this instruction.
-    pub(crate) fn set_hir_expr(&mut self, expr: Option<hir::ExprId>) {
+    pub fn set_hir_expr(&mut self, expr: Option<HirExprId>) {
         self.hir_expr = expr;
     }
 
     /// Returns the source span that produced this instruction.
     #[must_use]
-    pub(crate) fn source_span(&self) -> Option<Span> {
+    pub fn source_span(&self) -> Option<Span> {
         (!self.source_span.is_dummy()).then_some(self.source_span)
     }
 
     /// Returns every retained origin, in deterministic merge order.
-    pub(crate) fn source_spans(&self) -> impl Iterator<Item = Span> + '_ {
+    pub fn source_spans(&self) -> impl Iterator<Item = Span> + '_ {
         self.source_span()
             .into_iter()
             .chain(self.additional_source_spans.iter().flat_map(|spans| spans.iter().copied()))
     }
 
     /// Sets explicit textual origins, bounding metadata growth in repeated merges.
-    pub(crate) fn set_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
+    pub fn set_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
         self.set_source_span(None);
         for span in spans {
             self.insert_source_span(span);
@@ -90,13 +91,13 @@ impl InstructionMetadata {
         }
         if self.source_span.is_dummy() {
             self.source_span = span;
-        } else if self.source_spans().count() < crate::source_info::MAX_DEBUG_SPANS {
+        } else if self.source_spans().count() < solar_evmir::debug::MAX_DEBUG_SPANS {
             self.additional_source_spans.get_or_insert_default().push(span);
         }
     }
 
     /// Unions origins without importing instruction-specific analysis facts.
-    pub(crate) fn merge_debug_context(&mut self, other: &Self) {
+    pub fn merge_debug_context(&mut self, other: &Self) {
         for span in other.source_spans() {
             self.insert_source_span(span);
         }
@@ -109,7 +110,7 @@ impl InstructionMetadata {
     }
 
     /// Copies all debug fields without copying semantic or analysis metadata.
-    pub(crate) fn copy_debug_context(&mut self, other: &Self) {
+    pub fn copy_debug_context(&mut self, other: &Self) {
         self.source_span = other.source_span;
         self.additional_source_spans = other.additional_source_spans.clone();
         self.modifier_depth = other.modifier_depth;
@@ -118,7 +119,7 @@ impl InstructionMetadata {
     }
 
     /// Sets the source span that produced this instruction.
-    pub(crate) fn set_source_span(&mut self, span: Option<Span>) {
+    pub fn set_source_span(&mut self, span: Option<Span>) {
         let span = span.filter(|span| !span.is_dummy());
         self.source_span = span.unwrap_or(Span::DUMMY);
         self.additional_source_spans = None;
@@ -127,7 +128,7 @@ impl InstructionMetadata {
     }
 
     /// Sets source debug information without adding it to canonical MIR text.
-    pub(crate) fn set_debug_source_span(&mut self, span: Option<Span>) {
+    pub fn set_debug_source_span(&mut self, span: Option<Span>) {
         self.source_span = span.filter(|span| !span.is_dummy()).unwrap_or(Span::DUMMY);
         self.additional_source_spans = None;
         self.flags.set_display_source_span(false);
@@ -136,36 +137,36 @@ impl InstructionMetadata {
 
     /// Returns the source-map modifier nesting depth for this instruction.
     #[must_use]
-    pub(crate) const fn modifier_depth(&self) -> u32 {
+    pub const fn modifier_depth(&self) -> u32 {
         self.modifier_depth
     }
 
     /// Sets the source-map modifier nesting depth for this instruction.
-    pub(crate) fn set_modifier_depth(&mut self, depth: u32) {
+    pub fn set_modifier_depth(&mut self, depth: u32) {
         self.modifier_depth = depth;
         self.flags.set_debug_info_handled();
     }
 
     /// Marks this instruction as intentionally having no source location.
-    pub(crate) fn mark_debug_info_dropped(&mut self) {
+    pub fn mark_debug_info_dropped(&mut self) {
         self.set_debug_source_span(None);
         self.modifier_depth = 0;
     }
 
     /// Returns whether source debug information was preserved or intentionally dropped.
     #[must_use]
-    pub(crate) fn debug_info_is_handled(&self) -> bool {
+    pub fn debug_info_is_handled(&self) -> bool {
         self.flags.debug_info_is_handled()
     }
 
     /// Returns whether canonical MIR text should include the source span.
     #[must_use]
-    pub(crate) fn displays_source_span(&self) -> bool {
+    pub fn displays_source_span(&self) -> bool {
         self.flags.displays_source_span()
     }
 
     /// Copies source context without carrying instruction-specific analysis facts.
-    pub(crate) fn debug_context(&self) -> Self {
+    pub fn debug_context(&self) -> Self {
         let mut metadata = Self::EMPTY;
         metadata.copy_debug_context(self);
         metadata
@@ -173,96 +174,96 @@ impl InstructionMetadata {
 
     /// Returns the proven memory region.
     #[must_use]
-    pub(crate) fn memory_region(&self) -> Option<MemoryRegion> {
+    pub fn memory_region(&self) -> Option<MemoryRegion> {
         self.flags.memory_region()
     }
 
     /// Sets the proven memory region.
-    pub(crate) fn set_memory_region(&mut self, region: Option<MemoryRegion>) {
+    pub fn set_memory_region(&mut self, region: Option<MemoryRegion>) {
         self.flags.set_memory_region(region);
     }
 
     /// Returns whether this instruction was lowered from an unchecked arithmetic context.
     #[must_use]
-    pub(crate) fn unchecked(&self) -> bool {
+    pub fn unchecked(&self) -> bool {
         self.flags.unchecked()
     }
 
     /// Sets whether this instruction was lowered from an unchecked arithmetic context.
-    pub(crate) fn set_unchecked(&mut self, unchecked: bool) {
+    pub fn set_unchecked(&mut self, unchecked: bool) {
         self.flags.set_unchecked(unchecked);
     }
 
     /// Returns the conservative effect classification attached by lowering or analysis.
     #[must_use]
-    pub(crate) fn effect(&self) -> Option<EffectKind> {
+    pub fn effect(&self) -> Option<EffectKind> {
         self.flags.effect()
     }
 
     /// Sets the conservative effect classification attached by lowering or analysis.
-    pub(crate) fn set_effect(&mut self, effect: Option<EffectKind>) {
+    pub fn set_effect(&mut self, effect: Option<EffectKind>) {
         self.flags.set_effect(effect);
     }
 
     /// Returns whether final placement of this allocation is deferred to the backend.
     #[must_use]
-    pub(crate) fn deferred_alloc(&self) -> bool {
+    pub fn deferred_alloc(&self) -> bool {
         self.flags.deferred_alloc()
     }
 
     /// Defers final placement of this allocation to the backend.
-    pub(crate) fn set_deferred_alloc(&mut self) {
+    pub fn set_deferred_alloc(&mut self) {
         self.flags.set_deferred_alloc();
     }
 
     /// Clears the deferred-allocation marker after an allocation is rewritten.
-    pub(crate) fn clear_deferred_alloc(&mut self) {
+    pub fn clear_deferred_alloc(&mut self) {
         self.flags.clear_deferred_alloc();
     }
 
     /// Returns whether this word addition came from pointer arithmetic on a memory object, whose
     /// offset the compiler checked against the object's bounds.
     #[must_use]
-    pub(crate) fn checked_object_offset(&self) -> bool {
+    pub fn checked_object_offset(&self) -> bool {
         self.flags.checked_object_offset()
     }
 
     /// Marks a word addition that came from pointer arithmetic on a memory object.
-    pub(crate) fn set_checked_object_offset(&mut self) {
+    pub fn set_checked_object_offset(&mut self) {
         self.flags.set_checked_object_offset();
     }
 
     /// Returns whether this allocation must keep its free-memory-pointer address and bump.
     #[must_use]
-    pub(crate) fn preserves_fmp(&self) -> bool {
+    pub fn preserves_fmp(&self) -> bool {
         self.flags.preserves_fmp()
     }
 
     /// Marks an allocation whose address or bump is already observable before allocation.
-    pub(crate) fn set_preserves_fmp(&mut self, value: bool) {
+    pub fn set_preserves_fmp(&mut self, value: bool) {
         self.flags.set_preserves_fmp(value);
     }
 
     /// Returns whether this sum is an allocator bump that does not wrap.
     #[must_use]
-    pub(crate) fn alloc_ptr(&self) -> bool {
+    pub fn alloc_ptr(&self) -> bool {
         self.flags.alloc_ptr()
     }
 
     /// Marks the sum of an allocation's pointer and size, which cannot wrap in a program that
     /// completes, so the sum is not below the pointer.
-    pub(crate) fn set_alloc_ptr(&mut self, value: bool) {
+    pub fn set_alloc_ptr(&mut self, value: bool) {
         self.flags.set_alloc_ptr(value);
     }
 
     /// Returns whether this copy's source and destination ranges never overlap.
     #[must_use]
-    pub(crate) fn disjoint(&self) -> bool {
+    pub fn disjoint(&self) -> bool {
         self.flags.disjoint()
     }
 
     /// Marks a copy whose source and destination ranges never overlap.
-    pub(crate) fn set_disjoint(&mut self, value: bool) {
+    pub fn set_disjoint(&mut self, value: bool) {
         self.flags.set_disjoint(value);
     }
 }
@@ -441,7 +442,7 @@ impl MetadataFlags {
 
 /// A conservative storage alias key.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum StorageAlias {
+pub enum StorageAlias {
     /// A known absolute storage slot.
     Slot(U256),
     /// A loop-invariant symbolic slot value.
@@ -458,7 +459,7 @@ pub(crate) enum StorageAlias {
 impl StorageAlias {
     /// Computes a conservative exact storage alias key for `value`.
     #[must_use]
-    pub(crate) fn for_value(func: &Function, value: ValueId) -> Self {
+    pub fn for_value(func: &Function, value: ValueId) -> Self {
         match func.value(value) {
             Value::Immediate(imm) => imm.as_u256().map_or(Self::Symbolic(value), Self::Slot),
             Value::Inst(inst_id) => match func.inst(*inst_id).kind {
@@ -486,7 +487,7 @@ impl StorageAlias {
 
     /// Returns true if two alias keys may refer to the same storage slot.
     #[must_use]
-    pub(crate) fn may_alias(self, other: Self) -> bool {
+    pub fn may_alias(self, other: Self) -> bool {
         match (self, other) {
             (Self::Slot(a), Self::Slot(b)) => a == b,
             (
@@ -506,7 +507,7 @@ impl StorageAlias {
 
     /// Returns the symbolic base value, if this alias has one.
     #[must_use]
-    pub(crate) const fn symbolic_base(self) -> Option<ValueId> {
+    pub const fn symbolic_base(self) -> Option<ValueId> {
         match self {
             Self::Symbolic(value) | Self::Offset { base: value, .. } => Some(value),
             Self::Slot(_) => None,
@@ -515,7 +516,7 @@ impl StorageAlias {
 
     /// Returns this alias with its symbolic base renamed by `f`.
     #[must_use]
-    pub(crate) fn map_base(self, f: impl FnOnce(&mut ValueId)) -> Self {
+    pub fn map_base(self, f: impl FnOnce(&mut ValueId)) -> Self {
         match self {
             Self::Slot(_) => self,
             Self::Symbolic(mut value) => {
@@ -531,7 +532,7 @@ impl StorageAlias {
 
     /// Returns this alias advanced by a constant slot offset.
     #[must_use]
-    pub(crate) fn offset_by(self, offset: U256) -> Self {
+    pub fn offset_by(self, offset: U256) -> Self {
         match self {
             Self::Slot(slot) => Self::Slot(slot.wrapping_add(offset)),
             Self::Symbolic(base) if offset.is_zero() => Self::Symbolic(base),
@@ -557,7 +558,7 @@ impl StorageAlias {
 
 /// A coarse memory layout annotation, not a proof of disjointness.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum MemoryRegion {
+pub enum MemoryRegion {
     /// Compiler-owned low-memory scratch space.
     Scratch,
     /// External ABI return buffer.
@@ -573,7 +574,7 @@ pub(crate) enum MemoryRegion {
 impl MemoryRegion {
     /// Returns the stable textual name used in MIR metadata.
     #[must_use]
-    pub(crate) const fn name(&self) -> &'static str {
+    pub const fn name(&self) -> &'static str {
         match self {
             Self::Scratch => "scratch",
             Self::AbiReturn => "abi_return",
@@ -586,7 +587,7 @@ impl MemoryRegion {
 
 /// Conservative side-effect class for an instruction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum EffectKind {
+pub enum EffectKind {
     /// Pure computation.
     Pure,
     /// Memory read.
@@ -620,7 +621,7 @@ pub(crate) enum EffectKind {
 impl EffectKind {
     /// Returns the stable textual name used in MIR metadata.
     #[must_use]
-    pub(crate) const fn name(&self) -> &'static str {
+    pub const fn name(&self) -> &'static str {
         match self {
             Self::Pure => "pure",
             Self::MemoryRead => "memory_read",
@@ -642,7 +643,7 @@ impl EffectKind {
     /// Whether this is pure computation or a read of memory, storage, transient storage or the
     /// environment.
     #[must_use]
-    pub(crate) const fn is_read_only(self) -> bool {
+    pub const fn is_read_only(self) -> bool {
         matches!(
             self,
             Self::Pure
@@ -655,14 +656,14 @@ impl EffectKind {
 
     /// Whether this reads or writes memory.
     #[must_use]
-    pub(crate) const fn is_memory(self) -> bool {
+    pub const fn is_memory(self) -> bool {
         matches!(self, Self::MemoryRead | Self::MemoryWrite)
     }
 }
 
 /// Initialization performed for a newly reserved range.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum AllocationInitialization {
+pub enum AllocationInitialization {
     /// Preserve the range's existing bytes until explicitly overwritten.
     Uninitialized,
     /// Initialize every reserved byte to zero.
@@ -671,7 +672,7 @@ pub(crate) enum AllocationInitialization {
 
 /// Failure behavior attached to an allocation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum AllocationFailure {
+pub enum AllocationFailure {
     /// The producer has already proved the bump valid.
     Infallible,
     /// Revert with the memory-allocation panic when the bump overflows. Only Solidity objects
@@ -682,7 +683,7 @@ pub(crate) enum AllocationFailure {
 
 /// Storage policy for an ABI-encoded result.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum AbiEncodeMode {
+pub enum AbiEncodeMode {
     /// Return a heap-backed raw memory slice.
     Slice,
     /// Return an owned Solidity bytes object.
@@ -694,7 +695,7 @@ pub(crate) enum AbiEncodeMode {
 impl AbiEncodeMode {
     /// Returns the MIR result type for this mode.
     #[must_use]
-    pub(crate) const fn result_type(self) -> MirType {
+    pub const fn result_type(self) -> MirType {
         match self {
             Self::Slice | Self::Scratch => MirType::Slice(PtrLocation::Memory),
             Self::Bytes => MirType::MEMPTR,
@@ -704,7 +705,7 @@ impl AbiEncodeMode {
 
 /// Semantic allocation policy carried by [`InstKind::Alloc`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct AllocationSemantics {
+pub struct AllocationSemantics {
     /// Requested initialization.
     pub initialization: AllocationInitialization,
     /// Requested failure behavior.
@@ -713,21 +714,21 @@ pub(crate) struct AllocationSemantics {
 
 impl AllocationSemantics {
     /// Uninitialized allocation whose validity is already proven.
-    pub(crate) const INTERNAL: Self = Self {
+    pub const INTERNAL: Self = Self {
         initialization: AllocationInitialization::Uninitialized,
         failure: AllocationFailure::Infallible,
     };
 
     /// Checked and zero-initialized Solidity object allocation. Object lowering includes the
     /// header and padding in `size`.
-    pub(crate) const SOLIDITY_ZEROED: Self = Self {
+    pub const SOLIDITY_ZEROED: Self = Self {
         initialization: AllocationInitialization::Zeroed,
         failure: AllocationFailure::Checked,
     };
 
     /// Checked allocation for objects initialized by their
     /// producer rather than by the allocator.
-    pub(crate) const SOLIDITY_UNINITIALIZED: Self = Self {
+    pub const SOLIDITY_UNINITIALIZED: Self = Self {
         initialization: AllocationInitialization::Uninitialized,
         failure: AllocationFailure::Checked,
     };
@@ -735,20 +736,20 @@ impl AllocationSemantics {
 
 /// An instruction in the MIR.
 #[derive(Clone, Debug)]
-pub(crate) struct Instruction {
+pub struct Instruction {
     /// The kind of instruction.
-    pub(crate) kind: InstKind,
+    pub kind: InstKind,
     /// The result type (if any).
-    pub(crate) result_ty: Option<MirType>,
+    pub result_ty: Option<MirType>,
     /// The value allocated for this instruction's result.
     result: Option<ValueId>,
     /// Metadata produced by lowering or analysis.
-    pub(crate) metadata: InstructionMetadata,
+    pub metadata: InstructionMetadata,
 }
 
 impl Instruction {
     /// Returns the semantic operation that still needs representation lowering.
-    pub(crate) fn unlowered_reason(&self, func: &Function) -> Option<PhaseCategory> {
+    pub fn unlowered_reason(&self, func: &Function) -> Option<PhaseCategory> {
         if self.result_ty == Some(MirType::I1)
             && self.kind.op_def().result == super::ResultKind::Integer
             && !matches!(self.kind, InstKind::And(..) | InstKind::Or(..) | InstKind::Xor(..))
@@ -762,36 +763,36 @@ impl Instruction {
 
     /// Creates a new instruction.
     #[must_use]
-    pub(crate) const fn new(kind: InstKind, result_ty: Option<MirType>) -> Self {
+    pub const fn new(kind: InstKind, result_ty: Option<MirType>) -> Self {
         Self { kind, result_ty, result: None, metadata: InstructionMetadata::EMPTY }
     }
 
     /// Marks this synthetic instruction as intentionally having no source location.
     #[must_use]
-    pub(crate) fn with_debug_info_dropped(mut self) -> Self {
+    pub fn with_debug_info_dropped(mut self) -> Self {
         self.metadata.mark_debug_info_dropped();
         self
     }
 
     /// Returns the value allocated for this instruction's result.
     #[must_use]
-    pub(super) const fn result(&self) -> Option<ValueId> {
+    pub const fn result(&self) -> Option<ValueId> {
         self.result
     }
 
     /// Replaces the value allocated for this instruction's result.
-    pub(super) fn set_result(&mut self, result: Option<ValueId>) -> Option<ValueId> {
+    pub fn set_result(&mut self, result: Option<ValueId>) -> Option<ValueId> {
         std::mem::replace(&mut self.result, result)
     }
 
     /// Returns the operands of this instruction.
     #[must_use]
-    pub(crate) fn operands(&self) -> SmallVec<[ValueId; 8]> {
+    pub fn operands(&self) -> SmallVec<[ValueId; 8]> {
         self.kind.operands()
     }
 
     /// Visits the operands of this instruction in canonical order, without collecting them.
-    pub(crate) fn visit_operands(&self, f: impl FnMut(ValueId)) {
+    pub fn visit_operands(&self, f: impl FnMut(ValueId)) {
         self.kind.visit_operands(f);
     }
 
@@ -802,7 +803,7 @@ impl Instruction {
     /// allocation obligations are semantic, so they survive an equivalent
     /// rewrite; allocation markers are dropped only when allocation is lowered away.
     /// The caller must prove equivalence and preserve the result representation.
-    pub(crate) fn replace_kind(&mut self, kind: InstKind) {
+    pub fn replace_kind(&mut self, kind: InstKind) {
         let result = kind.op_def().result;
         debug_assert!(
             (result == super::ResultKind::Custom
@@ -823,7 +824,7 @@ impl Instruction {
     /// Visits operands during an equivalence-preserving rewrite and invalidates
     /// operand-dependent facts only if a value actually changes. Without an operand change, the
     /// base of a storage alias is renamed the same way.
-    pub(crate) fn rewrite_operands(&mut self, mut f: impl FnMut(&mut ValueId)) {
+    pub fn rewrite_operands(&mut self, mut f: impl FnMut(&mut ValueId)) {
         let mut changed = false;
         // %result = op(operands) -> %result = op(equivalent_operands)
         self.kind.visit_operands_mut(|operand| {
@@ -850,7 +851,7 @@ impl Instruction {
 
 /// Solidity low-level address-call behavior.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum AddressCallKind {
+pub enum AddressCallKind {
     Call,
     Static,
     Delegate,
@@ -858,7 +859,7 @@ pub(crate) enum AddressCallKind {
 
 impl InstKind {
     /// Infers integer results from the operation's declared operand signature.
-    pub(crate) fn inferred_result_type(&self, func: &Function) -> Option<MirType> {
+    pub fn inferred_result_type(&self, func: &Function) -> Option<MirType> {
         if let Self::CheckedBinary { arithmetic, .. } = self {
             Some(arithmetic.ty().mir_type())
         } else if self.op_def().result == super::ResultKind::Pointer {
@@ -871,12 +872,12 @@ impl InstKind {
     }
 
     /// Checks the operation's result representation.
-    pub(crate) fn admits_result_type(&self, ty: MirType) -> bool {
+    pub fn admits_result_type(&self, ty: MirType) -> bool {
         self.op_def().result.admits_type(ty)
     }
 
     /// Checks scalar operation contracts without applying implicit conversions.
-    pub(crate) fn scalar_types_match(&self, func: &Function, result: Option<MirType>) -> bool {
+    pub fn scalar_types_match(&self, func: &Function, result: Option<MirType>) -> bool {
         let ty = |value| func.value_ty(value);
         if let Some(expected) = self.operand_types(func) {
             let mut expected = expected.into_iter();
@@ -956,7 +957,7 @@ impl InstKind {
     }
 
     /// Returns the tested operand of a canonical equality with zero.
-    pub(crate) fn zero_test_operand(&self, func: &super::Function) -> Option<ValueId> {
+    pub fn zero_test_operand(&self, func: &super::Function) -> Option<ValueId> {
         match *self {
             Self::Eq(a, b) if func.value_u256(b).is_some_and(|v| v.is_zero()) => Some(a),
             Self::Eq(a, b) if func.value_u256(a).is_some_and(|v| v.is_zero()) => Some(b),
@@ -965,7 +966,7 @@ impl InstKind {
     }
 
     /// Returns the tested operand of a canonical inequality with zero.
-    pub(crate) fn nonzero_test_operand(&self, func: &super::Function) -> Option<ValueId> {
+    pub fn nonzero_test_operand(&self, func: &super::Function) -> Option<ValueId> {
         match *self {
             Self::Ne(a, b) if func.value_u256(b).is_some_and(|v| v.is_zero()) => Some(a),
             Self::Ne(a, b) if func.value_u256(a).is_some_and(|v| v.is_zero()) => Some(b),
@@ -974,7 +975,7 @@ impl InstKind {
     }
 
     /// Clones the instruction with zeroed value operands to compare its remaining fields.
-    pub(crate) fn clone_without_operands(&self) -> Self {
+    pub fn clone_without_operands(&self) -> Self {
         let mut kind = self.clone();
         kind.visit_operands_mut(|value| *value = ValueId::from_usize(0));
         kind
@@ -984,7 +985,7 @@ impl InstKind {
     ///
     /// This includes commutative instructions and comparisons whose opcode can be reversed with
     /// their operands.
-    pub(crate) const fn reorderable_binary_operands(&self) -> Option<(ValueId, ValueId)> {
+    pub const fn reorderable_binary_operands(&self) -> Option<(ValueId, ValueId)> {
         if !self.op_def().traits.contains(super::OpTraits::REORDERABLE) {
             return None;
         }
@@ -1007,7 +1008,7 @@ impl InstKind {
 
     /// Returns the operands of this instruction.
     #[must_use]
-    pub(crate) fn operands(&self) -> SmallVec<[ValueId; 8]> {
+    pub fn operands(&self) -> SmallVec<[ValueId; 8]> {
         let mut out = SmallVec::new();
         self.collect_operands(&mut out);
         out
@@ -1015,14 +1016,14 @@ impl InstKind {
 
     /// Returns whether `value` is an operand of this instruction, without collecting them.
     #[must_use]
-    pub(crate) fn reads(&self, value: ValueId) -> bool {
+    pub fn reads(&self, value: ValueId) -> bool {
         self.any_operand(|operand| operand == value)
     }
 
     /// Returns whether any operand of this instruction satisfies `predicate`, without collecting
     /// them.
     #[must_use]
-    pub(crate) fn any_operand(&self, mut predicate: impl FnMut(ValueId) -> bool) -> bool {
+    pub fn any_operand(&self, mut predicate: impl FnMut(ValueId) -> bool) -> bool {
         let mut found = false;
         self.visit_operands(|operand| found = found || predicate(operand));
         found
@@ -1030,7 +1031,7 @@ impl InstKind {
 
     /// Returns the mnemonic for this instruction.
     #[must_use]
-    pub(crate) const fn mnemonic(&self) -> &'static str {
+    pub const fn mnemonic(&self) -> &'static str {
         match self {
             Self::CheckedBinary { op, .. } => op.name(),
             Self::ValidateAbi(_) => "validate_abi",
@@ -1050,13 +1051,13 @@ impl InstKind {
 
     /// Returns whether the instruction has required effects, including control effects.
     #[must_use]
-    pub(crate) const fn has_side_effects(&self) -> bool {
+    pub const fn has_side_effects(&self) -> bool {
         self.effects().must_execute()
     }
 
     /// Returns a conservative effect classification for this instruction.
     #[must_use]
-    pub(crate) const fn effect_kind(&self) -> EffectKind {
+    pub const fn effect_kind(&self) -> EffectKind {
         match self {
             Self::ICall { function: Callee::Builtin(builtin), .. } => match builtin {
                 Builtin::CheckedAddMod | Builtin::CheckedMulMod | Builtin::Check { .. } => {
@@ -1076,7 +1077,7 @@ impl InstKind {
 
     /// Projects field `index` of `slice`, with the field's type in the slice's location.
     #[must_use]
-    pub(crate) fn slice_field(func: &Function, slice: ValueId, index: u32) -> (Self, MirType) {
+    pub fn slice_field(func: &Function, slice: ValueId, index: u32) -> (Self, MirType) {
         let ty = super::typing::slice_type(func, slice);
         let MirType::Slice(location) = ty else { unreachable!("slice_type returns a slice") };
         let field = MirType::slice_fields(location)[index as usize];
@@ -1085,7 +1086,7 @@ impl InstKind {
 
     /// Returns the slice and field index this instruction projects, if it projects a slice.
     #[must_use]
-    pub(crate) const fn slice_projection(&self) -> Option<(ValueId, u32)> {
+    pub const fn slice_projection(&self) -> Option<(ValueId, u32)> {
         match *self {
             Self::ExtractValue { ty: MirType::Slice(_), aggregate, index } => {
                 Some((aggregate, index))
@@ -1096,14 +1097,14 @@ impl InstKind {
 
     /// Returns whether this is a `shl`, `shr`, or `sar`.
     #[must_use]
-    pub(crate) const fn is_shift(&self) -> bool {
+    pub const fn is_shift(&self) -> bool {
         matches!(self, Self::Shl(..) | Self::Shr(..) | Self::Sar(..))
     }
 
     /// Returns whether the textual form lists the stored operands in reverse: shifts are stored
     /// in EVM stack order but read as `value, shift`.
     #[must_use]
-    pub(crate) const fn reverses_text_operands(&self) -> bool {
+    pub const fn reverses_text_operands(&self) -> bool {
         self.is_shift()
     }
 }

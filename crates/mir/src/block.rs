@@ -6,35 +6,35 @@ use std::fmt;
 
 /// A basic block in the MIR.
 #[derive(Clone, Debug)]
-pub(crate) struct BasicBlock {
+pub struct BasicBlock {
     /// The instructions in this block (excluding the terminator).
-    pub(crate) instructions: Vec<InstId>,
+    pub instructions: Vec<InstId>,
     /// The terminator instruction.
-    pub(crate) terminator: Option<Terminator>,
+    pub terminator: Option<Terminator>,
     /// Source context of the control transfer, independent of the last value instruction.
-    pub(crate) terminator_metadata: InstructionMetadata,
+    pub terminator_metadata: InstructionMetadata,
     /// Predecessor blocks, each listed once.
-    pub(crate) predecessors: SmallVec<[BlockId; 4]>,
+    pub predecessors: SmallVec<[BlockId; 4]>,
 }
 
 impl BasicBlock {
     /// Replaces a control transfer together with its source context.
     ///
     /// The caller remains responsible for updating CFG edges and phi inputs.
-    pub(crate) fn set_terminator(&mut self, terminator: Terminator, metadata: InstructionMetadata) {
+    pub fn set_terminator(&mut self, terminator: Terminator, metadata: InstructionMetadata) {
         self.terminator = Some(terminator);
         self.terminator_metadata = metadata;
     }
 
     /// Replaces a transfer with compiler-generated control flow, dropping stale context.
-    pub(crate) fn set_generated_terminator(&mut self, terminator: Terminator) {
+    pub fn set_generated_terminator(&mut self, terminator: Terminator) {
         let mut metadata = InstructionMetadata::EMPTY;
         metadata.mark_debug_info_dropped();
         self.set_terminator(terminator, metadata);
     }
 
     /// Moves a control transfer out, leaving fresh generated-code context behind.
-    pub(crate) fn take_terminator(&mut self) -> (Option<Terminator>, InstructionMetadata) {
+    pub fn take_terminator(&mut self) -> (Option<Terminator>, InstructionMetadata) {
         let mut generated = InstructionMetadata::EMPTY;
         generated.mark_debug_info_dropped();
         let metadata = std::mem::replace(&mut self.terminator_metadata, generated);
@@ -43,7 +43,7 @@ impl BasicBlock {
 
     /// Creates a new empty basic block.
     #[must_use]
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         let mut terminator_metadata = InstructionMetadata::EMPTY;
         terminator_metadata.mark_debug_info_dropped();
         Self {
@@ -63,7 +63,7 @@ impl Default for BasicBlock {
 
 /// A block terminator instruction.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum Terminator {
+pub enum Terminator {
     /// Unconditional jump to another block.
     Jump(BlockId),
     /// Conditional branch.
@@ -134,7 +134,7 @@ pub(crate) enum Terminator {
 
 impl Terminator {
     /// Visits the successor blocks of this terminator without allocating.
-    pub(crate) fn for_each_successor(&self, mut visit: impl FnMut(BlockId)) {
+    pub fn for_each_successor(&self, mut visit: impl FnMut(BlockId)) {
         match self {
             Self::Jump(target) => visit(*target),
             Self::Branch { then_block, else_block, .. } => {
@@ -159,7 +159,7 @@ impl Terminator {
     }
 
     /// Visits every successor slot of this terminator mutably, so callers can retarget edges.
-    pub(crate) fn for_each_successor_mut(&mut self, mut visit: impl FnMut(&mut BlockId)) {
+    pub fn for_each_successor_mut(&mut self, mut visit: impl FnMut(&mut BlockId)) {
         match self {
             Self::Jump(target) => visit(target),
             Self::Branch { then_block, else_block, .. } => {
@@ -185,7 +185,7 @@ impl Terminator {
 
     /// Returns whether this terminator branches to `target`.
     #[must_use]
-    pub(crate) fn has_successor(&self, target: BlockId) -> bool {
+    pub fn has_successor(&self, target: BlockId) -> bool {
         match self {
             Self::Jump(block) => *block == target,
             Self::Branch { then_block, else_block, .. } => {
@@ -207,7 +207,7 @@ impl Terminator {
 
     /// Returns whether this terminator has any successor blocks.
     #[must_use]
-    pub(crate) fn has_successors(&self) -> bool {
+    pub fn has_successors(&self) -> bool {
         match self {
             Self::Jump(_) | Self::Branch { .. } | Self::Switch { .. } => true,
             Self::Return { .. }
@@ -223,12 +223,12 @@ impl Terminator {
 
     /// Returns whether this terminator reverts the current call frame.
     #[must_use]
-    pub(crate) const fn reverts(&self) -> bool {
+    pub const fn reverts(&self) -> bool {
         matches!(self, Self::Revert { .. } | Self::RevertReturndata | Self::Invalid)
     }
 
     /// Visits the value operands of this terminator without allocating.
-    pub(crate) fn visit_operands(&self, mut visit: impl FnMut(ValueId)) {
+    pub fn visit_operands(&self, mut visit: impl FnMut(ValueId)) {
         match self {
             Self::Jump(_) => {}
             Self::Branch { condition, .. } => visit(*condition),
@@ -259,14 +259,14 @@ impl Terminator {
 
     /// Returns whether `value` is an operand of this terminator, without collecting them.
     #[must_use]
-    pub(crate) fn reads(&self, value: ValueId) -> bool {
+    pub fn reads(&self, value: ValueId) -> bool {
         self.any_operand(|operand| operand == value)
     }
 
     /// Returns whether any operand of this terminator satisfies `predicate`, without collecting
     /// them.
     #[must_use]
-    pub(crate) fn any_operand(&self, mut predicate: impl FnMut(ValueId) -> bool) -> bool {
+    pub fn any_operand(&self, mut predicate: impl FnMut(ValueId) -> bool) -> bool {
         let mut found = false;
         self.visit_operands(|operand| found = found || predicate(operand));
         found
@@ -274,7 +274,7 @@ impl Terminator {
 
     /// Returns the successor blocks of this terminator.
     #[must_use]
-    pub(crate) fn successors(&self) -> SmallVec<[BlockId; 2]> {
+    pub fn successors(&self) -> SmallVec<[BlockId; 2]> {
         let mut successors = match self {
             Self::Switch { cases, .. } => SmallVec::with_capacity(cases.len() + 1),
             _ => SmallVec::new(),
@@ -285,7 +285,7 @@ impl Terminator {
 
     /// Returns the mnemonic for this terminator.
     #[must_use]
-    pub(crate) const fn mnemonic(&self) -> &'static str {
+    pub const fn mnemonic(&self) -> &'static str {
         match self {
             Self::Jump(_) => "jump",
             Self::Branch { .. } => "jumpi",
@@ -304,7 +304,7 @@ impl Terminator {
     /// Returns the [`ValueId`] operands of this terminator (the values it reads).
     /// Block targets are NOT included; use [`Self::successors`] for those.
     #[must_use]
-    pub(crate) fn operands(&self) -> SmallVec<[ValueId; 4]> {
+    pub fn operands(&self) -> SmallVec<[ValueId; 4]> {
         let mut out = match self {
             Self::Return { values } => SmallVec::with_capacity(values.len()),
             Self::TailCall { args, .. } => SmallVec::with_capacity(args.len()),
@@ -315,7 +315,7 @@ impl Terminator {
     }
 
     /// Visits every value operand mutably.
-    pub(crate) fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
+    pub fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
         match self {
             Self::Jump(_) | Self::RevertReturndata | Self::Stop | Self::Invalid => {}
             Self::Branch { condition, .. } => f(condition),

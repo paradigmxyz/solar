@@ -37,15 +37,16 @@ use super::{
     AbiEncodeMode, AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamType,
     AbiType, AddressCallKind, AllocationFailure, AllocationInitialization, AllocationSemantics,
     BlockId, DataId, DataRef, DataSize, Disambiguator, EffectKind, FrameMode, FrameSlotKind,
-    Function, FunctionBuilder, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
-    InstructionMetadata, LogTopics, MangledSymbol, MemoryObjectKind, MemoryObjectLayout,
-    MemoryRegion, Module, StorageAlias, StructId, StructType, Terminator, Value, ValueId,
+    Function, FunctionBuilder, FunctionId, HirExprId, Immediate, ImmutableId, InstId, InstKind,
+    Instruction, InstructionMetadata, LogTopics, MangledSymbol, MemoryObjectKind,
+    MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StructId, StructType, Terminator,
+    Value, ValueId,
 };
-use crate::mir::{AbiWordValidator, Callee, MirType, PtrLocation, TypeSize};
+use crate::{AbiWordValidator, Callee, MirType, PtrLocation, TypeSize};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_ast::{
-    Arena,
+    Arena, StateMutability,
     token::{BinOpToken, Delimiter, TokenKind, TokenLitKind},
 };
 use solar_data_structures::{
@@ -56,7 +57,6 @@ use solar_interface::{
     BytePos, ByteSymbol, Ident, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym,
 };
 use solar_parse::{PErr, PResult};
-use solar_sema::hir;
 
 // =============================================================================
 // Public API
@@ -68,22 +68,12 @@ pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
     parser.parse_module().map_err(PErr::emit)
 }
 
-#[cfg(test)]
-pub(super) fn parse_module(sess: &Session, input: &str) -> Result<Module> {
-    let name = format!("test{}.mir", sess.source_map().files().len());
-    let file = sess
-        .source_map()
-        .new_source_file(solar_interface::source_map::FileName::Custom(name), input)
-        .unwrap();
-    Module::parse(sess, &file)
-}
-
 // =============================================================================
 // Parser implementation
 // =============================================================================
 
 struct Parser<'sess, 'ast> {
-    parser: crate::ir_parse::Parser<'sess, 'ast>,
+    parser: solar_evmir::ir_parse::Parser<'sess, 'ast>,
     pending_function_ref: Option<(MangledSymbol, Span)>,
     parsed_dispatch_entry: bool,
     function_refs: Vec<PendingFunctionRef>,
@@ -136,7 +126,7 @@ fn schema_typed(func: &Function, kind: InstKind) -> (InstKind, Option<MirType>) 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn new(sess: &'sess Session, arena: &'ast Arena, source: &SourceFile) -> Self {
         Self {
-            parser: crate::ir_parse::Parser::new(sess, arena, source),
+            parser: solar_evmir::ir_parse::Parser::new(sess, arena, source),
             pending_function_ref: None,
             parsed_dispatch_entry: false,
             function_refs: Vec::new(),
@@ -560,7 +550,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             self.reject_unresolved_block_labels()?;
             self.reject_unresolved_value_labels(builder.func())?;
-            crate::mir::utils::remap_block_order(builder.func_mut(), &self.block_order)
+            crate::utils::remap_block_order(builder.func_mut(), &self.block_order)
         };
         for reference in &mut self.function_refs {
             if let FunctionRefTarget::Terminator(block) = &mut reference.target {
@@ -669,13 +659,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 kw::Receive => builder.func_mut().attributes.is_receive = true,
                 kw::Fallback => builder.func_mut().attributes.is_fallback = true,
                 kw::Pure => {
-                    builder.func_mut().attributes.state_mutability = hir::StateMutability::Pure;
+                    builder.func_mut().attributes.state_mutability = StateMutability::Pure;
                 }
                 kw::View => {
-                    builder.func_mut().attributes.state_mutability = hir::StateMutability::View;
+                    builder.func_mut().attributes.state_mutability = StateMutability::View;
                 }
                 kw::Payable => {
-                    builder.func_mut().attributes.state_mutability = hir::StateMutability::Payable;
+                    builder.func_mut().attributes.state_mutability = StateMutability::Payable;
                 }
                 _ => return Err(self.parser.error(format!("unknown function attribute `{key}`"))),
             }
@@ -1478,7 +1468,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 sym::hir => {
                     self.parser.expect(TokenKind::Eq)?;
                     let value = self.parser.parse_uint()?;
-                    metadata.set_hir_expr(Some(hir::ExprId::from_usize(
+                    metadata.set_hir_expr(Some(HirExprId::from_usize(
                         self.u256_to_u32(value)? as usize
                     )));
                 }
@@ -1499,7 +1489,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     loop {
                         let (lo, hi) = self.parser.parse_span_bounds()?;
                         let span = Span::new(BytePos(lo), BytePos(hi));
-                        if spans.len() < crate::source_info::MAX_DEBUG_SPANS
+                        if spans.len() < solar_evmir::debug::MAX_DEBUG_SPANS
                             && !spans.contains(&span)
                         {
                             spans.push(span);

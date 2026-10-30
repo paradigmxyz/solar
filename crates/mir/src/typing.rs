@@ -10,7 +10,7 @@ use smallvec::{SmallVec, smallvec};
 
 impl AbiType {
     /// Returns the carrier consumed by ABI encoding, before layout cleanup.
-    pub(crate) fn operand_type(&self) -> MirType {
+    pub fn operand_type(&self) -> MirType {
         match self {
             Self::Word(_) | Self::Function => MirType::I256,
             Self::Bytes(PtrLocation::Memory)
@@ -24,7 +24,7 @@ impl AbiType {
     }
 
     /// Checks location-dependent layouts that the encoder can consume without materialization.
-    pub(crate) fn accepts_input_type(&self, actual: MirType) -> bool {
+    pub fn accepts_input_type(&self, actual: MirType) -> bool {
         if self.input_type(Some(actual)) != actual {
             return false;
         }
@@ -87,7 +87,7 @@ pub(super) fn read_object(func: &Function, value: ValueId) -> MirType {
     }
 }
 
-pub(super) fn memory_object(func: &Function, value: ValueId) -> MirType {
+pub fn memory_object(func: &Function, value: ValueId) -> MirType {
     match func.value_ty(value) {
         Some(ty @ MirType::Slice(PtrLocation::Memory)) => ty,
         _ => MirType::MEMPTR,

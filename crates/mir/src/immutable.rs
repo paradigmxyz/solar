@@ -4,11 +4,11 @@
 //! deployment postlude reads the same words to patch runtime `PUSH<N>`
 //! placeholders. This module keeps both sides on one layout.
 
-use crate::mir::{ImmutableEncoding, ImmutableId, Module, TypeSize, memory::EvmMemoryLayout};
+use crate::{ImmutableEncoding, ImmutableId, Module, TypeSize, memory::EvmMemoryLayout};
 use solar_config::OptimizationMode;
 
 /// Returns the immediate width used to load an immutable at runtime.
-pub(crate) fn immutable_push_type_size(
+pub fn immutable_push_type_size(
     encoding: ImmutableEncoding,
     optimization: OptimizationMode,
     has_bitwise_shifting: bool,
@@ -41,14 +41,14 @@ fn constructor_local_memory_end(module: &Module) -> u64 {
 
 /// Returns the first immutable staging word, above every constructor-owned
 /// fixed memory word.
-pub(crate) fn immutable_staging_base(module: &Module) -> u64 {
+pub fn immutable_staging_base(module: &Module) -> u64 {
     let fixed_end = constructor_local_memory_end(module)
         .max(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE);
     EvmMemoryLayout::align_word(fixed_end).expect("constructor immutable staging address overflow")
 }
 
 /// Returns the constructor-memory address assigned to an immutable.
-pub(crate) fn immutable_staging_addr(base: u64, id: ImmutableId) -> u64 {
+pub fn immutable_staging_addr(base: u64, id: ImmutableId) -> u64 {
     let offset = u64::try_from(id.index())
         .ok()
         .and_then(|index| index.checked_mul(EvmMemoryLayout::WORD_SIZE))
@@ -57,7 +57,7 @@ pub(crate) fn immutable_staging_addr(base: u64, id: ImmutableId) -> u64 {
 }
 
 /// Returns the first constructor-memory address after all immutable words.
-pub(crate) fn immutable_staging_end(base: u64, count: usize) -> u64 {
+pub fn immutable_staging_end(base: u64, count: usize) -> u64 {
     let size = u64::try_from(count)
         .ok()
         .and_then(|count| count.checked_mul(EvmMemoryLayout::WORD_SIZE))

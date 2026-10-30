@@ -4420,6 +4420,7 @@ dependencies = [
  "solar-data-structures",
  "solar-evmir",
  "solar-interface",
+ "solar-mir",
  "solar-parse",
  "solar-sema",
  "tempfile",
@@ -4584,6 +4585,21 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.6",
+]
+
+[[package]]
+name = "solar-mir"
+version = "0.2.0"
+dependencies = [
+ "alloy-primitives",
+ "arrayvec",
+ "smallvec",
+ "solar-ast",
+ "solar-config",
+ "solar-data-structures",
+ "solar-evmir",
+ "solar-interface",
+ "solar-parse",
 ]
 
 [[package]]

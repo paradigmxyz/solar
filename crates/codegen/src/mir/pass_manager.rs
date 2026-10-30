@@ -43,7 +43,7 @@ pub(crate) fn parse_pass_pipeline<P: Copy>(
 
 /// Returns whether pass managers should validate IR after each pass.
 pub(crate) fn should_validate_ir(gcx: Gcx<'_>) -> bool {
-    gcx.sess.opts.unstable.validate_ir.unwrap_or(cfg!(debug_assertions))
+    solar_mir::should_validate_ir(gcx.sess)
 }
 
 /// Returns the display label for a configured IR pipeline.

@@ -39,7 +39,7 @@
 //! solar_codegen::mir::validate(dcx, &module);
 //! ```
 
-use crate::mir::{
+use crate::{
     AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId, InstKind,
     MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation, RequireKind,
     ResultKind, StorageAlias, StructId, Terminator, TypeSize, Value, ValueId, analysis::CfgInfo,
@@ -1029,7 +1029,7 @@ impl<'a> Validator<'a> {
                 });
             }
             match &body.terminator {
-                Some(crate::mir::Terminator::Return { values }) => {
+                Some(crate::Terminator::Return { values }) => {
                     if values.len() != func.return_components().len() {
                         self.emit_at_block(
                             format_args!(
@@ -1047,7 +1047,7 @@ impl<'a> Validator<'a> {
                         self.emit_at_block("return values do not match the signature", block);
                     }
                 }
-                Some(crate::mir::Terminator::TailCall { function, args }) => {
+                Some(crate::Terminator::TailCall { function, args }) => {
                     if let Some(callee) = module.functions.get(*function) {
                         if args.iter().zip(&callee.params).any(|(&value, &ty)| {
                             let actual = func.value_ty(value);
@@ -1140,31 +1140,30 @@ impl<'a> Validator<'a> {
                     }
                     InstKind::AbiEncodePacked { parts, hash } => {
                         let valid_parts = parts.iter().all(|part| match part {
-                            crate::mir::PackedPart::Literal(_)
-                            | crate::mir::PackedPart::Bytes(_) => true,
-                            crate::mir::PackedPart::Scalar { ty, .. } => {
+                            crate::PackedPart::Literal(_) | crate::PackedPart::Bytes(_) => true,
+                            crate::PackedPart::Scalar { ty, .. } => {
                                 matches!(
                                     ty,
-                                    crate::mir::ValueLayout::UInt(_)
-                                        | crate::mir::ValueLayout::Int(_)
-                                        | crate::mir::ValueLayout::FixedBytes(_)
-                                        | crate::mir::ValueLayout::Address
-                                        | crate::mir::ValueLayout::Bool
-                                        | crate::mir::ValueLayout::Function
+                                    crate::ValueLayout::UInt(_)
+                                        | crate::ValueLayout::Int(_)
+                                        | crate::ValueLayout::FixedBytes(_)
+                                        | crate::ValueLayout::Address
+                                        | crate::ValueLayout::Bool
+                                        | crate::ValueLayout::Function
                                 ) && ty.type_size().is_some_and(|size| size.bytes() != 0)
                             }
-                            crate::mir::PackedPart::Array { element, source, .. } => {
+                            crate::PackedPart::Array { element, source, .. } => {
                                 !hash
-                                    && crate::mir::packed_element_bytes(element).is_some()
+                                    && crate::packed_element_bytes(element).is_some()
                                     && match source {
-                                        crate::mir::PackedArraySource::Memory { layout } => {
+                                        crate::PackedArraySource::Memory { layout } => {
                                             matches!(
                                                 layout,
                                                 MemoryObjectLayout::DynamicArray { .. }
                                                     | MemoryObjectLayout::FixedArray { .. }
                                             )
                                         }
-                                        crate::mir::PackedArraySource::Slice(location) => matches!(
+                                        crate::PackedArraySource::Slice(location) => matches!(
                                             location,
                                             PtrLocation::Memory | PtrLocation::Calldata
                                         ),
@@ -1176,21 +1175,20 @@ impl<'a> Validator<'a> {
                                 == Some(if *hash { MirType::I256 } else { MirType::MEMPTR })
                     }
                     InstKind::CheckedBinary { arithmetic, .. } => {
-                        let (crate::mir::ArithmeticKind::Unsigned(bits)
-                        | crate::mir::ArithmeticKind::Signed(bits)) = arithmetic;
+                        let (crate::ArithmeticKind::Unsigned(bits)
+                        | crate::ArithmeticKind::Signed(bits)) = arithmetic;
                         (8..=256).contains(bits) && bits % 8 == 0
                     }
                     InstKind::StorageArrayLoad { element, enum_variants, .. } => {
                         matches!(
                             element,
-                            crate::mir::ValueLayout::UInt(_)
-                                | crate::mir::ValueLayout::Int(_)
-                                | crate::mir::ValueLayout::FixedBytes(_)
-                                | crate::mir::ValueLayout::MemoryObject(MemoryObjectKind::Bytes)
+                            crate::ValueLayout::UInt(_)
+                                | crate::ValueLayout::Int(_)
+                                | crate::ValueLayout::FixedBytes(_)
+                                | crate::ValueLayout::MemoryObject(MemoryObjectKind::Bytes)
                         ) && enum_variants.is_none_or(|variants| {
                             (1..=256).contains(&variants)
-                                && *element
-                                    == crate::mir::ValueLayout::UInt(TypeSize::new_int_bits(8))
+                                && *element == crate::ValueLayout::UInt(TypeSize::new_int_bits(8))
                         }) && inst.result_ty == Some(MirType::MEMPTR)
                     }
                     InstKind::StorageBytesLoad(_) => inst.result_ty == Some(MirType::MEMPTR),
@@ -1341,8 +1339,7 @@ impl<'a> Validator<'a> {
             }
         }
         for block in func.blocks.iter() {
-            let Some(crate::mir::Terminator::TailCall { function, args }) = &block.terminator
-            else {
+            let Some(crate::Terminator::TailCall { function, args }) = &block.terminator else {
                 continue;
             };
             let Some(callee) = module.functions.get(*function) else {
@@ -1449,7 +1446,7 @@ impl<'a> Validator<'a> {
                 ));
             }
             for (block_id, block) in func.blocks.iter_enumerated() {
-                if matches!(block.terminator, Some(crate::mir::Terminator::RevertReturndata)) {
+                if matches!(block.terminator, Some(crate::Terminator::RevertReturndata)) {
                     self.emit_at_block(
                         "returndata bubbling survives the `lowered` phase boundary",
                         block_id,
@@ -1484,7 +1481,7 @@ impl<'a> Validator<'a> {
     }
 }
 
-pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
+pub fn validate(dcx: &DiagCtxt, module: &Module) {
     Validator::new(dcx).validate_module(module);
 }
 
@@ -1493,7 +1490,7 @@ pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
 /// With `full`, checks all SSA, type, and representation invariants. Otherwise checks only the
 /// phase contract: the routing entry, ABI wrappers, word types, and instructions that must be
 /// lowered by the phase boundary.
-pub(crate) fn validate_phase(
+pub fn validate_phase(
     dcx: &DiagCtxt,
     module: &Module,
     phase: MirPhase,
@@ -1512,10 +1509,7 @@ pub(crate) fn validate_phase(
 /// Rejects shifts in a module that targets an EVM version without shift opcodes.
 ///
 /// `lower-shifts` removes them, so one left after lowering means that pass did not run.
-pub(crate) fn validate_legal_shifts(
-    dcx: &DiagCtxt,
-    module: &Module,
-) -> solar_interface::Result<()> {
+pub fn validate_legal_shifts(dcx: &DiagCtxt, module: &Module) -> solar_interface::Result<()> {
     let mut validator = Validator::new(dcx);
     for (id, func) in module.functions.iter_enumerated() {
         validator.function = Some(id);

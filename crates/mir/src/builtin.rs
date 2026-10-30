@@ -5,14 +5,14 @@ use solar_interface::ByteSymbol;
 
 /// An internal call targets either a MIR definition or a builtin specialization.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum Callee {
+pub enum Callee {
     Function(FunctionId),
     Builtin(Builtin),
 }
 
 /// Builtin identity and static type arguments, without value operands.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum Builtin {
+pub enum Builtin {
     Require(RequireKind),
     /// Conditional failure; the condition is the sole value argument.
     Check {
@@ -41,7 +41,7 @@ pub(crate) enum Builtin {
 
 /// Error payload type for a require call.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum RequireKind {
+pub enum RequireKind {
     ShortString,
     LongString(ByteSymbol),
     EmptyString,
@@ -51,13 +51,13 @@ pub(crate) enum RequireKind {
 
 impl InstKind {
     /// Builds a builtin call with evaluated values in argument order.
-    pub(crate) fn builtin(builtin: Builtin, args: impl Into<Box<[ValueId]>>) -> Self {
+    pub fn builtin(builtin: Builtin, args: impl Into<Box<[ValueId]>>) -> Self {
         // icall builtin, arguments
         Self::ICall { function: Callee::Builtin(builtin), args: args.into() }
     }
 
     /// Builds an opaque require call with evaluated values in argument order.
-    pub(crate) fn require(condition: ValueId, payload: RevertPayload) -> Self {
+    pub fn require(condition: ValueId, payload: RevertPayload) -> Self {
         let mut args = Vec::new();
         args.push(condition);
         let kind = match payload {
@@ -84,7 +84,7 @@ impl InstKind {
 
 impl RequireKind {
     /// Recovers an evaluated payload when expanding a well-formed call.
-    pub(crate) fn payload(&self, args: &[ValueId]) -> Option<RevertPayload> {
+    pub fn payload(&self, args: &[ValueId]) -> Option<RevertPayload> {
         Some(match (self, args) {
             (Self::ShortString, &[length, data]) => RevertPayload::ShortString { length, data },
             (Self::LongString(bytes), []) => RevertPayload::LongString(*bytes),
@@ -106,7 +106,7 @@ impl RequireKind {
 
 impl Builtin {
     /// Operand count for builtins with a fixed signature.
-    pub(crate) const fn fixed_arity(&self) -> Option<usize> {
+    pub const fn fixed_arity(&self) -> Option<usize> {
         match self {
             Self::Sha256 | Self::Ripemd160 | Self::Erc7201 => Some(1),
             Self::EcRecover => Some(4),

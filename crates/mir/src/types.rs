@@ -3,11 +3,11 @@
 use super::StructId;
 use std::{fmt, num::NonZeroU32};
 
-pub(crate) use solar_ast::TypeSize;
+pub use solar_ast::TypeSize;
 
 /// How an immutable's typed value is encoded in a `PUSH<N>` immediate.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum ImmutableEncoding {
+pub enum ImmutableEncoding {
     /// A zero-extended, right-aligned value.
     Unsigned(TypeSize),
     /// A sign-extended, right-aligned value.
@@ -19,7 +19,7 @@ pub(crate) enum ImmutableEncoding {
 impl ImmutableEncoding {
     /// Returns the canonical encoded type size.
     #[must_use]
-    pub(crate) const fn type_size(self) -> TypeSize {
+    pub const fn type_size(self) -> TypeSize {
         let size = match self {
             Self::Unsigned(size) | Self::Signed(size) | Self::LeftAligned(size) => size,
         };
@@ -28,14 +28,14 @@ impl ImmutableEncoding {
 
     /// Returns whether loading this encoding needs a post-`PUSH<N>` adjustment.
     #[must_use]
-    pub(crate) const fn needs_runtime_normalization(self) -> bool {
+    pub const fn needs_runtime_normalization(self) -> bool {
         self.type_size().bytes() < 32 && !matches!(self, Self::Unsigned(_))
     }
 }
 
 /// Address space a pointer or slice refers to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum PtrLocation {
+pub enum PtrLocation {
     /// EVM memory.
     Memory,
     /// Call input data.
@@ -54,7 +54,7 @@ pub(crate) enum PtrLocation {
 
 /// Physical base used by a semantic mutable-local frame slot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum FrameMode {
+pub enum FrameMode {
     /// The function uses the shared low-memory region for its locals.
     External,
     /// The function uses its internal-call frame for its locals.
@@ -65,7 +65,7 @@ pub(crate) enum FrameMode {
 
 /// Logical value representation stored in a mutable-local frame slot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum FrameSlotKind {
+pub enum FrameSlotKind {
     /// A single Solidity word.
     Word,
     /// A two-word pointer/length slice in the given address space.
@@ -75,7 +75,7 @@ pub(crate) enum FrameSlotKind {
 impl FrameSlotKind {
     /// Returns the MIR type produced by a frame load.
     #[must_use]
-    pub(crate) const fn result_type(self) -> MirType {
+    pub const fn result_type(self) -> MirType {
         match self {
             Self::Word => MirType::I256,
             Self::Slice(location) => MirType::Slice(location),
@@ -89,7 +89,7 @@ impl FrameSlotKind {
 /// lowering. Naming the shape at each access prevents Solidity-compatible headers
 /// and field layouts from being inferred from an opaque pointer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum MemoryObjectKind {
+pub enum MemoryObjectKind {
     /// Dynamically sized bytes or string data, addressed in word chunks.
     Bytes,
     /// A dynamically sized array.
@@ -106,7 +106,7 @@ pub(crate) enum MemoryObjectKind {
 /// memory-layout policy owns the physical word width and dynamic-object
 /// header, so high-level MIR does not bake EVM addresses into object access.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum MemoryObjectLayout {
+pub enum MemoryObjectLayout {
     /// Dynamically sized bytes or string data.
     Bytes,
     /// A dynamically sized array with the given element stride in words.
@@ -130,17 +130,17 @@ pub(crate) enum MemoryObjectLayout {
 
 impl MemoryObjectLayout {
     /// Dynamic array whose direct elements occupy one logical word.
-    pub(crate) const WORD_ARRAY: Self = Self::DynamicArray { element_words: 1 };
+    pub const WORD_ARRAY: Self = Self::DynamicArray { element_words: 1 };
 
     /// Creates a fixed array whose direct elements occupy one logical word.
     #[must_use]
-    pub(crate) const fn word_fixed_array(len: u64) -> Self {
+    pub const fn word_fixed_array(len: u64) -> Self {
         Self::FixedArray { len, element_words: 1 }
     }
 
     /// Returns the nominal object kind represented by this layout.
     #[must_use]
-    pub(crate) const fn kind(self) -> MemoryObjectKind {
+    pub const fn kind(self) -> MemoryObjectKind {
         match self {
             Self::Bytes => MemoryObjectKind::Bytes,
             Self::DynamicArray { .. } => MemoryObjectKind::DynamicArray,
@@ -193,13 +193,13 @@ impl fmt::Display for PtrLocation {
 /// Structs are SSA values, not references to Solidity memory objects. Nested
 /// structs refer to earlier declarations, keeping their layouts finite.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct StructType {
-    pub(crate) fields: Box<[MirType]>,
+pub struct StructType {
+    pub fields: Box<[MirType]>,
 }
 
 /// SSA value types. Integers have a bit width but no signedness.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum MirType {
+pub enum MirType {
     /// An integer bit pattern that fits within its nonzero bit width.
     ///
     /// Bits above this width are always zero in the EVM word representation,
@@ -221,25 +221,25 @@ pub(crate) enum MirType {
 
 impl MirType {
     /// A one-bit integer: zero or one.
-    pub(crate) const I1: Self = Self::Int(NonZeroU32::new(1).unwrap());
+    pub const I1: Self = Self::Int(NonZeroU32::new(1).unwrap());
     /// A 160-bit integer, used for addresses.
-    pub(crate) const I160: Self = Self::Int(NonZeroU32::new(160).unwrap());
+    pub const I160: Self = Self::Int(NonZeroU32::new(160).unwrap());
     /// A 256-bit integer.
-    pub(crate) const I256: Self = Self::Int(NonZeroU32::new(256).unwrap());
+    pub const I256: Self = Self::Int(NonZeroU32::new(256).unwrap());
     /// A memory pointer.
-    pub(crate) const MEMPTR: Self = Self::Ptr(PtrLocation::Memory);
+    pub const MEMPTR: Self = Self::Ptr(PtrLocation::Memory);
     /// The field index of a slice's pointer.
-    pub(crate) const SLICE_PTR_FIELD: u32 = 0;
+    pub const SLICE_PTR_FIELD: u32 = 0;
     /// The field index of a slice's length word.
-    pub(crate) const SLICE_LEN_FIELD: u32 = 1;
+    pub const SLICE_LEN_FIELD: u32 = 1;
 
     /// Whether an integer width has a supported native representation.
-    pub(crate) const fn valid_integer_width(bits: u32) -> bool {
+    pub const fn valid_integer_width(bits: u32) -> bool {
         bits == 1 || (bits != 0 && bits <= 256 && bits.is_multiple_of(8))
     }
 
     /// Returns the integer bit width, excluding pointers and aggregates.
-    pub(crate) const fn integer_bits(self) -> Option<u32> {
+    pub const fn integer_bits(self) -> Option<u32> {
         match self {
             Self::Int(bits) => Some(bits.get()),
             _ => None,
@@ -247,7 +247,7 @@ impl MirType {
     }
 
     /// Returns an unsigned layout for integer values without source signedness.
-    pub(crate) const fn value_layout(self) -> ValueLayout {
+    pub const fn value_layout(self) -> ValueLayout {
         match self {
             Self::I1 => ValueLayout::Bool,
             Self::Int(bits) => ValueLayout::UInt(TypeSize::new_int_bits(bits.get() as u16)),
@@ -262,11 +262,11 @@ impl MirType {
         }
     }
 
-    pub(crate) const fn is_pointer(self) -> bool {
+    pub const fn is_pointer(self) -> bool {
         matches!(self, Self::Ptr(_))
     }
 
-    pub(crate) const fn is_word(self) -> bool {
+    pub const fn is_word(self) -> bool {
         match self {
             Self::Int(bits) => Self::valid_integer_width(bits.get()),
             Self::Ptr(_) => true,
@@ -274,12 +274,12 @@ impl MirType {
         }
     }
 
-    pub(crate) const fn is_memory_reference(self) -> bool {
+    pub const fn is_memory_reference(self) -> bool {
         matches!(self, Self::MEMPTR | Self::Slice(PtrLocation::Memory))
     }
 
     /// Returns the field types of a slice in `location`: its pointer and its length.
-    pub(crate) const fn slice_fields(location: PtrLocation) -> [Self; 2] {
+    pub const fn slice_fields(location: PtrLocation) -> [Self; 2] {
         [Self::Ptr(location), Self::I256]
     }
 }
@@ -298,7 +298,7 @@ impl fmt::Display for MirType {
 
 /// Source representation metadata for ABI, storage, and immutable layouts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum ValueLayout {
+pub enum ValueLayout {
     /// Unsigned integer with a given bit width (8, 16, 32, ..., 256).
     UInt(TypeSize),
     /// Signed integer with a given bit width.
@@ -330,13 +330,13 @@ pub(crate) enum ValueLayout {
 impl ValueLayout {
     /// Returns whether a value occupies one word rather than an SSA aggregate or no value.
     #[must_use]
-    pub(crate) const fn is_word(self) -> bool {
+    pub const fn is_word(self) -> bool {
         !matches!(self, Self::Struct(_) | Self::Slice(_) | Self::Void)
     }
 
     /// Returns this value type's semantic size, or `None` for `void`.
     #[must_use]
-    pub(crate) const fn type_size(self) -> Option<TypeSize> {
+    pub const fn type_size(self) -> Option<TypeSize> {
         match self {
             Self::Bool => Some(TypeSize::new_int_bits(8)),
             Self::UInt(size) | Self::Int(size) | Self::FixedBytes(size) => {
@@ -355,7 +355,7 @@ impl ValueLayout {
 
     /// Returns the compact immutable encoding for scalar types that can be immutable.
     #[must_use]
-    pub(crate) const fn immutable_encoding(self) -> Option<ImmutableEncoding> {
+    pub const fn immutable_encoding(self) -> Option<ImmutableEncoding> {
         let Some(size) = self.type_size() else { return None };
         Some(match self {
             Self::Int(_) => ImmutableEncoding::Signed(size),
@@ -375,7 +375,7 @@ impl ValueLayout {
 
     /// Returns whether this scalar occupies a complete ABI word without padding.
     #[must_use]
-    pub(crate) const fn is_full_abi_word(self) -> bool {
+    pub const fn is_full_abi_word(self) -> bool {
         matches!(
             self,
             Self::UInt(size) if size.bits() == 256
@@ -385,7 +385,7 @@ impl ValueLayout {
 
     /// Returns the uint256 type.
     #[must_use]
-    pub(crate) const fn uint256() -> Self {
+    pub const fn uint256() -> Self {
         Self::UInt(TypeSize::new_int_bits(256))
     }
 }
@@ -412,7 +412,7 @@ impl fmt::Display for ValueLayout {
 
 impl ValueLayout {
     /// Returns the SSA carrier with the source integer width.
-    pub(crate) const fn mir_type(self) -> MirType {
+    pub const fn mir_type(self) -> MirType {
         match self {
             Self::Bool => MirType::I1,
             Self::Address => MirType::I160,

@@ -6,7 +6,7 @@
 //! differences between passes when unreachable predecessors or critical-edge
 //! rewrites are involved.
 
-use crate::mir::{BlockId, Function, utils::IndexLists};
+use crate::{BlockId, Function, utils::IndexLists};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::{BitMatrix, BitMatrixRow, DenseBitSet},
@@ -17,7 +17,7 @@ use std::{cell::OnceCell, collections::BinaryHeap};
 
 /// Control-flow facts for one MIR function.
 #[derive(Clone, Debug)]
-pub(crate) struct CfgInfo {
+pub struct CfgInfo {
     successors: IndexVec<BlockId, SmallVec<[BlockId; 2]>>,
     predecessors: OnceCell<BlockLists>,
     reachable: OnceCell<DenseBitSet<BlockId>>,
@@ -31,7 +31,7 @@ pub(crate) struct CfgInfo {
 impl CfgInfo {
     /// Snapshots the control-flow graph for `func`.
     #[must_use]
-    pub(crate) fn new(func: &Function) -> Self {
+    pub fn new(func: &Function) -> Self {
         let successors = func
             .blocks
             .iter()
@@ -52,19 +52,19 @@ impl CfgInfo {
     }
 
     /// Returns the number of blocks in the snapshot.
-    pub(crate) fn num_blocks(&self) -> usize {
+    pub fn num_blocks(&self) -> usize {
         self.successors.len()
     }
 
     /// Returns successor blocks for `block`.
     #[must_use]
-    pub(crate) fn successors(&self, block: BlockId) -> &[BlockId] {
+    pub fn successors(&self, block: BlockId) -> &[BlockId] {
         &self.successors[block]
     }
 
     /// Returns predecessor blocks for `block`, once per edge.
     #[must_use]
-    pub(crate) fn predecessors(&self, block: BlockId) -> &[BlockId] {
+    pub fn predecessors(&self, block: BlockId) -> &[BlockId] {
         self.all_predecessors().get(block)
     }
 
@@ -74,20 +74,20 @@ impl CfgInfo {
 
     /// Returns the blocks reachable from the entry.
     #[must_use]
-    pub(crate) fn reachable(&self) -> &DenseBitSet<BlockId> {
+    pub fn reachable(&self) -> &DenseBitSet<BlockId> {
         let _ = self.rpo();
         self.reachable.get().expect("RPO initializes reachability")
     }
 
     /// Returns true if `block` is reachable from the entry.
     #[must_use]
-    pub(crate) fn is_reachable(&self, block: BlockId) -> bool {
+    pub fn is_reachable(&self, block: BlockId) -> bool {
         self.reachable().contains(block)
     }
 
     /// Returns blocks that belong to a control-flow cycle.
     #[must_use]
-    pub(crate) fn cyclic_blocks(&self) -> &DenseBitSet<BlockId> {
+    pub fn cyclic_blocks(&self) -> &DenseBitSet<BlockId> {
         self.cyclic_blocks.get_or_init(|| {
             let mut cyclic = DenseBitSet::new_empty(self.successors.len());
             for scc in
@@ -106,7 +106,7 @@ impl CfgInfo {
 
     /// Returns reachable blocks in reverse postorder.
     #[must_use]
-    pub(crate) fn rpo(&self) -> &[BlockId] {
+    pub fn rpo(&self) -> &[BlockId] {
         self.rpo.get_or_init(|| {
             let mut reachable = DenseBitSet::new_empty(self.successors.len());
             let mut rpo = Vec::with_capacity(self.successors.len());
@@ -136,14 +136,14 @@ impl CfgInfo {
 
     /// Returns immediate-dominator information.
     #[must_use]
-    pub(crate) fn dominators(&self) -> &DominatorTree {
+    pub fn dominators(&self) -> &DominatorTree {
         self.dominators.get_or_init(|| DominatorTree::compute(self.all_predecessors(), self.rpo()))
     }
 
     /// Returns the dominance frontier of `block`: the join blocks where its dominance ends, in
     /// ascending block order. Unreachable blocks have an empty frontier.
     #[must_use]
-    pub(crate) fn dominance_frontier(&self, block: BlockId) -> &[BlockId] {
+    pub fn dominance_frontier(&self, block: BlockId) -> &[BlockId] {
         let frontiers = self.dominance_frontiers.get_or_init(|| {
             let dominators = self.dominators();
             let mut frontiers = index_vec![Vec::new(); self.successors.len()];
@@ -183,10 +183,7 @@ impl CfgInfo {
     ///
     /// The table is computed lazily because only memory/state-aware passes need
     /// this more expensive transitive query.
-    pub(crate) fn transitive_reachability(
-        &self,
-        block: BlockId,
-    ) -> Option<BitMatrixRow<'_, BlockId>> {
+    pub fn transitive_reachability(&self, block: BlockId) -> Option<BitMatrixRow<'_, BlockId>> {
         let reachability = self.reachability.get_or_init(|| {
             let num_blocks = self.successors.len();
             let mut reachability = BitMatrix::new(num_blocks, num_blocks);
@@ -212,7 +209,7 @@ const MANY_PREDECESSORS: usize = 32;
 
 /// Immediate-dominator tree for one MIR function.
 #[derive(Clone, Debug)]
-pub(crate) struct DominatorTree {
+pub struct DominatorTree {
     idoms: IndexVec<BlockId, Option<BlockId>>,
     children: BlockLists,
     /// Preorder intervals make repeated dominance queries independent of tree
@@ -323,13 +320,13 @@ impl DominatorTree {
 
     /// Returns the immediate dominator of `block`, if reachable.
     #[must_use]
-    pub(crate) fn idom(&self, block: BlockId) -> Option<BlockId> {
+    pub fn idom(&self, block: BlockId) -> Option<BlockId> {
         self.idoms.get(block).copied().flatten()
     }
 
     /// Returns true if `dominator` dominates `block`.
     #[must_use]
-    pub(crate) fn dominates(&self, dominator: BlockId, block: BlockId) -> bool {
+    pub fn dominates(&self, dominator: BlockId, block: BlockId) -> bool {
         // Preserve reflexive queries for unreachable and out-of-domain blocks.
         if dominator == block {
             return true;
@@ -369,13 +366,13 @@ impl DominatorTree {
 
     /// Returns dominator-tree children of `block`.
     #[must_use]
-    pub(crate) fn children(&self, block: BlockId) -> &[BlockId] {
+    pub fn children(&self, block: BlockId) -> &[BlockId] {
         self.children.get(block)
     }
 
     /// Returns `block`, then its immediate dominators up to the entry.
     #[must_use]
-    pub(crate) fn self_and_dominators(&self, block: BlockId) -> Vec<BlockId> {
+    pub fn self_and_dominators(&self, block: BlockId) -> Vec<BlockId> {
         let mut out = Vec::new();
         let mut current = Some(block);
         while let Some(block) = current {

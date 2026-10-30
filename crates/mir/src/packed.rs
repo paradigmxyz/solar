@@ -5,7 +5,7 @@ use alloy_primitives::Bytes;
 
 /// One packed argument; array elements retain their padded ABI word shape.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum PackedPart {
+pub enum PackedPart {
     Literal(Bytes),
     Scalar { value: ValueId, ty: ValueLayout },
     Bytes(ValueId),
@@ -13,7 +13,7 @@ pub(crate) enum PackedPart {
 }
 
 impl PackedPart {
-    pub(crate) fn value(&self) -> Option<ValueId> {
+    pub fn value(&self) -> Option<ValueId> {
         match *self {
             Self::Literal(_) => None,
             Self::Scalar { value, .. } | Self::Bytes(value) | Self::Array { value, .. } => {
@@ -22,7 +22,7 @@ impl PackedPart {
         }
     }
 
-    pub(crate) fn value_mut(&mut self) -> Option<&mut ValueId> {
+    pub fn value_mut(&mut self) -> Option<&mut ValueId> {
         match self {
             Self::Literal(_) => None,
             Self::Scalar { value, .. } | Self::Bytes(value) | Self::Array { value, .. } => {
@@ -34,13 +34,13 @@ impl PackedPart {
 
 /// Array source representation, including the memory stride of direct elements.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum PackedArraySource {
+pub enum PackedArraySource {
     Memory { layout: MemoryObjectLayout },
     Slice(PtrLocation),
 }
 
 /// Returns the padded encoded width of a supported array element.
-pub(crate) fn packed_element_bytes(element: &AbiType) -> Option<u64> {
+pub fn packed_element_bytes(element: &AbiType) -> Option<u64> {
     match element {
         AbiType::Word(_) | AbiType::Function => Some(32),
         AbiType::FixedArray { element, len, .. } => {

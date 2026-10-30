@@ -2,7 +2,9 @@
 
 use crate::{
     backend::evm::op,
-    mir::{FunctionBuilder, Module, PtrLocation, ValueId, memory::EvmMemoryLayout},
+    mir::{
+        FunctionBuilder, MirModuleTarget, Module, PtrLocation, ValueId, memory::EvmMemoryLayout,
+    },
     target::{Cost, Target},
 };
 use alloy_primitives::U256;
