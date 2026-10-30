@@ -1,0 +1,79 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=word-sequence,dce
+//@[size] compile-flags: -Osize -Zmir-pipeline=word-sequence,dce
+@module MaxCompares
+
+// Comparing with the all-ones word tests the complement for zero, which a branch reads as it is.
+fn @lt_branch(arg0: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v0, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    ret 2
+}
+
+fn @gt_branch(arg0: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    jumpi v0, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    ret 2
+}
+
+// As values, `lt`, `eq` and `ne` keep the pushed all-ones word, which `iszero` does not undercut;
+// `gt` against MAX - 1 pays a full-width push, so it still rewrites.
+fn @eq_value(arg0: i256) -> i1 {
+  bb0:
+    v0 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    ret v0
+}
+
+fn @ne_branch(arg0: i256) -> i256 {
+  bb0:
+    v0 = ne arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v0, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    ret 2
+}
+
+fn @lt_value(arg0: i256) -> i1 {
+  bb0:
+    v0 = lt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    ret v0
+}
+
+fn @gt_value(arg0: i256) -> i1 {
+  bb0:
+    v0 = gt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    ret v0
+}
+
+fn @ne_value(arg0: i256) -> i1 {
+  bb0:
+    v0 = ne arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    ret v0
+}
+
+// A narrow `not` would have to clear the bits above the width, so narrow compares stay.
+fn @narrow(arg0: i64, arg1: i160) -> i1 {
+  bb0:
+    v0 = lt arg0, i64 0xffffffffffffffff
+    v1 = eq arg1, i160 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = and v0, v1
+    ret v2
+}
+
+// Other bounds are not the complement of zero.
+fn @other_bounds(arg0: i256) -> i1 {
+  bb0:
+    v0 = gt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
+    v1 = lt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    v2 = and v0, v1
+    ret v2
+}
