@@ -122,12 +122,10 @@
       (sequence (Op.Gt x mask)))
 
 ;; ((y << s) >> s) != y => (y >> (W - s)) != 0.
-;; Requires: s is constant, 0 < s < W.
+;; Requires: s is constant, s < W.
 ;; The shift pair keeps the low W - s bits, so it returns y exactly when y >> (W - s) is zero: the
 ;; overflow test of a checked product by 2 ** s. The product itself may stay live elsewhere.
-(rule (sequence_rewrite (Op.Ne (shr (iconst s) (shl (iconst t) y)) y))
-      (if-let true (u256_same s t))
-      (if-let true (u256_ge s (u256 1)))
+(rule (sequence_rewrite (Op.Ne (shr (iconst s) (shl (iconst s) y)) y))
       (if-let width (u256_add (u256 (integer_sign_bit)) (u256 1)))
       (if-let false (u256_ge s width))
       (if-let r0 (imm (u256_sub width s)))
@@ -136,12 +134,8 @@
       (sequence (Op.Ne r1 zero)))
 
 ;; y != ((y << s) >> s) => (y >> (W - s)) != 0.
-;; Requires: s is constant, 0 < s < W.
-;; The shift pair keeps the low W - s bits, so it returns y exactly when y >> (W - s) is zero: the
-;; overflow test of a checked product by 2 ** s. The product itself may stay live elsewhere.
-(rule (sequence_rewrite (Op.Ne y (shr (iconst s) (shl (iconst t) y))))
-      (if-let true (u256_same s t))
-      (if-let true (u256_ge s (u256 1)))
+;; Requires: s is constant, s < W.
+(rule (sequence_rewrite (Op.Ne y (shr (iconst s) (shl (iconst s) y))))
       (if-let width (u256_add (u256 (integer_sign_bit)) (u256 1)))
       (if-let false (u256_ge s width))
       (if-let r0 (imm (u256_sub width s)))
@@ -150,12 +144,8 @@
       (sequence (Op.Ne r1 zero)))
 
 ;; ((y << s) >> s) == y => (y >> (W - s)) == 0.
-;; Requires: s is constant, 0 < s < W.
-;; The shift pair keeps the low W - s bits, so it returns y exactly when y >> (W - s) is zero: the
-;; overflow test of a checked product by 2 ** s. The product itself may stay live elsewhere.
-(rule (sequence_rewrite (Op.Eq (shr (iconst s) (shl (iconst t) y)) y))
-      (if-let true (u256_same s t))
-      (if-let true (u256_ge s (u256 1)))
+;; Requires: s is constant, s < W.
+(rule (sequence_rewrite (Op.Eq (shr (iconst s) (shl (iconst s) y)) y))
       (if-let width (u256_add (u256 (integer_sign_bit)) (u256 1)))
       (if-let false (u256_ge s width))
       (if-let r0 (imm (u256_sub width s)))
@@ -164,12 +154,8 @@
       (sequence (Op.Eq r1 zero)))
 
 ;; y == ((y << s) >> s) => (y >> (W - s)) == 0.
-;; Requires: s is constant, 0 < s < W.
-;; The shift pair keeps the low W - s bits, so it returns y exactly when y >> (W - s) is zero: the
-;; overflow test of a checked product by 2 ** s. The product itself may stay live elsewhere.
-(rule (sequence_rewrite (Op.Eq y (shr (iconst s) (shl (iconst t) y))))
-      (if-let true (u256_same s t))
-      (if-let true (u256_ge s (u256 1)))
+;; Requires: s is constant, s < W.
+(rule (sequence_rewrite (Op.Eq y (shr (iconst s) (shl (iconst s) y))))
       (if-let width (u256_add (u256 (integer_sign_bit)) (u256 1)))
       (if-let false (u256_ge s width))
       (if-let r0 (imm (u256_sub width s)))
