@@ -27,7 +27,7 @@ fn @check() [selector=0x05c051e1, abi_wrapper, pure] {
     v2 = add v1, v0
     mstore 0, v2 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -42,6 +42,6 @@ fn @entry() [entry] {
     switch v3, default bb3, [0x5c051e1 => bb2]
   bb2:
     tail_call @check
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }

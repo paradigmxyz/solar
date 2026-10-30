@@ -87,20 +87,20 @@ fn @sum() [selector=0xa20eed08, abi_wrapper, pure] {
     v150 = or v146, v149
     mstore 0, v150
     returndata 0, 32
-  bb2:
+  bb2 [cold]:
     v73 = lt 0, v46
     v84 = lt 1, v46
     v153 = and v73, v84
     v95 = lt 2, v46
     v154 = and v153, v95
     jumpi v154, bb6, bb3
-  bb6:
+  bb6 [cold]:
     jump bb3
-  bb3:
+  bb3 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -115,7 +115,7 @@ fn @entry() [entry] {
     switch v3, default bb3, [0xa20eed08 => bb2]
   bb2:
     tail_call @sum
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -165,11 +165,11 @@ fn @slow() [selector=0xaa8bda2d, abi_wrapper, pure] {
     jumpi v24, bb7, bb8
   bb8:
     jump bb2
-  bb7:
+  bb7 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb5:
+  bb5 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -207,16 +207,16 @@ fn @fast() [selector=0xe256fef5, abi_wrapper, optimize=gas, pure] {
     v142 = or v138, v141
     mstore 0, v142
     returndata 0, 32
-  bb2:
+  bb2 [cold]:
     v65 = lt 0, v42
     v76 = lt 1, v42
     v144 = and v65, v76
     v87 = lt 2, v42
     v145 = and v144, v87
     jumpi v145, bb4, bb3
-  bb4:
+  bb4 [cold]:
     jump bb3
-  bb3:
+  bb3 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -239,7 +239,7 @@ fn @decode_calldata_slice(arg0: i256) -> i256 {
     jumpi v10, bb1, bb2
   bb2:
     ret v2
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -260,6 +260,6 @@ fn @entry() [entry] {
     tail_call @fast
   bb3:
     tail_call @slow
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

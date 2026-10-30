@@ -12,7 +12,7 @@ fn @constructor() [abi_wrapper, constructor] {
     v3 = keccak256 0, 64 !metadata(memory=scratch)
     sstore v3, 5
     ret
-  bb2:
+  bb2 [cold]:
     revert 0, 0
 }
 
@@ -25,7 +25,7 @@ fn @touch() [selector=0x7cb6ded3, abi_wrapper] {
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
     stop
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -41,7 +41,7 @@ fn @masked() [selector=0x966953d1, abi_wrapper] {
     v1 = sload v11
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -62,7 +62,7 @@ fn @branch() [selector=0xc86d784b, abi_wrapper] {
     v1 = sload v11
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -81,11 +81,11 @@ fn @checked() [selector=0xb437bc14, abi_wrapper] {
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -101,7 +101,7 @@ fn @write() [selector=0x9c0e3f7a, abi_wrapper] {
     sstore v11, arg1
     mstore 0, arg1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -117,7 +117,7 @@ fn @measured() [selector=0x6724f0a2, abi_wrapper] {
   bb2:
     mstore 0, v4 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -163,6 +163,6 @@ fn @entry() [entry] {
     tail_call @staticTouch
   bb2:
     tail_call @measured
-  bb9:
+  bb9 [cold]:
     revert 0, 0
 }

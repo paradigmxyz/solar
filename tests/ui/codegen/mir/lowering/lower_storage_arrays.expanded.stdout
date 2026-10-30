@@ -31,7 +31,7 @@
 +     mstore v14, v11
 +     v15 = add v7, 1
 +     jump bb3
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -85,7 +85,7 @@
 +     mstore v25, v21
 +     v26 = add v17, 1
 +     jump bb6
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -140,7 +140,7 @@
 +     mstore v26, v22
 +     v27 = add v17, 1
 +     jump bb6
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -195,7 +195,7 @@
 +     mstore v26, v22
 +     v27 = add v17, 1
 +     jump bb6
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -253,11 +253,11 @@
 +     mstore v27, v21
 +     v28 = add v17, 1
 +     jump bb6
-+   bb9:
++   bb9 [cold]:
 +     mstore 32, 33 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -300,7 +300,7 @@
 +     mstore v14, v15 !metadata(span=50..60, modifier_depth=5)
 +     v16 = add v8, 1 !metadata(span=50..60, modifier_depth=5)
 +     jump bb6 !metadata(span=50..60, modifier_depth=5)
-+   bb4:
++   bb4 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch, span=50..60, modifier_depth=5)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=50..60, modifier_depth=5)
 +     revert 28, 36 !metadata(span=50..60, modifier_depth=5)
@@ -355,11 +355,11 @@
 +     mstore v26, v23
 +     v27 = add v20, 1
 +     jump bb8
-+   bb3:
++   bb3 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 34 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36

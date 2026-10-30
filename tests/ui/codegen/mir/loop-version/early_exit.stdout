@@ -38,7 +38,7 @@ fn @splitUntilZero() [selector=0x8ecf6ff0, abi_wrapper, pure] {
     mcopy v30, v40, v29 !metadata(memory=heap, disjoint)
     v34 = sub v32, v44
     returndata v44, v34
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -76,7 +76,7 @@ fn @overlappingSplit() [selector=0x69394704, abi_wrapper, pure] {
     mcopy v33, v42, v32 !metadata(memory=heap, disjoint)
     v37 = sub v35, v45
     returndata v45, v37
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -173,7 +173,7 @@ fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memo
     v46 = shr v38, 128
     v48 = lt v32, v54
     jumpi v48, bb14, bb10
-  bb10:
+  bb10 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -224,11 +224,11 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v22 = add v25, 32
     calldatacopy v22, v7, v12
     ret v25
-  bb3:
+  bb3 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -245,6 +245,6 @@ fn @entry() [entry] {
     tail_call @splitUntilZero
   bb2:
     tail_call @overlappingSplit
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }

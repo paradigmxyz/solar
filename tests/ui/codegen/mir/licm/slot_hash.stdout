@@ -50,14 +50,14 @@
       jumpi v5, bb1, bb3
     bb3:
       ret v2
-    bb4:
+    bb4 [cold]:
       revert 128, 4
   }
   
-  fn @tail_call_reads_scratch(arg0: i256, arg1: i256) {
-    bb0:
+  fn @tail_call_reads_scratch(arg0: i256, arg1: i256) [cold] {
+    bb0 [cold]:
       jump bb1
-    bb1:
+    bb1 [cold]:
       v0 = phi [bb0: 0], [bb1: v3]
       v1 = mapping_slot arg1, 3
 -     v2 = sload v1
@@ -65,12 +65,12 @@
       v3 = add v0, 1
       v4 = lt v3, arg0
       jumpi v4, bb1, bb2
-    bb2:
+    bb2 [cold]:
       tail_call @reads_scratch
   }
   
-  fn @reads_scratch() {
-    bb0:
+  fn @reads_scratch() [cold] {
+    bb0 [cold]:
       revert 0, 64
   }
   

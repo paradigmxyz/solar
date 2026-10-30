@@ -97,7 +97,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
   bb5:
     v90 = add v89, 32
     jump bb1
-  bb4:
+  bb4 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -109,11 +109,11 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v63 = add v54, 1
     v98 = add v97, 32
     jump bb10
-  bb8:
+  bb8 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }
 
@@ -175,11 +175,11 @@ fn @decode_calldata_type.2(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v42 = add v53, 64
     mstore v42, v2
     ret v53
-  bb4:
+  bb4 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -207,7 +207,7 @@ fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v18 = add v20, 64
     mstore v18, v2
     ret v20
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -228,6 +228,6 @@ fn @entry() [entry] {
     tail_call @pair
   bb3:
     tail_call @pairs
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

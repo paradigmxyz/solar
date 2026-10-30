@@ -8,7 +8,7 @@
 // all of them.
 // CHECK-LABEL: fn @require_long(
 // CHECK: jumpi arg0, [[CONTINUE:bb[0-9]+]], [[FAILURE:bb[0-9]+]]
-// CHECK: [[FAILURE]]:
+// CHECK: [[FAILURE]] [cold]:
 // CHECK-NEXT: [[PTR:v[0-9]+]] = fmp
 // CHECK: mstore {{v[0-9]+}}, 0x636a7178454c535a362d676e75424950573320646b7279464d54303761686f76
 // CHECK: mstore {{v[0-9]+}}, 33

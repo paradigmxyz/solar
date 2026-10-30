@@ -2,8 +2,8 @@
 @module Base64
 @phase lowered
 @library
-fn @entry() [entry] {
-  bb0:
+fn @entry() [entry, cold] {
+  bb0 [cold]:
     revert 0, 0
 }
 
@@ -317,7 +317,7 @@ fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory, pure] {
     v114 = mload v226
     v115 = lt v177, v114
     jumpi v115, bb53, bb48
-  bb48:
+  bb48 [cold]:
     tail_call @revert_stub.7
   bb53:
     v117 = byte 0, v112
@@ -329,9 +329,9 @@ fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory, pure] {
     v181 = add v25, 3
     v231 = add v230, 4
     jump bb3
-  bb46:
+  bb46 [cold]:
     tail_call @revert_stub.6
-  bb56:
+  bb56 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -379,7 +379,7 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
   bb9:
     v34 = phi [bb8: v211], [bb46: v22]
     jump bb5
-  bb45:
+  bb45 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -568,7 +568,7 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v134 = mload v284
     v135 = lt v219, v134
     jumpi v135, bb44, bb37
-  bb37:
+  bb37 [cold]:
     tail_call @revert_stub.7
   bb44:
     v271 = add v284, v219
@@ -586,15 +586,15 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     ret v283
 }
 
-fn @revert_stub.6() {
-  bb0:
+fn @revert_stub.6() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub.7() {
-  bb0:
+fn @revert_stub.7() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -639,11 +639,11 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v26 = add v25, v6
     calldatacopy v26, v36, v23
     ret v29
-  bb3:
+  bb3 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -668,7 +668,7 @@ fn @entry() [entry] {
     tail_call @encodeFileSafe
   bb3:
     tail_call @encode.1
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -685,7 +685,7 @@ fn @alloc(arg0: i256) -> i256 {
   bb2:
     mstore 64, v2 !metadata(memory=scratch)
     ret v0
-  bb1:
+  bb1 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

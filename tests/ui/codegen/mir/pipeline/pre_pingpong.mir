@@ -12,9 +12,9 @@
 // PRE: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}], [bb6: [[INSERTED:v[0-9]+]]]
 // PRE: + [[INSERTED]] = add arg0, 7
 // PIPELINE-LABEL: fn @pingpong{{[( ]}}
-// PIPELINE: bb0:
+// PIPELINE: bb0 [cold]:
 // PIPELINE-NEXT: jump [[LOOP:bb[0-9]+]]
-// PIPELINE: [[LOOP]]:
+// PIPELINE: [[LOOP]] [cold]:
 // PIPELINE-NEXT: jump [[LOOP]]
 fn @pingpong(arg0: i256, arg1: i256) {
   bb0:

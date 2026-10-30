@@ -20,7 +20,7 @@ fn @pick() [selector=0x9d6a1cd3, abi_wrapper, pure] {
   bb4:
     v12 = ne v21, 0
     jumpi v12, bb2, bb1
-  bb1:
+  bb1 [cold]:
     mstore 32, 18 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -31,7 +31,7 @@ fn @pick() [selector=0x9d6a1cd3, abi_wrapper, pure] {
     v11 = calldataload v10
     mstore 0, v11 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -94,15 +94,15 @@ fn @pickDown() [selector=0xe4bcb1d7, abi_wrapper, pure] {
   bb5:
     v16 = sub v4, 1
     jump bb1
-  bb4:
+  bb4 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb8:
+  bb8 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }
 
@@ -120,7 +120,7 @@ fn @pickRest() [selector=0x74dbbcbe, abi_wrapper, pure] {
     v5 = add v3, arg1
     mstore 0, v5 !metadata(memory=scratch)
     returndata 0, 32
-  bb2:
+  bb2 [cold]:
     revert 0, 0
 }
 
@@ -139,6 +139,6 @@ fn @entry() [entry] {
     tail_call @pick
   bb2:
     tail_call @pickRest
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }

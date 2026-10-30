@@ -22,7 +22,7 @@
 // CHECK-NEXT: + jumpi [[DIRECT]], [[REVERT:bb[0-9]+]], [[GO:bb[0-9]+]]
 // CHECK: + [[GO]]:
 // CHECK-NEXT: + tail_call @write
-// CHECK: + [[REVERT]]:
+// CHECK: + [[REVERT]] [cold]:
 // CHECK-NEXT: + revert 0, 0
 // CHECK: + [[VIEW]]:
 // CHECK-NEXT: + tail_call @view

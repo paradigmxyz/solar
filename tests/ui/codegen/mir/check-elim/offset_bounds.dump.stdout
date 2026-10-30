@@ -40,7 +40,7 @@ fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
     v26 = mload v90
     v27 = lt v25, v26
     jumpi v27, bb7, bb6
-  bb6:
+  bb6 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -61,7 +61,7 @@ fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
     mstore v78, 32
     v73 = add v68, 64
     returndata v78, v73
-  bb9:
+  bb9 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -78,6 +78,6 @@ fn @entry() [entry] {
     switch v3, default bb3, [0xf4f1833d => bb2]
   bb2:
     tail_call @copyHigh
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }

@@ -30,7 +30,7 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
     mstore 32, v21
     mstore 64, v30
     returndata 0, 96
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -132,11 +132,11 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     mstore v94, v9
     v96 = sub v92, v129
     returndata v129, v96
-  bb7:
+  bb7 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -181,7 +181,7 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
     v49 = add v48, 32
     v51 = add v50, 32
     jump bb4
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -236,11 +236,11 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
     v37 = add v28, 32
     v38 = add v29, 1
     jump bb7
-  bb4:
+  bb4 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -283,11 +283,11 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v26 = add v25, v6
     calldatacopy v26, v36, v23
     ret v29
-  bb3:
+  bb3 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -365,11 +365,11 @@ fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_m
     v71 = add v79, 64
     mstore v71, v78
     ret v79
-  bb4:
+  bb4 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -394,7 +394,7 @@ fn @entry() [entry] {
     tail_call @dDynArr
   bb3:
     tail_call @dFlat
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -411,7 +411,7 @@ fn @alloc(arg0: i256) -> i256 {
   bb2:
     mstore 64, v2 !metadata(memory=scratch)
     ret v0
-  bb1:
+  bb1 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

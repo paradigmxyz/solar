@@ -9,7 +9,7 @@
       switch v1, default bb2, [7 => bb1]
     bb1:
       tail_call @caller
-    bb2:
+    bb2 [cold]:
       revert 0, 0
   }
   
@@ -29,8 +29,8 @@
       stop
   }
   
-  fn @spin(arg0: i256) {
-    bb0:
+  fn @spin(arg0: i256) [cold] {
+    bb0 [cold]:
       icall @spin, arg0
 -     revert 0, 0
 +     invalid
@@ -135,7 +135,7 @@
   fn @scalar_caller(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
--   bb1:
+-   bb1 [cold]:
 -     v0 = icall @scalar_fail, 17 !metadata(span=50..60)
 -     v1 = add v0, 1
 -     sstore 0, v1
@@ -144,53 +144,53 @@
 -     v2 = phi [bb0: 7], [bb1: v1]
 +     v2 = phi [bb0: 7]
       ret v2
-+   bb1:
++   bb1 [cold]:
 +     tail_call @scalar_fail, 17 !metadata(span=50..60)
   }
   
-  fn @scalar_fail(arg0: i256) -> i256 {
-    bb0:
+  fn @scalar_fail(arg0: i256) -> i256 [cold] {
+    bb0 [cold]:
       mstore 0, arg0
       revert 0, 32
   }
   
-  fn @recursive_fail(arg0: i256) -> i256 {
-    bb0:
+  fn @recursive_fail(arg0: i256) -> i256 [cold] {
+    bb0 [cold]:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       v1 = icall @recursive_fail, arg0 !metadata(span=70..80)
 -     sstore 0, v1
 -     revert 0, 0 !metadata(span=90..100)
 +     invalid
-    bb1:
+    bb1 [cold]:
       revert 0, 0
   }
   
-  fn @constructor() [abi_wrapper, constructor] {
-    bb0:
+  fn @constructor() [abi_wrapper, constructor, cold] {
+    bb0 [cold]:
       v0 = callvalue
       v1 = ne v0, 0
       jumpi v1, bb2, bb1
-    bb1:
+    bb1 [cold]:
 -     v2 = icall @constructor_helper, 23
 -     sstore 0, v2
 -     ret
 +     tail_call @constructor_helper, 23
-    bb2:
+    bb2 [cold]:
 -     v3 = icall @constructor_no_args
 -     sstore 0, v3
 -     ret
 +     tail_call @constructor_no_args
   }
   
-  fn @constructor_no_args() -> i256 {
-    bb0:
+  fn @constructor_no_args() -> i256 [cold] {
+    bb0 [cold]:
       revert 0, 0
   }
   
-  fn @constructor_helper(arg0: i256) -> i256 {
-    bb0:
+  fn @constructor_helper(arg0: i256) -> i256 [cold] {
+    bb0 [cold]:
 -     v0 = icall @scalar_fail, arg0
 -     ret v0
 +     tail_call @scalar_fail, arg0
@@ -208,25 +208,25 @@
       jumpi arg0, bb1, bb2
     bb2:
       ret 7
-    bb1:
+    bb1 [cold]:
       revert 0, 0
   }
   
-  fn @chain_caller() -> i256 {
-    bb0:
+  fn @chain_caller() -> i256 [cold] {
+    bb0 [cold]:
 -     v0 = icall @chain_tail, 31
 -     sstore 0, v0
 -     ret v0
 +     tail_call @chain_tail, 31
   }
   
-  fn @chain_tail(arg0: i256) -> i256 {
-    bb0:
+  fn @chain_tail(arg0: i256) -> i256 [cold] {
+    bb0 [cold]:
       tail_call @chain_body, arg0
   }
   
-  fn @chain_body(arg0: i256) -> i256 {
-    bb0:
+  fn @chain_body(arg0: i256) -> i256 [cold] {
+    bb0 [cold]:
 -     v0 = icall @scalar_fail, arg0
 -     ret v0
 +     tail_call @scalar_fail, arg0

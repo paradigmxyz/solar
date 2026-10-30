@@ -5,7 +5,7 @@
 // CHECK-LABEL: fn @shaWord(
 // CHECK: [[SUCCESS:v[0-9]+]] = staticcall {{v[0-9]+}}, 2, {{v[0-9]+}}, 32, 0, 32
 // CHECK-NEXT: jumpi [[SUCCESS]], [[DONE:bb[0-9]+]], [[FAILED:bb[0-9]+]]
-// CHECK: [[FAILED]]:
+// CHECK: [[FAILED]] [cold]:
 // CHECK: returndatacopy 0, 0
 // CHECK: [[DONE]]:
 // CHECK-NEXT: mload 0

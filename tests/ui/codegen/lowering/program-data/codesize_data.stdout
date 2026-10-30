@@ -61,7 +61,7 @@ fn @entry() [entry] {
     tail_call @outer
   bb2:
     tail_call @inner
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }
 // === ROOT/tests/ui/codegen/lowering/program-data/codesize_data.sol:CodeSizeData (runtime) ===

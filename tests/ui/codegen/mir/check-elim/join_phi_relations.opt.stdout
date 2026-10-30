@@ -60,7 +60,7 @@ fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
     v36 = phi [bb2: v35], [bb6: v37]
     v11 = lt v9, v0
     jumpi v11, bb8, bb7
-  bb7:
+  bb7 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -119,11 +119,11 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v22 = add v25, 32
     calldatacopy v22, v7, v12
     ret v25
-  bb3:
+  bb3 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -144,6 +144,6 @@ fn @entry() [entry] {
     tail_call @lastIndexOf
   bb3:
     tail_call @keepsCheck
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

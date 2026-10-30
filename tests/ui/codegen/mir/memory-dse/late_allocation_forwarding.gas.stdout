@@ -17,7 +17,7 @@ fn @emitData() [selector=0xf46547ab, abi_wrapper] {
     mstore v14, 0x68656c6c6f20776f726c64000000000000000000000000000000000000000000
     log v23, 128, 0xe15782e942419ae2c56a2762c7694c0baa10a9dd3a34f5233623ccec5a47b729
     stop
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -32,6 +32,6 @@ fn @entry() [entry] {
     switch v3, default bb3, [0xf46547ab => bb2]
   bb2:
     tail_call @emitData
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }

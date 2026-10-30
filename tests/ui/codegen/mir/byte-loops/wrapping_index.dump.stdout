@@ -40,7 +40,7 @@ fn @uncheckedDown() [selector=0x0a3fd26a, abi_wrapper, pure] {
     v69 = add v71, 32
     calldatacopy v69, v43, arg2
     jump bb1
-  bb5:
+  bb5 [cold]:
     tail_call @revert_stub.9
   bb1:
     v55 = add arg2, 31
@@ -52,13 +52,13 @@ fn @uncheckedDown() [selector=0x0a3fd26a, abi_wrapper, pure] {
     mstore v67, 32
     v62 = add v57, 64
     returndata v67, v62
-  bb10:
+  bb10 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     tail_call @revert_stub.8
-  bb7:
+  bb7 [cold]:
     revert 0, 0
 }
 
@@ -102,9 +102,9 @@ fn @checkedDown() [selector=0xc6510b18, abi_wrapper, pure] {
     v67 = add v69, 32
     calldatacopy v67, v41, arg2
     jump bb1
-  bb7:
+  bb7 [cold]:
     tail_call @revert_stub.9
-  bb5:
+  bb5 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -118,13 +118,13 @@ fn @checkedDown() [selector=0xc6510b18, abi_wrapper, pure] {
     mstore v65, 32
     v60 = add v55, 64
     returndata v65, v60
-  bb12:
+  bb12 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     tail_call @revert_stub.8
-  bb9:
+  bb9 [cold]:
     revert 0, 0
 }
 
@@ -186,24 +186,24 @@ fn @mixedDown() [selector=0xcbd040ed, abi_wrapper, pure] {
     v24 = mload v63
     v25 = lt v23, v24
     jumpi v25, bb8, bb6
-  bb6:
+  bb6 [cold]:
     tail_call @revert_stub.9
   bb8:
     v58 = add v63, v23
     v59 = add v58, 32
     mstore8 v59, v21
     jump bb1
-  bb9:
+  bb9 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb14:
+  bb14 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb4:
+  bb4 [cold]:
     tail_call @revert_stub.8
-  bb11:
+  bb11 [cold]:
     revert 0, 0
 }
 
@@ -266,7 +266,7 @@ fn @sourceFirst() [selector=0x032c601e, abi_wrapper, pure] {
     v26 = mload v65
     v27 = lt v25, v26
     jumpi v27, bb8, bb6
-  bb6:
+  bb6 [cold]:
     tail_call @revert_stub.9
   bb8:
     v60 = add v65, v25
@@ -274,17 +274,17 @@ fn @sourceFirst() [selector=0x032c601e, abi_wrapper, pure] {
     mstore8 v61, v22
     v32 = sub v10, 1
     jump bb1
-  bb9:
+  bb9 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb14:
+  bb14 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb4:
+  bb4 [cold]:
     tail_call @revert_stub.8
-  bb11:
+  bb11 [cold]:
     revert 0, 0
 }
 
@@ -349,7 +349,7 @@ fn @destinationFirst() [selector=0x5072325f, abi_wrapper, pure] {
     v26 = mload v67
     v27 = lt v13, v26
     jumpi v27, bb8, bb6
-  bb6:
+  bb6 [cold]:
     tail_call @revert_stub.9
   bb8:
     v62 = add v67, v13
@@ -357,17 +357,17 @@ fn @destinationFirst() [selector=0x5072325f, abi_wrapper, pure] {
     mstore8 v63, v24
     v32 = sub v10, 1
     jump bb1
-  bb9:
+  bb9 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb14:
+  bb14 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb4:
+  bb4 [cold]:
     tail_call @revert_stub.8
-  bb11:
+  bb11 [cold]:
     revert 0, 0
 }
 
@@ -410,7 +410,7 @@ fn @wrappedCopy() [selector=0xbd307fab, abi_wrapper, pure] {
     v26 = mload v81
     v27 = lt v14, v26
     jumpi v27, bb8, bb7
-  bb7:
+  bb7 [cold]:
     tail_call @revert_stub.9
   bb8:
     v76 = add v81, v14
@@ -429,13 +429,13 @@ fn @wrappedCopy() [selector=0xbd307fab, abi_wrapper, pure] {
     mstore v74, 32
     v67 = add v62, 64
     returndata v74, v67
-  bb12:
+  bb12 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb5:
+  bb5 [cold]:
     tail_call @revert_stub.8
-  bb9:
+  bb9 [cold]:
     revert 0, 0
 }
 
@@ -459,7 +459,7 @@ fn @wrappedWord() [selector=0xc280cc68, abi_wrapper, pure] {
   bb2:
     v9 = lt v6, v35
     jumpi v9, bb5, bb4
-  bb4:
+  bb4 [cold]:
     tail_call @revert_stub.9
   bb5:
     v14 = add v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -471,7 +471,7 @@ fn @wrappedWord() [selector=0xc280cc68, abi_wrapper, pure] {
     v20 = or v5, v19
     v21 = add v6, 1
     jump bb1
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }
 
@@ -554,7 +554,7 @@ fn @wrappedArray() [selector=0x20a8a4e4, abi_wrapper, pure] {
     v37 = mload v117
     v38 = lt v24, v37
     jumpi v38, bb12, bb9
-  bb9:
+  bb9 [cold]:
     tail_call @revert_stub.9
   bb12:
     v40 = shl v24, 5
@@ -563,7 +563,7 @@ fn @wrappedArray() [selector=0x20a8a4e4, abi_wrapper, pure] {
     mstore v113, v36
     v43 = add v24, 1
     jump bb1
-  bb13:
+  bb13 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -574,25 +574,25 @@ fn @wrappedArray() [selector=0x20a8a4e4, abi_wrapper, pure] {
     mstore v108, 32
     v103 = add v101, 64
     returndata v108, v103
-  bb18:
+  bb18 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb6:
+  bb6 [cold]:
     tail_call @revert_stub.8
-  bb15:
+  bb15 [cold]:
     revert 0, 0
 }
 
-fn @revert_stub.8() {
-  bb0:
+fn @revert_stub.8() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub.9() {
-  bb0:
+fn @revert_stub.9() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -613,7 +613,7 @@ fn @decode_calldata_slice() -> i256 {
     jumpi v10, bb1, bb2
   bb2:
     ret v2
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -642,6 +642,6 @@ fn @entry() [entry] {
     tail_call @uncheckedDown
   bb2:
     tail_call @sourceFirst
-  bb10:
+  bb10 [cold]:
     revert 0, 0
 }

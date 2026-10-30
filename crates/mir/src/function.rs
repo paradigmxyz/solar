@@ -16,6 +16,7 @@ use solar_data_structures::{
     map::{FxHashMap, StdEntry},
 };
 use solar_interface::{Ident, Span, Symbol};
+use solar_ir::Hotness;
 use std::fmt;
 
 /// A function in the MIR.
@@ -882,6 +883,9 @@ pub struct FunctionAttributes {
     /// The widest word the single array this function returns can hold, when element
     /// cleanup proved one. Its caller can re-encode the array without cleaning it.
     pub array_return_element_bits: Option<u32>,
+    /// Whether every reachable exit aborts, so calls to this function are rare. Computed by the
+    /// hotness analysis, which the pass manager reruns after every pass that changes the module.
+    pub hotness: Hotness,
 }
 
 impl Default for FunctionAttributes {
@@ -901,6 +905,7 @@ impl Default for FunctionAttributes {
             optimization: None,
             array_element_bits: FxHashMap::default(),
             array_return_element_bits: None,
+            hotness: Hotness::Hot,
         }
     }
 }

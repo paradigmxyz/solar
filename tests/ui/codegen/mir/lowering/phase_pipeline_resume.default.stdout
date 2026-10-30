@@ -17,6 +17,6 @@ fn @entry() [entry] {
     switch v3, default bb3, [0x5c36b186 => bb2]
   bb2:
     tail_call @ping
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }

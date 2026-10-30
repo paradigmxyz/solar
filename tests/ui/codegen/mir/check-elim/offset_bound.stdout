@@ -24,7 +24,7 @@
       v6 = add v0, 5
       v7 = lt v6, arg0
       jumpi v7, bb5, bb7
-    bb7:
+    bb7 [cold]:
       revert 0, 0
     bb5:
       v8 = add v0, 4

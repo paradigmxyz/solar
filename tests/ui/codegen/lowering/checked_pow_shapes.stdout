@@ -41,7 +41,7 @@ fn @upow(arg0: i256, arg1: i256) -> i256 [selector=0x11698b2f, pure, abi_params=
     jumpi v27, bb4, bb6
   bb6:
     jump bb1
-  bb4:
+  bb4 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -100,7 +100,7 @@ fn @spow(arg0: i256, arg1: i256) -> i256 [selector=0x8c0da14f, pure, abi_params=
     jumpi v40, bb4, bb6
   bb6:
     jump bb1
-  bb4:
+  bb4 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -140,7 +140,7 @@ fn @upow8(arg0: i8, arg1: i8) -> i8 [selector=0x3f7ced5f, pure, abi_params=[uint
     jumpi v19, bb4, bb6
   bb6:
     jump bb1
-  bb4:
+  bb4 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -186,7 +186,7 @@ fn @spow8(arg0: i8, arg1: i8) -> i8 [selector=0xd44642ed, pure, abi_params=[int8
     jumpi v26, bb4, bb6
   bb6:
     jump bb1
-  bb4:
+  bb4 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -199,7 +199,7 @@ fn @const2(arg0: i256) -> i256 [selector=0xb253ebfa, pure, abi_params=[uint256],
   bb2:
     v2 = exp 2, arg0
     ret v2
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -212,7 +212,7 @@ fn @const10(arg0: i256) -> i256 [selector=0xd325f19a, pure, abi_params=[uint256]
   bb2:
     v2 = exp 10, arg0
     ret v2
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -227,7 +227,7 @@ fn @const10_8(arg0: i8) -> i8 [selector=0x4a217fd1, pure, abi_params=[uint8], ab
     v3 = exp 10, v0
     v4 = trunc i256 v3 to i8
     ret v4
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -240,7 +240,7 @@ fn @const3_signed(arg0: i256) -> i256 [selector=0x73e6169f, pure, abi_params=[ui
   bb2:
     v2 = exp 3, arg0
     ret v2
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -305,7 +305,7 @@ fn @const_neg2(arg0: i256) -> i256 [selector=0xf3adabf1, pure, abi_params=[uint2
     jumpi v40, bb4, bb6
   bb6:
     jump bb1
-  bb4:
+  bb4 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

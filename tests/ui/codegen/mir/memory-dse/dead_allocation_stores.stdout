@@ -13,8 +13,8 @@
       stop
   }
   
-  fn @revert_data(arg0: i256) {
-    bb0:
+  fn @revert_data(arg0: i256) [cold] {
+    bb0 [cold]:
       v0 = and arg0, 0xffffffff
       v1 = add v0, 32
       v2 = alloc v1
@@ -69,8 +69,8 @@
       returndata 0, 32
   }
   
-  fn @revert_from_length(arg0: i256) {
-    bb0:
+  fn @revert_from_length(arg0: i256) [cold] {
+    bb0 [cold]:
       v0 = alloc 64
       mstore v0, arg0
       v1 = ptrtoint ptr<memory> v0 to i256
@@ -302,8 +302,8 @@
       returndata 0, 32
   }
   
-  fn @frame_range(arg0: i256, arg1: i256) {
-    bb0:
+  fn @frame_range(arg0: i256, arg1: i256) [cold] {
+    bb0 [cold]:
       v0 = alloc 64
       mstore v0, arg0
       v1 = internal_frame_addr 0

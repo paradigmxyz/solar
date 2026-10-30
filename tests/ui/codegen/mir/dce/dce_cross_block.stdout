@@ -19,12 +19,14 @@
 -     v1 = phi [bb0: arg0], [bb2: v0]
 +     v1 = phi [bb0: arg0]
       ret v1
-    bb1:
+-   bb1:
 -     v0 = add arg0, 1
 -     jump bb2
-+     invalid
-    bb2:
+-   bb2:
 -     jumpi arg1, bb1, bb3
++   bb1 [cold]:
++     invalid
++   bb2 [cold]:
 +     invalid
   }
   

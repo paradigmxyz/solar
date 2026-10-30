@@ -30,7 +30,7 @@ fn @logged() [selector=0xf3f1126a, abi_wrapper] {
     log v33, 128, 0x1fc1ee74e64a4613da0ebad7aa1e41655ed6a50b1e27ec21849a5cd4db9381dd
     v11 = add v4, 1
     jump bb1
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -45,6 +45,6 @@ fn @entry() [entry] {
     switch v3, default bb3, [0xf3f1126a => bb2]
   bb2:
     tail_call @logged
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }

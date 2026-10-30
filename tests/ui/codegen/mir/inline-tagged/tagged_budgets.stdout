@@ -2,8 +2,8 @@
 @module L
 @phase lowered
 @library
-fn @entry() [entry] {
-  bb0:
+fn @entry() [entry, cold] {
+  bb0 [cold]:
     revert 0, 0
 }
 
@@ -21,7 +21,7 @@ fn @run() [selector=0x9cf82c3f, abi_wrapper, pure] {
     v0 = icall @f, v3, v4, arg2, arg3, arg4, arg5
     mstore 0, v0 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -116,11 +116,11 @@ fn @f(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) ->
     mstore8 v132, v70
     v67 = add v65, 1
     jump bb8
-  bb11:
+  bb11 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb16:
+  bb16 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -165,11 +165,11 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v26 = add v25, v6
     calldatacopy v26, v36, v23
     ret v29
-  bb3:
+  bb3 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -184,6 +184,6 @@ fn @entry() [entry] {
     switch v3, default bb3, [0x9cf82c3f => bb2]
   bb2:
     tail_call @run
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }

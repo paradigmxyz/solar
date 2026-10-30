@@ -68,8 +68,8 @@
       ret v0
   }
   
-  fn @revert() {
-    bb0:
+  fn @revert() [cold] {
+    bb0 [cold]:
       revert 0, 0
   }
   

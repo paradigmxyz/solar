@@ -25,7 +25,7 @@
     bb4:
       v6 = add v0, 1
       jump bb1
-    bb5:
+    bb5 [cold]:
       revert 0, 0
   }
   

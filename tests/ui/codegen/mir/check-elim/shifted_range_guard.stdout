@@ -12,11 +12,11 @@
 +     jump bb4
     bb4:
       ret arg0
--   bb3:
+-   bb3 [cold]:
 -     revert 0, 0
-    bb1:
+    bb1 [cold]:
       revert 0, 0
-+   bb3:
++   bb3 [cold]:
 +     revert 0, 0
   }
   
@@ -25,7 +25,7 @@
       v0 = shr arg0, 32
       v1 = ne v0, 0
       jumpi v1, bb2, bb1
-    bb1:
+    bb1 [cold]:
       revert 0, 0
     bb2:
       v2 = lt arg0, 0x100000000
@@ -33,7 +33,7 @@
 +     jump bb4
     bb4:
       ret arg0
-    bb3:
+    bb3 [cold]:
       revert 0, 0
   }
   

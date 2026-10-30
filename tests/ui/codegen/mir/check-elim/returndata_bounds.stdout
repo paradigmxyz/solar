@@ -10,7 +10,7 @@
 +     jump bb2
     bb2:
       ret v1
-    bb1:
+    bb1 [cold]:
       revert 0, 0
   }
   
@@ -22,7 +22,7 @@
       jumpi v2, bb1, bb2
     bb2:
       ret v1
-    bb1:
+    bb1 [cold]:
       revert 0, 0
   }
   
@@ -34,7 +34,7 @@
       jumpi v2, bb1, bb2
     bb2:
       ret v1
-    bb1:
+    bb1 [cold]:
       revert 0, 0
   }
   
@@ -47,7 +47,7 @@
 +     jump bb2
     bb2:
       ret v1
-    bb1:
+    bb1 [cold]:
       revert 0, 0
   }
   
@@ -60,7 +60,7 @@
 +     jump bb2
     bb2:
       ret v1
-    bb1:
+    bb1 [cold]:
       revert 0, 0
   }
   
@@ -73,7 +73,7 @@
 +     jump bb2
     bb2:
       ret v1
-    bb1:
+    bb1 [cold]:
       revert 0, 0
   }
   

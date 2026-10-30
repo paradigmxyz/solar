@@ -42,7 +42,7 @@ fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
     calldatacopy v46, v54, v6
     v51 = sub v49, v58
     returndata v58, v51
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -88,7 +88,7 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
     calldatacopy v46, v54, v6
     v51 = sub v49, v58
     returndata v58, v51
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -107,7 +107,7 @@ fn @decode_calldata_slice() -> i256 {
     jumpi v10, bb1, bb2
   bb2:
     ret v2
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -124,6 +124,6 @@ fn @entry() [entry] {
     tail_call @endPastLength
   bb2:
     tail_call @startAfterEnd
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }

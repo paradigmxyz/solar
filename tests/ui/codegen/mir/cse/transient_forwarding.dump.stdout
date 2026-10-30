@@ -10,7 +10,7 @@ fn @stored() [selector=0x8c396222, abi_wrapper] {
     tstore 0, arg0 !metadata(storage=slot(0))
     mstore 0, arg0 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -27,11 +27,11 @@ fn @storedTwice() [selector=0x3f8a2dde, abi_wrapper] {
     tstore 0, v2 !metadata(storage=slot(0))
     mstore 0, v2 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -51,7 +51,7 @@ fn @afterCall() [selector=0x848c400d, abi_wrapper] {
   bb4:
     v6 = call v1, v0, 0, 28, 4, 0, 0
     jumpi v6, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v8 = returndatasize
     returndatacopy 0, 0, v8 !metadata(memory=abi_return)
     v9 = returndatasize
@@ -60,7 +60,7 @@ fn @afterCall() [selector=0x848c400d, abi_wrapper] {
     v7 = tload 0 !metadata(storage=slot(0))
     mstore 0, v7 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -77,11 +77,11 @@ fn @otherSlot() [selector=0x37d0548b, abi_wrapper] {
   bb2:
     mstore 0, 1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -110,6 +110,6 @@ fn @entry() [entry] {
     tail_call @storedTwice
   bb2:
     tail_call @otherSlot
-  bb7:
+  bb7 [cold]:
     revert 0, 0
 }

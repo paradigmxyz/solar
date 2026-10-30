@@ -76,8 +76,8 @@
 +     returndata v11, v12
   }
   
-  fn @revert_fresh() {
-    bb0:
+  fn @revert_fresh() [cold] {
+    bb0 [cold]:
       v0 = icall @fresh_array
 -     v1 = abi_encode [memory_array<word>], args v0
 -     v2 = extract_value slice<memory>, v1, 0

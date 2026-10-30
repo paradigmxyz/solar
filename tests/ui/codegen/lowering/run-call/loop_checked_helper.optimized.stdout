@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/loop_checked_helper.sol:LoopCheckedHelper ===
 @module LoopCheckedHelper
 @phase lowered
-fn @panicArithmetic() [pure] {
-  bb0:
+fn @panicArithmetic() [cold, pure] {
+  bb0 [cold]:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
@@ -29,9 +29,9 @@ fn @accumulate() [selector=0x4256913b, abi_wrapper, pure] {
   bb5:
     v13 = add v6, 1
     jump bb1
-  bb4:
+  bb4 [cold]:
     tail_call @panicArithmetic
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }
 
@@ -43,7 +43,7 @@ fn @add() [selector=0x771602f7, abi_wrapper, pure] {
   bb1:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb2:
+  bb2 [cold]:
     tail_call @panicArithmetic
 }
 
@@ -64,6 +64,6 @@ fn @entry() [entry] {
     tail_call @add
   bb3:
     tail_call @accumulate
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

@@ -8,7 +8,7 @@ fn @raw() [selector=0x302e678f, abi_wrapper, pure] {
     jumpi v1, bb1, bb2
   bb2:
     returndata arg0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -24,11 +24,11 @@ fn @sum() [selector=0xcad0899b, abi_wrapper, pure] {
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -45,21 +45,21 @@ fn @entry() [entry] {
     tail_call @sum
   bb2:
     tail_call @raw
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
 // === ROOT/tests/ui/codegen/mir/inline/dispatch/raw_memory.sol:RawRevert ===
 @module RawRevert
 @phase lowered
-fn @raw() [selector=0x302e678f, abi_wrapper, pure] {
-  bb0:
+fn @raw() [selector=0x302e678f, abi_wrapper, cold, pure] {
+  bb0 [cold]:
     v0 = calldatasize
     v1 = lt v0, 36
     jumpi v1, bb1, bb2
-  bb2:
+  bb2 [cold]:
     revert arg0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -75,11 +75,11 @@ fn @sum() [selector=0xcad0899b, abi_wrapper, pure] {
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -94,8 +94,8 @@ fn @entry() [entry] {
     switch v3, default bb4, [0x302e678f => bb2, 0xcad0899b => bb3]
   bb3:
     tail_call @sum
-  bb2:
+  bb2 [cold]:
     tail_call @raw
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }

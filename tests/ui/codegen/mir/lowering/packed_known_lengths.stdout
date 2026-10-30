@@ -48,7 +48,7 @@
 +     v28 = ptradd v27, 32
 +     mstore v28, 0
 +     ret v18
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -90,7 +90,7 @@
 +     v22 = ptradd v21, 32
 +     mstore v22, 0
 +     ret v13
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -130,7 +130,7 @@
 +     v21 = ptradd v20, 32
 +     mstore v21, 0
 +     ret v12
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36

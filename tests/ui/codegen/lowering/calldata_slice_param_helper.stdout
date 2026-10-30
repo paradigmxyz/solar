@@ -31,7 +31,7 @@ fn @lastWord2() [selector=0x97f495a8, abi_wrapper, pure] {
     v11 = xor v17, v24
     mstore 0, v11 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -50,7 +50,7 @@ fn @decode_calldata_slice() -> i256 {
     jumpi v10, bb1, bb2
   bb2:
     ret v2
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -71,6 +71,6 @@ fn @entry() [entry] {
     tail_call @lastWord2
   bb3:
     tail_call @lastWord
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

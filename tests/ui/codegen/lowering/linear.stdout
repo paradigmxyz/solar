@@ -7,7 +7,7 @@ fn @add(arg0: i256, arg1: i256) -> i256 [selector=0x771602f7, pure, abi_params=[
     jumpi v2, bb1, bb2
   bb2:
     ret v1
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -20,7 +20,7 @@ fn @sub(arg0: i256, arg1: i256) -> i256 [selector=0xb67d77c5, pure, abi_params=[
     jumpi v2, bb1, bb2
   bb2:
     ret v1
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -33,7 +33,7 @@ fn @add_one(arg0: i256) -> i256 [selector=0xdde38a34, pure, abi_params=[uint256]
     jumpi v2, bb1, bb2
   bb2:
     ret v1
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

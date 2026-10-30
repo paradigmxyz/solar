@@ -12,7 +12,7 @@
     bb1:
       v0 = lt arg1, 100
       jumpi v0, bb3, bb6
-+   bb6:
++   bb6 [cold]:
 +     revert 0, 0
     bb3:
       jump bb5
@@ -20,7 +20,7 @@
       v2 = phi [bb3: arg1], [bb4: arg2]
       v3 = lt v2, 100
 -     jumpi v3, bb7, bb6
--   bb6:
+-   bb6 [cold]:
 -     revert 0, 0
 +     jump bb7
     bb7:
@@ -40,12 +40,12 @@
 +     jump bb5
     bb5:
       ret v0
--   bb4:
+-   bb4 [cold]:
 -     revert 0, 0
     bb2:
       v2 = add v0, 1
       jump bb1
-+   bb4:
++   bb4 [cold]:
 +     revert 0, 0
   }
   
@@ -61,7 +61,7 @@
       jumpi v2, bb4, bb5
     bb5:
       ret v0
-    bb4:
+    bb4 [cold]:
       revert 0, 0
     bb2:
       jump bb1
@@ -95,7 +95,7 @@
     bb1:
       v0 = slt arg1, 0
       jumpi v0, bb3, bb6
-+   bb6:
++   bb6 [cold]:
 +     revert 0, 0
     bb3:
       jump bb5
@@ -103,7 +103,7 @@
       v2 = phi [bb3: arg1], [bb4: arg2]
       v3 = slt v2, 1
 -     jumpi v3, bb7, bb6
--   bb6:
+-   bb6 [cold]:
 -     revert 0, 0
 +     jump bb7
     bb7:
@@ -123,7 +123,7 @@
 +     jump bb3
     bb3:
       ret arg0
-    bb4:
+    bb4 [cold]:
       revert 0, 0
   }
   
@@ -134,7 +134,7 @@
     bb1:
       v1 = lt arg0, 100
       jumpi v1, bb2, bb3
-    bb3:
+    bb3 [cold]:
       revert 0, 0
     bb2:
       ret arg0
@@ -153,7 +153,7 @@
 +     jump bb3
     bb3:
       ret arg0
-    bb4:
+    bb4 [cold]:
       revert 0, 0
   }
   

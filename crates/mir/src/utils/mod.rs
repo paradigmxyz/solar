@@ -12,6 +12,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
+use solar_ir::Hotness;
 
 mod index_lists;
 pub use index_lists::IndexLists;
@@ -120,6 +121,7 @@ pub fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> BlockId 
         terminator: Some(Terminator::Jump(succ)),
         terminator_metadata: func.blocks[pred].terminator_metadata.clone(),
         predecessors: smallvec![pred],
+        hotness: Hotness::Hot,
     });
 
     // Retarget every occurrence of `succ` among `pred`'s successors.

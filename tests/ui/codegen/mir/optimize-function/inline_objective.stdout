@@ -33,16 +33,16 @@ fn @gasCaller() [selector=0x3dd81fa2, abi_wrapper, pure] {
     v143 = or v139, v142
     mstore 0, v143
     returndata 0, 32
-  bb2:
+  bb2 [cold]:
     v66 = lt 0, v43
     v77 = lt 1, v43
     v145 = and v66, v77
     v88 = lt 2, v43
     v146 = and v145, v88
     jumpi v146, bb4, bb3
-  bb4:
+  bb4 [cold]:
     jump bb3
-  bb3:
+  bb3 [cold]:
     tail_call @revert_stub
 }
 
@@ -65,7 +65,7 @@ fn @sizeCaller() [selector=0x955e9bc9, abi_wrapper, optimize=size, pure] {
     v35 = and v34, 0xffffffff
     v10 = lt v2, v27
     jumpi v10, bb5, bb4
-  bb4:
+  bb4 [cold]:
     tail_call @revert_stub
   bb5:
     v15 = add v28, v2
@@ -76,8 +76,8 @@ fn @sizeCaller() [selector=0x955e9bc9, abi_wrapper, optimize=size, pure] {
     jump bb1
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -98,7 +98,7 @@ fn @decode_calldata_slice() -> i256 {
     jumpi v10, bb1, bb2
   bb2:
     ret v2
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -119,6 +119,6 @@ fn @entry() [entry] {
     tail_call @sizeCaller
   bb3:
     tail_call @gasCaller
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

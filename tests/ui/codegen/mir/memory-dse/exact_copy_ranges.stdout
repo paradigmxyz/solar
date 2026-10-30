@@ -6,7 +6,7 @@
 -     mstore 64, 512
       calldatacopy arg0, 0, arg1
       jumpi arg2, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert arg0, arg1
     bb1:
       returndata arg0, arg1
@@ -22,7 +22,7 @@
       returndatacopy v3, 0, v0
       v4 = inttoptr i256 v3 to ptr<memory>
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert v3, v0
     bb1:
       returndata v4, v0

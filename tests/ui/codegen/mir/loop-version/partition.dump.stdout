@@ -24,7 +24,7 @@ fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
     mstore v15, 32
     v12 = add v10, 64
     returndata v15, v12
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -141,7 +141,7 @@ fn @partition() [selector=0xb99bdcfc, abi_wrapper, pure] {
   bb23:
     v46 = lt v148, v30
     jumpi v46, bb20, bb17
-  bb17:
+  bb17 [cold]:
     tail_call @revert_stub
   bb20:
     v48 = shl v148, 5
@@ -166,11 +166,11 @@ fn @partition() [selector=0xb99bdcfc, abi_wrapper, pure] {
     mstore v175, v68
     mstore v172, v61
     jump bb1
-  bb21:
+  bb21 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb24:
+  bb24 [cold]:
     revert 0, 0
 }
 
@@ -287,7 +287,7 @@ fn @forged() [selector=0x189960dc, abi_wrapper, pure] {
   bb23:
     v50 = lt v153, v33
     jumpi v50, bb20, bb17
-  bb17:
+  bb17 [cold]:
     tail_call @revert_stub
   bb20:
     v52 = shl v153, 5
@@ -312,11 +312,11 @@ fn @forged() [selector=0x189960dc, abi_wrapper, pure] {
     mstore v180, v72
     mstore v177, v65
     jump bb1
-  bb21:
+  bb21 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb24:
+  bb24 [cold]:
     revert 0, 0
 }
 
@@ -532,7 +532,7 @@ fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
   bb50:
     v99 = lt v272, v79
     jumpi v99, bb41, bb36
-  bb36:
+  bb36 [cold]:
     tail_call @revert_stub
   bb41:
     v101 = shl v272, 5
@@ -571,14 +571,14 @@ fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
     mstore v300, v121
     mstore v297, v114
     jump bb10
-  bb46:
+  bb46 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -620,11 +620,11 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v22 = add v25, 32
     calldatacopy v22, v7, v12
     ret v25
-  bb3:
+  bb3 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -643,6 +643,6 @@ fn @entry() [entry] {
     tail_call @sort
   bb2:
     tail_call @forged
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }

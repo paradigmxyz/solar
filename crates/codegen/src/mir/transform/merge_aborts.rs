@@ -74,7 +74,7 @@ use crate::{
     mir::{
         BlockId, Callee, EffectKind, Function, FunctionId, Immediate, InstKind, Instruction,
         MirType, Module, Terminator, Value, ValueId,
-        analysis::{CfgInfo, aborts, cold_functions},
+        analysis::{CfgInfo, aborts},
         pass::{MirPass, run_function_pass},
         utils::{rebuild_predecessors, replace_terminator},
     },
@@ -97,7 +97,7 @@ impl MirPass for MergeAborts {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let cold = cold_functions(module);
+        let cold = module.cold_functions();
         run_function_pass(module, analyses, |func, analyses| {
             merge_function(func, &cold, &analyses.target(gcx))
         })
