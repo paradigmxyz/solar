@@ -17,48 +17,44 @@ fn @clobber(arg0: i256) -> struct0 [selector=0x2feafc29, pure, abi_params=[uint2
     v8 = lt v7, v0
     icall panic_if<0x41>, v8
     v9 = mul v7, 32
-    v10 = eq 32, 0
-    v11 = div v9, 32
-    v12 = eq v11, v7
-    v13 = or v10, v12
-    v14 = zext i1 v13 to i256
-    v15 = eq v14, 0
-    icall panic_if<0x41>, v15
-    v16 = alloc zeroed checked v9
-    mstore v16, arg0
-    v17 = alloc zeroed checked 64
-    mstore v17, 1
-    v18 = mload v17
+    v10 = shr v7, 251
+    v11 = ne v10, 0
+    icall panic_if<0x41>, v11
+    v12 = alloc zeroed checked v9
+    mstore v12, arg0
+    v13 = alloc zeroed checked 64
+    mstore v13, 1
+    v14 = mload v13
+    v15 = lt 0, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = ptradd v13, 32
+    mstore v17, 7
+    v18 = mload v13
     v19 = lt 0, v18
     v20 = eq v19, false
     icall panic_if<0x32>, v20
-    v21 = ptradd v17, 32
-    mstore v21, 7
-    v22 = mload v17
-    v23 = lt 0, v22
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = ptradd v17, 32
-    v26 = mload v25
-    v27 = add arg0, 2
-    v28 = ptrtoint ptr<memory> v16 to i256
-    mstore v16, v27
-    v29 = checked_add uint256, arg0, 1
-    v30 = mload v16
-    v31 = lt v29, v30
-    v32 = eq v31, false
-    icall panic_if<0x32>, v32
-    v33 = shl v29, 5
-    v34 = ptradd v16, v33
-    v35 = ptradd v34, 32
-    mstore v35, 42
-    v36 = mload v17
-    v37 = lt 0, v36
-    v38 = eq v37, false
-    icall panic_if<0x32>, v38
-    v39 = ptradd v17, 32
-    v40 = mload v39
-    v41 = insert_value struct0, undef struct0, 0, v26
-    v42 = insert_value struct0, v41, 1, v40
-    ret v42
+    v21 = ptradd v13, 32
+    v22 = mload v21
+    v23 = add arg0, 2
+    v24 = ptrtoint ptr<memory> v12 to i256
+    mstore v12, v23
+    v25 = checked_add uint256, arg0, 1
+    v26 = mload v12
+    v27 = lt v25, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = shl v25, 5
+    v30 = ptradd v12, v29
+    v31 = ptradd v30, 32
+    mstore v31, 42
+    v32 = mload v13
+    v33 = lt 0, v32
+    v34 = eq v33, false
+    icall panic_if<0x32>, v34
+    v35 = ptradd v13, 32
+    v36 = mload v35
+    v37 = insert_value struct0, undef struct0, 0, v22
+    v38 = insert_value struct0, v37, 1, v36
+    ret v38
 }

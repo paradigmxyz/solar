@@ -40,208 +40,208 @@ fn @narrowBase() [selector=0xc5e77450, abi_wrapper, pure] {
 
 fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
   bb0:
-    v160 = calldatasize
-    v161 = lt v160, 36
-    v162 = calldataload 4
-    v163 = add v162, 4
-    v165 = sub v160, 36
-    v166 = gt v162, v165
-    v280 = or v161, v166
-    jumpi v280, bb25, bb26
+    v154 = calldatasize
+    v155 = lt v154, 36
+    v156 = calldataload 4
+    v157 = add v156, 4
+    v159 = sub v154, 36
+    v160 = gt v156, v159
+    v274 = or v155, v160
+    jumpi v274, bb25, bb26
   bb26:
-    v167 = calldataload v163
-    v168 = add v163, 32
-    v169 = add v167, 63
-    v170 = lt v169, v167
-    v172 = and v169, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v266 = heap_floor !metadata(alloc_ptr)
-    v267 = add v266, v172 !metadata(alloc_ptr)
-    v268 = lt v267, v266
-    v269 = gt v267, 0xffffffffffffffff
-    v270 = or v268, v269
-    v281 = or v170, v270
-    jumpi v281, bb10, bb29
+    v161 = calldataload v157
+    v162 = add v157, 32
+    v163 = add v161, 63
+    v164 = lt v163, v161
+    v166 = and v163, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v260 = heap_floor !metadata(alloc_ptr)
+    v261 = add v260, v166 !metadata(alloc_ptr)
+    v262 = lt v261, v260
+    v263 = gt v261, 0xffffffffffffffff
+    v264 = or v262, v263
+    v275 = or v164, v264
+    jumpi v275, bb10, bb29
   bb29:
-    mstore 64, v267 !metadata(memory=scratch)
-    mstore v266, v167
-    v174 = sub v160, v168
-    v175 = gt v167, v174
-    jumpi v175, bb25, bb27
+    mstore 64, v261 !metadata(memory=scratch)
+    mstore v260, v161
+    v168 = sub v154, v162
+    v169 = gt v161, v168
+    jumpi v169, bb25, bb27
   bb27:
-    v245 = add v266, 32
-    calldatacopy v245, v168, v167
-    v183 = sub 0, v167
-    v184 = and v183, 31
-    v272 = calldatasize
-    v246 = add v245, v167
-    calldatacopy v246, v272, v184
-    v0 = mload v266
+    v239 = add v260, 32
+    calldatacopy v239, v162, v161
+    v177 = sub 0, v161
+    v178 = and v177, 31
+    v266 = calldatasize
+    v240 = add v239, v161
+    calldatacopy v240, v266, v178
+    v0 = mload v260
     v1 = div v0, 3
     v138 = shl v1, 2
-    v153 = shr v1, 254
-    v144 = ne v153, 0
-    jumpi v144, bb23, bb24
+    v139 = shr v1, 254
+    v140 = ne v139, 0
+    jumpi v140, bb23, bb24
   bb24:
     v3 = add v138, 63
     v4 = lt v3, v138
     jumpi v4, bb10, bb11
   bb11:
     v6 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v260 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v261 = add v260, v6 !metadata(alloc_ptr)
-    v262 = lt v261, v260
-    v263 = gt v261, 0xffffffffffffffff
-    v264 = or v262, v263
-    jumpi v264, bb10, bb28
+    v254 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v255 = add v254, v6 !metadata(alloc_ptr)
+    v256 = lt v255, v254
+    v257 = gt v255, 0xffffffffffffffff
+    v258 = or v256, v257
+    jumpi v258, bb10, bb28
   bb28:
-    mstore 64, v261 !metadata(memory=scratch)
-    v273 = calldatasize
-    calldatacopy v260, v273, v6
-    mstore v260, v138
-    v121 = mload v266
-    v125 = or v260, v138
-    v127 = add v260, 1
+    mstore 64, v255 !metadata(memory=scratch)
+    v267 = calldatasize
+    calldatacopy v254, v267, v6
+    mstore v254, v138
+    v121 = mload v260
+    v125 = or v254, v138
+    v127 = add v254, 1
     v128 = add v138, 31
-    v130 = sub v266, v127
+    v130 = sub v260, v127
     v131 = lt v130, v128
-    v155 = shr v125, 64
-    v157 = zext i1 v131 to i256
-    v158 = or v155, v157
-    v136 = eq v158, 0
+    v149 = shr v125, 64
+    v151 = zext i1 v131 to i256
+    v152 = or v149, v151
+    v136 = eq v152, 0
     jumpi v136, bb8, bb9
   bb9:
-    v274 = add v260, 32
+    v268 = add v254, 32
     jump bb1
   bb1:
     v12 = phi [bb9: 0], [bb19: v72]
     v13 = phi [bb9: 0], [bb19: v73]
-    v275 = phi [bb9: v274], [bb19: v276]
-    v145 = add v12, 2
-    v15 = lt v145, v0
+    v269 = phi [bb9: v268], [bb19: v270]
+    v141 = add v12, 2
+    v15 = lt v141, v0
     jumpi v15, bb3, bb2
   bb3:
-    v147 = add v13, 3
-    v17 = lt v147, v138
+    v143 = add v13, 3
+    v17 = lt v143, v138
     jumpi v17, bb4, bb2
   bb4:
-    v19 = mload v266
+    v19 = mload v260
     v20 = lt v12, v19
     jumpi v20, bb13, bb12
   bb13:
-    v203 = add v266, v12
-    v204 = add v203, 32
-    v24 = mload v204
+    v197 = add v260, v12
+    v198 = add v197, 32
+    v24 = mload v198
     v25 = byte 0, v24
-    v27 = mload v260
+    v27 = mload v254
     v28 = lt v13, v27
     jumpi v28, bb14, bb12
   bb14:
-    mstore8 v275, v25
+    mstore8 v269, v25
     v33 = add v12, 1
-    v34 = mload v266
+    v34 = mload v260
     v35 = lt v33, v34
     jumpi v35, bb15, bb12
   bb15:
-    v209 = add v266, v33
-    v210 = add v209, 32
-    v39 = mload v210
+    v203 = add v260, v33
+    v204 = add v203, 32
+    v39 = mload v204
     v40 = byte 0, v39
     v42 = add v13, 1
-    v43 = mload v260
+    v43 = mload v254
     v44 = lt v42, v43
     jumpi v44, bb16, bb12
   bb16:
-    v213 = add v275, 1
-    mstore8 v213, v40
-    v50 = mload v266
-    v51 = lt v145, v50
+    v207 = add v269, 1
+    mstore8 v207, v40
+    v50 = mload v260
+    v51 = lt v141, v50
     jumpi v51, bb17, bb12
   bb17:
-    v215 = add v266, v145
-    v216 = add v215, 32
-    v55 = mload v216
+    v209 = add v260, v141
+    v210 = add v209, 32
+    v55 = mload v210
     v56 = byte 0, v55
     v58 = add v13, 2
-    v59 = mload v260
+    v59 = mload v254
     v60 = lt v58, v59
     jumpi v60, bb18, bb12
   bb18:
-    v219 = add v275, 2
-    mstore8 v219, v56
-    v66 = mload v260
-    v67 = lt v147, v66
+    v213 = add v269, 2
+    mstore8 v213, v56
+    v66 = mload v254
+    v67 = lt v143, v66
     jumpi v67, bb19, bb12
   bb19:
-    v222 = add v275, 3
-    mstore8 v222, 0
+    v216 = add v269, 3
+    mstore8 v216, 0
     v72 = add v12, 3
     v73 = add v13, 4
-    v276 = add v275, 4
+    v270 = add v269, 4
     jump bb1
   bb8:
-    v277 = add v260, 32
+    v271 = add v254, 32
     jump bb5
   bb5:
     v74 = phi [bb8: 0], [bb22: v119]
     v75 = phi [bb8: 0], [bb22: v120]
-    v278 = phi [bb8: v277], [bb22: v279]
-    v149 = add v74, 2
-    v77 = lt v149, v0
+    v272 = phi [bb8: v271], [bb22: v273]
+    v145 = add v74, 2
+    v77 = lt v145, v0
     jumpi v77, bb6, bb2
   bb6:
-    v151 = add v75, 3
-    v79 = lt v151, v138
+    v147 = add v75, 3
+    v79 = lt v147, v138
     jumpi v79, bb7, bb2
   bb2:
-    v188 = mload v260
-    v199 = add v260, 32
-    v190 = add v188, 31
-    v192 = and v190, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v194 = add v199, v192
-    mstore v194, 0
-    v201 = add v260, 64
-    mcopy v201, v199, v188
-    mstore v260, 32
-    mstore v199, v188
-    v196 = add v192, 64
-    returndata v260, v196
+    v182 = mload v254
+    v193 = add v254, 32
+    v184 = add v182, 31
+    v186 = and v184, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v188 = add v193, v186
+    mstore v188, 0
+    v195 = add v254, 64
+    mcopy v195, v193, v182
+    mstore v254, 32
+    mstore v193, v182
+    v190 = add v186, 64
+    returndata v254, v190
   bb7:
     v81 = lt v74, v121
     jumpi v81, bb20, bb12
   bb20:
-    v224 = add v266, v74
-    v225 = add v224, 32
-    v84 = mload v225
+    v218 = add v260, v74
+    v219 = add v218, 32
+    v84 = mload v219
     v85 = byte 0, v84
-    mstore8 v278, v85
+    mstore8 v272, v85
     v90 = add v74, 1
     v92 = lt v90, v121
     jumpi v92, bb21, bb12
   bb21:
-    v230 = add v266, v90
-    v231 = add v230, 32
-    v95 = mload v231
+    v224 = add v260, v90
+    v225 = add v224, 32
+    v95 = mload v225
     v96 = byte 0, v95
-    v234 = add v278, 1
-    mstore8 v234, v96
-    v104 = lt v149, v121
+    v228 = add v272, 1
+    mstore8 v228, v96
+    v104 = lt v145, v121
     jumpi v104, bb22, bb12
   bb12:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb22:
-    v236 = add v266, v149
-    v237 = add v236, 32
-    v107 = mload v237
+    v230 = add v260, v145
+    v231 = add v230, 32
+    v107 = mload v231
     v108 = byte 0, v107
-    v240 = add v278, 2
-    mstore8 v240, v108
-    v243 = add v278, 3
-    mstore8 v243, 0
+    v234 = add v272, 2
+    mstore8 v234, v108
+    v237 = add v272, 3
+    mstore8 v237, 0
     v119 = add v74, 3
     v120 = add v75, 4
-    v279 = add v278, 4
+    v273 = add v272, 4
     jump bb5
   bb23:
     mstore 32, 17 !metadata(memory=scratch)

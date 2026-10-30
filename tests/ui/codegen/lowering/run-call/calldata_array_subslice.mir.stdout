@@ -15,35 +15,27 @@ fn @word(arg0: slice<calldata>) -> ptr<memory> [selector=0x37948b05, pure, abi_p
     v9 = extract_value slice<calldata>, v8, 1
     v10 = extract_value slice<calldata>, v8, 0
     v11 = mul v9, 32
-    v12 = eq 32, 0
-    v13 = div v11, 32
-    v14 = eq v13, v9
-    v15 = or v12, v14
-    v16 = zext i1 v15 to i256
-    v17 = eq v16, 0
-    icall panic_if<0x41>, v17
-    v18 = calldatasize
-    v19 = ptrtoint ptr<calldata> v10 to i256
-    v20 = sub v18, v19
-    v21 = slt v20, v11
-    icall revert_if<calldata_tail_too_short>, v21
-    v22 = mul v9, 32
-    v23 = eq 32, 0
-    v24 = div v22, 32
-    v25 = eq v24, v9
-    v26 = or v23, v25
-    v27 = zext i1 v26 to i256
-    v28 = eq v27, 0
-    icall panic_if<0x41>, v28
-    v29 = add 32, v22
-    v30 = lt v29, 32
-    icall panic_if<0x41>, v30
-    v31 = alloc v29
-    mstore v31, v9
-    v32 = make_calldata_slice v10, v22
-    v33 = ptradd v31, 32
-    v34 = extract_value slice<calldata>, v32, 0
-    v35 = extract_value slice<calldata>, v32, 1
-    calldatacopy v33, v34, v35
-    ret v31
+    v12 = shr v9, 251
+    v13 = ne v12, 0
+    icall panic_if<0x41>, v13
+    v14 = calldatasize
+    v15 = ptrtoint ptr<calldata> v10 to i256
+    v16 = sub v14, v15
+    v17 = slt v16, v11
+    icall revert_if<calldata_tail_too_short>, v17
+    v18 = mul v9, 32
+    v19 = shr v9, 251
+    v20 = ne v19, 0
+    icall panic_if<0x41>, v20
+    v21 = add 32, v18
+    v22 = lt v21, 32
+    icall panic_if<0x41>, v22
+    v23 = alloc v21
+    mstore v23, v9
+    v24 = make_calldata_slice v10, v18
+    v25 = ptradd v23, 32
+    v26 = extract_value slice<calldata>, v24, 0
+    v27 = extract_value slice<calldata>, v24, 1
+    calldatacopy v25, v26, v27
+    ret v23
 }

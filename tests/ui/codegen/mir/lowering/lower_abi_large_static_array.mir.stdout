@@ -21,18 +21,14 @@ fn @hugeThenIndex(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x2f02929
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = mul arg1, 32
-    v5 = eq 32, 0
-    v6 = div v4, 32
-    v7 = eq v6, arg1
-    v8 = or v5, v7
-    v9 = zext i1 v8 to i256
-    v10 = eq v9, 0
-    icall panic_if<0x41>, v10
-    v11 = ptrtoint ptr<calldata> v3 to i256
-    v12 = add v11, v4
-    v13 = calldataload v12
-    v14 = checked_add uint256, v13, arg1
-    ret v14
+    v5 = shr arg1, 251
+    v6 = ne v5, 0
+    icall panic_if<0x41>, v6
+    v7 = ptrtoint ptr<calldata> v3 to i256
+    v8 = add v7, v4
+    v9 = calldataload v8
+    v10 = checked_add uint256, v9, arg1
+    ret v10
 }
 
 fn @read(arg0: i256, arg1: slice<calldata>, arg2: i256) -> i256 [selector=0x27211d59, pure, abi_params=[uint256, array<4, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -43,16 +39,12 @@ fn @read(arg0: i256, arg1: slice<calldata>, arg2: i256) -> i256 [selector=0x2721
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg1, 0
     v4 = mul arg0, 32
-    v5 = eq 32, 0
-    v6 = div v4, 32
-    v7 = eq v6, arg0
-    v8 = or v5, v7
-    v9 = zext i1 v8 to i256
-    v10 = eq v9, 0
-    icall panic_if<0x41>, v10
-    v11 = ptrtoint ptr<calldata> v3 to i256
-    v12 = add v11, v4
-    v13 = calldataload v12
-    v14 = checked_mul uint256, v13, arg2
-    ret v14
+    v5 = shr arg0, 251
+    v6 = ne v5, 0
+    icall panic_if<0x41>, v6
+    v7 = ptrtoint ptr<calldata> v3 to i256
+    v8 = add v7, v4
+    v9 = calldataload v8
+    v10 = checked_mul uint256, v9, arg2
+    ret v10
 }

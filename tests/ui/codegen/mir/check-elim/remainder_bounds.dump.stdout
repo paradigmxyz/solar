@@ -3,33 +3,33 @@
 @phase lowered
 fn @pick() [selector=0x9d6a1cd3, abi_wrapper, pure] {
   bb0:
-    v20 = calldatasize
-    v21 = lt v20, 68
-    v22 = calldataload 4
-    v23 = add v22, 4
-    v25 = sub v20, 36
-    v26 = gt v22, v25
-    v35 = or v21, v26
-    v27 = calldataload v23
-    v28 = add v23, 32
-    v29 = sub v20, v28
-    v30 = shr v29, 5
-    v31 = gt v27, v30
-    v36 = or v35, v31
-    jumpi v36, bb3, bb4
+    v14 = calldatasize
+    v15 = lt v14, 68
+    v16 = calldataload 4
+    v17 = add v16, 4
+    v19 = sub v14, 36
+    v20 = gt v16, v19
+    v29 = or v15, v20
+    v21 = calldataload v17
+    v22 = add v17, 32
+    v23 = sub v14, v22
+    v24 = shr v23, 5
+    v25 = gt v21, v24
+    v30 = or v29, v25
+    jumpi v30, bb3, bb4
   bb4:
-    v16 = ne v27, 0
-    jumpi v16, bb2, bb1
+    v12 = ne v21, 0
+    jumpi v12, bb2, bb1
   bb1:
     mstore 32, 18 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
-    v17 = mod arg1, v27
-    v6 = shl v17, 5
-    v14 = add v28, v6
-    v15 = calldataload v14
-    mstore 0, v15 !metadata(memory=scratch)
+    v13 = mod arg1, v21
+    v6 = shl v13, 5
+    v10 = add v22, v6
+    v11 = calldataload v10
+    mstore 0, v11 !metadata(memory=scratch)
     returndata 0, 32
   bb3:
     revert 0, 0

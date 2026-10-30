@@ -96,15 +96,11 @@ fn @packIt() -> ptr<memory> [selector=0x3ba102e0, pure, abi_params=[], abi_retur
     v1 = icall @words, 2
     v2 = extract_value slice<calldata>, v1, 1
     v3 = mul v2, 32
-    v4 = eq 32, 0
-    v5 = div v3, 32
-    v6 = eq v5, v2
-    v7 = or v4, v6
-    v8 = zext i1 v7 to i256
-    v9 = eq v8, 0
-    icall panic_if<0x41>, v9
-    v10 = abi_encode_packed (bytes v0, array<word> calldata v1)
-    ret v10
+    v4 = shr v2, 251
+    v5 = ne v4, 0
+    icall panic_if<0x41>, v5
+    v6 = abi_encode_packed (bytes v0, array<word> calldata v1)
+    ret v6
 }
 
 fn @concatIt() -> ptr<memory> [selector=0xe95a0beb, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -186,14 +182,10 @@ fn @hugeWords() -> i256 [selector=0x450b33f5, pure, abi_params=[], abi_returns=[
     v0 = icall @words, 0x800000000000000000000000000000000000000000000000000000000000001
     v1 = extract_value slice<calldata>, v0, 1
     v2 = mul v1, 32
-    v3 = eq 32, 0
-    v4 = div v2, 32
-    v5 = eq v4, v1
-    v6 = or v3, v5
-    v7 = zext i1 v6 to i256
-    v8 = eq v7, 0
-    icall panic_if<0x41>, v8
-    v9 = abi_encode [calldata_array<word>], object, args v0
-    v10 = mload v9
-    ret v10
+    v3 = shr v1, 251
+    v4 = ne v3, 0
+    icall panic_if<0x41>, v4
+    v5 = abi_encode [calldata_array<word>], object, args v0
+    v6 = mload v5
+    ret v6
 }

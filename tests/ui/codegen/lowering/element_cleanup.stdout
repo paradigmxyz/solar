@@ -27,38 +27,34 @@
       v8 = lt v7, v0
       icall panic_if<0x41>, v8
       v9 = mul v7, 32
-      v10 = eq 32, 0
-      v11 = div v9, 32
-      v12 = eq v11, v7
-      v13 = or v10, v12
-      v14 = zext i1 v13 to i256
-      v15 = eq v14, 0
-      icall panic_if<0x41>, v15
-      v16 = alloc zeroed checked v9
-      mstore v16, arg0
+      v10 = shr v7, 251
+      v11 = ne v10, 0
+      icall panic_if<0x41>, v11
+      v12 = alloc zeroed checked v9
+      mstore v12, arg0
+      v13 = mload v12
+      v14 = lt 1, v13
+      v15 = eq v14, false
+      icall panic_if<0x32>, v15
+      v16 = ptradd v12, 64
       v17 = mload v16
-      v18 = lt 1, v17
-      v19 = eq v18, false
-      icall panic_if<0x32>, v19
-      v20 = ptradd v16, 64
-      v21 = mload v20
--     v22 = trunc i256 v21 to i160
-      v23 = mload v16
-      v24 = lt 0, v23
-      v25 = eq v24, false
-      icall panic_if<0x32>, v25
--     v26 = zext i160 v22 to i256
-      v27 = ptradd v16, 32
--     mstore v27, v26
-+     mstore v27, v21
-      v28 = mload v16
-      v29 = lt 2, v28
-      v30 = eq v29, false
-      icall panic_if<0x32>, v30
-      v31 = ptradd v16, 96
-      v32 = mload v31
-      v33 = trunc i256 v32 to i160
-      ret v33
+-     v18 = trunc i256 v17 to i160
+      v19 = mload v12
+      v20 = lt 0, v19
+      v21 = eq v20, false
+      icall panic_if<0x32>, v21
+-     v22 = zext i160 v18 to i256
+      v23 = ptradd v12, 32
+-     mstore v23, v22
++     mstore v23, v17
+      v24 = mload v12
+      v25 = lt 2, v24
+      v26 = eq v25, false
+      icall panic_if<0x32>, v26
+      v27 = ptradd v12, 96
+      v28 = mload v27
+      v29 = trunc i256 v28 to i160
+      ret v29
   }
   
   fn @last(arg0: ptr<memory>, arg1: i256) -> i160 [pure] {
@@ -164,38 +160,34 @@
       v8 = lt v7, v0
       icall panic_if<0x41>, v8
       v9 = mul v7, 32
-      v10 = eq 32, 0
-      v11 = div v9, 32
-      v12 = eq v11, v7
-      v13 = or v10, v12
-      v14 = zext i1 v13 to i256
-      v15 = eq v14, 0
-      icall panic_if<0x41>, v15
-      v16 = alloc zeroed checked v9
-      mstore v16, arg0
+      v10 = shr v7, 251
+      v11 = ne v10, 0
+      icall panic_if<0x41>, v11
+      v12 = alloc zeroed checked v9
+      mstore v12, arg0
+      v13 = mload v12
+      v14 = lt 1, v13
+      v15 = eq v14, false
+      icall panic_if<0x32>, v15
+      v16 = ptradd v12, 64
       v17 = mload v16
-      v18 = lt 1, v17
-      v19 = eq v18, false
-      icall panic_if<0x32>, v19
-      v20 = ptradd v16, 64
-      v21 = mload v20
--     v22 = trunc i256 v21 to i8
-      v23 = mload v16
-      v24 = lt 0, v23
-      v25 = eq v24, false
-      icall panic_if<0x32>, v25
--     v26 = zext i8 v22 to i256
-      v27 = ptradd v16, 32
--     mstore v27, v26
-+     mstore v27, v21
-      v28 = mload v16
-      v29 = lt 2, v28
-      v30 = eq v29, false
-      icall panic_if<0x32>, v30
-      v31 = ptradd v16, 96
-      v32 = mload v31
-      v33 = trunc i256 v32 to i8
-      ret v33
+-     v18 = trunc i256 v17 to i8
+      v19 = mload v12
+      v20 = lt 0, v19
+      v21 = eq v20, false
+      icall panic_if<0x32>, v21
+-     v22 = zext i8 v18 to i256
+      v23 = ptradd v12, 32
+-     mstore v23, v22
++     mstore v23, v17
+      v24 = mload v12
+      v25 = lt 2, v24
+      v26 = eq v25, false
+      icall panic_if<0x32>, v26
+      v27 = ptradd v12, 96
+      v28 = mload v27
+      v29 = trunc i256 v28 to i8
+      ret v29
   }
   
   fn @fresh128(arg0: i256) -> i128 [selector=0xb544e899, pure, abi_params=[uint256], abi_returns=[word<uint128>], abi_return_params=[uint128]] {
@@ -212,38 +204,34 @@
       v8 = lt v7, v0
       icall panic_if<0x41>, v8
       v9 = mul v7, 32
-      v10 = eq 32, 0
-      v11 = div v9, 32
-      v12 = eq v11, v7
-      v13 = or v10, v12
-      v14 = zext i1 v13 to i256
-      v15 = eq v14, 0
-      icall panic_if<0x41>, v15
-      v16 = alloc zeroed checked v9
-      mstore v16, arg0
+      v10 = shr v7, 251
+      v11 = ne v10, 0
+      icall panic_if<0x41>, v11
+      v12 = alloc zeroed checked v9
+      mstore v12, arg0
+      v13 = mload v12
+      v14 = lt 1, v13
+      v15 = eq v14, false
+      icall panic_if<0x32>, v15
+      v16 = ptradd v12, 64
       v17 = mload v16
-      v18 = lt 1, v17
-      v19 = eq v18, false
-      icall panic_if<0x32>, v19
-      v20 = ptradd v16, 64
-      v21 = mload v20
--     v22 = trunc i256 v21 to i128
-      v23 = mload v16
-      v24 = lt 0, v23
-      v25 = eq v24, false
-      icall panic_if<0x32>, v25
--     v26 = zext i128 v22 to i256
-      v27 = ptradd v16, 32
--     mstore v27, v26
-+     mstore v27, v21
-      v28 = mload v16
-      v29 = lt 2, v28
-      v30 = eq v29, false
-      icall panic_if<0x32>, v30
-      v31 = ptradd v16, 96
-      v32 = mload v31
-      v33 = trunc i256 v32 to i128
-      ret v33
+-     v18 = trunc i256 v17 to i128
+      v19 = mload v12
+      v20 = lt 0, v19
+      v21 = eq v20, false
+      icall panic_if<0x32>, v21
+-     v22 = zext i128 v18 to i256
+      v23 = ptradd v12, 32
+-     mstore v23, v22
++     mstore v23, v17
+      v24 = mload v12
+      v25 = lt 2, v24
+      v26 = eq v25, false
+      icall panic_if<0x32>, v26
+      v27 = ptradd v12, 96
+      v28 = mload v27
+      v29 = trunc i256 v28 to i128
+      ret v29
   }
   
   fn @fresh248(arg0: i256) -> i248 [selector=0x3e8a48f0, pure, abi_params=[uint256], abi_returns=[word<uint248>], abi_return_params=[uint248]] {
@@ -260,37 +248,33 @@
       v8 = lt v7, v0
       icall panic_if<0x41>, v8
       v9 = mul v7, 32
-      v10 = eq 32, 0
-      v11 = div v9, 32
-      v12 = eq v11, v7
-      v13 = or v10, v12
-      v14 = zext i1 v13 to i256
-      v15 = eq v14, 0
-      icall panic_if<0x41>, v15
-      v16 = alloc zeroed checked v9
-      mstore v16, arg0
+      v10 = shr v7, 251
+      v11 = ne v10, 0
+      icall panic_if<0x41>, v11
+      v12 = alloc zeroed checked v9
+      mstore v12, arg0
+      v13 = mload v12
+      v14 = lt 1, v13
+      v15 = eq v14, false
+      icall panic_if<0x32>, v15
+      v16 = ptradd v12, 64
       v17 = mload v16
-      v18 = lt 1, v17
-      v19 = eq v18, false
-      icall panic_if<0x32>, v19
-      v20 = ptradd v16, 64
-      v21 = mload v20
--     v22 = trunc i256 v21 to i248
-      v23 = mload v16
-      v24 = lt 0, v23
-      v25 = eq v24, false
-      icall panic_if<0x32>, v25
--     v26 = zext i248 v22 to i256
-      v27 = ptradd v16, 32
--     mstore v27, v26
-+     mstore v27, v21
-      v28 = mload v16
-      v29 = lt 2, v28
-      v30 = eq v29, false
-      icall panic_if<0x32>, v30
-      v31 = ptradd v16, 96
-      v32 = mload v31
-      v33 = trunc i256 v32 to i248
-      ret v33
+-     v18 = trunc i256 v17 to i248
+      v19 = mload v12
+      v20 = lt 0, v19
+      v21 = eq v20, false
+      icall panic_if<0x32>, v21
+-     v22 = zext i248 v18 to i256
+      v23 = ptradd v12, 32
+-     mstore v23, v22
++     mstore v23, v17
+      v24 = mload v12
+      v25 = lt 2, v24
+      v26 = eq v25, false
+      icall panic_if<0x32>, v26
+      v27 = ptradd v12, 96
+      v28 = mload v27
+      v29 = trunc i256 v28 to i248
+      ret v29
   }
   

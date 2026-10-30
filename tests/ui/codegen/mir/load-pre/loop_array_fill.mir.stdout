@@ -14,41 +14,37 @@ fn @fill(arg0: i256) -> ptr<memory> [selector=0x3fda5389, pure, abi_params=[uint
     v8 = lt v7, v0
     icall panic_if<0x41>, v8
     v9 = mul v7, 32
-    v10 = eq 32, 0
-    v11 = div v9, 32
-    v12 = eq v11, v7
-    v13 = or v10, v12
-    v14 = zext i1 v13 to i256
-    v15 = eq v14, 0
-    icall panic_if<0x41>, v15
-    v16 = alloc zeroed checked v9
-    mstore v16, arg0
+    v10 = shr v7, 251
+    v11 = ne v10, 0
+    icall panic_if<0x41>, v11
+    v12 = alloc zeroed checked v9
+    mstore v12, arg0
     jump bb1
   bb1:
-    v17 = phi [bb0: arg0], [bb3: v17]
-    v18 = phi [bb0: v16], [bb3: v18]
-    v19 = phi [bb0: 0], [bb3: v28]
-    v20 = lt v19, v17
-    jumpi v20, bb4, bb5
+    v13 = phi [bb0: arg0], [bb3: v13]
+    v14 = phi [bb0: v12], [bb3: v14]
+    v15 = phi [bb0: 0], [bb3: v24]
+    v16 = lt v15, v13
+    jumpi v16, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v18
+    ret v14
   bb4:
-    v21 = checked_mul uint256, v19, v19
-    v22 = mload v18
-    v23 = lt v19, v22
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = shl v19, 5
-    v26 = ptradd v18, v25
-    v27 = ptradd v26, 32
-    mstore v27, v21
+    v17 = checked_mul uint256, v15, v15
+    v18 = mload v14
+    v19 = lt v15, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = shl v15, 5
+    v22 = ptradd v14, v21
+    v23 = ptradd v22, 32
+    mstore v23, v17
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v28 = checked_add uint256, v19, 1
+    v24 = checked_add uint256, v15, 1
     jump bb1
 }
 
@@ -67,44 +63,40 @@ fn @lanes(arg0: i256) -> ptr<memory> [selector=0x713c311a, pure, abi_params=[uin
     v9 = lt v8, v1
     icall panic_if<0x41>, v9
     v10 = mul v8, 32
-    v11 = eq 32, 0
-    v12 = div v10, 32
-    v13 = eq v12, v8
-    v14 = or v11, v13
-    v15 = zext i1 v14 to i256
-    v16 = eq v15, 0
-    icall panic_if<0x41>, v16
-    v17 = alloc zeroed checked v10
-    mstore v17, v0
+    v11 = shr v8, 251
+    v12 = ne v11, 0
+    icall panic_if<0x41>, v12
+    v13 = alloc zeroed checked v10
+    mstore v13, v0
     jump bb1
   bb1:
-    v18 = phi [bb0: arg0], [bb3: v18]
-    v19 = phi [bb0: v17], [bb3: v19]
-    v20 = phi [bb0: v0], [bb3: v20]
-    v21 = phi [bb0: 0], [bb3: v32]
-    v22 = lt v21, v20
-    jumpi v22, bb4, bb5
+    v14 = phi [bb0: arg0], [bb3: v14]
+    v15 = phi [bb0: v13], [bb3: v15]
+    v16 = phi [bb0: v0], [bb3: v16]
+    v17 = phi [bb0: 0], [bb3: v28]
+    v18 = lt v17, v16
+    jumpi v18, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v19
+    ret v15
   bb4:
-    v23 = checked_mul uint256, v21, 32
-    v24 = shr v18, v23
-    v25 = and v24, 0xffffffff
-    v26 = mload v19
-    v27 = lt v21, v26
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = shl v21, 5
-    v30 = ptradd v19, v29
-    v31 = ptradd v30, 32
-    mstore v31, v25
+    v19 = checked_mul uint256, v17, 32
+    v20 = shr v14, v19
+    v21 = and v20, 0xffffffff
+    v22 = mload v15
+    v23 = lt v17, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = shl v17, 5
+    v26 = ptradd v15, v25
+    v27 = ptradd v26, 32
+    mstore v27, v21
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v32 = checked_add uint256, v21, 1
+    v28 = checked_add uint256, v17, 1
     jump bb1
 }
 

@@ -384,59 +384,51 @@ fn @wrappedArray(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> p
     v14 = lt v13, v6
     icall panic_if<0x41>, v14
     v15 = mul v13, 32
-    v16 = eq 32, 0
-    v17 = div v15, 32
-    v18 = eq v17, v13
-    v19 = or v16, v18
-    v20 = zext i1 v19 to i256
-    v21 = eq v20, 0
-    icall panic_if<0x41>, v21
-    v22 = alloc zeroed checked v15
-    mstore v22, arg3
+    v16 = shr v13, 251
+    v17 = ne v16, 0
+    icall panic_if<0x41>, v17
+    v18 = alloc zeroed checked v15
+    mstore v18, arg3
     jump bb1
   bb1:
-    v23 = phi [bb0: v5], [bb3: v23]
-    v24 = phi [bb0: arg1], [bb3: v24]
-    v25 = phi [bb0: arg2], [bb3: v25]
-    v26 = phi [bb0: arg3], [bb3: v26]
-    v27 = phi [bb0: v22], [bb3: v27]
-    v28 = phi [bb0: 0], [bb3: v51]
-    v29 = lt v28, v26
-    jumpi v29, bb4, bb5
+    v19 = phi [bb0: v5], [bb3: v19]
+    v20 = phi [bb0: arg1], [bb3: v20]
+    v21 = phi [bb0: arg2], [bb3: v21]
+    v22 = phi [bb0: arg3], [bb3: v22]
+    v23 = phi [bb0: v18], [bb3: v23]
+    v24 = phi [bb0: 0], [bb3: v43]
+    v25 = lt v24, v22
+    jumpi v25, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v27
+    ret v23
   bb4:
-    v30 = checked_add uint256, v25, v28
-    v31 = extract_value slice<calldata>, v23, 1
-    v32 = lt v30, v31
-    v33 = eq v32, false
-    icall panic_if<0x32>, v33
-    v34 = extract_value slice<calldata>, v23, 0
-    v35 = mul v30, 32
-    v36 = eq 32, 0
-    v37 = div v35, 32
-    v38 = eq v37, v30
-    v39 = or v36, v38
-    v40 = zext i1 v39 to i256
-    v41 = eq v40, 0
-    icall panic_if<0x41>, v41
-    v42 = ptrtoint ptr<calldata> v34 to i256
-    v43 = add v42, v35
-    v44 = calldataload v43
-    v45 = mload v27
-    v46 = lt v28, v45
-    v47 = eq v46, false
-    icall panic_if<0x32>, v47
-    v48 = shl v28, 5
-    v49 = ptradd v27, v48
-    v50 = ptradd v49, 32
-    mstore v50, v44
+    v26 = checked_add uint256, v21, v24
+    v27 = extract_value slice<calldata>, v19, 1
+    v28 = lt v26, v27
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = extract_value slice<calldata>, v19, 0
+    v31 = mul v26, 32
+    v32 = shr v26, 251
+    v33 = ne v32, 0
+    icall panic_if<0x41>, v33
+    v34 = ptrtoint ptr<calldata> v30 to i256
+    v35 = add v34, v31
+    v36 = calldataload v35
+    v37 = mload v23
+    v38 = lt v24, v37
+    v39 = eq v38, false
+    icall panic_if<0x32>, v39
+    v40 = shl v24, 5
+    v41 = ptradd v23, v40
+    v42 = ptradd v41, 32
+    mstore v42, v36
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v51 = checked_add uint256, v28, 1
+    v43 = checked_add uint256, v24, 1
     jump bb1
 }

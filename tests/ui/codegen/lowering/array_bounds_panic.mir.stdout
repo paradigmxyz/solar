@@ -61,24 +61,20 @@ fn @memDyn(arg0: i256, arg1: i256) -> i256 [selector=0x24828414, pure, abi_param
     v8 = lt v7, v0
     icall panic_if<0x41>, v8
     v9 = mul v7, 32
-    v10 = eq 32, 0
-    v11 = div v9, 32
-    v12 = eq v11, v7
-    v13 = or v10, v12
-    v14 = zext i1 v13 to i256
-    v15 = eq v14, 0
-    icall panic_if<0x41>, v15
-    v16 = alloc zeroed checked v9
-    mstore v16, arg0
-    v17 = mload v16
-    v18 = lt arg1, v17
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = shl arg1, 5
-    v21 = ptradd v16, v20
-    v22 = ptradd v21, 32
-    v23 = mload v22
-    ret v23
+    v10 = shr v7, 251
+    v11 = ne v10, 0
+    icall panic_if<0x41>, v11
+    v12 = alloc zeroed checked v9
+    mstore v12, arg0
+    v13 = mload v12
+    v14 = lt arg1, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = shl arg1, 5
+    v17 = ptradd v12, v16
+    v18 = ptradd v17, 32
+    v19 = mload v18
+    ret v19
 }
 
 fn @stDyn(arg0: i256) -> i256 [selector=0x392580ee, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -123,17 +119,13 @@ fn @cdDyn(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x1406a581, pure,
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = mul arg1, 32
-    v5 = eq 32, 0
-    v6 = div v4, 32
-    v7 = eq v6, arg1
-    v8 = or v5, v7
-    v9 = zext i1 v8 to i256
-    v10 = eq v9, 0
-    icall panic_if<0x41>, v10
-    v11 = ptrtoint ptr<calldata> v3 to i256
-    v12 = add v11, v4
-    v13 = calldataload v12
-    ret v13
+    v5 = shr arg1, 251
+    v6 = ne v5, 0
+    icall panic_if<0x41>, v6
+    v7 = ptrtoint ptr<calldata> v3 to i256
+    v8 = add v7, v4
+    v9 = calldataload v8
+    ret v9
 }
 
 fn @cdFix(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xe21341a4, pure, abi_params=[array<3, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -144,17 +136,13 @@ fn @cdFix(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xe21341a4, pure,
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = mul arg1, 32
-    v5 = eq 32, 0
-    v6 = div v4, 32
-    v7 = eq v6, arg1
-    v8 = or v5, v7
-    v9 = zext i1 v8 to i256
-    v10 = eq v9, 0
-    icall panic_if<0x41>, v10
-    v11 = ptrtoint ptr<calldata> v3 to i256
-    v12 = add v11, v4
-    v13 = calldataload v12
-    ret v13
+    v5 = shr arg1, 251
+    v6 = ne v5, 0
+    icall panic_if<0x41>, v6
+    v7 = ptrtoint ptr<calldata> v3 to i256
+    v8 = add v7, v4
+    v9 = calldataload v8
+    ret v9
 }
 
 fn @cdBytes(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x335b74df, pure, abi_params=[bytes, uint256], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {

@@ -60,47 +60,43 @@ fn @fillWords(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xa534f1f0, pure,
     v8 = lt v7, v0
     icall panic_if<0x41>, v8
     v9 = mul v7, 32
-    v10 = eq 32, 0
-    v11 = div v9, 32
-    v12 = eq v11, v7
-    v13 = or v10, v12
-    v14 = zext i1 v13 to i256
-    v15 = eq v14, 0
-    icall panic_if<0x41>, v15
-    v16 = alloc zeroed checked v9
-    mstore v16, arg0
-    v17 = mload v16
+    v10 = shr v7, 251
+    v11 = ne v10, 0
+    icall panic_if<0x41>, v11
+    v12 = alloc zeroed checked v9
+    mstore v12, arg0
+    v13 = mload v12
     jump bb1
   bb1:
-    v18 = phi [bb0: arg0], [bb8: v18]
-    v19 = phi [bb0: arg1], [bb8: v19]
-    v20 = phi [bb0: v16], [bb8: v20]
-    v21 = phi [bb0: v17], [bb8: v21]
-    v22 = phi [bb0: 0], [bb8: v32]
-    v23 = lt v22, v19
-    jumpi v23, bb3, bb4
+    v14 = phi [bb0: arg0], [bb8: v14]
+    v15 = phi [bb0: arg1], [bb8: v15]
+    v16 = phi [bb0: v12], [bb8: v16]
+    v17 = phi [bb0: v13], [bb8: v17]
+    v18 = phi [bb0: 0], [bb8: v28]
+    v19 = lt v18, v15
+    jumpi v19, bb3, bb4
   bb4:
     jump bb5
   bb3:
-    v24 = lt v22, v21
+    v20 = lt v18, v17
     jump bb5
   bb5:
-    v25 = phi [bb3: v24], [bb4: false]
-    jumpi v25, bb6, bb7
+    v21 = phi [bb3: v20], [bb4: false]
+    jumpi v21, bb6, bb7
   bb7:
     jump bb2
   bb2:
-    ret v20
+    ret v16
   bb6:
-    v26 = mload v20
-    v27 = lt v22, v26
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = shl v22, 5
-    v30 = ptradd v20, v29
-    v31 = ptradd v30, 32
-    mstore v31, 7
-    v32 = checked_add uint256, v22, 1
+    v22 = mload v16
+    v23 = lt v18, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = shl v18, 5
+    v26 = ptradd v16, v25
+    v27 = ptradd v26, 32
+    mstore v27, 7
+    v28 = checked_add uint256, v18, 1
     jump bb8
   bb8:
     jump bb1

@@ -20,7 +20,8 @@
 //! temporary selects retain that source type. Pointer and wider-than-word roots
 //! remain excluded from arithmetic selection.
 //! Inequality recipes use the backend's EQ/ISZERO expansion and its target cost, except
-//! that a nonzero test whose only use is a branch costs nothing: `JUMPI` reads the word.
+//! that a nonzero test whose every use is a branch or a check costs nothing: `JUMPI` reads
+//! the word.
 //! Pure, nontrapping operations without recipes stay in place without breaking
 //! the segment; they never earn deletion credit.
 //! Mask blends wait until storage forwarding and mask simplification have run,
@@ -30,7 +31,7 @@ use crate::{
     backend::evm::{op, select},
     mir::{
         EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, Op,
-        Terminator, Value, ValueId,
+        PhaseCategory, Terminator, Value, ValueId,
         pass::{MirPass, run_function_pass},
     },
     target::{Cost, Target},
@@ -160,8 +161,8 @@ fn operation_cost(
     cost
 }
 
-/// The cost of a recipe root. A nonzero test whose only use is a branch condition costs
-/// nothing, because `JUMPI` takes its operand as the condition.
+/// The cost of a recipe root. A nonzero test whose every use is a branch or check condition
+/// costs nothing, because `JUMPI` takes its operand as the condition.
 fn root_cost(
     func: &Function,
     op: &Op,
@@ -449,20 +450,31 @@ fn collect_dead(
     });
 }
 
-/// Values whose only use is the condition of a branch in their defining block, the shape
-/// the backend folds into `JUMPI`.
+/// Values whose every use is the condition of a branch or check in their defining block, the
+/// shape the backend folds into `JUMPI`. Lowering a check branches on its condition.
 fn branch_only_conditions(func: &Function, uses: &IndexVec<ValueId, u32>) -> FxHashSet<ValueId> {
-    func.blocks
-        .iter()
-        .filter_map(|block| match block.terminator {
-            Some(Terminator::Branch { condition, .. })
-                if uses[condition] == 1
-                    && let Value::Inst(def) = *func.value(condition)
-                    && block.instructions.contains(&def) =>
+    let mut branch_uses = FxHashMap::<ValueId, u32>::default();
+    for block in &func.blocks {
+        let checks = block.instructions.iter().filter_map(|&inst| match &func.inst(inst).kind {
+            InstKind::ICall { args, .. }
+                if func.inst(inst).kind.op_def().phase_category
+                    == Some(PhaseCategory::ConditionalCheck) =>
             {
-                Some(condition)
+                Some(args[0])
             }
             _ => None,
-        })
-        .collect()
+        });
+        let branch = match block.terminator {
+            Some(Terminator::Branch { condition, .. }) => Some(condition),
+            _ => None,
+        };
+        for condition in checks.chain(branch) {
+            if let Value::Inst(def) = *func.value(condition)
+                && block.instructions.contains(&def)
+            {
+                *branch_uses.entry(condition).or_default() += 1;
+            }
+        }
+    }
+    branch_uses.into_iter().filter(|&(value, count)| uses[value] == count).map(|(v, _)| v).collect()
 }
