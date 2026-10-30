@@ -53,11 +53,11 @@
 //!
 //! When the check only feeds its branch, the comparison becomes the branch condition itself, with
 //! the edges swapped, so no `iszero` follows it and `merge-aborts` can join it with a following
-//! abort test. No later pass flips a branch on `eq overflows, 0`. In size
-//! mode the bound is one more word the loop carries, and its saving depends on the stack schedule,
-//! not on the opcodes: a loop carrying seven words grew by two bytes, while loops carrying two and
-//! four shrank by one and four. Size mode therefore rewrites a factor's checks only while every
-//! loop around them stays within [`LOOP_CARRY_BUDGET`] with the bound.
+//! abort test. No later pass flips a branch on `eq overflows, 0`. In size mode the bound is one
+//! more word the loop carries, and its saving depends on the stack schedule, not on the opcodes: a
+//! loop carrying seven words grew by two bytes, while loops carrying two and four shrank by one and
+//! four. Size mode therefore rewrites a factor's checks only while every loop around them stays
+//! within [`LOOP_CARRY_BUDGET`] with the bound.
 
 use crate::mir::{
     BlockId, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId, InstKind,
