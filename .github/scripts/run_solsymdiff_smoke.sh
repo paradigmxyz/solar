@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Checks that solsymdiff agrees on faithful Solar builds and reports a
-# replayed mismatch for each kind of difference it is meant to catch.
+# Checks that solsymdiff agrees on faithful Solar builds. With
+# SOLSYMDIFF_SELF_TEST=1 it also checks that solsymdiff reports a replayed
+# mismatch for each kind of difference it is meant to catch.
 set -euo pipefail
 
 workspace="${GITHUB_WORKSPACE:-$(pwd)}"
@@ -47,19 +48,24 @@ bank=("${bank_contract[@]}" --all-functions)
 vault=(--source "$fixtures/Vault.sol" --contract Vault --all-functions)
 
 check bank bounded_agreement "" "$solar" "[]" "${bank[@]}" --constructor-args "$fee5"
-check bank-constructor mismatch "fee()" "$mutate" \
-  '["fee = f;", "fee = f == 7 ? 8 : f;"]' "${bank[@]}"
-check bank-created-contract mismatch "spawn(uint256)" "$mutate" \
-  '["v = x;", "v = x == 5 ? 6 : x;"]' "${bank[@]}" --constructor-args "$fee5"
-check bank-fallback mismatch "<other calldata>" "$mutate" \
-  '["count += 2;", "count += 3;"]' "${bank[@]}" --constructor-args "$fee5"
-# Only reachable after a deposit, so only a two-call sequence finds it.
-check bank-sequence mismatch "deposit() -> quote(uint256)" "$mutate" \
-  '["return x * fee / 100;", "return count == 1 ? 0 : x * fee / 100;"]' \
-  "${bank_contract[@]}" --constructor-args "$fee5" --signature 'quote(uint256)' \
-  --depth 2
 check vault-arbitrary-storage bounded_agreement "" "$solar" "[]" "${vault[@]}" \
   --arbitrary-storage
-check vault-unreachable-state mismatch "read()" "$mutate" \
-  '["return total + level;", "return level == 7 ? 0 : total + level;"]' \
-  "${vault[@]}" --arbitrary-storage
+
+# These check that the harness catches each kind of difference, using solc and
+# a mutated solc; they never run Solar.
+if [[ "${SOLSYMDIFF_SELF_TEST:-}" == 1 ]]; then
+  check bank-constructor mismatch "fee()" "$mutate" \
+    '["fee = f;", "fee = f == 7 ? 8 : f;"]' "${bank[@]}"
+  check bank-created-contract mismatch "spawn(uint256)" "$mutate" \
+    '["v = x;", "v = x == 5 ? 6 : x;"]' "${bank[@]}" --constructor-args "$fee5"
+  check bank-fallback mismatch "<other calldata>" "$mutate" \
+    '["count += 2;", "count += 3;"]' "${bank[@]}" --constructor-args "$fee5"
+  # Only reachable after a deposit, so only a two-call sequence finds it.
+  check bank-sequence mismatch "deposit() -> quote(uint256)" "$mutate" \
+    '["return x * fee / 100;", "return count == 1 ? 0 : x * fee / 100;"]' \
+    "${bank_contract[@]}" --constructor-args "$fee5" --signature 'quote(uint256)' \
+    --depth 2
+  check vault-unreachable-state mismatch "read()" "$mutate" \
+    '["return total + level;", "return level == 7 ? 0 : total + level;"]' \
+    "${vault[@]}" --arbitrary-storage
+fi
