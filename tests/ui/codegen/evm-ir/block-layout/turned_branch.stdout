@@ -1,0 +1,33 @@
+- // === ROOT/tests/ui/codegen/evm-ir/block-layout/turned_branch.evmir (before block-layout) ===
++ // === ROOT/tests/ui/codegen/evm-ir/block-layout/turned_branch.evmir (after block-layout) ===
+  @module TurnedBranch
+  bb0:
+    push 4
+    calldataload
+    push bb2
+    jumpi
+    jump bb1
+  bb1:
+    push 2
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb2:
+    push 36
+    calldataload
+-   push bb3
++   iszero
++   push bb1
+    jumpi
+-   jump bb1
++   jump bb3
+  bb3:
+    push 1
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

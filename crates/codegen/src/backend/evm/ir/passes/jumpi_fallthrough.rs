@@ -34,81 +34,87 @@ impl EvmPass for JumpiFallthrough {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let mut references = Default::default();
-        count_block_references(module, &mut references);
-        let mut changed = false;
-        for block_id in module.blocks.indices() {
-            let Some(next) = module.next_block(block_id) else { continue };
-            let block = &module.blocks[block_id];
-            if let Some(term) = &block.terminator
-                && let TerminatorKind::Jump(other) = term.kind
-                && other != next
-                && let [.., pushed, jumpi] = block.instructions.as_slice()
-                && pushed.is_encoded_push()
-                && pushed.pushed_block() == Some(next)
-                && jumpi.as_evm_opcode() == Some(op::JUMPI)
-                && !pushed.keeps_with_next()
-                && !jumpi.keeps_with_next()
-            {
-                let push = block.instructions.len() - 2;
-                let condition = push.checked_sub(1).map(|at| &block.instructions[at]);
-                let test = match condition.and_then(Instruction::as_evm_opcode) {
-                    Some(op::ISZERO) => TurnedTest::Drops,
-                    Some(op::EQ | op::SUB) => TurnedTest::Swaps,
-                    _ => TurnedTest::Adds,
-                };
-                let boundary = push - usize::from(test == TurnedTest::Drops);
-                if !is_split_point(&block.instructions, boundary) {
-                    continue;
-                }
-                let (next_runs, other_runs) = edge_runs(module, block_id, next, other);
-                let target = block.target(gcx, module.optimization, module.code_follows);
-                if !target.falls_through_turned_branch(
-                    next_runs,
-                    other_runs,
-                    test,
-                    references[next] > 1,
-                ) {
-                    continue;
-                }
-                // <condition>
-                // iszero
-                // push other
-                // jumpi
-                // (falls into next)
-                let block = &mut module.blocks[block_id];
-                block.instructions[push].value = Some(PushValue::Block(other));
-                match test {
-                    TurnedTest::Adds => {
-                        let mut iszero = Instruction::opcode(op::ISZERO);
-                        iszero
-                            .metadata
-                            .copy_source_debug_from(&block.instructions[push + 1].metadata);
-                        block.instructions.insert(push, iszero);
-                    }
-                    TurnedTest::Drops => {
-                        let removed = block.instructions.remove(push - 1);
-                        block.instructions[push - 1].metadata.absorb_debug_info(&removed.metadata);
-                    }
-                    TurnedTest::Swaps => {
-                        let condition = &mut block.instructions[push - 1];
-                        let inverse = if condition.opcode == op::EQ { op::SUB } else { op::EQ };
-                        condition.replace_preserving_metadata(Instruction::opcode(inverse));
-                    }
-                }
-                if let Some(term) = &mut block.terminator {
-                    // NOTE: The fallthrough emits no instruction for the jump's function entry,
-                    // which now belongs to the `JUMPI`'s taken edge only; drop it rather than
-                    // keep a jump, or skip the rewrite, for debug information.
-                    term.metadata.take_function_invoke();
-                    term.kind = TerminatorKind::Jump(next);
-                }
-                references[next] -= 1;
-                changed = true;
-            }
-        }
-        changed
+        turn_branches(gcx, module)
     }
+}
+
+/// Turns every profitable branch into the block that follows it around.
+pub(super) fn turn_branches(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    if module.optimization.is_none() {
+        return false;
+    }
+    let mut references = Default::default();
+    count_block_references(module, &mut references);
+    let mut changed = false;
+    for block_id in module.blocks.indices() {
+        let Some(next) = module.next_block(block_id) else { continue };
+        let block = &module.blocks[block_id];
+        if let Some(term) = &block.terminator
+            && let TerminatorKind::Jump(other) = term.kind
+            && other != next
+            && let [.., pushed, jumpi] = block.instructions.as_slice()
+            && pushed.is_encoded_push()
+            && pushed.pushed_block() == Some(next)
+            && jumpi.as_evm_opcode() == Some(op::JUMPI)
+            && !pushed.keeps_with_next()
+            && !jumpi.keeps_with_next()
+        {
+            let push = block.instructions.len() - 2;
+            let condition = push.checked_sub(1).map(|at| &block.instructions[at]);
+            let test = match condition.and_then(Instruction::as_evm_opcode) {
+                Some(op::ISZERO) => TurnedTest::Drops,
+                Some(op::EQ | op::SUB) => TurnedTest::Swaps,
+                _ => TurnedTest::Adds,
+            };
+            let boundary = push - usize::from(test == TurnedTest::Drops);
+            if !is_split_point(&block.instructions, boundary) {
+                continue;
+            }
+            let (next_runs, other_runs) = edge_runs(module, block_id, next, other);
+            let target = block.target(gcx, module.optimization, module.code_follows);
+            if !target.falls_through_turned_branch(
+                next_runs,
+                other_runs,
+                test,
+                references[next] > 1,
+            ) {
+                continue;
+            }
+            // <condition>
+            // iszero
+            // push other
+            // jumpi
+            // (falls into next)
+            let block = &mut module.blocks[block_id];
+            block.instructions[push].value = Some(PushValue::Block(other));
+            match test {
+                TurnedTest::Adds => {
+                    let mut iszero = Instruction::opcode(op::ISZERO);
+                    iszero.metadata.copy_source_debug_from(&block.instructions[push + 1].metadata);
+                    block.instructions.insert(push, iszero);
+                }
+                TurnedTest::Drops => {
+                    let removed = block.instructions.remove(push - 1);
+                    block.instructions[push - 1].metadata.absorb_debug_info(&removed.metadata);
+                }
+                TurnedTest::Swaps => {
+                    let condition = &mut block.instructions[push - 1];
+                    let inverse = if condition.opcode == op::EQ { op::SUB } else { op::EQ };
+                    condition.replace_preserving_metadata(Instruction::opcode(inverse));
+                }
+            }
+            if let Some(term) = &mut block.terminator {
+                // NOTE: The fallthrough emits no instruction for the jump's function entry,
+                // which now belongs to the `JUMPI`'s taken edge only; drop it rather than
+                // keep a jump, or skip the rewrite, for debug information.
+                term.metadata.take_function_invoke();
+                term.kind = TerminatorKind::Jump(next);
+            }
+            references[next] -= 1;
+            changed = true;
+        }
+    }
+    changed
 }
 
 /// How often a branch of `block` enters `next` and `other` relative to each other: never a cold

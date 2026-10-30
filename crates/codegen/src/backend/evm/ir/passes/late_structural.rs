@@ -6,12 +6,17 @@
 //! common tails created by terminal folding; without that trigger they only repeat analyses from
 //! the earlier structural sweeps.
 //!
+//! Tail merging splits a shared tail off a branch's fallthrough and can leave `push next; jumpi;
+//! jump tail` with the branch's target next. No layout runs after this pass, so it turns such
+//! a branch around itself, as block layout does (`jumpi-fallthrough`).
+//!
 //! The pass runs near the end of the EVM IR pipeline. Each underlying transform retains its own
 //! safety and profitability checks. The conditional preserves the complete cleanup when a late
 //! terminal opportunity exists while avoiding two whole-module analyses on unchanged code.
 
 use super::{
-    EvmPass, cfg_simplify::CfgSimplify, tail_merge::TailMerge, terminal_dedup::TerminalDedup,
+    EvmPass, cfg_simplify::CfgSimplify, jumpi_fallthrough::turn_branches, tail_merge::TailMerge,
+    terminal_dedup::TerminalDedup,
 };
 use crate::backend::evm::ir::Module;
 use solar_sema::Gcx;
@@ -28,9 +33,10 @@ impl EvmPass for LateStructural {
             return false;
         }
 
-        // terminal_dedup; cfg_simplify; tail_merge
+        // terminal_dedup; cfg_simplify; tail_merge; turned branches
         let _ = CfgSimplify::FINAL.run_pass(gcx, module);
         let _ = TailMerge.run_pass(gcx, module);
+        let _ = turn_branches(gcx, module);
         true
     }
 }

@@ -721,7 +721,7 @@ bb67:
   add
   swap 1
   return
-bb65 [loop]:
+bb65:
   swap 3
   push 0
   mstore
@@ -737,13 +737,13 @@ bb65 [loop]:
   swap 3
   pop
   swap 3
+  jump bb66
+bb66 [loop]:
   dup 3
   dup 5
   eq
   push bb67
   jumpi
-  jump bb68
-bb68 [loop]:
   dup 2
   dup 5
   push 1
@@ -755,12 +755,7 @@ bb68 [loop]:
   add
   swap 3
   mstore
-  dup 3
-  dup 5
-  sub
-  push bb68
-  jumpi
-  jump bb67
+  jump bb66
 bb38 [cold]:
   push 49
   jump bb74

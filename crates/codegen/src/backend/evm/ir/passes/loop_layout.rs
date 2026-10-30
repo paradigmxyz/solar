@@ -29,6 +29,9 @@
 //! frequency heuristic, not a guarantee for every input. Other existing fallthroughs remain
 //! intact, and no instruction or condition is duplicated.
 //!
+//! The layouts that follow can place a branch's `PUSH; JUMPI` target next behind a `JUMP`, as
+//! `jumpi-fallthrough` describes; the pass turns such branches around when it finishes.
+//!
 //! All rewrites preserve explicit block identities, instructions, and stack effects. Changing
 //! physical order never splits a block or alters its debug metadata. This pass runs last so
 //! subsequent trace construction cannot undo the chosen loop fallthroughs.
@@ -36,9 +39,10 @@
 use super::{
     EvmPass,
     block_layout::{
-        BlockLayout, is_physical_terminal_boundary, jump_target, jumpi_targets, layout_successor,
+        is_physical_terminal_boundary, jump_target, jumpi_targets, layout_successor, order_blocks,
         terminator_kind, visit_successors,
     },
+    jumpi_fallthrough::turn_branches,
     utils::remap_block_order,
 };
 use crate::{
@@ -67,7 +71,7 @@ impl EvmPass for LoopLayout {
         if !module.optimization.is_gas() {
             return false;
         }
-        BlockLayout.run_pass(gcx, module) | place_loop_latches(module)
+        order_blocks(gcx, module) | place_loop_latches(module) | turn_branches(gcx, module)
     }
 }
 

@@ -208,7 +208,6 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &cfg_simplify::CfgSimplify::FINAL,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,
-    &jumpi_fallthrough::JumpiFallthrough,
     &reorder_pushes::REORDER_EXPRESSIONS,
     &peephole::LateWord,
     // Introduce `EXCHANGE` only after every peephole has seen the plain swaps.
