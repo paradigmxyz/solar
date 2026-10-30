@@ -165,18 +165,21 @@ fn lower_function(func: &mut Function, is_fresh: impl Fn(InstId) -> bool) -> boo
             changed = true;
             let ptr =
                 builder.func().inst_result_value(inst).expect("allocation must produce a value");
-            // ptr = fmp read; next = ptr + size; invalid = next < ptr || next > limit
-            // branch invalid, panic, continuation
-            // continuation: mstore 64, next; initialize ptr; rest of the block
             let continuation = builder.create_block();
             let panic = builder.create_block();
+            // ptr = mload 64 | heap_floor
             rewrite_as_fmp_read(builder, inst, is_fresh(inst));
+            // next = add ptr, size
+            // invalid = next < ptr || next > limit
             let (next, invalid) = bump_checked(builder, ptr, size);
+            // branch invalid, panic, continuation
             builder.branch(invalid, panic, continuation);
 
+            // panic: revert Panic(MemoryAllocationOverflow)
             builder.switch_to_block(panic);
             builder.panic(PanicCode::MemoryAllocationOverflow);
 
+            // continuation: mstore 64, next
             builder.switch_to_block(continuation);
             store_fmp(builder, next);
             initialize(builder, ptr, size, semantics.initialization);
