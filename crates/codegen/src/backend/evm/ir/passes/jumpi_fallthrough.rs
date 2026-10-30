@@ -26,7 +26,7 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{BlockId, BlockTarget, Instruction, Module, PushValue, TerminatorKind},
+        ir::{BlockId, BlockTarget, Instruction, Module, PushValue, Terminator, TerminatorKind},
         op,
     },
     target::{Target, TurnedTest},
@@ -110,13 +110,14 @@ pub(super) fn turn_branches(gcx: Gcx<'_>, module: &mut Module) -> bool {
                     condition.replace_preserving_metadata(Instruction::opcode(inverse));
                 }
             }
-            if let Some(term) = &mut block.terminator {
-                // NOTE: The fallthrough emits no instruction for the jump's function entry,
-                // which now belongs to the `JUMPI`'s taken edge only; drop it rather than
-                // keep a jump, or skip the rewrite, for debug information.
-                term.metadata.take_function_invoke();
-                term.kind = TerminatorKind::Jump(next);
+            // NOTE: The fallthrough emits no instruction, and the old jump's function events
+            // belong to its edge into `other`, which is now the `JUMPI`'s. Keep only its source
+            // spans rather than put those events on the edge into `next`.
+            let mut fallthrough = Terminator::new(TerminatorKind::Jump(next));
+            if let Some(term) = &block.terminator {
+                fallthrough.metadata.copy_source_debug_from(&term.metadata);
             }
+            block.terminator = Some(fallthrough);
             changed = true;
         }
     }

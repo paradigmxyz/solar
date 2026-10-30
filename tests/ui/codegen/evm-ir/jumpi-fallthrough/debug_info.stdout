@@ -8,7 +8,7 @@
 -   push bb2 !metadata(span=6..10)
 +   push bb1 !metadata(spans=[6..10, 1..5])
     jumpi !metadata(span=11..15)
--   jump bb1 !metadata(span=16..20, invoke=callee@1..5)
+-   jump bb1 !metadata(span=16..20, invoke=callee@1..5, exit=return)
 +   jump bb2 !metadata(span=16..20)
   bb2:
     stop
