@@ -18,8 +18,8 @@ HIR (from solar-sema) -> Lowering -> MIR -> Code Generation -> EVM Bytecode
 
 ### Operation Schema and Rewrite Rules
 
-`src/mir/op_schema.rs` declares every MIR operation once: its typed payload,
-named operands, mnemonic, result kind, phase legality, effects, and traits.
+`crates/mir/src/op_schema.rs` declares every MIR operation once: its typed payload, named
+operands, mnemonic, result kind, phase legality, effects, and traits.
 Metadata sits directly above the operation inside `define_mir_ops!`:
 
 ```rust,ignore

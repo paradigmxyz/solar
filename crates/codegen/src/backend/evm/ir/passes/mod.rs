@@ -37,8 +37,9 @@ pub(in crate::backend::evm) use stack_reschedule::SharedSchedules;
 
 use super::Module;
 use crate::{
-    mir::pass_manager::{
-        parse_pass_pipeline, pipeline_output_name, print_pass_diff, should_validate_ir,
+    mir::{
+        pass_manager::{parse_pass_pipeline, pipeline_output_name, print_pass_diff},
+        should_validate_ir,
     },
     timing::PassTimer,
 };
@@ -253,7 +254,7 @@ fn run_passes(
             let cache_key = PassCacheKey::new(*pass);
             let cached = unchanged.contains(&cache_key);
             debug_assert!(unchanged.iter().filter(|entry| **entry == cache_key).count() <= 1);
-            let target_support_before = (!cached && should_validate_ir(gcx))
+            let target_support_before = (!cached && should_validate_ir(gcx.sess))
                 .then(|| super::verifier(gcx).target_support_snapshot(module));
             let pass_changed = !cached
                 && tracing::trace_span!("evm_ir_pass", pass = pass_name)
