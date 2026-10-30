@@ -1,6 +1,6 @@
 //! Hotness of MIR functions and blocks.
 //!
-//! The analysis writes [`Function::attributes`]`.hotness` and [`BasicBlock::hotness`]. The pass
+//! The analysis writes `Function::attributes.hotness` and `BasicBlock::hotness`. The pass
 //! manager reruns it before the first pass and after every pass that changes the module, so a
 //! pass and the backend read current values and never recompute them.
 //!
@@ -19,9 +19,7 @@
 //!   it saves no bytes, and the layout it changes can widen jump labels.
 
 use crate::{
-    mir::{
-        BasicBlock, BlockId, Callee, Function, FunctionId, Hotness, InstKind, Module, Terminator,
-    },
+    mir::{BlockId, Callee, Function, FunctionId, Hotness, InstKind, Module, Terminator},
     target::Target,
 };
 use solar_data_structures::{
@@ -44,8 +42,6 @@ pub(crate) struct HotnessAnalysis {
     /// Functions with a path to a normal exit that makes no call, so no callee's coldness can
     /// change theirs. Valid until the function changes.
     always_hot: GrowableBitSet<FunctionId>,
-    /// Whether each objective, none, gas, and size in that order, marks failure paths cold.
-    failure_paths_cold: [Option<bool>; 4],
 }
 
 impl HotnessAnalysis {
@@ -60,7 +56,6 @@ impl HotnessAnalysis {
             queue: Vec::new(),
             queued: DenseBitSet::new_empty(0),
             always_hot: GrowableBitSet::new_empty(),
-            failure_paths_cold: [None; 4],
         }
     }
 
@@ -120,6 +115,7 @@ impl HotnessAnalysis {
 
     /// Returns whether every hotness attribute of `module` matches a fresh computation.
     pub(crate) fn is_current(&mut self, gcx: Gcx<'_>, module: &Module) -> bool {
+        self.always_hot.clear();
         self.compute_functions(module);
         module
             .functions
@@ -146,9 +142,7 @@ impl HotnessAnalysis {
     fn compute_blocks(&mut self, gcx: Gcx<'_>, module: &Module, function: FunctionId) {
         let func = &module.functions[function];
         let objective = func.attributes.optimization.unwrap_or(module.optimization);
-        let marks_failure_paths_cold = *self.failure_paths_cold
-            [usize::from(objective.is_gas()) + 2 * usize::from(objective.is_size())]
-        .get_or_insert_with(|| Target::new(gcx, objective).marks_failure_paths_cold());
+        let marks_failure_paths_cold = Target::new(gcx, objective).marks_failure_paths_cold();
         self.collect_cold_blocks(module, func, !objective.is_none(), marks_failure_paths_cold);
     }
 
@@ -225,17 +219,16 @@ impl HotnessAnalysis {
                 Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid => {
                     saw_exit = true;
                 }
-                Terminator::TailCall { function: callee, .. }
-                    if self.cold_functions.contains(*callee) =>
-                {
+                Terminator::TailCall { function: callee, .. } => {
                     calls = true;
-                    saw_exit = true;
+                    if self.cold_functions.contains(*callee) {
+                        saw_exit = true;
+                    } else {
+                        self.add_caller(*callee, function);
+                        all_exits_cold = false;
+                    }
                 }
                 _ => {
-                    if let Terminator::TailCall { function: callee, .. } = term {
-                        calls = true;
-                        self.add_caller(*callee, function);
-                    }
                     let successors = term.successors();
                     if successors.is_empty() {
                         all_exits_cold = false;
@@ -332,18 +325,13 @@ pub(crate) fn aborts(func: &Function, block: BlockId, cold: &DenseBitSet<Functio
 
 fn block_aborts(func: &Function, block: BlockId, is_cold: impl Fn(FunctionId) -> bool) -> bool {
     let body = &func.blocks[block];
-    calls_cold(func, body, &is_cold)
-        || body.terminator.as_ref().is_some_and(Terminator::reverts)
-        || matches!(body.terminator, Some(Terminator::TailCall { function, .. }) if is_cold(function))
-}
-
-fn calls_cold(func: &Function, block: &BasicBlock, is_cold: impl Fn(FunctionId) -> bool) -> bool {
-    block.instructions.iter().any(|&inst| {
+    body.instructions.iter().any(|&inst| {
         matches!(
             func.inst(inst).kind,
             InstKind::ICall { function: Callee::Function(function), .. } if is_cold(function)
         )
-    })
+    }) || body.terminator.as_ref().is_some_and(Terminator::reverts)
+        || matches!(body.terminator, Some(Terminator::TailCall { function, .. }) if is_cold(function))
 }
 
 const fn hotness(cold: bool) -> Hotness {

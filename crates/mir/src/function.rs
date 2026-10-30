@@ -876,9 +876,6 @@ pub struct FunctionAttributes {
     /// The objective its `@custom:solar-optimize` tag selects for this function's code, instead
     /// of its module's.
     pub optimization: Option<OptimizationMode>,
-    /// Whether every reachable exit aborts, so calls to this function are rare. Computed by the
-    /// hotness analysis, which every pass keeps fresh.
-    pub hotness: Hotness,
     /// Proved upper bound, in bits, on the words each array parameter can
     /// hold while this function reads it, recorded by element cleanup for
     /// the ABI return proofs that run after the element masks are gone.
@@ -886,6 +883,9 @@ pub struct FunctionAttributes {
     /// The widest word the single array this function returns can hold, when element
     /// cleanup proved one. Its caller can re-encode the array without cleaning it.
     pub array_return_element_bits: Option<u32>,
+    /// Whether every reachable exit aborts, so calls to this function are rare. Computed by the
+    /// hotness analysis, which the pass manager reruns after every pass that changes the module.
+    pub hotness: Hotness,
 }
 
 impl Default for FunctionAttributes {
@@ -903,9 +903,9 @@ impl Default for FunctionAttributes {
             always_inline: false,
             inline_hint: false,
             optimization: None,
-            hotness: Hotness::Hot,
             array_element_bits: FxHashMap::default(),
             array_return_element_bits: None,
+            hotness: Hotness::Hot,
         }
     }
 }
