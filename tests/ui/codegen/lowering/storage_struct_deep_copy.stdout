@@ -7,24 +7,26 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     v74 = lt v73, 68
     v75 = calldataload 4
     v76 = shr v75, 160
-    v89 = zext i1 v74 to i256
-    v90 = or v89, v76
+    v90 = zext i1 v74 to i256
+    v91 = or v90, v76
     v78 = calldataload 36
     v79 = shl v78, 32
-    v92 = or v90, v79
-    v93 = ne v92, 0
-    jumpi v93, bb5, bb6
+    v93 = or v91, v79
+    v94 = ne v93, 0
+    jumpi v94, bb5, bb6
   bb6:
     v82 = heap_floor !metadata(alloc_ptr)
     v83 = add v82, 64 !metadata(alloc_ptr)
     v84 = lt v83, v82
-    v85 = gt v83, 0xffffffffffffffff
-    v86 = or v84, v85
-    jumpi v86, bb8, bb7
+    v85 = zext i1 v84 to i256
+    v86 = shr v83, 64
+    v87 = or v85, v86
+    v88 = ne v87, 0
+    jumpi v88, bb8, bb7
   bb7:
     mstore 64, v83 !metadata(memory=scratch)
-    v88 = calldatasize
-    calldatacopy v82, v88, 64
+    v89 = calldatasize
+    calldatacopy v82, v89, 64
     v6 = alloc 64 !metadata(deferred_alloc)
     v11 = sload 0 !metadata(storage=slot(0))
     v13 = and v11, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
@@ -77,24 +79,26 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v82 = lt v81, 68
     v83 = calldataload 4
     v84 = shr v83, 160
-    v98 = zext i1 v82 to i256
-    v99 = or v98, v84
+    v99 = zext i1 v82 to i256
+    v100 = or v99, v84
     v86 = calldataload 36
     v87 = shl v86, 32
-    v101 = or v99, v87
-    v102 = ne v101, 0
-    jumpi v102, bb7, bb8
+    v102 = or v100, v87
+    v103 = ne v102, 0
+    jumpi v103, bb7, bb8
   bb8:
     v91 = heap_floor !metadata(alloc_ptr)
     v92 = add v91, 64 !metadata(alloc_ptr)
     v93 = lt v92, v91
-    v94 = gt v92, 0xffffffffffffffff
-    v95 = or v93, v94
-    jumpi v95, bb5, bb9
+    v94 = zext i1 v93 to i256
+    v95 = shr v92, 64
+    v96 = or v94, v95
+    v97 = ne v96, 0
+    jumpi v97, bb5, bb9
   bb9:
     mstore 64, v92 !metadata(memory=scratch)
-    v97 = calldatasize
-    calldatacopy v91, v97, 64
+    v98 = calldatasize
+    calldatacopy v91, v98, 64
     v6 = alloc 64 !metadata(deferred_alloc)
     v10 = sload 2 !metadata(storage=slot(2))
     v77 = shr v10, 64
@@ -200,24 +204,26 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     v78 = lt v77, 68
     v79 = calldataload 4
     v80 = shr v79, 160
-    v93 = zext i1 v78 to i256
-    v94 = or v93, v80
+    v94 = zext i1 v78 to i256
+    v95 = or v94, v80
     v82 = calldataload 36
     v83 = shl v82, 32
-    v96 = or v94, v83
-    v97 = ne v96, 0
-    jumpi v97, bb5, bb6
+    v97 = or v95, v83
+    v98 = ne v97, 0
+    jumpi v98, bb5, bb6
   bb6:
     v86 = heap_floor !metadata(alloc_ptr)
     v87 = add v86, 64 !metadata(alloc_ptr)
     v88 = lt v87, v86
-    v89 = gt v87, 0xffffffffffffffff
-    v90 = or v88, v89
-    jumpi v90, bb8, bb7
+    v89 = zext i1 v88 to i256
+    v90 = shr v87, 64
+    v91 = or v89, v90
+    v92 = ne v91, 0
+    jumpi v92, bb8, bb7
   bb7:
     mstore 64, v87 !metadata(memory=scratch)
-    v92 = calldatasize
-    calldatacopy v86, v92, 64
+    v93 = calldatasize
+    calldatacopy v86, v93, 64
     v6 = alloc 64 !metadata(deferred_alloc)
     v15 = sload 3 !metadata(storage=slot(3))
     v17 = and v15, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
