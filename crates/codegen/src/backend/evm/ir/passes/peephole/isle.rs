@@ -15,6 +15,7 @@ use crate::{
         op,
         op::*,
     },
+    mir::utils::eval,
     target::{Cost, Target},
 };
 use alloy_primitives::U256;
@@ -267,14 +268,15 @@ impl<'a> PeepContext<'a> {
             Rules::Early => self.select_by_tail(),
             Rules::Final => self.final_rewrite().or_else(|| self.select_by_tail()),
             Rules::Late => {
-                if self.instructions.len() < 5
-                    || self.instructions.last()?.as_evm_opcode() != Some(SUB)
-                {
+                if self.instructions.last()?.as_evm_opcode() != Some(SUB) {
                     return None;
                 }
-                let first = self.instructions.len().saturating_sub(MAX_STACK_WINDOW);
-                (first..=self.instructions.len() - 5)
-                    .find_map(|start| generated::constructor_late_peep(self, start))
+                let end = self.instructions.len();
+                let first = end.saturating_sub(MAX_STACK_WINDOW);
+                let masked = end.checked_sub(5).and_then(|last| {
+                    (first..=last).find_map(|start| generated::constructor_late_peep(self, start))
+                });
+                masked.or_else(|| generated::constructor_late_sub(self, Window))
             }
         }
     }
@@ -473,7 +475,7 @@ impl generated::Context for PeepContext<'_> {
         let lhs_value = lhs.concrete_immediate()?;
         let rhs_value = rhs.concrete_immediate()?;
         let opcode = instruction.as_evm_opcode()?;
-        let result = op::eval(opcode, &[rhs_value, lhs_value])?;
+        let result = eval::eval_opcode(opcode, &[rhs_value, lhs_value])?;
         let target = self.target;
         // PUSH lhs; PUSH rhs; opcode => materialize evaluated word
         // Price the operation too: compact wide constants may need several
@@ -489,11 +491,36 @@ impl generated::Context for PeepContext<'_> {
         let [value, instruction] = self.unprotected_tail()?;
         let value = self.instructions[value].concrete_immediate()?;
         let opcode = self.instructions[instruction].as_evm_opcode()?;
-        let result = op::eval(opcode, &[value])?;
+        let result = eval::eval_opcode(opcode, &[value])?;
         let target = self.target;
         // PUSH value; unary_opcode => materialize evaluated word
         let input = target.push(value) + target.opcode_with_immediates(opcode, &[Some(value)]);
         target.dominates(target.push(result), input).then_some(result)
+    }
+
+    /// The negated constant of `PUSH c; SWAP1; SUB`, when `materialize(-c); ADD` improves the
+    /// objective without raising the transient stack use above the push's.
+    fn negated_subtrahend(&mut self, _: Window) -> Option<U256> {
+        let [push, swap, sub] = self.unprotected_tail()?;
+        let instructions = self.instructions;
+        let value = instructions[push].concrete_immediate()?;
+        if instructions[swap].as_stack_op() != Some(StackOp::Swap(1))
+            || instructions[sub].as_evm_opcode() != Some(SUB)
+        {
+            return None;
+        }
+        let negated = U256::ZERO.wrapping_sub(value);
+        let target = self.target;
+        // The matched push is a literal, which compact pushes keep when its recipe does not repay.
+        // PUSH c; SWAP1; SUB => materialize(-c); ADD
+        let before = target.literal_push(value) + target.opcode(SWAP1) + target.opcode(SUB);
+        let after = target.push(negated) + target.opcode(ADD);
+        let gas_saving =
+            i64::from(target.runtime_gas(before)) - i64::from(target.runtime_gas(after));
+        let byte_saving = i64::from(before.bytes) - i64::from(after.bytes);
+        (target.improves(gas_saving, byte_saving)
+            && ImmediateMaterialization::new(target.evm_version(), negated).stack_peak() <= 1)
+            .then_some(negated)
     }
 
     /// Removes a closed conditional jump whose literal condition is false.

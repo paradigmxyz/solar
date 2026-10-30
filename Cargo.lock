@@ -4420,7 +4420,7 @@ dependencies = [
  "solar-data-structures",
  "solar-evmir",
  "solar-interface",
- "solar-parse",
+ "solar-mir",
  "solar-sema",
  "tempfile",
  "tracing",
@@ -4488,6 +4488,7 @@ dependencies = [
  "solar-config",
  "solar-data-structures",
  "solar-interface",
+ "solar-ir",
  "solar-parse",
 ]
 
@@ -4540,6 +4541,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "solar-ir"
+version = "0.2.0"
+dependencies = [
+ "alloy-primitives",
+ "smallvec",
+ "solar-ast",
+ "solar-data-structures",
+ "solar-interface",
+ "solar-parse",
+]
+
+[[package]]
 name = "solar-lint"
 version = "0.2.0"
 dependencies = [
@@ -4584,6 +4597,35 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.6",
+]
+
+[[package]]
+name = "solar-mir"
+version = "0.2.0"
+dependencies = [
+ "alloy-primitives",
+ "arrayvec",
+ "smallvec",
+ "snapbox",
+ "solar-ast",
+ "solar-config",
+ "solar-data-structures",
+ "solar-interface",
+ "solar-ir",
+ "solar-parse",
+]
+
+[[package]]
+name = "solar-mir-interpreter"
+version = "0.2.0"
+dependencies = [
+ "alloy-primitives",
+ "smallvec",
+ "solar-config",
+ "solar-data-structures",
+ "solar-evmir",
+ "solar-interface",
+ "solar-mir",
 ]
 
 [[package]]
@@ -4652,10 +4694,10 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
- "solar-codegen",
  "solar-config",
  "solar-evmir",
  "solar-evmir-interpreter",
+ "solar-mir-interpreter",
  "strum 0.28.0",
  "tempfile",
  "toml_edit",

@@ -1,23 +1,20 @@
 //! EVM word-level evaluation used by MIR folding passes.
 //!
-//! [`eval_inst`] evaluates an instruction's declared [`Semantics`] when they compute a word from
-//! operand words alone: pure opcodes through the opcode table's word semantics, casts,
-//! comparisons, and checked arithmetic that succeeds.
-//!
 //! These helpers intentionally do not reuse `Gcx::const_eval`:
 //! sema evaluates Solidity source constants and reports semantic errors, while
 //! MIR folding must match 256-bit EVM wrapping and zero-divisor semantics.
 
-use crate::mir::{
-    ArithmeticKind, Builtin, Callee, CheckedOp, Function, InstKind, MirType, ResultKind, Semantics,
-    ValueId,
+use crate::{
+    backend::evm::{op, select::InstKindOpcode},
+    mir::{
+        ArithmeticKind, Builtin, Callee, CheckedOp, Function, InstKind, MirType, ResultKind,
+        ValueId,
+    },
 };
 use alloy_primitives::{I256, U256};
-use smallvec::SmallVec;
-use solar_evmir::op::{
-    self,
-    word::{i256_div, i256_mod, signextend},
-};
+
+pub(crate) use solar_evmir::op::eval_opcode;
+use solar_evmir::op::word::{i256_div, i256_mod, signextend};
 
 /// Evaluates integer operations in their declared width, with EVM's total semantics.
 pub(crate) fn eval_typed_inst<E>(
@@ -78,78 +75,72 @@ pub(crate) fn sign_extend(value: U256, bits: u32) -> U256 {
     if bits < 256 && value.bit((bits - 1) as usize) { value | (U256::MAX << bits) } else { value }
 }
 
-/// Evaluates an instruction whose declared semantics compute a word.
+/// Evaluates a pure EVM word instruction.
 ///
-/// Returns `Ok(None)` when the instruction declares no semantics; see [`eval_semantics`].
+/// Returns `Ok(None)` when `kind` has no word-level evaluator. Operand lookup
+/// errors pass through unchanged.
 pub(crate) fn eval_inst<E>(
     kind: &InstKind,
-    get: impl FnMut(ValueId) -> Result<U256, E>,
-) -> Result<Option<U256>, E> {
-    match kind.semantics() {
-        Some(semantics) => eval_semantics(semantics, get),
-        None => Ok(None),
-    }
-}
-
-/// Evaluates declared semantics that compute a word from operand words alone.
-///
-/// Returns `Ok(None)` before reading any operand when the semantics are not a word computation,
-/// and `Ok(None)` when this instance computes no value: a cast with invalid widths, checked
-/// arithmetic that panics, or a zero checked modulus. Operand lookup errors pass through
-/// unchanged.
-pub(crate) fn eval_semantics<E>(
-    semantics: Semantics<'_>,
     mut get: impl FnMut(ValueId) -> Result<U256, E>,
 ) -> Result<Option<U256>, E> {
-    Ok(match semantics {
-        Semantics::Opcode(opcode, operands) => {
-            // Other opcodes read memory, storage, or the environment.
-            if !op::is_pure(opcode) {
-                return Ok(None);
-            }
-            let mut words = SmallVec::<[U256; 3]>::new();
-            for operand in operands {
-                words.push(get(operand)?);
-            }
-            op::eval(opcode, &words)
-        }
-        Semantics::Word(value) => Some(get(value)?),
-        Semantics::LowBits(value, bits) => {
+    match *kind {
+        InstKind::Trunc(value, bits) | InstKind::PtrToInt(value, bits) => {
             if bits == 0 || bits > 256 {
                 return Ok(None);
             }
-            Some(get(value)? & (U256::MAX >> (256 - bits)))
+            return Ok(Some(get(value)? & (U256::MAX >> (256 - bits))));
         }
-        Semantics::SignExtend(value, from, to) => {
+        InstKind::Zext(value) | InstKind::IntToPtr(value) => {
+            return Ok(Some(get(value)?));
+        }
+        InstKind::Sext(value, from, to) => {
             if from == 0 || from >= to || to > 256 {
                 return Ok(None);
             }
             let value = sign_extend(get(value)?, from);
-            Some(value & (U256::MAX >> (256 - to)))
+            return Ok(Some(value & (U256::MAX >> (256 - to))));
         }
-        Semantics::NotEqual(a, b) => Some(U256::from(get(a)? != get(b)?)),
-        Semantics::Checked(op, arithmetic, lhs, rhs) => {
-            eval_checked(op, arithmetic, get(lhs)?, get(rhs)?)
+        _ => {}
+    }
+    if let InstKind::Ne(a, b) = *kind {
+        return Ok(Some(U256::from(get(a)? != get(b)?)));
+    }
+    if let InstKind::CheckedBinary { op, arithmetic, lhs, rhs } = *kind {
+        return Ok(eval_checked(op, arithmetic, get(lhs)?, get(rhs)?));
+    }
+    if let InstKind::ICall {
+        function: Callee::Builtin(builtin @ (Builtin::CheckedAddMod | Builtin::CheckedMulMod)),
+        args,
+    } = kind
+        && let &[a, b, modulus] = args.as_ref()
+    {
+        let modulus = get(modulus)?;
+        if modulus.is_zero() {
+            return Ok(None);
         }
-        Semantics::Call(
-            Callee::Builtin(builtin @ (Builtin::CheckedAddMod | Builtin::CheckedMulMod)),
-            &[a, b, modulus],
-        ) => {
-            let modulus = get(modulus)?;
-            if modulus.is_zero() {
-                return Ok(None);
-            }
-            let opcode =
-                if matches!(builtin, Builtin::CheckedAddMod) { op::ADDMOD } else { op::MULMOD };
-            op::eval(opcode, &[get(a)?, get(b)?, modulus])
-        }
-        Semantics::Select(..)
-        | Semantics::Phi(_)
-        | Semantics::Call(..)
-        | Semantics::Allocate(..)
-        | Semantics::DataCopy(..)
-        | Semantics::HeapFloor => None,
-    })
+        let opcode =
+            if matches!(builtin, Builtin::CheckedAddMod) { op::ADDMOD } else { op::MULMOD };
+        return Ok(eval_opcode(opcode, &[get(a)?, get(b)?, modulus]));
+    }
+    let Some(opcode) = kind.evm_opcode() else { return Ok(None) };
+    let Some((inputs, 1)) = op::stack_io(opcode) else { return Ok(None) };
+    if inputs > 3 {
+        return Ok(None);
+    }
+
+    let mut values = [U256::ZERO; 3];
+    let values = &mut values[..usize::from(inputs)];
+    if eval_opcode(opcode, values).is_none() {
+        return Ok(None);
+    }
+    let operands = kind.operands();
+    if operands.len() != values.len() {
+        return Ok(None);
+    }
+    for (value, operand) in values.iter_mut().zip(operands) {
+        *value = get(operand)?;
+    }
+    Ok(eval_opcode(opcode, values))
 }
 
 /// Returns a value only when the complete checked operation succeeds.

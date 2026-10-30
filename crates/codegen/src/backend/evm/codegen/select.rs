@@ -106,9 +106,14 @@ pub(crate) fn opcode_lowering(op: &Op) -> Option<OpcodeLowering> {
     generated::constructor_select_opcode(&mut RuleContext, op)
 }
 
-impl InstKind {
+/// The EVM opcode that implements an instruction.
+pub(crate) trait InstKindOpcode {
     /// Returns the EVM opcode that directly implements this instruction.
-    pub(crate) fn evm_opcode(&self) -> Option<u8> {
+    fn evm_opcode(&self) -> Option<u8>;
+}
+
+impl InstKindOpcode for InstKind {
+    fn evm_opcode(&self) -> Option<u8> {
         opcode_lowering(&self.op()).map(OpcodeLowering::opcode)
     }
 }
@@ -131,5 +136,24 @@ pub(crate) fn rematerializable_nullary_value(func: &Function, value: ValueId) ->
         Some(opcode)
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{backend::evm::op, mir::Semantics};
+
+    #[test]
+    fn selection_matches_declared_opcodes() {
+        for kind in crate::mir::semantics::opcode_samples() {
+            let Some(Semantics::Opcode(name, _)) = kind.semantics() else { unreachable!() };
+            // Calls lower outside instruction selection.
+            let selected = kind.evm_opcode();
+            assert!(
+                selected.is_none_or(|selected| Some(selected) == op::from_mnemonic(name)),
+                "{kind:?}"
+            );
+        }
     }
 }

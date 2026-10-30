@@ -214,12 +214,6 @@ revision, and the `division-words` runtime benchmark measures their gas.
 
 ## Semantics and trusted boundary
 
-The compiler's own opcode semantics are checked against this model as well.
-`crates/evmir/src/op/word.snap` lists every pure opcode of the
-compiler's opcode table on boundary words, with results from the table's word
-semantics, and `test.py` evaluates each line with both the integer and the SMT
-word models. The definitions stay independent; they only have to agree.
-
 The proofs do not establish memory contents, allocation safety, bounds checks,
 aliasing, address-space selection, or correctness of typed slice erasure. The
 Rust layout policy, type definitions, memory-object lowering and slice lowering
@@ -508,7 +502,10 @@ comparisons. A recipe has a private namespace; only a winning recipe allocates M
 instructions. Matching is restricted to earlier producers in the same pure segment.
 Dead-code credit requires single-use producers, excludes ABI validation, and stops
 at shared values and a bounded cone. The root retains its value identity and semantic
-metadata; new children inherit only source context. Unsupported fork opcodes reject
+metadata; new children inherit only source context. A rule that ends in `enabling_sequence`
+instead of `sequence` builds the same recipe but is accepted without being locally
+cheaper, because its guard shows that it pays for the rewrite it exposes to a later pass;
+the checker treats the two alike. Unsupported fork opcodes reject
 the candidate. This adds local multi-instruction construction, not global placement
 search or equality saturation.
 

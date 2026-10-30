@@ -8,7 +8,7 @@ fn @sizes() [selector=0xebf5a899, abi_wrapper, pure] {
     v1 = ne v0, 32
     jumpi v1, bb1, bb2
   bb2:
-    mstore 0, 65
+    mstore 0, 65 !metadata(memory=scratch)
     returndata 0, 32
   bb1:
     mstore 0, 0 !metadata(memory=scratch)
@@ -25,32 +25,24 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     revert 0, 0
   bb2:
     v41 = add v26, 32
-    v9 = add v0, 32
-    v10 = add v9, 63
-    v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v56 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v57 = add v56, v13 !metadata(alloc_ptr)
+    v57 = add v56, 128
     mstore 64, v57 !metadata(memory=scratch)
-    mstore v56, v9
+    mstore v56, 96
     v43 = add v56, 32
-    mcopy v43, v41, v0
-    v45 = add v56, v0
+    mcopy v43, v41, 64
+    v45 = add v56, 64
     v46 = add v45, 32
     mstore v46, 64
-    v48 = add v56, v9
+    v48 = add v56, 96
     v49 = add v48, 32
     mstore v49, 0
-    v30 = mload v56
-    v32 = add v30, 31
-    v34 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v36 = add v43, v34
+    v36 = add v43, 96
     mstore v36, 0
-    v51 = add v56, 64
-    mcopy v51, v43, v30
+    mcopy v45, v43, 96
     mstore v56, 32
-    mstore v43, v30
-    v38 = add v34, 64
-    returndata v56, v38
+    mstore v43, 96
+    returndata v56, 160
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {

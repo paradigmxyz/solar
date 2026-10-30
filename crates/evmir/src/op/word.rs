@@ -1,57 +1,58 @@
-//! Word semantics of the pure EVM opcodes.
+//! The word semantics of pure EVM opcodes.
 //!
-//! Each function computes one opcode's result from its operands in pop order: 256-bit wrapping
-//! arithmetic, zero for a zero divisor or modulus, saturating shifts, and two's-complement
-//! signed operations. The opcode table names the function of every pure opcode in its `eval`
-//! column, and [`super::eval`] dispatches through the table, so constant folding, the MIR
-//! interpreter, and EVM IR peepholes share one definition of each opcode.
+//! [`eval_opcode`] computes what a pure opcode pushes for concrete operands, with the EVM's
+//! wrapping arithmetic, zero divisors, and saturating shifts. Constant folding and the interpreters
+//! share it, so every consumer has one definition of each opcode.
 
+use crate::op;
 use alloy_primitives::U256;
 use std::cmp::Ordering;
 
 type Word = U256;
 
-pub(super) fn add(a: Word, b: Word) -> Word {
-    a.wrapping_add(b)
+/// Evaluates a pure EVM opcode with concrete operands in pop order.
+pub fn eval_opcode(opcode: u8, operands: &[U256]) -> Option<U256> {
+    Some(match (opcode, operands) {
+        (op::ADD, &[a, b]) => a.wrapping_add(b),
+        (op::SUB, &[a, b]) => a.wrapping_sub(b),
+        (op::MUL, &[a, b]) => a.wrapping_mul(b),
+        (op::DIV, &[a, b]) => div(a, b),
+        (op::SDIV, &[a, b]) => i256_div(a, b),
+        (op::MOD, &[a, b]) => rem(a, b),
+        (op::SMOD, &[a, b]) => i256_mod(a, b),
+        (op::EXP, &[a, b]) => a.wrapping_pow(b),
+        (op::ADDMOD, &[a, b, n]) => a.add_mod(b, n),
+        (op::MULMOD, &[a, b, n]) => a.mul_mod(b, n),
+        (op::AND, &[a, b]) => a & b,
+        (op::OR, &[a, b]) => a | b,
+        (op::XOR, &[a, b]) => a ^ b,
+        (op::NOT, &[a]) => !a,
+        (op::CLZ, &[a]) => U256::from(a.leading_zeros()),
+        (op::SHL, &[shift, value]) => shl(shift, value),
+        (op::SHR, &[shift, value]) => shr(shift, value),
+        (op::SAR, &[shift, value]) => sar(shift, value),
+        (op::BYTE, &[index, value]) => byte(index, value),
+        (op::SIGNEXTEND, &[size, value]) => signextend(size, value),
+        (op::LT, &[a, b]) => U256::from(a < b),
+        (op::GT, &[a, b]) => U256::from(a > b),
+        (op::SLT, &[a, b]) => U256::from(i256_cmp(&a, &b) == Ordering::Less),
+        (op::SGT, &[a, b]) => U256::from(i256_cmp(&a, &b) == Ordering::Greater),
+        (op::EQ, &[a, b]) => U256::from(a == b),
+        (op::ISZERO, &[a]) => U256::from(a.is_zero()),
+        _ => return None,
+    })
 }
 
-pub(super) fn mul(a: Word, b: Word) -> Word {
-    a.wrapping_mul(b)
-}
-
-pub(super) fn sub(a: Word, b: Word) -> Word {
-    a.wrapping_sub(b)
-}
-
-pub(super) fn div(a: Word, b: Word) -> Word {
+fn div(a: Word, b: Word) -> Word {
     if b.is_zero() { Word::ZERO } else { a.wrapping_div(b) }
 }
 
-pub(super) fn sdiv(a: Word, b: Word) -> Word {
-    i256_div(a, b)
-}
-
-pub(super) fn rem(a: Word, b: Word) -> Word {
+fn rem(a: Word, b: Word) -> Word {
     if b.is_zero() { Word::ZERO } else { a.wrapping_rem(b) }
 }
 
-pub(super) fn smod(a: Word, b: Word) -> Word {
-    i256_mod(a, b)
-}
-
-pub(super) fn addmod(a: Word, b: Word, n: Word) -> Word {
-    a.add_mod(b, n)
-}
-
-pub(super) fn mulmod(a: Word, b: Word, n: Word) -> Word {
-    a.mul_mod(b, n)
-}
-
-pub(super) fn exp(a: Word, b: Word) -> Word {
-    a.wrapping_pow(b)
-}
-
-/// Sign-extends `value` from byte `ext`, counted from the least significant byte.
+/// Sign-extends `value` from its byte `ext`, counted from the least significant byte, as
+/// `SIGNEXTEND` does.
 pub fn signextend(ext: Word, value: Word) -> Word {
     if ext < Word::from(31) {
         let bit_index = (8 * ext.as_limbs()[0] + 7) as usize;
@@ -62,62 +63,22 @@ pub fn signextend(ext: Word, value: Word) -> Word {
     }
 }
 
-pub(super) fn lt(a: Word, b: Word) -> Word {
-    Word::from(a < b)
-}
-
-pub(super) fn gt(a: Word, b: Word) -> Word {
-    Word::from(a > b)
-}
-
-pub(super) fn slt(a: Word, b: Word) -> Word {
-    Word::from(i256_cmp(&a, &b) == Ordering::Less)
-}
-
-pub(super) fn sgt(a: Word, b: Word) -> Word {
-    Word::from(i256_cmp(&a, &b) == Ordering::Greater)
-}
-
-pub(super) fn eq(a: Word, b: Word) -> Word {
-    Word::from(a == b)
-}
-
-pub(super) fn iszero(a: Word) -> Word {
-    Word::from(a.is_zero())
-}
-
-pub(super) fn and(a: Word, b: Word) -> Word {
-    a & b
-}
-
-pub(super) fn or(a: Word, b: Word) -> Word {
-    a | b
-}
-
-pub(super) fn xor(a: Word, b: Word) -> Word {
-    a ^ b
-}
-
-pub(super) fn not(a: Word) -> Word {
-    !a
-}
-
-pub(super) fn byte(index: Word, value: Word) -> Word {
+fn byte(index: Word, value: Word) -> Word {
     let index = word_to_usize_saturated(index);
     if index < 32 { Word::from(value.byte(31 - index)) } else { Word::ZERO }
 }
 
-pub(super) fn shl(shift: Word, value: Word) -> Word {
+fn shl(shift: Word, value: Word) -> Word {
     let shift = word_to_usize_saturated(shift);
     if shift < 256 { value << shift } else { Word::ZERO }
 }
 
-pub(super) fn shr(shift: Word, value: Word) -> Word {
+fn shr(shift: Word, value: Word) -> Word {
     let shift = word_to_usize_saturated(shift);
     if shift < 256 { value >> shift } else { Word::ZERO }
 }
 
-pub(super) fn sar(shift: Word, value: Word) -> Word {
+fn sar(shift: Word, value: Word) -> Word {
     let shift = word_to_usize_saturated(shift);
     if shift < 256 {
         value.arithmetic_shr(shift)
@@ -126,10 +87,6 @@ pub(super) fn sar(shift: Word, value: Word) -> Word {
     } else {
         Word::ZERO
     }
-}
-
-pub(super) fn clz(a: Word) -> Word {
-    Word::from(a.leading_zeros())
 }
 
 #[inline]
@@ -202,7 +159,7 @@ fn i256_cmp(first: &Word, second: &Word) -> Ordering {
     }
 }
 
-/// Signed division, zero for a zero divisor, wrapping `MIN / -1` to `MIN`.
+/// Divides two signed words, rounding towards zero, as `SDIV` does.
 #[inline]
 pub fn i256_div(mut first: Word, mut second: Word) -> Word {
     let second_sign = i256_sign_compl(&mut second);
@@ -227,7 +184,7 @@ pub fn i256_div(mut first: Word, mut second: Word) -> Word {
     }
 }
 
-/// Signed remainder with the dividend's sign, zero for a zero divisor.
+/// Returns the signed remainder of two words, with the sign of the dividend, as `SMOD` does.
 #[inline]
 pub fn i256_mod(mut first: Word, mut second: Word) -> Word {
     let first_sign = i256_sign_compl(&mut first);
@@ -244,55 +201,4 @@ pub fn i256_mod(mut first: Word, mut second: Word) -> Word {
     u256_remove_sign(&mut remainder);
 
     if first_sign == Sign::Minus { two_compl(remainder) } else { remainder }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::op::{definition, eval};
-    use std::fmt::Write as _;
-
-    /// Every pure opcode's results on boundary words. `scripts/evm-rules/test.py` checks each
-    /// line against the rule checker's independent integer and SMT word models.
-    #[test]
-    fn boundary_results() {
-        let words = [
-            Word::ZERO,
-            Word::from(1),
-            Word::from(0x1f),
-            Word::from(0x20),
-            Word::from(0xff),
-            Word::from(0x100),
-            Word::ONE << 255,
-            Word::MAX,
-        ];
-        let modular = [Word::ZERO, Word::from(1), Word::from(0x100), Word::ONE << 255, Word::MAX];
-        let mut table = String::new();
-        for opcode in u8::MIN..=u8::MAX {
-            let Some(definition) = definition(opcode).filter(|definition| definition.is_pure())
-            else {
-                continue;
-            };
-            let inputs = definition.stack_io.map_or(0, |(inputs, _)| usize::from(inputs));
-            let domain: &[Word] = if inputs == 3 { &modular } else { &words };
-            let mut operands = vec![0; inputs];
-            loop {
-                let values = operands.iter().map(|&index| domain[index]).collect::<Vec<_>>();
-                let result = eval(opcode, &values).expect("pure opcodes evaluate");
-                write!(table, "{}", definition.mnemonic).unwrap();
-                for value in &values {
-                    write!(table, " {value:#x}").unwrap();
-                }
-                writeln!(table, " -> {result:#x}").unwrap();
-                // Advances to the next operand tuple, the last operand fastest.
-                let Some(position) = operands.iter().rposition(|&index| index + 1 < domain.len())
-                else {
-                    break;
-                };
-                operands[position] += 1;
-                operands[position + 1..].fill(0);
-            }
-        }
-        snapbox::assert_data_eq!(table, snapbox::file!["word.snap"]);
-    }
 }

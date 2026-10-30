@@ -15,12 +15,14 @@ mod coalesce_copies;
 pub(crate) mod compact_pushes;
 pub(super) mod data;
 mod dce;
+mod jumpi_fallthrough;
 mod late_structural;
 mod legalize_revert;
 mod loop_layout;
 mod outline;
 mod peephole;
 mod reorder_pushes;
+mod returndata_zero;
 mod share_reverts;
 mod stack_normalize;
 mod stack_reschedule;
@@ -35,8 +37,9 @@ pub(in crate::backend::evm) use stack_reschedule::SharedSchedules;
 
 use super::Module;
 use crate::{
-    mir::pass_manager::{
-        parse_pass_pipeline, pipeline_output_name, print_pass_diff, should_validate_ir,
+    mir::{
+        pass_manager::{parse_pass_pipeline, pipeline_output_name, print_pass_diff},
+        should_validate_ir,
     },
     timing::PassTimer,
 };
@@ -131,7 +134,9 @@ static ALL_PASSES: &[&dyn EvmPass] = &[
     &block_layout::BlockLayout,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,
+    &jumpi_fallthrough::JumpiFallthrough,
     &tail_copy::CopyJoins,
+    &returndata_zero::ReturndataZero,
 ];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
@@ -185,7 +190,6 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Cleanup(dce::Dce),
     &peephole::Cleanup(stack_normalize::StackNormalize::EARLY),
     &block_layout::BlockLayout,
-    &share_reverts::ShareReverts,
     &cfg_simplify::CfgSimplify::FINAL,
     &block_layout::BlockLayout,
     // Materialize literal-store runs and pack the referenced data pool before final sharing and
@@ -212,6 +216,8 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Introduce `EXCHANGE` only after every peephole has seen the plain swaps.
     &stack_normalize::StackNormalize::FINAL,
     &tail_copy::CopyJoins,
+    // Zero reads `RETURNDATASIZE` only after every pass that treats `push 0` as a constant.
+    &RunsAtNone(returndata_zero::ReturndataZero),
 ];
 
 /// Finds an EVM IR pass by command-line name.
@@ -248,7 +254,7 @@ fn run_passes(
             let cache_key = PassCacheKey::new(*pass);
             let cached = unchanged.contains(&cache_key);
             debug_assert!(unchanged.iter().filter(|entry| **entry == cache_key).count() <= 1);
-            let target_support_before = (!cached && should_validate_ir(gcx))
+            let target_support_before = (!cached && should_validate_ir(gcx.sess))
                 .then(|| super::verifier(gcx).target_support_snapshot(module));
             let pass_changed = !cached
                 && tracing::trace_span!("evm_ir_pass", pass = pass_name)

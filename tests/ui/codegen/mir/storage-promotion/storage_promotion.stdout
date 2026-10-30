@@ -137,3 +137,27 @@
       jump bb5
   }
   
+  fn @promote_with_unrelated_preheader_store() [selector=0x01020304] {
+    bb0:
+-     sstore 0, 1
+-     sstore 1, 5
++     mstore 128, 1
++     sstore 1, 5 !metadata(storage=slot(1))
+      jump bb1
+    bb1:
+      jumpi true, bb2, bb4
+    bb4:
++     v2 = mload 128
++     sstore 0, v2
+      stop
+    bb2:
+-     v0 = sload 0
++     v0 = mload 128
+      v1 = mul v0, 2
+-     sstore 0, v1
++     mstore 128, v1
+      jump bb3
+    bb3:
+      jump bb1
+  }
+  

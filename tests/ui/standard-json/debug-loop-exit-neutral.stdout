@@ -21,19 +21,19 @@
       "A": {
         "evm": {
           "bytecode": {
-            "object": "34600d5760338060115f395ff35b5f5ffd34602f575f3560e01c80633c311f3c03602f5760243610602f576004355b6001900380601d576001015f5260205ff35b5f5ffd",
+            "object": "34600d5760328060115f395ff35b5f5ffd34602e575f3560e01c80633c311f3c03602e5760243610602e576004355b5f190180601d576001015f5260205ff35b5f5ffd",
             "sourceMap": ":::-:0;;;;;;;;;;;;;"
           },
           "deployedBytecode": {
-            "object": "34602f575f3560e01c80633c311f3c03602f5760243610602f576004355b6001900380601d576001015f5260205ff35b5f5ffd",
-            "sourceMap": ":::-:0;;;;;;;;;;;;;;;;;131:111:0;;-1:-1:-1;180:9:0;;;206:22;;;-1:-1:-1;;20:238:0;;;;;-1:-1:-1;;;"
+            "object": "34602e575f3560e01c80633c311f3c03602e5760243610602e576004355b5f190180601d576001015f5260205ff35b5f5ffd",
+            "sourceMap": ":::-:0;;;;;;;;;;;;;;;;;131:111:0;;-1:-1:-1;;;180:9:0;206:22;;;-1:-1:-1;;20:238:0;;;;;-1:-1:-1;;;"
           }
         }
       },
       "B": {
         "evm": {
           "bytecode": {
-            "object": "34600d5760338060115f395ff35b5f5ffd34602f575f3560e01c80633c311f3c03602f5760243610602f576004355b6001900380601d576001015f5260205ff35b5f5ffd",
+            "object": "34600d5760328060115f395ff35b5f5ffd34602e575f3560e01c80633c311f3c03602e5760243610602e576004355b5f190180601d576001015f5260205ff35b5f5ffd",
             "ethdebug": {
               "compilation": {
                 "id": "solar-COMPILATION_ID"
@@ -78,7 +78,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x33"
+                      "0x32"
                     ]
                   }
                 },
@@ -149,7 +149,7 @@
             }
           },
           "deployedBytecode": {
-            "object": "34602f575f3560e01c80633c311f3c03602f5760243610602f576004355b6001900380601d576001015f5260205ff35b5f5ffd",
+            "object": "34602e575f3560e01c80633c311f3c03602e5760243610602e576004355b5f190180601d576001015f5260205ff35b5f5ffd",
             "ethdebug": {
               "compilation": {
                 "id": "solar-COMPILATION_ID"
@@ -179,7 +179,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x2f"
+                      "0x2e"
                     ]
                   }
                 },
@@ -242,7 +242,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x2f"
+                      "0x2e"
                     ]
                   }
                 },
@@ -278,7 +278,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x2f"
+                      "0x2e"
                     ]
                   }
                 },
@@ -334,27 +334,19 @@
                 {
                   "offset": 30,
                   "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0x01"
-                    ]
-                  },
-                  "context": {
-                    "code": {
-                      "source": {
-                        "id": 0
-                      },
-                      "range": {
-                        "offset": 180,
-                        "length": 9
-                      }
-                    }
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
+                  "offset": 31,
+                  "operation": {
+                    "mnemonic": "NOT"
                   }
                 },
                 {
                   "offset": 32,
                   "operation": {
-                    "mnemonic": "SWAP1"
+                    "mnemonic": "ADD"
                   },
                   "context": {
                     "code": {
@@ -371,23 +363,6 @@
                 {
                   "offset": 33,
                   "operation": {
-                    "mnemonic": "SUB"
-                  },
-                  "context": {
-                    "code": {
-                      "source": {
-                        "id": 0
-                      },
-                      "range": {
-                        "offset": 180,
-                        "length": 9
-                      }
-                    }
-                  }
-                },
-                {
-                  "offset": 34,
-                  "operation": {
                     "mnemonic": "DUP1"
                   },
                   "context": {
@@ -403,7 +378,7 @@
                   }
                 },
                 {
-                  "offset": 35,
+                  "offset": 34,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -423,7 +398,7 @@
                   }
                 },
                 {
-                  "offset": 37,
+                  "offset": 36,
                   "operation": {
                     "mnemonic": "JUMPI"
                   },
@@ -440,7 +415,7 @@
                   }
                 },
                 {
-                  "offset": 38,
+                  "offset": 37,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -449,13 +424,13 @@
                   }
                 },
                 {
-                  "offset": 40,
+                  "offset": 39,
                   "operation": {
                     "mnemonic": "ADD"
                   }
                 },
                 {
-                  "offset": 41,
+                  "offset": 40,
                   "operation": {
                     "mnemonic": "PUSH0"
                   },
@@ -472,7 +447,7 @@
                   }
                 },
                 {
-                  "offset": 42,
+                  "offset": 41,
                   "operation": {
                     "mnemonic": "MSTORE"
                   },
@@ -489,7 +464,7 @@
                   }
                 },
                 {
-                  "offset": 43,
+                  "offset": 42,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -509,7 +484,7 @@
                   }
                 },
                 {
-                  "offset": 45,
+                  "offset": 44,
                   "operation": {
                     "mnemonic": "PUSH0"
                   },
@@ -526,7 +501,7 @@
                   }
                 },
                 {
-                  "offset": 46,
+                  "offset": 45,
                   "operation": {
                     "mnemonic": "RETURN"
                   },
@@ -544,9 +519,15 @@
                   }
                 },
                 {
-                  "offset": 47,
+                  "offset": 46,
                   "operation": {
                     "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 47,
+                  "operation": {
+                    "mnemonic": "PUSH0"
                   }
                 },
                 {
@@ -557,12 +538,6 @@
                 },
                 {
                   "offset": 49,
-                  "operation": {
-                    "mnemonic": "PUSH0"
-                  }
-                },
-                {
-                  "offset": 50,
                   "operation": {
                     "mnemonic": "REVERT"
                   },
@@ -578,10 +553,10 @@
       "C": {
         "evm": {
           "bytecode": {
-            "object": "34600d5760338060115f395ff35b5f5ffd34602f575f3560e01c80633c311f3c03602f5760243610602f576004355b6001900380601d576001015f5260205ff35b5f5ffd"
+            "object": "34600d5760328060115f395ff35b5f5ffd34602e575f3560e01c80633c311f3c03602e5760243610602e576004355b5f190180601d576001015f5260205ff35b5f5ffd"
           },
           "deployedBytecode": {
-            "object": "34602f575f3560e01c80633c311f3c03602f5760243610602f576004355b6001900380601d576001015f5260205ff35b5f5ffd"
+            "object": "34602e575f3560e01c80633c311f3c03602e5760243610602e576004355b5f190180601d576001015f5260205ff35b5f5ffd"
           }
         }
       }

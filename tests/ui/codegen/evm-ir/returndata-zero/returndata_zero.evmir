@@ -1,0 +1,92 @@
+//@ revisions: paris shanghai
+//@ compile-flags: -Zevm-ir-pipeline=returndata-zero
+//@[paris] compile-flags: --evm-version paris
+//@[shanghai] compile-flags: --evm-version shanghai
+@module module
+
+// Nothing has run a call yet: a zero here and in the block of a branch taken before it reads the
+// empty buffer.
+bb0:
+  push 0
+  calldataload
+  push bb1
+  jumpi
+  push 0
+  pop
+  push bb2
+  jump bb3
+
+bb1:
+  push 0
+  pop
+  push bb7
+  pop
+  push bb4
+  jump bb5
+
+// A continuation after an internal call to a function that makes an external call keeps its zero.
+bb2 [continuation]:
+  push 0
+  dup 1
+  pop
+  pop
+  stop
+
+// The function rewrites the zeros before its call, in its entry block and in a branch target,
+// and keeps the one after it.
+bb3 [ret=0, inputs=1, outputs=0]:
+  push 0
+  push bb6
+  jumpi
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  address
+  gas
+  call
+  pop
+  push 0
+  pop
+  jump
+
+bb6:
+  push 0
+  pop
+  stop
+
+// A continuation after a function that makes no call reads the empty buffer.
+bb4 [continuation]:
+  push 0
+  pop
+  stop
+
+bb5 [ret=0, inputs=1, outputs=0]:
+  push 0
+  pop
+  jump
+
+// A block whose address escapes can be entered by a jump the graph has no edge for.
+bb7:
+  push 0
+  pop
+  stop
+
+// A copy of a zero the block pushed reads the empty buffer as well, through swaps, but not a copy
+// of another word or of a word the block did not push.
+bb8:
+  push 0
+  calldatasize
+  dup 2
+  swap 1
+  dup 1
+  dup 3
+  pop
+  pop
+  pop
+  pop
+  pop
+  dup 1
+  pop
+  stop

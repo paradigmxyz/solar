@@ -175,3 +175,27 @@ fn @promote_without_init_rewrites_successor_phi() -> i256 [selector=0x01020304] 
   bb6:
     jump bb5
 }
+
+// CHECK-LABEL: @promote_with_unrelated_preheader_store
+// CHECK: -     sstore 0, 1
+// CHECK:       mstore [[VALUE_ADDR:[0-9]+]], 1
+// CHECK: +     sstore 1, 5
+// CHECK:       [[VALUE:v[0-9]+]] = mload [[VALUE_ADDR]]
+// CHECK:       sstore 0, [[VALUE]]
+fn @promote_with_unrelated_preheader_store() [selector=0x01020304] {
+  bb0:
+    sstore 0, 1
+    sstore 1, 5
+    jump bb1
+  bb1:
+    jumpi true, bb2, bb4
+  bb2:
+    v1 = sload 0
+    v2 = mul v1, 2
+    sstore 0, v2
+    jump bb3
+  bb3:
+    jump bb1
+  bb4:
+    stop
+}

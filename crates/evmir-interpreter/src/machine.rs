@@ -11,7 +11,7 @@
 //!
 //! The stack and memory are the EVM's. The stack holds at most 1024 words, and each logical stack
 //! operation moves words as the `DUP`, `SWAP`, or `EXCHANGE` it lowers to. Pure opcodes evaluate
-//! through the opcode table's word semantics, [`op::eval`], which constant folding shares, so
+//! through the opcode table's word semantics, [`eval_opcode`], which constant folding shares, so
 //! execution and folding have one definition of each opcode. Memory is byte-addressed: an access
 //! with a nonzero length grows it to the word that holds its last byte, a zero-length access
 //! ignores its offset, and `MSIZE` reports its exact size. The run also reads calldata, persistent
@@ -72,7 +72,7 @@ use solar_data_structures::{
 use solar_evmir::{
     ir::{BlockId, Instruction, Module, Terminator, TerminatorKind},
     link::{DataBytes, DataId},
-    op::{self, MAX_STACK_DEPTH, StackOp, WORD_BYTES},
+    op::{self, MAX_STACK_DEPTH, StackOp, WORD_BYTES, eval_opcode},
 };
 use std::{borrow::Cow, fmt, ops::Range};
 
@@ -655,7 +655,7 @@ impl<'m> Run<'_, 'm> {
         let operands =
             self.stack.drain(self.stack.len() - inputs..).rev().collect::<SmallVec<[U256; 8]>>();
         let effect = if definition.is_pure() {
-            op::eval(opcode, &operands)
+            eval_opcode(opcode, &operands)
                 .map(Effect::Push)
                 .ok_or_else(|| unsupported(format!("evaluates `{}`", definition.mnemonic)))
         } else {

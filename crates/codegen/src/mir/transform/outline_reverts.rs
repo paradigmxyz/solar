@@ -20,8 +20,8 @@
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, Function, FunctionBuilder, FunctionId, InstKind, Module, PtrLocation, Terminator,
-        Value, pass::MirPass,
+        BlockId, Function, FunctionBuilder, FunctionId, InstKind, MirModuleTarget, Module,
+        PtrLocation, Terminator, Value, pass::MirPass,
     },
     target::{Cost, Target},
 };

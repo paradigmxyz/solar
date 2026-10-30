@@ -1,0 +1,36 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=jumpi-fallthrough
+//@ run-call: pick(uint256,uint256)(uint256) 7, 8 => 1
+//@ run-call: pick(uint256,uint256)(uint256) 7, 9 => 2
+//@ run-call: pick(uint256,uint256)(uint256) 8, 8 => 2
+// A condition that ends in `eq` turns around into `sub`, which is free, and `sub` into `eq`.
+@module Equal
+bb0:
+  push 4
+  calldataload
+  push 7
+  eq
+  push bb1
+  jumpi
+  jump bb2
+bb1:
+  push 36
+  calldataload
+  push 9
+  sub
+  push bb3
+  jumpi
+  jump bb2
+bb3:
+  push 1
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb2:
+  push 2
+  push 0
+  mstore
+  push 32
+  push 0
+  return

@@ -45,19 +45,18 @@
 //! and encoder size arithmetic below it constant for `sccp` and `egraph`, which a range alone
 //! would not rewrite. Only constants the target prices as cheap to read qualify, so a word-wide
 //! mask or an address never replaces a `DUP`. An instruction takes the constant for every operand
-//! proven equal when that makes it evaluate, the way `sccp` will. Otherwise it takes it only for a
-//! value that at least two instructions in the proving block's subtree read, a passed check's block
-//! counting its reads above the check too: the constant replaces a stack slot and a `DUP` at each
-//! read, but at a single read it costs what the value does and only makes sites that were
-//! identical, such as inlined copies of one guard body, differ for the tail merging after this
-//! pass. Raw memory addresses and sizes, arguments of internal calls, returned values, and the pure
-//! expressions that compute them from a value some branch compares with an immediate keep their
-//! values, wherever the walk finds the comparison: frame and heap layout treat constant addresses
-//! as fixed images, so a constant would move spill slots into the heap, and inlining and
-//! specialization later move a call's constant arguments, and a callee's returned values, into
-//! memory operands. An outer edge's constant wins over a contradicting inner one, whose edge is
-//! dead. Phi operands and terminators keep their values. Removing a redundant mask replaces its
-//! result by its input.
+//! proven equal when that makes it evaluate to a cheap immediate, the way `sccp` will; a wider
+//! result stays symbolic, since a memory size it grew would move the spill area above it on every
+//! path, including those that skip the guard. Otherwise it takes it only for a value that at least
+//! two instructions in the proving block's subtree read, a passed check's block counting its reads
+//! above the check too: the constant replaces a stack slot and a `DUP` at each read, but at a
+//! single read it costs what the value does and only makes sites that were identical, such as
+//! inlined copies of one guard body, differ for the tail merging after this pass. Memory addresses
+//! and sizes, call arguments, and returned values take constants like any other operand: frame
+//! layout keeps spill slots clear of a constant address or size, and the backend protects them from
+//! a write it cannot place, so nothing needs to hide them. An outer edge's constant wins over a
+//! contradicting inner one, whose edge is dead. Phi operands and terminators keep their values.
+//! Removing a redundant mask replaces its result by its input.
 //!
 //! Before the dominator walk, a bounded forward analysis carries the intersection
 //! of relational facts and the union of ranges across predecessor edges. Phi
@@ -203,11 +202,11 @@ use super::{
     egraph::{max_bits_with_args, use_counts},
 };
 use crate::{
-    backend::evm::op,
+    backend::evm::{op, select::InstKindOpcode},
     mir::{
         ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionBuilder,
-        FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module,
-        RawMemorySize, Terminator, TypeSize, Value, ValueId, ValueLayout,
+        FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module, Terminator,
+        TypeSize, Value, ValueId, ValueLayout,
         analysis::{
             CfgInfo, aborts, cold_functions,
             integers::{integer_bits, integer_mask, integer_max},
@@ -967,11 +966,6 @@ struct CheckEliminator<'a> {
     scope: Option<BlockId>,
     /// Blocks of the instructions reading each value, built on the first query.
     readers: Option<IndexLists<ValueId, BlockId>>,
-
-    /// Instructions that compute a raw memory address or size, an internal call argument, or a
-    /// returned value from a value a branch compares with an immediate, built when the first
-    /// equality reaches an instruction.
-    memory_feeds: Option<FxHashSet<InstId>>,
     /// Instructions that read an equal value, with the operands that become its constant.
     equality_uses: Vec<(InstId, Replacements)>,
     /// Semantic checked operations proven not to fail, with the plain operation each becomes.
@@ -1915,28 +1909,26 @@ impl<'a> CheckEliminator<'a> {
         if replaced.is_empty() || matches!(kind, InstKind::Phi(_)) {
             return;
         }
-        // Inlining and specialization later move a constant argument into the callee's memory
-        // operands, and a returned value into the caller's.
-        if matches!(kind, InstKind::ICall { function: Callee::Function(_), .. })
-            || self.memory_feeds.get_or_insert_with(|| memory_feeds(func)).contains(&id)
-        {
-            return;
-        }
-        // Frame and heap layout treat constant raw memory addresses and sizes as fixed images.
-        visit_raw_memory_operands(kind, |operand| {
-            replaced.retain(|&mut (from, _)| from != operand)
-        });
-        if replaced.is_empty() {
-            return;
-        }
-        let evaluates = eval::eval_typed_inst(func, kind, |operand| {
+        let evaluated = eval::eval_typed_inst(func, kind, |operand| {
             let constant =
                 replaced.iter().find(|&&(from, _)| from == operand).map_or(operand, |&(_, c)| c);
             func.value_u256(constant).ok_or(())
         })
-        .is_ok_and(|value| value.is_some());
-        if !evaluates {
-            replaced.retain(|&mut (operand, _)| self.is_repeated(func, cfg, operand));
+        .ok()
+        .flatten();
+        match evaluated {
+            // A wider result would make every read larger, and a memory range it sizes would
+            // move the spill area above it on every path, including those that skip the guard.
+            Some(value)
+                if !self
+                    .propagate_equalities
+                    .as_ref()
+                    .is_some_and(|t| t.is_cheap_immediate(value)) =>
+            {
+                return;
+            }
+            Some(_) => {}
+            None => replaced.retain(|&mut (operand, _)| self.is_repeated(func, cfg, operand)),
         }
         if !replaced.is_empty() {
             self.equality_uses.push((id, replaced));
@@ -2920,84 +2912,6 @@ impl<'a> CheckEliminator<'a> {
             self.assume(func, condition, then_block == block, MAX_DEPTH);
         }
     }
-}
-
-/// The instructions that compute a raw memory address or size, an internal call argument, or a
-/// returned value, through pure operations, when a value that a branch compares with an
-/// immediate feeds them. Later passes fold more than constants: a product with a zero, a select
-/// or phi whose arms agree, a callee inlined into its caller. A constant substituted anywhere in
-/// such an expression can make the operand constant, and frame and heap layout treat constant
-/// ones as fixed images. The set does not depend on the walk's scopes or order.
-fn memory_feeds(func: &Function) -> FxHashSet<InstId> {
-    let mut compared = FxHashSet::default();
-    for id in func.instructions() {
-        if let InstKind::Eq(a, b) | InstKind::Ne(a, b) | InstKind::Sub(a, b) | InstKind::Xor(a, b) =
-            func.inst(id).kind
-        {
-            match (func.value_u256(a).is_some(), func.value_u256(b).is_some()) {
-                (true, false) => compared.insert(b),
-                (false, true) => compared.insert(a),
-                _ => false,
-            };
-        }
-    }
-    let mut feeds = FxHashSet::default();
-    if compared.is_empty() {
-        return feeds;
-    }
-    let mut sinks = Vec::new();
-    for id in func.instructions() {
-        let kind = &func.inst(id).kind;
-        visit_raw_memory_operands(kind, |operand| sinks.push(operand));
-        if let InstKind::ICall { function: Callee::Function(_), args } = kind {
-            sinks.extend(args.iter().copied());
-        }
-    }
-    for block in &func.blocks {
-        if let Some(terminator @ (Terminator::Return { .. } | Terminator::TailCall { .. })) =
-            &block.terminator
-        {
-            terminator.visit_operands(|operand| sinks.push(operand));
-        }
-    }
-    // The sink that last reached each value, one past its index.
-    let mut visited = index_vec![0usize; func.num_values()];
-    let mut expression = Vec::new();
-    let mut pending = Vec::new();
-    for (index, sink) in sinks.into_iter().enumerate() {
-        let mut fed = false;
-        expression.clear();
-        pending.push(sink);
-        while let Some(value) = pending.pop() {
-            if func.value_u256(value).is_some()
-                || std::mem::replace(&mut visited[value], index + 1) > index
-            {
-                continue;
-            }
-            fed |= compared.contains(&value);
-            let Value::Inst(id) = func.value(value) else { continue };
-            let inst = func.inst(*id);
-            if inst.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure) {
-                continue;
-            }
-            expression.push(*id);
-            inst.kind.visit_operands(|operand| pending.push(operand));
-        }
-        if fed {
-            feeds.extend(expression.iter().copied());
-        }
-    }
-    feeds
-}
-
-/// Visits the address and the variable size operand of each raw memory range `kind` accesses.
-fn visit_raw_memory_operands(kind: &InstKind, mut f: impl FnMut(ValueId)) {
-    kind.visit_raw_memory(|_, address, size| {
-        f(address);
-        if let RawMemorySize::Value(size) = size {
-            f(size);
-        }
-    });
 }
 
 /// The blocks of the instructions reading each value, phis aside.

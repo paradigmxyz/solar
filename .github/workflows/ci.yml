@@ -280,20 +280,29 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
-      - name: Install Solc and z3
+      - name: Install Solc and Bitwuzla
         run: |
-          sudo apt-get update
-          sudo apt-get install -y z3
-          mkdir -p "$RUNNER_TEMP/solc"
+          mkdir -p "$RUNNER_TEMP/solc" "$RUNNER_TEMP/bitwuzla"
           curl -fsSL --retry 3 --retry-delay 2 \
             "https://github.com/ethereum/solidity/releases/download/v${SOLC_VERSION}/solc-static-linux" \
             -o "$RUNNER_TEMP/solc/solc"
           chmod +x "$RUNNER_TEMP/solc/solc"
           echo "SOLC=$RUNNER_TEMP/solc/solc" >> "$GITHUB_ENV"
+          curl -fsSL --retry 3 --retry-delay 2 \
+            "https://github.com/bitwuzla/bitwuzla/releases/download/${BITWUZLA_VERSION}/Bitwuzla-Linux-x86_64-static.zip" \
+            -o "$RUNNER_TEMP/bitwuzla/bitwuzla.zip"
+          echo "${BITWUZLA_SHA256}  $RUNNER_TEMP/bitwuzla/bitwuzla.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/bitwuzla/bitwuzla.zip" -d "$RUNNER_TEMP/bitwuzla"
+          echo "$RUNNER_TEMP/bitwuzla/Bitwuzla-Linux-x86_64-static/bin" >> "$GITHUB_PATH"
+        env:
+          BITWUZLA_VERSION: 0.9.1
+          BITWUZLA_SHA256: 057f1546ae2068df57beb178f3eeab1678f0e5f0c378787a05b7bb294617c9c6
       - name: Build Solar
         run: cargo build -p solar-compiler --bin solar
       - name: Symbolic differential smoke test
         run: .github/scripts/run_solsymdiff_smoke.sh
+        env:
+          SOLVER: bitwuzla
       - name: Upload solsymdiff results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -345,7 +354,12 @@ jobs:
           echo "SOLC=$RUNNER_TEMP/solc/solc" >> "$GITHUB_ENV"
       - name: Build Solar
         run: cargo build -p solar-compiler --bin solar
+      - name: Symbolic differential harness self-test
+        run: .github/scripts/run_solsymdiff_smoke.sh
+        env:
+          SOLSYMDIFF_SELF_TEST: 1
       - name: Symbolic differential campaign
+        if: ${{ !cancelled() }}
         run: .github/scripts/run_solsymdiff_campaign.sh
       - name: Upload solsymdiff results
         if: always()
@@ -353,6 +367,7 @@ jobs:
         with:
           name: solsymdiff-campaign
           path: |
+            target/solsymdiff-smoke/*.json
             target/solsymdiff-campaign/*.jsonl
             target/solsymdiff-campaign/*.md
           if-no-files-found: ignore

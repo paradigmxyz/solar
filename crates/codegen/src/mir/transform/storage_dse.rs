@@ -99,16 +99,17 @@ impl MirPass for StorageDse {
             analyses,
             &selected,
             |func, analyses| {
-                let mut eliminator = StorageStoreEliminator::new(
-                    Rc::clone(analyses.alias()),
-                    Rc::clone(analyses.cfg()),
-                    &reverting,
-                );
-                let changed = eliminator.run_to_fixpoint(func) != 0;
-                if eliminator.annotated_aliases {
+                let eliminator = StorageStoreEliminator {
+                    alias: Rc::clone(analyses.alias()),
+                    cfg: Rc::clone(analyses.cfg()),
+                    reverting: &reverting,
+                };
+                // Annotating changes metadata only, which is not reported as a change.
+                if func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient)
+                {
                     analyses.note_unreported_edit();
                 }
-                changed
+                eliminator.run(func)
             },
         )
     }
@@ -116,45 +117,19 @@ impl MirPass for StorageDse {
 
 /// All-path dead storage-store elimination pass.
 struct StorageStoreEliminator<'a> {
-    /// Number of storage stores eliminated.
-    eliminated_count: usize,
     alias: Rc<AliasAnalysis>,
-    /// Storage DSE removes instructions only, so one CFG snapshot serves every round.
+    /// Storage DSE removes instructions only, so one CFG snapshot serves both phases.
     cfg: Rc<CfgInfo>,
     /// Functions whose every path reverts, so a tail call to one discards storage writes.
     reverting: &'a DenseBitSet<FunctionId>,
-    /// Whether storage-alias annotation changed metadata, which is not reported as a change.
-    annotated_aliases: bool,
-}
-
-struct RunState {
-    dead: DenseBitSet<InstId>,
-}
-
-impl RunState {
-    fn new(func: &Function) -> Self {
-        Self { dead: DenseBitSet::new_empty(func.num_insts()) }
-    }
 }
 
 /// The word each slot is known to hold, from a store or a load of it.
 type StoredValues = FxHashMap<Location, ValueId>;
 
-impl<'a> StorageStoreEliminator<'a> {
-    /// Creates a new storage-store eliminator.
-    fn new(
-        alias: Rc<AliasAnalysis>,
-        cfg: Rc<CfgInfo>,
-        reverting: &'a DenseBitSet<FunctionId>,
-    ) -> Self {
-        Self { eliminated_count: 0, alias, cfg, reverting, annotated_aliases: false }
-    }
-
-    fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
-        self.eliminated_count = 0;
-        self.annotated_aliases |=
-            func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
-
+impl StorageStoreEliminator<'_> {
+    /// Removes dead stores, then equal stores. Returns whether it removed any.
+    fn run(&self, func: &mut Function) -> bool {
         let cfg = &*self.cfg;
         let mut incoming = index_vec![Overwritten::none(); func.blocks.len()];
         loop {
@@ -171,33 +146,25 @@ impl<'a> StorageStoreEliminator<'a> {
                 break;
             }
         }
-        state.dead.clear();
+        let mut dead = DenseBitSet::new_empty(func.num_insts());
         for &block in cfg.rpo() {
             let mut facts = self.successor_facts(func, &incoming, block);
-            self.transfer_reverse(func, block, &mut facts, Some(&mut state.dead));
+            self.transfer_reverse(func, block, &mut facts, Some(&mut dead));
         }
-        self.eliminated_count += state.dead.count();
         // sstore slot, old; ...; sstore slot, new => ...; sstore slot, new
-        for block in &mut func.blocks {
-            block.instructions.retain(|id| !state.dead.contains(*id));
-        }
-        self.remove_equal_stores(func, &mut state.dead);
-
-        self.eliminated_count
+        let removed_dead = Self::remove_dead(func, &dead);
+        self.remove_equal_stores(func, &mut dead) | removed_dead
     }
 
-    /// Runs storage DSE to a fixed point.
-    fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
-        let mut total = 0;
-        let mut state = RunState::new(func);
-        loop {
-            let eliminated = self.run_with_state(func, &mut state);
-            if eliminated == 0 {
-                break;
-            }
-            total += eliminated;
+    /// Removes the `dead` instructions. Returns whether there were any.
+    fn remove_dead(func: &mut Function, dead: &DenseBitSet<InstId>) -> bool {
+        if dead.is_empty() {
+            return false;
         }
-        total
+        for block in &mut func.blocks {
+            block.instructions.retain(|id| !dead.contains(*id));
+        }
+        true
     }
 
     fn successor_facts(
@@ -207,13 +174,11 @@ impl<'a> StorageStoreEliminator<'a> {
         block: BlockId,
     ) -> Overwritten {
         let Some(terminator) = &func.blocks[block].terminator else { return Overwritten::none() };
-        if !terminator.has_successors() {
+        let Some((&first, rest)) = self.cfg.successors(block).split_first() else {
             return self.exit_facts(func, terminator);
-        }
-        let mut successors = self.cfg.successors(block).iter();
-        let Some(&first) = successors.next() else { return Overwritten::none() };
+        };
         let mut facts = incoming[first].clone();
-        for &successor in successors {
+        for &successor in rest {
             facts.intersect(&incoming[successor]);
         }
         facts
@@ -285,9 +250,9 @@ impl<'a> StorageStoreEliminator<'a> {
     /// predecessor ends with, since no terminator that continues to a successor touches
     /// storage, so a check that lowering splits off between a load and its store keeps the pair
     /// visible; every other block starts with none.
-    fn remove_equal_stores(&mut self, func: &mut Function, dead: &mut DenseBitSet<InstId>) {
-        let cfg = Rc::clone(&self.cfg);
-        let gas = GasObservations::new(func, &cfg, &self.alias);
+    fn remove_equal_stores(&self, func: &mut Function, dead: &mut DenseBitSet<InstId>) -> bool {
+        let cfg = &*self.cfg;
+        let gas = GasObservations::new(func, cfg, &self.alias);
         dead.clear();
         // Each exit is kept with the number of successors still waiting for it, and the last one
         // takes it.
@@ -315,16 +280,11 @@ impl<'a> StorageStoreEliminator<'a> {
             }
         }
 
-        if dead.is_empty() {
-            return;
-        }
-        for block in &mut func.blocks {
-            block.instructions.retain(|id| !dead.contains(*id));
-        }
+        Self::remove_dead(func, dead)
     }
 
     fn remove_block_equal_stores(
-        &mut self,
+        &self,
         func: &Function,
         block_id: BlockId,
         gas: &GasObservations,
@@ -353,7 +313,6 @@ impl<'a> StorageStoreEliminator<'a> {
                     // v = sload slot; ...; sstore slot, v -> v = sload slot; ...
                     if stored_values.get(&location).is_some_and(|&stored| stored == value) {
                         dead.insert(inst_id);
-                        self.eliminated_count += 1;
                         continue;
                     }
 
@@ -460,7 +419,7 @@ impl Overwritten {
     }
 
     fn clear(&mut self) {
-        *self = Self::none();
+        self.slots.iter_mut().for_each(Slots::clear);
     }
 
     fn intersect(&mut self, other: &Self) {
@@ -505,7 +464,10 @@ impl Slots {
     }
 
     fn clear(&mut self) {
-        *self = Self::none();
+        match self {
+            Self::All => *self = Self::none(),
+            Self::Set(slots) => slots.clear(),
+        }
     }
 
     fn intersect(&mut self, other: &Self) {

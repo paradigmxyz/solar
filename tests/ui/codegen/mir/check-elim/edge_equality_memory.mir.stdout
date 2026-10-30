@@ -562,6 +562,67 @@ fn @returned(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdfd2c4db, p
     ret v40
 }
 
+fn @grown(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2d79764c, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 0)
+    v1 = keccak256_packed (uint256 arg0, uint256 1)
+    v2 = keccak256_packed (uint256 arg0, uint256 2)
+    v3 = keccak256_packed (uint256 arg0, uint256 3)
+    v4 = keccak256_packed (uint256 arg0, uint256 4)
+    v5 = keccak256_packed (uint256 arg0, uint256 5)
+    v6 = keccak256_packed (uint256 arg0, uint256 6)
+    v7 = keccak256_packed (uint256 arg0, uint256 7)
+    v8 = keccak256_packed (uint256 arg0, uint256 8)
+    v9 = keccak256_packed (uint256 arg0, uint256 9)
+    v10 = keccak256_packed (uint256 arg0, uint256 10)
+    v11 = keccak256_packed (uint256 arg0, uint256 11)
+    v12 = keccak256_packed (uint256 arg0, uint256 12)
+    v13 = keccak256_packed (uint256 arg0, uint256 13)
+    v14 = keccak256_packed (uint256 arg0, uint256 14)
+    v15 = keccak256_packed (uint256 arg0, uint256 15)
+    v16 = keccak256_packed (uint256 arg0, uint256 16)
+    v17 = eq arg2, 1
+    v18 = zext i1 v17 to i256
+    v19 = ne v18, 0
+    jumpi v19, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v20 = shl arg2, 24
+    calldatacopy 128, 0, v20
+    jump bb3
+  bb3:
+    v21 = ne arg1, 0
+    jumpi v21, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v22 = icall @_copy, 0x400
+    v23 = mload v22
+    v24 = shl v23, 0
+    jump bb6
+  bb6:
+    v25 = phi [bb4: v24], [bb5: 0]
+    v26 = xor v0, v1
+    v27 = xor v26, v2
+    v28 = xor v27, v3
+    v29 = xor v28, v4
+    v30 = xor v29, v5
+    v31 = xor v30, v6
+    v32 = xor v31, v7
+    v33 = xor v32, v8
+    v34 = xor v33, v9
+    v35 = xor v34, v10
+    v36 = xor v35, v11
+    v37 = xor v36, v12
+    v38 = xor v37, v13
+    v39 = xor v38, v14
+    v40 = xor v39, v15
+    v41 = xor v40, v16
+    v42 = xor v25, v41
+    ret v42
+}
+
 fn @_size(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, 63

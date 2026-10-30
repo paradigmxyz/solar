@@ -1,0 +1,42 @@
+[package]
+name = "solar-mir-interpreter"
+description = "Runs the Solar compiler's lowered MIR as the EVM runs the bytecode it compiles to"
+homepage = "https://github.com/paradigmxyz/solar/tree/main/crates/mir-interpreter"
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = [
+    "-Zunstable-options",
+    "--generate-link-to-definition",
+    "--show-type-layout",
+]
+
+[lints]
+workspace = true
+
+[dependencies]
+solar-config.workspace = true
+solar-data-structures.workspace = true
+solar-evmir.workspace = true
+solar-interface.workspace = true
+solar-mir.workspace = true
+
+alloy-primitives.workspace = true
+smallvec.workspace = true
+
+[features]
+nightly = [
+    "solar-data-structures/nightly",
+    "solar-evmir/nightly",
+    "solar-interface/nightly",
+    "solar-mir/nightly",
+]

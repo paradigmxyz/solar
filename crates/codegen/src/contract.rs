@@ -801,7 +801,10 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             .immutable_references
             .iter()
             .map(|reference| ImmutableReference {
-                variable_id: module.immutable(reference.id).variable_id,
+                variable_id: module
+                    .immutable(reference.id)
+                    .variable_id
+                    .map(|id| VariableId::from_usize(id.index())),
                 start: reference.code_offset + 1,
                 type_size: reference.type_size,
             })

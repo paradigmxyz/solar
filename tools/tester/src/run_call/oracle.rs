@@ -2,7 +2,7 @@
 //!
 //! The test runner executes a call in an EVM as usual, then compiles the test again with
 //! `-Zdump=mir-final` and runs the same call on the called contract's dumped MIR through
-//! `solar_codegen::interpret`, with the storage, balances, and code the EVM held just before the
+//! `solar_mir_interpreter`, with the storage, balances, and code the EVM held just before the
 //! call. Both runs execute the same compiled program, so they must end the same way, return the
 //! same data, emit the same logs, and write the same storage. A test written in MIR exists to run
 //! its calls both ways, so a call the interpreter cannot run, or one the EVM ends by running out
@@ -14,9 +14,9 @@ use super::{
 };
 use alloy_primitives::{U256, hex};
 use evm2::interpreter::InstrStop;
-use solar_codegen::interpret::{self, Host, Outcome};
 use solar_config::EvmVersion;
 use solar_evmir::op;
+use solar_mir_interpreter::{self as interpret, Host, Outcome};
 use ui_test::{build_manager::BuildManager, per_test_config::TestConfig};
 
 /// The final MIR modules the backend compiled.

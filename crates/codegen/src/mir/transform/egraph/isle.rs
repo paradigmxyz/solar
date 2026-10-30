@@ -9,10 +9,10 @@
 
 use super::{OperandViews, canonical_operands, same_value};
 use crate::{
-    backend::evm::op,
+    backend::evm::{op, select::InstKindOpcode},
     mir::{
         ArgIdx, BlockId, Function, Immediate, InstKind, MirType, Op, ResultKind, Value as MirValue,
-        ValueId,
+        ValueId, utils::eval::eval_opcode,
     },
     target::Target,
 };
@@ -538,15 +538,15 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn u256_shl(&mut self, shift: U256, value: U256) -> U256 {
-        op::eval(op::SHL, &[shift, value]).expect("SHL has word semantics") & self.integer_mask()
+        eval_opcode(op::SHL, &[shift, value]).expect("SHL has word semantics") & self.integer_mask()
     }
 
     fn u256_shr(&mut self, shift: U256, value: U256) -> U256 {
-        op::eval(op::SHR, &[shift, value]).expect("SHR has word semantics")
+        eval_opcode(op::SHR, &[shift, value]).expect("SHR has word semantics")
     }
 
     fn u256_byte(&mut self, index: U256, value: U256) -> U256 {
-        op::eval(op::BYTE, &[index, value]).expect("BYTE has word semantics")
+        eval_opcode(op::BYTE, &[index, value]).expect("BYTE has word semantics")
     }
 
     fn in_current_block(&mut self, value: Value) -> bool {

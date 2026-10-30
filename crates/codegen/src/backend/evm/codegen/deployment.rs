@@ -10,8 +10,7 @@ use crate::{
     backend::assembler::DeferredAllocResolution,
     link::{CodeKind, LibraryTable},
     mir::{
-        AllocationPlacement, BackendMemory, MirPhase, analysis::cold_functions,
-        pass_manager::should_validate_ir,
+        AllocationPlacement, BackendMemory, MirPhase, analysis::cold_functions, should_validate_ir,
     },
 };
 use alloy_primitives::Bytes;
@@ -68,7 +67,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         if changed {
             module.invalidate_lowered_check();
         }
-        let Ok(lowered) = module.as_lowered(self.gcx, should_validate_ir(self.gcx)) else {
+        let Ok(lowered) = module.as_lowered(self.gcx.sess, should_validate_ir(self.gcx.sess))
+        else {
             return false;
         };
         let module = &*lowered;
