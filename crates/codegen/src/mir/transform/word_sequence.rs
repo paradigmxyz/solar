@@ -27,11 +27,12 @@
 //! Mask blends wait until storage forwarding and mask simplification have run,
 //! so early recipes do not hide overwritten packed fields from those passes.
 
+use super::lower_checks::is_check;
 use crate::{
     backend::evm::{op, select},
     mir::{
         EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, Op,
-        PhaseCategory, Terminator, Value, ValueId,
+        Terminator, Value, ValueId,
         pass::{MirPass, run_function_pass},
     },
     target::{Cost, Target},
@@ -454,27 +455,28 @@ fn collect_dead(
 /// shape the backend folds into `JUMPI`. Lowering a check branches on its condition.
 fn branch_only_conditions(func: &Function, uses: &IndexVec<ValueId, u32>) -> FxHashSet<ValueId> {
     let mut branch_uses = FxHashMap::<ValueId, u32>::default();
+    let mut defined = FxHashSet::<InstId>::default();
     for block in &func.blocks {
-        let checks = block.instructions.iter().filter_map(|&inst| match &func.inst(inst).kind {
-            InstKind::ICall { args, .. }
-                if func.inst(inst).kind.op_def().phase_category
-                    == Some(PhaseCategory::ConditionalCheck) =>
-            {
-                Some(args[0])
-            }
-            _ => None,
-        });
-        let branch = match block.terminator {
-            Some(Terminator::Branch { condition, .. }) => Some(condition),
-            _ => None,
-        };
-        for condition in checks.chain(branch) {
+        defined.clear();
+        let mut count = |defined: &FxHashSet<InstId>, condition| {
             if let Value::Inst(def) = *func.value(condition)
-                && block.instructions.contains(&def)
+                && defined.contains(&def)
             {
                 *branch_uses.entry(condition).or_default() += 1;
             }
+        };
+        for &inst in &block.instructions {
+            let kind = &func.inst(inst).kind;
+            if is_check(kind)
+                && let InstKind::ICall { args, .. } = kind
+            {
+                count(&defined, args[0]);
+            }
+            defined.insert(inst);
+        }
+        if let Some(Terminator::Branch { condition, .. }) = block.terminator {
+            count(&defined, condition);
         }
     }
-    branch_uses.into_iter().filter(|&(value, count)| uses[value] == count).map(|(v, _)| v).collect()
+    branch_uses.into_iter().filter_map(|(value, n)| (uses[value] == n).then_some(value)).collect()
 }

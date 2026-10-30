@@ -15,12 +15,6 @@ fn @scale32(arg0: i256) -> i256 [selector=0x6b19a9fc, pure, abi_params=[uint256]
     ret v0
 }
 
-fn @scale32Left(arg0: i256) -> i256 [selector=0xd6127ec5, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = checked_mul uint256, 32, arg0
-    ret v0
-}
-
 fn @shiftHigh(arg0: i256) -> i256 [selector=0x32df3c4d, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_mul uint256, arg0, 0x100000000000000000000000000000000

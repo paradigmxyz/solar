@@ -518,8 +518,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Returns whether the 256-bit unsigned product of `lhs` and `rhs` wraps, when one factor is
     /// a constant power of two 2 ** s, s >= 1: the other factor then needs a bit at or above
-    /// 256 - s. Other constants keep the quotient test, whose bound the e-graph prices against
-    /// the quotient.
+    /// 256 - s. Other constants keep the quotient test.
     pub(crate) fn power_of_two_mul_overflow(
         &mut self,
         lhs: ValueId,
@@ -529,7 +528,8 @@ impl<'a> FunctionBuilder<'a> {
             let c = self.func.value_u256(constant)?;
             (c > U256::ONE && c.is_power_of_two()).then_some((factor, c))
         })?;
-        // overflow = (factor >> (256 - s)) != 0
+        // high = shr factor, 256 - s
+        // overflow = ne high, 0
         let shift = self.imm(U256::from(256 - c.trailing_zeros()));
         let high = self.shr(factor, shift);
         Some(self.ne_zero(high))

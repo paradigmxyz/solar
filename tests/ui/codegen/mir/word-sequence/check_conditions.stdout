@@ -1,0 +1,41 @@
+- // === ROOT/tests/ui/codegen/mir/word-sequence/check_conditions.mir (before word-sequence) ===
++ // === ROOT/tests/ui/codegen/mir/word-sequence/check_conditions.mir (after word-sequence) ===
+  @module CheckConditions
+  fn @check_only(arg0: i256) -> i256 {
+    bb0:
+      v0 = shr arg0, 251
+      v1 = ne v0, 0
+      icall panic_if<0x41>, v1
+      ret arg0
+  }
+  
+  fn @two_checks(arg0: i256) -> i256 {
+    bb0:
+      v0 = shr arg0, 251
+      v1 = ne v0, 0
+      icall panic_if<0x41>, v1
+      icall panic_if<0x32>, v1
+      ret arg0
+  }
+  
+  fn @check_and_branch(arg0: i256) -> i256 {
+    bb0:
+      v0 = shr arg0, 251
+      v1 = ne v0, 0
+      icall panic_if<0x41>, v1
+      jumpi v1, bb1, bb2
+    bb2:
+      ret arg0
+    bb1:
+      ret 0
+  }
+  
+  fn @also_value(arg0: i256) -> i1 {
+    bb0:
+-     v0 = shr arg0, 251
+-     v1 = ne v0, 0
++     v1 = gt arg0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      icall panic_if<0x41>, v1
+      ret v1
+  }
+  

@@ -120,6 +120,7 @@ impl ArithmeticLowerer<'_, '_> {
             // overflow, as in solc.
             return self.range_overflow(result, kind);
         }
+        // overflow = ne (shr factor, 256 - s), 0, for a constant factor 2 ** s
         if kind == ArithmeticKind::Unsigned(256)
             && let Some(overflow) = self.builder.power_of_two_mul_overflow(lhs, rhs)
         {

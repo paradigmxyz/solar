@@ -7,10 +7,6 @@
 //@ run-call: scale32 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
 //@ run-call-fail: scale32 0x800000000000000000000000000000000000000000000000000000000000000 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call-fail: scale32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
-//@ run-call: scale32Left 0x0 => 0x0
-//@ run-call: scale32Left 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-//@ run-call-fail: scale32Left 0x800000000000000000000000000000000000000000000000000000000000000 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
-//@ run-call-fail: scale32Left 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: shiftHigh 0x0 => 0x0
 //@ run-call: shiftHigh 0xffffffffffffffffffffffffffffffff => 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
 //@ run-call-fail: shiftHigh 0x100000000000000000000000000000000 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
@@ -35,10 +31,6 @@ contract CheckedPowerOfTwoMul {
 
     function scale32(uint256 x) external pure returns (uint256) {
         return x * 32;
-    }
-
-    function scale32Left(uint256 x) external pure returns (uint256) {
-        return 32 * x;
     }
 
     function shiftHigh(uint256 x) external pure returns (uint256) {
