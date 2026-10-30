@@ -242,7 +242,7 @@ impl generated::Context for Context<'_> {
         let [and, shr, shl] = [op::AND, op::SHR, op::SHL].map(|opcode| target.opcode(opcode).bytes);
         let (dup, push_mask, push_shift) =
             (target.dup().bytes, target.push(mask).bytes, target.push(shift).bytes);
-        // x & mask => (x >> s) << s
+        // x & mask => (x >> s) << s, with one more `dup` on the pair so that it must gain a byte
         saved + and + push_mask + dup >= shr + shl + 2 * push_shift + 2 * dup
     }
 }

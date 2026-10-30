@@ -66,7 +66,7 @@ fn @cheap_mask(arg0: i256) -> i1 {
 // CHECK-NOT: {{^[+].*}}shr
 fn @inequality_mask(arg0: i256) -> i1 {
   bb0:
-    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v1 = ne v0, 0x0000000000400000000000000000000000000000000000000000000000000000
+    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = ne v0, 0x01ffc9a700000000000000000000000000000000000000000000000000000000
     ret v1
 }
