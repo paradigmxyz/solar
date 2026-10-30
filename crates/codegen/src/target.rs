@@ -128,6 +128,17 @@ impl std::iter::Sum for Cost {
     }
 }
 
+/// What a branch's test becomes when the branch turns around.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TurnedTest {
+    /// An `ISZERO` follows the condition.
+    Adds,
+    /// The condition's own trailing `ISZERO` goes.
+    Drops,
+    /// A trailing `EQ` becomes a `SUB`, or the reverse, at the same cost.
+    Swaps,
+}
+
 /// The cost model of the selected EVM version under the active objective.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct Target {
@@ -831,6 +842,51 @@ impl Target {
         self.label_push() + self.opcode(op::JUMPI) + self.opcode(op::JUMPDEST)
     }
 
+    /// Whether turning the branch `PUSH next; JUMPI; PUSH other; JUMP` around into `ISZERO; PUSH
+    /// other; JUMPI`, falling into the `next` block that follows it, is the better code, when the
+    /// branch enters `next` `next_runs` times for every `other_runs` times it enters `other`.
+    /// `test` is what the test becomes, and the `JUMPDEST` of `next` goes unless another
+    /// reference keeps it (`keeps_landing`).
+    ///
+    /// The turned branch runs the test on both edges but jumps to `other` once, so it saves gas
+    /// when `other` is entered often enough. A gas build also leaves a branch whose `next` is the
+    /// hot edge of a loop, even when the test is free: falling into the loop body keeps the loop
+    /// passes from rotating the header into its latch, which saves a jump on every iteration.
+    /// Size builds take the bytes unless the extra gas of a hot loop costs more over the expected
+    /// executions than the deposit of the bytes saved.
+    pub(crate) fn falls_through_turned_branch(
+        &self,
+        next_runs: u64,
+        other_runs: u64,
+        test: TurnedTest,
+        keeps_landing: bool,
+    ) -> bool {
+        let price = |cost: Cost| (i64::from(self.runtime_gas(cost)), i64::from(cost.bytes));
+        let (iszero_gas, iszero_bytes) = price(self.opcode(op::ISZERO));
+        let (test_gas, test_bytes) = match test {
+            TurnedTest::Adds => (iszero_gas, iszero_bytes),
+            TurnedTest::Drops => (-iszero_gas, -iszero_bytes),
+            TurnedTest::Swaps => (0, 0),
+        };
+        let (jump_gas, jump_bytes) = price(self.label_push() + self.opcode(op::JUMP));
+        let (freed_gas, freed_bytes) =
+            if keeps_landing { (0, 0) } else { price(self.opcode(op::JUMPDEST)) };
+        // Entering `next` pays the test, where it paid the landing if that goes.
+        let next_extra = test_gas - freed_gas;
+        // Entering `other` pays the test, where it paid a second transfer.
+        let other_saving = jump_gas - test_gas;
+        let gas_saving = i128::from(other_runs) * i128::from(other_saving)
+            - i128::from(next_runs) * i128::from(next_extra);
+        let gas_saving = gas_saving.clamp(i64::MIN.into(), i64::MAX.into()) as i64;
+        let byte_saving = jump_bytes + freed_bytes - test_bytes;
+        let loop_continues = other_runs != 0 && next_runs > other_runs;
+        self.improves(gas_saving, byte_saving)
+            && !(loop_continues && self.optimization.is_gas())
+            && (gas_saving >= 0
+                || !self.optimization.is_size()
+                || self.deposit_repays_gas(byte_saving.unsigned_abs(), gas_saving.unsigned_abs()))
+    }
+
     /// Whether encoding static calldata elements of `element_words` words keeps a block copy
     /// behind a wrap guard, with the per-word loop as the fallback, rather than running the
     /// loop alone. Solc loads each word at its own address, and a block copy reads zeros where
@@ -1491,6 +1547,28 @@ mod tests {
         assert!(!target.deposit_repays_gas(0, 0));
         let hot = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 10_000);
         assert!(!hot.deposit_repays_gas(10, 1));
+    }
+
+    #[test]
+    fn turned_branch_prices_both_edges() {
+        let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        // The added `ISZERO` costs 3 gas on `next`, less the landing that goes, and a jump to
+        // `other` saves 11 gas of transfer less that test.
+        assert!(gas.falls_through_turned_branch(1, 1, TurnedTest::Adds, false));
+        assert!(gas.falls_through_turned_branch(1, 4, TurnedTest::Adds, true));
+        assert!(!gas.falls_through_turned_branch(10, 1, TurnedTest::Adds, false));
+        assert!(!gas.falls_through_turned_branch(1, 0, TurnedTest::Adds, false));
+        // A swapped test is free, so the landing that goes pays alone, and a kept landing ties.
+        assert!(gas.falls_through_turned_branch(1, 0, TurnedTest::Swaps, false));
+        assert!(!gas.falls_through_turned_branch(1, 0, TurnedTest::Swaps, true));
+        // A size build at one run takes the bytes of a hot loop, and not at a million runs.
+        let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1);
+        assert!(size.falls_through_turned_branch(10, 1, TurnedTest::Adds, false));
+        // A free test still stays out of the hot edge of a loop in a gas build.
+        assert!(!gas.falls_through_turned_branch(10, 1, TurnedTest::Swaps, false));
+        assert!(size.falls_through_turned_branch(10, 1, TurnedTest::Swaps, false));
+        let hot = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1_000_000);
+        assert!(!hot.falls_through_turned_branch(10, 1, TurnedTest::Adds, false));
     }
 
     #[test]

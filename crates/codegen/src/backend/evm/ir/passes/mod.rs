@@ -15,6 +15,7 @@ mod coalesce_copies;
 pub(crate) mod compact_pushes;
 pub(super) mod data;
 mod dce;
+mod jumpi_fallthrough;
 mod late_structural;
 mod legalize_revert;
 mod loop_layout;
@@ -131,6 +132,7 @@ static ALL_PASSES: &[&dyn EvmPass] = &[
     &block_layout::BlockLayout,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,
+    &jumpi_fallthrough::JumpiFallthrough,
     &tail_copy::CopyJoins,
 ];
 
