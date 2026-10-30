@@ -7,6 +7,8 @@
 //! bytes, whatever the tune, keeping the literal on ties so the pass never increases code size. In
 //! size builds and cold blocks, division of the all-ones word and multiplication also synthesize
 //! repeated byte patterns. Gas-mode hot blocks retain the existing shift and inverse recipes.
+//! The cost model prices a cold block like a size build, [`Target::priced_for_cold`], so extra
+//! gas never keeps a literal there.
 //!
 //! Selection accounts for the active EVM version: `PUSH0` and shift opcodes are used only when the
 //! target supports them. A gas build keeps the literal where the recipe's extra runtime gas
@@ -81,7 +83,9 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
         if candidates.is_empty() {
             continue;
         }
-        let target = Target::new(gcx, optimization).priced_for(module.code_follows);
+        let target = Target::new(gcx, optimization)
+            .priced_for(module.code_follows)
+            .priced_for_cold(block.metadata.hotness.is_cold());
         // `-O none` runs no inlining, so a loop calls the helpers that hold its hot code; gas
         // builds keep the loop-only rule.
         let in_loop = (block.metadata.in_loop
