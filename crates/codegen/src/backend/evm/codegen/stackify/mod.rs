@@ -421,8 +421,12 @@ const MAX_CONSTANT_TRIALS: usize = 4;
 /// The most constants of a function tried for retention when optimizing for size.
 const SIZE_CONSTANT_TRIALS: usize = 1;
 
-/// The most words a retention trial spills to make room for the constants it keeps.
+/// The most words a retention trial spills to make room for a wide constant.
 const MAX_TRIAL_SPILLS: usize = 4;
+
+/// The significant bytes from which a constant is wide enough for its trial to spill: a replan
+/// per spill costs compile time, and only a constant this large repays it in bytecode size.
+const WIDE_CONSTANT_BYTES: usize = 9;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Emits the runtime: the dispatch entry, the external entries, and the internal functions
@@ -1128,7 +1132,7 @@ fn argument_values(func: &Function) -> Result<IndexVec<ArgIdx, Option<ValueId>>,
 
 /// Plans `func` with `retained` kept on the stack. A trial that leaves the stack too deep spills
 /// the word that reaches furthest, as the plan without retention does, so a function that fits
-/// its words in reach only without the constant still gets to keep it.
+/// its words in reach only without a wide constant still gets to keep it.
 #[allow(clippy::too_many_arguments)]
 fn plan_retaining(
     func: &Function,
@@ -1143,8 +1147,12 @@ fn plan_retaining(
     retained: &[(BlockId, ValueId)],
 ) -> Option<Planned> {
     let liveness = plan::retention_liveness(func, &analysis.cfg, &analysis.liveness, retained);
+    let wide = retained.last().is_some_and(|&(_, value)| {
+        func.value_u256(value).is_some_and(|word| word.byte_len() >= WIDE_CONSTANT_BYTES)
+    });
+    let max_spills = if wide { MAX_TRIAL_SPILLS } else { 0 };
     let mut spilled = spilled.clone();
-    for _ in 0..=MAX_TRIAL_SPILLS {
+    for _ in 0..=max_spills {
         let planner = Planner::new(
             func,
             info,
@@ -1159,7 +1167,10 @@ fn plan_retaining(
         .ok()?;
         match planner.retain_constants(retained, &liveness).plan() {
             Ok(planned) => return Some(planned),
-            Err(Fail::Deep(Some(Victim::Value(value)), _)) if !spilled.contains(value) => {
+            // A retained constant has no spill slot to write, so it is never the victim.
+            Err(Fail::Deep(Some(Victim::Value(value)), _))
+                if !spilled.contains(value) && !retained.iter().any(|&(_, kept)| kept == value) =>
+            {
                 spilled.insert(value);
             }
             Err(_) => return None,
