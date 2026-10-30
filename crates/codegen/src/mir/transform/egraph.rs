@@ -130,9 +130,7 @@ impl MirPass for Egraph {
         let mut flat = DenseBitSet::new_empty(module.functions.len());
         let mut with_cfg = DenseBitSet::new_empty(module.functions.len());
         for (func_id, func) in module.functions.iter_enumerated() {
-            let empty_return = (func.selector.is_some()
-                || func.attributes.is_receive
-                || func.attributes.is_fallback)
+            let empty_return = func.is_runtime_entry()
                 && func.blocks.iter().any(|block| {
                     matches!(
                         block.terminator,
@@ -933,8 +931,7 @@ impl<'a> Builder<'a> {
     /// of zero bytes stops.
     fn rewrite_terminators(&mut self) {
         let func = &mut *self.func;
-        let externally_terminating =
-            func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback;
+        let externally_terminating = func.is_runtime_entry();
         for block_id in func.blocks.indices() {
             loop {
                 let Some(Terminator::Branch { condition, .. }) = func.blocks[block_id].terminator

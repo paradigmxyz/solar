@@ -1399,9 +1399,7 @@ impl<'a> Validator<'a> {
                 phase.name()
             ));
         } else if dispatch_entry.is_none()
-            && module.functions.iter().any(|f| {
-                f.selector.is_some() || f.attributes.is_receive || f.attributes.is_fallback
-            })
+            && module.functions.iter().any(Function::is_runtime_entry)
         {
             self.emit(format_args!(
                 "module is in the `{}` phase but has no `entry` routing function",
