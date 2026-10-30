@@ -80,7 +80,10 @@
 //! `encode_abi_array` helper, built inner layouts first. Calldata arrays of composite elements,
 //! fixed arrays of dynamic elements, and structs with dynamic members share an
 //! `encode_abi_calldata` helper when the cost model ranks a call below the expansions, which
-//! covers a layout nested in several larger ones as well as one encoded at several sites. Functions
+//! covers a layout nested in several larger ones as well as one encoded at several sites. A tuple
+//! shape that only cold blocks encode, and a calldata layout that no hot block and no hot layout
+//! encodes, are priced like a size build ([`Target::priced_for_cold`]): the helper's gas runs
+//! only on a failing call. Functions
 //! reachable from a constructor always encode inline: a constructor call frame is
 //! allocated at the free-memory pointer, where an outlined encoder would still
 //! be writing its unreserved output.
@@ -237,6 +240,7 @@ fn synthesize_tuple_helpers(
     revert_strings: RevertStrings,
     zero_copy_returns: &IndexVec<FunctionId, FxHashMap<InstId, ZeroCopyReturn>>,
 ) {
+    // Per shape: its sites, the order of its first site, and whether any site is hot.
     let mut counts = FxHashMap::<TupleHelperKey, (usize, usize, bool)>::default();
     for (func_id, func) in module.functions.iter_enumerated() {
         for block in func.blocks.iter() {
@@ -253,23 +257,23 @@ fn synthesize_tuple_helpers(
                 let next = counts.len();
                 let count = counts
                     .entry(TupleHelperKey::of(func, *mode, *selector, args, layout))
-                    .or_insert((0, next, true));
+                    .or_insert((0, next, false));
                 count.0 += 1;
-                count.2 &= block.hotness.is_cold();
+                count.2 |= !block.hotness.is_cold();
             }
         }
     }
     let mut keys = counts
         .into_iter()
         .filter(|(_, (count, _, _))| *count >= 2)
-        .map(|(key, (count, first, cold))| (first, count, key, cold))
+        .map(|(key, (count, first, hot))| (first, count, key, hot))
         .collect::<Vec<_>>();
     keys.sort_by_key(|(first, _, _, _)| *first);
 
     let mut shared = Vec::new();
-    for (_, sites, key, cold) in keys {
+    for (_, sites, key, hot) in keys {
         // A shape that only cold sites encode is priced like a size build.
-        let target = &target.priced_for_cold(cold);
+        let target = target.priced_for_cold(!hot);
         let mut function = Function::new(Ident::with_dummy_span(sym::encode_abi_tuple));
         {
             let mut builder =
@@ -453,7 +457,7 @@ fn synthesize_calldata_helpers(
         if is_hot {
             hot.extend(calldata_children(&layout).cloned());
         }
-        let target = &target.priced_for_cold(!is_hot);
+        let target = target.priced_for_cold(!is_hot);
         if expansions >= 2 {
             let function = calldata_helper(&layout, revert_strings, helpers);
             let body_bytes = target.code_estimate(&function).bytes;

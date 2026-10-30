@@ -20,16 +20,24 @@ struct Fill {
     uint256 tag;
 }
 
+struct Claim {
+    Item[] items;
+    address owner;
+}
+
 error BadFills(Fill[] fills);
+error BadClaims(Claim[] claims);
 
 interface Target {
     function a(Order[] calldata orders) external;
     function b(Order[] calldata orders, uint256 x) external;
     function c(bytes memory payload) external;
+    function d(Claim[] calldata claims) external;
 }
 
 // Two sites encode `Order[]` on a successful call, and two encode `Fill[]` only to revert.
 // Two more encode one tuple on a successful call, and two encode another only to revert.
+// A layout and a tuple that one successful path and two reverting paths share stay expanded.
 // `-Osize` calls a helper for each layout and tuple. `-Ogas` expands what runs on success and
 // shares what only reverts, which costs gas on a path that no successful call takes.
 // SIZE-LABEL: fn @hotA{{[( ]}}
@@ -64,6 +72,13 @@ interface Target {
 // GAS: icall @encode_abi_tuple,
 // GAS-LABEL: fn @coldD{{[( ]}}
 // GAS: icall @encode_abi_tuple,
+// GAS-LABEL: fn @mixedHot{{[( ]}}
+// GAS-NOT: encode_abi_{{calldata|tuple}}
+// GAS-LABEL: fn @mixedColdA{{[( ]}}
+// GAS-NOT: encode_abi_{{calldata|tuple}}
+// GAS-LABEL: fn @mixedColdB{{[( ]}}
+// GAS-NOT: encode_abi_{{calldata|tuple}}
+// GAS-LABEL: fn @decode_calldata_type{{[( ]}}
 contract ColdHelper {
     function hotA(Target t, Order[] calldata orders) external {
         t.a(orders);
@@ -95,5 +110,26 @@ contract ColdHelper {
 
     function coldD(uint256 code, bytes memory data) external pure {
         revert(string(abi.encode(data, code + 1)));
+    }
+
+    function mixedHot(Target t, Claim[] calldata claims, uint256 code, bytes memory data) external {
+        t.d(claims);
+        t.c(abi.encode(code, data, code));
+    }
+
+    function mixedColdA(Claim[] calldata claims, uint256 code, bytes memory data)
+        external
+        pure
+    {
+        if (code == 0) revert BadClaims(claims);
+        revert(string(abi.encode(code, data, code)));
+    }
+
+    function mixedColdB(Claim[] calldata claims, uint256 code, bytes memory data)
+        external
+        pure
+    {
+        if (code == 1) revert BadClaims(claims);
+        revert(string(abi.encode(code, data, code)));
     }
 }

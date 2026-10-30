@@ -35,7 +35,9 @@
 //! A shared displaced producer can already require that input: omit its
 //! computation cost when every retained producer spelling reads it directly,
 //! but keep the stack-copy charge. This bounded dependency check uses original
-//! use counts; it is not coordinated extraction across all consumers.
+//! use counts; it is not coordinated extraction across all consumers. A class whose
+//! home is in a cold block is priced like a size build ([`Target::priced_for_cold`]):
+//! its extra gas runs only on a failing call, so it keeps the smaller node.
 //! Instructions are rewritten in place at their original position; merged
 //! instructions are deleted and their uses redirected. Placement never
 //! changes, and local rules cannot increase the MIR instruction count.
