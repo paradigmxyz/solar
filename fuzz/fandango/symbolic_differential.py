@@ -260,6 +260,10 @@ def run(
         else ("solc", "solar", "forge", "solver")
     )
     tools = {name: _resolve_executable(getattr(args, name)) for name in tool_names}
+    # Forge maps bare solver names such as `bitwuzla` to their own commands and
+    # runs any path as a z3-compatible command.
+    if not os.path.dirname(args.solver):
+        tools["solver"] = args.solver
     if saved_solc:
         source = args.source
         left_input, left_output = read_attempt(saved_solc)

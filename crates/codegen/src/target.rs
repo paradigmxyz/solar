@@ -129,6 +129,17 @@ impl std::iter::Sum for Cost {
     }
 }
 
+/// What a branch's test becomes when the branch turns around.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TurnedTest {
+    /// An `ISZERO` follows the condition.
+    Adds,
+    /// The condition's own trailing `ISZERO` goes.
+    Drops,
+    /// A trailing `EQ` becomes a `SUB`, or the reverse, at the same cost.
+    Swaps,
+}
+
 /// The cost model of the selected EVM version under the active objective.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct Target {
@@ -458,6 +469,12 @@ impl Target {
     /// with the fewest bytes, whatever the tune.
     pub(crate) fn push(&self, value: U256) -> Cost {
         compact_pushes::immediate_materialization(self.evm_version, value)
+    }
+
+    /// Cost of pushing `value` as one literal `PUSHn`, the form a push keeps when its compact
+    /// recipe does not repay.
+    pub(crate) fn literal_push(&self, value: U256) -> Cost {
+        compact_pushes::literal_push(self.evm_version, value)
     }
 
     /// Whether reading `value` as an immediate costs no more gas than a `DUP` and at most one
@@ -826,6 +843,15 @@ impl Target {
         }
     }
 
+    /// Whether code that cannot reach a normal exit counts as cold, as do the code after a call
+    /// and the edges into cold blocks. Marking it moves failure loops and the code around them
+    /// out of line, which saves gas on the paths that succeed. The move saves no bytes, and the
+    /// layout it changes can widen jump labels, so a size build leaves that code in place and
+    /// moves only the blocks that abort or lead only to aborts.
+    pub(crate) const fn marks_failure_paths_cold(&self) -> bool {
+        self.optimization.is_gas()
+    }
+
     /// Cost of a jump to a block, including the pushed label and the target's landing.
     pub(crate) fn jump(&self) -> Cost {
         self.label_push() + self.opcode(op::JUMP) + self.opcode(op::JUMPDEST)
@@ -834,6 +860,51 @@ impl Target {
     /// Cost of a conditional edge, including the pushed label and the target's landing.
     pub(crate) fn branch(&self) -> Cost {
         self.label_push() + self.opcode(op::JUMPI) + self.opcode(op::JUMPDEST)
+    }
+
+    /// Whether turning the branch `PUSH next; JUMPI; PUSH other; JUMP` around into `ISZERO; PUSH
+    /// other; JUMPI`, falling into the `next` block that follows it, is the better code, when the
+    /// branch enters `next` `next_runs` times for every `other_runs` times it enters `other`.
+    /// `test` is what the test becomes, and the `JUMPDEST` of `next` goes unless another
+    /// reference keeps it (`keeps_landing`).
+    ///
+    /// The turned branch runs the test on both edges but jumps to `other` once, so it saves gas
+    /// when `other` is entered often enough. A gas build also leaves a branch whose `next` is the
+    /// hot edge of a loop, even when the test is free: falling into the loop body keeps the loop
+    /// passes from rotating the header into its latch, which saves a jump on every iteration.
+    /// Size builds take the bytes unless the extra gas of a hot loop costs more over the expected
+    /// executions than the deposit of the bytes saved.
+    pub(crate) fn falls_through_turned_branch(
+        &self,
+        next_runs: u64,
+        other_runs: u64,
+        test: TurnedTest,
+        keeps_landing: bool,
+    ) -> bool {
+        let price = |cost: Cost| (i64::from(self.runtime_gas(cost)), i64::from(cost.bytes));
+        let (iszero_gas, iszero_bytes) = price(self.opcode(op::ISZERO));
+        let (test_gas, test_bytes) = match test {
+            TurnedTest::Adds => (iszero_gas, iszero_bytes),
+            TurnedTest::Drops => (-iszero_gas, -iszero_bytes),
+            TurnedTest::Swaps => (0, 0),
+        };
+        let (jump_gas, jump_bytes) = price(self.label_push() + self.opcode(op::JUMP));
+        let (freed_gas, freed_bytes) =
+            if keeps_landing { (0, 0) } else { price(self.opcode(op::JUMPDEST)) };
+        // Entering `next` pays the test, where it paid the landing if that goes.
+        let next_extra = test_gas - freed_gas;
+        // Entering `other` pays the test, where it paid a second transfer.
+        let other_saving = jump_gas - test_gas;
+        let gas_saving = i128::from(other_runs) * i128::from(other_saving)
+            - i128::from(next_runs) * i128::from(next_extra);
+        let gas_saving = gas_saving.clamp(i64::MIN.into(), i64::MAX.into()) as i64;
+        let byte_saving = jump_bytes + freed_bytes - test_bytes;
+        let loop_continues = other_runs != 0 && next_runs > other_runs;
+        self.improves(gas_saving, byte_saving)
+            && !(loop_continues && self.optimization.is_gas())
+            && (gas_saving >= 0
+                || !self.optimization.is_size()
+                || self.deposit_repays_gas(byte_saving.unsigned_abs(), gas_saving.unsigned_abs()))
     }
 
     /// Whether encoding static calldata elements of `element_words` words keeps a block copy
@@ -1068,6 +1139,18 @@ impl Target {
             .saturating_sub(self.jump().bytes)
     }
 
+    /// Cost of a zero read from `RETURNDATASIZE`, which holds zero until the frame runs a call or
+    /// create, or `None` when it does not dominate the literal zero push: Shanghai and later push
+    /// zero at the same price, and earlier targets before Byzantium lack the opcode. Pricing that
+    /// ignores the frame's calls, as the selector's and every pass before the late
+    /// `returndata-zero` pass do, keeps the literal price, which bounds the final cost from above.
+    pub(crate) fn returndata_zero(&self) -> Option<Cost> {
+        let cost = self.opcode(op::RETURNDATASIZE);
+        (self.evm_version.supports_returndata()
+            && self.dominates(cost, self.encoded_push(U256::ZERO)))
+        .then_some(cost)
+    }
+
     /// A single encoded PUSH, without the arithmetic recipes used for materialized constants.
     /// Labels and already selected EVM IR immediates use this encoding during assembly.
     pub(crate) fn encoded_push(&self, value: U256) -> Cost {
@@ -1116,7 +1199,11 @@ mod tests {
             constants
                 .extend([2, 7, 8, 16, 31, 32, 64, 128, 160, 224, 248, 255, 256].map(U256::from));
             for bits in [8, 16, 32, 64, 128, 160, 224, 248, 255] {
-                constants.extend([U256::ONE << bits, (U256::ONE << bits) - U256::ONE]);
+                constants.extend([
+                    U256::ONE << bits,
+                    (U256::ONE << bits) - U256::ONE,
+                    U256::MAX << bits,
+                ]);
             }
             constants.sort_unstable();
             constants.dedup();
@@ -1513,6 +1600,28 @@ mod tests {
     }
 
     #[test]
+    fn turned_branch_prices_both_edges() {
+        let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        // The added `ISZERO` costs 3 gas on `next`, less the landing that goes, and a jump to
+        // `other` saves 11 gas of transfer less that test.
+        assert!(gas.falls_through_turned_branch(1, 1, TurnedTest::Adds, false));
+        assert!(gas.falls_through_turned_branch(1, 4, TurnedTest::Adds, true));
+        assert!(!gas.falls_through_turned_branch(10, 1, TurnedTest::Adds, false));
+        assert!(!gas.falls_through_turned_branch(1, 0, TurnedTest::Adds, false));
+        // A swapped test is free, so the landing that goes pays alone, and a kept landing ties.
+        assert!(gas.falls_through_turned_branch(1, 0, TurnedTest::Swaps, false));
+        assert!(!gas.falls_through_turned_branch(1, 0, TurnedTest::Swaps, true));
+        // A size build at one run takes the bytes of a hot loop, and not at a million runs.
+        let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1);
+        assert!(size.falls_through_turned_branch(10, 1, TurnedTest::Adds, false));
+        // A free test still stays out of the hot edge of a loop in a gas build.
+        assert!(!gas.falls_through_turned_branch(10, 1, TurnedTest::Swaps, false));
+        assert!(size.falls_through_turned_branch(10, 1, TurnedTest::Swaps, false));
+        let hot = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1_000_000);
+        assert!(!hot.falls_through_turned_branch(10, 1, TurnedTest::Adds, false));
+    }
+
+    #[test]
     fn helper_sharing_prices_the_call_protocol_per_site() {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
         let (shared, expanded) = target.helper_sharing(100, 2, 1, 3);
@@ -1775,6 +1884,21 @@ mod tests {
     }
 
     #[test]
+    fn returndata_zero_replaces_only_the_pre_shanghai_push() {
+        let price = |version| Target::with(version, OptimizationMode::Gas, 200).returndata_zero();
+        let paris = Target::with(EvmVersion::Paris, OptimizationMode::Gas, 200);
+        let returndata_zero = price(EvmVersion::Paris).unwrap();
+        assert_eq!(returndata_zero, paris.opcode(op::RETURNDATASIZE));
+        // Cheaper than the literal push and than a `DUP` in gas, and no larger.
+        assert!(paris.dominates(returndata_zero, paris.push(U256::ZERO)));
+        assert!(paris.dominates(returndata_zero, paris.dup()));
+        assert!(price(EvmVersion::Byzantium).is_some());
+        assert!(price(EvmVersion::Homestead).is_none());
+        assert!(price(EvmVersion::Shanghai).is_none());
+        assert!(price(EvmVersion::Osaka).is_none());
+    }
+
+    #[test]
     fn encoded_pushes_keep_their_literal_width() {
         let paris = Target::with(EvmVersion::Paris, OptimizationMode::Size, 200);
         let cancun = Target::with(EvmVersion::Cancun, OptimizationMode::Size, 200);
@@ -1785,5 +1909,13 @@ mod tests {
         }
         assert_eq!(cancun.encoded_push(U256::MAX), cancun.opcode(op::PUSH32));
         assert!(cancun.push(U256::MAX).bytes < cancun.encoded_push(U256::MAX).bytes);
+    }
+
+    #[test]
+    fn failure_paths_are_cold_for_gas_only() {
+        let target = |optimization| Target::with(EvmVersion::Osaka, optimization, 200);
+        assert!(target(OptimizationMode::Gas).marks_failure_paths_cold());
+        assert!(!target(OptimizationMode::Size).marks_failure_paths_cold());
+        assert!(!target(OptimizationMode::None).marks_failure_paths_cold());
     }
 }
