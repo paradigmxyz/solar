@@ -1,0 +1,24 @@
+- // === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/cold_next.evmir (before jumpi-fallthrough) ===
++ // === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/cold_next.evmir (after jumpi-fallthrough) ===
+  @module ColdNext
+  bb0:
+    push 4
+    calldataload
+-   push bb1
++   iszero
++   push bb2
+    jumpi
+-   jump bb2
++   jump bb1
+  bb1 [cold]:
+    push 0
+    push 0
+    revert
+  bb2:
+    push 2
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

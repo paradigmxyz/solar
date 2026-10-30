@@ -483,9 +483,8 @@ bb37 [continuation]:
   shl
   push 0
   not
-  push 32
-  shr
-  not
+  push 224
+  shl
   dup 1
   swap 2
   shl

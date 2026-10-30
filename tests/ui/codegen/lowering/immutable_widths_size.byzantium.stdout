@@ -7,7 +7,7 @@ bb0:
   push 224
   push 2
   exp
-  push 0
+  returndatasize
   calldataload
   div
   dup 1
@@ -16,7 +16,7 @@ bb0:
   push bb3
   jumpi
   push_immutable 0, 1
-  push 0
+  returndatasize
   signextend
   push_immutable 1, 32
   push_immutable 2, 32
@@ -31,7 +31,7 @@ bb0:
   push 28
   signextend
   swap 6
-  push 0
+  returndatasize
   signextend
   push 128
   mstore
@@ -55,6 +55,6 @@ bb0:
   push 128
   return
 bb3 [cold]:
-  push 0
-  dup 1
+  returndatasize
+  returndatasize
   revert

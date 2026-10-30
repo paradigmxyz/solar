@@ -1,0 +1,942 @@
+//! Display implementations for MIR.
+//!
+//! Includes DOT format CFG generation for visualization.
+
+use super::{
+    BasicBlock, BlockId, EffectKind, FrameMode, FrameSlotKind, Function, FunctionId, HirExprId,
+    Immediate, InstId, InstKind, InstructionMetadata, MemoryRegion, MirType, Module, StorageAlias,
+    Terminator, Value, ValueId,
+};
+use crate::{Builtin, Callee, RequireKind, analysis::CfgInfo};
+use arrayvec::ArrayVec;
+use solar_ast::StateMutability;
+use solar_data_structures::{
+    fmt::FmtIteratorExt,
+    map::{FxHashMap, FxHashSet},
+};
+use std::fmt;
+
+/// Displays a DOT format CFG for a function.
+pub(crate) fn display_function_dot<'a>(
+    func: &'a Function,
+    module: Option<&'a Module>,
+) -> impl fmt::Display + 'a {
+    fn display_dot_node<'a>(
+        func: &'a Function,
+        module: Option<&'a Module>,
+        block_id: BlockId,
+    ) -> impl fmt::Display + 'a {
+        fmt::from_fn(move |f| {
+            let block_idx = block_id.index();
+
+            write!(f, "    bb{block_idx} [label=\"")?;
+            write_dot_block_label(f, func, module, block_id)?;
+            writeln!(f, "\"];")
+        })
+    }
+
+    fn write_dot_block_label(
+        f: &mut fmt::Formatter<'_>,
+        func: &Function,
+        module: Option<&Module>,
+        block_id: BlockId,
+    ) -> fmt::Result {
+        let block = &func.blocks[block_id];
+        let block_idx = block_id.index();
+        write!(f, "bb{block_idx}:\\l")?;
+
+        write!(
+            f,
+            "{}",
+            block.instructions.iter().format_with("", |f, inst_id| write!(
+                f,
+                "{}",
+                display_dot_instruction(func, module, *inst_id)
+            ))
+        )?;
+
+        if let Some(term) = &block.terminator {
+            write!(f, "  {}\\l", display_terminator(term, func, module))?;
+        }
+
+        Ok(())
+    }
+
+    fn display_dot_instruction<'a>(
+        func: &'a Function,
+        module: Option<&'a Module>,
+        inst_id: InstId,
+    ) -> impl fmt::Display + 'a {
+        fmt::from_fn(move |f| {
+            let inst = func.inst(inst_id);
+
+            write!(f, "  ")?;
+            if inst.result_ty.is_some() {
+                write!(f, "v{} = ", inst_result_index(func, inst_id))?;
+            }
+            write!(f, "{}\\l", display_inst_kind(&inst.kind, inst.result_ty, func, module))
+        })
+    }
+
+    fn display_dot_edges<'a>(
+        func: &'a Function,
+        module: Option<&'a Module>,
+        block_id: BlockId,
+        block: &'a BasicBlock,
+    ) -> impl fmt::Display + 'a {
+        fmt::from_fn(move |f| {
+            let block_idx = block_id.index();
+            let Some(term) = &block.terminator else { return Ok(()) };
+
+            match term {
+                Terminator::Jump(target) => {
+                    writeln!(f, "    bb{} -> bb{};", block_idx, target.index())
+                }
+                Terminator::Branch { condition, then_block, else_block } => {
+                    writeln!(
+                        f,
+                        "    bb{} -> bb{} [label=\"{} == true\", color=\"green\"];",
+                        block_idx,
+                        then_block.index(),
+                        display_val(*condition, func)
+                    )?;
+                    writeln!(
+                        f,
+                        "    bb{} -> bb{} [label=\"false\", color=\"red\"];",
+                        block_idx,
+                        else_block.index()
+                    )
+                }
+                Terminator::Switch { value: _, default, cases } => {
+                    writeln!(
+                        f,
+                        "    bb{} -> bb{} [label=\"default\"];",
+                        block_idx,
+                        default.index()
+                    )?;
+                    write!(
+                        f,
+                        "{}",
+                        cases.iter().format_with("", |f, (case_val, target)| {
+                            writeln!(
+                                f,
+                                "    bb{} -> bb{} [label=\"{}\"];",
+                                block_idx,
+                                target.index(),
+                                display_val(*case_val, func)
+                            )
+                        })
+                    )
+                }
+                Terminator::TailCall { function, .. } => {
+                    writeln!(
+                        f,
+                        "    bb{} -> fn{} [style=dashed, label=\"tail_call {}\"];",
+                        block_idx,
+                        function.index(),
+                        display_function_ref(*function, module)
+                    )
+                }
+                Terminator::Return { .. }
+                | Terminator::Revert { .. }
+                | Terminator::RevertReturndata
+                | Terminator::ReturnData { .. }
+                | Terminator::Stop
+                | Terminator::SelfDestruct { .. }
+                | Terminator::Invalid => Ok(()),
+            }
+        })
+    }
+
+    fmt::from_fn(move |f| {
+        writeln!(f, "digraph \"{}\" {{", func.name)?;
+        writeln!(f, "    node [shape=box, fontname=\"Courier\", fontsize=10];")?;
+        writeln!(f, "    edge [fontname=\"Courier\", fontsize=9];")?;
+        writeln!(f)?;
+
+        write!(
+            f,
+            "{}",
+            func.blocks.iter_enumerated().format_with("", |f, (block_id, _)| write!(
+                f,
+                "{}",
+                display_dot_node(func, module, block_id)
+            ))
+        )?;
+
+        writeln!(f)?;
+
+        write!(
+            f,
+            "{}",
+            func.blocks.iter_enumerated().format_with("", |f, (block_id, block)| {
+                write!(f, "{}", display_dot_edges(func, module, block_id, block))
+            })
+        )?;
+
+        writeln!(f, "}}")
+    })
+}
+
+/// Displays a human-readable textual MIR representation of a function.
+///
+/// The format is designed for diffing and FileCheck-style pattern matching:
+/// ```text
+/// fn @name(arg0: uint256, arg1: i1) -> uint256 {
+///   bb0:
+///     v0 = add arg0, 1
+///     jumpi arg1, bb1, bb2
+///   bb1:
+///     ret v0
+///   bb2:
+///     ret arg0
+/// }
+/// ```
+pub(crate) fn display_function_text<'a>(
+    func: &'a Function,
+    module: Option<&'a Module>,
+    is_dispatch_entry: bool,
+) -> impl fmt::Display + 'a {
+    fn display_text_block<'a>(
+        func: &'a Function,
+        module: Option<&'a Module>,
+        block_id: BlockId,
+        block: &'a BasicBlock,
+    ) -> impl fmt::Display + 'a {
+        fmt::from_fn(move |f| {
+            writeln!(f, "  bb{}:", block_id.index())?;
+
+            write!(
+                f,
+                "{}",
+                block.instructions.iter().format_with("", |f, inst_id| write!(
+                    f,
+                    "{}",
+                    display_text_instruction(func, module, *inst_id)
+                ))
+            )?;
+
+            if let Some(term) = &block.terminator {
+                writeln!(
+                    f,
+                    "    {}{}",
+                    display_terminator(term, func, module),
+                    display_metadata(&block.terminator_metadata, None, func)
+                )?;
+            }
+            Ok(())
+        })
+    }
+
+    fn display_text_instruction<'a>(
+        func: &'a Function,
+        module: Option<&'a Module>,
+        inst_id: InstId,
+    ) -> impl fmt::Display + 'a {
+        fmt::from_fn(move |f| {
+            let inst = func.inst(inst_id);
+
+            write!(f, "    ")?;
+            if inst.result_ty.is_some() {
+                write!(f, "v{}", inst_result_index(func, inst_id))?;
+                if let Some(ty) = inst.result_ty
+                    && (inst.kind.op_def().result == super::ResultKind::I160 && ty == MirType::I256
+                        || matches!(inst.kind, InstKind::LoadImmutable(id)
+                            if module.and_then(|module| module.get_immutable_type(id))
+                                .is_some_and(|layout| layout.mir_type() != ty)))
+                {
+                    write!(f, ": {ty}")?;
+                }
+                write!(f, " = ")?;
+            }
+            writeln!(
+                f,
+                "{}{}",
+                display_inst_kind(&inst.kind, inst.result_ty, func, module),
+                display_metadata(&inst.metadata, Some(inst.kind.effect_kind()), func)
+            )
+        })
+    }
+
+    fmt::from_fn(move |f| {
+        // Header: fn @name(params) -> returns
+        write!(f, "fn @{}(", func.name)?;
+        write!(
+            f,
+            "{}",
+            func.params.iter_enumerated().format_with(", ", |f, (i, ty)| write!(
+                f,
+                "arg{}: {ty}",
+                i.index()
+            ))
+        )?;
+        write!(f, ")")?;
+        if function_prints_return_values(func) && func.return_type() != super::MirType::Void {
+            write!(f, " -> {}", func.return_type())?;
+        }
+        write!(f, "{}", display_function_attributes(func, is_dispatch_entry))?;
+        writeln!(f, " {{")?;
+
+        let cfg = CfgInfo::new(func);
+        for &block_id in cfg.rpo() {
+            write!(f, "{}", display_text_block(func, module, block_id, &func.blocks[block_id]))?;
+        }
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            if !cfg.is_reachable(block_id) {
+                write!(f, "{}", display_text_block(func, module, block_id, block))?;
+            }
+        }
+
+        writeln!(f, "}}")
+    })
+}
+
+fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl fmt::Display + '_ {
+    fmt::from_fn(move |f| {
+        let mut first = true;
+        if let Some(selector) = func.selector {
+            write_function_attribute(
+                f,
+                &mut first,
+                format_args!("selector=0x{:08x}", u32::from_be_bytes(selector)),
+            )?;
+        }
+        if func.attributes.is_abi_wrapper {
+            write_function_attribute(f, &mut first, "abi_wrapper")?;
+        }
+        if func.attributes.is_constructor {
+            write_function_attribute(f, &mut first, "constructor")?;
+        }
+        if is_dispatch_entry {
+            write_function_attribute(f, &mut first, "entry")?;
+        }
+        if func.attributes.may_return_memory {
+            write_function_attribute(f, &mut first, "may_return_memory")?;
+        }
+        if func.attributes.is_function_pointer_dispatcher {
+            write_function_attribute(f, &mut first, "function_pointer_dispatcher")?;
+        }
+        if func.attributes.always_inline {
+            write_function_attribute(f, &mut first, "always_inline")?;
+        }
+        if func.attributes.inline_hint {
+            write_function_attribute(f, &mut first, "inline_hint")?;
+        }
+        if let Some(optimization) = func.attributes.optimization {
+            write_function_attribute(f, &mut first, format_args!("optimize={optimization}"))?;
+        }
+        if func.attributes.is_receive {
+            write_function_attribute(f, &mut first, "receive")?;
+        }
+        if func.attributes.is_fallback {
+            write_function_attribute(f, &mut first, "fallback")?;
+        }
+        match func.attributes.state_mutability {
+            StateMutability::Pure => write_function_attribute(f, &mut first, "pure")?,
+            StateMutability::View => write_function_attribute(f, &mut first, "view")?,
+            StateMutability::Payable => write_function_attribute(f, &mut first, "payable")?,
+            StateMutability::NonPayable => {}
+        }
+        if let Some(components) = func.return_abi() {
+            write_function_attribute(
+                f,
+                &mut first,
+                format_args!("return_abi=[{}]", components.iter().format(", ")),
+            )?;
+        }
+        if let Some(layout) = &func.abi_params {
+            write_function_attribute(f, &mut first, format_args!("abi_params={layout}"))?;
+        }
+        if let Some(layout) = &func.abi_returns {
+            write_function_attribute(f, &mut first, format_args!("abi_returns={layout}"))?;
+        }
+        if let Some(layout) = &func.abi_return_params {
+            write_function_attribute(f, &mut first, format_args!("abi_return_params={layout}"))?;
+        }
+        if !first {
+            f.write_str("]")?;
+        }
+        Ok(())
+    })
+}
+
+fn write_function_attribute(
+    f: &mut fmt::Formatter<'_>,
+    first: &mut bool,
+    attribute: impl fmt::Display,
+) -> fmt::Result {
+    if *first {
+        f.write_str(" [")?;
+        *first = false;
+    } else {
+        f.write_str(", ")?;
+    }
+    attribute.fmt(f)
+}
+
+fn function_prints_return_values(func: &Function) -> bool {
+    func.selector.is_none()
+        || func
+            .blocks
+            .iter()
+            .any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
+}
+
+fn inst_result_index(func: &Function, inst_id: InstId) -> usize {
+    func.inst_result_index(inst_id)
+        .expect("Value::Inst should point to a value-producing instruction")
+}
+
+/// Formats an instruction kind for display.
+fn display_inst_kind<'a>(
+    kind: &'a InstKind,
+    result_ty: Option<MirType>,
+    func: &'a Function,
+    module: Option<&'a Module>,
+) -> impl fmt::Display + 'a {
+    fn display_inst_operands(
+        f: &mut fmt::Formatter<'_>,
+        kind: &InstKind,
+        func: &Function,
+    ) -> fmt::Result {
+        write!(f, "{}", kind.mnemonic())?;
+        let mut operands = kind.operands();
+        if kind.reverses_text_operands() {
+            operands.reverse();
+        }
+        if !operands.is_empty() {
+            write!(
+                f,
+                " {}",
+                operands.into_iter().map(|operand| display_val(operand, func)).format(", ")
+            )?;
+        }
+        Ok(())
+    }
+
+    fmt::from_fn(move |f| match kind {
+        InstKind::AddressCall { address, input, gas, value, .. } => {
+            write!(
+                f,
+                "{} {}, {}",
+                kind.mnemonic(),
+                display_val(*address, func),
+                display_val(*input, func)
+            )?;
+            if let Some(gas) = gas {
+                write!(f, ", gas {}", display_val(*gas, func))?;
+            }
+            if let Some(value) = value {
+                write!(f, ", value {}", display_val(*value, func))?;
+            }
+            Ok(())
+        }
+        InstKind::InsertValue { ty, aggregate, index, value } => write!(
+            f,
+            "insert_value {ty}, {}, {index}, {}",
+            display_val(*aggregate, func),
+            display_val(*value, func)
+        ),
+        InstKind::ExtractValue { ty, aggregate, index } => {
+            write!(f, "extract_value {ty}, {}, {index}", display_val(*aggregate, func))
+        }
+        InstKind::Trunc(value, _)
+        | InstKind::Zext(value)
+        | InstKind::Sext(value, _, _)
+        | InstKind::PtrToInt(value, _)
+        | InstKind::IntToPtr(value) => {
+            let from = func.value_ty(*value).unwrap_or(MirType::I256);
+            let to = result_ty.unwrap_or(MirType::I256);
+            write!(f, "{} {from} ", kind.mnemonic())?;
+            if let Value::Immediate(immediate) = func.value(*value) {
+                write!(f, "{}", display_u256(immediate.as_u256().unwrap()))?;
+            } else if matches!(func.value(*value), Value::Undef(_)) {
+                f.write_str("undef")?;
+            } else {
+                write!(f, "{}", display_val(*value, func))?;
+            }
+            write!(f, " to {to}")
+        }
+        InstKind::StoreImmutable(id, value) => {
+            write!(f, "storeimmutable {}", display_immutable_ref(*id, module))?;
+            write!(f, ", {}", display_val(*value, func))
+        }
+        InstKind::LibraryAddress(id) => {
+            if let Some(module) = module {
+                write!(f, "library_address {}", module.libraries.display_ref(*id))
+            } else {
+                write!(f, "library_address {id:?}")
+            }
+        }
+        InstKind::LoadImmutable(id) => {
+            write!(f, "loadimmutable {}", display_immutable_ref(*id, module))
+        }
+        InstKind::DataCopy(id, dest, size) => {
+            let name = module.and_then(|module| module.data[id.id].name);
+            write!(
+                f,
+                "datacopy {}",
+                solar_ir::link::display_data_ref(name, id.id.index(), id.offset)
+            )?;
+            write!(f, ", {}, {}", display_val(*dest, func), display_val(*size, func))
+        }
+        InstKind::DataSize(size) => {
+            let name = module.and_then(|module| module.data[size.data].name);
+            write!(f, "datasize {}", solar_ir::link::display_data_size(name, *size))
+        }
+        InstKind::Alloc { size, semantics } => {
+            write!(f, "alloc ")?;
+            if semantics.initialization == crate::AllocationInitialization::Zeroed {
+                write!(f, "zeroed ")?;
+            }
+            if semantics.failure == crate::AllocationFailure::Checked {
+                write!(f, "checked ")?;
+            }
+            write!(f, "{}", display_val(*size, func))
+        }
+        InstKind::Load(..) if result_ty == Some(MirType::MEMPTR) => {
+            display_inst_operands(f, kind, func)?;
+            write!(f, ", ptr<memory>")
+        }
+        InstKind::StorageBytesStoreLiteral { slot, bytes } => write!(
+            f,
+            "store_storage_bytes_literal {}, hex\"{}\"",
+            display_val(*slot, func),
+            alloy_primitives::hex::display(bytes)
+        ),
+        InstKind::StorageArrayLoad { slot, element, enum_variants } => {
+            write!(f, "load_storage_array ")?;
+            if let Some(variants) = enum_variants {
+                write!(f, "enum<{variants}>")?;
+            } else {
+                write!(f, "{element}")?;
+            }
+            write!(f, ", {}", display_val(*slot, func))
+        }
+        InstKind::StorageArrayElementSlot { slot, index, element_slots } => write!(
+            f,
+            "storage_array_element_slot {}, {}, {element_slots}",
+            display_val(*slot, func),
+            display_val(*index, func)
+        ),
+        InstKind::CheckedBinary { op, arithmetic, lhs, rhs } => write!(
+            f,
+            "{} {}, {}, {}",
+            op.name(),
+            arithmetic.ty(),
+            display_val(*lhs, func),
+            display_val(*rhs, func)
+        ),
+        InstKind::AbiEncodePacked { parts, .. } => {
+            write!(f, "{} (", kind.mnemonic())?;
+            for (index, part) in parts.iter().enumerate() {
+                if index != 0 {
+                    write!(f, ", ")?;
+                }
+                match part {
+                    super::PackedPart::Literal(bytes) => {
+                        write!(f, "data hex\"{}\"", alloy_primitives::hex::display(bytes))?
+                    }
+                    super::PackedPart::Scalar { value, ty } => {
+                        write!(f, "{ty} {}", display_val(*value, func))?
+                    }
+                    super::PackedPart::Bytes(value) => {
+                        write!(f, "bytes {}", display_val(*value, func))?
+                    }
+                    super::PackedPart::Array { value, element, source } => {
+                        write!(f, "array<{element}> ")?;
+                        match source {
+                            super::PackedArraySource::Memory { layout } => write!(f, "{layout}")?,
+                            super::PackedArraySource::Slice(location) => write!(f, "{location}")?,
+                        }
+                        write!(f, " {}", display_val(*value, func))?;
+                    }
+                }
+            }
+            write!(f, ")")
+        }
+        InstKind::ICall { function: Callee::Builtin(builtin), args } => {
+            write!(f, "icall ")?;
+            match builtin {
+                Builtin::Sha256 => write!(f, "sha256<>")?,
+                Builtin::Ripemd160 => write!(f, "ripemd160<>")?,
+                Builtin::EcRecover => write!(f, "ecrecover<>")?,
+                Builtin::Erc7201 => write!(f, "erc7201<>")?,
+                Builtin::CheckedAddMod => write!(f, "checked_addmod<>")?,
+                Builtin::CheckedMulMod => write!(f, "checked_mulmod<>")?,
+                Builtin::Send => write!(f, "send<>")?,
+                Builtin::Transfer => write!(f, "transfer<>")?,
+                Builtin::ReturndataBytes => write!(f, "returndata_bytes<>")?,
+                Builtin::Check { is_zero, failure } => {
+                    let name = match failure {
+                        super::RevertKind::Panic(_) => "panic_if",
+                        super::RevertKind::Reason(_) => "revert_if",
+                    };
+                    write!(f, "{name}{}<", if *is_zero { "_zero" } else { "" })?;
+                    match failure {
+                        super::RevertKind::Panic(code) => write!(f, "0x{:x}", code.as_u64())?,
+                        super::RevertKind::Reason(reason) => write!(f, "{}", reason.name())?,
+                    }
+                    write!(f, ">")?;
+                }
+                Builtin::Require(kind) => {
+                    write!(f, "require<")?;
+                    match kind {
+                        RequireKind::ShortString => write!(f, "short_string")?,
+                        RequireKind::LongString(bytes) => write!(
+                            f,
+                            "long_string hex\"{}\"",
+                            alloy_primitives::hex::display(bytes.as_byte_str())
+                        )?,
+                        RequireKind::EmptyString => write!(f, "empty_string")?,
+                        RequireKind::ErrorString => write!(f, "error_string")?,
+                        RequireKind::CustomError(layout) => write!(f, "custom_error {layout}")?,
+                    }
+                    write!(f, ">")?;
+                }
+            }
+            for &arg in args {
+                write!(f, ", {}", display_val(arg, func))?;
+            }
+            Ok(())
+        }
+        InstKind::AbiEncode { mode, selector, args, layout } => {
+            write!(f, "abi_encode {layout}")?;
+            match mode {
+                super::AbiEncodeMode::Slice => {}
+                super::AbiEncodeMode::Bytes => write!(f, ", object")?,
+                super::AbiEncodeMode::Scratch => write!(f, ", scratch")?,
+            }
+            if let Some(selector) = selector {
+                write!(f, ", selector {}", display_val(*selector, func))?;
+            }
+            if !args.is_empty() {
+                write!(f, ", args ")?;
+                write!(f, "{}", args.iter().map(|arg| display_val(*arg, func)).format(", "))?;
+            }
+            Ok(())
+        }
+        InstKind::AbiDecode { data, layout } => {
+            write!(f, "abi_decode {layout}, {}", display_val(*data, func))
+        }
+        InstKind::ICall { function: Callee::Function(function), args } => {
+            write!(f, "icall {}", display_function_ref(*function, module))?;
+            if !args.is_empty() {
+                write!(f, ", {}", args.iter().map(|arg| display_val(*arg, func)).format(", "))?;
+            }
+            Ok(())
+        }
+        InstKind::InternalFrameAddr(offset) => write!(f, "internal_frame_addr {offset}"),
+        InstKind::FrameLoad { offset, mode, kind } => {
+            write!(
+                f,
+                "frame_load {}, {}, {offset}",
+                display_frame_mode(*mode),
+                display_frame_kind(*kind)
+            )
+        }
+        InstKind::FrameStore { offset, mode, kind, value } => write!(
+            f,
+            "frame_store {}, {}, {offset}, {}",
+            display_frame_mode(*mode),
+            display_frame_kind(*kind),
+            display_val(*value, func)
+        ),
+        InstKind::Phi(args) => {
+            write!(f, "phi")?;
+            if let Some(super::MirType::Struct(ty)) =
+                args.first().and_then(|(_, value)| func.value_ty(*value))
+            {
+                write!(f, " struct{},", ty.index())?;
+            }
+            if !args.is_empty() {
+                write!(
+                    f,
+                    " {}",
+                    args.iter().format_with(", ", |f, (block, val)| {
+                        write!(f, "[bb{}: {}]", block.index(), display_val(*val, func))
+                    })
+                )?;
+            }
+            Ok(())
+        }
+        _ => display_inst_operands(f, kind, func),
+    })
+}
+
+fn display_frame_mode(mode: FrameMode) -> &'static str {
+    match mode {
+        FrameMode::External => "scratch",
+        FrameMode::Internal => "internal_frame",
+        FrameMode::MultiReturn => "multi_return",
+    }
+}
+
+fn display_frame_kind(kind: FrameSlotKind) -> impl fmt::Display {
+    fmt::from_fn(move |f| match kind {
+        FrameSlotKind::Word => f.write_str("word"),
+        FrameSlotKind::Slice(location) => write!(f, "{location}"),
+    })
+}
+
+pub(super) fn display_immutable_ref(
+    id: super::ImmutableId,
+    module: Option<&Module>,
+) -> impl fmt::Display + '_ {
+    fmt::from_fn(move |f| {
+        if let Some(name) = module.and_then(|module| immutable_display_name(module, id)) {
+            write!(f, "{name}")
+        } else {
+            write!(f, "{}", id.index())
+        }
+    })
+}
+
+fn immutable_display_name(module: &Module, id: super::ImmutableId) -> Option<String> {
+    let immutable = module.get_immutable(id)?;
+    let mut counts = FxHashMap::default();
+    let mut reserved = FxHashSet::default();
+    for (_, immutable) in module.iter_immutables() {
+        *counts.entry(immutable.name.name).or_insert(0usize) += 1;
+        reserved.insert(immutable.name.to_string());
+    }
+    if counts[&immutable.name.name] == 1 {
+        return Some(immutable.name.to_string());
+    }
+
+    let mut allocated = FxHashSet::default();
+    for (other_id, other) in module.iter_immutables() {
+        if counts[&other.name.name] == 1 {
+            continue;
+        }
+
+        let mut name = format!("{}{}", other.name, other_id.index());
+        while reserved.contains(&name) || allocated.contains(&name) {
+            name.push('_');
+        }
+        if other_id == id {
+            return Some(name);
+        }
+        allocated.insert(name);
+    }
+    None
+}
+
+/// Formats a function reference using its exact textual declaration name.
+/// Falls back to `fnN` when a single function is printed without its module.
+fn display_function_ref(function: FunctionId, module: Option<&Module>) -> impl fmt::Display + '_ {
+    fmt::from_fn(move |f| {
+        let funcs = module.map(|module| &module.functions);
+        if let Some(funcs) = funcs
+            && let Some(callee) = funcs.get(function)
+        {
+            write!(f, "@{}", callee.name)
+        } else {
+            write!(f, "fn{}", function.index())
+        }
+    })
+}
+
+fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
+    fmt::from_fn(move |f| match func.value(vid) {
+        Value::Immediate(imm) if let Some(u256) = imm.as_u256() => match imm {
+            Immediate::I1(value) => write!(f, "{value}"),
+            _ if imm.ty() != MirType::I256 => write!(f, "{} {}", imm.ty(), display_u256(u256)),
+            _ => write!(f, "{}", display_u256(u256)),
+        },
+        Value::Arg(index) => write!(f, "arg{}", index.index()),
+        Value::Inst(inst_id) => write!(f, "v{}", inst_result_index(func, *inst_id)),
+        Value::Error(_) => write!(f, "err"),
+        Value::Undef(ty) => write!(f, "undef {ty}"),
+        Value::Immediate(_) => unreachable!("immediate has an integer payload"),
+    })
+}
+
+fn display_u256(value: alloy_primitives::U256) -> impl fmt::Display {
+    fmt::from_fn(move |f| {
+        if let Ok(x) = u64::try_from(value)
+            && x < 1000
+        {
+            write!(f, "{x}")
+        } else {
+            write!(f, "{value:#x}")
+        }
+    })
+}
+
+fn display_metadata<'a>(
+    metadata: &'a InstructionMetadata,
+    default_effect: Option<EffectKind>,
+    func: &'a Function,
+) -> impl fmt::Display + 'a {
+    enum MetadataField<'a> {
+        Storage(StorageAlias, &'a Function),
+        Memory(MemoryRegion),
+        Hir(HirExprId),
+        Span { lo: u32, hi: u32 },
+        Spans(&'a InstructionMetadata),
+        ModifierDepth(u32),
+        Unchecked,
+        DeferredAlloc,
+        PreservesFmp,
+        AllocPtr,
+        Disjoint,
+        LoopDepth(u16),
+        Effect(EffectKind),
+    }
+
+    fn display_metadata_field(field: MetadataField<'_>) -> impl fmt::Display + '_ {
+        fmt::from_fn(move |f| match field {
+            MetadataField::Storage(storage, func) => {
+                write!(f, "storage={}", display_storage_alias(storage, func))
+            }
+            MetadataField::Memory(memory) => write!(f, "memory={}", memory.name()),
+            MetadataField::Hir(hir_expr) => write!(f, "hir={}", hir_expr.index()),
+            MetadataField::Span { lo, hi } => write!(f, "span={lo}..{hi}"),
+            MetadataField::Spans(metadata) => write!(
+                f,
+                "spans=[{}]",
+                metadata.source_spans().format_with(", ", |f, span| write!(
+                    f,
+                    "{}..{}",
+                    span.lo().0,
+                    span.hi().0
+                )),
+            ),
+            MetadataField::ModifierDepth(depth) => write!(f, "modifier_depth={depth}"),
+            MetadataField::Unchecked => write!(f, "unchecked"),
+            MetadataField::DeferredAlloc => write!(f, "deferred_alloc"),
+            MetadataField::PreservesFmp => write!(f, "preserves_fmp"),
+            MetadataField::AllocPtr => write!(f, "alloc_ptr"),
+            MetadataField::Disjoint => write!(f, "disjoint"),
+            MetadataField::LoopDepth(loop_depth) => write!(f, "loop_depth={loop_depth}"),
+            MetadataField::Effect(effect) => write!(f, "effect={}", effect.name()),
+        })
+    }
+
+    fn display_storage_alias(alias: StorageAlias, func: &Function) -> impl fmt::Display + '_ {
+        fmt::from_fn(move |f| match alias {
+            StorageAlias::Slot(slot) => write!(f, "slot({})", display_u256(slot)),
+            StorageAlias::Symbolic(value) => write!(f, "symbolic({})", display_val(value, func)),
+            StorageAlias::Offset { base, offset } => {
+                write!(f, "offset({}, {})", display_val(base, func), display_u256(offset))
+            }
+        })
+    }
+
+    fmt::from_fn(move |f| {
+        let mut fields = ArrayVec::<MetadataField<'_>, 12>::new();
+
+        if let Some(storage) = metadata.storage_alias() {
+            fields.push(MetadataField::Storage(storage, func));
+        }
+        if let Some(memory) = metadata.memory_region()
+            && memory != MemoryRegion::Unknown
+        {
+            fields.push(MetadataField::Memory(memory));
+        }
+        if let Some(hir_expr) = metadata.hir_expr() {
+            fields.push(MetadataField::Hir(hir_expr));
+        }
+        if metadata.displays_source_span()
+            && let Some(span) = metadata.source_span()
+        {
+            if metadata.source_spans().count() == 1 {
+                fields.push(MetadataField::Span { lo: span.lo().0, hi: span.hi().0 });
+            } else {
+                fields.push(MetadataField::Spans(metadata));
+            }
+            if metadata.modifier_depth() != 0 {
+                fields.push(MetadataField::ModifierDepth(metadata.modifier_depth()));
+            }
+        }
+        if metadata.unchecked() {
+            fields.push(MetadataField::Unchecked);
+        }
+        if metadata.deferred_alloc() {
+            fields.push(MetadataField::DeferredAlloc);
+        }
+        if metadata.preserves_fmp() {
+            fields.push(MetadataField::PreservesFmp);
+        }
+        if metadata.alloc_ptr() {
+            fields.push(MetadataField::AllocPtr);
+        }
+        if metadata.disjoint() {
+            fields.push(MetadataField::Disjoint);
+        }
+        if metadata.loop_depth != 0 {
+            fields.push(MetadataField::LoopDepth(metadata.loop_depth));
+        }
+        if let Some(effect) = metadata.effect()
+            && Some(effect) != default_effect
+        {
+            fields.push(MetadataField::Effect(effect));
+        }
+
+        if fields.is_empty() {
+            Ok(())
+        } else {
+            write!(f, " !metadata({})", fields.into_iter().map(display_metadata_field).format(", "))
+        }
+    })
+}
+
+/// Format a terminator for display, rendering operands via [`display_val`].
+fn display_terminator<'a>(
+    term: &'a Terminator,
+    func: &'a Function,
+    module: Option<&'a Module>,
+) -> impl fmt::Display + 'a {
+    fmt::from_fn(move |f| match term {
+        Terminator::Jump(target) => write!(f, "jump bb{}", target.index()),
+        Terminator::Branch { condition, then_block, else_block } => write!(
+            f,
+            "jumpi {}, bb{}, bb{}",
+            display_val(*condition, func),
+            then_block.index(),
+            else_block.index()
+        ),
+        Terminator::Switch { value, default, cases } => {
+            write!(f, "switch {}, default bb{}, [", display_val(*value, func), default.index())?;
+            write!(
+                f,
+                "{}",
+                cases.iter().format_with(", ", |f, (val, block)| {
+                    write!(f, "{} => bb{}", display_val(*val, func), block.index())
+                })
+            )?;
+            write!(f, "]")
+        }
+        Terminator::Return { values } => {
+            write!(f, "ret")?;
+            if !values.is_empty() {
+                write!(
+                    f,
+                    " {}",
+                    values.iter().map(|value| display_val(*value, func)).format(", ")
+                )?;
+            }
+            Ok(())
+        }
+        Terminator::Revert { offset, size } => {
+            write!(f, "revert {}, {}", display_val(*offset, func), display_val(*size, func))
+        }
+        Terminator::RevertReturndata => write!(f, "revert_returndata"),
+        Terminator::ReturnData { offset, size } => {
+            write!(f, "returndata {}, {}", display_val(*offset, func), display_val(*size, func))
+        }
+        Terminator::Stop => write!(f, "stop"),
+        Terminator::TailCall { function, args } => {
+            write!(f, "tail_call {}", display_function_ref(*function, module))?;
+            for arg in args {
+                write!(f, ", {}", display_val(*arg, func))?;
+            }
+            Ok(())
+        }
+        Terminator::SelfDestruct { recipient } => {
+            write!(f, "selfdestruct {}", display_val(*recipient, func))
+        }
+        Terminator::Invalid => write!(f, "invalid"),
+    })
+}

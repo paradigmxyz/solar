@@ -5,7 +5,7 @@ bb0:
   push bb8
   jumpi
   push 0x100000000000000000000000000000000000000000000000000000000
-  push 0
+  returndatasize
   calldataload
   div
   dup 1
@@ -40,8 +40,8 @@ bb0:
   jumpi
   jump bb8
 bb8 [cold]:
-  push 0
-  dup 1
+  returndatasize
+  returndatasize
   revert
 bb9:
   push 36
@@ -53,10 +53,10 @@ bb9:
   calldataload
   push 2
   exp
-  push 0
+  returndatasize
   mstore
   push 32
-  push 0
+  returndatasize
   return
 bb15:
   push 36
@@ -73,10 +73,10 @@ bb15:
   jumpi
   push 2
   exp
-  push 0
+  returndatasize
   mstore
   push 32
-  push 0
+  returndatasize
   return
 bb20:
   push 36
@@ -88,10 +88,10 @@ bb20:
   push 4
   calldataload
   mul
-  push 0
+  returndatasize
   mstore
   push 32
-  push 0
+  returndatasize
   return
 bb23:
   push 36
@@ -103,10 +103,10 @@ bb23:
   push 4
   calldataload
   mul
-  push 0
+  returndatasize
   mstore
   push 32
-  push 0
+  returndatasize
   return
 bb26:
   push 4
@@ -192,10 +192,10 @@ bb26:
   push 32
   add
   mload
-  push 0
+  returndatasize
   mstore
   push 32
-  push 0
+  returndatasize
   return
 bb18 [cold]:
   push 17
@@ -204,7 +204,7 @@ bb34 [cold]:
   push 32
   mstore
   push 0x4e487b71
-  push 0
+  returndatasize
   mstore
   push 36
   push 28

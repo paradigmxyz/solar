@@ -14,6 +14,8 @@
 //! effects, block edges or gas observations. Recipe and producer-cone sizes are
 //! bounded independently of function size. This is a local tree estimate, not
 //! a proof of scheduled cost; gas and size corpus measurements remain required.
+//! An enabling recipe is accepted without being cheaper: its rule guard shows that it pays for
+//! the rewrite it exposes to a later pass.
 //! Scalar selects can also be roots: their arithmetic recipes preserve zero/nonzero
 //! conditions, while pointer and aggregate selects retain their provenance.
 //! Shared integer casts can move outside a select when their source widths match;
@@ -80,6 +82,8 @@ struct Recipe {
     root: Op,
     scalar_ty: MirType,
     temporaries: FxHashMap<ValueId, Temporary>,
+    /// Whether the recipe is worth its local cost for what it lets later passes do.
+    enabling: bool,
 }
 
 fn legal(op: &Op, target: &Target) -> bool {
@@ -371,7 +375,7 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
                                 operation_cost(func, &func.inst(inst).kind.op(), target, &empty)
                             })
                             .sum::<Cost>();
-                    if target.cmp(after, before).is_lt()
+                    if (recipe.enabling || target.cmp(after, before).is_lt())
                         && best.as_ref().is_none_or(|(_, cost, _)| target.cmp(after, *cost).is_lt())
                     {
                         best = Some((recipe, after, dead));

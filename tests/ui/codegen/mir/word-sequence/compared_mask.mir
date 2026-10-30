@@ -48,3 +48,25 @@ fn @packed(arg0: i256, arg1: i256) -> i256 {
     v1 = or v0, arg1
     ret v1
 }
+
+// A mask that is cheap to build costs fewer bytes than the shift pair, so it stays.
+// CHECK-LABEL: {{^[ +].*}}fn @cheap_mask{{[( ]}}
+// CHECK-NOT: {{^[+].*}}shr
+fn @cheap_mask(arg0: i256) -> i1 {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v1 = eq v0, 0x0000000000400000000000000000000000000000000000000000000000000000
+    v2 = eq v0, 0x0000000000800000000000000000000000000000000000000000000000000000
+    v3 = or v1, v2
+    ret v3
+}
+
+// Only equalities narrow, so an inequality keeps its mask.
+// CHECK-LABEL: {{^[ +].*}}fn @inequality_mask{{[( ]}}
+// CHECK-NOT: {{^[+].*}}shr
+fn @inequality_mask(arg0: i256) -> i1 {
+  bb0:
+    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = ne v0, 0x01ffc9a700000000000000000000000000000000000000000000000000000000
+    ret v1
+}
