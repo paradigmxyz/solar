@@ -48,7 +48,7 @@ use crate::{
     mir::{
         BlockId, EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
         MirType, Module, PtrLocation, Value, ValueId,
-        analysis::{AliasAnalysis, AliasResult, CallGraphInfo, MemoryBase, MemoryCallSummaries},
+        analysis::{AliasAnalysis, AliasResult, MemoryBase, MemoryCallSummaries},
         memory::EvmMemoryLayout,
         pass::MirPass,
         transform::utils::expand_block,
@@ -121,7 +121,7 @@ impl MirPass for LowerMCopy {
         for (func_id, sites) in sites.into_iter_enumerated() {
             lower_function(module.function_mut(func_id), &sites, &helpers);
         }
-        CallGraphInfo::assert_runtime_helpers(module, functions.into_values());
+        module.assert_runtime_helpers(functions.into_values());
         true
     }
 }

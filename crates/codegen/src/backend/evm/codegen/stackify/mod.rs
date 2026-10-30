@@ -432,7 +432,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             );
             return;
         };
-        let internal_targets = Self::internal_call_targets(module, call_graph, entry);
+        let internal_targets = module.runtime_reachable_functions();
         let emitting_entry = Liveness::is_block_local(&module.functions[entry]);
         let bodies = module
             .functions

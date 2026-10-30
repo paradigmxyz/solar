@@ -447,12 +447,9 @@ impl Module {
     #[must_use]
     pub(crate) fn runtime_reachable_functions(&self) -> DenseBitSet<FunctionId> {
         let roots = self.dispatch_entry().into_iter().chain(
-            self.functions.iter_enumerated().filter_map(|(id, func)| {
-                (func.selector.is_some()
-                    || func.attributes.is_fallback
-                    || func.attributes.is_receive)
-                    .then_some(id)
-            }),
+            self.functions
+                .iter_enumerated()
+                .filter_map(|(id, func)| func.is_runtime_entry().then_some(id)),
         );
         self.reachable_from(roots)
     }
@@ -465,6 +462,26 @@ impl Module {
                 .iter_enumerated()
                 .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
         )
+    }
+
+    /// Checks the phase contract for helpers that require runtime static frames.
+    /// Constructor ABI staging may already occupy the free-memory pointer, so
+    /// these helpers must not be reachable through any constructor call chain.
+    pub(crate) fn assert_runtime_helpers(&self, helpers: impl IntoIterator<Item = FunctionId>) {
+        if cfg!(debug_assertions) {
+            let helpers = helpers.into_iter().collect::<Vec<_>>();
+            if helpers.is_empty() {
+                return;
+            }
+            let constructor = self.constructor_reachable_functions();
+            for helper in helpers {
+                assert!(
+                    !constructor.contains(helper),
+                    "runtime helper `{}` is constructor-reachable and may overlap ABI staging",
+                    self.function(helper).name
+                );
+            }
+        }
     }
 
     /// Returns the functions that neither `constructor` nor `runtime` contains, and the functions
