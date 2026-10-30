@@ -15,7 +15,6 @@ mod coalesce_copies;
 pub(crate) mod compact_pushes;
 pub(super) mod data;
 mod dce;
-mod inline_returns;
 mod late_structural;
 mod legalize_revert;
 mod loop_layout;
@@ -25,8 +24,7 @@ mod reorder_pushes;
 mod share_reverts;
 mod stack_normalize;
 mod stack_reschedule;
-mod tail_dup;
-mod tail_duplicate;
+mod tail_copy;
 mod tail_merge;
 mod terminal_dedup;
 mod terminal_layout;
@@ -119,7 +117,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &peephole::Peephole::FINAL,
     &peephole::LateWord,
     &dce::Dce,
-    &inline_returns::InlineReturns,
+    &tail_copy::InlineReturns,
     &reorder_pushes::REORDER_PUSHES,
     &reorder_pushes::REORDER_EXPRESSIONS,
     &share_reverts::ShareReverts,
@@ -135,11 +133,11 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &outline::Outline,
     &terminal_dedup::TerminalDedup,
     &tail_merge::TailMerge,
-    &tail_dup::TailDup,
+    &tail_copy::CopyLoopBlocks,
     &block_layout::BlockLayout,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,
-    &tail_duplicate::TailDuplicate,
+    &tail_copy::CopyJoins,
 ];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
@@ -210,9 +208,9 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Cleanup(dce::Dce),
     &late_structural::LateStructural,
     &peephole::Peephole::FINAL,
-    &peephole::Cleanup(inline_returns::InlineReturns),
+    &peephole::Cleanup(tail_copy::InlineReturns),
     // Copy loop joins only after the last tail merge, which would share the copies again.
-    &peephole::Cleanup(tail_dup::TailDup),
+    &peephole::Cleanup(tail_copy::CopyLoopBlocks),
     &cfg_simplify::CfgSimplify::FINAL,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,
@@ -220,7 +218,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::LateWord,
     // Introduce `EXCHANGE` only after every peephole has seen the plain swaps.
     &stack_normalize::StackNormalize::FINAL,
-    &tail_duplicate::TailDuplicate,
+    &tail_copy::CopyJoins,
 ];
 
 /// Finds an EVM IR pass by command-line name.
