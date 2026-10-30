@@ -739,10 +739,10 @@ bb65 [loop]:
   swap 3
   dup 3
   dup 5
-  sub
-  push bb68
+  eq
+  push bb67
   jumpi
-  jump bb67
+  jump bb68
 bb68 [loop]:
   dup 2
   dup 5

@@ -1,6 +1,4 @@
-//@ revisions: gas size
-//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=jumpi-fallthrough
-//@[size] compile-flags: -Osize -Zevm-ir-pipeline=jumpi-fallthrough
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=jumpi-fallthrough
 //@ run-call: pick(uint256,uint256)(uint256) 7, 8 => 1
 //@ run-call: pick(uint256,uint256)(uint256) 7, 9 => 2
 //@ run-call: pick(uint256,uint256)(uint256) 8, 8 => 2

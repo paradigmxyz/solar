@@ -4,25 +4,14 @@
 //! very next block: the `JUMPI` jumps over the `JUMP` and the next block's `JUMPDEST` receives
 //! it. The pass turns the test around, `condition; iszero; push other; jumpi`, and lets control
 //! fall into `next`. A condition that already ends in an `ISZERO` drops it instead, and one that
-//! ends in `EQ` or `SUB` trades it for the other. This saves
-//! the second transfer and, unless another reference keeps it, the `JUMPDEST` of `next`, three
-//! bytes for the common `PUSH1` labels and one more for the dropped `JUMPDEST`. It costs an
-//! `ISZERO` on both edges, which a jump to `other` repays: the old branch ran `PUSH; JUMPI; PUSH;
-//! JUMP` there, and the new one runs `ISZERO; PUSH; JUMPI`.
+//! ends in `EQ` or `SUB` trades it for the other. This saves the second `PUSH; JUMP` and, unless
+//! another reference keeps it, the `JUMPDEST` of `next`. It costs an `ISZERO` on both edges,
+//! which a jump to `other` repays.
 //!
-//! [`Target::falls_through_turned_branch`] prices both shapes with the edge frequencies of the
-//! branch. A cold `next` never runs, and a cold `other` never repays. A branch in a loop enters
-//! `next` [`Target::UNCOUNTED_LOOP_ITERATIONS`] times for each entry of `other` when `next` is in
-//! a loop, which gas builds do not pay the `ISZERO` for; it enters `other` that often when only
-//! `other` is in a loop, as the latch of a loop whose exit follows it does. Every other branch
-//! splits its executions equally. Size builds take the bytes unless a loop's extra gas outweighs
-//! their deposit, which at one optimizer run it never does. The loop odds are a static guess:
-//! the header of an inner loop whose exit continues the outer one has both edges in loops and
-//! counts as staying in the loop.
-//!
-//! The pass runs once the layout is final and never moves a block, so every other fallthrough
-//! stays. It skips a branch whose boundary before the `PUSH` is not a legal split point, and a
-//! jump that declares a call effect.
+//! [`Target::falls_through_turned_branch`] prices both shapes with the odds of the two edges
+//! from [`edge_runs`]. The pass runs once the layout is final and never moves a block, so every
+//! other fallthrough stays. It skips a branch whose boundary before the `PUSH` is not a legal
+//! split point.
 
 use super::{
     EvmPass,
@@ -53,7 +42,6 @@ impl EvmPass for JumpiFallthrough {
             let block = &module.blocks[block_id];
             if let Some(term) = &block.terminator
                 && let TerminatorKind::Jump(other) = term.kind
-                && term.metadata.function_invoke().is_none()
                 && other != next
                 && let [.., pushed, jumpi] = block.instructions.as_slice()
                 && pushed.is_encoded_push()
@@ -99,7 +87,8 @@ impl EvmPass for JumpiFallthrough {
                         block.instructions.insert(push, iszero);
                     }
                     TurnedTest::Drops => {
-                        block.instructions.remove(push - 1);
+                        let removed = block.instructions.remove(push - 1);
+                        block.instructions[push - 1].metadata.absorb_debug_info(&removed.metadata);
                     }
                     TurnedTest::Swaps => {
                         let condition = &mut block.instructions[push - 1];
@@ -108,6 +97,10 @@ impl EvmPass for JumpiFallthrough {
                     }
                 }
                 if let Some(term) = &mut block.terminator {
+                    // NOTE: The fallthrough emits no instruction for the jump's function entry,
+                    // which now belongs to the `JUMPI`'s taken edge only; drop it rather than
+                    // keep a jump, or skip the rewrite, for debug information.
+                    term.metadata.take_function_invoke();
                     term.kind = TerminatorKind::Jump(next);
                 }
                 references[next] -= 1;
@@ -119,19 +112,19 @@ impl EvmPass for JumpiFallthrough {
 }
 
 /// How often a branch of `block` enters `next` and `other` relative to each other: never a cold
-/// block, and otherwise equally, except in a loop. A branch in a loop is assumed to stay in it
-/// through `next` when `next` is in a loop, [`Target::UNCOUNTED_LOOP_ITERATIONS`] times for each
-/// time it enters `other`, so a loop whose edges both stay in loops, as the header of an inner
-/// loop whose exit continues the outer one, keeps its jump instead of risking the `ISZERO` on
-/// every iteration. It enters `other` that often when only `other` is in a loop.
+/// block, and otherwise equally, except in a loop. A branch in a loop stays in it through `next`
+/// [`Target::UNCOUNTED_LOOP_ITERATIONS`] times for each time it enters `other`, when `next` is in
+/// a loop, and the reverse when only `other` is, as at the latch of a loop whose exit follows it.
+/// When both edges are in loops, as at the header of an inner loop whose exit continues the outer
+/// one, this guesses that the branch stays in `next`, so gas builds keep the jump.
 fn edge_runs(module: &Module, block: BlockId, next: BlockId, other: BlockId) -> (u64, u64) {
+    let in_loop = module.blocks[block].metadata.in_loop;
     let (next, other) = (&module.blocks[next].metadata, &module.blocks[other].metadata);
     match (next.hotness.is_cold(), other.hotness.is_cold()) {
         (true, _) => (0, 1),
         (_, true) => (1, 0),
-        _ if !module.blocks[block].metadata.in_loop => (1, 1),
-        _ if next.in_loop => (Target::UNCOUNTED_LOOP_ITERATIONS, 1),
-        _ if other.in_loop => (1, Target::UNCOUNTED_LOOP_ITERATIONS),
+        _ if in_loop && next.in_loop => (Target::UNCOUNTED_LOOP_ITERATIONS, 1),
+        _ if in_loop && other.in_loop => (1, Target::UNCOUNTED_LOOP_ITERATIONS),
         _ => (1, 1),
     }
 }

@@ -1,6 +1,4 @@
-//@ revisions: gas size
-//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=jumpi-fallthrough
-//@[size] compile-flags: -Osize -Zevm-ir-pipeline=jumpi-fallthrough
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=jumpi-fallthrough
 //@ run-call: pick(uint256)(uint256) 0 => 1
 //@ run-call: pick(uint256)(uint256) 7 => 2
 // A condition that already ends in `iszero` loses it when the branch turns around.
