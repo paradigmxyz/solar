@@ -113,12 +113,12 @@ struct Compare {
     literal: U256,
 }
 
-/// Which of two tests that abort on different edges turns around, so both abort when their
-/// conditions hold: into the complement when it compares a word with a literal, or else (`None`)
-/// into its negation.
+/// How the one of two tests that abort on different edges turns around, so both abort when their
+/// conditions hold: into the complement when it compares a word with a literal, or else into its
+/// negation.
 enum Flip {
-    First(Option<Compare>),
-    Second(Option<Compare>),
+    Complement(Compare),
+    Negate,
 }
 
 /// A test on a block's way out: its condition, the aborting block, the continuation, and
@@ -288,10 +288,14 @@ fn mergeable(
     let flip = match (first.aborts_when_true, second.aborts_when_true) {
         (true, true) | (false, false) => None,
         _ if !cyclic.contains(block) => return None,
-        (false, true) => Some(Flip::First(complement(func, first.condition))),
-        (true, false) => Some(Flip::Second(complement(func, second.condition))),
+        (false, true) => {
+            Some(complement(func, first.condition).map_or(Flip::Negate, Flip::Complement))
+        }
+        (true, false) => {
+            Some(complement(func, second.condition).map_or(Flip::Negate, Flip::Complement))
+        }
     };
-    let added = if matches!(flip, Some(Flip::First(None) | Flip::Second(None))) {
+    let added = if matches!(flip, Some(Flip::Negate)) {
         target.opcode(op::OR) + target.opcode(op::ISZERO)
     } else {
         target.opcode(op::OR)
@@ -309,20 +313,15 @@ fn mergeable(
 /// `x < k` fails when `x > k - 1`, and `x > k` when `x < k + 1`.
 fn complement(func: &Function, condition: ValueId) -> Option<Compare> {
     let literal = |value| func.value_u256(value);
-    let (word, below, k) = match *func.value_inst_kind(condition)? {
+    Some(match *func.value_inst_kind(condition)? {
         InstKind::Lt(word, k) | InstKind::Gt(k, word) if literal(word).is_none() => {
-            (word, true, literal(k)?)
+            Compare { word, below: false, literal: literal(k)?.checked_sub(U256::ONE)? }
         }
         InstKind::Gt(word, k) | InstKind::Lt(k, word) if literal(word).is_none() => {
-            (word, false, literal(k)?)
+            Compare { word, below: true, literal: literal(k)?.checked_add(U256::ONE)? }
         }
         _ => return None,
-    };
-    if below {
-        Some(Compare { word, below: false, literal: k.checked_sub(U256::from(1))? })
-    } else {
-        Some(Compare { word, below: true, literal: k.checked_add(U256::from(1))? })
-    }
+    })
 }
 
 /// Appends a compiler-generated instruction to a block and returns its result.
@@ -353,16 +352,17 @@ fn merge(
     // Otherwise the test turns into its negation:
     // b1: c1' = eq c1, false
     // b2: c2' = eq c2, false
-    match flip {
-        Some(Flip::First(compare)) => {
-            first.condition = flipped(func, predecessor, first.condition, compare);
-            first.aborts_when_true = true;
-        }
-        Some(Flip::Second(compare)) => {
-            second.condition = flipped(func, block, second.condition, compare);
-            second.aborts_when_true = true;
-        }
-        None => {}
+    if let Some(flip) = flip {
+        let (test, at) =
+            if first.aborts_when_true { (&mut second, block) } else { (&mut first, predecessor) };
+        test.condition = match flip {
+            Flip::Complement(compare) => append_compare(func, at, compare),
+            Flip::Negate => {
+                let no = func.alloc_value(Value::Immediate(Immediate::I1(false)));
+                append(func, at, InstKind::Eq(test.condition, no))
+            }
+        };
+        test.aborts_when_true = true;
     }
     let combined = if first.word || second.word {
         // w1 = zext i1 c1 to i256 (unless c1 is already a word)
@@ -410,21 +410,6 @@ fn merge(
 
     // b1: ...; jump b2
     replace_terminator(func, predecessor, Terminator::Jump(block));
-}
-
-/// Appends the turned-around form of a test's condition: the complement `compare`, or the
-/// negation when there is none.
-fn flipped(
-    func: &mut Function,
-    block: BlockId,
-    condition: ValueId,
-    compare: Option<Compare>,
-) -> ValueId {
-    if let Some(compare) = compare {
-        return append_compare(func, block, compare);
-    }
-    let no = func.alloc_value(Value::Immediate(Immediate::I1(false)));
-    append(func, block, InstKind::Eq(condition, no))
 }
 
 /// Appends a comparison of a word with a literal and returns its result.

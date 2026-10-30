@@ -53,7 +53,7 @@ use crate::{
     backend::evm::op,
     mir::{
         BlockId, EffectKind, Function, FunctionBuilder, Immediate, InstId, InstKind, MirType,
-        Module, Op, Terminator, Value, ValueId,
+        Module, Terminator, Value, ValueId,
         analysis::{CfgInfo, integers::integer_mask},
         pass::{MirPass, run_function_pass},
         utils::{invalidate_unreachable_block, invalidate_unreachable_blocks, replace_terminator},
@@ -468,11 +468,9 @@ fn select_cost(func: &Function, target: &Target, select: &Select, shared: bool) 
 /// comparison that makes it one.
 fn condition_cost(func: &Function, target: &Target, condition: ValueId, reads: u32) -> Cost {
     let copies = target.dup().times(reads.saturating_sub(1));
-    let nonzero_test = func.value_inst_kind(condition).is_some_and(|kind| {
-        let op = kind.op();
-        matches!(op, Op::Ne { .. })
-            && Target::zero_test_input(&op, |value| func.value_u256(value)).is_some()
-    });
+    let nonzero_test = func
+        .value_inst_kind(condition)
+        .is_some_and(|kind| kind.nonzero_test_operand(func).is_some());
     if nonzero_test || !is_bool_value(func, condition) {
         // ne word, 0: iszero iszero
         copies.plus(target.opcode(op::ISZERO).times(2))
@@ -497,6 +495,7 @@ fn convert(func: &mut Function, site: &Site) {
     let else_pred = site.else_arm.unwrap_or(block);
     let mut replacements = FxHashMap::default();
     for select in &site.selects {
+        // join: v = phi [kept edges], [block: select]
         let selected = select_value(func, block, condition, select);
         let InstKind::Phi(incoming) = &mut func.inst_mut(select.phi).kind else { continue };
         incoming.retain(|&(from, _)| from != then_pred && from != else_pred);
@@ -511,10 +510,11 @@ fn convert(func: &mut Function, site: &Site) {
         }
     }
     func.replace_uses(&replacements);
+    // block: branch cond, then_arm, else_arm -> jump join
+    replace_terminator(func, block, Terminator::Jump(site.join));
     // The arms are unreachable now; drop their edges and predecessor entries
     // so the join's phis and edge lists stay consistent until CFG cleanup
     // removes the blocks.
-    replace_terminator(func, block, Terminator::Jump(site.join));
     for arm in [site.then_arm, site.else_arm].into_iter().flatten() {
         let _ = invalidate_unreachable_block(func, arm);
     }
