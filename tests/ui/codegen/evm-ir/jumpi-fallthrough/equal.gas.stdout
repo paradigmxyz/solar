@@ -1,0 +1,40 @@
+- // === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/equal.evmir (before jumpi-fallthrough) ===
++ // === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/equal.evmir (after jumpi-fallthrough) ===
+  @module Equal
+  bb0:
+    push 4
+    calldataload
+    push 7
+-   eq
+-   push bb1
++   sub
++   push bb2
+    jumpi
+-   jump bb2
++   jump bb1
+  bb1:
+    push 36
+    calldataload
+    push 9
+-   sub
+-   push bb3
++   eq
++   push bb2
+    jumpi
+-   jump bb2
++   jump bb3
+  bb3:
+    push 1
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb2:
+    push 2
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

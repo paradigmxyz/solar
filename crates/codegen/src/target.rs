@@ -128,6 +128,17 @@ impl std::iter::Sum for Cost {
     }
 }
 
+/// What a branch's test becomes when the branch turns around.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TurnedTest {
+    /// An `ISZERO` follows the condition.
+    Adds,
+    /// The condition's own trailing `ISZERO` goes.
+    Drops,
+    /// A trailing `EQ` becomes a `SUB`, or the reverse, at the same cost.
+    Swaps,
+}
+
 /// The cost model of the selected EVM version under the active objective.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct Target {
@@ -820,6 +831,49 @@ impl Target {
     /// Cost of a conditional edge, including the pushed label and the target's landing.
     pub(crate) fn branch(&self) -> Cost {
         self.label_push() + self.opcode(op::JUMPI) + self.opcode(op::JUMPDEST)
+    }
+
+    /// Whether turning the branch `PUSH next; JUMPI; PUSH other; JUMP` around into `ISZERO; PUSH
+    /// other; JUMPI`, falling into the `next` block that follows it, is the better code, when the
+    /// branch enters `next` `next_runs` times for every `other_runs` times it enters `other`.
+    /// A condition that ends in an `ISZERO`, `EQ` or `SUB` turns without an added `ISZERO`
+    /// (`test`). The `JUMPDEST` of `next` goes unless another reference keeps it
+    /// (`keeps_landing`).
+    ///
+    /// The turned branch pays the `ISZERO` on both edges and jumps to `other` without a second
+    /// transfer, so it saves gas when `other` is entered often enough. Size builds take the bytes
+    /// unless the extra gas of a hot loop costs more over the expected executions than the
+    /// deposit of the bytes saved.
+    pub(crate) fn falls_through_turned_branch(
+        &self,
+        next_runs: u64,
+        other_runs: u64,
+        test: TurnedTest,
+        keeps_landing: bool,
+    ) -> bool {
+        let price = |cost: Cost| (i64::from(self.runtime_gas(cost)), i64::from(cost.bytes));
+        let (iszero_gas, iszero_bytes) = price(self.opcode(op::ISZERO));
+        let (test_gas, test_bytes) = match test {
+            TurnedTest::Adds => (iszero_gas, iszero_bytes),
+            TurnedTest::Drops => (-iszero_gas, -iszero_bytes),
+            TurnedTest::Swaps => (0, 0),
+        };
+        let (jump_gas, jump_bytes) = price(self.label_push() + self.opcode(op::JUMP));
+        let (landing_gas, landing_bytes) = price(self.opcode(op::JUMPDEST));
+        let (kept_gas, kept_bytes) =
+            if keeps_landing { (landing_gas, landing_bytes) } else { (0, 0) };
+        // Entering `next` pays the test, and the landing only if kept, where it paid the landing.
+        let next_extra = test_gas + kept_gas - landing_gas;
+        // Entering `other` pays the test, where it paid a second transfer.
+        let other_saving = jump_gas - test_gas;
+        let gas_saving = i128::from(other_runs) * i128::from(other_saving)
+            - i128::from(next_runs) * i128::from(next_extra);
+        let gas_saving = i64::try_from(gas_saving).unwrap_or(i64::MIN);
+        let byte_saving = jump_bytes + landing_bytes - kept_bytes - test_bytes;
+        self.improves(gas_saving, byte_saving)
+            && (gas_saving >= 0
+                || !self.optimization.is_size()
+                || self.deposit_repays_gas(byte_saving as u64, gas_saving.unsigned_abs()))
     }
 
     /// Whether encoding static calldata elements of `element_words` words keeps a block copy

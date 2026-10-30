@@ -1,0 +1,38 @@
+//@ revisions: gas size size_runs
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=jumpi-fallthrough
+//@[size] compile-flags: -Osize --optimize-runs 1 -Zevm-ir-pipeline=jumpi-fallthrough
+//@[size_runs] compile-flags: -Osize -Zevm-ir-pipeline=jumpi-fallthrough
+//@ run-call: sum(uint256)(uint256) 0 => 0
+//@ run-call: sum(uint256)(uint256) 1 => 1
+//@ run-call: sum(uint256)(uint256) 100 => 5050
+// The header enters the loop body on every iteration and leaves through `bb3` once. Turning it
+// around adds an `iszero` to each iteration, which gas builds keep out of the loop. A size build
+// for one run takes the three bytes. At the default runs, the extra gas of the loop's iterations
+// costs more than the deposit of those bytes, so it keeps the jump.
+@module LoopExit
+bb0:
+  push 4
+  calldataload
+  push 0
+  jump bb1
+bb1 [loop]:
+  dup 2
+  push bb2
+  jumpi
+  jump bb3
+bb2 [loop]:
+  dup 2
+  add
+  swap 1
+  push 1
+  swap 1
+  sub
+  swap 1
+  jump bb1
+bb3:
+  push 0
+  mstore
+  pop
+  push 32
+  push 0
+  return

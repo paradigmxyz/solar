@@ -15,6 +15,7 @@ mod coalesce_copies;
 pub(crate) mod compact_pushes;
 pub(super) mod data;
 mod dce;
+mod jumpi_fallthrough;
 mod late_structural;
 mod legalize_revert;
 mod loop_layout;
@@ -131,6 +132,7 @@ static ALL_PASSES: &[&dyn EvmPass] = &[
     &block_layout::BlockLayout,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,
+    &jumpi_fallthrough::JumpiFallthrough,
     &tail_copy::CopyJoins,
 ];
 
@@ -206,6 +208,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &cfg_simplify::CfgSimplify::FINAL,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,
+    &jumpi_fallthrough::JumpiFallthrough,
     &reorder_pushes::REORDER_EXPRESSIONS,
     &peephole::LateWord,
     // Introduce `EXCHANGE` only after every peephole has seen the plain swaps.
