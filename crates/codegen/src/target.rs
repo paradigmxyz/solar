@@ -812,6 +812,15 @@ impl Target {
         }
     }
 
+    /// Whether code that cannot reach a normal exit counts as cold, and so do the code after a
+    /// call and the edges into cold blocks. Marking it moves failure loops and the code around
+    /// them out of line, which saves gas on the paths that succeed. The move saves no bytes, and
+    /// the layout it changes can widen jump labels, so a size build leaves that code in place
+    /// and moves only the blocks that abort.
+    pub(crate) const fn marks_failure_paths_cold(&self) -> bool {
+        self.optimization.is_gas()
+    }
+
     /// Cost of a jump to a block, including the pushed label and the target's landing.
     pub(crate) fn jump(&self) -> Cost {
         self.label_push() + self.opcode(op::JUMP) + self.opcode(op::JUMPDEST)
@@ -1579,6 +1588,14 @@ mod tests {
         // Folding that drops the original object only moves the stores.
         assert!(folds(size(EvmVersion::Cancun), true, 64));
         assert!(!size(EvmVersion::Cancun).folds_preserved_literal(false, || None));
+    }
+
+    #[test]
+    fn failure_paths_are_cold_for_gas_only() {
+        let target = |optimization| Target::with(EvmVersion::Osaka, optimization, 200);
+        assert!(target(OptimizationMode::Gas).marks_failure_paths_cold());
+        assert!(!target(OptimizationMode::Size).marks_failure_paths_cold());
+        assert!(!target(OptimizationMode::None).marks_failure_paths_cold());
     }
 
     #[test]
