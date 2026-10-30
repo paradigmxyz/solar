@@ -4488,6 +4488,7 @@ dependencies = [
  "solar-config",
  "solar-data-structures",
  "solar-interface",
+ "solar-ir",
  "solar-parse",
 ]
 
@@ -4537,6 +4538,18 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "unicode-width",
+]
+
+[[package]]
+name = "solar-ir"
+version = "0.2.0"
+dependencies = [
+ "alloy-primitives",
+ "smallvec",
+ "solar-ast",
+ "solar-data-structures",
+ "solar-interface",
+ "solar-parse",
 ]
 
 [[package]]
@@ -4596,8 +4609,8 @@ dependencies = [
  "solar-ast",
  "solar-config",
  "solar-data-structures",
- "solar-evmir",
  "solar-interface",
+ "solar-ir",
  "solar-parse",
 ]
 

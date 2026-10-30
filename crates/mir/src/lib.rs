@@ -9,7 +9,7 @@
 
 use solar_data_structures::newtype_index;
 
-pub use solar_evmir::link::{Data, DataBytes, DataId, DataRef, DataSize, ImmutableId};
+pub use solar_ir::link::{Data, DataBytes, DataId, DataRef, DataSize, ImmutableId};
 
 pub mod analysis;
 pub mod immutable;

@@ -12,8 +12,8 @@ use alloy_primitives::{Bytes, U256};
 use smallvec::SmallVec;
 use solar_config::RevertStrings;
 use solar_data_structures::map::FxHashMap;
-use solar_evmir::link::LibraryId;
 use solar_interface::Span;
+use solar_ir::link::LibraryId;
 
 pub trait ToUint {
     fn to_uint(self) -> U256;

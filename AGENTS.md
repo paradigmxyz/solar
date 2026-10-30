@@ -48,8 +48,10 @@ Pipeline: lex -> parse -> sema (AST -> HIR, typeck) -> MIR -> EVM IR -> bytecode
   (cost model).
 - `crates/evmir`: the EVM IR data model, text format, and verifier (`ir/`),
   the opcode table and word semantics (`op.rs`, `op/word.rs`), the gas
-  schedule (`gas.rs`), and program data shared with MIR (`link.rs`).
-  `crates/evmir-interpreter`: runs EVM IR.
+  schedule (`gas.rs`). `crates/evmir-interpreter`: runs EVM IR.
+- `crates/ir`: what MIR and EVM IR share: program data and library tables
+  (`link.rs`), debug-span bounds (`debug.rs`), and the IR text parser
+  (`ir_parse.rs`).
 - `crates/interface`: sources, spans, diagnostics, symbols.
   `crates/data-structures`: index types, bitsets, arena helpers.
   `crates/config`: options and `-Z` flags (`opts.rs`; bless

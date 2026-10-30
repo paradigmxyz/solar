@@ -73,7 +73,7 @@ pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
 // =============================================================================
 
 struct Parser<'sess, 'ast> {
-    parser: solar_evmir::ir_parse::Parser<'sess, 'ast>,
+    parser: solar_ir::ir_parse::Parser<'sess, 'ast>,
     pending_function_ref: Option<(MangledSymbol, Span)>,
     parsed_dispatch_entry: bool,
     function_refs: Vec<PendingFunctionRef>,
@@ -126,7 +126,7 @@ fn schema_typed(func: &Function, kind: InstKind) -> (InstKind, Option<MirType>) 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn new(sess: &'sess Session, arena: &'ast Arena, source: &SourceFile) -> Self {
         Self {
-            parser: solar_evmir::ir_parse::Parser::new(sess, arena, source),
+            parser: solar_ir::ir_parse::Parser::new(sess, arena, source),
             pending_function_ref: None,
             parsed_dispatch_entry: false,
             function_refs: Vec::new(),
@@ -1489,8 +1489,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     loop {
                         let (lo, hi) = self.parser.parse_span_bounds()?;
                         let span = Span::new(BytePos(lo), BytePos(hi));
-                        if spans.len() < solar_evmir::debug::MAX_DEBUG_SPANS
-                            && !spans.contains(&span)
+                        if spans.len() < solar_ir::debug::MAX_DEBUG_SPANS && !spans.contains(&span)
                         {
                             spans.push(span);
                         }

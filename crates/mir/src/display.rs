@@ -476,13 +476,13 @@ fn display_inst_kind<'a>(
             write!(
                 f,
                 "datacopy {}",
-                solar_evmir::link::display_data_ref(name, id.id.index(), id.offset)
+                solar_ir::link::display_data_ref(name, id.id.index(), id.offset)
             )?;
             write!(f, ", {}, {}", display_val(*dest, func), display_val(*size, func))
         }
         InstKind::DataSize(size) => {
             let name = module.and_then(|module| module.data[size.data].name);
-            write!(f, "datasize {}", solar_evmir::link::display_data_size(name, *size))
+            write!(f, "datasize {}", solar_ir::link::display_data_size(name, *size))
         }
         InstKind::Alloc { size, semantics } => {
             write!(f, "alloc ")?;

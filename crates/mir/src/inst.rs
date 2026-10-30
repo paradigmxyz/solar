@@ -91,7 +91,7 @@ impl InstructionMetadata {
         }
         if self.source_span.is_dummy() {
             self.source_span = span;
-        } else if self.source_spans().count() < solar_evmir::debug::MAX_DEBUG_SPANS {
+        } else if self.source_spans().count() < solar_ir::debug::MAX_DEBUG_SPANS {
             self.additional_source_spans.get_or_insert_default().push(span);
         }
     }

@@ -25,7 +25,7 @@
 //! operand pair, leaving attributes and any remaining operands untouched.
 
 use alloy_primitives::Bytes;
-use solar_evmir::link::LibraryId;
+use solar_ir::link::LibraryId;
 
 use super::{
     AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AddressCallKind, AllocationSemantics,

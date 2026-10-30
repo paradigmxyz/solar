@@ -14,8 +14,8 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use solar_evmir::link::{ContractCode, LibraryTable, QualifiedName, Trailer};
 use solar_interface::{Ident, Session, Symbol, config::OptimizationMode, sym};
+use solar_ir::link::{ContractCode, LibraryTable, QualifiedName, Trailer};
 use std::{borrow::Cow, fmt, sync::Arc};
 
 /// Returns whether pass managers should validate IR after each pass.
@@ -749,7 +749,7 @@ impl Module {
                 }
                 writeln!(f)?;
             }
-            write!(f, "{}", solar_evmir::link::display_declarations(&self.libraries, &self.data))?;
+            write!(f, "{}", solar_ir::link::display_declarations(&self.libraries, &self.data))?;
             if !self.immutables.is_empty() {
                 writeln!(f, "@immutables")?;
                 for (id, immutable) in self.iter_immutables() {

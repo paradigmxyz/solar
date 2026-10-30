@@ -27,8 +27,8 @@ workspace = true
 solar-ast.workspace = true
 solar-config.workspace = true
 solar-data-structures.workspace = true
-solar-evmir.workspace = true
 solar-interface.workspace = true
+solar-ir.workspace = true
 solar-parse.workspace = true
 
 alloy-primitives.workspace = true
@@ -39,7 +39,7 @@ smallvec.workspace = true
 nightly = [
     "solar-ast/nightly",
     "solar-data-structures/nightly",
-    "solar-evmir/nightly",
     "solar-interface/nightly",
+    "solar-ir/nightly",
     "solar-parse/nightly",
 ]

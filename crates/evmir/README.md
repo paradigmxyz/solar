@@ -11,8 +11,9 @@ exist. This crate holds:
   printer, and the verifier;
 - `op`: the opcode table, with each opcode's stack effect, traits, gas tier, and availability
   across EVM versions, and the word semantics of the pure opcodes;
-- `gas`: the gas schedule of each opcode tier across EVM versions;
-- `link`: program data, library identities, and relocatable bytecode, which MIR shares.
+- `gas`: the gas schedule of each opcode tier across EVM versions.
+
+`link`, `debug`, and `ir_parse`, which MIR shares, come from `solar-ir` and are re-exported here.
 
 The compiler's EVM IR passes and the assembler live in `solar-codegen`, which compiles EVM IR to
 bytecode.
