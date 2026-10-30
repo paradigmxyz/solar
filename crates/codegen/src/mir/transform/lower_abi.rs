@@ -1876,7 +1876,7 @@ impl LowerAbiCx {
             builder.add_phi_incoming(cursor, body, next_cursor);
             builder.add_phi_incoming(folded, body, next);
             builder.switch_to_block(validate);
-            Self::validate_abi_word(builder, next, validator, ConditionUse::BRANCH);
+            Self::validate_abi_word(builder, next, validator);
             builder.jump(done);
             builder.switch_to_block(done);
             *current = builder.current_block();
@@ -2221,7 +2221,7 @@ impl LowerAbiCx {
         }
         let value = Self::load_input_word(builder, position, options.constructor);
         if let Some(validator) = ty.word_validator() {
-            Self::validate_abi_word(builder, value, validator, ConditionUse::BRANCH);
+            Self::validate_abi_word(builder, value, validator);
             *current = builder.current_block();
         }
         Self::normalize_abi_word(builder, ty, value)
@@ -2532,9 +2532,8 @@ impl LowerAbiCx {
         builder: &mut FunctionBuilder<'_>,
         value: ValueId,
         validator: AbiWordValidator,
-        read: ConditionUse,
     ) {
-        let invalid = validator.violation(builder, value, read);
+        let invalid = validator.violation(builder, value, ConditionUse::BRANCH);
         builder.revert_if(invalid, RevertReason::Empty);
     }
 

@@ -35,3 +35,25 @@
       revert 0, 0
   }
   
+  fn @widest(arg0: i256) -> i256 {
+    bb0:
+-     v0 = gt arg0, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     v1 = shr arg0, 255
++     v0 = ne v1, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      ret arg0
+    bb1:
+      revert 0, 0
+  }
+  
+  fn @narrowest(arg0: i256) -> i256 {
+    bb0:
+      v0 = gt arg0, 1
+      jumpi v0, bb1, bb2
+    bb2:
+      ret arg0
+    bb1:
+      revert 0, 0
+  }
+  

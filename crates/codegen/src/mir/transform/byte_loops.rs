@@ -2065,7 +2065,7 @@ fn calldata_wraps(builder: &mut FunctionBuilder<'_>, access: &Access, count: Val
             index_wraps,
             index_end,
             256 - u32::from(access.shift),
-            ConditionUse::BRANCH,
+            ConditionUse::VALUE,
         );
         wraps = builder.or(wraps, index_fails);
     }
