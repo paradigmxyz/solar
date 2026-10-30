@@ -28,4 +28,15 @@
     push 32
     push 0
     return
+  bb2:
+    push 36
+    calldataload
+    push 4
+    calldataload
+    iszero
+    iszero
+    or
+    push 0
+    mstore
+    stop
   

@@ -35,3 +35,16 @@ bb1:
   push 32
   push 0
   return
+
+// The `OR` result is data here, not a branch condition, so the normalization stays.
+bb2:
+  push 36
+  calldataload
+  push 4
+  calldataload
+  iszero
+  iszero
+  or
+  push 0
+  mstore
+  stop
