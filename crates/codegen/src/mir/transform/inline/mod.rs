@@ -298,7 +298,7 @@ impl MirInliner {
 
         let mut artifact_calls = (!self.straight_line.is_empty()
             || summaries.iter().any(|summary| summary.is_small_literal_return))
-        .then(|| ArtifactCallCounts::new(module, &call_graph));
+        .then(|| ArtifactCallCounts::new(module));
         let preferred_large_call_sites = self.preferred_large_call_sites(module, &summaries);
         let mut consumed_everywhere =
             all_sites::consumed_everywhere(self, module, &summaries, &call_counts);
@@ -840,40 +840,14 @@ struct ArtifactCallCounts {
 }
 
 impl ArtifactCallCounts {
-    fn new(module: &Module, graph: &CallGraphInfo) -> Self {
-        let roots = |creation| {
-            module.functions.iter_enumerated().filter_map(move |(id, func)| {
-                let selected = if creation {
-                    func.attributes.is_constructor
-                } else {
-                    func.selector.is_some()
-                        || func.attributes.is_fallback
-                        || func.attributes.is_receive
-                        || module.dispatch_entry() == Some(id)
-                };
-                selected.then_some(id)
-            })
-        };
-        let mut creation = graph.reachable_callees_from(roots(true));
-        let mut runtime = graph.reachable_callees_from(roots(false));
-        for root in roots(true) {
-            creation.insert(root);
-        }
-        for root in roots(false) {
-            runtime.insert(root);
-        }
+    fn new(module: &Module) -> Self {
+        let mut creation = module.constructor_reachable_functions();
+        let mut runtime = module.runtime_reachable_functions();
         // Unrooted ad-hoc MIR and address-exposed functions get the conservative
         // shared classification, rather than zero incoming artifact counts.
-        let unknown = module
-            .functions
-            .indices()
-            .filter(|&id| !creation.contains(id) && !runtime.contains(id))
-            .collect::<Vec<_>>();
-        let unknown_callees = graph.reachable_callees_from(unknown.iter().copied());
-        for id in unknown.into_iter().chain(unknown_callees.iter()) {
-            creation.insert(id);
-            runtime.insert(id);
-        }
+        let unknown = module.unrooted_reachable_functions(&creation, &runtime);
+        creation.union(&unknown);
+        runtime.union(&unknown);
         let counts = IndexVec::from_vec(vec![[0; 2]; module.functions.len()]);
         let mut result = Self { creation, runtime, counts };
         for (caller, func) in module.functions.iter_enumerated() {

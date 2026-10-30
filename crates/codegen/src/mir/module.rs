@@ -457,25 +457,41 @@ impl Module {
         self.reachable_from(roots)
     }
 
-    /// Returns the functions that run only during deployment: the constructor and the functions
-    /// it reaches through calls, less those the runtime also reaches. Functions that neither
-    /// artifact roots, which only ad-hoc MIR has, and the functions they reach stay out, because
-    /// no one knows where they run.
+    /// Returns the constructor and the functions it reaches through calls.
     #[must_use]
-    pub(crate) fn creation_only_functions(&self) -> DenseBitSet<FunctionId> {
-        let constructor = self.reachable_from(
+    pub(crate) fn constructor_reachable_functions(&self) -> DenseBitSet<FunctionId> {
+        self.reachable_from(
             self.functions
                 .iter_enumerated()
                 .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
-        );
+        )
+    }
+
+    /// Returns the functions that neither artifact roots, which only ad-hoc MIR has, and the
+    /// functions they reach through calls. No one knows where they run. `constructor` and
+    /// `runtime` are the sets the two artifacts reach.
+    #[must_use]
+    pub(crate) fn unrooted_reachable_functions(
+        &self,
+        constructor: &DenseBitSet<FunctionId>,
+        runtime: &DenseBitSet<FunctionId>,
+    ) -> DenseBitSet<FunctionId> {
+        let mut unrooted = DenseBitSet::new_filled(self.functions.len());
+        unrooted.subtract(constructor);
+        unrooted.subtract(runtime);
+        self.reachable_from(unrooted.iter())
+    }
+
+    /// Returns the functions that run only during deployment: the constructor and the functions
+    /// it reaches through calls, less those the runtime also reaches and those that no artifact
+    /// roots.
+    #[must_use]
+    pub(crate) fn creation_only_functions(&self) -> DenseBitSet<FunctionId> {
+        let constructor = self.constructor_reachable_functions();
         let runtime = self.runtime_reachable_functions();
         let mut creation = constructor.clone();
         creation.subtract(&runtime);
-        let mut rooted = constructor;
-        rooted.union(&runtime);
-        let mut unrooted = DenseBitSet::new_filled(self.functions.len());
-        unrooted.subtract(&rooted);
-        creation.subtract(&self.reachable_from(unrooted.iter()));
+        creation.subtract(&self.unrooted_reachable_functions(&constructor, &runtime));
         creation
     }
 

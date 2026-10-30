@@ -135,21 +135,7 @@ impl MirPass for LowerAbiEncode {
         let has_helpers = !helpers.arrays.is_empty()
             || !helpers.calldata.is_empty()
             || !helpers.tuples.is_empty();
-        let constructors = has_helpers.then(|| {
-            let call_graph = CallGraphInfo::new(module);
-            let mut constructors = call_graph.reachable_callees_from(
-                module
-                    .functions
-                    .iter_enumerated()
-                    .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
-            );
-            for (id, func) in module.functions.iter_enumerated() {
-                if func.attributes.is_constructor {
-                    constructors.insert(id);
-                }
-            }
-            constructors
-        });
+        let constructors = has_helpers.then(|| module.constructor_reachable_functions());
         let inline_helpers = EncodeHelpers::new(&target);
         let mut changed = has_helpers;
         changed |= run_lowering_function_pass(module, analyses, |func, function_analyses| {
