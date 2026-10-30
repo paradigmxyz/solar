@@ -596,83 +596,82 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     jump bb17
   bb15:
     v102 = storage_array_data_slot 0
-    v103 = add v102, 0
     jump bb17
   bb17:
-    v104 = phi [bb15: v103], [bb16: 0]
-    v105 = sload v104 !metadata(storage=symbolic(v104))
-    v106 = shr v105, 248
-    v107 = shl v106, 248
-    v108 = shr v107, 248
-    v109 = trunc i256 v108 to i8
-    v110 = zext i8 v109 to i256
-    v111 = checked_div uint256, v0, 2
-    v112 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v112
-    v113 = and v112, 1
-    v114 = eq v113, 1
-    v115 = sub 0, v113
-    v116 = or 127, v115
-    v117 = shr v112, 1
-    v118 = and v117, v116
-    v119 = lt v111, v118
-    v120 = eq v119, false
-    icall panic_if<0x32>, v120
-    jumpi v114, bb18, bb19
+    v103 = phi [bb15: v102], [bb16: 0]
+    v104 = sload v103 !metadata(storage=symbolic(v103))
+    v105 = shr v104, 248
+    v106 = shl v105, 248
+    v107 = shr v106, 248
+    v108 = trunc i256 v107 to i8
+    v109 = zext i8 v108 to i256
+    v110 = checked_div uint256, v0, 2
+    v111 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v111
+    v112 = and v111, 1
+    v113 = eq v112, 1
+    v114 = sub 0, v112
+    v115 = or 127, v114
+    v116 = shr v111, 1
+    v117 = and v116, v115
+    v118 = lt v110, v117
+    v119 = eq v118, false
+    icall panic_if<0x32>, v119
+    jumpi v113, bb18, bb19
   bb19:
     jump bb20
   bb18:
-    v121 = storage_array_data_slot 0
-    v122 = shr v111, 5
-    v123 = add v121, v122
+    v120 = storage_array_data_slot 0
+    v121 = shr v110, 5
+    v122 = add v120, v121
     jump bb20
   bb20:
-    v124 = phi [bb18: v123], [bb19: 0]
-    v125 = and v111, 31
-    v126 = sub 31, v125
-    v127 = sload v124 !metadata(storage=symbolic(v124))
-    v128 = mul v126, 8
-    v129 = shr v127, v128
-    v130 = shl v129, 248
-    v131 = shr v130, 248
-    v132 = trunc i256 v131 to i8
-    v133 = zext i8 v132 to i256
-    v134 = checked_sub uint256, v0, 1
-    v135 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v135
-    v136 = and v135, 1
-    v137 = eq v136, 1
-    v138 = sub 0, v136
-    v139 = or 127, v138
-    v140 = shr v135, 1
-    v141 = and v140, v139
-    v142 = lt v134, v141
-    v143 = eq v142, false
-    icall panic_if<0x32>, v143
-    jumpi v137, bb21, bb22
+    v123 = phi [bb18: v122], [bb19: 0]
+    v124 = and v110, 31
+    v125 = sub 31, v124
+    v126 = sload v123 !metadata(storage=symbolic(v123))
+    v127 = mul v125, 8
+    v128 = shr v126, v127
+    v129 = shl v128, 248
+    v130 = shr v129, 248
+    v131 = trunc i256 v130 to i8
+    v132 = zext i8 v131 to i256
+    v133 = checked_sub uint256, v0, 1
+    v134 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v134
+    v135 = and v134, 1
+    v136 = eq v135, 1
+    v137 = sub 0, v135
+    v138 = or 127, v137
+    v139 = shr v134, 1
+    v140 = and v139, v138
+    v141 = lt v133, v140
+    v142 = eq v141, false
+    icall panic_if<0x32>, v142
+    jumpi v136, bb21, bb22
   bb22:
     jump bb23
   bb21:
-    v144 = storage_array_data_slot 0
-    v145 = shr v134, 5
-    v146 = add v144, v145
+    v143 = storage_array_data_slot 0
+    v144 = shr v133, 5
+    v145 = add v143, v144
     jump bb23
   bb23:
-    v147 = phi [bb21: v146], [bb22: 0]
-    v148 = and v134, 31
-    v149 = sub 31, v148
-    v150 = sload v147 !metadata(storage=symbolic(v147))
-    v151 = mul v149, 8
-    v152 = shr v150, v151
-    v153 = shl v152, 248
-    v154 = shr v153, 248
-    v155 = trunc i256 v154 to i8
-    v156 = zext i8 v155 to i256
-    v157 = insert_value struct2, undef struct2, 0, v92
-    v158 = insert_value struct2, v157, 1, v110
-    v159 = insert_value struct2, v158, 2, v133
-    v160 = insert_value struct2, v159, 3, v156
-    ret v160
+    v146 = phi [bb21: v145], [bb22: 0]
+    v147 = and v133, 31
+    v148 = sub 31, v147
+    v149 = sload v146 !metadata(storage=symbolic(v146))
+    v150 = mul v148, 8
+    v151 = shr v149, v150
+    v152 = shl v151, 248
+    v153 = shr v152, 248
+    v154 = trunc i256 v153 to i8
+    v155 = zext i8 v154 to i256
+    v156 = insert_value struct2, undef struct2, 0, v92
+    v157 = insert_value struct2, v156, 1, v109
+    v158 = insert_value struct2, v157, 2, v132
+    v159 = insert_value struct2, v158, 3, v155
+    ret v159
   bb4:
     v7 = checked_add uint256, v5, 1
     v8 = trunc i256 v7 to i8

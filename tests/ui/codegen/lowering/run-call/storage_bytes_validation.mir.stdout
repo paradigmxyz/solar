@@ -126,14 +126,13 @@ fn @invalidShortIndex() -> i256 [selector=0x94523747, abi_params=[], abi_returns
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = add v9, 0
     jump bb3
   bb3:
-    v11 = phi [bb1: v10], [bb2: 0]
-    v12 = sload v11 !metadata(storage=symbolic(v11))
-    v13 = shr v12, 248
-    v14 = shl v13, 248
-    ret v14
+    v10 = phi [bb1: v9], [bb2: 0]
+    v11 = sload v10 !metadata(storage=symbolic(v10))
+    v12 = shr v11, 248
+    v13 = shl v12, 248
+    ret v13
 }
 
 fn @invalidLongIndex() -> i256 [selector=0xb45f5bca, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
@@ -155,14 +154,13 @@ fn @invalidLongIndex() -> i256 [selector=0xb45f5bca, abi_params=[], abi_returns=
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = add v9, 0
     jump bb3
   bb3:
-    v11 = phi [bb1: v10], [bb2: 0]
-    v12 = sload v11 !metadata(storage=symbolic(v11))
-    v13 = shr v12, 248
-    v14 = shl v13, 248
-    ret v14
+    v10 = phi [bb1: v9], [bb2: 0]
+    v11 = sload v10 !metadata(storage=symbolic(v10))
+    v12 = shr v11, 248
+    v13 = shl v12, 248
+    ret v13
 }
 
 fn @invalidShortIndexWrite() [selector=0x9cb6505e, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -184,14 +182,13 @@ fn @invalidShortIndexWrite() [selector=0x9cb6505e, abi_params=[], abi_returns=[]
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = add v9, 0
     jump bb3
   bb3:
-    v11 = phi [bb1: v10], [bb2: 0]
-    v12 = sload v11 !metadata(storage=symbolic(v11))
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v14 = or v13, 0x100000000000000000000000000000000000000000000000000000000000000
-    sstore v11, v14 !metadata(storage=symbolic(v11))
+    v10 = phi [bb1: v9], [bb2: 0]
+    v11 = sload v10 !metadata(storage=symbolic(v10))
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v13 = or v12, 0x100000000000000000000000000000000000000000000000000000000000000
+    sstore v10, v13 !metadata(storage=symbolic(v10))
     ret
 }
 
@@ -214,14 +211,13 @@ fn @invalidLongIndexWrite() [selector=0x31e8b582, abi_params=[], abi_returns=[],
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = add v9, 0
     jump bb3
   bb3:
-    v11 = phi [bb1: v10], [bb2: 0]
-    v12 = sload v11 !metadata(storage=symbolic(v11))
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v14 = or v13, 0x100000000000000000000000000000000000000000000000000000000000000
-    sstore v11, v14 !metadata(storage=symbolic(v11))
+    v10 = phi [bb1: v9], [bb2: 0]
+    v11 = sload v10 !metadata(storage=symbolic(v10))
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v13 = or v12, 0x100000000000000000000000000000000000000000000000000000000000000
+    sstore v10, v13 !metadata(storage=symbolic(v10))
     ret
 }
 
@@ -244,14 +240,13 @@ fn @invalidShortIndexDelete() [selector=0x5a79d84c, abi_params=[], abi_returns=[
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = add v9, 0
     jump bb3
   bb3:
-    v11 = phi [bb1: v10], [bb2: 0]
-    v12 = sload v11 !metadata(storage=symbolic(v11))
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v14 = or v13, 0
-    sstore v11, v14 !metadata(storage=symbolic(v11))
+    v10 = phi [bb1: v9], [bb2: 0]
+    v11 = sload v10 !metadata(storage=symbolic(v10))
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v13 = or v12, 0
+    sstore v10, v13 !metadata(storage=symbolic(v10))
     ret
 }
 
@@ -274,14 +269,13 @@ fn @invalidLongIndexDelete() [selector=0x3cb34688, abi_params=[], abi_returns=[]
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = add v9, 0
     jump bb3
   bb3:
-    v11 = phi [bb1: v10], [bb2: 0]
-    v12 = sload v11 !metadata(storage=symbolic(v11))
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v14 = or v13, 0
-    sstore v11, v14 !metadata(storage=symbolic(v11))
+    v10 = phi [bb1: v9], [bb2: 0]
+    v11 = sload v10 !metadata(storage=symbolic(v10))
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v13 = or v12, 0
+    sstore v10, v13 !metadata(storage=symbolic(v10))
     ret
 }
 

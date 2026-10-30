@@ -302,16 +302,15 @@ fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<ui
     jump bb19
   bb17:
     v86 = storage_array_data_slot 0
-    v87 = add v86, 0
     jump bb19
   bb19:
-    v88 = phi [bb17: v87], [bb18: 0]
-    v89 = sload v88 !metadata(storage=symbolic(v88))
-    v90 = shr v89, 248
-    v91 = shl v90, 248
-    v92 = shr v91, 248
-    v93 = trunc i256 v92 to i8
-    ret v93
+    v87 = phi [bb17: v86], [bb18: 0]
+    v88 = sload v87 !metadata(storage=symbolic(v87))
+    v89 = shr v88, 248
+    v90 = shl v89, 248
+    v91 = shr v90, 248
+    v92 = trunc i256 v91 to i8
+    ret v92
   bb4:
     v3 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v3

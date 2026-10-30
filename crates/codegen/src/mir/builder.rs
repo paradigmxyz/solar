@@ -1989,14 +1989,14 @@ impl<'a> FunctionBuilder<'a> {
         self.fold_word(lhs, rhs, |lhs, rhs| lhs & rhs, Self::and)
     }
 
-    /// Emits `lhs + rhs`, or an immediate when both operands are immediates.
-    pub(crate) fn add_folded(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
-        self.fold_word(lhs, rhs, U256::wrapping_add, Self::add)
-    }
-
     /// Emits `lhs | rhs`, or an immediate when both operands are immediates.
     pub(crate) fn or_folded(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
         self.fold_word(lhs, rhs, |lhs, rhs| lhs | rhs, Self::or)
+    }
+
+    /// Emits `lhs + rhs`, or an immediate when both operands are immediates.
+    pub(crate) fn add_folded(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
+        self.fold_word(lhs, rhs, U256::wrapping_add, Self::add)
     }
 
     /// Emits `lhs - rhs`, or an immediate when both operands are immediates.
@@ -2019,6 +2019,8 @@ impl<'a> FunctionBuilder<'a> {
         self.fold_word(value, shift, |value, shift| value >> shift, Self::shr)
     }
 
+    /// Folds a binary word operation when both operands are immediates. Operands are words, so
+    /// the folded result is an `i256` immediate.
     fn fold_word(
         &mut self,
         lhs: ValueId,

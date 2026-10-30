@@ -303,20 +303,19 @@ fn @stringWrite() -> i1 [selector=0xbe9c4022, abi_params=[], abi_returns=[word<b
     jump bb3
   bb1:
     v9 = storage_array_data_slot 8
-    v10 = add v9, 0
     jump bb3
   bb3:
-    v11 = phi [bb1: v10], [bb2: 8]
-    v12 = sload v11 !metadata(storage=symbolic(v11))
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v14 = or v13, 0x6a00000000000000000000000000000000000000000000000000000000000000
-    sstore v11, v14 !metadata(storage=symbolic(v11))
-    v15 = icall @load_storage_bytes, 8
-    v16 = ptradd v15, 32
-    v17 = mload v15
-    v18 = keccak256 v16, v17
-    v19 = eq v18, 0x3a23e4bd396e5a1f6ca1e1e0a95873fc0dfa15493c9ae32d9772dc7c1838fa69
-    ret v19
+    v10 = phi [bb1: v9], [bb2: 8]
+    v11 = sload v10 !metadata(storage=symbolic(v10))
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v13 = or v12, 0x6a00000000000000000000000000000000000000000000000000000000000000
+    sstore v10, v13 !metadata(storage=symbolic(v10))
+    v14 = icall @load_storage_bytes, 8
+    v15 = ptradd v14, 32
+    v16 = mload v14
+    v17 = keccak256 v15, v16
+    v18 = eq v17, 0x3a23e4bd396e5a1f6ca1e1e0a95873fc0dfa15493c9ae32d9772dc7c1838fa69
+    ret v18
 }
 
 fn @stringPush() -> i256 [selector=0x2c6d0933, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

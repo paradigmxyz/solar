@@ -439,17 +439,16 @@ fn @pushBytes() -> i256 [selector=0x7a248eac, abi_params=[], abi_returns=[word],
     jump bb3
   bb1:
     v34 = storage_array_data_slot v24
-    v35 = add v34, 0
     jump bb3
   bb3:
-    v36 = phi [bb1: v35], [bb2: v24]
-    v37 = sload v36 !metadata(storage=symbolic(v36))
-    v38 = shr v37, 248
-    v39 = shl v38, 248
-    v40 = shr v39, 248
-    v41 = trunc i256 v40 to i8
-    v42 = zext i8 v41 to i256
-    ret v42
+    v35 = phi [bb1: v34], [bb2: v24]
+    v36 = sload v35 !metadata(storage=symbolic(v35))
+    v37 = shr v36, 248
+    v38 = shl v37, 248
+    v39 = shr v38, 248
+    v40 = trunc i256 v39 to i8
+    v41 = zext i8 v40 to i256
+    ret v41
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
