@@ -272,7 +272,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.repeating_code = repeating || in_loop(self, source);
             self.asm.define_label(label);
             self.set_terminator_origin(func, source);
-            let cold = self.block_is_cold(target);
+            let cold = self.block_code_is_cold(target);
             for step in &steps {
                 self.emit_stackified_step(func_id, func, step, cold);
             }
@@ -301,7 +301,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         trampolines: &mut Vec<(Label, Vec<Step>, BlockId, BlockId)>,
     ) {
         let (body, terminator) = plan.steps.split_at(plan.terminator_start);
-        let cold = self.block_is_cold(block);
+        let cold = self.block_code_is_cold(block);
         for step in body {
             self.emit_stackified_step(func_id, func, step, cold);
         }
