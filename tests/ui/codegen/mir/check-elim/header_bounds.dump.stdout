@@ -90,57 +90,58 @@ fn @lowerBound() [selector=0x63b7c492, abi_wrapper, pure] {
 
 fn @consume() [selector=0x15847e62, abi_wrapper, pure] {
   bb0:
-    v55 = calldatasize
-    v57 = calldataload 4
-    v58 = add v57, 4
-    v60 = sub v55, 36
-    v61 = gt v57, v60
-    v62 = calldataload v58
-    v63 = add v58, 32
-    v64 = sub v55, v63
-    v65 = shr v64, 5
-    v66 = gt v62, v65
-    v89 = or v61, v66
-    v69 = calldataload 36
-    v70 = add v69, 4
-    v73 = gt v69, v60
-    v90 = or v89, v73
-    v74 = calldataload v70
-    v75 = add v70, 32
-    v76 = sub v55, v75
-    v77 = shr v76, 5
-    v78 = gt v74, v77
-    v91 = or v90, v78
-    jumpi v91, bb7, bb11
+    v46 = calldatasize
+    v48 = calldataload 4
+    v49 = add v48, 4
+    v51 = sub v46, 36
+    v52 = gt v48, v51
+    v53 = calldataload v49
+    v54 = add v49, 32
+    v55 = sub v46, v54
+    v56 = shr v55, 5
+    v57 = gt v53, v56
+    v80 = or v52, v57
+    v60 = calldataload 36
+    v61 = add v60, 4
+    v64 = gt v60, v51
+    v81 = or v80, v64
+    v65 = calldataload v61
+    v66 = add v61, 32
+    v67 = sub v46, v66
+    v68 = shr v67, 5
+    v69 = gt v65, v68
+    v82 = or v81, v69
+    jumpi v82, bb7, bb11
   bb11:
-    v87 = shl v74, 5
-    v88 = add v75, v87
+    v78 = shl v65, 5
+    v79 = add v66, v78
     jump bb1
   bb1:
-    v2 = phi [bb11: 0], [bb3: v45]
-    v3 = phi [bb11: 0], [bb3: v46]
-    v85 = phi [bb11: v75], [bb3: v86]
-    v6 = ne v85, v88
+    v2 = phi [bb11: 0], [bb3: v37]
+    v3 = phi [bb11: 0], [bb3: v38]
+    v76 = phi [bb11: v66], [bb3: v77]
+    v6 = ne v76, v79
     jumpi v6, bb4, bb2
   bb4:
-    v20 = calldataload v85
-    v22 = gt v20, 1
-    jumpi v22, bb7, bb8
+    v16 = calldataload v76
+    v17 = shr v16, 1
+    v18 = ne v17, 0
+    jumpi v18, bb7, bb8
   bb8:
-    v24 = eq v20, 0
-    jumpi v24, bb3, bb5
+    v20 = eq v16, 0
+    jumpi v20, bb3, bb5
   bb5:
-    v26 = eq v3, v62
-    jumpi v26, bb2, bb6
+    v22 = eq v3, v53
+    jumpi v22, bb2, bb6
   bb6:
-    v33 = shl v3, 5
-    v41 = add v63, v33
-    v42 = calldataload v41
-    v53 = add v2, v42
-    v54 = lt v53, v2
-    jumpi v54, bb9, bb10
+    v29 = shl v3, 5
+    v33 = add v54, v29
+    v34 = calldataload v33
+    v44 = add v2, v34
+    v45 = lt v44, v2
+    jumpi v45, bb9, bb10
   bb10:
-    v44 = add v3, 1
+    v36 = add v3, 1
     jump bb3
   bb9:
     mstore 32, 17 !metadata(memory=scratch)
@@ -151,9 +152,9 @@ fn @consume() [selector=0x15847e62, abi_wrapper, pure] {
     mstore 32, v3 !metadata(memory=scratch)
     returndata 0, 64
   bb3:
-    v45 = phi [bb10: v53], [bb8: v2]
-    v46 = phi [bb10: v44], [bb8: v3]
-    v86 = add v85, 32
+    v37 = phi [bb10: v44], [bb8: v2]
+    v38 = phi [bb10: v36], [bb8: v3]
+    v77 = add v76, 32
     jump bb1
   bb7:
     revert 0, 0

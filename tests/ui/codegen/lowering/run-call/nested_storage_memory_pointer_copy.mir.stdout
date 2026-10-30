@@ -185,154 +185,150 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v160 = lt v159, v152
     icall panic_if<0x41>, v160
     v161 = mul v159, 32
-    v162 = eq 32, 0
-    v163 = div v161, 32
-    v164 = eq v163, v159
-    v165 = or v162, v164
-    v166 = zext i1 v165 to i256
-    v167 = eq v166, 0
-    icall panic_if<0x41>, v167
-    v168 = alloc checked v161
-    mstore v168, v151
+    v162 = shr v159, 251
+    v163 = ne v162, 0
+    icall panic_if<0x41>, v163
+    v164 = alloc checked v161
+    mstore v164, v151
     jump bb7
   bb7:
-    v169 = phi [bb2: 0], [bb12: v198]
-    v170 = lt v169, v151
-    jumpi v170, bb8, bb9
+    v165 = phi [bb2: 0], [bb12: v194]
+    v166 = lt v165, v151
+    jumpi v166, bb8, bb9
   bb9:
-    v199 = mload v168
-    v200 = lt 0, v199
+    v195 = mload v164
+    v196 = lt 0, v195
+    v197 = eq v196, false
+    icall panic_if<0x32>, v197
+    v198 = ptradd v164, 32
+    v199 = mload v198, ptr<memory>
+    v200 = lt 0, 5
     v201 = eq v200, false
     icall panic_if<0x32>, v201
-    v202 = ptradd v168, 32
-    v203 = mload v202, ptr<memory>
-    v204 = lt 0, 5
-    v205 = eq v204, false
-    icall panic_if<0x32>, v205
-    v206 = mload v203
-    v207 = trunc i256 v206 to i72
-    v208 = mload v168
-    v209 = lt 0, v208
+    v202 = mload v199
+    v203 = trunc i256 v202 to i72
+    v204 = mload v164
+    v205 = lt 0, v204
+    v206 = eq v205, false
+    icall panic_if<0x32>, v206
+    v207 = ptradd v164, 32
+    v208 = mload v207, ptr<memory>
+    v209 = lt 3, 5
     v210 = eq v209, false
     icall panic_if<0x32>, v210
-    v211 = ptradd v168, 32
-    v212 = mload v211, ptr<memory>
-    v213 = lt 3, 5
-    v214 = eq v213, false
-    icall panic_if<0x32>, v214
-    v215 = ptradd v212, 96
-    v216 = mload v215
-    v217 = trunc i256 v216 to i72
-    v218 = checked_add uint72, v207, v217
-    v219 = mload v168
-    v220 = lt 1, v219
+    v211 = ptradd v208, 96
+    v212 = mload v211
+    v213 = trunc i256 v212 to i72
+    v214 = checked_add uint72, v203, v213
+    v215 = mload v164
+    v216 = lt 1, v215
+    v217 = eq v216, false
+    icall panic_if<0x32>, v217
+    v218 = ptradd v164, 64
+    v219 = mload v218, ptr<memory>
+    v220 = lt 1, 5
     v221 = eq v220, false
     icall panic_if<0x32>, v221
-    v222 = ptradd v168, 64
-    v223 = mload v222, ptr<memory>
-    v224 = lt 1, 5
-    v225 = eq v224, false
-    icall panic_if<0x32>, v225
-    v226 = ptradd v223, 32
-    v227 = mload v226
-    v228 = trunc i256 v227 to i72
-    v229 = checked_add uint72, v218, v228
-    v230 = mload v168
-    v231 = lt 1, v230
+    v222 = ptradd v219, 32
+    v223 = mload v222
+    v224 = trunc i256 v223 to i72
+    v225 = checked_add uint72, v214, v224
+    v226 = mload v164
+    v227 = lt 1, v226
+    v228 = eq v227, false
+    icall panic_if<0x32>, v228
+    v229 = ptradd v164, 64
+    v230 = mload v229, ptr<memory>
+    v231 = lt 4, 5
     v232 = eq v231, false
     icall panic_if<0x32>, v232
-    v233 = ptradd v168, 64
-    v234 = mload v233, ptr<memory>
-    v235 = lt 4, 5
-    v236 = eq v235, false
-    icall panic_if<0x32>, v236
-    v237 = ptradd v234, 128
-    v238 = mload v237
-    v239 = trunc i256 v238 to i72
-    v240 = checked_add uint72, v229, v239
-    v241 = mload v168
-    v242 = lt 2, v241
+    v233 = ptradd v230, 128
+    v234 = mload v233
+    v235 = trunc i256 v234 to i72
+    v236 = checked_add uint72, v225, v235
+    v237 = mload v164
+    v238 = lt 2, v237
+    v239 = eq v238, false
+    icall panic_if<0x32>, v239
+    v240 = ptradd v164, 96
+    v241 = mload v240, ptr<memory>
+    v242 = lt 0, 5
     v243 = eq v242, false
     icall panic_if<0x32>, v243
-    v244 = ptradd v168, 96
-    v245 = mload v244, ptr<memory>
-    v246 = lt 0, 5
-    v247 = eq v246, false
-    icall panic_if<0x32>, v247
-    v248 = mload v245
-    v249 = trunc i256 v248 to i72
-    v250 = checked_add uint72, v240, v249
-    v251 = mload v168
-    v252 = lt 3, v251
+    v244 = mload v241
+    v245 = trunc i256 v244 to i72
+    v246 = checked_add uint72, v236, v245
+    v247 = mload v164
+    v248 = lt 3, v247
+    v249 = eq v248, false
+    icall panic_if<0x32>, v249
+    v250 = ptradd v164, 128
+    v251 = mload v250, ptr<memory>
+    v252 = lt 2, 5
     v253 = eq v252, false
     icall panic_if<0x32>, v253
-    v254 = ptradd v168, 128
-    v255 = mload v254, ptr<memory>
-    v256 = lt 2, 5
-    v257 = eq v256, false
-    icall panic_if<0x32>, v257
-    v258 = ptradd v255, 64
-    v259 = mload v258
-    v260 = trunc i256 v259 to i72
-    v261 = checked_add uint72, v250, v260
-    v262 = mload v168
-    v263 = lt 3, v262
+    v254 = ptradd v251, 64
+    v255 = mload v254
+    v256 = trunc i256 v255 to i72
+    v257 = checked_add uint72, v246, v256
+    v258 = mload v164
+    v259 = lt 3, v258
+    v260 = eq v259, false
+    icall panic_if<0x32>, v260
+    v261 = ptradd v164, 128
+    v262 = mload v261, ptr<memory>
+    v263 = lt 3, 5
     v264 = eq v263, false
     icall panic_if<0x32>, v264
-    v265 = ptradd v168, 128
-    v266 = mload v265, ptr<memory>
-    v267 = lt 3, 5
-    v268 = eq v267, false
-    icall panic_if<0x32>, v268
-    v269 = ptradd v266, 96
-    v270 = mload v269
-    v271 = trunc i256 v270 to i72
-    v272 = checked_add uint72, v261, v271
-    v273 = zext i72 v272 to i256
-    ret v273
+    v265 = ptradd v262, 96
+    v266 = mload v265
+    v267 = trunc i256 v266 to i72
+    v268 = checked_add uint72, v257, v267
+    v269 = zext i72 v268 to i256
+    ret v269
   bb8:
-    v171 = storage_array_data_slot 0
-    v172 = mul v169, 2
-    v173 = add v171, v172
-    v174 = alloc checked 160
+    v167 = storage_array_data_slot 0
+    v168 = mul v165, 2
+    v169 = add v167, v168
+    v170 = alloc checked 160
     jump bb10
   bb10:
-    v175 = phi [bb8: 0], [bb15: v193]
-    v176 = lt v175, 2
-    jumpi v176, bb11, bb12
+    v171 = phi [bb8: 0], [bb15: v189]
+    v172 = lt v171, 2
+    jumpi v172, bb11, bb12
   bb12:
-    v194 = ptrtoint ptr<memory> v174 to i256
-    v195 = shl v169, 5
-    v196 = ptradd v168, v195
-    v197 = ptradd v196, 32
-    mstore v197, v194
-    v198 = add v169, 1
+    v190 = ptrtoint ptr<memory> v170 to i256
+    v191 = shl v165, 5
+    v192 = ptradd v164, v191
+    v193 = ptradd v192, 32
+    mstore v193, v190
+    v194 = add v165, 1
     jump bb7
   bb11:
-    v177 = add v173, v175
-    v178 = sload v177 !metadata(storage=symbolic(v177))
-    v179 = mul v175, 3
-    v180 = sub 5, v179
-    v181 = lt v180, 3
-    v182 = select v181, v180, 3
+    v173 = add v169, v171
+    v174 = sload v173 !metadata(storage=symbolic(v173))
+    v175 = mul v171, 3
+    v176 = sub 5, v175
+    v177 = lt v176, 3
+    v178 = select v177, v176, 3
     jump bb13
   bb13:
-    v183 = phi [bb11: 0], [bb14: v192]
-    v184 = lt v183, v182
-    jumpi v184, bb14, bb15
+    v179 = phi [bb11: 0], [bb14: v188]
+    v180 = lt v179, v178
+    jumpi v180, bb14, bb15
   bb15:
-    v193 = add v175, 1
+    v189 = add v171, 1
     jump bb10
   bb14:
-    v185 = mul v183, 72
-    v186 = shr v178, v185
-    v187 = trunc i256 v186 to i72
-    v188 = zext i72 v187 to i256
-    v189 = add v179, v183
-    v190 = shl v189, 5
-    v191 = ptradd v174, v190
-    mstore v191, v188
-    v192 = add v183, 1
+    v181 = mul v179, 72
+    v182 = shr v174, v181
+    v183 = trunc i256 v182 to i72
+    v184 = zext i72 v183 to i256
+    v185 = add v175, v179
+    v186 = shl v185, 5
+    v187 = ptradd v170, v186
+    mstore v187, v184
+    v188 = add v179, 1
     jump bb13
   bb4:
     v3 = sload 0 !metadata(storage=slot(0))

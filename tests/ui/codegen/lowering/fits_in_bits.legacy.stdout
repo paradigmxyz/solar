@@ -157,9 +157,9 @@ fn @narrow() [selector=0x9305afb9, abi_wrapper, pure] {
 
 fn @alloc() [selector=0x191ac2d2, abi_wrapper, pure] {
   bb0:
-    v18 = calldatasize
-    v19 = lt v18, 36
-    jumpi v19, bb2, bb3
+    v13 = calldatasize
+    v14 = lt v13, 36
+    jumpi v14, bb2, bb3
   bb3:
     jump bb1
   bb1:
@@ -175,29 +175,24 @@ fn @alloc() [selector=0x191ac2d2, abi_wrapper, pure] {
     v8 = lt v7, v0
     icall panic_if<0x41>, v8
     v9 = mul v7, 32
-    v10 = eq 32, 0
-    v11 = div v9, 32
-    v12 = eq v11, v7
-    v13 = or v10, v12
-    v14 = zext i1 v13 to i256
-    v15 = eq v14, 0
-    icall panic_if<0x41>, v15
-    v21 = heap_floor !metadata(alloc_ptr)
-    v16 = inttoptr i256 v21 to ptr<memory> !metadata(memory=scratch)
-    v22 = add v21, v9 !metadata(alloc_ptr)
-    v23 = lt v22, v21
-    v24 = gt v22, 0xffffffffffffffff
-    v25 = or v23, v24
-    v26 = zext i1 v25 to i256
-    jumpi v25, bb5, bb4
+    v10 = gt v7, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v10
+    v16 = heap_floor !metadata(alloc_ptr)
+    v11 = inttoptr i256 v16 to ptr<memory> !metadata(memory=scratch)
+    v17 = add v16, v9 !metadata(alloc_ptr)
+    v18 = lt v17, v16
+    v19 = gt v17, 0xffffffffffffffff
+    v20 = or v18, v19
+    v21 = zext i1 v20 to i256
+    jumpi v20, bb5, bb4
   bb4:
-    mstore 64, v22 !metadata(memory=scratch)
-    memory_zero v16, v9
-    mstore v16, arg0
-    v17 = mload v16
-    mstore 0, v17 !metadata(memory=scratch)
-    v20 = sub 32, 0
-    returndata 0, v20
+    mstore 64, v17 !metadata(memory=scratch)
+    memory_zero v11, v9
+    mstore v11, arg0
+    v12 = mload v11
+    mstore 0, v12 !metadata(memory=scratch)
+    v15 = sub 32, 0
+    returndata 0, v15
   bb5:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

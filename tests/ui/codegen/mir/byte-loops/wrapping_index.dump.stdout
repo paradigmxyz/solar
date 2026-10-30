@@ -465,101 +465,101 @@ fn @wrappedWord() [selector=0xc280cc68, abi_wrapper, pure] {
 
 fn @wrappedArray() [selector=0x20a8a4e4, abi_wrapper, pure] {
   bb0:
-    v91 = calldatasize
-    v92 = lt v91, 132
-    v93 = calldataload 4
-    v94 = add v93, 4
-    v96 = sub v91, 36
-    v97 = gt v93, v96
-    v132 = or v92, v97
-    v98 = calldataload v94
-    v99 = add v94, 32
-    v100 = sub v91, v99
-    v101 = shr v100, 5
-    v102 = gt v98, v101
-    v133 = or v132, v102
-    jumpi v133, bb15, bb16
+    v83 = calldatasize
+    v84 = lt v83, 132
+    v85 = calldataload 4
+    v86 = add v85, 4
+    v88 = sub v83, 36
+    v89 = gt v85, v88
+    v124 = or v84, v89
+    v90 = calldataload v86
+    v91 = add v86, 32
+    v92 = sub v83, v91
+    v93 = shr v92, 5
+    v94 = gt v90, v93
+    v125 = or v124, v94
+    jumpi v125, bb15, bb16
   bb16:
     v13 = add arg3, 1
     v14 = eq v13, 0
     jumpi v14, bb6, bb7
   bb7:
     v15 = shl v13, 5
-    v17 = shr v15, 5
-    v21 = ne v17, v13
-    jumpi v21, bb6, bb8
+    v16 = shr v13, 251
+    v17 = ne v16, 0
+    jumpi v17, bb6, bb8
   bb8:
-    v125 = heap_floor !metadata(alloc_ptr)
-    v126 = add v125, v15 !metadata(alloc_ptr)
-    v127 = lt v126, v125
-    v128 = gt v126, 0xffffffffffffffff
-    v129 = or v127, v128
-    jumpi v129, bb18, bb17
+    v117 = heap_floor !metadata(alloc_ptr)
+    v118 = add v117, v15 !metadata(alloc_ptr)
+    v119 = lt v118, v117
+    v120 = gt v118, 0xffffffffffffffff
+    v121 = or v119, v120
+    jumpi v121, bb18, bb17
   bb17:
-    v131 = calldatasize
-    calldatacopy v125, v131, v15
-    mstore v125, arg3
-    v52 = eq arg3, 0
-    jumpi v52, bb2, bb4
+    v123 = calldatasize
+    calldatacopy v117, v123, v15
+    mstore v117, arg3
+    v44 = eq arg3, 0
+    jumpi v44, bb2, bb4
   bb4:
-    v53 = shl arg3, 5
-    v54 = shl arg2, 5
-    v57 = add arg1, v54
-    v59 = add v57, v53
-    v60 = lt v59, v57
-    v61 = add arg2, arg3
-    v62 = lt v61, arg2
-    v64 = gt v61, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v65 = or v62, v64
-    v71 = or v60, v65
-    jumpi v71, bb1, bb5
+    v45 = shl arg3, 5
+    v46 = shl arg2, 5
+    v49 = add arg1, v46
+    v51 = add v49, v45
+    v52 = lt v51, v49
+    v53 = add arg2, arg3
+    v54 = lt v53, arg2
+    v56 = gt v53, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v57 = or v54, v56
+    v63 = or v52, v57
+    jumpi v63, bb1, bb5
   bb5:
-    v118 = add v125, 32
-    calldatacopy v118, v57, v53
+    v110 = add v117, 32
+    calldatacopy v110, v49, v45
     jump bb2
   bb1:
-    v28 = phi [bb4: 0], [bb12: v51]
-    v29 = lt v28, arg3
-    jumpi v29, bb3, bb2
+    v24 = phi [bb4: 0], [bb12: v43]
+    v25 = lt v24, arg3
+    jumpi v25, bb3, bb2
   bb3:
-    v88 = add arg2, v28
-    v89 = lt v88, arg2
-    jumpi v89, bb13, bb14
+    v80 = add arg2, v24
+    v81 = lt v80, arg2
+    jumpi v81, bb13, bb14
   bb14:
-    v113 = not v88
-    v32 = ne v113, 0
-    jumpi v32, bb10, bb9
+    v105 = not v80
+    v28 = ne v105, 0
+    jumpi v28, bb10, bb9
   bb10:
-    v35 = shl v88, 5
-    v37 = shr v35, 5
-    v41 = ne v37, v88
-    jumpi v41, bb6, bb11
+    v31 = shl v80, 5
+    v32 = shr v80, 251
+    v33 = ne v32, 0
+    jumpi v33, bb6, bb11
   bb11:
-    v43 = add arg1, v35
-    v44 = calldataload v43
-    v45 = mload v125
-    v46 = lt v28, v45
-    jumpi v46, bb12, bb9
+    v35 = add arg1, v31
+    v36 = calldataload v35
+    v37 = mload v117
+    v38 = lt v24, v37
+    jumpi v38, bb12, bb9
   bb9:
     tail_call @revert_stub.9
   bb12:
-    v48 = shl v28, 5
-    v120 = add v125, v48
-    v121 = add v120, 32
-    mstore v121, v44
-    v51 = add v28, 1
+    v40 = shl v24, 5
+    v112 = add v117, v40
+    v113 = add v112, 32
+    mstore v113, v36
+    v43 = add v24, 1
     jump bb1
   bb13:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
-    v108 = mload v125
-    v109 = shl v108, 5
-    v116 = sub v125, 32
-    mstore v116, 32
-    v111 = add v109, 64
-    returndata v116, v111
+    v100 = mload v117
+    v101 = shl v100, 5
+    v108 = sub v117, 32
+    mstore v108, 32
+    v103 = add v101, 64
+    returndata v108, v103
   bb18:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

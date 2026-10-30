@@ -10,17 +10,13 @@ fn @pick(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x9d6a1cd3, pure, 
     icall panic_if<0x32>, v4
     v5 = extract_value slice<calldata>, arg0, 0
     v6 = mul v1, 32
-    v7 = eq 32, 0
-    v8 = div v6, 32
-    v9 = eq v8, v1
-    v10 = or v7, v9
-    v11 = zext i1 v10 to i256
-    v12 = eq v11, 0
-    icall panic_if<0x41>, v12
-    v13 = ptrtoint ptr<calldata> v5 to i256
-    v14 = add v13, v6
-    v15 = calldataload v14
-    ret v15
+    v7 = shr v1, 251
+    v8 = ne v7, 0
+    icall panic_if<0x41>, v8
+    v9 = ptrtoint ptr<calldata> v5 to i256
+    v10 = add v9, v6
+    v11 = calldataload v10
+    ret v11
 }
 
 fn @pickDown(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0xe4bcb1d7, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {

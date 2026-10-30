@@ -30,17 +30,13 @@ fn @read(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x8f65cc66, pure, 
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = mul arg1, 32
-    v5 = eq 32, 0
-    v6 = div v4, 32
-    v7 = eq v6, arg1
-    v8 = or v5, v7
-    v9 = zext i1 v8 to i256
-    v10 = eq v9, 0
-    icall panic_if<0x41>, v10
-    v11 = ptrtoint ptr<calldata> v3 to i256
-    v12 = add v11, v4
-    v13 = calldataload v12
-    ret v13
+    v5 = shr arg1, 251
+    v6 = ne v5, 0
+    icall panic_if<0x41>, v6
+    v7 = ptrtoint ptr<calldata> v3 to i256
+    v8 = add v7, v4
+    v9 = calldataload v8
+    ret v9
 }
 
 fn @readDynamic(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0xcd97b1f2, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -64,17 +60,13 @@ fn @readDynamicCalldata(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x5
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = mul arg1, 32
-    v5 = eq 32, 0
-    v6 = div v4, 32
-    v7 = eq v6, arg1
-    v8 = or v5, v7
-    v9 = zext i1 v8 to i256
-    v10 = eq v9, 0
-    icall panic_if<0x41>, v10
-    v11 = ptrtoint ptr<calldata> v3 to i256
-    v12 = add v11, v4
-    v13 = calldataload v12
-    ret v13
+    v5 = shr arg1, 251
+    v6 = ne v5, 0
+    icall panic_if<0x41>, v6
+    v7 = ptrtoint ptr<calldata> v3 to i256
+    v8 = add v7, v4
+    v9 = calldataload v8
+    ret v9
 }
 
 fn @readBytes(arg0: ptr<memory>) -> i256 [selector=0x8b33268b, pure, abi_params=[bytes], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {

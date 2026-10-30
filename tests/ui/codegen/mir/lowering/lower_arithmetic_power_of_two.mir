@@ -1,0 +1,45 @@
+//@ compile-flags: -Zmir-pipeline=lower-arithmetic
+//@ filecheck:
+@module PowerOfTwoMul
+
+// A product by 2 ** s wraps exactly when the other factor has a bit at or above 256 - s.
+// CHECK-LABEL: fn @right(
+// CHECK: [[PRODUCT:v[0-9]+]] = mul arg0, 32
+// CHECK-NEXT: [[HIGH:v[0-9]+]] = shr arg0, 251
+// CHECK-NEXT: [[WRAPS:v[0-9]+]] = ne [[HIGH]], 0
+// CHECK-NEXT: jumpi [[WRAPS]]
+fn @right(arg0: i256) -> i256 {
+  bb0:
+    v0 = checked_mul uint256, arg0, 32
+    ret v0
+}
+
+// CHECK-LABEL: fn @left(
+// CHECK: mul 2, arg0
+// CHECK-NEXT: [[HIGH:v[0-9]+]] = shr arg0, 255
+// CHECK-NEXT: ne [[HIGH]], 0
+fn @left(arg0: i256) -> i256 {
+  bb0:
+    v0 = checked_mul uint256, 2, arg0
+    ret v0
+}
+
+// Other constants keep the quotient test, which the e-graph prices against a 32-byte bound.
+// CHECK-LABEL: fn @other(
+// CHECK: div {{v[0-9]+}}, 3
+// CHECK-NOT: shr
+fn @other(arg0: i256) -> i256 {
+  bb0:
+    v0 = checked_mul uint256, arg0, 3
+    ret v0
+}
+
+// A signed product keeps the quotient test.
+// CHECK-LABEL: fn @signed(
+// CHECK: sdiv
+// CHECK-NOT: shr
+fn @signed(arg0: i256) -> i256 {
+  bb0:
+    v0 = checked_mul int256, arg0, 32
+    ret v0
+}

@@ -378,46 +378,42 @@ fn @storageArrayToMemory() -> i1 [selector=0xc4550e60, abi_params=[], abi_return
     v30 = lt v29, v22
     icall panic_if<0x41>, v30
     v31 = mul v29, 32
-    v32 = eq 32, 0
-    v33 = div v31, 32
-    v34 = eq v33, v29
-    v35 = or v32, v34
-    v36 = zext i1 v35 to i256
-    v37 = eq v36, 0
-    icall panic_if<0x41>, v37
-    v38 = alloc checked v31
-    mstore v38, v21
+    v32 = shr v29, 251
+    v33 = ne v32, 0
+    icall panic_if<0x41>, v33
+    v34 = alloc checked v31
+    mstore v34, v21
     jump bb1
   bb1:
-    v39 = phi [bb0: 0], [bb2: v55]
-    v40 = lt v39, v21
-    jumpi v40, bb2, bb3
+    v35 = phi [bb0: 0], [bb2: v51]
+    v36 = lt v35, v21
+    jumpi v36, bb2, bb3
   bb3:
-    v56 = ptrtoint ptr<memory> v38 to i256
-    v57 = add v56, 32
-    v58 = mload v57
-    v59 = address
-    v60 = zext i160 v59 to i256
-    v61 = shl v60, 96
-    v62 = or v61, 0x32e43a110000000000000000
-    v63 = eq v58, v62
-    ret v63
+    v52 = ptrtoint ptr<memory> v34 to i256
+    v53 = add v52, 32
+    v54 = mload v53
+    v55 = address
+    v56 = zext i160 v55 to i256
+    v57 = shl v56, 96
+    v58 = or v57, 0x32e43a110000000000000000
+    v59 = eq v54, v58
+    ret v59
   bb2:
-    v41 = storage_array_data_slot 1
-    v42 = div v39, 1
-    v43 = add v41, v42
-    v44 = mod v39, 1
-    v45 = mul v44, 24
-    v46 = sload v43 !metadata(storage=symbolic(v43))
-    v47 = mul v45, 8
-    v48 = shr v46, v47
-    v49 = trunc i256 v48 to i192
-    v50 = zext i192 v49 to i256
-    v51 = shl v50, 64
-    v52 = shl v39, 5
-    v53 = ptradd v38, v52
-    v54 = ptradd v53, 32
-    mstore v54, v51
-    v55 = add v39, 1
+    v37 = storage_array_data_slot 1
+    v38 = div v35, 1
+    v39 = add v37, v38
+    v40 = mod v35, 1
+    v41 = mul v40, 24
+    v42 = sload v39 !metadata(storage=symbolic(v39))
+    v43 = mul v41, 8
+    v44 = shr v42, v43
+    v45 = trunc i256 v44 to i192
+    v46 = zext i192 v45 to i256
+    v47 = shl v46, 64
+    v48 = shl v35, 5
+    v49 = ptradd v34, v48
+    v50 = ptradd v49, 32
+    mstore v50, v47
+    v51 = add v35, 1
     jump bb1
 }

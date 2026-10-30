@@ -38,51 +38,47 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     v21 = lt v20, 1
     icall panic_if<0x41>, v21
     v22 = mul v20, 32
-    v23 = eq 32, 0
-    v24 = div v22, 32
-    v25 = eq v24, v20
-    v26 = or v23, v25
-    v27 = zext i1 v26 to i256
-    v28 = eq v27, 0
-    icall panic_if<0x41>, v28
-    v29 = add 32, v22
-    v30 = lt v29, 32
-    icall panic_if<0x41>, v30
-    v31 = alloc v29
-    mstore v31, v22
-    v32 = mload v0
-    v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v34 = ptradd v31, 32
-    mstore v34, v33
-    v35 = ptradd v0, 32
-    v36 = mload v35
-    v37 = mload v36
-    v38 = add v37, 31
-    v39 = lt v38, v37
-    icall panic_if<0x41>, v39
-    v40 = not 31
-    v41 = and v38, v40
-    v42 = eq v41, 0
-    jumpi v42, bb2, bb1
+    v23 = shr v20, 251
+    v24 = ne v23, 0
+    icall panic_if<0x41>, v24
+    v25 = add 32, v22
+    v26 = lt v25, 32
+    icall panic_if<0x41>, v26
+    v27 = alloc v25
+    mstore v27, v22
+    v28 = mload v0
+    v29 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v30 = ptradd v27, 32
+    mstore v30, v29
+    v31 = ptradd v0, 32
+    v32 = mload v31
+    v33 = mload v32
+    v34 = add v33, 31
+    v35 = lt v34, v33
+    icall panic_if<0x41>, v35
+    v36 = not 31
+    v37 = and v34, v36
+    v38 = eq v37, 0
+    jumpi v38, bb2, bb1
   bb1:
-    v43 = sub v41, 32
-    v44 = add 32, v43
-    v45 = ptradd v31, v44
-    v46 = ptradd v45, 32
-    mstore v46, 0
+    v39 = sub v37, 32
+    v40 = add 32, v39
+    v41 = ptradd v27, v40
+    v42 = ptradd v41, 32
+    mstore v42, 0
     jump bb2
   bb2:
-    v47 = add v36, 32
-    v48 = inttoptr i256 v47 to ptr<memory>
-    v49 = make_memory_slice v48, v37
-    v50 = ptradd v31, 64
-    v51 = extract_value slice<memory>, v49, 0
-    v52 = extract_value slice<memory>, v49, 1
-    mcopy v50, v51, v52
-    v53 = add 32, v41
-    v54 = ptradd v31, 32
-    v55 = mload v31
-    v56 = keccak256 v54, v55
-    log 0, 0, 0x2a66ae4432794c7fc0bfc59df26473a06d65994d91dd1e3eecd6ff7df5305336, v56
+    v43 = add v32, 32
+    v44 = inttoptr i256 v43 to ptr<memory>
+    v45 = make_memory_slice v44, v33
+    v46 = ptradd v27, 64
+    v47 = extract_value slice<memory>, v45, 0
+    v48 = extract_value slice<memory>, v45, 1
+    mcopy v46, v47, v48
+    v49 = add 32, v37
+    v50 = ptradd v27, 32
+    v51 = mload v27
+    v52 = keccak256 v50, v51
+    log 0, 0, 0x2a66ae4432794c7fc0bfc59df26473a06d65994d91dd1e3eecd6ff7df5305336, v52
     ret
 }
