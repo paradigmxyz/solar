@@ -88,12 +88,12 @@
 ;; `PUSH x; unary_op => materialize(unary_op(x))`, when bytes and gas improve.
 (decl fold_unary_constant (U256) Window)
 (extern extractor fold_unary_constant fold_unary_constant)
-;; `PUSH 0; PUSH block; JUMPI => empty`, respecting protected boundaries.
-(decl untaken_jump () Window)
-(extern extractor untaken_jump untaken_jump)
 ;; `PUSH c; SWAP1; SUB`, when `materialize(-c); ADD` is cheaper, giving `-c`.
 (decl negated_subtrahend (U256) Window)
 (extern extractor negated_subtrahend negated_subtrahend)
+;; `PUSH 0; PUSH block; JUMPI => empty`, respecting protected boundaries.
+(decl untaken_jump () Window)
+(extern extractor untaken_jump untaken_jump)
 ;; A trailing stack sequence whose net effect is the identity, giving its length.
 (decl noop_stack_suffix (u8) Window)
 (extern extractor noop_stack_suffix noop_stack_suffix)
@@ -188,10 +188,6 @@
 
 ;; PUSH 0; PUSH block; JUMPI => empty
 (rule 283 (peep_op (untaken_jump)) (rewrite 3 (Edit.Keep 0)))
-
-;; `PUSH c; SWAP1; SUB => materialize(-c); ADD`: both compute `x - c` for the `x` on top.
-;; The right side drops the `SWAP1`, and the target's cheaper materialization may drop more.
-(rule 282 (peep_op (negated_subtrahend value)) (rewrite 3 (Edit.AddNegated value)))
 
 ;; `PUSH x POP -> ∅`.
 (rule 280 (peep_pop (last2 (any_push) (opcode $POP))) (rewrite 2 (Edit.Keep 0)))
@@ -300,6 +296,13 @@
 (decl pure late_length (LateWindow) u8)
 (extern constructor late_length late_length)
 (decl partial late_peep (LateWindow) Rewrite)
+
+;; `PUSH c; SWAP1; SUB => materialize(-c); ADD`: both compute `x - c` for the `x` on top.
+;; The right side drops the `SWAP1`, and the target's cheaper materialization may drop more.
+;; This runs only after `late_peep` fails, because the protected low-mask window ends in the
+;; same tail and rewrites it better.
+(decl partial late_sub (Window) Rewrite)
+(rule (late_sub (negated_subtrahend value)) (rewrite 3 (Edit.AddNegated value)))
 
 (decl protected_window (Inst Inst Inst Inst Inst) LateWindow)
 (extern extractor protected_window protected_window)

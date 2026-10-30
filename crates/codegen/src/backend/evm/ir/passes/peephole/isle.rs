@@ -268,14 +268,15 @@ impl<'a> PeepContext<'a> {
             Rules::Early => self.select_by_tail(),
             Rules::Final => self.final_rewrite().or_else(|| self.select_by_tail()),
             Rules::Late => {
-                if self.instructions.len() < 5
-                    || self.instructions.last()?.as_evm_opcode() != Some(SUB)
-                {
+                if self.instructions.last()?.as_evm_opcode() != Some(SUB) {
                     return None;
                 }
-                let first = self.instructions.len().saturating_sub(MAX_STACK_WINDOW);
-                (first..=self.instructions.len() - 5)
-                    .find_map(|start| generated::constructor_late_peep(self, start))
+                let end = self.instructions.len();
+                let first = end.saturating_sub(MAX_STACK_WINDOW);
+                let masked = end.checked_sub(5).and_then(|last| {
+                    (first..=last).find_map(|start| generated::constructor_late_peep(self, start))
+                });
+                masked.or_else(|| generated::constructor_late_sub(self, Window))
             }
         }
     }
@@ -501,8 +502,8 @@ impl generated::Context for PeepContext<'_> {
     /// objective without raising the transient stack use.
     fn negated_subtrahend(&mut self, _: Window) -> Option<U256> {
         let [push, swap, sub] = self.unprotected_tail()?;
-        let value = self.instructions[push].concrete_immediate()?;
         let instructions = self.instructions;
+        let value = instructions[push].concrete_immediate()?;
         if instructions[swap].as_stack_op() != Some(StackOp::Swap(1))
             || instructions[sub].as_evm_opcode() != Some(SUB)
         {

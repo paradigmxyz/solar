@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/peephole/sub_constant.evmir (before peephole) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/peephole/sub_constant.evmir (after peephole) ===
+- // === ROOT/tests/ui/codegen/evm-ir/late-word/sub_constant.evmir (before late-word) ===
++ // === ROOT/tests/ui/codegen/evm-ir/late-word/sub_constant.evmir (after late-word) ===
   @module sub_constant
   bb0:
     push 4
@@ -14,9 +14,10 @@
     sub
     push 4
     calldataload
--   push 0
+    push 0
 -   swap 1
 -   sub
++   add
     push 4
     calldataload
 -   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

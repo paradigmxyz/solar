@@ -21,9 +21,6 @@
 //! preserve protected instruction boundaries, and never treat symbolic label
 //! addresses or immutable placeholders as literal constants.
 //!
-//! `PUSH c; SWAP1; SUB` becomes `materialize(-c); ADD` when the target's cheapest materialization
-//! of `-c` beats the push and the swap, as `PUSH0; NOT` does for the decrement `x - 1`.
-//!
 //! A pure binary operation with a constant operand moves through a `SWAPn SWAP1 SWAPn`
 //! permutation, which removes two swaps. `ADDMOD` and `MULMOD` drop a preceding `SWAP1`,
 //! since only their first two operands swap.
@@ -37,6 +34,11 @@
 //! constants. Deferring this rewrite preserves earlier outlining opportunities;
 //! doing it in MIR can turn a shareable run into two smaller inline copies that
 //! occupy more bytes overall. Matching is bounded to 24 instructions per tail.
+//!
+//! When no low-mask window matches, the late rules rewrite a trailing `PUSH c; SWAP1; SUB` to
+//! `materialize(-c); ADD` if the target's cheapest materialization of `-c` beats the push and the
+//! swap, as `PUSH0; NOT` does for the decrement `x - 1`. The low-mask window ends in the same
+//! tail, so this rewrite waits for it.
 
 use super::{EvmPass, compact_pushes::materialize_immediate, utils::MachineInstKey};
 use crate::{
