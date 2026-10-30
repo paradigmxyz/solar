@@ -2,7 +2,8 @@
 
 use crate::mir::{
     BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Module, Terminator, ValueId,
-    memory::EvmMemoryLayout, utils::IndexLists,
+    memory::EvmMemoryLayout,
+    utils::{IndexLists, replace_terminator},
 };
 use solar_sema::hir::StateMutability;
 
@@ -125,6 +126,29 @@ pub(super) fn expand_block(
     if end != block {
         redirect_successor_predecessors(builder.func_mut(), block, end);
     }
+}
+
+/// Retargets every edge from `pred` to `old` so it enters `new`, keeping predecessor lists in sync.
+///
+/// Returns whether `pred` had an edge to `old`. The caller supplies `new`'s phi inputs for `pred`.
+pub(super) fn redirect_edge(
+    func: &mut Function,
+    pred: BlockId,
+    old: BlockId,
+    new: BlockId,
+) -> bool {
+    let Some(mut terminator) = func.blocks[pred].terminator.clone() else { return false };
+    if !terminator.has_successor(old) {
+        return false;
+    }
+    // pred: jump/branch/switch old -> new
+    terminator.for_each_successor_mut(|target| {
+        if *target == old {
+            *target = new;
+        }
+    });
+    replace_terminator(func, pred, terminator);
+    true
 }
 
 /// Returns whether `func` has a private MIR signature that direct callers may rewrite.

@@ -158,6 +158,31 @@ impl Terminator {
         }
     }
 
+    /// Visits every successor slot of this terminator mutably, so callers can retarget edges.
+    pub(crate) fn for_each_successor_mut(&mut self, mut visit: impl FnMut(&mut BlockId)) {
+        match self {
+            Self::Jump(target) => visit(target),
+            Self::Branch { then_block, else_block, .. } => {
+                visit(then_block);
+                visit(else_block);
+            }
+            Self::Switch { default, cases, .. } => {
+                visit(default);
+                for (_, block) in cases {
+                    visit(block);
+                }
+            }
+            Self::Return { .. }
+            | Self::Revert { .. }
+            | Self::RevertReturndata
+            | Self::ReturnData { .. }
+            | Self::Stop
+            | Self::SelfDestruct { .. }
+            | Self::TailCall { .. }
+            | Self::Invalid => {}
+        }
+    }
+
     /// Returns whether this terminator branches to `target`.
     #[must_use]
     pub(crate) fn has_successor(&self, target: BlockId) -> bool {
