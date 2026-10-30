@@ -169,11 +169,10 @@ fn @boolean(arg0: i256) -> i1 [selector=0xbc586ed6, pure, abi_params=[uint256], 
     v7 = ptrtoint ptr<memory> v1 to i256
     v8 = add v7, 0
     v9 = mload v8
-    v10 = lt v9, 2
-    v11 = eq v10, false
-    icall revert_if<empty>, v11
-    v12 = ne v9, 0
-    ret v12
+    v10 = gt v9, 1
+    icall revert_if<empty>, v10
+    v11 = ne v9, 0
+    ret v11
 }
 
 fn @structBool(arg0: i256) -> ptr<memory> [selector=0x199436a8, pure, abi_params=[uint256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, uint256>]] {

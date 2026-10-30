@@ -21,10 +21,9 @@ fn @h(arg0: slice<calldata>) -> i256 [selector=0xdae6c3bf, pure, abi_params=[arr
     v5 = add v4, 0
     v6 = calldataload v5
     v7 = shl v6, 192
-    v8 = eq v7, 0
-    v9 = eq v8, false
-    icall revert_if<empty>, v9
-    v10 = shr v6, 64
+    v8 = ne v7, 0
+    icall revert_if<empty>, v8
+    v9 = shr v6, 64
     ret 3
 }
 

@@ -17,9 +17,12 @@
 //! loop as a second phi measured 2,457 runtime bytes larger over the benchmark corpus. The loop
 //! counts words independently of address wraparound.
 
-use crate::mir::{
-    AllocationSemantics, Function, FunctionBuilder, FunctionId, InstKind, MirType, Module,
-    PanicCode, ValueId,
+use crate::{
+    mir::{
+        AllocationSemantics, Function, FunctionBuilder, FunctionId, InstKind, MirType, Module,
+        PanicCode, ValueId,
+    },
+    target::ConditionUse,
 };
 use alloy_primitives::U256;
 use solar_interface::{Ident, sym};
@@ -247,8 +250,7 @@ pub(super) fn store_literal(
     // old_is_long, old_length = validate_storage_bytes(header)
     // branch old_is_long && old_length > length, cleanup, write
     let (old_is_long, old_length) = validate(builder, header);
-    let length = builder.imm(bytes.len() as u64);
-    let shrunk = builder.gt(old_length, length);
+    let shrunk = builder.gt_literal(old_length, bytes.len() as u64, ConditionUse::VALUE);
     let needs_cleanup = builder.and(old_is_long, shrunk);
     let cleanup_block = builder.create_block();
     let write_block = builder.create_block();

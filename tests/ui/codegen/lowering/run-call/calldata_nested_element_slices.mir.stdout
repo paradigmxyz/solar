@@ -67,8 +67,8 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0xe3db0bf3, pure, abi_params=[a
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v39]
-    v2 = phi [bb0: 0], [bb3: v40]
+    v1 = phi [bb0: 0], [bb3: v40]
+    v2 = phi [bb0: 0], [bb3: v41]
     v3 = extract_value slice<calldata>, v0, 1
     v4 = lt v2, v3
     jumpi v4, bb4, bb5
@@ -108,21 +108,22 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0xe3db0bf3, pure, abi_params=[a
     icall revert_if<invalid_calldata_tail_offset>, v29
     v30 = calldataload v23
     v31 = calldatasize
-    v32 = gt v30, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v32
-    v33 = add v23, 32
-    v34 = sub v31, v30
-    v35 = sgt v33, v34
-    icall revert_if<calldata_tail_too_short>, v35
-    v36 = inttoptr i256 v33 to ptr<calldata>
-    v37 = make_calldata_slice v36, v30
-    v38 = icall @_length, v37
-    v39 = checked_add uint256, v1, v38
+    v32 = shr v30, 64
+    v33 = ne v32, 0
+    icall revert_if<invalid_calldata_tail_length>, v33
+    v34 = add v23, 32
+    v35 = sub v31, v30
+    v36 = sgt v34, v35
+    icall revert_if<calldata_tail_too_short>, v36
+    v37 = inttoptr i256 v34 to ptr<calldata>
+    v38 = make_calldata_slice v37, v30
+    v39 = icall @_length, v38
+    v40 = checked_add uint256, v1, v39
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v40 = checked_add uint256, v2, 1
+    v41 = checked_add uint256, v2, 1
     jump bb1
 }
 
@@ -174,8 +175,8 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
     v34 = ptrtoint ptr<memory> v25 to i256
     v35 = add v34, 32
     v36 = mload v35
-    v37 = lt v36, 2
-    v38 = eq v37, false
+    v37 = shr v36, 1
+    v38 = ne v37, 0
     icall revert_if<empty>, v38
     v39 = ne v36, 0
     v40 = insert_value struct0, undef struct0, 0, v33
@@ -245,27 +246,28 @@ fn @inspect(arg0: slice<calldata>) -> struct0 [selector=0x903f85b3, pure, abi_pa
     icall revert_if<invalid_calldata_tail_offset>, v34
     v35 = calldataload v28
     v36 = calldatasize
-    v37 = gt v35, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v37
-    v38 = add v28, 32
-    v39 = sub v36, v35
-    v40 = sgt v38, v39
-    icall revert_if<calldata_tail_too_short>, v40
-    v41 = inttoptr i256 v38 to ptr<calldata>
-    v42 = make_calldata_slice v41, v35
-    v43 = extract_value slice<calldata>, v42, 1
-    v44 = extract_value slice<calldata>, v42, 0
-    v45 = ptrtoint ptr<calldata> v44 to i256
-    v46 = add v45, v43
-    v47 = extract_value slice<calldata>, v42, 1
-    v48 = calldatasize
-    v49 = make_calldata_slice ptr<calldata> 0, v48
-    v50 = extract_value slice<calldata>, v49, 1
-    v51 = gt v46, v50
-    v52 = eq v51, false
-    v53 = insert_value struct0, undef struct0, 0, v47
-    v54 = insert_value struct0, v53, 1, v52
-    ret v54
+    v37 = shr v35, 64
+    v38 = ne v37, 0
+    icall revert_if<invalid_calldata_tail_length>, v38
+    v39 = add v28, 32
+    v40 = sub v36, v35
+    v41 = sgt v39, v40
+    icall revert_if<calldata_tail_too_short>, v41
+    v42 = inttoptr i256 v39 to ptr<calldata>
+    v43 = make_calldata_slice v42, v35
+    v44 = extract_value slice<calldata>, v43, 1
+    v45 = extract_value slice<calldata>, v43, 0
+    v46 = ptrtoint ptr<calldata> v45 to i256
+    v47 = add v46, v44
+    v48 = extract_value slice<calldata>, v43, 1
+    v49 = calldatasize
+    v50 = make_calldata_slice ptr<calldata> 0, v49
+    v51 = extract_value slice<calldata>, v50, 1
+    v52 = gt v47, v51
+    v53 = eq v52, false
+    v54 = insert_value struct0, undef struct0, 0, v48
+    v55 = insert_value struct0, v54, 1, v53
+    ret v55
 }
 
 fn @tupleTernary() -> i256 [selector=0x75466b3a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

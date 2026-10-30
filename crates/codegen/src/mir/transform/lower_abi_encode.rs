@@ -85,7 +85,7 @@ use crate::{
         transform::{egraph::use_counts, utils::expand_block},
         utils::resolve_replacement,
     },
-    target::Target,
+    target::{ConditionUse, Target},
 };
 
 use alloy_primitives::U256;
@@ -265,8 +265,9 @@ fn synthesize_tuple_helpers(
     for (_, sites, key) in keys {
         let mut function = Function::new(Ident::with_dummy_span(sym::encode_abi_tuple));
         {
-            let mut builder =
-                FunctionBuilder::new(&mut function).with_revert_strings(revert_strings);
+            let mut builder = FunctionBuilder::new(&mut function)
+                .with_revert_strings(revert_strings)
+                .with_target(*target);
             let args = key.arg_types.iter().map(|ty| builder.add_param(*ty)).collect::<Vec<_>>();
             let selector = key.selector.then(|| builder.add_param(MirType::I256));
             let layout = AbiLayout::new(key.types.clone());
@@ -370,8 +371,9 @@ fn synthesize_array_helpers(
     for (_, key) in keys {
         let mut function = Function::new(Ident::with_dummy_span(sym::encode_abi_array));
         {
-            let mut builder =
-                FunctionBuilder::new(&mut function).with_revert_strings(revert_strings);
+            let mut builder = FunctionBuilder::new(&mut function)
+                .with_revert_strings(revert_strings)
+                .with_target(*target);
             let value = builder.add_param(key.value_ty);
             // Keep the destination's heap provenance inside the helper. Return its
             // length so the caller derives the tail from its own destination.
@@ -469,7 +471,9 @@ fn calldata_helper(
 ) -> Function {
     let mut function = Function::new(Ident::with_dummy_span(sym::encode_abi_calldata));
     {
-        let mut builder = FunctionBuilder::new(&mut function).with_revert_strings(revert_strings);
+        let mut builder = FunctionBuilder::new(&mut function)
+            .with_revert_strings(revert_strings)
+            .with_target(helpers.target);
         let value = builder.add_param(MirType::Slice(PtrLocation::Calldata));
         let dest = builder.add_param(MirType::MEMPTR);
         let dest = builder.cast(dest, MirType::I256);
@@ -589,7 +593,9 @@ fn lower_function(
             continue;
         }
         let terminal = ends_function(func.blocks[block].terminator.as_ref());
-        let mut builder = FunctionBuilder::new(func).with_revert_strings(revert_strings);
+        let mut builder = FunctionBuilder::new(func)
+            .with_revert_strings(revert_strings)
+            .with_target(helpers.target);
         expand_block(&mut builder, block, |builder, inst| {
             let InstKind::AbiEncode { mode, selector, args, layout } =
                 &builder.func().inst(inst).kind
@@ -1211,7 +1217,7 @@ fn encode_static_slice(
                 function.cleanup(builder, value)
             } else {
                 if validate {
-                    validate_calldata_word(builder, function, value);
+                    validate_calldata_word(builder, function, value, ConditionUse::BRANCH);
                 }
                 value
             };
@@ -1225,7 +1231,7 @@ fn encode_static_slice(
                 }
                 Some(cleanup) => {
                     if validate {
-                        validate_calldata_word(builder, *cleanup, value);
+                        validate_calldata_word(builder, *cleanup, value, ConditionUse::BRANCH);
                     }
                     value
                 }
@@ -1244,10 +1250,11 @@ fn validate_calldata_word(
     builder: &mut FunctionBuilder<'_>,
     validator: AbiWordValidator,
     word: ValueId,
+    read: ConditionUse,
 ) {
-    // if !valid(word) { revert(0, 0) }
-    let valid = validator.condition(builder, word);
-    builder.revert_if_zero(valid, RevertReason::Empty);
+    // if invalid(word) { revert(0, 0) }
+    let invalid = validator.violation(builder, word, read);
+    builder.revert_if(invalid, RevertReason::Empty);
 }
 
 /// Canonicalizes a word read from memory before it is encoded: narrow values are masked or
@@ -1529,7 +1536,7 @@ fn encode_calldata_element(
             let offset = builder.mul(index, word);
             let position = builder.add(words, offset);
             let value = builder.load(position, PtrLocation::Calldata);
-            validate_calldata_word(builder, *validator, value);
+            validate_calldata_word(builder, *validator, value, ConditionUse::BRANCH.in_loop());
         });
     }
     encode_value(builder, ty, value, dest, AbiValueSource::Scalar, helpers)

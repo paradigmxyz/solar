@@ -32,7 +32,7 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0xc26b6b9a, pure, abi_para
     mstore v22, v0
     jump bb1
   bb1:
-    v23 = phi [bb0: 0], [bb2: v66]
+    v23 = phi [bb0: 0], [bb2: v67]
     v24 = lt v23, v0
     jumpi v24, bb2, bb3
   bb3:
@@ -57,38 +57,39 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0xc26b6b9a, pure, abi_para
     icall revert_if<invalid_calldata_tail_offset>, v39
     v40 = calldataload v33
     v41 = calldatasize
-    v42 = gt v40, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v42
-    v43 = mul v40, 32
-    v44 = add v33, 32
-    v45 = sub v41, v43
-    v46 = sgt v44, v45
-    icall revert_if<calldata_tail_too_short>, v46
-    v47 = mul v40, 32
-    v48 = eq 32, 0
-    v49 = div v47, 32
-    v50 = eq v49, v40
-    v51 = or v48, v50
-    v52 = zext i1 v51 to i256
-    v53 = eq v52, 0
-    icall panic_if<0x41>, v53
-    v54 = add 32, v47
-    v55 = lt v54, 32
-    icall panic_if<0x41>, v55
-    v56 = alloc v54
-    mstore v56, v40
-    v57 = inttoptr i256 v44 to ptr<calldata>
-    v58 = make_calldata_slice v57, v47
-    v59 = ptradd v56, 32
-    v60 = extract_value slice<calldata>, v58, 0
-    v61 = extract_value slice<calldata>, v58, 1
-    calldatacopy v59, v60, v61
-    v62 = ptrtoint ptr<memory> v56 to i256
-    v63 = shl v23, 5
-    v64 = ptradd v22, v63
-    v65 = ptradd v64, 32
-    mstore v65, v62
-    v66 = add v23, 1
+    v42 = shr v40, 64
+    v43 = ne v42, 0
+    icall revert_if<invalid_calldata_tail_length>, v43
+    v44 = mul v40, 32
+    v45 = add v33, 32
+    v46 = sub v41, v44
+    v47 = sgt v45, v46
+    icall revert_if<calldata_tail_too_short>, v47
+    v48 = mul v40, 32
+    v49 = eq 32, 0
+    v50 = div v48, 32
+    v51 = eq v50, v40
+    v52 = or v49, v51
+    v53 = zext i1 v52 to i256
+    v54 = eq v53, 0
+    icall panic_if<0x41>, v54
+    v55 = add 32, v48
+    v56 = lt v55, 32
+    icall panic_if<0x41>, v56
+    v57 = alloc v55
+    mstore v57, v40
+    v58 = inttoptr i256 v45 to ptr<calldata>
+    v59 = make_calldata_slice v58, v48
+    v60 = ptradd v57, 32
+    v61 = extract_value slice<calldata>, v59, 0
+    v62 = extract_value slice<calldata>, v59, 1
+    calldatacopy v60, v61, v62
+    v63 = ptrtoint ptr<memory> v57 to i256
+    v64 = shl v23, 5
+    v65 = ptradd v22, v64
+    v66 = ptradd v65, 32
+    mstore v66, v63
+    v67 = add v23, 1
     jump bb1
 }
 

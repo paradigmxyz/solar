@@ -139,46 +139,48 @@ fn @decode_calldata_type.8() -> i256 [may_return_memory] {
   bb2:
     v6 = calldataload v2
     v7 = add v2, 32
-    v8 = gt v6, 0x7fffffffffffffe
-    v9 = add v6, 1
-    v10 = shl v9, 5
-    v36 = heap_floor !metadata(alloc_ptr)
-    v37 = add v36, v10 !metadata(alloc_ptr)
-    v38 = lt v37, v36
-    v39 = gt v37, 0xffffffffffffffff
-    v40 = or v38, v39
-    v42 = or v8, v40
-    jumpi v42, bb3, bb9
+    v8 = shr v6, 59
+    v10 = add v6, 1
+    v11 = shl v10, 5
+    v37 = heap_floor !metadata(alloc_ptr)
+    v38 = add v37, v11 !metadata(alloc_ptr)
+    v39 = lt v38, v37
+    v41 = gt v38, 0xffffffffffffffff
+    v42 = or v39, v41
+    v45 = zext i1 v42 to i256
+    v46 = or v8, v45
+    v47 = ne v46, 0
+    jumpi v47, bb3, bb9
   bb9:
-    mstore 64, v37 !metadata(memory=scratch)
-    mstore v36, v6
-    v12 = shl v6, 5
-    v13 = sub v0, v7
-    v14 = shr v13, 5
-    v15 = gt v6, v14
-    jumpi v15, bb1, bb4
+    mstore 64, v38 !metadata(memory=scratch)
+    mstore v37, v6
+    v13 = shl v6, 5
+    v14 = sub v0, v7
+    v15 = shr v14, 5
+    v16 = gt v6, v15
+    jumpi v16, bb1, bb4
   bb4:
-    v16 = ne v6, 0
-    jumpi v16, bb5, bb8
+    v17 = ne v6, 0
+    jumpi v17, bb5, bb8
   bb5:
-    v18 = add v7, v12
+    v19 = add v7, v13
     jump bb6
   bb6:
-    v19 = phi [bb5: v7], [bb6: v23]
-    v20 = phi [bb5: 0], [bb6: v22]
-    v21 = calldataload v19
-    v22 = or v20, v21
-    v23 = add v19, 32
-    v24 = lt v23, v18
-    jumpi v24, bb6, bb7
+    v20 = phi [bb5: v7], [bb6: v24]
+    v21 = phi [bb5: 0], [bb6: v23]
+    v22 = calldataload v20
+    v23 = or v21, v22
+    v24 = add v20, 32
+    v25 = lt v24, v19
+    jumpi v25, bb6, bb7
   bb7:
-    v25 = shr v22, 160
-    v26 = eq v25, 0
-    jumpi v26, bb8, bb1
+    v26 = shr v23, 160
+    v27 = ne v26, 0
+    jumpi v27, bb1, bb8
   bb8:
-    v33 = add v36, 32
-    calldatacopy v33, v7, v12
-    ret v36
+    v34 = add v37, 32
+    calldatacopy v34, v7, v13
+    ret v37
   bb3:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -198,46 +200,48 @@ fn @decode_calldata_type.9() -> i256 [may_return_memory] {
   bb2:
     v6 = calldataload v2
     v7 = add v2, 32
-    v8 = gt v6, 0x7fffffffffffffe
-    v9 = add v6, 1
-    v10 = shl v9, 5
-    v36 = heap_floor !metadata(alloc_ptr)
-    v37 = add v36, v10 !metadata(alloc_ptr)
-    v38 = lt v37, v36
-    v39 = gt v37, 0xffffffffffffffff
-    v40 = or v38, v39
-    v42 = or v8, v40
-    jumpi v42, bb3, bb9
+    v8 = shr v6, 59
+    v10 = add v6, 1
+    v11 = shl v10, 5
+    v37 = heap_floor !metadata(alloc_ptr)
+    v38 = add v37, v11 !metadata(alloc_ptr)
+    v39 = lt v38, v37
+    v41 = gt v38, 0xffffffffffffffff
+    v42 = or v39, v41
+    v45 = zext i1 v42 to i256
+    v46 = or v8, v45
+    v47 = ne v46, 0
+    jumpi v47, bb3, bb9
   bb9:
-    mstore 64, v37 !metadata(memory=scratch)
-    mstore v36, v6
-    v12 = shl v6, 5
-    v13 = sub v0, v7
-    v14 = shr v13, 5
-    v15 = gt v6, v14
-    jumpi v15, bb1, bb4
+    mstore 64, v38 !metadata(memory=scratch)
+    mstore v37, v6
+    v13 = shl v6, 5
+    v14 = sub v0, v7
+    v15 = shr v14, 5
+    v16 = gt v6, v15
+    jumpi v16, bb1, bb4
   bb4:
-    v16 = ne v6, 0
-    jumpi v16, bb5, bb8
+    v17 = ne v6, 0
+    jumpi v17, bb5, bb8
   bb5:
-    v18 = add v7, v12
+    v19 = add v7, v13
     jump bb6
   bb6:
-    v19 = phi [bb5: v7], [bb6: v23]
-    v20 = phi [bb5: 0], [bb6: v22]
-    v21 = calldataload v19
-    v22 = or v20, v21
-    v23 = add v19, 32
-    v24 = lt v23, v18
-    jumpi v24, bb6, bb7
+    v20 = phi [bb5: v7], [bb6: v24]
+    v21 = phi [bb5: 0], [bb6: v23]
+    v22 = calldataload v20
+    v23 = or v21, v22
+    v24 = add v20, 32
+    v25 = lt v24, v19
+    jumpi v25, bb6, bb7
   bb7:
-    v25 = shr v22, 8
-    v26 = eq v25, 0
-    jumpi v26, bb8, bb1
+    v26 = shr v23, 8
+    v27 = ne v26, 0
+    jumpi v27, bb1, bb8
   bb8:
-    v33 = add v36, 32
-    calldatacopy v33, v7, v12
-    ret v36
+    v34 = add v37, 32
+    calldatacopy v34, v7, v13
+    ret v37
   bb3:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

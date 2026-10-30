@@ -20,8 +20,8 @@ fn @recoverUnderGasPressure() -> i256 [selector=0x8ea61220, view, abi_params=[],
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v18]
-    v1 = phi [bb0: 0x7d0], [bb3: v19]
+    v0 = phi [bb0: 0], [bb3: v17]
+    v1 = phi [bb0: 0x7d0], [bb3: v18]
     v2 = lt v1, 0x1b58
     jumpi v2, bb4, bb5
   bb5:
@@ -49,26 +49,25 @@ fn @recoverUnderGasPressure() -> i256 [selector=0x8ea61220, view, abi_params=[],
     v9 = add 0, 0
     v10 = mload v9
     v11 = shr v10, 160
-    v12 = eq v11, 0
-    v13 = eq v12, false
-    icall revert_if<empty>, v13
-    v14 = trunc i256 v10 to i160
-    v15 = ne v14, i160 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf
-    jumpi v15, bb10, bb11
+    v12 = ne v11, 0
+    icall revert_if<empty>, v12
+    v13 = trunc i256 v10 to i160
+    v14 = ne v13, i160 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf
+    jumpi v14, bb10, bb11
   bb11:
     jump bb12
   bb10:
-    v16 = checked_add uint256, v0, 1
+    v15 = checked_add uint256, v0, 1
     jump bb12
   bb12:
-    v17 = phi [bb10: v16], [bb11: v0]
+    v16 = phi [bb10: v15], [bb11: v0]
     jump bb9
   bb9:
-    v18 = phi [bb12: v17], [bb13: v0]
+    v17 = phi [bb12: v16], [bb13: v0]
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v19 = checked_add uint256, v1, 11
+    v18 = checked_add uint256, v1, 11
     jump bb1
 }

@@ -46,8 +46,8 @@ fn @execute(arg0: i160, arg1: i160, arg2: i256, arg3: slice<calldata>) [selector
     icall revert_if<tuple_data_too_short>, v19
     v20 = add 0, 0
     v21 = mload v20
-    v22 = lt v21, 2
-    v23 = eq v22, false
+    v22 = shr v21, 1
+    v23 = ne v22, 0
     icall revert_if<empty>, v23
     v24 = gas
     v25 = zext i160 arg1 to i256

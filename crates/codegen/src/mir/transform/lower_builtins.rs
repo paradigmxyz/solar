@@ -85,13 +85,13 @@ impl MirPass for LowerBuiltins {
             })
             .collect::<FxHashMap<_, _>>();
         let evm = gcx.sess.opts.evm_version;
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass(module, analyses, |func, analyses| {
             if !func.instructions().any(|id| is_builtin(&func.inst(id).kind)) {
                 return false;
             }
             let mut replacements = FxHashMap::default();
             for block in func.blocks.indices() {
-                let mut builder = FunctionBuilder::new(func);
+                let mut builder = FunctionBuilder::new(func).with_target(analyses.target(gcx));
                 expand_block(&mut builder, block, |builder, id| {
                     if !is_builtin(&builder.func().inst(id).kind) {
                         return false;

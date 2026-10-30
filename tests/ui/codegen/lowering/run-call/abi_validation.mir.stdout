@@ -29,11 +29,10 @@ fn @vAddress(arg0: i160) -> i160 [selector=0x23347413, view, abi_params=[address
     v7 = add 0, 0
     v8 = mload v7
     v9 = shr v8, 160
-    v10 = eq v9, 0
-    v11 = eq v10, false
-    icall revert_if<empty>, v11
-    v12 = trunc i256 v8 to i160
-    ret v12
+    v10 = ne v9, 0
+    icall revert_if<empty>, v10
+    v11 = trunc i256 v8 to i160
+    ret v11
 }
 
 fn @vAddressTarget(arg0: i160) -> i160 [selector=0x9e9aa54a, pure, abi_params=[address], abi_returns=[word<uint160>], abi_return_params=[address]] {

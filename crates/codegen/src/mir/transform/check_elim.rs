@@ -204,9 +204,9 @@ use super::{
 use crate::{
     backend::evm::op,
     mir::{
-        ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionBuilder,
-        FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module, Terminator,
-        TypeSize, Value, ValueId, ValueLayout,
+        ArithmeticKind, BitWidthTest, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function,
+        FunctionBuilder, FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType,
+        Module, Terminator, TypeSize, Value, ValueId, ValueLayout,
         analysis::{
             CfgInfo, aborts, cold_functions,
             integers::{integer_bits, integer_mask, integer_max},
@@ -1767,6 +1767,17 @@ impl<'a> CheckEliminator<'a> {
         }
         let Some(depth) = depth.checked_sub(1) else { return };
         let Some(kind) = inst_kind(func, value) else { return };
+        // A width test bounds its word the same way in either spelling.
+        if let Some(test) = BitWidthTest::of_kind(func, kind) {
+            self.narrow(
+                test.word,
+                if truth == test.fits {
+                    Range::new(U256::ZERO, test.limit())
+                } else {
+                    Range::new(test.limit() + U256::ONE, U256::MAX)
+                },
+            );
+        }
         match *kind {
             InstKind::Ne(a, b) => self.assume_eq(func, a, b, !truth, depth),
             InstKind::Lt(a, b) => self.assume_lt(func, a, b, truth, depth),

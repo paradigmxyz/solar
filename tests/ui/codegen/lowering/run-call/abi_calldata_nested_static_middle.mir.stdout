@@ -81,15 +81,16 @@ fn @h(arg0: slice<calldata>) -> i256 [selector=0xc2e687d8, pure, abi_params=[arr
     icall revert_if<invalid_calldata_tail_offset>, v37
     v38 = calldataload v31
     v39 = calldatasize
-    v40 = gt v38, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v40
-    v41 = mul v38, 32
-    v42 = add v31, 32
-    v43 = sub v39, v41
-    v44 = sgt v42, v43
-    icall revert_if<calldata_tail_too_short>, v44
-    v45 = inttoptr i256 v42 to ptr<calldata>
-    v46 = make_calldata_slice v45, v38
+    v40 = shr v38, 64
+    v41 = ne v40, 0
+    icall revert_if<invalid_calldata_tail_length>, v41
+    v42 = mul v38, 32
+    v43 = add v31, 32
+    v44 = sub v39, v42
+    v45 = sgt v43, v44
+    icall revert_if<calldata_tail_too_short>, v45
+    v46 = inttoptr i256 v43 to ptr<calldata>
+    v47 = make_calldata_slice v46, v38
     ret 42
 }
 
@@ -127,16 +128,16 @@ fn @materialize(arg0: slice<calldata>) -> i256 [selector=0xaff36081, pure, abi_p
     v25 = alloc 32
     jump bb1
   bb1:
-    v26 = phi [bb0: 0], [bb2: v68]
+    v26 = phi [bb0: 0], [bb2: v69]
     v27 = lt v26, 1
     jumpi v27, bb2, bb3
   bb3:
-    v69 = lt 0, 1
-    v70 = eq v69, false
-    icall panic_if<0x32>, v70
-    v71 = mload v25, ptr<memory>
-    v72 = mload v71
-    ret v72
+    v70 = lt 0, 1
+    v71 = eq v70, false
+    icall panic_if<0x32>, v71
+    v72 = mload v25, ptr<memory>
+    v73 = mload v72
+    ret v73
   bb2:
     v28 = mul v26, 32
     v29 = ptrtoint ptr<calldata> v20 to i256
@@ -157,37 +158,38 @@ fn @materialize(arg0: slice<calldata>) -> i256 [selector=0xaff36081, pure, abi_p
     icall revert_if<invalid_calldata_tail_offset>, v42
     v43 = calldataload v36
     v44 = calldatasize
-    v45 = gt v43, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v45
-    v46 = mul v43, 32
-    v47 = add v36, 32
-    v48 = sub v44, v46
-    v49 = sgt v47, v48
-    icall revert_if<calldata_tail_too_short>, v49
-    v50 = mul v43, 32
-    v51 = eq 32, 0
-    v52 = div v50, 32
-    v53 = eq v52, v43
-    v54 = or v51, v53
-    v55 = zext i1 v54 to i256
-    v56 = eq v55, 0
-    icall panic_if<0x41>, v56
-    v57 = add 32, v50
-    v58 = lt v57, 32
-    icall panic_if<0x41>, v58
-    v59 = alloc v57
-    mstore v59, v43
-    v60 = inttoptr i256 v47 to ptr<calldata>
-    v61 = make_calldata_slice v60, v50
-    v62 = ptradd v59, 32
-    v63 = extract_value slice<calldata>, v61, 0
-    v64 = extract_value slice<calldata>, v61, 1
-    calldatacopy v62, v63, v64
-    v65 = ptrtoint ptr<memory> v59 to i256
-    v66 = shl v26, 5
-    v67 = ptradd v25, v66
-    mstore v67, v65
-    v68 = add v26, 1
+    v45 = shr v43, 64
+    v46 = ne v45, 0
+    icall revert_if<invalid_calldata_tail_length>, v46
+    v47 = mul v43, 32
+    v48 = add v36, 32
+    v49 = sub v44, v47
+    v50 = sgt v48, v49
+    icall revert_if<calldata_tail_too_short>, v50
+    v51 = mul v43, 32
+    v52 = eq 32, 0
+    v53 = div v51, 32
+    v54 = eq v53, v43
+    v55 = or v52, v54
+    v56 = zext i1 v55 to i256
+    v57 = eq v56, 0
+    icall panic_if<0x41>, v57
+    v58 = add 32, v51
+    v59 = lt v58, 32
+    icall panic_if<0x41>, v59
+    v60 = alloc v58
+    mstore v60, v43
+    v61 = inttoptr i256 v48 to ptr<calldata>
+    v62 = make_calldata_slice v61, v51
+    v63 = ptradd v60, 32
+    v64 = extract_value slice<calldata>, v62, 0
+    v65 = extract_value slice<calldata>, v62, 1
+    calldatacopy v63, v64, v65
+    v66 = ptrtoint ptr<memory> v60 to i256
+    v67 = shl v26, 5
+    v68 = ptradd v25, v67
+    mstore v68, v66
+    v69 = add v26, 1
     jump bb1
 }
 
@@ -225,12 +227,12 @@ fn @forward(arg0: slice<calldata>) -> i256 [selector=0x51efa653, pure, abi_param
     v25 = alloc 32
     jump bb1
   bb1:
-    v26 = phi [bb0: 0], [bb2: v68]
+    v26 = phi [bb0: 0], [bb2: v69]
     v27 = lt v26, 1
     jumpi v27, bb2, bb3
   bb3:
-    v69 = icall @readFixed, v25
-    ret v69
+    v70 = icall @readFixed, v25
+    ret v70
   bb2:
     v28 = mul v26, 32
     v29 = ptrtoint ptr<calldata> v20 to i256
@@ -251,37 +253,38 @@ fn @forward(arg0: slice<calldata>) -> i256 [selector=0x51efa653, pure, abi_param
     icall revert_if<invalid_calldata_tail_offset>, v42
     v43 = calldataload v36
     v44 = calldatasize
-    v45 = gt v43, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v45
-    v46 = mul v43, 32
-    v47 = add v36, 32
-    v48 = sub v44, v46
-    v49 = sgt v47, v48
-    icall revert_if<calldata_tail_too_short>, v49
-    v50 = mul v43, 32
-    v51 = eq 32, 0
-    v52 = div v50, 32
-    v53 = eq v52, v43
-    v54 = or v51, v53
-    v55 = zext i1 v54 to i256
-    v56 = eq v55, 0
-    icall panic_if<0x41>, v56
-    v57 = add 32, v50
-    v58 = lt v57, 32
-    icall panic_if<0x41>, v58
-    v59 = alloc v57
-    mstore v59, v43
-    v60 = inttoptr i256 v47 to ptr<calldata>
-    v61 = make_calldata_slice v60, v50
-    v62 = ptradd v59, 32
-    v63 = extract_value slice<calldata>, v61, 0
-    v64 = extract_value slice<calldata>, v61, 1
-    calldatacopy v62, v63, v64
-    v65 = ptrtoint ptr<memory> v59 to i256
-    v66 = shl v26, 5
-    v67 = ptradd v25, v66
-    mstore v67, v65
-    v68 = add v26, 1
+    v45 = shr v43, 64
+    v46 = ne v45, 0
+    icall revert_if<invalid_calldata_tail_length>, v46
+    v47 = mul v43, 32
+    v48 = add v36, 32
+    v49 = sub v44, v47
+    v50 = sgt v48, v49
+    icall revert_if<calldata_tail_too_short>, v50
+    v51 = mul v43, 32
+    v52 = eq 32, 0
+    v53 = div v51, 32
+    v54 = eq v53, v43
+    v55 = or v52, v54
+    v56 = zext i1 v55 to i256
+    v57 = eq v56, 0
+    icall panic_if<0x41>, v57
+    v58 = add 32, v51
+    v59 = lt v58, 32
+    icall panic_if<0x41>, v59
+    v60 = alloc v58
+    mstore v60, v43
+    v61 = inttoptr i256 v48 to ptr<calldata>
+    v62 = make_calldata_slice v61, v51
+    v63 = ptradd v60, 32
+    v64 = extract_value slice<calldata>, v62, 0
+    v65 = extract_value slice<calldata>, v62, 1
+    calldatacopy v63, v64, v65
+    v66 = ptrtoint ptr<memory> v60 to i256
+    v67 = shl v26, 5
+    v68 = ptradd v25, v67
+    mstore v68, v66
+    v69 = add v26, 1
     jump bb1
 }
 

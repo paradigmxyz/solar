@@ -334,10 +334,10 @@ fn @alloc(arg0: i256) -> i256 {
     v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v0, arg0 !metadata(alloc_ptr)
     v3 = lt v2, v0
-    v7 = shr v2, 64
-    v4 = ne v7, 0
-    v5 = or v3, v4
-    jumpi v5, bb1, bb2
+    v4 = shr v2, 64
+    v5 = ne v4, 0
+    v6 = or v3, v5
+    jumpi v6, bb1, bb2
   bb2:
     mstore 64, v2 !metadata(memory=scratch)
     ret v0

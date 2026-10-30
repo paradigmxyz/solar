@@ -44,14 +44,15 @@ fn @read(arg0: slice<calldata>) -> i256 [selector=0x7bb08336, pure, abi_params=[
     icall revert_if<invalid_calldata_tail_offset>, v34
     v35 = calldataload v28
     v36 = calldatasize
-    v37 = gt v35, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v37
-    v38 = add v28, 32
-    v39 = sub v36, v35
-    v40 = sgt v38, v39
-    icall revert_if<calldata_tail_too_short>, v40
-    v41 = inttoptr i256 v38 to ptr<calldata>
-    v42 = make_calldata_slice v41, v35
-    v43 = extract_value slice<calldata>, v42, 1
-    ret v43
+    v37 = shr v35, 64
+    v38 = ne v37, 0
+    icall revert_if<invalid_calldata_tail_length>, v38
+    v39 = add v28, 32
+    v40 = sub v36, v35
+    v41 = sgt v39, v40
+    icall revert_if<calldata_tail_too_short>, v41
+    v42 = inttoptr i256 v39 to ptr<calldata>
+    v43 = make_calldata_slice v42, v35
+    v44 = extract_value slice<calldata>, v43, 1
+    ret v44
 }

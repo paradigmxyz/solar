@@ -40,20 +40,21 @@ fn @hashIt() -> i256 [selector=0x6f37ecea, pure, abi_params=[], abi_returns=[wor
     v7 = extract_value slice<calldata>, v0, 0
     v8 = extract_value slice<calldata>, v0, 1
     v9 = calldatasize
-    v10 = gt v8, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v10
-    v11 = sub v9, v8
-    v12 = ptrtoint ptr<calldata> v7 to i256
-    v13 = sgt v12, v11
-    icall revert_if<calldata_tail_too_short>, v13
-    v14 = ptradd v6, 32
-    v15 = extract_value slice<calldata>, v0, 0
-    v16 = extract_value slice<calldata>, v0, 1
-    calldatacopy v14, v15, v16
-    v17 = ptradd v6, 32
-    v18 = mload v6
-    v19 = keccak256 v17, v18
-    ret v19
+    v10 = shr v8, 64
+    v11 = ne v10, 0
+    icall revert_if<invalid_calldata_tail_length>, v11
+    v12 = sub v9, v8
+    v13 = ptrtoint ptr<calldata> v7 to i256
+    v14 = sgt v13, v12
+    icall revert_if<calldata_tail_too_short>, v14
+    v15 = ptradd v6, 32
+    v16 = extract_value slice<calldata>, v0, 0
+    v17 = extract_value slice<calldata>, v0, 1
+    calldatacopy v15, v16, v17
+    v18 = ptradd v6, 32
+    v19 = mload v6
+    v20 = keccak256 v18, v19
+    ret v20
 }
 
 fn @copyIt() -> ptr<memory> [selector=0x531102fd, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -70,16 +71,17 @@ fn @copyIt() -> ptr<memory> [selector=0x531102fd, pure, abi_params=[], abi_retur
     v7 = extract_value slice<calldata>, v0, 0
     v8 = extract_value slice<calldata>, v0, 1
     v9 = calldatasize
-    v10 = gt v8, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v10
-    v11 = sub v9, v8
-    v12 = ptrtoint ptr<calldata> v7 to i256
-    v13 = sgt v12, v11
-    icall revert_if<calldata_tail_too_short>, v13
-    v14 = ptradd v6, 32
-    v15 = extract_value slice<calldata>, v0, 0
-    v16 = extract_value slice<calldata>, v0, 1
-    calldatacopy v14, v15, v16
+    v10 = shr v8, 64
+    v11 = ne v10, 0
+    icall revert_if<invalid_calldata_tail_length>, v11
+    v12 = sub v9, v8
+    v13 = ptrtoint ptr<calldata> v7 to i256
+    v14 = sgt v13, v12
+    icall revert_if<calldata_tail_too_short>, v14
+    v15 = ptradd v6, 32
+    v16 = extract_value slice<calldata>, v0, 0
+    v17 = extract_value slice<calldata>, v0, 1
+    calldatacopy v15, v16, v17
     ret v6
 }
 

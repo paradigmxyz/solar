@@ -87,9 +87,9 @@ bb0:
   swap 1
   push 32
   add
-  push 0x7fffffffffffffe
-  dup 3
-  gt
+  dup 2
+  push 59
+  shr
   push 1
   dup 4
   add
@@ -99,14 +99,15 @@ bb0:
   swap 1
   dup 2
   add
-  swap 2
   dup 2
-  dup 4
+  dup 2
   lt
   push 0xffffffffffffffff
-  dup 5
+  dup 3
   gt
   or
+  swap 1
+  swap 3
   or
   push bb12
   jumpi

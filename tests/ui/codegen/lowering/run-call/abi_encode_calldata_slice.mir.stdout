@@ -210,26 +210,25 @@ fn @encPackedUint8(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory>
     mstore v38, v16
     jump bb1
   bb1:
-    v39 = phi [bb0: 0], [bb2: v51]
+    v39 = phi [bb0: 0], [bb2: v50]
     v40 = lt v39, v16
     jumpi v40, bb2, bb3
   bb3:
-    v52 = abi_encode_packed (array<word<uint8>> memoryarray<1> v38)
-    ret v52
+    v51 = abi_encode_packed (array<word<uint8>> memoryarray<1> v38)
+    ret v51
   bb2:
     v41 = mul v39, 32
     v42 = ptrtoint ptr<calldata> v17 to i256
     v43 = add v42, v41
     v44 = calldataload v43
     v45 = shr v44, 8
-    v46 = eq v45, 0
-    v47 = eq v46, false
-    icall revert_if<empty>, v47
-    v48 = shl v39, 5
-    v49 = ptradd v38, v48
-    v50 = ptradd v49, 32
-    mstore v50, v44
-    v51 = add v39, 1
+    v46 = ne v45, 0
+    icall revert_if<empty>, v46
+    v47 = shl v39, 5
+    v48 = ptradd v38, v47
+    v49 = ptradd v48, 32
+    mstore v49, v44
+    v50 = add v39, 1
     jump bb1
 }
 

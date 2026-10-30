@@ -32,8 +32,8 @@ fn @main() -> i1 [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>], 
     icall revert_if<tuple_data_too_short>, v15
     v16 = add 0, 0
     v17 = mload v16
-    v18 = lt v17, 2
-    v19 = eq v18, false
+    v18 = shr v17, 1
+    v19 = ne v18, 0
     icall revert_if<empty>, v19
     v20 = ne v17, 0
     ret v20

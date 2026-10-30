@@ -40,15 +40,16 @@ fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
     v15 = extract_value slice<calldata>, v8, 0
     v16 = extract_value slice<calldata>, v8, 1
     v17 = calldatasize
-    v18 = gt v16, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v18
-    v19 = sub v17, v16
-    v20 = ptrtoint ptr<calldata> v15 to i256
-    v21 = sgt v20, v19
-    icall revert_if<calldata_tail_too_short>, v21
-    v22 = ptradd v14, 32
-    v23 = extract_value slice<calldata>, v8, 0
-    v24 = extract_value slice<calldata>, v8, 1
-    calldatacopy v22, v23, v24
+    v18 = shr v16, 64
+    v19 = ne v18, 0
+    icall revert_if<invalid_calldata_tail_length>, v19
+    v20 = sub v17, v16
+    v21 = ptrtoint ptr<calldata> v15 to i256
+    v22 = sgt v21, v20
+    icall revert_if<calldata_tail_too_short>, v22
+    v23 = ptradd v14, 32
+    v24 = extract_value slice<calldata>, v8, 0
+    v25 = extract_value slice<calldata>, v8, 1
+    calldatacopy v23, v24, v25
     ret v14
 }

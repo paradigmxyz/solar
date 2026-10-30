@@ -43,33 +43,35 @@ fn @pickDown() [selector=0xe4bcb1d7, abi_wrapper, pure] {
     v22 = add v21, 4
     v24 = sub v19, 36
     v25 = gt v21, v24
-    v56 = or v20, v25
-    jumpi v56, bb6, bb7
+    v59 = or v20, v25
+    jumpi v59, bb6, bb7
   bb7:
     v26 = calldataload v22
     v27 = add v22, 32
-    v28 = gt v26, 0x7fffffffffffffe
-    v29 = add v26, 1
-    v30 = shl v29, 5
-    v49 = heap_floor !metadata(alloc_ptr)
-    v50 = add v49, v30 !metadata(alloc_ptr)
-    v51 = lt v50, v49
-    v52 = gt v50, 0xffffffffffffffff
-    v53 = or v51, v52
-    v57 = or v28, v53
-    jumpi v57, bb8, bb10
+    v28 = shr v26, 59
+    v30 = add v26, 1
+    v31 = shl v30, 5
+    v50 = heap_floor !metadata(alloc_ptr)
+    v51 = add v50, v31 !metadata(alloc_ptr)
+    v52 = lt v51, v50
+    v54 = gt v51, 0xffffffffffffffff
+    v55 = or v52, v54
+    v60 = zext i1 v55 to i256
+    v61 = or v28, v60
+    v62 = ne v61, 0
+    jumpi v62, bb8, bb10
   bb10:
-    mstore 64, v50 !metadata(memory=scratch)
-    mstore v49, v26
-    v32 = shl v26, 5
-    v33 = sub v19, v27
-    v34 = shr v33, 5
-    v35 = gt v26, v34
-    jumpi v35, bb6, bb9
+    mstore 64, v51 !metadata(memory=scratch)
+    mstore v50, v26
+    v33 = shl v26, 5
+    v34 = sub v19, v27
+    v35 = shr v34, 5
+    v36 = gt v26, v35
+    jumpi v36, bb6, bb9
   bb9:
-    v46 = add v49, 32
-    calldatacopy v46, v27, v32
-    v55 = add v49, 32
+    v47 = add v50, 32
+    calldatacopy v47, v27, v33
+    v58 = add v50, 32
     jump bb1
   bb1:
     v3 = phi [bb9: 0], [bb5: v17]
@@ -83,8 +85,8 @@ fn @pickDown() [selector=0xe4bcb1d7, abi_wrapper, pure] {
     v6 = shr arg1, v4
     v7 = mod v6, v4
     v11 = shl v7, 5
-    v44 = add v55, v11
-    v14 = mload v44
+    v45 = add v58, v11
+    v14 = mload v45
     v17 = add v3, v14
     v18 = lt v17, v3
     jumpi v18, bb4, bb5

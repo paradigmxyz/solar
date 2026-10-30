@@ -10,12 +10,12 @@ fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
     v91 = heap_floor !metadata(alloc_ptr)
     v92 = add v91, v7 !metadata(alloc_ptr)
     v93 = lt v92, v91
-    v94 = gt v92, 0xffffffffffffffff
-    v95 = or v93, v94
-    jumpi v95, bb9, bb8
+    v95 = gt v92, 0xffffffffffffffff
+    v96 = or v93, v95
+    jumpi v96, bb9, bb8
   bb8:
-    v97 = calldatasize
-    calldatacopy v91, v97, v7
+    v98 = calldatasize
+    calldatacopy v91, v98, v7
     mstore v91, v60
     v33 = eq v0, 0
     jumpi v33, bb2, bb4

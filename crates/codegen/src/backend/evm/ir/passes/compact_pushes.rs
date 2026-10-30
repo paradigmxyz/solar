@@ -254,6 +254,18 @@ pub(crate) fn immediate_materialization(evm_version: EvmVersion, value: U256) ->
     select_recipe(evm_version, value, false).cost
 }
 
+/// Returns the cost of the push that [`compact_pushes`] leaves for `value` in code `target`
+/// prices, inside a loop or not: the selected recipe where it repays against the literal, as
+/// `Target::push` prices it, and the literal otherwise.
+pub(crate) fn emitted_immediate(target: &Target, value: U256, in_loop: bool) -> Cost {
+    let materialization = ImmediateMaterialization::new(target.evm_version(), value);
+    if materialization.is_literal() || materialization.repays(target, in_loop) {
+        materialization.selected.cost
+    } else {
+        literal_cost(push_width(target.evm_version(), value))
+    }
+}
+
 /// Returns the byte length and gas cost of the selected immediate materialization.
 pub(crate) fn immediate_materialization_cost(
     evm_version: EvmVersion,

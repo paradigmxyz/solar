@@ -108,8 +108,8 @@
 use super::egraph::max_bits_with_args;
 use crate::{
     mir::{
-        ArithmeticKind, BlockId, CheckedOp, Function, FunctionBuilder, Immediate, InstId, InstKind,
-        Instruction, MemoryRegion, MirType, Module, Terminator, Value, ValueId,
+        ArithmeticKind, BitWidthTest, BlockId, CheckedOp, Function, FunctionBuilder, Immediate,
+        InstId, InstKind, Instruction, MemoryRegion, MirType, Module, Terminator, Value, ValueId,
         analysis::{
             AffineTerm, AliasAnalysis, CfgInfo, InductionVariable, Loop, LoopAnalyzer,
             ScalarEvolution, integers::unsigned_bounds,
@@ -1928,6 +1928,14 @@ fn implies_at_most(
     let implies =
         |condition, nonzero| implies_at_most(func, condition, nonzero, value, limit, depth);
     let is_zero = |operand| func.value_u256(operand).is_some_and(|operand| operand.is_zero());
+    // A width test bounds its word by the width, in either spelling.
+    if let Some(test) = BitWidthTest::of_kind(func, &func.inst(inst_id).kind)
+        && test.word == value
+        && nonzero == test.fits
+        && test.limit() <= limit
+    {
+        return true;
+    }
     match (&func.inst(inst_id).kind, nonzero) {
         // value <= x, or value < x
         (&InstKind::Gt(a, x), false)

@@ -213,8 +213,8 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     icall revert_if<tuple_data_too_short>, v39
     v40 = add 0, 0
     v41 = mload v40
-    v42 = lt v41, 2
-    v43 = eq v42, false
+    v42 = shr v41, 1
+    v43 = ne v42, 0
     icall revert_if<empty>, v43
     v44 = gas
     v45 = sload 0 !metadata(storage=slot(0))
@@ -234,8 +234,8 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     icall revert_if<tuple_data_too_short>, v54
     v55 = add 0, 0
     v56 = mload v55
-    v57 = lt v56, 2
-    v58 = eq v57, false
+    v57 = shr v56, 1
+    v58 = ne v57, 0
     icall revert_if<empty>, v58
     v59 = sload 0 !metadata(storage=slot(0))
     v60 = trunc i256 v59 to i160
@@ -314,65 +314,63 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v104 = add 0, 0
     v105 = mload v104
     v106 = shr v105, 160
-    v107 = eq v106, 0
-    v108 = eq v107, false
-    icall revert_if<empty>, v108
-    v109 = gas
-    v110 = alloc 192
-    v111 = zext i160 v27 to i256
-    v112 = zext i160 v28 to i256
-    v113 = sext i24 v81 to i256
-    v114 = sext i24 v82 to i256
-    mstore v110, v111
-    v115 = ptradd v110, 32
+    v107 = ne v106, 0
+    icall revert_if<empty>, v107
+    v108 = gas
+    v109 = alloc 192
+    v110 = zext i160 v27 to i256
+    v111 = zext i160 v28 to i256
+    v112 = sext i24 v81 to i256
+    v113 = sext i24 v82 to i256
+    mstore v109, v110
+    v114 = ptradd v109, 32
+    mstore v114, v111
+    v115 = ptradd v109, 64
     mstore v115, v112
-    v116 = ptradd v110, 64
+    v116 = ptradd v109, 96
     mstore v116, v113
-    v117 = ptradd v110, 96
-    mstore v117, v114
-    v118 = ptradd v110, 128
-    mstore v118, v87
-    v119 = ptradd v110, 160
-    mstore v119, v92
-    v120 = abi_encode [tuple<word<uint160>, word<uint160>, word<int24>, word<int24>, word, word>], selector 0x353abfa400000000000000000000000000000000000000000000000000000000, args v110
-    v121 = extract_value slice<memory>, v120, 0
-    v122 = extract_value slice<memory>, v120, 1
-    v123 = zext i160 v60 to i256
-    v124 = staticcall v109, v123, v121, v122, v121, 128
-    jumpi v124, bb26, bb25
+    v117 = ptradd v109, 128
+    mstore v117, v87
+    v118 = ptradd v109, 160
+    mstore v118, v92
+    v119 = abi_encode [tuple<word<uint160>, word<uint160>, word<int24>, word<int24>, word, word>], selector 0x353abfa400000000000000000000000000000000000000000000000000000000, args v109
+    v120 = extract_value slice<memory>, v119, 0
+    v121 = extract_value slice<memory>, v119, 1
+    v122 = zext i160 v60 to i256
+    v123 = staticcall v108, v122, v120, v121, v120, 128
+    jumpi v123, bb26, bb25
   bb25:
     revert_returndata
   bb26:
-    v125 = returndatasize
-    v126 = lt v125, 128
-    icall revert_if<tuple_data_too_short>, v126
-    v127 = ptrtoint ptr<memory> v121 to i256
-    v128 = add v127, 0
-    v129 = mload v128
-    v130 = ptrtoint ptr<memory> v121 to i256
-    v131 = add v130, 32
-    v132 = mload v131
-    v133 = shr v132, 128
-    v134 = eq v133, 0
-    v135 = eq v134, false
-    icall revert_if<empty>, v135
-    v136 = ptrtoint ptr<memory> v121 to i256
-    v137 = add v136, 64
-    v138 = mload v137
-    v139 = ptrtoint ptr<memory> v121 to i256
-    v140 = add v139, 96
-    v141 = mload v140
-    v142 = trunc i256 v132 to i128
-    v143 = insert_value struct0, undef struct0, 0, v129
-    v144 = insert_value struct0, v143, 1, v142
-    v145 = insert_value struct0, v144, 2, v138
-    v146 = insert_value struct0, v145, 3, v141
-    v147 = extract_value struct0, v146, 0
-    v148 = extract_value struct0, v146, 1
-    v149 = extract_value struct0, v146, 2
-    v150 = extract_value struct0, v146, 3
-    v151 = zext i160 arg0 to i256
-    v152 = mapping_slot v151, 2
-    sstore v152, v147 !metadata(storage=symbolic(v152))
+    v124 = returndatasize
+    v125 = lt v124, 128
+    icall revert_if<tuple_data_too_short>, v125
+    v126 = ptrtoint ptr<memory> v120 to i256
+    v127 = add v126, 0
+    v128 = mload v127
+    v129 = ptrtoint ptr<memory> v120 to i256
+    v130 = add v129, 32
+    v131 = mload v130
+    v132 = shr v131, 128
+    v133 = ne v132, 0
+    icall revert_if<empty>, v133
+    v134 = ptrtoint ptr<memory> v120 to i256
+    v135 = add v134, 64
+    v136 = mload v135
+    v137 = ptrtoint ptr<memory> v120 to i256
+    v138 = add v137, 96
+    v139 = mload v138
+    v140 = trunc i256 v131 to i128
+    v141 = insert_value struct0, undef struct0, 0, v128
+    v142 = insert_value struct0, v141, 1, v140
+    v143 = insert_value struct0, v142, 2, v136
+    v144 = insert_value struct0, v143, 3, v139
+    v145 = extract_value struct0, v144, 0
+    v146 = extract_value struct0, v144, 1
+    v147 = extract_value struct0, v144, 2
+    v148 = extract_value struct0, v144, 3
+    v149 = zext i160 arg0 to i256
+    v150 = mapping_slot v149, 2
+    sstore v150, v145 !metadata(storage=symbolic(v150))
     ret
 }

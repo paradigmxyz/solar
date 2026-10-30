@@ -126,9 +126,9 @@ bb26:
   swap 1
   push 32
   add
-  push 0x7fffffffffffffe
-  dup 3
-  gt
+  dup 2
+  push 59
+  shr
   push bb33
   jumpi
   push 1

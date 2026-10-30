@@ -362,8 +362,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // valid &= offset <= len - 36
         // msg_len = mload(data + 4 + offset)
         // valid &= msg_len <= u64::MAX && msg_len <= len - (offset + 36)
-        self.lazy_helper(sym::try_decode_error_message, |_, function| {
-            let mut builder = FunctionBuilder::new_semantic(function);
+        self.lazy_helper(sym::try_decode_error_message, |this, function| {
+            let target = this.cx.module.target_of(this.cx.gcx, function);
+            let mut builder = FunctionBuilder::new_semantic(function).with_target(target);
             let data_ptr = builder.add_param(MirType::I256);
             let data_len = builder.add_param(MirType::I256);
             builder.set_return_type(MirType::I1);
@@ -390,9 +391,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             builder.switch_to_block(check_length);
             let message_ptr = builder.add(payload_ptr, offset);
             let length = builder.load(message_ptr, PtrLocation::Memory);
-            let max_u64 = builder.imm(u64::MAX);
             let message_data_offset = builder.add_u64_offset(offset, 36);
-            let length_too_large = builder.gt(length, max_u64);
+            let length_too_large = builder.exceeds_bits(length, 64, ConditionUse::VALUE);
             let remaining = builder.sub(data_len, message_data_offset);
             let data_out_of_range = builder.gt(length, remaining);
             let invalid_length = builder.or(length_too_large, data_out_of_range);

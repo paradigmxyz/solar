@@ -63,8 +63,8 @@
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, Callee, EffectKind, Function, FunctionId, Immediate, InstKind, Instruction,
-        MirType, Module, Terminator, Value, ValueId,
+        BitWidthTest, BlockId, Callee, EffectKind, Function, FunctionId, Immediate, InstKind,
+        Instruction, MirType, Module, Terminator, Value, ValueId,
         analysis::{CfgInfo, aborts, cold_functions},
         pass::{MirPass, run_function_pass},
         utils::{rebuild_predecessors, replace_terminator},
@@ -187,10 +187,15 @@ fn test(
     // when the word is nonzero: `or` then joins the word itself, and the merged branch tests the
     // combined word for free too.
     if let Some((word, nonzero)) = zero_test(func, condition) {
-        if func.value_ty(word) != Some(MirType::I256) || nonzero != aborts_when_true {
+        // A width test that aborts on the other sense turns around like the comparison with its
+        // limit, whichever way it is spelled.
+        let turns = BitWidthTest::of(func, condition).is_some();
+        if func.value_ty(word) == Some(MirType::I256) && nonzero == aborts_when_true {
+            return Some(Test { condition: word, abort, next, aborts_when_true: true, word: true });
+        }
+        if !turns {
             return None;
         }
-        return Some(Test { condition: word, abort, next, aborts_when_true: true, word: true });
     }
     Some(Test { condition, abort, next, aborts_when_true, word: false })
 }
@@ -310,9 +315,17 @@ fn mergeable(
 }
 
 /// The comparison that holds exactly when an unsigned comparison of a word with a literal fails:
-/// `x < k` fails when `x > k - 1`, and `x > k` when `x < k + 1`.
+/// `x < k` fails when `x > k - 1`, and `x > k` when `x < k + 1`. A width test fails when the
+/// word fits and when it does not, which is `x > 2^k - 1` and `x < 2^k` in either spelling.
 fn complement(func: &Function, condition: ValueId) -> Option<Compare> {
     let literal = |value| func.value_u256(value);
+    if let Some(test) = BitWidthTest::of(func, condition) {
+        return Some(if test.fits {
+            Compare { word: test.word, below: false, literal: test.limit() }
+        } else {
+            Compare { word: test.word, below: true, literal: test.limit() + U256::ONE }
+        });
+    }
     Some(match *func.value_inst_kind(condition)? {
         InstKind::Lt(word, k) | InstKind::Gt(k, word) if literal(word).is_none() => {
             Compare { word, below: false, literal: literal(k)?.checked_sub(U256::ONE)? }

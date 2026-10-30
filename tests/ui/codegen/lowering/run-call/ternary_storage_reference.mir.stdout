@@ -6,21 +6,23 @@
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
-    v1 = gt v0, 0xffffffffffffffff
-    icall panic_if<0x41>, v1
-    v2 = add v0, 1
-    v3 = storage_array_data_slot 2
-    v4 = add v3, v0
-    sstore v4, 11 !metadata(storage=symbolic(v4))
-    sstore 2, v2 !metadata(storage=slot(2))
-    v5 = sload 3 !metadata(storage=slot(3))
-    v6 = gt v5, 0xffffffffffffffff
-    icall panic_if<0x41>, v6
-    v7 = add v5, 1
-    v8 = storage_array_data_slot 3
-    v9 = add v8, v5
-    sstore v9, 22 !metadata(storage=symbolic(v9))
-    sstore 3, v7 !metadata(storage=slot(3))
+    v1 = shr v0, 64
+    v2 = ne v1, 0
+    icall panic_if<0x41>, v2
+    v3 = add v0, 1
+    v4 = storage_array_data_slot 2
+    v5 = add v4, v0
+    sstore v5, 11 !metadata(storage=symbolic(v5))
+    sstore 2, v3 !metadata(storage=slot(2))
+    v6 = sload 3 !metadata(storage=slot(3))
+    v7 = shr v6, 64
+    v8 = ne v7, 0
+    icall panic_if<0x41>, v8
+    v9 = add v6, 1
+    v10 = storage_array_data_slot 3
+    v11 = add v10, v6
+    sstore v11, 22 !metadata(storage=symbolic(v11))
+    sstore 3, v9 !metadata(storage=slot(3))
     ret
 }
 

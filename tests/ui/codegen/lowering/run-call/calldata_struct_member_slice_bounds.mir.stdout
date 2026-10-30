@@ -21,17 +21,18 @@ fn @edge(arg0: slice<calldata>) -> i256 [selector=0xf583b19b, pure, abi_params=[
     icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = calldataload v8
     v16 = calldatasize
-    v17 = gt v15, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v17
-    v18 = add v8, 32
-    v19 = sub v16, v15
-    v20 = sgt v18, v19
-    icall revert_if<calldata_tail_too_short>, v20
-    v21 = inttoptr i256 v18 to ptr<calldata>
-    v22 = make_calldata_slice v21, v15
-    v23 = icall @_decodeBatch, v22
-    v24 = extract_value slice<calldata>, v23, 1
-    ret v24
+    v17 = shr v15, 64
+    v18 = ne v17, 0
+    icall revert_if<invalid_calldata_tail_length>, v18
+    v19 = add v8, 32
+    v20 = sub v16, v15
+    v21 = sgt v19, v20
+    icall revert_if<calldata_tail_too_short>, v21
+    v22 = inttoptr i256 v19 to ptr<calldata>
+    v23 = make_calldata_slice v22, v15
+    v24 = icall @_decodeBatch, v23
+    v25 = extract_value slice<calldata>, v24, 1
+    ret v25
 }
 
 fn @abiEdge(arg0: slice<calldata>) -> i256 [selector=0xdff25446, pure, abi_params=[tuple<bytes, bytes>], abi_returns=[word], abi_return_params=[uint256]] {
@@ -55,17 +56,18 @@ fn @abiEdge(arg0: slice<calldata>) -> i256 [selector=0xdff25446, pure, abi_param
     icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = calldataload v8
     v16 = calldatasize
-    v17 = gt v15, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v17
-    v18 = add v8, 32
-    v19 = sub v16, v15
-    v20 = sgt v18, v19
-    icall revert_if<calldata_tail_too_short>, v20
-    v21 = inttoptr i256 v18 to ptr<calldata>
-    v22 = make_calldata_slice v21, v15
-    v23 = abi_decode [array<_, tuple<address, uint256, bytes>>], v22
-    v24 = mload v23
-    ret v24
+    v17 = shr v15, 64
+    v18 = ne v17, 0
+    icall revert_if<invalid_calldata_tail_length>, v18
+    v19 = add v8, 32
+    v20 = sub v16, v15
+    v21 = sgt v19, v20
+    icall revert_if<calldata_tail_too_short>, v21
+    v22 = inttoptr i256 v19 to ptr<calldata>
+    v23 = make_calldata_slice v22, v15
+    v24 = abi_decode [array<_, tuple<address, uint256, bytes>>], v23
+    v25 = mload v24
+    ret v25
 }
 
 fn @_decodeBatch(arg0: slice<calldata>) -> slice<calldata> [pure] {

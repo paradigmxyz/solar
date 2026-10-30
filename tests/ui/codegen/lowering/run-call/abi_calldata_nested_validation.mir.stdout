@@ -30,14 +30,15 @@ fn @g(arg0: slice<calldata>) -> i256 [selector=0xebcd97f8, pure, abi_params=[arr
     icall revert_if<invalid_calldata_tail_offset>, v17
     v18 = calldataload v11
     v19 = calldatasize
-    v20 = gt v18, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v20
-    v21 = mul v18, 32
-    v22 = add v11, 32
-    v23 = sub v19, v21
-    v24 = sgt v22, v23
-    icall revert_if<calldata_tail_too_short>, v24
-    v25 = inttoptr i256 v22 to ptr<calldata>
-    v26 = make_calldata_slice v25, v18
+    v20 = shr v18, 64
+    v21 = ne v20, 0
+    icall revert_if<invalid_calldata_tail_length>, v21
+    v22 = mul v18, 32
+    v23 = add v11, 32
+    v24 = sub v19, v22
+    v25 = sgt v23, v24
+    icall revert_if<calldata_tail_too_short>, v25
+    v26 = inttoptr i256 v23 to ptr<calldata>
+    v27 = make_calldata_slice v26, v18
     ret 42
 }

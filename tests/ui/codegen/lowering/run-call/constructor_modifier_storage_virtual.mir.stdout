@@ -4,13 +4,14 @@ fn @constructor() [constructor] {
   bb0:
     v0 = icall @value
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = gt v1, 0xffffffffffffffff
-    icall panic_if<0x41>, v2
-    v3 = add v1, 1
-    v4 = storage_array_data_slot 0
-    v5 = add v4, v1
-    sstore v5, v0 !metadata(storage=symbolic(v5))
-    sstore 0, v3 !metadata(storage=slot(0))
+    v2 = shr v1, 64
+    v3 = ne v2, 0
+    icall panic_if<0x41>, v3
+    v4 = add v1, 1
+    v5 = storage_array_data_slot 0
+    v6 = add v5, v1
+    sstore v6, v0 !metadata(storage=symbolic(v6))
+    sstore 0, v4 !metadata(storage=slot(0))
     jump bb2
   bb2:
     jump bb1
@@ -52,13 +53,14 @@ fn @constructor() [constructor] {
   bb0:
     v0 = icall @value
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = gt v1, 0xffffffffffffffff
-    icall panic_if<0x41>, v2
-    v3 = add v1, 1
-    v4 = storage_array_data_slot 0
-    v5 = add v4, v1
-    sstore v5, v0 !metadata(storage=symbolic(v5))
-    sstore 0, v3 !metadata(storage=slot(0))
+    v2 = shr v1, 64
+    v3 = ne v2, 0
+    icall panic_if<0x41>, v3
+    v4 = add v1, 1
+    v5 = storage_array_data_slot 0
+    v6 = add v5, v1
+    sstore v6, v0 !metadata(storage=symbolic(v6))
+    sstore 0, v4 !metadata(storage=slot(0))
     jump bb3
   bb3:
     jump bb2

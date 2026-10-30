@@ -23,18 +23,29 @@
 //! checked allocation keeps its own inline check rather than calling the shared helper, as the
 //! helper loads the slot; the size objective keeps the call.
 
-use crate::mir::{
-    AllocationFailure, AllocationInitialization, AllocationSemantics, EffectKind, Function,
-    FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
-    PtrLocation, Value, ValueId,
-    analysis::FreshFmpReads,
-    memory::EvmMemoryLayout,
-    pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
-    transform::utils::expand_block,
+use crate::{
+    mir::{
+        AllocationFailure, AllocationInitialization, AllocationSemantics, EffectKind, Function,
+        FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
+        PtrLocation, Value, ValueId,
+        analysis::FreshFmpReads,
+        memory::EvmMemoryLayout,
+        pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
+        transform::utils::expand_block,
+    },
+    target::{ConditionUse, Target},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
+
+/// The bit width of the allocation limit: `next > MAX_ALLOCATION_END` is `next >> BITS != 0`.
+const ALLOCATION_END_BITS: u32 = EvmMemoryLayout::MAX_ALLOCATION_END.count_ones();
+const _: () = assert!(
+    EvmMemoryLayout::MAX_ALLOCATION_END
+        == u64::MAX >> EvmMemoryLayout::MAX_ALLOCATION_END.leading_zeros(),
+    "the allocation limit must be `2^k - 1`"
+);
 
 /// Lowers `fmp`, `set_fmp`, and `alloc` instructions.
 pub(crate) struct LowerAlloc;
@@ -48,17 +59,22 @@ impl MirPass for LowerAlloc {
         true
     }
 
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         let fresh = FreshFmpReads::new(module, || analyses.call_summaries(module));
-        lower_alloc(module, analyses, &fresh)
+        lower_alloc(gcx, module, analyses, &fresh)
     }
 }
 
-fn lower_alloc(module: &mut Module, analyses: &mut ModuleAnalyses, fresh: &FreshFmpReads) -> bool {
-    let mut changed = share_checked_allocations(module, analyses, fresh);
+fn lower_alloc(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    fresh: &FreshFmpReads,
+) -> bool {
+    let mut changed = share_checked_allocations(gcx, module, analyses, fresh);
     changed |= run_lowering_function_pass(module, analyses, |func, function_analyses| {
         let id = function_analyses.function();
-        lower_function(func, |inst| fresh.contains(id, inst))
+        lower_function(func, function_analyses.target(gcx), |inst| fresh.contains(id, inst))
     });
     changed
 }
@@ -69,6 +85,7 @@ fn lower_alloc(module: &mut Module, analyses: &mut ModuleAnalyses, fresh: &Fresh
 /// The helper owns only the pointer load, checked bump, panic, and update.
 /// Callers retain their initialization, so allocation ordering stays intact.
 fn share_checked_allocations(
+    gcx: Gcx<'_>,
     module: &mut Module,
     analyses: &mut ModuleAnalyses,
     fresh: &FreshFmpReads,
@@ -86,12 +103,12 @@ fn share_checked_allocations(
         return false;
     }
 
-    let helper = create_checked_alloc(module);
+    let helper = create_checked_alloc(module, module.target(gcx));
     run_lowering_function_pass(module, analyses, |func, function_analyses| {
         let func_id = function_analyses.function();
         let mut replacements = FxHashMap::default();
         for block in func.blocks.indices() {
-            let mut builder = FunctionBuilder::new(func);
+            let mut builder = FunctionBuilder::new(func).with_target(function_analyses.target(gcx));
             expand_block(&mut builder, block, |builder, inst| {
                 let Some((size, semantics)) = checked_alloc(builder.func(), inst) else {
                     return false;
@@ -121,10 +138,10 @@ fn checked_alloc(func: &Function, inst: InstId) -> Option<(ValueId, AllocationSe
         .then_some((size, semantics))
 }
 
-fn create_checked_alloc(module: &mut Module) -> FunctionId {
+fn create_checked_alloc(module: &mut Module, target: Target) -> FunctionId {
     let mut function = Function::new(Ident::with_dummy_span(sym::alloc));
     {
-        let mut builder = FunctionBuilder::new(&mut function);
+        let mut builder = FunctionBuilder::new(&mut function).with_target(target);
         let size = builder.add_param(MirType::I256);
         builder.set_return_type(MirType::MEMPTR);
         let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
@@ -147,7 +164,7 @@ fn create_checked_alloc(module: &mut Module) -> FunctionId {
     module.add_function(function)
 }
 
-fn lower_function(func: &mut Function, is_fresh: impl Fn(InstId) -> bool) -> bool {
+fn lower_function(func: &mut Function, target: Target, is_fresh: impl Fn(InstId) -> bool) -> bool {
     let has_abstract_memory = func.instructions().any(|inst| {
         matches!(func.inst(inst).kind, InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. })
     });
@@ -157,7 +174,7 @@ fn lower_function(func: &mut Function, is_fresh: impl Fn(InstId) -> bool) -> boo
 
     let mut changed = false;
     for block in func.blocks.indices() {
-        let mut builder = FunctionBuilder::new(func);
+        let mut builder = FunctionBuilder::new(func).with_target(target);
         expand_block(&mut builder, block, |builder, inst| {
             let Some((size, semantics)) = checked_alloc(builder.func(), inst) else {
                 return false;
@@ -408,8 +425,7 @@ fn bump_checked(
     let next = bump(builder, ptr, size);
     // invalid = next < ptr || next > limit
     let bump_overflow = builder.lt(next, ptr);
-    let limit = builder.imm(EvmMemoryLayout::MAX_ALLOCATION_END);
-    let over_limit = builder.gt(next, limit);
+    let over_limit = builder.exceeds_bits(next, ALLOCATION_END_BITS, ConditionUse::VALUE);
     (next, builder.or(bump_overflow, over_limit))
 }
 

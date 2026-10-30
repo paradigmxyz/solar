@@ -76,39 +76,38 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v12 = add 0, 0
     v13 = mload v12
     v14 = shr v13, 160
-    v15 = eq v14, 0
-    v16 = eq v15, false
-    icall revert_if<empty>, v16
-    v17 = trunc i256 v13 to i160
-    v18 = zext i160 v17 to i256
-    v19 = extcodesize v18
-    v20 = add v19, 63
-    v21 = lt v20, v19
-    icall panic_if<0x41>, v21
-    v22 = not 31
-    v23 = and v20, v22
-    v24 = alloc zeroed checked v23
-    mstore v24, v19
-    v25 = ptradd v24, 32
-    v26 = zext i160 v17 to i256
-    extcodecopy v26, v25, 0, v19 !metadata(memory=heap)
-    v27 = mload v24
-    v28 = eq v27, 173
-    icall require<short_string>, v28, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
-    v29 = ptrtoint ptr<memory> v24 to i256
-    v30 = add v29, 109
-    v31 = mload v30
-    v32 = ptrtoint ptr<memory> v24 to i256
-    v33 = add v32, 141
-    v34 = mload v33
-    v35 = ptrtoint ptr<memory> v24 to i256
-    v36 = add v35, 173
-    v37 = mload v36
-    v38 = eq v31, 0x7a69
-    icall require<short_string>, v38, 8, 0x636861696e206964000000000000000000000000000000000000000000000000
-    v39 = eq v34, 0x4444444444444444444444444444444444444444
-    icall require<short_string>, v39, 14, 0x746f6b656e20636f6e7472616374000000000000000000000000000000000000
-    v40 = eq v37, 0x5555
-    icall require<short_string>, v40, 8, 0x746f6b656e206964000000000000000000000000000000000000000000000000
+    v15 = ne v14, 0
+    icall revert_if<empty>, v15
+    v16 = trunc i256 v13 to i160
+    v17 = zext i160 v16 to i256
+    v18 = extcodesize v17
+    v19 = add v18, 63
+    v20 = lt v19, v18
+    icall panic_if<0x41>, v20
+    v21 = not 31
+    v22 = and v19, v21
+    v23 = alloc zeroed checked v22
+    mstore v23, v18
+    v24 = ptradd v23, 32
+    v25 = zext i160 v16 to i256
+    extcodecopy v25, v24, 0, v18 !metadata(memory=heap)
+    v26 = mload v23
+    v27 = eq v26, 173
+    icall require<short_string>, v27, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
+    v28 = ptrtoint ptr<memory> v23 to i256
+    v29 = add v28, 109
+    v30 = mload v29
+    v31 = ptrtoint ptr<memory> v23 to i256
+    v32 = add v31, 141
+    v33 = mload v32
+    v34 = ptrtoint ptr<memory> v23 to i256
+    v35 = add v34, 173
+    v36 = mload v35
+    v37 = eq v30, 0x7a69
+    icall require<short_string>, v37, 8, 0x636861696e206964000000000000000000000000000000000000000000000000
+    v38 = eq v33, 0x4444444444444444444444444444444444444444
+    icall require<short_string>, v38, 14, 0x746f6b656e20636f6e7472616374000000000000000000000000000000000000
+    v39 = eq v36, 0x5555
+    icall require<short_string>, v39, 8, 0x746f6b656e206964000000000000000000000000000000000000000000000000
     ret 1
 }

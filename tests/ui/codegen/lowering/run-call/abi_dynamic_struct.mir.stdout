@@ -12,14 +12,13 @@ fn @init(arg0: slice<calldata>, arg1: i160) -> i256 [selector=0x5c58abd8, pure, 
     v2 = add v1, 32
     v3 = calldataload v2
     v4 = shr v3, 8
-    v5 = eq v4, 0
-    v6 = eq v5, false
-    icall revert_if<empty>, v6
-    v7 = trunc i256 v3 to i8
-    v8 = zext i8 v7 to i160
-    v9 = checked_add uint160, v8, arg1
-    v10 = zext i160 v9 to i256
-    ret v10
+    v5 = ne v4, 0
+    icall revert_if<empty>, v5
+    v6 = trunc i256 v3 to i8
+    v7 = zext i8 v6 to i160
+    v8 = checked_add uint160, v7, arg1
+    v9 = zext i160 v8 to i256
+    ret v9
 }
 
 fn @tail(arg0: slice<calldata>) -> ptr<memory> [selector=0x39663a7e, pure, abi_params=[tuple<address, uint8, bytes, bytes>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -43,46 +42,48 @@ fn @tail(arg0: slice<calldata>) -> ptr<memory> [selector=0x39663a7e, pure, abi_p
     icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = calldataload v8
     v16 = calldatasize
-    v17 = gt v15, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v17
-    v18 = add v8, 32
-    v19 = sub v16, v15
-    v20 = sgt v18, v19
-    icall revert_if<calldata_tail_too_short>, v20
-    v21 = inttoptr i256 v18 to ptr<calldata>
-    v22 = make_calldata_slice v21, v15
-    v23 = extract_value slice<calldata>, v22, 0
-    v24 = extract_value slice<calldata>, v22, 1
-    v25 = gt v24, v24
-    v26 = lt v24, 1
-    v27 = or v25, v26
-    v28 = zext i1 v27 to i256
-    icall revert_if<empty>, v27
-    v29 = sub v24, 1
-    v30 = ptradd v23, 1
-    v31 = make_calldata_slice v30, v29
-    v32 = extract_value slice<calldata>, v31, 0
-    v33 = extract_value slice<calldata>, v31, 1
-    v34 = calldatasize
-    v35 = gt v33, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v35
-    v36 = sub v34, v33
-    v37 = ptrtoint ptr<calldata> v32 to i256
-    v38 = sgt v37, v36
-    icall revert_if<calldata_tail_too_short>, v38
-    v39 = extract_value slice<calldata>, v31, 1
-    v40 = add v39, 63
-    v41 = lt v40, v39
-    icall panic_if<0x41>, v41
-    v42 = not 31
-    v43 = and v40, v42
-    v44 = alloc v43
-    mstore v44, v39
-    v45 = ptradd v44, 32
-    v46 = extract_value slice<calldata>, v31, 0
-    v47 = extract_value slice<calldata>, v31, 1
-    calldatacopy v45, v46, v47
-    ret v44
+    v17 = shr v15, 64
+    v18 = ne v17, 0
+    icall revert_if<invalid_calldata_tail_length>, v18
+    v19 = add v8, 32
+    v20 = sub v16, v15
+    v21 = sgt v19, v20
+    icall revert_if<calldata_tail_too_short>, v21
+    v22 = inttoptr i256 v19 to ptr<calldata>
+    v23 = make_calldata_slice v22, v15
+    v24 = extract_value slice<calldata>, v23, 0
+    v25 = extract_value slice<calldata>, v23, 1
+    v26 = gt v25, v25
+    v27 = lt v25, 1
+    v28 = or v26, v27
+    v29 = zext i1 v28 to i256
+    icall revert_if<empty>, v28
+    v30 = sub v25, 1
+    v31 = ptradd v24, 1
+    v32 = make_calldata_slice v31, v30
+    v33 = extract_value slice<calldata>, v32, 0
+    v34 = extract_value slice<calldata>, v32, 1
+    v35 = calldatasize
+    v36 = shr v34, 64
+    v37 = ne v36, 0
+    icall revert_if<invalid_calldata_tail_length>, v37
+    v38 = sub v35, v34
+    v39 = ptrtoint ptr<calldata> v33 to i256
+    v40 = sgt v39, v38
+    icall revert_if<calldata_tail_too_short>, v40
+    v41 = extract_value slice<calldata>, v32, 1
+    v42 = add v41, 63
+    v43 = lt v42, v41
+    icall panic_if<0x41>, v43
+    v44 = not 31
+    v45 = and v42, v44
+    v46 = alloc v45
+    mstore v46, v41
+    v47 = ptradd v46, 32
+    v48 = extract_value slice<calldata>, v32, 0
+    v49 = extract_value slice<calldata>, v32, 1
+    calldatacopy v47, v48, v49
+    ret v46
 }
 
 fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], abi_returns=[word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256]] {

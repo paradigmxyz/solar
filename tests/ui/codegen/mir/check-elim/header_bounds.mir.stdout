@@ -151,8 +151,8 @@ fn @consume(arg0: slice<calldata>, arg1: slice<calldata>) -> struct1 [selector=0
     v18 = ptrtoint ptr<calldata> v10 to i256
     v19 = add v18, v11
     v20 = calldataload v19
-    v21 = lt v20, 2
-    v22 = eq v21, false
+    v21 = shr v20, 1
+    v22 = ne v21, 0
     icall revert_if<empty>, v22
     v23 = ne v20, 0
     v24 = eq v23, false

@@ -7,28 +7,29 @@ fn @sink(arg0: slice<calldata>) -> i256 [selector=0x887458ef, pure, abi_params=[
     v2 = extract_value slice<calldata>, v1, 0
     v3 = extract_value slice<calldata>, v1, 1
     v4 = calldatasize
-    v5 = gt v3, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v5
-    v6 = sub v4, v3
-    v7 = ptrtoint ptr<calldata> v2 to i256
-    v8 = sgt v7, v6
-    icall revert_if<calldata_tail_too_short>, v8
-    v9 = extract_value slice<calldata>, v1, 1
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    icall panic_if<0x41>, v11
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc v13
-    mstore v14, v9
-    v15 = ptradd v14, 32
-    v16 = extract_value slice<calldata>, v1, 0
-    v17 = extract_value slice<calldata>, v1, 1
-    calldatacopy v15, v16, v17
-    v18 = ptradd v14, 32
-    v19 = mload v14
-    v20 = keccak256 v18, v19
-    ret v20
+    v5 = shr v3, 64
+    v6 = ne v5, 0
+    icall revert_if<invalid_calldata_tail_length>, v6
+    v7 = sub v4, v3
+    v8 = ptrtoint ptr<calldata> v2 to i256
+    v9 = sgt v8, v7
+    icall revert_if<calldata_tail_too_short>, v9
+    v10 = extract_value slice<calldata>, v1, 1
+    v11 = add v10, 63
+    v12 = lt v11, v10
+    icall panic_if<0x41>, v12
+    v13 = not 31
+    v14 = and v11, v13
+    v15 = alloc v14
+    mstore v15, v10
+    v16 = ptradd v15, 32
+    v17 = extract_value slice<calldata>, v1, 0
+    v18 = extract_value slice<calldata>, v1, 1
+    calldatacopy v16, v17, v18
+    v19 = ptradd v15, 32
+    v20 = mload v15
+    v21 = keccak256 v19, v20
+    ret v21
 }
 
 fn @sinkWith(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x13407785, pure, abi_params=[array<_, tuple<address, array<_, tuple<address, uint256>>, array<_, tuple<address, uint256>>, bytes>>, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -38,28 +39,29 @@ fn @sinkWith(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x13407785, pu
     v2 = extract_value slice<calldata>, v1, 0
     v3 = extract_value slice<calldata>, v1, 1
     v4 = calldatasize
-    v5 = gt v3, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v5
-    v6 = sub v4, v3
-    v7 = ptrtoint ptr<calldata> v2 to i256
-    v8 = sgt v7, v6
-    icall revert_if<calldata_tail_too_short>, v8
-    v9 = extract_value slice<calldata>, v1, 1
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    icall panic_if<0x41>, v11
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc v13
-    mstore v14, v9
-    v15 = ptradd v14, 32
-    v16 = extract_value slice<calldata>, v1, 0
-    v17 = extract_value slice<calldata>, v1, 1
-    calldatacopy v15, v16, v17
-    v18 = ptradd v14, 32
-    v19 = mload v14
-    v20 = keccak256 v18, v19
-    ret v20
+    v5 = shr v3, 64
+    v6 = ne v5, 0
+    icall revert_if<invalid_calldata_tail_length>, v6
+    v7 = sub v4, v3
+    v8 = ptrtoint ptr<calldata> v2 to i256
+    v9 = sgt v8, v7
+    icall revert_if<calldata_tail_too_short>, v9
+    v10 = extract_value slice<calldata>, v1, 1
+    v11 = add v10, 63
+    v12 = lt v11, v10
+    icall panic_if<0x41>, v12
+    v13 = not 31
+    v14 = and v11, v13
+    v15 = alloc v14
+    mstore v15, v10
+    v16 = ptradd v15, 32
+    v17 = extract_value slice<calldata>, v1, 0
+    v18 = extract_value slice<calldata>, v1, 1
+    calldatacopy v16, v17, v18
+    v19 = ptradd v15, 32
+    v20 = mload v15
+    v21 = keccak256 v19, v20
+    ret v21
 }
 
 fn @sinkOne(arg0: slice<calldata>) -> i256 [selector=0xdc7b1a27, pure, abi_params=[tuple<address, array<_, tuple<address, uint256>>, array<_, tuple<address, uint256>>, bytes>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -69,28 +71,29 @@ fn @sinkOne(arg0: slice<calldata>) -> i256 [selector=0xdc7b1a27, pure, abi_param
     v2 = extract_value slice<calldata>, v1, 0
     v3 = extract_value slice<calldata>, v1, 1
     v4 = calldatasize
-    v5 = gt v3, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v5
-    v6 = sub v4, v3
-    v7 = ptrtoint ptr<calldata> v2 to i256
-    v8 = sgt v7, v6
-    icall revert_if<calldata_tail_too_short>, v8
-    v9 = extract_value slice<calldata>, v1, 1
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    icall panic_if<0x41>, v11
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc v13
-    mstore v14, v9
-    v15 = ptradd v14, 32
-    v16 = extract_value slice<calldata>, v1, 0
-    v17 = extract_value slice<calldata>, v1, 1
-    calldatacopy v15, v16, v17
-    v18 = ptradd v14, 32
-    v19 = mload v14
-    v20 = keccak256 v18, v19
-    ret v20
+    v5 = shr v3, 64
+    v6 = ne v5, 0
+    icall revert_if<invalid_calldata_tail_length>, v6
+    v7 = sub v4, v3
+    v8 = ptrtoint ptr<calldata> v2 to i256
+    v9 = sgt v8, v7
+    icall revert_if<calldata_tail_too_short>, v9
+    v10 = extract_value slice<calldata>, v1, 1
+    v11 = add v10, 63
+    v12 = lt v11, v10
+    icall panic_if<0x41>, v12
+    v13 = not 31
+    v14 = and v11, v13
+    v15 = alloc v14
+    mstore v15, v10
+    v16 = ptradd v15, 32
+    v17 = extract_value slice<calldata>, v1, 0
+    v18 = extract_value slice<calldata>, v1, 1
+    calldatacopy v16, v17, v18
+    v19 = ptradd v15, 32
+    v20 = mload v15
+    v21 = keccak256 v19, v20
+    ret v21
 }
 
 fn @forward(arg0: slice<calldata>) -> i256 [selector=0x6f975451, view, abi_params=[array<_, tuple<address, array<_, tuple<address, uint256>>, array<_, tuple<address, uint256>>, bytes>>], abi_returns=[word], abi_return_params=[bytes32]] {

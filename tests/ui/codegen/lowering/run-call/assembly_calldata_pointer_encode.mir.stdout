@@ -37,16 +37,17 @@ fn @bytesCopy() -> ptr<memory> [selector=0x6310efb6, pure, abi_params=[], abi_re
     v11 = extract_value slice<calldata>, v4, 0
     v12 = extract_value slice<calldata>, v4, 1
     v13 = calldatasize
-    v14 = gt v12, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v14
-    v15 = sub v13, v12
-    v16 = ptrtoint ptr<calldata> v11 to i256
-    v17 = sgt v16, v15
-    icall revert_if<calldata_tail_too_short>, v17
-    v18 = ptradd v10, 32
-    v19 = extract_value slice<calldata>, v4, 0
-    v20 = extract_value slice<calldata>, v4, 1
-    calldatacopy v18, v19, v20
+    v14 = shr v12, 64
+    v15 = ne v14, 0
+    icall revert_if<invalid_calldata_tail_length>, v15
+    v16 = sub v13, v12
+    v17 = ptrtoint ptr<calldata> v11 to i256
+    v18 = sgt v17, v16
+    icall revert_if<calldata_tail_too_short>, v18
+    v19 = ptradd v10, 32
+    v20 = extract_value slice<calldata>, v4, 0
+    v21 = extract_value slice<calldata>, v4, 1
+    calldatacopy v19, v20, v21
     ret v10
 }
 
@@ -68,20 +69,21 @@ fn @bytesHash() -> i256 [selector=0x05da852c, pure, abi_params=[], abi_returns=[
     v11 = extract_value slice<calldata>, v4, 0
     v12 = extract_value slice<calldata>, v4, 1
     v13 = calldatasize
-    v14 = gt v12, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v14
-    v15 = sub v13, v12
-    v16 = ptrtoint ptr<calldata> v11 to i256
-    v17 = sgt v16, v15
-    icall revert_if<calldata_tail_too_short>, v17
-    v18 = ptradd v10, 32
-    v19 = extract_value slice<calldata>, v4, 0
-    v20 = extract_value slice<calldata>, v4, 1
-    calldatacopy v18, v19, v20
-    v21 = ptradd v10, 32
-    v22 = mload v10
-    v23 = keccak256 v21, v22
-    ret v23
+    v14 = shr v12, 64
+    v15 = ne v14, 0
+    icall revert_if<invalid_calldata_tail_length>, v15
+    v16 = sub v13, v12
+    v17 = ptrtoint ptr<calldata> v11 to i256
+    v18 = sgt v17, v16
+    icall revert_if<calldata_tail_too_short>, v18
+    v19 = ptradd v10, 32
+    v20 = extract_value slice<calldata>, v4, 0
+    v21 = extract_value slice<calldata>, v4, 1
+    calldatacopy v19, v20, v21
+    v22 = ptradd v10, 32
+    v23 = mload v10
+    v24 = keccak256 v22, v23
+    ret v24
 }
 
 fn @bytesLength() -> i256 [selector=0x46cab953, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -117,11 +119,10 @@ fn @structFirst() -> i8 [selector=0x2165fa18, pure, abi_params=[], abi_returns=[
     v3 = add v2, 0
     v4 = calldataload v3
     v5 = shr v4, 8
-    v6 = eq v5, 0
-    v7 = eq v6, false
-    icall revert_if<empty>, v7
-    v8 = trunc i256 v4 to i8
-    ret v8
+    v6 = ne v5, 0
+    icall revert_if<empty>, v6
+    v7 = trunc i256 v4 to i8
+    ret v7
 }
 
 fn @makeStruct() -> slice<calldata> [pure] {

@@ -5,10 +5,8 @@ fn @balance() [selector=0x2139cfcb, abi_wrapper, view] {
   bb0:
     v10 = calldataload 68
     v11 = shr v10, 160
-    v12 = eq v11, 0
-    jumpi v12, bb5, bb4
-  bb4:
-    revert 0, 0
+    v12 = ne v11, 0
+    jumpi v12, bb4, bb5
   bb5:
     v4 = add arg0, arg1
     v5 = lt v4, arg0
@@ -25,16 +23,16 @@ fn @balance() [selector=0x2139cfcb, abi_wrapper, view] {
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
+  bb4:
+    revert 0, 0
 }
 
 fn @codeSize() [selector=0x3ae86375, abi_wrapper, view] {
   bb0:
     v10 = calldataload 68
     v11 = shr v10, 160
-    v12 = eq v11, 0
-    jumpi v12, bb5, bb4
-  bb4:
-    revert 0, 0
+    v12 = ne v11, 0
+    jumpi v12, bb4, bb5
   bb5:
     v4 = add arg0, arg1
     v5 = lt v4, arg0
@@ -51,16 +49,16 @@ fn @codeSize() [selector=0x3ae86375, abi_wrapper, view] {
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
+  bb4:
+    revert 0, 0
 }
 
 fn @codeHash() [selector=0x76806d71, abi_wrapper, view] {
   bb0:
     v10 = calldataload 68
     v11 = shr v10, 160
-    v12 = eq v11, 0
-    jumpi v12, bb5, bb4
-  bb4:
-    revert 0, 0
+    v12 = ne v11, 0
+    jumpi v12, bb4, bb5
   bb5:
     v4 = add arg0, arg1
     v5 = lt v4, arg0
@@ -77,6 +75,8 @@ fn @codeHash() [selector=0x76806d71, abi_wrapper, view] {
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
+  bb4:
+    revert 0, 0
 }
 
 fn @entry() [entry] {

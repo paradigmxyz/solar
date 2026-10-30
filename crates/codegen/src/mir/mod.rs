@@ -27,6 +27,9 @@ pub(crate) use abi::{
     AbiType, AbiWordValidator,
 };
 
+mod bit_width;
+pub(crate) use bit_width::BitWidthTest;
+
 mod packed;
 pub(crate) use packed::{PackedArraySource, PackedPart, packed_element_bytes};
 

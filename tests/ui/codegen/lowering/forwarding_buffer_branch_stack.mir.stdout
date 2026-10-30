@@ -47,8 +47,8 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     icall revert_if<tuple_data_too_short>, v19
     v20 = add 0, 0
     v21 = mload v20
-    v22 = lt v21, 2
-    v23 = eq v22, false
+    v22 = shr v21, 1
+    v23 = ne v22, 0
     icall revert_if<empty>, v23
     v24 = returndatasize
     returndatacopy 0, 0, v24 !metadata(memory=scratch)
@@ -179,8 +179,8 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     icall revert_if<tuple_data_too_short>, v121
     v122 = add 0, 0
     v123 = mload v122
-    v124 = lt v123, 2
-    v125 = eq v124, false
+    v124 = shr v123, 1
+    v125 = ne v124, 0
     icall revert_if<empty>, v125
     v126 = ne v123, 0
     jumpi v126, bb16, bb15

@@ -433,9 +433,9 @@ bb41 [loop]:
 bb49 [loop]:
   push 1
   add
-  push 255
-  dup 2
-  gt
+  dup 1
+  push 8
+  shr
   push bb51
   jumpi
   swap 2

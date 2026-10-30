@@ -7,7 +7,7 @@
 // The checked byte range becomes a cursor and end, so the validation loop neither scales an
 // index nor retains the array base on every iteration. All words contribute to one check.
 // CHECK-LABEL: fn @bytes_array(
-// CHECK: + [[AVAILABLE:v[0-9]+]] = shr {{v[0-9]+}}, 5
+// CHECK: + [[AVAILABLE:v[0-9]+]] = shr {{v[0-9]+}}, 5{{$}}
 // CHECK-NEXT: + [[OUTSIDE:v[0-9]+]] = gt [[LEN:v[0-9]+]], [[AVAILABLE]]
 // CHECK-NEXT: + jumpi [[OUTSIDE]],
 // CHECK: + [[HAS_WORDS:v[0-9]+]] = ne [[LEN]], 0
@@ -26,7 +26,7 @@
 // CHECK-NEXT: + jumpi [[MORE]], [[BODY]], [[VALIDATE:bb[0-9]+]]
 // CHECK: + [[VALIDATE]]:
 // CHECK-NEXT: + [[HIGH:v[0-9]+]] = shr [[NEXT]], 8
-// CHECK-NEXT: + {{v[0-9]+}} = eq [[HIGH]], 0
+// CHECK-NEXT: + {{v[0-9]+}} = ne [[HIGH]], 0
 // CHECK: + jump [[DONE]]
 // CHECK: + [[DONE]]:
 fn @bytes_array(arg0: ptr<memory>) -> i256 [selector=0x43b2375f, abi_params=[array<_, uint8>], abi_returns=[word]] {

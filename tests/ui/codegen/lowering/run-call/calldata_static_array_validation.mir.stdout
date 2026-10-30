@@ -11,11 +11,10 @@ fn @readSecond(arg0: slice<calldata>) -> i8 [selector=0xe9d33e2a, pure, abi_para
     v5 = add v4, 32
     v6 = calldataload v5
     v7 = shr v6, 8
-    v8 = eq v7, 0
-    v9 = eq v8, false
-    icall revert_if<empty>, v9
-    v10 = trunc i256 v6 to i8
-    ret v10
+    v8 = ne v7, 0
+    icall revert_if<empty>, v8
+    v9 = trunc i256 v6 to i8
+    ret v9
 }
 
 fn @readFirst(arg0: slice<calldata>) -> i8 [selector=0x77c98de5, pure, abi_params=[array<2, uint8>], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
@@ -29,11 +28,10 @@ fn @readFirst(arg0: slice<calldata>) -> i8 [selector=0x77c98de5, pure, abi_param
     v5 = add v4, 0
     v6 = calldataload v5
     v7 = shr v6, 8
-    v8 = eq v7, 0
-    v9 = eq v8, false
-    icall revert_if<empty>, v9
-    v10 = trunc i256 v6 to i8
-    ret v10
+    v8 = ne v7, 0
+    icall revert_if<empty>, v8
+    v9 = trunc i256 v6 to i8
+    ret v9
 }
 
 fn @unused(arg0: slice<calldata>) -> i256 [selector=0x492c7c0b, pure, abi_params=[array<2, uint8>], abi_returns=[word], abi_return_params=[uint256]] {
@@ -61,11 +59,10 @@ fn @nested(arg0: slice<calldata>) -> i8 [selector=0xf4e4bddf, pure, abi_params=[
     v13 = add v12, 32
     v14 = calldataload v13
     v15 = shr v14, 8
-    v16 = eq v15, 0
-    v17 = eq v16, false
-    icall revert_if<empty>, v17
-    v18 = trunc i256 v14 to i8
-    ret v18
+    v16 = ne v15, 0
+    icall revert_if<empty>, v16
+    v17 = trunc i256 v14 to i8
+    ret v17
 }
 
 fn @passToInternal(arg0: slice<calldata>) -> i8 [selector=0xbdb87238, pure, abi_params=[array<2, uint8>], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
@@ -85,11 +82,10 @@ fn @second(arg0: slice<calldata>) -> i8 [pure] {
     v5 = add v4, 32
     v6 = calldataload v5
     v7 = shr v6, 8
-    v8 = eq v7, 0
-    v9 = eq v8, false
-    icall revert_if<empty>, v9
-    v10 = trunc i256 v6 to i8
-    ret v10
+    v8 = ne v7, 0
+    icall revert_if<empty>, v8
+    v9 = trunc i256 v6 to i8
+    ret v9
 }
 
 fn @copyToMemory(arg0: slice<calldata>) -> i8 [selector=0x13aac4cb, pure, abi_params=[array<2, uint8>], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
@@ -103,30 +99,29 @@ fn @copyToMemory(arg0: slice<calldata>) -> i8 [selector=0x13aac4cb, pure, abi_pa
     v5 = alloc 64
     jump bb1
   bb1:
-    v6 = phi [bb0: 0], [bb2: v15]
+    v6 = phi [bb0: 0], [bb2: v14]
     v7 = lt v6, 2
     jumpi v7, bb2, bb3
   bb3:
-    v16 = make_calldata_slice v0, 64
-    v17 = extract_value slice<calldata>, v16, 0
-    v18 = extract_value slice<calldata>, v16, 1
-    calldatacopy v5, v17, v18
-    v19 = lt 1, 2
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = ptradd v5, 32
-    v22 = mload v21
-    v23 = trunc i256 v22 to i8
-    ret v23
+    v15 = make_calldata_slice v0, 64
+    v16 = extract_value slice<calldata>, v15, 0
+    v17 = extract_value slice<calldata>, v15, 1
+    calldatacopy v5, v16, v17
+    v18 = lt 1, 2
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = ptradd v5, 32
+    v21 = mload v20
+    v22 = trunc i256 v21 to i8
+    ret v22
   bb2:
     v8 = mul v6, 32
     v9 = ptrtoint ptr<calldata> v0 to i256
     v10 = add v9, v8
     v11 = calldataload v10
     v12 = shr v11, 8
-    v13 = eq v12, 0
-    v14 = eq v13, false
-    icall revert_if<empty>, v14
-    v15 = add v6, 1
+    v13 = ne v12, 0
+    icall revert_if<empty>, v13
+    v14 = add v6, 1
     jump bb1
 }

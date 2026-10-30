@@ -202,13 +202,13 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     v101 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v102 = add v101, v3 !metadata(alloc_ptr)
     v103 = lt v102, v101
-    v104 = gt v102, 0xffffffffffffffff
-    v105 = or v103, v104
-    jumpi v105, bb6, bb16
+    v105 = gt v102, 0xffffffffffffffff
+    v106 = or v103, v105
+    jumpi v106, bb6, bb16
   bb16:
     mstore 64, v102 !metadata(memory=scratch)
-    v107 = calldatasize
-    calldatacopy v101, v107, v3
+    v108 = calldatasize
+    calldatacopy v101, v108, v3
     mstore v101, arg2
     v27 = eq arg2, 0
     jumpi v27, bb2, bb4
@@ -312,10 +312,10 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v29 = heap_floor !metadata(alloc_ptr)
     v30 = add v29, v11 !metadata(alloc_ptr)
     v31 = lt v30, v29
-    v32 = gt v30, 0xffffffffffffffff
-    v33 = or v31, v32
-    v36 = or v9, v33
-    jumpi v36, bb3, bb5
+    v33 = gt v30, 0xffffffffffffffff
+    v34 = or v31, v33
+    v38 = or v9, v34
+    jumpi v38, bb3, bb5
   bb5:
     mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v6
@@ -327,9 +327,9 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     calldatacopy v25, v7, v6
     v22 = sub 0, v6
     v23 = and v22, 31
-    v35 = calldatasize
+    v36 = calldatasize
     v26 = add v25, v6
-    calldatacopy v26, v35, v23
+    calldatacopy v26, v36, v23
     ret v29
   bb3:
     mstore 32, 65 !metadata(memory=scratch)

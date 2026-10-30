@@ -86,9 +86,9 @@ bb1:
   swap 3
   push 32
   add
-  push 0x7fffffffffffffe
-  dup 5
-  gt
+  dup 4
+  push 59
+  shr
   push bb23
   jumpi
   push 1

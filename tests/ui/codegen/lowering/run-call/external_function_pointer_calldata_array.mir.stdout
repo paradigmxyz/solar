@@ -18,88 +18,85 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     v8 = add v7, 0
     v9 = calldataload v8
     v10 = shl v9, 192
-    v11 = eq v10, 0
-    v12 = eq v11, false
-    icall revert_if<empty>, v12
-    v13 = shr v9, 64
-    v14 = and v13, 0xffffffff
-    v15 = shl v14, 224
-    v16 = shr v13, 32
-    v17 = gas
-    v18 = shr v15, 224
-    mstore 0, v18 !metadata(memory=scratch)
-    v19 = call v17, v16, 0, 28, 4, 0, 32
-    jumpi v19, bb2, bb1
+    v11 = ne v10, 0
+    icall revert_if<empty>, v11
+    v12 = shr v9, 64
+    v13 = and v12, 0xffffffff
+    v14 = shl v13, 224
+    v15 = shr v12, 32
+    v16 = gas
+    v17 = shr v14, 224
+    mstore 0, v17 !metadata(memory=scratch)
+    v18 = call v16, v15, 0, 28, 4, 0, 32
+    jumpi v18, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v20 = returndatasize
-    v21 = lt v20, 32
-    icall revert_if<tuple_data_too_short>, v21
-    v22 = add 0, 0
-    v23 = mload v22
-    v24 = extract_value slice<calldata>, arg0, 1
-    v25 = lt 1, v24
-    v26 = eq v25, false
-    icall panic_if<0x32>, v26
-    v27 = extract_value slice<calldata>, arg0, 0
-    v28 = ptrtoint ptr<calldata> v27 to i256
-    v29 = add v28, 32
-    v30 = calldataload v29
-    v31 = shl v30, 192
-    v32 = eq v31, 0
-    v33 = eq v32, false
-    icall revert_if<empty>, v33
-    v34 = shr v30, 64
-    v35 = and v34, 0xffffffff
-    v36 = shl v35, 224
-    v37 = shr v34, 32
-    v38 = gas
-    v39 = shr v36, 224
-    mstore 0, v39 !metadata(memory=scratch)
-    v40 = call v38, v37, 0, 28, 4, 0, 32
-    jumpi v40, bb4, bb3
+    v19 = returndatasize
+    v20 = lt v19, 32
+    icall revert_if<tuple_data_too_short>, v20
+    v21 = add 0, 0
+    v22 = mload v21
+    v23 = extract_value slice<calldata>, arg0, 1
+    v24 = lt 1, v23
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = extract_value slice<calldata>, arg0, 0
+    v27 = ptrtoint ptr<calldata> v26 to i256
+    v28 = add v27, 32
+    v29 = calldataload v28
+    v30 = shl v29, 192
+    v31 = ne v30, 0
+    icall revert_if<empty>, v31
+    v32 = shr v29, 64
+    v33 = and v32, 0xffffffff
+    v34 = shl v33, 224
+    v35 = shr v32, 32
+    v36 = gas
+    v37 = shr v34, 224
+    mstore 0, v37 !metadata(memory=scratch)
+    v38 = call v36, v35, 0, 28, 4, 0, 32
+    jumpi v38, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v41 = returndatasize
-    v42 = lt v41, 32
-    icall revert_if<tuple_data_too_short>, v42
-    v43 = add 0, 0
-    v44 = mload v43
-    v45 = extract_value slice<calldata>, arg0, 1
-    v46 = lt 2, v45
-    v47 = eq v46, false
-    icall panic_if<0x32>, v47
-    v48 = extract_value slice<calldata>, arg0, 0
-    v49 = ptrtoint ptr<calldata> v48 to i256
-    v50 = add v49, 64
-    v51 = calldataload v50
-    v52 = shl v51, 192
-    v53 = eq v52, 0
-    v54 = eq v53, false
-    icall revert_if<empty>, v54
-    v55 = shr v51, 64
-    v56 = and v55, 0xffffffff
-    v57 = shl v56, 224
-    v58 = shr v55, 32
-    v59 = gas
-    v60 = shr v57, 224
-    mstore 0, v60 !metadata(memory=scratch)
-    v61 = call v59, v58, 0, 28, 4, 0, 32
-    jumpi v61, bb6, bb5
+    v39 = returndatasize
+    v40 = lt v39, 32
+    icall revert_if<tuple_data_too_short>, v40
+    v41 = add 0, 0
+    v42 = mload v41
+    v43 = extract_value slice<calldata>, arg0, 1
+    v44 = lt 2, v43
+    v45 = eq v44, false
+    icall panic_if<0x32>, v45
+    v46 = extract_value slice<calldata>, arg0, 0
+    v47 = ptrtoint ptr<calldata> v46 to i256
+    v48 = add v47, 64
+    v49 = calldataload v48
+    v50 = shl v49, 192
+    v51 = ne v50, 0
+    icall revert_if<empty>, v51
+    v52 = shr v49, 64
+    v53 = and v52, 0xffffffff
+    v54 = shl v53, 224
+    v55 = shr v52, 32
+    v56 = gas
+    v57 = shr v54, 224
+    mstore 0, v57 !metadata(memory=scratch)
+    v58 = call v56, v55, 0, 28, 4, 0, 32
+    jumpi v58, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v62 = returndatasize
-    v63 = lt v62, 32
-    icall revert_if<tuple_data_too_short>, v63
-    v64 = add 0, 0
-    v65 = mload v64
-    v66 = insert_value struct0, undef struct0, 0, v23
-    v67 = insert_value struct0, v66, 1, v44
-    v68 = insert_value struct0, v67, 2, v65
-    ret v68
+    v59 = returndatasize
+    v60 = lt v59, 32
+    icall revert_if<tuple_data_too_short>, v60
+    v61 = add 0, 0
+    v62 = mload v61
+    v63 = insert_value struct0, undef struct0, 0, v22
+    v64 = insert_value struct0, v63, 1, v42
+    v65 = insert_value struct0, v64, 2, v62
+    ret v65
 }
 
 fn @fReenc(arg0: slice<calldata>) -> struct0 [selector=0xfbeba237, abi_params=[array<_, function>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {

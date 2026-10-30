@@ -18,9 +18,8 @@ fn @read(arg0: slice<calldata>) -> i256 [selector=0xfbb1e83c, pure, abi_params=[
     v5 = add v4, 0
     v6 = calldataload v5
     v7 = shr v6, 8
-    v8 = eq v7, 0
-    v9 = eq v8, false
-    icall revert_if<empty>, v9
-    v10 = trunc i256 v6 to i8
+    v8 = ne v7, 0
+    icall revert_if<empty>, v8
+    v9 = trunc i256 v6 to i8
     ret 1
 }
