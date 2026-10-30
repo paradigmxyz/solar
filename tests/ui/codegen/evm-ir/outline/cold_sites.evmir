@@ -104,3 +104,24 @@ bb13 [cold]:
   push 15
   mstore
   stop
+
+// One cold site does not make a hot site free: a hot store and a cold one save too few bytes to
+// repay the hot site's transfer gas, so both stay inline.
+// CHECK-LABEL: bb14:
+// CHECK-NEXT: push 0x5a5b5c5d5e5f606162636465666768
+// CHECK-NEXT: push 15
+// CHECK-NEXT: mstore
+// CHECK-NEXT: jump bb15
+bb14:
+  push 0x5a5b5c5d5e5f606162636465666768
+  push 15
+  mstore
+  jump bb15
+
+// CHECK-LABEL: bb15 [cold]:
+// CHECK-NEXT: push 0x5a5b5c5d5e5f606162636465666768
+bb15 [cold]:
+  push 0x5a5b5c5d5e5f606162636465666768
+  push 15
+  mstore
+  stop
