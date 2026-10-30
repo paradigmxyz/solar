@@ -1,0 +1,33 @@
+- // === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/loop_header.evmir (before jumpi-fallthrough) ===
++ // === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/loop_header.evmir (after jumpi-fallthrough) ===
+  @module LoopHeader
+  bb0:
+    push 4
+    calldataload
+    push 0
+    jump bb1
+  bb1 [loop]:
+    dup 2
+    push 0
+    swap 1
+    sub
+    push bb2
+    jumpi
+    jump bb3
+  bb2 [loop]:
+    dup 2
+    add
+    swap 1
+    push 1
+    swap 1
+    sub
+    swap 1
+    jump bb1
+  bb3:
+    push 0
+    mstore
+    pop
+    push 32
+    push 0
+    return
+  

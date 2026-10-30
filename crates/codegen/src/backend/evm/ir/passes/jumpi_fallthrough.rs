@@ -9,9 +9,16 @@
 //! which a jump to `other` repays.
 //!
 //! [`Target::falls_through_turned_branch`] prices both shapes with the odds of the two edges
-//! from [`edge_runs`]. The pass runs once the layout is final and never moves a block, so every
-//! other fallthrough stays. It skips a branch whose boundary before the `PUSH` is not a legal
-//! split point.
+//! from [`edge_runs`].
+//!
+//! The shape arises where a layout places the target of a branch's `PUSH; JUMPI` next by chance.
+//! Block layout builds traces along terminator edges only, so after tail merging splits a
+//! branch's fallthrough into a shared tail, the loop body or branch target it leaves behind lands
+//! next in index order, with a `JUMP` over it. Block layout, loop layout and late structural
+//! cleanup, the passes that fix a layout, call [`turn_branches`] when they finish, so later
+//! passes see the turned branch; the `jumpi-fallthrough` pass runs it alone, for tests. It never
+//! moves a block, so every other fallthrough stays, and it skips a branch whose boundary before
+//! the `PUSH` is not a legal split point. Nothing turns at `-O none`.
 
 use super::{
     EvmPass,

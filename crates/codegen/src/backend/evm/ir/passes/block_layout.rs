@@ -66,8 +66,7 @@ impl EvmPass for BlockLayout {
 
 fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let reordered = order_blocks(gcx, module);
-    let turned =
-        !module.optimization.is_none() && super::jumpi_fallthrough::turn_branches(gcx, module);
+    let turned = super::jumpi_fallthrough::turn_branches(gcx, module);
     reordered | turned
 }
 

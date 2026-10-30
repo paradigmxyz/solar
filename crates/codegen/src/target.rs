@@ -840,8 +840,11 @@ impl Target {
     /// reference keeps it (`keeps_landing`).
     ///
     /// The turned branch runs the test on both edges but jumps to `other` once, so it saves gas
-    /// when `other` is entered often enough. Size builds take the bytes unless the extra gas of a
-    /// hot loop costs more over the expected executions than the deposit of the bytes saved.
+    /// when `other` is entered often enough. A gas build also leaves a branch whose `next` is the
+    /// hot edge of a loop, even when the test is free: falling into the loop body keeps the loop
+    /// passes from rotating the header into its latch, which saves a jump on every iteration.
+    /// Size builds take the bytes unless the extra gas of a hot loop costs more over the expected
+    /// executions than the deposit of the bytes saved.
     pub(crate) fn falls_through_turned_branch(
         &self,
         next_runs: u64,
@@ -867,7 +870,9 @@ impl Target {
             - i128::from(next_runs) * i128::from(next_extra);
         let gas_saving = gas_saving.clamp(i64::MIN.into(), i64::MAX.into()) as i64;
         let byte_saving = jump_bytes + freed_bytes - test_bytes;
+        let loop_continues = other_runs != 0 && next_runs > other_runs;
         self.improves(gas_saving, byte_saving)
+            && !(loop_continues && self.optimization.is_gas())
             && (gas_saving >= 0
                 || !self.optimization.is_size()
                 || self.deposit_repays_gas(byte_saving.unsigned_abs(), gas_saving.unsigned_abs()))
@@ -1550,6 +1555,9 @@ mod tests {
         // A size build at one run takes the bytes of a hot loop, and not at a million runs.
         let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1);
         assert!(size.falls_through_turned_branch(10, 1, TurnedTest::Adds, false));
+        // A free test still stays out of the hot edge of a loop in a gas build.
+        assert!(!gas.falls_through_turned_branch(10, 1, TurnedTest::Swaps, false));
+        assert!(size.falls_through_turned_branch(10, 1, TurnedTest::Swaps, false));
         let hot = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1_000_000);
         assert!(!hot.falls_through_turned_branch(10, 1, TurnedTest::Adds, false));
     }
