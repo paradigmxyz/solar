@@ -144,12 +144,9 @@ bb81 [ret=0, inputs=2, outputs=1]:
   dup 3
   dup 2
   lt
-  push 0
-  not
-  push 192
+  dup 2
+  push 64
   shr
-  dup 3
-  gt
   or
   push bb29
   jumpi
