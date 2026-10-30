@@ -113,7 +113,7 @@ struct Compare {
     literal: U256,
 }
 
-/// How the one of two tests that abort on different edges turns around, so both abort when their
+/// The way one of two tests that abort on different edges turns around, so both abort when their
 /// conditions hold: into the complement when it compares a word with a literal, or else into its
 /// negation.
 enum Flip {
