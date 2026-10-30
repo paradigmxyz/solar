@@ -1448,8 +1448,7 @@ fn estimate_inst_cost(
         InstKind::MemoryZero(..) => seq(target, &[op::CALLDATASIZE, op::CALLDATACOPY]),
         InstKind::ConstructorArgsBase => seq(target, &[op::PUSH2]),
         InstKind::ConstructorArgsEnd => seq(target, &[op::PUSH2, op::PUSH2, op::SUB, op::CODESIZE]),
-        InstKind::HeapFloor => seq(target, &[op::PUSH2]),
-        InstKind::HeapFloorOffset(_) => seq(target, &[op::PUSH2]),
+        InstKind::HeapFloor | InstKind::HeapFloorOffset(_) => seq(target, &[op::PUSH2]),
         InstKind::InternalFrameAddr(_) => seq(target, &[op::PUSH1, op::ADD]),
         InstKind::LibraryAddress(_) => seq(target, &[op::PUSH20]),
         // Typed PUSH<N> placeholder patched at deploy time, cleaned for the narrower types.

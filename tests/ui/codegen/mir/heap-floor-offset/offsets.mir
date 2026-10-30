@@ -21,12 +21,12 @@ fn @chain() [selector=0x22222222, abi_wrapper] {
     stop
 }
 
-// A non-constant offset, and an offset that overflows 64 bits, stay additions.
+// A non-constant offset, and an offset above 32 bits, stay additions.
 fn @unchanged(arg0: i256) {
   bb0:
     v0 = heap_floor
     v1 = add v0, arg0
-    v2 = add v0, 0x10000000000000000
+    v2 = add v0, 0x100000000
     mstore v1, 1
     mstore v2, 2
     ret

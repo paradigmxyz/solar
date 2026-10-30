@@ -539,7 +539,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::ConstructorArgsEnd => self.emit_constructor_args_end(),
             InstKind::InternalFrameAddr(offset) => self.emit_own_frame_addr(*offset),
             InstKind::HeapFloor => self.emit_heap_floor(func_id, 0),
-            InstKind::HeapFloorOffset(offset) => self.emit_heap_floor(func_id, *offset),
             InstKind::DataCopy(data, ..) => {
                 // [size, dest] -> push_data data; swap1; codecopy
                 self.asm.emit_push_data(*data);

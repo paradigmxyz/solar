@@ -204,10 +204,12 @@ fn protected_word_depth(instructions: &[Instruction]) -> Option<usize> {
 /// Returns where the word at stack position `depth` sits after a permutation that swaps the words
 /// at positions `first` and `second`.
 fn permute(depth: usize, first: usize, second: usize) -> usize {
-    match depth {
-        _ if depth == first => second,
-        _ if depth == second => first,
-        _ => depth,
+    if depth == first {
+        second
+    } else if depth == second {
+        first
+    } else {
+        depth
     }
 }
 

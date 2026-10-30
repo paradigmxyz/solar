@@ -7,11 +7,13 @@
 //! `dup; push offset; add`: four bytes and nine gas for a word that is one push once the floor is
 //! known.
 //!
-//! This pass rewrites each `add` of the floor and a constant that fits in 64 bits into
+//! This pass rewrites each `add` of the floor and a constant that fits in 32 bits into
 //! `heap_floor_offset offset`, a nullary read that codegen resolves together with the floor and
-//! pushes at each use like an immediate. The floor is far below 2^64, so the sum cannot wrap. It
-//! follows chains: `add (add floor, 32), 64` becomes `heap_floor_offset 96`. The rewrite keeps
-//! the instruction, its result, and its metadata, and the floor stays for its other uses.
+//! pushes at each use like an immediate. Memory that far above the floor is unaffordable, and a
+//! larger allocation size keeps its `add`, so the sum cannot wrap in the 64-bit arithmetic codegen
+//! resolves it with. The pass follows chains: `add (add floor, 32), 64` becomes `heap_floor_offset
+//! 96`. The rewrite keeps the instruction, its result, and its metadata, and the floor stays for
+//! its other uses.
 //!
 //! The pass runs after the memory and alias analyses that reason about `add floor, offset` as a
 //! pointer plus a constant, which the new operation hides, so those analyses see the original
@@ -24,9 +26,12 @@ use crate::mir::{
 };
 use solar_sema::Gcx;
 
-pub(crate) struct HeapFloorOffsetPass;
+/// The largest offset from the floor that the pass folds.
+const MAX_OFFSET: u64 = u32::MAX as u64;
 
-impl MirPass for HeapFloorOffsetPass {
+pub(crate) struct HeapFloorOffset;
+
+impl MirPass for HeapFloorOffset {
     fn name(&self) -> &'static str {
         "heap-floor-offset"
     }
@@ -49,17 +54,18 @@ fn fold_adds(func: &mut Function) -> bool {
     let mut changed = false;
     for inst in func.instructions().collect::<Vec<_>>() {
         let InstKind::Add(a, b) = func.inst(inst).kind else { continue };
+        if func.inst(inst).result_ty != Some(MirType::I256) {
+            continue;
+        }
         // add floor, constant => heap_floor_offset constant
         let Some(offset) = floor_offset(func, a)
             .zip(func.value_u64(b))
             .or_else(|| floor_offset(func, b).zip(func.value_u64(a)))
             .and_then(|(floor, constant)| floor.checked_add(constant))
+            .filter(|&offset| offset <= MAX_OFFSET)
         else {
             continue;
         };
-        if func.inst(inst).result_ty != Some(MirType::I256) {
-            continue;
-        }
         let instruction = func.inst_mut(inst);
         instruction.kind = InstKind::HeapFloorOffset(offset);
         instruction.metadata.set_effect(None);

@@ -109,7 +109,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_shifts::LowerShifts,
     &evm_inst_schedule::EvmInstSchedule,
     &heap_floor::HeapFloor,
-    &heap_floor_offset::HeapFloorOffsetPass,
+    &heap_floor_offset::HeapFloorOffset,
 ];
 
 /// Finds a MIR pass by command-line name.
@@ -473,7 +473,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
 /// Optimizes lowered word SSA before physical stack scheduling.
 static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     &const_fold::ConstFold,
-    &heap_floor_offset::HeapFloorOffsetPass,
+    &heap_floor_offset::HeapFloorOffset,
     &cfg_simplify::BranchSimplify,
     // Reconstruct old induction values on exits before selecting physical stack order.
     &loop_exit_remat::LoopExitRemat,
