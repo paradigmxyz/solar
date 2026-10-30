@@ -2999,6 +2999,13 @@ impl ReadBounds {
         });
         raw_write && avoids_fmp
     }
+
+    /// Drops every cached proof, keeping the allocations.
+    pub(crate) fn clear(&mut self) {
+        self.accesses.take();
+        self.arithmetic.get_mut().clear();
+        self.offsets.get_mut().clear();
+    }
 }
 
 /// The first successful access to each address in each block and placed instruction order.

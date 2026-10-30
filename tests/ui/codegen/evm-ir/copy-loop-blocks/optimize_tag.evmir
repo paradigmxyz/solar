@@ -1,6 +1,6 @@
 //@ revisions: gas size
-//@[gas] compile-flags: -Ogas --optimize-runs 10000 -Zevm-ir-pipeline=tail-dup
-//@[size] compile-flags: -Osize --optimize-runs 10000 -Zevm-ir-pipeline=tail-dup
+//@[gas] compile-flags: -Ogas --optimize-runs 10000 -Zevm-ir-pipeline=copy-loop-blocks
+//@[size] compile-flags: -Osize --optimize-runs 10000 -Zevm-ir-pipeline=copy-loop-blocks
 //@ filecheck:
 // The contract's gas objective enables copying the hot loop header even in a size build.
 @module OptimizeTag

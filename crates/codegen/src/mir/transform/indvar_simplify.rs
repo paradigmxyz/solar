@@ -153,9 +153,7 @@ impl MirPass for IndVarSimplify {
             |func, analyses| {
                 let insts = func.num_insts();
                 let changed = IndVarSimplifier::new(Rc::clone(analyses.alias()))
-                    .run(func, Rc::clone(analyses.cfg()))
-                    .total()
-                    != 0;
+                    .run(func, Rc::clone(analyses.cfg()));
                 // NOTE: A pointer phi that fails to materialize leaves the instructions it
                 // already inserted in place without reporting a change.
                 if !changed && func.num_insts() != insts {
@@ -167,29 +165,11 @@ impl MirPass for IndVarSimplify {
     }
 }
 
-/// Statistics from induction-variable simplification.
-#[derive(Clone, Debug, Default)]
-struct IndVarSimplifyStats {
-    /// Number of loop-carried pointer phis inserted.
-    pointer_phis_inserted: usize,
-    /// Number of loop-local address uses replaced.
-    address_uses_replaced: usize,
-    /// Number of loop exit edges split to rebuild the counter there.
-    exit_edges_split: usize,
-}
-
-impl IndVarSimplifyStats {
-    /// Returns the total number of MIR changes performed.
-    #[must_use]
-    const fn total(&self) -> usize {
-        self.pointer_phis_inserted + self.address_uses_replaced + self.exit_edges_split
-    }
-}
-
 /// Performs conservative induction-variable strength reduction.
 #[derive(Debug)]
 struct IndVarSimplifier {
-    stats: IndVarSimplifyStats,
+    /// Whether a pointer phi was inserted or an edge split.
+    changed: bool,
     alias: Rc<AliasAnalysis>,
     /// Exit edges, from a loop block to a join outside it, whose phis read a counter that
     /// could otherwise die, by the loop header.
@@ -198,6 +178,12 @@ struct IndVarSimplifier {
     /// the block, the join, and the rebuild's instructions, which move onto that edge once every
     /// loop is visited.
     rebuild_moves: Vec<(BlockId, BlockId, Vec<InstId>)>,
+    /// The loop's instructions, refilled by each user.
+    in_loop: DenseBitSet<InstId>,
+    /// The values the loop's non-address instructions and terminators read.
+    read_by_non_address: DenseBitSet<ValueId>,
+    /// Values already counted or visited by one scan.
+    seen: DenseBitSet<ValueId>,
 }
 
 /// Reads of a counter phi after its loop, which the counter's pointer rebuilds once the
@@ -281,17 +267,18 @@ impl IndVarSimplifier {
     #[must_use]
     fn new(alias: Rc<AliasAnalysis>) -> Self {
         Self {
-            stats: IndVarSimplifyStats::default(),
+            changed: false,
             alias,
             exit_splits: Vec::new(),
             rebuild_moves: Vec::new(),
+            in_loop: DenseBitSet::new_empty(0),
+            read_by_non_address: DenseBitSet::new_empty(0),
+            seen: DenseBitSet::new_empty(0),
         }
     }
 
-    /// Runs induction-variable simplification once over `func`.
-    fn run(&mut self, func: &mut Function, cfg: Rc<CfgInfo>) -> &IndVarSimplifyStats {
-        self.stats = IndVarSimplifyStats::default();
-
+    /// Runs induction-variable simplification once over `func` and returns whether it changed.
+    fn run(&mut self, func: &mut Function, cfg: Rc<CfgInfo>) -> bool {
         let mut analyzer = LoopAnalyzer::new();
         let loop_info = analyzer.analyze_with_cfg(func, Rc::clone(&cfg));
         let loops: Vec<_> = loop_info.loops.values().cloned().collect();
@@ -311,7 +298,7 @@ impl IndVarSimplifier {
                 if func.blocks[from].terminator.as_ref().is_some_and(|term| term.has_successor(to))
                 {
                     mir_utils::split_edge(func, from, to);
-                    self.stats.exit_edges_split += 1;
+                    self.changed = true;
                 }
                 headers.insert(header);
             }
@@ -341,12 +328,12 @@ impl IndVarSimplifier {
                 continue;
             }
             let edge = mir_utils::split_edge(func, block, join);
-            self.stats.exit_edges_split += 1;
+            self.changed = true;
             func.blocks[block].instructions.retain(|inst| !rebuild.contains(inst));
             func.blocks[edge].instructions.extend(rebuild);
         }
 
-        &self.stats
+        self.changed
     }
 
     fn run_loop(&mut self, func: &mut Function, cfg: &CfgInfo, mut loop_data: Loop) {
@@ -384,20 +371,35 @@ impl IndVarSimplifier {
     ) {
         // Reducing an earlier counter can delete this one's update as dead
         // address arithmetic, leaving the recorded instruction outside the loop.
-        if !loop_data
-            .blocks
-            .iter()
-            .any(|block| func.blocks[block].instructions.contains(&iv.update_inst))
-        {
+        if Self::position(func, loop_data, iv.update_inst).is_none() {
             return;
         }
-        let Some(step) = self.additive_step(func, iv.value, Some(iv.update_inst)) else {
+        let Some(step) = self.additive_step(func, iv.value, iv.update_inst) else {
             return;
         };
         let must_keep_update = func.inst(iv.update_inst).kind.has_side_effects();
 
         let scev = ScalarEvolution::analyze(func, loop_data);
-        let carried = Self::carried_words(func, loop_data);
+        // The loop's instructions, and the values its other instructions read.
+        self.in_loop.clear_to(func.num_insts());
+        self.read_by_non_address.clear_to(func.num_values());
+        for block in loop_data.blocks.iter() {
+            for &inst_id in &func.blocks[block].instructions {
+                self.in_loop.insert(inst_id);
+                let kind = &func.inst(inst_id).kind;
+                if !Self::is_address_builder(kind) {
+                    kind.visit_operands(|operand| {
+                        self.read_by_non_address.insert(operand);
+                    });
+                }
+            }
+            if let Some(term) = &func.blocks[block].terminator {
+                term.visit_operands(|operand| {
+                    self.read_by_non_address.insert(operand);
+                });
+            }
+        }
+        let carried = Self::carried_words(func, loop_data, &self.in_loop, &mut self.seen);
         let update_value = func.inst_result_value(iv.update_inst);
         let mut candidates: FxHashMap<AddressKey, Vec<ValueId>> = FxHashMap::default();
         let mut offset_shared = FxHashSet::default();
@@ -405,7 +407,8 @@ impl IndVarSimplifier {
         for block in &loop_data.blocks {
             for &inst_id in &func.blocks[block].instructions {
                 let Some(value) = func.inst_result_value(inst_id) else { continue };
-                if !self.is_reducible_result(func, inst_id) {
+                let inst = func.inst(inst_id);
+                if inst.result_ty != Some(MirType::I256) || !Self::is_address_builder(&inst.kind) {
                     continue;
                 }
                 let Some(key) = self.address_key(&scev, value, iv.value) else {
@@ -416,11 +419,11 @@ impl IndVarSimplifier {
                     continue;
                 }
                 let Some(delta) = key.scale.checked_mul(step) else { continue };
-                if delta == 0 || !self.has_non_address_loop_use(func, loop_data, value) {
+                if delta == 0 || !self.read_by_non_address.contains(value) {
                     continue;
                 }
                 if update_value
-                    .is_some_and(|update| Self::depends_on(func, loop_data, value, update, 0))
+                    .is_some_and(|update| Self::depends_on(func, &self.in_loop, value, update, 0))
                 {
                     offset_shared.insert(value);
                 }
@@ -446,12 +449,11 @@ impl IndVarSimplifier {
             members
                 .sort_by_key(|(key, values)| (std::cmp::Reverse(values.len()), key.constant.abs()));
         }
-        families.sort_by_key(|members| members[0].0.family().constant);
 
         // With the counter free once every address is a pointer, an ascending pointer
         // that cannot wrap takes over the exit test and the counter dies; that credit
         // is weighed across all families at once.
-        let exit_test = self.counter_exit_test(func, loop_data, iv.value);
+        let exit_test = Self::counter_exit_test(func, loop_data, &self.in_loop, iv.value);
         // A loop that leaves on what it reads, with no test of its counter, keeps the counter
         // only to address elements and to tell the code after it where it stopped.
         if exit_test.is_none()
@@ -464,6 +466,7 @@ impl IndVarSimplifier {
                 preheader,
                 latch,
                 &iv,
+                step,
                 members,
                 &offset_shared,
                 carried,
@@ -481,8 +484,9 @@ impl IndVarSimplifier {
                     loop_data,
                     iv.value,
                     test.condition,
-                    Some(iv.update_inst),
+                    iv.update_inst,
                     &addresses,
+                    &mut self.seen,
                 )
             })
             .filter(|reads| reads.is_empty() || func.value_ty(iv.value) == Some(MirType::I256));
@@ -567,35 +571,12 @@ impl IndVarSimplifier {
             // costs one update per iteration plus a carried word the scheduler
             // must keep resident; a sibling offset costs an add at its definition.
             let pays = reduce_all || Self::reduction_pays_off(members, &offset_shared, carried);
-            tracing::trace!(
-                function = %func.name,
-                header = ?loop_data.header,
-                family = ?members.iter().map(|(key, values)| (key.constant, values.len())).collect::<Vec<_>>(),
-                scale = primary.scale,
-                base = ?primary.base,
-                invariants = primary.invariants.len(),
-                carried,
-                counter_free,
-                test_family = test_family.is_some_and(|(test_index, _)| test_index == index),
-                base_region = ?primary
-                    .base
-                    .and_then(|base| self.alias.memory_address(func, base))
-                    .map(|address| (address.region, address.base)),
-                pays,
-                "pointer family"
-            );
             if !pays {
                 continue;
             }
             let Some(pointer) =
-                self.materialize_pointer_phi(func, loop_data, preheader, latch, primary)
+                self.materialize_pointer_phi(func, loop_data, preheader, latch, &iv, step, primary)
             else {
-                tracing::trace!(
-                    function = %func.name,
-                    header = ?loop_data.header,
-                    ?primary,
-                    "pointer start not materializable"
-                );
                 continue;
             };
             if reduce_all
@@ -637,29 +618,20 @@ impl IndVarSimplifier {
                     // bound clamped to [start, 2^65]
                     (PointerExit::Reaches(_), _) => InstKind::Ne(*pointer, end),
                 };
-                self.stats.address_uses_replaced += 1;
                 test_rewritten = true;
             }
         }
 
         // sibling = ptr + offset, in place of its old address arithmetic
         for (value, pointer, offset) in siblings {
-            let Value::Inst(inst_id) = *func.value(value) else { continue };
-            let Some(magnitude) = offset.checked_abs() else { continue };
-            let Some(magnitude) = self.offset_value(func, magnitude) else { continue };
-            func.inst_mut(inst_id).kind = if offset >= 0 {
-                InstKind::Add(pointer, magnitude)
-            } else {
-                InstKind::Sub(pointer, magnitude)
-            };
-            self.stats.address_uses_replaced += 1;
+            self.rewrite_sibling(func, value, pointer, offset);
         }
 
         if replacements.is_empty() {
             return;
         }
 
-        self.stats.address_uses_replaced += self.replace_loop_uses(func, loop_data, &replacements);
+        Self::replace_block_uses(func, loop_data.blocks.iter(), &replacements);
         // The replaced addresses and the index arithmetic only they read are dead now;
         // remove them here so the counter's remaining reads are visible below.
         self.remove_dead_address_arithmetic(func, loop_data);
@@ -670,34 +642,23 @@ impl IndVarSimplifier {
             self.rebuild_exit_reads(func, preheader, &iv, *pointer, key.scale, reads);
         }
         if test_rewritten {
-            self.remove_dead_counter(func, loop_data, iv.value, Some(iv.update_inst));
+            self.remove_dead_counter(func, loop_data, iv.value, iv.update_inst);
         }
     }
 
     /// Removes the loop's pure address arithmetic whose results nothing reads any more,
     /// following each removal to the operands it leaves unread.
-    fn remove_dead_address_arithmetic(&self, func: &mut Function, loop_data: &Loop) {
-        let mut uses = FxHashMap::<ValueId, usize>::default();
-        for block in &func.blocks {
-            for &inst_id in &block.instructions {
-                func.inst(inst_id)
-                    .kind
-                    .visit_operands(|operand| *uses.entry(operand).or_default() += 1);
-            }
-            if let Some(term) = &block.terminator {
-                term.visit_operands(|operand| *uses.entry(operand).or_default() += 1);
-            }
-        }
+    fn remove_dead_address_arithmetic(&mut self, func: &mut Function, loop_data: &Loop) {
+        let mut uses = super::egraph::use_counts(func);
         // The loop's instructions, less those removed below.
-        let mut in_loop = DenseBitSet::new_empty(func.num_insts());
+        let in_loop = &mut self.in_loop;
+        in_loop.clear_to(func.num_insts());
         let mut pending = Vec::new();
         for block in loop_data.blocks.iter() {
             for &inst_id in &func.blocks[block].instructions {
                 in_loop.insert(inst_id);
                 if Self::is_address_builder(&func.inst(inst_id).kind)
-                    && func
-                        .inst_result_value(inst_id)
-                        .is_some_and(|result| uses.get(&result).copied().unwrap_or_default() == 0)
+                    && func.inst_result_value(inst_id).is_some_and(|result| uses[result] == 0)
                 {
                     pending.push(inst_id);
                 }
@@ -707,7 +668,7 @@ impl IndVarSimplifier {
         while let Some(inst_id) = pending.pop() {
             removed |= in_loop.remove(inst_id);
             func.inst(inst_id).kind.visit_operands(|operand| {
-                let Some(count) = uses.get_mut(&operand) else { return };
+                let count = &mut uses[operand];
                 *count = count.saturating_sub(1);
                 if *count == 0
                     && let Value::Inst(definer) = *func.value(operand)
@@ -753,6 +714,7 @@ impl IndVarSimplifier {
         preheader: BlockId,
         latch: BlockId,
         iv: &InductionVariable,
+        step: i128,
         members: &[(AddressKey, Vec<ValueId>)],
         offset_shared: &FxHashSet<ValueId>,
         carried: usize,
@@ -859,21 +821,12 @@ impl IndVarSimplifier {
         if !magnitude.is_power_of_two() {
             return false;
         }
-        let Some((pointer, stepped)) = self.materialize_stepped_pointer(
-            func,
-            cfg,
-            loop_data,
-            preheader,
-            latch,
-            primary,
-            iv.update_inst,
-        ) else {
+        let Some((pointer, stepped)) = self
+            .materialize_stepped_pointer(func, cfg, loop_data, preheader, latch, iv, step, primary)
+        else {
             return false;
         };
         let Some(start) = preheader_value(func, pointer, preheader) else { return false };
-        let Some(delta) = self.additive_step(func, iv.value, Some(iv.update_inst)) else {
-            return false;
-        };
         // The counter and the pointer at the run's start, or, when an enclosing loop carries both
         // from one entry, where the enclosing loop entered: each later run starts where the last
         // stopped, the counter and the pointer having moved together by whole steps since.
@@ -890,48 +843,31 @@ impl IndVarSimplifier {
             let Some(magnitude) = self.offset_value(func, magnitude) else { continue };
             for &value in values {
                 let Value::Inst(inst) = *func.value(value) else { continue };
-                func.inst_mut(inst).kind = if offset >= 0 {
-                    InstKind::Add(stepped, magnitude)
-                } else {
-                    InstKind::Sub(stepped, magnitude)
-                };
-                self.stats.address_uses_replaced += 1;
+                func.inst_mut(inst).kind = offset_kind(stepped, magnitude, offset >= 0);
             }
         }
-        self.stats.address_uses_replaced += Self::replace_all_uses(func, &replacements);
+        func.replace_uses(&replacements);
         self.remove_dead_address_arithmetic(func, loop_data);
         // exit: moved = next - ptr_start; steps = moved >> log2(|scale|); counter' = start + steps
         // (a pointer stepping down: moved = ptr_start - next; a counter stepping down:
         // counter' = start - steps)
-        let ascending = primary.scale.checked_mul(delta).is_some_and(|product| product > 0);
-        let phis = func.blocks[exit]
-            .instructions
-            .iter()
-            .take_while(|&&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)))
-            .count();
-        let body = func.blocks[exit].instructions.split_off(phis);
+        let ascending = primary.scale.checked_mul(step).is_some_and(|product| product > 0);
+        // The exit has no phis, so its instructions follow the rebuild.
+        let body = std::mem::take(&mut func.blocks[exit].instructions);
         let moved =
             if ascending { InstKind::Sub(stepped, start) } else { InstKind::Sub(start, stepped) };
         let moved = self.append_inst_value(func, exit, moved, Some(MirType::I256));
-        let steps = if magnitude == 1 {
-            moved
-        } else {
-            let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(
-                magnitude.trailing_zeros(),
-            ))));
-            self.append_inst_value(func, exit, InstKind::Shr(shift, moved), Some(MirType::I256))
-        };
-        let last = if delta > 0 {
-            InstKind::Add(counter_start, steps)
-        } else {
-            InstKind::Sub(counter_start, steps)
-        };
-        let last = self.append_inst_value(func, exit, last, Some(MirType::I256));
+        let steps = self.append_steps(func, exit, moved, magnitude);
+        let last = self.append_inst_value(
+            func,
+            exit,
+            offset_kind(counter_start, steps, step > 0),
+            Some(MirType::I256),
+        );
         // The counter itself is one step behind its update.
-        let step =
-            func.alloc_value(Value::Immediate(Immediate::I256(U256::from(delta.unsigned_abs()))));
-        let previous =
-            if delta > 0 { InstKind::Sub(last, step) } else { InstKind::Add(last, step) };
+        let amount =
+            func.alloc_value(Value::Immediate(Immediate::I256(U256::from(step.unsigned_abs()))));
+        let previous = offset_kind(last, amount, step <= 0);
         let previous = reads_counter
             .then(|| self.append_inst_value(func, exit, previous, Some(MirType::I256)));
         func.blocks[exit].instructions.extend(body);
@@ -941,21 +877,9 @@ impl IndVarSimplifier {
             rebuilt.insert(iv.value, previous);
         }
         // ...reads of the counter after the loop  =>  ...reads of counter'
-        for block in func.blocks.indices() {
-            if loop_data.blocks.contains(block) {
-                continue;
-            }
-            for index in 0..func.blocks[block].instructions.len() {
-                let inst = func.blocks[block].instructions[index];
-                self.stats.address_uses_replaced +=
-                    mir_utils::replace_inst_uses(func.inst_mut(inst), &rebuilt);
-            }
-            if let Some(term) = &mut func.blocks[block].terminator {
-                self.stats.address_uses_replaced +=
-                    mir_utils::replace_terminator_uses(term, &rebuilt);
-            }
-        }
-        self.remove_dead_counter(func, loop_data, iv.value, Some(iv.update_inst));
+        let outside = func.blocks.indices().filter(|&block| !loop_data.blocks.contains(block));
+        Self::replace_block_uses(func, outside, &rebuilt);
+        self.remove_dead_counter(func, loop_data, iv.value, iv.update_inst);
         // A counter that starts from an enclosing phi fed only by this rebuild, as a partition's
         // scan up that the enclosing loop no longer compares once it carries the pointer, keeps a
         // cycle that only feeds itself: remove the phi and the rebuild.
@@ -1096,9 +1020,9 @@ impl IndVarSimplifier {
 
     /// The header's exit test when it compares the counter with an invariant.
     fn counter_exit_test(
-        &self,
         func: &Function,
         loop_data: &Loop,
+        in_loop: &DenseBitSet<InstId>,
         iv: ValueId,
     ) -> Option<ExitTest> {
         let Some(Terminator::Branch { condition, then_block, else_block }) =
@@ -1112,10 +1036,7 @@ impl IndVarSimplifier {
         let InstKind::Lt(a, b) = func.inst(condition).kind else { return None };
         let invariant = |value: ValueId| match func.value(value) {
             Value::Immediate(_) | Value::Arg(_) => true,
-            Value::Inst(inst_id) => !loop_data
-                .blocks
-                .iter()
-                .any(|block| func.blocks[block].instructions.contains(inst_id)),
+            Value::Inst(inst_id) => !in_loop.contains(*inst_id),
             Value::Undef(_) | Value::Error(_) => false,
         };
         if a == iv && invariant(b) {
@@ -1135,12 +1056,13 @@ impl IndVarSimplifier {
         loop_data: &Loop,
         iv: ValueId,
         condition: InstId,
-        update: Option<InstId>,
+        update: InstId,
         addresses: &FxHashSet<ValueId>,
+        visited: &mut DenseBitSet<ValueId>,
     ) -> Option<ExitReads> {
         let mut pending = Vec::new();
         pending.push(iv);
-        let mut visited = DenseBitSet::new_empty(func.num_values());
+        visited.clear_to(func.num_values());
         while let Some(value) = pending.pop() {
             if !visited.insert(value) {
                 continue;
@@ -1155,7 +1077,7 @@ impl IndVarSimplifier {
                     if !inst.kind.reads(value) {
                         continue;
                     }
-                    if inst_id == condition || Some(inst_id) == update {
+                    if inst_id == condition || inst_id == update {
                         continue;
                     }
                     let result = func.inst_result_value(inst_id)?;
@@ -1188,7 +1110,7 @@ impl IndVarSimplifier {
                 reads_counter |= term.reads(iv);
             }
             for &inst_id in &block.instructions {
-                if inst_id == condition || Some(inst_id) == update {
+                if inst_id == condition || inst_id == update {
                     continue;
                 }
                 let kind = &func.inst(inst_id).kind;
@@ -1251,28 +1173,7 @@ impl IndVarSimplifier {
                 InstKind::Sub(pointer, start),
                 Some(MirType::I256),
             );
-            let steps = if magnitude == 1 {
-                delta
-            } else if magnitude.is_power_of_two() {
-                let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(
-                    magnitude.trailing_zeros(),
-                ))));
-                this.append_inst_value(
-                    func,
-                    block,
-                    InstKind::Shr(shift, delta),
-                    Some(MirType::I256),
-                )
-            } else {
-                let divisor =
-                    func.alloc_value(Value::Immediate(Immediate::I256(U256::from(magnitude))));
-                this.append_inst_value(
-                    func,
-                    block,
-                    InstKind::Div(delta, divisor),
-                    Some(MirType::I256),
-                )
-            };
+            let steps = this.append_steps(func, block, delta, magnitude);
             if func.value_u256(iv.init).is_some_and(|init| init.is_zero()) {
                 steps
             } else {
@@ -1304,10 +1205,7 @@ impl IndVarSimplifier {
                 .count();
             let body = func.blocks[block].instructions.split_off(phis);
             let counter = rebuild(self, func, block);
-            let rebuilt = func.blocks[block].instructions.split_off(phis);
-            func.blocks[block]
-                .instructions
-                .extend(rebuilt.iter().copied().chain(body.iter().copied()));
+            func.blocks[block].instructions.extend_from_slice(&body);
             for &inst_id in &body {
                 func.inst_mut(inst_id).kind.visit_operands_mut(|operand| {
                     if *operand == iv.value {
@@ -1332,9 +1230,8 @@ impl IndVarSimplifier {
         func: &mut Function,
         loop_data: &Loop,
         counter: ValueId,
-        update: Option<InstId>,
+        update: InstId,
     ) {
-        let Some(update) = update else { return };
         let Value::Inst(phi) = *func.value(counter) else { return };
         let Some(next) = func.inst_result_value(update) else { return };
         let read_elsewhere = |value: ValueId, except: InstId| {
@@ -1521,7 +1418,7 @@ impl IndVarSimplifier {
     /// reach the update from every address.
     fn depends_on(
         func: &Function,
-        loop_data: &Loop,
+        in_loop: &DenseBitSet<InstId>,
         value: ValueId,
         target: ValueId,
         depth: usize,
@@ -1535,32 +1432,28 @@ impl IndVarSimplifier {
         let Value::Inst(inst_id) = func.value(value) else { return false };
         let kind = &func.inst(*inst_id).kind;
         !matches!(kind, InstKind::Phi(_))
-            && loop_data
-                .blocks
-                .iter()
-                .any(|block| func.blocks[block].instructions.contains(inst_id))
+            && in_loop.contains(*inst_id)
             && kind
                 .operands()
                 .iter()
-                .any(|&operand| Self::depends_on(func, loop_data, operand, target, depth + 1))
+                .any(|&operand| Self::depends_on(func, in_loop, operand, target, depth + 1))
     }
 
     /// The words the backend carries through the loop: the header's phis and
     /// the instruction results defined outside that the loop reads.
-    fn carried_words(func: &Function, loop_data: &Loop) -> usize {
+    fn carried_words(
+        func: &Function,
+        loop_data: &Loop,
+        in_loop: &DenseBitSet<InstId>,
+        seen: &mut DenseBitSet<ValueId>,
+    ) -> usize {
         let header = &func.blocks[loop_data.header];
         let mut count = header
             .instructions
             .iter()
             .filter(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
             .count();
-        let mut defined_inside = DenseBitSet::new_empty(func.num_insts());
-        for block in loop_data.blocks.iter() {
-            for &inst in &func.blocks[block].instructions {
-                defined_inside.insert(inst);
-            }
-        }
-        let mut seen = DenseBitSet::new_empty(func.num_values());
+        seen.clear_to(func.num_values());
         for block in loop_data.blocks.iter() {
             let block = &func.blocks[block];
             for operand in block
@@ -1571,7 +1464,7 @@ impl IndVarSimplifier {
                 .chain(block.terminator.iter().flat_map(Terminator::operands))
             {
                 let Value::Inst(inst_id) = func.value(operand) else { continue };
-                if !defined_inside.contains(*inst_id) && seen.insert(operand) {
+                if !in_loop.contains(*inst_id) && seen.insert(operand) {
                     count += 1;
                 }
             }
@@ -1583,9 +1476,8 @@ impl IndVarSimplifier {
         &self,
         func: &Function,
         iv_value: ValueId,
-        update_inst: Option<InstId>,
+        update_inst: InstId,
     ) -> Option<i128> {
-        let update_inst = update_inst?;
         match func.inst(update_inst).kind {
             InstKind::Add(a, b)
             | InstKind::CheckedBinary {
@@ -1637,17 +1529,18 @@ impl IndVarSimplifier {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn materialize_pointer_phi(
         &mut self,
         func: &mut Function,
         loop_data: &Loop,
         preheader: BlockId,
         latch: BlockId,
+        iv: &InductionVariable,
+        step: i128,
         key: &AddressKey,
     ) -> Option<ValueId> {
-        let iv = loop_data.induction_vars.iter().find(|iv| iv.value == key.iv)?;
-        let delta =
-            self.additive_step(func, key.iv, Some(iv.update_inst))?.checked_mul(key.scale)?;
+        let delta = step.checked_mul(key.scale)?;
         // The latch's step below needs the magnitude, which must exist before the phi does.
         if delta == 0 || delta.checked_abs().is_none() {
             return None;
@@ -1679,7 +1572,7 @@ impl IndVarSimplifier {
             return None;
         };
         incoming.push((latch, next));
-        self.stats.pointer_phis_inserted += 1;
+        self.changed = true;
         Some(phi_value)
     }
 
@@ -1702,15 +1595,15 @@ impl IndVarSimplifier {
         loop_data: &Loop,
         preheader: BlockId,
         latch: BlockId,
+        iv: &InductionVariable,
+        step: i128,
         key: &AddressKey,
-        update_inst: InstId,
     ) -> Option<(ValueId, ValueId)> {
-        let iv = loop_data.induction_vars.iter().find(|iv| iv.value == key.iv)?;
-        let delta =
-            self.additive_step(func, key.iv, Some(iv.update_inst))?.checked_mul(key.scale)?;
+        let delta = step.checked_mul(key.scale)?;
         if delta == 0 {
             return None;
         }
+        let update_inst = iv.update_inst;
         let update_value = func.inst_result_value(update_inst)?;
         // The address of the counter one step back: `key` with the step taken off.
         let previous = AddressKey { constant: key.constant.checked_sub(delta)?, ..key.clone() };
@@ -1740,13 +1633,9 @@ impl IndVarSimplifier {
                 .with_debug_info_dropped(),
         );
         // update block: ...; counter' = update; next = ptr + delta; ...
-        let kind = if delta > 0 {
-            InstKind::Add(phi_value, magnitude)
-        } else {
-            InstKind::Sub(phi_value, magnitude)
-        };
         let (next_inst, next) = func.alloc_value_inst(
-            Instruction::new(kind, Some(MirType::I256)).with_debug_info_dropped(),
+            Instruction::new(offset_kind(phi_value, magnitude, delta > 0), Some(MirType::I256))
+                .with_debug_info_dropped(),
         );
         // block: start = phi [from: next], ..., [other: base + sum(...) + input * scale + ...]
         let start = match carried {
@@ -1782,7 +1671,7 @@ impl IndVarSimplifier {
         };
         incoming.push((latch, next));
         self.insert_header_phi(func, loop_data.header, phi_inst);
-        self.stats.pointer_phis_inserted += 1;
+        self.changed = true;
         Some((phi_value, next))
     }
 
@@ -1853,19 +1742,51 @@ impl IndVarSimplifier {
         })
     }
 
-    /// Replaces every use of the keys of `replacements` in the function with their values.
-    fn replace_all_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) -> usize {
-        let mut replaced = 0;
-        for block in func.blocks.indices() {
+    /// Replaces every use of the keys of `replacements` in `blocks` with their values.
+    fn replace_block_uses(
+        func: &mut Function,
+        blocks: impl Iterator<Item = BlockId>,
+        replacements: &FxHashMap<ValueId, ValueId>,
+    ) {
+        for block in blocks {
             for index in 0..func.blocks[block].instructions.len() {
                 let inst_id = func.blocks[block].instructions[index];
-                replaced += mir_utils::replace_inst_uses(func.inst_mut(inst_id), replacements);
+                mir_utils::replace_inst_uses(func.inst_mut(inst_id), replacements);
             }
             if let Some(term) = &mut func.blocks[block].terminator {
-                replaced += mir_utils::replace_terminator_uses(term, replacements);
+                mir_utils::replace_terminator_uses(term, replacements);
             }
         }
-        replaced
+    }
+
+    /// Rewrites the address `value` in place to `pointer + offset`.
+    fn rewrite_sibling(&self, func: &mut Function, value: ValueId, pointer: ValueId, offset: i128) {
+        let Value::Inst(inst_id) = *func.value(value) else { return };
+        let Some(magnitude) = offset.checked_abs() else { return };
+        let Some(magnitude) = self.offset_value(func, magnitude) else { return };
+        func.inst_mut(inst_id).kind = offset_kind(pointer, magnitude, offset >= 0);
+    }
+
+    /// Appends `delta / magnitude` to `block`: a shift for a power of two, a division otherwise.
+    fn append_steps(
+        &self,
+        func: &mut Function,
+        block: BlockId,
+        delta: ValueId,
+        magnitude: u128,
+    ) -> ValueId {
+        if magnitude == 1 {
+            delta
+        } else if magnitude.is_power_of_two() {
+            let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(
+                magnitude.trailing_zeros(),
+            ))));
+            self.append_inst_value(func, block, InstKind::Shr(shift, delta), Some(MirType::I256))
+        } else {
+            let divisor =
+                func.alloc_value(Value::Immediate(Immediate::I256(U256::from(magnitude))));
+            self.append_inst_value(func, block, InstKind::Div(delta, divisor), Some(MirType::I256))
+        }
     }
 
     /// Appends `value + offset` to `block`, as an add or a subtraction by the magnitude.
@@ -1881,11 +1802,7 @@ impl IndVarSimplifier {
             return Some(value);
         }
         let magnitude = self.offset_value(func, offset.checked_abs()?)?;
-        let kind = if offset > 0 {
-            InstKind::Add(value, magnitude)
-        } else {
-            InstKind::Sub(value, magnitude)
-        };
+        let kind = offset_kind(value, magnitude, offset > 0);
         Some(self.append_inst_value(func, block, kind, Some(MirType::I256)))
     }
 
@@ -1951,37 +1868,8 @@ impl IndVarSimplifier {
         func.blocks[header].instructions.insert(insert_pos, phi_inst);
     }
 
-    fn is_reducible_result(&self, func: &Function, inst_id: InstId) -> bool {
-        if func.inst(inst_id).result_ty != Some(MirType::I256) {
-            return false;
-        }
-        matches!(
-            func.inst(inst_id).kind,
-            InstKind::Add(_, _)
-                | InstKind::Sub(_, _)
-                | InstKind::Mul(_, _)
-                | InstKind::Shl(_, _)
-                | InstKind::Zext(_)
-        )
-    }
-
     fn value_i128(&self, func: &Function, value: ValueId) -> Option<i128> {
         i128::try_from(func.value_u256(value)?).ok()
-    }
-
-    fn has_non_address_loop_use(&self, func: &Function, loop_data: &Loop, value: ValueId) -> bool {
-        for block in &loop_data.blocks {
-            for &inst_id in &func.blocks[block].instructions {
-                let kind = &func.inst(inst_id).kind;
-                if kind.reads(value) && !Self::is_address_builder(kind) {
-                    return true;
-                }
-            }
-            if func.blocks[block].terminator.as_ref().is_some_and(|term| term.reads(value)) {
-                return true;
-            }
-        }
-        false
     }
 
     fn is_address_builder(kind: &InstKind) -> bool {
@@ -1994,26 +1882,11 @@ impl IndVarSimplifier {
                 | InstKind::Zext(_)
         )
     }
+}
 
-    fn replace_loop_uses(
-        &self,
-        func: &mut Function,
-        loop_data: &Loop,
-        replacements: &FxHashMap<ValueId, ValueId>,
-    ) -> usize {
-        let mut replaced = 0;
-        for block in &loop_data.blocks {
-            let instruction_count = func.blocks[block].instructions.len();
-            for index in 0..instruction_count {
-                let inst_id = func.blocks[block].instructions[index];
-                replaced += mir_utils::replace_inst_uses(func.inst_mut(inst_id), replacements);
-            }
-            if let Some(term) = &mut func.blocks[block].terminator {
-                replaced += mir_utils::replace_terminator_uses(term, replacements);
-            }
-        }
-        replaced
-    }
+/// The instruction `base + magnitude`, or `base - magnitude` when `add` is false.
+fn offset_kind(base: ValueId, magnitude: ValueId, add: bool) -> InstKind {
+    if add { InstKind::Add(base, magnitude) } else { InstKind::Sub(base, magnitude) }
 }
 
 /// How deep [`bounded_on_entry`] follows a branch condition's operands.

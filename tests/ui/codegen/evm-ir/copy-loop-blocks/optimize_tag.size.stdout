@@ -1,6 +1,6 @@
-- // === ROOT/tests/ui/codegen/evm-ir/tail-dup/returning_header.evmir (before tail-dup) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/tail-dup/returning_header.evmir (after tail-dup) ===
-  @module ReturningHeader
+- // === ROOT/tests/ui/codegen/evm-ir/copy-loop-blocks/optimize_tag.evmir (before copy-loop-blocks) ===
++ // === ROOT/tests/ui/codegen/evm-ir/copy-loop-blocks/optimize_tag.evmir (after copy-loop-blocks) ===
+  @module OptimizeTag
   bb0:
     push 0
     calldataload

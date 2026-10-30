@@ -210,6 +210,7 @@ fn run_function(func: &mut Function, tests_empty_copies: bool) -> bool {
         let loops = LoopAnalyzer::new().analyze_structure(func);
         let Some(plan) = loops.all_loops().find_map(|l| plan(func, l)) else { break };
         rewrite(func, plan, tests_empty_copies);
+        rebuild_predecessors(func);
         let _ = super::cfg_simplify::remove_unreachable_blocks(func);
         changed = true;
     }
@@ -325,13 +326,14 @@ struct FreshDestination {
 
 fn plan(func: &Function, l: &Loop) -> Option<Plan> {
     let lp = counted(func, l)?;
+    let aa = AliasAnalysis::new(func);
     let shape = if lp.descending {
-        copy(func, l, &lp)?
+        copy(func, &aa, l, &lp)?
     } else {
         gather(func, l, &lp)
             .or_else(|| scatter(func, l, &lp))
-            .or_else(|| copy(func, l, &lp))
-            .or_else(|| word_copy(func, l, &lp))?
+            .or_else(|| copy(func, &aa, l, &lp))
+            .or_else(|| word_copy(func, &aa, l, &lp))?
     };
     // Values computed in the body die with the loop, so nothing after it may read them.
     for &inst in &lp.insts {
@@ -348,15 +350,11 @@ fn plan(func: &Function, l: &Loop) -> Option<Plan> {
         || matches!(&shape, Shape::Scatter { access, .. } if has_memory_offset(func, access));
     if keeps_loop {
         // The fast path joins the loop's exit, which must not distinguish its predecessors.
-        if func.blocks[lp.exit]
-            .instructions
-            .iter()
-            .any(|&i| matches!(func.inst(i).kind, InstKind::Phi(_)))
-        {
+        if func.block_has_phi(lp.exit) {
             return None;
         }
     }
-    let fresh = fresh_destination(func, l, &lp, &shape);
+    let fresh = fresh_destination(func, &aa, l, &lp, &shape);
     Some(Plan { lp, shape, fresh })
 }
 
@@ -479,15 +477,15 @@ fn body_def<'f>(
 }
 
 /// Matches the byte index `offset + k`, or `k`, counting up, and `offset + k - 1`, or `k - 1`,
-/// counting down. Returns the offset, whether its addition is unchecked, and the defining
-/// instructions.
+/// counting down. Returns the offset and whether its addition is unchecked, and adds the checked
+/// instructions that define it to `used`.
 fn index(
     func: &Function,
     l: &Loop,
     lp: &Counted,
     value: ValueId,
-) -> Option<(Option<ValueId>, bool, Vec<InstId>)> {
-    let mut insts = Vec::new();
+    used: &mut Vec<InstId>,
+) -> Option<(Option<ValueId>, bool)> {
     let mut value = value;
     let mut checked_decrement = false;
     if lp.descending {
@@ -506,12 +504,14 @@ fn index(
         if func.value_u64(b) != Some(1) {
             return None;
         }
-        insts.push(inst);
+        if checked {
+            used.push(inst);
+        }
         value = a;
         checked_decrement = checked;
     }
     if value == lp.counter {
-        return Some((None, false, insts));
+        return Some((None, false));
     }
     let (inst, kind) = body_def(func, lp, value)?;
     let (a, b, wrapping) = match *kind {
@@ -536,21 +536,17 @@ fn index(
     } else {
         return None;
     };
-    insts.push(inst);
-    (!l.defines(func, offset)).then_some((Some(offset), wrapping, insts))
+    if !wrapping {
+        used.push(inst);
+    }
+    (!l.defines(func, offset)).then_some((Some(offset), wrapping))
 }
 
 /// Matches the memory byte address `object + idx + 32` in either association. Returns the
-/// object, the index value, and the address instructions.
-fn memory_address(
-    func: &Function,
-    lp: &Counted,
-    ptr: ValueId,
-) -> Option<(ValueId, ValueId, [InstId; 2])> {
-    let (outer, &InstKind::PtrAdd(inner_ptr, last)) = body_def(func, lp, ptr)? else {
-        return None;
-    };
-    let (inner, &InstKind::PtrAdd(object, first)) = body_def(func, lp, inner_ptr)? else {
+/// object and the index value.
+fn memory_address(func: &Function, lp: &Counted, ptr: ValueId) -> Option<(ValueId, ValueId)> {
+    let (_, &InstKind::PtrAdd(inner_ptr, last)) = body_def(func, lp, ptr)? else { return None };
+    let (_, &InstKind::PtrAdd(object, first)) = body_def(func, lp, inner_ptr)? else {
         return None;
     };
     let idx = if func.value_u64(last) == Some(32) {
@@ -560,46 +556,39 @@ fn memory_address(
     } else {
         return None;
     };
-    Some((object, idx, [outer, inner]))
+    Some((object, idx))
 }
 
-/// Matches the calldata byte address `ptrtoint(slice.ptr) + idx`. Returns the slice, the index
-/// value, and the address instructions.
-fn calldata_address(
-    func: &Function,
-    lp: &Counted,
-    address: ValueId,
-) -> Option<(ValueId, ValueId, Vec<InstId>)> {
-    let (add, &InstKind::Add(a, b)) = body_def(func, lp, address)? else { return None };
+/// Matches the calldata byte address `ptrtoint(slice.ptr) + idx`. Returns the slice and the
+/// index value.
+fn calldata_address(func: &Function, lp: &Counted, address: ValueId) -> Option<(ValueId, ValueId)> {
+    let (_, &InstKind::Add(a, b)) = body_def(func, lp, address)? else { return None };
     for (base, idx) in [(a, b), (b, a)] {
-        let Some((cast, &InstKind::PtrToInt(ptr, 256))) = body_def(func, lp, base) else {
+        let Some((_, &InstKind::PtrToInt(ptr, 256))) = body_def(func, lp, base) else {
             continue;
         };
-        let Some((field, &InstKind::ExtractValue { aggregate, index, .. })) =
-            body_def(func, lp, ptr)
+        let Some((_, &InstKind::ExtractValue { aggregate, index, .. })) = body_def(func, lp, ptr)
         else {
             continue;
         };
-        if index == MirType::SLICE_PTR_FIELD && is_calldata_slice(func, aggregate) {
-            return Some((aggregate, idx, vec![add, cast, field]));
+        if index == MirType::SLICE_PTR_FIELD
+            && func.value_slice_location(aggregate) == Some(PtrLocation::Calldata)
+        {
+            return Some((aggregate, idx));
         }
     }
     None
 }
 
-fn is_calldata_slice(func: &Function, value: ValueId) -> bool {
-    matches!(func.value_ty(value), Some(MirType::Slice(PtrLocation::Calldata)))
-}
-
-/// Finds the body's range check of `idx` against the buffer's length. Returns the check's
-/// instructions and, for a length from before the loop, that length.
+/// Finds the body's range check of `idx` against the buffer's length. Returns the check and,
+/// for a length from before the loop, that length.
 fn bounds_check(
     func: &Function,
     l: &Loop,
     lp: &Counted,
     buffer: Buffer,
     idx: ValueId,
-) -> Option<(Vec<InstId>, Option<ValueId>)> {
+) -> Option<(InstId, Option<ValueId>)> {
     lp.insts.iter().find_map(|&inst| {
         let condition = array_check(func, inst)?;
         // The loop test `k < bound` itself, when the bound is the buffer's length from before
@@ -609,23 +598,20 @@ fn bounds_check(
             && !lp.descending
             && outside_length(func, l, buffer, lp.bound)
         {
-            return Some((vec![inst], Some(lp.bound)));
+            return Some((inst, Some(lp.bound)));
         }
-        let (cmp, &InstKind::Lt(a, len)) = body_def(func, lp, condition)? else { return None };
+        let (_, &InstKind::Lt(a, len)) = body_def(func, lp, condition)? else { return None };
         if a != idx {
             return None;
         }
         if outside_length(func, l, buffer, len) {
-            return Some((vec![inst, cmp], Some(len)));
+            return Some((inst, Some(len)));
         }
-        let Value::Inst(len_inst) = *func.value(len) else { return None };
         let matches = match buffer {
-            Buffer::Memory(object) => {
-                func.inst(len_inst).kind == InstKind::Load(object, PtrLocation::Memory)
-            }
+            Buffer::Memory(object) => is_length_load(func, len, object),
             Buffer::Calldata(slice) => slice_length(func, slice, len),
         };
-        matches.then(|| (vec![inst, cmp, len_inst], None))
+        matches.then_some((inst, None))
     })
 }
 
@@ -639,29 +625,31 @@ fn outside_length(func: &Function, l: &Loop, buffer: Buffer, len: ValueId) -> bo
     match buffer {
         Buffer::Memory(object) => {
             let source = through_trivial_phis(func, len);
-            let loaded = matches!(*func.value(source), Value::Inst(load)
-                if func.inst(load).kind == InstKind::Load(object, PtrLocation::Memory));
-            loaded || stored_length(func, object) == Some(source)
+            is_length_load(func, source, object) || stored_length(func, object) == Some(source)
         }
         Buffer::Calldata(slice) => slice_length(func, slice, len),
     }
 }
 
+/// Whether `len` is a load of the length word of the memory object `object`.
+fn is_length_load(func: &Function, len: ValueId, object: ValueId) -> bool {
+    func.value_inst_kind(len) == Some(&InstKind::Load(object, PtrLocation::Memory))
+}
+
 /// Whether `len` is the length field of the calldata slice `slice`.
 fn slice_length(func: &Function, slice: ValueId, len: ValueId) -> bool {
-    matches!(*func.value(len), Value::Inst(inst) if matches!(
-        func.inst(inst).kind,
-        InstKind::ExtractValue { aggregate, index, .. }
+    matches!(
+        func.value_inst_kind(len),
+        Some(&InstKind::ExtractValue { aggregate, index, .. })
             if aggregate == slice && index == MirType::SLICE_LEN_FIELD
-    ))
+    )
 }
 
 /// The value `value` stands for once phis whose inputs are only themselves and one other value
 /// are looked through.
 fn through_trivial_phis(func: &Function, mut value: ValueId) -> ValueId {
     for _ in 0..8 {
-        let Value::Inst(inst) = *func.value(value) else { break };
-        let InstKind::Phi(incoming) = &func.inst(inst).kind else { break };
+        let Some(InstKind::Phi(incoming)) = func.value_inst_kind(value) else { break };
         let mut others = incoming.iter().map(|&(_, input)| input).filter(|&input| input != value);
         let Some(first) = others.next() else { break };
         if others.any(|other| other != first) {
@@ -706,35 +694,29 @@ fn array_check(func: &Function, inst: InstId) -> Option<ValueId> {
 }
 
 /// Matches `byte 0` of the word at one byte of a memory object or a calldata slice, indexed by
-/// `offset + k` and range checked. Returns the access and its instructions.
+/// `offset + k` and range checked. Returns the access and the instructions of its checks.
 fn byte_read(
     func: &Function,
     l: &Loop,
     lp: &Counted,
     value: ValueId,
 ) -> Option<(Access, Vec<InstId>)> {
-    let (byte_inst, &InstKind::Byte(position, word)) = body_def(func, lp, value)? else {
-        return None;
-    };
+    let (_, &InstKind::Byte(position, word)) = body_def(func, lp, value)? else { return None };
     if func.value_u64(position) != Some(0) {
         return None;
     }
-    let mut used = vec![byte_inst];
-    let (buffer, idx) = match body_def(func, lp, word)? {
-        (load, &InstKind::Load(ptr, PtrLocation::Memory)) => {
-            let (object, idx, address) = memory_address(func, lp, ptr)?;
-            used.push(load);
-            used.extend(address);
+    let (buffer, idx) = match *body_def(func, lp, word)?.1 {
+        InstKind::Load(ptr, PtrLocation::Memory) => {
+            let (object, idx) = memory_address(func, lp, ptr)?;
             (Buffer::Memory(object), idx)
         }
-        (load, &InstKind::Load(address, PtrLocation::Calldata)) => {
-            let (slice, idx, address) = calldata_address(func, lp, address)?;
-            used.push(load);
-            used.extend(address);
+        InstKind::Load(address, PtrLocation::Calldata) => {
+            let (slice, idx) = calldata_address(func, lp, address)?;
             (Buffer::Calldata(slice), idx)
         }
         _ => return None,
     };
+    let mut used = Vec::new();
     let access = checked_access(func, l, lp, buffer, idx, &mut used)?;
     Some((access, used))
 }
@@ -752,25 +734,18 @@ fn checked_access(
     if l.defines(func, object) {
         return None;
     }
-    let (offset, wrapping, index_insts) = index(func, l, lp, idx)?;
-    used.extend(index_insts);
+    let (offset, wrapping) = index(func, l, lp, idx, used)?;
     let (check, len) = bounds_check(func, l, lp, buffer, idx)?;
-    used.extend(check);
+    used.push(check);
     Some(Access { buffer, offset, len, shift: 0, wrapping })
 }
 
 /// Accepts `and value, mask` when the mask keeps the leading bytes of a word. Returns the
 /// operand and the number of leading bytes the mask keeps, or 32 without a mask.
-fn strip_mask(
-    func: &Function,
-    lp: &Counted,
-    value: ValueId,
-    used: &mut Vec<InstId>,
-) -> (ValueId, u64) {
-    if let Some((inst, &InstKind::And(a, b))) = body_def(func, lp, value) {
+fn strip_mask(func: &Function, lp: &Counted, value: ValueId) -> (ValueId, u64) {
+    if let Some((_, &InstKind::And(a, b))) = body_def(func, lp, value) {
         for (operand, mask) in [(a, b), (b, a)] {
             if let Some(width) = func.value_u256(mask).and_then(leading_bytes) {
-                used.push(inst);
                 return (operand, width);
             }
         }
@@ -796,11 +771,9 @@ fn gather(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
     if func.value_u64(init) != Some(0) {
         return None;
     }
-    let mut used = vec![lp.step];
     // next = [and] (or result, part)
-    let (combined, outer_width) = strip_mask(func, lp, next, &mut used);
-    let (or_inst, &InstKind::Or(a, b)) = body_def(func, lp, combined)? else { return None };
-    used.push(or_inst);
+    let (combined, outer_width) = strip_mask(func, lp, next);
+    let (_, &InstKind::Or(a, b)) = body_def(func, lp, combined)? else { return None };
     let part = if a == *result {
         b
     } else if b == *result {
@@ -809,19 +782,17 @@ fn gather(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
         return None;
     };
     // part = [and] shr (shl byte, 248), 8 * k
-    let (part, inner_width) = strip_mask(func, lp, part, &mut used);
+    let (part, inner_width) = strip_mask(func, lp, part);
     let width = outer_width.min(inner_width);
     if lp.literal_bound(func).is_some_and(|bound| bound == 0 || bound > width) {
         return None;
     }
-    let (shr_inst, &InstKind::Shr(shift, high)) = body_def(func, lp, part)? else { return None };
-    used.push(shr_inst);
-    used.extend(byte_scale(func, lp, shift)?);
-    let (shl_inst, &InstKind::Shl(by, byte)) = body_def(func, lp, high)? else { return None };
+    let (_, &InstKind::Shr(shift, high)) = body_def(func, lp, part)? else { return None };
+    let mut used = vec![lp.step, byte_scale(func, lp, shift)?];
+    let (_, &InstKind::Shl(by, byte)) = body_def(func, lp, high)? else { return None };
     if func.value_u64(by) != Some(248) {
         return None;
     }
-    used.push(shl_inst);
     let (access, read) = byte_read(func, l, lp, byte)?;
     used.extend(read);
     only_pattern_effects(func, lp, &used).then_some(Shape::Gather {
@@ -832,7 +803,7 @@ fn gather(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
 }
 
 /// Matches `8 * k` in the spellings checked Solidity lowers it to.
-fn byte_scale(func: &Function, lp: &Counted, shift: ValueId) -> Option<Option<InstId>> {
+fn byte_scale(func: &Function, lp: &Counted, shift: ValueId) -> Option<InstId> {
     let (inst, kind) = body_def(func, lp, shift)?;
     let ok = match *kind {
         InstKind::Mul(a, b)
@@ -848,38 +819,34 @@ fn byte_scale(func: &Function, lp: &Counted, shift: ValueId) -> Option<Option<In
         InstKind::Shl(by, value) => value == lp.counter && func.value_u64(by) == Some(3),
         _ => false,
     };
-    ok.then_some(Some(inst))
+    ok.then_some(inst)
 }
 
 fn scatter(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
     if !lp.phis.is_empty() {
         return None;
     }
-    let mut used = vec![lp.step];
-    let store = single_store(func, lp)?;
+    let store = single_store(func, lp, |kind| matches!(kind, InstKind::Store8(..)))?;
     let InstKind::Store8(ptr, byte) = func.inst(store).kind else { return None };
-    used.push(store);
+    let mut used = vec![lp.step, store];
     // `byte k, value` writes the bytes of `value` in order. A byte the loop does not vary, as
     // `value[k]` folds to for a constant `value` or `b[k] = c` stores for a `bytes1 c`, fills
     // every index.
     let stored = match body_def(func, lp, byte) {
-        Some((byte_inst, &InstKind::Byte(position, value)))
+        Some((_, &InstKind::Byte(position, value)))
             if position == lp.counter && !l.defines(func, value) =>
         {
-            used.push(byte_inst);
             Scattered::Word(value)
         }
-        Some((byte_inst, &InstKind::Byte(position, value)))
+        Some((_, &InstKind::Byte(position, value)))
             if !l.defines(func, position) && !l.defines(func, value) =>
         {
-            used.push(byte_inst);
             Scattered::Fill(Some(position), value)
         }
         None if !l.defines(func, byte) => Scattered::Fill(None, byte),
         _ => return None,
     };
-    let (object, idx, address) = memory_address(func, lp, ptr)?;
-    used.extend(address);
+    let (object, idx) = memory_address(func, lp, ptr)?;
     let access = checked_access(func, l, lp, Buffer::Memory(object), idx, &mut used)?;
     // `value[k]` checks `k` against the width of `value`: a literal, or the header test when the
     // bound is that width. A loop without that check writes `byte k`, zero past the word, for every
@@ -895,10 +862,9 @@ fn scatter(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
         let checked = if condition == lp.test {
             lp.literal_bound(func)?
         } else {
-            let Some((cmp, &InstKind::Lt(k, limit))) = body_def(func, lp, condition) else {
+            let Some((_, &InstKind::Lt(k, limit))) = body_def(func, lp, condition) else {
                 return None;
             };
-            used.push(cmp);
             if k != lp.counter {
                 return None;
             }
@@ -918,71 +884,79 @@ fn scatter(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
     only_pattern_effects(func, lp, &used).then_some(Shape::Scatter { access, stored, width })
 }
 
-/// The body's only `mstore8`.
-fn single_store(func: &Function, lp: &Counted) -> Option<InstId> {
-    let mut stores =
-        lp.insts.iter().filter(|&&inst| matches!(func.inst(inst).kind, InstKind::Store8(..)));
+/// The body's only store matching `is_store`.
+fn single_store(
+    func: &Function,
+    lp: &Counted,
+    is_store: impl Fn(&InstKind) -> bool,
+) -> Option<InstId> {
+    let mut stores = lp.insts.iter().filter(|&&inst| is_store(&func.inst(inst).kind));
     let (&store, None) = (stores.next()?, stores.next()) else { return None };
     Some(store)
 }
 
-fn copy(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
+fn copy(func: &Function, aa: &AliasAnalysis, l: &Loop, lp: &Counted) -> Option<Shape> {
     if !lp.phis.is_empty() {
         return None;
     }
-    let mut used = vec![lp.step];
-    let store = single_store(func, lp)?;
+    let store = single_store(func, lp, |kind| matches!(kind, InstKind::Store8(..)))?;
     let InstKind::Store8(dst_ptr, byte) = func.inst(store).kind else { return None };
-    used.push(store);
     let (src, read) = byte_read(func, l, lp, byte)?;
-    used.extend(read.iter().copied());
-    let (dst, dst_idx, address) = memory_address(func, lp, dst_ptr)?;
-    used.extend(address);
+    let mut used = vec![lp.step, store];
+    used.extend_from_slice(&read);
+    let (dst, dst_idx) = memory_address(func, lp, dst_ptr)?;
     if l.defines(func, dst) {
         return None;
     }
-    let (dst_offset, dst_wrapping, mut dst_steps) = index(func, l, lp, dst_idx)?;
-    used.extend(dst_steps.iter().copied());
+    let steps = used.len();
+    let (dst, dst_checked) = destination(func, l, lp, dst, dst_idx, 0, &mut used)?;
     // Counting down, a wrapping source index fails its bounds check only in some later
     // iteration, after a checked destination addition could raise `Panic(0x11)` in the first.
-    if lp.descending && src.wrapping && dst_offset.is_some() && !dst_wrapping {
+    if lp.descending && src.wrapping && dst.offset.is_some() && !dst.wrapping {
         return None;
     }
-    let mut dst_len = None;
-    let dst_checked = match bounds_check(func, l, lp, Buffer::Memory(dst), dst_idx) {
+    // Counting down, the replacement raises the first iteration's panics in the source's order,
+    // then the destination's, as one assignment evaluates them. A destination step that may fail
+    // ahead of the source's check, as an index computed in an earlier statement, fails first in
+    // the loop.
+    if lp.descending && !source_fails_first(func, lp, &read, &used[steps..]) {
+        return None;
+    }
+    let overlap = copy_overlap(func, aa, lp, &src, &dst);
+    only_pattern_effects(func, lp, &used).then_some(Shape::Copy { src, dst, dst_checked, overlap })
+}
+
+/// Matches a copy's destination `dst[offset + k]` at index `idx`, with a bounds check or, for
+/// `k` itself counting up, the check against the bound. Returns the access and whether its
+/// bounds are checked against the destination's length, and adds the index and check
+/// instructions to `used`.
+fn destination(
+    func: &Function,
+    l: &Loop,
+    lp: &Counted,
+    dst: ValueId,
+    idx: ValueId,
+    shift: u8,
+    used: &mut Vec<InstId>,
+) -> Option<(Access, bool)> {
+    let (offset, wrapping) = index(func, l, lp, idx, used)?;
+    let (len, checked) = match bounds_check(func, l, lp, Buffer::Memory(dst), idx) {
         Some((check, len)) => {
-            dst_steps.extend(check.iter().copied());
-            used.extend(check);
-            dst_len = len;
-            true
+            used.push(check);
+            (len, true)
         }
-        None if dst_offset.is_none() && !lp.descending => {
+        None if offset.is_none() && !lp.descending => {
             // `out[k]` checked against `out.length`, already known to equal the bound.
             let check =
                 lp.insts.iter().copied().find(|&inst| {
                     !used.contains(&inst) && array_check(func, inst) == Some(lp.test)
                 })?;
             used.push(check);
-            false
+            (None, false)
         }
         None => return None,
     };
-    // Counting down, the replacement raises the first iteration's panics in the source's order,
-    // then the destination's, as one assignment evaluates them. A destination step that may fail
-    // ahead of the source's check, as an index computed in an earlier statement, fails first in
-    // the loop.
-    if lp.descending && !source_fails_first(func, lp, &read, &dst_steps) {
-        return None;
-    }
-    let dst = Access {
-        buffer: Buffer::Memory(dst),
-        offset: dst_offset,
-        len: dst_len,
-        shift: 0,
-        wrapping: dst_wrapping,
-    };
-    let overlap = copy_overlap(func, lp, &src, &dst);
-    only_pattern_effects(func, lp, &used).then_some(Shape::Copy { src, dst, dst_checked, overlap })
+    Some((Access { buffer: Buffer::Memory(dst), offset, len, shift, wrapping }, checked))
 }
 
 /// Whether every step of a copy's source that may fail comes before every step of its
@@ -999,29 +973,22 @@ fn source_fails_first(func: &Function, lp: &Counted, src: &[InstId], dst: &[Inst
     }
 }
 
-/// Matches the memory word address `object + (idx << 5) + 32`. Returns the object, the index
-/// value, and the address instructions.
-fn word_address(
-    func: &Function,
-    lp: &Counted,
-    ptr: ValueId,
-) -> Option<(ValueId, ValueId, [InstId; 3])> {
-    let (outer, &InstKind::PtrAdd(inner_ptr, header)) = body_def(func, lp, ptr)? else {
-        return None;
-    };
+/// Matches the memory word address `object + (idx << 5) + 32`. Returns the object and the index
+/// value.
+fn word_address(func: &Function, lp: &Counted, ptr: ValueId) -> Option<(ValueId, ValueId)> {
+    let (_, &InstKind::PtrAdd(inner_ptr, header)) = body_def(func, lp, ptr)? else { return None };
     if func.value_u64(header) != Some(32) {
         return None;
     }
-    let (inner, &InstKind::PtrAdd(object, offset)) = body_def(func, lp, inner_ptr)? else {
+    let (_, &InstKind::PtrAdd(object, offset)) = body_def(func, lp, inner_ptr)? else {
         return None;
     };
-    let (shl, &InstKind::Shl(shift, idx)) = body_def(func, lp, offset)? else { return None };
-    (func.value_u64(shift) == Some(5)).then_some((object, idx, [outer, inner, shl]))
+    let (_, &InstKind::Shl(shift, idx)) = body_def(func, lp, offset)? else { return None };
+    (func.value_u64(shift) == Some(5)).then_some((object, idx))
 }
 
 /// Matches the calldata word address `ptrtoint(slice.ptr) + (idx << 5)`, with the check that
-/// the shift keeps `idx`. Returns the slice and the index value, and adds the address and check
-/// instructions to `used`.
+/// the shift keeps `idx`. Returns the slice and the index value, and adds the check to `used`.
 ///
 /// NOTE: A decoded slice's bounds rule out indices of `2^251` or more. For an assembly-forged
 /// slice, the replacement's guard keeps the loop when scaling the index range could overflow,
@@ -1032,13 +999,11 @@ fn calldata_word_address(
     address: ValueId,
     used: &mut Vec<InstId>,
 ) -> Option<(ValueId, ValueId)> {
-    let (slice, offset, address) = calldata_address(func, lp, address)?;
-    let (shl, &InstKind::Shl(shift, idx)) = body_def(func, lp, offset)? else { return None };
+    let (slice, offset) = calldata_address(func, lp, address)?;
+    let (_, &InstKind::Shl(shift, idx)) = body_def(func, lp, offset)? else { return None };
     if func.value_u64(shift) != Some(5) {
         return None;
     }
-    used.extend(address);
-    used.push(shl);
     // panic_if (ne (shr 5, (shl 5, idx)), idx), 0x41
     for &inst in &lp.insts {
         let InstKind::ICall {
@@ -1053,85 +1018,50 @@ fn calldata_word_address(
             continue;
         };
         let [condition] = **args else { continue };
-        let Some((ne, &InstKind::Ne(back, original))) = body_def(func, lp, condition) else {
+        let Some((_, &InstKind::Ne(back, original))) = body_def(func, lp, condition) else {
             continue;
         };
         if original == idx
-            && let Some((shr, &InstKind::Shr(amount, shifted))) = body_def(func, lp, back)
+            && let Some((_, &InstKind::Shr(amount, shifted))) = body_def(func, lp, back)
             && shifted == offset
             && func.value_u64(amount) == Some(5)
         {
-            used.extend([inst, ne, shr]);
+            used.push(inst);
         }
     }
     Some((slice, idx))
 }
 
 /// Matches `dst[dstOffset + k] = src[srcOffset + k]` over arrays of words, counting up.
-fn word_copy(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
+fn word_copy(func: &Function, aa: &AliasAnalysis, l: &Loop, lp: &Counted) -> Option<Shape> {
     if !lp.phis.is_empty() || lp.descending {
         return None;
     }
-    let mut used = vec![lp.step];
-    let mut stores = lp.insts.iter().filter(|&&inst| {
-        matches!(
-            func.inst(inst).kind,
-            InstKind::Store(.., PtrLocation::Memory) | InstKind::Store8(..)
-        )
-    });
-    let (&store, None) = (stores.next()?, stores.next()) else { return None };
+    let store = single_store(func, lp, |kind| {
+        matches!(kind, InstKind::Store(.., PtrLocation::Memory) | InstKind::Store8(..))
+    })?;
     let InstKind::Store(dst_ptr, value, PtrLocation::Memory) = func.inst(store).kind else {
         return None;
     };
-    used.push(store);
-    let mut src = match body_def(func, lp, value)? {
-        (load, &InstKind::Load(src_ptr, PtrLocation::Memory)) => {
-            used.push(load);
-            let (src_object, src_idx, address) = word_address(func, lp, src_ptr)?;
-            used.extend(address);
+    let mut used = vec![lp.step, store];
+    let mut src = match *body_def(func, lp, value)?.1 {
+        InstKind::Load(src_ptr, PtrLocation::Memory) => {
+            let (src_object, src_idx) = word_address(func, lp, src_ptr)?;
             checked_access(func, l, lp, Buffer::Memory(src_object), src_idx, &mut used)?
         }
-        (load, &InstKind::Load(address, PtrLocation::Calldata)) => {
-            used.push(load);
+        InstKind::Load(address, PtrLocation::Calldata) => {
             let (slice, src_idx) = calldata_word_address(func, lp, address, &mut used)?;
             checked_access(func, l, lp, Buffer::Calldata(slice), src_idx, &mut used)?
         }
         _ => return None,
     };
     src.shift = 5;
-    let (dst, dst_idx, address) = word_address(func, lp, dst_ptr)?;
-    used.extend(address);
+    let (dst, dst_idx) = word_address(func, lp, dst_ptr)?;
     if l.defines(func, dst) {
         return None;
     }
-    let (dst_offset, dst_wrapping, dst_index) = index(func, l, lp, dst_idx)?;
-    used.extend(dst_index);
-    let mut dst_len = None;
-    let dst_checked = match bounds_check(func, l, lp, Buffer::Memory(dst), dst_idx) {
-        Some((check, len)) => {
-            used.extend(check);
-            dst_len = len;
-            true
-        }
-        None if dst_offset.is_none() => {
-            // `out[k]` checked against `out.length`, already known to equal the bound.
-            let check =
-                lp.insts.iter().copied().find(|&inst| {
-                    !used.contains(&inst) && array_check(func, inst) == Some(lp.test)
-                })?;
-            used.push(check);
-            false
-        }
-        None => return None,
-    };
-    let dst = Access {
-        buffer: Buffer::Memory(dst),
-        offset: dst_offset,
-        len: dst_len,
-        shift: 5,
-        wrapping: dst_wrapping,
-    };
-    let overlap = copy_overlap(func, lp, &src, &dst);
+    let (dst, dst_checked) = destination(func, l, lp, dst, dst_idx, 5, &mut used)?;
+    let overlap = copy_overlap(func, aa, lp, &src, &dst);
     only_pattern_effects(func, lp, &used).then_some(Shape::Copy { src, dst, dst_checked, overlap })
 }
 
@@ -1142,23 +1072,28 @@ fn word_copy(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
 /// offset, never for an external function's decoded argument, but its destination must also stay
 /// above its own length word. Every other copy tests at run time where the loop differs from the
 /// copy.
-fn copy_overlap(func: &Function, lp: &Counted, src: &Access, dst: &Access) -> Overlap {
+fn copy_overlap(
+    func: &Function,
+    aa: &AliasAnalysis,
+    lp: &Counted,
+    src: &Access,
+    dst: &Access,
+) -> Overlap {
     let (Buffer::Memory(source), Buffer::Memory(destination)) = (src.buffer, dst.buffer) else {
         return match src.buffer {
             Buffer::Calldata(slice)
                 if decoded_argument(func, slice)
                     && (dst.offset.is_none_or(|offset| func.value_u64(offset) == Some(0))
-                        || within_allocation(func, &AliasAnalysis::new(func), lp, dst)) =>
+                        || within_allocation(func, aa, lp, dst)) =>
             {
                 Overlap::Disjoint
             }
             _ => Overlap::Guarded,
         };
     };
-    let aa = AliasAnalysis::new(func);
-    if disjoint_objects(func, &aa, source, destination)
-        && within_allocation(func, &aa, lp, src)
-        && within_allocation(func, &aa, lp, dst)
+    if disjoint_objects(func, aa, source, destination)
+        && within_allocation(func, aa, lp, src)
+        && within_allocation(func, aa, lp, dst)
     {
         Overlap::Disjoint
     } else {
@@ -1247,10 +1182,9 @@ fn length_unchanged(
 /// Whether `size` is `(len + 1) * 32`, the bytes a dynamic array of `len` words reserves: its
 /// length word and its elements.
 fn word_array_size(func: &Function, size: ValueId, len: ValueId) -> bool {
-    let Value::Inst(mul) = *func.value(size) else { return false };
-    let (a, b) = match func.inst(mul).kind {
-        InstKind::Mul(a, b)
-        | InstKind::CheckedBinary { op: CheckedOp::Mul, lhs: a, rhs: b, .. } => (a, b),
+    let (a, b) = match func.value_inst_kind(size) {
+        Some(&InstKind::Mul(a, b))
+        | Some(&InstKind::CheckedBinary { op: CheckedOp::Mul, lhs: a, rhs: b, .. }) => (a, b),
         _ => return false,
     };
     let words = match (func.value_u64(a), func.value_u64(b)) {
@@ -1258,10 +1192,9 @@ fn word_array_size(func: &Function, size: ValueId, len: ValueId) -> bool {
         (Some(32), _) => b,
         _ => return false,
     };
-    let Value::Inst(add) = *func.value(words) else { return false };
-    let (x, y) = match func.inst(add).kind {
-        InstKind::Add(x, y)
-        | InstKind::CheckedBinary { op: CheckedOp::Add, lhs: x, rhs: y, .. } => (x, y),
+    let (x, y) = match func.value_inst_kind(words) {
+        Some(&InstKind::Add(x, y))
+        | Some(&InstKind::CheckedBinary { op: CheckedOp::Add, lhs: x, rhs: y, .. }) => (x, y),
         _ => return false,
     };
     (func.value_u64(y) == Some(1) && same_value(func, x, len, 2))
@@ -1291,6 +1224,7 @@ fn only_pattern_effects(func: &Function, lp: &Counted, used: &[InstId]) -> bool 
 /// loop touches memory but stores of that same length.
 fn fresh_destination(
     func: &Function,
+    aa: &AliasAnalysis,
     l: &Loop,
     lp: &Counted,
     shape: &Shape,
@@ -1311,7 +1245,6 @@ fn fresh_destination(
     {
         return None;
     }
-    let aa = AliasAnalysis::new(func);
     let touches_memory = |inst| {
         let effects = aa.instruction_mod_ref(func, inst);
         effects.reads_space(AddressSpace::Memory) || effects.writes_space(AddressSpace::Memory)
@@ -1368,7 +1301,7 @@ fn fresh_destination(
         block = next;
     }
     let source_fits = match (overlap, src.buffer) {
-        (Overlap::Guarded, Buffer::Memory(source)) => length_before(func, &aa, alloc, source)
+        (Overlap::Guarded, Buffer::Memory(source)) => length_before(func, aa, alloc, source)
             .is_some_and(|len| range_fits(func, src.offset, lp.bound, len)),
         _ => false,
     };
@@ -1381,15 +1314,15 @@ fn fresh_destination(
 fn range_fits(func: &Function, offset: Option<ValueId>, bound: ValueId, len: ValueId) -> bool {
     match offset.filter(|&offset| func.value_u64(offset) != Some(0)) {
         None => same_value(func, bound, len, 2),
-        Some(offset) => matches!(*func.value(bound), Value::Inst(inst) if matches!(
-            func.inst(inst).kind,
-            InstKind::CheckedBinary {
+        Some(offset) => matches!(
+            func.value_inst_kind(bound),
+            Some(&InstKind::CheckedBinary {
                 op: CheckedOp::Sub,
                 arithmetic: ArithmeticKind::Unsigned(256),
                 lhs,
                 rhs,
-            } if same_value(func, lhs, len, 2) && same_value(func, rhs, offset, 2)
-        )),
+            }) if same_value(func, lhs, len, 2) && same_value(func, rhs, offset, 2)
+        ),
     }
 }
 
@@ -1444,14 +1377,12 @@ fn length_before(
 /// buffer allocated in words and cut to its length by a trusted `mstore(b, len)` allocates.
 fn bytes_size(func: &Function, size: ValueId, len: ValueId) -> bool {
     let words = |value| {
-        let Value::Inst(and) = *func.value(value) else { return None };
-        let InstKind::And(a, b) = func.inst(and).kind else { return None };
+        let Some(&InstKind::And(a, b)) = func.value_inst_kind(value) else { return None };
         let mask = |mask| func.value_u256(mask) == Some(!U256::from(31));
         if mask(b) { Some(a) } else { mask(a).then_some(b) }
     };
     let plus = |value, constant| {
-        let Value::Inst(add) = *func.value(value) else { return None };
-        let InstKind::Add(x, y) = func.inst(add).kind else { return None };
+        let Some(&InstKind::Add(x, y)) = func.value_inst_kind(value) else { return None };
         if func.value_u64(y) == Some(constant) {
             Some(x)
         } else {
@@ -1466,22 +1397,12 @@ fn bytes_size(func: &Function, size: ValueId, len: ValueId) -> bool {
 /// Whether `address` is `object + 32 + len` in either association, the end of the object's
 /// first `len` bytes, with `len` itself or the object's length word.
 fn payload_end(func: &Function, address: ValueId, object: ValueId, len: ValueId) -> bool {
-    let add = |value| match *func.value(value) {
-        Value::Inst(inst) => match func.inst(inst).kind {
-            InstKind::Add(a, b) => Some((a, b)),
-            _ => None,
-        },
+    let add = |value| match func.value_inst_kind(value) {
+        Some(&InstKind::Add(a, b)) => Some((a, b)),
         _ => None,
     };
-    let base = |value| {
-        matches!(*func.value(value), Value::Inst(inst)
-            if func.inst(inst).kind == InstKind::PtrToInt(object, 256))
-    };
-    let length = |value| {
-        same_value(func, value, len, 2)
-            || matches!(*func.value(value), Value::Inst(inst)
-                if func.inst(inst).kind == InstKind::Load(object, PtrLocation::Memory))
-    };
+    let base = |value| func.value_inst_kind(value) == Some(&InstKind::PtrToInt(object, 256));
+    let length = |value| same_value(func, value, len, 2) || is_length_load(func, value, object);
     let Some((a, b)) = add(address) else { return false };
     [(a, b), (b, a)].into_iter().any(|(inner, outer)| {
         add(inner).is_some_and(|(c, d)| {
@@ -1501,10 +1422,12 @@ fn same_value(func: &Function, a: ValueId, b: ValueId, depth: u32) -> bool {
     if a == b || func.value_u256(a).is_some_and(|value| func.value_u256(b) == Some(value)) {
         return true;
     }
-    let (&Value::Inst(x), &Value::Inst(y)) = (func.value(a), func.value(b)) else { return false };
+    let (Some(x), Some(y)) = (func.value_inst_kind(a), func.value_inst_kind(b)) else {
+        return false;
+    };
     let Some(depth) = depth.checked_sub(1) else { return false };
     let same = |a, b| same_value(func, a, b, depth);
-    match (&func.inst(x).kind, &func.inst(y).kind) {
+    match (x, y) {
         (
             &InstKind::CheckedBinary { op, arithmetic, lhs, rhs },
             &InstKind::CheckedBinary { op: op2, arithmetic: arithmetic2, lhs: lhs2, rhs: rhs2 },
@@ -1565,7 +1488,6 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
                 let (join, gathered) = join_gather(&mut builder, &lp, result, value);
                 replacements.insert(result, gathered);
                 replace_after_loop(func, &lp, Some(join), &replacements);
-                rebuild_predecessors(func);
                 return;
             }
             if skips {
@@ -1667,7 +1589,6 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
                 // fast: ...; jump exit
                 builder.jump(lp.exit);
                 replace_after_loop(func, &lp, None, &replacements);
-                rebuild_predecessors(func);
                 return;
             }
             if literal.is_none() {
@@ -1707,7 +1628,6 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
             {
                 fresh_guarded_copy(&mut builder, &lp, &src, &dst, fresh, tested);
                 replace_after_loop(func, &lp, None, &replacements);
-                rebuild_predecessors(func);
                 return;
             }
             let fast = match overlap {
@@ -1793,7 +1713,6 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
                 // that wraps.
                 builder.jump(lp.exit);
                 replace_after_loop(func, &lp, None, &replacements);
-                rebuild_predecessors(func);
                 return;
             }
             if tested {
@@ -1809,7 +1728,6 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
         let _ = invalidate_unreachable_block(func, block);
     }
     func.blocks[lp.header].instructions.retain(|&inst| Some(inst) == kept_phi);
-    rebuild_predecessors(func);
 }
 
 /// Emits a copy into a fresh destination whose source may overlap the allocation. The fast path
@@ -2212,7 +2130,8 @@ fn replace_after_loop(
 /// Renames the entry edge `from` of the loop `header` to `to` in its phis, for a `to` that
 /// enters the loop in place of `from`.
 fn enter_from(func: &mut Function, header: BlockId, from: BlockId, to: BlockId) {
-    for &inst in &func.blocks[header].instructions.clone() {
+    for index in 0..func.blocks[header].instructions.len() {
+        let inst = func.blocks[header].instructions[index];
         if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
             for (block, _) in incoming.iter_mut() {
                 if *block == from {
