@@ -182,7 +182,7 @@
 +     mstore v1, 128
 +     jump bb1
 +   bb1:
-+     v2 = phi [bb0: 0], [bb8: v23]
++     v2 = phi [bb0: 0], [bb8: v24]
 +     v3 = lt v2, 2
 +     jumpi v3, bb2, bb3
 +   bb3:
@@ -199,11 +199,11 @@
 +   bb5:
 +     jump bb6
 +   bb6:
-+     v11 = phi [bb5: 0], [bb10: v22]
++     v11 = phi [bb5: 0], [bb10: v23]
 +     v12 = lt v11, 2
 +     jumpi v12, bb7, bb8
 +   bb8:
-+     v23 = add v2, 1
++     v24 = add v2, 1
 +     jump bb1
 +   bb7:
 +     v13 = mul v11, 32
@@ -213,17 +213,18 @@
 +     v17 = ptradd v16, v15
 +     v18 = mload v17
 +     v19 = lt v18, 3
-+     jumpi v19, bb10, bb9
++     v20 = eq v19, false
++     jumpi v20, bb9, bb10
++   bb10:
++     v21 = ptradd v1, v14
++     v22 = ptradd v21, 32
++     mstore v22, v18
++     v23 = add v11, 1
++     jump bb6
 +   bb9:
 +     mstore 32, 33 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
-+   bb10:
-+     v20 = ptradd v1, v14
-+     v21 = ptradd v20, 32
-+     mstore v21, v18
-+     v22 = add v11, 1
-+     jump bb6
 +   bb4:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
