@@ -486,6 +486,21 @@ impl AbiWordValidator {
         }
     }
 
+    /// Builds the condition that is true when `word` is canonical, for a check that runs once.
+    ///
+    /// A `bool` or a power-of-two enum tests a shifted word, as a `uintN` does, which
+    /// `merge-aborts` joins with the call's other checks. [`Self::condition`] keeps the
+    /// comparison with a literal, which a loop's check turns around for free.
+    pub fn condition_once(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
+        match self {
+            Self::Bool => Self::Unsigned(1).condition(builder, word),
+            Self::EnumRange(variants) if variants > 1 && variants.is_power_of_two() => {
+                Self::Unsigned(variants.trailing_zeros() as u16).condition(builder, word)
+            }
+            _ => self.condition(builder, word),
+        }
+    }
+
     /// Builds the canonical form of `word`.
     pub fn cleanup(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
         match self {

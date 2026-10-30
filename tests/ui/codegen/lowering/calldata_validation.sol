@@ -10,9 +10,9 @@
 // - uintN: high bits zero (`iszero(shr(bits, word))`)
 // - intN: word equals its sign extension (`eq(word, signextend(N/8-1, word))`)
 // - address/contract: top 96 bits zero
-// - bool: word is less than 2 (`lt(word, 2)`)
+// - bool: no bits above the lowest (`iszero(shr(1, word))`)
 // - bytesN: low 32-N bytes zero (`iszero(shl(bits, word))`)
-// - enum: word < member count (`lt(word, count)`)
+// - enum: word < member count (`lt(word, count)`, or `iszero(shr(bits, word))` for a power of two)
 // Full-word types (uint256, int256, bytes32) need no canonicalization
 // validator, but still need the short-calldata guard. The validators read the
 // raw word through the semantic calldata-slice boundary so optimization
@@ -42,7 +42,7 @@ contract CalldataValidation {
 
     // CHECK-LABEL: fn @vBool{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: {{v[0-9]+}} = lt [[RAW]], 2
+    // CHECK: {{v[0-9]+}} = shr [[RAW]], 1
     function vBool(bool x) external pure returns (bool) {
         return x;
     }
