@@ -26,8 +26,10 @@ pub(super) struct MaskUses {
     outers: FxHashMap<ValueId, Vec<InstId>>,
     /// The results of `x & m` by `(x, m)`.
     masked: FxHashMap<(ValueId, U256), Vec<ValueId>>,
-    /// The constants compared by `Eq` and `Ne` with each other operand.
+    /// The constants compared by `Eq` with each other operand.
     compared: FxHashMap<ValueId, Vec<U256>>,
+    /// Operand uses of each non-constant value.
+    operand_uses: FxHashMap<ValueId, usize>,
 }
 
 impl MaskUses {
@@ -56,12 +58,25 @@ impl MaskUses {
             .filter(move |&c| c & mask == c)
     }
 
+    /// Whether every use of `value & mask` is an equality with a constant that the mask keeps.
+    pub(super) fn only_compared(&self, value: ValueId, mask: U256) -> bool {
+        self.masked.get(&(value, mask)).into_iter().flatten().all(|result| {
+            let compared = self
+                .compared
+                .get(result)
+                .map_or(0, |constants| constants.iter().filter(|&&c| c & mask == c).count());
+            self.operand_uses.get(result).copied().unwrap_or(0) == compared
+        })
+    }
+
     /// Adds an instruction with its current kind.
     pub(super) fn insert(&mut self, func: &Function, inst: InstId) {
         let kind = &func.inst(inst).kind;
         kind.visit_operands(|operand| {
             if let Some(constant) = func.value_u256(operand) {
                 *self.uses.entry(constant).or_default() += 1;
+            } else {
+                *self.operand_uses.entry(operand).or_default() += 1;
             }
         });
         match *kind {
@@ -75,7 +90,7 @@ impl MaskUses {
                     }
                 }
             }
-            InstKind::Eq(a, b) | InstKind::Ne(a, b) => {
+            InstKind::Eq(a, b) => {
                 for (operand, constant) in [(a, b), (b, a)] {
                     if let Some(constant) = func.value_u256(constant) {
                         self.compared.entry(operand).or_default().push(constant);
@@ -99,6 +114,8 @@ impl MaskUses {
         kind.visit_operands(|operand| {
             if let Some(constant) = func.value_u256(operand) {
                 *self.uses.entry(constant).or_default() -= 1;
+            } else {
+                *self.operand_uses.entry(operand).or_default() -= 1;
             }
         });
         match *kind {
@@ -112,7 +129,7 @@ impl MaskUses {
                     }
                 }
             }
-            InstKind::Eq(a, b) | InstKind::Ne(a, b) => {
+            InstKind::Eq(a, b) => {
                 for (operand, constant) in [(a, b), (b, a)] {
                     if let Some(constant) = func.value_u256(constant) {
                         swap_remove(self.compared.get_mut(&operand), &constant);
