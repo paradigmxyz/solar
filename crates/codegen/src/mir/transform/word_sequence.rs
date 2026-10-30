@@ -28,6 +28,9 @@
 //! the segment; they never earn deletion credit.
 //! Mask blends wait until storage forwarding and mask simplification have run,
 //! so early recipes do not hide overwritten packed fields from those passes.
+//! A low-bit mask that follows a right shift or precedes a left shift becomes one shift pair
+//! in gas builds, when no other instruction reads the mask constant; masks alone are left to
+//! the EVM IR `late-word` peephole, which sees the mask's materialization.
 
 use super::lower_checks::is_check;
 use crate::{
