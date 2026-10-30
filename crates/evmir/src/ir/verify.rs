@@ -1106,19 +1106,20 @@ fn label_flow(module: &Module, block: &Block, may_return: &DenseBitSet<BlockId>)
 }
 
 fn label_flows(module: &Module) -> IndexVec<BlockId, LabelFlow> {
-    let may_return = reach_dynamic_jumps(module);
+    let may_return = reach_blocks(module, jumps_dynamically);
     module.blocks.iter().map(|block| label_flow(module, block, &may_return)).collect()
 }
 
-/// Returns the blocks from which a dynamic jump or branch is reachable. A call reaches its
-/// callee, whose return is one, so the calls' own return edges are not needed.
-fn reach_dynamic_jumps(module: &Module) -> DenseBitSet<BlockId> {
+/// Returns the blocks from which a block that satisfies `sink` is reachable, themselves included.
+/// A call reaches its callee, whose return is a dynamic jump, so the calls' own return edges are
+/// not needed.
+fn reach_blocks(module: &Module, sink: impl Fn(&Block) -> bool) -> DenseBitSet<BlockId> {
     let mut predecessors = index_vec![Vec::new(); module.blocks.len()];
     let mut reaching = DenseBitSet::new_empty(module.blocks.len());
     let mut pending = Vec::new();
     let mut successors = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
-        if jumps_dynamically(block) {
+        if sink(block) {
             pending.push(block_id);
         }
         successors.clear();
@@ -1362,8 +1363,8 @@ impl Words {
 /// returns the jumps that consume it, or `None` when it can leave the followed paths: it is
 /// copied, read by another instruction, passed to a callee, carried to a dynamic jump through a
 /// word the trace cannot name, or it sits at different distances from the top at the entry of one
-/// block. A path where the word leaves the trace but no dynamic jump can follow is dropped, as
-/// nothing is left to consume it.
+/// block. A path where the word leaves the trace but no dynamic jump or storage write can follow
+/// is dropped, as nothing is left to consume it.
 ///
 /// A jump through a label that the trace saw pushed after the word goes to the block it names,
 /// where the trace continues. A callee leaves the words below its arguments as they are, as the
@@ -1371,7 +1372,7 @@ impl Words {
 fn trace_pushed_word(
     module: &Module,
     flows: &IndexVec<BlockId, LabelFlow>,
-    may_jump: &DenseBitSet<BlockId>,
+    may_leak: &DenseBitSet<BlockId>,
     start: BlockId,
     push: usize,
 ) -> Option<Vec<Consumer>> {
@@ -1381,10 +1382,10 @@ fn trace_pushed_word(
     // The block to run, the first instruction to run in it, and the words.
     let mut pending = vec![(start, push + 1, Words { word: 0, labels: SmallVec::new() })];
     'blocks: while let Some((block_id, from, mut words)) = pending.pop() {
-        // Gives up on the path unless no dynamic jump is left on it.
+        // Gives up on the path unless the word cannot reach a dynamic jump or storage from here.
         macro_rules! lost {
             () => {
-                if may_jump.contains(block_id) {
+                if may_leak.contains(block_id) {
                     return None;
                 } else {
                     continue 'blocks;
@@ -1498,11 +1499,18 @@ fn bound_pushed_labels(
     if pushes.is_empty() {
         return;
     }
-    let may_jump = reach_dynamic_jumps(module);
+    // A word can leave the trace for a dynamic jump, or for storage that a later call reads back.
+    let may_leak = reach_blocks(module, |block| {
+        jumps_dynamically(block)
+            || block
+                .instructions
+                .iter()
+                .any(|inst| inst.as_evm_opcode().is_some_and(op::writes_storage))
+    });
     let mut consumers = FxHashMap::<BlockId, Vec<Consumer>>::default();
     let mut escaped = Vec::new();
     for &(block_id, at, label) in pushes {
-        match trace_pushed_word(module, flows, &may_jump, block_id, at) {
+        match trace_pushed_word(module, flows, &may_leak, block_id, at) {
             Some(found) => consumers.entry(label).or_default().extend(found),
             None => escaped.push(label),
         }
@@ -1510,8 +1518,10 @@ fn bound_pushed_labels(
     forget_reached(module, flows, upper, unknown, escaped);
     let mut changed = true;
     while std::mem::take(&mut changed) {
-        // The labels with a consumer in a block that has no bound yet.
+        // The labels with a consumer in a block that has no bound yet, and the labels whose
+        // bound keeps growing past the stack limit.
         let mut waiting = Vec::new();
+        let mut growing = Vec::new();
         'labels: for (&label, found) in &consumers {
             if unknown.contains(label) {
                 continue;
@@ -1525,12 +1535,16 @@ fn bound_pushed_labels(
                 };
                 bound = bound.max(depth_after(exit_depth(block, entry), effect));
             }
-            if !found.is_empty() && upper[label].is_none_or(|known| known < bound) {
+            if bound > MAX_STACK_DEPTH {
+                growing.push(label);
+            } else if !found.is_empty() && upper[label].is_none_or(|known| known < bound) {
                 upper[label] = Some(bound);
                 changed = true;
                 raise_reached(module, flows, upper, unknown, label);
             }
         }
+        changed |= !growing.is_empty();
+        forget_reached(module, flows, upper, unknown, growing);
         // A consumer may get its bound from another label's, so a label gives up only when the
         // others have nothing left to raise.
         if !changed && !waiting.is_empty() {

@@ -313,3 +313,32 @@ bb51:
 bb52:
   push 1
   jump bb51
+
+// A stored address can be jumped to by a later call at any depth, so the shallow depth another
+// edge enters its block at is no bound.
+// CHECK-LABEL: bb55 [continuation]:
+// CHECK-NEXT: {{^ +}}push 0xffffffffffffffffffffffffffffffffffffffff
+bb53 [stack=3]:
+  push bb55
+  push 0
+  sstore
+  jump bb55
+
+bb55 [continuation]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+// An address that its own block pushes and jumps through leaves one word more on each round, so
+// it has no bound.
+// CHECK-LABEL: bb57:
+// CHECK: {{^ +}}push 0xffffffffffffffffffffffffffffffffffffffff
+bb56 [stack=0]:
+  jump bb57
+
+bb57:
+  push 1
+  push bb57
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  jump

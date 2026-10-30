@@ -227,4 +227,21 @@
   bb52:
     push 1
     jump bb51
+  bb53 [stack=3]:
+    push bb55
+    push 0
+    sstore
+    jump bb55
+  bb55 [continuation]:
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    pop
+    stop
+  bb56 [stack=0]:
+    jump bb57
+  bb57:
+    push 1
+    push bb57
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    pop
+    jump
   
