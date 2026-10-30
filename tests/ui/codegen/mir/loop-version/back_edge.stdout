@@ -73,11 +73,12 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
     jumpi v32, bb5, bb2
   bb2:
     v91 = mload v87
+    v98 = add v87, 32
     v93 = shl v91, 5
     v100 = add v87, 64
-    mcopy v100, v127, v93
+    mcopy v100, v98, v93
     mstore v87, 32
-    mstore v127, v91
+    mstore v98, v91
     v95 = add v93, 64
     returndata v87, v95
   bb5:
@@ -180,11 +181,12 @@ fn @shiftFar() [selector=0x67979c1a, abi_wrapper, pure] {
     jumpi v34, bb5, bb2
   bb2:
     v91 = mload v87
+    v98 = add v87, 32
     v93 = shl v91, 5
     v100 = add v87, 64
-    mcopy v100, v124, v93
+    mcopy v100, v98, v93
     mstore v87, 32
-    mstore v124, v91
+    mstore v98, v91
     v95 = add v93, 64
     returndata v87, v95
   bb5:

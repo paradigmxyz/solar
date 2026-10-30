@@ -182,11 +182,12 @@ fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
     jumpi v34, bb3, bb1
   bb1:
     v75 = mload v95
+    v82 = add v95, 32
     v77 = shl v75, 5
     v84 = add v95, 64
-    mcopy v84, v105, v77
+    mcopy v84, v82, v77
     mstore v95, 32
-    mstore v105, v75
+    mstore v82, v75
     v79 = add v77, 64
     returndata v95, v79
   bb3:

@@ -69,6 +69,7 @@ fn @pickDown() [selector=0xe4bcb1d7, abi_wrapper, pure] {
   bb9:
     v46 = add v49, 32
     calldatacopy v46, v27, v32
+    v55 = add v49, 32
     jump bb1
   bb1:
     v3 = phi [bb9: 0], [bb5: v17]
@@ -82,7 +83,7 @@ fn @pickDown() [selector=0xe4bcb1d7, abi_wrapper, pure] {
     v6 = shr arg1, v4
     v7 = mod v6, v4
     v11 = shl v7, 5
-    v44 = add v46, v11
+    v44 = add v55, v11
     v14 = mload v44
     v17 = add v3, v14
     v18 = lt v17, v3

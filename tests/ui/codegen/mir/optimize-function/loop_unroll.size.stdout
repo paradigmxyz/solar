@@ -35,18 +35,22 @@ fn @fast(arg0: i256, arg1: i256) -> i256 [optimize=gas, pure] {
     v37 = lt arg1, 4
     jumpi v37, bb2, bb1
   bb1:
-    v102 = calldataload arg0
+    v101 = add arg0, 0
+    v102 = calldataload v101
     v103 = byte 0, v102
-    v109 = shl v103, 7
+    v104 = or 0, v103
+    v109 = shl v104, 7
+    v110 = and v109, 0xffffffff
     v111 = add arg0, 1
     v112 = calldataload v111
     v113 = byte 0, v112
-    v114 = or v109, v113
+    v114 = or v110, v113
     v119 = shl v114, 7
+    v120 = and v119, 0xffffffff
     v121 = add arg0, 2
     v122 = calldataload v121
     v123 = byte 0, v122
-    v124 = or v119, v123
+    v124 = or v120, v123
     v129 = shl v124, 7
     v130 = and v129, 0xffffffff
     v131 = add arg0, 3
@@ -55,10 +59,10 @@ fn @fast(arg0: i256, arg1: i256) -> i256 [optimize=gas, pure] {
     v134 = or v130, v133
     ret v134
   bb2:
-    v57 = gt arg1, 0
-    v68 = gt arg1, 1
+    v57 = lt 0, arg1
+    v68 = lt 1, arg1
     v136 = and v57, v68
-    v79 = gt arg1, 2
+    v79 = lt 2, arg1
     v137 = and v136, v79
     jumpi v137, bb4, bb3
   bb4:

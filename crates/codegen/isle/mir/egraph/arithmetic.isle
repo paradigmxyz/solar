@@ -197,12 +197,6 @@
 (rule 5 (simplify (Op.Sub (add base (iconst a)) (add base (iconst b))))
       (imm (u256_sub a b)))
 
-;; ((x + y) + c) - (x + c) => y.
-(rule 9 (simplify (Op.Sub (add (add x y) (iconst c)) (add x (iconst c)))) y)
-
-;; ((y + x) + c) - (x + c) => y.
-(rule 8 (simplify (Op.Sub (add (add y x) (iconst c)) (add x (iconst c)))) y)
-
 ;; (a + b) - b => a.
 (rule 4 (simplify (Op.Sub (add a b) b)) a)
 

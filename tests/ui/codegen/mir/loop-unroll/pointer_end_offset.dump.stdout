@@ -1,0 +1,89 @@
+// === ROOT/tests/ui/codegen/mir/loop-unroll/pointer_end_offset.sol:PointerEndOffset ===
+@module PointerEndOffset
+@phase lowered
+fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
+  bb0:
+    v20 = calldatasize
+    v21 = lt v20, 36
+    v22 = calldataload 4
+    v23 = add v22, 4
+    v25 = sub v20, 36
+    v26 = gt v22, v25
+    v69 = or v21, v26
+    jumpi v69, bb4, bb5
+  bb5:
+    v27 = calldataload v23
+    v28 = add v23, 32
+    v29 = gt v27, 0x7fffffffffffffe
+    v30 = add v27, 1
+    v31 = shl v30, 5
+    v47 = heap_floor !metadata(alloc_ptr)
+    v48 = add v47, v31 !metadata(alloc_ptr)
+    v49 = lt v48, v47
+    v50 = gt v48, 0xffffffffffffffff
+    v51 = or v49, v50
+    v70 = or v29, v51
+    jumpi v70, bb6, bb8
+  bb8:
+    mstore 64, v48 !metadata(memory=scratch)
+    mstore v47, v27
+    v33 = shl v27, 5
+    v34 = sub v20, v28
+    v35 = shr v34, 5
+    v36 = gt v27, v35
+    jumpi v36, bb4, bb7
+  bb7:
+    v44 = add v47, 32
+    calldatacopy v44, v28, v33
+    v6 = add v47, v33
+    v7 = add v6, 32
+    v65 = and v27, 1
+    v66 = ne v65, 0
+    jumpi v66, bb9, bb10
+  bb9:
+    v56 = mload v44
+    v57 = add 0, v56
+    v58 = add v44, 32
+    jump bb10
+  bb10:
+    v67 = phi [bb7: 0], [bb9: v57]
+    v68 = phi [bb7: v44], [bb9: v58]
+    jump bb1
+  bb1:
+    v9 = phi [bb10: v67], [bb3: v63]
+    v10 = phi [bb10: v68], [bb3: v64]
+    v14 = ne v10, v7
+    jumpi v14, bb3, bb2
+  bb2:
+    mstore 0, v9 !metadata(memory=scratch)
+    returndata 0, 32
+  bb3:
+    v17 = mload v10
+    v18 = add v9, v17
+    v19 = add v10, 32
+    v62 = mload v19
+    v63 = add v18, v62
+    v64 = add v10, 64
+    jump bb1
+  bb6:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb4:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0x5a761098 => bb2]
+  bb2:
+    tail_call @sumWords
+  bb3:
+    revert 0, 0
+}

@@ -458,9 +458,6 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // ABI and memory lowering leave dead guards and empty trampoline blocks.
     // Clean them before EVM shaping isolates phi copies on critical edges.
     &cfg_simplify::CfgSimplify,
-    // Unrolling leaves trivial phis that the CFG cleanup above removes, which exposes shapes
-    // such as `((base + len) + 32) - (base + 32)` that no earlier run could match.
-    &egraph::Egraph,
     // With each straight-line run in one block, the checks that remain branch
     // once per run.
     &merge_aborts::MergeAborts,

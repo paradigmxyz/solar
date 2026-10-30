@@ -11,10 +11,11 @@ fn @countDown() [selector=0x3b396421, abi_wrapper, pure] {
     v20 = ne v19, 0
     jumpi v20, bb6, bb7
   bb6:
+    v12 = add 0, arg0
     v13 = sub arg0, 1
     jump bb7
   bb7:
-    v21 = phi [bb5: 0], [bb6: arg0]
+    v21 = phi [bb5: 0], [bb6: v12]
     v22 = phi [bb5: arg0], [bb6: v13]
     jump bb1
   bb1:
@@ -50,10 +51,11 @@ fn @squaresDown() [selector=0x45ce5caf, abi_wrapper, pure] {
     v24 = eq v23, arg0
     jumpi v24, bb8, bb4
   bb8:
+    v25 = add 0, v22
     v27 = sub arg0, 1
     jump bb10
   bb10:
-    v39 = phi [bb6: 0], [bb8: v22]
+    v39 = phi [bb6: 0], [bb8: v25]
     v40 = phi [bb6: arg0], [bb8: v27]
     jump bb1
   bb1:
@@ -104,10 +106,11 @@ fn @stepDown() [selector=0x4e0372c8, abi_wrapper, pure] {
     v23 = ne v22, 0
     jumpi v23, bb6, bb7
   bb6:
+    v14 = add 0, arg0
     v15 = sub arg0, 2
     jump bb7
   bb7:
-    v24 = phi [bb5: 0], [bb6: arg0]
+    v24 = phi [bb5: 0], [bb6: v14]
     v25 = phi [bb5: arg0], [bb6: v15]
     jump bb1
   bb1:
@@ -139,10 +142,11 @@ fn @downTo() [selector=0x4930868e, abi_wrapper, pure] {
     v26 = ne v25, 0
     jumpi v26, bb6, bb7
   bb6:
+    v17 = add 0, arg0
     v18 = sub arg0, 1
     jump bb7
   bb7:
-    v27 = phi [bb5: 0], [bb6: arg0]
+    v27 = phi [bb5: 0], [bb6: v17]
     v28 = phi [bb5: arg0], [bb6: v18]
     jump bb1
   bb1:

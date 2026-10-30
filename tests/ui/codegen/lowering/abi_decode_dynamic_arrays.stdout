@@ -97,7 +97,8 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
     v49 = mload v82
     mstore v46, v49
     v51 = add v46, 32
-    v55 = sub v84, v51
+    v74 = add v82, 32
+    v55 = sub v74, v51
     v56 = ne v49, 0
     jumpi v56, bb11, bb12
   bb11:

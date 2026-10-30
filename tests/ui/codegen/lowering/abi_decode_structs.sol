@@ -33,9 +33,8 @@ contract AbiDecodeStructs {
     // The element loop steps a pointer through the fresh array and compares it
     // with the array's end instead of counting to two.
     // ADS-LABEL: fn @dFixed
-    // ADS: [[BASE:v[0-9]+]] = mload 64
-    // ADS-NEXT: [[END:v[0-9]+]] = add [[BASE]], 64
-    // ADS-NEXT: mstore 64, [[END]]
+    // ADS: mstore 64, {{v[0-9]+}}
+    // ADS-NEXT: [[END:v[0-9]+]] = add [[BASE:v[0-9]+]], 64
     // ADS: [[PTR:v[0-9]+]] = phi [bb{{[0-9]+}}: [[BASE]]]
     // ADS: lt [[PTR]], [[END]]
     // ADS: icall @[[FIXED_HELPER:decode_memory_type]]

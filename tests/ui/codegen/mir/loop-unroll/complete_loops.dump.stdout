@@ -8,26 +8,30 @@
 
 fn @u32(arg0: i256, arg1: i256) -> struct0 [pure, return_abi=[i256, i256]] {
   bb0:
-    v40 = gt arg1, 0
-    v42 = calldataload arg0
+    v40 = lt 0, arg1
+    v41 = add arg0, 0
+    v42 = calldataload v41
     v43 = byte 0, v42
-    v49 = shl v43, 8
-    v51 = gt arg1, 1
+    v44 = or 0, v43
+    v49 = shl v44, 8
+    v50 = and v49, 0xffffffff
+    v51 = lt 1, arg1
     v79 = and v40, v51
     v52 = add arg0, 1
     v53 = calldataload v52
     v54 = byte 0, v53
-    v55 = or v49, v54
+    v55 = or v50, v54
     v60 = shl v55, 8
-    v62 = gt arg1, 2
+    v61 = and v60, 0xffffffff
+    v62 = lt 2, arg1
     v80 = and v79, v62
     v63 = add arg0, 2
     v64 = calldataload v63
     v65 = byte 0, v64
-    v66 = or v60, v65
+    v66 = or v61, v65
     v71 = shl v66, 8
     v72 = and v71, 0xffffffff
-    v73 = gt arg1, 3
+    v73 = lt 3, arg1
     v81 = and v80, v73
     jumpi v81, bb2, bb1
   bb1:
@@ -46,8 +50,10 @@ fn @u16(arg0: i256, arg1: i256, arg2: i256) -> struct1 [pure, return_abi=[i256, 
     v42 = add arg0, arg2
     v43 = calldataload v42
     v44 = byte 0, v43
+    v45 = or 0, v44
     v46 = add arg2, 1
-    v52 = shl v44, 8
+    v52 = shl v45, 8
+    v53 = and v52, 0xffff
     v54 = lt v46, arg1
     v61 = and v41, v54
     jumpi v61, bb2, bb1
@@ -58,7 +64,7 @@ fn @u16(arg0: i256, arg1: i256, arg2: i256) -> struct1 [pure, return_abi=[i256, 
     v55 = add arg0, v46
     v56 = calldataload v55
     v57 = byte 0, v56
-    v58 = or v52, v57
+    v58 = or v53, v57
     ret v58, v59
 }
 
@@ -97,9 +103,10 @@ fn @sum4() [selector=0x0540a714, abi_wrapper, pure] {
     jumpi v38, bb2, bb3
   bb3:
     v82 = calldataload 4
+    v83 = add 0, v82
     v91 = calldataload 36
-    v92 = add v82, v91
-    v93 = lt v92, v82
+    v92 = add v83, v91
+    v93 = lt v92, v83
     v100 = calldataload 68
     v101 = add v92, v100
     v102 = lt v101, v92

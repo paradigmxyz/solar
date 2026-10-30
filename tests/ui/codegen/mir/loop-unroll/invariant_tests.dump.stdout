@@ -16,6 +16,7 @@ fn @periodStarts() [selector=0x2e930b8e, abi_wrapper, pure] {
   bb7:
     v32 = div arg0, arg1
     v33 = mul v32, arg1
+    v34 = add 0, v33
     v36 = add arg0, 0xe10
     v37 = lt v36, arg0
     jumpi v37, bb5, bb8
@@ -24,7 +25,7 @@ fn @periodStarts() [selector=0x2e930b8e, abi_wrapper, pure] {
     jump bb9
   bb9:
     v39 = phi [bb0: arg0], [bb8: v36]
-    v40 = phi [bb0: 0], [bb8: v33]
+    v40 = phi [bb0: 0], [bb8: v34]
     v41 = phi [bb0: v27], [bb8: v38]
     v64 = and v41, 1
     v65 = ne v64, 0
@@ -96,6 +97,7 @@ fn @keep() [selector=0xdaef3dc2, abi_wrapper, pure] {
   bb7:
     v27 = div arg0, arg1
     v28 = sub arg0, v27
+    v29 = add 0, v28
     v31 = add arg0, 0xde0b6b3a7640000
     v32 = lt v31, arg0
     jumpi v32, bb5, bb8
@@ -104,7 +106,7 @@ fn @keep() [selector=0xdaef3dc2, abi_wrapper, pure] {
     jump bb9
   bb9:
     v34 = phi [bb0: arg0], [bb8: v31]
-    v35 = phi [bb0: 0], [bb8: v28]
+    v35 = phi [bb0: 0], [bb8: v29]
     v36 = phi [bb0: v22], [bb8: v33]
     v59 = and v36, 1
     v60 = ne v59, 0

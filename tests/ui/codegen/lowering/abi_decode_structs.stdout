@@ -160,11 +160,12 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
     v46 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v47 = add v46, 64
     mstore 64, v47 !metadata(memory=scratch)
+    v52 = add v46, 64
     jump bb4
   bb4:
     v48 = phi [bb3: v15], [bb5: v49]
     v50 = phi [bb3: v46], [bb5: v51]
-    v23 = lt v50, v47
+    v23 = lt v50, v52
     jumpi v23, bb5, bb6
   bb6:
     v40 = add v46, 32

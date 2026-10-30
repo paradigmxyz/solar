@@ -19,7 +19,8 @@ fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
   bb2:
     v67 = add v56, 32
     v62 = shl v3, 5
-    mcopy v86, v67, v62
+    v69 = add v56, 64
+    mcopy v69, v67, v62
     mstore v56, 32
     mstore v67, v3
     v64 = add v62, 64

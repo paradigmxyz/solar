@@ -119,7 +119,8 @@ fn @concat() [selector=0x6bdbf8e6, abi_wrapper, pure] {
     icall @mcopy_words, v46, v40, 33
     v48 = add v46, 33
     icall @mcopy_words, v48, v44, 2
-    v51 = add v62, 67
+    v50 = add v62, 35
+    v51 = add v50, 32
     mstore v51, 0
     v6 = mload v62
     v7 = eq v6, 35

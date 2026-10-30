@@ -9,8 +9,8 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v36 = add v35, 4
     v38 = sub v33, 36
     v39 = gt v35, v38
-    v128 = or v34, v39
-    jumpi v128, bb4, bb5
+    v127 = or v34, v39
+    jumpi v127, bb4, bb5
   bb5:
     v40 = calldataload v36
     v41 = add v36, 32
@@ -22,8 +22,8 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v87 = lt v86, v85
     v88 = gt v86, 0xffffffffffffffff
     v89 = or v87, v88
-    v129 = or v43, v89
-    jumpi v129, bb6, bb8
+    v128 = or v43, v89
+    jumpi v128, bb6, bb8
   bb8:
     mstore 64, v86 !metadata(memory=scratch)
     mstore v85, v40
@@ -46,9 +46,9 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     mstore 15, 0x30313233343536373839616263646566 !metadata(memory=scratch)
     v5 = add v3, 32
     v7 = add v85, v1
-    v124 = and v1, 1
-    v125 = ne v124, 0
-    jumpi v125, bb9, bb10
+    v123 = and v1, 1
+    v124 = ne v123, 0
+    jumpi v124, bb9, bb10
   bb9:
     v97 = add v85, 1
     v98 = mload v97
@@ -64,12 +64,12 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v106 = add v5, 2
     jump bb10
   bb10:
-    v126 = phi [bb7: v85], [bb9: v97]
-    v127 = phi [bb7: v5], [bb9: v106]
+    v125 = phi [bb7: v85], [bb9: v97]
+    v126 = phi [bb7: v5], [bb9: v106]
     jump bb1
   bb1:
-    v8 = phi [bb10: v126], [bb3: v112]
-    v11 = phi [bb10: v127], [bb3: v121]
+    v8 = phi [bb10: v125], [bb3: v112]
+    v11 = phi [bb10: v126], [bb3: v121]
     v16 = ne v8, v7
     jumpi v16, bb3, bb2
   bb2:
@@ -163,10 +163,11 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     jumpi v64, bb9, bb10
   bb9:
     v54 = mload v42
+    v55 = add 0, v54
     v56 = add v42, 32
     jump bb10
   bb10:
-    v65 = phi [bb7: 0], [bb9: v54]
+    v65 = phi [bb7: 0], [bb9: v55]
     v66 = phi [bb7: v42], [bb9: v56]
     jump bb1
   bb1:
@@ -204,10 +205,11 @@ fn @stepThree() [selector=0xbf2eba92, abi_wrapper, pure] {
     v26 = ne v25, 0
     jumpi v26, bb6, bb7
   bb6:
+    v17 = add 0, arg0
     v18 = add arg0, 3
     jump bb7
   bb7:
-    v27 = phi [bb5: 0], [bb6: arg0]
+    v27 = phi [bb5: 0], [bb6: v17]
     v28 = phi [bb5: arg0], [bb6: v18]
     jump bb1
   bb1:
