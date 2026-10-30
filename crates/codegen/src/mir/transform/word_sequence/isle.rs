@@ -6,6 +6,7 @@
 
 use super::{Recipe, Temporary, mask_uses::MaskUses, widest_int_operand};
 use crate::{
+    backend::evm::op,
     mir::{
         Function, InstId, InstKind, MirType, Op, Value as MirValue, ValueId,
         analysis::integers::integer_mask,
@@ -130,6 +131,12 @@ impl generated::Context for Context<'_> {
         (value > U256::ONE && value.is_power_of_two()).then(|| U256::from(value.trailing_zeros()))
     }
 
+    fn low_mask_shift(&mut self, mask: U256) -> Option<U256> {
+        let bits = self.scalar_ty.integer_bits().unwrap() as usize;
+        let ones = mask.count_ones();
+        (mask.bit_len() == ones && (1..bits).contains(&ones)).then(|| U256::from(bits - ones))
+    }
+
     fn u256_shr(&mut self, a: U256, b: U256) -> U256 {
         if a >= U256::from(256) { U256::ZERO } else { b >> a.to::<usize>() }
     }
@@ -158,7 +165,16 @@ impl generated::Context for Context<'_> {
     }
 
     fn sequence(&mut self, root: &Op) -> Recipe {
-        Recipe { root: *root, scalar_ty: self.scalar_ty, temporaries: self.temporaries.clone() }
+        Recipe {
+            root: *root,
+            scalar_ty: self.scalar_ty,
+            temporaries: self.temporaries.clone(),
+            enabling: false,
+        }
+    }
+
+    fn enabling_sequence(&mut self, root: &Op) -> Recipe {
+        Recipe { enabling: true, ..self.sequence(root) }
     }
 
     fn imm(&mut self, value: U256) -> Option<Value> {
@@ -217,6 +233,22 @@ impl generated::Context for Context<'_> {
 
     fn compared_mask(&mut self, value: Value, mask: U256) -> bool {
         // An equality with a constant that the mask keeps can compare the shifted value instead.
-        self.masks().compared(value, mask)
+        // The rewrite must pay for both shifts with the bytes the narrowed constants save, since
+        // the later e-graph keeps the left shift unless narrowing is cheaper.
+        let shift = U256::from(mask.trailing_zeros());
+        let target = self.target;
+        let masks = self.masks();
+        if masks.compared(value, mask).next().is_none() {
+            return false;
+        }
+        let saved = masks
+            .compared(value, mask)
+            .map(|c| target.push(c).bytes.saturating_sub(target.push(c >> shift).bytes))
+            .sum::<u32>();
+        let [and, shr, shl] = [op::AND, op::SHR, op::SHL].map(|opcode| target.opcode(opcode).bytes);
+        let (dup, push_mask, push_shift) =
+            (target.dup().bytes, target.push(mask).bytes, target.push(shift).bytes);
+        // x & mask => (x >> s) << s, with one more `dup` on the pair so that it must gain a byte
+        saved + and + push_mask + dup >= shr + shl + 2 * push_shift + 2 * dup
     }
 }

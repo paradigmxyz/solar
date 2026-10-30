@@ -84,9 +84,12 @@
     dup 1
     push 8
     shl
-    push 1
-    swap 1
-    sub
+-   push 1
+-   swap 1
+-   sub
++   push 0
++   not
++   add
     stop
   bb9:
     push 1
@@ -94,9 +97,12 @@
     add
     push 8
     shl
-    push 1
-    swap 1
-    sub
+-   push 1
+-   swap 1
+-   sub
++   push 0
++   not
++   add
     stop
   bb10:
     push 64

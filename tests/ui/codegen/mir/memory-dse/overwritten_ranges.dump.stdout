@@ -43,23 +43,21 @@ fn @allocated() [selector=0x6649a3b9, abi_wrapper, pure] {
     v10 = lt v9, 68
     jumpi v10, bb1, bb2
   bb2:
-    v25 = heap_floor !metadata(alloc_ptr)
-    v26 = add v25, 96 !metadata(alloc_ptr)
-    v27 = lt v26, v25
-    v28 = zext i1 v27 to i256
-    v29 = shr v26, 64
+    v26 = heap_floor !metadata(alloc_ptr)
+    v27 = add v26, 96 !metadata(alloc_ptr)
+    v28 = lt v27, v26
+    v29 = gt v27, 0xffffffffffffffff
     v30 = or v28, v29
-    v31 = ne v30, 0
-    jumpi v31, bb4, bb3
+    jumpi v30, bb4, bb3
   bb3:
-    v21 = add v25, 32
-    mstore v21, arg0
-    v23 = add v25, 64
-    mstore v23, arg1
-    mcopy v23, v21, 64
-    mstore v25, 32
-    mstore v21, 2
-    returndata v25, 128
+    mstore v26, 2
+    v20 = add v26, 32
+    mstore v20, arg0
+    v22 = add v26, 64
+    mstore v22, arg1
+    v24 = sub v26, 32
+    mstore v24, 32
+    returndata v24, 128
   bb4:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

@@ -834,18 +834,7 @@ impl<'a> Verifier<'a> {
                 }
             }
         }
-        for (block_id, block) in module.blocks.iter_enumerated() {
-            for (at, inst) in block.instructions.iter().enumerate() {
-                if let Some(target) = inst.pushed_block()
-                    && !block.instructions.get(at + 1).is_some_and(|next| {
-                        matches!(next.as_evm_opcode(), Some(op::JUMP | op::JUMPI))
-                    })
-                    && !flows[block_id].accounted.contains(&at)
-                {
-                    pending.push(target);
-                }
-            }
-        }
+        unmodeled_entries(module, &flows, &mut pending);
         let mut unknown = DenseBitSet::new_empty(module.blocks.len());
         while let Some(block_id) = pending.pop() {
             if unknown.insert(block_id) {
@@ -854,6 +843,83 @@ impl<'a> Verifier<'a> {
             }
         }
         upper
+    }
+
+    /// Returns the blocks that can be entered after a call or create has run in the same frame.
+    ///
+    /// Every other block runs with the empty return data buffer the frame started with. A call
+    /// or create taints the successors of its block, and a continuation is tainted when the code
+    /// it returns from can run one. Blocks entered through unmodeled dynamic jumps, and blocks
+    /// that declare an entry of their own, are tainted along with everything they reach. When
+    /// that code can run a call or create, any dynamic return may follow one.
+    pub fn blocks_after_returndata_set(module: &Module) -> DenseBitSet<BlockId> {
+        let flows = label_flows(module);
+        let mut predecessors = index_vec![Vec::new(); module.blocks.len()];
+        // The first call or create in each block.
+        let sets = module
+            .blocks
+            .iter()
+            .map(|block| {
+                block
+                    .instructions
+                    .iter()
+                    .position(|inst| inst.as_evm_opcode().is_some_and(op::sets_returndata))
+            })
+            .collect::<IndexVec<BlockId, _>>();
+        let mut successors = Vec::new();
+        for (block_id, block) in module.blocks.iter_enumerated() {
+            successors.clear();
+            direct_successors(&flows[block_id], block, &mut successors);
+            for &target in &successors {
+                predecessors[target].push(block_id);
+            }
+        }
+
+        // The blocks entered without a modeled edge, and everything they reach.
+        let mut pending = Vec::new();
+        unmodeled_entries(module, &flows, &mut pending);
+        pending.extend(module.blocks.iter_enumerated().filter_map(|(block_id, block)| {
+            (block_id != BlockId::ENTRY && block.metadata.entry_depth.is_some()).then_some(block_id)
+        }));
+        let mut after = DenseBitSet::new_empty(module.blocks.len());
+        while let Some(block_id) = pending.pop() {
+            if after.insert(block_id) {
+                direct_successors(&flows[block_id], &module.blocks[block_id], &mut pending);
+            }
+        }
+
+        // The blocks that can reach a call or create, taking an unmodeled entry to run one when
+        // any does, which every dynamic jump may then reach.
+        let dynamic_sets = after.iter().any(|block_id| sets[block_id].is_some());
+        let mut runs = DenseBitSet::new_empty(module.blocks.len());
+        pending.extend(sets.indices().filter(|&block_id| sets[block_id].is_some()));
+        if dynamic_sets {
+            pending.extend(
+                module.blocks.indices().filter(|&id| jumps_dynamically(&module.blocks[id])),
+            );
+        }
+        while let Some(block_id) = pending.pop() {
+            if runs.insert(block_id) {
+                pending.extend(predecessors[block_id].iter().copied());
+            }
+        }
+
+        for (block_id, block) in module.blocks.iter_enumerated() {
+            if let Some(at) = sets[block_id] {
+                successors_after(&flows[block_id], block, at, &mut pending);
+            } else if let Some(TerminatorKind::Jump(callee)) =
+                block.terminator.as_ref().map(|term| &term.kind)
+                && runs.contains(*callee)
+            {
+                pending.extend(flows[block_id].returns.iter().map(|&(next, _)| next));
+            }
+        }
+        while let Some(block_id) = pending.pop() {
+            if after.insert(block_id) {
+                direct_successors(&flows[block_id], &module.blocks[block_id], &mut pending);
+            }
+        }
+        after
     }
 }
 
@@ -1064,18 +1130,7 @@ fn label_flows(module: &Module) -> IndexVec<BlockId, LabelFlow> {
     let mut pending = Vec::new();
     let mut successors = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
-        let dynamic_branch = block.instructions.iter().enumerate().any(|(at, inst)| {
-            inst.opcode == op::JUMPI
-                && !at
-                    .checked_sub(1)
-                    .is_some_and(|previous| block.instructions[previous].pushed_block().is_some())
-        });
-        if dynamic_branch
-            || matches!(
-                block.terminator.as_ref().map(|term| &term.kind),
-                Some(TerminatorKind::Op(op::JUMP))
-            )
-        {
+        if jumps_dynamically(block) {
             pending.push(block_id);
         }
         successors.clear();
@@ -1092,13 +1147,58 @@ fn label_flows(module: &Module) -> IndexVec<BlockId, LabelFlow> {
     module.blocks.iter().map(|block| label_flow(module, block, &may_return)).collect()
 }
 
+/// Returns whether `block` can end in a jump or a branch through a stack value.
+fn jumps_dynamically(block: &Block) -> bool {
+    let dynamic_branch = block.instructions.iter().enumerate().any(|(at, inst)| {
+        inst.opcode == op::JUMPI
+            && !at
+                .checked_sub(1)
+                .is_some_and(|previous| block.instructions[previous].pushed_block().is_some())
+    });
+    dynamic_branch
+        || matches!(
+            block.terminator.as_ref().map(|term| &term.kind),
+            Some(TerminatorKind::Op(op::JUMP))
+        )
+}
+
+/// Appends the blocks whose address a block pushes other than to branch to it or to return
+/// through it as a call's continuation. Such an address may be copied, stored, or carried to a
+/// dynamic jump, so its block can be entered at a depth, and in a state, the direct edges do not
+/// model.
+fn unmodeled_entries(
+    module: &Module,
+    flows: &IndexVec<BlockId, LabelFlow>,
+    out: &mut Vec<BlockId>,
+) {
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        for (at, inst) in block.instructions.iter().enumerate() {
+            if let Some(target) = inst.pushed_block()
+                && !block
+                    .instructions
+                    .get(at + 1)
+                    .is_some_and(|next| matches!(next.as_evm_opcode(), Some(op::JUMP | op::JUMPI)))
+                && !flows[block_id].accounted.contains(&at)
+            {
+                out.push(target);
+            }
+        }
+    }
+}
+
 /// Appends every direct control-flow successor of `block`, in walk order.
 ///
 /// The `push bbN; jumpi` pair is a physical conditional branch inside a block, so its target is
 /// an edge as well, and so is the continuation of a call. Dynamic jumps through a stack value,
 /// which is how an internal function returns, carry no target and therefore no edge.
 fn direct_successors(flow: &LabelFlow, block: &Block, out: &mut Vec<BlockId>) {
-    for (index, inst) in block.instructions.iter().enumerate() {
+    successors_after(flow, block, 0, out);
+}
+
+/// Appends the direct successors of `block` that execution reaches after the instruction at
+/// `start`: the targets of its later branches, and those of its terminator.
+fn successors_after(flow: &LabelFlow, block: &Block, start: usize, out: &mut Vec<BlockId>) {
+    for (index, inst) in block.instructions.iter().enumerate().skip(start) {
         if inst.opcode == op::JUMPI
             && let Some(target) =
                 index.checked_sub(1).and_then(|index| block.instructions[index].pushed_block())

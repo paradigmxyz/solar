@@ -218,28 +218,26 @@ fn @recycled() [selector=0xa163996f, abi_wrapper, pure] {
 
 fn @fresh() [selector=0xb466b76f, abi_wrapper, pure] {
   bb0:
-    v29 = icall @alloc, 128
-    v31 = calldatasize
-    calldatacopy v29, v31, 128
-    v23 = add v29, 32
-    mstore v23, 1
-    v25 = add v29, 64
-    mstore v25, 2
-    v27 = add v29, 96
-    mstore v27, 3
-    icall @mcopy_words, v25, v23, 96
-    mstore v29, 32
-    mstore v23, 3
-    returndata v29, 160
+    v30 = icall @alloc, 128
+    mstore v30, 3
+    v22 = add v30, 32
+    mstore v22, 1
+    v24 = add v30, 64
+    mstore v24, 2
+    v26 = add v30, 96
+    mstore v26, 3
+    v28 = sub v30, 32
+    mstore v28, 32
+    returndata v28, 160
 }
 
 fn @freshEmpty() [selector=0x2f9cb906, abi_wrapper, pure] {
   bb0:
-    v13 = icall @alloc, 32
-    mstore v13, 32
-    v11 = add v13, 32
-    mstore v11, 0
-    returndata v13, 64
+    v12 = icall @alloc, 32
+    mstore v12, 0
+    v10 = sub v12, 32
+    mstore v10, 32
+    returndata v10, 64
 }
 
 fn @recycledTail() [selector=0x52eea5e4, abi_wrapper, pure] {

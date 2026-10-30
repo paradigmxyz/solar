@@ -1,0 +1,53 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=word-sequence
+//@ filecheck:
+@module CheckConditions
+
+// A check branches on its condition when lowered, so `JUMPI` reads the shifted word: the test
+// stays a shift and does not become a comparison with a 32-byte bound.
+// CHECK-LABEL: fn @check_only(
+// CHECK-NOT: gt
+// CHECK: ne {{v[0-9]+}}, 0
+// CHECK-LABEL: fn @two_checks(
+fn @check_only(arg0: i256) -> i256 {
+  bb0:
+    v0 = shr arg0, 251
+    v1 = ne v0, 0
+    icall panic_if<0x41>, v1
+    ret arg0
+}
+
+// Every use is a check or a branch, so the test stays a shift for each of them.
+// CHECK-NOT: gt
+// CHECK-LABEL: fn @check_and_branch(
+fn @two_checks(arg0: i256) -> i256 {
+  bb0:
+    v0 = shr arg0, 251
+    v1 = ne v0, 0
+    icall panic_if<0x41>, v1
+    icall panic_if<0x32>, v1
+    ret arg0
+}
+
+// CHECK-NOT: gt
+// CHECK-LABEL: fn @also_value(
+fn @check_and_branch(arg0: i256) -> i256 {
+  bb0:
+    v0 = shr arg0, 251
+    v1 = ne v0, 0
+    icall panic_if<0x41>, v1
+    jumpi v1, bb1, bb2
+  bb1:
+    ret 0
+  bb2:
+    ret arg0
+}
+
+// A test that is also a value needs a boolean, which one comparison gives.
+// CHECK: + {{v[0-9]+}} = gt arg0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fn @also_value(arg0: i256) -> i1 {
+  bb0:
+    v0 = shr arg0, 251
+    v1 = ne v0, 0
+    icall panic_if<0x41>, v1
+    ret v1
+}

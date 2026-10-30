@@ -104,17 +104,15 @@ fn @storeSome() [selector=0x26843d1f, abi_wrapper, pure] {
     revert 28, 36
   bb2:
     v54 = mload v50
+    v55 = add v54, 31
+    v57 = and v55, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v65 = add v50, 32
-    v56 = add v54, 31
-    v58 = and v56, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v60 = add v65, v58
+    v60 = add v65, v54
     mstore v60, 0
-    v67 = add v50, 64
-    mcopy v67, v65, v54
-    mstore v50, 32
-    mstore v65, v54
-    v62 = add v58, 64
-    returndata v50, v62
+    v67 = sub v50, 32
+    mstore v67, 32
+    v62 = add v57, 64
+    returndata v67, v62
   bb12:
     revert 0, 0
 }

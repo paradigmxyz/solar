@@ -17,31 +17,31 @@ fn @whole() [selector=0xbbbb2e8a, abi_wrapper, pure] {
     jumpi v2, bb8, bb9
   bb9:
     v4 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v100 = icall @alloc, v4
-    mstore v100, v0
+    v99 = icall @alloc, v4
+    mstore v99, v0
     v26 = eq v0, 0
     jumpi v26, bb2, bb4
   bb4:
     v80 = add v61, 32
-    v82 = add v100, 32
+    v82 = add v99, 32
     v30 = add v80, v0
-    v84 = add v100, v4
+    v84 = add v99, v4
     v35 = lt v61, v84
-    v36 = lt v100, v30
+    v36 = lt v99, v30
     v37 = and v35, v36
     v39 = lt v61, 96
     v42 = or v37, v39
     jumpi v42, bb6, bb5
   bb5:
     v43 = sub v4, 32
-    v86 = add v100, v43
+    v86 = add v99, v43
     mstore v86, 0
     mcopy v82, v80, v0
     jump bb2
   bb6:
     v45 = sub v4, 32
-    v101 = calldatasize
-    calldatacopy v82, v101, v45
+    v100 = calldatasize
+    calldatacopy v82, v100, v45
     v52 = add v82, v0
     v53 = lt v82, v30
     v54 = lt v61, v52
@@ -67,30 +67,28 @@ fn @whole() [selector=0xbbbb2e8a, abi_wrapper, pure] {
     v89 = add v88, 32
     v16 = mload v89
     v17 = byte 0, v16
-    v19 = mload v100
+    v19 = mload v99
     v20 = lt v9, v19
     jumpi v20, bb12, bb10
   bb10:
     tail_call @revert_stub.11
   bb12:
-    v91 = add v100, v9
+    v91 = add v99, v9
     v92 = add v91, 32
     mstore8 v92, v17
     v25 = add v9, 1
     jump bb1
   bb2:
-    v65 = mload v100
-    v76 = add v100, 32
-    v67 = add v65, 31
-    v69 = and v67, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v71 = add v76, v69
+    v65 = mload v99
+    v66 = add v65, 31
+    v68 = and v66, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v76 = add v99, 32
+    v71 = add v76, v65
     mstore v71, 0
-    v78 = add v100, 64
-    mcopy v78, v76, v65
-    mstore v100, 32
-    mstore v76, v65
-    v73 = add v69, 64
-    returndata v100, v73
+    v78 = sub v99, 32
+    mstore v78, 32
+    v73 = add v68, 64
+    returndata v78, v73
   bb8:
     tail_call @revert_stub.10
   bb14:
@@ -114,18 +112,18 @@ fn @rest() [selector=0xbf352668, abi_wrapper, pure] {
     jumpi v3, bb8, bb9
   bb9:
     v5 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v133 = icall @alloc, v5
-    mstore v133, v86
+    v132 = icall @alloc, v5
+    mstore v132, v86
     v38 = eq v86, 0
     jumpi v38, bb2, bb4
   bb4:
     v111 = add v92, arg1
     v112 = add v111, 32
-    v114 = add v133, 32
+    v114 = add v132, 32
     v43 = add v112, v86
-    v116 = add v133, v5
+    v116 = add v132, v5
     v48 = lt v92, v116
-    v49 = lt v133, v43
+    v49 = lt v132, v43
     v50 = and v48, v49
     v51 = zext i1 v50 to i256
     v118 = add v92, 32
@@ -142,8 +140,8 @@ fn @rest() [selector=0xbf352668, abi_wrapper, pure] {
     jump bb2
   bb6:
     v61 = sub v5, 32
-    v134 = calldatasize
-    calldatacopy v114, v134, v61
+    v133 = calldatasize
+    calldatacopy v114, v133, v61
     v69 = add v114, v86
     v70 = lt v114, v43
     v71 = lt v92, v69
@@ -174,33 +172,31 @@ fn @rest() [selector=0xbf352668, abi_wrapper, pure] {
     v121 = add v120, 32
     v19 = mload v121
     v20 = byte 0, v19
-    v22 = mload v133
+    v22 = mload v132
     v23 = lt v11, v22
     jumpi v23, bb12, bb10
   bb10:
     tail_call @revert_stub.11
   bb12:
-    v123 = add v133, v11
+    v123 = add v132, v11
     v124 = add v123, 32
     mstore8 v124, v20
     v28 = add v11, 1
     jump bb1
   bb2:
-    v30 = mload v133
-    v32 = add v133, 32
+    v30 = mload v132
+    v32 = add v132, 32
     v33 = add v32, v30
     mstore v33, 0
-    v96 = mload v133
-    v98 = add v96, 31
-    v100 = and v98, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v102 = add v32, v100
+    v96 = mload v132
+    v97 = add v96, 31
+    v99 = and v97, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v102 = add v32, v96
     mstore v102, 0
-    v109 = add v133, 64
-    mcopy v109, v32, v96
-    mstore v133, 32
-    mstore v32, v96
-    v104 = add v100, 64
-    returndata v133, v104
+    v109 = sub v132, 32
+    mstore v109, 32
+    v104 = add v99, 64
+    returndata v109, v104
   bb8:
     tail_call @revert_stub.10
   bb14:
@@ -363,17 +359,15 @@ fn @overlapWhole() [selector=0x6fe4703b, abi_wrapper, pure] {
     mstore 64, v1 !metadata(memory=scratch)
     v2 = icall @_whole, v5
     v9 = mload v2
+    v10 = add v9, 31
+    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v20 = add v2, 32
-    v11 = add v9, 31
-    v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v15 = add v20, v13
+    v15 = add v20, v9
     mstore v15, 0
-    v22 = add v2, 64
-    mcopy v22, v20, v9
-    mstore v2, 32
-    mstore v20, v9
-    v17 = add v13, 64
-    returndata v2, v17
+    v22 = sub v2, 32
+    mstore v22, 32
+    v17 = add v12, 64
+    returndata v22, v17
   bb1:
     revert 0, 0
 }
@@ -389,17 +383,15 @@ fn @overlapRest() [selector=0x4dafe7dc, abi_wrapper, pure] {
     mstore 64, v1 !metadata(memory=scratch)
     v2 = icall @_rest, v9, arg1
     v13 = mload v2
+    v14 = add v13, 31
+    v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v24 = add v2, 32
-    v15 = add v13, 31
-    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = add v24, v17
+    v19 = add v24, v13
     mstore v19, 0
-    v26 = add v2, 64
-    mcopy v26, v24, v13
-    mstore v2, 32
-    mstore v24, v13
-    v21 = add v17, 64
-    returndata v2, v21
+    v26 = sub v2, 32
+    mstore v26, 32
+    v21 = add v16, 64
+    returndata v26, v21
   bb1:
     revert 0, 0
 }
@@ -413,17 +405,15 @@ fn @lengthWordCovered() [selector=0x06bd068d, abi_wrapper, pure] {
     mstore v2, 0x101010101010101010101010101010101010101010101010101010101010101
     v4 = icall @_count, v1, 32
     v12 = mload v4
+    v13 = add v12, 31
+    v15 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v23 = add v4, 32
-    v14 = add v12, 31
-    v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v18 = add v23, v16
+    v18 = add v23, v12
     mstore v18, 0
-    v25 = add v4, 64
-    mcopy v25, v23, v12
-    mstore v4, 32
-    mstore v23, v12
-    v20 = add v16, 64
-    returndata v4, v20
+    v25 = sub v4, 32
+    mstore v25, 32
+    v20 = add v15, 64
+    returndata v25, v20
 }
 
 fn @_whole(arg0: i256) -> i256 [may_return_memory, pure] {

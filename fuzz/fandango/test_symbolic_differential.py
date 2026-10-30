@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import io
 import json
+import os
 import pathlib
 import tempfile
 import unittest
@@ -992,7 +994,12 @@ class CommandTests(unittest.TestCase):
             solc = self._write_compiler(root / "solc", solc_input, "60" * 300)
             solar = self._write_compiler(root / "solar", solar_input, "60" * 400)
             forge = self._write_forge(root / "forge", max_dynamic_length=400)
-            solver = self._write_executable(root / "z3", "#!/bin/sh\nexit 0\n")
+            self._write_executable(root / "z3", "#!/bin/sh\nexit 0\n")
+            self.enterContext(
+                patch.dict(
+                    os.environ, {"PATH": f"{root}{os.pathsep}{os.environ['PATH']}"}
+                )
+            )
             args = argparse.Namespace(
                 source=source,
                 contract="Probe",
@@ -1000,7 +1007,7 @@ class CommandTests(unittest.TestCase):
                 solc=str(solc),
                 solar=str(solar),
                 forge=str(forge),
-                solver=str(solver),
+                solver="z3",
                 timeout=10.0,
                 max_paths=32,
                 max_solver_queries=100,
@@ -1028,6 +1035,14 @@ class CommandTests(unittest.TestCase):
 
             self.assertEqual(result["status"], "bounded_agreement")
             self.assertEqual(result["bounds"]["max_dynamic_length"], 400)
+            self.assertEqual((root / "solver").read_text(), "z3")
+            args.solver = "./z3"
+            with contextlib.chdir(root):
+                symbolic.run(args, root / "path-out")
+            self.assertEqual(
+                (root / "solver").read_text(), str((root / "z3").resolve())
+            )
+            args.solver = "z3"
             self.assertEqual(solc_input.read_bytes(), solar_input.read_bytes())
             standard_input = json.loads(solc_input.read_text())
             self.assertEqual(
@@ -1117,7 +1132,7 @@ class CommandTests(unittest.TestCase):
                                 "--forge",
                                 str(forge),
                                 "--solver",
-                                str(solver),
+                                "z3",
                                 "--output-root",
                                 str(root / "literal-source-out"),
                                 "--max-paths",
@@ -1272,6 +1287,8 @@ class CommandTests(unittest.TestCase):
             "if '--help' in sys.argv:\n"
             "    print('--allow-local-compiler')\n"
             "    raise SystemExit\n"
+            "solver = sys.argv.index('--symbolic-solver')\n"
+            "pathlib.Path(__file__).with_name('solver').write_text(sys.argv[solver + 1])\n"
             "index = sys.argv.index('--symbolic-max-dynamic-length')\n"
             f"assert sys.argv[index + 1] == {str(max_dynamic_length)!r}\n"
             f"assert 'max_dynamic_length = {max_dynamic_length}' in "

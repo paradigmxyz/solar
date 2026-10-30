@@ -477,7 +477,8 @@
       (if-let masked (make (Op.And changed mask))) (sequence (Op.Xor x masked)))
 
 ;; x & m => (x >> s) << s, when x & m is compared with constants. A later e-graph
-;; compares x >> s with narrow constants instead, and the mask may not be shared.
+;; compares x >> s with narrow constants instead, and the mask may not be shared. The pair is no
+;; cheaper than `and` with a mask built by shifts, so it does not need to be.
 ;; Requires: m is a constant that keeps every bit from s up, m == MAX << s.
 (rule (sequence_rewrite (Op.And x (iconst m)))
       (if-let true (late_word_sequence))
@@ -485,4 +486,4 @@
       (if-let true (unshared_mask m))
       (if-let true (compared_mask x m))
       (if-let count (imm s))
-      (if-let low (make (Op.Shr count x))) (sequence (Op.Shl count low)))
+      (if-let low (make (Op.Shr count x))) (enabling_sequence (Op.Shl count low)))

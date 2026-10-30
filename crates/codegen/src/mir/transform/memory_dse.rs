@@ -108,8 +108,8 @@
 use crate::{
     mir::{
         AllocationFailure, BasicBlock, BlockId, Callee, EffectKind, Function, FunctionId,
-        Immediate, InstId, InstKind, MangledSymbol, MemoryRegion, MirType, Module, PtrLocation,
-        RawMemoryAccess, Terminator, Value, ValueId,
+        Immediate, InstId, InstKind, MangledSymbol, MemoryRegion, MirModuleTarget, MirType, Module,
+        PtrLocation, RawMemoryAccess, Terminator, Value, ValueId,
         analysis::{
             Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
             MemoryAddress, MemoryBase, MemoryCallSummaries, MemoryLocation, ModRef, ReadBounds,

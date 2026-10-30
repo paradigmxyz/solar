@@ -1,0 +1,89 @@
+- // === ROOT/tests/ui/codegen/mir/call-cleanup/returned_masks.mir (before call-cleanup) ===
++ // === ROOT/tests/ui/codegen/mir/call-cleanup/returned_masks.mir (after call-cleanup) ===
+  @module ReturnedMasks
+  fn @clean_result(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @masked, arg0
+-     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+-     ret v1
++     ret v0
+  }
+  
+  fn @dirty_result(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @sometimes_dirty, arg0
+      v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+      ret v1
+  }
+  
+  fn @masked(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+      ret v0
+  }
+  
+  fn @sometimes_dirty(arg0: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      ret arg0
+    bb1:
+      v1 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+      ret v1
+  }
+  
+  fn @tail_result(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @forwards, arg0
+      v1 = and v0, 255
+      ret v1
+  }
+  
+  fn @forwards(arg0: i256) -> i256 {
+    bb0:
+      tail_call @masked, arg0
+  }
+  
+  fn @recursive_result(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @recursive, arg0
+-     v1 = and v0, 255
+-     ret v1
++     ret v0
+  }
+  
+  fn @recursive(arg0: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      ret 5
+    bb1:
+      v1 = sub arg0, 1
+      v2 = icall @recursive, v1
+-     v3 = and v2, 255
+-     ret v3
++     ret v2
+  }
+  
+  fn @wide_recursive_result(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @wide_recursive, arg0
+      v1 = and v0, 255
+      ret v1
+  }
+  
+  fn @wide_recursive(arg0: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      ret arg0
+    bb1:
+      v1 = sub arg0, 1
+      v2 = icall @wide_recursive, v1
+      v3 = and v2, 255
+      ret v3
+  }
+  
