@@ -458,6 +458,12 @@ impl Target {
         compact_pushes::immediate_materialization(self.evm_version, value)
     }
 
+    /// Cost of pushing `value` as one literal `PUSHn`, the form a push keeps when its compact
+    /// recipe does not repay.
+    pub(crate) fn literal_push(&self, value: U256) -> Cost {
+        compact_pushes::literal_push(self.evm_version, value)
+    }
+
     /// Whether reading `value` as an immediate costs no more gas than a `DUP` and at most one
     /// byte more, as `PUSH0` and `PUSH1` do. A wider constant makes every read it replaces larger.
     pub(crate) fn is_cheap_immediate(&self, value: U256) -> bool {

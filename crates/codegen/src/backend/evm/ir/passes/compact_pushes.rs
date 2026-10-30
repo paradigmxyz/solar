@@ -254,6 +254,11 @@ pub(crate) fn immediate_materialization(evm_version: EvmVersion, value: U256) ->
     select_recipe(evm_version, value, false).cost
 }
 
+/// Returns the cost of pushing `value` as one literal `PUSHn`.
+pub(crate) fn literal_push(evm_version: EvmVersion, value: U256) -> Cost {
+    literal_cost(push_width(evm_version, value))
+}
+
 /// Returns the byte length and gas cost of the selected immediate materialization.
 pub(crate) fn immediate_materialization_cost(
     evm_version: EvmVersion,
