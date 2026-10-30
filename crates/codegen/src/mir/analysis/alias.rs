@@ -2773,28 +2773,40 @@ impl AliasAnalysis {
 
     /// Whether `offset`, an operand of `user`, is below `2^255`: by its type or opcode, or because
     /// an earlier access in `user`'s block spans that many bytes. A successful access of a
-    /// nonempty range ends below `2^64`, so its size is below `2^64`, or zero.
+    /// nonempty range ends below `2^64`, so its size is below `2^64`, or zero. The search for the
+    /// block gives up after 1024 instructions, so a query costs the same in a large function.
     fn bounded_offset(func: &Function, offset: ValueId, user: InstId) -> bool {
+        const BUDGET: usize = 1024;
         let below_half = |bounds: (U256, U256)| bounds.1 <= U256::MAX >> 1;
         if below_half(super::integers::unsigned_bounds_with_opcodes(func, offset)) {
             return true;
         }
-        let Some(block) = func.blocks.iter().find(|block| block.instructions.contains(&user))
-        else {
-            return false;
-        };
         let mut sizes = SmallVec::<[ValueId; 8]>::new();
-        for &inst in block.instructions.iter().take_while(|&&inst| inst != user) {
-            func.inst(inst).kind.visit_raw_memory(|access, _, size| {
-                if let RawMemorySize::Value(size) = size
-                    && access != RawMemoryAccess::PartialWrite
-                {
-                    sizes.push(size);
+        let mut budget = BUDGET;
+        for block in &func.blocks {
+            let searched = &block.instructions[..block.instructions.len().min(budget)];
+            if let Some(at) = searched.iter().position(|&inst| inst == user) {
+                for &inst in &searched[..at] {
+                    func.inst(inst).kind.visit_raw_memory(|access, _, size| {
+                        if let RawMemorySize::Value(size) = size
+                            && access != RawMemoryAccess::PartialWrite
+                        {
+                            sizes.push(size);
+                        }
+                    });
                 }
-            });
+                let known =
+                    |value| sizes.contains(&value).then_some((U256::ZERO, U256::from(u64::MAX)));
+                return below_half(super::integers::unsigned_bounds_with_opcodes_and(
+                    func, offset, known,
+                ));
+            }
+            budget -= searched.len();
+            if budget == 0 {
+                break;
+            }
         }
-        let known = |value| sizes.contains(&value).then_some((U256::ZERO, U256::from(u64::MAX)));
-        below_half(super::integers::unsigned_bounds_with_opcodes_and(func, offset, known))
+        false
     }
 
     /// Returns the heap pointer `base` of a sum `base + offset`, in either order, when `offset`
@@ -2817,15 +2829,19 @@ impl AliasAnalysis {
     }
 
     /// Whether `value` is an allocation or the free-memory pointer, plus constant offsets.
-    fn is_heap_pointer(func: &Function, value: ValueId) -> bool {
-        let value = Self::memory_address_value(func, value);
-        let Value::Inst(inst) = *func.value(value) else { return false };
-        match func.inst(inst).kind {
-            InstKind::Alloc { .. } | InstKind::Fmp => true,
-            InstKind::Add(base, offset) | InstKind::PtrAdd(base, offset) => {
-                func.value_u64(offset).is_some() && Self::is_heap_pointer(func, base)
+    fn is_heap_pointer(func: &Function, mut value: ValueId) -> bool {
+        loop {
+            value = Self::memory_address_value(func, value);
+            let Value::Inst(inst) = *func.value(value) else { return false };
+            match func.inst(inst).kind {
+                InstKind::Alloc { .. } | InstKind::Fmp => return true,
+                InstKind::Add(base, offset) | InstKind::PtrAdd(base, offset)
+                    if func.value_u64(offset).is_some() =>
+                {
+                    value = base;
+                }
+                _ => return false,
             }
-            _ => false,
         }
     }
 
