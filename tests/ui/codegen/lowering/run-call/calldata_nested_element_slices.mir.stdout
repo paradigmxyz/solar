@@ -170,17 +170,18 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
     v34 = ptrtoint ptr<memory> v25 to i256
     v35 = add v34, 32
     v36 = mload v35
-    v37 = lt v36, 2
-    v38 = eq v37, false
-    icall revert_if<empty>, v38
-    v39 = ne v36, 0
-    v40 = insert_value struct0, undef struct0, 0, v33
-    v41 = insert_value struct0, v40, 1, v39
-    v42 = extract_value struct0, v41, 0
-    v43 = extract_value struct0, v41, 1
-    v44 = insert_value struct0, undef struct0, 0, v42
-    v45 = insert_value struct0, v44, 1, v43
-    ret v45
+    v37 = shr v36, 1
+    v38 = eq v37, 0
+    v39 = eq v38, false
+    icall revert_if<empty>, v39
+    v40 = ne v36, 0
+    v41 = insert_value struct0, undef struct0, 0, v33
+    v42 = insert_value struct0, v41, 1, v40
+    v43 = extract_value struct0, v42, 0
+    v44 = extract_value struct0, v42, 1
+    v45 = insert_value struct0, undef struct0, 0, v43
+    v46 = insert_value struct0, v45, 1, v44
+    ret v46
   bb2:
     v3 = alloc 96 !metadata(preserves_fmp)
     mstore v3, 0

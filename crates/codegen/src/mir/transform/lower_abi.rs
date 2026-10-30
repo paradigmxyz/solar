@@ -1324,7 +1324,7 @@ impl LowerAbiCx {
                     logical_values[index] = Some(word);
                 }
                 let Some(validator) = validator else { continue };
-                let valid = validator.condition(&mut builder, word);
+                let valid = validator.condition_once(&mut builder, word);
                 let next = builder.create_block();
                 builder.branch(valid, next, validator_revert);
                 current = next;

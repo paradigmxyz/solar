@@ -49,16 +49,25 @@
 //! priced by the target. A zero test of a word that aborts when the word is nonzero, as a
 //! non-payable entry's `ne callvalue, 0` or an address check's `ne (shr 160, x), 0` does, joins
 //! outside loops as the word itself: `c = ne (or w, zext c2), 0`, which a branch reads for free as
-//! it read `w`, so the entry's value check and calldata size check branch once. Other zero tests of
-//! words stay apart: a branch reads the word for free, and a loop's latch also takes its back edge
-//! on it, as an increment's overflow check `eq (add i, 1), 0` does, while the merged test would pay
-//! an `iszero` for the word, another to turn the latch around, and the shuffles that keep the first
-//! condition next to it. A negated test pays its `iszero` only in loops, where the saved jump
-//! repeats, in size builds too. A boolean's negation merges as the boolean only in builds that copy
-//! loops, where every copy of a body repeats the saving: in a single body the condition stays live
-//! across the next check, and the scheduler answered with more shuffles than the saved jump. Runs
-//! late, after the final loop passes, check elimination and the CFG cleanup that joins each copy's
-//! blocks, so the tests it merges are the ones that remain.
+//! it read `w`, so the entry's value check and calldata size check branch once.
+//!
+//! A signed `intN` parameter's check aborts when `eq x, signextend(b, x)` fails. Outside loops
+//! it joins as the word that is nonzero when it fails, `xor x, signextend(b, x)`, which replaces
+//! the comparison at the price the target gives the pair. The ABI decoder already tests `bool`,
+//! `uintN`, and power-of-two enum parameters as shifted words, which join as above; the e-graph
+//! turns the signed check's exclusive or back into `eq x, signextend(b, x)`, so it has no
+//! producer-side form. Next to a test that aborts on its false edge, the pair stays comparisons
+//! that combine with `and`, as merges go pair by pair; in loops the test turns
+//! around as above. Other zero tests of words stay apart: a branch reads the word for free, and a
+//! loop's latch also takes its back edge on it, as an increment's overflow check `eq (add i, 1), 0`
+//! does, while the merged test would pay an `iszero` for the word, another to turn the latch
+//! around, and the shuffles that keep the first condition next to it. A negated test pays its
+//! `iszero` only in loops, where the saved jump repeats, in size builds too. A boolean's negation
+//! merges as the boolean only in builds that copy loops, where every copy of a body repeats the
+//! saving: in a single body the condition stays live across the next check, and the scheduler
+//! answered with more shuffles than the saved jump. Runs late, after the final loop passes, check
+//! elimination and the CFG cleanup that joins each copy's blocks, so the tests it merges are the
+//! ones that remain.
 
 use crate::{
     backend::evm::op,
@@ -69,7 +78,7 @@ use crate::{
         pass::{MirPass, run_function_pass},
         utils::{rebuild_predecessors, replace_terminator},
     },
-    target::Target,
+    target::{Cost, Target},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
@@ -128,8 +137,47 @@ struct Test {
     abort: BlockId,
     next: BlockId,
     aborts_when_true: bool,
-    /// Whether `condition` is a word that aborts when nonzero, rather than a boolean.
-    word: bool,
+    /// The word that is nonzero when the test aborts, when it merges as a word rather than as a
+    /// boolean. Such a test counts as aborting when true, as the word is nonzero; `condition`
+    /// then goes unused unless the test turns back into a comparison.
+    word: Option<Word>,
+}
+
+impl Test {
+    /// Whether the test aborts on its false edge and merges as a boolean.
+    fn is_plain_false(&self) -> bool {
+        self.word.is_none() && !self.aborts_when_true
+    }
+
+    /// Turns a range word back into the comparison it came from, which aborts on its false edge.
+    fn restore_comparison(&mut self) {
+        self.word = None;
+        self.aborts_when_true = false;
+    }
+}
+
+/// A word that is nonzero exactly when a test aborts, so the test merges as the word.
+#[derive(Clone, Copy)]
+enum Word {
+    /// The test's condition, which already is the word.
+    Itself,
+    /// `xor a, b`, for a test that `a == b` fails.
+    Xor(ValueId, ValueId),
+}
+
+impl Word {
+    /// The cost of the instruction that makes the word, and of the comparison it replaces.
+    fn price(self, target: &Target) -> (Cost, Cost) {
+        match self {
+            Self::Itself => (Cost::ZERO, Cost::ZERO),
+            Self::Xor(..) => (target.opcode(op::XOR), target.opcode(op::EQ)),
+        }
+    }
+
+    /// Whether the word stands for a comparison, rather than being the tested word itself.
+    fn is_range(self) -> bool {
+        !matches!(self, Self::Itself)
+    }
 }
 
 fn merge_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: &Target) -> bool {
@@ -164,7 +212,8 @@ fn test(
     func: &Function,
     block: BlockId,
     cold: &DenseBitSet<FunctionId>,
-    copies: bool,
+    cyclic: &DenseBitSet<BlockId>,
+    target: &Target,
 ) -> Option<Test> {
     let Some(Terminator::Branch { condition, then_block, else_block }) =
         func.blocks[block].terminator
@@ -174,7 +223,7 @@ fn test(
     // A branch on `eq c, false` tests the boolean `c` with its edges swapped, so `c` merges as it
     // is, as a checked product's `gt x, limit` does.
     let (condition, then_block, else_block) = match negated_boolean(func, condition) {
-        Some(inner) if copies => (inner, else_block, then_block),
+        Some(inner) if target.copies_loops() => (inner, else_block, then_block),
         _ => (condition, then_block, else_block),
     };
     let shared = |block: BlockId| aborts(func, block, cold) && !func.block_has_phi(block);
@@ -190,9 +239,39 @@ fn test(
         if func.value_ty(word) != Some(MirType::I256) || nonzero != aborts_when_true {
             return None;
         }
-        return Some(Test { condition: word, abort, next, aborts_when_true: true, word: true });
+        return Some(Test {
+            condition: word,
+            abort,
+            next,
+            aborts_when_true: true,
+            word: Some(Word::Itself),
+        });
     }
-    Some(Test { condition, abort, next, aborts_when_true, word: false })
+    // A range check that aborts when it fails leaves a nonzero word: the same join as above.
+    // Loops keep such a test whole, to turn around into its complement.
+    if !aborts_when_true
+        && !cyclic.contains(block)
+        && let Some(word) = range_word(func, condition)
+    {
+        return Some(Test { condition, abort, next, aborts_when_true: true, word: Some(word) });
+    }
+    Some(Test { condition, abort, next, aborts_when_true, word: None })
+}
+
+/// The word that is nonzero exactly when `condition` fails, for a signed ABI range check:
+/// `x == signextend(b, x)` fails when their `xor` is nonzero.
+fn range_word(func: &Function, condition: ValueId) -> Option<Word> {
+    let &InstKind::Eq(a, b) = func.value_inst_kind(condition)? else { return None };
+    let extends = |extended: ValueId, word: ValueId| {
+        matches!(
+            func.value_inst_kind(extended),
+            Some(&InstKind::SignExtend(_, source)) if source == word
+        )
+    };
+    ((extends(a, b) || extends(b, a))
+        && func.value_u256(a).is_none()
+        && func.value_ty(a) == Some(MirType::I256))
+    .then_some(Word::Xor(a, b))
 }
 
 /// The word a condition compares with zero, and whether the condition holds when it is nonzero.
@@ -252,7 +331,7 @@ fn mergeable(
     cyclic: &DenseBitSet<BlockId>,
     target: &Target,
 ) -> Option<(Test, Test, Option<Flip>)> {
-    let first = test(func, block, cold, target.copies_loops())?;
+    let mut first = test(func, block, cold, cyclic, target)?;
     // Another edge into the continuation may leave only the first test's own aborting block,
     // when that block calls a function that never returns and this test alone enters it. The
     // merge removes that entrance, so the first test's condition still dominates the merged
@@ -265,7 +344,14 @@ fn mergeable(
     }) {
         return None;
     }
-    let second = test(func, first.next, cold, target.copies_loops())?;
+    let mut second = test(func, first.next, cold, cyclic, target)?;
+    // A range word joins only a test that aborts when it holds. Next to one that aborts on its
+    // false edge, both stay comparisons and combine with `and`.
+    if first.word.is_some_and(Word::is_range) && second.is_plain_false() {
+        first.restore_comparison();
+    } else if second.word.is_some_and(Word::is_range) && first.is_plain_false() {
+        second.restore_comparison();
+    }
     if !same_abort(func, first.abort, second.abort, cold)
         || !continuation
             .instructions
@@ -276,13 +362,15 @@ fn mergeable(
     }
     // A word joins only another test that aborts when it holds, with no flip, and only outside
     // loops: a latch's word test also takes the back edge, which the merge would turn around.
-    if (first.word || second.word) && (cyclic.contains(block) || !second.aborts_when_true) {
+    if (first.word.is_some() || second.word.is_some())
+        && (cyclic.contains(block) || !second.aborts_when_true)
+    {
         return None;
     }
     // A comparison with a literal turns around for free, unlike a test that would pay an
-    // `iszero`. Only loops repeat the saving; a flipped test that runs once, as an ABI word's
-    // range check next to the calldata size check, measured no gain and moved the stack
-    // scheduler to rebuild calldata words where it had kept them. A negation pays the `iszero`
+    // `iszero`. Only loops repeat the saving; a flipped test that runs once measured no gain and
+    // moved the stack scheduler to rebuild calldata words where it had kept them, so an ABI
+    // word's range check joins as a word instead. A negation pays the `iszero`
     // in loops of every build: in size builds it measured 4,461 runtime bytes smaller over the
     // benchmark corpus, and the profitability check below prices the `iszero`.
     let flip = match (first.aborts_when_true, second.aborts_when_true) {
@@ -295,12 +383,18 @@ fn mergeable(
             Some(complement(func, second.condition).map_or(Flip::Negate, Flip::Complement))
         }
     };
-    let added = if matches!(flip, Some(Flip::Negate)) {
+    let mut added = if matches!(flip, Some(Flip::Negate)) {
         target.opcode(op::OR) + target.opcode(op::ISZERO)
     } else {
         target.opcode(op::OR)
     };
-    let saved = target.label_push() + target.opcode(op::JUMPI);
+    let mut saved = target.label_push() + target.opcode(op::JUMPI);
+    // A word made from a comparison's operands also replaces that comparison.
+    for (word, replaced) in [first.word, second.word].into_iter().flatten().map(|w| w.price(target))
+    {
+        added += word;
+        saved += replaced;
+    }
     target
         .improves(
             i64::from(target.runtime_gas(saved)) - i64::from(target.runtime_gas(added)),
@@ -364,20 +458,19 @@ fn merge(
         };
         test.aborts_when_true = true;
     }
-    let combined = if first.word || second.word {
-        // w1 = zext i1 c1 to i256 (unless c1 is already a word)
-        // w2 = zext i1 c2 to i256 (unless c2 is already a word)
+    let combined = if first.word.is_some() || second.word.is_some() {
+        // w1 = zext i1 c1 to i256 | xor a, b (for a signed range check c1 of a and b)
+        //      (unless c1 is already a word)
+        // w2 = the same for c2
         // w = or w1, w2
         // c = ne w, 0
         // jumpi c, abort, b3
-        let mut widen = |test: &Test| {
-            if test.word {
-                test.condition
-            } else {
-                append_typed(func, block, InstKind::Zext(test.condition), MirType::I256)
-            }
+        let mut as_word = |test: &Test| match test.word {
+            Some(Word::Itself) => test.condition,
+            Some(Word::Xor(a, b)) => append_typed(func, block, InstKind::Xor(a, b), MirType::I256),
+            None => append_typed(func, block, InstKind::Zext(test.condition), MirType::I256),
         };
-        let (a, b) = (widen(&first), widen(&second));
+        let (a, b) = (as_word(&first), as_word(&second));
         let word = append_typed(func, block, InstKind::Or(a, b), MirType::I256);
         let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
         append(func, block, InstKind::Ne(word, zero))

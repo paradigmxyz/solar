@@ -47,18 +47,19 @@ fn @masked() [selector=0x966953d1, abi_wrapper] {
 
 fn @branch() [selector=0xc86d784b, abi_wrapper] {
   bb0:
+    v7 = calldataload 36
+    v8 = shr v7, 1
     v5 = calldatasize
     v6 = lt v5, 68
-    jumpi v6, bb1, bb2
+    v12 = zext i1 v6 to i256
+    v13 = or v12, v8
+    v14 = ne v13, 0
+    jumpi v14, bb1, bb2
   bb2:
-    v7 = calldataload 36
-    v8 = lt v7, 2
-    jumpi v8, bb3, bb1
-  bb3:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v10 = keccak256 0, 64 !metadata(memory=scratch)
-    v1 = sload v10
+    v11 = keccak256 0, 64 !metadata(memory=scratch)
+    v1 = sload v11
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
   bb1 [cold]:
