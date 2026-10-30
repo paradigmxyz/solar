@@ -15,6 +15,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_mir::BitWidthTest;
 
 type Value = ValueId;
 const MAX_ISLE_RETURNS: usize = 16;
@@ -128,7 +129,7 @@ impl generated::Context for Context<'_> {
         if a >= U256::from(256) { U256::ZERO } else { (b << a.to::<usize>()) & self.mask() }
     }
     fn power_of_two_shift(&mut self, value: U256) -> Option<U256> {
-        (value > U256::ONE && value.is_power_of_two()).then(|| U256::from(value.trailing_zeros()))
+        BitWidthTest::width_of_power(value).map(U256::from)
     }
 
     fn low_mask_shift(&mut self, mask: U256) -> Option<U256> {

@@ -36,9 +36,9 @@
 +     v1 = inttoptr i256 v0 to ptr<memory>
 +     v2 = add v0, arg0 !metadata(alloc_ptr)
 +     v3 = lt v2, v0
-+     v4 = zext i1 v3 to i256
-+     v5 = shr v2, 64
-+     v6 = or v4, v5
++     v4 = shr v2, 64
++     v5 = zext i1 v3 to i256
++     v6 = or v5, v4
 +     v7 = ne v6, 0
 +     jumpi v7, bb1, bb2
 +   bb2:

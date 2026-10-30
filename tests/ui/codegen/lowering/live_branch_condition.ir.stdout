@@ -138,12 +138,12 @@ bb0:
   sub
   push bb3
   jumpi
+  push 68
+  calldatasize
+  lt
   push 4
   calldataload
   push 1
-  shr
-  push 68
-  calldatasize
   lt
   or
   push bb3

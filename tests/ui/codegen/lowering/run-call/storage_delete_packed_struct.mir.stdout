@@ -8,288 +8,292 @@
 fn @clearArray() -> struct0 [selector=0xe80b7ab6, abi_params=[], abi_returns=[word<uint8>, word<uint16>, word<uint8>, word<uint8>, word<uint16>, word<uint8>], abi_return_params=[uint8, uint16, uint8, uint8, uint16, uint8]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = gt v0, 0xffffffffffffffff
-    icall panic_if<0x41>, v1
-    v2 = add v0, 1
-    v3 = storage_array_data_slot 0
-    v4 = add v3, v0
-    sstore 0, v2 !metadata(storage=slot(0))
-    v5 = sload 0 !metadata(storage=slot(0))
-    v6 = lt 0, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = storage_array_data_slot 0
-    v9 = add v8, 0
-    v10 = sload v9 !metadata(storage=symbolic(v8))
-    v11 = not 255
-    v12 = and v10, v11
-    v13 = and 1, 255
-    v14 = or v12, v13
-    sstore v9, v14 !metadata(storage=symbolic(v8))
-    v15 = shl 0xffff, 8
-    v16 = sload v9 !metadata(storage=symbolic(v8))
-    v17 = not v15
-    v18 = and v16, v17
-    v19 = and 2, 0xffff
-    v20 = shl v19, 8
-    v21 = or v18, v20
-    sstore v9, v21 !metadata(storage=symbolic(v8))
-    v22 = shl 255, 24
-    v23 = sload v9 !metadata(storage=symbolic(v8))
-    v24 = not v22
-    v25 = and v23, v24
-    v26 = and 3, 255
-    v27 = shl v26, 24
-    v28 = or v25, v27
-    sstore v9, v28 !metadata(storage=symbolic(v8))
-    v29 = sload 0 !metadata(storage=slot(0))
-    v30 = gt v29, 0xffffffffffffffff
-    icall panic_if<0x41>, v30
-    v31 = add v29, 1
-    v32 = storage_array_data_slot 0
-    v33 = add v32, v29
-    sstore 0, v31 !metadata(storage=slot(0))
-    v34 = sload 0 !metadata(storage=slot(0))
-    v35 = lt 1, v34
-    v36 = eq v35, false
-    icall panic_if<0x32>, v36
-    v37 = storage_array_data_slot 0
-    v38 = add v37, 1
-    v39 = sload v38 !metadata(storage=offset(v37, 1))
-    v40 = not 255
-    v41 = and v39, v40
-    v42 = and 4, 255
-    v43 = or v41, v42
-    sstore v38, v43 !metadata(storage=offset(v37, 1))
-    v44 = shl 0xffff, 8
-    v45 = sload v38 !metadata(storage=offset(v37, 1))
-    v46 = not v44
-    v47 = and v45, v46
-    v48 = and 5, 0xffff
-    v49 = shl v48, 8
-    v50 = or v47, v49
-    sstore v38, v50 !metadata(storage=offset(v37, 1))
-    v51 = shl 255, 24
-    v52 = sload v38 !metadata(storage=offset(v37, 1))
-    v53 = not v51
-    v54 = and v52, v53
-    v55 = and 6, 255
-    v56 = shl v55, 24
-    v57 = or v54, v56
-    sstore v38, v57 !metadata(storage=offset(v37, 1))
-    v58 = sload 0 !metadata(storage=slot(0))
-    v59 = lt 1, v58
-    v60 = eq v59, false
-    icall panic_if<0x32>, v60
-    v61 = storage_array_data_slot 0
-    v62 = add v61, 1
-    sstore v62, 0 !metadata(storage=offset(v61, 1))
-    v63 = sload 0 !metadata(storage=slot(0))
-    v64 = lt 0, v63
-    v65 = eq v64, false
-    icall panic_if<0x32>, v65
-    v66 = storage_array_data_slot 0
-    v67 = add v66, 0
-    v68 = sload v67 !metadata(storage=symbolic(v66))
-    v69 = trunc i256 v68 to i8
-    v70 = sload 0 !metadata(storage=slot(0))
-    v71 = lt 0, v70
-    v72 = eq v71, false
-    icall panic_if<0x32>, v72
-    v73 = storage_array_data_slot 0
-    v74 = add v73, 0
-    v75 = sload v74 !metadata(storage=symbolic(v73))
-    v76 = shr v75, 8
-    v77 = trunc i256 v76 to i16
-    v78 = sload 0 !metadata(storage=slot(0))
-    v79 = lt 0, v78
-    v80 = eq v79, false
-    icall panic_if<0x32>, v80
-    v81 = storage_array_data_slot 0
-    v82 = add v81, 0
-    v83 = sload v82 !metadata(storage=symbolic(v81))
-    v84 = shr v83, 24
-    v85 = trunc i256 v84 to i8
-    v86 = sload 0 !metadata(storage=slot(0))
-    v87 = lt 1, v86
-    v88 = eq v87, false
-    icall panic_if<0x32>, v88
-    v89 = storage_array_data_slot 0
-    v90 = add v89, 1
-    v91 = sload v90 !metadata(storage=offset(v89, 1))
-    v92 = trunc i256 v91 to i8
-    v93 = sload 0 !metadata(storage=slot(0))
-    v94 = lt 1, v93
-    v95 = eq v94, false
-    icall panic_if<0x32>, v95
-    v96 = storage_array_data_slot 0
-    v97 = add v96, 1
-    v98 = sload v97 !metadata(storage=offset(v96, 1))
-    v99 = shr v98, 8
-    v100 = trunc i256 v99 to i16
-    v101 = sload 0 !metadata(storage=slot(0))
-    v102 = lt 1, v101
-    v103 = eq v102, false
-    icall panic_if<0x32>, v103
-    v104 = storage_array_data_slot 0
-    v105 = add v104, 1
-    v106 = sload v105 !metadata(storage=offset(v104, 1))
-    v107 = shr v106, 24
-    v108 = trunc i256 v107 to i8
-    v109 = insert_value struct0, undef struct0, 0, v69
-    v110 = insert_value struct0, v109, 1, v77
-    v111 = insert_value struct0, v110, 2, v85
-    v112 = insert_value struct0, v111, 3, v92
-    v113 = insert_value struct0, v112, 4, v100
-    v114 = insert_value struct0, v113, 5, v108
-    ret v114
+    v1 = shr v0, 64
+    v2 = ne v1, 0
+    icall panic_if<0x41>, v2
+    v3 = add v0, 1
+    v4 = storage_array_data_slot 0
+    v5 = add v4, v0
+    sstore 0, v3 !metadata(storage=slot(0))
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = storage_array_data_slot 0
+    v10 = add v9, 0
+    v11 = sload v10 !metadata(storage=symbolic(v9))
+    v12 = not 255
+    v13 = and v11, v12
+    v14 = and 1, 255
+    v15 = or v13, v14
+    sstore v10, v15 !metadata(storage=symbolic(v9))
+    v16 = shl 0xffff, 8
+    v17 = sload v10 !metadata(storage=symbolic(v9))
+    v18 = not v16
+    v19 = and v17, v18
+    v20 = and 2, 0xffff
+    v21 = shl v20, 8
+    v22 = or v19, v21
+    sstore v10, v22 !metadata(storage=symbolic(v9))
+    v23 = shl 255, 24
+    v24 = sload v10 !metadata(storage=symbolic(v9))
+    v25 = not v23
+    v26 = and v24, v25
+    v27 = and 3, 255
+    v28 = shl v27, 24
+    v29 = or v26, v28
+    sstore v10, v29 !metadata(storage=symbolic(v9))
+    v30 = sload 0 !metadata(storage=slot(0))
+    v31 = shr v30, 64
+    v32 = ne v31, 0
+    icall panic_if<0x41>, v32
+    v33 = add v30, 1
+    v34 = storage_array_data_slot 0
+    v35 = add v34, v30
+    sstore 0, v33 !metadata(storage=slot(0))
+    v36 = sload 0 !metadata(storage=slot(0))
+    v37 = lt 1, v36
+    v38 = eq v37, false
+    icall panic_if<0x32>, v38
+    v39 = storage_array_data_slot 0
+    v40 = add v39, 1
+    v41 = sload v40 !metadata(storage=offset(v39, 1))
+    v42 = not 255
+    v43 = and v41, v42
+    v44 = and 4, 255
+    v45 = or v43, v44
+    sstore v40, v45 !metadata(storage=offset(v39, 1))
+    v46 = shl 0xffff, 8
+    v47 = sload v40 !metadata(storage=offset(v39, 1))
+    v48 = not v46
+    v49 = and v47, v48
+    v50 = and 5, 0xffff
+    v51 = shl v50, 8
+    v52 = or v49, v51
+    sstore v40, v52 !metadata(storage=offset(v39, 1))
+    v53 = shl 255, 24
+    v54 = sload v40 !metadata(storage=offset(v39, 1))
+    v55 = not v53
+    v56 = and v54, v55
+    v57 = and 6, 255
+    v58 = shl v57, 24
+    v59 = or v56, v58
+    sstore v40, v59 !metadata(storage=offset(v39, 1))
+    v60 = sload 0 !metadata(storage=slot(0))
+    v61 = lt 1, v60
+    v62 = eq v61, false
+    icall panic_if<0x32>, v62
+    v63 = storage_array_data_slot 0
+    v64 = add v63, 1
+    sstore v64, 0 !metadata(storage=offset(v63, 1))
+    v65 = sload 0 !metadata(storage=slot(0))
+    v66 = lt 0, v65
+    v67 = eq v66, false
+    icall panic_if<0x32>, v67
+    v68 = storage_array_data_slot 0
+    v69 = add v68, 0
+    v70 = sload v69 !metadata(storage=symbolic(v68))
+    v71 = trunc i256 v70 to i8
+    v72 = sload 0 !metadata(storage=slot(0))
+    v73 = lt 0, v72
+    v74 = eq v73, false
+    icall panic_if<0x32>, v74
+    v75 = storage_array_data_slot 0
+    v76 = add v75, 0
+    v77 = sload v76 !metadata(storage=symbolic(v75))
+    v78 = shr v77, 8
+    v79 = trunc i256 v78 to i16
+    v80 = sload 0 !metadata(storage=slot(0))
+    v81 = lt 0, v80
+    v82 = eq v81, false
+    icall panic_if<0x32>, v82
+    v83 = storage_array_data_slot 0
+    v84 = add v83, 0
+    v85 = sload v84 !metadata(storage=symbolic(v83))
+    v86 = shr v85, 24
+    v87 = trunc i256 v86 to i8
+    v88 = sload 0 !metadata(storage=slot(0))
+    v89 = lt 1, v88
+    v90 = eq v89, false
+    icall panic_if<0x32>, v90
+    v91 = storage_array_data_slot 0
+    v92 = add v91, 1
+    v93 = sload v92 !metadata(storage=offset(v91, 1))
+    v94 = trunc i256 v93 to i8
+    v95 = sload 0 !metadata(storage=slot(0))
+    v96 = lt 1, v95
+    v97 = eq v96, false
+    icall panic_if<0x32>, v97
+    v98 = storage_array_data_slot 0
+    v99 = add v98, 1
+    v100 = sload v99 !metadata(storage=offset(v98, 1))
+    v101 = shr v100, 8
+    v102 = trunc i256 v101 to i16
+    v103 = sload 0 !metadata(storage=slot(0))
+    v104 = lt 1, v103
+    v105 = eq v104, false
+    icall panic_if<0x32>, v105
+    v106 = storage_array_data_slot 0
+    v107 = add v106, 1
+    v108 = sload v107 !metadata(storage=offset(v106, 1))
+    v109 = shr v108, 24
+    v110 = trunc i256 v109 to i8
+    v111 = insert_value struct0, undef struct0, 0, v71
+    v112 = insert_value struct0, v111, 1, v79
+    v113 = insert_value struct0, v112, 2, v87
+    v114 = insert_value struct0, v113, 3, v94
+    v115 = insert_value struct0, v114, 4, v102
+    v116 = insert_value struct0, v115, 5, v110
+    ret v116
 }
 
 fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns=[word<uint8>, word<uint16>, word<uint8>, word<uint8>, word<uint16>, word<uint8>], abi_return_params=[uint8, uint16, uint8, uint8, uint16, uint8]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = gt v0, 0xffffffffffffffff
-    icall panic_if<0x41>, v1
-    v2 = add v0, 1
-    v3 = storage_array_data_slot 0
-    v4 = add v3, v0
-    sstore 0, v2 !metadata(storage=slot(0))
-    v5 = sload 0 !metadata(storage=slot(0))
-    v6 = lt 0, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = storage_array_data_slot 0
-    v9 = add v8, 0
-    v10 = sload v9 !metadata(storage=symbolic(v8))
-    v11 = not 255
-    v12 = and v10, v11
-    v13 = and 1, 255
-    v14 = or v12, v13
-    sstore v9, v14 !metadata(storage=symbolic(v8))
-    v15 = shl 0xffff, 8
-    v16 = sload v9 !metadata(storage=symbolic(v8))
-    v17 = not v15
-    v18 = and v16, v17
-    v19 = and 2, 0xffff
-    v20 = shl v19, 8
-    v21 = or v18, v20
-    sstore v9, v21 !metadata(storage=symbolic(v8))
-    v22 = shl 255, 24
-    v23 = sload v9 !metadata(storage=symbolic(v8))
-    v24 = not v22
-    v25 = and v23, v24
-    v26 = and 3, 255
-    v27 = shl v26, 24
-    v28 = or v25, v27
-    sstore v9, v28 !metadata(storage=symbolic(v8))
-    v29 = sload 0 !metadata(storage=slot(0))
-    v30 = gt v29, 0xffffffffffffffff
-    icall panic_if<0x41>, v30
-    v31 = add v29, 1
-    v32 = storage_array_data_slot 0
-    v33 = add v32, v29
-    sstore 0, v31 !metadata(storage=slot(0))
-    v34 = sload 0 !metadata(storage=slot(0))
-    v35 = lt 1, v34
-    v36 = eq v35, false
-    icall panic_if<0x32>, v36
-    v37 = storage_array_data_slot 0
-    v38 = add v37, 1
-    v39 = sload v38 !metadata(storage=offset(v37, 1))
-    v40 = not 255
-    v41 = and v39, v40
-    v42 = and 4, 255
-    v43 = or v41, v42
-    sstore v38, v43 !metadata(storage=offset(v37, 1))
-    v44 = shl 0xffff, 8
-    v45 = sload v38 !metadata(storage=offset(v37, 1))
-    v46 = not v44
-    v47 = and v45, v46
-    v48 = and 5, 0xffff
-    v49 = shl v48, 8
-    v50 = or v47, v49
-    sstore v38, v50 !metadata(storage=offset(v37, 1))
-    v51 = shl 255, 24
-    v52 = sload v38 !metadata(storage=offset(v37, 1))
-    v53 = not v51
-    v54 = and v52, v53
-    v55 = and 6, 255
-    v56 = shl v55, 24
-    v57 = or v54, v56
-    sstore v38, v57 !metadata(storage=offset(v37, 1))
-    v58 = sload 0 !metadata(storage=slot(0))
-    v59 = lt 1, v58
-    v60 = eq v59, false
-    icall panic_if<0x32>, v60
-    v61 = storage_array_data_slot 0
-    v62 = add v61, 1
-    v63 = shl 0xffff, 8
-    v64 = sload v62 !metadata(storage=offset(v61, 1))
-    v65 = not v63
-    v66 = and v64, v65
-    v67 = and 0, 0xffff
-    v68 = shl v67, 8
-    v69 = or v66, v68
-    sstore v62, v69 !metadata(storage=offset(v61, 1))
-    v70 = sload 0 !metadata(storage=slot(0))
-    v71 = lt 0, v70
-    v72 = eq v71, false
-    icall panic_if<0x32>, v72
-    v73 = storage_array_data_slot 0
-    v74 = add v73, 0
-    v75 = sload v74 !metadata(storage=symbolic(v73))
-    v76 = trunc i256 v75 to i8
-    v77 = sload 0 !metadata(storage=slot(0))
-    v78 = lt 0, v77
-    v79 = eq v78, false
-    icall panic_if<0x32>, v79
-    v80 = storage_array_data_slot 0
-    v81 = add v80, 0
-    v82 = sload v81 !metadata(storage=symbolic(v80))
-    v83 = shr v82, 8
-    v84 = trunc i256 v83 to i16
-    v85 = sload 0 !metadata(storage=slot(0))
-    v86 = lt 0, v85
-    v87 = eq v86, false
-    icall panic_if<0x32>, v87
-    v88 = storage_array_data_slot 0
-    v89 = add v88, 0
-    v90 = sload v89 !metadata(storage=symbolic(v88))
-    v91 = shr v90, 24
-    v92 = trunc i256 v91 to i8
-    v93 = sload 0 !metadata(storage=slot(0))
-    v94 = lt 1, v93
-    v95 = eq v94, false
-    icall panic_if<0x32>, v95
-    v96 = storage_array_data_slot 0
-    v97 = add v96, 1
-    v98 = sload v97 !metadata(storage=offset(v96, 1))
-    v99 = trunc i256 v98 to i8
-    v100 = sload 0 !metadata(storage=slot(0))
-    v101 = lt 1, v100
-    v102 = eq v101, false
-    icall panic_if<0x32>, v102
-    v103 = storage_array_data_slot 0
-    v104 = add v103, 1
-    v105 = sload v104 !metadata(storage=offset(v103, 1))
-    v106 = shr v105, 8
-    v107 = trunc i256 v106 to i16
-    v108 = sload 0 !metadata(storage=slot(0))
-    v109 = lt 1, v108
-    v110 = eq v109, false
-    icall panic_if<0x32>, v110
-    v111 = storage_array_data_slot 0
-    v112 = add v111, 1
-    v113 = sload v112 !metadata(storage=offset(v111, 1))
-    v114 = shr v113, 24
-    v115 = trunc i256 v114 to i8
-    v116 = insert_value struct0, undef struct0, 0, v76
-    v117 = insert_value struct0, v116, 1, v84
-    v118 = insert_value struct0, v117, 2, v92
-    v119 = insert_value struct0, v118, 3, v99
-    v120 = insert_value struct0, v119, 4, v107
-    v121 = insert_value struct0, v120, 5, v115
-    ret v121
+    v1 = shr v0, 64
+    v2 = ne v1, 0
+    icall panic_if<0x41>, v2
+    v3 = add v0, 1
+    v4 = storage_array_data_slot 0
+    v5 = add v4, v0
+    sstore 0, v3 !metadata(storage=slot(0))
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = storage_array_data_slot 0
+    v10 = add v9, 0
+    v11 = sload v10 !metadata(storage=symbolic(v9))
+    v12 = not 255
+    v13 = and v11, v12
+    v14 = and 1, 255
+    v15 = or v13, v14
+    sstore v10, v15 !metadata(storage=symbolic(v9))
+    v16 = shl 0xffff, 8
+    v17 = sload v10 !metadata(storage=symbolic(v9))
+    v18 = not v16
+    v19 = and v17, v18
+    v20 = and 2, 0xffff
+    v21 = shl v20, 8
+    v22 = or v19, v21
+    sstore v10, v22 !metadata(storage=symbolic(v9))
+    v23 = shl 255, 24
+    v24 = sload v10 !metadata(storage=symbolic(v9))
+    v25 = not v23
+    v26 = and v24, v25
+    v27 = and 3, 255
+    v28 = shl v27, 24
+    v29 = or v26, v28
+    sstore v10, v29 !metadata(storage=symbolic(v9))
+    v30 = sload 0 !metadata(storage=slot(0))
+    v31 = shr v30, 64
+    v32 = ne v31, 0
+    icall panic_if<0x41>, v32
+    v33 = add v30, 1
+    v34 = storage_array_data_slot 0
+    v35 = add v34, v30
+    sstore 0, v33 !metadata(storage=slot(0))
+    v36 = sload 0 !metadata(storage=slot(0))
+    v37 = lt 1, v36
+    v38 = eq v37, false
+    icall panic_if<0x32>, v38
+    v39 = storage_array_data_slot 0
+    v40 = add v39, 1
+    v41 = sload v40 !metadata(storage=offset(v39, 1))
+    v42 = not 255
+    v43 = and v41, v42
+    v44 = and 4, 255
+    v45 = or v43, v44
+    sstore v40, v45 !metadata(storage=offset(v39, 1))
+    v46 = shl 0xffff, 8
+    v47 = sload v40 !metadata(storage=offset(v39, 1))
+    v48 = not v46
+    v49 = and v47, v48
+    v50 = and 5, 0xffff
+    v51 = shl v50, 8
+    v52 = or v49, v51
+    sstore v40, v52 !metadata(storage=offset(v39, 1))
+    v53 = shl 255, 24
+    v54 = sload v40 !metadata(storage=offset(v39, 1))
+    v55 = not v53
+    v56 = and v54, v55
+    v57 = and 6, 255
+    v58 = shl v57, 24
+    v59 = or v56, v58
+    sstore v40, v59 !metadata(storage=offset(v39, 1))
+    v60 = sload 0 !metadata(storage=slot(0))
+    v61 = lt 1, v60
+    v62 = eq v61, false
+    icall panic_if<0x32>, v62
+    v63 = storage_array_data_slot 0
+    v64 = add v63, 1
+    v65 = shl 0xffff, 8
+    v66 = sload v64 !metadata(storage=offset(v63, 1))
+    v67 = not v65
+    v68 = and v66, v67
+    v69 = and 0, 0xffff
+    v70 = shl v69, 8
+    v71 = or v68, v70
+    sstore v64, v71 !metadata(storage=offset(v63, 1))
+    v72 = sload 0 !metadata(storage=slot(0))
+    v73 = lt 0, v72
+    v74 = eq v73, false
+    icall panic_if<0x32>, v74
+    v75 = storage_array_data_slot 0
+    v76 = add v75, 0
+    v77 = sload v76 !metadata(storage=symbolic(v75))
+    v78 = trunc i256 v77 to i8
+    v79 = sload 0 !metadata(storage=slot(0))
+    v80 = lt 0, v79
+    v81 = eq v80, false
+    icall panic_if<0x32>, v81
+    v82 = storage_array_data_slot 0
+    v83 = add v82, 0
+    v84 = sload v83 !metadata(storage=symbolic(v82))
+    v85 = shr v84, 8
+    v86 = trunc i256 v85 to i16
+    v87 = sload 0 !metadata(storage=slot(0))
+    v88 = lt 0, v87
+    v89 = eq v88, false
+    icall panic_if<0x32>, v89
+    v90 = storage_array_data_slot 0
+    v91 = add v90, 0
+    v92 = sload v91 !metadata(storage=symbolic(v90))
+    v93 = shr v92, 24
+    v94 = trunc i256 v93 to i8
+    v95 = sload 0 !metadata(storage=slot(0))
+    v96 = lt 1, v95
+    v97 = eq v96, false
+    icall panic_if<0x32>, v97
+    v98 = storage_array_data_slot 0
+    v99 = add v98, 1
+    v100 = sload v99 !metadata(storage=offset(v98, 1))
+    v101 = trunc i256 v100 to i8
+    v102 = sload 0 !metadata(storage=slot(0))
+    v103 = lt 1, v102
+    v104 = eq v103, false
+    icall panic_if<0x32>, v104
+    v105 = storage_array_data_slot 0
+    v106 = add v105, 1
+    v107 = sload v106 !metadata(storage=offset(v105, 1))
+    v108 = shr v107, 8
+    v109 = trunc i256 v108 to i16
+    v110 = sload 0 !metadata(storage=slot(0))
+    v111 = lt 1, v110
+    v112 = eq v111, false
+    icall panic_if<0x32>, v112
+    v113 = storage_array_data_slot 0
+    v114 = add v113, 1
+    v115 = sload v114 !metadata(storage=offset(v113, 1))
+    v116 = shr v115, 24
+    v117 = trunc i256 v116 to i8
+    v118 = insert_value struct0, undef struct0, 0, v78
+    v119 = insert_value struct0, v118, 1, v86
+    v120 = insert_value struct0, v119, 2, v94
+    v121 = insert_value struct0, v120, 3, v101
+    v122 = insert_value struct0, v121, 4, v109
+    v123 = insert_value struct0, v122, 5, v117
+    ret v123
 }
 
 fn @clearMapping() -> struct1 [selector=0xf644c4b0, abi_params=[], abi_returns=[word<uint8>, word<uint16>, word<uint8>], abi_return_params=[uint8, uint16, uint8]] {
@@ -345,75 +349,76 @@ fn @assign() -> struct1 [selector=0x12ae6397, abi_params=[], abi_returns=[word<u
     v2 = ptradd v0, 64
     mstore v2, 7
     v3 = sload 0 !metadata(storage=slot(0))
-    v4 = gt v3, 0xffffffffffffffff
-    icall panic_if<0x41>, v4
-    v5 = add v3, 1
-    v6 = storage_array_data_slot 0
-    v7 = add v6, v3
-    sstore 0, v5 !metadata(storage=slot(0))
-    v8 = sload 0 !metadata(storage=slot(0))
-    v9 = lt 0, v8
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = storage_array_data_slot 0
-    v12 = add v11, 0
-    v13 = mload v0
-    v14 = sload v12 !metadata(storage=symbolic(v11))
-    v15 = not 255
-    v16 = and v14, v15
-    v17 = and v13, 255
-    v18 = or v16, v17
-    sstore v12, v18 !metadata(storage=symbolic(v11))
-    v19 = ptradd v0, 32
-    v20 = mload v19
-    v21 = shl 0xffff, 8
-    v22 = sload v12 !metadata(storage=symbolic(v11))
-    v23 = not v21
-    v24 = and v22, v23
-    v25 = and v20, 0xffff
-    v26 = shl v25, 8
-    v27 = or v24, v26
-    sstore v12, v27 !metadata(storage=symbolic(v11))
-    v28 = ptradd v0, 64
-    v29 = mload v28
-    v30 = shl 255, 24
-    v31 = sload v12 !metadata(storage=symbolic(v11))
-    v32 = not v30
-    v33 = and v31, v32
-    v34 = and v29, 255
-    v35 = shl v34, 24
-    v36 = or v33, v35
-    sstore v12, v36 !metadata(storage=symbolic(v11))
-    v37 = sload 0 !metadata(storage=slot(0))
-    v38 = lt 0, v37
-    v39 = eq v38, false
-    icall panic_if<0x32>, v39
-    v40 = storage_array_data_slot 0
-    v41 = add v40, 0
-    v42 = sload v41 !metadata(storage=symbolic(v40))
-    v43 = trunc i256 v42 to i8
-    v44 = sload 0 !metadata(storage=slot(0))
-    v45 = lt 0, v44
-    v46 = eq v45, false
-    icall panic_if<0x32>, v46
-    v47 = storage_array_data_slot 0
-    v48 = add v47, 0
-    v49 = sload v48 !metadata(storage=symbolic(v47))
-    v50 = shr v49, 8
-    v51 = trunc i256 v50 to i16
-    v52 = sload 0 !metadata(storage=slot(0))
-    v53 = lt 0, v52
-    v54 = eq v53, false
-    icall panic_if<0x32>, v54
-    v55 = storage_array_data_slot 0
-    v56 = add v55, 0
-    v57 = sload v56 !metadata(storage=symbolic(v55))
-    v58 = shr v57, 24
-    v59 = trunc i256 v58 to i8
-    v60 = insert_value struct1, undef struct1, 0, v43
-    v61 = insert_value struct1, v60, 1, v51
-    v62 = insert_value struct1, v61, 2, v59
-    ret v62
+    v4 = shr v3, 64
+    v5 = ne v4, 0
+    icall panic_if<0x41>, v5
+    v6 = add v3, 1
+    v7 = storage_array_data_slot 0
+    v8 = add v7, v3
+    sstore 0, v6 !metadata(storage=slot(0))
+    v9 = sload 0 !metadata(storage=slot(0))
+    v10 = lt 0, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = storage_array_data_slot 0
+    v13 = add v12, 0
+    v14 = mload v0
+    v15 = sload v13 !metadata(storage=symbolic(v12))
+    v16 = not 255
+    v17 = and v15, v16
+    v18 = and v14, 255
+    v19 = or v17, v18
+    sstore v13, v19 !metadata(storage=symbolic(v12))
+    v20 = ptradd v0, 32
+    v21 = mload v20
+    v22 = shl 0xffff, 8
+    v23 = sload v13 !metadata(storage=symbolic(v12))
+    v24 = not v22
+    v25 = and v23, v24
+    v26 = and v21, 0xffff
+    v27 = shl v26, 8
+    v28 = or v25, v27
+    sstore v13, v28 !metadata(storage=symbolic(v12))
+    v29 = ptradd v0, 64
+    v30 = mload v29
+    v31 = shl 255, 24
+    v32 = sload v13 !metadata(storage=symbolic(v12))
+    v33 = not v31
+    v34 = and v32, v33
+    v35 = and v30, 255
+    v36 = shl v35, 24
+    v37 = or v34, v36
+    sstore v13, v37 !metadata(storage=symbolic(v12))
+    v38 = sload 0 !metadata(storage=slot(0))
+    v39 = lt 0, v38
+    v40 = eq v39, false
+    icall panic_if<0x32>, v40
+    v41 = storage_array_data_slot 0
+    v42 = add v41, 0
+    v43 = sload v42 !metadata(storage=symbolic(v41))
+    v44 = trunc i256 v43 to i8
+    v45 = sload 0 !metadata(storage=slot(0))
+    v46 = lt 0, v45
+    v47 = eq v46, false
+    icall panic_if<0x32>, v47
+    v48 = storage_array_data_slot 0
+    v49 = add v48, 0
+    v50 = sload v49 !metadata(storage=symbolic(v48))
+    v51 = shr v50, 8
+    v52 = trunc i256 v51 to i16
+    v53 = sload 0 !metadata(storage=slot(0))
+    v54 = lt 0, v53
+    v55 = eq v54, false
+    icall panic_if<0x32>, v55
+    v56 = storage_array_data_slot 0
+    v57 = add v56, 0
+    v58 = sload v57 !metadata(storage=symbolic(v56))
+    v59 = shr v58, 24
+    v60 = trunc i256 v59 to i8
+    v61 = insert_value struct1, undef struct1, 0, v44
+    v62 = insert_value struct1, v61, 1, v52
+    v63 = insert_value struct1, v62, 2, v60
+    ret v63
 }
 
 fn @clearDirtyWord() -> i256 [selector=0xc9cbcc52, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

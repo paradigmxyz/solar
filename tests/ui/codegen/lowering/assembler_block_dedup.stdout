@@ -47,7 +47,7 @@ bb9:
   push 4
   calldataload
   push 1
-  shr
+  lt
   or
   push 4
   calldataload

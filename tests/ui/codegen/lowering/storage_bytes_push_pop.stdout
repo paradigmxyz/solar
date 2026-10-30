@@ -10,8 +10,8 @@ fn @constructor() [constructor] {
     v4 = or 127, v3
     v5 = shr v0, 1
     v6 = and v5, v4
-    v7 = lt v6, 0x10000000000000000
-    v8 = eq v7, false
+    v7 = shr v6, 64
+    v8 = ne v7, 0
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
@@ -67,8 +67,8 @@ fn @constructor() [constructor] {
     v44 = or 127, v43
     v45 = shr v40, 1
     v46 = and v45, v44
-    v47 = lt v46, 0x10000000000000000
-    v48 = eq v47, false
+    v47 = shr v46, 64
+    v48 = ne v47, 0
     icall panic_if<0x41>, v48
     v49 = gt v46, 31
     jumpi v49, bb7, bb6
@@ -129,8 +129,8 @@ fn @pushValue(arg0: i256) [selector=0x0217b939, abi_params=[bytes1], abi_returns
     v4 = or 127, v3
     v5 = shr v0, 1
     v6 = and v5, v4
-    v7 = lt v6, 0x10000000000000000
-    v8 = eq v7, false
+    v7 = shr v6, 64
+    v8 = ne v7, 0
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1

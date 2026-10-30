@@ -110,17 +110,16 @@ fn @sliceChoice(arg0: i1) -> struct2 [selector=0xdc4067fd, view, abi_params=[boo
     v18 = add v17, 32
     v19 = mload v18
     v20 = signextend 1, v19
-    v21 = eq v19, v20
-    v22 = eq v21, false
-    icall revert_if<empty>, v22
-    v23 = trunc i256 v19 to i16
-    v24 = insert_value struct2, undef struct2, 0, v16
-    v25 = insert_value struct2, v24, 1, v23
-    v26 = extract_value struct2, v25, 0
-    v27 = extract_value struct2, v25, 1
-    v28 = insert_value struct2, undef struct2, 0, v26
-    v29 = insert_value struct2, v28, 1, v27
-    ret v29
+    v21 = ne v19, v20
+    icall revert_if<empty>, v21
+    v22 = trunc i256 v19 to i16
+    v23 = insert_value struct2, undef struct2, 0, v16
+    v24 = insert_value struct2, v23, 1, v22
+    v25 = extract_value struct2, v24, 0
+    v26 = extract_value struct2, v24, 1
+    v27 = insert_value struct2, undef struct2, 0, v25
+    v28 = insert_value struct2, v27, 1, v26
+    ret v28
 }
 
 fn @slicePair(arg0: i1, arg1: slice<calldata>, arg2: slice<calldata>) -> struct2 [selector=0xe745f2b2, pure, abi_params=[bool, bytes, bytes], abi_returns=[word, word<int16>], abi_return_params=[uint256, int16]] {

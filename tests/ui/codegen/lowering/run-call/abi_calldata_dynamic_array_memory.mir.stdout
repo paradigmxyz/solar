@@ -24,7 +24,7 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0xc26b6b9a, pure, abi_para
     mstore v14, v0
     jump bb1
   bb1:
-    v15 = phi [bb0: 0], [bb2: v54]
+    v15 = phi [bb0: 0], [bb2: v55]
     v16 = lt v15, v0
     jumpi v16, bb2, bb3
   bb3:
@@ -49,34 +49,35 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0xc26b6b9a, pure, abi_para
     icall revert_if<invalid_calldata_tail_offset>, v31
     v32 = calldataload v25
     v33 = calldatasize
-    v34 = gt v32, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v34
-    v35 = mul v32, 32
-    v36 = add v25, 32
-    v37 = sub v33, v35
-    v38 = sgt v36, v37
-    icall revert_if<calldata_tail_too_short>, v38
-    v39 = mul v32, 32
-    v40 = shr v32, 251
-    v41 = ne v40, 0
-    icall panic_if<0x41>, v41
-    v42 = add 32, v39
-    v43 = lt v42, 32
-    icall panic_if<0x41>, v43
-    v44 = alloc v42
-    mstore v44, v32
-    v45 = inttoptr i256 v36 to ptr<calldata>
-    v46 = make_calldata_slice v45, v39
-    v47 = ptradd v44, 32
-    v48 = extract_value slice<calldata>, v46, 0
-    v49 = extract_value slice<calldata>, v46, 1
-    calldatacopy v47, v48, v49
-    v50 = ptrtoint ptr<memory> v44 to i256
-    v51 = shl v15, 5
-    v52 = ptradd v14, v51
-    v53 = ptradd v52, 32
-    mstore v53, v50
-    v54 = add v15, 1
+    v34 = shr v32, 64
+    v35 = ne v34, 0
+    icall revert_if<invalid_calldata_tail_length>, v35
+    v36 = mul v32, 32
+    v37 = add v25, 32
+    v38 = sub v33, v36
+    v39 = sgt v37, v38
+    icall revert_if<calldata_tail_too_short>, v39
+    v40 = mul v32, 32
+    v41 = shr v32, 251
+    v42 = ne v41, 0
+    icall panic_if<0x41>, v42
+    v43 = add 32, v40
+    v44 = lt v43, 32
+    icall panic_if<0x41>, v44
+    v45 = alloc v43
+    mstore v45, v32
+    v46 = inttoptr i256 v37 to ptr<calldata>
+    v47 = make_calldata_slice v46, v40
+    v48 = ptradd v45, 32
+    v49 = extract_value slice<calldata>, v47, 0
+    v50 = extract_value slice<calldata>, v47, 1
+    calldatacopy v48, v49, v50
+    v51 = ptrtoint ptr<memory> v45 to i256
+    v52 = shl v15, 5
+    v53 = ptradd v14, v52
+    v54 = ptradd v53, 32
+    mstore v54, v51
+    v55 = add v15, 1
     jump bb1
 }
 

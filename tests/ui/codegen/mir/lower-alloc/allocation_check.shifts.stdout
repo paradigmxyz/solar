@@ -8,9 +8,9 @@
 +     v0 = inttoptr i256 v1 to ptr<memory> !metadata(memory=scratch)
 +     v2 = add v1, arg0 !metadata(alloc_ptr)
 +     v3 = lt v2, v1
-+     v4 = zext i1 v3 to i256
-+     v5 = shr v2, 64
-+     v6 = or v4, v5
++     v4 = shr v2, 64
++     v5 = zext i1 v3 to i256
++     v6 = or v5, v4
 +     v7 = ne v6, 0
 +     jumpi v7, bb2, bb1
 +   bb1:

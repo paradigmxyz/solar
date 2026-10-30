@@ -52,26 +52,24 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0x94e17704, pure, abi_para
     v5 = alloc 96
     jump bb1
   bb1:
-    v6 = phi [bb0: 0], [bb2: v15]
+    v6 = phi [bb0: 0], [bb2: v13]
     v7 = lt v6, 3
     jumpi v7, bb2, bb3
   bb3:
-    v16 = make_calldata_slice v0, 96
-    v17 = extract_value slice<calldata>, v16, 0
-    v18 = extract_value slice<calldata>, v16, 1
-    calldatacopy v5, v17, v18
-    v19 = abi_encode [array<3, word<uint8>>], object, args v5
-    ret v19
+    v14 = make_calldata_slice v0, 96
+    v15 = extract_value slice<calldata>, v14, 0
+    v16 = extract_value slice<calldata>, v14, 1
+    calldatacopy v5, v15, v16
+    v17 = abi_encode [array<3, word<uint8>>], object, args v5
+    ret v17
   bb2:
     v8 = mul v6, 32
     v9 = ptrtoint ptr<calldata> v0 to i256
     v10 = add v9, v8
     v11 = calldataload v10
-    v12 = shr v11, 8
-    v13 = eq v12, 0
-    v14 = eq v13, false
-    icall revert_if<empty>, v14
-    v15 = add v6, 1
+    v12 = gt v11, 255
+    icall revert_if<empty>, v12
+    v13 = add v6, 1
     jump bb1
 }
 
@@ -99,31 +97,29 @@ fn @i(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x18e849a4, vi
     v17 = extract_value slice<calldata>, v16, 0
     jump bb1
   bb1:
-    v18 = phi [bb0: 0], [bb2: v27]
+    v18 = phi [bb0: 0], [bb2: v25]
     v19 = lt v18, 3
     jumpi v19, bb2, bb3
   bb3:
-    v28 = abi_encode [array<3, word<uint8>>], scratch, selector 0x94e1770400000000000000000000000000000000000000000000000000000000, args v16
-    v29 = extract_value slice<memory>, v28, 0
-    v30 = extract_value slice<memory>, v28, 1
-    v31 = zext i160 v0 to i256
-    v32 = staticcall v1, v31, v29, v30, 0, 0
-    jumpi v32, bb5, bb4
+    v26 = abi_encode [array<3, word<uint8>>], scratch, selector 0x94e1770400000000000000000000000000000000000000000000000000000000, args v16
+    v27 = extract_value slice<memory>, v26, 0
+    v28 = extract_value slice<memory>, v26, 1
+    v29 = zext i160 v0 to i256
+    v30 = staticcall v1, v29, v27, v28, 0, 0
+    jumpi v30, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v33 = icall returndata_bytes<>
-    v34 = abi_decode [bytes], v33
-    ret v34
+    v31 = icall returndata_bytes<>
+    v32 = abi_decode [bytes], v31
+    ret v32
   bb2:
     v20 = mul v18, 32
     v21 = ptrtoint ptr<calldata> v17 to i256
     v22 = add v21, v20
     v23 = calldataload v22
-    v24 = shr v23, 8
-    v25 = eq v24, 0
-    v26 = eq v25, false
-    icall revert_if<empty>, v26
-    v27 = add v18, 1
+    v24 = gt v23, 255
+    icall revert_if<empty>, v24
+    v25 = add v18, 1
     jump bb1
 }

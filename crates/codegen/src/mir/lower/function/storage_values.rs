@@ -446,8 +446,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // way, before the element slot is derived. The cap also bounds the new
         // length, so the increment cannot wrap and needs no overflow check.
         let length = self.builder.sload(base.slot);
-        let max_length = self.builder.imm(U256::from(u64::MAX));
-        let too_long = self.builder.gt(length, max_length);
+        let too_long = self.builder.exceeds_bits(length, 64, ConditionUse::BRANCH);
         self.builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
         let one = self.builder.imm(1);
         let new_length = self.builder.add(length, one);
@@ -485,7 +484,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let packed_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
         let last_byte = self.builder.imm(31);
-        let is_long = self.builder.gt(old_length, last_byte);
+        let is_long = self.builder.exceeds_bits(old_length, 5, ConditionUse::BRANCH);
         self.builder.branch(is_long, long_block, short_block);
 
         // if old_length > 31 {
@@ -663,9 +662,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // old_length = extract_length(data)
         // if !(old_length < 2**64) { panic(MemoryAllocationOverflow) }
         let (data, _, old_length) = decode_storage_bytes_header(&mut self.builder, slot);
-        let max_length = self.builder.imm(U256::from(1u64) << 64);
-        let in_range = self.builder.lt(old_length, max_length);
-        let too_long = self.builder.eq_zero(in_range);
+        let too_long = self.builder.exceeds_bits(old_length, 64, ConditionUse::BRANCH);
         self.builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
 
         // Keep the short-header path first so repeated packed pushes can fall through.
@@ -675,7 +672,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let packed_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
         let last_byte = self.builder.imm(31);
-        let is_long = self.builder.gt(old_length, last_byte);
+        let is_long = self.builder.exceeds_bits(old_length, 5, ConditionUse::BRANCH);
         self.builder.branch(is_long, long_block, short_block);
 
         // if old_length > 31 {

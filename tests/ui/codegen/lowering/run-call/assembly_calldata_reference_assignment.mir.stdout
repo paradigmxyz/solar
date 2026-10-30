@@ -232,7 +232,7 @@ fn @dynamicNarrow(arg0: slice<calldata>) -> ptr<memory> [selector=0x320b552a, pu
     mstore v18, v4
     jump bb1
   bb1:
-    v19 = phi [bb0: 0], [bb2: v31]
+    v19 = phi [bb0: 0], [bb2: v29]
     v20 = lt v19, v4
     jumpi v20, bb2, bb3
   bb3:
@@ -242,15 +242,13 @@ fn @dynamicNarrow(arg0: slice<calldata>) -> ptr<memory> [selector=0x320b552a, pu
     v22 = ptrtoint ptr<calldata> v5 to i256
     v23 = add v22, v21
     v24 = calldataload v23
-    v25 = shr v24, 8
-    v26 = eq v25, 0
-    v27 = eq v26, false
-    icall revert_if<empty>, v27
-    v28 = shl v19, 5
-    v29 = ptradd v18, v28
-    v30 = ptradd v29, 32
-    mstore v30, v24
-    v31 = add v19, 1
+    v25 = gt v24, 255
+    icall revert_if<empty>, v25
+    v26 = shl v19, 5
+    v27 = ptradd v18, v26
+    v28 = ptradd v27, 32
+    mstore v28, v24
+    v29 = add v19, 1
     jump bb1
 }
 
@@ -282,7 +280,7 @@ fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pu
     mstore v18, v4
     jump bb1
   bb1:
-    v19 = phi [bb0: 0], [bb2: v58]
+    v19 = phi [bb0: 0], [bb2: v59]
     v20 = lt v19, v4
     jumpi v20, bb2, bb3
   bb3:
@@ -307,34 +305,35 @@ fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pu
     icall revert_if<invalid_calldata_tail_offset>, v35
     v36 = calldataload v29
     v37 = calldatasize
-    v38 = gt v36, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v38
-    v39 = mul v36, 32
-    v40 = add v29, 32
-    v41 = sub v37, v39
-    v42 = sgt v40, v41
-    icall revert_if<calldata_tail_too_short>, v42
-    v43 = mul v36, 32
-    v44 = shr v36, 251
-    v45 = ne v44, 0
-    icall panic_if<0x41>, v45
-    v46 = add 32, v43
-    v47 = lt v46, 32
-    icall panic_if<0x41>, v47
-    v48 = alloc v46
-    mstore v48, v36
-    v49 = inttoptr i256 v40 to ptr<calldata>
-    v50 = make_calldata_slice v49, v43
-    v51 = ptradd v48, 32
-    v52 = extract_value slice<calldata>, v50, 0
-    v53 = extract_value slice<calldata>, v50, 1
-    calldatacopy v51, v52, v53
-    v54 = ptrtoint ptr<memory> v48 to i256
-    v55 = shl v19, 5
-    v56 = ptradd v18, v55
-    v57 = ptradd v56, 32
-    mstore v57, v54
-    v58 = add v19, 1
+    v38 = shr v36, 64
+    v39 = ne v38, 0
+    icall revert_if<invalid_calldata_tail_length>, v39
+    v40 = mul v36, 32
+    v41 = add v29, 32
+    v42 = sub v37, v40
+    v43 = sgt v41, v42
+    icall revert_if<calldata_tail_too_short>, v43
+    v44 = mul v36, 32
+    v45 = shr v36, 251
+    v46 = ne v45, 0
+    icall panic_if<0x41>, v46
+    v47 = add 32, v44
+    v48 = lt v47, 32
+    icall panic_if<0x41>, v48
+    v49 = alloc v47
+    mstore v49, v36
+    v50 = inttoptr i256 v41 to ptr<calldata>
+    v51 = make_calldata_slice v50, v44
+    v52 = ptradd v49, 32
+    v53 = extract_value slice<calldata>, v51, 0
+    v54 = extract_value slice<calldata>, v51, 1
+    calldatacopy v52, v53, v54
+    v55 = ptrtoint ptr<memory> v49 to i256
+    v56 = shl v19, 5
+    v57 = ptradd v18, v56
+    v58 = ptradd v57, 32
+    mstore v58, v55
+    v59 = add v19, 1
     jump bb1
 }
 

@@ -121,13 +121,11 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
     icall revert_if<tuple_data_too_short>, v18
     v19 = add 0, 0
     v20 = mload v19
-    v21 = shr v20, 8
-    v22 = eq v21, 0
-    v23 = eq v22, false
-    icall revert_if<empty>, v23
-    v24 = trunc i256 v20 to i8
-    v25 = insert_value struct0, undef struct0, 0, v8
-    v26 = insert_value struct0, v25, 1, v13
-    v27 = insert_value struct0, v26, 2, v24
-    ret v27
+    v21 = gt v20, 255
+    icall revert_if<empty>, v21
+    v22 = trunc i256 v20 to i8
+    v23 = insert_value struct0, undef struct0, 0, v8
+    v24 = insert_value struct0, v23, 1, v13
+    v25 = insert_value struct0, v24, 2, v22
+    ret v25
 }

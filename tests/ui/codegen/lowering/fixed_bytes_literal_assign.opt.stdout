@@ -3,24 +3,22 @@
 @phase lowered
 fn @patch() [selector=0x7f603a02, abi_wrapper, pure] {
   bb0:
-    v16 = calldataload 4
-    v17 = shr v16, 1
     v14 = calldatasize
     v15 = lt v14, 36
-    v24 = zext i1 v15 to i256
-    v25 = or v24, v17
-    v26 = ne v25, 0
-    jumpi v26, bb3, bb4
+    v16 = calldataload 4
+    v17 = gt v16, 1
+    v23 = or v15, v17
+    jumpi v23, bb3, bb4
   bb4:
-    v22 = heap_floor !metadata(alloc_ptr)
-    v21 = add v22, 32
-    mstore v21, 0x4142000000000000000000000000000000000000000000000000000000000000
+    v21 = heap_floor !metadata(alloc_ptr)
+    v20 = add v21, 32
+    mstore v20, 0x4142000000000000000000000000000000000000000000000000000000000000
     jumpi arg0, bb1, bb2
   bb1:
-    mstore8 v21, 45
+    mstore8 v20, 45
     jump bb2
   bb2:
-    v11 = mload v21
+    v11 = mload v20
     v12 = byte 0, v11
     v13 = shl v12, 248
     mstore 0, v13 !metadata(memory=scratch)

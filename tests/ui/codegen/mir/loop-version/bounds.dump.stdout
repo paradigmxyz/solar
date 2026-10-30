@@ -21,10 +21,10 @@ fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
   bb26:
     v197 = heap_floor !metadata(alloc_ptr)
     v198 = add v197, v9 !metadata(alloc_ptr)
+    v200 = shr v198, 64
     v199 = lt v198, v197
-    v200 = zext i1 v199 to i256
-    v201 = shr v198, 64
-    v202 = or v200, v201
+    v201 = zext i1 v199 to i256
+    v202 = or v201, v200
     v203 = ne v202, 0
     jumpi v203, bb38, bb37
   bb37:
@@ -220,10 +220,10 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
   bb25:
     v350 = heap_floor !metadata(alloc_ptr)
     v351 = add v350, v9 !metadata(alloc_ptr)
+    v353 = shr v351, 64
     v352 = lt v351, v350
-    v353 = zext i1 v352 to i256
-    v354 = shr v351, 64
-    v355 = or v353, v354
+    v354 = zext i1 v352 to i256
+    v355 = or v354, v353
     v356 = ne v355, 0
     jumpi v356, bb47, bb46
   bb46:
@@ -232,10 +232,10 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     calldatacopy v350, v365, v9
     mstore v350, arg0
     v358 = add v351, v9 !metadata(alloc_ptr)
+    v360 = shr v358, 64
     v359 = lt v358, v351
-    v360 = zext i1 v359 to i256
-    v361 = shr v358, 64
-    v362 = or v360, v361
+    v361 = zext i1 v359 to i256
+    v362 = or v361, v360
     v363 = ne v362, 0
     jumpi v363, bb47, bb48
   bb48:

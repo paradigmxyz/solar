@@ -14,10 +14,10 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
   bb10:
     v83 = heap_floor !metadata(alloc_ptr)
     v84 = add v83, v9 !metadata(alloc_ptr)
+    v86 = shr v84, 64
     v85 = lt v84, v83
-    v86 = zext i1 v85 to i256
-    v87 = shr v84, 64
-    v88 = or v86, v87
+    v87 = zext i1 v85 to i256
+    v88 = or v87, v86
     v89 = ne v88, 0
     jumpi v89, bb17, bb16
   bb16:
@@ -164,10 +164,10 @@ fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
     v10 = shl v8, 5
     v87 = heap_floor !metadata(alloc_ptr)
     v88 = add v87, v10 !metadata(alloc_ptr)
+    v90 = shr v88, 64
     v89 = lt v88, v87
-    v90 = zext i1 v89 to i256
-    v91 = shr v88, 64
-    v92 = or v90, v91
+    v91 = zext i1 v89 to i256
+    v92 = or v91, v90
     v93 = ne v92, 0
     jumpi v93, bb8, bb7
   bb7:

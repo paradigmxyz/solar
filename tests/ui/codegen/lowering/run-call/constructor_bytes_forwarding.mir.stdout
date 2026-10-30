@@ -170,10 +170,9 @@ fn @f(arg0: i256, arg1: ptr<memory>) -> struct0 [selector=0xcdc9dc79, abi_params
     v23 = add 0, 0
     v24 = mload v23
     v25 = shl v24, 8
-    v26 = eq v25, 0
-    v27 = eq v26, false
-    icall revert_if<empty>, v27
-    v28 = insert_value struct0, undef struct0, 0, v17
-    v29 = insert_value struct0, v28, 1, v24
-    ret v29
+    v26 = ne v25, 0
+    icall revert_if<empty>, v26
+    v27 = insert_value struct0, undef struct0, 0, v17
+    v28 = insert_value struct0, v27, 1, v24
+    ret v28
 }

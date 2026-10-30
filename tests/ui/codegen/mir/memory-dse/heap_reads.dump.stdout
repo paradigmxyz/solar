@@ -59,10 +59,10 @@ fn @load() [selector=0x86d5c4be, abi_wrapper, view] {
     v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v52 = heap_floor !metadata(alloc_ptr)
     v53 = add v52, v15 !metadata(alloc_ptr)
+    v55 = shr v53, 64
     v54 = lt v53, v52
-    v55 = zext i1 v54 to i256
-    v56 = shr v53, 64
-    v57 = or v55, v56
+    v56 = zext i1 v54 to i256
+    v57 = or v56, v55
     v58 = ne v57, 0
     jumpi v58, bb9, bb8
   bb8:
@@ -124,10 +124,10 @@ fn @hashes() [selector=0x501895ae, abi_wrapper, pure] {
   bb10:
     v74 = heap_floor !metadata(alloc_ptr)
     v75 = add v74, v9 !metadata(alloc_ptr)
+    v77 = shr v75, 64
     v76 = lt v75, v74
-    v77 = zext i1 v76 to i256
-    v78 = shr v75, 64
-    v79 = or v77, v78
+    v78 = zext i1 v76 to i256
+    v79 = or v78, v77
     v80 = ne v79, 0
     jumpi v80, bb16, bb15
   bb15:
@@ -200,10 +200,10 @@ fn @wrapped() [selector=0x50e70d48, abi_wrapper, pure] {
     mstore 0, 7 !metadata(memory=scratch)
     v19 = heap_floor !metadata(alloc_ptr)
     v20 = add v19, 64 !metadata(alloc_ptr)
+    v22 = shr v20, 64
     v21 = lt v20, v19
-    v22 = zext i1 v21 to i256
-    v23 = shr v20, 64
-    v24 = or v22, v23
+    v23 = zext i1 v21 to i256
+    v24 = or v23, v22
     v25 = ne v24, 0
     jumpi v25, bb2, bb1
   bb1:
@@ -235,10 +235,10 @@ fn @below() [selector=0x8de62f33, abi_wrapper, pure] {
     mstore 0, 7 !metadata(memory=scratch)
     v12 = heap_floor !metadata(alloc_ptr)
     v13 = add v12, 64 !metadata(alloc_ptr)
+    v15 = shr v13, 64
     v14 = lt v13, v12
-    v15 = zext i1 v14 to i256
-    v16 = shr v13, 64
-    v17 = or v15, v16
+    v16 = zext i1 v14 to i256
+    v17 = or v16, v15
     v18 = ne v17, 0
     jumpi v18, bb4, bb3
   bb3:

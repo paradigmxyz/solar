@@ -203,14 +203,13 @@ fn @entry() [entry] {
 fn @a() [selector=0x2a500b7f, abi_wrapper, pure] {
   bb0:
     v3 = calldataload 4
-    v4 = shr v3, 8
-    v5 = eq v4, 0
-    jumpi v5, bb2, bb1
-  bb1:
-    revert 0, 0
+    v4 = gt v3, 255
+    jumpi v4, bb1, bb2
   bb2:
     mstore 0, arg0
     returndata 0, 32
+  bb1:
+    revert 0, 0
 }
 
 fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {

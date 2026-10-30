@@ -416,12 +416,12 @@ bb31:
   swap 1
   dup 2
   add
-  dup 2
-  dup 2
-  lt
-  swap 1
+  dup 1
   push 64
   shr
+  swap 1
+  dup 3
+  gt
   or
   push bb41
   jumpi
@@ -647,12 +647,12 @@ bb51 [continuation]:
   push 0
   return
 bb53:
+  push 36
+  calldatasize
+  lt
   push 4
   calldataload
   push 1
-  shr
-  push 36
-  calldatasize
   lt
   or
   push bb12

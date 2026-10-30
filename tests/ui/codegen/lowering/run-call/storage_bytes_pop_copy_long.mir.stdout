@@ -100,8 +100,8 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     v7 = or 127, v6
     v8 = shr v3, 1
     v9 = and v8, v7
-    v10 = lt v9, 0x10000000000000000
-    v11 = eq v10, false
+    v10 = shr v9, 64
+    v11 = ne v10, 0
     icall panic_if<0x41>, v11
     v12 = gt v9, 31
     jumpi v12, bb8, bb7
@@ -179,8 +179,8 @@ fn @testNoPop() -> ptr<memory> [selector=0xa43e8948, abi_params=[], abi_returns=
     v7 = or 127, v6
     v8 = shr v3, 1
     v9 = and v8, v7
-    v10 = lt v9, 0x10000000000000000
-    v11 = eq v10, false
+    v10 = shr v9, 64
+    v11 = ne v10, 0
     icall panic_if<0x41>, v11
     v12 = gt v9, 31
     jumpi v12, bb8, bb7
@@ -347,8 +347,8 @@ fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<ui
     v7 = or 127, v6
     v8 = shr v3, 1
     v9 = and v8, v7
-    v10 = lt v9, 0x10000000000000000
-    v11 = eq v10, false
+    v10 = shr v9, 64
+    v11 = ne v10, 0
     icall panic_if<0x41>, v11
     v12 = gt v9, 31
     jumpi v12, bb8, bb7

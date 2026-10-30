@@ -8,36 +8,39 @@ fn @inject(arg0: i256) -> i256 [pure] {
 fn @storageIndex(arg0: i256) -> i256 [selector=0xe1f98cd0, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = gt v0, 0xffffffffffffffff
-    icall panic_if<0x41>, v1
-    v2 = add v0, 1
-    v3 = storage_array_data_slot 0
-    v4 = add v3, v0
-    sstore v4, 1 !metadata(storage=symbolic(v4))
-    sstore 0, v2 !metadata(storage=slot(0))
-    v5 = sload 0 !metadata(storage=slot(0))
-    v6 = gt v5, 0xffffffffffffffff
-    icall panic_if<0x41>, v6
-    v7 = add v5, 1
-    v8 = storage_array_data_slot 0
-    v9 = add v8, v5
-    sstore v9, 2 !metadata(storage=symbolic(v9))
-    sstore 0, v7 !metadata(storage=slot(0))
-    v10 = sload 0 !metadata(storage=slot(0))
-    v11 = gt v10, 0xffffffffffffffff
-    icall panic_if<0x41>, v11
-    v12 = add v10, 1
-    v13 = storage_array_data_slot 0
-    v14 = add v13, v10
-    sstore v14, 3 !metadata(storage=symbolic(v14))
-    sstore 0, v12 !metadata(storage=slot(0))
-    v15 = icall @inject, arg0
-    v16 = sload 0 !metadata(storage=slot(0))
-    v17 = lt v15, v16
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = storage_array_data_slot 0
-    v20 = add v19, v15
-    v21 = sload v20 !metadata(storage=symbolic(v20))
-    ret v21
+    v1 = shr v0, 64
+    v2 = ne v1, 0
+    icall panic_if<0x41>, v2
+    v3 = add v0, 1
+    v4 = storage_array_data_slot 0
+    v5 = add v4, v0
+    sstore v5, 1 !metadata(storage=symbolic(v5))
+    sstore 0, v3 !metadata(storage=slot(0))
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = shr v6, 64
+    v8 = ne v7, 0
+    icall panic_if<0x41>, v8
+    v9 = add v6, 1
+    v10 = storage_array_data_slot 0
+    v11 = add v10, v6
+    sstore v11, 2 !metadata(storage=symbolic(v11))
+    sstore 0, v9 !metadata(storage=slot(0))
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = shr v12, 64
+    v14 = ne v13, 0
+    icall panic_if<0x41>, v14
+    v15 = add v12, 1
+    v16 = storage_array_data_slot 0
+    v17 = add v16, v12
+    sstore v17, 3 !metadata(storage=symbolic(v17))
+    sstore 0, v15 !metadata(storage=slot(0))
+    v18 = icall @inject, arg0
+    v19 = sload 0 !metadata(storage=slot(0))
+    v20 = lt v18, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = storage_array_data_slot 0
+    v23 = add v22, v18
+    v24 = sload v23 !metadata(storage=symbolic(v23))
+    ret v24
 }

@@ -412,8 +412,8 @@ fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[], abi_
     v4 = or 127, v3
     v5 = shr v0, 1
     v6 = and v5, v4
-    v7 = lt v6, 0x10000000000000000
-    v8 = eq v7, false
+    v7 = shr v6, 64
+    v8 = ne v7, 0
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
@@ -475,8 +475,8 @@ fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[], abi_r
     v4 = or 127, v3
     v5 = shr v0, 1
     v6 = and v5, v4
-    v7 = lt v6, 0x10000000000000000
-    v8 = eq v7, false
+    v7 = shr v6, 64
+    v8 = ne v7, 0
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
@@ -912,8 +912,8 @@ fn @pushAtMaxLength() -> i256 [selector=0x35078c3f, abi_params=[], abi_returns=[
     v8 = or 127, v7
     v9 = shr v4, 1
     v10 = and v9, v8
-    v11 = lt v10, 0x10000000000000000
-    v12 = eq v11, false
+    v11 = shr v10, 64
+    v12 = ne v11, 0
     icall panic_if<0x41>, v12
     v13 = gt v10, 31
     jumpi v13, bb2, bb1
@@ -979,8 +979,8 @@ fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[], abi
     v7 = or 127, v6
     v8 = shr v3, 1
     v9 = and v8, v7
-    v10 = lt v9, 0x10000000000000000
-    v11 = eq v10, false
+    v10 = shr v9, 64
+    v11 = ne v10, 0
     icall panic_if<0x41>, v11
     v12 = gt v9, 31
     jumpi v12, bb2, bb1

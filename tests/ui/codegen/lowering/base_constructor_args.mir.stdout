@@ -144,13 +144,14 @@ fn @constructor() [constructor] {
 fn @record(arg0: i256) -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = gt v0, 0xffffffffffffffff
-    icall panic_if<0x41>, v1
-    v2 = add v0, 1
-    v3 = storage_array_data_slot 0
-    v4 = add v3, v0
-    sstore v4, arg0 !metadata(storage=symbolic(v4))
-    sstore 0, v2 !metadata(storage=slot(0))
+    v1 = shr v0, 64
+    v2 = ne v1, 0
+    icall panic_if<0x41>, v2
+    v3 = add v0, 1
+    v4 = storage_array_data_slot 0
+    v5 = add v4, v0
+    sstore v5, arg0 !metadata(storage=symbolic(v5))
+    sstore 0, v3 !metadata(storage=slot(0))
     ret arg0
 }
 

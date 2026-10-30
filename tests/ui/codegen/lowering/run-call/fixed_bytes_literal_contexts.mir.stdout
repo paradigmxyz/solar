@@ -36,8 +36,8 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v6 = or 127, v5
     v7 = shr v2, 1
     v8 = and v7, v6
-    v9 = lt v8, 0x10000000000000000
-    v10 = eq v9, false
+    v9 = shr v8, 64
+    v10 = ne v9, 0
     icall panic_if<0x41>, v10
     v11 = gt v8, 31
     jumpi v11, bb2, bb1
@@ -86,56 +86,56 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     jump bb5
   bb5:
     v42 = sload 2 !metadata(storage=slot(2))
-    v43 = gt v42, 0xffffffffffffffff
-    icall panic_if<0x41>, v43
-    v44 = add v42, 1
-    v45 = storage_array_data_slot 2
-    v46 = div v42, 32
-    v47 = add v45, v46
-    v48 = mod v42, 32
-    v49 = mul v48, 1
-    v50 = mul v49, 8
-    v51 = shl 255, v50
-    v52 = sload v47 !metadata(storage=symbolic(v47))
-    v53 = not v51
-    v54 = and v52, v53
-    v55 = shr 0x500000000000000000000000000000000000000000000000000000000000000, 248
-    v56 = and v55, 255
-    v57 = shl v56, v50
-    v58 = or v54, v57
-    sstore v47, v58 !metadata(storage=symbolic(v47))
-    sstore 2, v44 !metadata(storage=slot(2))
-    v59 = sload 0 !metadata(storage=slot(0))
-    v60 = shr v59, 16
-    v61 = shl v60, 248
-    v62 = sload 0 !metadata(storage=slot(0))
-    v63 = shl v62, 240
-    v64 = icall @internalIdentity, 0x500000000000000000000000000000000000000000000000000000000000000
-    v65 = icall @identity, 0x1234000000000000000000000000000000000000000000000000000000000000
-    v66 = mload v0
-    v67 = and v66, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v68 = ptradd v0, 32
-    v69 = mload v68
-    v70 = and v69, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v71 = address
-    v72 = gas
-    v73 = and 0x500000000000000000000000000000000000000000000000000000000000000, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v43 = shr v42, 64
+    v44 = ne v43, 0
+    icall panic_if<0x41>, v44
+    v45 = add v42, 1
+    v46 = storage_array_data_slot 2
+    v47 = div v42, 32
+    v48 = add v46, v47
+    v49 = mod v42, 32
+    v50 = mul v49, 1
+    v51 = mul v50, 8
+    v52 = shl 255, v51
+    v53 = sload v48 !metadata(storage=symbolic(v48))
+    v54 = not v52
+    v55 = and v53, v54
+    v56 = shr 0x500000000000000000000000000000000000000000000000000000000000000, 248
+    v57 = and v56, 255
+    v58 = shl v57, v51
+    v59 = or v55, v58
+    sstore v48, v59 !metadata(storage=symbolic(v48))
+    sstore 2, v45 !metadata(storage=slot(2))
+    v60 = sload 0 !metadata(storage=slot(0))
+    v61 = shr v60, 16
+    v62 = shl v61, 248
+    v63 = sload 0 !metadata(storage=slot(0))
+    v64 = shl v63, 240
+    v65 = icall @internalIdentity, 0x500000000000000000000000000000000000000000000000000000000000000
+    v66 = icall @identity, 0x1234000000000000000000000000000000000000000000000000000000000000
+    v67 = mload v0
+    v68 = and v67, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v69 = ptradd v0, 32
+    v70 = mload v69
+    v71 = and v70, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v72 = address
+    v73 = gas
+    v74 = and 0x500000000000000000000000000000000000000000000000000000000000000, 0xff00000000000000000000000000000000000000000000000000000000000000
     mstore 0, 0xa8775ceb !metadata(memory=scratch)
-    mstore 32, v73 !metadata(memory=scratch)
-    v74 = zext i160 v71 to i256
-    v75 = staticcall v72, v74, 28, 36, 0, 32
-    jumpi v75, bb7, bb6
+    mstore 32, v74 !metadata(memory=scratch)
+    v75 = zext i160 v72 to i256
+    v76 = staticcall v73, v75, 28, 36, 0, 32
+    jumpi v76, bb7, bb6
   bb6:
     revert_returndata
   bb7:
-    v76 = returndatasize
-    v77 = lt v76, 32
-    icall revert_if<tuple_data_too_short>, v77
-    v78 = add 0, 0
-    v79 = mload v78
-    v80 = shl v79, 8
-    v81 = eq v80, 0
-    v82 = eq v81, false
+    v77 = returndatasize
+    v78 = lt v77, 32
+    icall revert_if<tuple_data_too_short>, v78
+    v79 = add 0, 0
+    v80 = mload v79
+    v81 = shl v80, 8
+    v82 = ne v81, 0
     icall revert_if<empty>, v82
     v83 = sload 1 !metadata(storage=slot(1))
     validate_storage_bytes v83
@@ -177,13 +177,13 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v111 = mul v109, 8
     v112 = shr v110, v111
     v113 = shl v112, 248
-    v114 = insert_value struct0, undef struct0, 0, v61
-    v115 = insert_value struct0, v114, 1, v63
-    v116 = insert_value struct0, v115, 2, v64
-    v117 = insert_value struct0, v116, 3, v65
-    v118 = insert_value struct0, v117, 4, v67
-    v119 = insert_value struct0, v118, 5, v70
-    v120 = insert_value struct0, v119, 6, v79
+    v114 = insert_value struct0, undef struct0, 0, v62
+    v115 = insert_value struct0, v114, 1, v64
+    v116 = insert_value struct0, v115, 2, v65
+    v117 = insert_value struct0, v116, 3, v66
+    v118 = insert_value struct0, v117, 4, v68
+    v119 = insert_value struct0, v118, 5, v71
+    v120 = insert_value struct0, v119, 6, v80
     v121 = insert_value struct0, v120, 7, v101
     v122 = insert_value struct0, v121, 8, v113
     ret v122

@@ -24,7 +24,7 @@ fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0xc12c508e, pure, abi_para
     mstore v14, v0
     jump bb1
   bb1:
-    v15 = phi [bb0: 0], [bb6: v86]
+    v15 = phi [bb0: 0], [bb6: v88]
     v16 = lt v15, v0
     jumpi v16, bb2, bb3
   bb3:
@@ -49,80 +49,82 @@ fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0xc12c508e, pure, abi_para
     icall revert_if<invalid_calldata_tail_offset>, v31
     v32 = calldataload v25
     v33 = calldatasize
-    v34 = gt v32, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v34
-    v35 = mul v32, 32
-    v36 = add v25, 32
-    v37 = sub v33, v35
-    v38 = sgt v36, v37
-    icall revert_if<calldata_tail_too_short>, v38
-    v39 = mul v32, 32
-    v40 = shr v32, 251
-    v41 = ne v40, 0
-    icall panic_if<0x41>, v41
-    v42 = add 32, v39
-    v43 = lt v42, 32
-    icall panic_if<0x41>, v43
-    v44 = alloc v42
-    mstore v44, v32
+    v34 = shr v32, 64
+    v35 = ne v34, 0
+    icall revert_if<invalid_calldata_tail_length>, v35
+    v36 = mul v32, 32
+    v37 = add v25, 32
+    v38 = sub v33, v36
+    v39 = sgt v37, v38
+    icall revert_if<calldata_tail_too_short>, v39
+    v40 = mul v32, 32
+    v41 = shr v32, 251
+    v42 = ne v41, 0
+    icall panic_if<0x41>, v42
+    v43 = add 32, v40
+    v44 = lt v43, 32
+    icall panic_if<0x41>, v44
+    v45 = alloc v43
+    mstore v45, v32
     jump bb4
   bb4:
-    v45 = phi [bb2: 0], [bb5: v81]
-    v46 = lt v45, v32
-    jumpi v46, bb5, bb6
+    v46 = phi [bb2: 0], [bb5: v83]
+    v47 = lt v46, v32
+    jumpi v47, bb5, bb6
   bb6:
-    v82 = ptrtoint ptr<memory> v44 to i256
-    v83 = shl v15, 5
-    v84 = ptradd v14, v83
-    v85 = ptradd v84, 32
-    mstore v85, v82
-    v86 = add v15, 1
+    v84 = ptrtoint ptr<memory> v45 to i256
+    v85 = shl v15, 5
+    v86 = ptradd v14, v85
+    v87 = ptradd v86, 32
+    mstore v87, v84
+    v88 = add v15, 1
     jump bb1
   bb5:
-    v47 = mul v45, 32
-    v48 = add v36, v47
-    v49 = calldatasize
-    v50 = sub v49, v48
-    v51 = slt v50, 32
-    icall revert_if<calldata_tail_too_short>, v51
-    v52 = calldataload v48
-    v53 = add v36, v52
-    v54 = calldatasize
-    v55 = sub v54, v36
-    v56 = sub v55, 31
-    v57 = slt v52, v56
-    v58 = eq v57, false
-    icall revert_if<invalid_calldata_tail_offset>, v58
-    v59 = calldataload v53
-    v60 = calldatasize
-    v61 = gt v59, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v61
-    v62 = mul v59, 32
-    v63 = add v53, 32
-    v64 = sub v60, v62
-    v65 = sgt v63, v64
-    icall revert_if<calldata_tail_too_short>, v65
-    v66 = mul v59, 32
-    v67 = shr v59, 251
-    v68 = ne v67, 0
-    icall panic_if<0x41>, v68
-    v69 = add 32, v66
-    v70 = lt v69, 32
+    v48 = mul v46, 32
+    v49 = add v37, v48
+    v50 = calldatasize
+    v51 = sub v50, v49
+    v52 = slt v51, 32
+    icall revert_if<calldata_tail_too_short>, v52
+    v53 = calldataload v49
+    v54 = add v37, v53
+    v55 = calldatasize
+    v56 = sub v55, v37
+    v57 = sub v56, 31
+    v58 = slt v53, v57
+    v59 = eq v58, false
+    icall revert_if<invalid_calldata_tail_offset>, v59
+    v60 = calldataload v54
+    v61 = calldatasize
+    v62 = shr v60, 64
+    v63 = ne v62, 0
+    icall revert_if<invalid_calldata_tail_length>, v63
+    v64 = mul v60, 32
+    v65 = add v54, 32
+    v66 = sub v61, v64
+    v67 = sgt v65, v66
+    icall revert_if<calldata_tail_too_short>, v67
+    v68 = mul v60, 32
+    v69 = shr v60, 251
+    v70 = ne v69, 0
     icall panic_if<0x41>, v70
-    v71 = alloc v69
-    mstore v71, v59
-    v72 = inttoptr i256 v63 to ptr<calldata>
-    v73 = make_calldata_slice v72, v66
-    v74 = ptradd v71, 32
-    v75 = extract_value slice<calldata>, v73, 0
-    v76 = extract_value slice<calldata>, v73, 1
-    calldatacopy v74, v75, v76
-    v77 = ptrtoint ptr<memory> v71 to i256
-    v78 = shl v45, 5
-    v79 = ptradd v44, v78
-    v80 = ptradd v79, 32
-    mstore v80, v77
-    v81 = add v45, 1
+    v71 = add 32, v68
+    v72 = lt v71, 32
+    icall panic_if<0x41>, v72
+    v73 = alloc v71
+    mstore v73, v60
+    v74 = inttoptr i256 v65 to ptr<calldata>
+    v75 = make_calldata_slice v74, v68
+    v76 = ptradd v73, 32
+    v77 = extract_value slice<calldata>, v75, 0
+    v78 = extract_value slice<calldata>, v75, 1
+    calldatacopy v76, v77, v78
+    v79 = ptrtoint ptr<memory> v73 to i256
+    v80 = shl v46, 5
+    v81 = ptradd v45, v80
+    v82 = ptradd v81, 32
+    mstore v82, v79
+    v83 = add v46, 1
     jump bb4
 }
 
@@ -150,7 +152,7 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0xba9ef85f, pure, abi_para
     mstore v14, v0
     jump bb1
   bb1:
-    v15 = phi [bb0: 0], [bb6: v65]
+    v15 = phi [bb0: 0], [bb6: v66]
     v16 = lt v15, v0
     jumpi v16, bb2, bb3
   bb3:
@@ -175,52 +177,53 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0xba9ef85f, pure, abi_para
     icall revert_if<invalid_calldata_tail_offset>, v31
     v32 = calldataload v25
     v33 = calldatasize
-    v34 = gt v32, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v34
-    v35 = mul v32, 64
-    v36 = add v25, 32
-    v37 = sub v33, v35
-    v38 = sgt v36, v37
-    icall revert_if<calldata_tail_too_short>, v38
-    v39 = mul v32, 32
-    v40 = shr v32, 251
-    v41 = ne v40, 0
-    icall panic_if<0x41>, v41
-    v42 = add 32, v39
-    v43 = lt v42, 32
-    icall panic_if<0x41>, v43
-    v44 = alloc v42
-    mstore v44, v32
+    v34 = shr v32, 64
+    v35 = ne v34, 0
+    icall revert_if<invalid_calldata_tail_length>, v35
+    v36 = mul v32, 64
+    v37 = add v25, 32
+    v38 = sub v33, v36
+    v39 = sgt v37, v38
+    icall revert_if<calldata_tail_too_short>, v39
+    v40 = mul v32, 32
+    v41 = shr v32, 251
+    v42 = ne v41, 0
+    icall panic_if<0x41>, v42
+    v43 = add 32, v40
+    v44 = lt v43, 32
+    icall panic_if<0x41>, v44
+    v45 = alloc v43
+    mstore v45, v32
     jump bb4
   bb4:
-    v45 = phi [bb2: 0], [bb5: v60]
-    v46 = lt v45, v32
-    jumpi v46, bb5, bb6
+    v46 = phi [bb2: 0], [bb5: v61]
+    v47 = lt v46, v32
+    jumpi v47, bb5, bb6
   bb6:
-    v61 = ptrtoint ptr<memory> v44 to i256
-    v62 = shl v15, 5
-    v63 = ptradd v14, v62
-    v64 = ptradd v63, 32
-    mstore v64, v61
-    v65 = add v15, 1
+    v62 = ptrtoint ptr<memory> v45 to i256
+    v63 = shl v15, 5
+    v64 = ptradd v14, v63
+    v65 = ptradd v64, 32
+    mstore v65, v62
+    v66 = add v15, 1
     jump bb1
   bb5:
-    v47 = mul v45, 64
-    v48 = shr v45, 250
-    v49 = ne v48, 0
-    icall panic_if<0x41>, v49
-    v50 = add v36, v47
-    v51 = alloc 64
-    v52 = inttoptr i256 v50 to ptr<calldata>
-    v53 = make_calldata_slice v52, 64
-    v54 = extract_value slice<calldata>, v53, 0
-    v55 = extract_value slice<calldata>, v53, 1
-    calldatacopy v51, v54, v55
-    v56 = ptrtoint ptr<memory> v51 to i256
-    v57 = shl v45, 5
-    v58 = ptradd v44, v57
-    v59 = ptradd v58, 32
-    mstore v59, v56
-    v60 = add v45, 1
+    v48 = mul v46, 64
+    v49 = shr v46, 250
+    v50 = ne v49, 0
+    icall panic_if<0x41>, v50
+    v51 = add v37, v48
+    v52 = alloc 64
+    v53 = inttoptr i256 v51 to ptr<calldata>
+    v54 = make_calldata_slice v53, 64
+    v55 = extract_value slice<calldata>, v54, 0
+    v56 = extract_value slice<calldata>, v54, 1
+    calldatacopy v52, v55, v56
+    v57 = ptrtoint ptr<memory> v52 to i256
+    v58 = shl v46, 5
+    v59 = ptradd v45, v58
+    v60 = ptradd v59, 32
+    mstore v60, v57
+    v61 = add v46, 1
     jump bb4
 }

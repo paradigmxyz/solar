@@ -93,14 +93,12 @@ fn @clearedAfterCall() [selector=0x15bda24f, abi_wrapper] {
 
 fn @afterReturn() [selector=0x888a9e3c, abi_wrapper] {
   bb0:
-    v20 = calldataload 4
-    v21 = shr v20, 1
     v18 = calldatasize
     v19 = lt v18, 36
-    v24 = zext i1 v19 to i256
-    v25 = or v24, v21
-    v26 = ne v25, 0
-    jumpi v26, bb5, bb7
+    v20 = calldataload 4
+    v21 = gt v20, 1
+    v23 = or v19, v21
+    jumpi v23, bb5, bb7
   bb7:
     tstore 1, 1 !metadata(storage=slot(1))
     jumpi arg0, bb1, bb2

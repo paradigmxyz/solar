@@ -455,10 +455,10 @@ fn @alloc(arg0: i256) -> i256 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v0, arg0 !metadata(alloc_ptr)
+    v4 = shr v2, 64
     v3 = lt v2, v0
-    v4 = zext i1 v3 to i256
-    v5 = shr v2, 64
-    v6 = or v4, v5
+    v5 = zext i1 v3 to i256
+    v6 = or v5, v4
     v7 = ne v6, 0
     jumpi v7, bb1, bb2
   bb2:

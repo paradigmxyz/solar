@@ -16,44 +16,47 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
     v3 = sload v1 !metadata(storage=symbolic(v1))
-    v4 = gt v3, 0xffffffffffffffff
-    icall panic_if<0x41>, v4
-    v5 = add v3, 1
-    v6 = storage_array_data_slot v1
-    v7 = add v6, v3
-    sstore v7, 7 !metadata(storage=symbolic(v7))
-    sstore v1, v5 !metadata(storage=symbolic(v1))
-    v8 = sload v2 !metadata(storage=symbolic(v2))
-    v9 = gt v8, 0xffffffffffffffff
-    icall panic_if<0x41>, v9
-    v10 = add v8, 1
-    v11 = storage_array_data_slot v2
-    v12 = add v11, v8
-    sstore v2, v10 !metadata(storage=symbolic(v2))
-    v13 = sload v2 !metadata(storage=symbolic(v2))
-    v14 = lt 0, v13
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = storage_array_data_slot v2
-    v17 = add v16, 0
-    v18 = sload v17 !metadata(storage=symbolic(v16))
-    v19 = gt v18, 0xffffffffffffffff
-    icall panic_if<0x41>, v19
-    v20 = add v18, 1
-    v21 = storage_array_data_slot v17
-    v22 = add v21, v18
-    sstore v22, 9 !metadata(storage=symbolic(v22))
-    sstore v17, v20 !metadata(storage=symbolic(v16))
-    v23 = sload v1 !metadata(storage=symbolic(v1))
-    v24 = sload v2 !metadata(storage=symbolic(v2))
-    v25 = checked_add uint256, v23, v24
-    v26 = sload v2 !metadata(storage=symbolic(v2))
-    v27 = lt 0, v26
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = storage_array_data_slot v2
-    v30 = add v29, 0
-    v31 = sload v30 !metadata(storage=symbolic(v29))
-    v32 = checked_add uint256, v25, v31
-    ret v32
+    v4 = shr v3, 64
+    v5 = ne v4, 0
+    icall panic_if<0x41>, v5
+    v6 = add v3, 1
+    v7 = storage_array_data_slot v1
+    v8 = add v7, v3
+    sstore v8, 7 !metadata(storage=symbolic(v8))
+    sstore v1, v6 !metadata(storage=symbolic(v1))
+    v9 = sload v2 !metadata(storage=symbolic(v2))
+    v10 = shr v9, 64
+    v11 = ne v10, 0
+    icall panic_if<0x41>, v11
+    v12 = add v9, 1
+    v13 = storage_array_data_slot v2
+    v14 = add v13, v9
+    sstore v2, v12 !metadata(storage=symbolic(v2))
+    v15 = sload v2 !metadata(storage=symbolic(v2))
+    v16 = lt 0, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = storage_array_data_slot v2
+    v19 = add v18, 0
+    v20 = sload v19 !metadata(storage=symbolic(v18))
+    v21 = shr v20, 64
+    v22 = ne v21, 0
+    icall panic_if<0x41>, v22
+    v23 = add v20, 1
+    v24 = storage_array_data_slot v19
+    v25 = add v24, v20
+    sstore v25, 9 !metadata(storage=symbolic(v25))
+    sstore v19, v23 !metadata(storage=symbolic(v18))
+    v26 = sload v1 !metadata(storage=symbolic(v1))
+    v27 = sload v2 !metadata(storage=symbolic(v2))
+    v28 = checked_add uint256, v26, v27
+    v29 = sload v2 !metadata(storage=symbolic(v2))
+    v30 = lt 0, v29
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = storage_array_data_slot v2
+    v33 = add v32, 0
+    v34 = sload v33 !metadata(storage=symbolic(v32))
+    v35 = checked_add uint256, v28, v34
+    ret v35
 }

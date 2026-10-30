@@ -1,0 +1,47 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/fits_in_bits.sol:FitsInBits ===
+@module FitsInBits
+fn @u8(arg0: i8) -> i8 [selector=0x52adca66, pure, abi_params=[uint8], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
+  bb0:
+    ret arg0
+}
+
+fn @u16(arg0: i16) -> i16 [selector=0x65f9a35b, pure, abi_params=[uint16], abi_returns=[word<uint16>], abi_return_params=[uint16]] {
+  bb0:
+    ret arg0
+}
+
+fn @flag(arg0: i1) -> i1 [selector=0xa92a4c3b, pure, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    ret arg0
+}
+
+fn @dir(arg0: i8) -> i8 [selector=0x528a27a3, pure, abi_params=[enum<4, uint8>], abi_returns=[word<enum 4>], abi_return_params=[enum<4, uint8>]] {
+  bb0:
+    v0 = lt arg0, i8 4
+    v1 = eq v0, false
+    icall panic_if<0x21>, v1
+    ret arg0
+}
+
+fn @who(arg0: i160) -> i160 [selector=0x6ac3162c, pure, abi_params=[address], abi_returns=[word<uint160>], abi_return_params=[address]] {
+  bb0:
+    ret arg0
+}
+
+fn @add16(arg0: i16, arg1: i16) -> i16 [selector=0x73ea8bca, pure, abi_params=[uint16, uint16], abi_returns=[word<uint16>], abi_return_params=[uint16]] {
+  bb0:
+    v0 = checked_add uint16, arg0, arg1
+    ret v0
+}
+
+fn @mul64(arg0: i64, arg1: i64) -> i64 [selector=0x764442c4, pure, abi_params=[uint64, uint64], abi_returns=[word<uint64>], abi_return_params=[uint64]] {
+  bb0:
+    v0 = checked_mul uint64, arg0, arg1
+    ret v0
+}
+
+fn @len(arg0: ptr<memory>) -> i256 [selector=0xececb20a, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mload arg0
+    ret v0
+}

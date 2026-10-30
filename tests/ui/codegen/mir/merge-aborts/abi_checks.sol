@@ -16,11 +16,11 @@
 //@ run-call-fail: 0x05c051e10000000000000000000000000000000000000000000000000000000000000002000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000800000
 //@ run-call-fail: 0x05c051e10000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000800000
 
-// A function's ABI range checks branch once. A `bool` or `uintN` check that fails
-// leaves a nonzero `x >> k`, and an `intN` check a nonzero `x ^ signextend(b, x)`;
-// the words join with the size check into one test.
+// A function's ABI range checks branch once. A `uintN` check that fails leaves a nonzero
+// `x >> k`, an `intN` check a nonzero `x ^ signextend(b, x)`, and a `bool` check, whose
+// comparison costs what the shift does, a boolean; they join with the size check into one test.
 // CHECK-LABEL: fn @check{{[( ]}}
-// CHECK: [[BOOL:v[0-9]+]] = shr {{v[0-9]+}}, 1
+// CHECK: [[BOOL:v[0-9]+]] = gt {{v[0-9]+}}, 1
 // CHECK: [[SIGNED:v[0-9]+]] = xor {{v[0-9]+}}, [[EXTENDED:v[0-9]+]]
 // CHECK: [[REST:v[0-9]+]] = or {{v[0-9]+}}, [[SIGNED]]
 // CHECK-NEXT: [[ANY:v[0-9]+]] = ne [[REST]], 0

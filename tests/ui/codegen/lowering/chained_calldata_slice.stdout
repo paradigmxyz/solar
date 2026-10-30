@@ -25,25 +25,26 @@ fn @bytesChain(arg0: slice<calldata>) -> ptr<memory> [selector=0x2007c472, pure,
     v18 = extract_value slice<calldata>, v17, 0
     v19 = extract_value slice<calldata>, v17, 1
     v20 = calldatasize
-    v21 = gt v19, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v21
-    v22 = sub v20, v19
-    v23 = ptrtoint ptr<calldata> v18 to i256
-    v24 = sgt v23, v22
-    icall revert_if<calldata_tail_too_short>, v24
-    v25 = extract_value slice<calldata>, v17, 1
-    v26 = add v25, 63
-    v27 = lt v26, v25
-    icall panic_if<0x41>, v27
-    v28 = not 31
-    v29 = and v26, v28
-    v30 = alloc v29
-    mstore v30, v25
-    v31 = ptradd v30, 32
-    v32 = extract_value slice<calldata>, v17, 0
-    v33 = extract_value slice<calldata>, v17, 1
-    calldatacopy v31, v32, v33
-    ret v30
+    v21 = shr v19, 64
+    v22 = ne v21, 0
+    icall revert_if<invalid_calldata_tail_length>, v22
+    v23 = sub v20, v19
+    v24 = ptrtoint ptr<calldata> v18 to i256
+    v25 = sgt v24, v23
+    icall revert_if<calldata_tail_too_short>, v25
+    v26 = extract_value slice<calldata>, v17, 1
+    v27 = add v26, 63
+    v28 = lt v27, v26
+    icall panic_if<0x41>, v28
+    v29 = not 31
+    v30 = and v27, v29
+    v31 = alloc v30
+    mstore v31, v26
+    v32 = ptradd v31, 32
+    v33 = extract_value slice<calldata>, v17, 0
+    v34 = extract_value slice<calldata>, v17, 1
+    calldatacopy v32, v33, v34
+    ret v31
 }
 
 fn @arrChain(arg0: slice<calldata>) -> i256 [selector=0x65df4193, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {

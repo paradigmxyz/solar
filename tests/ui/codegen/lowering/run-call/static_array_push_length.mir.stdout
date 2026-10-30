@@ -6,29 +6,31 @@
 fn @pushLength() -> struct0 [selector=0x755a645b, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = gt v0, 0xffffffffffffffff
-    icall panic_if<0x41>, v1
-    v2 = add v0, 1
-    v3 = storage_array_data_slot 0
-    v4 = mul v0, 3
-    v5 = add v3, v4
-    sstore 0, v2 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = insert_value struct0, undef struct0, 0, 3
-    v8 = insert_value struct0, v7, 1, v6
-    ret v8
+    v1 = shr v0, 64
+    v2 = ne v1, 0
+    icall panic_if<0x41>, v2
+    v3 = add v0, 1
+    v4 = storage_array_data_slot 0
+    v5 = mul v0, 3
+    v6 = add v4, v5
+    sstore 0, v3 !metadata(storage=slot(0))
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = insert_value struct0, undef struct0, 0, 3
+    v9 = insert_value struct0, v8, 1, v7
+    ret v9
 }
 
 fn @discardLength() -> i256 [selector=0x92a2122d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = gt v0, 0xffffffffffffffff
-    icall panic_if<0x41>, v1
-    v2 = add v0, 1
-    v3 = storage_array_data_slot 0
-    v4 = mul v0, 3
-    v5 = add v3, v4
-    sstore 0, v2 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    ret v6
+    v1 = shr v0, 64
+    v2 = ne v1, 0
+    icall panic_if<0x41>, v2
+    v3 = add v0, 1
+    v4 = storage_array_data_slot 0
+    v5 = mul v0, 3
+    v6 = add v4, v5
+    sstore 0, v3 !metadata(storage=slot(0))
+    v7 = sload 0 !metadata(storage=slot(0))
+    ret v7
 }

@@ -13,8 +13,8 @@ fn @declareStorage() -> struct0 [selector=0xd76e0072, abi_params=[], abi_returns
     v4 = or 127, v3
     v5 = shr v0, 1
     v6 = and v5, v4
-    v7 = lt v6, 0x10000000000000000
-    v8 = eq v7, false
+    v7 = shr v6, 64
+    v8 = ne v7, 0
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1

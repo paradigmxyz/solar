@@ -122,18 +122,18 @@ fn @consume(arg0: slice<calldata>, arg1: slice<calldata>) -> struct1 [selector=0
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v38]
-    v3 = phi [bb0: 0], [bb3: v39]
-    v4 = phi [bb0: 0], [bb3: v40]
+    v2 = phi [bb0: 0], [bb3: v36]
+    v3 = phi [bb0: 0], [bb3: v37]
+    v4 = phi [bb0: 0], [bb3: v38]
     v5 = extract_value slice<calldata>, v1, 1
     v6 = lt v4, v5
     jumpi v6, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v41 = insert_value struct1, undef struct1, 0, v2
-    v42 = insert_value struct1, v41, 1, v3
-    ret v42
+    v39 = insert_value struct1, undef struct1, 0, v2
+    v40 = insert_value struct1, v39, 1, v3
+    ret v40
   bb4:
     v7 = extract_value slice<calldata>, v1, 1
     v8 = lt v4, v7
@@ -147,49 +147,47 @@ fn @consume(arg0: slice<calldata>, arg1: slice<calldata>) -> struct1 [selector=0
     v14 = ptrtoint ptr<calldata> v10 to i256
     v15 = add v14, v11
     v16 = calldataload v15
-    v17 = shr v16, 1
-    v18 = eq v17, 0
+    v17 = gt v16, 1
+    icall revert_if<empty>, v17
+    v18 = ne v16, 0
     v19 = eq v18, false
-    icall revert_if<empty>, v19
-    v20 = ne v16, 0
-    v21 = eq v20, false
-    jumpi v21, bb7, bb8
+    jumpi v19, bb7, bb8
   bb8:
     jump bb9
   bb9:
-    v22 = extract_value slice<calldata>, v0, 1
-    v23 = eq v3, v22
-    jumpi v23, bb10, bb11
+    v20 = extract_value slice<calldata>, v0, 1
+    v21 = eq v3, v20
+    jumpi v21, bb10, bb11
   bb11:
     jump bb12
   bb12:
-    v26 = extract_value slice<calldata>, v0, 1
-    v27 = lt v3, v26
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = extract_value slice<calldata>, v0, 0
-    v30 = mul v3, 32
-    v31 = shr v3, 251
-    v32 = ne v31, 0
-    icall panic_if<0x41>, v32
-    v33 = ptrtoint ptr<calldata> v29 to i256
-    v34 = add v33, v30
-    v35 = calldataload v34
-    v36 = checked_add uint256, v2, v35
-    v37 = checked_add uint256, v3, 1
+    v24 = extract_value slice<calldata>, v0, 1
+    v25 = lt v3, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = extract_value slice<calldata>, v0, 0
+    v28 = mul v3, 32
+    v29 = shr v3, 251
+    v30 = ne v29, 0
+    icall panic_if<0x41>, v30
+    v31 = ptrtoint ptr<calldata> v27 to i256
+    v32 = add v31, v28
+    v33 = calldataload v32
+    v34 = checked_add uint256, v2, v33
+    v35 = checked_add uint256, v3, 1
     jump bb6
   bb6:
     jump bb3
   bb10:
-    v24 = insert_value struct1, undef struct1, 0, v2
-    v25 = insert_value struct1, v24, 1, v3
-    ret v25
+    v22 = insert_value struct1, undef struct1, 0, v2
+    v23 = insert_value struct1, v22, 1, v3
+    ret v23
   bb7:
     jump bb3
   bb3:
-    v38 = phi [bb6: v36], [bb7: v2]
-    v39 = phi [bb6: v37], [bb7: v3]
-    v40 = checked_add uint256, v4, 1
+    v36 = phi [bb6: v34], [bb7: v2]
+    v37 = phi [bb6: v35], [bb7: v3]
+    v38 = checked_add uint256, v4, 1
     jump bb1
 }
 

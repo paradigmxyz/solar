@@ -38,8 +38,8 @@ fn @pushThroughConversion() -> ptr<memory> [selector=0x10f946b0, abi_params=[], 
     v4 = or 127, v3
     v5 = shr v0, 1
     v6 = and v5, v4
-    v7 = lt v6, 0x10000000000000000
-    v8 = eq v7, false
+    v7 = shr v6, 64
+    v8 = ne v7, 0
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
@@ -316,8 +316,8 @@ fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, abi_params=[]
     v14 = or 127, v13
     v15 = shr v10, 1
     v16 = and v15, v14
-    v17 = lt v16, 0x10000000000000000
-    v18 = eq v17, false
+    v17 = shr v16, 64
+    v18 = ne v17, 0
     icall panic_if<0x41>, v18
     v19 = gt v16, 31
     jumpi v19, bb7, bb6

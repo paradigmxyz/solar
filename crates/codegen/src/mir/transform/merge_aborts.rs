@@ -72,8 +72,8 @@
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, Callee, EffectKind, Function, FunctionId, Immediate, InstKind, Instruction,
-        MirType, Module, Terminator, Value, ValueId,
+        BitWidthTest, BlockId, Callee, EffectKind, Function, FunctionId, Immediate, InstKind,
+        Instruction, MirType, Module, Terminator, Value, ValueId,
         analysis::{CfgInfo, aborts, cold_functions},
         pass::{MirPass, run_function_pass},
         utils::{rebuild_predecessors, replace_terminator},
@@ -141,6 +141,8 @@ struct Test {
     /// boolean. Such a test counts as aborting when true, as the word is nonzero; `condition`
     /// then goes unused unless the test turns back into a comparison.
     word: Option<Word>,
+    /// Whether the condition as spelled holds when the test aborts, which a word replaced.
+    spelled_aborts_when_true: bool,
 }
 
 impl Test {
@@ -149,10 +151,10 @@ impl Test {
         self.word.is_none() && !self.aborts_when_true
     }
 
-    /// Turns a range word back into the comparison it came from, which aborts on its false edge.
+    /// Turns a range word back into the comparison it came from.
     fn restore_comparison(&mut self) {
         self.word = None;
-        self.aborts_when_true = false;
+        self.aborts_when_true = self.spelled_aborts_when_true;
     }
 }
 
@@ -236,32 +238,53 @@ fn test(
     // when the word is nonzero: `or` then joins the word itself, and the merged branch tests the
     // combined word for free too.
     if let Some((word, nonzero)) = zero_test(func, condition) {
-        if func.value_ty(word) != Some(MirType::I256) || nonzero != aborts_when_true {
-            return None;
+        if func.value_ty(word) == Some(MirType::I256) && nonzero == aborts_when_true {
+            return Some(Test {
+                condition: word,
+                abort,
+                next,
+                aborts_when_true: true,
+                word: Some(Word::Itself),
+                spelled_aborts_when_true: aborts_when_true,
+            });
         }
-        return Some(Test {
-            condition: word,
-            abort,
-            next,
-            aborts_when_true: true,
-            word: Some(Word::Itself),
-        });
+        // A width test that aborts on the other sense turns around like the comparison with its
+        // limit, whichever way it is spelled.
+        BitWidthTest::of(func, condition)?;
     }
     // A range check that aborts when it fails leaves a nonzero word: the same join as above.
     // Loops keep such a test whole, to turn around into its complement.
-    if !aborts_when_true
-        && !cyclic.contains(block)
-        && let Some(word) = range_word(func, condition)
+    if !cyclic.contains(block)
+        && let Some(word) = range_word(func, condition, aborts_when_true)
     {
-        return Some(Test { condition, abort, next, aborts_when_true: true, word: Some(word) });
+        return Some(Test {
+            condition,
+            abort,
+            next,
+            aborts_when_true: true,
+            word: Some(word),
+            spelled_aborts_when_true: aborts_when_true,
+        });
     }
-    Some(Test { condition, abort, next, aborts_when_true, word: None })
+    Some(Test {
+        condition,
+        abort,
+        next,
+        aborts_when_true,
+        word: None,
+        spelled_aborts_when_true: aborts_when_true,
+    })
 }
 
-/// The word that is nonzero exactly when `condition` fails, for a signed ABI range check:
-/// `x == signextend(b, x)` fails when their `xor` is nonzero.
-fn range_word(func: &Function, condition: ValueId) -> Option<Word> {
-    let &InstKind::Eq(a, b) = func.value_inst_kind(condition)? else { return None };
+/// The word that is nonzero exactly when a test that aborts when `condition` holds does, for a
+/// signed ABI range check: `x == signextend(b, x)` fails, and `x != signextend(b, x)` holds,
+/// when their `xor` is nonzero.
+fn range_word(func: &Function, condition: ValueId, aborts_when_true: bool) -> Option<Word> {
+    let ((&InstKind::Eq(a, b), false) | (&InstKind::Ne(a, b), true)) =
+        (func.value_inst_kind(condition)?, aborts_when_true)
+    else {
+        return None;
+    };
     let extends = |extended: ValueId, word: ValueId| {
         matches!(
             func.value_inst_kind(extended),
@@ -404,18 +427,29 @@ fn mergeable(
 }
 
 /// The comparison that holds exactly when an unsigned comparison of a word with a literal fails:
-/// `x < k` fails when `x > k - 1`, and `x > k` when `x < k + 1`.
+/// `x < k` fails when `x > k - 1`, and `x > k` when `x < k + 1`. A width test fails when the
+/// word fits and when it does not, which is `x > 2^k - 1` and `x < 2^k` in either spelling.
 fn complement(func: &Function, condition: ValueId) -> Option<Compare> {
     let literal = |value| func.value_u256(value);
-    Some(match *func.value_inst_kind(condition)? {
-        InstKind::Lt(word, k) | InstKind::Gt(k, word) if literal(word).is_none() => {
-            Compare { word, below: false, literal: literal(k)?.checked_sub(U256::ONE)? }
+    let compare = if let Some(test) = BitWidthTest::of(func, condition) {
+        if test.fits {
+            Compare { word: test.word, below: false, literal: test.limit() }
+        } else {
+            Compare { word: test.word, below: true, literal: test.limit() + U256::ONE }
         }
-        InstKind::Gt(word, k) | InstKind::Lt(k, word) if literal(word).is_none() => {
-            Compare { word, below: true, literal: literal(k)?.checked_add(U256::ONE)? }
+    } else {
+        match *func.value_inst_kind(condition)? {
+            InstKind::Lt(word, k) | InstKind::Gt(k, word) if literal(word).is_none() => {
+                Compare { word, below: false, literal: literal(k)?.checked_sub(U256::ONE)? }
+            }
+            InstKind::Gt(word, k) | InstKind::Lt(k, word) if literal(word).is_none() => {
+                Compare { word, below: true, literal: literal(k)?.checked_add(U256::ONE)? }
+            }
+            _ => return None,
         }
-        _ => return None,
-    })
+    };
+    // The comparison is built with an `i256` literal, which only an `i256` word may meet.
+    (func.value_ty(compare.word) == Some(MirType::I256)).then_some(compare)
 }
 
 /// Appends a compiler-generated instruction to a block and returns its result.

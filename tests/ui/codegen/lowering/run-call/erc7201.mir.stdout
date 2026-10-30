@@ -25,26 +25,27 @@ fn @calldataParam(arg0: slice<calldata>) -> i256 [selector=0x7d4a24fb, pure, abi
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
     v2 = calldatasize
-    v3 = gt v1, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v3
-    v4 = sub v2, v1
-    v5 = ptrtoint ptr<calldata> v0 to i256
-    v6 = sgt v5, v4
-    icall revert_if<calldata_tail_too_short>, v6
-    v7 = extract_value slice<calldata>, arg0, 1
-    v8 = add v7, 63
-    v9 = lt v8, v7
-    icall panic_if<0x41>, v9
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc v11
-    mstore v12, v7
-    v13 = ptradd v12, 32
-    v14 = extract_value slice<calldata>, arg0, 0
-    v15 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v13, v14, v15
-    v16 = icall erc7201<>, v12
-    ret v16
+    v3 = shr v1, 64
+    v4 = ne v3, 0
+    icall revert_if<invalid_calldata_tail_length>, v4
+    v5 = sub v2, v1
+    v6 = ptrtoint ptr<calldata> v0 to i256
+    v7 = sgt v6, v5
+    icall revert_if<calldata_tail_too_short>, v7
+    v8 = extract_value slice<calldata>, arg0, 1
+    v9 = add v8, 63
+    v10 = lt v9, v8
+    icall panic_if<0x41>, v10
+    v11 = not 31
+    v12 = and v9, v11
+    v13 = alloc v12
+    mstore v13, v8
+    v14 = ptradd v13, 32
+    v15 = extract_value slice<calldata>, arg0, 0
+    v16 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v14, v15, v16
+    v17 = icall erc7201<>, v13
+    ret v17
 }
 
 fn @storageValue() -> i256 [selector=0xa977a973, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

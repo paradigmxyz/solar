@@ -74,25 +74,23 @@ fn @packCalldata(arg0: slice<calldata>) -> i256 [selector=0x38651f67, pure, abi_
     v1 = extract_value slice<calldata>, arg0, 0
     jump bb1
   bb1:
-    v2 = phi [bb0: 0], [bb2: v11]
+    v2 = phi [bb0: 0], [bb2: v9]
     v3 = lt v2, v0
     jumpi v3, bb2, bb3
   bb3:
-    v12 = abi_encode_packed (array<word<uint8>> calldata arg0)
-    v13 = ptradd v12, 32
-    v14 = mload v12
-    v15 = keccak256 v13, v14
-    ret v15
+    v10 = abi_encode_packed (array<word<uint8>> calldata arg0)
+    v11 = ptradd v10, 32
+    v12 = mload v10
+    v13 = keccak256 v11, v12
+    ret v13
   bb2:
     v4 = mul v2, 32
     v5 = ptrtoint ptr<calldata> v1 to i256
     v6 = add v5, v4
     v7 = calldataload v6
-    v8 = shr v7, 8
-    v9 = eq v8, 0
-    v10 = eq v9, false
-    icall revert_if<empty>, v10
-    v11 = add v2, 1
+    v8 = gt v7, 255
+    icall revert_if<empty>, v8
+    v9 = add v2, 1
     jump bb1
 }
 

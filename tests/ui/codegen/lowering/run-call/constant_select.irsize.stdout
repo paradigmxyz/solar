@@ -141,12 +141,12 @@ bb80 [ret=0, inputs=2, outputs=1]:
   swap 2
   dup 3
   add
-  dup 3
-  dup 2
-  lt
-  dup 2
+  dup 1
   push 64
   shr
+  dup 4
+  dup 3
+  lt
   or
   push bb29
   jumpi
@@ -493,12 +493,12 @@ bb37 [continuation]:
   and
   jump bb81
 bb39:
+  push 36
+  calldatasize
+  lt
   push 4
   calldataload
   push 1
-  shr
-  push 36
-  calldatasize
   lt
   or
   push bb11

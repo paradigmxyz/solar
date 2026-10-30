@@ -12,7 +12,8 @@
 //! scalar expressions.
 
 use crate::mir::{
-    ArithmeticKind, CheckedOp, FunctionBuilder, InstKind, MirType, Module, PanicCode, ValueId,
+    ArithmeticKind, CheckedOp, ConditionUse, FunctionBuilder, InstKind, MirType, Module, PanicCode,
+    ValueId,
     analysis::integers::integer_mask,
     pass::{MirPass, run_function_pass},
     transform::utils::expand_block,
@@ -31,11 +32,11 @@ impl MirPass for LowerArithmetic {
     }
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass(module, analyses, |func, analyses| {
             if !func
                 .instructions()
                 .any(|id| matches!(func.inst(id).kind, InstKind::CheckedBinary { .. }))
@@ -51,7 +52,7 @@ impl MirPass for LowerArithmetic {
                 {
                     continue;
                 }
-                let mut builder = FunctionBuilder::new(func);
+                let mut builder = FunctionBuilder::new(func).with_bit_tests(analyses.target(gcx));
                 expand_block(&mut builder, block, |builder, id| {
                     let InstKind::CheckedBinary { op, arithmetic, lhs, rhs } =
                         builder.func().inst(id).kind
@@ -101,7 +102,8 @@ impl ArithmeticLowerer<'_, '_> {
         let mut overflow = self.builder.and(sign_condition, result_changed_sign);
         if bits < 256 {
             // overflow |= result < min || result > max
-            let out_of_range = self.range_overflow(result, ArithmeticKind::Signed(bits));
+            let out_of_range =
+                self.range_overflow(result, ArithmeticKind::Signed(bits), ConditionUse::VALUE);
             overflow = self.builder.or(overflow, out_of_range);
         }
         overflow
@@ -118,9 +120,9 @@ impl ArithmeticLowerer<'_, '_> {
         if bits <= 128 {
             // The exact product of two such operands fits in a word, so only its range can
             // overflow, as in solc.
-            return self.range_overflow(result, kind);
+            return self.range_overflow(result, kind, ConditionUse::BRANCH);
         }
-        // overflow = ne (shr factor, 256 - s), 0, for a constant factor 2 ** s
+        // overflow = factor has a bit at or above 256 - s, for a constant factor 2 ** s
         if kind == ArithmeticKind::Unsigned(256)
             && let Some(overflow) = self.builder.power_of_two_mul_overflow(lhs, rhs)
         {
@@ -138,8 +140,12 @@ impl ArithmeticLowerer<'_, '_> {
         let mut overflow = self.builder.eq_zero(valid);
         if bits < 256 {
             // overflow |= result out of range
-            let out_of_range = self.range_overflow(result, kind);
-            overflow = self.builder.or(overflow, out_of_range);
+            overflow = if let ArithmeticKind::Unsigned(_) = kind {
+                self.builder.exceeds_bits_or(overflow, result, bits.into(), ConditionUse::BRANCH)
+            } else {
+                let out_of_range = self.range_overflow(result, kind, ConditionUse::VALUE);
+                self.builder.or(overflow, out_of_range)
+            };
         } else if let ArithmeticKind::Signed(_) = kind {
             // `sdiv(min, -1)` wraps to `min`, so the quotient test accepts `min * -1`.
             // overflow |= lhs == min && rhs < 0
@@ -154,12 +160,16 @@ impl ArithmeticLowerer<'_, '_> {
     }
 
     /// Returns whether a `bits`-wide `result` lies outside the range of `kind`.
-    fn range_overflow(&mut self, result: ValueId, kind: ArithmeticKind) -> ValueId {
+    fn range_overflow(
+        &mut self,
+        result: ValueId,
+        kind: ArithmeticKind,
+        read: ConditionUse,
+    ) -> ValueId {
         match kind {
             ArithmeticKind::Unsigned(bits) => {
                 // result > max
-                let max = self.builder.imm(integer_mask(bits.into()));
-                self.builder.gt(result, max)
+                self.builder.exceeds_bits(result, bits.into(), read)
             }
             ArithmeticKind::Signed(bits) => {
                 // result < min || result > max
@@ -271,7 +281,9 @@ impl ArithmeticLowerer<'_, '_> {
                 let result = self.builder.add(lhs, rhs);
                 let overflow = match kind {
                     ArithmeticKind::Unsigned(256) => self.builder.lt(result, lhs),
-                    ArithmeticKind::Unsigned(_) => self.range_overflow(result, kind),
+                    ArithmeticKind::Unsigned(_) => {
+                        self.range_overflow(result, kind, ConditionUse::BRANCH)
+                    }
                     ArithmeticKind::Signed(bits) => {
                         self.signed_add_sub_overflow(lhs, rhs, result, bits, true)
                     }

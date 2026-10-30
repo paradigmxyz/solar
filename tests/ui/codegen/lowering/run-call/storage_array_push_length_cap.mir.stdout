@@ -6,68 +6,88 @@
 fn @grow() -> struct0 [selector=0x5298948e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = gt v0, 0xffffffffffffffff
-    icall panic_if<0x41>, v1
-    v2 = add v0, 1
-    v3 = storage_array_data_slot 1
-    v4 = add v3, v0
-    sstore v4, 7 !metadata(storage=symbolic(v4))
-    sstore 1, v2 !metadata(storage=slot(1))
-    v5 = sload 1 !metadata(storage=slot(1))
-    v6 = gt v5, 0xffffffffffffffff
-    icall panic_if<0x41>, v6
-    v7 = add v5, 1
-    v8 = storage_array_data_slot 1
-    v9 = add v8, v5
-    sstore v9, 8 !metadata(storage=symbolic(v9))
-    sstore 1, v7 !metadata(storage=slot(1))
-    v10 = sload 1 !metadata(storage=slot(1))
-    v11 = lt 0, v10
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = storage_array_data_slot 1
-    v14 = add v13, 0
-    v15 = sload v14 !metadata(storage=symbolic(v13))
-    v16 = sload 1 !metadata(storage=slot(1))
-    v17 = lt 1, v16
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = storage_array_data_slot 1
-    v20 = add v19, 1
-    v21 = sload v20 !metadata(storage=offset(v19, 1))
-    v22 = sload 1 !metadata(storage=slot(1))
-    v23 = insert_value struct0, undef struct0, 0, v15
-    v24 = insert_value struct0, v23, 1, v21
-    v25 = insert_value struct0, v24, 2, v22
-    ret v25
+    v1 = shr v0, 64
+    v2 = ne v1, 0
+    icall panic_if<0x41>, v2
+    v3 = add v0, 1
+    v4 = storage_array_data_slot 1
+    v5 = add v4, v0
+    sstore v5, 7 !metadata(storage=symbolic(v5))
+    sstore 1, v3 !metadata(storage=slot(1))
+    v6 = sload 1 !metadata(storage=slot(1))
+    v7 = shr v6, 64
+    v8 = ne v7, 0
+    icall panic_if<0x41>, v8
+    v9 = add v6, 1
+    v10 = storage_array_data_slot 1
+    v11 = add v10, v6
+    sstore v11, 8 !metadata(storage=symbolic(v11))
+    sstore 1, v9 !metadata(storage=slot(1))
+    v12 = sload 1 !metadata(storage=slot(1))
+    v13 = lt 0, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = storage_array_data_slot 1
+    v16 = add v15, 0
+    v17 = sload v16 !metadata(storage=symbolic(v15))
+    v18 = sload 1 !metadata(storage=slot(1))
+    v19 = lt 1, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = storage_array_data_slot 1
+    v22 = add v21, 1
+    v23 = sload v22 !metadata(storage=offset(v21, 1))
+    v24 = sload 1 !metadata(storage=slot(1))
+    v25 = insert_value struct0, undef struct0, 0, v17
+    v26 = insert_value struct0, v25, 1, v23
+    v27 = insert_value struct0, v26, 2, v24
+    ret v27
 }
 
 fn @wrapOntoOwner() -> i256 [selector=0x428ae2e7, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 1, 0x4ef1d2ad89edf8c4d91132028e8195cdf30bb4b5053d4f8cd260341d4805f30a !metadata(storage=slot(1))
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = gt v0, 0xffffffffffffffff
-    icall panic_if<0x41>, v1
-    v2 = add v0, 1
-    v3 = storage_array_data_slot 1
-    v4 = add v3, v0
-    sstore v4, 7 !metadata(storage=symbolic(v4))
-    sstore 1, v2 !metadata(storage=slot(1))
-    v5 = sload 0 !metadata(storage=slot(0))
-    ret v5
+    v1 = shr v0, 64
+    v2 = ne v1, 0
+    icall panic_if<0x41>, v2
+    v3 = add v0, 1
+    v4 = storage_array_data_slot 1
+    v5 = add v4, v0
+    sstore v5, 7 !metadata(storage=symbolic(v5))
+    sstore 1, v3 !metadata(storage=slot(1))
+    v6 = sload 0 !metadata(storage=slot(0))
+    ret v6
+}
+
+fn @belowCap() -> i256 [selector=0xb648638d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    sstore 1, 0xffffffffffffffff !metadata(storage=slot(1))
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = shr v0, 64
+    v2 = ne v1, 0
+    icall panic_if<0x41>, v2
+    v3 = add v0, 1
+    v4 = storage_array_data_slot 1
+    v5 = add v4, v0
+    sstore v5, 7 !metadata(storage=symbolic(v5))
+    sstore 1, v3 !metadata(storage=slot(1))
+    v6 = sload 1 !metadata(storage=slot(1))
+    ret v6
 }
 
 fn @atCap() [selector=0xdb9a763c, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 1, 0x10000000000000000 !metadata(storage=slot(1))
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = gt v0, 0xffffffffffffffff
-    icall panic_if<0x41>, v1
-    v2 = add v0, 1
-    v3 = storage_array_data_slot 1
-    v4 = add v3, v0
-    sstore v4, 7 !metadata(storage=symbolic(v4))
-    sstore 1, v2 !metadata(storage=slot(1))
+    v1 = shr v0, 64
+    v2 = ne v1, 0
+    icall panic_if<0x41>, v2
+    v3 = add v0, 1
+    v4 = storage_array_data_slot 1
+    v5 = add v4, v0
+    sstore v5, 7 !metadata(storage=symbolic(v5))
+    sstore 1, v3 !metadata(storage=slot(1))
     ret
 }
 

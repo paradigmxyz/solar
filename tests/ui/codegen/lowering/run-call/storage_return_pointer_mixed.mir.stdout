@@ -22,105 +22,106 @@ fn @h() -> struct1 [selector=0xb8c9d365, pure, abi_params=[], abi_returns=[word,
 fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = gt v0, 0xffffffffffffffff
-    icall panic_if<0x41>, v1
-    v2 = add v0, 1
-    v3 = storage_array_data_slot 0
-    v4 = add v3, v0
-    sstore v4, 3 !metadata(storage=symbolic(v4))
-    sstore 0, v2 !metadata(storage=slot(0))
-    v5 = address
-    v6 = gas
-    v7 = abi_encode [], selector 0xb8c9d36500000000000000000000000000000000000000000000000000000000
-    v8 = extract_value slice<memory>, v7, 0
-    v9 = extract_value slice<memory>, v7, 1
-    v10 = zext i160 v5 to i256
-    v11 = staticcall v6, v10, v8, v9, v8, 64
-    jumpi v11, bb2, bb1
+    v1 = shr v0, 64
+    v2 = ne v1, 0
+    icall panic_if<0x41>, v2
+    v3 = add v0, 1
+    v4 = storage_array_data_slot 0
+    v5 = add v4, v0
+    sstore v5, 3 !metadata(storage=symbolic(v5))
+    sstore 0, v3 !metadata(storage=slot(0))
+    v6 = address
+    v7 = gas
+    v8 = abi_encode [], selector 0xb8c9d36500000000000000000000000000000000000000000000000000000000
+    v9 = extract_value slice<memory>, v8, 0
+    v10 = extract_value slice<memory>, v8, 1
+    v11 = zext i160 v6 to i256
+    v12 = staticcall v7, v11, v9, v10, v9, 64
+    jumpi v12, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = returndatasize
-    v13 = lt v12, 64
-    icall revert_if<tuple_data_too_short>, v13
-    v14 = ptrtoint ptr<memory> v8 to i256
-    v15 = add v14, 0
-    v16 = mload v15
-    v17 = ptrtoint ptr<memory> v8 to i256
-    v18 = add v17, 32
-    v19 = mload v18
-    v20 = insert_value struct1, undef struct1, 0, v16
-    v21 = insert_value struct1, v20, 1, v19
-    v22 = extract_value struct1, v21, 0
-    v23 = extract_value struct1, v21, 1
-    v24 = ne v22, 5
-    jumpi v24, bb4, bb3
+    v13 = returndatasize
+    v14 = lt v13, 64
+    icall revert_if<tuple_data_too_short>, v14
+    v15 = ptrtoint ptr<memory> v9 to i256
+    v16 = add v15, 0
+    v17 = mload v16
+    v18 = ptrtoint ptr<memory> v9 to i256
+    v19 = add v18, 32
+    v20 = mload v19
+    v21 = insert_value struct1, undef struct1, 0, v17
+    v22 = insert_value struct1, v21, 1, v20
+    v23 = extract_value struct1, v22, 0
+    v24 = extract_value struct1, v22, 1
+    v25 = ne v23, 5
+    jumpi v25, bb4, bb3
   bb3:
-    v25 = ne v23, 6
+    v26 = ne v24, 6
     jump bb5
   bb4:
     jump bb5
   bb5:
-    v26 = phi [bb3: v25], [bb4: true]
-    jumpi v26, bb6, bb7
+    v27 = phi [bb3: v26], [bb4: true]
+    jumpi v27, bb6, bb7
   bb7:
     jump bb8
   bb8:
-    v27 = icall @g
-    v28 = extract_value struct0, v27, 0
-    v29 = extract_value struct0, v27, 1
-    v30 = extract_value struct0, v27, 2
-    v31 = ne v28, 1
-    jumpi v31, bb10, bb9
+    v28 = icall @g
+    v29 = extract_value struct0, v28, 0
+    v30 = extract_value struct0, v28, 1
+    v31 = extract_value struct0, v28, 2
+    v32 = ne v29, 1
+    jumpi v32, bb10, bb9
   bb9:
-    v32 = ne v29, 2
+    v33 = ne v30, 2
     jump bb11
   bb10:
     jump bb11
   bb11:
-    v33 = phi [bb9: v32], [bb10: true]
-    jumpi v33, bb13, bb12
+    v34 = phi [bb9: v33], [bb10: true]
+    jumpi v34, bb13, bb12
   bb12:
-    v34 = sload v30 !metadata(storage=symbolic(v30))
-    v35 = lt 0, v34
-    v36 = eq v35, false
-    icall panic_if<0x32>, v36
-    v37 = storage_array_data_slot v30
-    v38 = add v37, 0
-    v39 = sload v38 !metadata(storage=symbolic(v37))
-    v40 = ne v39, 3
+    v35 = sload v31 !metadata(storage=symbolic(v31))
+    v36 = lt 0, v35
+    v37 = eq v36, false
+    icall panic_if<0x32>, v37
+    v38 = storage_array_data_slot v31
+    v39 = add v38, 0
+    v40 = sload v39 !metadata(storage=symbolic(v38))
+    v41 = ne v40, 3
     jump bb14
   bb13:
     jump bb14
   bb14:
-    v41 = phi [bb12: v40], [bb13: true]
-    jumpi v41, bb15, bb16
+    v42 = phi [bb12: v41], [bb13: true]
+    jumpi v42, bb15, bb16
   bb16:
     jump bb17
   bb17:
-    v42 = ne v29, 2
-    jumpi v42, bb19, bb18
+    v43 = ne v30, 2
+    jumpi v43, bb19, bb18
   bb18:
-    v43 = ne v28, 1
+    v44 = ne v29, 1
     jump bb20
   bb19:
     jump bb20
   bb20:
-    v44 = phi [bb18: v43], [bb19: true]
-    jumpi v44, bb21, bb22
+    v45 = phi [bb18: v44], [bb19: true]
+    jumpi v45, bb21, bb22
   bb22:
     jump bb23
   bb23:
-    v45 = ne 8, 8
-    jumpi v45, bb25, bb24
+    v46 = ne 8, 8
+    jumpi v46, bb25, bb24
   bb24:
-    v46 = ne 10, 10
+    v47 = ne 10, 10
     jump bb26
   bb25:
     jump bb26
   bb26:
-    v47 = phi [bb24: v46], [bb25: true]
-    jumpi v47, bb27, bb28
+    v48 = phi [bb24: v47], [bb25: true]
+    jumpi v48, bb27, bb28
   bb28:
     jump bb29
   bb29:

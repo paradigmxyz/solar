@@ -79,13 +79,13 @@ bb15 [loop]:
   lt
   push 4
   calldataload
-  push 8
-  shr
+  push 255
+  lt
   or
   push 36
   calldataload
-  push 8
-  shr
+  push 255
+  lt
   or
   push bb14
   jumpi

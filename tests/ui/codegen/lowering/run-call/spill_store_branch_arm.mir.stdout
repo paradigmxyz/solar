@@ -71,25 +71,23 @@ fn @advance(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>)
     v7 = add v6, 64
     v8 = calldataload v7
     v9 = shr v8, 24
-    v10 = eq v9, 0
-    v11 = eq v10, false
-    icall revert_if<empty>, v11
-    v12 = trunc i256 v8 to i24
-    v13 = zext i24 v12 to i256
-    v14 = extract_value slice<calldata>, arg1, 0
-    v15 = ptrtoint ptr<calldata> v14 to i256
-    v16 = add v15, 64
-    v17 = calldataload v16
-    v18 = shr v17, 160
-    v19 = eq v18, 0
-    v20 = eq v19, false
-    icall revert_if<empty>, v20
-    v21 = trunc i256 v17 to i160
-    v22 = zext i160 v21 to i256
-    v23 = checked_add uint256, v13, v22
-    v24 = extract_value slice<calldata>, arg2, 1
-    v25 = checked_add uint256, v23, v24
-    ret v25
+    v10 = ne v9, 0
+    icall revert_if<empty>, v10
+    v11 = trunc i256 v8 to i24
+    v12 = zext i24 v11 to i256
+    v13 = extract_value slice<calldata>, arg1, 0
+    v14 = ptrtoint ptr<calldata> v13 to i256
+    v15 = add v14, 64
+    v16 = calldataload v15
+    v17 = shr v16, 160
+    v18 = ne v17, 0
+    icall revert_if<empty>, v18
+    v19 = trunc i256 v16 to i160
+    v20 = zext i160 v19 to i256
+    v21 = checked_add uint256, v12, v20
+    v22 = extract_value slice<calldata>, arg2, 1
+    v23 = checked_add uint256, v21, v22
+    ret v23
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_store_branch_arm.sol:Settler ===

@@ -6,22 +6,20 @@ fn @packed(arg0: i256) -> ptr<memory> [selector=0x977eca9c, pure, abi_params=[ui
     v1 = extract_value slice<calldata>, v0, 0
     jump bb1
   bb1:
-    v2 = phi [bb0: 0], [bb2: v11]
+    v2 = phi [bb0: 0], [bb2: v9]
     v3 = lt v2, 2
     jumpi v3, bb2, bb3
   bb3:
-    v12 = abi_encode_packed (array<word<uint8>> calldata v0)
-    ret v12
+    v10 = abi_encode_packed (array<word<uint8>> calldata v0)
+    ret v10
   bb2:
     v4 = mul v2, 32
     v5 = ptrtoint ptr<calldata> v1 to i256
     v6 = add v5, v4
     v7 = calldataload v6
-    v8 = shr v7, 8
-    v9 = eq v8, 0
-    v10 = eq v9, false
-    icall revert_if<empty>, v10
-    v11 = add v2, 1
+    v8 = gt v7, 255
+    icall revert_if<empty>, v8
+    v9 = add v2, 1
     jump bb1
 }
 
@@ -31,25 +29,23 @@ fn @hashed(arg0: i256) -> i256 [selector=0xec727bea, pure, abi_params=[uint256],
     v1 = extract_value slice<calldata>, v0, 0
     jump bb1
   bb1:
-    v2 = phi [bb0: 0], [bb2: v11]
+    v2 = phi [bb0: 0], [bb2: v9]
     v3 = lt v2, 2
     jumpi v3, bb2, bb3
   bb3:
-    v12 = abi_encode_packed (array<word<uint8>> calldata v0)
-    v13 = ptradd v12, 32
-    v14 = mload v12
-    v15 = keccak256 v13, v14
-    ret v15
+    v10 = abi_encode_packed (array<word<uint8>> calldata v0)
+    v11 = ptradd v10, 32
+    v12 = mload v10
+    v13 = keccak256 v11, v12
+    ret v13
   bb2:
     v4 = mul v2, 32
     v5 = ptrtoint ptr<calldata> v1 to i256
     v6 = add v5, v4
     v7 = calldataload v6
-    v8 = shr v7, 8
-    v9 = eq v8, 0
-    v10 = eq v9, false
-    icall revert_if<empty>, v10
-    v11 = add v2, 1
+    v8 = gt v7, 255
+    icall revert_if<empty>, v8
+    v9 = add v2, 1
     jump bb1
 }
 
@@ -59,22 +55,21 @@ fn @signed(arg0: i256) -> ptr<memory> [selector=0xbfe355dd, pure, abi_params=[in
     v1 = extract_value slice<calldata>, v0, 0
     jump bb1
   bb1:
-    v2 = phi [bb0: 0], [bb2: v11]
+    v2 = phi [bb0: 0], [bb2: v10]
     v3 = lt v2, 2
     jumpi v3, bb2, bb3
   bb3:
-    v12 = abi_encode_packed (array<word<int8>> calldata v0)
-    ret v12
+    v11 = abi_encode_packed (array<word<int8>> calldata v0)
+    ret v11
   bb2:
     v4 = mul v2, 32
     v5 = ptrtoint ptr<calldata> v1 to i256
     v6 = add v5, v4
     v7 = calldataload v6
     v8 = signextend 0, v7
-    v9 = eq v7, v8
-    v10 = eq v9, false
-    icall revert_if<empty>, v10
-    v11 = add v2, 1
+    v9 = ne v7, v8
+    icall revert_if<empty>, v9
+    v10 = add v2, 1
     jump bb1
 }
 
@@ -84,22 +79,20 @@ fn @flags(arg0: i256) -> ptr<memory> [selector=0x81274d3a, pure, abi_params=[uin
     v1 = extract_value slice<calldata>, v0, 0
     jump bb1
   bb1:
-    v2 = phi [bb0: 0], [bb2: v11]
+    v2 = phi [bb0: 0], [bb2: v9]
     v3 = lt v2, 2
     jumpi v3, bb2, bb3
   bb3:
-    v12 = abi_encode_packed (array<word<bool>> calldata v0)
-    ret v12
+    v10 = abi_encode_packed (array<word<bool>> calldata v0)
+    ret v10
   bb2:
     v4 = mul v2, 32
     v5 = ptrtoint ptr<calldata> v1 to i256
     v6 = add v5, v4
     v7 = calldataload v6
-    v8 = shr v7, 1
-    v9 = eq v8, 0
-    v10 = eq v9, false
-    icall revert_if<empty>, v10
-    v11 = add v2, 1
+    v8 = gt v7, 1
+    icall revert_if<empty>, v8
+    v9 = add v2, 1
     jump bb1
 }
 
@@ -109,22 +102,21 @@ fn @fixedBytes(arg0: i256) -> ptr<memory> [selector=0xfe805efe, pure, abi_params
     v1 = extract_value slice<calldata>, v0, 0
     jump bb1
   bb1:
-    v2 = phi [bb0: 0], [bb2: v11]
+    v2 = phi [bb0: 0], [bb2: v10]
     v3 = lt v2, 2
     jumpi v3, bb2, bb3
   bb3:
-    v12 = abi_encode_packed (array<word<bytes1>> calldata v0)
-    ret v12
+    v11 = abi_encode_packed (array<word<bytes1>> calldata v0)
+    ret v11
   bb2:
     v4 = mul v2, 32
     v5 = ptrtoint ptr<calldata> v1 to i256
     v6 = add v5, v4
     v7 = calldataload v6
     v8 = shl v7, 8
-    v9 = eq v8, 0
-    v10 = eq v9, false
-    icall revert_if<empty>, v10
-    v11 = add v2, 1
+    v9 = ne v8, 0
+    icall revert_if<empty>, v9
+    v10 = add v2, 1
     jump bb1
 }
 
@@ -142,24 +134,22 @@ fn @checkedCopy(arg0: i256) -> ptr<memory> [selector=0xc77131b7, pure, abi_param
     v7 = alloc 64
     jump bb1
   bb1:
-    v8 = phi [bb0: 0], [bb2: v17]
+    v8 = phi [bb0: 0], [bb2: v15]
     v9 = lt v8, 2
     jumpi v9, bb2, bb3
   bb3:
-    v18 = make_calldata_slice v2, 64
-    v19 = extract_value slice<calldata>, v18, 0
-    v20 = extract_value slice<calldata>, v18, 1
-    calldatacopy v7, v19, v20
+    v16 = make_calldata_slice v2, 64
+    v17 = extract_value slice<calldata>, v16, 0
+    v18 = extract_value slice<calldata>, v16, 1
+    calldatacopy v7, v17, v18
     ret v7
   bb2:
     v10 = mul v8, 32
     v11 = ptrtoint ptr<calldata> v2 to i256
     v12 = add v11, v10
     v13 = calldataload v12
-    v14 = shr v13, 8
-    v15 = eq v14, 0
-    v16 = eq v15, false
-    icall revert_if<empty>, v16
-    v17 = add v8, 1
+    v14 = gt v13, 255
+    icall revert_if<empty>, v14
+    v15 = add v8, 1
     jump bb1
 }

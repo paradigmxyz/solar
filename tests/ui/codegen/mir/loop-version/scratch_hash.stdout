@@ -9,42 +9,41 @@ fn @level() [selector=0x223559c3, abi_wrapper, pure] {
     v4 = add v3, 4
     v6 = sub v1, 36
     v7 = gt v3, v6
-    v44 = or v2, v7
-    jumpi v44, bb1, bb2
+    v45 = or v2, v7
+    jumpi v45, bb1, bb2
   bb2:
     v8 = calldataload v4
     v9 = add v4, 32
-    v10 = gt v8, 0x7fffffffffffffe
-    v11 = add v8, 1
-    v12 = shl v11, 5
-    v37 = heap_floor !metadata(alloc_ptr)
-    v38 = add v37, v12 !metadata(alloc_ptr)
-    v39 = lt v38, v37
-    v40 = zext i1 v39 to i256
-    v41 = shr v38, 64
-    v42 = or v40, v41
-    v45 = zext i1 v10 to i256
-    v46 = or v45, v42
+    v10 = shr v8, 59
+    v12 = add v8, 1
+    v13 = shl v12, 5
+    v38 = heap_floor !metadata(alloc_ptr)
+    v39 = add v38, v13 !metadata(alloc_ptr)
+    v41 = shr v39, 64
+    v40 = lt v39, v38
+    v42 = zext i1 v40 to i256
+    v43 = or v42, v41
+    v46 = or v10, v43
     v47 = ne v46, 0
     jumpi v47, bb3, bb5
   bb5:
-    mstore 64, v38 !metadata(memory=scratch)
-    mstore v37, v8
-    v14 = shl v8, 5
-    v15 = sub v1, v9
-    v16 = shr v15, 5
-    v17 = gt v8, v16
-    jumpi v17, bb1, bb4
+    mstore 64, v39 !metadata(memory=scratch)
+    mstore v38, v8
+    v15 = shl v8, 5
+    v16 = sub v1, v9
+    v17 = shr v16, 5
+    v18 = gt v8, v17
+    jumpi v18, bb1, bb4
   bb4:
-    v32 = add v37, 32
-    calldatacopy v32, v9, v14
-    v0 = icall @_level, v37
-    v26 = mload v0
-    v27 = shl v26, 5
-    v34 = sub v0, 32
-    mstore v34, 32
-    v29 = add v27, 64
-    returndata v34, v29
+    v33 = add v38, 32
+    calldatacopy v33, v9, v15
+    v0 = icall @_level, v38
+    v27 = mload v0
+    v28 = shl v27, 5
+    v35 = sub v0, 32
+    mstore v35, 32
+    v30 = add v28, 64
+    returndata v35, v30
   bb3:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -78,10 +77,10 @@ fn @_level(arg0: i256) -> i256 [may_return_memory, pure] {
   bb9:
     v142 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v143 = add v142, v11 !metadata(alloc_ptr)
+    v145 = shr v143, 64
     v144 = lt v143, v142
-    v145 = zext i1 v144 to i256
-    v146 = shr v143, 64
-    v147 = or v145, v146
+    v146 = zext i1 v144 to i256
+    v147 = or v146, v145
     v148 = ne v147, 0
     jumpi v148, bb8, bb16
   bb16:

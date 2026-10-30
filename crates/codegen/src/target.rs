@@ -20,8 +20,8 @@
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
     mir::{
-        BlockId, Function, InstId, Op, Terminator, Value, ValueId, analysis::AddressSpace,
-        memory::EvmMemoryLayout,
+        BitTestPricing, BlockId, ConditionUse, Function, InstId, Op, Terminator, Value, ValueId,
+        analysis::AddressSpace, memory::EvmMemoryLayout,
     },
 };
 use alloy_primitives::U256;
@@ -469,6 +469,12 @@ impl Target {
     /// with the fewest bytes, whatever the tune.
     pub(crate) fn push(&self, value: U256) -> Cost {
         compact_pushes::immediate_materialization(self.evm_version, value)
+    }
+
+    /// Cost of pushing `value` as the compact-push pass leaves it: the literal where the recipe
+    /// [`Self::push`] prices does not repay its gas, as for a mask in a gas build.
+    pub(crate) fn emitted_push(&self, value: U256, in_loop: bool) -> Cost {
+        compact_pushes::emitted_immediate(self, value, in_loop)
     }
 
     /// Cost of pushing `value` as one literal `PUSHn`, the form a push keeps when its compact
@@ -1221,6 +1227,46 @@ impl Target {
     }
 }
 
+impl BitTestPricing for Target {
+    /// Whether a test of `fits` (the word fits in `bits` bits) or its negation, read as `read`,
+    /// is the shift `x >> bits` against zero rather than a comparison with the limit
+    /// (`x < 2^bits`, `x > 2^bits - 1`).
+    ///
+    /// A word that has a bit at or above `bits` is nonzero after the shift, which a branch or check
+    /// reads without a test; the other sense, and a materialized boolean, pay `ISZERO`s. The
+    /// comparison pays the push of its limit, which grows with `bits`. The shift wins when it is
+    /// no dearer in bytes and gas and cheaper in one: equal prices keep the comparison, which
+    /// every reader of a condition handles, where the shift measured larger code. A shift that
+    /// saves bytes and costs gas is taken as a compact recipe is, by [`Self::compacts_immediate`].
+    /// Without shifts only the comparison exists.
+    fn shifts_bits_test(&self, bits: u32, fits: bool, read: ConditionUse) -> bool {
+        if !self.evm_version.has_bitwise_shifting() || !(1..256).contains(&bits) {
+            return false;
+        }
+        let zero_tests = match (fits, read.branch) {
+            (false, true) => Cost::ZERO,
+            (true, _) => self.opcode(op::ISZERO),
+            (false, false) => self.opcode(op::ISZERO) + self.opcode(op::ISZERO),
+        };
+        let shift = self.push(U256::from(bits)) + self.opcode(op::SHR) + zero_tests;
+        let compare = if fits {
+            self.emitted_push(U256::ONE << bits, read.in_loop) + self.opcode(op::LT)
+        } else {
+            self.emitted_push((U256::ONE << bits) - U256::ONE, read.in_loop) + self.opcode(op::GT)
+        };
+        let (shift_gas, compare_gas) = (self.runtime_gas(shift), self.runtime_gas(compare));
+        if shift.bytes <= compare.bytes && shift_gas <= compare_gas {
+            return shift.bytes < compare.bytes || shift_gas < compare_gas;
+        }
+        shift.bytes < compare.bytes
+            && self.compacts_immediate(
+                u64::from(compare.bytes - shift.bytes),
+                u64::from(shift_gas - compare_gas),
+                read.in_loop,
+            )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1418,6 +1464,48 @@ mod tests {
         );
         assert_eq!(Target::optimizer_runs(OptimizationMode::Gas, Some(u64::MAX)), u64::MAX);
         assert_eq!(Target::optimizer_runs(OptimizationMode::Size, Some(1)), 1);
+    }
+
+    #[test]
+    fn bits_test_spelling_follows_price() {
+        let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1);
+        let (value, branch) = (ConditionUse::VALUE, ConditionUse::BRANCH);
+        // A branch reads a word with a bit above the width as the shifted word, which ties the
+        // comparison with a short limit, and the tie keeps the comparison. A wide limit costs
+        // more than the shift.
+        for bits in [1, 8] {
+            assert!(!gas.shifts_bits_test(bits, false, branch), "{bits}");
+            assert!(!size.shifts_bits_test(bits, false, branch), "{bits}");
+        }
+        for bits in [64, 160] {
+            assert!(gas.shifts_bits_test(bits, false, branch), "{bits}");
+            assert!(size.shifts_bits_test(bits, false, branch), "{bits}");
+        }
+        // A fit pays an `ISZERO` for the shifted word, a boolean two. The comparison keeps a
+        // short limit, in size builds up to the width that shortens the code, and in a loop,
+        // where the gas repeats, up to a limit that costs a recipe.
+        for bits in [1, 8] {
+            assert!(
+                !gas.shifts_bits_test(bits, true, value)
+                    && !size.shifts_bits_test(bits, true, value)
+            );
+            assert!(
+                !gas.shifts_bits_test(bits, true, branch)
+                    && !size.shifts_bits_test(bits, false, value)
+            );
+        }
+        assert!(!gas.shifts_bits_test(16, true, value) && size.shifts_bits_test(16, true, value));
+        assert!(gas.shifts_bits_test(32, true, value));
+        assert!(!gas.shifts_bits_test(32, true, value.in_loop()));
+        assert!(!gas.shifts_bits_test(64, false, value) && size.shifts_bits_test(64, false, value));
+        assert!(gas.shifts_bits_test(128, false, value));
+        // Without shifts only the comparison exists, and no width is a test.
+        let byzantium = Target::with(EvmVersion::Byzantium, OptimizationMode::Size, 1);
+        assert!(!byzantium.shifts_bits_test(64, false, branch));
+        assert!(
+            !gas.shifts_bits_test(0, false, branch) && !gas.shifts_bits_test(256, false, branch)
+        );
     }
 
     #[test]

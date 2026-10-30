@@ -9,10 +9,10 @@ fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
     v7 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v90 = heap_floor !metadata(alloc_ptr)
     v91 = add v90, v7 !metadata(alloc_ptr)
+    v93 = shr v91, 64
     v92 = lt v91, v90
-    v93 = zext i1 v92 to i256
-    v94 = shr v91, 64
-    v95 = or v93, v94
+    v94 = zext i1 v92 to i256
+    v95 = or v94, v93
     v96 = ne v95, 0
     jumpi v96, bb9, bb8
   bb8:

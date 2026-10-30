@@ -85,30 +85,31 @@ fn @nestedDynamic(arg0: slice<calldata>) -> struct0 [selector=0xd5de94f6, pure, 
     icall revert_if<invalid_calldata_tail_offset>, v17
     v18 = calldataload v11
     v19 = calldatasize
-    v20 = gt v18, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v20
-    v21 = mul v18, 32
-    v22 = add v11, 32
-    v23 = sub v19, v21
-    v24 = sgt v22, v23
-    icall revert_if<calldata_tail_too_short>, v24
-    v25 = inttoptr i256 v22 to ptr<calldata>
-    v26 = make_calldata_slice v25, v18
-    v27 = extract_value slice<calldata>, v26, 0
-    v28 = ptrtoint ptr<calldata> v27 to i256
-    v29 = extract_value slice<calldata>, v26, 1
-    v30 = extract_value slice<calldata>, v26, 1
-    v31 = lt 1, v30
-    v32 = eq v31, false
-    icall panic_if<0x32>, v32
-    v33 = extract_value slice<calldata>, v26, 0
-    v34 = ptrtoint ptr<calldata> v33 to i256
-    v35 = add v34, 32
-    v36 = calldataload v35
-    v37 = insert_value struct0, undef struct0, 0, v28
-    v38 = insert_value struct0, v37, 1, v29
-    v39 = insert_value struct0, v38, 2, v36
-    ret v39
+    v20 = shr v18, 64
+    v21 = ne v20, 0
+    icall revert_if<invalid_calldata_tail_length>, v21
+    v22 = mul v18, 32
+    v23 = add v11, 32
+    v24 = sub v19, v22
+    v25 = sgt v23, v24
+    icall revert_if<calldata_tail_too_short>, v25
+    v26 = inttoptr i256 v23 to ptr<calldata>
+    v27 = make_calldata_slice v26, v18
+    v28 = extract_value slice<calldata>, v27, 0
+    v29 = ptrtoint ptr<calldata> v28 to i256
+    v30 = extract_value slice<calldata>, v27, 1
+    v31 = extract_value slice<calldata>, v27, 1
+    v32 = lt 1, v31
+    v33 = eq v32, false
+    icall panic_if<0x32>, v33
+    v34 = extract_value slice<calldata>, v27, 0
+    v35 = ptrtoint ptr<calldata> v34 to i256
+    v36 = add v35, 32
+    v37 = calldataload v36
+    v38 = insert_value struct0, undef struct0, 0, v29
+    v39 = insert_value struct0, v38, 1, v30
+    v40 = insert_value struct0, v39, 2, v37
+    ret v40
 }
 
 fn @dynamicBytes(arg0: slice<calldata>) -> struct0 [selector=0x925ccb10, pure, abi_params=[array<_, bytes>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
@@ -136,32 +137,33 @@ fn @dynamicBytes(arg0: slice<calldata>) -> struct0 [selector=0x925ccb10, pure, a
     icall revert_if<invalid_calldata_tail_offset>, v17
     v18 = calldataload v11
     v19 = calldatasize
-    v20 = gt v18, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v20
-    v21 = add v11, 32
-    v22 = sub v19, v18
-    v23 = sgt v21, v22
-    icall revert_if<calldata_tail_too_short>, v23
-    v24 = inttoptr i256 v21 to ptr<calldata>
-    v25 = make_calldata_slice v24, v18
-    v26 = extract_value slice<calldata>, v25, 0
-    v27 = ptrtoint ptr<calldata> v26 to i256
-    v28 = extract_value slice<calldata>, v25, 1
-    v29 = extract_value slice<calldata>, v25, 1
-    v30 = lt 1, v29
-    v31 = eq v30, false
-    icall panic_if<0x32>, v31
-    v32 = extract_value slice<calldata>, v25, 0
-    v33 = extract_value slice<calldata>, v25, 0
-    v34 = ptradd v33, 1
-    v35 = calldataload v34
-    v36 = byte 0, v35
-    v37 = shl v36, 248
-    v38 = shr v37, 248
-    v39 = trunc i256 v38 to i8
-    v40 = zext i8 v39 to i256
-    v41 = insert_value struct0, undef struct0, 0, v27
-    v42 = insert_value struct0, v41, 1, v28
-    v43 = insert_value struct0, v42, 2, v40
-    ret v43
+    v20 = shr v18, 64
+    v21 = ne v20, 0
+    icall revert_if<invalid_calldata_tail_length>, v21
+    v22 = add v11, 32
+    v23 = sub v19, v18
+    v24 = sgt v22, v23
+    icall revert_if<calldata_tail_too_short>, v24
+    v25 = inttoptr i256 v22 to ptr<calldata>
+    v26 = make_calldata_slice v25, v18
+    v27 = extract_value slice<calldata>, v26, 0
+    v28 = ptrtoint ptr<calldata> v27 to i256
+    v29 = extract_value slice<calldata>, v26, 1
+    v30 = extract_value slice<calldata>, v26, 1
+    v31 = lt 1, v30
+    v32 = eq v31, false
+    icall panic_if<0x32>, v32
+    v33 = extract_value slice<calldata>, v26, 0
+    v34 = extract_value slice<calldata>, v26, 0
+    v35 = ptradd v34, 1
+    v36 = calldataload v35
+    v37 = byte 0, v36
+    v38 = shl v37, 248
+    v39 = shr v38, 248
+    v40 = trunc i256 v39 to i8
+    v41 = zext i8 v40 to i256
+    v42 = insert_value struct0, undef struct0, 0, v28
+    v43 = insert_value struct0, v42, 1, v29
+    v44 = insert_value struct0, v43, 2, v41
+    ret v44
 }

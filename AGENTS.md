@@ -345,6 +345,11 @@ self.dcx()
   where that helps, directly above each piece of code that writes, moves, or
   rearranges IR: the match arm, branch, loop, or builder sequence, not the top of
   a large function. No `IR:` label, prose, or full stop.
+- Build a test that a word fits in `k` bits with `FunctionBuilder::fits_in_bits`,
+  `exceeds_bits`, `lt_literal`, or `gt_literal`, never a written `x < 2^k`,
+  `x > 2^k - 1`, or shift against zero, and read one back with `BitWidthTest::of`
+  so a pass matches both spellings. See
+  [docs/CODEGEN.md](docs/CODEGEN.md#width-tests).
 
 ## Notes
 

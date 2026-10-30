@@ -132,9 +132,9 @@ bb26:
   swap 1
   push 32
   add
-  push 0x7fffffffffffffe
-  dup 3
-  gt
+  dup 2
+  push 59
+  shr
   push 1
   dup 4
   add
@@ -144,12 +144,12 @@ bb26:
   swap 1
   dup 2
   add
-  dup 2
-  dup 2
-  lt
-  dup 2
+  dup 1
   push 64
   shr
+  dup 3
+  dup 3
+  lt
   or
   swap 1
   swap 3

@@ -816,34 +816,35 @@
 -     v0 = load_storage_array uint160, arg0
 -     ret v0
 +     v1 = sload arg0 !metadata(storage=symbolic(arg0))
-+     v2 = gt v1, 0x7fffffffffffffe
-+     jumpi v2, bb1, bb2
++     v2 = shr v1, 59
++     v3 = ne v2, 0
++     jumpi v3, bb1, bb2
 +   bb2:
-+     v3 = add v1, 1
-+     v4 = mul v3, 32
-+     v5 = alloc checked v4
-+     mstore v5, v1
-+     v6 = storage_array_data_slot arg0
++     v4 = add v1, 1
++     v5 = mul v4, 32
++     v6 = alloc checked v5
++     mstore v6, v1
++     v7 = storage_array_data_slot arg0
 +     jump bb3
 +   bb3:
-+     v7 = phi [bb2: 0], [bb4: v19]
-+     v8 = lt v7, v1
-+     jumpi v8, bb4, bb5
++     v8 = phi [bb2: 0], [bb4: v20]
++     v9 = lt v8, v1
++     jumpi v9, bb4, bb5
 +   bb5:
-+     ret v5
++     ret v6
 +   bb4:
-+     v9 = div v7, 1
-+     v10 = add v6, v9
-+     v11 = sload v10 !metadata(storage=symbolic(v10))
-+     v12 = mod v7, 1
-+     v13 = mul v12, 160
-+     v14 = shr v11, v13
-+     v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
-+     v16 = shl v7, 5
-+     v17 = ptradd v5, v16
-+     v18 = ptradd v17, 32
-+     mstore v18, v15
-+     v19 = add v7, 1
++     v10 = div v8, 1
++     v11 = add v7, v10
++     v12 = sload v11 !metadata(storage=symbolic(v11))
++     v13 = mod v8, 1
++     v14 = mul v13, 160
++     v15 = shr v12, v14
++     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
++     v17 = shl v8, 5
++     v18 = ptradd v6, v17
++     v19 = ptradd v18, 32
++     mstore v19, v16
++     v20 = add v8, 1
 +     jump bb3
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -862,38 +863,39 @@
 -     v0 = load_storage_array uint160, arg0
 -     v1 = ptradd v0, 32
 +     v3 = sload arg0 !metadata(storage=symbolic(arg0))
-+     v4 = gt v3, 0x7fffffffffffffe
-+     jumpi v4, bb1, bb2
++     v4 = shr v3, 59
++     v5 = ne v4, 0
++     jumpi v5, bb1, bb2
 +   bb2:
-+     v5 = add v3, 1
-+     v6 = mul v5, 32
-+     v7 = alloc checked v6
-+     mstore v7, v3
-+     v8 = storage_array_data_slot arg0
++     v6 = add v3, 1
++     v7 = mul v6, 32
++     v8 = alloc checked v7
++     mstore v8, v3
++     v9 = storage_array_data_slot arg0
 +     jump bb3
 +   bb3:
-+     v9 = phi [bb2: 0], [bb4: v21]
-+     v10 = lt v9, v3
-+     jumpi v10, bb4, bb5
++     v10 = phi [bb2: 0], [bb4: v22]
++     v11 = lt v10, v3
++     jumpi v11, bb4, bb5
 +   bb5:
-+     v1 = ptradd v7, 32
++     v1 = ptradd v8, 32
       v2 = ptrtoint ptr<memory> v1 to i256
       mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -     ret v0
-+     ret v7
++     ret v8
 +   bb4:
-+     v11 = div v9, 1
-+     v12 = add v8, v11
-+     v13 = sload v12 !metadata(storage=symbolic(v12))
-+     v14 = mod v9, 1
-+     v15 = mul v14, 160
-+     v16 = shr v13, v15
-+     v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
-+     v18 = shl v9, 5
-+     v19 = ptradd v7, v18
-+     v20 = ptradd v19, 32
-+     mstore v20, v17
-+     v21 = add v9, 1
++     v12 = div v10, 1
++     v13 = add v9, v12
++     v14 = sload v13 !metadata(storage=symbolic(v13))
++     v15 = mod v10, 1
++     v16 = mul v15, 160
++     v17 = shr v14, v16
++     v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffff
++     v19 = shl v10, 5
++     v20 = ptradd v8, v19
++     v21 = ptradd v20, 32
++     mstore v21, v18
++     v22 = add v10, 1
 +     jump bb3
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -970,33 +972,32 @@
 +     jumpi v3, bb1, bb2
 +   bb2:
 +     v4 = mul v2, 32
-+     v5 = shr v2, 251
-+     v6 = ne v5, 0
-+     jumpi v6, bb1, bb3
++     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v5, bb1, bb3
 +   bb3:
-+     v7 = alloc v4
-+     mstore v7, v1
++     v6 = alloc v4
++     mstore v6, v1
 +     jump bb4
 +   bb4:
-+     v8 = phi [bb3: 0], [bb5: v18]
-+     v9 = lt v8, v1
-+     jumpi v9, bb5, bb6
++     v7 = phi [bb3: 0], [bb5: v17]
++     v8 = lt v7, v1
++     jumpi v8, bb5, bb6
 +   bb6:
-+     v19 = abi_encode [memory_array<word>], scratch, args v7
-+     v20 = extract_value slice<memory>, v19, 0
-+     v21 = extract_value slice<memory>, v19, 1
-+     returndata v20, v21
++     v18 = abi_encode [memory_array<word>], scratch, args v6
++     v19 = extract_value slice<memory>, v18, 0
++     v20 = extract_value slice<memory>, v18, 1
++     returndata v19, v20
 +   bb5:
-+     v10 = shl v8, 5
-+     v11 = ptradd v0, v10
-+     v12 = ptradd v11, 32
-+     v13 = mload v12
-+     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
-+     v15 = shl v8, 5
-+     v16 = ptradd v7, v15
-+     v17 = ptradd v16, 32
-+     mstore v17, v14
-+     v18 = add v8, 1
++     v9 = shl v7, 5
++     v10 = ptradd v0, v9
++     v11 = ptradd v10, 32
++     v12 = mload v11
++     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
++     v14 = shl v7, 5
++     v15 = ptradd v6, v14
++     v16 = ptradd v15, 32
++     mstore v16, v13
++     v17 = add v7, 1
 +     jump bb4
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -1015,33 +1016,32 @@
 +     jumpi v3, bb1, bb2
 +   bb2:
 +     v4 = mul v2, 32
-+     v5 = shr v2, 251
-+     v6 = ne v5, 0
-+     jumpi v6, bb1, bb3
++     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v5, bb1, bb3
 +   bb3:
-+     v7 = alloc v4
-+     mstore v7, v1
++     v6 = alloc v4
++     mstore v6, v1
 +     jump bb4
 +   bb4:
-+     v8 = phi [bb3: 0], [bb5: v18]
-+     v9 = lt v8, v1
-+     jumpi v9, bb5, bb6
++     v7 = phi [bb3: 0], [bb5: v17]
++     v8 = lt v7, v1
++     jumpi v8, bb5, bb6
 +   bb6:
-+     v19 = abi_encode [memory_array<word>], scratch, args v7
-+     v20 = extract_value slice<memory>, v19, 0
-+     v21 = extract_value slice<memory>, v19, 1
-+     returndata v20, v21
++     v18 = abi_encode [memory_array<word>], scratch, args v6
++     v19 = extract_value slice<memory>, v18, 0
++     v20 = extract_value slice<memory>, v18, 1
++     returndata v19, v20
 +   bb5:
-+     v10 = shl v8, 5
-+     v11 = ptradd v0, v10
-+     v12 = ptradd v11, 32
-+     v13 = mload v12
-+     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
-+     v15 = shl v8, 5
-+     v16 = ptradd v7, v15
-+     v17 = ptradd v16, 32
-+     mstore v17, v14
-+     v18 = add v8, 1
++     v9 = shl v7, 5
++     v10 = ptradd v0, v9
++     v11 = ptradd v10, 32
++     v12 = mload v11
++     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
++     v14 = shl v7, 5
++     v15 = ptradd v6, v14
++     v16 = ptradd v15, 32
++     mstore v16, v13
++     v17 = add v7, 1
 +     jump bb4
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -1086,64 +1086,62 @@
 +     jumpi v3, bb1, bb2
 +   bb2:
 +     v4 = mul v2, 32
-+     v5 = shr v2, 251
-+     v6 = ne v5, 0
-+     jumpi v6, bb1, bb3
++     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v5, bb1, bb3
 +   bb3:
-+     v7 = alloc v4
-+     mstore v7, v1
++     v6 = alloc v4
++     mstore v6, v1
 +     jump bb4
 +   bb4:
-+     v8 = phi [bb3: 0], [bb11: v37]
-+     v9 = lt v8, v1
-+     jumpi v9, bb5, bb6
++     v7 = phi [bb3: 0], [bb11: v35]
++     v8 = lt v7, v1
++     jumpi v8, bb5, bb6
 +   bb6:
-+     v38 = abi_encode [memory_array<memory_array<word>>], scratch, args v7
-+     v39 = extract_value slice<memory>, v38, 0
-+     v40 = extract_value slice<memory>, v38, 1
-+     returndata v39, v40
++     v36 = abi_encode [memory_array<memory_array<word>>], scratch, args v6
++     v37 = extract_value slice<memory>, v36, 0
++     v38 = extract_value slice<memory>, v36, 1
++     returndata v37, v38
 +   bb5:
-+     v10 = shl v8, 5
-+     v11 = ptradd v0, v10
-+     v12 = ptradd v11, 32
++     v9 = shl v7, 5
++     v10 = ptradd v0, v9
++     v11 = ptradd v10, 32
++     v12 = mload v11
 +     v13 = mload v12
-+     v14 = mload v13
-+     v15 = add v14, 1
-+     v16 = lt v15, v14
-+     jumpi v16, bb1, bb7
++     v14 = add v13, 1
++     v15 = lt v14, v13
++     jumpi v15, bb1, bb7
 +   bb7:
-+     v17 = mul v15, 32
-+     v18 = shr v15, 251
-+     v19 = ne v18, 0
-+     jumpi v19, bb1, bb8
++     v16 = mul v14, 32
++     v17 = gt v14, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v17, bb1, bb8
 +   bb8:
-+     v20 = alloc v17
-+     mstore v20, v14
++     v18 = alloc v16
++     mstore v18, v13
 +     jump bb9
 +   bb9:
-+     v21 = phi [bb8: 0], [bb10: v32]
-+     v22 = lt v21, v14
-+     jumpi v22, bb10, bb11
++     v19 = phi [bb8: 0], [bb10: v30]
++     v20 = lt v19, v13
++     jumpi v20, bb10, bb11
 +   bb11:
-+     v33 = shl v8, 5
-+     v34 = ptradd v7, v33
-+     v35 = ptradd v34, 32
-+     v36 = ptrtoint ptr<memory> v20 to i256
-+     mstore v35, v36
-+     v37 = add v8, 1
++     v31 = shl v7, 5
++     v32 = ptradd v6, v31
++     v33 = ptradd v32, 32
++     v34 = ptrtoint ptr<memory> v18 to i256
++     mstore v33, v34
++     v35 = add v7, 1
 +     jump bb4
 +   bb10:
-+     v23 = shl v21, 5
-+     v24 = inttoptr i256 v13 to ptr<memory>
-+     v25 = ptradd v24, v23
-+     v26 = ptradd v25, 32
-+     v27 = mload v26
-+     v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffff
-+     v29 = shl v21, 5
-+     v30 = ptradd v20, v29
-+     v31 = ptradd v30, 32
-+     mstore v31, v28
-+     v32 = add v21, 1
++     v21 = shl v19, 5
++     v22 = inttoptr i256 v12 to ptr<memory>
++     v23 = ptradd v22, v21
++     v24 = ptradd v23, 32
++     v25 = mload v24
++     v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
++     v27 = shl v19, 5
++     v28 = ptradd v18, v27
++     v29 = ptradd v28, 32
++     mstore v29, v26
++     v30 = add v19, 1
 +     jump bb9
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -1162,64 +1160,62 @@
 +     jumpi v3, bb1, bb2
 +   bb2:
 +     v4 = mul v2, 32
-+     v5 = shr v2, 251
-+     v6 = ne v5, 0
-+     jumpi v6, bb1, bb3
++     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v5, bb1, bb3
 +   bb3:
-+     v7 = alloc v4
-+     mstore v7, v1
++     v6 = alloc v4
++     mstore v6, v1
 +     jump bb4
 +   bb4:
-+     v8 = phi [bb3: 0], [bb11: v37]
-+     v9 = lt v8, v1
-+     jumpi v9, bb5, bb6
++     v7 = phi [bb3: 0], [bb11: v35]
++     v8 = lt v7, v1
++     jumpi v8, bb5, bb6
 +   bb6:
-+     v38 = abi_encode [memory_array<memory_array<word>>], scratch, args v7
-+     v39 = extract_value slice<memory>, v38, 0
-+     v40 = extract_value slice<memory>, v38, 1
-+     returndata v39, v40
++     v36 = abi_encode [memory_array<memory_array<word>>], scratch, args v6
++     v37 = extract_value slice<memory>, v36, 0
++     v38 = extract_value slice<memory>, v36, 1
++     returndata v37, v38
 +   bb5:
-+     v10 = shl v8, 5
-+     v11 = ptradd v0, v10
-+     v12 = ptradd v11, 32
++     v9 = shl v7, 5
++     v10 = ptradd v0, v9
++     v11 = ptradd v10, 32
++     v12 = mload v11
 +     v13 = mload v12
-+     v14 = mload v13
-+     v15 = add v14, 1
-+     v16 = lt v15, v14
-+     jumpi v16, bb1, bb7
++     v14 = add v13, 1
++     v15 = lt v14, v13
++     jumpi v15, bb1, bb7
 +   bb7:
-+     v17 = mul v15, 32
-+     v18 = shr v15, 251
-+     v19 = ne v18, 0
-+     jumpi v19, bb1, bb8
++     v16 = mul v14, 32
++     v17 = gt v14, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v17, bb1, bb8
 +   bb8:
-+     v20 = alloc v17
-+     mstore v20, v14
++     v18 = alloc v16
++     mstore v18, v13
 +     jump bb9
 +   bb9:
-+     v21 = phi [bb8: 0], [bb10: v32]
-+     v22 = lt v21, v14
-+     jumpi v22, bb10, bb11
++     v19 = phi [bb8: 0], [bb10: v30]
++     v20 = lt v19, v13
++     jumpi v20, bb10, bb11
 +   bb11:
-+     v33 = shl v8, 5
-+     v34 = ptradd v7, v33
-+     v35 = ptradd v34, 32
-+     v36 = ptrtoint ptr<memory> v20 to i256
-+     mstore v35, v36
-+     v37 = add v8, 1
++     v31 = shl v7, 5
++     v32 = ptradd v6, v31
++     v33 = ptradd v32, 32
++     v34 = ptrtoint ptr<memory> v18 to i256
++     mstore v33, v34
++     v35 = add v7, 1
 +     jump bb4
 +   bb10:
-+     v23 = shl v21, 5
-+     v24 = inttoptr i256 v13 to ptr<memory>
-+     v25 = ptradd v24, v23
-+     v26 = ptradd v25, 32
-+     v27 = mload v26
-+     v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffff
-+     v29 = shl v21, 5
-+     v30 = ptradd v20, v29
-+     v31 = ptradd v30, 32
-+     mstore v31, v28
-+     v32 = add v21, 1
++     v21 = shl v19, 5
++     v22 = inttoptr i256 v12 to ptr<memory>
++     v23 = ptradd v22, v21
++     v24 = ptradd v23, 32
++     v25 = mload v24
++     v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
++     v27 = shl v19, 5
++     v28 = ptradd v18, v27
++     v29 = ptradd v28, 32
++     mstore v29, v26
++     v30 = add v19, 1
 +     jump bb9
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -1264,64 +1260,62 @@
 +     jumpi v3, bb1, bb2
 +   bb2:
 +     v4 = mul v2, 32
-+     v5 = shr v2, 251
-+     v6 = ne v5, 0
-+     jumpi v6, bb1, bb3
++     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v5, bb1, bb3
 +   bb3:
-+     v7 = alloc v4
-+     mstore v7, v1
++     v6 = alloc v4
++     mstore v6, v1
 +     jump bb4
 +   bb4:
-+     v8 = phi [bb3: 0], [bb11: v37]
-+     v9 = lt v8, v1
-+     jumpi v9, bb5, bb6
++     v7 = phi [bb3: 0], [bb11: v35]
++     v8 = lt v7, v1
++     jumpi v8, bb5, bb6
 +   bb6:
-+     v38 = abi_encode [memory_array<memory_array<word>>], scratch, args v7
-+     v39 = extract_value slice<memory>, v38, 0
-+     v40 = extract_value slice<memory>, v38, 1
-+     returndata v39, v40
++     v36 = abi_encode [memory_array<memory_array<word>>], scratch, args v6
++     v37 = extract_value slice<memory>, v36, 0
++     v38 = extract_value slice<memory>, v36, 1
++     returndata v37, v38
 +   bb5:
-+     v10 = shl v8, 5
-+     v11 = ptradd v0, v10
-+     v12 = ptradd v11, 32
++     v9 = shl v7, 5
++     v10 = ptradd v0, v9
++     v11 = ptradd v10, 32
++     v12 = mload v11
 +     v13 = mload v12
-+     v14 = mload v13
-+     v15 = add v14, 1
-+     v16 = lt v15, v14
-+     jumpi v16, bb1, bb7
++     v14 = add v13, 1
++     v15 = lt v14, v13
++     jumpi v15, bb1, bb7
 +   bb7:
-+     v17 = mul v15, 32
-+     v18 = shr v15, 251
-+     v19 = ne v18, 0
-+     jumpi v19, bb1, bb8
++     v16 = mul v14, 32
++     v17 = gt v14, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v17, bb1, bb8
 +   bb8:
-+     v20 = alloc v17
-+     mstore v20, v14
++     v18 = alloc v16
++     mstore v18, v13
 +     jump bb9
 +   bb9:
-+     v21 = phi [bb8: 0], [bb10: v32]
-+     v22 = lt v21, v14
-+     jumpi v22, bb10, bb11
++     v19 = phi [bb8: 0], [bb10: v30]
++     v20 = lt v19, v13
++     jumpi v20, bb10, bb11
 +   bb11:
-+     v33 = shl v8, 5
-+     v34 = ptradd v7, v33
-+     v35 = ptradd v34, 32
-+     v36 = ptrtoint ptr<memory> v20 to i256
-+     mstore v35, v36
-+     v37 = add v8, 1
++     v31 = shl v7, 5
++     v32 = ptradd v6, v31
++     v33 = ptradd v32, 32
++     v34 = ptrtoint ptr<memory> v18 to i256
++     mstore v33, v34
++     v35 = add v7, 1
 +     jump bb4
 +   bb10:
-+     v23 = shl v21, 5
-+     v24 = inttoptr i256 v13 to ptr<memory>
-+     v25 = ptradd v24, v23
-+     v26 = ptradd v25, 32
-+     v27 = mload v26
-+     v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffff
-+     v29 = shl v21, 5
-+     v30 = ptradd v20, v29
-+     v31 = ptradd v30, 32
-+     mstore v31, v28
-+     v32 = add v21, 1
++     v21 = shl v19, 5
++     v22 = inttoptr i256 v12 to ptr<memory>
++     v23 = ptradd v22, v21
++     v24 = ptradd v23, 32
++     v25 = mload v24
++     v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
++     v27 = shl v19, 5
++     v28 = ptradd v18, v27
++     v29 = ptradd v28, 32
++     mstore v29, v26
++     v30 = add v19, 1
 +     jump bb9
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -1340,64 +1334,62 @@
 +     jumpi v3, bb1, bb2
 +   bb2:
 +     v4 = mul v2, 32
-+     v5 = shr v2, 251
-+     v6 = ne v5, 0
-+     jumpi v6, bb1, bb3
++     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v5, bb1, bb3
 +   bb3:
-+     v7 = alloc v4
-+     mstore v7, v1
++     v6 = alloc v4
++     mstore v6, v1
 +     jump bb4
 +   bb4:
-+     v8 = phi [bb3: 0], [bb11: v37]
-+     v9 = lt v8, v1
-+     jumpi v9, bb5, bb6
++     v7 = phi [bb3: 0], [bb11: v35]
++     v8 = lt v7, v1
++     jumpi v8, bb5, bb6
 +   bb6:
-+     v38 = abi_encode [memory_array<memory_array<word>>], scratch, args v7
-+     v39 = extract_value slice<memory>, v38, 0
-+     v40 = extract_value slice<memory>, v38, 1
-+     returndata v39, v40
++     v36 = abi_encode [memory_array<memory_array<word>>], scratch, args v6
++     v37 = extract_value slice<memory>, v36, 0
++     v38 = extract_value slice<memory>, v36, 1
++     returndata v37, v38
 +   bb5:
-+     v10 = shl v8, 5
-+     v11 = ptradd v0, v10
-+     v12 = ptradd v11, 32
++     v9 = shl v7, 5
++     v10 = ptradd v0, v9
++     v11 = ptradd v10, 32
++     v12 = mload v11
 +     v13 = mload v12
-+     v14 = mload v13
-+     v15 = add v14, 1
-+     v16 = lt v15, v14
-+     jumpi v16, bb1, bb7
++     v14 = add v13, 1
++     v15 = lt v14, v13
++     jumpi v15, bb1, bb7
 +   bb7:
-+     v17 = mul v15, 32
-+     v18 = shr v15, 251
-+     v19 = ne v18, 0
-+     jumpi v19, bb1, bb8
++     v16 = mul v14, 32
++     v17 = gt v14, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v17, bb1, bb8
 +   bb8:
-+     v20 = alloc v17
-+     mstore v20, v14
++     v18 = alloc v16
++     mstore v18, v13
 +     jump bb9
 +   bb9:
-+     v21 = phi [bb8: 0], [bb10: v32]
-+     v22 = lt v21, v14
-+     jumpi v22, bb10, bb11
++     v19 = phi [bb8: 0], [bb10: v30]
++     v20 = lt v19, v13
++     jumpi v20, bb10, bb11
 +   bb11:
-+     v33 = shl v8, 5
-+     v34 = ptradd v7, v33
-+     v35 = ptradd v34, 32
-+     v36 = ptrtoint ptr<memory> v20 to i256
-+     mstore v35, v36
-+     v37 = add v8, 1
++     v31 = shl v7, 5
++     v32 = ptradd v6, v31
++     v33 = ptradd v32, 32
++     v34 = ptrtoint ptr<memory> v18 to i256
++     mstore v33, v34
++     v35 = add v7, 1
 +     jump bb4
 +   bb10:
-+     v23 = shl v21, 5
-+     v24 = inttoptr i256 v13 to ptr<memory>
-+     v25 = ptradd v24, v23
-+     v26 = ptradd v25, 32
-+     v27 = mload v26
-+     v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffff
-+     v29 = shl v21, 5
-+     v30 = ptradd v20, v29
-+     v31 = ptradd v30, 32
-+     mstore v31, v28
-+     v32 = add v21, 1
++     v21 = shl v19, 5
++     v22 = inttoptr i256 v12 to ptr<memory>
++     v23 = ptradd v22, v21
++     v24 = ptradd v23, 32
++     v25 = mload v24
++     v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
++     v27 = shl v19, 5
++     v28 = ptradd v18, v27
++     v29 = ptradd v28, 32
++     mstore v29, v26
++     v30 = add v19, 1
 +     jump bb9
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -1528,64 +1520,62 @@
 +     jumpi v3, bb1, bb2
 +   bb2:
 +     v4 = mul v2, 32
-+     v5 = shr v2, 251
-+     v6 = ne v5, 0
-+     jumpi v6, bb1, bb3
++     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v5, bb1, bb3
 +   bb3:
-+     v7 = alloc v4
-+     mstore v7, v1
++     v6 = alloc v4
++     mstore v6, v1
 +     jump bb4
 +   bb4:
-+     v8 = phi [bb3: 0], [bb11: v37]
-+     v9 = lt v8, v1
-+     jumpi v9, bb5, bb6
++     v7 = phi [bb3: 0], [bb11: v35]
++     v8 = lt v7, v1
++     jumpi v8, bb5, bb6
 +   bb6:
-+     v38 = abi_encode [memory_array<memory_array<word>>], scratch, args v7
-+     v39 = extract_value slice<memory>, v38, 0
-+     v40 = extract_value slice<memory>, v38, 1
-+     returndata v39, v40
++     v36 = abi_encode [memory_array<memory_array<word>>], scratch, args v6
++     v37 = extract_value slice<memory>, v36, 0
++     v38 = extract_value slice<memory>, v36, 1
++     returndata v37, v38
 +   bb5:
-+     v10 = shl v8, 5
-+     v11 = ptradd v0, v10
-+     v12 = ptradd v11, 32
++     v9 = shl v7, 5
++     v10 = ptradd v0, v9
++     v11 = ptradd v10, 32
++     v12 = mload v11
 +     v13 = mload v12
-+     v14 = mload v13
-+     v15 = add v14, 1
-+     v16 = lt v15, v14
-+     jumpi v16, bb1, bb7
++     v14 = add v13, 1
++     v15 = lt v14, v13
++     jumpi v15, bb1, bb7
 +   bb7:
-+     v17 = mul v15, 32
-+     v18 = shr v15, 251
-+     v19 = ne v18, 0
-+     jumpi v19, bb1, bb8
++     v16 = mul v14, 32
++     v17 = gt v14, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v17, bb1, bb8
 +   bb8:
-+     v20 = alloc v17
-+     mstore v20, v14
++     v18 = alloc v16
++     mstore v18, v13
 +     jump bb9
 +   bb9:
-+     v21 = phi [bb8: 0], [bb10: v32]
-+     v22 = lt v21, v14
-+     jumpi v22, bb10, bb11
++     v19 = phi [bb8: 0], [bb10: v30]
++     v20 = lt v19, v13
++     jumpi v20, bb10, bb11
 +   bb11:
-+     v33 = shl v8, 5
-+     v34 = ptradd v7, v33
-+     v35 = ptradd v34, 32
-+     v36 = ptrtoint ptr<memory> v20 to i256
-+     mstore v35, v36
-+     v37 = add v8, 1
++     v31 = shl v7, 5
++     v32 = ptradd v6, v31
++     v33 = ptradd v32, 32
++     v34 = ptrtoint ptr<memory> v18 to i256
++     mstore v33, v34
++     v35 = add v7, 1
 +     jump bb4
 +   bb10:
-+     v23 = shl v21, 5
-+     v24 = inttoptr i256 v13 to ptr<memory>
-+     v25 = ptradd v24, v23
-+     v26 = ptradd v25, 32
-+     v27 = mload v26
-+     v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffff
-+     v29 = shl v21, 5
-+     v30 = ptradd v20, v29
-+     v31 = ptradd v30, 32
-+     mstore v31, v28
-+     v32 = add v21, 1
++     v21 = shl v19, 5
++     v22 = inttoptr i256 v12 to ptr<memory>
++     v23 = ptradd v22, v21
++     v24 = ptradd v23, 32
++     v25 = mload v24
++     v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
++     v27 = shl v19, 5
++     v28 = ptradd v18, v27
++     v29 = ptradd v28, 32
++     mstore v29, v26
++     v30 = add v19, 1
 +     jump bb9
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -1604,64 +1594,62 @@
 +     jumpi v3, bb1, bb2
 +   bb2:
 +     v4 = mul v2, 32
-+     v5 = shr v2, 251
-+     v6 = ne v5, 0
-+     jumpi v6, bb1, bb3
++     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v5, bb1, bb3
 +   bb3:
-+     v7 = alloc v4
-+     mstore v7, v1
++     v6 = alloc v4
++     mstore v6, v1
 +     jump bb4
 +   bb4:
-+     v8 = phi [bb3: 0], [bb11: v37]
-+     v9 = lt v8, v1
-+     jumpi v9, bb5, bb6
++     v7 = phi [bb3: 0], [bb11: v35]
++     v8 = lt v7, v1
++     jumpi v8, bb5, bb6
 +   bb6:
-+     v38 = abi_encode [memory_array<memory_array<word>>], scratch, args v7
-+     v39 = extract_value slice<memory>, v38, 0
-+     v40 = extract_value slice<memory>, v38, 1
-+     returndata v39, v40
++     v36 = abi_encode [memory_array<memory_array<word>>], scratch, args v6
++     v37 = extract_value slice<memory>, v36, 0
++     v38 = extract_value slice<memory>, v36, 1
++     returndata v37, v38
 +   bb5:
-+     v10 = shl v8, 5
-+     v11 = ptradd v0, v10
-+     v12 = ptradd v11, 32
++     v9 = shl v7, 5
++     v10 = ptradd v0, v9
++     v11 = ptradd v10, 32
++     v12 = mload v11
 +     v13 = mload v12
-+     v14 = mload v13
-+     v15 = add v14, 1
-+     v16 = lt v15, v14
-+     jumpi v16, bb1, bb7
++     v14 = add v13, 1
++     v15 = lt v14, v13
++     jumpi v15, bb1, bb7
 +   bb7:
-+     v17 = mul v15, 32
-+     v18 = shr v15, 251
-+     v19 = ne v18, 0
-+     jumpi v19, bb1, bb8
++     v16 = mul v14, 32
++     v17 = gt v14, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v17, bb1, bb8
 +   bb8:
-+     v20 = alloc v17
-+     mstore v20, v14
++     v18 = alloc v16
++     mstore v18, v13
 +     jump bb9
 +   bb9:
-+     v21 = phi [bb8: 0], [bb10: v32]
-+     v22 = lt v21, v14
-+     jumpi v22, bb10, bb11
++     v19 = phi [bb8: 0], [bb10: v30]
++     v20 = lt v19, v13
++     jumpi v20, bb10, bb11
 +   bb11:
-+     v33 = shl v8, 5
-+     v34 = ptradd v7, v33
-+     v35 = ptradd v34, 32
-+     v36 = ptrtoint ptr<memory> v20 to i256
-+     mstore v35, v36
-+     v37 = add v8, 1
++     v31 = shl v7, 5
++     v32 = ptradd v6, v31
++     v33 = ptradd v32, 32
++     v34 = ptrtoint ptr<memory> v18 to i256
++     mstore v33, v34
++     v35 = add v7, 1
 +     jump bb4
 +   bb10:
-+     v23 = shl v21, 5
-+     v24 = inttoptr i256 v13 to ptr<memory>
-+     v25 = ptradd v24, v23
-+     v26 = ptradd v25, 32
-+     v27 = mload v26
-+     v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffff
-+     v29 = shl v21, 5
-+     v30 = ptradd v20, v29
-+     v31 = ptradd v30, 32
-+     mstore v31, v28
-+     v32 = add v21, 1
++     v21 = shl v19, 5
++     v22 = inttoptr i256 v12 to ptr<memory>
++     v23 = ptradd v22, v21
++     v24 = ptradd v23, 32
++     v25 = mload v24
++     v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
++     v27 = shl v19, 5
++     v28 = ptradd v18, v27
++     v29 = ptradd v28, 32
++     mstore v29, v26
++     v30 = add v19, 1
 +     jump bb9
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -1680,64 +1668,62 @@
 +     jumpi v3, bb1, bb2
 +   bb2:
 +     v4 = mul v2, 32
-+     v5 = shr v2, 251
-+     v6 = ne v5, 0
-+     jumpi v6, bb1, bb3
++     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v5, bb1, bb3
 +   bb3:
-+     v7 = alloc v4
-+     mstore v7, v1
++     v6 = alloc v4
++     mstore v6, v1
 +     jump bb4
 +   bb4:
-+     v8 = phi [bb3: 0], [bb11: v37]
-+     v9 = lt v8, v1
-+     jumpi v9, bb5, bb6
++     v7 = phi [bb3: 0], [bb11: v35]
++     v8 = lt v7, v1
++     jumpi v8, bb5, bb6
 +   bb6:
-+     v38 = abi_encode [memory_array<memory_array<word>>], scratch, args v7
-+     v39 = extract_value slice<memory>, v38, 0
-+     v40 = extract_value slice<memory>, v38, 1
-+     returndata v39, v40
++     v36 = abi_encode [memory_array<memory_array<word>>], scratch, args v6
++     v37 = extract_value slice<memory>, v36, 0
++     v38 = extract_value slice<memory>, v36, 1
++     returndata v37, v38
 +   bb5:
-+     v10 = shl v8, 5
-+     v11 = ptradd v0, v10
-+     v12 = ptradd v11, 32
++     v9 = shl v7, 5
++     v10 = ptradd v0, v9
++     v11 = ptradd v10, 32
++     v12 = mload v11
 +     v13 = mload v12
-+     v14 = mload v13
-+     v15 = add v14, 1
-+     v16 = lt v15, v14
-+     jumpi v16, bb1, bb7
++     v14 = add v13, 1
++     v15 = lt v14, v13
++     jumpi v15, bb1, bb7
 +   bb7:
-+     v17 = mul v15, 32
-+     v18 = shr v15, 251
-+     v19 = ne v18, 0
-+     jumpi v19, bb1, bb8
++     v16 = mul v14, 32
++     v17 = gt v14, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v17, bb1, bb8
 +   bb8:
-+     v20 = alloc v17
-+     mstore v20, v14
++     v18 = alloc v16
++     mstore v18, v13
 +     jump bb9
 +   bb9:
-+     v21 = phi [bb8: 0], [bb10: v32]
-+     v22 = lt v21, v14
-+     jumpi v22, bb10, bb11
++     v19 = phi [bb8: 0], [bb10: v30]
++     v20 = lt v19, v13
++     jumpi v20, bb10, bb11
 +   bb11:
-+     v33 = shl v8, 5
-+     v34 = ptradd v7, v33
-+     v35 = ptradd v34, 32
-+     v36 = ptrtoint ptr<memory> v20 to i256
-+     mstore v35, v36
-+     v37 = add v8, 1
++     v31 = shl v7, 5
++     v32 = ptradd v6, v31
++     v33 = ptradd v32, 32
++     v34 = ptrtoint ptr<memory> v18 to i256
++     mstore v33, v34
++     v35 = add v7, 1
 +     jump bb4
 +   bb10:
-+     v23 = shl v21, 5
-+     v24 = inttoptr i256 v13 to ptr<memory>
-+     v25 = ptradd v24, v23
-+     v26 = ptradd v25, 32
-+     v27 = mload v26
-+     v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffff
-+     v29 = shl v21, 5
-+     v30 = ptradd v20, v29
-+     v31 = ptradd v30, 32
-+     mstore v31, v28
-+     v32 = add v21, 1
++     v21 = shl v19, 5
++     v22 = inttoptr i256 v12 to ptr<memory>
++     v23 = ptradd v22, v21
++     v24 = ptradd v23, 32
++     v25 = mload v24
++     v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
++     v27 = shl v19, 5
++     v28 = ptradd v18, v27
++     v29 = ptradd v28, 32
++     mstore v29, v26
++     v30 = add v19, 1
 +     jump bb9
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -1803,9 +1789,8 @@
 +     jumpi v3, bb4, bb5
 +   bb5:
 +     v4 = calldataload 4
-+     v5 = shr v4, 1
-+     v6 = eq v5, 0
-+     jumpi v6, bb6, bb4
++     v5 = gt v4, 1
++     jumpi v5, bb4, bb6
 +   bb6:
 +     jump bb1
     bb1:
@@ -1819,16 +1804,16 @@
 -     ret v0
 +     jump bb3
 +   bb3:
-+     v7 = alloc 32
-+     v8 = mload v0
-+     v9 = and v8, 255
-+     mstore v7, v9
-+     v10 = mload v7
-+     mstore 128, v10
++     v6 = alloc 32
++     v7 = mload v0
++     v8 = and v7, 255
++     mstore v6, v8
++     v9 = mload v6
++     mstore 128, v9
++     v10 = add 128, 32
 +     v11 = add 128, 32
-+     v12 = add 128, 32
-+     v13 = sub v12, 128
-+     returndata 128, v13
++     v12 = sub v11, 128
++     returndata 128, v12
 +   bb4:
 +     revert 0, 0
   }
@@ -1843,9 +1828,8 @@
 +     jumpi v2, bb4, bb5
 +   bb5:
 +     v3 = calldataload 4
-+     v4 = shr v3, 1
-+     v5 = eq v4, 0
-+     jumpi v5, bb6, bb4
++     v4 = gt v3, 1
++     jumpi v4, bb4, bb6
 +   bb6:
 +     jump bb1
     bb1:
@@ -1858,16 +1842,16 @@
 +     mstore v0, 1
 +     jump bb3
 +   bb3:
-+     v6 = alloc 32
-+     v7 = mload v0
-+     v8 = and v7, 255
-+     mstore v6, v8
-+     v9 = mload v6
-+     mstore 128, v9
++     v5 = alloc 32
++     v6 = mload v0
++     v7 = and v6, 255
++     mstore v5, v7
++     v8 = mload v5
++     mstore 128, v8
++     v9 = add 128, 32
 +     v10 = add 128, 32
-+     v11 = add 128, 32
-+     v12 = sub v11, 128
-+     returndata 128, v12
++     v11 = sub v10, 128
++     returndata 128, v11
 +   bb4:
 +     revert 0, 0
   }
@@ -1896,33 +1880,32 @@
 +     jumpi v4, bb1, bb2
 +   bb2:
 +     v5 = mul v3, 32
-+     v6 = shr v3, 251
-+     v7 = ne v6, 0
-+     jumpi v7, bb1, bb3
++     v6 = gt v3, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v6, bb1, bb3
 +   bb3:
-+     v8 = alloc v5
-+     mstore v8, v2
++     v7 = alloc v5
++     mstore v7, v2
 +     jump bb4
 +   bb4:
-+     v9 = phi [bb3: 0], [bb5: v19]
-+     v10 = lt v9, v2
-+     jumpi v10, bb5, bb6
++     v8 = phi [bb3: 0], [bb5: v18]
++     v9 = lt v8, v2
++     jumpi v9, bb5, bb6
 +   bb6:
-+     v20 = abi_encode [memory_array<word>], scratch, args v8
-+     v21 = extract_value slice<memory>, v20, 0
-+     v22 = extract_value slice<memory>, v20, 1
-+     returndata v21, v22
++     v19 = abi_encode [memory_array<word>], scratch, args v7
++     v20 = extract_value slice<memory>, v19, 0
++     v21 = extract_value slice<memory>, v19, 1
++     returndata v20, v21
 +   bb5:
-+     v11 = shl v9, 5
-+     v12 = ptradd v1, v11
-+     v13 = ptradd v12, 32
-+     v14 = mload v13
-+     v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
-+     v16 = shl v9, 5
-+     v17 = ptradd v8, v16
-+     v18 = ptradd v17, 32
-+     mstore v18, v15
-+     v19 = add v9, 1
++     v10 = shl v8, 5
++     v11 = ptradd v1, v10
++     v12 = ptradd v11, 32
++     v13 = mload v12
++     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
++     v15 = shl v8, 5
++     v16 = ptradd v7, v15
++     v17 = ptradd v16, 32
++     mstore v17, v14
++     v18 = add v8, 1
 +     jump bb4
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -1942,33 +1925,32 @@
 +     jumpi v3, bb1, bb2
 +   bb2:
 +     v4 = mul v2, 32
-+     v5 = shr v2, 251
-+     v6 = ne v5, 0
-+     jumpi v6, bb1, bb3
++     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v5, bb1, bb3
 +   bb3:
-+     v7 = alloc v4
-+     mstore v7, v1
++     v6 = alloc v4
++     mstore v6, v1
 +     jump bb4
 +   bb4:
-+     v8 = phi [bb3: 0], [bb5: v18]
-+     v9 = lt v8, v1
-+     jumpi v9, bb5, bb6
++     v7 = phi [bb3: 0], [bb5: v17]
++     v8 = lt v7, v1
++     jumpi v8, bb5, bb6
 +   bb6:
-+     v19 = abi_encode [memory_array<word>], scratch, args v7
-+     v20 = extract_value slice<memory>, v19, 0
-+     v21 = extract_value slice<memory>, v19, 1
-+     returndata v20, v21
++     v18 = abi_encode [memory_array<word>], scratch, args v6
++     v19 = extract_value slice<memory>, v18, 0
++     v20 = extract_value slice<memory>, v18, 1
++     returndata v19, v20
 +   bb5:
-+     v10 = shl v8, 5
-+     v11 = ptradd v0, v10
-+     v12 = ptradd v11, 32
-+     v13 = mload v12
-+     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
-+     v15 = shl v8, 5
-+     v16 = ptradd v7, v15
-+     v17 = ptradd v16, 32
-+     mstore v17, v14
-+     v18 = add v8, 1
++     v9 = shl v7, 5
++     v10 = ptradd v0, v9
++     v11 = ptradd v10, 32
++     v12 = mload v11
++     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
++     v14 = shl v7, 5
++     v15 = ptradd v6, v14
++     v16 = ptradd v15, 32
++     mstore v16, v13
++     v17 = add v7, 1
 +     jump bb4
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -1995,48 +1977,47 @@
 +     jumpi v2, bb2, bb3
 +   bb3:
 +     v3 = calldataload 4
-+     v4 = shr v3, 1
-+     v5 = eq v4, 0
-+     jumpi v5, bb4, bb2
++     v4 = gt v3, 1
++     jumpi v4, bb2, bb4
 +   bb4:
 +     jump bb1
 +   bb1:
       v0 = icall @conditionalFixedArray, arg0
 -     ret v0
-+     v6 = alloc 32
++     v5 = alloc 32
 +     jump bb5
 +   bb5:
-+     v7 = phi [bb1: 0], [bb6: v15]
-+     v8 = lt v7, 1
-+     jumpi v8, bb6, bb7
++     v6 = phi [bb1: 0], [bb6: v14]
++     v7 = lt v6, 1
++     jumpi v7, bb6, bb7
 +   bb7:
 +     jump bb8
 +   bb8:
-+     v16 = phi [bb7: 0], [bb9: v23]
-+     v17 = lt v16, 1
-+     jumpi v17, bb9, bb10
++     v15 = phi [bb7: 0], [bb9: v22]
++     v16 = lt v15, 1
++     jumpi v16, bb9, bb10
 +   bb10:
-+     v24 = add 128, 32
-+     v25 = sub v24, 128
-+     returndata 128, v25
++     v23 = add 128, 32
++     v24 = sub v23, 128
++     returndata 128, v24
 +   bb9:
-+     v18 = shl v16, 5
-+     v19 = ptradd v6, v18
-+     v20 = mload v19
-+     v21 = mul v16, 32
-+     v22 = add 128, v21
-+     mstore v22, v20
-+     v23 = add v16, 1
++     v17 = shl v15, 5
++     v18 = ptradd v5, v17
++     v19 = mload v18
++     v20 = mul v15, 32
++     v21 = add 128, v20
++     mstore v21, v19
++     v22 = add v15, 1
 +     jump bb8
 +   bb6:
-+     v9 = shl v7, 5
-+     v10 = ptradd v0, v9
-+     v11 = mload v10
-+     v12 = and v11, 255
-+     v13 = shl v7, 5
-+     v14 = ptradd v6, v13
-+     mstore v14, v12
-+     v15 = add v7, 1
++     v8 = shl v6, 5
++     v9 = ptradd v0, v8
++     v10 = mload v9
++     v11 = and v10, 255
++     v12 = shl v6, 5
++     v13 = ptradd v5, v12
++     mstore v13, v11
++     v14 = add v6, 1
 +     jump bb5
 +   bb2:
 +     revert 0, 0
@@ -2096,47 +2077,45 @@
 +     jumpi v2, bb2, bb3
 +   bb3:
 +     v3 = calldataload 4
-+     v4 = shr v3, 1
-+     v5 = eq v4, 0
-+     jumpi v5, bb4, bb2
++     v4 = gt v3, 1
++     jumpi v4, bb2, bb4
 +   bb4:
 +     jump bb1
 +   bb1:
       v0 = icall @bypassedArrayLoop, arg0
 -     ret v0
-+     v6 = mload v0
-+     v7 = add v6, 1
-+     v8 = lt v7, v6
-+     jumpi v8, bb5, bb6
++     v5 = mload v0
++     v6 = add v5, 1
++     v7 = lt v6, v5
++     jumpi v7, bb5, bb6
 +   bb6:
-+     v9 = mul v7, 32
-+     v10 = shr v7, 251
-+     v11 = ne v10, 0
-+     jumpi v11, bb5, bb7
++     v8 = mul v6, 32
++     v9 = gt v6, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v9, bb5, bb7
 +   bb7:
-+     v12 = alloc v9
-+     mstore v12, v6
++     v10 = alloc v8
++     mstore v10, v5
 +     jump bb8
 +   bb8:
-+     v13 = phi [bb7: 0], [bb9: v23]
-+     v14 = lt v13, v6
-+     jumpi v14, bb9, bb10
++     v11 = phi [bb7: 0], [bb9: v21]
++     v12 = lt v11, v5
++     jumpi v12, bb9, bb10
 +   bb10:
-+     v24 = abi_encode [memory_array<word>], scratch, args v12
-+     v25 = extract_value slice<memory>, v24, 0
-+     v26 = extract_value slice<memory>, v24, 1
-+     returndata v25, v26
++     v22 = abi_encode [memory_array<word>], scratch, args v10
++     v23 = extract_value slice<memory>, v22, 0
++     v24 = extract_value slice<memory>, v22, 1
++     returndata v23, v24
 +   bb9:
-+     v15 = shl v13, 5
-+     v16 = ptradd v0, v15
-+     v17 = ptradd v16, 32
-+     v18 = mload v17
-+     v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffff
-+     v20 = shl v13, 5
-+     v21 = ptradd v12, v20
-+     v22 = ptradd v21, 32
-+     mstore v22, v19
-+     v23 = add v13, 1
++     v13 = shl v11, 5
++     v14 = ptradd v0, v13
++     v15 = ptradd v14, 32
++     v16 = mload v15
++     v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
++     v18 = shl v11, 5
++     v19 = ptradd v10, v18
++     v20 = ptradd v19, 32
++     mstore v20, v17
++     v21 = add v11, 1
 +     jump bb8
 +   bb5:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -2157,33 +2136,32 @@
 +     jumpi v3, bb1, bb2
 +   bb2:
 +     v4 = mul v2, 32
-+     v5 = shr v2, 251
-+     v6 = ne v5, 0
-+     jumpi v6, bb1, bb3
++     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v5, bb1, bb3
 +   bb3:
-+     v7 = alloc v4
-+     mstore v7, v1
++     v6 = alloc v4
++     mstore v6, v1
 +     jump bb4
 +   bb4:
-+     v8 = phi [bb3: 0], [bb5: v18]
-+     v9 = lt v8, v1
-+     jumpi v9, bb5, bb6
++     v7 = phi [bb3: 0], [bb5: v17]
++     v8 = lt v7, v1
++     jumpi v8, bb5, bb6
 +   bb6:
-+     v19 = abi_encode [memory_array<word>], scratch, args v7
-+     v20 = extract_value slice<memory>, v19, 0
-+     v21 = extract_value slice<memory>, v19, 1
-+     returndata v20, v21
++     v18 = abi_encode [memory_array<word>], scratch, args v6
++     v19 = extract_value slice<memory>, v18, 0
++     v20 = extract_value slice<memory>, v18, 1
++     returndata v19, v20
 +   bb5:
-+     v10 = shl v8, 5
-+     v11 = ptradd v0, v10
-+     v12 = ptradd v11, 32
-+     v13 = mload v12
-+     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
-+     v15 = shl v8, 5
-+     v16 = ptradd v7, v15
-+     v17 = ptradd v16, 32
-+     mstore v17, v14
-+     v18 = add v8, 1
++     v9 = shl v7, 5
++     v10 = ptradd v0, v9
++     v11 = ptradd v10, 32
++     v12 = mload v11
++     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
++     v14 = shl v7, 5
++     v15 = ptradd v6, v14
++     v16 = ptradd v15, 32
++     mstore v16, v13
++     v17 = add v7, 1
 +     jump bb4
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -2215,34 +2193,35 @@
   fn @canonicalStorageAddresses(arg0: i256) -> ptr<memory> {
     bb0:
       v1 = sload arg0 !metadata(storage=symbolic(arg0))
-      v2 = gt v1, 0x7fffffffffffffe
-      jumpi v2, bb1, bb2
+      v2 = shr v1, 59
+      v3 = ne v2, 0
+      jumpi v3, bb1, bb2
     bb2:
-      v3 = add v1, 1
-      v4 = mul v3, 32
-      v5 = alloc checked v4
-      mstore v5, v1
-      v6 = storage_array_data_slot arg0
+      v4 = add v1, 1
+      v5 = mul v4, 32
+      v6 = alloc checked v5
+      mstore v6, v1
+      v7 = storage_array_data_slot arg0
       jump bb3
     bb3:
-      v7 = phi [bb2: 0], [bb4: v19]
-      v8 = lt v7, v1
-      jumpi v8, bb4, bb5
+      v8 = phi [bb2: 0], [bb4: v20]
+      v9 = lt v8, v1
+      jumpi v9, bb4, bb5
     bb5:
-      ret v5
+      ret v6
     bb4:
-      v9 = div v7, 1
-      v10 = add v6, v9
-      v11 = sload v10 !metadata(storage=symbolic(v10))
-      v12 = mod v7, 1
-      v13 = mul v12, 160
-      v14 = shr v11, v13
-      v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
-      v16 = shl v7, 5
-      v17 = ptradd v5, v16
-      v18 = ptradd v17, 32
-      mstore v18, v15
-      v19 = add v7, 1
+      v10 = div v8, 1
+      v11 = add v7, v10
+      v12 = sload v11 !metadata(storage=symbolic(v11))
+      v13 = mod v8, 1
+      v14 = mul v13, 160
+      v15 = shr v12, v14
+      v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
+      v17 = shl v8, 5
+      v18 = ptradd v6, v17
+      v19 = ptradd v18, 32
+      mstore v19, v16
+      v20 = add v8, 1
       jump bb3
     bb1:
       mstore 32, 65 !metadata(memory=scratch)
@@ -2264,37 +2243,38 @@
   fn @dirtyStorageAddresses(arg0: i256) -> ptr<memory> {
     bb0:
       v3 = sload arg0 !metadata(storage=symbolic(arg0))
-      v4 = gt v3, 0x7fffffffffffffe
-      jumpi v4, bb1, bb2
+      v4 = shr v3, 59
+      v5 = ne v4, 0
+      jumpi v5, bb1, bb2
     bb2:
-      v5 = add v3, 1
-      v6 = mul v5, 32
-      v7 = alloc checked v6
-      mstore v7, v3
-      v8 = storage_array_data_slot arg0
+      v6 = add v3, 1
+      v7 = mul v6, 32
+      v8 = alloc checked v7
+      mstore v8, v3
+      v9 = storage_array_data_slot arg0
       jump bb3
     bb3:
-      v9 = phi [bb2: 0], [bb4: v21]
-      v10 = lt v9, v3
-      jumpi v10, bb4, bb5
+      v10 = phi [bb2: 0], [bb4: v22]
+      v11 = lt v10, v3
+      jumpi v11, bb4, bb5
     bb5:
-      v1 = ptradd v7, 32
+      v1 = ptradd v8, 32
       v2 = ptrtoint ptr<memory> v1 to i256
       mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-      ret v7
+      ret v8
     bb4:
-      v11 = div v9, 1
-      v12 = add v8, v11
-      v13 = sload v12 !metadata(storage=symbolic(v12))
-      v14 = mod v9, 1
-      v15 = mul v14, 160
-      v16 = shr v13, v15
-      v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
-      v18 = shl v9, 5
-      v19 = ptradd v7, v18
-      v20 = ptradd v19, 32
-      mstore v20, v17
-      v21 = add v9, 1
+      v12 = div v10, 1
+      v13 = add v9, v12
+      v14 = sload v13 !metadata(storage=symbolic(v13))
+      v15 = mod v10, 1
+      v16 = mul v15, 160
+      v17 = shr v14, v16
+      v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffff
+      v19 = shl v10, 5
+      v20 = ptradd v8, v19
+      v21 = ptradd v20, 32
+      mstore v21, v18
+      v22 = add v10, 1
       jump bb3
     bb1:
       mstore 32, 65 !metadata(memory=scratch)
@@ -2313,33 +2293,32 @@
 +     jumpi v3, bb1, bb2
 +   bb2:
 +     v4 = mul v2, 32
-+     v5 = shr v2, 251
-+     v6 = ne v5, 0
-+     jumpi v6, bb1, bb3
++     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v5, bb1, bb3
 +   bb3:
-+     v7 = alloc v4
-+     mstore v7, v1
++     v6 = alloc v4
++     mstore v6, v1
 +     jump bb4
 +   bb4:
-+     v8 = phi [bb3: 0], [bb5: v18]
-+     v9 = lt v8, v1
-+     jumpi v9, bb5, bb6
++     v7 = phi [bb3: 0], [bb5: v17]
++     v8 = lt v7, v1
++     jumpi v8, bb5, bb6
 +   bb6:
-+     v19 = abi_encode [memory_array<word>], scratch, args v7
-+     v20 = extract_value slice<memory>, v19, 0
-+     v21 = extract_value slice<memory>, v19, 1
-+     returndata v20, v21
++     v18 = abi_encode [memory_array<word>], scratch, args v6
++     v19 = extract_value slice<memory>, v18, 0
++     v20 = extract_value slice<memory>, v18, 1
++     returndata v19, v20
 +   bb5:
-+     v10 = shl v8, 5
-+     v11 = ptradd v0, v10
-+     v12 = ptradd v11, 32
-+     v13 = mload v12
-+     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
-+     v15 = shl v8, 5
-+     v16 = ptradd v7, v15
-+     v17 = ptradd v16, 32
-+     mstore v17, v14
-+     v18 = add v8, 1
++     v9 = shl v7, 5
++     v10 = ptradd v0, v9
++     v11 = ptradd v10, 32
++     v12 = mload v11
++     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
++     v14 = shl v7, 5
++     v15 = ptradd v6, v14
++     v16 = ptradd v15, 32
++     mstore v16, v13
++     v17 = add v7, 1
 +     jump bb4
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -2356,8 +2335,8 @@
 +   bb3:
 +     v4 = calldataload 4
 +     v5 = shr v4, 128
-+     v6 = eq v5, 0
-+     jumpi v6, bb4, bb2
++     v6 = ne v5, 0
++     jumpi v6, bb2, bb4
 +   bb4:
 +     jump bb1
 +   bb1:

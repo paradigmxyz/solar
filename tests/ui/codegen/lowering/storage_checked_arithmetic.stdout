@@ -45,14 +45,15 @@ fn @storage_struct_add(arg0: i160, arg1: i128) [selector=0xb11dd1b8, abi_params=
     v11 = zext i128 v3 to i256
     v12 = zext i128 arg1 to i256
     v13 = add v11, v12
-    v14 = gt v13, 0xffffffffffffffffffffffffffffffff
-    jumpi v14, bb1, bb2
+    v14 = shr v13, 128
+    v15 = ne v14, 0
+    jumpi v15, bb1, bb2
   bb2:
-    v15 = trunc i256 v13 to i128
+    v16 = trunc i256 v13 to i128
     v5 = sload v1 !metadata(storage=symbolic(v1))
     v6 = not 0xffffffffffffffffffffffffffffffff
     v7 = and v5, v6
-    v8 = zext i128 v15 to i256
+    v8 = zext i128 v16 to i256
     v9 = and v8, 0xffffffffffffffffffffffffffffffff
     v10 = or v7, v9
     sstore v1, v10 !metadata(storage=symbolic(v1))

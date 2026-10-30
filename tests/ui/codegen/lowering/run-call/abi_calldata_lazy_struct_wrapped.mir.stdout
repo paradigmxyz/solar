@@ -74,36 +74,38 @@ fn @read(arg0: slice<calldata>) -> struct0 [selector=0x171e22c6, pure, abi_param
     icall revert_if<invalid_calldata_tail_offset>, v58
     v59 = calldataload v52
     v60 = calldatasize
-    v61 = gt v59, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v61
-    v62 = add v52, 32
-    v63 = sub v60, v59
-    v64 = sgt v62, v63
-    icall revert_if<calldata_tail_too_short>, v64
-    v65 = inttoptr i256 v62 to ptr<calldata>
-    v66 = make_calldata_slice v65, v59
-    v67 = extract_value slice<calldata>, v66, 0
-    v68 = extract_value slice<calldata>, v66, 1
-    v69 = calldatasize
-    v70 = gt v68, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v70
-    v71 = sub v69, v68
-    v72 = ptrtoint ptr<calldata> v67 to i256
-    v73 = sgt v72, v71
-    icall revert_if<calldata_tail_too_short>, v73
-    v74 = extract_value slice<calldata>, v66, 1
-    v75 = add v74, 63
-    v76 = lt v75, v74
-    icall panic_if<0x41>, v76
-    v77 = not 31
-    v78 = and v75, v77
-    v79 = alloc v78
-    mstore v79, v74
-    v80 = ptradd v79, 32
-    v81 = extract_value slice<calldata>, v66, 0
-    v82 = extract_value slice<calldata>, v66, 1
-    calldatacopy v80, v81, v82
-    v83 = insert_value struct0, undef struct0, 0, v23
-    v84 = insert_value struct0, v83, 1, v79
-    ret v84
+    v61 = shr v59, 64
+    v62 = ne v61, 0
+    icall revert_if<invalid_calldata_tail_length>, v62
+    v63 = add v52, 32
+    v64 = sub v60, v59
+    v65 = sgt v63, v64
+    icall revert_if<calldata_tail_too_short>, v65
+    v66 = inttoptr i256 v63 to ptr<calldata>
+    v67 = make_calldata_slice v66, v59
+    v68 = extract_value slice<calldata>, v67, 0
+    v69 = extract_value slice<calldata>, v67, 1
+    v70 = calldatasize
+    v71 = shr v69, 64
+    v72 = ne v71, 0
+    icall revert_if<invalid_calldata_tail_length>, v72
+    v73 = sub v70, v69
+    v74 = ptrtoint ptr<calldata> v68 to i256
+    v75 = sgt v74, v73
+    icall revert_if<calldata_tail_too_short>, v75
+    v76 = extract_value slice<calldata>, v67, 1
+    v77 = add v76, 63
+    v78 = lt v77, v76
+    icall panic_if<0x41>, v78
+    v79 = not 31
+    v80 = and v77, v79
+    v81 = alloc v80
+    mstore v81, v76
+    v82 = ptradd v81, 32
+    v83 = extract_value slice<calldata>, v67, 0
+    v84 = extract_value slice<calldata>, v67, 1
+    calldatacopy v82, v83, v84
+    v85 = insert_value struct0, undef struct0, 0, v23
+    v86 = insert_value struct0, v85, 1, v81
+    ret v86
 }

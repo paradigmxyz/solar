@@ -29,6 +29,9 @@ pub use abi::{
     AbiType, AbiWordValidator,
 };
 
+mod bit_width;
+pub use bit_width::{BitTestPricing, BitWidthTest, ConditionUse};
+
 mod packed;
 pub use packed::{PackedArraySource, PackedPart, packed_element_bytes};
 

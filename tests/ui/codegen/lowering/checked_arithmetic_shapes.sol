@@ -102,7 +102,8 @@ contract CheckedArithmeticShapes {
     // CHECK: [[LHS:v[0-9]+]] = zext i128 arg0 to i256
     // CHECK: [[RHS:v[0-9]+]] = zext i128 arg1 to i256
     // CHECK: [[RESULT:v[0-9]+]] = add [[LHS]], [[RHS]]
-    // CHECK: gt [[RESULT]], 0xffffffffffffffffffffffffffffffff
+    // CHECK: [[HIGH:v[0-9]+]] = shr [[RESULT]], 128
+    // CHECK-NEXT: ne [[HIGH]], 0
     // CHECK: mstore 32, 17
     function uadd128(uint128 a, uint128 b) public pure returns (uint128) {
         return a + b;
@@ -113,7 +114,8 @@ contract CheckedArithmeticShapes {
     // CHECK: [[RHS:v[0-9]+]] = zext i128 arg1 to i256
     // CHECK: [[RESULT:v[0-9]+]] = mul [[LHS]], [[RHS]]
     // CHECK-NOT: div
-    // CHECK: gt [[RESULT]], 0xffffffffffffffffffffffffffffffff
+    // CHECK: [[HIGH:v[0-9]+]] = shr [[RESULT]], 128
+    // CHECK-NEXT: ne [[HIGH]], 0
     // CHECK: mstore 32, 17
     function umul128(uint128 a, uint128 b) public pure returns (uint128) {
         return a * b;
@@ -150,7 +152,8 @@ contract CheckedArithmeticShapes {
     // CHECK: [[RHS:v[0-9]+]] = zext i192 arg1 to i256
     // CHECK: [[RESULT:v[0-9]+]] = mul [[LHS]], [[RHS]]
     // CHECK: div [[RESULT]], [[RHS]]
-    // CHECK: gt [[RESULT]], 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[HIGH:v[0-9]+]] = shr [[RESULT]], 192
+    // CHECK: ne {{v[0-9]+}}, 0
     // CHECK: mstore 32, 17
     function umul192(uint192 a, uint192 b) public pure returns (uint192) {
         return a * b;

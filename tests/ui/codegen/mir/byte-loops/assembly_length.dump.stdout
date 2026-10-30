@@ -22,10 +22,10 @@ fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
     v87 = and v84, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v147 = heap_floor !metadata(alloc_ptr)
     v148 = add v147, v87 !metadata(alloc_ptr)
+    v150 = shr v148, 64
     v149 = lt v148, v147
-    v150 = zext i1 v149 to i256
-    v151 = shr v148, 64
-    v152 = or v150, v151
+    v151 = zext i1 v149 to i256
+    v152 = or v151, v150
     v159 = zext i1 v85 to i256
     v160 = or v159, v152
     v161 = ne v160, 0
@@ -284,10 +284,10 @@ fn @grownPast() [selector=0xd89b44d4, abi_wrapper, pure] {
   bb0:
     v89 = heap_floor !metadata(alloc_ptr)
     v90 = add v89, 64 !metadata(alloc_ptr)
+    v92 = shr v90, 64
     v91 = lt v90, v89
-    v92 = zext i1 v91 to i256
-    v93 = shr v90, 64
-    v94 = or v92, v93
+    v93 = zext i1 v91 to i256
+    v94 = or v93, v92
     v95 = ne v94, 0
     jumpi v95, bb10, bb9
   bb9:
@@ -431,10 +431,10 @@ fn @alloc(arg0: i256) -> i256 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v0, arg0 !metadata(alloc_ptr)
+    v4 = shr v2, 64
     v3 = lt v2, v0
-    v4 = zext i1 v3 to i256
-    v5 = shr v2, 64
-    v6 = or v4, v5
+    v5 = zext i1 v3 to i256
+    v6 = or v5, v4
     v7 = ne v6, 0
     jumpi v7, bb1, bb2
   bb2:

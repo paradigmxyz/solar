@@ -86,16 +86,17 @@ fn @row(arg0: slice<calldata>, arg1: i256) -> slice<calldata> [selector=0x538f7f
     icall revert_if<invalid_calldata_tail_offset>, v21
     v22 = calldataload v15
     v23 = calldatasize
-    v24 = gt v22, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v24
-    v25 = mul v22, 64
-    v26 = add v15, 32
-    v27 = sub v23, v25
-    v28 = sgt v26, v27
-    icall revert_if<calldata_tail_too_short>, v28
-    v29 = inttoptr i256 v26 to ptr<calldata>
-    v30 = make_calldata_slice v29, v22
-    ret v30
+    v24 = shr v22, 64
+    v25 = ne v24, 0
+    icall revert_if<invalid_calldata_tail_length>, v25
+    v26 = mul v22, 64
+    v27 = add v15, 32
+    v28 = sub v23, v26
+    v29 = sgt v27, v28
+    icall revert_if<calldata_tail_too_short>, v29
+    v30 = inttoptr i256 v27 to ptr<calldata>
+    v31 = make_calldata_slice v30, v22
+    ret v31
 }
 
 fn @member(arg0: slice<calldata>) -> slice<calldata> [selector=0xef3fa208, pure, abi_params=[tuple<array<_, tuple<uint256, uint256>>, uint256>], abi_returns=[memory_array<tuple<word, word>>], abi_return_params=[array<_, tuple<uint256, uint256>>]] {
@@ -120,14 +121,15 @@ fn @member(arg0: slice<calldata>) -> slice<calldata> [selector=0xef3fa208, pure,
     icall revert_if<invalid_calldata_tail_offset>, v15
     v16 = calldataload v9
     v17 = calldatasize
-    v18 = gt v16, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v18
-    v19 = mul v16, 64
-    v20 = add v9, 32
-    v21 = sub v17, v19
-    v22 = sgt v20, v21
-    icall revert_if<calldata_tail_too_short>, v22
-    v23 = inttoptr i256 v20 to ptr<calldata>
-    v24 = make_calldata_slice v23, v16
-    ret v24
+    v18 = shr v16, 64
+    v19 = ne v18, 0
+    icall revert_if<invalid_calldata_tail_length>, v19
+    v20 = mul v16, 64
+    v21 = add v9, 32
+    v22 = sub v17, v20
+    v23 = sgt v21, v22
+    icall revert_if<calldata_tail_too_short>, v23
+    v24 = inttoptr i256 v21 to ptr<calldata>
+    v25 = make_calldata_slice v24, v16
+    ret v25
 }

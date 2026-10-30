@@ -19,10 +19,10 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v45 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v102 = heap_floor !metadata(alloc_ptr)
     v103 = add v102, v45 !metadata(alloc_ptr)
+    v105 = shr v103, 64
     v104 = lt v103, v102
-    v105 = zext i1 v104 to i256
-    v106 = shr v103, 64
-    v107 = or v105, v106
+    v106 = zext i1 v104 to i256
+    v107 = or v106, v105
     v146 = zext i1 v43 to i256
     v147 = or v146, v107
     v148 = ne v147, 0
@@ -152,51 +152,50 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v21 = add v20, 4
     v23 = sub v18, 36
     v24 = gt v20, v23
-    v68 = or v19, v24
-    jumpi v68, bb4, bb5
+    v69 = or v19, v24
+    jumpi v69, bb4, bb5
   bb5:
     v25 = calldataload v21
     v26 = add v21, 32
-    v27 = gt v25, 0x7fffffffffffffe
-    v28 = add v25, 1
-    v29 = shl v28, 5
-    v45 = heap_floor !metadata(alloc_ptr)
-    v46 = add v45, v29 !metadata(alloc_ptr)
-    v47 = lt v46, v45
-    v48 = zext i1 v47 to i256
-    v49 = shr v46, 64
-    v50 = or v48, v49
-    v69 = zext i1 v27 to i256
-    v70 = or v69, v50
+    v27 = shr v25, 59
+    v29 = add v25, 1
+    v30 = shl v29, 5
+    v46 = heap_floor !metadata(alloc_ptr)
+    v47 = add v46, v30 !metadata(alloc_ptr)
+    v49 = shr v47, 64
+    v48 = lt v47, v46
+    v50 = zext i1 v48 to i256
+    v51 = or v50, v49
+    v70 = or v27, v51
     v71 = ne v70, 0
     jumpi v71, bb6, bb8
   bb8:
-    mstore 64, v46 !metadata(memory=scratch)
-    mstore v45, v25
-    v31 = shl v25, 5
-    v32 = sub v18, v26
-    v33 = shr v32, 5
-    v34 = gt v25, v33
-    jumpi v34, bb4, bb7
+    mstore 64, v47 !metadata(memory=scratch)
+    mstore v46, v25
+    v32 = shl v25, 5
+    v33 = sub v18, v26
+    v34 = shr v33, 5
+    v35 = gt v25, v34
+    jumpi v35, bb4, bb7
   bb7:
-    v42 = add v45, 32
-    calldatacopy v42, v26, v31
-    v5 = add v42, v31
-    v64 = and v25, 1
-    v65 = ne v64, 0
-    jumpi v65, bb9, bb10
+    v43 = add v46, 32
+    calldatacopy v43, v26, v32
+    v5 = add v43, v32
+    v65 = and v25, 1
+    v66 = ne v65, 0
+    jumpi v66, bb9, bb10
   bb9:
-    v55 = mload v42
-    v56 = add 0, v55
-    v57 = add v42, 32
+    v56 = mload v43
+    v57 = add 0, v56
+    v58 = add v43, 32
     jump bb10
   bb10:
-    v66 = phi [bb7: 0], [bb9: v56]
-    v67 = phi [bb7: v42], [bb9: v57]
+    v67 = phi [bb7: 0], [bb9: v57]
+    v68 = phi [bb7: v43], [bb9: v58]
     jump bb1
   bb1:
-    v7 = phi [bb10: v66], [bb3: v62]
-    v8 = phi [bb10: v67], [bb3: v63]
+    v7 = phi [bb10: v67], [bb3: v63]
+    v8 = phi [bb10: v68], [bb3: v64]
     v12 = ne v8, v5
     jumpi v12, bb3, bb2
   bb2:
@@ -206,9 +205,9 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v15 = mload v8
     v16 = add v7, v15
     v17 = add v8, 32
-    v61 = mload v17
-    v62 = add v16, v61
-    v63 = add v8, 64
+    v62 = mload v17
+    v63 = add v16, v62
+    v64 = add v8, 64
     jump bb1
   bb6:
     mstore 32, 65 !metadata(memory=scratch)

@@ -1,6 +1,6 @@
 //! Semantic ABI layout descriptors used by MIR encoding operations.
 
-use super::{FunctionBuilder, PtrLocation, ValueId, ValueLayout};
+use super::{ConditionUse, FunctionBuilder, PtrLocation, ValueId, ValueLayout};
 use alloy_primitives::U256;
 use std::{fmt, sync::Arc};
 
@@ -457,17 +457,19 @@ impl AbiWordValidator {
     }
 
     /// Builds the condition that is true when `word` is canonical.
-    pub fn condition(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
+    pub fn condition(
+        self,
+        builder: &mut FunctionBuilder<'_>,
+        word: ValueId,
+        read: ConditionUse,
+    ) -> ValueId {
         match self {
-            Self::Unsigned(bits) | Self::LeftAligned(bits) => {
-                // shifted = word >> bits (or word << bits)
+            Self::Unsigned(bits) => builder.fits_in_bits(word, bits.into(), read),
+            Self::LeftAligned(bits) => {
+                // shifted = word << bits
                 // valid = shifted == 0
                 let shift = builder.imm(u64::from(bits));
-                let shifted = if matches!(self, Self::Unsigned(_)) {
-                    builder.shr(word, shift)
-                } else {
-                    builder.shl(word, shift)
-                };
+                let shifted = builder.shl(word, shift);
                 builder.eq_zero(shifted)
             }
             Self::SignExtend(byte_index) => {
@@ -475,29 +477,38 @@ impl AbiWordValidator {
                 let canonical = builder.signextend(byte_index, word);
                 builder.eq(word, canonical)
             }
-            Self::Bool => {
-                let two = builder.imm(2);
-                builder.lt(word, two)
-            }
-            Self::EnumRange(variants) => {
-                let variants = builder.imm(variants);
-                builder.lt(word, variants)
-            }
+            Self::Bool => builder.fits_in_bits(word, 1, read),
+            Self::EnumRange(variants) => builder.lt_literal(word, variants, read),
         }
     }
 
-    /// Builds the condition that is true when `word` is canonical, for a check that runs once.
-    ///
-    /// A `bool` or a power-of-two enum tests a shifted word, as a `uintN` does, which
-    /// `merge-aborts` joins with the call's other checks. [`Self::condition`] keeps the
-    /// comparison with a literal, which a loop's check turns around for free.
-    pub fn condition_once(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
+    /// Builds the condition that is true when `word` is not canonical, the one a check aborts on.
+    pub fn violation(
+        self,
+        builder: &mut FunctionBuilder<'_>,
+        word: ValueId,
+        read: ConditionUse,
+    ) -> ValueId {
         match self {
-            Self::Bool => Self::Unsigned(1).condition(builder, word),
-            Self::EnumRange(variants) if variants > 1 && variants.is_power_of_two() => {
-                Self::Unsigned(variants.trailing_zeros() as u16).condition(builder, word)
+            Self::Unsigned(bits) => builder.exceeds_bits(word, bits.into(), read),
+            Self::LeftAligned(bits) => {
+                // shifted = word << bits
+                // invalid = shifted != 0
+                let shift = builder.imm(u64::from(bits));
+                let shifted = builder.shl(word, shift);
+                builder.ne_zero(shifted)
             }
-            _ => self.condition(builder, word),
+            Self::SignExtend(byte_index) => {
+                let byte_index = builder.imm(byte_index);
+                let canonical = builder.signextend(byte_index, word);
+                builder.ne(word, canonical)
+            }
+            Self::Bool => builder.exceeds_bits(word, 1, read),
+            Self::EnumRange(variants) => match variants.checked_sub(1) {
+                Some(last) => builder.gt_literal(word, last, read),
+                // An enum without variants has no valid word.
+                None => builder.imm_bool(true),
+            },
         }
     }
 

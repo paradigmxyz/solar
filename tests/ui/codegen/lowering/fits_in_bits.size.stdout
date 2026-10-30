@@ -1,0 +1,202 @@
+// === ROOT/tests/ui/codegen/lowering/fits_in_bits.sol:FitsInBits ===
+@module FitsInBits
+@types
+  struct0: {i16, i32, i1}
+
+fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
+  bb0:
+    v39 = calldatasize
+    v40 = lt v39, 36
+    jumpi v40, bb7, bb8
+  bb8:
+    v41 = calldataload 4
+    v42 = add 4, v41
+    v43 = sub v39, 4
+    v44 = sub v43, 32
+    v45 = gt v41, v44
+    jumpi v45, bb9, bb10
+  bb10:
+    v46 = calldataload v42
+    v47 = add v42, 32
+    v48 = add v46, 63
+    v49 = lt v48, v46
+    jumpi v49, bb11, bb12
+  bb12:
+    v50 = not 31
+    v51 = and v48, v50
+    v71 = icall @alloc.3, v51
+    mstore v71, v46
+    v53 = sub v39, v47
+    v54 = gt v46, v53
+    jumpi v54, bb9, bb13
+  bb13:
+    v55 = inttoptr i256 v47 to ptr<calldata>
+    v56 = make_calldata_slice v55, v46
+    v57 = ptradd v71, 32
+    v58 = extract_value slice<calldata>, v56, 0
+    v59 = extract_value slice<calldata>, v56, 1
+    calldatacopy v57, v58, v59
+    v60 = ptradd v71, 32
+    v61 = ptradd v60, v46
+    v62 = sub 0, v46
+    v63 = and v62, 31
+    memory_zero v61, v63
+    jump bb1
+  bb1:
+    v7 = ptradd v71, 32
+    v8 = mload v71
+    v9 = ptrtoint ptr<memory> v7 to i256
+    v10 = add v9, v8
+    v11 = slt v8, 96
+    jumpi v11, bb2, bb3
+  bb3:
+    v12 = mload v7
+    v13 = shr v12, 16
+    v14 = eq v13, 0
+    v15 = zext i1 v14 to i256
+    v17 = eq v15, 0
+    jumpi v17, bb2, bb4
+  bb4:
+    v18 = ptrtoint ptr<memory> v7 to i256
+    v19 = add v18, 32
+    v20 = mload v19
+    v21 = shr v20, 32
+    v22 = eq v21, 0
+    v23 = zext i1 v22 to i256
+    v25 = eq v23, 0
+    jumpi v25, bb2, bb5
+  bb5:
+    v26 = ptrtoint ptr<memory> v7 to i256
+    v27 = add v26, 64
+    v28 = mload v27
+    v29 = lt v28, 2
+    v30 = zext i1 v29 to i256
+    v32 = eq v30, 0
+    jumpi v32, bb2, bb6
+  bb6:
+    v33 = trunc i256 v12 to i16
+    v34 = trunc i256 v20 to i32
+    v35 = ne v28, 0
+    v36 = insert_value struct0, undef struct0, 0, v33
+    v37 = insert_value struct0, v36, 1, v34
+    v38 = insert_value struct0, v37, 2, v35
+    v1 = extract_value struct0, v38, 0
+    v2 = extract_value struct0, v38, 1
+    v3 = extract_value struct0, v38, 2
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v2
+    v6 = insert_value struct0, v5, 2, v3
+    v64 = ne v3, false
+    v65 = zext i16 v1 to i256
+    mstore 0, v65 !metadata(memory=scratch)
+    v66 = zext i32 v2 to i256
+    mstore 32, v66 !metadata(memory=scratch)
+    v67 = add 32, 32
+    v68 = zext i1 v64 to i256
+    mstore v67, v68
+    v69 = add v67, 32
+    v70 = sub v69, 0
+    returndata 0, v70
+  bb2:
+    revert 0, 0
+  bb11:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb9:
+    revert 0, 0
+  bb7:
+    revert 0, 0
+}
+
+fn @narrow() [selector=0x9305afb9, abi_wrapper, pure] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 68
+    jumpi v2, bb2, bb3
+  bb3:
+    v3 = calldataload 4
+    v4 = shr v3, 16
+    v5 = ne v4, 0
+    jumpi v5, bb2, bb4
+  bb4:
+    v6 = calldataload 36
+    v7 = shr v6, 16
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb5
+  bb5:
+    jump bb1
+  bb1:
+    v11 = zext i16 arg0 to i256
+    v12 = zext i16 arg1 to i256
+    v13 = add v11, v12
+    v14 = shr v13, 16
+    v15 = ne v14, 0
+    jumpi v15, bb6, bb7
+  bb7:
+    v16 = trunc i256 v13 to i16
+    v9 = zext i16 v16 to i256
+    mstore 0, v9 !metadata(memory=scratch)
+    v10 = sub 32, 0
+    returndata 0, v10
+  bb6:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb2:
+    revert 0, 0
+}
+
+fn @alloc.2() [selector=0x191ac2d2, abi_wrapper, pure] {
+  bb0:
+    v14 = calldatasize
+    v15 = lt v14, 36
+    jumpi v15, bb2, bb3
+  bb3:
+    jump bb1
+  bb1:
+    v0 = mul arg0, 1
+    v1 = eq 1, 0
+    v2 = div v0, 1
+    v3 = eq v2, arg0
+    v4 = or v1, v3
+    v5 = zext i1 v4 to i256
+    v6 = eq v5, 0
+    icall panic_if<0x41>, v6
+    v7 = add v0, 1
+    v8 = lt v7, v0
+    icall panic_if<0x41>, v8
+    v9 = mul v7, 32
+    v10 = shr v7, 251
+    v11 = ne v10, 0
+    icall panic_if<0x41>, v11
+    v17 = icall @alloc.3, v9
+    memory_zero v17, v9
+    mstore v17, arg0
+    v13 = mload v17
+    mstore 0, v13 !metadata(memory=scratch)
+    v16 = sub 32, 0
+    returndata 0, v16
+  bb2:
+    revert 0, 0
+}
+
+fn @alloc.3(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v1 = inttoptr i256 v0 to ptr<memory>
+    v2 = add v0, arg0 !metadata(alloc_ptr)
+    v3 = lt v2, v0
+    v4 = shr v2, 64
+    v5 = zext i1 v3 to i256
+    v6 = or v5, v4
+    v7 = ne v6, 0
+    jumpi v7, bb1, bb2
+  bb2:
+    mstore 64, v2 !metadata(memory=scratch)
+    ret v1
+  bb1:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}

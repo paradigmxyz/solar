@@ -7,13 +7,14 @@ use super::{
     PanicCode, PtrLocation, RevertKind, RevertPayload, RevertReason, StorageAlias, StructId,
     Terminator, Value, ValueId,
 };
-use crate::{Callee, memory::EvmMemoryLayout};
+use crate::{BitTestPricing, BitWidthTest, Callee, ConditionUse, memory::EvmMemoryLayout};
 use alloy_primitives::{Bytes, U256};
 use smallvec::SmallVec;
 use solar_config::RevertStrings;
 use solar_data_structures::map::FxHashMap;
 use solar_interface::Span;
 use solar_ir::link::LibraryId;
+use std::sync::Arc;
 
 pub trait ToUint {
     fn to_uint(self) -> U256;
@@ -58,6 +59,11 @@ macro_rules! impl_signed_to_uint {
 
 impl_signed_to_uint!(i8, i16, i32, i64, i128, isize);
 
+/// The bit width of the longest dynamic word array that a checked allocation can hold: `2^59`
+/// words are `2^64` bytes, past [`EvmMemoryLayout::MAX_ALLOCATION_END`].
+const ALLOCATION_LENGTH_BITS: u32 =
+    EvmMemoryLayout::MAX_ALLOCATION_END_BITS - EvmMemoryLayout::WORD_SIZE.trailing_zeros();
+
 /// The Error(string) selector, `keccak256("Error(string)")[..4]`, left-aligned in a word.
 pub const ERROR_SELECTOR: U256 = U256::from_limbs([0, 0, 0, 0x08c3_79a0_u64 << 32]);
 
@@ -81,6 +87,9 @@ pub struct FunctionBuilder<'a> {
     /// How compiler-generated reverts with a [`RevertReason`] are encoded.
     revert_strings: RevertStrings,
     semantic: bool,
+    /// The price of equivalent shapes of a test, such as [`Self::fits_in_bits`]. Without one,
+    /// tests take the spelling of a comparison.
+    bit_tests: Option<Arc<dyn BitTestPricing>>,
 }
 
 /// A counted loop whose body is the builder's current block.
@@ -107,6 +116,7 @@ impl<'a> FunctionBuilder<'a> {
             current_debug_context: InstructionMetadata::EMPTY,
             revert_strings: RevertStrings::Default,
             semantic: false,
+            bit_tests: None,
         }
     }
 
@@ -121,6 +131,12 @@ impl<'a> FunctionBuilder<'a> {
     /// instead of empty data.
     pub fn with_revert_strings(mut self, revert_strings: RevertStrings) -> Self {
         self.revert_strings = revert_strings;
+        self
+    }
+
+    /// Prices the shapes of a test by `pricing`.
+    pub fn with_bit_tests(mut self, pricing: impl BitTestPricing + 'static) -> Self {
+        self.bit_tests = Some(Arc::new(pricing));
         self
     }
 
@@ -350,8 +366,7 @@ impl<'a> FunctionBuilder<'a> {
         // if length > 0xffffffffffffffff { revert }
         // data = start + data_offset
         // if data >s calldata_end - length * stride { revert }
-        let max_length = self.imm(u64::MAX);
-        let too_long = self.gt(length, max_length);
+        let too_long = self.exceeds_bits(length, 64, ConditionUse::BRANCH);
         self.revert_if(too_long, tail.length_reason());
         let size = if stride == 1 {
             length
@@ -522,11 +537,8 @@ impl<'a> FunctionBuilder<'a> {
             let c = self.func.value_u256(constant)?;
             (c > U256::ONE && c.is_power_of_two()).then_some((factor, c))
         })?;
-        // high = shr factor, 256 - s
-        // overflow = ne high, 0
-        let shift = self.imm(U256::from(256 - c.trailing_zeros()));
-        let high = self.shr(factor, shift);
-        Some(self.ne_zero(high))
+        // overflow = factor has a bit at or above 256 - s
+        Some(self.exceeds_bits(factor, 256 - c.trailing_zeros() as u32, ConditionUse::BRANCH))
     }
 
     /// Returns the word-aligned allocation size for a bytes-like object.
@@ -916,11 +928,12 @@ impl<'a> FunctionBuilder<'a> {
         let one = self.imm(1);
         let word_size = self.imm(EvmMemoryLayout::WORD_SIZE);
         let size = if semantics.failure == AllocationFailure::Checked {
-            // panic_if length > MAX_ALLOCATION_END / WORD_SIZE - 1, 0x41
+            // panic_if length >> 59 != 0, 0x41
             // size = (length + 1) * WORD_SIZE
-            let limit =
-                self.imm(EvmMemoryLayout::MAX_ALLOCATION_END / EvmMemoryLayout::WORD_SIZE - 1);
-            let invalid = self.gt(length, limit);
+            //
+            // A length of `2^59 - 1` passes, but its size `2^64` ends past the allocation limit,
+            // which the checked allocation panics on with the same code.
+            let invalid = self.exceeds_bits(length, ALLOCATION_LENGTH_BITS, ConditionUse::BRANCH);
             self.panic_if(invalid, PanicCode::MemoryAllocationOverflow);
             let words = self.add(length, one);
             self.mul(words, word_size)
@@ -1283,6 +1296,107 @@ impl<'a> FunctionBuilder<'a> {
         // result = extract_value slice_ty, slice, index
         let (kind, ty) = InstKind::slice_field(self.func, slice, index);
         self.emit_inst(kind, Some(ty))
+    }
+
+    /// Emits the test that `word` fits in `bits` bits, as a shift against zero or as a comparison
+    /// with the limit, whichever [`BitTestPricing::shifts_bits_test`] prices lower for how `read`
+    /// uses it.
+    pub fn fits_in_bits(&mut self, word: ValueId, bits: u32, read: ConditionUse) -> ValueId {
+        self.bits_test(word, bits, true, read)
+    }
+
+    /// Emits the test that `word` has a bit at or above `bits`, the negation of
+    /// [`Self::fits_in_bits`]. A branch or check reads it for free as a shifted word, so abort on
+    /// this test rather than on the negation of a fit.
+    pub fn exceeds_bits(&mut self, word: ValueId, bits: u32, read: ConditionUse) -> ValueId {
+        self.bits_test(word, bits, false, read)
+    }
+
+    /// Emits `word < limit`, as [`Self::fits_in_bits`] when `limit` is a power of two.
+    pub fn lt_literal(&mut self, word: ValueId, limit: impl ToUint, read: ConditionUse) -> ValueId {
+        let limit = limit.to_uint();
+        if let Some(bits) = BitWidthTest::width_of_power(limit) {
+            return self.fits_in_bits(word, bits, read);
+        }
+        let limit = self.imm(limit);
+        self.lt(word, limit)
+    }
+
+    /// Emits `word > limit`, as [`Self::exceeds_bits`] when `limit` is `2^k - 1`.
+    pub fn gt_literal(&mut self, word: ValueId, limit: impl ToUint, read: ConditionUse) -> ValueId {
+        let limit = limit.to_uint();
+        if let Some(bits) = limit.checked_add(U256::ONE).and_then(BitWidthTest::width_of_power) {
+            return self.exceeds_bits(word, bits, read);
+        }
+        let limit = self.imm(limit);
+        self.gt(word, limit)
+    }
+
+    /// Emits the shifted word `word >> bits`, which is nonzero exactly when `word` has a bit at or
+    /// above `bits`, when the pricing prefers the shift to a comparison for how `read` uses the
+    /// test, and `None` otherwise. A caller that combines several tests in one word zero test
+    /// takes the shifted words.
+    pub fn shifted_exceeding_bits(
+        &mut self,
+        word: ValueId,
+        bits: u32,
+        read: ConditionUse,
+    ) -> Option<ValueId> {
+        self.bit_tests
+            .as_ref()?
+            .shifts_bits_test(bits, false, read)
+            .then(|| self.shift_word(word, bits))
+    }
+
+    /// Emits `flag || word has a bit at or above bits`, for a result that `read` describes.
+    /// Where the pricing prefers the shift, it is one word zero test, `(flag | word >> bits) != 0`,
+    /// which a branch reads without materializing a boolean; otherwise an `or` of booleans.
+    pub fn exceeds_bits_or(
+        &mut self,
+        flag: ValueId,
+        word: ValueId,
+        bits: u32,
+        read: ConditionUse,
+    ) -> ValueId {
+        if let Some(high) = self.shifted_exceeding_bits(word, bits, read) {
+            // flag_word = zext flag to i256
+            // result = ne (or flag_word, high), 0
+            let flag_word = self.cast_word(flag);
+            let any = self.or(flag_word, high);
+            return self.ne_zero(any);
+        }
+        let exceeds = self.exceeds_bits(word, bits, ConditionUse::VALUE);
+        self.or(flag, exceeds)
+    }
+
+    /// Emits `word >> bits`.
+    fn shift_word(&mut self, word: ValueId, bits: u32) -> ValueId {
+        let word = if self.func.value_ty(word) == Some(MirType::I256) {
+            word
+        } else {
+            self.cast_word(word)
+        };
+        let count = self.imm(bits);
+        self.shr(word, count)
+    }
+
+    fn bits_test(&mut self, word: ValueId, bits: u32, fits: bool, read: ConditionUse) -> ValueId {
+        debug_assert!((1..256).contains(&bits), "a width test needs 1..256 bits, got {bits}");
+        if self.bit_tests.as_ref().is_some_and(|pricing| pricing.shifts_bits_test(bits, fits, read))
+        {
+            // high = shr word, bits
+            // result = eq high, 0 | ne high, 0
+            let high = self.shift_word(word, bits);
+            return if fits { self.eq_zero(high) } else { self.ne_zero(high) };
+        }
+        // result = lt word, 2^bits | gt word, 2^bits - 1
+        if fits {
+            let limit = self.imm(U256::ONE << bits);
+            self.lt(word, limit)
+        } else {
+            let limit = self.imm((U256::ONE << bits) - U256::ONE);
+            self.gt(word, limit)
+        }
     }
 
     /// Compares a value with zero.

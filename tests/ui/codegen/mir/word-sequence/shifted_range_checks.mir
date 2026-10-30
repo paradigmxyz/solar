@@ -49,3 +49,32 @@ fn @other_block(arg0: i256) -> i256 {
   bb3:
     ret arg0
 }
+
+// The widest limit takes the shift in a branch, where the compare would push 32 bytes.
+// CHECK-LABEL: {{^[ +].*}}fn @widest{{[( ]}}
+// CHECK: - {{v[0-9]+}} = gt arg0, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// CHECK: + [[WIDE:v[0-9]+]] = shr arg0, 255
+// CHECK: + {{v[0-9]+}} = ne [[WIDE]], 0
+fn @widest(arg0: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v0, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret arg0
+}
+
+// A one-bit limit is as cheap as the shift's, so the comparison stays.
+// CHECK-LABEL: fn @narrowest{{[( ]}}
+// CHECK-NOT: shr
+// CHECK: gt arg0, 1
+fn @narrowest(arg0: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 1
+    jumpi v0, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret arg0
+}

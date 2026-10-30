@@ -6,21 +6,21 @@ fn @check() [selector=0x05c051e1, abi_wrapper, pure] {
     v3 = calldatasize
     v4 = lt v3, 132
     v5 = calldataload 4
-    v6 = shr v5, 1
-    v18 = zext i1 v4 to i256
-    v19 = or v18, v6
-    v8 = calldataload 36
-    v9 = shr v8, 160
-    v21 = or v19, v9
-    v11 = calldataload 68
-    v12 = shr v11, 96
-    v23 = or v21, v12
-    v14 = calldataload 100
-    v15 = signextend 2, v14
-    v25 = xor v14, v15
-    v26 = or v23, v25
-    v27 = ne v26, 0
-    jumpi v27, bb1, bb2
+    v6 = gt v5, 1
+    v17 = or v4, v6
+    v7 = calldataload 36
+    v8 = shr v7, 160
+    v18 = zext i1 v17 to i256
+    v19 = or v18, v8
+    v10 = calldataload 68
+    v11 = shr v10, 96
+    v21 = or v19, v11
+    v13 = calldataload 100
+    v14 = signextend 2, v13
+    v23 = xor v13, v14
+    v24 = or v21, v23
+    v25 = ne v24, 0
+    jumpi v25, bb1, bb2
   bb2:
     v0 = add arg2, arg3
     v1 = add arg0, arg1

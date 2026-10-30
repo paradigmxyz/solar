@@ -26,14 +26,14 @@ fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_p
     mstore v15, v1
     jump bb1
   bb1:
-    v16 = phi [bb0: 0], [bb2: v30]
+    v16 = phi [bb0: 0], [bb2: v29]
     v17 = lt v16, v1
     jumpi v17, bb2, bb3
   bb3:
-    v31 = ptrtoint ptr<memory> v15 to i256
-    mstore v0, v31
-    v32 = alloc 32 !metadata(preserves_fmp)
-    mstore v32, 96
+    v30 = ptrtoint ptr<memory> v15 to i256
+    mstore v0, v30
+    v31 = alloc 32 !metadata(preserves_fmp)
+    mstore v31, 96
     ret v0
   bb2:
     v18 = mul v16, 32
@@ -41,16 +41,15 @@ fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_p
     v20 = add v19, v18
     v21 = calldataload v20
     v22 = shl v21, 192
-    v23 = eq v22, 0
-    v24 = eq v23, false
-    icall revert_if<empty>, v24
-    v25 = shr v21, 64
-    v26 = shl v25, 64
-    v27 = shl v16, 5
-    v28 = ptradd v15, v27
-    v29 = ptradd v28, 32
-    mstore v29, v26
-    v30 = add v16, 1
+    v23 = ne v22, 0
+    icall revert_if<empty>, v23
+    v24 = shr v21, 64
+    v25 = shl v24, 64
+    v26 = shl v16, 5
+    v27 = ptradd v15, v26
+    v28 = ptradd v27, 32
+    mstore v28, v25
+    v29 = add v16, 1
     jump bb1
 }
 

@@ -3,29 +3,32 @@
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = gt v0, 0xffffffffffffffff
-    icall panic_if<0x41>, v1
-    v2 = add v0, 1
-    v3 = storage_array_data_slot 0
-    v4 = add v3, v0
-    sstore v4, 11 !metadata(storage=symbolic(v4))
-    sstore 0, v2 !metadata(storage=slot(0))
-    v5 = sload 1 !metadata(storage=slot(1))
-    v6 = gt v5, 0xffffffffffffffff
-    icall panic_if<0x41>, v6
-    v7 = add v5, 1
-    v8 = storage_array_data_slot 1
-    v9 = add v8, v5
-    sstore v9, 22 !metadata(storage=symbolic(v9))
-    sstore 1, v7 !metadata(storage=slot(1))
-    v10 = sload 1 !metadata(storage=slot(1))
-    v11 = gt v10, 0xffffffffffffffff
-    icall panic_if<0x41>, v11
-    v12 = add v10, 1
-    v13 = storage_array_data_slot 1
-    v14 = add v13, v10
-    sstore v14, 33 !metadata(storage=symbolic(v14))
-    sstore 1, v12 !metadata(storage=slot(1))
+    v1 = shr v0, 64
+    v2 = ne v1, 0
+    icall panic_if<0x41>, v2
+    v3 = add v0, 1
+    v4 = storage_array_data_slot 0
+    v5 = add v4, v0
+    sstore v5, 11 !metadata(storage=symbolic(v5))
+    sstore 0, v3 !metadata(storage=slot(0))
+    v6 = sload 1 !metadata(storage=slot(1))
+    v7 = shr v6, 64
+    v8 = ne v7, 0
+    icall panic_if<0x41>, v8
+    v9 = add v6, 1
+    v10 = storage_array_data_slot 1
+    v11 = add v10, v6
+    sstore v11, 22 !metadata(storage=symbolic(v11))
+    sstore 1, v9 !metadata(storage=slot(1))
+    v12 = sload 1 !metadata(storage=slot(1))
+    v13 = shr v12, 64
+    v14 = ne v13, 0
+    icall panic_if<0x41>, v14
+    v15 = add v12, 1
+    v16 = storage_array_data_slot 1
+    v17 = add v16, v12
+    sstore v17, 33 !metadata(storage=symbolic(v17))
+    sstore 1, v15 !metadata(storage=slot(1))
     ret
 }
 

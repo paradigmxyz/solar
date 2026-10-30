@@ -160,20 +160,23 @@
 //! NOTE: The replacement summarizes every iteration of the loop, so its instructions carry no
 //! source location rather than an arbitrary iteration's checkpoint.
 
-use crate::mir::{
-    AllocationInitialization, ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function,
-    FunctionBuilder, InstId, InstKind, MirType, Module, PanicCode, PtrLocation, RevertKind,
-    Terminator, Value, ValueId,
-    analysis::{
-        AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, Loop, LoopAnalyzer,
-        MemoryBase, MemoryLocation,
+use crate::{
+    mir::{
+        AllocationInitialization, ArithmeticKind, BitWidthTest, BlockId, Builtin, Callee,
+        CheckedOp, ConditionUse, Function, FunctionBuilder, InstId, InstKind, MirType, Module,
+        PanicCode, PtrLocation, RevertKind, Terminator, Value, ValueId,
+        analysis::{
+            AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, Loop, LoopAnalyzer,
+            MemoryBase, MemoryLocation,
+        },
+        memory::EvmMemoryLayout,
+        pass::{MirPass, ModuleAnalyses, run_function_pass},
+        utils::{
+            fold_terminator_to_jump, invalidate_unreachable_block, rebuild_predecessors,
+            replace_inst_uses, replace_terminator_uses,
+        },
     },
-    memory::EvmMemoryLayout,
-    pass::{MirPass, ModuleAnalyses, run_function_pass},
-    utils::{
-        fold_terminator_to_jump, invalidate_unreachable_block, rebuild_predecessors,
-        replace_inst_uses, replace_terminator_uses,
-    },
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -199,17 +202,17 @@ impl MirPass for ByteLoops {
         analyses: &mut ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, analyses| {
-            run_function(func, analyses.runtime_target(gcx).tests_empty_copies())
+            run_function(func, analyses.runtime_target(gcx))
         })
     }
 }
 
-fn run_function(func: &mut Function, tests_empty_copies: bool) -> bool {
+fn run_function(func: &mut Function, target: Target) -> bool {
     let mut changed = false;
     loop {
         let loops = LoopAnalyzer::new().analyze_structure(func);
         let Some(plan) = loops.all_loops().find_map(|l| plan(func, l)) else { break };
-        rewrite(func, plan, tests_empty_copies);
+        rewrite(func, plan, target);
         rebuild_predecessors(func);
         let _ = super::cfg_simplify::remove_unreachable_blocks(func);
         changed = true;
@@ -1025,20 +1028,12 @@ fn calldata_word_address(
     Some((slice, idx))
 }
 
-/// Whether `condition` tests that scaling `idx` by 32 wraps: `idx` has a bit at or above 251.
+/// Whether `condition` tests that scaling `idx` by 32 wraps: `idx` has a bit at or above 251, in
+/// either spelling of the width test.
 fn scale_wraps(func: &Function, lp: &Counted, condition: ValueId, idx: ValueId) -> bool {
-    match body_def(func, lp, condition).map(|(_, kind)| kind) {
-        // ne (shr 251, idx), 0
-        Some(&InstKind::Ne(high, zero)) if func.value_u64(zero) == Some(0) => {
-            matches!(body_def(func, lp, high), Some((_, &InstKind::Shr(amount, shifted)))
-                if shifted == idx && func.value_u64(amount) == Some(251))
-        }
-        // gt idx, MAX >> 5
-        Some(&InstKind::Gt(value, limit)) => {
-            value == idx && func.value_u256(limit) == Some(U256::MAX >> 5)
-        }
-        _ => false,
-    }
+    body_def(func, lp, condition)
+        .and_then(|(_, kind)| BitWidthTest::of_kind(func, kind))
+        .is_some_and(|test| test.word == idx && !test.fits && test.bits == 251)
 }
 
 /// Matches `dst[dstOffset + k] = src[srcOffset + k]` over arrays of words, counting up.
@@ -1447,7 +1442,7 @@ fn same_value(func: &Function, a: ValueId, b: ValueId, depth: u32) -> bool {
     }
 }
 
-fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
+fn rewrite(func: &mut Function, plan: Plan, target: Target) {
     let Plan { lp, shape, fresh } = plan;
     if let Some(fresh) = &fresh
         && let InstKind::Alloc { semantics, .. } = &mut func.inst_mut(fresh.alloc).kind
@@ -1461,7 +1456,7 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
     let literal = lp.literal_bound(func);
     // A gather that skips an empty count keeps its result phi, now joining the skip and the setup.
     let mut kept_phi = None;
-    let mut builder = FunctionBuilder::new_semantic(func);
+    let mut builder = FunctionBuilder::new_semantic(func).with_bit_tests(target);
     builder.switch_to_block(lp.preheader);
     match shape {
         Shape::Gather { access, width, result } => {
@@ -1577,8 +1572,7 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
             let mut fails = range_fails(&mut builder, &access, lp.bound, None);
             if literal.is_none() {
                 // A dynamic bound always comes with the value's index check.
-                let limit = builder.imm(width);
-                let wide = builder.gt(lp.bound, limit);
+                let wide = builder.gt_literal(lp.bound, width, ConditionUse::VALUE);
                 fails = builder.or(fails, wide);
             }
             builder.panic_if(fails, PanicCode::ArrayOutOfBounds);
@@ -1612,8 +1606,8 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
             };
             let needs_empty_test =
                 loads_length(&src) || (dst_checked && fresh.is_none() && loads_length(&dst));
-            let tested =
-                literal.is_none_or(|count| count == 0) && (needs_empty_test || tests_empty_copies);
+            let tested = literal.is_none_or(|count| count == 0)
+                && (needs_empty_test || target.tests_empty_copies());
             if tested {
                 // empty = eq bound, 0
                 // branch empty, skip, setup
@@ -1896,10 +1890,7 @@ fn keeps_loop(
     }
     // scale_wraps = ne (shr bound, 256 - shift), 0
     // keeps_loop = or overlaps, scale_wraps
-    let bits = builder.imm(256 - u32::from(src.shift));
-    let high = builder.shr(lp.bound, bits);
-    let scale_wraps = builder.ne_zero(high);
-    builder.or(overlaps, scale_wraps)
+    builder.exceeds_bits_or(overlaps, lp.bound, 256 - u32::from(src.shift), ConditionUse::BRANCH)
 }
 
 /// Unless a zero word stored at the end of the copied bytes clears it, clears the padding of a
@@ -2070,10 +2061,12 @@ fn calldata_wraps(builder: &mut FunctionBuilder<'_>, access: &Access, count: Val
         let index_start = access.offset.unwrap_or_else(|| builder.imm(0));
         let index_end = builder.add(index_start, count);
         let index_wraps = builder.lt(index_end, index_start);
-        let bits = builder.imm(256 - u32::from(access.shift));
-        let high = builder.shr(index_end, bits);
-        let scale_wraps = builder.ne_zero(high);
-        let index_fails = builder.or(index_wraps, scale_wraps);
+        let index_fails = builder.exceeds_bits_or(
+            index_wraps,
+            index_end,
+            256 - u32::from(access.shift),
+            ConditionUse::VALUE,
+        );
         wraps = builder.or(wraps, index_fails);
     }
     wraps
