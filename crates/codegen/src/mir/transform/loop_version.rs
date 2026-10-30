@@ -189,7 +189,7 @@
 //! read before the loop under the same rule as other word tests; a zero-trip loop never gains a
 //! read of an otherwise untouched pointer. Large forged lengths select the original loop.
 
-use super::loop_split::{LoopCopy, clone_loop, retarget};
+use super::loop_split::{LoopCopy, clone_loop, redirect};
 use crate::mir::{
     ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionBuilder,
     InstId, InstKind, Instruction, MirType, Module, PanicCode, PtrLocation, RevertKind, Terminator,
@@ -199,7 +199,11 @@ use crate::mir::{
     utils::{rebuild_predecessors, split_edge},
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
+use std::cell::OnceCell;
 
 /// Clones loops behind a run-time test that their element stores cannot reach the words they
 /// reload.
@@ -247,15 +251,25 @@ enum Bound {
     Value(ValueId),
 }
 
-struct Plan {
-    header: BlockId,
+struct Plan<'a> {
+    l: &'a Loop,
+    /// The function's control flow, which the plan left unchanged.
+    cfg: &'a CfgInfo,
     preheader: BlockId,
-    exits: Vec<BlockId>,
     blocks: Vec<BlockId>,
-    loop_blocks: FxHashSet<BlockId>,
+    /// Loop values the code after the loop reads, other than through the exits' phis, with the
+    /// exit block each reading block lies behind.
+    escaping: Vec<(ValueId, BlockId)>,
     test: Test,
     /// The block whose back edge the test sits on, or `None` for a test before the loop.
     latch: Option<BlockId>,
+}
+
+impl Plan<'_> {
+    /// Whether a block of the function the plan saw is in the loop; blocks added since are not.
+    fn in_loop(&self, block: BlockId) -> bool {
+        block.index() < self.cfg.num_blocks() && self.l.blocks.contains(block)
+    }
 }
 
 /// What the run-time test before a versioned loop establishes for its copy.
@@ -316,10 +330,34 @@ struct Fence {
     order: InstId,
 }
 
+/// The blocks and instructions of a loop small enough to version.
+struct Body {
+    preheader: BlockId,
+    blocks: Vec<BlockId>,
+    insts: DenseBitSet<InstId>,
+}
+
+impl Body {
+    /// `None` when the loop has no preheader or holds more than [`MAX_LOOP_INSTRUCTIONS`].
+    fn new(func: &Function, l: &Loop) -> Option<Self> {
+        let preheader = l.preheader?;
+        let insts = l.instructions(func);
+        (insts.count() <= MAX_LOOP_INSTRUCTIONS).then(|| Self {
+            preheader,
+            blocks: l.blocks.iter().collect(),
+            insts,
+        })
+    }
+
+    fn defines(&self, func: &Function, value: ValueId) -> bool {
+        matches!(func.value(value), Value::Inst(inst) if self.insts.contains(*inst))
+    }
+}
+
 /// What a qualifying loop needs next.
-enum Planned {
+enum Planned<'a> {
     /// The loop can be versioned as it is.
-    Version(Plan),
+    Version(Plan<'a>),
     /// Edges from the loop into exit blocks that code outside the loop also enters, which each
     /// need a block of their own first.
     Split(Vec<(BlockId, BlockId)>),
@@ -334,17 +372,21 @@ fn version_function(func: &mut Function) -> bool {
     let mut split = FxHashSet::default();
     loop {
         let loops = LoopAnalyzer::new().analyze_structure(func);
+        if loops.all_loops().next().is_none() {
+            break;
+        }
         let cfg = CfgInfo::new(func);
         let aa = AliasAnalysis::new(func);
         // Outermost loops first: a loop with more blocks cannot nest in one with fewer.
         let mut candidates = loops.all_loops().collect::<Vec<_>>();
         candidates.sort_by_key(|l| std::cmp::Reverse(l.blocks.count()));
-        let accesses = element_accesses(func);
+        let accesses = OnceCell::new();
         let Some(planned) =
             candidates.into_iter().filter(|l| !done.contains(&l.header)).find_map(|l| {
-                plan(func, &cfg, &aa, l)
-                    .or_else(|| plan_partition(func, &cfg, &aa, &loops, &accesses, l))
-                    .or_else(|| plan_bounds(func, &cfg, l))
+                let body = Body::new(func, l)?;
+                plan(func, &cfg, &aa, l, &body)
+                    .or_else(|| plan_partition(func, &cfg, &aa, &loops, &accesses, l, &body))
+                    .or_else(|| plan_bounds(func, &cfg, l, &body))
                     .filter(|planned| {
                         !matches!(planned, Planned::Split(_)) || split.insert(l.header)
                     })
@@ -371,13 +413,6 @@ fn version_function(func: &mut Function) -> bool {
     changed
 }
 
-fn inst_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
-    match func.value(value) {
-        Value::Inst(inst) => Some(&func.inst(*inst).kind),
-        _ => None,
-    }
-}
-
 /// The condition of a `panic_if_zero<0x32>` check.
 fn array_check(kind: &InstKind) -> Option<ValueId> {
     let InstKind::ICall {
@@ -402,39 +437,36 @@ fn element_address(
     address: ValueId,
     byte: bool,
 ) -> Option<(ValueId, ValueId, u8)> {
-    let &InstKind::PtrAdd(inner, header) = inst_kind(func, address)? else { return None };
+    let &InstKind::PtrAdd(inner, header) = func.value_inst_kind(address)? else { return None };
     if func.value_u64(header) != Some(32) {
         return None;
     }
-    let &InstKind::PtrAdd(object, offset) = inst_kind(func, inner)? else { return None };
+    let &InstKind::PtrAdd(object, offset) = func.value_inst_kind(inner)? else { return None };
     if byte {
         return Some((object, offset, 0));
     }
-    let &InstKind::Shl(shift, index) = inst_kind(func, offset)? else { return None };
+    let &InstKind::Shl(shift, index) = func.value_inst_kind(offset)? else { return None };
     (func.value_u64(shift) == Some(5)).then_some((object, index, 5))
 }
 
-fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<Planned> {
-    let preheader = l.preheader?;
-    let blocks: Vec<BlockId> = l.blocks.iter().collect();
-    let mut loop_insts = FxHashSet::default();
-    for &block in &blocks {
-        loop_insts.extend(func.blocks[block].instructions.iter().copied());
-    }
-    if loop_insts.len() > MAX_LOOP_INSTRUCTIONS {
-        return None;
-    }
-    let defined_in_loop = |value: ValueId| match func.value(value) {
-        Value::Inst(inst) => loop_insts.contains(inst),
-        _ => false,
-    };
+fn plan<'a>(
+    func: &Function,
+    cfg: &'a CfgInfo,
+    aa: &AliasAnalysis,
+    l: &'a Loop,
+    body: &Body,
+) -> Option<Planned<'a>> {
+    let (preheader, blocks) = (body.preheader, &body.blocks);
+    let defined_in_loop = |value: ValueId| body.defines(func, value);
 
     // Checks of the loop by index: (check block, position, bound).
     let mut checks: FxHashMap<ValueId, Vec<(BlockId, usize, ValueId)>> = FxHashMap::default();
-    for &block in &blocks {
+    for &block in blocks {
         for (position, &inst) in func.blocks[block].instructions.iter().enumerate() {
             let Some(condition) = array_check(&func.inst(inst).kind) else { continue };
-            let Some(&InstKind::Lt(index, bound)) = inst_kind(func, condition) else { continue };
+            let Some(&InstKind::Lt(index, bound)) = func.value_inst_kind(condition) else {
+                continue;
+            };
             checks.entry(index).or_default().push((block, position, bound));
         }
     }
@@ -442,7 +474,7 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
     let mut written = Vec::new();
     let mut words: Vec<(ValueId, Vec<InstId>)> = Vec::new();
     let mut scratch_end = 0;
-    for &block in &blocks {
+    for &block in blocks {
         for (position, &inst) in func.blocks[block].instructions.iter().enumerate() {
             let kind = &func.inst(inst).kind;
             if let &InstKind::Load(pointer, PtrLocation::Memory) = kind
@@ -500,7 +532,8 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
                         if !defined_in_loop(bound) {
                             return Some(Bound::Value(bound));
                         }
-                        let &InstKind::Load(length, PtrLocation::Memory) = inst_kind(func, bound)?
+                        let &InstKind::Load(length, PtrLocation::Memory) =
+                            func.value_inst_kind(bound)?
                         else {
                             return None;
                         };
@@ -517,7 +550,9 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
                 }
                 // A right shift never exceeds its unsigned operand. The check of that operand
                 // must still dominate the store, as required for an exact index above.
-                let Some(&InstKind::Shr(shift, value)) = inst_kind(func, checked) else { break };
+                let Some(&InstKind::Shr(shift, value)) = func.value_inst_kind(checked) else {
+                    break;
+                };
                 if func.value_u64(shift).is_none() {
                     break;
                 }
@@ -540,7 +575,7 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
         |word: ValueId| scratch_end != 0 || written.iter().any(|written| written.object != word);
     let pays = |words: &[(ValueId, Vec<InstId>)]| {
         let read = |word: ValueId| words.iter().any(|&(read, _)| read == word);
-        let length_of = |bound: ValueId| match inst_kind(func, bound) {
+        let length_of = |bound: ValueId| match func.value_inst_kind(bound) {
             Some(&InstKind::Load(word, PtrLocation::Memory))
                 if defined_in_loop(bound) && read(word) =>
             {
@@ -553,7 +588,7 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
                 branch != block
                     && cfg.dominators().dominates(branch, block)
                     && matches!(func.blocks[branch].terminator, Some(Terminator::Branch { condition, .. })
-                        if matches!(inst_kind(func, condition), Some(&InstKind::Lt(i, b))
+                        if matches!(func.value_inst_kind(condition), Some(&InstKind::Lt(i, b))
                             if i == index && length_of(b) == Some(word)))
             })
         };
@@ -578,10 +613,10 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
             .cloned()
             .collect::<Vec<_>>()
     };
-    let before = readable(&|load| read_first(func, cfg, l, &blocks, load));
+    let before = readable(&|load| read_first(func, cfg, l, blocks, load));
     let (words, latch, bounds) = if pays(&before) {
         (before, None, None)
-    } else if let Some(bounds) = reloaded_bounds(func, l, &blocks, &written, &before) {
+    } else if let Some(bounds) = reloaded_bounds(func, l, body, &written, &before) {
         (before, None, Some(bounds))
     } else {
         let &[latch] = &l.back_edges[..] else { return None };
@@ -595,15 +630,7 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
         }
         (after, Some(latch), None)
     };
-    version_plan(
-        func,
-        cfg,
-        l,
-        preheader,
-        blocks,
-        Test::Words { written, words, scratch_end, bounds },
-        latch,
-    )
+    version_plan(func, cfg, l, body, Test::Words { written, words, scratch_end, bounds }, latch)
 }
 
 /// The blocks that read or write each element of each array, by array and index.
@@ -672,25 +699,18 @@ fn element_indices(func: &Function, address: ValueId) -> Vec<(ValueId, ValueId)>
 
 /// Plans a two-pointer loop's copy whose scans run without the checks their fences make
 /// redundant. See [`Fence`].
-fn plan_partition(
+fn plan_partition<'a>(
     func: &Function,
-    cfg: &CfgInfo,
+    cfg: &'a CfgInfo,
     aa: &AliasAnalysis,
     loops: &LoopInfo,
-    accesses: &Accesses,
-    l: &Loop,
-) -> Option<Planned> {
-    let preheader = l.preheader?;
+    accesses: &OnceCell<Accesses>,
+    l: &'a Loop,
+    body: &Body,
+) -> Option<Planned<'a>> {
+    let (preheader, blocks) = (body.preheader, &body.blocks);
     let &[latch] = l.back_edges.as_slice() else { return None };
-    let blocks: Vec<BlockId> = l.blocks.iter().collect();
-    let instruction_count: usize = blocks.iter().map(|&b| func.blocks[b].instructions.len()).sum();
-    if instruction_count > MAX_LOOP_INSTRUCTIONS {
-        return None;
-    }
-    let in_loop = |value: ValueId| match func.value(value) {
-        Value::Inst(inst) => blocks.iter().any(|&b| func.blocks[b].instructions.contains(inst)),
-        _ => false,
-    };
+    let in_loop = |value: ValueId| body.defines(func, value);
     // The two scans, each starting at a phi of the header.
     let scans: Vec<Scan> = loops
         .all_loops()
@@ -755,7 +775,7 @@ fn plan_partition(
     let element_at =
         |address: ValueId, index: ValueId| element_indices(func, address).contains(&(array, index));
     let mut stores = Vec::new();
-    for &block in &blocks {
+    for &block in blocks {
         for (position, &inst) in func.blocks[block].instructions.iter().enumerate() {
             if !aa.instruction_mod_ref(func, inst).writes_space(AddressSpace::Memory) {
                 continue;
@@ -791,6 +811,7 @@ fn plan_partition(
     // The fences on entry are elements every path into the loop has read or written, so the
     // test reads no memory the loop would not have, and lie at addresses that do not wrap.
     let touched = |index: ValueId| {
+        let accesses = accesses.get_or_init(|| element_accesses(func));
         accesses.get(&(array, index)).is_some_and(|blocks| {
             blocks.iter().any(|&access| cfg.dominators().dominates(access, preheader))
         })
@@ -801,13 +822,12 @@ fn plan_partition(
     // The exit conditions compute, from the element, only pure functions of values defined
     // before the loop, so the test evaluates them as every iteration does, with the loop's own
     // copies of such functions, as an address's widened pivot, cloned in front of them.
-    let loop_insts: Vec<InstId> =
-        blocks.iter().flat_map(|&b| func.blocks[b].instructions.iter().copied()).collect();
     let mut up = up;
     let mut down = down;
     for scan in [&mut up, &mut down] {
         let element = func.inst_result_value(scan.load)?;
-        scan.condition = exit_condition(func, &loop_insts, scan.test, element)?;
+        scan.condition =
+            exit_condition(func, |inst| body.insts.contains(inst), scan.test, element)?;
     }
     // A header read within the partition cannot be hoisted without proving that its swaps stay
     // above the header. The fence test proves that for its copy, with a low array address and
@@ -818,16 +838,16 @@ fn plan_partition(
             || [&up, &down].into_iter().any(|scan| {
                 scan.bound.is_some_and(|bound| {
                     in_loop(bound)
-                        && !matches!(inst_kind(func, bound),
+                        && !matches!(func.value_inst_kind(bound),
                             Some(&InstKind::Load(address, PtrLocation::Memory)) if address == array)
                 })
             })
         {
             return None;
         }
-        loop_insts
+        blocks
             .iter()
-            .copied()
+            .flat_map(|&b| func.blocks[b].instructions.iter().copied())
             .filter(|&inst| {
                 matches!(func.inst(inst).kind,
                     InstKind::Load(address, PtrLocation::Memory) if address == array)
@@ -838,7 +858,7 @@ fn plan_partition(
         Vec::new()
     };
     let fence = Fence { up, down, lengths, low, high, order };
-    version_plan(func, cfg, l, preheader, blocks, Test::Fence(Box::new(fence)), None)
+    version_plan(func, cfg, l, body, Test::Fence(Box::new(fence)), None)
 }
 
 /// Recognizes a scan. See [`Scan`].
@@ -909,11 +929,13 @@ fn scan(func: &Function, l: &Loop) -> Option<Scan> {
             continue;
         }
         if let Some(check) = array_check(kind) {
-            let Some(&InstKind::Lt(index, limit)) = inst_kind(func, check) else { return None };
+            let Some(&InstKind::Lt(index, limit)) = func.value_inst_kind(check) else {
+                return None;
+            };
             if index != next
                 || (in_loop(limit)
                     && !matches!(
-                        inst_kind(func, limit),
+                        func.value_inst_kind(limit),
                         Some(InstKind::Load(_, PtrLocation::Memory))
                     ))
                 || bound.is_some_and(|bound| bound != limit)
@@ -939,7 +961,8 @@ fn scan(func: &Function, l: &Loop) -> Option<Scan> {
         return None;
     }
     let element = func.inst_result_value(load)?;
-    let condition_chain = exit_condition(func, instructions, condition, element)?;
+    let condition_chain =
+        exit_condition(func, |inst| instructions.contains(&inst), condition, element)?;
     Some(Scan {
         header,
         start,
@@ -961,7 +984,7 @@ fn scan(func: &Function, l: &Loop) -> Option<Scan> {
 /// instruction with an effect.
 fn exit_condition(
     func: &Function,
-    instructions: &[InstId],
+    in_loop: impl Fn(InstId) -> bool,
     condition: ValueId,
     element: ValueId,
 ) -> Option<Vec<InstId>> {
@@ -975,7 +998,7 @@ fn exit_condition(
             continue;
         }
         let Value::Inst(inst) = *func.value(value) else { continue };
-        if !instructions.contains(&inst) {
+        if !in_loop(inst) {
             continue;
         }
         if expanded {
@@ -1000,29 +1023,25 @@ fn exit_condition(
 
 /// Recognizes a counted loop whose checks compare indices below its trip test's limit with
 /// lengths from before the loop. See the module docs' Bounds section.
-fn plan_bounds(func: &Function, cfg: &CfgInfo, l: &Loop) -> Option<Planned> {
-    let preheader = l.preheader?;
-    let blocks: Vec<BlockId> = l.blocks.iter().collect();
-    let loop_insts: FxHashSet<InstId> =
-        blocks.iter().flat_map(|&b| func.blocks[b].instructions.iter().copied()).collect();
-    if loop_insts.len() > MAX_LOOP_INSTRUCTIONS {
-        return None;
-    }
-    let in_loop = |value: ValueId| match func.value(value) {
-        Value::Inst(inst) => loop_insts.contains(inst),
-        _ => false,
-    };
-    let (counter, limit) = counted_limit(func, l, &loop_insts)?;
+fn plan_bounds<'a>(
+    func: &Function,
+    cfg: &'a CfgInfo,
+    l: &'a Loop,
+    body: &Body,
+) -> Option<Planned<'a>> {
+    let (preheader, blocks) = (body.preheader, &body.blocks);
+    let in_loop = |value: ValueId| body.defines(func, value);
+    let (counter, limit) = counted_limit(func, l, body)?;
     let compared = compared_before(func, cfg, preheader, limit);
     let mut lengths = Vec::new();
-    for &block in &blocks {
+    for &block in blocks {
         // The header checks before its trip test.
         if block == l.header {
             continue;
         }
         for &inst in &func.blocks[block].instructions {
             let Some(check) = array_check(&func.inst(inst).kind) else { continue };
-            let Some(&InstKind::Lt(index, length)) = inst_kind(func, check) else { continue };
+            let Some(&InstKind::Lt(index, length)) = func.value_inst_kind(check) else { continue };
             if length == limit
                 || func.value_ty(length) != Some(MirType::I256)
                 || in_loop(length)
@@ -1033,7 +1052,7 @@ fn plan_bounds(func: &Function, cfg: &CfgInfo, l: &Loop) -> Option<Planned> {
             {
                 continue;
             }
-            if below_limit(func, &blocks, counter, limit, index, 0) {
+            if below_limit(func, blocks, counter, limit, index, 0) {
                 lengths.push(length);
             }
         }
@@ -1041,7 +1060,7 @@ fn plan_bounds(func: &Function, cfg: &CfgInfo, l: &Loop) -> Option<Planned> {
     if lengths.is_empty() {
         return None;
     }
-    version_plan(func, cfg, l, preheader, blocks, Test::Bounds { limit, lengths }, None)
+    version_plan(func, cfg, l, body, Test::Bounds { limit, lengths }, None)
 }
 
 /// The lengths that a bounds check on every path to `preheader` compares `limit` with, `limit <
@@ -1056,7 +1075,7 @@ fn compared_before(
     for block in cfg.dominators().self_and_dominators(preheader) {
         for &inst in &func.blocks[block].instructions {
             if let Some(check) = array_check(&func.inst(inst).kind)
-                && let Some(&InstKind::Lt(index, length)) = inst_kind(func, check)
+                && let Some(&InstKind::Lt(index, length)) = func.value_inst_kind(check)
                 && index == limit
             {
                 compared.insert(length);
@@ -1085,7 +1104,7 @@ fn below_limit(
     if depth == MAX_DEPTH {
         return false;
     }
-    match inst_kind(func, index) {
+    match func.value_inst_kind(index) {
         Some(&InstKind::Shr(shift, value)) => {
             func.value_u64(shift).is_some()
                 && below_limit(func, blocks, counter, limit, value, depth + 1)
@@ -1094,12 +1113,12 @@ fn below_limit(
             let constant = |x: ValueId, k: ValueId| x == counter && func.value_u64(k).is_some();
             let sum = |value: ValueId| {
                 value == index
-                    || matches!(inst_kind(func, value), Some(&InstKind::Add(x, y))
+                    || matches!(func.value_inst_kind(value), Some(&InstKind::Add(x, y))
                         if (x, y) == (a, b) || (x, y) == (b, a))
             };
             (constant(a, b) || constant(b, a)) && blocks.iter().any(|&block| {
                 matches!(func.blocks[block].terminator, Some(Terminator::Branch { condition, .. })
-                        if matches!(inst_kind(func, condition), Some(&InstKind::Lt(x, n))
+                        if matches!(func.value_inst_kind(condition), Some(&InstKind::Lt(x, n))
                             if n == limit && sum(x)))
             })
         }
@@ -1117,15 +1136,11 @@ fn owning_exit(cfg: &CfgInfo, exits: &[BlockId], block: BlockId) -> Option<Block
     Some(owner)
 }
 
-/// The predecessors of `block`, from the terminators.
-fn predecessors(func: &Function, block: BlockId) -> Vec<BlockId> {
-    func.blocks
-        .iter_enumerated()
-        .filter(|(_, body)| {
-            body.terminator.as_ref().is_some_and(|t| t.successors().into_iter().any(|s| s == block))
-        })
-        .map(|(id, _)| id)
-        .collect()
+/// The predecessors of `block`, in block order, once each.
+fn predecessors(cfg: &CfgInfo, block: BlockId) -> Vec<BlockId> {
+    let mut predecessors = cfg.predecessors(block).to_vec();
+    predecessors.dedup();
+    predecessors
 }
 
 /// The addresses of the memory words that every path to `preheader` loads or stores, which
@@ -1183,49 +1198,54 @@ fn read_first(func: &Function, cfg: &CfgInfo, l: &Loop, blocks: &[BlockId], load
 /// reach each reading block through the one exit block that lies before it, where an exit block's
 /// phis take them on the loop's edges, and the loop's edges into exit blocks that code outside the
 /// loop also enters first get blocks of their own.
-fn version_plan(
+fn version_plan<'a>(
     func: &Function,
-    cfg: &CfgInfo,
-    l: &Loop,
-    preheader: BlockId,
-    blocks: Vec<BlockId>,
+    cfg: &'a CfgInfo,
+    l: &'a Loop,
+    body: &Body,
     test: Test,
     latch: Option<BlockId>,
-) -> Option<Planned> {
-    let exits: Vec<BlockId> = l.exit_blocks.to_vec();
-    let loop_insts: FxHashSet<InstId> =
-        blocks.iter().flat_map(|&b| func.blocks[b].instructions.iter().copied()).collect();
-    let in_loop = |value: ValueId| match func.value(value) {
-        Value::Inst(inst) => loop_insts.contains(inst),
-        _ => false,
+) -> Option<Planned<'a>> {
+    let mut escaping = Vec::new();
+    let mut read = |reader: BlockId, value: ValueId| {
+        if body.defines(func, value) {
+            let entry = (value, owning_exit(cfg, &l.exit_blocks, reader)?);
+            if !escaping.contains(&entry) {
+                escaping.push(entry);
+            }
+        }
+        Some(())
     };
-    for (block, body) in func.blocks.iter_enumerated() {
+    for (block, contents) in func.blocks.iter_enumerated() {
         if l.blocks.contains(block) {
             continue;
         }
-        let mut readers = Vec::new();
-        for &inst in &body.instructions {
-            if let InstKind::Phi(incoming) = &func.inst(inst).kind {
-                for &(from, value) in incoming {
-                    if in_loop(value) && !(exits.contains(&block) && l.blocks.contains(from)) {
-                        readers.push(from);
+        for &inst in &contents.instructions {
+            match &func.inst(inst).kind {
+                InstKind::Phi(incoming) => {
+                    for &(from, value) in incoming {
+                        if !(l.exit_blocks.contains(&block) && l.blocks.contains(from)) {
+                            read(from, value)?;
+                        }
                     }
                 }
-            } else if func.inst(inst).kind.operands().into_iter().any(in_loop) {
-                readers.push(block);
+                kind => {
+                    for value in kind.operands() {
+                        read(block, value)?;
+                    }
+                }
             }
         }
-        if body.terminator.as_ref().is_some_and(|t| t.operands().into_iter().any(in_loop)) {
-            readers.push(block);
-        }
-        if readers.into_iter().any(|reader| owning_exit(cfg, &exits, reader).is_none()) {
-            return None;
+        if let Some(terminator) = &contents.terminator {
+            for value in terminator.operands() {
+                read(block, value)?;
+            }
         }
     }
     let mut shared = Vec::new();
-    for &exit in &exits {
-        let preds = predecessors(func, exit);
-        if preds.iter().any(|pred| !l.blocks.contains(*pred)) {
+    for &exit in &l.exit_blocks {
+        let preds = predecessors(cfg, exit);
+        if preds.iter().any(|&pred| !l.blocks.contains(pred)) {
             shared.extend(
                 preds.into_iter().filter(|&pred| l.blocks.contains(pred)).map(|pred| (pred, exit)),
             );
@@ -1234,79 +1254,29 @@ fn version_plan(
     if !shared.is_empty() {
         return Some(Planned::Split(shared));
     }
-    let loop_blocks = blocks.iter().copied().collect();
     Some(Planned::Version(Plan {
-        header: l.header,
-        preheader,
-        exits,
-        blocks,
-        loop_blocks,
+        l,
+        cfg,
+        preheader: body.preheader,
+        blocks: body.blocks.clone(),
+        escaping,
         test,
         latch,
     }))
 }
 
 /// Versions the loop and returns the blocks of its clone.
-fn apply(func: &mut Function, plan: &Plan) -> Vec<BlockId> {
-    // Loop values the code after the loop reads, other than through the exits' phis, with the
-    // exit block each reading block lies behind.
-    let cfg = CfgInfo::new(func);
-    let loop_insts: FxHashSet<InstId> =
-        plan.blocks.iter().flat_map(|&b| func.blocks[b].instructions.iter().copied()).collect();
-    let in_loop = |value: ValueId| match func.value(value) {
-        Value::Inst(inst) => loop_insts.contains(inst),
-        _ => false,
-    };
-    let owner = |block: BlockId| owning_exit(&cfg, &plan.exits, block).expect("planned");
-    let mut escaping = Vec::new();
-    for (block, body) in func.blocks.iter_enumerated() {
-        if plan.loop_blocks.contains(&block) {
-            continue;
-        }
-        let mut reads = Vec::new();
-        for &inst in &body.instructions {
-            let kind = &func.inst(inst).kind;
-            match kind {
-                InstKind::Phi(incoming) => {
-                    for &(from, value) in incoming {
-                        if !(plan.exits.contains(&block) && plan.loop_blocks.contains(&from)) {
-                            reads.push((from, value));
-                        }
-                    }
-                }
-                _ => reads.extend(kind.operands().into_iter().map(|value| (block, value))),
-            }
-        }
-        if let Some(terminator) = &body.terminator {
-            reads.extend(terminator.operands().into_iter().map(|value| (block, value)));
-        }
-        for (reader, value) in reads {
-            if in_loop(value) {
-                let entry = (value, owner(reader));
-                if !escaping.contains(&entry) {
-                    escaping.push(entry);
-                }
-            }
-        }
-    }
+fn apply(func: &mut Function, plan: &Plan<'_>) -> Vec<BlockId> {
+    let header = plan.l.header;
+    let exits = &plan.l.exit_blocks;
     let exiting: FxHashMap<BlockId, Vec<BlockId>> =
-        plan.exits.iter().map(|&exit| (exit, predecessors(func, exit))).collect();
-    let owners: FxHashMap<BlockId, BlockId> = func
-        .blocks
-        .indices()
-        .filter(|block| !plan.loop_blocks.contains(block))
-        .filter_map(|block| Some((block, owning_exit(&cfg, &plan.exits, block)?)))
-        .collect();
+        exits.iter().map(|&exit| (exit, predecessors(plan.cfg, exit))).collect();
 
     let copy = clone_loop(func, &plan.blocks);
 
     // preheader | latch: ... jump test
     let test = func.alloc_block();
-    let entry = plan.latch.unwrap_or(plan.preheader);
-    let (terminator, metadata) = func.blocks[entry].take_terminator();
-    let mut terminator = terminator.expect("the block entering the test is terminated");
-    retarget(&mut terminator, |successor| if successor == plan.header { test } else { successor });
-    func.blocks[entry].set_terminator(terminator, metadata);
+    redirect(func, plan.latch.unwrap_or(plan.preheader), header, test);
     let mut builder = FunctionBuilder::new_semantic(func);
     builder.switch_to_block(test);
     let fast = builder.create_block();
@@ -1331,16 +1301,16 @@ fn apply(func: &mut Function, plan: &Plan) -> Vec<BlockId> {
         }
     };
     builder.switch_to_block(fast);
-    builder.jump(copy.blocks[&plan.header]);
+    builder.jump(copy.blocks[&header]);
     builder.switch_to_block(slow);
-    builder.jump(plan.header);
+    builder.jump(header);
 
-    let header_copy = copy.blocks[&plan.header];
+    let header_copy = copy.blocks[&header];
     match plan.latch {
         // header: v = phi [preheader: init], ... -> [slow: init] / header': [fast: init]
         None => {
-            for (header, entry) in [(plan.header, slow), (header_copy, fast)] {
-                for inst in func.blocks[header].instructions.clone() {
+            for (block, entry) in [(header, slow), (header_copy, fast)] {
+                for inst in func.blocks[block].instructions.clone() {
                     if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
                         for (from, _) in incoming.iter_mut() {
                             if *from == plan.preheader {
@@ -1354,7 +1324,7 @@ fn apply(func: &mut Function, plan: &Plan) -> Vec<BlockId> {
         // header: v = phi [preheader: init], [latch: x] -> [preheader: init], [slow: x]
         // header': v' = phi [preheader: init], [latch': x'] -> [fast: x], [latch': x']
         Some(latch) => {
-            let phis = func.blocks[plan.header]
+            let phis = func.blocks[header]
                 .instructions
                 .iter()
                 .copied()
@@ -1410,12 +1380,12 @@ fn apply(func: &mut Function, plan: &Plan) -> Vec<BlockId> {
     }
 
     // exit: v = phi [block: x], ..., [block': x']
-    for &exit in &plan.exits {
+    for &exit in exits {
         for inst in func.blocks[exit].instructions.clone() {
             if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
                 let cloned: Vec<_> = incoming
                     .iter()
-                    .filter(|&&(from, _)| plan.loop_blocks.contains(&from))
+                    .filter(|&&(from, _)| plan.in_loop(from))
                     .map(|&(from, value)| {
                         let value = copy.value(value);
                         (copy.blocks[&from], replacements.get(&value).copied().unwrap_or(value))
@@ -1428,7 +1398,7 @@ fn apply(func: &mut Function, plan: &Plan) -> Vec<BlockId> {
 
     // exit: e = phi [exiting: v], [exiting': v']; uses behind the exit read e
     let mut merged = FxHashMap::default();
-    for &(value, exit) in &escaping {
+    for &(value, exit) in &plan.escaping {
         let cloned = copy.value(value);
         let cloned = replacements.get(&cloned).copied().unwrap_or(cloned);
         let incoming = exiting[&exit]
@@ -1449,31 +1419,39 @@ fn apply(func: &mut Function, plan: &Plan) -> Vec<BlockId> {
             })
             .collect();
         // Move the new phis to the front of their exit blocks.
-        for &exit in &plan.exits {
+        for &exit in exits {
             let instructions = std::mem::take(&mut func.blocks[exit].instructions);
             let (phis, rest): (Vec<_>, Vec<_>) =
                 instructions.into_iter().partition(|inst| new_phis.contains(inst));
             func.blocks[exit].instructions = phis.into_iter().chain(rest).collect();
         }
-        let clone_blocks: FxHashSet<BlockId> = copy.blocks.values().copied().collect();
+        // Blocks the pass added, such as the copy and the test, are not behind the loop.
+        let added = plan.cfg.num_blocks();
+        // The exit block each block behind the loop lies behind, in the function the plan saw.
+        let owners: FxHashMap<BlockId, BlockId> = func
+            .blocks
+            .indices()
+            .take(added)
+            .filter(|&block| !plan.in_loop(block))
+            .filter_map(|block| Some((block, owning_exit(plan.cfg, exits, block)?)))
+            .collect();
         let merged_at = |value: ValueId, reader: BlockId| {
             owners.get(&reader).and_then(|&exit| merged.get(&(value, exit)).copied())
         };
-        for (block, body) in func.blocks.clone().iter_enumerated() {
-            if plan.loop_blocks.contains(&block) || clone_blocks.contains(&block) {
+        for block in func.blocks.indices().take(added) {
+            if plan.in_loop(block) {
                 continue;
             }
-            for &inst in &body.instructions {
+            for index in 0..func.blocks[block].instructions.len() {
+                let inst = func.blocks[block].instructions[index];
                 if new_phis.contains(&inst) {
                     continue;
                 }
-                let is_exit_phi = plan.exits.contains(&block);
+                let is_exit_phi = exits.contains(&block);
                 let kind = &mut func.inst_mut(inst).kind;
                 if let InstKind::Phi(incoming) = kind {
                     for (from, value) in incoming.iter_mut() {
-                        if is_exit_phi
-                            && (plan.loop_blocks.contains(from) || clone_blocks.contains(from))
-                        {
+                        if is_exit_phi && (plan.in_loop(*from) || from.index() >= added) {
                             continue;
                         }
                         if let Some(phi) = merged_at(*value, *from) {
@@ -1488,14 +1466,12 @@ fn apply(func: &mut Function, plan: &Plan) -> Vec<BlockId> {
                     });
                 }
             }
-            if let Some(mut terminator) = func.blocks[block].terminator.clone() {
+            if let Some(terminator) = func.blocks[block].terminator.as_mut() {
                 terminator.visit_operands_mut(|value| {
                     if let Some(phi) = merged_at(*value, block) {
                         *value = phi;
                     }
                 });
-                let metadata = func.blocks[block].terminator_metadata.clone();
-                func.blocks[block].set_terminator(terminator, metadata);
             }
         }
     }
@@ -1770,20 +1746,16 @@ fn bounds_test(
 }
 
 /// The counter and invariant limit of a loop whose header tests `counter < limit`.
-fn counted_limit(
-    func: &Function,
-    l: &Loop,
-    loop_insts: &FxHashSet<InstId>,
-) -> Option<(ValueId, ValueId)> {
+fn counted_limit(func: &Function, l: &Loop, body: &Body) -> Option<(ValueId, ValueId)> {
     let Some(Terminator::Branch { condition, then_block, else_block }) =
         func.blocks[l.header].terminator
     else {
         return None;
     };
-    let &InstKind::Lt(counter, limit) = inst_kind(func, condition)? else { return None };
+    let &InstKind::Lt(counter, limit) = func.value_inst_kind(condition)? else { return None };
     if !l.blocks.contains(then_block)
         || l.blocks.contains(else_block)
-        || matches!(func.value(limit), Value::Inst(inst) if loop_insts.contains(inst))
+        || body.defines(func, limit)
         || func.value_ty(limit) != Some(MirType::I256)
     {
         return None;
@@ -1803,22 +1775,21 @@ fn counted_limit(
 fn reloaded_bounds(
     func: &Function,
     l: &Loop,
-    blocks: &[BlockId],
+    body: &Body,
     written: &[Written],
     words: &[(ValueId, Vec<InstId>)],
 ) -> Option<(ValueId, ValueId)> {
     let [written] = written else { return None };
     let (_, loads) = words.iter().find(|(word, _)| *word == written.object)?;
-    let loop_insts =
-        blocks.iter().flat_map(|&block| func.blocks[block].instructions.iter().copied()).collect();
-    let (counter, limit) = counted_limit(func, l, &loop_insts)?;
+    let (counter, limit) = counted_limit(func, l, body)?;
+    let blocks = &body.blocks;
     for &block in blocks {
         if block == l.header {
             continue;
         }
         for &inst in &func.blocks[block].instructions {
             let Some(check) = array_check(&func.inst(inst).kind) else { continue };
-            let Some(&InstKind::Lt(index, length)) = inst_kind(func, check) else { continue };
+            let Some(&InstKind::Lt(index, length)) = func.value_inst_kind(check) else { continue };
             if let Value::Inst(load) = func.value(length)
                 && loads.contains(load)
                 && func.value_ty(length) == Some(MirType::I256)
