@@ -187,6 +187,8 @@ pub(crate) fn run_passes_inner(
                     for func in module.functions.iter_mut() {
                         func.drop_dangling_storage_aliases();
                     }
+                    // Backend memory records describe the code generated for the MIR as it was.
+                    module.backend_memory = None;
                 }
                 pass_changed
             };

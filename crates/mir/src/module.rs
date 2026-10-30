@@ -1,9 +1,9 @@
 //! MIR module (top-level container).
 
 use super::{
-    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, Data, DataBytes, DataId, DataRef,
-    Disambiguator, Function, FunctionId, HirVariableId, ImmutableId, MangledSymbol, MirType,
-    StructId, StructType, Terminator, ValueId,
+    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, BackendMemory, Data, DataBytes,
+    DataId, DataRef, Disambiguator, Function, FunctionId, HirVariableId, ImmutableId,
+    MangledSymbol, MirType, StructId, StructType, Terminator, ValueId,
 };
 use crate::analysis::{CallGraphInfo, CfgInfo, direct_callees};
 use alloy_primitives::Bytes;
@@ -123,6 +123,8 @@ pub struct Module {
     pub(crate) phase: MirPhase,
     /// Whether passes must account for every instruction's source debug information.
     debug_info_tracked: bool,
+    /// Resolved backend layout, used only by execution tools and final dumps.
+    pub backend_memory: Option<BackendMemory>,
     /// Whether the last full `lowered` check still describes this module: no change since
     /// `advance_phase` passed it.
     lowered_checked: bool,
@@ -194,6 +196,7 @@ impl Module {
             unsafe_assembly: true,
             phase: MirPhase::Semantic,
             debug_info_tracked: false,
+            backend_memory: None,
             lowered_checked: false,
             optimization: OptimizationMode::default(),
             tagged_inline_growth: 0,
@@ -772,6 +775,9 @@ impl Module {
                 }
                 writeln!(f)?;
             }
+            if let Some(layout) = &self.backend_memory {
+                writeln!(f, "{}", layout.display(self))?;
+            }
             write!(
                 f,
                 "{}",
@@ -792,6 +798,9 @@ impl Module {
     /// Returns this module's DOT-format CFGs.
     pub fn to_dot(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
+            if let Some(layout) = &self.backend_memory {
+                writeln!(f, "{}", layout.display(self))?;
+            }
             write!(
                 f,
                 "{}",

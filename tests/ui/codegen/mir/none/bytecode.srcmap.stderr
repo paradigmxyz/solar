@@ -1,0 +1,4 @@
+error: `--emit=srcmap` is not supported for MIR input
+
+error: aborting due to 1 previous error
+

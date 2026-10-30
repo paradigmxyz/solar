@@ -1,0 +1,27 @@
+//@ revisions: none gas size
+//@[none] compile-flags: -O none
+//@[gas] compile-flags: -O gas
+//@[size] compile-flags: -O size
+//@ run-call: 0x00000001 => 0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001
+// HeapFloor is the entry's initial floor, even after the FMP has advanced.
+@module HeapFloor
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    tail_call @floor
+}
+
+fn @floor() [selector=1, abi_wrapper] {
+  bb0:
+    v0 = heap_floor
+    v1 = mload 64
+    v2 = eq v0, v1
+    v3 = zext i1 v2 to i256
+    mstore 64, 4096
+    v4 = heap_floor
+    v5 = eq v0, v4
+    v6 = zext i1 v5 to i256
+    mstore 0, v3
+    mstore 32, v6
+    returndata 0, 64
+}

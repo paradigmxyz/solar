@@ -91,7 +91,7 @@ fn @clearedAfterCall() [selector=0x15bda24f, abi_wrapper] {
     revert 0, 0
 }
 
-fn @afterReturn() [selector=0x888a9e3c, abi_wrapper] {
+fn @afterReturn() [selector=0x888a9e3c, abi_wrapper, implicit_args=[i1]] {
   bb0:
     v18 = calldatasize
     v19 = lt v18, 36

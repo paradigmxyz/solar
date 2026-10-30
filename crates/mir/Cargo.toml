@@ -35,6 +35,9 @@ alloy-primitives.workspace = true
 arrayvec.workspace = true
 smallvec.workspace = true
 
+[dev-dependencies]
+snapbox.workspace = true
+
 [features]
 nightly = [
     "solar-ast/nightly",

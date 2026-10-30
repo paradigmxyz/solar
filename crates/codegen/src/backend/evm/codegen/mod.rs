@@ -24,8 +24,9 @@ use crate::{
     },
     link::{EmbeddedBytecodes, LibraryRelocation, Trailer},
     mir::{
-        ArgIdx, BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind,
-        MemoryRegion, MirPhase, MirType, Module, Terminator, Value, ValueId,
+        ArgIdx, BackendMemory, BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId,
+        InstId, InstKind, MemoryRegion, MirPhase, MirType, Module, StackReturn, Terminator, Value,
+        ValueId,
         analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, Liveness, LoopAnalyzer, MemoryBase},
         immutable::{
             immutable_push_type_size, immutable_staging_addr, immutable_staging_base,
@@ -160,6 +161,21 @@ pub struct EvmCodegen<'gcx> {
     capture_evm_ir: bool,
     capture_scheduled_evm_ir: bool,
     capture_debug_info: bool,
+    /// Whether the MIR pipeline runs before code generation; MIR input has already run it.
+    run_pipeline: bool,
+    /// MIR sites of deferred runtime allocations, retained only when capturing MIR.
+    allocation_sites: FxHashMap<DeferredAlloc, (FunctionId, InstId)>,
+    /// Deferred addresses of published return buffers.
+    return_buffer_sites: FxHashMap<FunctionId, DeferredConst>,
+    /// Heap floor constants before frame resolution drains their worklist.
+    heap_floor_sites: FxHashMap<FunctionId, DeferredConst>,
+    /// Runtime entry FMP initialization constants.
+    entry_heap_sites: FxHashMap<FunctionId, DeferredConst>,
+    /// Return-buffer protocols removed by the selected stack plan.
+    stack_return_sites: FxHashMap<(FunctionId, InstId), StackReturn>,
+    /// The end of the frames and spill slots each runtime entry reaches, retained only when
+    /// capturing MIR.
+    entry_frame_ends: FxHashMap<FunctionId, u64>,
     /// The objective of the module being generated, which its `@custom:solar-optimize` tag may
     /// select, or of the function being emitted, which its own tag may select.
     optimization: OptimizationMode,
@@ -214,6 +230,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             capture_evm_ir: false,
             capture_scheduled_evm_ir: false,
             capture_debug_info: false,
+            run_pipeline: true,
+            allocation_sites: FxHashMap::default(),
+            return_buffer_sites: FxHashMap::default(),
+            heap_floor_sites: FxHashMap::default(),
+            entry_heap_sites: FxHashMap::default(),
+            stack_return_sites: FxHashMap::default(),
+            entry_frame_ends: FxHashMap::default(),
             optimization: gcx.sess.opts.optimization,
             module_optimization: gcx.sess.opts.optimization,
         }
@@ -256,6 +279,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.static_frame_addr_consts.clear();
         self.packed_static_frame_sizes.clear();
         self.pending_static_allocs.clear();
+        self.allocation_sites.clear();
+        self.return_buffer_sites.clear();
+        self.heap_floor_sites.clear();
+        self.entry_heap_sites.clear();
+        self.stack_return_sites.clear();
+        self.entry_frame_ends.clear();
         self.runtime_free_memory_consts.clear();
         self.fmp_floor_consts.clear();
         self.runtime_entry_reachability.clear();
@@ -349,6 +378,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(crate) fn set_capture_mir(&mut self, capture: bool) {
         self.capture_mir = capture;
     }
+
+    /// Controls whether the MIR pipeline runs before code generation.
+    pub(crate) fn set_run_pipeline(&mut self, run: bool) {
+        self.run_pipeline = run;
+    }
 }
 
 /// The kind of body being emitted, which decides where its frame and spill slots live.
@@ -366,6 +400,7 @@ enum Body {
 /// Runtime code whose EVM IR pipeline has run in the assembler, waiting for embedded bytecode.
 struct PendingRuntime {
     call_graph: CallGraphInfo,
+    backend_memory: Option<BackendMemory>,
     /// The runtime EVM IR as stack scheduling emitted it, when captured.
     scheduled_evm_ir: Option<ir::Module>,
 }
@@ -399,6 +434,8 @@ pub struct EvmArtifact {
     pub deployment_debug_info: Option<DebugInfo>,
     /// Final runtime instruction locations.
     pub runtime_debug_info: Option<DebugInfo>,
+    /// Resolved runtime memory placements for a final MIR dump.
+    pub(crate) backend_memory: Option<BackendMemory>,
 }
 
 impl crate::backend::Backend for EvmCodegen<'_> {

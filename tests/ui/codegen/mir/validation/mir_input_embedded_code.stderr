@@ -1,0 +1,6 @@
+error: MIR input that embeds another contract's code has no bytecode to emit
+   │
+   ╰ note: its data holds `creation_code "child.sol:Child"`, which only compiling that contract generates
+
+error: aborting due to 1 previous error
+

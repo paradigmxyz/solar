@@ -45,7 +45,7 @@ fn @masked() [selector=0x966953d1, abi_wrapper] {
     revert 0, 0
 }
 
-fn @branch() [selector=0xc86d784b, abi_wrapper] {
+fn @branch() [selector=0xc86d784b, abi_wrapper, implicit_args=[i256, i1]] {
   bb0:
     v5 = calldatasize
     v6 = lt v5, 68

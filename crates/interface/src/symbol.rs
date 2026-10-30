@@ -1115,6 +1115,7 @@ symbols! {
         immutable_read,
         immutable_write,
         immutables,
+        implicit_args,
         indexed_jump,
         inline_hint,
         inputs,

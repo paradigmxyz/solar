@@ -120,16 +120,17 @@
       ret
   }
   
-  fn @tail_return_caller() {
+  fn @wrapper_caller() {
     bb0:
-      icall @tail_return_helper
-      sstore 0, 7
-      ret
+-     icall @stop_wrapper
+-     sstore 0, 7
+-     ret
++     tail_call @stop_wrapper
   }
   
-  fn @tail_return_helper() {
+  fn @stop_wrapper() {
     bb0:
-      tail_call @void_helper
+      tail_call @stop_helper
   }
   
   fn @scalar_caller(arg0: i1) -> i256 {

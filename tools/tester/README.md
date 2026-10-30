@@ -50,6 +50,23 @@ and complex setup.
 Both use the EVM version from `--evm-version`. Calls to `test*` functions first
 run a zero-argument `setUp()` if the contract defines one.
 
+## MIR interpreter check
+
+In a test written in lowered MIR, such as those in `tests/ui/codegen/mir/interp/`,
+every `run-call` and `run-call-fail` directive also runs through the MIR
+interpreter (`solar_mir_interpreter`) on the final MIR of the called
+contract, which the runner obtains by compiling the test again with
+`-Zdump=mir-final`. The interpreter starts from the storage, balances, and code
+the EVM had just before the call, places memory where the backend placed it, and
+must end the same way, return the same data, emit the same logs, and write the
+same storage. A disagreement fails the test: it is a bug in the backend or in
+the interpreter. So does a call the interpreter cannot run: calls to other
+contracts, contract creation, `gas`, and deployed code that is not the compiled
+runtime, such as a contract with immutables. The runner compiles the module like
+a contract named after the file and the module.
+MIR has no ABI, so a directive names the function by its signature, followed by
+its outputs when it returns values, as in `add(uint256,uint256)(uint256) 2, 3 => 5`.
+
 ## EVM IR interpreter check
 
 With `SOLAR_RUN_CALL_EVM_IR` set, every `run-call` and `run-call-fail` directive

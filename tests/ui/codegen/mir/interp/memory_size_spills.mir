@@ -1,0 +1,79 @@
+//@ revisions: none gas size
+//@[none] compile-flags: -O none
+//@[gas] compile-flags: -O gas
+//@[size] compile-flags: -O size
+//@ run-call: 0x00000001 => 0x00000000000000000000000000000000000000000000000000000000000000208d9f25568db84efd983bdf302eb5933c30ffca7f21595a1e3558592fafcf5d56
+// The backend spills the hashes below the heap start, where MIR shows none of its writes, so
+// `msize` runs only once MIR memory reaches past the frames the backend records.
+@module MemorySizeSpills
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    tail_call @sizes
+}
+
+fn @sizes() [selector=1, abi_wrapper] {
+  bb0:
+    mstore 0, 0
+    v0 = keccak256 0, 32
+    mstore 0, 1
+    v1 = keccak256 0, 32
+    mstore 0, 2
+    v2 = keccak256 0, 32
+    mstore 0, 3
+    v3 = keccak256 0, 32
+    mstore 0, 4
+    v4 = keccak256 0, 32
+    mstore 0, 5
+    v5 = keccak256 0, 32
+    mstore 0, 6
+    v6 = keccak256 0, 32
+    mstore 0, 7
+    v7 = keccak256 0, 32
+    mstore 0, 8
+    v8 = keccak256 0, 32
+    mstore 0, 9
+    v9 = keccak256 0, 32
+    mstore 0, 10
+    v10 = keccak256 0, 32
+    mstore 0, 11
+    v11 = keccak256 0, 32
+    mstore 0, 12
+    v12 = keccak256 0, 32
+    mstore 0, 13
+    v13 = keccak256 0, 32
+    mstore 0, 14
+    v14 = keccak256 0, 32
+    mstore 0, 15
+    v15 = keccak256 0, 32
+    mstore 0, 16
+    v16 = keccak256 0, 32
+    mstore 0, 17
+    v17 = keccak256 0, 32
+    v18 = mload 64
+    mstore v18, 1
+    v19 = msize
+    v20 = xor v19, v0
+    v21 = xor v20, v1
+    v22 = xor v21, v2
+    v23 = xor v22, v3
+    v24 = xor v23, v4
+    v25 = xor v24, v5
+    v26 = xor v25, v6
+    v27 = xor v26, v7
+    v28 = xor v27, v8
+    v29 = xor v28, v9
+    v30 = xor v29, v10
+    v31 = xor v30, v11
+    v32 = xor v31, v12
+    v33 = xor v32, v13
+    v34 = xor v33, v14
+    v35 = xor v34, v15
+    v36 = xor v35, v16
+    v37 = xor v36, v17
+    v38 = xor v37, v19
+    v39 = sub v19, v18
+    mstore 0, v39
+    mstore 32, v38
+    returndata 0, 64
+}

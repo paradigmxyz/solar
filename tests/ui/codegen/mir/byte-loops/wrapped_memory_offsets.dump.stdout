@@ -100,7 +100,7 @@ fn @wordsForward() [selector=0xb2066b6b, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @bytesIntoHeader() [selector=0x10ca09ba, abi_wrapper, pure] {
+fn @bytesIntoHeader() [selector=0x10ca09ba, abi_wrapper, pure, implicit_args=[i256, i1]] {
   bb0:
     v8 = calldatasize
     v9 = lt v8, 68

@@ -57,6 +57,9 @@ pub use op_schema::{
     RawMemorySize, ResultKind,
 };
 
+pub mod semantics;
+pub use semantics::Semantics;
+
 mod block;
 pub use block::{BasicBlock, Terminator};
 
@@ -65,6 +68,9 @@ pub use mangling::{Disambiguator, MangledSymbol};
 
 mod function;
 pub use function::{Function, FunctionAttributes};
+
+mod backend_memory;
+pub use backend_memory::{AllocationPlacement, BackendMemory, StackReturn};
 
 mod module;
 pub use module::{Immutable, LoweredModule, MirPhase, Module, should_validate_ir};

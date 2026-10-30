@@ -3221,11 +3221,11 @@ fn ordered_layout(
 }
 
 /// The multi-return protocol after one call.
-struct Projection {
+pub(super) struct Projection {
     /// Protocol instructions to elide.
-    elided: Vec<InstId>,
+    pub(super) elided: Vec<InstId>,
     /// The value reading each extra result, if any.
-    extras: SmallVec<[Option<ValueId>; 4]>,
+    pub(super) extras: SmallVec<[Option<ValueId>; 4]>,
     /// The pointer and address values, which must have no other consumers.
     tracked: FxHashSet<ValueId>,
 }
@@ -3236,7 +3236,7 @@ struct Projection {
 /// with only pure instructions between, and one offset load per used result follows it with
 /// only read-only instructions between. The buffer is reachable only through the pointer read,
 /// whose other uses reject the projection.
-fn call_projection(
+pub(super) fn call_projection(
     func: &Function,
     block: BlockId,
     call_idx: usize,

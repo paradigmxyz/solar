@@ -36,9 +36,9 @@
 use super::{
     AbiEncodeMode, AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamType,
     AbiType, AddressCallKind, AllocationFailure, AllocationInitialization, AllocationSemantics,
-    BlockId, DataId, DataRef, DataSize, Disambiguator, EffectKind, FrameMode, FrameSlotKind,
-    Function, FunctionBuilder, FunctionId, HirExprId, Immediate, ImmutableId, InstId, InstKind,
-    Instruction, InstructionMetadata, LogTopics, MangledSymbol, MemoryObjectKind,
+    BackendMemory, BlockId, DataId, DataRef, DataSize, Disambiguator, EffectKind, FrameMode,
+    FrameSlotKind, Function, FunctionBuilder, FunctionId, HirExprId, Immediate, ImmutableId,
+    InstId, InstKind, Instruction, InstructionMetadata, LogTopics, MangledSymbol, MemoryObjectKind,
     MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StructId, StructType, Terminator,
     Value, ValueId,
 };
@@ -65,7 +65,10 @@ use solar_parse::{PErr, PResult};
 pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
     let arena = Arena::new();
     let mut parser = Parser::new(sess, &arena, source);
-    parser.parse_module().map_err(PErr::emit)
+    let mut module = parser.parse_module().map_err(PErr::emit)?;
+    module.backend_memory =
+        BackendMemory::parse(&module, &source.src).map_err(|error| sess.dcx.err(error).emit())?;
+    Ok(module)
 }
 
 // =============================================================================
@@ -627,6 +630,25 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         }
                     }
                     builder.func_mut().set_return_abi(components);
+                }
+                sym::implicit_args => {
+                    if !builder.func().params.is_empty() {
+                        return Err(self
+                            .parser
+                            .error("a function with parameters has no implicit arguments"));
+                    }
+                    self.parser.expect(TokenKind::Eq)?;
+                    self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
+                    if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
+                        loop {
+                            let ty = self.parse_type()?;
+                            self.arg_values.push(builder.func_mut().alloc_implicit_arg(ty));
+                            if self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
+                                break;
+                            }
+                            self.parser.expect(TokenKind::Comma)?;
+                        }
+                    }
                 }
                 sym::abi_returns => {
                     self.parser.expect(TokenKind::Eq)?;

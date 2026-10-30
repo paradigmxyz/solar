@@ -1,6 +1,8 @@
-//@ revisions: none gas pipeline substitute evm-substitute
+//@ revisions: none both gas pipeline substitute evm-substitute
 //@[none] compile-flags: -O none -Zdump=mir
 //@[none] filecheck: --check-prefix=NONE
+//@[both] compile-flags: -O none -Zdump=mir,mir-final
+//@[both] filecheck: --check-prefix=BOTH
 //@[gas] compile-flags: -O gas -Zdump=mir
 //@[gas] filecheck: --check-prefix=GAS
 //@[pipeline] compile-flags: -Zmir-pipeline=none
@@ -14,6 +16,13 @@
 // NONE-NOT: @phase
 // NONE-LABEL: fn @f(arg0: i256)
 // NONE: checked_add {{u?int[0-9]+}}, arg0, 0
+// BOTH: @module DumpPhase
+// BOTH-NOT: @phase
+// BOTH: checked_add
+// BOTH: @module DumpPhase
+// BOTH-NEXT: @phase lowered
+// BOTH: // backend-memory-v1
+// BOTH-NOT: checked_add
 // GAS: @phase lowered
 // GAS-NOT: add arg0, 0
 // PIPELINE: {{^// === .*:DumpPhase \(after none\) ===$}}

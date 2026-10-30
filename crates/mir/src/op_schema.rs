@@ -23,6 +23,8 @@
 //! load, without duplicating the rest of its metadata.
 //! `#[commutative(lhs, rhs)]` generates the trait and canonicalizes exactly that
 //! operand pair, leaving attributes and any remaining operands untouched.
+//! `#[semantics(...)]` states what the operation computes, in the vocabulary of
+//! [`Semantics`]; [`InstKind::semantics`] returns it for the MIR interpreter.
 
 use alloy_primitives::Bytes;
 use solar_ir::link::LibraryId;
@@ -31,8 +33,8 @@ use super::{
     AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AddressCallKind, AllocationSemantics,
     ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, DataRef, DataSize, EffectKind, FrameMode,
     FrameSlotKind, Function, FunctionId, ImmutableId, InstructionMetadata, MemoryObjectKind,
-    MemoryObjectLayout, MirPhase, MirType, PackedPart, PtrLocation, RevertKind, StructId, ValueId,
-    ValueLayout, typing,
+    MemoryObjectLayout, MirPhase, MirType, PackedPart, PtrLocation, RevertKind, Semantics,
+    StructId, ValueId, ValueLayout, typing,
 };
 use smallvec::{Array, SmallVec, smallvec};
 use std::fmt::Write as _;
@@ -705,6 +707,25 @@ macro_rules! visit_raw_memory_size {
     };
 }
 
+/// Builds a row's declared semantics for the instruction `$inst`.
+macro_rules! declared_semantics {
+    ($inst:ident;) => {
+        None
+    };
+    ($inst:ident; opcode($opcode:ident)) => {
+        Some(Semantics::Opcode(stringify!($opcode), $inst.operands()))
+    };
+    ($inst:ident; opcode(match $location:ident { $( $at:ident => $opcode:ident ),+ $(,)? })) => {
+        match $location {
+            $( PtrLocation::$at => declared_semantics!($inst; opcode($opcode)), )+
+            _ => None,
+        }
+    };
+    ($inst:ident; $($semantics:tt)+) => {
+        Some($($semantics)+)
+    };
+}
+
 macro_rules! define_mir_ops {
     (
         enum $inst_name:ident {
@@ -724,6 +745,7 @@ macro_rules! define_mir_ops {
                 $(#[builder($builder:ident $(, $void:ident)?)])?
                 $(#[raw_memory($( $access:ident($address:ident, $size:tt) $(if $guard:expr)? ),+)])?
                 #[operand_types($func:ident => $operand_types:expr)]
+                $(#[semantics($($semantics:tt)+)])?
                 $variant:ident
                 $( ( $( $operand:ident : $operand_ty:ty ),+ $(,)? ) )?
                 $( { $( $(#[$field_meta:meta])* $field:ident : $field_ty:ty ),+ $(,)? } )?
@@ -801,6 +823,25 @@ macro_rules! define_mir_ops {
                     )+
                 }
             }
+
+            /// Returns what this operation computes, as its schema row declares it.
+            #[allow(unused_variables)]
+            #[must_use]
+            pub fn semantics(&self) -> Option<Semantics<'_>> {
+                use super::semantics::declare::*;
+                match self {
+                    $(
+                        Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
+                            declared_semantics!(self; $( $( $semantics )+ )?)
+                        }
+                    )+
+                }
+            }
+
+            /// Every operation's mnemonic with its `#[semantics(...)]` declaration as written.
+            pub(crate) const DECLARED_SEMANTICS: &[(&str, &str)] = &[
+                $( ($mnemonic, stringify!($( $( $semantics )+ )?)), )+
+            ];
 
             /// Collects every value operand in canonical order.
             ///
@@ -1170,14 +1211,17 @@ define_mir_ops! {
     #[mir_op(mnemonic = "zext", result = Custom, phases = PhaseSet::ALL,
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
     #[operand_types(func => None)]
+    #[semantics(word(operand0))]
     Zext(operand0: ValueId),
     #[mir_op(mnemonic = "trunc", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = Some(PhaseCategory::IntegerConversion))]
     #[operand_types(func => None)]
+    #[semantics(low_bits(operand0, bits))]
     Trunc(operand0: ValueId, bits: u32),
     #[mir_op(mnemonic = "sext", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = Some(PhaseCategory::IntegerConversion))]
     #[operand_types(func => None)]
+    #[semantics(sign_extend(operand0, from_bits, to_bits))]
     Sext(operand0: ValueId, from_bits: u32, to_bits: u32),
     #[mir_op(mnemonic = "ptrtoint", result = Custom, phases = PhaseSet::ALL,
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
@@ -1186,10 +1230,12 @@ define_mir_ops! {
         phase_category: Some(PhaseCategory::IntegerConversion),
     })]
     #[operand_types(func => None)]
+    #[semantics(low_bits(operand0, bits))]
     PtrToInt(operand0: ValueId, bits: u32),
     #[mir_op(mnemonic = "inttoptr", result = Custom, phases = PhaseSet::ALL,
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
     #[operand_types(func => None)]
+    #[semantics(word(operand0))]
     IntToPtr(operand0: ValueId),
     /// Offset a pointer by an unsigned byte count, keeping its location type. The sum wraps at
     /// 256 bits: a forged object pointer or length can admit an index outside the allocation.
@@ -1201,6 +1247,7 @@ define_mir_ops! {
     #[mir_op(mnemonic = "checked_binary", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::CheckedArithmetic))]
     #[operand_types(func => Some(smallvec![arithmetic.ty().mir_type(), if *op == CheckedOp::Pow { MirType::I256 } else { arithmetic.ty().mir_type() }]))]
+    #[semantics(checked(op, arithmetic, lhs, rhs))]
     CheckedBinary {
         op: CheckedOp,
         arithmetic: ArithmeticKind,
@@ -1264,6 +1311,7 @@ define_mir_ops! {
     #[commutative(a, b)]
     #[builder(add)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
+    #[semantics(opcode(add))]
     Add(a: ValueId, b: ValueId),
     /// Subtraction: `a - b`
     #[mir_op(
@@ -1277,6 +1325,7 @@ define_mir_ops! {
     )]
     #[builder(sub)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
+    #[semantics(opcode(sub))]
     Sub(a: ValueId, b: ValueId),
     /// Multiplication: `a * b`
     #[mir_op(
@@ -1291,6 +1340,7 @@ define_mir_ops! {
     #[commutative(a, b)]
     #[builder(mul)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
+    #[semantics(opcode(mul))]
     Mul(a: ValueId, b: ValueId),
     /// Unsigned division: `a / b`
     #[mir_op(
@@ -1304,6 +1354,7 @@ define_mir_ops! {
     )]
     #[builder(div)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
+    #[semantics(opcode(div))]
     Div(a: ValueId, b: ValueId),
     /// Signed division: `a / b`
     #[mir_op(
@@ -1317,6 +1368,7 @@ define_mir_ops! {
     )]
     #[builder(sdiv)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
+    #[semantics(opcode(sdiv))]
     SDiv(a: ValueId, b: ValueId),
     /// Unsigned modulo: `a % b`
     #[mir_op(
@@ -1330,6 +1382,7 @@ define_mir_ops! {
     )]
     #[builder(mod_)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
+    #[semantics(opcode(mod))]
     Mod(a: ValueId, b: ValueId),
     /// Signed modulo: `a % b`
     #[mir_op(
@@ -1343,6 +1396,7 @@ define_mir_ops! {
     )]
     #[builder(smod)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
+    #[semantics(opcode(smod))]
     SMod(a: ValueId, b: ValueId),
     /// Exponentiation: `a ** b`
     #[mir_op(
@@ -1356,6 +1410,7 @@ define_mir_ops! {
     )]
     #[builder(exp)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
+    #[semantics(opcode(exp))]
     Exp(a: ValueId, b: ValueId),
     /// Add modulo: `(a + b) % n`
     #[mir_op(
@@ -1370,6 +1425,7 @@ define_mir_ops! {
     #[commutative(a, b)]
     #[builder(addmod)]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
+    #[semantics(opcode(addmod))]
     AddMod(a: ValueId, b: ValueId, n: ValueId),
     /// Multiply modulo: `(a * b) % n`
     #[mir_op(
@@ -1384,6 +1440,7 @@ define_mir_ops! {
     #[commutative(a, b)]
     #[builder(mulmod)]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
+    #[semantics(opcode(mulmod))]
     MulMod(a: ValueId, b: ValueId, n: ValueId),
 
     // Bitwise operations
@@ -1400,6 +1457,7 @@ define_mir_ops! {
     #[commutative(a, b)]
     #[builder(and)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
+    #[semantics(opcode(and))]
     And(a: ValueId, b: ValueId),
     /// Bitwise OR: `a | b`
     #[mir_op(
@@ -1414,6 +1472,7 @@ define_mir_ops! {
     #[commutative(a, b)]
     #[builder(or)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
+    #[semantics(opcode(or))]
     Or(a: ValueId, b: ValueId),
     /// Bitwise XOR: `a ^ b`
     #[mir_op(
@@ -1428,6 +1487,7 @@ define_mir_ops! {
     #[commutative(a, b)]
     #[builder(xor)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
+    #[semantics(opcode(xor))]
     Xor(a: ValueId, b: ValueId),
     /// Bitwise NOT: `~a`
     #[mir_op(
@@ -1441,6 +1501,7 @@ define_mir_ops! {
     )]
     #[builder(not)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 1]))]
+    #[semantics(opcode(not))]
     Not(a: ValueId),
     /// Count leading zero bits.
     #[mir_op(
@@ -1454,6 +1515,7 @@ define_mir_ops! {
     )]
     #[builder(clz)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 1]))]
+    #[semantics(opcode(clz))]
     Clz(a: ValueId),
     /// Left shift: `value << shift`.
     ///
@@ -1469,6 +1531,7 @@ define_mir_ops! {
         category = None
     )]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *shift); 2]))]
+    #[semantics(opcode(shl))]
     Shl(shift: ValueId, value: ValueId),
     /// Logical right shift: `value >> shift`, with shift operands stored like [`Self::Shl`].
     #[mir_op(
@@ -1481,6 +1544,7 @@ define_mir_ops! {
         category = None
     )]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *shift); 2]))]
+    #[semantics(opcode(shr))]
     Shr(shift: ValueId, value: ValueId),
     /// Arithmetic right shift: `value >> shift` (signed), with shift operands stored like
     /// [`Self::Shl`].
@@ -1494,6 +1558,7 @@ define_mir_ops! {
         category = None
     )]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *shift); 2]))]
+    #[semantics(opcode(sar))]
     Sar(shift: ValueId, value: ValueId),
     /// Extract a byte: `byte(i, x)`
     #[mir_op(
@@ -1507,6 +1572,7 @@ define_mir_ops! {
     )]
     #[builder(byte)]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[semantics(opcode(byte))]
     Byte(index: ValueId, value: ValueId),
 
     // Comparison operations
@@ -1522,6 +1588,7 @@ define_mir_ops! {
     )]
     #[builder(lt)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
+    #[semantics(opcode(lt))]
     Lt(a: ValueId, b: ValueId),
     /// Greater than (unsigned): `a > b`
     #[mir_op(
@@ -1535,6 +1602,7 @@ define_mir_ops! {
     )]
     #[builder(gt)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
+    #[semantics(opcode(gt))]
     Gt(a: ValueId, b: ValueId),
     /// Less than (signed): `a < b`
     #[mir_op(
@@ -1548,6 +1616,7 @@ define_mir_ops! {
     )]
     #[builder(slt)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
+    #[semantics(opcode(slt))]
     SLt(a: ValueId, b: ValueId),
     /// Greater than (signed): `a > b`
     #[mir_op(
@@ -1561,6 +1630,7 @@ define_mir_ops! {
     )]
     #[builder(sgt)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
+    #[semantics(opcode(sgt))]
     SGt(a: ValueId, b: ValueId),
     /// Equality: `a == b`
     #[mir_op(
@@ -1575,6 +1645,7 @@ define_mir_ops! {
     #[commutative(a, b)]
     #[builder(eq)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
+    #[semantics(opcode(eq))]
     Eq(a: ValueId, b: ValueId),
     /// Inequality: `a != b`.
     #[mir_op(
@@ -1589,6 +1660,7 @@ define_mir_ops! {
     #[commutative(a, b)]
     #[builder(ne)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
+    #[semantics(not_equal(a, b))]
     Ne(a: ValueId, b: ValueId),
 
     // Memory operations
@@ -1622,6 +1694,7 @@ define_mir_ops! {
     })]
     #[raw_memory(Read(ptr, 32) if *location == PtrLocation::Memory)]
     #[operand_types(func => Some(smallvec![typing::address(func, *ptr, *location)]))]
+    #[semantics(opcode(match location { Memory => mload, Calldata => calldataload, Storage => sload, Transient => tload }))]
     Load(ptr: ValueId, location: PtrLocation),
     /// Store a word to memory at `ptr`, which may be a `ptr<memory>`, as for `mload`, or to
     /// storage or transient storage slot `ptr`.
@@ -1644,6 +1717,7 @@ define_mir_ops! {
     })]
     #[raw_memory(Write(ptr, 32) if *location == PtrLocation::Memory)]
     #[operand_types(func => Some(smallvec![typing::address(func, *ptr, *location), MirType::I256]))]
+    #[semantics(opcode(match location { Memory => mstore, Storage => sstore, Transient => tstore }))]
     Store(ptr: ValueId, value: ValueId, location: PtrLocation),
     /// Store the low byte of `value` to memory at `ptr`, as for `mstore`.
     #[mir_op(
@@ -1657,6 +1731,7 @@ define_mir_ops! {
     )]
     #[raw_memory(Write(ptr, 1))]
     #[operand_types(func => Some(smallvec![typing::address(func, *ptr, PtrLocation::Memory), MirType::I256]))]
+    #[semantics(opcode(mstore8))]
     Store8(ptr: ValueId, value: ValueId),
     /// Set a contiguous memory range to zero: `memory_zero(offset, size)`
     #[mir_op(
@@ -1684,6 +1759,7 @@ define_mir_ops! {
     )]
     #[builder(msize)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(msize))]
     MSize,
     /// Read the free-memory pointer.
     #[mir_op(
@@ -1724,6 +1800,7 @@ define_mir_ops! {
     )]
     #[builder(heap_floor)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(heap_floor())]
     HeapFloor,
     /// Reserve memory and return the previous free-memory pointer.
     #[mir_op(
@@ -1736,6 +1813,7 @@ define_mir_ops! {
         category = Some(PhaseCategory::AbstractAllocation)
     )]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
+    #[semantics(allocate(size, semantics))]
     Alloc {
         /// Requested byte count.
         size: ValueId,
@@ -1798,6 +1876,7 @@ define_mir_ops! {
     #[when(InstKind::Copy(.., PtrLocation::Returndata) => { mnemonic: "returndatacopy" })]
     #[raw_memory(Read(src, len) if *location == PtrLocation::Memory, Write(dest, len))]
     #[operand_types(func => Some(smallvec![typing::address(func, *dest, PtrLocation::Memory), typing::address(func, *src, *location), MirType::I256]))]
+    #[semantics(opcode(match location { Memory => mcopy, Calldata => calldatacopy, Returndata => returndatacopy }))]
     Copy(dest: ValueId, src: ValueId, len: ValueId, location: PtrLocation),
 
     // Calldata operations
@@ -1813,6 +1892,7 @@ define_mir_ops! {
     )]
     #[builder(calldatasize)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(calldatasize))]
     CalldataSize,
     /// Construct a logical `(pointer, length, location)` slice.
     #[mir_op(
@@ -1935,6 +2015,7 @@ define_mir_ops! {
     )]
     #[raw_memory(Write(dest, size))]
     #[operand_types(func => Some(smallvec![typing::address(func, *dest, PtrLocation::Memory), MirType::I256]))]
+    #[semantics(data_copy(data, dest, size))]
     DataCopy(data: DataRef, dest: ValueId, size: ValueId),
     /// Byte length of deferred module data, such as another contract's
     /// bytecode, plus an addend, rounded down to a multiple of 32 when aligned.
@@ -1965,6 +2046,7 @@ define_mir_ops! {
     )]
     #[builder(codesize)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(codesize))]
     CodeSize,
     /// Copy code to memory: `codecopy(destOffset, offset, size)`
     #[mir_op(
@@ -1979,6 +2061,7 @@ define_mir_ops! {
     #[builder(codecopy, void)]
     #[raw_memory(Write(dest, size))]
     #[operand_types(func => Some(smallvec![typing::address(func, *dest, PtrLocation::Memory), MirType::I256, MirType::I256]))]
+    #[semantics(opcode(codecopy))]
     CodeCopy(dest: ValueId, offset: ValueId, size: ValueId),
     /// Get external code size: `extcodesize(addr)`
     #[mir_op(
@@ -1992,6 +2075,7 @@ define_mir_ops! {
     )]
     #[builder(extcodesize)]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
+    #[semantics(opcode(extcodesize))]
     ExtCodeSize(addr: ValueId),
     /// Copy external code to memory: `extcodecopy(addr, destOffset, offset, size)`
     #[mir_op(
@@ -2005,6 +2089,7 @@ define_mir_ops! {
     )]
     #[raw_memory(Write(dest, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, typing::address(func, *dest, PtrLocation::Memory), MirType::I256, MirType::I256]))]
+    #[semantics(opcode(extcodecopy))]
     ExtCodeCopy(addr: ValueId, dest: ValueId, offset: ValueId, size: ValueId),
     /// Get external code hash: `extcodehash(addr)`
     #[mir_op(
@@ -2018,6 +2103,7 @@ define_mir_ops! {
     )]
     #[builder(extcodehash)]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
+    #[semantics(opcode(extcodehash))]
     ExtCodeHash(addr: ValueId),
     /// Assign an immutable during construction: `storeimmutable <name>, value`.
     /// Lowered to constructor staging memory after MIR optimization.
@@ -2077,6 +2163,7 @@ define_mir_ops! {
     )]
     #[builder(returndatasize)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(returndatasize))]
     ReturnDataSize,
 
     // Environment operations
@@ -2092,6 +2179,7 @@ define_mir_ops! {
     )]
     #[builder(caller)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(caller))]
     Caller,
     /// Get call value: `callvalue()`
     #[mir_op(
@@ -2105,6 +2193,7 @@ define_mir_ops! {
     )]
     #[builder(callvalue)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(callvalue))]
     CallValue,
     /// Get origin address: `origin()`
     #[mir_op(
@@ -2118,6 +2207,7 @@ define_mir_ops! {
     )]
     #[builder(origin)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(origin))]
     Origin,
     /// Get gas price: `gasprice()`
     #[mir_op(
@@ -2131,6 +2221,7 @@ define_mir_ops! {
     )]
     #[builder(gasprice)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(gasprice))]
     GasPrice,
     /// Get block hash: `blockhash(blockNum)`
     #[mir_op(
@@ -2144,6 +2235,7 @@ define_mir_ops! {
     )]
     #[builder(blockhash)]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
+    #[semantics(opcode(blockhash))]
     BlockHash(number: ValueId),
     /// Get coinbase address: `coinbase()`
     #[mir_op(
@@ -2157,6 +2249,7 @@ define_mir_ops! {
     )]
     #[builder(coinbase)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(coinbase))]
     Coinbase,
     /// Get block timestamp: `timestamp()`
     #[mir_op(
@@ -2170,6 +2263,7 @@ define_mir_ops! {
     )]
     #[builder(timestamp)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(timestamp))]
     Timestamp,
     /// Get block number: `number()`
     #[mir_op(
@@ -2183,6 +2277,7 @@ define_mir_ops! {
     )]
     #[builder(number)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(number))]
     BlockNumber,
     /// Get previous randao: `prevrandao()`
     #[mir_op(
@@ -2196,6 +2291,7 @@ define_mir_ops! {
     )]
     #[builder(prevrandao)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(prevrandao))]
     PrevRandao,
     /// Get gas limit: `gaslimit()`
     #[mir_op(
@@ -2209,6 +2305,7 @@ define_mir_ops! {
     )]
     #[builder(gaslimit)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(gaslimit))]
     GasLimit,
     /// Get beacon chain slot number: `slotnum()`
     #[mir_op(
@@ -2221,6 +2318,7 @@ define_mir_ops! {
         category = None
     )]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(slotnum))]
     SlotNum,
     /// Get chain ID: `chainid()`
     #[mir_op(
@@ -2234,6 +2332,7 @@ define_mir_ops! {
     )]
     #[builder(chainid)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(chainid))]
     ChainId,
     /// Get this contract's address: `address()`
     #[mir_op(
@@ -2247,6 +2346,7 @@ define_mir_ops! {
     )]
     #[builder(address)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(address))]
     Address,
     /// Get balance: `balance(addr)`
     #[mir_op(
@@ -2260,6 +2360,7 @@ define_mir_ops! {
     )]
     #[builder(balance)]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
+    #[semantics(opcode(balance))]
     Balance(addr: ValueId),
     /// Get self balance: `selfbalance()`
     #[mir_op(
@@ -2273,6 +2374,7 @@ define_mir_ops! {
     )]
     #[builder(selfbalance)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(selfbalance))]
     SelfBalance,
     /// Get remaining gas: `gas()`
     #[mir_op(
@@ -2286,6 +2388,7 @@ define_mir_ops! {
     )]
     #[builder(gas)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(gas))]
     Gas,
     /// Get base fee: `basefee()`
     #[mir_op(
@@ -2299,6 +2402,7 @@ define_mir_ops! {
     )]
     #[builder(basefee)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(basefee))]
     BaseFee,
     /// Get blob base fee: `blobbasefee()`
     #[mir_op(
@@ -2312,6 +2416,7 @@ define_mir_ops! {
     )]
     #[builder(blobbasefee)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(opcode(blobbasefee))]
     BlobBaseFee,
     /// Get blob hash: `blobhash(index)`
     #[mir_op(
@@ -2325,6 +2430,7 @@ define_mir_ops! {
     )]
     #[builder(blobhash)]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
+    #[semantics(opcode(blobhash))]
     BlobHash(index: ValueId),
 
     // Hashing
@@ -2341,6 +2447,7 @@ define_mir_ops! {
     #[builder(keccak256)]
     #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![typing::address(func, *offset, PtrLocation::Memory), MirType::I256]))]
+    #[semantics(opcode(keccak256))]
     Keccak256(offset: ValueId, size: ValueId),
     /// Hash a fixed-width mapping key and its parent slot.
     ///
@@ -2421,6 +2528,7 @@ define_mir_ops! {
     )]
     #[raw_memory(Read(args_offset, args_size), PartialWrite(ret_offset, ret_size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, typing::address(func, *args_offset, PtrLocation::Memory), MirType::I256, typing::address(func, *ret_offset, PtrLocation::Memory), MirType::I256]))]
+    #[semantics(opcode(call))]
     Call {
         gas: ValueId,
         addr: ValueId,
@@ -2442,6 +2550,7 @@ define_mir_ops! {
     )]
     #[raw_memory(Read(args_offset, args_size), PartialWrite(ret_offset, ret_size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, typing::address(func, *args_offset, PtrLocation::Memory), MirType::I256, typing::address(func, *ret_offset, PtrLocation::Memory), MirType::I256]))]
+    #[semantics(opcode(callcode))]
     CallCode {
         gas: ValueId,
         addr: ValueId,
@@ -2463,6 +2572,7 @@ define_mir_ops! {
     )]
     #[raw_memory(Read(args_offset, args_size), PartialWrite(ret_offset, ret_size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, typing::address(func, *args_offset, PtrLocation::Memory), MirType::I256, typing::address(func, *ret_offset, PtrLocation::Memory), MirType::I256]))]
+    #[semantics(opcode(staticcall))]
     StaticCall {
         gas: ValueId,
         addr: ValueId,
@@ -2483,6 +2593,7 @@ define_mir_ops! {
     )]
     #[raw_memory(Read(args_offset, args_size), PartialWrite(ret_offset, ret_size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, typing::address(func, *args_offset, PtrLocation::Memory), MirType::I256, typing::address(func, *ret_offset, PtrLocation::Memory), MirType::I256]))]
+    #[semantics(opcode(delegatecall))]
     DelegateCall {
         gas: ValueId,
         addr: ValueId,
@@ -2513,6 +2624,7 @@ define_mir_ops! {
         phase_category: Some(PhaseCategory::Builtin),
     })]
     #[operand_types(func => typing::callee_types(func, function, args))]
+    #[semantics(call(function, args))]
     ICall { function: Callee, args: Box<[ValueId]> },
 
     // Contract creation
@@ -2529,6 +2641,7 @@ define_mir_ops! {
     #[builder(create)]
     #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, typing::address(func, *offset, PtrLocation::Memory), MirType::I256]))]
+    #[semantics(opcode(create))]
     Create(value: ValueId, offset: ValueId, size: ValueId),
     /// Create2 contract: `create2(value, offset, size, salt)`
     #[mir_op(
@@ -2542,6 +2655,7 @@ define_mir_ops! {
     )]
     #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, typing::address(func, *offset, PtrLocation::Memory), MirType::I256, MirType::I256]))]
+    #[semantics(opcode(create2))]
     Create2(value: ValueId, offset: ValueId, size: ValueId, salt: ValueId),
 
     // Log operations
@@ -2561,6 +2675,7 @@ define_mir_ops! {
         types[0] = typing::address(func, *offset, PtrLocation::Memory);
         Some(types)
     })]
+    #[semantics(log(offset, size, topics))]
     Log {
         /// Start of the logged data.
         offset: ValueId,
@@ -2582,6 +2697,7 @@ define_mir_ops! {
         category = None
     )]
     #[operand_types(func => None)]
+    #[semantics(phi(incoming))]
     Phi(incoming: Vec<(BlockId, ValueId)>),
     /// Select: `select(cond, true_val, false_val)`
     #[mir_op(
@@ -2594,6 +2710,7 @@ define_mir_ops! {
         category = None
     )]
     #[operand_types(func => None)]
+    #[semantics(select(cond, true_val, false_val))]
     Select(cond: ValueId, true_val: ValueId, false_val: ValueId),
 
     // Sign extension
@@ -2609,6 +2726,7 @@ define_mir_ops! {
     )]
     #[builder(signextend)]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[semantics(opcode(signextend))]
     SignExtend(byte: ValueId, value: ValueId),
 }
 }

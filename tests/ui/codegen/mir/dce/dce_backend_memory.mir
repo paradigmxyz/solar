@@ -1,0 +1,22 @@
+//@compile-flags: -Zmir-pipeline=dce
+// Backend memory records describe the code generated for the MIR as it was, so a pass that
+// changes the module drops them, including a record naming an instruction it deleted.
+@module Stale
+@phase lowered
+@types
+  struct0: {i256, i256}
+// backend-memory-v1
+// backend-stack 0 0 1,2,3 3
+fn @entry() [entry] {
+  bb0:
+    v0 = icall @pair
+    v1 = mload 32
+    v2 = add v1, 32
+    v3 = mload v2
+    stop
+}
+
+fn @pair() -> struct0 [return_abi=[i256, i256]] {
+  bb0:
+    ret 7, 8
+}

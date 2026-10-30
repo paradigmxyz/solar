@@ -1,0 +1,15 @@
+//@ revisions: emit srcmap
+//@[emit] compile-flags: --emit=abi,bin-runtime -Zdump=evm-ir-runtime,disasm-runtime
+//@[srcmap] compile-flags: --emit=srcmap
+// A lowered module given as input compiles like a contract named after the file and the module,
+// which has no ABI, and prints the dumps of its code generation. It has no source to map.
+//~[srcmap]? ERROR: `--emit=srcmap` is not supported for MIR input
+@module Bytecode
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = add v0, 1
+    mstore 0, v1
+    returndata 0, 32
+}

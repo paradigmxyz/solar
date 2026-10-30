@@ -310,7 +310,7 @@
   }
   
 - fn @nativeCleanTuple(arg0: i128) -> ptr<memory> [selector=0x0dead005, abi_params=[uint128], abi_returns=[tuple<word<uint128>>], abi_return_params=[tuple<uint128>]] {
-+ fn @nativeCleanTuple() [selector=0x0dead005, abi_wrapper] {
++ fn @nativeCleanTuple() [selector=0x0dead005, abi_wrapper, implicit_args=[i128]] {
     bb0:
 +     v2 = calldatasize
 +     v3 = lt v2, 36
