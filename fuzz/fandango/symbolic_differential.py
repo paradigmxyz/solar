@@ -262,7 +262,7 @@ def run(
     tools = {name: _resolve_executable(getattr(args, name)) for name in tool_names}
     # Forge maps bare solver names such as `bitwuzla` to their own commands and
     # runs any path as a z3-compatible command.
-    if pathlib.Path(args.solver).parent == pathlib.Path("."):
+    if not os.path.dirname(args.solver):
         tools["solver"] = args.solver
     if saved_solc:
         source = args.source

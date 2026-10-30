@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import io
 import json
 import os
@@ -1034,6 +1035,12 @@ class CommandTests(unittest.TestCase):
 
             self.assertEqual(result["status"], "bounded_agreement")
             self.assertEqual(result["bounds"]["max_dynamic_length"], 400)
+            self.assertEqual((root / "solver").read_text(), "z3")
+            args.solver = "./z3"
+            with contextlib.chdir(root):
+                symbolic.run(args, root / "path-out")
+            self.assertEqual((root / "solver").read_text(), str(root / "z3"))
+            args.solver = "z3"
             self.assertEqual(solc_input.read_bytes(), solar_input.read_bytes())
             standard_input = json.loads(solc_input.read_text())
             self.assertEqual(
@@ -1279,7 +1286,7 @@ class CommandTests(unittest.TestCase):
             "    print('--allow-local-compiler')\n"
             "    raise SystemExit\n"
             "solver = sys.argv.index('--symbolic-solver')\n"
-            "assert sys.argv[solver + 1] == 'z3'\n"
+            "pathlib.Path(__file__).with_name('solver').write_text(sys.argv[solver + 1])\n"
             "index = sys.argv.index('--symbolic-max-dynamic-length')\n"
             f"assert sys.argv[index + 1] == {str(max_dynamic_length)!r}\n"
             f"assert 'max_dynamic_length = {max_dynamic_length}' in "
