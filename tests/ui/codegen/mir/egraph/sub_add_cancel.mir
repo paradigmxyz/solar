@@ -26,18 +26,6 @@ fn @length_first(arg0: i256, arg1: i256) -> i256 {
     ret v6
 }
 
-// The element count reads the length directly.
-fn @element_count(arg0: i256, arg1: i256) -> i256 {
-  bb0:
-    v2 = shl arg1, 5
-    v3 = add arg0, v2
-    v4 = add v3, 32
-    v5 = add arg0, 32
-    v6 = sub v4, v5
-    v7 = shr v6, 5
-    ret v7
-}
-
 // The start pointer sits in another block.
 fn @other_block(arg0: i256, arg1: i256) -> i256 {
   bb0:
@@ -51,7 +39,7 @@ fn @other_block(arg0: i256, arg1: i256) -> i256 {
     ret v6
 }
 
-// A sum with another user must stay.
+// Another user of the sum does not block the fold.
 fn @shared_sum(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256]] {
   bb0:
     v2 = shl arg1, 5
@@ -62,17 +50,7 @@ fn @shared_sum(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256]] {
     ret v3, v6
 }
 
-fn @shared_outer(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256]] {
-  bb0:
-    v2 = shl arg1, 5
-    v3 = add arg0, v2
-    v4 = add v3, 32
-    v5 = add arg0, 32
-    v6 = sub v4, v5
-    ret v4, v6
-}
-
-// Different constants fold to a constant offset instead.
+// Different constants leave the subtraction.
 fn @different_constants(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = shl arg1, 5
@@ -81,4 +59,15 @@ fn @different_constants(arg0: i256, arg1: i256) -> i256 {
     v5 = add arg0, 32
     v6 = sub v4, v5
     ret v6
+}
+
+// A different base on the right leaves the subtraction.
+fn @different_base(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v3 = shl arg1, 5
+    v4 = add arg0, v3
+    v5 = add v4, 32
+    v6 = add arg2, 32
+    v7 = sub v5, v6
+    ret v7
 }

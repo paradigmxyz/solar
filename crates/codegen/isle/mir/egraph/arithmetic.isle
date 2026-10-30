@@ -198,17 +198,10 @@
       (imm (u256_sub a b)))
 
 ;; ((x + y) + c) - (x + c) => y.
-;; Requires: c, d are equal constants. ABI encoding spells an end pointer minus a data
-;; pointer this way; the sums may be shared.
-(rule 9 (simplify (Op.Sub (add (add x y) (iconst c)) (add x (iconst d))))
-      (if-let true (u256_same c d))
-      y)
+(rule 9 (simplify (Op.Sub (add (add x y) (iconst c)) (add x (iconst c)))) y)
 
 ;; ((y + x) + c) - (x + c) => y.
-;; Requires: c, d are equal constants.
-(rule 8 (simplify (Op.Sub (add (add y x) (iconst c)) (add x (iconst d))))
-      (if-let true (u256_same c d))
-      y)
+(rule 8 (simplify (Op.Sub (add (add y x) (iconst c)) (add x (iconst c)))) y)
 
 ;; (a + b) - b => a.
 (rule 4 (simplify (Op.Sub (add a b) b)) a)
