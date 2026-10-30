@@ -499,7 +499,7 @@ impl generated::Context for PeepContext<'_> {
     }
 
     /// The negated constant of `PUSH c; SWAP1; SUB`, when `materialize(-c); ADD` improves the
-    /// objective without raising the transient stack use.
+    /// objective without raising the transient stack use above the push's.
     fn negated_subtrahend(&mut self, _: Window) -> Option<U256> {
         let [push, swap, sub] = self.unprotected_tail()?;
         let instructions = self.instructions;
@@ -511,17 +511,16 @@ impl generated::Context for PeepContext<'_> {
         }
         let negated = U256::ZERO.wrapping_sub(value);
         let target = self.target;
-        let version = target.evm_version();
+        // The matched push is a literal, which compact pushes keep when its recipe does not repay.
         // PUSH c; SWAP1; SUB => materialize(-c); ADD
-        let before = target.push(value) + target.opcode(SWAP1) + target.opcode(SUB);
+        let before = target.literal_push(value) + target.opcode(SWAP1) + target.opcode(SUB);
         let after = target.push(negated) + target.opcode(ADD);
         let gas_saving =
             i64::from(target.runtime_gas(before)) - i64::from(target.runtime_gas(after));
         let byte_saving = i64::from(before.bytes) - i64::from(after.bytes);
         (target.improves(gas_saving, byte_saving)
-            && ImmediateMaterialization::new(version, negated).stack_peak()
-                <= ImmediateMaterialization::new(version, value).stack_peak())
-        .then_some(negated)
+            && ImmediateMaterialization::new(target.evm_version(), negated).stack_peak() <= 1)
+            .then_some(negated)
     }
 
     /// Removes a closed conditional jump whose literal condition is false.

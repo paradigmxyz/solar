@@ -378,6 +378,9 @@ impl Edit {
                 materialize_immediate(instructions, target.evm_version(), value);
             }
             Self::AddNegated { value } => {
+                // push -c; add
+                // NOTE: The materialized constant has no source checkpoint of its own; the `ADD`
+                // keeps the spans of the removed push, swap, and subtraction.
                 let mut add = instructions.pop().expect("matched SUB");
                 overwrite(&mut add, op::ADD);
                 for removed in instructions.drain(start..) {

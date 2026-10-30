@@ -146,7 +146,9 @@ The `late-word` EVM IR pass applies mined low-mask identities after outlining an
 stack cleanup. It checks either a closed count computation or the independence
 of a protected shift base through stack permutations. Pricing the physical
 replacement avoids changes to earlier sharing decisions that can turn a local
-MIR size reduction into larger final bytecode.
+MIR size reduction into larger final bytecode. When no mask window matches, the pass
+also rewrites `PUSH c; SWAP1; SUB` to `materialize(-c); ADD` where the target prices the
+negated constant below the push and the swap.
 
 CI checks the compiled word rules and a separate pure physical-stack subset.
 Lean proves every rule against EVM semantics written in Lean, and its kernel
