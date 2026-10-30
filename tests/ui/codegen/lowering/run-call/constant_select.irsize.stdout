@@ -125,14 +125,14 @@ bb15:
   push 63
   dup 3
   add
+  push 31
+  not
+  and
   dup 3
   dup 2
   lt
   push bb29
   jumpi
-  push 31
-  not
-  and
   push bb18
   jump bb81
 bb81 [ret=0, inputs=2, outputs=1]:
@@ -301,15 +301,16 @@ bb20 [continuation]:
   jumpi
   push 31
   dup 2
+  dup 2
   add
+  dup 1
   push 5
   shr
-  push 63
-  dup 3
-  add
-  push 31
+  swap 2
   not
   and
+  push 32
+  add
   push bb22
   jump bb81
 bb22 [continuation]:

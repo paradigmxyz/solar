@@ -1786,10 +1786,7 @@ fn encode_bytes(
         _ => builder.slice_len(value),
     };
     let word = builder.imm(32);
-    let thirty_one = builder.imm(31);
-    let mask = builder.not(thirty_one);
-    let rounded = builder.add(len, thirty_one);
-    let padded = builder.and(rounded, mask);
+    let padded = builder.pad_to_word(len);
     let data_dest = builder.add(dest, word);
 
     // last = dest + padded

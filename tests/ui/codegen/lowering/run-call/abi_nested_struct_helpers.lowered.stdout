@@ -123,14 +123,14 @@ fn @decode_calldata_type.2(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v4 = gt v1, v3
     v5 = sub v0, v2
     v6 = lt v5, 64
-    v55 = or v4, v6
-    jumpi v55, bb1, bb2
+    v58 = or v4, v6
+    jumpi v58, bb1, bb2
   bb2:
-    v52 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v53 = add v52, 96 !metadata(alloc_ptr)
-    mstore 64, v53 !metadata(memory=scratch)
+    v53 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v54 = add v53, 96 !metadata(alloc_ptr)
+    mstore 64, v54 !metadata(memory=scratch)
     v8 = calldataload v2
-    mstore v52, v8
+    mstore v53, v8
     v9 = add v2, 32
     v10 = calldataload v9
     v11 = add v2, v10
@@ -140,36 +140,36 @@ fn @decode_calldata_type.2(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb3:
     v15 = calldataload v11
     v16 = add v11, 32
-    v17 = add v15, 63
-    v18 = lt v17, v15
-    jumpi v18, bb4, bb5
+    v56 = add v15, 63
+    v20 = and v56, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v21 = lt v20, v15
+    jumpi v21, bb4, bb5
   bb5:
-    v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v46 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v47 = add v46, v20 !metadata(alloc_ptr)
-    v48 = lt v47, v46
-    v49 = gt v47, 0xffffffffffffffff
-    v50 = or v48, v49
-    jumpi v50, bb4, bb7
+    v47 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v48 = add v47, v20 !metadata(alloc_ptr)
+    v49 = lt v48, v47
+    v50 = gt v48, 0xffffffffffffffff
+    v51 = or v49, v50
+    jumpi v51, bb4, bb7
   bb7:
-    mstore 64, v47 !metadata(memory=scratch)
-    mstore v46, v15
-    v22 = sub v0, v16
-    v23 = gt v15, v22
-    jumpi v23, bb1, bb6
+    mstore 64, v48 !metadata(memory=scratch)
+    mstore v47, v15
+    v23 = sub v0, v16
+    v24 = gt v15, v23
+    jumpi v24, bb1, bb6
   bb6:
-    v37 = add v46, 32
-    calldatacopy v37, v16, v15
-    v31 = sub 0, v15
-    v32 = and v31, 31
-    v54 = calldatasize
-    v38 = add v37, v15
-    calldatacopy v38, v54, v32
-    v40 = add v52, 32
-    mstore v40, v46
-    v42 = add v52, 64
-    mstore v42, v2
-    ret v52
+    v38 = add v47, 32
+    calldatacopy v38, v16, v15
+    v32 = sub 0, v15
+    v33 = and v32, 31
+    v55 = calldatasize
+    v39 = add v38, v15
+    calldatacopy v39, v55, v33
+    v41 = add v53, 32
+    mstore v41, v47
+    v43 = add v53, 64
+    mstore v43, v2
+    ret v53
   bb4:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

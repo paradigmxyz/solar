@@ -103,15 +103,38 @@
       v6 = add v5, arg1
       mstore v6, 0
       v7 = mload v3
-      v8 = add v4, 64
-      v9 = add v8, v0
-      mstore v9, 0
-      v10 = mload v3
-      v11 = add v7, v10
-      ret v11
+      ret v7
   }
   
-  fn @stored_after(arg0: i256) -> i256 {
+  fn @past_padding(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 0xffffffffffffffff
+      v1 = add v0, 63
+      v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+      v3 = alloc zeroed checked v2
+      mstore v3, v0
+      v4 = ptrtoint ptr<memory> v3 to i256
+      v5 = add v4, 64
+      v6 = add v5, v0
+      mstore v6, 0
+-     v7 = mload v3
+-     ret v7
++     ret v0
+  }
+  
+  fn @stored_after(arg0: ptr<memory>, arg1: i256) -> i256 {
+    bb0:
+      v0 = and arg1, 0xffffffff
+      v1 = ptrtoint ptr<memory> arg0 to i256
+      v2 = add v1, 32
+      v3 = add v2, v0
+      mstore arg0, v0
+      mstore v3, 0
+      v4 = mload arg0
+      ret v4
+  }
+  
+  fn @stored_after_alloc(arg0: i256) -> i256 {
     bb0:
       v0 = and arg0, 0xffffffffffffffff
       v1 = add v0, 63
@@ -122,8 +145,9 @@
       v6 = add v5, v0
       mstore v3, v0
       mstore v6, 0
-      v7 = mload v3
-      ret v7
+-     v7 = mload v3
+-     ret v7
++     ret v0
   }
   
   fn @next_object(arg0: i256, arg1: i256) -> i256 {

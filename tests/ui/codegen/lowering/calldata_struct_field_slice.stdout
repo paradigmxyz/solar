@@ -70,13 +70,13 @@ fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
     v6 = gt v3, v5
     v7 = sub v1, v4
     v8 = lt v7, 256
-    v56 = or v6, v8
+    v60 = or v6, v8
     v17 = add v4, 64
     v18 = calldatasize
     v19 = sub v18, v17
     v20 = slt v19, 32
-    v57 = or v56, v20
-    jumpi v57, bb1, bb4
+    v61 = or v60, v20
+    jumpi v61, bb1, bb4
   bb4:
     v29 = calldataload v17
     v30 = add v4, v29
@@ -92,10 +92,10 @@ fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
     v39 = add v30, 32
     v40 = sub v36, v35
     v41 = sgt v39, v40
-    v58 = zext i1 v41 to i256
-    v59 = or v37, v58
-    v60 = ne v59, 0
-    jumpi v60, bb1, bb6
+    v62 = zext i1 v41 to i256
+    v63 = or v37, v62
+    v64 = ne v63, 0
+    jumpi v64, bb1, bb6
   bb6:
     v43 = lt v35, 20
     jumpi v43, bb3, bb2
@@ -107,14 +107,23 @@ fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
     v46 = sgt v23, v44
     jumpi v46, bb1, bb7
   bb7:
-    v49 = heap_floor
-    mstore v49, v21
-    v53 = add v49, 32
-    calldatacopy v53, v23, v21
-    v54 = keccak256 v53, v21
+    v58 = add v21, 63
+    v49 = and v58, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v50 = lt v49, v21
+    jumpi v50, bb8, bb9
+  bb9:
+    v51 = heap_floor
+    mstore v51, v21
+    v55 = add v51, 32
+    calldatacopy v55, v23, v21
+    v56 = keccak256 v55, v21
     jump bb3
+  bb8:
+    mstore 32, 65
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb3:
-    v28 = phi [bb6: 0], [bb7: v54]
+    v28 = phi [bb6: 0], [bb9: v56]
     mstore 0, v28
     returndata 0, 32
   bb1:

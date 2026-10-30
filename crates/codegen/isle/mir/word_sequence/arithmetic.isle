@@ -139,3 +139,15 @@
       (if-let sum (make (Op.Add x y)))
       (if-let constant (imm (u256_sub b a)))
       (sequence (Op.Add sum constant)))
+
+;; ((x + 31) & ~31) + 32 => (x + 63) & ~31.
+;; Requires: allocations are lowered, so CSE has already shared the padding that an allocation size
+;; has with an encoding of the same length. An unshared padding then drops its extra add.
+(rule (sequence_rewrite (Op.Add (band (add x (iconst c)) (iconst m)) (iconst w)))
+      (if-let true (late_word_sequence))
+      (if-let true (allocations_lowered))
+      (if-let true (u256_same c (u256 31)))
+      (if-let true (u256_same m (u256_sub (u256_max) (u256 31))))
+      (if-let true (u256_same w (u256 32)))
+      (if-let padding (imm (u256 63))) (if-let sum (make (Op.Add x padding))) (if-let mask (imm m))
+      (sequence (Op.And sum mask)))

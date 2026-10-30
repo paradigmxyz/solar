@@ -23,14 +23,15 @@ fn @invoke(arg0: ptr<memory>) -> struct0 [selector=0xa6514259, abi_params=[bytes
 fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = add v0, 63
+    v1 = add v0, 31
     v2 = not 31
     v3 = and v1, v2
-    v4 = alloc v3
-    mstore v4, v0
-    v5 = ptradd v4, 32
-    v6 = extract_value slice<calldata>, arg0, 0
-    v7 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v5, v6, v7
-    ret v4
+    v4 = add v3, 32
+    v5 = alloc v4
+    mstore v5, v0
+    v6 = ptradd v5, 32
+    v7 = extract_value slice<calldata>, arg0, 0
+    v8 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v6, v7, v8
+    ret v5
 }

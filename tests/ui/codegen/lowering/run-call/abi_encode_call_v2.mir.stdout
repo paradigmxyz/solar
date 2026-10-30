@@ -195,97 +195,99 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v161 = sgt v160, v159
     icall revert_if<calldata_tail_too_short>, v161
     v162 = extract_value slice<calldata>, v154, 1
-    v163 = add v162, 63
-    v164 = lt v163, v162
-    icall panic_if<0x41>, v164
-    v165 = not 31
-    v166 = and v163, v165
-    v167 = alloc v166
-    mstore v167, v162
-    v168 = ptradd v167, 32
-    v169 = extract_value slice<calldata>, v154, 0
-    v170 = extract_value slice<calldata>, v154, 1
-    calldatacopy v168, v169, v170
-    v171 = ptradd v167, 32
-    v172 = mload v167
-    v173 = keccak256 v171, v172
-    v174 = eq v173, 0x11ce95a13e5b883da5f0f79593758519cc5e26f9a173963da8261265dfb9a2d6
-    v175 = eq v174, false
-    icall panic_if<0x1>, v175
-    v176 = extract_value slice<calldata>, arg0, 0
-    v177 = ptrtoint ptr<calldata> v176 to i256
-    v178 = add v177, 96
-    v179 = calldatasize
-    v180 = sub v179, v178
-    v181 = slt v180, 32
-    icall revert_if<calldata_tail_too_short>, v181
-    v182 = calldataload v178
-    v183 = ptrtoint ptr<calldata> v176 to i256
-    v184 = add v183, v182
-    v185 = calldatasize
-    v186 = ptrtoint ptr<calldata> v176 to i256
-    v187 = sub v185, v186
-    v188 = sub v187, 31
-    v189 = slt v182, v188
-    v190 = eq v189, false
-    icall revert_if<invalid_calldata_tail_offset>, v190
-    v191 = calldataload v184
-    v192 = calldatasize
-    v193 = gt v191, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v193
-    v194 = add v184, 32
-    v195 = sub v192, v191
-    v196 = sgt v194, v195
-    icall revert_if<calldata_tail_too_short>, v196
-    v197 = inttoptr i256 v194 to ptr<calldata>
-    v198 = make_calldata_slice v197, v191
-    v199 = extract_value slice<calldata>, v198, 0
-    v200 = extract_value slice<calldata>, v198, 1
-    v201 = calldatasize
-    v202 = gt v200, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v202
-    v203 = sub v201, v200
-    v204 = ptrtoint ptr<calldata> v199 to i256
-    v205 = sgt v204, v203
-    icall revert_if<calldata_tail_too_short>, v205
-    v206 = extract_value slice<calldata>, v198, 1
-    v207 = add v206, 63
-    v208 = lt v207, v206
-    icall panic_if<0x41>, v208
+    v163 = add v162, 31
+    v164 = not 31
+    v165 = and v163, v164
+    v166 = add v165, 32
+    v167 = lt v166, v162
+    icall panic_if<0x41>, v167
+    v168 = alloc v166
+    mstore v168, v162
+    v169 = ptradd v168, 32
+    v170 = extract_value slice<calldata>, v154, 0
+    v171 = extract_value slice<calldata>, v154, 1
+    calldatacopy v169, v170, v171
+    v172 = ptradd v168, 32
+    v173 = mload v168
+    v174 = keccak256 v172, v173
+    v175 = eq v174, 0x11ce95a13e5b883da5f0f79593758519cc5e26f9a173963da8261265dfb9a2d6
+    v176 = eq v175, false
+    icall panic_if<0x1>, v176
+    v177 = extract_value slice<calldata>, arg0, 0
+    v178 = ptrtoint ptr<calldata> v177 to i256
+    v179 = add v178, 96
+    v180 = calldatasize
+    v181 = sub v180, v179
+    v182 = slt v181, 32
+    icall revert_if<calldata_tail_too_short>, v182
+    v183 = calldataload v179
+    v184 = ptrtoint ptr<calldata> v177 to i256
+    v185 = add v184, v183
+    v186 = calldatasize
+    v187 = ptrtoint ptr<calldata> v177 to i256
+    v188 = sub v186, v187
+    v189 = sub v188, 31
+    v190 = slt v183, v189
+    v191 = eq v190, false
+    icall revert_if<invalid_calldata_tail_offset>, v191
+    v192 = calldataload v185
+    v193 = calldatasize
+    v194 = gt v192, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v194
+    v195 = add v185, 32
+    v196 = sub v193, v192
+    v197 = sgt v195, v196
+    icall revert_if<calldata_tail_too_short>, v197
+    v198 = inttoptr i256 v195 to ptr<calldata>
+    v199 = make_calldata_slice v198, v192
+    v200 = extract_value slice<calldata>, v199, 0
+    v201 = extract_value slice<calldata>, v199, 1
+    v202 = calldatasize
+    v203 = gt v201, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v203
+    v204 = sub v202, v201
+    v205 = ptrtoint ptr<calldata> v200 to i256
+    v206 = sgt v205, v204
+    icall revert_if<calldata_tail_too_short>, v206
+    v207 = extract_value slice<calldata>, v199, 1
+    v208 = add v207, 31
     v209 = not 31
-    v210 = and v207, v209
-    v211 = alloc v210
-    mstore v211, v206
-    v212 = ptradd v211, 32
-    v213 = extract_value slice<calldata>, v198, 0
-    v214 = extract_value slice<calldata>, v198, 1
-    calldatacopy v212, v213, v214
-    v215 = ptradd v211, 32
-    v216 = mload v211
-    v217 = keccak256 v215, v216
-    v218 = eq v217, 0x387a8233c96e1fc0ad5e284353276177af2186e7afa85296f106336e376669f7
-    v219 = eq v218, false
-    icall panic_if<0x1>, v219
-    v220 = extract_value slice<calldata>, arg0, 0
-    v221 = ptrtoint ptr<calldata> v220 to i256
-    v222 = add v221, 128
-    v223 = calldataload v222
-    v224 = lt v223, 3
-    v225 = eq v224, false
-    icall revert_if<empty>, v225
-    v226 = trunc i256 v223 to i8
-    v227 = eq v226, i8 1
-    v228 = eq v227, false
-    icall panic_if<0x1>, v228
-    v229 = eq arg1, 5
+    v210 = and v208, v209
+    v211 = add v210, 32
+    v212 = lt v211, v207
+    icall panic_if<0x41>, v212
+    v213 = alloc v211
+    mstore v213, v207
+    v214 = ptradd v213, 32
+    v215 = extract_value slice<calldata>, v199, 0
+    v216 = extract_value slice<calldata>, v199, 1
+    calldatacopy v214, v215, v216
+    v217 = ptradd v213, 32
+    v218 = mload v213
+    v219 = keccak256 v217, v218
+    v220 = eq v219, 0x387a8233c96e1fc0ad5e284353276177af2186e7afa85296f106336e376669f7
+    v221 = eq v220, false
+    icall panic_if<0x1>, v221
+    v222 = extract_value slice<calldata>, arg0, 0
+    v223 = ptrtoint ptr<calldata> v222 to i256
+    v224 = add v223, 128
+    v225 = calldataload v224
+    v226 = lt v225, 3
+    v227 = eq v226, false
+    icall revert_if<empty>, v227
+    v228 = trunc i256 v225 to i8
+    v229 = eq v228, i8 1
     v230 = eq v229, false
     icall panic_if<0x1>, v230
-    v231 = ptradd arg2, 32
-    v232 = mload arg2
-    v233 = keccak256 v231, v232
-    v234 = eq v233, 0x746c32bd76400aea458889122fc934ee4dbd66d1fce294f5a05a66cf3d2a6d53
-    v235 = eq v234, false
-    icall panic_if<0x1>, v235
+    v231 = eq arg1, 5
+    v232 = eq v231, false
+    icall panic_if<0x1>, v232
+    v233 = ptradd arg2, 32
+    v234 = mload arg2
+    v235 = keccak256 v233, v234
+    v236 = eq v235, 0x746c32bd76400aea458889122fc934ee4dbd66d1fce294f5a05a66cf3d2a6d53
+    v237 = eq v236, false
+    icall panic_if<0x1>, v237
     ret
 }
 

@@ -12,9 +12,9 @@
 +     v5 = sub v3, v4
 +     mstore v1, v5
 +     v6 = extract_value slice<calldata>, arg0, 1
-+     v7 = not 31
-+     v8 = add v6, 31
-+     v9 = and v8, v7
++     v7 = add v6, 31
++     v8 = not 31
++     v9 = and v7, v8
 +     v10 = add v3, 32
 +     v11 = add v3, v9
 +     mstore v11, 0

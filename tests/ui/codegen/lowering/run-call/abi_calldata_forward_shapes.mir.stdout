@@ -14,21 +14,22 @@ fn @sinkFlags(arg0: slice<calldata>) -> i256 [selector=0xb9bf39e0, pure, abi_par
     v8 = sgt v7, v6
     icall revert_if<calldata_tail_too_short>, v8
     v9 = extract_value slice<calldata>, v1, 1
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    icall panic_if<0x41>, v11
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc v13
-    mstore v14, v9
-    v15 = ptradd v14, 32
-    v16 = extract_value slice<calldata>, v1, 0
-    v17 = extract_value slice<calldata>, v1, 1
-    calldatacopy v15, v16, v17
-    v18 = ptradd v14, 32
-    v19 = mload v14
-    v20 = keccak256 v18, v19
-    ret v20
+    v10 = add v9, 31
+    v11 = not 31
+    v12 = and v10, v11
+    v13 = add v12, 32
+    v14 = lt v13, v9
+    icall panic_if<0x41>, v14
+    v15 = alloc v13
+    mstore v15, v9
+    v16 = ptradd v15, 32
+    v17 = extract_value slice<calldata>, v1, 0
+    v18 = extract_value slice<calldata>, v1, 1
+    calldatacopy v16, v17, v18
+    v19 = ptradd v15, 32
+    v20 = mload v15
+    v21 = keccak256 v19, v20
+    ret v21
 }
 
 fn @sinkPairs(arg0: slice<calldata>) -> i256 [selector=0xc7c34c1b, pure, abi_params=[array<_, tuple<uint256, uint256>>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -45,21 +46,22 @@ fn @sinkPairs(arg0: slice<calldata>) -> i256 [selector=0xc7c34c1b, pure, abi_par
     v8 = sgt v7, v6
     icall revert_if<calldata_tail_too_short>, v8
     v9 = extract_value slice<calldata>, v1, 1
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    icall panic_if<0x41>, v11
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc v13
-    mstore v14, v9
-    v15 = ptradd v14, 32
-    v16 = extract_value slice<calldata>, v1, 0
-    v17 = extract_value slice<calldata>, v1, 1
-    calldatacopy v15, v16, v17
-    v18 = ptradd v14, 32
-    v19 = mload v14
-    v20 = keccak256 v18, v19
-    ret v20
+    v10 = add v9, 31
+    v11 = not 31
+    v12 = and v10, v11
+    v13 = add v12, 32
+    v14 = lt v13, v9
+    icall panic_if<0x41>, v14
+    v15 = alloc v13
+    mstore v15, v9
+    v16 = ptradd v15, 32
+    v17 = extract_value slice<calldata>, v1, 0
+    v18 = extract_value slice<calldata>, v1, 1
+    calldatacopy v16, v17, v18
+    v19 = ptradd v15, 32
+    v20 = mload v15
+    v21 = keccak256 v19, v20
+    ret v21
 }
 
 fn @sinkGrid(arg0: slice<calldata>) -> i256 [selector=0xdbf408bc, pure, abi_params=[array<2, array<_, uint256>>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -76,21 +78,22 @@ fn @sinkGrid(arg0: slice<calldata>) -> i256 [selector=0xdbf408bc, pure, abi_para
     v8 = sgt v7, v6
     icall revert_if<calldata_tail_too_short>, v8
     v9 = extract_value slice<calldata>, v1, 1
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    icall panic_if<0x41>, v11
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc v13
-    mstore v14, v9
-    v15 = ptradd v14, 32
-    v16 = extract_value slice<calldata>, v1, 0
-    v17 = extract_value slice<calldata>, v1, 1
-    calldatacopy v15, v16, v17
-    v18 = ptradd v14, 32
-    v19 = mload v14
-    v20 = keccak256 v18, v19
-    ret v20
+    v10 = add v9, 31
+    v11 = not 31
+    v12 = and v10, v11
+    v13 = add v12, 32
+    v14 = lt v13, v9
+    icall panic_if<0x41>, v14
+    v15 = alloc v13
+    mstore v15, v9
+    v16 = ptradd v15, 32
+    v17 = extract_value slice<calldata>, v1, 0
+    v18 = extract_value slice<calldata>, v1, 1
+    calldatacopy v16, v17, v18
+    v19 = ptradd v15, 32
+    v20 = mload v15
+    v21 = keccak256 v19, v20
+    ret v21
 }
 
 fn @sinkMixed(arg0: slice<calldata>) -> i256 [selector=0x4cafa207, pure, abi_params=[tuple<array<_, tuple<bool, int8, enum<3, uint8>, bytes4>>, array<_, tuple<uint256, uint256>>, array<2, array<_, uint256>>, array<_, bytes>>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -107,21 +110,22 @@ fn @sinkMixed(arg0: slice<calldata>) -> i256 [selector=0x4cafa207, pure, abi_par
     v8 = sgt v7, v6
     icall revert_if<calldata_tail_too_short>, v8
     v9 = extract_value slice<calldata>, v1, 1
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    icall panic_if<0x41>, v11
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc v13
-    mstore v14, v9
-    v15 = ptradd v14, 32
-    v16 = extract_value slice<calldata>, v1, 0
-    v17 = extract_value slice<calldata>, v1, 1
-    calldatacopy v15, v16, v17
-    v18 = ptradd v14, 32
-    v19 = mload v14
-    v20 = keccak256 v18, v19
-    ret v20
+    v10 = add v9, 31
+    v11 = not 31
+    v12 = and v10, v11
+    v13 = add v12, 32
+    v14 = lt v13, v9
+    icall panic_if<0x41>, v14
+    v15 = alloc v13
+    mstore v15, v9
+    v16 = ptradd v15, 32
+    v17 = extract_value slice<calldata>, v1, 0
+    v18 = extract_value slice<calldata>, v1, 1
+    calldatacopy v16, v17, v18
+    v19 = ptradd v15, 32
+    v20 = mload v15
+    v21 = keccak256 v19, v20
+    ret v21
 }
 
 fn @forwardFlags(arg0: slice<calldata>) -> i256 [selector=0xe1a0d55e, view, abi_params=[array<_, tuple<bool, int8, enum<3, uint8>, bytes4>>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -222,21 +226,22 @@ fn @sinkNested(arg0: slice<calldata>) -> i256 [selector=0x889a8b28, pure, abi_pa
     v8 = sgt v7, v6
     icall revert_if<calldata_tail_too_short>, v8
     v9 = extract_value slice<calldata>, v1, 1
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    icall panic_if<0x41>, v11
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc v13
-    mstore v14, v9
-    v15 = ptradd v14, 32
-    v16 = extract_value slice<calldata>, v1, 0
-    v17 = extract_value slice<calldata>, v1, 1
-    calldatacopy v15, v16, v17
-    v18 = ptradd v14, 32
-    v19 = mload v14
-    v20 = keccak256 v18, v19
-    ret v20
+    v10 = add v9, 31
+    v11 = not 31
+    v12 = and v10, v11
+    v13 = add v12, 32
+    v14 = lt v13, v9
+    icall panic_if<0x41>, v14
+    v15 = alloc v13
+    mstore v15, v9
+    v16 = ptradd v15, 32
+    v17 = extract_value slice<calldata>, v1, 0
+    v18 = extract_value slice<calldata>, v1, 1
+    calldatacopy v16, v17, v18
+    v19 = ptradd v15, 32
+    v20 = mload v15
+    v21 = keccak256 v19, v20
+    ret v21
 }
 
 fn @sinkHolder(arg0: slice<calldata>) -> i256 [selector=0x0cd51333, pure, abi_params=[tuple<array<_, address>, uint256>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -253,21 +258,22 @@ fn @sinkHolder(arg0: slice<calldata>) -> i256 [selector=0x0cd51333, pure, abi_pa
     v8 = sgt v7, v6
     icall revert_if<calldata_tail_too_short>, v8
     v9 = extract_value slice<calldata>, v1, 1
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    icall panic_if<0x41>, v11
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc v13
-    mstore v14, v9
-    v15 = ptradd v14, 32
-    v16 = extract_value slice<calldata>, v1, 0
-    v17 = extract_value slice<calldata>, v1, 1
-    calldatacopy v15, v16, v17
-    v18 = ptradd v14, 32
-    v19 = mload v14
-    v20 = keccak256 v18, v19
-    ret v20
+    v10 = add v9, 31
+    v11 = not 31
+    v12 = and v10, v11
+    v13 = add v12, 32
+    v14 = lt v13, v9
+    icall panic_if<0x41>, v14
+    v15 = alloc v13
+    mstore v15, v9
+    v16 = ptradd v15, 32
+    v17 = extract_value slice<calldata>, v1, 0
+    v18 = extract_value slice<calldata>, v1, 1
+    calldatacopy v16, v17, v18
+    v19 = ptradd v15, 32
+    v20 = mload v15
+    v21 = keccak256 v19, v20
+    ret v21
 }
 
 fn @forwardNested(arg0: slice<calldata>) -> i256 [selector=0x781c097b, view, abi_params=[array<_, array<_, uint8>>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -375,21 +381,22 @@ fn @sinkWrap(arg0: slice<calldata>) -> i256 [selector=0xf23fcded, pure, abi_para
     v8 = sgt v7, v6
     icall revert_if<calldata_tail_too_short>, v8
     v9 = extract_value slice<calldata>, v1, 1
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    icall panic_if<0x41>, v11
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc v13
-    mstore v14, v9
-    v15 = ptradd v14, 32
-    v16 = extract_value slice<calldata>, v1, 0
-    v17 = extract_value slice<calldata>, v1, 1
-    calldatacopy v15, v16, v17
-    v18 = ptradd v14, 32
-    v19 = mload v14
-    v20 = keccak256 v18, v19
-    ret v20
+    v10 = add v9, 31
+    v11 = not 31
+    v12 = and v10, v11
+    v13 = add v12, 32
+    v14 = lt v13, v9
+    icall panic_if<0x41>, v14
+    v15 = alloc v13
+    mstore v15, v9
+    v16 = ptradd v15, 32
+    v17 = extract_value slice<calldata>, v1, 0
+    v18 = extract_value slice<calldata>, v1, 1
+    calldatacopy v16, v17, v18
+    v19 = ptradd v15, 32
+    v20 = mload v15
+    v21 = keccak256 v19, v20
+    ret v21
 }
 
 fn @forwardWrap(arg0: slice<calldata>) -> i256 [selector=0xb46a75c0, view, abi_params=[array<_, tuple<bytes, array<2, uint256>>>], abi_returns=[word], abi_return_params=[bytes32]] {

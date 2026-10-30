@@ -10,32 +10,34 @@
 fn @storageTuple(arg0: slice<calldata>, arg1: slice<calldata>) -> struct0 [selector=0xccc7dfb8, abi_params=[bytes, bytes], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg1, 1
-    v1 = add v0, 63
+    v1 = add v0, 31
     v2 = not 31
     v3 = and v1, v2
-    v4 = alloc v3
-    mstore v4, v0
-    v5 = ptradd v4, 32
-    v6 = extract_value slice<calldata>, arg1, 0
-    v7 = extract_value slice<calldata>, arg1, 1
-    calldatacopy v5, v6, v7
-    icall @store_storage_bytes, 1, v4
-    v8 = extract_value slice<calldata>, arg0, 1
-    v9 = add v8, 63
-    v10 = not 31
-    v11 = and v9, v10
-    v12 = alloc v11
-    mstore v12, v8
-    v13 = ptradd v12, 32
-    v14 = extract_value slice<calldata>, arg0, 0
-    v15 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v13, v14, v15
-    icall @store_storage_bytes, 0, v12
-    v16 = icall @load_storage_bytes, 0
-    v17 = icall @load_storage_bytes, 1
-    v18 = insert_value struct0, undef struct0, 0, v16
-    v19 = insert_value struct0, v18, 1, v17
-    ret v19
+    v4 = add v3, 32
+    v5 = alloc v4
+    mstore v5, v0
+    v6 = ptradd v5, 32
+    v7 = extract_value slice<calldata>, arg1, 0
+    v8 = extract_value slice<calldata>, arg1, 1
+    calldatacopy v6, v7, v8
+    icall @store_storage_bytes, 1, v5
+    v9 = extract_value slice<calldata>, arg0, 1
+    v10 = add v9, 31
+    v11 = not 31
+    v12 = and v10, v11
+    v13 = add v12, 32
+    v14 = alloc v13
+    mstore v14, v9
+    v15 = ptradd v14, 32
+    v16 = extract_value slice<calldata>, arg0, 0
+    v17 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v15, v16, v17
+    icall @store_storage_bytes, 0, v14
+    v18 = icall @load_storage_bytes, 0
+    v19 = icall @load_storage_bytes, 1
+    v20 = insert_value struct0, undef struct0, 0, v18
+    v21 = insert_value struct0, v20, 1, v19
+    ret v21
 }
 
 fn @memoryTuple(arg0: slice<calldata>) -> struct1 [selector=0x32e034d0, pure, abi_params=[array<_, uint256>], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {

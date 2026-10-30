@@ -3,18 +3,18 @@
 @phase lowered
 fn @decoded() [selector=0x45c91515, abi_wrapper, pure] {
   bb0:
-    v11 = calldatasize
-    v12 = lt v11, 36
-    jumpi v12, bb1, bb2
+    v12 = calldatasize
+    v13 = lt v12, 36
+    jumpi v13, bb1, bb2
   bb2:
-    v13 = icall @decode_calldata_slice
-    v14 = calldataload v13
-    v15 = add v13, 32
-    v23 = heap_floor !metadata(alloc_ptr)
-    mstore v23, v14
-    v20 = add v23, 32
-    calldatacopy v20, v15, v14
-    mstore 0, v14
+    v14 = icall @decode_calldata_slice
+    v15 = calldataload v14
+    v16 = add v14, 32
+    v24 = heap_floor !metadata(alloc_ptr)
+    mstore v24, v15
+    v21 = add v24, 32
+    calldatacopy v21, v16, v15
+    mstore 0, v15
     returndata 0, 32
   bb1:
     revert 0, 0
@@ -22,29 +22,30 @@ fn @decoded() [selector=0x45c91515, abi_wrapper, pure] {
 
 fn @lengthSet() [selector=0xa5e448c2, abi_wrapper, pure] {
   bb0:
-    v23 = calldatasize
-    v24 = lt v23, 68
-    jumpi v24, bb3, bb5
+    v24 = calldatasize
+    v25 = lt v24, 68
+    jumpi v25, bb3, bb5
   bb5:
-    v25 = icall @decode_calldata_slice
-    v27 = add v25, 32
-    v3 = add arg1, 63
-    v4 = lt v3, arg1
-    jumpi v4, bb1, bb2
+    v26 = icall @decode_calldata_slice
+    v28 = add v26, 32
+    v38 = add arg1, 63
+    v6 = and v38, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v7 = lt v6, arg1
+    jumpi v7, bb1, bb2
   bb2:
-    v35 = heap_floor !metadata(alloc_ptr)
-    mstore v35, arg1
-    v10 = calldatasize
-    v21 = shr arg1, 64
-    v12 = sub v10, arg1
-    v14 = sgt v27, v12
-    v37 = zext i1 v14 to i256
-    v38 = or v21, v37
-    v39 = ne v38, 0
-    jumpi v39, bb3, bb4
+    v36 = heap_floor !metadata(alloc_ptr)
+    mstore v36, arg1
+    v11 = calldatasize
+    v22 = shr arg1, 64
+    v13 = sub v11, arg1
+    v15 = sgt v28, v13
+    v40 = zext i1 v15 to i256
+    v41 = or v22, v40
+    v42 = ne v41, 0
+    jumpi v42, bb3, bb4
   bb4:
-    v32 = add v35, 32
-    calldatacopy v32, v27, arg1
+    v33 = add v36, 32
+    calldatacopy v33, v28, arg1
     mstore 0, arg1
     returndata 0, 32
   bb1:
@@ -55,32 +56,33 @@ fn @lengthSet() [selector=0xa5e448c2, abi_wrapper, pure] {
 
 fn @offsetSet() [selector=0xba062698, abi_wrapper, pure] {
   bb0:
-    v27 = calldatasize
-    v28 = lt v27, 68
-    jumpi v28, bb3, bb5
+    v28 = calldatasize
+    v29 = lt v28, 68
+    jumpi v29, bb3, bb5
   bb5:
-    v29 = icall @decode_calldata_slice
-    v30 = calldataload v29
-    v31 = add v29, 32
-    v2 = add v31, arg1
-    v7 = add v30, 63
-    v8 = lt v7, v30
-    jumpi v8, bb1, bb2
+    v30 = icall @decode_calldata_slice
+    v31 = calldataload v30
+    v32 = add v30, 32
+    v2 = add v32, arg1
+    v42 = add v31, 63
+    v10 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v11 = lt v10, v31
+    jumpi v11, bb1, bb2
   bb2:
-    v39 = heap_floor !metadata(alloc_ptr)
-    mstore v39, v30
-    v14 = calldatasize
-    v25 = shr v30, 64
-    v16 = sub v14, v30
-    v18 = sgt v2, v16
-    v41 = zext i1 v18 to i256
-    v42 = or v25, v41
-    v43 = ne v42, 0
-    jumpi v43, bb3, bb4
+    v40 = heap_floor !metadata(alloc_ptr)
+    mstore v40, v31
+    v15 = calldatasize
+    v26 = shr v31, 64
+    v17 = sub v15, v31
+    v19 = sgt v2, v17
+    v44 = zext i1 v19 to i256
+    v45 = or v26, v44
+    v46 = ne v45, 0
+    jumpi v46, bb3, bb4
   bb4:
-    v36 = add v39, 32
-    calldatacopy v36, v2, v30
-    mstore 0, v30
+    v37 = add v40, 32
+    calldatacopy v37, v2, v31
+    mstore 0, v31
     returndata 0, 32
   bb1:
     tail_call @revert_stub
@@ -90,28 +92,35 @@ fn @offsetSet() [selector=0xba062698, abi_wrapper, pure] {
 
 fn @forwarded() [selector=0xbf6f2c90, abi_wrapper, pure] {
   bb0:
-    v21 = calldatasize
-    v22 = lt v21, 36
-    jumpi v22, bb1, bb3
-  bb3:
-    v23 = icall @decode_calldata_slice
-    v24 = calldataload v23
-    v25 = add v23, 32
+    v22 = calldatasize
+    v23 = lt v22, 36
+    jumpi v23, bb1, bb5
+  bb5:
+    v24 = icall @decode_calldata_slice
+    v25 = calldataload v24
+    v26 = add v24, 32
     v2 = calldatasize
-    v19 = shr v24, 64
-    v4 = sub v2, v24
-    v6 = sgt v25, v4
-    v35 = zext i1 v6 to i256
-    v36 = or v19, v35
-    v37 = ne v36, 0
-    jumpi v37, bb1, bb2
+    v20 = shr v25, 64
+    v4 = sub v2, v25
+    v6 = sgt v26, v4
+    v38 = zext i1 v6 to i256
+    v39 = or v20, v38
+    v40 = ne v39, 0
+    jumpi v40, bb1, bb2
   bb2:
-    v33 = heap_floor !metadata(alloc_ptr)
-    mstore v33, v24
-    v30 = add v33, 32
-    calldatacopy v30, v25, v24
-    mstore 0, v24
+    v36 = add v25, 63
+    v11 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v12 = lt v11, v25
+    jumpi v12, bb3, bb4
+  bb4:
+    v34 = heap_floor !metadata(alloc_ptr)
+    mstore v34, v25
+    v31 = add v34, 32
+    calldatacopy v31, v26, v25
+    mstore 0, v25
     returndata 0, 32
+  bb3:
+    tail_call @revert_stub
   bb1:
     revert 0, 0
 }

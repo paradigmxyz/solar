@@ -167,8 +167,8 @@ fn @fa() [selector=0xa2467f05, abi_wrapper] {
   bb27:
     v159 = sub v125, v39
     mstore v142, v159
-    v162 = add v152, 31
-    v163 = and v162, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v161 = add v152, 31
+    v163 = and v161, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v164 = add v125, 32
     v165 = add v125, v163
     mstore v165, 0
@@ -379,8 +379,8 @@ fn @fb() [selector=0x81fba7cd, abi_wrapper] {
   bb27:
     v159 = sub v125, v39
     mstore v142, v159
-    v162 = add v152, 31
-    v163 = and v162, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v161 = add v152, 31
+    v163 = and v161, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v164 = add v125, 32
     v165 = add v125, v163
     mstore v165, 0

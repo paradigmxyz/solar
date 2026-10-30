@@ -56,24 +56,25 @@ fn @reset(arg0: slice<calldata>) -> i256 [selector=0x12a20190, pure, abi_params=
     v5 = ptrtoint ptr<memory> v0 to i256
     mstore 64, v5 !metadata(memory=scratch)
     v6 = extract_value slice<calldata>, arg0, 1
-    v7 = add v6, 63
+    v7 = add v6, 31
     v8 = not 31
     v9 = and v7, v8
-    v10 = alloc v9
-    mstore v10, v6
-    v11 = ptradd v10, 32
-    v12 = extract_value slice<calldata>, arg0, 0
-    v13 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v11, v12, v13
-    v14 = mload v0
-    v15 = lt 0, v14
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    v17 = ptradd v0, 32
-    v18 = mload v17
-    v19 = mload v10
-    v20 = checked_add uint256, v18, v19
-    ret v20
+    v10 = add v9, 32
+    v11 = alloc v10
+    mstore v11, v6
+    v12 = ptradd v11, 32
+    v13 = extract_value slice<calldata>, arg0, 0
+    v14 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v12, v13, v14
+    v15 = mload v0
+    v16 = lt 0, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = ptradd v0, 32
+    v19 = mload v18
+    v20 = mload v11
+    v21 = checked_add uint256, v19, v20
+    ret v21
 }
 
 fn @wrappedIndex(arg0: i256, arg1: i256) -> i256 [selector=0xf6bbb82e, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {

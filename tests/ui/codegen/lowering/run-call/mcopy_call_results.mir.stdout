@@ -31,79 +31,81 @@ fn @overlapping(arg0: i256) -> struct0 [selector=0x206097d8, pure, abi_params=[u
 
 fn @padding(arg0: i256) -> ptr<memory> [pure] {
   bb0:
-    v0 = add arg0, 63
-    v1 = lt v0, arg0
-    icall panic_if<0x41>, v1
-    v2 = not 31
-    v3 = and v0, v2
-    v4 = alloc zeroed checked v3
-    mstore v4, arg0
+    v0 = add arg0, 31
+    v1 = not 31
+    v2 = and v0, v1
+    v3 = add v2, 32
+    v4 = lt v3, arg0
+    icall panic_if<0x41>, v4
+    v5 = alloc zeroed checked v3
+    mstore v5, arg0
     jump bb1
   bb1:
-    v5 = phi [bb0: arg0], [bb3: v5]
-    v6 = phi [bb0: v4], [bb3: v6]
-    v7 = phi [bb0: 0], [bb3: v15]
-    v8 = lt v7, v5
-    jumpi v8, bb4, bb5
+    v6 = phi [bb0: arg0], [bb3: v6]
+    v7 = phi [bb0: v5], [bb3: v7]
+    v8 = phi [bb0: 0], [bb3: v16]
+    v9 = lt v8, v6
+    jumpi v9, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v6
+    ret v7
   bb4:
-    v9 = mload v6
-    v10 = lt v7, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = byte 0, 0x6100000000000000000000000000000000000000000000000000000000000000
-    v13 = ptradd v6, v7
-    v14 = ptradd v13, 32
-    mstore8 v14, v12
+    v10 = mload v7
+    v11 = lt v8, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = byte 0, 0x6100000000000000000000000000000000000000000000000000000000000000
+    v14 = ptradd v7, v8
+    v15 = ptradd v14, 32
+    mstore8 v15, v13
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v15 = checked_add uint256, v7, 1
+    v16 = checked_add uint256, v8, 1
     jump bb1
 }
 
 fn @counting(arg0: i256) -> ptr<memory> [pure] {
   bb0:
-    v0 = add arg0, 63
-    v1 = lt v0, arg0
-    icall panic_if<0x41>, v1
-    v2 = not 31
-    v3 = and v0, v2
-    v4 = alloc zeroed checked v3
-    mstore v4, arg0
+    v0 = add arg0, 31
+    v1 = not 31
+    v2 = and v0, v1
+    v3 = add v2, 32
+    v4 = lt v3, arg0
+    icall panic_if<0x41>, v4
+    v5 = alloc zeroed checked v3
+    mstore v5, arg0
     jump bb1
   bb1:
-    v5 = phi [bb0: arg0], [bb3: v5]
-    v6 = phi [bb0: v4], [bb3: v6]
-    v7 = phi [bb0: 0], [bb3: v19]
-    v8 = lt v7, v5
-    jumpi v8, bb4, bb5
+    v6 = phi [bb0: arg0], [bb3: v6]
+    v7 = phi [bb0: v5], [bb3: v7]
+    v8 = phi [bb0: 0], [bb3: v20]
+    v9 = lt v8, v6
+    jumpi v9, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v6
+    ret v7
   bb4:
-    v9 = checked_add uint256, v7, 1
-    v10 = trunc i256 v9 to i8
-    v11 = zext i8 v10 to i256
-    v12 = shl v11, 248
-    v13 = mload v6
-    v14 = lt v7, v13
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = byte 0, v12
-    v17 = ptradd v6, v7
-    v18 = ptradd v17, 32
-    mstore8 v18, v16
+    v10 = checked_add uint256, v8, 1
+    v11 = trunc i256 v10 to i8
+    v12 = zext i8 v11 to i256
+    v13 = shl v12, 248
+    v14 = mload v7
+    v15 = lt v8, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = byte 0, v13
+    v18 = ptradd v7, v8
+    v19 = ptradd v18, 32
+    mstore8 v19, v17
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v19 = checked_add uint256, v7, 1
+    v20 = checked_add uint256, v8, 1
     jump bb1
 }
 
@@ -121,47 +123,48 @@ fn @digits(arg0: i256) -> ptr<memory> [pure] {
   bb5:
     jump bb2
   bb2:
-    v8 = add v2, 63
-    v9 = lt v8, v2
-    icall panic_if<0x41>, v9
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc zeroed checked v11
-    mstore v12, v2
+    v8 = add v2, 31
+    v9 = not 31
+    v10 = and v8, v9
+    v11 = add v10, 32
+    v12 = lt v11, v2
+    icall panic_if<0x41>, v12
+    v13 = alloc zeroed checked v11
+    mstore v13, v2
     jump bb7
   bb7:
-    v13 = phi [bb2: v0], [bb9: v31]
-    v14 = phi [bb2: v12], [bb9: v14]
-    v15 = phi [bb2: v2], [bb9: v15]
-    v16 = phi [bb2: v3], [bb9: v16]
-    v17 = phi [bb2: v2], [bb9: v32]
-    v18 = gt v17, 0
-    jumpi v18, bb10, bb11
+    v14 = phi [bb2: v0], [bb9: v32]
+    v15 = phi [bb2: v13], [bb9: v15]
+    v16 = phi [bb2: v2], [bb9: v16]
+    v17 = phi [bb2: v3], [bb9: v17]
+    v18 = phi [bb2: v2], [bb9: v33]
+    v19 = gt v18, 0
+    jumpi v19, bb10, bb11
   bb11:
     jump bb8
   bb8:
-    ret v14
+    ret v15
   bb10:
-    v19 = checked_rem uint256, v13, 10
-    v20 = checked_add uint256, 48, v19
-    v21 = trunc i256 v20 to i8
-    v22 = zext i8 v21 to i256
-    v23 = shl v22, 248
-    v24 = checked_sub uint256, v17, 1
-    v25 = mload v14
-    v26 = lt v24, v25
-    v27 = eq v26, false
-    icall panic_if<0x32>, v27
-    v28 = byte 0, v23
-    v29 = ptradd v14, v24
-    v30 = ptradd v29, 32
-    mstore8 v30, v28
-    v31 = checked_div uint256, v13, 10
+    v20 = checked_rem uint256, v14, 10
+    v21 = checked_add uint256, 48, v20
+    v22 = trunc i256 v21 to i8
+    v23 = zext i8 v22 to i256
+    v24 = shl v23, 248
+    v25 = checked_sub uint256, v18, 1
+    v26 = mload v15
+    v27 = lt v25, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = byte 0, v24
+    v30 = ptradd v15, v25
+    v31 = ptradd v30, 32
+    mstore8 v31, v29
+    v32 = checked_div uint256, v14, 10
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v32 = checked_sub uint256, v17, 1
+    v33 = checked_sub uint256, v18, 1
     jump bb7
   bb4:
     v6 = checked_add uint256, v2, 1

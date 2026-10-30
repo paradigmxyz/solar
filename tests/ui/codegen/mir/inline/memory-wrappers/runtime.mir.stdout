@@ -33,47 +33,48 @@ fn @wrap(arg0: ptr<memory>) -> ptr<memory> [pure] {
 fn @copy(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb0:
     v0 = mload arg0
-    v1 = add v0, 63
-    v2 = lt v1, v0
-    icall panic_if<0x41>, v2
-    v3 = not 31
-    v4 = and v1, v3
-    v5 = alloc zeroed checked v4
-    mstore v5, v0
+    v1 = add v0, 31
+    v2 = not 31
+    v3 = and v1, v2
+    v4 = add v3, 32
+    v5 = lt v4, v0
+    icall panic_if<0x41>, v5
+    v6 = alloc zeroed checked v4
+    mstore v6, v0
     jump bb1
   bb1:
-    v6 = phi [bb0: arg0], [bb3: v6]
-    v7 = phi [bb0: v5], [bb3: v7]
-    v8 = phi [bb0: 0], [bb3: v25]
-    v9 = mload v6
-    v10 = lt v8, v9
-    jumpi v10, bb4, bb5
+    v7 = phi [bb0: arg0], [bb3: v7]
+    v8 = phi [bb0: v6], [bb3: v8]
+    v9 = phi [bb0: 0], [bb3: v26]
+    v10 = mload v7
+    v11 = lt v9, v10
+    jumpi v11, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v7
+    ret v8
   bb4:
-    v11 = mload v6
-    v12 = lt v8, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    v14 = ptradd v6, v8
-    v15 = ptradd v14, 32
-    v16 = mload v15
-    v17 = byte 0, v16
-    v18 = shl v17, 248
-    v19 = mload v7
-    v20 = lt v8, v19
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = byte 0, v18
-    v23 = ptradd v7, v8
-    v24 = ptradd v23, 32
-    mstore8 v24, v22
+    v12 = mload v7
+    v13 = lt v9, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = ptradd v7, v9
+    v16 = ptradd v15, 32
+    v17 = mload v16
+    v18 = byte 0, v17
+    v19 = shl v18, 248
+    v20 = mload v8
+    v21 = lt v9, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = byte 0, v19
+    v24 = ptradd v8, v9
+    v25 = ptradd v24, 32
+    mstore8 v25, v23
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v25 = checked_add uint256, v8, 1
+    v26 = checked_add uint256, v9, 1
     jump bb1
 }

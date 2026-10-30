@@ -26,28 +26,29 @@
 +     v11 = make_memory_slice v10, 2
 +     v12 = extract_value slice<memory>, v11, 1
 +     v13 = add v9, v12
-+     v14 = add v13, 63
-+     v15 = lt v14, v13
-+     jumpi v15, bb1, bb2
++     v14 = add v13, 31
++     v15 = not 31
++     v16 = and v14, v15
++     v17 = add v16, 32
++     v18 = lt v17, v13
++     jumpi v18, bb1, bb2
 +   bb2:
-+     v16 = not 31
-+     v17 = and v14, v16
-+     v18 = alloc v17 !metadata(preserves_fmp)
-+     mstore v18, v13
-+     v19 = ptradd v18, 32
-+     v20 = ptradd v19, 0
-+     v21 = extract_value slice<memory>, v7, 0
-+     mcopy v20, v21, v8 !metadata(memory=heap, disjoint)
-+     v22 = add 0, v8
-+     v23 = ptradd v18, 32
-+     v24 = ptradd v23, v22
-+     v25 = extract_value slice<memory>, v11, 0
-+     mcopy v24, v25, v12 !metadata(memory=heap, disjoint)
-+     v26 = add v22, v12
-+     v27 = ptradd v18, v26
-+     v28 = ptradd v27, 32
-+     mstore v28, 0
-+     ret v18
++     v19 = alloc v17 !metadata(preserves_fmp)
++     mstore v19, v13
++     v20 = ptradd v19, 32
++     v21 = ptradd v20, 0
++     v22 = extract_value slice<memory>, v7, 0
++     mcopy v21, v22, v8 !metadata(memory=heap, disjoint)
++     v23 = add 0, v8
++     v24 = ptradd v19, 32
++     v25 = ptradd v24, v23
++     v26 = extract_value slice<memory>, v11, 0
++     mcopy v25, v26, v12 !metadata(memory=heap, disjoint)
++     v27 = add v23, v12
++     v28 = ptradd v19, v27
++     v29 = ptradd v28, 32
++     mstore v29, 0
++     ret v19
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -69,27 +70,28 @@
 +     v6 = extract_value slice<memory>, v5, 1
 +     v7 = add 0, v6
 +     v8 = add v7, 1
-+     v9 = add v8, 63
-+     v10 = lt v9, v8
-+     jumpi v10, bb1, bb2
++     v9 = add v8, 31
++     v10 = not 31
++     v11 = and v9, v10
++     v12 = add v11, 32
++     v13 = lt v12, v8
++     jumpi v13, bb1, bb2
 +   bb2:
-+     v11 = not 31
-+     v12 = and v9, v11
-+     v13 = alloc v12 !metadata(preserves_fmp)
-+     mstore v13, v8
-+     v14 = ptradd v13, 32
-+     v15 = extract_value slice<memory>, v5, 0
-+     v16 = extract_value slice<memory>, v5, 1
-+     mcopy v14, v15, v16
-+     v17 = add 0, v6
-+     v18 = ptradd v13, v17
-+     v19 = ptradd v18, 32
-+     mstore v19, 0x2200000000000000000000000000000000000000000000000000000000000000
-+     v20 = add v17, 1
-+     v21 = ptradd v13, v20
-+     v22 = ptradd v21, 32
-+     mstore v22, 0
-+     ret v13
++     v14 = alloc v12 !metadata(preserves_fmp)
++     mstore v14, v8
++     v15 = ptradd v14, 32
++     v16 = extract_value slice<memory>, v5, 0
++     v17 = extract_value slice<memory>, v5, 1
++     mcopy v15, v16, v17
++     v18 = add 0, v6
++     v19 = ptradd v14, v18
++     v20 = ptradd v19, 32
++     mstore v20, 0x2200000000000000000000000000000000000000000000000000000000000000
++     v21 = add v18, 1
++     v22 = ptradd v14, v21
++     v23 = ptradd v22, 32
++     mstore v23, 0
++     ret v14
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -109,27 +111,28 @@
 +     v5 = extract_value slice<memory>, v4, 1
 +     v6 = add 0, v5
 +     v7 = add v6, 1
-+     v8 = add v7, 63
-+     v9 = lt v8, v7
-+     jumpi v9, bb1, bb2
++     v8 = add v7, 31
++     v9 = not 31
++     v10 = and v8, v9
++     v11 = add v10, 32
++     v12 = lt v11, v7
++     jumpi v12, bb1, bb2
 +   bb2:
-+     v10 = not 31
-+     v11 = and v8, v10
-+     v12 = alloc v11 !metadata(preserves_fmp)
-+     mstore v12, v7
-+     v13 = ptradd v12, 32
-+     v14 = extract_value slice<memory>, v4, 0
-+     v15 = extract_value slice<memory>, v4, 1
-+     mcopy v13, v14, v15
-+     v16 = add 0, v5
-+     v17 = ptradd v12, v16
-+     v18 = ptradd v17, 32
-+     mstore v18, 0x2200000000000000000000000000000000000000000000000000000000000000
-+     v19 = add v16, 1
-+     v20 = ptradd v12, v19
-+     v21 = ptradd v20, 32
-+     mstore v21, 0
-+     ret v12
++     v13 = alloc v11 !metadata(preserves_fmp)
++     mstore v13, v7
++     v14 = ptradd v13, 32
++     v15 = extract_value slice<memory>, v4, 0
++     v16 = extract_value slice<memory>, v4, 1
++     mcopy v14, v15, v16
++     v17 = add 0, v5
++     v18 = ptradd v13, v17
++     v19 = ptradd v18, 32
++     mstore v19, 0x2200000000000000000000000000000000000000000000000000000000000000
++     v20 = add v17, 1
++     v21 = ptradd v13, v20
++     v22 = ptradd v21, 32
++     mstore v22, 0
++     ret v13
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)

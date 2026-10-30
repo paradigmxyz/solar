@@ -24,17 +24,18 @@ fn @adopt(arg0: i1, arg1: slice<calldata>) -> ptr<memory> [selector=0x7b54f632, 
     jump bb3
   bb1:
     v2 = extract_value slice<calldata>, arg1, 1
-    v3 = add v2, 63
+    v3 = add v2, 31
     v4 = not 31
     v5 = and v3, v4
-    v6 = alloc v5
-    mstore v6, v2
-    v7 = ptradd v6, 32
-    v8 = extract_value slice<calldata>, arg1, 0
-    v9 = extract_value slice<calldata>, arg1, 1
-    calldatacopy v7, v8, v9
+    v6 = add v5, 32
+    v7 = alloc v6
+    mstore v7, v2
+    v8 = ptradd v7, 32
+    v9 = extract_value slice<calldata>, arg1, 0
+    v10 = extract_value slice<calldata>, arg1, 1
+    calldatacopy v8, v9, v10
     jump bb3
   bb3:
-    v10 = phi [bb1: v6], [bb2: v0]
-    ret v10
+    v11 = phi [bb1: v7], [bb2: v0]
+    ret v11
 }

@@ -3,50 +3,51 @@
 fn @copy(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x53a33458, pure, abi_params=[bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mload arg0
-    v1 = add v0, 63
-    v2 = lt v1, v0
-    icall panic_if<0x41>, v2
-    v3 = not 31
-    v4 = and v1, v3
-    v5 = alloc zeroed checked v4
-    mstore v5, v0
-    v6 = ptrtoint ptr<memory> v5 to i256
-    mstore v5, arg1
+    v1 = add v0, 31
+    v2 = not 31
+    v3 = and v1, v2
+    v4 = add v3, 32
+    v5 = lt v4, v0
+    icall panic_if<0x41>, v5
+    v6 = alloc zeroed checked v4
+    mstore v6, v0
+    v7 = ptrtoint ptr<memory> v6 to i256
+    mstore v6, arg1
     jump bb1
   bb1:
-    v7 = phi [bb0: arg0], [bb3: v7]
-    v8 = phi [bb0: arg1], [bb3: v8]
-    v9 = phi [bb0: v5], [bb3: v9]
-    v10 = phi [bb0: v0], [bb3: v10]
-    v11 = phi [bb0: 0], [bb3: v27]
-    v12 = lt v11, v10
-    jumpi v12, bb4, bb5
+    v8 = phi [bb0: arg0], [bb3: v8]
+    v9 = phi [bb0: arg1], [bb3: v9]
+    v10 = phi [bb0: v6], [bb3: v10]
+    v11 = phi [bb0: v0], [bb3: v11]
+    v12 = phi [bb0: 0], [bb3: v28]
+    v13 = lt v12, v11
+    jumpi v13, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v9
+    ret v10
   bb4:
-    v13 = mload v7
-    v14 = lt v11, v13
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = ptradd v7, v11
-    v17 = ptradd v16, 32
-    v18 = mload v17
-    v19 = byte 0, v18
-    v20 = shl v19, 248
-    v21 = mload v9
-    v22 = lt v11, v21
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = byte 0, v20
-    v25 = ptradd v9, v11
-    v26 = ptradd v25, 32
-    mstore8 v26, v24
+    v14 = mload v8
+    v15 = lt v12, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = ptradd v8, v12
+    v18 = ptradd v17, 32
+    v19 = mload v18
+    v20 = byte 0, v19
+    v21 = shl v20, 248
+    v22 = mload v10
+    v23 = lt v12, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = byte 0, v21
+    v26 = ptradd v10, v12
+    v27 = ptradd v26, 32
+    mstore8 v27, v25
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v27 = checked_add uint256, v11, 1
+    v28 = checked_add uint256, v12, 1
     jump bb1
 }

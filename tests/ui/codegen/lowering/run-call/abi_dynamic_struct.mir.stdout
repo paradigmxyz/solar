@@ -71,18 +71,19 @@ fn @tail(arg0: slice<calldata>) -> ptr<memory> [selector=0x39663a7e, pure, abi_p
     v38 = sgt v37, v36
     icall revert_if<calldata_tail_too_short>, v38
     v39 = extract_value slice<calldata>, v31, 1
-    v40 = add v39, 63
-    v41 = lt v40, v39
-    icall panic_if<0x41>, v41
-    v42 = not 31
-    v43 = and v40, v42
-    v44 = alloc v43
-    mstore v44, v39
-    v45 = ptradd v44, 32
-    v46 = extract_value slice<calldata>, v31, 0
-    v47 = extract_value slice<calldata>, v31, 1
-    calldatacopy v45, v46, v47
-    ret v44
+    v40 = add v39, 31
+    v41 = not 31
+    v42 = and v40, v41
+    v43 = add v42, 32
+    v44 = lt v43, v39
+    icall panic_if<0x41>, v44
+    v45 = alloc v43
+    mstore v45, v39
+    v46 = ptradd v45, 32
+    v47 = extract_value slice<calldata>, v31, 0
+    v48 = extract_value slice<calldata>, v31, 1
+    calldatacopy v46, v47, v48
+    ret v45
 }
 
 fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], abi_returns=[word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256]] {

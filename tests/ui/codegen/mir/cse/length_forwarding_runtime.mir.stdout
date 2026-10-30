@@ -1,0 +1,67 @@
+// === ROOT/tests/ui/codegen/mir/cse/length_forwarding_runtime.sol:Test ===
+@module Test
+fn @relay(arg0: ptr<memory>) -> ptr<memory> [selector=0x8f0d6f17, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = abi_encode [memory_bytes], scratch, args arg0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    log v1, v2, 0xc1c82a5983e686a82c3d6ad4035f16c949f4323be5183f0a8f7db1e83ef9d3e5
+    ret arg0
+}
+
+fn @twice(arg0: ptr<memory>) -> ptr<memory> [selector=0xff491092, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = abi_encode [memory_bytes], scratch, args arg0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    log v1, v2, 0xc1c82a5983e686a82c3d6ad4035f16c949f4323be5183f0a8f7db1e83ef9d3e5
+    v3 = abi_encode [memory_bytes], scratch, args arg0
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
+    log v4, v5, 0xc1c82a5983e686a82c3d6ad4035f16c949f4323be5183f0a8f7db1e83ef9d3e5
+    ret arg0
+}
+
+fn @shorten(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xe05b43e0, abi_params=[bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = abi_encode [memory_bytes], scratch, args arg0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    log v1, v2, 0xc1c82a5983e686a82c3d6ad4035f16c949f4323be5183f0a8f7db1e83ef9d3e5
+    v3 = ptrtoint ptr<memory> arg0 to i256
+    mstore arg0, arg1
+    ret arg0
+}
+
+fn @shortenThroughFmp(arg0: ptr<memory>) -> ptr<memory> [selector=0x0b273a84, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = abi_encode [memory_bytes], scratch, args arg0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    log v1, v2, 0xc1c82a5983e686a82c3d6ad4035f16c949f4323be5183f0a8f7db1e83ef9d3e5
+    v3 = not 31
+    v4 = ptrtoint ptr<memory> arg0 to i256
+    v5 = mload arg0
+    v6 = add v5, 31
+    v7 = and v6, v3
+    v8 = add v7, 32
+    v9 = mload 64 !metadata(memory=scratch)
+    v10 = sub v9, v8
+    mstore v10, 5
+    ret arg0
+}
+
+fn @rewind(arg0: ptr<memory>) -> ptr<memory> [selector=0x64d2e18a, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = abi_encode [memory_bytes], scratch, args arg0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    log v1, v2, 0xc1c82a5983e686a82c3d6ad4035f16c949f4323be5183f0a8f7db1e83ef9d3e5
+    v3 = ptrtoint ptr<memory> arg0 to i256
+    mstore 64, v3 !metadata(memory=scratch)
+    v4 = not 31
+    v5 = and 127, v4
+    v6 = alloc zeroed checked v5
+    mstore v6, 64
+    ret arg0
+}

@@ -13,8 +13,8 @@ fn @encodeFirst() [selector=0xe9a7b169, abi_wrapper, pure] {
     v10 = add v29, 32
     mstore v29, 32
     v13 = mload v4
-    v15 = add v13, 31
-    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v14 = add v13, 31
+    v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v17 = add v10, 32
     v18 = add v10, v16
     mstore v18, 0
@@ -40,8 +40,8 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
     v10 = add v29, 32
     mstore v29, 32
     v13 = mload v7
-    v15 = add v13, 31
-    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v14 = add v13, 31
+    v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v17 = add v10, 32
     v18 = add v10, v16
     mstore v18, 0
@@ -411,13 +411,13 @@ fn @encode_abi_array(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
 
 fn @encode_abi_tuple(arg0: i256) -> i256 [may_return_memory] {
   bb0:
-    v27 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v2 = add v27, 32
+    v28 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v2 = add v28, 32
     v3 = add v2, 32
     mstore v2, 32
     v5 = mload arg0
-    v24 = add arg0, 32
-    v7 = mload v24
+    v25 = add arg0, 32
+    v7 = mload v25
     v8 = add v3, 64
     mstore v3, v5
     v9 = add v3, 32
@@ -425,16 +425,16 @@ fn @encode_abi_tuple(arg0: i256) -> i256 [may_return_memory] {
     v12 = icall @encode_abi_array, v7, v8
     v13 = add v8, v12
     v16 = sub v13, v2
-    v18 = add v16, 63
-    v19 = lt v18, v16
-    jumpi v19, bb1, bb2
+    v31 = add v16, 63
+    v21 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v22 = lt v21, v16
+    jumpi v22, bb1, bb2
   bb2:
-    v21 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v28 = mload 64 !metadata(alloc_ptr)
-    v29 = add v28, v21 !metadata(alloc_ptr)
-    mstore 64, v29
-    mstore v28, v16
-    ret v28
+    v29 = mload 64 !metadata(alloc_ptr)
+    v30 = add v29, v21 !metadata(alloc_ptr)
+    mstore 64, v30
+    mstore v29, v16
+    ret v29
   bb1:
     mstore 32, 65
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

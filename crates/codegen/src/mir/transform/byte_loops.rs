@@ -111,8 +111,8 @@
 //! allocation stops zeroing: that word, or else a zero store to the allocation's last word before
 //! the copy, clears the padding. Nothing between the allocation and the loop may touch memory but
 //! stores of its length, so nothing reads the bytes unzeroed. Each such store must keep the
-//! bound as the length, and the allocation's size must be `(bound + 63) & ~31`, so the padding
-//! fits in one word and the loop cannot fail a destination bounds check.
+//! bound as the length, and the allocation's size must be `((bound + 31) & ~31) + 32`, so the
+//! padding fits in one word and the loop cannot fail a destination bounds check.
 //!
 //! An argument source may overlap the allocation, and the loop would then read its zeroed bytes.
 //! So a guarded copy takes its fast path only when the source the loop reads, its length word and
@@ -1219,7 +1219,7 @@ fn only_pattern_effects(func: &Function, lp: &Counted, used: &[InstId]) -> bool 
 }
 
 /// Matches a byte copy, counting up, of the whole of a destination that `new bytes(bound)`
-/// allocated, zeroed, on the only way into the loop: its size is `(bound + 63) & ~31`, its
+/// allocated, zeroed, on the only way into the loop: its size is `((bound + 31) & ~31) + 32`, its
 /// block stores `bound` into its length word last, and nothing between the allocation and the
 /// loop touches memory but stores of that same length.
 fn fresh_destination(
@@ -1372,8 +1372,8 @@ fn length_before(
         .and_then(|inst| func.inst_result_value(inst))
 }
 
-/// Whether `size` is `(len + 63) & ~31`, the bytes `new bytes(len)` reserves: the length word
-/// and `len` bytes padded to whole words. `len` may itself come padded to whole words, as a
+/// Whether `size` is `((len + 31) & ~31) + 32`, the bytes `new bytes(len)` reserves: the length
+/// word and `len` bytes padded to whole words. `len` may itself come padded to whole words, as a
 /// buffer allocated in words and cut to its length by a trusted `mstore(b, len)` allocates.
 fn bytes_size(func: &Function, size: ValueId, len: ValueId) -> bool {
     let words = |value| {
@@ -1389,7 +1389,9 @@ fn bytes_size(func: &Function, size: ValueId, len: ValueId) -> bool {
             (func.value_u64(x) == Some(constant)).then_some(y)
         }
     };
-    let Some(padded) = words(size).and_then(|sum| plus(sum, 63)) else { return false };
+    let Some(padded) = plus(size, 32).and_then(words).and_then(|sum| plus(sum, 31)) else {
+        return false;
+    };
     same_value(func, padded, len, 2)
         || words(padded).and_then(|sum| plus(sum, 31)).is_some_and(|x| same_value(func, x, len, 2))
 }

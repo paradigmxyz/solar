@@ -337,20 +337,21 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
 fn @calldataTarget(arg0: slice<calldata>) -> i1 [selector=0x3b20e329, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = add v0, 63
+    v1 = add v0, 31
     v2 = not 31
     v3 = and v1, v2
-    v4 = alloc v3
-    mstore v4, v0
-    v5 = ptradd v4, 32
-    v6 = extract_value slice<calldata>, arg0, 0
-    v7 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v5, v6, v7
-    v8 = ptradd v4, 32
-    v9 = mload v4
-    v10 = keccak256 v8, v9
-    v11 = eq v10, 0x46e5f6b6987ca0bd7c8884e2d9fbfc072e24bb9d2a2ebb858bc217d66a45ab99
-    ret v11
+    v4 = add v3, 32
+    v5 = alloc v4
+    mstore v5, v0
+    v6 = ptradd v5, 32
+    v7 = extract_value slice<calldata>, arg0, 0
+    v8 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v6, v7, v8
+    v9 = ptradd v5, 32
+    v10 = mload v5
+    v11 = keccak256 v9, v10
+    v12 = eq v11, 0x46e5f6b6987ca0bd7c8884e2d9fbfc072e24bb9d2a2ebb858bc217d66a45ab99
+    ret v12
 }
 
 fn @calldataPointerRoundtrip() -> i1 [selector=0x1d9b1866, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
