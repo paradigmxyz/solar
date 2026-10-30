@@ -265,10 +265,7 @@ impl ArithmeticLowerer<'_, '_> {
                 let result = self.builder.add(lhs, rhs);
                 let overflow = match kind {
                     ArithmeticKind::Unsigned(256) => self.builder.lt(result, lhs),
-                    ArithmeticKind::Unsigned(bits) => {
-                        let max = self.builder.imm((U256::ONE << bits) - U256::ONE);
-                        self.builder.gt(result, max)
-                    }
+                    ArithmeticKind::Unsigned(_) => self.range_overflow(result, kind),
                     ArithmeticKind::Signed(bits) => {
                         self.signed_add_sub_overflow(lhs, rhs, result, bits, true)
                     }

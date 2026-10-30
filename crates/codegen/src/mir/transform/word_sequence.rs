@@ -74,7 +74,6 @@ enum Temporary {
     Constant(U256),
 }
 
-#[derive(Clone)]
 struct Recipe {
     root: Op,
     scalar_ty: MirType,
@@ -101,11 +100,15 @@ fn legal(op: &Op, target: &Target) -> bool {
     }) && op.into_kind().is_some_and(|kind| kind.effect_kind() == EffectKind::Pure)
 }
 
+/// Whether an instruction and its effect override are pure.
+pub(super) fn is_pure(inst: &Instruction) -> bool {
+    inst.kind.effect_kind() == EffectKind::Pure
+        && inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure)
+}
+
 fn removable(func: &Function, inst: &Instruction, target: &Target) -> bool {
     // Selects and legal operations are pure, so other instructions need no view.
-    if inst.kind.effect_kind() != EffectKind::Pure
-        || inst.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure)
-    {
+    if !is_pure(inst) {
         return false;
     }
     let op = inst.kind.op();
@@ -119,17 +122,26 @@ fn removable(func: &Function, inst: &Instruction, target: &Target) -> bool {
     }
 }
 
+/// The constant a value holds in a recipe: a temporary constant or a function immediate.
+fn recipe_immediate(
+    func: &Function,
+    constants: &FxHashMap<ValueId, Temporary>,
+    value: ValueId,
+) -> Option<U256> {
+    match constants.get(&value) {
+        Some(Temporary::Constant(value)) => Some(*value),
+        Some(Temporary::Operation(_)) => None,
+        None => func.value_u256(value),
+    }
+}
+
 fn operation_cost(
     func: &Function,
     op: &Op,
     target: &Target,
     constants: &FxHashMap<ValueId, Temporary>,
 ) -> Cost {
-    let immediate = |value| match constants.get(&value) {
-        Some(Temporary::Constant(value)) => Some(*value),
-        Some(Temporary::Operation(_)) => None,
-        None => func.value_u256(value),
-    };
+    let immediate = |value| recipe_immediate(func, constants, value);
     let mut cost = if let Op::Select { cond, .. } = op {
         target.select(!super::egraph::is_bool_value(func, *cond))
     } else {
@@ -157,11 +169,7 @@ fn root_cost(
     constants: &FxHashMap<ValueId, Temporary>,
     branch_only: bool,
 ) -> Cost {
-    let immediate = |value| match constants.get(&value) {
-        Some(Temporary::Constant(value)) => Some(*value),
-        Some(Temporary::Operation(_)) => None,
-        None => func.value_u256(value),
-    };
+    let immediate = |value| recipe_immediate(func, constants, value);
     if branch_only
         && matches!(op, Op::Ne { .. })
         && Target::zero_test_input(op, immediate).is_some()
@@ -304,38 +312,40 @@ fn recipe_type(func: &Function, kind: &InstKind, scalar_ty: MirType) -> MirType 
     if let InstKind::Select(_, a, _) = *kind {
         func.value_ty(a).expect("typed select arm")
     } else if kind.op_def().result == crate::mir::ResultKind::Integer {
-        kind.operands()
-            .iter()
-            .filter_map(|&value| func.value_ty(value))
-            .filter(|ty| ty.integer_bits().is_some())
-            .max_by_key(|ty| ty.integer_bits())
-            .unwrap_or(scalar_ty)
+        widest_int_operand(func, kind).unwrap_or(scalar_ty)
     } else {
         kind.op_def().result.default_type().unwrap_or(scalar_ty)
     }
 }
 
+/// The widest integer type among the operands of an instruction.
+fn widest_int_operand(func: &Function, kind: &InstKind) -> Option<MirType> {
+    kind.operands()
+        .iter()
+        .filter_map(|&value| func.value_ty(value))
+        .filter(|ty| matches!(ty, MirType::Int(_)))
+        .max_by_key(|ty| ty.integer_bits())
+}
+
 fn run(func: &mut Function, target: &Target, late: bool) -> bool {
-    let branch_only = branch_only_conditions(func);
-    let mut uses = None;
+    let mut uses = super::egraph::use_counts(func);
+    let branch_only = branch_only_conditions(func, &uses);
     let mut masks = None;
     let mut changed = false;
-    for block in func.blocks.indices().collect::<Vec<_>>() {
+    let mut ordered = Vec::new();
+    let mut seen = FxHashSet::default();
+    let mut deleted = FxHashSet::default();
+    let mut added = Vec::new();
+    for block in func.blocks.indices() {
         let original = std::mem::take(&mut func.blocks[block].instructions);
-        let mut ordered = Vec::with_capacity(original.len());
-        let mut seen = FxHashSet::default();
-        let mut deleted = FxHashSet::default();
-        let mut added = Vec::new();
+        ordered.clear();
+        seen.clear();
+        deleted.clear();
+        added.clear();
         for &inst in &original {
             if !removable(func, func.inst(inst), target) {
                 let instruction = func.inst(inst);
-                if instruction.kind.effect_kind() != EffectKind::Pure
-                    || !instruction.kind.effects().can_speculate()
-                    || instruction
-                        .metadata
-                        .effect()
-                        .is_some_and(|effect| effect != EffectKind::Pure)
-                {
+                if !is_pure(instruction) || !instruction.kind.effects().can_speculate() {
                     seen.clear();
                 }
                 ordered.push(inst);
@@ -349,16 +359,8 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
             {
                 if let Some((after, leaves)) = recipe.cost_and_leaves(func, target, is_branch_only)
                 {
-                    // Nothing changed before the first count; this block is detached.
-                    let uses = uses.get_or_insert_with(|| {
-                        let mut uses = super::egraph::use_counts(func);
-                        for &inst in &original {
-                            func.inst(inst).visit_operands(|operand| uses[operand] += 1);
-                        }
-                        uses
-                    });
                     let mut dead = FxHashSet::default();
-                    collect_dead(func, &op, uses, &seen, &leaves, target, &mut dead);
+                    collect_dead(func, &op, &uses, &seen, &leaves, target, &mut dead);
                     let empty = FxHashMap::default();
                     let before = root_cost(func, &op, target, &empty, is_branch_only)
                         + dead
@@ -375,12 +377,10 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
                 }
             }
             if let Some((recipe, _, dead)) = best {
-                let uses = uses.as_mut().expect("a recipe was costed");
                 // Remove dead single-use producers; insert recipe children; retain the root.
                 for old in std::iter::once(inst).chain(dead.iter().copied()) {
                     func.inst(old).visit_operands(|operand| {
-                        let count = &mut uses[operand];
-                        *count -= 1;
+                        uses[operand] -= 1;
                     });
                 }
                 if let Some(masks) = &mut masks {
@@ -420,12 +420,11 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
                 masks.remove(func, inst);
             }
         }
-        func.blocks[block].instructions = ordered;
+        func.blocks[block].instructions = std::mem::replace(&mut ordered, original);
     }
     changed
 }
 
-#[allow(clippy::too_many_arguments)]
 fn collect_dead(
     func: &Function,
     node: &Op,
@@ -452,8 +451,7 @@ fn collect_dead(
 
 /// Values whose only use is the condition of a branch in their defining block, the shape
 /// the backend folds into `JUMPI`.
-fn branch_only_conditions(func: &Function) -> FxHashSet<ValueId> {
-    let uses = super::egraph::use_counts(func);
+fn branch_only_conditions(func: &Function, uses: &IndexVec<ValueId, u32>) -> FxHashSet<ValueId> {
     func.blocks
         .iter()
         .filter_map(|block| match block.terminator {

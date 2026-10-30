@@ -11,8 +11,8 @@ use super::{OperandViews, canonical_operands, same_value};
 use crate::{
     backend::evm::op,
     mir::{
-        ArgIdx, BlockId, Function, Immediate, InstKind, MirType, Op, Value as MirValue, ValueId,
-        utils::eval::eval_opcode,
+        ArgIdx, BlockId, Function, Immediate, InstKind, MirType, Op, ResultKind, Value as MirValue,
+        ValueId, utils::eval::eval_opcode,
     },
     target::Target,
 };
@@ -122,7 +122,7 @@ impl<'a> RuleContext<'a> {
         let value = match *op {
             // Inverting a comparison folds its bound at the input width.
             Op::Eq { a, .. } | Op::Ne { a, .. }
-                if let Some(kind) = defining_kind(self.func, a)
+                if let Some(kind) = self.func.value_inst_kind(a)
                     && matches!(
                         kind,
                         InstKind::Lt(..) | InstKind::Gt(..) | InstKind::SLt(..) | InstKind::SGt(..)
@@ -132,8 +132,8 @@ impl<'a> RuleContext<'a> {
             }
             // Boolean combinations can fold bounds of their compared integers.
             Op::Or { a, b }
-                if let Some(InstKind::Eq(x, _)) = defining_kind(self.func, a)
-                    && let Some(InstKind::Eq(y, _)) = defining_kind(self.func, b)
+                if let Some(InstKind::Eq(x, _)) = self.func.value_inst_kind(a)
+                    && let Some(InstKind::Eq(y, _)) = self.func.value_inst_kind(b)
                     && self.func.value_ty(*x) == self.func.value_ty(*y) =>
             {
                 *x
@@ -145,7 +145,7 @@ impl<'a> RuleContext<'a> {
             | Op::Gt { a, .. }
             | Op::SLt { a, .. }
             | Op::SGt { a, .. } => a,
-            _ if op.result_kind() == crate::mir::ResultKind::Integer => op.first_operand()?,
+            _ if op.result_kind() == ResultKind::Integer => op.first_operand()?,
             _ => return None,
         };
         self.func.value_ty(value).filter(|ty| ty.integer_bits().is_some())
@@ -153,13 +153,6 @@ impl<'a> RuleContext<'a> {
 
     fn has_const(&self, value: ValueId, expected: U256) -> bool {
         self.func.value_u256(value) == Some(expected)
-    }
-}
-
-fn defining_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
-    match func.value(value) {
-        MirValue::Inst(inst_id) => Some(&func.inst(*inst_id).kind),
-        _ => None,
     }
 }
 
@@ -207,7 +200,7 @@ fn max_bits_with_budget(
     if depth == 0 {
         return width;
     }
-    let Some(kind) = defining_kind(func, value) else { return width };
+    let Some(kind) = func.value_inst_kind(value) else { return width };
     if let Some(definition) = kind.evm_opcode().and_then(op::definition)
         && definition.result_bits < 256
     {
@@ -290,7 +283,7 @@ fn at_most(func: &Function, value: ValueId, bound: U256) -> bool {
 
 /// Returns whether the value carries the canonical boolean invariant.
 pub(in crate::mir::transform) fn is_bool_value(func: &Function, value: ValueId) -> bool {
-    func.value_ty(value) == Some(crate::mir::MirType::I1)
+    func.value_ty(value) == Some(MirType::I1)
 }
 
 fn has_known_sign_bit(func: &Function, value: ValueId) -> bool {
@@ -298,14 +291,12 @@ fn has_known_sign_bit(func: &Function, value: ValueId) -> bool {
         let bits = func.value_ty(value).and_then(MirType::integer_bits).unwrap_or(256);
         return constant.bit((bits - 1) as usize);
     }
-    match defining_kind(func, value) {
+    match func.value_inst_kind(value) {
         Some(InstKind::Or(a, b)) => has_known_sign_bit(func, *a) || has_known_sign_bit(func, *b),
         Some(InstKind::Sar(_, value)) => has_known_sign_bit(func, *value),
         _ => false,
     }
 }
-
-const UINT160_MASK: U256 = U256::from_limbs([u64::MAX, u64::MAX, u32::MAX as u64, 0]);
 
 impl generated::Context for RuleContext<'_> {
     fn single_use(&mut self, value: Value) -> bool {
@@ -339,7 +330,7 @@ impl generated::Context for RuleContext<'_> {
             .flatten()
             .find(|&&(operand, _)| operand == value)
             .map(|&(_, op)| op)
-            .or_else(|| defining_kind(self.func, value).map(InstKind::op))
+            .or_else(|| self.func.value_inst_kind(value).map(InstKind::op))
             .filter(|op| {
                 matches!(
                     op,
@@ -354,9 +345,7 @@ impl generated::Context for RuleContext<'_> {
                         | Op::Sext { .. }
                         | Op::PtrToInt { .. }
                         | Op::IntToPtr { .. }
-                ) || if op.result_kind() == crate::mir::ResultKind::Integer
-                    || matches!(op, Op::Select { .. })
-                {
+                ) || if op.result_kind() == ResultKind::Integer || matches!(op, Op::Select { .. }) {
                     self.func
                         .value_ty(value)
                         .filter(|ty| ty.integer_bits().is_some())
@@ -408,19 +397,15 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn current_address(&mut self, value: Value) -> Option<()> {
-        let value = match defining_kind(self.func, value) {
+        let value = match self.func.value_inst_kind(value) {
             Some(InstKind::Zext(inner)) => *inner,
             _ => value,
         };
-        matches!(defining_kind(self.func, value), Some(InstKind::Address)).then_some(())
+        matches!(self.func.value_inst_kind(value), Some(InstKind::Address)).then_some(())
     }
 
     fn is_zero_or_one(&mut self, value: Value) -> bool {
         self.has_const(value, U256::ZERO) || self.has_const(value, U256::from(1))
-    }
-
-    fn masks_clean_address(&mut self, mask: U256, value: Value) -> bool {
-        mask == UINT160_MASK && max_bits(self.func, value, MAX_BITS_DEPTH) <= 160
     }
 
     fn below_const(&mut self, value: Value, bound: U256) -> bool {
@@ -445,10 +430,6 @@ impl generated::Context for RuleContext<'_> {
         // A mask of the form `2^n - 1` keeps `n` low bits.
         let contiguous = mask.wrapping_add(U256::ONE) & mask == U256::ZERO;
         contiguous && max_bits(self.func, value, MAX_BITS_DEPTH) <= mask.bit_len() as u32
-    }
-
-    fn differ(&mut self, a: Value, b: Value) -> bool {
-        a != b
     }
 
     fn has_bitwise_shifting(&mut self) -> bool {
@@ -577,10 +558,6 @@ impl generated::Context for RuleContext<'_> {
 
     fn u256_same(&mut self, a: U256, b: U256) -> bool {
         a == b
-    }
-
-    fn u256_from_limbs(&mut self, a: u64, b: u64, c: u64, d: u64) -> U256 {
-        U256::from_limbs([a, b, c, d])
     }
 
     fn shift_sum(&mut self, a: U256, b: U256) -> U256 {

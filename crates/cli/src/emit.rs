@@ -187,7 +187,7 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
                 write_pipeline_output(
                     gcx,
                     source.name.display(),
-                    ir::pipeline_label(value),
+                    pass::pipeline_label(value),
                     module.to_text(),
                 )?;
             }

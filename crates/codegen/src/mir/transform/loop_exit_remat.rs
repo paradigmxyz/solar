@@ -53,10 +53,7 @@ fn run(func: &mut Function) -> bool {
             if !latch(func, header, back)
                 || exit == header
                 || func.blocks[exit].predecessors.as_slice() != [header]
-                || func.blocks[exit]
-                    .instructions
-                    .iter()
-                    .any(|&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)))
+                || func.block_has_phi(exit)
             {
                 continue;
             }
@@ -80,11 +77,11 @@ fn run(func: &mut Function) -> bool {
                     && (func.blocks[exit]
                         .instructions
                         .iter()
-                        .any(|&id| func.inst(id).operands().contains(&old))
+                        .any(|&id| func.inst(id).kind.reads(old))
                         || func.blocks[exit]
                             .terminator
                             .as_ref()
-                            .is_some_and(|term| term.operands().contains(&old)))
+                            .is_some_and(|term| term.reads(old)))
                 {
                     candidates.push((exit, old, next, constant, subtract, func.value_ty(old)));
                     if candidates.len() == 2 {

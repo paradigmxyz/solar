@@ -81,6 +81,21 @@ fn @stored() [selector=0xab0edd4e, abi_wrapper, pure] {
     returndata 0, 32
 }
 
+fn @lowByte() [selector=0xd033fb43, abi_wrapper, pure] {
+  bb0:
+    v12 = icall @decode_calldata_type
+    v1 = add v12, 2
+    v2 = mload v1
+    v3 = and v2, 255
+    v5 = add v12, 1
+    v6 = mload v5
+    v7 = and v6, 255
+    v8 = shl v7, 8
+    v9 = or v8, v3
+    mstore 0, v9 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
 fn @decode_calldata_type() -> i256 [may_return_memory] {
   bb0:
     v0 = calldatasize
@@ -137,7 +152,9 @@ fn @entry() [entry] {
   bb2:
     v6 = calldataload 0
     v7 = shr v6, 224
-    switch v7, default bb1, [0x1158e167 => bb3, 0x63cfbce4 => bb4, 0x65313149 => bb5, 0xab0edd4e => bb6]
+    switch v7, default bb1, [0x1158e167 => bb3, 0x63cfbce4 => bb4, 0x65313149 => bb5, 0xab0edd4e => bb6, 0xd033fb43 => bb7]
+  bb7:
+    tail_call @lowByte
   bb6:
     tail_call @stored
   bb5:

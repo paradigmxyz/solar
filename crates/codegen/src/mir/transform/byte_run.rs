@@ -11,11 +11,11 @@
 //! ```
 //!
 //! The pass matches the OR tree at its root. Every leaf must be one byte of
-//! one word read, `byte(0, mload(a))` or `mload(a) & 0xff`, the addresses must
-//! share one base and cover a consecutive constant range, and each leaf's
-//! accumulated shift must be the one its position in that range implies. The
-//! root is then rewritten to a single shift of the lowest address's word and
-//! the interior nodes become dead.
+//! one word read, `byte(0, mload(a))`, the addresses must share one base and
+//! cover a consecutive constant range, and each leaf's accumulated shift must
+//! be the one its position in that range implies. The root is then rewritten
+//! to a single shift of the lowest address's word and the interior nodes
+//! become dead.
 //!
 //! # Safety
 //!
@@ -47,6 +47,9 @@
 //! whose offsets fit in a word is pointed at the group's lowest read, and each
 //! extraction takes the byte its offset names. The lowest read must come first
 //! in the block, so the value it produces is available where the others stood.
+//! A group never spans a side-effecting instruction, and an extraction joins
+//! one only if its word was read since the last such instruction, so a word
+//! read before a store is never reused for a read made after it.
 //!
 //! # Limitations
 //!
@@ -108,27 +111,25 @@ fn run_function(func: &mut Function) -> (bool, bool) {
     // shape does not really have, so drop unused pure instructions first.
     let swept = sweep_dead(func);
     // Both rewrites need at least two single-byte word reads.
-    if func
-        .instructions()
-        .filter(|&inst| is_byte_leaf(func, &func.inst(inst).kind))
-        .nth(1)
-        .is_none()
-    {
+    if func.instructions().filter(|&inst| byte_load(func, inst).is_some()).nth(1).is_none() {
         return (false, swept);
     }
     let uses = super::egraph::use_counts(func);
     let mut changed = false;
+    // A side-effecting instruction may store into the range being read, so
+    // only instructions since the last one can take part in a run.
+    let mut window = FxHashSet::default();
+    let mut leaves = Vec::new();
     for block in func.blocks.indices().collect::<Vec<_>>() {
-        // A side-effecting instruction may store into the range being read, so
-        // only instructions since the last one can take part in a run.
-        let mut window = FxHashSet::default();
+        window.clear();
         for index in 0..func.blocks[block].instructions.len() {
             let inst = func.blocks[block].instructions[index];
             if func.inst(inst).kind.has_side_effects() {
                 window.clear();
                 continue;
             }
-            if matches!(func.inst(inst).kind, InstKind::Or(..)) && fuse(func, inst, &window, &uses)
+            if matches!(func.inst(inst).kind, InstKind::Or(..))
+                && fuse(func, inst, &window, &uses, &mut leaves)
             {
                 changed = true;
             }
@@ -148,11 +149,12 @@ fn fuse(
     root: InstId,
     window: &FxHashSet<InstId>,
     uses: &IndexVec<ValueId, u32>,
+    leaves: &mut Vec<Leaf>,
 ) -> bool {
     let Some(result) = func.inst_result_value(root) else { return false };
-    let mut leaves = Vec::new();
+    leaves.clear();
     let mut nodes = 0;
-    if !collect(func, result, 0, window, uses, true, &mut leaves, &mut nodes) {
+    if !collect(func, result, 0, window, uses, true, leaves, &mut nodes) {
         return false;
     }
     let run = leaves.len();
@@ -216,61 +218,42 @@ fn collect(
             if amount % 8 != 0 {
                 return false;
             }
-            collect(func, inner, shift + amount, window, uses, false, leaves, nodes)
+            let Some(shift) = shift.checked_add(amount) else { return false };
+            collect(func, inner, shift, window, uses, false, leaves, nodes)
         }
-        InstKind::Byte(index, word) if func.value_u64(index) == Some(0) => {
-            push_leaf(func, word, shift, window, leaves)
-        }
-        InstKind::And(first, second) => {
-            let (word, mask) = match func.value_u256(second) {
-                Some(mask) => (first, mask),
-                None => match func.value_u256(first) {
-                    Some(mask) => (second, mask),
-                    None => return false,
-                },
-            };
-            mask == U256::from(0xffu64) && push_leaf(func, word, shift, window, leaves)
+        InstKind::Byte(..) => {
+            let Some((load, word)) = byte_load(func, inst) else { return false };
+            push_leaf(func, load, word, shift, window, leaves)
         }
         _ => false,
     }
 }
 
-/// Whether an instruction extracts the low byte of a `mload`: a possible run leaf.
-fn is_byte_leaf(func: &Function, kind: &InstKind) -> bool {
-    let word = match *kind {
-        InstKind::Byte(index, word) if func.value_u64(index) == Some(0) => word,
-        InstKind::And(first, second) => {
-            let (word, mask) = match (func.value_u256(second), func.value_u256(first)) {
-                (Some(mask), _) => (first, mask),
-                (None, Some(mask)) => (second, mask),
-                (None, None) => return false,
-            };
-            if mask != U256::from(0xffu64) {
-                return false;
-            }
-            word
-        }
-        _ => return false,
-    };
-    matches!(*func.value(word), Value::Inst(inst) if matches!(func.inst(inst).kind, InstKind::Load(.., PtrLocation::Memory)))
+/// Returns the `mload` and its result when the instruction is `byte(0, mload(..))`, the byte at
+/// the `mload`'s address: a possible run leaf.
+fn byte_load(func: &Function, inst: InstId) -> Option<(InstId, ValueId)> {
+    let InstKind::Byte(index, word) = func.inst(inst).kind else { return None };
+    if func.value_u64(index) != Some(0) {
+        return None;
+    }
+    let Value::Inst(load) = *func.value(word) else { return None };
+    matches!(func.inst(load).kind, InstKind::Load(.., PtrLocation::Memory)).then_some((load, word))
 }
 
-/// Records one `mload` whose low byte the run combines.
+/// Records one `mload` whose first byte the run combines.
 fn push_leaf(
     func: &Function,
+    load: InstId,
     word: ValueId,
     shift: u64,
     window: &FxHashSet<InstId>,
     leaves: &mut Vec<Leaf>,
 ) -> bool {
-    let Value::Inst(inst) = *func.value(word) else { return false };
-    let InstKind::Load(address, PtrLocation::Memory) = func.inst(inst).kind else {
-        return false;
-    };
+    let InstKind::Load(address, _) = func.inst(load).kind else { return false };
     // The read must be reachable from the root with no store in between. A
     // read may be shared with other users; only the interior nodes are
     // consumed, and the lowest address's read is kept.
-    if !window.contains(&inst) {
+    if !window.contains(&load) {
         return false;
     }
     let Some((base, offset)) = address_key(func, address) else { return false };
@@ -314,23 +297,29 @@ fn address_key(func: &Function, address: ValueId) -> Option<(Vec<ValueId>, u64)>
 /// Points every group of neighbouring byte extractions at one word read.
 fn share_reads(func: &mut Function) -> bool {
     let mut changed = false;
+    let mut groups: Vec<Vec<(u64, InstId, ValueId)>> = Vec::new();
+    let mut bases: Vec<Vec<ValueId>> = Vec::new();
+    // Instructions since the last side effect.
+    let mut window = FxHashSet::default();
+    let mut instructions = Vec::new();
     for block in func.blocks.indices().collect::<Vec<_>>() {
-        let mut groups: Vec<Vec<(u64, InstId, ValueId)>> = Vec::new();
-        let mut bases: Vec<Vec<ValueId>> = Vec::new();
-        let mut start = 0;
-        let instructions = func.blocks[block].instructions.clone();
-        for (position, &inst) in instructions.iter().enumerate() {
+        groups.clear();
+        bases.clear();
+        window.clear();
+        instructions.clone_from(&func.blocks[block].instructions);
+        for &inst in &instructions {
             // A store may change what a later read sees, so a group cannot
             // span one.
             if func.inst(inst).kind.has_side_effects() {
                 changed |= rewrite_groups(func, &groups);
                 groups.clear();
                 bases.clear();
-                start = position + 1;
+                window.clear();
                 continue;
             }
-            let _ = start;
-            let Some((base, offset, word)) = byte_read(func, inst) else { continue };
+            window.insert(inst);
+            // The word may have been read before a store the extraction follows.
+            let Some((base, offset, word)) = byte_read(func, inst, &window) else { continue };
             match bases.iter().position(|other| *other == base) {
                 Some(index) => groups[index].push((offset, inst, word)),
                 None => {
@@ -367,14 +356,18 @@ fn rewrite_groups(func: &mut Function, groups: &[Vec<(u64, InstId, ValueId)>]) -
     changed
 }
 
-/// Recognizes `byte(0, mload(base + constant))` as a single byte of memory.
-fn byte_read(func: &Function, inst: InstId) -> Option<(Vec<ValueId>, u64, ValueId)> {
-    let InstKind::Byte(index, word) = func.inst(inst).kind else { return None };
-    if func.value_u64(index) != Some(0) {
+/// Recognizes `byte(0, mload(base + constant))` as a single byte of memory, if the `mload` is
+/// in the store-free window.
+fn byte_read(
+    func: &Function,
+    inst: InstId,
+    window: &FxHashSet<InstId>,
+) -> Option<(Vec<ValueId>, u64, ValueId)> {
+    let (load, word) = byte_load(func, inst)?;
+    let InstKind::Load(address, _) = func.inst(load).kind else { return None };
+    if !window.contains(&load) {
         return None;
     }
-    let Value::Inst(load) = *func.value(word) else { return None };
-    let InstKind::Load(address, PtrLocation::Memory) = func.inst(load).kind else { return None };
     let (base, offset) = address_key(func, address)?;
     Some((base, offset, word))
 }
