@@ -272,8 +272,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.repeating_code = repeating || in_loop(self, source);
             self.asm.define_label(label);
             self.set_terminator_origin(func, source);
+            let cold = self.block_code_is_cold(target);
             for step in &steps {
-                self.emit_stackified_step(func_id, func, step);
+                self.emit_stackified_step(func_id, func, step, cold);
             }
             self.emit_stackified_jump(target, None);
         }
@@ -300,17 +301,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         trampolines: &mut Vec<(Label, Vec<Step>, BlockId, BlockId)>,
     ) {
         let (body, terminator) = plan.steps.split_at(plan.terminator_start);
+        let cold = self.block_code_is_cold(block);
         for step in body {
-            self.emit_stackified_step(func_id, func, step);
+            self.emit_stackified_step(func_id, func, step, cold);
         }
         self.set_terminator_origin(func, block);
         for step in terminator {
-            self.emit_stackified_step(func_id, func, step);
+            self.emit_stackified_step(func_id, func, step, cold);
         }
         let mut edge_label = |codegen: &mut Self, edge: &Edge| match &edge.trampoline {
             None => codegen.block_labels[&edge.target],
             Some(steps) => {
-                let label = codegen.asm.new_label();
+                let label = codegen.new_trampoline_label(edge.target);
                 trampolines.push((label, steps.clone(), edge.target, block));
                 label
             }
@@ -338,7 +340,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_push_label(label);
                 self.asm.emit_op(op::JUMPI);
                 for step in fall.trampoline.iter().flatten() {
-                    self.emit_stackified_step(func_id, func, step);
+                    self.emit_stackified_step(func_id, func, step, cold);
                 }
                 self.emit_stackified_jump(resolve(fall.target), next);
             }
@@ -347,7 +349,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // with trampolines jump to them instead of the block.
                 let mut restore = Vec::new();
                 for (target, steps) in switch_trampolines {
-                    let label = self.asm.new_label();
+                    let label = self.new_trampoline_label(*target);
                     trampolines.push((label, steps.clone(), *target, block));
                     restore.push((*target, self.block_labels.insert(*target, label).unwrap()));
                 }
@@ -398,7 +400,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    fn emit_stackified_step(&mut self, func_id: FunctionId, func: &Function, step: &Step) {
+    fn emit_stackified_step(
+        &mut self,
+        func_id: FunctionId,
+        func: &Function,
+        step: &Step,
+        cold: bool,
+    ) {
         match *step {
             Step::Stack(op) => self.asm.emit_stack_op(op),
             Step::Materialize(value) => self.emit_materialized(func, value),
@@ -436,6 +444,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             Step::Call(callee, _) => {
                 // push return; push callee; jump; return:
                 let return_label = self.asm.new_label();
+                if cold {
+                    self.asm.mark_label_cold(return_label);
+                }
                 self.asm.emit_push_label(return_label);
                 self.asm.emit_push_label(self.function_labels[&callee]);
                 self.asm.emit_op(op::JUMP);
