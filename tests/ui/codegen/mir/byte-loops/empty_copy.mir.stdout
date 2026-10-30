@@ -230,51 +230,52 @@ fn @_downCopy(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) [pure] {
 
 fn @_freshCopy(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
   bb0:
-    v0 = add arg1, 63
-    v1 = lt v0, arg1
-    icall panic_if<0x41>, v1
-    v2 = not 31
-    v3 = and v0, v2
-    v4 = alloc zeroed checked v3
-    mstore v4, arg1
+    v0 = add arg1, 31
+    v1 = not 31
+    v2 = and v0, v1
+    v3 = add v2, 32
+    v4 = lt v3, arg1
+    icall panic_if<0x41>, v4
+    v5 = alloc zeroed checked v3
+    mstore v5, arg1
     jump bb1
   bb1:
-    v5 = phi [bb0: arg0], [bb3: v5]
-    v6 = phi [bb0: arg1], [bb3: v6]
-    v7 = phi [bb0: v4], [bb3: v7]
-    v8 = phi [bb0: 0], [bb3: v24]
-    v9 = lt v8, v6
-    jumpi v9, bb4, bb5
+    v6 = phi [bb0: arg0], [bb3: v6]
+    v7 = phi [bb0: arg1], [bb3: v7]
+    v8 = phi [bb0: v5], [bb3: v8]
+    v9 = phi [bb0: 0], [bb3: v25]
+    v10 = lt v9, v7
+    jumpi v10, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v25 = ptrtoint ptr<memory> v7 to i256
-    v26 = add v25, 32
-    v27 = add v26, v6
-    mstore v27, 0
-    ret v7
+    v26 = ptrtoint ptr<memory> v8 to i256
+    v27 = add v26, 32
+    v28 = add v27, v7
+    mstore v28, 0
+    ret v8
   bb4:
-    v10 = mload v5
-    v11 = lt v8, v10
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = ptradd v5, v8
-    v14 = ptradd v13, 32
-    v15 = mload v14
-    v16 = byte 0, v15
-    v17 = shl v16, 248
-    v18 = mload v7
-    v19 = lt v8, v18
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = byte 0, v17
-    v22 = ptradd v7, v8
-    v23 = ptradd v22, 32
-    mstore8 v23, v21
+    v11 = mload v6
+    v12 = lt v9, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = ptradd v6, v9
+    v15 = ptradd v14, 32
+    v16 = mload v15
+    v17 = byte 0, v16
+    v18 = shl v17, 248
+    v19 = mload v8
+    v20 = lt v9, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = byte 0, v18
+    v23 = ptradd v8, v9
+    v24 = ptradd v23, 32
+    mstore8 v24, v22
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v24 = checked_add uint256, v8, 1
+    v25 = checked_add uint256, v9, 1
     jump bb1
 }

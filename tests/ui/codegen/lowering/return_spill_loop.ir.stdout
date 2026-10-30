@@ -268,29 +268,27 @@ bb41 [ret=0, inputs=1, outputs=1]:
   push 63
   dup 3
   add
-  dup 3
-  dup 2
-  lt
-  swap 1
   push 31
   not
   and
+  dup 3
+  dup 2
+  lt
   push 128
-  swap 1
-  dup 2
-  add
   swap 2
-  dup 2
-  dup 4
+  dup 3
+  add
+  swap 1
+  dup 3
+  dup 3
   lt
   push 0xffffffffffffffff
-  dup 5
+  dup 4
   gt
   or
   or
   push bb15
   jumpi
-  swap 1
   push 64
   mstore
   dup 3

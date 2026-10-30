@@ -55,49 +55,49 @@ fn @load() [selector=0x86d5c4be, abi_wrapper, view] {
   bb2:
     v10 = add v7, 31
     v11 = shr v10, 5
-    v12 = add v7, 63
-    v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v53 = heap_floor !metadata(alloc_ptr)
-    v54 = add v53, v15 !metadata(alloc_ptr)
-    v55 = lt v54, v53
-    v56 = gt v54, 0xffffffffffffffff
-    v57 = or v55, v56
-    jumpi v57, bb9, bb8
+    v14 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = add v14, 32
+    v54 = heap_floor !metadata(alloc_ptr)
+    v55 = add v54, v15 !metadata(alloc_ptr)
+    v56 = lt v55, v54
+    v57 = gt v55, 0xffffffffffffffff
+    v58 = or v56, v57
+    jumpi v58, bb9, bb8
   bb8:
-    mstore v53, v7
+    mstore v54, v7
     jumpi v3, bb4, bb3
   bb3:
-    v17 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v42 = add v53, 32
-    mstore v42, v17
+    v18 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v43 = add v54, 32
+    mstore v43, v18
     jump bb5
   bb4:
-    v59 = add v53, 32
+    v60 = add v54, 32
     jump bb6
   bb6:
-    v20 = phi [bb4: 0], [bb7: v27]
-    v60 = phi [bb4: v59], [bb7: v61]
-    v21 = lt v20, v11
-    jumpi v21, bb7, bb5
+    v21 = phi [bb4: 0], [bb7: v28]
+    v61 = phi [bb4: v60], [bb7: v62]
+    v22 = lt v21, v11
+    jumpi v22, bb7, bb5
   bb5:
-    v31 = mload v53
-    v44 = add v53, 32
-    v33 = add v31, 31
-    v35 = and v33, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v37 = add v44, v35
-    mstore v37, 0
-    v46 = add v53, 64
-    mcopy v46, v44, v31
-    mstore v53, 32
-    mstore v44, v31
-    v39 = add v35, 64
-    returndata v53, v39
+    v32 = mload v54
+    v45 = add v54, 32
+    v34 = add v32, 31
+    v36 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v38 = add v45, v36
+    mstore v38, 0
+    v47 = add v54, 64
+    mcopy v47, v45, v32
+    mstore v54, 32
+    mstore v45, v32
+    v40 = add v36, 64
+    returndata v54, v40
   bb7:
-    v22 = add v20, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
-    v23 = sload v22 !metadata(storage=offset(v20, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
-    mstore v60, v23
-    v27 = add v20, 1
-    v61 = add v60, 32
+    v23 = add v21, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
+    v24 = sload v23 !metadata(storage=offset(v21, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
+    mstore v61, v24
+    v28 = add v21, 1
+    v62 = add v61, 32
     jump bb6
   bb9:
     mstore 32, 65 !metadata(memory=scratch)

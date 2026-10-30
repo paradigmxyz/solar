@@ -346,8 +346,8 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
   bb15:
     v95 = sub v75, v7
     mstore v78, v95
-    v98 = add v88, 31
-    v99 = and v98, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v97 = add v88, 31
+    v99 = and v97, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v100 = add v75, 32
     v101 = add v75, v99
     mstore v101, 0

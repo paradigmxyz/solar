@@ -82,33 +82,34 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v17 = trunc i256 v13 to i160
     v18 = zext i160 v17 to i256
     v19 = extcodesize v18
-    v20 = add v19, 63
-    v21 = lt v20, v19
-    icall panic_if<0x41>, v21
-    v22 = not 31
-    v23 = and v20, v22
-    v24 = alloc zeroed checked v23
-    mstore v24, v19
-    v25 = ptradd v24, 32
-    v26 = zext i160 v17 to i256
-    extcodecopy v26, v25, 0, v19 !metadata(memory=heap)
-    v27 = mload v24
-    v28 = eq v27, 173
-    icall require<short_string>, v28, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
-    v29 = ptrtoint ptr<memory> v24 to i256
-    v30 = add v29, 109
-    v31 = mload v30
-    v32 = ptrtoint ptr<memory> v24 to i256
-    v33 = add v32, 141
-    v34 = mload v33
-    v35 = ptrtoint ptr<memory> v24 to i256
-    v36 = add v35, 173
-    v37 = mload v36
-    v38 = eq v31, 0x7a69
-    icall require<short_string>, v38, 8, 0x636861696e206964000000000000000000000000000000000000000000000000
-    v39 = eq v34, 0x4444444444444444444444444444444444444444
-    icall require<short_string>, v39, 14, 0x746f6b656e20636f6e7472616374000000000000000000000000000000000000
-    v40 = eq v37, 0x5555
-    icall require<short_string>, v40, 8, 0x746f6b656e206964000000000000000000000000000000000000000000000000
+    v20 = add v19, 31
+    v21 = not 31
+    v22 = and v20, v21
+    v23 = add v22, 32
+    v24 = lt v23, v19
+    icall panic_if<0x41>, v24
+    v25 = alloc zeroed checked v23
+    mstore v25, v19
+    v26 = ptradd v25, 32
+    v27 = zext i160 v17 to i256
+    extcodecopy v27, v26, 0, v19 !metadata(memory=heap)
+    v28 = mload v25
+    v29 = eq v28, 173
+    icall require<short_string>, v29, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
+    v30 = ptrtoint ptr<memory> v25 to i256
+    v31 = add v30, 109
+    v32 = mload v31
+    v33 = ptrtoint ptr<memory> v25 to i256
+    v34 = add v33, 141
+    v35 = mload v34
+    v36 = ptrtoint ptr<memory> v25 to i256
+    v37 = add v36, 173
+    v38 = mload v37
+    v39 = eq v32, 0x7a69
+    icall require<short_string>, v39, 8, 0x636861696e206964000000000000000000000000000000000000000000000000
+    v40 = eq v35, 0x4444444444444444444444444444444444444444
+    icall require<short_string>, v40, 14, 0x746f6b656e20636f6e7472616374000000000000000000000000000000000000
+    v41 = eq v38, 0x5555
+    icall require<short_string>, v41, 8, 0x746f6b656e206964000000000000000000000000000000000000000000000000
     ret 1
 }

@@ -2,15 +2,16 @@
 @module MemoryAllocationPanicRuntime
 fn @makeBytes(arg0: i256) -> i256 [selector=0xd90fd4da, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = add arg0, 63
-    v1 = lt v0, arg0
-    icall panic_if<0x41>, v1
-    v2 = not 31
-    v3 = and v0, v2
-    v4 = alloc zeroed checked v3
-    mstore v4, arg0
-    v5 = mload v4
-    ret v5
+    v0 = add arg0, 31
+    v1 = not 31
+    v2 = and v0, v1
+    v3 = add v2, 32
+    v4 = lt v3, arg0
+    icall panic_if<0x41>, v4
+    v5 = alloc zeroed checked v3
+    mstore v5, arg0
+    v6 = mload v5
+    ret v6
 }
 
 fn @makeArray(arg0: i256) -> i256 [selector=0x9510f212, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {

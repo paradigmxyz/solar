@@ -650,12 +650,14 @@ bb61:
   push bb72
   jumpi
   dup 1
-  dup 1
-  push 63
+  push 31
   add
+  dup 1
   push 31
   not
   and
+  push 32
+  add
   push 128
   add
   dup 1
@@ -667,10 +669,9 @@ bb61:
   or
   push bb69
   jumpi
+  swap 1
   push 128
   mstore
-  push 31
-  add
   push 5
   shr
   push 128

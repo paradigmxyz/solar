@@ -40,10 +40,11 @@ contract BytesMemoryElements {
     }
 
     // CHECK-LABEL: fn @allocDynamic{{[( ]}}
-    // CHECK: [[PADDED:v[0-9]+]] = add arg0, 63
-    // CHECK: {{v[0-9]+}} = lt [[PADDED]], arg0
+    // CHECK: [[ROUNDED:v[0-9]+]] = add arg0, 31
     // CHECK: [[MASK:v[0-9]+]] = not 31
-    // CHECK: [[ALLOC_SIZE:v[0-9]+]] = and [[PADDED]], [[MASK]]
+    // CHECK: [[PADDED:v[0-9]+]] = and [[ROUNDED]], [[MASK]]
+    // CHECK: [[ALLOC_SIZE:v[0-9]+]] = add [[PADDED]], 32
+    // CHECK: {{v[0-9]+}} = lt [[ALLOC_SIZE]], arg0
     // CHECK: [[BUF:v[0-9]+]] = alloc zeroed checked [[ALLOC_SIZE]]
     // CHECK: mstore [[BUF]], arg0
     function allocDynamic(uint n) external pure returns (uint) {

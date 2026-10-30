@@ -123,8 +123,7 @@ fn @pad_unbounded(arg0: i256) -> i256 {
     ret v6
 }
 
-// A store past the padding keeps no length known, and nor does an offset that no stored length
-// gives: either may wrap around onto the length word.
+// An offset that no stored length gives may wrap around onto the length word.
 // CHECK-LABEL: fn @unknown_offset
 // CHECK-NOT: -{{ +}}{{v[0-9]+}} = mload
 // CHECK: ret
@@ -140,19 +139,55 @@ fn @unknown_offset(arg0: i256, arg1: i256) -> i256 {
     v6 = add v5, arg1
     mstore v6, 0
     v7 = mload v3
+    ret v7
+}
+
+// A store past the payload end starts past the length word too.
+// CHECK-LABEL: fn @past_padding
+// CHECK: [[LEN:v[0-9]+]] = and arg0, 0xffffffffffffffff
+// CHECK: mstore {{v[0-9]+}}, 0
+// CHECK-NEXT: -{{ +}}{{v[0-9]+}} = mload
+// CHECK: +{{ +}}ret [[LEN]]
+fn @past_padding(arg0: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffff
+    v1 = add v0, 63
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = alloc zeroed checked v2
+    mstore v3, v0
+    v4 = ptrtoint ptr<memory> v3 to i256
     v8 = add v4, 64
     v9 = add v8, v0
     mstore v9, 0
     v10 = mload v3
-    v11 = add v7, v10
-    ret v11
+    ret v10
 }
 
-// The length must be stored before the address is formed.
+// The length of an object that is not a fresh allocation must be stored before the address is
+// formed.
 // CHECK-LABEL: fn @stored_after
 // CHECK-NOT: -{{ +}}{{v[0-9]+}} = mload
 // CHECK: ret
-fn @stored_after(arg0: i256) -> i256 {
+fn @stored_after(arg0: ptr<memory>, arg1: i256) -> i256 {
+  bb0:
+    v0 = and arg1, 0xffffffff
+    v1 = ptrtoint ptr<memory> arg0 to i256
+    v2 = add v1, 32
+    v3 = add v2, v0
+    mstore arg0, v0
+    mstore v3, 0
+    v4 = mload arg0
+    ret v4
+}
+
+// A fresh allocation is a heap pointer, which a bounded length cannot wrap, wherever the length is
+// stored.
+// CHECK-LABEL: fn @stored_after_alloc
+// CHECK: [[LEN:v[0-9]+]] = and arg0, 0xffffffffffffffff
+// CHECK: mstore {{v[0-9]+}}, 0
+// CHECK-NEXT: -{{ +}}{{v[0-9]+}} = mload
+// CHECK: +{{ +}}ret [[LEN]]
+fn @stored_after_alloc(arg0: i256) -> i256 {
   bb0:
     v0 = and arg0, 0xffffffffffffffff
     v1 = add v0, 63

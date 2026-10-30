@@ -164,14 +164,14 @@ bb8 [continuation]:
   push 63
   dup 3
   add
+  push 31
+  not
+  and
   dup 3
   dup 2
   lt
   push bb23
   jumpi
-  push 31
-  not
-  and
   push bb12
   jump bb25
 bb12 [continuation]:

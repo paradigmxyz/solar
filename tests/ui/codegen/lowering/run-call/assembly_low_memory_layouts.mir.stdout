@@ -768,15 +768,16 @@ fn @hashHelperScratch(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x75
 fn @allocateAfterHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x12d260c9, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @_putScratch
-    v0 = add arg2, 63
-    v1 = lt v0, arg2
-    icall panic_if<0x41>, v1
-    v2 = not 31
-    v3 = and v0, v2
-    v4 = alloc zeroed checked v3
-    mstore v4, arg2
-    v5 = mload v4
-    ret v5
+    v0 = add arg2, 31
+    v1 = not 31
+    v2 = and v0, v1
+    v3 = add v2, 32
+    v4 = lt v3, arg2
+    icall panic_if<0x41>, v4
+    v5 = alloc zeroed checked v3
+    mstore v5, arg2
+    v6 = mload v5
+    ret v6
 }
 
 fn @hashAroundCheckedAdd(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xe3ce866b, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {

@@ -12,10 +12,11 @@
 fn @changed_length(arg0: ptr<memory>, arg1: i256) -> ptr<memory> {
   bb0:
     v0 = mload arg0
-    v1 = add v0, 63
-    v2 = lt v1, v0
+    v1 = add v0, 31
+    v3 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v4 = add v3, 32
+    v2 = lt v4, v0
     icall panic_if<0x41>, v2
-    v4 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v5 = alloc zeroed checked v4
     mstore v5, v0
     jump bb1
@@ -59,10 +60,11 @@ fn @changed_length(arg0: ptr<memory>, arg1: i256) -> ptr<memory> {
 fn @same_length(arg0: ptr<memory>) -> ptr<memory> {
   bb0:
     v0 = mload arg0
-    v1 = add v0, 63
-    v2 = lt v1, v0
+    v1 = add v0, 31
+    v3 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v4 = add v3, 32
+    v2 = lt v4, v0
     icall panic_if<0x41>, v2
-    v4 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v5 = alloc zeroed checked v4
     mstore v5, v0
     jump bb1

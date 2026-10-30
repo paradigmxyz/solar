@@ -6,51 +6,52 @@ fn @copyHigh() -> ptr<memory> [selector=0xf4f1833d, pure, abi_params=[], abi_ret
     v1 = make_calldata_slice ptr<calldata> 0, v0
     v2 = extract_value slice<calldata>, v1, 1
     v3 = checked_add uint256, v2, 64
-    v4 = add v3, 63
-    v5 = lt v4, v3
-    icall panic_if<0x41>, v5
-    v6 = not 31
-    v7 = and v4, v6
-    v8 = alloc zeroed checked v7
-    mstore v8, v3
+    v4 = add v3, 31
+    v5 = not 31
+    v6 = and v4, v5
+    v7 = add v6, 32
+    v8 = lt v7, v3
+    icall panic_if<0x41>, v8
+    v9 = alloc zeroed checked v7
+    mstore v9, v3
     jump bb1
   bb1:
-    v9 = phi [bb0: v8], [bb3: v9]
-    v10 = phi [bb0: v2], [bb3: v10]
-    v11 = phi [bb0: 0], [bb3: v32]
-    v12 = lt v11, v10
-    jumpi v12, bb4, bb5
+    v10 = phi [bb0: v9], [bb3: v10]
+    v11 = phi [bb0: v2], [bb3: v11]
+    v12 = phi [bb0: 0], [bb3: v33]
+    v13 = lt v12, v11
+    jumpi v13, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v9
+    ret v10
   bb4:
-    v13 = calldatasize
-    v14 = make_calldata_slice ptr<calldata> 0, v13
-    v15 = extract_value slice<calldata>, v14, 1
-    v16 = lt v11, v15
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    v18 = extract_value slice<calldata>, v14, 0
-    v19 = extract_value slice<calldata>, v14, 0
-    v20 = ptrtoint ptr<calldata> v19 to i256
-    v21 = add v20, v11
-    v22 = calldataload v21
-    v23 = byte 0, v22
-    v24 = shl v23, 248
-    v25 = checked_add uint256, 64, v11
-    v26 = mload v9
-    v27 = lt v25, v26
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = byte 0, v24
-    v30 = ptradd v9, v25
-    v31 = ptradd v30, 32
-    mstore8 v31, v29
+    v14 = calldatasize
+    v15 = make_calldata_slice ptr<calldata> 0, v14
+    v16 = extract_value slice<calldata>, v15, 1
+    v17 = lt v12, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = extract_value slice<calldata>, v15, 0
+    v20 = extract_value slice<calldata>, v15, 0
+    v21 = ptrtoint ptr<calldata> v20 to i256
+    v22 = add v21, v12
+    v23 = calldataload v22
+    v24 = byte 0, v23
+    v25 = shl v24, 248
+    v26 = checked_add uint256, 64, v12
+    v27 = mload v10
+    v28 = lt v26, v27
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = byte 0, v25
+    v31 = ptradd v10, v26
+    v32 = ptradd v31, 32
+    mstore8 v32, v30
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v32 = checked_add uint256, v11, 1
+    v33 = checked_add uint256, v12, 1
     jump bb1
 }

@@ -24,20 +24,21 @@
 +     v4 = zext i160 arg0 to i256
 +     v5 = call arg2, v4, 0, v2, v3, 0, 0
 +     v6 = returndatasize !metadata(span=30..40, modifier_depth=3)
-+     v7 = add v6, 63 !metadata(span=30..40, modifier_depth=3)
-+     v8 = lt v7, v6 !metadata(span=30..40, modifier_depth=3)
-+     jumpi v8, bb1, bb2 !metadata(span=30..40, modifier_depth=3)
++     v7 = add v6, 31 !metadata(span=30..40, modifier_depth=3)
++     v8 = not 31 !metadata(span=30..40, modifier_depth=3)
++     v9 = and v7, v8 !metadata(span=30..40, modifier_depth=3)
++     v10 = add v9, 32 !metadata(span=30..40, modifier_depth=3)
++     v11 = lt v10, v6 !metadata(span=30..40, modifier_depth=3)
++     jumpi v11, bb1, bb2 !metadata(span=30..40, modifier_depth=3)
 +   bb2:
-+     v9 = not 31 !metadata(span=30..40, modifier_depth=3)
-+     v10 = and v7, v9 !metadata(span=30..40, modifier_depth=3)
-+     v11 = alloc v10 !metadata(span=30..40, modifier_depth=3)
-+     mstore v11, v6 !metadata(span=30..40, modifier_depth=3)
-+     v12 = make_returndata_slice ptr<returndata> 0, v6 !metadata(span=30..40, modifier_depth=3)
-+     v13 = ptradd v11, 32 !metadata(span=30..40, modifier_depth=3)
-+     v14 = extract_value slice<returndata>, v12, 0 !metadata(span=30..40, modifier_depth=3)
-+     v15 = extract_value slice<returndata>, v12, 1 !metadata(span=30..40, modifier_depth=3)
-+     returndatacopy v13, v14, v15 !metadata(span=30..40, modifier_depth=3)
-+     ret v11
++     v12 = alloc v10 !metadata(span=30..40, modifier_depth=3)
++     mstore v12, v6 !metadata(span=30..40, modifier_depth=3)
++     v13 = make_returndata_slice ptr<returndata> 0, v6 !metadata(span=30..40, modifier_depth=3)
++     v14 = ptradd v12, 32 !metadata(span=30..40, modifier_depth=3)
++     v15 = extract_value slice<returndata>, v13, 0 !metadata(span=30..40, modifier_depth=3)
++     v16 = extract_value slice<returndata>, v13, 1 !metadata(span=30..40, modifier_depth=3)
++     returndatacopy v14, v15, v16 !metadata(span=30..40, modifier_depth=3)
++     ret v12
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch, span=30..40, modifier_depth=3)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=30..40, modifier_depth=3)

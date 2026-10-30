@@ -4,172 +4,174 @@
   fn @changed_length(arg0: ptr<memory>, arg1: i256) -> ptr<memory> {
     bb0:
       v0 = mload arg0
-      v1 = add v0, 63
-      v2 = lt v1, v0
-      icall panic_if<0x41>, v2
-      v3 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-      v4 = alloc zeroed checked v3
-      mstore v4, v0
+      v1 = add v0, 31
+      v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+      v3 = add v2, 32
+      v4 = lt v3, v0
+      icall panic_if<0x41>, v4
+      v5 = alloc zeroed checked v3
+      mstore v5, v0
       jump bb1
     bb1:
-      mstore v4, arg1
+      mstore v5, arg1
       jump bb2
     bb2:
 -     jump bb3
-+     v21 = eq v0, 0
-+     jumpi v21, bb5, bb6
++     v22 = eq v0, 0
++     jumpi v22, bb5, bb6
 +   bb6:
-+     v22 = ptradd arg0, 32
-+     v23 = ptradd v4, 32
-+     v24 = ptrtoint ptr<memory> v22 to i256
++     v23 = ptradd arg0, 32
++     v24 = ptradd v5, 32
 +     v25 = ptrtoint ptr<memory> v23 to i256
-+     v26 = ptrtoint ptr<memory> arg0 to i256
-+     v27 = add v24, v0
++     v26 = ptrtoint ptr<memory> v24 to i256
++     v27 = ptrtoint ptr<memory> arg0 to i256
 +     v28 = add v25, v0
-+     v29 = lt v25, v27
++     v29 = add v26, v0
 +     v30 = lt v26, v28
-+     v31 = and v29, v30
-+     v32 = zext i1 v31 to i256
-+     jumpi v31, bb3, bb7
++     v31 = lt v27, v29
++     v32 = and v30, v31
++     v33 = zext i1 v32 to i256
++     jumpi v32, bb3, bb7
 +   bb7:
-+     v33 = mload arg0
-+     v34 = lt v33, v0
-+     v35 = mload v4
-+     v36 = lt v35, v0
-+     v37 = or v34, v36
-+     v38 = zext i1 v37 to i256
-+     icall panic_if<0x32>, v37
-+     v39 = ptradd v4, 32
-+     v40 = ptradd arg0, 32
-+     mcopy v39, v40, v0
++     v34 = mload arg0
++     v35 = lt v34, v0
++     v36 = mload v5
++     v37 = lt v36, v0
++     v38 = or v35, v37
++     v39 = zext i1 v38 to i256
++     icall panic_if<0x32>, v38
++     v40 = ptradd v5, 32
++     v41 = ptradd arg0, 32
++     mcopy v40, v41, v0
 +     jump bb5
     bb3:
--     v5 = phi [bb2: 0], [bb4: v17]
-+     v5 = phi [bb6: 0], [bb4: v17]
-      v6 = lt v5, v0
-      jumpi v6, bb4, bb5
+-     v6 = phi [bb2: 0], [bb4: v18]
++     v6 = phi [bb6: 0], [bb4: v18]
+      v7 = lt v6, v0
+      jumpi v7, bb4, bb5
 -   bb5:
--     v18 = ptrtoint ptr<memory> v4 to i256
--     v19 = add v18, 32
--     v20 = add v19, v0
--     mstore v20, 0
--     ret v4
+-     v19 = ptrtoint ptr<memory> v5 to i256
+-     v20 = add v19, 32
+-     v21 = add v20, v0
+-     mstore v21, 0
+-     ret v5
     bb4:
-      v7 = mload arg0
-      v8 = lt v5, v7
-      icall panic_if_zero<0x32>, v8
-      v9 = ptradd arg0, v5
-      v10 = ptradd v9, 32
-      v11 = mload v10
-      v12 = byte 0, v11
-      v13 = mload v4
-      v14 = lt v5, v13
-      icall panic_if_zero<0x32>, v14
-      v15 = ptradd v4, v5
-      v16 = ptradd v15, 32
-      mstore8 v16, v12
-      v17 = checked_add uint256, v5, 1
+      v8 = mload arg0
+      v9 = lt v6, v8
+      icall panic_if_zero<0x32>, v9
+      v10 = ptradd arg0, v6
+      v11 = ptradd v10, 32
+      v12 = mload v11
+      v13 = byte 0, v12
+      v14 = mload v5
+      v15 = lt v6, v14
+      icall panic_if_zero<0x32>, v15
+      v16 = ptradd v5, v6
+      v17 = ptradd v16, 32
+      mstore8 v17, v13
+      v18 = checked_add uint256, v6, 1
       jump bb3
 +   bb5:
-+     v18 = ptrtoint ptr<memory> v4 to i256
-+     v19 = add v18, 32
-+     v20 = add v19, v0
-+     mstore v20, 0
-+     ret v4
++     v19 = ptrtoint ptr<memory> v5 to i256
++     v20 = add v19, 32
++     v21 = add v20, v0
++     mstore v21, 0
++     ret v5
   }
   
   fn @same_length(arg0: ptr<memory>) -> ptr<memory> {
     bb0:
       v0 = mload arg0
-      v1 = add v0, 63
-      v2 = lt v1, v0
-      icall panic_if<0x41>, v2
-      v3 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
--     v4 = alloc zeroed checked v3
-+     v4 = alloc checked v3
-      mstore v4, v0
+      v1 = add v0, 31
+      v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+      v3 = add v2, 32
+      v4 = lt v3, v0
+      icall panic_if<0x41>, v4
+-     v5 = alloc zeroed checked v3
++     v5 = alloc checked v3
+      mstore v5, v0
       jump bb1
     bb1:
-      mstore v4, v0
+      mstore v5, v0
       jump bb2
     bb2:
 -     jump bb3
-+     v21 = eq v0, 0
-+     jumpi v21, bb5, bb6
++     v22 = eq v0, 0
++     jumpi v22, bb5, bb6
 +   bb6:
-+     v22 = ptradd arg0, 32
-+     v23 = ptradd v4, 32
-+     v24 = ptrtoint ptr<memory> v22 to i256
-+     v25 = add v24, v0
-+     v26 = ptrtoint ptr<memory> arg0 to i256
-+     v27 = ptrtoint ptr<memory> v4 to i256
-+     v28 = ptradd v4, v3
-+     v29 = ptrtoint ptr<memory> v28 to i256
-+     v30 = lt v26, v29
-+     v31 = lt v27, v25
-+     v32 = and v30, v31
-+     v33 = zext i1 v32 to i256
-+     v34 = lt v26, 96
-+     v35 = zext i1 v34 to i256
-+     v36 = or v33, v35
-+     v37 = ne v36, 0
-+     jumpi v37, bb8, bb7
++     v23 = ptradd arg0, 32
++     v24 = ptradd v5, 32
++     v25 = ptrtoint ptr<memory> v23 to i256
++     v26 = add v25, v0
++     v27 = ptrtoint ptr<memory> arg0 to i256
++     v28 = ptrtoint ptr<memory> v5 to i256
++     v29 = ptradd v5, v3
++     v30 = ptrtoint ptr<memory> v29 to i256
++     v31 = lt v27, v30
++     v32 = lt v28, v26
++     v33 = and v31, v32
++     v34 = zext i1 v33 to i256
++     v35 = lt v27, 96
++     v36 = zext i1 v35 to i256
++     v37 = or v34, v36
++     v38 = ne v37, 0
++     jumpi v38, bb8, bb7
 +   bb7:
-+     mcopy v23, v22, v0
++     mcopy v24, v23, v0
 +     jump bb5
 +   bb8:
-+     v38 = sub v3, 32
-+     memory_zero v23, v38
-+     v39 = ptradd arg0, 32
-+     v40 = ptradd v4, 32
-+     v41 = ptrtoint ptr<memory> v39 to i256
++     v39 = sub v3, 32
++     memory_zero v24, v39
++     v40 = ptradd arg0, 32
++     v41 = ptradd v5, 32
 +     v42 = ptrtoint ptr<memory> v40 to i256
-+     v43 = ptrtoint ptr<memory> arg0 to i256
-+     v44 = add v41, v0
++     v43 = ptrtoint ptr<memory> v41 to i256
++     v44 = ptrtoint ptr<memory> arg0 to i256
 +     v45 = add v42, v0
-+     v46 = lt v42, v44
++     v46 = add v43, v0
 +     v47 = lt v43, v45
-+     v48 = and v46, v47
-+     v49 = zext i1 v48 to i256
-+     jumpi v48, bb3, bb9
++     v48 = lt v44, v46
++     v49 = and v47, v48
++     v50 = zext i1 v49 to i256
++     jumpi v49, bb3, bb9
 +   bb9:
-+     v50 = mload arg0
-+     v51 = lt v50, v0
-+     icall panic_if<0x32>, v51
-+     mcopy v23, v22, v0
++     v51 = mload arg0
++     v52 = lt v51, v0
++     icall panic_if<0x32>, v52
++     mcopy v24, v23, v0
 +     jump bb5
     bb3:
--     v5 = phi [bb2: 0], [bb4: v17]
-+     v5 = phi [bb8: 0], [bb4: v17]
-      v6 = lt v5, v0
-      jumpi v6, bb4, bb5
+-     v6 = phi [bb2: 0], [bb4: v18]
++     v6 = phi [bb8: 0], [bb4: v18]
+      v7 = lt v6, v0
+      jumpi v7, bb4, bb5
 -   bb5:
--     v18 = ptrtoint ptr<memory> v4 to i256
--     v19 = add v18, 32
--     v20 = add v19, v0
--     mstore v20, 0
--     ret v4
+-     v19 = ptrtoint ptr<memory> v5 to i256
+-     v20 = add v19, 32
+-     v21 = add v20, v0
+-     mstore v21, 0
+-     ret v5
     bb4:
-      v7 = mload arg0
-      v8 = lt v5, v7
-      icall panic_if_zero<0x32>, v8
-      v9 = ptradd arg0, v5
-      v10 = ptradd v9, 32
-      v11 = mload v10
-      v12 = byte 0, v11
-      v13 = mload v4
-      v14 = lt v5, v13
-      icall panic_if_zero<0x32>, v14
-      v15 = ptradd v4, v5
-      v16 = ptradd v15, 32
-      mstore8 v16, v12
-      v17 = checked_add uint256, v5, 1
+      v8 = mload arg0
+      v9 = lt v6, v8
+      icall panic_if_zero<0x32>, v9
+      v10 = ptradd arg0, v6
+      v11 = ptradd v10, 32
+      v12 = mload v11
+      v13 = byte 0, v12
+      v14 = mload v5
+      v15 = lt v6, v14
+      icall panic_if_zero<0x32>, v15
+      v16 = ptradd v5, v6
+      v17 = ptradd v16, 32
+      mstore8 v17, v13
+      v18 = checked_add uint256, v6, 1
       jump bb3
 +   bb5:
-+     v18 = ptrtoint ptr<memory> v4 to i256
-+     v19 = add v18, 32
-+     v20 = add v19, v0
-+     mstore v20, 0
-+     ret v4
++     v19 = ptrtoint ptr<memory> v5 to i256
++     v20 = add v19, 32
++     v21 = add v20, v0
++     mstore v21, 0
++     ret v5
   }
   

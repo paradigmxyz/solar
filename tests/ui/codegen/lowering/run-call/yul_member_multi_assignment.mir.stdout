@@ -60,30 +60,31 @@ fn @mixedBytes(arg0: slice<calldata>) -> struct2 [selector=0x48f52f2f, pure, abi
     v11 = inttoptr i256 v5 to ptr<calldata>
     v12 = make_calldata_slice v11, v10
     v13 = extract_value slice<calldata>, v12, 1
-    v14 = add v13, 63
-    v15 = lt v14, v13
-    icall panic_if<0x41>, v15
-    v16 = not 31
-    v17 = and v14, v16
-    v18 = alloc v17
-    mstore v18, v13
-    v19 = extract_value slice<calldata>, v12, 0
-    v20 = extract_value slice<calldata>, v12, 1
-    v21 = calldatasize
-    v22 = gt v20, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v22
-    v23 = sub v21, v20
-    v24 = ptrtoint ptr<calldata> v19 to i256
-    v25 = sgt v24, v23
-    icall revert_if<calldata_tail_too_short>, v25
-    v26 = ptradd v18, 32
-    v27 = extract_value slice<calldata>, v12, 0
-    v28 = extract_value slice<calldata>, v12, 1
-    calldatacopy v26, v27, v28
-    v29 = insert_value struct2, undef struct2, 0, v4
-    v30 = insert_value struct2, v29, 1, v7
-    v31 = insert_value struct2, v30, 2, v18
-    ret v31
+    v14 = add v13, 31
+    v15 = not 31
+    v16 = and v14, v15
+    v17 = add v16, 32
+    v18 = lt v17, v13
+    icall panic_if<0x41>, v18
+    v19 = alloc v17
+    mstore v19, v13
+    v20 = extract_value slice<calldata>, v12, 0
+    v21 = extract_value slice<calldata>, v12, 1
+    v22 = calldatasize
+    v23 = gt v21, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v23
+    v24 = sub v22, v21
+    v25 = ptrtoint ptr<calldata> v20 to i256
+    v26 = sgt v25, v24
+    icall revert_if<calldata_tail_too_short>, v26
+    v27 = ptradd v19, 32
+    v28 = extract_value slice<calldata>, v12, 0
+    v29 = extract_value slice<calldata>, v12, 1
+    calldatacopy v27, v28, v29
+    v30 = insert_value struct2, undef struct2, 0, v4
+    v31 = insert_value struct2, v30, 1, v7
+    v32 = insert_value struct2, v31, 2, v19
+    ret v32
 }
 
 fn @mixedString(arg0: slice<calldata>) -> struct4 [selector=0x9824992c, pure, abi_params=[bytes], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
@@ -101,29 +102,30 @@ fn @mixedString(arg0: slice<calldata>) -> struct4 [selector=0x9824992c, pure, ab
     v10 = inttoptr i256 v4 to ptr<calldata>
     v11 = make_calldata_slice v10, v9
     v12 = extract_value slice<calldata>, v11, 1
-    v13 = add v12, 63
-    v14 = lt v13, v12
-    icall panic_if<0x41>, v14
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc v16
-    mstore v17, v12
-    v18 = extract_value slice<calldata>, v11, 0
-    v19 = extract_value slice<calldata>, v11, 1
-    v20 = calldatasize
-    v21 = gt v19, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v21
-    v22 = sub v20, v19
-    v23 = ptrtoint ptr<calldata> v18 to i256
-    v24 = sgt v23, v22
-    icall revert_if<calldata_tail_too_short>, v24
-    v25 = ptradd v17, 32
-    v26 = extract_value slice<calldata>, v11, 0
-    v27 = extract_value slice<calldata>, v11, 1
-    calldatacopy v25, v26, v27
-    v28 = insert_value struct4, undef struct4, 0, v5
-    v29 = insert_value struct4, v28, 1, v17
-    ret v29
+    v13 = add v12, 31
+    v14 = not 31
+    v15 = and v13, v14
+    v16 = add v15, 32
+    v17 = lt v16, v12
+    icall panic_if<0x41>, v17
+    v18 = alloc v16
+    mstore v18, v12
+    v19 = extract_value slice<calldata>, v11, 0
+    v20 = extract_value slice<calldata>, v11, 1
+    v21 = calldatasize
+    v22 = gt v20, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v22
+    v23 = sub v21, v20
+    v24 = ptrtoint ptr<calldata> v19 to i256
+    v25 = sgt v24, v23
+    icall revert_if<calldata_tail_too_short>, v25
+    v26 = ptradd v18, 32
+    v27 = extract_value slice<calldata>, v11, 0
+    v28 = extract_value slice<calldata>, v11, 1
+    calldatacopy v26, v27, v28
+    v29 = insert_value struct4, undef struct4, 0, v5
+    v30 = insert_value struct4, v29, 1, v18
+    ret v30
 }
 
 fn @returned(arg0: slice<calldata>) -> slice<calldata> [selector=0x39dbde69, pure, abi_params=[array<_, uint256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {

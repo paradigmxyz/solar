@@ -10,6 +10,12 @@
 //@ run-call: makeStructArray 0 => 0
 //@ run-call: makeStructArray 1 => 1
 //@ run-call-fail: makeBytes 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => Panic(0x41)
+//@ run-call-fail: makeBytes 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe1 => Panic(0x41)
+//@ run-call-fail: makeBytes 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0 => Panic(0x41)
+//@ run-call-fail: makeBytes 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffdf => Panic(0x41)
+//@ run-call-fail: makeBytes 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc1 => Panic(0x41)
+//@ run-call-fail: makeBytes 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc0 => Panic(0x41)
+//@ run-call-fail: makeBytes 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffbf => Panic(0x41)
 //@ run-call-fail: makeArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => Panic(0x41)
 //@ run-call-fail: makeNestedArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => Panic(0x41)
 //@ run-call-fail: makeStructArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => Panic(0x41)

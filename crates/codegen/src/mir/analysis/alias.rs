@@ -22,8 +22,8 @@ use super::{CfgInfo, DominatorTree, MemoryCallSummaries};
 use crate::mir::{
     AbiType, AddressCallKind, AllocationFailure, ArgIdx, BlockId, Builtin, Callee, FrameMode,
     FrameSlotKind, Function, FunctionId, ImmutableId, InstId, InstKind, MAX_SCRATCH_ERROR_WORDS,
-    MemoryRegion, MirType, PtrLocation, RawMemoryAccess, RequireKind, StorageAlias, Terminator,
-    Value, ValueId, memory::EvmMemoryLayout,
+    MemoryRegion, MirType, PtrLocation, RawMemoryAccess, RawMemorySize, RequireKind, StorageAlias,
+    Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -901,21 +901,24 @@ impl AliasAnalysis {
     }
 
     /// Returns a canonical access address and whether its extent is unknown. The end of an
-    /// object's payload, `p + 32 + len`, has a proved lower bound at `p + 32` even when the exact
-    /// length is unknown. Other addresses retain their runtime indices, which may wrap.
+    /// object's payload, `p + 32 + len`, and a heap pointer plus a bounded offset have a proved
+    /// lower bound at their base even when the exact offset is unknown. Other addresses retain
+    /// their runtime indices, which may wrap.
     fn access_base(&self, func: &Function, address: ValueId) -> Option<(MemoryAddress, bool)> {
-        if let Some(object) = Self::payload_end(func, address) {
-            let base =
-                self.memory_address(func, object)?.checked_add(EvmMemoryLayout::WORD_SIZE)?;
-            let base = match base.base {
-                MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => {
-                    Self::unbounded_allocation(func, base, inst)?
-                }
-                _ => base,
-            };
-            return Some((base, true));
-        }
-        Some((self.memory_address(func, address)?, false))
+        let base = if let Some(object) = Self::payload_end(func, address) {
+            self.memory_address(func, object)?.checked_add(EvmMemoryLayout::WORD_SIZE)?
+        } else if let Some(base) = Self::bounded_sum_base(func, address) {
+            self.memory_address(func, base)?
+        } else {
+            return Some((self.memory_address(func, address)?, false));
+        };
+        let base = match base.base {
+            MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => {
+                Self::unbounded_allocation(func, base, inst)?
+            }
+            _ => base,
+        };
+        Some((base, true))
     }
 
     /// Creates a memory location without instruction metadata.
@@ -2220,7 +2223,7 @@ impl AliasAnalysis {
             {
                 (_, Some(_)) => indexed(*first),
                 (Some(_), None) => indexed(*second),
-                (None, None) => true,
+                (None, None) => Self::bounded_sum_base(func, address).is_none(),
             },
             InstKind::Sub(base, offset) => func.value_u64(*offset).is_none() || indexed(*base),
             InstKind::Select(_, first, second) => indexed(*first) || indexed(*second),
@@ -2614,6 +2617,7 @@ impl AliasAnalysis {
                     .filter(|_| {
                         super::integers::arithmetic_no_wrap(func, value)
                             || Self::constant_add_after_access(func, value)
+                            || Self::constant_add_to_checked_alloc(func, value)
                     })
                     .or_else(|| {
                         // The allocator's bump `p + size` is not below `p`: allocation proved or
@@ -2727,6 +2731,7 @@ impl AliasAnalysis {
     /// `2^64`, as no store reaches memory past that, so the sum stays below `2^256` and an access
     /// at it stays clear of the length word, though it may leave the object.
     fn payload_end(func: &Function, address: ValueId) -> Option<ValueId> {
+        let address = Self::memory_address_value(func, address);
         let Value::Inst(user) = *func.value(address) else { return None };
         let InstKind::Add(a, b) = func.inst(user).kind else { return None };
         let add = |value| match *func.value(value) {
@@ -2754,7 +2759,7 @@ impl AliasAnalysis {
                     (_, true) => other,
                     _ => continue,
                 };
-                if super::integers::unsigned_bounds_with_opcodes(func, len).1 <= U256::MAX >> 1
+                if Self::bounded_offset(func, len, user)
                     && Self::stores_length_before(func, object, len, user)
                 {
                     return Some(object);
@@ -2762,6 +2767,60 @@ impl AliasAnalysis {
             }
         }
         None
+    }
+
+    /// Whether `offset`, an operand of `user`, is below `2^255`: by its type or opcode, or because
+    /// an earlier access in `user`'s block spans that many bytes. A successful access of a
+    /// nonempty range ends below `2^64`, so its size is below `2^64`, or zero.
+    fn bounded_offset(func: &Function, offset: ValueId, user: InstId) -> bool {
+        let below_half = |bounds: (U256, U256)| bounds.1 <= U256::MAX >> 1;
+        if below_half(super::integers::unsigned_bounds_with_opcodes(func, offset)) {
+            return true;
+        }
+        let Some(block) = func.blocks.iter().find(|block| block.instructions.contains(&user))
+        else {
+            return false;
+        };
+        let mut sizes = SmallVec::<[ValueId; 8]>::new();
+        for &inst in block.instructions.iter().take_while(|&&inst| inst != user) {
+            func.inst(inst).kind.visit_raw_memory(|access, _, size| {
+                if let RawMemorySize::Value(size) = size
+                    && access != RawMemoryAccess::PartialWrite
+                {
+                    sizes.push(size);
+                }
+            });
+        }
+        let known = |value| sizes.contains(&value).then_some((U256::ZERO, U256::from(u64::MAX)));
+        below_half(super::integers::unsigned_bounds_with_opcodes_and(func, offset, known))
+    }
+
+    /// Returns the heap pointer `base` of a sum `base + offset`, in either order, when `offset`
+    /// is bounded and so cannot wrap the sum below `base`: a compiler-owned pointer, an allocation
+    /// or the free-memory pointer, plus constants.
+    fn bounded_sum_base(func: &Function, address: ValueId) -> Option<ValueId> {
+        let address = Self::memory_address_value(func, address);
+        let Value::Inst(user) = *func.value(address) else { return None };
+        let InstKind::Add(first, second) = func.inst(user).kind else { return None };
+        [(first, second), (second, first)].into_iter().find_map(|(base, offset)| {
+            (func.value_u64(offset).is_none()
+                && Self::is_heap_pointer(func, base)
+                && Self::bounded_offset(func, offset, user))
+            .then_some(base)
+        })
+    }
+
+    /// Whether `value` is an allocation or the free-memory pointer, plus constant offsets.
+    fn is_heap_pointer(func: &Function, value: ValueId) -> bool {
+        let value = Self::memory_address_value(func, value);
+        let Value::Inst(inst) = *func.value(value) else { return false };
+        match func.inst(inst).kind {
+            InstKind::Alloc { .. } | InstKind::Fmp => true,
+            InstKind::Add(base, offset) | InstKind::PtrAdd(base, offset) => {
+                func.value_u64(offset).is_some() && Self::is_heap_pointer(func, base)
+            }
+            _ => false,
+        }
     }
 
     /// Whether `len` is stored into the length word of `object` before `user` runs: earlier in
@@ -2857,6 +2916,18 @@ impl AliasAnalysis {
             }
         }
         value
+    }
+
+    /// Whether a word-sized addition of a nonnegative `u64` constant to a checked allocation
+    /// cannot wrap, as for [`InstKind::PtrAdd`]: such an allocation caps its end at
+    /// `MAX_ALLOCATION_END`.
+    fn constant_add_to_checked_alloc(func: &Function, value: ValueId) -> bool {
+        Self::constant_add_base(func, value).is_some_and(|base| {
+            matches!(*func.value(base), Value::Inst(inst) if matches!(
+                func.inst(inst).kind,
+                InstKind::Alloc { semantics, .. } if semantics.failure == AllocationFailure::Checked
+            ))
+        })
     }
 
     /// The base of a word-sized addition or pointer offset by a nonnegative `u64` constant.

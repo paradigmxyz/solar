@@ -22,9 +22,9 @@
 +     v9 = sub v7, v8
 +     mstore v5, v9
 +     v10 = mload v0
-+     v11 = not 31
-+     v12 = add v10, 31
-+     v13 = and v12, v11
++     v11 = add v10, 31
++     v12 = not 31
++     v13 = and v11, v12
 +     v14 = add v7, 32
 +     v15 = add v7, v13
 +     mstore v15, 0
@@ -62,9 +62,9 @@
 +     v11 = sub v9, v10
 +     mstore v7, v11
 +     v12 = mload v0
-+     v13 = not 31
-+     v14 = add v12, 31
-+     v15 = and v14, v13
++     v13 = add v12, 31
++     v14 = not 31
++     v15 = and v13, v14
 +     v16 = add v9, 32
 +     v17 = add v9, v15
 +     mstore v17, 0
