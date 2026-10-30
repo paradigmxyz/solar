@@ -7,28 +7,42 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     v5 = shr v4, 160
     v2 = calldatasize
     v3 = lt v2, 68
-    v40 = zext i1 v3 to i256
-    v41 = or v40, v5
-    v42 = ne v41, 0
-    jumpi v42, bb1, bb2
+    v57 = zext i1 v3 to i256
+    v58 = or v57, v5
+    v59 = ne v58, 0
+    jumpi v59, bb1, bb2
   bb2:
-    v37 = heap_floor !metadata(alloc_ptr)
-    v38 = add v37, 128 !metadata(alloc_ptr)
-    mstore v37, 68
-    v32 = add v37, 32
-    mstore v32, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v34 = add v37, 36
-    mstore v34, arg0
-    v14 = add v34, 32
+    v54 = heap_floor !metadata(alloc_ptr)
+    v55 = add v54, 128 !metadata(alloc_ptr)
+    mstore 64, v55 !metadata(memory=scratch)
+    mstore v54, 68
+    v47 = add v54, 32
+    mstore v47, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v49 = add v54, 36
+    mstore v49, arg0
+    v14 = add v49, 32
     mstore v14, arg1
-    v17 = add v37, 160
-    mstore v38, 32
-    v23 = add v17, 32
-    v24 = add v17, 96
-    mstore v24, 0
-    mstore v17, 68
-    mcopy v23, v32, 68 !metadata(disjoint)
-    returndata v38, 160
+    v16 = lt v54, 32
+    jumpi v16, bb3, bb4
+  bb4:
+    v40 = add v47, 68
+    mstore v40, 0
+    v51 = sub v54, 32
+    mstore v51, 32
+    jump bb5
+  bb3:
+    v56 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v19 = add v56, 32
+    mstore v56, 32
+    v25 = add v19, 32
+    v26 = add v19, 96
+    mstore v26, 0
+    mstore v19, 68
+    mcopy v25, v47, 68 !metadata(disjoint)
+    jump bb5
+  bb5:
+    v43 = phi [bb3: v56], [bb4: v51]
+    returndata v43, 160
   bb1:
     revert 0, 0
 }

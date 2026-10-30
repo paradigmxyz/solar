@@ -204,17 +204,15 @@ fn @blobAt() [selector=0x8f236983, abi_wrapper, view] {
     v4 = add arg0, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
     v5 = icall @load_storage_bytes, v4
     v11 = mload v5
+    v12 = add v11, 31
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v21 = add v5, 32
-    v13 = add v11, 31
-    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = add v21, v14
+    v16 = add v21, v11
     mstore v16, 0
-    v23 = add v5, 64
-    mcopy v23, v21, v11
-    mstore v5, 32
-    mstore v21, v11
-    v18 = add v14, 64
-    returndata v5, v18
+    v23 = sub v5, 32
+    mstore v23, 32
+    v18 = add v13, 64
+    returndata v23, v18
   bb3:
     revert 0, 0
 }

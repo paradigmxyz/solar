@@ -15,17 +15,15 @@ fn @decode.0() [selector=0x49145c91, abi_wrapper, pure] {
     v3 = icall @decode_calldata_type
     v0 = icall @decode.8, v3
     v7 = mload v0
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v17 = add v0, 32
-    v9 = add v7, 31
-    v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v12 = add v17, v10
+    v12 = add v17, v7
     mstore v12, 0
-    v19 = add v0, 64
-    mcopy v19, v17, v7
-    mstore v0, 32
-    mstore v17, v7
-    v14 = add v10, 64
-    returndata v0, v14
+    v19 = sub v0, 32
+    mstore v19, 32
+    v14 = add v9, 64
+    returndata v19, v14
 }
 
 fn @encode.1() [selector=0x12496a1b, abi_wrapper, pure] {
@@ -33,17 +31,15 @@ fn @encode.1() [selector=0x12496a1b, abi_wrapper, pure] {
     v5 = icall @decode_calldata_type
     v1 = icall @encode.4, v5, false, false
     v9 = mload v1
+    v10 = add v9, 31
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v19 = add v1, 32
-    v11 = add v9, 31
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v14 = add v19, v12
+    v14 = add v19, v9
     mstore v14, 0
-    v21 = add v1, 64
-    mcopy v21, v19, v9
-    mstore v1, 32
-    mstore v19, v9
-    v16 = add v12, 64
-    returndata v1, v16
+    v21 = sub v1, 32
+    mstore v21, 32
+    v16 = add v11, 64
+    returndata v21, v16
 }
 
 fn @encodeFileSafe() [selector=0x2dba772b, abi_wrapper, pure] {
@@ -51,17 +47,15 @@ fn @encodeFileSafe() [selector=0x2dba772b, abi_wrapper, pure] {
     v5 = icall @decode_calldata_type
     v1 = icall @encode.4, v5, true, false
     v9 = mload v1
+    v10 = add v9, 31
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v19 = add v1, 32
-    v11 = add v9, 31
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v14 = add v19, v12
+    v14 = add v19, v9
     mstore v14, 0
-    v21 = add v1, 64
-    mcopy v21, v19, v9
-    mstore v1, 32
-    mstore v19, v9
-    v16 = add v12, 64
-    returndata v1, v16
+    v21 = sub v1, 32
+    mstore v21, 32
+    v16 = add v11, 64
+    returndata v21, v16
 }
 
 fn @encodeNoPadding() [selector=0x3d92c956, abi_wrapper, pure] {
@@ -69,17 +63,15 @@ fn @encodeNoPadding() [selector=0x3d92c956, abi_wrapper, pure] {
     v3 = icall @decode_calldata_type
     v0 = icall @encode.4, v3, false, true
     v7 = mload v0
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v17 = add v0, 32
-    v9 = add v7, 31
-    v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v12 = add v17, v10
+    v12 = add v17, v7
     mstore v12, 0
-    v19 = add v0, 64
-    mcopy v19, v17, v7
-    mstore v0, 32
-    mstore v17, v7
-    v14 = add v10, 64
-    returndata v0, v14
+    v19 = sub v0, 32
+    mstore v19, 32
+    v14 = add v9, 64
+    returndata v19, v14
 }
 
 fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory, pure] {

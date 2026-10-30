@@ -15,7 +15,7 @@
 // An unsigned comparison of `uint160` elements whose arrays only ever hold
 // canonical words compares the loaded words, so neither the search nor the
 // merge masks its elements. Results built at their largest size and shrunk
-// in place keep canonical elements and encode with one copy.
+// in place keep canonical elements and encode without a copy.
 contract NarrowComparisons {
     // CHECK-LABEL: fn @search(
     // CHECK-NOT: 0xffffffffffffffffffffffffffffffffffffffff
@@ -31,7 +31,7 @@ contract NarrowComparisons {
 
     // CHECK-LABEL: fn @union(
     // CHECK-NOT: 0xffffffffffffffffffffffffffffffffffffffff
-    // CHECK: mcopy
+    // CHECK-NOT: mcopy
     // CHECK: returndata
     function union(uint160[] memory a, uint160[] memory b) external pure returns (uint160[] memory c) {
         c = new uint160[](a.length + b.length);
@@ -60,7 +60,7 @@ contract NarrowComparisons {
 
     // CHECK-LABEL: fn @shrink(
     // CHECK-NOT: 0xffffffffffffffffffffffffffffffffffffffff
-    // CHECK: mcopy
+    // CHECK-NOT: mcopy
     // CHECK: returndata
     function shrink(uint160[] memory a, uint256 n) external pure returns (uint160[] memory) {
         _truncate(a, n);

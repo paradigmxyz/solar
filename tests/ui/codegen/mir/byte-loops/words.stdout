@@ -80,16 +80,14 @@ fn @store32() [selector=0xd264c25a, abi_wrapper, pure] {
     jumpi v5, bb3, bb2
   bb2:
     v38 = mload v34
-    v40 = add v38, 31
-    v41 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v43 = add v56, v41
+    v39 = add v38, 31
+    v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v43 = add v56, v38
     mstore v43, 0
-    v48 = add v34, 64
-    mcopy v48, v56, v38
-    mstore v34, 32
-    mstore v56, v38
-    v45 = add v41, 64
-    returndata v34, v45
+    v48 = sub v34, 32
+    mstore v48, 32
+    v45 = add v40, 64
+    returndata v48, v45
   bb3:
     v8 = byte v4, arg2
     v30 = add arg1, v4
@@ -121,10 +119,10 @@ fn @store2() [selector=0xe9ebf0b0, abi_wrapper, pure] {
     v39 = shl v38, 16
     v36 = calldatasize
     v37 = lt v36, 100
-    v71 = zext i1 v37 to i256
-    v72 = or v71, v39
-    v73 = ne v72, 0
-    jumpi v73, bb10, bb11
+    v70 = zext i1 v37 to i256
+    v71 = or v70, v39
+    v72 = ne v71, 0
+    jumpi v72, bb10, bb11
   bb11:
     v41 = icall @decode_calldata_type
     v63 = add v41, arg1
@@ -152,16 +150,14 @@ fn @store2() [selector=0xe9ebf0b0, abi_wrapper, pure] {
     jumpi v5, bb3, bb2
   bb2:
     v45 = mload v41
-    v47 = add v45, 31
-    v48 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v50 = add v66, v48
+    v46 = add v45, 31
+    v47 = and v46, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v50 = add v66, v45
     mstore v50, 0
-    v58 = add v41, 64
-    mcopy v58, v66, v45
-    mstore v41, 32
-    mstore v66, v45
-    v52 = add v48, 64
-    returndata v41, v52
+    v58 = sub v41, 32
+    mstore v58, 32
+    v52 = add v47, 64
+    returndata v58, v52
   bb3:
     v8 = byte v4, arg2
     v34 = add arg1, v4
@@ -199,23 +195,23 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     jumpi v1, bb6, bb7
   bb7:
     v2 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v99 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v100 = add v99, v2 !metadata(alloc_ptr)
-    v101 = lt v100, v99
-    v102 = gt v100, 0xffffffffffffffff
-    v103 = or v101, v102
-    jumpi v103, bb6, bb16
+    v98 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v99 = add v98, v2 !metadata(alloc_ptr)
+    v100 = lt v99, v98
+    v101 = gt v99, 0xffffffffffffffff
+    v102 = or v100, v101
+    jumpi v102, bb6, bb16
   bb16:
-    mstore 64, v100 !metadata(memory=scratch)
-    v105 = calldatasize
-    calldatacopy v99, v105, v2
-    mstore v99, arg2
+    mstore 64, v99 !metadata(memory=scratch)
+    v104 = calldatasize
+    calldatacopy v98, v104, v2
+    mstore v98, arg2
     v26 = eq arg2, 0
     jumpi v26, bb2, bb4
   bb4:
     v81 = add v63, arg1
     v82 = add v81, 32
-    v84 = add v99, 32
+    v84 = add v98, 32
     v33 = add v82, arg2
     v34 = add v84, arg2
     v35 = lt v84, v33
@@ -252,13 +248,13 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     v89 = add v88, 32
     v16 = mload v89
     v17 = byte 0, v16
-    v19 = mload v99
+    v19 = mload v98
     v20 = lt v8, v19
     jumpi v20, bb10, bb8
   bb8:
     tail_call @revert_stub
   bb10:
-    v91 = add v99, v8
+    v91 = add v98, v8
     v92 = add v91, 32
     mstore8 v92, v17
     v25 = add v8, 1
@@ -268,18 +264,16 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
-    v67 = mload v99
-    v77 = add v99, 32
-    v69 = add v67, 31
-    v70 = and v69, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v72 = add v77, v70
+    v67 = mload v98
+    v68 = add v67, 31
+    v69 = and v68, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v77 = add v98, 32
+    v72 = add v77, v67
     mstore v72, 0
-    v79 = add v99, 64
-    mcopy v79, v77, v67
-    mstore v99, 32
-    mstore v77, v67
-    v74 = add v70, 64
-    returndata v99, v74
+    v79 = sub v98, 32
+    mstore v79, 32
+    v74 = add v69, 64
+    returndata v79, v74
   bb6:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

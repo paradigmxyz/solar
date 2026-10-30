@@ -33,44 +33,42 @@ fn @message() [selector=0x91fdccfd, abi_wrapper, pure] {
     jumpi v29, bb1, bb2
   bb2:
     v30 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v116 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v117 = add v116, v30 !metadata(alloc_ptr)
-    mstore 64, v117
-    mstore v116, v27
-    v77 = add v116, 32
+    v115 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v116 = add v115, v30 !metadata(alloc_ptr)
+    mstore 64, v116
+    mstore v115, v27
+    v77 = add v115, 32
     icall @mcopy_words, v77, v102, v6
-    v79 = add v116, v6
+    v79 = add v115, v6
     v80 = add v79, 32
     mstore v80, 0x7c00000000000000000000000000000000000000000000000000000000000000
-    v82 = add v116, v10
+    v82 = add v115, v10
     v83 = add v82, 32
     icall @mcopy_words, v83, v104, v12
-    v85 = add v116, v15
+    v85 = add v115, v15
     v86 = add v85, 32
     mstore v86, 0x7c00000000000000000000000000000000000000000000000000000000000000
-    v88 = add v116, v16
+    v88 = add v115, v16
     v89 = add v88, 32
     icall @mcopy_words, v89, v106, v18
-    v91 = add v116, v21
+    v91 = add v115, v21
     v92 = add v91, 32
     mstore v92, 0x7c00000000000000000000000000000000000000000000000000000000000000
-    v94 = add v116, v22
+    v94 = add v115, v22
     v95 = add v94, 32
     icall @mcopy_words, v95, v108, v24
-    v97 = add v116, v27
+    v97 = add v115, v27
     v98 = add v97, 32
     mstore v98, 0
-    v67 = mload v116
-    v69 = add v67, 31
-    v70 = and v69, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v72 = add v77, v70
+    v67 = mload v115
+    v68 = add v67, 31
+    v69 = and v68, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v72 = add v77, v67
     mstore v72, 0
-    v100 = add v116, 64
-    icall @mcopy_words, v100, v77, v67
-    mstore v116, 32
-    mstore v77, v67
-    v74 = add v70, 64
-    returndata v116, v74
+    v100 = sub v115, 32
+    mstore v100, 32
+    v74 = add v69, 64
+    returndata v100, v74
   bb1:
     tail_call @revert_stub.5
   bb3:

@@ -47,17 +47,15 @@ fn @load() [selector=0x86d5c4be, abi_wrapper, view] {
   bb0:
     v0 = icall @_copy, 1
     v4 = mload v0
+    v5 = add v4, 31
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v14 = add v0, 32
-    v6 = add v4, 31
-    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v9 = add v14, v7
+    v9 = add v14, v4
     mstore v9, 0
-    v16 = add v0, 64
-    mcopy v16, v14, v4
-    mstore v0, 32
-    mstore v14, v4
-    v11 = add v7, 64
-    returndata v0, v11
+    v16 = sub v0, 32
+    mstore v16, 32
+    v11 = add v6, 64
+    returndata v16, v11
 }
 
 fn @loadThenAllocate() [selector=0xf84b9425, abi_wrapper, view] {
@@ -105,17 +103,15 @@ fn @loadScaled() [selector=0x69d1875c, abi_wrapper, view] {
   bb2:
     v0 = icall @_copy, arg0
     v6 = mload v0
+    v7 = add v6, 31
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v16 = add v0, 32
-    v8 = add v6, 31
-    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v11 = add v16, v9
+    v11 = add v16, v6
     mstore v11, 0
-    v18 = add v0, 64
-    mcopy v18, v16, v6
-    mstore v0, 32
-    mstore v16, v6
-    v13 = add v9, 64
-    returndata v0, v13
+    v18 = sub v0, 32
+    mstore v18, 32
+    v13 = add v8, 64
+    returndata v18, v13
   bb1:
     revert 0, 0
 }
