@@ -44,16 +44,14 @@ bb9:
   push 36
   calldatasize
   lt
-  push bb6
-  jumpi
   push 4
   calldataload
   push 1
-  lt
-  push bb6
-  jumpi
+  shr
+  or
   push 4
   calldataload
+  or
   push bb6
   jumpi
   push 2

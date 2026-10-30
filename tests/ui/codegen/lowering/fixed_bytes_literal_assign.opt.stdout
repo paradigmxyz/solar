@@ -5,12 +5,13 @@ fn @patch() [selector=0x7f603a02, abi_wrapper, pure] {
   bb0:
     v14 = calldatasize
     v15 = lt v14, 36
-    jumpi v15, bb3, bb4
-  bb4:
     v16 = calldataload 4
-    v17 = lt v16, 2
-    jumpi v17, bb5, bb3
-  bb5:
+    v23 = zext i1 v15 to i256
+    v24 = shr v16, 1
+    v25 = or v23, v24
+    v26 = ne v25, 0
+    jumpi v26, bb3, bb4
+  bb4:
     v21 = heap_floor !metadata(alloc_ptr)
     v20 = add v21, 32
     mstore v20, 0x4142000000000000000000000000000000000000000000000000000000000000
