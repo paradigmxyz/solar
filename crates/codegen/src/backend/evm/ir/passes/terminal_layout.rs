@@ -22,14 +22,17 @@
 
 use super::{
     EvmPass,
-    block_layout::{estimated_block_size, is_physical_terminal_boundary},
-    utils::{is_split_point, remap_block_order},
+    block_layout::{
+        SizeEstimator, ends_at_split_point, is_physical_terminal_boundary, jump_target,
+        terminator_kind, visit_successors,
+    },
+    utils::remap_block_order,
 };
 use crate::backend::evm::{
     ir::{BlockId, Module, PushValue, TerminatorKind},
     op,
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
+use solar_data_structures::{bit_set::DenseBitSet, index::index_vec};
 use solar_sema::Gcx;
 
 pub(super) struct TerminalLayout;
@@ -44,77 +47,10 @@ impl EvmPass for TerminalLayout {
             return false;
         }
         let mut order = module.blocks.indices().collect::<Vec<_>>();
-        if !gcx.sess.opts.optimization.is_gas() {
-            if !place_stop_last(module, &mut order) {
-                return false;
-            }
-            // terminal traces; stop trace
-            remap_block_order(module, &order);
-            return true;
-        }
-        let mut incoming = IndexVec::from_vec(vec![0usize; module.blocks.len()]);
-        for block in &module.blocks {
-            if let Some(term) = &block.terminator {
-                term.kind.visit_targets(|target| incoming[target] += 1);
-            }
-            for pair in block.instructions.windows(2) {
-                if pair[1].as_evm_opcode() == Some(op::JUMPI)
-                    && let Some(target) = pair[0].pushed_block()
-                {
-                    incoming[target] += 1;
-                }
-            }
-        }
-        let mut moved = DenseBitSet::new_empty(module.blocks.len());
-        for caller in module.blocks.indices() {
-            let block = &module.blocks[caller];
-            if block.metadata.in_loop
-                || block.metadata.hotness.is_cold()
-                || !is_split_point(&block.instructions, block.instructions.len())
-            {
-                continue;
-            }
-            let Some(TerminatorKind::Jump(tail)) = block.terminator.as_ref().map(|term| &term.kind)
-            else {
-                continue;
-            };
-            let suffix = &module.blocks[*tail];
-            if *tail == BlockId::ENTRY
-                || moved.contains(*tail)
-                || suffix.metadata.in_loop
-                || suffix.metadata.hotness.is_cold()
-                || !matches!(
-                    suffix.terminator.as_ref().map(|term| &term.kind),
-                    Some(TerminatorKind::Op(_))
-                )
-            {
-                continue;
-            }
-            let t = order.iter().position(|id| id == tail).unwrap();
-            let c = order.iter().position(|&id| id == caller).unwrap();
-            if t == 0 || c <= t {
-                continue;
-            }
-            let previous = order[t - 1];
-            let old = &module.blocks[previous];
-            if old.metadata.in_loop
-                || old.metadata.hotness.is_cold()
-                || incoming[caller] <= incoming[previous].max(1).saturating_mul(2)
-                || !matches!(old.terminator.as_ref().map(|term| &term.kind),
-                    Some(TerminatorKind::Jump(target)) if target == tail)
-                || !is_split_point(&old.instructions, old.instructions.len())
-                || !is_physical_terminal_boundary(&module.blocks[order[c - 1]], Some(caller))
-            {
-                continue;
-            }
-            // previous; tail ... boundary; caller; jump tail
-            // -> previous; jump tail; caller; tail ... boundary
-            order.remove(c);
-            order.insert(t, caller);
-            moved.insert(*tail);
-        }
+        let moved = module.optimization.is_gas() && prefer_entry_paths(module, &mut order);
+        // terminal traces; stop trace
         let stop_moved = place_stop_last(module, &mut order);
-        if moved.is_empty() && !stop_moved {
+        if !moved && !stop_moved {
             return false;
         }
         remap_block_order(module, &order);
@@ -122,24 +58,68 @@ impl EvmPass for TerminalLayout {
     }
 }
 
+/// Moves a later predecessor next to a shared terminal suffix when it has more than twice the old
+/// predecessor's incoming edges.
+fn prefer_entry_paths(module: &Module, order: &mut Vec<BlockId>) -> bool {
+    let mut incoming = index_vec![0usize; module.blocks.len()];
+    for block in &module.blocks {
+        visit_successors(block, |target| incoming[target] += 1);
+    }
+    let mut moved = DenseBitSet::new_empty(module.blocks.len());
+    for caller in module.blocks.indices() {
+        let block = &module.blocks[caller];
+        if block.metadata.in_loop || block.metadata.hotness.is_cold() || !ends_at_split_point(block)
+        {
+            continue;
+        }
+        let Some(tail) = jump_target(block) else { continue };
+        let suffix = &module.blocks[tail];
+        if tail == BlockId::ENTRY
+            || moved.contains(tail)
+            || suffix.metadata.in_loop
+            || suffix.metadata.hotness.is_cold()
+            || !matches!(terminator_kind(suffix), Some(TerminatorKind::Op(_)))
+        {
+            continue;
+        }
+        let t = order.iter().position(|&id| id == tail).unwrap();
+        let c = order.iter().position(|&id| id == caller).unwrap();
+        if t == 0 || c <= t {
+            continue;
+        }
+        let previous = order[t - 1];
+        let old = &module.blocks[previous];
+        if old.metadata.in_loop
+            || old.metadata.hotness.is_cold()
+            || incoming[caller] <= incoming[previous].max(1).saturating_mul(2)
+            || jump_target(old) != Some(tail)
+            || !ends_at_split_point(old)
+            || !is_physical_terminal_boundary(&module.blocks[order[c - 1]], Some(caller))
+        {
+            continue;
+        }
+        // previous; tail ... boundary; caller; jump tail
+        // -> previous; jump tail; caller; tail ... boundary
+        order.remove(c);
+        order.insert(t, caller);
+        moved.insert(tail);
+    }
+    !moved.is_empty()
+}
+
 /// Let a final STOP fall off the bytecode without breaking a trace's fallthroughs.
 fn place_stop_last(module: &Module, order: &mut [BlockId]) -> bool {
-    if module.code_follows || order.is_empty() {
+    if module.code_follows {
         return false;
     }
     let Some(stop) = order.iter().rposition(|&block| {
-        matches!(
-            module.blocks[block].terminator.as_ref().map(|term| &term.kind),
-            Some(TerminatorKind::Op(op::STOP))
-        )
+        matches!(terminator_kind(&module.blocks[block]), Some(TerminatorKind::Op(op::STOP)))
     }) else {
         return false;
     };
-    if stop + 1 == order.len() {
-        return false;
-    }
-    let Some(last) = order.last().copied() else { return false };
-    if !is_physical_terminal_boundary(&module.blocks[last], None) {
+    // The last block, as a trace boundary, keeps the rotation from adding a fallthrough.
+    let Some(&last) = order.last() else { return false };
+    if stop + 1 == order.len() || !is_physical_terminal_boundary(&module.blocks[last], None) {
         return false;
     }
     let Some(start) = (1..=stop).rev().find(|&position| {
@@ -158,6 +138,7 @@ fn has_small_fixed_layout(gcx: Gcx<'_>, module: &Module) -> bool {
     if !module.data.is_empty() {
         return false;
     }
+    let est = SizeEstimator::new(gcx, module);
     let mut upper_bound = 0usize;
     for block in &module.blocks {
         if block.instructions.iter().any(|inst| {
@@ -170,14 +151,11 @@ fn has_small_fixed_layout(gcx: Gcx<'_>, module: &Module) -> bool {
         // Count a destination label at every block and keep all transfers explicit. If the
         // bound fits one-byte addresses even with two-byte label pushes, their least fixed
         // point fits too. Rearrangement cannot increase the number of transfers or labels.
-        upper_bound += estimated_block_size(gcx, block, None, true, module.code_follows);
+        upper_bound += est.block(block, None, true, usize::from(u8::MAX) - upper_bound);
         // The layout estimator omits STOP for a final block; count it here because every
         // block may have a physical successor after reordering.
-        if matches!(
-            block.terminator.as_ref().map(|term| &term.kind),
-            Some(TerminatorKind::Op(op::STOP))
-        ) {
-            upper_bound += crate::target::Target::new(gcx).opcode(op::STOP).bytes as usize;
+        if matches!(terminator_kind(block), Some(TerminatorKind::Op(op::STOP))) {
+            upper_bound += est.target.opcode(op::STOP).bytes as usize;
         }
         if upper_bound > usize::from(u8::MAX) {
             return false;

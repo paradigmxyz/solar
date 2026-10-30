@@ -24,6 +24,7 @@ struct ParsedBlockHeader {
     is_continuation: bool,
     function_invoke: Option<DebugFunction>,
     entry_depth: Option<u16>,
+    call_effect: Option<CallEffect>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -54,9 +55,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let name = self.parser.parse_ident()?;
 
         let mut module = Module::new(name);
+        module.optimization = self.parser.optimization();
         while self.parser.eat(TokenKind::At) {
             let section = self.parser.parse_ident()?;
             match section {
+                sym::optimize => module.optimization = self.parser.parse_optimize_objective()?,
                 sym::libraries => self.parser.parse_library_declarations()?,
                 sym::data => module.data = self.parser.parse_data_declarations()?,
                 _ => return Err(self.parser.error(format!("unknown module section `@{section}`"))),
@@ -107,6 +110,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 module.blocks[block_id].metadata.is_continuation = header.is_continuation;
                 module.blocks[block_id].metadata.function_invoke = header.function_invoke;
                 module.blocks[block_id].metadata.entry_depth = header.entry_depth;
+                module.blocks[block_id].metadata.call_effect = header.call_effect;
                 current_block = Some(block_id);
                 continue;
             }
@@ -133,6 +137,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut is_continuation = false;
         let mut function_invoke = None;
         let mut entry_depth = None;
+        let mut ret = None;
+        let mut inputs = None;
+        let mut outputs = None;
         while self.parser.eat(TokenKind::OpenDelim(Delimiter::Bracket)) {
             loop {
                 if self.parser.eat_keyword(sym::cold) {
@@ -157,10 +164,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         Some(u16::try_from(depth).map_err(|_| {
                             self.parser.error("block entry depth does not fit in u16")
                         })?);
+                } else if self.parser.eat_keyword(sym::ret) {
+                    self.parser.expect(TokenKind::Eq)?;
+                    ret = Some(self.parse_call_words()?);
+                } else if self.parser.eat_keyword(sym::inputs) {
+                    self.parser.expect(TokenKind::Eq)?;
+                    inputs = Some(self.parse_call_words()?);
+                } else if self.parser.eat_keyword(sym::outputs) {
+                    self.parser.expect(TokenKind::Eq)?;
+                    outputs = Some(self.parse_call_words()?);
                 } else {
                     return Err(self.parser.error(
-                        "expected `cold`, `loop`, `continuation`, `invoke`, or `stack` block \
-                         attribute",
+                        "expected `cold`, `loop`, `continuation`, `invoke`, `stack`, `ret`, `inputs`, \
+                         or `outputs` block attribute",
                     ));
                 }
                 if !self.parser.eat(TokenKind::Comma) {
@@ -172,6 +188,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         self.parser.expect(TokenKind::Colon)?;
 
+        let call_effect = match (ret, inputs, outputs) {
+            (Some(ret), Some(inputs), Some(outputs)) => {
+                Some(CallEffect { ret, effect: StackEffect::new(inputs, outputs) })
+            }
+            (None, None, None) => None,
+            _ => {
+                return Err(self
+                    .parser
+                    .error("`ret`, `inputs`, and `outputs` must be given together"));
+            }
+        };
+
         Ok(Some(ParsedBlockHeader {
             label,
             hotness,
@@ -179,7 +207,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             is_continuation,
             function_invoke,
             entry_depth,
+            call_effect,
         }))
+    }
+
+    fn parse_call_words(&mut self) -> PResult<'sess, u8> {
+        let words = self.parser.parse_uint()?;
+        u8::try_from(words).map_err(|_| self.parser.error("call word count does not fit in u8"))
     }
 
     fn current_block_label(&self) -> PResult<'sess, Option<Symbol>> {

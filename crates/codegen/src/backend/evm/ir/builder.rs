@@ -404,10 +404,19 @@ impl<'gcx> Assembler<'gcx> {
             block.metadata.in_loop = true;
         }
         block.metadata.repeats = self.repeating_code;
+        block.metadata.optimization = self.block_optimization;
         let block = self.program.add_block(block);
         self.current_block = Some(block);
         self.block_labels.push(Some(label));
         self.label_blocks.insert(label, block);
+    }
+
+    /// Defines the entry label of an internal function that returns, with how a call to it
+    /// returns. See [`ir::BlockMetadata::call_effect`].
+    pub(crate) fn define_function_label(&mut self, label: Label, call_effect: ir::CallEffect) {
+        self.define_label(label);
+        let block = self.label_blocks[&label];
+        self.program.blocks[block].metadata.call_effect = Some(call_effect);
     }
 
     /// Defines a hidden internal-call return label. The callee consumes its address with `JUMP`;
@@ -442,6 +451,7 @@ impl<'gcx> Assembler<'gcx> {
         }
         let mut block = ir::Block::new(self.program.blocks.len() as u32);
         block.metadata.repeats = self.repeating_code;
+        block.metadata.optimization = self.block_optimization;
         let block = self.program.add_block(block);
         self.current_block = Some(block);
         self.block_labels.push(None);

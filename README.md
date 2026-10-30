@@ -17,7 +17,7 @@ Blazingly fast, modular and contributor friendly Solidity compiler, written in R
 
 ## Features and Goals
 
-> [!CAUTION]
+> [!WARNING]
 > Solar is under active development and is not yet feature complete.
 > Use it to speed up your development workflows and tooling.
 > Please do not use it in production environments.
@@ -28,11 +28,38 @@ Blazingly fast, modular and contributor friendly Solidity compiler, written in R
 - 💻 Simple and hackable code base
 - 🔄 Compatibility with the latest Solidity language breaking version (0.8.*)
 
-<p align="center">
-    <picture align="center">
-        <img alt="Terminal screenshot showing Solar is 40x faster than solc at generating ABI using hyperfine" src="/assets/benchmark.png">
-    </picture>
-</p>
+### Performance
+
+On six real-world projects, builds were **about 100× faster on average** than solc's via-IR pipeline,
+reaching **159×** on Morpho Blue.
+
+![Whole-project build times with solc forced to via-IR: 76–159× faster across six projects](assets/build-time.png)
+
+We forced via-IR on every project for solc, though most of these projects build without it by
+default. We picked six of the ten whole-project cases in our benchmark suite: v4-core has no solc
+result, and Seaport, Solmate and Solarray are not shown. With each project's own settings, from
+the same CI run, we were **44× faster on average** over the six and **34×** over all nine.
+
+We measured on `main` at [commit `0303bb7d`](https://github.com/paradigmxyz/solar/commit/0303bb7d606a50ef158e34669b5851f47a1e054e)
+against solc 0.8.38, targeting Cancun. [Build from source](#binary-usage) to match it.
+Build times are the median of five runs on an AMD EPYC 9254 (24 cores), using our default eight
+threads; solc is single-threaded.
+
+Across the 15 real-world contracts in our runtime corpus (via-IR at 200 runs, unless a case pins
+its project's settings), the generated contracts used **5% less gas**, cost **26% less gas to
+deploy** and had **29% smaller bytecode** than those compiled with solc, as geometric means.
+See the [results](https://www.getfoundry.sh/perf/solar/?head=0303bb7d606a50ef158e34669b5851f47a1e054e#benchmarks) and
+[benchmark instructions](benches/runtime/README.md) for inputs, settings and how to reproduce them.
+
+### How it works
+
+![Compiler pipeline: Solidity → AST → HIR → MIR → EVM IR → bytecode, with optimization passes on MIR and EVM IR](assets/pipeline.png)
+
+MIR keeps Solidity types and operations, so passes can remove redundant checks, inline functions
+and avoid repeated storage and memory accesses. EVM IR handles stack operations, block layout,
+tail merging and peephole rewrites before assembly.
+
+See the [MIR reference](docs/MIR.md) and [codegen guide](docs/CODEGEN.md) to work on the compiler.
 
 ## Getting started
 
@@ -44,18 +71,26 @@ You can add Solar to your Rust project by adding the following to your `Cargo.to
 
 ```toml
 [dependencies]
-solar = { version = "=0.1.8", package = "solar-compiler", default-features = false }
+solar = { version = "=0.2.0", package = "solar-compiler", default-features = false }
 ```
 
 Or through the CLI:
 
 ```bash
-cargo add "solar-compiler@=0.1.8" --rename solar --no-default-features
+cargo add "solar-compiler@=0.2.0" --rename solar --no-default-features
 ```
 
 You can see examples of how to use Solar as a library in the [examples](/examples) directory.
 
 ### Binary usage
+
+Install [Foundry](https://getfoundry.sh/introduction/installation/), then choose the compiler with `--use solar`:
+
+```bash
+foundryup
+forge build --use solar
+forge test --use solar
+```
 
 Pre-built binaries are available for macOS, Linux and Windows on the [releases page](https://github.com/paradigmxyz/solar/releases)
 and can be installed with the following commands:
@@ -69,11 +104,9 @@ and can be installed with the following commands:
     ```
 - For a specific version:
     ```bash
-    curl -LsSf https://paradigm.xyz/solar/v0.1.8/install.sh | sh
-    powershell -c "irm https://paradigm.xyz/solar/v0.1.8/install.ps1 | iex"
+    curl -LsSf https://paradigm.xyz/solar/v0.2.0/install.sh | sh
+    powershell -c "irm https://paradigm.xyz/solar/v0.2.0/install.ps1 | iex"
     ```
-
-Solar is also shipped in [Foundry](https://github.com/foundry-rs/foundry) releases.
 
 You can also use [`cargo binstall`](https://github.com/cargo-bins/cargo-binstall):
 - Latest version:
@@ -82,7 +115,7 @@ You can also use [`cargo binstall`](https://github.com/cargo-bins/cargo-binstall
     ```
 - For a specific version:
     ```bash
-    cargo binstall solar-compiler@0.1.8
+    cargo binstall solar-compiler@0.2.0
     ```
 
 Or build Solar from source:
@@ -129,126 +162,17 @@ solar $(forge re) src/Contract.sol
 
 ### Editor integrations
 
-The VS Code and Zed clients are maintained by [Foundry](https://github.com/foundry-rs/foundry/pull/16730).
+The VS Code and Zed clients are maintained by [Foundry](https://github.com/foundry-rs/foundry/tree/master/editors).
 Use [`forge lsp`](https://github.com/foundry-rs/foundry/pull/16730) to launch
 Foundry's editor integration. This repository continues to provide the Solar
 LSP server used by Foundry.
 
 ### C API, WASM, and JavaScript usage
 
-The `solar-capi` crate exposes the compiler through a Solidity-compatible C API.
-That same ABI is also the boundary used by the WebAssembly build and the
-soljson-compatible JavaScript wrapper.
-
-The C header is the source of truth for the ABI:
-[`crates/capi/include/libsolc.h`](/crates/capi/include/libsolc.h). The API
-accepts Standard JSON input and returns Standard JSON output, matching the
-interface used by Solidity's `libsolc` and raw `soljson.js` builds. Like
-Solidity, client code owns memory explicitly through the C API described in the
-header.
-
-Solidity distributes JavaScript compiler builds as `soljson.js` files. Modern
-builds are WebAssembly modules loaded through a JavaScript wrapper, with the
-wasm bytes made available as `Module.wasmBinary`. The JavaScript package
-`solc-js` then layers a higher-level API over that raw module.
-
-This repository ships the wasm distribution as `solar-wasm.tar.gz` in releases.
-The archive contains:
-
-- `soljson.js`: a packed, soljson-compatible JavaScript file with wasm embedded.
-- `solar.wasm`: the raw WebAssembly module.
-- `soljson-wrapper.js`: the JavaScript wrapper for loading `solar.wasm`
-  yourself.
-
-There are two ways to use the wasm and JavaScript distribution:
-
-1. Download `solar-wasm.tar.gz` from a release and extract the file you need.
-   Use `soljson.js` for the most solc-js-compatible path, or use
-   `solar.wasm` with `soljson-wrapper.js` when you want to control wasm loading.
-
-2. Build the same files from source:
-
-```bash
-rustup target add wasm32-unknown-unknown
-scripts/wasm/dist-wasm.sh
-```
-
-This produces the same files under `target/dist/`. The script builds with an
-exported, growable WebAssembly table so JavaScript callbacks can be installed,
-then packs the wasm bytes into `soljson.js`.
-
-Use the packed `soljson.js` directly:
-
-```js
-const solar = require("./soljson.js");
-
-const output = solar.compile(JSON.stringify({
-  language: "Solidity",
-  sources: {
-    "A.sol": { content: 'import "B.sol"; contract A is B {}' },
-  },
-  settings: { outputSelection: { "*": { "*": ["abi"] } } },
-}), {
-  import(path) {
-    if (path === "B.sol") {
-      return { contents: "contract B {}" };
-    }
-    return { error: `source not found: ${path}` };
-  },
-});
-```
-
-For custom wasm loading, use `soljson-wrapper.js` from the release archive or
-[`crates/capi/soljson.js`](/crates/capi/soljson.js) from source.
-
-In Node, load the separate wasm bytes through the same `Module.wasmBinary`
-hook used by the packed file:
-
-```js
-const fs = require("node:fs");
-
-globalThis.Module = {
-  wasmBinary: fs.readFileSync("./solar.wasm"),
-};
-const solar = require("./soljson-wrapper.js");
-delete globalThis.Module;
-
-const output = solar.compile(JSON.stringify({
-  language: "Solidity",
-  sources: {
-    "A.sol": { content: 'import "B.sol"; contract A is B {}' },
-  },
-  settings: { outputSelection: { "*": { "*": ["abi"] } } },
-}), {
-  import(path) {
-    if (path === "B.sol") {
-      return { contents: "contract B {}" };
-    }
-    return { error: `source not found: ${path}` };
-  },
-});
-```
-
-In browsers, serve `solar.wasm` and `soljson-wrapper.js`, fetch the wasm bytes,
-assign `globalThis.Module = { wasmBinary }`, and then load the wrapper script.
-
-The wrapper exposes the solc-js-style Standard JSON compile entry point plus
-metadata helpers. Legacy low-level solc-js entry points are intentionally set to
-`null`.
-
-## Roadmap
-
-You can find a more detailed list in the [pinned GitHub issue](https://github.com/paradigmxyz/solar/issues/1).
-
-- [x] Front-end
-  - [x] Lexing
-  - [x] Parsing
-  - [x] Semantic analysis
-    - [x] Symbol resolution
-    - [x] Type checker
-    - [x] Static analysis
-- [x] Middle-end
-- [x] Back-end
+The [`solar-capi`](/crates/capi/README.md) crate exposes the compiler through a
+Solidity-compatible C API, a WebAssembly build and a soljson-compatible
+JavaScript wrapper. See its README for the C API and for how to download or
+build the wasm distribution and use it from JavaScript.
 
 ## Semver Compatibility
 

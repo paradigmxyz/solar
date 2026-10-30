@@ -1,0 +1,139 @@
+//@ compile-flags: -Zmir-pipeline=memory-dse
+//@ filecheck:
+
+@module ConstantPointerOffsetWrap
+
+// The FMP's low eight bytes remain above the heap floor while its high bytes make adding
+// 64 wrap to address 32. Pointer typing does not make this addition nonwrapping.
+// CHECK-LABEL: {{^[ +].*}}fn @wrapped_read{{[( ]}}
+// CHECK: {{^ +}}mstore 32, 7
+// CHECK: {{^[ +].*}}returndata 128, 32
+fn @wrapped_read(arg0: i256) {
+  bb0:
+    mstore 64, 18446744073709551584
+    mstore 56, arg0
+    mstore 32, 7
+    v0 = mload 64
+    v1 = inttoptr i256 v0 to ptr<memory>
+    v2 = ptradd v1, 64
+    v3 = mload v2
+    mstore 128, v3
+    returndata 128, 32
+}
+
+// A copy must retain the same low word even when its source is canonicalized to base+offset.
+// CHECK-LABEL: {{^[ +].*}}fn @wrapped_copy{{[( ]}}
+// CHECK: {{^ +}}mstore 32, 7
+// CHECK: {{^[ +].*}}mcopy 128,
+fn @wrapped_copy(arg0: i256) {
+  bb0:
+    mstore 64, 18446744073709551584
+    mstore 56, arg0
+    mstore 32, 7
+    v0 = mload 64
+    v1 = inttoptr i256 v0 to ptr<memory>
+    v2 = ptradd v1, 64
+    mcopy 128, v2, 32
+    returndata 128, 32
+}
+
+// Casting a bounded scalar keeps its upper bound, so this pointer addition is safe.
+// CHECK-LABEL: {{^[ +].*}}fn @bounded_cast{{[( ]}}
+// CHECK: - mstore 32, 7
+// CHECK: {{^[ +].*}}returndata
+fn @bounded_cast(arg0: i1) {
+  bb0:
+    mstore 32, 7
+    v0 = select arg0, 128, 256
+    v1 = inttoptr i256 v0 to ptr<memory>
+    v2 = ptradd v1, 32
+    returndata v2, 32
+}
+
+// A successful access bounds the base at its later user, even if ptradd came first.
+// CHECK-LABEL: {{^[ +].*}}fn @accessed_base{{[( ]}}
+// CHECK: - mstore 32, 7
+// CHECK: {{^[ +].*}}returndata 128, 32
+fn @accessed_base() {
+  bb0:
+    mstore 32, 7
+    v0 = mload 64
+    v2 = inttoptr i256 v0 to ptr<memory>
+    v3 = ptradd v2, 64
+    v1 = mload v0
+    v4 = mload v3
+    v5 = add v1, v4
+    mstore 128, v5
+    returndata 128, 32
+}
+
+// A zero-length access proves nothing about its address. The next read can still wrap.
+// CHECK-LABEL: {{^[ +].*}}fn @zero_length_access{{[( ]}}
+// CHECK: {{^ +}}mstore 32, 7
+// CHECK: {{^[ +].*}}returndata
+fn @zero_length_access() {
+  bb0:
+    mstore 32, 7
+    v0 = mload 64
+    calldatacopy v0, 0, 0
+    v1 = inttoptr i256 v0 to ptr<memory>
+    v2 = ptradd v1, 64
+    returndata v2, 32
+}
+
+// An access in another branch does not bound the pointer on every path to the read.
+// CHECK-LABEL: {{^[ +].*}}fn @access_on_other_arm{{[( ]}}
+// CHECK: {{^ +}}mstore 32, 7
+// CHECK: {{^[ +].*}}returndata
+fn @access_on_other_arm(arg0: i1) {
+  bb0:
+    mstore 32, 7
+    v0 = mload 64
+    jumpi arg0, bb1, bb2
+  bb1:
+    v1 = mload v0
+    mstore 160, v1
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v2 = inttoptr i256 v0 to ptr<memory>
+    v3 = ptradd v2, 64
+    returndata v3, 32
+}
+
+// The checked allocation's end limit also bounds its base when its extent is dynamic.
+// CHECK-LABEL: {{^[ +].*}}fn @checked_allocation{{[( ]}}
+// CHECK: - mstore 32, 7
+// CHECK: {{^[ +].*}}returndata
+fn @checked_allocation(arg0: i256) {
+  bb0:
+    mstore 32, 7
+    v0 = alloc checked arg0
+    v1 = ptradd v0, 64
+    returndata v1, 32
+}
+
+// An internal allocation proves its own bump valid, including the end of its extent.
+// CHECK-LABEL: {{^[ +].*}}fn @allocation_end{{[( ]}}
+// CHECK: - mstore 32, 7
+// CHECK: {{^[ +].*}}returndata
+fn @allocation_end() {
+  bb0:
+    mstore 32, 7
+    v0 = alloc 64
+    v1 = ptradd v0, 64
+    returndata v1, 32
+}
+
+// The internal allocation's valid bump does not prove that a larger offset is safe.
+// CHECK-LABEL: {{^[ +].*}}fn @beyond_allocation{{[( ]}}
+// CHECK: {{^ +}}mstore 32, 7
+// CHECK: {{^[ +].*}}returndata
+fn @beyond_allocation() {
+  bb0:
+    mstore 32, 7
+    v0 = alloc 64
+    v1 = ptradd v0, 65
+    returndata v1, 32
+}

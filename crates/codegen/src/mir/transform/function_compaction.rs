@@ -23,6 +23,7 @@
 //! function or one of the two bodies being compared. Matching all other instructions, operands
 //! and CFG edges closes that pairwise equivalence proof, including mutual recursion.
 
+use super::utils::{frame_prefix, is_internal_body};
 use crate::mir::{
     ArgIdx, Callee, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
     StorageAlias, Terminator, Value, ValueId,
@@ -32,7 +33,7 @@ use crate::mir::{
 };
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    index::IndexVec,
+    index::{IndexVec, index_vec},
     map::{FxHashMap, FxHasher},
 };
 use std::hash::{Hash, Hasher};
@@ -53,13 +54,18 @@ impl MirPass for DeadArgElim {
         "dead-arg-elim"
     }
 
+    fn is_contract_wide(&self) -> bool {
+        true
+    }
+
     fn run_pass(
         &self,
-        gcx: solar_sema::Gcx<'_>,
+        _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
-        let forwarded = forward_returned_values(module, gcx.sess.opts.optimization.is_size());
+        let size = module.optimization.is_size();
+        let forwarded = forward_returned_values(module, size);
         let mut changed = forwarded != 0;
         // Pruning keeps every `ret` and tail call, so the returning set holds for the loop.
         let returning = module.returning_functions();
@@ -90,19 +96,21 @@ fn forward_returned_values(module: &mut Module, size: bool) -> usize {
         return 0;
     }
     let mut forwarded = 0;
+    let mut calls = Vec::new();
+    let mut used = DenseBitSet::new_empty(0);
+    let mut constant_uses = DenseBitSet::new_empty(0);
+    let mut replacements = FxHashMap::default();
     for func in &mut module.functions {
-        let calls = func
-            .instructions()
-            .filter(|&inst| {
-                matches!(func.inst(inst).kind, InstKind::ICall { function: Callee::Function(function), .. }
-                if returned.contains_key(&function))
-            })
-            .collect::<Vec<_>>();
+        calls.clear();
+        calls.extend(func.instructions().filter(|&inst| {
+            matches!(func.inst(inst).kind, InstKind::ICall { function: Callee::Function(function), .. }
+            if returned.contains_key(&function))
+        }));
         if calls.is_empty() {
             continue;
         }
-        let mut used = DenseBitSet::new_empty(func.num_values());
-        let mut constant_uses = DenseBitSet::new_empty(func.num_values());
+        used.clear_to(func.num_values());
+        constant_uses.clear_to(func.num_values());
         for block in &func.blocks {
             for &inst in &block.instructions {
                 let kind = &func.inst(inst).kind;
@@ -122,8 +130,8 @@ fn forward_returned_values(module: &mut Module, size: bool) -> usize {
                 });
             }
         }
-        let mut replacements = FxHashMap::default();
-        for inst in calls {
+        replacements.clear();
+        for &inst in &calls {
             let Some(result) = func.inst_result_value(inst).filter(|&value| used.contains(value))
             else {
                 continue;
@@ -199,6 +207,10 @@ impl MirPass for MergeEquivalentFunctions {
         "merge-equivalent-functions"
     }
 
+    fn is_contract_wide(&self) -> bool {
+        true
+    }
+
     fn run_pass(
         &self,
         _gcx: solar_sema::Gcx<'_>,
@@ -207,16 +219,6 @@ impl MirPass for MergeEquivalentFunctions {
     ) -> bool {
         merge_equivalent_functions(module) != 0
     }
-}
-
-/// Returns whether `func` has a private MIR signature that direct callers may rewrite.
-fn is_internal_body(module: &Module, func_id: FunctionId, func: &Function) -> bool {
-    func.selector.is_none()
-        && !func.is_public()
-        && !func.attributes.is_constructor
-        && !func.attributes.is_fallback
-        && !func.attributes.is_receive
-        && module.dispatch_entry() != Some(func_id)
 }
 
 fn has_rewritable_signature(
@@ -237,17 +239,8 @@ fn has_rewritable_signature(
 /// those accesses do not identify which signature component they refer to, so changing that
 /// function's signature would be ambiguous.
 fn frame_offsets_are_local(func: &Function) -> bool {
-    let Some(signature_slots) = func.params.len().checked_add(func.return_components().len())
-    else {
-        return false;
-    };
-    let Some(signature_size) = u64::try_from(signature_slots)
-        .ok()
-        .and_then(|slots| slots.checked_mul(EvmMemoryLayout::WORD_SIZE))
-    else {
-        return false;
-    };
-    let Some(local_start) = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE.checked_add(signature_size)
+    let Some(local_start) =
+        func.params.len().checked_add(func.return_components().len()).and_then(frame_prefix)
     else {
         return false;
     };
@@ -283,11 +276,7 @@ fn rebase_frame_offsets(func: &mut Function, removed_slots: u64) {
         return;
     }
     let shift = removed_slots * EvmMemoryLayout::WORD_SIZE;
-    let local_start = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-        .checked_add(
-            ((func.params.len() + func.return_components().len()) as u64)
-                * EvmMemoryLayout::WORD_SIZE,
-        )
+    let local_start = frame_prefix(func.params.len() + func.return_components().len())
         .expect("MIR frame prefix overflow");
     let old_local_start = local_start.checked_add(shift).expect("MIR frame prefix overflow");
     let local_end = (func.internal_frame_size != 0).then(|| {
@@ -328,14 +317,8 @@ fn prune_unused_args(module: &mut Module) -> usize {
     let mut dependents = module
         .functions
         .iter()
-        .map(|func| {
-            let mut args = IndexVec::with_capacity(func.params.len());
-            for _ in &func.params {
-                args.push(Vec::<(FunctionId, ArgIdx)>::new());
-            }
-            args
-        })
-        .collect::<IndexVec<FunctionId, IndexVec<ArgIdx, _>>>();
+        .map(|func| index_vec![Vec::new(); func.params.len()])
+        .collect::<IndexVec<FunctionId, _>>();
 
     // Record direct uses and argument-forwarding dependencies in one scan. A dependency points
     // from the callee argument whose liveness is required to the caller argument that supplies it.
@@ -387,9 +370,6 @@ fn prune_unused_args(module: &mut Module) -> usize {
             }
         }
     }
-    if live.iter().all(|args| args.count() == args.domain_size()) {
-        return 0;
-    }
 
     let removed = live.iter().map(|args| args.domain_size() - args.count()).sum();
     if removed == 0 {
@@ -406,31 +386,20 @@ fn prune_unused_args(module: &mut Module) -> usize {
                 &mut inst.kind
             {
                 let old_len = args.len();
-                *args = args
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, &arg)| {
-                        live[*function].contains(ArgIdx::new(index)).then_some(arg)
-                    })
-                    .collect();
+                *args = live_args(args, &live[*function]).collect();
                 removed_call_operands += old_len - args.len();
             }
         });
         for block in &mut func.blocks {
             if let Some(Terminator::TailCall { function, args }) = &mut block.terminator {
                 let old_len = args.len();
-                *args = args
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, &arg)| {
-                        live[*function].contains(ArgIdx::new(index)).then_some(arg)
-                    })
-                    .collect();
+                *args = live_args(args, &live[*function]).collect();
                 removed_call_operands += old_len - args.len();
             }
         }
     }
 
+    let mut remap = IndexVec::<ArgIdx, Option<ArgIdx>>::new();
     let function_ids = module.functions.indices();
     for func_id in function_ids {
         if live[func_id].count() == live[func_id].domain_size() {
@@ -439,7 +408,7 @@ fn prune_unused_args(module: &mut Module) -> usize {
         let func = module.function_mut(func_id);
 
         let old_params = func.params.clone();
-        let mut remap = IndexVec::<ArgIdx, Option<ArgIdx>>::with_capacity(old_params.len());
+        remap.clear();
         let mut new_params = IndexVec::with_capacity(old_params.len());
         for (index, &ty) in old_params.iter_enumerated() {
             remap.push(live[func_id].contains(index).then(|| new_params.push(ty)));
@@ -464,6 +433,16 @@ fn prune_unused_args(module: &mut Module) -> usize {
         "pruned unused internal arguments"
     );
     removed
+}
+
+/// Keeps the call operands whose callee parameter is live.
+fn live_args<'a>(
+    args: &'a [ValueId],
+    live: &'a DenseBitSet<ArgIdx>,
+) -> impl Iterator<Item = ValueId> + 'a {
+    args.iter()
+        .enumerate()
+        .filter_map(|(index, &arg)| live.contains(ArgIdx::new(index)).then_some(arg))
 }
 
 fn mark_arg_live(func: &Function, value: ValueId, live: &mut DenseBitSet<ArgIdx>) -> bool {
@@ -531,11 +510,8 @@ fn prune_unused_returns(module: &mut Module, returning: &DenseBitSet<FunctionId>
     }
     // A result is required (`live`) for every function except the candidates whose result the
     // fixed point may still discard.
-    let mut live = DenseBitSet::new_empty(module.functions.len());
-    live.insert_all();
-    for func_id in candidates.iter() {
-        live.remove(func_id);
-    }
+    let mut live = DenseBitSet::new_filled(module.functions.len());
+    live.subtract(&candidates);
 
     // Tail calls forward their caller's result contract. Direct calls require a result only when
     // its SSA value has a material use. A return in a candidate whose own result is still dead is
@@ -591,27 +567,22 @@ fn prune_unused_returns(module: &mut Module, returning: &DenseBitSet<FunctionId>
         }
     }
 
-    let mut removed_set = DenseBitSet::new_empty(module.functions.len());
-    for func_id in candidates.iter() {
-        if !live.contains(func_id) {
-            removed_set.insert(func_id);
-        }
-    }
+    let mut removed_set = candidates;
+    removed_set.subtract(&live);
     if removed_set.is_empty() {
         return 0;
     }
 
+    let mut calls = Vec::new();
     for func in &mut module.functions {
-        let calls = func
-            .instructions()
-            .filter(|&inst_id| {
-                matches!(
-                    func.inst(inst_id).kind,
-                    InstKind::ICall { function: Callee::Function(function), .. } if removed_set.contains(function)
-                )
-            })
-            .collect::<Vec<_>>();
-        for inst_id in calls {
+        calls.clear();
+        calls.extend(func.instructions().filter(|&inst_id| {
+            matches!(
+                func.inst(inst_id).kind,
+                InstKind::ICall { function: Callee::Function(function), .. } if removed_set.contains(function)
+            )
+        }));
+        for &inst_id in &calls {
             func.remove_inst_result(inst_id);
         }
     }
@@ -751,18 +722,24 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
     let mut merged = DenseBitSet::new_empty(module.functions.len());
     let mut total = 0;
     let mut merged_instructions = 0usize;
+    let mut groups = FxHashMap::<u64, Vec<FunctionId>>::default();
+    let mut replacements = FxHashMap::default();
+    let mut representatives = Vec::new();
 
     loop {
-        let mut groups = FxHashMap::<u64, Vec<FunctionId>>::default();
+        groups.clear();
         for (func_id, func) in module.functions.iter_enumerated() {
-            if !merged.contains(func_id) && is_merge_candidate(module, func_id, func) {
+            if !merged.contains(func_id)
+                && !func.blocks.is_empty()
+                && is_internal_body(module, func_id, func)
+            {
                 groups.entry(equivalence_bucket(func)).or_default().push(func_id);
             }
         }
 
-        let mut replacements = FxHashMap::default();
+        replacements.clear();
         for candidates in groups.values() {
-            let mut representatives = Vec::new();
+            representatives.clear();
             for &candidate in candidates {
                 if let Some(&representative) = representatives.iter().find(|&&representative| {
                     equivalent_functions(
@@ -835,10 +812,6 @@ fn merge_function_debug_origins(
         }
         target.blocks[block].terminator_metadata.merge_debug_context(&terminator);
     }
-}
-
-fn is_merge_candidate(module: &Module, func_id: FunctionId, func: &Function) -> bool {
-    !func.blocks.is_empty() && is_internal_body(module, func_id, func)
 }
 
 /// Cheaply partitions functions before the exact pairwise alpha-equivalence check.
@@ -983,6 +956,9 @@ fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
         && lhs.attributes.is_function_pointer_dispatcher
             == rhs.attributes.is_function_pointer_dispatcher
         && lhs.attributes.no_inline == rhs.attributes.no_inline
+        && lhs.attributes.always_inline == rhs.attributes.always_inline
+        && lhs.attributes.inline_hint == rhs.attributes.inline_hint
+        && lhs.attributes.optimization == rhs.attributes.optimization
         // A proved element width is part of what callers rely on: merging a body
         // whose address array is proved canonical into one that is not would make
         // its callers re-clean every returned element.
@@ -1021,11 +997,9 @@ fn equivalent_terminator_payload(
 ) -> bool {
     let mut lhs = lhs.clone();
     let mut rhs = rhs.clone();
-    let zero = ValueId::from_usize(0);
-    let lhs_replacements = lhs.operands().into_iter().map(|value| (value, zero)).collect();
-    let rhs_replacements = rhs.operands().into_iter().map(|value| (value, zero)).collect();
-    crate::mir::utils::replace_terminator_uses(&mut lhs, &lhs_replacements);
-    crate::mir::utils::replace_terminator_uses(&mut rhs, &rhs_replacements);
+    for term in [&mut lhs, &mut rhs] {
+        term.visit_operands_mut(|value| *value = ValueId::from_usize(0));
+    }
     if let (
         Terminator::TailCall { function: lhs_target, .. },
         Terminator::TailCall { function: rhs_target, .. },

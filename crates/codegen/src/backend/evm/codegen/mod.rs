@@ -22,7 +22,7 @@ use crate::{
     backend::assembler::{
         ArtifactKind, AssembledCode, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
     },
-    link::{EmbeddedBytecodes, LibraryRelocation},
+    link::{EmbeddedBytecodes, LibraryRelocation, Trailer},
     mir::{
         ArgIdx, BackendMemory, BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId,
         InstId, InstKind, MemoryRegion, MirPhase, MirType, Module, StackReturn, Terminator, Value,
@@ -35,6 +35,7 @@ use crate::{
         memory::EvmMemoryLayout,
         pass::run_pipeline,
     },
+    target::Target,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -175,6 +176,12 @@ pub struct EvmCodegen<'gcx> {
     /// The end of the frames and spill slots each runtime entry reaches, retained only when
     /// capturing MIR.
     entry_frame_ends: FxHashMap<FunctionId, u64>,
+    /// The objective of the module being generated, which its `@custom:solar-optimize` tag may
+    /// select, or of the function being emitted, which its own tag may select.
+    optimization: OptimizationMode,
+    /// The objective of the module being generated, which the layout of its immutables follows
+    /// in every function.
+    module_optimization: OptimizationMode,
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -230,12 +237,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             entry_heap_sites: FxHashMap::default(),
             stack_return_sites: FxHashMap::default(),
             entry_frame_ends: FxHashMap::default(),
+            optimization: gcx.sess.opts.optimization,
+            module_optimization: gcx.sess.opts.optimization,
         }
     }
 
     /// Clears state that belongs to one lowered MIR module.
     fn reset_for_module(&mut self, module: &Module) {
+        self.optimization = module.optimization;
+        self.module_optimization = module.optimization;
         self.asm.clear();
+        self.asm.set_optimization(module.optimization);
         self.reset_artifact(module);
         self.cold_functions.clear_to(module.functions.len());
         self.empty_stop_functions.clear_to(module.functions.len());
@@ -279,6 +291,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.runtime_entry_funcs.clear();
         self.body = Body::External;
         self.emitting_entry = false;
+    }
+
+    /// Returns the runtime cost model of the module being generated, under its contract's
+    /// objective.
+    pub(crate) fn runtime_target(&self) -> Target {
+        Target::new(self.gcx, self.optimization)
     }
 
     fn reset_switch_gas_code_growth(&mut self) {
@@ -400,6 +418,10 @@ pub struct EvmArtifact {
     pub deployment_library_relocations: Vec<LibraryRelocation>,
     /// Library address offsets in the runtime bytecode.
     pub runtime_library_relocations: Vec<LibraryRelocation>,
+    /// Trailing runtime data in the deployment bytecode.
+    pub deployment_trailers: Vec<Trailer>,
+    /// Trailing runtime data in the runtime bytecode.
+    pub runtime_trailers: Vec<Trailer>,
     /// Immutable placeholders in the runtime bytecode.
     pub(crate) immutable_references: Vec<ImmutableRef>,
     /// Final deployment-prefix EVM IR immediately before byte emission.

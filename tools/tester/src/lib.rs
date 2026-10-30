@@ -159,7 +159,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
             },
             out_dir_flag: None,
             input_file_flag: None,
-            envs: vec![],
+            envs: vec![(solar_config::version::TEST_VERSION_ENV.into(), Some("1".into()))],
             cfg_flag: None,
         },
         output_conflict_handling: ui_test::error_on_output_conflict,
@@ -216,7 +216,9 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     for &(pattern, replacement) in filters {
         config.filter(pattern, replacement);
     }
+    let solc_compat_version = regex::escape(solar_config::version::TEST_SOLC_COMPAT_VERSION);
     let stdout_filters: &[(&str, &str)] = &[
+        (&solc_compat_version, "SOLC_VERSION+commit.00000000.solar.VERSION"),
         (r"\\\\", "/"),
         (r"\\/", "/"),
         //

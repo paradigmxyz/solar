@@ -15,6 +15,7 @@
 //! Signed immutable loads need explicit cleanup because runtime placeholders can
 //! sign-extend their stored bits to a full word.
 
+use super::utils::expand_block;
 use crate::mir::{
     Function, FunctionBuilder, Immediate, ImmutableId, InstKind, MirType, Module, ResultKind,
     Value, ValueId, ValueLayout,
@@ -152,10 +153,8 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
     let mut unmasked = FxHashMap::default();
     // Keep original types while rewriting; earlier producers now have word results.
     for block in func.blocks.indices() {
-        let instructions = std::mem::take(&mut func.blocks[block].instructions);
         let mut builder = FunctionBuilder::new(func);
-        builder.switch_to_block(block);
-        for id in instructions {
+        expand_block(&mut builder, block, |builder, id| {
             let bits = |value: ValueId| types[value].and_then(MirType::integer_bits).unwrap_or(256);
             let inst = builder.func().inst(id);
             let conversion = matches!(
@@ -172,8 +171,7 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
                 if signed_immutables.contains(&immutable)
                     && inst.result().is_some_and(|value| bits(value) < 256));
             if !conversion && !narrow_scalar && !narrow_immutable {
-                builder.func_mut().blocks[block].instructions.push(id);
-                continue;
+                return false;
             }
             let inst = inst.clone();
             builder.set_debug_context(&inst.metadata.debug_context());
@@ -183,16 +181,16 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
                     // Runtime placeholders may sign-extend the stored integer.
                     let value = builder.load_immutable(immutable, MirType::I256);
                     word = Some(value);
-                    Some(clean(&mut builder, value, bits(inst.result().unwrap())))
+                    Some(clean(builder, value, bits(inst.result().unwrap())))
                 }
                 InstKind::Trunc(value, width) => {
                     word = Some(builder.cast_word(value));
-                    Some(clean(&mut builder, value, width))
+                    Some(clean(builder, value, width))
                 }
                 InstKind::Sext(value, from, to) => {
-                    let value = signed(&mut builder, &unmasked, value, from);
+                    let value = signed(builder, &unmasked, value, from);
                     word = Some(value);
-                    Some(clean(&mut builder, value, to))
+                    Some(clean(builder, value, to))
                 }
                 InstKind::Zext(value)
                     if builder.func().value_ty(value) == builder.func().inst(id).result_ty =>
@@ -202,7 +200,7 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
                 InstKind::PtrToInt(value, width) if width < 256 => {
                     let value = builder.cast_word(value);
                     word = Some(value);
-                    Some(clean(&mut builder, value, width))
+                    Some(clean(builder, value, width))
                 }
                 InstKind::And(..) | InstKind::Or(..) | InstKind::Xor(..)
                     if inst.result_ty == Some(MirType::I1) =>
@@ -222,7 +220,7 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
                     let mut index = 0;
                     kind.visit_operands_mut(|value| {
                         *value = if signed_op && (!arithmetic_shift || index != 0) {
-                            signed(&mut builder, &unmasked, *value, width)
+                            signed(builder, &unmasked, *value, width)
                         } else {
                             builder.cast_word(*value)
                         };
@@ -235,11 +233,11 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
                         value = builder.sub(value, padding);
                     }
                     word = Some(value);
-                    Some(clean(&mut builder, value, width))
+                    Some(clean(builder, value, width))
                 }
                 InstKind::SLt(a, b) | InstKind::SGt(a, b) if bits(a) < 256 => {
-                    let a = signed(&mut builder, &unmasked, a, bits(a));
-                    let b = signed(&mut builder, &unmasked, b, bits(b));
+                    let a = signed(builder, &unmasked, a, bits(a));
+                    let b = signed(builder, &unmasked, b, bits(b));
                     Some(if matches!(inst.kind, InstKind::SLt(..)) {
                         builder.slt(a, b)
                     } else {
@@ -248,17 +246,15 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
                 }
                 _ => None,
             };
-            if let Some(value) = replacement {
-                let result = inst.result().unwrap();
-                if let Some(word) = word {
-                    unmasked.insert(result, word);
-                }
-                replacements.insert(result, value);
-                changed = true;
-            } else {
-                builder.func_mut().blocks[block].instructions.push(id);
+            let Some(value) = replacement else { return false };
+            let result = inst.result().unwrap();
+            if let Some(word) = word {
+                unmasked.insert(result, word);
             }
-        }
+            replacements.insert(result, value);
+            changed = true;
+            true
+        });
     }
     func.replace_uses_canonicalized(&replacements);
     changed

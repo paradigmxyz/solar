@@ -29,11 +29,10 @@
 //! within at most [`MAX_ABORT_JUMPS`] blocks linked by direct jumps, as tail merging shares the
 //! ends of reverts, and without an operation that depends on the gas left, such as a `GAS` reading
 //! in its payload, which could tell where the work ran. A block that returns or stops is a normal
-//! exit and ends the run. Spanning the checks gives the search more freedom, but a longer run can
-//! exhaust its budget where the runs between its checks would not, so those are scheduled
-//! separately as well, split after each operation that depends on the gas left too, and the
-//! cheaper result is kept. A run with more operations than one search takes is cut into windows
-//! after its checks.
+//! exit and ends the run. A longer run gives the search more freedom but can exhaust its budget
+//! where the runs between its checks would not, so those are scheduled separately as well, split
+//! after each operation that depends on the gas left too, and the cheaper result is kept. A run
+//! with more operations than one search takes is cut into windows after its checks.
 //!
 //! The remaining cost of a state is bounded below by one copy for every missing use of a word
 //! and one pop for every surplus copy, and by one swap more when those counted moves cannot bring
@@ -52,31 +51,30 @@
 //! from trying the many orders of the same words its bound cannot tell apart, which took most of
 //! its states and kept it from the cheap schedules for thousands of states in small loops. The
 //! bound changes with the few words a move touches, so it is updated per move rather than
-//! recomputed, and the queue keeps one small heap per value of a priority's first part, popping
-//! in the order a single heap would.
+//! recomputed. States with the same performed operations reuse their remaining uses and ready
+//! operations, regardless of their stack order. The queue keeps one small heap per value of a
+//! priority's first part, popping in the order a single heap would.
 //!
 //! The search is exponential in the run's operations and stack height, and dominated the compile
 //! time of small contracts with a hot loop, so its budgets are tight, and large only in hot loops.
-//! A run longer than its budget's operations is searched in windows cut after its checks, or
-//! skipped, the stack may grow at most [`STACK_SLACK`] words above the run's entry and exit
-//! heights, and a run that yields no cheaper schedule within the first part of its [`Limits`] keeps
-//! its code, while one that does keeps refining for the rest, or until no cheaper schedule turned
-//! up for its stall part, as later improvements are rare and small. Runs in hot loop blocks get
-//! [`LOOP_BUDGET`], which takes longer runs and waits longer for a first cheaper schedule, as their
-//! code runs many times per call: the schedule of a loop that carries four words and stores two
-//! bytes per trip turns up only after about a thousand states. All others get [`BLOCK_BUDGET`]. A
-//! run of one operation, where a dead word is popped before the operation instead of swapped around
-//! it, is searched in hot loop blocks and when optimizing for size, the latter through
-//! [`SIZE_BLOCK_BUDGET`]; elsewhere in gas mode it saved no gas in the benchmarks and grew the
-//! code. A run whose bound already reaches its cost in the objective's first part is not searched,
-//! as only the second part could improve, and one at most a swap above it gets its budget's smaller
-//! near limits. Equal runs share their result, as unrolled copies and repeated checks repeat them,
-//! and so do runs that push other immediates of the same widths: a schedule depends only on which
-//! pushes repeat a value and how wide each is. Programs and contracts repeat each other's runs too,
-//! as tests embed the same library and helper code, so a search that this program's cache misses
-//! and that would expand states is looked up in a cache shared by every program of the compilation,
-//! kept on its global context, keyed by everything the search reads of the run and its target
-//! prices.
+//! A run longer than its budget's operations is searched in windows or skipped, the stack may grow
+//! at most [`STACK_SLACK`] words above the run's entry and exit heights, and a run that yields no
+//! cheaper schedule within the first part of its [`Limits`] keeps its code, while one that does
+//! keeps refining for the rest, or until no cheaper schedule turned up for its stall part, as
+//! later improvements are rare and small. Runs in hot loop blocks get [`LOOP_BUDGET`], which takes
+//! longer runs and waits longer for a first cheaper schedule, as their code runs many times per
+//! call: the schedule of a loop that carries four words and stores two bytes per trip turns up
+//! only after about a thousand states. All others get [`BLOCK_BUDGET`]. A run of one operation,
+//! where a dead word is popped before the operation instead of swapped around it, is searched in
+//! hot loop blocks and when optimizing for size, the latter through [`SIZE_BLOCK_BUDGET`];
+//! elsewhere in gas mode it saved no gas in the benchmarks and grew the code. A run whose bound
+//! already reaches its cost in the objective's first part is not searched, as only the second part
+//! could improve, and one at most a swap above it gets its budget's smaller near limits. Unrolled
+//! copies, repeated checks and the library code that programs and contracts embed repeat each
+//! other's runs, so a search that would expand states is looked up in a cache shared by every
+//! program of the compilation, kept on its global context, keyed by everything the search reads of
+//! the run and its target prices. Runs that push other immediates of the same widths share a
+//! result: a schedule depends only on which pushes repeat a value and how wide each is.
 //!
 //! Safety: the replacement performs exactly the original operations on the same operand words,
 //! keeps memory and storage accesses in order, and leaves the same words in the same stack
@@ -117,13 +115,14 @@ use solar_data_structures::{
 use solar_sema::Gcx;
 use std::{
     collections::{BinaryHeap, hash_map::Entry},
-    hash::BuildHasher,
+    hash::{BuildHasher, Hash, Hasher},
+    ops::Range,
 };
 
 /// Words the search may grow the stack by above the run's entry and exit heights.
 const STACK_SLACK: usize = 3;
 /// How large a run the search takes and how many states it may expand for it.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy)]
 struct Budget {
     /// Operations a searched run must perform at least.
     min_operations: usize,
@@ -137,7 +136,7 @@ struct Budget {
 }
 
 /// How many states one search may expand.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy)]
 struct Limits {
     /// States to expand before some cheaper schedule turns up, after which the run keeps its
     /// code.
@@ -191,16 +190,19 @@ impl EvmPass for StackReschedule {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let code_follows = module.code_follows;
+        let optimization = module.optimization;
         let mut halts = DenseBitSet::new_empty(module.blocks.len());
         for id in module.blocks.indices() {
             if aborts_without_stack(module, id) {
                 halts.insert(id);
             }
         }
-        let mut scratch = Scratch::new(gcx);
+        let mut buffers = Buffers::default();
+        let mut placed = DenseBitSet::new_empty(0);
+        let shared = &gcx.codegen_state::<CodegenState>().schedules;
         let mut changed = false;
         for block in &mut module.blocks {
-            let target = &block.target(gcx, code_follows);
+            let target = &block.target(gcx, optimization, code_follows);
             let hot_loop = block.metadata.in_loop && !block.metadata.hotness.is_cold();
             let budget = if hot_loop {
                 LOOP_BUDGET
@@ -209,15 +211,22 @@ impl EvmPass for StackReschedule {
             } else {
                 BLOCK_BUDGET
             };
-            changed |=
-                reschedule_block(&mut block.instructions, target, budget, &halts, &mut scratch);
+            let mut rescheduler = Rescheduler {
+                target,
+                budget,
+                halts: &halts,
+                buffers: &mut buffers,
+                placed: &mut placed,
+                shared,
+            };
+            changed |= rescheduler.reschedule_block(&mut block.instructions);
         }
         changed
     }
 }
 
 /// A stack word of a run: one found on entry, by depth, an operation's result, or a constant.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum Word {
     Entry(u8),
     Result(u8),
@@ -235,12 +244,10 @@ struct Operation {
     /// The opcode that computes the same result from swapped operands: the operation's own when
     /// it is commutative, or the mirrored comparison.
     swapped: Option<u8>,
-    /// The operation that has to run before this one: the previous check, memory or storage
-    /// access for one of those, and the last check or gas-dependent access for any other.
-    after: Option<u8>,
-    /// Whether this is a `PUSH target; JUMPI` pair into a block that aborts without reading the
-    /// stack, which only takes the condition.
-    branch: bool,
+    /// The operations that have to run before this one, as a mask: the producers of its operands,
+    /// and the previous check, memory or storage access for one of those, or the last check or
+    /// gas-dependent access for any other.
+    needs: u16,
 }
 
 /// The symbolic summary of a run.
@@ -260,6 +267,17 @@ struct Run {
     peak: usize,
 }
 
+impl Run {
+    /// The dense index of a word: entry words, then results, then constants.
+    fn index(&self, word: Word) -> usize {
+        match word {
+            Word::Entry(depth) => usize::from(depth),
+            Word::Result(operation) => self.entry + usize::from(operation),
+            Word::Constant(constant) => self.entry + self.operations.len() + usize::from(constant),
+        }
+    }
+}
+
 /// A step of a schedule.
 #[derive(Clone, Copy, Debug)]
 enum Move {
@@ -271,7 +289,7 @@ enum Move {
 /// A search state: the stack's dense word indices packed six bits each, top lowest, and the
 /// performed operations. Eight-byte alignment shrinks the search's arena entries from 64 to 48
 /// bytes and its table entries from 48 to 32.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(Rust, packed(8))]
 struct State {
     stack: u128,
@@ -280,10 +298,6 @@ struct State {
 }
 
 impl State {
-    fn word(self, depth: usize) -> usize {
-        ((self.stack >> (WORD_BITS as usize * depth)) & 63) as usize
-    }
-
     /// The stack's words, top first.
     fn words(self) -> [u8; MAX_HEIGHT] {
         let mut words = [0; MAX_HEIGHT];
@@ -307,8 +321,9 @@ impl State {
         }
     }
 
-    fn swap(self, depth: usize) -> Self {
-        let difference = (self.word(0) ^ self.word(depth)) as u128;
+    /// Swaps the top word with `depth`, given their already decoded XOR.
+    fn swap(self, depth: usize, difference: usize) -> Self {
+        let difference = difference as u128;
         Self {
             stack: self.stack ^ difference ^ (difference << (WORD_BITS as usize * depth)),
             ..self
@@ -316,105 +331,225 @@ impl State {
     }
 }
 
-fn reschedule_block(
-    instructions: &mut Vec<Instruction>,
-    target: &Target,
-    budget: Budget,
-    halts: &DenseBitSet<BlockId>,
-    scratch: &mut Scratch<'_>,
-) -> bool {
-    let mut replacements = Vec::new();
-    let mut operations_before = Vec::new();
-    let mut start = 0;
-    while start < instructions.len() {
-        // A run continues through checks that branch to a block aborting without the stack.
-        let mut end = start;
-        let mut cuts = SmallVec::<[usize; 8]>::new();
-        loop {
-            if is_branch_pair(instructions, end, halts) {
-                end += 2;
-                cuts.push(end);
-            } else if end < instructions.len()
-                && schedulable(&instructions[end])
-                && is_split_point(instructions, end)
-                && !instructions[end].keeps_with_next()
-            {
-                end += 1;
-            } else {
-                break;
-            }
-        }
-        if end == start {
-            start += 1;
-            continue;
-        }
-        // Search windows of at most the budget's operations, cut after the checks.
-        operations_before.clear();
-        operations_before.push(0);
-        for inst in &instructions[start..end] {
-            let count = *operations_before.last().unwrap();
-            operations_before.push(count + usize::from(is_operation(inst)));
-        }
-        let operations = |from: usize, to: usize| {
-            operations_before[to - start] - operations_before[from - start]
-        };
-        let mut window_start = start;
-        while window_start < end {
-            let mut window_end = end;
-            if operations(window_start, end) > budget.operations {
-                let later = cuts.partition_point(|&cut| cut <= window_start);
-                let fitting = cuts[later..]
-                    .partition_point(|&cut| operations(window_start, cut) <= budget.operations);
-                window_end = match fitting {
-                    0 => cuts.get(later).copied().unwrap_or(end),
-                    fitting => cuts[later + fitting - 1],
-                };
-            }
-            let window = &instructions[window_start..window_end];
-            // Spanning the checks gives the search more freedom, but a longer run can exhaust
-            // its budget where the runs between the checks would not: keep the cheaper one.
-            let mut best = None;
-            let mut best_price = price(window, target);
-            let candidates = [
-                schedule(window, target, budget, halts, scratch),
-                split_schedule(window, target, budget, halts, scratch),
-            ];
-            for candidate in candidates.into_iter().flatten() {
-                let candidate_price = price(&candidate, target);
-                if candidate_price < best_price
-                    && spends_no_more_before_observations(window, &candidate, target)
-                {
-                    best_price = candidate_price;
-                    best = Some(candidate);
-                }
-            }
-            if let Some(replacement) = best {
-                replacements.push((window_start, window_end, replacement));
-            }
-            window_start = window_end;
-        }
-        start = end;
+impl Hash for State {
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
+        let Self { stack, len, done } = *self;
+        stack.hash(hasher);
+        // Pack the smaller fields into one hash input without losing any bits.
+        ((u32::from(len) << u16::BITS) | u32::from(done)).hash(hasher);
     }
-    if replacements.is_empty() {
-        return false;
-    }
-    // prefix; window; suffix -> prefix; schedule; suffix
-    let mut rebuilt = Vec::with_capacity(instructions.len());
-    let mut cursor = 0;
-    let mut old = std::mem::take(instructions).into_iter();
-    for (start, end, replacement) in replacements {
-        rebuilt.extend(old.by_ref().take(start - cursor));
-        old.by_ref().take(end - start).for_each(drop);
-        rebuilt.extend(replacement);
-        cursor = end;
-    }
-    rebuilt.extend(old);
-    *instructions = rebuilt;
-    true
 }
 
-/// The schedules found for runs, by their instructions and search budget.
-type Schedules = FxHashMap<(SmallVec<[RunKey; 24]>, Budget), Option<Vec<Move>>>;
+/// The settings of one block's search, and the buffers and schedules it shares with the others.
+struct Rescheduler<'a> {
+    target: &'a Target,
+    budget: Budget,
+    halts: &'a DenseBitSet<BlockId>,
+    buffers: &'a mut Buffers,
+    /// The positions of a run that `emit` has placed, reused across runs.
+    placed: &'a mut DenseBitSet<usize>,
+    shared: &'a SharedSchedules,
+}
+
+impl Rescheduler<'_> {
+    fn reschedule_block(&mut self, instructions: &mut Vec<Instruction>) -> bool {
+        let mut start = 0;
+        while start < instructions.len() {
+            // A run continues through checks that branch to a block aborting without the stack.
+            let mut end = start;
+            self.buffers.cuts.clear();
+            loop {
+                if is_branch_pair(instructions, end, self.halts) {
+                    end += 2;
+                    self.buffers.cuts.push(end);
+                } else if end < instructions.len()
+                    && schedulable(&instructions[end])
+                    && is_split_point(instructions, end)
+                    && !instructions[end].keeps_with_next()
+                {
+                    end += 1;
+                } else {
+                    break;
+                }
+            }
+            if end == start {
+                start += 1;
+                continue;
+            }
+            self.buffers.cuts.push(end);
+            // Search windows of at most the budget's operations, cut after the checks.
+            let mut count = 0;
+            let operations_before = &mut self.buffers.operations_before;
+            operations_before.clear();
+            operations_before.push(0);
+            operations_before.extend(instructions[start..end].iter().map(|inst| {
+                count += usize::from(is_operation(inst));
+                count
+            }));
+            // A run with too few operations has no schedule, nor does any window of it.
+            if self.buffers.operations_before[end - start] < self.budget.min_operations {
+                start = end;
+                continue;
+            }
+            let mut window_start = start;
+            while window_start < end {
+                // The last cut that fits, or the first one when none does.
+                let operations = |from: usize, to: usize| {
+                    let before = &self.buffers.operations_before;
+                    before[to - start] - before[from - start]
+                };
+                let cuts = &self.buffers.cuts;
+                let later = cuts.partition_point(|&cut| cut <= window_start);
+                let fitting = cuts[later..].partition_point(|&cut| {
+                    operations(window_start, cut) <= self.budget.operations
+                });
+                let window_end = cuts[later + fitting.saturating_sub(1)];
+                if let Some(replacement) =
+                    self.best_schedule(&instructions[window_start..window_end])
+                {
+                    self.buffers.replacements.push((window_start..window_end, replacement));
+                }
+                window_start = window_end;
+            }
+            start = end;
+        }
+        let Buffers { replacements, rebuilt, .. } = &mut *self.buffers;
+        if replacements.is_empty() {
+            return false;
+        }
+        // prefix; window; suffix -> prefix; schedule; suffix
+        rebuilt.clear();
+        let mut old = instructions.drain(..);
+        let mut cursor = 0;
+        for (window, replacement) in replacements.drain(..) {
+            rebuilt.extend(old.by_ref().take(window.start - cursor));
+            old.by_ref().take(window.len()).for_each(drop);
+            rebuilt.extend(replacement);
+            cursor = window.end;
+        }
+        rebuilt.extend(old);
+        std::mem::swap(instructions, rebuilt);
+        true
+    }
+
+    /// The cheaper of the schedule that spans a window's checks and the one that splits at them,
+    /// when it beats the window's own. Spanning the checks gives the search more freedom, but a
+    /// longer run can exhaust its budget where the runs between the checks would not.
+    fn best_schedule(&mut self, window: &[Instruction]) -> Option<Vec<Instruction>> {
+        let mut best = None;
+        let mut best_price = self.price(window);
+        for candidate in [self.schedule(window), self.split_schedule(window)].into_iter().flatten()
+        {
+            let candidate_price = self.price(&candidate);
+            if candidate_price < best_price
+                && self.spends_no_more_before_observations(window, &candidate)
+            {
+                best_price = candidate_price;
+                best = Some(candidate);
+            }
+        }
+        best
+    }
+
+    /// The cheapest schedule the search finds for a run, if it beats the run's own.
+    fn schedule(&mut self, run: &[Instruction]) -> Option<Vec<Instruction>> {
+        // A run that ends in a label push, the target of the jump after it, keeps the push last so
+        // the jump's edge stays visible.
+        // run; push label -> schedule; push label
+        if let [rest @ .., last] = run
+            && last.pushed_block().is_some()
+        {
+            let mut scheduled = self.schedule(rest)?;
+            scheduled.push(last.clone());
+            return Some(scheduled);
+        }
+        let summary = summarize(run, self.target, self.budget, self.halts)?;
+        let moves = search(&summary, self.target, self.budget, self.buffers, self.shared)?;
+        emit(run, &summary, &moves, self.placed)
+    }
+
+    /// Schedules the runs between a window's checks and gas-dependent accesses separately, keeping
+    /// each check in place; `None` when the window has neither or no run improves.
+    ///
+    /// A run that ends at an access spends no more gas before it than the original whenever its
+    /// schedule costs no more gas, as nothing of the original ran after the access.
+    fn split_schedule(&mut self, window: &[Instruction]) -> Option<Vec<Instruction>> {
+        let mut rebuilt = Vec::new();
+        let mut improved = false;
+        let mut start = 0;
+        let mut index = 0;
+        while index < window.len() {
+            let branch = is_branch_pair(window, index, self.halts);
+            if !branch && !observes_gas(&window[index]) {
+                index += 1;
+                continue;
+            }
+            // The only split is an access that ends the window: its run is the window itself.
+            if start == 0 && !branch && index + 1 == window.len() {
+                return None;
+            }
+            // run; push target; jumpi -> schedule; push target; jumpi
+            // run; access -> schedule ending in access
+            improved |= self.extend_scheduled(&mut rebuilt, &window[start..=index]);
+            start = index + 1;
+            if branch {
+                rebuilt.push(window[start].clone());
+                start += 1;
+            }
+            index = start;
+        }
+        if start == 0 {
+            return None;
+        }
+        improved |= self.extend_scheduled(&mut rebuilt, &window[start..]);
+        improved.then_some(rebuilt)
+    }
+
+    /// Appends a run's cheapest schedule, or the run itself when the search finds none, and
+    /// returns whether it found one.
+    fn extend_scheduled(&mut self, rebuilt: &mut Vec<Instruction>, run: &[Instruction]) -> bool {
+        let replacement = self.schedule(run);
+        rebuilt.extend_from_slice(replacement.as_deref().unwrap_or(run));
+        replacement.is_some()
+    }
+
+    /// The price of a sequence's stack operations and pushes, which is all a schedule changes.
+    fn price(&self, instructions: &[Instruction]) -> u64 {
+        let cost = instructions
+            .iter()
+            .filter(|inst| !is_operation(inst))
+            .map(|inst| instruction_cost(inst, self.target))
+            .sum::<Cost>();
+        scalar(cost, self.target)
+    }
+
+    /// Whether a schedule spends at most the original's gas before each check and each operation
+    /// that depends on the gas left, so the path that aborts at the check and the operation see at
+    /// least the gas they saw before.
+    ///
+    /// The same operations run before each of them, or fewer, as none moves above one, so comparing
+    /// the static gas of the instructions before it is enough.
+    fn spends_no_more_before_observations(
+        &self,
+        original: &[Instruction],
+        schedule: &[Instruction],
+    ) -> bool {
+        let spent_before = |instructions: &[Instruction]| {
+            let mut spent = 0u64;
+            let mut before = SmallVec::<[u64; 8]>::new();
+            for inst in instructions {
+                if is_operation(inst) && (inst.opcode == op::JUMPI || observes_gas(inst)) {
+                    before.push(spent);
+                }
+                spent += u64::from(instruction_cost(inst, self.target).gas);
+            }
+            before
+        };
+        let (original, schedule) = (spent_before(original), spent_before(schedule));
+        original.len() == schedule.len()
+            && schedule.iter().zip(&original).all(|(schedule, original)| schedule <= original)
+    }
+}
 
 /// The results of every search of a compilation, kept on its [`Gcx`]. A search is a function of
 /// its key, so threads may race to fill an entry and every program may read any entry.
@@ -434,23 +569,6 @@ struct SharedShard(RwLock<SharedMoves>);
 
 type SharedMoves = FxHashMap<Box<[u8]>, Option<Box<[Move]>>>;
 
-/// What the pass keeps across runs: the schedules found and the search's buffers.
-struct Scratch<'gcx> {
-    schedules: Schedules,
-    buffers: Buffers,
-    shared: &'gcx SharedSchedules,
-}
-
-impl<'gcx> Scratch<'gcx> {
-    fn new(gcx: Gcx<'gcx>) -> Self {
-        Self {
-            schedules: Schedules::default(),
-            buffers: Buffers::default(),
-            shared: &gcx.codegen_state::<CodegenState>().schedules,
-        }
-    }
-}
-
 /// The search's state storage, cleared and reused for every run.
 #[derive(Default)]
 struct Buffers {
@@ -460,6 +578,26 @@ struct Buffers {
     best: FxHashMap<State, u32>,
     /// Arena entries by priority.
     open: Queue,
+    /// Remaining-operation facts, independent of stack order, keyed by performed operations.
+    pending: FxHashMap<u16, Pending>,
+    /// Start of each cut of the run being windowed: after its checks, and at its end.
+    cuts: Vec<usize>,
+    /// Operations before each instruction of that run.
+    operations_before: Vec<usize>,
+    /// The windows of the block to replace, with their schedules.
+    replacements: Vec<(Range<usize>, Vec<Instruction>)>,
+    /// The block's instructions with the windows replaced.
+    rebuilt: Vec<Instruction>,
+    /// Dense operand words in pop order, reused across searches.
+    operands: Vec<SmallVec<[usize; 3]>>,
+}
+
+/// Uses and ready operations shared by every state with the same performed operations.
+#[derive(Clone, Copy)]
+struct Pending {
+    need: [u8; 64],
+    ready: u16,
+    wanted: u64,
 }
 
 /// A visited search state.
@@ -526,36 +664,6 @@ impl Queue {
     }
 }
 
-/// What a run's schedule depends on in one of its instructions.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-enum RunKey {
-    Stack(StackOp),
-    Block(BlockId),
-    /// An immediate by its first position among the run's immediates and its width.
-    Immediate(u8, u8),
-    Operation(u8),
-}
-
-/// The key of an instruction, given the distinct immediates the run pushed before it, which
-/// collects the one it pushes. A schedule depends only on which pushes repeat a value and how
-/// wide each is.
-fn run_key(inst: &Instruction, immediates: &mut SmallVec<[U256; 8]>) -> RunKey {
-    if let Some(stack_op) = inst.as_stack_op() {
-        return RunKey::Stack(stack_op);
-    }
-    match constant(inst) {
-        Some(Constant::Immediate(value)) => {
-            let index = immediates.iter().position(|&known| known == value).unwrap_or_else(|| {
-                immediates.push(value);
-                immediates.len() - 1
-            });
-            RunKey::Immediate(index as u8, value.byte_len() as u8)
-        }
-        Some(Constant::Block(block)) => RunKey::Block(block),
-        None => RunKey::Operation(inst.opcode),
-    }
-}
-
 /// Whether an instruction may be part of a searched run.
 fn schedulable(inst: &Instruction) -> bool {
     if let Some(stack_op) = inst.as_stack_op() {
@@ -578,10 +686,9 @@ enum Constant {
 }
 
 fn constant(inst: &Instruction) -> Option<Constant> {
-    if let Some(value) = inst.concrete_immediate() {
-        return Some(Constant::Immediate(value));
-    }
-    inst.pushed_block().map(Constant::Block)
+    inst.concrete_immediate()
+        .map(Constant::Immediate)
+        .or_else(|| inst.pushed_block().map(Constant::Block))
 }
 
 /// Price of a push as assembly encodes it: the narrowest `PUSH` of its value.
@@ -624,7 +731,7 @@ fn scalar(cost: Cost, target: &Target) -> u64 {
     (u64::from(first) << 32) | u64::from(second)
 }
 
-/// Executes a run symbolically.
+/// Executes a run symbolically, stopping when another operation would exceed the budget.
 fn summarize(
     run: &[Instruction],
     target: &Target,
@@ -652,29 +759,12 @@ fn summarize(
     let mut position = 0;
     while position < run.len() {
         let inst = &run[position];
-        if is_branch_pair(run, position, halts) {
-            // push target; jumpi -> branch(condition)
-            deepen(&mut stack, &mut entry, 1)?;
-            let condition = stack.remove(0);
-            let index = u8::try_from(operations.len()).ok()?;
-            operations.push(Operation {
-                position,
-                operands: SmallVec::from_slice(&[condition]),
-                produces: false,
-                swapped: None,
-                after: last_ordered,
-                branch: true,
-            });
-            last_ordered = Some(index);
-            last_observed = Some(index);
-            position += 2;
-            continue;
-        }
+        let branch = is_branch_pair(run, position, halts);
         if let Some(stack_op) = inst.as_stack_op() {
             deepen(&mut stack, &mut entry, stack_op.required_depth())?;
             apply(&mut stack, stack_op);
-            cost = cost.plus(instruction_cost(inst, target));
-        } else if inst.is_encoded_push() {
+            cost += instruction_cost(inst, target);
+        } else if inst.is_encoded_push() && !branch {
             let key = constant(inst)?;
             let index = match keys.iter().position(|&existing| existing == key) {
                 Some(index) => index,
@@ -687,26 +777,44 @@ fn summarize(
             };
             pushes[index].push(position);
             stack.insert(0, Word::Constant(u8::try_from(index).ok()?));
-            cost = cost.plus(push_cost(inst, target));
+            cost += push_cost(inst, target);
         } else {
-            let definition = inst.definition()?;
-            let (inputs, outputs) = definition.stack_io?;
+            if operations.len() >= budget.operations {
+                return None;
+            }
+            // A branch takes its condition, is ordered with every access and observes the gas.
+            let (inputs, outputs, ordered, observes, swapped) = if branch {
+                (1, 0, true, true, None)
+            } else {
+                let definition = inst.definition()?;
+                let (inputs, outputs) = definition.stack_io?;
+                (
+                    inputs,
+                    outputs,
+                    !op::reads_only_operands_or_calldata(definition.opcode),
+                    definition.observes_gas(),
+                    op::swapped_binary_opcode(definition.opcode),
+                )
+            };
             deepen(&mut stack, &mut entry, usize::from(inputs))?;
             let operands = stack.drain(..usize::from(inputs)).collect::<SmallVec<[Word; 3]>>();
             let index = u8::try_from(operations.len()).ok()?;
-            let is_ordered = !op::reads_only_operands_or_calldata(definition.opcode);
+            let after = if ordered { last_ordered } else { last_observed };
+            let needs =
+                operands.iter().fold(after.map_or(0, |after| 1u16 << after), |mask, word| {
+                    mask | if let Word::Result(producer) = word { 1 << producer } else { 0 }
+                });
             operations.push(Operation {
                 position,
                 operands,
                 produces: outputs == 1,
-                swapped: op::swapped_binary_opcode(definition.opcode),
-                after: if is_ordered { last_ordered } else { last_observed },
-                branch: false,
+                swapped,
+                needs,
             });
-            if is_ordered {
+            if ordered {
                 last_ordered = Some(index);
             }
-            if definition.observes_gas() {
+            if observes {
                 last_observed = Some(index);
             }
             if outputs == 1 {
@@ -714,7 +822,7 @@ fn summarize(
             }
         }
         peak = peak.max(stack.len());
-        position += 1;
+        position += if branch { 2 } else { 1 };
     }
     (operations.len() >= budget.min_operations
         && operations.len() <= budget.operations
@@ -723,20 +831,16 @@ fn summarize(
         .then_some(Run { operations, pushes, constant_costs, entry, exit: stack, cost, peak })
 }
 
-/// Dense indices of a run's words: entry words, then results, then constants.
-struct Words {
-    entry: usize,
-    operations: usize,
-}
-
-impl Words {
-    fn index(&self, word: Word) -> usize {
-        match word {
-            Word::Entry(depth) => usize::from(depth),
-            Word::Result(operation) => self.entry + usize::from(operation),
-            Word::Constant(constant) => self.entry + self.operations + usize::from(constant),
+/// Operation indices in ascending order, as in a full operation scan filtered by the mask.
+fn operation_indices(mut mask: u16) -> impl Iterator<Item = usize> {
+    std::iter::from_fn(move || {
+        if mask == 0 {
+            return None;
         }
-    }
+        let index = mask.trailing_zeros() as usize;
+        mask &= mask - 1;
+        Some(index)
+    })
 }
 
 /// Searches for the cheapest schedule of a run's operations that leaves its stack, when one
@@ -750,53 +854,31 @@ fn search(
     shared: &SharedSchedules,
 ) -> Option<Vec<Move>> {
     let operation_count = run.operations.len();
-    let words = Words { entry: run.entry, operations: operation_count };
     let word_count = run.entry + operation_count + run.pushes.len();
     let height = run.peak.max(run.entry.max(run.exit.len()) + STACK_SLACK);
     if word_count > 64 || height > MAX_HEIGHT {
         return None;
     }
+    let Buffers { arena, best, open, pending, operands, .. } = buffers;
     let all_done = ((1u32 << operation_count) - 1) as u16;
-    let operand_words = run
-        .operations
-        .iter()
-        .map(|operation| {
-            operation
-                .operands
-                .iter()
-                .map(|&word| words.index(word))
-                .collect::<SmallVec<[usize; 3]>>()
-        })
-        .collect::<Vec<_>>();
-    let operands = operand_words.iter().map(SmallVec::as_slice).collect::<Vec<_>>();
-    // The operations each one waits for: the producers of its operands and its ordered access.
-    let needs = run
-        .operations
-        .iter()
-        .map(|operation| {
-            let mut mask = operation.after.map_or(0u16, |after| 1 << after);
-            for &operand in &operation.operands {
-                if let Word::Result(producer) = operand {
-                    mask |= 1 << producer;
-                }
-            }
-            mask
-        })
-        .collect::<Vec<_>>();
+    operands.clear();
+    operands.extend(run.operations.iter().map(|operation| {
+        operation.operands.iter().map(|&word| run.index(word)).collect::<SmallVec<[usize; 3]>>()
+    }));
     let mut exit_uses = [0u8; 64];
     for &word in &run.exit {
-        exit_uses[words.index(word)] += 1;
+        exit_uses[run.index(word)] += 1;
     }
     let exit =
         run.exit.iter().rev().fold(State { stack: 0, len: 0, done: all_done }, |state, &word| {
-            state.push(words.index(word))
+            state.push(run.index(word))
         });
-    let exit_len = usize::from(exit.len);
+    let exit_len = run.exit.len();
     let exit_words = exit.words();
     // The uses left of each word: by the exit and by the operations not yet performed.
     let demand = |done: u16| -> [u8; 64] {
         let mut need = exit_uses;
-        for (index, &operation_operands) in operands.iter().enumerate() {
+        for (index, operation_operands) in operands.iter().enumerate() {
             if done & (1 << index) == 0 {
                 for &operand in operation_operands {
                     need[operand] += 1;
@@ -807,6 +889,10 @@ fn search(
     };
     let result_of = |word: usize| -> Option<usize> {
         (run.entry..run.entry + operation_count).contains(&word).then(|| word - run.entry)
+    };
+    // Whether a word is the result of an operation not yet performed.
+    let pending_result = |word: usize, done: u16| {
+        result_of(word).is_some_and(|operation| done & (1 << operation) == 0)
     };
     let constant_of = |word: usize| -> Option<usize> {
         (word >= run.entry + operation_count).then(|| word - run.entry - operation_count)
@@ -821,18 +907,20 @@ fn search(
         }
         counts
     };
+    // The cheaper of a `DUP` and a push of the word.
+    let copy_cost = |word: usize| {
+        constant_of(word).map_or(dup, |constant| dup.min(run.constant_costs[constant]))
+    };
     // Every missing copy of a word needs a `DUP` or a push, and every surplus copy a `POP`.
     let term = |word: usize, count: u8, need: u8, done: u16| -> u64 {
         if count > need {
             return u64::from(count - need) * pop;
         }
-        let pending = result_of(word).is_some_and(|operation| done & (1 << operation) == 0);
-        let have = count + u8::from(pending);
+        let have = count + u8::from(pending_result(word, done));
         if need <= have {
             return 0;
         }
-        let copy = constant_of(word).map_or(dup, |constant| dup.min(run.constant_costs[constant]));
-        u64::from(need - have) * copy
+        u64::from(need - have) * copy_cost(word)
     };
     let estimate = |state: State| -> u64 {
         let counts = counts_of(&state.words()[..usize::from(state.len)]);
@@ -845,7 +933,8 @@ fn search(
         .fold(State { stack: 0, len: 0, done: 0 }, |state, depth| state.push(depth));
     // When the bound reaches the run's cost in the objective's first part, only the second part
     // could improve, which measured not worth a search; one swap above it, little can improve.
-    let gap = (budget >> 32).saturating_sub(estimate(start) >> 32);
+    let initial_bound = estimate(start);
+    let gap = (budget >> 32).saturating_sub(initial_bound >> 32);
     if gap == 0 {
         return None;
     }
@@ -869,8 +958,7 @@ fn search(
             let mut counts = *counts;
             // The bound counts `copies` more copies of the word, which it can copy or push now.
             let owed = |counts: &[u8; 64], word: usize, copies: u8| {
-                let pending =
-                    result_of(word).is_some_and(|operation| state.done & (1 << operation) == 0);
+                let pending = pending_result(word, state.done);
                 (constant_of(word).is_some() || counts[word] > 0)
                     && need[word] >= counts[word] + u8::from(pending) + copies
             };
@@ -885,8 +973,7 @@ fn search(
                 let rebuilt = |level: usize| {
                     let word = exit_words[exit_len - 1 - level];
                     constant_of(usize::from(word)).is_some()
-                        || result_of(usize::from(word))
-                            .is_some_and(|operation| state.done & (1 << operation) == 0)
+                        || pending_result(usize::from(word), state.done)
                         || exit_words[exit_len - level..exit_len].contains(&word)
                 };
                 if !(0..=matching).any(rebuilt) {
@@ -910,10 +997,8 @@ fn search(
                         }
                     }
                 } else {
-                    for (index, operation) in run.operations.iter().enumerate() {
-                        if ready & (1 << index) == 0 {
-                            continue;
-                        }
+                    for index in operation_indices(ready) {
+                        let operation = &run.operations[index];
                         // `a` on top and `b` below it, by the counted moves alone.
                         let reaches = |a: usize, b: usize| {
                             (top(0) == Some(a) && top(1) == Some(b))
@@ -924,10 +1009,9 @@ fn search(
                                     owed(&counts, a, 1) && owed(&counts, b, 1)
                                 }
                         };
-                        let reachable = match operands[index] {
-                            [] => true,
-                            &[a] => top(0) == Some(a) || owed(&counts, a, 1),
-                            &[a, b] => {
+                        let reachable = match *operands[index] {
+                            [a] => top(0) == Some(a) || owed(&counts, a, 1),
+                            [a, b] => {
                                 reaches(a, b) || (operation.swapped.is_some() && reaches(b, a))
                             }
                             _ => true,
@@ -946,32 +1030,32 @@ fn search(
             true
         };
 
-    let Buffers { arena, best, open } = buffers;
     arena.clear();
     best.clear();
     open.clear();
+    pending.clear();
     arena.push(Node {
         state: start,
         parent: u32::MAX,
         step: None,
         cost: 0,
-        bound: estimate(start),
+        bound: initial_bound,
         refined: Refined::Unknown,
     });
     best.insert(start, 0);
-    open.push(BOUND_WEIGHT * estimate(start), 0, 0);
+    open.push(BOUND_WEIGHT * initial_bound, 0, 0);
     let mut expansions = 0;
     let mut found = None;
     let mut found_at = 0;
     let mut successors = SmallVec::<[(State, Move, u64, u64); 48]>::new();
     while let Some((cost, node)) = open.pop() {
-        let Node { state, bound: remaining, refined, .. } = arena[node as usize];
+        let Node { state, bound: here, refined, .. } = arena[node as usize];
         let raised = match refined {
             Refined::Superseded => continue,
             Refined::Swap => swap,
             Refined::Unknown | Refined::NoSwap => 0,
         };
-        if cost + remaining + raised >= budget {
+        if cost + here + raised >= budget {
             continue;
         }
         if state == exit {
@@ -985,19 +1069,32 @@ fn search(
         let words = state.words();
         let stack = &words[..len];
         let counts = counts_of(stack);
-        let need = demand(state.done);
-        let ready = (0..operation_count).fold(0u16, |ready, index| {
-            let ready_now =
-                state.done & (1 << index) == 0 && state.done & needs[index] == needs[index];
-            ready | (u16::from(ready_now) << index)
+        let facts = pending.entry(state.done).or_insert_with(|| {
+            let need = demand(state.done);
+            let ready = (0..operation_count).fold(0u16, |ready, index| {
+                let needs = run.operations[index].needs;
+                let ready_now = state.done & (1 << index) == 0 && state.done & needs == needs;
+                ready | (u16::from(ready_now) << index)
+            });
+            // Words some ready operation reads.
+            let mut wanted = 0u64;
+            for index in operation_indices(ready) {
+                for &operand in &operands[index] {
+                    wanted |= 1 << operand;
+                }
+            }
+            Pending { need, ready, wanted }
         });
+        let need = &facts.need;
+        let ready = facts.ready;
+        let wanted = facts.wanted;
         // Raise the bound of a state that needs a swap before its next operation, and order
         // it again, before expanding it.
         if refined == Refined::Unknown {
-            if needs_swap(state, stack, ready, &counts, &need) {
+            if needs_swap(state, stack, ready, &counts, need) {
                 arena[node as usize].refined = Refined::Swap;
-                if cost + remaining + swap < budget {
-                    open.push(cost + BOUND_WEIGHT * (remaining + swap), cost, node);
+                if cost + here + swap < budget {
+                    open.push(cost + BOUND_WEIGHT * (here + swap), cost, node);
                 }
                 continue;
             }
@@ -1008,24 +1105,7 @@ fn search(
         if expansions > limits.refine || (found.is_none() && expansions > limits.first) || stalled {
             break;
         }
-        // The bound stored with the state.
-        let here = remaining;
-        // The bound after one word's count moves by `delta`; swaps keep every count.
-        let shifted = |word: usize, delta: i8| -> u64 {
-            let count = counts[word].wrapping_add_signed(delta);
-            here - term(word, counts[word], need[word], state.done)
-                + term(word, count, need[word], state.done)
-        };
         let finishing = state.done == all_done;
-        // Words some ready operation reads.
-        let mut wanted = 0u64;
-        for (index, &operation_operands) in operands.iter().enumerate() {
-            if ready & (1 << index) != 0 {
-                for &operand in operation_operands {
-                    wanted |= 1 << operand;
-                }
-            }
-        }
         let at = |depth: usize| usize::from(stack[depth]);
         // A surplus copy on top is popped or consumed before anything else, and until every
         // operation ran a swap follows only an operation or a pop: swapping again, or right after
@@ -1039,20 +1119,19 @@ fn search(
                 ));
         successors.clear();
         // Perform a ready operation.
-        for (index, operation) in run.operations.iter().enumerate() {
-            let arity = operands[index].len();
-            if ready & (1 << index) == 0
-                || len < arity
-                || (surplus_top && !operands[index].contains(&at(0)))
-            {
+        for index in operation_indices(ready) {
+            let operation = &run.operations[index];
+            let operation_operands = &operands[index];
+            let arity = operation_operands.len();
+            if len < arity || (surplus_top && !operation_operands.contains(&at(0))) {
                 continue;
             }
-            let in_order = (0..arity).all(|depth| at(depth) == operands[index][depth]);
+            let in_order = (0..arity).all(|depth| at(depth) == operation_operands[depth]);
             let swapped = !in_order
                 && operation.swapped.is_some()
                 && arity == 2
-                && at(0) == operands[index][1]
-                && at(1) == operands[index][0];
+                && at(0) == operation_operands[1]
+                && at(1) == operation_operands[0];
             if !in_order && !swapped {
                 continue;
             }
@@ -1061,25 +1140,15 @@ fn search(
                 next = next.push(run.entry + index);
             }
             next.done |= 1 << index;
-            // Performing it changes only the terms of the words it reads, each read `uses`
-            // times less, and of its result.
-            let mut touched = SmallVec::<[(usize, u8); 4]>::new();
-            for &operand in operands[index] {
-                match touched.iter_mut().find(|(word, _)| *word == operand) {
-                    Some((_, uses)) => *uses += 1,
-                    None => touched.push((operand, 1)),
-                }
-            }
-            let mut bound = here;
-            for &(word, uses) in &touched {
-                bound = bound - term(word, counts[word], need[word], state.done)
-                    + term(word, counts[word] - uses, need[word] - uses, next.done);
-            }
-            if operation.produces {
-                let result = run.entry + index;
-                bound = bound - term(result, counts[result], need[result], state.done)
-                    + term(result, counts[result] + 1, need[result], next.done);
-            }
+            // Consuming ready operands decreases their copies and remaining uses equally.
+            // Producing a result replaces its pending copy with a real one; only an unused
+            // result adds a surplus copy that needs a POP.
+            let result = run.entry + index;
+            debug_assert!(operation_operands.iter().all(|&word| {
+                result_of(word).is_none_or(|producer| state.done & (1 << producer) != 0)
+            }));
+            debug_assert_eq!(counts[result], 0);
+            let bound = here + if operation.produces && need[result] == 0 { pop } else { 0 };
             successors.push((next, Move::Perform { operation: index as u8, swapped }, 0, bound));
         }
         if len < height && !surplus_top {
@@ -1093,7 +1162,7 @@ fn search(
                         state.push(word),
                         Move::Push(constant as u8),
                         constant_cost,
-                        shifted(word, 1),
+                        here - copy_cost(word),
                     ));
                 }
             }
@@ -1106,11 +1175,15 @@ fn search(
                 }
                 seen |= 1 << word;
                 if counts[word] < need[word] {
+                    // A live copy proves its producer ran; one fewer copy is missing.
+                    debug_assert!(
+                        result_of(word).is_none_or(|producer| state.done & (1 << producer) != 0)
+                    );
                     successors.push((
                         state.push(word),
                         Move::Stack(StackOp::Dup(depth as u8)),
                         dup,
-                        shifted(word, 1),
+                        here - copy_cost(word),
                     ));
                 }
             }
@@ -1126,7 +1199,7 @@ fn search(
                     continue;
                 }
                 successors.push((
-                    state.swap(depth),
+                    state.swap(depth, at(0) ^ word),
                     Move::Stack(StackOp::Swap(depth as u8)),
                     swap,
                     here,
@@ -1134,7 +1207,7 @@ fn search(
             }
         }
         if surplus_top {
-            successors.push((state.drop(1), Move::Stack(StackOp::Pop), pop, shifted(at(0), -1)));
+            successors.push((state.drop(1), Move::Stack(StackOp::Pop), pop, here - pop));
         }
         for &(successor, step, step_cost, remaining) in &successors {
             let next_cost = cost + step_cost;
@@ -1142,6 +1215,7 @@ fn search(
             if usize::from(successor.len) > height || next_cost + remaining >= budget {
                 continue;
             }
+            debug_assert_eq!(remaining, estimate(successor));
             let id = arena.len() as u32;
             match best.entry(successor) {
                 Entry::Occupied(mut entry) => {
@@ -1181,12 +1255,17 @@ fn search(
 }
 
 /// Builds the instructions of a schedule, after replaying it against the run's summary.
-fn emit(run: &[Instruction], summary: &Run, moves: &[Move]) -> Option<Vec<Instruction>> {
+fn emit(
+    run: &[Instruction],
+    summary: &Run,
+    moves: &[Move],
+    placed: &mut DenseBitSet<usize>,
+) -> Option<Vec<Instruction>> {
     let mut stack: SmallVec<[Word; 24]> =
         (0..summary.entry).map(|depth| Word::Entry(depth as u8)).collect();
     let mut performed = 0u32;
     let mut instructions = Vec::with_capacity(moves.len());
-    let mut placed = DenseBitSet::<usize>::new_empty(run.len());
+    placed.clear_to(run.len());
     for &step in moves {
         match step {
             // operands -> op, or swapped operands -> swapped op
@@ -1206,20 +1285,20 @@ fn emit(run: &[Instruction], summary: &Run, moves: &[Move]) -> Option<Vec<Instru
                     stack.insert(0, Word::Result(operation));
                 }
                 performed |= 1 << operation;
-                let original = &run[operation_info.position];
-                placed.insert(operation_info.position);
-                if operation_info.branch {
-                    placed.insert(operation_info.position + 1);
-                    instructions.push(original.clone());
-                    instructions.push(run[operation_info.position + 1].clone());
-                    continue;
-                }
+                let position = operation_info.position;
+                let original = &run[position];
+                placed.insert(position);
                 instructions.push(match operation_info.swapped {
                     Some(opcode) if swapped && opcode != original.opcode => {
                         Instruction::opcode(opcode).with_metadata(original.metadata.clone())
                     }
                     _ => original.clone(),
                 });
+                // A branch's operation is its push, followed by its `JUMPI`.
+                if original.is_encoded_push() {
+                    placed.insert(position + 1);
+                    instructions.push(run[position + 1].clone());
+                }
             }
             // push constant
             Move::Push(constant) => {
@@ -1234,10 +1313,12 @@ fn emit(run: &[Instruction], summary: &Run, moves: &[Move]) -> Option<Vec<Instru
                         // A constant pushed more often than in the run copies the first push's
                         // source only.
                         let first = &run[originals[0]];
-                        let mut inst = first.clone();
-                        inst.metadata = Default::default();
-                        inst.metadata.copy_source_debug_from(&first.metadata);
-                        instructions.push(inst);
+                        instructions.push(
+                            first
+                                .clone()
+                                .with_metadata(Default::default())
+                                .with_source_debug(&first.metadata),
+                        );
                     }
                 }
             }
@@ -1326,49 +1407,13 @@ fn is_operation(inst: &Instruction) -> bool {
     inst.as_stack_op().is_none() && !inst.is_encoded_push()
 }
 
-/// The cheapest schedule the search finds for a run, if it beats the run's own.
-fn schedule(
-    run: &[Instruction],
-    target: &Target,
-    budget: Budget,
-    halts: &DenseBitSet<BlockId>,
-    scratch: &mut Scratch<'_>,
-) -> Option<Vec<Instruction>> {
-    // A run that ends in a label push, the target of the jump after it, keeps the push last so
-    // the jump's edge stays visible.
-    // run; push label -> schedule; push label
-    if let [rest @ .., last] = run
-        && last.pushed_block().is_some()
-    {
-        let mut scheduled = schedule(rest, target, budget, halts, scratch)?;
-        scheduled.push(last.clone());
-        return Some(scheduled);
-    }
-    let summary = summarize(run, target, budget, halts)?;
-    // Unrolled copies and repeated checks produce the same runs over and over, and runs that
-    // only push other immediates of the same widths take the same schedule.
-    let mut immediates = SmallVec::<[U256; 8]>::new();
-    let key = (
-        run.iter().map(|inst| run_key(inst, &mut immediates)).collect::<SmallVec<[RunKey; 24]>>(),
-        budget,
-    );
-    let Scratch { schedules, buffers, shared } = scratch;
-    let moves =
-        schedules.entry(key).or_insert_with(|| search(&summary, target, budget, buffers, shared));
-    emit(run, &summary, moves.as_ref()?)
-}
-
 /// Everything [`search`] reads of a run, its budget and its target, as bytes: the operands,
 /// ordering and exit words, the prices of moves, the run and its constants, and the budget's
 /// limits. It leaves out which opcodes and immediates the run holds, which a schedule does not
 /// depend on.
 fn search_key(run: &Run, prices: [u64; 4], budget: Budget) -> SmallVec<[u8; 192]> {
     let mut key = SmallVec::new();
-    let word = |key: &mut SmallVec<[u8; 192]>, word: Word| match word {
-        Word::Entry(index) => key.extend([0, index]),
-        Word::Result(index) => key.extend([1, index]),
-        Word::Constant(index) => key.extend([2, index]),
-    };
+    // The header fixes the three word ranges, so dense indices identify their kinds too.
     key.extend(
         [run.entry, run.peak, run.pushes.len(), run.exit.len(), run.operations.len()]
             .map(|len| len as u8),
@@ -1376,20 +1421,18 @@ fn search_key(run: &Run, prices: [u64; 4], budget: Budget) -> SmallVec<[u8; 192]
     for operation in &run.operations {
         key.extend([
             u8::from(operation.produces) | u8::from(operation.swapped.is_some()) << 1,
-            operation.after.unwrap_or(u8::MAX),
             operation.operands.len() as u8,
         ]);
+        key.extend(operation.needs.to_le_bytes());
         for &operand in &operation.operands {
-            word(&mut key, operand);
+            key.push(run.index(operand) as u8);
         }
     }
     for &exit in &run.exit {
-        word(&mut key, exit);
+        key.push(run.index(exit) as u8);
     }
-    let Budget { operations, states, near, .. } = budget;
-    for limit in
-        [operations, states.first, states.refine, states.stall, near.first, near.refine, near.stall]
-    {
+    let Budget { states, near, .. } = budget;
+    for limit in [states.first, states.refine, states.stall, near.first, near.refine, near.stall] {
         key.extend((limit as u32).to_le_bytes());
     }
     for price in prices.into_iter().chain(run.constant_costs.iter().copied()) {
@@ -1398,118 +1441,7 @@ fn search_key(run: &Run, prices: [u64; 4], budget: Budget) -> SmallVec<[u8; 192]
     key
 }
 
-/// Schedules the runs between a window's checks and gas-dependent accesses separately, keeping
-/// each check in place; `None` when the window has neither or no run improves.
-///
-/// A run that ends at an access spends no more gas before it than the original whenever its
-/// schedule costs no more gas, as nothing of the original ran after the access.
-fn split_schedule(
-    window: &[Instruction],
-    target: &Target,
-    budget: Budget,
-    halts: &DenseBitSet<BlockId>,
-    scratch: &mut Scratch<'_>,
-) -> Option<Vec<Instruction>> {
-    let mut rebuilt = Vec::with_capacity(window.len());
-    let mut improved = false;
-    let mut start = 0;
-    let mut index = 0;
-    while index < window.len() {
-        if is_branch_pair(window, index, halts) {
-            // run; push target; jumpi -> schedule; push target; jumpi
-            improved |= extend_scheduled(
-                &mut rebuilt,
-                &window[start..index + 1],
-                target,
-                budget,
-                halts,
-                scratch,
-            );
-            rebuilt.push(window[index + 1].clone());
-            index += 2;
-        } else if observes_gas(&window[index]) {
-            // run; access -> schedule ending in access
-            improved |= extend_scheduled(
-                &mut rebuilt,
-                &window[start..index + 1],
-                target,
-                budget,
-                halts,
-                scratch,
-            );
-            index += 1;
-        } else {
-            index += 1;
-            continue;
-        }
-        start = index;
-    }
-    if start == 0 {
-        return None;
-    }
-    improved |= extend_scheduled(&mut rebuilt, &window[start..], target, budget, halts, scratch);
-    improved.then_some(rebuilt)
-}
-
-/// Appends a run's cheapest schedule, or the run itself when the search finds none, and returns
-/// whether it found one.
-fn extend_scheduled(
-    rebuilt: &mut Vec<Instruction>,
-    run: &[Instruction],
-    target: &Target,
-    budget: Budget,
-    halts: &DenseBitSet<BlockId>,
-    scratch: &mut Scratch<'_>,
-) -> bool {
-    match schedule(run, target, budget, halts, scratch) {
-        Some(replacement) => {
-            rebuilt.extend(replacement);
-            true
-        }
-        None => {
-            rebuilt.extend_from_slice(run);
-            false
-        }
-    }
-}
-
-/// The price of a sequence's stack operations and pushes, which is all a schedule changes.
-fn price(instructions: &[Instruction], target: &Target) -> u64 {
-    let cost = instructions
-        .iter()
-        .filter(|inst| !is_operation(inst))
-        .fold(Cost::ZERO, |cost, inst| cost.plus(instruction_cost(inst, target)));
-    scalar(cost, target)
-}
-
 /// Whether an instruction depends on the gas left, such as an `SSTORE` with its sentry.
 fn observes_gas(inst: &Instruction) -> bool {
     inst.definition().is_some_and(|definition| definition.observes_gas())
-}
-
-/// Whether a schedule spends at most the original's gas before each check and each operation
-/// that depends on the gas left, so the path that aborts at the check and the operation see at
-/// least the gas they saw before.
-///
-/// The same operations run before each of them, or fewer, as none moves above one, so comparing
-/// the static gas of the instructions before it is enough.
-fn spends_no_more_before_observations(
-    original: &[Instruction],
-    schedule: &[Instruction],
-    target: &Target,
-) -> bool {
-    let spent_before = |instructions: &[Instruction]| {
-        let mut spent = 0u64;
-        let mut before = SmallVec::<[u64; 8]>::new();
-        for inst in instructions {
-            if is_operation(inst) && (inst.opcode == op::JUMPI || observes_gas(inst)) {
-                before.push(spent);
-            }
-            spent += u64::from(instruction_cost(inst, target).gas);
-        }
-        before
-    };
-    let (original, schedule) = (spent_before(original), spent_before(schedule));
-    original.len() == schedule.len()
-        && schedule.iter().zip(&original).all(|(schedule, original)| schedule <= original)
 }

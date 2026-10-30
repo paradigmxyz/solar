@@ -93,7 +93,7 @@ impl Assembler<'_> {
         if ir_program.link(bytecodes, libraries) {
             ir_program.fold_data_sizes();
             // With literal sizes, linked bytes can share storage with other data.
-            let _changed = ir::pack_linked_data(self.gcx, &mut ir_program);
+            let _changed = ir::pack_linked_data(&mut ir_program);
         }
         let errors_before = self.gcx.dcx().err_count();
         let program = lower_evm_ir(self, &mut ir_program, &mut labels, capture_debug_info);
@@ -170,13 +170,13 @@ pub(in crate::backend) fn lower_evm_ir(
     let (mut indexed_jump_lowerings, mut tables) = indexed_jump::materialize_tables_with_metadata(
         module,
         assembler.gcx.sess.opts.evm_version,
-        TablePacking::new(&assembler.gcx.sess.opts),
+        TablePacking::new(assembler.gcx, module.optimization),
     );
     indexed_jump::initialize_indexed_jump_widths(
         &mut indexed_jump_lowerings,
         &tables,
         assembler.gcx.sess.opts.evm_version,
-        TablePacking::new(&assembler.gcx.sess.opts),
+        TablePacking::new(assembler.gcx, module.optimization),
     );
     let data_layout_is_observable = ir::data_layout_is_observable(module);
     for _ in 0..=32 {
@@ -200,7 +200,7 @@ pub(in crate::backend) fn lower_evm_ir(
             labels,
             &label_offsets,
             assembler.gcx.sess.opts.evm_version,
-            TablePacking::new(&assembler.gcx.sess.opts),
+            TablePacking::new(assembler.gcx, module.optimization),
         ) {
             return program;
         }

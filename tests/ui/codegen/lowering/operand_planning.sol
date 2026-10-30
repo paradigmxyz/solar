@@ -30,8 +30,11 @@ contract ResidentLastUse {
 // `calldatasize` costs less to read again than to keep on the stack or reload
 // from a spill slot, so the planner reads it again at each use.
 // CHECK-LABEL: @module SpilledNullary_runtime
-// CHECK: push {{31|63}}
-// CHECK-NEXT: calldatasize
+// CHECK: calldatasize
+// CHECK: calldatasize
+// CHECK: calldatacopy
+// CHECK: calldatasize
+// CHECK-NEXT: dup {{[0-9]+}}
 // CHECK-NEXT: add
 contract SpilledNullary {
     function all() external pure returns (bytes memory) {

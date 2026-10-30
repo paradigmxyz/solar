@@ -139,6 +139,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             &mut self.builder,
             bytes,
             AllocationSemantics::INTERNAL,
+            true,
         )
     }
 
@@ -192,8 +193,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builder: &mut FunctionBuilder<'_>,
         bytes: &[u8],
         semantics: AllocationSemantics,
+        preserves_fmp: bool,
     ) -> Option<ValueId> {
-        let (object, padded_size) = Self::alloc_const_bytes(builder, bytes.len(), semantics)?;
+        let (object, padded_size) =
+            Self::alloc_const_bytes(builder, bytes.len(), semantics, preserves_fmp)?;
         // copy data to object + 32
         let data = DataDest { base: object, offset: EvmMemoryLayout::DYNAMIC_HEADER_SIZE };
         copy_data_to_memory(gcx, module, builder, data, bytes, padded_size, None);
@@ -255,7 +258,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // object = bytes(size, len) !preserves_fmp
         let len = builder.data_size(code, 0, false);
         let size = builder.data_size(code, 2 * word - 1, true);
-        let object = Self::alloc_bytes_object(builder, size, len, AllocationSemantics::INTERNAL);
+        let object =
+            Self::alloc_bytes_object(builder, size, len, AllocationSemantics::INTERNAL, true);
         let data = builder.memory_data(object);
         // The last data word starts one length word before the padded length. Empty code
         // has no data words, and this clears the length word, which is also zero.
@@ -273,11 +277,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builder: &mut FunctionBuilder<'_>,
         len: usize,
         semantics: AllocationSemantics,
+        preserves_fmp: bool,
     ) -> Option<(ValueId, usize)> {
         let words = u64::try_from(len.div_ceil(32)).ok()?;
         let size = builder.imm(words.checked_add(1)?.checked_mul(32)?);
         let length = builder.imm(u64::try_from(len).ok()?);
-        let object = Self::alloc_bytes_object(builder, size, length, semantics);
+        let object = Self::alloc_bytes_object(builder, size, length, semantics, preserves_fmp);
         Some((object, usize::try_from(words.checked_mul(32)?).ok()?))
     }
 
@@ -287,14 +292,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         size: ValueId,
         len: ValueId,
         semantics: AllocationSemantics,
+        preserves_fmp: bool,
     ) -> ValueId {
-        // object = bytes(size) !preserves_fmp
+        // object = bytes(size) [!preserves_fmp]
         // mstore object, len
         let object = builder.alloc(size, semantics);
         let Value::Inst(alloc) = *builder.func().value(object) else {
             unreachable!("allocation result must reference its instruction")
         };
-        builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
+        builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(preserves_fmp);
         builder.set_memory_len(object, len);
         object
     }
@@ -310,6 +316,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 &mut builder,
                 symbol.as_byte_str(),
                 AllocationSemantics::INTERNAL,
+                true,
             )
             .expect("literal length fits in a memory object");
             builder.ret([object]);

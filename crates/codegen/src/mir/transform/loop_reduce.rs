@@ -108,8 +108,8 @@ fn plan(func: &Function, l: &Loop, target: Target) -> Option<ClosedForm> {
     if !matches!(func.blocks[header].terminator,
         Some(Terminator::Branch { condition: c, then_block, else_block })
         if c == condition && body.contains(&then_block) && else_block == *exit)
-        || !defined_outside(func, l, count)
-        || escapes(func, l, condition)
+        || l.defines(func, count)
+        || l.escapes(func, condition)
     {
         return None;
     }
@@ -124,9 +124,9 @@ fn plan(func: &Function, l: &Loop, target: Target) -> Option<ClosedForm> {
         let next = incoming.iter().find(|(block, _)| block == latch)?.1;
         let Value::Inst(update) = *func.value(next) else { return None };
         if func.value_ty(value) != Some(MirType::I256)
-            || !defined_outside(func, l, init)
+            || l.defines(func, init)
             || !body.iter().any(|&block| func.blocks[block].instructions.contains(&update))
-            || escapes(func, l, next)
+            || l.escapes(func, next)
         {
             return None;
         }
@@ -149,7 +149,7 @@ fn plan(func: &Function, l: &Loop, target: Target) -> Option<ClosedForm> {
     {
         return None;
     }
-    let invariant = |value| defined_outside(func, l, value);
+    let invariant = |value| !l.defines(func, value);
     let mut quadratic = 0;
     for r in &recurrences {
         if !invariant(r.step) {
@@ -225,25 +225,4 @@ fn rewrite(func: &mut Function, plan: ClosedForm) {
         let _ = invalidate_unreachable_block(func, block);
     }
     func.blocks[plan.header].instructions.clear();
-}
-
-fn defined_outside(func: &Function, l: &Loop, value: ValueId) -> bool {
-    let Value::Inst(inst) = *func.value(value) else { return true };
-    !l.blocks.iter().any(|block| func.blocks[block].instructions.contains(&inst))
-}
-
-fn escapes(func: &Function, l: &Loop, value: ValueId) -> bool {
-    func.blocks.iter_enumerated().any(|(block, contents)| {
-        if l.blocks.contains(block) {
-            return false;
-        }
-        let mut found = false;
-        for &inst in &contents.instructions {
-            func.inst(inst).kind.visit_operands(|operand| found |= operand == value);
-        }
-        if let Some(term) = &contents.terminator {
-            term.visit_operands(|operand| found |= operand == value);
-        }
-        found
-    })
 }

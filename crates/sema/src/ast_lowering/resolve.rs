@@ -1,4 +1,4 @@
-use crate::{builtins::Builtin, hir};
+use crate::{builtins::Builtin, hir, natspec::report_misplaced_solar_tags};
 use alloy_primitives::U256;
 use solar_ast as ast;
 use solar_data_structures::{
@@ -1084,6 +1084,7 @@ impl<'gcx> ResolveContext<'gcx> {
             }
             ast::StmtKind::Placeholder => hir::StmtKind::Placeholder,
         };
+        report_misplaced_solar_tags(self.dcx(), &stmt.docs);
         hir::Stmt { span: stmt.span, kind }
     }
 
@@ -1191,6 +1192,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_stmt(&mut self, stmt: &ast::yul::Stmt<'_>) -> Option<hir::Stmt<'gcx>> {
+        report_misplaced_solar_tags(self.dcx(), &stmt.docs);
         let kind = match &stmt.kind {
             ast::yul::StmtKind::Block(block) => hir::StmtKind::Block(self.lower_yul_block(block)),
             ast::yul::StmtKind::AssignSingle(path, expr) => {

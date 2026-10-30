@@ -58,16 +58,9 @@ bb10 [cold]:
 bb7:
   push 4
   calldataload
-  push 384
-  push 128
-  dup 2
-  add
+  push 512
   push 64
   mstore
-  calldatasize
-  push 128
-  swap 2
-  calldatacopy
   push 1
   dup 2
   add
@@ -149,7 +142,7 @@ bb11:
   jumpi
   push bb14
   jump bb34
-bb34:
+bb34 [ret=0, inputs=2, outputs=1]:
   push 64
   mload
   push 128

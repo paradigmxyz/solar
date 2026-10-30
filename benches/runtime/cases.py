@@ -334,6 +334,8 @@ class TestCase:
     # contract. Compile-time only: no bytecode is extracted, so size, gas,
     # and runtime checks do not apply.
     whole_project: bool = False
+    # Keep upstream assertions while replacing compiler-dependent memory stress.
+    fair_memory: bool = False
 
     @property
     def project_file(self) -> str | None:
@@ -1524,10 +1526,11 @@ TEST_CASES: Sequence[TestCase] = (
     ),
     TestCase(
         test_id="solady-lib-string",
-        description="Solady LibString",
+        description="Solady LibString with deterministic memory stress",
         project=PROJECTS["solady-0.1.26"],
         source="test/LibString.t.sol",
         contract_name="LibStringTest",
+        fair_memory=True,
         gas_calls=(
             GasCall("serial-number", "checkIsSN(string)", ("123456789",), repeat=3),
             GasCall("not-serial-number", "checkIsSN(string)", ("12ab",), repeat=3),
@@ -1550,7 +1553,6 @@ TEST_CASES: Sequence[TestCase] = (
                     f"hex-tail-{length}",
                     "testBytesToHexStringNoPrefix(bytes)",
                     ("0x" + "42" * length,),
-                    comparison_exclusion_reason="Memory brutalizer workload depends on gas and contract bytecode.",
                 )
                 for length in (0, 1, 31, 32, 33, 64, 65)
             ),
@@ -1559,7 +1561,6 @@ TEST_CASES: Sequence[TestCase] = (
                     f"hex-prefixed-tail-{length}",
                     "testBytesToHexString(bytes)",
                     ("0x" + "ff" * length,),
-                    comparison_exclusion_reason="Memory brutalizer workload depends on gas and contract bytecode.",
                 )
                 for length in (0, 1, 31, 32, 33, 64, 65)
             ),
@@ -1568,7 +1569,6 @@ TEST_CASES: Sequence[TestCase] = (
                     label,
                     "testStringIs7BitASCIIDifferential(bytes)",
                     (value,),
-                    comparison_exclusion_reason="Memory brutalizer workload depends on gas and contract bytecode.",
                 )
                 for label, value in (
                     ("ascii-empty", "0x"),

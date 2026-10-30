@@ -78,12 +78,11 @@
 use crate::{
     mir::{
         AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, CalldataTail, EffectKind,
-        Function, FunctionBuilder, FunctionId, InstId, InstKind, InstructionMetadata,
-        MemoryObjectLayout, MirType, Module, PtrLocation, RevertReason, Terminator, Value, ValueId,
-        analysis::CallGraphInfo,
+        Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryObjectLayout, MirType,
+        Module, PtrLocation, RevertReason, Terminator, Value, ValueId,
         memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
-        transform::utils::redirect_successor_predecessors,
+        transform::{egraph::use_counts, utils::expand_block},
         utils::resolve_replacement,
     },
     target::Target,
@@ -113,10 +112,12 @@ impl MirPass for LowerAbiEncode {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+        if !module.functions.iter().any(has_abi_encode) {
+            return false;
+        }
         let revert_strings = gcx.sess.opts.revert_strings;
-        let target = Target::new(gcx);
-        let (fresh_object_returns, mut destructive_returns) =
-            plan_destructive_terminal_returns(&target, module);
+        let target = module.target(gcx);
+        let mut destructive_returns = plan_destructive_terminal_returns(&target, module);
         let mut helpers = synthesize_array_helpers(&target, module, revert_strings);
         synthesize_calldata_helpers(&target, module, &mut helpers, revert_strings);
         synthesize_tuple_helpers(
@@ -127,39 +128,25 @@ impl MirPass for LowerAbiEncode {
             &destructive_returns,
         );
         destructive_returns.resize_with(module.functions.len(), FxHashSet::default);
-        let call_graph = CallGraphInfo::new(module);
-        let mut constructors = call_graph.reachable_callees_from(
-            module
-                .functions
-                .iter_enumerated()
-                .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
-        );
-        for (id, func) in module.functions.iter_enumerated() {
-            if func.attributes.is_constructor {
-                constructors.insert(id);
-            }
-        }
-        let inline_helpers = EncodeHelpers::new(&target);
-        let mut changed = !helpers.arrays.is_empty()
+        let has_helpers = !helpers.arrays.is_empty()
             || !helpers.calldata.is_empty()
             || !helpers.tuples.is_empty();
+        let constructors = has_helpers.then(|| module.constructor_reachable_functions());
+        let inline_helpers = EncodeHelpers::new(&target);
+        let mut changed = has_helpers;
         changed |= run_lowering_function_pass(module, analyses, |func, function_analyses| {
             let func_id = function_analyses.function();
             // NOTE: Constructor calls allocate frames at the free-memory pointer. Encoding
             // writes there before reserving its output, so an outlined call would overwrite it.
             // abi_encode(args) => inline head stores and tail copies
-            let helpers = if constructors.contains(func_id) { &inline_helpers } else { &helpers };
-            lower_function(
-                &target,
-                func,
-                helpers,
-                revert_strings,
-                &fresh_object_returns,
-                &destructive_returns[func_id],
-            )
+            let helpers = if constructors.as_ref().is_some_and(|ids| ids.contains(func_id)) {
+                &inline_helpers
+            } else {
+                &helpers
+            };
+            lower_function(func, helpers, revert_strings, &destructive_returns[func_id])
         });
-        CallGraphInfo::assert_runtime_helpers(
-            module,
+        module.assert_runtime_helpers(
             helpers
                 .arrays
                 .values()
@@ -255,7 +242,7 @@ fn synthesize_tuple_helpers(
                     continue;
                 };
                 if destructive_returns[func_id].contains(&inst)
-                    || is_terminal_scratch(*mode, block.terminator.as_ref())
+                    || (*mode == AbiEncodeMode::Scratch && ends_function(block.terminator.as_ref()))
                 {
                     continue;
                 }
@@ -304,11 +291,14 @@ fn synthesize_tuple_helpers(
     }
 }
 
-/// Whether a scratch encoding's block returns or reverts with it: the backend's terminal-block
-/// sharing already merges identical copies of such tails, so they stay expanded.
-fn is_terminal_scratch(mode: AbiEncodeMode, terminator: Option<&Terminator>) -> bool {
-    mode == AbiEncodeMode::Scratch
-        && matches!(terminator, Some(Terminator::Revert { .. } | Terminator::ReturnData { .. }))
+fn has_abi_encode(func: &Function) -> bool {
+    func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::AbiEncode { .. }))
+}
+
+/// Whether a block returns or reverts. The backend's terminal-block sharing already merges
+/// identical copies of a scratch encoding in such a block, so those stay expanded.
+fn ends_function(terminator: Option<&Terminator>) -> bool {
+    matches!(terminator, Some(Terminator::Revert { .. } | Terminator::ReturnData { .. }))
 }
 
 /// Builds `encode_abi_array(value, dest) -> length` for every memory array layout whose
@@ -565,19 +555,16 @@ enum AbiValueSource {
 }
 
 fn lower_function(
-    target: &Target,
     func: &mut Function,
     helpers: &EncodeHelpers,
     revert_strings: RevertStrings,
-    fresh_object_returns: &DenseBitSet<FunctionId>,
     destructive_returns: &FxHashSet<InstId>,
 ) -> bool {
-    let has_encodes =
-        func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::AbiEncode { .. }));
-    if !has_encodes {
+    if !has_abi_encode(func) {
         return false;
     }
     let mut helpers = helpers.clone();
+    let target = helpers.target;
     helpers.literal_objects = literal_objects_at_encodes(func);
     let unobserved = terminal_scratch_literals(func, &helpers.literal_objects);
     helpers.literal_objects.retain(|&object| {
@@ -594,17 +581,20 @@ fn lower_function(
     let mut literal_objects = FxHashSet::default();
     let blocks = func.blocks.indices();
     for block in blocks {
-        let instructions = std::mem::take(&mut func.blocks[block].instructions);
-        let (original_terminator, terminator_metadata) = func.blocks[block].take_terminator();
+        if !func.blocks[block]
+            .instructions
+            .iter()
+            .any(|&inst| matches!(func.inst(inst).kind, InstKind::AbiEncode { .. }))
+        {
+            continue;
+        }
+        let terminal = ends_function(func.blocks[block].terminator.as_ref());
         let mut builder = FunctionBuilder::new(func).with_revert_strings(revert_strings);
-        builder.switch_to_block(block);
-        for inst in instructions {
+        expand_block(&mut builder, block, |builder, inst| {
             let InstKind::AbiEncode { mode, selector, args, layout } =
                 &builder.func().inst(inst).kind
             else {
-                let current = builder.current_block();
-                builder.func_mut().blocks[current].instructions.push(inst);
-                continue;
+                return false;
             };
             let selector = selector.map(|value| resolve_replacement(value, &replacements));
             let args = args
@@ -616,20 +606,18 @@ fn lower_function(
             // abi_encode(args) !metadata(span) => icall or stores/copies !metadata(span)
             let metadata = builder.func().inst(inst).metadata.clone();
             builder.set_debug_context(&metadata);
-            let key = TupleHelperKey::of(builder.func(), mode, selector, &args, &layout);
             let result =
                 builder.func().inst_result_value(inst).expect("ABI encode must produce a value");
-            let replacement = if destructive_returns.contains(&inst)
-                && let Some(encoded) = encode_dynamic_return_in_place(
-                    &mut builder,
-                    &layout,
-                    &args,
-                    fresh_object_returns,
-                ) {
-                encoded
+            let replacement = if destructive_returns.contains(&inst) {
+                encode_dynamic_return_in_place(builder, &layout, &args)
             } else {
-                let helper = (!is_terminal_scratch(mode, original_terminator.as_ref()))
-                    .then(|| helpers.tuples.get(&key))
+                let helper = (!helpers.tuples.is_empty()
+                    && !(mode == AbiEncodeMode::Scratch && terminal))
+                    .then(|| {
+                        let key =
+                            TupleHelperKey::of(builder.func(), mode, selector, &args, &layout);
+                        helpers.tuples.get(&key)
+                    })
                     .flatten();
                 match helper {
                     Some(&helper) => {
@@ -638,13 +626,13 @@ fn lower_function(
                         let call_args = args.iter().copied().chain(selector).collect();
                         builder.icall(helper, call_args, result_ty)
                     }
-                    None => lower_encode(&mut builder, &layout, selector, &args, mode, &helpers),
+                    None => lower_encode(builder, &layout, selector, &args, mode, &helpers),
                 }
             };
             literal_objects.extend(args.iter().copied());
             replacements.insert(result, replacement);
-        }
-        move_terminator(&mut builder, block, original_terminator, terminator_metadata);
+            true
+        });
     }
     fold_slice_projections(func, &mut replacements);
     func.replace_uses_canonicalized(&replacements);
@@ -664,17 +652,16 @@ fn lower_function(
 fn plan_destructive_terminal_returns(
     target: &Target,
     module: &Module,
-) -> (DenseBitSet<FunctionId>, IndexVec<FunctionId, FxHashSet<InstId>>) {
-    let mut fresh = DenseBitSet::new_empty(module.functions.len());
+) -> IndexVec<FunctionId, FxHashSet<InstId>> {
     let mut plan = IndexVec::from_vec(vec![FxHashSet::default(); module.functions.len()]);
     if !(target.optimization().is_gas() || target.optimization().is_size()) {
-        return (fresh, plan);
+        return plan;
     }
     let candidates = module.functions.iter().map(terminal_return_encodes).collect::<Vec<_>>();
     if candidates.iter().all(FxHashSet::is_empty) {
-        return (fresh, plan);
+        return plan;
     }
-    fresh = fresh_object_returning_functions(module);
+    let fresh = fresh_object_returning_functions(module);
     for (func_id, candidates) in IndexVec::<FunctionId, _>::from_vec(candidates).iter_enumerated() {
         let func = &module.functions[func_id];
         let literal_objects = literal_objects_at_encodes(func);
@@ -689,29 +676,16 @@ fn plan_destructive_terminal_returns(
             }
         }
     }
-    (fresh, plan)
+    plan
 }
 
 /// Finds encodes used only by the two projections of an immediate
 /// `returndata`. Destructive encoding is safe only in this terminal shape.
 fn terminal_return_encodes(func: &Function) -> FxHashSet<InstId> {
-    if !func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::AbiEncode { .. })) {
+    if !has_abi_encode(func) {
         return FxHashSet::default();
     }
-    let mut uses = FxHashMap::<ValueId, usize>::default();
-    for inst_id in func.instructions() {
-        func.inst(inst_id).visit_operands(|operand| {
-            *uses.entry(operand).or_default() += 1;
-        });
-    }
-    for block in &func.blocks {
-        if let Some(term) = &block.terminator {
-            term.visit_operands(|operand| {
-                *uses.entry(operand).or_default() += 1;
-            });
-        }
-    }
-
+    let uses = use_counts(func);
     let mut terminal = FxHashSet::default();
     for block in &func.blocks {
         let Some(Terminator::ReturnData { offset, size }) = &block.terminator else { continue };
@@ -721,7 +695,7 @@ fn terminal_return_encodes(func: &Function) -> FxHashSet<InstId> {
             }
             let Some(encoded) = func.inst_result_value(encode) else { continue };
             let suffix = &block.instructions[position + 1..];
-            if suffix.len() != 2 || uses.get(&encoded).copied() != Some(2) {
+            if suffix.len() != 2 || uses[encoded] != 2 {
                 continue;
             }
             let mut projected_offset = None;
@@ -740,8 +714,8 @@ fn terminal_return_encodes(func: &Function) -> FxHashSet<InstId> {
             }
             if projected_offset == Some(*offset)
                 && projected_size == Some(*size)
-                && uses.get(offset).copied() == Some(1)
-                && uses.get(size).copied() == Some(1)
+                && uses[*offset] == 1
+                && uses[*size] == 1
             {
                 terminal.insert(encode);
             }
@@ -787,14 +761,7 @@ fn return_values_are_fresh(
     fresh: &DenseBitSet<FunctionId>,
 ) -> bool {
     let [value] = values else { return false };
-    let Value::Inst(inst) = func.value(*value) else { return false };
-    match func.inst(*inst).kind {
-        InstKind::Alloc { .. } => true,
-        InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
-            fresh.contains(function)
-        }
-        _ => false,
-    }
+    fresh_memory_object(func, *value, fresh)
 }
 
 fn can_encode_dynamic_return_in_place(
@@ -816,16 +783,13 @@ fn can_encode_dynamic_return_in_place(
         && fresh_memory_object(func, *object, fresh_object_returns)
 }
 
-/// Encodes a one-element dynamic tuple over the returned object's storage.
+/// Encodes a one-element dynamic tuple over the returned object's storage, which
+/// [`plan_destructive_terminal_returns`] proved eligible.
 fn encode_dynamic_return_in_place(
     builder: &mut FunctionBuilder<'_>,
     layout: &AbiLayout,
     args: &[ValueId],
-    fresh_object_returns: &DenseBitSet<FunctionId>,
-) -> Option<ValueId> {
-    if !can_encode_dynamic_return_in_place(builder.func(), layout, args, fresh_object_returns) {
-        return None;
-    }
+) -> ValueId {
     let [object] = args else { unreachable!() };
 
     let is_array = matches!(&*layout.types, [AbiType::DynamicArray { .. }]);
@@ -856,7 +820,7 @@ fn encode_dynamic_return_in_place(
     builder.store(*object, offset);
     builder.store(source, length);
     let total = builder.add_u64_offset(bytes, 64);
-    Some(builder.make_slice(*object, total, PtrLocation::Memory))
+    builder.make_slice(*object, total, PtrLocation::Memory)
 }
 
 fn fresh_memory_object(
@@ -883,22 +847,6 @@ fn fold_slice_projections(func: &Function, replacements: &mut FxHashMap<ValueId,
         let InstKind::MakeSlice { ptr, len, .. } = &func.inst(*make_slice).kind else { continue };
         let replacement = if index == MirType::SLICE_PTR_FIELD { *ptr } else { *len };
         replacements.insert(result, resolve_replacement(replacement, replacements));
-    }
-}
-
-pub(crate) fn move_terminator(
-    builder: &mut FunctionBuilder<'_>,
-    original_block: BlockId,
-    terminator: Option<Terminator>,
-    metadata: InstructionMetadata,
-) {
-    let final_block = builder.current_block();
-    let Some(terminator) = terminator else { return };
-    // final_block: lowered_ops; original_terminator !metadata(original block)
-    builder.func_mut().blocks[final_block].terminator = Some(terminator);
-    builder.func_mut().blocks[final_block].terminator_metadata = metadata;
-    if final_block != original_block {
-        redirect_successor_predecessors(builder.func_mut(), original_block, final_block);
     }
 }
 
@@ -929,7 +877,7 @@ fn lower_encode(
                 builder.store(buffer, selector);
             }
             let dest = builder.memory_data_at(object, selector_size);
-            encode_tuple(builder, args, &layout.types, dest, helpers);
+            encode_tuple(builder, args, &layout.types, dest, AbiValueSource::Scalar, helpers);
             return object;
         }
         if mode == AbiEncodeMode::Slice && selector.is_none() {
@@ -941,7 +889,7 @@ fn lower_encode(
             let total = builder.imm(total_size);
             builder.set_memory_len(object, total);
             let data = builder.memory_data(object);
-            encode_tuple(builder, args, &layout.types, data, helpers);
+            encode_tuple(builder, args, &layout.types, data, AbiValueSource::Scalar, helpers);
             return builder.make_slice(data, total, PtrLocation::Memory);
         }
         let buffer = if mode == AbiEncodeMode::Scratch {
@@ -954,7 +902,7 @@ fn lower_encode(
             builder.store(buffer, selector);
         }
         let dest = offset_ptr(builder, buffer, selector_size);
-        encode_tuple(builder, args, &layout.types, dest, helpers);
+        encode_tuple(builder, args, &layout.types, dest, AbiValueSource::Scalar, helpers);
         let total = builder.imm(total_size);
         return builder.make_slice(buffer, total, PtrLocation::Memory);
     }
@@ -979,7 +927,7 @@ fn lower_encode(
             builder.store(buffer, selector);
         }
         let dest = offset_ptr(builder, buffer, selector_size);
-        encode_tuple(builder, args, &layout.types, dest, helpers);
+        encode_tuple(builder, args, &layout.types, dest, AbiValueSource::Scalar, helpers);
         let total = builder.imm(total_size);
         return builder.make_slice(buffer, total, PtrLocation::Memory);
     }
@@ -993,7 +941,8 @@ fn lower_encode(
         builder.store(buffer, selector);
     }
     let dest = offset_ptr(builder, allocation_base, header_size + selector_size);
-    let encoded_size = encode_tuple(builder, args, &layout.types, dest, helpers);
+    let encoded_size =
+        encode_tuple(builder, args, &layout.types, dest, AbiValueSource::Scalar, helpers);
     // The encoding is a whole number of words, so only the selector needs padding.
     let padded_prefix = selector_size.next_multiple_of(32);
     let selector_size = builder.imm(selector_size);
@@ -1162,16 +1111,6 @@ fn encode_static_array(
 }
 
 fn encode_tuple(
-    builder: &mut FunctionBuilder<'_>,
-    values: &[ValueId],
-    types: &[AbiType],
-    dest: ValueId,
-    helpers: &EncodeHelpers,
-) -> ValueId {
-    encode_tuple_impl(builder, values, types, dest, AbiValueSource::Scalar, helpers)
-}
-
-fn encode_tuple_impl(
     builder: &mut FunctionBuilder<'_>,
     values: &[ValueId],
     types: &[AbiType],
@@ -1382,7 +1321,7 @@ fn encode_dynamic_body(
                 .map(|index| builder.memory_load_field(value, index as u64))
                 .collect::<Vec<_>>();
             let size =
-                encode_tuple_impl(builder, &values, fields, dest, AbiValueSource::Memory, helpers);
+                encode_tuple(builder, &values, fields, dest, AbiValueSource::Memory, helpers);
             builder.add(dest, size)
         }
         AbiType::Word(_) | AbiType::Function => unreachable!("word ABI values are static"),

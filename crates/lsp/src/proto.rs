@@ -611,37 +611,6 @@ fn diagnostic_data(
     )
 }
 
-#[cfg(feature = "bench")]
-pub(crate) fn benchmark_diagnostic_conversion(
-    source: String,
-    diagnostic_count: usize,
-    cached: bool,
-) -> usize {
-    let source_map = SourceMap::empty();
-    let file = source_map
-        .new_source_file(std::env::temp_dir().join("solar-lsp-diagnostics.sol"), source)
-        .expect("benchmark source should fit in a source file");
-    let span = Span::new(file.start_pos, file.start_pos + BytePos::from_usize(1));
-    let diagnostics = (0..diagnostic_count)
-        .map(|_| {
-            let mut diagnostic = Diag::new(Level::Warning, "benchmark diagnostic");
-            diagnostic.span(span);
-            diagnostic
-        })
-        .collect::<Vec<_>>();
-    let mut cache = DiagnosticDataCache::default();
-    let mut converted = 0;
-    for diagnostic in &diagnostics {
-        let result = if cached {
-            diagnostic_with_cache(&source_map, diagnostic, &mut cache)
-        } else {
-            diagnostic_with_cache(&source_map, diagnostic, &mut DiagnosticDataCache::default())
-        };
-        converted += usize::from(result.is_some());
-    }
-    converted
-}
-
 /// Converts compiler spans to LSP locations from a snapshot of source files and their URIs.
 ///
 /// The cache is local to one source map and must not outlive its analysis build. Construct it

@@ -107,11 +107,8 @@ fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
     v46 = sgt v23, v44
     jumpi v46, bb1, bb7
   bb7:
-    v47 = add v21, 63
-    v48 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v49 = heap_floor
-    v51 = add v49, v48
-    mstore 64, v51
+    mstore v49, v21
     v53 = add v49, 32
     calldatacopy v53, v23, v21
     v54 = keccak256 v53, v21

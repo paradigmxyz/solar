@@ -27,14 +27,14 @@
 //! allocations lose their provenance. Facts do not cross caller block boundaries.
 
 use crate::mir::{
-    ArgIdx, BlockId, Function, FunctionId, Immediate, InstId, InstKind, Module, PtrLocation,
-    Terminator, Value, ValueId,
+    ArgIdx, BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, Module,
+    PtrLocation, Terminator, Value, ValueId,
     analysis::{
         AddressSpace, AliasAnalysis, Location, LocationSize, MemoryAddress, MemoryBase,
         MemoryLocation,
     },
     pass::{MirPass, ModuleAnalyses},
-    utils::{self, eval},
+    utils::eval,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -75,6 +75,10 @@ impl MirPass for ReadonlyEval {
         "readonly-eval"
     }
 
+    fn is_contract_wide(&self) -> bool {
+        true
+    }
+
     fn run_pass(
         &self,
         _gcx: solar_sema::Gcx<'_>,
@@ -82,14 +86,16 @@ impl MirPass for ReadonlyEval {
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
         let mut changed = false;
+        let mut values = FxHashMap::default();
+        let mut dead = DenseBitSet::<InstId>::new_empty(0);
         for id in module.functions.indices() {
             let replacements = find_calls(module, id);
             if replacements.is_empty() {
                 continue;
             }
             let func = module.function_mut(id);
-            let mut values = FxHashMap::default();
-            let mut dead = DenseBitSet::<InstId>::new_empty(func.num_insts());
+            values.clear();
+            dead.clear_to(func.num_insts());
             // result = icall readonly(args); use result => use constant
             // icall checked_void(known_successful_args) => empty
             for (inst, result) in replacements {
@@ -103,15 +109,10 @@ impl MirPass for ReadonlyEval {
             }
             // NOTE: Removed calls intentionally lose their debug checkpoints;
             // no executable instruction is retained to represent the old call.
-            func.for_each_instruction_mut(|_, inst| {
-                inst.rewrite_operands(|value| *value = utils::resolve_replacement(*value, &values));
-            });
             for block in &mut func.blocks {
                 block.instructions.retain(|&inst| !dead.contains(inst));
-                if let Some(term) = &mut block.terminator {
-                    utils::replace_terminator_uses_canonicalized(term, &values);
-                }
             }
+            func.replace_uses_canonicalized(&values);
             changed = true;
         }
         changed
@@ -133,9 +134,11 @@ fn find_calls(module: &Module, id: FunctionId) -> Vec<(InstId, EvaluatedReturn)>
     let alias = has_allocation.then(|| AliasAnalysis::new(func));
     let mut folded = Vec::new();
     let mut fuel = MAX_FUEL;
+    let mut memory = Memory::default();
+    let mut env = Environment::default();
     for block in &func.blocks {
-        let mut memory = Memory::default();
-        let mut env = Environment::default();
+        memory.clear();
+        env.clear();
         for &inst in &block.instructions {
             if fuel == 0 {
                 return folded;
@@ -148,7 +151,7 @@ fn find_calls(module: &Module, id: FunctionId) -> Vec<(InstId, EvaluatedReturn)>
                         .then_some(Datum::Pointer(address))
                 })
             };
-            if let InstKind::ICall { function: crate::mir::Callee::Function(function), args } =
+            if let InstKind::ICall { function: Callee::Function(function), args } =
                 &instruction.kind
                 && let Some(args) = args.iter().map(|&arg| get(arg)).collect::<Option<Arguments>>()
                 && let Some(result) = evaluate(module, *function, &args, &memory, &mut fuel, 0)
@@ -284,9 +287,7 @@ fn evaluate(
             }
             let get = |value| operand(func, &env, Some(args), value);
             let result =
-                if let InstKind::ICall { function: crate::mir::Callee::Function(function), args } =
-                    kind
-                {
+                if let InstKind::ICall { function: Callee::Function(function), args } = kind {
                     let args = args.iter().map(|&arg| get(arg)).collect::<Option<Arguments>>()?;
                     match evaluate(module, *function, &args, memory, fuel, depth + 1)? {
                         EvaluatedReturn::Void => continue,

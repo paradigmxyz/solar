@@ -1,0 +1,31 @@
+//@ revisions: tagged inline
+//@[tagged] compile-flags: -Ogas -Zmir-pipeline=inline-tagged
+//@[tagged] filecheck: --check-prefix=TAGGED
+//@[inline] compile-flags: -Ogas -Zmir-pipeline=inline
+//@[inline] filecheck: --check-prefix=INLINE
+@module TaggedOnly
+
+// `inline-tagged` clones only `always_inline` callees, which `@custom:solar-inline always`
+// marks; a leaf the cost-based `inline` pass clones stays a call.
+// TAGGED-LABEL: fn @caller
+// TAGGED: - {{v[0-9]+}} = icall @always
+// TAGGED: + v1 = icall @leaf
+// INLINE-LABEL: fn @caller
+// INLINE: - {{v[0-9]+}} = icall @always
+// INLINE: - {{v[0-9]+}} = icall @leaf
+fn @caller(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall fn1, arg0
+    v1 = icall fn2, v0
+    ret v1
+}
+fn @always(arg0: i256) -> i256 [always_inline] {
+  bb0:
+    v0 = add arg0, 1
+    ret v0
+}
+fn @leaf(arg0: i256) -> i256 {
+  bb0:
+    v0 = mul arg0, 3
+    ret v0
+}

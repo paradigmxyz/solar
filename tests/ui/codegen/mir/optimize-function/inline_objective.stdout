@@ -1,0 +1,124 @@
+// === ROOT/tests/ui/codegen/mir/optimize-function/inline_objective.sol:Inlined ===
+@module Inlined
+@phase lowered
+fn @gasCaller() [selector=0x3dd81fa2, abi_wrapper, pure] {
+  bb0:
+    v42 = icall @decode_calldata_slice
+    v43 = calldataload v42
+    v44 = add v42, 32
+    v38 = lt v43, 4
+    jumpi v38, bb2, bb1
+  bb1:
+    v110 = add v44, 0
+    v111 = calldataload v110
+    v112 = byte 0, v111
+    v113 = or 0, v112
+    v118 = shl v113, 8
+    v119 = and v118, 0xffffffff
+    v120 = add v44, 1
+    v121 = calldataload v120
+    v122 = byte 0, v121
+    v123 = or v119, v122
+    v128 = shl v123, 8
+    v129 = and v128, 0xffffffff
+    v130 = add v44, 2
+    v131 = calldataload v130
+    v132 = byte 0, v131
+    v133 = or v129, v132
+    v138 = shl v133, 8
+    v139 = and v138, 0xffffffff
+    v140 = add v44, 3
+    v141 = calldataload v140
+    v142 = byte 0, v141
+    v143 = or v139, v142
+    mstore 0, v143
+    returndata 0, 32
+  bb2:
+    v66 = lt 0, v43
+    v77 = lt 1, v43
+    v145 = and v66, v77
+    v88 = lt 2, v43
+    v146 = and v145, v88
+    jumpi v146, bb4, bb3
+  bb4:
+    jump bb3
+  bb3:
+    tail_call @revert_stub
+}
+
+fn @sizeCaller() [selector=0x955e9bc9, abi_wrapper, optimize=size, pure] {
+  bb0:
+    v26 = icall @decode_calldata_slice
+    v27 = calldataload v26
+    v28 = add v26, 32
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb5: v37]
+    v2 = phi [bb0: 0], [bb5: v5]
+    v3 = lt v2, 4
+    jumpi v3, bb3, bb2
+  bb2:
+    mstore 0, v1
+    returndata 0, 32
+  bb3:
+    v34 = shl v1, 7
+    v35 = and v34, 0xffffffff
+    v10 = lt v2, v27
+    jumpi v10, bb5, bb4
+  bb4:
+    tail_call @revert_stub
+  bb5:
+    v15 = add v28, v2
+    v16 = calldataload v15
+    v17 = byte 0, v16
+    v37 = or v35, v17
+    v5 = add v2, 1
+    jump bb1
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @decode_calldata_slice() -> i256 {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload 4
+    v2 = add v1, 4
+    v4 = sub v0, 36
+    v5 = gt v1, v4
+    v6 = calldataload v2
+    v7 = add v2, 32
+    v8 = sub v0, v7
+    v9 = gt v6, v8
+    v10 = or v5, v9
+    jumpi v10, bb1, bb2
+  bb2:
+    ret v2
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x3dd81fa2 => bb3, 0x955e9bc9 => bb4]
+  bb4:
+    tail_call @sizeCaller
+  bb3:
+    tail_call @gasCaller
+  bb1:
+    revert 0, 0
+}

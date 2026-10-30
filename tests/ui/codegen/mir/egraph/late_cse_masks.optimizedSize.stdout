@@ -12,15 +12,13 @@ fn @digest(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v25 = heap_floor !metadata(alloc_ptr)
     v26 = add v25, 64 !metadata(alloc_ptr)
-    mstore 64, v26
     mstore v25, arg0
     v21 = add v25, 32
     mstore v21, arg1
-    v27 = mload 64 !metadata(alloc_ptr)
-    mstore v27, arg0
-    v15 = add v27, 32
+    mstore v26, arg0
+    v15 = add v25, 96
     mstore v15, arg1
-    v6 = keccak256 v27, 64
+    v6 = keccak256 v26, 64
     v7 = sload 0 !metadata(storage=slot(0))
     v9 = add v7, arg1
     v10 = lt v9, v7

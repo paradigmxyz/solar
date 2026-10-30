@@ -4,7 +4,7 @@
 //! to earlier temporaries. They are resolved when a winning recipe is committed;
 //! rejected recipes leave the function and its metadata untouched.
 
-use super::{Recipe, Temporary, mask_uses::MaskUses};
+use super::{Recipe, Temporary, mask_uses::MaskUses, widest_int_operand};
 use crate::{
     mir::{
         Function, InstId, InstKind, MirType, Op, Value as MirValue, ValueId,
@@ -51,16 +51,8 @@ pub(super) fn alternatives(
     late: bool,
 ) -> Vec<Recipe> {
     let mut result = Vec::new();
-    let scalar_ty = op
-        .into_kind()
-        .and_then(|kind| {
-            kind.operands()
-                .iter()
-                .filter_map(|&value| func.value_ty(value))
-                .filter(|ty| matches!(ty, MirType::Int(_)))
-                .max_by_key(|ty| ty.integer_bits())
-        })
-        .unwrap_or(MirType::I256);
+    let scalar_ty =
+        op.into_kind().and_then(|kind| widest_int_operand(func, &kind)).unwrap_or(MirType::I256);
     generated::constructor_sequence_rewrite(
         &mut Context {
             func,
@@ -101,6 +93,11 @@ impl Context<'_> {
         Some(id)
     }
 
+    /// The mask of the scalar type's value bits.
+    fn mask(&self) -> U256 {
+        integer_mask(self.scalar_ty.integer_bits().unwrap())
+    }
+
     fn masks(&mut self) -> &MaskUses {
         self.masks.get_or_insert_with(|| MaskUses::new(self.func, self.block))
     }
@@ -112,7 +109,7 @@ impl generated::Context for Context<'_> {
     }
 
     fn u256_mul(&mut self, a: U256, b: U256) -> U256 {
-        a.wrapping_mul(b) & integer_mask(self.scalar_ty.integer_bits().unwrap())
+        a.wrapping_mul(b) & self.mask()
     }
     fn u256_or(&mut self, a: U256, b: U256) -> U256 {
         a | b
@@ -124,14 +121,10 @@ impl generated::Context for Context<'_> {
         a & b
     }
     fn u256_add(&mut self, a: U256, b: U256) -> U256 {
-        a.wrapping_add(b) & integer_mask(self.scalar_ty.integer_bits().unwrap())
+        a.wrapping_add(b) & self.mask()
     }
     fn u256_shl(&mut self, a: U256, b: U256) -> U256 {
-        if a >= U256::from(256) {
-            U256::ZERO
-        } else {
-            (b << a.to::<usize>()) & integer_mask(self.scalar_ty.integer_bits().unwrap())
-        }
+        if a >= U256::from(256) { U256::ZERO } else { (b << a.to::<usize>()) & self.mask() }
     }
     fn power_of_two_shift(&mut self, value: U256) -> Option<U256> {
         (value > U256::ONE && value.is_power_of_two()).then(|| U256::from(value.trailing_zeros()))
@@ -182,15 +175,13 @@ impl generated::Context for Context<'_> {
         (self.func.value_u256(value) == Some(U256::ONE)).then_some(())
     }
     fn all_ones(&mut self, value: Value) -> Option<()> {
-        (self.func.value_u256(value)
-            == Some(U256::MAX >> (256 - self.scalar_ty.integer_bits().unwrap())))
-        .then_some(())
+        (self.func.value_u256(value) == Some(self.mask())).then_some(())
     }
     fn u256(&mut self, value: u64) -> U256 {
         U256::from(value)
     }
     fn u256_max(&mut self) -> U256 {
-        U256::MAX >> (256 - self.scalar_ty.integer_bits().unwrap())
+        self.mask()
     }
     fn u256_from_limbs(&mut self, a: u64, b: u64, c: u64, d: u64) -> U256 {
         U256::from_limbs([a, b, c, d])
@@ -208,7 +199,7 @@ impl generated::Context for Context<'_> {
     }
 
     fn u256_sub(&mut self, a: U256, b: U256) -> U256 {
-        a.wrapping_sub(b) & (U256::MAX >> (256 - self.scalar_ty.integer_bits().unwrap()))
+        a.wrapping_sub(b) & self.mask()
     }
 
     fn u256_same(&mut self, a: U256, b: U256) -> bool {

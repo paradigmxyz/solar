@@ -22,7 +22,10 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
+        ir::{
+            Block, BlockId, Instruction, Module, ModuleTarget, PushValue, Terminator,
+            TerminatorKind,
+        },
         op,
     },
     target::Target,
@@ -49,10 +52,9 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
     for block in module.blocks.indices().filter(|&block| is_empty_revert(module, block)) {
         empty_reverts.insert(block);
     }
-    let shared = empty_reverts
-        .iter()
-        .next()
-        .filter(|&shared| !preserves_shared_revert_low_address(Target::new(gcx), module, shared));
+    let shared = empty_reverts.iter().next().filter(|&shared| {
+        !preserves_shared_revert_low_address(module.runtime_target(gcx), module, shared)
+    });
     let mut cold_reverts = DenseBitSet::new_empty(module.blocks.len());
     for (id, block) in module.blocks.iter_enumerated() {
         if block.metadata.hotness.is_cold()

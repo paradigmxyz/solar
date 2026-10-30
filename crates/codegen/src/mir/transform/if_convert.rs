@@ -52,11 +52,11 @@ use super::{cfg_simplify::simplify_function, egraph::is_bool_value};
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, EffectKind, Function, Immediate, InstId, InstKind, MirType, Module, Op,
-        Terminator, Value, ValueId,
+        BlockId, EffectKind, Function, FunctionBuilder, Immediate, InstId, InstKind, MirType,
+        Module, Terminator, Value, ValueId,
         analysis::{CfgInfo, integers::integer_mask},
         pass::{MirPass, run_function_pass},
-        utils::invalidate_unreachable_blocks,
+        utils::{invalidate_unreachable_block, invalidate_unreachable_blocks, replace_terminator},
     },
     target::{Cost, Target},
 };
@@ -294,8 +294,7 @@ fn binary_operands(
     value: ValueId,
     operands: impl Fn(&InstKind) -> Option<(ValueId, ValueId)>,
 ) -> Option<(ValueId, ValueId)> {
-    let Value::Inst(inst) = func.value(value) else { return None };
-    let (a, b) = operands(&func.inst(*inst).kind)?;
+    let (a, b) = operands(func.value_inst_kind(value)?)?;
     if func.value_u256(a).is_some() || func.value_u256(b).is_none() {
         Some((a, b))
     } else {
@@ -307,19 +306,13 @@ fn binary_operands(
 /// bounds of one value by ordered literals (`x < a` implies `x < b` when
 /// `a <= b`, and `x > a` implies `x > b` when `a >= b`).
 fn implies(func: &Function, first: ValueId, mut second: ValueId) -> bool {
-    if let Value::Inst(inst) = func.value(second)
-        && let InstKind::Zext(value) = func.inst(*inst).kind
-    {
+    if let Some(&InstKind::Zext(value)) = func.value_inst_kind(second) {
         second = value;
     }
     if first == second {
         return true;
     }
-    let kind = |value| match func.value(value) {
-        Value::Inst(inst) => Some(&func.inst(*inst).kind),
-        _ => None,
-    };
-    match (kind(first), kind(second)) {
+    match (func.value_inst_kind(first), func.value_inst_kind(second)) {
         (Some(&InstKind::Lt(x, a)), Some(&InstKind::Lt(y, b))) if x == y => {
             matches!((func.value_u256(a), func.value_u256(b)), (Some(a), Some(b)) if a <= b)
         }
@@ -336,14 +329,14 @@ fn implies(func: &Function, first: ValueId, mut second: ValueId) -> bool {
 /// average path executes.
 fn profitable(func: &Function, target: &Target, site: &Site, selects: &[Select]) -> bool {
     // Arm instructions whose results the scaled forms recompute are dropped.
-    let replaced: Vec<ValueId> = selects
+    let replaced = selects
         .iter()
         .filter_map(|select| match select.form {
             SelectForm::Scaled(_) => Some(select.then_value),
             SelectForm::ScaledNegated(_) => Some(select.else_value),
             _ => None,
         })
-        .collect();
+        .collect::<Vec<_>>();
     let mut arms = Cost::ZERO;
     let mut kept_arms = Cost::ZERO;
     for arm in [site.then_arm, site.else_arm].into_iter().flatten() {
@@ -475,14 +468,9 @@ fn select_cost(func: &Function, target: &Target, select: &Select, shared: bool) 
 /// comparison that makes it one.
 fn condition_cost(func: &Function, target: &Target, condition: ValueId, reads: u32) -> Cost {
     let copies = target.dup().times(reads.saturating_sub(1));
-    let nonzero_test = match func.value(condition) {
-        Value::Inst(inst) => {
-            let op = func.inst(*inst).kind.op();
-            matches!(op, Op::Ne { .. })
-                && Target::zero_test_input(&op, |value| func.value_u256(value)).is_some()
-        }
-        _ => false,
-    };
+    let nonzero_test = func
+        .value_inst_kind(condition)
+        .is_some_and(|kind| kind.nonzero_test_operand(func).is_some());
     if nonzero_test || !is_bool_value(func, condition) {
         // ne word, 0: iszero iszero
         copies.plus(target.opcode(op::ISZERO).times(2))
@@ -507,41 +495,28 @@ fn convert(func: &mut Function, site: &Site) {
     let else_pred = site.else_arm.unwrap_or(block);
     let mut replacements = FxHashMap::default();
     for select in &site.selects {
-        let InstKind::Phi(incoming) = &func.inst(select.phi).kind else { continue };
-        let remaining: Vec<_> = incoming
-            .iter()
-            .copied()
-            .filter(|&(from, _)| from != then_pred && from != else_pred)
-            .collect();
+        // join: v = phi [kept edges], [block: select]
         let selected = select_value(func, block, condition, select);
-        if remaining.is_empty() {
+        let InstKind::Phi(incoming) = &mut func.inst_mut(select.phi).kind else { continue };
+        incoming.retain(|&(from, _)| from != then_pred && from != else_pred);
+        if incoming.is_empty() {
             // The join merged only the two converted edges: the phi is the select.
             if let Some(result) = func.inst_result_value(select.phi) {
                 replacements.insert(result, selected);
             }
             func.blocks[site.join].instructions.retain(|&inst| inst != select.phi);
         } else {
-            let mut incoming = remaining;
             incoming.push((block, selected));
-            let InstKind::Phi(slot) = &mut func.inst_mut(select.phi).kind else { unreachable!() };
-            *slot = incoming;
         }
     }
-    if !replacements.is_empty() {
-        func.replace_uses(&replacements);
-    }
-    let (_, metadata) = func.blocks[block].take_terminator();
-    func.blocks[block].set_terminator(Terminator::Jump(site.join), metadata);
+    func.replace_uses(&replacements);
+    // block: branch cond, then_arm, else_arm -> jump join
+    replace_terminator(func, block, Terminator::Jump(site.join));
     // The arms are unreachable now; drop their edges and predecessor entries
     // so the join's phis and edge lists stay consistent until CFG cleanup
     // removes the blocks.
     for arm in [site.then_arm, site.else_arm].into_iter().flatten() {
-        func.blocks[arm].set_generated_terminator(Terminator::Invalid);
-        func.blocks[arm].predecessors.clear();
-        func.blocks[site.join].predecessors.retain(|pred| *pred != arm);
-    }
-    if !func.blocks[site.join].predecessors.contains(&block) {
-        func.blocks[site.join].predecessors.push(block);
+        let _ = invalidate_unreachable_block(func, arm);
     }
 }
 
@@ -633,9 +608,8 @@ fn agreeing_value(
     let (at_c, other) = if equal { (then_value, else_value) } else { (else_value, then_value) };
     let literal = func.value_u256(at_c)?;
     let Some(MirType::Int(bits)) = func.value_ty(other) else { return None };
-    let Value::Inst(inst) = func.value(other) else { return None };
     let operand = |value: ValueId| if value == x { Some(c) } else { func.value_u256(value) };
-    let result = match func.inst(*inst).kind {
+    let result = match *func.value_inst_kind(other)? {
         InstKind::Add(a, b) if a == x || b == x => operand(a)?.wrapping_add(operand(b)?),
         InstKind::Sub(a, b) if a == x || b == x => operand(a)?.wrapping_sub(operand(b)?),
         InstKind::Xor(a, b) if a == x || b == x => operand(a)? ^ operand(b)?,
@@ -646,8 +620,7 @@ fn agreeing_value(
 
 /// `(x, k)` for a value `x + k` or `x - (-k)`, with `k` a literal and `x` not.
 fn added_literal(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
-    let Value::Inst(inst) = func.value(value) else { return None };
-    match func.inst(*inst).kind {
+    match *func.value_inst_kind(value)? {
         InstKind::Add(a, b) => match (func.value_u256(a), func.value_u256(b)) {
             (None, Some(k)) => Some((a, k)),
             (Some(k), None) => Some((b, k)),
@@ -670,8 +643,7 @@ fn literal_comparison(
     condition: ValueId,
     negations: u32,
 ) -> Option<(ValueId, U256, bool)> {
-    let Value::Inst(inst) = func.value(condition) else { return None };
-    let (a, b, equal) = match func.inst(*inst).kind {
+    let (a, b, equal) = match *func.value_inst_kind(condition)? {
         InstKind::Eq(a, b) => (a, b, true),
         InstKind::Ne(a, b) => (a, b, false),
         _ => return None,
@@ -705,8 +677,7 @@ fn derivation(func: &Function, derived: ValueId, base: ValueId) -> Option<Deriva
     if func.value_u256(base) == Some(U256::ZERO) {
         return Some(Derivation::FromZero);
     }
-    let Value::Inst(inst) = func.value(derived) else { return None };
-    match func.inst(*inst).kind {
+    match *func.value_inst_kind(derived)? {
         InstKind::Add(a, b) if a == base => Some(Derivation::Add(b)),
         InstKind::Add(a, b) if b == base => Some(Derivation::Add(a)),
         InstKind::Or(a, b) if a == base => Some(Derivation::Or(b)),
@@ -764,7 +735,7 @@ fn append(func: &mut Function, block: BlockId, kind: InstKind, ty: Option<MirTyp
     // result = op operands
     // typed_result = cast result
     let start = func.blocks[block].instructions.len();
-    let mut builder = crate::mir::FunctionBuilder::new(func);
+    let mut builder = FunctionBuilder::new(func);
     builder.switch_to_block(block);
     let operation_ty = kind.op_def().result.default_type().or(ty);
     let value = builder.emit_inst(kind, operation_ty);

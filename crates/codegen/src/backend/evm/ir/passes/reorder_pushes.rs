@@ -31,7 +31,7 @@ use crate::backend::evm::{
     ir::{Instruction, Module},
     op::{self, StackOp},
 };
-use solar_config::{EvmVersion, OptimizationMode};
+use solar_config::EvmVersion;
 use solar_data_structures::{index::IndexVec, newtype_index};
 use solar_sema::Gcx;
 
@@ -52,10 +52,6 @@ impl EvmPass for ReorderPushes {
         if self.reorder_closed_expressions { "reorder-expressions" } else { "reorder-pushes" }
     }
 
-    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
-        !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
-    }
-
     fn cache_config(&self) -> u64 {
         u64::from(self.reorder_legacy_size_expressions)
             | (u64::from(self.reorder_closed_expressions) << 1)
@@ -64,8 +60,8 @@ impl EvmPass for ReorderPushes {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let evm_version = gcx.sess.opts.evm_version;
         let reorder_expressions = self.reorder_legacy_size_expressions
-            || !gcx.sess.opts.optimization.is_size()
-            || gcx.sess.opts.evm_version.has_extended_stack_ops();
+            || !module.optimization.is_size()
+            || evm_version.has_extended_stack_ops();
         let mut state = ReorderState::default();
         let mut changed = false;
         for block in &mut module.blocks {
@@ -98,13 +94,11 @@ impl ReorderState {
             return false;
         }
 
-        self.sequence.clear();
-        std::mem::swap(instructions, &mut self.sequence.instructions);
-        self.sequence.reserve(self.sequence.instructions.len());
+        self.sequence.start(instructions);
         self.expressions.clear();
         let mut changed = false;
-        for index in 0..self.sequence.instructions.len() {
-            let inst = &self.sequence.instructions[index];
+        for node in self.sequence.nodes.indices() {
+            let inst = self.sequence.instruction(node);
             let swap1 = inst.as_stack_op() == Some(StackOp::Swap(1));
             if swap1
                 && let Some(pushed) = self.expressions.last()
@@ -135,7 +129,7 @@ impl ReorderState {
                 continue;
             }
 
-            let node = self.sequence.push(index);
+            self.sequence.link(node);
             update_expressions(&mut self.expressions, &self.sequence, node);
         }
         self.sequence.finish_into(instructions, changed);
@@ -226,60 +220,55 @@ newtype_index! {
     struct NodeId;
 }
 
+#[derive(Clone, Copy, Default)]
 struct InstructionNode {
-    /// Index of the instruction in the block being reordered.
-    instruction: usize,
     previous: Option<NodeId>,
     next: Option<NodeId>,
 }
 
-/// A linked order over the block's instructions, which stay in place until it is finished.
+/// A linked order over the block's instructions, which stay in place until it is finished. Node
+/// `n` stands for `instructions[n]`, and a node never linked is a removed instruction. `slots` is
+/// scratch for [`Self::finish_into`].
 #[derive(Default)]
 struct InstructionSequence {
     instructions: Vec<Instruction>,
+    slots: Vec<Option<Instruction>>,
     nodes: IndexVec<NodeId, InstructionNode>,
     first: Option<NodeId>,
     last: Option<NodeId>,
 }
 
 impl InstructionSequence {
-    fn clear(&mut self) {
-        self.instructions.clear();
+    /// Takes the block's instructions, with no node linked yet.
+    fn start(&mut self, instructions: &mut Vec<Instruction>) {
+        std::mem::swap(instructions, &mut self.instructions);
         self.nodes.clear();
+        self.nodes.resize(self.instructions.len(), InstructionNode::default());
         self.first = None;
         self.last = None;
     }
 
-    fn reserve(&mut self, additional: usize) {
-        self.nodes.reserve(additional);
-    }
-
-    fn push(&mut self, instruction: usize) -> NodeId {
-        let index =
-            self.nodes.push(InstructionNode { instruction, previous: self.last, next: None });
-        if let Some(last) = self.last {
-            self.nodes[last].next = Some(index);
-        } else {
-            self.first = Some(index);
+    /// Appends `node` to the order.
+    fn link(&mut self, node: NodeId) {
+        self.nodes[node].previous = self.last;
+        match self.last {
+            Some(last) => self.nodes[last].next = Some(node),
+            None => self.first = Some(node),
         }
-        self.last = Some(index);
-        index
+        self.last = Some(node);
     }
 
-    fn instruction(&self, index: NodeId) -> &Instruction {
-        &self.instructions[self.nodes[index].instruction]
+    fn instruction(&self, node: NodeId) -> &Instruction {
+        &self.instructions[node.index()]
     }
 
-    fn previous(&self, index: NodeId) -> Option<NodeId> {
-        self.nodes[index].previous
+    fn previous(&self, node: NodeId) -> Option<NodeId> {
+        self.nodes[node].previous
     }
 
-    fn replace_stack_op(&mut self, index: NodeId, stack_op: StackOp) {
-        let instruction = &mut self.instructions[self.nodes[index].instruction];
-        let metadata = std::mem::take(&mut instruction.metadata);
-        let mut replacement = Instruction::stack_op(stack_op);
-        replacement.metadata = metadata;
-        *instruction = replacement;
+    fn replace_stack_op(&mut self, node: NodeId, stack_op: StackOp) {
+        self.instructions[node.index()]
+            .replace_preserving_metadata(Instruction::stack_op(stack_op));
     }
 
     fn move_range_before(&mut self, start: NodeId, end: NodeId, before: NodeId) {
@@ -314,13 +303,13 @@ impl InstructionSequence {
             std::mem::swap(instructions, &mut self.instructions);
             return;
         }
-        let mut slots = self.instructions.drain(..).map(Some).collect::<Vec<_>>();
+        self.slots.extend(self.instructions.drain(..).map(Some));
         instructions.reserve(self.nodes.len());
         let mut current = self.first;
-        while let Some(index) = current {
-            let node = &self.nodes[index];
-            instructions.push(slots[node.instruction].take().unwrap());
-            current = node.next;
+        while let Some(node) = current {
+            instructions.push(self.slots[node.index()].take().unwrap());
+            current = self.nodes[node].next;
         }
+        self.slots.clear();
     }
 }

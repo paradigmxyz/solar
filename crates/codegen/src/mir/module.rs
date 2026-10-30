@@ -6,11 +6,12 @@ use super::{
     StructId, StructType, Terminator, ValueId,
 };
 use crate::{
-    link::{ContractCode, LibraryTable},
+    link::{ContractCode, LibraryTable, QualifiedName, Trailer},
     mir::{
-        analysis::{CfgInfo, direct_callees},
+        analysis::{CallGraphInfo, CfgInfo, direct_callees},
         pass_manager::should_validate_ir,
     },
+    target,
 };
 use alloy_primitives::Bytes;
 use smallvec::SmallVec;
@@ -20,8 +21,8 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use solar_interface::{Ident, Symbol, sym};
-use solar_sema::hir::VariableId;
+use solar_interface::{Ident, Symbol, config::OptimizationMode, sym};
+use solar_sema::{Gcx, hir::VariableId};
 use std::{borrow::Cow, fmt, sync::Arc};
 
 /// A named immutable declared by a MIR module.
@@ -129,6 +130,12 @@ pub struct Module {
     /// Whether the last full `lowered` check still describes this module: no change since
     /// `advance_phase` passed it.
     pub(super) lowered_checked: bool,
+    /// The objective this module's code is optimized for: the build's, or the one the contract's
+    /// `@custom:solar-optimize` tag selects. A function's own tag may select another.
+    pub(crate) optimization: OptimizationMode,
+    /// Instructions `@custom:solar-inline` clones have added, which the inliner bounds over all
+    /// of its runs.
+    pub(crate) tagged_inline_growth: usize,
 }
 
 impl Module {
@@ -193,6 +200,8 @@ impl Module {
             debug_info_tracked: false,
             backend_memory: None,
             lowered_checked: false,
+            optimization: OptimizationMode::default(),
+            tagged_inline_growth: 0,
         }
     }
 
@@ -205,6 +214,40 @@ impl Module {
     /// Records whether the module may contain inline assembly that does not promise memory safety.
     pub(crate) fn set_unsafe_assembly(&mut self, unsafe_assembly: bool) {
         self.unsafe_assembly = unsafe_assembly;
+    }
+
+    /// Returns the cost model of this module's code: the contract's objective, which a function
+    /// without a tag of its own and every decision about the module as a whole use.
+    pub(crate) fn target(&self, gcx: Gcx<'_>) -> target::Target {
+        target::Target::new(gcx, self.optimization)
+    }
+
+    /// Returns the objective `func`'s code is optimized for: its own tag's, else the contract's.
+    pub(crate) fn objective(&self, func: FunctionId) -> OptimizationMode {
+        self.objective_of(&self.functions[func])
+    }
+
+    /// Returns the objective `func`'s code is optimized for, for a function this module has not
+    /// yet received.
+    pub(crate) fn objective_of(&self, func: &Function) -> OptimizationMode {
+        func.attributes.optimization.unwrap_or(self.optimization)
+    }
+
+    /// Returns the cost model of `func`'s code, for a function this module has not yet received.
+    pub(crate) fn target_of(&self, gcx: Gcx<'_>, func: &Function) -> target::Target {
+        target::Target::new(gcx, self.objective_of(func))
+    }
+
+    /// Returns whether any of the module's code is optimized.
+    pub(crate) fn is_optimized(&self) -> bool {
+        self.runs_objective(|objective| !objective.is_none())
+    }
+
+    /// Returns whether code compiled for some objective satisfies `wanted`: the contract's own
+    /// code, or the code of a function whose tag selects another objective.
+    pub(crate) fn runs_objective(&self, wanted: impl Fn(OptimizationMode) -> bool) -> bool {
+        wanted(self.optimization)
+            || self.functions.iter().any(|func| func.attributes.optimization.is_some_and(&wanted))
     }
 
     /// Enables or disables source debug information auditing for optimization passes.
@@ -407,35 +450,66 @@ impl Module {
     #[must_use]
     pub(crate) fn runtime_reachable_functions(&self) -> DenseBitSet<FunctionId> {
         let roots = self.dispatch_entry().into_iter().chain(
-            self.functions.iter_enumerated().filter_map(|(id, func)| {
-                (func.selector.is_some()
-                    || func.attributes.is_fallback
-                    || func.attributes.is_receive)
-                    .then_some(id)
-            }),
+            self.functions
+                .iter_enumerated()
+                .filter_map(|(id, func)| func.is_runtime_entry().then_some(id)),
         );
         self.reachable_from(roots)
     }
 
-    /// Returns the functions that run only during deployment: the constructor and the functions
-    /// it reaches through calls, less those the runtime also reaches. Functions that neither
-    /// artifact roots, which only ad-hoc MIR has, and the functions they reach stay out, because
-    /// no one knows where they run.
+    /// Returns the constructor and the functions it reaches through calls.
     #[must_use]
-    pub(crate) fn creation_only_functions(&self) -> DenseBitSet<FunctionId> {
-        let constructor = self.reachable_from(
+    pub(crate) fn constructor_reachable_functions(&self) -> DenseBitSet<FunctionId> {
+        self.reachable_from(
             self.functions
                 .iter_enumerated()
                 .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
-        );
+        )
+    }
+
+    /// Checks the phase contract for helpers that require runtime static frames.
+    /// Constructor ABI staging may already occupy the free-memory pointer, so
+    /// these helpers must not be reachable through any constructor call chain.
+    pub(crate) fn assert_runtime_helpers(&self, helpers: impl IntoIterator<Item = FunctionId>) {
+        if cfg!(debug_assertions) {
+            let helpers = helpers.into_iter().collect::<Vec<_>>();
+            if helpers.is_empty() {
+                return;
+            }
+            let constructor = self.constructor_reachable_functions();
+            for helper in helpers {
+                assert!(
+                    !constructor.contains(helper),
+                    "runtime helper `{}` is constructor-reachable and may overlap ABI staging",
+                    self.function(helper).name
+                );
+            }
+        }
+    }
+
+    /// Returns the functions that neither `constructor` nor `runtime` contains, and the functions
+    /// they reach through calls. Only ad-hoc MIR has them, and no one knows where they run.
+    #[must_use]
+    pub(crate) fn unrooted_reachable_functions(
+        &self,
+        constructor: &DenseBitSet<FunctionId>,
+        runtime: &DenseBitSet<FunctionId>,
+    ) -> DenseBitSet<FunctionId> {
+        let mut unrooted = DenseBitSet::new_filled(self.functions.len());
+        unrooted.subtract(constructor);
+        unrooted.subtract(runtime);
+        self.reachable_from(unrooted.iter())
+    }
+
+    /// Returns the functions that run only during deployment: the constructor and the functions
+    /// it reaches through calls, less those the runtime also reaches and the unrooted ones.
+    #[must_use]
+    pub(crate) fn creation_only_functions(&self) -> DenseBitSet<FunctionId> {
+        let constructor = self.constructor_reachable_functions();
         let runtime = self.runtime_reachable_functions();
         let mut creation = constructor.clone();
         creation.subtract(&runtime);
-        let mut rooted = constructor;
-        rooted.union(&runtime);
-        let mut unrooted = DenseBitSet::new_filled(self.functions.len());
-        unrooted.subtract(&rooted);
-        creation.subtract(&self.reachable_from(unrooted.iter()));
+        creation.subtract(&self.unrooted_reachable_functions(&constructor, &runtime));
         creation
     }
 
@@ -449,7 +523,7 @@ impl Module {
         &self,
     ) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
         let creation = self.creation_only_functions();
-        let (looping, repeated) = self.loops_and_repeats(&creation);
+        let (looping, repeated) = self.loops_and_repeats(&creation, &CallGraphInfo::new(self));
         let mut called_once = creation;
         called_once.subtract(&repeated);
         let mut straight = called_once.clone();
@@ -464,14 +538,16 @@ impl Module {
     pub(crate) fn repeated_functions(
         &self,
         domain: &DenseBitSet<FunctionId>,
+        call_graph: &CallGraphInfo,
     ) -> DenseBitSet<FunctionId> {
-        self.loops_and_repeats(domain).1
+        self.loops_and_repeats(domain, call_graph).1
     }
 
     /// Returns the functions of `domain` with a loop of their own, and those it repeats.
     fn loops_and_repeats(
         &self,
         domain: &DenseBitSet<FunctionId>,
+        call_graph: &CallGraphInfo,
     ) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
         let mut looping = DenseBitSet::new_empty(self.functions.len());
         let mut repeated = DenseBitSet::new_empty(self.functions.len());
@@ -479,8 +555,7 @@ impl Module {
         for id in domain.iter() {
             let func = self.function(id);
             let has_loop = !CfgInfo::new(func).cyclic_blocks().is_empty();
-            let repeats_callees =
-                has_loop || self.reachable_from(direct_callees(func)).contains(id);
+            let repeats_callees = has_loop || call_graph.is_recursive(id);
             if has_loop {
                 looping.insert(id);
             }
@@ -654,16 +729,20 @@ impl Module {
     }
 
     pub(crate) fn add_data(&mut self, data: Bytes, name: Option<Symbol>) -> DataId {
-        self.push_data(data, name, false)
+        self.add_data_entry(Data::new(data, name))
     }
 
-    /// Adds opaque data that must be emitted at the end of the runtime program.
-    pub(crate) fn append_runtime_data(&mut self, data: Bytes, name: Option<Symbol>) -> DataId {
-        self.push_data(data, name, true)
-    }
-
-    fn push_data(&mut self, data: Bytes, name: Option<Symbol>, emit_in_runtime: bool) -> DataId {
-        self.add_data_entry(Data { emit_in_runtime, ..Data::new(data, name) })
+    /// Adds `contract`'s trailing runtime data, which must be emitted at the end of the runtime
+    /// program.
+    pub(crate) fn append_runtime_data(
+        &mut self,
+        data: Bytes,
+        name: Option<Symbol>,
+        contract: QualifiedName,
+    ) -> DataId {
+        let trailers =
+            vec![Trailer { contracts: smallvec::smallvec![contract], range: 0..data.len() }];
+        self.add_data_entry(Data { emit_in_runtime: true, trailers, ..Data::new(data, name) })
     }
 
     /// Returns an iterator over all functions.

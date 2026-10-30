@@ -5,18 +5,35 @@
 //! identities, while incompatible incoming paths conservatively join to a
 //! symbolic pointer. Region labels do not prove disjointness: raw pointer operations
 //! and FMP recycling can cross those regions. The analysis exposes the memory,
-//! storage, and transient-storage effects of each instruction.
+//! storage, and transient-storage effects of each instruction. Runtime pointer offsets retain
+//! their symbolic value: a forged array length can admit indices that wrap into the object's
+//! header, another allocation, or reserved memory.
+//!
+//! An access keeps its allocation's identity while it stays inside the object: within the
+//! allocation's constant size or the first word of a checked allocation, which reserves a
+//! header. Other accesses may leave the object and keep no disjointness from other objects,
+//! but constant offsets still separate accesses to the same pointer. Runtime indices retain
+//! their symbolic values, since forged lengths can admit offsets that wrap onto the header.
+//! An access at the end of an object's payload, `p + 32 + len`, starts past its length word
+//! when `len` is provably below `2^255` and an earlier length store bounds `p`. Such an access
+//! may leave the object but cannot wrap around onto its length word.
 
 use super::{CfgInfo, DominatorTree, MemoryCallSummaries};
 use crate::mir::{
-    AbiType, AddressCallKind, ArgIdx, BlockId, Builtin, Callee, FrameMode, FrameSlotKind, Function,
-    ImmutableId, InstId, InstKind, MAX_SCRATCH_ERROR_WORDS, MemoryRegion, MirType, PtrLocation,
-    RequireKind, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    AbiType, AddressCallKind, AllocationFailure, ArgIdx, BlockId, Builtin, Callee, FrameMode,
+    FrameSlotKind, Function, FunctionId, ImmutableId, InstId, InstKind, MAX_SCRATCH_ERROR_WORDS,
+    MemoryRegion, MirType, PtrLocation, RawMemoryAccess, RequireKind, StorageAlias, Terminator,
+    Value, ValueId, memory::EvmMemoryLayout,
 };
+use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 use std::{
-    cell::{OnceCell, RefCell},
+    cell::{Cell, OnceCell, RefCell},
     collections::VecDeque,
     sync::Arc,
 };
@@ -72,6 +89,10 @@ pub(crate) enum MemoryBase {
     InternalFrame,
     /// One fresh abstract heap allocation.
     Allocation(InstId),
+    /// An access to one fresh heap allocation that may leave its bounds. It keeps no
+    /// disjointness from other objects, but shares its pointer with the allocation's other
+    /// accesses, so offsets still separate it from them.
+    UnboundedAllocation(InstId),
     /// An unrecycled allocation site with multiple dynamic loop instances.
     DynamicAllocation(InstId),
     /// A symbolic MIR value.
@@ -122,6 +143,7 @@ impl MemoryAddress {
             MemoryBase::Absolute => Some(self.offset),
             MemoryBase::InternalFrame
             | MemoryBase::Allocation(_)
+            | MemoryBase::UnboundedAllocation(_)
             | MemoryBase::DynamicAllocation(_)
             | MemoryBase::Value(_)
             | MemoryBase::FreeMemory(_) => None,
@@ -135,15 +157,18 @@ impl MemoryAddress {
             MemoryBase::InternalFrame => Some(self.offset),
             MemoryBase::Absolute
             | MemoryBase::Allocation(_)
+            | MemoryBase::UnboundedAllocation(_)
             | MemoryBase::DynamicAllocation(_)
             | MemoryBase::Value(_)
             | MemoryBase::FreeMemory(_) => None,
         }
     }
 
-    /// Returns whether this address is the base of a fresh allocation.
-    pub(crate) fn is_allocation_base(self) -> bool {
-        self.offset == 0 && matches!(self.base, MemoryBase::Allocation(_))
+    /// Returns whether this address is the base of a fresh allocation of constant size.
+    pub(crate) fn is_fixed_allocation_base(self, func: &Function) -> bool {
+        self.offset == 0
+            && matches!(self.base, MemoryBase::Allocation(inst)
+                if AliasAnalysis::allocation_size(func, inst).is_some())
     }
 
     /// Returns this address advanced by `offset`, if it fits.
@@ -422,41 +447,55 @@ enum AddressState {
     Resolved(Option<MemoryAddress>),
 }
 
-/// The order of unique allocations relative to the free-memory-pointer reads no reset precedes.
+/// The order of unique allocations relative to the free-memory-pointer reads and unique
+/// allocations that neither a reset nor a wrapped write precedes.
 ///
-/// No path from the entry to such a read `P` resets the pointer, so every unique `alloc` that
-/// executes before `P` ends at or below the pointer `P` returns, and an access at a nonnegative
-/// offset from `P` cannot reach it.
+/// No path from the entry to such a read or `alloc` `P` resets the pointer or may write through a
+/// wrapped index, so every unique `alloc` that executes before `P` ends at or below the pointer `P`
+/// returns, and an access at a nonnegative offset from `P` cannot reach it.
 #[derive(Clone, Debug)]
 struct FreshFmps {
     dominators: DominatorTree,
     /// The block and index of each unique `alloc` and each fresh free-memory-pointer read.
     positions: FxHashMap<InstId, (BlockId, usize)>,
+    /// The unique `alloc`s, whose runtime-indexed accesses wrap and so keep no such order.
+    allocs: FxHashSet<InstId>,
+    /// Whether the function writes memory through a runtime index, which wraps and may rewind the
+    /// free-memory pointer under the freshness of its allocations.
+    wraps: bool,
 }
 
 impl FreshFmps {
-    /// Returns whether one base is a unique allocation that precedes the read the other names.
-    fn separates(&self, first: MemoryBase, second: MemoryBase) -> bool {
-        match (first, second) {
-            (MemoryBase::Allocation(alloc), MemoryBase::FreeMemory(read))
-            | (MemoryBase::FreeMemory(read), MemoryBase::Allocation(alloc)) => {
-                self.precedes(alloc, read)
-            }
-            _ => false,
-        }
+    /// Returns whether one base is a unique allocation that precedes the instruction the other
+    /// names.
+    fn separates(&self, first: MemoryLocation, second: MemoryLocation) -> bool {
+        let (alloc, fresh, sizes) = match (first.address.base, second.address.base) {
+            (
+                MemoryBase::Allocation(alloc),
+                MemoryBase::FreeMemory(fresh) | MemoryBase::UnboundedAllocation(fresh),
+            ) => (alloc, fresh, [first.size, second.size]),
+            (
+                MemoryBase::FreeMemory(fresh) | MemoryBase::UnboundedAllocation(fresh),
+                MemoryBase::Allocation(alloc),
+            ) => (alloc, fresh, [second.size, first.size]),
+            _ => return false,
+        };
+        // A runtime index wraps, so an indexed access, to either allocation, may land below it.
+        (!self.allocs.contains(&fresh) || !self.wraps && !sizes.contains(&LocationSize::Unknown))
+            && self.precedes(alloc, fresh)
     }
 
-    /// Returns whether `alloc` executes before `read` on every path.
-    fn precedes(&self, alloc: InstId, read: InstId) -> bool {
-        let (Some(&(alloc_block, alloc_index)), Some(&(read_block, read_index))) =
-            (self.positions.get(&alloc), self.positions.get(&read))
+    /// Returns whether `alloc` executes before `fresh` on every path.
+    fn precedes(&self, alloc: InstId, fresh: InstId) -> bool {
+        let (Some(&(alloc_block, alloc_index)), Some(&(fresh_block, fresh_index))) =
+            (self.positions.get(&alloc), self.positions.get(&fresh))
         else {
             return false;
         };
-        if alloc_block == read_block {
-            alloc_index < read_index
+        if alloc_block == fresh_block {
+            alloc_index < fresh_index
         } else {
-            self.dominators.dominates(alloc_block, read_block)
+            self.dominators.dominates(alloc_block, fresh_block)
         }
     }
 }
@@ -464,7 +503,7 @@ impl FreshFmps {
 #[derive(Clone, Debug, Default)]
 struct PointerProvenance {
     allocations: FxHashMap<InstId, AllocationProvenance>,
-    /// Present when some unique `alloc` and some fresh read exist.
+    /// Present when some unique `alloc` exists.
     fresh_fmps: Option<FreshFmps>,
     /// Grows on demand, since transforms may add values after construction.
     addresses: RefCell<IndexVec<ValueId, AddressState>>,
@@ -475,6 +514,7 @@ impl PointerProvenance {
         func: &Function,
         call_summaries: Option<&MemoryCallSummaries>,
         may_reset_fmp: impl Fn(&Function, InstId, Option<&MemoryCallSummaries>) -> bool,
+        may_wrap_write: impl Fn(&Function, InstId, Option<&MemoryCallSummaries>) -> bool,
     ) -> Self {
         if func.blocks.is_empty() {
             return Self::default();
@@ -495,42 +535,72 @@ impl PointerProvenance {
         }
         let cfg = CfgInfo::new(func);
         let cyclic = cfg.cyclic_blocks();
+        let proofs = ReadBounds::default();
         // The index of each block's first instruction that may reset the FMP.
         let first_resets = func
+            .blocks
+            .iter()
+            .map(|block| {
+                block.instructions.iter().position(|&inst| {
+                    may_reset_fmp(func, inst, call_summaries)
+                        && !proofs.raw_writes_avoid_fmp(func, inst)
+                })
+            })
+            .collect::<IndexVec<BlockId, _>>();
+
+        // `poisoned[block]` means at least one path into the block may have
+        // recycled the FMP. The monotone OR lattice handles joins and loops.
+        let poison = |first_resets: &IndexVec<BlockId, Option<usize>>| {
+            let mut reachable = DenseBitSet::new_empty(func.blocks.len());
+            let mut poisoned = DenseBitSet::new_empty(func.blocks.len());
+            let mut worklist = VecDeque::from([BlockId::ENTRY]);
+            reachable.insert(BlockId::ENTRY);
+            while let Some(block) = worklist.pop_front() {
+                let out = poisoned.contains(block) || first_resets[block].is_some();
+                let Some(terminator) = &func.blocks[block].terminator else { continue };
+                for successor in terminator.successors() {
+                    let mut changed = reachable.insert(successor);
+                    if out {
+                        changed |= poisoned.insert(successor);
+                    }
+                    if changed {
+                        worklist.push_back(successor);
+                    }
+                }
+            }
+            (reachable, poisoned)
+        };
+        let (reachable, poisoned) = poison(&first_resets);
+        // A write through a wrapped runtime index may land on the FMP word, so it ends the
+        // freshness of the reads after it.
+        // NOTE: Allocations keep their uniqueness, which assumes that an access based on an
+        // allocation stays inside it.
+        let first_wraps = func
             .blocks
             .iter()
             .map(|block| {
                 block
                     .instructions
                     .iter()
-                    .position(|&inst| may_reset_fmp(func, inst, call_summaries))
+                    .position(|&inst| may_wrap_write(func, inst, call_summaries))
             })
             .collect::<IndexVec<BlockId, _>>();
-
-        // `poisoned[block]` means at least one path into the block may have
-        // recycled the FMP. The monotone OR lattice handles joins and loops.
-        let mut reachable = DenseBitSet::new_empty(func.blocks.len());
-        let mut poisoned = DenseBitSet::new_empty(func.blocks.len());
-        let mut worklist = VecDeque::from([BlockId::ENTRY]);
-        reachable.insert(BlockId::ENTRY);
-        while let Some(block) = worklist.pop_front() {
-            let out = poisoned.contains(block) || first_resets[block].is_some();
-            let Some(terminator) = &func.blocks[block].terminator else { continue };
-            for successor in terminator.successors() {
-                let mut changed = reachable.insert(successor);
-                if out {
-                    changed |= poisoned.insert(successor);
-                }
-                if changed {
-                    worklist.push_back(successor);
-                }
-            }
-        }
+        let first_rewinds = first_resets
+            .iter()
+            .zip(&first_wraps)
+            .map(|(&reset, &wrap)| reset.into_iter().chain(wrap).min())
+            .collect::<IndexVec<BlockId, _>>();
+        let read_poisoned = if first_rewinds.iter().any(Option::is_some) {
+            poison(&first_rewinds).1
+        } else {
+            poisoned.clone()
+        };
 
         let mut allocations = FxHashMap::default();
-        // The unique `alloc`s and the free-memory-pointer reads that no reset precedes.
+        // The unique `alloc`s and the free-memory-pointer reads that neither a reset nor a wrapped
+        // write precedes.
         let mut positions = FxHashMap::default();
-        let (mut has_alloc, mut has_read) = (false, false);
+        let mut allocs = FxHashSet::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
             let entry_fresh = reachable.contains(block_id) && !poisoned.contains(block_id);
             for (index, &inst_id) in block.instructions.iter().enumerate() {
@@ -544,19 +614,24 @@ impl PointerProvenance {
                     );
                     if unique && matches!(func.inst(inst_id).kind, InstKind::Alloc { .. }) {
                         positions.insert(inst_id, (block_id, index));
-                        has_alloc = true;
+                        allocs.insert(inst_id);
                     }
                 } else if matches!(func.inst(inst_id).kind, InstKind::Fmp)
-                    && entry_fresh
-                    && first_resets[block_id].is_none_or(|first| index < first)
+                    && reachable.contains(block_id)
+                    && !read_poisoned.contains(block_id)
+                    && first_rewinds[block_id].is_none_or(|first| index < first)
                 {
                     positions.insert(inst_id, (block_id, index));
-                    has_read = true;
                 }
             }
         }
-        let fresh_fmps = (has_alloc && has_read)
-            .then(|| FreshFmps { dominators: cfg.dominators().clone(), positions });
+        let wraps = !allocs.is_empty() && first_wraps.iter().any(Option::is_some);
+        let fresh_fmps = (!allocs.is_empty()).then(|| FreshFmps {
+            dominators: cfg.dominators().clone(),
+            positions,
+            allocs,
+            wraps,
+        });
 
         Self { allocations, fresh_fmps, addresses: RefCell::default() }
     }
@@ -575,6 +650,9 @@ pub(crate) struct AliasAnalysis {
     provenance: OnceCell<PointerProvenance>,
     /// Values whose derived pointer graph reaches a capturing use.
     escaping_values: RefCell<Option<DenseBitSet<ValueId>>>,
+    /// Whether some access may run through a runtime index, which wraps and so may land on any
+    /// object. Computed on first use.
+    wraps: Cell<Option<bool>>,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
 }
 
@@ -594,6 +672,7 @@ impl AliasAnalysis {
         Self {
             provenance: OnceCell::new(),
             escaping_values: RefCell::new(None),
+            wraps: Cell::new(None),
             call_summaries: Some(summaries),
         }
     }
@@ -644,13 +723,19 @@ impl AliasAnalysis {
             provenance.addresses.borrow_mut().clear();
         }
         self.escaping_values.borrow_mut().take();
+        self.wraps.set(None);
     }
 
     fn with_optional_summaries(
         _func: &Function,
         call_summaries: Option<Arc<MemoryCallSummaries>>,
     ) -> Self {
-        Self { provenance: OnceCell::new(), escaping_values: RefCell::new(None), call_summaries }
+        Self {
+            provenance: OnceCell::new(),
+            escaping_values: RefCell::new(None),
+            wraps: Cell::new(None),
+            call_summaries,
+        }
     }
 
     /// The lazily built provenance snapshot for `func`. Every query passes the
@@ -661,14 +746,112 @@ impl AliasAnalysis {
                 func,
                 self.call_summaries.as_deref(),
                 Self::instruction_may_reset_fmp_with_summaries,
+                Self::instruction_may_wrap_write_with_summaries,
             )
         })
+    }
+
+    /// Returns whether some access of `func` may run through a runtime index, cached for the
+    /// life of the snapshot.
+    fn function_wraps(&self, func: &Function) -> bool {
+        if let Some(wraps) = self.wraps.get() {
+            return wraps;
+        }
+        // The scan resolves addresses, which may query here again; the pessimistic value answers.
+        self.wraps.set(Some(true));
+        let wraps = self.function_may_wrap(func);
+        self.wraps.set(Some(wraps));
+        wraps
+    }
+
+    /// Returns whether an access of `func` may run through a runtime index or has an unknown
+    /// extent, so that it wraps and may land on any object.
+    fn function_may_wrap(&self, func: &Function) -> bool {
+        let wraps = |effects: ModRef| {
+            effects.reads().iter().chain(effects.writes()).any(|access| match access {
+                Access::Any(AddressSpace::Memory) => true,
+                Access::Location(Location::Memory(location)) => {
+                    location.size == LocationSize::Unknown
+                }
+                _ => false,
+            })
+        };
+        let indexed = |address| Self::address_has_runtime_index(func, address, 8);
+        let exact = |inst| {
+            self.instruction_may_wrap_write(func, inst)
+                || wraps(self.instruction_mod_ref(func, inst))
+        };
+        func.instructions().any(|inst| match func.inst(inst).kind {
+            // Only an access through a runtime index can have an unknown extent, and checking its
+            // address is cheaper than building its ModRef.
+            InstKind::Load(address, PtrLocation::Memory)
+            | InstKind::Store(address, _, PtrLocation::Memory)
+            | InstKind::Store8(address, _) => indexed(address) && exact(inst),
+            InstKind::Load(..) | InstKind::Store(..) => false,
+            InstKind::MemoryZero(address, size) if func.value_u64(size).is_some() => {
+                indexed(address) && exact(inst)
+            }
+            InstKind::Alloc { size, .. } if func.value_u64(size).is_some() => false,
+            InstKind::Fmp | InstKind::SetFmp(..) => false,
+            ref kind if Self::is_value_computation(kind) => false,
+            _ => exact(inst),
+        }) || func
+            .blocks
+            .iter()
+            .filter_map(|block| block.terminator.as_ref())
+            .any(|terminator| wraps(self.terminator_mod_ref(func, terminator)))
+    }
+
+    /// Returns whether an instruction only computes a value, so it reads and writes no memory.
+    fn is_value_computation(kind: &InstKind) -> bool {
+        matches!(
+            kind,
+            InstKind::Zext(..)
+                | InstKind::Trunc(..)
+                | InstKind::Sext(..)
+                | InstKind::PtrToInt(..)
+                | InstKind::IntToPtr(..)
+                | InstKind::PtrAdd(..)
+                | InstKind::Add(..)
+                | InstKind::Sub(..)
+                | InstKind::Mul(..)
+                | InstKind::Div(..)
+                | InstKind::SDiv(..)
+                | InstKind::Mod(..)
+                | InstKind::SMod(..)
+                | InstKind::AddMod(..)
+                | InstKind::MulMod(..)
+                | InstKind::And(..)
+                | InstKind::Or(..)
+                | InstKind::Xor(..)
+                | InstKind::Not(..)
+                | InstKind::Shl(..)
+                | InstKind::Shr(..)
+                | InstKind::Sar(..)
+                | InstKind::Lt(..)
+                | InstKind::Gt(..)
+                | InstKind::SLt(..)
+                | InstKind::SGt(..)
+                | InstKind::Eq(..)
+                | InstKind::Ne(..)
+                | InstKind::Phi(..)
+                | InstKind::Select(..)
+        )
     }
 
     /// Canonicalizes a MIR value used as a memory address.
     #[must_use]
     pub(crate) fn memory_address(&self, func: &Function, value: ValueId) -> Option<MemoryAddress> {
-        self.memory_address_with_depth(func, value, 0)
+        // These roots need neither control-flow provenance nor recursive address resolution.
+        // Recursive operands still go through the resolver and its depth limit.
+        match func.value(value) {
+            Value::Immediate(immediate) => {
+                Some(MemoryAddress::absolute(immediate.as_u256()?.try_into().ok()?))
+            }
+            Value::Arg(_) => Some(MemoryAddress::symbolic(value, MemoryRegion::Unknown)),
+            Value::Undef(_) | Value::Error(_) => None,
+            Value::Inst(_) => self.memory_address_with_depth(func, value, 0),
+        }
     }
 
     /// Creates a memory location, using instruction metadata to refine its region.
@@ -698,10 +881,9 @@ impl AliasAnalysis {
         address
     }
 
-    /// Returns the memory an access at `address` may touch. Unlike [`Self::memory_location`],
-    /// which names the accessed word, this covers everything at or after `base + k` for an address
-    /// `ptradd (ptradd base, index), k` with a runtime index: `ptradd` does not wrap, so the
-    /// access stays inside the base's object.
+    /// Returns the memory an access at `address` may touch. A proved payload-end address
+    /// covers everything from the first payload byte upward; other addresses retain their
+    /// symbolic runtime indices and access sizes, as in [`Self::memory_location`].
     fn access_extent(
         &self,
         func: &Function,
@@ -709,56 +891,31 @@ impl AliasAnalysis {
         address: ValueId,
         size: LocationSize,
     ) -> Option<MemoryLocation> {
-        let Some(base) = self.runtime_offset_base(func, address) else {
-            return self.memory_location(func, inst_id, address, size);
-        };
-        let base = base?;
-        Some(MemoryLocation::new(Self::refine_region(func, inst_id, base), LocationSize::Unknown))
-    }
-
-    /// Returns the memory an access at `address` may touch, without instruction metadata, as
-    /// [`Self::access_extent`] does.
-    #[must_use]
-    pub(crate) fn bare_access_extent(
-        &self,
-        func: &Function,
-        address: ValueId,
-        size: LocationSize,
-    ) -> Option<MemoryLocation> {
-        match self.runtime_offset_base(func, address) {
-            Some(base) => Some(MemoryLocation::new(base?, LocationSize::Unknown)),
-            None => self.bare_memory_location(func, address, size),
+        let (base, unknown_extent) = self.access_base(func, address)?;
+        let base = Self::refine_region(func, inst_id, base);
+        if unknown_extent {
+            Some(MemoryLocation::new(base, LocationSize::Unknown))
+        } else {
+            Self::bounded_memory_location(func, base, size)
         }
     }
 
-    /// Returns the address `base + k` of an address `ptradd (ptradd base, index), k` with a
-    /// runtime index and constant `ptradd`s `k` around it, or `None` without a runtime index.
-    fn runtime_offset_base(
-        &self,
-        func: &Function,
-        address: ValueId,
-    ) -> Option<Option<MemoryAddress>> {
-        // The canonical address of the chain is the runtime-indexed `ptradd` plus `k`.
-        let address = self.memory_address(func, address)?;
-        let MemoryBase::Value(indexed) = address.base else { return None };
-        let Value::Inst(inst) = func.value(indexed) else { return None };
-        let InstKind::PtrAdd(base, index) = func.inst(*inst).kind else { return None };
-        func.value_u64(index).is_none().then(|| {
-            let base = self.memory_address(func, base)?.checked_add(address.offset)?;
-            // NOTE: `ptradd` keeps the access inside its object, but a direct access to an
-            // allocation of runtime size cannot prove it fits, so `bounded_memory_location` names
-            // that object by its pointer value. Name the indexed access the same way, or the two
-            // would look like different objects and every indexed store would clobber the
-            // object's header words.
-            match base.base {
-                MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst)
-                    if Self::allocation_size(func, inst).is_none() =>
-                {
-                    Self::unbounded_allocation(func, base, inst)
+    /// Returns a canonical access address and whether its extent is unknown. The end of an
+    /// object's payload, `p + 32 + len`, has a proved lower bound at `p + 32` even when the exact
+    /// length is unknown. Other addresses retain their runtime indices, which may wrap.
+    fn access_base(&self, func: &Function, address: ValueId) -> Option<(MemoryAddress, bool)> {
+        if let Some(object) = Self::payload_end(func, address) {
+            let base =
+                self.memory_address(func, object)?.checked_add(EvmMemoryLayout::WORD_SIZE)?;
+            let base = match base.base {
+                MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => {
+                    Self::unbounded_allocation(func, base, inst)?
                 }
-                _ => Some(base),
-            }
-        })
+                _ => base,
+            };
+            return Some((base, true));
+        }
+        Some((self.memory_address(func, address)?, false))
     }
 
     /// Creates a memory location without instruction metadata.
@@ -779,7 +936,11 @@ impl AliasAnalysis {
         size: LocationSize,
     ) -> Option<MemoryLocation> {
         if let MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) = address.base {
-            let bound = Self::allocation_size(func, inst);
+            let bound = if matches!(address.base, MemoryBase::Allocation(_)) {
+                Self::allocation_min_size(func, inst)
+            } else {
+                Self::allocation_size(func, inst)
+            };
             let within_bounds = size.as_const().is_some_and(|size| {
                 size == 0
                     || address
@@ -803,8 +964,21 @@ impl AliasAnalysis {
         }
     }
 
-    /// Names an access to allocation `inst` that may leave its bounds by the allocation's
-    /// pointer value instead, which keeps no disjointness from other allocations.
+    /// The fewest bytes allocation `inst` reserves: its constant size, or one word for a checked
+    /// allocation of runtime size, a Solidity object whose size includes its header.
+    fn allocation_min_size(func: &Function, inst: InstId) -> Option<u64> {
+        match func.inst(inst).kind {
+            InstKind::Alloc { size, semantics } => {
+                func.value_u64(size).or((semantics.failure == AllocationFailure::Checked)
+                    .then_some(EvmMemoryLayout::WORD_SIZE))
+            }
+            _ => None,
+        }
+    }
+
+    /// Names an access to allocation `inst` that may leave its bounds, which keeps no
+    /// disjointness from other allocations: a unique allocation's access compares with the
+    /// allocation's other accesses by offset, and a loop allocation's goes by its pointer value.
     fn unbounded_allocation(
         func: &Function,
         mut address: MemoryAddress,
@@ -814,8 +988,10 @@ impl AliasAnalysis {
         // staying outside reserved memory. Loop allocations may follow an FMP reset.
         if matches!(address.base, MemoryBase::DynamicAllocation(_)) {
             address.region = MemoryRegion::Unknown;
+            address.base = MemoryBase::Value(func.inst_result_value(inst)?);
+        } else {
+            address.base = MemoryBase::UnboundedAllocation(inst);
         }
-        address.base = MemoryBase::Value(func.inst_result_value(inst)?);
         Some(address)
     }
 
@@ -823,56 +999,6 @@ impl AliasAnalysis {
     #[must_use]
     pub(crate) fn location_size(&self, func: &Function, value: ValueId) -> LocationSize {
         func.value_u64(value).map_or(LocationSize::Dynamic(value), LocationSize::Const)
-    }
-
-    /// Returns the canonical storage alias for an instruction operand.
-    #[must_use]
-    pub(crate) fn storage_alias(
-        &self,
-        func: &Function,
-        inst_id: InstId,
-        slot: ValueId,
-    ) -> StorageAlias {
-        Self::storage_alias_at(func, inst_id, slot)
-    }
-
-    /// Returns a canonical storage alias without pointer-provenance state.
-    #[must_use]
-    pub(crate) fn storage_alias_at(
-        func: &Function,
-        inst_id: InstId,
-        slot: ValueId,
-    ) -> StorageAlias {
-        func.storage_alias(inst_id, slot)
-    }
-
-    /// Canonicalizes a storage-slot value without pointer-provenance state.
-    #[must_use]
-    pub(crate) fn storage_alias_for_value_at(func: &Function, slot: ValueId) -> StorageAlias {
-        StorageAlias::for_value(func, slot)
-    }
-
-    /// Returns the canonical storage alias after value replacements.
-    #[must_use]
-    pub(crate) fn storage_alias_after_replacements(
-        &self,
-        func: &Function,
-        inst_id: InstId,
-        slot: ValueId,
-        replacements: &FxHashMap<ValueId, ValueId>,
-    ) -> StorageAlias {
-        Self::storage_alias_after_replacements_at(func, inst_id, slot, replacements)
-    }
-
-    /// Canonicalizes a replaced storage operand without pointer-provenance state.
-    #[must_use]
-    pub(crate) fn storage_alias_after_replacements_at(
-        func: &Function,
-        inst_id: InstId,
-        slot: ValueId,
-        replacements: &FxHashMap<ValueId, ValueId>,
-    ) -> StorageAlias {
-        func.storage_alias_after_replacements(inst_id, slot, replacements)
     }
 
     /// Returns whether a pointer-derived value can escape its function.
@@ -1257,6 +1383,9 @@ impl AliasAnalysis {
             }
             InstKind::AbiEncode { .. } => {
                 let InstKind::AbiEncode { args, layout, .. } = kind else { unreachable!() };
+                // Scratch encodings also read the free memory pointer for their destination,
+                // even though they do not reserve the output.
+                effects.read(Access::Location(Location::Memory(Self::fmp_location())));
                 for (&arg, ty) in args.iter().zip(layout.types.iter()) {
                     if Self::abi_type_reads_memory(ty) {
                         read_memory(&mut effects, arg, SizeOperand::Unknown);
@@ -1265,6 +1394,8 @@ impl AliasAnalysis {
                 effects.write_any(AddressSpace::Memory);
             }
             InstKind::AbiDecode { data, .. } => {
+                // A decoding allocates its memory values at the free memory pointer.
+                effects.read(Access::Location(Location::Memory(Self::fmp_location())));
                 if func.value_slice_location(data).is_some() {
                     read_memory_slice(&mut effects, data);
                 } else {
@@ -1304,8 +1435,7 @@ impl AliasAnalysis {
             }
             InstKind::MSize => effects.read_any(AddressSpace::Memory),
             InstKind::Load(slot, location @ (PtrLocation::Storage | PtrLocation::Transient)) => {
-                let alias =
-                    self.storage_alias_after_replacements(func, inst_id, slot, replacements);
+                let alias = func.storage_alias_after_replacements(inst_id, slot, replacements);
                 effects.reads.extend(Location::slot(location, alias).map(Access::Location));
             }
             InstKind::Store(
@@ -1313,8 +1443,7 @@ impl AliasAnalysis {
                 _,
                 location @ (PtrLocation::Storage | PtrLocation::Transient),
             ) => {
-                let alias =
-                    self.storage_alias_after_replacements(func, inst_id, slot, replacements);
+                let alias = func.storage_alias_after_replacements(inst_id, slot, replacements);
                 effects.writes.extend(Location::slot(location, alias).map(Access::Location));
             }
             InstKind::LoadImmutable(id) => {
@@ -1496,19 +1625,72 @@ impl AliasAnalysis {
     #[must_use]
     pub(crate) fn memory_alias(
         &self,
+        func: &Function,
         first: MemoryLocation,
         second: MemoryLocation,
     ) -> AliasResult {
-        // `FreeMemory` bases come only from the provenance snapshot, so without it the static
-        // rules are complete.
+        // The order of fresh pointers comes only from the provenance snapshot, so without it the
+        // static rules are complete.
         // NOTE: Like the disjointness of two allocations, this assumes that an access based on an
         // allocation stays inside it.
         if let Some(fresh) = self.provenance.get().and_then(|p| p.fresh_fmps.as_ref())
-            && fresh.separates(first.address.base, second.address.base)
+            && fresh.separates(first, second)
+        {
+            return AliasResult::NoAlias;
+        }
+        if (Self::absolute_below_unique_allocation(first, second)
+            || Self::absolute_below_unique_allocation(second, first))
+            && !self.function_wraps(func)
         {
             return AliasResult::NoAlias;
         }
         Self::memory_alias_locations(first, second)
+    }
+
+    /// Returns whether `other` is an absolute range that ends at or below the start of `alloc`.
+    /// Unlike [`Self::absolute_below_allocation`], it also covers the reserved words below the
+    /// heap, which holds for unique allocations only.
+    ///
+    /// No reset of the free-memory pointer precedes a unique allocation, so its pointer is at
+    /// or above the heap start, and a location at offset `n` in it starts at or above
+    /// `HEAP_START + n`. `Allocation` bases come only from the provenance snapshot, which
+    /// assigns them to unique allocations. The caller applies the rule only to a function with
+    /// no access through a runtime index: such an access wraps and may land on an earlier
+    /// object, which the disjointness of allocations assumes away, and their aliasing with the
+    /// free-memory pointer slot used to keep passes from trusting it.
+    // NOTE: Like `pointer_lower_bound`, this trusts the pointer to enter the function at or above
+    // the heap start, which memory-unsafe assembly in a caller could violate.
+    fn absolute_below_unique_allocation(alloc: MemoryLocation, other: MemoryLocation) -> bool {
+        if matches!(alloc.address.base, MemoryBase::Allocation(_))
+            && other.address.base == MemoryBase::Absolute
+            && let Some(size) = other.size.as_const()
+            && let Some(end) = other.address.offset.checked_add(size)
+            && let Some(start) = EvmMemoryLayout::HEAP_START.checked_add(alloc.address.offset)
+        {
+            end <= start
+        } else {
+            false
+        }
+    }
+
+    /// Whether `absolute` is a heap-start-or-higher absolute range that ends at or below the
+    /// lowest address `allocation` can start at: every allocation lies at or above the heap
+    /// start, as [`Self::pointer_lower_bound`] trusts. Reserved low memory stays `MayAlias`,
+    /// since the free-memory-pointer slot there reflects allocations.
+    fn absolute_below_allocation(absolute: MemoryLocation, allocation: MemoryLocation) -> bool {
+        let (MemoryBase::Absolute, Some(_), LocationSize::Const(size)) =
+            (absolute.address.base, Self::allocation_base(allocation.address.base), absolute.size)
+        else {
+            return false;
+        };
+        let start = EvmMemoryLayout::HEAP_START.checked_add(allocation.address.offset);
+        absolute.address.offset >= EvmMemoryLayout::HEAP_START
+            && absolute
+                .address
+                .offset
+                .checked_add(size)
+                .zip(start)
+                .is_some_and(|(end, start)| end <= start)
     }
 
     /// Computes a memory-range relationship after addresses are canonicalized.
@@ -1531,6 +1713,22 @@ impl AliasAnalysis {
         // loop-instance allocation may hit the same or different instances, so
         // they stay `MayAlias`; a dynamic allocation against a
         // non-allocation base is likewise `MayAlias`.
+        // An access that may leave its allocation shares the allocation's pointer, but nothing
+        // keeps it from other objects.
+        match (first.address.base, second.address.base) {
+            (
+                MemoryBase::UnboundedAllocation(a),
+                MemoryBase::Allocation(b) | MemoryBase::UnboundedAllocation(b),
+            )
+            | (MemoryBase::Allocation(b), MemoryBase::UnboundedAllocation(a)) => {
+                return if a == b {
+                    Self::compare_offsets(first, second)
+                } else {
+                    AliasResult::MayAlias
+                };
+            }
+            _ => {}
+        }
         let first_alloc = Self::allocation_base(first.address.base);
         let second_alloc = Self::allocation_base(second.address.base);
         if Self::absolute_below_allocation(first, second)
@@ -1561,30 +1759,26 @@ impl AliasAnalysis {
             (Some((_, true)), _) | (_, Some((_, true))) => return AliasResult::MayAlias,
             _ => {}
         }
+        // An access beyond the extent of a unique allocation starts at its offset and goes up, so
+        // it cannot reach the allocation's words below that offset. A runtime index wraps, so an
+        // indexed access has no such start.
+        if let (MemoryBase::Allocation(site), MemoryBase::FreeMemory(fresh))
+        | (MemoryBase::FreeMemory(fresh), MemoryBase::Allocation(site)) =
+            (first.address.base, second.address.base)
+            && site == fresh
+        {
+            if first.size == LocationSize::Unknown || second.size == LocationSize::Unknown {
+                return AliasResult::MayAlias;
+            }
+            return match Self::compare_offsets(first, second) {
+                AliasResult::NoAlias => AliasResult::NoAlias,
+                _ => AliasResult::MayAlias,
+            };
+        }
         if first.address.base != second.address.base {
             return AliasResult::MayAlias;
         }
         Self::compare_offsets(first, second)
-    }
-
-    /// Whether `absolute` is a heap-start-or-higher absolute range that ends at or below the
-    /// lowest address `allocation` can start at: every allocation lies at or above the heap
-    /// start, as [`Self::pointer_lower_bound`] trusts. Reserved low memory stays `MayAlias`,
-    /// since the free-memory-pointer slot there reflects allocations.
-    fn absolute_below_allocation(absolute: MemoryLocation, allocation: MemoryLocation) -> bool {
-        let (MemoryBase::Absolute, Some(_), LocationSize::Const(size)) =
-            (absolute.address.base, Self::allocation_base(allocation.address.base), absolute.size)
-        else {
-            return false;
-        };
-        let start = EvmMemoryLayout::HEAP_START.checked_add(allocation.address.offset);
-        absolute.address.offset >= EvmMemoryLayout::HEAP_START
-            && absolute
-                .address
-                .offset
-                .checked_add(size)
-                .zip(start)
-                .is_some_and(|(end, start)| end <= start)
     }
 
     /// Compares two ranges that share a base, by offset and width.
@@ -1932,25 +2126,48 @@ impl AliasAnalysis {
     #[must_use]
     pub(crate) fn instruction_may_wrap_write(&self, func: &Function, inst: InstId) -> bool {
         match func.inst(inst).kind {
-            InstKind::ICall { function: Callee::Function(function), .. } => self
-                .call_summaries
-                .as_deref()
-                .and_then(|summaries| summaries.get(function))
-                .is_none_or(|summary| summary.may_wrap_write()),
-            _ => self.instruction_writes_through_runtime_index(func, inst),
+            InstKind::ICall { function: Callee::Function(_), .. } => {
+                Self::instruction_may_wrap_write_with_summaries(
+                    func,
+                    inst,
+                    self.call_summaries.as_deref(),
+                )
+            }
+            _ => {
+                !func.inst(inst).kind.effect_kind().is_read_only()
+                    && Self::instruction_writes_through_runtime_index_with(
+                        func,
+                        inst,
+                        &self.instruction_mod_ref(func, inst),
+                    )
+            }
         }
     }
 
     /// Returns whether an instruction itself writes memory at an address computed with a runtime
-    /// index, directly or through a select or phi, or with a write of unknown extent.
+    /// index, directly or through a select or phi, or with a write of unknown extent. `effects`
+    /// are the [`Self::instruction_mod_ref`] effects of `inst`.
     #[must_use]
-    pub(crate) fn instruction_writes_through_runtime_index(
-        &self,
+    pub(crate) fn instruction_writes_through_runtime_index_with(
         func: &Function,
         inst: InstId,
+        effects: &ModRef,
     ) -> bool {
+        !func.inst(inst).kind.effect_kind().is_read_only()
+            && (Self::writes_at_indexed_address(func, inst)
+                || effects.writes().iter().any(|access| {
+                    matches!(
+                        access,
+                        Access::Location(Location::Memory(location))
+                            if location.size == LocationSize::Unknown
+                    )
+                }))
+    }
+
+    /// Returns whether an instruction writes memory at an address computed with a runtime index.
+    fn writes_at_indexed_address(func: &Function, inst: InstId) -> bool {
         let indexed = |address| Self::address_has_runtime_index(func, address, 8);
-        let address_indexed = match func.inst(inst).kind {
+        match func.inst(inst).kind {
             InstKind::Store(address, _, PtrLocation::Memory)
             | InstKind::Store8(address, _)
             | InstKind::MemoryZero(address, _)
@@ -1963,15 +2180,22 @@ impl AliasAnalysis {
             | InstKind::StaticCall { ret_offset: address, .. }
             | InstKind::DelegateCall { ret_offset: address, .. } => indexed(address),
             _ => false,
-        };
-        address_indexed || {
-            self.instruction_mod_ref(func, inst).writes().iter().any(|access| {
-                matches!(
-                    access,
-                    Access::Location(Location::Memory(location))
-                        if location.size == LocationSize::Unknown
-                )
-            })
+        }
+    }
+
+    /// Like [`Self::instruction_may_wrap_write`], without the writes of unknown extent, which
+    /// need the provenance this feeds. Such a write starts at its address and cannot wrap
+    /// around without a length no gas can pay for.
+    fn instruction_may_wrap_write_with_summaries(
+        func: &Function,
+        inst: InstId,
+        call_summaries: Option<&MemoryCallSummaries>,
+    ) -> bool {
+        match func.inst(inst).kind {
+            InstKind::ICall { function: Callee::Function(function), .. } => call_summaries
+                .and_then(|summaries| summaries.get(function))
+                .is_none_or(|summary| summary.may_wrap_write()),
+            _ => Self::writes_at_indexed_address(func, inst),
         }
     }
 
@@ -1986,6 +2210,7 @@ impl AliasAnalysis {
         match &func.inst(*inst).kind {
             InstKind::Alloc { .. }
             | InstKind::Fmp
+            | InstKind::HeapFloor
             | InstKind::Load(..)
             | InstKind::ICall { .. }
             | InstKind::InternalFrameAddr(_)
@@ -2010,10 +2235,20 @@ impl AliasAnalysis {
     /// Returns whether an instruction may write the free-memory-pointer word.
     ///
     /// Unlike [`Self::instruction_may_reset_fmp`], this also counts allocations that bump the
-    /// word, so a cached copy of it stays valid across an instruction only when this is false. A
-    /// heap pointer plus a constant never reaches the word, so such writes do not count.
+    /// word, so a cached copy of it stays valid across an instruction only when this is false.
+    /// Raw accesses keep their address expression, including bounds established before the write.
     #[must_use]
-    pub(crate) fn instruction_may_write_fmp(&self, func: &Function, inst: InstId) -> bool {
+    pub(crate) fn instruction_may_write_fmp(
+        &self,
+        func: &Function,
+        inst: InstId,
+        proofs: &ReadBounds,
+    ) -> bool {
+        if func.inst(inst).kind.effect_kind().is_read_only()
+            || proofs.raw_writes_avoid_fmp(func, inst)
+        {
+            return false;
+        }
         self.instruction_mod_ref(func, inst).writes().iter().any(|&access| match access {
             Access::Any(AddressSpace::Memory) => true,
             Access::Location(Location::Memory(location)) => {
@@ -2094,6 +2329,17 @@ impl AliasAnalysis {
         if let Some(address) = address.as_absolute() {
             return Self::const_range_may_overlap_fmp(address, size.as_const());
         }
+        if let MemoryBase::Value(base) = address.base
+            && let LocationSize::Const(size) = size
+            && address.offset != 0
+            && address.offset.checked_add(size).is_some_and(|end| end <= EvmMemoryLayout::FMP_SLOT)
+            && Self::untrusted_read_lower_bound(func, base)
+                .is_some_and(|bound| bound >= EvmMemoryLayout::HEAP_START)
+        {
+            // A wrapped base + offset lies below offset, so the access ends before the FMP
+            // slot. A non-wrapped sum remains at or above the heap start.
+            return false;
+        }
         Self::address_lower_bound(func, address, size)
             .is_none_or(|bound| bound < EvmMemoryLayout::HEAP_START)
     }
@@ -2101,8 +2347,7 @@ impl AliasAnalysis {
     /// Returns a conservative lower bound for the first byte of an access of `size` at a
     /// canonical address, which holds even when a runtime index wraps around.
     ///
-    /// An access of unknown extent through a non-absolute base is a runtime-indexed `ptradd`
-    /// whose index the canonical address discards, so it has no bound.
+    /// An access of unknown extent through a non-absolute base keeps no bound.
     pub(crate) fn address_lower_bound(
         func: &Function,
         address: MemoryAddress,
@@ -2114,17 +2359,25 @@ impl AliasAnalysis {
         match address.base {
             MemoryBase::Absolute => Some(address.offset),
             // An allocation is a heap pointer.
-            MemoryBase::Allocation(_) | MemoryBase::DynamicAllocation(_) => {
+            MemoryBase::Allocation(_)
+            | MemoryBase::UnboundedAllocation(_)
+            | MemoryBase::DynamicAllocation(_) => {
                 EvmMemoryLayout::HEAP_START.checked_add(address.offset)
             }
             MemoryBase::Value(base) => {
-                Self::read_lower_bound(func, base)?.checked_add(address.offset)
+                if !Self::constant_offset_no_wrap(func, base, address.offset) {
+                    return None;
+                }
+                Self::untrusted_read_lower_bound(func, base)?.checked_add(address.offset)
             }
             // The pointer read's result is the symbolic base, bounded only if it is the
             // allocator's own read.
             MemoryBase::FreeMemory(read) => {
-                Self::read_lower_bound(func, func.inst_result_value(read)?)?
-                    .checked_add(address.offset)
+                let value = func.inst_result_value(read)?;
+                if !Self::constant_offset_no_wrap(func, value, address.offset) {
+                    return None;
+                }
+                Self::untrusted_read_lower_bound(func, value)?.checked_add(address.offset)
             }
             MemoryBase::InternalFrame => None,
         }
@@ -2137,16 +2390,178 @@ impl AliasAnalysis {
         address < fmp_end && end > EvmMemoryLayout::FMP_SLOT
     }
 
-    /// Returns a conservative lower bound for a compiler-owned pointer, trusting that `ptradd`
-    /// never wraps.
+    /// Returns a conservative lower bound for a compiler-owned pointer.
     pub(crate) fn pointer_lower_bound(func: &Function, value: ValueId) -> Option<u64> {
         Self::lower_bound(func, value, 0, true)
     }
 
     /// Returns a lower bound for a pointer that also holds when assembly forges the free-memory
     /// pointer or a runtime `ptradd` offset wraps, for deciding which slots a read may observe.
-    pub(crate) fn read_lower_bound(func: &Function, value: ValueId) -> Option<u64> {
+    fn untrusted_read_lower_bound(func: &Function, value: ValueId) -> Option<u64> {
         Self::lower_bound(func, value, 0, false)
+    }
+
+    /// Returns the least address `value` can hold when a compiler-owned base, an allocation, a
+    /// frame or a read of the free memory pointer, reaches it through constant additions alone.
+    /// Unlike [`Self::pointer_lower_bound`], which bounds where a write may land, it trusts no
+    /// runtime offset: assembly that forges a length can index an object's element around to
+    /// low memory, and a read there must see what was stored. A decoded value that is no memory
+    /// object is no pointer either. A word loaded from the free memory pointer's slot counts only
+    /// when `free_pointer` says nothing in the module can leave a word below the heap there, as
+    /// a copy into the slot can. `call` bounds the pointer an internal call returns.
+    #[must_use]
+    pub(crate) fn read_lower_bound(
+        func: &Function,
+        value: ValueId,
+        call: &dyn Fn(FunctionId) -> Option<u64>,
+        free_pointer: bool,
+    ) -> Option<u64> {
+        Self::constant_offset_lower_bound(func, value, call, free_pointer, None, 0, None)
+    }
+
+    /// Returns the least address a word at `offset` of the current internal-call frame can
+    /// have. A fixed frame lies at or above the heap start but omits the frame header that MIR
+    /// offsets include, and an external entry's frame starts at the heap start.
+    #[must_use]
+    pub(crate) fn frame_lower_bound(offset: u64) -> u64 {
+        EvmMemoryLayout::HEAP_START
+            .saturating_add(offset.saturating_sub(EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE))
+    }
+
+    fn constant_offset_lower_bound(
+        func: &Function,
+        value: ValueId,
+        call: &dyn Fn(FunctionId) -> Option<u64>,
+        free_pointer: bool,
+        before: Option<InstId>,
+        depth: usize,
+        proofs: Option<&ReadBounds>,
+    ) -> Option<u64> {
+        if depth > 8 {
+            return None;
+        }
+        if let Some(value) = func.value_u64(value) {
+            return Some(value);
+        }
+        let Value::Inst(inst) = func.value(value) else { return None };
+        let bound = |value| {
+            Self::constant_offset_lower_bound(
+                func,
+                value,
+                call,
+                free_pointer,
+                before,
+                depth + 1,
+                proofs,
+            )
+        };
+        match &func.inst(*inst).kind {
+            InstKind::Fmp
+            | InstKind::HeapFloor
+            | InstKind::Alloc { .. }
+            | InstKind::AbiEncode { .. } => Some(EvmMemoryLayout::HEAP_START),
+            InstKind::AbiDecode { .. } if func.value_ty(value) == Some(MirType::MEMPTR) => {
+                Some(EvmMemoryLayout::HEAP_START)
+            }
+            InstKind::Load(address, PtrLocation::Memory)
+                if (free_pointer || func.inst(*inst).metadata.alloc_ptr())
+                    && func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+            {
+                Some(EvmMemoryLayout::HEAP_START)
+            }
+            InstKind::InternalFrameAddr(offset) => Some(Self::frame_lower_bound(*offset)),
+            InstKind::ICall { function: Callee::Function(function), .. } => call(*function),
+            InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => bound(*value),
+            InstKind::Add(first, second) => {
+                let lower = func
+                    .value_u64(*second)
+                    .and_then(|offset| bound(*first)?.checked_add(offset))
+                    .or_else(|| {
+                        func.value_u64(*first)
+                            .and_then(|offset| bound(*second)?.checked_add(offset))
+                    })
+                    .or_else(|| func.inst(*inst).metadata.alloc_ptr().then(|| bound(*first))?)?;
+                // First establish a useful base. Proving that arbitrary scalar arithmetic
+                // cannot wrap cannot give an address a heap lower bound.
+                (func.inst(*inst).metadata.alloc_ptr()
+                    || match proofs {
+                        Some(proofs) => {
+                            proofs.constant_add_after_access(func, value, before.unwrap_or(*inst))
+                                || proofs.arithmetic_no_wrap(func, value)
+                        }
+                        None => {
+                            super::integers::arithmetic_no_wrap(func, value)
+                                || Self::constant_add_after_access_at(
+                                    func,
+                                    value,
+                                    before.unwrap_or(*inst),
+                                )
+                        }
+                    })
+                .then_some(lower)
+            }
+            InstKind::PtrAdd(base, offset) => {
+                let offset = func.value_u64(*offset)?;
+                let lower = bound(*base)?.checked_add(offset)?;
+                // Pointer offsets wrap just like word additions. A lower bound for the base
+                // alone cannot exclude reaching reserved memory after wraparound.
+                let no_wrap = match proofs {
+                    Some(proofs) => {
+                        proofs.constant_offset_no_wrap(func, *base, offset)
+                            || proofs.constant_add_after_access(
+                                func,
+                                value,
+                                before.unwrap_or(*inst),
+                            )
+                    }
+                    None => {
+                        Self::constant_offset_no_wrap(func, *base, offset)
+                            || Self::constant_add_after_access_at(
+                                func,
+                                value,
+                                before.unwrap_or(*inst),
+                            )
+                    }
+                };
+                no_wrap.then_some(lower)
+            }
+            InstKind::ExtractValue {
+                ty: MirType::Slice(PtrLocation::Memory),
+                aggregate: slice,
+                index: MirType::SLICE_PTR_FIELD,
+            } => {
+                let Value::Inst(slice) = func.value(*slice) else { return None };
+                match &func.inst(*slice).kind {
+                    InstKind::MakeSlice { ptr, location: PtrLocation::Memory, .. } => bound(*ptr),
+                    InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => {
+                        Some(EvmMemoryLayout::HEAP_START)
+                    }
+                    _ => None,
+                }
+            }
+            InstKind::Phi(incoming) => incoming
+                .iter()
+                .map(|(_, value)| {
+                    // An incoming definition may belong to a previous loop iteration. A
+                    // successful access before the current user cannot bound that iteration's
+                    // operands; use only accesses before the incoming definition itself.
+                    Self::constant_offset_lower_bound(
+                        func,
+                        *value,
+                        call,
+                        free_pointer,
+                        None,
+                        depth + 1,
+                        proofs,
+                    )
+                })
+                .try_fold(None, |least, bound| {
+                    let bound = bound?;
+                    Some(Some(least.map_or(bound, |least: u64| least.min(bound))))
+                })?,
+            InstKind::Select(_, first, second) => Some(bound(*first)?.min(bound(*second)?)),
+            _ => None,
+        }
     }
 
     /// Returns a conservative lower bound for a compiler-owned pointer.
@@ -2184,15 +2599,21 @@ impl AliasAnalysis {
                 Self::lower_bound(func, *value, depth + 1, trusted)
             }
             InstKind::InternalFrameAddr(offset) => EvmMemoryLayout::HEAP_START.checked_add(*offset),
-            InstKind::Add(first, second)
-                if (super::integers::integer_bits(func, value) == 256
-                    || super::integers::arithmetic_no_wrap(func, value)) =>
-            {
-                Self::lower_bound(func, *first, depth + 1, trusted)
-                    .and_then(|base| base.checked_add(func.value_u64(*second)?))
+            InstKind::Add(first, second) => {
+                // Adding to a lower bound alone does not prove that the actual sum cannot wrap.
+                func.value_u64(*second)
+                    .and_then(|offset| {
+                        Self::lower_bound(func, *first, depth + 1, trusted)?.checked_add(offset)
+                    })
                     .or_else(|| {
-                        Self::lower_bound(func, *second, depth + 1, trusted)
-                            .and_then(|base| base.checked_add(func.value_u64(*first)?))
+                        func.value_u64(*first).and_then(|offset| {
+                            Self::lower_bound(func, *second, depth + 1, trusted)?
+                                .checked_add(offset)
+                        })
+                    })
+                    .filter(|_| {
+                        super::integers::arithmetic_no_wrap(func, value)
+                            || Self::constant_add_after_access(func, value)
                     })
                     .or_else(|| {
                         // The allocator's bump `p + size` is not below `p`: allocation proved or
@@ -2203,6 +2624,14 @@ impl AliasAnalysis {
                             .alloc_ptr()
                             .then(|| Self::lower_bound(func, *first, depth + 1, trusted))?
                     })
+                    .or_else(|| {
+                        if !trusted {
+                            return None;
+                        }
+                        let object = Self::payload_end(func, value)?;
+                        Self::lower_bound(func, object, depth + 1, trusted)?
+                            .checked_add(EvmMemoryLayout::WORD_SIZE)
+                    })
             }
             InstKind::Sub(base, offset)
                 if (super::integers::integer_bits(func, value) == 256
@@ -2211,16 +2640,16 @@ impl AliasAnalysis {
                 Self::lower_bound(func, *base, depth + 1, trusted)
                     .and_then(|base| base.checked_sub(func.value_u64(*offset)?))
             }
-            // `ptradd` does not wrap, so a runtime offset only moves the pointer up. A program
-            // that forges the length an index is checked against can still wrap it around, so
-            // `trusted` is false for reads, which must not miss a slot below the heap.
+            // A forged length can admit a runtime offset that wraps below the object's start,
+            // even for a compiler-owned allocation. Such writes may reset the FMP as well.
             InstKind::PtrAdd(base, offset) => {
-                let offset = match func.value_u64(*offset) {
-                    Some(offset) => offset,
-                    None if trusted => 0,
-                    None => return None,
-                };
-                Self::lower_bound(func, *base, depth + 1, trusted)?.checked_add(offset)
+                let offset = func.value_u64(*offset)?;
+                Self::lower_bound(func, *base, depth + 1, trusted)?.checked_add(offset).filter(
+                    |_| {
+                        Self::constant_offset_no_wrap(func, *base, offset)
+                            || Self::constant_add_after_access(func, value)
+                    },
+                )
             }
             InstKind::ExtractValue {
                 ty: MirType::Slice(_),
@@ -2241,9 +2670,10 @@ impl AliasAnalysis {
             InstKind::Phi(incoming) => incoming
                 .iter()
                 .map(|(_, value)| Self::lower_bound(func, *value, depth + 1, trusted))
-                .collect::<Option<Vec<_>>>()?
-                .into_iter()
-                .min(),
+                .try_fold(None, |least, bound| {
+                    let bound = bound?;
+                    Some(Some(least.map_or(bound, |least: u64| least.min(bound))))
+                })?,
             InstKind::Select(_, first, second) => {
                 Some(Self::lower_bound(func, *first, depth + 1, trusted)?.min(Self::lower_bound(
                     func,
@@ -2283,6 +2713,170 @@ impl AliasAnalysis {
             AbiType::FixedArray { .. } | AbiType::Tuple(_) => true,
         }
     }
+
+    /// Returns the memory object `p` of an address `p + 32 + len`, the end of `p`'s payload, in
+    /// either association, when `len` is a length below `2^255` stored into `p` before the address
+    /// is computed: by `p`'s allocation block, as `new bytes(len)` stores it, or earlier in the
+    /// address's own block, as a trusted `mstore(p, len)` that sets a buffer's length does. Inline
+    /// assembly spells such an address with plain additions, as a zero word stored after a fresh
+    /// result to pad it does.
+    ///
+    /// NOTE: Only the bound keeps the sum from wrapping around the address space, onto the length
+    /// word or below it: assembly may store any word as a length, and `new bytes(len)` bounds
+    /// `len` only by a panic this analysis does not follow. The store into `p` places `p` below
+    /// `2^64`, as no store reaches memory past that, so the sum stays below `2^256` and an access
+    /// at it stays clear of the length word, though it may leave the object.
+    fn payload_end(func: &Function, address: ValueId) -> Option<ValueId> {
+        let Value::Inst(user) = *func.value(address) else { return None };
+        let InstKind::Add(a, b) = func.inst(user).kind else { return None };
+        let add = |value| match *func.value(value) {
+            Value::Inst(inst) => match func.inst(inst).kind {
+                InstKind::Add(c, d) => Some((c, d)),
+                _ => None,
+            },
+            _ => None,
+        };
+        let object = |value| match *func.value(value) {
+            Value::Inst(inst) => match func.inst(inst).kind {
+                InstKind::PtrToInt(object, 256) => Some(object),
+                _ => None,
+            },
+            _ => None,
+        };
+        let word = |value| func.value_u64(value) == Some(EvmMemoryLayout::WORD_SIZE);
+        for (inner, outer) in [(a, b), (b, a)] {
+            let Some((c, d)) = add(inner) else { continue };
+            for (pointer, other) in [(c, d), (d, c)] {
+                let Some(object) = object(pointer) else { continue };
+                // (p + 32) + len, or (p + len) + 32
+                let len = match (word(other), word(outer)) {
+                    (true, _) => outer,
+                    (_, true) => other,
+                    _ => continue,
+                };
+                if super::integers::unsigned_bounds_with_opcodes(func, len).1 <= U256::MAX >> 1
+                    && Self::stores_length_before(func, object, len, user)
+                {
+                    return Some(object);
+                }
+            }
+        }
+        None
+    }
+
+    /// Whether `len` is stored into the length word of `object` before `user` runs: earlier in
+    /// `user`'s block, or after `object`'s allocation in another block, which control leaves
+    /// before any use of the allocation outside it.
+    fn stores_length_before(func: &Function, object: ValueId, len: ValueId, user: InstId) -> bool {
+        let stores = |inst| func.memory_length_store(inst) == Some((object, len));
+        let alloc = match *func.value(object) {
+            Value::Inst(inst) if matches!(func.inst(inst).kind, InstKind::Alloc { .. }) => {
+                Some(inst)
+            }
+            _ => None,
+        };
+        func.blocks.iter().any(|block| {
+            let insts = &block.instructions;
+            match insts.iter().position(|&inst| inst == user) {
+                Some(at) => insts[..at].iter().copied().any(stores),
+                None => alloc.is_some_and(|alloc| {
+                    insts
+                        .iter()
+                        .position(|&inst| inst == alloc)
+                        .is_some_and(|from| insts[from..].iter().copied().any(stores))
+                }),
+            }
+        })
+    }
+
+    /// Whether adding a canonical byte offset preserves the ordering of the actual base.
+    /// Canonical addresses describe modular equality, so a lower bound for the base alone
+    /// cannot rule out a sum wrapping into reserved memory.
+    pub(crate) fn constant_offset_no_wrap(func: &Function, base: ValueId, offset: u64) -> bool {
+        if offset == 0 {
+            return true;
+        }
+        let base = Self::memory_address_value(func, base);
+        if let Value::Inst(inst) = *func.value(base)
+            && let InstKind::Alloc { size, semantics } = func.inst(inst).kind
+        {
+            // Checked allocations cap their end at MAX_ALLOCATION_END, so their base plus a
+            // u64 offset cannot wrap. Other allocations prove only their own bump valid.
+            if semantics.failure == AllocationFailure::Checked
+                || func.value_u64(size).is_some_and(|size| offset <= size)
+            {
+                return true;
+            }
+        }
+        super::integers::unsigned_bounds(func, base).1.checked_add(U256::from(offset)).is_some()
+    }
+
+    /// Whether a constant word addition follows an access that bounds its base below `2^64`.
+    /// A successful nonempty memory access cannot reach a larger address, so adding a `u64`
+    /// constant to that same value cannot wrap a word. Only earlier accesses in the addition's
+    /// own block count; zero-length accesses and partial writes prove nothing. The search is
+    /// bounded to avoid rescanning a large function for every address query.
+    fn constant_add_after_access(func: &Function, value: ValueId) -> bool {
+        let Value::Inst(user) = *func.value(value) else { return false };
+        Self::constant_add_after_access_at(func, value, user)
+    }
+
+    /// Like [`Self::constant_add_after_access`], using accesses before `user` rather than before
+    /// the addition. The address may have been computed before the access bounds its base.
+    fn constant_add_after_access_at(func: &Function, value: ValueId, user: InstId) -> bool {
+        let Some(base) = Self::constant_add_base(func, value) else { return false };
+        let mut budget = 256usize;
+        for block in &func.blocks {
+            let searched = &block.instructions[..block.instructions.len().min(budget)];
+            if let Some(at) = searched.iter().position(|&inst| inst == user) {
+                return searched[..at].iter().any(|&inst| {
+                    let mut accessed = false;
+                    func.inst(inst).kind.visit_raw_memory(|access, address, size| {
+                        accessed |= access != RawMemoryAccess::PartialWrite
+                            && size.constant(func).is_some_and(|size| size != 0)
+                            && Self::memory_address_value(func, address) == base;
+                    });
+                    accessed
+                });
+            }
+            budget -= searched.len();
+            if budget == 0 {
+                return false;
+            }
+        }
+        false
+    }
+
+    /// Follows only casts that preserve every bit of a memory address.
+    pub(crate) fn memory_address_value(func: &Function, mut value: ValueId) -> ValueId {
+        for _ in 0..8 {
+            let Value::Inst(inst) = *func.value(value) else { break };
+            match func.inst(inst).kind {
+                InstKind::PtrToInt(pointer, 256) | InstKind::IntToPtr(pointer) => value = pointer,
+                _ => break,
+            }
+        }
+        value
+    }
+
+    /// The base of a word-sized addition or pointer offset by a nonnegative `u64` constant.
+    fn constant_add_base(func: &Function, value: ValueId) -> Option<ValueId> {
+        let Value::Inst(inst) = *func.value(value) else { return None };
+        let base = match func.inst(inst).kind {
+            InstKind::Add(first, second) if super::integers::integer_bits(func, value) == 256 => {
+                if func.value_u64(second).is_some() {
+                    first
+                } else if func.value_u64(first).is_some() {
+                    second
+                } else {
+                    return None;
+                }
+            }
+            InstKind::PtrAdd(base, offset) if func.value_u64(offset).is_some() => base,
+            _ => return None,
+        };
+        Some(Self::memory_address_value(func, base))
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -2290,4 +2884,258 @@ enum SizeOperand {
     Const(u64),
     Value(ValueId),
     Unknown,
+}
+
+/// Reusable address proofs for one immutable function snapshot.
+///
+/// Successful nonempty accesses and arithmetic bounds are independent of call-return facts,
+/// so liveness fixpoint rounds can reuse them while those facts grow. Replace this snapshot
+/// after any instruction or CFG change, including removal of an access used as a proof.
+/// Lower bounds themselves are not cached because their call-return facts can change.
+#[derive(Default)]
+pub(crate) struct ReadBounds {
+    accesses: OnceCell<MemoryAccessOrder>,
+    arithmetic: RefCell<IndexVec<ValueId, Option<bool>>>,
+    offsets: RefCell<FxHashMap<(ValueId, u64), bool>>,
+}
+
+impl ReadBounds {
+    /// The counterpart of [`AliasAnalysis::read_lower_bound`] with reusable safety proofs.
+    pub(crate) fn read_lower_bound(
+        &self,
+        func: &Function,
+        value: ValueId,
+        call: &dyn Fn(FunctionId) -> Option<u64>,
+        free_pointer: bool,
+    ) -> Option<u64> {
+        AliasAnalysis::constant_offset_lower_bound(
+            func,
+            value,
+            call,
+            free_pointer,
+            None,
+            0,
+            Some(self),
+        )
+    }
+
+    /// Like [`Self::read_lower_bound`], using successful memory accesses before `user` to prove
+    /// that constant additions cannot wrap. Only accesses in `user`'s own block count.
+    pub(crate) fn read_lower_bound_at(
+        &self,
+        func: &Function,
+        value: ValueId,
+        call: &dyn Fn(FunctionId) -> Option<u64>,
+        free_pointer: bool,
+        user: InstId,
+    ) -> Option<u64> {
+        AliasAnalysis::constant_offset_lower_bound(
+            func,
+            value,
+            call,
+            free_pointer,
+            Some(user),
+            0,
+            Some(self),
+        )
+    }
+
+    /// The counterpart of [`AliasAnalysis::constant_offset_no_wrap`] with cached offset proofs.
+    pub(crate) fn constant_offset_no_wrap(
+        &self,
+        func: &Function,
+        value: ValueId,
+        offset: u64,
+    ) -> bool {
+        if offset == 0 {
+            return true;
+        }
+        *self
+            .offsets
+            .borrow_mut()
+            .entry((value, offset))
+            .or_insert_with(|| AliasAnalysis::constant_offset_no_wrap(func, value, offset))
+    }
+
+    fn arithmetic_no_wrap(&self, func: &Function, value: ValueId) -> bool {
+        if let Some(&Some(proved)) = self.arithmetic.borrow().get(value) {
+            return proved;
+        }
+        let proved = super::integers::arithmetic_no_wrap(func, value);
+        let mut arithmetic = self.arithmetic.borrow_mut();
+        arithmetic.resize(func.num_values(), None);
+        arithmetic[value] = Some(proved);
+        proved
+    }
+
+    fn constant_add_after_access(&self, func: &Function, value: ValueId, user: InstId) -> bool {
+        let Some(base) = AliasAnalysis::constant_add_base(func, value) else { return false };
+        let accesses = self.accesses.get_or_init(|| MemoryAccessOrder::new(func));
+        let Some(&(block, index)) = accesses.positions[user].as_ref() else { return false };
+        accesses.first[block].get(&base).is_some_and(|&access| access < index)
+    }
+
+    /// Whether an instruction has raw writes and all avoid the FMP word. Evaluate bounds at
+    /// the write: its address may have been computed before an earlier access proved its base
+    /// nonwrapping. Reads and instructions with no raw write provide no such guarantee.
+    fn raw_writes_avoid_fmp(&self, func: &Function, inst: InstId) -> bool {
+        let mut raw_write = false;
+        let mut avoids_fmp = true;
+        func.inst(inst).kind.visit_raw_memory(|access, address, size| {
+            if access == RawMemoryAccess::Read {
+                return;
+            }
+            raw_write = true;
+            let size = size.constant(func);
+            if size == Some(0) {
+                return;
+            }
+            avoids_fmp &= match func.value_u64(address) {
+                Some(address) => !AliasAnalysis::const_range_may_overlap_fmp(address, size),
+                None => self
+                    .read_lower_bound_at(func, address, &|_| None, false, inst)
+                    .is_some_and(|bound| bound >= EvmMemoryLayout::HEAP_START),
+            };
+        });
+        raw_write && avoids_fmp
+    }
+
+    /// Drops every cached proof, keeping the allocations.
+    pub(crate) fn clear(&mut self) {
+        self.accesses.take();
+        self.arithmetic.get_mut().clear();
+        self.offsets.get_mut().clear();
+    }
+}
+
+/// The first successful access to each address in each block and placed instruction order.
+/// No fact crosses a block boundary, so an access in another branch cannot justify a proof.
+struct MemoryAccessOrder {
+    positions: IndexVec<InstId, Option<(BlockId, usize)>>,
+    first: IndexVec<BlockId, FxHashMap<ValueId, usize>>,
+}
+
+impl MemoryAccessOrder {
+    fn new(func: &Function) -> Self {
+        let mut positions = IndexVec::from_vec(vec![None; func.num_insts()]);
+        let mut first = IndexVec::new();
+        for (block, data) in func.blocks.iter_enumerated() {
+            let mut accesses = FxHashMap::default();
+            for (index, &inst) in data.instructions.iter().enumerate() {
+                positions[inst] = Some((block, index));
+                func.inst(inst).kind.visit_raw_memory(|access, address, size| {
+                    if access != RawMemoryAccess::PartialWrite
+                        && size.constant(func).is_some_and(|size| size != 0)
+                    {
+                        let address = AliasAnalysis::memory_address_value(func, address);
+                        accesses.entry(address).or_insert(index);
+                    }
+                });
+            }
+            first.push(accesses);
+        }
+        Self { positions, first }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::FunctionBuilder;
+    use solar_interface::Ident;
+
+    #[test]
+    fn access_proofs_are_not_limited_to_the_function_prefix() {
+        for separate_block in [false, true] {
+            let mut func = Function::new(Ident::DUMMY);
+            let sum = {
+                let mut builder = FunctionBuilder::new(&mut func);
+                let base = builder.add_param(MirType::I256);
+                let word = builder.imm(32);
+                // repeat 300: sload base
+                // mload base
+                // sum = add base, 32
+                for _ in 0..300 {
+                    builder.load(base, PtrLocation::Storage);
+                }
+                if separate_block {
+                    let next = builder.create_block();
+                    builder.jump(next);
+                    builder.switch_to_block(next);
+                }
+                builder.load(base, PtrLocation::Memory);
+                builder.add(base, word)
+            };
+            let Value::Inst(user) = *func.value(sum) else { unreachable!() };
+            let proofs = ReadBounds::default();
+            assert!(proofs.constant_add_after_access(&func, sum, user));
+            assert!(proofs.constant_add_after_access(&func, sum, user));
+        }
+    }
+
+    #[test]
+    fn access_proofs_require_an_earlier_access_in_the_same_block() {
+        let mut func = Function::new(Ident::DUMMY);
+        let (before, after, other) = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let base = builder.add_param(MirType::I256);
+            let word = builder.imm(32);
+            // before = add base, 32
+            // mload base
+            // after = add base, 32
+            let before = builder.add(base, word);
+            builder.load(base, PtrLocation::Memory);
+            let after = builder.add(base, word);
+            let next = builder.create_block();
+            builder.jump(next);
+            builder.switch_to_block(next);
+            // other = add base, 32
+            let other = builder.add(base, word);
+            (before, after, other)
+        };
+        let proofs = ReadBounds::default();
+        for (sum, expected) in [(before, false), (after, true), (other, false)] {
+            let Value::Inst(user) = *func.value(sum) else { unreachable!() };
+            assert_eq!(proofs.constant_add_after_access(&func, sum, user), expected);
+        }
+    }
+
+    #[test]
+    fn access_proofs_ignore_empty_and_partial_writes() {
+        let mut func = Function::new(Ident::DUMMY);
+        let (empty, partial, full) = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let base = builder.add_param(MirType::I256);
+            let word = builder.imm(32);
+            let zero = builder.imm(0);
+            // calldatacopy base, 0, 0
+            // empty = add base, 32
+            builder.copy(base, zero, zero, PtrLocation::Calldata);
+            let empty = builder.add(base, word);
+            // staticcall 0, 0, 0, 0, base, 32
+            // partial = add base, 32
+            builder.emit_inst(
+                InstKind::StaticCall {
+                    gas: zero,
+                    addr: zero,
+                    args_offset: zero,
+                    args_size: zero,
+                    ret_offset: base,
+                    ret_size: word,
+                },
+                Some(MirType::I1),
+            );
+            let partial = builder.add(base, word);
+            // calldatacopy base, 0, 32
+            // full = add base, 32
+            builder.copy(base, zero, word, PtrLocation::Calldata);
+            let full = builder.add(base, word);
+            (empty, partial, full)
+        };
+        let proofs = ReadBounds::default();
+        for (sum, expected) in [(empty, false), (partial, false), (full, true)] {
+            let Value::Inst(user) = *func.value(sum) else { unreachable!() };
+            assert_eq!(proofs.constant_add_after_access(&func, sum, user), expected);
+        }
+    }
 }

@@ -79,7 +79,8 @@
 //!
 //! A callee that also reads the slot as data is entered and clamped inside. A helper that stores
 //! a scratch word thus keeps it for a caller that hashes it, while a caller that allocates from it
-//! clamps it on its own path.
+//! clamps it on its own path. When the callee clamps or replaces the slot on every path that
+//! returns, the caller's walk ends at the call, since the reads after it find a raised word.
 //!
 //! The pass runs first, on semantic MIR, so the passes that forward the slot's stored value to
 //! its loads or delete its dead stores see the clamped value. Codegen is too late to clamp: load
@@ -104,8 +105,12 @@
 //! such as an encoding takes. Writes replace the word only when one block covers all of its bytes.
 //! A loaded word passed to a callee or returned to callers that read it as a pointer is clamped as
 //! a whole there, even if they also read it as data, and a word an external function returns as
-//! data is clamped as a whole in each internal caller that reads it as a pointer. See CODEGEN-010.
+//! data is clamped as a whole in each internal caller that reads it as a pointer. A helper that
+//! one entry calls with a clean slot and another with a dirty one keeps its clamp for both, so the
+//! clean calls pay for it; a copy of the helper for the dirty calls would remove that cost, but it
+//! adds code size that the target cost model does not price. See CODEGEN-010.
 
+use super::utils::{User, value_users};
 use crate::mir::{
     AbiType, ArgIdx, BlockId, Callee, CheckedOp, EffectKind, Function, FunctionId, Immediate,
     InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion, MirType, Module, PtrLocation,
@@ -185,7 +190,7 @@ fn floor_clamps(module: &Module) -> (FxIndexSet<Clamp>, Vec<(FunctionId, LoadCla
                     && is_slot(func, address)
                     && func.value_ty(value) == Some(MirType::I256)
                     && if module.has_unsafe_assembly() {
-                        uses.may_be_low(func_id, value)
+                        may_be_low(func, uses.heap_addresses(func_id), value, 0)
                     } else {
                         uses.address_inputs(func_id)[value] != AddressInput::Other
                     }
@@ -249,17 +254,23 @@ fn clamp_store(func: &mut Function, block: BlockId, inst: InstId) {
 fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
     let blocks = func.inst_block_table();
     let mut copies = FxHashMap::default();
+    let mut replacements = FxHashMap::default();
+    let mut clamps = Vec::new();
     for &(block, load) in &plan.loads {
         let word = func.inst_result_value(load).expect("a root produces a word");
         let metadata = func.inst(load).metadata.clone();
         let (clamp, clamped) = floor_max(func, word, &metadata);
-        if !plan.copied.contains(&word) {
-            // op(word) -> op(clamped)
-            //
-            // The clamp is not placed yet, so it keeps reading the loaded word.
-            func.replace_uses(&FxHashMap::from_iter([(word, clamped)]));
+        if !plan.copied.contains(word) {
+            replacements.insert(word, clamped);
         }
         copies.insert(word, clamped);
+        clamps.push((block, load, clamp));
+    }
+    // op(word) -> op(clamped)
+    //
+    // The clamps are not placed yet, so they keep reading the loaded words.
+    func.replace_uses(&replacements);
+    for (block, load, clamp) in clamps {
         // word = mload 64 | icall @f | extract_value result, i
         // floor = heap_floor
         // below = lt word, floor
@@ -273,7 +284,7 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
         let Value::Inst(original) = *func.value(value) else {
             unreachable!("a word computed from a load has an instruction")
         };
-        if !plan.copied.contains(&value) {
+        if !plan.copied.contains(value) {
             rewritten.push(original);
             continue;
         }
@@ -313,10 +324,7 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
         };
         match site {
             UseSite::Inst(inst) => {
-                let slot_store = matches!(
-                    func.inst(*inst).kind,
-                    InstKind::Store(address, _, PtrLocation::Memory) if is_slot(func, address)
-                );
+                let slot_store = func.is_fmp_slot_store(*inst);
                 let kind = &mut func.inst_mut(*inst).kind;
                 let mut raw = false;
                 kind.visit_raw_memory_operands_mut(|operand| {
@@ -432,13 +440,6 @@ fn returns_to_the_end(func: &Function) -> bool {
                 .is_none_or(|returns| !returns.types.iter().any(AbiType::is_dynamic))
 }
 
-/// Whether a return from `func`, which `sites` call, can reach code the module does not show: the
-/// dispatcher, which returns from an external function even when internal calls reach it too, or
-/// the caller of any other function no call reaches.
-fn returns_out_of_module(func: &Function, sites: &[CallSite]) -> bool {
-    func.is_external_entry() || sites.is_empty()
-}
-
 /// Whether a value of type `ty` refers to memory: a memory object or a memory slice.
 fn is_memory_reference(ty: Option<MirType>) -> bool {
     matches!(ty, Some(MirType::MEMPTR | MirType::Slice(PtrLocation::Memory)))
@@ -465,8 +466,8 @@ fn word_fields(
     let mut fields = SmallVec::new();
     let mut inserted = SmallVec::<[u32; 4]>::new();
     loop {
-        let Value::Inst(inst) = *func.value(value) else { return None };
-        let InstKind::InsertValue { aggregate, index, value: field, .. } = func.inst(inst).kind
+        let Some(&InstKind::InsertValue { aggregate, index, value: field, .. }) =
+            func.value_inst_kind(value)
         else {
             return None;
         };
@@ -524,20 +525,6 @@ fn lowered_reads_pointer(kind: &InstKind) -> bool {
         )
 }
 
-/// The instructions and terminators that read each value of a function.
-fn value_users(func: &Function) -> IndexLists<ValueId, User> {
-    let mut pairs = Vec::new();
-    for (block, data) in func.blocks.iter_enumerated() {
-        for &inst in &data.instructions {
-            func.inst(inst).visit_operands(|operand| pairs.push((operand, User::Inst(inst))));
-        }
-        if let Some(terminator) = &data.terminator {
-            terminator.visit_operands(|operand| pairs.push((operand, User::Terminator(block))));
-        }
-    }
-    IndexLists::new(func.num_values(), pairs.iter().copied())
-}
-
 /// Returns the results of `calls`, with their functions.
 fn call_results<'a>(
     module: &'a Module,
@@ -586,18 +573,25 @@ fn module_heap_addresses(
             returns.insert(func_id);
         }
     }
-    loop {
-        let heap = module
-            .functions
-            .iter_enumerated()
-            .map(|(func_id, func)| {
-                function_heap_addresses(func, &params[func_id], &returns, trust_types)
-            })
-            .collect::<IndexVec<FunctionId, _>>();
-        let mut changed = false;
-        for (func_id, func) in module.functions.iter_enumerated() {
+    let shapes = module
+        .functions
+        .iter()
+        .map(|func| HeapShape::new(func, trust_types))
+        .collect::<IndexVec<FunctionId, HeapShape<'_>>>();
+    // A function's words depend only on its parameters and the returns of its callees, so only the
+    // functions whose parameters or callee returns changed need another look.
+    let mut heap = index_vec![DenseBitSet::<ValueId>::new_empty(0); module.functions.len()];
+    let mut stale = DenseBitSet::<FunctionId>::new_filled(module.functions.len());
+    while !stale.is_empty() {
+        let fresh = stale.iter().collect::<Vec<_>>();
+        stale.clear();
+        for &func_id in &fresh {
+            heap[func_id] = shapes[func_id].heap_addresses(&params[func_id], &returns);
+        }
+        let mut returning = fresh.clone();
+        while let Some(func_id) = returning.pop() {
             if returns.contains(func_id)
-                && func.blocks.iter().any(|block| match &block.terminator {
+                && module.functions[func_id].blocks.iter().any(|block| match &block.terminator {
                     Some(Terminator::Return { values }) => {
                         values.first().is_none_or(|&value| !heap[func_id].contains(value))
                     }
@@ -607,83 +601,130 @@ fn module_heap_addresses(
                 })
             {
                 returns.remove(func_id);
-                changed = true;
-            }
-        }
-        let mut pass = |caller: FunctionId, callee: FunctionId, args: &[ValueId]| {
-            for (index, &arg) in args.iter().enumerate() {
-                if !heap[caller].contains(arg)
-                    && index < params[callee].domain_size()
-                    && params[callee].remove(ArgIdx::new(index))
-                {
-                    changed = true;
-                }
-            }
-        };
-        for (caller, func) in module.functions.iter_enumerated() {
-            for inst in func.instructions() {
-                if let InstKind::ICall { function: Callee::Function(callee), args } =
-                    &func.inst(inst).kind
-                {
-                    pass(caller, *callee, args);
-                }
-            }
-            for block in &func.blocks {
-                if let Some(Terminator::TailCall { function, args }) = &block.terminator {
-                    pass(caller, *function, args);
+                for site in &call_sites[func_id] {
+                    match *site {
+                        CallSite::Call(caller, ..) => {
+                            stale.insert(caller);
+                        }
+                        CallSite::Tail(caller) => returning.push(caller),
+                    }
                 }
             }
         }
-        if !changed {
-            return heap;
-        }
-    }
-}
-
-/// Returns the words `func` computes from heap pointers, with the parameters `params` marks as
-/// holding one and the results of calls to the functions `returns` holds: the free memory pointer,
-/// allocations, and memory objects, a word that adds a constant or another heap pointer to one, the
-/// address of such an object's data, a field, or an element at a constant index, and a choice
-/// between such words. Every candidate starts as a heap pointer, and one whose inputs are not drops
-/// out until none does.
-fn function_heap_addresses(
-    func: &Function,
-    params: &DenseBitSet<ArgIdx>,
-    returns: &DenseBitSet<FunctionId>,
-    trust_types: bool,
-) -> DenseBitSet<ValueId> {
-    let mut heap = DenseBitSet::new_empty(func.num_values());
-    for index in 0..func.num_values() {
-        let value = ValueId::new(index);
-        let candidate = match *func.value(value) {
-            Value::Arg(index) => params.contains(index),
-            Value::Inst(inst) => match func.inst(inst).kind {
-                InstKind::ICall { function: Callee::Function(callee), .. } => {
-                    returns.contains(callee)
-                        || trust_types && func.inst(inst).result_ty == Some(MirType::MEMPTR)
+        for caller in fresh {
+            for &(callee, args) in &shapes[caller].calls {
+                for (index, &arg) in args.iter().enumerate() {
+                    if !heap[caller].contains(arg)
+                        && index < params[callee].domain_size()
+                        && params[callee].remove(ArgIdx::new(index))
+                    {
+                        stale.insert(callee);
+                    }
                 }
-                _ => may_compute_heap_address(func, inst, trust_types),
-            },
-            _ => false,
-        };
-        if candidate {
-            heap.insert(value);
-        }
-    }
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for inst in func.instructions() {
-            if let Some(value) = func.inst_result_value(inst)
-                && heap.contains(value)
-                && !computes_heap_address(func, &func.inst(inst).kind, &heap)
-            {
-                heap.remove(value);
-                changed = true;
             }
         }
     }
     heap
+}
+
+/// What decides which words of a function are heap pointers, found once for the function: the
+/// parameters and returns of other functions settle the rest.
+struct HeapShape<'a> {
+    func: &'a Function,
+    /// The words that may be heap pointers whatever the parameters and returns are.
+    base: DenseBitSet<ValueId>,
+    /// The values of the parameters.
+    args: Vec<(ValueId, ArgIdx)>,
+    /// The results of internal calls, with their callees and whether their type alone makes them
+    /// heap pointers.
+    results: Vec<(ValueId, FunctionId, bool)>,
+    /// The candidates in `base` that drop out when their operands are not heap pointers.
+    derived: Vec<(InstId, ValueId)>,
+    /// The internal calls and tail calls the function makes, with their arguments.
+    calls: Vec<(FunctionId, &'a [ValueId])>,
+}
+
+impl<'a> HeapShape<'a> {
+    fn new(func: &'a Function, trust_types: bool) -> Self {
+        let mut base = DenseBitSet::new_empty(func.num_values());
+        let empty = base.clone();
+        let mut args = Vec::new();
+        for index in 0..func.num_values() {
+            let value = ValueId::new(index);
+            if let Value::Arg(arg) = *func.value(value) {
+                args.push((value, arg));
+            }
+        }
+        let mut results = Vec::new();
+        let mut derived = Vec::new();
+        let mut calls = Vec::new();
+        for block in &func.blocks {
+            for &inst in &block.instructions {
+                let instruction = func.inst(inst);
+                if let InstKind::ICall { function: Callee::Function(callee), args } =
+                    &instruction.kind
+                {
+                    calls.push((*callee, &args[..]));
+                }
+                let Some(value) = func.inst_result_value(inst) else { continue };
+                if let InstKind::ICall { function: Callee::Function(callee), .. } = instruction.kind
+                {
+                    let by_type = trust_types && instruction.result_ty == Some(MirType::MEMPTR);
+                    results.push((value, callee, by_type));
+                } else if may_compute_heap_address(func, inst, trust_types) {
+                    base.insert(value);
+                    // An instruction that refuses an empty set of heap pointers depends on its
+                    // operands.
+                    if !computes_heap_address(func, &instruction.kind, &empty) {
+                        derived.push((inst, value));
+                    }
+                }
+            }
+            if let Some(Terminator::TailCall { function, args }) = &block.terminator {
+                calls.push((*function, &args[..]));
+            }
+        }
+        Self { func, base, args, results, derived, calls }
+    }
+
+    /// Returns the words `func` computes from heap pointers, with the parameters `params` marks as
+    /// holding one and the results of calls to the functions `returns` holds: the free memory
+    /// pointer, allocations, and memory objects, a word that adds a constant or another heap
+    /// pointer to one, the address of such an object's data, a field, or an element at a constant
+    /// index, and a choice between such words. Every candidate starts as a heap pointer, and one
+    /// whose inputs are not drops out until none does.
+    fn heap_addresses(
+        &self,
+        params: &DenseBitSet<ArgIdx>,
+        returns: &DenseBitSet<FunctionId>,
+    ) -> DenseBitSet<ValueId> {
+        let mut heap = self.base.clone();
+        for &(value, arg) in &self.args {
+            if params.contains(arg) {
+                heap.insert(value);
+            }
+        }
+        for &(value, callee, by_type) in &self.results {
+            if by_type || returns.contains(callee) {
+                heap.insert(value);
+            }
+        }
+        // Only the derived words can drop out; the others are heap pointers whatever their
+        // operands.
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for &(inst, value) in &self.derived {
+                if heap.contains(value)
+                    && !computes_heap_address(self.func, &self.func.inst(inst).kind, &heap)
+                {
+                    heap.remove(value);
+                    changed = true;
+                }
+            }
+        }
+        heap
+    }
 }
 
 /// The words [`may_be_low`] looks at before it gives up and says the word may be low, so that
@@ -692,7 +733,8 @@ const MAY_BE_LOW_STEPS: u32 = 256;
 
 /// Whether the word `address` may lie below the heap: it does unless `heap` holds it, or
 /// [`pointer_bases`] moves it, with steps back of at most `max_step_back`, from bases that are all
-/// high, or it is a cast, select, or phi whose operands are all high.
+/// high, or it is a cast, select, or phi whose operands are all high. A pointer stored in the slot
+/// that steps back is low, as the allocation would start inside the frames.
 fn may_be_low(
     func: &Function,
     heap: &DenseBitSet<ValueId>,
@@ -715,7 +757,7 @@ fn walk_may_be_low(
     if heap.contains(address) {
         return false;
     }
-    let Value::Inst(inst) = *func.value(address) else { return true };
+    let Some(kind) = func.value_inst_kind(address) else { return true };
     if !visiting.insert(address) {
         return false;
     }
@@ -725,7 +767,7 @@ fn walk_may_be_low(
     };
     *steps = remaining;
     let mut low = |value| walk_may_be_low(func, heap, value, max_step_back, visiting, steps);
-    let result = match &func.inst(inst).kind {
+    let result = match kind {
         InstKind::Add(..) | InstKind::PtrAdd(..) | InstKind::Sub(..) => {
             let bases = pointer_bases(func, address, max_step_back);
             bases.is_empty() || bases.into_iter().all(low)
@@ -881,7 +923,7 @@ struct LoadClamps {
     words: Vec<ValueId>,
     /// The loaded and computed words whose unclamped value another use still reads, or that a
     /// checked operation computes, so that their pointer uses read a clamped copy.
-    copied: FxHashSet<ValueId>,
+    copied: DenseBitSet<ValueId>,
     /// The uses that read a loaded or computed word as the pointer.
     sites: Vec<(UseSite, ValueId)>,
 }
@@ -894,13 +936,6 @@ enum UseSite {
     Args(InstId, SmallVec<[usize; 2]>),
     /// The arguments at these positions of a tail call, or every operand of another terminator.
     Terminator(BlockId, Option<SmallVec<[usize; 2]>>),
-}
-
-/// A reader of a value: an instruction, or a block's terminator.
-#[derive(Clone, Copy)]
-enum User {
-    Inst(InstId),
-    Terminator(BlockId),
 }
 
 impl UseSite {
@@ -1062,14 +1097,19 @@ struct PointerUses<'a> {
     arg_values: FxHashMap<FunctionId, IndexVec<ArgIdx, Vec<ValueId>>>,
     /// The readers of each function's values, built on first use.
     users: FxHashMap<FunctionId, IndexLists<ValueId, User>>,
-    /// How each classified load of the slot uses its word.
-    load_reads: FxHashMap<(FunctionId, InstId), Reads>,
+    /// How each root word of `word_reads`, with the words computed from it, is used.
+    root_reads: FxHashMap<(FunctionId, ValueId), Reads>,
     /// The loads that read a word as the pointer where some read takes it as data, with their
     /// blocks, by function.
     load_roots: FxIndexMap<FunctionId, FxIndexSet<(BlockId, InstId)>>,
     /// The calls and extractions in callers that clamp a word planned functions return, with their
     /// functions and blocks.
     caller_roots: Vec<(FunctionId, BlockId, InstId)>,
+    /// The stretches the clamp placement has walked for any store, which add their clamps once.
+    walked: FxHashSet<Walk>,
+    /// Whether each function raises or replaces the slot's word on every path that returns, once
+    /// known.
+    raises_slot: FxHashMap<FunctionId, bool>,
 }
 
 impl<'a> PointerUses<'a> {
@@ -1084,9 +1124,11 @@ impl<'a> PointerUses<'a> {
             heap_addresses: None,
             arg_values: FxHashMap::default(),
             users: FxHashMap::default(),
-            load_reads: FxHashMap::default(),
+            root_reads: FxHashMap::default(),
             load_roots: FxIndexMap::default(),
             caller_roots: Vec::new(),
+            walked: FxHashSet::default(),
+            raises_slot: FxHashMap::default(),
         }
     }
 
@@ -1246,9 +1288,8 @@ impl<'a> PointerUses<'a> {
         clamps: &mut FxIndexSet<Clamp>,
     ) {
         let mut pending = vec![Walk { func: func_id, block, start, returns: Returns::ToCallers }];
-        let mut walked = FxHashSet::default();
         while let Some(walk) = pending.pop() {
-            if walked.insert(walk) {
+            if self.walked.insert(walk) {
                 self.clamp_in_block(walk, &mut pending, clamps);
             }
         }
@@ -1279,23 +1320,10 @@ impl<'a> PointerUses<'a> {
                     return;
                 }
                 Effect::Calls(callee) => {
-                    let flow = self.entry_flow(callee);
-                    if flow.reads.pointer {
-                        let data_after =
-                            flow.returned && self.data_after(func_id, block, index + 1, returns);
-                        if flow.reads.data || data_after {
-                            pending.push(Walk {
-                                func: callee,
-                                block: BlockId::ENTRY,
-                                start: 0,
-                                returns: Returns::ToCall { data_after },
-                            });
-                        } else {
-                            clamps.insert(Clamp::Slot(func_id, block, Some(inst_id)));
-                            return;
-                        }
-                    }
-                    if !flow.returned {
+                    let clamp = Clamp::Slot(func_id, block, Some(inst_id));
+                    let after =
+                        |this: &mut Self| this.data_after(func_id, block, index + 1, returns);
+                    if !self.clamp_call(callee, clamp, after, pending, clamps) {
                         return;
                     }
                 }
@@ -1313,22 +1341,9 @@ impl<'a> PointerUses<'a> {
                 self.clamp_after_return(func_id, block, returns, pending, clamps);
             }
             Some(&Terminator::TailCall { function, .. }) => {
-                let flow = self.entry_flow(function);
-                if flow.reads.pointer {
-                    let data_after = flow.returned && self.data_after_return(func_id, returns);
-                    if flow.reads.data || data_after {
-                        pending.push(Walk {
-                            func: function,
-                            block: BlockId::ENTRY,
-                            start: 0,
-                            returns: Returns::ToCall { data_after },
-                        });
-                    } else {
-                        clamps.insert(Clamp::Slot(func_id, block, None));
-                        return;
-                    }
-                }
-                if flow.returned {
+                let clamp = Clamp::Slot(func_id, block, None);
+                let after = |this: &mut Self| this.data_after_return(func_id, returns);
+                if self.clamp_call(function, clamp, after, pending, clamps) {
                     self.clamp_after_return(func_id, block, returns, pending, clamps);
                 }
             }
@@ -1338,6 +1353,41 @@ impl<'a> PointerUses<'a> {
             // Execution ends.
             Some(_) => {}
         }
+    }
+
+    /// Clamps the pointer reads of a call to `callee`: the call itself when the callee reads the
+    /// slot only as the pointer, the pointer reads inside it when it also reads the word as data
+    /// or `data_after` says the caller does after the call returns. Returns whether the caller's
+    /// walk goes on after the call.
+    fn clamp_call(
+        &mut self,
+        callee: FunctionId,
+        clamp: Clamp,
+        data_after: impl FnOnce(&mut Self) -> bool,
+        pending: &mut Vec<Walk>,
+        clamps: &mut FxIndexSet<Clamp>,
+    ) -> bool {
+        let flow = self.entry_flow(callee);
+        if flow.reads.pointer {
+            let data_after = flow.returned && data_after(self);
+            if flow.reads.data || data_after {
+                pending.push(Walk {
+                    func: callee,
+                    block: BlockId::ENTRY,
+                    start: 0,
+                    returns: Returns::ToCall { data_after },
+                });
+                // The callee raises the slot before it returns, so the reads after the call see
+                // a raised word.
+                if self.raises_slot(callee) {
+                    return false;
+                }
+            } else {
+                clamps.insert(clamp);
+                return false;
+            }
+        }
+        flow.returned
     }
 
     /// Goes on after a return from `func_id` at the end of `block`.
@@ -1364,6 +1414,79 @@ impl<'a> PointerUses<'a> {
             start: index + 1,
             returns: Returns::ToCallers,
         }));
+    }
+
+    /// Returns whether every path that returns from `func_id` has raised the slot's word to the
+    /// heap floor, or replaced it, on the way: where the placement walks into the function, it
+    /// clamps the first pointer read of each path, and a path that reads none ends the walk with
+    /// the word still in the slot.
+    ///
+    /// A call that reads the slot only as the pointer counts as a raise too, and so does a call to
+    /// a function that raises it. A cycle of calls counts as no raise.
+    fn raises_slot(&mut self, func_id: FunctionId) -> bool {
+        if let Some(&raises) = self.raises_slot.get(&func_id) {
+            return raises;
+        }
+        // A function in the middle of this search raises nothing yet, so a result that depends on
+        // a cycle may lose a raise, depending on the order of the search.
+        self.raises_slot.insert(func_id, false);
+        let raises = self.walk_raises_slot(func_id);
+        self.raises_slot.insert(func_id, raises);
+        raises
+    }
+
+    /// Walks the paths of `func_id` as [`Self::flow_from`] does, but ends a path where it raises
+    /// the slot, instead of following the word on to its later reads.
+    fn walk_raises_slot(&mut self, func_id: FunctionId) -> bool {
+        let module = self.module;
+        let func = &module.functions[func_id];
+        let mut visited = DenseBitSet::new_empty(func.blocks.len());
+        visited.insert(BlockId::ENTRY);
+        let mut pending = vec![BlockId::ENTRY];
+        while let Some(block) = pending.pop() {
+            let data = &func.blocks[block];
+            let mut written = 0;
+            let raised = data.instructions.iter().any(|&inst_id| {
+                match self.effect(func_id, inst_id, &mut written) {
+                    Effect::None
+                    | Effect::ReadsData
+                    | Effect::LoadsPointer
+                    | Effect::LoadsMixed => false,
+                    Effect::Replaces | Effect::ReadsDataAndReplaces | Effect::ReadsPointer => true,
+                    Effect::Calls(callee) => self.call_raises_slot(callee),
+                }
+            });
+            if raised {
+                continue;
+            }
+            match data.terminator.as_ref() {
+                Some(
+                    terminator @ (Terminator::Jump(_)
+                    | Terminator::Branch { .. }
+                    | Terminator::Switch { .. }),
+                ) => terminator.for_each_successor(|successor| {
+                    if visited.insert(successor) {
+                        pending.push(successor);
+                    }
+                }),
+                Some(Terminator::Return { .. }) => return false,
+                Some(&Terminator::TailCall { function, .. }) => {
+                    if !self.call_raises_slot(function) {
+                        return false;
+                    }
+                }
+                // A block without a terminator is clamped before its end, and execution ends at
+                // the others.
+                None | Some(_) => {}
+            }
+        }
+        true
+    }
+
+    /// Returns whether a call to `callee` raises the slot's word, or never returns with it.
+    fn call_raises_slot(&mut self, callee: FunctionId) -> bool {
+        let flow = self.entry_flow(callee);
+        !flow.returned || flow.reads.pointer && self.raises_slot(callee)
     }
 
     /// Returns whether the slot's bytes may be read as data from instruction `start` of `block`
@@ -1395,7 +1518,8 @@ impl<'a> PointerUses<'a> {
         let inst = func.inst(inst_id);
         match inst.kind {
             InstKind::Load(address, PtrLocation::Memory) if is_slot(func, address) => {
-                let reads = self.load_reads(func_id, inst_id);
+                let reads =
+                    self.word_reads(func.inst_result_value(inst_id).map(|word| (func_id, word)));
                 match (reads.pointer, reads.data) {
                     (true, true) => Effect::LoadsMixed,
                     (true, false) => Effect::LoadsPointer,
@@ -1411,7 +1535,7 @@ impl<'a> PointerUses<'a> {
             // The compiler's own pointer reads and allocations, and the builtins and semantic
             // operations whose lowering may allocate or encode at the pointer.
             InstKind::Fmp | InstKind::Alloc { .. } => Effect::ReadsPointer,
-            _ if inst.unlowered_reason(func).is_some() && lowered_reads_pointer(&inst.kind) => {
+            _ if lowered_reads_pointer(&inst.kind) && inst.unlowered_reason(func).is_some() => {
                 Effect::ReadsPointer
             }
             _ => {
@@ -1498,7 +1622,7 @@ impl<'a> PointerUses<'a> {
         if matches!(
             inst.metadata.memory_region(),
             Some(MemoryRegion::AbiReturn | MemoryRegion::Heap | MemoryRegion::InternalFrame)
-        ) || matches!(inst.kind, InstKind::Store(address, ..) if is_slot(func, address))
+        ) || func.is_fmp_slot_store(inst_id)
         {
             return false;
         }
@@ -1517,14 +1641,6 @@ impl<'a> PointerUses<'a> {
         writes
     }
 
-    /// Returns whether the word `value` of `func_id`, stored in the slot, may lie below the heap.
-    /// A pointer that steps back is low, as the allocation would start inside the frames.
-    fn may_be_low(&mut self, func_id: FunctionId, value: ValueId) -> bool {
-        let func = &self.module.functions[func_id];
-        let heap = self.heap_addresses(func_id);
-        may_be_low(func, heap, value, 0)
-    }
-
     /// Returns the words `func_id` computes from heap pointers.
     fn heap_addresses(&mut self, func_id: FunctionId) -> &DenseBitSet<ValueId> {
         let module = self.module;
@@ -1532,6 +1648,13 @@ impl<'a> PointerUses<'a> {
             self.heap_addresses = Some(module_heap_addresses(module, self.all_call_sites()));
         }
         &self.heap_addresses.as_ref().unwrap()[func_id]
+    }
+
+    /// Returns the readers of `value` in `func_id`.
+    fn users(&mut self, func_id: FunctionId, value: ValueId) -> Vec<User> {
+        let func = &self.module.functions[func_id];
+        let users = self.users.entry(func_id).or_insert_with(|| value_users(func));
+        users.get(value).to_vec()
     }
 
     /// Returns the values of parameter `index` of `func_id`.
@@ -1587,7 +1710,9 @@ impl<'a> PointerUses<'a> {
                 continue;
             }
             let sites = self.call_sites(callee);
-            if returns_out_of_module(&module.functions[callee], sites) {
+            // The dispatcher returns from an external function even when internal calls reach it
+            // too, and the caller of any other function no call reaches is outside the module.
+            if module.functions[callee].is_external_entry() || sites.is_empty() {
                 outside.push(callee);
             }
             for &site in sites {
@@ -1600,24 +1725,28 @@ impl<'a> PointerUses<'a> {
         ReturnSites { calls, outside }
     }
 
-    /// Returns how the word a load reads from the slot is used.
-    fn load_reads(&mut self, func_id: FunctionId, load: InstId) -> Reads {
-        if let Some(&reads) = self.load_reads.get(&(func_id, load)) {
-            return reads;
+    /// Returns how the words `roots` hold, and the words computed from them, are used.
+    fn word_reads(&mut self, roots: impl IntoIterator<Item = (FunctionId, ValueId)>) -> Reads {
+        let mut reads = Reads::default();
+        for root in roots {
+            if reads.pointer && reads.data {
+                break;
+            }
+            reads |= self.root_reads(root);
         }
-        let words = self.module.functions[func_id].inst_result_value(load).map(|w| (func_id, w));
-        let reads = self.word_reads(words.into_iter().collect());
-        self.load_reads.insert((func_id, load), reads);
         reads
     }
 
-    /// Returns how the words `pending` holds, and the words computed from them, are used: as a
-    /// pointer where they address or size memory or become the pointer again, and as data
-    /// elsewhere, in their functions, in the callees they are passed to, and in the callers they
-    /// are returned to.
-    fn word_reads(&mut self, mut pending: Vec<(FunctionId, ValueId)>) -> Reads {
+    /// Returns how the word `root`, and the words computed from it, are used: as a pointer where
+    /// they address or size memory or become the pointer again, and as data elsewhere, in their
+    /// functions, in the callees they are passed to, and in the callers they are returned to.
+    fn root_reads(&mut self, root: (FunctionId, ValueId)) -> Reads {
+        if let Some(&reads) = self.root_reads.get(&root) {
+            return reads;
+        }
         let module = self.module;
         let mut reads = Reads::default();
+        let mut pending = vec![root];
         let mut seen = FxHashSet::default();
         while let Some((func_id, word)) = pending.pop() {
             if reads.pointer && reads.data {
@@ -1627,9 +1756,7 @@ impl<'a> PointerUses<'a> {
                 continue;
             }
             let func = &module.functions[func_id];
-            let users =
-                self.users.entry(func_id).or_insert_with(|| value_users(func)).get(word).to_vec();
-            for user in users {
+            for user in self.users(func_id, word) {
                 match word_use(func, user, word) {
                     WordUse::Derives(result) => pending.extend(result.map(|v| (func_id, v))),
                     WordUse::Reads(use_reads) => reads |= use_reads,
@@ -1651,6 +1778,7 @@ impl<'a> PointerUses<'a> {
                 }
             }
         }
+        self.root_reads.insert(root, reads);
         reads
     }
 
@@ -1671,14 +1799,12 @@ impl<'a> PointerUses<'a> {
         let mut derived = roots.iter().copied().collect::<FxIndexSet<_>>();
         let mut sites = Vec::new();
         // Words whose unclamped value a use reads, and the derivations of each word.
-        let mut raw = FxHashSet::default();
+        let mut raw = DenseBitSet::new_empty(func.num_values());
         let mut derivations = Vec::new();
         let mut next = 0;
         while let Some(&value) = derived.get_index(next) {
             next += 1;
-            let users =
-                self.users.entry(func_id).or_insert_with(|| value_users(func)).get(value).to_vec();
-            for user in users {
+            for user in self.users(func_id, value) {
                 match word_use(func, user, value) {
                     WordUse::Derives(result) => {
                         if let Some(result) = result {
@@ -1706,7 +1832,7 @@ impl<'a> PointerUses<'a> {
                     WordUse::Returns => {
                         let scalar = is_scalar(module, func.value_ty(value));
                         let (calls, outside) = self.returned_calls(func_id, scalar);
-                        let callers = self.word_reads(call_results(module, &calls).collect());
+                        let callers = self.word_reads(call_results(module, &calls));
                         // An external return encodes the word as data, so it returns unclamped,
                         // and the callers that read it as the pointer clamp what their calls
                         // receive.
@@ -1738,8 +1864,8 @@ impl<'a> PointerUses<'a> {
             if !needed.insert(value) || roots.contains(&value) {
                 continue;
             }
-            if let Value::Inst(definition) = *func.value(value) {
-                func.inst(definition).visit_operands(|operand| {
+            if let Some(kind) = func.value_inst_kind(value) {
+                kind.visit_operands(|operand| {
                     if derived.contains(&operand) {
                         pending.push(operand);
                     }
@@ -1754,23 +1880,25 @@ impl<'a> PointerUses<'a> {
         }
         // A copied word keeps its original, which reads its operands unclamped, and so does a
         // checked operation, whose check stays on the unclamped words.
-        let mut copied = FxHashSet::default();
+        let mut copied = DenseBitSet::new_empty(func.num_values());
         let mut pending = derived
             .iter()
             .copied()
             .filter(|&value| {
                 needed.contains(value)
-                    && (raw.contains(&value)
-                        || matches!(*func.value(value), Value::Inst(inst)
-                            if matches!(func.inst(inst).kind, InstKind::CheckedBinary { .. })))
+                    && (raw.contains(value)
+                        || matches!(
+                            func.value_inst_kind(value),
+                            Some(InstKind::CheckedBinary { .. })
+                        ))
             })
             .collect::<Vec<_>>();
         while let Some(value) = pending.pop() {
             if !copied.insert(value) || roots.contains(&value) {
                 continue;
             }
-            if let Value::Inst(definition) = *func.value(value) {
-                func.inst(definition).visit_operands(|operand| {
+            if let Some(kind) = func.value_inst_kind(value) {
+                kind.visit_operands(|operand| {
                     if needed.contains(operand) {
                         pending.push(operand);
                     }
@@ -1810,24 +1938,19 @@ impl<'a> PointerUses<'a> {
             _ => return None,
         };
         let mut roots = Vec::new();
+        let mut tables = FxHashMap::default();
         for &(caller, block, call) in calls {
             let caller_func = &module.functions[caller];
             let Some(result) = caller_func.inst_result_value(call) else { continue };
-            if !self.word_reads(vec![(caller, result)]).pointer {
+            if !self.word_reads([(caller, result)]).pointer {
                 continue;
             }
             let Some(fields) = &fields else {
                 roots.push((caller, block, call));
                 continue;
             };
-            let blocks = caller_func.inst_block_table();
-            let users = self
-                .users
-                .entry(caller)
-                .or_insert_with(|| value_users(caller_func))
-                .get(result)
-                .to_vec();
-            for user in users {
+            let blocks = tables.entry(caller).or_insert_with(|| caller_func.inst_block_table());
+            for user in self.users(caller, result) {
                 let User::Inst(inst) = user else { return None };
                 let InstKind::ExtractValue { index, .. } = caller_func.inst(inst).kind else {
                     return None;
@@ -1854,8 +1977,8 @@ impl<'a> PointerUses<'a> {
         let mut positions = SmallVec::new();
         let mut data = false;
         for (index, _) in args.iter().enumerate().filter(|&(_, &arg)| arg == word) {
-            let params = self.arg_values(callee, index).into_iter().map(|v| (callee, v)).collect();
-            let reads = self.word_reads(params);
+            let params = self.arg_values(callee, index);
+            let reads = self.word_reads(params.into_iter().map(|v| (callee, v)));
             if reads.pointer {
                 positions.push(index);
             }

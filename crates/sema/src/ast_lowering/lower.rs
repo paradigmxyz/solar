@@ -1,4 +1,7 @@
-use crate::hir::{self, ContractId, SourceId};
+use crate::{
+    hir::{self, ContractId, SourceId},
+    natspec::report_misplaced_solar_tags,
+};
 use solar_ast as ast;
 use solar_ast::visit::Visit;
 use solar_data_structures::{BumpExt, Never, smallvec::SmallVec};
@@ -23,7 +26,9 @@ impl<'gcx> super::LoweringContext<'gcx> {
                     match &item.kind {
                         ast::ItemKind::Pragma(_)
                         | ast::ItemKind::Import(_)
-                        | ast::ItemKind::Using(_) => {}
+                        | ast::ItemKind::Using(_) => {
+                            report_misplaced_solar_tags(self.dcx(), &item.docs);
+                        }
                         ast::ItemKind::Contract(_)
                         | ast::ItemKind::Function(_)
                         | ast::ItemKind::Variable(_)
@@ -117,7 +122,10 @@ impl<'gcx> super::LoweringContext<'gcx> {
                 ast::ItemKind::Pragma(_)
                 | ast::ItemKind::Import(_)
                 | ast::ItemKind::Contract(_) => unreachable!("illegal item in contract body"),
-                ast::ItemKind::Using(_) => continue,
+                ast::ItemKind::Using(_) => {
+                    report_misplaced_solar_tags(self.dcx(), &item.docs);
+                    continue;
+                }
                 ast::ItemKind::Variable(_) => {
                     let hir::ItemId::Variable(id) = self.lower_item(item) else { unreachable!() };
                     items.push(hir::ItemId::Variable(id));

@@ -117,7 +117,7 @@ bb9:
   push 4
   push bb11
   jump bb74
-bb74:
+bb74 [ret=0, inputs=2, outputs=1]:
   swap 1
   calldataload
   push 4
@@ -148,7 +148,7 @@ bb74:
   and
   push bb77
   jump bb81
-bb81:
+bb81 [ret=0, inputs=2, outputs=1]:
   push 64
   mload
   swap 2
@@ -169,7 +169,7 @@ bb81:
 bb11 [continuation]:
   push bb12
   jump bb55
-bb55:
+bb55 [ret=0, inputs=2, outputs=1]:
   dup 2
   mload
   dup 1
@@ -259,7 +259,7 @@ bb20:
 bb22 [continuation]:
   push bb23
   jump bb67
-bb67 [loop]:
+bb67 [loop, ret=0, inputs=2, outputs=1]:
   swap 1
   push 32
   dup 2
@@ -331,7 +331,7 @@ bb32:
   push 4
   push bb34
   jump bb74
-bb34 [loop] [continuation]:
+bb34 [loop, continuation]:
   dup 1
   mload
   push 32
@@ -453,19 +453,19 @@ bb49 [loop]:
   push 32
   push 0
   return
-bb58 [loop] [continuation]:
+bb58 [loop, continuation]:
   swap 1
   calldatasize
   dup 3
   calldatacopy
-  dup 2
+  swap 1
   dup 2
   mstore
   push 32
   dup 2
   add
   push 0
-  dup 6
+  dup 5
   mload
   dup 2
   lt
@@ -473,13 +473,12 @@ bb58 [loop] [continuation]:
   jumpi
   pop
   pop
-  swap 3
-  pop
+  swap 2
   pop
   jump
 bb61 [loop]:
   dup 1
-  dup 7
+  dup 6
   add
   push 32
   add
@@ -494,38 +493,41 @@ bb61 [loop]:
   dup 3
   dup 1
   add
-  dup 7
+  dup 6
+  mload
   dup 2
   lt
   iszero
   push bb64
   jumpi
-  push 1
-  add
-  dup 7
-  gt
   swap 1
   dup 5
   mstore8
-  iszero
-  push bb64
-  jumpi
+  swap 1
   push 15
   and
   push 0x3031323334353637383961626364656600000000000000000000000000000000
-  push 1
-  dup 5
-  push 2
-  add
-  swap 5
-  add
-  swap 2
+  swap 1
   byte
   swap 1
+  push 1
+  add
+  dup 5
+  mload
+  gt
+  iszero
+  push bb64
+  jumpi
+  push 1
+  dup 4
+  push 2
+  add
+  swap 4
+  add
   mstore8
   push 1
   add
-  dup 6
+  dup 5
   mload
   dup 2
   lt
@@ -533,8 +535,7 @@ bb61 [loop]:
   jumpi
   pop
   pop
-  swap 3
-  pop
+  swap 2
   pop
   jump
 bb72 [loop]:
@@ -564,11 +565,23 @@ bb77 [continuation]:
   push 32
   dup 2
   add
-  swap 3
-  swap 2
-  swap 1
-  swap 3
+  dup 4
+  dup 4
+  dup 3
   calldatacopy
+  dup 4
+  add
+  calldatasize
+  swap 4
+  push 0
+  sub
+  push 31
+  and
+  swap 2
+  swap 4
+  swap 1
+  calldatacopy
+  pop
   swap 1
   jump
 bb51 [cold]:

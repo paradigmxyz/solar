@@ -209,6 +209,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let module_name = self.parser.parse_ident()?;
         let module_ident = Ident::with_dummy_span(module_name);
         let mut module = Module::new(module_ident);
+        module.optimization = self.parser.optimization();
         let mut function_refs = Vec::new();
         while self.parser.eat(TokenKind::At) {
             let attr = self.parser.parse_ident()?;
@@ -222,6 +223,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     })?;
                 }
                 kw::Library => module.is_library = true,
+                sym::optimize => module.optimization = self.parser.parse_optimize_objective()?,
                 sym::types => self.parse_type_declarations()?,
                 sym::libraries => self.parser.parse_library_declarations()?,
                 sym::data => {
@@ -678,6 +680,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 sym::function_pointer_dispatcher => {
                     builder.func_mut().attributes.is_function_pointer_dispatcher = true;
+                }
+                sym::always_inline => builder.func_mut().attributes.always_inline = true,
+                sym::inline_hint => builder.func_mut().attributes.inline_hint = true,
+                sym::optimize => {
+                    self.parser.expect(TokenKind::Eq)?;
+                    let objective = self.parser.parse_optimize_objective()?;
+                    builder.func_mut().attributes.optimization = Some(objective);
                 }
                 kw::Constructor => builder.func_mut().attributes.is_constructor = true,
                 kw::Receive => builder.func_mut().attributes.is_receive = true,

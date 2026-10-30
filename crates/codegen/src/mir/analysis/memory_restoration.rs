@@ -84,7 +84,7 @@ pub(super) fn restores_memory(func: &Function, aa: &AliasAnalysis) -> bool {
         let Some(location) = aa.bare_memory_location(func, address, LocationSize::Const(32)) else {
             return false;
         };
-        if locations.iter().any(|&other| aa.memory_alias(location, other).may_alias()) {
+        if locations.iter().any(|&other| aa.memory_alias(func, location, other).may_alias()) {
             return false;
         }
         let Some((saved, load)) = stores.iter().find_map(|&(_, _, store_address, value, width)| {

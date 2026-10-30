@@ -19,7 +19,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_ast::TypeSize;
-use solar_config::EvmVersion;
+use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
@@ -73,6 +73,9 @@ pub struct Module {
     debug_info_tracked: bool,
     /// Block contents in which an earlier peephole run found nothing to rewrite.
     pub peephole_clean: CleanBlocks,
+    /// The objective this module's code is optimized for: the build's, or the one the source
+    /// contract's `@custom:solar-optimize` tag selects.
+    pub optimization: OptimizationMode,
 }
 
 impl Module {
@@ -85,7 +88,7 @@ impl Module {
         for data in &mut self.data {
             let DataBytes::Deferred(code) = data.bytes else { continue };
             // d: creation_code|runtime_code C
-            // => d: hex"<code(C)>" library_relocations [..]
+            // => d: hex"<code(C)>" library_relocations [..] trailers [..]
             let bytecode = code.bytecode(bytecodes);
             assert!(
                 u32::try_from(bytecode.bytes.len()).is_ok(),
@@ -93,6 +96,7 @@ impl Module {
             );
             data.bytes = DataBytes::Known(bytecode.bytes.clone());
             data.library_relocations = bytecode.relocations_in(libraries);
+            data.trailers.clone_from(&bytecode.trailers);
             linked = true;
         }
         if linked {
@@ -133,6 +137,7 @@ impl Module {
             code_follows: false,
             debug_info_tracked: false,
             peephole_clean: CleanBlocks::default(),
+            optimization: OptimizationMode::default(),
         }
     }
 
@@ -144,6 +149,7 @@ impl Module {
         self.code_follows = false;
         self.debug_info_tracked = false;
         self.peephole_clean.clear();
+        self.optimization = OptimizationMode::default();
     }
 
     /// Enables source debug information auditing for optimization passes.
@@ -225,6 +231,9 @@ pub struct BlockMetadata {
     /// its own function: it belongs to creation code that a loop or recursion calls. Pricing
     /// treats such blocks as runtime code.
     pub repeats: bool,
+    /// The objective this block's code is optimized for when it differs from its module's: the
+    /// source function's `@custom:solar-optimize` tag.
+    pub optimization: Option<OptimizationMode>,
     /// This label's address is used only for control transfer, never as an observable word.
     /// Hidden return targets and branches separated from their pushed labels by sharing carry
     /// this property. References may be redirected to an
@@ -238,6 +247,72 @@ pub struct BlockMetadata {
     /// Only textual EVM IR declares it, so that a test can start a block with a deep stack; the
     /// entry block is otherwise entered at depth zero.
     pub entry_depth: Option<u16>,
+    /// How the code from this block's `JUMPDEST` returns to its caller, when it is the entry of a
+    /// function or of a shared body that returns through a dynamic `jump`.
+    ///
+    /// Direct jumps to the block are calls, and the return address is a block's address that the
+    /// caller pushed before them. See [`CallEffect`].
+    pub call_effect: Option<CallEffect>,
+}
+
+/// How code returns to its caller through a dynamic `jump`.
+///
+/// The code takes the word `ret` positions below the top of the stack on entry, counting the top
+/// as zero, as its return address, and the jump to that word leaves the stack with `inputs` words
+/// fewer and `outputs` words more than on entry. `inputs` counts the return address and any
+/// arguments, and the words the code leaves in their place are its results. This is a property
+/// of the code, not of its caller: whichever block's address a caller leaves in that slot is the
+/// block that runs next, at the entry depth less `inputs` plus `outputs`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CallEffect {
+    /// Position of the return address from the top of the stack on entry.
+    pub ret: u8,
+    /// The words consumed on entry and the words left on return.
+    pub effect: StackEffect,
+}
+
+impl CallEffect {
+    /// Returns the effect of the code that follows `instructions` and then an operation with the
+    /// effect `last`, which run first and leave the return address on the stack, or `None` when
+    /// they consume or copy it.
+    pub fn after(self, instructions: &[Instruction], last: StackEffect) -> Option<Self> {
+        let mut ret = usize::from(self.ret);
+        // The words the code pushes, less the words it consumes.
+        let mut growth = 0isize;
+        let swapped = |slot: usize, a: usize, b: usize| match slot {
+            slot if slot == a => b,
+            slot if slot == b => a,
+            slot => slot,
+        };
+        let apply = |effect: StackEffect, ret: &mut usize, growth: &mut isize| {
+            *ret = ret.checked_sub(usize::from(effect.inputs))? + usize::from(effect.outputs);
+            *growth += isize::from(effect.outputs) - isize::from(effect.inputs);
+            Some(())
+        };
+        for inst in instructions {
+            match inst.as_stack_op() {
+                Some(StackOp::Dup(n)) => {
+                    if ret + 1 == usize::from(n) {
+                        return None;
+                    }
+                    ret += 1;
+                    growth += 1;
+                }
+                Some(StackOp::Swap(n)) => ret = swapped(ret, 0, usize::from(n)),
+                Some(StackOp::Exchange(n, m)) => ret = swapped(ret, usize::from(n), usize::from(m)),
+                _ => apply(inst.stack_effect(), &mut ret, &mut growth)?,
+            }
+        }
+        apply(last, &mut ret, &mut growth)?;
+        // The code after entered `growth` words higher, so it returns that many words lower.
+        let StackEffect { inputs, outputs } = self.effect;
+        let (inputs, outputs) = if growth >= 0 {
+            (u8::try_from(isize::from(inputs) + growth).ok()?, outputs)
+        } else {
+            (inputs, u8::try_from(isize::from(outputs) - growth).ok()?)
+        };
+        Some(Self { ret: u8::try_from(ret).ok()?, effect: StackEffect::new(inputs, outputs) })
+    }
 }
 
 /// Block hotness metadata.

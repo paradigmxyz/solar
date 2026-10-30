@@ -2,7 +2,7 @@
 
 use super::{
     ArtifactKind, AssembledCode, CallGraphInfo, DenseBitSet, EmbeddedBytecodes, EvmArtifact,
-    EvmCodegen, EvmMemoryLayout, ImmutableEncoding, ImmutableId, ImmutableRef, Module,
+    EvmCodegen, EvmMemoryLayout, ImmutableEncoding, ImmutableId, ImmutableRef, IndexVec, Module,
     OptimizationMode, PendingRuntime, StackOp, U256, WORD_BYTES, immutable_push_type_size,
     immutable_staging_addr, immutable_staging_base, immutable_staging_end, ir, op,
 };
@@ -57,10 +57,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         for func in &mut module.functions {
             changed |= Self::split_phi_critical_edges(func);
         }
-        if !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if !matches!(self.optimization, OptimizationMode::None) {
             for func in &mut module.functions {
                 changed |= func.canonicalize_argument_uses() != 0;
-                if matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size) {
+                if matches!(self.optimization, OptimizationMode::Size) {
                     changed |= func.canonicalize_immediate_uses() != 0;
                 }
             }
@@ -80,7 +80,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.heap_prefix = Self::heap_prefix_offsets(module);
         // The switch planner prices tail calls to empty bodies as shared terminals.
         self.empty_stop_functions = Self::empty_stop_functions(module);
-        self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        self.cold_functions = if matches!(self.optimization, OptimizationMode::None) {
             DenseBitSet::new_empty(module.functions.len())
         } else {
             cold_functions(module)
@@ -149,6 +149,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             bytecode: runtime_bytecode,
             immutable_refs,
             library_relocations: runtime_library_relocations,
+            trailers: runtime_trailers,
             evm_ir: runtime_evm_ir,
             debug_info: runtime_debug_info,
         } = self.asm.assemble_linked(
@@ -163,6 +164,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             Symbol::intern(&format!("{}_{}", module.name.name, CodeKind::Runtime.keyword()));
         let runtime_data = ir::Data {
             library_relocations: runtime_library_relocations.clone(),
+            trailers: runtime_trailers.clone(),
             ..ir::Data::new(runtime_bytecode.clone(), Some(runtime_name))
         };
 
@@ -221,6 +223,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             runtime: runtime_bytecode.into(),
             deployment_library_relocations: deploy_code.library_relocations,
             runtime_library_relocations,
+            deployment_trailers: deploy_code.trailers,
+            runtime_trailers,
             immutable_references: immutable_refs,
             deployment_evm_ir: deploy_code.evm_ir,
             runtime_evm_ir,
@@ -268,8 +272,32 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_push(U256::from(copy_base));
         self.asm.emit_op(op::CODECOPY);
 
-        // Patch each `PUSH<N>` placeholder with its staged immutable value.
-        for r in immutable_refs {
+        // Normalize patch order independently of runtime block placement. Interleaving each
+        // immutable's references gives the outliner repeated patch sequences with the same
+        // staging addresses, without changing their instruction costs or stack requirements.
+        let mut occurrences =
+            IndexVec::<ImmutableId, usize>::from_vec(vec![0; module.immutable_count()]);
+        let mut patches = Vec::with_capacity(immutable_refs.len());
+        for &reference in immutable_refs {
+            let occurrence = &mut occurrences[reference.id];
+            patches.push((*occurrence, reference.id, reference));
+            *occurrence += 1;
+        }
+        patches.sort_unstable_by_key(|&(occurrence, id, _)| (occurrence, id));
+        let staging_end =
+            immutable_staging_end(self.immutable_staging_base, module.immutable_count());
+        // Logical placeholder bytes are disjoint, and narrow patches preserve neighboring
+        // bytes. Their full MLOAD/MSTORE windows also stay outside immutable staging.
+        //
+        // value = mload staging[r.id]
+        // patch runtime[r.code_offset + 1], encode_immutable(value)
+        for (_, _, r) in patches {
+            let start = copy_base + r.code_offset as u64 + 1;
+            let width = if r.type_size.bytes() == 1 { 1 } else { WORD_BYTES as u64 };
+            debug_assert!(
+                start + width <= self.immutable_staging_base || start >= staging_end,
+                "immutable patch overlaps its staging area"
+            );
             let encoding = module
                 .immutable_type(r.id)
                 .immutable_encoding()
@@ -277,12 +305,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             debug_assert_eq!(
                 immutable_push_type_size(
                     encoding,
-                    self.gcx.sess.opts.optimization,
+                    self.module_optimization,
                     self.gcx.sess.opts.evm_version.has_bitwise_shifting(),
                 ),
                 r.type_size
             );
-            self.emit_immutable_patch(copy_base, *r, encoding);
+            self.emit_immutable_patch(copy_base, r, encoding);
         }
 
         // Return the patched runtime code; the DUP'd length is still on the stack.
@@ -350,9 +378,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let encoding = self.immutable_encodings[id];
+        // The layout of an immutable is the contract's, whatever the objective of the function
+        // that reads it.
         let type_size = immutable_push_type_size(
             encoding,
-            self.gcx.sess.opts.optimization,
+            self.module_optimization,
             self.gcx.sess.opts.evm_version.has_bitwise_shifting(),
         );
         let byte_width = type_size.bytes();
@@ -395,6 +425,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         immutable_refs: &[ImmutableRef],
     ) {
         self.asm.clear();
+        self.asm.set_optimization(module.optimization);
         self.asm.set_artifact_kind(ArtifactKind::Constructor);
         self.asm.set_evm_ir_name(module.name.name);
         self.asm.load_data(module);

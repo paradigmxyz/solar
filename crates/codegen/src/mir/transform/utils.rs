@@ -1,7 +1,9 @@
 //! Shared utilities for MIR transforms.
 
 use crate::mir::{
-    BlockId, Function, FunctionBuilder, InstId, InstKind, Terminator, memory::EvmMemoryLayout,
+    BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Module, Terminator, ValueId,
+    memory::EvmMemoryLayout,
+    utils::{IndexLists, replace_terminator},
 };
 use solar_sema::hir::StateMutability;
 
@@ -65,9 +67,7 @@ impl Default for DispatchCallvalue {
 
 impl DispatchCallvalue {
     pub(super) fn observe(&mut self, func: &Function) {
-        let external =
-            func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback;
-        if !external || func.attributes.is_constructor {
+        if !func.is_runtime_entry() {
             return;
         }
         self.any = true;
@@ -85,14 +85,8 @@ pub(super) fn rebase_frame_offsets(func: &Function, slots: usize) -> Option<Vec<
     if old_slots == slots {
         return Some(Vec::new());
     }
-    let base = |slots| {
-        u64::try_from(slots)
-            .ok()?
-            .checked_mul(EvmMemoryLayout::WORD_SIZE)?
-            .checked_add(EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE)
-    };
-    let old_base = base(old_slots)?;
-    let new_base = base(slots)?;
+    let old_base = frame_prefix(old_slots)?;
+    let new_base = frame_prefix(slots)?;
     let mut offsets = Vec::new();
     for inst in func.instructions() {
         if let InstKind::InternalFrameAddr(offset) = func.inst(inst).kind {
@@ -130,4 +124,62 @@ pub(super) fn expand_block(
     if end != block {
         redirect_successor_predecessors(builder.func_mut(), block, end);
     }
+}
+
+/// Retargets every edge from `pred` to `old` so it enters `new`, keeping predecessor lists in sync.
+///
+/// Returns whether `pred` had an edge to `old`. The caller supplies `new`'s phi inputs for `pred`.
+pub(super) fn redirect_edge(
+    func: &mut Function,
+    pred: BlockId,
+    old: BlockId,
+    new: BlockId,
+) -> bool {
+    let Some(mut terminator) = func.blocks[pred].terminator.clone() else { return false };
+    if !terminator.has_successor(old) {
+        return false;
+    }
+    // pred: jump/branch/switch old -> new
+    terminator.for_each_successor_mut(|target| {
+        if *target == old {
+            *target = new;
+        }
+    });
+    replace_terminator(func, pred, terminator);
+    true
+}
+
+/// Returns whether `func` has a private MIR signature that direct callers may rewrite.
+pub(super) fn is_internal_body(module: &Module, id: FunctionId, func: &Function) -> bool {
+    !func.is_external_entry() && !func.is_public() && module.dispatch_entry() != Some(id)
+}
+
+/// Returns the offset of the locals region of an internal frame whose signature has `slots`
+/// parameter and result words: the frame header plus one word per slot.
+pub(super) fn frame_prefix(slots: usize) -> Option<u64> {
+    u64::try_from(slots)
+        .ok()?
+        .checked_mul(EvmMemoryLayout::WORD_SIZE)?
+        .checked_add(EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE)
+}
+
+/// A reader of a value: an instruction, or a block's terminator.
+#[derive(Clone, Copy)]
+pub(super) enum User {
+    Inst(InstId),
+    Terminator(BlockId),
+}
+
+/// The instructions and terminators that read each value of a function.
+pub(super) fn value_users(func: &Function) -> IndexLists<ValueId, User> {
+    let mut pairs = Vec::new();
+    for (block, data) in func.blocks.iter_enumerated() {
+        for &inst in &data.instructions {
+            func.inst(inst).visit_operands(|operand| pairs.push((operand, User::Inst(inst))));
+        }
+        if let Some(terminator) = &data.terminator {
+            terminator.visit_operands(|operand| pairs.push((operand, User::Terminator(block))));
+        }
+    }
+    IndexLists::new(func.num_values(), pairs.iter().copied())
 }

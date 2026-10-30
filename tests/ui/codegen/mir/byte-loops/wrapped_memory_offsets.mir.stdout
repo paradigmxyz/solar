@@ -1,0 +1,396 @@
+// === ROOT/tests/ui/codegen/mir/byte-loops/wrapped_memory_offsets.sol:Test ===
+@module Test
+fn @bytesForward(arg0: i256) -> ptr<memory> [selector=0x79571ebe, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 3
+    v1 = ptradd v0, 32
+    mstore v1, 0x1122330000000000000000000000000000000000000000000000000000000000
+    v2 = not 31
+    v3 = and 63, v2
+    v4 = alloc zeroed checked v3
+    mstore v4, 0
+    v5 = not 0
+    v6 = ptrtoint ptr<memory> v4 to i256
+    mstore v4, v5
+    v7 = ptrtoint ptr<memory> v4 to i256
+    v8 = ptrtoint ptr<memory> v0 to i256
+    v9 = sub v8, v7
+    icall @_copyBytes, v4, v0, v9, 1, arg0
+    ret v0
+}
+
+fn @bytesBackward(arg0: i256) -> ptr<memory> [selector=0x3704b700, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 3
+    v1 = ptradd v0, 32
+    mstore v1, 0x1122330000000000000000000000000000000000000000000000000000000000
+    v2 = not 31
+    v3 = and 63, v2
+    v4 = alloc zeroed checked v3
+    mstore v4, 0
+    v5 = not 0
+    v6 = ptrtoint ptr<memory> v4 to i256
+    mstore v4, v5
+    v7 = ptrtoint ptr<memory> v4 to i256
+    v8 = ptrtoint ptr<memory> v0 to i256
+    v9 = add v8, 1
+    v10 = sub v9, v7
+    icall @_copyBytesDown, v4, v0, v10, 0, arg0
+    ret v0
+}
+
+fn @wordsForward(arg0: i256) -> ptr<memory> [selector=0xb2066b6b, pure, abi_params=[uint256], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
+  bb0:
+    v0 = alloc zeroed checked 128
+    mstore v0, 3
+    v1 = mload v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 32
+    mstore v4, 11
+    v5 = mload v0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v0, 64
+    mstore v8, 22
+    v9 = mload v0
+    v10 = lt 2, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = ptradd v0, 96
+    mstore v12, 33
+    v13 = alloc zeroed checked 32
+    mstore v13, 0
+    v14 = not 0
+    v15 = ptrtoint ptr<memory> v13 to i256
+    mstore v13, v14
+    v16 = ptrtoint ptr<memory> v13 to i256
+    v17 = ptrtoint ptr<memory> v0 to i256
+    v18 = sub v17, v16
+    v19 = shr v18, 5
+    icall @_copyWords, v13, v0, v19, 1, arg0
+    ret v0
+}
+
+fn @bytesIntoHeader(arg0: i256, arg1: i1) -> i1 [selector=0x10ca09ba, pure, abi_params=[uint256, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 2
+    v1 = ptradd v0, 32
+    mstore v1, 0x102000000000000000000000000000000000000000000000000000000000000
+    v2 = not 31
+    v3 = and 65, v2
+    v4 = alloc zeroed checked v3
+    mstore v4, 2
+    jumpi arg1, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v5 = phi [bb1: v0], [bb2: v4]
+    v6 = not 0
+    v7 = ptrtoint ptr<memory> v5 to i256
+    mstore v5, v6
+    jumpi arg1, bb4, bb5
+  bb5:
+    icall @_copyBytes, v0, v5, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0, arg0
+    jump bb6
+  bb4:
+    icall @_copyBytesSelf, v5, arg0
+    jump bb6
+  bb6:
+    ret true
+}
+
+fn @freshWrapped(arg0: i256) -> ptr<memory> [selector=0x42a6a755, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = add v0, 256
+    v2 = not 0
+    mstore v1, v2
+    v3 = not 0
+    v4 = add v0, 32
+    mstore v4, v3
+    v5 = sub v0, v1
+    v6 = inttoptr i256 v1 to ptr<memory>
+    v7 = icall @_freshBytes, v6, v5, arg0
+    ret v7
+}
+
+fn @calldataIntoHeader(arg0: slice<calldata>, arg1: ptr<memory>, arg2: i256) -> i1 [selector=0x428158c8, pure, abi_params=[bytes, bytes, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = ptrtoint ptr<memory> arg1 to i256
+    v1 = add v0, 32
+    jump bb1
+  bb1:
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = phi [bb0: v1], [bb3: v3]
+    v4 = phi [bb0: arg2], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v5]
+    v6 = phi [bb0: 0], [bb3: v26]
+    v7 = lt v6, v4
+    jumpi v7, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret true
+  bb4:
+    v8 = extract_value slice<calldata>, v2, 1
+    v9 = lt v6, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = extract_value slice<calldata>, v2, 0
+    v12 = extract_value slice<calldata>, v2, 0
+    v13 = ptrtoint ptr<calldata> v12 to i256
+    v14 = add v13, v6
+    v15 = calldataload v14
+    v16 = byte 0, v15
+    v17 = shl v16, 248
+    v18 = checked_add uint256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0, v6
+    v19 = mload v3
+    v20 = lt v18, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = byte 0, v17
+    v23 = inttoptr i256 v3 to ptr<memory>
+    v24 = ptradd v23, v18
+    v25 = ptradd v24, 32
+    mstore8 v25, v22
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v26 = checked_add uint256, v6, 1
+    jump bb1
+}
+
+fn @_copyBytes(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256, arg3: i256, arg4: i256) [pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: arg2], [bb3: v2]
+    v3 = phi [bb0: arg3], [bb3: v3]
+    v4 = phi [bb0: arg4], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v23]
+    v6 = lt v5, v4
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret
+  bb4:
+    v7 = checked_add uint256, v2, v5
+    v8 = mload v0
+    v9 = lt v7, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = ptradd v0, v7
+    v12 = ptradd v11, 32
+    v13 = mload v12
+    v14 = byte 0, v13
+    v15 = shl v14, 248
+    v16 = checked_add uint256, v3, v5
+    v17 = mload v1
+    v18 = lt v16, v17
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = byte 0, v15
+    v21 = ptradd v1, v16
+    v22 = ptradd v21, 32
+    mstore8 v22, v20
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v23 = checked_add uint256, v5, 1
+    jump bb1
+}
+
+fn @_copyBytesDown(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256, arg3: i256, arg4: i256) [pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: arg2], [bb3: v2]
+    v3 = phi [bb0: arg3], [bb3: v3]
+    v4 = phi [bb0: arg4], [bb3: v4]
+    v5 = phi [bb0: arg4], [bb3: v25]
+    v6 = gt v5, 0
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret
+  bb4:
+    v7 = checked_add uint256, v2, v5
+    v8 = checked_sub uint256, v7, 1
+    v9 = mload v0
+    v10 = lt v8, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = ptradd v0, v8
+    v13 = ptradd v12, 32
+    v14 = mload v13
+    v15 = byte 0, v14
+    v16 = shl v15, 248
+    v17 = checked_add uint256, v3, v5
+    v18 = checked_sub uint256, v17, 1
+    v19 = mload v1
+    v20 = lt v18, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = byte 0, v16
+    v23 = ptradd v1, v18
+    v24 = ptradd v23, 32
+    mstore8 v24, v22
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v25 = checked_sub uint256, v5, 1
+    jump bb1
+}
+
+fn @_copyWords(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256, arg3: i256, arg4: i256) [pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: arg2], [bb3: v2]
+    v3 = phi [bb0: arg3], [bb3: v3]
+    v4 = phi [bb0: arg4], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v22]
+    v6 = lt v5, v4
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret
+  bb4:
+    v7 = checked_add uint256, v2, v5
+    v8 = mload v0
+    v9 = lt v7, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = shl v7, 5
+    v12 = ptradd v0, v11
+    v13 = ptradd v12, 32
+    v14 = mload v13
+    v15 = checked_add uint256, v3, v5
+    v16 = mload v1
+    v17 = lt v15, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = shl v15, 5
+    v20 = ptradd v1, v19
+    v21 = ptradd v20, 32
+    mstore v21, v14
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v22 = checked_add uint256, v5, 1
+    jump bb1
+}
+
+fn @_freshBytes(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [pure] {
+  bb0:
+    v0 = add arg2, 63
+    v1 = lt v0, arg2
+    icall panic_if<0x41>, v1
+    v2 = not 31
+    v3 = and v0, v2
+    v4 = alloc zeroed checked v3
+    mstore v4, arg2
+    jump bb1
+  bb1:
+    v5 = phi [bb0: arg0], [bb3: v5]
+    v6 = phi [bb0: arg1], [bb3: v6]
+    v7 = phi [bb0: arg2], [bb3: v7]
+    v8 = phi [bb0: v4], [bb3: v8]
+    v9 = phi [bb0: 0], [bb3: v26]
+    v10 = lt v9, v7
+    jumpi v10, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v27 = ptrtoint ptr<memory> v8 to i256
+    v28 = add v27, 32
+    v29 = add v28, v7
+    mstore v29, 0
+    ret v8
+  bb4:
+    v11 = checked_add uint256, v6, v9
+    v12 = mload v5
+    v13 = lt v11, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = ptradd v5, v11
+    v16 = ptradd v15, 32
+    v17 = mload v16
+    v18 = byte 0, v17
+    v19 = shl v18, 248
+    v20 = mload v8
+    v21 = lt v9, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = byte 0, v19
+    v24 = ptradd v8, v9
+    v25 = ptradd v24, 32
+    mstore8 v25, v23
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v26 = checked_add uint256, v9, 1
+    jump bb1
+}
+
+fn @_copyBytesSelf(arg0: ptr<memory>, arg1: i256) [pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v19]
+    v3 = lt v2, v1
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret
+  bb4:
+    v4 = mload v0
+    v5 = lt v2, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = ptradd v0, v2
+    v8 = ptradd v7, 32
+    v9 = mload v8
+    v10 = byte 0, v9
+    v11 = shl v10, 248
+    v12 = checked_add uint256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0, v2
+    v13 = mload v0
+    v14 = lt v12, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = byte 0, v11
+    v17 = ptradd v0, v12
+    v18 = ptradd v17, 32
+    mstore8 v18, v16
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v19 = checked_add uint256, v2, 1
+    jump bb1
+}

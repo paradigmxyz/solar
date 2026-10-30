@@ -27,7 +27,6 @@ use crate::mir::{
     transform::utils::expand_block,
 };
 use alloy_primitives::U256;
-use solar_config::{OptimizationMode, RevertStrings};
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 use std::sync::Arc;
@@ -71,14 +70,8 @@ impl MirPass for LowerChecks {
         // Long strings intern their data in the module while a function is rewritten.
         let mut functions = std::mem::take(&mut module.functions);
         for function in &mut functions {
-            changed |= lower_function(
-                gcx,
-                module,
-                function,
-                helper,
-                gcx.sess.opts.revert_strings,
-                !matches!(gcx.sess.opts.optimization, OptimizationMode::None),
-            );
+            let optimized = !module.objective_of(function).is_none();
+            changed |= lower_function(gcx, module, function, helper, optimized);
         }
         module.functions = functions;
         changed
@@ -90,14 +83,13 @@ fn lower_function(
     module: &mut Module,
     func: &mut Function,
     helper: Option<FunctionId>,
-    revert_strings: RevertStrings,
     optimize: bool,
 ) -> bool {
     if !func.instructions().any(|id| is_check(&func.inst(id).kind)) {
         return false;
     }
     let blocks = func.blocks.indices();
-    let mut builder = FunctionBuilder::new(func).with_revert_strings(revert_strings);
+    let mut builder = FunctionBuilder::new(func).with_revert_strings(gcx.sess.opts.revert_strings);
     for block in blocks {
         if !builder.func().blocks[block]
             .instructions

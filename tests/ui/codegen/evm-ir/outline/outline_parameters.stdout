@@ -223,7 +223,7 @@
 +   push bb16
 +   swap 1
 +   jump bb12
-+ bb12:
++ bb12 [ret=1, inputs=2, outputs=15]:
     not
     not
     not
@@ -305,7 +305,7 @@
 +   stop
 + bb16 [continuation]:
 +   stop
-+ bb17:
++ bb17 [ret=2, inputs=3, outputs=0]:
     not
     not
     not
@@ -326,7 +326,7 @@
     not
 +   pop
 +   jump
-+ bb18:
++ bb18 [ret=2, inputs=3, outputs=2]:
     not
 -   dup 1
 -   dup 1

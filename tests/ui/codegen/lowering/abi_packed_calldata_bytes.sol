@@ -14,14 +14,14 @@ contract P {
     // CHECK: push 0xf1245422
     // CHECK: eq
     // CHECK-NEXT: push [[H2_BODY:bb[0-9]+]]
-    // CHECK: [[H_BODY]]:
+    // CHECK: [[H_BODY]]{{( \[.*\])?}}:
     // CHECK: push {{bb[0-9]+}}
     // CHECK: jump [[DECODE:bb[0-9]+]]
-    // CHECK: [[DECODE]]:
+    // CHECK: [[DECODE]]{{( \[.*\])?}}:
     // CHECK: calldatacopy
     // CHECK: keccak256
     // CHECK: return
-    // CHECK: [[H2_BODY]]:
+    // CHECK: [[H2_BODY]]{{( \[.*\])?}}:
     // CHECK: push {{bb[0-9]+}}
     // CHECK: jump [[DECODE]]
     // CHECK: calldatacopy

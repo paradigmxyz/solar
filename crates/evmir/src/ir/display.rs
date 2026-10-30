@@ -26,27 +26,37 @@ impl Module {
 
 fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| {
-        let attributes = match (block.metadata.hotness.is_cold(), block.metadata.in_loop) {
-            (false, false) => "",
-            (true, false) => " [cold]",
-            (false, true) => " [loop]",
-            (true, true) => " [cold, loop]",
-        };
-        write!(f, "bb{}{}", block.label, attributes)?;
-        if block.metadata.is_continuation {
-            f.write_str(" [continuation]")?;
+        let metadata = &block.metadata;
+        let mut attributes = Vec::new();
+        if metadata.hotness.is_cold() {
+            attributes.push("cold".to_string());
         }
-        if let Some(function) = block.metadata.function_invoke {
-            write!(
-                f,
-                " [invoke={}@{}..{}]",
+        if metadata.in_loop {
+            attributes.push("loop".to_string());
+        }
+        if metadata.is_continuation {
+            attributes.push("continuation".to_string());
+        }
+        if let Some(function) = metadata.function_invoke {
+            attributes.push(format!(
+                "invoke={}@{}..{}",
                 function.identifier,
                 function.declaration.lo().0,
                 function.declaration.hi().0
-            )?;
+            ));
         }
-        if let Some(depth) = block.metadata.entry_depth {
-            write!(f, " [stack={depth}]")?;
+        if let Some(effect) = metadata.call_effect {
+            attributes.push(format!(
+                "ret={}, inputs={}, outputs={}",
+                effect.ret, effect.effect.inputs, effect.effect.outputs
+            ));
+        }
+        if let Some(depth) = metadata.entry_depth {
+            attributes.push(format!("stack={depth}"));
+        }
+        write!(f, "bb{}", block.label)?;
+        if !attributes.is_empty() {
+            write!(f, " [{}]", attributes.iter().format(", "))?;
         }
         writeln!(f, ":")?;
         for inst in &block.instructions {
