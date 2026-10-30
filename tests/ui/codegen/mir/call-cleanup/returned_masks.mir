@@ -1,0 +1,41 @@
+//@ compile-flags: -Zmir-pipeline=call-cleanup
+//@ filecheck:
+@module ReturnedMasks
+
+// A callee that returns masked words makes the caller's mask of the result redundant.
+// CHECK-LABEL: fn @clean_result
+// CHECK-NOT: {{^[ +].*}}= and v0
+// CHECK: ret v0
+fn @clean_result(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @masked, arg0
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v1
+}
+
+// A callee with one wider return keeps the caller's mask.
+// CHECK-LABEL: fn @dirty_result
+// CHECK: = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+fn @dirty_result(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @sometimes_dirty, arg0
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v1
+}
+
+fn @masked(arg0: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v0
+}
+
+fn @sometimes_dirty(arg0: i256) -> i256 {
+  bb0:
+    v1 = ne arg0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v0
+  bb2:
+    ret arg0
+}
