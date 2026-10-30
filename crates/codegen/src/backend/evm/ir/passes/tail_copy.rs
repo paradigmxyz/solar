@@ -217,8 +217,10 @@ impl EvmPass for CopyJoins {
             {
                 continue;
             }
-            let Some(copy) = copy_cost(target, tail, false) else { continue };
-            if target.lifetime_gas(Cost::new(0, added + copy.bytes)) >= target.lifetime_gas(saved) {
+            let repaid = |copy: Cost| {
+                target.lifetime_gas(Cost::new(0, added + copy.bytes)) < target.lifetime_gas(saved)
+            };
+            if copy_cost(target, tail, false, repaid).is_none() {
                 continue;
             }
             references[callee] -= 1;
@@ -267,8 +269,8 @@ impl EvmPass for InlineReturns {
             else {
                 continue;
             };
-            let Some(copy) = copy_cost(target, tail, false) else { continue };
-            if copy.bytes + target.opcode(opcode).bytes > budget {
+            let ending = target.opcode(opcode).bytes;
+            if copy_cost(target, tail, false, |copy| copy.bytes + ending <= budget).is_none() {
                 continue;
             }
             let tail = tail_body(module, callee);
@@ -311,16 +313,26 @@ fn append_tail(
     block.terminator = terminator;
 }
 
-/// The cost of copying the instructions of `block`, or `None` when one of them cannot be copied.
-/// A `loop_block` copy also takes labels, data offsets and sizes, and conditional jumps.
-fn copy_cost(target: Target, block: &Block, loop_block: bool) -> Option<Cost> {
+/// The cost of copying the instructions of `block`, or `None` when one of them cannot be copied
+/// or `fits` rejects the running cost. Costs only grow, so a `fits` that stays false once false
+/// is checked before each instruction and a tail that cannot fit stops the scan early. A
+/// `loop_block` copy also takes labels, data offsets and sizes, and conditional jumps.
+fn copy_cost(
+    target: Target,
+    block: &Block,
+    loop_block: bool,
+    fits: impl Fn(Cost) -> bool,
+) -> Option<Cost> {
     let mut cost = Cost::ZERO;
     let mut after_label = false;
     for inst in &block.instructions {
+        if !fits(cost) {
+            return None;
+        }
         cost += instruction_cost(target, inst, loop_block, after_label)?;
         after_label = inst.pushed_block().is_some();
     }
-    Some(cost)
+    fits(cost).then_some(cost)
 }
 
 /// The cost of one copied instruction, which follows a pushed block label if `after_label`.
@@ -403,7 +415,7 @@ fn loop_candidate(
         TerminatorKind::Op(_) => return None,
         TerminatorKind::JumpI { .. } | TerminatorKind::IndexedJump(_) => return None,
     };
-    let copy = copy_cost(target, tail, true)? + ending;
+    let copy = copy_cost(target, tail, true, |_| true)? + ending;
     target.duplicates_loop_block(copy, paths[callee]).then_some((callee, copy))
 }
 
