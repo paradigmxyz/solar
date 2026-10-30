@@ -23,17 +23,17 @@
 //@ run-call: copies 5 => [1, 2, 3, 4, 5], true
 //@ run-call: enumCopies => [1], [2]
 
-// A storage array documented `@custom:solar-inline` keeps its length in the
+// A storage array documented `@custom:solar-storage inline` keeps its length in the
 // top byte of its slot and its elements below it while they fit; past that it
 // moves to the standard layout. Reads, writes, pushes, pops, deletes, copies
 // and getters behave as without the tag; raw reads of the slot and the first
 // data word show the layout.
 contract InlineArrays {
-    /// @custom:solar-inline
+    /// @custom:solar-storage inline
     uint64[] public list;
-    /// @custom:solar-inline
+    /// @custom:solar-storage inline
     bytes3[] codes;
-    /// @custom:solar-inline
+    /// @custom:solar-storage inline
     int16[] deltas;
 
     function raw() internal view returns (bytes32 head, bytes32 data0, bytes32 data1) {
@@ -151,9 +151,9 @@ contract InlineArrays {
     enum Small { Zero, One }
     enum Large { Zero, One, Two }
 
-    /// @custom:solar-inline
+    /// @custom:solar-storage inline
     Small[] small;
-    /// @custom:solar-inline
+    /// @custom:solar-storage inline
     Large[] large;
 
     // Copy helpers must keep each enum's range when their elements occupy the same byte.

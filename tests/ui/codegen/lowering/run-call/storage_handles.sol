@@ -17,11 +17,11 @@
 
 type Id is bytes32;
 
-// `@custom:solar-handle <field> <dictionary>` keeps, in place of a field's value, one plus the
+// `@custom:solar-storage handle <field> <dictionary>` keeps, in place of a field's value, one plus the
 // index of the value in the dictionary, in 9 bytes, so the field shares a word with others. Reads
 // and writes behave as without the tag; raw reads of the struct show the layout.
 abstract contract Book {
-    /// @custom:solar-handle marketId markets
+    /// @custom:solar-storage handle marketId markets
     struct Order {
         address maker;
         bytes32 marketId;
@@ -36,8 +36,8 @@ abstract contract Book {
         uint256 depth;
     }
 
-    /// @custom:solar-handle id ids
-    /// @custom:solar-handle size sizes
+    /// @custom:solar-storage handle id ids
+    /// @custom:solar-storage handle size sizes
     struct Tagged {
         Id id;
         uint256 size;

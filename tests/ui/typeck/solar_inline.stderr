@@ -1,16 +1,14 @@
-error: `@custom:solar-inline` must document a function that internal calls reach or a dynamic storage array state variable
+error: `@custom:solar-storage inline` must document a dynamic storage array state variable
    ╭▸ ROOT/tests/ui/typeck/solar_inline.sol:LL:CC
    │
-LL │     /// @custom:solar-inline
-   │          ━━━━━━━━━━━━━━━━━━━
-   │
-   ╰ help: put it on an internal, private or public function with a body, or a state variable such as `uint64[] list;`
+LL │     /// @custom:solar-storage inline
+   ╰╴         ━━━━━━━━━━━━━━━━━━━━
 
 error: the elements of an inline array must be value types narrower than a word
    ╭▸ ROOT/tests/ui/typeck/solar_inline.sol:LL:CC
    │
-LL │     /// @custom:solar-inline
-   │          ━━━━━━━━━━━━━━━━━━━
+LL │     /// @custom:solar-storage inline
+   │          ━━━━━━━━━━━━━━━━━━━━
    ╰╴
 note: its elements are `uint256`
    ╭▸ ROOT/tests/ui/typeck/solar_inline.sol:LL:CC
@@ -25,7 +23,7 @@ error: an inline array cannot be a storage reference
 LL │         uint64[] storage r = list;
    │                              ━━━━
    │
-   ├ note: `@custom:solar-inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
+   ├ note: `@custom:solar-storage inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
    ╰ help: index the array or copy it into memory
 
 error: an inline array cannot be a storage reference
@@ -34,7 +32,7 @@ error: an inline array cannot be a storage reference
 LL │         r = list;
    │             ━━━━
    │
-   ├ note: `@custom:solar-inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
+   ├ note: `@custom:solar-storage inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
    ╰ help: index the array or copy it into memory
 
 error: an inline array cannot be a storage reference
@@ -43,7 +41,7 @@ error: an inline array cannot be a storage reference
 LL │         return first(list);
    │                      ━━━━
    │
-   ├ note: `@custom:solar-inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
+   ├ note: `@custom:solar-storage inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
    ╰ help: index the array or copy it into memory
 
 error: an inline array cannot be a storage reference
@@ -52,7 +50,7 @@ error: an inline array cannot be a storage reference
 LL │         return first({l: list});
    │                          ━━━━
    │
-   ├ note: `@custom:solar-inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
+   ├ note: `@custom:solar-storage inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
    ╰ help: index the array or copy it into memory
 
 error: an inline array cannot be a storage reference
@@ -61,7 +59,7 @@ error: an inline array cannot be a storage reference
 LL │         return list;
    │                ━━━━
    │
-   ├ note: `@custom:solar-inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
+   ├ note: `@custom:solar-storage inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
    ╰ help: index the array or copy it into memory
 
 error: an inline array has no member `sum` this compiler keeps
@@ -95,7 +93,7 @@ error: inline assembly cannot take the `.slot` of an inline array
 LL │             s := list.slot
    │                       ━━━━
    │
-   ╰ note: `@custom:solar-inline` moves the array's elements out of their standard slots
+   ╰ note: `@custom:solar-storage inline` moves the array's elements out of their standard slots
 
 error: aborting due to 11 previous errors
 

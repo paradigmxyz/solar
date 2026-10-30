@@ -1030,15 +1030,15 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 
 - ID: CODEGEN-014
 - Status: intentional
-- Difference: a mapping documented `@custom:solar-fuse <group>` keeps its value
-  for a key in the group's record at `keccak256(key . slot)` with the slot of
+- Difference: a mapping documented `@custom:solar-storage fuse <group>` keeps
+  its value for a key in the group's record at `keccak256(key . slot)` with the slot of
   the group's first mapping, at the offset a struct field would have, instead
   of at `keccak256(key . slot)` with its own slot. A dynamic array documented
-  `@custom:solar-inline` keeps its length in the top byte of its slot and its
-  elements below it while they fit, and has the standard layout once it grows
-  past them. A mapping documented `@custom:solar-bitmap` keeps the value for key
-  `k` in bit `k % 256` of the word at `keccak256((k / 256) . slot)`. A field
-  that a struct documents with `@custom:solar-handle <field> <dictionary>`
+  `@custom:solar-storage inline` keeps its length in the top byte of its slot
+  and its elements below it while they fit, and has the standard layout once
+  it grows past them. A mapping documented `@custom:solar-storage bitmap`
+  keeps the value for key `k` in bit `k % 256` of the word at `keccak256((k / 256) . slot)`. A field
+  that a struct documents with `@custom:solar-storage handle <field> <dictionary>`
   keeps, in 9 bytes packed like a `uint72`, one plus the index of its value in
   the dictionary array, or zero for zero, so the struct's later fields move.
   Raw storage, as inline assembly or `eth_getStorageAt` reads it, differs from

@@ -1,5 +1,5 @@
-//! Storage layout tags: `@custom:solar-fuse`, `@custom:solar-inline`, `@custom:solar-bitmap` and
-//! `@custom:solar-handle`.
+//! Storage layout tags: `@custom:solar-storage fuse`, `@custom:solar-storage inline`,
+//! `@custom:solar-storage bitmap` and `@custom:solar-storage handle`.
 //!
 //! A layout tag changes where the values of a state variable live in storage, never what the
 //! program computes. Every Solidity-level read and write behaves as without the tag; what differs
@@ -8,25 +8,25 @@
 //! the tags as documentation and use the standard layout, so a contract built both ways must not
 //! share storage, as an upgrade would.
 //!
-//! `@custom:solar-fuse <group>` on mapping state variables of one contract that share a key type
-//! keeps the values of the whole group for one key in one record, laid out like the fields of a
-//! struct in declaration order, at `keccak256(key . slot)` with the slot of the group's first
+//! `@custom:solar-storage fuse <group>` on mapping state variables of one contract that share a key
+//! type keeps the values of the whole group for one key in one record, laid out like the fields of
+//! a struct in declaration order, at `keccak256(key . slot)` with the slot of the group's first
 //! mapping. Three mappings of `address` to `uint128`, `uint64` and `uint64` then fill one word per
 //! address instead of three, and code that reads or writes them for one key shares the hash and
 //! the word. Each mapping keeps its declared slot, so the layout of the contract's state
 //! variables is the standard one; only the values move.
 //!
-//! `@custom:solar-inline` on a dynamic storage array state variable keeps the length and the
-//! elements in the array's own slot while they fit below its top byte, as the codegen module
+//! `@custom:solar-storage inline` on a dynamic storage array state variable keeps the length and
+//! the elements in the array's own slot while they fit below its top byte, as the codegen module
 //! `inline_arrays` describes; a longer array has the standard layout. Its elements must be value
 //! types narrower than a word.
 //!
-//! `@custom:solar-bitmap` on a mapping from an unsigned integer to `bool` keeps the value for key
-//! `k` in bit `k % 256` of the word at `keccak256((k / 256) . slot)`, so 256 consecutive keys
-//! share one word where the standard layout gives each its own.
+//! `@custom:solar-storage bitmap` on a mapping from an unsigned integer to `bool` keeps the value
+//! for key `k` in bit `k % 256` of the word at `keccak256((k / 256) . slot)`, so 256 consecutive
+//! keys share one word where the standard layout gives each its own.
 //!
-//! `@custom:solar-handle <field> <dictionary>` on a struct declared in a contract keeps, in place
-//! of a field's value, its handle: one plus the index of the value in the dictionary, a state
+//! `@custom:solar-storage handle <field> <dictionary>` on a struct declared in a contract keeps, in
+//! place of a field's value, its handle: one plus the index of the value in the dictionary, a state
 //! variable of the contract that lists values of the field's type, or zero for the value zero. A
 //! handle takes 9 bytes, so the field can share a word with others: a `bytes32` market id next to
 //! an `address` takes one word where the standard layout takes two. Reading the field reads the
@@ -80,7 +80,7 @@ pub(super) fn check(gcx: Gcx<'_>) {
     }
 }
 
-/// Checks every `@custom:solar-fuse` group and returns the mappings the tags fuse.
+/// Checks every `@custom:solar-storage fuse` group and returns the mappings the tags fuse.
 fn check_fused_groups(gcx: Gcx<'_>) -> FxHashSet<hir::VariableId> {
     let mut fused = FxHashSet::default();
     for contract in gcx.hir.contracts() {
@@ -94,9 +94,9 @@ fn check_fused_groups(gcx: Gcx<'_>) -> FxHashSet<hir::VariableId> {
             fused.insert(id);
             if group == kw::Empty {
                 gcx.dcx()
-                    .err("`@custom:solar-fuse` must name the group of its mapping")
+                    .err("`@custom:solar-storage fuse` must name the group of its mapping")
                     .span(tag)
-                    .help("name the group on every mapping of it: `@custom:solar-fuse account`")
+                    .help("name the group on every mapping of it: `@custom:solar-storage fuse account`")
                     .emit();
                 continue;
             }
@@ -162,7 +162,7 @@ fn mapping_types<'gcx>(gcx: Gcx<'gcx>, id: hir::VariableId) -> Option<(Ty<'gcx>,
     Some((key, value))
 }
 
-/// Checks every `@custom:solar-inline` array and returns the arrays the tags keep inline.
+/// Checks every `@custom:solar-storage inline` array and returns the arrays the tags keep inline.
 fn check_inline_arrays(gcx: Gcx<'_>) -> FxHashSet<hir::VariableId> {
     let mut inline = FxHashSet::default();
     for contract in gcx.hir.contracts() {
@@ -189,7 +189,8 @@ fn check_inline_arrays(gcx: Gcx<'_>) -> FxHashSet<hir::VariableId> {
     inline
 }
 
-/// Checks every `@custom:solar-bitmap` mapping and returns the mappings the tags pack into bits.
+/// Checks every `@custom:solar-storage bitmap` mapping and returns the mappings the tags pack into
+/// bits.
 fn check_bitmaps(gcx: Gcx<'_>) -> FxHashSet<hir::VariableId> {
     let mut bitmaps = FxHashSet::default();
     for contract in gcx.hir.contracts() {
@@ -216,7 +217,7 @@ fn check_bitmaps(gcx: Gcx<'_>) -> FxHashSet<hir::VariableId> {
     bitmaps
 }
 
-/// The handle fields that `@custom:solar-handle` tags declare.
+/// The handle fields that `@custom:solar-storage handle` tags declare.
 #[derive(Default)]
 struct Handles {
     /// The dictionary of every handle field.
@@ -257,7 +258,7 @@ impl Handles {
     }
 }
 
-/// Checks every `@custom:solar-handle` tag and returns the handle fields the tags declare.
+/// Checks every `@custom:solar-storage handle` tag and returns the handle fields the tags declare.
 fn check_handles(gcx: Gcx<'_>) -> Handles {
     let mut handles = Handles::default();
     for id in gcx.hir.strukt_ids() {
@@ -277,11 +278,11 @@ fn check_handles(gcx: Gcx<'_>) -> Handles {
         for (names, tag) in gcx.hir.solar_handle_tags(id) {
             let Some((field_name, dictionary_name)) = names else {
                 gcx.dcx()
-                    .err("`@custom:solar-handle` must name a field and its dictionary")
+                    .err("`@custom:solar-storage handle` must name a field and its dictionary")
                     .span(tag)
                     .help(
                         "name a field of the struct and the state variable that lists its values: \
-                         `@custom:solar-handle marketId markets`",
+                         `@custom:solar-storage handle marketId markets`",
                     )
                     .emit();
                 continue;
@@ -418,7 +419,7 @@ fn report_whole_write(gcx: Gcx<'_>, span: Span) {
         .err("a struct with handles cannot be written to storage as a whole")
         .span(span)
         .note(
-            "`@custom:solar-handle` fields keep indexes into their dictionaries, which a value from \
+            "`@custom:solar-storage handle` fields keep indexes into their dictionaries, which a value from \
              elsewhere does not have",
         )
         .help("set the fields one by one, each handle field to an element of its dictionary")
@@ -472,8 +473,8 @@ struct Uses<'gcx, 'a> {
 /// A storage array that must not become a storage reference.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Kept {
-    /// An array documented `@custom:solar-inline`, whose inline form a storage reference would
-    /// read with the standard layout.
+    /// An array documented `@custom:solar-storage inline`, whose inline form a storage reference
+    /// would read with the standard layout.
     Inline,
     /// The dictionary of handle fields, whose elements a storage reference could change.
     Dictionary,
@@ -528,12 +529,12 @@ impl<'gcx> Uses<'gcx, '_> {
     fn report_reference(&self, kept: Kept, span: Span) {
         let (note, help) = match kept {
             Kept::Inline => (
-                "`@custom:solar-inline` keeps a short array in its own slot, which a storage \
+                "`@custom:solar-storage inline` keeps a short array in its own slot, which a storage \
                  reference would read with the standard layout",
                 "index the array or copy it into memory",
             ),
             Kept::Dictionary => (
-                "`@custom:solar-handle` fields keep indexes into the dictionary, whose elements a \
+                "`@custom:solar-storage handle` fields keep indexes into the dictionary, whose elements a \
                  storage reference could change",
                 "index the dictionary or copy it into memory",
             ),
@@ -554,7 +555,7 @@ impl<'gcx> Uses<'gcx, '_> {
             .err("a handle dictionary is append-only")
             .span(span)
             .note(
-                "`@custom:solar-handle` fields keep indexes into the dictionary, so its elements \
+                "`@custom:solar-storage handle` fields keep indexes into the dictionary, so its elements \
                  must never change",
             )
             .help("`push` new elements instead")
@@ -569,7 +570,7 @@ impl<'gcx> Uses<'gcx, '_> {
             .err(format!("a handle field can only be set to an element of `{name}` or to zero"))
             .span(span)
             .note(
-                "`@custom:solar-handle` keeps the index of the field's value in the dictionary, \
+                "`@custom:solar-storage handle` keeps the index of the field's value in the dictionary, \
                  which other values do not have",
             )
             .help(format!("assign `{name}[index]`, or `delete` the field"))
@@ -899,31 +900,31 @@ impl<'gcx> Visit<'gcx> for Uses<'gcx, '_> {
                 let (what, note) = if self.is_fused(base) {
                     (
                         "a fused mapping",
-                        "`@custom:solar-fuse` moves the mapping's values out of their standard \
+                        "`@custom:solar-storage fuse` moves the mapping's values out of their standard \
                          slots",
                     )
                 } else if self.is_bitmap(base) {
                     (
                         "a bitmap mapping",
-                        "`@custom:solar-bitmap` moves the mapping's values out of their standard \
+                        "`@custom:solar-storage bitmap` moves the mapping's values out of their standard \
                          slots",
                     )
                 } else if self.kept(base) == Some(Kept::Inline) {
                     (
                         "an inline array",
-                        "`@custom:solar-inline` moves the array's elements out of their standard \
+                        "`@custom:solar-storage inline` moves the array's elements out of their standard \
                          slots",
                     )
                 } else if self.kept(base) == Some(Kept::Dictionary) {
                     (
                         "a handle dictionary",
-                        "`@custom:solar-handle` fields keep indexes into the dictionary, so its \
+                        "`@custom:solar-storage handle` fields keep indexes into the dictionary, so its \
                          elements must never change",
                     )
                 } else {
                     (
                         "a storage value that holds a struct with handles",
-                        "`@custom:solar-handle` narrows the handle fields out of their standard \
+                        "`@custom:solar-storage handle` narrows the handle fields out of their standard \
                          slots",
                     )
                 };
@@ -937,9 +938,9 @@ impl<'gcx> Visit<'gcx> for Uses<'gcx, '_> {
             }
             _ if self.is_fused(expr) || self.is_bitmap(expr) => {
                 let (what, tag) = if self.is_fused(expr) {
-                    ("a fused mapping", "`@custom:solar-fuse`")
+                    ("a fused mapping", "`@custom:solar-storage fuse`")
                 } else {
-                    ("a bitmap mapping", "`@custom:solar-bitmap`")
+                    ("a bitmap mapping", "`@custom:solar-storage bitmap`")
                 };
                 self.gcx
                     .dcx()

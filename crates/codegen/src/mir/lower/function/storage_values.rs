@@ -1409,7 +1409,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(())
             }
             // Type checking rejects assigning a whole array to one documented
-            // `@custom:solar-inline`, whose inline form the standard store would not keep.
+            // `@custom:solar-storage inline`, whose inline form the standard store would not keep.
             TyKind::DynArray(_) if self.inline_array_at(slot).is_some() => {
                 self.cx.report_unsupported(span, "assignment of a whole inline array")
             }

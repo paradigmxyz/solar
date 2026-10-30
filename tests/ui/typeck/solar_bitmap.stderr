@@ -1,16 +1,14 @@
-error: `@custom:solar-bitmap` must document a mapping state variable
+error: `@custom:solar-storage bitmap` must document a mapping state variable
    ╭▸ ROOT/tests/ui/typeck/solar_bitmap.sol:LL:CC
    │
-LL │     /// @custom:solar-bitmap
-   │          ━━━━━━━━━━━━━━━━━━━
-   │
-   ╰ help: put it on a mapping from an unsigned integer to `bool`
+LL │     /// @custom:solar-storage bitmap
+   ╰╴         ━━━━━━━━━━━━━━━━━━━━
 
 error: a bitmap mapping must map an unsigned integer to `bool`
    ╭▸ ROOT/tests/ui/typeck/solar_bitmap.sol:LL:CC
    │
-LL │     /// @custom:solar-bitmap
-   │          ━━━━━━━━━━━━━━━━━━━
+LL │     /// @custom:solar-storage bitmap
+   │          ━━━━━━━━━━━━━━━━━━━━
    ╰╴
 note: it maps `address` to `bool`
    ╭▸ ROOT/tests/ui/typeck/solar_bitmap.sol:LL:CC
@@ -22,8 +20,8 @@ LL │     mapping(address => bool) byAddress;
 error: a bitmap mapping must map an unsigned integer to `bool`
    ╭▸ ROOT/tests/ui/typeck/solar_bitmap.sol:LL:CC
    │
-LL │     /// @custom:solar-bitmap
-   │          ━━━━━━━━━━━━━━━━━━━
+LL │     /// @custom:solar-storage bitmap
+   │          ━━━━━━━━━━━━━━━━━━━━
    ╰╴
 note: it maps `int256` to `bool`
    ╭▸ ROOT/tests/ui/typeck/solar_bitmap.sol:LL:CC
@@ -35,8 +33,8 @@ LL │     mapping(int256 => bool) signed;
 error: a bitmap mapping must map an unsigned integer to `bool`
    ╭▸ ROOT/tests/ui/typeck/solar_bitmap.sol:LL:CC
    │
-LL │     /// @custom:solar-bitmap
-   │          ━━━━━━━━━━━━━━━━━━━
+LL │     /// @custom:solar-storage bitmap
+   │          ━━━━━━━━━━━━━━━━━━━━
    ╰╴
 note: it maps `uint256` to `uint8`
    ╭▸ ROOT/tests/ui/typeck/solar_bitmap.sol:LL:CC
@@ -51,7 +49,7 @@ error: a bitmap mapping can only be indexed
 LL │         return isSet(claimed, id);
    │                      ━━━━━━━
    │
-   ╰ note: `@custom:solar-bitmap` moves the mapping's values out of the standard slots that a storage reference reaches
+   ╰ note: `@custom:solar-storage bitmap` moves the mapping's values out of the standard slots that a storage reference reaches
 
 error: inline assembly cannot take the `.slot` of a bitmap mapping
    ╭▸ ROOT/tests/ui/typeck/solar_bitmap.sol:LL:CC
@@ -59,7 +57,7 @@ error: inline assembly cannot take the `.slot` of a bitmap mapping
 LL │             s := claimed.slot
    │                          ━━━━
    │
-   ╰ note: `@custom:solar-bitmap` moves the mapping's values out of their standard slots
+   ╰ note: `@custom:solar-storage bitmap` moves the mapping's values out of their standard slots
 
 error: aborting due to 6 previous errors
 

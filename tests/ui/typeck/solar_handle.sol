@@ -1,4 +1,4 @@
-// `@custom:solar-handle <field> <dictionary>` keeps, in place of a field's value, the index of
+// `@custom:solar-storage handle <field> <dictionary>` keeps, in place of a field's value, the index of
 // the value in a dictionary. The field must fill a word, the dictionary must be a storage array
 // of the field's type in the struct's contract, the field may only be set to an element of the
 // dictionary or to zero, and the dictionary may only grow.
@@ -13,8 +13,8 @@ library Words {
     }
 }
 
-/// @custom:solar-handle id ids
-//~^ ERROR: `@custom:solar-handle` must document a struct declared in a contract
+/// @custom:solar-storage handle id ids
+//~^ ERROR: `@custom:solar-storage handle` must document a struct declared in a contract
 struct Free {
     bytes32 id;
 }
@@ -22,42 +22,42 @@ struct Free {
 contract Book {
     using Words for bytes32[];
 
-    /// @custom:solar-handle marketId markets
+    /// @custom:solar-storage handle marketId markets
     struct Order {
         address maker;
         bytes32 marketId;
         uint128 amount;
     }
 
-    /// @custom:solar-handle
-    //~^ ERROR: `@custom:solar-handle` must name a field and its dictionary
-    /// @custom:solar-handle id
-    //~^ ERROR: `@custom:solar-handle` must name a field and its dictionary
-    /// @custom:solar-handle id markets extra
-    //~^ ERROR: `@custom:solar-handle` must name a field and its dictionary
-    /// @custom:solar-handle missing markets
+    /// @custom:solar-storage handle
+    //~^ ERROR: `@custom:solar-storage handle` must name a field and its dictionary
+    /// @custom:solar-storage handle id
+    //~^ ERROR: `@custom:solar-storage handle` must name a field and its dictionary
+    /// @custom:solar-storage handle id markets extra
+    //~^ ERROR: `@custom:solar-storage handle` must name a field and its dictionary
+    /// @custom:solar-storage handle missing markets
     //~^ ERROR: struct `Bad` has no field `missing`
-    /// @custom:solar-handle small markets
+    /// @custom:solar-storage handle small markets
     //~^ ERROR: a handle field must be a value type that fills a word
-    /// @custom:solar-handle id missing
+    /// @custom:solar-storage handle id missing
     //~^ ERROR: contract `Book` has no state variable `missing`
-    /// @custom:solar-handle id amounts
+    /// @custom:solar-storage handle id amounts
     //~^ ERROR: a handle dictionary must be a storage array of `bytes32`
-    /// @custom:solar-handle id pair
+    /// @custom:solar-storage handle id pair
     //~^ ERROR: a handle dictionary must be a storage array of `bytes32`
     struct Bad {
         bytes32 id;
         uint64 small;
     }
 
-    /// @custom:solar-handle id markets
-    /// @custom:solar-handle id markets
+    /// @custom:solar-storage handle id markets
+    /// @custom:solar-storage handle id markets
     //~^ ERROR: field `id` has more than one handle tag
     struct Twice {
         bytes32 id;
     }
 
-    /// @custom:solar-handle size sizes
+    /// @custom:solar-storage handle size sizes
     struct Sized {
         uint256 size;
     }
@@ -74,8 +74,8 @@ contract Book {
     Order initialized = Order(address(0), bytes32(0), 0);
     //~^ ERROR: a struct with handles cannot be written to storage as a whole
 
-    /// @custom:solar-handle marketId markets
-    //~^ ERROR: `@custom:solar-handle` must document a struct declared in a contract
+    /// @custom:solar-storage handle marketId markets
+    //~^ ERROR: `@custom:solar-storage handle` must document a struct declared in a contract
     function misplaced() internal {}
 
     function allowed(Order memory m, bytes32 value) internal {

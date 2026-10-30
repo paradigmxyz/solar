@@ -9,27 +9,27 @@
 //@ run-call: orders 42 => 0x000000000000000000000000000000000000bEEF, true, 115792089237316195423570985008687907853269984665640564039457584007913129639935, -3, 0x000000000000000000000001000000000000000000000000000000000000beef, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0x00000000000000000000000000000000000000000000000000000000000000fd
 //@ run-call: plainStaysStandard 0x00000000000000000000000000000000000000aa => 0x0000000000000000000000000000000000000000000000000000000000000009
 
-// `@custom:solar-fuse` keeps the values a group of mappings holds for one key
+// `@custom:solar-storage fuse` keeps the values a group of mappings holds for one key
 // in one record at keccak256(key . slot of the group's first mapping), laid out
 // like a struct's fields. Reads and writes behave as without the tag; raw reads
 // of the record show the layout.
 contract FusedMappings {
-    /// @custom:solar-fuse account
+    /// @custom:solar-storage fuse account
     mapping(address => uint128) public balance;
-    /// @custom:solar-fuse account
+    /// @custom:solar-storage fuse account
     mapping(address => uint64) public nonce;
-    /// @custom:solar-fuse account
+    /// @custom:solar-storage fuse account
     mapping(address => uint64) public expiry;
     mapping(address => uint256) plain;
 
     // A word-sized value starts a new word of the record, and so does the value after it.
-    /// @custom:solar-fuse order
+    /// @custom:solar-storage fuse order
     mapping(uint256 => address) owner;
-    /// @custom:solar-fuse order
+    /// @custom:solar-storage fuse order
     mapping(uint256 => bool) open;
-    /// @custom:solar-fuse order
+    /// @custom:solar-storage fuse order
     mapping(uint256 => uint256) amount;
-    /// @custom:solar-fuse order
+    /// @custom:solar-storage fuse order
     mapping(uint256 => int8) side;
 
     function roundTrip(address a) external returns (uint128, uint64, uint64) {

@@ -556,6 +556,10 @@ impl<'gcx> Resolver<'gcx> {
         docs: &[ast::DocComment<'gcx>],
         tag_span: Span,
     ) {
+        if tag == SolarTag::Storage {
+            self.check_solar_storage(item_id, docs, tag_span);
+            return;
+        }
         let gcx = self.gcx;
         let code_contract = |id| gcx.hir.contract(id).kind != hir::ContractKind::Interface;
         let applies = match (tag, item_id) {
@@ -575,24 +579,6 @@ impl<'gcx> Resolver<'gcx> {
                 let function = gcx.hir.function(id);
                 function.kind == hir::FunctionKind::Function && function.body.is_some()
             }
-            (SolarTag::Fuse | SolarTag::Bitmap, hir::ItemId::Variable(id)) => {
-                let variable = gcx.hir.variable(id);
-                variable.is_state_variable()
-                    && matches!(variable.ty.kind, hir::TypeKind::Mapping(_))
-            }
-            (SolarTag::Inline, hir::ItemId::Variable(id)) => {
-                let variable = gcx.hir.variable(id);
-                variable.is_state_variable()
-                    && matches!(variable.ty.kind, hir::TypeKind::Array(array) if array.size.is_none())
-            }
-            (SolarTag::Handle, hir::ItemId::Struct(id)) => {
-                gcx.hir.strukt(id).contract.is_some_and(|contract| {
-                    matches!(
-                        gcx.hir.contract(contract).kind,
-                        hir::ContractKind::Contract | hir::ContractKind::AbstractContract
-                    )
-                })
-            }
             _ => false,
         };
         if !applies {
@@ -601,9 +587,6 @@ impl<'gcx> Resolver<'gcx> {
         }
         match tag {
             SolarTag::Optimize => self.check_solar_optimize(docs, tag_span),
-            SolarTag::Inline if matches!(item_id, hir::ItemId::Variable(_)) => {
-                self.check_solar_inline_array(docs, tag_span);
-            }
             SolarTag::Inline => self.check_solar_inline(docs, tag_span),
             _ => {}
         }
@@ -626,19 +609,71 @@ impl<'gcx> Resolver<'gcx> {
         }
     }
 
-    /// Reports arguments or duplicate tags on a `@custom:solar-inline` storage array.
-    fn check_solar_inline_array(&self, docs: &[ast::DocComment<'gcx>], tag_span: Span) {
-        let Some(natspec) = self.first_duplicate_free_tag(docs, sym::solar_dash_inline, tag_span)
-        else {
+    /// Checks a storage layout directive and where it applies.
+    fn check_solar_storage(
+        &self,
+        item_id: hir::ItemId,
+        docs: &[ast::DocComment<'gcx>],
+        tag_span: Span,
+    ) {
+        let gcx = self.gcx;
+        let content = solar_tag_content(docs, tag_span);
+        let Some((layout, arguments)) = StorageTag::parse(&content) else {
+            gcx.dcx()
+                .err("`@custom:solar-storage` must name a layout: `fuse`, `inline`, `bitmap`, or `handle`")
+                .span(tag_span)
+                .help("write `@custom:solar-storage inline` to keep short arrays in their own slot")
+                .emit();
             return;
         };
-        if !solar_tag_content(docs, natspec.span).trim().is_empty() {
-            self.gcx
-                .dcx()
-                .err("`@custom:solar-inline` on a storage array takes no arguments")
+        let applies = match (layout, item_id) {
+            (StorageTag::Fuse | StorageTag::Bitmap, hir::ItemId::Variable(id)) => {
+                let variable = gcx.hir.variable(id);
+                variable.is_state_variable()
+                    && matches!(variable.ty.kind, hir::TypeKind::Mapping(_))
+            }
+            (StorageTag::Inline, hir::ItemId::Variable(id)) => {
+                let variable = gcx.hir.variable(id);
+                variable.is_state_variable()
+                    && matches!(variable.ty.kind, hir::TypeKind::Array(array) if array.size.is_none())
+            }
+            (StorageTag::Handle, hir::ItemId::Struct(id)) => {
+                gcx.hir.strukt(id).contract.is_some_and(|contract| {
+                    matches!(
+                        gcx.hir.contract(contract).kind,
+                        hir::ContractKind::Contract | hir::ContractKind::AbstractContract
+                    )
+                })
+            }
+            _ => false,
+        };
+        if !applies {
+            let requirement = match layout {
+                StorageTag::Fuse | StorageTag::Bitmap => "a mapping state variable",
+                StorageTag::Inline => "a dynamic storage array state variable",
+                StorageTag::Handle => "a struct declared in a contract",
+            };
+            gcx.dcx()
+                .err(format!(
+                    "`@custom:solar-storage {}` must document {requirement}",
+                    layout.name()
+                ))
                 .span(tag_span)
-                .help("remove the argument to keep the array's short contents in its own slot")
                 .emit();
+            return;
+        }
+        if matches!(layout, StorageTag::Inline | StorageTag::Bitmap) {
+            let Some(_) = self.first_duplicate_free_tag(docs, sym::solar_dash_storage, tag_span)
+            else {
+                return;
+            };
+            if !arguments.is_empty() {
+                gcx.dcx()
+                    .err(format!("`@custom:solar-storage {}` takes no arguments", layout.name()))
+                    .span(tag_span)
+                    .help("remove the arguments after the layout name")
+                    .emit();
+            }
         }
     }
 
@@ -975,8 +1010,7 @@ impl<'gcx> Resolver<'gcx> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SolarTag {
     /// `@custom:solar-inline [always|never]`: the inliner favors the function, always clones it
-    /// where legal, or never clones it. On a dynamic storage array, the bare tag keeps the length
-    /// and as many elements as fit in the array's own slot.
+    /// where legal, or never clones it.
     Inline,
     /// `@custom:solar-safe`: the code the contract runs has no inline assembly, with checked
     /// arithmetic available as an explicit property.
@@ -986,15 +1020,8 @@ pub(crate) enum SolarTag {
     /// `@custom:solar-optimize <gas|size>`: the code of the contract or function is optimized for
     /// this objective instead of the one the build selects, even in an `-O none` build.
     Optimize,
-    /// `@custom:solar-fuse <group>`: the mappings of a group keep their values for one key
-    /// together, in one record.
-    Fuse,
-    /// `@custom:solar-bitmap`: a mapping from unsigned integers to booleans keeps each value in
-    /// one bit, 256 keys to a word.
-    Bitmap,
-    /// `@custom:solar-handle <field> <dictionary>`: a struct keeps the index of a field's value
-    /// in an append-only dictionary array instead of the value.
-    Handle,
+    /// `@custom:solar-storage <layout>`: a state variable or struct uses the named storage layout.
+    Storage,
     /// A `solar-` tag this compiler does not define.
     Unknown,
 }
@@ -1007,9 +1034,7 @@ impl SolarTag {
             sym::solar_dash_safe => Some(Self::Safe),
             sym::solar_dash_trusted => Some(Self::Trusted),
             sym::solar_dash_optimize => Some(Self::Optimize),
-            sym::solar_dash_fuse => Some(Self::Fuse),
-            sym::solar_dash_bitmap => Some(Self::Bitmap),
-            sym::solar_dash_handle => Some(Self::Handle),
+            sym::solar_dash_storage => Some(Self::Storage),
             _ => name.as_str().starts_with("solar-").then_some(Self::Unknown),
         }
     }
@@ -1025,15 +1050,9 @@ pub(crate) fn report_misplaced_solar_tag(
 ) -> ErrorGuaranteed {
     match tag {
         SolarTag::Inline => dcx
-            .err(format!(
-                "`@custom:{name}` must document a function that internal calls reach or a dynamic \
-                 storage array state variable",
-            ))
+            .err("`@custom:solar-inline` must document a function that internal calls reach")
             .span(span)
-            .help(
-                "put it on an internal, private or public function with a body, or a state \
-                 variable such as `uint64[] list;`",
-            )
+            .help("put it on an internal, private or public function with a body")
             .emit(),
         SolarTag::Safe => dcx
             .err("`@custom:solar-safe` must document a contract or a library")
@@ -1059,26 +1078,9 @@ pub(crate) fn report_misplaced_solar_tag(
                  objective: `@custom:solar-optimize size`",
             )
             .emit(),
-        SolarTag::Fuse => dcx
-            .err("`@custom:solar-fuse` must document a mapping state variable")
+        SolarTag::Storage => dcx
+            .err("`@custom:solar-storage` must document a storage state variable or a struct declared in a contract")
             .span(span)
-            .help(
-                "put it on each mapping of the group, naming the group: \
-                 `@custom:solar-fuse account`",
-            )
-            .emit(),
-        SolarTag::Bitmap => dcx
-            .err("`@custom:solar-bitmap` must document a mapping state variable")
-            .span(span)
-            .help("put it on a mapping from an unsigned integer to `bool`")
-            .emit(),
-        SolarTag::Handle => dcx
-            .err("`@custom:solar-handle` must document a struct declared in a contract")
-            .span(span)
-            .help(
-                "put it on a struct of the contract that keeps the dictionary: \
-                 `@custom:solar-handle marketId markets`",
-            )
             .emit(),
         SolarTag::Unknown => dcx
             .err(format!("unknown tag `@custom:{name}`"))
@@ -1086,8 +1088,7 @@ pub(crate) fn report_misplaced_solar_tag(
             .note("`@custom:solar-` tags are requirements this compiler checks")
             .help(
                 "the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, \
-                 `@custom:solar-safe`, `@custom:solar-trusted`, `@custom:solar-fuse`, \
-                 `@custom:solar-bitmap`, and `@custom:solar-handle`",
+                 `@custom:solar-safe`, `@custom:solar-trusted`, and `@custom:solar-storage`",
             )
             .emit(),
     }
@@ -1202,6 +1203,45 @@ pub(crate) fn report_misplaced_solar_tags(dcx: &DiagCtxt, docs: &[ast::DocCommen
             && let Some(tag) = SolarTag::from_custom(name.name)
         {
             report_misplaced_solar_tag(dcx, tag, name.name, item.span);
+        }
+    }
+}
+
+/// The representation a `@custom:solar-storage` directive names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum StorageTag {
+    /// Mapping values share one record for each key.
+    Fuse,
+    /// Short arrays occupy their own length slot.
+    Inline,
+    /// Boolean mapping values occupy individual bits.
+    Bitmap,
+    /// A struct field stores an index into a dictionary.
+    Handle,
+}
+
+impl StorageTag {
+    /// Parses a layout name and returns the remaining arguments.
+    pub(crate) fn parse(content: &str) -> Option<(Self, &str)> {
+        let content = content.trim();
+        let (name, arguments) = content.split_once(char::is_whitespace).unwrap_or((content, ""));
+        let layout = match name {
+            "fuse" => Self::Fuse,
+            "inline" => Self::Inline,
+            "bitmap" => Self::Bitmap,
+            "handle" => Self::Handle,
+            _ => return None,
+        };
+        Some((layout, arguments.trim()))
+    }
+
+    /// The spelling used by the directive.
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Fuse => "fuse",
+            Self::Inline => "inline",
+            Self::Bitmap => "bitmap",
+            Self::Handle => "handle",
         }
     }
 }

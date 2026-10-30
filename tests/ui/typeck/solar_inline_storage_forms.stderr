@@ -1,18 +1,18 @@
-error: `@custom:solar-inline` on a storage array takes no arguments
+error: `@custom:solar-storage inline` takes no arguments
    ╭▸ ROOT/tests/ui/typeck/solar_inline_storage_forms.sol:LL:CC
    │
-LL │     /// @custom:solar-inline always
-   │          ━━━━━━━━━━━━━━━━━━━
+LL │     /// @custom:solar-storage inline always
+   │          ━━━━━━━━━━━━━━━━━━━━
    │
-   ╰ help: remove the argument to keep the array's short contents in its own slot
+   ╰ help: remove the arguments after the layout name
 
-error: `@custom:solar-inline` on a storage array takes no arguments
+error: `@custom:solar-storage inline` takes no arguments
    ╭▸ ROOT/tests/ui/typeck/solar_inline_storage_forms.sol:LL:CC
    │
-LL │     /// @custom:solar-inline never
-   │          ━━━━━━━━━━━━━━━━━━━
+LL │     /// @custom:solar-storage inline never
+   │          ━━━━━━━━━━━━━━━━━━━━
    │
-   ╰ help: remove the argument to keep the array's short contents in its own slot
+   ╰ help: remove the arguments after the layout name
 
 error: aborting due to 2 previous errors
 

@@ -1,13 +1,13 @@
 contract InlineForms {
-    /// @custom:solar-inline
+    /// @custom:solar-storage inline
     uint64[] values;
 
-    /// @custom:solar-inline always
-    //~^ ERROR: `@custom:solar-inline` on a storage array takes no arguments
+    /// @custom:solar-storage inline always
+    //~^ ERROR: `@custom:solar-storage inline` takes no arguments
     uint64[] alwaysValues;
 
-    /// @custom:solar-inline never
-    //~^ ERROR: `@custom:solar-inline` on a storage array takes no arguments
+    /// @custom:solar-storage inline never
+    //~^ ERROR: `@custom:solar-storage inline` takes no arguments
     uint64[] neverValues;
 
     /// @custom:solar-inline

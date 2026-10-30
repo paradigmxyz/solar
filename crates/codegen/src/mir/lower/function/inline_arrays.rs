@@ -1,16 +1,16 @@
-//! `@custom:solar-inline` storage arrays: small arrays kept in their own slot.
+//! `@custom:solar-storage inline` storage arrays: small arrays kept in their own slot.
 //!
-//! While an array documented `@custom:solar-inline` holds at most as many elements as fit below
-//! one byte of its slot, the slot holds the elements, element `i` at byte `i * size` as in the
-//! first word of the standard data area, and the length in its top byte. A `uint64[]` then keeps up
-//! to three elements and its length in one word, where the standard layout spends the length slot
-//! and a word of the data area at `keccak256(slot)`. An array that grows past the capacity moves
-//! to the standard layout: its elements are already laid out as the first data word, so the push
-//! that overflows stores the slot's word without the length byte at `keccak256(slot)`, the new
-//! element after them, and the length in the slot. A standard length never reaches the top byte,
-//! so each operation reads the slot once and takes the inline form when the top byte is nonzero;
-//! an empty array reads the same in both, and the next push starts it inline again, which is sound
-//! because emptying a standard array cleared its data area.
+//! While an array documented `@custom:solar-storage inline` holds at most as many elements as fit
+//! below one byte of its slot, the slot holds the elements, element `i` at byte `i * size` as in
+//! the first word of the standard data area, and the length in its top byte. A `uint64[]` then
+//! keeps up to three elements and its length in one word, where the standard layout spends the
+//! length slot and a word of the data area at `keccak256(slot)`. An array that grows past the
+//! capacity moves to the standard layout: its elements are already laid out as the first data word,
+//! so the push that overflows stores the slot's word without the length byte at `keccak256(slot)`,
+//! the new element after them, and the length in the slot. A standard length never reaches the top
+//! byte, so each operation reads the slot once and takes the inline form when the top byte is
+//! nonzero; an empty array reads the same in both, and the next push starts it inline again, which
+//! is sound because emptying a standard array cleared its data area.
 //!
 //! Reading an element, its length and its public getter compute the element's slot and byte
 //! offset in one form or the other, and the element is then read or written like any packed
@@ -25,7 +25,7 @@ use super::*;
 use crate::mir::lower::storage::InlineArray;
 
 impl<'gcx> FunctionLowerer<'gcx, '_> {
-    /// The layout of the `@custom:solar-inline` storage array at `slot`, a state variable's
+    /// The layout of the `@custom:solar-storage inline` storage array at `slot`, a state variable's
     /// constant slot. Inside the shared helpers the slot is a parameter, which takes the
     /// standard paths.
     pub(super) fn inline_array_at(&self, slot: ValueId) -> Option<InlineArray> {

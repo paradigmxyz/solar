@@ -7,14 +7,14 @@
 //@ run-call: small => true, false, true, 0x0000000000000100000000000000000000000000000000000000000000000080
 //@ run-call: plainStaysStandard => 0x0000000000000000000000000000000000000000000000000000000000000001
 
-// A mapping from an unsigned integer to `bool` documented `@custom:solar-bitmap`
+// A mapping from an unsigned integer to `bool` documented `@custom:solar-storage bitmap`
 // keeps the value for key `k` in bit `k % 256` of the word at
 // keccak256((k / 256) . slot). Reads and writes behave as without the tag; raw
 // reads of the words show the layout.
 contract Bitmaps {
-    /// @custom:solar-bitmap
+    /// @custom:solar-storage bitmap
     mapping(uint256 => bool) public claimed;
-    /// @custom:solar-bitmap
+    /// @custom:solar-storage bitmap
     mapping(uint8 => bool) flags;
     mapping(uint256 => bool) plain;
 

@@ -1,8 +1,8 @@
-// A struct documented `@custom:solar-handle` lists each handle field as `uint72`
+// A struct documented `@custom:solar-storage handle` lists each handle field as `uint72`
 // among its members, and the storage layout lists the field's dictionary under
 // `handles`, keyed by the struct's type.
 contract Orders {
-    /// @custom:solar-handle marketId markets
+    /// @custom:solar-storage handle marketId markets
     struct Order {
         address maker;
         bytes32 marketId;

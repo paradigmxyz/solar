@@ -1,4 +1,4 @@
-// `@custom:solar-inline` keeps a short storage array in its own slot. Its
+// `@custom:solar-storage inline` keeps a short storage array in its own slot. Its
 // elements must be narrower than a word, and it may only be indexed, measured,
 // pushed, popped, deleted and copied into memory: any use that would read it
 // as a storage reference, or assign it as a whole, is rejected.
@@ -11,16 +11,16 @@ library Lists {
 contract Inline {
     using Lists for uint64[];
 
-    /// @custom:solar-inline
+    /// @custom:solar-storage inline
     uint64[] list;
     uint64[] other;
 
-    /// @custom:solar-inline
+    /// @custom:solar-storage inline
     //~^ ERROR: the elements of an inline array must be value types narrower than a word
     uint256[] words;
 
-    /// @custom:solar-inline
-    //~^ ERROR: `@custom:solar-inline` must document a function that internal calls reach or a dynamic storage array state variable
+    /// @custom:solar-storage inline
+    //~^ ERROR: `@custom:solar-storage inline` must document a dynamic storage array state variable
     uint64[3] fixedList;
 
     function bind() internal view returns (uint256) {

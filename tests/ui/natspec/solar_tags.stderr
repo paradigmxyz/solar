@@ -1,10 +1,10 @@
-error: `@custom:solar-inline` must document a function that internal calls reach or a dynamic storage array state variable
+error: `@custom:solar-inline` must document a function that internal calls reach
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
    │
 LL │         /// @custom:solar-inline always
    │              ━━━━━━━━━━━━━━━━━━━
    │
-   ╰ help: put it on an internal, private or public function with a body, or a state variable such as `uint64[] list;`
+   ╰ help: put it on an internal, private or public function with a body
 
 error: `@custom:solar-optimize` must document a non-abstract contract, a library, or a function with a body
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
@@ -37,7 +37,7 @@ LL │         /// @custom:solar-view
    │              ━━━━━━━━━━━━━━━━━
    │
    ├ note: `@custom:solar-` tags are requirements this compiler checks
-   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-trusted`, `@custom:solar-fuse`, `@custom:solar-bitmap`, and `@custom:solar-handle`
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-trusted`, and `@custom:solar-storage`
 
 error: unknown tag `@custom:solar-saef`
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
@@ -46,7 +46,7 @@ LL │ /// @custom:solar-saef
    │      ━━━━━━━━━━━━━━━━━
    │
    ├ note: `@custom:solar-` tags are requirements this compiler checks
-   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-trusted`, `@custom:solar-fuse`, `@custom:solar-bitmap`, and `@custom:solar-handle`
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-trusted`, and `@custom:solar-storage`
 
 error: unknown tag `@custom:solar-scratch`
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
@@ -55,7 +55,7 @@ LL │     /// @custom:solar-scratch
    │          ━━━━━━━━━━━━━━━━━━━━
    │
    ├ note: `@custom:solar-` tags are requirements this compiler checks
-   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-trusted`, `@custom:solar-fuse`, `@custom:solar-bitmap`, and `@custom:solar-handle`
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-trusted`, and `@custom:solar-storage`
 
 error: `@custom:solar-safe` must document a contract or a library
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
@@ -80,7 +80,7 @@ LL │     /// @custom:solar-terminates
    │          ━━━━━━━━━━━━━━━━━━━━━━━
    │
    ├ note: `@custom:solar-` tags are requirements this compiler checks
-   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-trusted`, `@custom:solar-fuse`, `@custom:solar-bitmap`, and `@custom:solar-handle`
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-trusted`, and `@custom:solar-storage`
 
 error: aborting due to 10 previous errors
 
