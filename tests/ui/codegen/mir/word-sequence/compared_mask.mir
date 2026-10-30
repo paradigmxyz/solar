@@ -49,27 +49,15 @@ fn @packed(arg0: i256, arg1: i256) -> i256 {
     ret v1
 }
 
-// A mask that is cheap to build still gives way to one shift when every use compares.
+// A mask that is cheap to build costs fewer bytes than the shift pair, so it stays.
 // CHECK-LABEL: {{^[ +].*}}fn @cheap_mask{{[( ]}}
-// CHECK: + {{v[0-9]+}} = shr arg0, 8
+// CHECK-NOT: {{^[+].*}}shr
 fn @cheap_mask(arg0: i256) -> i1 {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v1 = eq v0, 0x0000000000400000000000000000000000000000000000000000000000000000
     v2 = eq v0, 0x0000000000800000000000000000000000000000000000000000000000000000
     v3 = or v1, v2
-    ret v3
-}
-
-// The pair costs more than a cheap mask when the masked value is used again.
-// CHECK-LABEL: {{^[ +].*}}fn @live_cheap_mask{{[( ]}}
-// CHECK-NOT: {{^[+].*}}shr
-fn @live_cheap_mask(arg0: i256) -> i256 {
-  bb0:
-    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v1 = eq v0, 0x0000000000400000000000000000000000000000000000000000000000000000
-    v2 = zext i1 v1 to i256
-    v3 = add v0, v2
     ret v3
 }
 

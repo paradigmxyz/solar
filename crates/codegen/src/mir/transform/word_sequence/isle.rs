@@ -227,8 +227,8 @@ impl generated::Context for Context<'_> {
 
     fn compared_mask(&mut self, value: Value, mask: U256) -> bool {
         // An equality with a constant that the mask keeps can compare the shifted value instead.
-        // The rewrite must pay for the shifts: the later e-graph drops the left shift when every
-        // use compares, and narrows each constant.
+        // The rewrite must pay for both shifts with the bytes the narrowed constants save, since
+        // the later e-graph keeps the left shift unless narrowing is cheaper.
         let shift = U256::from(mask.trailing_zeros());
         let target = self.target;
         let masks = self.masks();
@@ -239,13 +239,10 @@ impl generated::Context for Context<'_> {
             .compared(value, mask)
             .map(|c| target.push(c).bytes.saturating_sub(target.push(c >> shift).bytes))
             .sum::<u32>();
-        let only_compared = masks.only_compared(value, mask);
         let [and, shr, shl] = [op::AND, op::SHR, op::SHL].map(|opcode| target.opcode(opcode).bytes);
         let (dup, push_mask, push_shift) =
             (target.dup().bytes, target.push(mask).bytes, target.push(shift).bytes);
-        // x & mask => (x >> s) << s, or x >> s if only equalities use it
-        let pair = shr + push_shift + dup;
-        let pair = if only_compared { pair } else { pair + shl + push_shift + dup };
-        saved + and + push_mask + dup >= pair
+        // x & mask => (x >> s) << s
+        saved + and + push_mask + dup >= shr + shl + 2 * push_shift + 2 * dup
     }
 }
