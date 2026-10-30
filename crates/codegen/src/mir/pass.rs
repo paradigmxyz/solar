@@ -739,6 +739,8 @@ pub(crate) struct FunctionAnalyses {
     straight_line_creation: bool,
     /// The objective the function's code is optimized for.
     optimization: OptimizationMode,
+    /// Whether the function is cold: no call that succeeds runs it.
+    cold: bool,
 }
 
 impl FunctionAnalyses {
@@ -747,7 +749,7 @@ impl FunctionAnalyses {
         alias: Option<Rc<AliasAnalysis>>,
         cfg: Option<Rc<CfgInfo>>,
         (creation_only, straight_line_creation): (bool, bool),
-        optimization: OptimizationMode,
+        (optimization, cold): (OptimizationMode, bool),
     ) -> Self {
         Self {
             function,
@@ -757,6 +759,7 @@ impl FunctionAnalyses {
             creation_only,
             straight_line_creation,
             optimization,
+            cold,
         }
     }
 
@@ -777,22 +780,23 @@ impl FunctionAnalyses {
 
     /// The cost model for a transform that weighs loops itself: creation code that no loop or
     /// recursion calls is priced as such whether or not it loops, because the transform
-    /// multiplies by trip counts.
+    /// multiplies by trip counts. A cold function is priced by [`Target::priced_for_cold`].
     pub(crate) fn loop_aware_target(&self, gcx: Gcx<'_>) -> Target {
         self.runtime_target(gcx).priced_for(self.creation_only)
     }
 
     /// The cost model of runtime code under the module's objective, for code that a loop may run
-    /// many times, wherever it is.
+    /// many times, wherever it is. A cold function is priced by [`Target::priced_for_cold`].
     pub(crate) fn runtime_target(&self, gcx: Gcx<'_>) -> Target {
-        Target::new(gcx, self.optimization)
+        Target::new(gcx, self.optimization).priced_for_cold(self.cold)
     }
 
     /// The cost model for a transform that ranks code shapes without weighing blocks by how
     /// often they run: creation code is priced as such only when every instruction runs a
-    /// bounded number of times, so without loops, recursion, or a looping caller.
+    /// bounded number of times, so without loops, recursion, or a looping caller. A cold function
+    /// is priced by [`Target::priced_for_cold`].
     pub(crate) fn target(&self, gcx: Gcx<'_>) -> Target {
-        Target::new(gcx, self.optimization).priced_for(self.straight_line_creation)
+        self.runtime_target(gcx).priced_for(self.straight_line_creation)
     }
 
     /// Records an edit that the transform does not report as a change, such as removing dead
@@ -940,7 +944,9 @@ impl ModuleAnalyses {
             self.alias_with_summaries(func_id, summaries)
         });
         let cfg = requirements.cfg().then(|| self.cfg(func_id, &module.functions[func_id]));
-        FunctionAnalyses::new(func_id, alias, cfg, pricing, module.objective(func_id))
+        let func = &module.functions[func_id];
+        let objective = (module.objective_of(func), func.attributes.hotness.is_cold());
+        FunctionAnalyses::new(func_id, alias, cfg, pricing, objective)
     }
 
     /// Returns whether a function is creation-only and whether, besides, it has no loop, when
@@ -1208,8 +1214,11 @@ fn run_parallel_function_pass(
                     |alias| Rc::into_inner(alias).expect("alias snapshot is unshared"),
                 )
             });
-            let objective = func.attributes.optimization.unwrap_or(module_objective);
-            (id, func, alias, cfg, pricing[id], objective)
+            let optimization = (
+                func.attributes.optimization.unwrap_or(module_objective),
+                func.attributes.hotness.is_cold(),
+            );
+            (id, func, alias, cfg, pricing[id], optimization)
         })
         .collect::<Vec<_>>();
     let results =

@@ -237,7 +237,7 @@ fn synthesize_tuple_helpers(
     revert_strings: RevertStrings,
     zero_copy_returns: &IndexVec<FunctionId, FxHashMap<InstId, ZeroCopyReturn>>,
 ) {
-    let mut counts = FxHashMap::<TupleHelperKey, (usize, usize)>::default();
+    let mut counts = FxHashMap::<TupleHelperKey, (usize, usize, bool)>::default();
     for (func_id, func) in module.functions.iter_enumerated() {
         for block in func.blocks.iter() {
             for &inst in &block.instructions {
@@ -253,20 +253,23 @@ fn synthesize_tuple_helpers(
                 let next = counts.len();
                 let count = counts
                     .entry(TupleHelperKey::of(func, *mode, *selector, args, layout))
-                    .or_insert((0, next));
+                    .or_insert((0, next, true));
                 count.0 += 1;
+                count.2 &= block.hotness.is_cold();
             }
         }
     }
     let mut keys = counts
         .into_iter()
-        .filter(|(_, (count, _))| *count >= 2)
-        .map(|(key, (count, first))| (first, count, key))
+        .filter(|(_, (count, _, _))| *count >= 2)
+        .map(|(key, (count, first, cold))| (first, count, key, cold))
         .collect::<Vec<_>>();
-    keys.sort_by_key(|(first, _, _)| *first);
+    keys.sort_by_key(|(first, _, _, _)| *first);
 
     let mut shared = Vec::new();
-    for (_, sites, key) in keys {
+    for (_, sites, key, cold) in keys {
+        // A shape that only cold sites encode is priced like a size build.
+        let target = &target.priced_for_cold(cold);
         let mut function = Function::new(Ident::with_dummy_span(sym::encode_abi_tuple));
         {
             let mut builder =
@@ -419,14 +422,22 @@ fn synthesize_calldata_helpers(
     // sites encoding each.
     let mut layouts = Vec::new();
     let mut sites = FxHashMap::<AbiType, usize>::default();
+    let mut hot = FxHashSet::<AbiType>::default();
     for func in module.functions.iter() {
-        for inst in func.instructions() {
-            let InstKind::AbiEncode { args, layout, .. } = &func.inst(inst).kind else { continue };
-            for (&arg, ty) in args.iter().zip(&layout.types) {
-                if is_calldata_slice(func, arg) && is_calldata_helper_layout(ty) {
-                    let ty = ty.clone().at_location(PtrLocation::Calldata);
-                    collect(&ty, &mut layouts);
-                    *sites.entry(ty).or_default() += 1;
+        for block in func.blocks.iter() {
+            for &inst in &block.instructions {
+                let InstKind::AbiEncode { args, layout, .. } = &func.inst(inst).kind else {
+                    continue;
+                };
+                for (&arg, ty) in args.iter().zip(&layout.types) {
+                    if is_calldata_slice(func, arg) && is_calldata_helper_layout(ty) {
+                        let ty = ty.clone().at_location(PtrLocation::Calldata);
+                        collect(&ty, &mut layouts);
+                        if !block.hotness.is_cold() {
+                            hot.insert(ty.clone());
+                        }
+                        *sites.entry(ty).or_default() += 1;
+                    }
                 }
             }
         }
@@ -437,6 +448,12 @@ fn synthesize_calldata_helpers(
     let mut shared = Vec::new();
     for layout in layouts {
         let expansions = sites.get(&layout).copied().unwrap_or(0);
+        // A layout that no hot site or hot layout encodes is priced like a size build.
+        let is_hot = hot.contains(&layout);
+        if is_hot {
+            hot.extend(calldata_children(&layout).cloned());
+        }
+        let target = &target.priced_for_cold(!is_hot);
         if expansions >= 2 {
             let function = calldata_helper(&layout, revert_strings, helpers);
             let body_bytes = target.code_estimate(&function).bytes;

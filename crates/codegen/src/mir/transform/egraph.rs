@@ -307,6 +307,8 @@ struct Class {
     nodes: SmallVec<[Op; 1]>,
     /// The instruction defining the class representative.
     home: InstId,
+    /// Whether the home is in a cold block, where its nodes are priced like a size build.
+    cold: bool,
 }
 
 newtype_index! {
@@ -646,7 +648,10 @@ impl<'a> Builder<'a> {
             // %result => %leader
             self.merge(result, leader, inst_id);
         } else {
-            self.classes.insert(result, Class { nodes, home: inst_id });
+            self.classes.insert(
+                result,
+                Class { nodes, home: inst_id, cold: self.func.blocks[block].hotness.is_cold() },
+            );
         }
     }
 
@@ -868,7 +873,7 @@ impl<'a> Builder<'a> {
         let mut cheapest = Vec::with_capacity(self.classes.all.len());
         for class in &self.classes.all {
             // Rules only produce canonical forms, so the latest node wins ties.
-            let target = self.target;
+            let target = self.target.priced_for_cold(class.cold);
             let best = if class.nodes.len() == 1 {
                 // No selection is needed. Dependencies still get priced lazily
                 // if another class with alternatives needs this class's cost.
@@ -1432,13 +1437,13 @@ impl Costs<'_> {
         self.uses.get(value).copied().unwrap_or(0)
     }
 
-    /// Cost of the cheapest node of a class; values outside the e-graph are
-    /// free, except immediates, which are pushed at every use.
-    fn class(&mut self, value: ValueId) -> Cost {
+    /// Cost of the cheapest node of a class, as an operand of a node priced by `consumer`; values
+    /// outside the e-graph are free, except immediates, which are pushed at every use.
+    fn class(&mut self, value: ValueId, consumer: &Target) -> Cost {
         let Some(id) = self.classes.id(value) else {
             return match self.func.value(value) {
                 Value::Immediate(immediate) => {
-                    immediate.as_u256().map_or(Cost::ZERO, |value| self.target.push(value))
+                    immediate.as_u256().map_or(Cost::ZERO, |value| consumer.push(value))
                 }
                 _ => Cost::ZERO,
             };
@@ -1447,7 +1452,7 @@ impl Costs<'_> {
             return cost;
         }
         let class = &self.classes.all[id];
-        let target = self.target;
+        let target = self.target.priced_for_cold(class.cold);
         let cost = class
             .nodes
             .iter()
@@ -1469,7 +1474,8 @@ impl Costs<'_> {
         // An operand shared with other users is computed regardless of this
         // choice; an immediate is pushed at every use.
         let func = self.func;
-        let mut cost = self.target.op(node, |value| match func.value(value) {
+        let target = self.target.priced_for_cold(class.cold);
+        let mut cost = target.op(node, |value| match func.value(value) {
             Value::Immediate(immediate) => immediate.as_u256(),
             _ => None,
         });
@@ -1478,7 +1484,7 @@ impl Costs<'_> {
                 || self.uses(operand) <= 1
                     && !self.retained_input(operand, original.as_deref().unwrap_or(&[]), &operands)
             {
-                cost += self.class(operand);
+                cost += self.class(operand, &target);
             }
         }
         // A rewrite that reaches for values the instruction did not need keeps
@@ -1495,7 +1501,7 @@ impl Costs<'_> {
                             && !matches!(self.func.value(value), Value::Immediate(_))
                     })
                     .count();
-                cost += self.target.dup().times(reached as u32);
+                cost += target.dup().times(reached as u32);
             }
         }
         cost
