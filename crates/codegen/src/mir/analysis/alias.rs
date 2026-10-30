@@ -1001,56 +1001,6 @@ impl AliasAnalysis {
         func.value_u64(value).map_or(LocationSize::Dynamic(value), LocationSize::Const)
     }
 
-    /// Returns the canonical storage alias for an instruction operand.
-    #[must_use]
-    pub(crate) fn storage_alias(
-        &self,
-        func: &Function,
-        inst_id: InstId,
-        slot: ValueId,
-    ) -> StorageAlias {
-        Self::storage_alias_at(func, inst_id, slot)
-    }
-
-    /// Returns a canonical storage alias without pointer-provenance state.
-    #[must_use]
-    pub(crate) fn storage_alias_at(
-        func: &Function,
-        inst_id: InstId,
-        slot: ValueId,
-    ) -> StorageAlias {
-        func.storage_alias(inst_id, slot)
-    }
-
-    /// Canonicalizes a storage-slot value without pointer-provenance state.
-    #[must_use]
-    pub(crate) fn storage_alias_for_value_at(func: &Function, slot: ValueId) -> StorageAlias {
-        StorageAlias::for_value(func, slot)
-    }
-
-    /// Returns the canonical storage alias after value replacements.
-    #[must_use]
-    pub(crate) fn storage_alias_after_replacements(
-        &self,
-        func: &Function,
-        inst_id: InstId,
-        slot: ValueId,
-        replacements: &FxHashMap<ValueId, ValueId>,
-    ) -> StorageAlias {
-        Self::storage_alias_after_replacements_at(func, inst_id, slot, replacements)
-    }
-
-    /// Canonicalizes a replaced storage operand without pointer-provenance state.
-    #[must_use]
-    pub(crate) fn storage_alias_after_replacements_at(
-        func: &Function,
-        inst_id: InstId,
-        slot: ValueId,
-        replacements: &FxHashMap<ValueId, ValueId>,
-    ) -> StorageAlias {
-        func.storage_alias_after_replacements(inst_id, slot, replacements)
-    }
-
     /// Returns whether a pointer-derived value can escape its function.
     ///
     /// Address-only uses are non-capturing. Stores of the pointer value,
@@ -1485,8 +1435,7 @@ impl AliasAnalysis {
             }
             InstKind::MSize => effects.read_any(AddressSpace::Memory),
             InstKind::Load(slot, location @ (PtrLocation::Storage | PtrLocation::Transient)) => {
-                let alias =
-                    self.storage_alias_after_replacements(func, inst_id, slot, replacements);
+                let alias = func.storage_alias_after_replacements(inst_id, slot, replacements);
                 effects.reads.extend(Location::slot(location, alias).map(Access::Location));
             }
             InstKind::Store(
@@ -1494,8 +1443,7 @@ impl AliasAnalysis {
                 _,
                 location @ (PtrLocation::Storage | PtrLocation::Transient),
             ) => {
-                let alias =
-                    self.storage_alias_after_replacements(func, inst_id, slot, replacements);
+                let alias = func.storage_alias_after_replacements(inst_id, slot, replacements);
                 effects.writes.extend(Location::slot(location, alias).map(Access::Location));
             }
             InstKind::LoadImmutable(id) => {

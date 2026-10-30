@@ -939,7 +939,7 @@ impl LoopOptimizer {
         value: ValueId,
         loop_data: &Loop,
     ) -> Option<StorageAlias> {
-        let alias = self.alias().storage_alias(func, inst_id, value);
+        let alias = func.storage_alias(inst_id, value);
         if let Some(base) = alias.symbolic_base()
             && self.value_defined_in_loop(func, base, loop_data)
         {
