@@ -1151,7 +1151,7 @@ fn addend(func: &Function, sum: ValueId, start: ValueId) -> Option<ValueId> {
         InstKind::Add(a, offset) => {
             let &InstKind::Add(base, same) = func.value_inst_kind(start)? else { return None };
             let (offset, same) = (func.value_u256(offset)?, func.value_u256(same)?);
-            (offset == same).then(|| addend(func, a, base)).flatten()
+            if offset == same { addend(func, a, base) } else { None }
         }
         _ => None,
     }
