@@ -1,0 +1,25 @@
+//@ revisions: shifts legacy
+//@[shifts] compile-flags: -Zmir-pipeline=lower-alloc
+//@[legacy] compile-flags: -Zmir-pipeline=lower-alloc --evm-version byzantium
+//@[shifts] filecheck: --check-prefix=SHIFTS
+//@[legacy] filecheck: --check-prefix=LEGACY
+@module AllocationCheck
+
+// The check is one word zero test where shifts exist, so the branch reads the word.
+// SHIFTS-LABEL: fn @checked
+// SHIFTS: + [[WRAPPED:v[0-9]+]] = zext i1 {{v[0-9]+}} to i256
+// SHIFTS-NEXT: + [[HIGH:v[0-9]+]] = shr {{v[0-9]+}}, 64
+// SHIFTS-NEXT: + [[ANY:v[0-9]+]] = or [[WRAPPED]], [[HIGH]]
+// SHIFTS-NEXT: + [[INVALID:v[0-9]+]] = ne [[ANY]], 0
+// SHIFTS-NEXT: + jumpi [[INVALID]]
+//
+// Without shifts it compares the end with the limit.
+// LEGACY-LABEL: fn @checked
+// LEGACY: + [[OVER:v[0-9]+]] = gt {{v[0-9]+}}, 0xffffffffffffffff
+// LEGACY-NEXT: + [[INVALID:v[0-9]+]] = or {{v[0-9]+}}, [[OVER]]
+// LEGACY: + jumpi [[INVALID]]
+fn @checked(arg0: i256) -> ptr<memory> {
+  bb0:
+    v1 = alloc zeroed checked arg0 !metadata(preserves_fmp, effect=memory_write)
+    ret v1
+}

@@ -188,7 +188,7 @@ fn lower_function(
             // ptr = mload 64 | heap_floor
             rewrite_as_fmp_read(builder, inst, is_fresh(inst));
             // next = add ptr, size
-            // invalid = next < ptr || next > limit
+            // invalid = next < ptr || next > limit, as `bump_checked` emits it
             let (next, invalid) = bump_checked(builder, ptr, size, has_shifts);
             // branch invalid, panic, continuation
             builder.branch(invalid, panic, continuation);
@@ -419,9 +419,9 @@ fn bump(builder: &mut FunctionBuilder<'_>, ptr: ValueId, size: ValueId) -> Value
 
 /// Emits `ptr + size` and whether it wrapped or passes the allocation limit.
 ///
-/// With shifts, the check is one word zero test, `((next < ptr) | (next >> 64)) != 0`, which a
-/// branch reads without materializing a boolean. Without them it is `(next < ptr) | (next >
-/// limit)`.
+/// With shifts, the check is one word zero test, `(zext(next < ptr) | (next >> 64)) != 0`, which
+/// a branch reads without materializing a boolean. Without them it is
+/// `(next < ptr) | (next > limit)`.
 fn bump_checked(
     builder: &mut FunctionBuilder<'_>,
     ptr: ValueId,
