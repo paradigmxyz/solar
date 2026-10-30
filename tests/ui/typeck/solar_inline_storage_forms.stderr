@@ -1,0 +1,18 @@
+error: `@custom:solar-inline` on a storage array takes no arguments
+   ╭▸ ROOT/tests/ui/typeck/solar_inline_storage_forms.sol:LL:CC
+   │
+LL │     /// @custom:solar-inline always
+   │          ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove the argument to keep the array's short contents in its own slot
+
+error: `@custom:solar-inline` on a storage array takes no arguments
+   ╭▸ ROOT/tests/ui/typeck/solar_inline_storage_forms.sol:LL:CC
+   │
+LL │     /// @custom:solar-inline never
+   │          ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove the argument to keep the array's short contents in its own slot
+
+error: aborting due to 2 previous errors
+

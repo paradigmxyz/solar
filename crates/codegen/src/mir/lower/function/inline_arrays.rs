@@ -125,12 +125,15 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
         element: Ty<'gcx>,
         span: Span,
     ) -> Option<()> {
-        let name = helper_name(sym::inline_array_push, inline_helper_suffix(array, element));
+        let name =
+            helper_name(sym::inline_array_push, inline_helper_suffix(self.cx.gcx, array, element));
         let helper = self.lazy_helper(name, |this, function| {
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
             lowerer.lower_inline_array_push_helper(array, element, span)
         })?;
-        // icall_void(inline_array_push, slot, value)
+        // word = zext value to i256
+        // icall_void(inline_array_push, slot, word)
+        let value = self.builder.cast(value, MirType::I256);
         self.builder.icall_void(helper, vec![slot, value]);
         Some(())
     }
@@ -247,7 +250,8 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
         element: Ty<'gcx>,
         span: Span,
     ) -> Option<()> {
-        let name = helper_name(sym::inline_array_pop, inline_helper_suffix(array, element));
+        let name =
+            helper_name(sym::inline_array_pop, inline_helper_suffix(self.cx.gcx, array, element));
         let helper = self.lazy_helper(name, |this, function| {
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
             lowerer.lower_inline_array_pop_helper(array, element, span)
@@ -333,14 +337,16 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
         array: InlineArray,
         element: Ty<'gcx>,
     ) -> Option<ValueId> {
-        let name =
-            helper_name(sym::load_storage_inline_array, inline_helper_suffix(array, element));
+        let name = helper_name(
+            sym::load_storage_inline_array,
+            inline_helper_suffix(self.cx.gcx, array, element),
+        );
         let helper = self.lazy_helper(name, |this, function| {
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
             lowerer.lower_load_inline_array_helper(array, element)
         })?;
         // object = load_storage_inline_array(slot)
-        let ty = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
+        let ty = MirType::MEMPTR;
         Some(self.builder.icall(helper, vec![slot], ty))
     }
 
@@ -350,7 +356,7 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
         element: Ty<'gcx>,
     ) -> Option<()> {
         let slot = self.builder.add_param(MirType::I256);
-        let ty = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
+        let ty = MirType::MEMPTR;
         self.builder.set_return_type(ty);
         let (header, inline, length) = self.inline_array_header(slot);
         let unpack = self.builder.create_block();
@@ -371,7 +377,7 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
             this.validate_enum(element, value);
             let value = this.encode_memory_scalar(element, value);
             // array[index] = value
-            this.builder.memory_object_store_element(object, layout, index, value);
+            this.builder.memory_store_element(object, layout, index, value);
         });
         self.builder.ret([object]);
 
@@ -385,10 +391,10 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
 }
 
 /// The suffix that names an inline array helper for the element type `element`.
-fn inline_helper_suffix(array: InlineArray, element: Ty<'_>) -> String {
+fn inline_helper_suffix(gcx: Gcx<'_>, array: InlineArray, element: Ty<'_>) -> String {
     let enum_variants = match element.peel_refs().kind {
-        TyKind::Enum(_) => "_enum",
-        _ => "",
+        TyKind::Enum(id) => format!("_enum_{}", gcx.hir.enumm(id).variants.len()),
+        _ => String::new(),
     };
     format!("{}_{}{enum_variants}", array.size(), array.element.encoding as u8)
 }

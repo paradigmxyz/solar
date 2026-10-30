@@ -21,6 +21,7 @@
 //@ run-call: signed => [-1, 2, -32768], 0x030000000000000000000000000000000000000000000000000080000002ffff
 //@ run-call: copies 2 => [1, 2], true
 //@ run-call: copies 5 => [1, 2, 3, 4, 5], true
+//@ run-call: enumCopies => [1], [2]
 
 // A storage array documented `@custom:solar-inline` keeps its length in the
 // top byte of its slot and its elements below it while they fit; past that it
@@ -145,5 +146,22 @@ contract InlineArrays {
             head := sload(2)
         }
         return (deltas, head);
+    }
+
+    enum Small { Zero, One }
+    enum Large { Zero, One, Two }
+
+    /// @custom:solar-inline
+    Small[] small;
+    /// @custom:solar-inline
+    Large[] large;
+
+    // Copy helpers must keep each enum's range when their elements occupy the same byte.
+    function enumCopies() external returns (Small[] memory, Large[] memory) {
+        small.push(Small.One);
+        large.push(Large.Two);
+        Small[] memory first = small;
+        Large[] memory second = large;
+        return (first, second);
     }
 }

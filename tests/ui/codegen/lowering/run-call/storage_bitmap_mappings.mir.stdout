@@ -1,517 +1,507 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bitmap_mappings.sol:Bitmaps ===
 @module Bitmaps
 @types
-  struct0: {i256, i256, i256, i256, i256, i256, i256, i256, i256}
-  struct1: {i256, i256, i256, i256}
-  struct2: {i256, i256, i256}
-  struct3: {i256, i256}
+  struct0: {i1, i1, i1, i1, i1, i1, i256, i256, i256}
+  struct1: {i1, i1, i1, i256}
+  struct2: {i1, i1, i1}
+  struct3: {i1, i1}
 
-fn @claimed(arg0: i256) -> i256 [selector=0xdbe7e3bd, view, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @claimed(arg0: i256) -> i1 [selector=0xdbe7e3bd, view, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = shr 8, arg0
+    v0 = shr arg0, 8
     v1 = mapping_slot v0, 0
     v2 = and arg0, 255
     v3 = sload v1 !metadata(storage=symbolic(v1))
-    v4 = shr v2, v3
+    v4 = shr v3, v2
     v5 = and v4, 1
-    ret v5
+    v6 = ne v5, 0
+    ret v6
 }
 
-fn @word(arg0: i256, arg1: i256) -> i256 [inline_assembly, view] {
+fn @word(arg0: i256, arg1: i256) -> i256 [view] {
   bb0:
-    v0 = keccak256_packed (u256 arg0, u256 arg1)
+    v0 = keccak256_packed (uint256 arg0, uint256 arg1)
     v1 = sload v0 !metadata(storage=symbolic(v0))
     ret v1
 }
 
 fn @claims() -> struct0 [selector=0xdcc59b6f, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>, word<bool>, word<bool>, word, word, word], abi_return_params=[bool, bool, bool, bool, bool, bool, bytes32, bytes32, bytes32]] {
   bb0:
-    v0 = shr 8, 0
+    v0 = shr 0, 8
     v1 = mapping_slot v0, 0
     v2 = and 0, 255
-    v3 = shl v2, 1
+    v3 = shl 1, v2
     v4 = sload v1 !metadata(storage=symbolic(v1))
     v5 = not v3
     v6 = and v4, v5
-    v7 = zext i1 1 to i256
-    v8 = and v7, 1
-    v9 = shl v2, v8
-    v10 = or v6, v9
-    sstore v1, v10 !metadata(storage=symbolic(v1))
-    v11 = shr 8, 1
-    v12 = mapping_slot v11, 0
-    v13 = and 1, 255
-    v14 = shl v13, 1
-    v15 = sload v12 !metadata(storage=symbolic(v12))
-    v16 = not v14
-    v17 = and v15, v16
-    v18 = zext i1 1 to i256
-    v19 = and v18, 1
-    v20 = shl v13, v19
-    v21 = or v17, v20
-    sstore v12, v21 !metadata(storage=symbolic(v12))
-    v22 = shr 8, 255
-    v23 = mapping_slot v22, 0
-    v24 = and 255, 255
-    v25 = shl v24, 1
-    v26 = sload v23 !metadata(storage=symbolic(v23))
-    v27 = not v25
-    v28 = and v26, v27
-    v29 = zext i1 1 to i256
-    v30 = and v29, 1
-    v31 = shl v24, v30
-    v32 = or v28, v31
-    sstore v23, v32 !metadata(storage=symbolic(v23))
-    v33 = shr 8, 256
-    v34 = mapping_slot v33, 0
-    v35 = and 256, 255
-    v36 = shl v35, 1
-    v37 = sload v34 !metadata(storage=symbolic(v34))
-    v38 = not v36
-    v39 = and v37, v38
-    v40 = zext i1 1 to i256
-    v41 = and v40, 1
-    v42 = shl v35, v41
-    v43 = or v39, v42
-    sstore v34, v43 !metadata(storage=symbolic(v34))
-    v44 = shr 8, 0
-    v45 = mapping_slot v44, 0
-    v46 = and 0, 255
-    v47 = sload v45 !metadata(storage=symbolic(v45))
-    v48 = shr v46, v47
-    v49 = and v48, 1
-    v50 = shr 8, 1
-    v51 = mapping_slot v50, 0
-    v52 = and 1, 255
-    v53 = sload v51 !metadata(storage=symbolic(v51))
-    v54 = shr v52, v53
-    v55 = and v54, 1
-    v56 = shr 8, 255
-    v57 = mapping_slot v56, 0
-    v58 = and 255, 255
-    v59 = sload v57 !metadata(storage=symbolic(v57))
-    v60 = shr v58, v59
-    v61 = and v60, 1
-    v62 = shr 8, 256
-    v63 = mapping_slot v62, 0
-    v64 = and 256, 255
-    v65 = sload v63 !metadata(storage=symbolic(v63))
-    v66 = shr v64, v65
-    v67 = and v66, 1
-    v68 = shr 8, 2
+    v7 = and 1, 1
+    v8 = shl v7, v2
+    v9 = or v6, v8
+    sstore v1, v9 !metadata(storage=symbolic(v1))
+    v10 = shr 1, 8
+    v11 = mapping_slot v10, 0
+    v12 = and 1, 255
+    v13 = shl 1, v12
+    v14 = sload v11 !metadata(storage=symbolic(v11))
+    v15 = not v13
+    v16 = and v14, v15
+    v17 = and 1, 1
+    v18 = shl v17, v12
+    v19 = or v16, v18
+    sstore v11, v19 !metadata(storage=symbolic(v11))
+    v20 = shr 255, 8
+    v21 = mapping_slot v20, 0
+    v22 = and 255, 255
+    v23 = shl 1, v22
+    v24 = sload v21 !metadata(storage=symbolic(v21))
+    v25 = not v23
+    v26 = and v24, v25
+    v27 = and 1, 1
+    v28 = shl v27, v22
+    v29 = or v26, v28
+    sstore v21, v29 !metadata(storage=symbolic(v21))
+    v30 = shr 256, 8
+    v31 = mapping_slot v30, 0
+    v32 = and 256, 255
+    v33 = shl 1, v32
+    v34 = sload v31 !metadata(storage=symbolic(v31))
+    v35 = not v33
+    v36 = and v34, v35
+    v37 = and 1, 1
+    v38 = shl v37, v32
+    v39 = or v36, v38
+    sstore v31, v39 !metadata(storage=symbolic(v31))
+    v40 = shr 0, 8
+    v41 = mapping_slot v40, 0
+    v42 = and 0, 255
+    v43 = sload v41 !metadata(storage=symbolic(v41))
+    v44 = shr v43, v42
+    v45 = and v44, 1
+    v46 = ne v45, 0
+    v47 = shr 1, 8
+    v48 = mapping_slot v47, 0
+    v49 = and 1, 255
+    v50 = sload v48 !metadata(storage=symbolic(v48))
+    v51 = shr v50, v49
+    v52 = and v51, 1
+    v53 = ne v52, 0
+    v54 = shr 255, 8
+    v55 = mapping_slot v54, 0
+    v56 = and 255, 255
+    v57 = sload v55 !metadata(storage=symbolic(v55))
+    v58 = shr v57, v56
+    v59 = and v58, 1
+    v60 = ne v59, 0
+    v61 = shr 256, 8
+    v62 = mapping_slot v61, 0
+    v63 = and 256, 255
+    v64 = sload v62 !metadata(storage=symbolic(v62))
+    v65 = shr v64, v63
+    v66 = and v65, 1
+    v67 = ne v66, 0
+    v68 = shr 2, 8
     v69 = mapping_slot v68, 0
     v70 = and 2, 255
     v71 = sload v69 !metadata(storage=symbolic(v69))
-    v72 = shr v70, v71
+    v72 = shr v71, v70
     v73 = and v72, 1
-    v74 = shr 8, 257
-    v75 = mapping_slot v74, 0
-    v76 = and 257, 255
-    v77 = sload v75 !metadata(storage=symbolic(v75))
-    v78 = shr v76, v77
-    v79 = and v78, 1
-    v80 = icall @word, 0, 0
-    v81 = icall @word, 1, 0
-    v82 = icall @word, 2, 0
-    v83 = insert_value struct0, undef struct0, 0, v49
-    v84 = insert_value struct0, v83, 1, v55
-    v85 = insert_value struct0, v84, 2, v61
-    v86 = insert_value struct0, v85, 3, v67
-    v87 = insert_value struct0, v86, 4, v73
-    v88 = insert_value struct0, v87, 5, v79
-    v89 = insert_value struct0, v88, 6, v80
-    v90 = insert_value struct0, v89, 7, v81
-    v91 = insert_value struct0, v90, 8, v82
-    ret v91
+    v74 = ne v73, 0
+    v75 = shr 257, 8
+    v76 = mapping_slot v75, 0
+    v77 = and 257, 255
+    v78 = sload v76 !metadata(storage=symbolic(v76))
+    v79 = shr v78, v77
+    v80 = and v79, 1
+    v81 = ne v80, 0
+    v82 = icall @word, 0, 0
+    v83 = icall @word, 1, 0
+    v84 = icall @word, 2, 0
+    v85 = insert_value struct0, undef struct0, 0, v46
+    v86 = insert_value struct0, v85, 1, v53
+    v87 = insert_value struct0, v86, 2, v60
+    v88 = insert_value struct0, v87, 3, v67
+    v89 = insert_value struct0, v88, 4, v74
+    v90 = insert_value struct0, v89, 5, v81
+    v91 = insert_value struct0, v90, 6, v82
+    v92 = insert_value struct0, v91, 7, v83
+    v93 = insert_value struct0, v92, 8, v84
+    ret v93
 }
 
 fn @unclaims() -> struct1 [selector=0x31d14398, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>, word], abi_return_params=[bool, bool, bool, bytes32]] {
   bb0:
-    v0 = shr 8, 0
+    v0 = shr 0, 8
     v1 = mapping_slot v0, 0
     v2 = and 0, 255
-    v3 = shl v2, 1
+    v3 = shl 1, v2
     v4 = sload v1 !metadata(storage=symbolic(v1))
     v5 = not v3
     v6 = and v4, v5
-    v7 = zext i1 1 to i256
-    v8 = and v7, 1
-    v9 = shl v2, v8
-    v10 = or v6, v9
-    sstore v1, v10 !metadata(storage=symbolic(v1))
-    v11 = shr 8, 1
-    v12 = mapping_slot v11, 0
-    v13 = and 1, 255
-    v14 = shl v13, 1
-    v15 = sload v12 !metadata(storage=symbolic(v12))
-    v16 = not v14
-    v17 = and v15, v16
-    v18 = zext i1 1 to i256
-    v19 = and v18, 1
-    v20 = shl v13, v19
-    v21 = or v17, v20
-    sstore v12, v21 !metadata(storage=symbolic(v12))
-    v22 = shr 8, 2
-    v23 = mapping_slot v22, 0
-    v24 = and 2, 255
-    v25 = shl v24, 1
-    v26 = sload v23 !metadata(storage=symbolic(v23))
-    v27 = not v25
-    v28 = and v26, v27
-    v29 = zext i1 1 to i256
-    v30 = and v29, 1
-    v31 = shl v24, v30
-    v32 = or v28, v31
-    sstore v23, v32 !metadata(storage=symbolic(v23))
-    v33 = shr 8, 0
-    v34 = mapping_slot v33, 0
-    v35 = and 0, 255
-    v36 = shl v35, 1
-    v37 = sload v34 !metadata(storage=symbolic(v34))
-    v38 = not v36
-    v39 = and v37, v38
-    v40 = zext i1 0 to i256
-    v41 = and v40, 1
-    v42 = shl v35, v41
-    v43 = or v39, v42
-    sstore v34, v43 !metadata(storage=symbolic(v34))
-    v44 = shr 8, 2
-    v45 = mapping_slot v44, 0
-    v46 = and 2, 255
-    v47 = shl v46, 1
-    v48 = sload v45 !metadata(storage=symbolic(v45))
-    v49 = not v47
-    v50 = and v48, v49
-    v51 = and 0, 1
-    v52 = shl v46, v51
-    v53 = or v50, v52
-    sstore v45, v53 !metadata(storage=symbolic(v45))
-    v54 = shr 8, 0
-    v55 = mapping_slot v54, 0
-    v56 = and 0, 255
-    v57 = sload v55 !metadata(storage=symbolic(v55))
-    v58 = shr v56, v57
-    v59 = and v58, 1
-    v60 = shr 8, 1
-    v61 = mapping_slot v60, 0
-    v62 = and 1, 255
-    v63 = sload v61 !metadata(storage=symbolic(v61))
-    v64 = shr v62, v63
-    v65 = and v64, 1
-    v66 = shr 8, 2
-    v67 = mapping_slot v66, 0
-    v68 = and 2, 255
-    v69 = sload v67 !metadata(storage=symbolic(v67))
-    v70 = shr v68, v69
-    v71 = and v70, 1
-    v72 = icall @word, 0, 0
-    v73 = insert_value struct1, undef struct1, 0, v59
-    v74 = insert_value struct1, v73, 1, v65
-    v75 = insert_value struct1, v74, 2, v71
-    v76 = insert_value struct1, v75, 3, v72
-    ret v76
+    v7 = and 1, 1
+    v8 = shl v7, v2
+    v9 = or v6, v8
+    sstore v1, v9 !metadata(storage=symbolic(v1))
+    v10 = shr 1, 8
+    v11 = mapping_slot v10, 0
+    v12 = and 1, 255
+    v13 = shl 1, v12
+    v14 = sload v11 !metadata(storage=symbolic(v11))
+    v15 = not v13
+    v16 = and v14, v15
+    v17 = and 1, 1
+    v18 = shl v17, v12
+    v19 = or v16, v18
+    sstore v11, v19 !metadata(storage=symbolic(v11))
+    v20 = shr 2, 8
+    v21 = mapping_slot v20, 0
+    v22 = and 2, 255
+    v23 = shl 1, v22
+    v24 = sload v21 !metadata(storage=symbolic(v21))
+    v25 = not v23
+    v26 = and v24, v25
+    v27 = and 1, 1
+    v28 = shl v27, v22
+    v29 = or v26, v28
+    sstore v21, v29 !metadata(storage=symbolic(v21))
+    v30 = shr 0, 8
+    v31 = mapping_slot v30, 0
+    v32 = and 0, 255
+    v33 = shl 1, v32
+    v34 = sload v31 !metadata(storage=symbolic(v31))
+    v35 = not v33
+    v36 = and v34, v35
+    v37 = and 0, 1
+    v38 = shl v37, v32
+    v39 = or v36, v38
+    sstore v31, v39 !metadata(storage=symbolic(v31))
+    v40 = shr 2, 8
+    v41 = mapping_slot v40, 0
+    v42 = and 2, 255
+    v43 = shl 1, v42
+    v44 = sload v41 !metadata(storage=symbolic(v41))
+    v45 = not v43
+    v46 = and v44, v45
+    v47 = and 0, 1
+    v48 = shl v47, v42
+    v49 = or v46, v48
+    sstore v41, v49 !metadata(storage=symbolic(v41))
+    v50 = shr 0, 8
+    v51 = mapping_slot v50, 0
+    v52 = and 0, 255
+    v53 = sload v51 !metadata(storage=symbolic(v51))
+    v54 = shr v53, v52
+    v55 = and v54, 1
+    v56 = ne v55, 0
+    v57 = shr 1, 8
+    v58 = mapping_slot v57, 0
+    v59 = and 1, 255
+    v60 = sload v58 !metadata(storage=symbolic(v58))
+    v61 = shr v60, v59
+    v62 = and v61, 1
+    v63 = ne v62, 0
+    v64 = shr 2, 8
+    v65 = mapping_slot v64, 0
+    v66 = and 2, 255
+    v67 = sload v65 !metadata(storage=symbolic(v65))
+    v68 = shr v67, v66
+    v69 = and v68, 1
+    v70 = ne v69, 0
+    v71 = icall @word, 0, 0
+    v72 = insert_value struct1, undef struct1, 0, v56
+    v73 = insert_value struct1, v72, 1, v63
+    v74 = insert_value struct1, v73, 2, v70
+    v75 = insert_value struct1, v74, 3, v71
+    ret v75
 }
 
 fn @toggles() -> struct2 [selector=0x49253526, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool]] {
   bb0:
-    v0 = shr 8, 9
+    v0 = shr 9, 8
     v1 = mapping_slot v0, 0
     v2 = and 9, 255
     v3 = sload v1 !metadata(storage=symbolic(v1))
-    v4 = shr v2, v3
+    v4 = shr v3, v2
     v5 = and v4, 1
-    v6 = eq v5, 0
-    v7 = shr 8, 9
-    v8 = mapping_slot v7, 0
-    v9 = and 9, 255
-    v10 = shl v9, 1
-    v11 = sload v8 !metadata(storage=symbolic(v8))
-    v12 = not v10
-    v13 = and v11, v12
-    v14 = zext i1 v6 to i256
-    v15 = and v14, 1
-    v16 = shl v9, v15
-    v17 = or v13, v16
-    sstore v8, v17 !metadata(storage=symbolic(v8))
-    v18 = shr 8, 9
-    v19 = mapping_slot v18, 0
-    v20 = and 9, 255
-    v21 = sload v19 !metadata(storage=symbolic(v19))
-    v22 = shr v20, v21
-    v23 = and v22, 1
-    v24 = shr 8, 9
-    v25 = mapping_slot v24, 0
-    v26 = and 9, 255
-    v27 = sload v25 !metadata(storage=symbolic(v25))
-    v28 = shr v26, v27
-    v29 = and v28, 1
-    v30 = eq v29, 0
-    v31 = shr 8, 9
-    v32 = mapping_slot v31, 0
-    v33 = and 9, 255
-    v34 = shl v33, 1
-    v35 = sload v32 !metadata(storage=symbolic(v32))
-    v36 = not v34
-    v37 = and v35, v36
-    v38 = zext i1 v30 to i256
-    v39 = and v38, 1
-    v40 = shl v33, v39
-    v41 = or v37, v40
-    sstore v32, v41 !metadata(storage=symbolic(v32))
-    v42 = shr 8, 9
-    v43 = mapping_slot v42, 0
-    v44 = and 9, 255
-    v45 = sload v43 !metadata(storage=symbolic(v43))
-    v46 = shr v44, v45
-    v47 = and v46, 1
-    v48 = shr 8, 9
-    v49 = mapping_slot v48, 0
-    v50 = and 9, 255
-    v51 = sload v49 !metadata(storage=symbolic(v49))
-    v52 = shr v50, v51
-    v53 = and v52, 1
-    v54 = eq v53, 0
-    v55 = shr 8, 9
-    v56 = mapping_slot v55, 0
-    v57 = and 9, 255
-    v58 = shl v57, 1
-    v59 = sload v56 !metadata(storage=symbolic(v56))
-    v60 = not v58
-    v61 = and v59, v60
-    v62 = zext i1 v54 to i256
-    v63 = and v62, 1
-    v64 = shl v57, v63
-    v65 = or v61, v64
-    sstore v56, v65 !metadata(storage=symbolic(v56))
-    v66 = shr 8, 9
-    v67 = mapping_slot v66, 0
-    v68 = and 9, 255
-    v69 = sload v67 !metadata(storage=symbolic(v67))
-    v70 = shr v68, v69
-    v71 = and v70, 1
-    v72 = insert_value struct2, undef struct2, 0, v23
-    v73 = insert_value struct2, v72, 1, v47
-    v74 = insert_value struct2, v73, 2, v71
-    ret v74
+    v6 = ne v5, 0
+    v7 = eq v6, false
+    v8 = shr 9, 8
+    v9 = mapping_slot v8, 0
+    v10 = and 9, 255
+    v11 = shl 1, v10
+    v12 = sload v9 !metadata(storage=symbolic(v9))
+    v13 = not v11
+    v14 = and v12, v13
+    v15 = zext i1 v7 to i256
+    v16 = and v15, 1
+    v17 = shl v16, v10
+    v18 = or v14, v17
+    sstore v9, v18 !metadata(storage=symbolic(v9))
+    v19 = shr 9, 8
+    v20 = mapping_slot v19, 0
+    v21 = and 9, 255
+    v22 = sload v20 !metadata(storage=symbolic(v20))
+    v23 = shr v22, v21
+    v24 = and v23, 1
+    v25 = ne v24, 0
+    v26 = shr 9, 8
+    v27 = mapping_slot v26, 0
+    v28 = and 9, 255
+    v29 = sload v27 !metadata(storage=symbolic(v27))
+    v30 = shr v29, v28
+    v31 = and v30, 1
+    v32 = ne v31, 0
+    v33 = eq v32, false
+    v34 = shr 9, 8
+    v35 = mapping_slot v34, 0
+    v36 = and 9, 255
+    v37 = shl 1, v36
+    v38 = sload v35 !metadata(storage=symbolic(v35))
+    v39 = not v37
+    v40 = and v38, v39
+    v41 = zext i1 v33 to i256
+    v42 = and v41, 1
+    v43 = shl v42, v36
+    v44 = or v40, v43
+    sstore v35, v44 !metadata(storage=symbolic(v35))
+    v45 = shr 9, 8
+    v46 = mapping_slot v45, 0
+    v47 = and 9, 255
+    v48 = sload v46 !metadata(storage=symbolic(v46))
+    v49 = shr v48, v47
+    v50 = and v49, 1
+    v51 = ne v50, 0
+    v52 = shr 9, 8
+    v53 = mapping_slot v52, 0
+    v54 = and 9, 255
+    v55 = sload v53 !metadata(storage=symbolic(v53))
+    v56 = shr v55, v54
+    v57 = and v56, 1
+    v58 = ne v57, 0
+    v59 = eq v58, false
+    v60 = shr 9, 8
+    v61 = mapping_slot v60, 0
+    v62 = and 9, 255
+    v63 = shl 1, v62
+    v64 = sload v61 !metadata(storage=symbolic(v61))
+    v65 = not v63
+    v66 = and v64, v65
+    v67 = zext i1 v59 to i256
+    v68 = and v67, 1
+    v69 = shl v68, v62
+    v70 = or v66, v69
+    sstore v61, v70 !metadata(storage=symbolic(v61))
+    v71 = shr 9, 8
+    v72 = mapping_slot v71, 0
+    v73 = and 9, 255
+    v74 = sload v72 !metadata(storage=symbolic(v72))
+    v75 = shr v74, v73
+    v76 = and v75, 1
+    v77 = ne v76, 0
+    v78 = insert_value struct2, undef struct2, 0, v25
+    v79 = insert_value struct2, v78, 1, v51
+    v80 = insert_value struct2, v79, 2, v77
+    ret v80
 }
 
 fn @getters() -> struct3 [selector=0x6317732e, abi_params=[], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
   bb0:
-    v0 = shr 8, 77
+    v0 = shr 77, 8
     v1 = mapping_slot v0, 0
     v2 = and 77, 255
-    v3 = shl v2, 1
+    v3 = shl 1, v2
     v4 = sload v1 !metadata(storage=symbolic(v1))
     v5 = not v3
     v6 = and v4, v5
-    v7 = zext i1 1 to i256
-    v8 = and v7, 1
-    v9 = shl v2, v8
-    v10 = or v6, v9
-    sstore v1, v10 !metadata(storage=symbolic(v1))
-    v11 = address
-    v12 = gas
-    v13 = abi_encode [word], selector 0xdbe7e3bd00000000000000000000000000000000000000000000000000000000, args 77
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = zext i160 v11 to i256
-    v17 = staticcall v12, v16, v14, v15, 0, 32
-    jumpi v17, bb2, bb1
+    v7 = and 1, 1
+    v8 = shl v7, v2
+    v9 = or v6, v8
+    sstore v1, v9 !metadata(storage=symbolic(v1))
+    v10 = address
+    v11 = gas
+    mstore 0, 0xdbe7e3bd !metadata(memory=scratch)
+    mstore 32, 77 !metadata(memory=scratch)
+    v12 = zext i160 v10 to i256
+    v13 = staticcall v11, v12, 28, 36, 0, 32
+    jumpi v13, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v18 = returndatasize
-    v19 = lt v18, 32
-    icall revert_if<tuple_data_too_short>, v19
-    v20 = add 0, 0
-    v21 = mload v20
-    v22 = eq v21, 0
-    v23 = eq v22, false
-    v24 = zext i1 v23 to i256
-    v25 = eq v21, v24
-    v26 = eq v25, false
-    icall revert_if<empty>, v26
-    v27 = add 0, 0
-    v28 = mload v27
-    v29 = address
-    v30 = gas
-    v31 = abi_encode [word], selector 0xdbe7e3bd00000000000000000000000000000000000000000000000000000000, args 78
-    v32 = slice_ptr v31
-    v33 = slice_len v31
-    v34 = zext i160 v29 to i256
-    v35 = staticcall v30, v34, v32, v33, 0, 32
-    jumpi v35, bb4, bb3
+    v14 = returndatasize
+    v15 = lt v14, 32
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = add 0, 0
+    v17 = mload v16
+    v18 = lt v17, 2
+    v19 = eq v18, false
+    icall revert_if<empty>, v19
+    v20 = ne v17, 0
+    v21 = address
+    v22 = gas
+    mstore 0, 0xdbe7e3bd !metadata(memory=scratch)
+    mstore 32, 78 !metadata(memory=scratch)
+    v23 = zext i160 v21 to i256
+    v24 = staticcall v22, v23, 28, 36, 0, 32
+    jumpi v24, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v36 = returndatasize
-    v37 = lt v36, 32
-    icall revert_if<tuple_data_too_short>, v37
-    v38 = add 0, 0
-    v39 = mload v38
-    v40 = eq v39, 0
-    v41 = eq v40, false
-    v42 = zext i1 v41 to i256
-    v43 = eq v39, v42
-    v44 = eq v43, false
-    icall revert_if<empty>, v44
-    v45 = add 0, 0
-    v46 = mload v45
-    v47 = insert_value struct3, undef struct3, 0, v28
-    v48 = insert_value struct3, v47, 1, v46
-    ret v48
+    v25 = returndatasize
+    v26 = lt v25, 32
+    icall revert_if<tuple_data_too_short>, v26
+    v27 = add 0, 0
+    v28 = mload v27
+    v29 = lt v28, 2
+    v30 = eq v29, false
+    icall revert_if<empty>, v30
+    v31 = ne v28, 0
+    v32 = insert_value struct3, undef struct3, 0, v20
+    v33 = insert_value struct3, v32, 1, v31
+    ret v33
 }
 
 fn @extremes() -> struct1 [selector=0xc525dc76, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>, word], abi_return_params=[bool, bool, bool, bytes32]] {
   bb0:
-    v0 = shr 8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v0 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 8
     v1 = mapping_slot v0, 0
     v2 = and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 255
-    v3 = shl v2, 1
+    v3 = shl 1, v2
     v4 = sload v1 !metadata(storage=symbolic(v1))
     v5 = not v3
     v6 = and v4, v5
-    v7 = zext i1 1 to i256
-    v8 = and v7, 1
-    v9 = shl v2, v8
-    v10 = or v6, v9
-    sstore v1, v10 !metadata(storage=symbolic(v1))
-    v11 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
-    v12 = shr 8, v11
-    v13 = mapping_slot v12, 0
-    v14 = and v11, 255
-    v15 = shl v14, 1
-    v16 = sload v13 !metadata(storage=symbolic(v13))
-    v17 = not v15
-    v18 = and v16, v17
-    v19 = zext i1 1 to i256
-    v20 = and v19, 1
-    v21 = shl v14, v20
-    v22 = or v18, v21
-    sstore v13, v22 !metadata(storage=symbolic(v13))
-    v23 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
-    v24 = shr 8, v23
-    v25 = mapping_slot v24, 0
-    v26 = and v23, 255
-    v27 = shl v26, 1
-    v28 = sload v25 !metadata(storage=symbolic(v25))
-    v29 = not v27
-    v30 = and v28, v29
-    v31 = zext i1 0 to i256
-    v32 = and v31, 1
-    v33 = shl v26, v32
-    v34 = or v30, v33
-    sstore v25, v34 !metadata(storage=symbolic(v25))
-    v35 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 256
-    v36 = shr 8, v35
-    v37 = mapping_slot v36, 0
-    v38 = and v35, 255
-    v39 = shl v38, 1
-    v40 = sload v37 !metadata(storage=symbolic(v37))
-    v41 = not v39
-    v42 = and v40, v41
-    v43 = zext i1 1 to i256
-    v44 = and v43, 1
-    v45 = shl v38, v44
-    v46 = or v42, v45
-    sstore v37, v46 !metadata(storage=symbolic(v37))
-    v47 = shr 8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v48 = mapping_slot v47, 0
-    v49 = and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 255
-    v50 = sload v48 !metadata(storage=symbolic(v48))
-    v51 = shr v49, v50
-    v52 = and v51, 1
-    v53 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 256
-    v54 = shr 8, v53
-    v55 = mapping_slot v54, 0
-    v56 = and v53, 255
-    v57 = sload v55 !metadata(storage=symbolic(v55))
-    v58 = shr v56, v57
-    v59 = and v58, 1
-    v60 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
-    v61 = shr 8, v60
-    v62 = mapping_slot v61, 0
-    v63 = and v60, 255
-    v64 = sload v62 !metadata(storage=symbolic(v62))
-    v65 = shr v63, v64
-    v66 = and v65, 1
-    v67 = shr 8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v68 = icall @word, v67, 0
-    v69 = insert_value struct1, undef struct1, 0, v52
-    v70 = insert_value struct1, v69, 1, v59
-    v71 = insert_value struct1, v70, 2, v66
-    v72 = insert_value struct1, v71, 3, v68
-    ret v72
+    v7 = and 1, 1
+    v8 = shl v7, v2
+    v9 = or v6, v8
+    sstore v1, v9 !metadata(storage=symbolic(v1))
+    v10 = checked_sub uint256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    v11 = shr v10, 8
+    v12 = mapping_slot v11, 0
+    v13 = and v10, 255
+    v14 = shl 1, v13
+    v15 = sload v12 !metadata(storage=symbolic(v12))
+    v16 = not v14
+    v17 = and v15, v16
+    v18 = and 1, 1
+    v19 = shl v18, v13
+    v20 = or v17, v19
+    sstore v12, v20 !metadata(storage=symbolic(v12))
+    v21 = checked_sub uint256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    v22 = shr v21, 8
+    v23 = mapping_slot v22, 0
+    v24 = and v21, 255
+    v25 = shl 1, v24
+    v26 = sload v23 !metadata(storage=symbolic(v23))
+    v27 = not v25
+    v28 = and v26, v27
+    v29 = and 0, 1
+    v30 = shl v29, v24
+    v31 = or v28, v30
+    sstore v23, v31 !metadata(storage=symbolic(v23))
+    v32 = checked_sub uint256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 256
+    v33 = shr v32, 8
+    v34 = mapping_slot v33, 0
+    v35 = and v32, 255
+    v36 = shl 1, v35
+    v37 = sload v34 !metadata(storage=symbolic(v34))
+    v38 = not v36
+    v39 = and v37, v38
+    v40 = and 1, 1
+    v41 = shl v40, v35
+    v42 = or v39, v41
+    sstore v34, v42 !metadata(storage=symbolic(v34))
+    v43 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 8
+    v44 = mapping_slot v43, 0
+    v45 = and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 255
+    v46 = sload v44 !metadata(storage=symbolic(v44))
+    v47 = shr v46, v45
+    v48 = and v47, 1
+    v49 = ne v48, 0
+    v50 = checked_sub uint256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 256
+    v51 = shr v50, 8
+    v52 = mapping_slot v51, 0
+    v53 = and v50, 255
+    v54 = sload v52 !metadata(storage=symbolic(v52))
+    v55 = shr v54, v53
+    v56 = and v55, 1
+    v57 = ne v56, 0
+    v58 = checked_sub uint256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    v59 = shr v58, 8
+    v60 = mapping_slot v59, 0
+    v61 = and v58, 255
+    v62 = sload v60 !metadata(storage=symbolic(v60))
+    v63 = shr v62, v61
+    v64 = and v63, 1
+    v65 = ne v64, 0
+    v66 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 8
+    v67 = icall @word, v66, 0
+    v68 = insert_value struct1, undef struct1, 0, v49
+    v69 = insert_value struct1, v68, 1, v57
+    v70 = insert_value struct1, v69, 2, v65
+    v71 = insert_value struct1, v70, 3, v67
+    ret v71
 }
 
 fn @small() -> struct1 [selector=0x6cf3c25e, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>, word], abi_return_params=[bool, bool, bool, bytes32]] {
   bb0:
-    v0 = and 7, 255
-    v1 = shr 8, v0
-    v2 = mapping_slot v1, 1
-    v3 = and v0, 255
-    v4 = shl v3, 1
-    v5 = sload v2 !metadata(storage=symbolic(v2))
-    v6 = not v4
-    v7 = and v5, v6
-    v8 = zext i1 1 to i256
-    v9 = and v8, 1
-    v10 = shl v3, v9
-    v11 = or v7, v10
-    sstore v2, v11 !metadata(storage=symbolic(v2))
+    v0 = shr 7, 8
+    v1 = mapping_slot v0, 1
+    v2 = and 7, 255
+    v3 = shl 1, v2
+    v4 = sload v1 !metadata(storage=symbolic(v1))
+    v5 = not v3
+    v6 = and v4, v5
+    v7 = and 1, 1
+    v8 = shl v7, v2
+    v9 = or v6, v8
+    sstore v1, v9 !metadata(storage=symbolic(v1))
+    v10 = shr 200, 8
+    v11 = mapping_slot v10, 1
     v12 = and 200, 255
-    v13 = shr 8, v12
-    v14 = mapping_slot v13, 1
-    v15 = and v12, 255
-    v16 = shl v15, 1
-    v17 = sload v14 !metadata(storage=symbolic(v14))
-    v18 = not v16
-    v19 = and v17, v18
-    v20 = zext i1 1 to i256
-    v21 = and v20, 1
-    v22 = shl v15, v21
-    v23 = or v19, v22
-    sstore v14, v23 !metadata(storage=symbolic(v14))
-    v24 = and 7, 255
-    v25 = shr 8, v24
-    v26 = mapping_slot v25, 1
-    v27 = and v24, 255
-    v28 = sload v26 !metadata(storage=symbolic(v26))
-    v29 = shr v27, v28
-    v30 = and v29, 1
-    v31 = and 8, 255
-    v32 = shr 8, v31
-    v33 = mapping_slot v32, 1
-    v34 = and v31, 255
-    v35 = sload v33 !metadata(storage=symbolic(v33))
-    v36 = shr v34, v35
-    v37 = and v36, 1
-    v38 = and 200, 255
-    v39 = shr 8, v38
-    v40 = mapping_slot v39, 1
-    v41 = and v38, 255
-    v42 = sload v40 !metadata(storage=symbolic(v40))
-    v43 = shr v41, v42
-    v44 = and v43, 1
-    v45 = icall @word, 0, 1
-    v46 = insert_value struct1, undef struct1, 0, v30
-    v47 = insert_value struct1, v46, 1, v37
-    v48 = insert_value struct1, v47, 2, v44
-    v49 = insert_value struct1, v48, 3, v45
-    ret v49
+    v13 = shl 1, v12
+    v14 = sload v11 !metadata(storage=symbolic(v11))
+    v15 = not v13
+    v16 = and v14, v15
+    v17 = and 1, 1
+    v18 = shl v17, v12
+    v19 = or v16, v18
+    sstore v11, v19 !metadata(storage=symbolic(v11))
+    v20 = shr 7, 8
+    v21 = mapping_slot v20, 1
+    v22 = and 7, 255
+    v23 = sload v21 !metadata(storage=symbolic(v21))
+    v24 = shr v23, v22
+    v25 = and v24, 1
+    v26 = ne v25, 0
+    v27 = shr 8, 8
+    v28 = mapping_slot v27, 1
+    v29 = and 8, 255
+    v30 = sload v28 !metadata(storage=symbolic(v28))
+    v31 = shr v30, v29
+    v32 = and v31, 1
+    v33 = ne v32, 0
+    v34 = shr 200, 8
+    v35 = mapping_slot v34, 1
+    v36 = and 200, 255
+    v37 = sload v35 !metadata(storage=symbolic(v35))
+    v38 = shr v37, v36
+    v39 = and v38, 1
+    v40 = ne v39, 0
+    v41 = icall @word, 0, 1
+    v42 = insert_value struct1, undef struct1, 0, v26
+    v43 = insert_value struct1, v42, 1, v33
+    v44 = insert_value struct1, v43, 2, v40
+    v45 = insert_value struct1, v44, 3, v41
+    ret v45
 }
 
-fn @plainStaysStandard() -> i256 [selector=0x8494e944, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @plainStaysStandard() -> i256 [selector=0x8494e944, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = mapping_slot 5, 2
     v1 = sload v0 !metadata(storage=symbolic(v0))
     v2 = not 255
     v3 = and v1, v2
-    v4 = zext i1 1 to i256
-    v5 = and v4, 255
-    v6 = or v3, v5
-    sstore v0, v6 !metadata(storage=symbolic(v0))
-    v7 = keccak256_packed (u256 5, u256 2)
-    v8 = sload v7 !metadata(storage=symbolic(v7))
-    ret v8
+    v4 = and 1, 255
+    v5 = or v3, v4
+    sstore v0, v5 !metadata(storage=symbolic(v0))
+    v6 = sload 0xb98b78633099fa36ed8b8680c4f8092689e1e04080eb9cbb077ca38a14d7e384 !metadata(storage=slot(0xb98b78633099fa36ed8b8680c4f8092689e1e04080eb9cbb077ca38a14d7e384))
+    ret v6
 }

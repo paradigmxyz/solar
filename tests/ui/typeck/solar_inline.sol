@@ -20,7 +20,7 @@ contract Inline {
     uint256[] words;
 
     /// @custom:solar-inline
-    //~^ ERROR: `@custom:solar-inline` must document a dynamic storage array state variable
+    //~^ ERROR: `@custom:solar-inline` must document a function that internal calls reach or a dynamic storage array state variable
     uint64[3] fixedList;
 
     function bind() internal view returns (uint256) {
