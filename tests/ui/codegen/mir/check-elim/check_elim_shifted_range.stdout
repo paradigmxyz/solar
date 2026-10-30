@@ -1,0 +1,38 @@
+- // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_shifted_range.mir (before check-elim) ===
++ // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_shifted_range.mir (after check-elim) ===
+  @module CheckElimShiftedRange
+  fn @fold_sum_of_bounded(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 1
+      v1 = eq v0, 0
+      jumpi v1, bb3, bb1
+    bb1:
+      v2 = shr v0, 251
+      v3 = ne v2, 0
+      jumpi v3, bb3, bb2
+    bb2:
+      v4 = add arg0, arg0
+      v5 = lt v4, arg0
+-     jumpi v5, bb4, bb5
++     jump bb5
+    bb5:
+      ret v4
+-   bb4:
+-     revert 0, 0
+    bb3:
+      ret 0
++   bb4:
++     revert 0, 0
+  }
+  
+  fn @keep_unbounded(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, arg0
+      v1 = lt v0, arg0
+      jumpi v1, bb1, bb2
+    bb2:
+      ret v0
+    bb1:
+      revert 0, 0
+  }
+  

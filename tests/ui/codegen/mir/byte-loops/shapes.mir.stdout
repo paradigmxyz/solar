@@ -592,51 +592,47 @@ fn @copyWords(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xaedd6ca2
     v10 = lt v9, v2
     icall panic_if<0x41>, v10
     v11 = mul v9, 32
-    v12 = eq 32, 0
-    v13 = div v11, 32
-    v14 = eq v13, v9
-    v15 = or v12, v14
-    v16 = zext i1 v15 to i256
-    v17 = eq v16, 0
-    icall panic_if<0x41>, v17
-    v18 = alloc zeroed checked v11
-    mstore v18, v1
+    v12 = shr v9, 251
+    v13 = ne v12, 0
+    icall panic_if<0x41>, v13
+    v14 = alloc zeroed checked v11
+    mstore v14, v1
     jump bb1
   bb1:
-    v19 = phi [bb0: arg0], [bb3: v19]
-    v20 = phi [bb0: arg1], [bb3: v20]
-    v21 = phi [bb0: v18], [bb3: v21]
-    v22 = phi [bb0: v1], [bb3: v22]
-    v23 = phi [bb0: 0], [bb3: v39]
-    v24 = lt v23, v22
-    jumpi v24, bb4, bb5
+    v15 = phi [bb0: arg0], [bb3: v15]
+    v16 = phi [bb0: arg1], [bb3: v16]
+    v17 = phi [bb0: v14], [bb3: v17]
+    v18 = phi [bb0: v1], [bb3: v18]
+    v19 = phi [bb0: 0], [bb3: v35]
+    v20 = lt v19, v18
+    jumpi v20, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v21
+    ret v17
   bb4:
-    v25 = checked_add uint256, v20, v23
-    v26 = mload v19
-    v27 = lt v25, v26
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = shl v25, 5
-    v30 = ptradd v19, v29
-    v31 = ptradd v30, 32
-    v32 = mload v31
-    v33 = mload v21
-    v34 = lt v23, v33
-    v35 = eq v34, false
-    icall panic_if<0x32>, v35
-    v36 = shl v23, 5
-    v37 = ptradd v21, v36
-    v38 = ptradd v37, 32
-    mstore v38, v32
+    v21 = checked_add uint256, v16, v19
+    v22 = mload v15
+    v23 = lt v21, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = shl v21, 5
+    v26 = ptradd v15, v25
+    v27 = ptradd v26, 32
+    v28 = mload v27
+    v29 = mload v17
+    v30 = lt v19, v29
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = shl v19, 5
+    v33 = ptradd v17, v32
+    v34 = ptradd v33, 32
+    mstore v34, v28
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v39 = checked_add uint256, v23, 1
+    v35 = checked_add uint256, v19, 1
     jump bb1
 }
 
@@ -656,57 +652,49 @@ fn @wordsFromCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0xd35cf802
     v10 = lt v9, v2
     icall panic_if<0x41>, v10
     v11 = mul v9, 32
-    v12 = eq 32, 0
-    v13 = div v11, 32
-    v14 = eq v13, v9
-    v15 = or v12, v14
-    v16 = zext i1 v15 to i256
-    v17 = eq v16, 0
-    icall panic_if<0x41>, v17
-    v18 = alloc zeroed checked v11
-    mstore v18, v1
+    v12 = shr v9, 251
+    v13 = ne v12, 0
+    icall panic_if<0x41>, v13
+    v14 = alloc zeroed checked v11
+    mstore v14, v1
     jump bb1
   bb1:
-    v19 = phi [bb0: arg0], [bb3: v19]
-    v20 = phi [bb0: v18], [bb3: v20]
-    v21 = phi [bb0: 0], [bb3: v44]
-    v22 = extract_value slice<calldata>, v19, 1
-    v23 = lt v21, v22
-    jumpi v23, bb4, bb5
+    v15 = phi [bb0: arg0], [bb3: v15]
+    v16 = phi [bb0: v14], [bb3: v16]
+    v17 = phi [bb0: 0], [bb3: v36]
+    v18 = extract_value slice<calldata>, v15, 1
+    v19 = lt v17, v18
+    jumpi v19, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v20
+    ret v16
   bb4:
-    v24 = extract_value slice<calldata>, v19, 1
-    v25 = lt v21, v24
-    v26 = eq v25, false
-    icall panic_if<0x32>, v26
-    v27 = extract_value slice<calldata>, v19, 0
-    v28 = mul v21, 32
-    v29 = eq 32, 0
-    v30 = div v28, 32
-    v31 = eq v30, v21
-    v32 = or v29, v31
-    v33 = zext i1 v32 to i256
-    v34 = eq v33, 0
-    icall panic_if<0x41>, v34
-    v35 = ptrtoint ptr<calldata> v27 to i256
-    v36 = add v35, v28
-    v37 = calldataload v36
-    v38 = mload v20
-    v39 = lt v21, v38
-    v40 = eq v39, false
-    icall panic_if<0x32>, v40
-    v41 = shl v21, 5
-    v42 = ptradd v20, v41
-    v43 = ptradd v42, 32
-    mstore v43, v37
+    v20 = extract_value slice<calldata>, v15, 1
+    v21 = lt v17, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = extract_value slice<calldata>, v15, 0
+    v24 = mul v17, 32
+    v25 = shr v17, 251
+    v26 = ne v25, 0
+    icall panic_if<0x41>, v26
+    v27 = ptrtoint ptr<calldata> v23 to i256
+    v28 = add v27, v24
+    v29 = calldataload v28
+    v30 = mload v16
+    v31 = lt v17, v30
+    v32 = eq v31, false
+    icall panic_if<0x32>, v32
+    v33 = shl v17, 5
+    v34 = ptradd v16, v33
+    v35 = ptradd v34, 32
+    mstore v35, v29
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v44 = checked_add uint256, v21, 1
+    v36 = checked_add uint256, v17, 1
     jump bb1
 }
 

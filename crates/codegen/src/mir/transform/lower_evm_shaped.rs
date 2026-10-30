@@ -62,7 +62,7 @@ impl MirPass for LowerEvmShaped {
             erase_pointer_types(func, &mut replacements, &mut casts, &mut instructions);
             split_clobbering_phi_edges(func);
         }
-        if let Err(error) = module.advance_phase(gcx, MirPhase::Lowered) {
+        if let Err(error) = module.advance_phase(gcx.sess, MirPhase::Lowered) {
             analyses.fail(error);
         }
         true

@@ -35,11 +35,11 @@ fn @lengthSet() [selector=0xa5e448c2, abi_wrapper, pure] {
     v35 = heap_floor !metadata(alloc_ptr)
     mstore v35, arg1
     v10 = calldatasize
-    v21 = shr arg1, 64
+    v19 = shr arg1, 64
     v12 = sub v10, arg1
     v14 = sgt v27, v12
     v37 = zext i1 v14 to i256
-    v38 = or v21, v37
+    v38 = or v19, v37
     v39 = ne v38, 0
     jumpi v39, bb3, bb4
   bb4:
@@ -70,11 +70,11 @@ fn @offsetSet() [selector=0xba062698, abi_wrapper, pure] {
     v39 = heap_floor !metadata(alloc_ptr)
     mstore v39, v30
     v14 = calldatasize
-    v25 = shr v30, 64
+    v23 = shr v30, 64
     v16 = sub v14, v30
     v18 = sgt v2, v16
     v41 = zext i1 v18 to i256
-    v42 = or v25, v41
+    v42 = or v23, v41
     v43 = ne v42, 0
     jumpi v43, bb3, bb4
   bb4:
@@ -98,11 +98,11 @@ fn @forwarded() [selector=0xbf6f2c90, abi_wrapper, pure] {
     v24 = calldataload v23
     v25 = add v23, 32
     v2 = calldatasize
-    v19 = shr v24, 64
+    v17 = shr v24, 64
     v4 = sub v2, v24
     v6 = sgt v25, v4
     v35 = zext i1 v6 to i256
-    v36 = or v19, v35
+    v36 = or v17, v35
     v37 = ne v36, 0
     jumpi v37, bb1, bb2
   bb2:

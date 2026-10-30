@@ -29,9 +29,9 @@ fn @siftDown() [selector=0xcabbfceb, abi_wrapper, pure] {
     jumpi v11, bb9, bb7
   bb9:
     v13 = shl v9, 5
-    v51 = add v33, v13
-    v52 = add v51, 32
-    v16 = mload v52
+    v48 = add v33, v13
+    v49 = add v48, 32
+    v16 = mload v49
     v17 = lt arg2, v16
     jumpi v17, bb4, bb2
   bb2:
@@ -40,18 +40,15 @@ fn @siftDown() [selector=0xcabbfceb, abi_wrapper, pure] {
     jumpi v26, bb8, bb7
   bb8:
     v28 = shl v4, 5
-    v44 = add v33, v28
-    v45 = add v44, 32
-    mstore v45, arg2
+    v43 = add v33, v28
+    v44 = add v43, 32
+    mstore v44, arg2
     v37 = mload v33
-    v47 = add v33, 32
-    v39 = shl v37, 5
-    v49 = add v33, 64
-    mcopy v49, v47, v39
-    mstore v33, 32
-    mstore v47, v37
-    v41 = add v39, 64
-    returndata v33, v41
+    v38 = shl v37, 5
+    v46 = sub v33, 32
+    mstore v46, 32
+    v40 = add v38, 64
+    returndata v46, v40
   bb4:
     v20 = lt v4, v10
     jumpi v20, bb10, bb7
@@ -59,9 +56,9 @@ fn @siftDown() [selector=0xcabbfceb, abi_wrapper, pure] {
     tail_call @revert_stub
   bb10:
     v22 = shl v4, 5
-    v54 = add v33, v22
-    v55 = add v54, 32
-    mstore v55, v16
+    v51 = add v33, v22
+    v52 = add v51, 32
+    mstore v52, v16
     jump bb1
   bb11:
     revert 0, 0
@@ -87,9 +84,9 @@ fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
     jumpi v8, bb7, bb5
   bb7:
     v10 = shl v6, 5
-    v48 = add v30, v10
-    v49 = add v48, 32
-    v13 = mload v49
+    v45 = add v30, v10
+    v46 = add v45, 32
+    v13 = mload v46
     v14 = lt arg2, v13
     jumpi v14, bb4, bb2
   bb2:
@@ -98,18 +95,15 @@ fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
     jumpi v23, bb6, bb5
   bb6:
     v25 = shl v1, 5
-    v41 = add v30, v25
-    v42 = add v41, 32
-    mstore v42, arg2
+    v40 = add v30, v25
+    v41 = add v40, 32
+    mstore v41, arg2
     v34 = mload v30
-    v44 = add v30, 32
-    v36 = shl v34, 5
-    v46 = add v30, 64
-    mcopy v46, v44, v36
-    mstore v30, 32
-    mstore v44, v34
-    v38 = add v36, 64
-    returndata v30, v38
+    v35 = shl v34, 5
+    v43 = sub v30, 32
+    mstore v43, 32
+    v37 = add v35, 64
+    returndata v43, v37
   bb4:
     v17 = lt v1, v7
     jumpi v17, bb8, bb5
@@ -117,9 +111,9 @@ fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
     tail_call @revert_stub
   bb8:
     v19 = shl v1, 5
-    v51 = add v30, v19
-    v52 = add v51, 32
-    mstore v52, v13
+    v48 = add v30, v19
+    v49 = add v48, 32
+    mstore v49, v13
     jump bb1
   bb9:
     revert 0, 0
@@ -127,30 +121,31 @@ fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
 
 fn @afterAllocation() [selector=0x510dcf1e, abi_wrapper, pure] {
   bb0:
-    v19 = calldatasize
-    v20 = lt v19, 36
-    jumpi v20, bb3, bb4
+    v15 = calldatasize
+    v16 = lt v15, 36
+    jumpi v16, bb3, bb4
   bb4:
     v7 = add arg0, 1
     v8 = eq v7, 0
     jumpi v8, bb1, bb2
   bb2:
     v9 = shl v7, 5
-    v11 = shr v9, 5
-    v15 = ne v11, v7
-    v23 = heap_floor !metadata(alloc_ptr)
-    v24 = add v23, v9 !metadata(alloc_ptr)
-    v25 = lt v24, v23
-    v26 = gt v24, 0xffffffffffffffff
-    v27 = or v25, v26
-    v30 = or v15, v27
-    jumpi v30, bb1, bb5
+    v10 = shr v7, 251
+    v19 = heap_floor !metadata(alloc_ptr)
+    v20 = add v19, v9 !metadata(alloc_ptr)
+    v21 = lt v20, v19
+    v22 = gt v20, 0xffffffffffffffff
+    v23 = or v21, v22
+    v26 = zext i1 v23 to i256
+    v27 = or v10, v26
+    v28 = ne v27, 0
+    jumpi v28, bb1, bb5
   bb5:
-    v29 = calldatasize
-    calldatacopy v23, v29, v9
-    mstore v23, arg0
-    v18 = add arg0, arg0
-    mstore 0, v18 !metadata(memory=scratch)
+    v25 = calldatasize
+    calldatacopy v19, v25, v9
+    mstore v19, arg0
+    v14 = add arg0, arg0
+    mstore 0, v14 !metadata(memory=scratch)
     returndata 0, 32
   bb1:
     mstore 32, 65 !metadata(memory=scratch)

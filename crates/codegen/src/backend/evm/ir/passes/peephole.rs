@@ -38,6 +38,11 @@
 //! shift pair `PUSH s SHL PUSH s SHR` in a fixed five-instruction window, when the pair
 //! dominates the mask in gas and bytes. A literal mask never matches, so a loop that kept one
 //! keeps it; the MIR word-sequence pass only fuses such a mask with a neighbouring shift.
+//!
+//! When no low-mask window matches, the late rules rewrite a trailing `PUSH c; SWAP1; SUB` to
+//! `materialize(-c); ADD` if the target's cheapest materialization of `-c` beats the push and the
+//! swap, as `PUSH0; NOT` does for the decrement `x - 1`. The low-mask window ends in the same
+//! tail, so this rewrite waits for it.
 
 use super::{EvmPass, compact_pushes::materialize_immediate, utils::MachineInstKey};
 use crate::{
@@ -324,6 +329,10 @@ enum Edit {
     FoldConstants {
         value: U256,
     },
+    /// PUSH c; SWAP1; SUB => materialize(-c); ADD.
+    AddNegated {
+        value: U256,
+    },
     InvertComparison {
         value: U256,
         opcode: u8,
@@ -383,6 +392,18 @@ impl Edit {
             Self::FoldConstants { value } => {
                 instructions.truncate(start);
                 materialize_immediate(instructions, target.evm_version(), value);
+            }
+            Self::AddNegated { value } => {
+                // push -c; add
+                // NOTE: The materialized constant has no source checkpoint of its own; the `ADD`
+                // keeps the spans of the removed push, swap, and subtraction.
+                let mut add = instructions.pop().expect("matched SUB");
+                overwrite(&mut add, op::ADD);
+                for removed in instructions.drain(start..) {
+                    add.metadata.absorb_debug_info(&removed.metadata);
+                }
+                materialize_immediate(instructions, target.evm_version(), value);
+                instructions.push(add);
             }
             Self::RemoveFirstKeepOne => {
                 instructions.remove(start);

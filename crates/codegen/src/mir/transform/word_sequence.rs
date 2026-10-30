@@ -14,13 +14,16 @@
 //! effects, block edges or gas observations. Recipe and producer-cone sizes are
 //! bounded independently of function size. This is a local tree estimate, not
 //! a proof of scheduled cost; gas and size corpus measurements remain required.
+//! An enabling recipe is accepted without being cheaper: its rule guard shows that it pays for
+//! the rewrite it exposes to a later pass.
 //! Scalar selects can also be roots: their arithmetic recipes preserve zero/nonzero
 //! conditions, while pointer and aggregate selects retain their provenance.
 //! Shared integer casts can move outside a select when their source widths match;
 //! temporary selects retain that source type. Pointer and wider-than-word roots
 //! remain excluded from arithmetic selection.
 //! Inequality recipes use the backend's EQ/ISZERO expansion and its target cost, except
-//! that a nonzero test whose only use is a branch costs nothing: `JUMPI` reads the word.
+//! that a nonzero test whose every use is a branch or a check costs nothing: `JUMPI` reads
+//! the word.
 //! Pure, nontrapping operations without recipes stay in place without breaking
 //! the segment; they never earn deletion credit.
 //! Mask blends wait until storage forwarding and mask simplification have run,
@@ -29,6 +32,7 @@
 //! in gas builds, when no other instruction reads the mask constant; masks alone are left to
 //! the EVM IR `late-word` peephole, which sees the mask's materialization.
 
+use super::lower_checks::is_check;
 use crate::{
     backend::evm::{op, select},
     mir::{
@@ -81,6 +85,8 @@ struct Recipe {
     root: Op,
     scalar_ty: MirType,
     temporaries: FxHashMap<ValueId, Temporary>,
+    /// Whether the recipe is worth its local cost for what it lets later passes do.
+    enabling: bool,
 }
 
 fn legal(op: &Op, target: &Target) -> bool {
@@ -163,8 +169,8 @@ fn operation_cost(
     cost
 }
 
-/// The cost of a recipe root. A nonzero test whose only use is a branch condition costs
-/// nothing, because `JUMPI` takes its operand as the condition.
+/// The cost of a recipe root. A nonzero test whose every use is a branch or check condition
+/// costs nothing, because `JUMPI` takes its operand as the condition.
 fn root_cost(
     func: &Function,
     op: &Op,
@@ -372,7 +378,7 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
                                 operation_cost(func, &func.inst(inst).kind.op(), target, &empty)
                             })
                             .sum::<Cost>();
-                    if target.cmp(after, before).is_lt()
+                    if (recipe.enabling || target.cmp(after, before).is_lt())
                         && best.as_ref().is_none_or(|(_, cost, _)| target.cmp(after, *cost).is_lt())
                     {
                         best = Some((recipe, after, dead));
@@ -452,20 +458,32 @@ fn collect_dead(
     });
 }
 
-/// Values whose only use is the condition of a branch in their defining block, the shape
-/// the backend folds into `JUMPI`.
+/// Values whose every use is the condition of a branch or check in their defining block, the
+/// shape the backend folds into `JUMPI`. Lowering a check branches on its condition.
 fn branch_only_conditions(func: &Function, uses: &IndexVec<ValueId, u32>) -> FxHashSet<ValueId> {
-    func.blocks
-        .iter()
-        .filter_map(|block| match block.terminator {
-            Some(Terminator::Branch { condition, .. })
-                if uses[condition] == 1
-                    && let Value::Inst(def) = *func.value(condition)
-                    && block.instructions.contains(&def) =>
+    let mut branch_uses = FxHashMap::<ValueId, u32>::default();
+    let mut defined = FxHashSet::<InstId>::default();
+    for block in &func.blocks {
+        defined.clear();
+        let mut count = |defined: &FxHashSet<InstId>, condition| {
+            if let Value::Inst(def) = *func.value(condition)
+                && defined.contains(&def)
             {
-                Some(condition)
+                *branch_uses.entry(condition).or_default() += 1;
             }
-            _ => None,
-        })
-        .collect()
+        };
+        for &inst in &block.instructions {
+            let kind = &func.inst(inst).kind;
+            if is_check(kind)
+                && let InstKind::ICall { args, .. } = kind
+            {
+                count(&defined, args[0]);
+            }
+            defined.insert(inst);
+        }
+        if let Some(Terminator::Branch { condition, .. }) = block.terminator {
+            count(&defined, condition);
+        }
+    }
+    branch_uses.into_iter().filter_map(|(value, n)| (uses[value] == n).then_some(value)).collect()
 }

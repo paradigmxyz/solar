@@ -35,6 +35,7 @@
   (ShiftPairMask)
   (DropDiscardedSwap)
   (FoldConstants (value U256))
+  (AddNegated (value U256))
   (RemoveFirstKeepOne)
   (RemoveFirstKeepTwo)
   (RemoveFirstOverwrite (opcode u8))
@@ -88,6 +89,9 @@
 ;; `PUSH x; unary_op => materialize(unary_op(x))`, when bytes and gas improve.
 (decl fold_unary_constant (U256) Window)
 (extern extractor fold_unary_constant fold_unary_constant)
+;; `PUSH c; SWAP1; SUB`, when `materialize(-c); ADD` is cheaper, giving `-c`.
+(decl negated_subtrahend (U256) Window)
+(extern extractor negated_subtrahend negated_subtrahend)
 ;; `PUSH 0; PUSH block; JUMPI => empty`, respecting protected boundaries.
 (decl untaken_jump () Window)
 (extern extractor untaken_jump untaken_jump)
@@ -296,6 +300,13 @@
 (decl pure late_length (LateWindow) u8)
 (extern constructor late_length late_length)
 (decl partial late_peep (LateWindow) Rewrite)
+
+;; `PUSH c; SWAP1; SUB => materialize(-c); ADD`: both compute `x - c` for the `x` on top.
+;; The right side drops the `SWAP1`, and the target's cheaper materialization may drop more.
+;; This runs only after `late_peep` fails, because the protected low-mask window ends in the
+;; same tail and rewrites it better.
+(decl partial late_sub (Window) Rewrite)
+(rule (late_sub (negated_subtrahend value)) (rewrite 3 (Edit.AddNegated value)))
 
 (decl protected_window (Inst Inst Inst Inst Inst) LateWindow)
 (extern extractor protected_window protected_window)

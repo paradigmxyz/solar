@@ -12,7 +12,7 @@
 // selector extraction nor the shifts below need a `swap 1` to put the dividend on top.
 // CHECK-LABEL: @module LegacyShifts_runtime
 // CHECK: push 0x100000000000000000000000000000000000000000000000000000000
-// CHECK-NEXT: push 0
+// CHECK-NEXT: returndatasize
 // CHECK-NEXT: calldataload
 // CHECK-NEXT: div
 // CHECK: push 8
