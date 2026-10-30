@@ -17,125 +17,121 @@ fn @siftValues(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x979efdba, pure
     v8 = lt v7, v0
     icall panic_if<0x41>, v8
     v9 = mul v7, 32
-    v10 = eq 32, 0
-    v11 = div v9, 32
-    v12 = eq v11, v7
-    v13 = or v10, v12
-    v14 = zext i1 v13 to i256
-    v15 = eq v14, 0
-    icall panic_if<0x41>, v15
-    v16 = alloc zeroed checked v9
-    mstore v16, arg0
+    v10 = shr v7, 251
+    v11 = ne v10, 0
+    icall panic_if<0x41>, v11
+    v12 = alloc zeroed checked v9
+    mstore v12, arg0
     jump bb1
   bb1:
-    v17 = phi [bb0: arg0], [bb3: v17]
-    v18 = phi [bb0: arg1], [bb3: v18]
-    v19 = phi [bb0: v16], [bb3: v19]
-    v20 = phi [bb0: 0], [bb3: v30]
-    v21 = lt v20, v17
-    jumpi v21, bb4, bb5
+    v13 = phi [bb0: arg0], [bb3: v13]
+    v14 = phi [bb0: arg1], [bb3: v14]
+    v15 = phi [bb0: v12], [bb3: v15]
+    v16 = phi [bb0: 0], [bb3: v26]
+    v17 = lt v16, v13
+    jumpi v17, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v31 = mload v19
-    v32 = lt 0, v31
-    v33 = eq v32, false
-    icall panic_if<0x32>, v33
-    v34 = ptradd v19, 32
-    mstore v34, 100
+    v27 = mload v15
+    v28 = lt 0, v27
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = ptradd v15, 32
+    mstore v30, 100
     jump bb7
   bb7:
-    v35 = phi [bb2: v17], [bb9: v35]
-    v36 = phi [bb2: v18], [bb9: v36]
-    v37 = phi [bb2: v19], [bb9: v37]
-    v38 = phi [bb2: v20], [bb9: v38]
-    v39 = phi [bb2: 0], [bb9: v64]
-    v40 = phi [bb2: 1], [bb9: v73]
-    v41 = lt v40, v36
-    jumpi v41, bb10, bb11
+    v31 = phi [bb2: v13], [bb9: v31]
+    v32 = phi [bb2: v14], [bb9: v32]
+    v33 = phi [bb2: v15], [bb9: v33]
+    v34 = phi [bb2: v16], [bb9: v34]
+    v35 = phi [bb2: 0], [bb9: v60]
+    v36 = phi [bb2: 1], [bb9: v69]
+    v37 = lt v36, v32
+    jumpi v37, bb10, bb11
   bb11:
     jump bb8
   bb8:
-    v74 = checked_add uint256, 100, v39
-    v75 = mload v37
-    v76 = lt v39, v75
-    v77 = eq v76, false
-    icall panic_if<0x32>, v77
-    v78 = shl v39, 5
-    v79 = ptradd v37, v78
-    v80 = ptradd v79, 32
-    mstore v80, v74
-    ret v37
+    v70 = checked_add uint256, 100, v35
+    v71 = mload v33
+    v72 = lt v35, v71
+    v73 = eq v72, false
+    icall panic_if<0x32>, v73
+    v74 = shl v35, 5
+    v75 = ptradd v33, v74
+    v76 = ptradd v75, 32
+    mstore v76, v70
+    ret v33
   bb10:
-    v42 = shr v40, 1
-    v43 = mload v37
-    v44 = lt v40, v43
-    v45 = eq v44, false
-    icall panic_if<0x32>, v45
-    v46 = shl v40, 5
-    v47 = ptradd v37, v46
-    v48 = ptradd v47, 32
-    v49 = mload v48
-    v50 = checked_add uint256, v40, 1
-    v51 = lt v50, v36
-    jumpi v51, bb13, bb14
+    v38 = shr v36, 1
+    v39 = mload v33
+    v40 = lt v36, v39
+    v41 = eq v40, false
+    icall panic_if<0x32>, v41
+    v42 = shl v36, 5
+    v43 = ptradd v33, v42
+    v44 = ptradd v43, 32
+    v45 = mload v44
+    v46 = checked_add uint256, v36, 1
+    v47 = lt v46, v32
+    jumpi v47, bb13, bb14
   bb14:
     jump bb15
   bb13:
-    v52 = checked_add uint256, v40, 1
-    v53 = mload v37
-    v54 = lt v52, v53
-    v55 = eq v54, false
-    icall panic_if<0x32>, v55
-    v56 = shl v52, 5
-    v57 = ptradd v37, v56
-    v58 = ptradd v57, 32
-    v59 = mload v58
-    v60 = gt v49, v59
-    jumpi v60, bb16, bb17
+    v48 = checked_add uint256, v36, 1
+    v49 = mload v33
+    v50 = lt v48, v49
+    v51 = eq v50, false
+    icall panic_if<0x32>, v51
+    v52 = shl v48, 5
+    v53 = ptradd v33, v52
+    v54 = ptradd v53, 32
+    v55 = mload v54
+    v56 = gt v45, v55
+    jumpi v56, bb16, bb17
   bb17:
     jump bb18
   bb16:
-    v61 = checked_add uint256, v40, 1
+    v57 = checked_add uint256, v36, 1
     jump bb18
   bb18:
-    v62 = phi [bb16: v61], [bb17: v40]
-    v63 = phi [bb16: v59], [bb17: v49]
+    v58 = phi [bb16: v57], [bb17: v36]
+    v59 = phi [bb16: v55], [bb17: v45]
     jump bb15
   bb15:
-    v64 = phi [bb18: v62], [bb14: v40]
-    v65 = phi [bb18: v63], [bb14: v49]
-    v66 = mload v37
-    v67 = lt v42, v66
-    v68 = eq v67, false
-    icall panic_if<0x32>, v68
-    v69 = shl v42, 5
-    v70 = ptradd v37, v69
-    v71 = ptradd v70, 32
-    mstore v71, v65
+    v60 = phi [bb18: v58], [bb14: v36]
+    v61 = phi [bb18: v59], [bb14: v45]
+    v62 = mload v33
+    v63 = lt v38, v62
+    v64 = eq v63, false
+    icall panic_if<0x32>, v64
+    v65 = shl v38, 5
+    v66 = ptradd v33, v65
+    v67 = ptradd v66, 32
+    mstore v67, v61
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v72 = shl v64, 1
-    v73 = or v72, 1
+    v68 = shl v60, 1
+    v69 = or v68, 1
     jump bb7
   bb4:
-    v22 = checked_mul uint256, v20, 7
-    v23 = checked_rem uint256, v22, 11
-    v24 = mload v19
-    v25 = lt v20, v24
-    v26 = eq v25, false
-    icall panic_if<0x32>, v26
-    v27 = shl v20, 5
-    v28 = ptradd v19, v27
-    v29 = ptradd v28, 32
-    mstore v29, v23
+    v18 = checked_mul uint256, v16, 7
+    v19 = checked_rem uint256, v18, 11
+    v20 = mload v15
+    v21 = lt v16, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = shl v16, 5
+    v24 = ptradd v15, v23
+    v25 = ptradd v24, 32
+    mstore v25, v19
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v30 = checked_add uint256, v20, 1
+    v26 = checked_add uint256, v16, 1
     jump bb1
 }
 
@@ -153,189 +149,181 @@ fn @siftUp(arg0: i256, arg1: i256) -> struct0 [selector=0xf06414cf, pure, abi_pa
     v8 = lt v7, v0
     icall panic_if<0x41>, v8
     v9 = mul v7, 32
-    v10 = eq 32, 0
-    v11 = div v9, 32
-    v12 = eq v11, v7
-    v13 = or v10, v12
-    v14 = zext i1 v13 to i256
-    v15 = eq v14, 0
-    icall panic_if<0x41>, v15
-    v16 = alloc zeroed checked v9
-    mstore v16, arg0
-    v17 = mul arg0, 1
-    v18 = eq 1, 0
-    v19 = div v17, 1
-    v20 = eq v19, arg0
-    v21 = or v18, v20
-    v22 = zext i1 v21 to i256
-    v23 = eq v22, 0
-    icall panic_if<0x41>, v23
-    v24 = add v17, 1
-    v25 = lt v24, v17
-    icall panic_if<0x41>, v25
-    v26 = mul v24, 32
-    v27 = eq 32, 0
-    v28 = div v26, 32
-    v29 = eq v28, v24
-    v30 = or v27, v29
-    v31 = zext i1 v30 to i256
-    v32 = eq v31, 0
-    icall panic_if<0x41>, v32
-    v33 = alloc zeroed checked v26
-    mstore v33, arg0
+    v10 = shr v7, 251
+    v11 = ne v10, 0
+    icall panic_if<0x41>, v11
+    v12 = alloc zeroed checked v9
+    mstore v12, arg0
+    v13 = mul arg0, 1
+    v14 = eq 1, 0
+    v15 = div v13, 1
+    v16 = eq v15, arg0
+    v17 = or v14, v16
+    v18 = zext i1 v17 to i256
+    v19 = eq v18, 0
+    icall panic_if<0x41>, v19
+    v20 = add v13, 1
+    v21 = lt v20, v13
+    icall panic_if<0x41>, v21
+    v22 = mul v20, 32
+    v23 = shr v20, 251
+    v24 = ne v23, 0
+    icall panic_if<0x41>, v24
+    v25 = alloc zeroed checked v22
+    mstore v25, arg0
     jump bb1
   bb1:
-    v34 = phi [bb0: arg0], [bb3: v34]
-    v35 = phi [bb0: arg1], [bb3: v35]
-    v36 = phi [bb0: v16], [bb3: v36]
-    v37 = phi [bb0: v33], [bb3: v37]
-    v38 = phi [bb0: 0], [bb3: v54]
-    v39 = lt v38, v34
-    jumpi v39, bb4, bb5
+    v26 = phi [bb0: arg0], [bb3: v26]
+    v27 = phi [bb0: arg1], [bb3: v27]
+    v28 = phi [bb0: v12], [bb3: v28]
+    v29 = phi [bb0: v25], [bb3: v29]
+    v30 = phi [bb0: 0], [bb3: v46]
+    v31 = lt v30, v26
+    jumpi v31, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v55 = mload v36
-    v56 = lt 0, v55
-    v57 = eq v56, false
-    icall panic_if<0x32>, v57
-    v58 = ptradd v36, 32
-    mstore v58, 100
-    v59 = mload v37
-    v60 = lt 0, v59
-    v61 = eq v60, false
-    icall panic_if<0x32>, v61
-    v62 = ptradd v37, 32
-    v63 = mload v62
+    v47 = mload v28
+    v48 = lt 0, v47
+    v49 = eq v48, false
+    icall panic_if<0x32>, v49
+    v50 = ptradd v28, 32
+    mstore v50, 100
+    v51 = mload v29
+    v52 = lt 0, v51
+    v53 = eq v52, false
+    icall panic_if<0x32>, v53
+    v54 = ptradd v29, 32
+    v55 = mload v54
     jump bb7
   bb7:
-    v64 = phi [bb2: v34], [bb9: v64]
-    v65 = phi [bb2: v35], [bb9: v65]
-    v66 = phi [bb2: v36], [bb9: v66]
-    v67 = phi [bb2: v37], [bb9: v67]
-    v68 = phi [bb2: v38], [bb9: v68]
-    v69 = phi [bb2: v63], [bb9: v69]
-    v70 = phi [bb2: 0], [bb9: v95]
-    v71 = phi [bb2: 1], [bb9: v117]
-    v72 = lt v71, v65
-    jumpi v72, bb10, bb11
+    v56 = phi [bb2: v26], [bb9: v56]
+    v57 = phi [bb2: v27], [bb9: v57]
+    v58 = phi [bb2: v28], [bb9: v58]
+    v59 = phi [bb2: v29], [bb9: v59]
+    v60 = phi [bb2: v30], [bb9: v60]
+    v61 = phi [bb2: v55], [bb9: v61]
+    v62 = phi [bb2: 0], [bb9: v87]
+    v63 = phi [bb2: 1], [bb9: v109]
+    v64 = lt v63, v57
+    jumpi v64, bb10, bb11
   bb11:
     jump bb8
   bb8:
-    v118 = checked_add uint256, 100, v70
-    v119 = mload v66
-    v120 = lt v70, v119
-    v121 = eq v120, false
-    icall panic_if<0x32>, v121
-    v122 = shl v70, 5
-    v123 = ptradd v66, v122
-    v124 = ptradd v123, 32
-    mstore v124, v118
-    v125 = mload v67
-    v126 = lt v70, v125
-    v127 = eq v126, false
-    icall panic_if<0x32>, v127
-    v128 = shl v70, 5
-    v129 = ptradd v67, v128
-    v130 = ptradd v129, 32
-    mstore v130, v69
-    v131 = insert_value struct0, undef struct0, 0, v66
-    v132 = insert_value struct0, v131, 1, v67
-    ret v132
+    v110 = checked_add uint256, 100, v62
+    v111 = mload v58
+    v112 = lt v62, v111
+    v113 = eq v112, false
+    icall panic_if<0x32>, v113
+    v114 = shl v62, 5
+    v115 = ptradd v58, v114
+    v116 = ptradd v115, 32
+    mstore v116, v110
+    v117 = mload v59
+    v118 = lt v62, v117
+    v119 = eq v118, false
+    icall panic_if<0x32>, v119
+    v120 = shl v62, 5
+    v121 = ptradd v59, v120
+    v122 = ptradd v121, 32
+    mstore v122, v61
+    v123 = insert_value struct0, undef struct0, 0, v58
+    v124 = insert_value struct0, v123, 1, v59
+    ret v124
   bb10:
-    v73 = shr v71, 1
-    v74 = mload v66
-    v75 = lt v71, v74
-    v76 = eq v75, false
-    icall panic_if<0x32>, v76
-    v77 = shl v71, 5
-    v78 = ptradd v66, v77
-    v79 = ptradd v78, 32
-    v80 = mload v79
-    v81 = checked_add uint256, v71, 1
-    v82 = lt v81, v65
-    jumpi v82, bb13, bb14
+    v65 = shr v63, 1
+    v66 = mload v58
+    v67 = lt v63, v66
+    v68 = eq v67, false
+    icall panic_if<0x32>, v68
+    v69 = shl v63, 5
+    v70 = ptradd v58, v69
+    v71 = ptradd v70, 32
+    v72 = mload v71
+    v73 = checked_add uint256, v63, 1
+    v74 = lt v73, v57
+    jumpi v74, bb13, bb14
   bb14:
     jump bb15
   bb13:
-    v83 = checked_add uint256, v71, 1
-    v84 = mload v66
-    v85 = lt v83, v84
-    v86 = eq v85, false
-    icall panic_if<0x32>, v86
-    v87 = shl v83, 5
-    v88 = ptradd v66, v87
-    v89 = ptradd v88, 32
-    v90 = mload v89
-    v91 = gt v80, v90
-    jumpi v91, bb16, bb17
+    v75 = checked_add uint256, v63, 1
+    v76 = mload v58
+    v77 = lt v75, v76
+    v78 = eq v77, false
+    icall panic_if<0x32>, v78
+    v79 = shl v75, 5
+    v80 = ptradd v58, v79
+    v81 = ptradd v80, 32
+    v82 = mload v81
+    v83 = gt v72, v82
+    jumpi v83, bb16, bb17
   bb17:
     jump bb18
   bb16:
-    v92 = checked_add uint256, v71, 1
+    v84 = checked_add uint256, v63, 1
     jump bb18
   bb18:
-    v93 = phi [bb16: v92], [bb17: v71]
-    v94 = phi [bb16: v90], [bb17: v80]
+    v85 = phi [bb16: v84], [bb17: v63]
+    v86 = phi [bb16: v82], [bb17: v72]
     jump bb15
   bb15:
-    v95 = phi [bb18: v93], [bb14: v71]
-    v96 = phi [bb18: v94], [bb14: v80]
-    v97 = mload v66
-    v98 = lt v73, v97
-    v99 = eq v98, false
-    icall panic_if<0x32>, v99
-    v100 = shl v73, 5
-    v101 = ptradd v66, v100
-    v102 = ptradd v101, 32
-    mstore v102, v96
-    v103 = mload v67
-    v104 = lt v95, v103
-    v105 = eq v104, false
-    icall panic_if<0x32>, v105
-    v106 = shl v95, 5
-    v107 = ptradd v67, v106
-    v108 = ptradd v107, 32
-    v109 = mload v108
-    v110 = mload v67
-    v111 = lt v73, v110
-    v112 = eq v111, false
-    icall panic_if<0x32>, v112
-    v113 = shl v73, 5
-    v114 = ptradd v67, v113
-    v115 = ptradd v114, 32
-    mstore v115, v109
+    v87 = phi [bb18: v85], [bb14: v63]
+    v88 = phi [bb18: v86], [bb14: v72]
+    v89 = mload v58
+    v90 = lt v65, v89
+    v91 = eq v90, false
+    icall panic_if<0x32>, v91
+    v92 = shl v65, 5
+    v93 = ptradd v58, v92
+    v94 = ptradd v93, 32
+    mstore v94, v88
+    v95 = mload v59
+    v96 = lt v87, v95
+    v97 = eq v96, false
+    icall panic_if<0x32>, v97
+    v98 = shl v87, 5
+    v99 = ptradd v59, v98
+    v100 = ptradd v99, 32
+    v101 = mload v100
+    v102 = mload v59
+    v103 = lt v65, v102
+    v104 = eq v103, false
+    icall panic_if<0x32>, v104
+    v105 = shl v65, 5
+    v106 = ptradd v59, v105
+    v107 = ptradd v106, 32
+    mstore v107, v101
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v116 = shl v95, 1
-    v117 = or v116, 1
+    v108 = shl v87, 1
+    v109 = or v108, 1
     jump bb7
   bb4:
-    v40 = checked_mul uint256, v38, 7
-    v41 = checked_rem uint256, v40, 11
-    v42 = mload v36
-    v43 = lt v38, v42
-    v44 = eq v43, false
-    icall panic_if<0x32>, v44
-    v45 = shl v38, 5
-    v46 = ptradd v36, v45
-    v47 = ptradd v46, 32
-    mstore v47, v41
-    v48 = mload v37
-    v49 = lt v38, v48
-    v50 = eq v49, false
-    icall panic_if<0x32>, v50
-    v51 = shl v38, 5
-    v52 = ptradd v37, v51
-    v53 = ptradd v52, 32
-    mstore v53, v38
+    v32 = checked_mul uint256, v30, 7
+    v33 = checked_rem uint256, v32, 11
+    v34 = mload v28
+    v35 = lt v30, v34
+    v36 = eq v35, false
+    icall panic_if<0x32>, v36
+    v37 = shl v30, 5
+    v38 = ptradd v28, v37
+    v39 = ptradd v38, 32
+    mstore v39, v33
+    v40 = mload v29
+    v41 = lt v30, v40
+    v42 = eq v41, false
+    icall panic_if<0x32>, v42
+    v43 = shl v30, 5
+    v44 = ptradd v29, v43
+    v45 = ptradd v44, 32
+    mstore v45, v30
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v54 = checked_add uint256, v38, 1
+    v46 = checked_add uint256, v30, 1
     jump bb1
 }
 

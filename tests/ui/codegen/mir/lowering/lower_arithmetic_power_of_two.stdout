@@ -1,0 +1,82 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_arithmetic_power_of_two.mir (before lower-arithmetic) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_arithmetic_power_of_two.mir (after lower-arithmetic) ===
+  @module PowerOfTwoMul
+  fn @right(arg0: i256) -> i256 {
+    bb0:
+-     v0 = checked_mul uint256, arg0, 32
+-     ret v0
++     v1 = mul arg0, 32
++     v2 = shr arg0, 251
++     v3 = ne v2, 0
++     jumpi v3, bb1, bb2
++   bb2:
++     ret v1
++   bb1 [cold]:
++     mstore 32, 17 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @left(arg0: i256) -> i256 {
+    bb0:
+-     v0 = checked_mul uint256, 2, arg0
+-     ret v0
++     v1 = mul 2, arg0
++     v2 = shr arg0, 255
++     v3 = ne v2, 0
++     jumpi v3, bb1, bb2
++   bb2:
++     ret v1
++   bb1 [cold]:
++     mstore 32, 17 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @other(arg0: i256) -> i256 {
+    bb0:
+-     v0 = checked_mul uint256, arg0, 3
+-     ret v0
++     v1 = mul arg0, 3
++     v2 = eq 3, 0
++     v3 = div v1, 3
++     v4 = eq v3, arg0
++     v5 = or v2, v4
++     v6 = zext i1 v5 to i256
++     v7 = eq v6, 0
++     jumpi v7, bb1, bb2
++   bb2:
++     ret v1
++   bb1 [cold]:
++     mstore 32, 17 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @signed(arg0: i256) -> i256 {
+    bb0:
+-     v0 = checked_mul int256, arg0, 32
+-     ret v0
++     v1 = mul arg0, 32
++     v2 = eq 32, 0
++     v3 = sdiv v1, 32
++     v4 = eq v3, arg0
++     v5 = or v2, v4
++     v6 = zext i1 v5 to i256
++     v7 = eq v6, 0
++     v8 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
++     v9 = slt 32, 0
++     v10 = and v8, v9
++     v11 = zext i1 v10 to i256
++     v12 = zext i1 v7 to i256
++     v13 = or v12, v11
++     v14 = ne v13, 0
++     jumpi v14, bb1, bb2
++   bb2:
++     ret v1
++   bb1 [cold]:
++     mstore 32, 17 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  

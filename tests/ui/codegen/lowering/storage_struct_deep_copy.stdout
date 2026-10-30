@@ -97,8 +97,8 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     calldatacopy v91, v97, 64
     v6 = alloc 64 !metadata(deferred_alloc)
     v10 = sload 2 !metadata(storage=slot(2))
-    v79 = shr v10, 64
-    v11 = ne v79, 0
+    v77 = shr v10, 64
+    v11 = ne v77, 0
     jumpi v11, bb5, bb6
   bb6:
     v12 = add v10, 1
@@ -116,8 +116,8 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     jump bb3
   bb3:
     v28 = phi [bb1: 1], [bb4: v44]
-    v78 = phi [bb1: v27], [bb4: v77]
-    jumpi v78, bb4, bb2
+    v80 = phi [bb1: v27], [bb4: v79]
+    jumpi v80, bb4, bb2
   bb2:
     sstore v22, 1 !metadata(storage=offset(v14, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5acf))
     mstore 0, v22 !metadata(memory=scratch)
@@ -143,7 +143,7 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v39 = and v37, v38
     sstore v32, v39 !metadata(storage=symbolic(v32))
     v44 = add v28, 1
-    v77 = lt v44, v26
+    v79 = lt v44, v26
     jump bb3
   bb5 [cold]:
     mstore 32, 65 !metadata(memory=scratch)

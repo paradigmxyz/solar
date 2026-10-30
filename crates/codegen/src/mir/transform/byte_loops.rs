@@ -1004,7 +1004,7 @@ fn calldata_word_address(
     if func.value_u64(shift) != Some(5) {
         return None;
     }
-    // panic_if (ne (shr 5, (shl 5, idx)), idx), 0x41
+    // panic_if (ne (shr 251, idx), 0), 0x41
     for &inst in &lp.insts {
         let InstKind::ICall {
             function:
@@ -1018,18 +1018,27 @@ fn calldata_word_address(
             continue;
         };
         let [condition] = **args else { continue };
-        let Some((_, &InstKind::Ne(back, original))) = body_def(func, lp, condition) else {
-            continue;
-        };
-        if original == idx
-            && let Some((_, &InstKind::Shr(amount, shifted))) = body_def(func, lp, back)
-            && shifted == offset
-            && func.value_u64(amount) == Some(5)
-        {
+        if scale_wraps(func, lp, condition, idx) {
             used.push(inst);
         }
     }
     Some((slice, idx))
+}
+
+/// Whether `condition` tests that scaling `idx` by 32 wraps: `idx` has a bit at or above 251.
+fn scale_wraps(func: &Function, lp: &Counted, condition: ValueId, idx: ValueId) -> bool {
+    match body_def(func, lp, condition).map(|(_, kind)| kind) {
+        // ne (shr 251, idx), 0
+        Some(&InstKind::Ne(high, zero)) if func.value_u64(zero) == Some(0) => {
+            matches!(body_def(func, lp, high), Some((_, &InstKind::Shr(amount, shifted)))
+                if shifted == idx && func.value_u64(amount) == Some(251))
+        }
+        // gt idx, MAX >> 5
+        Some(&InstKind::Gt(value, limit)) => {
+            value == idx && func.value_u256(limit) == Some(U256::MAX >> 5)
+        }
+        _ => false,
+    }
 }
 
 /// Matches `dst[dstOffset + k] = src[srcOffset + k]` over arrays of words, counting up.
