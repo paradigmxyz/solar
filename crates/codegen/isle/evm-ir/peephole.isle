@@ -34,6 +34,7 @@
   (LowMaskWithSwap)
   (DropDiscardedSwap)
   (FoldConstants (value U256))
+  (AddNegated (value U256))
   (RemoveFirstKeepOne)
   (RemoveFirstKeepTwo)
   (RemoveFirstOverwrite (opcode u8))
@@ -90,6 +91,9 @@
 ;; `PUSH 0; PUSH block; JUMPI => empty`, respecting protected boundaries.
 (decl untaken_jump () Window)
 (extern extractor untaken_jump untaken_jump)
+;; `PUSH c; SWAP1; SUB`, when `materialize(-c); ADD` is cheaper, giving `-c`.
+(decl negated_subtrahend (U256) Window)
+(extern extractor negated_subtrahend negated_subtrahend)
 ;; A trailing stack sequence whose net effect is the identity, giving its length.
 (decl noop_stack_suffix (u8) Window)
 (extern extractor noop_stack_suffix noop_stack_suffix)
@@ -184,6 +188,10 @@
 
 ;; PUSH 0; PUSH block; JUMPI => empty
 (rule 283 (peep_op (untaken_jump)) (rewrite 3 (Edit.Keep 0)))
+
+;; `PUSH c; SWAP1; SUB => materialize(-c); ADD`: both compute `x - c` for the `x` on top.
+;; The right side drops the `SWAP1`, and the target's cheaper materialization may drop more.
+(rule 282 (peep_op (negated_subtrahend value)) (rewrite 3 (Edit.AddNegated value)))
 
 ;; `PUSH x POP -> ∅`.
 (rule 280 (peep_pop (last2 (any_push) (opcode $POP))) (rewrite 2 (Edit.Keep 0)))

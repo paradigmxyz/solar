@@ -497,6 +497,32 @@ impl generated::Context for PeepContext<'_> {
         target.dominates(target.push(result), input).then_some(result)
     }
 
+    /// The negated constant of `PUSH c; SWAP1; SUB`, when `materialize(-c); ADD` improves the
+    /// objective without raising the transient stack use.
+    fn negated_subtrahend(&mut self, _: Window) -> Option<U256> {
+        let [push, swap, sub] = self.unprotected_tail()?;
+        let value = self.instructions[push].concrete_immediate()?;
+        let instructions = self.instructions;
+        if instructions[swap].as_stack_op() != Some(StackOp::Swap(1))
+            || instructions[sub].as_evm_opcode() != Some(SUB)
+        {
+            return None;
+        }
+        let negated = U256::ZERO.wrapping_sub(value);
+        let target = self.target;
+        let version = target.evm_version();
+        // PUSH c; SWAP1; SUB => materialize(-c); ADD
+        let before = target.push(value) + target.opcode(SWAP1) + target.opcode(SUB);
+        let after = target.push(negated) + target.opcode(ADD);
+        let gas_saving =
+            i64::from(target.runtime_gas(before)) - i64::from(target.runtime_gas(after));
+        let byte_saving = i64::from(before.bytes) - i64::from(after.bytes);
+        (target.improves(gas_saving, byte_saving)
+            && ImmediateMaterialization::new(version, negated).stack_peak()
+                <= ImmediateMaterialization::new(version, value).stack_peak())
+        .then_some(negated)
+    }
+
     /// Removes a closed conditional jump whose literal condition is false.
     fn untaken_jump(&mut self, _: Window) -> Option<()> {
         let [condition, destination, instruction] = self.unprotected_tail()?;

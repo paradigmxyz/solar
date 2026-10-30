@@ -21,6 +21,9 @@
 //! preserve protected instruction boundaries, and never treat symbolic label
 //! addresses or immutable placeholders as literal constants.
 //!
+//! `PUSH c; SWAP1; SUB` becomes `materialize(-c); ADD` when the target's cheapest materialization
+//! of `-c` beats the push and the swap, as `PUSH0; NOT` does for the decrement `x - 1`.
+//!
 //! A pure binary operation with a constant operand moves through a `SWAPn SWAP1 SWAPn`
 //! permutation, which removes two swaps. `ADDMOD` and `MULMOD` drop a preceding `SWAP1`,
 //! since only their first two operands swap.
@@ -318,6 +321,10 @@ enum Edit {
     FoldConstants {
         value: U256,
     },
+    /// PUSH c; SWAP1; SUB => materialize(-c); ADD.
+    AddNegated {
+        value: U256,
+    },
     InvertComparison {
         value: U256,
         opcode: u8,
@@ -367,6 +374,15 @@ impl Edit {
             Self::FoldConstants { value } => {
                 instructions.truncate(start);
                 materialize_immediate(instructions, target.evm_version(), value);
+            }
+            Self::AddNegated { value } => {
+                let mut add = instructions.pop().expect("matched SUB");
+                overwrite(&mut add, op::ADD);
+                for removed in instructions.drain(start..) {
+                    add.metadata.absorb_debug_info(&removed.metadata);
+                }
+                materialize_immediate(instructions, target.evm_version(), value);
+                instructions.push(add);
             }
             Self::RemoveFirstKeepOne => {
                 instructions.remove(start);

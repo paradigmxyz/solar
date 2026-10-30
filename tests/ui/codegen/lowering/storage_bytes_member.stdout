@@ -306,9 +306,9 @@ bb30:
   eq
   push bb36
   jumpi
-  push 1
-  swap 1
-  sub
+  push 0
+  not
+  add
   swap 1
   push bb35
   jumpi
