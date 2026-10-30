@@ -61,9 +61,9 @@ bb7:
   dup 2
   dup 2
   lt
-  push 0xffffffffffffffff
-  dup 3
-  gt
+  dup 2
+  push 64
+  shr
   or
   push bb15
   jumpi
@@ -260,36 +260,36 @@ bb47 [ret=0, inputs=1, outputs=1]:
   push bb6
   jumpi
   add
-  dup 1
-  calldataload
-  swap 1
-  push 32
-  add
-  push 63
-  dup 3
-  add
-  dup 3
-  dup 2
-  lt
-  swap 1
   push 31
+  push 32
+  dup 3
+  calldataload
+  swap 3
+  dup 4
+  dup 1
+  push 63
+  add
+  swap 4
   not
+  dup 5
   and
   push 160
-  swap 1
-  dup 2
   add
-  swap 2
-  dup 2
-  dup 4
+  swap 4
   lt
-  push 0xffffffffffffffff
+  dup 4
+  push 64
+  shr
   dup 5
+  push 160
   gt
   or
   or
   push bb15
   jumpi
+  add
+  swap 1
+  push 160
   swap 1
   push 64
   mstore
