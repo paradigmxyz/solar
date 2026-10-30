@@ -2063,8 +2063,8 @@ impl LowerAbiCx {
         (base, data, len)
     }
 
-    /// Decodes a static value at `head` in `location`, reverting once if any of its words is not
-    /// canonical.
+    /// Decodes a static value at `head` in `location`. The word checks of a scalar or a fixed word
+    /// array share one revert; the fields of an aggregate each revert on their own.
     fn decode_static_argument(
         builder: &mut FunctionBuilder<'_>,
         ty: &AbiParamType,
