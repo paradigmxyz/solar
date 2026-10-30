@@ -45,6 +45,7 @@
   (ZeroLessIszero)
   (ReloadStoredValue)
   (DropNonzeroTest)
+  (DropBranchNormalization)
   (EqIszeroJumpi)
   (SwapPair (first u8) (second u8))
   (MoveConstantThroughSwaps)
@@ -247,6 +248,12 @@
 ;; `DUP1 PUSH x MSTORE POP -> PUSH x MSTORE`.
 (rule 120 (peep_pop (last4 (opcode $DUP1) (any_push) (opcode $MSTORE) (opcode $POP)))
         (rewrite 4 (Edit.RemoveFirstKeepTwo)))
+
+;; `ISZERO ISZERO OR PUSH_REF JUMPI -> OR PUSH_REF JUMPI`: `JUMPI` tests nonzero, and
+;; `bool(a) | b` is nonzero exactly when `a | b` is.
+(rule 111 (peep_op (last5 (opcode $ISZERO) (opcode $ISZERO) (opcode $OR)
+                          (push_block) (opcode $JUMPI)))
+        (rewrite 5 (Edit.DropBranchNormalization)))
 
 ;; `ISZERO ISZERO PUSH_REF JUMPI -> PUSH_REF JUMPI`.
 (rule 110 (peep_op (last4 (opcode $ISZERO) (opcode $ISZERO) (push_block) (opcode $JUMPI)))

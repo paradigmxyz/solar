@@ -147,8 +147,6 @@ bb26:
   dup 2
   push 64
   shr
-  iszero
-  iszero
   or
   push bb33
   jumpi

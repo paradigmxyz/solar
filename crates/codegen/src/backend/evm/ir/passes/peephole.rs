@@ -328,6 +328,8 @@ enum Edit {
         depth: u8,
     },
     DropNonzeroTest,
+    /// ISZERO; ISZERO; OR; PUSH_REF; JUMPI => OR; PUSH_REF; JUMPI.
+    DropBranchNormalization,
     EqIszeroJumpi,
     SwapPair {
         first: u8,
@@ -432,6 +434,9 @@ impl Edit {
             Self::DropNonzeroTest => {
                 instructions.drain(start..start + 2);
                 overwrite(&mut instructions[start + 1], op::JUMPI);
+            }
+            Self::DropBranchNormalization => {
+                instructions.drain(start..start + 2);
             }
             Self::EqIszeroJumpi => {
                 overwrite(&mut instructions[start], op::SUB);
