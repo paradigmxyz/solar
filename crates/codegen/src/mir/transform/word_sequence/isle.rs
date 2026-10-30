@@ -131,6 +131,12 @@ impl generated::Context for Context<'_> {
         (value > U256::ONE && value.is_power_of_two()).then(|| U256::from(value.trailing_zeros()))
     }
 
+    fn low_mask_shift(&mut self, mask: U256) -> Option<U256> {
+        let bits = self.scalar_ty.integer_bits().unwrap() as usize;
+        let ones = mask.count_ones();
+        (mask.bit_len() == ones && (1..bits).contains(&ones)).then(|| U256::from(bits - ones))
+    }
+
     fn u256_shr(&mut self, a: U256, b: U256) -> U256 {
         if a >= U256::from(256) { U256::ZERO } else { b >> a.to::<usize>() }
     }

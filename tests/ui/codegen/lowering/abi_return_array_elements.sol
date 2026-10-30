@@ -11,8 +11,8 @@
 
 // Returning an array parameter re-encodes its elements only when a word wider
 // than the element type can have reached them. ABI decoding validates every
-// element, so a function that stores nothing wider returns the payload with one
-// copy; assembly that stores a full word, here or in a callee, keeps the
+// element, so a function that stores nothing wider returns the payload
+// without a copy; assembly that stores a full word, here or in a callee, keeps the
 // per-element cleanup, which the encoder applies as it copies.
 contract AbiReturnArrayElements {
     struct Word {
@@ -20,7 +20,7 @@ contract AbiReturnArrayElements {
     }
 
     // MIR-LABEL: fn @clean
-    // MIR: {{(^|[^a-z_])}}mcopy
+    // MIR-NOT: {{(^|[^a-z_])}}mcopy
     // MIR-NOT: and {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffffffffffff
     // MIR: returndata
     function clean(address[] memory a) external pure returns (address[] memory) {

@@ -145,46 +145,42 @@ fn @forwardOne(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x82731354, 
     icall panic_if<0x32>, v4
     v5 = extract_value slice<calldata>, arg0, 0
     v6 = mul arg1, 32
-    v7 = eq 32, 0
-    v8 = div v6, 32
-    v9 = eq v8, arg1
-    v10 = or v7, v9
-    v11 = zext i1 v10 to i256
-    v12 = eq v11, 0
-    icall panic_if<0x41>, v12
-    v13 = ptrtoint ptr<calldata> v5 to i256
-    v14 = add v13, v6
-    v15 = calldatasize
-    v16 = sub v15, v14
-    v17 = slt v16, 32
-    icall revert_if<calldata_tail_too_short>, v17
-    v18 = calldataload v14
-    v19 = ptrtoint ptr<calldata> v5 to i256
-    v20 = add v19, v18
-    v21 = calldatasize
-    v22 = ptrtoint ptr<calldata> v5 to i256
-    v23 = sub v21, v22
-    v24 = sub v23, 127
-    v25 = slt v18, v24
-    v26 = eq v25, false
-    icall revert_if<invalid_calldata_tail_offset>, v26
-    v27 = inttoptr i256 v20 to ptr<calldata>
-    v28 = make_calldata_slice v27, 32
-    v29 = abi_encode [tuple<word<uint160>, calldata_array<tuple<word<uint160>, word>>, calldata_array<tuple<word<uint160>, word>>, calldata_bytes>], selector 0xdc7b1a2700000000000000000000000000000000000000000000000000000000, args v28
-    v30 = extract_value slice<memory>, v29, 0
-    v31 = extract_value slice<memory>, v29, 1
-    v32 = zext i160 v0 to i256
-    v33 = staticcall v1, v32, v30, v31, 0, 32
-    jumpi v33, bb2, bb1
+    v7 = shr arg1, 251
+    v8 = ne v7, 0
+    icall panic_if<0x41>, v8
+    v9 = ptrtoint ptr<calldata> v5 to i256
+    v10 = add v9, v6
+    v11 = calldatasize
+    v12 = sub v11, v10
+    v13 = slt v12, 32
+    icall revert_if<calldata_tail_too_short>, v13
+    v14 = calldataload v10
+    v15 = ptrtoint ptr<calldata> v5 to i256
+    v16 = add v15, v14
+    v17 = calldatasize
+    v18 = ptrtoint ptr<calldata> v5 to i256
+    v19 = sub v17, v18
+    v20 = sub v19, 127
+    v21 = slt v14, v20
+    v22 = eq v21, false
+    icall revert_if<invalid_calldata_tail_offset>, v22
+    v23 = inttoptr i256 v16 to ptr<calldata>
+    v24 = make_calldata_slice v23, 32
+    v25 = abi_encode [tuple<word<uint160>, calldata_array<tuple<word<uint160>, word>>, calldata_array<tuple<word<uint160>, word>>, calldata_bytes>], selector 0xdc7b1a2700000000000000000000000000000000000000000000000000000000, args v24
+    v26 = extract_value slice<memory>, v25, 0
+    v27 = extract_value slice<memory>, v25, 1
+    v28 = zext i160 v0 to i256
+    v29 = staticcall v1, v28, v26, v27, 0, 32
+    jumpi v29, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v34 = returndatasize
-    v35 = lt v34, 32
-    icall revert_if<tuple_data_too_short>, v35
-    v36 = add 0, 0
-    v37 = mload v36
-    ret v37
+    v30 = returndatasize
+    v31 = lt v30, 32
+    icall revert_if<tuple_data_too_short>, v31
+    v32 = add 0, 0
+    v33 = mload v32
+    ret v33
 }
 
 fn @encode(arg0: slice<calldata>) -> i256 [selector=0xcc54082e, pure, abi_params=[array<_, tuple<address, array<_, tuple<address, uint256>>, array<_, tuple<address, uint256>>, bytes>>], abi_returns=[word], abi_return_params=[bytes32]] {

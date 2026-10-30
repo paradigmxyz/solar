@@ -267,17 +267,19 @@ impl<'a> PeepContext<'a> {
         match self.rules {
             Rules::Early => self.select_by_tail(),
             Rules::Final => self.final_rewrite().or_else(|| self.select_by_tail()),
-            Rules::Late => {
-                if self.instructions.last()?.as_evm_opcode() != Some(SUB) {
-                    return None;
+            Rules::Late => match self.instructions.last()?.as_evm_opcode()? {
+                AND => generated::constructor_late_mask(self, Window),
+                SUB => {
+                    let end = self.instructions.len();
+                    let first = end.saturating_sub(MAX_STACK_WINDOW);
+                    let masked = end.checked_sub(5).and_then(|last| {
+                        (first..=last)
+                            .find_map(|start| generated::constructor_late_peep(self, start))
+                    });
+                    masked.or_else(|| generated::constructor_late_sub(self, Window))
                 }
-                let end = self.instructions.len();
-                let first = end.saturating_sub(MAX_STACK_WINDOW);
-                let masked = end.checked_sub(5).and_then(|last| {
-                    (first..=last).find_map(|start| generated::constructor_late_peep(self, start))
-                });
-                masked.or_else(|| generated::constructor_late_sub(self, Window))
-            }
+                _ => None,
+            },
         }
     }
 
@@ -640,6 +642,18 @@ impl generated::Context for PeepContext<'_> {
 
     fn u256_is_one(&mut self, value: U256) -> bool {
         value == U256::ONE
+    }
+
+    fn shift_pair_mask_profitable(&mut self, shift: U256) -> bool {
+        let target = self.target;
+        let push = target.push(shift);
+        let before = target.push(U256::ZERO)
+            + target.opcode(NOT)
+            + push
+            + target.opcode(SHR)
+            + target.opcode(AND);
+        let after = push + target.opcode(SHL) + push + target.opcode(SHR);
+        target.dominates(after, before)
     }
 
     fn invert_comparison(&mut self, _: Window) -> Option<(u8, U256, u8)> {
