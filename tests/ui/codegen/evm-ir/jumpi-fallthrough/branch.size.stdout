@@ -1,0 +1,27 @@
+- // === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/branch.evmir (before jumpi-fallthrough) ===
++ // === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/branch.evmir (after jumpi-fallthrough) ===
+  @module Branch
+  bb0:
+    push 4
+    calldataload
+-   push bb2
++   iszero
++   push bb1
+    jumpi
+-   jump bb1
++   jump bb2
+  bb2:
+    push 1
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb1:
+    push 2
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

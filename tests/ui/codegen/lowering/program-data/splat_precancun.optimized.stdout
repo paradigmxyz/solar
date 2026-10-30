@@ -109,7 +109,7 @@ bb0:
   callvalue
   push bb6
   jumpi
-  push 0
+  returndatasize
   calldataload
   push 224
   shr
@@ -135,8 +135,8 @@ bb0:
   jumpi
   jump bb6
 bb6 [cold]:
-  push 0
-  dup 1
+  returndatasize
+  returndatasize
   revert
 bb7:
   push bb8
@@ -151,7 +151,7 @@ bb16 [ret=0, inputs=1, outputs=1]:
   push 161
   dup 2
   mstore
-  push 0
+  returndatasize
   push 192
   dup 3
   add
@@ -176,10 +176,10 @@ bb18 [loop]:
   keccak256
   jump bb17
 bb17 [loop]:
-  push 0
+  returndatasize
   mstore
   push 32
-  push 0
+  returndatasize
   return
 bb9:
   push bb10
@@ -265,5 +265,5 @@ bb21 [continuation]:
   swap 1
   push 96
   add
-  push 0
+  returndatasize
   jump bb13

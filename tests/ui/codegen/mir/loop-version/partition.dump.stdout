@@ -19,14 +19,11 @@ fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
     jump bb2
   bb2:
     v9 = mload v5
-    v16 = add v5, 32
-    v11 = shl v9, 5
-    v18 = add v5, 64
-    mcopy v18, v16, v11
-    mstore v5, 32
-    mstore v16, v9
-    v13 = add v11, 64
-    returndata v5, v13
+    v10 = shl v9, 5
+    v15 = sub v5, 32
+    mstore v15, 32
+    v12 = add v10, 64
+    returndata v15, v12
   bb3:
     revert 0, 0
 }
@@ -607,12 +604,12 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v26 = heap_floor !metadata(alloc_ptr)
     v27 = add v26, v11 !metadata(alloc_ptr)
     v28 = lt v27, v26
-    v30 = gt v27, 0xffffffffffffffff
-    v31 = or v28, v30
-    v34 = zext i1 v31 to i256
-    v35 = or v8, v34
-    v36 = ne v35, 0
-    jumpi v36, bb3, bb5
+    v29 = gt v27, 0xffffffffffffffff
+    v30 = or v28, v29
+    v32 = zext i1 v30 to i256
+    v33 = or v8, v32
+    v34 = ne v33, 0
+    jumpi v34, bb3, bb5
   bb5:
     mstore 64, v27 !metadata(memory=scratch)
     mstore v26, v6

@@ -135,9 +135,9 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v26 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v27 = add v26, v11 !metadata(alloc_ptr)
     v28 = lt v27, v26
-    v30 = gt v27, 0xffffffffffffffff
-    v31 = or v28, v30
-    jumpi v31, bb3, bb6
+    v29 = gt v27, 0xffffffffffffffff
+    v30 = or v28, v29
+    jumpi v30, bb3, bb6
   bb6:
     mstore 64, v27 !metadata(memory=scratch)
     mstore v26, v6

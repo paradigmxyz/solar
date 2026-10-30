@@ -23,6 +23,9 @@
 //! the call-site weighting. Deferred data and indexed tables stay with the ordinary estimate, and
 //! a bounded width calculation abandons the alternative if it does not converge.
 //! Other trace edges and gas-mode placement keep their order.
+//!
+//! A branch's `PUSH; JUMPI` target is no trace edge, so a layout can place it next to the branch
+//! behind a `JUMP`. The pass then turns such a branch around, as `jumpi-fallthrough` describes.
 
 use super::{
     EvmPass,
@@ -62,6 +65,12 @@ impl EvmPass for BlockLayout {
 }
 
 fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    let reordered = order_blocks(gcx, module);
+    let turned = super::jumpi_fallthrough::turn_branches(gcx, module);
+    reordered | turned
+}
+
+pub(super) fn order_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
     if module.blocks.len() <= 1 {
         return false;
     }

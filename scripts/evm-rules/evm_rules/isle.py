@@ -365,7 +365,10 @@ class Context:
                 )
             shift = Expr("sub", (Expr.const(256), self.integer_width))
             return Expr("and", (values[1], Expr("shr", (shift, Expr.const(MASK)))))
-        if name in ("imm", "u256", "resident", "make", "sequence") and len(values) == 1:
+        if (
+            name in ("imm", "u256", "resident", "make", "sequence", "enabling_sequence")
+            and len(values) == 1
+        ):
             if name == "resident":
                 self.contracts.add(
                     "resident: available value has the matched expression's word semantics"

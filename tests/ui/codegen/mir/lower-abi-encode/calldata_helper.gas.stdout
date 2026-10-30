@@ -10,17 +10,17 @@ fn @fa() [selector=0xa2467f05, abi_wrapper] {
     v17 = add v16, 4
     v19 = sub v11, 36
     v20 = gt v16, v19
-    v202 = zext i1 v20 to i256
-    v203 = or v14, v202
+    v198 = zext i1 v20 to i256
+    v199 = or v14, v198
     v21 = calldataload v17
     v22 = add v17, 32
     v23 = sub v11, v22
     v24 = shr v23, 5
     v25 = gt v21, v24
-    v205 = zext i1 v25 to i256
-    v206 = or v203, v205
-    v207 = ne v206, 0
-    jumpi v207, bb3, bb5
+    v201 = zext i1 v25 to i256
+    v202 = or v199, v201
+    v203 = ne v202, 0
+    jumpi v203, bb3, bb5
   bb5:
     v0 = gas
     v183 = heap_floor !metadata(alloc_ptr)
@@ -101,15 +101,13 @@ fn @fa() [selector=0xa2467f05, abi_wrapper] {
     mstore v56, v72
     v83 = add v56, 32
     v86 = add v83, v75
-    v190 = gt v72, 0x20000000000000000
-    v191 = select v190, 0x20000000000000000, v72
-    v192 = shl v191, 6
-    v193 = add v83, v192
+    v190 = shl v72, 6
+    v191 = add v83, v190
     jump bb14
   bb14:
     v186 = phi [bb13: v83], [bb17: v187]
     v188 = phi [bb13: v76], [bb17: v189]
-    v88 = ne v186, v193
+    v88 = ne v186, v191
     jumpi v88, bb15, bb16
   bb16:
     v103 = add v39, 64
@@ -136,15 +134,13 @@ fn @fa() [selector=0xa2467f05, abi_wrapper] {
     mstore v86, v113
     v124 = add v86, 32
     v127 = add v124, v116
-    v198 = gt v113, 0x20000000000000000
-    v199 = select v198, 0x20000000000000000, v113
-    v200 = shl v199, 6
-    v201 = add v124, v200
+    v196 = shl v113, 6
+    v197 = add v124, v196
     jump bb21
   bb21:
-    v194 = phi [bb20: v124], [bb24: v195]
-    v196 = phi [bb20: v117], [bb24: v197]
-    v129 = ne v194, v201
+    v192 = phi [bb20: v124], [bb24: v193]
+    v194 = phi [bb20: v117], [bb24: v195]
+    v129 = ne v192, v197
     jumpi v129, bb22, bb23
   bb23:
     v144 = add v39, 96
@@ -180,18 +176,18 @@ fn @fa() [selector=0xa2467f05, abi_wrapper] {
     v174 = add v40, 32
     jump bb6
   bb22:
-    v134 = calldataload v196
+    v134 = calldataload v194
     v135 = shr v134, 160
     v136 = ne v135, 0
     jumpi v136, bb3, bb24
   bb24:
-    mstore v194, v134
-    v138 = add v196, 32
+    mstore v192, v134
+    v138 = add v194, 32
     v139 = calldataload v138
-    v137 = add v194, 32
+    v137 = add v192, 32
     mstore v137, v139
+    v193 = add v192, 64
     v195 = add v194, 64
-    v197 = add v196, 64
     jump bb21
   bb15:
     v93 = calldataload v188
@@ -220,17 +216,17 @@ fn @fb() [selector=0x81fba7cd, abi_wrapper] {
     v17 = add v16, 4
     v19 = sub v11, 36
     v20 = gt v16, v19
-    v203 = zext i1 v20 to i256
-    v204 = or v14, v203
+    v199 = zext i1 v20 to i256
+    v200 = or v14, v199
     v21 = calldataload v17
     v22 = add v17, 32
     v23 = sub v11, v22
     v24 = shr v23, 5
     v25 = gt v21, v24
-    v206 = zext i1 v25 to i256
-    v207 = or v204, v206
-    v208 = ne v207, 0
-    jumpi v208, bb3, bb5
+    v202 = zext i1 v25 to i256
+    v203 = or v200, v202
+    v204 = ne v203, 0
+    jumpi v204, bb3, bb5
   bb5:
     v0 = gas
     v184 = heap_floor !metadata(alloc_ptr)
@@ -313,15 +309,13 @@ fn @fb() [selector=0x81fba7cd, abi_wrapper] {
     mstore v56, v72
     v83 = add v56, 32
     v86 = add v83, v75
-    v191 = gt v72, 0x20000000000000000
-    v192 = select v191, 0x20000000000000000, v72
-    v193 = shl v192, 6
-    v194 = add v76, v193
+    v191 = shl v72, 6
+    v192 = add v76, v191
     jump bb14
   bb14:
     v187 = phi [bb13: v76], [bb17: v188]
     v189 = phi [bb13: v83], [bb17: v190]
-    v88 = ne v187, v194
+    v88 = ne v187, v192
     jumpi v88, bb15, bb16
   bb16:
     v103 = add v39, 64
@@ -348,15 +342,13 @@ fn @fb() [selector=0x81fba7cd, abi_wrapper] {
     mstore v86, v113
     v124 = add v86, 32
     v127 = add v124, v116
-    v199 = gt v113, 0x20000000000000000
-    v200 = select v199, 0x20000000000000000, v113
-    v201 = shl v200, 6
-    v202 = add v124, v201
+    v197 = shl v113, 6
+    v198 = add v124, v197
     jump bb21
   bb21:
-    v195 = phi [bb20: v124], [bb24: v196]
-    v197 = phi [bb20: v117], [bb24: v198]
-    v129 = ne v195, v202
+    v193 = phi [bb20: v124], [bb24: v194]
+    v195 = phi [bb20: v117], [bb24: v196]
+    v129 = ne v193, v198
     jumpi v129, bb22, bb23
   bb23:
     v144 = add v39, 96
@@ -392,18 +384,18 @@ fn @fb() [selector=0x81fba7cd, abi_wrapper] {
     v174 = add v40, 32
     jump bb6
   bb22:
-    v134 = calldataload v197
+    v134 = calldataload v195
     v135 = shr v134, 160
     v136 = ne v135, 0
     jumpi v136, bb3, bb24
   bb24:
-    mstore v195, v134
-    v138 = add v197, 32
+    mstore v193, v134
+    v138 = add v195, 32
     v139 = calldataload v138
-    v137 = add v195, 32
+    v137 = add v193, 32
     mstore v137, v139
+    v194 = add v193, 64
     v196 = add v195, 64
-    v198 = add v197, 64
     jump bb21
   bb15:
     v93 = calldataload v187
@@ -432,17 +424,17 @@ fn @fc() [selector=0xeb19e25e, abi_wrapper] {
     v17 = add v16, 4
     v19 = sub v11, 36
     v20 = gt v16, v19
-    v122 = zext i1 v20 to i256
-    v123 = or v14, v122
+    v120 = zext i1 v20 to i256
+    v121 = or v14, v120
     v21 = calldataload v17
     v22 = add v17, 32
     v23 = sub v11, v22
     v24 = shr v23, 5
     v25 = gt v21, v24
-    v125 = zext i1 v25 to i256
-    v126 = or v123, v125
-    v127 = ne v126, 0
-    jumpi v127, bb3, bb5
+    v123 = zext i1 v25 to i256
+    v124 = or v121, v123
+    v125 = ne v124, 0
+    jumpi v125, bb3, bb5
   bb5:
     v0 = gas
     v111 = heap_floor !metadata(alloc_ptr)
@@ -515,15 +507,13 @@ fn @fc() [selector=0xeb19e25e, abi_wrapper] {
     mstore v56, v66
     v77 = add v56, 32
     v80 = add v77, v69
-    v118 = gt v66, 0x20000000000000000
-    v119 = select v118, 0x20000000000000000, v66
-    v120 = shl v119, 6
-    v121 = add v70, v120
+    v118 = shl v66, 6
+    v119 = add v70, v118
     jump bb13
   bb13:
     v114 = phi [bb12: v70], [bb16: v115]
     v116 = phi [bb12: v77], [bb16: v117]
-    v82 = ne v114, v121
+    v82 = ne v114, v119
     jumpi v82, bb14, bb15
   bb15:
     v96 = add v51, 32

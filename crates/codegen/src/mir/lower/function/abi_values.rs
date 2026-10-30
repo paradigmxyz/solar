@@ -364,7 +364,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // valid &= msg_len <= u64::MAX && msg_len <= len - (offset + 36)
         self.lazy_helper(sym::try_decode_error_message, |this, function| {
             let target = this.cx.module.target_of(this.cx.gcx, function);
-            let mut builder = FunctionBuilder::new_semantic(function).with_target(target);
+            let mut builder = FunctionBuilder::new_semantic(function).with_bit_tests(target);
             let data_ptr = builder.add_param(MirType::I256);
             let data_len = builder.add_param(MirType::I256);
             builder.set_return_type(MirType::I1);

@@ -5,16 +5,13 @@ use super::{
     storage::{StorageEncoding, StorageLayout, StorageLocation},
     types,
 };
-use crate::{
-    mir::{
-        AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-        AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CalldataTail, CheckedOp,
-        DataId, DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, LogTopics,
-        MemoryObjectKind, MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart,
-        PanicCode, PtrLocation, RevertPayload, RevertReason, Value, ValueId,
-        memory::EvmMemoryLayout,
-    },
-    target::ConditionUse,
+use crate::mir::{
+    AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
+    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CalldataTail, CheckedOp,
+    ConditionUse, DataId, DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind,
+    LogTopics, MemoryObjectKind, MemoryObjectLayout, MirModuleTarget, MirType, Module,
+    PackedArraySource, PackedPart, PanicCode, PtrLocation, RevertPayload, RevertReason, Value,
+    ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, TypeSize, UnOpKind};
@@ -498,7 +495,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             cx,
             builder: FunctionBuilder::new_semantic(function)
                 .with_revert_strings(gcx.sess.opts.revert_strings)
-                .with_target(target),
+                .with_bit_tests(target),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
             dirty_values: FxHashSet::default(),

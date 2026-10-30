@@ -20,10 +20,13 @@
 //! subsequent phase checks.
 
 use super::utils::expand_block;
-use crate::mir::{
-    AllocationSemantics, Function, FunctionBuilder, Immediate, InstId, InstKind, MirType, Module,
-    PtrLocation, Value,
-    pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
+use crate::{
+    backend::evm::select::InstKindOpcode,
+    mir::{
+        AllocationSemantics, Function, FunctionBuilder, Immediate, InstId, InstKind, MirType,
+        Module, PtrLocation, Value,
+        pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
+    },
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};

@@ -126,3 +126,28 @@
       (if-let divisor (imm c))
       (if-let remainder (make (Op.Mod x divisor)))
       (if-let zero (imm (u256 0))) (sequence (Op.Eq remainder zero)))
+
+;; Branch folding, check elimination, and if-conversion read these comparisons against MAX
+;; first, so the recipes wait for the late run. A branch reads `~x` as it is.
+
+;; x < MAX => ~x != 0.
+;; Requires: W == 256, so `not` needs no mask.
+(rule (sequence_rewrite (Op.Lt (and x (integer_bits 256)) (all_ones)))
+      (if-let true (late_word_sequence))
+      (if-let complement (make (Op.Not x)))
+      (if-let zero (imm (u256 0))) (sequence (Op.Ne complement zero)))
+
+;; x > (MAX - 1) => ~x == 0.
+;; Requires: W == 256, c is constant, c == (MAX - 1).
+(rule (sequence_rewrite (Op.Gt (and x (integer_bits 256)) (iconst c)))
+      (if-let true (late_word_sequence))
+      (if-let true (u256_same c (u256_sub (u256_max) (u256 1))))
+      (if-let complement (make (Op.Not x)))
+      (if-let zero (imm (u256 0))) (sequence (Op.Eq complement zero)))
+
+;; x != MAX => ~x != 0.
+;; Requires: W == 256.
+(rule (sequence_rewrite (Op.Ne (and x (integer_bits 256)) (all_ones)))
+      (if-let true (late_word_sequence))
+      (if-let complement (make (Op.Not x)))
+      (if-let zero (imm (u256 0))) (sequence (Op.Ne complement zero)))

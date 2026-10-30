@@ -162,9 +162,9 @@
 
 use crate::{
     mir::{
-        AllocationInitialization, ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function,
-        FunctionBuilder, InstId, InstKind, MirType, Module, PanicCode, PtrLocation, RevertKind,
-        Terminator, Value, ValueId,
+        AllocationInitialization, ArithmeticKind, BlockId, Builtin, Callee, CheckedOp,
+        ConditionUse, Function, FunctionBuilder, InstId, InstKind, MirType, Module, PanicCode,
+        PtrLocation, RevertKind, Terminator, Value, ValueId,
         analysis::{
             AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, Loop, LoopAnalyzer,
             MemoryBase, MemoryLocation,
@@ -176,7 +176,7 @@ use crate::{
             replace_inst_uses, replace_terminator_uses,
         },
     },
-    target::{ConditionUse, Target},
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -1455,7 +1455,7 @@ fn rewrite(func: &mut Function, plan: Plan, target: Target) {
     let literal = lp.literal_bound(func);
     // A gather that skips an empty count keeps its result phi, now joining the skip and the setup.
     let mut kept_phi = None;
-    let mut builder = FunctionBuilder::new_semantic(func).with_target(target);
+    let mut builder = FunctionBuilder::new_semantic(func).with_bit_tests(target);
     builder.switch_to_block(lp.preheader);
     match shape {
         Shape::Gather { access, width, result } => {

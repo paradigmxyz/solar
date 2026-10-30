@@ -5,14 +5,11 @@ fn @clean() [selector=0x945bb2ba, abi_wrapper, pure] {
   bb0:
     v2 = icall @decode_calldata_type.8
     v6 = mload v2
-    v13 = add v2, 32
-    v8 = shl v6, 5
-    v15 = add v2, 64
-    mcopy v15, v13, v8
-    mstore v2, 32
-    mstore v13, v6
-    v10 = add v8, 64
-    returndata v2, v10
+    v7 = shl v6, 5
+    v12 = sub v2, 32
+    mstore v12, 32
+    v9 = add v7, 64
+    returndata v12, v9
 }
 
 fn @dirty() [selector=0x74016a59, abi_wrapper, pure] {
@@ -145,12 +142,12 @@ fn @decode_calldata_type.8() -> i256 [may_return_memory] {
     v37 = heap_floor !metadata(alloc_ptr)
     v38 = add v37, v11 !metadata(alloc_ptr)
     v39 = lt v38, v37
-    v41 = gt v38, 0xffffffffffffffff
-    v42 = or v39, v41
-    v45 = zext i1 v42 to i256
-    v46 = or v8, v45
-    v47 = ne v46, 0
-    jumpi v47, bb3, bb9
+    v40 = gt v38, 0xffffffffffffffff
+    v41 = or v39, v40
+    v43 = zext i1 v41 to i256
+    v44 = or v8, v43
+    v45 = ne v44, 0
+    jumpi v45, bb3, bb9
   bb9:
     mstore 64, v38 !metadata(memory=scratch)
     mstore v37, v6
@@ -206,12 +203,12 @@ fn @decode_calldata_type.9() -> i256 [may_return_memory] {
     v37 = heap_floor !metadata(alloc_ptr)
     v38 = add v37, v11 !metadata(alloc_ptr)
     v39 = lt v38, v37
-    v41 = gt v38, 0xffffffffffffffff
-    v42 = or v39, v41
-    v45 = zext i1 v42 to i256
-    v46 = or v8, v45
-    v47 = ne v46, 0
-    jumpi v47, bb3, bb9
+    v40 = gt v38, 0xffffffffffffffff
+    v41 = or v39, v40
+    v43 = zext i1 v41 to i256
+    v44 = or v8, v43
+    v45 = ne v44, 0
+    jumpi v45, bb3, bb9
   bb9:
     mstore 64, v38 !metadata(memory=scratch)
     mstore v37, v6

@@ -25,24 +25,22 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     revert 0, 0
   bb2:
     v41 = add v26, 32
-    v56 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v57 = add v56, 128
-    mstore 64, v57 !metadata(memory=scratch)
-    mstore v56, 96
-    v43 = add v56, 32
+    v55 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v56 = add v55, 128
+    mstore 64, v56 !metadata(memory=scratch)
+    mstore v55, 96
+    v43 = add v55, 32
     mcopy v43, v41, 64
-    v45 = add v56, 64
-    v46 = add v45, 32
+    v46 = add v55, 96
     mstore v46, 64
-    v48 = add v56, 96
+    v48 = add v55, 96
     v49 = add v48, 32
     mstore v49, 0
     v36 = add v43, 96
     mstore v36, 0
-    mcopy v45, v43, 96
-    mstore v56, 32
-    mstore v43, 96
-    returndata v56, 160
+    v51 = sub v55, 32
+    mstore v51, 32
+    returndata v51, 160
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {
@@ -62,10 +60,10 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v29 = heap_floor !metadata(alloc_ptr)
     v30 = add v29, v11 !metadata(alloc_ptr)
     v31 = lt v30, v29
-    v33 = gt v30, 0xffffffffffffffff
-    v34 = or v31, v33
-    v38 = or v9, v34
-    jumpi v38, bb3, bb5
+    v32 = gt v30, 0xffffffffffffffff
+    v33 = or v31, v32
+    v36 = or v9, v33
+    jumpi v36, bb3, bb5
   bb5:
     mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v6
@@ -77,9 +75,9 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     calldatacopy v25, v7, v6
     v22 = sub 0, v6
     v23 = and v22, 31
-    v36 = calldatasize
+    v35 = calldatasize
     v26 = add v25, v6
-    calldatacopy v26, v36, v23
+    calldatacopy v26, v35, v23
     ret v29
   bb3:
     mstore 32, 65 !metadata(memory=scratch)

@@ -56,12 +56,22 @@
 //! element loop, which reads each word at its own wrapping address. Under the size objective
 //! the loop is the only code, because the guard and the copy cost more bytes than they save.
 //!
-//! In-place returns. Under the gas and size objectives, a terminal external
-//! return of a fresh full-word array or byte string that is not a literal
-//! object encodes over the object itself: the payload moves forward one word
-//! to make room for the tuple offset and the length word is reused, so no
-//! second allocation is made. A module-wide plan selects those sites before
-//! helpers are counted.
+//! Zero-copy returns. Under the gas and size objectives, a terminal external
+//! return of a full-word array or byte string that is not a literal object
+//! encodes without copying the payload. The object already holds the length
+//! word and the payload, so the encoding writes the tuple offset `0x20` into
+//! the word just before the object, zeroes the padding after a byte string's
+//! data, and returns from that word through the padded payload. `RETURN` ends
+//! the frame, so the clobbered word before the object and the memory after
+//! its data have no observer. A module-wide plan selects those sites before
+//! helpers are counted. A fresh allocation lies at or above the heap floor, so
+//! its preceding word exists and the form is unconditional. Any other object,
+//! such as a string an internal call built in assembly, may sit below `32`,
+//! where the preceding word wraps; the site then tests the pointer and sends
+//! such an object to the copying encoder. The cost model decides whether that
+//! guarded form beats the copy alone (`Target::guards_zero_copy_return`); it
+//! keeps both encodings, so it pays for gas, not for size, and its site is left out of
+//! the shared helpers.
 //!
 //! Shared helpers. Encodings of one shape at two or more sites can call one
 //! `encode_abi_tuple` helper when the cost model ranks the call protocol below
@@ -77,15 +87,15 @@
 
 use crate::{
     mir::{
-        AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, CalldataTail, EffectKind,
-        Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryObjectLayout, MirType,
-        Module, PtrLocation, RevertReason, Terminator, Value, ValueId,
+        AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, CalldataTail, ConditionUse,
+        EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryObjectLayout,
+        MirModuleTarget, MirType, Module, PtrLocation, RevertReason, Terminator, Value, ValueId,
         memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
         transform::{egraph::use_counts, utils::expand_block},
         utils::resolve_replacement,
     },
-    target::{ConditionUse, Target},
+    target::Target,
 };
 
 use alloy_primitives::U256;
@@ -117,17 +127,11 @@ impl MirPass for LowerAbiEncode {
         }
         let revert_strings = gcx.sess.opts.revert_strings;
         let target = module.target(gcx);
-        let mut destructive_returns = plan_destructive_terminal_returns(&target, module);
+        let mut zero_copy_returns = plan_zero_copy_terminal_returns(&target, module);
         let mut helpers = synthesize_array_helpers(&target, module, revert_strings);
         synthesize_calldata_helpers(&target, module, &mut helpers, revert_strings);
-        synthesize_tuple_helpers(
-            &target,
-            module,
-            &mut helpers,
-            revert_strings,
-            &destructive_returns,
-        );
-        destructive_returns.resize_with(module.functions.len(), FxHashSet::default);
+        synthesize_tuple_helpers(&target, module, &mut helpers, revert_strings, &zero_copy_returns);
+        zero_copy_returns.resize_with(module.functions.len(), FxHashMap::default);
         let has_helpers = !helpers.arrays.is_empty()
             || !helpers.calldata.is_empty()
             || !helpers.tuples.is_empty();
@@ -144,7 +148,7 @@ impl MirPass for LowerAbiEncode {
             } else {
                 &helpers
             };
-            lower_function(func, helpers, revert_strings, &destructive_returns[func_id])
+            lower_function(func, helpers, revert_strings, &zero_copy_returns[func_id])
         });
         module.assert_runtime_helpers(
             helpers
@@ -231,7 +235,7 @@ fn synthesize_tuple_helpers(
     module: &mut Module,
     helpers: &mut EncodeHelpers,
     revert_strings: RevertStrings,
-    destructive_returns: &IndexVec<FunctionId, FxHashSet<InstId>>,
+    zero_copy_returns: &IndexVec<FunctionId, FxHashMap<InstId, ZeroCopyReturn>>,
 ) {
     let mut counts = FxHashMap::<TupleHelperKey, (usize, usize)>::default();
     for (func_id, func) in module.functions.iter_enumerated() {
@@ -241,7 +245,7 @@ fn synthesize_tuple_helpers(
                 else {
                     continue;
                 };
-                if destructive_returns[func_id].contains(&inst)
+                if zero_copy_returns[func_id].contains_key(&inst)
                     || (*mode == AbiEncodeMode::Scratch && ends_function(block.terminator.as_ref()))
                 {
                     continue;
@@ -267,7 +271,7 @@ fn synthesize_tuple_helpers(
         {
             let mut builder = FunctionBuilder::new(&mut function)
                 .with_revert_strings(revert_strings)
-                .with_target(*target);
+                .with_bit_tests(*target);
             let args = key.arg_types.iter().map(|ty| builder.add_param(*ty)).collect::<Vec<_>>();
             let selector = key.selector.then(|| builder.add_param(MirType::I256));
             let layout = AbiLayout::new(key.types.clone());
@@ -373,7 +377,7 @@ fn synthesize_array_helpers(
         {
             let mut builder = FunctionBuilder::new(&mut function)
                 .with_revert_strings(revert_strings)
-                .with_target(*target);
+                .with_bit_tests(*target);
             let value = builder.add_param(key.value_ty);
             // Keep the destination's heap provenance inside the helper. Return its
             // length so the caller derives the tail from its own destination.
@@ -473,7 +477,7 @@ fn calldata_helper(
     {
         let mut builder = FunctionBuilder::new(&mut function)
             .with_revert_strings(revert_strings)
-            .with_target(helpers.target);
+            .with_bit_tests(helpers.target);
         let value = builder.add_param(MirType::Slice(PtrLocation::Calldata));
         let dest = builder.add_param(MirType::MEMPTR);
         let dest = builder.cast(dest, MirType::I256);
@@ -562,7 +566,7 @@ fn lower_function(
     func: &mut Function,
     helpers: &EncodeHelpers,
     revert_strings: RevertStrings,
-    destructive_returns: &FxHashSet<InstId>,
+    zero_copy_returns: &FxHashMap<InstId, ZeroCopyReturn>,
 ) -> bool {
     if !has_abi_encode(func) {
         return false;
@@ -595,7 +599,7 @@ fn lower_function(
         let terminal = ends_function(func.blocks[block].terminator.as_ref());
         let mut builder = FunctionBuilder::new(func)
             .with_revert_strings(revert_strings)
-            .with_target(helpers.target);
+            .with_bit_tests(helpers.target);
         expand_block(&mut builder, block, |builder, inst| {
             let InstKind::AbiEncode { mode, selector, args, layout } =
                 &builder.func().inst(inst).kind
@@ -614,8 +618,8 @@ fn lower_function(
             builder.set_debug_context(&metadata);
             let result =
                 builder.func().inst_result_value(inst).expect("ABI encode must produce a value");
-            let replacement = if destructive_returns.contains(&inst) {
-                encode_dynamic_return_in_place(builder, &layout, &args)
+            let replacement = if let Some(&form) = zero_copy_returns.get(&inst) {
+                encode_zero_copy_return(builder, &layout, &args, mode, form, &helpers)
             } else {
                 let helper = (!helpers.tuples.is_empty()
                     && !(mode == AbiEncodeMode::Scratch && terminal))
@@ -653,13 +657,22 @@ fn lower_function(
     !replacements.is_empty()
 }
 
-/// Selects destructive terminal encodings before module-wide helper sharing is
+/// How a terminal return writes its tuple offset before the returned object.
+#[derive(Clone, Copy)]
+enum ZeroCopyReturn {
+    /// A fresh allocation always has a word before it.
+    Unguarded,
+    /// An arbitrary object takes the copying encoder when its pointer is below one word.
+    Guarded,
+}
+
+/// Selects zero-copy terminal encodings before module-wide helper sharing is
 /// costed. Unoptimized lowering retains the direct semantic expansion.
-fn plan_destructive_terminal_returns(
+fn plan_zero_copy_terminal_returns(
     target: &Target,
     module: &Module,
-) -> IndexVec<FunctionId, FxHashSet<InstId>> {
-    let mut plan = IndexVec::from_vec(vec![FxHashSet::default(); module.functions.len()]);
+) -> IndexVec<FunctionId, FxHashMap<InstId, ZeroCopyReturn>> {
+    let mut plan = IndexVec::from_vec(vec![FxHashMap::default(); module.functions.len()]);
     if !(target.optimization().is_gas() || target.optimization().is_size()) {
         return plan;
     }
@@ -672,13 +685,17 @@ fn plan_destructive_terminal_returns(
         let func = &module.functions[func_id];
         let literal_objects = literal_objects_at_encodes(func);
         for &inst in candidates {
-            let InstKind::AbiEncode { args, layout, .. } = &func.inst(inst).kind else {
+            let InstKind::AbiEncode { selector, args, layout, .. } = &func.inst(inst).kind else {
                 unreachable!()
             };
-            if args.iter().all(|arg| !literal_objects.contains(arg))
-                && can_encode_dynamic_return_in_place(func, layout, args, &fresh)
-            {
-                plan[func_id].insert(inst);
+            if selector.is_some() || args.iter().any(|arg| literal_objects.contains(arg)) {
+                continue;
+            }
+            let Some(object) = zero_copy_return_object(func, layout, args) else { continue };
+            if fresh_memory_object(func, object, &fresh) {
+                plan[func_id].insert(inst, ZeroCopyReturn::Unguarded);
+            } else if target.guards_zero_copy_return() {
+                plan[func_id].insert(inst, ZeroCopyReturn::Guarded);
             }
         }
     }
@@ -686,7 +703,7 @@ fn plan_destructive_terminal_returns(
 }
 
 /// Finds encodes used only by the two projections of an immediate
-/// `returndata`. Destructive encoding is safe only in this terminal shape.
+/// `returndata`. Writing before the object is safe only in this terminal shape.
 fn terminal_return_encodes(func: &Function) -> FxHashSet<InstId> {
     if !has_abi_encode(func) {
         return FxHashSet::default();
@@ -770,13 +787,13 @@ fn return_values_are_fresh(
     fresh_memory_object(func, *value, fresh)
 }
 
-fn can_encode_dynamic_return_in_place(
+/// The memory object of a one-element dynamic tuple of a full-word array or bytes.
+fn zero_copy_return_object(
     func: &Function,
     layout: &AbiLayout,
     args: &[ValueId],
-    fresh_object_returns: &DenseBitSet<FunctionId>,
-) -> bool {
-    let [object] = args else { return false };
+) -> Option<ValueId> {
+    let [object] = args else { return None };
     let word_array_or_bytes = match &*layout.types {
         [AbiType::DynamicArray { element, location: PtrLocation::Memory }] => {
             matches!(element.as_ref(), AbiType::Word(None))
@@ -784,24 +801,69 @@ fn can_encode_dynamic_return_in_place(
         [AbiType::Bytes(PtrLocation::Memory)] => true,
         _ => false,
     };
-    word_array_or_bytes
-        && func.value_ty(*object) == Some(MirType::MEMPTR)
-        && fresh_memory_object(func, *object, fresh_object_returns)
+    (word_array_or_bytes && func.value_ty(*object) == Some(MirType::MEMPTR)).then_some(*object)
 }
 
-/// Encodes a one-element dynamic tuple over the returned object's storage, which
-/// [`plan_destructive_terminal_returns`] proved eligible.
-fn encode_dynamic_return_in_place(
+/// Whether an accepted zero-copy layout is an array rather than a byte string.
+fn is_word_array(layout: &AbiLayout) -> bool {
+    matches!(&*layout.types, [AbiType::DynamicArray { .. }])
+}
+
+/// Encodes a one-element dynamic tuple over the returned object, which
+/// [`plan_zero_copy_terminal_returns`] proved eligible.
+fn encode_zero_copy_return(
     builder: &mut FunctionBuilder<'_>,
     layout: &AbiLayout,
     args: &[ValueId],
+    mode: AbiEncodeMode,
+    form: ZeroCopyReturn,
+    helpers: &EncodeHelpers,
 ) -> ValueId {
     let [object] = args else { unreachable!() };
+    if matches!(form, ZeroCopyReturn::Unguarded) {
+        let (start, total) = write_head_before_object(builder, layout, *object);
+        return builder.make_slice(start, total, PtrLocation::Memory);
+    }
 
-    let is_array = matches!(&*layout.types, [AbiType::DynamicArray { .. }]);
-    let length = memory_object_len(builder, *object);
-    let source = builder.memory_data(*object);
-    let bytes = if is_array {
+    // small = lt object, 32
+    // branch small, copy, zero_copy
+    let address = builder.cast_word(*object);
+    let word = builder.imm(32);
+    let small = builder.lt(address, word);
+    let copy = builder.create_block();
+    let zero_copy = builder.create_block();
+    let done = builder.create_block();
+    builder.branch(small, copy, zero_copy);
+
+    builder.switch_to_block(copy);
+    let copied = lower_encode(builder, layout, None, args, mode, helpers);
+    let copied_start = builder.slice_ptr(copied);
+    let copied_total = builder.slice_len(copied);
+    let copy_end = builder.current_block();
+    builder.jump(done);
+
+    builder.switch_to_block(zero_copy);
+    let (start, total) = write_head_before_object(builder, layout, *object);
+    let zero_copy_end = builder.current_block();
+    builder.jump(done);
+
+    // start = phi [copy: copied_start, zero_copy: start]
+    // total = phi [copy: copied_total, zero_copy: total]
+    builder.switch_to_block(done);
+    let start = builder.phi(vec![(copy_end, copied_start), (zero_copy_end, start)]);
+    let total = builder.phi(vec![(copy_end, copied_total), (zero_copy_end, total)]);
+    builder.make_slice(start, total, PtrLocation::Memory)
+}
+
+/// Writes the tuple offset into the word before `object` and zeroes the padding after a byte
+/// string, returning the start and size of the encoding that now lies in place.
+fn write_head_before_object(
+    builder: &mut FunctionBuilder<'_>,
+    layout: &AbiLayout,
+    object: ValueId,
+) -> (ValueId, ValueId) {
+    let length = memory_object_len(builder, object);
+    let extent = if is_word_array(layout) {
         let five = builder.imm(5);
         builder.shl(length, five)
     } else {
@@ -809,24 +871,23 @@ fn encode_dynamic_return_in_place(
         let rounded = builder.add(length, thirty_one);
         let mask = builder.not(thirty_one);
         let padded = builder.and(rounded, mask);
-        // object: [length, bytes..., padding]
-        // => [32, length, bytes..., zero padding]
-        let last = builder.add(source, padded);
+        // object: [length, bytes..., stale padding]
+        // => [length, bytes..., zero padding]
+        let source = builder.memory_data(object);
+        let end = builder.add(source, length);
         let zero = builder.imm(0);
-        builder.store(last, zero);
+        builder.store(end, zero);
         padded
     };
 
-    // object: [length, payload...]
+    // before: [word, length, payload...]
     // => [32, length, payload...]
-    let destination = builder.memory_data_at(*object, 32);
-    let copy_size = if is_array { bytes } else { length };
-    builder.copy(destination, source, copy_size, PtrLocation::Memory);
+    let back = builder.imm(-32);
+    let start = builder.ptradd(object, back);
     let offset = builder.imm(32);
-    builder.store(*object, offset);
-    builder.store(source, length);
-    let total = builder.add_u64_offset(bytes, 64);
-    builder.make_slice(*object, total, PtrLocation::Memory)
+    builder.store(start, offset);
+    let total = builder.add_u64_offset(extent, 64);
+    (start, total)
 }
 
 fn fresh_memory_object(

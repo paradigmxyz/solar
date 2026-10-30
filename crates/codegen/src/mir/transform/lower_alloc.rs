@@ -25,15 +25,15 @@
 
 use crate::{
     mir::{
-        AllocationFailure, AllocationInitialization, AllocationSemantics, EffectKind, Function,
-        FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
-        PtrLocation, Value, ValueId,
+        AllocationFailure, AllocationInitialization, AllocationSemantics, ConditionUse, EffectKind,
+        Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, MirModuleTarget,
+        MirType, Module, PanicCode, PtrLocation, Value, ValueId,
         analysis::FreshFmpReads,
         memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
         transform::utils::expand_block,
     },
-    target::{ConditionUse, Target},
+    target::Target,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{Ident, sym};
@@ -108,7 +108,8 @@ fn share_checked_allocations(
         let func_id = function_analyses.function();
         let mut replacements = FxHashMap::default();
         for block in func.blocks.indices() {
-            let mut builder = FunctionBuilder::new(func).with_target(function_analyses.target(gcx));
+            let mut builder =
+                FunctionBuilder::new(func).with_bit_tests(function_analyses.target(gcx));
             expand_block(&mut builder, block, |builder, inst| {
                 let Some((size, semantics)) = checked_alloc(builder.func(), inst) else {
                     return false;
@@ -141,7 +142,7 @@ fn checked_alloc(func: &Function, inst: InstId) -> Option<(ValueId, AllocationSe
 fn create_checked_alloc(module: &mut Module, target: Target) -> FunctionId {
     let mut function = Function::new(Ident::with_dummy_span(sym::alloc));
     {
-        let mut builder = FunctionBuilder::new(&mut function).with_target(target);
+        let mut builder = FunctionBuilder::new(&mut function).with_bit_tests(target);
         let size = builder.add_param(MirType::I256);
         builder.set_return_type(MirType::MEMPTR);
         let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
@@ -174,7 +175,7 @@ fn lower_function(func: &mut Function, target: Target, is_fresh: impl Fn(InstId)
 
     let mut changed = false;
     for block in func.blocks.indices() {
-        let mut builder = FunctionBuilder::new(func).with_target(target);
+        let mut builder = FunctionBuilder::new(func).with_bit_tests(target);
         expand_block(&mut builder, block, |builder, inst| {
             let Some((size, semantics)) = checked_alloc(builder.func(), inst) else {
                 return false;

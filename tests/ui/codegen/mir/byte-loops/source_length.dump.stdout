@@ -11,17 +11,15 @@ fn @apart() [selector=0x25c94f29, abi_wrapper, pure] {
     v3 = icall @decode_calldata_type, 36
     icall @_copy, v3, v2, arg2
     v7 = mload v3
+    v8 = add v7, 31
+    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v18 = add v3, 32
-    v9 = add v7, 31
-    v11 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v13 = add v18, v11
+    v13 = add v18, v7
     mstore v13, 0
-    v20 = add v3, 64
-    mcopy v20, v18, v7
-    mstore v3, 32
-    mstore v18, v7
-    v15 = add v11, 64
-    returndata v3, v15
+    v20 = sub v3, 32
+    mstore v20, 32
+    v15 = add v10, 64
+    returndata v20, v15
   bb1:
     revert 0, 0
 }
@@ -36,16 +34,14 @@ fn @lengthInside() [selector=0xa53391c5, abi_wrapper, pure] {
     v1 = add v5, 32
     icall @_copy, v5, v1, arg1
     v9 = mload v5
-    v11 = add v9, 31
-    v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v15 = add v1, v13
+    v10 = add v9, 31
+    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = add v1, v9
     mstore v15, 0
-    v22 = add v5, 64
-    mcopy v22, v1, v9
-    mstore v5, 32
-    mstore v1, v9
-    v17 = add v13, 64
-    returndata v5, v17
+    v22 = sub v5, 32
+    mstore v22, 32
+    v17 = add v12, 64
+    returndata v22, v17
   bb1:
     revert 0, 0
 }
@@ -60,17 +56,15 @@ fn @apartDown() [selector=0xe2b4389c, abi_wrapper, pure] {
     v3 = icall @decode_calldata_type, 36
     icall @_copyDown, v3, v2, arg2
     v7 = mload v3
+    v8 = add v7, 31
+    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v18 = add v3, 32
-    v9 = add v7, 31
-    v11 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v13 = add v18, v11
+    v13 = add v18, v7
     mstore v13, 0
-    v20 = add v3, 64
-    mcopy v20, v18, v7
-    mstore v3, 32
-    mstore v18, v7
-    v15 = add v11, 64
-    returndata v3, v15
+    v20 = sub v3, 32
+    mstore v20, 32
+    v15 = add v10, 64
+    returndata v20, v15
   bb1:
     revert 0, 0
 }
@@ -85,16 +79,14 @@ fn @lengthInsideDown() [selector=0x8d73e21a, abi_wrapper, pure] {
     v1 = add v5, 32
     icall @_copyDown, v5, v1, arg1
     v9 = mload v5
-    v11 = add v9, 31
-    v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v15 = add v1, v13
+    v10 = add v9, 31
+    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = add v1, v9
     mstore v15, 0
-    v22 = add v5, 64
-    mcopy v22, v1, v9
-    mstore v5, 32
-    mstore v1, v9
-    v17 = add v13, 64
-    returndata v5, v17
+    v22 = sub v5, 32
+    mstore v22, 32
+    v17 = add v12, 64
+    returndata v22, v17
   bb1:
     revert 0, 0
 }
@@ -228,9 +220,9 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v29 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v30 = add v29, v11 !metadata(alloc_ptr)
     v31 = lt v30, v29
-    v33 = gt v30, 0xffffffffffffffff
-    v34 = or v31, v33
-    jumpi v34, bb3, bb6
+    v32 = gt v30, 0xffffffffffffffff
+    v33 = or v31, v32
+    jumpi v33, bb3, bb6
   bb6:
     mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v6
@@ -242,9 +234,9 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     calldatacopy v25, v7, v6
     v22 = sub 0, v6
     v23 = and v22, 31
-    v36 = calldatasize
+    v35 = calldatasize
     v26 = add v25, v6
-    calldatacopy v26, v36, v23
+    calldatacopy v26, v35, v23
     ret v29
   bb3:
     mstore 32, 65 !metadata(memory=scratch)

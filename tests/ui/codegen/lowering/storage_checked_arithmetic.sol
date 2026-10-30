@@ -40,7 +40,7 @@ contract StorageCheckedArithmetic {
     // CHECK: [[LHS:v[0-9]+]] = zext i128 [[NARROW]] to i256
     // CHECK: [[AMOUNT:v[0-9]+]] = zext i128 arg1 to i256
     // CHECK: [[NEW:v[0-9]+]] = add [[LHS]], [[AMOUNT]]
-    // CHECK: gt [[NEW]], 0xffffffffffffffffffffffffffffffff
+    // CHECK: shr [[NEW]], 128
     // CHECK: sload {{v[0-9]+}}
     // CHECK: not 0xffffffffffffffffffffffffffffffff
     // CHECK: and {{v[0-9]+}}, {{v[0-9]+}}

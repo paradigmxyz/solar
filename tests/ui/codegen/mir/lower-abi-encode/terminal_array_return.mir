@@ -1,10 +1,14 @@
-//@ compile-flags: -O gas -Zmir-pipeline=lower-abi-encode
-//@ filecheck:
-@module TerminalArrayReturn
+//@ revisions: gas size
+//@ compile-flags: -Zmir-pipeline=lower-abi-encode
+//@[gas] compile-flags: -O gas
+//@[gas] filecheck: --check-prefixes=CHECK,GAS
+//@[size] compile-flags: -O size
+//@[size] filecheck: --check-prefixes=CHECK,SIZE
+@module TerminalReturns
 
-// A terminal ABI encoder may reuse a fresh full-word array. The payload moves
-// forward once, then the old length and data words become the tuple header.
-// A fresh object is never null, so its length needs no null guard.
+// A terminal ABI encoder returns a full-word array in place: the tuple offset
+// goes into the word before the object and the payload is not copied. A fresh
+// object is at or above the heap floor, so the write needs no guard.
 // CHECK-LABEL: {{^[ +].*}}fn @fresh_array{{[( ]}}
 fn @fresh_array() -> ptr<memory> {
   bb0:
@@ -17,14 +21,13 @@ fn @fresh_array() -> ptr<memory> {
 // CHECK-LABEL: {{^[ +].*}}fn @terminal{{[( ]}}
 // CHECK: - {{v[0-9]+}} = abi_encode
 // CHECK: + [[LENGTH:v[0-9]+]] = mload [[OBJECT:v[0-9]+]]
-// CHECK-NEXT: + [[SOURCE:v[0-9]+]] = ptradd [[OBJECT]], 32
-// CHECK: + [[BYTES:v[0-9]+]] = shl [[LENGTH]], 5
-// CHECK: + [[DESTINATION:v[0-9]+]] = ptradd [[OBJECT]], 64
-// CHECK: + mcopy [[DESTINATION]], [[SOURCE]], [[BYTES]]
-// CHECK: + mstore [[OBJECT]], 32
-// CHECK: + mstore [[SOURCE]], [[LENGTH]]
-// CHECK: + [[TOTAL:v[0-9]+]] = add [[BYTES]], 64
-// CHECK: + [[ENCODED:v[0-9]+]] = make_memory_slice [[OBJECT]], [[TOTAL]]
+// CHECK-NEXT: + [[BYTES:v[0-9]+]] = shl [[LENGTH]], 5
+// CHECK-NEXT: + [[START:v[0-9]+]] = ptradd [[OBJECT]], 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+// CHECK-NEXT: + mstore [[START]], 32
+// CHECK-NEXT: + [[TOTAL:v[0-9]+]] = add [[BYTES]], 64
+// CHECK-NEXT: + [[ENCODED:v[0-9]+]] = make_memory_slice [[START]], [[TOTAL]]
+// CHECK-NOT: mcopy
+// CHECK: + returndata [[START]], [[TOTAL]]
 fn @terminal() {
   bb0:
     v0 = icall @fresh_array
@@ -34,11 +37,22 @@ fn @terminal() {
     returndata v2, v3
 }
 
-// A caller-visible array cannot be destructively encoded.
+// An object of unknown origin may lie below one word, where the word before it
+// wraps. Gas tests the pointer and keeps the copying encoder for that case;
+// the guarded form is larger than the copy, so size keeps only the copy, which
+// the three copying sites share as one helper.
 // CHECK-LABEL: {{^[ +].*}}fn @borrowed{{[( ]}}
-// CHECK: + mcopy
-// CHECK: + [[BUFFER_PTR:v[0-9]+]] = alloc
-// CHECK-NEXT: + {{v[0-9]+}} = make_memory_slice [[BUFFER_PTR]], {{v[0-9]+}}
+// GAS: + [[SMALL:v[0-9]+]] = lt {{v[0-9]+}}, 32
+// GAS-NEXT: + jumpi [[SMALL]], [[COPY:bb[0-9]+]], [[ZERO_COPY:bb[0-9]+]]
+// GAS: [[ZERO_COPY]]:
+// GAS: + [[START:v[0-9]+]] = ptradd arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+// GAS-NEXT: + mstore [[START]], 32
+// GAS: [[COPY]]:
+// GAS: + mcopy
+// GAS: + {{v[0-9]+}} = phi
+// GAS: + {{v[0-9]+}} = phi
+// SIZE-NOT: jumpi
+// SIZE: + {{v[0-9]+}} = icall @encode_abi_tuple, arg0
 fn @borrowed(arg0: ptr<memory>) {
   bb0:
     v0 = abi_encode [memory_array<word>], args arg0
@@ -62,17 +76,19 @@ fn @fresh_bytes_wrapper(arg0: i256) -> ptr<memory> {
 }
 
 // Freshness propagates through the wrapper call. A terminal byte encoding
-// clears the padding before moving the payload over its old length word.
+// zeroes the bytes after the data and writes the offset before the length word.
 // CHECK-LABEL: {{^[ +].*}}fn @terminal_bytes{{[( ]}}
 // CHECK: - {{v[0-9]+}} = abi_encode
 // CHECK: + [[LENGTH:v[0-9]+]] = mload [[OBJECT:v[0-9]+]]
-// CHECK-NEXT: + [[SOURCE:v[0-9]+]] = ptradd [[OBJECT]], 32
-// CHECK: + [[SOURCE_WORD:v[0-9]+]] = ptrtoint ptr<memory> [[SOURCE]] to i256
-// CHECK-NEXT: + [[LAST:v[0-9]+]] = add [[SOURCE_WORD]],
-// CHECK: + mstore [[LAST]], 0
-// CHECK: + [[DESTINATION:v[0-9]+]] = ptradd [[OBJECT]], 64
-// CHECK: + mcopy [[DESTINATION]], [[SOURCE]], [[LENGTH]]
-// CHECK: + mstore [[OBJECT]], 32
+// CHECK: + [[PADDED:v[0-9]+]] = and
+// CHECK: + [[DATA:v[0-9]+]] = ptradd [[OBJECT]], 32
+// CHECK: + [[DATA_WORD:v[0-9]+]] = ptrtoint ptr<memory> [[DATA]] to i256
+// CHECK-NEXT: + [[END:v[0-9]+]] = add [[DATA_WORD]], [[LENGTH]]
+// CHECK-NEXT: + mstore [[END]], 0
+// CHECK-NEXT: + [[START:v[0-9]+]] = ptradd [[OBJECT]], 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+// CHECK-NEXT: + mstore [[START]], 32
+// CHECK-NOT: mcopy
+// CHECK: + returndata [[START]], {{v[0-9]+}}
 fn @terminal_bytes(arg0: i256) {
   bb0:
     v0 = icall @fresh_bytes_wrapper, arg0
@@ -80,4 +96,34 @@ fn @terminal_bytes(arg0: i256) {
     v2 = extract_value slice<memory>, v1, 0
     v3 = extract_value slice<memory>, v1, 1
     returndata v2, v3
+}
+
+// Only a returned encoding may clobber the word before its object: revert data
+// and an encoding that later code reads keep the copying encoder.
+// CHECK-LABEL: {{^[ +].*}}fn @revert_fresh{{[( ]}}
+// CHECK-NOT: ffffffffffffffe0
+// GAS: + mcopy
+// SIZE: + {{v[0-9]+}} = icall @encode_abi_tuple
+// CHECK: revert
+fn @revert_fresh() {
+  bb0:
+    v0 = icall @fresh_array
+    v1 = abi_encode [memory_array<word>], args v0
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
+    revert v2, v3
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @read_after_encode{{[( ]}}
+// CHECK-NOT: ffffffffffffffe0
+// GAS: + mcopy
+// SIZE: + {{v[0-9]+}} = icall @encode_abi_tuple
+fn @read_after_encode() {
+  bb0:
+    v0 = icall @fresh_array
+    v1 = abi_encode [memory_array<word>], args v0
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
+    v4 = mload v0
+    returndata v2, v4
 }

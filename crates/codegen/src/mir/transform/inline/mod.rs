@@ -71,8 +71,8 @@ use crate::{
     mir::{
         AbiLayout, AbiType, AllocationSemantics, BlockId, Builtin, Callee, EffectKind, FrameMode,
         FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate,
-        ImmutableEncoding, InstId, InstKind, Instruction, MirPhase, MirType, Module, PtrLocation,
-        StorageAlias, Terminator, Value, ValueId,
+        ImmutableEncoding, InstId, InstKind, Instruction, MirModuleTarget, MirPhase, MirType,
+        Module, PtrLocation, StorageAlias, Terminator, Value, ValueId,
         analysis::{
             AddressSpace, CallGraphInfo, Liveness, LoopAnalyzer, MemoryCallSummaries,
             direct_callees,
@@ -120,7 +120,7 @@ impl MirPass for Inline {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let target = module.target(gcx);
-        let physical = matches!(self, Self::Physical) || module.phase >= MirPhase::Lowered;
+        let physical = matches!(self, Self::Physical) || module.phase() >= MirPhase::Lowered;
         let tagged_only = matches!(self, Self::Tagged);
         if tagged_only && !module.functions.iter().any(|function| function.attributes.always_inline)
         {

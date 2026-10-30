@@ -47,17 +47,15 @@ fn @load() [selector=0x86d5c4be, abi_wrapper, view] {
   bb0:
     v0 = icall @_copy, 1
     v4 = mload v0
+    v5 = add v4, 31
+    v7 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v15 = add v0, 32
-    v6 = add v4, 31
-    v8 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v10 = add v15, v8
+    v10 = add v15, v4
     mstore v10, 0
-    v17 = add v0, 64
-    mcopy v17, v15, v4
-    mstore v0, 32
-    mstore v15, v4
-    v12 = add v8, 64
-    returndata v0, v12
+    v17 = sub v0, 32
+    mstore v17, 32
+    v12 = add v7, 64
+    returndata v17, v12
 }
 
 fn @loadThenAllocate() [selector=0xf84b9425, abi_wrapper, view] {
@@ -105,17 +103,15 @@ fn @loadScaled() [selector=0x69d1875c, abi_wrapper, view] {
   bb2:
     v0 = icall @_copy, arg0
     v6 = mload v0
+    v7 = add v6, 31
+    v9 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v17 = add v0, 32
-    v8 = add v6, 31
-    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v12 = add v17, v10
+    v12 = add v17, v6
     mstore v12, 0
-    v19 = add v0, 64
-    mcopy v19, v17, v6
-    mstore v0, 32
-    mstore v17, v6
-    v14 = add v10, 64
-    returndata v0, v14
+    v19 = sub v0, 32
+    mstore v19, 32
+    v14 = add v9, 64
+    returndata v19, v14
   bb1:
     revert 0, 0
 }
@@ -138,15 +134,15 @@ fn @_copy(arg0: i256) -> i256 [may_return_memory, view] {
     v77 = heap_floor !metadata(alloc_ptr)
     v78 = add v77, v10 !metadata(alloc_ptr)
     v79 = lt v78, v77
-    v81 = gt v78, 0xffffffffffffffff
-    v82 = or v79, v81
-    jumpi v82, bb13, bb12
+    v80 = gt v78, 0xffffffffffffffff
+    v81 = or v79, v80
+    jumpi v81, bb13, bb12
   bb12:
     mstore 64, v78 !metadata(memory=scratch)
-    v84 = calldatasize
-    calldatacopy v77, v84, v10
+    v83 = calldatasize
+    calldatacopy v77, v83, v10
     mstore v77, v55
-    v85 = and arg0, 255
+    v84 = and arg0, 255
     jump bb1
   bb1:
     v15 = phi [bb12: 0], [bb6: v49]
@@ -169,7 +165,7 @@ fn @_copy(arg0: i256) -> i256 [may_return_memory, view] {
     v34 = shl v32, 3
     v35 = shr v33, v34
     v37 = and v35, 255
-    v68 = mul v37, v85
+    v68 = mul v37, v84
     v69 = shr v68, 8
     v70 = ne v69, 0
     jumpi v70, bb10, bb11

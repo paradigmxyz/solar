@@ -17,12 +17,9 @@
 //! loop as a second phi measured 2,457 runtime bytes larger over the benchmark corpus. The loop
 //! counts words independently of address wraparound.
 
-use crate::{
-    mir::{
-        AllocationSemantics, Function, FunctionBuilder, FunctionId, InstKind, MirType, Module,
-        PanicCode, ValueId,
-    },
-    target::ConditionUse,
+use crate::mir::{
+    AllocationSemantics, ConditionUse, Function, FunctionBuilder, FunctionId, InstKind, MirType,
+    Module, PanicCode, ValueId,
 };
 use alloy_primitives::U256;
 use solar_interface::{Ident, sym};

@@ -15,17 +15,15 @@ fn @decode.0() [selector=0x49145c91, abi_wrapper, pure] {
     v3 = icall @decode_calldata_type
     v0 = icall @decode.8, v3
     v7 = mload v0
+    v8 = add v7, 31
+    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v18 = add v0, 32
-    v9 = add v7, 31
-    v11 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v13 = add v18, v11
+    v13 = add v18, v7
     mstore v13, 0
-    v20 = add v0, 64
-    mcopy v20, v18, v7
-    mstore v0, 32
-    mstore v18, v7
-    v15 = add v11, 64
-    returndata v0, v15
+    v20 = sub v0, 32
+    mstore v20, 32
+    v15 = add v10, 64
+    returndata v20, v15
 }
 
 fn @encode.1() [selector=0x12496a1b, abi_wrapper, pure] {
@@ -33,17 +31,15 @@ fn @encode.1() [selector=0x12496a1b, abi_wrapper, pure] {
     v5 = icall @decode_calldata_type
     v1 = icall @encode.4, v5, false, false
     v9 = mload v1
+    v10 = add v9, 31
+    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v20 = add v1, 32
-    v11 = add v9, 31
-    v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v15 = add v20, v13
+    v15 = add v20, v9
     mstore v15, 0
-    v22 = add v1, 64
-    mcopy v22, v20, v9
-    mstore v1, 32
-    mstore v20, v9
-    v17 = add v13, 64
-    returndata v1, v17
+    v22 = sub v1, 32
+    mstore v22, 32
+    v17 = add v12, 64
+    returndata v22, v17
 }
 
 fn @encodeFileSafe() [selector=0x2dba772b, abi_wrapper, pure] {
@@ -51,17 +47,15 @@ fn @encodeFileSafe() [selector=0x2dba772b, abi_wrapper, pure] {
     v5 = icall @decode_calldata_type
     v1 = icall @encode.4, v5, true, false
     v9 = mload v1
+    v10 = add v9, 31
+    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v20 = add v1, 32
-    v11 = add v9, 31
-    v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v15 = add v20, v13
+    v15 = add v20, v9
     mstore v15, 0
-    v22 = add v1, 64
-    mcopy v22, v20, v9
-    mstore v1, 32
-    mstore v20, v9
-    v17 = add v13, 64
-    returndata v1, v17
+    v22 = sub v1, 32
+    mstore v22, 32
+    v17 = add v12, 64
+    returndata v22, v17
 }
 
 fn @encodeNoPadding() [selector=0x3d92c956, abi_wrapper, pure] {
@@ -69,17 +63,15 @@ fn @encodeNoPadding() [selector=0x3d92c956, abi_wrapper, pure] {
     v3 = icall @decode_calldata_type
     v0 = icall @encode.4, v3, false, true
     v7 = mload v0
+    v8 = add v7, 31
+    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v18 = add v0, 32
-    v9 = add v7, 31
-    v11 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v13 = add v18, v11
+    v13 = add v18, v7
     mstore v13, 0
-    v20 = add v0, 64
-    mcopy v20, v18, v7
-    mstore v0, 32
-    mstore v18, v7
-    v15 = add v11, 64
-    returndata v0, v15
+    v20 = sub v0, 32
+    mstore v20, 32
+    v15 = add v10, 64
+    returndata v20, v15
 }
 
 fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory, pure] {
@@ -624,10 +616,10 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v29 = heap_floor !metadata(alloc_ptr)
     v30 = add v29, v11 !metadata(alloc_ptr)
     v31 = lt v30, v29
-    v33 = gt v30, 0xffffffffffffffff
-    v34 = or v31, v33
-    v38 = or v9, v34
-    jumpi v38, bb3, bb5
+    v32 = gt v30, 0xffffffffffffffff
+    v33 = or v31, v32
+    v36 = or v9, v33
+    jumpi v36, bb3, bb5
   bb5:
     mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v6
@@ -639,9 +631,9 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     calldatacopy v25, v7, v6
     v22 = sub 0, v6
     v23 = and v22, 31
-    v36 = calldatasize
+    v35 = calldatasize
     v26 = add v25, v6
-    calldatacopy v26, v36, v23
+    calldatacopy v26, v35, v23
     ret v29
   bb3:
     mstore 32, 65 !metadata(memory=scratch)
@@ -681,9 +673,9 @@ fn @alloc(arg0: i256) -> i256 {
     v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v0, arg0 !metadata(alloc_ptr)
     v3 = lt v2, v0
-    v5 = gt v2, 0xffffffffffffffff
-    v6 = or v3, v5
-    jumpi v6, bb1, bb2
+    v4 = gt v2, 0xffffffffffffffff
+    v5 = or v3, v4
+    jumpi v5, bb1, bb2
   bb2:
     mstore 64, v2 !metadata(memory=scratch)
     ret v0

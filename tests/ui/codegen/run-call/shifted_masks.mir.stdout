@@ -1,0 +1,37 @@
+// === ROOT/tests/ui/codegen/run-call/shifted_masks.sol:ShiftedMasks ===
+@module ShiftedMasks
+fn @signedMax(arg0: i256) -> i256 [selector=0x0c9f2282, pure, abi_params=[int256], abi_returns=[word], abi_return_params=[int256]] {
+  bb0:
+    v0 = and arg0, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    ret v0
+}
+
+fn @lowOdd(arg0: i256) -> i256 [selector=0xbaf716f7, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = and arg0, 0x7fffffffffffffffffffffffffffffff
+    ret v0
+}
+
+fn @highAddress(arg0: i256) -> i256 [selector=0x1f137825, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @highOdd(arg0: i256) -> i256 [selector=0x88a4fb64, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffff80000000000000
+    ret v0
+}
+
+fn @highTop(arg0: i256) -> i256 [selector=0x5f9e3b79, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = and arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @clearAddress(arg0: i256) -> i256 [selector=0x1059ce68, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    ret v0
+}

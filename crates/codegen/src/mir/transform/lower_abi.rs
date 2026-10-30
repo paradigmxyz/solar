@@ -97,16 +97,17 @@ use crate::{
     mir::{
         AbiEncodeMode, AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation,
         AbiParamType, AbiType, AbiWordValidator, AllocationSemantics, ArgIdx, BlockId,
-        CalldataTail, Callee, EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder,
-        FunctionId, InstId, InstKind, MangledSymbol, MemoryObjectLayout, MirPhase, MirType, Module,
-        PtrLocation, RevertReason, Terminator, Value, ValueId, ValueLayout,
+        CalldataTail, Callee, ConditionUse, EffectKind, FrameMode, FrameSlotKind, Function,
+        FunctionBuilder, FunctionId, InstId, InstKind, MangledSymbol, MemoryObjectLayout,
+        MirModuleTarget, MirPhase, MirType, Module, PtrLocation, RevertReason, Terminator, Value,
+        ValueId, ValueLayout,
         analysis::{AliasAnalysis, LocationSize, MemoryBase},
         memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses},
         transform::{cfg_simplify::remove_unreachable_blocks, utils::expand_block},
         typing::memory_object,
     },
-    target::{ConditionUse, Target},
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode, RevertStrings};
@@ -631,7 +632,7 @@ impl LowerAbiCx {
     fn builder<'a>(&self, func: &'a mut Function) -> FunctionBuilder<'a> {
         let builder = FunctionBuilder::new(func).with_revert_strings(self.revert_strings);
         match self.target {
-            Some(target) => builder.with_target(target),
+            Some(target) => builder.with_bit_tests(target),
             None => builder,
         }
     }
@@ -2727,7 +2728,7 @@ fn synthesize_memory_decode_helper(
     {
         let mut builder = FunctionBuilder::new(&mut function).with_revert_strings(revert_strings);
         if let Some(target) = target {
-            builder = builder.with_target(target);
+            builder = builder.with_bit_tests(target);
         }
         let head = builder.add_param(MirType::I256);
         let tuple_base = builder.add_param(MirType::I256);

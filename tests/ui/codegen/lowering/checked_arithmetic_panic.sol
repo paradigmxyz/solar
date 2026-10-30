@@ -67,7 +67,8 @@ contract CheckedArithmeticPanic {
     // CHECK: [[LHS:v[0-9]+]] = zext i8 arg0 to i256
     // CHECK: [[RHS:v[0-9]+]] = zext i8 arg1 to i256
     // CHECK: [[SUM:v[0-9]+]] = add [[LHS]], [[RHS]]
-    // CHECK: gt [[SUM]], 255
+    // CHECK: [[HIGH:v[0-9]+]] = shr [[SUM]], 8
+    // CHECK-NEXT: ne [[HIGH]], 0
     // CHECK: mstore 32, 17
     function narrow_add(uint8 a, uint8 b) public pure returns (uint8) {
         return a + b;

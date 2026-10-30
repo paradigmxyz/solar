@@ -11,14 +11,12 @@
 //! inherits the source instruction's debug context. Later cleanup can combine exposed checks and
 //! scalar expressions.
 
-use crate::{
-    mir::{
-        ArithmeticKind, CheckedOp, FunctionBuilder, InstKind, MirType, Module, PanicCode, ValueId,
-        analysis::integers::integer_mask,
-        pass::{MirPass, run_function_pass},
-        transform::utils::expand_block,
-    },
-    target::ConditionUse,
+use crate::mir::{
+    ArithmeticKind, CheckedOp, ConditionUse, FunctionBuilder, InstKind, MirType, Module, PanicCode,
+    ValueId,
+    analysis::integers::integer_mask,
+    pass::{MirPass, run_function_pass},
+    transform::utils::expand_block,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
@@ -54,7 +52,7 @@ impl MirPass for LowerArithmetic {
                 {
                     continue;
                 }
-                let mut builder = FunctionBuilder::new(func).with_target(analyses.target(gcx));
+                let mut builder = FunctionBuilder::new(func).with_bit_tests(analyses.target(gcx));
                 expand_block(&mut builder, block, |builder, id| {
                     let InstKind::CheckedBinary { op, arithmetic, lhs, rhs } =
                         builder.func().inst(id).kind

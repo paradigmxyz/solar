@@ -19,7 +19,7 @@ contract StorageBytesPushPop {
     // area, and a long value only bumps the header and writes one data word.
     // CHECK-LABEL: fn @pushValue{{[( ]}}
     // CHECK: sload 0
-    // CHECK: gt [[LEN:v[0-9]+]], 31
+    // CHECK: shr [[LEN:v[0-9]+]], 5
     // CHECK: eq [[LEN]], 31
     // CHECK: byte 0, arg0
     // CHECK: sstore 0,
@@ -34,7 +34,7 @@ contract StorageBytesPushPop {
 
     // CHECK-LABEL: fn @pushZero{{[( ]}}
     // CHECK: sload 0
-    // CHECK: gt [[LEN:v[0-9]+]], 31
+    // CHECK: shr [[LEN:v[0-9]+]], 5
     // CHECK: eq [[LEN]], 31
     // CHECK: sstore 0,
     // CHECK: storage_array_data_slot 0

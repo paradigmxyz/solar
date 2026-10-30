@@ -91,7 +91,7 @@ impl MirPass for LowerBuiltins {
             }
             let mut replacements = FxHashMap::default();
             for block in func.blocks.indices() {
-                let mut builder = FunctionBuilder::new(func).with_target(analyses.target(gcx));
+                let mut builder = FunctionBuilder::new(func).with_bit_tests(analyses.target(gcx));
                 expand_block(&mut builder, block, |builder, id| {
                     if !is_builtin(&builder.func().inst(id).kind) {
                         return false;
