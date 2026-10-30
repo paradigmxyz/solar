@@ -24,7 +24,10 @@ use crate::{
     },
     target::Target,
 };
-use solar_data_structures::bit_set::{DenseBitSet, GrowableBitSet};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    index::IndexVec,
+};
 use solar_sema::Gcx;
 
 /// Computes function and block hotness with reusable buffers.
@@ -34,6 +37,15 @@ pub(crate) struct HotnessAnalysis {
     hot_blocks: DenseBitSet<BlockId>,
     worklist: Vec<BlockId>,
     visited: GrowableBitSet<BlockId>,
+    /// The functions whose walk met a call to each function while it was not cold.
+    callers: IndexVec<FunctionId, Vec<FunctionId>>,
+    queue: Vec<FunctionId>,
+    queued: DenseBitSet<FunctionId>,
+    /// Functions with a path to a normal exit that makes no call, so no callee's coldness can
+    /// change theirs. Valid until the function changes.
+    always_hot: GrowableBitSet<FunctionId>,
+    /// Whether each objective, none, gas, and size in that order, marks failure paths cold.
+    failure_paths_cold: [Option<bool>; 4],
 }
 
 impl HotnessAnalysis {
@@ -44,23 +56,57 @@ impl HotnessAnalysis {
             hot_blocks: DenseBitSet::new_empty(0),
             worklist: Vec::new(),
             visited: GrowableBitSet::new_empty(),
+            callers: IndexVec::new(),
+            queue: Vec::new(),
+            queued: DenseBitSet::new_empty(0),
+            always_hot: GrowableBitSet::new_empty(),
+            failure_paths_cold: [None; 4],
         }
     }
 
     /// Recomputes the hotness of every function and block of `module`.
     pub(crate) fn run(&mut self, gcx: Gcx<'_>, module: &mut Module) {
+        self.always_hot.clear();
         self.run_functions(module);
         for function in module.functions.indices() {
             self.run_function(gcx, module, function);
         }
     }
 
-    /// Recomputes which functions are cold, writing their attributes.
-    pub(crate) fn run_functions(&mut self, module: &mut Module) {
-        self.compute_functions(module);
-        for (id, func) in module.functions.iter_mut_enumerated() {
-            func.attributes.hotness = hotness(self.cold_functions.contains(id));
+    /// Recomputes the hotness after a pass that edited only the `changed` functions: the blocks
+    /// of those, and of every function if a function's coldness changed, since its callers' blocks
+    /// call it.
+    pub(crate) fn update(
+        &mut self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        changed: &GrowableBitSet<FunctionId>,
+    ) {
+        for function in changed.iter() {
+            self.always_hot.remove(function);
         }
+        if self.run_functions(module) {
+            for function in module.functions.indices() {
+                self.run_function(gcx, module, function);
+            }
+        } else {
+            for function in changed.iter() {
+                self.run_function(gcx, module, function);
+            }
+        }
+    }
+
+    /// Recomputes which functions are cold, writing their attributes. Returns whether any
+    /// changed.
+    pub(crate) fn run_functions(&mut self, module: &mut Module) -> bool {
+        self.compute_functions(module);
+        let mut changed = false;
+        for (id, func) in module.functions.iter_mut_enumerated() {
+            let new = hotness(self.cold_functions.contains(id));
+            changed |= func.attributes.hotness != new;
+            func.attributes.hotness = new;
+        }
+        changed
     }
 
     /// Recomputes the hotness of the blocks of `function`, after its callees' attributes are
@@ -100,67 +146,115 @@ impl HotnessAnalysis {
     fn compute_blocks(&mut self, gcx: Gcx<'_>, module: &Module, function: FunctionId) {
         let func = &module.functions[function];
         let objective = func.attributes.optimization.unwrap_or(module.optimization);
-        let marks_failure_paths_cold = Target::new(gcx, objective).marks_failure_paths_cold();
+        let marks_failure_paths_cold = *self.failure_paths_cold
+            [usize::from(objective.is_gas()) + 2 * usize::from(objective.is_size())]
+        .get_or_insert_with(|| Target::new(gcx, objective).marks_failure_paths_cold());
         self.collect_cold_blocks(module, func, !objective.is_none(), marks_failure_paths_cold);
     }
 
     /// Finds the functions whose reachable exits all abort, into `self.cold_functions`.
+    ///
+    /// Coldness only grows, so a worklist reaches the fixpoint: each function is walked once,
+    /// and again only after a callee that its walk met becomes cold.
     fn collect_cold_functions(&mut self, module: &Module) {
-        loop {
-            let mut changed = false;
-            for (function_id, func) in module.functions.iter_enumerated() {
-                if self.cold_functions.contains(function_id) {
-                    continue;
+        let functions = module.functions.len();
+        for callers in &mut self.callers {
+            callers.clear();
+        }
+        self.callers.resize_with(functions.max(self.callers.len()), Vec::new);
+        self.queued.clear_to(functions);
+        self.queue.clear();
+        // Popped in function order.
+        self.queue
+            .extend(module.functions.indices().rev().filter(|&f| !self.always_hot.contains(f)));
+        for &function in &self.queue {
+            self.queued.insert(function);
+        }
+        while let Some(function) = self.queue.pop() {
+            self.queued.remove(function);
+            if self.is_cold_function(module, function) {
+                self.cold_functions.insert(function);
+                for &caller in &self.callers[function] {
+                    if !self.cold_functions.contains(caller) && self.queued.insert(caller) {
+                        self.queue.push(caller);
+                    }
                 }
-                self.worklist.clear();
-                self.worklist.push(BlockId::ENTRY);
-                self.visited.clear();
-                let mut saw_exit = false;
-                let mut all_exits_cold = true;
-                while let Some(block_id) = self.worklist.pop()
-                    && all_exits_cold
+            }
+        }
+    }
+
+    /// Whether every exit reachable in `function` aborts, given the cold functions found so far.
+    /// Records `function` as a caller of each function whose walk met and found not cold.
+    fn is_cold_function(&mut self, module: &Module, function: FunctionId) -> bool {
+        let func = &module.functions[function];
+        self.worklist.clear();
+        self.worklist.push(BlockId::ENTRY);
+        self.visited.clear();
+        let mut saw_exit = false;
+        let mut all_exits_cold = true;
+        let mut calls = false;
+        while let Some(block_id) = self.worklist.pop()
+            && all_exits_cold
+        {
+            if !self.visited.insert(block_id) {
+                continue;
+            }
+            let block = &func.blocks[block_id];
+            let mut calls_cold = false;
+            for &inst in &block.instructions {
+                if let InstKind::ICall { function: Callee::Function(callee), .. } =
+                    func.inst(inst).kind
                 {
-                    if !self.visited.insert(block_id) {
-                        continue;
+                    calls = true;
+                    if self.cold_functions.contains(callee) {
+                        calls_cold = true;
+                    } else {
+                        self.add_caller(callee, function);
                     }
-                    let block = &func.blocks[block_id];
-                    if calls_cold(func, block, |function| self.cold_functions.contains(function)) {
-                        saw_exit = true;
-                        continue;
+                }
+            }
+            if calls_cold {
+                saw_exit = true;
+                continue;
+            }
+            let Some(term) = block.terminator.as_ref() else {
+                all_exits_cold = false;
+                continue;
+            };
+            match term {
+                Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid => {
+                    saw_exit = true;
+                }
+                Terminator::TailCall { function: callee, .. }
+                    if self.cold_functions.contains(*callee) =>
+                {
+                    calls = true;
+                    saw_exit = true;
+                }
+                _ => {
+                    if let Terminator::TailCall { function: callee, .. } = term {
+                        calls = true;
+                        self.add_caller(*callee, function);
                     }
-                    let Some(term) = block.terminator.as_ref() else {
+                    let successors = term.successors();
+                    if successors.is_empty() {
                         all_exits_cold = false;
-                        continue;
-                    };
-                    match term {
-                        Terminator::Revert { .. }
-                        | Terminator::RevertReturndata
-                        | Terminator::Invalid => {
-                            saw_exit = true;
-                        }
-                        Terminator::TailCall { function, .. }
-                            if self.cold_functions.contains(*function) =>
-                        {
-                            saw_exit = true;
-                        }
-                        _ => {
-                            let successors = term.successors();
-                            if successors.is_empty() {
-                                all_exits_cold = false;
-                            } else {
-                                self.worklist.extend(successors);
-                            }
-                        }
+                    } else {
+                        self.worklist.extend(successors);
                     }
                 }
-                if saw_exit && all_exits_cold {
-                    self.cold_functions.insert(function_id);
-                    changed = true;
-                }
             }
-            if !changed {
-                return;
-            }
+        }
+        if !all_exits_cold && !calls {
+            self.always_hot.insert(function);
+        }
+        saw_exit && all_exits_cold
+    }
+
+    fn add_caller(&mut self, callee: FunctionId, caller: FunctionId) {
+        let callers = &mut self.callers[callee];
+        if callers.last() != Some(&caller) {
+            callers.push(caller);
         }
     }
 

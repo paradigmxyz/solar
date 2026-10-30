@@ -173,6 +173,7 @@ pub(crate) fn run_passes_inner(
                     parallel,
                     [OptimizationMode::None, OptimizationMode::Gas, OptimizationMode::Size]
                         .map(|objective| pass.runs_on(objective)),
+                    module.functions.len(),
                 );
                 // A pass that edits the module, reported or not, outdates the check, unless the
                 // pass itself advanced the phase after its last edit.
@@ -190,7 +191,14 @@ pub(crate) fn run_passes_inner(
                     for func in module.functions.iter_mut() {
                         func.drop_dangling_storage_aliases();
                     }
-                    hotness.run(gcx, module);
+                    match analyses.changed_functions(module.functions.len()) {
+                        Some(changed) => hotness.update(gcx, module, changed),
+                        None => hotness.run(gcx, module),
+                    }
+                    debug_assert!(
+                        hotness.is_current(gcx, module),
+                        "stale MIR hotness after `{pass_name}`"
+                    );
                 }
                 pass_changed
             };
