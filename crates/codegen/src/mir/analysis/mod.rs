@@ -4,6 +4,8 @@
 //! - Liveness analysis for tracking value lifetimes
 //! - Loop analysis for detecting and analyzing natural loops
 
+pub(crate) use solar_mir::analysis::{CallGraphInfo, CfgInfo, DominatorTree, direct_callees};
+
 pub(crate) mod integers;
 
 mod alias;
@@ -34,8 +36,6 @@ pub(crate) use loop_analysis::{InductionVariable, Loop, LoopAnalyzer, LoopInfo};
 
 mod scalar_evolution;
 pub(crate) use scalar_evolution::{AffineExpr, AffineTerm, ScalarEvolution};
-
-pub(crate) use solar_mir::analysis::{CallGraphInfo, CfgInfo, DominatorTree, direct_callees};
 
 mod absolute_addresses;
 pub(crate) use absolute_addresses::{AddressInput, absolute_address_inputs};

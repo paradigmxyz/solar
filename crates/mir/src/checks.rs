@@ -24,7 +24,7 @@ pub enum PanicCode {
 }
 
 impl PanicCode {
-    pub const fn from_u64(value: u64) -> Option<Self> {
+    pub(crate) const fn from_u64(value: u64) -> Option<Self> {
         Some(match value {
             0x01 => Self::Assert,
             0x11 => Self::ArithmeticOverflowUnderflow,
@@ -39,7 +39,7 @@ impl PanicCode {
         })
     }
 
-    pub const fn as_u64(self) -> u64 {
+    pub(crate) const fn as_u64(self) -> u64 {
         self as u64
     }
 }
@@ -103,7 +103,7 @@ pub enum RevertReason {
 }
 
 impl RevertReason {
-    pub const fn name(self) -> Symbol {
+    pub(crate) const fn name(self) -> Symbol {
         match self {
             Self::Empty => sym::empty,
             Self::EtherSentToNonPayable => sym::ether_sent_to_non_payable,
@@ -131,7 +131,7 @@ impl RevertReason {
         }
     }
 
-    pub fn from_name(name: Symbol) -> Option<Self> {
+    pub(crate) fn from_name(name: Symbol) -> Option<Self> {
         Some(match name {
             sym::empty => Self::Empty,
             sym::ether_sent_to_non_payable => Self::EtherSentToNonPayable,

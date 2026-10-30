@@ -95,16 +95,16 @@ const _: () = assert!(
 
 impl PhaseSet {
     /// Semantic representation, before the lowered word-only boundary.
-    pub const SEMANTIC: Self = Self::through(MirPhase::Semantic);
+    pub(crate) const SEMANTIC: Self = Self::through(MirPhase::Semantic);
     /// All phases currently defined by MIR.
-    pub const ALL: Self = Self::through(MirPhase::Lowered);
+    pub(crate) const ALL: Self = Self::through(MirPhase::Lowered);
     /// Creates a set containing every phase up to and including `phase`.
     const fn through(phase: MirPhase) -> Self {
         Self((1u8 << (phase as u8 + 1)) - 1)
     }
 
     /// Returns whether this operation is valid in `phase`.
-    pub const fn contains(self, phase: MirPhase) -> bool {
+    pub(crate) const fn contains(self, phase: MirPhase) -> bool {
         self.0 & (1u8 << phase as u8) != 0
     }
 }
@@ -115,19 +115,19 @@ pub struct OpTraits(u16);
 
 impl OpTraits {
     /// No additional operation traits.
-    pub const NONE: Self = Self(0);
+    pub(crate) const NONE: Self = Self(0);
     /// The operation's binary operands may be exchanged by the scheduler.
-    pub const REORDERABLE: Self = Self(1 << 0);
+    pub(crate) const REORDERABLE: Self = Self(1 << 0);
     /// The operation is cheap and stable enough to rematerialize when its
     /// operands can themselves be rebuilt from stable leaves.
     pub const REMATERIALIZABLE: Self = Self(1 << 1);
     /// The declared operand pair may be exchanged without changing the result.
-    pub const COMMUTATIVE: Self = Self(1 << 3);
+    pub(crate) const COMMUTATIVE: Self = Self(1 << 3);
     /// The operation is a root of at least one local e-graph rewrite rule.
     pub const EGRAPH_REWRITE: Self = Self(1 << 4);
 
     /// Returns the union of two property sets.
-    pub const fn union(self, other: Self) -> Self {
+    pub(crate) const fn union(self, other: Self) -> Self {
         Self(self.0 | other.0)
     }
 
@@ -175,13 +175,13 @@ impl ResultKind {
 
     /// Returns whether operations of this kind always produce a value.
     #[must_use]
-    pub const fn produces_value(self) -> bool {
+    pub(crate) const fn produces_value(self) -> bool {
         !matches!(self, Self::None)
     }
 
     /// Checks the exact result type; scalar conversions require explicit instructions. A pointer
     /// result admits the word it holds, as lowering erases pointer types.
-    pub fn admits_type(self, ty: MirType) -> bool {
+    pub(crate) fn admits_type(self, ty: MirType) -> bool {
         if matches!(self, Self::I160 | Self::MemPtr | Self::Pointer) && ty == MirType::I256 {
             true
         } else if self == Self::Integer {
@@ -457,7 +457,7 @@ impl LogTopics {
     }
 
     /// The topics in order.
-    pub fn as_slice(&self) -> &[ValueId] {
+    pub(crate) fn as_slice(&self) -> &[ValueId] {
         &self.values[..usize::from(self.len)]
     }
 
@@ -749,7 +749,7 @@ macro_rules! define_mir_ops {
             /// Value produced by the operation.
             pub result: ResultKind,
             /// Phases in which this operation is valid.
-            pub phases: PhaseSet,
+            pub(crate) phases: PhaseSet,
             /// Conservative effect classification.
             pub effect: EffectKind,
             /// Declarative operation properties.
@@ -764,7 +764,7 @@ macro_rules! define_mir_ops {
             /// Returns the schema's exact operand signature, or `None` when result or module
             /// information is required by the dedicated type checker.
             #[allow(unused_variables)]
-            pub fn operand_types(&self, function: &Function) -> Option<SmallVec<[MirType; 8]>> {
+            pub(crate) fn operand_types(&self, function: &Function) -> Option<SmallVec<[MirType; 8]>> {
                 match self {
                     $(
                         Self::$variant
@@ -805,7 +805,7 @@ macro_rules! define_mir_ops {
             /// Collects every value operand in canonical order.
             ///
             /// This is the canonical operand list for liveness and scheduling.
-            pub fn collect_operands<A: Array<Item = ValueId>>(
+            pub(crate) fn collect_operands<A: Array<Item = ValueId>>(
                 &self,
                 out: &mut SmallVec<A>,
             ) {
@@ -892,7 +892,7 @@ macro_rules! define_mir_ops {
             /// Returns the arity and constructor of an operation that is built
             /// from value operands alone, by textual mnemonic.
             #[must_use]
-            pub fn operand_only(
+            pub(crate) fn operand_only(
                 mnemonic: &str,
             ) -> Option<(usize, fn(&[ValueId]) -> Self)> {
                 match mnemonic {
@@ -917,7 +917,7 @@ macro_rules! define_mir_ops {
 
             /// Returns the diagnostic category of an operation that `phase` does not admit.
             #[must_use]
-            pub fn phase_violation(
+            pub(crate) fn phase_violation(
                 &self,
                 phase: MirPhase,
                 metadata: &InstructionMetadata,

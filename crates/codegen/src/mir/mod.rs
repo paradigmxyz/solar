@@ -83,7 +83,7 @@ mod isle {
 /// indices. A *second* round-trip must be stable.
 #[cfg(test)]
 mod round_trip {
-    use super::Module;
+    use super::{Module, parser::parse_module};
     use crate::mir::lower;
     use solar_interface::{ColorChoice, Session};
     use solar_sema::Compiler;
@@ -91,10 +91,6 @@ mod round_trip {
         ops::ControlFlow,
         path::{Path, PathBuf},
     };
-
-    fn parse_module(sess: &Session, input: &str) -> solar_interface::Result<Module> {
-        super::parser::parse_module(sess, input)
-    }
 
     /// Path to `tests/ui/codegen/` (the workspace's UI test directory).
     fn ui_codegen_dir() -> PathBuf {

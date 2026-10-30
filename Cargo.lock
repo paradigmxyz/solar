@@ -4421,7 +4421,6 @@ dependencies = [
  "solar-evmir",
  "solar-interface",
  "solar-mir",
- "solar-parse",
  "solar-sema",
  "tempfile",
  "tracing",

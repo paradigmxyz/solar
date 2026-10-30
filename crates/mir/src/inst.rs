@@ -76,7 +76,7 @@ impl InstructionMetadata {
     }
 
     /// Sets explicit textual origins, bounding metadata growth in repeated merges.
-    pub fn set_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
+    pub(crate) fn set_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
         self.set_source_span(None);
         for span in spans {
             self.insert_source_span(span);
@@ -119,7 +119,7 @@ impl InstructionMetadata {
     }
 
     /// Sets the source span that produced this instruction.
-    pub fn set_source_span(&mut self, span: Option<Span>) {
+    pub(crate) fn set_source_span(&mut self, span: Option<Span>) {
         let span = span.filter(|span| !span.is_dummy());
         self.source_span = span.unwrap_or(Span::DUMMY);
         self.additional_source_spans = None;
@@ -128,7 +128,7 @@ impl InstructionMetadata {
     }
 
     /// Sets source debug information without adding it to canonical MIR text.
-    pub fn set_debug_source_span(&mut self, span: Option<Span>) {
+    pub(crate) fn set_debug_source_span(&mut self, span: Option<Span>) {
         self.source_span = span.filter(|span| !span.is_dummy()).unwrap_or(Span::DUMMY);
         self.additional_source_spans = None;
         self.flags.set_display_source_span(false);
@@ -142,7 +142,7 @@ impl InstructionMetadata {
     }
 
     /// Sets the source-map modifier nesting depth for this instruction.
-    pub fn set_modifier_depth(&mut self, depth: u32) {
+    pub(crate) fn set_modifier_depth(&mut self, depth: u32) {
         self.modifier_depth = depth;
         self.flags.set_debug_info_handled();
     }
@@ -161,7 +161,7 @@ impl InstructionMetadata {
 
     /// Returns whether canonical MIR text should include the source span.
     #[must_use]
-    pub fn displays_source_span(&self) -> bool {
+    pub(crate) fn displays_source_span(&self) -> bool {
         self.flags.displays_source_span()
     }
 
@@ -190,7 +190,7 @@ impl InstructionMetadata {
     }
 
     /// Sets whether this instruction was lowered from an unchecked arithmetic context.
-    pub fn set_unchecked(&mut self, unchecked: bool) {
+    pub(crate) fn set_unchecked(&mut self, unchecked: bool) {
         self.flags.set_unchecked(unchecked);
     }
 
@@ -516,7 +516,7 @@ impl StorageAlias {
 
     /// Returns this alias with its symbolic base renamed by `f`.
     #[must_use]
-    pub fn map_base(self, f: impl FnOnce(&mut ValueId)) -> Self {
+    pub(crate) fn map_base(self, f: impl FnOnce(&mut ValueId)) -> Self {
         match self {
             Self::Slot(_) => self,
             Self::Symbolic(mut value) => {
@@ -532,7 +532,7 @@ impl StorageAlias {
 
     /// Returns this alias advanced by a constant slot offset.
     #[must_use]
-    pub fn offset_by(self, offset: U256) -> Self {
+    pub(crate) fn offset_by(self, offset: U256) -> Self {
         match self {
             Self::Slot(slot) => Self::Slot(slot.wrapping_add(offset)),
             Self::Symbolic(base) if offset.is_zero() => Self::Symbolic(base),
@@ -574,7 +574,7 @@ pub enum MemoryRegion {
 impl MemoryRegion {
     /// Returns the stable textual name used in MIR metadata.
     #[must_use]
-    pub const fn name(&self) -> &'static str {
+    pub(crate) const fn name(&self) -> &'static str {
         match self {
             Self::Scratch => "scratch",
             Self::AbiReturn => "abi_return",
@@ -621,7 +621,7 @@ pub enum EffectKind {
 impl EffectKind {
     /// Returns the stable textual name used in MIR metadata.
     #[must_use]
-    pub const fn name(&self) -> &'static str {
+    pub(crate) const fn name(&self) -> &'static str {
         match self {
             Self::Pure => "pure",
             Self::MemoryRead => "memory_read",
@@ -781,7 +781,7 @@ impl Instruction {
     }
 
     /// Replaces the value allocated for this instruction's result.
-    pub fn set_result(&mut self, result: Option<ValueId>) -> Option<ValueId> {
+    pub(crate) fn set_result(&mut self, result: Option<ValueId>) -> Option<ValueId> {
         std::mem::replace(&mut self.result, result)
     }
 
@@ -859,7 +859,7 @@ pub enum AddressCallKind {
 
 impl InstKind {
     /// Infers integer results from the operation's declared operand signature.
-    pub fn inferred_result_type(&self, func: &Function) -> Option<MirType> {
+    pub(crate) fn inferred_result_type(&self, func: &Function) -> Option<MirType> {
         if let Self::CheckedBinary { arithmetic, .. } = self {
             Some(arithmetic.ty().mir_type())
         } else if self.op_def().result == super::ResultKind::Pointer {
@@ -872,7 +872,7 @@ impl InstKind {
     }
 
     /// Checks the operation's result representation.
-    pub fn admits_result_type(&self, ty: MirType) -> bool {
+    pub(crate) fn admits_result_type(&self, ty: MirType) -> bool {
         self.op_def().result.admits_type(ty)
     }
 
@@ -1104,7 +1104,7 @@ impl InstKind {
     /// Returns whether the textual form lists the stored operands in reverse: shifts are stored
     /// in EVM stack order but read as `value, shift`.
     #[must_use]
-    pub const fn reverses_text_operands(&self) -> bool {
+    pub(crate) const fn reverses_text_operands(&self) -> bool {
         self.is_shift()
     }
 }

@@ -13,7 +13,7 @@ pub enum PackedPart {
 }
 
 impl PackedPart {
-    pub fn value(&self) -> Option<ValueId> {
+    pub(crate) fn value(&self) -> Option<ValueId> {
         match *self {
             Self::Literal(_) => None,
             Self::Scalar { value, .. } | Self::Bytes(value) | Self::Array { value, .. } => {
@@ -22,7 +22,7 @@ impl PackedPart {
         }
     }
 
-    pub fn value_mut(&mut self) -> Option<&mut ValueId> {
+    pub(crate) fn value_mut(&mut self) -> Option<&mut ValueId> {
         match self {
             Self::Literal(_) => None,
             Self::Scalar { value, .. } | Self::Bytes(value) | Self::Array { value, .. } => {

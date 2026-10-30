@@ -27,7 +27,7 @@ pub fn should_validate_ir(sess: &Session) -> bool {
 #[derive(Clone, Copy, Debug)]
 pub struct Immutable {
     /// The source-level name used by textual MIR.
-    pub name: Ident,
+    pub(crate) name: Ident,
     /// The immutable's MIR type.
     pub ty: super::ValueLayout,
     /// The source variable, when this module was lowered from Solidity.
@@ -61,7 +61,7 @@ impl MirPhase {
 
     /// Looks up a phase by its textual name.
     #[must_use]
-    pub fn by_name(name: Symbol) -> Option<Self> {
+    pub(crate) fn by_name(name: Symbol) -> Option<Self> {
         Some(match name {
             sym::semantic => Self::Semantic,
             sym::lowered => Self::Lowered,
@@ -96,9 +96,9 @@ pub struct Module {
     /// Most recently added function for each name before disambiguation.
     pub function_name_index: FxHashMap<Symbol, FunctionId>,
     /// Canonical ABI layouts referenced by semantic encoding operations.
-    pub abi_layouts: Vec<AbiLayoutRef>,
+    pub(crate) abi_layouts: Vec<AbiLayoutRef>,
     /// Canonical ABI input layouts referenced by decode instructions.
-    pub abi_param_layouts: Vec<AbiParamLayoutRef>,
+    pub(crate) abi_param_layouts: Vec<AbiParamLayoutRef>,
     /// Named immutable declarations indexed by their stable MIR identifiers.
     immutables: IndexVec<ImmutableId, Immutable>,
     /// Constant byte strings embedded in generated code.
@@ -120,7 +120,7 @@ pub struct Module {
     /// clears the bit and sets it again for every assembly block that lacks the promise.
     unsafe_assembly: bool,
     /// The lowering phase this module is in.
-    pub phase: MirPhase,
+    pub(crate) phase: MirPhase,
     /// Whether passes must account for every instruction's source debug information.
     debug_info_tracked: bool,
     /// Whether the last full `lowered` check still describes this module: no change since
@@ -488,7 +488,7 @@ impl Module {
     /// Returns the functions that run only during deployment: the constructor and the functions
     /// it reaches through calls, less those the runtime also reaches and the unrooted ones.
     #[must_use]
-    pub fn creation_only_functions(&self) -> DenseBitSet<FunctionId> {
+    pub(crate) fn creation_only_functions(&self) -> DenseBitSet<FunctionId> {
         let constructor = self.constructor_reachable_functions();
         let runtime = self.runtime_reachable_functions();
         let mut creation = constructor.clone();
@@ -630,7 +630,7 @@ impl Module {
 
     /// Returns an immutable declaration if the identifier is allocated.
     #[must_use]
-    pub fn get_immutable(&self, id: ImmutableId) -> Option<&Immutable> {
+    pub(crate) fn get_immutable(&self, id: ImmutableId) -> Option<&Immutable> {
         self.immutables.get(id)
     }
 
@@ -642,7 +642,7 @@ impl Module {
 
     /// Returns an immutable's MIR type if the identifier is allocated.
     #[must_use]
-    pub fn get_immutable_type(&self, id: ImmutableId) -> Option<super::ValueLayout> {
+    pub(crate) fn get_immutable_type(&self, id: ImmutableId) -> Option<super::ValueLayout> {
         self.get_immutable(id).map(|immutable| immutable.ty)
     }
 
@@ -678,7 +678,7 @@ impl Module {
     }
 
     /// Adds a data entry, interning its bytes when they are plain literal data.
-    pub fn add_data_entry(&mut self, data: Data) -> DataId {
+    pub(crate) fn add_data_entry(&mut self, data: Data) -> DataId {
         let bytes = data.bytes.known().filter(|_| data.library_relocations.is_empty()).cloned();
         let id = self.data.push(data);
         if let Some(bytes) = bytes {

@@ -36,7 +36,7 @@
 //! # Usage
 //!
 //! ```ignore
-//! solar_codegen::mir::validate(dcx, &module);
+//! solar_mir::validate(dcx, &module);
 //! ```
 
 use crate::{
@@ -1481,6 +1481,7 @@ impl<'a> Validator<'a> {
     }
 }
 
+/// Validates the invariants of a MIR module.
 pub fn validate(dcx: &DiagCtxt, module: &Module) {
     Validator::new(dcx).validate_module(module);
 }

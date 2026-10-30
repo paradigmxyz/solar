@@ -43,7 +43,7 @@ impl BasicBlock {
 
     /// Creates a new empty basic block.
     #[must_use]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let mut terminator_metadata = InstructionMetadata::EMPTY;
         terminator_metadata.mark_debug_info_dropped();
         Self {

@@ -120,7 +120,7 @@ impl MirPass for Inline {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let target = module.target(gcx);
-        let physical = matches!(self, Self::Physical) || module.phase >= MirPhase::Lowered;
+        let physical = matches!(self, Self::Physical) || module.phase() >= MirPhase::Lowered;
         let tagged_only = matches!(self, Self::Tagged);
         if tagged_only && !module.functions.iter().any(|function| function.attributes.always_inline)
         {

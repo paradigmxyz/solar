@@ -531,7 +531,7 @@ impl Function {
 
     /// Returns an instruction's position among allocated value-producing instructions.
     #[must_use]
-    pub fn inst_result_index(&self, id: InstId) -> Option<usize> {
+    pub(crate) fn inst_result_index(&self, id: InstId) -> Option<usize> {
         self.instructions
             .iter_enumerated()
             .filter(|(_, inst)| inst.result_ty.is_some())
@@ -622,7 +622,7 @@ impl Function {
     }
 
     /// Adds a parameter and allocates its argument value.
-    pub fn alloc_param(&mut self, ty: MirType) -> ValueId {
+    pub(crate) fn alloc_param(&mut self, ty: MirType) -> ValueId {
         let index = self.params.push(ty);
         let arg_index = self.arg_types.push(ty);
         assert_eq!(arg_index, index, "parameter and argument type indexes must match");
@@ -630,7 +630,7 @@ impl Function {
     }
 
     /// Adds a retained argument type and allocates its value without changing the signature.
-    pub fn alloc_implicit_arg(&mut self, ty: MirType) -> ValueId {
+    pub(crate) fn alloc_implicit_arg(&mut self, ty: MirType) -> ValueId {
         let index = self.arg_types.push(ty);
         self.alloc_arg(index)
     }

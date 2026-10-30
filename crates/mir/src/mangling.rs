@@ -23,7 +23,7 @@ impl MangledSymbol {
     }
 
     /// Creates a symbol with a numeric disambiguator.
-    pub const fn disambiguated(symbol: Symbol, disambiguator: Disambiguator) -> Self {
+    pub(crate) const fn disambiguated(symbol: Symbol, disambiguator: Disambiguator) -> Self {
         Self { symbol, disambiguator: Some(disambiguator) }
     }
 }

@@ -31,7 +31,7 @@ pub enum CheckedOp {
 }
 
 impl CheckedOp {
-    pub const fn name(self) -> &'static str {
+    pub(crate) const fn name(self) -> &'static str {
         match self {
             Self::Add => "checked_add",
             Self::Sub => "checked_sub",

@@ -106,7 +106,7 @@ impl RequireKind {
 
 impl Builtin {
     /// Operand count for builtins with a fixed signature.
-    pub const fn fixed_arity(&self) -> Option<usize> {
+    pub(crate) const fn fixed_arity(&self) -> Option<usize> {
         match self {
             Self::Sha256 | Self::Ripemd160 | Self::Erc7201 => Some(1),
             Self::EcRecover => Some(4),

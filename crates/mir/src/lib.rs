@@ -79,10 +79,7 @@ mod display;
 
 mod parser;
 
-/// Validates the invariants of a MIR module.
-pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
-    analysis::validate(dcx, module);
-}
+pub use analysis::validate;
 
 newtype_index! {
     /// A function argument index in the MIR.

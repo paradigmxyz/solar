@@ -744,7 +744,7 @@ impl<'a> FunctionBuilder<'a> {
     ///
     /// No result [`Value`] is allocated: only value-producing instructions get
     /// an entry in the function's value table.
-    pub fn emit_void_inst(&mut self, mut kind: InstKind) {
+    pub(crate) fn emit_void_inst(&mut self, mut kind: InstKind) {
         self.cast_operands(&mut kind);
         let inst = self.make_inst(kind, None);
         self.append_instruction(inst);

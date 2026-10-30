@@ -8,7 +8,7 @@
 //! summaries and other module state.
 
 use crate::{
-    mir::{Module, pass::ModuleAnalyses, validate},
+    mir::{Module, pass::ModuleAnalyses, should_validate_ir, validate},
     timing::PassTimer,
 };
 use solar_config::OptimizationMode;
@@ -39,11 +39,6 @@ pub(crate) fn parse_pass_pipeline<P: Copy>(
         })
         .collect::<Result<_>>()?;
     Ok(Some(passes))
-}
-
-/// Returns whether pass managers should validate IR after each pass.
-pub(crate) fn should_validate_ir(gcx: Gcx<'_>) -> bool {
-    solar_mir::should_validate_ir(gcx.sess)
 }
 
 /// Returns the display label for a configured IR pipeline.
@@ -206,7 +201,7 @@ pub(crate) fn run_passes_inner(
             }
             assert_debug_info_handled(module, pass_name, "after");
 
-            if pass_changed && should_validate_ir(gcx) {
+            if pass_changed && should_validate_ir(gcx.sess) {
                 validate_module_after_pass(module, pass_name);
             }
         }
