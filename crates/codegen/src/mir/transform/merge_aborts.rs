@@ -55,17 +55,18 @@
 //! when it fails: `shr k, x` for `lt x, 2^k`, as a `bool` or `uintN` parameter's check is (this
 //! needs the target's shift opcodes), and `xor x, signextend(b, x)` for `eq x, signextend(b, x)`,
 //! as an `intN` parameter's check is. The word replaces the comparison, and the target prices
-//! both. Next to a test that aborts on its false edge, such as an enum's `lt x, 3`, it stays a
-//! comparison and the two combine with `and`; in loops it turns around as above. Other zero tests
-//! of words stay apart: a branch reads the word for free, and a loop's latch also takes its back
-//! edge on it, as an increment's overflow check `eq (add i, 1), 0` does, while the merged test
-//! would pay an `iszero` for the word, another to turn the latch around, and the shuffles that keep
-//! the first condition next to it. A negated test pays its `iszero` only in loops, where the saved
-//! jump repeats, in size builds too. A boolean's negation merges as the boolean only in builds that
-//! copy loops, where every copy of a body repeats the saving: in a single body the condition stays
-//! live across the next check, and the scheduler answered with more shuffles than the saved jump.
-//! Runs late, after the final loop passes, check elimination and the CFG cleanup that joins each
-//! copy's blocks, so the tests it merges are the ones that remain.
+//! both. Next to a test that aborts on its false edge, such as an enum's `lt x, 3`, the pair stays
+//! comparisons that combine with `and`, as the pairs merge one after another; in loops it turns
+//! around as above. Other zero tests of words stay apart: a branch reads the word for free, and a
+//! loop's latch also takes its back edge on it, as an increment's overflow check `eq (add i, 1), 0`
+//! does, while the merged test would pay an `iszero` for the word, another to turn the latch
+//! around, and the shuffles that keep the first condition next to it. A negated test pays its
+//! `iszero` only in loops, where the saved jump repeats, in size builds too. A boolean's negation
+//! merges as the boolean only in builds that copy loops, where every copy of a body repeats the
+//! saving: in a single body the condition stays live across the next check, and the scheduler
+//! answered with more shuffles than the saved jump. Runs late, after the final loop passes, check
+//! elimination and the CFG cleanup that joins each copy's blocks, so the tests it merges are the
+//! ones that remain.
 
 use crate::{
     backend::evm::op,
@@ -128,6 +129,32 @@ enum Flip {
     Negate,
 }
 
+/// A test on a block's way out: its condition, the aborting block, the continuation, and
+/// whether the condition holding means aborting.
+struct Test {
+    condition: ValueId,
+    abort: BlockId,
+    next: BlockId,
+    aborts_when_true: bool,
+    /// The word that is nonzero when the test aborts, when it merges as a word rather than as a
+    /// boolean. Such a test counts as aborting when true, as the word is nonzero; `condition`
+    /// then goes unused unless the test turns back into a comparison.
+    word: Option<Word>,
+}
+
+impl Test {
+    /// Whether the test aborts on its false edge and merges as a boolean.
+    fn is_plain_false(&self) -> bool {
+        self.word.is_none() && !self.aborts_when_true
+    }
+
+    /// Turns a range word back into the comparison it came from, which aborts on its false edge.
+    fn restore_comparison(&mut self) {
+        self.word = None;
+        self.aborts_when_true = false;
+    }
+}
+
 /// A word that is nonzero exactly when a test aborts, so the test merges as the word.
 #[derive(Clone, Copy)]
 enum Word {
@@ -156,32 +183,6 @@ impl Word {
     fn is_range(self) -> bool {
         !matches!(self, Self::Itself)
     }
-}
-
-impl Test {
-    /// Whether the test aborts on its false edge and merges as a boolean.
-    fn is_plain_false(&self) -> bool {
-        self.word.is_none() && !self.aborts_when_true
-    }
-
-    /// Turns a range word back into the comparison it came from, which aborts on its false edge.
-    fn restore_comparison(&mut self) {
-        self.word = None;
-        self.aborts_when_true = false;
-    }
-}
-
-/// A test on a block's way out: its condition, the aborting block, the continuation, and
-/// whether the condition holding means aborting.
-struct Test {
-    condition: ValueId,
-    abort: BlockId,
-    next: BlockId,
-    aborts_when_true: bool,
-    /// The word that is nonzero when the test aborts, when it merges as a word rather than as a
-    /// boolean. Such a test counts as aborting when true, as the word is nonzero; `condition`
-    /// then goes unused unless the test turns back into a comparison.
-    word: Option<Word>,
 }
 
 fn merge_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: &Target) -> bool {
