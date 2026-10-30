@@ -710,7 +710,7 @@ impl Module {
         DataRef::new(id, 0)
     }
 
-    pub fn add_data(&mut self, data: Bytes, name: Option<Symbol>) -> DataId {
+    pub(crate) fn add_data(&mut self, data: Bytes, name: Option<Symbol>) -> DataId {
         self.add_data_entry(Data::new(data, name))
     }
 

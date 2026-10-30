@@ -53,7 +53,7 @@ impl InstructionMetadata {
 
     /// Returns the HIR expression that produced this instruction.
     #[must_use]
-    pub fn hir_expr(&self) -> Option<HirExprId> {
+    pub(crate) fn hir_expr(&self) -> Option<HirExprId> {
         self.hir_expr
     }
 

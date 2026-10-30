@@ -44,7 +44,7 @@ pub struct InstructionEffects {
 
 impl InstructionEffects {
     /// Whether removing an unused operation could remove required behavior.
-    pub const fn must_execute(self) -> bool {
+    pub(crate) const fn must_execute(self) -> bool {
         self.observable || self.control.any()
     }
 

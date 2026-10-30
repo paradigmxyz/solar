@@ -28,7 +28,7 @@ impl ImmutableEncoding {
 
     /// Returns whether loading this encoding needs a post-`PUSH<N>` adjustment.
     #[must_use]
-    pub const fn needs_runtime_normalization(self) -> bool {
+    pub(crate) const fn needs_runtime_normalization(self) -> bool {
         self.type_size().bytes() < 32 && !matches!(self, Self::Unsigned(_))
     }
 }

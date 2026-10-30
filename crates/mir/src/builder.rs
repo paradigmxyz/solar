@@ -563,7 +563,11 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Appends a fully constructed instruction for a preallocated undefined result value.
-    pub fn append_instruction_with_result(&mut self, inst: Instruction, result: ValueId) -> InstId {
+    pub(crate) fn append_instruction_with_result(
+        &mut self,
+        inst: Instruction,
+        result: ValueId,
+    ) -> InstId {
         let inst_id = self.func.alloc_inst_with_result(inst, result);
         self.func.blocks[self.current_block].instructions.push(inst_id);
         inst_id

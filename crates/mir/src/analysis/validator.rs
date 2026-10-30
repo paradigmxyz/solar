@@ -1491,7 +1491,7 @@ pub fn validate(dcx: &DiagCtxt, module: &Module) {
 /// With `full`, checks all SSA, type, and representation invariants. Otherwise checks only the
 /// phase contract: the routing entry, ABI wrappers, word types, and instructions that must be
 /// lowered by the phase boundary.
-pub fn validate_phase(
+pub(crate) fn validate_phase(
     dcx: &DiagCtxt,
     module: &Module,
     phase: MirPhase,
@@ -1510,7 +1510,10 @@ pub fn validate_phase(
 /// Rejects shifts in a module that targets an EVM version without shift opcodes.
 ///
 /// `lower-shifts` removes them, so one left after lowering means that pass did not run.
-pub fn validate_legal_shifts(dcx: &DiagCtxt, module: &Module) -> solar_interface::Result<()> {
+pub(crate) fn validate_legal_shifts(
+    dcx: &DiagCtxt,
+    module: &Module,
+) -> solar_interface::Result<()> {
     let mut validator = Validator::new(dcx);
     for (id, func) in module.functions.iter_enumerated() {
         validator.function = Some(id);

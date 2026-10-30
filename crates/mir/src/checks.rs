@@ -215,7 +215,7 @@ impl CalldataTail {
         }
     }
 
-    pub const fn length_reason(self) -> RevertReason {
+    pub(crate) const fn length_reason(self) -> RevertReason {
         match self {
             Self::Access => RevertReason::InvalidCalldataTailLength,
             Self::Encode => RevertReason::InvalidCalldataAccessLength,
@@ -223,7 +223,7 @@ impl CalldataTail {
         }
     }
 
-    pub const fn stride_reason(self) -> RevertReason {
+    pub(crate) const fn stride_reason(self) -> RevertReason {
         match self {
             Self::Access => RevertReason::CalldataTailTooShort,
             Self::Encode => RevertReason::InvalidCalldataAccessStride,

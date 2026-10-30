@@ -6,16 +6,15 @@
 use crate::target::Target;
 use solar_sema::Gcx;
 
-pub use solar_mir::*;
+pub(crate) use solar_mir::*;
+pub use solar_mir::{MirPhase, Module, validate};
 
-#[allow(hidden_glob_reexports, reason = "the module extends `solar_mir::analysis`")]
 pub(crate) mod analysis;
 pub mod lower;
 pub mod pass;
 pub(crate) mod pass_manager;
 mod transform;
 
-#[allow(hidden_glob_reexports, reason = "the module extends `solar_mir::utils`")]
 pub(crate) mod utils;
 
 /// The cost model of a module's code.

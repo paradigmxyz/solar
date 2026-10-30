@@ -321,7 +321,7 @@ pub fn replace_inst_uses(
 }
 
 /// Replaces instruction operands according to a canonicalized replacement map.
-pub fn replace_inst_uses_canonicalized(
+pub(crate) fn replace_inst_uses_canonicalized(
     inst: &mut Instruction,
     replacements: &FxHashMap<ValueId, ValueId>,
 ) -> usize {
@@ -339,7 +339,7 @@ pub fn replace_terminator_uses(
 }
 
 /// Replaces terminator operands according to a canonicalized replacement map.
-pub fn replace_terminator_uses_canonicalized(
+pub(crate) fn replace_terminator_uses_canonicalized(
     term: &mut Terminator,
     replacements: &FxHashMap<ValueId, ValueId>,
 ) -> usize {
