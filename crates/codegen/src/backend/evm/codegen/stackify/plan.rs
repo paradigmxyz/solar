@@ -640,10 +640,13 @@ impl<'a> Planner<'a> {
     /// as P256 verification in size mode. The caller keeps a candidate only when a replan
     /// confirms it.
     pub(super) fn constants_to_retain(&self) -> Vec<(BlockId, ValueId)> {
-        // Leave cheap literals to local stack scheduling and EVM IR reuse.
+        // Leave cheap literals to local stack scheduling and EVM IR reuse. A heap floor plus a
+        // constant is pushed like an immediate, so it is priced and kept like one.
         let mut wide = DenseBitSet::new_empty(self.func.num_values());
         for value in self.remat.iter() {
-            if matches!(self.func.value(value), Value::Immediate(_))
+            if (matches!(self.func.value(value), Value::Immediate(_))
+                || matches!(self.func.value(value), Value::Inst(inst)
+                    if matches!(self.func.inst(*inst).kind, InstKind::HeapFloorOffset(_))))
                 && self.use_counts[value] >= 2
                 && self.remat_costs[value].bytes
                     > (self.target.dup() + self.dead_word_removal()).bytes
@@ -3352,7 +3355,11 @@ fn materialize_cost(func: &Function, target: &Target, value: ValueId) -> Cost {
         Value::Undef(_) => target.push(U256::ZERO),
         Value::Arg(_) => target.opcode(op::PUSH1).plus(target.opcode(op::CALLDATALOAD)),
         Value::Inst(inst) => match &func.inst(*inst).kind {
-            InstKind::DataSize(_) | InstKind::HeapFloorOffset(_) => target.opcode(op::PUSH2),
+            InstKind::DataSize(_) => target.opcode(op::PUSH2),
+            // The floor is at least the heap start, which is its value when nothing sits below it.
+            InstKind::HeapFloorOffset(offset) => {
+                target.push(U256::from(EvmMemoryLayout::HEAP_START + offset))
+            }
             InstKind::Gas => target.opcode(op::GAS),
             InstKind::Sub(..) if gas_minus(func, value).is_some() => {
                 target.opcode(op::GAS).plus(target.opcode(op::PUSH1)).plus(target.opcode(op::SUB))

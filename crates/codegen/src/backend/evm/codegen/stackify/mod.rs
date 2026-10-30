@@ -421,6 +421,9 @@ const MAX_CONSTANT_TRIALS: usize = 4;
 /// The most constants of a function tried for retention when optimizing for size.
 const SIZE_CONSTANT_TRIALS: usize = 1;
 
+/// The most words a retention trial spills to make room for the constants it keeps.
+const MAX_TRIAL_SPILLS: usize = 4;
+
 impl<'gcx> EvmCodegen<'gcx> {
     /// Emits the runtime: the dispatch entry, the external entries, and the internal functions
     /// they call.
@@ -968,7 +971,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             trials += 1;
             retained.push(constant);
-            if let Ok(planner) = Planner::new(
+            if let Some(candidate) = plan_retaining(
                 func,
                 info,
                 func_id,
@@ -978,18 +981,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                 ret_spilled,
                 restarts >= single_spills,
                 &hints,
-            ) && let liveness =
-                plan::retention_liveness(func, &analysis.cfg, &analysis.liveness, &retained)
-                && let Ok(candidate) = planner.retain_constants(&retained, &liveness).plan()
-                // Creation code pays for every byte it leaves out, so a constant kept on the
-                // stack may cost gas, as long as the deployment gets cheaper.
-                && (target.is_creation()
-                    || (target.dominates(candidate.plan.cost, best.cost)
-                        && candidate.plan.non_loop_gas <= best.non_loop_gas))
-                && target.cmp_lifetime(candidate.plan.cost, best.cost).is_lt()
-                && (!target.optimization().is_size()
-                    || candidate.plan.cost.bytes.saturating_add(target.jump().bytes)
-                        < best.cost.bytes)
+                &retained,
+            )
+            // Creation code pays for every byte it leaves out, so a constant kept on the
+            // stack may cost gas, as long as the deployment gets cheaper.
+            && (target.is_creation()
+                || (target.dominates(candidate.plan.cost, best.cost)
+                    && candidate.plan.non_loop_gas <= best.non_loop_gas))
+            && target.cmp_lifetime(candidate.plan.cost, best.cost).is_lt()
+            && (!target.optimization().is_size()
+                || candidate.plan.cost.bytes.saturating_add(target.jump().bytes)
+                    < best.cost.bytes)
             {
                 best = candidate.plan;
             } else {
@@ -1122,6 +1124,48 @@ fn argument_values(func: &Function) -> Result<IndexVec<ArgIdx, Option<ValueId>>,
         }
     }
     result.map(|()| args)
+}
+
+/// Plans `func` with `retained` kept on the stack. A trial that leaves the stack too deep spills
+/// the word that reaches furthest, as the plan without retention does, so a function that fits
+/// its words in reach only without the constant still gets to keep it.
+#[allow(clippy::too_many_arguments)]
+fn plan_retaining(
+    func: &Function,
+    info: &ModuleInfo,
+    func_id: FunctionId,
+    analysis: &Analysis,
+    target: &Target,
+    spilled: &DenseBitSet<ValueId>,
+    ret_spilled: bool,
+    batch_spills: bool,
+    hints: &FxHashMap<BlockId, Layout>,
+    retained: &[(BlockId, ValueId)],
+) -> Option<Planned> {
+    let liveness = plan::retention_liveness(func, &analysis.cfg, &analysis.liveness, retained);
+    let mut spilled = spilled.clone();
+    for _ in 0..=MAX_TRIAL_SPILLS {
+        let planner = Planner::new(
+            func,
+            info,
+            func_id,
+            analysis,
+            target,
+            &spilled,
+            ret_spilled,
+            batch_spills,
+            hints,
+        )
+        .ok()?;
+        match planner.retain_constants(retained, &liveness).plan() {
+            Ok(planned) => return Some(planned),
+            Err(Fail::Deep(Some(Victim::Value(value)), _)) if !spilled.contains(value) => {
+                spilled.insert(value);
+            }
+            Err(_) => return None,
+        }
+    }
+    None
 }
 
 /// Whether the planner pushes a fresh copy of `value` at each use instead of keeping it:
