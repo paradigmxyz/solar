@@ -10,9 +10,9 @@
 // CHECK-NEXT: +     [[WIDE:v[0-9]+]] = zext i1 [[ZERO]] to i256
 // CHECK-NEXT: +     [[LIMIT:v[0-9]+]] = sub [[QUOTIENT]], [[WIDE]]
 // CHECK: -     [[CHECK:v[0-9]+]] = or
-// CHECK-NEXT: +     [[OVER:v[0-9]+]] = gt v1, [[LIMIT]]
-// CHECK-NEXT: +     [[CHECK]] = eq [[OVER]], false
-// CHECK-NEXT: {{^ +}}jumpi [[CHECK]], bb3, bb4
+// CHECK-NEXT: -     jumpi [[CHECK]], bb3, bb4
+// CHECK: +     [[CHECK]] = gt v1, [[LIMIT]]
+// CHECK-NEXT: +     jumpi [[CHECK]], bb4, bb3
 fn @invariant_factor(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     jump bb1
@@ -45,8 +45,9 @@ fn @invariant_factor(arg0: i256, arg1: i256, arg2: i256) -> i256 {
 // CHECK-NEXT: +     [[WIDE:v[0-9]+]] = zext i1 [[ZERO]] to i256
 // CHECK-NEXT: +     [[LIMIT:v[0-9]+]] = sub [[QUOTIENT]], [[WIDE]]
 // CHECK: -     [[CHECK:v[0-9]+]] = or
-// CHECK-NEXT: +     [[OVER:v[0-9]+]] = gt v1, [[LIMIT]]
-// CHECK-NEXT: +     [[CHECK]] = eq [[OVER]], false
+// CHECK-NEXT: -     jumpi [[CHECK]], bb3, bb4
+// CHECK: +     [[CHECK]] = gt v1, [[LIMIT]]
+// CHECK-NEXT: +     jumpi [[CHECK]], bb4, bb3
 fn @invariant_left(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     jump bb1
