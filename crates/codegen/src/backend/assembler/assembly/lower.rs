@@ -93,7 +93,7 @@ impl Assembler<'_> {
         if ir_program.link(bytecodes, libraries) {
             ir_program.fold_data_sizes();
             // With literal sizes, linked bytes can share storage with other data.
-            let _changed = ir::pack_linked_data(self.gcx, &mut ir_program);
+            let _changed = ir::pack_linked_data(&mut ir_program);
         }
         let errors_before = self.gcx.dcx().err_count();
         let program = lower_evm_ir(self, &mut ir_program, &mut labels, capture_debug_info);
