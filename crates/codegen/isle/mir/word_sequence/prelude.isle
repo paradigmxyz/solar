@@ -6,6 +6,8 @@
 (extern constructor make make)
 (decl pure sequence (Op) Recipe)
 (extern constructor sequence sequence)
+(decl pure enabling_sequence (Op) Recipe)
+(extern constructor enabling_sequence enabling_sequence)
 (decl multi sequence_rewrite (Op) Recipe)
 (decl iconst (U256) Value)
 (extern extractor iconst iconst)

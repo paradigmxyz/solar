@@ -28,6 +28,15 @@
 // CHECK-NEXT: + push 128
 // CHECK-NEXT: + shl
 // CHECK-NEXT: + not
+// A mask shifted by any amount is the all-ones word shifted: `MAX << 160` and `MAX >> 1`.
+// CHECK: + push 0
+// CHECK-NEXT: + not
+// CHECK-NEXT: + push 160
+// CHECK-NEXT: + shl
+// CHECK: + push 0
+// CHECK-NEXT: + not
+// CHECK-NEXT: + push 1
+// CHECK-NEXT: + shr
 // CHECK-LABEL: {{^[ +].*}}bb1 [loop]:
 // GAS: push 0xffffffffffffffffffffffffffffffffffffffff
 // SIZE: + push 96
@@ -39,6 +48,8 @@ bb0:
   push 0x100000000000000000000000000000000
   push 0xffffffffff
   push 0xfffffffffffffffffffffffffffffffeffffffffffffffffffffffffffffffff
+  push 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+  push 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   jump bb1
 bb1 [loop]:
   push 0xffffffffffffffffffffffffffffffffffffffff

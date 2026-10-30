@@ -78,6 +78,8 @@ struct Recipe {
     root: Op,
     scalar_ty: MirType,
     temporaries: FxHashMap<ValueId, Temporary>,
+    /// Whether the recipe is worth its local cost for what it lets later passes do.
+    enabling: bool,
 }
 
 fn legal(op: &Op, target: &Target) -> bool {
@@ -369,7 +371,7 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
                                 operation_cost(func, &func.inst(inst).kind.op(), target, &empty)
                             })
                             .sum::<Cost>();
-                    if target.cmp(after, before).is_lt()
+                    if (recipe.enabling || target.cmp(after, before).is_lt())
                         && best.as_ref().is_none_or(|(_, cost, _)| target.cmp(after, *cost).is_lt())
                     {
                         best = Some((recipe, after, dead));

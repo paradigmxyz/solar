@@ -19,10 +19,20 @@
 +   shl
     push 0xffffffffff
 -   push 0xfffffffffffffffffffffffffffffffeffffffffffffffffffffffffffffffff
+-   push 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+-   push 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +   push 1
 +   push 128
 +   shl
 +   not
++   push 0
++   not
++   push 160
++   shl
++   push 0
++   not
++   push 1
++   shr
     jump bb1
   bb1 [loop]:
     push 0xffffffffffffffffffffffffffffffffffffffff

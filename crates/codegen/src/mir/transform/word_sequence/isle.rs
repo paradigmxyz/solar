@@ -158,7 +158,16 @@ impl generated::Context for Context<'_> {
     }
 
     fn sequence(&mut self, root: &Op) -> Recipe {
-        Recipe { root: *root, scalar_ty: self.scalar_ty, temporaries: self.temporaries.clone() }
+        Recipe {
+            root: *root,
+            scalar_ty: self.scalar_ty,
+            temporaries: self.temporaries.clone(),
+            enabling: false,
+        }
+    }
+
+    fn enabling_sequence(&mut self, root: &Op) -> Recipe {
+        Recipe { enabling: true, ..self.sequence(root) }
     }
 
     fn imm(&mut self, value: U256) -> Option<Value> {
