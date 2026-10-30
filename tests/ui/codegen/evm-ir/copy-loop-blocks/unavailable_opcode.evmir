@@ -1,4 +1,4 @@
-//@ compile-flags: --evm-version petersburg -Ogas --optimize-runs 10000 -Zevm-ir-pipeline=tail-dup -Zvalidate-ir=true -Zdump=disasm-runtime
+//@ compile-flags: --evm-version petersburg -Ogas --optimize-runs 10000 -Zevm-ir-pipeline=copy-loop-blocks -Zvalidate-ir=true -Zdump=disasm-runtime
 //~? ERROR: opcode `selfbalance` is unavailable for `petersburg` EVM
 // A copy must not add uses of an opcode the target lacks, which the checks after each pass count
 // as new, so the latch that reads the balance stays shared. The header has no such opcode and is

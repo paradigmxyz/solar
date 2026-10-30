@@ -78,15 +78,12 @@
 use crate::{
     mir::{
         AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, CalldataTail, EffectKind,
-        Function, FunctionBuilder, FunctionId, InstId, InstKind, InstructionMetadata,
-        MemoryObjectLayout, MirType, Module, PtrLocation, RevertReason, Terminator, Value, ValueId,
+        Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryObjectLayout, MirType,
+        Module, PtrLocation, RevertReason, Terminator, Value, ValueId,
         analysis::CallGraphInfo,
         memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
-        transform::{
-            egraph::use_counts,
-            utils::{expand_block, redirect_successor_predecessors},
-        },
+        transform::{egraph::use_counts, utils::expand_block},
         utils::resolve_replacement,
     },
     target::Target,
@@ -852,22 +849,6 @@ fn fold_slice_projections(func: &Function, replacements: &mut FxHashMap<ValueId,
         let InstKind::MakeSlice { ptr, len, .. } = &func.inst(*make_slice).kind else { continue };
         let replacement = if index == MirType::SLICE_PTR_FIELD { *ptr } else { *len };
         replacements.insert(result, resolve_replacement(replacement, replacements));
-    }
-}
-
-pub(crate) fn move_terminator(
-    builder: &mut FunctionBuilder<'_>,
-    original_block: BlockId,
-    terminator: Option<Terminator>,
-    metadata: InstructionMetadata,
-) {
-    let final_block = builder.current_block();
-    let Some(terminator) = terminator else { return };
-    // final_block: lowered_ops; original_terminator !metadata(original block)
-    builder.func_mut().blocks[final_block].terminator = Some(terminator);
-    builder.func_mut().blocks[final_block].terminator_metadata = metadata;
-    if final_block != original_block {
-        redirect_successor_predecessors(builder.func_mut(), original_block, final_block);
     }
 }
 
