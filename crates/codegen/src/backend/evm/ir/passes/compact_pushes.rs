@@ -27,10 +27,11 @@
 //! merging and outlining profit from the concrete instruction shape. Push reordering and
 //! assembly-only lowering use the same recipe API for constants they inspect or introduce later.
 //! Before increasing a literal's transient stack use, query upper entry depths from the stack
-//! verifier and account for each preceding instruction. Growing cycles and dynamically entered
-//! paths have unknown entry depths; there, keep the original straight-line path's peak as an upper
-//! bound. A physical conditional jump ends that path, since its taken edge can skip later stack
-//! growth. Keep the literal when the complete, recursively expanded recipe would overflow.
+//! verifier and account for each preceding instruction. Growing cycles, and dynamically entered
+//! paths whose pushed address the verifier cannot follow to the jumps that consume it, have
+//! unknown entry depths; there, keep the original straight-line path's peak as an upper bound. A
+//! physical conditional jump ends that path, since its taken edge can skip later stack growth.
+//! Keep the literal when the complete, recursively expanded recipe would overflow.
 
 use super::EvmPass;
 use crate::{

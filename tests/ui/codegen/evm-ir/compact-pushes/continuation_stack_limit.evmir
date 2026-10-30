@@ -209,3 +209,136 @@ bb33 [continuation]:
   pop
   pop
   stop
+
+// A branch carries the pushed address into a block that returns through it. That jump leaves the
+// stack at the depth the address's block is entered at, so the block has room for a two-word
+// recipe.
+// CHECK-LABEL: bb36 [continuation]:
+// CHECK: + push 0
+// CHECK-NEXT: + not
+bb34 [stack=10]:
+  push bb36
+  push 1
+  push bb35
+  jumpi
+  stop
+
+bb35:
+  jump
+
+bb36 [continuation]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+// The bound is the depth the jump leaves. An address on the top of 1023 words is entered at 1023,
+// where a two-word recipe has no room.
+// CHECK-LABEL: bb39 [continuation]:
+// CHECK-NEXT: {{^ +}}push 0xffffffffffffffffffffffffffffffffffffffff
+bb37 [stack=1023]:
+  push bb39
+  jump bb38
+
+bb38:
+  jump
+
+bb39 [continuation]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+// One word lower, the recipe's peak reaches the limit without passing it.
+// CHECK-LABEL: bb42 [continuation]:
+// CHECK: + push 0
+// CHECK-NEXT: + not
+bb40 [stack=1022]:
+  push bb42
+  jump bb41
+
+bb41:
+  jump
+
+bb42 [continuation]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+// An address that waits below another one is entered by the jump through that one's block.
+// CHECK-LABEL: bb47 [continuation]:
+// CHECK: + push 0
+// CHECK-NEXT: + not
+bb43 [stack=5]:
+  push bb47
+  push bb46
+  push 1
+  push bb44
+  jumpi
+  stop
+
+bb44:
+  jump
+
+bb46 [continuation]:
+  jump
+
+bb47 [continuation]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+// The code an address's block reaches can grow its stack without bound, so only the block itself
+// has a bound.
+// CHECK-LABEL: bb50 [continuation]:
+// CHECK: + push 0
+// CHECK-NEXT: + not
+// CHECK-LABEL: bb51:
+// CHECK-NEXT: {{^ +}}push 0xffffffffffffffffffffffffffffffffffffffff
+bb48 [stack=0]:
+  push bb50
+  jump bb49
+
+bb49:
+  jump
+
+bb50 [continuation]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  jump bb51
+
+bb51:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  jump bb52
+
+bb52:
+  push 1
+  jump bb51
+
+// A stored address can be jumped to by a later call at any depth, so the shallow depth another
+// edge enters its block at is no bound.
+// CHECK-LABEL: bb55 [continuation]:
+// CHECK-NEXT: {{^ +}}push 0xffffffffffffffffffffffffffffffffffffffff
+bb53 [stack=3]:
+  push bb55
+  push 0
+  sstore
+  jump bb55
+
+bb55 [continuation]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+// An address that its own block pushes and jumps through leaves one word more on each round, so
+// it has no bound.
+// CHECK-LABEL: bb57:
+// CHECK: {{^ +}}push 0xffffffffffffffffffffffffffffffffffffffff
+bb56 [stack=0]:
+  jump bb57
+
+bb57:
+  push 1
+  push bb57
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  jump

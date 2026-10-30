@@ -485,10 +485,14 @@ impl generated::Context for PeepContext<'_> {
         let input = target.push(lhs_value)
             + target.push(rhs_value)
             + target.opcode_with_immediates(opcode, &[Some(rhs_value), Some(lhs_value)]);
-        target.dominates(target.push(result), input).then_some(result)
+        // The result must not need more stack than the two pushes it replaces.
+        (target.dominates(target.push(result), input)
+            && ImmediateMaterialization::new(target.evm_version(), result).stack_peak() <= 2)
+            .then_some(result)
     }
 
-    /// Folds a literal unary expression only when its materialization is Pareto better.
+    /// Folds a literal unary expression only when its materialization is Pareto better and needs no
+    /// more stack than the literal push.
     fn fold_unary_constant(&mut self, _: Window) -> Option<U256> {
         let [value, instruction] = self.unprotected_tail()?;
         let value = self.instructions[value].concrete_immediate()?;
@@ -497,7 +501,9 @@ impl generated::Context for PeepContext<'_> {
         let target = self.target;
         // PUSH value; unary_opcode => materialize evaluated word
         let input = target.push(value) + target.opcode_with_immediates(opcode, &[Some(value)]);
-        target.dominates(target.push(result), input).then_some(result)
+        (target.dominates(target.push(result), input)
+            && ImmediateMaterialization::new(target.evm_version(), result).stack_peak() <= 1)
+            .then_some(result)
     }
 
     /// The negated constant of `PUSH c; SWAP1; SUB`, when `materialize(-c); ADD` improves the

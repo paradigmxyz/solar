@@ -1,0 +1,14 @@
+//@ compile-flags: -Zevm-ir-pipeline=peephole
+//@ filecheck:
+@module FoldStackLimit
+
+// Folding `NOT` of a wide mask gives `PUSH 255; PUSH 248; SHL`, which needs a second word that
+// the literal push at 1023 words does not.
+// CHECK-LABEL: bb0 [stack=1023]:
+// CHECK-NEXT: {{^ +}}push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// CHECK-NEXT: {{^ +}}not
+bb0 [stack=1023]:
+  push 0x00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  not
+  pop
+  stop
