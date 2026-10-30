@@ -18,9 +18,14 @@
 //! far as swaps and pops leave the word where the pass can follow it. Reads of the buffer, such as
 //! `RETURNDATACOPY` after a call, are not affected: they sit in tainted blocks or after the call.
 //!
-//! The pass runs after every pass that reads `push 0` as a concrete immediate, at the end of the
-//! pipeline, so no later transform has to treat the instruction as a constant, and it also runs
-//! at `-O none`. A rewritten instruction keeps its metadata. Block layout does not change.
+//! The pass runs last because its proof describes the final graph. Block sharing, tail merging,
+//! outlining, block CSE and tail copying merge, move and copy blocks across call sites, and the
+//! passes that match an empty revert or a common tail know the zero as `push 0`. A
+//! `RETURNDATASIZE` placed earlier could end up in a block that a call reaches, or hide a merge.
+//! Estimates before this pass, the immediate selector's and the scheduler's, price the zero as the
+//! literal push, which bounds the final price from above; `Target::returndata_zero` prices what
+//! this pass emits. The pass also runs at `-O none`. A rewritten instruction keeps its metadata,
+//! and block layout does not change.
 
 use super::EvmPass;
 use crate::backend::evm::{
@@ -44,13 +49,8 @@ impl EvmPass for ReturndataZero {
 
 fn returndata_zero(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let target = module.runtime_target(gcx);
-    let returndatasize = target.opcode(op::RETURNDATASIZE);
-    if !gcx.sess.opts.evm_version.supports_returndata()
-        || !target.dominates(returndatasize, target.encoded_push(U256::ZERO))
-    {
-        return false;
-    }
-    let dup_to_zero = target.dominates(returndatasize, target.opcode(op::DUP1));
+    let Some(zero) = target.returndata_zero() else { return false };
+    let dup_to_zero = target.dominates(zero, target.dup());
 
     let after = Verifier::blocks_after_returndata_set(module);
     let mut changed = false;
