@@ -51,7 +51,7 @@ use crate::{
         analysis::{AliasAnalysis, AliasResult, CallGraphInfo, MemoryBase, MemoryCallSummaries},
         memory::EvmMemoryLayout,
         pass::MirPass,
-        transform::utils::redirect_successor_predecessors,
+        transform::utils::expand_block,
     },
     target::{Cost, Target},
 };
@@ -84,6 +84,11 @@ impl MirPass for LowerMCopy {
         if gcx.sess.opts.evm_version.has_mcopy() {
             return false;
         }
+        if !module.functions.iter().any(|func| func.instructions().any(|inst| is_mcopy(func, inst)))
+        {
+            return false;
+        }
+
         let call_graph = CallGraphInfo::new(module);
         let constructor_roots = module
             .functions
@@ -95,11 +100,6 @@ impl MirPass for LowerMCopy {
                 constructor_reachable.insert(id);
             }
         }
-        if !module.functions.iter().any(|func| func.instructions().any(|inst| is_mcopy(func, inst)))
-        {
-            return false;
-        }
-
         let target = module.target(gcx);
         let summaries = module.is_optimized().then(|| analyses.call_summaries(module));
         let sites = module
@@ -281,11 +281,25 @@ fn lower_function(
     helpers: &FxHashMap<CopyShape, FunctionId>,
 ) {
     let mut expanded = FxHashMap::default();
+    let mut casts = FxHashMap::default();
     for site in sites {
         match helpers.get(&site.shape) {
-            Some(&helper) if site.shareable => call_copy_helper(func, site.inst, helper),
+            Some(&helper) if site.shareable => {
+                casts.insert(site.inst, call_copy_helper(func, site.inst, helper));
+            }
             _ => {
                 expanded.insert(site.inst, site.shape);
+            }
+        }
+    }
+    if !casts.is_empty() {
+        let mut instructions = Vec::new();
+        for block in func.blocks.iter_mut() {
+            if block.instructions.iter().any(|inst| casts.contains_key(inst)) {
+                instructions.extend(block.instructions.drain(..).flat_map(|inst| {
+                    casts.remove(&inst).unwrap_or_default().into_iter().chain([inst])
+                }));
+                std::mem::swap(&mut block.instructions, &mut instructions);
             }
         }
     }
@@ -296,18 +310,22 @@ fn lower_function(
 
     // Expanding a copy splits its block at the copy, so the rest of the block,
     // with any later copy, is visited as the continuation.
+    let mut builder = FunctionBuilder::new(func);
     let mut block_index = 0;
-    while block_index < func.blocks.len() {
+    while block_index < builder.func().blocks.len() {
         let block = BlockId::from_usize(block_index);
-        let mcopy = func.blocks[block]
-            .instructions
-            .iter()
-            .enumerate()
-            .find_map(|(position, &inst)| Some((position, inst, *expanded.get(&inst)?)));
-        if let Some((position, inst, shape)) = mcopy {
-            lower_mcopy(func, block, position, inst, shape);
-        }
         block_index += 1;
+        if !builder.func().blocks[block].instructions.iter().any(|inst| expanded.contains_key(inst))
+        {
+            continue;
+        }
+        let mut done = false;
+        expand_block(&mut builder, block, |builder, inst| {
+            let Some(&shape) = expanded.get(&inst).filter(|_| !done) else { return false };
+            done = true;
+            lower_mcopy(builder, inst, shape);
+            true
+        });
     }
 }
 
@@ -408,8 +426,9 @@ fn copy_direction(
     }
 }
 
-/// Replaces a `mcopy` with a call of the shared helper.
-fn call_copy_helper(func: &mut Function, inst: InstId, helper: FunctionId) {
+/// Replaces a `mcopy` with a call of the shared helper and returns the pointer casts that must
+/// precede it.
+fn call_copy_helper(func: &mut Function, inst: InstId, helper: FunctionId) -> Vec<InstId> {
     let InstKind::Copy(dest, src, len, PtrLocation::Memory) = func.inst(inst).kind else {
         unreachable!()
     };
@@ -425,16 +444,6 @@ fn call_copy_helper(func: &mut Function, inst: InstId, helper: FunctionId) {
         word
     };
     let (dest, src) = (word(func, dest), word(func, src));
-    if !casts.is_empty() {
-        let (block, position) = func
-            .blocks
-            .iter_enumerated()
-            .find_map(|(block, data)| {
-                Some((block, data.instructions.iter().position(|&id| id == inst)?))
-            })
-            .expect("copy belongs to a block");
-        func.blocks[block].instructions.splice(position..position, casts);
-    }
     // icall @mcopy_words, 0, dest, src, len
     let instruction = func.inst_mut(inst);
     instruction.kind = InstKind::ICall {
@@ -442,37 +451,19 @@ fn call_copy_helper(func: &mut Function, inst: InstId, helper: FunctionId) {
         args: vec![dest, src, len].into(),
     };
     instruction.metadata.set_disjoint(false);
+    casts
 }
 
-fn lower_mcopy(
-    func: &mut Function,
-    block: BlockId,
-    position: usize,
-    inst: InstId,
-    shape: CopyShape,
-) {
-    let InstKind::Copy(dest, src, len, PtrLocation::Memory) = func.inst(inst).kind else {
+/// Emits the word-copy loop of `inst` and leaves the builder in the continuation block.
+fn lower_mcopy(builder: &mut FunctionBuilder<'_>, inst: InstId, shape: CopyShape) {
+    let InstKind::Copy(dest, src, len, PtrLocation::Memory) = builder.func().inst(inst).kind else {
         unreachable!()
     };
 
-    let mut instructions = std::mem::take(&mut func.blocks[block].instructions);
-    let tail = instructions.split_off(position + 1);
-    let removed = instructions.pop();
-    debug_assert_eq!(removed, Some(inst));
-    func.blocks[block].instructions = instructions;
-    let (old_terminator, metadata) = func.blocks[block].take_terminator();
-
-    // continuation: tail; old_terminator !metadata(original block)
-    let continuation = func.alloc_block();
-    func.blocks[continuation].instructions = tail;
-    if let Some(terminator) = old_terminator {
-        func.blocks[continuation].set_terminator(terminator, metadata);
-    }
-    redirect_successor_predecessors(func, block, continuation);
-
-    let mut builder = FunctionBuilder::new(func);
-    builder.switch_to_block(block);
-    emit_copy_loop(&mut builder, dest, src, len, continuation, shape);
+    // continuation: the rest of the block, then the original terminator
+    let continuation = builder.create_block();
+    emit_copy_loop(builder, dest, src, len, continuation, shape);
+    builder.switch_to_block(continuation);
 }
 
 /// Emits the word-copy loop from the builder's current block, continuing at `continuation`.
