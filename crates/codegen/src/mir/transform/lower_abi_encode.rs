@@ -89,7 +89,6 @@ use crate::{
         AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, CalldataTail, EffectKind,
         Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryObjectLayout, MirType,
         Module, PtrLocation, RevertReason, Terminator, Value, ValueId,
-        analysis::CallGraphInfo,
         memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
         transform::{egraph::use_counts, utils::expand_block},
@@ -150,8 +149,7 @@ impl MirPass for LowerAbiEncode {
             };
             lower_function(func, helpers, revert_strings, &zero_copy_returns[func_id])
         });
-        CallGraphInfo::assert_runtime_helpers(
-            module,
+        module.assert_runtime_helpers(
             helpers
                 .arrays
                 .values()

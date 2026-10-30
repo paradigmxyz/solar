@@ -136,10 +136,6 @@
 ;; ~~x => x.
 (rule 2 (simplify (Op.Not (bnot x))) x)
 
-;; ~c => ~c.
-;; Requires: c is constant.
-(rule 1 (simplify (Op.Not (iconst c))) (imm (u256_not c)))
-
 ;; (x & y) & x => x & y.
 (rule 1007 (simplify (Op.And (and value (band x y)) x))  value)
 

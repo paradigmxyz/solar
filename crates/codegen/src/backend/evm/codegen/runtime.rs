@@ -40,17 +40,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Functions reachable through internal calls from the dispatch entry and external entries.
-    pub(super) fn internal_call_targets(
-        module: &Module,
-        call_graph: &CallGraphInfo,
-        entry: FunctionId,
-    ) -> DenseBitSet<FunctionId> {
-        call_graph.reachable_callees_from(module.functions.iter_enumerated().filter_map(
-            |(func_id, func)| (func_id == entry || func.is_runtime_entry()).then_some(func_id),
-        ))
-    }
-
     /// The functions whose whole body is `stop`.
     pub(super) fn empty_stop_functions(module: &Module) -> DenseBitSet<FunctionId> {
         let mut functions = DenseBitSet::new_empty(module.functions.len());
