@@ -792,7 +792,7 @@ impl<'a> Verifier<'a> {
     /// successors. Unknown bounds must not justify increasing a block's stack peak.
     ///
     /// A pushed label that the direct edges do not model, such as a return address that a branch
-    /// carries into other code, has no walked depth. [`bound_pushed_labels`] bounds it by
+    /// carries into other code, has no walked depth. `bound_pushed_labels` bounds it by
     /// following the word to the jumps that consume it, and the blocks it reaches from there.
     pub fn stack_entry_upper_bounds(
         module: &Module,
