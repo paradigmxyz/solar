@@ -51,12 +51,13 @@
 //! outside loops as the word itself: `c = ne (or w, zext c2), 0`, which a branch reads for free as
 //! it read `w`, so the entry's value check and calldata size check branch once.
 //!
-//! An ABI range check that aborts when it fails joins outside loops as the word that is nonzero
-//! when it fails: `shr k, x` for `lt x, 2^k`, as a `bool` or `uintN` parameter's check is (this
-//! needs the target's shift opcodes), and `xor x, signextend(b, x)` for `eq x, signextend(b, x)`,
-//! as an `intN` parameter's check is. The word replaces the comparison, and the target prices
-//! both. Next to a test that aborts on its false edge, such as an enum's `lt x, 3`, the pair stays
-//! comparisons that combine with `and`, as the pairs merge one after another; in loops it turns
+//! A signed `intN` parameter's check aborts when `eq x, signextend(b, x)` fails. Outside loops
+//! it joins as the word that is nonzero when it fails, `xor x, signextend(b, x)`, which replaces
+//! the comparison at the price the target gives the pair. The ABI decoder already tests `bool`,
+//! `uintN`, and power-of-two enum parameters as shifted words, which join as above; the e-graph
+//! turns the signed check's exclusive or back into `eq x, signextend(b, x)`, so it has no
+//! producer-side form. Next to a test that aborts on its false edge, the pair stays comparisons
+//! that combine with `and`, as merges go pair by pair; in loops the test turns
 //! around as above. Other zero tests of words stay apart: a branch reads the word for free, and a
 //! loop's latch also takes its back edge on it, as an increment's overflow check `eq (add i, 1), 0`
 //! does, while the merged test would pay an `iszero` for the word, another to turn the latch
@@ -160,8 +161,6 @@ impl Test {
 enum Word {
     /// The test's condition, which already is the word.
     Itself,
-    /// `shr bits, word`, for a test that `word < 2^bits` fails.
-    Shr { word: ValueId, bits: usize },
     /// `xor a, b`, for a test that `a == b` fails.
     Xor(ValueId, ValueId),
 }
@@ -171,10 +170,6 @@ impl Word {
     fn price(self, target: &Target) -> (Cost, Cost) {
         match self {
             Self::Itself => (Cost::ZERO, Cost::ZERO),
-            Self::Shr { bits, .. } => (
-                target.push(U256::from(bits)) + target.opcode(op::SHR),
-                target.push(U256::ONE << bits) + target.opcode(op::LT),
-            ),
             Self::Xor(..) => (target.opcode(op::XOR), target.opcode(op::EQ)),
         }
     }
@@ -256,43 +251,27 @@ fn test(
     // Loops keep such a test whole, to turn around into its complement.
     if !aborts_when_true
         && !cyclic.contains(block)
-        && let Some(word) = range_word(func, condition, target)
+        && let Some(word) = range_word(func, condition)
     {
         return Some(Test { condition, abort, next, aborts_when_true: true, word: Some(word) });
     }
     Some(Test { condition, abort, next, aborts_when_true, word: None })
 }
 
-/// The word that is nonzero exactly when `condition` fails, for the range checks of ABI decoding:
-/// `x < 2^k` fails when `x >> k` is nonzero, and `x == signextend(b, x)` when their `xor` is.
-fn range_word(func: &Function, condition: ValueId, target: &Target) -> Option<Word> {
-    let (operand, word) = match *func.value_inst_kind(condition)? {
-        InstKind::Lt(word, limit) | InstKind::Gt(limit, word) => {
-            let limit = func.value_u256(limit)?;
-            if limit <= U256::ONE
-                || !limit.is_power_of_two()
-                || !target.evm_version().has_bitwise_shifting()
-            {
-                return None;
-            }
-            (word, Word::Shr { word, bits: limit.trailing_zeros() })
-        }
-        InstKind::Eq(a, b) => {
-            let extends = |extended: ValueId, word: ValueId| {
-                matches!(
-                    func.value_inst_kind(extended),
-                    Some(&InstKind::SignExtend(_, source)) if source == word
-                )
-            };
-            if !extends(a, b) && !extends(b, a) {
-                return None;
-            }
-            (a, Word::Xor(a, b))
-        }
-        _ => return None,
+/// The word that is nonzero exactly when `condition` fails, for a signed ABI range check:
+/// `x == signextend(b, x)` fails when their `xor` is nonzero.
+fn range_word(func: &Function, condition: ValueId) -> Option<Word> {
+    let &InstKind::Eq(a, b) = func.value_inst_kind(condition)? else { return None };
+    let extends = |extended: ValueId, word: ValueId| {
+        matches!(
+            func.value_inst_kind(extended),
+            Some(&InstKind::SignExtend(_, source)) if source == word
+        )
     };
-    (func.value_u256(operand).is_none() && func.value_ty(operand) == Some(MirType::I256))
-        .then_some(word)
+    ((extends(a, b) || extends(b, a))
+        && func.value_u256(a).is_none()
+        && func.value_ty(a) == Some(MirType::I256))
+    .then_some(Word::Xor(a, b))
 }
 
 /// The word a condition compares with zero, and whether the condition holds when it is nonzero.
@@ -480,19 +459,14 @@ fn merge(
         test.aborts_when_true = true;
     }
     let combined = if first.word.is_some() || second.word.is_some() {
-        // w1 = zext i1 c1 to i256 (unless c1 is already a word)
-        //      | shr bits, x (for a range check c1 of x)
-        //      | xor a, b (for a range check c1 of a and b)
+        // w1 = zext i1 c1 to i256 | xor a, b (for a signed range check c1 of a and b)
+        //      (unless c1 is already a word)
         // w2 = the same for c2
         // w = or w1, w2
         // c = ne w, 0
         // jumpi c, abort, b3
         let mut as_word = |test: &Test| match test.word {
             Some(Word::Itself) => test.condition,
-            Some(Word::Shr { word, bits }) => {
-                let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(bits))));
-                append_typed(func, block, InstKind::Shr(shift, word), MirType::I256)
-            }
             Some(Word::Xor(a, b)) => append_typed(func, block, InstKind::Xor(a, b), MirType::I256),
             None => append_typed(func, block, InstKind::Zext(test.condition), MirType::I256),
         };

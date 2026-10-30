@@ -215,24 +215,25 @@ fn @enumArray(arg0: i256) -> i256 [selector=0xd6447683, pure, abi_params=[uint25
     v14 = extract_value slice<calldata>, v4, 0
     jump bb1
   bb1:
-    v15 = phi [bb0: 0], [bb2: v23]
+    v15 = phi [bb0: 0], [bb2: v24]
     v16 = lt v15, v13
     jumpi v16, bb2, bb3
   bb3:
-    v24 = abi_encode [calldata_array<word<enum 2>>], scratch, args v4
-    v25 = extract_value slice<memory>, v24, 0
-    v26 = extract_value slice<memory>, v24, 1
-    v27 = keccak256 v25, v26
-    ret v27
+    v25 = abi_encode [calldata_array<word<enum 2>>], scratch, args v4
+    v26 = extract_value slice<memory>, v25, 0
+    v27 = extract_value slice<memory>, v25, 1
+    v28 = keccak256 v26, v27
+    ret v28
   bb2:
     v17 = mul v15, 32
     v18 = ptrtoint ptr<calldata> v14 to i256
     v19 = add v18, v17
     v20 = calldataload v19
-    v21 = lt v20, 2
-    v22 = eq v21, false
-    icall revert_if<empty>, v22
-    v23 = add v15, 1
+    v21 = shr v20, 1
+    v22 = eq v21, 0
+    v23 = eq v22, false
+    icall revert_if<empty>, v23
+    v24 = add v15, 1
     jump bb1
 }
 

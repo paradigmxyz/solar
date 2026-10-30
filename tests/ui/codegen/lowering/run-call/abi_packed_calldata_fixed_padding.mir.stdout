@@ -84,21 +84,22 @@ fn @flags(arg0: i256) -> ptr<memory> [selector=0x81274d3a, pure, abi_params=[uin
     v1 = extract_value slice<calldata>, v0, 0
     jump bb1
   bb1:
-    v2 = phi [bb0: 0], [bb2: v10]
+    v2 = phi [bb0: 0], [bb2: v11]
     v3 = lt v2, 2
     jumpi v3, bb2, bb3
   bb3:
-    v11 = abi_encode_packed (array<word<bool>> calldata v0)
-    ret v11
+    v12 = abi_encode_packed (array<word<bool>> calldata v0)
+    ret v12
   bb2:
     v4 = mul v2, 32
     v5 = ptrtoint ptr<calldata> v1 to i256
     v6 = add v5, v4
     v7 = calldataload v6
-    v8 = lt v7, 2
-    v9 = eq v8, false
-    icall revert_if<empty>, v9
-    v10 = add v2, 1
+    v8 = shr v7, 1
+    v9 = eq v8, 0
+    v10 = eq v9, false
+    icall revert_if<empty>, v10
+    v11 = add v2, 1
     jump bb1
 }
 

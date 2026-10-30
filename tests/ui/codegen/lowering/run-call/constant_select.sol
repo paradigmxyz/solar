@@ -75,6 +75,9 @@ contract ConstantSelect {
     // SIZE-NEXT: calldataload
     // SIZE-NEXT: push 1
     // SIZE-NEXT: shr
+    // SIZE-NEXT: push 36
+    // SIZE-NEXT: calldatasize
+    // SIZE-NEXT: lt
     // SIZE-NEXT: or
     // SIZE-NEXT: push {{bb[0-9]+}}
     // SIZE-NEXT: jumpi
