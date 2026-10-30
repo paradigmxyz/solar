@@ -5,14 +5,14 @@ use crate::{
     backend::evm::{CodegenState, DebugInfo, EvmArtifact, ir},
     link::{
         ContractBytecodes, EmbeddedBytecodes, LibraryRelocation, LibraryTable, QualifiedName,
-        RelocatableBytecode,
+        RelocatableBytecode, Trailer,
     },
     mir::{Module, lower, pass::run_pipeline},
 };
 use alloy_primitives::Bytes;
 use either::Either;
 use solar_ast::TypeSize;
-use solar_config::{DumpKind, EvmVersion, OptimizationMode};
+use solar_config::{DumpKind, EvmVersion};
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::IndexVec,
@@ -47,6 +47,12 @@ pub struct ContractArtifact {
     pub deployment_link_references: Vec<LibraryReference>,
     /// Unresolved library addresses in the runtime bytecode.
     pub runtime_link_references: Vec<LibraryReference>,
+    /// The [`RuntimeDataFn`] values of this contract and the contracts it embeds in the deployment
+    /// bytecode, in ascending order.
+    pub deployment_trailers: Vec<Trailer>,
+    /// The [`RuntimeDataFn`] values of this contract and the contracts it embeds in the runtime
+    /// bytecode, in ascending order.
+    pub runtime_trailers: Vec<Trailer>,
     /// Captured MIR, built under `-O none` when no explicit pipeline is configured and
     /// post-pipeline otherwise.
     pub mir: Option<Module>,
@@ -669,10 +675,13 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             || !graph.dependents[contract_id].is_empty();
         let runtime_data =
             captures.runtime_data.filter(|_| needs_backend).map(|data| data(contract_id));
-        append_runtime_data(&mut module, runtime_data.as_ref());
-        let capture_built = capture_mir
-            && matches!(gcx.sess.opts.optimization, OptimizationMode::None)
-            && gcx.sess.opts.unstable.mir_pipeline.is_none();
+        append_runtime_data(
+            &mut module,
+            runtime_data.as_ref(),
+            crate::link::qualified_name(gcx, contract_id),
+        );
+        let capture_built =
+            capture_mir && !module.is_optimized() && gcx.sess.opts.unstable.mir_pipeline.is_none();
         let built_mir = (capture_built && needs_backend).then(|| module.clone());
         let codegen = if needs_backend {
             module.set_debug_info_tracked(captures.debug_info.contains(contract_id));
@@ -726,11 +735,13 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
                         bytes: artifact.deployment.clone(),
                         relocations: deployment_relocations,
                         libraries: libraries.clone(),
+                        trailers: artifact.deployment_trailers.clone(),
                     },
                     runtime: RelocatableBytecode {
                         bytes: artifact.runtime.clone(),
                         relocations: runtime_relocations,
                         libraries,
+                        trailers: artifact.runtime_trailers.clone(),
                     },
                 };
                 (crate::link::qualified_name(gcx, dependency), bytecodes)
@@ -779,6 +790,8 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             immutable_references,
             deployment_link_references,
             runtime_link_references,
+            deployment_trailers: artifact.deployment_trailers,
+            runtime_trailers: artifact.runtime_trailers,
             mir,
             deployment_evm_ir: artifact.deployment_evm_ir,
             runtime_evm_ir: artifact.runtime_evm_ir,
@@ -817,9 +830,9 @@ fn collect_library_references(
         .collect()
 }
 
-fn append_runtime_data(module: &mut Module, data: Option<&Bytes>) {
+fn append_runtime_data(module: &mut Module, data: Option<&Bytes>, contract: QualifiedName) {
     if let Some(data) = data.filter(|data| !data.is_empty()) {
-        module.append_runtime_data(data.clone(), None);
+        module.append_runtime_data(data.clone(), None, contract);
     }
 }
 

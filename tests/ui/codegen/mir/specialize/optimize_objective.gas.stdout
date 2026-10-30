@@ -1,0 +1,47 @@
+- // === ROOT/tests/ui/codegen/mir/specialize/optimize_objective.mir (before specialize) ===
++ // === ROOT/tests/ui/codegen/mir/specialize/optimize_objective.mir (after specialize) ===
+  @module TaggedSpecialization
+  fn @caller(arg0: i256) -> i256 [selector=0x00000001] {
+    bb0:
+      v0 = icall @helper, 0, arg0
+      ret v0
+  }
+  
+  fn @helper(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = ne arg0, 0
+-     jumpi v0, bb1, bb2
+-   bb2:
+      v3 = mul arg1, 7
+      v4 = div v3, 7
+      v5 = eq v4, arg1
+      v6 = zext i1 v5 to i256
+      ret v6
+-   bb1:
+-     v1 = mul arg1, arg1
+-     v2 = mul v1, v1
+-     ret v2
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/specialize/optimize_objective.mir (before dead-arg-elim) ===
++ // === ROOT/tests/ui/codegen/mir/specialize/optimize_objective.mir (after dead-arg-elim) ===
+  @module TaggedSpecialization
+  fn @caller(arg0: i256) -> i256 [selector=0x00000001] {
+    bb0:
+-     v0 = icall @helper, 0, arg0
++     v0 = icall @helper, arg0
+      ret v0
+  }
+  
+- fn @helper(arg0: i256, arg1: i256) -> i256 {
++ fn @helper(arg0: i256) -> i256 {
+    bb0:
+-     v3 = mul arg1, 7
++     v3 = mul arg0, 7
+      v4 = div v3, 7
+-     v5 = eq v4, arg1
++     v5 = eq v4, arg0
+      v6 = zext i1 v5 to i256
+      ret v6
+  }
+  

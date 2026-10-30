@@ -460,20 +460,27 @@ impl LocalSummaryCache {
             self.clear();
             return;
         }
-        let mut entries = std::mem::take(&mut self.entries).into_iter().collect::<Vec<_>>();
-        self.entries = keep.iter().map(|id| entries[id.index()].take()).collect();
-        let mut multiple_returns = DenseBitSet::new_empty(self.entries.len());
+        // The kept ids ascend, so each entry moves to a slot at or before its own.
         for (new_id, old_id) in keep.iter().enumerate() {
-            if self.multiple_returns.contains(old_id) {
-                multiple_returns.insert(FunctionId::from_usize(new_id));
-            }
+            let entry = self.entries[old_id].take();
+            self.entries[FunctionId::from_usize(new_id)] = entry;
         }
-        self.multiple_returns = multiple_returns;
+        self.entries.raw.truncate(keep.count());
+        let multiple_returns = keep
+            .iter()
+            .enumerate()
+            .filter(|&(_, old_id)| self.multiple_returns.contains(old_id))
+            .map(|(new_id, _)| FunctionId::from_usize(new_id))
+            .collect::<Vec<_>>();
+        self.multiple_returns.clear_to(keep.count());
+        for new_id in multiple_returns {
+            self.multiple_returns.insert(new_id);
+        }
     }
 
     /// Drops every entry.
     pub(crate) fn clear(&mut self) {
-        self.entries = IndexVec::new();
+        self.entries.raw.clear();
     }
 }
 
@@ -493,17 +500,26 @@ impl MemoryCallSummaries {
             return Self { summaries: IndexVec::new() };
         }
 
-        let mut multiple_returns = DenseBitSet::new_empty(module.functions.len());
+        // A change in the functions with several return components invalidates every entry.
+        let mut stale = cache.entries.len() != module.functions.len();
+        if cache.multiple_returns.domain_size() != module.functions.len() {
+            cache.multiple_returns.clear_to(module.functions.len());
+            stale = true;
+        }
         for (func_id, func) in module.functions.iter_enumerated() {
-            if func.return_components().len() > 1 {
-                multiple_returns.insert(func_id);
+            let multiple = func.return_components().len() > 1;
+            if multiple != cache.multiple_returns.contains(func_id) {
+                stale = true;
+                if multiple {
+                    cache.multiple_returns.insert(func_id);
+                } else {
+                    cache.multiple_returns.remove(func_id);
+                }
             }
         }
-        if cache.entries.len() != module.functions.len()
-            || cache.multiple_returns != multiple_returns
-        {
-            cache.entries = module.functions.indices().map(|_| None).collect();
-            cache.multiple_returns = multiple_returns;
+        if stale {
+            cache.entries.raw.clear();
+            cache.entries.raw.resize_with(module.functions.len(), || None);
         }
 
         // The parameter sources, alias analysis, and local summary of each target.
@@ -688,9 +704,13 @@ fn local_summary(
                 for &access in effects.writes() {
                     summary.record_access(func, access, true);
                 }
-                summary.may_reset_fmp |= aa.instruction_may_reset_fmp(func, inst_id);
-                summary.may_wrap_write |=
-                    aa.instruction_writes_through_runtime_index(func, inst_id);
+                // Skip the queries once the flag is set.
+                summary.may_reset_fmp =
+                    summary.may_reset_fmp || aa.instruction_may_reset_fmp(func, inst_id);
+                summary.may_wrap_write = summary.may_wrap_write
+                    || AliasAnalysis::instruction_writes_through_runtime_index_with(
+                        func, inst_id, &effects,
+                    );
                 summary.may_recycle_fmp |= instruction_may_recycle_fmp(func, inst_id);
             }
             summary.may_observe_fmp |= instruction_observes_fmp(func, inst_id);

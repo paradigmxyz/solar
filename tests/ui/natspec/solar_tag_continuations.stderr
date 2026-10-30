@@ -1,0 +1,24 @@
+error: `Continued` is tagged `@custom:solar-safe` but runs an `unchecked` block
+   ╭▸ ROOT/tests/ui/natspec/solar_tag_continuations.sol:LL:CC
+   │
+LL │         unchecked { return value + 1; }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/natspec/solar_tag_continuations.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe memory
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `Continued.run`
+   ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
+
+error: `@custom:solar-safe` has no property `imaginary`
+   ╭▸ ROOT/tests/ui/natspec/solar_tag_continuations.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe memory
+   │      ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: the properties are `memory` and `arithmetic`; naming none requires only `memory`
+
+error: aborting due to 2 previous errors
+

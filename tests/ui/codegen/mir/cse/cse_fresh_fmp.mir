@@ -216,6 +216,98 @@ fn @reset_after_read(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     ret v7
 }
 
+// A write through a runtime index wraps onto the pointer when the program forged the length that
+// bounds it, so the reads after it are not fresh.
+// CHECK-LABEL: @wrapped_write_before_read
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK:       {{v[0-9]+}} = mload [[ADDR]]
+fn @wrapped_write_before_read(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    v13 = alloc 32
+    v12 = ptradd v13, arg2
+    v4 = ptrtoint ptr<memory> v12 to i256
+    mstore v4, 5
+    mstore v2, arg0
+    v11 = fmp
+    v3 = ptrtoint ptr<memory> v11 to i256
+    mstore v3, arg1
+    v7 = mload v2
+    ret v7
+}
+
+// A wrapped write after the read leaves the read, and the allocation before it, fresh.
+// CHECK-LABEL: @wrapped_write_after_read
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
+// CHECK: +     ret arg0
+fn @wrapped_write_after_read(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    mstore v2, arg0
+    v11 = fmp
+    v3 = ptrtoint ptr<memory> v11 to i256
+    mstore v3, arg1
+    v7 = mload v2
+    v13 = alloc 32
+    v12 = ptradd v13, arg2
+    v4 = ptrtoint ptr<memory> v12 to i256
+    mstore v4, 5
+    ret v7
+}
+
+// A wrapped write in a loop reaches the read through the back edge.
+// CHECK-LABEL: @wrapped_write_in_loop
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK:       {{v[0-9]+}} = mload [[ADDR]]
+fn @wrapped_write_in_loop(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> i256 {
+  bb0:
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    v13 = alloc 32
+    jump bb1
+  bb1:
+    mstore v2, arg0
+    v11 = fmp
+    v3 = ptrtoint ptr<memory> v11 to i256
+    mstore v3, arg1
+    v7 = mload v2
+    v12 = ptradd v13, arg2
+    v4 = ptrtoint ptr<memory> v12 to i256
+    mstore v4, 5
+    jumpi arg3, bb1, bb2
+  bb2:
+    ret v7
+}
+
+// A wrapped write in a predecessor ends the freshness of the read in its successor.
+// CHECK-LABEL: @wrapped_write_in_predecessor
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK:       {{v[0-9]+}} = mload [[ADDR]]
+fn @wrapped_write_in_predecessor(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    v13 = alloc 32
+    v12 = ptradd v13, arg2
+    v4 = ptrtoint ptr<memory> v12 to i256
+    mstore v4, 5
+    jump bb1
+  bb1:
+    mstore v2, arg0
+    v11 = fmp
+    v3 = ptrtoint ptr<memory> v11 to i256
+    mstore v3, arg1
+    v7 = mload v2
+    ret v7
+}
+
 // A callee that may reset the pointer, between the allocation and the read, ends freshness.
 // CHECK-LABEL: @call_may_reset
 // CHECK:       mstore [[ADDR:v[0-9]+]], arg0
@@ -283,4 +375,75 @@ fn @resets(arg0: i256) {
 fn @pure_callee(arg0: i256) {
   bb0:
     ret
+}
+
+// The offset is computed before the base is accessed. At the later store, that access proves
+// the addition cannot wrap onto the FMP, so a subsequent allocation still has a fresh identity.
+// CHECK-LABEL: @access_before_offset_store
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
+// CHECK: +     ret arg0
+fn @access_before_offset_store(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = fmp
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, 64
+    mstore v1, 0
+    mstore v2, 0
+    v3 = alloc 32
+    v4 = ptrtoint ptr<memory> v3 to i256
+    mstore v4, arg0
+    v5 = fmp
+    v6 = ptrtoint ptr<memory> v5 to i256
+    mstore v6, arg1
+    v7 = mload v4
+    ret v7
+}
+
+// A zero-length access proves nothing about its address. The offset store may reset the FMP,
+// so later allocations and reads must not regain fresh provenance.
+// CHECK-LABEL: @zero_access_before_offset_store
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK:       [[READ:v[0-9]+]] = mload [[ADDR]]
+// CHECK-NEXT:  ret [[READ]]
+fn @zero_access_before_offset_store(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = fmp
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, 64
+    calldatacopy v1, 0, 0
+    mstore v2, 0
+    v3 = alloc 32
+    v4 = ptrtoint ptr<memory> v3 to i256
+    mstore v4, arg0
+    v5 = fmp
+    v6 = ptrtoint ptr<memory> v5 to i256
+    mstore v6, arg1
+    v7 = mload v4
+    ret v7
+}
+
+// An access after the potentially wrapping store cannot justify that earlier store.
+// CHECK-LABEL: @access_after_offset_store
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK:       [[READ:v[0-9]+]] = mload [[ADDR]]
+// CHECK-NEXT:  ret [[READ]]
+fn @access_after_offset_store(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = fmp
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, 64
+    mstore v2, 0
+    mstore v1, 0
+    v3 = alloc 32
+    v4 = ptrtoint ptr<memory> v3 to i256
+    mstore v4, arg0
+    v5 = fmp
+    v6 = ptrtoint ptr<memory> v5 to i256
+    mstore v6, arg1
+    v7 = mload v4
+    ret v7
 }

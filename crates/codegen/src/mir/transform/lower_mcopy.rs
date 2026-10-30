@@ -18,10 +18,11 @@
 //! repeated bytes.
 //! Constructor-reachable sites remain inline because their ABI output may
 //! occupy the free-memory pointer where an internal call would stage its frame.
-//! Copies through raw or symbolic memory bases also remain inline because the
-//! helper's argument frame could overlap either copied range, unless the copy
-//! is marked `disjoint`: ABI encoding copies from heap objects into heap
-//! output, clear of every frame.
+//! Copies between Solidity memory objects, whatever their bases, may call the helper: its frame
+//! lies below the initial free memory pointer, which only assembly that names constant addresses
+//! reaches (CODEGEN-009). Pointers computed from constants or calldata alone, and ranges that
+//! leave the scratch space, remain inline. Copies marked `disjoint` may call it too: ABI
+//! encoding copies from heap objects into heap output, which no frame overlaps.
 //!
 //! Copies marked `disjoint`, such as ABI encoding's copies of source data into
 //! its output, run forward. Constant lengths of at most one word also copy
@@ -45,17 +46,19 @@
 
 use crate::{
     mir::{
-        BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction, MirType,
-        Module, PtrLocation, Value, ValueId,
-        analysis::{AliasAnalysis, AliasResult, CallGraphInfo, MemoryBase, MemoryCallSummaries},
+        BlockId, EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
+        MirType, Module, PtrLocation, Value, ValueId,
+        analysis::{AliasAnalysis, AliasResult, MemoryBase, MemoryCallSummaries},
         memory::EvmMemoryLayout,
         pass::MirPass,
-        transform::utils::redirect_successor_predecessors,
+        transform::utils::expand_block,
     },
     target::{Cost, Target},
 };
-use solar_config::OptimizationMode;
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 use std::{collections::BTreeMap, sync::Arc};
@@ -81,30 +84,20 @@ impl MirPass for LowerMCopy {
         if gcx.sess.opts.evm_version.has_mcopy() {
             return false;
         }
-        let call_graph = CallGraphInfo::new(module);
-        let constructor_roots = module
-            .functions
-            .iter_enumerated()
-            .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id));
-        let mut constructor_reachable = call_graph.reachable_callees_from(constructor_roots);
-        for (id, func) in module.functions.iter_enumerated() {
-            if func.attributes.is_constructor {
-                constructor_reachable.insert(id);
-            }
-        }
         if !module.functions.iter().any(|func| func.instructions().any(|inst| is_mcopy(func, inst)))
         {
             return false;
         }
 
-        let target = Target::new(gcx);
-        let summaries = (gcx.sess.opts.optimization != OptimizationMode::None)
-            .then(|| analyses.call_summaries(module));
+        let constructor_reachable = module.constructor_reachable_functions();
+        let target = module.target(gcx);
+        let summaries = module.is_optimized().then(|| analyses.call_summaries(module));
         let sites = module
             .functions
             .iter_enumerated()
             .map(|(id, func)| {
-                copy_sites(func, !constructor_reachable.contains(id), summaries.as_ref())
+                let summaries = summaries.as_ref().filter(|_| !module.objective(id).is_none());
+                copy_sites(func, !constructor_reachable.contains(id), summaries)
             })
             .collect::<IndexVec<FunctionId, _>>();
 
@@ -128,7 +121,7 @@ impl MirPass for LowerMCopy {
         for (func_id, sites) in sites.into_iter_enumerated() {
             lower_function(module.function_mut(func_id), &sites, &helpers);
         }
-        CallGraphInfo::assert_runtime_helpers(module, functions.into_values());
+        module.assert_runtime_helpers(functions.into_values());
         true
     }
 }
@@ -278,11 +271,25 @@ fn lower_function(
     helpers: &FxHashMap<CopyShape, FunctionId>,
 ) {
     let mut expanded = FxHashMap::default();
+    let mut casts = FxHashMap::default();
     for site in sites {
         match helpers.get(&site.shape) {
-            Some(&helper) if site.shareable => call_copy_helper(func, site.inst, helper),
+            Some(&helper) if site.shareable => {
+                casts.insert(site.inst, call_copy_helper(func, site.inst, helper));
+            }
             _ => {
                 expanded.insert(site.inst, site.shape);
+            }
+        }
+    }
+    if !casts.is_empty() {
+        let mut instructions = Vec::new();
+        for block in func.blocks.iter_mut() {
+            if block.instructions.iter().any(|inst| casts.contains_key(inst)) {
+                instructions.extend(block.instructions.drain(..).flat_map(|inst| {
+                    casts.remove(&inst).unwrap_or_default().into_iter().chain([inst])
+                }));
+                std::mem::swap(&mut block.instructions, &mut instructions);
             }
         }
     }
@@ -293,22 +300,35 @@ fn lower_function(
 
     // Expanding a copy splits its block at the copy, so the rest of the block,
     // with any later copy, is visited as the continuation.
+    let mut builder = FunctionBuilder::new(func);
     let mut block_index = 0;
-    while block_index < func.blocks.len() {
+    while block_index < builder.func().blocks.len() {
         let block = BlockId::from_usize(block_index);
-        let mcopy = func.blocks[block]
-            .instructions
-            .iter()
-            .enumerate()
-            .find_map(|(position, &inst)| Some((position, inst, *expanded.get(&inst)?)));
-        if let Some((position, inst, shape)) = mcopy {
-            lower_mcopy(func, block, position, inst, shape);
-        }
         block_index += 1;
+        if !builder.func().blocks[block].instructions.iter().any(|inst| expanded.contains_key(inst))
+        {
+            continue;
+        }
+        let mut done = false;
+        expand_block(&mut builder, block, |builder, inst| {
+            let Some(&shape) = expanded.get(&inst).filter(|_| !done) else { return false };
+            done = true;
+            lower_mcopy(builder, inst, shape);
+            true
+        });
     }
 }
 
-/// Returns whether a helper call frame is provably disjoint from both copy ranges.
+/// Returns whether a helper call frame does not overlap either copy range.
+///
+/// Static frames lie between the scratch space and the initial free memory pointer, and only
+/// assembly that names constant addresses there can reach them (CODEGEN-009). This pass runs
+/// only where `mcopy` is not an opcode, so every copy is the compiler's own, between Solidity
+/// memory objects. A pointer qualifies unless constants or calldata alone compute it, or it
+/// names a constant range that leaves the scratch space.
+///
+/// The caller's frame is live, so the helper's frame does not overlap it; and heap objects,
+/// call results, and allocations start at or above the initial free memory pointer.
 fn copy_helper_eligible(func: &Function, alias: Option<&AliasAnalysis>, inst: InstId) -> bool {
     let Some(alias) = alias else { return false };
     let InstKind::Copy(dest, src, len, PtrLocation::Memory) = func.inst(inst).kind else {
@@ -316,18 +336,46 @@ fn copy_helper_eligible(func: &Function, alias: Option<&AliasAnalysis>, inst: In
     };
     let size = alias.location_size(func, len);
     [dest, src].into_iter().all(|pointer| {
-        alias
-            .bare_memory_location(func, pointer, size)
-            .is_some_and(|location| helper_owned_base(location.address.base))
+        let Some(location) = alias.bare_memory_location(func, pointer, size) else {
+            return false;
+        };
+        let address = location.address;
+        let scratch = address.base == MemoryBase::Absolute
+            && size
+                .as_const()
+                .and_then(|size| address.offset.checked_add(size))
+                .is_some_and(|end| end <= EvmMemoryLayout::HEAP_START);
+        scratch || !is_constant_address(func, pointer)
     })
 }
 
-/// Returns whether a base belongs to compiler-managed memory outside a callee's frame.
-fn helper_owned_base(base: MemoryBase) -> bool {
-    matches!(
-        base,
-        MemoryBase::InternalFrame | MemoryBase::Allocation(_) | MemoryBase::DynamicAllocation(_)
-    )
+/// Returns whether a pointer is computed from constants and calldata alone, so that it can name
+/// any static address.
+///
+/// Every pure operation passes constants through, so an operation added later cannot hide a
+/// constant. Anything else, such as a load, a call result, an allocation, or a frame address, is
+/// not constant.
+fn is_constant_address(func: &Function, pointer: ValueId) -> bool {
+    let mut pending = vec![pointer];
+    let mut seen = FxHashSet::default();
+    while let Some(value) = pending.pop() {
+        if !seen.insert(value) {
+            continue;
+        }
+        let inst = match func.value(value) {
+            Value::Immediate(_) => continue,
+            Value::Inst(inst) => func.inst(*inst),
+            _ => return false,
+        };
+        match &inst.kind {
+            InstKind::Load(.., PtrLocation::Calldata) | InstKind::CalldataSize => {}
+            InstKind::Select(_, lhs, rhs) => pending.extend([*lhs, *rhs]),
+            InstKind::InternalFrameAddr(_) => return false,
+            kind if kind.op_def().effect == EffectKind::Pure => pending.extend(kind.operands()),
+            _ => return false,
+        }
+    }
+    true
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -368,8 +416,9 @@ fn copy_direction(
     }
 }
 
-/// Replaces a `mcopy` with a call of the shared helper.
-fn call_copy_helper(func: &mut Function, inst: InstId, helper: FunctionId) {
+/// Replaces a `mcopy` with a call of the shared helper and returns the pointer casts that must
+/// precede it.
+fn call_copy_helper(func: &mut Function, inst: InstId, helper: FunctionId) -> Vec<InstId> {
     let InstKind::Copy(dest, src, len, PtrLocation::Memory) = func.inst(inst).kind else {
         unreachable!()
     };
@@ -385,16 +434,6 @@ fn call_copy_helper(func: &mut Function, inst: InstId, helper: FunctionId) {
         word
     };
     let (dest, src) = (word(func, dest), word(func, src));
-    if !casts.is_empty() {
-        let (block, position) = func
-            .blocks
-            .iter_enumerated()
-            .find_map(|(block, data)| {
-                Some((block, data.instructions.iter().position(|&id| id == inst)?))
-            })
-            .expect("copy belongs to a block");
-        func.blocks[block].instructions.splice(position..position, casts);
-    }
     // icall @mcopy_words, 0, dest, src, len
     let instruction = func.inst_mut(inst);
     instruction.kind = InstKind::ICall {
@@ -402,37 +441,19 @@ fn call_copy_helper(func: &mut Function, inst: InstId, helper: FunctionId) {
         args: vec![dest, src, len].into(),
     };
     instruction.metadata.set_disjoint(false);
+    casts
 }
 
-fn lower_mcopy(
-    func: &mut Function,
-    block: BlockId,
-    position: usize,
-    inst: InstId,
-    shape: CopyShape,
-) {
-    let InstKind::Copy(dest, src, len, PtrLocation::Memory) = func.inst(inst).kind else {
+/// Emits the word-copy loop of `inst` and leaves the builder in the continuation block.
+fn lower_mcopy(builder: &mut FunctionBuilder<'_>, inst: InstId, shape: CopyShape) {
+    let InstKind::Copy(dest, src, len, PtrLocation::Memory) = builder.func().inst(inst).kind else {
         unreachable!()
     };
 
-    let mut instructions = std::mem::take(&mut func.blocks[block].instructions);
-    let tail = instructions.split_off(position + 1);
-    let removed = instructions.pop();
-    debug_assert_eq!(removed, Some(inst));
-    func.blocks[block].instructions = instructions;
-    let (old_terminator, metadata) = func.blocks[block].take_terminator();
-
-    // continuation: tail; old_terminator !metadata(original block)
-    let continuation = func.alloc_block();
-    func.blocks[continuation].instructions = tail;
-    if let Some(terminator) = old_terminator {
-        func.blocks[continuation].set_terminator(terminator, metadata);
-    }
-    redirect_successor_predecessors(func, block, continuation);
-
-    let mut builder = FunctionBuilder::new(func);
-    builder.switch_to_block(block);
-    emit_copy_loop(&mut builder, dest, src, len, continuation, shape);
+    // continuation: the rest of the block, then the original terminator
+    let continuation = builder.create_block();
+    emit_copy_loop(builder, dest, src, len, continuation, shape);
+    builder.switch_to_block(continuation);
 }
 
 /// Emits the word-copy loop from the builder's current block, continuing at `continuation`.

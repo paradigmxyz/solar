@@ -1,5 +1,6 @@
 // CHECK: "metadata":
 // CHECK: \"remappings\":[\"lib/=src/\"]
+// CHECK-SAME: \"solar\":{\"unstable\":[\"tune=none\"]}
 // CHECK: "evm": {
 // CHECK: "deployedBytecode": {
 // CHECK: fea265627a7a7231
@@ -25,6 +26,9 @@
       "unknown": "ignored",
       "details": {"peephole": false, "cse": "ignored", "unknown": true, "yulDetails": {"stackAllocation": 1, "optimizerSteps": false}},
       "runs": 1
+    },
+    "solar": {
+      "unstable": ["tune=none"]
     },
     "metadata": {
       "useLiteralContent": true,

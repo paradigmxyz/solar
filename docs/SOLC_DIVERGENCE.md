@@ -67,6 +67,79 @@ Coverage: `tests/ui/standard-json/debug/ethdebug-output-without-debug-info`,
 `tests/ui/standard-json/debug/ethdebug-with-ast-id` and
 `tests/ui/standard-json/debug/ethdebug-without-ast-id`.
 
+### JSON-003: Compiler identity in metadata and CBOR
+
+Status: intentional.
+
+Difference: contract metadata names the compiler as
+`"compiler": {"name": "solar", "version": "0.8.38+commit.d9f23fbe.solar.0.3.0"}`,
+where solc writes only `"version": "0.8.28+commit.7893614a"`. The version is
+the solc-compatible form that `SOLC_WRAPPER=1 solar --version` prints: the
+emulated solc version, then the Solar commit and version as build metadata.
+The CBOR auxdata carries a `solar` entry instead of `solc`: three version
+bytes for releases, and the long Solar version as text
+(`0.3.0-dev+commit.d9f23fbe`) for other builds, as solc does for prereleases.
+Combined JSON reports the same solc-compatible version.
+
+Rationale: verifiers and other tools gate on solc versions, so the semver core
+stays the language version, while `name`, the `.solar.` build tag and the CBOR
+key tell them which compiler and build to fetch. A `solc` key would make
+solc-only decoders report the wrong compiler.
+
+Coverage: `tests/ui/standard-json/metadata/none/test.jsonc` and
+`tests/ui/standard-json/metadata/options/test.jsonc`.
+
+### JSON-004: CBOR auxdata positions
+
+Status: intentional.
+
+Difference: `evm.bytecode.cborAuxdata` and `evm.deployedBytecode.cborAuxdata`
+report every CBOR auxdata trailer in the bytecode, including those of embedded
+contracts, keyed by the fully qualified name of the contract each trailer
+belongs to: `{"A.sol:Child": [{"offset": N, "value": "0x…"}, …], …}`. A
+contract embedded more than once has one entry per copy. When contracts have
+byte-identical code and trailers, as with `bytecodeHash: none`, they share one
+copy, listed under each of them at the same offset. Entries are in offset
+order within each array, and keys in the order of their first entry. `offset`
+points at the CBOR map after the `INVALID` byte, and `value` holds the map and
+its two-byte length. solc has no such output; tools recover the positions from
+`evm.legacyAssembly` and a second compilation. The parent selections and `*`
+include it, and `evm.legacyAssembly` stays empty.
+
+Rationale: the entries have the shape of the Verifier Alliance `cborAuxdata`
+artifact that Sourcify stores, so verifiers can read the positions directly and
+flatten them into that artifact's numbered entries. The contract names let them
+check each trailer against that contract's metadata hash. Code generation
+records where it places each trailer and whose it is, so code or data that
+repeats a trailer's bytes is never reported: verifiers replace the reported
+bytes with the deployed ones, and a reported literal would let deployed code
+differ from its source.
+
+Coverage: `tests/ui/standard-json/cbor-auxdata/test.jsonc`,
+`tests/ui/standard-json/cbor-auxdata-shared.jsonc` and
+`tests/ui/standard-json/cbor-auxdata-literal.jsonc`.
+
+### JSON-005: `settings.solar` takes unstable flags
+
+Status: intentional.
+
+Difference: `solar` reads `settings.solar.unstable`, a list of unstable flags
+that change output, written like `-Z` flags without the prefix, such as
+`["tune=interpreter"]`, and records it in each contract's metadata. It ignores
+other flags in the list. `solc` rejects the unknown `settings.solar` key. Like
+`solc`, `solar` ignores the command line's `--evm-version` in Standard JSON
+mode, and it also ignores `--stop-after`, `--revert-strings` and the `-Z`
+flags that change output.
+
+Rationale: the Standard JSON input and the compiler version alone must
+determine the output, so that verifiers such as Sourcify can rebuild a
+contract from its metadata. Flags that only change diagnostics or debugging
+output still come from the command line.
+
+Coverage: `tests/ui/standard-json/codegen-error.jsonc`,
+`tests/ui/standard-json/debug/cli-flag-ignored/test.jsonc` and
+`tests/ui/standard-json/metadata/options/test.jsonc`.
+
 ## Import Resolution
 
 ### IMPORT-001: Files on disk are one source unit each
@@ -597,6 +670,32 @@ and rejecting the code would only block programs we compile correctly.
 Coverage:
 `tests/ui/codegen/lowering/run-call/yul_multi_assignment_duplicate_targets.sol`.
 
+### TYPECK-022: `@custom:solar-` tags are requirements
+
+Status: intentional.
+
+Difference: `solc` reads every `@custom:` NatSpec tag as documentation. `solar`
+reserves the `solar-` names: an unknown `@custom:solar-` tag, or one
+documenting something it cannot apply to, such as a statement, is an error. `@custom:solar-safe` on a contract or a library is an error
+when the code it runs, outside functions tagged `@custom:solar-trusted` or in
+contracts tagged so, uses inline assembly. `unchecked` blocks are allowed
+unless the tag explicitly requests the `arithmetic` property.
+`@custom:solar-optimize` documents a non-abstract contract, a library, or a
+function with a body and names exactly one objective, `gas` or `size`, which
+its code uses instead of the build's, in an `-O none` build too.
+`@custom:solar-inline [always|never]` asks the inliner to favor, always clone,
+or never clone a function. [TAGS.md](TAGS.md) describes each tag.
+
+Rationale: a tag states a requirement this compiler checks or relies on, so a
+misspelled or misplaced tag must not silently go unchecked. Other compilers
+still read the tags as documentation, and no tag changes what the code
+computes.
+
+Coverage: `tests/ui/natspec/solar_tags.sol`, `tests/ui/natspec/solar_inline.sol`,
+`tests/ui/natspec/solar_optimize.sol`, `tests/ui/typeck/solar_safe.sol`,
+`tests/ui/codegen/mir/optimize-function/` and
+`tests/ui/codegen/mir/inline/solar_inline_forms.sol`.
+
 ## Contract-Level Checks
 
 ### CONTRACT-001: Base slots that solc does not evaluate
@@ -661,7 +760,10 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   decoder control-flow subgraphs, so these large wrappers retain duplicated
   validation and materialization code. The external artifact audit exempts
   only these named contracts while continuing to enforce artifact presence
-  and EIP-170 parity for the rest of the corpus.
+  and EIP-170 parity for the rest of the corpus. A contract that must fit can
+  be built with `-O size`, or documented `@custom:solar-optimize size`, which
+  compiles its code as a `-O size` build would while the rest of the build
+  keeps its objective; other compilers read the tag as documentation.
 - Coverage: `cargo tq foundry-external seaport`; the exact exemptions live in
   `SEAPORT_CODE_SIZE_SKIPS` in `tools/tester/src/foundry/external.rs`.
 
@@ -770,7 +872,11 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   can reach. Inline assembly that stores data at constant addresses in that
   range, instead of allocating through the free memory pointer, can have it
   overwritten by any internal call, including the helpers the compiler
-  generates for ABI encoding and pre-Cancun memory copies.
+  generates for ABI encoding and pre-Cancun memory copies. Those copies may
+  call one shared helper, unless a pointer is computed from constants or
+  calldata alone, so a memory object that assembly places in that range through
+  any other computation can be overwritten by the helper's frame before the
+  copy reads it.
 - Rationale: The Solidity documentation counts only scratch space, memory
   allocated through the free memory pointer, and memory past the free memory
   pointer within one assembly block as memory-safe. Static frames make internal
@@ -778,6 +884,11 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   them.
 - Coverage: `tests/ui/codegen/lowering/run-call/pre_cancun_memory_copies.sol`
   encodes an object that assembly allocates through the shared copy helper.
+  `tests/ui/codegen/lowering/run-call/mcopy_call_results.sol` copies call
+  results through it, and
+  `tests/ui/codegen/lowering/run-call/mcopy_shared_helper_raw.sol` keeps a
+  constant address inline. `tests/ui/codegen/mir/lower-mcopy/helper_eligibility.mir`
+  pins which copies may call it.
 
 ### CODEGEN-010: Assembly cannot hand compiler-owned memory to the heap
 
@@ -854,7 +965,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/lowering/run-call/folded_operand_spills.sol`,
   `tests/ui/codegen/lowering/run-call/folded_tail_call_spills.sol`,
   `tests/ui/codegen/lowering/run-call/spill_write_provenance.sol`,
-  `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
+  `tests/ui/codegen/mir/heap-floor/checked_counter_offset.mir`,
+  `tests/ui/codegen/mir/heap-floor/heap_floor.mir`,
+  `tests/ui/codegen/mir/heap-floor/raised_by_callee.mir`, and Seaport's own suite in
   `cargo tq foundry-external seaport`, whose runner keeps
   `PreAndPostFulfillmentCheckTest::testBasicStateful(uint8,uint8)` at 38
   additional recipients or fewer; 39 already fail.

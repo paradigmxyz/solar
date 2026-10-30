@@ -140,13 +140,17 @@ use super::{
     StackOp, Terminator, Value, ValueId, index_vec, select::rematerializable_nullary_value,
 };
 use crate::{
-    backend::evm::CodegenState,
+    backend::evm::{
+        CodegenState,
+        ir::{CallEffect, StackEffect},
+    },
     mir::{ArgIdx, Callee, analysis::LoopInfo},
     target::{Cost, Target},
 };
 use cache::PlanKey;
 use plan::{Planned, Planner};
 use smallvec::SmallVec;
+use solar_config::OptimizationMode;
 use solar_data_structures::sync;
 
 mod cache;
@@ -332,12 +336,28 @@ struct ModuleInfo {
     returns: IndexVec<FunctionId, usize>,
     /// Parameters of each function.
     params: IndexVec<FunctionId, usize>,
-    /// Functions of creation code that run more than once because a loop or recursion calls them.
+    /// Functions of creation code, and at `-O none` of runtime code too, that run more than once
+    /// because a loop or recursion calls them.
     repeated: DenseBitSet<FunctionId>,
+    /// The objective of each function whose tag selects one other than the contract's.
+    objectives: IndexVec<FunctionId, Option<OptimizationMode>>,
     entry: FunctionId,
     /// Whether `entry` is the runtime dispatch entry, whose switch leaves its selector on the
     /// stack.
     emitting_entry: bool,
+}
+
+impl ModuleInfo {
+    /// How a call to `func` returns: the arguments sit below the return address, which the
+    /// function replaces with its results. A function that never returns has no effect.
+    fn call_effect(&self, func: FunctionId) -> Option<CallEffect> {
+        if !self.returning.contains(func) {
+            return None;
+        }
+        let inputs = u8::try_from(self.params[func] + 1).ok()?;
+        let outputs = u8::try_from(self.returns[func]).ok()?;
+        Some(CallEffect { ret: 0, effect: StackEffect::new(inputs, outputs) })
+    }
 }
 
 /// Facts about one function that every planning attempt shares.
@@ -412,17 +432,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             );
             return;
         };
-        let internal_targets = Self::internal_call_targets(module, call_graph, entry);
+        let runtime = module.runtime_reachable_functions();
         let emitting_entry = Liveness::is_block_local(&module.functions[entry]);
         let bodies = module
             .functions
             .iter_enumerated()
-            .filter(|&(func_id, func)| {
-                Self::is_runtime_function(func)
-                    && (func_id == entry
-                        || func.is_runtime_entry()
-                        || internal_targets.contains(func_id))
-            })
+            .filter(|&(func_id, func)| Self::is_runtime_function(func) && runtime.contains(func_id))
             .map(|(func_id, _)| func_id)
             .collect();
         match self.plan_stackified(module, call_graph, entry, emitting_entry, bodies) {
@@ -451,7 +466,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// so loops inside the function stay priced as creation code, though the choices inside one
     /// block compare unweighted costs.
     fn target(&self, info: &ModuleInfo, func_id: FunctionId) -> Target {
-        Target::new(self.gcx).priced_for(self.in_constructor && !info.repeated.contains(func_id))
+        Target::new(self.gcx, info.objectives[func_id].unwrap_or(self.optimization))
+            .priced_for(self.in_constructor && !info.repeated.contains(func_id))
     }
 
     fn report_decline(&self, module: &Module, decline: Decline) {
@@ -555,12 +571,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
-        let repeated = if self.in_constructor {
+        // Runtime code needs the set only at `-O none`, where compact pushes price code by it.
+        let repeated = if self.in_constructor || module.optimization.is_none() {
             let mut domain = DenseBitSet::new_empty(functions);
             for &func_id in &bodies {
                 domain.insert(func_id);
             }
-            module.repeated_functions(&domain)
+            module.repeated_functions(&domain, call_graph)
         } else {
             DenseBitSet::new_empty(functions)
         };
@@ -571,6 +588,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             components,
             returns: module.functions.iter().map(|func| func.return_components().len()).collect(),
             params: module.functions.iter().map(|func| func.params.len()).collect(),
+            objectives: module.functions.iter().map(|func| func.attributes.optimization).collect(),
             entry,
             emitting_entry,
         };

@@ -9,6 +9,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
@@ -24,25 +25,103 @@ from cases import GasCall
 
 
 class CorpusTests(unittest.TestCase):
-    def test_brutalized_calls_keep_measurements_but_exclude_comparison(self):
+    def test_fair_solady_calls_include_memory_stress_in_comparison(self):
         case = next(
             case for case in benchmark.TEST_CASES if case.test_id == "solady-lib-string"
         )
         calls = benchmark.gas_calls(case, "hot")
-        excluded = [call for call in calls if call.comparison_exclusion_reason]
-        self.assertEqual(len(excluded), 22)
+        self.assertTrue(case.fair_memory)
         self.assertEqual(
-            {call.signature for call in excluded},
-            {
-                "testBytesToHexStringNoPrefix(bytes)",
-                "testBytesToHexString(bytes)",
-                "testStringIs7BitASCIIDifferential(bytes)",
-            },
+            [call for call in calls if call.comparison_exclusion_reason], []
         )
+        signatures = {
+            "testBytesToHexStringNoPrefix(bytes)",
+            "testBytesToHexString(bytes)",
+            "testStringIs7BitASCIIDifferential(bytes)",
+        }
+        stressed = [call for call in calls if call.signature in signatures]
+        self.assertEqual(len(stressed), 22)
+        self.assertEqual({call.signature for call in stressed}, signatures)
+
+    def test_fair_solady_patch_preserves_archive_and_assertions(self):
+        case = next(
+            case for case in benchmark.TEST_CASES if case.test_id == "solady-lib-string"
+        )
+        archive = benchmark.load_project(case.project_path)
+        original = json.dumps(archive, sort_keys=True)
+        with mock.patch.object(benchmark, "load_project", return_value=archive):
+            patched, _, fingerprint = benchmark.compiler_input(case, "paris")
+            repeated, _, repeated_fingerprint = benchmark.compiler_input(case, "paris")
+            unpatched, _, unpatched_fingerprint = benchmark.compiler_input(
+                replace(case, fair_memory=False), "paris"
+            )
+        self.assertEqual(json.dumps(archive, sort_keys=True), original)
+        self.assertEqual(patched, repeated)
+        self.assertEqual(fingerprint, repeated_fingerprint)
+        self.assertNotEqual(fingerprint, unpatched_fingerprint)
+        before = json.loads(unpatched)
+        after = json.loads(patched)
+        self.assertEqual(before["settings"], after["settings"])
+        self.assertEqual(before["sources"].keys(), after["sources"].keys())
+        for name, source in before["sources"].items():
+            if name != benchmark.SOLADY_BRUTALIZER_SOURCE:
+                self.assertEqual(source, after["sources"][name], name)
+        before_helper = before["sources"][benchmark.SOLADY_BRUTALIZER_SOURCE]["content"]
+        after_helper = after["sources"][benchmark.SOLADY_BRUTALIZER_SOURCE]["content"]
+        old_body = benchmark.brutalizer_function(before_helper)
+        new_body = benchmark.brutalizer_function(after_helper)
         self.assertEqual(
-            {call.comparison_exclusion_reason for call in excluded},
-            {"Memory brutalizer workload depends on gas and contract bytecode."},
+            before_helper.replace(old_body, ""), after_helper.replace(new_body, "")
         )
+        self.assertIn("gas()", old_body)
+        self.assertIn("codesize()", old_body)
+        for opcode in ("gas()", "codesize()", "codecopy("):
+            self.assertNotIn(opcode, new_body)
+        self.assertIn("lt(i, 0x200)", new_body)
+        self.assertIn("mload(0x40)", new_body)
+        self.assertIn("mstore(add(free, i), xor(pattern, i))", new_body)
+
+    def test_fair_solady_patch_rejects_changed_upstream_helper(self):
+        archive = benchmark.load_project(
+            benchmark.PROJECTS_ROOT / "solady-0.1.26.json.gz"
+        )
+        source = archive["sources"][benchmark.SOLADY_BRUTALIZER_SOURCE]
+        source["content"] = source["content"].replace(
+            "add(caller(), gas())", "gas()", 1
+        )
+        with self.assertRaisesRegex(
+            ValueError, "pinned Solady memory brutalizer changed"
+        ):
+            benchmark.with_fair_solady_memory(archive)
+
+    def test_fair_solady_patch_is_scoped_to_lib_string_runtime(self):
+        patched = [case.test_id for case in benchmark.TEST_CASES if case.fair_memory]
+        self.assertEqual(patched, ["solady-lib-string"])
+        case = next(
+            case
+            for case in benchmark.TEST_CASES
+            if case.test_id == "solady-signature-checker"
+        )
+        payload, _, _ = benchmark.compiler_input(case, None)
+        original = benchmark.load_project(case.project_path)
+        self.assertEqual(
+            json.loads(payload)["sources"][benchmark.SOLADY_BRUTALIZER_SOURCE],
+            original["sources"][benchmark.SOLADY_BRUTALIZER_SOURCE],
+        )
+
+    def test_fair_solady_source_links_include_patch_fixture(self):
+        case = next(
+            case for case in benchmark.TEST_CASES if case.test_id == "solady-lib-string"
+        )
+        with mock.patch.object(benchmark, "source_revision", return_value="a" * 40):
+            self.assertEqual(
+                [link["label"] for link in benchmark.source_links(case)],
+                [
+                    "testdata/projects/solady-0.1.26.json.gz",
+                    "testdata/runtime/FairBrutalizer.sol",
+                    "Vectorized/solady",
+                ],
+            )
 
     def test_source_links_pin_checkout_and_upstream(self) -> None:
         case = next(

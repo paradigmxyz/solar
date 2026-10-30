@@ -1,0 +1,16 @@
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/solar_optimize_functions.sol:LL:CC
+   │
+LL │ ┏     function tagged() external view returns (bytes4, int16) {
+LL │ ┃         return (tag, delta);
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/solar_optimize_functions.sol:LL:CC
+   │
+LL │ ┏     function tagged_gas() external view returns (bytes4) {
+LL │ ┃         return tag;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+

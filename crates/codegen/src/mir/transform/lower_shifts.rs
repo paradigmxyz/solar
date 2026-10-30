@@ -21,6 +21,7 @@
 //! after every pass that creates or matches shifts, because nothing downstream recognizes the
 //! products and quotients it creates as shifts again.
 
+use super::utils::expand_block;
 use crate::{
     mir::{
         FunctionBuilder, InstId, InstKind, MirType, Module, ValueId,
@@ -63,23 +64,22 @@ impl MirPass for LowerShifts {
             // A block outside every loop of creation-only code runs once, and is priced as creation
             // code as the EVM IR passes price it.
             let once = analyses.loop_aware_target(gcx);
-            let repeated = Target::new(gcx);
+            let repeated = analyses.runtime_target(gcx);
             let cyclic = analyses.cfg().cyclic_blocks();
             let mut changed = false;
+            // Shifts by the same amount share one computed factor within a block.
+            let mut factors = FxHashMap::default();
             for block in blocks {
-                let instructions = std::mem::take(&mut func.blocks[block].instructions);
                 let target = if cyclic.contains(block) { &repeated } else { &once };
                 let mut builder = FunctionBuilder::new(func);
-                builder.switch_to_block(block);
-                // Shifts by the same amount share one computed factor within a block.
-                let mut factors = FxHashMap::default();
-                for inst in instructions {
-                    if let Some(kind) = lower_shift(&mut builder, target, &mut factors, inst) {
+                factors.clear();
+                expand_block(&mut builder, block, |builder, inst| {
+                    if let Some(kind) = lower_shift(builder, target, &mut factors, inst) {
                         builder.func_mut().inst_mut(inst).replace_kind(kind);
                         changed = true;
                     }
-                    builder.func_mut().blocks[block].instructions.push(inst);
-                }
+                    false
+                });
             }
             changed
         })

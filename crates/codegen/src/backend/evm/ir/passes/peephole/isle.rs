@@ -6,17 +6,17 @@
 //! window extractors, instruction facets, and opcode classes the rules call.
 
 use super::{
-    super::utils::{SymbolicStackOp, symbolic_stack_op},
-    Edit, is_block_push,
+    super::utils::{is_split_point, symbolic_stack_op},
+    Edit, Rules,
 };
 use crate::{
     backend::evm::{
-        ir::{ImmediateMaterialization, Instruction, immediate_materialization_cost},
+        ir::{ImmediateMaterialization, Instruction, StackEffect, immediate_materialization_cost},
         op,
         op::*,
     },
     mir::utils::eval,
-    target::Target,
+    target::{Cost, Target},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -39,7 +39,7 @@ pub(crate) fn invert_comparison(
     }
     for start in (end.saturating_sub(MAX_STACK_WINDOW - 2)..end).rev() {
         let pushed = &instructions[start];
-        if pushed.keeps_with_next() || start > 0 && instructions[start - 1].keeps_with_next() {
+        if pushed.keeps_with_next() || !is_split_point(instructions, start) {
             break;
         }
         if let Some(value) = pushed.concrete_immediate()
@@ -68,13 +68,7 @@ pub(crate) fn invert_comparison(
 }
 
 fn flipped_comparison(opcode: u8) -> Option<u8> {
-    match opcode {
-        LT => Some(GT),
-        GT => Some(LT),
-        SLT => Some(SGT),
-        SGT => Some(SLT),
-        _ => None,
-    }
+    op::swapped_binary_opcode(opcode).filter(|&flipped| flipped != opcode)
 }
 
 /// Rewrite-rule name of the instruction tail under inspection.
@@ -125,23 +119,47 @@ enum KnownStackWord {
     Zero,
 }
 
-/// Returns whether the sequence leaves the stack exactly as it found it.
+/// Returns the stack effect of an instruction that only pushes, permutes, or computes a pure word,
+/// so it cannot inspect the word an earlier push added.
+fn word_effect(inst: &Instruction) -> Option<StackEffect> {
+    (inst.is_encoded_push()
+        || inst.as_stack_op().is_some()
+        || inst.as_evm_opcode().is_some_and(op::is_unaffected_by_preceding_push))
+    .then(|| inst.stack_effect())
+}
+
+/// Returns whether the instructions from `start` on, and the boundary before them, may be replaced.
+fn is_unprotected(instructions: &[Instruction], start: usize) -> bool {
+    is_split_point(instructions, start)
+        && !instructions[start..].iter().any(Instruction::keeps_with_next)
+}
+
+/// Counts the trailing `POP`s of `instructions`, up to `limit`, and returns them with the depth
+/// of the `SWAP` before them.
+fn swap_before_pops(instructions: &[Instruction], limit: usize) -> Option<(usize, u8)> {
+    let pops = instructions
+        .iter()
+        .rev()
+        .take(limit)
+        .take_while(|inst| inst.as_stack_op() == Some(StackOp::Pop))
+        .count();
+    let swap = instructions.get(instructions.len().checked_sub(pops + 1)?)?;
+    let StackOp::Swap(depth) = swap.as_stack_op()? else { return None };
+    Some((pops, depth))
+}
+
+/// Returns the stack depth after `effect` from `depth`, unless it reads below the stack.
+fn apply_effect(depth: usize, StackEffect { inputs, outputs }: StackEffect) -> Option<usize> {
+    Some(depth.checked_sub(usize::from(inputs))? + usize::from(outputs))
+}
+
+/// Returns whether a sequence of only pushes and stack operations leaves the stack as it found
+/// it.
 fn is_noop_stack_sequence(instructions: &[Instruction]) -> bool {
-    let mut depth = 0usize;
-    for inst in instructions {
-        match symbolic_stack_op(inst) {
-            Some(SymbolicStackOp::Push) => depth += 1,
-            Some(SymbolicStackOp::Physical(op)) => {
-                if depth < op.required_depth() {
-                    return false;
-                }
-                let Some(next) = depth.checked_add_signed(op.net_growth()) else { return false };
-                depth = next;
-            }
-            None => return false,
-        }
-    }
-    depth == 0
+    let depth = instructions
+        .iter()
+        .try_fold(0usize, |depth, inst| apply_effect(depth, inst.stack_effect()));
+    depth == Some(0)
 }
 
 /// Tracks a word through instructions that cannot inspect, duplicate, or consume it.
@@ -153,94 +171,55 @@ fn protected_word_depth(instructions: &[Instruction]) -> Option<usize> {
         if inst.keeps_with_next() {
             return None;
         }
-        if inst.is_encoded_push() {
-            above += 1;
-        } else if let Some(stack_op) = inst.as_stack_op() {
-            match stack_op {
-                StackOp::Dup(depth) => {
-                    if usize::from(depth) == above + 1 {
-                        return None;
-                    }
-                    above += 1;
+        match inst.as_stack_op() {
+            Some(StackOp::Dup(depth)) => {
+                if usize::from(depth) == above + 1 {
+                    return None;
                 }
-                StackOp::Swap(depth) => {
-                    let depth = usize::from(depth);
-                    if above == 0 {
-                        above = depth;
-                    } else if above == depth {
-                        above = 0;
-                    }
-                }
-                StackOp::Exchange(first, second) => {
-                    let (first, second) = (usize::from(first), usize::from(second));
-                    if above == first {
-                        above = second;
-                    } else if above == second {
-                        above = first;
-                    }
-                }
-                StackOp::Pop => {
-                    if above == 0 {
-                        return None;
-                    }
-                    above -= 1;
+                above += 1;
+            }
+            Some(StackOp::Swap(depth)) => {
+                let depth = usize::from(depth);
+                if above == 0 {
+                    above = depth;
+                } else if above == depth {
+                    above = 0;
                 }
             }
-        } else if let Some(opcode) = inst.as_evm_opcode()
-            && op::is_unaffected_by_preceding_push(opcode)
-            && let Some((inputs, outputs)) = op::stack_io(opcode)
-        {
-            if above < usize::from(inputs) {
-                return None;
+            Some(StackOp::Exchange(first, second)) => {
+                let (first, second) = (usize::from(first), usize::from(second));
+                if above == first {
+                    above = second;
+                } else if above == second {
+                    above = first;
+                }
             }
-            above = above - usize::from(inputs) + usize::from(outputs);
-        } else {
-            return None;
+            Some(StackOp::Pop) => above = above.checked_sub(1)?,
+            None => above = apply_effect(above, word_effect(inst)?)?,
         }
     }
     Some(above)
-}
-
-/// The class of a block's last instruction; only rules ending in that class can match.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum TailClass {
-    Dup,
-    Swap,
-    Exchange,
-    Pop,
-    Op,
-}
-
-impl TailClass {
-    const ALL: [Self; 5] = [Self::Dup, Self::Swap, Self::Exchange, Self::Pop, Self::Op];
 }
 
 /// Context the rules run against: the instructions of one block so far.
 pub(super) struct PeepContext<'a> {
     instructions: &'a [Instruction],
     target: Target,
-    final_cleanup: bool,
+    rules: Rules,
 }
 
 impl<'a> PeepContext<'a> {
-    pub(super) fn new(instructions: &'a [Instruction], target: Target) -> Self {
-        Self { instructions, target, final_cleanup: false }
+    pub(super) fn new(instructions: &'a [Instruction], target: Target, rules: Rules) -> Self {
+        Self { instructions, target, rules }
     }
 
-    pub(super) fn with_final_cleanup(mut self, final_cleanup: bool) -> Self {
-        self.final_cleanup = final_cleanup;
-        self
-    }
-
-    /// Target-only cleanup deferred until structural sharing has finished.
+    /// Target-only cleanup deferred until structural sharing has finished. Only the final rules
+    /// include it.
     pub(super) fn final_rewrite(&self) -> Option<Rewrite> {
-        if !self.final_cleanup {
-            return None;
-        }
         // PUSH slot; SSTORE/TSTORE; PUSH slot; SLOAD/TLOAD
         // => DUP1; PUSH slot; SSTORE/TSTORE
         if let [.., address, store, loaded, load] = self.instructions
-            && [address, store, loaded, load].iter().all(|inst| !inst.metadata.keep_with_next)
+            && ![address, store, loaded, load].iter().any(|inst| inst.keeps_with_next())
             && matches!(
                 (store.as_evm_opcode(), load.as_evm_opcode()),
                 (Some(SSTORE), Some(SLOAD)) | (Some(TSTORE), Some(TLOAD))
@@ -259,7 +238,7 @@ impl<'a> PeepContext<'a> {
             && store.as_evm_opcode() == Some(MSTORE)
             && swap.as_stack_op() == Some(StackOp::Swap(depth - 1))
             && pop.as_evm_opcode() == Some(POP)
-            && [dup, address, store, swap, pop].iter().all(|inst| !inst.metadata.keep_with_next)
+            && ![dup, address, store, swap, pop].iter().any(|inst| inst.keeps_with_next())
         {
             return Some(Rewrite { skip: 5, edit: Edit::ConsumeStoredValue { depth: depth - 1 } });
         }
@@ -274,62 +253,49 @@ impl<'a> PeepContext<'a> {
             return None;
         }
         // The verifier rejects raw stack opcodes, so the logical form classifies every tail.
-        let class = match last.as_stack_op() {
-            Some(StackOp::Dup(_)) => TailClass::Dup,
-            Some(StackOp::Swap(_)) => TailClass::Swap,
-            Some(StackOp::Exchange(..)) => TailClass::Exchange,
-            Some(StackOp::Pop) => TailClass::Pop,
-            None => TailClass::Op,
-        };
-        let rewrite = self.select_class(class);
-        if cfg!(debug_assertions) {
-            for other in TailClass::ALL {
-                debug_assert!(
-                    other == class || self.select_class(other).is_none(),
-                    "a {other:?} peephole rule matched a {class:?} tail",
-                );
-            }
-        }
-        rewrite
-    }
-
-    fn select_class(&mut self, class: TailClass) -> Option<Rewrite> {
-        match class {
-            TailClass::Dup => generated::constructor_peep_dup(self, Window),
-            TailClass::Swap => generated::constructor_peep_swap(self, Window),
-            TailClass::Exchange => generated::constructor_peep_exchange(self, Window),
-            TailClass::Pop => generated::constructor_peep_pop(self, Window),
-            TailClass::Op => generated::constructor_peep_op(self, Window),
+        match last.as_stack_op() {
+            Some(StackOp::Dup(_)) => generated::constructor_peep_dup(self, Window),
+            Some(StackOp::Swap(_)) => generated::constructor_peep_swap(self, Window),
+            Some(StackOp::Exchange(..)) => generated::constructor_peep_exchange(self, Window),
+            Some(StackOp::Pop) => generated::constructor_peep_pop(self, Window),
+            None => generated::constructor_peep_op(self, Window),
         }
     }
 
     /// Returns the edit to apply to the tail of the block, when a rule matches.
-    pub(super) fn select(&mut self, late: bool) -> Option<Rewrite> {
-        if !late {
-            return self.final_rewrite().or_else(|| self.select_by_tail());
+    pub(super) fn select(&mut self) -> Option<Rewrite> {
+        match self.rules {
+            Rules::Early => self.select_by_tail(),
+            Rules::Final => self.final_rewrite().or_else(|| self.select_by_tail()),
+            Rules::Late => {
+                if self.instructions.len() < 5
+                    || self.instructions.last()?.as_evm_opcode() != Some(SUB)
+                {
+                    return None;
+                }
+                let first = self.instructions.len().saturating_sub(MAX_STACK_WINDOW);
+                (first..=self.instructions.len() - 5)
+                    .find_map(|start| generated::constructor_late_peep(self, start))
+            }
         }
-        if self.instructions.len() < 5 || self.instructions.last()?.as_evm_opcode() != Some(SUB) {
-            return None;
-        }
-        let first = self.instructions.len().saturating_sub(MAX_STACK_WINDOW);
-        (first..=self.instructions.len() - 5)
-            .find_map(|start| generated::constructor_late_peep(self, start))
     }
 
     /// An instruction suffix whose boundaries permit replacement.
     fn unprotected_tail<const N: usize>(&self) -> Option<[Inst; N]> {
-        let start = self.instructions.len().checked_sub(N)?;
-        if self.instructions[start..].iter().any(Instruction::keeps_with_next)
-            || start > 0 && self.instructions[start - 1].keeps_with_next()
-        {
-            return None;
-        }
-        self.tail()
+        let tail = self.tail::<N>()?;
+        is_unprotected(self.instructions, tail[0]).then_some(tail)
     }
 
     fn tail<const N: usize>(&self) -> Option<[Inst; N]> {
         let start = self.instructions.len().checked_sub(N)?;
         Some(std::array::from_fn(|index| start + index))
+    }
+
+    /// Returns whether `PUSH0; NOT; NOT` dominates the removed instructions of a low-mask rewrite.
+    fn mask_profitable(&self, before: Cost) -> bool {
+        let target = self.target;
+        let after = target.push(U256::ZERO) + target.opcode(NOT) + target.opcode(NOT);
+        target.dominates(after, before)
     }
 }
 
@@ -345,47 +311,26 @@ impl generated::Context for PeepContext<'_> {
 
     fn low_mask_profitable(&mut self) -> bool {
         let target = self.target;
-        let before = target.push(U256::ONE) + target.dup() + target.opcode(SUB);
-        let after = target.push(U256::ZERO) + target.opcode(NOT) + target.opcode(NOT);
-        target.dominates(after, before)
+        self.mask_profitable(target.push(U256::ONE) + target.dup() + target.opcode(SUB))
     }
 
     fn closed_count(&mut self, start: LateWindow) -> bool {
-        let end = self.instructions.len();
+        let instructions = self.instructions;
+        let end = instructions.len();
         // These edits change only the two prefix instructions and final SUB.
         // Keep constrained instruction boundaries intact.
-        if [start, start + 1, end - 2, end - 1]
-            .iter()
-            .any(|&i| self.instructions[i].keeps_with_next())
-            || start > 0 && self.instructions[start - 1].keeps_with_next()
+        if [start, start + 1, end - 2, end - 1].iter().any(|&i| instructions[i].keeps_with_next())
+            || !is_split_point(instructions, start)
         {
             return false;
         }
-        let mut depth = 0usize;
-        for inst in &self.instructions[start + 2..end - 2] {
+        let depth = instructions[start + 2..end - 2].iter().try_fold(0usize, |depth, inst| {
             if inst.keeps_with_next() {
-                return false;
+                return None;
             }
-            if inst.is_encoded_push() {
-                depth += 1;
-            } else if let Some(op) = inst.as_stack_op() {
-                if depth < op.required_depth() {
-                    return false;
-                }
-                depth = depth.checked_add_signed(op.net_growth()).expect("sufficient stack");
-            } else if let Some(opcode) = inst.as_evm_opcode()
-                && op::is_unaffected_by_preceding_push(opcode)
-                && let Some((inputs, outputs)) = op::stack_io(opcode)
-            {
-                if depth < usize::from(inputs) {
-                    return false;
-                }
-                depth = depth - usize::from(inputs) + usize::from(outputs);
-            } else {
-                return false;
-            }
-        }
-        depth == 1
+            apply_effect(depth, word_effect(inst)?)
+        });
+        depth == Some(1)
     }
 
     fn protected_window(&mut self, start: LateWindow) -> Option<(Inst, Inst, Inst, Inst, Inst)> {
@@ -395,101 +340,78 @@ impl generated::Context for PeepContext<'_> {
 
     fn protected_mask_profitable(&mut self) -> bool {
         let target = self.target;
-        let before = target.push(U256::ONE)
-            + target.push(U256::ONE)
-            + target.opcode(SWAP1)
-            + target.opcode(SUB);
-        let after = target.push(U256::ZERO) + target.opcode(NOT) + target.opcode(NOT);
-        target.dominates(after, before)
+        self.mask_profitable(
+            target.push(U256::ONE)
+                + target.push(U256::ONE)
+                + target.opcode(SWAP1)
+                + target.opcode(SUB),
+        )
     }
 
     fn protected_count(&mut self, start: LateWindow) -> bool {
         let end = self.instructions.len();
-        if self.instructions[start..].iter().any(Instruction::keeps_with_next)
-            || start > 0 && self.instructions[start - 1].keeps_with_next()
-        {
-            return false;
-        }
-        protected_word_depth(&self.instructions[start + 1..end - 4]) == Some(1)
+        is_unprotected(self.instructions, start)
+            && protected_word_depth(&self.instructions[start + 1..end - 4]) == Some(1)
     }
 
     fn last2(&mut self, _: Window) -> Option<(Inst, Inst)> {
-        self.tail().map(|[a, b]| (a, b))
+        self.tail().map(Into::into)
     }
 
     fn last3(&mut self, _: Window) -> Option<(Inst, Inst, Inst)> {
-        self.tail().map(|[a, b, c]| (a, b, c))
+        self.tail().map(Into::into)
     }
 
     fn last4(&mut self, _: Window) -> Option<(Inst, Inst, Inst, Inst)> {
-        self.tail().map(|[a, b, c, d]| (a, b, c, d))
+        self.tail().map(Into::into)
     }
 
     fn unprotected_last4(&mut self, _: Window) -> Option<(Inst, Inst, Inst, Inst)> {
-        self.unprotected_tail().map(|[a, b, c, d]| (a, b, c, d))
+        self.unprotected_tail().map(Into::into)
     }
 
     fn last5(&mut self, _: Window) -> Option<(Inst, Inst, Inst, Inst, Inst)> {
-        self.tail().map(|[a, b, c, d, e]| (a, b, c, d, e))
+        self.tail().map(Into::into)
     }
 
     fn unprotected_last5(&mut self, _: Window) -> Option<(Inst, Inst, Inst, Inst, Inst)> {
-        self.unprotected_tail().map(|[a, b, c, d, e]| (a, b, c, d, e))
+        self.unprotected_tail().map(Into::into)
     }
 
     fn last6(&mut self, _: Window) -> Option<(Inst, Inst, Inst, Inst, Inst, Inst)> {
-        self.tail().map(|[a, b, c, d, e, f]| (a, b, c, d, e, f))
+        self.tail().map(Into::into)
+    }
+
+    fn unprotected_last6(&mut self, _: Window) -> Option<(Inst, Inst, Inst, Inst, Inst, Inst)> {
+        self.unprotected_tail().map(Into::into)
     }
 
     fn swap_pop_chain(&mut self, _: Window) -> Option<u8> {
-        let instructions = self.instructions;
-        if instructions.last()?.as_stack_op() != Some(StackOp::Pop) || instructions.len() < 2 {
+        let [rest @ .., swap, pop] = self.instructions else { return None };
+        if swap.as_stack_op() != Some(StackOp::Swap(1)) || pop.as_stack_op() != Some(StackOp::Pop) {
             return None;
         }
-        let end = instructions.len();
-        if instructions[end - 2].as_stack_op() != Some(StackOp::Swap(1)) {
-            return None;
-        }
-        let middle_pops = instructions[..end - 2]
-            .iter()
-            .rev()
-            .take(self.target.evm_version().reachable_stack_depth() - 1)
-            .take_while(|inst| inst.as_stack_op() == Some(StackOp::Pop))
-            .count();
-        let StackOp::Swap(depth) = (end - 2 - middle_pops)
-            .checked_sub(1)
-            .and_then(|index| instructions[index].as_stack_op())?
-        else {
-            return None;
-        };
-        if usize::from(depth) != middle_pops {
+        let version = self.target.evm_version();
+        let (pops, depth) = swap_before_pops(rest, version.reachable_stack_depth() - 1)?;
+        if usize::from(depth) != pops {
             return None;
         }
         // The merged swap must still be expressible on this target.
-        let merged = depth.checked_add(1)?;
-        StackOp::Swap(merged).metrics(self.target.evm_version())?;
-        u8::try_from(middle_pops).ok()
+        StackOp::Swap(depth.checked_add(1)?).metrics(version)?;
+        // SWAPn POP*n SWAP1 POP
+        u8::try_from(pops + 3).ok()
     }
 
     fn swap_discard_chain(&mut self, _: Window) -> Option<u8> {
-        let instructions = self.instructions;
-        if instructions.last()?.as_stack_op() != Some(StackOp::Pop) {
+        let (pops, depth) = swap_before_pops(
+            self.instructions,
+            self.target.evm_version().reachable_stack_depth() + 1,
+        )?;
+        if usize::from(depth) + 1 != pops {
             return None;
         }
-        let pops = instructions
-            .iter()
-            .rev()
-            .take(self.target.evm_version().reachable_stack_depth() + 1)
-            .take_while(|inst| inst.as_stack_op() == Some(StackOp::Pop))
-            .count();
-        let StackOp::Swap(depth) = (instructions.len() - pops)
-            .checked_sub(1)
-            .and_then(|index| instructions[index].as_stack_op())?
-        else {
-            return None;
-        };
-        (usize::from(depth) + 1 == pops).then_some(())?;
-        u8::try_from(pops).ok()
+        // SWAPn POP*(n+1)
+        u8::try_from(pops + 1).ok()
     }
 
     /// A `DUPn` whose duplicated word this block just pushed as a literal zero.
@@ -579,7 +501,7 @@ impl generated::Context for PeepContext<'_> {
     fn untaken_jump(&mut self, _: Window) -> Option<()> {
         let [condition, destination, instruction] = self.unprotected_tail()?;
         (self.instructions[condition].concrete_immediate()?.is_zero()
-            && is_block_push(&self.instructions[destination])
+            && self.instructions[destination].pushed_block().is_some()
             && self.instructions[instruction].as_evm_opcode() == Some(JUMPI))
         .then_some(())
     }
@@ -636,7 +558,7 @@ impl generated::Context for PeepContext<'_> {
     }
 
     fn push_block(&mut self, inst: Inst) -> Option<()> {
-        is_block_push(&self.instructions[inst]).then_some(())
+        self.instructions[inst].pushed_block().map(drop)
     }
 
     fn opcode(&mut self, inst: Inst) -> Option<u8> {
@@ -672,12 +594,12 @@ impl generated::Context for PeepContext<'_> {
         op::stack_io(opcode) == Some((2, 0)) && !op::is_terminal(opcode) && opcode != JUMPI
     }
 
-    fn u8_add(&mut self, a: u8, b: u8) -> u8 {
-        a + b
+    fn is_pure_binop(&mut self, opcode: u8) -> bool {
+        op::is_pure(opcode) && op::stack_io(opcode) == Some((2, 1))
     }
 
-    fn swap_op(&mut self, depth: u8) -> StackOp {
-        StackOp::Swap(depth)
+    fn is_deep_swap(&mut self, depth: u8) -> bool {
+        depth > 1
     }
 
     fn u256_is_zero(&mut self, value: U256) -> bool {

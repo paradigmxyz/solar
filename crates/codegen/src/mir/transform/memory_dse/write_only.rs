@@ -29,35 +29,53 @@
 //! scans. It runs when the cheaper rewrites settle, and the fixpoint then continues, so removing a
 //! copy that read one allocation lets the next round remove the writes into that allocation.
 
-use super::MemoryStoreEliminator;
+use super::{BlockScratch, MemoryStoreEliminator, remove_dead};
 use crate::mir::{
-    Function, InstId, InstKind, MirType, PtrLocation, RawMemoryAccess, Terminator, Value, ValueId,
+    BlockId, Function, InstId, InstKind, MirType, PtrLocation, RawMemoryAccess, Terminator, Value,
+    ValueId,
     analysis::{
-        Access, AddressSpace, AliasAnalysis, Location, LocationSize, MemoryBase, MemoryLocation,
+        Access, AddressSpace, AliasAnalysis, Location, LocationSize, MemoryAddress, MemoryBase,
+        MemoryLocation,
     },
     memory::EvmMemoryLayout,
+    utils::IndexLists,
 };
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
+use std::cell::OnceCell;
 
 impl MemoryStoreEliminator {
     /// Removes the writes into allocations that nothing reads and returns how many.
-    pub(super) fn remove_write_only_allocation_writes(&mut self, func: &mut Function) -> usize {
+    pub(super) fn remove_write_only_allocation_writes(
+        &mut self,
+        func: &mut Function,
+        scratch: &mut BlockScratch,
+    ) -> usize {
         let allocations: Vec<_> = func
             .instructions()
-            .filter(|&inst| matches!(func.inst(inst).kind, InstKind::Alloc { .. }))
-            .filter_map(|inst| func.inst_result_value(inst))
+            .filter_map(|inst| match func.inst(inst).kind {
+                InstKind::Alloc { size, .. } => Some((inst, size, func.inst_result_value(inst)?)),
+                _ => None,
+            })
             .collect();
         if allocations.is_empty() {
             return 0;
         }
 
-        let uses = WriteOnlyUses::new(func);
-        let mut dead = DenseBitSet::new_empty(func.num_insts());
-        for object in allocations {
+        let mut uses = WriteOnlyUses::new(func);
+        let dead = &mut scratch.dead;
+        dead.clear();
+        for (alloc, size, object) in allocations {
             if let Some(writes) = uses.write_only_writes(func, object)
-                && WriteOnlyUses::writes_fit_allocation(func, self.alias(), object, &writes)
-                && !self.alias().value_escapes(func, object)
-                && !self.allocation_may_be_read(func, object)
+                && let Some(address) = self.alias.memory_address(func, object)
+                && uses.writes_fit_allocation(func, &self.alias, object, address, size, &writes)
+                && !self.alias.value_escapes(func, object)
+                && !self.allocation_may_be_read(
+                    func,
+                    alloc,
+                    // The allocation's own extent is in bounds, including when its size is
+                    // dynamic.
+                    MemoryLocation::new(address, self.alias.location_size(func, size)),
+                )
             {
                 for write in writes {
                     dead.insert(write);
@@ -65,26 +83,16 @@ impl MemoryStoreEliminator {
             }
         }
 
-        let removed = dead.count();
-        if removed != 0 {
-            for block in func.blocks.iter_mut() {
-                block.instructions.retain(|&inst| !dead.contains(inst));
-            }
-        }
-        removed
+        remove_dead(func, dead)
     }
 
-    fn allocation_may_be_read(&self, func: &Function, object: ValueId) -> bool {
-        let alias = self.alias();
-        let (allocation, alloc_inst) = if let Value::Inst(inst) = func.value(object)
-            && let InstKind::Alloc { size, .. } = func.inst(*inst).kind
-            && let Some(address) = alias.memory_address(func, object)
-        {
-            // The allocation's own extent is in bounds, including when its size is dynamic.
-            (MemoryLocation::new(address, alias.location_size(func, size)), *inst)
-        } else {
-            return true;
-        };
+    fn allocation_may_be_read(
+        &self,
+        func: &Function,
+        alloc_inst: InstId,
+        allocation: MemoryLocation,
+    ) -> bool {
+        let alias = &self.alias;
         // An allocation that runs once reads the free-memory pointer before its object exists.
         // A loop allocation's next run may read a previous instance, so it keeps the read.
         let own_fmp_read = allocation.address.base == MemoryBase::Allocation(alloc_inst);
@@ -117,22 +125,25 @@ impl MemoryStoreEliminator {
 
 /// Operand users of one function, shared by the proofs of all its allocations.
 struct WriteOnlyUses {
-    /// Where each value's users start in `users`: the users of value `v` are
-    /// `users[starts[v]..starts[v + 1]]`.
-    starts: Vec<u32>,
     /// Instruction users grouped by operand value.
-    users: Vec<InstId>,
+    users: IndexLists<ValueId, InstId>,
     /// Values used by terminators.
     terminator_uses: DenseBitSet<ValueId>,
+    /// Scratch of [`Self::write_only_writes`], reused across allocations.
+    derived: DenseBitSet<ValueId>,
+    seen: DenseBitSet<InstId>,
+    worklist: Vec<ValueId>,
+    /// The block of each instruction, built when a guarded element store needs it.
+    inst_blocks: OnceCell<IndexVec<InstId, Option<BlockId>>>,
 }
 
 impl WriteOnlyUses {
     fn new(func: &Function) -> Self {
-        let mut starts = vec![0u32; func.num_values() + 1];
+        let mut pairs = Vec::new();
         let mut terminator_uses = DenseBitSet::new_empty(func.num_values());
         for block in &func.blocks {
             for &inst in &block.instructions {
-                func.inst(inst).visit_operands(|operand| starts[operand.index() + 1] += 1);
+                func.inst(inst).visit_operands(|operand| pairs.push((operand, inst)));
             }
             if let Some(terminator) = &block.terminator {
                 for operand in terminator.operands() {
@@ -140,37 +151,31 @@ impl WriteOnlyUses {
                 }
             }
         }
-        for value in 0..func.num_values() {
-            starts[value + 1] += starts[value];
+        Self {
+            users: IndexLists::new(func.num_values(), pairs.iter().copied()),
+            terminator_uses,
+            derived: DenseBitSet::new_empty(func.num_values()),
+            seen: DenseBitSet::new_empty(func.num_insts()),
+            worklist: Vec::new(),
+            inst_blocks: OnceCell::new(),
         }
-        let mut next = starts.clone();
-        let mut users = vec![InstId::from_usize(0); starts[func.num_values()] as usize];
-        for block in &func.blocks {
-            for &inst in &block.instructions {
-                func.inst(inst).visit_operands(|operand| {
-                    users[next[operand.index()] as usize] = inst;
-                    next[operand.index()] += 1;
-                });
-            }
-        }
-        Self { starts, users, terminator_uses }
-    }
-
-    fn users_of(&self, value: ValueId) -> &[InstId] {
-        &self.users[self.starts[value.index()] as usize..self.starts[value.index() + 1] as usize]
     }
 
     /// If every access to the allocation writes it, returns the write
     /// instructions to remove; returns `None` if the allocation is read.
-    fn write_only_writes(&self, func: &Function, object: ValueId) -> Option<Vec<InstId>> {
+    fn write_only_writes(&mut self, func: &Function, object: ValueId) -> Option<Vec<InstId>> {
         // Address values derived from the allocation. Follow only indexed uses
         // instead of rescanning every instruction for each derived value.
-        let mut derived = FxHashSet::default();
+        let derived = &mut self.derived;
+        derived.clear();
         derived.insert(object);
-        let mut worklist = vec![object];
-        let mut seen = FxHashSet::default();
+        let worklist = &mut self.worklist;
+        worklist.clear();
+        worklist.push(object);
+        let seen = &mut self.seen;
+        seen.clear();
         while let Some(value) = worklist.pop() {
-            for &inst_id in self.users_of(value).iter() {
+            for &inst_id in self.users.get(value) {
                 if !seen.insert(inst_id) {
                     continue;
                 }
@@ -179,7 +184,7 @@ impl WriteOnlyUses {
                     InstKind::Add(first, second)
                     | InstKind::Sub(first, second)
                     | InstKind::PtrAdd(first, second) => {
-                        derived.contains(first) || derived.contains(second)
+                        derived.contains(*first) || derived.contains(*second)
                     }
                     InstKind::PtrToInt(value, 256)
                     | InstKind::IntToPtr(value)
@@ -188,7 +193,7 @@ impl WriteOnlyUses {
                         aggregate: value,
                         index: MirType::SLICE_PTR_FIELD,
                     }
-                    | InstKind::MakeSlice { ptr: value, .. } => derived.contains(value),
+                    | InstKind::MakeSlice { ptr: value, .. } => derived.contains(*value),
                     _ => false,
                 };
                 if propagates
@@ -201,9 +206,9 @@ impl WriteOnlyUses {
         }
 
         let mut writes = Vec::new();
-        let mut seen = FxHashSet::default();
-        for value in &derived {
-            for &inst_id in self.users_of(*value).iter() {
+        seen.clear();
+        for value in derived.iter() {
+            for &inst_id in self.users.get(value) {
                 if !seen.insert(inst_id) {
                     continue;
                 }
@@ -211,7 +216,7 @@ impl WriteOnlyUses {
                 match &inst.kind {
                     // Storing an interior address elsewhere is a read/escape.
                     InstKind::Store(_, value, PtrLocation::Memory) | InstKind::Store8(_, value)
-                        if derived.contains(value) =>
+                        if derived.contains(*value) =>
                     {
                         return None;
                     }
@@ -220,7 +225,7 @@ impl WriteOnlyUses {
                         aggregate: addr,
                         index: MirType::SLICE_LEN_FIELD,
                     } => {
-                        if derived.contains(addr) {
+                        if derived.contains(*addr) {
                             return None;
                         }
                     }
@@ -246,7 +251,7 @@ impl WriteOnlyUses {
                         if kind.effect_kind().is_memory() {
                             kind.visit_raw_memory(|access, addr, _| {
                                 ranged = true;
-                                if derived.contains(&addr) {
+                                if derived.contains(addr) {
                                     match access {
                                         RawMemoryAccess::Write => writes.push(inst_id),
                                         RawMemoryAccess::Read | RawMemoryAccess::PartialWrite => {
@@ -256,7 +261,7 @@ impl WriteOnlyUses {
                                 }
                             });
                         }
-                        if read || !ranged && kind.operands().iter().any(|op| derived.contains(op))
+                        if read || !ranged && kind.operands().iter().any(|&op| derived.contains(op))
                         {
                             return None;
                         }
@@ -267,7 +272,7 @@ impl WriteOnlyUses {
 
         // Terminators never read a non-escaping allocation (that would escape),
         // but guard defensively.
-        if derived.iter().any(|&value| self.terminator_uses.contains(value)) {
+        if derived.iter().any(|value| self.terminator_uses.contains(value)) {
             return None;
         }
 
@@ -278,19 +283,19 @@ impl WriteOnlyUses {
     }
 
     fn writes_fit_allocation(
+        &self,
         func: &Function,
         alias: &AliasAnalysis,
         object: ValueId,
+        address: MemoryAddress,
+        size: ValueId,
         writes: &[InstId],
     ) -> bool {
-        if let Value::Inst(inst) = func.value(object)
-            && let InstKind::Alloc { size, .. } = func.inst(*inst).kind
-            && let Some(size) = func.value_u64(size)
-            && let Some(address) = alias.memory_address(func, object)
+        if let Some(size) = func.value_u64(size)
             && let Some(end) = address.offset.checked_add(size)
         {
             writes.iter().all(|&inst| {
-                if Self::guarded_element_end(func, object, inst).is_some_and(|end| end <= size) {
+                if self.guarded_element_end(func, object, inst).is_some_and(|end| end <= size) {
                     return true;
                 }
                 alias.instruction_mod_ref(func, inst).writes().iter().all(|access| {
@@ -311,14 +316,13 @@ impl WriteOnlyUses {
         }
     }
 
-    fn guarded_element_end(func: &Function, object: ValueId, inst: InstId) -> Option<u64> {
+    fn guarded_element_end(&self, func: &Function, object: ValueId, inst: InstId) -> Option<u64> {
         let InstKind::Store(address, _, PtrLocation::Memory) = func.inst(inst).kind else {
             return None;
         };
         // A dynamic object's elements follow its length word; a fixed one's start at it.
         let (target, data_offset, index) = func.element_address(address)?;
-        let block =
-            func.blocks.iter_enumerated().find(|(_, block)| block.instructions.contains(&inst))?.0;
+        let block = self.inst_blocks.get_or_init(|| func.inst_block_table())[inst]?;
         if target == object
             && let [pred] = func.blocks[block].predecessors.as_slice()
             && let Some(Terminator::Branch { condition, then_block, else_block }) =

@@ -68,7 +68,7 @@ contract Test {
     // CHECK: mstore8
     // CHECK: [[EXIT]]:
     // CHECK-NEXT: ret
-    /// @custom:solar-noinline
+    /// @custom:solar-inline never
     function _scatter(bytes memory buffer, uint256 offset, bytes32 value, uint256 count) private pure {
         for (uint256 k; k < count; ++k) {
             buffer[offset + k] = value[k];

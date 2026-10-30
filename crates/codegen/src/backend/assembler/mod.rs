@@ -12,12 +12,12 @@ use crate::{
         DebugFunction, DebugFunctionExit, DebugInfo, DebugInfoBuilder, DebugSpans, ir, op,
         op::WORD_BYTES,
     },
-    link::{EmbeddedBytecodes, LibraryRelocation, LibraryTable},
+    link::{EmbeddedBytecodes, LibraryRelocation, LibraryTable, Trailer},
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
-use solar_interface::{Span, Symbol, sym};
+use solar_interface::{Span, Symbol, config::OptimizationMode, sym};
 use solar_sema::Gcx;
 
 pub(crate) mod assembly;
@@ -64,6 +64,8 @@ pub(crate) struct AssembledCode {
     pub immutable_refs: Vec<ImmutableRef>,
     /// Byte offsets of library addresses, including embedded program data.
     pub library_relocations: Vec<LibraryRelocation>,
+    /// Contracts' trailing runtime data, including embedded program data.
+    pub trailers: Vec<Trailer>,
     /// Final EVM IR captured immediately before byte emission.
     pub evm_ir: Option<ir::Module>,
     /// Final instruction offsets and source spans.
@@ -124,6 +126,9 @@ pub(crate) struct Assembler<'gcx> {
     /// Whether the code being emitted may run more than once, as the creation code that a loop
     /// calls does: its blocks are marked `repeats`.
     pub(in crate::backend) repeating_code: bool,
+    /// The objective of the function being emitted when it differs from the module's: its blocks
+    /// are marked with it.
+    pub(in crate::backend) block_optimization: Option<OptimizationMode>,
     /// Unresolved block references emitted as push operands.
     /// Ordered by (block, instruction); EVM IR construction uses binary search.
     pub(in crate::backend) label_relocations: Vec<(ir::BlockId, usize, Label)>,
@@ -184,6 +189,7 @@ impl<'gcx> Assembler<'gcx> {
             cold_labels: GrowableBitSet::new_empty(),
             loop_labels: GrowableBitSet::new_empty(),
             repeating_code: false,
+            block_optimization: None,
             label_relocations: Vec::new(),
             deferred_relocations: Vec::new(),
             indexed_jump_relocations: Vec::new(),
@@ -199,6 +205,11 @@ impl<'gcx> Assembler<'gcx> {
         }
     }
 
+    /// Sets the objective the program's code is optimized for.
+    pub(crate) fn set_optimization(&mut self, optimization: OptimizationMode) {
+        self.program.optimization = optimization;
+    }
+
     /// Clears all emitted instructions and local identifiers.
     pub(crate) fn clear(&mut self) {
         self.artifact_kind = ArtifactKind::Runtime;
@@ -212,6 +223,7 @@ impl<'gcx> Assembler<'gcx> {
         self.cold_labels.clear();
         self.loop_labels.clear();
         self.repeating_code = false;
+        self.block_optimization = None;
         self.label_relocations.clear();
         self.deferred_relocations.clear();
         self.indexed_jump_relocations.clear();
@@ -521,16 +533,14 @@ impl<'gcx> Assembler<'gcx> {
                     out.emit_op(op::JUMPDEST, source_spans);
                 }
                 AsmInstKind::Data(data) => {
+                    let data = &program.data[data];
                     let base = out.bytecode.len();
-                    out.library_relocations.extend(
-                        program.data[data].library_relocations.iter().map(|reloc| {
-                            LibraryRelocation {
-                                offset: base + reloc.offset,
-                                library: reloc.library,
-                            }
-                        }),
-                    );
-                    out.bytecode.extend_from_slice(program.data[data].bytes.linked());
+                    let bytes = data.bytes.linked();
+                    out.library_relocations.extend(data.library_relocations.iter().map(|reloc| {
+                        LibraryRelocation { offset: base + reloc.offset, library: reloc.library }
+                    }));
+                    out.trailers.extend(data.trailers.iter().map(|trailer| trailer.shifted(base)));
+                    out.bytecode.extend_from_slice(bytes);
                 }
             }
         }
@@ -564,6 +574,7 @@ struct BytecodeAssembler<'gcx> {
     bytecode: Vec<u8>,
     immutable_refs: Vec<ImmutableRef>,
     library_relocations: Vec<LibraryRelocation>,
+    trailers: Vec<Trailer>,
     debug_info: Option<DebugInfoBuilder>,
     function_invoke: Option<DebugFunction>,
     function_exit: Option<DebugFunctionExit>,
@@ -577,6 +588,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
             bytecode: Vec::new(),
             immutable_refs: Vec::new(),
             library_relocations: Vec::new(),
+            trailers: Vec::new(),
             debug_info: capture_debug_info.then(DebugInfoBuilder::default),
             function_invoke: None,
             function_exit: None,
@@ -678,6 +690,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
             bytecode: self.bytecode,
             immutable_refs: self.immutable_refs,
             library_relocations: self.library_relocations,
+            trailers: self.trailers,
             evm_ir: None,
             debug_info: self.debug_info.map(DebugInfoBuilder::finish),
         }

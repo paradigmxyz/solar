@@ -29,16 +29,18 @@ use crate::{
 };
 use either::Either;
 use smallvec::SmallVec;
+use solar_config::OptimizationMode;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap, sync};
 use solar_interface::diagnostics::ErrorGuaranteed;
 use solar_sema::Gcx;
 use std::{any::TypeId, cell::Cell, convert::Infallible, rc::Rc, sync::Arc};
 
-pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes, run_passes_no_validate};
+pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes};
 
 /// All known MIR passes exposed by `-Zmir-pipeline`.
 static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::Inline::Semantic,
+    &inline::Inline::Tagged,
     &if_convert::IfConvert,
     &inline::SpecializeFunctionPointers,
     &specialize::Specialize,
@@ -66,6 +68,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &loop_reduce::LoopReduce,
     &loop_split::LoopSplit,
     &loop_unroll::LoopUnroll,
+    &loop_version::LoopVersion,
     &merge_aborts::MergeAborts,
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
@@ -127,7 +130,15 @@ impl<P: MirPass> MirPass for SizeOnly<P> {
     }
 
     fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_size() && self.0.is_enabled(gcx, module)
+        self.covers(module) && self.0.is_enabled(gcx, module)
+    }
+
+    fn is_contract_wide(&self) -> bool {
+        self.0.is_contract_wide()
+    }
+
+    fn runs_on(&self, objective: OptimizationMode) -> bool {
+        objective.is_size() && self.0.runs_on(objective)
     }
 
     fn is_required(&self) -> bool {
@@ -158,7 +169,15 @@ impl<P: MirPass> MirPass for GasOnly<P> {
     }
 
     fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_gas() && self.0.is_enabled(gcx, module)
+        self.covers(module) && self.0.is_enabled(gcx, module)
+    }
+
+    fn is_contract_wide(&self) -> bool {
+        self.0.is_contract_wide()
+    }
+
+    fn runs_on(&self, objective: OptimizationMode) -> bool {
+        objective.is_gas() && self.0.runs_on(objective)
     }
 
     fn is_required(&self) -> bool {
@@ -191,7 +210,15 @@ impl<P: MirPass> MirPass for RunsAtNone<P> {
     }
 
     fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_none() || self.0.is_enabled(gcx, module)
+        self.covers(module) || self.0.is_enabled(gcx, module)
+    }
+
+    fn is_contract_wide(&self) -> bool {
+        self.0.is_contract_wide()
+    }
+
+    fn runs_on(&self, objective: OptimizationMode) -> bool {
+        objective.is_none() || self.0.runs_on(objective)
     }
 
     fn is_required(&self) -> bool {
@@ -227,6 +254,9 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // memory passes. Only the phis: merging blocks this early hides the
     // short-circuit shapes jump threading recognizes after check elimination.
     &cfg_simplify::SimplifyTrivialPhis,
+    // `@custom:solar-inline always` helpers join their callers before any pass reads
+    // a loop, an object, or a bound through the call.
+    &inline::Inline::Tagged,
     &sccp::Sccp,
     &pure_eval::PureEval,
     &egraph::Egraph,
@@ -260,6 +290,11 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
+    // A loop that stores into one array and reloads another's length gets a copy that reads
+    // the lengths once, behind a run-time test that the stores cannot reach them. It runs on
+    // the threaded graph, where the short-circuit conditions that cover a check dominate it;
+    // the check elimination after memory lowering folds the copy's bounds.
+    &GasOnly::new(loop_version::LoopVersion),
     &sroa::Sroa,
     &memory_dse::MemoryDse::Standard,
     &dce::Dce,
@@ -378,9 +413,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_mcopy::LowerMCopy,
     &lower_alloc::LowerAlloc,
     // Allocation lowering exposes zero fills and free-memory-pointer stores
-    // that later stores in the same block can overwrite completely. Keep this
-    // gas-only.
-    &GasOnly::new(memory_dse::MemoryDse::Standard),
+    // that later stores in the same block can overwrite completely, and word
+    // stores that later loads can forward.
+    &memory_dse::MemoryDse::Standard,
     &lower_memory_zero::LowerMemoryZero,
     // Materialize integer cleanup before word-level extraction and scheduling.
     &lower_integers::LowerIntegers,
@@ -468,8 +503,7 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
             while !remaining.is_empty() {
                 let end = remaining.iter().position(Option::is_none).unwrap_or(remaining.len());
                 let batch = remaining[..end].iter().copied().flatten().collect::<Vec<_>>();
-                let (pass_changed, error) =
-                    run_passes_inner(gcx, module, &batch, true, Some(&name));
+                let (pass_changed, error) = run_passes_inner(gcx, module, &batch, Some(&name));
                 changed |= pass_changed;
                 if error.is_some() || end == remaining.len() {
                     return changed;
@@ -489,18 +523,18 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
 
     let mut changed = false;
     if module.phase() == MirPhase::Semantic {
-        let (pass_changed, error) = run_passes_inner(gcx, module, SEMANTIC_PIPELINE, true, None);
+        let (pass_changed, error) = run_passes_inner(gcx, module, SEMANTIC_PIPELINE, None);
         changed |= pass_changed;
         if error.is_some() {
             return changed;
         }
-        let (pass_changed, error) = run_passes_inner(gcx, module, LOWERING_PIPELINE, true, None);
+        let (pass_changed, error) = run_passes_inner(gcx, module, LOWERING_PIPELINE, None);
         changed |= pass_changed;
         if error.is_some() {
             return changed;
         }
     }
-    changed |= run_passes_inner(gcx, module, LOWERED_PIPELINE, true, None).0;
+    changed |= run_passes_inner(gcx, module, LOWERED_PIPELINE, None).0;
     changed
 }
 
@@ -601,7 +635,7 @@ fn run_function_pass_with_cache(
     };
     let mut changed = false;
     for func_id in functions {
-        if module.functions[func_id].blocks.is_empty() {
+        if module.functions[func_id].blocks.is_empty() || !analyses.runs_on(module, func_id) {
             continue;
         }
         changed |=
@@ -703,9 +737,29 @@ pub(crate) struct FunctionAnalyses {
     creation_only: bool,
     /// Whether, besides, the function has no loop of its own.
     straight_line_creation: bool,
+    /// The objective the function's code is optimized for.
+    optimization: OptimizationMode,
 }
 
 impl FunctionAnalyses {
+    fn new(
+        function: FunctionId,
+        alias: Option<Rc<AliasAnalysis>>,
+        cfg: Option<Rc<CfgInfo>>,
+        (creation_only, straight_line_creation): (bool, bool),
+        optimization: OptimizationMode,
+    ) -> Self {
+        Self {
+            function,
+            alias,
+            cfg,
+            unreported_edit: Cell::new(false),
+            creation_only,
+            straight_line_creation,
+            optimization,
+        }
+    }
+
     /// Returns the id of the function the running transform edits.
     pub(crate) fn function(&self) -> FunctionId {
         self.function
@@ -725,14 +779,20 @@ impl FunctionAnalyses {
     /// recursion calls is priced as such whether or not it loops, because the transform
     /// multiplies by trip counts.
     pub(crate) fn loop_aware_target(&self, gcx: Gcx<'_>) -> Target {
-        Target::new(gcx).priced_for(self.creation_only)
+        self.runtime_target(gcx).priced_for(self.creation_only)
+    }
+
+    /// The cost model of runtime code under the module's objective, for code that a loop may run
+    /// many times, wherever it is.
+    pub(crate) fn runtime_target(&self, gcx: Gcx<'_>) -> Target {
+        Target::new(gcx, self.optimization)
     }
 
     /// The cost model for a transform that ranks code shapes without weighing blocks by how
     /// often they run: creation code is priced as such only when every instruction runs a
     /// bounded number of times, so without loops, recursion, or a looping caller.
     pub(crate) fn target(&self, gcx: Gcx<'_>) -> Target {
-        Target::new(gcx).priced_for(self.straight_line_creation)
+        Target::new(gcx, self.optimization).priced_for(self.straight_line_creation)
     }
 
     /// Records an edit that the transform does not report as a change, such as removing dead
@@ -789,6 +849,10 @@ pub struct ModuleAnalyses {
     /// Whether the running pass prices creation code differently, which only the gas objective
     /// does.
     prices_creation: bool,
+    /// Whether the running pass runs on code optimized for no objective, gas, and size, in that
+    /// order. Function-local runners skip the functions whose objective it excludes. Unset, every
+    /// function runs.
+    objective_gate: Option<[bool; 3]>,
     /// The creation-only functions that no loop or recursion calls, and the subset without loops
     /// of their own. A pass that adds or removes calls and functions without preserving the
     /// analyses drops them.
@@ -801,13 +865,28 @@ impl ModuleAnalyses {
         self.error = Some(error);
     }
 
-    pub(crate) fn begin_pass(&mut self, prices_creation: bool, parallel: bool) {
+    pub(crate) fn begin_pass(
+        &mut self,
+        prices_creation: bool,
+        parallel: bool,
+        objective_gate: [bool; 3],
+    ) {
+        self.objective_gate = Some(objective_gate);
         self.parallel = parallel;
         self.unreported_edit = false;
         self.preserved_by_pass = false;
         self.call_summaries_preserved = false;
         self.local_summaries_preserved = false;
         self.prices_creation = prices_creation;
+    }
+
+    /// Returns whether the running pass runs on `func`, whose code is optimized for its module's
+    /// or its own tag's objective.
+    pub(crate) fn runs_on(&self, module: &Module, func: FunctionId) -> bool {
+        let objective = module.objective(func);
+        self.objective_gate.is_none_or(|gate| {
+            gate[usize::from(objective.is_gas()) + 2 * usize::from(objective.is_size())]
+        })
     }
 
     pub(crate) fn finish_pass(&mut self, changed: bool) {
@@ -852,21 +931,16 @@ impl ModuleAnalyses {
         module: &Module,
         requirements: FunctionAnalysisRequirements,
     ) -> FunctionAnalyses {
-        let (creation_only, straight_line_creation) = self.creation_pricing(func_id, module);
-        FunctionAnalyses {
-            function: func_id,
-            alias: requirements.alias().then(|| {
-                if let Some(alias) = self.alias.get(&func_id) {
-                    return Rc::clone(alias);
-                }
-                let summaries = self.call_summaries(module);
-                self.alias_with_summaries(func_id, summaries)
-            }),
-            cfg: requirements.cfg().then(|| self.cfg(func_id, &module.functions[func_id])),
-            unreported_edit: Cell::new(false),
-            creation_only,
-            straight_line_creation,
-        }
+        let pricing = self.creation_pricing(func_id, module);
+        let alias = requirements.alias().then(|| {
+            if let Some(alias) = self.alias.get(&func_id) {
+                return Rc::clone(alias);
+            }
+            let summaries = self.call_summaries(module);
+            self.alias_with_summaries(func_id, summaries)
+        });
+        let cfg = requirements.cfg().then(|| self.cfg(func_id, &module.functions[func_id]));
+        FunctionAnalyses::new(func_id, alias, cfg, pricing, module.objective(func_id))
     }
 
     /// Returns whether a function is creation-only and whether, besides, it has no loop, when
@@ -874,6 +948,15 @@ impl ModuleAnalyses {
     fn creation_pricing(&mut self, func_id: FunctionId, module: &Module) -> (bool, bool) {
         if !self.prices_creation {
             return (false, false);
+        }
+        // A pass that adds functions, such as `lower-builtins` with its storage helpers, can
+        // preserve analyses, so rebuild the sets when they no longer cover every function.
+        if self
+            .creation_functions
+            .as_ref()
+            .is_some_and(|(creation, _)| creation.domain_size() != module.functions.len())
+        {
+            self.creation_functions = None;
         }
         let (creation, straight) =
             self.creation_functions.get_or_insert_with(|| module.creation_pricing_functions());
@@ -935,13 +1018,19 @@ impl ModuleAnalyses {
         }
     }
 
-    fn function_cached(&mut self, key: TypeId, func_id: FunctionId, functions: usize) -> bool {
+    /// Returns the bodies on which the pass `key` last reported no change, emptied when the
+    /// module's function count changed.
+    fn no_change(&mut self, key: TypeId, functions: usize) -> &mut DenseBitSet<FunctionId> {
         let cached =
             self.local_no_change.entry(key).or_insert_with(|| DenseBitSet::new_empty(functions));
         if cached.domain_size() != functions {
-            *cached = DenseBitSet::new_empty(functions);
+            cached.clear_to(functions);
         }
-        cached.contains(func_id)
+        cached
+    }
+
+    fn function_cached(&mut self, key: TypeId, func_id: FunctionId, functions: usize) -> bool {
+        self.no_change(key, functions).contains(func_id)
     }
 
     fn record_function_result(
@@ -959,14 +1048,7 @@ impl ModuleAnalyses {
                 }
             }
         } else if let Some(key) = cache_key {
-            let cached = self
-                .local_no_change
-                .entry(key)
-                .or_insert_with(|| DenseBitSet::new_empty(functions));
-            if cached.domain_size() != functions {
-                *cached = DenseBitSet::new_empty(functions);
-            }
-            cached.insert(func_id);
+            self.no_change(key, functions).insert(func_id);
         }
     }
 
@@ -1068,6 +1150,7 @@ fn run_parallel_function_pass(
     let mut work = 0;
     for (id, func) in module.functions.iter_enumerated() {
         if !func.blocks.is_empty()
+            && analyses.runs_on(module, id)
             && selected.is_none_or(|selected| selected.contains(id))
             && !cache_key.is_some_and(|key| analyses.function_cached(key, id, functions))
         {
@@ -1109,6 +1192,7 @@ fn run_parallel_function_pass(
         }
     }
     let summaries = first_missing.map(|_| analyses.call_summaries(module));
+    let module_objective = module.optimization;
 
     let tasks = module
         .functions
@@ -1124,21 +1208,19 @@ fn run_parallel_function_pass(
                     |alias| Rc::into_inner(alias).expect("alias snapshot is unshared"),
                 )
             });
-            (id, func, alias, cfg, pricing[id])
+            let objective = func.attributes.optimization.unwrap_or(module_objective);
+            (id, func, alias, cfg, pricing[id], objective)
         })
         .collect::<Vec<_>>();
-    let results = sync::par_try_map(
-        true,
-        tasks,
-        |(id, func, alias, cfg, (creation_only, straight_line_creation))| {
-            let bundle = FunctionAnalyses {
-                function: id,
-                alias: alias.map(Rc::new),
-                cfg: cfg.map(Rc::new),
-                unreported_edit: Cell::new(false),
-                creation_only,
-                straight_line_creation,
-            };
+    let results =
+        sync::par_try_map(true, tasks, |(id, func, alias, cfg, pricing, optimization)| {
+            let bundle = FunctionAnalyses::new(
+                id,
+                alias.map(Rc::new),
+                cfg.map(Rc::new),
+                pricing,
+                optimization,
+            );
             let insts_before = func.num_insts();
             let changed = run(func, &bundle);
             let (keep_alias, keep_cfg) = match &bundle.cfg {
@@ -1162,9 +1244,8 @@ fn run_parallel_function_pass(
                     alias,
                 },
             ))
-        },
-    )
-    .unwrap_or_else(|never| match never {});
+        })
+        .unwrap_or_else(|never| match never {});
     for (id, outcome) in results {
         if outcome.unreported_edit {
             analyses.local_summaries.invalidate(id);

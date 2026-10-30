@@ -1,0 +1,30 @@
+error: `Test` is tagged `@custom:solar-safe` but runs inline assembly
+   ╭▸ ROOT/tests/ui/typeck/solar_safe_pointer_escape.sol:LL:CC
+   │
+LL │         assembly { result := 42 }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe_pointer_escape.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `Test.run` → `Factory.pointer` → `Factory.unsafeTarget`
+   ╰ help: write it without assembly, or review it and tag its function `@custom:solar-trusted`
+
+error: `Local` is tagged `@custom:solar-safe` but runs inline assembly
+   ╭▸ ROOT/tests/ui/typeck/solar_safe_pointer_escape.sol:LL:CC
+   │
+LL │         assembly { result := 42 }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe_pointer_escape.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `Local.run` → `Local.pointer` → `Local.unsafeTarget`
+   ╰ help: write it without assembly, or review it and tag its function `@custom:solar-trusted`
+
+error: aborting due to 2 previous errors
+

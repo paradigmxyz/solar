@@ -9,7 +9,7 @@ pub(crate) mod integers;
 mod alias;
 pub(crate) use alias::{
     Access, AddressSpace, AliasAnalysis, AliasResult, Location, LocationSize, MemoryAddress,
-    MemoryBase, MemoryLocation, ModRef,
+    MemoryBase, MemoryLocation, ModRef, ReadBounds,
 };
 
 mod memory_summary;

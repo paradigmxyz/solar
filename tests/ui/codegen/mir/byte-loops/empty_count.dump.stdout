@@ -121,70 +121,82 @@ fn @storeSome() [selector=0x26843d1f, abi_wrapper, pure] {
 
 fn @loadNowhere() [selector=0x620282bd, abi_wrapper, pure] {
   bb0:
-    v15 = calldatasize
-    v16 = lt v15, 68
-    jumpi v16, bb5, bb6
-  bb6:
-    v2 = eq arg1, 0
-    jumpi v2, bb1, bb2
+    v2 = calldatasize
+    v3 = lt v2, 68
+    jumpi v3, bb1, bb2
   bb2:
-    v4 = mload arg0
-    v5 = lt v4, arg1
-    jumpi v5, bb3, bb4
-  bb4:
-    v18 = add arg0, 32
-    v7 = mload v18
-    v8 = lt arg1, 32
-    v9 = select v8, arg1, 32
-    v10 = shl v9, 3
-    v11 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v10
-    v12 = not v11
-    v13 = and v7, v12
-    jump bb1
-  bb3:
-    tail_call @revert_stub
-  bb1:
-    v3 = phi [bb6: 0], [bb4: v13]
-    mstore 0, v3 !metadata(memory=scratch)
+    v1 = icall @_loadSome, arg0, arg1
+    mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:
+  bb1:
     revert 0, 0
 }
 
 fn @storeNowhere() [selector=0x5a29af63, abi_wrapper, pure] {
   bb0:
-    v17 = calldatasize
-    v18 = lt v17, 100
-    jumpi v18, bb5, bb6
-  bb6:
-    v1 = eq arg2, 0
-    jumpi v1, bb1, bb2
+    v1 = calldatasize
+    v2 = lt v1, 100
+    jumpi v2, bb1, bb2
   bb2:
-    v2 = mload arg0
-    v3 = lt v2, arg2
-    v4 = gt arg2, 32
-    v5 = or v3, v4
-    jumpi v5, bb3, bb4
+    icall @_storeSome, arg0, arg1, arg2
+    mstore 0, arg2 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @_loadSome(arg0: i256, arg1: i256) -> i256 [may_return_memory, pure] {
+  bb0:
+    v17 = eq arg1, 0
+    jumpi v17, bb1, bb2
+  bb2:
+    v18 = mload arg0
+    v19 = lt v18, arg1
+    jumpi v19, bb3, bb4
   bb4:
-    v20 = add arg0, 32
-    v7 = lt arg2, 32
-    v8 = select v7, arg2, 32
-    v9 = shl v8, 3
-    v10 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v9
-    v11 = not v10
-    v13 = mload v20
-    v14 = and v13, v10
-    v15 = and arg1, v11
-    v16 = or v14, v15
-    mstore v20, v16
+    v29 = add arg0, 32
+    v21 = mload v29
+    v22 = lt arg1, 32
+    v23 = select v22, arg1, 32
+    v24 = shl v23, 3
+    v25 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v24
+    v26 = not v25
+    v27 = and v21, v26
     jump bb1
   bb3:
     tail_call @revert_stub
   bb1:
-    mstore 0, arg2 !metadata(memory=scratch)
-    returndata 0, 32
-  bb5:
-    revert 0, 0
+    v2 = phi [bb0: 0], [bb4: v27]
+    ret v2
+}
+
+fn @_storeSome(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
+  bb0:
+    v16 = eq arg2, 0
+    jumpi v16, bb1, bb2
+  bb2:
+    v17 = mload arg0
+    v18 = lt v17, arg2
+    v19 = gt arg2, 32
+    v20 = or v18, v19
+    jumpi v20, bb3, bb4
+  bb4:
+    v34 = add arg0, 32
+    v23 = lt arg2, 32
+    v24 = select v23, arg2, 32
+    v25 = shl v24, 3
+    v26 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v25
+    v27 = not v26
+    v29 = mload v34
+    v30 = and v29, v26
+    v31 = and arg1, v27
+    v32 = or v30, v31
+    mstore v34, v32
+    jump bb1
+  bb3:
+    tail_call @revert_stub
+  bb1:
+    ret
 }
 
 fn @revert_stub() {
@@ -208,23 +220,28 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v8 = add v6, 63
     v9 = lt v8, v6
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v24 = heap_floor !metadata(alloc_ptr)
-    v25 = add v24, v11 !metadata(alloc_ptr)
-    v26 = lt v25, v24
-    v27 = gt v25, 0xffffffffffffffff
-    v28 = or v26, v27
-    v30 = or v9, v28
-    jumpi v30, bb3, bb5
+    v29 = heap_floor !metadata(alloc_ptr)
+    v30 = add v29, v11 !metadata(alloc_ptr)
+    v31 = lt v30, v29
+    v32 = gt v30, 0xffffffffffffffff
+    v33 = or v31, v32
+    v36 = or v9, v33
+    jumpi v36, bb3, bb5
   bb5:
-    mstore 64, v25 !metadata(memory=scratch)
-    mstore v24, v6
+    mstore 64, v30 !metadata(memory=scratch)
+    mstore v29, v6
     v13 = sub v0, v7
     v14 = gt v6, v13
     jumpi v14, bb1, bb4
   bb4:
-    v21 = add v24, 32
-    calldatacopy v21, v7, v6
-    ret v24
+    v25 = add v29, 32
+    calldatacopy v25, v7, v6
+    v22 = sub 0, v6
+    v23 = and v22, 31
+    v35 = calldatasize
+    v26 = add v25, v6
+    calldatacopy v26, v35, v23
+    ret v29
   bb3:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

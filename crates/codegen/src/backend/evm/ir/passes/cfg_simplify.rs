@@ -37,6 +37,12 @@
 //! physical form's `PUSH target; JUMPI` with that `POP` changes what runs after the condition, so
 //! it only applies where `keep_with_next` allows that boundary to be disturbed.
 //!
+//! A block that declares a call effect, the entry of a function or shared body, is absorbed into
+//! its predecessor only if the stack verifier can still follow its returns. The successors of the
+//! absorbed code take over the effect, unless the code pushes a block's address and calls out or
+//! consumes the return address, when the block stays apart; a return through a dynamic jump needs
+//! no successor, since the address is in the merged block.
+//!
 //! Compiler-generated return continuations explicitly declare that their label's numeric identity
 //! is unobservable. Empty continuation thunks can therefore be bypassed even through a pushed
 //! return address. Ordinary address-taken labels remain opaque. The declaration is emitted by call
@@ -45,14 +51,17 @@
 use super::{
     EvmPass,
     block_layout::triangle_arm,
-    terminal_dedup::{absorb_terminal_copy, equal_terminal_bodies},
+    terminal_dedup::absorb_equal_terminal,
     utils::{
         FreshLabels, count_block_references, instruction_size_lower_bound, is_split_point,
         remap_block_order, retain_blocks,
     },
 };
 use crate::backend::evm::{
-    ir::{Block, BlockId, Instruction, Metadata, Module, PushValue, Terminator, TerminatorKind},
+    ir::{
+        Block, BlockId, CallEffect, Instruction, Metadata, Module, ModuleTarget, PushValue,
+        StackEffect, Terminator, TerminatorKind, default_terminator_stack_effect,
+    },
     op,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -82,38 +91,22 @@ impl EvmPass for CfgSimplify {
 }
 
 fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) -> bool {
-    let mut state = RunState::default();
-    state.reserve(module.blocks.len());
+    let mut state = RunState::new(module.blocks.len());
     let mut changed =
-        gcx.sess.opts.optimization.is_gas() && rotate_loop_exits(module, &mut state.references);
+        module.optimization.is_gas() && rotate_loop_exits(module, &mut state.references);
     // Later rounds only add `POP`s or move instructions of already truncated blocks.
     changed |= truncate_after_terminal(module);
     loop {
         let direct = simplify_known_jumps(module);
         let degenerate = simplify_degenerate_branches(module);
-        let redirected = redirect_jump_thunks(
-            module,
-            thread_shared_jumps,
-            &mut state.thunks,
-            &mut state.addressed,
-            &mut state.jump_heads,
-            &mut state.order,
-        );
+        let redirected = redirect_jump_thunks(module, thread_shared_jumps, &mut state);
         let inlined = thread_shared_jumps
-            && gcx.sess.opts.optimization.is_gas()
+            && module.optimization.is_gas()
             && inline_shared_return_thunks(gcx, module, &mut state.references);
-        let branches = thread_shared_jumps
-            && gcx.sess.opts.optimization.is_size()
-            && expose_shared_branches(module);
-        let swept = remove_unreachable_blocks(
-            module,
-            &mut state.reachable,
-            &mut state.pending,
-            &mut state.references,
-            &mut state.order,
-        );
-        let coalesced =
-            coalesce_blocks(module, &state.references, &mut state.retained, &mut state.order);
+        let branches =
+            thread_shared_jumps && module.optimization.is_size() && expose_shared_branches(module);
+        let swept = remove_unreachable_blocks(module, &mut state);
+        let coalesced = coalesce_blocks(module, &mut state);
         let round = direct || degenerate || redirected || inlined || branches || swept || coalesced;
         changed |= round;
         if !round {
@@ -252,7 +245,7 @@ fn inline_shared_return_thunks(
             || body
                 .instructions
                 .iter()
-                .map(|inst| instruction_size_lower_bound(gcx, inst))
+                .map(|inst| instruction_size_lower_bound(module.runtime_target(gcx), inst))
                 .sum::<usize>()
                 > 7
             || offset.concrete_immediate().is_none()
@@ -280,37 +273,38 @@ fn inline_shared_return_thunks(
     changed
 }
 
+/// An empty block that only jumps on, with the debug info its removal moves to incoming edges.
+struct Thunk {
+    next: BlockId,
+    metadata: Metadata,
+}
+
+/// Scratch storage shared by the rounds of one run.
 struct RunState {
-    thunks: FxHashMap<BlockId, BlockId>,
+    thunks: FxHashMap<BlockId, Thunk>,
     addressed: DenseBitSet<BlockId>,
     jump_heads: DenseBitSet<BlockId>,
+    forwarded_continuations: DenseBitSet<BlockId>,
     reachable: DenseBitSet<BlockId>,
+    retained: DenseBitSet<BlockId>,
     pending: Vec<BlockId>,
     references: IndexVec<BlockId, usize>,
-    retained: DenseBitSet<BlockId>,
     order: Vec<BlockId>,
 }
 
-impl Default for RunState {
-    fn default() -> Self {
+impl RunState {
+    fn new(blocks: usize) -> Self {
         Self {
             thunks: FxHashMap::default(),
             addressed: DenseBitSet::new_empty(0),
             jump_heads: DenseBitSet::new_empty(0),
+            forwarded_continuations: DenseBitSet::new_empty(0),
             reachable: DenseBitSet::new_empty(0),
-            pending: Vec::new(),
-            references: IndexVec::new(),
             retained: DenseBitSet::new_empty(0),
-            order: Vec::new(),
+            pending: Vec::with_capacity(blocks),
+            references: IndexVec::with_capacity(blocks),
+            order: Vec::with_capacity(blocks),
         }
-    }
-}
-
-impl RunState {
-    fn reserve(&mut self, blocks: usize) {
-        reserve_to(&mut self.pending, blocks);
-        reserve_to(self.references.as_mut_vec(), blocks);
-        reserve_to(&mut self.order, blocks);
     }
 }
 
@@ -344,28 +338,21 @@ fn normalize_triangle_branches(module: &mut Module) -> bool {
     changed
 }
 
-fn reserve_to<T>(values: &mut Vec<T>, capacity: usize) {
-    if values.capacity() < capacity {
-        values.reserve(capacity - values.len());
-    }
-}
-
 fn truncate_after_terminal(module: &mut Module) -> bool {
     let mut changed = false;
     for block in &mut module.blocks {
-        let Some((at, opcode, metadata)) =
-            block.instructions.iter().enumerate().find_map(|(at, inst)| {
-                (!inst.is_encoded_push() && op::is_terminal(inst.opcode))
-                    .then(|| (at, inst.opcode, inst.metadata.clone()))
-            })
-        else {
-            continue;
-        };
-        block.instructions.truncate(at);
-        let mut terminator = Terminator::new(TerminatorKind::Op(opcode));
-        terminator.metadata = metadata;
-        block.terminator = Some(terminator);
-        changed = true;
+        if let Some(at) = block
+            .instructions
+            .iter()
+            .position(|inst| !inst.is_encoded_push() && op::is_terminal(inst.opcode))
+        {
+            let terminal = &mut block.instructions[at];
+            let mut terminator = Terminator::new(TerminatorKind::Op(terminal.opcode));
+            terminator.metadata = std::mem::take(&mut terminal.metadata);
+            block.instructions.truncate(at);
+            block.terminator = Some(terminator);
+            changed = true;
+        }
     }
     changed
 }
@@ -373,40 +360,25 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
 fn simplify_degenerate_branches(module: &mut Module) -> bool {
     let mut changed = false;
     for block_id in module.blocks.indices() {
-        // A branch whose edges reach equal halting blocks, directly or through empty jumps, runs
-        // the same code either way: fold it into the else edge, whose code the taken copy's
-        // paths then share.
-        let block = &module.blocks[block_id];
+        // A branch whose edges reach equal halting blocks runs the same code either way: fold it
+        // into the else edge, whose code the taken copy's paths then share.
         if let Some(Terminator { kind: TerminatorKind::JumpI { then_block, else_block }, .. }) =
-            block.terminator.as_ref()
-            && then_block != else_block
-            && let (copy, target) =
-                (through_empty_jumps(module, *then_block), through_empty_jumps(module, *else_block))
-            && copy != target
-            && equal_terminal_bodies(module, copy, target)
+            module.blocks[block_id].terminator
+            && absorb_equal_terminal(module, then_block, else_block)
+            && let Some(terminator) = module.blocks[block_id].terminator.as_mut()
         {
-            let target = *else_block;
-            absorb_terminal_copy(module, copy, through_empty_jumps(module, target));
-            let Some(Terminator { kind, .. }) = module.blocks[block_id].terminator.as_mut() else {
-                unreachable!("checked above")
-            };
-            *kind = TerminatorKind::JumpI { then_block: target, else_block: target };
+            terminator.kind = TerminatorKind::JumpI { then_block: else_block, else_block };
         }
         if let Some(TerminatorKind::Jump(target)) =
             module.blocks[block_id].terminator.as_ref().map(|term| &term.kind)
             && let [.., pushed, jumpi] = module.blocks[block_id].instructions.as_slice()
             && let Some(PushValue::Block(pushed_block)) = pushed.value
-            && pushed_block != *target
             && pushed.is_encoded_push()
             && jumpi.as_evm_opcode() == Some(op::JUMPI)
-            && let (copy, reached) =
-                (through_empty_jumps(module, pushed_block), through_empty_jumps(module, *target))
-            && copy != reached
-            && equal_terminal_bodies(module, copy, reached)
+            && let target = *target
+            && absorb_equal_terminal(module, pushed_block, target)
         {
             // push copy; jumpi; jump target -> push target; jumpi; jump target
-            let target = *target;
-            absorb_terminal_copy(module, copy, reached);
             let at = module.blocks[block_id].instructions.len() - 2;
             module.blocks[block_id].instructions[at].value = Some(PushValue::Block(target));
         }
@@ -419,13 +391,11 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
         }) = block.terminator.as_ref()
             && then_block == else_block
         {
-            let target = *then_block;
-            let metadata = metadata.clone();
             let mut pop = Instruction::stack_op(op::StackOp::Pop);
-            pop.metadata.copy_source_debug_from(&metadata);
+            pop.metadata.copy_source_debug_from(metadata);
+            let mut terminator = Terminator::new(TerminatorKind::Jump(*then_block));
+            terminator.metadata.copy_debug_info_from(metadata);
             block.instructions.push(pop);
-            let mut terminator = Terminator::new(TerminatorKind::Jump(target));
-            terminator.metadata.copy_debug_info_from(&metadata);
             block.terminator = Some(terminator);
             changed = true;
             continue;
@@ -438,10 +408,9 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
             && jumpi.as_evm_opcode() == Some(op::JUMPI)
             && is_split_point(&block.instructions, block.instructions.len() - 2)
         {
-            let metadata = jumpi.metadata.clone();
-            block.instructions.truncate(block.instructions.len() - 2);
             let mut pop = Instruction::stack_op(op::StackOp::Pop);
-            pop.metadata.copy_source_debug_from(&metadata);
+            pop.metadata.copy_source_debug_from(&jumpi.metadata);
+            block.instructions.truncate(block.instructions.len() - 2);
             block.instructions.push(pop);
             changed = true;
         }
@@ -452,52 +421,51 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
 fn redirect_jump_thunks(
     module: &mut Module,
     thread_shared_jumps: bool,
-    thunks: &mut FxHashMap<BlockId, BlockId>,
-    addressed: &mut DenseBitSet<BlockId>,
-    jump_heads: &mut DenseBitSet<BlockId>,
-    order: &mut Vec<BlockId>,
+    state: &mut RunState,
 ) -> bool {
+    let RunState { thunks, addressed, jump_heads, forwarded_continuations, order, .. } = state;
     // Redirect direct edges through empty blocks. Keep labels used as values distinct, and move
-    // each removed thunk's debug event to its incoming edges.
+    // each removed thunk's debug event to its incoming edges. A thunk is an empty block that only
+    // jumps on: redirect direct branches and explicitly unobservable return addresses; ordinary
+    // pushed labels may be compared numerically.
+    thunks.clear();
     jump_heads.clear_to(module.blocks.len());
-    if thread_shared_jumps {
-        for (block_id, block) in module.blocks.iter_enumerated() {
-            if block
-                .instructions
-                .first()
-                .is_some_and(|inst| inst.as_evm_opcode() == Some(op::JUMPI))
-            {
-                jump_heads.insert(block_id);
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        match block.instructions.first() {
+            Some(inst) => {
+                if thread_shared_jumps && inst.as_evm_opcode() == Some(op::JUMPI) {
+                    jump_heads.insert(block_id);
+                }
+            }
+            None => {
+                if let Some(terminator) = &block.terminator
+                    && let TerminatorKind::Jump(next) = terminator.kind
+                {
+                    thunks.insert(block_id, Thunk { next, metadata: Metadata::default() });
+                }
             }
         }
     }
-    // A thunk is an empty block that only jumps on. Redirect direct branches and explicitly
-    // unobservable return addresses; ordinary pushed labels may be compared numerically.
-    thunks.clear();
-    for (block_id, block) in module.blocks.iter_enumerated() {
-        if block.instructions.is_empty()
-            && let Some(terminator) = &block.terminator
-            && let TerminatorKind::Jump(target) = &terminator.kind
-        {
-            thunks.insert(block_id, *target);
-        }
-    }
+    let jump_heads = thread_shared_jumps.then_some(&*jump_heads);
     if thunks.is_empty() {
         return false;
     }
 
     addressed.clear_to(module.blocks.len());
-    for block in &module.blocks {
-        for (at, inst) in block.instructions.iter().enumerate() {
-            if let Some(PushValue::Block(target)) = &inst.value
-                && !is_direct_jump_label_through_head(block, at, jump_heads)
-                && !module.blocks[*target].metadata.is_continuation
-            {
-                addressed.insert(*target);
-            }
+    mark_addressed_blocks(module, jump_heads, addressed);
+    thunks.retain(|&block_id, thunk| {
+        let block = &module.blocks[block_id];
+        if addressed.contains(block_id) {
+            return false;
         }
-    }
-    thunks.retain(|block, _| !addressed.contains(*block));
+        if let Some(function) = block.metadata.function_invoke {
+            thunk.metadata.set_function_invoke(function);
+        }
+        if let Some(terminator) = &block.terminator {
+            thunk.metadata.absorb_debug_info(&terminator.metadata);
+        }
+        true
+    });
     if thunks.is_empty() {
         return false;
     }
@@ -506,48 +474,31 @@ fn redirect_jump_thunks(
     let resolve = |start: BlockId| {
         let mut target = start;
         for _ in 0..block_count {
-            let Some(&next) = thunks.get(&target) else { break };
-            if next == start {
+            let Some(thunk) = thunks.get(&target) else { break };
+            if thunk.next == start {
                 return start;
             }
-            target = next;
+            target = thunk.next;
         }
         target
     };
 
-    let thunk_metadata = thunks
-        .keys()
-        .map(|&block_id| {
-            let block = &module.blocks[block_id];
-            let mut metadata = Metadata::default();
-            if let Some(function) = block.metadata.function_invoke {
-                metadata.set_function_invoke(function);
-            }
-            if let Some(terminator) = &block.terminator {
-                metadata.absorb_debug_info(&terminator.metadata);
-            }
-            (block_id, metadata)
-        })
-        .collect::<FxHashMap<_, _>>();
-
     let mut changed = false;
-    let mut forwarded_continuations = DenseBitSet::new_empty(module.blocks.len());
+    forwarded_continuations.clear_to(module.blocks.len());
     for block in &mut module.blocks {
         for at in 0..block.instructions.len() {
             if let Some(PushValue::Block(target)) = block.instructions[at].value
-                && (is_direct_jump_label_through_head(block, at, jump_heads)
-                    || thunks.contains_key(&target))
+                && (is_jump_label(block, at, jump_heads) || thunks.contains_key(&target))
             {
-                if is_direct_jump_label(block, at)
-                    && let Some(metadata) = thunk_metadata.get(&target)
-                {
-                    block.instructions[at].metadata.absorb_debug_info(metadata);
+                let direct = is_direct_jump_label(block, at);
+                if direct && let Some(thunk) = thunks.get(&target) {
+                    block.instructions[at].metadata.absorb_debug_info(&thunk.metadata);
                 }
                 // NOTE: A return-address push executes before the callee, while the bypassed
                 // continuation runs after it. Its debug events cannot move onto that push;
                 // those zero-instruction checkpoints are intentionally dropped with the thunk.
                 let resolved = resolve(target);
-                if !is_direct_jump_label(block, at) && !addressed.contains(resolved) {
+                if !direct && !addressed.contains(resolved) {
                     // The forwarded return address remains unobservable. Retain that fact on
                     // its destination unless the destination already had an opaque address use.
                     forwarded_continuations.insert(resolved);
@@ -559,8 +510,8 @@ fn redirect_jump_thunks(
         }
         if let Some(term) = &mut block.terminator {
             term.kind.visit_targets_mut(|target| {
-                if let Some(metadata) = thunk_metadata.get(target) {
-                    term.metadata.absorb_debug_info(metadata);
+                if let Some(thunk) = thunks.get(target) {
+                    term.metadata.absorb_debug_info(&thunk.metadata);
                 }
                 let resolved = resolve(*target);
                 changed |= resolved != *target;
@@ -586,40 +537,49 @@ fn redirect_jump_thunks(
 
 /// Recognizes a label consumed directly by the following jump.
 pub(super) fn is_direct_jump_label(block: &Block, at: usize) -> bool {
-    block.instructions.get(at + 1).is_some_and(|inst| matches!(inst.opcode, op::JUMP | op::JUMPI))
-        || (at + 1 == block.instructions.len()
-            && block
-                .terminator
-                .as_ref()
-                .is_some_and(|term| term.kind == TerminatorKind::Op(op::JUMP)))
+    is_jump_label(block, at, None)
 }
 
-// PUSH target; jump head; head: JUMPI -> a direct use of target
-fn is_direct_jump_label_through_head(
-    block: &Block,
-    at: usize,
-    jump_heads: &DenseBitSet<BlockId>,
-) -> bool {
+/// Recognizes a label consumed directly by the following jump or, when `jump_heads` is given, by
+/// a jump to a block starting with `JUMPI`.
+fn is_jump_label(block: &Block, at: usize, jump_heads: Option<&DenseBitSet<BlockId>>) -> bool {
     block.instructions.get(at + 1).is_some_and(|inst| matches!(inst.opcode, op::JUMP | op::JUMPI))
         || (at + 1 == block.instructions.len()
             && block.terminator.as_ref().is_some_and(|term| match term.kind {
                 TerminatorKind::Op(op::JUMP) => true,
-                TerminatorKind::Jump(target) => jump_heads.contains(target),
+                // PUSH target; jump head; head: JUMPI -> a direct use of target
+                TerminatorKind::Jump(target) => {
+                    jump_heads.is_some_and(|heads| heads.contains(target))
+                }
                 _ => false,
             }))
+}
+
+/// Adds to `addressed` the blocks whose label is pushed as an observable value: not consumed by
+/// a jump as `is_jump_label` decides, and not a return continuation.
+pub(super) fn mark_addressed_blocks(
+    module: &Module,
+    jump_heads: Option<&DenseBitSet<BlockId>>,
+    addressed: &mut DenseBitSet<BlockId>,
+) {
+    for block in &module.blocks {
+        for (at, inst) in block.instructions.iter().enumerate() {
+            if let Some(target) = inst.pushed_block()
+                && !is_jump_label(block, at, jump_heads)
+                && !module.blocks[target].metadata.is_continuation
+            {
+                addressed.insert(target);
+            }
+        }
+    }
 }
 
 /// Removes blocks unreachable from the entry. Afterwards, `references` holds every remaining
 /// block's count of pushed labels and terminator edges targeting it, plus the implicit
 /// program-entry edge.
 #[must_use]
-fn remove_unreachable_blocks(
-    module: &mut Module,
-    reachable: &mut DenseBitSet<BlockId>,
-    pending: &mut Vec<BlockId>,
-    references: &mut IndexVec<BlockId, usize>,
-    order: &mut Vec<BlockId>,
-) -> bool {
+fn remove_unreachable_blocks(module: &mut Module, state: &mut RunState) -> bool {
+    let RunState { reachable, pending, references, order, .. } = state;
     references.clear();
     references.resize(module.blocks.len(), 0);
     if module.blocks.is_empty() {
@@ -663,17 +623,10 @@ fn remove_unreachable_blocks(
 }
 
 /// Merges each block into its only predecessor, given every block's `references` count.
-fn coalesce_blocks(
-    module: &mut Module,
-    references: &IndexVec<BlockId, usize>,
-    retained: &mut DenseBitSet<BlockId>,
-    order: &mut Vec<BlockId>,
-) -> bool {
-    if retained.domain_size() != module.blocks.len() {
-        *retained = DenseBitSet::new_filled(module.blocks.len());
-    } else {
-        retained.insert_all();
-    }
+fn coalesce_blocks(module: &mut Module, state: &mut RunState) -> bool {
+    let RunState { references, retained, order, .. } = state;
+    retained.clear_to(module.blocks.len());
+    retained.insert_all();
     for predecessor in module.blocks.indices() {
         if !retained.contains(predecessor) {
             continue;
@@ -683,6 +636,11 @@ fn coalesce_blocks(
         {
             let target = *target;
             if target == predecessor || references[target] != 1 || !retained.contains(target) {
+                break;
+            }
+
+            let absorption = absorption(&module.blocks[target]);
+            if matches!(absorption, Absorption::Blocked) {
                 break;
             }
 
@@ -696,6 +654,16 @@ fn coalesce_blocks(
                 } else if let Some(terminator) = &mut terminator {
                     terminator.metadata.set_function_invoke(function);
                 }
+            }
+            // The effect describes the successor's code, the slot it returns through and its net
+            // stack change, so every other entry into the successor sees the same one, and an
+            // effect the successor already declares is kept.
+            if let Absorption::Passes(effect) = absorption
+                && let Some(terminator) = &terminator
+            {
+                terminator.kind.visit_targets(|next| {
+                    module.blocks[next].metadata.call_effect.get_or_insert(effect);
+                });
             }
             module.blocks[predecessor].metadata.in_loop |= module.blocks[target].metadata.in_loop;
             module.blocks[predecessor].metadata.repeats |= module.blocks[target].metadata.repeats;
@@ -711,6 +679,42 @@ fn coalesce_blocks(
     order.extend(retained.iter());
     retain_blocks(module, order);
     true
+}
+
+/// What absorbing a block into its predecessor does to the block's call effect.
+enum Absorption {
+    /// The block keeps its effect: its code ends the call, returns through a jump to the address
+    /// its predecessor pushed, which the verifier finds in the merged block, or has no effect.
+    Free,
+    /// The successors take the effect over.
+    Passes(CallEffect),
+    /// The code after the block no longer shows where it returns, because it calls out or
+    /// consumes or copies its return address, so the block stays apart.
+    Blocked,
+}
+
+fn absorption(block: &Block) -> Absorption {
+    let Some(effect) = block.metadata.call_effect else { return Absorption::Free };
+    let instructions = &block.instructions;
+    let Some(Terminator { kind, .. }) = &block.terminator else { return Absorption::Blocked };
+    match kind {
+        TerminatorKind::Op(opcode) if *opcode != op::JUMP => return Absorption::Free,
+        TerminatorKind::Op(_) => {
+            let returns_here = effect
+                .after(instructions, StackEffect::new(0, 0))
+                .is_some_and(|effect| effect.ret == 0);
+            return if returns_here { Absorption::Free } else { Absorption::Blocked };
+        }
+        _ => {}
+    }
+    let pushes_address = instructions.iter().enumerate().any(|(at, inst)| {
+        inst.pushed_block().is_some()
+            && !instructions.get(at + 1).is_some_and(|next| next.opcode == op::JUMPI)
+    });
+    let after = default_terminator_stack_effect(kind)
+        .filter(|_| !pushes_address)
+        .and_then(|last| effect.after(instructions, last));
+    after.map_or(Absorption::Blocked, Absorption::Passes)
 }
 
 fn simplify_known_jumps(module: &mut Module) -> bool {
@@ -732,20 +736,4 @@ fn simplify_known_jumps(module: &mut Module) -> bool {
         }
     }
     changed
-}
-
-/// The block that `block` leads to through empty blocks that only jump on.
-fn through_empty_jumps(module: &Module, block: BlockId) -> BlockId {
-    let mut target = block;
-    for _ in 0..module.blocks.len() {
-        let next = &module.blocks[target];
-        let Some(Terminator { kind: TerminatorKind::Jump(to), .. }) = &next.terminator else {
-            break;
-        };
-        if !next.instructions.is_empty() || *to == block {
-            break;
-        }
-        target = *to;
-    }
-    target
 }

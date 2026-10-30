@@ -1,0 +1,78 @@
+// === ROOT/tests/ui/codegen/lowering/solar_safe_unchecked.sol:Wrapping ===
+@module Wrapping
+@library
+
+// === ROOT/tests/ui/codegen/lowering/solar_safe_unchecked.sol:Base ===
+@module Base
+fn @decrement(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = sub arg0, 1
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @decrement, 0
+    sstore 0, v0 !metadata(storage=slot(0))
+    ret
+}
+
+// === ROOT/tests/ui/codegen/lowering/solar_safe_unchecked.sol:Test ===
+@module Test
+fn @increment(arg0: i256) -> i256 [selector=0x7cf5dab0, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = add arg0, 1
+    ret v0
+}
+
+fn @decrement.1(arg0: i256) -> i256 [selector=0x3a9ebefd, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @decrement.6, arg0
+    ret v0
+}
+
+fn @initialized() -> i256 [selector=0x158ef93e, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @divide(arg0: i256, arg1: i256) -> i256 [selector=0xf88e9fbf, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = wrapping_div uint256, arg0, arg1
+    ret v0
+}
+
+fn @checkedIncrement(arg0: i256) -> i256 [selector=0x8bac6630, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = checked_add uint256, arg0, 1
+    ret v0
+}
+
+fn @arrayAt(arg0: i256) -> i256 [selector=0x58a592be, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    v1 = mload v0
+    v2 = lt arg0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = shl arg0, 5
+    v5 = ptradd v0, v4
+    v6 = ptradd v5, 32
+    v7 = mload v6
+    ret v7
+}
+
+fn @decrement.6(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = sub arg0, 1
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @decrement.6, 0
+    sstore 0, v0 !metadata(storage=slot(0))
+    ret
+}

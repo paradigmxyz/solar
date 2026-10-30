@@ -1,0 +1,162 @@
+// === ROOT/tests/ui/codegen/mir/optimize-function/loop_unroll.sol:Mixed ===
+@module Mixed
+@phase lowered
+@types
+  struct0: {i256, i256, i256}
+
+fn @plain(arg0: i256, arg1: i256) -> i256 [pure] {
+  bb0:
+    v37 = lt arg1, 4
+    jumpi v37, bb2, bb1
+  bb1:
+    v101 = add arg0, 0
+    v102 = calldataload v101
+    v103 = byte 0, v102
+    v104 = or 0, v103
+    v109 = shl v104, 8
+    v110 = and v109, 0xffffffff
+    v111 = add arg0, 1
+    v112 = calldataload v111
+    v113 = byte 0, v112
+    v114 = or v110, v113
+    v119 = shl v114, 8
+    v120 = and v119, 0xffffffff
+    v121 = add arg0, 2
+    v122 = calldataload v121
+    v123 = byte 0, v122
+    v124 = or v120, v123
+    v129 = shl v124, 8
+    v130 = and v129, 0xffffffff
+    v131 = add arg0, 3
+    v132 = calldataload v131
+    v133 = byte 0, v132
+    v134 = or v130, v133
+    ret v134
+  bb2:
+    v57 = lt 0, arg1
+    v68 = lt 1, arg1
+    v136 = and v57, v68
+    v79 = lt 2, arg1
+    v137 = and v136, v79
+    jumpi v137, bb4, bb3
+  bb4:
+    jump bb3
+  bb3:
+    tail_call @revert_stub
+}
+
+fn @fast(arg0: i256, arg1: i256) -> i256 [pure] {
+  bb0:
+    v37 = lt arg1, 4
+    jumpi v37, bb2, bb1
+  bb1:
+    v101 = add arg0, 0
+    v102 = calldataload v101
+    v103 = byte 0, v102
+    v104 = or 0, v103
+    v109 = shl v104, 7
+    v110 = and v109, 0xffffffff
+    v111 = add arg0, 1
+    v112 = calldataload v111
+    v113 = byte 0, v112
+    v114 = or v110, v113
+    v119 = shl v114, 7
+    v120 = and v119, 0xffffffff
+    v121 = add arg0, 2
+    v122 = calldataload v121
+    v123 = byte 0, v122
+    v124 = or v120, v123
+    v129 = shl v124, 7
+    v130 = and v129, 0xffffffff
+    v131 = add arg0, 3
+    v132 = calldataload v131
+    v133 = byte 0, v132
+    v134 = or v130, v133
+    ret v134
+  bb2:
+    v57 = lt 0, arg1
+    v68 = lt 1, arg1
+    v136 = and v57, v68
+    v79 = lt 2, arg1
+    v137 = and v136, v79
+    jumpi v137, bb4, bb3
+  bb4:
+    jump bb3
+  bb3:
+    tail_call @revert_stub
+}
+
+fn @small(arg0: i256, arg1: i256) -> i256 [optimize=size, pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb5: v28]
+    v2 = phi [bb0: 0], [bb5: v20]
+    v3 = lt v2, 4
+    jumpi v3, bb3, bb2
+  bb2:
+    ret v1
+  bb3:
+    v25 = shl v1, 6
+    v26 = and v25, 0xffffffff
+    v7 = lt v2, arg1
+    jumpi v7, bb5, bb4
+  bb4:
+    tail_call @revert_stub
+  bb5:
+    v12 = add arg0, v2
+    v13 = calldataload v12
+    v14 = byte 0, v13
+    v28 = or v26, v14
+    v20 = add v2, 1
+    jump bb1
+}
+
+fn @run() [selector=0x3a276523, abi_wrapper, pure] {
+  bb0:
+    v6 = calldatasize
+    v7 = lt v6, 36
+    v8 = calldataload 4
+    v9 = add v8, 4
+    v11 = sub v6, 36
+    v12 = gt v8, v11
+    v13 = calldataload v9
+    v14 = add v9, 32
+    v15 = sub v6, v14
+    v16 = gt v13, v15
+    v17 = or v12, v16
+    v36 = or v7, v17
+    jumpi v36, bb1, bb2
+  bb2:
+    v0 = icall @plain, v14, v13
+    v1 = icall @fast, v14, v13
+    v2 = icall @small, v14, v13
+    mstore 0, v0
+    mstore 32, v1
+    mstore 64, v2
+    returndata 0, 96
+  bb1:
+    revert 0, 0
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0x3a276523 => bb2]
+  bb2:
+    tail_call @run
+  bb3:
+    revert 0, 0
+}

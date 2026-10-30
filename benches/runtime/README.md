@@ -185,8 +185,8 @@ targets and features, record the build command, and freeze the baseline binary b
 targets.
 
 Calls with `comparison_exclusion_reason` still run and keep raw gas and failures in `results.json`;
-reports sum only calls eligible on both sides and list excluded gas and reasons apart. This excludes
-the upstream LibString memory brutalizer, whose workload depends on gas and contract bytecode. Older
+reports sum only calls eligible on both sides and list excluded gas and reasons apart. LibString's
+memory stress uses a fixed workload, so its calls are eligible too. Older
 baselines use the candidate's exclusions; two old reports without this metadata keep their totals.
 
 ## Comparing local builds
@@ -315,11 +315,16 @@ bounds-check costs the original six-function profile missed; keep them beside th
 conversion calls. Byte conversion covers empty input and lengths 1, 31, 32, 33, 64, and 65 in both
 prefix modes; ASCII differential calls put high-bit bytes at the first byte, a word boundary, and
 the last byte. These checks dirty nearby memory and verify the helper restores its temporary writes,
-so their gas includes upstream memory brutalization and assertion setup, not the encoder alone. The
-brutalizer seeds a pseudorandom memory offset from `gas()` and copies `codesize()` bytes, so new
-generated code can pick a costlier stress path even when the library gets cheaper: keep those
-per-call changes visible, not summed as library cost. They are separate from the fixed hex and
-exhaustive single-byte workloads, so aggregates cannot hide the original gaps.
+so their gas includes memory stress and assertion setup, not the encoder alone. For this case only,
+the runner replaces the pinned `_brutalizeMemory` test helper with
+[`FairBrutalizer.sol`](../../testdata/runtime/FairBrutalizer.sol). It dirties scratch space and sixteen
+words at the free memory pointer with a fixed, nonuniform pattern, without changing the pointer or
+the zero slot. This avoids the upstream helper's gas-dependent offsets and code-size-dependent
+copies. Every compiler receives the same patched source; the library and its assertions stay
+unchanged, and the runner rejects an unexpected upstream helper body. Whole-project Solady builds
+and the other runtime cases keep their original sources. Rebuild baselines from before this patch:
+their input fingerprints differ and are not comparable. Keep these per-call results beside the
+fixed hex and exhaustive single-byte workloads, so aggregates cannot hide the original gaps.
 
 `solady-algorithms` uses [`Algorithms.sol`](../../testdata/runtime/Algorithms.sol) with unchanged
 pinned LibString, LibSort, and Base64. Its 85 calls cover unsigned decimal digit boundaries, signed

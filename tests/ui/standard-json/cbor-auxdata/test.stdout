@@ -1,0 +1,129 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "Child": {
+        "evm": {
+          "deployedBytecode": {
+            "cborAuxdata": {
+              "A.sol:Child": [
+                {
+                  "offset": 40,
+                  "value": "0xa2646970667358221220755284d59e8444598167041099f020163c7ebe81d7636aa42ef59d9bcaa49bcc65736f6c6172430002000034"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "C": {
+        "evm": {
+          "bytecode": {
+            "linkReferences": {
+              "A.sol": {
+                "L": [
+                  {
+                    "start": 89,
+                    "length": 20
+                  }
+                ]
+              }
+            },
+            "cborAuxdata": {
+              "A.sol:Child": [
+                {
+                  "offset": 428,
+                  "value": "0xa2646970667358221220755284d59e8444598167041099f020163c7ebe81d7636aa42ef59d9bcaa49bcc65736f6c6172430002000034"
+                },
+                {
+                  "offset": 522,
+                  "value": "0xa2646970667358221220755284d59e8444598167041099f020163c7ebe81d7636aa42ef59d9bcaa49bcc65736f6c6172430002000034"
+                }
+              ],
+              "A.sol:C": [
+                {
+                  "offset": 577,
+                  "value": "0xa264697066735822122003753e84d6d2605cc1e11e0ac04246cafc5e54a0705b935c94e24f612fd1b85b65736f6c6172430002000034"
+                }
+              ]
+            }
+          },
+          "deployedBytecode": {
+            "immutableReferences": {
+              "12": [
+                {
+                  "start": 125,
+                  "length": 32
+                }
+              ]
+            },
+            "cborAuxdata": {
+              "A.sol:Child": [
+                {
+                  "offset": 397,
+                  "value": "0xa2646970667358221220755284d59e8444598167041099f020163c7ebe81d7636aa42ef59d9bcaa49bcc65736f6c6172430002000034"
+                },
+                {
+                  "offset": 491,
+                  "value": "0xa2646970667358221220755284d59e8444598167041099f020163c7ebe81d7636aa42ef59d9bcaa49bcc65736f6c6172430002000034"
+                }
+              ],
+              "A.sol:C": [
+                {
+                  "offset": 546,
+                  "value": "0xa264697066735822122003753e84d6d2605cc1e11e0ac04246cafc5e54a0705b935c94e24f612fd1b85b65736f6c6172430002000034"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "D": {
+        "evm": {
+          "deployedBytecode": {
+            "cborAuxdata": {
+              "A.sol:Child": [
+                {
+                  "offset": 494,
+                  "value": "0xa2646970667358221220755284d59e8444598167041099f020163c7ebe81d7636aa42ef59d9bcaa49bcc65736f6c6172430002000034"
+                },
+                {
+                  "offset": 588,
+                  "value": "0xa2646970667358221220755284d59e8444598167041099f020163c7ebe81d7636aa42ef59d9bcaa49bcc65736f6c6172430002000034"
+                }
+              ],
+              "A.sol:C": [
+                {
+                  "offset": 643,
+                  "value": "0xa264697066735822122003753e84d6d2605cc1e11e0ac04246cafc5e54a0705b935c94e24f612fd1b85b65736f6c6172430002000034"
+                }
+              ],
+              "A.sol:D": [
+                {
+                  "offset": 698,
+                  "value": "0xa264697066735822122027fb060d02ea2452c35ee9f5cc72c4cd3cbfae28382e30c2b22272674b65723965736f6c6172430002000034"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

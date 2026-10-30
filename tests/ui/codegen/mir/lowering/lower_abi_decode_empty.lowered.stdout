@@ -28,6 +28,9 @@
 +     jumpi v5, bb1, bb2
 +   bb2:
 +     v6 = mload v1
++     v7 = eq 1, 0
++     jumpi v7, bb1, bb3
++   bb3:
 +     ret v6
 +   bb1:
 +     revert 0, 0

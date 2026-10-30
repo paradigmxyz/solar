@@ -1,0 +1,47 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "evm": {
+          "bytecode": {
+            "cborAuxdata": {
+              "A.sol:A": [
+                {
+                  "offset": 133,
+                  "value": "0xa165736f6c617243000200000b"
+                }
+              ]
+            }
+          },
+          "deployedBytecode": {
+            "cborAuxdata": {
+              "A.sol:A": [
+                {
+                  "offset": 116,
+                  "value": "0xa165736f6c617243000200000b"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

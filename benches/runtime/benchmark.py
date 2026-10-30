@@ -63,6 +63,11 @@ CAST_GAS_LIMIT = "80000000"
 CAST_TRACE_TIMEOUT = 120
 GAS_KINDS_TRACER = Path(__file__).with_name("gas_kinds_tracer.js")
 RUNTIME_FIXTURES = ROOT / "fixtures/runtime/RuntimeFixtures.sol"
+FAIR_BRUTALIZER = REPOSITORY_ROOT / "testdata/runtime/FairBrutalizer.sol"
+SOLADY_BRUTALIZER_SOURCE = "test/utils/Brutalizer.sol"
+SOLADY_BRUTALIZER_SHA256 = (
+    "a56b5ce04f3e172648ef4973c38faff66c4dd5485d4f57407a504a98ea8cc2a0"
+)
 ARTIFACT_DUMP_KINDS = (
     "mir",
     "evm-ir",
@@ -409,6 +414,7 @@ def compiler_input(
                 test_case.contract_name,
                 test_case.settings_profile,
                 test_case.source_code,
+                test_case.fair_memory,
             )
             timeout = 180
     else:
@@ -595,9 +601,14 @@ def project_standard_json_input(
     contract_name: str,
     settings_profile: str = "",
     source_code: str | None = None,
+    fair_memory: bool = False,
 ) -> str:
     path = PROJECTS_ROOT / project_file
     project = load_project(path)
+    if fair_memory:
+        if project_file != "solady-0.1.26.json.gz":
+            raise ValueError("fair memory stress requires the pinned Solady project")
+        project = with_fair_solady_memory(project)
     if source_code is not None:
         # Keep the pinned archive cache intact when adding a benchmark wrapper.
         project = {
@@ -629,6 +640,38 @@ def project_standard_json_input(
         "settings": settings,
     }
     return json.dumps(payload)
+
+
+def brutalizer_function(content: str) -> str:
+    """Extracts the one helper whose complete pinned body is checked before patching."""
+    header = "    function _brutalizeMemory("
+    if content.count(header) != 1:
+        raise ValueError("expected one Solady memory brutalizer")
+    start = content.index(header)
+    end = content.index("\n    }", start) + len("\n    }")
+    return content[start:end]
+
+
+def with_fair_solady_memory(project: dict[str, Any]) -> dict[str, Any]:
+    """Replaces only the pinned test helper; production code and assertions stay upstream."""
+    sources = project["sources"]
+    original = sources[SOLADY_BRUTALIZER_SOURCE]["content"]
+    function = brutalizer_function(original)
+    if hashlib.sha256(function.encode()).hexdigest() != SOLADY_BRUTALIZER_SHA256:
+        raise ValueError(
+            "pinned Solady memory brutalizer changed; review the fair patch"
+        )
+    replacement = brutalizer_function(FAIR_BRUTALIZER.read_text())
+    return {
+        **project,
+        "sources": {
+            **sources,
+            SOLADY_BRUTALIZER_SOURCE: {
+                **sources[SOLADY_BRUTALIZER_SOURCE],
+                "content": original.replace(function, replacement, 1),
+            },
+        },
+    }
 
 
 LONG_COMPILE_CUTOFF_SECONDS = 10.0
@@ -1965,6 +2008,8 @@ def source_links(test_case: TestCase) -> list[dict[str, str]]:
         paths.append(str(test_case.project_path.relative_to(REPOSITORY_ROOT)))
     if test_case.source_path:
         paths.append(test_case.source_path)
+    if test_case.fair_memory:
+        paths.append(str(FAIR_BRUTALIZER.relative_to(REPOSITORY_ROOT)))
     if not paths:
         paths.append("benches/runtime/cases.py")
     links = [

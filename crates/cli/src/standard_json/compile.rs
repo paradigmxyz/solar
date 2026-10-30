@@ -2,11 +2,11 @@
 
 use super::{
     data::{
-        BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, DebugInfoComponent,
-        DebugSettings, EthdebugOutput, EvmOutput, FxIndexMap, MetadataHash, MetadataSettings,
-        OffsetLength, OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings,
-        SourceOutput, StandardJsonReadCallback, optimizer_settings, print_standard_json_stats,
-        strip_json_comments,
+        BytecodeOutput, CborAuxdata, CompilerInput, CompilerOutput, ContractOutput,
+        DebugInfoComponent, DebugSettings, EthdebugOutput, EvmOutput, FxIndexMap, MetadataHash,
+        MetadataSettings, OffsetLength, OutputSelection, OutputSelectionFlags, ReadCallbackResult,
+        Settings, SourceOutput, StandardJsonReadCallback, optimizer_settings,
+        print_standard_json_stats, strip_json_comments,
     },
     metadata::{Metadata, source_name},
 };
@@ -19,7 +19,7 @@ use serde_json::json;
 use solar_codegen::{ContractArtifact, ContractSelection, ImmutableReference, RuntimeDataFn};
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, LibraryAddress,
-    OptimizationMode, RevertStrings,
+    OptimizationMode, RevertStrings, UnstableOpts,
 };
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{
@@ -210,6 +210,7 @@ fn compile(
         metadata,
         libraries,
         debug,
+        solar,
     } = &settings;
 
     if !metadata.append_cbor
@@ -235,6 +236,21 @@ fn compile(
     }
 
     opts.import_remappings = parsed_remappings;
+    // Like solc, Standard JSON takes the settings that change its output only from its input, so
+    // that the input and the compiler version determine the output: the command line's
+    // `--evm-version`, `--stop-after`, `--revert-strings` and `-Z` flags that change output do not
+    // apply, and `settings.solar.unstable` replaces the latter.
+    opts.evm_version = EvmVersion::default();
+    opts.stop_after = None;
+    opts.revert_strings = RevertStrings::Default;
+    match UnstableOpts::try_parse_flags(&solar.unstable) {
+        Ok(unstable) => opts.unstable.set_output_options(unstable),
+        Err(e) => {
+            let message = e.to_string();
+            let message = message.lines().next().unwrap_or_default().trim_start_matches("error:");
+            dcx.err(format!("invalid `settings.solar.unstable`: {}", message.trim())).emit();
+        }
+    }
     if let Some(version) = evm_version.as_deref() {
         match EvmVersion::from_str(version) {
             Ok(version) => opts.evm_version = version,
@@ -259,9 +275,6 @@ fn compile(
             }
         }
     }
-    // Like solc, Standard JSON never inherits the command line's `--revert-strings`; only
-    // `settings.debug.revertStrings` selects a non-default mode.
-    opts.revert_strings = RevertStrings::Default;
     if let Some(debug) = debug {
         apply_debug_settings(&dcx, opts, debug);
     }
@@ -383,9 +396,10 @@ fn compile(
                 let compilation_requested = !global_ethdebug.is_empty()
                     || contract_output_requested(gcx, output_selection, ethdebug_outputs);
                 let compilation = compilation_requested.then(|| {
-                    // Metadata settings affect the CBOR trailer independently of
-                    // the code-generation options stored in the session.
-                    let metadata_identity = alloy_primitives::keccak256(format!("{metadata:?}"));
+                    // Metadata settings and `settings.solar` affect the CBOR trailer
+                    // independently of the code-generation options stored in the session.
+                    let metadata_identity =
+                        alloy_primitives::keccak256(format!("{metadata:?}{:?}", solar.unstable));
                     make_ethdebug_compilation(gcx, Some(metadata_identity))
                 });
                 let compilation_id = compilation.as_ref().map(EthdebugCompilation::id);
@@ -580,7 +594,8 @@ fn make_contract_output<'gcx>(
         | OutputSelectionFlags::BYTECODE_OPCODES
         | OutputSelectionFlags::BYTECODE_SOURCE_MAP
         | OutputSelectionFlags::BYTECODE_LINK_REFERENCES
-        | OutputSelectionFlags::BYTECODE_ETHDEBUG;
+        | OutputSelectionFlags::BYTECODE_ETHDEBUG
+        | OutputSelectionFlags::BYTECODE_CBOR_AUXDATA;
     if output_selection.intersects(bytecode_outputs) {
         evm.bytecode = Some(make_bytecode_output(
             gcx,
@@ -597,7 +612,8 @@ fn make_contract_output<'gcx>(
         | OutputSelectionFlags::DEPLOYED_BYTECODE_SOURCE_MAP
         | OutputSelectionFlags::DEPLOYED_BYTECODE_LINK_REFERENCES
         | OutputSelectionFlags::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES
-        | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_CBOR_AUXDATA;
     if output_selection.intersects(deployed_bytecode_outputs) {
         evm.deployed_bytecode = Some(make_bytecode_output(
             gcx,
@@ -650,6 +666,11 @@ fn make_bytecode_output(
     } else {
         OutputSelectionFlags::BYTECODE_ETHDEBUG
     };
+    let cbor_auxdata_flag = if deployed {
+        OutputSelectionFlags::DEPLOYED_BYTECODE_CBOR_AUXDATA
+    } else {
+        OutputSelectionFlags::BYTECODE_CBOR_AUXDATA
+    };
     let bytecode =
         artifact.map(|artifact| if deployed { &artifact.runtime } else { &artifact.deployment });
 
@@ -685,6 +706,27 @@ fn make_bytecode_output(
             }
             _ => String::new(),
         });
+    }
+    if output_selection.contains(cbor_auxdata_flag) {
+        // Codegen records where it places each trailer, `INVALID` followed by the CBOR auxdata, and
+        // which contract it belongs to, so code or data that only looks like a trailer is never
+        // reported.
+        let trailers = artifact.map_or(&[][..], |artifact| {
+            if deployed { &artifact.runtime_trailers } else { &artifact.deployment_trailers }
+        });
+        let mut by_contract = FxIndexMap::<String, Vec<CborAuxdata>>::default();
+        for trailer in trailers {
+            let offset = trailer.range.start + 1;
+            let value = &bytecode.expect("trailers imply bytecode")[offset..trailer.range.end];
+            let value = alloy_primitives::hex::encode_prefixed(value);
+            for contract in &trailer.contracts {
+                by_contract
+                    .entry(contract.as_str().to_string())
+                    .or_default()
+                    .push(CborAuxdata { offset, value: value.clone() });
+            }
+        }
+        output.cbor_auxdata = Some(by_contract);
     }
     if output_selection.contains(link_references_flag) {
         let references = artifact.into_iter().flat_map(|artifact| {

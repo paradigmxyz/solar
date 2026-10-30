@@ -35,7 +35,7 @@ bb5:
   calldataload
   push bb7
   jump bb15
-bb15:
+bb15 [ret=0, inputs=1, outputs=1]:
   push 4
   calldataload
   push 4

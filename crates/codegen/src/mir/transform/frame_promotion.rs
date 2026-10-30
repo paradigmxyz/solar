@@ -22,7 +22,6 @@ use crate::mir::{
 };
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
-    index::{IndexVec, index_vec},
     map::FxHashMap,
 };
 
@@ -40,68 +39,12 @@ impl MirPass for FrameSlotPromotion {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
-            FrameSlotPromoter::new().run(func).total() != 0
-        })
-    }
-}
-
-/// Statistics for one frame promotion run.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-struct FramePromotionStats {
-    /// Number of distinct compiler-local slots promoted.
-    slots_promoted: usize,
-    /// Number of local-slot loads replaced by SSA values.
-    loads_promoted: usize,
-    /// Number of local-slot stores removed.
-    stores_promoted: usize,
-    /// Number of phi nodes inserted.
-    phis_inserted: usize,
-}
-
-/// A compiler-owned memory slot promoted to SSA.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-enum PromotedSlot {
-    /// Slot addressed relative to the internal-call frame pointer.
-    InternalFrame(u64),
-    /// Slot addressed in the external entry's compiler-owned low-memory locals.
-    ExternalLocal(u64),
-    /// A constant word within a non-escaping memory object.
-    Object(ValueId, u64),
-}
-
-/// Per-slot information produced by frame-slot promotion.
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct PromotedSlotSummary {
-    /// Promoted compiler-owned slot.
-    slot: PromotedSlot,
-    /// Blocks where the slot had an upward-exposed load before promotion.
-    use_blocks: Vec<BlockId>,
-    /// Blocks where the slot was defined before promotion.
-    def_blocks: Vec<BlockId>,
-    /// Blocks where SSA phis were inserted.
-    phi_blocks: Vec<BlockId>,
-    /// SSA phi values inserted for this slot.
-    phi_values: Vec<ValueId>,
-    /// Number of loads replaced by SSA values.
-    loads_promoted: usize,
-    /// Number of stores removed.
-    stores_promoted: usize,
-}
-
-impl FramePromotionStats {
-    /// Returns the total number of MIR edits made by this pass.
-    const fn total(self) -> usize {
-        self.loads_promoted + self.stores_promoted + self.phis_inserted
+        run_function_pass(module, analyses, |func, _| FrameSlotPromoter::run(func))
     }
 }
 
 /// Promotes non-escaping compiler-local slots to SSA values.
-#[derive(Debug, Default)]
-struct FrameSlotPromoter {
-    stats: FramePromotionStats,
-    summaries: Vec<PromotedSlotSummary>,
-}
+struct FrameSlotPromoter;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum PromotableSlot {
@@ -111,24 +54,9 @@ enum PromotableSlot {
     Object(ValueId, u64),
 }
 
-impl From<PromotableSlot> for PromotedSlot {
-    fn from(slot: PromotableSlot) -> Self {
-        match slot {
-            PromotableSlot::InternalFrame(offset) => Self::InternalFrame(offset),
-            PromotableSlot::ExternalLocal(addr) => Self::ExternalLocal(addr),
-            PromotableSlot::Object(object, slot) => Self::Object(object, slot),
-        }
-    }
-}
-
+/// A load or store of a promotable slot.
 #[derive(Clone, Copy, Debug)]
-struct SlotLoad {
-    block: BlockId,
-    inst: InstId,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct SlotStore {
+struct SlotAccess {
     block: BlockId,
     inst: InstId,
 }
@@ -138,9 +66,8 @@ pub(super) struct SlotAccessInfo {
     accesses: FxHashMap<InstId, Option<ValueId>>,
     resets: GrowableBitSet<InstId>,
     slot: PromotableSlot,
-    loads: Vec<SlotLoad>,
-    stores: Vec<SlotStore>,
-    use_blocks: DenseBitSet<BlockId>,
+    loads: Vec<SlotAccess>,
+    stores: Vec<SlotAccess>,
     def_blocks: DenseBitSet<BlockId>,
     access_blocks: DenseBitSet<BlockId>,
 }
@@ -153,7 +80,6 @@ impl SlotAccessInfo {
             slot,
             loads: Vec::new(),
             stores: Vec::new(),
-            use_blocks: DenseBitSet::new_empty(block_count),
             def_blocks: DenseBitSet::new_empty(block_count),
             access_blocks: DenseBitSet::new_empty(block_count),
         }
@@ -161,14 +87,13 @@ impl SlotAccessInfo {
 
     pub(super) fn note_load(&mut self, block: BlockId, inst: InstId) {
         self.accesses.insert(inst, None);
-        self.loads.push(SlotLoad { block, inst });
-        self.use_blocks.insert(block);
+        self.loads.push(SlotAccess { block, inst });
         self.access_blocks.insert(block);
     }
 
     pub(super) fn note_store(&mut self, block: BlockId, inst: InstId, value: ValueId) {
         self.accesses.insert(inst, Some(value));
-        self.stores.push(SlotStore { block, inst });
+        self.stores.push(SlotAccess { block, inst });
         self.def_blocks.insert(block);
         self.access_blocks.insert(block);
     }
@@ -181,14 +106,6 @@ impl SlotAccessInfo {
 
     pub(super) fn object(object: ValueId, slot: u64, blocks: usize) -> Self {
         Self::new(PromotableSlot::Object(object, slot), blocks)
-    }
-
-    fn sorted_use_blocks(&self) -> Vec<BlockId> {
-        sorted_blocks(&self.use_blocks)
-    }
-
-    fn sorted_def_blocks(&self) -> Vec<BlockId> {
-        sorted_blocks(&self.def_blocks)
     }
 }
 
@@ -208,58 +125,29 @@ struct SlotSsaBuilder<'a> {
     casts: Vec<(InstId, ValueId)>,
     dead: GrowableBitSet<InstId>,
     phis: FxHashMap<BlockId, PendingPhi>,
-    /// Blocks where this slot is live-in. Used to place phis only where the slot
-    /// is actually live (pruned SSA): forcing a phi at a multi-predecessor block
-    /// where the slot is dead can chain back to the entry with no reaching value
-    /// and spuriously abort the whole promotion.
-    live_in: DenseBitSet<BlockId>,
-    /// Blocks selected by pruned iterated-dominance-frontier phi placement.
-    phi_blocks: DenseBitSet<BlockId>,
     failed: bool,
-    loads_promoted: usize,
-    stores_promoted: usize,
-}
-
-fn sorted_blocks(blocks: &DenseBitSet<BlockId>) -> Vec<BlockId> {
-    blocks.iter().collect()
 }
 
 impl FrameSlotPromoter {
-    /// Creates a new compiler-local-slot promoter.
-    fn new() -> Self {
-        Self::default()
-    }
-
-    /// Runs compiler-local-slot promotion on a function.
-    fn run(&mut self, func: &mut Function) -> FramePromotionStats {
-        self.stats = FramePromotionStats::default();
-        self.summaries.clear();
-
+    /// Runs compiler-local-slot promotion on a function, returning whether any slot was promoted.
+    fn run(func: &mut Function) -> bool {
         if !Self::may_promote(func) {
-            return self.stats;
+            return false;
         }
 
         let cfg = CfgInfo::new(func);
         let aa = AliasAnalysis::new(func);
-        let slots = Self::collect_promotable_slots(func, &cfg, &aa);
-        if slots.is_empty() {
-            return self.stats;
-        };
-
-        for info in slots {
-            let mut builder = SlotSsaBuilder::new(&info, &cfg, func.num_insts());
+        let mut promoted = false;
+        for info in Self::collect_promotable_slots(func, &cfg, &aa) {
+            let mut builder = SlotSsaBuilder::new(&info, &cfg, func);
             if builder.run(func) {
-                self.stats.slots_promoted += 1;
-                self.stats.loads_promoted += builder.loads_promoted;
-                self.stats.stores_promoted += builder.stores_promoted;
-                self.stats.phis_inserted += builder.phis.len();
-                self.summaries.push(builder.summary());
+                promoted = true;
                 builder.apply(func);
                 aa.clear_cached_addresses();
             }
         }
 
-        self.stats
+        promoted
     }
 
     /// Only internal-frame slots and the external entry's locals promote, and both need a
@@ -287,24 +175,18 @@ impl FrameSlotPromoter {
 
             for &inst_id in &block.instructions {
                 let kind = &func.inst(inst_id).kind;
-                match *kind {
-                    InstKind::Load(addr, PtrLocation::Memory) => {
-                        if let Some(slot) = Self::promotable_slot(func, aa, addr) {
-                            accesses
-                                .entry(slot)
-                                .or_insert_with(|| SlotAccessInfo::new(slot, func.blocks.len()))
-                                .note_load(block_id, inst_id);
-                        }
-                    }
-                    InstKind::Store(addr, value, PtrLocation::Memory) => {
-                        if let Some(slot) = Self::promotable_slot(func, aa, addr) {
-                            accesses
-                                .entry(slot)
-                                .or_insert_with(|| SlotAccessInfo::new(slot, func.blocks.len()))
-                                .note_store(block_id, inst_id, value);
-                        }
-                    }
-                    _ => {}
+                let (addr, stored) = match *kind {
+                    InstKind::Load(addr, PtrLocation::Memory) => (addr, None),
+                    InstKind::Store(addr, value, PtrLocation::Memory) => (addr, Some(value)),
+                    _ => continue,
+                };
+                let Some(slot) = Self::promotable_slot(func, aa, addr) else { continue };
+                let info = accesses
+                    .entry(slot)
+                    .or_insert_with(|| SlotAccessInfo::new(slot, func.blocks.len()));
+                match stored {
+                    Some(value) => info.note_store(block_id, inst_id, value),
+                    None => info.note_load(block_id, inst_id),
                 }
             }
         }
@@ -358,7 +240,6 @@ impl FrameSlotPromoter {
         aa: &AliasAnalysis,
         base: ValueId,
         offset: ValueId,
-        _depth: usize,
     ) -> Option<u64> {
         let base = Self::internal_frame_offset(func, aa, base)?;
         base.checked_add(func.value_u64(offset)?)
@@ -379,47 +260,31 @@ impl FrameSlotPromoter {
             return false;
         }
 
-        for block in func.blocks.iter() {
-            for &inst_id in &block.instructions {
-                if Self::inst_may_observe_external_slot(
-                    func,
-                    aa,
-                    &func.inst(inst_id).kind,
-                    slot_addr,
-                ) {
-                    return false;
-                }
-            }
-            if let Some(term) = &block.terminator
-                && Self::terminator_may_observe_external_slot(func, aa, term, slot_addr)
-            {
-                return false;
-            }
-        }
-
-        true
+        Self::none_observe(
+            func,
+            |kind| Self::inst_may_observe_external_slot(func, aa, kind, slot_addr),
+            |term| Self::terminator_may_observe_external_slot(func, aa, term, slot_addr),
+        )
     }
 
     fn internal_frame_slot_safe(func: &Function, aa: &AliasAnalysis, slot_offset: u64) -> bool {
-        for block in func.blocks.iter() {
-            for &inst_id in &block.instructions {
-                if Self::inst_may_observe_internal_slot(
-                    func,
-                    aa,
-                    &func.inst(inst_id).kind,
-                    slot_offset,
-                ) {
-                    return false;
-                }
-            }
-            if let Some(term) = &block.terminator
-                && Self::terminator_may_observe_internal_slot(func, aa, term, slot_offset)
-            {
-                return false;
-            }
-        }
+        Self::none_observe(
+            func,
+            |kind| Self::inst_may_observe_internal_slot(func, aa, kind, slot_offset),
+            |term| Self::terminator_may_observe_internal_slot(func, aa, term, slot_offset),
+        )
+    }
 
-        true
+    /// Returns whether no instruction or terminator of `func` satisfies its observation predicate.
+    fn none_observe(
+        func: &Function,
+        mut inst_observes: impl FnMut(&InstKind) -> bool,
+        mut term_observes: impl FnMut(&Terminator) -> bool,
+    ) -> bool {
+        func.blocks.iter().all(|block| {
+            block.instructions.iter().all(|&inst_id| !inst_observes(&func.inst(inst_id).kind))
+                && block.terminator.as_ref().is_none_or(|term| !term_observes(term))
+        })
     }
 
     fn inst_may_observe_internal_slot(
@@ -450,11 +315,11 @@ impl FrameSlotPromoter {
                         })
             }
             InstKind::Load(addr, PtrLocation::Memory) => {
-                !Self::is_exact_internal_slot_access(func, aa, addr, slot_offset)
+                Self::internal_frame_offset(func, aa, addr) != Some(slot_offset)
                     && Self::internal_frame_range_may_overlap(func, aa, addr, Some(32), slot_offset)
             }
             InstKind::Store(addr, value, PtrLocation::Memory) => {
-                (!Self::is_exact_internal_slot_access(func, aa, addr, slot_offset)
+                (Self::internal_frame_offset(func, aa, addr) != Some(slot_offset)
                     && Self::internal_frame_range_may_overlap(
                         func,
                         aa,
@@ -465,8 +330,8 @@ impl FrameSlotPromoter {
                     || Self::internal_frame_offset(func, aa, value) == Some(slot_offset)
             }
             InstKind::Add(a, b) => {
-                let exact_frame_addr = Self::internal_frame_add_offset(func, aa, a, b, 0)
-                    .or_else(|| Self::internal_frame_add_offset(func, aa, b, a, 0))
+                let exact_frame_addr = Self::internal_frame_add_offset(func, aa, a, b)
+                    .or_else(|| Self::internal_frame_add_offset(func, aa, b, a))
                     .is_some();
                 !exact_frame_addr
                     && kind.operands().iter().any(|&value| {
@@ -541,7 +406,7 @@ impl FrameSlotPromoter {
             }
             InstKind::Load(addr, PtrLocation::Memory)
             | InstKind::Store(addr, _, PtrLocation::Memory) => {
-                !Self::is_exact_external_slot_access(func, aa, addr, slot_addr)
+                Self::external_local_addr(func, aa, addr) != Some(slot_addr)
                     && Self::external_range_reaches_slot(func, aa, addr, Some(32), slot_addr)
             }
             // Internal callees address their own frame through the frame
@@ -619,24 +484,6 @@ impl FrameSlotPromoter {
         }
     }
 
-    fn is_exact_external_slot_access(
-        func: &Function,
-        aa: &AliasAnalysis,
-        addr: ValueId,
-        slot_addr: u64,
-    ) -> bool {
-        Self::external_local_addr(func, aa, addr) == Some(slot_addr)
-    }
-
-    fn is_exact_internal_slot_access(
-        func: &Function,
-        aa: &AliasAnalysis,
-        addr: ValueId,
-        slot_offset: u64,
-    ) -> bool {
-        Self::internal_frame_offset(func, aa, addr) == Some(slot_offset)
-    }
-
     fn internal_frame_range_may_overlap(
         func: &Function,
         aa: &AliasAnalysis,
@@ -684,7 +531,7 @@ pub(super) fn promote_object_slots(func: &mut Function, slots: &[SlotAccessInfo]
     let snapshot = func.clone();
     let mut builders = Vec::new();
     for info in slots {
-        let mut builder = SlotSsaBuilder::new(info, &cfg, func.num_insts());
+        let mut builder = SlotSsaBuilder::new(info, &cfg, func);
         if !builder.run(func) {
             // Discard speculative phi allocations when a reaching definition is absent.
             *func = snapshot;
@@ -711,19 +558,15 @@ pub(super) fn promote_object_slots(func: &mut Function, slots: &[SlotAccessInfo]
 }
 
 impl<'a> SlotSsaBuilder<'a> {
-    fn new(info: &'a SlotAccessInfo, cfg: &'a CfgInfo, instruction_count: usize) -> Self {
+    fn new(info: &'a SlotAccessInfo, cfg: &'a CfgInfo, func: &Function) -> Self {
         Self {
             info,
             cfg,
             replacements: FxHashMap::default(),
             casts: Vec::new(),
-            dead: GrowableBitSet::with_capacity(instruction_count),
+            dead: GrowableBitSet::with_capacity(func.num_insts()),
             phis: FxHashMap::default(),
-            live_in: DenseBitSet::new_empty(info.use_blocks.domain_size()),
-            phi_blocks: DenseBitSet::new_empty(info.use_blocks.domain_size()),
             failed: false,
-            loads_promoted: 0,
-            stores_promoted: 0,
         }
     }
 
@@ -736,27 +579,11 @@ impl<'a> SlotSsaBuilder<'a> {
     /// - `kill` (def): the block stores the slot, overwriting any entry value.
     /// - `live_in(b) = gen(b) ∨ (live_out(b) ∧ ¬kill(b))`, with `live_out(b) = ⋁ live_in(succ)`.
     ///
-    /// Phis are only created at live-in blocks (pruned SSA).
-    fn summary(&self) -> PromotedSlotSummary {
-        let mut phi_blocks = sorted_blocks(&self.phi_blocks);
-        phi_blocks.retain(|block| self.phis.contains_key(block));
-
-        let mut phi_values: Vec<_> = self.phis.values().map(|phi| phi.value).collect();
-        phi_values.sort_unstable_by_key(|value| value.index());
-
-        PromotedSlotSummary {
-            slot: self.info.slot.into(),
-            use_blocks: self.info.sorted_use_blocks(),
-            def_blocks: self.info.sorted_def_blocks(),
-            phi_blocks,
-            phi_values,
-            loads_promoted: self.loads_promoted,
-            stores_promoted: self.stores_promoted,
-        }
-    }
-
+    /// Phis are only created at live-in blocks (pruned SSA): forcing a phi at a multi-predecessor
+    /// block where the slot is dead can chain back to the entry with no reaching value and
+    /// spuriously abort the whole promotion.
     fn compute_live_in(&self, func: &Function) -> DenseBitSet<BlockId> {
-        let mut gen_set = DenseBitSet::new_empty(func.blocks.len());
+        let mut live_in = DenseBitSet::new_empty(func.blocks.len());
         let mut kill = DenseBitSet::new_empty(func.blocks.len());
 
         for block in func.blocks.indices() {
@@ -769,7 +596,7 @@ impl<'a> SlotSsaBuilder<'a> {
                 saw_store |= self.info.resets.contains(inst_id);
                 match self.info.accesses.get(&inst_id) {
                     Some(None) if !saw_store => {
-                        gen_set.insert(block);
+                        live_in.insert(block);
                     }
                     Some(Some(_)) => {
                         saw_store = true;
@@ -782,22 +609,12 @@ impl<'a> SlotSsaBuilder<'a> {
             }
         }
 
-        // Backward fixpoint. `live_in` only grows, so a block already in the set
-        // can be skipped on later rounds.
-        let mut live_in = gen_set;
-        let mut changed = true;
-        while changed {
-            changed = false;
-            for block in func.blocks.indices() {
-                if !self.cfg.is_reachable(block) || live_in.contains(block) || kill.contains(block)
-                {
-                    continue;
-                }
-                let live_out =
-                    self.cfg.successors(block).iter().any(|&succ| live_in.contains(succ));
-                if live_out {
-                    live_in.insert(block);
-                    changed = true;
+        // Backward worklist from the upward-exposed uses, stopping at killing blocks.
+        let mut worklist: Vec<_> = live_in.iter().collect();
+        while let Some(block) = worklist.pop() {
+            for &pred in self.cfg.predecessors(block) {
+                if self.cfg.is_reachable(pred) && !kill.contains(pred) && live_in.insert(pred) {
+                    worklist.push(pred);
                 }
             }
         }
@@ -809,13 +626,11 @@ impl<'a> SlotSsaBuilder<'a> {
         func: &Function,
         live_in: &DenseBitSet<BlockId>,
     ) -> DenseBitSet<BlockId> {
-        let frontiers = self.compute_dominance_frontiers(func);
         let mut phi_blocks = DenseBitSet::new_empty(func.blocks.len());
-        let mut worklist = sorted_blocks(&self.info.def_blocks);
+        let mut worklist: Vec<_> = self.info.def_blocks.iter().collect();
 
         while let Some(block) = worklist.pop() {
-            let Some(frontier) = frontiers.get(block) else { continue };
-            for &frontier_block in frontier {
+            for &frontier_block in self.cfg.dominance_frontier(block) {
                 if !live_in.contains(frontier_block) || !phi_blocks.insert(frontier_block) {
                     continue;
                 }
@@ -826,42 +641,6 @@ impl<'a> SlotSsaBuilder<'a> {
         phi_blocks
     }
 
-    fn compute_dominance_frontiers(&self, func: &Function) -> IndexVec<BlockId, Vec<BlockId>> {
-        let mut frontiers = index_vec![Vec::new(); func.blocks.len()];
-        for block in func.blocks.indices() {
-            if !self.cfg.is_reachable(block) {
-                continue;
-            }
-
-            let preds: Vec<_> = func.blocks[block]
-                .predecessors
-                .iter()
-                .copied()
-                .filter(|&pred| self.cfg.is_reachable(pred))
-                .collect();
-            if preds.len() < 2 {
-                continue;
-            }
-
-            let Some(idom) = self.cfg.dominators().idom(block) else { continue };
-            for mut runner in preds {
-                while runner != idom {
-                    if !frontiers[runner].contains(&block) {
-                        frontiers[runner].push(block);
-                    }
-
-                    let Some(next) = self.cfg.dominators().idom(runner) else { break };
-                    if next == runner {
-                        break;
-                    }
-                    runner = next;
-                }
-            }
-        }
-
-        frontiers
-    }
-
     fn run(&mut self, func: &mut Function) -> bool {
         if self.rewrite_single_block(func) || self.failed {
             return !self.failed;
@@ -870,9 +649,8 @@ impl<'a> SlotSsaBuilder<'a> {
             return !self.failed;
         }
 
-        self.live_in = self.compute_live_in(func);
-        self.phi_blocks = self.compute_phi_blocks(func, &self.live_in);
-        for block in sorted_blocks(&self.phi_blocks) {
+        let live_in = self.compute_live_in(func);
+        for block in self.compute_phi_blocks(func, &live_in).iter() {
             self.create_phi(func, block);
         }
         self.rename_block(func, BlockId::ENTRY, None);
@@ -915,28 +693,38 @@ impl<'a> SlotSsaBuilder<'a> {
             return true;
         }
 
-        let mut current = None;
+        self.rewrite_accesses(func, block, &mut None).unwrap_or(false)
+    }
+
+    /// Rewrites the slot accesses of `block` given the reaching word `current` on entry, and
+    /// leaves the reaching word at the block end in `current`. Returns whether it rewrote any
+    /// access, or `None` when a load has no reaching word.
+    fn rewrite_accesses(
+        &mut self,
+        func: &Function,
+        block: BlockId,
+        current: &mut Option<ValueId>,
+    ) -> Option<bool> {
         let mut changed = false;
         for &inst_id in &func.blocks[block].instructions {
             if self.info.resets.contains(inst_id) {
-                current = None;
+                *current = None;
             }
             match self.info.accesses.get(&inst_id) {
                 Some(None) => {
-                    let Some(value) = current else { return false };
-                    self.replace_load(func, inst_id, value);
+                    self.replace_load(func, inst_id, (*current)?);
                     changed = true;
                 }
                 Some(Some(_)) => {
                     let value = self.store_value(func, inst_id);
-                    current = Some(mir_utils::resolve_replacement(value, &self.replacements));
+                    *current = Some(mir_utils::resolve_replacement(value, &self.replacements));
                     self.remove_store(inst_id);
                     changed = true;
                 }
                 _ => {}
             }
         }
-        changed
+        Some(changed)
     }
 
     fn rewrite_single_store(&mut self, func: &Function) -> bool {
@@ -996,7 +784,6 @@ impl<'a> SlotSsaBuilder<'a> {
             } else {
                 self.casts.push((inst_id, value));
             }
-            self.loads_promoted += 1;
         }
     }
 
@@ -1010,10 +797,9 @@ impl<'a> SlotSsaBuilder<'a> {
 
     fn remove_store(&mut self, inst_id: InstId) {
         self.dead.insert(inst_id);
-        self.stores_promoted += 1;
     }
 
-    fn rename_block(&mut self, func: &mut Function, block: BlockId, mut current: Option<ValueId>) {
+    fn rename_block(&mut self, func: &Function, block: BlockId, mut current: Option<ValueId>) {
         if !self.cfg.is_reachable(block) || self.failed {
             return;
         }
@@ -1021,27 +807,9 @@ impl<'a> SlotSsaBuilder<'a> {
             current = Some(phi.value);
         }
 
-        let instruction_count = func.blocks[block].instructions.len();
-        for index in 0..instruction_count {
-            let inst_id = func.blocks[block].instructions[index];
-            if self.info.resets.contains(inst_id) {
-                current = None;
-            }
-            match self.info.accesses.get(&inst_id) {
-                Some(None) => {
-                    let Some(value) = current else {
-                        self.failed = true;
-                        return;
-                    };
-                    self.replace_load(func, inst_id, value);
-                }
-                Some(Some(_)) => {
-                    let value = self.store_value(func, inst_id);
-                    current = Some(mir_utils::resolve_replacement(value, &self.replacements));
-                    self.remove_store(inst_id);
-                }
-                _ => {}
-            }
+        if self.rewrite_accesses(func, block, &mut current).is_none() {
+            self.failed = true;
+            return;
         }
 
         for &succ in self.cfg.successors(block) {

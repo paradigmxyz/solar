@@ -283,6 +283,9 @@ str_enum! {
         None,
         /// Tune for an interpreter, which spends time on every executed instruction.
         Interpreter,
+        /// Tune for a bytecode JIT, which resolves jump targets statically: emit no jump the JIT
+        /// cannot resolve, and unroll small loops from the default optimizer runs.
+        Jit,
     }
 }
 
@@ -303,6 +306,17 @@ impl OptimizationMode {
     #[inline]
     pub const fn is_none(self) -> bool {
         matches!(self, Self::None)
+    }
+
+    /// Returns the objective code is optimized for when `self` is the build's and `selected` the
+    /// one its source selects, as `@custom:solar-optimize` does. A selection wins over the build's
+    /// objective, `-O none` included.
+    #[inline]
+    pub const fn select(self, selected: Option<Self>) -> Self {
+        match selected {
+            Some(selected) => selected,
+            None => self,
+        }
     }
 }
 
@@ -614,6 +628,16 @@ mod tests {
 
     #[cfg(not(feature = "serde"))]
     use serde_json as _;
+
+    #[test]
+    fn selection_picks_the_objective_of_any_build() {
+        use OptimizationMode::{Gas, None, Size};
+        assert_eq!(Gas.select(Option::None), Gas);
+        assert_eq!(Gas.select(Some(Size)), Size);
+        assert_eq!(Size.select(Some(Gas)), Gas);
+        assert_eq!(None.select(Some(Size)), Size);
+        assert_eq!(None.select(Option::None), None);
+    }
 
     #[test]
     fn string_enum() {

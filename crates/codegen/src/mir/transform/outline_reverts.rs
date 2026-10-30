@@ -38,13 +38,18 @@ impl MirPass for OutlineReverts {
         "outline-reverts"
     }
 
+    fn is_contract_wide(&self) -> bool {
+        true
+    }
+
     fn run_pass(
         &self,
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        outline_reverts(module, &Target::new(gcx))
+        let target = module.target(gcx);
+        outline_reverts(module, &target)
     }
 }
 

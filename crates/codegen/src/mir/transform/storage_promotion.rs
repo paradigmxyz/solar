@@ -967,7 +967,7 @@ impl StorageScalarPromoter {
         value: ValueId,
         loop_data: &Loop,
     ) -> Option<StorageAlias> {
-        let alias = AliasAnalysis::storage_alias_for_value_at(func, value);
+        let alias = StorageAlias::for_value(func, value);
         if let Some(base) = alias.symbolic_base()
             && self.value_defined_in_loop(func, base, loop_data)
         {
@@ -992,7 +992,7 @@ impl StorageScalarPromoter {
     }
 
     fn storage_alias(&self, func: &Function, inst_id: InstId, slot: ValueId) -> StorageAlias {
-        AliasAnalysis::storage_alias_at(func, inst_id, slot)
+        func.storage_alias(inst_id, slot)
     }
 
     fn storage_may_alias(&self, first: StorageAlias, second: StorageAlias) -> bool {

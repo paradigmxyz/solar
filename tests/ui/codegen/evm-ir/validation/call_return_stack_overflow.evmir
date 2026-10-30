@@ -1,0 +1,13 @@
+// A call that leaves more words than it consumes returns above the stack limit.
+//~? ERROR: EVM IR verification failed: block 0: `call return` grows the stack to 1026 words, exceeding the limit of 1024
+@module module
+
+bb0 [stack=1020]:
+  push bb2
+  jump bb1
+
+bb1 [ret=0, inputs=1, outputs=6]:
+  jump
+
+bb2 [continuation]:
+  stop

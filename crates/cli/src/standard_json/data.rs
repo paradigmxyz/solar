@@ -93,6 +93,8 @@ pub(super) struct Settings<'a> {
     pub(super) libraries: Libraries<'a>,
     #[serde(default, deserialize_with = "deserialize_present")]
     pub(super) debug: Option<DebugSettings>,
+    #[serde(default)]
+    pub(super) solar: SolarSettings,
     //
     // Not supported.
     // #[serde(borrow, default)]
@@ -103,6 +105,15 @@ pub(super) struct Settings<'a> {
     // via_ir: Option<bool>,
     // #[serde(default)]
     // via_ssa_cfg: Option<bool>,
+}
+
+/// The Solar-only `settings.solar` object.
+#[derive(Debug, Default, Deserialize)]
+pub(super) struct SolarSettings {
+    /// Unstable flags that change output, written like `-Z` flags without the prefix, such as
+    /// `tune=interpreter`. Other flags are ignored.
+    #[serde(default)]
+    pub(super) unstable: Vec<String>,
 }
 
 /// The solc Standard JSON `settings.debug` object.
@@ -373,6 +384,8 @@ pub(super) struct BytecodeOutput {
     pub(super) link_references: Option<FxIndexMap<String, FxIndexMap<String, Vec<OffsetLength>>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) immutable_references: Option<FxIndexMap<String, Vec<OffsetLength>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) cbor_auxdata: Option<FxIndexMap<String, Vec<CborAuxdata>>>,
     //
     // Not supported.
     // #[serde(skip_serializing_if = "Option::is_none")]
@@ -391,6 +404,15 @@ pub(super) struct EthdebugOutput {
 pub(super) struct OffsetLength {
     pub(super) start: usize,
     pub(super) length: usize,
+}
+
+/// A CBOR auxdata occurrence, like an entry of the Verifier Alliance `cborAuxdata` artifact.
+#[derive(Debug, Serialize)]
+pub(super) struct CborAuxdata {
+    /// Byte offset of the CBOR map, after the `INVALID` byte that precedes it.
+    pub(super) offset: usize,
+    /// The CBOR map and its two-byte length, as `0x`-prefixed hex.
+    pub(super) value: String,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -450,6 +472,7 @@ impl<'a> OutputSelection<'a> {
 bitflags::bitflags! {
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub(super) struct OutputSelectionFlags: u64 {
+        // Sorted by output section; add new flags to their section and renumber.
         const AST = 1 << 0;
         const ABI = 1 << 1;
         const METADATA = 1 << 2;
@@ -472,16 +495,18 @@ bitflags::bitflags! {
         const BYTECODE_GENERATED_SOURCES = 1 << 19;
         const BYTECODE_LINK_REFERENCES = 1 << 20;
         const BYTECODE_ETHDEBUG = 1 << 21;
-        const DEPLOYED_BYTECODE_OBJECT = 1 << 22;
-        const DEPLOYED_BYTECODE_OPCODES = 1 << 23;
-        const DEPLOYED_BYTECODE_SOURCE_MAP = 1 << 24;
-        const DEPLOYED_BYTECODE_FUNCTION_DEBUG_DATA = 1 << 25;
-        const DEPLOYED_BYTECODE_GENERATED_SOURCES = 1 << 26;
-        const DEPLOYED_BYTECODE_LINK_REFERENCES = 1 << 27;
-        const DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES = 1 << 28;
-        const DEPLOYED_BYTECODE_ETHDEBUG = 1 << 29;
-        const ETHDEBUG_RESOURCES = 1 << 30;
-        const ETHDEBUG_COMPILATION = 1 << 31;
+        const BYTECODE_CBOR_AUXDATA = 1 << 22;
+        const DEPLOYED_BYTECODE_OBJECT = 1 << 23;
+        const DEPLOYED_BYTECODE_OPCODES = 1 << 24;
+        const DEPLOYED_BYTECODE_SOURCE_MAP = 1 << 25;
+        const DEPLOYED_BYTECODE_FUNCTION_DEBUG_DATA = 1 << 26;
+        const DEPLOYED_BYTECODE_GENERATED_SOURCES = 1 << 27;
+        const DEPLOYED_BYTECODE_LINK_REFERENCES = 1 << 28;
+        const DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES = 1 << 29;
+        const DEPLOYED_BYTECODE_ETHDEBUG = 1 << 30;
+        const DEPLOYED_BYTECODE_CBOR_AUXDATA = 1 << 31;
+        const ETHDEBUG_RESOURCES = 1 << 32;
+        const ETHDEBUG_COMPILATION = 1 << 33;
 
         const YUL = Self::IR.bits()
             | Self::IR_AST.bits()
@@ -492,14 +517,16 @@ bitflags::bitflags! {
             | Self::BYTECODE_SOURCE_MAP.bits()
             | Self::BYTECODE_FUNCTION_DEBUG_DATA.bits()
             | Self::BYTECODE_GENERATED_SOURCES.bits()
-            | Self::BYTECODE_LINK_REFERENCES.bits();
+            | Self::BYTECODE_LINK_REFERENCES.bits()
+            | Self::BYTECODE_CBOR_AUXDATA.bits();
         const DEPLOYED_BYTECODE = Self::DEPLOYED_BYTECODE_OBJECT.bits()
             | Self::DEPLOYED_BYTECODE_OPCODES.bits()
             | Self::DEPLOYED_BYTECODE_SOURCE_MAP.bits()
             | Self::DEPLOYED_BYTECODE_FUNCTION_DEBUG_DATA.bits()
             | Self::DEPLOYED_BYTECODE_GENERATED_SOURCES.bits()
             | Self::DEPLOYED_BYTECODE_LINK_REFERENCES.bits()
-            | Self::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES.bits();
+            | Self::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES.bits()
+            | Self::DEPLOYED_BYTECODE_CBOR_AUXDATA.bits();
         const EVM = Self::ASSEMBLY.bits()
             | Self::LEGACY_ASSEMBLY.bits()
             | Self::METHOD_IDENTIFIERS.bits()
@@ -566,6 +593,7 @@ impl OutputSelectionFlags {
             "evm.bytecode.generatedSources" => Self::BYTECODE_GENERATED_SOURCES,
             "evm.bytecode.linkReferences" => Self::BYTECODE_LINK_REFERENCES,
             "evm.bytecode.ethdebug" => Self::BYTECODE_ETHDEBUG,
+            "evm.bytecode.cborAuxdata" => Self::BYTECODE_CBOR_AUXDATA,
             "evm.deployedBytecode" => Self::DEPLOYED_BYTECODE,
             "evm.deployedBytecode.object" => Self::DEPLOYED_BYTECODE_OBJECT,
             "evm.deployedBytecode.opcodes" => Self::DEPLOYED_BYTECODE_OPCODES,
@@ -577,6 +605,7 @@ impl OutputSelectionFlags {
                 Self::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES
             }
             "evm.deployedBytecode.ethdebug" => Self::DEPLOYED_BYTECODE_ETHDEBUG,
+            "evm.deployedBytecode.cborAuxdata" => Self::DEPLOYED_BYTECODE_CBOR_AUXDATA,
             "ethdebug.resources" => Self::ETHDEBUG_RESOURCES,
             "ethdebug.compilation" => Self::ETHDEBUG_COMPILATION,
             _ => Self::empty(),
@@ -1024,6 +1053,7 @@ mod tests {
                 "evm.bytecode.generatedSources",
                 "evm.bytecode.linkReferences",
                 "evm.bytecode.ethdebug",
+                "evm.bytecode.cborAuxdata",
                 "evm.deployedBytecode.object",
                 "evm.deployedBytecode.opcodes",
                 "evm.deployedBytecode.sourceMap",
@@ -1032,6 +1062,7 @@ mod tests {
                 "evm.deployedBytecode.linkReferences",
                 "evm.deployedBytecode.immutableReferences",
                 "evm.deployedBytecode.ethdebug",
+                "evm.deployedBytecode.cborAuxdata",
                 "ethdebug.resources",
                 "ethdebug.compilation"
             ]"#,
@@ -1068,7 +1099,9 @@ mod tests {
                 | OutputSelectionFlags::IR
                 | OutputSelectionFlags::BYTECODE_ETHDEBUG
         );
-        assert!(selection_flags(r#"["unknown", "evm.bytecode.unknown"]"#).is_empty());
+        assert!(
+            selection_flags(r#"["unknown", "evm.bytecode.unknown", "solarSafety"]"#).is_empty()
+        );
     }
 
     #[test]

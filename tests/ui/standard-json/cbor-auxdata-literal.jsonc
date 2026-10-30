@@ -1,0 +1,38 @@
+//@ filecheck:
+// With `bytecodeHash: none` every trailer is the same 14 bytes. A PUSH32 constant and a `bytes`
+// literal that repeat them are code and data, not auxdata: only the trailer that codegen appends
+// is listed, and the literal never shares the trailer's bytes.
+// CHECK: "bytecode": {
+// CHECK-NEXT: "cborAuxdata": {
+// CHECK-NEXT: "A.sol:A": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "offset": {{[0-9]+}},
+// CHECK-NEXT: "value": "{{0xa165736f6c617243[0-9a-f]{6}000b}}"
+// CHECK-NEXT: }
+// CHECK-NEXT: ]
+// CHECK-NEXT: }
+// CHECK: "deployedBytecode": {
+// CHECK-NEXT: "cborAuxdata": {
+// CHECK-NEXT: "A.sol:A": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "offset": {{[0-9]+}},
+// CHECK-NEXT: "value": "{{0xa165736f6c617243[0-9a-f]{6}000b}}"
+// CHECK-NEXT: }
+// CHECK-NEXT: ]
+// CHECK-NEXT: }
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A { function f() external pure returns (bytes32) { return 0x11fea165736f6c617243000200000b11223344556677889900aabbccddeeff00; } function g() external pure returns (bytes memory) { return hex\"fea165736f6c617243000200000b\"; } }"
+    }
+  },
+  "settings": {
+    "metadata": { "bytecodeHash": "none" },
+    "outputSelection": {
+      "*": {
+        "*": ["evm.bytecode.cborAuxdata", "evm.deployedBytecode.cborAuxdata"]
+      }
+    }
+  }
+}

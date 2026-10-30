@@ -13,6 +13,7 @@ use crate::{
     target::Target,
 };
 use alloy_primitives::U256;
+use solar_config::OptimizationMode;
 use solar_sema::Gcx;
 
 pub use solar_evmir::ir::*;
@@ -23,10 +24,7 @@ pub(in crate::backend::evm) use passes::SharedSchedules;
 pub(crate) use passes::compact_pushes;
 
 pub(crate) use passes::compact_pushes::immediate_materialization_cost;
-pub use passes::{
-    ALL_PASSES, EvmPass, lookup_pass, pipeline_label, run_passes, run_passes_no_validate,
-    run_pipeline,
-};
+pub use passes::run_pipeline;
 pub(in crate::backend) use passes::{
     compact_pushes::{
         ImmediateMaterialization, ImmediateMaterializationOp, immediate_materialization_len,
@@ -37,27 +35,37 @@ pub(in crate::backend) use passes::{
 
 /// The cost model of a module's code.
 pub(crate) trait ModuleTarget {
-    /// The cost model of this module's code: the creation model for creation code, which the
-    /// runtime artifact follows.
+    /// The cost model of this module's code: the objective its contract selects, with the
+    /// creation model for creation code, which the runtime artifact follows.
     fn target(&self, gcx: Gcx<'_>) -> Target;
+
+    /// The cost model of this module's code as runtime code, for code that may run many times,
+    /// wherever it is.
+    fn runtime_target(&self, gcx: Gcx<'_>) -> Target;
 }
 
 impl ModuleTarget for Module {
     fn target(&self, gcx: Gcx<'_>) -> Target {
-        Target::new(gcx).priced_for(self.code_follows)
+        self.runtime_target(gcx).priced_for(self.code_follows)
+    }
+
+    fn runtime_target(&self, gcx: Gcx<'_>) -> Target {
+        Target::new(gcx, self.optimization)
     }
 }
 
 /// The cost model of a block's code.
 pub(crate) trait BlockTarget {
-    /// The cost model of this block: the creation model for creation code, which the runtime
-    /// artifact follows (`code_follows`), unless the block may run more than once.
-    fn target(&self, gcx: Gcx<'_>, code_follows: bool) -> Target;
+    /// The cost model of this block: its function's objective, else `optimization`, the module's,
+    /// with the creation model for creation code, which the runtime artifact follows
+    /// (`code_follows`), unless the block may run more than once.
+    fn target(&self, gcx: Gcx<'_>, optimization: OptimizationMode, code_follows: bool) -> Target;
 }
 
 impl BlockTarget for Block {
-    fn target(&self, gcx: Gcx<'_>, code_follows: bool) -> Target {
-        Target::new(gcx).priced_for(code_follows && self.runs_once())
+    fn target(&self, gcx: Gcx<'_>, optimization: OptimizationMode, code_follows: bool) -> Target {
+        Target::new(gcx, self.metadata.optimization.unwrap_or(optimization))
+            .priced_for(code_follows && self.runs_once())
     }
 }
 
@@ -84,6 +92,7 @@ pub fn into_bytecode(gcx: Gcx<'_>, module: Module) -> solar_interface::Result<Re
         libraries: assembled.evm_ir.expect("EVM IR capture requested").libraries,
         bytes: assembled.bytecode.into(),
         relocations: assembled.library_relocations,
+        trailers: assembled.trailers,
     })
 }
 
@@ -109,6 +118,7 @@ pub fn into_deployable_bytecode(
     let name = module.name;
     let runtime = deployable(gcx, assemble_legalized(gcx, module)?)?;
     let mut deployment = Module::new(name);
+    deployment.optimization = gcx.sess.opts.optimization;
     deployment.code_follows = true;
     let runtime_data = deployment.data.push(Data::new(runtime.clone().into(), None));
     let mut block = Block::new(0);

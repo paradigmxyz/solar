@@ -20,27 +20,6 @@ use solar_interface::{
 use solar_sema::Gcx;
 use std::fmt::Display;
 
-// `foo::Bar<'a>` becomes `Bar`, matching rustc's default MIR pass naming.
-const fn simplify_pass_type_name(name: &'static str) -> &'static str {
-    let bytes = name.as_bytes();
-    let mut i = bytes.len();
-    while i > 0 && bytes[i - 1] != b':' {
-        i -= 1;
-    }
-    let (_, bytes) = bytes.split_at(i);
-
-    let mut i = 0;
-    while i < bytes.len() && bytes[i] != b'<' {
-        i += 1;
-    }
-    let (bytes, _) = bytes.split_at(i);
-
-    match std::str::from_utf8(bytes) {
-        Ok(name) => name,
-        Err(_) => panic!(),
-    }
-}
-
 pub(crate) fn parse_pass_pipeline<P: Copy>(
     gcx: Gcx<'_>,
     value: &str,
@@ -96,13 +75,34 @@ pub(crate) fn mir_output_name(gcx: Gcx<'_>, module: &Module) -> String {
 /// A streamlined trait for a MIR transformation pass.
 pub trait MirPass: Sync {
     /// Command-line and pipeline name.
-    fn name(&self) -> &'static str {
-        simplify_pass_type_name(std::any::type_name::<Self>())
-    }
+    fn name(&self) -> &'static str;
 
     /// Returns whether this pass is enabled with the current compiler flags and MIR phase.
-    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
-        self.is_required() || !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
+    fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
+        self.covers(module)
+    }
+
+    /// Returns whether this pass runs on any of the module's code: a function-local pass on a
+    /// function with an objective of its own, a contract-wide pass only on a contract whose own
+    /// objective runs it.
+    fn covers(&self, module: &Module) -> bool {
+        if self.is_contract_wide() {
+            self.runs_on(module.optimization)
+        } else {
+            module.runs_objective(|objective| self.runs_on(objective))
+        }
+    }
+
+    /// Returns whether this pass rewrites functions together rather than one at a time, so that
+    /// it follows the contract's objective, not that of a function with its own.
+    fn is_contract_wide(&self) -> bool {
+        false
+    }
+
+    /// Returns whether this pass runs on code optimized for `objective`: a function-local pass
+    /// skips the functions it does not.
+    fn runs_on(&self, objective: OptimizationMode) -> bool {
+        self.is_required() || !objective.is_none()
     }
 
     /// Returns whether this pass must run independently of the optimization level.
@@ -123,12 +123,6 @@ pub trait MirPass: Sync {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool;
 }
 
-/// Runs a sequence of MIR passes without validating after each pass.
-#[must_use]
-pub fn run_passes_no_validate(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn MirPass]) -> bool {
-    run_passes_inner(gcx, module, passes, false, None).0
-}
-
 /// Runs a sequence of MIR passes, checking each changed result when verification is enabled.
 #[must_use]
 pub fn run_passes(
@@ -137,7 +131,7 @@ pub fn run_passes(
     passes: &[&dyn MirPass],
     name: Option<&str>,
 ) -> bool {
-    run_passes_inner(gcx, module, passes, true, name).0
+    run_passes_inner(gcx, module, passes, name).0
 }
 
 #[must_use]
@@ -145,7 +139,6 @@ pub(crate) fn run_passes_inner(
     gcx: Gcx<'_>,
     module: &mut Module,
     passes: &[&dyn MirPass],
-    validate_each: bool,
     name: Option<&str>,
 ) -> (bool, Option<ErrorGuaranteed>) {
     let output_name = if gcx.sess.opts.unstable.pass_diff || gcx.sess.opts.unstable.print_after_each
@@ -177,7 +170,12 @@ pub(crate) fn run_passes_inner(
             } else {
                 // A queued contract job needs the workers more than this pass does.
                 let parallel = gcx.sess.is_parallel_codegen() && !gcx.sess.has_queued_jobs();
-                analyses.begin_pass(gcx.sess.opts.optimization.is_gas(), parallel);
+                analyses.begin_pass(
+                    module.runs_objective(OptimizationMode::is_gas),
+                    parallel,
+                    [OptimizationMode::None, OptimizationMode::Gas, OptimizationMode::Size]
+                        .map(|objective| pass.runs_on(objective)),
+                );
                 // A pass that edits the module, reported or not, outdates the check, unless the
                 // pass itself advanced the phase after its last edit.
                 let lowered_checked = std::mem::take(&mut module.lowered_checked);
@@ -208,7 +206,7 @@ pub(crate) fn run_passes_inner(
             }
             assert_debug_info_handled(module, pass_name, "after");
 
-            if pass_changed && validate_each && should_validate_ir(gcx) {
+            if pass_changed && should_validate_ir(gcx) {
                 validate_module_after_pass(module, pass_name);
             }
         }

@@ -73,6 +73,10 @@ impl MirPass for ElementCleanup {
         "element-cleanup"
     }
 
+    fn is_contract_wide(&self) -> bool {
+        true
+    }
+
     fn run_pass(
         &self,
         _gcx: solar_sema::Gcx<'_>,

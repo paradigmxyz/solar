@@ -43,3 +43,27 @@
       ret v5
   }
   
+  fn @encoded_slice_reads_next_object(arg0: i256) -> i256 {
+    bb0:
+      v0 = abi_encode [word], args 1
+      v1 = extract_value slice<memory>, v0, 0
+      v2 = alloc 32
+      mstore v2, arg0
+      v3 = ptradd v1, 32
+      v4 = mload v3
+      ret v4
+  }
+  
+  fn @encoded_slice_returns_next_object(arg0: i256) {
+    bb0:
+      v0 = abi_encode [word], args 1
+      v1 = extract_value slice<memory>, v0, 0
+      jump bb1
+    bb1:
+      v2 = alloc 32
+      mstore v2, arg0
+      jump bb2
+    bb2:
+      returndata v1, 64
+  }
+  
