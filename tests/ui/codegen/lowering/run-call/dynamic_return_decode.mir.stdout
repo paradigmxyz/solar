@@ -177,9 +177,8 @@ fn @getName() -> ptr<memory> [selector=0x17d7de7c, view, abi_params=[], abi_retu
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = storage_array_data_slot 4
-    v4 = add v3, 0
-    v5 = load_storage_bytes v4
-    ret v5
+    v4 = load_storage_bytes v3
+    ret v4
 }
 
 fn @getNested() -> ptr<memory> [selector=0x2ec68451, view, abi_params=[], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, uint256>>]] {

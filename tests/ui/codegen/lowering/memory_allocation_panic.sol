@@ -9,8 +9,7 @@ contract MemoryAllocationPanic {
     // CHECK: [[PADDED:v[0-9]+]] = add arg0, 63
     // CHECK: [[PADDED_OVERFLOW:v[0-9]+]] = lt [[PADDED]], arg0
     // CHECK: icall panic_if<0x41>, [[PADDED_OVERFLOW]]
-    // CHECK: [[MASK:v[0-9]+]] = not 31
-    // CHECK: [[BYTES:v[0-9]+]] = and [[PADDED]], [[MASK]]
+    // CHECK: [[BYTES:v[0-9]+]] = and [[PADDED]], 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     // CHECK: alloc zeroed checked [[BYTES]]
     function makeBytes(uint256 n) external pure returns (uint256) {
         bytes memory b = new bytes(n);

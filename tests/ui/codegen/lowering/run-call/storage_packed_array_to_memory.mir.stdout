@@ -794,92 +794,90 @@ fn @checkAfterPop(arg0: i256) -> i1 [selector=0x492e3661, abi_params=[uint256], 
     v34 = sload v29 !metadata(storage=symbolic(v29))
     v35 = not v33
     v36 = and v34, v35
-    v37 = and 0, 255
-    v38 = shl v37, v32
-    v39 = or v36, v38
-    sstore v29, v39 !metadata(storage=symbolic(v29))
-    v40 = sload 0 !metadata(storage=slot(0))
-    v41 = eq v40, 0
-    icall panic_if<0x31>, v41
-    v42 = sub v40, 1
-    sstore 0, v42 !metadata(storage=slot(0))
-    v43 = storage_array_data_slot 0
-    v44 = div v42, 32
-    v45 = add v43, v44
-    v46 = mod v42, 32
-    v47 = mul v46, 1
-    v48 = mul v47, 8
-    v49 = shl 255, v48
-    v50 = sload v45 !metadata(storage=symbolic(v45))
-    v51 = not v49
-    v52 = and v50, v51
-    v53 = and 0, 255
-    v54 = shl v53, v48
-    v55 = or v52, v54
-    sstore v45, v55 !metadata(storage=symbolic(v45))
-    v56 = checked_sub uint256, v0, 2
-    v57 = mul v56, 1
-    v58 = eq 1, 0
-    v59 = div v57, 1
-    v60 = eq v59, v56
-    v61 = or v58, v60
-    v62 = zext i1 v61 to i256
-    v63 = eq v62, 0
+    v37 = shl 0, v32
+    v38 = or v36, v37
+    sstore v29, v38 !metadata(storage=symbolic(v29))
+    v39 = sload 0 !metadata(storage=slot(0))
+    v40 = eq v39, 0
+    icall panic_if<0x31>, v40
+    v41 = sub v39, 1
+    sstore 0, v41 !metadata(storage=slot(0))
+    v42 = storage_array_data_slot 0
+    v43 = div v41, 32
+    v44 = add v42, v43
+    v45 = mod v41, 32
+    v46 = mul v45, 1
+    v47 = mul v46, 8
+    v48 = shl 255, v47
+    v49 = sload v44 !metadata(storage=symbolic(v44))
+    v50 = not v48
+    v51 = and v49, v50
+    v52 = shl 0, v47
+    v53 = or v51, v52
+    sstore v44, v53 !metadata(storage=symbolic(v44))
+    v54 = checked_sub uint256, v0, 2
+    v55 = mul v54, 1
+    v56 = eq 1, 0
+    v57 = div v55, 1
+    v58 = eq v57, v54
+    v59 = or v56, v58
+    v60 = zext i1 v59 to i256
+    v61 = eq v60, 0
+    icall panic_if<0x41>, v61
+    v62 = add v55, 1
+    v63 = lt v62, v55
     icall panic_if<0x41>, v63
-    v64 = add v57, 1
-    v65 = lt v64, v57
-    icall panic_if<0x41>, v65
-    v66 = mul v64, 32
-    v67 = eq 32, 0
-    v68 = div v66, 32
-    v69 = eq v68, v64
-    v70 = or v67, v69
-    v71 = zext i1 v70 to i256
-    v72 = eq v71, 0
-    icall panic_if<0x41>, v72
-    v73 = alloc zeroed checked v66
-    mstore v73, v56
+    v64 = mul v62, 32
+    v65 = eq 32, 0
+    v66 = div v64, 32
+    v67 = eq v66, v62
+    v68 = or v65, v67
+    v69 = zext i1 v68 to i256
+    v70 = eq v69, 0
+    icall panic_if<0x41>, v70
+    v71 = alloc zeroed checked v64
+    mstore v71, v54
     jump bb7
   bb7:
-    v74 = phi [bb2: v0], [bb9: v74]
-    v75 = phi [bb2: v1], [bb9: v75]
-    v76 = phi [bb2: v2], [bb9: v76]
-    v77 = phi [bb2: v73], [bb9: v77]
-    v78 = phi [bb2: 0], [bb9: v90]
-    v79 = checked_sub uint256, v74, 2
-    v80 = lt v78, v79
-    jumpi v80, bb10, bb11
+    v72 = phi [bb2: v0], [bb9: v72]
+    v73 = phi [bb2: v1], [bb9: v73]
+    v74 = phi [bb2: v2], [bb9: v74]
+    v75 = phi [bb2: v71], [bb9: v75]
+    v76 = phi [bb2: 0], [bb9: v88]
+    v77 = checked_sub uint256, v72, 2
+    v78 = lt v76, v77
+    jumpi v78, bb10, bb11
   bb11:
     jump bb8
   bb8:
-    v91 = icall @load_storage_packed_array_1_0, 0
-    v92 = abi_encode [memory_array<word<uint8>>], scratch, args v91
-    v93 = extract_value slice<memory>, v92, 0
-    v94 = extract_value slice<memory>, v92, 1
-    v95 = keccak256 v93, v94
-    v96 = abi_encode [memory_array<word<uint8>>], scratch, args v77
-    v97 = extract_value slice<memory>, v96, 0
-    v98 = extract_value slice<memory>, v96, 1
-    v99 = keccak256 v97, v98
-    v100 = eq v95, v99
-    ret v100
+    v89 = icall @load_storage_packed_array_1_0, 0
+    v90 = abi_encode [memory_array<word<uint8>>], scratch, args v89
+    v91 = extract_value slice<memory>, v90, 0
+    v92 = extract_value slice<memory>, v90, 1
+    v93 = keccak256 v91, v92
+    v94 = abi_encode [memory_array<word<uint8>>], scratch, args v75
+    v95 = extract_value slice<memory>, v94, 0
+    v96 = extract_value slice<memory>, v94, 1
+    v97 = keccak256 v95, v96
+    v98 = eq v93, v97
+    ret v98
   bb10:
-    v81 = checked_add uint256, v78, 1
-    v82 = trunc i256 v81 to i8
-    v83 = mload v77
-    v84 = lt v78, v83
-    v85 = eq v84, false
-    icall panic_if<0x32>, v85
-    v86 = zext i8 v82 to i256
-    v87 = shl v78, 5
-    v88 = ptradd v77, v87
-    v89 = ptradd v88, 32
-    mstore v89, v86
+    v79 = checked_add uint256, v76, 1
+    v80 = trunc i256 v79 to i8
+    v81 = mload v75
+    v82 = lt v76, v81
+    v83 = eq v82, false
+    icall panic_if<0x32>, v83
+    v84 = zext i8 v80 to i256
+    v85 = shl v76, 5
+    v86 = ptradd v75, v85
+    v87 = ptradd v86, 32
+    mstore v87, v84
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v90 = checked_add uint256, v78, 1
+    v88 = checked_add uint256, v76, 1
     jump bb7
   bb4:
     v4 = checked_add uint256, v2, 1
@@ -1243,47 +1241,45 @@ fn @dirtyEnum() -> i256 [selector=0x676092a0, abi_params=[], abi_returns=[word],
     v14 = sload v7 !metadata(storage=symbolic(v7))
     v15 = not v13
     v16 = and v14, v15
-    v17 = and 1, 255
-    v18 = shl v17, v12
-    v19 = or v16, v18
-    sstore v7, v19 !metadata(storage=symbolic(v7))
+    v17 = shl 1, v12
+    v18 = or v16, v17
+    sstore v7, v18 !metadata(storage=symbolic(v7))
     sstore 5, v4 !metadata(storage=slot(5))
-    v20 = lt i8 2, i8 3
-    v21 = eq v20, false
-    icall panic_if<0x21>, v21
-    v22 = sload 5 !metadata(storage=slot(5))
-    v23 = gt v22, 0xffffffffffffffff
-    icall panic_if<0x41>, v23
-    v24 = add v22, 1
-    v25 = storage_array_data_slot 5
-    v26 = div v22, 32
-    v27 = add v25, v26
-    v28 = mod v22, 32
-    v29 = mul v28, 1
-    v30 = lt i8 2, i8 3
-    v31 = eq v30, false
-    icall panic_if<0x21>, v31
-    v32 = mul v29, 8
-    v33 = shl 255, v32
-    v34 = sload v27 !metadata(storage=symbolic(v27))
-    v35 = not v33
-    v36 = and v34, v35
-    v37 = and 2, 255
-    v38 = shl v37, v32
-    v39 = or v36, v38
-    sstore v27, v39 !metadata(storage=symbolic(v27))
-    sstore 5, v24 !metadata(storage=slot(5))
-    v40 = keccak256_packed (uint256 5)
-    v41 = shl 7, 8
-    v42 = sload v40 !metadata(storage=symbolic(v40))
-    v43 = or v42, v41
-    sstore v40, v43 !metadata(storage=symbolic(v40))
-    v44 = icall @load_storage_packed_array_1_0_enum_3, 5
-    v45 = abi_encode [memory_array<word<enum 3>>], scratch, args v44
-    v46 = extract_value slice<memory>, v45, 0
-    v47 = extract_value slice<memory>, v45, 1
-    v48 = keccak256 v46, v47
-    ret v48
+    v19 = lt i8 2, i8 3
+    v20 = eq v19, false
+    icall panic_if<0x21>, v20
+    v21 = sload 5 !metadata(storage=slot(5))
+    v22 = gt v21, 0xffffffffffffffff
+    icall panic_if<0x41>, v22
+    v23 = add v21, 1
+    v24 = storage_array_data_slot 5
+    v25 = div v21, 32
+    v26 = add v24, v25
+    v27 = mod v21, 32
+    v28 = mul v27, 1
+    v29 = lt i8 2, i8 3
+    v30 = eq v29, false
+    icall panic_if<0x21>, v30
+    v31 = mul v28, 8
+    v32 = shl 255, v31
+    v33 = sload v26 !metadata(storage=symbolic(v26))
+    v34 = not v32
+    v35 = and v33, v34
+    v36 = shl 2, v31
+    v37 = or v35, v36
+    sstore v26, v37 !metadata(storage=symbolic(v26))
+    sstore 5, v23 !metadata(storage=slot(5))
+    v38 = keccak256_packed (uint256 5)
+    v39 = shl 7, 8
+    v40 = sload v38 !metadata(storage=symbolic(v38))
+    v41 = or v40, v39
+    sstore v38, v41 !metadata(storage=symbolic(v38))
+    v42 = icall @load_storage_packed_array_1_0_enum_3, 5
+    v43 = abi_encode [memory_array<word<enum 3>>], scratch, args v42
+    v44 = extract_value slice<memory>, v43, 0
+    v45 = extract_value slice<memory>, v43, 1
+    v46 = keccak256 v44, v45
+    ret v46
 }
 
 fn @load_storage_packed_array_1_0(arg0: i256) -> ptr<memory> {

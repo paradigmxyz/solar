@@ -7,20 +7,20 @@ fn @countDown() [selector=0x3b396421, abi_wrapper, pure] {
     v7 = lt v6, 36
     jumpi v7, bb4, bb5
   bb5:
-    v19 = and arg0, 1
-    v20 = ne v19, 0
-    jumpi v20, bb6, bb7
+    v18 = and arg0, 1
+    v19 = ne v18, 0
+    jumpi v19, bb6, bb7
   bb6:
-    v12 = add 0, arg0
-    v13 = sub arg0, 1
+    v11 = add 0, arg0
+    v12 = sub arg0, 1
     jump bb7
   bb7:
-    v21 = phi [bb5: 0], [bb6: v12]
-    v22 = phi [bb5: arg0], [bb6: v13]
+    v20 = phi [bb5: 0], [bb6: v11]
+    v21 = phi [bb5: arg0], [bb6: v12]
     jump bb1
   bb1:
-    v1 = phi [bb7: v21], [bb3: v17]
-    v2 = phi [bb7: v22], [bb3: v18]
+    v1 = phi [bb7: v20], [bb3: v16]
+    v2 = phi [bb7: v21], [bb3: v17]
     v3 = ne v2, 0
     jumpi v3, bb3, bb2
   bb2:
@@ -29,8 +29,8 @@ fn @countDown() [selector=0x3b396421, abi_wrapper, pure] {
   bb3:
     v4 = add v1, v2
     v5 = sub v2, 1
-    v17 = add v4, v5
-    v18 = sub v5, 1
+    v16 = add v4, v5
+    v17 = sub v5, 1
     jump bb1
   bb4:
     revert 0, 0
@@ -42,25 +42,25 @@ fn @squaresDown() [selector=0x45ce5caf, abi_wrapper, pure] {
     v17 = lt v16, 36
     jumpi v17, bb5, bb6
   bb6:
-    v37 = and arg0, 1
-    v38 = ne v37, 0
-    jumpi v38, bb7, bb10
+    v36 = and arg0, 1
+    v37 = ne v36, 0
+    jumpi v37, bb7, bb10
   bb7:
-    v22 = mul arg0, arg0
-    v23 = div v22, arg0
-    v24 = eq v23, arg0
-    jumpi v24, bb8, bb4
+    v21 = mul arg0, arg0
+    v22 = div v21, arg0
+    v23 = eq v22, arg0
+    jumpi v23, bb8, bb4
   bb8:
-    v25 = add 0, v22
-    v27 = sub arg0, 1
+    v24 = add 0, v21
+    v26 = sub arg0, 1
     jump bb10
   bb10:
-    v39 = phi [bb6: 0], [bb8: v25]
-    v40 = phi [bb6: arg0], [bb8: v27]
+    v38 = phi [bb6: 0], [bb8: v24]
+    v39 = phi [bb6: arg0], [bb8: v26]
     jump bb1
   bb1:
-    v1 = phi [bb10: v39], [bb9: v34]
-    v2 = phi [bb10: v40], [bb9: v36]
+    v1 = phi [bb10: v38], [bb9: v33]
+    v2 = phi [bb10: v39], [bb9: v35]
     v3 = gt v2, 0
     jumpi v3, bb3, bb2
   bb2:
@@ -70,22 +70,22 @@ fn @squaresDown() [selector=0x45ce5caf, abi_wrapper, pure] {
     v7 = mul v2, v2
     v9 = div v7, v2
     v10 = eq v9, v2
-    v41 = eq v10, false
+    v40 = eq v10, false
     v14 = add v1, v7
     v15 = lt v14, v1
-    v42 = or v41, v15
+    v41 = or v40, v15
     v6 = sub v2, 1
-    v31 = mul v6, v6
-    v32 = div v31, v6
-    v33 = eq v32, v6
-    v43 = eq v33, false
-    v44 = or v42, v43
-    v34 = add v14, v31
-    v35 = lt v34, v14
-    v45 = or v44, v35
-    jumpi v45, bb4, bb9
+    v30 = mul v6, v6
+    v31 = div v30, v6
+    v32 = eq v31, v6
+    v42 = eq v32, false
+    v43 = or v41, v42
+    v33 = add v14, v30
+    v34 = lt v33, v14
+    v44 = or v43, v34
+    jumpi v44, bb4, bb9
   bb9:
-    v36 = sub v6, 1
+    v35 = sub v6, 1
     jump bb1
   bb4:
     mstore 32, 17 !metadata(memory=scratch)
@@ -101,21 +101,21 @@ fn @stepDown() [selector=0x4e0372c8, abi_wrapper, pure] {
     v9 = lt v8, 36
     jumpi v9, bb4, bb5
   bb5:
-    v21 = shr arg0, 1
-    v22 = and v21, 1
-    v23 = ne v22, 0
-    jumpi v23, bb6, bb7
+    v20 = shr arg0, 1
+    v21 = and v20, 1
+    v22 = ne v21, 0
+    jumpi v22, bb6, bb7
   bb6:
-    v14 = add 0, arg0
-    v15 = sub arg0, 2
+    v13 = add 0, arg0
+    v14 = sub arg0, 2
     jump bb7
   bb7:
-    v24 = phi [bb5: 0], [bb6: v14]
-    v25 = phi [bb5: arg0], [bb6: v15]
+    v23 = phi [bb5: 0], [bb6: v13]
+    v24 = phi [bb5: arg0], [bb6: v14]
     jump bb1
   bb1:
-    v1 = phi [bb7: v24], [bb3: v19]
-    v2 = phi [bb7: v25], [bb3: v20]
+    v1 = phi [bb7: v23], [bb3: v18]
+    v2 = phi [bb7: v24], [bb3: v19]
     v3 = gt v2, 0
     jumpi v3, bb3, bb2
   bb2:
@@ -124,8 +124,8 @@ fn @stepDown() [selector=0x4e0372c8, abi_wrapper, pure] {
   bb3:
     v6 = add v1, v2
     v7 = sub v2, 2
-    v19 = add v6, v7
-    v20 = sub v7, 2
+    v18 = add v6, v7
+    v19 = sub v7, 2
     jump bb1
   bb4:
     revert 0, 0
@@ -137,21 +137,21 @@ fn @downTo() [selector=0x4930868e, abi_wrapper, pure] {
     v12 = lt v11, 68
     jumpi v12, bb4, bb5
   bb5:
-    v24 = sub arg1, arg0
-    v25 = and v24, 1
-    v26 = ne v25, 0
-    jumpi v26, bb6, bb7
+    v23 = sub arg1, arg0
+    v24 = and v23, 1
+    v25 = ne v24, 0
+    jumpi v25, bb6, bb7
   bb6:
-    v17 = add 0, arg0
-    v18 = sub arg0, 1
+    v16 = add 0, arg0
+    v17 = sub arg0, 1
     jump bb7
   bb7:
-    v27 = phi [bb5: 0], [bb6: v17]
-    v28 = phi [bb5: arg0], [bb6: v18]
+    v26 = phi [bb5: 0], [bb6: v16]
+    v27 = phi [bb5: arg0], [bb6: v17]
     jump bb1
   bb1:
-    v2 = phi [bb7: v27], [bb3: v22]
-    v3 = phi [bb7: v28], [bb3: v23]
+    v2 = phi [bb7: v26], [bb3: v21]
+    v3 = phi [bb7: v27], [bb3: v22]
     v6 = ne v3, arg1
     jumpi v6, bb3, bb2
   bb2:
@@ -160,8 +160,8 @@ fn @downTo() [selector=0x4930868e, abi_wrapper, pure] {
   bb3:
     v9 = add v2, v3
     v10 = sub v3, 1
-    v22 = add v9, v10
-    v23 = sub v10, 1
+    v21 = add v9, v10
+    v22 = sub v10, 1
     jump bb1
   bb4:
     revert 0, 0

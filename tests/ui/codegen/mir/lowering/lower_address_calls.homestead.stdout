@@ -24,16 +24,14 @@
 +     v3 = mload arg1
 +     v4 = zext i160 arg0 to i256
 +     v5 = call arg2, v4, 0, v2, v3, 0, 0
-+     v6 = not 31 !metadata(span=30..40, modifier_depth=3)
-+     v7 = and 63, v6 !metadata(span=30..40, modifier_depth=3)
-+     v8 = alloc v7 !metadata(span=30..40, modifier_depth=3)
-+     mstore v8, 0 !metadata(span=30..40, modifier_depth=3)
-+     v9 = make_returndata_slice ptr<returndata> 0, 0 !metadata(span=30..40, modifier_depth=3)
-+     v10 = ptradd v8, 32 !metadata(span=30..40, modifier_depth=3)
-+     v11 = extract_value slice<returndata>, v9, 0 !metadata(span=30..40, modifier_depth=3)
-+     v12 = extract_value slice<returndata>, v9, 1 !metadata(span=30..40, modifier_depth=3)
-+     returndatacopy v10, v11, v12 !metadata(span=30..40, modifier_depth=3)
-+     ret v8
++     v6 = alloc 32 !metadata(span=30..40, modifier_depth=3)
++     mstore v6, 0 !metadata(span=30..40, modifier_depth=3)
++     v7 = make_returndata_slice ptr<returndata> 0, 0 !metadata(span=30..40, modifier_depth=3)
++     v8 = ptradd v6, 32 !metadata(span=30..40, modifier_depth=3)
++     v9 = extract_value slice<returndata>, v7, 0 !metadata(span=30..40, modifier_depth=3)
++     v10 = extract_value slice<returndata>, v7, 1 !metadata(span=30..40, modifier_depth=3)
++     returndatacopy v8, v9, v10 !metadata(span=30..40, modifier_depth=3)
++     ret v6
   }
   
   fn @delegate(arg0: i160, arg1: ptr<memory>) -> i256 {

@@ -31,48 +31,38 @@ fn @separateSpaces(arg0: i256, arg1: i256) -> struct0 [selector=0x9ef32708, abi_
 fn @packed() -> struct1 [selector=0x8f23d5f6, abi_params=[], abi_returns=[word<uint16>, word<uint16>, word], abi_return_params=[uint16, uint16, uint256]] {
   bb0:
     v0 = tload 1
-    v1 = not 0xffff
-    v2 = and v0, v1
-    v3 = and 0x1122, 0xffff
-    v4 = or v2, v3
-    tstore 1, v4
-    v5 = shl 0xffff, 16
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
+    v2 = or v1, 0x1122
+    tstore 1, v2
+    v3 = tload 1
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000ffff
+    v5 = or v4, 0x33440000
+    tstore 1, v5
     v6 = tload 1
-    v7 = not v5
-    v8 = and v6, v7
-    v9 = and 0x3344, 0xffff
-    v10 = shl v9, 16
-    v11 = or v8, v10
-    tstore 1, v11
-    v12 = tload 1
-    v13 = tload 1
-    v14 = trunc i256 v13 to i16
-    v15 = tload 1
-    v16 = shr v15, 16
-    v17 = trunc i256 v16 to i16
-    v18 = zext i16 v14 to i256
-    v19 = zext i16 v17 to i256
-    v20 = insert_value struct1, undef struct1, 0, v18
-    v21 = insert_value struct1, v20, 1, v19
-    v22 = insert_value struct1, v21, 2, v12
-    ret v22
+    v7 = tload 1
+    v8 = trunc i256 v7 to i16
+    v9 = tload 1
+    v10 = shr v9, 16
+    v11 = trunc i256 v10 to i16
+    v12 = zext i16 v8 to i256
+    v13 = zext i16 v11 to i256
+    v14 = insert_value struct1, undef struct1, 0, v12
+    v15 = insert_value struct1, v14, 1, v13
+    v16 = insert_value struct1, v15, 2, v6
+    ret v16
 }
 
 fn @signed() -> i16 [selector=0x232a6b9d, abi_params=[], abi_returns=[word<int16>], abi_return_params=[int16]] {
   bb0:
-    v0 = shl 0xffff, 32
-    v1 = tload 1
-    v2 = not v0
-    v3 = and v1, v2
-    v4 = and 0xfffe, 0xffff
-    v5 = shl v4, 32
-    v6 = or v3, v5
-    tstore 1, v6
-    v7 = tload 1
-    v8 = shr v7, 32
-    v9 = signextend 1, v8
-    v10 = trunc i256 v9 to i16
-    ret v10
+    v0 = tload 1
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff0000ffffffff
+    v2 = or v1, 0xfffe00000000
+    tstore 1, v2
+    v3 = tload 1
+    v4 = shr v3, 32
+    v5 = signextend 1, v4
+    v6 = trunc i256 v5 to i16
+    ret v6
 }
 
 fn @clear() -> struct2 [selector=0x52efea6e, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
@@ -101,9 +91,8 @@ fn @getter() -> i256 [selector=0x993a04b7, abi_params=[], abi_returns=[word], ab
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
-    v6 = add 0, 0
-    v7 = mload v6
-    ret v7
+    v6 = mload 0 !metadata(memory=scratch)
+    ret v6
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientModifier ===
@@ -116,27 +105,25 @@ fn @run() -> i16 [selector=0xc0406226, abi_params=[], abi_returns=[word<uint16>]
     v3 = trunc i256 v2 to i16
     v4 = checked_add uint16, v3, i16 10
     v5 = tload 0
-    v6 = not 0xffff
-    v7 = and v5, v6
-    v8 = zext i16 v4 to i256
-    v9 = and v8, 0xffff
-    v10 = or v7, v9
-    tstore 0, v10
-    v11 = tload 0
-    v12 = trunc i256 v11 to i16
-    v13 = checked_mul uint16, v12, i16 10
-    v14 = tload 0
-    v15 = not 0xffff
-    v16 = and v14, v15
-    v17 = zext i16 v13 to i256
-    v18 = and v17, 0xffff
-    v19 = or v16, v18
-    tstore 0, v19
-    v20 = tload 0
-    v21 = trunc i256 v20 to i16
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
+    v7 = zext i16 v4 to i256
+    v8 = and v7, 0xffff
+    v9 = or v6, v8
+    tstore 0, v9
+    v10 = tload 0
+    v11 = trunc i256 v10 to i16
+    v12 = checked_mul uint16, v11, i16 10
+    v13 = tload 0
+    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
+    v15 = zext i16 v12 to i256
+    v16 = and v15, 0xffff
+    v17 = or v14, v16
+    tstore 0, v17
+    v18 = tload 0
+    v19 = trunc i256 v18 to i16
     jump bb2
   bb2:
     jump bb1
   bb1:
-    ret v21
+    ret v19
 }

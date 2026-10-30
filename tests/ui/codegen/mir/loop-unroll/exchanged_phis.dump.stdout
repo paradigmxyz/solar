@@ -9,14 +9,14 @@ fn @swaps() [selector=0xdb9a27fa, abi_wrapper, pure] {
   bb5:
     jump bb6
   bb6:
-    v12 = phi [bb5: 0], [bb7: v29]
-    v30 = add v12, 3
-    v31 = lt v30, arg0
-    jumpi v31, bb7, bb1
+    v11 = phi [bb5: 0], [bb7: v28]
+    v29 = add v11, 3
+    v30 = lt v29, arg0
+    jumpi v30, bb7, bb1
   bb1:
     v1 = phi [bb6: arg1], [bb3: v2]
     v2 = phi [bb6: arg2], [bb3: v1]
-    v4 = phi [bb6: v12], [bb3: v6]
+    v4 = phi [bb6: v11], [bb3: v6]
     v5 = lt v4, arg0
     jumpi v5, bb3, bb2
   bb2:
@@ -26,7 +26,7 @@ fn @swaps() [selector=0xdb9a27fa, abi_wrapper, pure] {
     v6 = add v4, 1
     jump bb1
   bb7:
-    v29 = add v12, 4
+    v28 = add v11, 4
     jump bb6
   bb4:
     revert 0, 0

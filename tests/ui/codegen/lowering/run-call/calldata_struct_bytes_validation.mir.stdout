@@ -33,31 +33,30 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xd1ee4a1a, pure, abi_params=[
     v24 = add v23, 63
     v25 = lt v24, v23
     icall panic_if<0x41>, v25
-    v26 = not 31
-    v27 = and v24, v26
-    v28 = alloc v27
-    mstore v28, v23
-    v29 = ptradd v28, 32
-    v30 = extract_value slice<calldata>, v22, 0
-    v31 = extract_value slice<calldata>, v22, 1
-    calldatacopy v29, v30, v31
-    v32 = ptrtoint ptr<memory> v28 to i256
-    mstore v1, v32
-    v33 = ptrtoint ptr<calldata> v0 to i256
-    v34 = add v33, 32
-    v35 = calldatasize
-    v36 = sub v35, v34
-    v37 = slt v36, 32
-    icall revert_if<calldata_tail_too_short>, v37
-    v38 = calldataload v34
-    v39 = ptradd v1, 32
-    mstore v39, v38
-    v40 = mload v1, ptr<memory>
-    v41 = mload v40
-    v42 = ptradd v1, 32
-    v43 = mload v42
-    v44 = checked_add uint256, v41, v43
-    ret v44
+    v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v27 = alloc v26
+    mstore v27, v23
+    v28 = ptradd v27, 32
+    v29 = extract_value slice<calldata>, v22, 0
+    v30 = extract_value slice<calldata>, v22, 1
+    calldatacopy v28, v29, v30
+    v31 = ptrtoint ptr<memory> v27 to i256
+    mstore v1, v31
+    v32 = ptrtoint ptr<calldata> v0 to i256
+    v33 = add v32, 32
+    v34 = calldatasize
+    v35 = sub v34, v33
+    v36 = slt v35, 32
+    icall revert_if<calldata_tail_too_short>, v36
+    v37 = calldataload v33
+    v38 = ptradd v1, 32
+    mstore v38, v37
+    v39 = mload v1, ptr<memory>
+    v40 = mload v39
+    v41 = ptradd v1, 32
+    v42 = mload v41
+    v43 = checked_add uint256, v40, v42
+    ret v43
 }
 
 fn @encodeField(arg0: slice<calldata>) -> i256 [selector=0xbd1dd83b, pure, abi_params=[tuple<bytes, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
@@ -190,18 +189,17 @@ fn @hashField(arg0: slice<calldata>) -> i256 [selector=0xdd0f255f, pure, abi_par
     v31 = add v30, 63
     v32 = lt v31, v30
     icall panic_if<0x41>, v32
-    v33 = not 31
-    v34 = and v31, v33
-    v35 = alloc v34
-    mstore v35, v30
-    v36 = ptradd v35, 32
-    v37 = extract_value slice<calldata>, v22, 0
-    v38 = extract_value slice<calldata>, v22, 1
-    calldatacopy v36, v37, v38
-    v39 = ptradd v35, 32
-    v40 = mload v35
-    v41 = keccak256 v39, v40
-    ret v41
+    v33 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v34 = alloc v33
+    mstore v34, v30
+    v35 = ptradd v34, 32
+    v36 = extract_value slice<calldata>, v22, 0
+    v37 = extract_value slice<calldata>, v22, 1
+    calldatacopy v35, v36, v37
+    v38 = ptradd v34, 32
+    v39 = mload v34
+    v40 = keccak256 v38, v39
+    ret v40
 }
 
 fn @indexField(arg0: slice<calldata>) -> i256 [selector=0xec2824a8, pure, abi_params=[tuple<bytes, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
@@ -334,16 +332,15 @@ fn @copyField(arg0: slice<calldata>) -> i256 [selector=0xda205eee, pure, abi_par
     v31 = add v30, 63
     v32 = lt v31, v30
     icall panic_if<0x41>, v32
-    v33 = not 31
-    v34 = and v31, v33
-    v35 = alloc v34
-    mstore v35, v30
-    v36 = ptradd v35, 32
-    v37 = extract_value slice<calldata>, v22, 0
-    v38 = extract_value slice<calldata>, v22, 1
-    calldatacopy v36, v37, v38
-    v39 = mload v35
-    ret v39
+    v33 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v34 = alloc v33
+    mstore v34, v30
+    v35 = ptradd v34, 32
+    v36 = extract_value slice<calldata>, v22, 0
+    v37 = extract_value slice<calldata>, v22, 1
+    calldatacopy v35, v36, v37
+    v38 = mload v34
+    ret v38
 }
 
 fn @copyWords(arg0: slice<calldata>) -> i256 [selector=0x7ce58428, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
@@ -398,20 +395,19 @@ fn @emitBytes(arg0: slice<calldata>) -> i256 [selector=0xc76f0635, abi_params=[b
     v1 = add v0, 63
     v2 = lt v1, v0
     icall panic_if<0x41>, v2
-    v3 = not 31
-    v4 = and v1, v3
-    v5 = alloc v4
-    mstore v5, v0
-    v6 = ptradd v5, 32
-    v7 = extract_value slice<calldata>, arg0, 0
-    v8 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v6, v7, v8
-    v9 = ptradd v5, 32
-    v10 = mload v5
-    v11 = keccak256 v9, v10
-    log 0, 0, 0xd041a90a782b3fec69d4503721a6038db2dcbe112604e4a2d9352b8d82fde3f3, v11
-    v12 = extract_value slice<calldata>, arg0, 1
-    ret v12
+    v3 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v4 = alloc v3
+    mstore v4, v0
+    v5 = ptradd v4, 32
+    v6 = extract_value slice<calldata>, arg0, 0
+    v7 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v5, v6, v7
+    v8 = ptradd v4, 32
+    v9 = mload v4
+    v10 = keccak256 v8, v9
+    log 0, 0, 0xd041a90a782b3fec69d4503721a6038db2dcbe112604e4a2d9352b8d82fde3f3, v10
+    v11 = extract_value slice<calldata>, arg0, 1
+    ret v11
 }
 
 fn @copyArray(arg0: slice<calldata>) -> i256 [selector=0x58bdfbf3, pure, abi_params=[array<_, bytes>], abi_returns=[word], abi_return_params=[uint256]] {
@@ -446,18 +442,18 @@ fn @copyArray(arg0: slice<calldata>) -> i256 [selector=0x58bdfbf3, pure, abi_par
     mstore v22, v0
     jump bb1
   bb1:
-    v23 = phi [bb0: 0], [bb2: v61]
+    v23 = phi [bb0: 0], [bb2: v60]
     v24 = lt v23, v0
     jumpi v24, bb2, bb3
   bb3:
-    v62 = mload v22
-    v63 = lt 0, v62
-    v64 = eq v63, false
-    icall panic_if<0x32>, v64
-    v65 = ptradd v22, 32
-    v66 = mload v65, ptr<memory>
-    v67 = mload v66
-    ret v67
+    v61 = mload v22
+    v62 = lt 0, v61
+    v63 = eq v62, false
+    icall panic_if<0x32>, v63
+    v64 = ptradd v22, 32
+    v65 = mload v64, ptr<memory>
+    v66 = mload v65
+    ret v66
   bb2:
     v25 = mul v23, 32
     v26 = ptrtoint ptr<calldata> v1 to i256
@@ -490,19 +486,18 @@ fn @copyArray(arg0: slice<calldata>) -> i256 [selector=0x58bdfbf3, pure, abi_par
     v49 = add v48, 63
     v50 = lt v49, v48
     icall panic_if<0x41>, v50
-    v51 = not 31
-    v52 = and v49, v51
-    v53 = alloc v52
-    mstore v53, v48
-    v54 = ptradd v53, 32
-    v55 = extract_value slice<calldata>, v47, 0
-    v56 = extract_value slice<calldata>, v47, 1
-    calldatacopy v54, v55, v56
-    v57 = ptrtoint ptr<memory> v53 to i256
-    v58 = shl v23, 5
-    v59 = ptradd v22, v58
-    v60 = ptradd v59, 32
-    mstore v60, v57
-    v61 = add v23, 1
+    v51 = and v49, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v52 = alloc v51
+    mstore v52, v48
+    v53 = ptradd v52, 32
+    v54 = extract_value slice<calldata>, v47, 0
+    v55 = extract_value slice<calldata>, v47, 1
+    calldatacopy v53, v54, v55
+    v56 = ptrtoint ptr<memory> v52 to i256
+    v57 = shl v23, 5
+    v58 = ptradd v22, v57
+    v59 = ptradd v58, 32
+    mstore v59, v56
+    v60 = add v23, 1
     jump bb1
 }

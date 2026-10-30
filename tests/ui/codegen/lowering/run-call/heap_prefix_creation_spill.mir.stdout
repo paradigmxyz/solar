@@ -39,10 +39,9 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v12 = returndatasize
     v13 = lt v12, 32
     icall revert_if<tuple_data_too_short>, v13
-    v14 = add 0, 0
-    v15 = mload v14
-    v16 = eq v15, 7
-    icall require<short_string>, v16, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
+    v14 = mload 0 !metadata(memory=scratch)
+    v15 = eq v14, 7
+    icall require<short_string>, v15, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -177,13 +176,11 @@ fn @saved() -> i256 [selector=0x164b045a, view, abi_params=[], abi_returns=[word
 
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
-    v0 = not 31
-    v1 = and 95, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 32
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = sub v3, 32
-    mstore v4, 0xdeadbeef
+    v0 = alloc zeroed checked 64
+    mstore v0, 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = sub v1, 32
+    mstore v2, 0xdeadbeef
     sstore 0, arg0 !metadata(storage=slot(0))
     ret
 }
@@ -205,13 +202,11 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
 
 fn @build(arg0: i256) -> i256 [pure] {
   bb0:
-    v0 = not 31
-    v1 = and 95, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 32
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = sub v3, 160
-    mstore v4, 0xdeadbeef
+    v0 = alloc zeroed checked 64
+    mstore v0, 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = sub v1, 160
+    mstore v2, 0xdeadbeef
     ret arg0
 }
 
@@ -230,13 +225,11 @@ fn @build(arg0: i256, arg1: i256) -> i256 [pure] {
   bb2:
     jump bb3
   bb3:
-    v4 = not 31
-    v5 = and 95, v4
-    v6 = alloc zeroed checked v5
-    mstore v6, 32
-    v7 = ptrtoint ptr<memory> v6 to i256
-    v8 = sub v7, 288
-    mstore v8, 0xdeadbeef
+    v4 = alloc zeroed checked 64
+    mstore v4, 32
+    v5 = ptrtoint ptr<memory> v4 to i256
+    v6 = sub v5, 288
+    mstore v6, 0xdeadbeef
     ret arg0
   bb1:
     v1 = checked_sub uint256, arg1, 1

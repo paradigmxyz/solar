@@ -5,72 +5,70 @@
 
 fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
-    v0 = not 31
-    v1 = and 66, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 3
-    v3 = trunc i256 arg0 to i8
-    v4 = zext i8 v3 to i256
-    v5 = shl v4, 248
-    v6 = mload v2
-    v7 = lt 0, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    v9 = byte 0, v5
-    v10 = ptradd v2, 32
-    mstore8 v10, v9
-    v11 = mload v2
-    v12 = lt 1, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    v14 = byte 0, 0x2200000000000000000000000000000000000000000000000000000000000000
-    v15 = ptradd v2, 33
-    mstore8 v15, v14
-    v16 = mload v2
-    v17 = lt 2, v16
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = byte 0, 0x3300000000000000000000000000000000000000000000000000000000000000
-    v20 = ptradd v2, 34
-    mstore8 v20, v19
-    v21 = icall @copy, v2, 34
-    v22 = mload v21
-    v23 = lt 0, v22
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = ptradd v21, 32
-    v26 = mload v25
-    v27 = byte 0, v26
-    v28 = shl v27, 248
-    v29 = shr v28, 248
-    v30 = trunc i256 v29 to i8
-    v31 = zext i8 v30 to i256
-    v32 = mload v21
-    v33 = lt 1, v32
-    v34 = eq v33, false
-    icall panic_if<0x32>, v34
-    v35 = ptradd v21, 33
-    v36 = mload v35
-    v37 = byte 0, v36
-    v38 = shl v37, 248
-    v39 = shr v38, 248
-    v40 = trunc i256 v39 to i8
-    v41 = zext i8 v40 to i256
-    v42 = mload v21
-    v43 = lt 2, v42
-    v44 = eq v43, false
-    icall panic_if<0x32>, v44
-    v45 = ptradd v21, 34
-    v46 = mload v45
-    v47 = byte 0, v46
-    v48 = shl v47, 248
-    v49 = shr v48, 248
-    v50 = trunc i256 v49 to i8
-    v51 = zext i8 v50 to i256
-    v52 = insert_value struct0, undef struct0, 0, v31
-    v53 = insert_value struct0, v52, 1, v41
-    v54 = insert_value struct0, v53, 2, v51
-    ret v54
+    v0 = alloc zeroed checked 64
+    mstore v0, 3
+    v1 = trunc i256 arg0 to i8
+    v2 = zext i8 v1 to i256
+    v3 = shl v2, 248
+    v4 = mload v0
+    v5 = lt 0, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = byte 0, v3
+    v8 = ptradd v0, 32
+    mstore8 v8, v7
+    v9 = mload v0
+    v10 = lt 1, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = byte 0, 0x2200000000000000000000000000000000000000000000000000000000000000
+    v13 = ptradd v0, 33
+    mstore8 v13, v12
+    v14 = mload v0
+    v15 = lt 2, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = byte 0, 0x3300000000000000000000000000000000000000000000000000000000000000
+    v18 = ptradd v0, 34
+    mstore8 v18, v17
+    v19 = icall @copy, v0, 34
+    v20 = mload v19
+    v21 = lt 0, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = ptradd v19, 32
+    v24 = mload v23
+    v25 = byte 0, v24
+    v26 = shl v25, 248
+    v27 = shr v26, 248
+    v28 = trunc i256 v27 to i8
+    v29 = zext i8 v28 to i256
+    v30 = mload v19
+    v31 = lt 1, v30
+    v32 = eq v31, false
+    icall panic_if<0x32>, v32
+    v33 = ptradd v19, 33
+    v34 = mload v33
+    v35 = byte 0, v34
+    v36 = shl v35, 248
+    v37 = shr v36, 248
+    v38 = trunc i256 v37 to i8
+    v39 = zext i8 v38 to i256
+    v40 = mload v19
+    v41 = lt 2, v40
+    v42 = eq v41, false
+    icall panic_if<0x32>, v42
+    v43 = ptradd v19, 34
+    v44 = mload v43
+    v45 = byte 0, v44
+    v46 = shl v45, 248
+    v47 = shr v46, 248
+    v48 = trunc i256 v47 to i8
+    v49 = zext i8 v48 to i256
+    v50 = insert_value struct0, undef struct0, 0, v29
+    v51 = insert_value struct0, v50, 1, v39
+    v52 = insert_value struct0, v51, 2, v49
+    ret v52
 }
 
 fn @doubleProbe() -> i256 [selector=0xf770a1a3, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

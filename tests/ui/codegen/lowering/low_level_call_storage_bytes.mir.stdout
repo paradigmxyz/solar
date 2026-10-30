@@ -19,23 +19,21 @@ fn @target() -> i160 [selector=0xd4b83992, view, abi_params=[], abi_returns=[wor
 fn @prepare(arg0: i160, arg1: slice<calldata>) [selector=0xaacd9878, abi_params=[address, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = zext i160 arg0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 1, v5 !metadata(storage=slot(1))
-    v6 = extract_value slice<calldata>, arg1, 1
-    v7 = add v6, 63
-    v8 = not 31
-    v9 = and v7, v8
-    v10 = alloc v9
-    mstore v10, v6
-    v11 = ptradd v10, 32
-    v12 = extract_value slice<calldata>, arg1, 0
-    v13 = extract_value slice<calldata>, arg1, 1
-    calldatacopy v11, v12, v13
-    icall @store_storage_bytes, 0, v10
+    v1 = and v0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v2 = zext i160 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 1, v4 !metadata(storage=slot(1))
+    v5 = extract_value slice<calldata>, arg1, 1
+    v6 = add v5, 63
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v8 = alloc v7
+    mstore v8, v5
+    v9 = ptradd v8, 32
+    v10 = extract_value slice<calldata>, arg1, 0
+    v11 = extract_value slice<calldata>, arg1, 1
+    calldatacopy v9, v10, v11
+    icall @store_storage_bytes, 0, v8
     ret
 }
 

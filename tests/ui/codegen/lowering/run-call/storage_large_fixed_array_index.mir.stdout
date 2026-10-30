@@ -9,48 +9,44 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v1 = lt 0x80000000000000000000000000000000000000000000000000, 0x100000000000000000000000000000000000000000000000000
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = mul 0x80000000000000000000000000000000000000000000000000, 2
-    v4 = add v0, v3
-    v5 = lt 1, 2
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    v7 = add v4, 1
-    sstore v7, 7 !metadata(storage=offset(v4, 1))
-    v8 = checked_add uint256, 0x80000000000000000000000000000000000000000000000000, 1
-    v9 = lt v8, 0x100000000000000000000000000000000000000000000000000
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = mul v8, 2
-    v12 = add v0, v11
-    v13 = lt 0, 2
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = add v12, 0
-    sstore v15, 8 !metadata(storage=symbolic(v12))
-    v16 = lt 0x80000000000000000000000000000000000000000000000000, 0x100000000000000000000000000000000000000000000000000
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    v18 = mul 0x80000000000000000000000000000000000000000000000000, 2
-    v19 = add v0, v18
-    v20 = lt 1, 2
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = add v19, 1
-    v23 = sload v22 !metadata(storage=offset(v19, 1))
-    v24 = checked_add uint256, 0x80000000000000000000000000000000000000000000000000, 1
-    v25 = lt v24, 0x100000000000000000000000000000000000000000000000000
-    v26 = eq v25, false
-    icall panic_if<0x32>, v26
-    v27 = mul v24, 2
-    v28 = add v0, v27
-    v29 = lt 0, 2
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = add v28, 0
-    v32 = sload v31 !metadata(storage=symbolic(v28))
-    v33 = insert_value struct0, undef struct0, 0, v23
-    v34 = insert_value struct0, v33, 1, v32
-    ret v34
+    v3 = add v0, 0x100000000000000000000000000000000000000000000000000
+    v4 = lt 1, 2
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = add v3, 1
+    sstore v6, 7 !metadata(storage=offset(v0, 0x100000000000000000000000000000000000000000000000001))
+    v7 = checked_add uint256, 0x80000000000000000000000000000000000000000000000000, 1
+    v8 = lt v7, 0x100000000000000000000000000000000000000000000000000
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = mul v7, 2
+    v11 = add v0, v10
+    v12 = lt 0, 2
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    sstore v11, 8 !metadata(storage=symbolic(v11))
+    v14 = lt 0x80000000000000000000000000000000000000000000000000, 0x100000000000000000000000000000000000000000000000000
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = add v0, 0x100000000000000000000000000000000000000000000000000
+    v17 = lt 1, 2
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = add v16, 1
+    v20 = sload v19 !metadata(storage=offset(v0, 0x100000000000000000000000000000000000000000000000001))
+    v21 = checked_add uint256, 0x80000000000000000000000000000000000000000000000000, 1
+    v22 = lt v21, 0x100000000000000000000000000000000000000000000000000
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = mul v21, 2
+    v25 = add v0, v24
+    v26 = lt 0, 2
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = sload v25 !metadata(storage=symbolic(v25))
+    v29 = insert_value struct0, undef struct0, 0, v20
+    v30 = insert_value struct0, v29, 1, v28
+    ret v30
 }
 
 fn @read(arg0: i256) -> i256 [selector=0xed2e5a97, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -64,9 +60,8 @@ fn @read(arg0: i256) -> i256 [selector=0xed2e5a97, view, abi_params=[uint256], a
     v5 = lt 0, 2
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    v7 = add v4, 0
-    v8 = sload v7 !metadata(storage=symbolic(v4))
-    ret v8
+    v7 = sload v4 !metadata(storage=symbolic(v4))
+    ret v7
 }
 
 fn @hasExpectedLength() -> i1 [selector=0xa2fb6983, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

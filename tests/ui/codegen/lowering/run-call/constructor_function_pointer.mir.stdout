@@ -22,9 +22,8 @@ fn @constructor(arg0: i256) [constructor, abi_params=[function]] {
     v6 = returndatasize
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7
-    v8 = add 0, 0
-    v9 = mload v8
-    sstore 0, v9 !metadata(storage=slot(0))
+    v8 = mload 0 !metadata(memory=scratch)
+    sstore 0, v8 !metadata(storage=slot(0))
     ret
 }
 
@@ -82,9 +81,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v16 = returndatasize
     v17 = lt v16, 32
     icall revert_if<tuple_data_too_short>, v17
-    v18 = add 0, 0
-    v19 = mload v18
-    ret v19
+    v18 = mload 0 !metadata(memory=scratch)
+    ret v18
 }
 
 fn @fArray() -> i1 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -130,10 +128,9 @@ fn @fArray() -> i1 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>]
     v24 = returndatasize
     v25 = lt v24, 32
     icall revert_if<tuple_data_too_short>, v25
-    v26 = add 0, 0
-    v27 = mload v26
-    v28 = eq v27, v20
-    ret v28
+    v26 = mload 0 !metadata(memory=scratch)
+    v27 = eq v26, v20
+    ret v27
 }
 
 fn @sixteen() -> i256 [selector=0x990227f1, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

@@ -174,7 +174,7 @@ impl<'gcx> StorageLayout<'gcx> {
             return word;
         }
         let eight = builder.imm(8);
-        let shift = builder.mul(offset, eight);
+        let shift = builder.mul_folded(offset, eight);
         self.load_word(builder, location, word, Some(shift))
     }
 
@@ -217,7 +217,7 @@ impl<'gcx> StorageLayout<'gcx> {
         }
 
         let eight = builder.imm(8);
-        let shift = builder.mul(offset, eight);
+        let shift = builder.mul_folded(offset, eight);
         self.store_word(builder, location, slot, Some(shift), value);
     }
 
@@ -234,23 +234,23 @@ impl<'gcx> StorageLayout<'gcx> {
         let field_mask = location.mask();
         let field_mask_value = builder.imm(field_mask);
         let shifted_mask =
-            shift.map_or(field_mask_value, |shift| builder.shl(field_mask_value, shift));
+            shift.map_or(field_mask_value, |shift| builder.shl_folded(field_mask_value, shift));
         let old = location.load(builder, slot);
-        let keep_mask = builder.not(shifted_mask);
+        let keep_mask = builder.not_folded(shifted_mask);
         let cleared = builder.and(old, keep_mask);
         let value = match location.encoding {
             StorageEncoding::FixedBytes => {
                 // encoded = value >> align_shift
                 let shift = builder
                     .imm(u64::from(StorageLocation::word_bytes() - location.size.bytes()) * 8);
-                builder.shr(value, shift)
+                builder.shr_folded(value, shift)
             }
             StorageEncoding::Unsigned | StorageEncoding::Signed => value,
         };
         // updated = cleared | (shift ? (encoded & field_mask) << shift : encoded & field_mask)
         // store(slot, updated)
-        let value = builder.and(value, field_mask_value);
-        let value = shift.map_or(value, |shift| builder.shl(value, shift));
+        let value = builder.and_folded(value, field_mask_value);
+        let value = shift.map_or(value, |shift| builder.shl_folded(value, shift));
         let updated = builder.or(cleared, value);
         location.store(builder, slot, updated);
     }

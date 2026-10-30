@@ -32,23 +32,17 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     v0 = checked_mul uint256, arg0, 3
     sstore 0, v0 !metadata(storage=slot(0))
     v1 = sload 1 !metadata(storage=slot(1))
-    v2 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = and v1, v2
-    v4 = and 0x1111111111111111111111111111111111111111, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = or v3, v4
-    sstore 1, v5 !metadata(storage=slot(1))
-    v6 = sload 2 !metadata(storage=slot(2))
-    v7 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v8 = and v6, v7
-    v9 = and 0x1111111111111111111111111111111111111111, 0xffffffffffffffffffffffffffffffffffffffff
-    v10 = or v8, v9
-    sstore 2, v10 !metadata(storage=slot(2))
-    v11 = sload 3 !metadata(storage=slot(3))
-    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v13 = and v11, v12
-    v14 = and 0x1111111111111111111111111111111111111111, 0xffffffffffffffffffffffffffffffffffffffff
-    v15 = or v13, v14
-    sstore 3, v15 !metadata(storage=slot(3))
+    v2 = and v1, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v3 = or v2, 0x1111111111111111111111111111111111111111
+    sstore 1, v3 !metadata(storage=slot(1))
+    v4 = sload 2 !metadata(storage=slot(2))
+    v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v6 = or v5, 0x1111111111111111111111111111111111111111
+    sstore 2, v6 !metadata(storage=slot(2))
+    v7 = sload 3 !metadata(storage=slot(3))
+    v8 = and v7, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v9 = or v8, 0x1111111111111111111111111111111111111111
+    sstore 3, v9 !metadata(storage=slot(3))
     ret
 }
 

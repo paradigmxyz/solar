@@ -36,44 +36,43 @@ fn @copy(arg0: ptr<memory>) -> ptr<memory> [pure] {
     v1 = add v0, 63
     v2 = lt v1, v0
     icall panic_if<0x41>, v2
-    v3 = not 31
-    v4 = and v1, v3
-    v5 = alloc zeroed checked v4
-    mstore v5, v0
+    v3 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v4 = alloc zeroed checked v3
+    mstore v4, v0
     jump bb1
   bb1:
-    v6 = phi [bb0: arg0], [bb3: v6]
-    v7 = phi [bb0: v5], [bb3: v7]
-    v8 = phi [bb0: 0], [bb3: v25]
-    v9 = mload v6
-    v10 = lt v8, v9
-    jumpi v10, bb4, bb5
+    v5 = phi [bb0: arg0], [bb3: v5]
+    v6 = phi [bb0: v4], [bb3: v6]
+    v7 = phi [bb0: 0], [bb3: v24]
+    v8 = mload v5
+    v9 = lt v7, v8
+    jumpi v9, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v7
+    ret v6
   bb4:
-    v11 = mload v6
-    v12 = lt v8, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    v14 = ptradd v6, v8
-    v15 = ptradd v14, 32
-    v16 = mload v15
-    v17 = byte 0, v16
-    v18 = shl v17, 248
-    v19 = mload v7
-    v20 = lt v8, v19
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = byte 0, v18
-    v23 = ptradd v7, v8
-    v24 = ptradd v23, 32
-    mstore8 v24, v22
+    v10 = mload v5
+    v11 = lt v7, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = ptradd v5, v7
+    v14 = ptradd v13, 32
+    v15 = mload v14
+    v16 = byte 0, v15
+    v17 = shl v16, 248
+    v18 = mload v6
+    v19 = lt v7, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = byte 0, v17
+    v22 = ptradd v6, v7
+    v23 = ptradd v22, 32
+    mstore8 v23, v21
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v25 = checked_add uint256, v8, 1
+    v24 = checked_add uint256, v7, 1
     jump bb1
 }

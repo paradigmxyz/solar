@@ -17,18 +17,17 @@ fn @sink(arg0: slice<calldata>) -> i256 [selector=0x887458ef, pure, abi_params=[
     v10 = add v9, 63
     v11 = lt v10, v9
     icall panic_if<0x41>, v11
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc v13
-    mstore v14, v9
-    v15 = ptradd v14, 32
-    v16 = extract_value slice<calldata>, v1, 0
-    v17 = extract_value slice<calldata>, v1, 1
-    calldatacopy v15, v16, v17
-    v18 = ptradd v14, 32
-    v19 = mload v14
-    v20 = keccak256 v18, v19
-    ret v20
+    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = alloc v12
+    mstore v13, v9
+    v14 = ptradd v13, 32
+    v15 = extract_value slice<calldata>, v1, 0
+    v16 = extract_value slice<calldata>, v1, 1
+    calldatacopy v14, v15, v16
+    v17 = ptradd v13, 32
+    v18 = mload v13
+    v19 = keccak256 v17, v18
+    ret v19
 }
 
 fn @sinkWith(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x13407785, pure, abi_params=[array<_, tuple<address, array<_, tuple<address, uint256>>, array<_, tuple<address, uint256>>, bytes>>, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -48,18 +47,17 @@ fn @sinkWith(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x13407785, pu
     v10 = add v9, 63
     v11 = lt v10, v9
     icall panic_if<0x41>, v11
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc v13
-    mstore v14, v9
-    v15 = ptradd v14, 32
-    v16 = extract_value slice<calldata>, v1, 0
-    v17 = extract_value slice<calldata>, v1, 1
-    calldatacopy v15, v16, v17
-    v18 = ptradd v14, 32
-    v19 = mload v14
-    v20 = keccak256 v18, v19
-    ret v20
+    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = alloc v12
+    mstore v13, v9
+    v14 = ptradd v13, 32
+    v15 = extract_value slice<calldata>, v1, 0
+    v16 = extract_value slice<calldata>, v1, 1
+    calldatacopy v14, v15, v16
+    v17 = ptradd v13, 32
+    v18 = mload v13
+    v19 = keccak256 v17, v18
+    ret v19
 }
 
 fn @sinkOne(arg0: slice<calldata>) -> i256 [selector=0xdc7b1a27, pure, abi_params=[tuple<address, array<_, tuple<address, uint256>>, array<_, tuple<address, uint256>>, bytes>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -79,18 +77,17 @@ fn @sinkOne(arg0: slice<calldata>) -> i256 [selector=0xdc7b1a27, pure, abi_param
     v10 = add v9, 63
     v11 = lt v10, v9
     icall panic_if<0x41>, v11
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc v13
-    mstore v14, v9
-    v15 = ptradd v14, 32
-    v16 = extract_value slice<calldata>, v1, 0
-    v17 = extract_value slice<calldata>, v1, 1
-    calldatacopy v15, v16, v17
-    v18 = ptradd v14, 32
-    v19 = mload v14
-    v20 = keccak256 v18, v19
-    ret v20
+    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = alloc v12
+    mstore v13, v9
+    v14 = ptradd v13, 32
+    v15 = extract_value slice<calldata>, v1, 0
+    v16 = extract_value slice<calldata>, v1, 1
+    calldatacopy v14, v15, v16
+    v17 = ptradd v13, 32
+    v18 = mload v13
+    v19 = keccak256 v17, v18
+    ret v19
 }
 
 fn @forward(arg0: slice<calldata>) -> i256 [selector=0x6f975451, view, abi_params=[array<_, tuple<address, array<_, tuple<address, uint256>>, array<_, tuple<address, uint256>>, bytes>>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -109,9 +106,8 @@ fn @forward(arg0: slice<calldata>) -> i256 [selector=0x6f975451, view, abi_param
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    ret v10
+    v9 = mload 0 !metadata(memory=scratch)
+    ret v9
 }
 
 fn @forwardWith(arg0: slice<calldata>) -> i256 [selector=0xf2b2b8d0, view, abi_params=[array<_, tuple<address, array<_, tuple<address, uint256>>, array<_, tuple<address, uint256>>, bytes>>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -130,9 +126,8 @@ fn @forwardWith(arg0: slice<calldata>) -> i256 [selector=0xf2b2b8d0, view, abi_p
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    ret v10
+    v9 = mload 0 !metadata(memory=scratch)
+    ret v9
 }
 
 fn @forwardOne(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x82731354, view, abi_params=[array<_, tuple<address, array<_, tuple<address, uint256>>, array<_, tuple<address, uint256>>, bytes>>, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -182,9 +177,8 @@ fn @forwardOne(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x82731354, 
     v34 = returndatasize
     v35 = lt v34, 32
     icall revert_if<tuple_data_too_short>, v35
-    v36 = add 0, 0
-    v37 = mload v36
-    ret v37
+    v36 = mload 0 !metadata(memory=scratch)
+    ret v36
 }
 
 fn @encode(arg0: slice<calldata>) -> i256 [selector=0xcc54082e, pure, abi_params=[array<_, tuple<address, array<_, tuple<address, uint256>>, array<_, tuple<address, uint256>>, bytes>>], abi_returns=[word], abi_return_params=[bytes32]] {

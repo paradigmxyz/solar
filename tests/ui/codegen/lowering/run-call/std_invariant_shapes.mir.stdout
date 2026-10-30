@@ -40,91 +40,88 @@ fn @targetSelector(arg0: ptr<memory>) {
     v5 = add v3, v4
     v6 = mload arg0
     v7 = sload v5 !metadata(storage=symbolic(v5))
-    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = and v7, v8
-    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = or v9, v10
-    sstore v5, v11 !metadata(storage=symbolic(v5))
-    v12 = add v5, 1
-    v13 = ptradd arg0, 32
+    v8 = and v7, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v9 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v10 = or v8, v9
+    sstore v5, v10 !metadata(storage=symbolic(v5))
+    v11 = add v5, 1
+    v12 = ptradd arg0, 32
+    v13 = mload v12
     v14 = mload v13
-    v15 = mload v14
-    v16 = sload v12 !metadata(storage=offset(v5, 1))
-    v17 = gt v16, v15
-    jumpi v17, bb1, bb2
+    v15 = sload v11 !metadata(storage=offset(v5, 1))
+    v16 = gt v15, v14
+    jumpi v16, bb1, bb2
   bb1:
     jump bb3
   bb3:
-    v18 = phi [bb1: v15], [bb4: v34]
-    v19 = lt v18, v16
-    jumpi v19, bb4, bb5
+    v17 = phi [bb1: v14], [bb4: v31]
+    v18 = lt v17, v15
+    jumpi v18, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    sstore v12, v15 !metadata(storage=offset(v5, 1))
+    sstore v11, v14 !metadata(storage=offset(v5, 1))
     jump bb6
   bb6:
-    v35 = phi [bb2: 0], [bb7: v56]
-    v36 = lt v35, v15
-    jumpi v36, bb7, bb8
+    v32 = phi [bb2: 0], [bb7: v53]
+    v33 = lt v32, v14
+    jumpi v33, bb7, bb8
   bb8:
-    v57 = shr v15, 3
-    v58 = and v15, 7
-    v59 = eq v58, 0
-    jumpi v59, bb10, bb9
+    v54 = shr v14, 3
+    v55 = and v14, 7
+    v56 = eq v55, 0
+    jumpi v56, bb10, bb9
   bb9:
-    v60 = mul v58, 32
-    v61 = shl 1, v60
-    v62 = sub v61, 1
-    v63 = storage_array_data_slot v12
-    v64 = add v63, v57
-    v65 = sload v64 !metadata(storage=symbolic(v64))
-    v66 = and v65, v62
-    sstore v64, v66 !metadata(storage=symbolic(v64))
+    v57 = mul v55, 32
+    v58 = shl 1, v57
+    v59 = sub v58, 1
+    v60 = storage_array_data_slot v11
+    v61 = add v60, v54
+    v62 = sload v61 !metadata(storage=symbolic(v61))
+    v63 = and v62, v59
+    sstore v61, v63 !metadata(storage=symbolic(v61))
     jump bb10
   bb10:
     sstore 1, v2 !metadata(storage=slot(1))
     ret
   bb7:
-    v37 = shl v35, 5
-    v38 = inttoptr i256 v14 to ptr<memory>
-    v39 = ptradd v38, v37
-    v40 = ptradd v39, 32
-    v41 = mload v40
-    v42 = storage_array_data_slot v12
-    v43 = div v35, 8
-    v44 = add v42, v43
-    v45 = mod v35, 8
-    v46 = mul v45, 4
-    v47 = mul v46, 8
-    v48 = shl 0xffffffff, v47
-    v49 = sload v44 !metadata(storage=symbolic(v44))
-    v50 = not v48
-    v51 = and v49, v50
-    v52 = shr v41, 224
-    v53 = and v52, 0xffffffff
-    v54 = shl v53, v47
-    v55 = or v51, v54
-    sstore v44, v55 !metadata(storage=symbolic(v44))
-    v56 = add v35, 1
+    v34 = shl v32, 5
+    v35 = inttoptr i256 v13 to ptr<memory>
+    v36 = ptradd v35, v34
+    v37 = ptradd v36, 32
+    v38 = mload v37
+    v39 = storage_array_data_slot v11
+    v40 = div v32, 8
+    v41 = add v39, v40
+    v42 = mod v32, 8
+    v43 = mul v42, 4
+    v44 = mul v43, 8
+    v45 = shl 0xffffffff, v44
+    v46 = sload v41 !metadata(storage=symbolic(v41))
+    v47 = not v45
+    v48 = and v46, v47
+    v49 = shr v38, 224
+    v50 = and v49, 0xffffffff
+    v51 = shl v50, v44
+    v52 = or v48, v51
+    sstore v41, v52 !metadata(storage=symbolic(v41))
+    v53 = add v32, 1
     jump bb6
   bb4:
-    v20 = storage_array_data_slot v12
-    v21 = div v18, 8
-    v22 = add v20, v21
-    v23 = mod v18, 8
-    v24 = mul v23, 4
-    v25 = mul v24, 8
-    v26 = shl 0xffffffff, v25
-    v27 = sload v22 !metadata(storage=symbolic(v22))
-    v28 = not v26
-    v29 = and v27, v28
-    v30 = shr 0, 224
-    v31 = and v30, 0xffffffff
-    v32 = shl v31, v25
-    v33 = or v29, v32
-    sstore v22, v33 !metadata(storage=symbolic(v22))
-    v34 = add v18, 1
+    v19 = storage_array_data_slot v11
+    v20 = div v17, 8
+    v21 = add v19, v20
+    v22 = mod v17, 8
+    v23 = mul v22, 4
+    v24 = mul v23, 8
+    v25 = shl 0xffffffff, v24
+    v26 = sload v21 !metadata(storage=symbolic(v21))
+    v27 = not v25
+    v28 = and v26, v27
+    v29 = shl 0, v24
+    v30 = or v28, v29
+    sstore v21, v30 !metadata(storage=symbolic(v21))
+    v31 = add v17, 1
     jump bb3
 }
 

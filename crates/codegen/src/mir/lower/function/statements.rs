@@ -739,7 +739,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && function.is_external()
         {
             let shift = self.builder.imm(64);
-            return self.builder.shl(value, shift);
+            return self.builder.shl_folded(value, shift);
         }
         if !matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::FixedBytes(_))) {
             let layout = types::TypeLowerer::value_layout(ty);

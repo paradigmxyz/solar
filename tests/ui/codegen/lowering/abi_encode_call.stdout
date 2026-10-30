@@ -7,28 +7,28 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     v5 = shr v4, 160
     v2 = calldatasize
     v3 = lt v2, 68
-    v41 = zext i1 v3 to i256
-    v42 = or v41, v5
-    v43 = ne v42, 0
-    jumpi v43, bb1, bb2
+    v40 = zext i1 v3 to i256
+    v41 = or v40, v5
+    v42 = ne v41, 0
+    jumpi v42, bb1, bb2
   bb2:
-    v38 = heap_floor !metadata(alloc_ptr)
-    v39 = add v38, 128 !metadata(alloc_ptr)
-    mstore v38, 68
-    v33 = add v38, 32
-    mstore v33, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v35 = add v38, 36
-    mstore v35, arg0
-    v14 = add v35, 32
+    v37 = heap_floor !metadata(alloc_ptr)
+    v38 = add v37, 128 !metadata(alloc_ptr)
+    mstore v37, 68
+    v32 = add v37, 32
+    mstore v32, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v34 = add v37, 36
+    mstore v34, arg0
+    v14 = add v34, 32
     mstore v14, arg1
-    v17 = add v38, 160
-    mstore v39, 32
-    v24 = add v17, 32
-    v25 = add v17, 96
-    mstore v25, 0
+    v17 = add v37, 160
+    mstore v38, 32
+    v23 = add v17, 32
+    v24 = add v17, 96
+    mstore v24, 0
     mstore v17, 68
-    mcopy v24, v33, 68 !metadata(disjoint)
-    returndata v39, 160
+    mcopy v23, v32, 68 !metadata(disjoint)
+    returndata v38, 160
   bb1:
     revert 0, 0
 }
@@ -39,23 +39,23 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
     v9 = lt v8, 100
     v10 = calldataload 4
     v11 = shr v10, 160
-    v30 = zext i1 v9 to i256
-    v31 = or v30, v11
+    v29 = zext i1 v9 to i256
+    v30 = or v29, v11
     v13 = calldataload 36
     v14 = shr v13, 160
-    v33 = or v31, v14
-    v34 = ne v33, 0
-    jumpi v34, bb1, bb2
+    v32 = or v30, v14
+    v33 = ne v32, 0
+    jumpi v33, bb1, bb2
   bb2:
     v0 = gas
-    v28 = heap_floor !metadata(alloc_ptr)
-    v25 = add v28, 32
-    mstore v25, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v27 = add v28, 36
-    mstore v27, arg1
-    v23 = add v27, 32
-    mstore v23, arg2
-    v7 = call v0, arg0, 0, v25, 68, 0, 0
+    v27 = heap_floor !metadata(alloc_ptr)
+    v24 = add v27, 32
+    mstore v24, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v26 = add v27, 36
+    mstore v26, arg1
+    v22 = add v26, 32
+    mstore v22, arg2
+    v7 = call v0, arg0, 0, v24, 68, 0, 0
     v17 = zext i1 v7 to i256
     mstore 0, v17 !metadata(memory=scratch)
     returndata 0, 32

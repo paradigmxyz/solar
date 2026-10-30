@@ -28,9 +28,6 @@ bb4 [cold]:
   push 0
   revert
 bb5:
-  push 128
-  push 64
-  mstore
   push 36
   calldatasize
   lt
@@ -43,15 +40,10 @@ bb5:
   jumpi
   push 0
   mstore
-  push 0
   push 32
-  sub
   push 0
   return
 bb9:
-  push 128
-  push 64
-  mstore
   push 36
   calldatasize
   lt
@@ -65,9 +57,7 @@ bb9:
   jumpi
   push 0
   mstore
-  push 0
   push 32
-  sub
   push 0
   return
 bb13:

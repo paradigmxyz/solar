@@ -608,9 +608,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         index: usize,
         words: usize,
     ) -> ValueId {
-        let offset = self.builder.imm(u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32));
         debug_assert!(index < words);
-        let position = self.builder.add(base, offset);
+        let offset = u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32);
+        let position = self.builder.add_offset(base, offset);
         self.builder.load(position, PtrLocation::Memory)
     }
 

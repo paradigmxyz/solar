@@ -46,15 +46,14 @@ fn @first(arg0: slice<calldata>) -> ptr<memory> [selector=0xcf452bd8, pure, abi_
     v34 = add v33, 63
     v35 = lt v34, v33
     icall panic_if<0x41>, v35
-    v36 = not 31
-    v37 = and v34, v36
-    v38 = alloc v37
-    mstore v38, v33
-    v39 = ptradd v38, 32
-    v40 = extract_value slice<calldata>, v25, 0
-    v41 = extract_value slice<calldata>, v25, 1
-    calldatacopy v39, v40, v41
-    ret v38
+    v36 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v37 = alloc v36
+    mstore v37, v33
+    v38 = ptradd v37, 32
+    v39 = extract_value slice<calldata>, v25, 0
+    v40 = extract_value slice<calldata>, v25, 1
+    calldatacopy v38, v39, v40
+    ret v37
 }
 
 fn @encode(arg0: slice<calldata>) -> i256 [selector=0x04f02d88, pure, abi_params=[array<_, bytes>], abi_returns=[word], abi_return_params=[bytes32]] {

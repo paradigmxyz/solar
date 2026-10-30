@@ -84,19 +84,18 @@
 +     v4 = mload v0
 +     v5 = ptradd v0, 32
 +     v6 = add v4, 31
-+     v7 = not 31
-+     v8 = and v6, v7
-+     v9 = ptrtoint ptr<memory> v5 to i256
-+     v10 = add v9, v8
-+     mstore v10, 0
-+     v11 = ptradd v0, 64
-+     mcopy v11, v5, v4
++     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v8 = ptrtoint ptr<memory> v5 to i256
++     v9 = add v8, v7
++     mstore v9, 0
++     v10 = ptradd v0, 64
++     mcopy v10, v5, v4
 +     mstore v0, 32
 +     mstore v5, v4
-+     v12 = add v8, 64
-+     v13 = make_memory_slice v0, v12
-+     v2 = extract_value slice<memory>, v13, 0
-+     v3 = extract_value slice<memory>, v13, 1
-+     returndata v0, v12
++     v11 = add v7, 64
++     v12 = make_memory_slice v0, v11
++     v2 = extract_value slice<memory>, v12, 0
++     v3 = extract_value slice<memory>, v12, 1
++     returndata v0, v11
   }
   

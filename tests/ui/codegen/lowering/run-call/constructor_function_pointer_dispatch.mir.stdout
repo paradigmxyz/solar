@@ -30,12 +30,11 @@ fn @applyShift(arg0: i256, arg1: i256) {
     v2 = icall @internal_dispatcher_p_bytes6_uint256_r_bytes6, arg0, v1, arg1
     v3 = and v2, 0xffffffffffff0000000000000000000000000000000000000000000000000000
     v4 = sload 0 !metadata(storage=slot(0))
-    v5 = not 0xffffffffffff
-    v6 = and v4, v5
-    v7 = shr v3, 208
-    v8 = and v7, 0xffffffffffff
-    v9 = or v6, v8
-    sstore 0, v9 !metadata(storage=slot(0))
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000
+    v6 = shr v3, 208
+    v7 = and v6, 0xffffffffffff
+    v8 = or v5, v7
+    sstore 0, v8 !metadata(storage=slot(0))
     ret
 }
 
@@ -43,12 +42,11 @@ fn @setName(arg0: i256) {
   bb0:
     v0 = and arg0, 0xffffffffffff0000000000000000000000000000000000000000000000000000
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = not 0xffffffffffff
-    v3 = and v1, v2
-    v4 = shr v0, 208
-    v5 = and v4, 0xffffffffffff
-    v6 = or v3, v5
-    sstore 0, v6 !metadata(storage=slot(0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000
+    v3 = shr v0, 208
+    v4 = and v3, 0xffffffffffff
+    v5 = or v2, v4
+    sstore 0, v5 !metadata(storage=slot(0))
     ret
 }
 

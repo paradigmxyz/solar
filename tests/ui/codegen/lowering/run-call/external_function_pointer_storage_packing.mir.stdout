@@ -7,19 +7,14 @@ fn @constructor() [constructor] {
     v2 = shl v1, 32
     v3 = or v2, 0xd4b83992
     v4 = sload 0 !metadata(storage=slot(0))
-    v5 = not 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v6 = and v4, v5
-    v7 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v8 = or v6, v7
-    sstore 0, v8 !metadata(storage=slot(0))
-    v9 = shl 0xffffffffffffffff, 192
-    v10 = sload 0 !metadata(storage=slot(0))
-    v11 = not v9
-    v12 = and v10, v11
-    v13 = and 0x1122334455667788, 0xffffffffffffffff
-    v14 = shl v13, 192
-    v15 = or v12, v14
-    sstore 0, v15 !metadata(storage=slot(0))
+    v5 = and v4, 0xffffffffffffffff000000000000000000000000000000000000000000000000
+    v6 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v7 = or v5, v6
+    sstore 0, v7 !metadata(storage=slot(0))
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v10 = or v9, 0x1122334455667788000000000000000000000000000000000000000000000000
+    sstore 0, v10 !metadata(storage=slot(0))
     ret
 }
 

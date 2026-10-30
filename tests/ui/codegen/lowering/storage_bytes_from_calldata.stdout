@@ -4,15 +4,14 @@ fn @setText(arg0: slice<calldata>) [selector=0x5d3a1f9d, abi_params=[bytes], abi
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = add v0, 63
-    v2 = not 31
-    v3 = and v1, v2
-    v4 = alloc v3
-    mstore v4, v0
-    v5 = ptradd v4, 32
-    v6 = extract_value slice<calldata>, arg0, 0
-    v7 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v5, v6, v7
-    icall @store_storage_bytes, 0, v4
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = alloc v2
+    mstore v3, v0
+    v4 = ptradd v3, 32
+    v5 = extract_value slice<calldata>, arg0, 0
+    v6 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v4, v5, v6
+    icall @store_storage_bytes, 0, v3
     ret
 }
 
@@ -20,15 +19,14 @@ fn @setBlob(arg0: slice<calldata>) [selector=0xdd7d5edb, abi_params=[bytes], abi
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = add v0, 63
-    v2 = not 31
-    v3 = and v1, v2
-    v4 = alloc v3
-    mstore v4, v0
-    v5 = ptradd v4, 32
-    v6 = extract_value slice<calldata>, arg0, 0
-    v7 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v5, v6, v7
-    icall @store_storage_bytes, 1, v4
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = alloc v2
+    mstore v3, v0
+    v4 = ptradd v3, 32
+    v5 = extract_value slice<calldata>, arg0, 0
+    v6 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v4, v5, v6
+    icall @store_storage_bytes, 1, v3
     ret
 }
 

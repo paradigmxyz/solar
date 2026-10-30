@@ -15,11 +15,9 @@ fn @callVoid() -> i1 [selector=0xd04622c6, abi_params=[], abi_returns=[word<bool
 fn @setFlag() [selector=0x62548c7b, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 255
-    v2 = and v0, v1
-    v3 = and 1, 255
-    v4 = or v2, v3
-    sstore 0, v4 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v2 = or v1, 1
+    sstore 0, v2 !metadata(storage=slot(0))
     ret
 }
 
@@ -110,13 +108,9 @@ fn @internal_dispatcher_p_uint256_uint256_r_uint256(arg0: i256, arg1: i256, arg2
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = shl 0xffffffffffffffff, 8
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = not v0
-    v3 = and v1, v2
-    v4 = and 2, 0xffffffffffffffff
-    v5 = shl v4, 8
-    v6 = or v3, v5
-    sstore 0, v6 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffff0000000000000000ff
+    v2 = or v1, 512
+    sstore 0, v2 !metadata(storage=slot(0))
     ret
 }

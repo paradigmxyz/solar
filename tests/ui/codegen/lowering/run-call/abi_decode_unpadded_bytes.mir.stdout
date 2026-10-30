@@ -5,30 +5,28 @@
 
 fn @decode() -> struct0 [selector=0xc0f8940c, pure, abi_params=[], abi_returns=[word, word<bytes1>], abi_return_params=[uint256, bytes1]] {
   bb0:
-    v0 = not 31
-    v1 = and 128, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 65
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = add v3, 32
-    mstore v4, 32
-    v5 = ptrtoint ptr<memory> v2 to i256
-    v6 = add v5, 64
-    mstore v6, 1
-    v7 = ptrtoint ptr<memory> v2 to i256
-    v8 = add v7, 96
-    mstore8 v8, 122
-    v9 = abi_decode [bytes], v2
-    v10 = mload v9
-    v11 = mload v9
-    v12 = lt 0, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    v14 = ptradd v9, 32
-    v15 = mload v14
-    v16 = byte 0, v15
-    v17 = shl v16, 248
-    v18 = insert_value struct0, undef struct0, 0, v10
-    v19 = insert_value struct0, v18, 1, v17
-    ret v19
+    v0 = alloc zeroed checked 128
+    mstore v0, 65
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, 32
+    mstore v2, 32
+    v3 = ptrtoint ptr<memory> v0 to i256
+    v4 = add v3, 64
+    mstore v4, 1
+    v5 = ptrtoint ptr<memory> v0 to i256
+    v6 = add v5, 96
+    mstore8 v6, 122
+    v7 = abi_decode [bytes], v0
+    v8 = mload v7
+    v9 = mload v7
+    v10 = lt 0, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = ptradd v7, 32
+    v13 = mload v12
+    v14 = byte 0, v13
+    v15 = shl v14, 248
+    v16 = insert_value struct0, undef struct0, 0, v8
+    v17 = insert_value struct0, v16, 1, v15
+    ret v17
 }

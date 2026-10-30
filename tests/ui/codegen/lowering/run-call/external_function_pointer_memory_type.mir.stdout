@@ -30,11 +30,10 @@ fn @main() -> i1 [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>], 
     v14 = returndatasize
     v15 = lt v14, 32
     icall revert_if<tuple_data_too_short>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    v18 = lt v17, 2
-    v19 = eq v18, false
-    icall revert_if<empty>, v19
-    v20 = ne v17, 0
-    ret v20
+    v16 = mload 0 !metadata(memory=scratch)
+    v17 = lt v16, 2
+    v18 = eq v17, false
+    icall revert_if<empty>, v18
+    v19 = ne v16, 0
+    ret v19
 }

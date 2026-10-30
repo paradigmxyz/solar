@@ -13,17 +13,13 @@ fn @crossWidthConstant() -> i256 [selector=0xb8776813, pure, abi_params=[], abi_
 fn @crossWidthStructField() -> i256 [selector=0x3ed4a0f0, abi_params=[], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffff
-    v2 = and v0, v1
-    v3 = shr 0x700000000000000000000000000000000000000000000000000000000000000, 240
-    v4 = and v3, 0xffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = add 0, 1
-    sstore v6, 1 !metadata(storage=slot(1))
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = shl v7, 240
-    ret v8
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
+    v2 = or v1, 0x700
+    sstore 0, v2 !metadata(storage=slot(0))
+    sstore 1, 1 !metadata(storage=slot(1))
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = shl v3, 240
+    ret v4
 }
 
 fn @crossWidthAssembly() -> i256 [selector=0xb9761af7, pure, abi_params=[], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {

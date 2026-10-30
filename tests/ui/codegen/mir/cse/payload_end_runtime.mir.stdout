@@ -12,52 +12,51 @@ fn @pad(arg0: ptr<memory>, arg1: i256) -> struct0 [selector=0xb20ac612, pure, ab
     v2 = add v1, 63
     v3 = lt v2, v1
     icall panic_if<0x41>, v3
-    v4 = not 31
-    v5 = and v2, v4
-    v6 = alloc zeroed checked v5
-    mstore v6, v1
+    v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v5 = alloc zeroed checked v4
+    mstore v5, v1
     jump bb1
   bb1:
-    v7 = phi [bb0: arg0], [bb3: v7]
-    v8 = phi [bb0: arg1], [bb3: v8]
-    v9 = phi [bb0: v6], [bb3: v9]
-    v10 = phi [bb0: 0], [bb3: v10]
-    v11 = phi [bb0: v1], [bb3: v11]
-    v12 = phi [bb0: 0], [bb3: v29]
-    v13 = lt v12, v11
-    jumpi v13, bb4, bb5
+    v6 = phi [bb0: arg0], [bb3: v6]
+    v7 = phi [bb0: arg1], [bb3: v7]
+    v8 = phi [bb0: v5], [bb3: v8]
+    v9 = phi [bb0: 0], [bb3: v9]
+    v10 = phi [bb0: v1], [bb3: v10]
+    v11 = phi [bb0: 0], [bb3: v28]
+    v12 = lt v11, v10
+    jumpi v12, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    icall @_zeroPad, v9
-    v30 = icall @_tail, v9
-    v31 = insert_value struct0, undef struct0, 0, v9
-    v32 = insert_value struct0, v31, 1, v30
-    ret v32
+    icall @_zeroPad, v8
+    v29 = icall @_tail, v8
+    v30 = insert_value struct0, undef struct0, 0, v8
+    v31 = insert_value struct0, v30, 1, v29
+    ret v31
   bb4:
-    v14 = checked_add uint256, v8, v12
-    v15 = mload v7
-    v16 = lt v14, v15
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    v18 = ptradd v7, v14
-    v19 = ptradd v18, 32
-    v20 = mload v19
-    v21 = byte 0, v20
-    v22 = shl v21, 248
-    v23 = mload v9
-    v24 = lt v12, v23
-    v25 = eq v24, false
-    icall panic_if<0x32>, v25
-    v26 = byte 0, v22
-    v27 = ptradd v9, v12
-    v28 = ptradd v27, 32
-    mstore8 v28, v26
+    v13 = checked_add uint256, v7, v11
+    v14 = mload v6
+    v15 = lt v13, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = ptradd v6, v13
+    v18 = ptradd v17, 32
+    v19 = mload v18
+    v20 = byte 0, v19
+    v21 = shl v20, 248
+    v22 = mload v8
+    v23 = lt v11, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = byte 0, v21
+    v26 = ptradd v8, v11
+    v27 = ptradd v26, 32
+    mstore8 v27, v25
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v29 = checked_add uint256, v12, 1
+    v28 = checked_add uint256, v11, 1
     jump bb1
 }
 
@@ -89,23 +88,19 @@ fn @truncate(arg0: i256, arg1: i256) -> struct0 [selector=0xe0b7b2e6, pure, abi_
 
 fn @next() -> struct1 [selector=0x4c8fe526, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
-    v0 = not 31
-    v1 = and 64, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 1
-    v3 = not 31
-    v4 = and 64, v3
-    v5 = alloc zeroed checked v4
-    mstore v5, 1
-    v6 = not 0
-    v7 = ptrtoint ptr<memory> v5 to i256
-    mstore v5, v6
-    icall @_zeroPad, v2
-    v8 = mload v2
-    v9 = mload v5
-    v10 = insert_value struct1, undef struct1, 0, v8
-    v11 = insert_value struct1, v10, 1, v9
-    ret v11
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    v1 = alloc zeroed checked 64
+    mstore v1, 1
+    v2 = not 0
+    v3 = ptrtoint ptr<memory> v1 to i256
+    mstore v1, v2
+    icall @_zeroPad, v0
+    v4 = mload v0
+    v5 = mload v1
+    v6 = insert_value struct1, undef struct1, 0, v4
+    v7 = insert_value struct1, v6, 1, v5
+    ret v7
 }
 
 fn @wrap(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x2d3d4ade, pure, abi_params=[bytes, uint256], abi_returns=[word], abi_return_params=[uint256]] {

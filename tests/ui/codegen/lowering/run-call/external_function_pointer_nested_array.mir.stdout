@@ -164,56 +164,53 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v54 = returndatasize
     v55 = lt v54, 32
     icall revert_if<tuple_data_too_short>, v55
-    v56 = add 0, 0
-    v57 = mload v56
-    v58 = lt 1, 3
-    v59 = eq v58, false
-    icall panic_if<0x32>, v59
-    v60 = ptradd v43, 32
-    v61 = mload v60
-    v62 = shr v61, 64
-    v63 = and v62, 0xffffffff
-    v64 = shl v63, 224
-    v65 = shr v62, 32
-    v66 = gas
-    v67 = shr v64, 224
-    mstore 0, v67 !metadata(memory=scratch)
-    v68 = call v66, v65, 0, 28, 4, 0, 32
-    jumpi v68, bb14, bb13
+    v56 = mload 0 !metadata(memory=scratch)
+    v57 = lt 1, 3
+    v58 = eq v57, false
+    icall panic_if<0x32>, v58
+    v59 = ptradd v43, 32
+    v60 = mload v59
+    v61 = shr v60, 64
+    v62 = and v61, 0xffffffff
+    v63 = shl v62, 224
+    v64 = shr v61, 32
+    v65 = gas
+    v66 = shr v63, 224
+    mstore 0, v66 !metadata(memory=scratch)
+    v67 = call v65, v64, 0, 28, 4, 0, 32
+    jumpi v67, bb14, bb13
   bb13:
     revert_returndata
   bb14:
-    v69 = returndatasize
-    v70 = lt v69, 32
-    icall revert_if<tuple_data_too_short>, v70
-    v71 = add 0, 0
-    v72 = mload v71
-    v73 = lt 2, 3
-    v74 = eq v73, false
-    icall panic_if<0x32>, v74
-    v75 = ptradd v43, 64
-    v76 = mload v75
-    v77 = shr v76, 64
-    v78 = and v77, 0xffffffff
-    v79 = shl v78, 224
-    v80 = shr v77, 32
-    v81 = gas
-    v82 = shr v79, 224
-    mstore 0, v82 !metadata(memory=scratch)
-    v83 = call v81, v80, 0, 28, 4, 0, 32
-    jumpi v83, bb16, bb15
+    v68 = returndatasize
+    v69 = lt v68, 32
+    icall revert_if<tuple_data_too_short>, v69
+    v70 = mload 0 !metadata(memory=scratch)
+    v71 = lt 2, 3
+    v72 = eq v71, false
+    icall panic_if<0x32>, v72
+    v73 = ptradd v43, 64
+    v74 = mload v73
+    v75 = shr v74, 64
+    v76 = and v75, 0xffffffff
+    v77 = shl v76, 224
+    v78 = shr v75, 32
+    v79 = gas
+    v80 = shr v77, 224
+    mstore 0, v80 !metadata(memory=scratch)
+    v81 = call v79, v78, 0, 28, 4, 0, 32
+    jumpi v81, bb16, bb15
   bb15:
     revert_returndata
   bb16:
-    v84 = returndatasize
-    v85 = lt v84, 32
-    icall revert_if<tuple_data_too_short>, v85
-    v86 = add 0, 0
-    v87 = mload v86
-    v88 = insert_value struct0, undef struct0, 0, v57
-    v89 = insert_value struct0, v88, 1, v72
-    v90 = insert_value struct0, v89, 2, v87
-    ret v90
+    v82 = returndatasize
+    v83 = lt v82, 32
+    icall revert_if<tuple_data_too_short>, v83
+    v84 = mload 0 !metadata(memory=scratch)
+    v85 = insert_value struct0, undef struct0, 0, v56
+    v86 = insert_value struct0, v85, 1, v70
+    v87 = insert_value struct0, v86, 2, v84
+    ret v87
   bb4:
     v8 = address
     v9 = zext i160 v8 to i256

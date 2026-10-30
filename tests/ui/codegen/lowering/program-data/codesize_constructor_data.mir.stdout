@@ -27,9 +27,8 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
-    v6 = add 0, 0
-    v7 = mload v6
-    ret v7
+    v6 = mload 0 !metadata(memory=scratch)
+    ret v6
 }
 
 fn @sizeMatches() -> i1 [selector=0x6cb0d5a7, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

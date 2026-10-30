@@ -29,42 +29,36 @@ fn @isEmpty(arg0: ptr<memory>) -> i256 [pure] {
 
 fn @constantWord() -> i256 [selector=0xf7bfd103, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = not 31
-    v1 = and 95, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 32
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = add v3, 32
-    mstore v4, 42
-    v5 = icall @read, v2
-    ret v5
+    v0 = alloc zeroed checked 64
+    mstore v0, 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, 32
+    mstore v2, 42
+    v3 = icall @read, v0
+    ret v3
 }
 
 fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = not 31
-    v1 = and 95, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 32
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = add v3, 32
-    mstore v4, arg0
-    v5 = icall @read, v2
-    ret v5
+    v0 = alloc zeroed checked 64
+    mstore v0, 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, 32
+    mstore v2, arg0
+    v3 = icall @read, v0
+    ret v3
 }
 
 fn @afterOverwrite(arg0: i256) -> i256 [selector=0xb7519bca, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = not 31
-    v1 = and 95, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 32
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = add v3, 32
-    mstore v4, 42
-    icall @overwrite, v2, arg0
-    v5 = icall @read, v2
-    ret v5
+    v0 = alloc zeroed checked 64
+    mstore v0, 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, 32
+    mstore v2, 42
+    icall @overwrite, v0, arg0
+    v3 = icall @read, v0
+    ret v3
 }
 
 fn @constantShort() -> i256 [selector=0xe64f6587, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {

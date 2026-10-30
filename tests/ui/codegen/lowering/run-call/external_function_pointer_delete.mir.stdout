@@ -12,20 +12,17 @@ fn @clear() -> i1 [selector=0x52efea6e, abi_params=[], abi_returns=[word<bool>],
     v2 = shl v1, 32
     v3 = or v2, 0x3fa4f245
     v4 = sload 0 !metadata(storage=slot(0))
-    v5 = not 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v6 = and v4, v5
-    v7 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v8 = or v6, v7
-    sstore 0, v8 !metadata(storage=slot(0))
-    v9 = sload 0 !metadata(storage=slot(0))
-    v10 = not 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v11 = and v9, v10
-    v12 = and 0, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v13 = or v11, v12
-    sstore 0, v13 !metadata(storage=slot(0))
-    v14 = sload 0 !metadata(storage=slot(0))
-    v15 = trunc i256 v14 to i192
-    v16 = zext i192 v15 to i256
-    v17 = eq v16, 0
-    ret v17
+    v5 = and v4, 0xffffffffffffffff000000000000000000000000000000000000000000000000
+    v6 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v7 = or v5, v6
+    sstore 0, v7 !metadata(storage=slot(0))
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = and v8, 0xffffffffffffffff000000000000000000000000000000000000000000000000
+    v10 = or v9, 0
+    sstore 0, v10 !metadata(storage=slot(0))
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = trunc i256 v11 to i192
+    v13 = zext i192 v12 to i256
+    v14 = eq v13, 0
+    ret v14
 }

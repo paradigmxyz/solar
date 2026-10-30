@@ -4,12 +4,10 @@ fn @allocate(arg0: i256) -> i256 [selector=0x90ca796b, pure, abi_params=[uint256
   bb0:
     v0 = ne arg0, 0
     icall require<short_string>, v0, 4, 0x73746f7000000000000000000000000000000000000000000000000000000000
-    v1 = not 31
-    v2 = and 64, v1
-    v3 = alloc zeroed checked v2
-    mstore v3, 1
-    v4 = mload v3
-    ret v4
+    v1 = alloc zeroed checked 64
+    mstore v1, 1
+    v2 = mload v1
+    ret v2
 }
 
 fn @slot(arg0: i256) [selector=0xb2025e4f, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {

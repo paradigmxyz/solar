@@ -81,28 +81,26 @@ fn @packedRebind(arg0: i1, arg1: i256, arg2: i256, arg3: i8) -> struct1 [selecto
   bb3:
     v2 = phi [bb1: v1], [bb2: v0]
     v3 = add v2, 1
-    v4 = shl 255, 8
-    v5 = sload v3 !metadata(storage=offset(v2, 1))
-    v6 = not v4
-    v7 = and v5, v6
-    v8 = zext i8 arg3 to i256
-    v9 = and v8, 255
-    v10 = shl v9, 8
-    v11 = or v7, v10
-    sstore v3, v11 !metadata(storage=offset(v2, 1))
-    v12 = mapping_slot arg1, 1
-    v13 = add v12, 1
-    v14 = sload v13 !metadata(storage=offset(v12, 1))
-    v15 = shr v14, 8
-    v16 = trunc i256 v15 to i8
-    v17 = mapping_slot arg2, 1
-    v18 = add v17, 1
-    v19 = sload v18 !metadata(storage=offset(v17, 1))
-    v20 = shr v19, 8
-    v21 = trunc i256 v20 to i8
-    v22 = insert_value struct1, undef struct1, 0, v16
-    v23 = insert_value struct1, v22, 1, v21
-    ret v23
+    v4 = sload v3 !metadata(storage=offset(v2, 1))
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v6 = zext i8 arg3 to i256
+    v7 = and v6, 255
+    v8 = shl v7, 8
+    v9 = or v5, v8
+    sstore v3, v9 !metadata(storage=offset(v2, 1))
+    v10 = mapping_slot arg1, 1
+    v11 = add v10, 1
+    v12 = sload v11 !metadata(storage=offset(v10, 1))
+    v13 = shr v12, 8
+    v14 = trunc i256 v13 to i8
+    v15 = mapping_slot arg2, 1
+    v16 = add v15, 1
+    v17 = sload v16 !metadata(storage=offset(v15, 1))
+    v18 = shr v17, 8
+    v19 = trunc i256 v18 to i8
+    v20 = insert_value struct1, undef struct1, 0, v14
+    v21 = insert_value struct1, v20, 1, v19
+    ret v21
 }
 
 fn @packedYulRebind(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> struct2 [selector=0x3c827d72, abi_params=[bool, uint256, uint256, uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
@@ -172,50 +170,44 @@ fn @mappingAssignmentExpression(arg0: i256, arg1: i256, arg2: i8) -> struct3 [se
   bb0:
     v0 = mapping_slot arg0, 1
     v1 = add v0, 1
-    v2 = shl 255, 8
-    v3 = sload v1 !metadata(storage=offset(v0, 1))
-    v4 = not v2
-    v5 = and v3, v4
-    v6 = and 1, 255
-    v7 = shl v6, 8
-    v8 = or v5, v7
-    sstore v1, v8 !metadata(storage=offset(v0, 1))
-    v9 = mapping_slot arg1, 2
-    v10 = add v9, 1
-    v11 = shl 255, 8
-    v12 = sload v10 !metadata(storage=offset(v9, 1))
-    v13 = not v11
-    v14 = and v12, v13
-    v15 = zext i8 arg2 to i256
-    v16 = and v15, 255
-    v17 = shl v16, 8
-    v18 = or v14, v17
-    sstore v10, v18 !metadata(storage=offset(v9, 1))
-    v19 = mapping_slot arg0, 1
-    v20 = add v19, 1
-    v21 = sload v20 !metadata(storage=offset(v19, 1))
-    v22 = shr v21, 8
-    v23 = trunc i256 v22 to i8
-    v24 = mapping_slot arg1, 1
-    v25 = add v24, 1
-    v26 = sload v25 !metadata(storage=offset(v24, 1))
-    v27 = shr v26, 8
-    v28 = trunc i256 v27 to i8
-    v29 = mapping_slot arg0, 2
-    v30 = add v29, 1
-    v31 = sload v30 !metadata(storage=offset(v29, 1))
-    v32 = shr v31, 8
-    v33 = trunc i256 v32 to i8
-    v34 = mapping_slot arg1, 2
-    v35 = add v34, 1
-    v36 = sload v35 !metadata(storage=offset(v34, 1))
-    v37 = shr v36, 8
-    v38 = trunc i256 v37 to i8
-    v39 = insert_value struct3, undef struct3, 0, v23
-    v40 = insert_value struct3, v39, 1, v28
-    v41 = insert_value struct3, v40, 2, v33
-    v42 = insert_value struct3, v41, 3, v38
-    ret v42
+    v2 = sload v1 !metadata(storage=offset(v0, 1))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v4 = or v3, 256
+    sstore v1, v4 !metadata(storage=offset(v0, 1))
+    v5 = mapping_slot arg1, 2
+    v6 = add v5, 1
+    v7 = sload v6 !metadata(storage=offset(v5, 1))
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v9 = zext i8 arg2 to i256
+    v10 = and v9, 255
+    v11 = shl v10, 8
+    v12 = or v8, v11
+    sstore v6, v12 !metadata(storage=offset(v5, 1))
+    v13 = mapping_slot arg0, 1
+    v14 = add v13, 1
+    v15 = sload v14 !metadata(storage=offset(v13, 1))
+    v16 = shr v15, 8
+    v17 = trunc i256 v16 to i8
+    v18 = mapping_slot arg1, 1
+    v19 = add v18, 1
+    v20 = sload v19 !metadata(storage=offset(v18, 1))
+    v21 = shr v20, 8
+    v22 = trunc i256 v21 to i8
+    v23 = mapping_slot arg0, 2
+    v24 = add v23, 1
+    v25 = sload v24 !metadata(storage=offset(v23, 1))
+    v26 = shr v25, 8
+    v27 = trunc i256 v26 to i8
+    v28 = mapping_slot arg1, 2
+    v29 = add v28, 1
+    v30 = sload v29 !metadata(storage=offset(v28, 1))
+    v31 = shr v30, 8
+    v32 = trunc i256 v31 to i8
+    v33 = insert_value struct3, undef struct3, 0, v17
+    v34 = insert_value struct3, v33, 1, v22
+    v35 = insert_value struct3, v34, 2, v27
+    v36 = insert_value struct3, v35, 3, v32
+    ret v36
 }
 
 fn @readB(arg0: i256) -> i256 [view] {

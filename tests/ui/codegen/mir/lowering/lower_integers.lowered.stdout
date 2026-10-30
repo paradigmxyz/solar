@@ -75,14 +75,13 @@
 -     v2 = mod v1, v0
 -     v3 = mul v2, v0
 -     ret v3
-+     v4 = and 8, 0xffffff
-+     v5 = div arg0, v4
-+     v6 = and v5, 0xffffff
-+     v7 = mod v6, v4
-+     v8 = and v7, 0xffffff
-+     v9 = mul v8, v4
-+     v10 = and v9, 0xffffff
-+     ret v10
++     v4 = div arg0, 8
++     v5 = and v4, 0xffffff
++     v6 = mod v5, 8
++     v7 = and v6, 0xffffff
++     v8 = mul v7, 8
++     v9 = and v8, 0xffffff
++     ret v9
   }
   
 - fn @wrap_constants() -> i8 {
@@ -94,17 +93,15 @@
 -     v3 = not v2
 -     v4 = sdiv v3, v1
 -     ret v4
-+     v5 = and 255, 255
-+     v6 = and 1, 255
-+     v7 = add v5, v6
++     v5 = add 255, 1
++     v6 = and v5, 255
++     v7 = not v6
 +     v8 = and v7, 255
-+     v9 = not v8
-+     v10 = and v9, 255
-+     v11 = signextend 0, v9
-+     v12 = signextend 0, 1
-+     v13 = sdiv v11, v12
-+     v14 = and v13, 255
-+     ret v14
++     v9 = signextend 0, v7
++     v10 = signextend 0, 1
++     v11 = sdiv v9, v10
++     v12 = and v11, 255
++     ret v12
   }
   
 - fn @clz(arg0: i16) -> i16 {
@@ -348,29 +345,26 @@
   
   fn @power_of_two(arg0: i256) -> i256 {
     bb0:
-      v4 = and 8, 0xffffff
-      v5 = div arg0, v4
-      v6 = and v5, 0xffffff
-      v7 = mod v6, v4
-      v8 = and v7, 0xffffff
-      v9 = mul v8, v4
-      v10 = and v9, 0xffffff
-      ret v10
+      v4 = div arg0, 8
+      v5 = and v4, 0xffffff
+      v6 = mod v5, 8
+      v7 = and v6, 0xffffff
+      v8 = mul v7, 8
+      v9 = and v8, 0xffffff
+      ret v9
   }
   
   fn @wrap_constants() -> i256 {
     bb0:
-      v5 = and 255, 255
-      v6 = and 1, 255
-      v7 = add v5, v6
+      v5 = add 255, 1
+      v6 = and v5, 255
+      v7 = not v6
       v8 = and v7, 255
-      v9 = not v8
-      v10 = and v9, 255
-      v11 = signextend 0, v9
-      v12 = signextend 0, 1
-      v13 = sdiv v11, v12
-      v14 = and v13, 255
-      ret v14
+      v9 = signextend 0, v7
+      v10 = signextend 0, 1
+      v11 = sdiv v9, v10
+      v12 = and v11, 255
+      ret v12
   }
   
   fn @clz(arg0: i256) -> i256 {
@@ -578,32 +572,30 @@
   
   fn @power_of_two(arg0: i256) -> i256 {
     bb0:
--     v4 = and 8, 0xffffff
--     v5 = div arg0, v4
-+     v5 = shr arg0, 3
-      v6 = and v5, 0xffffff
--     v7 = mod v6, v4
--     v8 = and v7, 0xffffff
--     v9 = mul v8, v4
-+     v7 = and v5, 7
-+     v9 = shl v7, 3
-      v10 = and v9, 0xffffff
-      ret v10
+-     v4 = div arg0, 8
++     v4 = shr arg0, 3
+      v5 = and v4, 0xffffff
+-     v6 = mod v5, 8
+-     v7 = and v6, 0xffffff
+-     v8 = mul v7, 8
+-     v9 = and v8, 0xffffff
+-     ret v9
++     v6 = and v4, 7
++     v8 = shl v6, 3
++     ret v8
   }
   
   fn @wrap_constants() -> i256 {
     bb0:
--     v5 = and 255, 255
--     v6 = and 1, 255
--     v7 = add v5, v6
+-     v5 = add 255, 1
+-     v6 = and v5, 255
+-     v7 = not v6
 -     v8 = and v7, 255
--     v9 = not v8
--     v10 = and v9, 255
--     v11 = signextend 0, v9
--     v12 = signextend 0, 1
--     v13 = sdiv v11, v12
--     v14 = and v13, 255
--     ret v14
+-     v9 = signextend 0, v7
+-     v10 = signextend 0, 1
+-     v11 = sdiv v9, v10
+-     v12 = and v11, 255
+-     ret v12
 +     ret 255
   }
   
@@ -811,12 +803,11 @@
   
   fn @power_of_two(arg0: i256) -> i256 {
     bb0:
-      v5 = shr arg0, 3
-      v6 = and v5, 0xffffff
-      v7 = and v5, 7
-      v9 = shl v7, 3
-      v10 = and v9, 0xffffff
-      ret v10
+      v4 = shr arg0, 3
+      v5 = and v4, 0xffffff
+      v6 = and v4, 7
+      v8 = shl v6, 3
+      ret v8
   }
   
   fn @wrap_constants() -> i256 {

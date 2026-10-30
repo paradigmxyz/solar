@@ -14,8 +14,7 @@ fn @matches() -> i1 [selector=0x55590d58, view, abi_params=[], abi_returns=[word
     v4 = trunc i256 v3 to i192
     v5 = keccak256_packed (uint192 v4)
     v6 = address
-    v7 = and 0xd4b8399200000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v8 = keccak256_packed (uint160 v6, bytes4 v7)
-    v9 = eq v5, v8
-    ret v9
+    v7 = keccak256_packed (uint160 v6, bytes4 0xd4b8399200000000000000000000000000000000000000000000000000000000)
+    v8 = eq v5, v7
+    ret v8
 }

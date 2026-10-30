@@ -63,67 +63,64 @@ fn @f4() -> ptr<memory> [selector=0xc3f90202, abi_params=[], abi_returns=[memory
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     sstore 0, 7 !metadata(storage=slot(0))
-    v1 = add 0, 1
-    v2 = sload v1 !metadata(storage=slot(1))
-    v3 = gt v2, 0xffffffffffffffff
-    icall panic_if<0x41>, v3
-    v4 = add v2, 1
-    v5 = storage_array_data_slot v1
-    v6 = add v5, v2
-    sstore v6, 2 !metadata(storage=symbolic(v6))
-    sstore v1, v4 !metadata(storage=slot(1))
-    v7 = add 0, 1
-    v8 = sload v7 !metadata(storage=slot(1))
-    v9 = gt v8, 0xffffffffffffffff
-    icall panic_if<0x41>, v9
-    v10 = add v8, 1
-    v11 = storage_array_data_slot v7
-    v12 = add v11, v8
-    sstore v12, 3 !metadata(storage=symbolic(v12))
-    sstore v7, v10 !metadata(storage=slot(1))
-    v13 = alloc checked 64
-    v14 = sload 0 !metadata(storage=slot(0))
-    mstore v13, v14
-    v15 = add 0, 1
-    v16 = icall @load_storage_word_array, v15
-    v17 = ptrtoint ptr<memory> v16 to i256
-    v18 = ptradd v13, 32
-    mstore v18, v17
-    v19 = abi_encode [word, memory_bytes, tuple<word, memory_array<word>>, word], object, args 1, v0, v13, 2
-    v20 = alloc 64 !metadata(preserves_fmp)
-    mstore v20, 3
-    v21 = ptradd v20, 32
-    mstore v21, 0x6465660000000000000000000000000000000000000000000000000000000000
-    v22 = mload v20
-    v23 = lt 0, v22
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = ptradd v20, 32
-    v26 = mload v25
-    v27 = byte 0, v26
-    v28 = shl v27, 248
-    v29 = eq v28, 0x6400000000000000000000000000000000000000000000000000000000000000
+    v1 = sload 1 !metadata(storage=slot(1))
+    v2 = gt v1, 0xffffffffffffffff
+    icall panic_if<0x41>, v2
+    v3 = add v1, 1
+    v4 = storage_array_data_slot 1
+    v5 = add v4, v1
+    sstore v5, 2 !metadata(storage=symbolic(v5))
+    sstore 1, v3 !metadata(storage=slot(1))
+    v6 = sload 1 !metadata(storage=slot(1))
+    v7 = gt v6, 0xffffffffffffffff
+    icall panic_if<0x41>, v7
+    v8 = add v6, 1
+    v9 = storage_array_data_slot 1
+    v10 = add v9, v6
+    sstore v10, 3 !metadata(storage=symbolic(v10))
+    sstore 1, v8 !metadata(storage=slot(1))
+    v11 = alloc checked 64
+    v12 = sload 0 !metadata(storage=slot(0))
+    mstore v11, v12
+    v13 = icall @load_storage_word_array, 1
+    v14 = ptrtoint ptr<memory> v13 to i256
+    v15 = ptradd v11, 32
+    mstore v15, v14
+    v16 = abi_encode [word, memory_bytes, tuple<word, memory_array<word>>, word], object, args 1, v0, v11, 2
+    v17 = alloc 64 !metadata(preserves_fmp)
+    mstore v17, 3
+    v18 = ptradd v17, 32
+    mstore v18, 0x6465660000000000000000000000000000000000000000000000000000000000
+    v19 = mload v17
+    v20 = lt 0, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = ptradd v17, 32
+    v23 = mload v22
+    v24 = byte 0, v23
+    v25 = shl v24, 248
+    v26 = eq v25, 0x6400000000000000000000000000000000000000000000000000000000000000
+    v27 = eq v26, false
+    icall revert_if<empty>, v27
+    v28 = mload v17
+    v29 = lt 0, v28
     v30 = eq v29, false
-    icall revert_if<empty>, v30
-    v31 = mload v20
-    v32 = lt 0, v31
-    v33 = eq v32, false
-    icall panic_if<0x32>, v33
-    v34 = byte 0, 0x6500000000000000000000000000000000000000000000000000000000000000
-    v35 = ptradd v20, 32
-    mstore8 v35, v34
-    v36 = mload v20
-    v37 = lt 0, v36
-    v38 = eq v37, false
-    icall panic_if<0x32>, v38
-    v39 = ptradd v20, 32
-    v40 = mload v39
-    v41 = byte 0, v40
-    v42 = shl v41, 248
-    v43 = eq v42, 0x6500000000000000000000000000000000000000000000000000000000000000
-    v44 = eq v43, false
-    icall revert_if<empty>, v44
-    ret v19
+    icall panic_if<0x32>, v30
+    v31 = byte 0, 0x6500000000000000000000000000000000000000000000000000000000000000
+    v32 = ptradd v17, 32
+    mstore8 v32, v31
+    v33 = mload v17
+    v34 = lt 0, v33
+    v35 = eq v34, false
+    icall panic_if<0x32>, v35
+    v36 = ptradd v17, 32
+    v37 = mload v36
+    v38 = byte 0, v37
+    v39 = shl v38, 248
+    v40 = eq v39, 0x6500000000000000000000000000000000000000000000000000000000000000
+    v41 = eq v40, false
+    icall revert_if<empty>, v41
+    ret v16
 }
 
 fn @literalRemainsLive() -> i1 [selector=0x8eddb2e8, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

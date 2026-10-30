@@ -13,7 +13,7 @@
 
 // PRE-LABEL: {{^[ +].*}}fn @copy{{[( ]}}
 // PRE: - mcopy arg0, arg1, arg2
-// PRE: + [[FULL:v[0-9]+]] = and arg2, {{v[0-9]+}}
+// PRE: + [[FULL:v[0-9]+]] = and arg2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
 // PRE: + [[BACKWARD:v[0-9]+]] = lt arg1, arg0
 // PRE: + [[FORWARD_OFFSET:v[0-9]+]] = phi
 // PRE: + [[FORWARD_CHANGED:v[0-9]+]] = xor {{v[0-9]+}}, {{v[0-9]+}}

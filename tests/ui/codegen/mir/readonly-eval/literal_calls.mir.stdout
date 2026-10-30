@@ -9,22 +9,20 @@
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = not 31
-    v1 = and 95, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 32
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = add v3, 32
-    mstore v4, 41
-    v5 = icall @readWord, v2
-    v6 = checked_add uint256, v5, 1
-    storeimmutable answer, v6
-    v7 = alloc 64 !metadata(preserves_fmp)
-    mstore v7, 1
-    v8 = ptradd v7, 32
-    mstore v8, 0x3100000000000000000000000000000000000000000000000000000000000000
-    v9 = icall @toShort, v7
-    storeimmutable shortWord, v9
+    v0 = alloc zeroed checked 64
+    mstore v0, 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, 32
+    mstore v2, 41
+    v3 = icall @readWord, v0
+    v4 = checked_add uint256, v3, 1
+    storeimmutable answer, v4
+    v5 = alloc 64 !metadata(preserves_fmp)
+    mstore v5, 1
+    v6 = ptradd v5, 32
+    mstore v6, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v7 = icall @toShort, v5
+    storeimmutable shortWord, v7
     ret
 }
 
@@ -39,45 +37,39 @@ fn @words() -> struct0 [selector=0xf2c31bd9, view, abi_params=[], abi_returns=[w
 
 fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = not 31
-    v1 = and 95, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 32
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = add v3, 32
-    mstore v4, arg0
-    v5 = icall @readWord, v2
-    ret v5
+    v0 = alloc zeroed checked 64
+    mstore v0, 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, 32
+    mstore v2, arg0
+    v3 = icall @readWord, v0
+    ret v3
 }
 
 fn @sideEffects(arg0: i1) -> struct0 [selector=0x4335d2b9, abi_params=[bool], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
-    v0 = not 31
-    v1 = and 95, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 32
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = add v3, 32
-    mstore v4, 42
-    v5 = icall @choose, v2, arg0
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = insert_value struct0, undef struct0, 0, v5
-    v8 = insert_value struct0, v7, 1, v6
-    ret v8
+    v0 = alloc zeroed checked 64
+    mstore v0, 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, 32
+    mstore v2, 42
+    v3 = icall @choose, v0, arg0
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = insert_value struct0, undef struct0, 0, v3
+    v6 = insert_value struct0, v5, 1, v4
+    ret v6
 }
 
 fn @modified(arg0: i256) -> i256 [selector=0xd492dffb, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = not 31
-    v1 = and 95, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 32
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = add v3, 32
-    mstore v4, 42
-    icall @overwrite, v2, arg0
-    v5 = icall @readWord, v2
-    ret v5
+    v0 = alloc zeroed checked 64
+    mstore v0, 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, 32
+    mstore v2, 42
+    icall @overwrite, v0, arg0
+    v3 = icall @readWord, v0
+    ret v3
 }
 
 fn @fails() -> i256 [selector=0xce869a64, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

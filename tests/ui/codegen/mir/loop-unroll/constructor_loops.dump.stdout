@@ -68,8 +68,8 @@ fn @get() [selector=0x9507d39a, abi_wrapper, view] {
     v3 = sload arg0
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 8 !metadata(memory=scratch)
-    v12 = keccak256 0, 64 !metadata(memory=scratch)
-    v5 = sload v12
+    v11 = keccak256 0, 64 !metadata(memory=scratch)
+    v5 = sload v11
     v7 = add v3, v5
     v8 = lt v7, v3
     jumpi v8, bb3, bb4
@@ -86,14 +86,14 @@ fn @sum() [selector=0x188b85b4, abi_wrapper, pure] {
   bb0:
     jump bb6
   bb6:
-    v22 = phi [bb0: 0], [bb8: v51]
-    v23 = phi [bb0: 0], [bb8: v53]
-    v54 = add v23, 3
-    v55 = lt v54, arg0
-    jumpi v55, bb7, bb1
+    v21 = phi [bb0: 0], [bb8: v50]
+    v22 = phi [bb0: 0], [bb8: v52]
+    v53 = add v22, 3
+    v54 = lt v53, arg0
+    jumpi v54, bb7, bb1
   bb1:
-    v1 = phi [bb6: v22], [bb5: v17]
-    v2 = phi [bb6: v23], [bb5: v7]
+    v1 = phi [bb6: v21], [bb5: v17]
+    v2 = phi [bb6: v22], [bb5: v7]
     v3 = lt v2, arg0
     jumpi v3, bb3, bb2
   bb2:
@@ -109,31 +109,31 @@ fn @sum() [selector=0x188b85b4, abi_wrapper, pure] {
     v7 = add v2, 1
     jump bb1
   bb7:
-    v25 = mul v23, 3
-    v26 = add v25, 1
-    v27 = add v22, v26
-    v28 = lt v27, v22
-    v29 = add v23, 1
-    v33 = mul v29, 3
-    v34 = add v33, 1
-    v35 = add v27, v34
-    v36 = lt v35, v27
-    v56 = or v28, v36
-    v37 = add v29, 1
-    v41 = mul v37, 3
-    v42 = add v41, 1
-    v43 = add v35, v42
-    v44 = lt v43, v35
-    v57 = or v56, v44
-    v45 = add v37, 1
-    v49 = mul v45, 3
-    v50 = add v49, 1
-    v51 = add v43, v50
-    v52 = lt v51, v43
-    v58 = or v57, v52
-    jumpi v58, bb4, bb8
+    v24 = mul v22, 3
+    v25 = add v24, 1
+    v26 = add v21, v25
+    v27 = lt v26, v21
+    v28 = add v22, 1
+    v32 = mul v28, 3
+    v33 = add v32, 1
+    v34 = add v26, v33
+    v35 = lt v34, v26
+    v55 = or v27, v35
+    v36 = add v28, 1
+    v40 = mul v36, 3
+    v41 = add v40, 1
+    v42 = add v34, v41
+    v43 = lt v42, v34
+    v56 = or v55, v43
+    v44 = add v36, 1
+    v48 = mul v44, 3
+    v49 = add v48, 1
+    v50 = add v42, v49
+    v51 = lt v50, v42
+    v57 = or v56, v51
+    jumpi v57, bb4, bb8
   bb8:
-    v53 = add v45, 1
+    v52 = add v44, 1
     jump bb6
   bb4:
     mstore 32, 17 !metadata(memory=scratch)

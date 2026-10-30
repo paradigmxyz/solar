@@ -73,9 +73,7 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
   bb3:
     revert_returndata
   bb4:
-    v17 = ptrtoint ptr<memory> v8 to i256
-    v18 = add v17, 0
-    v19 = mload v18
+    v17 = mload v8
     ret 1
 }
 
@@ -109,9 +107,7 @@ fn @liveString() -> i256 [selector=0x86c92c52, abi_params=[], abi_returns=[word]
   bb3:
     revert_returndata
   bb4:
-    v17 = ptrtoint ptr<memory> v8 to i256
-    v18 = add v17, 0
-    v19 = mload v18
+    v17 = mload v8
     ret 1
 }
 
@@ -150,13 +146,11 @@ fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], a
   bb6:
     jump bb5
   bb3:
-    v17 = ptrtoint ptr<memory> v8 to i256
-    v18 = add v17, 0
-    v19 = mload v18
+    v17 = mload v8
     jump bb5
   bb5:
-    v20 = phi [bb3: 1], [bb6: 2]
-    ret v20
+    v18 = phi [bb3: 1], [bb6: 2]
+    ret v18
 }
 
 fn @liveMixed() -> i256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -189,17 +183,15 @@ fn @liveMixed() -> i256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word],
   bb3:
     revert_returndata
   bb4:
-    v17 = ptrtoint ptr<memory> v8 to i256
-    v18 = add v17, 0
-    v19 = mload v18
-    v20 = ptrtoint ptr<memory> v8 to i256
-    v21 = add v20, 32
-    v22 = mload v21
-    v23 = insert_value struct0, undef struct0, 0, v19
-    v24 = insert_value struct0, v23, 1, v22
-    v25 = extract_value struct0, v24, 0
-    v26 = extract_value struct0, v24, 1
-    ret v25
+    v17 = mload v8
+    v18 = ptrtoint ptr<memory> v8 to i256
+    v19 = add v18, 32
+    v20 = mload v19
+    v21 = insert_value struct0, undef struct0, 0, v17
+    v22 = insert_value struct0, v21, 1, v20
+    v23 = extract_value struct0, v22, 0
+    v24 = extract_value struct0, v22, 1
+    ret v23
 }
 
 fn @liveTuple() -> i256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -232,31 +224,27 @@ fn @liveTuple() -> i256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word],
   bb3:
     revert_returndata
   bb4:
-    v17 = ptrtoint ptr<memory> v8 to i256
-    v18 = add v17, 0
-    v19 = mload v18
-    v20 = fmp
-    v21 = ptrtoint ptr<memory> v20 to i256
-    v22 = add v21, 32
-    mstore v22, 0
-    v23 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
-    v24 = extract_value slice<memory>, v23, 0
-    v25 = extract_value slice<memory>, v23, 1
-    v26 = zext i160 v2 to i256
-    v27 = extcodesize v26
-    v28 = eq v27, 0
-    icall revert_if<target_contract_has_no_code>, v28
-    v29 = gas
-    v30 = sub v29, 50
-    v31 = zext i160 v2 to i256
-    v32 = call v30, v31, 0, v24, v25, v24, 32
-    jumpi v32, bb6, bb5
+    v17 = mload v8
+    v18 = fmp
+    v19 = ptrtoint ptr<memory> v18 to i256
+    v20 = add v19, 32
+    mstore v20, 0
+    v21 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
+    v22 = extract_value slice<memory>, v21, 0
+    v23 = extract_value slice<memory>, v21, 1
+    v24 = zext i160 v2 to i256
+    v25 = extcodesize v24
+    v26 = eq v25, 0
+    icall revert_if<target_contract_has_no_code>, v26
+    v27 = gas
+    v28 = sub v27, 50
+    v29 = zext i160 v2 to i256
+    v30 = call v28, v29, 0, v22, v23, v22, 32
+    jumpi v30, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v33 = ptrtoint ptr<memory> v24 to i256
-    v34 = add v33, 0
-    v35 = mload v34
+    v31 = mload v22
     ret 1
 }
 
@@ -294,9 +282,7 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
   bb3:
     revert_returndata
   bb4:
-    v21 = ptrtoint ptr<memory> v14 to i256
-    v22 = add v21, 0
-    v23 = mload v22
+    v21 = mload v14
     ret 1
 }
 
@@ -313,9 +299,9 @@ fn @liveLoop() -> i256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], 
   bb2:
     jump bb3
   bb3:
-    v4 = phi [bb2: 0], [bb5: v24]
+    v4 = phi [bb2: 0], [bb5: v22]
     v5 = phi [bb2: v2], [bb5: v5]
-    v6 = phi [bb2: 0], [bb5: v25]
+    v6 = phi [bb2: 0], [bb5: v23]
     v7 = lt v6, 3
     jumpi v7, bb6, bb7
   bb7:
@@ -342,15 +328,13 @@ fn @liveLoop() -> i256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], 
   bb9:
     revert_returndata
   bb10:
-    v21 = ptrtoint ptr<memory> v12 to i256
-    v22 = add v21, 0
-    v23 = mload v22
-    v24 = checked_add uint256, v4, 1
+    v21 = mload v12
+    v22 = checked_add uint256, v4, 1
     jump bb8
   bb8:
     jump bb5
   bb5:
-    v25 = checked_add uint256, v6, 1
+    v23 = checked_add uint256, v6, 1
     jump bb3
 }
 
@@ -373,9 +357,7 @@ fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], ab
   bb1:
     revert_returndata
   bb2:
-    v11 = ptrtoint ptr<memory> v4 to i256
-    v12 = add v11, 0
-    v13 = mload v12
+    v11 = mload v4
     ret 1
 }
 
@@ -403,11 +385,9 @@ fn @noCodeTry() -> i256 [selector=0x1908ad35, abi_params=[], abi_returns=[word],
   bb4:
     jump bb3
   bb1:
-    v11 = ptrtoint ptr<memory> v4 to i256
-    v12 = add v11, 0
-    v13 = mload v12
+    v11 = mload v4
     jump bb3
   bb3:
-    v14 = phi [bb1: 1], [bb4: 2]
-    ret v14
+    v12 = phi [bb1: 1], [bb4: 2]
+    ret v12
 }

@@ -4,47 +4,44 @@ fn @zeroed(arg0: slice<calldata>) -> ptr<memory> [selector=0x84322464, pure, abi
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = add v0, 63
-    v2 = not 31
-    v3 = and v1, v2
-    v4 = alloc v3
-    mstore v4, v0
-    v5 = ptradd v4, 32
-    v6 = extract_value slice<calldata>, arg0, 0
-    v7 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v5, v6, v7
-    v8 = ptrtoint ptr<memory> v4 to i256
-    mstore v4, 0
-    ret v4
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = alloc v2
+    mstore v3, v0
+    v4 = ptradd v3, 32
+    v5 = extract_value slice<calldata>, arg0, 0
+    v6 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v4, v5, v6
+    v7 = ptrtoint ptr<memory> v3 to i256
+    mstore v3, 0
+    ret v3
 }
 
 fn @shortened(arg0: slice<calldata>) -> ptr<memory> [selector=0x6ee28a05, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = add v0, 63
-    v2 = not 31
-    v3 = and v1, v2
-    v4 = alloc v3
-    mstore v4, v0
-    v5 = ptradd v4, 32
-    v6 = extract_value slice<calldata>, arg0, 0
-    v7 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v5, v6, v7
-    v8 = ptrtoint ptr<memory> v4 to i256
-    mstore v4, 1
-    ret v4
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = alloc v2
+    mstore v3, v0
+    v4 = ptradd v3, 32
+    v5 = extract_value slice<calldata>, arg0, 0
+    v6 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v4, v5, v6
+    v7 = ptrtoint ptr<memory> v3 to i256
+    mstore v3, 1
+    ret v3
 }
 
 fn @kept(arg0: slice<calldata>) -> ptr<memory> [selector=0xc57c8563, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = add v0, 63
-    v2 = not 31
-    v3 = and v1, v2
-    v4 = alloc v3
-    mstore v4, v0
-    v5 = ptradd v4, 32
-    v6 = extract_value slice<calldata>, arg0, 0
-    v7 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v5, v6, v7
-    ret v4
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = alloc v2
+    mstore v3, v0
+    v4 = ptradd v3, 32
+    v5 = extract_value slice<calldata>, arg0, 0
+    v6 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v4, v5, v6
+    ret v3
 }

@@ -345,7 +345,7 @@ fn lower_ecrecover(
     let input = builder.fmp();
     let input = builder.cast_word(input);
     for (offset, value) in [(0, hash), (32, v), (64, r), (96, s)] {
-        let address = builder.add_u64_offset(input, offset);
+        let address = builder.add_offset(input, offset);
         let value = builder.cast_word(value);
         builder.store(address, value);
     }

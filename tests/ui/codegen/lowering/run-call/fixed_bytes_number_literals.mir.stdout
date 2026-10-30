@@ -42,21 +42,19 @@ fn @viaExternal() -> i256 [selector=0x09338c08, abi_params=[], abi_returns=[word
     revert_returndata
   bb2:
     v4 = gas
-    v5 = and 0x102030400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
     mstore 0, 0x14beb1ca !metadata(memory=scratch)
-    mstore 32, v5 !metadata(memory=scratch)
-    v6 = zext i160 v2 to i256
-    v7 = call v4, v6, 0, 28, 36, 0, 32
-    jumpi v7, bb4, bb3
+    mstore 32, 0x102030400000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    v5 = zext i160 v2 to i256
+    v6 = call v4, v5, 0, 28, 36, 0, 32
+    jumpi v6, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v8 = returndatasize
-    v9 = lt v8, 32
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = add 0, 0
-    v11 = mload v10
-    ret v11
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = mload 0 !metadata(memory=scratch)
+    ret v9
 }
 
 fn @giveInternal(arg0: i256) -> i256 [pure] {
@@ -83,8 +81,7 @@ fn @retLit() -> i256 [selector=0xad0d29ff, pure, abi_params=[], abi_returns=[wor
 
 fn @declLit() -> i256 [selector=0xe5489b44, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
-    v0 = shl 0x55667788, 224
-    ret v0
+    ret 0x5566778800000000000000000000000000000000000000000000000000000000
 }
 
 fn @assignLit() -> i256 [selector=0xa4d2a382, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
@@ -94,14 +91,11 @@ fn @assignLit() -> i256 [selector=0xa4d2a382, pure, abi_params=[], abi_returns=[
 
 fn @mapKeyCross() -> i256 [selector=0xef866c75, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = and 0x3132333400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v1 = mapping_slot v0, 0
-    sstore v1, 5 !metadata(storage=symbolic(v1))
-    v2 = shl 0x31323334, 224
-    v3 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v4 = mapping_slot v3, 0
-    v5 = sload v4 !metadata(storage=symbolic(v4))
-    ret v5
+    v0 = mapping_slot 0x3132333400000000000000000000000000000000000000000000000000000000, 0
+    sstore v0, 5 !metadata(storage=symbolic(v0))
+    v1 = mapping_slot 0x3132333400000000000000000000000000000000000000000000000000000000, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    ret v2
 }
 
 fn @compareControl() -> i1 [selector=0x86f1fef0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -201,9 +195,8 @@ fn @calldataSliceCast() -> i256 [selector=0x93f40587, view, abi_params=[], abi_r
     v9 = returndatasize
     v10 = lt v9, 32
     icall revert_if<tuple_data_too_short>, v10
-    v11 = add 0, 0
-    v12 = mload v11
-    ret v12
+    v11 = mload 0 !metadata(memory=scratch)
+    ret v11
 }
 
 fn @stringAddressCast() -> i160 [selector=0x6e03912b, pure, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
@@ -239,22 +232,13 @@ fn @give(arg0: i256) -> i256 [pure] {
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = not 0xffffffff
-    v2 = and v0, v1
-    v3 = shr 0x1122334400000000000000000000000000000000000000000000000000000000, 224
-    v4 = and v3, 0xffffffff
-    v5 = or v2, v4
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
+    v2 = or v1, 0x11223344
+    sstore 1, v2 !metadata(storage=slot(1))
+    v3 = sload 1 !metadata(storage=slot(1))
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff0000ffffffff
+    v5 = or v4, 0xaabb00000000
     sstore 1, v5 !metadata(storage=slot(1))
-    v6 = shl 0xffff, 32
-    v7 = sload 1 !metadata(storage=slot(1))
-    v8 = not v6
-    v9 = and v7, v8
-    v10 = shr 0xaabb000000000000000000000000000000000000000000000000000000000000, 240
-    v11 = and v10, 0xffff
-    v12 = shl v11, 32
-    v13 = or v9, v12
-    sstore 1, v13 !metadata(storage=slot(1))
-    v14 = and 0x5566778800000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    storeimmutable immutableLiteral, v14
+    storeimmutable immutableLiteral, 0x5566778800000000000000000000000000000000000000000000000000000000
     ret
 }

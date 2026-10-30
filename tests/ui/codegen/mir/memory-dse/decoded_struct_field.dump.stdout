@@ -14,10 +14,10 @@ fn @tokenId() [selector=0x8f25c453, abi_wrapper, pure] {
     v32 = sub v23, v31
     v33 = gt v30, v32
     v34 = or v29, v33
-    v40 = or v24, v34
+    v39 = or v24, v34
     v6 = slt v30, 128
-    v41 = or v40, v6
-    jumpi v41, bb1, bb2
+    v40 = or v39, v6
+    jumpi v40, bb1, bb2
   bb2:
     v7 = alloc 128 !metadata(deferred_alloc)
     v8 = calldataload v31

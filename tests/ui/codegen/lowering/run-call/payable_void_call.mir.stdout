@@ -60,7 +60,6 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v18 = returndatasize
     v19 = lt v18, 32
     icall revert_if<tuple_data_too_short>, v19
-    v20 = add 0, 0
-    v21 = mload v20
-    ret v21
+    v20 = mload 0 !metadata(memory=scratch)
+    ret v20
 }

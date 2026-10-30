@@ -71,11 +71,9 @@ fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word],
   bb1:
     revert_returndata
   bb2:
-    v7 = ptrtoint ptr<memory> v1 to i256
-    v8 = add v7, 0
-    v9 = mload v8
-    v10 = sload v9 !metadata(storage=symbolic(v9))
-    ret v10
+    v7 = mload v1
+    v8 = sload v7 !metadata(storage=symbolic(v7))
+    ret v8
 }
 
 fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -92,18 +90,16 @@ fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
   bb1:
     revert_returndata
   bb2:
-    v7 = ptrtoint ptr<memory> v1 to i256
-    v8 = add v7, 0
-    v9 = mload v8
-    v10 = sload v9 !metadata(storage=symbolic(v9))
-    validate_storage_bytes v10
-    v11 = and v10, 1
-    v12 = eq v11, 1
-    v13 = sub 0, v11
-    v14 = or 127, v13
-    v15 = shr v10, 1
-    v16 = and v15, v14
-    ret v16
+    v7 = mload v1
+    v8 = sload v7 !metadata(storage=symbolic(v7))
+    validate_storage_bytes v8
+    v9 = and v8, 1
+    v10 = eq v9, 1
+    v11 = sub 0, v9
+    v12 = or 127, v11
+    v13 = shr v8, 1
+    v14 = and v13, v12
+    ret v14
 }
 
 fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -120,11 +116,9 @@ fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[wor
   bb1:
     revert_returndata
   bb2:
-    v7 = ptrtoint ptr<memory> v1 to i256
-    v8 = add v7, 0
-    v9 = mload v8
-    v10 = sload v9 !metadata(storage=symbolic(v9))
-    ret v10
+    v7 = mload v1
+    v8 = sload v7 !metadata(storage=symbolic(v7))
+    ret v8
 }
 
 fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
@@ -141,20 +135,18 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
   bb1:
     revert_returndata
   bb2:
-    v7 = ptrtoint ptr<memory> v1 to i256
-    v8 = add v7, 0
-    v9 = mload v8
-    v10 = ptrtoint ptr<memory> v1 to i256
-    v11 = add v10, 32
-    v12 = mload v11
-    v13 = insert_value struct0, undef struct0, 0, v9
-    v14 = insert_value struct0, v13, 1, v12
-    v15 = extract_value struct0, v14, 0
-    v16 = extract_value struct0, v14, 1
-    v17 = sload v16 !metadata(storage=symbolic(v16))
-    v18 = insert_value struct0, undef struct0, 0, v15
-    v19 = insert_value struct0, v18, 1, v17
-    ret v19
+    v7 = mload v1
+    v8 = ptrtoint ptr<memory> v1 to i256
+    v9 = add v8, 32
+    v10 = mload v9
+    v11 = insert_value struct0, undef struct0, 0, v7
+    v12 = insert_value struct0, v11, 1, v10
+    v13 = extract_value struct0, v12, 0
+    v14 = extract_value struct0, v12, 1
+    v15 = sload v14 !metadata(storage=symbolic(v14))
+    v16 = insert_value struct0, undef struct0, 0, v13
+    v17 = insert_value struct0, v16, 1, v15
+    ret v17
 }
 
 fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -171,15 +163,13 @@ fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
   bb1:
     revert_returndata
   bb2:
-    v7 = ptrtoint ptr<memory> v1 to i256
-    v8 = add v7, 0
-    v9 = mload v8
-    v10 = lt 2, 3
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = add v9, 2
-    v13 = sload v12 !metadata(storage=offset(v9, 2))
-    ret v13
+    v7 = mload v1
+    v8 = lt 2, 3
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = add v7, 2
+    v11 = sload v10 !metadata(storage=offset(v7, 2))
+    ret v11
 }
 
 fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -196,12 +186,10 @@ fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[uint256
   bb1:
     revert_returndata
   bb2:
-    v7 = ptrtoint ptr<memory> v1 to i256
-    v8 = add v7, 0
-    v9 = mload v8
-    v10 = mapping_slot arg0, v9
-    v11 = sload v10 !metadata(storage=symbolic(v10))
-    ret v11
+    v7 = mload v1
+    v8 = mapping_slot arg0, v7
+    v9 = sload v8 !metadata(storage=symbolic(v8))
+    ret v9
 }
 
 fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
@@ -253,9 +241,7 @@ fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
   bb1:
     revert_returndata
   bb2:
-    v7 = ptrtoint ptr<memory> v1 to i256
-    v8 = add v7, 0
-    v9 = mload v8
-    v10 = sload v9 !metadata(storage=symbolic(v9))
-    ret v10
+    v7 = mload v1
+    v8 = sload v7 !metadata(storage=symbolic(v7))
+    ret v8
 }

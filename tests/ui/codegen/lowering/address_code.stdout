@@ -21,14 +21,13 @@ fn @code(arg0: i160) -> ptr<memory> [selector=0x5b90b752, view, abi_params=[addr
     v2 = add v1, 63
     v3 = lt v2, v1
     icall panic_if<0x41>, v3
-    v4 = not 31
-    v5 = and v2, v4
-    v6 = alloc zeroed checked v5
-    mstore v6, v1
-    v7 = ptradd v6, 32
-    v8 = zext i160 arg0 to i256
-    extcodecopy v8, v7, 0, v1 !metadata(memory=heap)
-    ret v6
+    v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v5 = alloc zeroed checked v4
+    mstore v5, v1
+    v6 = ptradd v5, 32
+    v7 = zext i160 arg0 to i256
+    extcodecopy v7, v6, 0, v1 !metadata(memory=heap)
+    ret v5
 }
 
 fn @addressFromBytes20(arg0: i256) -> i160 [selector=0x247e14fa, pure, abi_params=[bytes20], abi_returns=[word<uint160>], abi_return_params=[address]] {

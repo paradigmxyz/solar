@@ -6,18 +6,14 @@
 fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word<uint160>], abi_return_params=[uint256, address]] {
   bb0:
     sstore 0, 0x7521d1cadbcfa91eec65aa16715b94ffc1c9654ba57ea2ef1a2127bca1127a83 !metadata(storage=slot(0))
-    v0 = add 0, 1
-    v1 = sload v0 !metadata(storage=slot(1))
-    v2 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = and v1, v2
-    v4 = and 1, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = or v3, v4
-    sstore v0, v5 !metadata(storage=slot(1))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = add 0, 1
-    v8 = sload v7 !metadata(storage=slot(1))
-    v9 = trunc i256 v8 to i160
-    v10 = insert_value struct0, undef struct0, 0, v6
-    v11 = insert_value struct0, v10, 1, v9
-    ret v11
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = and v0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v2 = or v1, 1
+    sstore 1, v2 !metadata(storage=slot(1))
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = sload 1 !metadata(storage=slot(1))
+    v5 = trunc i256 v4 to i160
+    v6 = insert_value struct0, undef struct0, 0, v3
+    v7 = insert_value struct0, v6, 1, v5
+    ret v7
 }

@@ -25,16 +25,15 @@ fn @adopt(arg0: i1, arg1: slice<calldata>) -> ptr<memory> [selector=0x7b54f632, 
   bb1:
     v2 = extract_value slice<calldata>, arg1, 1
     v3 = add v2, 63
-    v4 = not 31
-    v5 = and v3, v4
-    v6 = alloc v5
-    mstore v6, v2
-    v7 = ptradd v6, 32
-    v8 = extract_value slice<calldata>, arg1, 0
-    v9 = extract_value slice<calldata>, arg1, 1
-    calldatacopy v7, v8, v9
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v5 = alloc v4
+    mstore v5, v2
+    v6 = ptradd v5, 32
+    v7 = extract_value slice<calldata>, arg1, 0
+    v8 = extract_value slice<calldata>, arg1, 1
+    calldatacopy v6, v7, v8
     jump bb3
   bb3:
-    v10 = phi [bb1: v6], [bb2: v0]
-    ret v10
+    v9 = phi [bb1: v5], [bb2: v0]
+    ret v9
 }

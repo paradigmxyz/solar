@@ -16,13 +16,12 @@ fn @forward(arg0: slice<calldata>) -> i1 [selector=0xf848716a, view, abi_params=
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    v11 = lt v10, 2
-    v12 = eq v11, false
-    icall revert_if<empty>, v12
-    v13 = ne v10, 0
-    ret v13
+    v9 = mload 0 !metadata(memory=scratch)
+    v10 = lt v9, 2
+    v11 = eq v10, false
+    icall revert_if<empty>, v11
+    v12 = ne v9, 0
+    ret v12
 }
 
 fn @accept(arg0: slice<calldata>) -> i1 [selector=0x50104649, pure, abi_params=[array<_, function>], abi_returns=[word<bool>], abi_return_params=[bool]] {

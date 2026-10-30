@@ -16,7 +16,7 @@ fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[uint256
   bb1:
     jump bb3
   bb3:
-    v3 = phi [bb1: v0], [bb4: v18]
+    v3 = phi [bb1: v0], [bb4: v17]
     v4 = lt v3, v1
     jumpi v4, bb4, bb5
   bb5:
@@ -25,31 +25,31 @@ fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[uint256
     sstore 1, v0 !metadata(storage=slot(1))
     jump bb6
   bb6:
-    v19 = phi [bb2: 0], [bb7: v38]
-    v20 = lt v19, v0
-    jumpi v20, bb7, bb8
+    v18 = phi [bb2: 0], [bb7: v37]
+    v19 = lt v18, v0
+    jumpi v19, bb7, bb8
   bb8:
     ret
   bb7:
-    v21 = shl v19, 5
-    v22 = ptradd arg1, v21
-    v23 = ptradd v22, 32
-    v24 = mload v23
-    v25 = storage_array_data_slot 1
-    v26 = div v19, 1
-    v27 = add v25, v26
-    v28 = mod v19, 1
-    v29 = mul v28, 20
-    v30 = mul v29, 8
-    v31 = shl 0xffffffffffffffffffffffffffffffffffffffff, v30
-    v32 = sload v27 !metadata(storage=symbolic(v27))
-    v33 = not v31
-    v34 = and v32, v33
-    v35 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
-    v36 = shl v35, v30
-    v37 = or v34, v36
-    sstore v27, v37 !metadata(storage=symbolic(v27))
-    v38 = add v19, 1
+    v20 = shl v18, 5
+    v21 = ptradd arg1, v20
+    v22 = ptradd v21, 32
+    v23 = mload v22
+    v24 = storage_array_data_slot 1
+    v25 = div v18, 1
+    v26 = add v24, v25
+    v27 = mod v18, 1
+    v28 = mul v27, 20
+    v29 = mul v28, 8
+    v30 = shl 0xffffffffffffffffffffffffffffffffffffffff, v29
+    v31 = sload v26 !metadata(storage=symbolic(v26))
+    v32 = not v30
+    v33 = and v31, v32
+    v34 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
+    v35 = shl v34, v29
+    v36 = or v33, v35
+    sstore v26, v36 !metadata(storage=symbolic(v26))
+    v37 = add v18, 1
     jump bb6
   bb4:
     v5 = storage_array_data_slot 1
@@ -62,11 +62,10 @@ fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[uint256
     v12 = sload v7 !metadata(storage=symbolic(v7))
     v13 = not v11
     v14 = and v12, v13
-    v15 = and 0, 0xffffffffffffffffffffffffffffffffffffffff
-    v16 = shl v15, v10
-    v17 = or v14, v16
-    sstore v7, v17 !metadata(storage=symbolic(v7))
-    v18 = add v3, 1
+    v15 = shl 0, v10
+    v16 = or v14, v15
+    sstore v7, v16 !metadata(storage=symbolic(v7))
+    v17 = add v3, 1
     jump bb3
 }
 
@@ -101,7 +100,7 @@ fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<_
   bb2:
     jump bb4
   bb4:
-    v4 = phi [bb2: v1], [bb5: v19]
+    v4 = phi [bb2: v1], [bb5: v18]
     v5 = lt v4, v2
     jumpi v5, bb5, bb6
   bb6:
@@ -110,9 +109,9 @@ fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<_
     sstore 1, v1 !metadata(storage=slot(1))
     jump bb7
   bb7:
-    v20 = phi [bb3: 0], [bb8: v39]
-    v21 = lt v20, v1
-    jumpi v21, bb8, bb9
+    v19 = phi [bb3: 0], [bb8: v38]
+    v20 = lt v19, v1
+    jumpi v20, bb8, bb9
   bb9:
     jump bb1
   bb1:
@@ -120,25 +119,25 @@ fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<_
   bb10:
     ret
   bb8:
-    v22 = shl v20, 5
-    v23 = ptradd v0, v22
-    v24 = ptradd v23, 32
-    v25 = mload v24
-    v26 = storage_array_data_slot 1
-    v27 = div v20, 1
-    v28 = add v26, v27
-    v29 = mod v20, 1
-    v30 = mul v29, 20
-    v31 = mul v30, 8
-    v32 = shl 0xffffffffffffffffffffffffffffffffffffffff, v31
-    v33 = sload v28 !metadata(storage=symbolic(v28))
-    v34 = not v32
-    v35 = and v33, v34
-    v36 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
-    v37 = shl v36, v31
-    v38 = or v35, v37
-    sstore v28, v38 !metadata(storage=symbolic(v28))
-    v39 = add v20, 1
+    v21 = shl v19, 5
+    v22 = ptradd v0, v21
+    v23 = ptradd v22, 32
+    v24 = mload v23
+    v25 = storage_array_data_slot 1
+    v26 = div v19, 1
+    v27 = add v25, v26
+    v28 = mod v19, 1
+    v29 = mul v28, 20
+    v30 = mul v29, 8
+    v31 = shl 0xffffffffffffffffffffffffffffffffffffffff, v30
+    v32 = sload v27 !metadata(storage=symbolic(v27))
+    v33 = not v31
+    v34 = and v32, v33
+    v35 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
+    v36 = shl v35, v30
+    v37 = or v34, v36
+    sstore v27, v37 !metadata(storage=symbolic(v27))
+    v38 = add v19, 1
     jump bb7
   bb5:
     v6 = storage_array_data_slot 1
@@ -151,11 +150,10 @@ fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<_
     v13 = sload v8 !metadata(storage=symbolic(v8))
     v14 = not v12
     v15 = and v13, v14
-    v16 = and 0, 0xffffffffffffffffffffffffffffffffffffffff
-    v17 = shl v16, v11
-    v18 = or v15, v17
-    sstore v8, v18 !metadata(storage=symbolic(v8))
-    v19 = add v4, 1
+    v16 = shl 0, v11
+    v17 = or v15, v16
+    sstore v8, v17 !metadata(storage=symbolic(v8))
+    v18 = add v4, 1
     jump bb4
 }
 
@@ -227,28 +225,26 @@ fn @f(arg0: i256, arg1: ptr<memory>) -> struct0 [selector=0x1b2902dd, abi_params
     v14 = returndatasize
     v15 = lt v14, 32
     icall revert_if<tuple_data_too_short>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    v18 = gas
+    v16 = mload 0 !metadata(memory=scratch)
+    v17 = gas
     mstore 0, 0xe2095c07 !metadata(memory=scratch)
     mstore 32, arg0 !metadata(memory=scratch)
-    v19 = zext i160 v9 to i256
-    v20 = staticcall v18, v19, 28, 36, 0, 32
-    jumpi v20, bb6, bb5
+    v18 = zext i160 v9 to i256
+    v19 = staticcall v17, v18, 28, 36, 0, 32
+    jumpi v19, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v21 = returndatasize
-    v22 = lt v21, 32
-    icall revert_if<tuple_data_too_short>, v22
-    v23 = add 0, 0
-    v24 = mload v23
-    v25 = shr v24, 160
-    v26 = eq v25, 0
-    v27 = eq v26, false
-    icall revert_if<empty>, v27
-    v28 = trunc i256 v24 to i160
-    v29 = insert_value struct0, undef struct0, 0, v17
-    v30 = insert_value struct0, v29, 1, v28
-    ret v30
+    v20 = returndatasize
+    v21 = lt v20, 32
+    icall revert_if<tuple_data_too_short>, v21
+    v22 = mload 0 !metadata(memory=scratch)
+    v23 = shr v22, 160
+    v24 = eq v23, 0
+    v25 = eq v24, false
+    icall revert_if<empty>, v25
+    v26 = trunc i256 v22 to i160
+    v27 = insert_value struct0, undef struct0, 0, v16
+    v28 = insert_value struct0, v27, 1, v26
+    ret v28
 }

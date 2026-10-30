@@ -80,26 +80,25 @@
 +     v19 = lt v18, v16
 +     jumpi v19, bb4, bb5
 +   bb5:
-+     v20 = not 31
-+     v21 = and v18, v20
-+     v22 = alloc checked v21
-+     mstore v22, v16
-+     v23 = sub v4, v17
-+     v24 = gt v16, v23
-+     jumpi v24, bb1, bb6
++     v20 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v21 = alloc checked v20
++     mstore v21, v16
++     v22 = sub v4, v17
++     v23 = gt v16, v22
++     jumpi v23, bb1, bb6
 +   bb6:
-+     v25 = inttoptr i256 v17 to ptr<memory>
-+     v26 = make_memory_slice v25, v16
-+     v27 = ptradd v22, 32
-+     v28 = extract_value slice<memory>, v26, 0
-+     v29 = extract_value slice<memory>, v26, 1
-+     mcopy v27, v28, v29
-+     v30 = ptradd v22, 32
-+     v31 = ptradd v30, v16
-+     v32 = sub 0, v16
-+     v33 = and v32, 31
-+     memory_zero v31, v33
-+     ret v22
++     v24 = inttoptr i256 v17 to ptr<memory>
++     v25 = make_memory_slice v24, v16
++     v26 = ptradd v21, 32
++     v27 = extract_value slice<memory>, v25, 0
++     v28 = extract_value slice<memory>, v25, 1
++     mcopy v26, v27, v28
++     v29 = ptradd v21, 32
++     v30 = ptradd v29, v16
++     v31 = sub 0, v16
++     v32 = and v31, 31
++     memory_zero v30, v32
++     ret v21
 +   bb4:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)

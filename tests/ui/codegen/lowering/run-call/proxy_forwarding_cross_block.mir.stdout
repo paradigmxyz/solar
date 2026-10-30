@@ -22,12 +22,11 @@ fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
   bb0:
     v0 = trunc i256 arg0 to i160
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = and v1, v2
-    v4 = zext i160 v0 to i256
-    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = or v3, v5
-    sstore 0, v6 !metadata(storage=slot(0))
+    v2 = and v1, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v3 = zext i160 v0 to i256
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = or v2, v4
+    sstore 0, v5 !metadata(storage=slot(0))
     ret
 }
 
@@ -65,12 +64,11 @@ fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
   bb0:
     v0 = trunc i256 arg0 to i160
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = and v1, v2
-    v4 = zext i160 v0 to i256
-    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = or v3, v5
-    sstore 0, v6 !metadata(storage=slot(0))
+    v2 = and v1, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v3 = zext i160 v0 to i256
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = or v2, v4
+    sstore 0, v5 !metadata(storage=slot(0))
     ret
 }
 
@@ -152,38 +150,35 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     revert_returndata
   bb4:
     v14 = gas
-    v15 = not 31
-    v16 = and 223, v15
-    v17 = alloc zeroed checked v16
-    mstore v17, 160
-    v18 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 1, 2, 3, v17
-    v19 = extract_value slice<memory>, v18, 0
-    v20 = extract_value slice<memory>, v18, 1
-    v21 = zext i160 v12 to i256
-    v22 = extcodesize v21
-    v23 = eq v22, 0
-    icall revert_if<target_contract_has_no_code>, v23
-    v24 = zext i160 v12 to i256
-    v25 = call v14, v24, 0, v19, v20, 0, 0
-    jumpi v25, bb6, bb5
+    v15 = alloc zeroed checked 192
+    mstore v15, 160
+    v16 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 1, 2, 3, v15
+    v17 = extract_value slice<memory>, v16, 0
+    v18 = extract_value slice<memory>, v16, 1
+    v19 = zext i160 v12 to i256
+    v20 = extcodesize v19
+    v21 = eq v20, 0
+    icall revert_if<target_contract_has_no_code>, v21
+    v22 = zext i160 v12 to i256
+    v23 = call v14, v22, 0, v17, v18, 0, 0
+    jumpi v23, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v26 = gas
+    v24 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
-    v27 = zext i160 v12 to i256
-    v28 = staticcall v26, v27, 28, 4, 0, 32
-    jumpi v28, bb8, bb7
+    v25 = zext i160 v12 to i256
+    v26 = staticcall v24, v25, 28, 4, 0, 32
+    jumpi v26, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v29 = returndatasize
-    v30 = lt v29, 32
-    icall revert_if<tuple_data_too_short>, v30
-    v31 = add 0, 0
-    v32 = mload v31
-    v33 = eq v32, 166
-    icall require<short_string>, v33, 5, 0x6669786564000000000000000000000000000000000000000000000000000000
+    v27 = returndatasize
+    v28 = lt v27, 32
+    icall revert_if<tuple_data_too_short>, v28
+    v29 = mload 0 !metadata(memory=scratch)
+    v30 = eq v29, 166
+    icall require<short_string>, v30, 5, 0x6669786564000000000000000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -215,38 +210,35 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     revert_returndata
   bb4:
     v14 = gas
-    v15 = not 31
-    v16 = and 223, v15
-    v17 = alloc zeroed checked v16
-    mstore v17, 160
-    v18 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 4, 5, 6, v17
-    v19 = extract_value slice<memory>, v18, 0
-    v20 = extract_value slice<memory>, v18, 1
-    v21 = zext i160 v12 to i256
-    v22 = extcodesize v21
-    v23 = eq v22, 0
-    icall revert_if<target_contract_has_no_code>, v23
-    v24 = zext i160 v12 to i256
-    v25 = call v14, v24, 0, v19, v20, 0, 0
-    jumpi v25, bb6, bb5
+    v15 = alloc zeroed checked 192
+    mstore v15, 160
+    v16 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 4, 5, 6, v15
+    v17 = extract_value slice<memory>, v16, 0
+    v18 = extract_value slice<memory>, v16, 1
+    v19 = zext i160 v12 to i256
+    v20 = extcodesize v19
+    v21 = eq v20, 0
+    icall revert_if<target_contract_has_no_code>, v21
+    v22 = zext i160 v12 to i256
+    v23 = call v14, v22, 0, v17, v18, 0, 0
+    jumpi v23, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v26 = gas
+    v24 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
-    v27 = zext i160 v12 to i256
-    v28 = staticcall v26, v27, 28, 4, 0, 32
-    jumpi v28, bb8, bb7
+    v25 = zext i160 v12 to i256
+    v26 = staticcall v24, v25, 28, 4, 0, 32
+    jumpi v26, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v29 = returndatasize
-    v30 = lt v29, 32
-    icall revert_if<tuple_data_too_short>, v30
-    v31 = add 0, 0
-    v32 = mload v31
-    v33 = eq v32, 175
-    icall require<short_string>, v33, 11, 0x63726f737320626c6f636b000000000000000000000000000000000000000000
+    v27 = returndatasize
+    v28 = lt v27, 32
+    icall revert_if<tuple_data_too_short>, v28
+    v29 = mload 0 !metadata(memory=scratch)
+    v30 = eq v29, 175
+    icall require<short_string>, v30, 11, 0x63726f737320626c6f636b000000000000000000000000000000000000000000
     ret 1
 }
 

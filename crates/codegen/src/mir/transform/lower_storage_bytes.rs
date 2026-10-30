@@ -103,8 +103,8 @@ pub(super) fn clear_words(
     builder.branch(condition, body, exit);
     builder.switch_to_block(body);
     builder.sstore(element_slot, zero);
-    let next = builder.add_u64_offset(index, 1);
-    let next_slot = builder.add_u64_offset(element_slot, 1);
+    let next = builder.add_offset(index, 1);
+    let next_slot = builder.add_offset(element_slot, 1);
     let backedge = builder.current_block();
     builder.jump(header);
     builder.add_phi_incoming(index, backedge, next);

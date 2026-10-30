@@ -81,16 +81,16 @@ fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
     v17 = sub v8, v16
     v18 = gt v15, v17
     v19 = or v14, v18
-    v42 = or v9, v19
-    jumpi v42, bb1, bb2
+    v40 = or v9, v19
+    jumpi v40, bb1, bb2
   bb2:
-    v27 = icall @u32, v16, v15
-    v35 = mload 32 !metadata(memory=scratch)
-    v29 = add v35, 32
-    v30 = mload v29
-    v31 = icall @u16, v16, v15, v30
-    mstore 0, v27
-    mstore 32, v31
+    v25 = icall @u32, v16, v15
+    v33 = mload 32 !metadata(memory=scratch)
+    v27 = add v33, 32
+    v28 = mload v27
+    v29 = icall @u16, v16, v15, v28
+    mstore 0, v25
+    mstore 32, v29
     returndata 0, 64
   bb1:
     revert 0, 0
@@ -102,22 +102,22 @@ fn @sum4() [selector=0x0540a714, abi_wrapper, pure] {
     v38 = lt v37, 132
     jumpi v38, bb2, bb3
   bb3:
-    v82 = calldataload 4
-    v83 = add 0, v82
-    v91 = calldataload 36
-    v92 = add v83, v91
-    v93 = lt v92, v83
-    v100 = calldataload 68
-    v101 = add v92, v100
-    v102 = lt v101, v92
-    v113 = or v93, v102
-    v109 = calldataload 100
-    v110 = add v101, v109
-    v111 = lt v110, v101
-    v114 = or v113, v111
-    jumpi v114, bb1, bb4
+    v81 = calldataload 4
+    v82 = add 0, v81
+    v90 = calldataload 36
+    v91 = add v82, v90
+    v92 = lt v91, v82
+    v99 = calldataload 68
+    v100 = add v91, v99
+    v101 = lt v100, v91
+    v112 = or v92, v101
+    v108 = calldataload 100
+    v109 = add v100, v108
+    v110 = lt v109, v100
+    v113 = or v112, v110
+    jumpi v113, bb1, bb4
   bb4:
-    mstore 0, v110
+    mstore 0, v109
     returndata 0, 32
   bb1:
     mstore 32, 17 !metadata(memory=scratch)

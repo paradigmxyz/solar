@@ -6,7 +6,7 @@
 // The 8-byte function pointer packs into slot 0: the constructor
 // read-modify-writes its bytes and readers mask them back out.
 // CHECK-LABEL: fn @constructor(
-// CHECK: and [[ONLY_STORED:[0-9]+]], 0xffffffffffffffff
+// CHECK: or {{v[0-9]+}}, [[ONLY_STORED:[0-9]+]]
 // CHECK: sstore 0, {{v[0-9]+}}
 contract ConstructorStoredFunctionPointer {
     function() internal returns (uint256) storedOnly;

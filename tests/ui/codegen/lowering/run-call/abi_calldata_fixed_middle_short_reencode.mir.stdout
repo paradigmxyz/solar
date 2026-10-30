@@ -21,7 +21,6 @@ fn @g(arg0: slice<calldata>) -> i256 [selector=0x4a848537, view, abi_params=[arr
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    ret v10
+    v9 = mload 0 !metadata(memory=scratch)
+    ret v9
 }

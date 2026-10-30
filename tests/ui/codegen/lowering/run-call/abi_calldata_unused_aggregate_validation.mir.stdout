@@ -20,46 +20,40 @@ fn @memoryGrowth() -> i256 [selector=0x1de751fc, view, abi_params=[], abi_return
   bb0:
     v0 = address
     v1 = gas
-    v2 = not 31
-    v3 = and 127, v2
-    v4 = alloc zeroed checked v3
-    mstore v4, 64
-    v5 = abi_encode [memory_bytes], selector 0xc3b2ecc100000000000000000000000000000000000000000000000000000000, args v4
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = zext i160 v0 to i256
-    v9 = staticcall v1, v8, v6, v7, 0, 32
-    jumpi v9, bb2, bb1
+    v2 = alloc zeroed checked 96
+    mstore v2, 64
+    v3 = abi_encode [memory_bytes], selector 0xc3b2ecc100000000000000000000000000000000000000000000000000000000, args v2
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
+    v6 = zext i160 v0 to i256
+    v7 = staticcall v1, v6, v4, v5, 0, 32
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v10 = returndatasize
-    v11 = lt v10, 32
-    icall revert_if<tuple_data_too_short>, v11
-    v12 = add 0, 0
-    v13 = mload v12
-    v14 = address
-    v15 = gas
-    v16 = not 31
-    v17 = and 63, v16
-    v18 = alloc zeroed checked v17
-    mstore v18, 0
-    v19 = abi_encode [memory_bytes], selector 0xc3b2ecc100000000000000000000000000000000000000000000000000000000, args v18
-    v20 = extract_value slice<memory>, v19, 0
-    v21 = extract_value slice<memory>, v19, 1
-    v22 = zext i160 v14 to i256
-    v23 = staticcall v15, v22, v20, v21, 0, 32
-    jumpi v23, bb4, bb3
+    v8 = returndatasize
+    v9 = lt v8, 32
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = mload 0 !metadata(memory=scratch)
+    v11 = address
+    v12 = gas
+    v13 = alloc zeroed checked 32
+    mstore v13, 0
+    v14 = abi_encode [memory_bytes], selector 0xc3b2ecc100000000000000000000000000000000000000000000000000000000, args v13
+    v15 = extract_value slice<memory>, v14, 0
+    v16 = extract_value slice<memory>, v14, 1
+    v17 = zext i160 v11 to i256
+    v18 = staticcall v12, v17, v15, v16, 0, 32
+    jumpi v18, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v24 = returndatasize
-    v25 = lt v24, 32
-    icall revert_if<tuple_data_too_short>, v25
-    v26 = add 0, 0
-    v27 = mload v26
-    v28 = checked_sub uint256, v13, v27
-    ret v28
+    v19 = returndatasize
+    v20 = lt v19, 32
+    icall revert_if<tuple_data_too_short>, v20
+    v21 = mload 0 !metadata(memory=scratch)
+    v22 = checked_sub uint256, v10, v21
+    ret v22
 }
 
 fn @unusedStruct(arg0: slice<calldata>) -> i256 [selector=0xf3a326f8, pure, abi_params=[tuple<uint256, bytes, uint256>], abi_returns=[word], abi_return_params=[uint256]] {

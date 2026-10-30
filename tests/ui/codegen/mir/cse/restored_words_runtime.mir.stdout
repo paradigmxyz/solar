@@ -5,29 +5,27 @@
 
 fn @check(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0x4feb5714, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
-    v0 = not 31
-    v1 = and 127, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 64
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = add v3, 32
-    mstore v4, arg0
-    v5 = ptrtoint ptr<memory> v2 to i256
-    v6 = add v5, 64
-    mstore v6, arg1
-    v7 = icall @readTemporary, v2, arg2
-    v8 = icall @readTemporary, v2, arg2
-    v9 = checked_add uint256, v7, v8
-    v10 = ptrtoint ptr<memory> v2 to i256
-    v11 = add v10, 32
-    v12 = mload v11
-    v13 = ptrtoint ptr<memory> v2 to i256
-    v14 = add v13, 64
-    v15 = mload v14
-    v16 = insert_value struct0, undef struct0, 0, v9
-    v17 = insert_value struct0, v16, 1, v12
-    v18 = insert_value struct0, v17, 2, v15
-    ret v18
+    v0 = alloc zeroed checked 96
+    mstore v0, 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, 32
+    mstore v2, arg0
+    v3 = ptrtoint ptr<memory> v0 to i256
+    v4 = add v3, 64
+    mstore v4, arg1
+    v5 = icall @readTemporary, v0, arg2
+    v6 = icall @readTemporary, v0, arg2
+    v7 = checked_add uint256, v5, v6
+    v8 = ptrtoint ptr<memory> v0 to i256
+    v9 = add v8, 32
+    v10 = mload v9
+    v11 = ptrtoint ptr<memory> v0 to i256
+    v12 = add v11, 64
+    v13 = mload v12
+    v14 = insert_value struct0, undef struct0, 0, v7
+    v15 = insert_value struct0, v14, 1, v10
+    v16 = insert_value struct0, v15, 2, v13
+    ret v16
 }
 
 fn @readTemporary(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {

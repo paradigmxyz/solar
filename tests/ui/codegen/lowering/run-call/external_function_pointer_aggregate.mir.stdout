@@ -54,12 +54,11 @@ fn @constructor() [constructor] {
     revert_returndata
   bb2:
     v4 = sload 0 !metadata(storage=slot(0))
-    v5 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = and v4, v5
-    v7 = zext i160 v2 to i256
-    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = or v6, v8
-    sstore 0, v9 !metadata(storage=slot(0))
+    v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v6 = zext i160 v2 to i256
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = or v5, v7
+    sstore 0, v8 !metadata(storage=slot(0))
     ret
 }
 
@@ -160,9 +159,8 @@ fn @invoke(arg0: i256, arg1: i256) -> i256 [selector=0xec460bea, abi_params=[fun
     v6 = returndatasize
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7
-    v8 = add 0, 0
-    v9 = mload v8
-    ret v9
+    v8 = mload 0 !metadata(memory=scratch)
+    ret v8
 }
 
 fn @pointerArgumentRoundtrip() -> i256 [selector=0x358b91d8, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -219,9 +217,8 @@ fn @pointerReturnRoundtrip() -> i256 [selector=0xd6aa3b50, abi_params=[], abi_re
     v12 = returndatasize
     v13 = lt v12, 32
     icall revert_if<tuple_data_too_short>, v13
-    v14 = add 0, 0
-    v15 = mload v14
-    ret v15
+    v14 = mload 0 !metadata(memory=scratch)
+    ret v14
 }
 
 fn @pointerStructRoundtrip() -> i256 [selector=0xbbd5d6bf, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -251,9 +248,8 @@ fn @pointerStructRoundtrip() -> i256 [selector=0xbbd5d6bf, abi_params=[], abi_re
     v14 = returndatasize
     v15 = lt v14, 32
     icall revert_if<tuple_data_too_short>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    ret v17
+    v16 = mload 0 !metadata(memory=scratch)
+    ret v16
 }
 
 fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -304,53 +300,50 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
     v31 = returndatasize
     v32 = lt v31, 32
     icall revert_if<tuple_data_too_short>, v32
-    v33 = add 0, 0
-    v34 = mload v33
-    v35 = mload v0
-    v36 = lt 1, v35
-    v37 = eq v36, false
-    icall panic_if<0x32>, v37
-    v38 = ptradd v0, 64
-    v39 = mload v38
-    v40 = shr v39, 64
-    v41 = and v40, 0xffffffff
-    v42 = shl v41, 224
-    v43 = shr v40, 32
-    v44 = gas
-    v45 = shr v42, 224
-    mstore 0, v45 !metadata(memory=scratch)
+    v33 = mload 0 !metadata(memory=scratch)
+    v34 = mload v0
+    v35 = lt 1, v34
+    v36 = eq v35, false
+    icall panic_if<0x32>, v36
+    v37 = ptradd v0, 64
+    v38 = mload v37
+    v39 = shr v38, 64
+    v40 = and v39, 0xffffffff
+    v41 = shl v40, 224
+    v42 = shr v39, 32
+    v43 = gas
+    v44 = shr v41, 224
+    mstore 0, v44 !metadata(memory=scratch)
     mstore 32, 4 !metadata(memory=scratch)
-    v46 = call v44, v43, 0, 28, 36, 0, 32
-    jumpi v46, bb4, bb3
+    v45 = call v43, v42, 0, 28, 36, 0, 32
+    jumpi v45, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v47 = returndatasize
-    v48 = lt v47, 32
-    icall revert_if<tuple_data_too_short>, v48
-    v49 = add 0, 0
-    v50 = mload v49
-    v51 = checked_add uint256, v34, v50
-    ret v51
+    v46 = returndatasize
+    v47 = lt v46, 32
+    icall revert_if<tuple_data_too_short>, v47
+    v48 = mload 0 !metadata(memory=scratch)
+    v49 = checked_add uint256, v33, v48
+    ret v49
 }
 
 fn @calldataTarget(arg0: slice<calldata>) -> i1 [selector=0x3b20e329, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = add v0, 63
-    v2 = not 31
-    v3 = and v1, v2
-    v4 = alloc v3
-    mstore v4, v0
-    v5 = ptradd v4, 32
-    v6 = extract_value slice<calldata>, arg0, 0
-    v7 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v5, v6, v7
-    v8 = ptradd v4, 32
-    v9 = mload v4
-    v10 = keccak256 v8, v9
-    v11 = eq v10, 0x46e5f6b6987ca0bd7c8884e2d9fbfc072e24bb9d2a2ebb858bc217d66a45ab99
-    ret v11
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = alloc v2
+    mstore v3, v0
+    v4 = ptradd v3, 32
+    v5 = extract_value slice<calldata>, arg0, 0
+    v6 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v4, v5, v6
+    v7 = ptradd v3, 32
+    v8 = mload v3
+    v9 = keccak256 v7, v8
+    v10 = eq v9, 0x46e5f6b6987ca0bd7c8884e2d9fbfc072e24bb9d2a2ebb858bc217d66a45ab99
+    ret v10
 }
 
 fn @calldataPointerRoundtrip() -> i1 [selector=0x1d9b1866, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -378,11 +371,10 @@ fn @calldataPointerRoundtrip() -> i1 [selector=0x1d9b1866, abi_params=[], abi_re
     v14 = returndatasize
     v15 = lt v14, 32
     icall revert_if<tuple_data_too_short>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    v18 = lt v17, 2
-    v19 = eq v18, false
-    icall revert_if<empty>, v19
-    v20 = ne v17, 0
-    ret v20
+    v16 = mload 0 !metadata(memory=scratch)
+    v17 = lt v16, 2
+    v18 = eq v17, false
+    icall revert_if<empty>, v18
+    v19 = ne v16, 0
+    ret v19
 }

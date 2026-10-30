@@ -7,25 +7,24 @@ fn @emptyLength() -> i256 [selector=0x11864a7a, pure, abi_params=[], abi_returns
     v2 = add v1, 63
     v3 = lt v2, v1
     icall panic_if<0x41>, v3
-    v4 = not 31
-    v5 = and v2, v4
-    v6 = alloc v5
-    mstore v6, v1
-    v7 = extract_value slice<calldata>, v0, 0
-    v8 = extract_value slice<calldata>, v0, 1
-    v9 = calldatasize
-    v10 = gt v8, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v10
-    v11 = sub v9, v8
-    v12 = ptrtoint ptr<calldata> v7 to i256
-    v13 = sgt v12, v11
-    icall revert_if<calldata_tail_too_short>, v13
-    v14 = ptradd v6, 32
-    v15 = extract_value slice<calldata>, v0, 0
-    v16 = extract_value slice<calldata>, v0, 1
-    calldatacopy v14, v15, v16
-    v17 = mload v6
-    ret v17
+    v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v5 = alloc v4
+    mstore v5, v1
+    v6 = extract_value slice<calldata>, v0, 0
+    v7 = extract_value slice<calldata>, v0, 1
+    v8 = calldatasize
+    v9 = gt v7, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v9
+    v10 = sub v8, v7
+    v11 = ptrtoint ptr<calldata> v6 to i256
+    v12 = sgt v11, v10
+    icall revert_if<calldata_tail_too_short>, v12
+    v13 = ptradd v5, 32
+    v14 = extract_value slice<calldata>, v0, 0
+    v15 = extract_value slice<calldata>, v0, 1
+    calldatacopy v13, v14, v15
+    v16 = mload v5
+    ret v16
 }
 
 fn @prefix(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x15de319c, pure, abi_params=[bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -37,24 +36,23 @@ fn @prefix(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x15de319
     v4 = add v3, 63
     v5 = lt v4, v3
     icall panic_if<0x41>, v5
-    v6 = not 31
-    v7 = and v4, v6
-    v8 = alloc v7
-    mstore v8, v3
-    v9 = extract_value slice<calldata>, v2, 0
-    v10 = extract_value slice<calldata>, v2, 1
-    v11 = calldatasize
-    v12 = gt v10, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v12
-    v13 = sub v11, v10
-    v14 = ptrtoint ptr<calldata> v9 to i256
-    v15 = sgt v14, v13
-    icall revert_if<calldata_tail_too_short>, v15
-    v16 = ptradd v8, 32
-    v17 = extract_value slice<calldata>, v2, 0
-    v18 = extract_value slice<calldata>, v2, 1
-    calldatacopy v16, v17, v18
-    ret v8
+    v6 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v7 = alloc v6
+    mstore v7, v3
+    v8 = extract_value slice<calldata>, v2, 0
+    v9 = extract_value slice<calldata>, v2, 1
+    v10 = calldatasize
+    v11 = gt v9, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v11
+    v12 = sub v10, v9
+    v13 = ptrtoint ptr<calldata> v8 to i256
+    v14 = sgt v13, v12
+    icall revert_if<calldata_tail_too_short>, v14
+    v15 = ptradd v7, 32
+    v16 = extract_value slice<calldata>, v2, 0
+    v17 = extract_value slice<calldata>, v2, 1
+    calldatacopy v15, v16, v17
+    ret v7
 }
 
 fn @redirected(arg0: slice<calldata>, arg1: slice<calldata>) -> ptr<memory> [selector=0x3e517428, pure, abi_params=[bytes, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -64,24 +62,23 @@ fn @redirected(arg0: slice<calldata>, arg1: slice<calldata>) -> ptr<memory> [sel
     v2 = add v1, 63
     v3 = lt v2, v1
     icall panic_if<0x41>, v3
-    v4 = not 31
-    v5 = and v2, v4
-    v6 = alloc v5
-    mstore v6, v1
-    v7 = extract_value slice<calldata>, v0, 0
-    v8 = extract_value slice<calldata>, v0, 1
-    v9 = calldatasize
-    v10 = gt v8, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v10
-    v11 = sub v9, v8
-    v12 = ptrtoint ptr<calldata> v7 to i256
-    v13 = sgt v12, v11
-    icall revert_if<calldata_tail_too_short>, v13
-    v14 = ptradd v6, 32
-    v15 = extract_value slice<calldata>, v0, 0
-    v16 = extract_value slice<calldata>, v0, 1
-    calldatacopy v14, v15, v16
-    ret v6
+    v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v5 = alloc v4
+    mstore v5, v1
+    v6 = extract_value slice<calldata>, v0, 0
+    v7 = extract_value slice<calldata>, v0, 1
+    v8 = calldatasize
+    v9 = gt v7, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v9
+    v10 = sub v8, v7
+    v11 = ptrtoint ptr<calldata> v6 to i256
+    v12 = sgt v11, v10
+    icall revert_if<calldata_tail_too_short>, v12
+    v13 = ptradd v5, 32
+    v14 = extract_value slice<calldata>, v0, 0
+    v15 = extract_value slice<calldata>, v0, 1
+    calldatacopy v13, v14, v15
+    ret v5
 }
 
 fn @empty() -> slice<calldata> [pure] {

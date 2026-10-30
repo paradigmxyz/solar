@@ -4,11 +4,9 @@ fn @constructor() [constructor] {
   bb0:
     v0 = mapping_slot 0x1234, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))
-    v2 = not 0xffffffffffffffff
-    v3 = and v1, v2
-    v4 = and 2, 0xffffffffffffffff
-    v5 = or v3, v4
-    sstore v0, v5 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v3 = or v2, 2
+    sstore v0, v3 !metadata(storage=symbolic(v0))
     ret
 }
 
@@ -16,11 +14,9 @@ fn @stage0() {
   bb0:
     v0 = mapping_slot 0x1234, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))
-    v2 = not 0xffffffffffffffff
-    v3 = and v1, v2
-    v4 = and 3, 0xffffffffffffffff
-    v5 = or v3, v4
-    sstore v0, v5 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v3 = or v2, 3
+    sstore v0, v3 !metadata(storage=symbolic(v0))
     ret
 }
 
@@ -28,22 +24,18 @@ fn @stage1() {
   bb0:
     v0 = mapping_slot 0x1234, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))
-    v2 = not 0xffffffffffffffff
-    v3 = and v1, v2
-    v4 = and 4, 0xffffffffffffffff
-    v5 = or v3, v4
-    sstore v0, v5 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v3 = or v2, 4
+    sstore v0, v3 !metadata(storage=symbolic(v0))
     ret
 }
 
 fn @stage2() {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 255
-    v2 = and v0, v1
-    v3 = and 1, 255
-    v4 = or v2, v3
-    sstore 0, v4 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v2 = or v1, 1
+    sstore 0, v2 !metadata(storage=slot(0))
     ret
 }
 

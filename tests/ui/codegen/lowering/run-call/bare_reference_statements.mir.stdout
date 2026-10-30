@@ -55,7 +55,6 @@ fn @storageReferences() [selector=0x755532a7, view, abi_params=[], abi_returns=[
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = storage_array_data_slot 1
-    v4 = add v3, 0
     ret
 }
 

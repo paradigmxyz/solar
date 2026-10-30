@@ -15,8 +15,7 @@ contract PackedBool {
 
     // CHECK-LABEL: fn @set{{[( ]}}
     // CHECK: [[WORD:v[0-9]+]] = sload 0
-    // CHECK: {{v[0-9]+}} = not 255
-    // CHECK: and [[WORD]], {{v[0-9]+}}
+    // CHECK: and [[WORD]], 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     // CHECK: sstore 0,
     // CHECK: {{v[0-9]+}} = sload 0
     // CHECK: shl {{[^ ,]+}}, 8{{$}}

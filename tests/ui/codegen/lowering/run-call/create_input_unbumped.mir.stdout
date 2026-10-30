@@ -122,14 +122,13 @@ fn @plain() -> struct0 [selector=0x59748c98, abi_params=[], abi_returns=[word, w
     v26 = returndatasize
     v27 = lt v26, 32
     icall revert_if<tuple_data_too_short>, v27
-    v28 = add 0, 0
-    v29 = mload v28
-    v30 = insert_value struct0, undef struct0, 0, v7
-    v31 = insert_value struct0, v30, 1, v12
-    v32 = insert_value struct0, v31, 2, v17
-    v33 = insert_value struct0, v32, 3, v22
-    v34 = insert_value struct0, v33, 4, v29
-    ret v34
+    v28 = mload 0 !metadata(memory=scratch)
+    v29 = insert_value struct0, undef struct0, 0, v7
+    v30 = insert_value struct0, v29, 1, v12
+    v31 = insert_value struct0, v30, 2, v17
+    v32 = insert_value struct0, v31, 3, v22
+    v33 = insert_value struct0, v32, 4, v28
+    ret v33
 }
 
 fn @staticArguments() -> struct0 [selector=0x2295c846, abi_params=[], abi_returns=[word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256]] {
@@ -182,14 +181,13 @@ fn @staticArguments() -> struct0 [selector=0x2295c846, abi_params=[], abi_return
     v31 = returndatasize
     v32 = lt v31, 32
     icall revert_if<tuple_data_too_short>, v32
-    v33 = add 0, 0
-    v34 = mload v33
-    v35 = insert_value struct0, undef struct0, 0, v12
-    v36 = insert_value struct0, v35, 1, v17
-    v37 = insert_value struct0, v36, 2, v22
-    v38 = insert_value struct0, v37, 3, v27
-    v39 = insert_value struct0, v38, 4, v34
-    ret v39
+    v33 = mload 0 !metadata(memory=scratch)
+    v34 = insert_value struct0, undef struct0, 0, v12
+    v35 = insert_value struct0, v34, 1, v17
+    v36 = insert_value struct0, v35, 2, v22
+    v37 = insert_value struct0, v36, 3, v27
+    v38 = insert_value struct0, v37, 4, v33
+    ret v38
 }
 
 fn @dynamicArguments() -> struct0 [selector=0xd79ddb88, abi_params=[], abi_returns=[word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256]] {
@@ -249,14 +247,13 @@ fn @dynamicArguments() -> struct0 [selector=0xd79ddb88, abi_params=[], abi_retur
     v35 = returndatasize
     v36 = lt v35, 32
     icall revert_if<tuple_data_too_short>, v36
-    v37 = add 0, 0
-    v38 = mload v37
-    v39 = insert_value struct0, undef struct0, 0, v16
-    v40 = insert_value struct0, v39, 1, v21
-    v41 = insert_value struct0, v40, 2, v26
-    v42 = insert_value struct0, v41, 3, v31
-    v43 = insert_value struct0, v42, 4, v38
-    ret v43
+    v37 = mload 0 !metadata(memory=scratch)
+    v38 = insert_value struct0, undef struct0, 0, v16
+    v39 = insert_value struct0, v38, 1, v21
+    v40 = insert_value struct0, v39, 2, v26
+    v41 = insert_value struct0, v40, 3, v31
+    v42 = insert_value struct0, v41, 4, v37
+    ret v42
 }
 
 fn @salted() -> struct0 [selector=0x1f981516, abi_params=[], abi_returns=[word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256]] {
@@ -304,14 +301,13 @@ fn @salted() -> struct0 [selector=0x1f981516, abi_params=[], abi_returns=[word, 
     v27 = returndatasize
     v28 = lt v27, 32
     icall revert_if<tuple_data_too_short>, v28
-    v29 = add 0, 0
-    v30 = mload v29
-    v31 = insert_value struct0, undef struct0, 0, v8
-    v32 = insert_value struct0, v31, 1, v13
-    v33 = insert_value struct0, v32, 2, v18
-    v34 = insert_value struct0, v33, 3, v23
-    v35 = insert_value struct0, v34, 4, v30
-    ret v35
+    v29 = mload 0 !metadata(memory=scratch)
+    v30 = insert_value struct0, undef struct0, 0, v8
+    v31 = insert_value struct0, v30, 1, v13
+    v32 = insert_value struct0, v31, 2, v18
+    v33 = insert_value struct0, v32, 3, v23
+    v34 = insert_value struct0, v33, 4, v29
+    ret v34
 }
 
 fn @repeated() -> struct1 [selector=0xc7642fc4, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
@@ -337,34 +333,32 @@ fn @repeated() -> struct1 [selector=0xc7642fc4, abi_params=[], abi_returns=[word
     v8 = returndatasize
     v9 = lt v8, 32
     icall revert_if<tuple_data_too_short>, v9
-    v10 = add 0, 0
-    v11 = mload v10
-    v12 = datasize Plain_creation_code_0
-    v13 = fmp
-    datacopy Plain_creation_code_0, v13, v12
-    v14 = create 0, v13, v12
-    v15 = ne v14, i160 0
-    jumpi v15, bb6, bb5
+    v10 = mload 0 !metadata(memory=scratch)
+    v11 = datasize Plain_creation_code_0
+    v12 = fmp
+    datacopy Plain_creation_code_0, v12, v11
+    v13 = create 0, v12, v11
+    v14 = ne v13, i160 0
+    jumpi v14, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v16 = gas
+    v15 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
-    v17 = zext i160 v14 to i256
-    v18 = staticcall v16, v17, 28, 4, 0, 32
-    jumpi v18, bb8, bb7
+    v16 = zext i160 v13 to i256
+    v17 = staticcall v15, v16, 28, 4, 0, 32
+    jumpi v17, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v19 = returndatasize
-    v20 = lt v19, 32
-    icall revert_if<tuple_data_too_short>, v20
-    v21 = add 0, 0
-    v22 = mload v21
-    v23 = icall @fmp
-    v24 = checked_sub uint256, v23, v0
-    v25 = insert_value struct1, undef struct1, 0, v24
-    v26 = insert_value struct1, v25, 1, v11
-    v27 = insert_value struct1, v26, 2, v22
-    ret v27
+    v18 = returndatasize
+    v19 = lt v18, 32
+    icall revert_if<tuple_data_too_short>, v19
+    v20 = mload 0 !metadata(memory=scratch)
+    v21 = icall @fmp
+    v22 = checked_sub uint256, v21, v0
+    v23 = insert_value struct1, undef struct1, 0, v22
+    v24 = insert_value struct1, v23, 1, v10
+    v25 = insert_value struct1, v24, 2, v20
+    ret v25
 }

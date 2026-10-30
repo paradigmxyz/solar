@@ -9,7 +9,7 @@ fn @search() [selector=0xd43fc471, abi_wrapper, pure] {
   bb0:
     v49 = icall @decode_calldata_type
     v0 = mload v49
-    v62 = add v49, 32
+    v58 = add v49, 32
     jump bb1
   bb1:
     v5 = phi [bb0: 1], [bb6: v27]
@@ -24,8 +24,8 @@ fn @search() [selector=0xd43fc471, abi_wrapper, pure] {
     v10 = shr v35, 1
     v37 = sub v10, 1
     v15 = shl v37, 5
-    v60 = add v62, v15
-    v18 = mload v60
+    v56 = add v58, v15
+    v18 = mload v56
     v19 = eq v18, arg1
     jumpi v19, bb9, bb4
   bb4:
@@ -60,7 +60,7 @@ fn @lowerBound() [selector=0x63b7c492, abi_wrapper, pure] {
   bb0:
     v25 = icall @decode_calldata_type
     v0 = mload v25
-    v31 = add v25, 32
+    v30 = add v25, 32
     jump bb1
   bb1:
     v4 = phi [bb0: 0], [bb5: v19]
@@ -75,8 +75,8 @@ fn @lowerBound() [selector=0x63b7c492, abi_wrapper, pure] {
     v8 = shr v7, 1
     v21 = add v4, v8
     v13 = shl v21, 5
-    v29 = add v31, v13
-    v16 = mload v29
+    v28 = add v30, v13
+    v16 = mload v28
     v17 = lt v16, arg1
     jumpi v17, bb4, bb5
   bb4:
@@ -100,30 +100,30 @@ fn @consume() [selector=0x15847e62, abi_wrapper, pure] {
     v63 = sub v54, v62
     v64 = shr v63, 5
     v65 = gt v61, v64
-    v88 = or v60, v65
+    v84 = or v60, v65
     v68 = calldataload 36
     v69 = add v68, 4
     v72 = gt v68, v59
-    v89 = or v88, v72
+    v85 = or v84, v72
     v73 = calldataload v69
     v74 = add v69, 32
     v75 = sub v54, v74
     v76 = shr v75, 5
     v77 = gt v73, v76
-    v90 = or v89, v77
-    jumpi v90, bb7, bb11
+    v86 = or v85, v77
+    jumpi v86, bb7, bb11
   bb11:
-    v86 = shl v73, 5
-    v87 = add v74, v86
+    v82 = shl v73, 5
+    v83 = add v74, v82
     jump bb1
   bb1:
     v2 = phi [bb11: 0], [bb3: v45]
     v3 = phi [bb11: 0], [bb3: v46]
-    v84 = phi [bb11: v74], [bb3: v85]
-    v6 = ne v84, v87
+    v80 = phi [bb11: v74], [bb3: v81]
+    v6 = ne v80, v83
     jumpi v6, bb4, bb2
   bb4:
-    v20 = calldataload v84
+    v20 = calldataload v80
     v21 = lt v20, 2
     jumpi v21, bb8, bb7
   bb8:
@@ -153,7 +153,7 @@ fn @consume() [selector=0x15847e62, abi_wrapper, pure] {
   bb3:
     v45 = phi [bb10: v52], [bb8: v2]
     v46 = phi [bb10: v44], [bb8: v3]
-    v85 = add v84, 32
+    v81 = add v80, 32
     jump bb1
   bb7:
     revert 0, 0
@@ -163,14 +163,14 @@ fn @probe() [selector=0x6012072a, abi_wrapper, pure] {
   bb0:
     v28 = icall @decode_calldata_type
     v0 = mload v28
-    v34 = add v28, 32
-    v35 = sub 0, arg1
+    v33 = add v28, 32
+    v34 = sub 0, arg1
     jump bb1
   bb1:
     v3 = phi [bb0: 0], [bb9: v22]
     v4 = phi [bb0: 0], [bb9: v5]
     v5 = phi [bb0: v0], [bb9: v24]
-    v6 = phi [bb0: v35], [bb9: v19]
+    v6 = phi [bb0: v34], [bb9: v19]
     v7 = ne v6, 0
     jumpi v7, bb3, bb2
   bb2:
@@ -188,8 +188,8 @@ fn @probe() [selector=0x6012072a, abi_wrapper, pure] {
     tail_call @revert_stub
   bb5:
     v13 = shl v9, 5
-    v32 = add v34, v13
-    v16 = mload v32
+    v31 = add v33, v13
+    v16 = mload v31
     v22 = add v3, v16
     v23 = lt v22, v3
     jumpi v23, bb6, bb8

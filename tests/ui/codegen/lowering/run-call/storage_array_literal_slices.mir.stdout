@@ -106,40 +106,35 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     v120 = lt 0, 2
     v121 = eq v120, false
     icall panic_if<0x32>, v121
-    v122 = add 0, 0
-    v123 = sload v122 !metadata(storage=slot(0))
-    v124 = lt 0, 2
-    v125 = eq v124, false
-    icall panic_if<0x32>, v125
-    v126 = add 0, 0
-    v127 = sload v126 !metadata(storage=slot(0))
-    v128 = lt 0, v127
-    v129 = eq v128, false
-    icall panic_if<0x32>, v129
-    v130 = storage_array_data_slot v126
-    v131 = add v130, 0
-    v132 = sload v131 !metadata(storage=symbolic(v130))
+    v122 = sload 0 !metadata(storage=slot(0))
+    v123 = lt 0, 2
+    v124 = eq v123, false
+    icall panic_if<0x32>, v124
+    v125 = sload 0 !metadata(storage=slot(0))
+    v126 = lt 0, v125
+    v127 = eq v126, false
+    icall panic_if<0x32>, v127
+    v128 = storage_array_data_slot 0
+    v129 = sload v128 !metadata(storage=symbolic(v128))
+    v130 = lt 1, 2
+    v131 = eq v130, false
+    icall panic_if<0x32>, v131
+    v132 = sload 1 !metadata(storage=slot(1))
     v133 = lt 1, 2
     v134 = eq v133, false
     icall panic_if<0x32>, v134
-    v135 = add 0, 1
-    v136 = sload v135 !metadata(storage=slot(1))
-    v137 = lt 1, 2
-    v138 = eq v137, false
-    icall panic_if<0x32>, v138
-    v139 = add 0, 1
-    v140 = sload v139 !metadata(storage=slot(1))
-    v141 = lt 1, v140
-    v142 = eq v141, false
-    icall panic_if<0x32>, v142
-    v143 = storage_array_data_slot v139
-    v144 = add v143, 1
-    v145 = sload v144 !metadata(storage=offset(v143, 1))
-    v146 = insert_value struct0, undef struct0, 0, v123
-    v147 = insert_value struct0, v146, 1, v132
-    v148 = insert_value struct0, v147, 2, v136
-    v149 = insert_value struct0, v148, 3, v145
-    ret v149
+    v135 = sload 1 !metadata(storage=slot(1))
+    v136 = lt 1, v135
+    v137 = eq v136, false
+    icall panic_if<0x32>, v137
+    v138 = storage_array_data_slot 1
+    v139 = add v138, 1
+    v140 = sload v139 !metadata(storage=offset(v138, 1))
+    v141 = insert_value struct0, undef struct0, 0, v122
+    v142 = insert_value struct0, v141, 1, v129
+    v143 = insert_value struct0, v142, 2, v132
+    v144 = insert_value struct0, v143, 3, v140
+    ret v144
   bb2:
     v78 = add 0, v76
     v79 = lt v76, 2

@@ -74,10 +74,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // value = address(receiver) << 32 | selector(function)
             let address = self.lower_expr(receiver)?;
             let address_shift = self.builder.imm(32);
-            let address = self.builder.shl(address, address_shift);
+            let address = self.builder.shl_folded(address, address_shift);
             let selector = self.cx.gcx.function_selector(function_id).0;
             let selector = self.builder.imm(U256::from_be_slice(&selector));
-            return Some(self.builder.or(address, selector));
+            return Some(self.builder.or_folded(address, selector));
         }
         if let Some(access) = self.storage_access(expr) {
             // value = load_storage(member_slot)
@@ -222,7 +222,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return value;
         };
         let shift = self.builder.imm(u64::from(32 - size.bytes()) * 8);
-        self.builder.shl(value, shift)
+        self.builder.shl_folded(value, shift)
     }
 
     pub(super) fn peel_bytes_conversion<'b>(&self, expr: &'b hir::Expr<'b>) -> &'b hir::Expr<'b> {

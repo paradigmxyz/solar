@@ -39,32 +39,31 @@ fn @viaStructLiteral(arg0: i256, arg1: slice<calldata>, arg2: slice<calldata>) -
     v28 = ptrtoint ptr<memory> v23 to i256
     v29 = extract_value slice<calldata>, arg2, 1
     v30 = add v29, 63
-    v31 = not 31
-    v32 = and v30, v31
-    v33 = alloc v32
-    mstore v33, v29
-    v34 = ptradd v33, 32
-    v35 = extract_value slice<calldata>, arg2, 0
-    v36 = extract_value slice<calldata>, arg2, 1
-    calldatacopy v34, v35, v36
-    v37 = ptrtoint ptr<memory> v33 to i256
+    v31 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v32 = alloc v31
+    mstore v32, v29
+    v33 = ptradd v32, 32
+    v34 = extract_value slice<calldata>, arg2, 0
+    v35 = extract_value slice<calldata>, arg2, 1
+    calldatacopy v33, v34, v35
+    v36 = ptrtoint ptr<memory> v32 to i256
     mstore v0, arg0
-    v38 = ptradd v0, 32
-    mstore v38, v28
-    v39 = ptradd v0, 64
-    mstore v39, v37
-    v40 = mload v0
-    v41 = ptradd v0, 32
-    v42 = mload v41, ptr<memory>
-    v43 = mload v42
-    v44 = checked_mul uint256, v43, 10
-    v45 = checked_add uint256, v40, v44
-    v46 = ptradd v0, 64
-    v47 = mload v46, ptr<memory>
-    v48 = mload v47
-    v49 = checked_mul uint256, v48, 100
-    v50 = checked_add uint256, v45, v49
-    ret v50
+    v37 = ptradd v0, 32
+    mstore v37, v28
+    v38 = ptradd v0, 64
+    mstore v38, v36
+    v39 = mload v0
+    v40 = ptradd v0, 32
+    v41 = mload v40, ptr<memory>
+    v42 = mload v41
+    v43 = checked_mul uint256, v42, 10
+    v44 = checked_add uint256, v39, v43
+    v45 = ptradd v0, 64
+    v46 = mload v45, ptr<memory>
+    v47 = mload v46
+    v48 = checked_mul uint256, v47, 100
+    v49 = checked_add uint256, v44, v48
+    ret v49
 }
 
 fn @viaDeclaration(arg0: slice<calldata>) -> i256 [selector=0xcd64a752, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {

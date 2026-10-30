@@ -278,9 +278,8 @@ fn @deployAdd(arg0: i256) -> i256 [selector=0xec1495a8, abi_params=[uint256], ab
     v12 = returndatasize
     v13 = lt v12, 32
     icall revert_if<tuple_data_too_short>, v13
-    v14 = add 0, 0
-    v15 = mload v14
-    ret v15
+    v14 = mload 0 !metadata(memory=scratch)
+    ret v14
 }
 
 fn @deployMul(arg0: i256) -> i256 [selector=0xcb7face2, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -311,9 +310,8 @@ fn @deployMul(arg0: i256) -> i256 [selector=0xcb7face2, abi_params=[uint256], ab
     v12 = returndatasize
     v13 = lt v12, 32
     icall revert_if<tuple_data_too_short>, v13
-    v14 = add 0, 0
-    v15 = mload v14
-    ret v15
+    v14 = mload 0 !metadata(memory=scratch)
+    ret v14
 }
 
 fn @deployNegate(arg0: i256) -> i256 [selector=0x8ee51801, abi_params=[int256], abi_returns=[word], abi_return_params=[int256]] {
@@ -344,9 +342,8 @@ fn @deployNegate(arg0: i256) -> i256 [selector=0x8ee51801, abi_params=[int256], 
     v12 = returndatasize
     v13 = lt v12, 32
     icall revert_if<tuple_data_too_short>, v13
-    v14 = add 0, 0
-    v15 = mload v14
-    ret v15
+    v14 = mload 0 !metadata(memory=scratch)
+    ret v14
 }
 
 fn @deployElement(arg0: i256) -> i256 [selector=0x178d3c81, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -377,9 +374,8 @@ fn @deployElement(arg0: i256) -> i256 [selector=0x178d3c81, abi_params=[uint256]
     v12 = returndatasize
     v13 = lt v12, 32
     icall revert_if<tuple_data_too_short>, v13
-    v14 = add 0, 0
-    v15 = mload v14
-    ret v15
+    v14 = mload 0 !metadata(memory=scratch)
+    ret v14
 }
 
 fn @deploySub(arg0: i256) -> i256 [selector=0xd5c4b324, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -410,9 +406,8 @@ fn @deploySub(arg0: i256) -> i256 [selector=0xd5c4b324, abi_params=[uint256], ab
     v12 = returndatasize
     v13 = lt v12, 32
     icall revert_if<tuple_data_too_short>, v13
-    v14 = add 0, 0
-    v15 = mload v14
-    ret v15
+    v14 = mload 0 !metadata(memory=scratch)
+    ret v14
 }
 
 fn @deployExp(arg0: i256) -> i256 [selector=0x2744a5b3, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -443,9 +438,8 @@ fn @deployExp(arg0: i256) -> i256 [selector=0x2744a5b3, abi_params=[uint256], ab
     v12 = returndatasize
     v13 = lt v12, 32
     icall revert_if<tuple_data_too_short>, v13
-    v14 = add 0, 0
-    v15 = mload v14
-    ret v15
+    v14 = mload 0 !metadata(memory=scratch)
+    ret v14
 }
 
 fn @deployShift(arg0: i256) -> i256 [selector=0xca2ccfdb, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -476,7 +470,6 @@ fn @deployShift(arg0: i256) -> i256 [selector=0xca2ccfdb, abi_params=[uint256], 
     v12 = returndatasize
     v13 = lt v12, 32
     icall revert_if<tuple_data_too_short>, v13
-    v14 = add 0, 0
-    v15 = mload v14
-    ret v15
+    v14 = mload 0 !metadata(memory=scratch)
+    ret v14
 }

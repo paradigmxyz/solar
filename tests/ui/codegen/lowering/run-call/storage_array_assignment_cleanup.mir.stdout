@@ -76,11 +76,10 @@ fn @cleanup() -> struct0 [selector=0x3cecd719, abi_params=[], abi_returns=[word,
     v53 = eq v52, false
     icall panic_if<0x32>, v53
     v54 = storage_array_data_slot 0
-    v55 = add v54, 0
-    v56 = sload v55 !metadata(storage=symbolic(v54))
-    v57 = insert_value struct0, undef struct0, 0, v56
-    v58 = insert_value struct0, v57, 1, v50
-    ret v58
+    v55 = sload v54 !metadata(storage=symbolic(v54))
+    v56 = insert_value struct0, undef struct0, 0, v55
+    v57 = insert_value struct0, v56, 1, v50
+    ret v57
   bb15:
     v41 = shl v39, 5
     v42 = ptradd v26, v41

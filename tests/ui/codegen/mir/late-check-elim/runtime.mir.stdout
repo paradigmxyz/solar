@@ -2,46 +2,44 @@
 @module LateMemoryRuntime
 fn @ascii(arg0: i8) -> i1 [selector=0x394abd12, pure, abi_params=[uint8], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = not 31
-    v1 = and 64, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 1
-    v3 = zext i8 arg0 to i256
-    v4 = shl v3, 248
-    v5 = mload v2
-    v6 = lt 0, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = byte 0, v4
-    v9 = ptradd v2, 32
-    mstore8 v9, v8
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    v1 = zext i8 arg0 to i256
+    v2 = shl v1, 248
+    v3 = mload v0
+    v4 = lt 0, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = byte 0, v2
+    v7 = ptradd v0, 32
+    mstore8 v7, v6
     jump bb1
   bb1:
-    v10 = phi [bb0: arg0], [bb3: v10]
-    v11 = phi [bb0: 0], [bb3: v11]
-    v12 = phi [bb0: v2], [bb3: v12]
-    v13 = phi [bb0: 0], [bb3: v27]
-    v14 = mload v12
-    v15 = lt v13, v14
-    jumpi v15, bb4, bb5
+    v8 = phi [bb0: arg0], [bb3: v8]
+    v9 = phi [bb0: 0], [bb3: v9]
+    v10 = phi [bb0: v0], [bb3: v10]
+    v11 = phi [bb0: 0], [bb3: v25]
+    v12 = mload v10
+    v13 = lt v11, v12
+    jumpi v13, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret true
   bb4:
-    v16 = mload v12
-    v17 = lt v13, v16
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = ptradd v12, v13
-    v20 = ptradd v19, 32
-    v21 = mload v20
-    v22 = byte 0, v21
-    v23 = shl v22, 248
-    v24 = shr v23, 248
-    v25 = trunc i256 v24 to i8
-    v26 = gt v25, i8 127
-    jumpi v26, bb7, bb8
+    v14 = mload v10
+    v15 = lt v11, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = ptradd v10, v11
+    v18 = ptradd v17, 32
+    v19 = mload v18
+    v20 = byte 0, v19
+    v21 = shl v20, 248
+    v22 = shr v21, 248
+    v23 = trunc i256 v22 to i8
+    v24 = gt v23, i8 127
+    jumpi v24, bb7, bb8
   bb8:
     jump bb9
   bb9:
@@ -49,7 +47,7 @@ fn @ascii(arg0: i8) -> i1 [selector=0x394abd12, pure, abi_params=[uint8], abi_re
   bb6:
     jump bb3
   bb3:
-    v27 = checked_add uint256, v13, 1
+    v25 = checked_add uint256, v11, 1
     jump bb1
   bb7:
     ret false
@@ -89,43 +87,41 @@ fn @sum(arg0: ptr<memory>) -> i256 [selector=0x0194db8e, pure, abi_params=[array
 
 fn @shrinkingLoop() -> i256 [selector=0x99f5cf3a, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = not 31
-    v1 = and 64, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 1
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
     jump bb1
   bb1:
-    v3 = phi [bb0: 0], [bb3: v20]
-    v4 = phi [bb0: v2], [bb3: v4]
-    v5 = phi [bb0: 0], [bb3: v21]
-    v6 = mload v4
-    v7 = lt v5, v6
-    jumpi v7, bb4, bb5
+    v1 = phi [bb0: 0], [bb3: v18]
+    v2 = phi [bb0: v0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v19]
+    v4 = mload v2
+    v5 = lt v3, v4
+    jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v3
+    ret v1
   bb4:
-    v8 = ptrtoint ptr<memory> v4 to i256
-    mstore v4, 0
-    v9 = mload v4
-    v10 = lt v5, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = ptradd v4, v5
-    v13 = ptradd v12, 32
-    v14 = mload v13
-    v15 = byte 0, v14
-    v16 = shl v15, 248
-    v17 = shr v16, 248
-    v18 = trunc i256 v17 to i8
-    v19 = zext i8 v18 to i256
-    v20 = checked_add uint256, v3, v19
+    v6 = ptrtoint ptr<memory> v2 to i256
+    mstore v2, 0
+    v7 = mload v2
+    v8 = lt v3, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = ptradd v2, v3
+    v11 = ptradd v10, 32
+    v12 = mload v11
+    v13 = byte 0, v12
+    v14 = shl v13, 248
+    v15 = shr v14, 248
+    v16 = trunc i256 v15 to i8
+    v17 = zext i8 v16 to i256
+    v18 = checked_add uint256, v1, v17
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v21 = checked_add uint256, v5, 1
+    v19 = checked_add uint256, v3, 1
     jump bb1
 }
 

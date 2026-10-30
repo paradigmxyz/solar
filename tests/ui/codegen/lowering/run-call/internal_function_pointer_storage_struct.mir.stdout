@@ -18,71 +18,45 @@ fn @constructor() [constructor] {
     v0 = lt 0, 2
     v1 = eq v0, false
     icall panic_if<0x32>, v1
-    v2 = add 0, 0
-    v3 = sload v2 !metadata(storage=slot(0))
-    v4 = not 0xffff
-    v5 = and v3, v4
-    v6 = and 0xff07, 0xffff
-    v7 = or v5, v6
-    sstore v2, v7 !metadata(storage=slot(0))
-    v8 = lt 0, 2
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = add 0, 0
-    v11 = shl 0xffff, 80
-    v12 = sload v10 !metadata(storage=slot(0))
-    v13 = not v11
-    v14 = and v12, v13
-    v15 = and 0xff07, 0xffff
-    v16 = shl v15, 80
-    v17 = or v14, v16
-    sstore v10, v17 !metadata(storage=slot(0))
-    v18 = lt 1, 2
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = add 0, 1
-    v21 = shl 0xffffffffffffffff, 16
-    v22 = sload v20 !metadata(storage=slot(1))
-    v23 = not v21
-    v24 = and v22, v23
-    v25 = and 2, 0xffffffffffffffff
-    v26 = shl v25, 16
-    v27 = or v24, v26
-    sstore v20, v27 !metadata(storage=slot(1))
-    v28 = lt 1, 2
-    v29 = eq v28, false
-    icall panic_if<0x32>, v29
-    v30 = add 0, 1
-    v31 = sload v30 !metadata(storage=slot(1))
-    v32 = not 0xffff
-    v33 = and v31, v32
-    v34 = and 0xff07, 0xffff
-    v35 = or v33, v34
-    sstore v30, v35 !metadata(storage=slot(1))
-    v36 = lt 1, 2
-    v37 = eq v36, false
-    icall panic_if<0x32>, v37
-    v38 = add 0, 1
-    v39 = shl 0xffff, 80
-    v40 = sload v38 !metadata(storage=slot(1))
-    v41 = not v39
-    v42 = and v40, v41
-    v43 = and 0xff07, 0xffff
-    v44 = shl v43, 80
-    v45 = or v42, v44
-    sstore v38, v45 !metadata(storage=slot(1))
-    v46 = lt 0, 2
-    v47 = eq v46, false
-    icall panic_if<0x32>, v47
-    v48 = add 0, 0
-    v49 = shl 0xffffffffffffffff, 16
-    v50 = sload v48 !metadata(storage=slot(0))
-    v51 = not v49
-    v52 = and v50, v51
-    v53 = and 1, 0xffffffffffffffff
-    v54 = shl v53, 16
-    v55 = or v52, v54
-    sstore v48, v55 !metadata(storage=slot(0))
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
+    v4 = or v3, 0xff07
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = lt 0, 2
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff0000ffffffffffffffffffff
+    v9 = or v8, 0xff0700000000000000000000
+    sstore 0, v9 !metadata(storage=slot(0))
+    v10 = lt 1, 2
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = sload 1 !metadata(storage=slot(1))
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffff0000000000000000ffff
+    v14 = or v13, 0x20000
+    sstore 1, v14 !metadata(storage=slot(1))
+    v15 = lt 1, 2
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = sload 1 !metadata(storage=slot(1))
+    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
+    v19 = or v18, 0xff07
+    sstore 1, v19 !metadata(storage=slot(1))
+    v20 = lt 1, 2
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = sload 1 !metadata(storage=slot(1))
+    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffff0000ffffffffffffffffffff
+    v24 = or v23, 0xff0700000000000000000000
+    sstore 1, v24 !metadata(storage=slot(1))
+    v25 = lt 0, 2
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = sload 0 !metadata(storage=slot(0))
+    v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffff0000000000000000ffff
+    v29 = or v28, 0x10000
+    sstore 0, v29 !metadata(storage=slot(0))
     ret
 }
 
@@ -91,24 +65,22 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word, wo
     v0 = lt 0, 2
     v1 = eq v0, false
     icall panic_if<0x32>, v1
-    v2 = add 0, 0
-    v3 = sload v2 !metadata(storage=slot(0))
-    v4 = shr v3, 16
-    v5 = trunc i256 v4 to i64
-    v6 = zext i64 v5 to i256
-    v7 = icall @internal_dispatcher_p_none_r_uint256, v6
-    v8 = lt 1, 2
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = add 0, 1
-    v11 = sload v10 !metadata(storage=slot(1))
-    v12 = shr v11, 16
-    v13 = trunc i256 v12 to i64
-    v14 = zext i64 v13 to i256
-    v15 = icall @internal_dispatcher_p_none_r_uint256, v14
-    v16 = insert_value struct0, undef struct0, 0, v7
-    v17 = insert_value struct0, v16, 1, v15
-    ret v17
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = shr v2, 16
+    v4 = trunc i256 v3 to i64
+    v5 = zext i64 v4 to i256
+    v6 = icall @internal_dispatcher_p_none_r_uint256, v5
+    v7 = lt 1, 2
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = sload 1 !metadata(storage=slot(1))
+    v10 = shr v9, 16
+    v11 = trunc i256 v10 to i64
+    v12 = zext i64 v11 to i256
+    v13 = icall @internal_dispatcher_p_none_r_uint256, v12
+    v14 = insert_value struct0, undef struct0, 0, v6
+    v15 = insert_value struct0, v14, 1, v13
+    ret v15
 }
 
 fn @internal_dispatcher_p_none_r_uint256(arg0: i256) -> i256 [function_pointer_dispatcher] {

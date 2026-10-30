@@ -153,27 +153,25 @@ fn @f(arg0: i256, arg1: ptr<memory>) -> struct0 [selector=0xcdc9dc79, abi_params
     v14 = returndatasize
     v15 = lt v14, 32
     icall revert_if<tuple_data_too_short>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    v18 = gas
+    v16 = mload 0 !metadata(memory=scratch)
+    v17 = gas
     mstore 0, 0x710422c6 !metadata(memory=scratch)
     mstore 32, arg0 !metadata(memory=scratch)
-    v19 = zext i160 v9 to i256
-    v20 = staticcall v18, v19, 28, 36, 0, 32
-    jumpi v20, bb6, bb5
+    v18 = zext i160 v9 to i256
+    v19 = staticcall v17, v18, 28, 36, 0, 32
+    jumpi v19, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v21 = returndatasize
-    v22 = lt v21, 32
-    icall revert_if<tuple_data_too_short>, v22
-    v23 = add 0, 0
-    v24 = mload v23
-    v25 = shl v24, 8
-    v26 = eq v25, 0
-    v27 = eq v26, false
-    icall revert_if<empty>, v27
-    v28 = insert_value struct0, undef struct0, 0, v17
-    v29 = insert_value struct0, v28, 1, v24
-    ret v29
+    v20 = returndatasize
+    v21 = lt v20, 32
+    icall revert_if<tuple_data_too_short>, v21
+    v22 = mload 0 !metadata(memory=scratch)
+    v23 = shl v22, 8
+    v24 = eq v23, 0
+    v25 = eq v24, false
+    icall revert_if<empty>, v25
+    v26 = insert_value struct0, undef struct0, 0, v16
+    v27 = insert_value struct0, v26, 1, v22
+    ret v27
 }

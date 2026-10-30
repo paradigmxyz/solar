@@ -4,11 +4,9 @@ fn @constructor() [constructor] {
   bb0:
     sstore 0, 5 !metadata(storage=slot(0))
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = not 0xffffffffffffffff
-    v2 = and v0, v1
-    v3 = and 6, 0xffffffffffffffff
-    v4 = or v2, v3
-    sstore 1, v4 !metadata(storage=slot(1))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v2 = or v1, 6
+    sstore 1, v2 !metadata(storage=slot(1))
     ret
 }
 

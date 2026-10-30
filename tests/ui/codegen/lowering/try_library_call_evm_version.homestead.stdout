@@ -50,14 +50,12 @@ fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[uint256], abi_
   bb4:
     jump bb3
   bb1:
-    v14 = ptrtoint ptr<memory> v5 to i256
-    v15 = add v14, 0
-    v16 = mload v15
-    sstore 0, v16 !metadata(storage=slot(0))
+    v14 = mload v5
+    sstore 0, v14 !metadata(storage=slot(0))
     jump bb3
   bb3:
-    v17 = phi [bb1: v16], [bb4: 7]
-    ret v17
+    v15 = phi [bb1: v14], [bb4: 7]
+    ret v15
 }
 
 fn @libNoReturn(arg0: i256) -> i256 [selector=0x364676bf, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {

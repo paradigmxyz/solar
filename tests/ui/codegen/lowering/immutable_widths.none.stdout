@@ -46,50 +46,24 @@ bb5:
   swap 6
   push 128
   mstore
-  push 32
-  push 128
-  add
-  swap 5
-  dup 6
-  mstore
   swap 4
-  push 32
-  add
-  swap 3
-  dup 4
+  push 160
   mstore
   swap 2
-  push 32
-  add
-  swap 1
-  dup 2
+  push 192
   mstore
-  push 32
-  add
-  swap 1
-  dup 2
+  push 224
   mstore
-  push 32
-  add
-  swap 1
-  dup 2
+  push 256
   mstore
-  push 32
-  add
-  swap 1
-  dup 2
+  push 288
   mstore
-  push 32
-  add
-  push 128
-  swap 1
-  sub
+  push 320
+  mstore
+  push 224
   push 128
   return
 bb6:
-  push 128
-  push 64
-  mstore
   push_immutable 7, 32
   push 0
   not
@@ -98,8 +72,6 @@ bb6:
   and
   push 0
   mstore
-  push 0
   push 32
-  sub
   push 0
   return

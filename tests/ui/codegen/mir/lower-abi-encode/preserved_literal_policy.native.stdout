@@ -18,23 +18,22 @@
 +     v8 = sub v6, v7
 +     mstore v4, v8
 +     v9 = mload v0
-+     v10 = not 31
-+     v11 = add v9, 31
-+     v12 = and v11, v10
-+     v13 = add v6, 32
-+     v14 = add v6, v12
-+     mstore v14, 0
++     v10 = add v9, 31
++     v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v12 = add v6, 32
++     v13 = add v6, v11
++     mstore v13, 0
 +     mstore v6, v9
-+     v15 = ptradd v0, 32
-+     v16 = add v13, v12
-+     mcopy v13, v15, v9 !metadata(memory=heap, disjoint)
-+     v17 = ptrtoint ptr<memory> v4 to i256
-+     v18 = sub v16, v17
-+     v19 = add v18, 0
-+     v20 = add v18, 0
-+     v21 = alloc v20 !metadata(preserves_fmp)
-+     v22 = make_memory_slice v21, v19
-+     ret v22
++     v14 = ptradd v0, 32
++     v15 = add v12, v11
++     mcopy v12, v14, v9 !metadata(memory=heap, disjoint)
++     v16 = ptrtoint ptr<memory> v4 to i256
++     v17 = sub v15, v16
++     v18 = add v17, 0
++     v19 = add v17, 0
++     v20 = alloc v19 !metadata(preserves_fmp)
++     v21 = make_memory_slice v20, v18
++     ret v21
   }
   
   fn @scratch() -> slice<memory> {
@@ -54,21 +53,20 @@
 +     v8 = sub v6, v7
 +     mstore v4, v8
 +     v9 = mload v0
-+     v10 = not 31
-+     v11 = add v9, 31
-+     v12 = and v11, v10
-+     v13 = add v6, 32
-+     v14 = add v6, v12
-+     mstore v14, 0
++     v10 = add v9, 31
++     v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v12 = add v6, 32
++     v13 = add v6, v11
++     mstore v13, 0
 +     mstore v6, v9
-+     v15 = ptradd v0, 32
-+     v16 = add v13, v12
-+     mcopy v13, v15, v9 !metadata(memory=heap, disjoint)
-+     v17 = ptrtoint ptr<memory> v4 to i256
-+     v18 = sub v16, v17
-+     v19 = add v18, 0
-+     v20 = make_memory_slice v4, v19
-+     ret v20
++     v14 = ptradd v0, 32
++     v15 = add v12, v11
++     mcopy v12, v14, v9 !metadata(memory=heap, disjoint)
++     v16 = ptrtoint ptr<memory> v4 to i256
++     v17 = sub v15, v16
++     v18 = add v17, 0
++     v19 = make_memory_slice v4, v18
++     ret v19
   }
   
   fn @unobserved_revert() {
@@ -90,23 +88,22 @@
 +     v10 = sub v8, v9
 +     mstore v6, v10
 +     v11 = mload v0
-+     v12 = not 31
-+     v13 = add v11, 31
-+     v14 = and v13, v12
-+     v15 = add v8, 32
-+     v16 = add v8, v14
-+     mstore v16, 0
++     v12 = add v11, 31
++     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v14 = add v8, 32
++     v15 = add v8, v13
++     mstore v15, 0
 +     mstore v8, v11
-+     v17 = ptradd v0, 32
-+     v18 = add v15, v14
-+     mcopy v15, v17, v11 !metadata(memory=heap, disjoint)
-+     v19 = ptrtoint ptr<memory> v6 to i256
-+     v20 = sub v18, v19
-+     v21 = add v20, 0
-+     v22 = make_memory_slice v6, v21
-+     v4 = extract_value slice<memory>, v22, 0
-+     v5 = extract_value slice<memory>, v22, 1
-+     revert v6, v21
++     v16 = ptradd v0, 32
++     v17 = add v14, v13
++     mcopy v14, v16, v11 !metadata(memory=heap, disjoint)
++     v18 = ptrtoint ptr<memory> v6 to i256
++     v19 = sub v17, v18
++     v20 = add v19, 0
++     v21 = make_memory_slice v6, v20
++     v4 = extract_value slice<memory>, v21, 0
++     v5 = extract_value slice<memory>, v21, 1
++     revert v6, v20
   }
   
   fn @unobserved_return() {
@@ -128,23 +125,22 @@
 +     v10 = sub v8, v9
 +     mstore v6, v10
 +     v11 = mload v0
-+     v12 = not 31
-+     v13 = add v11, 31
-+     v14 = and v13, v12
-+     v15 = add v8, 32
-+     v16 = add v8, v14
-+     mstore v16, 0
++     v12 = add v11, 31
++     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v14 = add v8, 32
++     v15 = add v8, v13
++     mstore v15, 0
 +     mstore v8, v11
-+     v17 = ptradd v0, 32
-+     v18 = add v15, v14
-+     mcopy v15, v17, v11 !metadata(memory=heap, disjoint)
-+     v19 = ptrtoint ptr<memory> v6 to i256
-+     v20 = sub v18, v19
-+     v21 = add v20, 0
-+     v22 = make_memory_slice v6, v21
-+     v4 = extract_value slice<memory>, v22, 0
-+     v5 = extract_value slice<memory>, v22, 1
-+     returndata v6, v21
++     v16 = ptradd v0, 32
++     v17 = add v14, v13
++     mcopy v14, v16, v11 !metadata(memory=heap, disjoint)
++     v18 = ptrtoint ptr<memory> v6 to i256
++     v19 = sub v17, v18
++     v20 = add v19, 0
++     v21 = make_memory_slice v6, v20
++     v4 = extract_value slice<memory>, v21, 0
++     v5 = extract_value slice<memory>, v21, 1
++     returndata v6, v20
   }
   
   fn @observed_return() {
@@ -165,26 +161,25 @@
 +     v11 = sub v9, v10
 +     mstore v7, v11
 +     v12 = mload v0
-+     v13 = not 31
-+     v14 = add v12, 31
-+     v15 = and v14, v13
-+     v16 = add v9, 32
-+     v17 = add v9, v15
-+     mstore v17, 0
++     v13 = add v12, 31
++     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v15 = add v9, 32
++     v16 = add v9, v14
++     mstore v16, 0
 +     mstore v9, v12
-+     v18 = ptradd v0, 32
-+     v19 = add v16, v15
-+     mcopy v16, v18, v12 !metadata(memory=heap, disjoint)
-+     v20 = ptrtoint ptr<memory> v7 to i256
-+     v21 = sub v19, v20
-+     v22 = add v21, 0
-+     v23 = make_memory_slice v7, v22
-+     v4 = extract_value slice<memory>, v23, 0
-+     v5 = extract_value slice<memory>, v23, 1
++     v17 = ptradd v0, 32
++     v18 = add v15, v14
++     mcopy v15, v17, v12 !metadata(memory=heap, disjoint)
++     v19 = ptrtoint ptr<memory> v7 to i256
++     v20 = sub v18, v19
++     v21 = add v20, 0
++     v22 = make_memory_slice v7, v21
++     v4 = extract_value slice<memory>, v22, 0
++     v5 = extract_value slice<memory>, v22, 1
       v6 = fmp
       mstore v6, 1
 -     returndata v4, v5
-+     returndata v7, v22
++     returndata v7, v21
   }
   
   fn @short_observed() {
@@ -203,26 +198,25 @@
 +     v10 = sub v8, v9
 +     mstore v6, v10
 +     v11 = mload v0
-+     v12 = not 31
-+     v13 = add v11, 31
-+     v14 = and v13, v12
-+     v15 = add v8, 32
-+     v16 = add v8, v14
-+     mstore v16, 0
++     v12 = add v11, 31
++     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v14 = add v8, 32
++     v15 = add v8, v13
++     mstore v15, 0
 +     mstore v8, v11
-+     v17 = ptradd v0, 32
-+     v18 = add v15, v14
-+     mcopy v15, v17, v11 !metadata(memory=heap, disjoint)
-+     v19 = ptrtoint ptr<memory> v6 to i256
-+     v20 = sub v18, v19
-+     v21 = add v20, 0
-+     v22 = make_memory_slice v6, v21
-+     v3 = extract_value slice<memory>, v22, 0
-+     v4 = extract_value slice<memory>, v22, 1
++     v16 = ptradd v0, 32
++     v17 = add v14, v13
++     mcopy v14, v16, v11 !metadata(memory=heap, disjoint)
++     v18 = ptrtoint ptr<memory> v6 to i256
++     v19 = sub v17, v18
++     v20 = add v19, 0
++     v21 = make_memory_slice v6, v20
++     v3 = extract_value slice<memory>, v21, 0
++     v4 = extract_value slice<memory>, v21, 1
       v5 = fmp
       mstore v5, 1
 -     returndata v3, v4
-+     returndata v6, v21
++     returndata v6, v20
   }
   
   fn @revert_reads_allocation() {
@@ -242,24 +236,23 @@
 +     v10 = sub v8, v9
 +     mstore v6, v10
 +     v11 = mload v0
-+     v12 = not 31
-+     v13 = add v11, 31
-+     v14 = and v13, v12
-+     v15 = add v8, 32
-+     v16 = add v8, v14
-+     mstore v16, 0
++     v12 = add v11, 31
++     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v14 = add v8, 32
++     v15 = add v8, v13
++     mstore v15, 0
 +     mstore v8, v11
-+     v17 = ptradd v0, 32
-+     v18 = add v15, v14
-+     mcopy v15, v17, v11 !metadata(memory=heap, disjoint)
-+     v19 = ptrtoint ptr<memory> v6 to i256
-+     v20 = sub v18, v19
-+     v21 = add v20, 0
-+     v22 = make_memory_slice v6, v21
-+     v4 = extract_value slice<memory>, v22, 1
++     v16 = ptradd v0, 32
++     v17 = add v14, v13
++     mcopy v14, v16, v11 !metadata(memory=heap, disjoint)
++     v18 = ptrtoint ptr<memory> v6 to i256
++     v19 = sub v17, v18
++     v20 = add v19, 0
++     v21 = make_memory_slice v6, v20
++     v4 = extract_value slice<memory>, v21, 1
       v5 = inttoptr i256 128 to ptr<memory>
 -     revert v5, v4
-+     revert v5, v21
++     revert v5, v20
   }
   
   fn @later_allocation() {
@@ -283,26 +276,25 @@
 +     v12 = sub v10, v11
 +     mstore v8, v12
 +     v13 = mload v0
-+     v14 = not 31
-+     v15 = add v13, 31
-+     v16 = and v15, v14
-+     v17 = add v10, 32
-+     v18 = add v10, v16
-+     mstore v18, 0
++     v14 = add v13, 31
++     v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v16 = add v10, 32
++     v17 = add v10, v15
++     mstore v17, 0
 +     mstore v10, v13
-+     v19 = ptradd v0, 32
-+     v20 = add v17, v16
-+     mcopy v17, v19, v13 !metadata(memory=heap, disjoint)
-+     v21 = ptrtoint ptr<memory> v8 to i256
-+     v22 = add v21, 32
-+     mstore v22, v4
-+     v23 = ptrtoint ptr<memory> v8 to i256
-+     v24 = sub v20, v23
-+     v25 = add v24, 0
-+     v26 = make_memory_slice v8, v25
-+     v6 = extract_value slice<memory>, v26, 0
-+     v7 = extract_value slice<memory>, v26, 1
-+     returndata v8, v25
++     v18 = ptradd v0, 32
++     v19 = add v16, v15
++     mcopy v16, v18, v13 !metadata(memory=heap, disjoint)
++     v20 = ptrtoint ptr<memory> v8 to i256
++     v21 = add v20, 32
++     mstore v21, v4
++     v22 = ptrtoint ptr<memory> v8 to i256
++     v23 = sub v19, v22
++     v24 = add v23, 0
++     v25 = make_memory_slice v8, v24
++     v6 = extract_value slice<memory>, v25, 0
++     v7 = extract_value slice<memory>, v25, 1
++     returndata v8, v24
   }
   
   fn @aliased_argument(arg0: ptr<memory>) {
@@ -324,39 +316,37 @@
 +     v10 = sub v8, v9
 +     mstore v6, v10
 +     v11 = mload arg0
-+     v12 = not 31
-+     v13 = add v11, 31
-+     v14 = and v13, v12
-+     v15 = add v8, 32
-+     v16 = add v8, v14
-+     mstore v16, 0
++     v12 = add v11, 31
++     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v14 = add v8, 32
++     v15 = add v8, v13
++     mstore v15, 0
 +     mstore v8, v11
-+     v17 = ptradd arg0, 32
-+     v18 = add v15, v14
-+     mcopy v15, v17, v11 !metadata(memory=heap, disjoint)
-+     v19 = ptrtoint ptr<memory> v6 to i256
-+     v20 = add v19, 32
-+     v21 = ptrtoint ptr<memory> v6 to i256
-+     v22 = sub v18, v21
-+     mstore v20, v22
-+     v23 = mload v0
-+     v24 = not 31
-+     v25 = add v23, 31
-+     v26 = and v25, v24
-+     v27 = add v18, 32
-+     v28 = add v18, v26
-+     mstore v28, 0
-+     mstore v18, v23
-+     v29 = ptradd v0, 32
-+     v30 = add v27, v26
-+     mcopy v27, v29, v23 !metadata(memory=heap, disjoint)
-+     v31 = ptrtoint ptr<memory> v6 to i256
-+     v32 = sub v30, v31
-+     v33 = add v32, 0
-+     v34 = make_memory_slice v6, v33
-+     v4 = extract_value slice<memory>, v34, 0
-+     v5 = extract_value slice<memory>, v34, 1
-+     revert v6, v33
++     v16 = ptradd arg0, 32
++     v17 = add v14, v13
++     mcopy v14, v16, v11 !metadata(memory=heap, disjoint)
++     v18 = ptrtoint ptr<memory> v6 to i256
++     v19 = add v18, 32
++     v20 = ptrtoint ptr<memory> v6 to i256
++     v21 = sub v17, v20
++     mstore v19, v21
++     v22 = mload v0
++     v23 = add v22, 31
++     v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v25 = add v17, 32
++     v26 = add v17, v24
++     mstore v26, 0
++     mstore v17, v22
++     v27 = ptradd v0, 32
++     v28 = add v25, v24
++     mcopy v25, v27, v22 !metadata(memory=heap, disjoint)
++     v29 = ptrtoint ptr<memory> v6 to i256
++     v30 = sub v28, v29
++     v31 = add v30, 0
++     v32 = make_memory_slice v6, v31
++     v4 = extract_value slice<memory>, v32, 0
++     v5 = extract_value slice<memory>, v32, 1
++     revert v6, v31
   }
   
   fn @unfolded_literal() {
@@ -383,39 +373,37 @@
 +     v12 = sub v10, v11
 +     mstore v8, v12
 +     v13 = mload v0
-+     v14 = not 31
-+     v15 = add v13, 31
-+     v16 = and v15, v14
-+     v17 = add v10, 32
-+     v18 = add v10, v16
-+     mstore v18, 0
++     v14 = add v13, 31
++     v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v16 = add v10, 32
++     v17 = add v10, v15
++     mstore v17, 0
 +     mstore v10, v13
-+     v19 = ptradd v0, 32
-+     v20 = add v17, v16
-+     mcopy v17, v19, v13 !metadata(memory=heap, disjoint)
-+     v21 = ptrtoint ptr<memory> v8 to i256
-+     v22 = add v21, 32
-+     v23 = ptrtoint ptr<memory> v8 to i256
-+     v24 = sub v20, v23
-+     mstore v22, v24
-+     v25 = mload v2
-+     v26 = not 31
-+     v27 = add v25, 31
-+     v28 = and v27, v26
-+     v29 = add v20, 32
-+     v30 = add v20, v28
-+     mstore v30, 0
-+     mstore v20, v25
-+     v31 = ptradd v2, 32
-+     v32 = add v29, v28
-+     mcopy v29, v31, v25 !metadata(memory=heap, disjoint)
-+     v33 = ptrtoint ptr<memory> v8 to i256
-+     v34 = sub v32, v33
-+     v35 = add v34, 0
-+     v36 = make_memory_slice v8, v35
-+     v6 = extract_value slice<memory>, v36, 0
-+     v7 = extract_value slice<memory>, v36, 1
-+     revert v8, v35
++     v18 = ptradd v0, 32
++     v19 = add v16, v15
++     mcopy v16, v18, v13 !metadata(memory=heap, disjoint)
++     v20 = ptrtoint ptr<memory> v8 to i256
++     v21 = add v20, 32
++     v22 = ptrtoint ptr<memory> v8 to i256
++     v23 = sub v19, v22
++     mstore v21, v23
++     v24 = mload v2
++     v25 = add v24, 31
++     v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v27 = add v19, 32
++     v28 = add v19, v26
++     mstore v28, 0
++     mstore v19, v24
++     v29 = ptradd v2, 32
++     v30 = add v27, v26
++     mcopy v27, v29, v24 !metadata(memory=heap, disjoint)
++     v31 = ptrtoint ptr<memory> v8 to i256
++     v32 = sub v30, v31
++     v33 = add v32, 0
++     v34 = make_memory_slice v8, v33
++     v6 = extract_value slice<memory>, v34, 0
++     v7 = extract_value slice<memory>, v34, 1
++     revert v8, v33
   }
   
   fn @encode_between() {
@@ -445,26 +433,25 @@
 +     v15 = sub v13, v14
 +     mstore v11, v15
 +     v16 = mload v0
-+     v17 = not 31
-+     v18 = add v16, 31
-+     v19 = and v18, v17
-+     v20 = add v13, 32
-+     v21 = add v13, v19
-+     mstore v21, 0
++     v17 = add v16, 31
++     v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v19 = add v13, 32
++     v20 = add v13, v18
++     mstore v20, 0
 +     mstore v13, v16
-+     v22 = ptradd v0, 32
-+     v23 = add v20, v19
-+     mcopy v20, v22, v16 !metadata(memory=heap, disjoint)
-+     v24 = ptrtoint ptr<memory> v11 to i256
-+     v25 = add v24, 32
-+     mstore v25, v5
-+     v26 = ptrtoint ptr<memory> v11 to i256
-+     v27 = sub v23, v26
-+     v28 = add v27, 0
-+     v29 = make_memory_slice v11, v28
-+     v7 = extract_value slice<memory>, v29, 0
-+     v8 = extract_value slice<memory>, v29, 1
-+     revert v11, v28
++     v21 = ptradd v0, 32
++     v22 = add v19, v18
++     mcopy v19, v21, v16 !metadata(memory=heap, disjoint)
++     v23 = ptrtoint ptr<memory> v11 to i256
++     v24 = add v23, 32
++     mstore v24, v5
++     v25 = ptrtoint ptr<memory> v11 to i256
++     v26 = sub v22, v25
++     v27 = add v26, 0
++     v28 = make_memory_slice v11, v27
++     v7 = extract_value slice<memory>, v28, 0
++     v8 = extract_value slice<memory>, v28, 1
++     revert v11, v27
   }
   
   fn @stored_address() {
@@ -486,25 +473,24 @@
 +     v11 = sub v9, v10
 +     mstore v7, v11
 +     v12 = mload v0
-+     v13 = not 31
-+     v14 = add v12, 31
-+     v15 = and v14, v13
-+     v16 = add v9, 32
-+     v17 = add v9, v15
-+     mstore v17, 0
++     v13 = add v12, 31
++     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v15 = add v9, 32
++     v16 = add v9, v14
++     mstore v16, 0
 +     mstore v9, v12
-+     v18 = ptradd v0, 32
-+     v19 = add v16, v15
-+     mcopy v16, v18, v12 !metadata(memory=heap, disjoint)
-+     v20 = ptrtoint ptr<memory> v7 to i256
-+     v21 = sub v19, v20
-+     v22 = add v21, 0
-+     v23 = make_memory_slice v7, v22
-+     v4 = extract_value slice<memory>, v23, 0
-+     v5 = extract_value slice<memory>, v23, 1
++     v17 = ptradd v0, 32
++     v18 = add v15, v14
++     mcopy v15, v17, v12 !metadata(memory=heap, disjoint)
++     v19 = ptrtoint ptr<memory> v7 to i256
++     v20 = sub v18, v19
++     v21 = add v20, 0
++     v22 = make_memory_slice v7, v21
++     v4 = extract_value slice<memory>, v22, 0
++     v5 = extract_value slice<memory>, v22, 1
 +     v6 = ptrtoint ptr<memory> v7 to i256
       sstore 0, v6
 -     returndata v4, v5
-+     returndata v7, v22
++     returndata v7, v21
   }
   

@@ -42,28 +42,26 @@ fn @constructor() [constructor] {
     revert_returndata
   bb2:
     v4 = sload 0 !metadata(storage=slot(0))
-    v5 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = and v4, v5
-    v7 = zext i160 v2 to i256
-    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = or v6, v8
-    sstore 0, v9 !metadata(storage=slot(0))
-    v10 = datasize RevertReceiver_creation_code_1
-    v11 = fmp
-    datacopy RevertReceiver_creation_code_1, v11, v10
-    v12 = create 0, v11, v10
-    v13 = ne v12, i160 0
-    jumpi v13, bb4, bb3
+    v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v6 = zext i160 v2 to i256
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = or v5, v7
+    sstore 0, v8 !metadata(storage=slot(0))
+    v9 = datasize RevertReceiver_creation_code_1
+    v10 = fmp
+    datacopy RevertReceiver_creation_code_1, v10, v9
+    v11 = create 0, v10, v9
+    v12 = ne v11, i160 0
+    jumpi v12, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v14 = sload 1 !metadata(storage=slot(1))
-    v15 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v16 = and v14, v15
-    v17 = zext i160 v12 to i256
-    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffff
-    v19 = or v16, v18
-    sstore 1, v19 !metadata(storage=slot(1))
+    v13 = sload 1 !metadata(storage=slot(1))
+    v14 = and v13, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v15 = zext i160 v11 to i256
+    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
+    v17 = or v14, v16
+    sstore 1, v17 !metadata(storage=slot(1))
     ret
 }
 

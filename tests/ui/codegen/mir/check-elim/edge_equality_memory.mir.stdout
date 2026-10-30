@@ -40,33 +40,31 @@ fn @sized(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf5037775, pure
   bb5:
     jump bb6
   bb4:
-    v26 = not 31
-    v27 = and 0x43f, v26
-    v28 = alloc zeroed checked v27
-    mstore v28, 0x400
-    v29 = mload v28
-    v30 = shl v29, 0
+    v26 = alloc zeroed checked 0x420
+    mstore v26, 0x400
+    v27 = mload v26
+    v28 = shl v27, 0
     jump bb6
   bb6:
-    v31 = phi [bb4: v30], [bb5: 0]
-    v32 = xor v0, v1
-    v33 = xor v32, v2
-    v34 = xor v33, v3
-    v35 = xor v34, v4
-    v36 = xor v35, v5
-    v37 = xor v36, v6
-    v38 = xor v37, v7
-    v39 = xor v38, v8
-    v40 = xor v39, v9
-    v41 = xor v40, v10
-    v42 = xor v41, v11
-    v43 = xor v42, v12
-    v44 = xor v43, v13
-    v45 = xor v44, v14
-    v46 = xor v45, v15
-    v47 = xor v46, v16
-    v48 = xor v31, v47
-    ret v48
+    v29 = phi [bb4: v28], [bb5: 0]
+    v30 = xor v0, v1
+    v31 = xor v30, v2
+    v32 = xor v31, v3
+    v33 = xor v32, v4
+    v34 = xor v33, v5
+    v35 = xor v34, v6
+    v36 = xor v35, v7
+    v37 = xor v36, v8
+    v38 = xor v37, v9
+    v39 = xor v38, v10
+    v40 = xor v39, v11
+    v41 = xor v40, v12
+    v42 = xor v41, v13
+    v43 = xor v42, v14
+    v44 = xor v43, v15
+    v45 = xor v44, v16
+    v46 = xor v29, v45
+    ret v46
 }
 
 fn @addressed(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa249b625, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -106,33 +104,31 @@ fn @addressed(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa249b625, 
   bb5:
     jump bb6
   bb4:
-    v23 = not 31
-    v24 = and 0x43f, v23
-    v25 = alloc zeroed checked v24
-    mstore v25, 0x400
-    v26 = mload v25
-    v27 = shl v26, 0
+    v23 = alloc zeroed checked 0x420
+    mstore v23, 0x400
+    v24 = mload v23
+    v25 = shl v24, 0
     jump bb6
   bb6:
-    v28 = phi [bb4: v27], [bb5: 0]
-    v29 = xor v0, v1
-    v30 = xor v29, v2
-    v31 = xor v30, v3
-    v32 = xor v31, v4
-    v33 = xor v32, v5
-    v34 = xor v33, v6
-    v35 = xor v34, v7
-    v36 = xor v35, v8
-    v37 = xor v36, v9
-    v38 = xor v37, v10
-    v39 = xor v38, v11
-    v40 = xor v39, v12
-    v41 = xor v40, v13
-    v42 = xor v41, v14
-    v43 = xor v42, v15
-    v44 = xor v43, v16
-    v45 = xor v28, v44
-    ret v45
+    v26 = phi [bb4: v25], [bb5: 0]
+    v27 = xor v0, v1
+    v28 = xor v27, v2
+    v29 = xor v28, v3
+    v30 = xor v29, v4
+    v31 = xor v30, v5
+    v32 = xor v31, v6
+    v33 = xor v32, v7
+    v34 = xor v33, v8
+    v35 = xor v34, v9
+    v36 = xor v35, v10
+    v37 = xor v36, v11
+    v38 = xor v37, v12
+    v39 = xor v38, v13
+    v40 = xor v39, v14
+    v41 = xor v40, v15
+    v42 = xor v41, v16
+    v43 = xor v26, v42
+    ret v43
 }
 
 fn @derived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x5d97a064, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {

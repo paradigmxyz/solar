@@ -8,37 +8,31 @@ fn @value() -> i256 [pure] {
 fn @callAfterSet() -> i256 [selector=0xa9885fda, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffff
-    v2 = and v0, v1
-    v3 = and 1, 0xffffffffffffffff
-    v4 = or v2, v3
-    sstore 0, v4 !metadata(storage=slot(0))
-    v5 = sload 0 !metadata(storage=slot(0))
-    v6 = trunc i256 v5 to i64
-    v7 = zext i64 v6 to i256
-    v8 = icall @internal_dispatcher_p_none_r_uint256, v7
-    ret v8
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v2 = or v1, 1
+    sstore 0, v2 !metadata(storage=slot(0))
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = trunc i256 v3 to i64
+    v5 = zext i64 v4 to i256
+    v6 = icall @internal_dispatcher_p_none_r_uint256, v5
+    ret v6
 }
 
 fn @callAfterDelete() -> i256 [selector=0x58819bde, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffffffffffffff
-    v2 = and v0, v1
-    v3 = and 1, 0xffffffffffffffff
-    v4 = or v2, v3
-    sstore 0, v4 !metadata(storage=slot(0))
-    v5 = sload 0 !metadata(storage=slot(0))
-    v6 = not 0xffffffffffffffff
-    v7 = and v5, v6
-    v8 = and 0, 0xffffffffffffffff
-    v9 = or v7, v8
-    sstore 0, v9 !metadata(storage=slot(0))
-    v10 = sload 0 !metadata(storage=slot(0))
-    v11 = trunc i256 v10 to i64
-    v12 = zext i64 v11 to i256
-    v13 = icall @internal_dispatcher_p_none_r_uint256, v12
-    ret v13
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v2 = or v1, 1
+    sstore 0, v2 !metadata(storage=slot(0))
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v5 = or v4, 0
+    sstore 0, v5 !metadata(storage=slot(0))
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = trunc i256 v6 to i64
+    v8 = zext i64 v7 to i256
+    v9 = icall @internal_dispatcher_p_none_r_uint256, v8
+    ret v9
 }
 
 fn @internal_dispatcher_p_none_r_uint256(arg0: i256) -> i256 [function_pointer_dispatcher] {

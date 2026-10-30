@@ -53,17 +53,16 @@ fn @assignmentCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x47c196a
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = add v0, 63
-    v2 = not 31
-    v3 = and v1, v2
-    v4 = alloc v3
-    mstore v4, v0
-    v5 = ptradd v4, 32
-    v6 = extract_value slice<calldata>, arg0, 0
-    v7 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v5, v6, v7
-    icall @store_storage_bytes, 0, v4
-    v8 = load_storage_bytes 0
-    ret v8
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = alloc v2
+    mstore v3, v0
+    v4 = ptradd v3, 32
+    v5 = extract_value slice<calldata>, arg0, 0
+    v6 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v4, v5, v6
+    icall @store_storage_bytes, 0, v3
+    v7 = load_storage_bytes 0
+    ret v7
 }
 
 fn @assignmentStorage() -> ptr<memory> [selector=0x8d892c90, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

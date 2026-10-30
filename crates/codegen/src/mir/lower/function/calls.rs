@@ -438,11 +438,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         function_value: ValueId,
     ) -> (ValueId, ValueId) {
         let selector_mask = self.builder.imm(u32::MAX);
-        let selector = self.builder.and(function_value, selector_mask);
+        let selector = self.builder.and_folded(function_value, selector_mask);
         let selector_shift = self.builder.imm(224);
-        let selector = self.builder.shl(selector, selector_shift);
+        let selector = self.builder.shl_folded(selector, selector_shift);
         let address_shift = self.builder.imm(32);
-        let address = self.builder.shr(function_value, address_shift);
+        let address = self.builder.shr_folded(function_value, address_shift);
         (address, selector)
     }
 
@@ -634,7 +634,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && u64::from(32 - size.bytes()) * 8 != 0
         {
             let shift = self.builder.imm(u64::from(32 - size.bytes()) * 8);
-            self.builder.shr(value, shift)
+            self.builder.shr_folded(value, shift)
         } else {
             value
         };
@@ -673,7 +673,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         // value = value << (32 - to.width) * 8
         let shift = self.builder.imm(u64::from(32 - size.bytes()) * 8);
-        self.builder.shl(value, shift)
+        self.builder.shl_folded(value, shift)
     }
 
     /// Converts the first data word of a dynamic `bytes` value of `length` bytes to a

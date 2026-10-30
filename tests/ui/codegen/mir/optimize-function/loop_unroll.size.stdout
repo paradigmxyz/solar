@@ -110,8 +110,8 @@ fn @run() [selector=0x3a276523, abi_wrapper, pure] {
     v15 = sub v6, v14
     v16 = gt v13, v15
     v17 = or v12, v16
-    v36 = or v7, v17
-    jumpi v36, bb1, bb2
+    v33 = or v7, v17
+    jumpi v33, bb1, bb2
   bb2:
     v0 = icall @plain, v14, v13
     v1 = icall @fast, v14, v13

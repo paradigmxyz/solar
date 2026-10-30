@@ -99,39 +99,35 @@ fn @copyAggregate() -> struct0 [selector=0x515a112e, abi_params=[], abi_returns=
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = storage_array_data_slot 0
-    v10 = mul 0, 2
-    v11 = add v9, v10
-    sstore v11, 7 !metadata(storage=symbolic(v11))
-    v12 = sload 0 !metadata(storage=slot(0))
-    v13 = lt 0, v12
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = storage_array_data_slot 0
-    v16 = mul 0, 2
-    v17 = add v15, v16
-    v18 = add v17, 1
-    sstore v18, 9 !metadata(storage=offset(v17, 1))
-    v19 = icall @load_storage_struct_array_0, 0
-    v20 = mload v19
-    v21 = lt 0, v20
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = ptradd v19, 32
-    v24 = mload v23, ptr<memory>
-    v25 = mload v24
-    v26 = mload v19
-    v27 = lt 0, v26
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = ptradd v19, 32
-    v30 = mload v29, ptr<memory>
-    v31 = ptradd v30, 32
-    v32 = mload v31
-    v33 = mload v19
-    v34 = insert_value struct0, undef struct0, 0, v25
-    v35 = insert_value struct0, v34, 1, v32
-    v36 = insert_value struct0, v35, 2, v33
-    ret v36
+    sstore v9, 7 !metadata(storage=symbolic(v9))
+    v10 = sload 0 !metadata(storage=slot(0))
+    v11 = lt 0, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = storage_array_data_slot 0
+    v14 = add v13, 1
+    sstore v14, 9 !metadata(storage=offset(v13, 1))
+    v15 = icall @load_storage_struct_array_0, 0
+    v16 = mload v15
+    v17 = lt 0, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = ptradd v15, 32
+    v20 = mload v19, ptr<memory>
+    v21 = mload v20
+    v22 = mload v15
+    v23 = lt 0, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = ptradd v15, 32
+    v26 = mload v25, ptr<memory>
+    v27 = ptradd v26, 32
+    v28 = mload v27
+    v29 = mload v15
+    v30 = insert_value struct0, undef struct0, 0, v21
+    v31 = insert_value struct0, v30, 1, v28
+    v32 = insert_value struct0, v31, 2, v29
+    ret v32
 }
 
 fn @load_storage_struct_array_0(arg0: i256) -> ptr<memory> {

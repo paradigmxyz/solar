@@ -76,7 +76,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && matches!(expr.peel_parens().kind, ExprKind::Lit(lit) if lit.kind.is_number())
         {
             let shift = self.builder.imm(224);
-            return Some(self.builder.shl(value, shift));
+            return Some(self.builder.shl_folded(value, shift));
         }
         Some(value)
     }
@@ -378,7 +378,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             builder.branch(has_head, check_offset, no_match);
 
             builder.switch_to_block(check_offset);
-            let payload_ptr = builder.add_u64_offset(data_ptr, 4);
+            let payload_ptr = builder.add_offset(data_ptr, 4);
             let offset = builder.load(payload_ptr, PtrLocation::Memory);
             // `data_len >= 68` from the check above, so `data_len - 36` cannot wrap. It also
             // rejects offsets above `u64::MAX`, as returndata is far shorter.
@@ -391,7 +391,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let message_ptr = builder.add(payload_ptr, offset);
             let length = builder.load(message_ptr, PtrLocation::Memory);
             let max_u64 = builder.imm(u64::MAX);
-            let message_data_offset = builder.add_u64_offset(offset, 36);
+            let message_data_offset = builder.add_offset(offset, 36);
             let length_too_large = builder.gt(length, max_u64);
             let remaining = builder.sub(data_len, message_data_offset);
             let data_out_of_range = builder.gt(length, remaining);
@@ -672,7 +672,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let element_value = self.builder.memory_load_element(value, layout, index);
         let element_words = self.count_inplace_dynamic_value(element, element_value)?;
         let next_total = self.builder.checked_add(total, element_words);
-        let next_index = self.builder.add_u64_offset(index, 1);
+        let next_index = self.builder.add_offset(index, 1);
         let backedge = self.builder.current_block();
         self.builder.jump(header);
         self.builder.add_phi_incoming(index, backedge, next_index);
@@ -688,8 +688,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let word = self.builder.imm(32);
         let thirty_one = self.builder.imm(31);
         let rounded = self.builder.checked_add(length, thirty_one);
-        let mask = self.builder.not(thirty_one);
-        let padded = self.builder.and(rounded, mask);
+        let padded = self.builder.mask_padded_size(rounded);
         self.builder.div(padded, word)
     }
 
@@ -789,7 +788,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let element_value = self.builder.memory_load_element(value, layout, index);
         let next_offset =
             self.copy_inplace_dynamic_value(element, element_value, output, current_offset)?;
-        let next_index = self.builder.add_u64_offset(index, 1);
+        let next_index = self.builder.add_offset(index, 1);
         let backedge = self.builder.current_block();
         self.builder.jump(header);
         self.builder.add_phi_incoming(index, backedge, next_index);
@@ -804,8 +803,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let word = self.builder.imm(32);
         let thirty_one = self.builder.imm(31);
         let rounded = self.builder.checked_add(length, thirty_one);
-        let mask = self.builder.not(thirty_one);
-        let padded = self.builder.and(rounded, mask);
+        let padded = self.builder.mask_padded_size(rounded);
         let empty = self.builder.eq_zero(padded);
         let zero_block = self.builder.create_block();
         let copy_block = self.builder.create_block();

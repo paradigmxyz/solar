@@ -51,15 +51,14 @@ fn @segment(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selec
     v17 = add v16, 63
     v18 = lt v17, v16
     icall panic_if<0x41>, v18
-    v19 = not 31
-    v20 = and v17, v19
-    v21 = alloc v20
-    mstore v21, v16
-    v22 = ptradd v21, 32
-    v23 = extract_value slice<calldata>, v8, 0
-    v24 = extract_value slice<calldata>, v8, 1
-    calldatacopy v22, v23, v24
-    ret v21
+    v19 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v20 = alloc v19
+    mstore v20, v16
+    v21 = ptradd v20, 32
+    v22 = extract_value slice<calldata>, v8, 0
+    v23 = extract_value slice<calldata>, v8, 1
+    calldatacopy v21, v22, v23
+    ret v20
 }
 
 fn @nested(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> ptr<memory> [selector=0xe1463c2d, pure, abi_params=[bytes, uint256, uint256, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -97,13 +96,12 @@ fn @nested(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256, arg4: i256
     v26 = add v25, 63
     v27 = lt v26, v25
     icall panic_if<0x41>, v27
-    v28 = not 31
-    v29 = and v26, v28
-    v30 = alloc v29
-    mstore v30, v25
-    v31 = ptradd v30, 32
-    v32 = extract_value slice<calldata>, v17, 0
-    v33 = extract_value slice<calldata>, v17, 1
-    calldatacopy v31, v32, v33
-    ret v30
+    v28 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v29 = alloc v28
+    mstore v29, v25
+    v30 = ptradd v29, 32
+    v31 = extract_value slice<calldata>, v17, 0
+    v32 = extract_value slice<calldata>, v17, 1
+    calldatacopy v30, v31, v32
+    ret v29
 }

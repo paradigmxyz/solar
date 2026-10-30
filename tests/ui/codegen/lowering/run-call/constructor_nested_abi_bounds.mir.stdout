@@ -128,94 +128,91 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v36 = returndatasize
     v37 = lt v36, 32
     icall revert_if<tuple_data_too_short>, v37
-    v38 = add 0, 0
-    v39 = mload v38
-    v40 = mload v0
-    v41 = lt 0, v40
-    v42 = eq v41, false
-    icall panic_if<0x32>, v42
-    v43 = ptradd v0, 32
-    v44 = mload v43, ptr<memory>
-    v45 = ptradd v44, 32
-    v46 = mload v44
-    v47 = keccak256 v45, v46
-    v48 = eq v39, v47
-    jumpi v48, bb8, bb9
+    v38 = mload 0 !metadata(memory=scratch)
+    v39 = mload v0
+    v40 = lt 0, v39
+    v41 = eq v40, false
+    icall panic_if<0x32>, v41
+    v42 = ptradd v0, 32
+    v43 = mload v42, ptr<memory>
+    v44 = ptradd v43, 32
+    v45 = mload v43
+    v46 = keccak256 v44, v45
+    v47 = eq v38, v46
+    jumpi v47, bb8, bb9
   bb9:
     jump bb10
   bb8:
-    v49 = gas
+    v48 = gas
     mstore 0, 0xf7996542 !metadata(memory=scratch)
-    v50 = zext i160 v31 to i256
-    v51 = staticcall v49, v50, 28, 4, 0, 32
-    jumpi v51, bb12, bb11
+    v49 = zext i160 v31 to i256
+    v50 = staticcall v48, v49, 28, 4, 0, 32
+    jumpi v50, bb12, bb11
   bb11:
     revert_returndata
   bb12:
-    v52 = returndatasize
-    v53 = lt v52, 32
-    icall revert_if<tuple_data_too_short>, v53
-    v54 = add 0, 0
-    v55 = mload v54
-    v56 = mload v0
-    v57 = lt 1, v56
-    v58 = eq v57, false
-    icall panic_if<0x32>, v58
-    v59 = ptradd v0, 64
-    v60 = mload v59, ptr<memory>
-    v61 = ptradd v60, 32
-    v62 = mload v60
-    v63 = keccak256 v61, v62
-    v64 = eq v55, v63
+    v51 = returndatasize
+    v52 = lt v51, 32
+    icall revert_if<tuple_data_too_short>, v52
+    v53 = mload 0 !metadata(memory=scratch)
+    v54 = mload v0
+    v55 = lt 1, v54
+    v56 = eq v55, false
+    icall panic_if<0x32>, v56
+    v57 = ptradd v0, 64
+    v58 = mload v57, ptr<memory>
+    v59 = ptradd v58, 32
+    v60 = mload v58
+    v61 = keccak256 v59, v60
+    v62 = eq v53, v61
     jump bb10
   bb10:
-    v65 = phi [bb12: v64], [bb9: false]
-    v66 = gas
+    v63 = phi [bb12: v62], [bb9: false]
+    v64 = gas
     mstore 0, 0xdab1fa12 !metadata(memory=scratch)
-    v67 = zext i160 v31 to i256
-    v68 = staticcall v66, v67, 28, 4, 0, 32
-    jumpi v68, bb14, bb13
+    v65 = zext i160 v31 to i256
+    v66 = staticcall v64, v65, 28, 4, 0, 32
+    jumpi v66, bb14, bb13
   bb13:
     revert_returndata
   bb14:
-    v69 = returndatasize
-    v70 = lt v69, 32
-    icall revert_if<tuple_data_too_short>, v70
-    v71 = add 0, 0
-    v72 = mload v71
-    v73 = mload v0
-    v74 = lt 0, v73
-    v75 = eq v74, false
-    icall panic_if<0x32>, v75
-    v76 = ptradd v0, 32
-    v77 = mload v76, ptr<memory>
-    v78 = mload v77
-    v79 = shl v78, 128
-    v80 = mload v0
-    v81 = lt 1, v80
-    v82 = eq v81, false
-    icall panic_if<0x32>, v82
-    v83 = ptradd v0, 64
-    v84 = mload v83, ptr<memory>
-    v85 = mload v84
-    v86 = or v79, v85
-    v87 = eq v72, v86
-    jumpi v65, bb15, bb16
+    v67 = returndatasize
+    v68 = lt v67, 32
+    icall revert_if<tuple_data_too_short>, v68
+    v69 = mload 0 !metadata(memory=scratch)
+    v70 = mload v0
+    v71 = lt 0, v70
+    v72 = eq v71, false
+    icall panic_if<0x32>, v72
+    v73 = ptradd v0, 32
+    v74 = mload v73, ptr<memory>
+    v75 = mload v74
+    v76 = shl v75, 128
+    v77 = mload v0
+    v78 = lt 1, v77
+    v79 = eq v78, false
+    icall panic_if<0x32>, v79
+    v80 = ptradd v0, 64
+    v81 = mload v80, ptr<memory>
+    v82 = mload v81
+    v83 = or v76, v82
+    v84 = eq v69, v83
+    jumpi v63, bb15, bb16
   bb16:
     jump bb17
   bb15:
     jump bb17
   bb17:
-    v88 = phi [bb15: v87], [bb16: false]
-    jumpi v88, bb18, bb19
+    v85 = phi [bb15: v84], [bb16: false]
+    jumpi v85, bb18, bb19
   bb19:
     jump bb20
   bb18:
     jump bb20
   bb20:
-    v89 = phi [bb18: i8 1], [bb19: i8 0]
-    v90 = zext i8 v89 to i256
-    ret v90
+    v86 = phi [bb18: i8 1], [bb19: i8 0]
+    v87 = zext i8 v86 to i256
+    ret v87
   bb2:
     v3 = shl v1, 5
     v4 = ptradd v0, v3

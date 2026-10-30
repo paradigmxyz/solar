@@ -23,8 +23,8 @@ fn @empty() [selector=0xf3a3e4fe, abi_wrapper, pure] {
     tail_call @revert_stub
   bb5:
     v9 = shl v4, 5
-    v18 = add v9, 0x10000000000000020
-    mstore v18, 0
+    v17 = add v9, 0x10000000000000020
+    mstore v17, 0
     v13 = add v4, 1
     jump bb1
   bb6:
@@ -37,17 +37,17 @@ fn @wrapped() [selector=0x08a7c76d, abi_wrapper, pure] {
     v5 = lt v4, 68
     jumpi v5, bb1, bb2
   bb2:
-    v8 = heap_floor !metadata(alloc_ptr)
-    v9 = add v8, 64 !metadata(alloc_ptr)
-    v10 = lt v9, v8
-    v11 = gt v9, 0xffffffffffffffff
-    v12 = or v10, v11
-    jumpi v12, bb4, bb3
+    v7 = heap_floor !metadata(alloc_ptr)
+    v8 = add v7, 64 !metadata(alloc_ptr)
+    v9 = lt v8, v7
+    v10 = gt v8, 0xffffffffffffffff
+    v11 = or v9, v10
+    jumpi v11, bb4, bb3
   bb3:
-    v14 = calldatasize
-    calldatacopy v8, v14, 64
-    mstore v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v3 = icall @_write, v8, arg0, arg1
+    v13 = calldatasize
+    calldatacopy v7, v13, 64
+    mstore v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v3 = icall @_write, v7, arg0, arg1
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
   bb4:

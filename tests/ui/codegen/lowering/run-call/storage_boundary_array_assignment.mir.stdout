@@ -32,62 +32,56 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v11 = lt 0, 1
     v12 = eq v11, false
     icall panic_if<0x32>, v12
-    v13 = mul 0, 10
-    v14 = add v0, v13
     jump bb1
   bb1:
-    v15 = phi [bb0: 0], [bb6: v22]
-    v16 = lt v15, 10
-    jumpi v16, bb2, bb3
+    v13 = phi [bb0: 0], [bb6: v20]
+    v14 = lt v13, 10
+    jumpi v14, bb2, bb3
   bb3:
     jump bb7
   bb7:
-    v23 = phi [bb3: 0], [bb9: v39]
-    v24 = phi [bb3: 0], [bb9: v40]
-    v25 = phi [bb3: v0], [bb9: v25]
-    v26 = lt 0, 1
-    v27 = eq v26, false
-    icall panic_if<0x32>, v27
-    v28 = mul 0, 10
-    v29 = add v25, v28
-    v30 = lt v24, 10
-    jumpi v30, bb10, bb11
+    v21 = phi [bb3: 0], [bb9: v33]
+    v22 = phi [bb3: 0], [bb9: v34]
+    v23 = phi [bb3: v0], [bb9: v23]
+    v24 = lt 0, 1
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = lt v22, 10
+    jumpi v26, bb10, bb11
   bb11:
     jump bb8
   bb8:
-    ret v23
+    ret v21
   bb10:
-    v31 = lt 0, 1
-    v32 = eq v31, false
-    icall panic_if<0x32>, v32
-    v33 = mul 0, 10
-    v34 = add v25, v33
-    v35 = lt v24, 10
-    v36 = eq v35, false
-    icall panic_if<0x32>, v36
-    v37 = add v34, v24
-    v38 = sload v37 !metadata(storage=symbolic(v37))
-    v39 = checked_add uint256, v23, v38
+    v27 = lt 0, 1
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = lt v22, 10
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = add v23, v22
+    v32 = sload v31 !metadata(storage=symbolic(v31))
+    v33 = checked_add uint256, v21, v32
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v40 = checked_add uint256, v24, 1
+    v34 = checked_add uint256, v22, 1
     jump bb7
   bb2:
-    v17 = add v14, v15
-    v18 = lt v15, 10
-    jumpi v18, bb4, bb5
+    v15 = add v0, v13
+    v16 = lt v13, 10
+    jumpi v16, bb4, bb5
   bb5:
-    sstore v17, 0 !metadata(storage=symbolic(v17))
+    sstore v15, 0 !metadata(storage=symbolic(v15))
     jump bb6
   bb4:
-    v19 = shl v15, 5
-    v20 = ptradd v1, v19
-    v21 = mload v20
-    sstore v17, v21 !metadata(storage=symbolic(v17))
+    v17 = shl v13, 5
+    v18 = ptradd v1, v17
+    v19 = mload v18
+    sstore v15, v19 !metadata(storage=symbolic(v15))
     jump bb6
   bb6:
-    v22 = add v15, 1
+    v20 = add v13, 1
     jump bb1
 }

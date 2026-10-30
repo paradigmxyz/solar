@@ -55,7 +55,6 @@ fn @chooseArray(arg0: i1) -> i256 [selector=0x08ef7a67, view, abi_params=[bool],
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = storage_array_data_slot v0
-    v5 = add v4, 0
-    v6 = sload v5 !metadata(storage=symbolic(v4))
-    ret v6
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    ret v5
 }

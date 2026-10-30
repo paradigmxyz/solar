@@ -52,9 +52,8 @@ fn @deployCreationCode() -> i256 [selector=0x5986dddb, abi_params=[], abi_return
     v16 = returndatasize
     v17 = lt v16, 32
     icall revert_if<tuple_data_too_short>, v17
-    v18 = add 0, 0
-    v19 = mload v18
-    ret v19
+    v18 = mload 0 !metadata(memory=scratch)
+    ret v18
 }
 
 fn @runtimeCodeMatches() -> i1 [selector=0x337e11d0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
