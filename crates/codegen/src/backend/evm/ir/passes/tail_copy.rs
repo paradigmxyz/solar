@@ -314,9 +314,9 @@ fn append_tail(
 }
 
 /// The cost of copying the instructions of `block`, or `None` when one of them cannot be copied
-/// or `fits` rejects the running cost. Costs only grow, so `fits` is checked after each
-/// instruction and a tail that cannot fit stops the scan early. A `loop_block` copy also takes
-/// labels, data offsets and sizes, and conditional jumps.
+/// or `fits` rejects the running cost. Costs only grow, so a `fits` that stays false once false
+/// is checked before each instruction and a tail that cannot fit stops the scan early. A
+/// `loop_block` copy also takes labels, data offsets and sizes, and conditional jumps.
 fn copy_cost(
     target: Target,
     block: &Block,
@@ -324,18 +324,15 @@ fn copy_cost(
     fits: impl Fn(Cost) -> bool,
 ) -> Option<Cost> {
     let mut cost = Cost::ZERO;
-    if !fits(cost) {
-        return None;
-    }
     let mut after_label = false;
     for inst in &block.instructions {
-        cost += instruction_cost(target, inst, loop_block, after_label)?;
         if !fits(cost) {
             return None;
         }
+        cost += instruction_cost(target, inst, loop_block, after_label)?;
         after_label = inst.pushed_block().is_some();
     }
-    Some(cost)
+    fits(cost).then_some(cost)
 }
 
 /// The cost of one copied instruction, which follows a pushed block label if `after_label`.
