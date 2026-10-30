@@ -1,5 +1,5 @@
 //@ revisions: gas size below above zero
-//@ compile-flags: -Zevm-ir-pipeline=tail-duplicate
+//@ compile-flags: -Zevm-ir-pipeline=copy-joins
 //@[gas] compile-flags: -Ogas
 //@[size] compile-flags: -Osize
 //@[below] compile-flags: -Ogas --optimize-runs=90

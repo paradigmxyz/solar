@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/tail-dup/stack_limit.evmir (before tail-dup) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/tail-dup/stack_limit.evmir (after tail-dup) ===
+- // === ROOT/tests/ui/codegen/evm-ir/copy-loop-blocks/stack_limit.evmir (before copy-loop-blocks) ===
++ // === ROOT/tests/ui/codegen/evm-ir/copy-loop-blocks/stack_limit.evmir (after copy-loop-blocks) ===
   @module StackLimit
   bb0 [stack=1021]:
     jump bb1

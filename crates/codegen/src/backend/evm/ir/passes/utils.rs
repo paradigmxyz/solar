@@ -45,10 +45,12 @@ impl MachineInstKey {
         ]);
         Self(operation, inst.value)
     }
+}
 
-    /// Feeds this key to `hasher` as whole words. Equal keys feed equal words, and the value's
-    /// kind in the free top bytes of the first word keeps different keys' words distinct.
-    fn hash_words(self, hasher: &mut impl Hasher) {
+/// Feeds this key to the hasher as whole words. Equal keys feed equal words, and the value's kind
+/// in the free top bytes of the first word keeps different keys' words distinct.
+impl Hash for MachineInstKey {
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
         match self.1 {
             None => hasher.write_u64(self.0),
             Some(PushValue::Immediate(value)) => {
@@ -76,12 +78,6 @@ impl MachineInstKey {
                 hasher.write_u64(u64::from(size.aligned));
             }
         }
-    }
-}
-
-impl Hash for MachineInstKey {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.hash_words(state);
     }
 }
 
