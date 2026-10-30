@@ -75,48 +75,48 @@ fn @_level(arg0: i256) -> i256 [may_return_memory, pure] {
     v1 = shr v0, 1
     v9 = add v1, 1
     v11 = shl v9, 5
-    v13 = shr v11, 5
-    v17 = ne v13, v9
+    v132 = shr v9, 251
+    v17 = ne v132, 0
     jumpi v17, bb8, bb9
   bb9:
-    v160 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v161 = add v160, v11 !metadata(alloc_ptr)
-    v162 = lt v161, v160
-    v163 = gt v161, 0xffffffffffffffff
-    v164 = or v162, v163
-    jumpi v164, bb8, bb16
+    v162 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v163 = add v162, v11 !metadata(alloc_ptr)
+    v164 = lt v163, v162
+    v165 = gt v163, 0xffffffffffffffff
+    v166 = or v164, v165
+    jumpi v166, bb8, bb16
   bb16:
-    mstore 64, v161 !metadata(memory=scratch)
-    v166 = calldatasize
-    calldatacopy v160, v166, v11
-    mstore v160, v1
+    mstore 64, v163 !metadata(memory=scratch)
+    v168 = calldatasize
+    calldatacopy v162, v168, v11
+    mstore v162, v1
     v74 = mload arg0
-    v77 = or v160, v1
+    v77 = or v162, v1
     v78 = shl v1, 5
-    v79 = add v160, 1
+    v79 = add v162, 1
     v80 = add v78, 31
     v82 = sub arg0, v79
     v83 = lt v82, v80
     v85 = zext i1 v83 to i256
-    v87 = lt v160, 64
+    v87 = lt v162, 64
     v88 = zext i1 v87 to i256
     v89 = or v85, v88
     v91 = lt arg0, 64
     v92 = zext i1 v91 to i256
     v93 = or v89, v92
-    v132 = shr v77, 64
-    v134 = or v132, v93
-    v96 = eq v134, 0
+    v134 = shr v77, 64
+    v136 = or v134, v93
+    v96 = eq v136, 0
     jumpi v96, bb6, bb7
   bb7:
-    v167 = add arg0, 32
-    v170 = add v160, 32
+    v169 = add arg0, 32
+    v172 = add v162, 32
     jump bb1
   bb1:
     v21 = phi [bb7: 0], [bb13: v48]
-    v168 = phi [bb7: v167], [bb13: v169]
-    v171 = phi [bb7: v170], [bb13: v172]
-    v22 = mload v160
+    v170 = phi [bb7: v169], [bb13: v171]
+    v173 = phi [bb7: v172], [bb13: v174]
+    v22 = mload v162
     v23 = lt v21, v22
     jumpi v23, bb3, bb2
   bb3:
@@ -125,43 +125,43 @@ fn @_level(arg0: i256) -> i256 [may_return_memory, pure] {
     v26 = lt v100, v25
     jumpi v26, bb11, bb10
   bb11:
-    v31 = mload v168
+    v31 = mload v170
     v121 = add v100, 1
     v35 = lt v121, v25
     jumpi v35, bb12, bb10
   bb12:
-    v141 = add v168, 32
-    v40 = mload v141
+    v143 = add v170, 32
+    v40 = mload v143
     mstore 0, v31 !metadata(memory=scratch)
     mstore 32, v40 !metadata(memory=scratch)
     v98 = keccak256 0, 64 !metadata(memory=scratch)
-    v42 = mload v160
+    v42 = mload v162
     v43 = lt v21, v42
     jumpi v43, bb13, bb10
   bb13:
-    mstore v171, v98
+    mstore v173, v98
     v48 = add v21, 1
-    v169 = add v168, 64
-    v172 = add v171, 32
+    v171 = add v170, 64
+    v174 = add v173, 32
     jump bb1
   bb6:
-    v173 = add arg0, 32
-    v176 = add v160, 32
+    v175 = add arg0, 32
+    v178 = add v162, 32
     jump bb4
   bb4:
     v49 = phi [bb6: 0], [bb15: v72]
-    v174 = phi [bb6: v173], [bb15: v175]
-    v177 = phi [bb6: v176], [bb15: v178]
+    v176 = phi [bb6: v175], [bb15: v177]
+    v179 = phi [bb6: v178], [bb15: v180]
     v51 = lt v49, v1
     jumpi v51, bb5, bb2
   bb2:
-    ret v160
+    ret v162
   bb5:
     v107 = add v49, v49
     v54 = lt v107, v74
     jumpi v54, bb14, bb10
   bb14:
-    v58 = mload v174
+    v58 = mload v176
     v130 = add v107, 1
     v61 = lt v130, v74
     jumpi v61, bb15, bb10
@@ -170,15 +170,15 @@ fn @_level(arg0: i256) -> i256 [may_return_memory, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb15:
-    v150 = add v174, 32
-    v65 = mload v150
+    v152 = add v176, 32
+    v65 = mload v152
     mstore 0, v58 !metadata(memory=scratch)
     mstore 32, v65 !metadata(memory=scratch)
     v99 = keccak256 0, 64 !metadata(memory=scratch)
-    mstore v177, v99
+    mstore v179, v99
     v72 = add v49, 1
-    v175 = add v174, 64
-    v178 = add v177, 32
+    v177 = add v176, 64
+    v180 = add v179, 32
     jump bb4
   bb8:
     mstore 32, 65 !metadata(memory=scratch)

@@ -127,28 +127,29 @@ fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
 
 fn @afterAllocation() [selector=0x510dcf1e, abi_wrapper, pure] {
   bb0:
-    v19 = calldatasize
-    v20 = lt v19, 36
-    jumpi v20, bb3, bb4
+    v21 = calldatasize
+    v22 = lt v21, 36
+    jumpi v22, bb3, bb4
   bb4:
     v7 = add arg0, 1
     v8 = eq v7, 0
     jumpi v8, bb1, bb2
   bb2:
     v9 = shl v7, 5
-    v11 = shr v9, 5
-    v15 = ne v11, v7
-    v23 = heap_floor !metadata(alloc_ptr)
-    v24 = add v23, v9 !metadata(alloc_ptr)
-    v25 = lt v24, v23
-    v26 = gt v24, 0xffffffffffffffff
-    v27 = or v25, v26
-    v30 = or v15, v27
-    jumpi v30, bb1, bb5
+    v19 = shr v7, 251
+    v25 = heap_floor !metadata(alloc_ptr)
+    v26 = add v25, v9 !metadata(alloc_ptr)
+    v27 = lt v26, v25
+    v28 = gt v26, 0xffffffffffffffff
+    v29 = or v27, v28
+    v32 = zext i1 v29 to i256
+    v33 = or v19, v32
+    v34 = ne v33, 0
+    jumpi v34, bb1, bb5
   bb5:
-    v29 = calldatasize
-    calldatacopy v23, v29, v9
-    mstore v23, arg0
+    v31 = calldatasize
+    calldatacopy v25, v31, v9
+    mstore v25, arg0
     v18 = add arg0, arg0
     mstore 0, v18 !metadata(memory=scratch)
     returndata 0, 32

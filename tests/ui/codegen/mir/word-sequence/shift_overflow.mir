@@ -1,0 +1,162 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=word-sequence
+//@ filecheck:
+@module ShiftOverflow
+
+// A shift pair keeps the low W - s bits, so it returns y exactly when `y >> (W - s)` is zero. The
+// product stays live for its own use, and the branch reads the test of the high bits for free.
+// CHECK-LABEL: {{^[ +].*}}fn @ne_live_product{{[( ]}}
+// CHECK: shl arg0, 5
+// CHECK: + [[HIGH:v[0-9]+]] = shr arg0, 251
+// CHECK: + {{v[0-9]+}} = ne [[HIGH]], 0
+fn @ne_live_product(arg0: i256) -> i256 {
+  bb0:
+    v0 = shl arg0, 5
+    v1 = shr v0, 5
+    v2 = ne v1, arg0
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @ne_swapped{{[( ]}}
+// CHECK: + [[HIGH:v[0-9]+]] = shr arg0, 251
+// CHECK: + {{v[0-9]+}} = ne [[HIGH]], 0
+fn @ne_swapped(arg0: i256) -> i256 {
+  bb0:
+    v0 = shl arg0, 5
+    v1 = shr v0, 5
+    v2 = ne arg0, v1
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @eq_live_product{{[( ]}}
+// CHECK: + [[HIGH:v[0-9]+]] = shr arg0, 251
+// CHECK: + {{v[0-9]+}} = eq [[HIGH]], 0
+fn @eq_live_product(arg0: i256) -> i256 {
+  bb0:
+    v0 = shl arg0, 5
+    v1 = shr v0, 5
+    v2 = eq v1, arg0
+    jumpi v2, bb1, bb2
+  bb1:
+    ret v0
+  bb2:
+    revert 0, 0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @eq_swapped{{[( ]}}
+// CHECK: + [[HIGH:v[0-9]+]] = shr arg0, 251
+// CHECK: + {{v[0-9]+}} = eq [[HIGH]], 0
+fn @eq_swapped(arg0: i256) -> i256 {
+  bb0:
+    v0 = shl arg0, 5
+    v1 = shr v0, 5
+    v2 = eq arg0, v1
+    jumpi v2, bb1, bb2
+  bb1:
+    ret v0
+  bb2:
+    revert 0, 0
+}
+
+// The narrowest and widest shifts the rule covers.
+// CHECK-LABEL: {{^[ +].*}}fn @shift_one{{[( ]}}
+// CHECK: + [[HIGH:v[0-9]+]] = shr arg0, 255
+// CHECK: + {{v[0-9]+}} = ne [[HIGH]], 0
+fn @shift_one(arg0: i256) -> i256 {
+  bb0:
+    v0 = shl arg0, 1
+    v1 = shr v0, 1
+    v2 = ne v1, arg0
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @shift_last{{[( ]}}
+// CHECK: + [[HIGH:v[0-9]+]] = shr arg0, 1
+// CHECK: + {{v[0-9]+}} = ne [[HIGH]], 0
+fn @shift_last(arg0: i256) -> i256 {
+  bb0:
+    v0 = shl arg0, 255
+    v1 = shr v0, 255
+    v2 = ne v1, arg0
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v0
+}
+
+// A shift of the full width clears the word, so the pair is no overflow test.
+// CHECK-LABEL: {{^[ +].*}}fn @shift_width{{[( ]}}
+// CHECK-NOT: shr arg0, 0
+// CHECK: ne
+fn @shift_width(arg0: i256) -> i256 {
+  bb0:
+    v0 = shl arg0, 256
+    v1 = shr v0, 256
+    v2 = ne v1, arg0
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v0
+}
+
+// Different shift counts are not an overflow test.
+// CHECK-LABEL: {{^[ +].*}}fn @mixed_shifts{{[( ]}}
+// CHECK-NOT: shr arg0
+// CHECK: ne
+fn @mixed_shifts(arg0: i256) -> i256 {
+  bb0:
+    v0 = shl arg0, 5
+    v1 = shr v0, 4
+    v2 = ne v1, arg0
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v0
+}
+
+// The rule uses the operand width.
+// CHECK-LABEL: {{^[ +].*}}fn @narrow{{[( ]}}
+// CHECK: + [[HIGH:v[0-9]+]] = shr arg0, i160 152
+// CHECK: + {{v[0-9]+}} = ne [[HIGH]], i160 0
+fn @narrow(arg0: i160) -> i160 {
+  bb0:
+    v0 = shl arg0, i160 8
+    v1 = shr v0, i160 8
+    v2 = ne v1, arg0
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v0
+}
+
+// A comparison whose result is also a value takes the shift test too; the dead product goes.
+// CHECK-LABEL: {{^[ +].*}}fn @also_value{{[( ]}}
+// CHECK: - {{v[0-9]+}} = shl arg0, 5
+// CHECK: + [[HIGH:v[0-9]+]] = shr arg0, 251
+// CHECK: + {{v[0-9]+}} = ne [[HIGH]], 0
+fn @also_value(arg0: i256) -> i1 {
+  bb0:
+    v0 = shl arg0, 5
+    v1 = shr v0, 5
+    v2 = ne v1, arg0
+    jumpi v2, bb1, bb2
+  bb1:
+    ret v2
+  bb2:
+    ret v2
+}

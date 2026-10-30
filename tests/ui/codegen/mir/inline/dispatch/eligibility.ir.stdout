@@ -125,36 +125,36 @@ fn @entry() [entry] {
 @phase lowered
 fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
   bb0:
-    v27 = calldatasize
-    v29 = calldataload 4
-    v30 = add v29, 4
-    v32 = sub v27, 36
-    v33 = gt v29, v32
-    v34 = calldataload v30
-    v35 = add v30, 32
-    v36 = sub v27, v35
-    v37 = shr v36, 5
-    v38 = gt v34, v37
-    v58 = or v33, v38
-    v2 = shl v34, 5
-    v12 = slt v36, v2
-    v59 = or v58, v12
-    jumpi v59, bb2, bb3
+    v29 = calldatasize
+    v31 = calldataload 4
+    v32 = add v31, 4
+    v34 = sub v29, 36
+    v35 = gt v31, v34
+    v36 = calldataload v32
+    v37 = add v32, 32
+    v38 = sub v29, v37
+    v39 = shr v38, 5
+    v40 = gt v36, v39
+    v60 = or v35, v40
+    v2 = shl v36, 5
+    v12 = slt v38, v2
+    v61 = or v60, v12
+    jumpi v61, bb2, bb3
   bb3:
     v20 = add v2, 32
     v21 = lt v20, 32
     jumpi v21, bb1, bb4
   bb4:
-    v56 = heap_floor !metadata(alloc_ptr)
-    mstore v56, v34
-    v51 = add v56, 32
-    calldatacopy v51, v35, v2
-    v53 = add v56, 64
-    mcopy v53, v51, v2
-    mstore v56, 32
-    mstore v51, v34
-    v48 = add v2, 64
-    returndata v56, v48
+    v58 = heap_floor !metadata(alloc_ptr)
+    mstore v58, v36
+    v53 = add v58, 32
+    calldatacopy v53, v37, v2
+    v55 = add v58, 64
+    mcopy v55, v53, v2
+    mstore v58, 32
+    mstore v53, v36
+    v50 = add v2, 64
+    returndata v58, v50
   bb1:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

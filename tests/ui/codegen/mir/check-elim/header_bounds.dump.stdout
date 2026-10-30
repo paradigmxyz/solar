@@ -90,51 +90,51 @@ fn @lowerBound() [selector=0x63b7c492, abi_wrapper, pure] {
 
 fn @consume() [selector=0x15847e62, abi_wrapper, pure] {
   bb0:
-    v54 = calldatasize
-    v56 = calldataload 4
-    v57 = add v56, 4
-    v59 = sub v54, 36
-    v60 = gt v56, v59
-    v61 = calldataload v57
-    v62 = add v57, 32
-    v63 = sub v54, v62
-    v64 = shr v63, 5
-    v65 = gt v61, v64
-    v88 = or v60, v65
-    v68 = calldataload 36
-    v69 = add v68, 4
-    v72 = gt v68, v59
-    v89 = or v88, v72
-    v73 = calldataload v69
-    v74 = add v69, 32
-    v75 = sub v54, v74
-    v76 = shr v75, 5
-    v77 = gt v73, v76
-    v90 = or v89, v77
-    jumpi v90, bb7, bb11
+    v58 = calldatasize
+    v60 = calldataload 4
+    v61 = add v60, 4
+    v63 = sub v58, 36
+    v64 = gt v60, v63
+    v65 = calldataload v61
+    v66 = add v61, 32
+    v67 = sub v58, v66
+    v68 = shr v67, 5
+    v69 = gt v65, v68
+    v92 = or v64, v69
+    v72 = calldataload 36
+    v73 = add v72, 4
+    v76 = gt v72, v63
+    v93 = or v92, v76
+    v77 = calldataload v73
+    v78 = add v73, 32
+    v79 = sub v58, v78
+    v80 = shr v79, 5
+    v81 = gt v77, v80
+    v94 = or v93, v81
+    jumpi v94, bb7, bb11
   bb11:
-    v86 = shl v73, 5
-    v87 = add v74, v86
+    v90 = shl v77, 5
+    v91 = add v78, v90
     jump bb1
   bb1:
     v2 = phi [bb11: 0], [bb3: v45]
     v3 = phi [bb11: 0], [bb3: v46]
-    v84 = phi [bb11: v74], [bb3: v85]
-    v6 = ne v84, v87
+    v88 = phi [bb11: v78], [bb3: v89]
+    v6 = ne v88, v91
     jumpi v6, bb4, bb2
   bb4:
-    v20 = calldataload v84
+    v20 = calldataload v88
     v21 = lt v20, 2
     jumpi v21, bb8, bb7
   bb8:
     v24 = eq v20, 0
     jumpi v24, bb3, bb5
   bb5:
-    v26 = eq v3, v61
+    v26 = eq v3, v65
     jumpi v26, bb2, bb6
   bb6:
     v33 = shl v3, 5
-    v41 = add v62, v33
+    v41 = add v66, v33
     v42 = calldataload v41
     v52 = add v2, v42
     v53 = lt v52, v2
@@ -153,7 +153,7 @@ fn @consume() [selector=0x15847e62, abi_wrapper, pure] {
   bb3:
     v45 = phi [bb10: v52], [bb8: v2]
     v46 = phi [bb10: v44], [bb8: v3]
-    v85 = add v84, 32
+    v89 = add v88, 32
     jump bb1
   bb7:
     revert 0, 0
