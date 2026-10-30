@@ -197,7 +197,11 @@
 //! Run late check elimination after the post-memory CSE. Only functions with removed checks receive
 //! CFG cleanup, avoiding unrelated late block merges in other functions.
 
-use super::{call_cleanup, cfg_simplify::simplify_function, egraph::max_bits_with_args};
+use super::{
+    call_cleanup,
+    cfg_simplify::simplify_function,
+    egraph::{max_bits_with_args, use_counts},
+};
 use crate::{
     backend::evm::op,
     mir::{
@@ -210,7 +214,8 @@ use crate::{
         },
         immutable::immutable_push_type_size,
         pass::{
-            MirPass, run_function_pass, run_function_pass_with_cfg, run_selected_function_pass,
+            FunctionAnalyses, MirPass, run_function_pass, run_function_pass_with_cfg,
+            run_selected_function_pass,
         },
         utils::{IndexLists, eval, fold_terminator_to_jump, invalidate_unreachable_blocks},
     },
@@ -223,7 +228,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet, FxIndexMap, FxIndexSet},
 };
-use std::rc::Rc;
+use std::ops::Deref;
 
 /// Function pass for range-based overflow-check elimination.
 pub(crate) struct CheckElim;
@@ -240,9 +245,12 @@ impl MirPass for CheckElim {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, analyses| {
-            let mut eliminator = CheckEliminator::new(None);
-            eliminator.propagate_equalities = Some(analyses.runtime_target(gcx));
-            eliminator.run(func) != 0
+            let eliminator = CheckEliminator {
+                propagate_equalities: Some(analyses.runtime_target(gcx)),
+                ..Default::default()
+            };
+            let cfg = CfgInfo::new(func);
+            eliminator.run(func, &cfg, None) != 0
         })
     }
 }
@@ -262,71 +270,67 @@ impl MirPass for IntegerCleanup {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let cleanup =
-            |func: &mut Function, target: Target, immutable_ranges: Option<&FxHashMap<_, _>>| {
-                if immutable_ranges.is_none()
-                    && !func
-                        .blocks
-                        .iter()
-                        .any(|block| matches!(block.terminator, Some(Terminator::Branch { .. })))
-                {
-                    return false;
-                }
-                let shifted_high_masks = shifted_high_mask_inputs(func);
-                if shifted_high_masks.is_empty()
-                    && !func.instructions().any(|id| {
-                        let kind = &func.inst(id).kind;
-                        low_mask_input(func, kind).is_some()
-                            || widened_nonzero_test(func, kind).is_some()
-                            || compares_with_immediate(func, kind, &target)
-                    })
-                {
-                    return false;
-                }
-                let cfg = CfgInfo::new(func);
-                let removed = invalidate_unreachable_blocks(func, cfg.reachable());
-                let mut eliminator = CheckEliminator {
-                    collect_masks: true,
-                    shifted_high_masks,
-                    propagate_equalities: Some(target),
-                    immutable_ranges,
-                    ..Default::default()
-                };
-                let facts = index_vec![Facts::default(); func.blocks.len()];
-                let _ = eliminator.collect_folds(func, &cfg, &facts, &[], &mut Vec::new(), None);
-                let propagated = eliminator.apply_equalities(func) != 0;
-                if eliminator.redundant_masks.is_empty() {
-                    return removed != 0 || propagated;
-                }
-                let mut replacements = FxHashMap::default();
-                let mut dead = DenseBitSet::new_empty(func.num_insts());
-                for &(id, value) in &eliminator.redundant_masks {
-                    replacements.insert(func.inst_result_value(id).unwrap(), value);
-                    dead.insert(id);
-                }
-                func.replace_uses_canonicalized(&replacements);
-                for block in &mut func.blocks {
-                    block.instructions.retain(|&id| !dead.contains(id));
-                }
-                true
-            };
         let bounds = runtime_immutable_bounds(module, gcx);
-        if bounds.is_empty() {
-            return run_function_pass(module, analyses, |func, analyses| {
-                cleanup(func, analyses.runtime_target(gcx), None)
-            });
+        let runtime = (!bounds.is_empty()).then(|| runtime_only_functions(module));
+        let cleanup = |func: &mut Function, analyses: &FunctionAnalyses| {
+            let immutable_ranges = runtime
+                .as_ref()
+                .is_some_and(|runtime| runtime.contains(analyses.function()))
+                .then_some(&bounds);
+            let target = analyses.runtime_target(gcx);
+            if immutable_ranges.is_none()
+                && !func
+                    .blocks
+                    .iter()
+                    .any(|block| matches!(block.terminator, Some(Terminator::Branch { .. })))
+            {
+                return false;
+            }
+            let shifted_high_masks = shifted_high_mask_inputs(func);
+            if shifted_high_masks.is_empty()
+                && !func.instructions().any(|id| {
+                    let kind = &func.inst(id).kind;
+                    low_mask_input(func, kind).is_some()
+                        || widened_nonzero_test(func, kind).is_some()
+                        || compares_with_immediate(func, kind, &target)
+                })
+            {
+                return false;
+            }
+            let cfg = CfgInfo::new(func);
+            let removed = invalidate_unreachable_blocks(func, cfg.reachable());
+            let mut eliminator = CheckEliminator {
+                collect_masks: true,
+                shifted_high_masks,
+                propagate_equalities: Some(target),
+                immutable_ranges,
+                ..Default::default()
+            };
+            let facts = index_vec![Facts::default(); func.blocks.len()];
+            let _ = eliminator.collect_folds(func, &cfg, &facts, &[], &mut Vec::new(), None);
+            let propagated = eliminator.apply_equalities(func) != 0;
+            if eliminator.redundant_masks.is_empty() {
+                return removed != 0 || propagated;
+            }
+            let mut replacements = FxHashMap::default();
+            let mut dead = DenseBitSet::new_empty(func.num_insts());
+            for &(id, value) in &eliminator.redundant_masks {
+                replacements.insert(func.inst_result_value(id).unwrap(), value);
+                dead.insert(id);
+            }
+            func.replace_uses_canonicalized(&replacements);
+            for block in &mut func.blocks {
+                block.instructions.retain(|&id| !dead.contains(id));
+            }
+            true
+        };
+        // Only the immutable bound case has ever requested the CFG snapshot, which decides what
+        // survives an edit in the analysis caches.
+        if runtime.is_some() {
+            run_function_pass_with_cfg(module, analyses, cleanup)
+        } else {
+            run_function_pass(module, analyses, cleanup)
         }
-        let runtime = runtime_only_functions(module);
-        let mut others = DenseBitSet::new_filled(module.functions.len());
-        others.subtract(&runtime);
-        let mut changed =
-            run_selected_function_pass(module, analyses, &runtime, |func, analyses| {
-                cleanup(func, analyses.runtime_target(gcx), Some(&bounds))
-            });
-        changed |= run_selected_function_pass(module, analyses, &others, |func, analyses| {
-            cleanup(func, analyses.runtime_target(gcx), None)
-        });
-        changed
     }
 }
 
@@ -367,10 +371,11 @@ impl MirPass for LateCheckElim {
             {
                 return false;
             }
-            let mut eliminator = CheckEliminator::new(None);
-            eliminator.cfg = Some(Rc::clone(analyses.cfg()));
-            let changed =
-                eliminator.run_in_blocks(func, selected.map(|blocks| (blocks, &cold))) != 0;
+            let changed = CheckEliminator::default().run(
+                func,
+                analyses.cfg(),
+                selected.map(|blocks| (blocks, &cold)),
+            ) != 0;
             if changed {
                 // branch proven_condition, checked, panic => jump checked
                 // Remove unreachable panic blocks and merge the successful continuation.
@@ -419,19 +424,20 @@ impl MirPass for ImmutableCheckElim {
         if bounds.is_empty() {
             return narrowed;
         }
-        let mut runtime_only = runtime_only_functions(module);
-        for id in runtime_only.iter().collect::<Vec<_>>() {
-            if !module.function(id).instructions().any(|inst| {
-                matches!(module.function(id).inst(inst).kind,
+        let mut loading = DenseBitSet::new_empty(module.functions.len());
+        for id in runtime_only_functions(module).iter() {
+            let func = module.function(id);
+            if func.instructions().any(|inst| {
+                matches!(func.inst(inst).kind,
                     InstKind::LoadImmutable(immutable) if bounds.contains_key(&immutable))
             }) {
-                runtime_only.remove(id);
+                loading.insert(id);
             }
         }
-        run_selected_function_pass(module, analyses, &runtime_only, |func, analyses| {
-            let mut eliminator = CheckEliminator::new(Some(&bounds));
-            eliminator.cfg = Some(Rc::clone(analyses.cfg()));
-            eliminator.run(func) != 0
+        run_selected_function_pass(module, analyses, &loading, |func, analyses| {
+            let eliminator =
+                CheckEliminator { immutable_ranges: Some(&bounds), ..Default::default() };
+            eliminator.run(func, analyses.cfg(), None) != 0
         }) || narrowed
     }
 }
@@ -510,26 +516,18 @@ fn narrow_immutable_layouts(module: &mut Module) -> bool {
 /// Excludes every constructor-reachable helper, including recursive and tail-call edges.
 fn runtime_only_functions(module: &Module) -> DenseBitSet<FunctionId> {
     let graph = CallGraphInfo::new(module);
-    let roots = |constructor| {
-        module.functions.iter_enumerated().filter_map(move |(id, func)| {
-            let selected = if constructor {
-                func.attributes.is_constructor
-            } else {
-                func.selector.is_some()
-                    || func.attributes.is_receive
-                    || func.attributes.is_fallback
-                    || module.dispatch_entry() == Some(id)
-            };
-            selected.then_some(id)
-        })
-    };
-    let mut runtime = graph.reachable_callees_from(roots(false));
-    for root in roots(false) {
-        runtime.insert(root);
+    let mut runtime = DenseBitSet::new_empty(module.functions.len());
+    let mut constructor = runtime.clone();
+    for (id, func) in module.functions.iter_enumerated() {
+        if func.attributes.is_constructor {
+            constructor.insert(id);
+        } else if func.is_runtime_entry() || module.dispatch_entry() == Some(id) {
+            runtime.insert(id);
+        }
     }
-    let mut constructor = graph.reachable_callees_from(roots(true));
-    for root in roots(true) {
-        constructor.insert(root);
+    for roots in [&mut runtime, &mut constructor] {
+        let reachable = graph.reachable_callees_from(roots.iter());
+        roots.union(&reachable);
     }
     runtime.subtract(&constructor);
     runtime
@@ -564,16 +562,6 @@ const MAX_DEPTH: usize = 12;
 /// walk. Smaller ones have too few candidates per value to repay the lists.
 const MIN_BLOCKS_FOR_ACTIVE_RELATIONS: usize = 128;
 
-/// Statistics from check elimination.
-#[derive(Debug, Default, Clone)]
-struct CheckElimStats {
-    /// Number of branches folded to unconditional jumps.
-    branches_folded: usize,
-    checks_removed: usize,
-    /// Number of branch conditions reduced to one operand of their `or` or `and`.
-    conditions_reduced: usize,
-}
-
 /// An inclusive unsigned 256-bit interval.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Range {
@@ -604,9 +592,32 @@ impl Range {
         (lo <= hi).then_some(Self { lo, hi })
     }
 
+    /// Whether the range is all zero or all nonzero.
+    fn truth(self) -> Option<bool> {
+        if self.lo > U256::ZERO {
+            Some(true)
+        } else if self.hi.is_zero() {
+            Some(false)
+        } else {
+            None
+        }
+    }
+
+    /// The sign bit of every value in the range, when they share it.
+    fn sign(self, bits: u32) -> Option<bool> {
+        let sign = self.lo.bit((bits - 1) as usize);
+        (sign == self.hi.bit((bits - 1) as usize)).then_some(sign)
+    }
+
+    /// Whether the values of both ranges share one known sign bit.
+    fn same_sign(self, other: Self, bits: u32) -> bool {
+        let sign = self.sign(bits);
+        sign.is_some() && sign == other.sign(bits)
+    }
+
     /// Rotates unsigned order into signed order, or back, widening a split interval.
     fn flip_sign(self, bits: u32) -> Self {
-        if self.lo.bit((bits - 1) as usize) == self.hi.bit((bits - 1) as usize) {
+        if self.sign(bits).is_some() {
             let sign = U256::from(1) << (bits - 1);
             Self::new(self.lo ^ sign, self.hi ^ sign)
         } else {
@@ -641,12 +652,54 @@ impl Relation {
             Self::Lt(a, b) | Self::Le(a, b) | Self::Eq(a, b) | Self::Ne(a, b) => (a, b),
         }
     }
+
+    /// The value a search at `value` reaches through this relation, and whether the path is
+    /// strict from there: equality goes both ways, `<=` carries order, `<` makes the path
+    /// strict, and disequality leads nowhere.
+    fn step(self, value: ValueId, strict: bool, equality_only: bool) -> Option<(ValueId, bool)> {
+        match self {
+            Self::Eq(a, b) if a == value => Some((b, strict)),
+            Self::Eq(a, b) if b == value => Some((a, strict)),
+            Self::Le(a, b) if a == value && !equality_only => Some((b, strict)),
+            Self::Lt(a, b) if a == value && !equality_only => Some((b, true)),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Default, PartialEq, Eq)]
 struct Facts {
     ranges: FxHashMap<ValueId, Range>,
     relations: FxHashSet<Relation>,
+}
+
+/// Candidate relations listed under the values a search leaves from, each once and in the order
+/// they were added: under its left operand, and under both for an equality.
+#[derive(Default)]
+struct RelationIndex {
+    lists: FxHashMap<ValueId, SmallVec<[Relation; 2]>>,
+    listed: FxHashSet<Relation>,
+}
+
+impl RelationIndex {
+    fn insert(&mut self, relation: Relation) {
+        if !self.listed.insert(relation) {
+            return;
+        }
+        let (a, b) = relation.operands();
+        self.lists.entry(a).or_default().push(relation);
+        if matches!(relation, Relation::Eq(..)) && a != b {
+            self.lists.entry(b).or_default().push(relation);
+        }
+    }
+}
+
+impl Deref for RelationIndex {
+    type Target = FxHashMap<ValueId, SmallVec<[Relation; 2]>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.lists
+    }
 }
 
 /// The relations of the current scope that searches walk, kept in step with `relations` by the
@@ -677,9 +730,9 @@ impl ActiveRelations {
     const ABSENT: u32 = u32::MAX;
 
     /// Creates empty lists over the candidates of `index`.
-    fn new(func: &Function, index: &FxHashMap<ValueId, SmallVec<[Relation; 2]>>) -> Self {
+    fn new(func: &Function, index: &RelationIndex) -> Self {
         let mut slots = FxHashMap::<Relation, [u32; 2]>::default();
-        for (&value, relations) in index {
+        for (&value, relations) in index.iter() {
             for (position, &relation) in relations.iter().enumerate() {
                 let slot = slots.entry(relation).or_insert([Self::ABSENT; 2]);
                 slot[usize::from(relation.operands().0 != value)] = position as u32;
@@ -744,12 +797,7 @@ impl ActiveRelations {
     }
 
     /// Adds `relation` to the scope.
-    fn add(
-        &mut self,
-        func: &Function,
-        index: &FxHashMap<ValueId, SmallVec<[Relation; 2]>>,
-        relation: Relation,
-    ) {
+    fn add(&mut self, func: &Function, index: &RelationIndex, relation: Relation) {
         self.marks.push(self.nonzero_trail.len());
         let linked = self.slots.contains_key(&relation);
         self.link(func, relation);
@@ -773,13 +821,9 @@ impl ActiveRelations {
             let list = &index[&current];
             let next = positions
                 .iter()
-                .filter_map(|&position| match list[position as usize] {
-                    Relation::Lt(a, b) | Relation::Le(a, b) if a == current => Some(b),
-                    Relation::Eq(a, b) => Some(if a == current { b } else { a }),
-                    _ => None,
-                })
+                .filter_map(|&position| list[position as usize].step(current, false, false))
                 .collect::<SmallVec<[_; 4]>>();
-            for value in next {
+            for (value, _) in next {
                 self.reach(&mut pending, value);
             }
         }
@@ -814,7 +858,7 @@ fn offsets_of(func: &Function, value: ValueId) -> SmallVec<[(ValueId, U256); 2]>
     };
     [(first, second), (second, first)]
         .into_iter()
-        .filter_map(|(base, constant)| Some((base, const_of(func, constant)?)))
+        .filter_map(|(base, constant)| Some((base, func.value_u256(constant)?)))
         .collect()
 }
 
@@ -922,8 +966,6 @@ struct Equality {
 struct CheckEliminator<'a> {
     /// Context-independent bounds for runtime-only immutable loads.
     immutable_ranges: Option<&'a FxHashMap<ImmutableId, Range>>,
-    /// Shared CFG snapshot taken at entry, matching the previous fresh build.
-    cfg: Option<Rc<CfgInfo>>,
     collect_masks: bool,
     redundant_masks: Vec<(InstId, ValueId)>,
     /// The constant left shifts of each value a high mask cleans, as `(shift, result)`.
@@ -947,12 +989,10 @@ struct CheckEliminator<'a> {
     equality_uses: Vec<(InstId, Replacements)>,
     /// Semantic checked operations proven not to fail, with the plain operation each becomes.
     unfailing: Vec<(InstId, InstKind)>,
-    /// Statistics from the last run.
-    stats: CheckElimStats,
     ranges: FxHashMap<ValueId, Range>,
     relations: FxHashSet<Relation>,
     /// Possible outgoing facts; each candidate still requires a scoped membership check.
-    relation_index: Option<FxHashMap<ValueId, SmallVec<[Relation; 2]>>>,
+    relation_index: Option<RelationIndex>,
     /// Whether the dominator walk is running, which keeps `active_relations` in step with
     /// `relations`.
     scoped: bool,
@@ -972,8 +1012,12 @@ struct CheckEliminator<'a> {
     difference_index: Option<DifferenceIndex>,
     /// Depth of the sum-bound lemma, which asks relational questions of its own.
     sum_depth: usize,
-    /// Values above a strict edge, shared by queries in the same fact scope.
-    strict_lower_bounds: Option<GrowableBitSet<ValueId>>,
+    /// Values above a strict edge, shared by queries in the same fact scope, once
+    /// `strict_bounds_valid`.
+    strict_lower_bounds: GrowableBitSet<ValueId>,
+    strict_bounds_valid: bool,
+    /// Scratch for building `strict_lower_bounds`.
+    strict_pending: Vec<ValueId>,
     /// Counting header phis with constant start and step, bounded by the
     /// distance any affordable number of iterations can travel.
     trip_bounds: FxHashMap<ValueId, Range>,
@@ -993,38 +1037,14 @@ struct CheckEliminator<'a> {
 }
 
 impl<'a> CheckEliminator<'a> {
-    /// Creates a new check eliminator.
-    #[must_use]
-    fn new(immutable_ranges: Option<&'a FxHashMap<ImmutableId, Range>>) -> Self {
-        Self { immutable_ranges, ..Self::default() }
-    }
-
-    /// Runs check elimination on a function. Returns the number of folded
-    /// branches.
-    fn run(&mut self, func: &mut Function) -> usize {
-        self.run_in_blocks(func, None)
-    }
-
-    /// Restricts the rewritten blocks while retaining all facts needed to prove their checks.
-    fn run_in_blocks(
-        &mut self,
+    /// Runs check elimination on a function, rewriting only the selected blocks when given and
+    /// retaining all facts needed to prove their checks. Returns the number of rewrites.
+    fn run(
+        mut self,
         func: &mut Function,
+        cfg: &CfgInfo,
         selected: Option<(&DenseBitSet<BlockId>, &DenseBitSet<FunctionId>)>,
     ) -> usize {
-        self.stats = CheckElimStats::default();
-        self.memory_feeds = None;
-        self.strict_lower_bounds = None;
-        self.relation_index = None;
-        self.reverse_index = None;
-        self.difference_index = None;
-        self.monotone_relations.clear();
-        self.phi_relations.clear();
-        self.universal_relations.clear();
-        self.trip_bounds.clear();
-        self.header_bounds.clear();
-        self.obligations.clear();
-        self.failed_bounds.clear();
-        self.midpoints.clear();
         if !func.blocks.iter().any(|block| {
             matches!(
                 block.terminator,
@@ -1038,12 +1058,12 @@ impl<'a> CheckEliminator<'a> {
         }) {
             return 0;
         }
-        let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
         let removed = invalidate_unreachable_blocks(func, cfg.reachable());
-        let relevant = branch_inputs(func, &cfg);
+        let relevant = branch_inputs(func, cfg);
         if relevant.is_empty() {
             return removed;
         }
+        let definitions = func.inst_block_table();
         self.universal_relations = universal_relations(func, &relevant);
         self.midpoints = midpoints(func, &relevant);
 
@@ -1058,27 +1078,29 @@ impl<'a> CheckEliminator<'a> {
             // propagation for induction ranges.
             index_vec![Facts::default(); func.blocks.len()]
         } else {
-            self.join_facts(func, &cfg, &relevant)
+            self.join_facts(func, cfg, &definitions, &relevant)
         };
-        let candidates = monotone_phi_candidates(func, &cfg, &relevant);
+        let phis = loop_phis(func, cfg, &relevant);
+        let candidates = monotone_phi_candidates(func, &definitions, &phis);
         for phi in &candidates {
             if let Some(bound) = trip_count_bound(func, phi) {
                 self.trip_bounds.insert(phi.value, bound);
             }
         }
-        for (value, bound) in counter_bounds(func, &cfg, &relevant) {
+        for (value, bound) in counter_bounds(func, &phis) {
             self.trip_bounds.entry(value).or_insert(bound);
         }
-        self.prove_header_bounds(func, &cfg, &relevant, &candidates, &mut facts, selected);
+        let bounds = header_bound_candidates(func, cfg, &definitions, &relevant, &candidates);
+        self.prove_header_bounds(func, cfg, &definitions, bounds, &mut facts, selected);
         let mut proven = Vec::new();
         let (mut folds, mut checks, mut reductions) =
-            self.collect_folds(func, &cfg, &facts, &candidates, &mut proven, selected);
+            self.collect_folds(func, cfg, &facts, &candidates, &mut proven, selected);
         if !proven.is_empty() {
             // The invariant is available wherever the phi is: attach it to the
             // header's entry facts and index it for transitive queries.
             for phi in &proven {
                 facts[phi.header].relations.insert(phi.relation());
-                if let Some(initial) = const_of(func, phi.initial) {
+                if let Some(initial) = func.value_u256(phi.initial) {
                     let bound = if phi.decreasing {
                         Range::new(U256::ZERO, initial)
                     } else {
@@ -1092,11 +1114,9 @@ impl<'a> CheckEliminator<'a> {
                 }
                 self.monotone_relations.push(phi.relation());
             }
-            self.relation_index = None;
-            self.reverse_index = None;
-            self.strict_lower_bounds = None;
+            self.invalidate_indexes();
             (folds, checks, reductions) =
-                self.collect_folds(func, &cfg, &facts, &[], &mut Vec::new(), selected);
+                self.collect_folds(func, cfg, &facts, &[], &mut Vec::new(), selected);
         }
         self.ranges.clear();
         self.relations.clear();
@@ -1134,15 +1154,7 @@ impl<'a> CheckEliminator<'a> {
                 *condition = reduced;
             }
         }
-        self.stats.branches_folded = folds.len();
-        self.stats.checks_removed = checks.count();
-        self.stats.conditions_reduced = reductions.len();
-        self.stats.checks_removed += unfailing.len();
-        removed
-            + self.stats.branches_folded
-            + self.stats.checks_removed
-            + self.stats.conditions_reduced
-            + propagated
+        removed + folds.len() + checks.count() + unfailing.len() + reductions.len() + propagated
     }
 
     /// Walks the dominator tree, recording edge and check facts. Returns branch folds, proven
@@ -1190,7 +1202,7 @@ impl<'a> CheckEliminator<'a> {
                         };
                     }
                     if self.relation_undo.len() > relation_mark {
-                        self.strict_lower_bounds = None;
+                        self.strict_bounds_valid = false;
                     }
                     while self.relation_undo.len() > relation_mark {
                         let relation = self.relation_undo.pop().expect("checked len");
@@ -1267,7 +1279,7 @@ impl<'a> CheckEliminator<'a> {
                         // x - k < x wherever the definition's scope proves x >= k > 0
                         if let InstKind::Sub(x, k) = func.inst(id).kind
                             && let Some(value) = func.inst_result_value(id)
-                            && let Some(k) = const_of(func, k)
+                            && let Some(k) = func.value_u256(k)
                             && !k.is_zero()
                             && self.range_of(func, x, MAX_DEPTH).lo >= k
                         {
@@ -1406,27 +1418,24 @@ impl<'a> CheckEliminator<'a> {
         &mut self,
         func: &Function,
         cfg: &CfgInfo,
-        relevant: &DenseBitSet<ValueId>,
-        monotone: &[MonotonePhi],
+        definitions: &IndexVec<InstId, Option<BlockId>>,
+        mut bounds: Vec<HeaderBound>,
         facts: &mut IndexVec<BlockId, Facts>,
         selected: Option<(&DenseBitSet<BlockId>, &DenseBitSet<FunctionId>)>,
     ) {
         const MAX_ROUNDS: usize = 4;
-        let mut bounds = header_bound_candidates(func, cfg, relevant, monotone);
         for _ in 0..MAX_ROUNDS {
             if bounds.is_empty() {
                 break;
             }
-            self.obligations = bound_obligations(func, cfg, &bounds);
+            bound_obligations(func, cfg, definitions, &bounds, &mut self.obligations);
             self.failed_bounds.clear();
             let mut assumed = facts.clone();
             for bound in &bounds {
                 assumed[bound.header].relations.insert(bound.relation());
             }
             self.header_bounds = bounds;
-            self.relation_index = None;
-            self.reverse_index = None;
-            self.strict_lower_bounds = None;
+            self.invalidate_indexes();
             let _ = self.collect_folds(func, cfg, &assumed, &[], &mut Vec::new(), selected);
             bounds = std::mem::take(&mut self.header_bounds);
             if self.failed_bounds.is_empty() {
@@ -1445,9 +1454,14 @@ impl<'a> CheckEliminator<'a> {
         }
         self.obligations.clear();
         self.failed_bounds.clear();
+        self.invalidate_indexes();
+    }
+
+    /// Drops the indexes and caches built from the relations a walk assumes.
+    fn invalidate_indexes(&mut self) {
         self.relation_index = None;
         self.reverse_index = None;
-        self.strict_lower_bounds = None;
+        self.strict_bounds_valid = false;
     }
 
     /// Checks the obligations of the bounds under proof that fall on `block`, in the scope at its
@@ -1516,24 +1530,16 @@ impl<'a> CheckEliminator<'a> {
         &mut self,
         func: &Function,
         cfg: &CfgInfo,
+        definitions: &IndexVec<InstId, Option<BlockId>>,
         relevant: &DenseBitSet<ValueId>,
     ) -> IndexVec<BlockId, Facts> {
         const MAX_ROUNDS: usize = 8;
         // Join phi relations tried at one join, the first in relation order.
         const MAX_PHI_CANDIDATES: usize = 8;
-        let definitions = func.inst_block_table();
         // A predicate consumed only by this branch cannot be queried after the edge.
         // Preserve its operand facts, but do not copy the dead predicate's own range
         // through every later block. Single-use ISZERO chains have the same property.
-        let mut uses = index_vec![0usize; func.num_values()];
-        for block in &func.blocks {
-            for &inst in &block.instructions {
-                func.inst(inst).kind.visit_operands(|value| uses[value] += 1);
-            }
-            if let Some(term) = &block.terminator {
-                term.visit_operands(|value| uses[value] += 1);
-            }
-        }
+        let uses = use_counts(func);
         let mut consumed_conditions = FxHashMap::<BlockId, SmallVec<[ValueId; 2]>>::default();
         for &block in cfg.rpo() {
             if let Some(Terminator::Branch { condition, .. }) = func.blocks[block].terminator {
@@ -1551,10 +1557,13 @@ impl<'a> CheckEliminator<'a> {
         }
         let mut entries = index_vec![Facts::default(); func.blocks.len()];
         let mut exits = entries.clone();
-        let mut cx = Self::new(self.immutable_ranges);
+        let mut cx = Self { immutable_ranges: self.immutable_ranges, ..Self::default() };
         cx.universal_relations.clone_from(&self.universal_relations);
         let mut pending = cfg.reachable().clone();
         let mut visited = DenseBitSet::new_empty(func.blocks.len());
+        let mut phis = Vec::new();
+        let mut phi_ranges = Vec::new();
+        let mut phi_candidates = Vec::<Relation>::new();
         for _ in 0..MAX_ROUNDS {
             let mut changed = false;
             for &block in cfg.rpo() {
@@ -1565,38 +1574,31 @@ impl<'a> CheckEliminator<'a> {
                 // A phi of this join stays below a value defined before it when every input
                 // does on its edge, as `i = from < n ? from : n - 1` stays below `n`. Bounds an
                 // edge states of an input are the candidates; every edge must prove them.
-                let phis: Vec<_> = func.blocks[block]
-                    .instructions
-                    .iter()
-                    .filter_map(|&inst| {
-                        let InstKind::Phi(incoming) = &func.inst(inst).kind else { return None };
-                        let value = func.inst_result_value(inst)?;
-                        (relevant.contains(value) && func.blocks[block].predecessors.len() > 1)
-                            .then_some((value, incoming))
-                    })
-                    .collect();
-                let mut phi_candidates = Vec::<Relation>::new();
+                phis.clear();
+                phis.extend(func.blocks[block].instructions.iter().filter_map(|&inst| {
+                    let InstKind::Phi(incoming) = &func.inst(inst).kind else { return None };
+                    let value = func.inst_result_value(inst)?;
+                    relevant.contains(value).then_some((value, incoming))
+                }));
+                let joins = func.blocks[block].predecessors.len() > 1;
+                phi_candidates.clear();
                 if block != BlockId::ENTRY {
                     for &pred in &func.blocks[block].predecessors {
                         cx.enter_edge(func, block, pred, &exits[pred]);
                         // Evaluate all inputs before assigning any phi: loop
                         // phis describe a simultaneous parallel assignment.
-                        let phi_ranges: Vec<_> = func.blocks[block]
-                            .instructions
-                            .iter()
-                            .filter_map(|&inst| {
-                                let InstKind::Phi(incoming) = &func.inst(inst).kind else {
-                                    return None;
-                                };
-                                let value = func.inst_result_value(inst)?;
-                                if !relevant.contains(value) {
-                                    return None;
-                                }
-                                let &(_, input) =
-                                    incoming.iter().find(|&&(from, _)| from == pred)?;
-                                Some((value, cx.range_of(func, input, MAX_DEPTH)))
-                            })
-                            .collect();
+                        phi_ranges.clear();
+                        for &(value, incoming) in &phis {
+                            if let Some(&(_, input)) =
+                                incoming.iter().find(|&&(from, _)| from == pred)
+                            {
+                                phi_ranges.push((
+                                    value,
+                                    input,
+                                    cx.range_of(func, input, MAX_DEPTH),
+                                ));
+                            }
+                        }
                         for value in consumed_conditions.get(&pred).into_iter().flatten() {
                             cx.ranges.remove(value);
                         }
@@ -1606,25 +1608,22 @@ impl<'a> CheckEliminator<'a> {
                             }),
                             _ => true,
                         };
-                        for &(phi, incoming) in &phis {
-                            let Some(&(_, input)) =
-                                incoming.iter().find(|&&(from, _)| from == pred)
-                            else {
-                                continue;
-                            };
-                            for &relation in &cx.relations {
-                                let candidate = match relation {
-                                    Relation::Lt(x, bound) if x == input => {
-                                        Relation::Lt(phi, bound)
+                        if joins {
+                            for &(phi, input, _) in &phi_ranges {
+                                for &relation in &cx.relations {
+                                    let candidate = match relation {
+                                        Relation::Lt(x, bound) if x == input => {
+                                            Relation::Lt(phi, bound)
+                                        }
+                                        Relation::Le(x, bound) if x == input => {
+                                            Relation::Le(phi, bound)
+                                        }
+                                        _ => continue,
+                                    };
+                                    let (_, bound) = candidate.operands();
+                                    if bound != phi && available(bound) {
+                                        phi_candidates.push(candidate);
                                     }
-                                    Relation::Le(x, bound) if x == input => {
-                                        Relation::Le(phi, bound)
-                                    }
-                                    _ => continue,
-                                };
-                                let (_, bound) = candidate.operands();
-                                if bound != phi && available(bound) {
-                                    phi_candidates.push(candidate);
                                 }
                             }
                         }
@@ -1633,7 +1632,7 @@ impl<'a> CheckEliminator<'a> {
                             let (a, b) = relation.operands();
                             available(a) && available(b)
                         });
-                        for (value, range) in phi_ranges {
+                        for &(value, _, range) in &phi_ranges {
                             if range != Range::FULL {
                                 cx.ranges.insert(value, range);
                             }
@@ -1692,7 +1691,7 @@ impl<'a> CheckEliminator<'a> {
                             if !cx.phi_relations.contains(&relation) {
                                 cx.phi_relations.push(relation);
                                 if let Some(index) = &mut cx.relation_index {
-                                    index_relation(index, relation);
+                                    index.insert(relation);
                                 }
                             }
                         }
@@ -1706,7 +1705,7 @@ impl<'a> CheckEliminator<'a> {
                 }
                 cx.ranges.clone_from(&entry.ranges);
                 cx.relations.clone_from(&entry.relations);
-                cx.strict_lower_bounds = None;
+                cx.strict_bounds_valid = false;
                 cx.range_undo.clear();
                 cx.relation_undo.clear();
                 for &inst in &func.blocks[block].instructions {
@@ -1808,7 +1807,7 @@ impl<'a> CheckEliminator<'a> {
             }
             // `x >> k` is zero iff `x < 2^k`, the range test word-sequence prefers.
             InstKind::Shr(shift, x)
-                if let Some(shift) = const_of(func, shift)
+                if let Some(shift) = func.value_u256(shift)
                     && shift > U256::ZERO
                     && shift < U256::from(256) =>
             {
@@ -1854,10 +1853,7 @@ impl<'a> CheckEliminator<'a> {
         let bits = integer_bits(func, a);
         let ra = self.range_of(func, a, depth);
         let rb = self.range_of(func, b, depth);
-        if ra.lo.bit((bits - 1) as usize) == ra.hi.bit((bits - 1) as usize)
-            && rb.lo.bit((bits - 1) as usize) == rb.hi.bit((bits - 1) as usize)
-            && ra.lo.bit((bits - 1) as usize) == rb.lo.bit((bits - 1) as usize)
-        {
+        if ra.same_sign(rb, bits) {
             self.assume_lt(func, a, b, truth, depth);
             return;
         }
@@ -1881,9 +1877,9 @@ impl<'a> CheckEliminator<'a> {
 
     /// Records the consequences of `(a == b) == truth`.
     fn assume_eq(&mut self, func: &Function, a: ValueId, b: ValueId, truth: bool, depth: usize) {
-        if const_of(func, b).is_some_and(|v| v.is_zero()) {
+        if func.value_u256(b).is_some_and(|v| v.is_zero()) {
             self.assume(func, a, !truth, depth);
-        } else if const_of(func, a).is_some_and(|v| v.is_zero()) {
+        } else if func.value_u256(a).is_some_and(|v| v.is_zero()) {
             self.assume(func, b, !truth, depth);
         }
         let (x, y) = ordered(a, b);
@@ -1940,9 +1936,8 @@ impl<'a> CheckEliminator<'a> {
             return;
         }
         // Frame and heap layout treat constant raw memory addresses and sizes as fixed images.
-        let mut raw_memory = kind.clone();
-        raw_memory.visit_raw_memory_operands_mut(|operand| {
-            replaced.retain(|&mut (from, _)| from != *operand);
+        visit_raw_memory_operands(kind, |operand| {
+            replaced.retain(|&mut (from, _)| from != operand)
         });
         if replaced.is_empty() {
             return;
@@ -2006,7 +2001,7 @@ impl<'a> CheckEliminator<'a> {
             }) => (lhs, rhs, true),
             _ => return,
         };
-        let (x, c) = match (const_of(func, c), const_of(func, x)) {
+        let (x, c) = match (func.value_u256(c), func.value_u256(x)) {
             (Some(c), _) => (x, c),
             (None, Some(constant)) => (c, constant),
             (None, None) => return,
@@ -2054,7 +2049,7 @@ impl<'a> CheckEliminator<'a> {
 
     fn add_relation(&mut self, func: &Function, relation: Relation) {
         if self.relations.insert(relation) {
-            self.strict_lower_bounds = None;
+            self.strict_bounds_valid = false;
             self.relation_undo.push(relation);
             if let (Some(active), Some(index)) = (&mut self.active_relations, &self.relation_index)
             {
@@ -2088,20 +2083,18 @@ impl<'a> CheckEliminator<'a> {
             return;
         }
         let mut index = relation_candidates(func);
-        for &relation in self.monotone_relations.iter().chain(&self.phi_relations) {
-            index_relation(&mut index, relation);
-        }
-        for &relation in &self.universal_relations {
-            index_relation(&mut index, relation);
+        let relations = self.monotone_relations.iter().chain(&self.phi_relations);
+        for &relation in relations.chain(&self.universal_relations) {
+            index.insert(relation);
         }
         for bound in &self.header_bounds {
-            index_relation(&mut index, bound.relation());
+            index.insert(bound.relation());
         }
         for &Midpoint { value, low, high, .. } in self.midpoints.values() {
             for (a, b) in [(low, high), (high, low)] {
-                index_relation(&mut index, Relation::Le(a, value));
-                index_relation(&mut index, Relation::Le(value, b));
-                index_relation(&mut index, Relation::Lt(value, b));
+                index.insert(Relation::Le(a, value));
+                index.insert(Relation::Le(value, b));
+                index.insert(Relation::Lt(value, b));
             }
         }
         self.relation_index = Some(index);
@@ -2133,10 +2126,7 @@ impl<'a> CheckEliminator<'a> {
         for inst_id in func.instructions() {
             let Some(value) = func.inst_result_value(inst_id) else { continue };
             if let InstKind::Sub(minuend, subtrahend) = func.inst(inst_id).kind {
-                let entry = differences.entry(subtrahend).or_default();
-                if !entry.contains(&(minuend, value)) {
-                    entry.push((minuend, value));
-                }
+                differences.entry(subtrahend).or_default().push((minuend, value));
             }
         }
         self.difference_index = Some(differences);
@@ -2199,21 +2189,13 @@ impl<'a> CheckEliminator<'a> {
             self.ensure_reverse_index(func);
             let reverse = self.reverse_index.as_ref().expect("relation index was just built");
             for &fact in reverse.get(&bound).into_iter().flatten() {
-                let Relation::Lt(index, limit) = fact else { continue };
-                if limit != bound
-                    || !(self.relations.contains(&fact) || self.universal_relations.contains(&fact))
+                if let Relation::Lt(index, limit) = fact
+                    && limit == bound
+                    && (self.relations.contains(&fact) || self.universal_relations.contains(&fact))
                 {
-                    continue;
-                }
-                let amount = match inst_kind(func, index) {
-                    Some(&InstKind::Add(x, c)) if x == base => const_of(func, c),
-                    Some(&InstKind::Add(c, x)) if x == base => const_of(func, c),
-                    _ => None,
-                };
-                if let Some(amount) = amount
-                    && amount >= offset
-                {
-                    amounts.push(amount);
+                    amounts.extend(offsets_of(func, index).into_iter().filter_map(
+                        |(x, amount)| (x == base && amount >= offset).then_some(amount),
+                    ));
                 }
             }
         }
@@ -2240,49 +2222,39 @@ impl<'a> CheckEliminator<'a> {
                 .as_ref()
                 .is_some_and(|active| active.nonzero.contains(value));
         }
-        if self.strict_lower_bounds.is_none() {
-            let mut nonzero = GrowableBitSet::with_capacity(func.num_values());
-            let mut pending = Vec::new();
+        if !self.strict_bounds_valid {
+            self.strict_lower_bounds.clear();
+            self.strict_pending.clear();
             for &fact in &self.relations {
                 if let Relation::Lt(_, bound) = fact
-                    && nonzero.insert(bound)
+                    && self.strict_lower_bounds.insert(bound)
                 {
-                    pending.push(bound);
+                    self.strict_pending.push(bound);
                 }
             }
-            if pending.is_empty() {
-                self.strict_lower_bounds = Some(nonzero);
-                return false;
-            }
-            self.ensure_relation_index(func);
-            let index = self.relation_index.as_ref().expect("relation index was just built");
-            // A strict edge makes its upper endpoint nonzero. Propagate that fact through
-            // active orderings once per scope instead of searching backward for every value.
-            while let Some(current) = pending.pop() {
-                for &fact in index.get(&current).into_iter().flatten() {
-                    if !self.relations.contains(&fact) && !self.universal_relations.contains(&fact)
-                    {
-                        continue;
-                    }
-                    let next = match fact {
-                        Relation::Lt(a, b) | Relation::Le(a, b) if a == current => b,
-                        Relation::Eq(a, b) => {
-                            if a == current {
-                                b
-                            } else {
-                                a
-                            }
+            if !self.strict_pending.is_empty() {
+                self.ensure_relation_index(func);
+                let index = self.relation_index.as_ref().expect("relation index was just built");
+                // A strict edge makes its upper endpoint nonzero. Propagate that fact through
+                // active orderings once per scope instead of searching backward for every value.
+                while let Some(current) = self.strict_pending.pop() {
+                    for &fact in index.get(&current).into_iter().flatten() {
+                        if !self.relations.contains(&fact)
+                            && !self.universal_relations.contains(&fact)
+                        {
+                            continue;
                         }
-                        _ => continue,
-                    };
-                    if nonzero.insert(next) {
-                        pending.push(next);
+                        if let Some((next, _)) = fact.step(current, false, false)
+                            && self.strict_lower_bounds.insert(next)
+                        {
+                            self.strict_pending.push(next);
+                        }
                     }
                 }
             }
-            self.strict_lower_bounds = Some(nonzero);
+            self.strict_bounds_valid = true;
         }
-        self.strict_lower_bounds.as_ref().unwrap().contains(value)
+        self.strict_lower_bounds.contains(value)
     }
 
     fn has_relation(&mut self, func: &Function, relation: Relation) -> bool {
@@ -2368,14 +2340,7 @@ impl<'a> CheckEliminator<'a> {
                     {
                         continue;
                     }
-                    let next = match fact {
-                        Relation::Eq(a, b) if a == value => Some((b, strict)),
-                        Relation::Eq(a, b) if b == value => Some((a, strict)),
-                        Relation::Le(a, b) if a == value && !equality_only => Some((b, strict)),
-                        Relation::Lt(a, b) if a == value && !equality_only => Some((b, true)),
-                        _ => None,
-                    };
-                    if let Some(next) = next {
+                    if let Some(next) = fact.step(value, strict, equality_only) {
                         pending.push(next);
                     }
                 }
@@ -2408,13 +2373,7 @@ impl<'a> CheckEliminator<'a> {
                 continue;
             };
             *positions = rest;
-            next = match candidates[position as usize] {
-                Relation::Eq(a, b) if a == *value => Some((b, *strict)),
-                Relation::Eq(a, b) if b == *value => Some((a, *strict)),
-                Relation::Le(a, b) if a == *value && !equality_only => Some((b, *strict)),
-                Relation::Lt(a, b) if a == *value && !equality_only => Some((b, true)),
-                _ => None,
-            };
+            next = candidates[position as usize].step(*value, *strict, equality_only);
         }
     }
 
@@ -2423,7 +2382,7 @@ impl<'a> CheckEliminator<'a> {
     /// Computes a sound overapproximation of the values `value` can take at
     /// the current program point.
     fn range_of(&mut self, func: &Function, value: ValueId, depth: usize) -> Range {
-        if let Some(constant) = const_of(func, value) {
+        if let Some(constant) = func.value_u256(value) {
             return Range::singleton(constant);
         }
         let bits = integer_bits(func, value).min(256);
@@ -2618,16 +2577,11 @@ impl<'a> CheckEliminator<'a> {
 
     /// Evaluates the truthiness (`!= 0`) of `value`, if provable.
     fn eval_truth(&mut self, func: &Function, value: ValueId, depth: usize) -> Option<bool> {
-        if let Some(constant) = const_of(func, value) {
+        if let Some(constant) = func.value_u256(value) {
             return Some(!constant.is_zero());
         }
-        if let Some(range) = self.ranges.get(&value) {
-            if range.lo > U256::ZERO {
-                return Some(true);
-            }
-            if range.hi.is_zero() {
-                return Some(false);
-            }
+        if let Some(truth) = self.ranges.get(&value).and_then(|range| range.truth()) {
+            return Some(truth);
         }
         if self.has_strict_lower_bound(func, value) {
             return Some(true);
@@ -2673,16 +2627,7 @@ impl<'a> CheckEliminator<'a> {
                 }
                 None
             }
-            _ => {
-                let range = self.range_of(func, value, depth);
-                if range.lo > U256::ZERO {
-                    return Some(true);
-                }
-                if range.hi.is_zero() {
-                    return Some(false);
-                }
-                None
-            }
+            _ => self.range_of(func, value, depth).truth(),
         }
     }
 
@@ -2694,10 +2639,7 @@ impl<'a> CheckEliminator<'a> {
         let bits = integer_bits(func, a);
         let ra = self.range_of(func, a, depth);
         let rb = self.range_of(func, b, depth);
-        if ra.lo.bit((bits - 1) as usize) == ra.hi.bit((bits - 1) as usize)
-            && rb.lo.bit((bits - 1) as usize) == rb.hi.bit((bits - 1) as usize)
-            && ra.lo.bit((bits - 1) as usize) == rb.lo.bit((bits - 1) as usize)
-        {
+        if ra.same_sign(rb, bits) {
             return self.eval_lt(func, a, b, depth);
         }
         let ra = ra.flip_sign(bits);
@@ -2772,7 +2714,7 @@ impl<'a> CheckEliminator<'a> {
         // `x - c < b` follows from `x <= b` when `c >= 1` and `x - c` cannot
         // wrap, which covers `a[j - 1]` after `j <= i < a.length`.
         if let Some((x, c, exact)) = difference_operands(func, a)
-            && let Some(step) = const_of(func, c)
+            && let Some(step) = func.value_u256(c)
             && !step.is_zero()
             && (exact || self.range_of(func, x, depth).lo >= step)
             && self.has_relation(func, Relation::Le(x, b))
@@ -2795,7 +2737,7 @@ impl<'a> CheckEliminator<'a> {
         // `x - 1 < b` is false when `b < x` and `x` is nonzero: `b < x` means
         // `b <= x - 1`, which covers `length - 1 < i` after `i < length`.
         if let Some(&InstKind::Sub(x, c)) = inst_kind(func, a)
-            && const_of(func, c) == Some(U256::ONE)
+            && func.value_u256(c) == Some(U256::ONE)
             && self.range_of(func, x, depth).lo >= U256::ONE
             && self.has_relation(func, Relation::Lt(b, x))
         {
@@ -2806,14 +2748,8 @@ impl<'a> CheckEliminator<'a> {
         // below: `x + b < n` follows from `x + a < n` when `b <= a` and
         // `x + a` cannot wrap, which covers the lookahead guards and the
         // original bound of a loop split to run while `i + K < n`.
-        let (base, offset) = match inst_kind(func, a) {
-            Some(&InstKind::Add(x, c)) if const_of(func, c).is_some() => (x, const_of(func, c)),
-            Some(&InstKind::Add(c, x)) if const_of(func, c).is_some() => (x, const_of(func, c)),
-            _ => (a, Some(U256::ZERO)),
-        };
-        if let Some(offset) = offset
-            && self.has_larger_offset_bound(func, base, offset, b, depth)
-        {
+        let (base, offset) = offsets_of(func, a).first().copied().unwrap_or((a, U256::ZERO));
+        if self.has_larger_offset_bound(func, base, offset, b, depth) {
             return Some(true);
         }
 
@@ -2879,7 +2815,7 @@ impl<'a> CheckEliminator<'a> {
         // Its doubling form `eq (shr (add x, x), 1), x` holds iff `x + x` did not wrap.
         for (shifted, expected) in [(a, b), (b, a)] {
             if let Some(&InstKind::Shr(count, sum)) = inst_kind(func, shifted)
-                && const_of(func, count) == Some(U256::from(1))
+                && func.value_u256(count) == Some(U256::from(1))
                 && doubled(func, sum) == Some((expected, false))
                 && self.range_of(func, expected, depth).hi <= integer_max(func, expected) >> 1
             {
@@ -2893,8 +2829,8 @@ impl<'a> CheckEliminator<'a> {
             if let Some(&InstKind::Shr(count, inner)) = inst_kind(func, shifted)
                 && let Some(&InstKind::Shl(inner_count, value)) = inst_kind(func, inner)
                 && value == expected
-                && let Some(bits) = const_of(func, count)
-                && const_of(func, inner_count) == Some(bits)
+                && let Some(bits) = func.value_u256(count)
+                && func.value_u256(inner_count) == Some(bits)
                 && bits < U256::from(256)
                 && self.range_of(func, expected, depth).hi
                     <= integer_max(func, expected) >> bits.to::<usize>()
@@ -2941,14 +2877,13 @@ impl<'a> CheckEliminator<'a> {
             return false;
         };
         let Some(&InstKind::Eq(lhs, rhs)) = inst_kind(func, roundtrip) else { return false };
-        let (quotient, two) = if const_of(func, rhs) == Some(U256::from(2)) {
-            (lhs, rhs)
-        } else if const_of(func, lhs) == Some(U256::from(2)) {
-            (rhs, lhs)
+        let quotient = if func.value_u256(rhs) == Some(U256::from(2)) {
+            lhs
+        } else if func.value_u256(lhs) == Some(U256::from(2)) {
+            rhs
         } else {
             return false;
         };
-        debug_assert!(const_of(func, two).is_some());
         let Some(&InstKind::Div(sum, divisor)) = inst_kind(func, quotient) else { return false };
         if divisor != x || doubled(func, sum) != Some((x, false)) {
             return false;
@@ -2988,7 +2923,7 @@ impl<'a> CheckEliminator<'a> {
     fn enter_edge(&mut self, func: &Function, block: BlockId, pred: BlockId, exit: &Facts) {
         self.ranges.clone_from(&exit.ranges);
         self.relations.clone_from(&exit.relations);
-        self.strict_lower_bounds = None;
+        self.strict_bounds_valid = false;
         self.range_undo.clear();
         self.relation_undo.clear();
         if let Some(Terminator::Branch { condition, then_block, else_block }) =
@@ -3026,12 +2961,7 @@ fn memory_feeds(func: &Function) -> FxHashSet<InstId> {
     let mut sinks = Vec::new();
     for id in func.instructions() {
         let kind = &func.inst(id).kind;
-        kind.visit_raw_memory(|_, address, size| {
-            sinks.push(address);
-            if let RawMemorySize::Value(size) = size {
-                sinks.push(size);
-            }
-        });
+        visit_raw_memory_operands(kind, |operand| sinks.push(operand));
         if let InstKind::ICall { function: Callee::Function(_), args } = kind {
             sinks.extend(args.iter().copied());
         }
@@ -3073,6 +3003,16 @@ fn memory_feeds(func: &Function) -> FxHashSet<InstId> {
     feeds
 }
 
+/// Visits the address and the variable size operand of each raw memory range `kind` accesses.
+fn visit_raw_memory_operands(kind: &InstKind, mut f: impl FnMut(ValueId)) {
+    kind.visit_raw_memory(|_, address, size| {
+        f(address);
+        if let RawMemorySize::Value(size) = size {
+            f(size);
+        }
+    });
+}
+
 /// The blocks of the instructions reading each value, phis aside.
 fn value_readers(func: &Function) -> IndexLists<ValueId, BlockId> {
     let mut pairs = Vec::new();
@@ -3092,19 +3032,14 @@ fn value_readers(func: &Function) -> IndexLists<ValueId, BlockId> {
 /// operands are included conservatively even when range evaluation stops there.
 fn branch_inputs(func: &Function, cfg: &CfgInfo) -> DenseBitSet<ValueId> {
     let mut relevant = DenseBitSet::new_empty(func.num_values());
-    let mut pending = cfg
-        .rpo()
-        .iter()
-        .filter_map(|&block| match func.blocks[block].terminator {
-            Some(Terminator::Branch { condition, then_block, else_block })
-                if then_block != else_block =>
-            {
-                Some(condition)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let mut pending = Vec::new();
     for &block in cfg.rpo() {
+        if let Some(Terminator::Branch { condition, then_block, else_block }) =
+            func.blocks[block].terminator
+            && then_block != else_block
+        {
+            pending.push(condition);
+        }
         for &inst in &func.blocks[block].instructions {
             let kind = &func.inst(inst).kind;
             if let InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), args } = kind
@@ -3125,10 +3060,6 @@ fn branch_inputs(func: &Function, cfg: &CfgInfo) -> DenseBitSet<ValueId> {
     relevant
 }
 
-/// Follows the boolean operations that `assume` can inspect, in stable block
-/// and operand order. Other computations cannot introduce a relational fact.
-/// Conditions outside the current scope are harmless: every candidate still
-/// requires membership in the current fact set. No IR changes during analysis.
 /// Orderings that hold wherever their operands do: a right shift, a division
 /// by a nonzero constant, a mask, or a remainder never exceeds the value it
 /// derives from. Only values feeding branches are indexed.
@@ -3155,7 +3086,7 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
             }
             InstKind::Mod(x, divisor) => {
                 relations.insert(Relation::Le(value, x));
-                if const_of(func, divisor).is_some_and(|c| !c.is_zero()) {
+                if func.value_u256(divisor).is_some_and(|c| !c.is_zero()) {
                     relations.insert(Relation::Lt(value, divisor));
                 }
             }
@@ -3163,7 +3094,7 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
                 let (a, b) = ordered(value, x);
                 relations.insert(Relation::Eq(a, b));
             }
-            InstKind::Div(x, divisor) if const_of(func, divisor).is_some_and(|c| !c.is_zero()) => {
+            InstKind::Div(x, divisor) if func.value_u256(divisor).is_some_and(|c| !c.is_zero()) => {
                 relations.insert(Relation::Le(value, x));
             }
             // A checked remainder fails on a zero divisor, so it is below its divisor wherever it
@@ -3185,7 +3116,7 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
                 lhs: x,
                 rhs: y,
             } => {
-                if const_of(func, y).is_some_and(|c| !c.is_zero()) {
+                if func.value_u256(y).is_some_and(|c| !c.is_zero()) {
                     relations.insert(Relation::Lt(value, x));
                 } else {
                     relations.insert(Relation::Le(value, x));
@@ -3233,14 +3164,12 @@ fn clamp_limit(func: &Function, x: ValueId, adjustment: ValueId) -> Option<Value
     None
 }
 
-fn relation_candidates(func: &Function) -> FxHashMap<ValueId, SmallVec<[Relation; 2]>> {
-    let mut index = FxHashMap::<_, SmallVec<[Relation; 2]>>::default();
-    let mut seen = FxHashSet::default();
-    let mut add = |relation: Relation| {
-        if seen.insert(relation) {
-            index_relation(&mut index, relation);
-        }
-    };
+/// Follows the boolean operations that `assume` can inspect, in stable block
+/// and operand order. Other computations cannot introduce a relational fact.
+/// Conditions outside the current scope are harmless: every candidate still
+/// requires membership in the current fact set. No IR changes during analysis.
+fn relation_candidates(func: &Function) -> RelationIndex {
+    let mut index = RelationIndex::default();
     let mut visited = DenseBitSet::new_empty(func.num_values());
     let mut pending = Vec::new();
     for block in &func.blocks {
@@ -3267,8 +3196,8 @@ fn relation_candidates(func: &Function) -> FxHashMap<ValueId, SmallVec<[Relation
             }
             match inst_kind(func, value) {
                 Some(&InstKind::Lt(a, b)) | Some(&InstKind::Gt(b, a)) => {
-                    add(Relation::Lt(a, b));
-                    add(Relation::Le(b, a));
+                    index.insert(Relation::Lt(a, b));
+                    index.insert(Relation::Le(b, a));
                 }
                 Some(
                     &InstKind::Eq(a, b)
@@ -3277,7 +3206,7 @@ fn relation_candidates(func: &Function) -> FxHashMap<ValueId, SmallVec<[Relation
                     | &InstKind::Xor(a, b),
                 ) => {
                     let (x, y) = ordered(a, b);
-                    add(Relation::Eq(x, y));
+                    index.insert(Relation::Eq(x, y));
                 }
 
                 Some(&InstKind::And(a, b) | &InstKind::Or(a, b)) => {
@@ -3293,88 +3222,92 @@ fn relation_candidates(func: &Function) -> FxHashMap<ValueId, SmallVec<[Relation
             if let InstKind::Mod(_, divisor) = func.inst(inst).kind
                 && let Some(value) = func.inst_result_value(inst)
             {
-                add(Relation::Lt(value, divisor));
+                index.insert(Relation::Lt(value, divisor));
             }
             if let InstKind::Sub(x, k) = func.inst(inst).kind
                 && let Some(value) = func.inst_result_value(inst)
-                && const_of(func, k).is_some_and(|k| !k.is_zero())
+                && func.value_u256(k).is_some_and(|k| !k.is_zero())
             {
-                add(Relation::Lt(value, x));
+                index.insert(Relation::Lt(value, x));
             }
         }
     }
     index
 }
 
-/// Indexes `relation` under its left operand, and under both operands for an
-/// equality, so transitive searches can leave from either side.
-fn index_relation(index: &mut FxHashMap<ValueId, SmallVec<[Relation; 2]>>, relation: Relation) {
-    let (a, b) = relation.operands();
-    let entry = index.entry(a).or_default();
-    if !entry.contains(&relation) {
-        entry.push(relation);
-    }
-    if matches!(relation, Relation::Eq(..)) && a != b {
-        let entry = index.entry(b).or_default();
-        if !entry.contains(&relation) {
-            entry.push(relation);
-        }
-    }
+/// The phis of loop headers that can influence a branch, as `(header, value, incoming)`.
+fn header_phis<'a>(
+    func: &'a Function,
+    cfg: &'a CfgInfo,
+    relevant: &'a DenseBitSet<ValueId>,
+) -> impl Iterator<Item = (BlockId, ValueId, &'a [(BlockId, ValueId)])> + 'a {
+    cfg.cyclic_blocks().iter().flat_map(move |header| {
+        func.blocks[header].instructions.iter().filter_map(move |&inst| {
+            let InstKind::Phi(incoming) = &func.inst(inst).kind else { return None };
+            let value = func.inst_result_value(inst)?;
+            relevant.contains(value).then_some((header, value, incoming.as_slice()))
+        })
+    })
 }
 
-/// Finds header phis `p = phi [pre: init], [latch: p - c]` or `[latch: p + c]`
-/// with a constant nonzero step whose header dominates the latch but not the
-/// outside predecessor. Only phis that can influence a branch are considered.
+/// A loop header phi `p = phi [pre: initial], [latch: next]` with one input from outside its
+/// loop and one from a latch its header dominates.
+#[derive(Clone, Copy)]
+struct LoopPhi {
+    header: BlockId,
+    value: ValueId,
+    initial: ValueId,
+    next: ValueId,
+}
+
+/// The loop phis among the header phis that can influence a branch.
+fn loop_phis(func: &Function, cfg: &CfgInfo, relevant: &DenseBitSet<ValueId>) -> Vec<LoopPhi> {
+    let dominators = cfg.dominators();
+    header_phis(func, cfg, relevant)
+        .filter_map(|(header, value, incoming)| {
+            let &[(first_block, first), (second_block, second)] = incoming else { return None };
+            let (pre, initial, latch, next) = match (
+                dominators.dominates(header, first_block),
+                dominators.dominates(header, second_block),
+            ) {
+                (false, true) => (first_block, first, second_block, second),
+                (true, false) => (second_block, second, first_block, first),
+                _ => return None,
+            };
+            let predecessors = &func.blocks[header].predecessors;
+            (predecessors.contains(&pre) && predecessors.contains(&latch)).then_some(LoopPhi {
+                header,
+                value,
+                initial,
+                next,
+            })
+        })
+        .collect()
+}
+
+/// Finds loop phis `p = phi [pre: init], [latch: p - c]` or `[latch: p + c]` with a constant
+/// nonzero step.
 fn monotone_phi_candidates(
     func: &Function,
-    cfg: &CfgInfo,
-    relevant: &DenseBitSet<ValueId>,
+    definitions: &IndexVec<InstId, Option<BlockId>>,
+    phis: &[LoopPhi],
 ) -> Vec<MonotonePhi> {
-    let mut candidates = Vec::new();
-    let cyclic = cfg.cyclic_blocks();
-    if cyclic.is_empty() {
-        return candidates;
-    }
-    let definitions = func.inst_block_table();
-    let dominators = cfg.dominators();
-    for header in cyclic.iter() {
-        for &inst in &func.blocks[header].instructions {
-            let InstKind::Phi(incoming) = &func.inst(inst).kind else { continue };
-            let Some(value) = func.inst_result_value(inst) else { continue };
-            if !relevant.contains(value) {
-                continue;
-            }
-            let [(first_block, first), (second_block, second)] = incoming.as_slice() else {
-                continue;
-            };
-            let (pre, initial, latch, next) = match (
-                dominators.dominates(header, *first_block),
-                dominators.dominates(header, *second_block),
-            ) {
-                (false, true) => (*first_block, *first, *second_block, *second),
-                (true, false) => (*second_block, *second, *first_block, *first),
-                _ => continue,
-            };
-            if !func.blocks[header].predecessors.contains(&pre)
-                || !func.blocks[header].predecessors.contains(&latch)
-            {
-                continue;
-            }
-            let Value::Inst(next_inst) = func.value(next) else { continue };
+    phis.iter()
+        .filter_map(|&LoopPhi { header, value, initial, next }| {
+            let Value::Inst(next_inst) = func.value(next) else { return None };
             let (step, decreasing) = match func.inst(*next_inst).kind {
                 InstKind::Sub(base, step) if base == value => (step, true),
                 InstKind::Add(base, step) if base == value => (step, false),
                 InstKind::Add(step, base) if base == value => (step, false),
-                _ => continue,
+                _ => return None,
             };
-            if !const_of(func, step).is_some_and(|step| !step.is_zero()) {
-                continue;
+            if func.value_u256(step)?.is_zero() {
+                return None;
             }
-            let Some(home) = definitions[*next_inst] else { continue };
-            candidates.push(MonotonePhi { header, value, initial, next, step, home, decreasing });
-        }
-    }
-    candidates
+            let home = definitions[*next_inst]?;
+            Some(MonotonePhi { header, value, initial, next, step, home, decreasing })
+        })
+        .collect()
 }
 
 /// Finds header phis with a single incoming value from outside their loop that a backedge may
@@ -3385,13 +3318,13 @@ fn monotone_phi_candidates(
 fn header_bound_candidates(
     func: &Function,
     cfg: &CfgInfo,
+    definitions: &IndexVec<InstId, Option<BlockId>>,
     relevant: &DenseBitSet<ValueId>,
     monotone: &[MonotonePhi],
 ) -> Vec<HeaderBound> {
     const MAX_HEADER_BOUNDS: usize = 12;
     let mut bounds = Vec::new();
     let dominators = cfg.dominators();
-    let definitions = func.inst_block_table();
     let cyclic = cfg.cyclic_blocks();
     // Whether `value` is defined before the loop of `header`, so it is fixed while the loop runs.
     let before = |value: ValueId, header: BlockId| match func.value(value) {
@@ -3399,43 +3332,40 @@ fn header_bound_candidates(
             .is_some_and(|block| block != header && dominators.dominates(block, header)),
         _ => true,
     };
-    for header in cyclic.iter() {
-        for &inst in &func.blocks[header].instructions {
-            let InstKind::Phi(incoming) = &func.inst(inst).kind else { continue };
-            let Some(value) = func.inst_result_value(inst) else { continue };
-            if !relevant.contains(value) || monotone.iter().any(|phi| phi.value == value) {
-                continue;
-            }
-            let mut outside =
-                incoming.iter().filter(|&&(block, _)| !dominators.dominates(header, block));
-            let (Some(&(_, initial)), None) = (outside.next(), outside.next()) else { continue };
-            if incoming.iter().all(|&(_, incoming)| incoming == value || incoming == initial) {
-                continue;
-            }
-            let mut found = SmallVec::<[(ValueId, bool); 4]>::new();
-            if !const_of(func, initial).is_some_and(|initial| initial.is_zero()) {
-                found.extend([(initial, true), (initial, false)]);
-            }
-            for block in cyclic.iter().filter(|&block| dominators.dominates(header, block)) {
-                for &compare in &func.blocks[block].instructions {
-                    let (limit, upper) = match func.inst(compare).kind {
-                        InstKind::Lt(p, n) | InstKind::Gt(n, p) if p == value => (n, true),
-                        InstKind::Lt(n, p) | InstKind::Gt(p, n) if p == value => (n, false),
-                        InstKind::Eq(a, b) | InstKind::Ne(a, b) if a == value => (b, true),
-                        InstKind::Eq(a, b) | InstKind::Ne(a, b) if b == value => (a, true),
-                        _ => continue,
-                    };
-                    if before(limit, header) && !found.contains(&(limit, upper)) {
-                        found.push((limit, upper));
-                    }
+    let mut found = SmallVec::<[(ValueId, bool); 4]>::new();
+    for (header, value, incoming) in header_phis(func, cfg, relevant) {
+        if monotone.iter().any(|phi| phi.value == value) {
+            continue;
+        }
+        let mut outside =
+            incoming.iter().filter(|&&(block, _)| !dominators.dominates(header, block));
+        let (Some(&(_, initial)), None) = (outside.next(), outside.next()) else { continue };
+        if incoming.iter().all(|&(_, incoming)| incoming == value || incoming == initial) {
+            continue;
+        }
+        found.clear();
+        if !func.value_u256(initial).is_some_and(|initial| initial.is_zero()) {
+            found.extend([(initial, true), (initial, false)]);
+        }
+        for block in cyclic.iter().filter(|&block| dominators.dominates(header, block)) {
+            for &compare in &func.blocks[block].instructions {
+                let (limit, upper) = match func.inst(compare).kind {
+                    InstKind::Lt(p, n) | InstKind::Gt(n, p) if p == value => (n, true),
+                    InstKind::Lt(n, p) | InstKind::Gt(p, n) if p == value => (n, false),
+                    InstKind::Eq(a, b) | InstKind::Ne(a, b) if a == value => (b, true),
+                    InstKind::Eq(a, b) | InstKind::Ne(a, b) if b == value => (a, true),
+                    _ => continue,
+                };
+                if before(limit, header) && !found.contains(&(limit, upper)) {
+                    found.push((limit, upper));
                 }
             }
-            for (limit, upper) in found {
-                if bounds.len() == MAX_HEADER_BOUNDS {
-                    return bounds;
-                }
-                bounds.push(HeaderBound { header, value, limit, upper });
+        }
+        for &(limit, upper) in &found {
+            if bounds.len() == MAX_HEADER_BOUNDS {
+                return bounds;
             }
+            bounds.push(HeaderBound { header, value, limit, upper });
         }
     }
     bounds
@@ -3452,26 +3382,32 @@ fn header_bound_candidates(
 fn bound_obligations(
     func: &Function,
     cfg: &CfgInfo,
+    definitions: &IndexVec<InstId, Option<BlockId>>,
     bounds: &[HeaderBound],
-) -> Vec<BoundObligation> {
+    obligations: &mut Vec<BoundObligation>,
+) {
     const MAX_JOIN_DEPTH: usize = 4;
     let dominators = cfg.dominators();
-    let definitions = func.inst_block_table();
-    let mut obligations = Vec::new();
+    obligations.clear();
+    let mut kept = FxIndexSet::default();
+    let mut expanded = FxHashSet::default();
+    let mut pending = Vec::new();
     for (bound, &HeaderBound { header, value: phi, limit, .. }) in bounds.iter().enumerate() {
         let Some(InstKind::Phi(incoming)) = inst_kind(func, phi) else { continue };
-        let mut kept = FxIndexSet::default();
-        let mut expanded = FxHashSet::default();
+        kept.clear();
+        expanded.clear();
         for &(block, value) in incoming {
             if !dominators.dominates(header, block) && value != limit {
                 kept.insert((block, value));
             }
         }
-        let mut pending: Vec<_> = incoming
-            .iter()
-            .filter(|&&(block, _)| dominators.dominates(header, block))
-            .map(|&(block, value)| (block, value, 0))
-            .collect();
+        pending.clear();
+        pending.extend(
+            incoming
+                .iter()
+                .filter(|&&(block, _)| dominators.dominates(header, block))
+                .map(|&(block, value)| (block, value, 0)),
+        );
         while let Some((block, value, depth)) = pending.pop() {
             if value == phi {
                 continue;
@@ -3490,22 +3426,21 @@ fn bound_obligations(
             }
             kept.insert((block, value));
         }
-        obligations.extend(kept.into_iter().map(|(block, value)| BoundObligation {
+        obligations.extend(kept.drain(..).map(|(block, value)| BoundObligation {
             bound,
             block,
             value,
         }));
     }
     obligations.sort_by_key(|obligation| obligation.block);
-    obligations
 }
 
 /// Finds the midpoints feeding branches: `(a + b) / 2` and `(a + b) >> 1`, and the ordered
 /// `a + (b - a) / 2` and `a + ((b - a) >> 1)`.
 fn midpoints(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxIndexMap<InstId, Midpoint> {
     let halved = |value: ValueId| match *inst_kind(func, value)? {
-        InstKind::Div(x, two) if const_of(func, two) == Some(U256::from(2)) => Some(x),
-        InstKind::Shr(one, x) if const_of(func, one) == Some(U256::ONE) => Some(x),
+        InstKind::Div(x, two) if func.value_u256(two) == Some(U256::from(2)) => Some(x),
+        InstKind::Shr(one, x) if func.value_u256(one) == Some(U256::ONE) => Some(x),
         _ => None,
     };
     let sum = |value: ValueId| match *inst_kind(func, value)? {
@@ -3582,14 +3517,13 @@ fn doubled(func: &Function, value: ValueId) -> Option<(ValueId, bool)> {
     match *inst_kind(func, value)? {
         InstKind::Add(a, b) if a == b => Some((a, false)),
         InstKind::Add(a, b) => {
-            let (inner, one) = if const_of(func, b) == Some(U256::from(1)) {
-                (a, b)
-            } else if const_of(func, a) == Some(U256::from(1)) {
-                (b, a)
+            let inner = if func.value_u256(b) == Some(U256::from(1)) {
+                a
+            } else if func.value_u256(a) == Some(U256::from(1)) {
+                b
             } else {
                 return None;
             };
-            debug_assert!(const_of(func, one).is_some());
             match *inst_kind(func, inner)? {
                 InstKind::Add(x, y) if x == y => Some((x, true)),
                 _ => None,
@@ -3604,8 +3538,8 @@ fn doubled(func: &Function, value: ValueId) -> Option<(ValueId, bool)> {
 /// `2^MAX_TRIP_COUNT_BITS` latch executions, when both constants are known
 /// and the far end fits in a word.
 fn trip_count_bound(func: &Function, phi: &MonotonePhi) -> Option<Range> {
-    let initial = const_of(func, phi.initial)?;
-    let step = const_of(func, phi.step)?;
+    let initial = func.value_u256(phi.initial)?;
+    let step = func.value_u256(phi.step)?;
     if phi.decreasing {
         let travel = step.checked_shl(Target::MAX_TRIP_COUNT_BITS)?;
         Some(Range::new(initial.checked_sub(travel)?, initial))
@@ -3627,12 +3561,15 @@ fn ascending_trip_bound(
     Some(Range::new(initial, far))
 }
 
+/// The operand and the constant of `and x, C`.
+fn masked_input(func: &Function, kind: &InstKind) -> Option<(ValueId, U256)> {
+    let InstKind::And(a, b) = *kind else { return None };
+    func.value_u256(b).map(|mask| (a, mask)).or_else(|| func.value_u256(a).map(|mask| (b, mask)))
+}
+
 /// The value `x` of `and x, MAX << low`, which clears the low `low` bits, and `low`.
 fn high_mask_input(func: &Function, kind: &InstKind) -> Option<(ValueId, usize)> {
-    let InstKind::And(a, b) = *kind else { return None };
-    let (value, mask) = const_of(func, b)
-        .map(|mask| (a, mask))
-        .or_else(|| const_of(func, a).map(|mask| (b, mask)))?;
+    let (value, mask) = masked_input(func, kind)?;
     let low = mask.trailing_zeros();
     (low > 0 && low < 256 && mask == U256::MAX << low).then_some((value, low))
 }
@@ -3668,10 +3605,7 @@ fn shifted_high_mask_inputs(
 }
 
 fn low_mask_input(func: &Function, kind: &InstKind) -> Option<(ValueId, U256)> {
-    let InstKind::And(a, b) = *kind else { return None };
-    let (value, mask) = const_of(func, b)
-        .map(|mask| (a, mask))
-        .or_else(|| const_of(func, a).map(|mask| (b, mask)))?;
+    let (value, mask) = masked_input(func, kind)?;
     (mask.wrapping_add(U256::ONE) & mask == U256::ZERO).then_some((value, mask))
 }
 
@@ -3694,49 +3628,15 @@ fn widened_nonzero_test(func: &Function, kind: &InstKind) -> Option<ValueId> {
 /// constant `c`, as a counter that only some iterations advance is: within the target's trip
 /// bound, `p` moves at most `2^MAX_TRIP_COUNT_BITS` times the largest step from a constant
 /// start, when the far end fits in `p`'s type.
-fn counter_bounds(
-    func: &Function,
-    cfg: &CfgInfo,
-    relevant: &DenseBitSet<ValueId>,
-) -> Vec<(ValueId, Range)> {
-    let mut bounds = Vec::new();
-    let cyclic = cfg.cyclic_blocks();
-    if cyclic.is_empty() {
-        return bounds;
-    }
-    let dominators = cfg.dominators();
-    for header in cyclic.iter() {
-        for &inst in &func.blocks[header].instructions {
-            let InstKind::Phi(incoming) = &func.inst(inst).kind else { continue };
-            let Some(value) = func.inst_result_value(inst) else { continue };
-            if !relevant.contains(value) {
-                continue;
-            }
-            let [(first_block, first), (second_block, second)] = incoming.as_slice() else {
-                continue;
-            };
-            let (pre, initial, latch, next) = match (
-                dominators.dominates(header, *first_block),
-                dominators.dominates(header, *second_block),
-            ) {
-                (false, true) => (*first_block, *first, *second_block, *second),
-                (true, false) => (*second_block, *second, *first_block, *first),
-                _ => continue,
-            };
-            if !func.blocks[header].predecessors.contains(&pre)
-                || !func.blocks[header].predecessors.contains(&latch)
-            {
-                continue;
-            }
-            if let Some(initial) = const_of(func, initial)
-                && let Some(step) = largest_step(func, value, next)
-                && let Some(bound) = ascending_trip_bound(func, value, initial, step)
-            {
-                bounds.push((value, bound));
-            }
-        }
-    }
-    bounds
+fn counter_bounds<'a>(
+    func: &'a Function,
+    phis: &'a [LoopPhi],
+) -> impl Iterator<Item = (ValueId, Range)> + 'a {
+    phis.iter().filter_map(|&LoopPhi { value, initial, next, .. }| {
+        let initial = func.value_u256(initial)?;
+        let step = largest_step(func, value, next)?;
+        Some((value, ascending_trip_bound(func, value, initial, step)?))
+    })
 }
 
 /// The largest constant `next` adds to the header phi `phi`, when every value `next` can be,
@@ -3755,21 +3655,14 @@ fn largest_step(func: &Function, phi: ValueId, next: ValueId) -> Option<U256> {
             return None;
         }
         match *inst_kind(func, value)? {
-            InstKind::Add(a, b) if a == phi => largest = largest.max(const_of(func, b)?),
-            InstKind::Add(a, b) if b == phi => largest = largest.max(const_of(func, a)?),
+            InstKind::Add(a, b) if a == phi => largest = largest.max(func.value_u256(b)?),
+            InstKind::Add(a, b) if b == phi => largest = largest.max(func.value_u256(a)?),
             InstKind::Phi(ref incoming) => pending.extend(incoming.iter().map(|&(_, value)| value)),
             InstKind::Select(_, a, b) => pending.extend([a, b]),
             _ => return None,
         }
     }
     (!largest.is_zero()).then_some(largest)
-}
-
-fn const_of(func: &Function, value: ValueId) -> Option<U256> {
-    match func.value(value) {
-        Value::Immediate(imm) => imm.as_u256(),
-        _ => None,
-    }
 }
 
 fn inst_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
@@ -3779,22 +3672,22 @@ fn inst_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
     }
 }
 
-/// Returns true if both values are the same SSA value or the same constant.
 /// The value and constant of a sum `value + constant` with a nonzero constant.
 fn constant_offset(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
     let InstKind::Add(x, y) = *inst_kind(func, value)? else { return None };
-    match (const_of(func, x), const_of(func, y)) {
+    match (func.value_u256(x), func.value_u256(y)) {
         (None, Some(c)) if !c.is_zero() => Some((x, c)),
         (Some(c), None) if !c.is_zero() => Some((y, c)),
         _ => None,
     }
 }
 
+/// Returns true if both values are the same SSA value or the same constant.
 fn values_equal(func: &Function, a: ValueId, b: ValueId) -> bool {
     if a == b {
         return true;
     }
-    match (const_of(func, a), const_of(func, b)) {
+    match (func.value_u256(a), func.value_u256(b)) {
         (Some(a), Some(b)) => a == b,
         _ => false,
     }
@@ -3824,9 +3717,9 @@ fn successor_of(func: &Function, value: ValueId) -> Option<ValueId> {
         } => (a, b),
         _ => return None,
     };
-    if const_of(func, b) == Some(U256::ONE) {
+    if func.value_u256(b) == Some(U256::ONE) {
         Some(a)
-    } else if const_of(func, a) == Some(U256::ONE) {
+    } else if func.value_u256(a) == Some(U256::ONE) {
         Some(b)
     } else {
         None
@@ -3910,7 +3803,8 @@ mod tests {
             let limit =
                 func.inst_result_value(func.blocks[BlockId::ENTRY].instructions[0]).unwrap();
             let bound = HeaderBound { header, value: phi, limit, upper: true };
-            let obligations = bound_obligations(func, &cfg, &[bound]);
+            let mut obligations = Vec::new();
+            bound_obligations(func, &cfg, &func.inst_block_table(), &[bound], &mut obligations);
             // The entry's zero, and the body's value at the end of each path into the first join,
             // however many paths reach that join.
             assert_eq!(obligations.len(), fan + 1);
