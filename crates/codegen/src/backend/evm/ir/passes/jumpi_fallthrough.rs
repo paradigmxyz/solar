@@ -117,7 +117,6 @@ pub(super) fn turn_branches(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 term.metadata.take_function_invoke();
                 term.kind = TerminatorKind::Jump(next);
             }
-            references[next] -= 1;
             changed = true;
         }
     }
