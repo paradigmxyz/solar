@@ -89,17 +89,7 @@ impl MirPass for LowerMCopy {
             return false;
         }
 
-        let call_graph = CallGraphInfo::new(module);
-        let constructor_roots = module
-            .functions
-            .iter_enumerated()
-            .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id));
-        let mut constructor_reachable = call_graph.reachable_callees_from(constructor_roots);
-        for (id, func) in module.functions.iter_enumerated() {
-            if func.attributes.is_constructor {
-                constructor_reachable.insert(id);
-            }
-        }
+        let constructor_reachable = module.constructor_reachable_functions();
         let target = module.target(gcx);
         let summaries = module.is_optimized().then(|| analyses.call_summaries(module));
         let sites = module
