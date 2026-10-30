@@ -785,9 +785,10 @@ impl Target {
     }
 
     /// Whether a compact recipe for an immediate, `saved_bytes` shorter than its literal push and
-    /// `extra_gas` dearer to run, is the better code. Size builds always take the bytes. Gas
-    /// and `-O none` builds take them when the deposit they save covers the extra gas over the
-    /// expected executions, [`Self::UNCOUNTED_LOOP_ITERATIONS`] times over for a push inside a
+    /// `extra_gas` dearer to run, is the better code. Size builds, and cold code priced by
+    /// [`Self::priced_for_cold`], always take the bytes.
+    /// Gas and `-O none` builds take them when the deposit they save covers the extra gas over
+    /// the expected executions, [`Self::UNCOUNTED_LOOP_ITERATIONS`] times over for a push inside a
     /// loop, so a hot loop pushes a mask as a literal rather than rebuilding it on every
     /// iteration; a tie takes the bytes, which cost no more over the deployment's lifetime.
     ///
