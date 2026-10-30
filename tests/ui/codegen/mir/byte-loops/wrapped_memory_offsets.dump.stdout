@@ -458,77 +458,76 @@ fn @_copyWords(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
   bb4:
     v24 = shl arg4, 5
     v25 = shl arg2, 5
-    v81 = add arg0, v25
-    v82 = add v81, 32
+    v78 = add arg0, v25
+    v79 = add v78, 32
     v28 = shl arg3, 5
-    v84 = add arg1, v28
-    v85 = add v84, 32
-    v34 = add v82, v24
-    v35 = add v85, v24
-    v36 = lt v85, v34
+    v81 = add arg1, v28
+    v82 = add v81, 32
+    v34 = add v79, v24
+    v35 = add v82, v24
+    v36 = lt v82, v34
     v37 = lt arg0, v35
     v38 = and v36, v37
     v39 = zext i1 v38 to i256
-    v87 = add arg0, 32
-    v42 = lt v82, v87
+    v84 = add arg0, 32
+    v42 = lt v79, v84
     v43 = zext i1 v42 to i256
     v44 = or v39, v43
-    v89 = add arg1, 32
-    v47 = lt v85, v89
+    v86 = add arg1, 32
+    v47 = lt v82, v86
     v48 = zext i1 v47 to i256
     v49 = or v44, v48
-    v51 = gt arg4, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v52 = zext i1 v51 to i256
-    v53 = or v49, v52
-    v54 = ne v53, 0
-    jumpi v54, bb1, bb5
+    v50 = shr arg4, 251
+    v51 = or v49, v50
+    v52 = ne v51, 0
+    jumpi v52, bb1, bb5
   bb5:
-    v55 = mload arg0
-    v56 = lt v55, arg4
-    v57 = sub v55, arg4
-    v58 = gt arg2, v57
-    v59 = or v56, v58
-    v61 = mload arg1
-    v62 = lt v61, arg4
-    v63 = sub v61, arg4
-    v64 = gt arg3, v63
-    v65 = or v62, v64
-    v68 = or v59, v65
-    jumpi v68, bb6, bb9
+    v53 = mload arg0
+    v54 = lt v53, arg4
+    v55 = sub v53, arg4
+    v56 = gt arg2, v55
+    v57 = or v54, v56
+    v59 = mload arg1
+    v60 = lt v59, arg4
+    v61 = sub v59, arg4
+    v62 = gt arg3, v61
+    v63 = or v60, v62
+    v66 = or v57, v63
+    jumpi v66, bb6, bb9
   bb9:
-    mcopy v85, v82, v24
+    mcopy v82, v79, v24
     jump bb2
   bb1:
     v5 = phi [bb4: 0], [bb8: v22]
     v6 = lt v5, arg4
     jumpi v6, bb3, bb2
   bb3:
-    v75 = add arg2, v5
-    v76 = lt v75, arg2
-    jumpi v76, bb10, bb11
+    v73 = add arg2, v5
+    v74 = lt v73, arg2
+    jumpi v74, bb10, bb11
   bb11:
     v8 = mload arg0
-    v9 = lt v75, v8
+    v9 = lt v73, v8
     jumpi v9, bb7, bb6
   bb7:
-    v11 = shl v75, 5
-    v91 = add arg0, v11
-    v92 = add v91, 32
-    v14 = mload v92
-    v77 = add arg3, v5
-    v78 = lt v77, arg3
-    jumpi v78, bb10, bb12
+    v11 = shl v73, 5
+    v88 = add arg0, v11
+    v89 = add v88, 32
+    v14 = mload v89
+    v75 = add arg3, v5
+    v76 = lt v75, arg3
+    jumpi v76, bb10, bb12
   bb12:
     v16 = mload arg1
-    v17 = lt v77, v16
+    v17 = lt v75, v16
     jumpi v17, bb8, bb6
   bb6:
     tail_call @revert_stub
   bb8:
-    v19 = shl v77, 5
-    v94 = add arg1, v19
-    v95 = add v94, 32
-    mstore v95, v14
+    v19 = shl v75, 5
+    v91 = add arg1, v19
+    v92 = add v91, 32
+    mstore v92, v14
     v22 = add v5, 1
     jump bb1
   bb10:

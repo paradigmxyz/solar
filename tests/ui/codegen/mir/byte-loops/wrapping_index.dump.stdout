@@ -477,20 +477,20 @@ fn @wrappedWord() [selector=0xc280cc68, abi_wrapper, pure] {
 
 fn @wrappedArray() [selector=0x20a8a4e4, abi_wrapper, pure] {
   bb0:
-    v83 = calldatasize
-    v84 = lt v83, 132
-    v85 = calldataload 4
-    v86 = add v85, 4
-    v88 = sub v83, 36
-    v89 = gt v85, v88
-    v125 = or v84, v89
-    v90 = calldataload v86
-    v91 = add v86, 32
-    v92 = sub v83, v91
-    v93 = shr v92, 5
-    v94 = gt v90, v93
-    v126 = or v125, v94
-    jumpi v126, bb15, bb16
+    v81 = calldatasize
+    v82 = lt v81, 132
+    v83 = calldataload 4
+    v84 = add v83, 4
+    v86 = sub v81, 36
+    v87 = gt v83, v86
+    v123 = or v82, v87
+    v88 = calldataload v84
+    v89 = add v84, 32
+    v90 = sub v81, v89
+    v91 = shr v90, 5
+    v92 = gt v88, v91
+    v124 = or v123, v92
+    jumpi v124, bb15, bb16
   bb16:
     v13 = add arg3, 1
     v14 = eq v13, 0
@@ -501,18 +501,18 @@ fn @wrappedArray() [selector=0x20a8a4e4, abi_wrapper, pure] {
     v17 = ne v16, 0
     jumpi v17, bb6, bb8
   bb8:
-    v117 = heap_floor !metadata(alloc_ptr)
-    v118 = add v117, v15 !metadata(alloc_ptr)
-    v120 = shr v118, 64
-    v119 = lt v118, v117
-    v121 = zext i1 v119 to i256
-    v122 = or v121, v120
-    v123 = ne v122, 0
-    jumpi v123, bb18, bb17
+    v115 = heap_floor !metadata(alloc_ptr)
+    v116 = add v115, v15 !metadata(alloc_ptr)
+    v118 = shr v116, 64
+    v117 = lt v116, v115
+    v119 = zext i1 v117 to i256
+    v120 = or v119, v118
+    v121 = ne v120, 0
+    jumpi v121, bb18, bb17
   bb17:
-    v124 = calldatasize
-    calldatacopy v117, v124, v15
-    mstore v117, arg3
+    v122 = calldatasize
+    calldatacopy v115, v122, v15
+    mstore v115, arg3
     v44 = eq arg3, 0
     jumpi v44, bb2, bb4
   bb4:
@@ -522,45 +522,47 @@ fn @wrappedArray() [selector=0x20a8a4e4, abi_wrapper, pure] {
     v51 = add v49, v45
     v52 = lt v51, v49
     v53 = add arg2, arg3
+    v55 = shr v53, 251
     v54 = lt v53, arg2
-    v56 = gt v53, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v57 = or v54, v56
-    v63 = or v52, v57
-    jumpi v63, bb1, bb5
+    v56 = zext i1 v54 to i256
+    v57 = or v56, v55
+    v58 = ne v57, 0
+    v59 = or v52, v58
+    jumpi v59, bb1, bb5
   bb5:
-    v110 = add v117, 32
-    calldatacopy v110, v49, v45
+    v108 = add v115, 32
+    calldatacopy v108, v49, v45
     jump bb2
   bb1:
     v24 = phi [bb4: 0], [bb12: v43]
     v25 = lt v24, arg3
     jumpi v25, bb3, bb2
   bb3:
-    v80 = add arg2, v24
-    v81 = lt v80, arg2
-    jumpi v81, bb13, bb14
+    v79 = add arg2, v24
+    v80 = lt v79, arg2
+    jumpi v80, bb13, bb14
   bb14:
-    v105 = not v80
-    v28 = ne v105, 0
+    v103 = not v79
+    v28 = ne v103, 0
     jumpi v28, bb10, bb9
   bb10:
-    v31 = shl v80, 5
-    v32 = shr v80, 251
+    v31 = shl v79, 5
+    v32 = shr v79, 251
     v33 = ne v32, 0
     jumpi v33, bb6, bb11
   bb11:
     v35 = add arg1, v31
     v36 = calldataload v35
-    v37 = mload v117
+    v37 = mload v115
     v38 = lt v24, v37
     jumpi v38, bb12, bb9
   bb9:
     tail_call @revert_stub.9
   bb12:
     v40 = shl v24, 5
-    v112 = add v117, v40
-    v113 = add v112, 32
-    mstore v113, v36
+    v110 = add v115, v40
+    v111 = add v110, 32
+    mstore v111, v36
     v43 = add v24, 1
     jump bb1
   bb13:
@@ -568,12 +570,12 @@ fn @wrappedArray() [selector=0x20a8a4e4, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
-    v100 = mload v117
-    v101 = shl v100, 5
-    v108 = sub v117, 32
-    mstore v108, 32
-    v103 = add v101, 64
-    returndata v108, v103
+    v98 = mload v115
+    v99 = shl v98, 5
+    v106 = sub v115, 32
+    mstore v106, 32
+    v101 = add v99, 64
+    returndata v106, v101
   bb18:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

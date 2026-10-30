@@ -2309,9 +2309,8 @@ impl LowerAbiCx {
         // offset > u64::MAX || base + offset + 32 > input_end
         let target = builder.add(base, offset);
         let target_end = builder.add_u64_offset(target, 32);
-        let overflow = builder.exceeds_bits(offset, 64, ConditionUse::VALUE);
         let out_of_range = builder.gt(target_end, input_end);
-        builder.or(overflow, out_of_range)
+        builder.exceeds_bits_or(out_of_range, offset, 64, ConditionUse::BRANCH)
     }
 
     /// The debug message for a static aggregate whose head does not fit the input. Like solc,

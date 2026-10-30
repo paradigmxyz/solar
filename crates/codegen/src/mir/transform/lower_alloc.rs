@@ -422,17 +422,9 @@ fn bump_checked(
     let next = bump(builder, ptr, size);
     // bump_overflow = next < ptr
     let bump_overflow = builder.lt(next, ptr);
-    let bits = EvmMemoryLayout::MAX_ALLOCATION_END_BITS;
-    if let Some(high) = builder.shifted_exceeding_bits(next, bits, ConditionUse::BRANCH) {
-        // wrapped = zext bump_overflow to i256
-        // invalid = ne (or wrapped, high), 0
-        let wrapped = builder.cast_word(bump_overflow);
-        let any = builder.or(wrapped, high);
-        return (next, builder.ne_zero(any));
-    }
     // invalid = bump_overflow | next > limit
-    let over_limit = builder.exceeds_bits(next, bits, ConditionUse::VALUE);
-    (next, builder.or(bump_overflow, over_limit))
+    let bits = EvmMemoryLayout::MAX_ALLOCATION_END_BITS;
+    (next, builder.exceeds_bits_or(bump_overflow, next, bits, ConditionUse::BRANCH))
 }
 
 /// Marks the instruction that defines `value` as a word the allocator produced, a heap pointer

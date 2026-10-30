@@ -1890,9 +1890,7 @@ fn keeps_loop(
     }
     // scale_wraps = ne (shr bound, 256 - shift), 0
     // keeps_loop = or overlaps, scale_wraps
-    let scale_wraps =
-        builder.exceeds_bits(lp.bound, 256 - u32::from(src.shift), ConditionUse::VALUE);
-    builder.or(overlaps, scale_wraps)
+    builder.exceeds_bits_or(overlaps, lp.bound, 256 - u32::from(src.shift), ConditionUse::BRANCH)
 }
 
 /// Unless a zero word stored at the end of the copied bytes clears it, clears the padding of a
@@ -2063,9 +2061,12 @@ fn calldata_wraps(builder: &mut FunctionBuilder<'_>, access: &Access, count: Val
         let index_start = access.offset.unwrap_or_else(|| builder.imm(0));
         let index_end = builder.add(index_start, count);
         let index_wraps = builder.lt(index_end, index_start);
-        let scale_wraps =
-            builder.exceeds_bits(index_end, 256 - u32::from(access.shift), ConditionUse::VALUE);
-        let index_fails = builder.or(index_wraps, scale_wraps);
+        let index_fails = builder.exceeds_bits_or(
+            index_wraps,
+            index_end,
+            256 - u32::from(access.shift),
+            ConditionUse::BRANCH,
+        );
         wraps = builder.or(wraps, index_fails);
     }
     wraps

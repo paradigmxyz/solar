@@ -153,7 +153,7 @@ contract CheckedArithmeticShapes {
     // CHECK: [[RESULT:v[0-9]+]] = mul [[LHS]], [[RHS]]
     // CHECK: div [[RESULT]], [[RHS]]
     // CHECK: [[HIGH:v[0-9]+]] = shr [[RESULT]], 192
-    // CHECK-NEXT: ne [[HIGH]], 0
+    // CHECK: ne {{v[0-9]+}}, 0
     // CHECK: mstore 32, 17
     function umul192(uint192 a, uint192 b) public pure returns (uint192) {
         return a * b;

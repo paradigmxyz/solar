@@ -1348,6 +1348,27 @@ impl<'a> FunctionBuilder<'a> {
             .then(|| self.shift_word(word, bits))
     }
 
+    /// Emits `flag || word has a bit at or above bits`, for a result that `read` describes.
+    /// Where the pricing prefers the shift, it is one word zero test, `(flag | word >> bits) != 0`,
+    /// which a branch reads without materializing a boolean; otherwise an `or` of booleans.
+    pub fn exceeds_bits_or(
+        &mut self,
+        flag: ValueId,
+        word: ValueId,
+        bits: u32,
+        read: ConditionUse,
+    ) -> ValueId {
+        if let Some(high) = self.shifted_exceeding_bits(word, bits, read) {
+            // flag_word = zext flag to i256
+            // result = ne (or flag_word, high), 0
+            let flag_word = self.cast_word(flag);
+            let any = self.or(flag_word, high);
+            return self.ne_zero(any);
+        }
+        let exceeds = self.exceeds_bits(word, bits, ConditionUse::VALUE);
+        self.or(flag, exceeds)
+    }
+
     /// Emits `word >> bits`.
     fn shift_word(&mut self, word: ValueId, bits: u32) -> ValueId {
         let word = if self.func.value_ty(word) == Some(MirType::I256) {
@@ -1360,6 +1381,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     fn bits_test(&mut self, word: ValueId, bits: u32, fits: bool, read: ConditionUse) -> ValueId {
+        debug_assert!((1..256).contains(&bits), "a width test needs 1..256 bits, got {bits}");
         if self.bit_tests.as_ref().is_some_and(|pricing| pricing.shifts_bits_test(bits, fits, read))
         {
             // high = shr word, bits

@@ -155,10 +155,12 @@ contract Test {
     // bits when the resulting byte address itself does not wrap.
     // CHECK-LABEL: fn @wrappedArray(
     // CHECK: [[INDEX_END:v[0-9]+]] = add arg2, arg3
+    // CHECK-NEXT: [[SCALE_WRAPS:v[0-9]+]] = shr [[INDEX_END]], 251
     // CHECK-NEXT: [[INDEX_WRAPS:v[0-9]+]] = lt [[INDEX_END]], arg2
-    // CHECK-NEXT: [[SCALE_WRAPS:v[0-9]+]] = gt [[INDEX_END]], 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    // CHECK-NEXT: [[INDEX_FAILS:v[0-9]+]] = or [[INDEX_WRAPS]], [[SCALE_WRAPS]]
-    // CHECK-NEXT: [[FALLBACK:v[0-9]+]] = or {{v[0-9]+}}, [[INDEX_FAILS]]
+    // CHECK-NEXT: [[WRAPS_WORD:v[0-9]+]] = zext i1 [[INDEX_WRAPS]] to i256
+    // CHECK-NEXT: [[INDEX_FAILS:v[0-9]+]] = or [[WRAPS_WORD]], [[SCALE_WRAPS]]
+    // CHECK-NEXT: [[INDEX_FAILS_WORD:v[0-9]+]] = ne [[INDEX_FAILS]], 0
+    // CHECK-NEXT: [[FALLBACK:v[0-9]+]] = or {{v[0-9]+}}, [[INDEX_FAILS_WORD]]
     // CHECK-NEXT: jumpi [[FALLBACK]]
     // CHECK: calldatacopy
     // CHECK: phi

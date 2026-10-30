@@ -63,18 +63,18 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v169 = add v168, 4
     v171 = sub v166, 36
     v172 = gt v168, v171
-    v230 = or v167, v172
+    v228 = or v167, v172
     v173 = calldataload v169
     v174 = add v169, 32
     v175 = sub v166, v174
     v176 = shr v175, 5
     v177 = gt v173, v176
-    v231 = or v230, v177
-    jumpi v231, bb5, bb30
+    v229 = or v228, v177
+    jumpi v229, bb5, bb30
   bb30:
-    v228 = heap_floor !metadata(alloc_ptr)
-    v229 = add v228, 64
-    mstore 64, v229
+    v226 = heap_floor !metadata(alloc_ptr)
+    v227 = add v226, 64
+    mstore 64, v227
     v3 = shl v173, 5
     v6 = calldatasize
     v8 = sub v6, v174
@@ -85,47 +85,49 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v14 = lt v13, 32
     jumpi v14, bb4, bb7
   bb7:
-    v222 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v223 = add v222, v13 !metadata(alloc_ptr)
-    mstore 64, v223
-    mstore v222, v173
+    v220 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v221 = add v220, v13 !metadata(alloc_ptr)
+    mstore 64, v221
+    mstore v220, v173
     jump bb1
   bb1:
     v16 = phi [bb7: 0], [bb10: v56]
     v17 = lt v16, v173
     jumpi v17, bb2, bb3
   bb3:
-    mstore v228, arg0
-    v184 = add v228, 32
-    mstore v184, v222
-    v59 = icall @encodeFirst.body, v228
-    v186 = add v59, 32
+    mstore v226, arg0
+    v182 = add v226, 32
+    mstore v182, v220
+    v59 = icall @encodeFirst.body, v226
+    v184 = add v59, 32
     v93 = mload v59
-    v95 = add v186, v93
+    v95 = add v184, v93
     v96 = slt v93, 32
     jumpi v96, bb5, bb19
   bb19:
-    v97 = mload v186
-    v99 = add v186, v97
+    v97 = mload v184
+    v99 = add v184, v97
     v102 = gt v97, v93
     v103 = sub v95, v99
     v104 = lt v103, 64
-    v234 = or v102, v104
-    jumpi v234, bb5, bb20
+    v232 = or v102, v104
+    jumpi v232, bb5, bb20
   bb20:
-    v226 = mload 64 !metadata(alloc_ptr)
-    v227 = add v226, 64
-    mstore 64, v227
+    v224 = mload 64 !metadata(alloc_ptr)
+    v225 = add v224, 64
+    mstore 64, v225
     v106 = mload v99
-    mstore v226, v106
+    mstore v224, v106
     v107 = add v99, 32
     v108 = mload v107
     v109 = add v99, v108
     v111 = add v109, 32
-    v113 = gt v108, 0xffffffffffffffff
-    v114 = gt v111, v95
-    v115 = or v113, v114
-    jumpi v115, bb5, bb21
+    v113 = shr v108, 64
+    v112 = gt v111, v95
+    v114 = zext i1 v112 to i256
+    v115 = or v114, v113
+    v116 = ne v115, 0
+    jumpi v116, bb5, bb21
   bb21:
     v117 = mload v109
     v119 = shr v117, 59
@@ -134,8 +136,8 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
   bb22:
     v121 = add v117, 1
     v122 = shl v121, 5
-    v220 = icall @alloc, v122
-    mstore v220, v117
+    v218 = icall @alloc, v122
+    mstore v218, v117
     v125 = sub v95, v111
     v126 = shr v125, 5
     v127 = gt v117, v126
@@ -149,21 +151,21 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v131 = gt v128, 0
     jumpi v131, bb25, bb26
   bb26:
-    v201 = add v226, 32
-    mstore v201, v220
-    v61 = mload v226
-    v64 = mload v220
+    v199 = add v224, 32
+    mstore v199, v218
+    v61 = mload v224
+    v64 = mload v218
     v65 = gt v64, 0
     jumpi v65, bb12, bb11
   bb12:
-    v193 = add v220, 32
-    v212 = mload v193
-    v69 = mload v212
+    v191 = add v218, 32
+    v210 = mload v191
+    v69 = mload v210
     v70 = gt v69, 0
     jumpi v70, bb13, bb11
   bb13:
-    v195 = add v212, 32
-    v73 = mload v195
+    v193 = add v210, 32
+    v73 = mload v193
     v88 = add v61, v73
     v89 = lt v88, v61
     jumpi v89, bb16, bb17
@@ -171,9 +173,9 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v78 = gt v64, 1
     jumpi v78, bb14, bb11
   bb14:
-    v197 = add v220, 64
-    v213 = mload v197
-    v82 = mload v213
+    v195 = add v218, 64
+    v211 = mload v195
+    v82 = mload v211
     v83 = gt v82, 0
     jumpi v83, bb15, bb11
   bb11:
@@ -181,8 +183,8 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     mstore 0, 0x4e487b71
     revert 28, 36
   bb15:
-    v199 = add v213, 32
-    v86 = mload v199
+    v197 = add v211, 32
+    v86 = mload v197
     v90 = add v88, v86
     v91 = lt v90, v88
     jumpi v91, bb16, bb18
@@ -195,10 +197,12 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v132 = mload v129
     v133 = add v111, v132
     v135 = add v133, 32
-    v137 = gt v132, 0xffffffffffffffff
-    v138 = gt v135, v95
-    v139 = or v137, v138
-    jumpi v139, bb5, bb27
+    v137 = shr v132, 64
+    v136 = gt v135, v95
+    v138 = zext i1 v136 to i256
+    v139 = or v138, v137
+    v140 = ne v139, 0
+    jumpi v140, bb5, bb27
   bb27:
     v141 = mload v133
     v143 = shr v141, 59
@@ -207,20 +211,20 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
   bb28:
     v145 = add v141, 1
     v146 = shl v145, 5
-    v221 = icall @alloc, v146
-    mstore v221, v141
+    v219 = icall @alloc, v146
+    mstore v219, v141
     v148 = shl v141, 5
     v149 = sub v95, v135
     v150 = shr v149, 5
     v151 = gt v141, v150
     jumpi v151, bb5, bb29
   bb29:
-    v203 = add v221, 32
-    mcopy v203, v135, v148
+    v201 = add v219, 32
+    mcopy v201, v135, v148
     v157 = shl v130, 5
-    v205 = add v220, v157
-    v206 = add v205, 32
-    mstore v206, v221
+    v203 = add v218, v157
+    v204 = add v203, 32
+    mstore v204, v219
     v161 = sub v128, 1
     v162 = add v129, 32
     v163 = add v130, 1
@@ -235,9 +239,9 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v26 = add v174, v24
     v30 = sub v8, 31
     v31 = slt v24, v30
-    v232 = eq v31, false
-    v233 = or v23, v232
-    jumpi v233, bb5, bb8
+    v230 = eq v31, false
+    v231 = or v23, v230
+    jumpi v231, bb5, bb8
   bb8:
     v33 = calldataload v26
     v34 = calldatasize
@@ -252,15 +256,15 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     jumpi v40, bb5, bb10
   bb10:
     v44 = add v37, 32
-    v224 = mload 64 !metadata(alloc_ptr)
-    v225 = add v224, v44 !metadata(alloc_ptr)
-    mstore 64, v225
-    mstore v224, v33
-    v188 = add v224, 32
-    calldatacopy v188, v38, v37
-    v190 = add v222, v18
-    v191 = add v190, 32
-    mstore v191, v224
+    v222 = mload 64 !metadata(alloc_ptr)
+    v223 = add v222, v44 !metadata(alloc_ptr)
+    mstore 64, v223
+    mstore v222, v33
+    v186 = add v222, 32
+    calldatacopy v186, v38, v37
+    v188 = add v220, v18
+    v189 = add v188, 32
+    mstore v189, v222
     v56 = add v16, 1
     jump bb1
   bb4:

@@ -190,7 +190,7 @@ the push of its limit. Producers never write either spelling. `FunctionBuilder::
 use, a `ConditionUse` of a branch or a value, in a loop or not, price lower, with the push the compact-push
 pass leaves for the limit (`Target::emitted_push`). A check aborts on the exceeding sense so that
 a branch reads it as a word. Passes that read a fact off a condition recognize both spellings with
-`BitWidthTest::of`, as `check-elim`, `merge-aborts`, and `indvar-simplify` do; a pass that matches
+`BitWidthTest::of`, as `merge-aborts`, `indvar-simplify`, and `byte-loops` do; a pass that matches
 only one loses the fact when a producer picks the other. The word-sequence rule in
 `isle/mir/word_sequence/comparisons.isle` converts either spelling to the other when its local
 estimate is lower, as a safety net for tests that a later pass combined into a use the producer

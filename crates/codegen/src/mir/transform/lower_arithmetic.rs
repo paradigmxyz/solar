@@ -140,8 +140,12 @@ impl ArithmeticLowerer<'_, '_> {
         let mut overflow = self.builder.eq_zero(valid);
         if bits < 256 {
             // overflow |= result out of range
-            let out_of_range = self.range_overflow(result, kind, ConditionUse::VALUE);
-            overflow = self.builder.or(overflow, out_of_range);
+            overflow = if let ArithmeticKind::Unsigned(_) = kind {
+                self.builder.exceeds_bits_or(overflow, result, bits.into(), ConditionUse::BRANCH)
+            } else {
+                let out_of_range = self.range_overflow(result, kind, ConditionUse::VALUE);
+                self.builder.or(overflow, out_of_range)
+            };
         } else if let ArithmeticKind::Signed(_) = kind {
             // `sdiv(min, -1)` wraps to `min`, so the quotient test accepts `min * -1`.
             // overflow |= lhs == min && rhs < 0
