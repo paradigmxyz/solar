@@ -100,10 +100,13 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v25 = heap_floor !metadata(alloc_ptr)
     v26 = add v25, v10 !metadata(alloc_ptr)
     v27 = lt v26, v25
-    v28 = gt v26, 0xffffffffffffffff
-    v29 = or v27, v28
-    v31 = or v8, v29
-    jumpi v31, bb3, bb5
+    v28 = zext i1 v27 to i256
+    v29 = shr v26, 64
+    v30 = or v28, v29
+    v32 = zext i1 v8 to i256
+    v33 = or v32, v30
+    v34 = ne v33, 0
+    jumpi v34, bb3, bb5
   bb5:
     mstore 64, v26 !metadata(memory=scratch)
     mstore v25, v6

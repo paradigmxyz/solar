@@ -58,6 +58,10 @@
 (decl pure partial power_of_two_shift (U256) U256)
 (extern constructor power_of_two_shift power_of_two_shift)
 
+;; The shift `s` with `m == MAX >> s` and 0 < s < W, for a mask `m` of the low bits.
+(decl pure partial low_mask_shift (U256) U256)
+(extern constructor low_mask_shift low_mask_shift)
+
 (decl pure u256_shr (U256 U256) U256)
 (extern constructor u256_shr u256_shr)
 

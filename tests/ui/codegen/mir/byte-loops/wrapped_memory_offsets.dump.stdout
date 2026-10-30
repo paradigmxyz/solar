@@ -69,9 +69,11 @@ fn @wordsForward() [selector=0xb2066b6b, abi_wrapper, pure] {
     v42 = heap_floor !metadata(alloc_ptr)
     v43 = add v42, 128 !metadata(alloc_ptr)
     v44 = lt v43, v42
-    v45 = gt v43, 0xffffffffffffffff
-    v46 = or v44, v45
-    jumpi v46, bb4, bb3
+    v45 = zext i1 v44 to i256
+    v46 = shr v43, 64
+    v47 = or v45, v46
+    v48 = ne v47, 0
+    jumpi v48, bb4, bb3
   bb3:
     mstore 64, v43 !metadata(memory=scratch)
     mstore v42, 3
@@ -180,12 +182,12 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
     v54 = sub v45, v53
     v55 = gt v52, v54
     v56 = or v51, v55
-    v102 = or v46, v56
+    v103 = or v46, v56
     v60 = calldataload 36
     v61 = add v60, 4
     v64 = gt v60, v50
-    v103 = or v102, v64
-    jumpi v103, bb15, bb16
+    v104 = or v103, v64
+    jumpi v104, bb15, bb16
   bb16:
     v65 = calldataload v61
     v66 = add v61, 32
@@ -195,10 +197,13 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
     v95 = heap_floor !metadata(alloc_ptr)
     v96 = add v95, v70 !metadata(alloc_ptr)
     v97 = lt v96, v95
-    v98 = gt v96, 0xffffffffffffffff
-    v99 = or v97, v98
-    v104 = or v68, v99
-    jumpi v104, bb17, bb19
+    v98 = zext i1 v97 to i256
+    v99 = shr v96, 64
+    v100 = or v98, v99
+    v105 = zext i1 v68 to i256
+    v106 = or v105, v100
+    v107 = ne v106, 0
+    jumpi v107, bb17, bb19
   bb19:
     mstore v95, v65
     v72 = sub v45, v66
@@ -209,9 +214,9 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
     calldatacopy v91, v66, v65
     v81 = sub 0, v65
     v82 = and v81, 31
-    v101 = calldatasize
+    v102 = calldatasize
     v92 = add v91, v65
-    calldatacopy v92, v101, v82
+    calldatacopy v92, v102, v82
     v40 = lt v52, arg2
     jumpi v40, bb7, bb6
   bb6:
@@ -731,9 +736,11 @@ fn @alloc(arg0: i256) -> i256 {
     v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v0, arg0 !metadata(alloc_ptr)
     v3 = lt v2, v0
-    v4 = gt v2, 0xffffffffffffffff
-    v5 = or v3, v4
-    jumpi v5, bb1, bb2
+    v4 = zext i1 v3 to i256
+    v5 = shr v2, 64
+    v6 = or v4, v5
+    v7 = ne v6, 0
+    jumpi v7, bb1, bb2
   bb2:
     mstore 64, v2 !metadata(memory=scratch)
     ret v0

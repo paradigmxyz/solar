@@ -506,6 +506,22 @@ class Context:
             return Expr(
                 "sub", (Expr.const(31), Expr("shr", (Expr.const(3), values[0])))
             )
+        if name == "low_mask_shift" and len(values) == 1:
+            shift = self.fresh()
+            self.assumptions.extend(
+                [
+                    Cond("ugt", (shift, Expr.const(0))),
+                    Cond("ult", (shift, Expr.const(256))),
+                    Cond(
+                        "eq",
+                        (
+                            values[0],
+                            Expr("shr", (shift, self.constructor(("u256_max",)))),
+                        ),
+                    ),
+                ]
+            )
+            return shift
         if name == "power_of_two_shift" and len(values) == 1:
             shift = self.fresh()
             self.assumptions.extend(

@@ -107,9 +107,9 @@ bb25 [ret=0, inputs=2, outputs=1]:
   dup 3
   dup 2
   lt
-  push 0xffffffffffffffff
-  dup 3
-  gt
+  dup 2
+  push 64
+  shr
   or
   push bb23
   jumpi

@@ -46,36 +46,39 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v157 = add v156, 4
     v159 = sub v154, 36
     v160 = gt v156, v159
-    v273 = or v155, v160
-    jumpi v273, bb25, bb26
+    v275 = or v155, v160
+    jumpi v275, bb25, bb26
   bb26:
     v161 = calldataload v157
     v162 = add v157, 32
     v163 = add v161, 63
     v164 = lt v163, v161
     v166 = and v163, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v259 = heap_floor !metadata(alloc_ptr)
-    v260 = add v259, v166 !metadata(alloc_ptr)
-    v261 = lt v260, v259
-    v262 = gt v260, 0xffffffffffffffff
-    v263 = or v261, v262
-    v274 = or v164, v263
-    jumpi v274, bb10, bb29
+    v260 = heap_floor !metadata(alloc_ptr)
+    v261 = add v260, v166 !metadata(alloc_ptr)
+    v262 = lt v261, v260
+    v263 = zext i1 v262 to i256
+    v264 = shr v261, 64
+    v265 = or v263, v264
+    v276 = zext i1 v164 to i256
+    v277 = or v276, v265
+    v278 = ne v277, 0
+    jumpi v278, bb10, bb29
   bb29:
-    mstore 64, v260 !metadata(memory=scratch)
-    mstore v259, v161
+    mstore 64, v261 !metadata(memory=scratch)
+    mstore v260, v161
     v168 = sub v154, v162
     v169 = gt v161, v168
     jumpi v169, bb25, bb27
   bb27:
-    v239 = add v259, 32
+    v239 = add v260, 32
     calldatacopy v239, v162, v161
     v177 = sub 0, v161
     v178 = and v177, 31
-    v265 = calldatasize
+    v267 = calldatasize
     v240 = add v239, v161
-    calldatacopy v240, v265, v178
-    v0 = mload v259
+    calldatacopy v240, v267, v178
+    v0 = mload v260
     v1 = div v0, 3
     v138 = shl v1, 2
     v139 = shr v1, 254
@@ -90,19 +93,21 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v253 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v254 = add v253, v6 !metadata(alloc_ptr)
     v255 = lt v254, v253
-    v256 = gt v254, 0xffffffffffffffff
-    v257 = or v255, v256
-    jumpi v257, bb10, bb28
+    v256 = zext i1 v255 to i256
+    v257 = shr v254, 64
+    v258 = or v256, v257
+    v259 = ne v258, 0
+    jumpi v259, bb10, bb28
   bb28:
     mstore 64, v254 !metadata(memory=scratch)
-    v266 = calldatasize
-    calldatacopy v253, v266, v6
+    v268 = calldatasize
+    calldatacopy v253, v268, v6
     mstore v253, v138
-    v121 = mload v259
+    v121 = mload v260
     v125 = or v253, v138
     v127 = add v253, 1
     v128 = add v138, 31
-    v130 = sub v259, v127
+    v130 = sub v260, v127
     v131 = lt v130, v128
     v149 = shr v125, 64
     v151 = zext i1 v131 to i256
@@ -110,12 +115,12 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v136 = eq v152, 0
     jumpi v136, bb8, bb9
   bb9:
-    v267 = add v253, 32
+    v269 = add v253, 32
     jump bb1
   bb1:
     v12 = phi [bb9: 0], [bb19: v72]
     v13 = phi [bb9: 0], [bb19: v73]
-    v268 = phi [bb9: v267], [bb19: v269]
+    v270 = phi [bb9: v269], [bb19: v271]
     v141 = add v12, 2
     v15 = lt v141, v0
     jumpi v15, bb3, bb2
@@ -124,11 +129,11 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v17 = lt v143, v138
     jumpi v17, bb4, bb2
   bb4:
-    v19 = mload v259
+    v19 = mload v260
     v20 = lt v12, v19
     jumpi v20, bb13, bb12
   bb13:
-    v197 = add v259, v12
+    v197 = add v260, v12
     v198 = add v197, 32
     v24 = mload v198
     v25 = byte 0, v24
@@ -136,13 +141,13 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v28 = lt v13, v27
     jumpi v28, bb14, bb12
   bb14:
-    mstore8 v268, v25
+    mstore8 v270, v25
     v33 = add v12, 1
-    v34 = mload v259
+    v34 = mload v260
     v35 = lt v33, v34
     jumpi v35, bb15, bb12
   bb15:
-    v203 = add v259, v33
+    v203 = add v260, v33
     v204 = add v203, 32
     v39 = mload v204
     v40 = byte 0, v39
@@ -151,13 +156,13 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v44 = lt v42, v43
     jumpi v44, bb16, bb12
   bb16:
-    v207 = add v268, 1
+    v207 = add v270, 1
     mstore8 v207, v40
-    v50 = mload v259
+    v50 = mload v260
     v51 = lt v141, v50
     jumpi v51, bb17, bb12
   bb17:
-    v209 = add v259, v141
+    v209 = add v260, v141
     v210 = add v209, 32
     v55 = mload v210
     v56 = byte 0, v55
@@ -166,25 +171,25 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v60 = lt v58, v59
     jumpi v60, bb18, bb12
   bb18:
-    v213 = add v268, 2
+    v213 = add v270, 2
     mstore8 v213, v56
     v66 = mload v253
     v67 = lt v143, v66
     jumpi v67, bb19, bb12
   bb19:
-    v216 = add v268, 3
+    v216 = add v270, 3
     mstore8 v216, 0
     v72 = add v12, 3
     v73 = add v13, 4
-    v269 = add v268, 4
+    v271 = add v270, 4
     jump bb1
   bb8:
-    v270 = add v253, 32
+    v272 = add v253, 32
     jump bb5
   bb5:
     v74 = phi [bb8: 0], [bb22: v119]
     v75 = phi [bb8: 0], [bb22: v120]
-    v271 = phi [bb8: v270], [bb22: v272]
+    v273 = phi [bb8: v272], [bb22: v274]
     v145 = add v74, 2
     v77 = lt v145, v0
     jumpi v77, bb6, bb2
@@ -207,20 +212,20 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v81 = lt v74, v121
     jumpi v81, bb20, bb12
   bb20:
-    v218 = add v259, v74
+    v218 = add v260, v74
     v219 = add v218, 32
     v84 = mload v219
     v85 = byte 0, v84
-    mstore8 v271, v85
+    mstore8 v273, v85
     v90 = add v74, 1
     v92 = lt v90, v121
     jumpi v92, bb21, bb12
   bb21:
-    v224 = add v259, v90
+    v224 = add v260, v90
     v225 = add v224, 32
     v95 = mload v225
     v96 = byte 0, v95
-    v228 = add v271, 1
+    v228 = add v273, 1
     mstore8 v228, v96
     v104 = lt v145, v121
     jumpi v104, bb22, bb12
@@ -229,17 +234,17 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb22:
-    v230 = add v259, v145
+    v230 = add v260, v145
     v231 = add v230, 32
     v107 = mload v231
     v108 = byte 0, v107
-    v234 = add v271, 2
+    v234 = add v273, 2
     mstore8 v234, v108
-    v237 = add v271, 3
+    v237 = add v273, 3
     mstore8 v237, 0
     v119 = add v74, 3
     v120 = add v75, 4
-    v272 = add v271, 4
+    v274 = add v273, 4
     jump bb5
   bb23 [cold]:
     mstore 32, 17 !metadata(memory=scratch)

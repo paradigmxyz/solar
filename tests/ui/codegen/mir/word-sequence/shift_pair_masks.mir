@@ -1,0 +1,66 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=word-sequence
+//@[size] compile-flags: -Osize -Zmir-pipeline=word-sequence
+//@[gas] filecheck: --check-prefixes=BOTH,GAS
+//@[size] filecheck: --check-prefixes=BOTH,SIZE
+@module ShiftPairMasks
+
+// A packed field extract drops its mask and the right shift for one shift pair. Size builds
+// keep the mask.
+// BOTH-LABEL: {{^[ +].*}}fn @extract{{[( ]}}
+// GAS: + [[HIGH:v[0-9]+]] = shl arg0, 80
+// GAS: + {{v[0-9]+}} = shr [[HIGH]], 96
+// SIZE-NOT: shl
+fn @extract(arg0: i256) -> i256 {
+  bb0:
+    v0 = shr arg0, 16
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v1
+}
+
+// A packed field insert drops its mask and the left shift for one shift pair.
+// BOTH-LABEL: {{^[ +].*}}fn @insert{{[( ]}}
+// GAS: + [[HIGH:v[0-9]+]] = shl arg0, 96
+// GAS: + {{v[0-9]+}} = shr [[HIGH]], 88
+// SIZE-NOT: shr
+fn @insert(arg0: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = shl v0, 8
+    ret v1
+}
+
+// A narrow mask pushes in one instruction, so the pair only saves a byte.
+// BOTH-LABEL: {{^[ +].*}}fn @narrow_extract{{[( ]}}
+// GAS: + [[HIGH:v[0-9]+]] = shl arg0, 232
+// GAS: + {{v[0-9]+}} = shr [[HIGH]], 240
+// SIZE-NOT: shl
+fn @narrow_extract(arg0: i256) -> i256 {
+  bb0:
+    v0 = shr arg0, 8
+    v1 = and v0, 0xffff
+    ret v1
+}
+
+// A mask that two fields share is pushed once, which costs less than a shift pair each.
+// BOTH-LABEL: {{^[ +].*}}fn @shared_mask{{[( ]}}
+// BOTH-NOT: shl
+fn @shared_mask(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = shr arg0, 16
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = shr arg1, 32
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+    v4 = add v1, v3
+    ret v4
+}
+
+// With no shift to drop, the mask stays: the peephole after scheduling turns a pushed mask into
+// a pair.
+// BOTH-LABEL: {{^[ +].*}}fn @low{{[( ]}}
+// BOTH-NOT: shl
+fn @low(arg0: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v0
+}

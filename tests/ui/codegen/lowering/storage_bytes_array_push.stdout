@@ -9,8 +9,8 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v75 = add v74, 4
     v77 = sub v72, 36
     v78 = gt v74, v77
-    v112 = or v73, v78
-    jumpi v112, bb15, bb16
+    v113 = or v73, v78
+    jumpi v113, bb15, bb16
   bb16:
     v79 = calldataload v75
     v80 = add v75, 32
@@ -20,10 +20,13 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v105 = heap_floor !metadata(alloc_ptr)
     v106 = add v105, v84 !metadata(alloc_ptr)
     v107 = lt v106, v105
-    v108 = gt v106, 0xffffffffffffffff
-    v109 = or v107, v108
-    v113 = or v82, v109
-    jumpi v113, bb17, bb19
+    v108 = zext i1 v107 to i256
+    v109 = shr v106, 64
+    v110 = or v108, v109
+    v114 = zext i1 v82 to i256
+    v115 = or v114, v110
+    v116 = ne v115, 0
+    jumpi v116, bb17, bb19
   bb19:
     mstore 64, v106 !metadata(memory=scratch)
     mstore v105, v79
@@ -35,9 +38,9 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     calldatacopy v99, v80, v79
     v95 = sub 0, v79
     v96 = and v95, 31
-    v111 = calldatasize
+    v112 = calldatasize
     v100 = add v99, v79
-    calldatacopy v100, v111, v96
+    calldatacopy v100, v112, v96
     v0 = sload 0 !metadata(storage=slot(0))
     v5 = shr v0, 64
     v1 = ne v5, 0
@@ -251,9 +254,11 @@ fn @load_storage_bytes(arg0: i256) -> i256 [may_return_memory] {
     v35 = heap_floor !metadata(alloc_ptr)
     v36 = add v35, v15 !metadata(alloc_ptr)
     v37 = lt v36, v35
-    v38 = gt v36, 0xffffffffffffffff
-    v39 = or v37, v38
-    jumpi v39, bb9, bb8
+    v38 = zext i1 v37 to i256
+    v39 = shr v36, 64
+    v40 = or v38, v39
+    v41 = ne v40, 0
+    jumpi v41, bb9, bb8
   bb8:
     mstore v35, v7
     jumpi v3, bb4, bb3
@@ -265,21 +270,21 @@ fn @load_storage_bytes(arg0: i256) -> i256 [may_return_memory] {
   bb4:
     mstore 0, arg0 !metadata(memory=scratch)
     v28 = keccak256 0, 32 !metadata(memory=scratch)
-    v43 = add v35, 32
-    v46 = add v28, v11
+    v44 = add v35, 32
+    v47 = add v28, v11
     jump bb6
   bb6:
-    v41 = phi [bb4: v28], [bb7: v42]
-    v44 = phi [bb4: v43], [bb7: v45]
-    v21 = ne v41, v46
+    v42 = phi [bb4: v28], [bb7: v43]
+    v45 = phi [bb4: v44], [bb7: v46]
+    v21 = ne v42, v47
     jumpi v21, bb7, bb5
   bb5:
     ret v35
   bb7:
-    v23 = sload v41
-    mstore v44, v23
-    v42 = add v41, 1
-    v45 = add v44, 32
+    v23 = sload v42
+    mstore v45, v23
+    v43 = add v42, 1
+    v46 = add v45, 32
     jump bb6
   bb9 [cold]:
     mstore 32, 65 !metadata(memory=scratch)

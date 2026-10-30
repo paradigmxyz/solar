@@ -32,11 +32,11 @@
 //! with an argument changes which values the stack ABI must preserve or spill.
 //!
 //! Boolean values are canonical by type, so double negation needs no call-graph proof.
-//! Raw-word return bounds require every explicit return to fit within one bit;
-//! tail calls to functions that may return and unknown recursive results remain
-//! conservative. These transient proofs remove normalization from comparisons and
-//! zero-extended results without changing raw call signatures or assuming that a
-//! Solidity boolean is clean.
+//! A raw-word return bound is the widest value any explicit return carries; a mask or a
+//! normalization of a call result that covers it disappears. Tail calls to functions that may
+//! return and unknown recursive results remain conservative. These transient proofs remove
+//! normalization from comparisons and zero-extended results without changing raw call
+//! signatures or assuming that a Solidity boolean is clean.
 
 use super::{egraph::max_bits_with_args, utils};
 use crate::mir::{
@@ -118,8 +118,7 @@ pub(super) fn cleanup(
                 .map(|mask| (a, mask))
                 .or_else(|| func.value_u256(a).map(|mask| (b, mask)))
             && mask.wrapping_add(U256::ONE) & mask == U256::ZERO
-            && max_bits_with_args(func, value, MAX_VALUE_DEPTH, &argument_bits)
-                <= mask.bit_len() as u32
+            && word_bits(func, value, &argument_bits, returns) <= mask.bit_len() as u32
             && let Some(result) = func.inst_result_value(inst)
         {
             replacements.insert(result, value);
@@ -278,14 +277,24 @@ fn normalized_word(
     if func.value_ty(word) != Some(MirType::I256) {
         return None;
     }
-    let bits = if let Value::Inst(call) = func.value(word)
+    (word_bits(func, word, argument_bits, returns) <= 1).then_some(word)
+}
+
+/// The proved significant bits of a word: the widest value its internal callee returns, or the
+/// local bound.
+fn word_bits(
+    func: &Function,
+    value: ValueId,
+    argument_bits: &impl Fn(ArgIdx) -> u32,
+    returns: &ReturnBits,
+) -> u32 {
+    if let Value::Inst(call) = func.value(value)
         && let InstKind::ICall { function: Callee::Function(callee), .. } = func.inst(*call).kind
     {
         returns.get(&callee).copied().unwrap_or(256)
     } else {
-        max_bits_with_args(func, word, MAX_VALUE_DEPTH, argument_bits)
-    };
-    (bits <= 1).then_some(word)
+        max_bits_with_args(func, value, MAX_VALUE_DEPTH, argument_bits)
+    }
 }
 
 /// Proves raw-word return widths without assuming facts about recursive calls.
@@ -312,7 +321,7 @@ pub(super) fn infer_returns(module: &Module) -> ReturnBits {
                     widest = Some(widest.unwrap_or(0).max(bits));
                 }
             }
-            widest.filter(|&bits| bits <= 1).map(|bits| (id, bits))
+            widest.map(|bits| (id, bits))
         })
         .collect()
 }
