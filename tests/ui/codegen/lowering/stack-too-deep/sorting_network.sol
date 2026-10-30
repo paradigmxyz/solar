@@ -19,16 +19,17 @@ pragma solidity ^0.8.0;
 
 contract SortingNetworks {
     // CHECK-LABEL: @module SortingNetworks_runtime
-    // The heap starts right after the reserved words: no spill frame lies below it.
+    // The heap starts one word above the reserved words, which the return writes its tuple offset
+    // into: no spill frame lies below it.
     // Gas mode uses the initial heap base directly when allocating the array.
     // GAS: push 5{{$}}
     // GAS-NEXT: shl
-    // GAS-NEXT: push 128{{$}}
+    // GAS-NEXT: push 160{{$}}
     // GAS-NEXT: swap 1
     // GAS-NEXT: dup 2
     // GAS-NEXT: add
     // Size mode initializes the free memory pointer before the allocation.
-    // SIZE: push 128{{$}}
+    // SIZE: push 160{{$}}
     // SIZE-NEXT: push 64
     // SIZE-NEXT: mstore
     function sort10(uint256[] memory a, uint256 low) external pure returns (uint256[] memory) {
