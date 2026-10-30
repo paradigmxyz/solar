@@ -47,10 +47,8 @@ bank=("${bank_contract[@]}" --all-functions)
 vault=(--source "$fixtures/Vault.sol" --contract Vault --all-functions)
 
 check bank bounded_agreement "" "$solar" "[]" "${bank[@]}" --constructor-args "$fee5"
-# With symbolic constructor arguments, `quote(uint256) <arbitrary arguments>`
-# sends about ten solver queries that run into the default 30 s timeout.
 check bank-constructor mismatch "fee()" "$mutate" \
-  '["fee = f;", "fee = f == 7 ? 8 : f;"]' "${bank[@]}" --symbolic-timeout 5
+  '["fee = f;", "fee = f == 7 ? 8 : f;"]' "${bank[@]}"
 check bank-created-contract mismatch "spawn(uint256)" "$mutate" \
   '["v = x;", "v = x == 5 ? 6 : x;"]' "${bank[@]}" --constructor-args "$fee5"
 check bank-fallback mismatch "<other calldata>" "$mutate" \
