@@ -242,6 +242,10 @@ impl<'a> PeepContext<'a> {
         {
             return Some(Rewrite { skip: 5, edit: Edit::ConsumeStoredValue { depth: depth - 1 } });
         }
+        // DUP/PUSH operands that are known literals; opcode => materialize evaluated word
+        if let Some(value) = self.fold_duplicated_constants() {
+            return Some(Rewrite { skip: 3, edit: Edit::FoldConstants { value } });
+        }
         None
     }
 
@@ -296,6 +300,98 @@ impl<'a> PeepContext<'a> {
         let target = self.target;
         let after = target.push(U256::ZERO) + target.opcode(NOT) + target.opcode(NOT);
         target.dominates(after, before)
+    }
+
+    /// Two operands that are literal pushes or `DUP`s of literal words this block pushed, at least
+    /// one a `DUP`, and the pure binary operation over them, when materializing the evaluated
+    /// word is no worse in both bytes and gas and better in one.
+    ///
+    /// `DUP1; PUSH 32; ADD` over a pushed `128` folds to `PUSH 160`. The `DUP` leaves its source
+    /// in place, so the stack effect is unchanged. Only the final rules run this: folding earlier
+    /// rewrites blocks before tail merging and outlining, which then find fewer equal tails to
+    /// share.
+    fn fold_duplicated_constants(&self) -> Option<U256> {
+        let [lhs, rhs, instruction] = self.unprotected_tail()?;
+        let opcode = self.instructions[instruction].as_evm_opcode()?;
+        let is_dup =
+            |index: usize| matches!(self.instructions[index].as_stack_op(), Some(StackOp::Dup(_)));
+        if !(op::is_pure(opcode) && op::stack_io(opcode) == Some((2, 1)))
+            || !(is_dup(lhs) || is_dup(rhs))
+        {
+            return None;
+        }
+        let (lhs_value, rhs_value) = (self.operand_literal(lhs)?, self.operand_literal(rhs)?);
+        let result = eval::eval_opcode(opcode, &[rhs_value, lhs_value])?;
+        let target = self.target;
+        let operand = |index: usize, value| {
+            if self.instructions[index].is_encoded_push() {
+                target.push(value)
+            } else {
+                target.dup()
+            }
+        };
+        // lhs; rhs; opcode => materialize evaluated word
+        let input = operand(lhs, lhs_value)
+            + operand(rhs, rhs_value)
+            + target.opcode_with_immediates(opcode, &[Some(rhs_value), Some(lhs_value)]);
+        target.dominates(target.push(result), input).then_some(result)
+    }
+
+    /// The literal word that the push or `DUP` at `index` leaves on the stack.
+    fn operand_literal(&self, index: usize) -> Option<U256> {
+        let inst = &self.instructions[index];
+        match inst.as_stack_op() {
+            Some(StackOp::Dup(depth)) => self.literal_below(index, usize::from(depth - 1)),
+            _ => inst.concrete_immediate(),
+        }
+    }
+
+    /// The literal pushed as the word `depth` places below the top of the stack just before
+    /// `instructions[index]`, found by following that word backwards through the block within the
+    /// stack window. Stops at the instruction that produced it, so a `DUP` of a word an operation
+    /// computed, of a label or immutable, or of one older than the window has no literal.
+    fn literal_below(&self, index: usize, mut depth: usize) -> Option<U256> {
+        let floor = index.saturating_sub(MAX_STACK_WINDOW);
+        for inst in self.instructions[floor..index].iter().rev() {
+            if inst.is_encoded_push() {
+                if depth == 0 {
+                    return inst.concrete_immediate();
+                }
+                depth -= 1;
+                continue;
+            }
+            match inst.as_stack_op() {
+                Some(StackOp::Dup(source)) => {
+                    depth = if depth == 0 { usize::from(source - 1) } else { depth - 1 };
+                }
+                Some(StackOp::Swap(swapped)) => {
+                    let swapped = usize::from(swapped);
+                    depth = match depth {
+                        0 => swapped,
+                        _ if depth == swapped => 0,
+                        _ => depth,
+                    };
+                }
+                Some(StackOp::Exchange(first, second)) => {
+                    let (first, second) = (usize::from(first), usize::from(second));
+                    depth = match depth {
+                        _ if depth == first => second,
+                        _ if depth == second => first,
+                        _ => depth,
+                    };
+                }
+                Some(StackOp::Pop) => depth += 1,
+                None => {
+                    // Entry from a jump leaves the stack unknown.
+                    if inst.as_evm_opcode() == Some(JUMPDEST) {
+                        return None;
+                    }
+                    let StackEffect { inputs, outputs } = inst.stack_effect();
+                    depth = usize::from(inputs) + depth.checked_sub(usize::from(outputs))?;
+                }
+            }
+        }
+        None
     }
 }
 

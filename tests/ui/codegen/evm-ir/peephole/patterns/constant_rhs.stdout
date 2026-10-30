@@ -166,6 +166,7 @@
     calldatasize
     push 31
     dup 1
+    mload
     gt
     iszero
     push 0

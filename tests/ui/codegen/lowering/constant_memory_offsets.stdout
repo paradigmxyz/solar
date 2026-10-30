@@ -24,9 +24,7 @@ bb0:
   dup 3
   calldatacopy
   push 7
-  push 64
-  dup 3
-  add
+  push 192
   mstore
   dup 1
   keccak256
@@ -41,13 +39,8 @@ bb4 [cold]:
   revert
 bb6:
   push 128
-  dup 1
-  dup 2
-  add
-  dup 2
-  dup 2
-  lt
-  swap 1
+  push 0
+  push 256
   push 0xffffffffffffffff
   lt
   or
@@ -58,9 +51,7 @@ bb6:
   dup 3
   calldatacopy
   push 7
-  push 96
-  dup 3
-  add
+  push 224
   mstore
   push 32
   add

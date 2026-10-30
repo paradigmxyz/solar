@@ -35,23 +35,17 @@ bb5:
   return
 bb6:
   push 128
-  push 32
-  dup 2
-  add
+  push 160
   dup 2
   push_data literal_0
   dup 3
   codecopy
   push 0
-  dup 3
-  dup 3
-  add
+  push 288
   mstore
   dup 2
   dup 2
-  push 64
-  dup 5
-  add
+  push 192
   mcopy
   push 32
   dup 3
@@ -65,7 +59,7 @@ bb6:
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeFactory (runtime) ===
 @module CodeFactory_runtime
 @data
-  CodeTarget_creation_code_0: hex"34600d5760cd8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602a575b5f5ffd5b60075f5260205ff35b60806020810181604d82395f828201528181604084015e6020825281905260c090f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+  CodeTarget_creation_code_0: hex"34600d5760c98060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602a575b5f5ffd5b60075f5260205ff35b608060a081604982395f61012052818160c05e6020825281905260c090f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 
 bb0:
   callvalue
@@ -91,18 +85,16 @@ bb0:
   add
   push 64
   mstore
-  push 222
+  push 218
   dup 2
   mstore
-  push 32
-  dup 2
-  add
+  push 160
   push 0
   push 224
   dup 4
   add
   mstore
-  push 222
+  push 218
   push_data CodeTarget_creation_code_0
   dup 3
   codecopy
@@ -153,11 +145,11 @@ bb10:
   push 64
   mstore
   push 128
-  push 222
+  push 218
   push_data CodeTarget_creation_code_0
   dup 3
   codecopy
-  push 222
+  push 218
   swap 1
   push 0
   create
@@ -166,18 +158,16 @@ bb10:
   push bb8
   jumpi
   push 128
-  push 205
+  push 201
   dup 2
   mstore
-  push 32
-  dup 2
-  add
+  push 160
   push 0
   push 224
   dup 4
   add
   mstore
-  push 205
+  push 201
   push_data CodeTarget_creation_code_0+17
   dup 3
   codecopy

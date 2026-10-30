@@ -17,23 +17,17 @@ bb0:
   push bb3
   jumpi
   push 128
-  push 32
-  dup 2
-  add
+  push 160
   push 160
   push_data literal_0
   dup 3
   codecopy
   push 0
-  push 160
-  dup 3
-  add
+  push 320
   mstore
   push 160
   dup 2
-  push 64
-  dup 5
-  add
+  push 192
   mcopy
   push 32
   dup 3

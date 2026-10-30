@@ -105,33 +105,30 @@ bb10:
   push bb12
   jump bb15
 bb12 [continuation]:
-  dup 1
+  dup 2
+  dup 2
   calldataload
-  swap 1
-  push 32
-  add
-  dup 3
-  dup 3
+  dup 2
+  dup 2
   lt
   push bb4
   jumpi
-  dup 3
-  swap 1
+  push 112
+  push 248
+  shl
+  push 128
+  mstore
+  swap 2
+  push 32
+  add
   swap 2
   sub
   swap 2
   add
-  push 128
-  swap 2
-  push 112
-  push 248
-  shl
-  dup 4
-  mstore
-  push 1
-  dup 4
-  add
   dup 2
+  push 129
+  push 128
+  swap 4
   dup 4
   dup 3
   calldatacopy

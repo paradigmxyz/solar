@@ -115,17 +115,13 @@ bb0:
   shl
   dup 2
   mstore
-  push 4
-  dup 2
-  add
+  push 132
   push 0
   dup 2
   mstore
   push 4
   calldataload
-  push 32
-  dup 3
-  add
+  push 164
   mstore
   push 64
   add

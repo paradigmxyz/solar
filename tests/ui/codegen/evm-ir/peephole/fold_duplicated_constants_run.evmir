@@ -1,0 +1,61 @@
+//@ revisions: peephole default
+//@[peephole] compile-flags: -Zevm-ir-pipeline=peephole
+//@[default] compile-flags: -Zevm-ir-pipeline=default
+//@ run-call: f()(uint256,uint256,uint256,uint256,uint256,uint256,uint256) => 160, 95, 95, 7, 160, 4, 160
+
+// Every operand form keeps its operand order after folding.
+@module fold_duplicated_constants_run
+bb0:
+  push 128
+  dup 1
+  push 32
+  add
+  push 0
+  mstore
+  pop
+  push 100
+  push 5
+  dup 2
+  sub
+  push 32
+  mstore
+  pop
+  push 5
+  dup 1
+  push 100
+  sub
+  push 64
+  mstore
+  pop
+  push 3
+  push 10
+  dup 2
+  dup 2
+  sub
+  push 96
+  mstore
+  pop
+  pop
+  push 128
+  calldatasize
+  swap 1
+  dup 1
+  push 32
+  add
+  push 128
+  mstore
+  pop
+  pop
+  push 128
+  calldatasize
+  push 160
+  mstore
+  dup 1
+  push 32
+  add
+  push 192
+  mstore
+  pop
+  push 224
+  push 0
+  return

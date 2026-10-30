@@ -1,0 +1,64 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/fold_duplicated_constants_run.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/fold_duplicated_constants_run.evmir (after peephole) ===
+  @module fold_duplicated_constants_run
+  bb0:
+    push 128
+-   dup 1
+-   push 32
+-   add
++   push 160
+    push 0
+    mstore
+    pop
+    push 100
+-   push 5
+-   dup 2
+-   sub
++   push 95
+    push 32
+    mstore
+    pop
+    push 5
+-   dup 1
+-   push 100
+-   sub
++   push 95
+    push 64
+    mstore
+    pop
+    push 3
+    push 10
+-   dup 2
+-   dup 2
+-   sub
++   push 7
+    push 96
+    mstore
+    pop
+    pop
+    push 128
+    calldatasize
+    swap 1
+-   dup 1
+-   push 32
+-   add
++   push 160
+    push 128
+    mstore
+    pop
+    pop
+    push 128
+    calldatasize
+    push 160
+    mstore
+-   dup 1
+-   push 32
+-   add
++   push 160
+    push 192
+    mstore
+    pop
+    push 224
+    push 0
+    return
+  

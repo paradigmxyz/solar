@@ -411,9 +411,7 @@ bb41 [loop]:
   dup 2
   dup 2
   mstore
-  push 32
-  dup 2
-  add
+  push 160
   swap 2
   add
   push 32

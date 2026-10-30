@@ -97,32 +97,26 @@ bb8:
   or
   push bb6
   jumpi
+  dup 1
   push 32
-  dup 2
   add
+  dup 1
   push 32
-  dup 2
-  lt
+  gt
   push bb34
   jumpi
   push 128
-  dup 5
-  dup 2
-  push 32
-  add
-  swap 3
-  dup 3
   add
   push 64
   mstore
+  push 128
+  dup 4
   dup 2
   mstore
-  swap 3
-  swap 1
+  swap 2
+  push 160
   calldatacopy
-  push 32
-  dup 2
-  add
+  push 160
   swap 2
   push 5
   shl

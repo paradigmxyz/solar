@@ -5,7 +5,7 @@
     L_0: "a.sol:L"
   
   bb0:
-    push 1
+    calldatasize
 -   dup 1
     push 10
 -   swap 1
@@ -52,7 +52,7 @@
     L_0: "a.sol:L"
   
   bb0:
-    push 1
+    calldatasize
     push 10
     dup 2
     sub

@@ -1,0 +1,93 @@
+//@ compile-flags: -Zevm-ir-pipeline=peephole
+
+@module FoldDuplicatedConstants
+
+// `DUP; PUSH; op` over a pushed constant folds to one push; the pushed constant stays.
+bb0:
+  push 128
+  dup 1
+  push 32
+  add
+  push 64
+  mstore
+  stop
+
+// `PUSH; DUP; op` folds, with the duplicate resolved after the push.
+bb1:
+  push 100
+  push 5
+  dup 2
+  sub
+  stop
+
+// `DUP; DUP; op` folds.
+bb2:
+  push 3
+  push 10
+  dup 2
+  dup 2
+  sub
+  stop
+
+// The constant moves through a swap before it is duplicated.
+bb3:
+  push 128
+  calldatasize
+  swap 1
+  dup 1
+  push 32
+  add
+  stop
+
+// A word that is not a literal never folds: a label, an immutable, or a computed value.
+bb4:
+  push bb0
+  dup 1
+  push 32
+  add
+  stop
+
+bb5:
+  push_immutable 0, 32
+  dup 1
+  push 32
+  add
+  stop
+
+bb6:
+  calldatasize
+  dup 1
+  push 32
+  add
+  stop
+
+// The literal survives operations that consume other words.
+bb7:
+  push 128
+  calldatasize
+  push 160
+  mstore
+  dup 1
+  push 32
+  add
+  stop
+
+// A literal that an operation consumed is gone: the load result replaces it.
+bb8:
+  push 128
+  calldatasize
+  pop
+  mload
+  dup 1
+  push 32
+  add
+  stop
+
+// A jump can enter at a `JUMPDEST`, so words pushed before it are unknown after it.
+bb9:
+  push 128
+  jumpdest
+  dup 1
+  push 32
+  add
+  stop

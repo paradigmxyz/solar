@@ -682,9 +682,7 @@ bb61:
   push 255
   not
   and
-  push 32
-  dup 4
-  add
+  push 160
   mstore
   pop
   jump bb67

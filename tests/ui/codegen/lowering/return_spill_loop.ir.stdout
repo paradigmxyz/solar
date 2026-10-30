@@ -55,18 +55,7 @@ bb7:
   push bb6
   jumpi
   push 128
-  push 64
-  dup 2
-  add
-  dup 2
-  dup 2
-  lt
-  push 0xffffffffffffffff
-  dup 3
-  gt
-  or
-  push bb15
-  jumpi
+  push 192
   push 64
   mstore
   push 64
@@ -80,15 +69,11 @@ bb7:
   push 4
   calldataload
   and
-  push 32
-  dup 3
-  add
+  push 160
   mstore8
   push 2
   push_data literal_0
-  push 33
-  dup 4
-  add
+  push 161
   codecopy
   push 34
   swap 1
@@ -196,9 +181,7 @@ bb10 [continuation]:
   return
 bb17:
   push 128
-  push 64
-  dup 2
-  add
+  push 192
   push 64
   mstore
   push 3
@@ -207,9 +190,7 @@ bb17:
   push 0x222233
   push 232
   shl
-  push 32
-  dup 3
-  add
+  push 160
   mstore
   push 34
   swap 1

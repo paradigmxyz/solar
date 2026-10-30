@@ -106,9 +106,7 @@ bb7:
 bb11:
   push_immutable 0, 20
   push 128
-  push 192
-  dup 2
-  add
+  push 320
   push 64
   mstore
   push 0x9507d39a
@@ -118,13 +116,9 @@ bb11:
   mstore
   push 4
   calldataload
-  push 4
-  dup 3
-  add
+  push 132
   mstore
-  push 64
-  dup 2
-  add
+  push 192
   swap 2
   push 36
   dup 3
@@ -189,9 +183,7 @@ bb14 [continuation]:
 bb17:
   push_immutable 0, 20
   push 128
-  push 192
-  dup 2
-  add
+  push 320
   push 64
   mstore
   push 0x9507d39a
@@ -201,13 +193,9 @@ bb17:
   mstore
   push 4
   calldataload
-  push 4
-  dup 3
-  add
+  push 132
   mstore
-  push 64
-  dup 2
-  add
+  push 192
   swap 2
   push 36
   dup 3
@@ -254,9 +242,7 @@ bb20 [continuation]:
 bb26:
   push_immutable 0, 20
   push 128
-  push 192
-  dup 2
-  add
+  push 320
   push 64
   mstore
   push 0x9507d39a
@@ -266,13 +252,9 @@ bb26:
   mstore
   push 4
   calldataload
-  push 4
-  dup 3
-  add
+  push 132
   mstore
-  push 64
-  dup 2
-  add
+  push 192
   swap 2
   push 36
   dup 3

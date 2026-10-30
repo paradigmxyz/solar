@@ -198,21 +198,15 @@ bb22 [cold]:
 bb19 [cold]:
   push 128
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
-  push 68
-  dup 3
-  add
+  push 196
   mstore
   push 33
   push 248
   shl
-  push 100
-  dup 3
-  add
+  push 228
   mstore
   push 33
-  push 36
-  dup 3
-  add
+  push 164
   mstore
   push 0x8c379a0
   push 224
@@ -220,9 +214,7 @@ bb19 [cold]:
   dup 2
   mstore
   push 32
-  push 4
-  dup 3
-  add
+  push 132
   mstore
   push 132
   swap 1

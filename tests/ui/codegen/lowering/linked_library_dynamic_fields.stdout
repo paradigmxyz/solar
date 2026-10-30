@@ -477,9 +477,7 @@ bb8:
   swap 8
   dup 4
   mstore
-  push 32
-  dup 4
-  add
+  push 160
   swap 6
   dup 6
   dup 8

@@ -253,30 +253,23 @@ bb12 [cold]:
 bb13:
   push 128
   push 257
-  dup 2
+  dup 1
+  dup 3
   mstore
   push 0
-  push 288
-  dup 3
-  add
+  push 416
   mstore
-  push 32
-  dup 2
-  add
-  push 257
+  push 160
+  swap 1
   push_data literal_0
   dup 3
   codecopy
   push 0
-  push 288
-  dup 3
-  add
+  push 448
   mstore
   push 257
   dup 2
-  push 64
-  dup 5
-  add
+  push 192
   mcopy
   push 32
   dup 3
@@ -293,27 +286,19 @@ bb14:
   dup 2
   mstore
   push 0
-  push 192
-  dup 3
-  add
+  push 320
   mstore
-  push 32
-  dup 2
-  add
+  push 160
   push 161
   push_data literal_0+64
   dup 3
   codecopy
   push 0
-  push 192
-  dup 3
-  add
+  push 352
   mstore
   push 161
   dup 2
-  push 64
-  dup 5
-  add
+  push 192
   mcopy
   push 32
   dup 3
@@ -345,13 +330,11 @@ bb17:
 bb27 [ret=0, inputs=1, outputs=1]:
   push 128
   push 160
-  dup 2
+  dup 1
+  dup 3
   mstore
-  push 160
   calldatasize
-  push 32
-  dup 4
-  add
+  dup 2
   calldatacopy
   swap 1
   jump
@@ -412,9 +395,7 @@ bb28 [ret=0, inputs=1, outputs=1]:
   push 160
   dup 2
   mstore
-  push 32
-  dup 2
-  add
+  push 160
   push 0
   not
   dup 3
@@ -427,15 +408,11 @@ bb28 [ret=0, inputs=1, outputs=1]:
   dup 1
   dup 3
   mstore
-  push 64
-  dup 4
-  add
+  push 192
   mstore
   push 64
   dup 2
-  push 96
-  dup 5
-  add
+  push 224
   mcopy
   push 32
   dup 2
@@ -461,18 +438,15 @@ bb23 [continuation]:
   keccak256
   jump bb29
 bb24:
+  push 128
   push 32
-  push 128
-  dup 2
   dup 2
   mstore
-  add
   push 0
-  dup 2
+  push 160
   mstore
-  push 128
   mload
-  swap 1
+  push 160
   keccak256
   jump bb29
 bb25:

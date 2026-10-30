@@ -143,26 +143,19 @@ bb7:
   push bb8
   jump bb16
 bb16 [ret=0, inputs=1, outputs=1]:
-  push 128
-  push 224
-  dup 2
-  add
+  push 352
   push 64
   mstore
+  push 128
   push 161
-  dup 2
+  dup 1
+  dup 3
   mstore
   push 0
-  push 192
-  dup 3
-  add
+  push 320
   mstore
-  push 161
-  push 32
-  dup 3
-  add
   push_data literal_0
-  swap 1
+  push 160
   codecopy
   swap 1
   jump
@@ -211,9 +204,7 @@ bb19 [ret=1, inputs=2, outputs=3]:
   swap 3
   jump
 bb12:
-  push 128
-  dup 1
-  add
+  push 256
   push 64
   mstore
   push bb21

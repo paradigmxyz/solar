@@ -108,27 +108,19 @@ bb6:
   dup 2
   mstore
   push 0
-  push 256
-  dup 3
-  add
+  push 384
   mstore
-  push 32
-  dup 2
-  add
+  push 160
   push 241
   push_data literal_0
   dup 3
   codecopy
   push 0
-  push 256
-  dup 3
-  add
+  push 416
   mstore
   push 241
   dup 2
-  push 64
-  dup 5
-  add
+  push 192
   mcopy
   push 32
   dup 3
@@ -145,27 +137,19 @@ bb7:
   dup 2
   mstore
   push 0
-  push 192
-  dup 3
-  add
+  push 320
   mstore
-  push 32
-  dup 2
-  add
+  push 160
   push 161
   push_data literal_1
   dup 3
   codecopy
   push 0
-  push 192
-  dup 3
-  add
+  push 352
   mstore
   push 161
   dup 2
-  push 64
-  dup 5
-  add
+  push 192
   mcopy
   push 32
   dup 3

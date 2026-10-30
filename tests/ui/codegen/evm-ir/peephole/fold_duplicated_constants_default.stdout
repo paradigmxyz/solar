@@ -1,0 +1,7 @@
+// === ROOT/tests/ui/codegen/evm-ir/peephole/fold_duplicated_constants_default.evmir (after pipeline-default) ===
+@module fold_duplicated_constants_default
+bb0:
+  push 160
+  push 64
+  mstore
+  stop

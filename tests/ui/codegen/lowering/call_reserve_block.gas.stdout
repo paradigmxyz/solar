@@ -88,9 +88,7 @@ bb9:
   push 160
   mstore
   push 128
-  push 32
-  dup 2
-  add
+  push 160
   push 64
   mstore
   push 0x3fa4f24500000000000000000000000000000000000000000000000000000000

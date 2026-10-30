@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/immutable_byte_patch_copy_base.sol:ImmutableBytePatchCopyBase (deployment) ===
-PUSH1 0xff
+PUSH1 0xfe
 CODESIZE
 SUB
 DUP1
-PUSH1 0xff
+PUSH1 0xfe
 PUSH1 0xe0
 CODECOPY
 PUSH1 0xe0
@@ -17,22 +17,20 @@ PUSH1 0x40
 MSTORE
 PUSH1 0xe0
 DUP1
-PUSH1 0xff
+PUSH1 0xfe
 CODESIZE
 SUB
 ADD
-PUSH1 0x20
-DUP3
-ADD
+PUSH2 0x0100
 GT
 CALLVALUE
 OR
-PUSH1 0x45 ; bb0
+PUSH1 0x44 ; bb0
 JUMPI
 MLOAD
 PUSH1 0x08
 SHR
-PUSH1 0x45 ; bb0
+PUSH1 0x44 ; bb0
 JUMPI
 PUSH1 0xe0
 MLOAD
@@ -40,7 +38,7 @@ PUSH1 0xc0
 MSTORE
 PUSH1 0xb6
 DUP1
-PUSH1 0x49
+PUSH1 0x48
 PUSH0
 CODECOPY
 PUSH1 0xc0

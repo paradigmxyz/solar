@@ -1,0 +1,17 @@
+//@ compile-flags: -Zevm-ir-pipeline=default -Zdump=evm-ir-runtime
+//@ filecheck: --implicit-check-not={{dup.[0-9]}}
+
+// The default pipeline folds a block that its earlier peephole runs found clean.
+@module fold_duplicated_constants_default
+// CHECK: push 160
+// CHECK-NEXT: push 64
+// CHECK-NEXT: mstore
+bb0:
+  push 128
+  dup 1
+  push 32
+  add
+  push 64
+  mstore
+  pop
+  stop

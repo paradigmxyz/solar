@@ -15,7 +15,7 @@
 // COMMON: -   swap 1
 // COMMON: +   dup 2
 bb0:
-  push 1
+  calldatasize
   dup 1
   push 10
   swap 1
