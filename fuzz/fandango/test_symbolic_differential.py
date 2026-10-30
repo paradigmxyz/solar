@@ -1039,7 +1039,9 @@ class CommandTests(unittest.TestCase):
             args.solver = "./z3"
             with contextlib.chdir(root):
                 symbolic.run(args, root / "path-out")
-            self.assertEqual((root / "solver").read_text(), str(root / "z3"))
+            self.assertEqual(
+                (root / "solver").read_text(), str((root / "z3").resolve())
+            )
             args.solver = "z3"
             self.assertEqual(solc_input.read_bytes(), solar_input.read_bytes())
             standard_input = json.loads(solc_input.read_text())

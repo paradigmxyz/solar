@@ -359,6 +359,7 @@ jobs:
         env:
           SOLSYMDIFF_SELF_TEST: 1
       - name: Symbolic differential campaign
+        if: ${{ !cancelled() }}
         run: .github/scripts/run_solsymdiff_campaign.sh
       - name: Upload solsymdiff results
         if: always()
