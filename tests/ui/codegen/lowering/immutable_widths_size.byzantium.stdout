@@ -56,5 +56,5 @@ bb0:
   return
 bb3 [cold]:
   returndatasize
-  dup 1
+  returndatasize
   revert

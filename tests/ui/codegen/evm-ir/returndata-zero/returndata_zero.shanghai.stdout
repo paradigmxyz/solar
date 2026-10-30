@@ -19,6 +19,8 @@
     jump bb5
   bb2 [continuation]:
     push 0
+    dup 1
+    pop
     pop
     stop
   bb3 [ret=0, inputs=1, outputs=0]:
@@ -51,6 +53,21 @@
     jump
   bb7:
     push 0
+    pop
+    stop
+  bb8:
+    push 0
+    calldatasize
+    dup 2
+    swap 1
+    dup 1
+    dup 3
+    pop
+    pop
+    pop
+    pop
+    pop
+    dup 1
     pop
     stop
   

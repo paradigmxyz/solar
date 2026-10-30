@@ -41,7 +41,7 @@ bb0:
   jump bb8
 bb8 [cold]:
   returndatasize
-  dup 1
+  returndatasize
   revert
 bb33 [cold]:
   push 65

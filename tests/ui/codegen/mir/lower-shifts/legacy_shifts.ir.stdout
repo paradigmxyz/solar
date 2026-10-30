@@ -29,14 +29,14 @@ bb0:
   push bb6
   jumpi
   returndatasize
-  dup 1
+  returndatasize
   mstore
   push 32
   returndatasize
   return
 bb6 [cold]:
   returndatasize
-  dup 1
+  returndatasize
   revert
 bb3:
   push 8

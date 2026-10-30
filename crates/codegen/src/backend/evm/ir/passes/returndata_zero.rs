@@ -13,7 +13,9 @@
 //! `CREATE` or `CREATE2`, including a path through an internal function that runs one before it
 //! returns to its continuation. A block entered through a dynamic jump that no edge models is
 //! tainted too. Within a clean block, only the zero pushes before its first call or create are
-//! rewritten, since a later one sees the buffer that operation set. Reads of the buffer, such as
+//! rewritten, since a later one sees the buffer that operation set. A `DUP` of a word that the
+//! block's own prefix pushed as zero becomes `RETURNDATASIZE` too, which costs a gas less, as
+//! far as swaps and pops leave the word where the pass can follow it. Reads of the buffer, such as
 //! `RETURNDATACOPY` after a call, are not affected: they sit in tainted blocks or after the call.
 //!
 //! The pass runs after every pass that reads `push 0` as a concrete immediate, at the end of the
@@ -23,7 +25,7 @@
 use super::EvmPass;
 use crate::backend::evm::{
     ir::{Instruction, Module, ModuleTarget, verify::Verifier},
-    op,
+    op::{self, StackOp},
 };
 use alloy_primitives::U256;
 use solar_sema::Gcx;
@@ -42,28 +44,69 @@ impl EvmPass for ReturndataZero {
 
 fn returndata_zero(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let target = module.runtime_target(gcx);
+    let returndatasize = target.opcode(op::RETURNDATASIZE);
     if !gcx.sess.opts.evm_version.supports_returndata()
-        || !target.dominates(target.opcode(op::RETURNDATASIZE), target.encoded_push(U256::ZERO))
+        || !target.dominates(returndatasize, target.encoded_push(U256::ZERO))
     {
         return false;
     }
+    let dup_to_zero = target.dominates(returndatasize, target.opcode(op::DUP1));
 
     let after = Verifier::blocks_after_returndata_set(module);
     let mut changed = false;
+    // Whether each of the top words of the stack is a known zero, from the block's entry.
+    // Words below the tracked ones are unknown.
+    let mut zeros = Vec::new();
     for (block_id, block) in module.blocks.iter_mut_enumerated() {
         if after.contains(block_id) {
             continue;
         }
+        zeros.clear();
         for inst in &mut block.instructions {
             if inst.as_evm_opcode().is_some_and(op::sets_returndata) {
                 break;
             }
-            // push 0 => returndatasize
-            if inst.concrete_immediate() == Some(U256::ZERO) {
-                inst.replace_preserving_metadata(Instruction::opcode(op::RETURNDATASIZE));
-                changed = true;
+            match inst.as_stack_op() {
+                Some(StackOp::Dup(n)) => {
+                    let zero = zeros.len().checked_sub(usize::from(n)).is_some_and(|at| zeros[at]);
+                    // dup n of a zero => returndatasize
+                    if zero && dup_to_zero {
+                        inst.replace_preserving_metadata(Instruction::opcode(op::RETURNDATASIZE));
+                        changed = true;
+                    }
+                    zeros.push(zero);
+                }
+                Some(StackOp::Swap(n)) => swap_zeros(&mut zeros, 0, usize::from(n)),
+                Some(StackOp::Exchange(n, m)) => {
+                    swap_zeros(&mut zeros, usize::from(n), usize::from(m));
+                }
+                Some(StackOp::Pop) => {
+                    zeros.pop();
+                }
+                None => {
+                    // push 0 => returndatasize
+                    let zero = inst.concrete_immediate() == Some(U256::ZERO);
+                    if zero {
+                        inst.replace_preserving_metadata(Instruction::opcode(op::RETURNDATASIZE));
+                        changed = true;
+                    }
+                    let effect = inst.stack_effect();
+                    zeros.truncate(zeros.len().saturating_sub(usize::from(effect.inputs)));
+                    let known = zero || inst.as_evm_opcode() == Some(op::RETURNDATASIZE);
+                    zeros.extend((0..effect.outputs).map(|_| known));
+                }
             }
         }
     }
     changed
+}
+
+/// Swaps the flags of the words `a` and `b` below the top of the stack, forgetting all of them
+/// when either lies below the tracked ones.
+fn swap_zeros(zeros: &mut Vec<bool>, a: usize, b: usize) {
+    let top = zeros.len();
+    match (top.checked_sub(1 + a), top.checked_sub(1 + b)) {
+        (Some(a), Some(b)) => zeros.swap(a, b),
+        _ => zeros.clear(),
+    }
 }

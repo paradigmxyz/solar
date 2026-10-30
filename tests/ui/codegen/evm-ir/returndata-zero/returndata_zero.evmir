@@ -27,6 +27,8 @@ bb1:
 // A continuation after an internal call to a function that makes an external call keeps its zero.
 bb2 [continuation]:
   push 0
+  dup 1
+  pop
   pop
   stop
 
@@ -68,5 +70,23 @@ bb5 [ret=0, inputs=1, outputs=0]:
 // A block whose address escapes can be entered by a jump the graph has no edge for.
 bb7:
   push 0
+  pop
+  stop
+
+// A copy of a zero the block pushed reads the empty buffer as well, through swaps, but not a copy
+// of another word or of a word the block did not push.
+bb8:
+  push 0
+  calldatasize
+  dup 2
+  swap 1
+  dup 1
+  dup 3
+  pop
+  pop
+  pop
+  pop
+  pop
+  dup 1
   pop
   stop

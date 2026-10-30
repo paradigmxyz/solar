@@ -137,7 +137,7 @@ bb0:
   jump bb6
 bb6 [cold]:
   returndatasize
-  dup 1
+  returndatasize
   revert
 bb7:
   push bb8
