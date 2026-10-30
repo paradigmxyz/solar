@@ -25,17 +25,10 @@ impl CallGraphInfo {
             if helpers.is_empty() {
                 return;
             }
-            let graph = Self::new(module);
-            let reachable = graph.reachable_callees_from(
-                module
-                    .functions
-                    .iter_enumerated()
-                    .filter_map(|(id, function)| function.attributes.is_constructor.then_some(id)),
-            );
+            let constructor = module.constructor_reachable_functions();
             for helper in helpers {
                 assert!(
-                    !reachable.contains(helper)
-                        && !module.function(helper).attributes.is_constructor,
+                    !constructor.contains(helper),
                     "runtime helper `{}` is constructor-reachable and may overlap ABI staging",
                     module.function(helper).name
                 );

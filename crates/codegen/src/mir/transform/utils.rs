@@ -67,9 +67,7 @@ impl Default for DispatchCallvalue {
 
 impl DispatchCallvalue {
     pub(super) fn observe(&mut self, func: &Function) {
-        let external =
-            func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback;
-        if !external || func.attributes.is_constructor {
+        if !func.is_runtime_entry() {
             return;
         }
         self.any = true;
