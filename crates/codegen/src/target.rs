@@ -865,7 +865,7 @@ impl Target {
         let other_saving = jump_gas - test_gas;
         let gas_saving = i128::from(other_runs) * i128::from(other_saving)
             - i128::from(next_runs) * i128::from(next_extra);
-        let gas_saving = i64::try_from(gas_saving).unwrap_or(i64::MIN);
+        let gas_saving = gas_saving.clamp(i64::MIN.into(), i64::MAX.into()) as i64;
         let byte_saving = jump_bytes + freed_bytes - test_bytes;
         self.improves(gas_saving, byte_saving)
             && (gas_saving >= 0
@@ -1537,22 +1537,21 @@ mod tests {
 
     #[test]
     fn turned_branch_prices_both_edges() {
-        use TurnedTest::{Adds, Swaps};
         let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         // The added `ISZERO` costs 3 gas on `next`, less the landing that goes, and a jump to
         // `other` saves 11 gas of transfer less that test.
-        assert!(gas.falls_through_turned_branch(1, 1, Adds, false));
-        assert!(gas.falls_through_turned_branch(1, 4, Adds, true));
-        assert!(!gas.falls_through_turned_branch(10, 1, Adds, false));
-        assert!(!gas.falls_through_turned_branch(1, 0, Adds, false));
+        assert!(gas.falls_through_turned_branch(1, 1, TurnedTest::Adds, false));
+        assert!(gas.falls_through_turned_branch(1, 4, TurnedTest::Adds, true));
+        assert!(!gas.falls_through_turned_branch(10, 1, TurnedTest::Adds, false));
+        assert!(!gas.falls_through_turned_branch(1, 0, TurnedTest::Adds, false));
         // A swapped test is free, so the landing that goes pays alone, and a kept landing ties.
-        assert!(gas.falls_through_turned_branch(1, 0, Swaps, false));
-        assert!(!gas.falls_through_turned_branch(1, 0, Swaps, true));
+        assert!(gas.falls_through_turned_branch(1, 0, TurnedTest::Swaps, false));
+        assert!(!gas.falls_through_turned_branch(1, 0, TurnedTest::Swaps, true));
         // A size build at one run takes the bytes of a hot loop, and not at a million runs.
         let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1);
-        assert!(size.falls_through_turned_branch(10, 1, Adds, false));
+        assert!(size.falls_through_turned_branch(10, 1, TurnedTest::Adds, false));
         let hot = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1_000_000);
-        assert!(!hot.falls_through_turned_branch(10, 1, Adds, false));
+        assert!(!hot.falls_through_turned_branch(10, 1, TurnedTest::Adds, false));
     }
 
     #[test]
