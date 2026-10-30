@@ -782,8 +782,9 @@ impl AliasAnalysis {
                 || wraps(self.instruction_mod_ref(func, inst))
         };
         func.instructions().any(|inst| match func.inst(inst).kind {
-            // Only an access through a runtime index can have an unknown extent, and checking its
-            // address is cheaper than building its ModRef.
+            // Only an access through a runtime index, or at a heap pointer plus a bounded offset,
+            // can have an unknown extent, and checking its address is cheaper than building its
+            // ModRef.
             InstKind::Load(address, PtrLocation::Memory)
             | InstKind::Store(address, _, PtrLocation::Memory)
             | InstKind::Store8(address, _) => indexed(address) && exact(inst),
@@ -2727,9 +2728,10 @@ impl AliasAnalysis {
     ///
     /// NOTE: Only the bound keeps the sum from wrapping around the address space, onto the length
     /// word or below it: assembly may store any word as a length, and `new bytes(len)` bounds
-    /// `len` only by a panic this analysis does not follow. The store into `p` places `p` below
-    /// `2^64`, as no store reaches memory past that, so the sum stays below `2^256` and an access
-    /// at it stays clear of the length word, though it may leave the object.
+    /// `len` only by a panic this analysis does not follow. A bound also comes from an earlier
+    /// access of `len` bytes in the address's block (see [`Self::bounded_offset`]). The store into
+    /// `p` places `p` below `2^64`, as no store reaches memory past that, so the sum stays below
+    /// `2^256` and an access at it stays clear of the length word, though it may leave the object.
     fn payload_end(func: &Function, address: ValueId) -> Option<ValueId> {
         let address = Self::memory_address_value(func, address);
         let Value::Inst(user) = *func.value(address) else { return None };
@@ -2797,7 +2799,11 @@ impl AliasAnalysis {
 
     /// Returns the heap pointer `base` of a sum `base + offset`, in either order, when `offset`
     /// is bounded and so cannot wrap the sum below `base`: a compiler-owned pointer, an allocation
-    /// or the free-memory pointer, plus constants.
+    /// or the free-memory pointer, plus constants. Like the freshness of those pointers, this
+    /// assumes that assembly has not forged the pointer to the top of the address space.
+    ///
+    /// For an object `p` this subsumes [`Self::payload_end`]; that one still serves objects that
+    /// are no heap pointer, such as arguments, once their length is stored.
     fn bounded_sum_base(func: &Function, address: ValueId) -> Option<ValueId> {
         let address = Self::memory_address_value(func, address);
         let Value::Inst(user) = *func.value(address) else { return None };

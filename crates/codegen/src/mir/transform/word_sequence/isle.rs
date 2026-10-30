@@ -216,8 +216,9 @@ impl generated::Context for Context<'_> {
     }
 
     fn allocations_lowered(&mut self) -> bool {
-        // `lower-alloc` has run once no abstract free-memory-pointer operation remains. The block
-        // is detached from `func`, so look at its instructions apart.
+        // `lower-alloc` has run once no abstract free-memory-pointer operation remains, apart from
+        // the deferred allocations it leaves for the backend. The block is detached from `func`,
+        // so look at its instructions apart.
         self.block.iter().chain(self.func.blocks.iter().flat_map(|block| &block.instructions)).all(
             |&inst| match self.func.inst(inst).kind {
                 InstKind::Fmp | InstKind::SetFmp(_) => false,
