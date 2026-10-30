@@ -189,6 +189,15 @@ impl Function {
         }
     }
 
+    /// Returns the kind of the instruction that defines a value, if an instruction does.
+    #[must_use]
+    pub(crate) fn value_inst_kind(&self, id: ValueId) -> Option<&InstKind> {
+        match self.value(id) {
+            Value::Inst(inst) => Some(&self.inst(*inst).kind),
+            _ => None,
+        }
+    }
+
     /// Returns the slice location of a value, if it is slice-typed.
     #[must_use]
     pub(crate) fn value_slice_location(&self, id: ValueId) -> Option<PtrLocation> {

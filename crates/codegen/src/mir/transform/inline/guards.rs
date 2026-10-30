@@ -18,8 +18,8 @@
 
 use crate::{
     mir::{
-        BlockId, EffectKind, Function, InstKind, Instruction, MirType, Module, Terminator, Value,
-        ValueId, analysis::CfgInfo,
+        BlockId, EffectKind, Function, InstId, InstKind, Instruction, MirType, Module, Terminator,
+        Value, ValueId, analysis::CfgInfo, transform::utils::redirect_successor_predecessors,
     },
     target::Target,
 };
@@ -37,15 +37,19 @@ pub(super) fn inline_guards(gcx: Gcx<'_>, module: &mut Module) -> bool {
     if !module.runs_objective(OptimizationMode::is_gas) {
         return false;
     }
+    let mut defined = DenseBitSet::new_empty(0);
     let guards = module
         .functions
         .iter_enumerated()
-        .filter_map(|(id, func)| returning_guard(func).map(|guard| (id, guard)))
+        .filter_map(|(id, func)| returning_guard(func, &mut defined).map(|guard| (id, guard)))
         .collect::<FxHashMap<_, _>>();
     if guards.is_empty() {
         return false;
     }
     let mut changed = false;
+    let mut sites = Vec::new();
+    let mut values = FxHashMap::default();
+    let mut instructions = Vec::new();
     let module_objective = module.optimization;
     for (caller, func) in module.functions.iter_mut_enumerated() {
         // A clone joins its caller's code, so the caller's objective prices it.
@@ -53,7 +57,7 @@ pub(super) fn inline_guards(gcx: Gcx<'_>, module: &mut Module) -> bool {
         if !target.optimization().is_gas() {
             continue;
         }
-        let mut sites = Vec::new();
+        sites.clear();
         for (block, body) in func.blocks.iter_enumerated() {
             for (index, &inst) in body.instructions.iter().enumerate() {
                 if let InstKind::ICall { function: crate::mir::Callee::Function(function), args } =
@@ -80,8 +84,8 @@ pub(super) fn inline_guards(gcx: Gcx<'_>, module: &mut Module) -> bool {
         sites.retain(|&(block, _, _)| cfg.cyclic_blocks().contains(block));
         sites.truncate(4);
         // Splitting later calls first preserves the earlier instruction indices.
-        for (block, index, callee) in sites.into_iter().rev() {
-            split_guard(func, block, index, &guards[&callee]);
+        for &(block, index, callee) in sites.iter().rev() {
+            split_guard(func, block, index, &guards[&callee], &mut values, &mut instructions);
             changed = true;
         }
     }
@@ -117,7 +121,7 @@ fn already_guarded(caller: &Function, block: BlockId, index: usize) -> bool {
     }
 }
 
-fn returning_guard(func: &Function) -> Option<Guard> {
+fn returning_guard(func: &Function, defined: &mut DenseBitSet<ValueId>) -> Option<Guard> {
     if func.blocks.is_empty()
         || !func.return_components().is_empty()
         || func.params.len() > 4
@@ -125,10 +129,7 @@ fn returning_guard(func: &Function) -> Option<Guard> {
         || func.internal_frame_size != 0
         || func.attributes.no_inline
         || func.is_public()
-        || func.selector.is_some()
-        || func.attributes.is_constructor
-        || func.attributes.is_receive
-        || func.attributes.is_fallback
+        || func.is_external_entry()
         || func.instructions().take(65).count() > 64
     {
         return None;
@@ -153,20 +154,20 @@ fn returning_guard(func: &Function) -> Option<Guard> {
         (false, true) => false,
         _ => return None,
     };
-    let mut defined = DenseBitSet::new_empty(func.num_values());
+    defined.clear_to(func.num_values());
     for &inst in &entry.instructions {
         let instruction = func.inst(inst);
         if !matches!(
             instruction.kind,
             InstKind::Eq(..) | InstKind::Lt(..) | InstKind::Gt(..) | InstKind::Ne(..)
         ) || instruction.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure)
-            || !instruction.operands().into_iter().all(|value| guard_operand(func, value, &defined))
+            || !instruction.operands().into_iter().all(|value| guard_operand(func, value, defined))
         {
             return None;
         }
         defined.insert(func.inst_result_value(inst)?);
     }
-    guard_operand(func, condition, &defined).then(|| Guard {
+    guard_operand(func, condition, defined).then(|| Guard {
         function: func.clone(),
         condition,
         returns_if,
@@ -197,12 +198,19 @@ fn clone_value(
     })
 }
 
-fn split_guard(caller: &mut Function, block: BlockId, index: usize, guard: &Guard) {
+fn split_guard(
+    caller: &mut Function,
+    block: BlockId,
+    index: usize,
+    guard: &Guard,
+    values: &mut FxHashMap<ValueId, ValueId>,
+    instructions: &mut Vec<InstId>,
+) {
     let inst = caller.blocks[block].instructions[index];
     let InstKind::ICall { args, .. } = caller.inst(inst).kind.clone() else { unreachable!() };
     let callee = &guard.function;
-    let mut values = FxHashMap::default();
-    let mut instructions = Vec::new();
+    values.clear();
+    instructions.clear();
     // icall helper(args)
     // => condition = helper.entry(args)
     //    branch condition, continuation, call
@@ -211,7 +219,7 @@ fn split_guard(caller: &mut Function, block: BlockId, index: usize, guard: &Guar
         let source_inst = callee.inst(source);
         let mut kind = source_inst.kind.clone();
         kind.visit_operands_mut(|value| {
-            *value = clone_value(caller, callee, &args, &mut values, *value);
+            *value = clone_value(caller, callee, &args, values, *value);
         });
         let mut instruction = Instruction::new(kind, source_inst.result_ty);
         instruction.metadata.copy_debug_context(&source_inst.metadata);
@@ -219,16 +227,15 @@ fn split_guard(caller: &mut Function, block: BlockId, index: usize, guard: &Guar
         values.insert(callee.inst_result_value(source).unwrap(), new_value);
         instructions.push(new_inst);
     }
-    let condition = clone_value(caller, callee, &args, &mut values, guard.condition);
+    let condition = clone_value(caller, callee, &args, values, guard.condition);
     let continuation = caller.alloc_block();
     let call = caller.alloc_block();
     let (terminator, metadata) = caller.blocks[block].take_terminator();
-    let successors = terminator.as_ref().map(Terminator::successors).unwrap_or_default();
     // continuation: suffix; original_terminator
     caller.blocks[continuation].instructions =
         caller.blocks[block].instructions.split_off(index + 1);
     caller.blocks[block].instructions.pop();
-    caller.blocks[block].instructions.extend(instructions);
+    caller.blocks[block].instructions.append(instructions);
     if let Some(terminator) = terminator {
         caller.blocks[continuation].set_terminator(terminator, metadata);
     }
@@ -244,20 +251,5 @@ fn split_guard(caller: &mut Function, block: BlockId, index: usize, guard: &Guar
     caller.blocks[call].predecessors.push(block);
     caller.blocks[continuation].predecessors.extend([block, call]);
     // successor: phi [..., block: value] => phi [..., continuation: value]
-    for successor in successors {
-        for pred in &mut caller.blocks[successor].predecessors {
-            if *pred == block {
-                *pred = continuation;
-            }
-        }
-        for source in caller.blocks[successor].instructions.clone() {
-            if let InstKind::Phi(incoming) = &mut caller.inst_mut(source).kind {
-                for (pred, _) in incoming {
-                    if *pred == block {
-                        *pred = continuation;
-                    }
-                }
-            }
-        }
-    }
+    redirect_successor_predecessors(caller, block, continuation);
 }

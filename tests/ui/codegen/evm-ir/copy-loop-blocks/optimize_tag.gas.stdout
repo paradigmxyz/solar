@@ -1,0 +1,48 @@
+- // === ROOT/tests/ui/codegen/evm-ir/copy-loop-blocks/optimize_tag.evmir (before copy-loop-blocks) ===
++ // === ROOT/tests/ui/codegen/evm-ir/copy-loop-blocks/optimize_tag.evmir (after copy-loop-blocks) ===
+  @module OptimizeTag
+  bb0:
+    push 0
+    calldataload
+    push 0
+    jump bb1
+  bb1 [loop]:
+    dup 2
+    dup 2
+    eq
+    push bb3
+    jumpi
+    dup 1
+    calldataload
+    push 1
+    and
+    push bb2
+    jumpi
+    pop
+    pop
+    push 0
+    push 0
+    return
+  bb2 [loop]:
+    push 1
+    add
+-   jump bb1
++   dup 2
++   dup 2
++   eq
++   push bb3
++   jumpi
++   dup 1
++   calldataload
++   push 1
++   and
++   push bb2
++   jumpi
++   pop
++   pop
++   push 0
++   push 0
++   return
+  bb3:
+    stop
+  

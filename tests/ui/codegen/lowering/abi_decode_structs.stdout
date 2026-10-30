@@ -7,28 +7,28 @@
 
 fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
   bb0:
-    v31 = icall @decode_calldata_type
-    v39 = add v31, 32
-    v12 = mload v31
+    v39 = icall @decode_calldata_type
+    v47 = add v39, 32
+    v12 = mload v39
     v15 = slt v12, 96
     jumpi v15, bb1, bb2
   bb2:
     v16 = alloc 96 !metadata(deferred_alloc)
-    v17 = mload v39
-    v19 = add v39, 32
-    v20 = mload v19
-    v21 = shr v20, 160
-    v22 = eq v21, 0
-    jumpi v22, bb3, bb1
+    v17 = mload v47
+    v20 = add v47, 32
+    v21 = mload v20
+    v22 = shr v21, 160
+    v26 = ne v22, 0
+    jumpi v26, bb1, bb3
   bb3:
-    v25 = add v39, 64
-    v26 = mload v25
-    v27 = lt v26, 2
-    jumpi v27, bb4, bb1
+    v29 = add v47, 64
+    v30 = mload v29
+    v34 = gt v30, 1
+    jumpi v34, bb1, bb4
   bb4:
     mstore 0, v17
-    mstore 32, v20
-    mstore 64, v26
+    mstore 32, v21
+    mstore 64, v30
     returndata 0, 96
   bb1:
     revert 0, 0

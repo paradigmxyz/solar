@@ -112,7 +112,7 @@ fn find_candidates(func: &Function, loop_data: &Loop) -> Option<(BlockId, Vec<Ca
     for block_id in &loop_data.blocks {
         for &inst_id in &func.blocks[block_id].instructions {
             if let InstKind::Store(store_slot, _, PtrLocation::Storage) = &func.inst(inst_id).kind {
-                let alias = AliasAnalysis::storage_alias_for_value_at(func, *store_slot);
+                let alias = StorageAlias::for_value(func, *store_slot);
                 if let Some(base) = alias.symbolic_base()
                     && value_defined_in_loop(func, &inst_blocks, base, loop_data)
                 {

@@ -219,7 +219,7 @@ impl StorageStoreEliminator<'_> {
                     _,
                     location @ (PtrLocation::Storage | PtrLocation::Transient),
                 ) => {
-                    let written = Self::slot_location(aa, func, inst_id, slot, location);
+                    let written = Self::slot_location(func, inst_id, slot, location);
                     let facts = later_writes.facts_mut(written.address_space());
                     if facts.contains(&written) {
                         if let Some(dead) = &mut dead {
@@ -308,7 +308,7 @@ impl StorageStoreEliminator<'_> {
                     value,
                     location @ (PtrLocation::Storage | PtrLocation::Transient),
                 ) => {
-                    let location = Self::slot_location(aa, func, inst_id, slot, location);
+                    let location = Self::slot_location(func, inst_id, slot, location);
                     // sstore slot, v; ...; sstore slot, v -> sstore slot, v; ...
                     // v = sload slot; ...; sstore slot, v -> v = sload slot; ...
                     if stored_values.get(&location).is_some_and(|&stored| stored == value) {
@@ -322,7 +322,7 @@ impl StorageStoreEliminator<'_> {
                 // A load tells the word its slot holds until a write that may alias the slot.
                 InstKind::Load(slot, PtrLocation::Storage) => {
                     if let Some(loaded) = func.inst_result_value(inst_id) {
-                        let location = Location::Storage(aa.storage_alias(func, inst_id, slot));
+                        let location = Location::Storage(func.storage_alias(inst_id, slot));
                         stored_values.entry(location).or_insert(loaded);
                     }
                 }
@@ -336,13 +336,12 @@ impl StorageStoreEliminator<'_> {
 
     /// The slot a storage or transient store at `slot` writes.
     fn slot_location(
-        aa: &AliasAnalysis,
         func: &Function,
         inst_id: InstId,
         slot: ValueId,
         location: PtrLocation,
     ) -> Location {
-        Location::slot(location, aa.storage_alias(func, inst_id, slot))
+        Location::slot(location, func.storage_alias(inst_id, slot))
             .expect("a storage or transient store")
     }
 
