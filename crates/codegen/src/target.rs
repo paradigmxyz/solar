@@ -1125,6 +1125,18 @@ impl Target {
             .saturating_sub(self.jump().bytes)
     }
 
+    /// Cost of a zero read from `RETURNDATASIZE`, which holds zero until the frame runs a call or
+    /// create, or `None` when it does not dominate the literal zero push: Shanghai and later push
+    /// zero at the same price, and earlier targets before Byzantium lack the opcode. Pricing that
+    /// ignores the frame's calls, as the selector's and every pass before the late
+    /// `returndata-zero` pass do, keeps the literal price, which bounds the final cost from above.
+    pub(crate) fn returndata_zero(&self) -> Option<Cost> {
+        let cost = self.opcode(op::RETURNDATASIZE);
+        (self.evm_version.supports_returndata()
+            && self.dominates(cost, self.encoded_push(U256::ZERO)))
+        .then_some(cost)
+    }
+
     /// A single encoded PUSH, without the arithmetic recipes used for materialized constants.
     /// Labels and already selected EVM IR immediates use this encoding during assembly.
     pub(crate) fn encoded_push(&self, value: U256) -> Cost {
@@ -1841,6 +1853,21 @@ mod tests {
         assert_eq!(target.shared_return_tail_savings(suffix.bytes, 1), 2);
         assert_eq!(target.shared_return_tail_savings(0, 1), 0);
         assert_eq!(target.shared_return_tail_savings(suffix.bytes, 0), 1);
+    }
+
+    #[test]
+    fn returndata_zero_replaces_only_the_pre_shanghai_push() {
+        let price = |version| Target::with(version, OptimizationMode::Gas, 200).returndata_zero();
+        let paris = Target::with(EvmVersion::Paris, OptimizationMode::Gas, 200);
+        let returndata_zero = price(EvmVersion::Paris).unwrap();
+        assert_eq!(returndata_zero, paris.opcode(op::RETURNDATASIZE));
+        // Cheaper than the literal push and than a `DUP` in gas, and no larger.
+        assert!(paris.dominates(returndata_zero, paris.push(U256::ZERO)));
+        assert!(paris.dominates(returndata_zero, paris.dup()));
+        assert!(price(EvmVersion::Byzantium).is_some());
+        assert!(price(EvmVersion::Homestead).is_none());
+        assert!(price(EvmVersion::Shanghai).is_none());
+        assert!(price(EvmVersion::Osaka).is_none());
     }
 
     #[test]
