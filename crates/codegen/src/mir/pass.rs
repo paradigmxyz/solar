@@ -744,6 +744,9 @@ pub(crate) struct FunctionAnalyses {
     straight_line_creation: bool,
     /// The objective the function's code is optimized for.
     optimization: OptimizationMode,
+    /// Whether the function is cold: no call that succeeds runs it. The cost models below price a
+    /// cold function by [`Target::priced_for_cold`].
+    cold: bool,
 }
 
 impl FunctionAnalyses {
@@ -753,6 +756,7 @@ impl FunctionAnalyses {
         cfg: Option<Rc<CfgInfo>>,
         (creation_only, straight_line_creation): (bool, bool),
         optimization: OptimizationMode,
+        cold: bool,
     ) -> Self {
         Self {
             function,
@@ -762,6 +766,7 @@ impl FunctionAnalyses {
             creation_only,
             straight_line_creation,
             optimization,
+            cold,
         }
     }
 
@@ -790,14 +795,14 @@ impl FunctionAnalyses {
     /// The cost model of runtime code under the module's objective, for code that a loop may run
     /// many times, wherever it is.
     pub(crate) fn runtime_target(&self, gcx: Gcx<'_>) -> Target {
-        Target::new(gcx, self.optimization)
+        Target::new(gcx, self.optimization).priced_for_cold(self.cold)
     }
 
     /// The cost model for a transform that ranks code shapes without weighing blocks by how
     /// often they run: creation code is priced as such only when every instruction runs a
     /// bounded number of times, so without loops, recursion, or a looping caller.
     pub(crate) fn target(&self, gcx: Gcx<'_>) -> Target {
-        Target::new(gcx, self.optimization).priced_for(self.straight_line_creation)
+        self.runtime_target(gcx).priced_for(self.straight_line_creation)
     }
 
     /// Records an edit that the transform does not report as a change, such as removing dead
@@ -963,7 +968,8 @@ impl ModuleAnalyses {
             self.alias_with_summaries(func_id, summaries)
         });
         let cfg = requirements.cfg().then(|| self.cfg(func_id, &module.functions[func_id]));
-        FunctionAnalyses::new(func_id, alias, cfg, pricing, module.objective(func_id))
+        let cold = module.functions[func_id].attributes.hotness.is_cold();
+        FunctionAnalyses::new(func_id, alias, cfg, pricing, module.objective(func_id), cold)
     }
 
     /// Returns whether a function is creation-only and whether, besides, it has no loop, when
@@ -1243,12 +1249,14 @@ fn run_parallel_function_pass(
         .collect::<Vec<_>>();
     let results =
         sync::par_try_map(true, tasks, |(id, func, alias, cfg, pricing, optimization)| {
+            let cold = func.attributes.hotness.is_cold();
             let bundle = FunctionAnalyses::new(
                 id,
                 alias.map(Rc::new),
                 cfg.map(Rc::new),
                 pricing,
                 optimization,
+                cold,
             );
             let insts_before = func.num_insts();
             let changed = run(func, &bundle);
