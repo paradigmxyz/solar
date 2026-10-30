@@ -104,6 +104,7 @@ time: <TIME>	MIR TimePasses indvar-simplify changed=false
 time: <TIME>	MIR TimePasses loop-unroll changed=false
 time: <TIME>	MIR TimePasses check-elim changed=false
 time: <TIME>	MIR TimePasses cfg-simplify changed=false
+time: <TIME>	MIR TimePasses egraph changed=false
 time: <TIME>	MIR TimePasses merge-aborts changed=false
 time: <TIME>	MIR TimePasses inline changed=false
 time: <TIME>	MIR TimePasses cfg-simplify changed=false

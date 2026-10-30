@@ -39,13 +39,13 @@ library ERC4337Utils {
 
 contract CalldataStructFieldSlice {
     // The single-use accessor is inlined into its wrapper. Past the length check, the
-    // `bytes20` conversion loads one calldata word at the slice start and masks it.
+    // `bytes20` conversion loads one calldata word at the slice start and shifts it; the shift
+    // drops the bits the mask would clear.
     // CDSFS-LABEL: fn @factory{{[.][0-9]+}}
     // CDSFS-NOT: icall
     // CDSFS: lt {{v[0-9]+}}, 20
     // CDSFS: [[LEAD:v[0-9]+]] = calldataload
-    // CDSFS-NEXT: [[MASKED:v[0-9]+]] = and [[LEAD]], 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    // CDSFS-NEXT: shr [[MASKED]], 96
+    // CDSFS-NEXT: shr [[LEAD]], 96
     function factory(PackedUserOperation calldata op) external pure returns (address) {
         return ERC4337Utils.factory(op);
     }

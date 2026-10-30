@@ -46,8 +46,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     mstore 15, 0x30313233343536373839616263646566 !metadata(memory=scratch)
     v5 = add v3, 32
     v7 = add v85, v1
-    v123 = sub v7, v85
-    v124 = and v123, 1
+    v124 = and v1, 1
     v125 = ne v124, 0
     jumpi v125, bb9, bb10
   bb9:
@@ -164,11 +163,10 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     jumpi v64, bb9, bb10
   bb9:
     v54 = mload v42
-    v55 = add 0, v54
     v56 = add v42, 32
     jump bb10
   bb10:
-    v65 = phi [bb7: 0], [bb9: v55]
+    v65 = phi [bb7: 0], [bb9: v54]
     v66 = phi [bb7: v42], [bb9: v56]
     jump bb1
   bb1:
@@ -206,11 +204,10 @@ fn @stepThree() [selector=0xbf2eba92, abi_wrapper, pure] {
     v26 = ne v25, 0
     jumpi v26, bb6, bb7
   bb6:
-    v17 = add 0, arg0
     v18 = add arg0, 3
     jump bb7
   bb7:
-    v27 = phi [bb5: 0], [bb6: v17]
+    v27 = phi [bb5: 0], [bb6: arg0]
     v28 = phi [bb5: arg0], [bb6: v18]
     jump bb1
   bb1:

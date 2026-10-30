@@ -9,22 +9,18 @@ fn @gasCaller() [selector=0x3dd81fa2, abi_wrapper, pure] {
     v38 = lt v43, 4
     jumpi v38, bb2, bb1
   bb1:
-    v110 = add v44, 0
-    v111 = calldataload v110
+    v111 = calldataload v44
     v112 = byte 0, v111
-    v113 = or 0, v112
-    v118 = shl v113, 8
-    v119 = and v118, 0xffffffff
+    v118 = shl v112, 8
     v120 = add v44, 1
     v121 = calldataload v120
     v122 = byte 0, v121
-    v123 = or v119, v122
+    v123 = or v118, v122
     v128 = shl v123, 8
-    v129 = and v128, 0xffffffff
     v130 = add v44, 2
     v131 = calldataload v130
     v132 = byte 0, v131
-    v133 = or v129, v132
+    v133 = or v128, v132
     v138 = shl v133, 8
     v139 = and v138, 0xffffffff
     v140 = add v44, 3
@@ -34,10 +30,10 @@ fn @gasCaller() [selector=0x3dd81fa2, abi_wrapper, pure] {
     mstore 0, v143
     returndata 0, 32
   bb2:
-    v66 = lt 0, v43
-    v77 = lt 1, v43
+    v66 = gt v43, 0
+    v77 = gt v43, 1
     v145 = and v66, v77
-    v88 = lt 2, v43
+    v88 = gt v43, 2
     v146 = and v145, v88
     jumpi v146, bb4, bb3
   bb4:

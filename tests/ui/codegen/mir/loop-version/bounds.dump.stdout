@@ -76,7 +76,6 @@ fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
     v124 = lt v31, arg1
     jumpi v124, bb18, bb17
   bb17:
-    v210 = add v203, 32
     jump bb11
   bb11:
     v83 = phi [bb17: 0], [bb14: v102]
@@ -86,14 +85,14 @@ fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
   bb12:
     v86 = shr v84, 1
     v89 = shl v84, 5
-    v170 = add v210, v89
+    v170 = add v181, v89
     v92 = mload v170
     v93 = add v84, 1
     v94 = lt v93, arg1
     jumpi v94, bb13, bb14
   bb13:
     v97 = shl v93, 5
-    v173 = add v210, v97
+    v173 = add v181, v97
     v100 = mload v173
     v101 = gt v92, v100
     jumpi v101, bb15, bb16
@@ -107,7 +106,7 @@ fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
     v102 = phi [bb16: v111], [bb12: v84]
     v103 = phi [bb16: v112], [bb12: v92]
     v105 = shl v86, 5
-    v176 = add v210, v105
+    v176 = add v181, v105
     mstore v176, v103
     v108 = not v102
     v109 = sub v102, v108
@@ -386,8 +385,6 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     v117 = sub v95, v133
     jump bb4
   bb17:
-    v373 = add v358, 32
-    v374 = add v359, 32
     jump bb11
   bb11:
     v137 = phi [bb17: 0], [bb40: v156]
@@ -445,7 +442,7 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     jumpi v142, bb37, bb26
   bb37:
     v143 = shl v138, 5
-    v328 = add v373, v143
+    v328 = add v299, v143
     v146 = mload v328
     v147 = add v138, 1
     v148 = lt v147, arg1
@@ -455,7 +452,7 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     jumpi v150, bb38, bb26
   bb38:
     v151 = shl v147, 5
-    v331 = add v373, v151
+    v331 = add v299, v151
     v154 = mload v331
     v155 = gt v146, v154
     jumpi v155, bb15, bb16
@@ -471,17 +468,17 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     v157 = phi [bb16: v175], [bb37: v146]
     v158 = phi [bb37: v143], [bb16: v176]
     v160 = shl v140, 5
-    v297 = add v373, v160
+    v297 = add v299, v160
     mstore v297, v157
     v164 = lt v156, v59
     jumpi v164, bb39, bb26
   bb39:
-    v334 = add v374, v158
+    v334 = add v301, v158
     v167 = mload v334
     v168 = lt v140, v59
     jumpi v168, bb40, bb26
   bb40:
-    v337 = add v374, v160
+    v337 = add v301, v160
     mstore v337, v167
     v171 = not v156
     v172 = sub v156, v171
@@ -560,11 +557,10 @@ fn @literalInLoop() [selector=0xb0bfff29, abi_wrapper, pure] {
     v117 = add v116, 32
     jump bb3
   bb6:
-    v115 = add v107, 128
     jump bb1
   bb1:
     v113 = phi [bb6: v107], [bb8: v114]
-    v5 = lt v113, v115
+    v5 = lt v113, v108
     jumpi v5, bb8, bb7
   bb7:
     tail_call @revert_stub.4

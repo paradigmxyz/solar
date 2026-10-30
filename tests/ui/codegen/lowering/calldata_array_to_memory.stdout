@@ -106,29 +106,27 @@ bb8:
   push bb34
   jumpi
   push 128
-  dup 5
+  swap 1
   dup 2
-  push 32
-  add
-  swap 3
-  dup 3
   add
   push 64
   mstore
-  dup 2
-  mstore
   swap 3
-  swap 1
-  calldatacopy
+  dup 4
+  mstore
   push 32
+  dup 4
+  add
   dup 2
-  add
-  swap 2
-  push 5
-  shl
+  dup 4
+  dup 3
+  calldatacopy
+  swap 3
   add
   push 32
   add
+  swap 1
+  pop
   push 0
   swap 2
   jump bb11

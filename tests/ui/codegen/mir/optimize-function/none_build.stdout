@@ -63,22 +63,18 @@ fn @sum() [selector=0xa20eed08, abi_wrapper, pure] {
     v37 = lt v46, 4
     jumpi v37, bb2, bb1
   bb1:
-    v117 = add v47, 0
-    v118 = calldataload v117
+    v118 = calldataload v47
     v119 = byte 0, v118
-    v120 = or 0, v119
-    v125 = shl v120, 8
-    v126 = and v125, 0xffffffff
+    v125 = shl v119, 8
     v127 = add v47, 1
     v128 = calldataload v127
     v129 = byte 0, v128
-    v130 = or v126, v129
+    v130 = or v125, v129
     v135 = shl v130, 8
-    v136 = and v135, 0xffffffff
     v137 = add v47, 2
     v138 = calldataload v137
     v139 = byte 0, v138
-    v140 = or v136, v139
+    v140 = or v135, v139
     v145 = shl v140, 8
     v146 = and v145, 0xffffffff
     v147 = add v47, 3
@@ -88,10 +84,10 @@ fn @sum() [selector=0xa20eed08, abi_wrapper, pure] {
     mstore 0, v150
     returndata 0, 32
   bb2:
-    v73 = lt 0, v46
-    v84 = lt 1, v46
+    v73 = gt v46, 0
+    v84 = gt v46, 1
     v153 = and v73, v84
-    v95 = lt 2, v46
+    v95 = gt v46, 2
     v154 = and v153, v95
     jumpi v154, bb6, bb3
   bb6:
@@ -183,22 +179,18 @@ fn @fast() [selector=0xe256fef5, abi_wrapper, optimize=gas, pure] {
     v37 = lt v42, 4
     jumpi v37, bb2, bb1
   bb1:
-    v109 = add v43, 0
-    v110 = calldataload v109
+    v110 = calldataload v43
     v111 = byte 0, v110
-    v112 = or 0, v111
-    v117 = shl v112, 7
-    v118 = and v117, 0xffffffff
+    v117 = shl v111, 7
     v119 = add v43, 1
     v120 = calldataload v119
     v121 = byte 0, v120
-    v122 = or v118, v121
+    v122 = or v117, v121
     v127 = shl v122, 7
-    v128 = and v127, 0xffffffff
     v129 = add v43, 2
     v130 = calldataload v129
     v131 = byte 0, v130
-    v132 = or v128, v131
+    v132 = or v127, v131
     v137 = shl v132, 7
     v138 = and v137, 0xffffffff
     v139 = add v43, 3
@@ -208,10 +200,10 @@ fn @fast() [selector=0xe256fef5, abi_wrapper, optimize=gas, pure] {
     mstore 0, v142
     returndata 0, 32
   bb2:
-    v65 = lt 0, v42
-    v76 = lt 1, v42
+    v65 = gt v42, 0
+    v76 = gt v42, 1
     v144 = and v65, v76
-    v87 = lt 2, v42
+    v87 = gt v42, 2
     v145 = and v144, v87
     jumpi v145, bb4, bb3
   bb4:

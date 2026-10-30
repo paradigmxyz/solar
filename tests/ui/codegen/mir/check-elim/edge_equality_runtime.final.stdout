@@ -34,8 +34,7 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v45 = add v56, 64
     v46 = add v45, 32
     mstore v46, 64
-    v48 = add v56, 96
-    v49 = add v48, 32
+    v49 = add v56, 128
     mstore v49, 0
     v36 = add v43, 96
     mstore v36, 0
