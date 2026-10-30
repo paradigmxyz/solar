@@ -1,0 +1,74 @@
+//@ compile-flags: -Zmir-pipeline=check-elim
+//@ filecheck:
+@module WidthTests
+
+// A branch on a width test bounds its word by the width, whether the test is the shifted word or
+// the comparison with the limit, so a later test of either spelling that the bound decides folds.
+// CHECK-LABEL: {{^[ +].*}}fn @shift_then_comparison{{[( ]}}
+// CHECK: - jumpi {{v[0-9]+}}, bb2, bb3
+// CHECK: + jump bb2
+fn @shift_then_comparison(arg0: i256) -> i256 {
+  bb0:
+    v0 = shr arg0, 8
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = lt arg0, 0x10000
+    jumpi v2, bb2, bb3
+  bb2:
+    ret arg0
+  bb3:
+    revert 0, 0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @comparison_then_shift{{[( ]}}
+// CHECK: - jumpi {{v[0-9]+}}, bb3, bb2
+// CHECK: + jump bb2
+fn @comparison_then_shift(arg0: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 255
+    jumpi v0, bb3, bb1
+  bb1:
+    v2 = shr arg0, 16
+    v3 = ne v2, 0
+    jumpi v3, bb3, bb2
+  bb2:
+    ret arg0
+  bb3:
+    revert 0, 0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @fit_shift_then_exceeding_comparison{{[( ]}}
+// CHECK: - jumpi {{v[0-9]+}}, bb2, bb3
+// CHECK: + jump bb3
+fn @fit_shift_then_exceeding_comparison(arg0: i256) -> i256 {
+  bb0:
+    v0 = shr arg0, 8
+    v1 = eq v0, 0
+    jumpi v1, bb1, bb3
+  bb1:
+    v2 = gt arg0, 0xffff
+    jumpi v2, bb2, bb3
+  bb2:
+    ret arg0
+  bb3:
+    revert 0, 0
+}
+
+// A wider test than the bound decides nothing.
+// CHECK-LABEL: {{^[ +].*}}fn @narrower_test_stays{{[( ]}}
+// CHECK-NOT: {{^\+ +jump}}
+fn @narrower_test_stays(arg0: i256) -> i256 {
+  bb0:
+    v0 = shr arg0, 16
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = shr arg0, 8
+    v3 = ne v2, 0
+    jumpi v3, bb3, bb2
+  bb2:
+    ret arg0
+  bb3:
+    revert 0, 0
+}

@@ -60,6 +60,22 @@ fn @wrapOntoOwner() -> i256 [selector=0x428ae2e7, abi_params=[], abi_returns=[wo
     ret v6
 }
 
+fn @belowCap() -> i256 [selector=0xb648638d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    sstore 1, 0xffffffffffffffff !metadata(storage=slot(1))
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = shr v0, 64
+    v2 = ne v1, 0
+    icall panic_if<0x41>, v2
+    v3 = add v0, 1
+    v4 = storage_array_data_slot 1
+    v5 = add v4, v0
+    sstore v5, 7 !metadata(storage=symbolic(v5))
+    sstore 1, v3 !metadata(storage=slot(1))
+    v6 = sload 1 !metadata(storage=slot(1))
+    ret v6
+}
+
 fn @atCap() [selector=0xdb9a763c, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 1, 0x10000000000000000 !metadata(storage=slot(1))

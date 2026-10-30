@@ -1,6 +1,7 @@
 //@ codegen-matrix: standard
 //@ run-call: grow() => 7, 8, 2
 //@ run-call-fail: wrapOntoOwner() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@ run-call: belowCap() => 18446744073709551616
 //@ run-call-fail: atCap() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
 // A storage array's length cannot reach 2**64 by growing, so a length at or
 // above it is forged and `keccak256(array_slot) + old_length` wraps onto
@@ -25,6 +26,14 @@ contract C {
         }
         a.push(7);
         return owner;
+    }
+
+    function belowCap() public returns (uint256) {
+        assembly {
+            sstore(1, 0xffffffffffffffff)
+        }
+        a.push(7);
+        return a.length;
     }
 
     function atCap() public {

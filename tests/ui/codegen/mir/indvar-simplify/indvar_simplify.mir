@@ -342,6 +342,63 @@ fn @reach_checked_bound(arg0: i256, arg1: i256) -> i256 {
     revert 0, 0
 }
 
+// A check that the length fits in 59 bits keeps it below `2^251` as well, spelled as the shifted
+// word or as the comparison with the limit.
+// CHECK-LABEL: {{^[ +].*}}fn @reach_bound_fitting_width_shift{{[( ]}}
+// CHECK-NOT: = select
+// CHECK: + [[SCALED:v[0-9]+]] = shl arg1, 5
+fn @reach_bound_fitting_width_shift(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v2 = shr arg1, 59
+    v3 = ne v2, 0
+    jumpi v3, bb5, bb1
+  bb1:
+    jump bb2
+  bb2:
+    v4 = phi [bb1: 0], [bb3: v9]
+    v5 = phi [bb1: 0], [bb3: v8]
+    v6 = lt v4, arg1
+    jumpi v6, bb3, bb4
+  bb3:
+    v7 = shl v4, 5
+    v10 = add arg0, v7
+    v11 = calldataload v10
+    v8 = add v5, v11
+    v9 = add v4, 1
+    jump bb2
+  bb4:
+    ret v5
+  bb5:
+    revert 0, 0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @reach_bound_fitting_width_comparison{{[( ]}}
+// CHECK-NOT: = select
+// CHECK: + [[SCALED:v[0-9]+]] = shl arg1, 5
+fn @reach_bound_fitting_width_comparison(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v3 = gt arg1, 0x7ffffffffffffff
+    jumpi v3, bb5, bb1
+  bb1:
+    jump bb2
+  bb2:
+    v4 = phi [bb1: 0], [bb3: v9]
+    v5 = phi [bb1: 0], [bb3: v8]
+    v6 = lt v4, arg1
+    jumpi v6, bb3, bb4
+  bb3:
+    v7 = shl v4, 5
+    v10 = add arg0, v7
+    v11 = calldataload v10
+    v8 = add v5, v11
+    v9 = add v4, 1
+    jump bb2
+  bb4:
+    ret v5
+  bb5:
+    revert 0, 0
+}
+
 // An unchecked bound is clamped to `2^65` first, which the counter reaches only after more
 // iterations than a loop can run.
 // CHECK-LABEL: {{^[ +].*}}fn @clamp_unchecked_bound{{[( ]}}
