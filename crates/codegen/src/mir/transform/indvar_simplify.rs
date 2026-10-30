@@ -446,9 +446,14 @@ impl IndVarSimplifier {
         let mut families = families.into_values().collect::<Vec<_>>();
         for members in &mut families {
             // The most used offset carries the pointer; ties go to the smallest offset.
-            members
-                .sort_by_key(|(key, values)| (std::cmp::Reverse(values.len()), key.constant.abs()));
+            members.sort_by_key(|(key, values)| {
+                (std::cmp::Reverse(values.len()), key.constant.abs(), values.iter().min().copied())
+            });
         }
+        // Hash iteration order follows value numbering; order families by their first value so
+        // the chosen pointers do not change when unrelated instructions shift the numbering.
+        families
+            .sort_by_key(|members| members.iter().flat_map(|(_, values)| values).min().copied());
 
         // With the counter free once every address is a pointer, an ascending pointer
         // that cannot wrap takes over the exit test and the counter dies; that credit

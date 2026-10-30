@@ -84,8 +84,8 @@ fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memo
   bb0:
     v59 = add arg1, 1
     v62 = sub arg0, v59
-    v123 = add arg1, 32
-    v126 = add arg0, 32
+    v123 = add arg0, 32
+    v126 = add arg1, 32
     jump bb1
   bb1:
     v4 = phi [bb0: 0], [bb12: v30]
@@ -96,7 +96,7 @@ fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memo
     jumpi v6, bb3, bb2
   bb3:
     v10 = shl v4, 5
-    v13 = mload v127
+    v13 = mload v124
     v14 = eq v13, 0
     jumpi v14, bb4, bb5
   bb5:
@@ -105,7 +105,7 @@ fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memo
     v18 = lt v4, v17
     jumpi v18, bb11, bb10
   bb11:
-    mstore v124, v121
+    mstore v127, v121
     v23 = shr v13, 128
     v24 = mload arg2
     v25 = lt v4, v24

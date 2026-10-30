@@ -260,8 +260,8 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     v246 = eq v255, 0
     jumpi v246, bb21, bb22
   bb22:
-    v375 = add v359, 32
-    v378 = add v358, 32
+    v375 = add v358, 32
+    v378 = add v359, 32
     jump bb1
   bb1:
     v38 = phi [bb22: 0], [bb30: v54]
@@ -276,19 +276,19 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     v43 = lt v38, v42
     jumpi v43, bb29, bb26
   bb29:
-    mstore v379, v41
+    mstore v376, v41
     v48 = mload v359
     v49 = lt v38, v48
     jumpi v49, bb30, bb26
   bb30:
-    mstore v376, v38
+    mstore v379, v38
     v54 = add v38, 1
     v377 = add v376, 32
     v380 = add v379, 32
     jump bb1
   bb21:
-    v381 = add v359, 32
-    v384 = add v358, 32
+    v381 = add v358, 32
+    v384 = add v359, 32
     jump bb19
   bb19:
     v206 = phi [bb21: 0], [bb41: v219]
@@ -494,8 +494,8 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
   bb26:
     tail_call @revert_stub.4
   bb41:
-    mstore v385, v209
-    mstore v382, v206
+    mstore v382, v209
+    mstore v385, v206
     v219 = add v206, 1
     v383 = add v382, 32
     v386 = add v385, 32
