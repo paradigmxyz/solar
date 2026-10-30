@@ -477,15 +477,15 @@ fn body_def<'f>(
 }
 
 /// Matches the byte index `offset + k`, or `k`, counting up, and `offset + k - 1`, or `k - 1`,
-/// counting down. Returns the offset, whether its addition is unchecked, and the checked
-/// instructions that define it.
+/// counting down. Returns the offset and whether its addition is unchecked, and adds the checked
+/// instructions that define it to `used`.
 fn index(
     func: &Function,
     l: &Loop,
     lp: &Counted,
     value: ValueId,
-) -> Option<(Option<ValueId>, bool, Vec<InstId>)> {
-    let mut insts = Vec::new();
+    used: &mut Vec<InstId>,
+) -> Option<(Option<ValueId>, bool)> {
     let mut value = value;
     let mut checked_decrement = false;
     if lp.descending {
@@ -505,13 +505,13 @@ fn index(
             return None;
         }
         if checked {
-            insts.push(inst);
+            used.push(inst);
         }
         value = a;
         checked_decrement = checked;
     }
     if value == lp.counter {
-        return Some((None, false, insts));
+        return Some((None, false));
     }
     let (inst, kind) = body_def(func, lp, value)?;
     let (a, b, wrapping) = match *kind {
@@ -537,9 +537,9 @@ fn index(
         return None;
     };
     if !wrapping {
-        insts.push(inst);
+        used.push(inst);
     }
-    (!l.defines(func, offset)).then_some((Some(offset), wrapping, insts))
+    (!l.defines(func, offset)).then_some((Some(offset), wrapping))
 }
 
 /// Matches the memory byte address `object + idx + 32` in either association. Returns the
@@ -734,8 +734,7 @@ fn checked_access(
     if l.defines(func, object) {
         return None;
     }
-    let (offset, wrapping, index_insts) = index(func, l, lp, idx)?;
-    used.extend(index_insts);
+    let (offset, wrapping) = index(func, l, lp, idx, used)?;
     let (check, len) = bounds_check(func, l, lp, buffer, idx)?;
     used.push(check);
     Some(Access { buffer, offset, len, shift: 0, wrapping })
@@ -940,8 +939,7 @@ fn destination(
     shift: u8,
     used: &mut Vec<InstId>,
 ) -> Option<(Access, bool)> {
-    let (offset, wrapping, index_insts) = index(func, l, lp, idx)?;
-    used.extend(index_insts);
+    let (offset, wrapping) = index(func, l, lp, idx, used)?;
     let (len, checked) = match bounds_check(func, l, lp, Buffer::Memory(dst), idx) {
         Some((check, len)) => {
             used.push(check);

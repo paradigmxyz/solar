@@ -1097,8 +1097,8 @@ struct PointerUses<'a> {
     arg_values: FxHashMap<FunctionId, IndexVec<ArgIdx, Vec<ValueId>>>,
     /// The readers of each function's values, built on first use.
     users: FxHashMap<FunctionId, IndexLists<ValueId, User>>,
-    /// How each word that `word_reads` started from is used.
-    word_reads: FxHashMap<(FunctionId, ValueId), Reads>,
+    /// How each root word of `word_reads`, with the words computed from it, is used.
+    root_reads: FxHashMap<(FunctionId, ValueId), Reads>,
     /// The loads that read a word as the pointer where some read takes it as data, with their
     /// blocks, by function.
     load_roots: FxIndexMap<FunctionId, FxIndexSet<(BlockId, InstId)>>,
@@ -1124,7 +1124,7 @@ impl<'a> PointerUses<'a> {
             heap_addresses: None,
             arg_values: FxHashMap::default(),
             users: FxHashMap::default(),
-            word_reads: FxHashMap::default(),
+            root_reads: FxHashMap::default(),
             load_roots: FxIndexMap::default(),
             caller_roots: Vec::new(),
             walked: FxHashSet::default(),
@@ -1741,7 +1741,7 @@ impl<'a> PointerUses<'a> {
     /// they address or size memory or become the pointer again, and as data elsewhere, in their
     /// functions, in the callees they are passed to, and in the callers they are returned to.
     fn root_reads(&mut self, root: (FunctionId, ValueId)) -> Reads {
-        if let Some(&reads) = self.word_reads.get(&root) {
+        if let Some(&reads) = self.root_reads.get(&root) {
             return reads;
         }
         let module = self.module;
@@ -1778,7 +1778,7 @@ impl<'a> PointerUses<'a> {
                 }
             }
         }
-        self.word_reads.insert(root, reads);
+        self.root_reads.insert(root, reads);
         reads
     }
 
