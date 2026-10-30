@@ -1173,7 +1173,11 @@ mod tests {
             constants
                 .extend([2, 7, 8, 16, 31, 32, 64, 128, 160, 224, 248, 255, 256].map(U256::from));
             for bits in [8, 16, 32, 64, 128, 160, 224, 248, 255] {
-                constants.extend([U256::ONE << bits, (U256::ONE << bits) - U256::ONE]);
+                constants.extend([
+                    U256::ONE << bits,
+                    (U256::ONE << bits) - U256::ONE,
+                    U256::MAX << bits,
+                ]);
             }
             constants.sort_unstable();
             constants.dedup();
