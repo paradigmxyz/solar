@@ -76,3 +76,8 @@
 ;; `x & m` is compared with a constant that `m` keeps. A profitability condition only.
 (decl pure compared_mask (Value U256) bool)
 (extern constructor compared_mask compared_mask)
+
+;; The function holds no abstract free-memory-pointer operation: `lower-alloc` has run, so CSE has
+;; already forwarded the lengths that share a padding. A profitability condition only.
+(decl pure allocations_lowered () bool)
+(extern constructor allocations_lowered allocations_lowered)

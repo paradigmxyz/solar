@@ -14,11 +14,21 @@
 // CHECK-NOT: = add [[LEN]], 63
 // CHECK: returndata
 
+// An allocation size that nothing shares keeps the single rounding of `(len + 63) & ~31`.
+// CHECK-LABEL: fn @alloc(
+// CHECK: = add arg0, 63
+// CHECK-NOT: = add arg0, 31
+
 contract Test {
     event E(string s);
 
     function relay(string memory s) external returns (string memory) {
         emit E(s);
         return s;
+    }
+
+    function alloc(uint256 n) external pure returns (uint256) {
+        bytes memory b = new bytes(n);
+        return b.length;
     }
 }

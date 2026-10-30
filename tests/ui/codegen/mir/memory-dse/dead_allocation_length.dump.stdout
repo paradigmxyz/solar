@@ -58,10 +58,10 @@ fn @relay() [selector=0x8f0d6f17, abi_wrapper] {
     v25 = add v23, 32
     v0: i256 = address
     v1 = gas
-    v77 = heap_floor !metadata(alloc_ptr)
-    v33 = add v77, 32
+    v73 = heap_floor !metadata(alloc_ptr)
+    v33 = add v73, 32
     mstore v33, 0x624fbfdc00000000000000000000000000000000000000000000000000000000
-    v35 = add v77, 36
+    v35 = add v73, 36
     v36 = add v35, 32
     mstore v35, 32
     v39 = add v24, 31
@@ -74,33 +74,33 @@ fn @relay() [selector=0x8f0d6f17, abi_wrapper] {
     calldatacopy v42, v25, v24
     v46 = sub v45, v35
     v47 = add v46, 4
-    v64 = add v47, 63
-    v51 = and v64, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v78 = add v47, 63
+    v51 = and v78, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v52 = lt v51, v47
     jumpi v52, bb4, bb5
   bb5:
-    v78 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v79 = add v78, v51 !metadata(alloc_ptr)
-    mstore 64, v79 !metadata(memory=scratch)
-    mstore v78, v47
-    v71 = add v78, 32
-    v9 = call v1, v0, 0, v71, v47, 0, 0
+    v74 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v75 = add v74, v51 !metadata(alloc_ptr)
+    mstore 64, v75 !metadata(memory=scratch)
+    mstore v74, v47
+    v67 = add v74, 32
+    v9 = call v1, v0, 0, v67, v47, 0, 0
     v10 = returndatasize
-    mstore v79, v10
-    v73 = add v79, 32
-    returndatacopy v73, 0, v10
+    v11 = add v10, 31
+    v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    mstore v75, v10
+    v69 = add v75, 32
+    returndatacopy v69, 0, v10
     jumpi v9, bb2, bb1
   bb2:
-    v56 = add v10, 31
-    v58 = and v56, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v60 = add v73, v58
+    v60 = add v69, v13
     mstore v60, 0
-    v69 = add v79, 64
-    mcopy v69, v73, v10
-    mstore v79, 32
-    mstore v73, v10
-    v62 = add v58, 64
-    returndata v79, v62
+    v65 = add v75, 64
+    mcopy v65, v69, v10
+    mstore v75, 32
+    mstore v69, v10
+    v62 = add v13, 64
+    returndata v75, v62
   bb4:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -142,19 +142,19 @@ fn @fallback.body(arg0: i256, arg1: i256) {
     jumpi v5, bb3, bb4
   bb4:
     v8 = sub arg1, 4
-    v42 = add arg0, 4
-    v48 = heap_floor !metadata(alloc_ptr)
-    calldatacopy v48, v42, v8
-    v25 = delegatecall v1, v0, v48, v8, 0, 0
+    v40 = add arg0, 4
+    v46 = heap_floor !metadata(alloc_ptr)
+    calldatacopy v46, v40, v8
+    v25 = delegatecall v1, v0, v46, v8, 0, 0
     v26 = returndatasize
-    v49 = heap_floor !metadata(alloc_ptr)
-    v44 = add v49, 32
-    returndatacopy v44, 0, v26
+    v47 = heap_floor !metadata(alloc_ptr)
+    v42 = add v47, 32
+    returndatacopy v42, 0, v26
     jumpi v25, bb2, bb1
   bb1:
-    revert v44, v26
+    revert v42, v26
   bb2:
-    returndata v44, v26
+    returndata v42, v26
   bb3:
     revert 0, 0
 }

@@ -141,10 +141,11 @@
       (sequence (Op.Add sum constant)))
 
 ;; ((x + 31) & ~31) + 32 => (x + 63) & ~31.
-;; Requires: x + 31 has no other use in the late run, so the cost model keeps the shared padded
-;; length of a bytes object's allocation size and its encoding, and drops an unshared one.
+;; Requires: allocations are lowered, so CSE has already shared the padding that an allocation size
+;; has with an encoding of the same length. An unshared padding then drops its extra add.
 (rule (sequence_rewrite (Op.Add (band (add x (iconst c)) (iconst m)) (iconst w)))
       (if-let true (late_word_sequence))
+      (if-let true (allocations_lowered))
       (if-let true (u256_same c (u256 31)))
       (if-let true (u256_same m (u256_sub (u256_max) (u256 31))))
       (if-let true (u256_same w (u256 32)))

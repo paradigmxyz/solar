@@ -50,34 +50,33 @@ fn @greet() [selector=0xead710c4, abi_wrapper, pure] {
     v25 = sub v16, v24
     v26 = gt v23, v25
     v27 = or v22, v26
-    v60 = or v17, v27
-    jumpi v60, bb3, bb4
+    v58 = or v17, v27
+    jumpi v58, bb3, bb4
   bb4:
     v2 = add v23, 7
-    v44 = add v2, 63
-    v6 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = add v2, 31
+    v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v6 = add v5, 32
     v7 = lt v6, v2
     jumpi v7, bb1, bb2
   bb2:
-    v58 = heap_floor !metadata(alloc_ptr)
-    mstore v58, v2
-    v47 = add v58, 32
-    mstore v47, 0x68656c6c6f2c2000000000000000000000000000000000000000000000000000
-    v49 = add v58, 39
-    calldatacopy v49, v24, v23
-    v51 = add v58, v2
-    v52 = add v51, 32
-    mstore v52, 0
-    v36 = add v2, 31
-    v38 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v40 = add v47, v38
+    v56 = heap_floor !metadata(alloc_ptr)
+    mstore v56, v2
+    v45 = add v56, 32
+    mstore v45, 0x68656c6c6f2c2000000000000000000000000000000000000000000000000000
+    v47 = add v56, 39
+    calldatacopy v47, v24, v23
+    v49 = add v56, v2
+    v50 = add v49, 32
+    mstore v50, 0
+    v40 = add v45, v5
     mstore v40, 0
-    v54 = add v58, 64
-    mcopy v54, v47, v2
-    mstore v58, 32
-    mstore v47, v2
-    v42 = add v38, 64
-    returndata v58, v42
+    v52 = add v56, 64
+    mcopy v52, v45, v2
+    mstore v56, 32
+    mstore v45, v2
+    v42 = add v5, 64
+    returndata v56, v42
   bb1:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

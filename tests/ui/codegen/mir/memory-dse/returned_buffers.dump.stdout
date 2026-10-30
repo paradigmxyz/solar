@@ -133,27 +133,27 @@ fn @_copy(arg0: i256) -> i256 [may_return_memory, view] {
     v58 = eq v52, v57
     jumpi v58, bb7, bb8
   bb8:
-    v72 = add v56, 63
-    v10 = and v72, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v79 = heap_floor !metadata(alloc_ptr)
-    v80 = add v79, v10 !metadata(alloc_ptr)
-    v81 = lt v80, v79
-    v82 = gt v80, 0xffffffffffffffff
-    v83 = or v81, v82
-    jumpi v83, bb13, bb12
+    v86 = add v56, 63
+    v10 = and v86, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v77 = heap_floor !metadata(alloc_ptr)
+    v78 = add v77, v10 !metadata(alloc_ptr)
+    v79 = lt v78, v77
+    v80 = gt v78, 0xffffffffffffffff
+    v81 = or v79, v80
+    jumpi v81, bb13, bb12
   bb12:
-    mstore 64, v80 !metadata(memory=scratch)
-    v85 = calldatasize
-    calldatacopy v79, v85, v10
-    mstore v79, v56
-    v86 = and arg0, 255
+    mstore 64, v78 !metadata(memory=scratch)
+    v83 = calldatasize
+    calldatacopy v77, v83, v10
+    mstore v77, v56
+    v84 = and arg0, 255
     jump bb1
   bb1:
     v16 = phi [bb12: 0], [bb6: v50]
     v18 = lt v16, v56
     jumpi v18, bb9, bb2
   bb2:
-    ret v79
+    ret v77
   bb9:
     jumpi v52, bb3, bb4
   bb3:
@@ -169,11 +169,11 @@ fn @_copy(arg0: i256) -> i256 [may_return_memory, view] {
     v35 = shl v33, 3
     v36 = shr v34, v35
     v38 = and v36, 255
-    v69 = mul v38, v86
+    v69 = mul v38, v84
     v70 = gt v69, 255
     jumpi v70, bb10, bb11
   bb11:
-    v44 = mload v79
+    v44 = mload v77
     v45 = lt v16, v44
     jumpi v45, bb6, bb5
   bb5:
@@ -181,9 +181,9 @@ fn @_copy(arg0: i256) -> i256 [may_return_memory, view] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb6:
-    v75 = add v79, v16
-    v76 = add v75, 32
-    mstore8 v76, v69
+    v73 = add v77, v16
+    v74 = add v73, 32
+    mstore8 v74, v69
     v50 = add v16, 1
     jump bb1
   bb10:

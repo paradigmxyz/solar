@@ -126,40 +126,40 @@ fn @freshCopy() [selector=0x602d1e17, abi_wrapper, pure] {
   bb2:
     v20 = calldataload v16
     v21 = add v16, 32
-    v52 = add v20, 63
-    v25 = and v52, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v64 = add v20, 63
+    v25 = and v64, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v26 = lt v25, v20
     jumpi v26, bb3, bb4
   bb4:
-    v64 = icall @alloc, v25
-    mstore v64, v20
+    v62 = icall @alloc, v25
+    mstore v62, v20
     v28 = sub v13, v21
     v29 = gt v20, v28
     jumpi v29, bb1, bb5
   bb5:
-    v55 = add v64, 32
-    calldatacopy v55, v21, v20
+    v53 = add v62, 32
+    calldatacopy v53, v21, v20
     v37 = sub 0, v20
     v38 = and v37, 31
-    v65 = calldatasize
-    v56 = add v55, v20
-    calldatacopy v56, v65, v38
-    v9 = sub arg1, v64
+    v63 = calldatasize
+    v54 = add v53, v20
+    calldatacopy v54, v63, v38
+    v9 = sub arg1, v62
     v0 = ne arg1, 0
     v10 = zext i1 v0 to i256
     v11 = mul v10, v9
-    v12 = add v64, v11
+    v12 = add v62, v11
     v4 = icall @_freshCopy, v12, arg2
     v42 = mload v4
-    v58 = add v4, 32
+    v56 = add v4, 32
     v44 = add v42, 31
     v46 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v48 = add v58, v46
+    v48 = add v56, v46
     mstore v48, 0
-    v60 = add v4, 64
-    mcopy v60, v58, v42
+    v58 = add v4, 64
+    mcopy v58, v56, v42
     mstore v4, 32
-    mstore v58, v42
+    mstore v56, v42
     v50 = add v46, 64
     returndata v4, v50
   bb3:
