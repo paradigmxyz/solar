@@ -29,9 +29,9 @@ fn @siftDown() [selector=0xcabbfceb, abi_wrapper, pure] {
     jumpi v11, bb9, bb7
   bb9:
     v13 = shl v9, 5
-    v51 = add v33, v13
-    v52 = add v51, 32
-    v16 = mload v52
+    v48 = add v33, v13
+    v49 = add v48, 32
+    v16 = mload v49
     v17 = lt arg2, v16
     jumpi v17, bb4, bb2
   bb2:
@@ -40,18 +40,15 @@ fn @siftDown() [selector=0xcabbfceb, abi_wrapper, pure] {
     jumpi v26, bb8, bb7
   bb8:
     v28 = shl v4, 5
-    v44 = add v33, v28
-    v45 = add v44, 32
-    mstore v45, arg2
+    v43 = add v33, v28
+    v44 = add v43, 32
+    mstore v44, arg2
     v37 = mload v33
-    v47 = add v33, 32
-    v39 = shl v37, 5
-    v49 = add v33, 64
-    mcopy v49, v47, v39
-    mstore v33, 32
-    mstore v47, v37
-    v41 = add v39, 64
-    returndata v33, v41
+    v38 = shl v37, 5
+    v46 = sub v33, 32
+    mstore v46, 32
+    v40 = add v38, 64
+    returndata v46, v40
   bb4:
     v20 = lt v4, v10
     jumpi v20, bb10, bb7
@@ -59,9 +56,9 @@ fn @siftDown() [selector=0xcabbfceb, abi_wrapper, pure] {
     tail_call @revert_stub
   bb10:
     v22 = shl v4, 5
-    v54 = add v33, v22
-    v55 = add v54, 32
-    mstore v55, v16
+    v51 = add v33, v22
+    v52 = add v51, 32
+    mstore v52, v16
     jump bb1
   bb11:
     revert 0, 0
@@ -87,9 +84,9 @@ fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
     jumpi v8, bb7, bb5
   bb7:
     v10 = shl v6, 5
-    v48 = add v30, v10
-    v49 = add v48, 32
-    v13 = mload v49
+    v45 = add v30, v10
+    v46 = add v45, 32
+    v13 = mload v46
     v14 = lt arg2, v13
     jumpi v14, bb4, bb2
   bb2:
@@ -98,18 +95,15 @@ fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
     jumpi v23, bb6, bb5
   bb6:
     v25 = shl v1, 5
-    v41 = add v30, v25
-    v42 = add v41, 32
-    mstore v42, arg2
+    v40 = add v30, v25
+    v41 = add v40, 32
+    mstore v41, arg2
     v34 = mload v30
-    v44 = add v30, 32
-    v36 = shl v34, 5
-    v46 = add v30, 64
-    mcopy v46, v44, v36
-    mstore v30, 32
-    mstore v44, v34
-    v38 = add v36, 64
-    returndata v30, v38
+    v35 = shl v34, 5
+    v43 = sub v30, 32
+    mstore v43, 32
+    v37 = add v35, 64
+    returndata v43, v37
   bb4:
     v17 = lt v1, v7
     jumpi v17, bb8, bb5
@@ -117,9 +111,9 @@ fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
     tail_call @revert_stub
   bb8:
     v19 = shl v1, 5
-    v51 = add v30, v19
-    v52 = add v51, 32
-    mstore v52, v13
+    v48 = add v30, v19
+    v49 = add v48, 32
+    mstore v49, v13
     jump bb1
   bb9:
     revert 0, 0

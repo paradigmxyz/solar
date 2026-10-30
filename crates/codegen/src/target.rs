@@ -913,6 +913,65 @@ impl Target {
         let guarded = Cost::new(guard.gas + copy.gas, guard.bytes + copy.bytes + looped.bytes);
         self.cmp(guarded, looped).is_lt()
     }
+
+    /// Whether a terminal return of an arbitrary memory byte string tests the pointer and writes
+    /// its tuple offset in the word before the object, with the copying encoder as the fallback
+    /// for a pointer below one word, rather than running the copying encoder alone. A word array
+    /// costs less in both shapes, and one word of payload is priced, the least a copy can cost,
+    /// so the answer holds for arrays and for every longer payload. The guarded form keeps the
+    /// copying encoder's bytes and adds its own, so it ranks by deployment lifetime and wins only
+    /// where the gas of the copy it skips repays them: never under the size objective, and under
+    /// the gas objective once the contract is expected to run enough.
+    pub(crate) fn guards_zero_copy_return(&self) -> bool {
+        let word = U256::from(op::WORD_BYTES);
+        let mask = U256::from(op::WORD_BYTES - 1);
+        let load = self.dup() + self.opcode(op::MLOAD);
+        let store = self.push(word) + self.dup() + self.opcode(op::MSTORE);
+        // len = mload object; extent = (len + 31) & ~31
+        let extent = load
+            + self.push(mask)
+            + self.opcode(op::ADD)
+            + self.push(mask)
+            + self.opcode(op::NOT)
+            + self.opcode(op::AND);
+        // mstore data + len, 0 zeroes the padding.
+        let padding = self.push(word)
+            + (self.dup() + self.opcode(op::ADD)).times(2)
+            + self.push(U256::ZERO)
+            + self.opcode(op::MSTORE);
+        // mstore object - 32, 32; total = extent + 64
+        let head = self.push(word) + self.dup() + self.opcode(op::SUB) + store;
+        let total = self.push(U256::from(2 * op::WORD_BYTES)) + self.opcode(op::ADD);
+        let in_place = extent + padding + head + total;
+        // lt object, 32; branch to the copy
+        let guard = self.push(word) + self.dup() + self.opcode(op::LT) + self.branch();
+        // start = mload 64; mstore start, 32; mstore start + 32, len; zero the padding; copy the
+        // payload to start + 64; mstore 64, start + total. A word of payload, the head, and the
+        // length are new memory.
+        let copy_move = if self.evm_version.has_mcopy() {
+            self.opcode(op::MCOPY) + self.copied_words(op::WORD_BYTES)
+        } else {
+            self.word_copy_loop()
+        };
+        let address = self.push(word) + self.dup() + self.opcode(op::ADD);
+        let copy = extent
+            + self.push(U256::from(EvmMemoryLayout::FMP_SLOT))
+            + self.opcode(op::MLOAD)
+            + store.times(2)
+            + padding
+            + address.times(3)
+            + self.dup().times(3)
+            + copy_move
+            + total
+            + self.push(U256::from(EvmMemoryLayout::FMP_SLOT))
+            + self.opcode(op::MSTORE)
+            + self.frame_words(3);
+        // Only the guard and the copy-free path run; the copy's code remains as the fallback.
+        let guarded =
+            Cost::new(guard.gas + in_place.gas, guard.bytes + in_place.bytes + copy.bytes);
+        self.cmp_lifetime(guarded, copy).is_lt()
+    }
+
     /// The factor `2**shift` that a constant shift lowered to `MUL` or `DIV` pushes, or `None`
     /// when computing it with `EXP` costs less over the deployment lifetime. Shifts of 256 or
     /// more give a zero factor, which matches the wrapped `EXP` result.
@@ -1628,6 +1687,21 @@ mod tests {
         assert!(!size.guards_block_copy(2));
         assert!(gas.guards_block_copy(2));
         assert!(gas.guards_block_copy(8));
+    }
+
+    #[test]
+    fn zero_copy_return_guard_pays_for_gas_over_the_lifetime() {
+        for version in [EvmVersion::Paris, EvmVersion::Cancun, EvmVersion::Osaka] {
+            // The guarded form keeps the copying encoder, so it only adds bytes.
+            let size = Target::with(version, OptimizationMode::Size, 200);
+            assert!(!size.guards_zero_copy_return());
+            // Its gas saving, even for one word, repays those bytes over 200 executions but not
+            // over one.
+            let gas = Target::with(version, OptimizationMode::Gas, 200);
+            assert!(gas.guards_zero_copy_return());
+            let once = Target::with(version, OptimizationMode::Gas, 1);
+            assert!(!once.guards_zero_copy_return());
+        }
     }
 
     #[test]

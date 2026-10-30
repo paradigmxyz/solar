@@ -16,30 +16,30 @@ bb0:
   sub
   push bb3
   jumpi
-  push 128
+  push 160
+  push 64
+  mstore
+  push 160
+  dup 1
+  dup 2
+  mstore
   push 32
   dup 2
   add
-  push 160
+  dup 2
   push_data literal_0
   dup 3
   codecopy
-  push 0
-  push 160
-  dup 3
-  add
-  mstore
-  push 160
   dup 2
-  push 64
-  dup 5
   add
-  mcopy
-  push 32
-  dup 3
-  mstore
-  push 160
+  push 0
   swap 1
+  mstore
+  push 32
+  swap 1
+  sub
+  push 32
+  dup 2
   mstore
   push 224
   swap 1
