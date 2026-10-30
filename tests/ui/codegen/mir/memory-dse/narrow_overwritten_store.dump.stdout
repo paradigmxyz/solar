@@ -6,14 +6,12 @@
 
 fn @hashU8() [selector=0xe99643f7, abi_wrapper, pure] {
   bb0:
-    v6 = calldataload 4
-    v7 = shr v6, 8
     v4 = calldatasize
     v5 = lt v4, 68
-    v10 = zext i1 v5 to i256
-    v11 = or v10, v7
-    v12 = ne v11, 0
-    jumpi v12, bb1, bb2
+    v6 = calldataload 4
+    v7 = gt v6, 255
+    v9 = or v5, v7
+    jumpi v9, bb1, bb2
   bb2:
     mstore8 0, arg0
     mstore 1, arg1

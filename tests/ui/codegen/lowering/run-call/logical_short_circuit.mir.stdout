@@ -31,17 +31,16 @@ fn @andSkipsRhs() -> struct0 [selector=0x59db58e9, abi_params=[], abi_returns=[w
     icall revert_if<tuple_data_too_short>, v5
     v6 = add 0, 0
     v7 = mload v6
-    v8 = shr v7, 1
-    v9 = ne v8, 0
-    icall revert_if<empty>, v9
-    v10 = ne v7, 0
+    v8 = gt v7, 1
+    icall revert_if<empty>, v8
+    v9 = ne v7, 0
     jump bb3
   bb3:
-    v11 = phi [bb5: v10], [bb2: false]
-    v12 = sload 0 !metadata(storage=slot(0))
-    v13 = insert_value struct0, undef struct0, 0, v12
-    v14 = insert_value struct0, v13, 1, v11
-    ret v14
+    v10 = phi [bb5: v9], [bb2: false]
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = insert_value struct0, undef struct0, 0, v11
+    v13 = insert_value struct0, v12, 1, v10
+    ret v13
 }
 
 fn @orSkipsRhs() -> struct0 [selector=0x136ed8bf, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
@@ -62,19 +61,18 @@ fn @orSkipsRhs() -> struct0 [selector=0x136ed8bf, abi_params=[], abi_returns=[wo
     icall revert_if<tuple_data_too_short>, v5
     v6 = add 0, 0
     v7 = mload v6
-    v8 = shr v7, 1
-    v9 = ne v8, 0
-    icall revert_if<empty>, v9
-    v10 = ne v7, 0
+    v8 = gt v7, 1
+    icall revert_if<empty>, v8
+    v9 = ne v7, 0
     jump bb3
   bb2:
     jump bb3
   bb3:
-    v11 = phi [bb5: v10], [bb2: true]
-    v12 = sload 0 !metadata(storage=slot(0))
-    v13 = insert_value struct0, undef struct0, 0, v12
-    v14 = insert_value struct0, v13, 1, v11
-    ret v14
+    v10 = phi [bb5: v9], [bb2: true]
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = insert_value struct0, undef struct0, 0, v11
+    v13 = insert_value struct0, v12, 1, v10
+    ret v13
 }
 
 fn @andRunsRhs() -> struct0 [selector=0x87ab0848, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
@@ -97,17 +95,16 @@ fn @andRunsRhs() -> struct0 [selector=0x87ab0848, abi_params=[], abi_returns=[wo
     icall revert_if<tuple_data_too_short>, v5
     v6 = add 0, 0
     v7 = mload v6
-    v8 = shr v7, 1
-    v9 = ne v8, 0
-    icall revert_if<empty>, v9
-    v10 = ne v7, 0
+    v8 = gt v7, 1
+    icall revert_if<empty>, v8
+    v9 = ne v7, 0
     jump bb3
   bb3:
-    v11 = phi [bb5: v10], [bb2: false]
-    v12 = sload 0 !metadata(storage=slot(0))
-    v13 = insert_value struct0, undef struct0, 0, v12
-    v14 = insert_value struct0, v13, 1, v11
-    ret v14
+    v10 = phi [bb5: v9], [bb2: false]
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = insert_value struct0, undef struct0, 0, v11
+    v13 = insert_value struct0, v12, 1, v10
+    ret v13
 }
 
 fn @orRunsRhs() -> struct0 [selector=0x6baa9b2a, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
@@ -128,17 +125,16 @@ fn @orRunsRhs() -> struct0 [selector=0x6baa9b2a, abi_params=[], abi_returns=[wor
     icall revert_if<tuple_data_too_short>, v5
     v6 = add 0, 0
     v7 = mload v6
-    v8 = shr v7, 1
-    v9 = ne v8, 0
-    icall revert_if<empty>, v9
-    v10 = ne v7, 0
+    v8 = gt v7, 1
+    icall revert_if<empty>, v8
+    v9 = ne v7, 0
     jump bb3
   bb2:
     jump bb3
   bb3:
-    v11 = phi [bb5: v10], [bb2: true]
-    v12 = sload 0 !metadata(storage=slot(0))
-    v13 = insert_value struct0, undef struct0, 0, v12
-    v14 = insert_value struct0, v13, 1, v11
-    ret v14
+    v10 = phi [bb5: v9], [bb2: true]
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = insert_value struct0, undef struct0, 0, v11
+    v13 = insert_value struct0, v12, 1, v10
+    ret v13
 }

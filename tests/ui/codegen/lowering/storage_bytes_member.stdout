@@ -79,13 +79,13 @@ bb15 [loop]:
   lt
   push 4
   calldataload
-  push 8
-  shr
+  push 255
+  lt
   or
   push 36
   calldataload
-  push 8
-  shr
+  push 255
+  lt
   or
   push bb14
   jumpi
@@ -146,13 +146,11 @@ bb19 [loop]:
   shr
   push bb69
   jumpi
-  dup 1
-  push 5
-  shr
-  dup 1
+  push 31
+  dup 2
+  gt
   push bb27
   jumpi
-  pop
   push 31
   dup 2
   eq
@@ -215,19 +213,23 @@ bb26 [loop]:
   jumpi
   stop
 bb27 [loop]:
-  swap 2
+  swap 1
   push 2
   add
-  dup 6
-  sstore
   dup 5
+  sstore
+  dup 4
   push 0
   mstore
-  push 31
+  dup 1
+  push 5
+  shr
   push 32
   push 0
   keccak256
-  swap 2
+  add
+  swap 1
+  push 31
   and
   push 31
   sub
@@ -236,18 +238,17 @@ bb27 [loop]:
   push 255
   dup 2
   shl
-  swap 4
+  dup 3
+  sload
+  swap 1
+  not
+  and
+  swap 2
+  swap 3
   push 248
   shr
   swap 1
   shl
-  swap 2
-  add
-  swap 2
-  not
-  dup 3
-  sload
-  and
   or
   swap 1
   sstore

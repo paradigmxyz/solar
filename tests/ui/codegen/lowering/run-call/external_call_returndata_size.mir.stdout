@@ -293,11 +293,10 @@ fn @directInvalidBool() -> i1 [selector=0x78cd2593, abi_params=[], abi_returns=[
     icall revert_if<tuple_data_too_short>, v8
     v9 = add 0, 0
     v10 = mload v9
-    v11 = shr v10, 1
-    v12 = ne v11, 0
-    icall revert_if<empty>, v12
-    v13 = ne v10, 0
-    ret v13
+    v11 = gt v10, 1
+    icall revert_if<empty>, v11
+    v12 = ne v10, 0
+    ret v12
 }
 
 fn @pointerInvalidBool() -> i1 [selector=0xa0f03ea6, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -330,9 +329,8 @@ fn @pointerInvalidBool() -> i1 [selector=0xa0f03ea6, abi_params=[], abi_returns=
     icall revert_if<tuple_data_too_short>, v14
     v15 = add 0, 0
     v16 = mload v15
-    v17 = shr v16, 1
-    v18 = ne v17, 0
-    icall revert_if<empty>, v18
-    v19 = ne v16, 0
-    ret v19
+    v17 = gt v16, 1
+    icall revert_if<empty>, v17
+    v18 = ne v16, 0
+    ret v18
 }

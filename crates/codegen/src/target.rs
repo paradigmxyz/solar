@@ -1234,10 +1234,11 @@ impl BitTestPricing for Target {
     ///
     /// A word that has a bit at or above `bits` is nonzero after the shift, which a branch or check
     /// reads without a test; the other sense, and a materialized boolean, pay `ISZERO`s. The
-    /// comparison pays the push of its limit, which grows with `bits`. The shift wins when it is no
-    /// dearer in bytes and gas, so that equal prices have one spelling. A shift that saves bytes
-    /// and costs gas is taken as a compact recipe is, by [`Self::compacts_immediate`]. Without
-    /// shifts only the comparison exists.
+    /// comparison pays the push of its limit, which grows with `bits`. The shift wins when it is
+    /// no dearer in bytes and gas and cheaper in one: equal prices keep the comparison, which
+    /// every reader of a condition handles, where the shift measured larger code. A shift that
+    /// saves bytes and costs gas is taken as a compact recipe is, by [`Self::compacts_immediate`].
+    /// Without shifts only the comparison exists.
     fn shifts_bits_test(&self, bits: u32, fits: bool, read: ConditionUse) -> bool {
         if !self.evm_version.has_bitwise_shifting() || !(1..256).contains(&bits) {
             return false;
@@ -1255,7 +1256,7 @@ impl BitTestPricing for Target {
         };
         let (shift_gas, compare_gas) = (self.runtime_gas(shift), self.runtime_gas(compare));
         if shift.bytes <= compare.bytes && shift_gas <= compare_gas {
-            return true;
+            return shift.bytes < compare.bytes || shift_gas < compare_gas;
         }
         shift.bytes < compare.bytes
             && self.compacts_immediate(
@@ -1471,8 +1472,13 @@ mod tests {
         let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1);
         let (value, branch) = (ConditionUse::VALUE, ConditionUse::BRANCH);
         // A branch reads a word with a bit above the width as the shifted word, which ties the
-        // comparison with a short limit and beats one with a wide limit.
-        for bits in [1, 8, 64, 160] {
+        // comparison with a short limit, and the tie keeps the comparison. A wide limit costs
+        // more than the shift.
+        for bits in [1, 8] {
+            assert!(!gas.shifts_bits_test(bits, false, branch), "{bits}");
+            assert!(!size.shifts_bits_test(bits, false, branch), "{bits}");
+        }
+        for bits in [64, 160] {
             assert!(gas.shifts_bits_test(bits, false, branch), "{bits}");
             assert!(size.shifts_bits_test(bits, false, branch), "{bits}");
         }

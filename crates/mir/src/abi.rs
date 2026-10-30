@@ -504,7 +504,11 @@ impl AbiWordValidator {
                 builder.ne(word, canonical)
             }
             Self::Bool => builder.exceeds_bits(word, 1, read),
-            Self::EnumRange(variants) => builder.gt_literal(word, variants.saturating_sub(1), read),
+            Self::EnumRange(variants) => match variants.checked_sub(1) {
+                Some(last) => builder.gt_literal(word, last, read),
+                // An enum without variants has no valid word.
+                None => builder.imm_bool(true),
+            },
         }
     }
 

@@ -3,14 +3,12 @@
 @phase lowered
 fn @narrowBase() [selector=0xc5e77450, abi_wrapper, pure] {
   bb0:
-    v22 = calldataload 4
-    v23 = shr v22, 8
     v20 = calldatasize
     v21 = lt v20, 68
-    v26 = zext i1 v21 to i256
-    v27 = or v26, v23
-    v28 = ne v27, 0
-    jumpi v28, bb4, bb5
+    v22 = calldataload 4
+    v23 = gt v22, 255
+    v25 = or v21, v23
+    jumpi v25, bb4, bb5
   bb5:
     v14 = add arg1, arg1
     v16 = add arg0, v14

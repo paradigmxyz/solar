@@ -36,7 +36,7 @@ bb0:
   jumpi
   mload
   push 1
-  shr
+  lt
   push 192
   mload
   or

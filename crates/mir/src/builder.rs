@@ -7,7 +7,7 @@ use super::{
     PanicCode, PtrLocation, RevertKind, RevertPayload, RevertReason, StorageAlias, StructId,
     Terminator, Value, ValueId,
 };
-use crate::{BitTestPricing, Callee, ConditionUse, memory::EvmMemoryLayout};
+use crate::{BitTestPricing, BitWidthTest, Callee, ConditionUse, memory::EvmMemoryLayout};
 use alloy_primitives::{Bytes, U256};
 use smallvec::SmallVec;
 use solar_config::RevertStrings;
@@ -62,7 +62,7 @@ impl_signed_to_uint!(i8, i16, i32, i64, i128, isize);
 /// The bit width of the longest dynamic word array that a checked allocation can hold: `2^59`
 /// words are `2^64` bytes, past [`EvmMemoryLayout::MAX_ALLOCATION_END`].
 const ALLOCATION_LENGTH_BITS: u32 =
-    EvmMemoryLayout::MAX_ALLOCATION_END.count_ones() - EvmMemoryLayout::WORD_SIZE.trailing_zeros();
+    EvmMemoryLayout::MAX_ALLOCATION_END_BITS - EvmMemoryLayout::WORD_SIZE.trailing_zeros();
 
 /// The Error(string) selector, `keccak256("Error(string)")[..4]`, left-aligned in a word.
 pub const ERROR_SELECTOR: U256 = U256::from_limbs([0, 0, 0, 0x08c3_79a0_u64 << 32]);
@@ -1315,8 +1315,8 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits `word < limit`, as [`Self::fits_in_bits`] when `limit` is a power of two.
     pub fn lt_literal(&mut self, word: ValueId, limit: impl ToUint, read: ConditionUse) -> ValueId {
         let limit = limit.to_uint();
-        if limit > U256::ONE && limit.is_power_of_two() {
-            return self.fits_in_bits(word, limit.trailing_zeros() as u32, read);
+        if let Some(bits) = BitWidthTest::width_of_power(limit) {
+            return self.fits_in_bits(word, bits, read);
         }
         let limit = self.imm(limit);
         self.lt(word, limit)
@@ -1325,18 +1325,14 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits `word > limit`, as [`Self::exceeds_bits`] when `limit` is `2^k - 1`.
     pub fn gt_literal(&mut self, word: ValueId, limit: impl ToUint, read: ConditionUse) -> ValueId {
         let limit = limit.to_uint();
-        if let Some(power) = limit.checked_add(U256::ONE)
-            && power > U256::ONE
-            && power.is_power_of_two()
-        {
-            return self.exceeds_bits(word, power.trailing_zeros() as u32, read);
+        if let Some(bits) = limit.checked_add(U256::ONE).and_then(BitWidthTest::width_of_power) {
+            return self.exceeds_bits(word, bits, read);
         }
         let limit = self.imm(limit);
         self.gt(word, limit)
     }
 
     fn bits_test(&mut self, word: ValueId, bits: u32, fits: bool, read: ConditionUse) -> ValueId {
-        debug_assert!((1..256).contains(&bits), "a width of {bits} bits is no test");
         if self.bit_tests.as_ref().is_some_and(|pricing| pricing.shifts_bits_test(bits, fits, read))
         {
             // high = shr word, bits

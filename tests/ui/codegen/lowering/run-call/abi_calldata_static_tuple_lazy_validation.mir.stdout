@@ -6,12 +6,11 @@ fn @use(arg0: slice<calldata>) -> i256 [selector=0x4637216b, pure, abi_params=[t
     v1 = ptrtoint ptr<calldata> v0 to i256
     v2 = add v1, 0
     v3 = calldataload v2
-    v4 = shr v3, 8
-    v5 = ne v4, 0
-    icall revert_if<empty>, v5
-    v6 = trunc i256 v3 to i8
-    v7 = zext i8 v6 to i256
-    ret v7
+    v4 = gt v3, 255
+    icall revert_if<empty>, v4
+    v5 = trunc i256 v3 to i8
+    v6 = zext i8 v5 to i256
+    ret v6
 }
 
 fn @unused(arg0: slice<calldata>) -> i256 [selector=0xb7a18a02, pure, abi_params=[tuple<uint8, uint8>], abi_returns=[word], abi_return_params=[uint256]] {

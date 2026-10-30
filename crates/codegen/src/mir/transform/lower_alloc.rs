@@ -39,14 +39,6 @@ use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 
-/// The bit width of the allocation limit: `next > MAX_ALLOCATION_END` is `next >> BITS != 0`.
-const ALLOCATION_END_BITS: u32 = EvmMemoryLayout::MAX_ALLOCATION_END.count_ones();
-const _: () = assert!(
-    EvmMemoryLayout::MAX_ALLOCATION_END
-        == u64::MAX >> EvmMemoryLayout::MAX_ALLOCATION_END.leading_zeros(),
-    "the allocation limit must be `2^k - 1`"
-);
-
 /// Lowers `fmp`, `set_fmp`, and `alloc` instructions.
 pub(crate) struct LowerAlloc;
 
@@ -426,7 +418,8 @@ fn bump_checked(
     let next = bump(builder, ptr, size);
     // invalid = next < ptr || next > limit
     let bump_overflow = builder.lt(next, ptr);
-    let over_limit = builder.exceeds_bits(next, ALLOCATION_END_BITS, ConditionUse::VALUE);
+    let over_limit =
+        builder.exceeds_bits(next, EvmMemoryLayout::MAX_ALLOCATION_END_BITS, ConditionUse::VALUE);
     (next, builder.or(bump_overflow, over_limit))
 }
 

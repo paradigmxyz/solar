@@ -34,12 +34,12 @@ bb6 [cold]:
   push 0
   revert
 bb7 [loop]:
+  push 68
+  calldatasize
+  lt
   push 36
   calldataload
   push 1
-  shr
-  push 68
-  calldatasize
   lt
   or
   push bb6

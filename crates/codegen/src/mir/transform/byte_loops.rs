@@ -2019,7 +2019,7 @@ fn leading_mask(
     // bytes = select (lt count, width), count, width
     // mask = not (shr (not 0), (shl bytes, 3))
     let limit = builder.imm(width);
-    let short = builder.lt_literal(count, width, ConditionUse::VALUE);
+    let short = builder.lt(count, limit);
     let bytes = builder.select(short, count, limit);
     let three = builder.imm(3);
     let bits = builder.shl(bytes, three);

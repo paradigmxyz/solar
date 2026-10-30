@@ -187,13 +187,12 @@ fn test(
     // when the word is nonzero: `or` then joins the word itself, and the merged branch tests the
     // combined word for free too.
     if let Some((word, nonzero)) = zero_test(func, condition) {
-        // A width test that aborts on the other sense turns around like the comparison with its
-        // limit, whichever way it is spelled.
-        let turns = BitWidthTest::of(func, condition).is_some();
         if func.value_ty(word) == Some(MirType::I256) && nonzero == aborts_when_true {
             return Some(Test { condition: word, abort, next, aborts_when_true: true, word: true });
         }
-        if !turns {
+        // A width test that aborts on the other sense turns around like the comparison with its
+        // limit, whichever way it is spelled.
+        if BitWidthTest::of(func, condition).is_none() {
             return None;
         }
     }

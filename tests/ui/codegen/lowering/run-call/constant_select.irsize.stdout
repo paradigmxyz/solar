@@ -496,12 +496,12 @@ bb37 [continuation]:
   and
   jump bb81
 bb39:
+  push 36
+  calldatasize
+  lt
   push 4
   calldataload
   push 1
-  shr
-  push 36
-  calldatasize
   lt
   or
   push bb11

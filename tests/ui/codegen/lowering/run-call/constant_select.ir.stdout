@@ -647,12 +647,12 @@ bb51 [continuation]:
   push 0
   return
 bb53:
+  push 36
+  calldatasize
+  lt
   push 4
   calldataload
   push 1
-  shr
-  push 36
-  calldatasize
   lt
   or
   push bb12

@@ -200,18 +200,18 @@ fn @decode_calldata_type.9() -> i256 [may_return_memory] {
     v8 = shr v6, 59
     v10 = add v6, 1
     v11 = shl v10, 5
-    v37 = heap_floor !metadata(alloc_ptr)
-    v38 = add v37, v11 !metadata(alloc_ptr)
-    v39 = lt v38, v37
-    v40 = gt v38, 0xffffffffffffffff
-    v41 = or v39, v40
-    v43 = zext i1 v41 to i256
-    v44 = or v8, v43
-    v45 = ne v44, 0
-    jumpi v45, bb3, bb9
+    v36 = heap_floor !metadata(alloc_ptr)
+    v37 = add v36, v11 !metadata(alloc_ptr)
+    v38 = lt v37, v36
+    v39 = gt v37, 0xffffffffffffffff
+    v40 = or v38, v39
+    v42 = zext i1 v40 to i256
+    v43 = or v8, v42
+    v44 = ne v43, 0
+    jumpi v44, bb3, bb9
   bb9:
-    mstore 64, v38 !metadata(memory=scratch)
-    mstore v37, v6
+    mstore 64, v37 !metadata(memory=scratch)
+    mstore v36, v6
     v13 = shl v6, 5
     v14 = sub v0, v7
     v15 = shr v14, 5
@@ -232,13 +232,12 @@ fn @decode_calldata_type.9() -> i256 [may_return_memory] {
     v25 = lt v24, v19
     jumpi v25, bb6, bb7
   bb7:
-    v26 = shr v23, 8
-    v27 = ne v26, 0
-    jumpi v27, bb1, bb8
+    v26 = gt v23, 255
+    jumpi v26, bb1, bb8
   bb8:
-    v34 = add v37, 32
-    calldatacopy v34, v7, v13
-    ret v37
+    v33 = add v36, 32
+    calldatacopy v33, v7, v13
+    ret v36
   bb3:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

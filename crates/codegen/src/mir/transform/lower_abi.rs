@@ -148,16 +148,12 @@ impl MirPass for LowerAbi {
         analyses: &mut ModuleAnalyses,
     ) -> bool {
         let gas = module.runs_objective(OptimizationMode::is_gas);
-        LowerAbiCx {
-            revert_strings: gcx.sess.opts.revert_strings,
-            target: Some(module.target(gcx)),
-            ..Default::default()
-        }
-        .run(module, gcx.sess.opts.evm_version, gas)
-        .unwrap_or_else(|| {
-            analyses.fail(gcx.dcx().err("`lower-abi` cannot lower this ABI shape").emit());
-            false
-        })
+        LowerAbiCx::new(gcx.sess.opts.revert_strings, module.target(gcx))
+            .run(module, gcx.sess.opts.evm_version, gas)
+            .unwrap_or_else(|| {
+                analyses.fail(gcx.dcx().err("`lower-abi` cannot lower this ABI shape").emit());
+                false
+            })
     }
 }
 
@@ -180,7 +176,7 @@ fn mark_abi_wrappers(module: &mut Module) -> bool {
     changed
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct LowerAbiCx {
     aggregate_type_helpers: FxHashMap<AbiParamType, FunctionId>,
     calldata_slice_helper: Option<FunctionId>,
@@ -189,7 +185,7 @@ struct LowerAbiCx {
     /// How compiler-generated decoding reverts are encoded.
     revert_strings: RevertStrings,
     /// The cost model for the shape of decoding checks.
-    target: Option<Target>,
+    target: Target,
 }
 
 #[derive(Clone, Copy)]
@@ -254,6 +250,17 @@ impl DecodeOptions<'_> {
 }
 
 impl LowerAbiCx {
+    fn new(revert_strings: RevertStrings, target: Target) -> Self {
+        Self {
+            aggregate_type_helpers: FxHashMap::default(),
+            calldata_slice_helper: None,
+            function_params: IndexVec::default(),
+            validated_abi_arguments: super::call_cleanup::ArgumentBits::default(),
+            revert_strings,
+            target,
+        }
+    }
+
     /// Lowers the module's ABI boundary, returning whether it changed, or `None` when the module
     /// has an ABI shape this pass cannot lower.
     fn run(
@@ -630,11 +637,9 @@ impl LowerAbiCx {
 
     /// Creates a builder for `func` that encodes revert reasons per the session's settings.
     fn builder<'a>(&self, func: &'a mut Function) -> FunctionBuilder<'a> {
-        let builder = FunctionBuilder::new(func).with_revert_strings(self.revert_strings);
-        match self.target {
-            Some(target) => builder.with_bit_tests(target),
-            None => builder,
-        }
+        FunctionBuilder::new(func)
+            .with_revert_strings(self.revert_strings)
+            .with_bit_tests(self.target)
     }
 
     /// Lowers every `abi_decode` in `decode_functions`, whose layouts have valid head sizes.
@@ -2719,17 +2724,16 @@ fn abi_param_type_depth(ty: &AbiParamType) -> usize {
 /// Adds a helper for a repeated dynamic tuple in a memory ABI decode.
 fn synthesize_memory_decode_helper(
     revert_strings: RevertStrings,
-    target: Option<Target>,
+    target: Target,
     module: &mut Module,
     ty: &AbiParamType,
     helpers: &FxHashMap<AbiParamType, FunctionId>,
 ) -> FunctionId {
     let mut function = Function::new(Ident::with_dummy_span(sym::decode_memory_type));
     {
-        let mut builder = FunctionBuilder::new(&mut function).with_revert_strings(revert_strings);
-        if let Some(target) = target {
-            builder = builder.with_bit_tests(target);
-        }
+        let mut builder = FunctionBuilder::new(&mut function)
+            .with_revert_strings(revert_strings)
+            .with_bit_tests(target);
         let head = builder.add_param(MirType::I256);
         let tuple_base = builder.add_param(MirType::I256);
         let input_end = builder.add_param(MirType::I256);

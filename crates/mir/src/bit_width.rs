@@ -96,12 +96,13 @@ impl BitWidthTest {
     }
 
     fn new(word: ValueId, power: U256, fits: bool) -> Option<Self> {
-        // A limit of one is a zero test, not a width.
-        (power > U256::ONE && power.is_power_of_two()).then(|| Self {
-            word,
-            bits: power.trailing_zeros() as u32,
-            fits,
-        })
+        Some(Self { word, bits: Self::width_of_power(power)?, fits })
+    }
+
+    /// The width `k` of `power == 2^k`, for `k` of at least one: a limit of one is a zero test,
+    /// not a width.
+    pub fn width_of_power(power: U256) -> Option<u32> {
+        (power > U256::ONE && power.is_power_of_two()).then(|| power.trailing_zeros() as u32)
     }
 
     /// The largest word that fits, `2^bits - 1`.

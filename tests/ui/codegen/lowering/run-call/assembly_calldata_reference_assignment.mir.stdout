@@ -232,7 +232,7 @@ fn @dynamicNarrow(arg0: slice<calldata>) -> ptr<memory> [selector=0x320b552a, pu
     mstore v18, v4
     jump bb1
   bb1:
-    v19 = phi [bb0: 0], [bb2: v30]
+    v19 = phi [bb0: 0], [bb2: v29]
     v20 = lt v19, v4
     jumpi v20, bb2, bb3
   bb3:
@@ -242,14 +242,13 @@ fn @dynamicNarrow(arg0: slice<calldata>) -> ptr<memory> [selector=0x320b552a, pu
     v22 = ptrtoint ptr<calldata> v5 to i256
     v23 = add v22, v21
     v24 = calldataload v23
-    v25 = shr v24, 8
-    v26 = ne v25, 0
-    icall revert_if<empty>, v26
-    v27 = shl v19, 5
-    v28 = ptradd v18, v27
-    v29 = ptradd v28, 32
-    mstore v29, v24
-    v30 = add v19, 1
+    v25 = gt v24, 255
+    icall revert_if<empty>, v25
+    v26 = shl v19, 5
+    v27 = ptradd v18, v26
+    v28 = ptradd v27, 32
+    mstore v28, v24
+    v29 = add v19, 1
     jump bb1
 }
 

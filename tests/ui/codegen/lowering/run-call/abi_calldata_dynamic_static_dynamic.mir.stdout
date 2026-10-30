@@ -125,13 +125,12 @@ fn @readNarrow(arg0: slice<calldata>) -> i256 [selector=0x49c9edea, pure, abi_pa
     v103 = ptrtoint ptr<calldata> v102 to i256
     v104 = add v103, 0
     v105 = calldataload v104
-    v106 = shr v105, 8
-    v107 = ne v106, 0
-    icall revert_if<empty>, v107
-    v108 = trunc i256 v105 to i8
-    v109 = zext i8 v108 to i256
-    v110 = checked_add uint256, v50, v109
-    ret v110
+    v106 = gt v105, 255
+    icall revert_if<empty>, v106
+    v107 = trunc i256 v105 to i8
+    v108 = zext i8 v107 to i256
+    v109 = checked_add uint256, v50, v108
+    ret v109
 }
 
 fn @readWide(arg0: slice<calldata>) -> i256 [selector=0xb44a60df, pure, abi_params=[array<_, array<2, array<_, uint256>>>], abi_returns=[word], abi_return_params=[uint256]] {

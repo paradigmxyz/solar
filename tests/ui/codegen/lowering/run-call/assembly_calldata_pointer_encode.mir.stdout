@@ -118,11 +118,10 @@ fn @structFirst() -> i8 [selector=0x2165fa18, pure, abi_params=[], abi_returns=[
     v2 = ptrtoint ptr<calldata> v1 to i256
     v3 = add v2, 0
     v4 = calldataload v3
-    v5 = shr v4, 8
-    v6 = ne v5, 0
-    icall revert_if<empty>, v6
-    v7 = trunc i256 v4 to i8
-    ret v7
+    v5 = gt v4, 255
+    icall revert_if<empty>, v5
+    v6 = trunc i256 v4 to i8
+    ret v6
 }
 
 fn @makeStruct() -> slice<calldata> [pure] {

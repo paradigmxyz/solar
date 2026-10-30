@@ -182,18 +182,17 @@ fn @settle(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
     icall revert_if<tuple_data_too_short>, v17
     v18 = add 0, 0
     v19 = mload v18
-    v20 = shr v19, 1
-    v21 = ne v20, 0
-    icall revert_if<empty>, v21
-    v22 = gas
+    v20 = gt v19, 1
+    icall revert_if<empty>, v20
+    v21 = gas
     mstore 0, 0x11da60b4 !metadata(memory=scratch)
-    v23 = zext i160 arg1 to i256
-    v24 = extcodesize v23
-    v25 = eq v24, 0
-    icall revert_if<target_contract_has_no_code>, v25
-    v26 = zext i160 arg1 to i256
-    v27 = call v22, v26, 0, 28, 4, 0, 0
-    jumpi v27, bb12, bb11
+    v22 = zext i160 arg1 to i256
+    v23 = extcodesize v22
+    v24 = eq v23, 0
+    icall revert_if<target_contract_has_no_code>, v24
+    v25 = zext i160 arg1 to i256
+    v26 = call v21, v25, 0, 28, 4, 0, 0
+    jumpi v26, bb12, bb11
   bb11:
     revert_returndata
   bb12:

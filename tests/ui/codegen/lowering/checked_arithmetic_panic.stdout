@@ -145,12 +145,11 @@ fn @narrow_add(arg0: i8, arg1: i8) -> i8 [selector=0xeb8645e0, pure, abi_params=
     v1 = zext i8 arg0 to i256
     v2 = zext i8 arg1 to i256
     v3 = add v1, v2
-    v4 = shr v3, 8
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
+    v4 = gt v3, 255
+    jumpi v4, bb1, bb2
   bb2:
-    v6 = trunc i256 v3 to i8
-    ret v6
+    v5 = trunc i256 v3 to i8
+    ret v5
   bb1:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
