@@ -432,17 +432,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             );
             return;
         };
-        let internal_targets = module.runtime_reachable_functions();
+        let runtime = module.runtime_reachable_functions();
         let emitting_entry = Liveness::is_block_local(&module.functions[entry]);
         let bodies = module
             .functions
             .iter_enumerated()
-            .filter(|&(func_id, func)| {
-                Self::is_runtime_function(func)
-                    && (func_id == entry
-                        || func.is_runtime_entry()
-                        || internal_targets.contains(func_id))
-            })
+            .filter(|&(func_id, func)| Self::is_runtime_function(func) && runtime.contains(func_id))
             .map(|(func_id, _)| func_id)
             .collect();
         match self.plan_stackified(module, call_graph, entry, emitting_entry, bodies) {
