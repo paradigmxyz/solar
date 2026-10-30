@@ -1,0 +1,54 @@
+//@ revisions: paris osaka size
+//@ compile-flags: -Zevm-ir-pipeline=late-word
+//@[paris] compile-flags: -Ogas --evm-version=paris
+//@[osaka] compile-flags: -Ogas --evm-version=osaka
+//@[size] compile-flags: -Osize --evm-version=osaka
+//@ run-call: f(uint256)(uint256,uint256,uint256,uint256,uint256) 5 => 4, 115792089237316195423570985008687907853269984665640564039457584007913129639909, 5, 6, 57896044618658097711785492504343953926634992332820282019728792003956564819973
+//@ run-call: f(uint256)(uint256,uint256,uint256,uint256,uint256) 0 => 115792089237316195423570985008687907853269984665640564039457584007913129639935, 115792089237316195423570985008687907853269984665640564039457584007913129639904, 0, 1, 57896044618658097711785492504343953926634992332820282019728792003956564819968
+
+// Computes `x - c` for `c` of 1, 32, 0, 2**256 - 1, and 2**255, with `x` on top of the stack.
+// `PUSH c; SWAP1; SUB` becomes `materialize(-c); ADD` where that is cheaper: `x - 1` on osaka
+// and size but not on paris, which has no `PUSH0`, and `x - 0` and `x - 2**256 + 1` on all three.
+// `x - 32` ties and stays. `x - 2**255` stays: `PUSH1 128; PUSH1 248; SHL; ADD` costs three more
+// gas than the literal `PUSH32; SWAP1; SUB` and needs a second stack word, which the size
+// revision refuses too.
+@module sub_constant
+bb0:
+  push 4
+  calldataload
+  push 1
+  swap 1
+  sub
+  push 4
+  calldataload
+  push 32
+  swap 1
+  sub
+  push 4
+  calldataload
+  push 0
+  swap 1
+  sub
+  push 4
+  calldataload
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  swap 1
+  sub
+  push 4
+  calldataload
+  push 0x8000000000000000000000000000000000000000000000000000000000000000
+  swap 1
+  sub
+  push 128
+  mstore
+  push 96
+  mstore
+  push 64
+  mstore
+  push 32
+  mstore
+  push 0
+  mstore
+  push 160
+  push 0
+  return

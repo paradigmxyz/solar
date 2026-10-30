@@ -202,7 +202,7 @@ use super::{
     egraph::{max_bits_with_args, use_counts},
 };
 use crate::{
-    backend::evm::op,
+    backend::evm::{op, select::InstKindOpcode},
     mir::{
         ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionBuilder,
         FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module, Terminator,

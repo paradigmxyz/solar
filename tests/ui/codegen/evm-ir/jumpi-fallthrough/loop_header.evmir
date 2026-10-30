@@ -1,0 +1,38 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=jumpi-fallthrough
+//@[size] compile-flags: -Osize --optimize-runs 1 -Zevm-ir-pipeline=jumpi-fallthrough
+//@ run-call: sum(uint256)(uint256) 0 => 0
+//@ run-call: sum(uint256)(uint256) 100 => 5050
+// The same loop as `loop_exit`, with a header that tests `sub`, so turning it around is free.
+// A gas build still keeps the jump: falling into the body would stop the loop passes from
+// rotating the header into the latch. A size build for one run takes the bytes.
+@module LoopHeader
+bb0:
+  push 4
+  calldataload
+  push 0
+  jump bb1
+bb1 [loop]:
+  dup 2
+  push 0
+  swap 1
+  sub
+  push bb2
+  jumpi
+  jump bb3
+bb2 [loop]:
+  dup 2
+  add
+  swap 1
+  push 1
+  swap 1
+  sub
+  swap 1
+  jump bb1
+bb3:
+  push 0
+  mstore
+  pop
+  push 32
+  push 0
+  return

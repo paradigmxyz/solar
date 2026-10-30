@@ -1811,6 +1811,24 @@ HOT_GAS_CALLS: dict[str, Sequence[GasCall]] = {
         GasCall(
             "transfer-spender-50", "transfer(address,uint256)", (DEFAULT_SPENDER, "50")
         ),
+        GasCall(
+            "approve-self-max",
+            "approve(address,uint256)",
+            (DEFAULT_SENDER, MAX_UINT256),
+        ),
+        GasCall(
+            "transfer-from-max-allowance",
+            "transferFrom(address,address,uint256)",
+            (DEFAULT_SENDER, DEFAULT_FOURTH, "10"),
+        ),
+        GasCall(
+            "approve-self-500", "approve(address,uint256)", (DEFAULT_SENDER, "500")
+        ),
+        GasCall(
+            "transfer-from-finite-allowance",
+            "transferFrom(address,address,uint256)",
+            (DEFAULT_SENDER, DEFAULT_FOURTH, "10"),
+        ),
     ),
     "openzeppelin-vesting-wallet": (
         GasCall("vested-before-start", "vestedAmount(uint64)", ("999",), repeat=2),

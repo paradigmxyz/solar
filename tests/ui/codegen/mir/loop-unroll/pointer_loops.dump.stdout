@@ -9,8 +9,8 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v36 = add v35, 4
     v38 = sub v33, 36
     v39 = gt v35, v38
-    v126 = or v34, v39
-    jumpi v126, bb4, bb5
+    v125 = or v34, v39
+    jumpi v125, bb4, bb5
   bb5:
     v40 = calldataload v36
     v41 = add v36, 32
@@ -22,8 +22,8 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v85 = lt v84, v83
     v86 = gt v84, 0xffffffffffffffff
     v87 = or v85, v86
-    v127 = or v43, v87
-    jumpi v127, bb6, bb8
+    v126 = or v43, v87
+    jumpi v126, bb6, bb8
   bb8:
     mstore 64, v84 !metadata(memory=scratch)
     mstore v83, v40
@@ -46,10 +46,9 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     mstore 15, 0x30313233343536373839616263646566 !metadata(memory=scratch)
     v5 = add v3, 32
     v7 = add v83, v1
-    v121 = sub v7, v83
-    v122 = and v121, 1
-    v123 = ne v122, 0
-    jumpi v123, bb9, bb10
+    v121 = and v1, 1
+    v122 = ne v121, 0
+    jumpi v122, bb9, bb10
   bb9:
     v95 = add v83, 1
     v96 = mload v95
@@ -65,12 +64,12 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v104 = add v5, 2
     jump bb10
   bb10:
-    v124 = phi [bb7: v83], [bb9: v95]
-    v125 = phi [bb7: v5], [bb9: v104]
+    v123 = phi [bb7: v83], [bb9: v95]
+    v124 = phi [bb7: v5], [bb9: v104]
     jump bb1
   bb1:
-    v8 = phi [bb10: v124], [bb3: v110]
-    v11 = phi [bb10: v125], [bb3: v119]
+    v8 = phi [bb10: v123], [bb3: v110]
+    v11 = phi [bb10: v124], [bb3: v119]
     v16 = ne v8, v7
     jumpi v16, bb3, bb2
   bb2:

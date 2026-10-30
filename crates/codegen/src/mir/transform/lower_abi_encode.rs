@@ -78,8 +78,8 @@
 use crate::{
     mir::{
         AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, CalldataTail, EffectKind,
-        Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryObjectLayout, MirType,
-        Module, PtrLocation, RevertReason, Terminator, Value, ValueId,
+        Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryObjectLayout,
+        MirModuleTarget, MirType, Module, PtrLocation, RevertReason, Terminator, Value, ValueId,
         memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
         transform::{egraph::use_counts, utils::expand_block},

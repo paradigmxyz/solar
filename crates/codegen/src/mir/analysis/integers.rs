@@ -7,7 +7,7 @@
 //! analyses use the same no-wrap proof before treating modular arithmetic as an ordinary offset.
 
 use crate::{
-    backend::evm::op,
+    backend::evm::{op, select::InstKindOpcode},
     mir::{
         Callee, Function, FunctionId, InstKind, MirType, Module, Terminator, Value, ValueId,
         memory::EvmMemoryLayout,
