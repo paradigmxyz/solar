@@ -128,14 +128,12 @@ bb0:
   lt
   push bb3
   jumpi
-  push 32
-  dup 2
-  add
-  dup 4
-  dup 4
   dup 3
+  dup 3
+  push 192
   calldatacopy
-  swap 3
+  swap 1
+  swap 2
   add
   dup 1
   swap 2
@@ -146,10 +144,9 @@ bb11 [loop]:
   pop
   jump bb8
 bb8 [loop]:
-  dup 3
+  push 193
   dup 2
-  gt
-  iszero
+  lt
   push bb10
   jumpi
   push 32

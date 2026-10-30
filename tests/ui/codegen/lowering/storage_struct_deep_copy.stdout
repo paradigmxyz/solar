@@ -16,7 +16,7 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     jumpi v93, bb5, bb6
   bb6:
     v82 = heap_floor !metadata(alloc_ptr)
-    v83 = add v82, 64 !metadata(alloc_ptr)
+    v83 = heap_floor_offset 64 !metadata(alloc_ptr)
     v84 = lt v83, v82
     v85 = gt v83, 0xffffffffffffffff
     v86 = or v84, v85
@@ -86,7 +86,7 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     jumpi v102, bb7, bb8
   bb8:
     v91 = heap_floor !metadata(alloc_ptr)
-    v92 = add v91, 64 !metadata(alloc_ptr)
+    v92 = heap_floor_offset 64 !metadata(alloc_ptr)
     v93 = lt v92, v91
     v94 = gt v92, 0xffffffffffffffff
     v95 = or v93, v94
@@ -209,7 +209,7 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     jumpi v97, bb5, bb6
   bb6:
     v86 = heap_floor !metadata(alloc_ptr)
-    v87 = add v86, 64 !metadata(alloc_ptr)
+    v87 = heap_floor_offset 64 !metadata(alloc_ptr)
     v88 = lt v87, v86
     v89 = gt v87, 0xffffffffffffffff
     v90 = or v88, v89

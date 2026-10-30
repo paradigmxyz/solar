@@ -38,7 +38,7 @@ fn @paintUint(arg0: i256) -> i256 [may_return_memory, pure] {
     v23 = add v22, v9 !metadata(alloc_ptr)
     mstore 64, v23 !metadata(memory=scratch)
     mstore v22, v5
-    v19 = add v22, 32
+    v19 = heap_floor_offset 32
     returndatacopy v19, 0, v5
     v15 = icall @decode_aggregate, v22
     v4 = icall @wrap, v15

@@ -13,18 +13,18 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     jumpi v43, bb1, bb2
   bb2:
     v38 = heap_floor !metadata(alloc_ptr)
-    v39 = add v38, 128 !metadata(alloc_ptr)
+    v39 = heap_floor_offset 128 !metadata(alloc_ptr)
     mstore v38, 68
-    v33 = add v38, 32
+    v33 = heap_floor_offset 32
     mstore v33, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v35 = add v38, 36
+    v35 = heap_floor_offset 36
     mstore v35, arg0
-    v14 = add v35, 32
+    v14 = heap_floor_offset 68
     mstore v14, arg1
-    v17 = add v38, 160
+    v17 = heap_floor_offset 160
     mstore v39, 32
-    v24 = add v17, 32
-    v25 = add v17, 96
+    v24 = heap_floor_offset 192
+    v25 = heap_floor_offset 256
     mstore v25, 0
     mstore v17, 68
     mcopy v24, v33, 68 !metadata(disjoint)
@@ -48,12 +48,11 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
     jumpi v34, bb1, bb2
   bb2:
     v0 = gas
-    v28 = heap_floor !metadata(alloc_ptr)
-    v25 = add v28, 32
+    v25 = heap_floor_offset 32
     mstore v25, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v27 = add v28, 36
+    v27 = heap_floor_offset 36
     mstore v27, arg1
-    v23 = add v27, 32
+    v23 = heap_floor_offset 68
     mstore v23, arg2
     v7 = call v0, arg0, 0, v25, 68, 0, 0
     v17 = zext i1 v7 to i256

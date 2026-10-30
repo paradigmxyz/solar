@@ -124,7 +124,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v14 = gt v6, v13
     jumpi v14, bb1, bb4
   bb4:
-    v25 = add v29, 32
+    v25 = heap_floor_offset 32
     calldatacopy v25, v7, v6
     v22 = sub 0, v6
     v23 = and v22, 31

@@ -176,7 +176,7 @@ fn @decode_calldata_type.8() -> i256 [may_return_memory] {
     v26 = eq v25, 0
     jumpi v26, bb8, bb1
   bb8:
-    v33 = add v36, 32
+    v33 = heap_floor_offset 32
     calldatacopy v33, v7, v12
     ret v36
   bb3:
@@ -235,7 +235,7 @@ fn @decode_calldata_type.9() -> i256 [may_return_memory] {
     v26 = eq v25, 0
     jumpi v26, bb8, bb1
   bb8:
-    v33 = add v36, 32
+    v33 = heap_floor_offset 32
     calldatacopy v33, v7, v12
     ret v36
   bb3:

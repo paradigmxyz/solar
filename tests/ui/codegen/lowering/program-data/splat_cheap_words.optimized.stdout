@@ -3,16 +3,15 @@
 @phase lowered
 fn @f() [selector=0x26121ff0, abi_wrapper, pure] {
   bb0:
-    v20 = heap_floor !metadata(alloc_ptr)
-    v11 = add v20, 32
+    v11 = heap_floor_offset 32
     mstore v11, 1
-    v13 = add v20, 64
+    v13 = heap_floor_offset 64
     mstore v13, 1
-    v15 = add v20, 96
+    v15 = heap_floor_offset 96
     mstore v15, 1
-    v17 = add v20, 128
+    v17 = heap_floor_offset 128
     mstore v17, 1
-    v19 = add v20, 160
+    v19 = heap_floor_offset 160
     mstore v19, 1
     v8 = keccak256 v11, 160
     mstore 0, v8 !metadata(memory=scratch)

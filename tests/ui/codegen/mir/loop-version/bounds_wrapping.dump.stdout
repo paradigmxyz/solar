@@ -38,7 +38,7 @@ fn @wrapped() [selector=0x08a7c76d, abi_wrapper, pure] {
     jumpi v5, bb1, bb2
   bb2:
     v8 = heap_floor !metadata(alloc_ptr)
-    v9 = add v8, 64 !metadata(alloc_ptr)
+    v9 = heap_floor_offset 64 !metadata(alloc_ptr)
     v10 = lt v9, v8
     v11 = gt v9, 0xffffffffffffffff
     v12 = or v10, v11

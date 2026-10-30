@@ -12,7 +12,7 @@ fn @decoded() [selector=0x45c91515, abi_wrapper, pure] {
     v15 = add v13, 32
     v23 = heap_floor !metadata(alloc_ptr)
     mstore v23, v14
-    v20 = add v23, 32
+    v20 = heap_floor_offset 32
     calldatacopy v20, v15, v14
     mstore 0, v14
     returndata 0, 32
@@ -43,7 +43,7 @@ fn @lengthSet() [selector=0xa5e448c2, abi_wrapper, pure] {
     v39 = ne v38, 0
     jumpi v39, bb3, bb4
   bb4:
-    v32 = add v35, 32
+    v32 = heap_floor_offset 32
     calldatacopy v32, v27, arg1
     mstore 0, arg1
     returndata 0, 32
@@ -78,7 +78,7 @@ fn @offsetSet() [selector=0xba062698, abi_wrapper, pure] {
     v43 = ne v42, 0
     jumpi v43, bb3, bb4
   bb4:
-    v36 = add v39, 32
+    v36 = heap_floor_offset 32
     calldatacopy v36, v2, v30
     mstore 0, v30
     returndata 0, 32
@@ -108,7 +108,7 @@ fn @forwarded() [selector=0xbf6f2c90, abi_wrapper, pure] {
   bb2:
     v33 = heap_floor !metadata(alloc_ptr)
     mstore v33, v24
-    v30 = add v33, 32
+    v30 = heap_floor_offset 32
     calldatacopy v30, v25, v24
     mstore 0, v24
     returndata 0, 32

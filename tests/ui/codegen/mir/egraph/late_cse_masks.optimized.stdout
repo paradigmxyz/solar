@@ -11,12 +11,12 @@ fn @total() [selector=0x2ddbd13a, abi_wrapper, view] {
 fn @digest(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v25 = heap_floor !metadata(alloc_ptr)
-    v26 = add v25, 64 !metadata(alloc_ptr)
+    v26 = heap_floor_offset 64 !metadata(alloc_ptr)
     mstore v25, arg0
-    v21 = add v25, 32
+    v21 = heap_floor_offset 32
     mstore v21, arg1
     mstore v26, arg0
-    v15 = add v25, 96
+    v15 = heap_floor_offset 96
     mstore v15, arg1
     v6 = keccak256 v26, 64
     v7 = sload 0 !metadata(storage=slot(0))

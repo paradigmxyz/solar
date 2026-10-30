@@ -67,9 +67,9 @@ fn @pickDown() [selector=0xe4bcb1d7, abi_wrapper, pure] {
     v35 = gt v26, v34
     jumpi v35, bb6, bb9
   bb9:
-    v46 = add v49, 32
+    v46 = heap_floor_offset 32
     calldatacopy v46, v27, v32
-    v55 = add v49, 32
+    v55 = heap_floor_offset 32
     jump bb1
   bb1:
     v3 = phi [bb9: 0], [bb5: v17]

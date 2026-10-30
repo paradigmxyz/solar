@@ -20,7 +20,7 @@ contract LateCseMasks {
 
     // CHECK-LABEL: fn @digest
     // CHECK: [[BASE:v[0-9]+]] = heap_floor
-    // CHECK-NEXT: [[BUF:v[0-9]+]] = add [[BASE]], 64
+    // CHECK-NEXT: [[BUF:v[0-9]+]] = heap_floor_offset 64
     // CHECK: mstore [[BASE]], arg0
     // CHECK-NOT: = and
     // CHECK: keccak256 [[BUF]], 64

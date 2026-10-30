@@ -10,8 +10,7 @@ fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
     v8 = lt v7, 36
     jumpi v8, bb3, bb4
   bb4:
-    v16 = heap_floor !metadata(alloc_ptr)
-    v17 = add v16, 64 !metadata(alloc_ptr)
+    v17 = heap_floor_offset 64 !metadata(alloc_ptr)
     mstore 64, v17 !metadata(memory=scratch)
     v2 = alloc 64 !metadata(deferred_alloc)
     v5 = add arg0, 1
@@ -35,22 +34,21 @@ fn @makeArray() [selector=0x9510f212, abi_wrapper, pure] {
     v11 = lt v10, 36
     jumpi v11, bb4, bb5
   bb5:
-    v31 = heap_floor !metadata(alloc_ptr)
-    v32 = add v31, 192 !metadata(alloc_ptr)
+    v32 = heap_floor_offset 192 !metadata(alloc_ptr)
     mstore 64, v32 !metadata(memory=scratch)
-    v30 = add v31, 96
+    v30 = heap_floor_offset 96
     mstore v30, arg0
     v6 = add arg0, 1
     v7 = eq v6, 0
     jumpi v7, bb1, bb2
   bb2:
-    v23 = add v31, 128
+    v23 = heap_floor_offset 128
     mstore v23, v6
     v8 = add arg0, 2
     v9 = lt v8, arg0
     jumpi v9, bb1, bb3
   bb3:
-    v25 = add v31, 160
+    v25 = heap_floor_offset 160
     mstore v25, v8
     jump bb6
   bb6:
@@ -81,8 +79,7 @@ fn @makePair() [selector=0xf4d7be11, abi_wrapper, pure] {
     v13 = lt v12, 36
     jumpi v13, bb4, bb5
   bb5:
-    v26 = heap_floor !metadata(alloc_ptr)
-    v27 = add v26, 64 !metadata(alloc_ptr)
+    v27 = heap_floor_offset 64 !metadata(alloc_ptr)
     mstore 64, v27 !metadata(memory=scratch)
     v2 = alloc 64 !metadata(deferred_alloc)
     v8 = add arg0, 1
@@ -124,12 +121,12 @@ fn @structReturn() [selector=0xc3f9a16c, abi_wrapper, view] {
     v0: i256 = address
     v1 = gas
     v37 = heap_floor !metadata(alloc_ptr)
-    v38 = add v37, 128 !metadata(alloc_ptr)
+    v38 = heap_floor_offset 128 !metadata(alloc_ptr)
     mstore 64, v38 !metadata(memory=scratch)
     mstore v37, 0x62dc843600000000000000000000000000000000000000000000000000000000
-    v29 = add v37, 4
+    v29 = heap_floor_offset 4
     mstore v29, arg0
-    v36 = add v37, 64
+    v36 = heap_floor_offset 64
     v7 = staticcall v1, v0, v37, 36, v36, 64
     jumpi v7, bb2, bb1
   bb1:
@@ -169,12 +166,12 @@ fn @arrayReturn() [selector=0xad0cb941, abi_wrapper, view] {
     v0: i256 = address
     v1 = gas
     v58 = heap_floor !metadata(alloc_ptr)
-    v59 = add v58, 160 !metadata(alloc_ptr)
+    v59 = heap_floor_offset 160 !metadata(alloc_ptr)
     mstore 64, v59 !metadata(memory=scratch)
     mstore v58, 0x9510f21200000000000000000000000000000000000000000000000000000000
-    v46 = add v58, 4
+    v46 = heap_floor_offset 4
     mstore v46, arg0
-    v57 = add v58, 64
+    v57 = heap_floor_offset 64
     v7 = staticcall v1, v0, v58, 36, v57, 96
     jumpi v7, bb2, bb1
   bb1:
@@ -221,12 +218,12 @@ fn @tryStructReturn() [selector=0xcc20ef0a, abi_wrapper, view] {
     v0: i256 = address
     v1 = gas
     v36 = heap_floor !metadata(alloc_ptr)
-    v37 = add v36, 128 !metadata(alloc_ptr)
+    v37 = heap_floor_offset 128 !metadata(alloc_ptr)
     mstore 64, v37 !metadata(memory=scratch)
     mstore v36, 0x62dc843600000000000000000000000000000000000000000000000000000000
-    v28 = add v36, 4
+    v28 = heap_floor_offset 4
     mstore v28, arg0
-    v35 = add v36, 64
+    v35 = heap_floor_offset 64
     v7 = staticcall v1, v0, v36, 36, v35, 64
     jumpi v7, bb1, bb2
   bb2:
@@ -264,12 +261,12 @@ fn @pairReturn() [selector=0xc6630f71, abi_wrapper, view] {
     v0: i256 = address
     v1 = gas
     v60 = heap_floor !metadata(alloc_ptr)
-    v61 = add v60, 160 !metadata(alloc_ptr)
+    v61 = heap_floor_offset 160 !metadata(alloc_ptr)
     mstore 64, v61 !metadata(memory=scratch)
     mstore v60, 0xf4d7be1100000000000000000000000000000000000000000000000000000000
-    v54 = add v60, 4
+    v54 = heap_floor_offset 4
     mstore v54, arg0
-    v59 = add v60, 64
+    v59 = heap_floor_offset 64
     v7 = staticcall v1, v0, v60, 36, v59, 96
     jumpi v7, bb2, bb1
   bb1:
@@ -284,9 +281,9 @@ fn @pairReturn() [selector=0xc6630f71, abi_wrapper, view] {
   bb4:
     v32 = alloc 64 !metadata(deferred_alloc)
     v33 = mload v59
-    v42 = add v60, 128
+    v42 = heap_floor_offset 128
     v43 = mload v42
-    v36 = add v60, 96
+    v36 = heap_floor_offset 96
     v37 = mload v36
     v23 = add v33, v37
     v24 = lt v23, v33
@@ -310,10 +307,10 @@ fn @shortReturn() [selector=0xc41518f3, abi_wrapper, view] {
     v0: i256 = address
     v1 = gas
     v35 = heap_floor !metadata(alloc_ptr)
-    v36 = add v35, 96 !metadata(alloc_ptr)
+    v36 = heap_floor_offset 96 !metadata(alloc_ptr)
     mstore 64, v36 !metadata(memory=scratch)
     mstore v35, 0xe3b21a7a00000000000000000000000000000000000000000000000000000000
-    v34 = add v35, 32
+    v34 = heap_floor_offset 32
     v7 = staticcall v1, v0, v35, 4, v34, 64
     jumpi v7, bb2, bb1
   bb1:

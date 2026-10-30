@@ -68,7 +68,7 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v173 = gt v165, v172
     jumpi v173, bb25, bb27
   bb27:
-    v243 = add v264, 32
+    v243 = heap_floor_offset 32
     calldatacopy v243, v166, v165
     v181 = sub 0, v165
     v182 = and v181, 31

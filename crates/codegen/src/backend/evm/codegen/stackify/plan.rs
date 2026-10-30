@@ -3352,7 +3352,7 @@ fn materialize_cost(func: &Function, target: &Target, value: ValueId) -> Cost {
         Value::Undef(_) => target.push(U256::ZERO),
         Value::Arg(_) => target.opcode(op::PUSH1).plus(target.opcode(op::CALLDATALOAD)),
         Value::Inst(inst) => match &func.inst(*inst).kind {
-            InstKind::DataSize(_) => target.opcode(op::PUSH2),
+            InstKind::DataSize(_) | InstKind::HeapFloorOffset(_) => target.opcode(op::PUSH2),
             InstKind::Gas => target.opcode(op::GAS),
             InstKind::Sub(..) if gas_minus(func, value).is_some() => {
                 target.opcode(op::GAS).plus(target.opcode(op::PUSH1)).plus(target.opcode(op::SUB))

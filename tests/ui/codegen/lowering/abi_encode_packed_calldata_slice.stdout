@@ -125,13 +125,13 @@ bb12 [continuation]:
   sub
   swap 2
   add
-  dup 2
-  push 129
   push 128
-  swap 4
-  dup 4
   dup 3
+  dup 3
+  push 129
   calldatacopy
+  swap 2
+  push 129
   add
   push 1
   dup 2

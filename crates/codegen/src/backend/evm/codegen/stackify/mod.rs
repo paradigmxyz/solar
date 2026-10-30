@@ -1125,14 +1125,18 @@ fn argument_values(func: &Function) -> Result<IndexVec<ArgIdx, Option<ValueId>>,
 }
 
 /// Whether the planner pushes a fresh copy of `value` at each use instead of keeping it:
-/// immediates, stable reads, and an external entry's calldata arguments.
+/// immediates, stable reads, heap floors plus a constant, and an external entry's calldata
+/// arguments.
 fn materialized_at_use(func: &Function, internal: bool, value: ValueId) -> bool {
     match func.value(value) {
         Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => true,
         Value::Arg(_) => !internal,
         Value::Inst(inst) => {
             rematerializable_nullary_value(func, value).is_some()
-                || matches!(func.inst(*inst).kind, InstKind::DataSize(_))
+                || matches!(
+                    func.inst(*inst).kind,
+                    InstKind::DataSize(_) | InstKind::HeapFloorOffset(_)
+                )
         }
     }
 }

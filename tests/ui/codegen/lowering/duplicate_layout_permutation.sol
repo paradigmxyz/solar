@@ -2,19 +2,14 @@
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 
-// The stack entering the outer loop holds one value twice. The edge pops the
-// stale copy and reaches the loop layout with plain swaps, instead of `exchange`
-// pseudo-ops that lower to three swaps each.
+// The edge into the outer loop reaches the loop layout with plain stack operations, instead of
+// `exchange` pseudo-ops that lower to three swaps each. The array lies at a constant offset from
+// the heap floor, so the edge pushes it rather than copying one of two equal words.
 // CHECK-LABEL: @module Test_runtime
 // CHECK: calldatacopy
 // CHECK-NOT: exchange
 // CHECK: add
-// CHECK-NEXT: dup 2
-// CHECK-NEXT: swap 3
-// CHECK-NEXT: swap 4
-// CHECK-NEXT: swap 5
-// CHECK-NEXT: pop
-// CHECK-NEXT: swap 1
+// CHECK-NEXT: push 192
 // CHECK-NEXT: jump bb{{[0-9]+}}
 // CHECK-NOT: exchange
 contract Test {

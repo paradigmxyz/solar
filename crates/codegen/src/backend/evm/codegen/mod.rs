@@ -113,9 +113,9 @@ pub struct EvmCodegen<'gcx> {
     /// Per-external-entry free-memory-pointer constants, resolved after static-frame placement.
     /// Entries that never use dynamic memory omit the initialization entirely.
     runtime_free_memory_consts: FxHashMap<FunctionId, DeferredConst>,
-    /// Heap floors, by the function that pushes each one. Each resolves to the highest initial
-    /// free memory pointer of the entries reaching the function.
-    fmp_floor_consts: Vec<(FunctionId, DeferredConst)>,
+    /// Heap floors, by the function that pushes each one, with the offset added to it. Each
+    /// resolves to the highest initial free memory pointer of the entries reaching the function.
+    fmp_floor_consts: Vec<(FunctionId, DeferredConst, u64)>,
     /// Internal functions reachable from each entry that initializes the free-memory pointer.
     runtime_entry_reachability: FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
     /// Every external body emitted this pass, for sizing the heap floor.

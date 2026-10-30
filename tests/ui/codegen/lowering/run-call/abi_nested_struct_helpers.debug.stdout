@@ -24,7 +24,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     jumpi v154, bb5, bb6
   bb6:
     v146 = heap_floor !metadata(alloc_ptr)
-    v147 = add v146, 96
+    v147 = heap_floor_offset 96
     mstore 64, v147
     v23 = calldataload v16
     v24 = add v16, v23
@@ -130,9 +130,9 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     mstore v124, v145
     v126 = add v150, 64
     mstore v126, v62
-    v128 = add v146, 32
+    v128 = heap_floor_offset 32
     mstore v128, v150
-    v130 = add v146, 64
+    v130 = heap_floor_offset 64
     mstore v130, v16
     v4 = mload v150
     v143 = mload v124

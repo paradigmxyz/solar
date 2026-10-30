@@ -39,37 +39,17 @@ bb4 [cold]:
   revert
 bb6:
   push 128
-  push 0
-  push 256
-  push 0xffffffffffffffff
-  lt
-  or
-  push bb8
-  jumpi
-  dup 1
   calldatasize
-  dup 3
+  dup 2
   calldatacopy
   push 7
   push 224
   mstore
-  push 32
-  add
   push 96
-  swap 1
+  push 160
   keccak256
   push 0
   mstore
   push 32
   push 0
   return
-bb8 [cold]:
-  push 65
-  push 32
-  mstore
-  push 0x4e487b71
-  push 0
-  mstore
-  push 36
-  push 28
-  revert

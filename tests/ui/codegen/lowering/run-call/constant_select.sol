@@ -97,6 +97,10 @@ contract ConstantSelect {
     // EVM-NEXT: push 0x26121ff0
     // EVM-NEXT: push 224
     // EVM-NEXT: shl
+    // EVM-NEXT: add
+    // EVM-NEXT: push 4
+    // EVM-NEXT: push 128
+    // EVM-NEXT: mstore
     // EVM-NEXT: jump {{bb[0-9]+}}
     function signature(bool condition) external pure returns (bytes memory) {
         return abi.encodeWithSignature(condition ? "f()" : "g()");

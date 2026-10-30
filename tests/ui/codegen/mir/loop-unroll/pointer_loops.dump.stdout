@@ -31,7 +31,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v48 = gt v40, v47
     jumpi v48, bb4, bb7
   bb7:
-    v80 = add v85, 32
+    v80 = heap_floor_offset 32
     calldatacopy v80, v41, v40
     v56 = sub 0, v40
     v57 = and v56, 31
@@ -51,7 +51,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v125 = ne v124, 0
     jumpi v125, bb9, bb10
   bb9:
-    v97 = add v85, 1
+    v97 = heap_floor_offset 1
     v98 = mload v97
     v99 = and v98, 15
     v100 = mload v99
@@ -156,7 +156,7 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v34 = gt v25, v33
     jumpi v34, bb4, bb7
   bb7:
-    v42 = add v45, 32
+    v42 = heap_floor_offset 32
     calldatacopy v42, v26, v31
     v5 = add v42, v31
     v63 = and v25, 1
@@ -165,7 +165,7 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
   bb9:
     v54 = mload v42
     v55 = add 0, v54
-    v56 = add v42, 32
+    v56 = heap_floor_offset 64
     jump bb10
   bb10:
     v65 = phi [bb7: 0], [bb9: v55]

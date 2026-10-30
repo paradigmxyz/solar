@@ -4,10 +4,10 @@
 fn @memoryCopy() [selector=0x261f992c, abi_wrapper, pure] {
   bb0:
     v51 = heap_floor !metadata(alloc_ptr)
-    v52 = add v51, 64 !metadata(alloc_ptr)
-    mstore 64, v52
+    v52 = heap_floor_offset 64 !metadata(alloc_ptr)
+    mstore 64, v52 !metadata(memory=scratch)
     mstore v51, 3
-    v41 = add v51, 32
+    v41 = heap_floor_offset 32
     mstore v41, 0x1122330000000000000000000000000000000000000000000000000000000000
     v50 = icall @alloc, 64
     v54 = calldatasize
@@ -81,10 +81,10 @@ fn @calldataCopy() [selector=0xa70bf1aa, abi_wrapper, pure] {
 fn @downCopy() [selector=0xc7e6d660, abi_wrapper, pure] {
   bb0:
     v51 = heap_floor !metadata(alloc_ptr)
-    v52 = add v51, 64 !metadata(alloc_ptr)
-    mstore 64, v52
+    v52 = heap_floor_offset 64 !metadata(alloc_ptr)
+    mstore 64, v52 !metadata(memory=scratch)
     mstore v51, 3
-    v41 = add v51, 32
+    v41 = heap_floor_offset 32
     mstore v41, 0x1122330000000000000000000000000000000000000000000000000000000000
     v50 = icall @alloc, 64
     v54 = calldatasize

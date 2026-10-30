@@ -1107,6 +1107,7 @@ symbols! {
         gasleft,
         global,
         heap,
+        heap_floor_offset,
         hir,
         i1,
         i160,

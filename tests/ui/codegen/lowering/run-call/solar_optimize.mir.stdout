@@ -60,9 +60,9 @@ fn @greet() [selector=0xead710c4, abi_wrapper, pure] {
   bb2:
     v55 = heap_floor !metadata(alloc_ptr)
     mstore v55, v2
-    v44 = add v55, 32
+    v44 = heap_floor_offset 32
     mstore v44, 0x68656c6c6f2c2000000000000000000000000000000000000000000000000000
-    v46 = add v55, 39
+    v46 = heap_floor_offset 39
     calldatacopy v46, v23, v22
     v48 = add v55, v2
     v49 = add v48, 32
@@ -72,7 +72,7 @@ fn @greet() [selector=0xead710c4, abi_wrapper, pure] {
     v37 = and v35, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v39 = add v44, v37
     mstore v39, 0
-    v51 = add v55, 64
+    v51 = heap_floor_offset 64
     mcopy v51, v44, v33
     mstore v55, 32
     mstore v44, v33

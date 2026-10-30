@@ -477,64 +477,63 @@ bb8:
   swap 8
   dup 4
   mstore
+  swap 5
+  dup 5
   push 160
-  swap 6
-  dup 6
-  dup 8
   calldatacopy
   push 63
-  dup 8
+  dup 7
   add
   push 31
   not
   and
-  dup 9
-  add
-  swap 7
   dup 8
+  add
+  swap 6
+  dup 7
   push 64
   mstore
   dup 1
-  dup 10
+  dup 9
   mstore
   push 32
-  dup 10
+  dup 9
   add
-  swap 5
-  dup 6
+  swap 4
+  dup 5
   calldatacopy
-  dup 3
-  dup 8
+  dup 2
+  dup 7
   add
   dup 1
   push 64
   mstore
+  dup 2
+  dup 8
+  mstore
   dup 3
-  dup 9
-  mstore
-  dup 4
   push 32
-  dup 10
-  add
-  mstore
   dup 9
-  push 64
-  dup 10
   add
   mstore
-  swap 7
+  dup 8
+  push 64
+  dup 9
+  add
+  mstore
+  swap 6
   push 96
   add
-  dup 2
+  dup 6
   swap 1
   mstore
   push 0xfa06cb96
   push 224
   shl
-  dup 8
+  dup 7
   mstore
   push 4
-  dup 8
+  dup 7
   add
   push 64
   dup 2
@@ -547,35 +546,35 @@ bb8:
   dup 4
   add
   mstore
-  dup 5
+  dup 4
   dup 2
   add
-  swap 4
+  swap 3
   dup 2
   mstore
-  dup 5
+  dup 4
   push 32
   dup 3
   add
   mstore
-  swap 4
+  swap 3
   mload
   dup 1
-  dup 5
+  dup 4
   mstore
   push 5
   shl
-  swap 3
+  swap 2
   push 32
   add
-  dup 4
+  dup 3
   dup 2
   add
-  swap 4
-  swap 2
-  swap 8
-  swap 1
+  swap 3
+  push 160
+  dup 3
   mcopy
+  pop
   dup 3
   dup 3
   sub
@@ -611,11 +610,12 @@ bb8:
   mcopy
   push 96
   add
-  swap 5
+  swap 3
   swap 1
-  swap 5
+  swap 3
   mstore
   pop
+  swap 2
   swap 1
   swap 2
   sub

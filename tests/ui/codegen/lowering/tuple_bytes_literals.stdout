@@ -33,7 +33,7 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
     v25 = gt v17, v24
     jumpi v25, bb3, bb6
   bb6:
-    v53 = add v58, 32
+    v53 = heap_floor_offset 32
     calldatacopy v53, v18, v17
     v33 = sub 0, v17
     v34 = and v33, 31
@@ -50,14 +50,14 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
-    v49 = add v58, 33
+    v49 = heap_floor_offset 33
     mstore8 v49, 120
     mstore8 v53, 48
     v40 = add v0, 31
     v42 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v44 = add v53, v42
     mstore v44, 0
-    v51 = add v58, 64
+    v51 = heap_floor_offset 64
     mcopy v51, v53, v0
     mstore v58, 32
     mstore v53, v0

@@ -33,7 +33,7 @@ fn @level() [selector=0x223559c3, abi_wrapper, pure] {
     v17 = gt v8, v16
     jumpi v17, bb1, bb4
   bb4:
-    v33 = add v41, 32
+    v33 = heap_floor_offset 32
     calldatacopy v33, v9, v14
     v0 = icall @_level, v41
     v26 = mload v0

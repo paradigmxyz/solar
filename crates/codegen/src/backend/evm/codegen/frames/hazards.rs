@@ -383,7 +383,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 _ => return None,
             };
             match &func.inst(*inst_id).kind {
-                InstKind::Fmp | InstKind::Alloc { .. } | InstKind::HeapFloor => Some(true),
+                InstKind::Fmp
+                | InstKind::Alloc { .. }
+                | InstKind::HeapFloor
+                | InstKind::HeapFloorOffset(_) => Some(true),
                 InstKind::Load(address, PtrLocation::Memory)
                     if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
                 {

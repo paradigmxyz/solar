@@ -27,7 +27,7 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
     v45 = eq v64, 0
     jumpi v45, bb7, bb6
   bb6:
-    v98 = add v91, 32
+    v98 = heap_floor_offset 32
     jump bb1
   bb1:
     v19 = phi [bb6: 0], [bb12: v28]
@@ -53,7 +53,7 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
     v100 = add v99, 32
     jump bb1
   bb7:
-    v101 = add v91, 32
+    v101 = heap_floor_offset 32
     jump bb18
   bb18:
     v104 = phi [bb7: 0], [bb23: v142]
@@ -68,9 +68,9 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
     jumpi v30, bb5, bb2
   bb2:
     v71 = mload v91
-    v78 = add v91, 32
+    v78 = heap_floor_offset 32
     v73 = shl v71, 5
-    v80 = add v91, 64
+    v80 = heap_floor_offset 64
     mcopy v80, v78, v73
     mstore v91, 32
     mstore v78, v71
@@ -173,7 +173,7 @@ fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
     v101 = calldatasize
     calldatacopy v95, v101, v10
     mstore v95, v64
-    v105 = add v95, 32
+    v105 = heap_floor_offset 32
     jump bb2
   bb2:
     v33 = phi [bb7: 0], [bb3: v43]
@@ -182,9 +182,9 @@ fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
     jumpi v34, bb3, bb1
   bb1:
     v75 = mload v95
-    v82 = add v95, 32
+    v82 = heap_floor_offset 32
     v77 = shl v75, 5
-    v84 = add v95, 64
+    v84 = heap_floor_offset 64
     mcopy v84, v82, v77
     mstore v95, 32
     mstore v82, v75

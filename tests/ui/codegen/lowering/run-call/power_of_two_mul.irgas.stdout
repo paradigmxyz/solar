@@ -176,13 +176,10 @@ bb26:
   gt
   push bb8
   jumpi
-  dup 2
-  push 32
-  add
   push 36
   calldataload
-  swap 4
-  swap 1
+  swap 3
+  push 160
   calldatacopy
   swap 2
   dup 2

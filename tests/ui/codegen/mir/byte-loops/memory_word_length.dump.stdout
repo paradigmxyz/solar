@@ -8,7 +8,7 @@ fn @copy() [selector=0xf5088730, abi_wrapper, pure] {
     jumpi v101, bb16, bb17
   bb17:
     v130 = heap_floor !metadata(alloc_ptr)
-    v131 = add v130, 96 !metadata(alloc_ptr)
+    v131 = heap_floor_offset 96 !metadata(alloc_ptr)
     v132 = lt v131, v130
     v133 = gt v131, 0xffffffffffffffff
     v134 = or v132, v133
@@ -18,7 +18,7 @@ fn @copy() [selector=0xf5088730, abi_wrapper, pure] {
     v142 = calldatasize
     calldatacopy v130, v142, 96
     mstore v130, 2
-    v137 = add v131, 96
+    v137 = heap_floor_offset 192
     v139 = gt v137, 0xffffffffffffffff
     jumpi v139, bb19, bb20
   bb20:
@@ -29,12 +29,12 @@ fn @copy() [selector=0xf5088730, abi_wrapper, pure] {
     v3 = gt v2, 0
     jumpi v3, bb7, bb6
   bb7:
-    v112 = add v130, 32
+    v112 = heap_floor_offset 32
     mstore v112, 11
     v7 = gt v2, 1
     jumpi v7, bb8, bb6
   bb8:
-    v114 = add v130, 64
+    v114 = heap_floor_offset 64
     mstore v114, 22
     mstore v130, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     mstore v131, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -57,7 +57,7 @@ fn @copy() [selector=0xf5088730, abi_wrapper, pure] {
     v62 = lt v105, v112
     v63 = zext i1 v62 to i256
     v64 = or v59, v63
-    v110 = add v131, 32
+    v110 = heap_floor_offset 128
     v67 = lt v108, v110
     v68 = zext i1 v67 to i256
     v69 = or v64, v68
@@ -122,7 +122,7 @@ fn @copy() [selector=0xf5088730, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb9:
-    v116 = add v131, 32
+    v116 = heap_floor_offset 128
     v42 = mload v116
     mstore 0, v42 !metadata(memory=scratch)
     returndata 0, 32

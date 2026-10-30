@@ -100,16 +100,16 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
 fn @concat() [selector=0x6bdbf8e6, abi_wrapper, pure] {
   bb0:
     v60 = heap_floor !metadata(alloc_ptr)
-    v61 = add v60, 160 !metadata(alloc_ptr)
+    v61 = heap_floor_offset 160 !metadata(alloc_ptr)
     mstore 64, v61 !metadata(memory=scratch)
     mstore v60, 33
-    v40 = add v60, 32
+    v40 = heap_floor_offset 32
     mstore v40, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
-    v42 = add v60, 64
+    v42 = heap_floor_offset 64
     mstore v42, 0x2100000000000000000000000000000000000000000000000000000000000000
-    v59 = add v60, 96
+    v59 = heap_floor_offset 96
     mstore v59, 2
-    v44 = add v60, 128
+    v44 = heap_floor_offset 128
     mstore v44, 0x2223000000000000000000000000000000000000000000000000000000000000
     v62 = mload 64 !metadata(alloc_ptr)
     v63 = add v62, 96

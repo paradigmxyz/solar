@@ -42,7 +42,7 @@ fn @fromCalldata() [selector=0xffc7a8b3, abi_wrapper, pure] {
     v33 = gt arg1, v46
     jumpi v33, bb5, bb6
   bb6:
-    v79 = add v82, 32
+    v79 = heap_floor_offset 32
     calldatacopy v79, v47, arg1
     jump bb1
   bb5:
@@ -58,7 +58,7 @@ fn @fromCalldata() [selector=0xffc7a8b3, abi_wrapper, pure] {
     mstore v67, 0
     mstore v59, arg1
     v69 = add v66, v65
-    v77 = add v82, 32
+    v77 = heap_floor_offset 32
     mcopy v66, v77, arg1 !metadata(disjoint)
     v71 = add v88, 32
     mstore v71, 0
@@ -118,7 +118,7 @@ fn @fromFresh() [selector=0x1f6686bd, abi_wrapper, pure] {
     mstore8 v129, v159
     jump bb1
   bb12:
-    v161 = add v150, 32
+    v161 = heap_floor_offset 32
     v164 = add v150, arg0
     v165 = add v164, 32
     jump bb9
@@ -142,7 +142,7 @@ fn @fromFresh() [selector=0x1f6686bd, abi_wrapper, pure] {
     v52 = eq arg0, 0
     jumpi v52, bb5, bb7
   bb7:
-    v121 = add v150, 32
+    v121 = heap_floor_offset 32
     v123 = add v144, 32
     v58 = add v121, arg0
     v59 = add v123, arg0

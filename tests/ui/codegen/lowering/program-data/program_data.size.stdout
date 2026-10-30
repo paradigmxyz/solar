@@ -9,13 +9,13 @@ fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
   bb0:
     v24 = heap_floor !metadata(alloc_ptr)
     mstore v24, 257
-    v17 = add v24, 288
+    v17 = heap_floor_offset 288
     mstore v17, 0
-    v19 = add v24, 32
+    v19 = heap_floor_offset 32
     datacopy literal_0, v19, 257
-    v12 = add v19, 288
+    v12 = heap_floor_offset 320
     mstore v12, 0
-    v21 = add v24, 64
+    v21 = heap_floor_offset 64
     mcopy v21, v19, 257
     mstore v24, 32
     mstore v19, 257
@@ -26,13 +26,13 @@ fn @subslice() [selector=0xb9ad073e, abi_wrapper, pure] {
   bb0:
     v24 = heap_floor !metadata(alloc_ptr)
     mstore v24, 161
-    v17 = add v24, 192
+    v17 = heap_floor_offset 192
     mstore v17, 0
-    v19 = add v24, 32
+    v19 = heap_floor_offset 32
     datacopy literal_1, v19, 161
-    v12 = add v19, 192
+    v12 = heap_floor_offset 224
     mstore v12, 0
-    v21 = add v24, 64
+    v21 = heap_floor_offset 64
     mcopy v21, v19, 161
     mstore v24, 32
     mstore v19, 161
@@ -107,7 +107,7 @@ fn @zeroWordHash() [selector=0x0d00d797, abi_wrapper, pure] {
   bb0:
     v8 = heap_floor
     mstore v8, 32
-    v12 = add v8, 32
+    v12 = heap_floor_offset 32
     mstore v12, 0
     v2 = mload v8
     v3 = keccak256 v12, v2
@@ -130,7 +130,7 @@ fn @zeroData.body() -> i256 [may_return_memory, pure] {
     v5 = heap_floor !metadata(alloc_ptr)
     mstore v5, 160
     v7 = calldatasize
-    v3 = add v5, 32
+    v3 = heap_floor_offset 32
     calldatacopy v3, v7, 160
     ret v5
 }
@@ -139,13 +139,13 @@ fn @splatData.body() -> i256 [may_return_memory, pure] {
   bb0:
     v15 = heap_floor !metadata(alloc_ptr)
     mstore v15, 160
-    v7 = add v15, 32
+    v7 = heap_floor_offset 32
     mstore v7, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
-    v9 = add v15, 64
+    v9 = heap_floor_offset 64
     mstore v9, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
-    v11 = add v15, 96
+    v11 = heap_floor_offset 96
     mcopy v11, v7, 64
-    v13 = add v15, 160
+    v13 = heap_floor_offset 160
     mcopy v13, v7, 32
     ret v15
 }
@@ -259,23 +259,21 @@ bb13:
   push 0
   push 416
   mstore
-  push 160
-  swap 1
   push_data literal_0
-  dup 3
+  push 160
   codecopy
   push 0
   push 448
   mstore
   push 257
-  dup 2
+  push 160
   push 192
   mcopy
   push 32
-  dup 3
+  dup 2
   mstore
   push 257
-  swap 1
+  push 160
   mstore
   push 352
   swap 1
@@ -283,28 +281,27 @@ bb13:
 bb14:
   push 128
   push 161
-  dup 2
+  dup 1
+  dup 3
   mstore
   push 0
   push 320
   mstore
-  push 160
-  push 161
   push_data literal_0+64
-  dup 3
+  push 160
   codecopy
   push 0
   push 352
   mstore
   push 161
-  dup 2
+  push 160
   push 192
   mcopy
   push 32
-  dup 3
+  dup 2
   mstore
   push 161
-  swap 1
+  push 160
   mstore
   push 256
   swap 1
@@ -395,10 +392,9 @@ bb28 [ret=0, inputs=1, outputs=1]:
   push 160
   dup 2
   mstore
-  push 160
   push 0
   not
-  dup 3
+  dup 2
   shr
   push 0
   not
@@ -406,21 +402,18 @@ bb28 [ret=0, inputs=1, outputs=1]:
   push 0x112233445566778899aabbccddeeff00
   mul
   dup 1
-  dup 3
+  push 160
   mstore
   push 192
   mstore
   push 64
-  dup 2
+  push 160
   push 224
   mcopy
   push 32
-  dup 2
   push 160
-  dup 5
-  add
+  push 288
   mcopy
-  pop
   swap 1
   jump
 bb22:

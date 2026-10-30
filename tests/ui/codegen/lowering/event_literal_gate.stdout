@@ -7,18 +7,18 @@
 fn @copied() [selector=0xa2e8f7e5, abi_wrapper] {
   bb0:
     v29 = heap_floor !metadata(alloc_ptr)
-    v30 = add v29, 192 !metadata(alloc_ptr)
+    v30 = heap_floor_offset 192 !metadata(alloc_ptr)
     mstore v29, 153
-    v25 = add v29, 32
+    v25 = heap_floor_offset 32
     datacopy literal_0, v25, 160
-    v7 = add v29, 256
+    v7 = heap_floor_offset 256
     mstore v30, 64
-    v14 = add v7, 32
-    v15 = add v7, 160
+    v14 = heap_floor_offset 288
+    v15 = heap_floor_offset 416
     mstore v15, 0
     mstore v7, 153
     mcopy v14, v25, 153 !metadata(disjoint)
-    v19 = add v29, 224
+    v19 = heap_floor_offset 224
     mstore v19, 1
     log v30, 256, 0x1fc1ee74e64a4613da0ebad7aa1e41655ed6a50b1e27ec21849a5cd4db9381dd
     stop
@@ -27,14 +27,14 @@ fn @copied() [selector=0xa2e8f7e5, abi_wrapper] {
 fn @stored() [selector=0xe582dd31, abi_wrapper] {
   bb0:
     v23 = heap_floor !metadata(alloc_ptr)
-    v8 = add v23, 64
+    v8 = heap_floor_offset 64
     mstore v23, 64
     mstore v8, 34
-    v11 = add v8, 32
+    v11 = heap_floor_offset 96
     mstore v11, 0x7374616e646172644e6f726d616c5761645374616e646172644e6f726d616c57
-    v13 = add v11, 32
+    v13 = heap_floor_offset 128
     mstore v13, 0x6164000000000000000000000000000000000000000000000000000000000000
-    v16 = add v23, 32
+    v16 = heap_floor_offset 32
     mstore v16, 1
     log v23, 160, 0x1fc1ee74e64a4613da0ebad7aa1e41655ed6a50b1e27ec21849a5cd4db9381dd
     stop
@@ -43,19 +43,19 @@ fn @stored() [selector=0xe582dd31, abi_wrapper] {
 fn @zeros() [selector=0x4cd212eb, abi_wrapper] {
   bb0:
     v29 = heap_floor !metadata(alloc_ptr)
-    v30 = add v29, 96 !metadata(alloc_ptr)
+    v30 = heap_floor_offset 96 !metadata(alloc_ptr)
     mstore v29, 40
-    v25 = add v29, 32
+    v25 = heap_floor_offset 32
     v32 = calldatasize
     calldatacopy v25, v32, 64
-    v7 = add v29, 160
+    v7 = heap_floor_offset 160
     mstore v30, 64
-    v14 = add v7, 32
-    v15 = add v7, 64
+    v14 = heap_floor_offset 192
+    v15 = heap_floor_offset 224
     mstore v15, 0
     mstore v7, 40
     mcopy v14, v25, 40 !metadata(disjoint)
-    v19 = add v29, 128
+    v19 = heap_floor_offset 128
     mstore v19, 1
     log v30, 160, 0x1fc1ee74e64a4613da0ebad7aa1e41655ed6a50b1e27ec21849a5cd4db9381dd
     stop

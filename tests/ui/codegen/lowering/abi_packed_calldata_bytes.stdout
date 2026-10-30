@@ -107,17 +107,17 @@ bb9 [continuation]:
   push 32
   add
   push 128
-  swap 2
   push 0x707265
   push 232
   shl
-  dup 4
-  mstore
-  push 131
   dup 2
-  dup 4
+  mstore
   dup 3
+  dup 3
+  push 131
   calldatacopy
+  swap 2
+  push 131
   add
   push 36
   calldataload

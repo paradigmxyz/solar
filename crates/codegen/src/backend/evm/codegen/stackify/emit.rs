@@ -401,7 +401,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn emit_stackified_step(&mut self, func_id: FunctionId, func: &Function, step: &Step) {
         match *step {
             Step::Stack(op) => self.asm.emit_stack_op(op),
-            Step::Materialize(value) => self.emit_materialized(func, value),
+            Step::Materialize(value) => self.emit_materialized(func_id, func, value),
             Step::Reload(value) => self.emit_spill_load(func, self.spill_slots[&value]),
             Step::Spill(value) => {
                 // push slot; mstore
@@ -482,22 +482,23 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    fn emit_materialized(&mut self, func: &Function, value: ValueId) {
+    fn emit_materialized(&mut self, func_id: FunctionId, func: &Function, value: ValueId) {
         match func.value(value) {
             Value::Immediate(imm) => self.asm.emit_push(imm.as_u256().unwrap_or_default()),
             Value::Undef(_) => self.asm.emit_push(U256::ZERO),
             Value::Inst(inst) => match &func.inst(*inst).kind {
                 InstKind::DataSize(size) => self.asm.emit_push_data_size(*size),
                 InstKind::Gas => self.asm.emit_op(op::GAS),
+                InstKind::HeapFloorOffset(offset) => self.emit_heap_floor(func_id, *offset),
                 InstKind::Sub(..) if let Some((_, reserve)) = gas_minus(func, value) => {
                     self.emit_gas_minus(reserve);
                 }
                 InstKind::Zext(operand)
                 | InstKind::PtrToInt(operand, _)
-                | InstKind::IntToPtr(operand) => self.emit_materialized(func, *operand),
+                | InstKind::IntToPtr(operand) => self.emit_materialized(func_id, func, *operand),
                 InstKind::Load(offset, PtrLocation::Calldata) => {
                     // <offset>; calldataload
-                    self.emit_materialized(func, *offset);
+                    self.emit_materialized(func_id, func, *offset);
                     self.asm.emit_op(op::CALLDATALOAD);
                 }
                 kind => {
@@ -508,7 +509,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     // A recomputed value: its operands in push order, then its opcode.
                     let opcode = kind.evm_opcode().expect("recomputed value has an opcode");
                     for &operand in kind.operands().iter().rev() {
-                        self.emit_materialized(func, operand);
+                        self.emit_materialized(func_id, func, operand);
                     }
                     self.asm.emit_op(opcode);
                 }
@@ -537,7 +538,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::ConstructorArgsBase => self.emit_constructor_args_base(),
             InstKind::ConstructorArgsEnd => self.emit_constructor_args_end(),
             InstKind::InternalFrameAddr(offset) => self.emit_own_frame_addr(*offset),
-            InstKind::HeapFloor => self.emit_heap_floor(func_id),
+            InstKind::HeapFloor => self.emit_heap_floor(func_id, 0),
+            InstKind::HeapFloorOffset(offset) => self.emit_heap_floor(func_id, *offset),
             InstKind::DataCopy(data, ..) => {
                 // [size, dest] -> push_data data; swap1; codecopy
                 self.asm.emit_push_data(*data);

@@ -35,18 +35,18 @@ fn @uncheckedDown() [selector=0x0a3fd26a, abi_wrapper, pure] {
     jumpi v36, bb5, bb6
   bb6:
     v43 = add v48, arg1
-    v69 = add v72, 32
+    v69 = heap_floor_offset 32
     calldatacopy v69, v43, arg2
     jump bb1
   bb5:
     tail_call @revert_stub.9
   bb1:
-    v65 = add v72, 32
+    v65 = heap_floor_offset 32
     v56 = add arg2, 31
     v58 = and v56, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v60 = add v65, v58
     mstore v60, 0
-    v67 = add v72, 64
+    v67 = heap_floor_offset 64
     mcopy v67, v65, arg2
     mstore v72, 32
     mstore v65, arg2
@@ -97,7 +97,7 @@ fn @checkedDown() [selector=0xc6510b18, abi_wrapper, pure] {
     jumpi v35, bb7, bb8
   bb8:
     v41 = add v46, arg1
-    v67 = add v70, 32
+    v67 = heap_floor_offset 32
     calldatacopy v67, v41, arg2
     jump bb1
   bb7:
@@ -107,12 +107,12 @@ fn @checkedDown() [selector=0xc6510b18, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
-    v63 = add v70, 32
+    v63 = heap_floor_offset 32
     v54 = add arg2, 31
     v56 = and v54, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v58 = add v63, v56
     mstore v58, 0
-    v65 = add v70, 64
+    v65 = heap_floor_offset 64
     mcopy v65, v63, arg2
     mstore v70, 32
     mstore v63, arg2
@@ -159,12 +159,12 @@ fn @mixedDown() [selector=0xcbd040ed, abi_wrapper, pure] {
     jumpi v10, bb3, bb2
   bb2:
     v43 = mload v64
-    v54 = add v64, 32
+    v54 = heap_floor_offset 32
     v45 = add v43, 31
     v47 = and v45, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v49 = add v54, v47
     mstore v49, 0
-    v56 = add v64, 64
+    v56 = heap_floor_offset 64
     mcopy v56, v54, v43
     mstore v64, 32
     mstore v54, v43
@@ -238,12 +238,12 @@ fn @sourceFirst() [selector=0x032c601e, abi_wrapper, pure] {
     jumpi v11, bb3, bb2
   bb2:
     v45 = mload v66
-    v56 = add v66, 32
+    v56 = heap_floor_offset 32
     v47 = add v45, 31
     v49 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v51 = add v56, v49
     mstore v51, 0
-    v58 = add v66, 64
+    v58 = heap_floor_offset 64
     mcopy v58, v56, v45
     mstore v66, 32
     mstore v56, v45
@@ -319,12 +319,12 @@ fn @destinationFirst() [selector=0x5072325f, abi_wrapper, pure] {
     jumpi v11, bb3, bb2
   bb2:
     v47 = mload v68
-    v58 = add v68, 32
+    v58 = heap_floor_offset 32
     v49 = add v47, 31
     v51 = and v49, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v53 = add v58, v51
     mstore v53, 0
-    v60 = add v68, 64
+    v60 = heap_floor_offset 64
     mcopy v60, v58, v47
     mstore v68, 32
     mstore v58, v47
@@ -418,12 +418,12 @@ fn @wrappedCopy() [selector=0xbd307fab, abi_wrapper, pure] {
     jump bb1
   bb2:
     v59 = mload v80
-    v70 = add v80, 32
+    v70 = heap_floor_offset 32
     v61 = add v59, 31
     v63 = and v61, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v65 = add v70, v63
     mstore v65, 0
-    v72 = add v80, 64
+    v72 = heap_floor_offset 64
     mcopy v72, v70, v59
     mstore v80, 32
     mstore v70, v59
@@ -526,7 +526,7 @@ fn @wrappedArray() [selector=0x20a8a4e4, abi_wrapper, pure] {
     v71 = or v60, v65
     jumpi v71, bb1, bb5
   bb5:
-    v119 = add v127, 32
+    v119 = heap_floor_offset 32
     calldatacopy v119, v57, v53
     jump bb2
   bb1:
@@ -566,9 +566,9 @@ fn @wrappedArray() [selector=0x20a8a4e4, abi_wrapper, pure] {
     revert 28, 36
   bb2:
     v108 = mload v127
-    v115 = add v127, 32
+    v115 = heap_floor_offset 32
     v110 = shl v108, 5
-    v117 = add v127, 64
+    v117 = heap_floor_offset 64
     mcopy v117, v115, v110
     mstore v127, 32
     mstore v115, v108

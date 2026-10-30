@@ -11,8 +11,8 @@ contract EventLiteralScratch {
 
     // CHECK-LABEL: fn @logged(
     // CHECK-NOT: mstore 64
-    // CHECK: [[LENGTH:v[0-9]+]] = add {{v[0-9]+}}, 64
-    // CHECK-NEXT: [[DATA:v[0-9]+]] = add [[LENGTH]], 32
+    // CHECK: [[LENGTH:v[0-9]+]] = heap_floor_offset 64
+    // CHECK-NEXT: [[DATA:v[0-9]+]] = heap_floor_offset 96
     // CHECK-NOT: mstore 64
     // CHECK: mstore [[LENGTH]], 17
     // CHECK-NEXT: mstore [[DATA]], 0x7374616e646172644e6f726d616c576164

@@ -75,6 +75,7 @@
   (Fmp)
   (SetFmp (value Value))
   (HeapFloor)
+  (HeapFloorOffset (offset u64))
   (Alloc (size Value) (semantics AllocationSemantics))
   (AbiEncode (mode AbiEncodeMode) (selector OptionValue) (args Unit) (layout Unit))
   (AbiDecode (data Value) (layout Unit))

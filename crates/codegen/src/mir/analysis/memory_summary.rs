@@ -830,6 +830,7 @@ fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
         let root = match kind {
             InstKind::Fmp
             | InstKind::HeapFloor
+            | InstKind::HeapFloorOffset(_)
             | InstKind::ICall { function: Callee::Function(_), .. } => true,
             InstKind::Load(address, PtrLocation::Memory) => {
                 func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT)
@@ -891,6 +892,7 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
         InstKind::Fmp
         | InstKind::HeapFloor
+        | InstKind::HeapFloorOffset(_)
         | InstKind::SetFmp(_)
         | InstKind::MappingSlotBytes(..) => true,
         InstKind::Load(address, PtrLocation::Memory)
@@ -959,7 +961,7 @@ fn is_fmp_derived(
             }
             // A pointer built from the floor only moves the heap up: the floor is the lowest word
             // the pointer holds.
-            InstKind::HeapFloor => true,
+            InstKind::HeapFloor | InstKind::HeapFloorOffset(_) => true,
             InstKind::Add(first, second) => {
                 (is_fmp_derived(func, first, visiting, anchor, supported)
                     && is_nonnegative_offset(func, second))

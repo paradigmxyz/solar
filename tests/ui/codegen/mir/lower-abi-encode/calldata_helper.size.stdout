@@ -25,8 +25,8 @@ fn @fa() [selector=0xa2467f05, abi_wrapper] {
     v0 = gas
     v45 = heap_floor !metadata(alloc_ptr)
     mstore v45, 0xe9c7a9a00000000000000000000000000000000000000000000000000000000
-    v30 = add v45, 4
-    v31 = add v30, 32
+    v30 = heap_floor_offset 4
+    v31 = heap_floor_offset 36
     mstore v30, 32
     v34 = icall @encode_abi_calldata.4, v22, v21, v31
     v35 = add v31, v34
@@ -77,12 +77,12 @@ fn @fb() [selector=0x81fba7cd, abi_wrapper] {
     v0 = gas
     v46 = heap_floor !metadata(alloc_ptr)
     mstore v46, 0xf3b450f00000000000000000000000000000000000000000000000000000000
-    v30 = add v46, 4
-    v31 = add v30, 64
+    v30 = heap_floor_offset 4
+    v31 = heap_floor_offset 68
     mstore v30, 64
     v34 = icall @encode_abi_calldata.4, v22, v21, v31
     v35 = add v31, v34
-    v36 = add v30, 32
+    v36 = heap_floor_offset 36
     mstore v36, 1
     v37 = sub v35, v30
     v38 = add v37, 4
@@ -131,11 +131,11 @@ fn @fc() [selector=0xeb19e25e, abi_wrapper] {
     v0 = gas
     v99 = heap_floor !metadata(alloc_ptr)
     mstore v99, 0xd6c30fce00000000000000000000000000000000000000000000000000000000
-    v30 = add v99, 4
-    v31 = add v30, 32
+    v30 = heap_floor_offset 4
+    v31 = heap_floor_offset 36
     mstore v30, 32
     mstore v31, v21
-    v34 = add v31, 32
+    v34 = heap_floor_offset 68
     v36 = shl v21, 5
     v37 = add v34, v36
     jump bb6

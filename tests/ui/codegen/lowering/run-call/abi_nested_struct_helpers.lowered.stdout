@@ -50,7 +50,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v51 = gt v42, v50
     jumpi v51, bb6, bb9
   bb9:
-    v95 = add v81, 32
+    v95 = heap_floor_offset 32
     jump bb10
   bb10:
     v52 = phi [bb9: v42], [bb11: v61]
@@ -61,7 +61,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     jumpi v55, bb11, bb12
   bb12:
     v29 = mload v81
-    v87 = add v81, 32
+    v87 = heap_floor_offset 32
     v90 = gt v29, 0x20000000000000000
     v91 = select v90, 0x20000000000000000, v29
     v92 = shl v91, 5

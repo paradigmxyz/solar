@@ -35,7 +35,7 @@ fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
     v143 = eq v150, 0
     jumpi v143, bb23, bb22
   bb22:
-    v211 = add v203, 32
+    v211 = heap_floor_offset 32
     jump bb1
   bb1:
     v20 = phi [bb22: 0], [bb29: v30]
@@ -54,7 +54,7 @@ fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
     v213 = add v212, 32
     jump bb1
   bb23:
-    v214 = add v203, 32
+    v214 = heap_floor_offset 32
     jump bb20
   bb20:
     v126 = phi [bb23: 0], [bb21: v135]
@@ -66,7 +66,7 @@ fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
     v32 = gt v31, 0
     jumpi v32, bb28, bb27
   bb28:
-    v181 = add v203, 32
+    v181 = heap_floor_offset 32
     mstore v181, 100
     v116 = or v203, v31
     v152 = shr v116, 64
@@ -76,7 +76,7 @@ fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
     v124 = lt v31, arg1
     jumpi v124, bb18, bb17
   bb17:
-    v210 = add v203, 32
+    v210 = heap_floor_offset 32
     jump bb11
   bb11:
     v83 = phi [bb17: 0], [bb14: v102]
@@ -135,7 +135,7 @@ fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
     mstore v187, v148
     v159 = mload v203
     v161 = shl v159, 5
-    v189 = add v203, 64
+    v189 = heap_floor_offset 64
     mcopy v189, v181, v161
     mstore v203, 32
     mstore v181, v159
@@ -243,7 +243,7 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     v224 = or v358, v220
     v225 = shl v220, 5
     v227 = add v225, 31
-    v226 = add v358, 1
+    v226 = heap_floor_offset 1
     v229 = sub v359, v226
     v230 = lt v229, v227
     v234 = or v224, v359
@@ -261,7 +261,7 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     jumpi v246, bb21, bb22
   bb22:
     v375 = add v359, 32
-    v378 = add v358, 32
+    v378 = heap_floor_offset 32
     jump bb1
   bb1:
     v38 = phi [bb22: 0], [bb30: v54]
@@ -288,7 +288,7 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     jump bb1
   bb21:
     v381 = add v359, 32
-    v384 = add v358, 32
+    v384 = heap_floor_offset 32
     jump bb19
   bb19:
     v206 = phi [bb21: 0], [bb41: v219]
@@ -301,7 +301,7 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     v56 = gt v55, 0
     jumpi v56, bb27, bb26
   bb27:
-    v299 = add v358, 32
+    v299 = heap_floor_offset 32
     mstore v299, 100
     v59 = mload v359
     v60 = gt v59, 0
@@ -386,7 +386,7 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     v117 = sub v95, v133
     jump bb4
   bb17:
-    v373 = add v358, 32
+    v373 = heap_floor_offset 32
     v374 = add v359, 32
     jump bb11
   bb11:
@@ -517,7 +517,7 @@ fn @literalInLoop() [selector=0xb0bfff29, abi_wrapper, pure] {
     jumpi v37, bb9, bb10
   bb10:
     v107 = heap_floor !metadata(alloc_ptr)
-    v108 = add v107, 128 !metadata(alloc_ptr)
+    v108 = heap_floor_offset 128 !metadata(alloc_ptr)
     mstore 64, v108 !metadata(memory=scratch)
     calldatacopy v107, 36, 128
     v34 = gt arg0, 4
@@ -560,7 +560,7 @@ fn @literalInLoop() [selector=0xb0bfff29, abi_wrapper, pure] {
     v117 = add v116, 32
     jump bb3
   bb6:
-    v115 = add v107, 128
+    v115 = heap_floor_offset 128
     jump bb1
   bb1:
     v113 = phi [bb6: v107], [bb8: v114]

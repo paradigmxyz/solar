@@ -10,12 +10,12 @@ contract LateAllocationForwarding {
 
     // CHECK-LABEL: fn @emitData
     // CHECK: [[FLOOR:v[0-9]+]] = heap_floor
-    // CHECK-NEXT: [[TAIL:v[0-9]+]] = add [[FLOOR]], 64
+    // CHECK-NEXT: [[TAIL:v[0-9]+]] = heap_floor_offset 64
     // CHECK-NEXT: mstore [[FLOOR]], arg0
-    // CHECK-NEXT: [[OFFSET:v[0-9]+]] = add [[FLOOR]], 32
+    // CHECK-NEXT: [[OFFSET:v[0-9]+]] = heap_floor_offset 32
     // CHECK-NEXT: mstore [[OFFSET]], 64
     // CHECK-NEXT: mstore [[TAIL]], 11
-    // CHECK-NEXT: [[DATA:v[0-9]+]] = add [[TAIL]], 32
+    // CHECK-NEXT: [[DATA:v[0-9]+]] = heap_floor_offset 96
     // CHECK-NEXT: mstore [[DATA]], 0x68656c6c6f20776f726c64000000000000000000000000000000000000000000
     // CHECK-NOT: mload 64
     // CHECK-NOT: mcopy

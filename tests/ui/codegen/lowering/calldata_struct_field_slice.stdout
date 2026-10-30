@@ -109,7 +109,7 @@ fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
   bb7:
     v49 = heap_floor
     mstore v49, v21
-    v53 = add v49, 32
+    v53 = heap_floor_offset 32
     calldatacopy v53, v23, v21
     v54 = keccak256 v53, v21
     jump bb3

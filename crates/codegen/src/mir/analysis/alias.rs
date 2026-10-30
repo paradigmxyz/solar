@@ -2032,7 +2032,10 @@ impl AliasAnalysis {
         };
         match func.inst(*inst_id).kind {
             InstKind::InternalFrameAddr(_) => MemoryRegion::InternalFrame,
-            InstKind::Fmp | InstKind::Alloc { .. } | InstKind::HeapFloor => MemoryRegion::Heap,
+            InstKind::Fmp
+            | InstKind::Alloc { .. }
+            | InstKind::HeapFloor
+            | InstKind::HeapFloorOffset(_) => MemoryRegion::Heap,
             InstKind::Load(address, PtrLocation::Memory)
                 if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
             {
@@ -2211,6 +2214,7 @@ impl AliasAnalysis {
             InstKind::Alloc { .. }
             | InstKind::Fmp
             | InstKind::HeapFloor
+            | InstKind::HeapFloorOffset(_)
             | InstKind::Load(..)
             | InstKind::ICall { .. }
             | InstKind::InternalFrameAddr(_)
@@ -2458,6 +2462,7 @@ impl AliasAnalysis {
         match &func.inst(*inst).kind {
             InstKind::Fmp
             | InstKind::HeapFloor
+            | InstKind::HeapFloorOffset(_)
             | InstKind::Alloc { .. }
             | InstKind::AbiEncode { .. } => Some(EvmMemoryLayout::HEAP_START),
             InstKind::AbiDecode { .. } if func.value_ty(value) == Some(MirType::MEMPTR) => {
@@ -2579,9 +2584,10 @@ impl AliasAnalysis {
         }
         let Value::Inst(inst) = func.value(value) else { return None };
         match &func.inst(*inst).kind {
-            InstKind::Fmp | InstKind::Alloc { .. } | InstKind::HeapFloor => {
-                Some(EvmMemoryLayout::HEAP_START)
-            }
+            InstKind::Fmp
+            | InstKind::Alloc { .. }
+            | InstKind::HeapFloor
+            | InstKind::HeapFloorOffset(_) => Some(EvmMemoryLayout::HEAP_START),
             // A decoded scalar is calldata the caller controls, not a pointer.
             InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => func
                 .value_ty(value)

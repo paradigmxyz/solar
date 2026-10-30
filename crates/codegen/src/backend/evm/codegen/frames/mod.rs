@@ -210,24 +210,33 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_op(op::SUB);
     }
 
-    /// Pushes the heap floor: the initial free memory pointer of the code being emitted, above
-    /// every static frame and spill slot that code can reach.
+    /// Pushes the heap floor plus `offset`: the initial free memory pointer of the code being
+    /// emitted, above every static frame and spill slot that code can reach.
     ///
     /// A runtime function can serve several external entries, so it gets the highest of their
     /// initial pointers once frame placement fixes them. A constructor recomputes its own from
     /// the copied argument blob, whose words its parameters are read back from.
-    pub(in crate::backend::evm::codegen) fn emit_heap_floor(&mut self, func_id: FunctionId) {
+    pub(in crate::backend::evm::codegen) fn emit_heap_floor(
+        &mut self,
+        func_id: FunctionId,
+        offset: u64,
+    ) {
         if !self.in_constructor {
-            // push floor
+            // push floor + offset
             let floor = self.asm.new_deferred_const();
             self.asm.emit_push_deferred(floor);
-            self.fmp_floor_consts.push((func_id, floor));
+            self.fmp_floor_consts.push((func_id, floor, offset));
             return;
         }
         if let Some(arg_offset) = self.constructor_args_offset {
             self.emit_constructor_args_size(arg_offset);
         }
         self.emit_constructor_heap_start();
+        if offset != 0 {
+            // push offset; add
+            self.asm.emit_push(U256::from(offset));
+            self.asm.emit_op(op::ADD);
+        }
     }
 
     pub(in crate::backend::evm::codegen) fn emit_constructor_arg_load(&mut self, index: ArgIdx) {
@@ -752,7 +761,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut merged = true;
         while merged {
             merged = false;
-            for &(func_id, _) in &self.fmp_floor_consts {
+            for &(func_id, ..) in &self.fmp_floor_consts {
                 let entries = free_memory_floors
                     .keys()
                     .copied()
@@ -775,7 +784,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         // A heap floor is the highest initial pointer of the entries that run its function before
         // control passes to another entry; one that no entry runs never executes.
-        for (func_id, id) in std::mem::take(&mut self.fmp_floor_consts) {
+        for (func_id, id, offset) in std::mem::take(&mut self.fmp_floor_consts) {
             let floor = free_memory_floors
                 .iter()
                 .filter(|&(entry, _)| {
@@ -784,7 +793,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .map(|(_, &floor)| floor)
                 .max()
                 .unwrap_or(low_memory_end);
-            self.asm.set_deferred_const(id, U256::from(floor));
+            self.asm.set_deferred_const(id, U256::from(floor + offset));
         }
         self.runtime_entry_reachability.clear();
     }
@@ -1284,7 +1293,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 })
             }
             Value::Inst(inst_id) => match &func.inst(*inst_id).kind {
-                InstKind::Fmp | InstKind::Alloc { .. } | InstKind::HeapFloor => Some(0),
+                InstKind::Fmp
+                | InstKind::Alloc { .. }
+                | InstKind::HeapFloor
+                | InstKind::HeapFloorOffset(_) => Some(0),
                 InstKind::Load(address, PtrLocation::Memory)
                     if Self::heap_prefix_constant(func, *address, 0)
                         == Some(U256::from(EvmMemoryLayout::FMP_SLOT)) =>

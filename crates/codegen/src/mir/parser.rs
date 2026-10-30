@@ -2075,6 +2075,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 (InstKind::ICall { function, args: args.into() }, result_ty)
             }
+            sym::heap_floor_offset => {
+                let offset = self.parser.parse_uint()?.to::<u64>();
+                (InstKind::HeapFloorOffset(offset), Some(MirType::I256))
+            }
             sym::internal_frame_addr => {
                 let offset = self.parser.parse_uint()?.to::<u64>();
                 (InstKind::InternalFrameAddr(offset), Some(MirType::MEMPTR))

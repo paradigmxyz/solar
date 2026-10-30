@@ -144,7 +144,7 @@ fn @tooLong() [selector=0x3db8dd3c, abi_wrapper, pure] {
 fn @forged() [selector=0xd1caa6e6, abi_wrapper, pure] {
   bb0:
     v17 = heap_floor !metadata(alloc_ptr)
-    v18 = add v17, 64 !metadata(alloc_ptr)
+    v18 = heap_floor_offset 64 !metadata(alloc_ptr)
     v19 = lt v18, v17
     v20 = gt v18, 0xffffffffffffffff
     v21 = or v19, v20
@@ -153,7 +153,7 @@ fn @forged() [selector=0xd1caa6e6, abi_wrapper, pure] {
     v23 = calldatasize
     calldatacopy v17, v23, 64
     mstore v17, 1
-    v15 = add v17, 31
+    v15 = heap_floor_offset 31
     v12 = keccak256 v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     mstore 0, v12 !metadata(memory=scratch)
     returndata 0, 32
@@ -191,7 +191,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v14 = gt v6, v13
     jumpi v14, bb1, bb4
   bb4:
-    v25 = add v29, 32
+    v25 = heap_floor_offset 32
     calldatacopy v25, v7, v6
     v22 = sub 0, v6
     v23 = and v22, 31

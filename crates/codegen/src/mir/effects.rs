@@ -207,6 +207,7 @@ impl InstKind {
             | Self::ConstructorArgsBase
             | Self::ConstructorArgsEnd
             | Self::HeapFloor
+            | Self::HeapFloorOffset(..)
             | Self::DataCopy(..)
             | Self::CodeSize
             | Self::CodeCopy(..)

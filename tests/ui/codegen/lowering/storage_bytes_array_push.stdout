@@ -31,7 +31,7 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v87 = gt v79, v86
     jumpi v87, bb15, bb18
   bb18:
-    v99 = add v105, 32
+    v99 = heap_floor_offset 32
     calldatacopy v99, v80, v79
     v95 = sub 0, v79
     v96 = and v95, 31
@@ -261,13 +261,13 @@ fn @load_storage_bytes(arg0: i256) -> i256 [may_return_memory] {
     jumpi v3, bb4, bb3
   bb3:
     v17 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v30 = add v35, 32
+    v30 = heap_floor_offset 32
     mstore v30, v17
     jump bb5
   bb4:
     mstore 0, arg0 !metadata(memory=scratch)
     v28 = keccak256 0, 32 !metadata(memory=scratch)
-    v43 = add v35, 32
+    v43 = heap_floor_offset 32
     v46 = add v28, v11
     jump bb6
   bb6:

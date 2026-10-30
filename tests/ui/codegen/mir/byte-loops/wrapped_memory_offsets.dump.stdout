@@ -8,10 +8,10 @@ fn @bytesForward() [selector=0x79571ebe, abi_wrapper, pure] {
     jumpi v11, bb1, bb2
   bb2:
     v34 = heap_floor !metadata(alloc_ptr)
-    v35 = add v34, 64 !metadata(alloc_ptr)
+    v35 = heap_floor_offset 64 !metadata(alloc_ptr)
     mstore 64, v35 !metadata(memory=scratch)
     mstore v34, 3
-    v26 = add v34, 32
+    v26 = heap_floor_offset 32
     mstore v26, 0x1122330000000000000000000000000000000000000000000000000000000000
     v33 = icall @alloc, 32
     mstore v33, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -38,14 +38,14 @@ fn @bytesBackward() [selector=0x3704b700, abi_wrapper, pure] {
     jumpi v12, bb1, bb2
   bb2:
     v35 = heap_floor !metadata(alloc_ptr)
-    v36 = add v35, 64 !metadata(alloc_ptr)
+    v36 = heap_floor_offset 64 !metadata(alloc_ptr)
     mstore 64, v36 !metadata(memory=scratch)
     mstore v35, 3
-    v27 = add v35, 32
+    v27 = heap_floor_offset 32
     mstore v27, 0x1122330000000000000000000000000000000000000000000000000000000000
     v34 = icall @alloc, 32
     mstore v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v9 = add v35, 1
+    v9 = heap_floor_offset 1
     v10 = sub v9, v34
     icall @_copyBytesDown, v34, v35, v10, 0, arg0
     v16 = mload v35
@@ -69,7 +69,7 @@ fn @wordsForward() [selector=0xb2066b6b, abi_wrapper, pure] {
     jumpi v21, bb1, bb2
   bb2:
     v42 = heap_floor !metadata(alloc_ptr)
-    v43 = add v42, 128 !metadata(alloc_ptr)
+    v43 = heap_floor_offset 128 !metadata(alloc_ptr)
     v44 = lt v43, v42
     v45 = gt v43, 0xffffffffffffffff
     v46 = or v44, v45
@@ -77,11 +77,11 @@ fn @wordsForward() [selector=0xb2066b6b, abi_wrapper, pure] {
   bb3:
     mstore 64, v43 !metadata(memory=scratch)
     mstore v42, 3
-    v32 = add v42, 32
+    v32 = heap_floor_offset 32
     mstore v32, 11
-    v34 = add v42, 64
+    v34 = heap_floor_offset 64
     mstore v34, 22
-    v36 = add v42, 96
+    v36 = heap_floor_offset 96
     mstore v36, 33
     v41 = icall @alloc, 32
     mstore v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -114,10 +114,10 @@ fn @bytesIntoHeader() [selector=0x10ca09ba, abi_wrapper, pure] {
     jumpi v11, bb8, bb6
   bb8:
     v21 = heap_floor !metadata(alloc_ptr)
-    v22 = add v21, 64 !metadata(alloc_ptr)
+    v22 = heap_floor_offset 64 !metadata(alloc_ptr)
     mstore 64, v22 !metadata(memory=scratch)
     mstore v21, 2
-    v16 = add v21, 32
+    v16 = heap_floor_offset 32
     mstore v16, 0x102000000000000000000000000000000000000000000000000000000000000
     v20 = icall @alloc, 64
     v24 = calldatasize
@@ -210,7 +210,7 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
     v73 = gt v65, v72
     jumpi v73, bb15, bb18
   bb18:
-    v91 = add v95, 32
+    v91 = heap_floor_offset 32
     calldatacopy v91, v66, v65
     v81 = sub 0, v65
     v82 = and v81, 31

@@ -1738,6 +1738,19 @@ define_mir_ops! {
     #[builder(heap_floor)]
     #[operand_types(func => Some(smallvec![]))]
     HeapFloor,
+    /// The heap floor plus a constant, which codegen resolves with the floor once it has placed
+    /// the frames and spill slots below it.
+    #[mir_op(
+        mnemonic = "heap_floor_offset",
+        result = I256,
+        phases = PhaseSet::ALL,
+        effect = EnvironmentRead,
+        traits = OpTraits::NONE,
+        side_effects = false,
+        category = None
+    )]
+    #[operand_types(func => Some(smallvec![]))]
+    HeapFloorOffset(offset: u64),
     /// Reserve memory and return the previous free-memory pointer.
     #[mir_op(
         mnemonic = "alloc",

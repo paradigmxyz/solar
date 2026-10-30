@@ -58,10 +58,10 @@ fn @tooLong() [selector=0x70126c55, abi_wrapper, pure] {
   bb2:
     v17 = heap_floor !metadata(alloc_ptr)
     mstore v17, arg0
-    v3 = add v17, 32
+    v3 = heap_floor_offset 32
     mstore v3, arg1
     v5 = shl arg2, 224
-    v7 = add v17, 64
+    v7 = heap_floor_offset 64
     mstore v7, v5
     v8 = keccak256 v17, 68
     mstore 0, v8 !metadata(memory=scratch)

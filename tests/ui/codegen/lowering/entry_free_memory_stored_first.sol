@@ -14,9 +14,9 @@
 // CHECK-NEXT: sub
 // CHECK-NEXT: push bb{{[0-9]+}}
 // CHECK-NEXT: jumpi
+// CHECK-NEXT: push 128
 // CHECK-NEXT: calldatasize
 // CHECK-NEXT: push 64
-// CHECK-NEXT: push 192
 contract StoredFirst {
     function f() external pure returns (uint256 p) {
         bytes memory b = new bytes(32);
@@ -36,8 +36,6 @@ contract StoredFirst {
 // CHECK-NEXT: push 128
 // CHECK-NEXT: dup 1
 // CHECK-NEXT: push 64
-// CHECK-NEXT: dup 2
-// CHECK-NEXT: dup 2
 // CHECK-NEXT: mstore
 contract ObservedFirst {
     function f() external pure returns (uint256 p, uint256 q) {

@@ -58,7 +58,7 @@ bb70 [loop]:
   swap 1
   jump
 bb47 [loop]:
-  dup 3
+  dup 1
   mload
   push 0
   byte
@@ -411,14 +411,13 @@ bb41 [loop]:
   dup 2
   dup 2
   mstore
-  push 160
-  swap 2
   add
   push 32
   add
   push 0
+  push 160
+  dup 3
   dup 2
-  dup 4
   sub
   push bb47
   jumpi
@@ -429,6 +428,7 @@ bb41 [loop]:
   push 0
   return
 bb49 [loop]:
+  swap 1
   push 1
   add
   push 255
@@ -436,12 +436,11 @@ bb49 [loop]:
   gt
   push bb51
   jumpi
-  swap 2
+  swap 1
   push 1
   add
-  swap 2
+  dup 3
   dup 2
-  dup 4
   sub
   push bb47
   jumpi

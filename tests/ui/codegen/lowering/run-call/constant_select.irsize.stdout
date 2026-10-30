@@ -512,12 +512,9 @@ bb39:
   lt
   push bb11
   jumpi
-  push 128
-  push 192
   push 4
-  dup 3
+  push 128
   mstore
-  push 160
   push 0xe2179b8e
   push 224
   shl
@@ -531,33 +528,25 @@ bb39:
   sub
   mul
   add
-  dup 2
-  mstore
-  swap 2
   jump bb84
 bb84:
-  push 96
-  add
-  push 32
-  dup 3
+  push 160
   mstore
   push 32
-  dup 2
-  add
+  push 192
+  mstore
   push 0
-  dup 2
+  push 256
   mstore
   push 4
-  swap 1
-  swap 2
+  dup 1
+  push 224
   mstore
-  push 4
-  swap 2
-  swap 3
-  swap 1
+  push 160
+  push 256
   mcopy
   push 96
-  swap 1
+  push 192
   return
 bb43:
   push 36
@@ -575,21 +564,16 @@ bb43:
   push 0x26121ff0
   jump bb86
 bb86:
-  dup 3
-  push 4
-  push 128
-  mstore
-  swap 1
   push 224
   shl
+  dup 3
+  swap 1
   sub
   mul
   add
-  push 160
-  mstore
-  push 160
-  push 192
+  push 4
   push 128
+  mstore
   jump bb84
 bb46:
   push 36

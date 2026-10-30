@@ -147,9 +147,9 @@ fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
   bb4:
     v56 = heap_floor !metadata(alloc_ptr)
     mstore v56, v34
-    v51 = add v56, 32
+    v51 = heap_floor_offset 32
     calldatacopy v51, v35, v2
-    v53 = add v56, 64
+    v53 = heap_floor_offset 64
     mcopy v53, v51, v2
     mstore v56, 32
     mstore v51, v34

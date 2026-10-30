@@ -627,6 +627,7 @@ fn display_inst_kind<'a>(
             Ok(())
         }
         InstKind::InternalFrameAddr(offset) => write!(f, "internal_frame_addr {offset}"),
+        InstKind::HeapFloorOffset(offset) => write!(f, "heap_floor_offset {offset}"),
         InstKind::FrameLoad { offset, mode, kind } => {
             write!(
                 f,

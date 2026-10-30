@@ -159,6 +159,9 @@
 (decl heapfloor () Value)
 (extractor (heapfloor) (inst (Op.HeapFloor)))
 
+(decl heapflooroffset (u64) Value)
+(extractor (heapflooroffset offset) (inst (Op.HeapFloorOffset offset)))
+
 (decl alloc (Value AllocationSemantics) Value)
 (extractor (alloc size semantics) (inst (Op.Alloc size semantics)))
 

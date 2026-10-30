@@ -9,13 +9,13 @@ fn @outer() [selector=0x87c3dbb6, abi_wrapper, pure] {
   bb0:
     v24 = heap_floor !metadata(alloc_ptr)
     mstore v24, 241
-    v17 = add v24, 256
+    v17 = heap_floor_offset 256
     mstore v17, 0
-    v19 = add v24, 32
+    v19 = heap_floor_offset 32
     datacopy literal_0, v19, 241
-    v12 = add v19, 256
+    v12 = heap_floor_offset 288
     mstore v12, 0
-    v21 = add v24, 64
+    v21 = heap_floor_offset 64
     mcopy v21, v19, 241
     mstore v24, 32
     mstore v19, 241
@@ -26,13 +26,13 @@ fn @inner() [selector=0x4adb7729, abi_wrapper, pure] {
   bb0:
     v24 = heap_floor !metadata(alloc_ptr)
     mstore v24, 161
-    v17 = add v24, 192
+    v17 = heap_floor_offset 192
     mstore v17, 0
-    v19 = add v24, 32
+    v19 = heap_floor_offset 32
     datacopy literal_1, v19, 161
-    v12 = add v19, 192
+    v12 = heap_floor_offset 224
     mstore v12, 0
-    v21 = add v24, 64
+    v21 = heap_floor_offset 64
     mcopy v21, v19, 161
     mstore v24, 32
     mstore v19, 161
@@ -105,28 +105,27 @@ bb5 [cold]:
 bb6:
   push 128
   push 241
-  dup 2
+  dup 1
+  dup 3
   mstore
   push 0
   push 384
   mstore
-  push 160
-  push 241
   push_data literal_0
-  dup 3
+  push 160
   codecopy
   push 0
   push 416
   mstore
   push 241
-  dup 2
+  push 160
   push 192
   mcopy
   push 32
-  dup 3
+  dup 2
   mstore
   push 241
-  swap 1
+  push 160
   mstore
   push 320
   swap 1
@@ -134,28 +133,27 @@ bb6:
 bb7:
   push 128
   push 161
-  dup 2
+  dup 1
+  dup 3
   mstore
   push 0
   push 320
   mstore
-  push 160
-  push 161
   push_data literal_1
-  dup 3
+  push 160
   codecopy
   push 0
   push 352
   mstore
   push 161
-  dup 2
+  push 160
   push 192
   mcopy
   push 32
-  dup 3
+  dup 2
   mstore
   push 161
-  swap 1
+  push 160
   mstore
   push 256
   swap 1

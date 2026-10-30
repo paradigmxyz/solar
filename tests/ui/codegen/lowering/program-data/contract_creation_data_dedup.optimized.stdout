@@ -35,23 +35,22 @@ bb5:
   return
 bb6:
   push 128
-  push 160
-  dup 2
+  dup 1
   push_data literal_0
-  dup 3
+  push 160
   codecopy
   push 0
   push 288
   mstore
-  dup 2
-  dup 2
+  dup 1
+  push 160
   push 192
   mcopy
   push 32
-  dup 3
-  mstore
   dup 2
-  swap 1
+  mstore
+  dup 1
+  push 160
   mstore
   push 192
   swap 1
@@ -59,7 +58,7 @@ bb6:
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Factory (runtime) ===
 @module Factory_runtime
 @data
-  Child_creation_code_0: hex"34600d5760c98060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602a575b5f5ffd5b60075f5260205ff35b608060a081604982395f61012052818160c05e6020825281905260c090f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+  Child_creation_code_0: hex"34600d5760ca8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602a575b5f5ffd5b60075f5260205ff35b608080604a60a0395f610120528060a060c05e602081528060a05260c090f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 
 bb0:
   callvalue
@@ -102,11 +101,11 @@ bb6:
   push 64
   mstore
   push 128
-  push 218
+  push 219
   push_data Child_creation_code_0
   dup 3
   codecopy
-  push 218
+  push 219
   swap 1
   push 0
   create
@@ -144,11 +143,11 @@ bb18:
   push 64
   mstore
   push 128
-  push 218
+  push 219
   push_data Child_creation_code_0
   dup 3
   codecopy
-  push 218
+  push 219
   swap 1
   push 0
   create
@@ -157,11 +156,11 @@ bb18:
   push bb26
   jumpi
   push 128
-  push 218
+  push 219
   push_data Child_creation_code_0
   dup 3
   codecopy
-  push 218
+  push 219
   swap 1
   push 0
   create

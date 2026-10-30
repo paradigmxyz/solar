@@ -689,31 +689,26 @@ bb61:
 bb67:
   dup 1
   mload
-  push 32
-  dup 3
-  add
   push 31
-  dup 3
+  dup 2
   add
   push 31
   not
   and
   push 0
   dup 2
-  dup 4
+  push 160
   add
   mstore
-  dup 3
-  dup 3
-  push 64
-  dup 7
-  add
+  dup 2
+  push 160
+  push 192
   mcopy
   push 32
-  dup 5
+  dup 4
   mstore
-  swap 2
   swap 1
+  push 160
   mstore
   push 64
   add
@@ -726,35 +721,32 @@ bb65 [loop]:
   push 32
   push 0
   keccak256
-  push 32
-  dup 5
-  add
-  swap 2
+  swap 1
   dup 2
   add
-  swap 3
+  swap 2
   pop
+  push 160
   swap 3
   dup 3
-  dup 5
+  dup 3
   sub
   push bb68
   jumpi
   jump bb67
 bb68 [loop]:
   dup 2
-  dup 5
   push 1
   add
-  swap 5
+  swap 2
   sload
-  swap 1
+  dup 5
   push 32
   add
-  swap 3
+  swap 5
   mstore
   dup 3
-  dup 5
+  dup 3
   sub
   push bb68
   jumpi

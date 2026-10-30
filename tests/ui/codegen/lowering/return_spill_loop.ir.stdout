@@ -1,8 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/return_spill_loop.sol:ReturnCopy (runtime) ===
 @module ReturnCopy_runtime
-@data
-  literal_0: hex"2233"
-
 bb0:
   callvalue
   push bb6
@@ -71,10 +68,12 @@ bb7:
   and
   push 160
   mstore8
-  push 2
-  push_data literal_0
+  push 34
   push 161
-  codecopy
+  mstore8
+  push 51
+  push 162
+  mstore8
   push 34
   swap 1
   push bb10
@@ -284,24 +283,21 @@ bb41 [ret=0, inputs=1, outputs=1]:
   gt
   push bb6
   jumpi
-  push 32
-  dup 2
-  add
-  dup 4
-  dup 4
   dup 3
+  dup 3
+  push 160
   calldatacopy
-  dup 4
-  add
-  calldatasize
-  swap 4
+  swap 2
+  dup 1
   push 0
   sub
+  push 160
   push 31
+  calldatasize
+  swap 3
   and
-  swap 2
-  swap 4
-  swap 1
+  swap 3
+  add
   calldatacopy
   pop
   swap 1
