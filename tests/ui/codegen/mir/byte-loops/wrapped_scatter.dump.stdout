@@ -27,8 +27,8 @@ fn @fill() [selector=0xb4f7766b, abi_wrapper, pure] {
   bb7:
     v31 = mload v54
     v46 = xor v31, v17
-    v47 = and v46, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v34 = xor v17, v47
+    v47 = and v46, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v34 = xor v31, v47
     mstore v54, v34
     jump bb2
   bb1:

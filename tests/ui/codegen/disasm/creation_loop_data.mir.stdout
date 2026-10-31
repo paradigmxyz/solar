@@ -20,10 +20,10 @@ fn @constructor() [constructor] {
     sstore 0, v0 !metadata(storage=slot(0))
     ret
   bb4:
-    mstore 0, 0x1111111111111111111111111111111111111111111111111111111111111111 !metadata(memory=scratch)
-    mstore 32, 0x2222222222222222222222222222222222222222222222222222222222222222 !metadata(memory=scratch)
-    mstore 64, 0x3333333333333333333333333333333333333333333333333333333333333333 !metadata(memory=scratch)
-    mstore 96, 0x4444444444444444444444444444444444444444444444444444444444444444 !metadata(memory=scratch)
+    mstore 0, 0x283c9d3e74f799f263598270aadbda723a9eeb23d5e4736cea9c38c6feb4f63f !metadata(memory=scratch)
+    mstore 32, 0x7f42d55eccdbc74a6801b505beb897f8ec15d48479d0f0aa4847987616f7613 !metadata(memory=scratch)
+    mstore 64, 0xcd8b0f07cace797ee8515fb70e78bfa6fc880084d2793c57a3f5f960f99f6703 !metadata(memory=scratch)
+    mstore 96, 0x9ad26835e2dd5aa0cd526200b033d594fe4834536c4b42dc30955fafdba966dd !metadata(memory=scratch)
     v3 = keccak256 0, 128 !metadata(memory=scratch)
     v4 = xor v0, v3
     jump bb6

@@ -31,8 +31,7 @@ contract Bounds {
     // CHECK-LABEL: fn @siftValues(
     // CHECK: [[ARRAY:v[0-9]+]] = heap_floor
     // CHECK: [[BITS:v[0-9]+]] = or [[ARRAY]], [[LENGTH:v[0-9]+]]
-    // CHECK-NEXT: [[HIGH:v[0-9]+]] = shr [[BITS]], 64
-    // CHECK-NEXT: [[SMALL:v[0-9]+]] = eq [[HIGH]], 0
+    // CHECK-NEXT: [[SMALL:v[0-9]+]] = lt [[BITS]], 0x10000000000000000
     // CHECK-NEXT: jumpi [[SMALL]], [[BOUNDS:bb[0-9]+]], [[SLOW:bb[0-9]+]]
     // CHECK: [[BOUNDS]]:
     // CHECK-NEXT: [[SHORT:v[0-9]+]] = lt [[LENGTH]], arg1

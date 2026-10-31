@@ -8,13 +8,21 @@
 +   push 0
 +   not
 +   div
++   push 85
++   push 0
++   not
++   div
++   push 4
++   shl
+    pop
+    pop
+    jump bb1
+  bb1 [loop]:
+-   push 0x101010101010101010101010101010101010101010101010101010101010101
 +   push 255
 +   push 0
 +   not
 +   div
-+   push 48
-+   mul
     pop
-    pop
-    stop
+    jump bb1
   

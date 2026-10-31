@@ -1,4 +1,4 @@
-//@compile-flags: --libraries L=0x1000000000000000000000000000000000000001 -Zdump=evm-ir-runtime
+//@compile-flags: --libraries L=0x2bb9eaf06f170742743e686076e1cc7e8ce43a9e -Zdump=evm-ir-runtime
 //@ filecheck:
 
 // A linked library call whose struct parameter carries dynamic fields:
@@ -61,7 +61,7 @@ contract C {
     // CHECK: push 0xfa06cb96
     // CHECK: mcopy
     // CHECK: mcopy
-    // CHECK: push 0x1000000000000000000000000000000000000001
+    // CHECK: push 0x2bb9eaf06f170742743e686076e1cc7e8ce43a9e
     // CHECK: delegatecall
     // CHECK: returndatacopy
     // CHECK: revert

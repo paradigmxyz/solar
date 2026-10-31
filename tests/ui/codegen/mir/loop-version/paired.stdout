@@ -80,32 +80,32 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory, pure] {
   bb0:
     v138 = add arg0, 1
     v141 = sub arg1, v138
-    v237 = add arg1, 64
-    v240 = add arg0, 64
+    v232 = add arg0, 64
+    v235 = add arg1, 64
     jump bb1
   bb1:
     v2 = phi [bb0: 1], [bb18: v77]
-    v238 = phi [bb0: v237], [bb18: v239]
-    v241 = phi [bb0: v240], [bb18: v242]
+    v233 = phi [bb0: v232], [bb18: v234]
+    v236 = phi [bb0: v235], [bb18: v237]
     v3 = mload arg0
     v4 = lt v2, v3
     jumpi v4, bb3, bb2
   bb3:
-    v11 = mload v241
+    v11 = mload v233
     v12 = mload arg1
     v13 = lt v2, v12
     jumpi v13, bb16, bb15
   bb16:
-    v18 = mload v238
-    v243 = shl v2, 5
-    v244 = add arg0, v243
-    v247 = shl v2, 5
-    v248 = add arg1, v247
+    v18 = mload v236
+    v238 = shl v2, 5
+    v239 = add arg1, v238
+    v242 = shl v2, 5
+    v243 = add arg0, v242
     jump bb4
   bb4:
     v24 = phi [bb16: v2], [bb22: v26]
-    v245 = phi [bb16: v244], [bb22: v246]
-    v249 = phi [bb16: v248], [bb22: v250]
+    v240 = phi [bb16: v239], [bb22: v241]
+    v244 = phi [bb16: v243], [bb22: v245]
     v25 = gt v24, 0
     jumpi v25, bb6, bb5
   bb6:
@@ -114,7 +114,7 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory, pure] {
     v28 = lt v26, v27
     jumpi v28, bb19, bb15
   bb19:
-    v33 = mload v245
+    v33 = mload v244
     v34 = gt v33, v11
     jumpi v34, bb7, bb5
   bb5:
@@ -123,16 +123,16 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory, pure] {
     jumpi v66, bb17, bb15
   bb17:
     v68 = shl v24, 5
-    v207 = add arg0, v68
-    v208 = add v207, 32
-    mstore v208, v11
+    v202 = add arg0, v68
+    v203 = add v202, 32
+    mstore v203, v11
     v71 = mload arg1
     v72 = lt v24, v71
     jumpi v72, bb18, bb15
   bb18:
-    v210 = add arg1, v68
-    v211 = add v210, 32
-    mstore v211, v18
+    v205 = add arg1, v68
+    v206 = add v205, 32
+    mstore v206, v18
     v77 = add v2, 1
     v132 = mload arg0
     v133 = mload arg1
@@ -147,17 +147,16 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory, pure] {
     v150 = add v148, 31
     v152 = sub arg0, v149
     v153 = lt v152, v150
-    v172 = shr v147, 64
-    v174 = or v142, v153
-    v176 = zext i1 v174 to i256
-    v177 = or v172, v176
-    v158 = eq v177, 0
-    v239 = add v238, 32
-    v242 = add v241, 32
+    v156 = lt v147, 0x10000000000000000
+    v172 = or v142, v153
+    v157 = eq v172, false
+    v158 = and v156, v157
+    v234 = add v233, 32
+    v237 = add v236, 32
     jumpi v158, bb14, bb1
   bb14:
-    v235 = add arg0, 32
-    v236 = add arg1, 32
+    v230 = add arg0, 32
+    v231 = add arg1, 32
     jump bb8
   bb8:
     v78 = phi [bb14: v77], [bb11: v101]
@@ -167,59 +166,59 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory, pure] {
     ret
   bb9:
     v81 = shl v78, 5
-    v184 = add v235, v81
-    v84 = mload v184
+    v179 = add v230, v81
+    v84 = mload v179
     v86 = lt v78, v133
     jumpi v86, bb23, bb15
   bb23:
-    v226 = add v236, v81
-    v89 = mload v226
-    v251 = shl v78, 5
-    v252 = add v235, v251
-    v255 = shl v78, 5
-    v256 = add v236, v255
+    v221 = add v231, v81
+    v89 = mload v221
+    v246 = shl v78, 5
+    v247 = add v231, v246
+    v250 = shl v78, 5
+    v251 = add v230, v250
     jump bb10
   bb10:
     v90 = phi [bb23: v78], [bb13: v102]
-    v253 = phi [bb23: v252], [bb13: v254]
-    v257 = phi [bb23: v256], [bb13: v258]
+    v248 = phi [bb23: v247], [bb13: v249]
+    v252 = phi [bb23: v251], [bb13: v253]
     v91 = gt v90, 0
     jumpi v91, bb12, bb11
   bb12:
     v102 = sub v90, 1
-    v193 = sub v253, 32
-    v108 = mload v193
+    v188 = sub v252, 32
+    v108 = mload v188
     v109 = gt v108, v84
     jumpi v109, bb13, bb11
   bb11:
     v94 = shl v90, 5
-    v187 = add v235, v94
-    mstore v187, v84
-    v190 = add v236, v94
-    mstore v190, v89
+    v182 = add v230, v94
+    mstore v182, v84
+    v185 = add v231, v94
+    mstore v185, v89
     v101 = add v78, 1
     jump bb8
   bb13:
-    v116 = mload v193
-    mstore v253, v116
-    v199 = sub v257, 32
-    v127 = mload v199
-    mstore v257, v127
-    v254 = sub v253, 32
-    v258 = sub v257, 32
+    v116 = mload v188
+    mstore v252, v116
+    v194 = sub v248, 32
+    v127 = mload v194
+    mstore v248, v127
+    v249 = sub v248, 32
+    v253 = sub v252, 32
     jump bb10
   bb7:
-    v43 = mload v245
+    v43 = mload v244
     v45 = lt v24, v27
     jumpi v45, bb20, bb15
   bb20:
-    v217 = add v245, 32
-    mstore v217, v43
+    v212 = add v244, 32
+    mstore v212, v43
     v51 = mload arg1
     v52 = lt v26, v51
     jumpi v52, bb21, bb15
   bb21:
-    v57 = mload v249
+    v57 = mload v240
     v59 = lt v24, v51
     jumpi v59, bb22, bb15
   bb15:
@@ -227,10 +226,10 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb22:
-    v223 = add v249, 32
-    mstore v223, v57
-    v246 = sub v245, 32
-    v250 = sub v249, 32
+    v218 = add v240, 32
+    mstore v218, v57
+    v241 = sub v240, 32
+    v245 = sub v244, 32
     jump bb4
 }
 

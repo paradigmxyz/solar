@@ -34,19 +34,19 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     v1 = sload 1 !metadata(storage=slot(1))
     v2 = not 0xffffffffffffffffffffffffffffffffffffffff
     v3 = and v1, v2
-    v4 = and 0x1111111111111111111111111111111111111111, 0xffffffffffffffffffffffffffffffffffffffff
+    v4 = and 0x8ec1efb30a6414133f00e6192183fdfd6ba2e437, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = or v3, v4
     sstore 1, v5 !metadata(storage=slot(1))
     v6 = sload 2 !metadata(storage=slot(2))
     v7 = not 0xffffffffffffffffffffffffffffffffffffffff
     v8 = and v6, v7
-    v9 = and 0x1111111111111111111111111111111111111111, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = and 0x8ec1efb30a6414133f00e6192183fdfd6ba2e437, 0xffffffffffffffffffffffffffffffffffffffff
     v10 = or v8, v9
     sstore 2, v10 !metadata(storage=slot(2))
     v11 = sload 3 !metadata(storage=slot(3))
     v12 = not 0xffffffffffffffffffffffffffffffffffffffff
     v13 = and v11, v12
-    v14 = and 0x1111111111111111111111111111111111111111, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = and 0x8ec1efb30a6414133f00e6192183fdfd6ba2e437, 0xffffffffffffffffffffffffffffffffffffffff
     v15 = or v13, v14
     sstore 3, v15 !metadata(storage=slot(3))
     ret
@@ -179,16 +179,16 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
 
 fn @h(arg0: i256) -> i256 {
   bb0:
-    v0 = xor arg0, 0x1234567812345678123456781234567812345678123456781234567812345678
+    v0 = xor arg0, 0x306b6a7bc62143ed7aa6bc48f76bfab65859a6c8f14f9b05ec52780106d96515
     v1 = sload 50 !metadata(storage=slot(50))
     v2 = add v0, v1
-    v3 = xor v2, 0x1234567812345678123456781234567812345678123456781234567812345678
+    v3 = xor v2, 0x306b6a7bc62143ed7aa6bc48f76bfab65859a6c8f14f9b05ec52780106d96515
     sstore 50, v3 !metadata(storage=slot(50))
     v4 = mul arg0, 3
-    v5 = xor v4, 0x1234567812345678123456781234567812345678123456781234567812345678
+    v5 = xor v4, 0x306b6a7bc62143ed7aa6bc48f76bfab65859a6c8f14f9b05ec52780106d96515
     v6 = add v2, v5
     v7 = mul v6, 5
-    v8 = xor v7, 0x1234567812345678123456781234567812345678123456781234567812345678
+    v8 = xor v7, 0x306b6a7bc62143ed7aa6bc48f76bfab65859a6c8f14f9b05ec52780106d96515
     v9 = sload 50 !metadata(storage=slot(50))
     v10 = add v9, v8
     sstore 50, v10 !metadata(storage=slot(50))
@@ -233,34 +233,34 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb4:
     v3 = checked_add uint256, v0, v1
     v4 = icall @h, v3
-    v5 = xor v4, 0x1234567812345678123456781234567812345678123456781234567812345678
+    v5 = xor v4, 0x306b6a7bc62143ed7aa6bc48f76bfab65859a6c8f14f9b05ec52780106d96515
     v6 = mul v4, 3
-    v7 = xor v6, 0x2234567812345678123456781234567812345678123456781234567812345678
+    v7 = xor v6, 0xf8d5635289df23d34e3ac8e12342e8d032dc433a35f2c968a4af0a4873086206
     v8 = add v5, v7
     v9 = mul v4, 5
-    v10 = xor v9, 0x3234567812345678123456781234567812345678123456781234567812345678
+    v10 = xor v9, 0x15fcbca373ac4001f6fd95867a8a1997e09c261b43b56b4333d418a2c28ce221
     v11 = add v8, v10
     v12 = mul v4, 7
-    v13 = xor v12, 0x4234567812345678123456781234567812345678123456781234567812345678
+    v13 = xor v12, 0xbd0025031d4a40ca7316715da312db483116de9ad150e22b438734abe4a0ee22
     v14 = add v11, v13
-    v15 = xor v14, 0x1234567812345678123456781234567812345678123456781234567812345678
-    v16 = xor v15, 0x2234567812345678123456781234567812345678123456781234567812345678
-    v17 = xor v16, 0x3234567812345678123456781234567812345678123456781234567812345678
+    v15 = xor v14, 0x306b6a7bc62143ed7aa6bc48f76bfab65859a6c8f14f9b05ec52780106d96515
+    v16 = xor v15, 0xf8d5635289df23d34e3ac8e12342e8d032dc433a35f2c968a4af0a4873086206
+    v17 = xor v16, 0x15fcbca373ac4001f6fd95867a8a1997e09c261b43b56b4333d418a2c28ce221
     v18 = lt v1, 50
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = add 0, v1
     sstore v20, v17 !metadata(storage=symbolic(v1))
     v21 = add v14, 1
-    v22 = xor v21, 0x4234567812345678123456781234567812345678123456781234567812345678
+    v22 = xor v21, 0xbd0025031d4a40ca7316715da312db483116de9ad150e22b438734abe4a0ee22
     v23 = add v14, 2
-    v24 = xor v23, 0x1234567812345678123456781234567812345678123456781234567812345678
+    v24 = xor v23, 0x306b6a7bc62143ed7aa6bc48f76bfab65859a6c8f14f9b05ec52780106d96515
     v25 = add v22, v24
     v26 = add v14, 3
-    v27 = xor v26, 0x2234567812345678123456781234567812345678123456781234567812345678
+    v27 = xor v26, 0xf8d5635289df23d34e3ac8e12342e8d032dc433a35f2c968a4af0a4873086206
     v28 = add v25, v27
     v29 = add v14, 4
-    v30 = xor v29, 0x3234567812345678123456781234567812345678123456781234567812345678
+    v30 = xor v29, 0x15fcbca373ac4001f6fd95867a8a1997e09c261b43b56b4333d418a2c28ce221
     v31 = add v28, v30
     v32 = sload 50 !metadata(storage=slot(50))
     v33 = add v32, v31

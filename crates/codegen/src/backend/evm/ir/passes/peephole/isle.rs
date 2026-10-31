@@ -53,10 +53,7 @@ pub(crate) fn invert_comparison(
             } else {
                 ordered.checked_sub(U256::ONE)
             };
-            // A shorter encoding may need an extra temporary stack word.
             if let Some(bound) = bound.map(|bound| bound ^ bias)
-                && ImmediateMaterialization::new(evm_version, bound).stack_peak()
-                    <= ImmediateMaterialization::new(evm_version, value).stack_peak()
                 && op::push_len(evm_version, bound)
                     <= immediate_materialization_cost(evm_version, value).0 + 1
             {
@@ -521,7 +518,7 @@ impl generated::Context for PeepContext<'_> {
             i64::from(target.runtime_gas(before)) - i64::from(target.runtime_gas(after));
         let byte_saving = i64::from(before.bytes) - i64::from(after.bytes);
         (target.improves(gas_saving, byte_saving)
-            && ImmediateMaterialization::new(target.evm_version(), negated).stack_peak() <= 1)
+            && ImmediateMaterialization::select(&target, negated, false).stack_peak() <= 1)
             .then_some(negated)
     }
 

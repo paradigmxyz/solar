@@ -34,7 +34,7 @@ contract BoundsWrapping {
 
     // CHECK-LABEL: fn @_write(
     // CHECK: [[LENGTH:v[0-9]+]] = mload arg0
-    // CHECK: shr {{v[0-9]+}}, 64
+    // CHECK: lt {{v[0-9]+}}, 0x10000000000000000
     // CHECK: jumpi
     // CHECK: [[SHORT:v[0-9]+]] = lt [[LENGTH]], arg2
     // CHECK-NEXT: jumpi [[SHORT]]

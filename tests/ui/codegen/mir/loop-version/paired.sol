@@ -10,7 +10,7 @@
 // reloads both lengths before every checked access. The copy reads them once in
 // the test that guards it, and its inner loop keeps no bounds check.
 // CHECK-LABEL: fn @_sortPairs(
-// CHECK: shr {{.*}}, 64
+// CHECK: lt {{.*}}, 0x10000000000000000
 // CHECK: jumpi [[OK:v[0-9]+]], [[FAST:bb[0-9]+]], [[SLOW:bb[0-9]+]]
 // CHECK: [[FAST]]:
 // CHECK-NOT: mload arg

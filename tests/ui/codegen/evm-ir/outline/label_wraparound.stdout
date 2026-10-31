@@ -5,12 +5,12 @@
 +   push bb2
 +   jump bb0
 + bb0 [ret=0, inputs=1, outputs=1]:
-    push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef1
+    push 0x9e3779b97f4a7c15f39cc0605cedc8341082276bf3a27251f86c6a11d0c18e95
 +   swap 1
 +   jump
 + bb1 [continuation]:
     pop
--   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef1
+-   push 0x9e3779b97f4a7c15f39cc0605cedc8341082276bf3a27251f86c6a11d0c18e95
 -   pop
     stop
 + bb2 [continuation]:

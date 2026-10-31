@@ -326,32 +326,37 @@ bb23:
   calldatacopy
   swap 1
   mload
-  dup 2
-  dup 2
-  push 0x1999999999999999999999999999999999999999999999999999999999999999
-  lt
+  push 10
+  dup 1
+  push 0
+  not
+  div
+  dup 3
+  gt
   push bb31
   jumpi
-  push 10
+  mul
   push 4
   calldataload
-  swap 3
-  mul
-  dup 3
+  swap 1
+  dup 2
   add
-  swap 2
-  dup 3
+  swap 1
+  dup 2
   lt
   push bb31
   jumpi
+  dup 2
   push 100
-  mul
-  swap 2
-  push 0x28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f
+  push 0
+  not
+  div
   lt
   push bb31
   jumpi
   swap 1
+  push 100
+  mul
   dup 2
   add
   swap 1

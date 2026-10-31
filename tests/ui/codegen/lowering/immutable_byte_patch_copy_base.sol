@@ -14,15 +14,15 @@ contract ImmutableBytePatchCopyBase {
     }
 
     function a() external pure returns (uint256) {
-        return 0x1111111111111111111111111111111111111111111111111111111111111111;
+        return 0x5186aa3f6a741c8d3220cb42c34e5e0af989fee640ccdc1b4a3b9a402d234406;
     }
 
     function b() external pure returns (uint256) {
-        return 0x2222222222222222222222222222222222222222222222222222222222222222;
+        return 0x4c21f6d6e07a931e5468ab539814c456e5cc2ec155b1494ae49060cf1d39e90b;
     }
 
     function c() external pure returns (uint256) {
-        return 0x3333333333333333333333333333333333333333333333333333333333333333;
+        return 0xc60587ed52d73c6e856103bd4ea8b91fe4a98d20f5eb58f3b47081ea82beb3bf;
     }
 
     // CHECK-LABEL: (deployment)

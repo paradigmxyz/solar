@@ -1,4 +1,4 @@
-//@compile-flags: --libraries Inner=0x1000000000000000000000000000000000000001,Outer=0x1000000000000000000000000000000000000002 -Zdump=evm-ir-runtime
+//@compile-flags: --libraries Inner=0x2bb9eaf06f170742743e686076e1cc7e8ce43a9e,Outer=0x7cdacf15bed300bef18d0450b706e0778e49c9c3 -Zdump=evm-ir-runtime
 //@ filecheck:
 
 // A linked library may itself call another linked library, forwarding a
@@ -34,7 +34,7 @@ library Outer {
     // CHECK-LABEL: @module Outer_runtime
     // CHECK: push 0x5e0b1cef
     // CHECK: push 0xfaf4836c
-    // CHECK: push 0x1000000000000000000000000000000000000001
+    // CHECK: push 0x2bb9eaf06f170742743e686076e1cc7e8ce43a9e
     // CHECK: delegatecall
     // CHECK: returndatacopy
     // CHECK: revert
@@ -52,7 +52,7 @@ contract C {
     // CHECK-LABEL: @module C_runtime
     // CHECK: push 0xb20e7344
     // CHECK: push 0x5e0b1cef
-    // CHECK: push 0x1000000000000000000000000000000000000002
+    // CHECK: push 0x7cdacf15bed300bef18d0450b706e0778e49c9c3
     // CHECK: delegatecall
     // CHECK: returndatacopy
     // CHECK: revert

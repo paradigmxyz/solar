@@ -3,67 +3,67 @@
 @phase lowered
 fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
   bb0:
-    v83 = calldatasize
-    v84 = lt v83, 132
-    jumpi v84, bb15, bb16
+    v79 = calldatasize
+    v80 = lt v79, 132
+    jumpi v80, bb15, bb16
   bb16:
-    v85 = icall @decode_calldata_type, 4
-    v86 = icall @decode_calldata_type, 36
-    v87 = icall @decode_calldata_type, 68
+    v81 = icall @decode_calldata_type, 4
+    v82 = icall @decode_calldata_type, 36
+    v83 = icall @decode_calldata_type, 68
     v18 = shl arg3, 5
-    v111 = add v86, v18
-    v112 = add v111, 32
-    v120 = add v85, 32
-    v123 = add v87, 32
+    v107 = add v82, v18
+    v108 = add v107, 32
+    v116 = add v83, 32
+    v119 = add v81, 32
     jump bb1
   bb1:
     v5 = phi [bb16: 0], [bb9: v29]
-    v121 = phi [bb16: v120], [bb9: v122]
-    v124 = phi [bb16: v123], [bb9: v125]
-    v6 = mload v85
+    v117 = phi [bb16: v116], [bb9: v118]
+    v120 = phi [bb16: v119], [bb9: v121]
+    v6 = mload v81
     v7 = lt v5, v6
     jumpi v7, bb3, bb2
   bb3:
-    v14 = mload v121
-    v15 = mload v86
+    v14 = mload v120
+    v15 = mload v82
     v16 = lt arg3, v15
     jumpi v16, bb8, bb7
   bb8:
-    v21 = mload v112
+    v21 = mload v108
     v75 = add v14, v21
     v76 = lt v75, v14
     jumpi v76, bb12, bb13
   bb13:
-    v23 = mload v87
+    v23 = mload v83
     v24 = lt v5, v23
     jumpi v24, bb9, bb7
   bb9:
-    mstore v124, v75
+    mstore v117, v75
     v29 = add v5, 1
-    v46 = mload v85
-    v47 = mload v86
-    v48 = mload v112
-    v49 = mload v87
-    v52 = or v87, v49
+    v46 = mload v81
+    v47 = mload v82
+    v48 = mload v108
+    v49 = mload v83
+    v52 = or v83, v49
     v53 = shl v49, 5
-    v54 = add v87, 1
+    v54 = add v83, 1
     v55 = add v53, 31
-    v57 = sub v85, v54
+    v57 = sub v81, v54
     v58 = lt v57, v55
     v60 = zext i1 v58 to i256
-    v62 = sub v86, v54
+    v62 = sub v82, v54
     v63 = lt v62, v55
     v64 = zext i1 v63 to i256
     v65 = or v60, v64
-    v67 = sub v112, v54
+    v67 = sub v108, v54
     v68 = lt v67, v55
     v69 = zext i1 v68 to i256
     v70 = or v65, v69
-    v79 = shr v52, 64
-    v81 = or v79, v70
-    v73 = eq v81, 0
-    v122 = add v121, 32
-    v125 = add v124, 32
+    v71 = lt v52, 0x10000000000000000
+    v72 = eq v70, 0
+    v73 = and v71, v72
+    v118 = add v117, 32
+    v121 = add v120, 32
     jumpi v73, bb6, bb1
   bb6:
     jump bb4
@@ -72,17 +72,17 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
     v32 = lt v30, v46
     jumpi v32, bb5, bb2
   bb2:
-    v91 = mload v87
-    v92 = shl v91, 5
-    v97 = sub v87, 32
-    mstore v97, 32
-    v94 = add v92, 64
-    returndata v97, v94
+    v87 = mload v83
+    v88 = shl v87, 5
+    v93 = sub v83, 32
+    mstore v93, 32
+    v90 = add v88, 64
+    returndata v93, v90
   bb5:
     v33 = shl v30, 5
-    v102 = add v85, v33
-    v103 = add v102, 32
-    v36 = mload v103
+    v98 = add v81, v33
+    v99 = add v98, 32
+    v36 = mload v99
     v38 = lt arg3, v47
     jumpi v38, bb10, bb7
   bb10:
@@ -95,9 +95,9 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
   bb7:
     tail_call @revert_stub
   bb11:
-    v108 = add v87, v33
-    v109 = add v108, 32
-    mstore v109, v77
+    v104 = add v83, v33
+    v105 = add v104, 32
+    mstore v105, v77
     v45 = add v30, 1
     jump bb4
   bb12:
@@ -110,65 +110,65 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
 
 fn @shiftFar() [selector=0x67979c1a, abi_wrapper, pure] {
   bb0:
-    v84 = calldatasize
-    v85 = lt v84, 100
-    jumpi v85, bb15, bb16
+    v80 = calldatasize
+    v81 = lt v80, 100
+    jumpi v81, bb15, bb16
   bb16:
-    v86 = icall @decode_calldata_type, 4
-    v87 = icall @decode_calldata_type, 36
+    v82 = icall @decode_calldata_type, 4
+    v83 = icall @decode_calldata_type, 36
     v19 = shl arg2, 5
-    v111 = add v19, 0x10000000000000020
-    v56 = add v87, 1
-    v117 = add v86, 32
-    v120 = add v87, 32
+    v107 = add v19, 0x10000000000000020
+    v56 = add v83, 1
+    v113 = add v83, 32
+    v116 = add v82, 32
     jump bb1
   bb1:
     v6 = phi [bb16: 0], [bb9: v31]
-    v118 = phi [bb16: v117], [bb9: v119]
-    v121 = phi [bb16: v120], [bb9: v122]
-    v7 = mload v86
+    v114 = phi [bb16: v113], [bb9: v115]
+    v117 = phi [bb16: v116], [bb9: v118]
+    v7 = mload v82
     v8 = lt v6, v7
     jumpi v8, bb3, bb2
   bb3:
-    v15 = mload v118
+    v15 = mload v117
     v16 = mload 0x10000000000000000
     v17 = lt arg2, v16
     jumpi v17, bb8, bb7
   bb8:
-    v23 = mload v111
+    v23 = mload v107
     v76 = add v15, v23
     v77 = lt v76, v15
     jumpi v77, bb12, bb13
   bb13:
-    v25 = mload v87
+    v25 = mload v83
     v26 = lt v6, v25
     jumpi v26, bb9, bb7
   bb9:
-    mstore v121, v76
+    mstore v114, v76
     v31 = add v6, 1
-    v48 = mload v86
+    v48 = mload v82
     v49 = mload 0x10000000000000000
-    v50 = mload v111
-    v51 = mload v87
-    v54 = or v87, v51
+    v50 = mload v107
+    v51 = mload v83
+    v54 = or v83, v51
     v55 = shl v51, 5
     v57 = add v55, 31
-    v59 = sub v86, v56
+    v59 = sub v82, v56
     v60 = lt v59, v57
     v62 = zext i1 v60 to i256
     v63 = sub 0x10000000000000000, v56
     v64 = lt v63, v57
     v65 = zext i1 v64 to i256
     v66 = or v62, v65
-    v68 = sub v111, v56
+    v68 = sub v107, v56
     v69 = lt v68, v57
     v70 = zext i1 v69 to i256
     v71 = or v66, v70
-    v80 = shr v54, 64
-    v82 = or v80, v71
-    v74 = eq v82, 0
-    v119 = add v118, 32
-    v122 = add v121, 32
+    v72 = lt v54, 0x10000000000000000
+    v73 = eq v71, 0
+    v74 = and v72, v73
+    v115 = add v114, 32
+    v118 = add v117, 32
     jumpi v74, bb6, bb1
   bb6:
     jump bb4
@@ -177,17 +177,17 @@ fn @shiftFar() [selector=0x67979c1a, abi_wrapper, pure] {
     v34 = lt v32, v48
     jumpi v34, bb5, bb2
   bb2:
-    v91 = mload v87
-    v92 = shl v91, 5
-    v97 = sub v87, 32
-    mstore v97, 32
-    v94 = add v92, 64
-    returndata v97, v94
+    v87 = mload v83
+    v88 = shl v87, 5
+    v93 = sub v83, 32
+    mstore v93, 32
+    v90 = add v88, 64
+    returndata v93, v90
   bb5:
     v35 = shl v32, 5
-    v102 = add v86, v35
-    v103 = add v102, 32
-    v38 = mload v103
+    v98 = add v82, v35
+    v99 = add v98, 32
+    v38 = mload v99
     v40 = lt arg2, v49
     jumpi v40, bb10, bb7
   bb10:
@@ -200,9 +200,9 @@ fn @shiftFar() [selector=0x67979c1a, abi_wrapper, pure] {
   bb7:
     tail_call @revert_stub
   bb11:
-    v108 = add v87, v35
-    v109 = add v108, 32
-    mstore v109, v78
+    v104 = add v83, v35
+    v105 = add v104, 32
+    mstore v105, v78
     v47 = add v32, 1
     jump bb4
   bb12:

@@ -13,3 +13,83 @@ fn @matches(arg0: i256, arg1: i256) -> i1 [selector=0xd67ed34d, pure, abi_params
     v2 = phi [bb1: v1], [bb2: false]
     ret v2
 }
+
+fn @errorSelector() -> i256 [selector=0x5923cdaa, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0x8c379a000000000000000000000000000000000000000000000000000000000
+}
+
+fn @shiftedNot() -> i256 [selector=0xc14284c1, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffaa00000000000000
+}
+
+fn @invertedShiftRight() -> i256 [selector=0xa56cf341, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0x3fffffffffffffffffffffffffffffffffffffffffffffffffffffffbfffff0c
+}
+
+fn @reciprocalTenThousand() -> i256 [selector=0x3771266f, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0x68db8bac710cb295e9e1b089a027525460aa64c2f837b4a2339c0ebedfa43
+}
+
+fn @reciprocalWad() -> i256 [selector=0x1e35c0f9, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0x12725dd1d243aba0e75fe645cc4873f9e65afe688c928e1f21
+}
+
+fn @reciprocalDay() -> i256 [selector=0xb2306860, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0xc22e450672894ab6cd8efb11d33f5617839a5bc7dea00c22e450672894ab
+}
+
+fn @repeatedFactor() -> i256 [selector=0x054ff23b, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0x1234123412341234123412341234123412341234123412341234123412341234
+}
+
+fn @orSplit() -> i256 [selector=0x35329128, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0xffffffffffffffffffffffff00000000000000000000000000000000000000ff
+}
+
+fn @subSplit() -> i256 [selector=0xbe60f5cb, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0x1234567800000000ffffffffffffffffffffffffffffffffffffffffffffffff
+}
+
+fn @p256Prime() -> i256 [selector=0x4d0acf38, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+}
+
+fn @p256Order() -> i256 [selector=0xd209a785, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551
+}
+
+fn @square() -> i256 [selector=0xd742cb01, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0x14b66dc33f6acdca878d6495a927ab9717824ef4ebaacbcca4ab582281edee1
+}
+
+fn @wad() -> i256 [selector=0x7df38c5b, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0xde0b6b3a7640000
+}
+
+fn @wadSquared() -> i256 [selector=0x9f881507, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0xc097ce7bc90715b34b9f1000000000
+}
+
+fn @scaledPowerOfTen() -> i256 [selector=0x09ddaa6a, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0x9bd0d8a976ad77f90fa8000000
+}
+
+fn @repeatedHalf() -> i256 [selector=0x163c8575, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+}

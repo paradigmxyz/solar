@@ -214,8 +214,8 @@ bb19 [cold]:
   dup 3
   add
   mstore
-  push 0x8c379a0
-  push 224
+  push 0x461bcd
+  push 229
   shl
   dup 2
   mstore

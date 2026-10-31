@@ -4,7 +4,9 @@ bb0:
   callvalue
   push bb8
   jumpi
-  push 0x100000000000000000000000000000000000000000000000000000000
+  push 0x10000000000000000000000000000
+  dup 1
+  mul
   returndatasize
   calldataload
   div
@@ -99,7 +101,11 @@ bb23:
   lt
   push bb8
   jumpi
-  push 0x8000000000000000000000000000000000000000000000000000000000000000
+  push 2
+  returndatasize
+  not
+  div
+  not
   push 4
   calldataload
   mul

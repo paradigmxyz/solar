@@ -4,7 +4,9 @@ bb0:
   callvalue
   push bb6
   jumpi
-  push 0x100000000000000000000000000000000000000000000000000000000
+  push 0x10000000000000000000000000000
+  dup 1
+  mul
   returndatasize
   calldataload
   div

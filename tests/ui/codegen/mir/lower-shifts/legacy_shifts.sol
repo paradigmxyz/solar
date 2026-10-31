@@ -11,7 +11,9 @@
 // `mul` or `div` by a pushed `2**shift`. The scheduler pushes the factor first, so neither the
 // selector extraction nor the shifts below need a `swap 1` to put the dividend on top.
 // CHECK-LABEL: @module LegacyShifts_runtime
-// CHECK: push 0x100000000000000000000000000000000000000000000000000000000
+// CHECK: push 0x10000000000000000000000000000
+// CHECK-NEXT: dup 1
+// CHECK-NEXT: mul
 // CHECK-NEXT: returndatasize
 // CHECK-NEXT: calldataload
 // CHECK-NEXT: div

@@ -465,10 +465,10 @@ impl Target {
         self.opcode(op::PUSH2)
     }
 
-    /// Cost of pushing `value` through the materialization the push selector emits: the one
-    /// with the fewest bytes, whatever the tune.
+    /// Cost of pushing `value` through the program the push selector emits for this target
+    /// outside a loop, [`Self::cmp_immediate`] choosing among the programs that build it.
     pub(crate) fn push(&self, value: U256) -> Cost {
-        compact_pushes::immediate_materialization(self.evm_version, value)
+        compact_pushes::push_cost(self, value)
     }
 
     /// Cost of pushing `value` as one literal `PUSHn`, the form a push keeps when its compact
@@ -801,13 +801,12 @@ impl Target {
             > u128::from(gas) * u128::from(self.expected_executions)
     }
 
-    /// Whether a compact recipe for an immediate, `saved_bytes` shorter than its literal push and
-    /// `extra_gas` dearer to run, is the better code. Size builds, and cold code priced by
-    /// [`Self::priced_for_cold`], always take the bytes.
-    /// Gas and `-O none` builds take them when the deposit they save covers the extra gas over
-    /// the expected executions, [`Self::UNCOUNTED_LOOP_ITERATIONS`] times over for a push inside a
-    /// loop, so a hot loop pushes a mask as a literal rather than rebuilding it on every
-    /// iteration; a tie takes the bytes, which cost no more over the deployment's lifetime.
+    /// Ranks two programs that push the same immediate, the better first. Size builds, and cold
+    /// code priced by [`Self::priced_for_cold`], take fewer bytes, then less gas. Gas and `-O none`
+    /// builds weigh the deposit of the bytes against the gas over the expected executions,
+    /// [`Self::UNCOUNTED_LOOP_ITERATIONS`] times over for a push inside a loop, so a hot loop
+    /// pushes a mask as a literal rather than rebuilding it on every iteration; a tie takes the
+    /// bytes, which cost no more over the deployment's lifetime.
     ///
     /// The push is priced over at most [`Self::DEFAULT_EXPECTED_EXECUTIONS`]: it runs only on the
     /// calls whose path reaches it, a fraction of the deployment's calls once they spread over its
@@ -815,20 +814,19 @@ impl Target {
     /// left-aligned string literal as a `PUSH32`, 26 bytes longer than a shifted `PUSH3`, to save
     /// 6 gas on the calls that reach it, and each `not(31)` of its loops as a `PUSH32`, 30 bytes
     /// longer than `PUSH1 31 NOT`, to save 3 gas an iteration.
-    pub(crate) fn compacts_immediate(
-        &self,
-        saved_bytes: u64,
-        extra_gas: u64,
-        in_loop: bool,
-    ) -> bool {
-        if self.optimization.is_size() {
-            return true;
-        }
+    pub(crate) fn cmp_immediate(&self, a: Cost, b: Cost, in_loop: bool) -> Ordering {
         let iterations = if in_loop { Self::UNCOUNTED_LOOP_ITERATIONS } else { 1 };
         let executions = self.expected_executions.min(Self::DEFAULT_EXPECTED_EXECUTIONS);
-        saved_bytes != 0
-            && u128::from(saved_bytes) * u128::from(self.byte_gas())
-                >= u128::from(extra_gas) * u128::from(iterations) * u128::from(executions)
+        let key = |cost: Cost| {
+            let (bytes, gas) = (u128::from(cost.bytes), u128::from(self.runtime_gas(cost)));
+            if self.optimization.is_size() {
+                (bytes, gas)
+            } else {
+                let deposit = bytes * u128::from(self.byte_gas());
+                (deposit + gas * u128::from(iterations) * u128::from(executions), bytes)
+            }
+        };
+        key(a).cmp(&key(b))
     }
 
     /// Whether a change that saves `gas_saving` gas and `byte_saving` bytes
@@ -1539,15 +1537,22 @@ mod tests {
     }
 
     #[test]
-    fn every_tune_selects_the_fewest_bytes() {
+    fn push_follows_the_objective_of_each_tune() {
         let address_mask = (U256::ONE << 160) - U256::ONE;
         for tune in [Tune::None, Tune::Interpreter, Tune::Jit] {
             for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
                 let target = Target::with(EvmVersion::Osaka, optimization, 200).tuned(tune);
-                // `PUSH0; NOT; PUSH1 0x60; SHR` against `PUSH20 0xff..ff`.
-                assert_eq!(target.push(address_mask), Cost::new(11, 5).with_steps(4));
                 // `PUSH0; NOT`.
                 assert_eq!(target.push(U256::MAX), Cost::new(5, 2).with_steps(2));
+                // `PUSH0; NOT; PUSH1 0x60; SHR` against `PUSH20 0xff..ff`: an interpreter pays
+                // for the dispatch of the three extra instructions on every call, 20 gas more
+                // than the 16 bytes deposit.
+                let expected = if optimization.is_gas() && tune == Tune::Interpreter {
+                    Cost::new(3, 21).with_steps(1)
+                } else {
+                    Cost::new(11, 5).with_steps(4)
+                };
+                assert_eq!(target.push(address_mask), expected, "{tune:?} {optimization:?}");
             }
         }
     }
@@ -1601,36 +1606,44 @@ mod tests {
 
     #[test]
     fn compact_immediates_repay_their_gas() {
+        let prefers = |target: &Target, compact: Cost, literal: Cost, in_loop| {
+            target.cmp_immediate(compact, literal, in_loop).is_lt()
+        };
         // `type(uint128).max`: `PUSH16` is 17 bytes for 3 gas, `PUSH0 NOT PUSH1 128 SHR` 5 bytes
         // for 11: 12 bytes deposit 2,400 gas against 8 gas on 200 executions, 1,600, or 16,000
         // ten times over in a loop.
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
-        assert!(target.compacts_immediate(12, 8, false));
-        assert!(!target.compacts_immediate(12, 8, true));
+        let literal = |bytes| Cost::new(3, bytes);
+        assert!(prefers(&target, Cost::new(11, 5), literal(17), false));
+        assert!(!prefers(&target, Cost::new(11, 5), literal(17), true));
         // `type(uint64).max`: 4 bytes, 800 gas, do not repay 8 gas on 200 executions.
-        assert!(!target.compacts_immediate(4, 8, false));
-        // A recipe that costs no more gas always wins.
-        assert!(target.compacts_immediate(1, 0, true));
+        assert!(!prefers(&target, Cost::new(11, 5), literal(9), false));
+        // A program that costs no more gas always wins, and the literal keeps a full tie.
+        assert!(prefers(&target, Cost::new(3, 5), literal(6), true));
+        assert!(!prefers(&target, Cost::new(3, 6), literal(6), false));
+        // A program that is dearer in both loses.
+        assert!(!prefers(&target, Cost::new(11, 7), literal(6), false));
         let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
-        assert!(size.compacts_immediate(12, 8, true));
+        assert!(prefers(&size, Cost::new(11, 5), literal(17), true));
+        // Size ranks bytes, then gas.
+        assert!(prefers(&size, Cost::new(30, 5), Cost::new(3, 6), false));
+        assert!(prefers(&size, Cost::new(3, 5), Cost::new(11, 5), false));
         // `-O none` prices the push like a gas build: a loop keeps the literal.
         let none = Target::with(EvmVersion::Osaka, OptimizationMode::None, 200);
-        assert!(none.compacts_immediate(12, 8, false));
-        assert!(!none.compacts_immediate(12, 8, true));
-        assert!(!none.compacts_immediate(4, 8, false));
+        assert!(prefers(&none, Cost::new(11, 5), literal(17), false));
+        assert!(!prefers(&none, Cost::new(11, 5), literal(17), true));
+        assert!(!prefers(&none, Cost::new(11, 5), literal(9), false));
         // A tie takes the bytes: `not(31)` in a loop saves 30 bytes, 6,000 gas, for 3 gas ten
         // times over on 200 executions, 6,000.
-        assert!(target.compacts_immediate(30, 3, true));
-        // A recipe that saves no bytes does not win.
-        assert!(!target.compacts_immediate(0, 0, false));
+        assert!(prefers(&target, Cost::new(6, 3), literal(33), true));
         // More runs than the default price a push at the default: the 26 bytes of a left-aligned
         // `"abc"`, 5,200 gas, repay 6 gas on 200 executions, though not on 1,000, nor ten times
         // over in a loop, and `not(31)` still ties in a loop.
         let hot = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 1_000);
-        assert!(hot.compacts_immediate(26, 6, false));
-        assert!(!hot.compacts_immediate(26, 6, true));
-        assert!(!hot.compacts_immediate(4, 8, false));
-        assert!(hot.compacts_immediate(30, 3, true));
+        assert!(prefers(&hot, Cost::new(9, 6), literal(32), false));
+        assert!(!prefers(&hot, Cost::new(9, 6), literal(32), true));
+        assert!(!prefers(&hot, Cost::new(11, 5), literal(9), false));
+        assert!(prefers(&hot, Cost::new(6, 3), literal(33), true));
     }
 
     #[test]
@@ -1639,8 +1652,9 @@ mod tests {
         let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
         let none = Target::with(EvmVersion::Osaka, OptimizationMode::None, 200);
         // One byte, 200 gas of deposit, does not repay 6 extra gas on 200 executions, 1,200.
-        assert!(!gas.compacts_immediate(1, 6, false));
-        assert!(gas.priced_for_cold(true).compacts_immediate(1, 6, false));
+        let (compact, literal) = (Cost::new(9, 5), Cost::new(3, 6));
+        assert!(gas.cmp_immediate(compact, literal, false).is_gt());
+        assert!(gas.priced_for_cold(true).cmp_immediate(compact, literal, false).is_lt());
         assert_eq!(gas.priced_for_cold(true), size);
         assert_eq!(gas.priced_for_cold(false), gas);
         assert_eq!(size.priced_for_cold(true), size);
@@ -1774,7 +1788,10 @@ mod tests {
     #[test]
     fn preserved_literals_fold_by_objective() {
         let folds = |target: Target, removes_original, len| {
-            target.folds_preserved_literal(removes_original, || Some(vec![0x41; len]))
+            // Words that repeat one byte compact to a division, so vary them.
+            target.folds_preserved_literal(removes_original, || {
+                Some((0..len).map(|i| 0x41 + (i * 7 % 23) as u8).collect())
+            })
         };
         let gas = |evm_version| Target::with(evm_version, OptimizationMode::Gas, 200);
         let size = |evm_version| Target::with(evm_version, OptimizationMode::Size, 1);

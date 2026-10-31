@@ -4,7 +4,7 @@ warning[5574]: contract code size is <SIZE> bytes and exceeds 24576 bytes
 LL │ ┏ contract test {
 LL │ ┃     function f() public pure returns (string memory ret) {
 LL │ ┃         // 27000 bytes long data
-LL │ ┃         ret = ".....................................................................................................................…
+LL │ ┃         ret = "ejqjrllgzrbciurdhumjsyeakjucyfqtepgvbzuivjtyjinttzmtbysfuawsbhdicrtxrltrbtvcvcjguqlzzhfzwnwcqkrvffwfvkskilhizyheylvet…
 LL │ ┃     }
 LL │ ┃ }
    │ ┗━┛

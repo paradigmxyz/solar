@@ -46,7 +46,10 @@ bb1 [ret=0, inputs=2, outputs=1]:
   push bb7
   jumpi
   dup 2
-  push 0x1745d1745d1745d1745d1745d1745d1745d1745d1745d1745d1745d1745d1745
+  push 11
+  push 0
+  not
+  div
   lt
   push bb6
   jumpi

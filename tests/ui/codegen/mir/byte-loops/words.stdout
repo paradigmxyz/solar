@@ -140,8 +140,8 @@ fn @store2() [selector=0xe9ebf0b0, abi_wrapper, pure] {
   bb7:
     v31 = mload v66
     v56 = xor v31, arg2
-    v57 = and v56, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v34 = xor arg2, v57
+    v57 = and v56, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v34 = xor v31, v57
     mstore v66, v34
     jump bb2
   bb1:

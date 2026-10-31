@@ -2,9 +2,23 @@
 + // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/repeated_patterns.evmir (after compact-pushes) ===
   @module RepeatedPatterns
   bb0:
+-   push 0x101010101010101010101010101010101010101010101010101010101010101
+-   push 0x3030303030303030303030303030303030303030303030303030303030303030
++   push 255
++   push 0
++   not
++   div
++   push 85
++   push 0
++   not
++   div
++   push 4
++   shl
+    pop
+    pop
+    jump bb1
+  bb1 [loop]:
     push 0x101010101010101010101010101010101010101010101010101010101010101
-    push 0x3030303030303030303030303030303030303030303030303030303030303030
     pop
-    pop
-    stop
+    jump bb1
   

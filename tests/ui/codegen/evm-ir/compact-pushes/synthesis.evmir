@@ -1,0 +1,238 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=compact-pushes
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=compact-pushes
+//@[gas] filecheck: --check-prefixes=CHECK,GAS,COLD
+//@[size] filecheck: --check-prefixes=CHECK,SIZE,COLD
+@module Synthesis
+
+// The target synthesizes an immediate from smaller ones by inverse rules and takes the program
+// it ranks best: bytes first in size builds and cold blocks, bytes against gas in gas builds.
+// One word per tactic.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// SHL by the trailing zero bits: Error(string)'s selector, `0x08c379a0 << 224`, is a `PUSH3` shifted by 229
+// CHECK: + push 0x461bcd
+// CHECK-NEXT: + push 229
+// CHECK-NEXT: + shl
+// SHL of a child with the discarded high bits set to ones, so that it inverts to a small word: `(!0x2a) << 57`; a gas build keeps the shorter-running `NOT`
+// GAS: + push 0x55ffffffffffffff
+// GAS-NEXT: + not
+// SIZE: + push 42
+// SIZE-NEXT: + not
+// SIZE-NEXT: + push 57
+// SIZE-NEXT: + shl
+// SHR of an inverted child: `(!0x1000003cc) >> 2`
+// CHECK: + push 0x1000003cc
+// CHECK-NEXT: + not
+// CHECK-NEXT: + push 2
+// CHECK-NEXT: + shr
+// DIV of the all-ones word, floor and not only exact: `MAX / 10000`
+// CHECK: + push 0x2710
+// CHECK-NEXT: + push 0
+// CHECK-NEXT: + not
+// CHECK-NEXT: + div
+// `MAX / 1e18`, whose divisor is a power of ten that a size build raises with `EXP`
+// GAS: + push 0xde0b6b3a7640000
+// GAS-NEXT: + push 0
+// GAS-NEXT: + not
+// GAS-NEXT: + div
+// SIZE: + push 18
+// SIZE-NEXT: + push 10
+// SIZE-NEXT: + exp
+// SIZE-NEXT: + push 0
+// SIZE-NEXT: + not
+// SIZE-NEXT: + div
+// `MAX / 86400`
+// CHECK: + push 0x15180
+// CHECK-NEXT: + push 0
+// CHECK-NEXT: + not
+// CHECK-NEXT: + div
+// MUL of a repunit: `0x1234` repeated, from `MAX / 0xffff`
+// CHECK: + push 0x1234
+// CHECK-NEXT: + push 0xffff
+// CHECK-NEXT: + push 0
+// CHECK-NEXT: + not
+// CHECK-NEXT: + div
+// CHECK-NEXT: + mul
+// An OR split at the top of the internal run of zero bytes
+// CHECK: + push 0
+// CHECK-NEXT: + not
+// CHECK-NEXT: + push 160
+// CHECK-NEXT: + shl
+// CHECK-NEXT: + push 255
+// CHECK-NEXT: + or
+// `NOT` of a shifted word: `0x12345678 << 192` with ones below
+// CHECK: + push 0xedcba987ffffffff
+// CHECK-NEXT: + push 192
+// CHECK-NEXT: + shl
+// CHECK-NEXT: + not
+// The P-256 prime: a shifted and inverted `PUSH16` for gas, a `SUB` split in size builds
+// GAS: + push 0xfffffffeffffffffffffffffffffffff
+// GAS-NEXT: + push 96
+// GAS-NEXT: + shl
+// GAS-NEXT: + not
+// SIZE: + push 1
+// SIZE-NEXT: + push 96
+// SIZE-NEXT: + shl
+// SIZE-NEXT: + push 0xffffffff
+// SIZE-NEXT: + push 192
+// SIZE-NEXT: + shl
+// SIZE-NEXT: + sub
+// SIZE-NEXT: + not
+// A perfect square, `DUP1 MUL` of its root
+// CHECK: + push 0x123456789abcdef0123456789abcdef1
+// CHECK-NEXT: + dup 1
+// CHECK-NEXT: + mul
+// Powers of ten through `EXP`, which only size builds and cold blocks afford: `1e18`
+// GAS: {{^ +}}push 0xde0b6b3a7640000
+// SIZE: + push 18
+// SIZE-NEXT: + push 10
+// SIZE-NEXT: + exp
+// `12345e27`
+// GAS: {{^ +}}push 0x9bd0d8a976ad77f90fa8000000
+// SIZE: + push 0x3039
+// SIZE-NEXT: + push 27
+// SIZE-NEXT: + push 10
+// SIZE-NEXT: + exp
+// SIZE-NEXT: + mul
+// Doubling a repeated half, twice, in a size build
+// GAS: {{^ +}}push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+// SIZE: + push 0x123456789abcdef
+// SIZE-NEXT: + dup 1
+// SIZE-NEXT: + push 64
+// SIZE-NEXT: + shl
+// SIZE-NEXT: + or
+// SIZE-NEXT: + dup 1
+// SIZE-NEXT: + push 128
+// SIZE-NEXT: + shl
+// SIZE-NEXT: + or
+// A cold block prices its code like a size build, whatever the objective.
+// COLD-LABEL: {{^[ +].*}}bb1 [cold]:
+// COLD: + push 0x461bcd
+// COLD-NEXT: + push 229
+// COLD-NEXT: + shl
+// COLD: + push 42
+// COLD-NEXT: + not
+// COLD-NEXT: + push 57
+// COLD-NEXT: + shl
+// COLD: + push 0x1000003cc
+// COLD-NEXT: + not
+// COLD-NEXT: + push 2
+// COLD-NEXT: + shr
+// COLD: + push 0x2710
+// COLD-NEXT: + push 0
+// COLD-NEXT: + not
+// COLD-NEXT: + div
+// COLD: + push 18
+// COLD-NEXT: + push 10
+// COLD-NEXT: + exp
+// COLD-NEXT: + push 0
+// COLD-NEXT: + not
+// COLD-NEXT: + div
+// COLD: + push 0x15180
+// COLD-NEXT: + push 0
+// COLD-NEXT: + not
+// COLD-NEXT: + div
+// COLD: + push 0x1234
+// COLD-NEXT: + push 0xffff
+// COLD-NEXT: + push 0
+// COLD-NEXT: + not
+// COLD-NEXT: + div
+// COLD-NEXT: + mul
+// COLD: + push 0
+// COLD-NEXT: + not
+// COLD-NEXT: + push 160
+// COLD-NEXT: + shl
+// COLD-NEXT: + push 255
+// COLD-NEXT: + or
+// COLD: + push 0xedcba987ffffffff
+// COLD-NEXT: + push 192
+// COLD-NEXT: + shl
+// COLD-NEXT: + not
+// COLD: + push 1
+// COLD-NEXT: + push 96
+// COLD-NEXT: + shl
+// COLD-NEXT: + push 0xffffffff
+// COLD-NEXT: + push 192
+// COLD-NEXT: + shl
+// COLD-NEXT: + sub
+// COLD-NEXT: + not
+// COLD: + push 0x123456789abcdef0123456789abcdef1
+// COLD-NEXT: + dup 1
+// COLD-NEXT: + mul
+// COLD: + push 18
+// COLD-NEXT: + push 10
+// COLD-NEXT: + exp
+// COLD: + push 0x3039
+// COLD-NEXT: + push 27
+// COLD-NEXT: + push 10
+// COLD-NEXT: + exp
+// COLD-NEXT: + mul
+// COLD: + push 0x123456789abcdef
+// COLD-NEXT: + dup 1
+// COLD-NEXT: + push 64
+// COLD-NEXT: + shl
+// COLD-NEXT: + or
+// COLD-NEXT: + dup 1
+// COLD-NEXT: + push 128
+// COLD-NEXT: + shl
+// COLD-NEXT: + or
+bb0:
+  push 0x8c379a000000000000000000000000000000000000000000000000000000000
+  pop
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffaa00000000000000
+  pop
+  push 0x3fffffffffffffffffffffffffffffffffffffffffffffffffffffffbfffff0c
+  pop
+  push 0x68db8bac710cb295e9e1b089a027525460aa64c2f837b4a2339c0ebedfa43
+  pop
+  push 0x12725dd1d243aba0e75fe645cc4873f9e65afe688c928e1f21
+  pop
+  push 0xc22e450672894ab6cd8efb11d33f5617839a5bc7dea00c22e450672894ab
+  pop
+  push 0x1234123412341234123412341234123412341234123412341234123412341234
+  pop
+  push 0xffffffffffffffffffffffff00000000000000000000000000000000000000ff
+  pop
+  push 0x1234567800000000ffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  push 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+  pop
+  push 0x14b66dc33f6acdca878d6495a927ab9717824ef4ebaacbcca4ab582281edee1
+  pop
+  push 0xde0b6b3a7640000
+  pop
+  push 0x9bd0d8a976ad77f90fa8000000
+  pop
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  pop
+  jump bb1
+bb1 [cold]:
+  push 0x8c379a000000000000000000000000000000000000000000000000000000000
+  pop
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffaa00000000000000
+  pop
+  push 0x3fffffffffffffffffffffffffffffffffffffffffffffffffffffffbfffff0c
+  pop
+  push 0x68db8bac710cb295e9e1b089a027525460aa64c2f837b4a2339c0ebedfa43
+  pop
+  push 0x12725dd1d243aba0e75fe645cc4873f9e65afe688c928e1f21
+  pop
+  push 0xc22e450672894ab6cd8efb11d33f5617839a5bc7dea00c22e450672894ab
+  pop
+  push 0x1234123412341234123412341234123412341234123412341234123412341234
+  pop
+  push 0xffffffffffffffffffffffff00000000000000000000000000000000000000ff
+  pop
+  push 0x1234567800000000ffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  push 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+  pop
+  push 0x14b66dc33f6acdca878d6495a927ab9717824ef4ebaacbcca4ab582281edee1
+  pop
+  push 0xde0b6b3a7640000
+  pop
+  push 0x9bd0d8a976ad77f90fa8000000
+  pop
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  pop
+  stop
