@@ -141,9 +141,9 @@ bb19 [loop]:
   eq
   push bb72
   jumpi
-  push 0xffffffffffffffff
-  dup 2
-  gt
+  dup 1
+  push 64
+  shr
   push bb69
   jumpi
   push 31

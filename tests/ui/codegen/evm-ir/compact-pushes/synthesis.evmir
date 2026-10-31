@@ -5,15 +5,19 @@
 //@[size] filecheck: --check-prefixes=CHECK,SIZE,COLD
 @module Synthesis
 
-// The target synthesizes an immediate from smaller ones by inverse rules and takes the program
-// it ranks best: bytes first in size builds and cold blocks, bytes against gas in gas builds.
-// One word per tactic.
+// Code priced for size, a size build or a cold block, synthesizes an immediate from smaller ones by
+// inverse rules and takes the program with the fewest bytes. A gas build outside cold blocks keeps
+// the fixed recipes of `NOT`, trailing zero bytes and masks, and the literal for the rest.
+// One word per rule.
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // SHL by the trailing zero bits: Error(string)'s selector, `0x08c379a0 << 224`, is a `PUSH3` shifted by 229
-// CHECK: + push 0x461bcd
-// CHECK-NEXT: + push 229
-// CHECK-NEXT: + shl
-// SHL of a child with the discarded high bits set to ones, so that it inverts to a small word: `(!0x2a) << 57`; a gas build keeps the shorter-running `NOT`
+// GAS: + push 0x8c379a0
+// GAS-NEXT: + push 224
+// GAS-NEXT: + shl
+// SIZE: + push 0x461bcd
+// SIZE-NEXT: + push 229
+// SIZE-NEXT: + shl
+// SHL of a child with the discarded high bits set to ones, so that it inverts to a small word: `(!0x2a) << 57`
 // GAS: + push 0x55ffffffffffffff
 // GAS-NEXT: + not
 // SIZE: + push 42
@@ -21,20 +25,19 @@
 // SIZE-NEXT: + push 57
 // SIZE-NEXT: + shl
 // SHR of an inverted child: `(!0x1000003cc) >> 2`
-// CHECK: + push 0x1000003cc
-// CHECK-NEXT: + not
-// CHECK-NEXT: + push 2
-// CHECK-NEXT: + shr
+// GAS: {{^ +}}push 0x3fffffffffffffffffffffffffffffffffffffffffffffffffffffffbfffff0c
+// SIZE: + push 0x1000003cc
+// SIZE-NEXT: + not
+// SIZE-NEXT: + push 2
+// SIZE-NEXT: + shr
 // DIV of the all-ones word, floor and not only exact: `MAX / 10000`
-// CHECK: + push 0x2710
-// CHECK-NEXT: + push 0
-// CHECK-NEXT: + not
-// CHECK-NEXT: + div
+// GAS: {{^ +}}push 0x68db8bac710cb295e9e1b089a027525460aa64c2f837b4a2339c0ebedfa43
+// SIZE: + push 0x2710
+// SIZE-NEXT: + push 0
+// SIZE-NEXT: + not
+// SIZE-NEXT: + div
 // `MAX / 1e18`, whose divisor is a power of ten that a size build raises with `EXP`
-// GAS: + push 0xde0b6b3a7640000
-// GAS-NEXT: + push 0
-// GAS-NEXT: + not
-// GAS-NEXT: + div
+// GAS: {{^ +}}push 0x12725dd1d243aba0e75fe645cc4873f9e65afe688c928e1f21
 // SIZE: + push 18
 // SIZE-NEXT: + push 10
 // SIZE-NEXT: + exp
@@ -42,30 +45,40 @@
 // SIZE-NEXT: + not
 // SIZE-NEXT: + div
 // `MAX / 86400`
-// CHECK: + push 0x15180
-// CHECK-NEXT: + push 0
-// CHECK-NEXT: + not
-// CHECK-NEXT: + div
+// GAS: {{^ +}}push 0xc22e450672894ab6cd8efb11d33f5617839a5bc7dea00c22e450672894ab
+// SIZE: + push 0x15180
+// SIZE-NEXT: + push 0
+// SIZE-NEXT: + not
+// SIZE-NEXT: + div
 // MUL of a repunit: `0x1234` repeated, from `MAX / 0xffff`
-// CHECK: + push 0x1234
-// CHECK-NEXT: + push 0xffff
-// CHECK-NEXT: + push 0
-// CHECK-NEXT: + not
-// CHECK-NEXT: + div
-// CHECK-NEXT: + mul
+// GAS: {{^ +}}push 0x1234123412341234123412341234123412341234123412341234123412341234
+// SIZE: + push 0x1234
+// SIZE-NEXT: + push 0xffff
+// SIZE-NEXT: + push 0
+// SIZE-NEXT: + not
+// SIZE-NEXT: + div
+// SIZE-NEXT: + mul
 // An OR split at the top of the internal run of zero bytes
-// CHECK: + push 0
-// CHECK-NEXT: + not
-// CHECK-NEXT: + push 160
-// CHECK-NEXT: + shl
-// CHECK-NEXT: + push 255
-// CHECK-NEXT: + or
+// GAS: + push 0
+// GAS-NEXT: + not
+// GAS-NEXT: + push 104
+// GAS-NEXT: + shr
+// GAS-NEXT: + push 8
+// GAS-NEXT: + shl
+// GAS-NEXT: + not
+// SIZE: + push 0
+// SIZE-NEXT: + not
+// SIZE-NEXT: + push 160
+// SIZE-NEXT: + shl
+// SIZE-NEXT: + push 255
+// SIZE-NEXT: + or
 // `NOT` of a shifted word: `0x12345678 << 192` with ones below
-// CHECK: + push 0xedcba987ffffffff
-// CHECK-NEXT: + push 192
-// CHECK-NEXT: + shl
-// CHECK-NEXT: + not
-// The P-256 prime: a shifted and inverted `PUSH16` for gas, a `SUB` split in size builds
+// GAS: {{^ +}}push 0x1234567800000000ffffffffffffffffffffffffffffffffffffffffffffffff
+// SIZE: + push 0xedcba987ffffffff
+// SIZE-NEXT: + push 192
+// SIZE-NEXT: + shl
+// SIZE-NEXT: + not
+// The P-256 prime: a `SUB` split
 // GAS: + push 0xfffffffeffffffffffffffffffffffff
 // GAS-NEXT: + push 96
 // GAS-NEXT: + shl
@@ -79,9 +92,10 @@
 // SIZE-NEXT: + sub
 // SIZE-NEXT: + not
 // A perfect square, `DUP1 MUL` of its root
-// CHECK: + push 0x123456789abcdef0123456789abcdef1
-// CHECK-NEXT: + dup 1
-// CHECK-NEXT: + mul
+// GAS: {{^ +}}push 0x14b66dc33f6acdca878d6495a927ab9717824ef4ebaacbcca4ab582281edee1
+// SIZE: + push 0x123456789abcdef0123456789abcdef1
+// SIZE-NEXT: + dup 1
+// SIZE-NEXT: + mul
 // Powers of ten through `EXP`, which only size builds and cold blocks afford: `1e18`
 // GAS: {{^ +}}push 0xde0b6b3a7640000
 // SIZE: + push 18

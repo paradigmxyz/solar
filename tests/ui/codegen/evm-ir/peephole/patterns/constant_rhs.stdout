@@ -315,4 +315,14 @@
     push 0
     mstore
     stop
+  bb40:
+    calldatasize
+    push 0x10000000001
+    swap 1
+    pop
+    push 0
+    calldataload
+    lt
+    iszero
+    stop
   

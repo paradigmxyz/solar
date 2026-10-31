@@ -3,59 +3,34 @@
   @module Synthesis
   bb0:
 -   push 0x8c379a000000000000000000000000000000000000000000000000000000000
-+   push 0x461bcd
-+   push 229
++   push 0x8c379a0
++   push 224
 +   shl
     pop
 -   push 0xffffffffffffffffffffffffffffffffffffffffffffffffaa00000000000000
 +   push 0x55ffffffffffffff
 +   not
     pop
--   push 0x3fffffffffffffffffffffffffffffffffffffffffffffffffffffffbfffff0c
-+   push 0x1000003cc
-+   not
-+   push 2
-+   shr
+    push 0x3fffffffffffffffffffffffffffffffffffffffffffffffffffffffbfffff0c
     pop
--   push 0x68db8bac710cb295e9e1b089a027525460aa64c2f837b4a2339c0ebedfa43
-+   push 0x2710
-+   push 0
-+   not
-+   div
+    push 0x68db8bac710cb295e9e1b089a027525460aa64c2f837b4a2339c0ebedfa43
     pop
--   push 0x12725dd1d243aba0e75fe645cc4873f9e65afe688c928e1f21
-+   push 0xde0b6b3a7640000
-+   push 0
-+   not
-+   div
+    push 0x12725dd1d243aba0e75fe645cc4873f9e65afe688c928e1f21
     pop
--   push 0xc22e450672894ab6cd8efb11d33f5617839a5bc7dea00c22e450672894ab
-+   push 0x15180
-+   push 0
-+   not
-+   div
+    push 0xc22e450672894ab6cd8efb11d33f5617839a5bc7dea00c22e450672894ab
     pop
--   push 0x1234123412341234123412341234123412341234123412341234123412341234
-+   push 0x1234
-+   push 0xffff
-+   push 0
-+   not
-+   div
-+   mul
+    push 0x1234123412341234123412341234123412341234123412341234123412341234
     pop
 -   push 0xffffffffffffffffffffffff00000000000000000000000000000000000000ff
 +   push 0
 +   not
-+   push 160
-+   shl
-+   push 255
-+   or
-    pop
--   push 0x1234567800000000ffffffffffffffffffffffffffffffffffffffffffffffff
-+   push 0xedcba987ffffffff
-+   push 192
++   push 104
++   shr
++   push 8
 +   shl
 +   not
+    pop
+    push 0x1234567800000000ffffffffffffffffffffffffffffffffffffffffffffffff
     pop
 -   push 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
 +   push 0xfffffffeffffffffffffffffffffffff
@@ -63,10 +38,7 @@
 +   shl
 +   not
     pop
--   push 0x14b66dc33f6acdca878d6495a927ab9717824ef4ebaacbcca4ab582281edee1
-+   push 0x123456789abcdef0123456789abcdef1
-+   dup 1
-+   mul
+    push 0x14b66dc33f6acdca878d6495a927ab9717824ef4ebaacbcca4ab582281edee1
     pop
     push 0xde0b6b3a7640000
     pop

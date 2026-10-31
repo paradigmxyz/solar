@@ -13,7 +13,7 @@
 // CHECK-LABEL: fn @_lastIndices(
 // CHECK: jump [[HEADER:bb[0-9]+]]
 // CHECK-NEXT: [[HEADER]]:
-// CHECK: lt {{v[0-9]+}}, 0x10000000000000000
+// CHECK: shr {{v[0-9]+}}, 64
 // CHECK: jumpi {{v[0-9]+}}, [[FAST:bb[0-9]+]], [[HEADER]]
 // CHECK: [[FAST]]:
 // CHECK: jump [[CLONE:bb[0-9]+]]

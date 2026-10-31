@@ -1,8 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mapping_dynamic_literal.sol:MappingDynamicLiteral ===
 @module MappingDynamicLiteral
-@data
-  literal_0: hex"61206c69746572616c206b6579206c6f6e676572207468616e207468697274792d74776f2062797465732c2068617368656420696e2066756c6c000000000000"
-
 fn @constructor() [constructor] {
   bb0:
     store_storage_bytes_literal 0, hex"616263"
@@ -12,9 +9,11 @@ fn @constructor() [constructor] {
     v2 = alloc 96 !metadata(preserves_fmp)
     mstore v2, 58
     v3 = ptradd v2, 32
-    datacopy literal_0, v3, 64
-    v4 = mapping_slot_bytes v2, 1
-    sstore v4, 11 !metadata(storage=symbolic(v4))
+    mstore v3, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
+    v4 = ptradd v2, 64
+    mstore v4, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
+    v5 = mapping_slot_bytes v2, 1
+    sstore v5, 11 !metadata(storage=symbolic(v5))
     ret
 }
 
@@ -75,10 +74,12 @@ fn @readLongLiteral() -> i256 [selector=0xcf0dbab7, view, abi_params=[], abi_ret
     v0 = alloc 96 !metadata(preserves_fmp)
     mstore v0, 58
     v1 = ptradd v0, 32
-    datacopy literal_0, v1, 64
-    v2 = mapping_slot_bytes v0, 1
-    v3 = sload v2 !metadata(storage=symbolic(v2))
-    ret v3
+    mstore v1, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
+    v2 = ptradd v0, 64
+    mstore v2, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
+    v3 = mapping_slot_bytes v0, 1
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v4
 }
 
 fn @register(arg0: ptr<memory>) -> i1 [selector=0xf2c298be, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {

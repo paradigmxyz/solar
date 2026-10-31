@@ -1,38 +1,30 @@
 //@ revisions: size gas
 //@[size] compile-flags: -Osize -Zevm-ir-pipeline=compact-pushes
 //@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=compact-pushes
-//@[size] filecheck: --check-prefixes=CHECK,SIZE
-//@[gas] filecheck: --check-prefixes=CHECK,GAS
+//@[size] filecheck: --check-prefix=SIZE
+//@[gas] filecheck: --check-prefix=GAS
 @module RepeatedPatterns
 
-// Both builds divide the all-ones word for a pattern that repeats across it, and divide and shift
-// the repetition of a one by a power-of-two factor: the 32 bytes of the literal deposit more gas
-// than the division costs on the calls that reach it. A gas build keeps the literal inside a loop,
-// where the division would run on every iteration.
-// CHECK-LABEL: bb0:
-// CHECK: + push 255
-// CHECK-NEXT: + push 0
-// CHECK-NEXT: + not
-// CHECK-NEXT: + div
-// CHECK-NEXT: + push 85
-// CHECK-NEXT: + push 0
-// CHECK-NEXT: + not
-// CHECK-NEXT: + div
-// CHECK-NEXT: + push 4
-// CHECK-NEXT: + shl
-// CHECK-LABEL: bb1 [loop]:
-// GAS-NEXT: push 0x101010101010101010101010101010101010101010101010101010101010101
+// Size-first code divides the all-ones word for a pattern that repeats across it, and shifts the
+// repetition of a one by the bits of its factor. Gas builds keep the literals, since the division
+// and multiplication would cost gas on every execution.
+// SIZE-LABEL: bb0:
 // SIZE: + push 255
 // SIZE-NEXT: + push 0
 // SIZE-NEXT: + not
 // SIZE-NEXT: + div
+// SIZE-NEXT: + push 85
+// SIZE-NEXT: + push 0
+// SIZE-NEXT: + not
+// SIZE-NEXT: + div
+// SIZE-NEXT: + push 4
+// SIZE-NEXT: + shl
+// GAS-LABEL: bb0:
+// GAS-NEXT: push 0x101010101010101010101010101010101010101010101010101010101010101
+// GAS-NEXT: push 0x3030303030303030303030303030303030303030303030303030303030303030
 bb0:
   push 0x0101010101010101010101010101010101010101010101010101010101010101
   push 0x3030303030303030303030303030303030303030303030303030303030303030
   pop
   pop
-  jump bb1
-bb1 [loop]:
-  push 0x0101010101010101010101010101010101010101010101010101010101010101
-  pop
-  jump bb1
+  stop

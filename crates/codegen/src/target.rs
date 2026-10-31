@@ -465,8 +465,11 @@ impl Target {
         self.opcode(op::PUSH2)
     }
 
-    /// Cost of pushing `value` through the program the push selector emits for this target
-    /// outside a loop, [`Self::cmp_immediate`] choosing among the programs that build it.
+    /// Cost of pushing `value`, outside a loop. Under a size objective, including cold code
+    /// priced by [`Self::priced_for_cold`], it is the program the push selector emits, chosen by
+    /// [`Self::cmp_immediate`] among the programs that build the value. Otherwise it is the fixed
+    /// recipe of fewest bytes, whatever the tune, which the selector may keep as a literal where
+    /// the recipe's gas does not repay its bytes.
     pub(crate) fn push(&self, value: U256) -> Cost {
         compact_pushes::push_cost(self, value)
     }
@@ -1537,22 +1540,15 @@ mod tests {
     }
 
     #[test]
-    fn push_follows_the_objective_of_each_tune() {
+    fn every_tune_selects_the_fewest_bytes() {
         let address_mask = (U256::ONE << 160) - U256::ONE;
         for tune in [Tune::None, Tune::Interpreter, Tune::Jit] {
             for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
                 let target = Target::with(EvmVersion::Osaka, optimization, 200).tuned(tune);
+                // `PUSH0; NOT; PUSH1 0x60; SHR` against `PUSH20 0xff..ff`.
+                assert_eq!(target.push(address_mask), Cost::new(11, 5).with_steps(4));
                 // `PUSH0; NOT`.
                 assert_eq!(target.push(U256::MAX), Cost::new(5, 2).with_steps(2));
-                // `PUSH0; NOT; PUSH1 0x60; SHR` against `PUSH20 0xff..ff`: an interpreter pays
-                // for the dispatch of the three extra instructions on every call, 20 gas more
-                // than the 16 bytes deposit.
-                let expected = if optimization.is_gas() && tune == Tune::Interpreter {
-                    Cost::new(3, 21).with_steps(1)
-                } else {
-                    Cost::new(11, 5).with_steps(4)
-                };
-                assert_eq!(target.push(address_mask), expected, "{tune:?} {optimization:?}");
             }
         }
     }

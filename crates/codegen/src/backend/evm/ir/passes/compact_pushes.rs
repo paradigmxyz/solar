@@ -1,9 +1,16 @@
 //! Target-dependent synthesis of immediates.
 //!
-//! A literal `PUSHn` is not always the cheapest way to construct a 256-bit constant. For each
-//! concrete immediate this pass searches the programs that compute it from smaller constants by
-//! inverse rules, and emits the one the [`Target`] prefers, [`Target::cmp_immediate`]. The literal
-//! is the first candidate and wins ties, so the pass never emits what the target ranks worse.
+//! A literal `PUSHn` is not always the cheapest way to construct a 256-bit constant. Code that is
+//! priced for size, a size build or a cold block priced by [`Target::priced_for_cold`], searches
+//! the programs that compute each concrete immediate from smaller constants by inverse rules, and
+//! emits the one the [`Target`] prefers, [`Target::cmp_immediate`]. The literal is the first
+//! candidate and wins ties, so the pass never emits what the target ranks worse.
+//!
+//! Other code, gas builds and `-O none` outside cold blocks, keeps a fixed set of recipes: `NOT`
+//! of a narrower inverse, a shift of a value with trailing zero bytes, and a mask `MAX << s` or
+//! `MAX >> s`. It takes the recipe of fewest bytes and keeps the literal where the recipe's extra
+//! gas outweighs the deposit of the bytes it saves, as [`Target::cmp_immediate`] weighs it. Every
+//! other rule below trades gas for bytes on each execution, which hot code does not pay for.
 //!
 //! The search is recursive: a rule rewrites the value `v` into one or two child values, which are
 //! synthesized in turn, up to [`MAX_DEPTH`] rules deep. The rules, in terms of the program for `v`:
@@ -29,15 +36,15 @@
 //! shorter than the value, or are a reciprocal `MAX / d`, so constants with no structure cost one
 //! pass over the rules. Each thread memoizes the programs it finds.
 //!
-//! The target's objective picks between programs by one linear key: size builds, and cold blocks
-//! priced like them by [`Target::priced_for_cold`], rank bytes and then gas; gas builds add the
-//! deposit of a program's bytes to its gas over the expected executions, and over the iterations
-//! of a loop for a push inside one, so a loop does not rebuild a constant on every iteration. A
-//! sum of such keys is the key of the sum, so each value needs one best program, whatever the
-//! rule that builds its parent. At `-O none`, a block also counts as in a loop when its function
-//! is called from a loop or by recursion. `Target::push` uses the same selector, so other EVM IR
-//! passes can compare a prospective rewrite with the bytes, static gas, and instructions that
-//! this pass will emit.
+//! The target ranks programs with one linear key: bytes and then gas under a size objective; the
+//! deposit of a program's bytes plus its gas over the expected executions, and over the
+//! iterations of a loop for a push inside one, under a gas objective, so a loop does not rebuild a
+//! constant on every iteration. A sum of such keys is the key of the sum, so each value needs one
+//! best program, whatever the rule that builds its parent. At `-O none`, a block also counts as in
+//! a loop when its function is called from a loop or by recursion. `Target::push` prices a
+//! constant as this pass emits it where the target is priced for size, and as the fewest-bytes
+//! recipe elsewhere, so other EVM IR passes compare a prospective rewrite with the bytes, static
+//! gas, and instructions of the code they would see.
 //!
 //! Programs are expanded once, with their children, so one pass reaches a fixed point. The
 //! default pipeline expands them before structural cleanup because tail merging and outlining
@@ -56,13 +63,13 @@ use crate::{
     backend::evm::{
         codegen::MAX_STACK_DEPTH,
         ir::{Instruction, Metadata, Module, verify::Verifier},
-        op,
+        op::{self, WORD_BYTES},
     },
     target::{Cost, Target},
 };
 use alloy_primitives::U256;
 use smallvec::{SmallVec, smallvec};
-use solar_config::{EvmVersion, OptimizationMode};
+use solar_config::EvmVersion;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::Gcx;
 use std::{cell::RefCell, rc::Rc};
@@ -183,30 +190,43 @@ pub(in crate::backend) enum ImmediateMaterializationOp {
     Opcode(u8),
 }
 
-/// The program the target prefers for one concrete immediate.
+/// The program selected for one concrete immediate.
 pub(in crate::backend) struct ImmediateMaterialization {
     program: Rc<Program>,
 }
 
 impl ImmediateMaterialization {
-    /// Returns the materialization selected for `value` on `evm_version` under the default
-    /// model, outside a loop. Prefer [`Self::select`] when the caller has a [`Target`].
+    /// Returns the fixed recipe of fewest bytes for `value` on `evm_version`: the estimate for
+    /// code that is not priced for size. Prefer [`Self::select`] when the caller has a [`Target`].
     pub(in crate::backend) fn new(evm_version: EvmVersion, value: U256) -> Self {
-        Self::select(&default_model(evm_version), value, false)
+        Self { program: Rc::new(recipe(evm_version, value)) }
     }
 
-    /// Returns the materialization `target` prefers for `value`, inside a loop or not.
+    /// Returns the materialization for `value` that `target` prices: the searched program of a
+    /// size-priced target, the fixed recipe otherwise.
     pub(in crate::backend) fn select(target: &Target, value: U256, in_loop: bool) -> Self {
-        Self { program: synthesize(target, value, in_loop) }
+        if target.optimization().is_size() {
+            Self { program: synthesize(target, value, in_loop) }
+        } else {
+            Self::new(target.evm_version(), value)
+        }
     }
 
     /// Returns the materialization of `value` that beats its literal push, if any.
     fn compact(target: &Target, value: U256, in_loop: bool) -> Option<Self> {
-        if push_width(target.evm_version(), value) < MIN_COMPACT_MASK_WIDTH {
+        let evm_version = target.evm_version();
+        if push_width(evm_version, value) < MIN_COMPACT_MASK_WIDTH {
             return None;
         }
-        let program = synthesize(target, value, in_loop);
-        (!program.is_literal()).then_some(Self { program })
+        let materialization = Self::select(target, value, in_loop);
+        let program = &materialization.program;
+        // A searched program already ranks against the literal; a recipe has to repay its gas.
+        (!program.is_literal()
+            && (target.optimization().is_size()
+                || target
+                    .cmp_immediate(program.cost, literal_push(evm_version, value), in_loop)
+                    .is_lt()))
+        .then_some(materialization)
     }
 
     /// Returns the materialization's maximum relative stack height.
@@ -234,12 +254,7 @@ impl ImmediateMaterialization {
     }
 }
 
-/// The model that evm-version-only callers select under: a gas build at the default runs.
-const fn default_model(evm_version: EvmVersion) -> Target {
-    Target::with(evm_version, OptimizationMode::Gas, Target::DEFAULT_EXPECTED_EXECUTIONS)
-}
-
-/// Materializes `value` as `target` prefers it outside a loop.
+/// Materializes `value` as `target` prices it outside a loop.
 pub(super) fn materialize_immediate(
     instructions: &mut Vec<Instruction>,
     target: &Target,
@@ -267,12 +282,17 @@ fn materialize(
     });
 }
 
-/// Returns the cost of pushing `value` as `target` prefers it outside a loop.
+/// Returns the cost of pushing `value` as `target` prices it outside a loop: the searched program
+/// of a size-priced target, the fixed recipe of fewest bytes otherwise.
 pub(crate) fn push_cost(target: &Target, value: U256) -> Cost {
-    if push_width(target.evm_version(), value) < MIN_COMPACT_MASK_WIDTH {
-        return literal_push(target.evm_version(), value);
+    let evm_version = target.evm_version();
+    if push_width(evm_version, value) < MIN_COMPACT_MASK_WIDTH {
+        literal_push(evm_version, value)
+    } else if target.optimization().is_size() {
+        synthesize(target, value, false).cost
+    } else {
+        recipe(evm_version, value).cost
     }
-    synthesize(target, value, false).cost
 }
 
 /// Returns the cost of pushing `value` as one literal `PUSHn`.
@@ -280,12 +300,12 @@ pub(crate) fn literal_push(evm_version: EvmVersion, value: U256) -> Cost {
     literal_cost(push_width(evm_version, value))
 }
 
-/// Returns the byte length and gas cost of the materialization selected under the default model.
+/// Returns the byte length and gas cost of the fixed recipe of fewest bytes.
 pub(crate) fn immediate_materialization_cost(
     evm_version: EvmVersion,
     value: U256,
 ) -> (usize, usize) {
-    let cost = push_cost(&default_model(evm_version), value);
+    let cost = recipe(evm_version, value).cost;
     (cost.bytes as usize, cost.gas as usize)
 }
 
@@ -293,7 +313,69 @@ pub(in crate::backend) fn immediate_materialization_len(
     evm_version: EvmVersion,
     value: U256,
 ) -> usize {
-    push_cost(&default_model(evm_version), value).bytes as usize
+    recipe(evm_version, value).cost.bytes as usize
+}
+
+/// The fixed recipe of fewest bytes for `value`, or its literal push on a tie: `NOT` of a
+/// narrower inverse, a shift of a value with trailing zero bytes, and a mask `MAX << s` or
+/// `MAX >> s`, with shifts only where the EVM version has them.
+fn recipe(evm_version: EvmVersion, value: U256) -> Program {
+    let width = push_width(evm_version, value);
+    let literal = Program::literal(evm_version, value);
+    // A literal of up to four bytes beats every recipe in bytes and gas.
+    if width < MIN_COMPACT_MASK_WIDTH {
+        return literal;
+    }
+    let shifts = evm_version.has_bitwise_shifting();
+    let mut best = literal;
+    let mut consider = |steps: &[RecipeStep]| {
+        let mut program = Program { cost: Cost::ZERO, ops: SmallVec::new() };
+        for &step in steps {
+            match step {
+                RecipeStep::Immediate(word) => program.extend(&recipe(evm_version, word)),
+                RecipeStep::Opcode(opcode) => {
+                    program.push_opcode(opcode, Cost::fixed_opcode(opcode));
+                }
+            }
+        }
+        if program.cost.bytes < best.cost.bytes {
+            best = program;
+        }
+    };
+    let (zero, immediate) = (RecipeStep::Immediate(U256::ZERO), RecipeStep::Immediate);
+    let [not, shr, shl] = [op::NOT, op::SHR, op::SHL].map(RecipeStep::Opcode);
+
+    if value == U256::MAX {
+        consider(&[zero, not]);
+    }
+    let shift = value.leading_zeros();
+    if shifts && value == U256::MAX >> shift {
+        consider(&[zero, not, immediate(U256::from(shift)), shr]);
+    }
+    if usize::from(width) == WORD_BYTES {
+        let inverted = !value;
+        if push_width(evm_version, inverted) < width {
+            consider(&[immediate(inverted), not]);
+        }
+    }
+    let shift = value.trailing_zeros() / 8 * 8;
+    if shifts && shift > 0 {
+        consider(&[immediate(value >> shift), immediate(U256::from(shift)), shl]);
+    }
+    // `MAX << s` for any `s`. Considered last so a tie keeps the cheaper recipes above.
+    let shift = value.trailing_zeros();
+    if shifts && value == U256::MAX << shift {
+        consider(&[zero, not, immediate(U256::from(shift)), shl]);
+    }
+    best
+}
+
+/// One step of a fixed recipe.
+#[derive(Clone, Copy)]
+enum RecipeStep {
+    /// A value pushed by its own recipe.
+    Immediate(U256),
+    Opcode(u8),
 }
 
 /// A sequence of instructions that leaves one value on the stack, with its cost.
@@ -674,7 +756,7 @@ mod tests {
         (stack[0], cost)
     }
 
-    /// `Target::push` prices the instructions the selector emits, and they compute the value.
+    /// `Target::push` prices the instructions the selector selects, and they compute the value.
     #[test]
     fn selected_cost_matches_emitted_instructions() {
         let mut values = vec![U256::ZERO, U256::ONE, U256::MAX, U256::from(0x1234_5678_9abc_u64)];
@@ -723,6 +805,7 @@ mod tests {
         ];
         for target in targets {
             for &value in &values {
+                // Outside size-priced code, `Target::push` estimates the fewest-bytes recipe.
                 let materialization = ImmediateMaterialization::select(&target, value, false);
                 let (computed, emitted) = run(&target, &materialization);
                 assert_eq!(computed, value, "{value} on {target:?}");

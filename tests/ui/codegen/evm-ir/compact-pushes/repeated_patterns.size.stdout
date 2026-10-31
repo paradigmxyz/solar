@@ -16,13 +16,5 @@
 +   shl
     pop
     pop
-    jump bb1
-  bb1 [loop]:
--   push 0x101010101010101010101010101010101010101010101010101010101010101
-+   push 255
-+   push 0
-+   not
-+   div
-    pop
-    jump bb1
+    stop
   

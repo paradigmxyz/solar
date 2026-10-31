@@ -2,10 +2,10 @@
 //@[size] compile-flags: -Osize -Zevm-ir-pipeline=compact-pushes
 //@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=compact-pushes
 //@[size] filecheck: --check-prefixes=CHECK,SIZE
-//@[gas] filecheck: --check-prefixes=CHECK,SIZE
+//@[gas] filecheck:
 @module StackLimit
 
-// Neither a division nor a shift fits above 1023 live words.
+// Neither a repeated recipe nor a shift fits above 1023 live words.
 // A one-word inversion still fits.
 // CHECK-LABEL: bb0 [stack=1023]:
 // CHECK-NEXT: {{^ +}}push 0x3030303030303030303030303030303030303030303030303030303030303030

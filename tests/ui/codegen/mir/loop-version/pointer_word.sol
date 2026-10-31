@@ -8,7 +8,7 @@
 // pointer. The versioning test reads it once, still as a pointer, so the
 // copy's element addresses built from it keep their type.
 // CHECK-LABEL: fn @_lastIndicesIn(
-// CHECK: lt {{v[0-9]+}}, 0x10000000000000000
+// CHECK: shr {{v[0-9]+}}, 64
 // CHECK: jumpi {{v[0-9]+}}, [[FAST:bb[0-9]+]], [[SLOW:bb[0-9]+]]
 // CHECK: [[FAST]]:
 // CHECK: jump [[CLONE:bb[0-9]+]]

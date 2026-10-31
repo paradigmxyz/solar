@@ -31,9 +31,6 @@ fn @get(arg0: ptr<memory>) -> i160 [selector=0x693ec85e, view, abi_params=[bytes
 
 // === ROOT/tests/ui/codegen/lowering/mapping_dynamic_key.sol:MappingDynamicKeyPaths ===
 @module MappingDynamicKeyPaths
-@data
-  literal_0: hex"61206c69746572616c206b6579206c6f6e676572207468616e207468697274792d74776f2062797465732c2068617368656420696e2066756c6c000000000000"
-
 fn @flat(arg0: slice<calldata>) -> i256 [selector=0x0b893d9c, view, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot_bytes arg0, 0
@@ -81,9 +78,11 @@ fn @setLitLong(arg0: i256) [selector=0x7490efc0, abi_params=[uint256], abi_retur
     v0 = alloc 96 !metadata(preserves_fmp)
     mstore v0, 58
     v1 = ptradd v0, 32
-    datacopy literal_0, v1, 64
-    v2 = mapping_slot_bytes v0, 0
-    sstore v2, arg0 !metadata(storage=symbolic(v2))
+    mstore v1, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
+    v2 = ptradd v0, 64
+    mstore v2, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
+    v3 = mapping_slot_bytes v0, 0
+    sstore v3, arg0 !metadata(storage=symbolic(v3))
     ret
 }
 

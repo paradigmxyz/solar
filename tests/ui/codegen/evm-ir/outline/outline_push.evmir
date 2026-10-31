@@ -6,7 +6,7 @@
 // CHECK: + push [[RET0:bb[0-9]+]]
 // CHECK: + jump [[OUTLINE:bb[0-9]+]]
 // CHECK: + [[OUTLINE]] {{\[ret=.*\]}}:
-// CHECK: {{^[ +].*}}push 0x9e3779b97f4a7c15f39cc0605cedc8341082276bf3a27251f86c6a11d0c18e95
+// CHECK: {{^[ +].*}}push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef1
 // CHECK: + swap 1
 // CHECK: + jump
 // CHECK: + [[RET1:bb[0-9]+]] [continuation]:
@@ -16,15 +16,15 @@
 // CHECK: + push [[RET1]]
 // CHECK: + jump [[OUTLINE]]
 bb0:
-  push 0x9e3779b97f4a7c15f39cc0605cedc8341082276bf3a27251f86c6a11d0c18e95
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef1
   pop
-  push 0x9e3779b97f4a7c15f39cc0605cedc8341082276bf3a27251f86c6a11d0c18e95
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef1
   pop
   stop
 
 bb1 [loop]:
-  push 0x9e3779b97f4a7c15f39cc0605cedc8341082276bf3a27251f86c6a11d0c18e95
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef1
   pop
-  push 0x9e3779b97f4a7c15f39cc0605cedc8341082276bf3a27251f86c6a11d0c18e95
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef1
   pop
   stop
