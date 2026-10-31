@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import hashlib
+import itertools
 import json
 import math
 import os
@@ -36,6 +37,8 @@ METRICS = {
     "compile_time_seconds": "compile seconds",
     "peak_rss_bytes": "peak RSS bytes",
 }
+# Our compiler and its variants: their failures and mismatches raise warnings.
+SOLAR_COMPILERS = ("solar", "solar-size")
 ARTIFACT_KINDS = {
     "mir": (".mir",),
     "llvm-ir": (".ll",),
@@ -740,7 +743,7 @@ def compiler_failures(results: list[dict[str, Any]]) -> list[str]:
             continue
         compilers = result.get("compilers", {})
         for compiler_id, data in compilers.items():
-            if compiler_id == "solar" and data.get("status") != "ok":
+            if compiler_id in SOLAR_COMPILERS and data.get("status") != "ok":
                 error_lines = str(data.get("error") or "").strip().splitlines()
                 error = error_lines[0] if error_lines else "compiler failed"
                 failures.append(f"{test_id} {compiler_id}: {error}")
@@ -781,19 +784,19 @@ def runtime_failed(result: dict[str, Any], compiler: str) -> bool:
 
 def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
     details = []
-    for result in results:
-        if not runtime_failed(result, "solar"):
+    for result, solar in itertools.product(results, SOLAR_COMPILERS):
+        if not runtime_failed(result, solar):
             continue
         test_id = "/".join(suite_key(result))
         before = len(details)
 
-        for mismatch in runtime_mismatches(result, "solar"):
+        for mismatch in runtime_mismatches(result, solar):
             label = mismatch.get("label", "<unknown>")
             values = mismatch.get("values") or {}
             details.append(f"{test_id} {label}: {format_values(values)}")
 
         for compiler_id, data in (result.get("compilers") or {}).items():
-            if compiler_id != "solar":
+            if compiler_id != solar:
                 continue
             for check in data.get("runtime_results") or []:
                 if check.get("status") == "ok":
@@ -803,10 +806,11 @@ def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
                 details.append(f"{test_id} {compiler_id} {label}: {shorten(error)}")
 
         if len(details) == before:
-            status = compiler_data(result, "solar").get("runtime_status")
-            details.append(f"{test_id} solar: runtime_status={status}")
+            status = compiler_data(result, solar).get("runtime_status")
+            details.append(f"{test_id} {solar}: runtime_status={status}")
 
-    return details
+    # Both of our compilers can see the same mismatch.
+    return list(dict.fromkeys(details))
 
 
 def baseline_regression_details(
@@ -1425,11 +1429,132 @@ def compiler_ids(results: list[dict[str, Any]]) -> list[str]:
     return ids
 
 
+COMPILER_ORDER = ("solar-size", "solc", "solc-legacy")
+
+
+def compiler_rank(name: str) -> int:
+    return COMPILER_ORDER.index(name) if name in COMPILER_ORDER else len(COMPILER_ORDER)
+
+
 def reference_compiler_ids(results: list[dict[str, Any]]) -> list[str]:
-    return [
-        "solc",
-        *(name for name in compiler_ids(results) if name not in ("solar", "solc")),
-    ]
+    """The compilers compared with `solar`: solar-size, solc, solc-legacy, then the rest."""
+    return sorted(
+        [
+            "solc",
+            *(name for name in compiler_ids(results) if name not in ("solar", "solc")),
+        ],
+        key=compiler_rank,
+    )
+
+
+MATRIX_METRICS = {
+    "total_gas": "runtime gas",
+    "execution_gas": "execution gas",
+    "runtime_size": "runtime bytes",
+    "deploy_gas": "creation gas",
+    "bytecode_size": "creation bytes",
+}
+
+
+def matrix_compilers(results: list[dict[str, Any]]) -> list[str]:
+    """The compilers compared with `solar`, ours first, then solc and the rest."""
+    return sorted(
+        (name for name in compiler_ids(results) if name != "solar"), key=compiler_rank
+    )
+
+
+def matrix_value(
+    result: dict[str, Any], compiler: str, metric: str, other: dict[str, Any]
+) -> int | None:
+    data = compiler_data(result, compiler)
+    if data.get("status") != "ok":
+        return None
+    # Gas of a program that failed its runtime checks says nothing about codegen.
+    if metric in ("total_gas", "execution_gas") and runtime_failed(result, compiler):
+        return None
+    if metric == "total_gas":
+        value = comparable_gas(data, other)
+    elif metric == "execution_gas":
+        value = comparable_execution_gas(data, other)
+    else:
+        value = data.get(metric)
+    return value if isinstance(value, int) and value > 0 else None
+
+
+def matrix_ratios(
+    results: list[dict[str, Any]], compiler: str, metric: str
+) -> list[float]:
+    ratios = []
+    for result in results:
+        solar, other = compiler_data(result, "solar"), compiler_data(result, compiler)
+        base = matrix_value(result, "solar", metric, other)
+        value = matrix_value(result, compiler, metric, solar)
+        if base is not None and value is not None:
+            ratios.append(value / base)
+    return ratios
+
+
+def matrix_sections(results: list[dict[str, Any]]) -> list[str]:
+    """A collapsed section holding one collapsed benchmark-by-compiler table per metric."""
+    compilers = matrix_compilers(results)
+    lines = []
+    for metric, title in MATRIX_METRICS.items() if compilers else ():
+        rows = []
+        for result in results:
+            solar = compiler_data(result, "solar")
+            base = matrix_value(result, "solar", metric, {})
+            if base is None:
+                continue
+            cells = []
+            for name in compilers:
+                other = compiler_data(result, name)
+                value = matrix_value(result, name, metric, solar)
+                paired = matrix_value(result, "solar", metric, other)
+                cells.append(
+                    f"{value:,} ({fmt_pct((value - paired) / paired * 100)})"
+                    if value is not None and paired is not None
+                    else "n/a"
+                )
+            rows.append(
+                f"| {markdown_cell(result.get('test_id', ''))} "
+                f"| {base:,} | " + " | ".join(cells) + " |"
+            )
+        if not rows:
+            continue
+        means = []
+        for name in compilers:
+            ratios = matrix_ratios(results, name, metric)
+            means.append(
+                fmt_pct(
+                    math.expm1(math.fsum(map(math.log, ratios)) / len(ratios)) * 100
+                )
+                if ratios
+                else "n/a"
+            )
+        lines.extend(
+            [
+                "",
+                "<details>",
+                f"<summary>{title}</summary>",
+                "",
+                "| bench | solar | " + " | ".join(compilers) + " |",
+                "| --- | ---: |" + " ---: |" * len(compilers),
+                *rows,
+                "| **geometric mean** | | " + " | ".join(means) + " |",
+                "",
+                "</details>",
+            ]
+        )
+    if lines:
+        lines[:0] = [
+            "",
+            "<details>",
+            "<summary>Compilers vs <code>solar</code></summary>",
+            "",
+            "Each cell is the value and its difference from `solar`; ✅ where `solar` is ahead.",
+        ]
+        lines.extend(["", "</details>"])
+    return lines
 
 
 def memory_summary_rows(results: list[dict[str, Any]]) -> list[str]:
@@ -1733,7 +1858,11 @@ def format_report(
 
 
 def pr_comment(
-    comparison: dict[str, Any], has_changes: bool, behind_base: bool, base_ref: str
+    comparison: dict[str, Any],
+    has_changes: bool,
+    behind_base: bool,
+    base_ref: str,
+    results: list[dict[str, Any]] | None = None,
 ) -> str:
     lines = ["## Codegen benchmarks", ""]
     if not comparison["rows"]:
@@ -1803,6 +1932,7 @@ def pr_comment(
         lines.extend(
             ["", f"> ⚠️ This branch is behind `{base_ref}`; results may be stale."]
         )
+    lines.extend(matrix_sections(results or []))
     button = "![View benchmark overview](https://img.shields.io/badge/View_benchmark_overview-2563eb?style=for-the-badge)"
     link = perf_link(button)
     if link == button:
@@ -1976,7 +2106,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--tests", nargs="+", help="Select test IDs from either run")
     parser.add_argument(
-        "--compiler", choices=("solar", "solc", "solx", "oksolc"), default="solar"
+        "--compiler",
+        choices=("solar", "solar-size", "solc", "solc-legacy", "solx", "oksolc"),
+        default="solar",
     )
     parser.add_argument(
         "--comment-output", type=Path, help="Write CI should-comment metadata"
@@ -2110,7 +2242,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.pr_comment_output is not None:
         args.pr_comment_output.parent.mkdir(parents=True, exist_ok=True)
         args.pr_comment_output.write_text(
-            pr_comment(comparison, should_comment, behind_base, base_ref)
+            pr_comment(comparison, should_comment, behind_base, base_ref, results)
         )
     if args.json_output is not None:
         args.json_output.parent.mkdir(parents=True, exist_ok=True)

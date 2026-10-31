@@ -215,7 +215,8 @@ jobs:
               if gh run download "$run_id" \
                 --name "$artifact" \
                 --dir "$download_dir" \
-                2>/dev/null && [[ -f "$download_dir/results.json" && -d "$download_dir/artifacts" ]]; then
+                2>/dev/null && [[ -f "$download_dir/results.json" && -d "$download_dir/artifacts" ]] &&
+                grep -q '"solc-legacy"' "$download_dir/results.json"; then
                 cp -R "$download_dir"/. target/codegen-bench/baseline/
                 echo "found=true" >> "$GITHUB_OUTPUT"
                 exit 0
@@ -249,6 +250,7 @@ jobs:
           set -euo pipefail
           if ! python3 benches/runtime/benchmark.py --verbose \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
+            --solc-legacy \
             --solar target/release/solar-base \
             --mode runtime compile-time \
             --suite all \
@@ -280,6 +282,7 @@ jobs:
           args=(
             --verbose
             --solar target/release/solar-head
+            --solar-size
             --mode runtime compile-time
             --suite all
             --compile-repeats 5
@@ -297,7 +300,7 @@ jobs:
               --reference-results target/codegen-bench/baseline/results.json
             )
           else
-            args+=(--solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}")
+            args+=(--solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" --solc-legacy)
           fi
           if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/main" ]]; then
             args+=(--solx "$RUNNER_TEMP/solx/solx")

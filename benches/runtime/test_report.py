@@ -337,6 +337,104 @@ class ReportFormattingTests(unittest.TestCase):
             "| test | n/a (n/a) | n/a (n/a) | 30 (n/a) | n/a (n/a) | n/a (n/a) | 40B (n/a) |\n",
         )
 
+    def test_codegen_report_adds_variant_compiler_columns(self):
+        current = result()
+        for name in ("solc-legacy", "solar-size"):
+            current["compilers"][name] = {
+                "status": "ok",
+                "total_gas": 10,
+                "runtime_size": 20,
+                "deploy_gas": 30,
+                "bytecode_size": 40,
+            }
+        report = benchmark.codegen_report([current], [current])
+        self.assertIn(
+            "| bench | gas (vs main) | solar-size | solc | solc-legacy | size (vs main) | solar-size | solc | solc-legacy |",
+            report,
+        )
+        self.assertIn(
+            "| test | n/a (n/a) | 10 (n/a) | n/a (n/a) | 10 (n/a) | n/a (n/a) | 20B (n/a) | n/a (n/a) | 20B (n/a) |",
+            report,
+        )
+
+    def test_reference_columns_follow_solar_size_solc_solc_legacy(self):
+        compilers = {
+            name: {"status": "ok"}
+            for name in ("oksolc", "solc-legacy", "solc", "solar", "solar-size", "solx")
+        }
+        results = [{"test_id": "a", "suite": "repository", "compilers": compilers}]
+
+        self.assertEqual(
+            benchmark.reference_compiler_ids(results),
+            ["solar-size", "solc", "solc-legacy", "oksolc", "solx"],
+        )
+        self.assertEqual(
+            benchmark.matrix_compilers(results),
+            ["solar-size", "solc", "solc-legacy", "oksolc", "solx"],
+        )
+
+    def test_pr_comment_collapses_the_compiler_matrix_after_the_base_comparison(self):
+        def compilers(**gas):
+            return {
+                name: {
+                    "status": "ok",
+                    "total_gas": value,
+                    "runtime_size": 0 if name == "solar-size" else 100,
+                }
+                for name, value in gas.items()
+            }
+
+        results = [
+            {
+                "test_id": "a",
+                "suite": "repository",
+                "compilers": compilers(
+                    solar=100, **{"solar-size": 110, "solc": 200, "solc-legacy": 250}
+                ),
+            },
+            {
+                "test_id": "b",
+                "suite": "repository",
+                "compilers": {
+                    **compilers(solar=100, solc=100),
+                    "solc-legacy": {"status": "failed"},
+                },
+            },
+        ]
+        comparison = benchmark.compare_runs(results, results)
+        comparison["baseline"] = "main.json"
+        results[1]["compilers"]["solc"]["runtime_status"] = "failed"
+
+        comment = benchmark.pr_comment(comparison, True, False, "main", results)
+
+        self.assertNotIn("<details open>", comment)
+        self.assertLess(
+            comment.index("### Overview"),
+            comment.index("<summary>Compilers vs <code>solar</code></summary>"),
+        )
+        self.assertLess(
+            comment.index("Some benchmarks have incomplete"),
+            comment.index("<summary>Compilers vs <code>solar</code></summary>"),
+        )
+        self.assertIn(
+            "<details>\n<summary>runtime gas</summary>\n\n"
+            "| bench | solar | solar-size | solc | solc-legacy |\n"
+            "| --- | ---: | ---: | ---: | ---: |\n",
+            comment,
+        )
+        self.assertIn(
+            "| a | 100 | 110 (✅ +10.00%) | 200 (✅ +100.00%) | 250 (✅ +150.00%) |",
+            comment,
+        )
+        self.assertIn("| b | 100 | n/a | n/a | n/a |", comment)
+        self.assertIn(
+            "| **geometric mean** | | ✅ +10.00% | ✅ +100.00% | ✅ +150.00% |", comment
+        )
+        self.assertIn("<details>\n<summary>runtime bytes</summary>", comment)
+        self.assertNotIn(
+            "matrix", benchmark.pr_comment(comparison, True, False, "main")
+        )
+
     def test_codegen_report_labels_failed_revision(self):
         def timed_result(test_id, solar_status):
             return {
@@ -886,7 +984,7 @@ class RunComparisonTests(unittest.TestCase):
             )
 
     def test_reference_report_uses_selected_compiler(self):
-        for compiler in ("solc", "solx", "oksolc"):
+        for compiler in ("solc", "solc-legacy", "solx", "oksolc"):
             before = self.fixture()
             before["compilers"][compiler] = copy.deepcopy(before["compilers"]["solar"])
             after = copy.deepcopy(before)
@@ -1015,7 +1113,7 @@ class RunComparisonTests(unittest.TestCase):
         self.assertIn("candidate gas run failed", row["issues"])
 
     def test_reference_failures_do_not_trigger_comments_or_warnings(self):
-        for compiler in ("solc", "solx", "oksolc"):
+        for compiler in ("solc", "solc-legacy", "solx", "oksolc"):
             for stage in ("status", "runtime_status", "gas_status"):
                 with self.subTest(compiler=compiler, stage=stage):
                     before = self.fixture()
@@ -1052,6 +1150,17 @@ class RunComparisonTests(unittest.TestCase):
                         benchmark.runtime_issue_details([after]),
                         ["repository/test solar: runtime_status=failed"],
                     )
+
+    def test_solar_size_failures_trigger_warnings(self):
+        for stage, warnings in (
+            ("status", benchmark.compiler_failures),
+            ("runtime_status", benchmark.runtime_issue_details),
+        ):
+            with self.subTest(stage=stage):
+                after = self.fixture()
+                after["compilers"]["solar-size"] = {"status": "ok", stage: "failed"}
+                self.assertEqual(len(warnings([after])), 1)
+                self.assertIn("solar-size", warnings([after])[0])
 
     def test_mismatches_require_a_solar_observation(self):
         before = self.fixture()
