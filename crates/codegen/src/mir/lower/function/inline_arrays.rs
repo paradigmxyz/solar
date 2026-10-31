@@ -22,9 +22,11 @@
 //! variable's `.slot`, and assignments of whole arrays.
 //!
 //! Deferred element targets retain their checked logical index, selecting the physical slot
-//! again at the final access because another tuple target may spill the array. Shared helper
-//! keys distinguish enum ranges and external-function memory encodings. Standard-layout copies
-//! use the ordinary element-wise fallback when their element type has no shared word loader.
+//! again at the final access because another tuple target may spill the array. Such a target
+//! can also write above a length reduced by another target, so each push overwrites its element
+//! bits rather than assuming unused bytes are zero. Shared helper keys distinguish enum ranges
+//! and external-function memory encodings. Standard-layout copies use the ordinary element-wise
+//! fallback when their element type has no shared word loader.
 
 use super::*;
 
@@ -239,13 +241,19 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
         self.builder.branch(fits, append, full);
 
         // append:
-        //   sstore(slot, (header + (1 << 248)) | encode(value) << length * size * 8)
+        //   shift = length * size * 8
+        //   cleared = header & ~(element_mask << shift)
+        //   sstore(slot, (cleared + (1 << 248)) | encode(value) << shift)
         self.builder.switch_to_block(append);
-        let one_length = self.builder.imm(U256::from(1) << 248);
-        let grown = self.builder.add(header, one_length);
         let encoded = array.element.encode(&mut self.builder, value);
         let bits = self.builder.imm(array.size() * 8);
         let shift = self.builder.mul(length, bits);
+        let mask = self.builder.imm(array.element.mask());
+        let element_mask = self.builder.shl(mask, shift);
+        let keep = self.builder.not(element_mask);
+        let cleared = self.builder.and(header, keep);
+        let one_length = self.builder.imm(U256::from(1) << 248);
+        let grown = self.builder.add(cleared, one_length);
         let placed = self.builder.shl(encoded, shift);
         let appended = self.builder.or(grown, placed);
         self.builder.sstore(slot, appended);

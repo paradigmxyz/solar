@@ -16,6 +16,15 @@ LL │     uint256 changed = (item.id = 9);
    ├ note: `@custom:solar-storage handle` keeps the index of the field's value in the dictionary, which other values do not have
    ╰ help: assign `dictionary[index]`, or `delete` the field
 
+error: a handle dictionary is append-only
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_contexts.sol:LL:CC
+   │
+LL │     uint256[] dictionary = initialize();
+   │                            ━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-storage handle` fields keep indexes into the dictionary, so its elements must never change
+   ╰ help: `push` new elements instead
+
 error: an inline array cannot be a storage reference
    ╭▸ ROOT/tests/ui/typeck/storage_tags_contexts.sol:LL:CC
    │
@@ -51,5 +60,5 @@ LL │     constructor() Base(values, dictionary) {}
    ├ note: `@custom:solar-storage handle` fields keep indexes into the dictionary, whose elements a storage reference could change
    ╰ help: index the dictionary or copy it into memory
 
-error: aborting due to 6 previous errors
+error: aborting due to 7 previous errors
 

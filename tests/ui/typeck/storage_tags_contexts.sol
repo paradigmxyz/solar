@@ -39,3 +39,17 @@ contract Constructor is State, Base {
     //~^ ERROR: an inline array cannot be a storage reference
     //~| ERROR: a handle dictionary cannot be a storage reference
 }
+
+contract DictionaryInitializer {
+    /// @custom:solar-storage handle id dictionary
+    struct Item { uint256 id; }
+    Item item;
+    uint256[] dictionary = initialize(); //~ ERROR: a handle dictionary is append-only
+
+    function initialize() internal returns (uint256[] memory replacement) {
+        dictionary.push(7);
+        item.id = dictionary[0];
+        replacement = new uint256[](1);
+        replacement[0] = 9;
+    }
+}
