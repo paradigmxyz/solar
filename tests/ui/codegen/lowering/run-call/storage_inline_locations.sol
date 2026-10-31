@@ -8,6 +8,9 @@
 //@ run-call: Locations::popDuringTargets 2 => 3, [9, 2, 2]
 //@ run-call: Locations::popDuringTargets 0 => 3, [9, 2, 0]
 //@ run-call: Locations::emptyPushAfterPop => 3, [9, 2, 0]
+//@ run-call: Locations::popToEmpty => 1, 0
+//@ run-call: Locations::pushAfterEmpty => 2, [0, 7]
+//@ run-call-fail: Locations::popAfterEmpty => 0x4e487b710000000000000000000000000000000000000000000000000000000000000031
 //@ run-call: Functions::copy 1 => 99, 11, 11, 1
 //@ run-call: Functions::copy 2 => 99, 11, 22, 2
 //@ run-call: FunctionsOnly::copy => 11, 22
@@ -62,6 +65,32 @@ contract Locations {
         (values[2], values[popIndex()]) = (4, 9);
         values.push();
         return (values.length, values);
+    }
+
+    function emptyStaleTail() internal returns (uint256 remaining) {
+        values.push(1); values.push(2); values.push(3);
+        (values[2], values[popIndex()]) = (4, 9);
+        values.pop();
+        remaining = values.length;
+        values.pop();
+    }
+
+    // Stale elements above the length must not become a standard-layout length.
+    function popToEmpty() external returns (uint256, uint256) {
+        uint256 remaining = emptyStaleTail();
+        return (remaining, values.length);
+    }
+
+    function pushAfterEmpty() external returns (uint256, uint64[] memory) {
+        emptyStaleTail();
+        values.push();
+        values.push(7);
+        return (values.length, values);
+    }
+
+    function popAfterEmpty() external {
+        emptyStaleTail();
+        values.pop();
     }
 
     function index() internal returns (uint256) { counter += 1; return 0; }
