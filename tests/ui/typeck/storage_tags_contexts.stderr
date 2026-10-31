@@ -1,0 +1,55 @@
+error: an inline array cannot be a storage reference
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_contexts.sol:LL:CC
+   │
+LL │     uint256 initial = read(values);
+   │                            ━━━━━━
+   │
+   ├ note: `@custom:solar-storage inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
+   ╰ help: index the array or copy it into memory
+
+error: a handle field can only be set to an element of `dictionary` or to zero
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_contexts.sol:LL:CC
+   │
+LL │     uint256 changed = (item.id = 9);
+   │                        ━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-storage handle` keeps the index of the field's value in the dictionary, which other values do not have
+   ╰ help: assign `dictionary[index]`, or `delete` the field
+
+error: an inline array cannot be a storage reference
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_contexts.sol:LL:CC
+   │
+LL │         receiver.touch({target: values, marker: 0});
+   │                                 ━━━━━━
+   │
+   ├ note: `@custom:solar-storage inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
+   ╰ help: index the array or copy it into memory
+
+error: a handle dictionary has no member `push` this compiler keeps
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_contexts.sol:LL:CC
+   │
+LL │         dictionary.push(0, 22);
+   │         ━━━━━━━━━━━━━━━
+   │
+   ╰ note: a library function attached to it would take it as a storage reference, which could change its elements
+
+error: an inline array cannot be a storage reference
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_contexts.sol:LL:CC
+   │
+LL │     constructor() Base(values, dictionary) {}
+   │                        ━━━━━━
+   │
+   ├ note: `@custom:solar-storage inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
+   ╰ help: index the array or copy it into memory
+
+error: a handle dictionary cannot be a storage reference
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_contexts.sol:LL:CC
+   │
+LL │     constructor() Base(values, dictionary) {}
+   │                                ━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-storage handle` fields keep indexes into the dictionary, whose elements a storage reference could change
+   ╰ help: index the dictionary or copy it into memory
+
+error: aborting due to 6 previous errors
+

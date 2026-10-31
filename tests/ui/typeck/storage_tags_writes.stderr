@@ -1,0 +1,116 @@
+error: a handle dictionary is append-only
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_writes.sol:LL:CC
+   │
+LL │         dictionary[0]++;
+   │         ━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-storage handle` fields keep indexes into the dictionary, so its elements must never change
+   ╰ help: `push` new elements instead
+
+error: a handle dictionary is append-only
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_writes.sol:LL:CC
+   │
+LL │         ++dictionary[0];
+   │         ━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-storage handle` fields keep indexes into the dictionary, so its elements must never change
+   ╰ help: `push` new elements instead
+
+error: a handle dictionary is append-only
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_writes.sol:LL:CC
+   │
+LL │         dictionary[0]--;
+   │         ━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-storage handle` fields keep indexes into the dictionary, so its elements must never change
+   ╰ help: `push` new elements instead
+
+error: a handle dictionary is append-only
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_writes.sol:LL:CC
+   │
+LL │         --dictionary[0];
+   │         ━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-storage handle` fields keep indexes into the dictionary, so its elements must never change
+   ╰ help: `push` new elements instead
+
+error: a handle dictionary is append-only
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_writes.sol:LL:CC
+   │
+LL │         (dictionary, dummy) = (replacement, 0);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-storage handle` fields keep indexes into the dictionary, so its elements must never change
+   ╰ help: `push` new elements instead
+
+error: a handle dictionary cannot be a storage reference
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_writes.sol:LL:CC
+   │
+LL │         (alias_, dummy) = (dictionary, 0);
+   │                            ━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-storage handle` fields keep indexes into the dictionary, whose elements a storage reference could change
+   ╰ help: index the dictionary or copy it into memory
+
+error: a handle dictionary cannot be a storage reference
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_writes.sol:LL:CC
+   │
+LL │         uint256[](dictionary)[0] = 9;
+   │                   ━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-storage handle` fields keep indexes into the dictionary, whose elements a storage reference could change
+   ╰ help: index the dictionary or copy it into memory
+
+error: an inline array cannot be a storage reference
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_writes.sol:LL:CC
+   │
+LL │         (inlineAlias, dummy) = (packed, 0);
+   │                                 ━━━━━━
+   │
+   ├ note: `@custom:solar-storage inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
+   ╰ help: index the array or copy it into memory
+
+error: an inline array cannot be a storage reference
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_writes.sol:LL:CC
+   │
+LL │         uint64[](packed)[0] = 9;
+   │                  ━━━━━━
+   │
+   ├ note: `@custom:solar-storage inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
+   ╰ help: index the array or copy it into memory
+
+error: an inline array cannot be assigned as a whole
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_writes.sol:LL:CC
+   │
+LL │         (packed, dummy) = (replacement, 0);
+   ╰╴         ━━━━━━
+
+error: a struct with handles cannot be written to storage as a whole
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_writes.sol:LL:CC
+   │
+LL │         outer.inner = value;
+   │         ━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-storage handle` fields keep indexes into their dictionaries, which a value from elsewhere does not have
+   ╰ help: set the fields one by one, each handle field to an element of its dictionary
+
+error: a struct with handles cannot be written to storage as a whole
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_writes.sol:LL:CC
+   │
+LL │         p.inner = value;
+   │         ━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-storage handle` fields keep indexes into their dictionaries, which a value from elsewhere does not have
+   ╰ help: set the fields one by one, each handle field to an element of its dictionary
+
+error: a struct with handles cannot be written to storage as a whole
+   ╭▸ ROOT/tests/ui/typeck/storage_tags_writes.sol:LL:CC
+   │
+LL │         records[0].inner = value;
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-storage handle` fields keep indexes into their dictionaries, which a value from elsewhere does not have
+   ╰ help: set the fields one by one, each handle field to an element of its dictionary
+
+error: aborting due to 13 previous errors
+

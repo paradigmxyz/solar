@@ -43,6 +43,10 @@
 //! functions, chosen by a conditional expression, or assigned as a whole. A handle dictionary has
 //! the same limits, and is never popped, deleted or written. Inline assembly cannot take the
 //! `.slot` or `.offset` of any of them, nor of a storage value that holds a struct with handles.
+//!
+//! The same checks cover state initializers and base-constructor arguments. Storage references
+//! cannot escape through tuple bindings, conversions or attached library calls; only the actual
+//! array builtins may operate directly on the restricted arrays.
 
 use crate::{
     builtins::Builtin,
@@ -74,6 +78,16 @@ pub(super) fn check(gcx: Gcx<'_>) {
         handles: &handles,
         function: None,
     };
+    for contract in gcx.hir.contracts() {
+        for base in contract.bases_args {
+            let _ = uses.visit_modifier(base);
+        }
+        for id in contract.variables() {
+            if let Some(initializer) = gcx.hir.variable(id).initializer {
+                let _ = uses.visit_expr(initializer);
+            }
+        }
+    }
     for id in gcx.hir.function_ids() {
         uses.function = Some(id);
         let _ = uses.visit_nested_function(id);
@@ -589,10 +603,11 @@ impl<'gcx> Uses<'gcx, '_> {
     /// Assigning to a local storage reference rebinds it instead.
     fn writes_handles(&self, place: &hir::Expr<'_>) -> bool {
         let Some(ty) = self.gcx.type_of_expr(place.id) else { return false };
-        let local = self
-            .gcx
-            .resolved_variable(place.peel_parens())
-            .is_some_and(|id| !self.gcx.hir.variable(id).is_state_variable());
+        let local = matches!(place.peel_parens().kind, ExprKind::Ident(_))
+            && self
+                .gcx
+                .resolved_variable(place.peel_parens())
+                .is_some_and(|id| !self.gcx.hir.variable(id).is_state_variable());
         ty.is_ref_at(DataLocation::Storage)
             && !local
             && self.handles.struct_in(self.gcx, ty).is_some()
@@ -600,6 +615,9 @@ impl<'gcx> Uses<'gcx, '_> {
 
     /// Whether writing to `place` changes an element of a handle dictionary.
     fn writes_dictionary(&self, place: &hir::Expr<'_>) -> bool {
+        if self.kept(place) == Some(Kept::Dictionary) {
+            return true;
+        }
         match place.peel_parens().kind {
             // dictionary[index] = value
             ExprKind::Index(base, _) => self.kept(base) == Some(Kept::Dictionary),
@@ -620,6 +638,9 @@ impl<'gcx> Uses<'gcx, '_> {
     fn check_handle_writes(&self, expr: &hir::Expr<'_>) {
         match expr.kind {
             ExprKind::Assign(lhs, op, rhs) => {
+                if matches!(lhs.peel_parens().kind, ExprKind::Tuple(_)) {
+                    self.check_tuple_storage(lhs, Some(rhs));
+                }
                 if let Some(dictionary) = self.handle_field(lhs) {
                     // field = dictionary[index], field = 0
                     let element = matches!(
@@ -632,17 +653,6 @@ impl<'gcx> Uses<'gcx, '_> {
                     }
                 } else if self.writes_handles(lhs) {
                     report_whole_write(self.gcx, expr.span);
-                } else if let ExprKind::Tuple(elements) = lhs.peel_parens().kind
-                    && elements.iter().flatten().any(|element| {
-                        self.handle_field(element).is_some() || self.writes_handles(element)
-                    })
-                {
-                    self.gcx
-                        .dcx()
-                        .err("a tuple assignment cannot write handle fields")
-                        .span(expr.span)
-                        .help("assign the handle fields in their own statements")
-                        .emit();
                 }
                 if self.writes_dictionary(lhs) {
                     self.report_append_only(expr.span);
@@ -657,6 +667,9 @@ impl<'gcx> Uses<'gcx, '_> {
             {
                 if let Some(dictionary) = self.handle_field(operand) {
                     self.report_handle_value(expr.span, dictionary);
+                }
+                if self.writes_dictionary(operand) {
+                    self.report_append_only(expr.span);
                 }
             }
             // delete dictionary, delete dictionary[index]
@@ -689,9 +702,11 @@ impl<'gcx> Uses<'gcx, '_> {
         names: Option<&[Option<Symbol>]>,
         args: &hir::CallArgs<'gcx>,
     ) {
-        let Some(TyKind::Fn(function)) = callee.map(|ty| ty.kind) else { return };
+        let Some(signature) = callee.and_then(|ty| self.gcx.callable_signature_of_ty(ty)) else {
+            return;
+        };
         let storage = |index: usize| {
-            function.parameters.get(index).is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
+            signature.parameters.get(index).is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
         };
         match args.kind {
             hir::CallArgsKind::Unnamed(args) => {
@@ -717,16 +732,52 @@ impl<'gcx> Uses<'gcx, '_> {
         }
     }
 
+    /// Checks each tuple destination independently, including nested tuples and reference
+    /// rebindings.
+    fn check_tuple_storage(&self, lhs: &hir::Expr<'_>, rhs: Option<&hir::Expr<'_>>) {
+        if let ExprKind::Tuple(elements) = lhs.peel_parens().kind {
+            let values = rhs.and_then(|rhs| match rhs.peel_parens().kind {
+                ExprKind::Tuple(values) => Some(values),
+                _ => None,
+            });
+            for (index, element) in elements.iter().enumerate() {
+                if let Some(element) = element {
+                    self.check_tuple_storage(
+                        element,
+                        values.and_then(|values| values.get(index).copied().flatten()),
+                    );
+                }
+            }
+        } else if self.handle_field(lhs).is_some() || self.writes_handles(lhs) {
+            self.gcx
+                .dcx()
+                .err("a tuple assignment cannot write handle fields")
+                .span(lhs.span)
+                .help("assign the handle fields in their own statements")
+                .emit();
+        } else if self.kept(lhs) == Some(Kept::Inline) {
+            self.gcx
+                .dcx()
+                .err("an inline array cannot be assigned as a whole")
+                .span(lhs.span)
+                .emit();
+        } else if matches!(lhs.peel_parens().kind, ExprKind::Ident(_))
+            && self.gcx.type_of_expr(lhs.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
+            && self
+                .gcx
+                .resolved_variable(lhs)
+                .is_some_and(|id| !self.gcx.hir.variable(id).is_state_variable())
+            && let Some(rhs) = rhs
+            && let Some(kept) = self.kept(rhs)
+        {
+            self.report_reference(kept, rhs.span);
+        }
+    }
+
     /// The names of the parameters of the function `callee` resolves to.
     fn parameter_names(&self, callee: &hir::Expr<'_>) -> Option<Vec<Option<Symbol>>> {
-        let function = self.gcx.resolved_function(callee)?;
-        let parameters = self.gcx.hir.function(function).parameters;
-        Some(
-            parameters
-                .iter()
-                .map(|&parameter| self.gcx.hir.variable(parameter).name.map(|name| name.name))
-                .collect(),
-        )
+        let source = self.gcx.call_param_source(callee)?;
+        Some(self.gcx.callable_param_names(source).into_iter().collect())
     }
 }
 
@@ -792,7 +843,12 @@ impl<'gcx> Visit<'gcx> for Uses<'gcx, '_> {
         &mut self,
         modifier: &'gcx hir::Modifier<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
-        if let hir::ItemId::Function(function) = modifier.id {
+        let function = match modifier.id {
+            hir::ItemId::Function(function) => Some(function),
+            hir::ItemId::Contract(contract) => self.gcx.hir.contract(contract).ctor,
+            _ => None,
+        };
+        if let Some(function) = function {
             let parameters = self.gcx.hir.function(function).parameters;
             let names = parameters
                 .iter()
@@ -823,9 +879,12 @@ impl<'gcx> Visit<'gcx> for Uses<'gcx, '_> {
             }
             // array.length, array.push, array.pop
             ExprKind::Member(base, member) if let Some(kept) = self.kept(base) => {
-                match (kept, member.name) {
-                    (_, sym::length | sym::push) | (Kept::Inline, kw::Pop) => {}
-                    (Kept::Dictionary, kw::Pop) => self.report_append_only(expr.span),
+                match (kept, self.gcx.resolved_builtin(expr)) {
+                    (_, Some(Builtin::ArrayLength | Builtin::ArrayPush0 | Builtin::ArrayPush))
+                    | (Kept::Inline, Some(Builtin::ArrayPop)) => {}
+                    (Kept::Dictionary, Some(Builtin::ArrayPop)) => {
+                        self.report_append_only(expr.span)
+                    }
                     _ => {
                         self.gcx
                             .dcx()
@@ -859,7 +918,7 @@ impl<'gcx> Visit<'gcx> for Uses<'gcx, '_> {
                             .help("`delete` it and `push` the elements")
                             .emit();
                     }
-                    Kept::Dictionary => self.report_append_only(expr.span),
+                    Kept::Dictionary => {}
                 }
                 return self.visit_expr(rhs);
             }
@@ -887,6 +946,19 @@ impl<'gcx> Visit<'gcx> for Uses<'gcx, '_> {
             }
             // f(array) with a storage parameter
             ExprKind::Call(callee, ref args) => {
+                if self
+                    .gcx
+                    .type_of_expr(callee.id)
+                    .is_some_and(|ty| matches!(ty.kind, TyKind::Type(_)))
+                    && self
+                        .gcx
+                        .type_of_expr(expr.id)
+                        .is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
+                    && let Some(argument) = args.exprs().next()
+                    && let Some(kept) = self.kept(argument)
+                {
+                    self.report_reference(kept, argument.span);
+                }
                 let names = self.parameter_names(callee);
                 self.check_arguments(self.gcx.type_of_expr(callee.id), names.as_deref(), args);
             }

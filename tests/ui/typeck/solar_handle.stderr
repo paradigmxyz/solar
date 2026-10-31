@@ -206,7 +206,7 @@ error: a tuple assignment cannot write handle fields
    ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
    │
 LL │         (orders[1].marketId, value) = (markets[0], value);
-   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │          ━━━━━━━━━━━━━━━━━━
    │
    ╰ help: assign the handle fields in their own statements
 
@@ -250,7 +250,7 @@ error: a tuple assignment cannot write handle fields
    ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
    │
 LL │         (orders[1], m) = (m, m);
-   │         ━━━━━━━━━━━━━━━━━━━━━━━
+   │          ━━━━━━━━━
    │
    ╰ help: assign the handle fields in their own statements
 
