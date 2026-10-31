@@ -8,12 +8,12 @@
 +   push 0
 +   not
 +   div
-+   push 255
++   push 85
 +   push 0
 +   not
 +   div
-+   push 48
-+   mul
++   push 4
++   shl
     pop
     pop
     stop

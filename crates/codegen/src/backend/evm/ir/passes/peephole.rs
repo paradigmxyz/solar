@@ -391,7 +391,7 @@ impl Edit {
             }
             Self::FoldConstants { value } => {
                 instructions.truncate(start);
-                materialize_immediate(instructions, target.evm_version(), value);
+                materialize_immediate(instructions, &target, value);
             }
             Self::AddNegated { value } => {
                 // push -c; add
@@ -402,7 +402,7 @@ impl Edit {
                 for removed in instructions.drain(start..) {
                     add.metadata.absorb_debug_info(&removed.metadata);
                 }
-                materialize_immediate(instructions, target.evm_version(), value);
+                materialize_immediate(instructions, &target, value);
                 instructions.push(add);
             }
             Self::RemoveFirstKeepOne => {

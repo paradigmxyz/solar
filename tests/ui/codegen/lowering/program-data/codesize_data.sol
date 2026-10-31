@@ -6,13 +6,13 @@ contract CodeSizeData {
     // MIR-LABEL: fn @outer{{[( ]}}
     // MIR: datacopy literal_0,
     function outer() external pure returns (bytes memory) {
-        return "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ!";
+        return "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAk9p34y6n3wd25rq4f5zr37e3p3e2z8iq9y7jzb6cn6z43dvyrkttnjfbf5jxvlsi47wqal9vq24zklmvt45hu43jsiom1tma7v3di8fppv5aspzh8rzhqmoe95b9ee0vbgi09qynk8w3tzpppp6up3c4dsa7l3600123456789abcdefZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ!";
     }
 
     // MIR-LABEL: fn @inner{{[( ]}}
     // MIR: datacopy literal_1,
     function inner() external pure returns (bytes memory) {
-        return "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefZ";
+        return "k9p34y6n3wd25rq4f5zr37e3p3e2z8iq9y7jzb6cn6z43dvyrkttnjfbf5jxvlsi47wqal9vq24zklmvt45hu43jsiom1tma7v3di8fppv5aspzh8rzhqmoe95b9ee0vbgi09qynk8w3tzpppp6up3c4dsa7l360Z";
     }
 
     // MIR-LABEL: fn @lastDataByte{{[( ]}}

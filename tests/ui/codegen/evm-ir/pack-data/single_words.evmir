@@ -2,7 +2,7 @@
 //@ filecheck:
 @module single_words
 
-// CHECK: literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+// CHECK: literal_0: hex"7865b7e6b9d241d744d330eec3b3a0fe4f9d36af75d96291638504680f805bfd"
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: {{^[ +].*}}push 32
 // CHECK-NEXT: {{^[ +].*}}push_data literal_0
@@ -10,7 +10,7 @@
 // CHECK-NEXT: {{^[ +].*}}codecopy
 bb0:
   push 128
-  push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+  push 0x7865b7e6b9d241d744d330eec3b3a0fe4f9d36af75d96291638504680f805bfd
   dup 2
   mstore
   stop
@@ -23,7 +23,7 @@ bb0:
 // CHECK-NOT: {{^[ +].*}}mstore
 bb1:
   push 256
-  push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+  push 0x7865b7e6b9d241d744d330eec3b3a0fe4f9d36af75d96291638504680f805bfd
   dup 2
   mstore
   stop

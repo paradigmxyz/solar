@@ -27,12 +27,12 @@ bb1 [stack=1023]:
 
 // A known entry depth with enough available words retains the repeated recipe.
 // SIZE-LABEL: bb2 [stack=1021]:
-// SIZE: + push 255
+// SIZE: + push 85
 // SIZE-NEXT: + push 0
 // SIZE-NEXT: + not
 // SIZE-NEXT: + div
-// SIZE-NEXT: + push 48
-// SIZE-NEXT: + mul
+// SIZE-NEXT: + push 4
+// SIZE-NEXT: + shl
 bb2 [stack=1021]:
   push 0x3030303030303030303030303030303030303030303030303030303030303030
   pop
@@ -102,12 +102,12 @@ bb10:
 
 // A stack-balanced loop has a finite upper bound and retains its size recipe.
 // SIZE-LABEL: bb11 [stack=1021]:
-// SIZE: + push 255
+// SIZE: + push 85
 // SIZE-NEXT: + push 0
 // SIZE-NEXT: + not
 // SIZE-NEXT: + div
-// SIZE-NEXT: + push 48
-// SIZE-NEXT: + mul
+// SIZE-NEXT: + push 4
+// SIZE-NEXT: + shl
 bb11 [stack=1021]:
   push 0x3030303030303030303030303030303030303030303030303030303030303030
   pop
@@ -123,12 +123,12 @@ bb13 [cold, stack=1023]:
 
 // The reordered recipe needs only two words, including its transient peak.
 // SIZE-LABEL: bb14 [stack=1022]:
-// SIZE: + push 255
+// SIZE: + push 85
 // SIZE-NEXT: + push 0
 // SIZE-NEXT: + not
 // SIZE-NEXT: + div
-// SIZE-NEXT: + push 48
-// SIZE-NEXT: + mul
+// SIZE-NEXT: + push 4
+// SIZE-NEXT: + shl
 bb14 [stack=1022]:
   push 0x3030303030303030303030303030303030303030303030303030303030303030
   pop

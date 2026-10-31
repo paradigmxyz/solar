@@ -13,9 +13,9 @@
 // expected executions than the deposit of the 25 bytes it saves. With one expected execution the
 // bytes win and the loop shares the constant too. Gas mode shares nothing here.
 // GAS-LABEL: {{^[ +].*}}bb1 [loop]:
-// GAS-NEXT: {{^[ +].*}}push 0x3030303030303030303030303030303030303030303030303030303030303030
+// GAS-NEXT: {{^[ +].*}}push 0x9e3779b97f4a7c15f39cc0605cedc8341082276bf3a27251f86c6a11d0c18e95
 // SIZE-LABEL: {{^[ +].*}}bb1 [loop]:
-// SIZE-NEXT: {{^[ +].*}}push 0x3030303030303030303030303030303030303030303030303030303030303030
+// SIZE-NEXT: {{^[ +].*}}push 0x9e3779b97f4a7c15f39cc0605cedc8341082276bf3a27251f86c6a11d0c18e95
 // ONCE-LABEL: {{^[ +].*}}bb1 [loop]:
 // ONCE-NEXT: + push [[RETURN:bb[0-9]+]]
 // ONCE-NEXT: + jump [[STUB:bb[0-9]+]]
@@ -25,7 +25,7 @@ bb0:
   jump bb1
 
 bb1 [loop]:
-  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  push 0x9e3779b97f4a7c15f39cc0605cedc8341082276bf3a27251f86c6a11d0c18e95
   add
   dup 1
   push bb1
@@ -33,7 +33,7 @@ bb1 [loop]:
   jump bb2
 
 // GAS-LABEL: {{^[ +].*}}bb2:
-// GAS-NEXT: {{^[ +].*}}push 0x3030303030303030303030303030303030303030303030303030303030303030
+// GAS-NEXT: {{^[ +].*}}push 0x9e3779b97f4a7c15f39cc0605cedc8341082276bf3a27251f86c6a11d0c18e95
 // SIZE-LABEL: {{^[ +].*}}bb2:
 // SIZE-NEXT: + push [[RETURN:bb[0-9]+]]
 // SIZE-NEXT: + jump [[STUB:bb[0-9]+]]
@@ -41,11 +41,11 @@ bb1 [loop]:
 // ONCE-NEXT: + push [[RETURN2:bb[0-9]+]]
 // ONCE-NEXT: + jump [[STUB]]
 bb2:
-  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  push 0x9e3779b97f4a7c15f39cc0605cedc8341082276bf3a27251f86c6a11d0c18e95
   or
-  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  push 0x9e3779b97f4a7c15f39cc0605cedc8341082276bf3a27251f86c6a11d0c18e95
   xor
-  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  push 0x9e3779b97f4a7c15f39cc0605cedc8341082276bf3a27251f86c6a11d0c18e95
   and
   push 0
   mstore

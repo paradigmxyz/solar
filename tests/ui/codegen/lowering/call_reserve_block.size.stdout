@@ -49,7 +49,14 @@ bb0:
   jumpi
   push 0
   sload
-  push 0xffffffffffffffffffffffffffffffffffffffff
+  push 0x1000000
+  dup 1
+  mul
+  dup 1
+  mul
+  push 0
+  not
+  div
   and
   push bb12
   push 128
@@ -105,7 +112,14 @@ bb10:
   push 0
   return
 bb13 [continuation]:
-  push 0xffffffffffffffffffffffffffffffffffffffff
+  push 0x1000000
+  dup 1
+  mul
+  dup 1
+  mul
+  push 0
+  not
+  div
   dup 3
   and
   extcodesize

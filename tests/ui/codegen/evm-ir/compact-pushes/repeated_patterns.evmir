@@ -5,20 +5,20 @@
 //@[gas] filecheck: --check-prefix=GAS
 @module RepeatedPatterns
 
-// Size-first code divides the all-ones word for a pattern that repeats across it, and multiplies
-// the repetition of a one by a repeated factor. Gas builds keep the literals, since the division
+// Size-first code divides the all-ones word for a pattern that repeats across it, and shifts the
+// repetition of a one by the bits of its factor. Gas builds keep the literals, since the division
 // and multiplication would cost gas on every execution.
 // SIZE-LABEL: bb0:
 // SIZE: + push 255
 // SIZE-NEXT: + push 0
 // SIZE-NEXT: + not
 // SIZE-NEXT: + div
-// SIZE-NEXT: + push 255
+// SIZE-NEXT: + push 85
 // SIZE-NEXT: + push 0
 // SIZE-NEXT: + not
 // SIZE-NEXT: + div
-// SIZE-NEXT: + push 48
-// SIZE-NEXT: + mul
+// SIZE-NEXT: + push 4
+// SIZE-NEXT: + shl
 // GAS-LABEL: bb0:
 // GAS-NEXT: push 0x101010101010101010101010101010101010101010101010101010101010101
 // GAS-NEXT: push 0x3030303030303030303030303030303030303030303030303030303030303030

@@ -521,7 +521,7 @@ impl generated::Context for PeepContext<'_> {
             i64::from(target.runtime_gas(before)) - i64::from(target.runtime_gas(after));
         let byte_saving = i64::from(before.bytes) - i64::from(after.bytes);
         (target.improves(gas_saving, byte_saving)
-            && ImmediateMaterialization::new(target.evm_version(), negated).stack_peak() <= 1)
+            && ImmediateMaterialization::select(&target, negated, false).stack_peak() <= 1)
             .then_some(negated)
     }
 

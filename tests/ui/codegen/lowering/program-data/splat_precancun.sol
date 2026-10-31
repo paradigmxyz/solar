@@ -2,14 +2,14 @@
 //@ compile-flags: --evm-version paris
 //@[optimized] compile-flags: -Osize -Zdump=mir,evm-ir-runtime
 //@[optimized] filecheck:
-//@ run-call: hash => 0x04cea613ff619f915864b8d95704e4704cdb3947a5b6f98be176f30db7333a2f
+//@ run-call: hash => 0x0ef44b5473a7da194a6867b15fcc63e6da82f43c1586e43af0120a1687530c4d
 //@ run-call: paddingIsZero => true
 //@ run-call: shortHash => 0xc224daeb584cbf83e794907fde0250faac206e7c1360b6581fc5e906a30e72fd
 //@ run-call: fullWordsHash => 0x33151a08ebcfee753117f4d08eda9c643dca50e49f121bd38b38e68e28131688
 
 contract C {
     function data() internal pure returns (bytes memory) {
-        return hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011";
+        return hex"117cb4bd2c12a41e06e757fff19d023f5d98e82e8a09739ad70f95c7c805e1df117cb4bd2c12a41e06e757fff19d023f5d98e82e8a09739ad70f95c7c805e1df117cb4bd2c12a41e06e757fff19d023f5d98e82e8a09739ad70f95c7c805e1df117cb4bd2c12a41e06e757fff19d023f5d98e82e8a09739ad70f95c7c805e1df117cb4bd2c12a41e06e757fff19d023f5d98e82e8a09739ad70f95c7c805e1df11";
     }
 
     function hash() external pure returns (bytes32) {
