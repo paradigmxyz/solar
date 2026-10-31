@@ -1287,7 +1287,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    fn load_dynamic_storage_object(
+    pub(super) fn load_dynamic_storage_object(
         &mut self,
         element: Ty<'gcx>,
         slot: ValueId,

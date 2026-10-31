@@ -2,7 +2,7 @@
 
 use super::{
     contract,
-    storage::{StorageEncoding, StorageLayout, StorageLocation},
+    storage::{InlineArray, StorageEncoding, StorageLayout, StorageLocation},
     types,
 };
 use crate::mir::{
@@ -323,12 +323,44 @@ struct StorageAccess {
 }
 
 enum LValuePlace<'gcx> {
-    Variable { id: VariableId, span: Span },
-    Storage { ty: Ty<'gcx>, access: StorageAccess, span: Span },
-    MemoryField { object: ValueId, field: u64, ty: Ty<'gcx> },
-    MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId, ty: Ty<'gcx> },
-    MemoryByte { object: ValueId, index: ValueId, ty: Ty<'gcx> },
-    YulSuffix { id: VariableId, suffix: YulSuffix, span: Span },
+    Variable {
+        id: VariableId,
+        span: Span,
+    },
+    Storage {
+        ty: Ty<'gcx>,
+        access: StorageAccess,
+        span: Span,
+    },
+    /// Keep the logical index until use: another tuple target can spill the array.
+    InlineElement {
+        ty: Ty<'gcx>,
+        slot: ValueId,
+        index: ValueId,
+        array: InlineArray,
+        span: Span,
+    },
+    MemoryField {
+        object: ValueId,
+        field: u64,
+        ty: Ty<'gcx>,
+    },
+    MemoryElement {
+        object: ValueId,
+        layout: MemoryObjectLayout,
+        index: ValueId,
+        ty: Ty<'gcx>,
+    },
+    MemoryByte {
+        object: ValueId,
+        index: ValueId,
+        ty: Ty<'gcx>,
+    },
+    YulSuffix {
+        id: VariableId,
+        suffix: YulSuffix,
+        span: Span,
+    },
 }
 
 /// A Yul suffix on a variable, such as `x.offset` or `x.slot`.

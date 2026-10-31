@@ -662,18 +662,17 @@ impl<'gcx> Resolver<'gcx> {
                 .emit();
             return;
         }
-        if matches!(layout, StorageTag::Inline | StorageTag::Bitmap) {
-            let Some(_) = self.first_duplicate_free_tag(docs, sym::solar_dash_storage, tag_span)
-            else {
-                return;
-            };
-            if !arguments.is_empty() {
-                gcx.dcx()
-                    .err(format!("`@custom:solar-storage {}` takes no arguments", layout.name()))
-                    .span(tag_span)
-                    .help("remove the arguments after the layout name")
-                    .emit();
-            }
+        if layout != StorageTag::Handle
+            && self.first_duplicate_free_tag(docs, sym::solar_dash_storage, tag_span).is_none()
+        {
+            return;
+        }
+        if matches!(layout, StorageTag::Inline | StorageTag::Bitmap) && !arguments.is_empty() {
+            gcx.dcx()
+                .err(format!("`@custom:solar-storage {}` takes no arguments", layout.name()))
+                .span(tag_span)
+                .help("remove the arguments after the layout name")
+                .emit();
         }
     }
 

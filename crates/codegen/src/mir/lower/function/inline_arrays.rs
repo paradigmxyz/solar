@@ -20,9 +20,13 @@
 //! clears the slot of an inline array and the standard way otherwise. Type checking rejects
 //! every use that would observe the standard layout of the inline form: storage references, the
 //! variable's `.slot`, and assignments of whole arrays.
+//!
+//! Deferred element targets retain their checked logical index, selecting the physical slot
+//! again at the final access because another tuple target may spill the array. Shared helper
+//! keys distinguish enum ranges and external-function memory encodings. Standard-layout copies
+//! use the ordinary element-wise fallback when their element type has no shared word loader.
 
 use super::*;
-use crate::mir::lower::storage::InlineArray;
 
 impl<'gcx> FunctionLowerer<'gcx, '_> {
     /// The layout of the `@custom:solar-storage inline` storage array at `slot`, a state variable's
@@ -31,6 +35,61 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
     pub(super) fn inline_array_at(&self, slot: ValueId) -> Option<InlineArray> {
         let slot = self.builder.func().value_u256(slot)?;
         self.cx.storage.inline_array_at(slot)
+    }
+
+    /// Evaluates an element target once, checking its bounds before later tuple targets run.
+    /// Its physical location is selected again when the deferred load or store is committed.
+    pub(super) fn resolve_inline_array_place(
+        &mut self,
+        expr: &hir::Expr<'_>,
+    ) -> Option<LValuePlace<'gcx>> {
+        let (receiver, index) = match expr.kind {
+            ExprKind::Index(receiver, Some(index)) => (receiver, Some(index)),
+            ExprKind::Call(callee, ref args)
+                if args.is_empty()
+                    && self.cx.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0) =>
+            {
+                let ExprKind::Member(receiver, _) = callee.peel_parens().kind else { return None };
+                (receiver, None)
+            }
+            _ => return None,
+        };
+        let id = self.cx.gcx.resolved_variable(receiver.peel_parens())?;
+        let location = self.cx.storage.get(id)?;
+        let array = self.cx.storage.inline_array_at(location.slot)?;
+        let ty = self.type_of_expr_or_variable(expr)?;
+        let slot = self.builder.imm(location.slot);
+        let index = if let Some(index) = index {
+            let index = self.lower_typed_expr(index, self.cx.gcx.types.uint(256))?;
+            let length = self.inline_array_length(slot);
+            self.builder.bounds_check(index, length);
+            index
+        } else {
+            // inline_array_push(slot, 0)
+            // index = inline_array_length(slot) - 1
+            let zero = self.builder.imm(0);
+            self.lower_inline_array_push(slot, zero, array, ty, expr.span)?;
+            let length = self.inline_array_length(slot);
+            let one = self.builder.imm(1);
+            self.builder.sub(length, one)
+        };
+        Some(LValuePlace::InlineElement { ty, slot, index, array, span: expr.span })
+    }
+
+    /// Reaches an already checked logical element in the array's current representation.
+    pub(super) fn current_inline_array_element(
+        &mut self,
+        slot: ValueId,
+        index: ValueId,
+        array: InlineArray,
+    ) -> StorageAccess {
+        // inline = header_is_inline && index < inline_capacity
+        // access = inline_array_element_at(slot, inline, index)
+        let (_, inline, _) = self.inline_array_header(slot);
+        let capacity = self.builder.imm(u64::from(array.capacity));
+        let fits = self.builder.lt(index, capacity);
+        let inline = self.builder.and(inline, fits);
+        self.inline_array_element_at(slot, inline, index, array)
     }
 
     /// The word of the inline array's slot, whether the array has the inline form, and its
@@ -383,8 +442,7 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
 
         // standard: array = load_storage_array(slot)
         self.builder.switch_to_block(standard);
-        let loader = self.ensure_storage_array_helper(element)?;
-        let standard_object = self.builder.icall(loader, vec![slot], ty);
+        let standard_object = self.load_dynamic_storage_object(element, slot, Span::DUMMY)?;
         self.builder.ret([standard_object]);
         Some(())
     }
@@ -394,6 +452,7 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
 fn inline_helper_suffix(gcx: Gcx<'_>, array: InlineArray, element: Ty<'_>) -> String {
     let enum_variants = match element.peel_refs().kind {
         TyKind::Enum(id) => format!("_enum_{}", gcx.hir.enumm(id).variants.len()),
+        TyKind::Fn(function) if function.is_external() => "_external_function".into(),
         _ => String::new(),
     };
     format!("{}_{}{enum_variants}", array.size(), array.element.encoding as u8)

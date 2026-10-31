@@ -55,6 +55,13 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
             let element = self.builder.add(data, index);
             return Some(self.builder.sload(element));
         }
+        let ty = self.cx.gcx.type_of_expr(lhs.id)?;
+        let value = self.lower_typed_expr(rhs, ty)?;
+        if self.builder.func().value_u256(value) != Some(U256::ZERO) {
+            return self
+                .cx
+                .report_unsupported(rhs.span, "nonzero value assigned to a handle field");
+        }
         // store(lhs, 0)
         let Some(access) = self.storage_access(lhs) else {
             return self.cx.report_unsupported(lhs.span, "storage access");
