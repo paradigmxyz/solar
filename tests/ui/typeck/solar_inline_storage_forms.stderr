@@ -1,0 +1,18 @@
+error: `@custom:solar-storage inline` takes no arguments
+   ╭▸ ROOT/tests/ui/typeck/solar_inline_storage_forms.sol:LL:CC
+   │
+LL │     /// @custom:solar-storage inline always
+   │          ━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove the arguments after the layout name
+
+error: `@custom:solar-storage inline` takes no arguments
+   ╭▸ ROOT/tests/ui/typeck/solar_inline_storage_forms.sol:LL:CC
+   │
+LL │     /// @custom:solar-storage inline never
+   │          ━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove the arguments after the layout name
+
+error: aborting due to 2 previous errors
+

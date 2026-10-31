@@ -1,0 +1,103 @@
+{
+  "sources": {
+    "bitmap.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "bitmap.sol": {
+      "Claims": {
+        "storageLayout": {
+          "storage": [
+            {
+              "astId": 2,
+              "contract": "bitmap.sol:Claims",
+              "label": "total",
+              "offset": 0,
+              "slot": "0",
+              "type": "t_uint256"
+            },
+            {
+              "astId": 3,
+              "contract": "bitmap.sol:Claims",
+              "label": "claimed",
+              "offset": 0,
+              "slot": "1",
+              "type": "t_mapping(t_uint256,t_bool)"
+            },
+            {
+              "astId": 4,
+              "contract": "bitmap.sol:Claims",
+              "label": "plain",
+              "offset": 0,
+              "slot": "2",
+              "type": "t_mapping(t_uint256,t_bool)"
+            }
+          ],
+          "types": {
+            "t_uint256": {
+              "encoding": "inplace",
+              "label": "uint256",
+              "numberOfBytes": "32"
+            },
+            "t_mapping(t_uint256,t_bool)": {
+              "encoding": "mapping",
+              "label": "mapping(uint256 => bool)",
+              "numberOfBytes": "32",
+              "key": "t_uint256",
+              "value": "t_bool"
+            },
+            "t_bool": {
+              "encoding": "inplace",
+              "label": "bool",
+              "numberOfBytes": "1"
+            }
+          },
+          "bitmaps": [
+            {
+              "astId": 3,
+              "contract": "bitmap.sol:Claims",
+              "label": "claimed",
+              "offset": 0,
+              "slot": "1",
+              "type": "t_mapping(t_uint256,t_bool)"
+            }
+          ]
+        }
+      },
+      "Plain": {
+        "storageLayout": {
+          "storage": [
+            {
+              "astId": 5,
+              "contract": "bitmap.sol:Plain",
+              "label": "plain",
+              "offset": 0,
+              "slot": "0",
+              "type": "t_mapping(t_uint256,t_bool)"
+            }
+          ],
+          "types": {
+            "t_mapping(t_uint256,t_bool)": {
+              "encoding": "mapping",
+              "label": "mapping(uint256 => bool)",
+              "numberOfBytes": "32",
+              "key": "t_uint256",
+              "value": "t_bool"
+            },
+            "t_uint256": {
+              "encoding": "inplace",
+              "label": "uint256",
+              "numberOfBytes": "32"
+            },
+            "t_bool": {
+              "encoding": "inplace",
+              "label": "bool",
+              "numberOfBytes": "1"
+            }
+          }
+        }
+      }
+    }
+  }
+}
