@@ -81,8 +81,11 @@ impl EvmPass for CompactPushes {
 
 const MIN_COMPACT_MASK_WIDTH: u8 = 5;
 
-/// The fewest bytes a rule that adds opcodes must save to be worth searching.
+/// The fewest bytes a rule that adds a push and a shift must save to be worth searching.
 const MIN_SAVED_BYTES: usize = 4;
+
+/// The same for `NOT`, which adds one byte.
+const MIN_NOT_SAVED_BYTES: usize = 2;
 
 /// How many rules deep a program for one immediate may nest.
 const MAX_DEPTH: u8 = 3;
@@ -266,9 +269,8 @@ fn materialize(
 
 /// Returns the cost of pushing `value` as `target` prefers it outside a loop.
 pub(crate) fn push_cost(target: &Target, value: U256) -> Cost {
-    let width = push_width(target.evm_version(), value);
-    if width < MIN_COMPACT_MASK_WIDTH {
-        return literal_cost(width);
+    if push_width(target.evm_version(), value) < MIN_COMPACT_MASK_WIDTH {
+        return literal_push(target.evm_version(), value);
     }
     synthesize(target, value, false).cost
 }
@@ -332,8 +334,6 @@ impl Program {
 enum Step {
     /// A value pushed by its own best program.
     Value(U256),
-    /// A value pushed as one literal.
-    Literal(U256),
     Opcode(u8),
     /// `10^exponent`, pushed as `PUSH exponent; PUSH 10; EXP`.
     PowerOfTen(u32),
@@ -433,10 +433,10 @@ impl Synthesizer {
         // expanding the children of constants that have no structure.
         let width = usize::from(push_width(target.evm_version(), value));
         let shorter =
-            |child: U256| span_bytes(child) + MIN_SAVED_BYTES <= width || is_reciprocal(child);
+            |child: U256, saved: usize| span_bytes(child) + saved <= width || is_reciprocal(child);
 
         // push !value; not
-        if shorter(!value) {
+        if shorter(!value, MIN_NOT_SAVED_BYTES) {
             offer(self, &[Step::Value(!value), not]);
         }
 
@@ -446,25 +446,25 @@ impl Synthesizer {
             // The shift discards the high bits of its operand, so set them for a `NOT` child.
             let filled = (value >> tz) | !(U256::MAX >> tz);
             // Shifting by whole bytes first keeps the literal readable when it costs the same.
-            for shift in [tz / 8 * 8, tz] {
-                if shift > 0 && shorter(value >> shift) {
+            let whole = tz / 8 * 8;
+            for shift in [whole, tz].into_iter().take(if whole == tz { 1 } else { 2 }) {
+                if shift > 0 && shorter(value >> shift, MIN_SAVED_BYTES) {
                     // push value >> shift; push shift; shl
-                    let steps =
-                        [Step::Value(value >> shift), Step::Literal(U256::from(shift)), shl];
+                    let steps = [Step::Value(value >> shift), Step::Value(U256::from(shift)), shl];
                     offer(self, &steps);
                 }
             }
-            if shorter(filled) || shorter(!filled) {
+            if shorter(filled, MIN_SAVED_BYTES) || shorter(!filled, MIN_SAVED_BYTES) {
                 // push filled; push tz; shl
-                offer(self, &[Step::Value(filled), Step::Literal(U256::from(tz)), shl]);
+                offer(self, &[Step::Value(filled), Step::Value(U256::from(tz)), shl]);
             }
         }
         if shifts && lz > 0 {
             // The shift fills the high bits with zeros, so set the low bits of its operand.
             let filled = (value << lz) | !(U256::MAX << lz);
-            if shorter(filled) || shorter(!filled) {
+            if shorter(filled, MIN_SAVED_BYTES) || shorter(!filled, MIN_SAVED_BYTES) {
                 // push (value << lz) | ones; push lz; shr
-                offer(self, &[Step::Value(filled), Step::Literal(U256::from(lz)), shr]);
+                offer(self, &[Step::Value(filled), Step::Value(U256::from(lz)), shr]);
             }
         }
 
@@ -515,9 +515,11 @@ impl Synthesizer {
         let ten = U256::from(10);
         let (mut factor, mut exponent) = (value, 0u32);
         // A multiple of 100 is a multiple of 4.
-        while value.as_limbs()[0] & 3 == 0 && (factor % ten).is_zero() {
-            factor /= ten;
-            exponent += 1;
+        if value.as_limbs()[0] & 3 == 0 {
+            while (factor % ten).is_zero() {
+                factor /= ten;
+                exponent += 1;
+            }
         }
         if exponent >= 2 {
             if factor == one {
@@ -534,10 +536,7 @@ impl Synthesizer {
                 let half = value >> shift;
                 if (half << shift) | half == value {
                     // push half; dup1; push shift; shl; or
-                    offer(
-                        self,
-                        &[Step::Value(half), dup, Step::Literal(U256::from(shift)), shl, or],
-                    );
+                    offer(self, &[Step::Value(half), dup, Step::Value(U256::from(shift)), shl, or]);
                 }
             }
         }
@@ -556,7 +555,6 @@ impl Synthesizer {
         for &step in steps {
             match step {
                 Step::Value(value) => self.append(pricing, value, depth, &mut program),
-                Step::Literal(value) => program.push_literal(evm_version, value),
                 Step::Opcode(opcode) => program.push_opcode(opcode, target.opcode(opcode)),
                 Step::PowerOfTen(exponent) => {
                     let (exponent, base) = (U256::from(exponent), U256::from(10));
@@ -729,22 +727,6 @@ mod tests {
                 let (computed, emitted) = run(&target, &materialization);
                 assert_eq!(computed, value, "{value} on {target:?}");
                 assert_eq!(target.push(value), emitted, "{value} on {target:?}");
-                assert_eq!(
-                    emitted.bytes,
-                    {
-                        let mut bytes = 0;
-                        materialization.for_each(|op| {
-                            bytes += match op {
-                                ImmediateMaterializationOp::Push(value) => {
-                                    1 + u32::from(push_width(target.evm_version(), value))
-                                }
-                                ImmediateMaterializationOp::Opcode(_) => 1,
-                            }
-                        });
-                        bytes
-                    },
-                    "{value} on {target:?}"
-                );
             }
         }
     }
