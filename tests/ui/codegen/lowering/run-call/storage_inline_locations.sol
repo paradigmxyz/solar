@@ -5,6 +5,9 @@
 //@ run-call: Locations::twoPushes => 4, [1, 2, 9, 10]
 //@ run-call: Locations::indexOnce => 4, [9, 2, 3, 10], 1
 //@ run-call: Locations::resetDuringTargets => 1, [9]
+//@ run-call: Locations::popDuringTargets 2 => 3, [9, 2, 2]
+//@ run-call: Locations::popDuringTargets 0 => 3, [9, 2, 0]
+//@ run-call: Locations::emptyPushAfterPop => 3, [9, 2, 0]
 //@ run-call: Functions::copy 1 => 99, 11, 11, 1
 //@ run-call: Functions::copy 2 => 99, 11, 22, 2
 //@ run-call: FunctionsOnly::copy => 11, 22
@@ -38,6 +41,26 @@ contract Locations {
     function resetDuringTargets() external returns (uint256, uint64[] memory) {
         values.push(1); values.push(2); values.push(3); values.push(4);
         (values[3], values[resetIndex()]) = (7, 9);
+        return (values.length, values);
+    }
+
+    function popIndex() internal returns (uint256) {
+        values.pop();
+        return 0;
+    }
+
+    // A deferred write can reach the element a later target has already popped.
+    function popDuringTargets(uint64 appended) external returns (uint256, uint64[] memory) {
+        values.push(1); values.push(2); values.push(3);
+        (values[2], values[popIndex()]) = (4, 9);
+        values.push(appended);
+        return (values.length, values);
+    }
+
+    function emptyPushAfterPop() external returns (uint256, uint64[] memory) {
+        values.push(1); values.push(2); values.push(3);
+        (values[2], values[popIndex()]) = (4, 9);
+        values.push();
         return (values.length, values);
     }
 

@@ -84,6 +84,9 @@ pub(super) fn check(gcx: Gcx<'_>) {
         }
         for id in contract.variables() {
             if let Some(initializer) = gcx.hir.variable(id).initializer {
+                if handles.dictionaries.contains(&id) {
+                    uses.report_append_only(initializer.span);
+                }
                 let _ = uses.visit_expr(initializer);
             }
         }
