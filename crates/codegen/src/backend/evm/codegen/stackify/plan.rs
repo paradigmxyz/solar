@@ -458,8 +458,11 @@ impl<'a> Planner<'a> {
             }
         }
 
-        let mut executions: IndexVec<_, _> =
-            func.blocks.iter().map(|block| target.block_weight(block.hotness)).collect();
+        let mut executions = func
+            .blocks
+            .iter()
+            .map(|block| target.block_weight(block.hotness))
+            .collect::<IndexVec<_, _>>();
         let mut backedges = FxHashSet::default();
         let mut first_use = FxHashMap::default();
         for lp in loops.all_loops() {
