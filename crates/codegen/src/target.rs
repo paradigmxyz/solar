@@ -471,14 +471,6 @@ impl Target {
         compact_pushes::push_cost(self, value)
     }
 
-    /// Cost of pushing `value` again where a plan could keep a copy of it on the stack instead.
-    /// A plan weighs every site at the expected executions, though a call reaches few of them, so
-    /// a gas build would pay the bytes of a second literal to save the gas of a `DUP` and a
-    /// `SWAP`: 8 bytes of a `PUSH8` for 6 gas. A re-push is priced like cold code, bytes first.
-    pub(crate) fn repush(&self, value: U256) -> Cost {
-        self.priced_for_cold(true).push(value)
-    }
-
     /// Cost of pushing `value` as one literal `PUSHn`, the form a push keeps when its compact
     /// recipe does not repay.
     pub(crate) fn literal_push(&self, value: U256) -> Cost {

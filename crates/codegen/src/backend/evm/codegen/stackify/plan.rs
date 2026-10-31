@@ -3350,7 +3350,7 @@ pub(super) fn recomputable(
 /// The cost of pushing a value that is materialized at its use.
 fn materialize_cost(func: &Function, target: &Target, value: ValueId) -> Cost {
     match func.value(value) {
-        Value::Immediate(imm) => target.repush(imm.as_u256().unwrap_or_default()),
+        Value::Immediate(imm) => target.push(imm.as_u256().unwrap_or_default()),
         Value::Undef(_) => target.push(U256::ZERO),
         Value::Arg(_) => target.opcode(op::PUSH1).plus(target.opcode(op::CALLDATALOAD)),
         Value::Inst(inst) => match &func.inst(*inst).kind {
