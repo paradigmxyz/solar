@@ -331,32 +331,34 @@ fn @getters() -> struct3 [selector=0x6317732e, abi_params=[], abi_returns=[word<
     icall revert_if<tuple_data_too_short>, v15
     v16 = add 0, 0
     v17 = mload v16
-    v18 = lt v17, 2
-    v19 = eq v18, false
-    icall revert_if<empty>, v19
-    v20 = ne v17, 0
-    v21 = address
-    v22 = gas
+    v18 = shr v17, 1
+    v19 = eq v18, 0
+    v20 = eq v19, false
+    icall revert_if<empty>, v20
+    v21 = ne v17, 0
+    v22 = address
+    v23 = gas
     mstore 0, 0xdbe7e3bd !metadata(memory=scratch)
     mstore 32, 78 !metadata(memory=scratch)
-    v23 = zext i160 v21 to i256
-    v24 = staticcall v22, v23, 28, 36, 0, 32
-    jumpi v24, bb4, bb3
+    v24 = zext i160 v22 to i256
+    v25 = staticcall v23, v24, 28, 36, 0, 32
+    jumpi v25, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v25 = returndatasize
-    v26 = lt v25, 32
-    icall revert_if<tuple_data_too_short>, v26
-    v27 = add 0, 0
-    v28 = mload v27
-    v29 = lt v28, 2
-    v30 = eq v29, false
-    icall revert_if<empty>, v30
-    v31 = ne v28, 0
-    v32 = insert_value struct3, undef struct3, 0, v20
-    v33 = insert_value struct3, v32, 1, v31
-    ret v33
+    v26 = returndatasize
+    v27 = lt v26, 32
+    icall revert_if<tuple_data_too_short>, v27
+    v28 = add 0, 0
+    v29 = mload v28
+    v30 = shr v29, 1
+    v31 = eq v30, 0
+    v32 = eq v31, false
+    icall revert_if<empty>, v32
+    v33 = ne v29, 0
+    v34 = insert_value struct3, undef struct3, 0, v21
+    v35 = insert_value struct3, v34, 1, v33
+    ret v35
 }
 
 fn @extremes() -> struct1 [selector=0xc525dc76, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>, word], abi_return_params=[bool, bool, bool, bytes32]] {

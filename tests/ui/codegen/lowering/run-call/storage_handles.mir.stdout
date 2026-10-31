@@ -516,33 +516,34 @@ fn @getter() -> struct0 [selector=0x993a04b7, abi_params=[], abi_returns=[word<u
     v59 = ptrtoint ptr<memory> v26 to i256
     v60 = add v59, 160
     v61 = mload v60
-    v62 = lt v61, 2
-    v63 = eq v62, false
-    icall revert_if<empty>, v63
-    v64 = trunc i256 v34 to i160
-    v65 = trunc i256 v43 to i128
-    v66 = trunc i256 v49 to i128
-    v67 = trunc i256 v55 to i64
-    v68 = ne v61, 0
-    v69 = insert_value struct0, undef struct0, 0, v64
-    v70 = insert_value struct0, v69, 1, v40
-    v71 = insert_value struct0, v70, 2, v65
-    v72 = insert_value struct0, v71, 3, v66
-    v73 = insert_value struct0, v72, 4, v67
-    v74 = insert_value struct0, v73, 5, v68
-    v75 = extract_value struct0, v74, 0
-    v76 = extract_value struct0, v74, 1
-    v77 = extract_value struct0, v74, 2
-    v78 = extract_value struct0, v74, 3
-    v79 = extract_value struct0, v74, 4
-    v80 = extract_value struct0, v74, 5
-    v81 = insert_value struct0, undef struct0, 0, v75
-    v82 = insert_value struct0, v81, 1, v76
-    v83 = insert_value struct0, v82, 2, v77
-    v84 = insert_value struct0, v83, 3, v78
-    v85 = insert_value struct0, v84, 4, v79
-    v86 = insert_value struct0, v85, 5, v80
-    ret v86
+    v62 = shr v61, 1
+    v63 = eq v62, 0
+    v64 = eq v63, false
+    icall revert_if<empty>, v64
+    v65 = trunc i256 v34 to i160
+    v66 = trunc i256 v43 to i128
+    v67 = trunc i256 v49 to i128
+    v68 = trunc i256 v55 to i64
+    v69 = ne v61, 0
+    v70 = insert_value struct0, undef struct0, 0, v65
+    v71 = insert_value struct0, v70, 1, v40
+    v72 = insert_value struct0, v71, 2, v66
+    v73 = insert_value struct0, v72, 3, v67
+    v74 = insert_value struct0, v73, 4, v68
+    v75 = insert_value struct0, v74, 5, v69
+    v76 = extract_value struct0, v75, 0
+    v77 = extract_value struct0, v75, 1
+    v78 = extract_value struct0, v75, 2
+    v79 = extract_value struct0, v75, 3
+    v80 = extract_value struct0, v75, 4
+    v81 = extract_value struct0, v75, 5
+    v82 = insert_value struct0, undef struct0, 0, v76
+    v83 = insert_value struct0, v82, 1, v77
+    v84 = insert_value struct0, v83, 2, v78
+    v85 = insert_value struct0, v84, 3, v79
+    v86 = insert_value struct0, v85, 4, v80
+    v87 = insert_value struct0, v86, 5, v81
+    ret v87
 }
 
 fn @assignmentValue() -> struct4 [selector=0x454887fb, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, bytes32]] {
