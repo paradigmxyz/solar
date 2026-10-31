@@ -219,7 +219,13 @@ contract InlineArrays {
 
     // CHECK-LABEL: fn @inline_array_pop_8_0(
     // CHECK: icall panic_if<0x31>,
-    // CHECK: [[SHRUNK:v[0-9]+]] = sub {{v[0-9]+}}, 0x100000000000000000000000000000000000000000000000000000000000000
+    // CHECK: [[LAST:v[0-9]+]] = sub {{v[0-9]+}}, 1
+    // CHECK: [[BITS:v[0-9]+]] = mul [[LAST]], 64
+    // CHECK: [[END:v[0-9]+]] = shl 1, [[BITS]]
+    // CHECK: [[MASK:v[0-9]+]] = sub [[END]], 1
+    // CHECK: [[ELEMENTS:v[0-9]+]] = and {{v[0-9]+}}, [[MASK]]
+    // CHECK: [[LENGTH:v[0-9]+]] = shl [[LAST]], 248
+    // CHECK: [[SHRUNK:v[0-9]+]] = or [[ELEMENTS]], [[LENGTH]]
     // CHECK: sstore arg0, [[SHRUNK]]
 
     // CHECK-LABEL: fn @load_storage_inline_array_1_0_enum_2(

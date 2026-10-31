@@ -24,9 +24,11 @@
 //! Deferred element targets retain their checked logical index, selecting the physical slot
 //! again at the final access because another tuple target may spill the array. Such a target
 //! can also write above a length reduced by another target, so each push overwrites its element
-//! bits rather than assuming unused bytes are zero. Shared helper keys distinguish enum ranges
-//! and external-function memory encodings. Standard-layout copies use the ordinary element-wise
-//! fallback when their element type has no shared word loader.
+//! bits rather than assuming unused bytes are zero. A pop discards all bits above its new length,
+//! leaving an empty array's slot zero so stale elements cannot be read as a standard length.
+//! Shared helper keys distinguish enum ranges and external-function memory encodings.
+//! Standard-layout copies use the ordinary element-wise fallback when their element type has no
+//! shared word loader.
 
 use super::*;
 
@@ -345,16 +347,19 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
         let standard = self.builder.create_block();
         self.builder.branch(inline, shrink, standard);
 
-        // shrink: sstore(slot, (header & ~(mask << last * size * 8)) - (1 << 248))
+        // shrink:
+        //   mask = (1 << (last * size * 8)) - 1
+        //   elements = header & mask
+        //   sstore(slot, elements | (last << 248))
         self.builder.switch_to_block(shrink);
         let bits = self.builder.imm(array.size() * 8);
         let shift = self.builder.mul(last, bits);
-        let mask = self.builder.imm(array.element.mask());
-        let element_mask = self.builder.shl(mask, shift);
-        let keep = self.builder.not(element_mask);
-        let cleared = self.builder.and(header, keep);
-        let one_length = self.builder.imm(U256::from(1) << 248);
-        let shrunk = self.builder.sub(cleared, one_length);
+        let end = self.builder.shl(one, shift);
+        let mask = self.builder.sub(end, one);
+        let elements = self.builder.and(header, mask);
+        let length_shift = self.builder.imm(248);
+        let encoded_length = self.builder.shl(last, length_shift);
+        let shrunk = self.builder.or(elements, encoded_length);
         self.builder.sstore(slot, shrunk);
         self.builder.ret([]);
 
