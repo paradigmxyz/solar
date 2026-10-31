@@ -20,7 +20,7 @@
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
     mir::{
-        BlockId, Function, InstId, Op, Terminator, Value, ValueId, analysis::AddressSpace,
+        BlockId, Function, Hotness, InstId, Op, Terminator, Value, ValueId, analysis::AddressSpace,
         memory::EvmMemoryLayout,
     },
 };
@@ -323,6 +323,13 @@ impl Target {
 
     pub(crate) fn expected_executions(&self) -> u64 {
         self.expected_executions
+    }
+
+    /// The weight of a block of `hotness` outside every loop. Gas in a cold block is not paid by a
+    /// call that succeeds, so the gas objective weighs it at zero, whatever loops enclose it, and
+    /// only its bytes count. Other objectives weigh every block alike.
+    pub(crate) const fn block_weight(&self, hotness: Hotness) -> u32 {
+        if hotness.is_cold() && self.optimization.is_gas() { 0 } else { 1 }
     }
 
     /// The weight of a block inside one more loop than a block of weight `weight`.
@@ -1549,6 +1556,19 @@ mod tests {
                 // `PUSH0; NOT`.
                 assert_eq!(target.push(U256::MAX), Cost::new(5, 2).with_steps(2));
             }
+        }
+    }
+
+    #[test]
+    fn cold_blocks_weigh_nothing_for_gas_only() {
+        let target = |optimization| Target::with(EvmVersion::Osaka, optimization, 200);
+        let gas = target(OptimizationMode::Gas);
+        assert_eq!(gas.block_weight(Hotness::Hot), 1);
+        assert_eq!(gas.block_weight(Hotness::Cold), 0);
+        // A cold loop stays at zero.
+        assert_eq!(Target::nested_block_weight(gas.block_weight(Hotness::Cold)), 0);
+        for optimization in [OptimizationMode::Size, OptimizationMode::None] {
+            assert_eq!(target(optimization).block_weight(Hotness::Cold), 1);
         }
     }
 
