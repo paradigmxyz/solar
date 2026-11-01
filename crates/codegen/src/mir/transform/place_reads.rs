@@ -106,7 +106,8 @@ fn sink_tests(func: &mut Function) -> bool {
                 _ => continue,
             };
             let Some(result) = func.inst_result_value(inst) else { continue };
-            if !func.is_constant_calldata_load(input) {
+            if !func.is_constant_calldata_load(input) && !matches!(func.value(input), Value::Arg(_))
+            {
                 continue;
             }
             let Some(&[(use_block, user)]) = uses.get(&result).map(SmallVec::as_slice) else {

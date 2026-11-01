@@ -15,6 +15,12 @@
 //@ run-call: negated false => true
 //@ run-call: unless true, 7 => 0, 8
 //@ run-call: unless false, 7 => 1, 7
+//@ run-call: pick true, 5, 9 => 5
+//@ run-call: pick false, 5, 9 => 9
+//@ run-call: pickNegated true, 5, 9 => 9
+//@ run-call: pickNegated false, 5, 9 => 5
+//@ run-call: store true => true
+//@ run-call: store false => false
 //@ run-call-fail: 0x599b0e8800000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001
 //@ run-call-fail: 0x47a7ecc200000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002
 //@ run-call-fail: 0x4c75808f00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002
@@ -32,6 +38,23 @@ contract BoolParamLogic {
 
     function differ(bool a, bool b) external pure returns (bool) {
         return a != b;
+    }
+
+    // A bool parameter of a function that is also called internally reaches its body as a word, so
+    // the external call and the internal call both pass the bool they hold.
+    function pick(bool a, uint256 x, uint256 y) public pure returns (uint256) {
+        return a ? x : y;
+    }
+
+    function pickNegated(bool a, uint256 x, uint256 y) external pure returns (uint256) {
+        return pick(!a, x, y);
+    }
+
+    bool private flag;
+
+    function store(bool a) external returns (bool) {
+        flag = a;
+        return flag;
     }
 
     function negated(bool a) external pure returns (bool) {

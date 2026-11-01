@@ -25,6 +25,15 @@
 //! call sites that targeted a wrapped function are retargeted to its extracted
 //! raw-return body, so internal calls to public functions keep their convention.
 //!
+//! A body takes each bool parameter as a word, not as an `i1`. The wrapper passes the head word
+//! its guard checked to be 0 or 1 (as `zext (trunc w)`, which the cleanup after lowering reduces
+//! to the word itself), and a retargeted internal caller passes `zext b`, which costs nothing. The
+//! body starts with `ne arg, 0` for the bool and `place-reads` moves that test to the block that
+//! reads it, so a branch on the bool peels the test, `zext (ne arg, 0)` is the word again, and the
+//! bool is normalized only where something other than a branch or a store reads it. Normalizing in
+//! the caller instead would test every bool before the call, whether the body reads it or not.
+//! Other internal functions keep their `i1` parameters.
+//!
 //! Calldata aggregates that repeat across parameters, or dynamic tuples that repeat anywhere
 //! inside them, decode through shared helpers; tuple helpers take the base of their enclosing
 //! tuple so enclosing decoders can call them for nested values.
@@ -93,9 +102,9 @@
 use crate::mir::{
     AbiEncodeMode, AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
     AbiType, AbiWordValidator, AllocationSemantics, ArgIdx, BlockId, CalldataTail, Callee,
-    EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId, InstKind,
-    MangledSymbol, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation, RevertReason,
-    Terminator, Value, ValueId, ValueLayout,
+    EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate, InstId,
+    InstKind, Instruction, MangledSymbol, MemoryObjectLayout, MirPhase, MirType, Module,
+    PtrLocation, RevertReason, Terminator, Value, ValueId, ValueLayout,
     analysis::{AliasAnalysis, HotnessAnalysis, LocationSize, MemoryBase},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
@@ -354,14 +363,14 @@ impl LowerAbiCx {
             // that are need a second, parameterized body; cloning every wrapper
             // needlessly grows the MIR consumed by all subsequent lowering and
             // backend passes.
-            if let Some(body_id) = self.wrap_function(
+            if let Some(body) = self.wrap_function(
                 module,
                 id,
                 internally_called.contains(id),
                 gas_mode,
                 if gas_mode { &canonical_return_calls } else { &no_canonical_return_calls },
             ) {
-                body_of_wrapper.insert(id, body_id);
+                body_of_wrapper.insert(id, body);
             }
             if !module.is_library
                 && !hoist_callvalue
@@ -376,14 +385,7 @@ impl LowerAbiCx {
         // wrappers' own calls already target the bodies and are not affected.
         if !body_of_wrapper.is_empty() {
             for func in module.functions.iter_mut() {
-                func.for_each_instruction_mut(|_, inst| {
-                    if let InstKind::ICall { function: Callee::Function(function), .. } =
-                        &mut inst.kind
-                        && let Some(&body_id) = body_of_wrapper.get(function)
-                    {
-                        *function = body_id;
-                    }
-                });
+                Self::retarget_calls(func, &body_of_wrapper);
             }
         }
 
@@ -932,7 +934,7 @@ impl LowerAbiCx {
         needs_body: bool,
         gas_mode: bool,
         canonical_return_calls: &FxHashSet<(FunctionId, AbiParamType)>,
-    ) -> Option<FunctionId> {
+    ) -> Option<(FunctionId, Vec<ArgIdx>)> {
         let original = module.function(wrapper_id).clone();
         let static_bytes_return = static_bytes_return(&original);
         // An internally called function keeps one body, which its wrapper
@@ -953,6 +955,26 @@ impl LowerAbiCx {
         // The copy must precede wrapper mutation and callvalue injection so
         // internal callers keep the original function semantics.
         let body_id = needs_body.then(|| module.add_function(Self::internal_body(&original)));
+        // The body takes each bool parameter as the word the guard checked to be 0 or 1.
+        let word_params = original
+            .abi_params
+            .as_ref()
+            .map(|layout| {
+                layout
+                    .types
+                    .iter()
+                    .zip(original.arg_indices())
+                    .filter(|&(ty, index)| {
+                        matches!(ty, AbiParamType::Scalar(ValueLayout::Bool))
+                            && original.arg_ty(index) == MirType::I1
+                    })
+                    .map(|(_, index)| index)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        if let Some(body_id) = body_id {
+            Self::bool_params_as_words(module.function_mut(body_id), &word_params);
+        }
 
         let logical_values =
             self.inject_abi_prologue(module.function_mut(wrapper_id), abi_params.as_ref(), false);
@@ -966,6 +988,7 @@ impl LowerAbiCx {
                 original_entry_inst.expect("calling wrapper has an entry instruction"),
                 original.return_components(),
                 logical_values.into_iter().map(Option::unwrap).collect(),
+                &word_params,
             );
         }
         if let [MirType::Struct(id)] = original.return_components() {
@@ -1028,7 +1051,74 @@ impl LowerAbiCx {
         wrapper.clear_params();
         wrapper.set_return_type(MirType::Void);
         Self::clear_abi_metadata(wrapper);
-        body_id
+        body_id.map(|body_id| (body_id, word_params))
+    }
+
+    /// Takes the bool parameters `params` as words known to be 0 or 1. Callers pass `zext b`, and
+    /// the body tests the word, so a branch on the bool peels the test and the caller never
+    /// normalizes.
+    fn bool_params_as_words(body: &mut Function, params: &[ArgIdx]) {
+        let uses = body.arg_uses();
+        let mut replacements = FxHashMap::default();
+        let mut tests = Vec::new();
+        for &index in params {
+            body.set_arg_ty(index, MirType::I256);
+            // test = ne arg, 0
+            let word = body.alloc_arg(index);
+            let zero = body.alloc_value(Value::Immediate(Immediate::for_type(
+                Some(MirType::I256),
+                U256::ZERO,
+            )));
+            let test = Instruction::new(InstKind::Ne(word, zero), Some(MirType::I1))
+                .with_debug_info_dropped();
+            let (test, value) = body.alloc_value_inst(test);
+            tests.push(test);
+            for &use_value in &uses[index] {
+                replacements.insert(use_value, value);
+            }
+        }
+        body.replace_uses(&replacements);
+        body.blocks[BlockId::ENTRY].instructions.splice(0..0, tests);
+    }
+
+    /// Points internal calls of a wrapper at its body, passing each bool the body takes as a word.
+    fn retarget_calls(
+        func: &mut Function,
+        bodies: &FxHashMap<FunctionId, (FunctionId, Vec<ArgIdx>)>,
+    ) {
+        let mut calls = Vec::new();
+        for (block, data) in func.blocks.iter_enumerated() {
+            for &inst in &data.instructions {
+                if let InstKind::ICall { function: Callee::Function(function), .. } =
+                    func.inst(inst).kind
+                    && bodies.contains_key(&function)
+                {
+                    calls.push((block, inst, function));
+                }
+            }
+        }
+        for (block, call, function) in calls {
+            let (body, words) = &bodies[&function];
+            for &index in words {
+                let InstKind::ICall { args, .. } = &func.inst(call).kind else { continue };
+                let arg = args[index.index()];
+                if func.value_ty(arg) != Some(MirType::I1) {
+                    continue;
+                }
+                // arg = zext b, before the call
+                let mut zext = Instruction::new(InstKind::Zext(arg), Some(MirType::I256));
+                zext.metadata.copy_debug_context(&func.inst(call).metadata);
+                let (zext, word) = func.alloc_value_inst(zext);
+                let instructions = &mut func.blocks[block].instructions;
+                let position = instructions.iter().position(|&inst| inst == call).unwrap();
+                instructions.insert(position, zext);
+                let InstKind::ICall { args, .. } = &mut func.inst_mut(call).kind else { continue };
+                args[index.index()] = word;
+            }
+            if let InstKind::ICall { function, .. } = &mut func.inst_mut(call).kind {
+                *function = Callee::Function(*body);
+            }
+        }
     }
 
     /// The function's input layout, or one word per parameter for parsed MIR that has none.
@@ -1102,7 +1192,8 @@ impl LowerAbiCx {
         body_id: FunctionId,
         original_entry_inst: InstId,
         return_types: &[MirType],
-        args: Vec<ValueId>,
+        mut args: Vec<ValueId>,
+        word_params: &[ArgIdx],
     ) {
         let Some(block) = func
             .blocks
@@ -1117,6 +1208,14 @@ impl LowerAbiCx {
         func.blocks[block].terminator = None;
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
+        // arg = zext b, for each bool the body takes as a word
+        for &index in word_params {
+            let word = builder.cast(args[index.index()], MirType::I256);
+            if let Value::Inst(inst) = *builder.func().value(word) {
+                builder.func_mut().inst_mut(inst).metadata.mark_debug_info_dropped();
+            }
+            args[index.index()] = word;
+        }
         if let Some((&first, rest)) = return_types.split_first() {
             let mut values = Vec::with_capacity(return_types.len());
             values.push(builder.icall(body_id, args, first));
