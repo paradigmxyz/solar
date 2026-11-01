@@ -683,8 +683,15 @@ fn may_dirty_range(
         InstKind::Alloc { .. } | InstKind::Fmp => false,
         _ if zero_fill(func, inst).is_some() => false,
         // A callee that keeps the memory above the pointer zero writes memory of its own, and
-        // never through a pointer to an earlier allocation.
-        InstKind::ICall { function: Callee::Function(callee), .. } if keepers.contains(callee) => {
+        // never through a pointer to an earlier allocation. A range that may leave its
+        // allocation can reach that memory.
+        InstKind::ICall { function: Callee::Function(callee), .. }
+            if keepers.contains(callee)
+                && matches!(
+                    location.address.base,
+                    MemoryBase::Allocation(_) | MemoryBase::DynamicAllocation(_)
+                ) =>
+        {
             false
         }
         kind if kind.effect_kind().is_read_only() => false,
