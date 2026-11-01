@@ -1,6 +1,9 @@
 - // === ROOT/tests/ui/codegen/mir/cse/pure_calls.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/cse/pure_calls.mir (after cse) ===
   @module PureCalls
+  @immutables
+    small: uint256
+  
   fn @to_u32(arg0: i256) -> i256 {
     bb0:
       v0 = gt arg0, 0xffffffff
@@ -80,5 +83,33 @@
       v10 = add v2, v4
       v11 = add v9, v10
       ret v11
+  }
+  
+  fn @frame_word(arg0: i256) -> i256 {
+    bb0:
+      v0 = calldataload arg0
+      v1 = caller
+      v2 = zext i160 v1 to i256
+      v3 = add v0, v2
+      ret v3
+  }
+  
+  fn @immutable_word() -> i256 {
+    bb0:
+      v0 = loadimmutable small
+      ret v0
+  }
+  
+  fn @frame_words(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @frame_word, arg0
+-     v1 = icall @frame_word, arg0
+      v2 = icall @immutable_word
+      v3 = icall @immutable_word
+-     v4 = add v0, v1
++     v4 = add v0, v0
+      v5 = add v2, v3
+      v6 = add v4, v5
+      ret v6
   }
   

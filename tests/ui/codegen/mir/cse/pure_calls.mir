@@ -1,6 +1,8 @@
 //@ compile-flags: -Zmir-pipeline=cse
 //@ filecheck:
 @module PureCalls
+@immutables
+  small: uint256
 
 // A checked narrowing whose revert path stages its error data: no block that
 // can return reads memory, so a call's result depends on its argument alone.
@@ -99,4 +101,37 @@ fn @not_pure_leaves(arg0: i256) -> i256 {
     v10 = add v7, v9
     v11 = add v6, v10
     ret v11
+}
+
+// Words that fix for the call frame, calldata and the caller, do not tie a leaf to one call; an
+// immutable read does not qualify, since the constructor writes it.
+fn @frame_word(arg0: i256) -> i256 {
+  bb0:
+    v0 = calldataload arg0
+    v1 = caller
+    v3 = zext i160 v1 to i256
+    v2 = add v0, v3
+    ret v2
+}
+
+fn @immutable_word() -> i256 {
+  bb0:
+    v0 = loadimmutable small
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @frame_words{{[( ]}}
+// CHECK: {{^[ +].*}}[[FIRST:v[0-9]+]] = icall @frame_word, arg0
+// CHECK-NOT: {{^[ +].*}} = icall @frame_word, arg0
+// CHECK-COUNT-2: {{^[ +].*}} = icall @immutable_word
+fn @frame_words(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @frame_word, arg0
+    v1 = icall @frame_word, arg0
+    v2 = icall @immutable_word
+    v3 = icall @immutable_word
+    v4 = add v0, v1
+    v5 = add v2, v3
+    v6 = add v4, v5
+    ret v6
 }

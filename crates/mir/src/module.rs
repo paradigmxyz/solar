@@ -463,8 +463,11 @@ impl Module {
     pub fn runtime_entries(&self) -> DenseBitSet<FunctionId> {
         let mut entries = DenseBitSet::new_empty(self.functions.len());
         if let Some(entry) = self.dispatch_entry {
+            // A malformed target is the verifier's to report.
             for function in self.functions.get(entry).into_iter().flat_map(tail_callees) {
-                entries.insert(function);
+                if function.index() < self.functions.len() {
+                    entries.insert(function);
+                }
             }
         } else {
             for (id, func) in self.functions.iter_enumerated() {

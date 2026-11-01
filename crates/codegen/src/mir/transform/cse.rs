@@ -54,7 +54,7 @@
 //! proves deterministic reads and complete restoration of temporary writes.
 //! Every intervening memory write invalidates these entries. Calls never sink or
 //! inherit a cached result across blocks; no read-footprint disjointness is assumed.
-//! Calls to pure leaf functions are the exception: a `pure` single-result leaf that
+//! Calls to pure leaf functions are the exception: a single-result leaf that
 //! touches no storage, writes no memory a caller sees, observes neither gas
 //! nor return data, and reads memory only on paths that revert depends
 //! on its arguments alone, so its result is reused like pure arithmetic, across dominating blocks

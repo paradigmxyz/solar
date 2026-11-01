@@ -151,7 +151,7 @@ pub(super) fn redirect_edge(
 }
 
 /// Returns whether `func` has a private MIR signature that direct callers may rewrite, given the
-/// module's [`Module::root_functions`].
+/// module's `Module::root_functions`.
 pub(super) fn is_internal_body(
     roots: &DenseBitSet<FunctionId>,
     id: FunctionId,

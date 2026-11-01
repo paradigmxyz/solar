@@ -121,7 +121,7 @@ impl MirPass for LowerAbi {
     }
 
     fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        module.phase() == MirPhase::Semantic
+        module.phase() == MirPhase::Semantic && module.dispatch_entry().is_none()
     }
 
     fn is_required(&self) -> bool {
