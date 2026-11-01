@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/solar_optimize_functions.sol:Mixed ===
 @module Mixed
 @phase lowered
-@types
-  struct0: {i256, i256}
-
 @immutables
   tag: bytes4
   delta: int16

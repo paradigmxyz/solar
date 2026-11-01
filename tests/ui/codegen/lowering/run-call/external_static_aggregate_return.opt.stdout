@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_static_aggregate_return.sol:ExternalStaticAggregateReturn ===
 @module ExternalStaticAggregateReturn
 @phase lowered
-@types
-  struct0: {ptr<memory>, i256}
-
 fn @entry() [entry] {
   bb0:
     v0 = callvalue

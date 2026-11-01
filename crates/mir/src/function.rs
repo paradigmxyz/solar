@@ -38,7 +38,8 @@ pub struct Function {
     pub params: IndexVec<ArgIdx, MirType>,
     /// The function's single logical result, or `void`.
     return_type: MirType,
-    /// Components selected by internal ABI lowering. The logical result stays intact.
+    /// Components selected by internal ABI lowering. A slice result stays logical; a function
+    /// returning several words has no logical result and only these components.
     return_abi: Option<Box<[MirType]>>,
     /// ABI layout of values returned by an external entry before `lower-abi`
     /// materializes returndata encoding.

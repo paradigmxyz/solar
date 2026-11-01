@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_dynamic_arrays.sol:AbiDecodeDynamicArrays ===
 @module AbiDecodeDynamicArrays
 @phase lowered
-@types
-  struct0: {i256, ptr<memory>, ptr<memory>}
-
 fn @entry() [entry] {
   bb0:
     v0 = callvalue

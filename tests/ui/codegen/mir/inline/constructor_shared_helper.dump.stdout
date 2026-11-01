@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/inline/constructor_shared_helper.sol:ConstructorSharedHelper ===
 @module ConstructorSharedHelper
 @phase lowered
-@types
-  struct0: {i256, i256}
-
 fn @constructor() [abi_wrapper, constructor] {
   bb0:
     v1 = callvalue

@@ -1,10 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_structs.sol:AbiDecodeStructs ===
 @module AbiDecodeStructs
 @phase lowered
-@types
-  struct0: {i256, i256, i1}
-  struct1: {i256, ptr<memory>, i256}
-
 fn @entry() [entry] {
   bb0:
     v0 = callvalue

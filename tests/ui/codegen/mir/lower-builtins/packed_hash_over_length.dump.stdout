@@ -1,10 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/lower-builtins/packed_hash_over_length.sol:PackedHashOverLength ===
 @module PackedHashOverLength
 @phase lowered
-@types
-  struct0: {i256, ptr<memory>}
-  struct1: {i256, i256}
-
 fn @entry() [entry] {
   bb0:
     v0 = callvalue

@@ -351,6 +351,7 @@ impl Module {
         self.functions.iter().any(|func| {
             let matches = |value| func.value_ty(value).is_some_and(&predicate);
             if func.arg_indices().any(|index| predicate(func.arg_ty(index)))
+                || predicate(func.return_type())
                 || func.return_components().iter().any(|&ty| predicate(ty))
             {
                 return true;

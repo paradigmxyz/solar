@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/loop-version/partition.sol:Partition ===
 @module Partition
 @phase lowered
-@types
-  struct0: {i256, i256, i256}
-
 fn @entry() [entry] {
   bb0:
     v0 = callvalue

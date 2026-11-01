@@ -1,14 +1,14 @@
 - // === ROOT/tests/ui/codegen/mir/lower-structs/values.mir (before lower-structs) ===
 + // === ROOT/tests/ui/codegen/mir/lower-structs/values.mir (after lower-structs) ===
   @module StructValues
-  @types
-    struct0: {i256, i1}
-    struct1: {struct0, i256}
-    struct2: {}
-    struct3: {i1, i256, i256}
-  
+- @types
+-   struct0: {i256, i1}
+-   struct1: {struct0, i256}
+-   struct2: {}
+-   struct3: {i1, i256, i256}
+- 
 - fn @pair(arg0: i256, arg1: i1) -> struct0 {
-+ fn @pair(arg0: i256, arg1: i1) -> struct0 [return_abi=[i256, i1]] {
++ fn @pair(arg0: i256, arg1: i1) [return_abi=[i256, i1]] {
     bb0:
 -     v0 = insert_value struct0, undef struct0, 0, arg0
 -     v1 = insert_value struct0, v0, 1, arg1
@@ -41,7 +41,7 @@
   }
   
 - fn @loop(arg0: struct0, arg1: i1) -> struct0 {
-+ fn @loop(arg0: i256, arg1: i1, arg2: i1) -> struct0 [return_abi=[i256, i1]] {
++ fn @loop(arg0: i256, arg1: i1, arg2: i1) [return_abi=[i256, i1]] {
     bb0:
       jump bb1
     bb1:
@@ -60,7 +60,7 @@
   }
   
 - fn @constants() -> struct3 {
-+ fn @constants() -> struct3 [return_abi=[i1, i256, i256]] {
++ fn @constants() [return_abi=[i1, i256, i256]] {
     bb0:
 -     v0 = insert_value struct3, undef struct3, 0, true
 -     v1 = insert_value struct3, v0, 1, 255
@@ -83,7 +83,7 @@
   }
   
 - fn @empty(arg0: struct2) -> struct2 {
-+ fn @empty() -> struct2 [return_abi=[]] {
++ fn @empty() {
     bb0:
 -     ret arg0
 +     ret
@@ -103,7 +103,7 @@
   }
   
 - fn @select(arg0: i1, arg1: struct0, arg2: struct0) -> struct0 {
-+ fn @select(arg0: i1, arg1: i256, arg2: i1, arg3: i256, arg4: i1) -> struct0 [return_abi=[i256, i1]] {
++ fn @select(arg0: i1, arg1: i256, arg2: i1, arg3: i256, arg4: i1) [return_abi=[i256, i1]] {
     bb0:
 -     v0 = select arg0, arg1, arg2
 -     ret v0
@@ -113,13 +113,13 @@
   }
   
 - fn @tail(arg0: i256, arg1: i1) -> struct0 {
-+ fn @tail(arg0: i256, arg1: i1) -> struct0 [return_abi=[i256, i1]] {
++ fn @tail(arg0: i256, arg1: i1) [return_abi=[i256, i1]] {
     bb0:
       tail_call @pair, arg0, arg1
   }
   
 - fn @select_call(arg0: i1, arg1: struct0) -> struct0 {
-+ fn @select_call(arg0: i1, arg1: i256, arg2: i1) -> struct0 [return_abi=[i256, i1]] {
++ fn @select_call(arg0: i1, arg1: i256, arg2: i1) [return_abi=[i256, i1]] {
     bb0:
 -     v0 = icall @pair, 42, true
 -     v1 = select arg0, v0, arg1
@@ -135,7 +135,7 @@
   }
   
 - fn @numeric_call() -> struct0 {
-+ fn @numeric_call() -> struct0 [return_abi=[i256, i1]] {
++ fn @numeric_call() [return_abi=[i256, i1]] {
     bb0:
 -     v0 = icall @pair, 42, true
 -     ret v0
