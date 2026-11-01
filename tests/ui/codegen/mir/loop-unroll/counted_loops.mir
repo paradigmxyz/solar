@@ -661,7 +661,7 @@ fn @shrinking_below(arg0: i256) -> i256 {
 // CHECK-NEXT: + {{v[0-9]+}} = phi {{\[}}[[FIRST]]: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}]
 // CHECK: + {{v[0-9]+}} = and {{v[0-9]+}}, 1
 // CHECK: - jumpi [[NONZERO]], bb3, bb4
-// CHECK-NEXT: - bb4:
+// CHECK-NEXT: - bb4 [cold]:
 // CHECK-NEXT: - revert 0, 0
 // CHECK-NEXT: + jump bb3
 fn @invariant_test(arg0: i256, arg1: i256) -> i256 {

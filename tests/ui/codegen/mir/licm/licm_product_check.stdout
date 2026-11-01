@@ -23,14 +23,14 @@
       v6 = eq v5, v1
 -     v7 = or v4, v6
 -     jumpi v7, bb3, bb4
--   bb4:
+-   bb4 [cold]:
 -     revert 0, 0
 +     v7 = gt v1, v12
 +     jumpi v7, bb4, bb3
     bb3:
       v8 = add v0, 1
       jump bb1
-+   bb4:
++   bb4 [cold]:
 +     revert 0, 0
   }
   
@@ -55,14 +55,14 @@
       v6 = eq v5, arg1
 -     v7 = or v4, v6
 -     jumpi v7, bb3, bb4
--   bb4:
+-   bb4 [cold]:
 -     revert 0, 0
 +     v7 = gt v1, v12
 +     jumpi v7, bb4, bb3
     bb3:
       v8 = add v0, 1
       jump bb1
-+   bb4:
++   bb4 [cold]:
 +     revert 0, 0
   }
   
@@ -83,7 +83,7 @@
       v6 = eq v5, v1
       v7 = or v4, v6
       jumpi v7, bb3, bb4
-    bb4:
+    bb4 [cold]:
       revert 0, 0
     bb3:
       v8 = add v0, 1
@@ -108,7 +108,7 @@
       v6 = eq v5, v1
       v7 = or v4, v6
       jumpi v7, bb3, bb4
-    bb4:
+    bb4 [cold]:
       revert 0, 0
     bb3:
       v8 = add v0, 1
@@ -135,7 +135,7 @@
       v6 = eq v5, v1
       v7 = or v4, v6
       jumpi v7, bb3, bb4
-    bb4:
+    bb4 [cold]:
       revert 0, 0
     bb3:
       v8 = add v0, 1

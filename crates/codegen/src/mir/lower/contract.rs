@@ -377,8 +377,7 @@ pub(super) fn declaration(
         inline_hint: tags.inline == Some(InlineTag::Hint),
         // A tag naming the contract's own objective changes nothing.
         optimization: tags.optimize.filter(|&objective| objective != contract_objective),
-        array_element_bits: Default::default(),
-        array_return_element_bits: None,
+        ..FunctionAttributes::default()
     };
 
     if function.kind == hir::FunctionKind::Function

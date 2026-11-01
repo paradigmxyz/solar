@@ -6,7 +6,7 @@ fn @f() {
     stop
 }
 
-fn @entry() [entry] {
-  bb0:
+fn @entry() [entry, cold] {
+  bb0 [cold]:
     revert 0, 0
 }

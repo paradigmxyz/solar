@@ -35,7 +35,7 @@ fn @sortPairs() [selector=0x198bc552, abi_wrapper, pure] {
     mcopy v25, v35, v24 !metadata(memory=heap, disjoint)
     v29 = sub v27, v39
     returndata v39, v29
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -53,7 +53,7 @@ fn @sameArray() [selector=0xb6752e08, abi_wrapper, pure] {
     mstore v12, 32
     v9 = add v7, 64
     returndata v12, v9
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -72,7 +72,7 @@ fn @overlapping() [selector=0xb7239436, abi_wrapper, pure] {
     mstore v15, 32
     v12 = add v10, 64
     returndata v15, v12
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -222,7 +222,7 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory, pure] {
     v57 = mload v249
     v59 = lt v24, v51
     jumpi v59, bb22, bb15
-  bb15:
+  bb15 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -270,11 +270,11 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v22 = add v25, 32
     calldatacopy v22, v7, v12
     ret v25
-  bb3:
+  bb3 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -293,6 +293,6 @@ fn @entry() [entry] {
     tail_call @sameArray
   bb2:
     tail_call @sortPairs
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }

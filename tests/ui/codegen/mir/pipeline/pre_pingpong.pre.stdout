@@ -2,25 +2,25 @@
 + // === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir (after pre) ===
   @module PingPong
   fn @pingpong(arg0: i256, arg1: i256) {
-    bb0:
+    bb0 [cold]:
       switch arg1, default bb1, [1 => bb2, 2 => bb3, 3 => bb4]
-    bb4:
+    bb4 [cold]:
       v3 = add arg0, 7
       jump bb6
-    bb3:
+    bb3 [cold]:
       v2 = add arg0, 7
       jump bb6
-    bb2:
+    bb2 [cold]:
       v1 = add arg0, 7
       jump bb5
-    bb1:
+    bb1 [cold]:
       v0 = add arg0, 7
       jump bb5
-    bb5:
+    bb5 [cold]:
 -     v4 = add arg0, 7
 +     v6 = phi [bb1: v0], [bb2: v1], [bb6: v5]
       jump bb6
-    bb6:
+    bb6 [cold]:
 +     v5 = add arg0, 7
       jump bb5
   }

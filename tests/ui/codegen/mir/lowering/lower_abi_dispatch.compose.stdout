@@ -12,7 +12,7 @@
 +   bb1:
       mstore 128, arg0
       returndata 128, 32
-+   bb2:
++   bb2 [cold]:
 +     revert 0, 0
   }
   
@@ -29,7 +29,7 @@
     bb1:
       mstore 128, arg0
       returndata 128, 32
-    bb2:
+    bb2 [cold]:
 +     revert 0, 0
 + }
 + 
@@ -44,7 +44,7 @@
 +     switch v3, default bb3, [0x9507d39a => bb2]
 +   bb2:
 +     tail_call @get
-+   bb3:
++   bb3 [cold]:
       revert 0, 0
   }
   

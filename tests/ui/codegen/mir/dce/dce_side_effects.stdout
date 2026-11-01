@@ -9,8 +9,8 @@
       stop
   }
   
-  fn @calls(arg0: i256) {
-    bb0:
+  fn @calls(arg0: i256) [cold] {
+    bb0 [cold]:
 -     icall @empty
 -     v0 = icall @identity, arg0
       icall @stops
@@ -31,8 +31,8 @@
       ret arg0
   }
   
-  fn @fails() {
-    bb0:
+  fn @fails() [cold] {
+    bb0 [cold]:
       revert 0, 0
   }
   
@@ -49,9 +49,9 @@
   }
   
   fn @looping() {
-    bb0:
+    bb0 [cold]:
       jump bb1
-    bb1:
+    bb1 [cold]:
       jump bb1
   }
   

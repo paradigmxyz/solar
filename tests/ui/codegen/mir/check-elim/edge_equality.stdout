@@ -87,7 +87,7 @@
     bb0:
       v0 = eq arg0, 5
       jumpi v0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert 0, 0
     bb1:
       mstore 0, arg0
@@ -98,7 +98,7 @@
     bb0:
       v0 = eq arg0, 5
       jumpi v0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert 0, 0
     bb1:
 -     mstore 0, arg0
@@ -138,7 +138,7 @@
     bb0:
       v0 = eq arg0, 0x1234567890123456789012345678901234567890
       jumpi v0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert 0, 0
     bb1:
       mstore 0, arg0
@@ -164,7 +164,7 @@
     bb0:
       v0 = eq arg0, 64
       jumpi v0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert 0, 0
     bb1:
 -     mstore arg0, arg1
@@ -186,7 +186,7 @@
     bb0:
       v0 = eq arg0, 128
       jumpi v0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert 0, 0
     bb1:
 -     v1 = add arg0, 32
@@ -202,7 +202,7 @@
     bb0:
       v0 = eq arg0, 32
       jumpi v0, bb1, bb4
-    bb4:
+    bb4 [cold]:
       revert 0, 0
     bb1:
       jumpi arg2, bb2, bb3
@@ -221,7 +221,7 @@
     bb0:
       v0 = eq arg0, 64
       jumpi v0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert 0, 0
     bb1:
 -     icall @write, arg1, arg0
@@ -235,7 +235,7 @@
     bb0:
       v0 = eq arg0, 63
       jumpi v0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert 0, 0
     bb1:
 -     v1 = add arg0, 1
@@ -255,7 +255,7 @@
     bb0:
       v0 = eq arg0, 63
       jumpi v0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert 0, 0
     bb1:
 -     v1 = add arg0, 1

@@ -98,7 +98,7 @@ fn @entry() [entry] {
     tail_call @hash
   bb2:
     tail_call @paddingIsZero
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }
 // === ROOT/tests/ui/codegen/lowering/program-data/splat_precancun.sol:C (runtime) ===

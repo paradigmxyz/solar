@@ -53,8 +53,8 @@
 +     jump bb4
   }
   
-  fn @panic() {
-    bb0:
+  fn @panic() [cold] {
+    bb0 [cold]:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 17
       revert 0, 36
@@ -83,7 +83,7 @@
       v3 = add v1, arg1
       v4 = lt v3, v1
       jumpi v4, bb4, bb3
-    bb4:
+    bb4 [cold]:
       icall @panic
       jump bb3
     bb3:
@@ -93,7 +93,7 @@
 +     v9 = add v7, arg1
 +     v10 = lt v9, v7
 +     jumpi v10, bb9, bb8
-+   bb9:
++   bb9 [cold]:
 +     icall @panic
 +     jump bb8
 +   bb8:
@@ -105,7 +105,7 @@
 +     v15 = add v9, arg1
 +     v16 = lt v15, v9
 +     jumpi v16, bb13, bb12
-+   bb13:
++   bb13 [cold]:
 +     icall @panic
 +     jump bb12
 +   bb12:
@@ -117,7 +117,7 @@
 +     v21 = add v15, arg1
 +     v22 = lt v21, v15
 +     jumpi v22, bb17, bb16
-+   bb17:
++   bb17 [cold]:
 +     icall @panic
 +     jump bb16
 +   bb16:
@@ -129,7 +129,7 @@
 +     v27 = add v21, arg1
 +     v28 = lt v27, v21
 +     jumpi v28, bb21, bb20
-+   bb21:
++   bb21 [cold]:
 +     icall @panic
 +     jump bb20
 +   bb20:
@@ -197,7 +197,7 @@
 +   bb17:
 +     v30 = add v7, 4
 +     jump bb6
-    bb4:
+    bb4 [cold]:
 -     v6 = phi [bb2: v3]
 +     v6 = phi [bb2: v3], [bb7: v10], [bb10: v16], [bb13: v22], [bb16: v28]
       mstore 0, v6
@@ -330,7 +330,7 @@
     bb3:
       v5 = add v0, 1
       jump bb1
-    bb4:
+    bb4 [cold]:
       mstore 0, v3
       revert 0, 32
   }
@@ -414,7 +414,7 @@
 +   bb17:
 +     v30 = add v24, 1
 +     jump bb6
-    bb5:
+    bb5 [cold]:
       revert 0, 0
   }
   
@@ -780,7 +780,7 @@
       v4 = add v0, 1
       v5 = eq v4, 0
       jumpi v5, bb4, bb1
--   bb4:
+-   bb4 [cold]:
 -     revert 0, 0
     bb2:
       ret v1
@@ -796,7 +796,7 @@
 +     v16 = add v10, 1
 +     v17 = eq v16, 0
 +     jumpi v17, bb4, bb5
-+   bb4:
++   bb4 [cold]:
 +     revert 0, 0
   }
   
@@ -1011,7 +1011,7 @@
 +     jumpi v10, bb7, bb9
 +   bb7:
 +     jumpi v0, bb8, bb4
-+   bb4:
++   bb4 [cold]:
 +     revert 0, 0
 +   bb8:
 +     v11 = div v9, arg1
@@ -1051,7 +1051,7 @@
       ret v2
     bb2:
 -     jumpi v0, bb3, bb4
--   bb4:
+-   bb4 [cold]:
 -     revert 0, 0
 +     jump bb3
     bb3:
@@ -1084,7 +1084,7 @@
     bb2:
       v4 = ne v2, arg1
       jumpi v4, bb3, bb4
-    bb4:
+    bb4 [cold]:
       revert 0, 0
     bb3:
       v5 = mload v1
@@ -1106,7 +1106,7 @@
       ret v1
     bb2:
       jumpi v0, bb3, bb4
-    bb4:
+    bb4 [cold]:
       revert 0, 0
     bb3:
       v4 = div arg0, arg1

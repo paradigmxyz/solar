@@ -2,13 +2,13 @@
 @module PingPong
 @phase lowered
 fn @pingpong(arg0: i256, arg1: i256) {
-  bb0:
+  bb0 [cold]:
     jump bb1
-  bb1:
+  bb1 [cold]:
     jump bb1
 }
 
-fn @entry() [entry] {
-  bb0:
+fn @entry() [entry, cold] {
+  bb0 [cold]:
     revert 0, 0
 }

@@ -18,11 +18,11 @@ fn @checked() [selector=0x1239168b, abi_wrapper, pure] {
   bb3:
     mstore 0, v5 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -37,6 +37,6 @@ fn @entry() [entry] {
     switch v3, default bb3, [0x1239168b => bb2]
   bb2:
     tail_call @checked
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }

@@ -24,7 +24,7 @@ fn @frame_counter_feeds_affine_address(arg0: i256, arg1: i256) -> i256 {
     jump bb1
 }
 
-fn @entry() [entry] {
-  bb0:
+fn @entry() [entry, cold] {
+  bb0 [cold]:
     revert 0, 0
 }

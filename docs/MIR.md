@@ -764,8 +764,17 @@ paths. Ambiguous function-entry events are dropped after selecting the rewrite.
 
 The lowered pipeline folds constant results before branch cleanup and stack scheduling. It keeps other value identities and instruction choices intact to avoid lengthening live ranges after representation lowering.
 
+MIR blocks and functions carry a hotness attribute, written `bb3 [cold]:` for a block and `cold`
+in a function's attribute list. A function is cold when every exit it can reach aborts, and a
+block is cold when it aborts or only leads to cold blocks; the gas objective also marks blocks with
+no path to a normal exit. The pass manager recomputes the attributes before the first pass, so a
+parsed `cold` is overwritten, and after every pass that changes the module, so passes and the
+backend read current values. The gas objective prices cold code like a size build, because it
+does not run on a successful call and its bytes are deposited anyway.
+
 The scheduler carries known loop membership into EVM IR, and block merging
 preserves it. Gas-mode outlining keeps loop computations and large pushes
-inline. Tail merging can reuse an existing non-loop tail from a loop, but loop
-blocks do not seed new sharing groups. Index non-loop paths first so their
-position in the block list does not prevent reuse.
+inline, except in cold blocks, whose sites it prices by bytes alone. Tail
+merging can reuse an existing non-loop tail from a loop, but loop blocks do not
+seed new sharing groups. Index non-loop paths first so their position in the
+block list does not prevent reuse.

@@ -69,8 +69,8 @@
 +     ret v19
   }
   
-  fn @unobserved_revert() {
-    bb0:
+  fn @unobserved_revert() [cold] {
+    bb0 [cold]:
       v0 = alloc 96 !metadata(preserves_fmp)
       mstore v0, 48
       v1 = ptradd v0, 32
@@ -219,8 +219,8 @@
 +     returndata v6, v20
   }
   
-  fn @revert_reads_allocation() {
-    bb0:
+  fn @revert_reads_allocation() [cold] {
+    bb0 [cold]:
       v0 = alloc 96 !metadata(preserves_fmp)
       mstore v0, 48
       v1 = ptradd v0, 32
@@ -297,8 +297,8 @@
 +     returndata v8, v24
   }
   
-  fn @aliased_argument(arg0: ptr<memory>) {
-    bb0:
+  fn @aliased_argument(arg0: ptr<memory>) [cold] {
+    bb0 [cold]:
       v0 = alloc 96 !metadata(preserves_fmp)
       mstore v0, 48
       v1 = ptradd v0, 32
@@ -349,8 +349,8 @@
 +     revert v6, v31
   }
   
-  fn @unfolded_literal() {
-    bb0:
+  fn @unfolded_literal() [cold] {
+    bb0 [cold]:
       v0 = alloc 64 !metadata(preserves_fmp)
       mstore v0, 2
       v1 = ptradd v0, 32
@@ -406,8 +406,8 @@
 +     revert v8, v33
   }
   
-  fn @encode_between() {
-    bb0:
+  fn @encode_between() [cold] {
+    bb0 [cold]:
       v0 = alloc 96 !metadata(preserves_fmp)
       mstore v0, 48
       v1 = ptradd v0, 32

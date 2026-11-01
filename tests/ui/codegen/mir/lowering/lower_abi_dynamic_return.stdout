@@ -845,7 +845,7 @@
 +     mstore v18, v15
 +     v19 = add v7, 1
 +     jump bb3
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -895,7 +895,7 @@
 +     mstore v20, v17
 +     v21 = add v9, 1
 +     jump bb3
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -932,7 +932,7 @@
 +     v3 = extract_value slice<memory>, v2, 0
 +     v4 = extract_value slice<memory>, v2, 1
 +     returndata v3, v4
-+   bb2:
++   bb2 [cold]:
 +     revert 0, 0
   }
   
@@ -998,7 +998,7 @@
 +     mstore v17, v14
 +     v18 = add v8, 1
 +     jump bb4
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1043,7 +1043,7 @@
 +     mstore v17, v14
 +     v18 = add v8, 1
 +     jump bb4
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1145,7 +1145,7 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1221,7 +1221,7 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1323,7 +1323,7 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1399,7 +1399,7 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1414,10 +1414,14 @@
 -     ret v0
 +     v2 = mload v0
 +     mstore 128, v2
-+     v3 = ptradd v0, 32
-+     v4 = mload v3
-+     mstore 160, v4
-+     returndata 128, 64
++     v3 = add 128, 32
++     v4 = ptradd v0, 32
++     v5 = mload v4
++     mstore v3, v5
++     v6 = add v3, 32
++     v7 = add 128, 64
++     v8 = sub v7, 128
++     returndata 128, v8
   }
   
   fn @dirtyAddressAliases() -> ptr<memory> {
@@ -1583,7 +1587,7 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1659,7 +1663,7 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1735,7 +1739,7 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1755,7 +1759,10 @@
 +     mstore v2, v4
 +     v5 = mload v2
 +     mstore 128, v5
-+     returndata 128, 32
++     v6 = add 128, 32
++     v7 = add 128, 32
++     v8 = sub v7, 128
++     returndata 128, v8
   }
   
 - fn @givesPartlyZeroedTuple() -> ptr<memory> [selector=0x0dead00d, abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint8, uint8>]] {
@@ -1776,10 +1783,14 @@
 +     mstore v8, v7
 +     v9 = mload v2
 +     mstore 128, v9
-+     v10 = ptradd v2, 32
-+     v11 = mload v10
-+     mstore 160, v11
-+     returndata 128, 64
++     v10 = add 128, 32
++     v11 = ptradd v2, 32
++     v12 = mload v11
++     mstore v10, v12
++     v13 = add v10, 32
++     v14 = add 128, 64
++     v15 = sub v14, 128
++     returndata 128, v15
   }
   
 - fn @givesConditionallyZeroedTuple(arg0: i1) -> ptr<memory> [selector=0x0dead00e, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
@@ -1814,8 +1825,11 @@
 +     mstore v7, v9
 +     v10 = mload v7
 +     mstore 128, v10
-+     returndata 128, 32
-+   bb4:
++     v11 = add 128, 32
++     v12 = add 128, 32
++     v13 = sub v12, 128
++     returndata 128, v13
++   bb4 [cold]:
 +     revert 0, 0
   }
   
@@ -1850,8 +1864,11 @@
 +     mstore v6, v8
 +     v9 = mload v6
 +     mstore 128, v9
-+     returndata 128, 32
-+   bb4:
++     v10 = add 128, 32
++     v11 = add 128, 32
++     v12 = sub v11, 128
++     returndata 128, v12
++   bb4 [cold]:
 +     revert 0, 0
   }
   
@@ -1907,7 +1924,7 @@
 +     mstore v18, v15
 +     v19 = add v9, 1
 +     jump bb4
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1953,7 +1970,7 @@
 +     mstore v17, v14
 +     v18 = add v8, 1
 +     jump bb4
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1999,7 +2016,9 @@
 +     v17 = lt v16, 1
 +     jumpi v17, bb9, bb10
 +   bb10:
-+     returndata 128, 32
++     v24 = add 128, 32
++     v25 = sub v24, 128
++     returndata 128, v25
 +   bb9:
 +     v18 = shl v16, 5
 +     v19 = ptradd v6, v18
@@ -2019,7 +2038,7 @@
 +     mstore v14, v12
 +     v15 = add v7, 1
 +     jump bb5
-+   bb2:
++   bb2 [cold]:
 +     revert 0, 0
   }
   
@@ -2119,11 +2138,11 @@
 +     mstore v22, v19
 +     v23 = add v13, 1
 +     jump bb8
-+   bb5:
++   bb5 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
-+   bb2:
++   bb2 [cold]:
 +     revert 0, 0
   }
   
@@ -2166,7 +2185,7 @@
 +     mstore v17, v14
 +     v18 = add v8, 1
 +     jump bb4
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -2187,7 +2206,10 @@
 +     mstore v3, v5
 +     v6 = mload v3
 +     mstore 128, v6
-+     returndata 128, 32
++     v7 = add 128, 32
++     v8 = add 128, 32
++     v9 = sub v8, 128
++     returndata 128, v9
   }
   
   fn @canonicalStorageAddresses(arg0: i256) -> ptr<memory> {
@@ -2222,7 +2244,7 @@
       mstore v18, v15
       v19 = add v7, 1
       jump bb3
-    bb1:
+    bb1 [cold]:
       mstore 32, 65 !metadata(memory=scratch)
       mstore 0, 0x4e487b71 !metadata(memory=scratch)
       revert 28, 36
@@ -2274,7 +2296,7 @@
       mstore v20, v17
       v21 = add v9, 1
       jump bb3
-    bb1:
+    bb1 [cold]:
       mstore 32, 65 !metadata(memory=scratch)
       mstore 0, 0x4e487b71 !metadata(memory=scratch)
       revert 28, 36
@@ -2319,7 +2341,7 @@
 +     mstore v17, v14
 +     v18 = add v8, 1
 +     jump bb4
-+   bb1:
++   bb1 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -2345,8 +2367,11 @@
 -     ret v0
 +     v7 = mload v0
 +     mstore 128, v7
-+     returndata 128, 32
-+   bb2:
++     v8 = add 128, 32
++     v9 = add 128, 32
++     v10 = sub v9, 128
++     returndata 128, v10
++   bb2 [cold]:
 +     revert 0, 0
   }
   

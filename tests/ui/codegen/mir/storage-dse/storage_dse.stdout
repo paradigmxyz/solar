@@ -187,7 +187,7 @@
 -     sstore 0, 2
 +     sstore 0, 2 !metadata(storage=slot(0))
       stop
-    bb1:
+    bb1 [cold]:
       revert 0, 0
   }
   
@@ -200,7 +200,7 @@
 -     sstore 0, 2
 +     sstore 0, 2 !metadata(storage=slot(0))
       stop
-    bb1:
+    bb1 [cold]:
 -     v0 = sload 0
 +     v0 = sload 0 !metadata(storage=slot(0))
       mstore 0, v0
@@ -215,7 +215,7 @@
 -     sstore 0, 2
 +     sstore 0, 2 !metadata(storage=slot(0))
       stop
-    bb1:
+    bb1 [cold]:
       tail_call @fail
   }
   
@@ -228,24 +228,24 @@
 -     sstore 0, 2
 +     sstore 0, 2 !metadata(storage=slot(0))
       stop
-    bb1:
+    bb1 [cold]:
       tail_call @fail_with_slot
   }
   
-  fn @keep_before_tail_call_that_may_stop() {
-    bb0:
+  fn @keep_before_tail_call_that_may_stop() [cold] {
+    bb0 [cold]:
 -     sstore 0, 42
 +     sstore 0, 42 !metadata(storage=slot(0))
       tail_call @stop_then_revert
   }
   
-  fn @fail() {
-    bb0:
+  fn @fail() [cold] {
+    bb0 [cold]:
       revert 0, 0
   }
   
-  fn @stop_then_revert() {
-    bb0:
+  fn @stop_then_revert() [cold] {
+    bb0 [cold]:
       icall @stop_now
       revert 0, 0
   }
@@ -255,8 +255,8 @@
       stop
   }
   
-  fn @fail_with_slot() {
-    bb0:
+  fn @fail_with_slot() [cold] {
+    bb0 [cold]:
       v0 = sload 0
       mstore 0, v0
       revert 0, 32

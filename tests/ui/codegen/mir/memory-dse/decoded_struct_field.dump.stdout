@@ -23,7 +23,7 @@ fn @tokenId() [selector=0x8f25c453, abi_wrapper, pure] {
     v8 = calldataload v31
     mstore 0, v8
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -38,6 +38,6 @@ fn @entry() [entry] {
     switch v3, default bb3, [0x8f25c453 => bb2]
   bb2:
     tail_call @tokenId
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }

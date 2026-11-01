@@ -20,7 +20,7 @@ fn @hashU8() [selector=0xe99643f7, abi_wrapper, pure] {
     v3 = keccak256 0, 33 !metadata(memory=scratch)
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -35,7 +35,7 @@ fn @hashWide() [selector=0xcdd7e94c, abi_wrapper, pure] {
     v1 = keccak256 128, 33
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -50,7 +50,7 @@ fn @hashConst() [selector=0x227e2968, abi_wrapper, pure] {
     v1 = keccak256 128, 33
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -67,7 +67,7 @@ fn @tailRead() [selector=0x8c0dcc20, abi_wrapper, pure] {
     mstore 192, v3
     mstore 129, arg1
     returndata 192, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -80,7 +80,7 @@ fn @literal() [selector=0x41d012fd, abi_wrapper, pure] {
     mstore 128, 0x6100000000000000000000000000000000000000000000000000000000000000
     mstore 160, arg0
     returndata 128, 64
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -103,6 +103,6 @@ fn @entry() [entry] {
     tail_call @literal
   bb2:
     tail_call @hashConst
-  bb7:
+  bb7 [cold]:
     revert 0, 0
 }
